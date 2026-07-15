@@ -1,97 +1,164 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const prisma = require('../db/prisma');
 const env = require('../config/env');
 
-let transporter;
+let resendClient = null;
 
-function isConfigured() {
-  return Boolean(env.smtp.host && env.smtp.user && env.smtp.pass);
+function getResendApiKey() {
+  return String(process.env.RESEND_API_KEY || '').trim();
 }
 
-function getTransporter() {
-  if (transporter) return transporter;
-  if (!isConfigured()) return null;
+function getEmailFrom() {
+  return String(
+    process.env.EMAIL_FROM ||
+    env?.smtp?.from ||
+    'INX Social <notifications@mail.inaxx.co.uk>'
+  ).trim();
+}
 
-  transporter = nodemailer.createTransport({
-    host: env.smtp.host,
-    port: env.smtp.port,
-    secure: env.smtp.secure,
-    requireTLS: !env.smtp.secure && env.smtp.requireTls,
-    auth: { user: env.smtp.user, pass: env.smtp.pass },
-    connectionTimeout: 15000,
-    greetingTimeout: 15000,
-    socketTimeout: 30000
-  });
-  return transporter;
+function getReplyTo() {
+  return String(
+    process.env.EMAIL_REPLY_TO ||
+    env?.smtp?.replyTo ||
+    'contact@inaxx.co.uk'
+  ).trim();
+}
+
+function isConfigured() {
+  return Boolean(getResendApiKey() && getEmailFrom());
+}
+
+function getClient() {
+  if (resendClient) return resendClient;
+  const apiKey = getResendApiKey();
+  if (!apiKey) return null;
+  resendClient = new Resend(apiKey);
+  return resendClient;
 }
 
 function portalPage(fileName, params = {}) {
-  const configured = String(env.portalUrl || env.appUrl || 'http://localhost:5050').trim();
+  const configured = String(
+    env.portalUrl ||
+    env.appUrl ||
+    process.env.PORTAL_URL ||
+    process.env.APP_URL ||
+    'http://localhost:5050'
+  ).trim();
+
   const parsed = new URL(configured);
   let pathname = parsed.pathname.replace(/\/+$/, '');
-
-  // Accept both of these configurations:
-  // PORTAL_URL=http://localhost:5050
-  // PORTAL_URL=http://localhost:5050/portal/
   if (!pathname.endsWith('/portal')) pathname += '/portal';
+
   parsed.pathname = `${pathname}/${fileName}`.replace(/\/+/g, '/');
   parsed.search = '';
 
   Object.entries(params).forEach(([key, value]) => {
-    parsed.searchParams.set(key, value);
+    if (value !== undefined && value !== null) {
+      parsed.searchParams.set(key, String(value));
+    }
   });
 
   return parsed.toString();
 }
 
 function frame(title, body, buttonLabel, buttonUrl) {
-  return `<!doctype html><html><body style="margin:0;background:#f3f6fb;font-family:Segoe UI,Arial;color:#17223a"><div style="max-width:620px;margin:35px auto;background:#fff;border-radius:18px;overflow:hidden;border:1px solid #e1e7f0"><div style="padding:25px 30px;background:#08152b;color:#fff;font-size:22px;font-weight:800">INX <span style="color:#55ddd5">Social</span></div><div style="padding:34px"><h1 style="font-size:28px;margin:0 0 15px">${title}</h1>${body}${buttonUrl ? `<p style="margin:28px 0"><a href="${buttonUrl}" style="display:inline-block;padding:14px 22px;background:#49d7d0;color:#071224;text-decoration:none;border-radius:10px;font-weight:800">${buttonLabel}</a></p>` : ''}<p style="font-size:13px;color:#7b879b;margin-top:30px">INX Social is provided by INAXX LTD.</p></div></div></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head><body style="margin:0;background:#f3f6fb;font-family:Segoe UI,Arial,sans-serif;color:#17223a"><div style="max-width:620px;margin:35px auto;background:#fff;border-radius:18px;overflow:hidden;border:1px solid #e1e7f0"><div style="padding:25px 30px;background:#08152b;color:#fff;font-size:22px;font-weight:800">INX <span style="color:#55ddd5">Social</span></div><div style="padding:34px"><h1 style="font-size:28px;line-height:1.2;margin:0 0 15px">${title}</h1>${body}${buttonUrl ? `<p style="margin:28px 0"><a href="${buttonUrl}" style="display:inline-block;padding:14px 22px;background:#49d7d0;color:#071224;text-decoration:none;border-radius:10px;font-weight:800">${buttonLabel}</a></p>` : ''}<p style="font-size:13px;color:#7b879b;margin-top:30px">INX Social is provided by INAXX LTD.</p></div></div></body></html>`;
 }
 
 async function verifyConnection() {
-  const tx = getTransporter();
-  if (!tx) return { configured: false, verified: false, message: 'SMTP is not configured' };
-  await tx.verify();
-  return { configured: true, verified: true, message: 'SMTP connection verified' };
+  if (!isConfigured()) {
+    return {
+      configured: false,
+      verified: false,
+      provider: 'resend',
+      message: 'Resend is not configured'
+    };
+  }
+
+  return {
+    configured: true,
+    verified: true,
+    provider: 'resend',
+    message: 'Resend API is configured'
+  };
+}
+
+async function createEmailLog({ userId, to, type, subject }) {
+  return prisma.emailLog.create({
+    data: {
+      userId: userId || null,
+      recipient: to,
+      type,
+      subject,
+      status: 'QUEUED'
+    }
+  });
+}
+
+async function updateEmailLog(id, data) {
+  try {
+    await prisma.emailLog.update({ where: { id }, data });
+  } catch (error) {
+    console.error('[EMAIL LOG UPDATE FAILED]', error.message);
+  }
 }
 
 async function send({ userId, to, type, subject, html, text }) {
-  const log = await prisma.emailLog.create({
-    data: { userId, recipient: to, type, subject, status: 'QUEUED' }
-  });
+  const log = await createEmailLog({ userId, to, type, subject });
+  const client = getClient();
 
-  const tx = getTransporter();
-  if (!tx) {
-    await prisma.emailLog.update({ where: { id: log.id }, data: { status: 'DEV_LOGGED' } });
+  if (!client) {
+    await updateEmailLog(log.id, {
+      status: 'DEV_LOGGED',
+      errorMessage: 'RESEND_API_KEY is not configured'
+    });
+
     console.log(`[EMAIL DEV MODE] ${type} -> ${to}`);
-    return { dev: true, messageId: null };
+    return { dev: true, provider: 'resend', id: null };
   }
 
   try {
-    const result = await tx.sendMail({
-      from: env.smtp.from,
-      replyTo: env.smtp.replyTo,
-      to,
+    const result = await client.emails.send({
+      from: getEmailFrom(),
+      to: [to],
       subject,
       html,
-      text: text || subject
+      text: text || subject,
+      replyTo: getReplyTo()
     });
-    await prisma.emailLog.update({
-      where: { id: log.id },
-      data: { status: 'SENT', providerId: result.messageId }
+
+    if (result.error) {
+      throw new Error(result.error.message || 'Resend email delivery failed');
+    }
+
+    const providerId = result.data?.id || null;
+
+    await updateEmailLog(log.id, {
+      status: 'SENT',
+      providerId
     });
-    return result;
+
+    console.log(`[RESEND] ${type} sent to ${to}${providerId ? ` (${providerId})` : ''}`);
+
+    return {
+      ...result,
+      provider: 'resend',
+      messageId: providerId
+    };
   } catch (error) {
-    await prisma.emailLog.update({
-      where: { id: log.id },
-      data: { status: 'FAILED', errorMessage: error.message }
+    await updateEmailLog(log.id, {
+      status: 'FAILED',
+      errorMessage: error.message
     });
+
+    console.error(`[RESEND DELIVERY FAILED] ${type} -> ${to}: ${error.message}`);
     throw error;
   }
 }
 
 async function sendVerification(user, rawToken) {
   const url = portalPage('verify.html', { token: rawToken });
+
   return send({
     userId: user.id,
     to: user.email,
@@ -109,12 +176,18 @@ async function sendVerification(user, rawToken) {
 
 async function sendPasswordReset(user, rawToken) {
   const url = portalPage('reset-password.html', { token: rawToken });
+
   return send({
     userId: user.id,
     to: user.email,
     type: 'PASSWORD_RESET',
     subject: 'Reset your INX Social password',
-    html: frame('Reset your password', '<p>Use the button below to create a new password. This link expires in 30 minutes.</p>', 'Reset password', url),
+    html: frame(
+      'Reset your password',
+      '<p>Use the button below to create a new password. This link expires in 30 minutes.</p>',
+      'Reset password',
+      url
+    ),
     text: `Reset your INX Social password: ${url}`
   });
 }
@@ -125,17 +198,31 @@ async function sendTrialStarted(user) {
     to: user.email,
     type: 'TRIAL_STARTED',
     subject: 'Your INX Social trial has started',
-    html: frame('Your trial is active', '<p>Your email is verified and your 5-day trial has started. You can now sign in to the customer portal and desktop app.</p>', 'Sign in to INX Social', portalPage('login.html'))
+    html: frame(
+      'Your trial is active',
+      '<p>Your email is verified and your 5-day trial has started. You can now sign in to the customer portal and desktop app.</p>',
+      'Sign in to INX Social',
+      portalPage('login.html')
+    ),
+    text: 'Your INX Social 5-day trial is now active.'
   });
 }
 
 async function sendSubscriptionActivated(user, plan) {
+  const safePlan = String(plan || 'subscription');
+
   return send({
     userId: user.id,
     to: user.email,
     type: 'SUBSCRIPTION_ACTIVATED',
-    subject: `Your INX Social ${plan} subscription is active`,
-    html: frame(`${plan} is now active`, `<p>Thank you for subscribing to INX Social ${plan}. Your account limits have been updated automatically.</p>`, 'Open customer portal', portalPage('index.html'))
+    subject: `Your INX Social ${safePlan} subscription is active`,
+    html: frame(
+      `${safePlan} is now active`,
+      `<p>Thank you for subscribing to INX Social ${safePlan}. Your account limits have been updated automatically.</p>`,
+      'Open customer portal',
+      portalPage('index.html')
+    ),
+    text: `Your INX Social ${safePlan} subscription is active.`
   });
 }
 
@@ -145,7 +232,13 @@ async function sendPaymentFailed(user) {
     to: user.email,
     type: 'PAYMENT_FAILED',
     subject: 'Action needed: INX Social payment failed',
-    html: frame('Payment failed', '<p>We could not collect your latest INX Social subscription payment. Please update your payment method to avoid losing access.</p>', 'Manage billing', portalPage('index.html'))
+    html: frame(
+      'Payment failed',
+      '<p>We could not collect your latest INX Social subscription payment. Please update your payment method to avoid losing access.</p>',
+      'Manage billing',
+      portalPage('index.html')
+    ),
+    text: 'We could not collect your latest INX Social subscription payment.'
   });
 }
 
@@ -153,9 +246,13 @@ async function sendTestEmail(to, userId = null) {
   return send({
     userId,
     to,
-    type: 'SMTP_TEST',
-    subject: 'INX Social SMTP test',
-    html: frame('SMTP is working', '<p>This confirms that INX Social can deliver transactional email from the configured mail server.</p>')
+    type: 'RESEND_TEST',
+    subject: 'INX Social email delivery test',
+    html: frame(
+      'Resend is working',
+      '<p>This confirms that INX Social can deliver transactional email through the Resend API.</p>'
+    ),
+    text: 'This confirms that INX Social can deliver transactional email through Resend.'
   });
 }
 
