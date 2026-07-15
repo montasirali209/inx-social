@@ -14,6 +14,7 @@ const billingRoutes = require('./routes/billingRoutes');
 const systemRoutes = require('./routes/systemRoutes');
 const billingController = require('./controllers/billingController');
 const errorHandler = require('./middleware/errorHandler');
+const releaseRoutes = require('./routes/releaseRoutes');
 
 const app = express();
 
