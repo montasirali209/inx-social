@@ -26,6 +26,7 @@ app.use(rateLimit({ windowMs: 60 * 1000, limit: 240 }));
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), billingController.webhook);
 
 app.use(express.json({ limit: '2mb' }));
+app.use('/api/releases', releaseRoutes);
 
 app.use('/admin.css', express.static(path.join(__dirname, '..', 'public', 'admin.css'), { setHeaders: res => res.setHeader('Content-Type', 'text/css') }));
 app.use('/admin.js', express.static(path.join(__dirname, '..', 'public', 'admin.js'), { setHeaders: res => res.setHeader('Content-Type', 'application/javascript') }));
