@@ -217,3 +217,22 @@ model BillingEvent {
   @@index([eventType])
   @@index([status])
 }
+
+model DesktopRelease {
+  id                      String   @id @default(cuid())
+  version                 String   @unique
+  fileName                String
+  storageKey              String   @unique
+  fileSizeBytes           BigInt
+  sha256                  String
+  releaseNotes            String?
+  minimumSupportedVersion String?
+  mandatory               Boolean  @default(false)
+  active                  Boolean  @default(true)
+  downloadCount           Int      @default(0)
+  publishedAt             DateTime @default(now())
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@index([active, publishedAt])
+}
