@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>INX Social Customer Portal</title>
+  <link rel="stylesheet" href="portal.css">
+</head>
+<body onload="loadDashboard()">
+  <div class="portal-shell">
+    <aside class="sidebar">
+      <a class="portal-brand" href="/"><span class="brand-mark">INX</span><div><strong>INX Social</strong><small>Customer portal</small></div></a>
+      <nav>
+        <a class="active" href="#overview">Overview</a>
+        <a href="#subscription">Subscription</a>
+        <a href="#usage">Usage & limits</a>
+        <a href="#download">Download</a>
+        <a href="javascript:logout()">Log out</a>
+      </nav>
+      <div class="sidebar-note"><span class="dot"></span><div><strong>Secure billing</strong><small>Payments are handled by Stripe.</small></div></div>
+    </aside>
+
+    <main class="portal-main">
+      <header class="portal-header">
+        <div><span class="eyebrow">Account overview</span><h1 id="welcome">Customer portal</h1><p id="email">Loading your account…</p></div>
+        <div class="header-actions"><button class="button ghost" onclick="refreshDashboard()">Refresh</button><button id="manageBillingBtn" class="button dark hidden" onclick="manageBilling()">Manage billing</button></div>
+      </header>
+
+      <div id="notice" class="notice hidden"></div>
+      <div id="error" class="notice error hidden"></div>
+
+      <section id="overview" class="metric-grid">
+        <article class="metric-card"><span>Current plan</span><strong id="plan">—</strong><small id="status">—</small></article>
+        <article class="metric-card"><span>Facebook Pages</span><strong id="pages">—</strong><small>Connected / allowance</small></article>
+        <article class="metric-card"><span>Authorised devices</span><strong id="devices">—</strong><small>Active / allowance</small></article>
+        <article class="metric-card"><span>Batch allowance</span><strong id="batchLimit">—</strong><small>Posts or videos per batch</small></article>
+      </section>
+
+      <section id="subscription" class="panel subscription-panel">
+        <div>
+          <span class="eyebrow">Subscription</span>
+          <h2 id="billingTitle">Your billing status</h2>
+          <p id="billingSummary">Checking subscription details…</p>
+        </div>
+        <div class="subscription-meta">
+          <div><span>Next period end</span><strong id="periodEnd">—</strong></div>
+          <div><span>Billing provider</span><strong id="provider">—</strong></div>
+        </div>
+      </section>
+
+      <section id="plans" class="plans-section">
+        <div class="section-heading"><span class="eyebrow">Upgrade your workspace</span><h2>Choose your INX Social plan</h2><p>Plan changes and cancellations are managed securely through Stripe.</p></div>
+        <div class="plans-grid" id="plansGrid"></div>
+      </section>
+
+      <section id="usage" class="panel usage-panel">
+        <div><span class="eyebrow">Plan enforcement</span><h2>Your current limits</h2><p>These limits are also returned to the desktop app whenever it validates your licence.</p></div>
+        <div class="limit-list">
+          <div><span>Facebook Pages</span><strong id="limitPages">—</strong></div>
+          <div><span>Videos/posts per batch</span><strong id="limitBatch">—</strong></div>
+          <div><span>Authorised devices</span><strong id="limitDevices">—</strong></div>
+        </div>
+      </section>
+
+      <section id="download" class="panel download-panel">
+        <div><span class="eyebrow">Desktop application</span><h2>INX Social for Windows</h2><p>Latest version: <strong id="version">—</strong></p></div>
+        <button class="button primary" onclick="downloadApp()">Download Windows app</button>
+      </section>
+    </main>
+  </div>
+  <script src="portal.js"></script>
+</body>
+</html>

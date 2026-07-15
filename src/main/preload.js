@@ -1,0 +1,53 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('schedulerApi', {
+  getState: () => ipcRenderer.invoke('state:get'),
+  registerAccount: payload => ipcRenderer.invoke('account:register', payload),
+  loginAccount: payload => ipcRenderer.invoke('account:login', payload),
+  refreshAccount: () => ipcRenderer.invoke('account:refresh'),
+  logoutAccount: () => ipcRenderer.invoke('account:logout'),
+  saveSettings: settings => ipcRenderer.invoke('settings:save', settings),
+  saveUITexts: uiTexts => ipcRenderer.invoke('ui-texts:save', uiTexts),
+  resetUITexts: () => ipcRenderer.invoke('ui-texts:reset'),
+  pickVideos: () => ipcRenderer.invoke('files:pick-videos'),
+  pickCaptions: () => ipcRenderer.invoke('files:pick-captions'),
+  pickVideoFolder: () => ipcRenderer.invoke('folders:pick-videos'),
+  pickCaptionFolder: () => ipcRenderer.invoke('folders:pick-captions'),
+  importDropped: (paths, type) => ipcRenderer.invoke('files:import-dropped', { paths, type }),
+  importCaptionText: (text, sourceName) => ipcRenderer.invoke('captions:import-text', { text, sourceName }),
+  previewPlan: () => ipcRenderer.invoke('schedule:preview'),
+  createPlan: () => ipcRenderer.invoke('schedule:create-plan'),
+  runScheduler: () => ipcRenderer.invoke('schedule:run'),
+  pickReelsSessionVideos: () => ipcRenderer.invoke('reels:pick-session-videos'),
+  pickReelsCaptionFile: () => ipcRenderer.invoke('reels:pick-caption-file'),
+  createReelsQueue: payload => ipcRenderer.invoke('reels:create-queue', payload),
+  runDueReels: payload => ipcRenderer.invoke('reels:run-due', payload || {}),
+  startReelsWatcher: () => ipcRenderer.invoke('reels:start-watcher'),
+  stopReelsWatcher: () => ipcRenderer.invoke('reels:stop-watcher'),
+  labPublishReelNow: payload => ipcRenderer.invoke('lab:publish-reel-now', payload),
+  labPublishLegacyNow: payload => ipcRenderer.invoke('lab:publish-legacy-now', payload),
+  labDiagnostics: payload => ipcRenderer.invoke('lab:diagnostics', payload),
+  uploadDraftTest: limit => ipcRenderer.invoke('draft:upload-test', { limit }),
+  pickDraftSessionVideos: () => ipcRenderer.invoke('draft:pick-session-videos'),
+  pickDraftSessionCaptionFile: () => ipcRenderer.invoke('draft:pick-session-caption-file'),
+  uploadDraftSession: payload => ipcRenderer.invoke('draft:upload-session', payload),
+  stopScheduler: () => ipcRenderer.invoke('schedule:stop'),
+  testFacebook: () => ipcRenderer.invoke('facebook:test'),
+  connectFacebookPage: () => ipcRenderer.invoke('facebook:connect-page'),
+  disconnectFacebookPage: () => ipcRenderer.invoke('facebook:disconnect-page'),
+  listScheduledPosts: () => ipcRenderer.invoke('facebook:list-scheduled'),
+  deleteLocalJob: id => ipcRenderer.invoke('jobs:delete-local', id),
+  clearAll: () => ipcRenderer.invoke('data:clear-all'),
+  openUserData: () => ipcRenderer.invoke('app:open-user-data'),
+  openExternalUrl: url => ipcRenderer.invoke('app:open-external-url', url),
+  pickManualVideo: () => ipcRenderer.invoke('manual:pick-video'),
+  manualHealthCheck: payload => ipcRenderer.invoke('manual:health-check', payload),
+  manualSchedule: payload => ipcRenderer.invoke('manual:schedule', payload),
+  manualScheduleAndUpload: payload => ipcRenderer.invoke('manual:schedule-and-upload', payload),
+  runHealthCheck: () => ipcRenderer.invoke('health:run'),
+  onSchedulerProgress: callback => {
+    const listener = (_, payload) => callback(payload);
+    ipcRenderer.on('scheduler:progress', listener);
+    return () => ipcRenderer.removeListener('scheduler:progress', listener);
+  }
+});

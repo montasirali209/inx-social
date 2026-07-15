@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>INX Social Cloud Admin</title>
+  <style>
+:root{--bg:#eef3fb;--card:#fff;--text:#142033;--muted:#66758d;--line:#dce5f2;--brand:#315cf6;--brand2:#33c7d7;--danger:#e11d48;--ok:#16a34a;--warn:#f59e0b;--shadow:0 20px 50px rgba(20,32,51,.12)}
+*{box-sizing:border-box} body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:linear-gradient(135deg,#eef3fb,#f8fbff);color:var(--text)}button,input,select{font:inherit}button{border:0;border-radius:12px;padding:11px 16px;background:linear-gradient(135deg,var(--brand),var(--brand2));color:white;font-weight:800;cursor:pointer;box-shadow:0 8px 18px rgba(49,92,246,.2)}button.secondary{background:#edf2fb;color:#26344d;box-shadow:none}.hidden{display:none!important}.eyebrow{text-transform:uppercase;letter-spacing:.13em;font-size:12px;font-weight:800;color:var(--brand);margin:0 0 8px}.muted,.hint{color:var(--muted)}code{background:#eef2f7;border:1px solid var(--line);border-radius:6px;padding:2px 5px}.login-shell{min-height:100vh;display:grid;grid-template-columns:1.1fr .9fr;gap:28px;align-items:center;max-width:1150px;margin:auto;padding:38px}.brand-card,.login-card,.panel{background:rgba(255,255,255,.84);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:24px;box-shadow:var(--shadow)}.brand-card{padding:46px}.brand-card h1{font-size:54px;line-height:1.02;margin:0 0 16px}.login-card{padding:34px}.login-card label{display:block;font-weight:800;margin:18px 0 7px}.login-card input,.content input,.content select{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;color:var(--text)}.login-card button{width:100%;margin-top:20px}.form-error{color:var(--danger);font-weight:800;margin-top:12px}.logo{width:74px;height:74px;border-radius:22px;background:linear-gradient(135deg,var(--brand),var(--brand2));display:grid;place-items:center;color:white;font-weight:900;font-size:28px;box-shadow:0 15px 30px rgba(49,92,246,.25)}.logo.small{width:42px;height:42px;border-radius:14px;font-size:16px}.dashboard{display:grid;grid-template-columns:280px 1fr;min-height:100vh}.sidebar{background:#0d172b;color:white;padding:24px;display:flex;flex-direction:column;gap:10px}.side-brand{display:flex;gap:12px;align-items:center;margin-bottom:22px}.side-brand span{display:block;color:#9fb0ce;font-size:13px}.nav,.logout{background:transparent;box-shadow:none;text-align:left;color:#c7d2e8;border:1px solid transparent}.nav.active,.nav:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.08);color:white}.logout{margin-top:auto;color:#fecdd3}.content{padding:28px;overflow:auto}.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}.topbar h1{margin:0;font-size:34px}.admin-pill{background:#fff;border:1px solid var(--line);padding:10px 14px;border-radius:999px;font-weight:800}.grid{display:grid;gap:18px}.stats{grid-template-columns:repeat(4,minmax(150px,1fr));margin-bottom:18px}.stat{padding:22px;border-radius:22px;background:#fff;border:1px solid var(--line);box-shadow:0 12px 28px rgba(20,32,51,.08)}.stat b{display:block;font-size:34px}.stat span{color:var(--muted);font-weight:700}.panel{padding:24px;margin-bottom:18px}.feature-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.feature-grid div{border:1px solid var(--line);border-radius:16px;padding:16px;background:#f8fbff}.feature-grid span{display:block;color:var(--muted);margin-top:6px}.toolbar-panel{display:flex;justify-content:space-between;align-items:center;gap:20px}.search-row{display:flex;gap:10px;min-width:430px}.search-row button{white-space:nowrap}.table-panel{overflow:auto}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:14px;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:12px;text-transform:uppercase;color:var(--muted);letter-spacing:.08em}.badge{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:900}.badge.TRIAL{background:#fff7ed;color:#c2410c}.badge.ACTIVE{background:#ecfdf3;color:#166534}.badge.SUSPENDED,.badge.CANCELLED{background:#fff1f2;color:#be123c}.settings-list{display:grid;gap:10px;margin:16px 0}.setting-item{display:grid;grid-template-columns:220px 1fr 1.5fr;gap:12px;background:#f8fbff;border:1px solid var(--line);border-radius:14px;padding:13px}.inline-form{display:grid;grid-template-columns:1fr 1fr 1.5fr auto;gap:10px}.roadmap li{margin:14px 0}.toast{position:fixed;right:26px;bottom:26px;background:#0d172b;color:white;border-radius:16px;padding:14px 16px;box-shadow:var(--shadow);transform:translateY(20px);opacity:0;pointer-events:none;transition:.25s}.toast.show{opacity:1;transform:translateY(0)}dialog{border:0;border-radius:24px;padding:0;box-shadow:var(--shadow);max-width:680px;width:90%}dialog::backdrop{background:rgba(10,16,30,.45);backdrop-filter:blur(4px)}.modal{padding:28px}.modal-close{float:right;background:#eef2f7;color:#111;box-shadow:none;border-radius:999px;padding:6px 11px}.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.detail-card{background:#f8fbff;border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:12px}.detail-card small{display:block;color:var(--muted);margin-top:4px}@media(max-width:900px){.login-shell,.dashboard{display:block}.sidebar{position:static}.stats,.feature-grid{grid-template-columns:1fr}.toolbar-panel{display:block}.search-row{min-width:0}.inline-form{grid-template-columns:1fr}.content{padding:18px}}
+
+</style>
+</head>
+<body>
+  <div id="app">
+    <section class="login-shell" id="loginView">
+      <div class="brand-card">
+        <div class="logo">INX</div>
+        <p class="eyebrow">INX Social Cloud</p>
+        <h1>Admin Control Panel</h1>
+        <p class="muted">Manage users, trials, subscriptions, connected pages and desktop access from one secure backend.</p>
+      </div>
+      <form class="login-card" id="loginForm">
+        <h2>Admin Login</h2>
+        <label>Email</label>
+        <input id="email" type="email" value="admin@inxsocial.local" autocomplete="username" />
+        <label>Password</label>
+        <input id="password" type="password" value="ChangeMe123!" autocomplete="current-password" />
+        <button type="submit">Sign in</button>
+        <p class="hint">Default local admin comes from <code>npm run seed</code>. Change it later in production.</p>
+        <div class="form-error" id="loginError"></div>
+      </form>
+    </section>
+
+    <section class="dashboard hidden" id="dashboardView">
+      <aside class="sidebar">
+        <div class="side-brand"><div class="logo small">INX</div><div><strong>INX Social</strong><span>Cloud Admin</span></div></div>
+        <button class="nav active" data-page="overview">Dashboard</button>
+        <button class="nav" data-page="users">Users & Access</button>
+        <button class="nav" data-page="settings">App Settings</button>
+        <button class="nav" data-page="roadmap">Backend Roadmap</button>
+        <button class="logout" id="logoutBtn">Logout</button>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Backend V1.3</p>
+            <h1 id="pageTitle">Dashboard</h1>
+          </div>
+          <div class="admin-pill" id="adminEmail">Admin</div>
+        </header>
+
+        <div class="toast" id="toast"></div>
+
+        <section class="page" id="overviewPage">
+          <div class="grid stats" id="statsGrid"></div>
+          <div class="panel">
+            <h2>What this backend controls</h2>
+            <div class="feature-grid">
+              <div><strong>Trials</strong><span>5-day access for new users.</span></div>
+              <div><strong>Subscriptions</strong><span>Manual now, PayPal/Stripe later.</span></div>
+              <div><strong>Devices</strong><span>Track activated desktop apps.</span></div>
+              <div><strong>Connected Pages</strong><span>Store customer Page connections securely.</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="page hidden" id="usersPage">
+          <div class="panel toolbar-panel">
+            <div>
+              <h2>Users & Access</h2>
+              <p>Approve, suspend, extend trial, or assign manual plans.</p>
+            </div>
+            <div class="search-row"><input id="userSearch" placeholder="Search users by name or email" /><button id="refreshUsersBtn">Refresh</button></div>
+          </div>
+          <div class="panel table-panel">
+            <table>
+              <thead><tr><th>User</th><th>Status</th><th>Trial ends</th><th>Plan</th><th>Pages</th><th>Devices</th><th></th></tr></thead>
+              <tbody id="usersTable"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="page hidden" id="settingsPage">
+          <div class="panel">
+            <h2>App Settings</h2>
+            <p>These will later control labels, feature flags, trial days, latest version and maintenance mode.</p>
+            <div id="settingsList" class="settings-list"></div>
+            <form id="settingForm" class="inline-form">
+              <input id="settingKey" placeholder="key e.g. trial_days" />
+              <input id="settingValue" placeholder="value e.g. 5" />
+              <input id="settingDescription" placeholder="description" />
+              <button type="submit">Save Setting</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="page hidden" id="roadmapPage">
+          <div class="panel">
+            <h2>Next Backend Stages</h2>
+            <ol class="roadmap">
+              <li><strong>Desktop Login Patch:</strong> INX Social logs into this backend and checks licence status.</li>
+              <li><strong>User Portal:</strong> customer dashboard, subscription status, download link, connected pages.</li>
+              <li><strong>Payment Webhooks:</strong> PayPal/Stripe subscription updates access automatically.</li>
+              <li><strong>Cloud Queue:</strong> optional future upload/scheduling from backend instead of desktop.</li>
+            </ol>
+          </div>
+        </section>
+      </main>
+    </section>
+  </div>
+
+  <dialog id="userDialog">
+    <form method="dialog" class="modal">
+      <button class="modal-close" value="cancel">×</button>
+      <h2 id="modalTitle">User Access</h2>
+      <div id="modalBody"></div>
+      <div class="modal-actions">
+        <button value="cancel" type="submit" class="secondary">Close</button>
+        <button id="saveAccessBtn" type="button">Save Access</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+const API = '';
+const state = { token: localStorage.getItem('pp_admin_token') || '', user: null, selectedUser: null };
+const $ = (id) => document.getElementById(id);
+
+function toast(msg){ const el=$('toast'); el.textContent=msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),3500); }
+async function api(path, opts={}){
+  const headers = { 'Content-Type':'application/json', ...(opts.headers||{}) };
+  if(state.token) headers.Authorization = `Bearer ${state.token}`;
+  const res = await fetch(API+path, { ...opts, headers });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error || `Request failed: ${res.status}`);
+  return data;
+}
+function setLoggedIn(on){ $('loginView').classList.toggle('hidden', on); $('dashboardView').classList.toggle('hidden', !on); }
+
+$('loginForm').addEventListener('submit', async (e)=>{
+  e.preventDefault(); $('loginError').textContent='';
+  try{
+    const data = await api('/api/auth/login',{ method:'POST', body:JSON.stringify({ email:$('email').value.trim(), password:$('password').value }) });
+    state.token=data.token; state.user=data.user; localStorage.setItem('pp_admin_token', state.token);
+    $('adminEmail').textContent=data.user.email; setLoggedIn(true); await loadOverview();
+  }catch(err){ $('loginError').textContent=err.message; }
+});
+$('logoutBtn').addEventListener('click',()=>{ localStorage.removeItem('pp_admin_token'); state.token=''; setLoggedIn(false); });
+
+document.querySelectorAll('.nav').forEach(btn=>btn.addEventListener('click', async ()=>{
+  document.querySelectorAll('.nav').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));
+  const page=btn.dataset.page; $(`${page}Page`).classList.remove('hidden'); $('pageTitle').textContent=btn.textContent;
+  if(page==='overview') await loadOverview(); if(page==='users') await loadUsers(); if(page==='settings') await loadSettings();
+}));
+
+async function loadOverview(){
+  const { overview } = await api('/api/admin/overview');
+  const items = [
+    ['Users', overview.users], ['Trials', overview.trials], ['Active subs', overview.activeSubscriptions], ['Connected pages', overview.connectedPages],
+    ['Jobs', overview.scheduleJobs], ['Failed jobs', overview.failedJobs], ['Active users', overview.activeUsers], ['Suspended', overview.suspendedUsers]
+  ];
+  $('statsGrid').innerHTML = items.map(([k,v])=>`<div class="stat"><b>${v}</b><span>${k}</span></div>`).join('');
+}
+
+function fmtDate(v){ return v ? new Date(v).toLocaleString() : '—'; }
+function planOf(u){ return u.subscriptions?.[0]?.plan || 'TRIAL'; }
+function statusBadge(s){ return `<span class="badge ${s}">${s}</span>`; }
+async function loadUsers(){
+  const q=$('userSearch').value.trim(); const { users } = await api('/api/admin/users' + (q?`?q=${encodeURIComponent(q)}`:''));
+  $('usersTable').innerHTML = users.map(u=>`<tr>
+    <td><strong>${u.name||'No name'}</strong><br><small>${u.email}</small></td>
+    <td>${statusBadge(u.status)}</td><td>${fmtDate(u.trialEndsAt)}</td><td>${planOf(u)}</td>
+    <td>${u.connectedPages?.length||0}</td><td>${u.devices?.length||0}</td>
+    <td><button class="secondary" onclick="openUser('${u.id}')">Manage</button></td>
+  </tr>`).join('') || '<tr><td colspan="7">No users found.</td></tr>';
+}
+$('refreshUsersBtn').addEventListener('click',loadUsers); $('userSearch').addEventListener('keydown',(e)=>{ if(e.key==='Enter') loadUsers(); });
+
+window.openUser = async function(id){
+  const { user } = await api(`/api/admin/users/${id}`); state.selectedUser=user;
+  $('modalTitle').textContent = `${user.name || 'User'} — ${user.email}`;
+  $('modalBody').innerHTML = `<div class="modal-grid">
+    <label>Status<select id="editStatus"><option>TRIAL</option><option>ACTIVE</option><option>SUSPENDED</option><option>CANCELLED</option></select></label>
+    <label>Role<select id="editRole"><option>USER</option><option>ADMIN</option><option>SUPER_ADMIN</option></select></label>
+    <label>Extend trial days<input id="editTrialDays" type="number" min="0" placeholder="e.g. 5" /></label>
+    <label>Manual plan<select id="editPlan"><option value="">No change</option><option>STARTER</option><option>CREATOR</option><option>AGENCY</option><option>LIFETIME</option></select></label>
+  </div>
+  <div class="detail-card"><strong>Connected pages</strong>${(user.connectedPages||[]).map(p=>`<small>${p.facebookPageName} — ${p.status}</small>`).join('') || '<small>No pages connected.</small>'}</div>
+  <div class="detail-card"><strong>Recent jobs</strong>${(user.scheduleJobs||[]).map(j=>`<small>${j.contentType} — ${j.status} — ${fmtDate(j.scheduledAt)}</small>`).join('') || '<small>No jobs yet.</small>'}</div>`;
+  $('editStatus').value=user.status; $('editRole').value=user.role;
+  $('userDialog').showModal();
+}
+$('saveAccessBtn').addEventListener('click', async ()=>{
+  const body={ status:$('editStatus').value, role:$('editRole').value };
+  const days=$('editTrialDays').value; if(days) body.trialDays=Number(days);
+  const plan=$('editPlan').value; if(plan){ body.plan=plan; body.subscriptionStatus='MANUAL'; body.status='ACTIVE'; }
+  await api(`/api/admin/users/${state.selectedUser.id}/access`, { method:'PATCH', body:JSON.stringify(body) });
+  $('userDialog').close(); toast('User access updated'); await loadUsers(); await loadOverview();
+});
+
+async function loadSettings(){
+  const { settings } = await api('/api/admin/settings');
+  $('settingsList').innerHTML = settings.map(s=>`<div class="setting-item"><strong>${s.key}</strong><span>${s.value}</span><small>${s.description||''}</small></div>`).join('') || '<p>No settings yet.</p>';
+}
+$('settingForm').addEventListener('submit', async(e)=>{
+  e.preventDefault();
+  await api('/api/admin/settings',{ method:'PUT', body:JSON.stringify({ key:$('settingKey').value.trim(), value:$('settingValue').value, description:$('settingDescription').value }) });
+  $('settingForm').reset(); toast('Setting saved'); await loadSettings();
+});
+
+(async function boot(){
+  if(!state.token) return setLoggedIn(false);
+  try{ const data=await api('/api/license/status'); state.user=data.user; $('adminEmail').textContent=data.user.email; setLoggedIn(true); await loadOverview(); }
+  catch{ localStorage.removeItem('pp_admin_token'); setLoggedIn(false); }
+})();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sign in — INX Social</title>
+  <link rel="stylesheet" href="auth.css">
+</head>
+<body>
+  <main class="auth-page">
+    <section class="auth-showcase">
+      <a class="brand" href="/">
+        <span class="brand-mark">INX</span>
+        <span class="brand-text"><strong>INX Social</strong><span>by INAXX LTD</span></span>
+      </a>
+      <div class="showcase-copy">
+        <span class="kicker">Customer access</span>
+        <h1>Return to your <span>publishing workspace.</span></h1>
+        <p>Use the same verified account across your INX Social customer portal, licences, subscriptions and Windows desktop application.</p>
+      </div>
+      <ul class="benefits">
+        <li><b>✓</b> View trial and subscription status</li>
+        <li><b>✓</b> Download the latest desktop release</li>
+        <li><b>✓</b> Manage billing and authorised devices</li>
+        <li><b>✓</b> Access connected Facebook Page limits</li>
+      </ul>
+      <div class="showcase-footer">Secure customer sign-in · INX Social</div>
+    </section>
+
+    <section class="auth-panel">
+      <form class="auth-card login-card" id="loginForm" novalidate>
+        <div class="mobile-brand">INX <span>Social</span></div>
+        <div class="card-head">
+          <h2>Welcome back</h2>
+          <p>Sign in using your verified INX Social account.</p>
+        </div>
+
+        <label class="field">
+          <span class="field-label">Email address</span>
+          <input class="input" id="emailInput" type="email" autocomplete="email" placeholder="you@example.com" required>
+        </label>
+        <label class="field">
+          <span class="field-label">Password</span>
+          <span class="password-wrap">
+            <input class="input" id="passwordInput" type="password" autocomplete="current-password" placeholder="Enter your password" required>
+            <button class="password-toggle" type="button" data-target="passwordInput">Show</button>
+          </span>
+        </label>
+
+        <div class="remember-row">
+          <label class="check-row" style="margin:0"><input id="rememberInput" type="checkbox" checked><span>Keep me signed in</span></label>
+          <a href="forgot-password.html">Forgot password?</a>
+        </div>
+
+        <div class="message" id="loginMessage" aria-live="polite"></div>
+        <div class="verification-actions" id="verificationActions">
+          <button class="secondary-btn" id="resendButton" type="button">Resend verification email</button>
+        </div>
+
+        <button class="submit" id="loginButton" type="submit"><span>Sign in</span><i>→</i></button>
+        <p class="switch">New to INX Social? <a href="register.html">Create your free account</a></p>
+        <p class="security-note"><b>✓</b> Your credentials are sent securely to INX Social Cloud</p>
+      </form>
+    </section>
+  </main>
+
+<script>
+const form=document.getElementById('loginForm');
+const emailInput=document.getElementById('emailInput');
+const passwordInput=document.getElementById('passwordInput');
+const message=document.getElementById('loginMessage');
+const button=document.getElementById('loginButton');
+const verificationActions=document.getElementById('verificationActions');
+const resendButton=document.getElementById('resendButton');
+
+const params=new URLSearchParams(location.search);
+const pending=params.get('email')||localStorage.getItem('pendingEmail')||'';
+if(pending)emailInput.value=pending;
+document.querySelectorAll('.password-toggle').forEach(btn=>btn.onclick=()=>{
+  const input=document.getElementById(btn.dataset.target);
+  input.type=input.type==='password'?'text':'password';
+  btn.textContent=input.type==='text'?'Hide':'Show';
+});
+
+form.addEventListener('submit',async e=>{
+  e.preventDefault();
+  message.className='message';
+  message.textContent='';
+  verificationActions.classList.remove('show');
+  if(!emailInput.checkValidity())return show('Please enter a valid email address.','error');
+  if(!passwordInput.value)return show('Please enter your password.','error');
+  button.disabled=true;button.querySelector('span').textContent='Signing in…';
+  try{
+    const response=await fetch('/api/auth/login',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email:emailInput.value.trim().toLowerCase(),password:passwordInput.value})
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok){
+      if(data.code==='EMAIL_NOT_VERIFIED'){
+        verificationActions.classList.add('show');
+        localStorage.setItem('pendingEmail',data.email||emailInput.value.trim().toLowerCase());
+      }
+      throw new Error(data.error||'Sign in failed.');
+    }
+    localStorage.setItem('inxToken',data.token);
+    localStorage.removeItem('pendingEmail');
+    location.href='index.html';
+  }catch(err){show(err.message,'error')}
+  finally{button.disabled=false;button.querySelector('span').textContent='Sign in'}
+});
+
+resendButton.addEventListener('click',async()=>{
+  resendButton.disabled=true;resendButton.textContent='Sending…';
+  try{
+    const email=emailInput.value.trim().toLowerCase();
+    const response=await fetch('/api/auth/resend-verification',{
+      method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||'Unable to resend verification.');
+    show(data.message||'Verification email sent.','success');
+  }catch(err){show(err.message,'error')}
+  finally{resendButton.disabled=false;resendButton.textContent='Resend verification email'}
+});
+function show(text,type){message.className='message '+type;message.textContent=text}
+</script>
+</body>
+</html>

@@ -1,0 +1,1 @@
+const r=require('express').Router();const c=require('../controllers/portalController');const {requireAuth}=require('../middleware/authMiddleware');r.get('/plans',c.plans);r.get('/dashboard',requireAuth,c.dashboard);r.get('/download',requireAuth,c.download);r.patch('/preferences',requireAuth,c.preferences);module.exports=r;

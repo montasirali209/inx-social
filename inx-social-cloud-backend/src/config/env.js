@@ -1,0 +1,38 @@
+require('dotenv').config();
+
+function required(name) {
+  const value = process.env[name];
+  if (!value) throw new Error(`Missing required environment variable: ${name}`);
+  return value;
+}
+
+module.exports = {
+  port: Number(process.env.PORT || 5050),
+  nodeEnv: process.env.NODE_ENV || 'development',
+  jwtSecret: required('JWT_SECRET'),
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  defaultTrialDays: Number(process.env.DEFAULT_TRIAL_DAYS || 5),
+  appUrl: process.env.APP_URL || 'http://localhost:5050',
+  portalUrl: process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050',
+  smtp: {
+    host: process.env.SMTP_HOST || '',
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: String(process.env.SMTP_SECURE || 'false') === 'true',
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+    from: process.env.EMAIL_FROM || 'INX Social <no-reply@inaxx.co.uk>',
+    replyTo: process.env.EMAIL_REPLY_TO || 'contact@inaxx.co.uk',
+    requireTls: String(process.env.SMTP_REQUIRE_TLS || 'true') === 'true'
+  },
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY || '',
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
+    starterPriceId: process.env.STRIPE_STARTER_PRICE_ID || '',
+    proPriceId: process.env.STRIPE_PRO_PRICE_ID || '',
+    successUrl: process.env.STRIPE_SUCCESS_URL || `${process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050'}/portal/?checkout=success`,
+    cancelUrl: process.env.STRIPE_CANCEL_URL || `${process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050'}/portal/?checkout=cancelled`,
+    portalReturnUrl: process.env.STRIPE_PORTAL_RETURN_URL || `${process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050'}/portal/`
+  },
+  installerUrl: process.env.INSTALLER_URL || '',
+  latestVersion: process.env.LATEST_DESKTOP_VERSION || '14.0.0'
+};

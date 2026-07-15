@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>INX Social</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="accountGate" class="account-gate hidden">
+    <div class="account-gate-card">
+      <div class="account-gate-brand">
+        <img src="assets/inx-social-logo.png" alt="INX Social" />
+        <div><h1>INX Social</h1><p>Sign in to activate this desktop app.</p></div>
+      </div>
+      <div class="account-tabs">
+        <button type="button" id="accountTabLogin" class="active">Sign in</button>
+        <button type="button" id="accountTabRegister">Create account</button>
+      </div>
+      <form id="accountForm" class="account-form">
+        <label id="accountNameWrap" class="hidden">Full name<input id="accountName" autocomplete="name" /></label>
+        <label>Email address<input id="accountEmail" type="email" autocomplete="email" required /></label>
+        <label>Password<input id="accountPassword" type="password" autocomplete="current-password" minlength="8" required /></label>
+        <label>Backend address<input id="accountCloudUrl" value="http://localhost:5050" required /><span class="field-note">Use your hosted INX Social API address when deployed.</span></label>
+        <button id="btnAccountSubmit" class="btn primary account-submit" type="submit">Sign in</button>
+        <div id="accountMessage" class="account-message"></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark logo-mark"><img src="assets/inx-social-logo.png" alt="INX Social logo" /></div>
+        <div>
+          <h1 id="brandTitle">INX Social</h1>
+          <p id="brandSubtitle">Facebook Reels & Page Scheduler</p>
+        </div>
+      </div>
+      <nav>
+        <button class="nav active" data-view="dashboard">Dashboard</button>
+        <button class="nav" data-view="reels">Auto Scheduler</button>
+        <button class="nav" data-view="manual">Manual Scheduler</button>
+        <button class="nav" data-view="health">Health Check</button>
+        <button class="nav" data-view="calendar">Calendar</button>
+        <button class="nav" data-view="logs">Logs</button>
+        <button class="nav" data-view="settings">Settings</button>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="mini-label">Default daily slots</div>
+        <div id="slotPills" class="slot-pills"></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <div class="command-orb" aria-hidden="true"><span></span><span></span><span></span></div>
+      <header class="topbar glass-pop">
+        <div>
+          <h2 id="viewTitle">Dashboard</h2>
+          <p id="viewSubtitle">Auto or manual scheduling for Facebook Reels.</p>
+        </div>
+        <div class="top-actions">
+          <div id="accountBadge" class="account-badge hidden">
+            <div><strong id="accountUserName">Account</strong><span id="accountPlanText">Checking licence…</span></div>
+            <button id="btnAccountRefresh" class="account-icon-btn" title="Refresh licence">↻</button>
+            <button id="btnAccountLogout" class="account-icon-btn danger-text" title="Sign out">↪</button>
+          </div>
+
+          <div class="top-theme-control" aria-label="Interface theme colour">
+            <span class="theme-label">Theme</span>
+            <select id="settingUiTheme" name="uiTheme" title="Theme colour">
+              <option value="aurora">Aurora</option>
+              <option value="midnight">Midnight</option>
+              <option value="studio">Studio Purple</option>
+              <option value="light">Clean Light</option>
+            </select>
+          </div>
+          <button id="btnRefresh" class="btn ghost">Refresh</button>
+          <button id="btnRunScheduler" class="btn primary">Open Scheduler</button>
+          <button id="btnStopScheduler" class="btn danger" disabled>Stop</button>
+        </div>
+      </header>
+
+      <section id="dashboard" class="view active">
+        <section class="hero-board">
+          <div class="hero-copy">
+            <div class="eyebrow"><span class="live-dot"></span>INX Social</div>
+            <h2>Plan, upload, and schedule Facebook Reels from one studio.</h2>
+            <p>A professional desktop scheduler for Facebook Reels. Connect your Page, prepare videos and captions, and upload them to Meta with future publish times.</p>
+            <div class="hero-actions">
+              <button id="btnHeroRun" class="btn primary orb-btn" type="button">Open Scheduler</button>
+              <button id="btnHeroManual" class="btn glass-btn" type="button">Manual Scheduler</button>
+              <button id="btnHeroHealth" class="btn ghost" type="button">Run Health Check</button>
+            </div>
+          </div>
+          <div class="hero-status">
+            <div class="progress-ring" id="dashboardProgressRing" style="--p:0">
+              <span id="dashboardRingPercent">0%</span>
+              <small>upload</small>
+            </div>
+            <div class="next-card">
+              <span>System state</span>
+              <strong id="dashboardSystemState">Idle</strong>
+              <em id="dashboardSystemHint">Ready when you create an Auto or Manual schedule.</em>
+            </div>
+          </div>
+        </section>
+
+        <div class="cards stats-grid">
+          <article class="card stat-card flutter-card"><span>Videos</span><strong id="statVideos">0</strong><em>Imported locally</em><i></i></article>
+          <article class="card stat-card flutter-card"><span>Captions</span><strong id="statCaptions">0</strong><em>Text blocks ready</em><i></i></article>
+          <article class="card stat-card flutter-card"><span>Ready</span><strong id="statPlanned">0</strong><em>Waiting to upload</em><i></i></article>
+          <article class="card stat-card flutter-card"><span>Published</span><strong id="statScheduled">0</strong><em>Confirmed by Meta</em><i></i></article>
+        </div>
+
+        <div class="grid two">
+          <section class="panel">
+            <div class="panel-head">
+              <h3>Fast import</h3>
+              <p>Drag files here or use the buttons. Files are copied into the app library.</p>
+            </div>
+            <div class="drop-grid">
+              <div class="drop-zone" id="dropVideos" data-type="video">
+                <strong>Drop videos</strong>
+                <span>MP4, MOV, M4V, AVI, MKV, WEBM</span>
+                <button id="btnPickVideos" class="btn secondary">Upload Videos</button>
+                <button id="btnPickVideoFolder" class="btn ghost compact">Import Video Folder</button>
+              </div>
+              <div class="drop-zone" id="dropCaptions" data-type="caption">
+                <strong>Drop captions</strong>
+                <span>TXT/MD. One big captions.txt is supported; blank lines or one-caption-per-line both work.</span>
+                <button id="btnPickCaptions" class="btn secondary">Upload Captions</button>
+                <button id="btnPickCaptionFolder" class="btn ghost compact">Import Caption Folder</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h3>Smart scheduler</h3>
+              <p>Simple flow: import videos and captions, then click Run Safe Upload Scheduler. The app checks Meta first and only fills empty slots.</p>
+            </div>
+            <div class="action-stack">
+              <button id="btnPreviewPlan" class="btn secondary wide">Check Free Slots</button>
+              <button id="btnTestFacebook" class="btn ghost wide">Test Facebook Connection</button>
+              <button id="btnOpenUserData" class="btn ghost wide">Open Local Data Folder</button>
+            </div>
+            <div id="simpleScheduleCheck" class="simple-schedule-check">
+              <div class="check-title">Schedule check</div>
+              <div class="check-body muted">Not checked yet. Click Check Free Slots, or just run the scheduler.</div>
+            </div>
+            <div class="upload-progress-card">
+              <div class="progress-head">
+                <span id="progressPhase">Idle</span>
+                <strong id="progressPercent">0%</strong>
+              </div>
+              <div class="progress-track"><div id="progressFill" class="progress-fill" style="width:0%"></div></div>
+              <div id="progressBox" class="progress-box muted">No active upload.</div>
+              <div class="progress-metrics">
+                <span>Current: <strong id="progressCurrent">0/0</strong></span>
+                <span>Uploaded: <strong id="progressUploaded">0</strong></span>
+                <span>Failed: <strong id="progressFailed">0</strong></span>
+              </div>
+              <div id="liveFeed" class="live-feed"><div class="feed-item muted">Waiting for upload activity.</div></div>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel">
+          <div class="panel-head row">
+            <div>
+              <h3>Recent schedule jobs</h3>
+              <p>Upload list plus Meta schedule status.</p>
+            </div>
+          </div>
+          <div id="recentJobs" class="table-wrap"></div>
+        </section>
+      </section>
+
+
+      <section id="reels" class="view">
+        <div class="mode-banner reel-mode-banner">
+          <div><strong>Auto Scheduler</strong><span>Select videos and captions, choose future times, then upload them to Meta as scheduled Facebook Reels.</span></div>
+          <button id="btnReelsOpenSettings" class="btn ghost compact" type="button">Settings</button>
+        </div>
+        <div class="grid two">
+          <section class="panel">
+            <div class="panel-head row">
+              <div>
+                <h3>Auto Reel Scheduler</h3>
+                <p>Select videos, captions, and times. Start Studio Upload uploads them to Meta now as scheduled Facebook Reels.</p>
+              </div>
+              <div class="button-row">
+                <button id="btnReelsPickVideos" class="btn secondary" type="button">Select Videos</button>
+                <button id="btnReelsPickCaptions" class="btn secondary" type="button">Select Caption File</button>
+              </div>
+            </div>
+            <div class="settings-form">
+              <label>Start date<input id="reelsStartDate" type="date" /></label>
+              <label>Timing mode
+                <select id="reelsTimingMode">
+                  <option value="settings">Use Settings slots automatically</option>
+                  <option value="custom">Use custom selected times</option>
+                </select>
+              </label>
+              <div id="reelsCustomTimesBox" class="custom-times-box hidden">
+                <label>Add custom time</label>
+                <div class="button-row">
+                  <select id="reelsTimePicker"></select>
+                  <button id="btnReelsAddTime" class="btn ghost compact" type="button">Add Time</button>
+                </div>
+                <div id="reelsSelectedTimes" class="slot-list"></div>
+              </div>
+              <label>Captions<textarea id="reelsCaptionText" rows="9" placeholder="One caption per line or blank-line separated captions..."></textarea></label>
+              <div class="button-row">
+                <button id="btnReelsClearSession" class="btn ghost" type="button">Clear Session</button>
+              </div>
+            </div>
+            <div id="reelsSessionSummary" class="simple-check muted">No Auto Scheduler session selected yet.</div>
+            <div id="reelsSchedulePreview" class="draft-preview"></div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-head">
+              <h3>Studio Upload</h3>
+              <p>Start Studio Upload uploads the selected videos to Meta immediately and Facebook keeps each Reel scheduled for its chosen future time.</p>
+            </div>
+            <div class="action-stack">
+              <button id="btnReelsStartWatcher" class="btn primary wide" type="button">Start Studio Upload</button>
+              <button id="btnReelsStopWatcher" class="btn danger wide" type="button">Stop Upload</button>
+            </div>
+            <div class="upload-progress-card">
+              <div class="progress-head"><span id="reelsPhase">Idle</span><strong id="reelsPercent">0%</strong></div>
+              <div class="progress-track"><div id="reelsProgressFill" class="progress-fill" style="width:0%"></div></div>
+              <div id="reelsStatusBox" class="progress-box muted">No upload running. Select videos/captions/times, then click Start Studio Upload. Old local items will not be uploaded automatically.</div>
+              <div class="progress-metrics">
+                <span>Current: <strong id="reelsCurrent">0/0</strong></span>
+                <span>Scheduled: <strong id="reelsPublished">0</strong></span>
+                <span>Failed: <strong id="reelsFailed">0</strong></span>
+              </div>
+            </div>
+            <div class="panel-head row"><div><h3>Upload results</h3><p>Selected upload results: uploading, scheduled on Meta, or failed.</p></div></div>
+            <div id="reelsQueueTable" class="table-wrap tall"></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="lab" class="view">
+        <div class="mode-banner warning-banner">
+          <div><strong>Publishing Lab</strong><span>Use one small test video to compare Legacy Page Video vs Facebook Reel. This is for diagnosis, not bulk posting.</span></div>
+        </div>
+        <div class="grid two">
+          <section class="panel">
+            <div class="panel-head">
+              <h3>One-video publishing test</h3>
+              <p>Test the exact Meta flow. Reel mode uses /video_reels; legacy mode uses /videos.</p>
+            </div>
+            <div class="settings-form">
+              <label>Selected test video<input id="labVideoPath" readonly placeholder="No video selected" /></label>
+              <button id="btnLabPickVideo" class="btn secondary wide" type="button">Choose Test Video</button>
+              <label>Caption<textarea id="labCaption" rows="7" placeholder="Test caption..."></textarea></label>
+              <div class="button-row">
+                <button id="btnLabPublishReel" class="btn primary" type="button">Publish as Facebook Reel</button>
+                <button id="btnLabPublishLegacy" class="btn ghost" type="button">Publish as Legacy Page Video</button>
+              </div>
+            </div>
+            <div id="labResult" class="simple-check muted">No lab test run yet.</div>
+          </section>
+          <section class="panel">
+            <div class="panel-head">
+              <h3>Diagnostics</h3>
+              <p>Paste a returned video/post ID to fetch available Meta object details.</p>
+            </div>
+            <div class="settings-form">
+              <label>Video/Post ID<input id="labDiagId" placeholder="Paste Meta object ID" /></label>
+              <button id="btnLabDiagnostics" class="btn secondary wide" type="button">Fetch Diagnostics</button>
+            </div>
+            <pre id="labDiagBox" class="log-pre">No diagnostics yet.</pre>
+          </section>
+        </div>
+      </section>
+
+
+      <section id="draft" class="view legacy-section">
+        <div class="mode-banner draft-mode-banner">
+          <div><strong>Draft Studio</strong><span>Session-only draft uploads. Only videos/captions selected here are used. Old local library/cache is ignored.</span></div>
+          <button id="btnOpenBusinessFromDraftTop" class="btn ghost compact" type="button">Open Meta Business Suite</button>
+        </div>
+        <section class="panel draft-studio-panel">
+          <div class="panel-head row">
+            <div>
+              <h3>Draft Studio</h3>
+              <p>Session-only draft uploads. This ignores old local library/cache and uses only the videos/captions selected here.</p>
+            </div>
+            <div class="button-row">
+              <button id="btnDraftPickVideos" class="btn secondary" type="button">Select Videos</button>
+              <button id="btnDraftPickCaptions" class="btn secondary" type="button">Select Caption File</button>
+              <button id="btnDraftClearSession" class="btn ghost" type="button">Clear Session</button>
+            </div>
+          </div>
+          <div class="grid two draft-grid">
+            <div class="mini-panel">
+              <label>Start date</label>
+              <input id="draftStartDate" type="date" />
+              <label>Timing mode</label>
+              <select id="draftTimingMode">
+                <option value="settings">Use Settings slots automatically</option>
+                <option value="custom">Use custom selected times</option>
+              </select>
+              <div id="draftCustomTimesBox" class="custom-times-box hidden">
+                <label>Add custom time</label>
+                <div class="button-row">
+                  <select id="draftTimePicker"></select>
+                  <button id="btnDraftAddTime" class="btn ghost compact" type="button">Add Time</button>
+                </div>
+                <div id="draftSelectedTimes" class="slot-list"></div>
+              </div>
+              <p class="muted small">If custom mode has one time and 10 videos, it creates one draft per day at that time. If it has three times, it creates three drafts per day.</p>
+            </div>
+            <div class="mini-panel">
+              <label>Session captions</label>
+              <textarea id="draftCaptionText" rows="8" placeholder="Paste captions here, one caption per line or blank-line separated..."></textarea>
+              <div id="draftSessionSummary" class="simple-check muted">No Draft Studio session selected yet.</div>
+            </div>
+          </div>
+          <div class="button-row draft-action-row">
+            <button id="btnUploadDraftSession" class="btn primary" type="button">Upload Selected Drafts</button>
+            <button id="btnStopDraftSession" class="btn danger" type="button" disabled>Stop Draft Upload</button>
+            <button id="btnOpenBusinessFromDraft" class="btn ghost" type="button">Open Meta Business Suite</button>
+          </div>
+          <div class="draft-status-card">
+            <div class="row between"><strong id="draftUploadPhase">Idle</strong><strong id="draftUploadPercent">0%</strong></div>
+            <div class="progress"><div id="draftUploadBar" style="width:0%"></div></div>
+            <div class="status-grid">
+              <span>Current: <strong id="draftCurrentCount">0/0</strong></span>
+              <span>Uploaded: <strong id="draftUploadedCount">0</strong></span>
+              <span>Failed: <strong id="draftFailedCount">0</strong></span>
+            </div>
+            <div id="draftActivity" class="simple-check muted">Waiting for Draft Studio upload.</div>
+          </div>
+          <div id="draftSchedulePreview" class="draft-preview"></div>
+        </section>
+      </section>
+
+      <section id="media" class="view">
+        <div class="mode-banner">
+          <div><strong>Auto bulk mode</strong><span>Best for 20–100+ videos. Import folder + captions.txt and let the app fill free slots.</span></div>
+          <button id="btnAutoJumpSettings" class="btn ghost compact" type="button">Schedule Settings</button>
+        </div>
+        <div class="grid two">
+          <section class="panel">
+            <div class="panel-head row">
+              <div><h3>Videos</h3><p>Sorted by filename for positional pairing.</p></div>
+              <button id="btnPickVideos2" class="btn secondary">Add Videos</button>
+            </div>
+            <div id="videoTable" class="table-wrap tall"></div>
+          </section>
+          <section class="panel">
+            <div class="panel-head row">
+              <div><h3>Captions</h3><p>Use separate files or one big captions.txt. Auto mode supports blank-line captions or one caption per line.</p></div>
+              <div class="button-row">
+                <button id="btnPickCaptions2" class="btn secondary">Add Caption File</button>
+                <button id="btnPickCaptionFolder2" class="btn ghost">Import Caption Folder</button>
+              </div>
+            </div>
+            <div class="caption-paste-box">
+              <label>Paste captions here <span class="muted">— auto mode: blank lines split paragraphs, otherwise each non-empty line becomes one caption</span></label>
+              <textarea id="captionPasteText" rows="9" placeholder="First video caption #hashtags
+
+Second video caption #hashtags
+
+Third video caption #hashtags"></textarea>
+              <div class="button-row">
+                <button id="btnImportPastedCaptions" class="btn primary">Import Pasted Captions</button>
+                <button id="btnClearPaste" class="btn ghost">Clear Text</button>
+              </div>
+            </div>
+            <div id="captionTable" class="table-wrap tall"></div>
+          </section>
+        </div>
+      </section>
+
+
+      <section id="manual" class="view">
+        <div class="grid two">
+          <section class="panel">
+            <div class="panel-head">
+              <h3>Manual Scheduler</h3>
+              <p>Choose one Reel, add one caption, pick the time, then upload it to Meta immediately as a scheduled Facebook Reel.</p>
+            </div>
+            <div class="mini-flow">
+              <span class="active">1 Choose video</span><span>2 Caption</span><span>3 Pick time</span><span>4 Upload to Meta schedule</span>
+            </div>
+            <div class="manual-form settings-form">
+              <label>Selected Reel video<input id="manualVideoPath" readonly placeholder="No video selected yet" /></label>
+              <button id="btnManualPickVideo" class="btn secondary wide">Choose Reel Video</button>
+              <button id="btnManualPickCaptionFile" class="btn ghost wide" type="button">Load Caption File</button>
+              <label>Caption<textarea id="manualCaption" rows="8" placeholder="Write your caption here, or load a caption file. Only the first caption is used for this one video."></textarea></label>
+              <div class="form-row">
+                <label>Date<input id="manualDate" type="date" /></label>
+                <label>Time<input id="manualTime" type="time" /></label>
+              </div>
+              <label class="check"><input id="manualUseNextFree" type="checkbox" checked /> If selected slot is busy, use the next free slot automatically</label>
+              <div class="button-row">
+                <button id="btnManualHealth" class="btn ghost" type="button">Check This Reel</button>
+                <button id="btnManualSchedule" class="btn primary" type="button">Upload to Meta Schedule Now</button>
+                <button id="btnManualClear" class="btn ghost" type="button">Clear Form</button>
+              </div>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel-head">
+              <h3>Manual status</h3>
+              <p>Slot availability, caption checks, and upload status for the single Reel.</p>
+            </div>
+            <div id="manualHealthBox" class="health-box muted">Choose a video, write a caption, then click Check This Reel.</div>
+            <div class="upload-progress-card manual-progress">
+              <div class="progress-head"><span id="manualProgressPhase">Idle</span><strong id="manualProgressPercent">0%</strong></div>
+              <div class="progress-track"><div id="manualProgressFill" class="progress-fill" style="width:0%"></div></div>
+              <div id="manualProgressBox" class="progress-box muted">No manual item uploaded yet. Add it, then use Start Studio Upload in Auto Scheduler.</div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="health" class="view">
+        <div class="panel">
+          <div class="panel-head row">
+            <div>
+              <h3>Post Health Check</h3>
+              <p>Checks video/caption readiness, duplicate risk, hashtag/caption quality, and Meta occupied slots before uploading.</p>
+            </div>
+            <button id="btnRunHealthCheck" class="btn primary">Run Health Check</button>
+          </div>
+          <div id="healthSummary" class="health-summary"></div>
+          <div id="healthResults" class="health-results"></div>
+        </div>
+      </section>
+
+      <section id="calendar" class="view">
+        <div class="panel">
+          <div class="panel-head row">
+            <div>
+              <h3>Calendar</h3>
+              <p>Local planned/scheduled jobs grouped by date.</p>
+            </div>
+            <button id="btnListMeta" class="btn ghost">Fetch Meta Scheduled Posts</button>
+          </div>
+          <div id="calendarGrid" class="calendar-grid"></div>
+        </div>
+        <div id="metaScheduledBox" class="panel hidden"></div>
+      </section>
+
+      <section id="logs" class="view">
+        <div class="panel">
+          <div class="panel-head row">
+            <div><h3>Logs</h3><p>Import, planner, upload, and error events.</p></div>
+            <button id="btnClearAll" class="btn danger">Clear Local Library</button>
+          </div>
+          <div id="logsTable" class="table-wrap tall"></div>
+        </div>
+      </section>
+
+      <section id="settings" class="view">
+        <div class="settings-page-head">
+          <div>
+            <span class="settings-eyebrow">Professional setup</span>
+            <h3>Settings</h3>
+            <p>Manage Facebook Page access and scheduler rules from a cleaner App Review-ready layout.</p>
+          </div>
+          <span class="review-ready-pill">Facebook Connect only</span>
+        </div>
+
+        <div class="settings-layout">
+          <form id="settingsForm" class="settings-form settings-stack">
+            <input id="settingFacebookAppId" name="facebookAppId" type="hidden" value="969283649323618" />
+            <input id="settingPageId" name="pageId" type="hidden" />
+            <textarea id="settingToken" name="pageAccessToken" class="hidden-secret-field" aria-hidden="true"></textarea>
+
+            <div class="settings-card connection-settings-card">
+              <div class="settings-card-head">
+                <div>
+                  <span class="block-kicker">Connection settings</span>
+                  <h4>Facebook Page Connection</h4>
+                  <p>Connect the Page that will be used for Reel scheduling. This is the professional OAuth flow for App Review and future customers.</p>
+                </div>
+                <div id="facebookConnectStatus" class="connect-status">Page access not connected.</div>
+              </div>
+              <div class="connect-action-row">
+                <button type="button" id="btnConnectFacebookPage" class="btn primary">Connect Facebook Page</button>
+                <button type="button" id="btnTestFacebook2" class="btn ghost">Test Connection</button>
+                <button type="button" id="btnDisconnectFacebookPage" class="btn ghost subtle-danger">Clear Saved Page</button>
+              </div>
+              <div class="settings-note clean-note">Manual token entry has been removed from the visible tool. Facebook access is handled through Connect Facebook Page.</div>
+            </div>
+
+            <div class="settings-card scheduler-settings-card">
+              <div class="settings-card-head compact-head">
+                <div>
+                  <span class="block-kicker">Scheduling rules</span>
+                  <h4>Default Scheduler Behaviour</h4>
+                  <p>These rules control how Auto Scheduler pairs captions, chooses slots, retries uploads, and converts times for Meta.</p>
+                </div>
+              </div>
+
+              <div class="settings-grid-two">
+                <label>Graph Version<input id="settingGraphVersion" name="graphVersion" placeholder="v25.0" /><span class="field-note">Keep v25.0 unless Meta requires a different version.</span></label>
+                <label>Timezone<input id="settingTimezone" name="timezone" placeholder="Europe/London" /><span class="field-note">Used when converting your chosen slots to Meta schedule times.</span></label>
+              </div>
+
+              <label>Daily Slots<textarea id="settingSlots" name="dailySlots" rows="4" placeholder="11:00&#10;15:13&#10;22:15&#10;23:15"></textarea><span class="field-note">One time per line. Auto Scheduler uses these when custom times are not selected.</span></label>
+
+              <div class="settings-grid-two">
+                <label>Caption split mode<select id="settingCaptionSplitMode" name="captionSplitMode">
+                  <option value="auto">Auto: blank lines first, otherwise one caption per line</option>
+                  <option value="blank-line">Blank-line blocks only</option>
+                  <option value="line">Every non-empty line is one caption</option>
+                </select><span class="field-note">Auto is best for your current captions.txt workflow.</span></label>
+                <label>Maximum schedule days<input id="settingMaxDays" name="maxScheduleDays" type="number" min="1" max="75" /><span class="field-note">Use 25 to avoid invalid Meta schedule window errors.</span></label>
+              </div>
+
+              <div class="settings-grid-two">
+                <label>Minimum lead minutes<input id="settingLead" name="minLeadMinutes" type="number" min="0" /><span class="field-note">Minimum future time before Meta scheduling. Set 0 only when you intentionally want no lead buffer.</span></label>
+                <label>Attempts per video<input id="settingRetries" name="maxRetries" type="number" min="1" max="5" /><span class="field-note">3 means the app tries each video up to 3 times.</span></label>
+              </div>
+
+              <div class="settings-grid-two">
+                <label>Retry base delay ms<input id="settingRetryDelay" name="retryBaseDelayMs" type="number" min="1000" step="500" /><span class="field-note">5000 = 5s, then 10s, then 15s.</span></label>
+                <div class="settings-check-stack">
+                  <label class="check"><input id="settingExact" type="checkbox" /> Prefer exact filename match before alphabetical fallback</label>
+                  <label class="check"><input id="settingCopy" type="checkbox" /> Copy imported files into app library</label>
+                </div>
+              </div>
+
+              <div class="button-row settings-save-row slim-save-row">
+                <button type="submit" id="btnSaveSettings" class="btn primary">Save Scheduler Settings</button>
+              </div>
+            </div>
+          </form>
+
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="floating-dock" aria-label="Quick actions">
+    <button id="dockDashboard" title="Dashboard">⌂</button>
+    <button id="dockAuto" title="Auto Scheduler">▣</button>
+    <button id="dockManual" title="Manual Scheduler">＋</button>
+    <button id="dockHealth" title="Health Check">✓</button>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js"></script>
+
+</body>
+</html>

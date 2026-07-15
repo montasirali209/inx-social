@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Verify email — INX Social</title>
+  <link rel="stylesheet" href="portal.css">
+  <style>
+    .verify-shell{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at 20% 10%,rgba(73,215,208,.16),transparent 27%),linear-gradient(145deg,#07111f,#10233b)}
+    .verify-card{width:min(560px,100%);padding:42px;border-radius:26px;background:#fff;box-shadow:0 30px 80px rgba(0,0,0,.28);text-align:center}
+    .verify-icon{width:82px;height:82px;margin:0 auto 22px;border-radius:50%;display:grid;place-items:center;font-size:2rem;font-weight:900;background:#e5faf5;color:#14805e}
+    .verify-icon.loading{background:#eaf3ff;color:#3376c5;animation:pulse 1.3s ease-in-out infinite}
+    .verify-icon.error{background:#fff0f1;color:#b6384c}
+    .verify-card h1{margin:0 0 10px;font-size:2rem;letter-spacing:-.04em;color:#17243a}
+    .verify-card p{color:#68768b;margin:0 auto 22px;max-width:430px}
+    .verify-actions{display:grid;gap:10px}.verify-actions .btn{width:100%}
+    .countdown{font-size:.82rem;color:#8a96a8;margin-top:13px}
+    @keyframes pulse{50%{transform:scale(.94);opacity:.75}}
+  </style>
+</head>
+<body>
+  <main class="verify-shell">
+    <section class="verify-card">
+      <div class="brand" style="color:#07152b;margin-bottom:25px">INX <span>Social</span></div>
+      <div class="verify-icon loading" id="verifyIcon">…</div>
+      <h1 id="verifyTitle">Verifying your email</h1>
+      <p id="verifyMessage">Please wait while we securely activate your INX Social account.</p>
+      <div class="verify-actions">
+        <a class="btn hidden" id="loginButton" href="login.html">Continue to login</a>
+        <a class="btn hidden" id="retryButton" href="register.html">Return to registration</a>
+      </div>
+      <div class="countdown hidden" id="countdown"></div>
+    </section>
+  </main>
+  <script>
+    const icon=document.getElementById('verifyIcon');
+    const title=document.getElementById('verifyTitle');
+    const message=document.getElementById('verifyMessage');
+    const loginButton=document.getElementById('loginButton');
+    const retryButton=document.getElementById('retryButton');
+    const countdown=document.getElementById('countdown');
+    (async()=>{
+      try{
+        const token=new URLSearchParams(location.search).get('token');
+        if(!token)throw new Error('The verification token is missing.');
+        const response=await fetch('/api/auth/verify-email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token})});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||'Email verification failed.');
+        icon.className='verify-icon';icon.textContent='✓';title.textContent='Email verified';
+        message.textContent='Your 5-day free trial has started. You can now sign in to the customer portal and the INX Social desktop app.';
+        loginButton.classList.remove('hidden');countdown.classList.remove('hidden');
+        localStorage.setItem('emailVerified','true');
+        let seconds=5;countdown.textContent=`Taking you to login in ${seconds} seconds…`;
+        const timer=setInterval(()=>{seconds-=1;countdown.textContent=`Taking you to login in ${seconds} second${seconds===1?'':'s'}…`;if(seconds<=0){clearInterval(timer);location.replace('login.html?verified=1')}},1000);
+      }catch(error){icon.className='verify-icon error';icon.textContent='!';title.textContent='Verification failed';message.textContent=error.message;retryButton.classList.remove('hidden')}
+    })();
+  </script>
+</body>
+</html>

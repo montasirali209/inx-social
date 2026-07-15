@@ -1,0 +1,53 @@
+{
+  "name": "inx-social-desktop",
+  "version": "14.0.0",
+  "description": "INX Social desktop scheduler for Facebook Reels and Page publishing",
+  "main": "src/main/main.js",
+  "author": "INAXX LTD",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win nsis --x64",
+    "lint": "node --check src/main/main.js && node --check src/main/preload.js && node --check src/main/services/store.js && node --check src/main/services/cloudClient.js && node --check src/main/services/fileImport.js && node --check src/main/services/slotPlanner.js && node --check src/main/services/facebookClient.js && node --check src/main/services/scheduler.js && node --check src/services/facebook.js && node --check src/batch/scheduleBatch.js && node --check src/batch/matchFiles.js && node --check src/batch/slotPlanner.js && node --check src/batch/stateStore.js",
+    "batch-schedule": "node src/batch/scheduleBatch.js",
+    "batch-schedule:dry": "node src/batch/scheduleBatch.js --dry-run"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "electron-store": "^8.2.0",
+    "form-data": "^4.0.1",
+    "luxon": "^3.5.0",
+    "nanoid": "^3.3.8",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "electron": "^43.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.inaxx.inxsocial",
+    "productName": "INX Social",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "artifactName": "INX-Social-Setup-${version}.${ext}"
+  },
+  "productName": "INX Social"
+}

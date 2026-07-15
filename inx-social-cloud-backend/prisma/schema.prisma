@@ -1,0 +1,219 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+
+
+
+
+
+
+
+model User {
+  id              String          @id @default(cuid())
+  name             String?
+  businessName     String?
+  email            String          @unique
+  passwordHash     String
+  role             String          @default("USER")
+  status           String          @default("PENDING_VERIFICATION")
+  trialEndsAt      DateTime?
+  emailVerifiedAt  DateTime?
+  marketingOptIn   Boolean         @default(false)
+  marketingOptInAt DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  subscriptions          Subscription[]
+  devices               Device[]
+  connectedPages        ConnectedPage[]
+  scheduleJobs          ScheduleJob[]
+  auditLogs             AuditLog[]
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
+  emailLogs               EmailLog[]
+  downloadHistory         DownloadHistory[]
+}
+
+model Subscription {
+  id                  String             @id @default(cuid())
+  userId              String
+  plan                String             @default("TRIAL")
+  status              String             @default("TRIALING")
+  provider            String?            // paypal, stripe, manual
+  providerCustomerId  String?
+  providerSubId       String?
+  currentPeriodStart  DateTime?
+  currentPeriodEnd    DateTime?
+  cancelAtPeriodEnd   Boolean            @default(false)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([providerSubId])
+  @@index([providerCustomerId])
+}
+
+model Device {
+  id             String       @id @default(cuid())
+  userId         String
+  deviceName     String?
+  deviceId       String
+  appVersion     String?
+  status         String   @default("ACTIVE")
+  lastSeenAt     DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceId])
+  @@index([userId])
+}
+
+model ConnectedPage {
+  id                    String                 @id @default(cuid())
+  userId                String
+  facebookPageId         String
+  facebookPageName       String
+  metaAppId              String?
+  status                String  @default("ACTIVE")
+  encryptedAccessToken   String?               // placeholder for production encryption
+  tokenExpiresAt         DateTime?
+  connectedAt           DateTime               @default(now())
+  lastCheckedAt          DateTime?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scheduleJobs ScheduleJob[]
+
+  @@unique([userId, facebookPageId])
+  @@index([userId])
+  @@index([facebookPageId])
+}
+
+model ScheduleJob {
+  id              String            @id @default(cuid())
+  userId          String
+  connectedPageId String?
+  status          String @default("DRAFT")
+  contentType     String            // reel, post, image_post, video_post
+  title           String?
+  caption         String?
+  localFileName   String?
+  scheduledAt     DateTime?
+  metaPostId      String?
+  metaVideoId     String?
+  errorMessage    String?
+  rawMetaResponse String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connectedPage ConnectedPage? @relation(fields: [connectedPageId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([connectedPageId])
+  @@index([status])
+}
+
+model AppSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  entity    String?
+  entityId  String?
+  metadata  String?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+}
+
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model EmailLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  type      String
+  recipient String
+  subject   String
+  status    String   @default("QUEUED")
+  providerId String?
+  errorMessage String?
+  createdAt DateTime @default(now())
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  @@index([userId])
+  @@index([type])
+}
+
+model DownloadHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  version   String
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+
+
+model BillingEvent {
+  id              String   @id @default(cuid())
+  provider        String
+  providerEventId String   @unique
+  eventType       String
+  status          String   @default("RECEIVED")
+  errorMessage    String?
+  processedAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([provider])
+  @@index([eventType])
+  @@index([status])
+}

@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Local databases
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+**/prisma/dev.db
+**/prisma/dev.db-journal
+
+# Build output
+dist/
+release/
+out/
+build/
+**/dist/
+**/release/
+**/out/
+**/build/
+
+# Backups
+bk/
+phase61-backup/
+**/*-backup/
+**/*.before-*-backup
+
+# Runtime data
+uploads/
+downloads/
+videos/
+captions/
+temp/
+tmp/
+logs/
+*.log
+
+# OS and editor
+Thumbs.db
+Desktop.ini
+.DS_Store
+.vscode/
+.idea/
+
+# Credentials
+*.pem
+*.key
+*.p12
+*.pfx
