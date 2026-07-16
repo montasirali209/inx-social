@@ -7,105 +7,142 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
-
-
-
-
-
-
 model User {
-  id              String          @id @default(cuid())
+  id               String    @id @default(cuid())
   name             String?
   businessName     String?
-  email            String          @unique
+  email            String    @unique
   passwordHash     String
-  role             String          @default("USER")
-  status           String          @default("PENDING_VERIFICATION")
+  role             String    @default("USER")
+  status           String    @default("PENDING_VERIFICATION")
   trialEndsAt      DateTime?
   emailVerifiedAt  DateTime?
-  marketingOptIn   Boolean         @default(false)
+  marketingOptIn   Boolean   @default(false)
   marketingOptInAt DateTime?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
-  subscriptions          Subscription[]
-  devices               Device[]
-  connectedPages        ConnectedPage[]
-  scheduleJobs          ScheduleJob[]
-  auditLogs             AuditLog[]
+  subscriptions           Subscription[]
+  devices                 Device[]
+  metaAccounts            MetaAccount[]
+  connectedPages          ConnectedPage[]
+  scheduleJobs            ScheduleJob[]
+  auditLogs               AuditLog[]
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens     PasswordResetToken[]
   emailLogs               EmailLog[]
   downloadHistory         DownloadHistory[]
+
+  @@index([status])
+  @@index([role])
+  @@index([createdAt])
 }
 
 model Subscription {
-  id                  String             @id @default(cuid())
-  userId              String
-  plan                String             @default("TRIAL")
-  status              String             @default("TRIALING")
-  provider            String?            // paypal, stripe, manual
-  providerCustomerId  String?
-  providerSubId       String?
-  currentPeriodStart  DateTime?
-  currentPeriodEnd    DateTime?
-  cancelAtPeriodEnd   Boolean            @default(false)
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
+  id                 String    @id @default(cuid())
+  userId             String
+  plan               String    @default("TRIAL")
+  status             String    @default("TRIALING")
+  provider           String?
+  providerCustomerId String?
+  providerSubId      String?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  cancelAtPeriodEnd  Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([plan])
+  @@index([status])
   @@index([providerSubId])
   @@index([providerCustomerId])
 }
 
 model Device {
-  id             String       @id @default(cuid())
-  userId         String
-  deviceName     String?
-  deviceId       String
-  appVersion     String?
-  status         String   @default("ACTIVE")
-  lastSeenAt     DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id         String    @id @default(cuid())
+  userId     String
+  deviceName String?
+  deviceId   String
+  appVersion String?
+  status     String    @default("ACTIVE")
+  lastSeenAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, deviceId])
   @@index([userId])
+  @@index([status])
+  @@index([lastSeenAt])
+}
+
+model MetaAccount {
+  id                   String    @id @default(cuid())
+  userId               String
+  facebookUserId       String
+  facebookUserName     String?
+  facebookProfileImage String?
+  encryptedAccessToken String
+  tokenExpiresAt       DateTime?
+  status               String    @default("ACTIVE")
+  connectedAt          DateTime  @default(now())
+  lastSyncAt           DateTime?
+  lastError            String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pages ConnectedPage[]
+
+  @@unique([userId, facebookUserId])
+  @@index([userId])
+  @@index([facebookUserId])
+  @@index([status])
+  @@index([tokenExpiresAt])
 }
 
 model ConnectedPage {
-  id                    String                 @id @default(cuid())
-  userId                String
-  facebookPageId         String
-  facebookPageName       String
-  metaAppId              String?
-  status                String  @default("ACTIVE")
-  encryptedAccessToken   String?               // placeholder for production encryption
-  tokenExpiresAt         DateTime?
-  connectedAt           DateTime               @default(now())
-  lastCheckedAt          DateTime?
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
+  id                   String    @id @default(cuid())
+  userId               String
+  metaAccountId        String?
+  facebookPageId       String
+  facebookPageName     String
+  facebookPageUsername String?
+  facebookPagePicture  String?
+  facebookCategory     String?
+  metaAppId            String?
+  status               String    @default("ACTIVE")
+  encryptedAccessToken String?
+  tokenExpiresAt       DateTime?
+  connectedAt          DateTime  @default(now())
+  lastCheckedAt        DateTime?
+  lastSyncAt           DateTime?
+  lastError            String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metaAccount  MetaAccount?  @relation(fields: [metaAccountId], references: [id], onDelete: SetNull)
   scheduleJobs ScheduleJob[]
 
   @@unique([userId, facebookPageId])
   @@index([userId])
+  @@index([metaAccountId])
   @@index([facebookPageId])
+  @@index([status])
+  @@index([tokenExpiresAt])
 }
 
 model ScheduleJob {
-  id              String            @id @default(cuid())
+  id              String    @id @default(cuid())
   userId          String
   connectedPageId String?
-  status          String @default("DRAFT")
-  contentType     String            // reel, post, image_post, video_post
+  status          String    @default("DRAFT")
+  contentType     String
   title           String?
   caption         String?
   localFileName   String?
@@ -114,15 +151,17 @@ model ScheduleJob {
   metaVideoId     String?
   errorMessage    String?
   rawMetaResponse String?
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   connectedPage ConnectedPage? @relation(fields: [connectedPageId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([connectedPageId])
   @@index([status])
+  @@index([scheduledAt])
+  @@index([contentType])
 }
 
 model AppSetting {
@@ -149,46 +188,56 @@ model AuditLog {
 
   @@index([userId])
   @@index([action])
+  @@index([entity])
+  @@index([entityId])
+  @@index([createdAt])
 }
 
-
 model EmailVerificationToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  tokenHash String   @unique
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([expiresAt])
 }
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   userId    String
-  tokenHash String   @unique
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([expiresAt])
 }
 
 model EmailLog {
-  id        String   @id @default(cuid())
-  userId    String?
-  type      String
-  recipient String
-  subject   String
-  status    String   @default("QUEUED")
-  providerId String?
+  id           String   @id @default(cuid())
+  userId       String?
+  type         String
+  recipient    String
+  subject      String
+  status       String   @default("QUEUED")
+  providerId   String?
   errorMessage String?
-  createdAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
   @@index([userId])
   @@index([type])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model DownloadHistory {
@@ -198,24 +247,28 @@ model DownloadHistory {
   ip        String?
   userAgent String?
   createdAt DateTime @default(now())
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
+  @@index([version])
+  @@index([createdAt])
 }
 
-
 model BillingEvent {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   provider        String
-  providerEventId String   @unique
+  providerEventId String    @unique
   eventType       String
-  status          String   @default("RECEIVED")
+  status          String    @default("RECEIVED")
   errorMessage    String?
   processedAt     DateTime?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
 
   @@index([provider])
   @@index([eventType])
   @@index([status])
+  @@index([createdAt])
 }
 
 model DesktopRelease {
