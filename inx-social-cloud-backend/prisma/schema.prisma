@@ -116,6 +116,7 @@ model ConnectedPage {
   facebookCategory     String?
   metaAppId            String?
   status               String    @default("ACTIVE")
+  isSelected           Boolean   @default(false)
   encryptedAccessToken String?
   tokenExpiresAt       DateTime?
   connectedAt          DateTime  @default(now())
@@ -134,6 +135,7 @@ model ConnectedPage {
   @@index([metaAccountId])
   @@index([facebookPageId])
   @@index([status])
+  @@index([isSelected])
   @@index([tokenExpiresAt])
 }
 
