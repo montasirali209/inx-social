@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { requireAuth } = require('../middleware/authMiddleware');
 const {
+  getWorkspace,
   discoverAccount,
   connectAccount,
   listAccounts,
@@ -22,6 +23,7 @@ router.post('/accounts/:accountId/sync', syncAccount);
 router.delete('/accounts/:accountId', disconnectAccount);
 
 // Connected Page workspace management.
+router.get('/workspace', getWorkspace);
 router.get('/', listPages);
 router.post('/connect', connectPage); // backwards compatibility
 router.post('/:id/select', selectPage);

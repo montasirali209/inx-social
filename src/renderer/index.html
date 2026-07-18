@@ -21,7 +21,7 @@
         <label id="accountNameWrap" class="hidden">Full name<input id="accountName" autocomplete="name" /></label>
         <label>Email address<input id="accountEmail" type="email" autocomplete="email" required /></label>
         <label>Password<input id="accountPassword" type="password" autocomplete="current-password" minlength="8" required /></label>
-        <label>Backend address<input id="accountCloudUrl" value="http://localhost:5050" required /><span class="field-note">Use your hosted INX Social API address when deployed.</span></label>
+        <label>Backend address<input id="accountCloudUrl" value="https://api.social.inaxx.co.uk" required /><span class="field-note">Use your hosted INX Social API address when deployed.</span></label>
         <button id="btnAccountSubmit" class="btn primary account-submit" type="submit">Sign in</button>
         <div id="accountMessage" class="account-message"></div>
       </form>
@@ -35,15 +35,18 @@
         <div class="brand-mark logo-mark"><img src="assets/inx-social-logo.png" alt="INX Social logo" /></div>
         <div>
           <h1 id="brandTitle">INX Social</h1>
-          <p id="brandSubtitle">Facebook Reels & Page Scheduler</p>
+          <p id="brandSubtitle">Content Scheduler</p>
         </div>
       </div>
       <nav>
-        <button class="nav active" data-view="dashboard">Dashboard</button>
+        <button class="nav active" data-view="dashboard"><span>⌂</span> Home</button>
+        <button class="nav" data-view="workspace"><span>◫</span> Workspace</button>
+        <button class="nav" data-view="pages"><span>▤</span> Pages</button>
         <button class="nav" data-view="reels">Auto Scheduler</button>
         <button class="nav" data-view="manual">Manual Scheduler</button>
         <button class="nav" data-view="health">Health Check</button>
-        <button class="nav" data-view="calendar">Calendar</button>
+        <button class="nav" data-view="calendar"><span>□</span> Calendar</button>
+        <button class="nav" data-view="analytics"><span>↗</span> Analytics</button>
         <button class="nav" data-view="logs">Logs</button>
         <button class="nav" data-view="settings">Settings</button>
       </nav>
@@ -67,6 +70,10 @@
             <button id="btnAccountLogout" class="account-icon-btn danger-text" title="Sign out">↪</button>
           </div>
 
+          <div id="activeWorkspaceControl" class="active-workspace-control">
+            <button id="activeWorkspaceChip" class="active-workspace-chip" type="button" aria-haspopup="menu" aria-expanded="false"><span class="workspace-avatar">F</span><span><small>Active Page</small><strong id="activeWorkspaceName">No Page selected</strong></span><b>⌄</b></button>
+            <div id="activeWorkspaceMenu" class="active-workspace-menu hidden" role="menu"></div>
+          </div>
           <div class="top-theme-control" aria-label="Interface theme colour">
             <span class="theme-label">Theme</span>
             <select id="settingUiTheme" name="uiTheme" title="Theme colour">
@@ -184,6 +191,20 @@
           <div><strong>Auto Scheduler</strong><span>Select videos and captions, choose future times, then upload them to Meta as scheduled Facebook Reels.</span></div>
           <button id="btnReelsOpenSettings" class="btn ghost compact" type="button">Settings</button>
         </div>
+        <section class="scheduler-page-target" aria-labelledby="reelsDestinationLabel">
+          <div class="scheduler-target-icon">F</div>
+          <div class="scheduler-target-copy">
+            <small id="reelsDestinationLabel">Publishing destination</small>
+            <strong id="reelsActivePageName">No Page selected</strong>
+            <span id="reelsActivePageHint">Choose the Facebook Page that will receive every video in this Auto Scheduler session.</span>
+          </div>
+          <label class="scheduler-target-select">Page
+            <select id="reelsPageSelect" aria-label="Choose Auto Scheduler Facebook Page" disabled>
+              <option value="">No connected Pages</option>
+            </select>
+          </label>
+          <button id="btnReelsManagePages" class="btn ghost compact" type="button">Manage Pages</button>
+        </section>
         <div class="grid two">
           <section class="panel">
             <div class="panel-head row">
@@ -462,6 +483,38 @@ Third video caption #hashtags"></textarea>
         </div>
       </section>
 
+
+      <section id="workspace" class="view workspace-v2-view">
+        <div class="workspace-hero-v2">
+          <div><span class="eyebrow">Publishing workspace</span><h2 id="workspaceHeroTitle">Choose a Facebook Page</h2><p id="workspaceHeroText">Every Page has its own scheduling queue, calendar and publishing history.</p></div>
+          <div class="workspace-hero-actions"><button id="btnWorkspaceRefresh" class="btn ghost">Refresh workspace</button><button id="btnWorkspaceOpenScheduler" class="btn primary">Schedule content</button></div>
+        </div>
+        <div class="workspace-metrics-v2">
+          <article><span>Connection sources</span><strong id="workspaceAccountCount">0</strong><small>Social providers</small></article>
+          <article><span>Connected Pages</span><strong id="workspacePageCount">0</strong><small id="workspacePageLimit">0 available</small></article>
+          <article><span>Queue</span><strong id="workspaceQueueCount">0</strong><small>Waiting locally</small></article>
+          <article><span>Published</span><strong id="workspacePublishedCount">0</strong><small>Completed jobs</small></article>
+        </div>
+        <div class="workspace-grid-v2">
+          <section class="panel workspace-active-card"><div class="panel-head"><h3>Active Page</h3><p>All scheduler actions target this Page.</p></div><div id="workspaceActivePage" class="workspace-empty">No active Page selected.</div></section>
+          <section class="panel"><div class="panel-head"><h3>Quick actions</h3><p>Move through the publishing flow.</p></div><div class="workspace-quick-actions"><button class="btn secondary" id="btnWorkspacePages">Select Page</button><button class="btn secondary" id="btnWorkspaceImport">Import media</button><button class="btn secondary" id="btnWorkspaceCalendar">Open calendar</button><button class="btn secondary" id="btnWorkspaceHealth">Health check</button></div></section>
+        </div>
+      </section>
+
+      <section id="pages" class="view workspace-v2-view">
+        <div class="section-title-row"><div><span class="eyebrow">Publishing destinations</span><h2>Pages</h2><p>Connect, select and manage every social Page from one place. Facebook is available now; more platforms can be added later.</p></div><div class="button-row"><button id="btnAddMetaAccount" class="btn primary">+ Connect Facebook Page</button><button id="btnDisconnectActivePage" class="btn ghost subtle-danger">Disconnect active Page</button><button id="btnOpenFacebookIntegrations" class="btn ghost">Facebook permissions</button><button id="btnPagesRefresh" class="btn ghost">Refresh Pages</button></div></div>
+        <div class="usage-strip"><span id="accountUsageText">0 Pages connected</span><div><i id="accountUsageBar"></i></div><b id="accountPlanBadge">TRIAL</b></div>
+        <div class="channel-source-row"><button class="channel-source active" type="button"><span>f</span><strong>Facebook</strong><small>Pages</small></button><button class="channel-source disabled" type="button" disabled><span>◎</span><strong>Instagram</strong><small>Coming later</small></button><button class="channel-source disabled" type="button" disabled><span>▶</span><strong>YouTube</strong><small>Coming later</small></button></div>
+        <div class="page-filter-row"><input id="pageSearchInput" type="search" placeholder="Search connected Pages"></div>
+        <div id="connectedPageGrid" class="connected-page-grid"><div class="workspace-empty">Loading connected Pages…</div></div>
+      </section>
+
+      <section id="analytics" class="view workspace-v2-view">
+        <div class="section-title-row"><div><span class="eyebrow">Performance</span><h2>Workspace Analytics</h2><p>Operational analytics from the local scheduler and cloud workspace.</p></div></div>
+        <div class="analytics-grid-v2"><article><span>Total media</span><strong id="analyticsMedia">0</strong><small>Videos and captions</small></article><article><span>Scheduled</span><strong id="analyticsScheduled">0</strong><small>Confirmed by Meta</small></article><article><span>Failed</span><strong id="analyticsFailed">0</strong><small>Needs attention</small></article><article><span>Success rate</span><strong id="analyticsSuccessRate">0%</strong><small>Completed jobs</small></article></div>
+        <div class="workspace-grid-v2"><section class="panel"><div class="panel-head"><h3>Publishing health</h3></div><div id="analyticsHealthBars" class="analytics-bars"></div></section><section class="panel"><div class="panel-head"><h3>Account summary</h3></div><div id="analyticsAccountSummary" class="analytics-summary"></div></section></div>
+      </section>
+
       <section id="settings" class="view">
         <div class="settings-page-head">
           <div>
@@ -481,18 +534,17 @@ Third video caption #hashtags"></textarea>
             <div class="settings-card connection-settings-card">
               <div class="settings-card-head">
                 <div>
-                  <span class="block-kicker">Connection settings</span>
-                  <h4>Facebook Page Connection</h4>
-                  <p>Connect the Page that will be used for Reel scheduling. This is the professional OAuth flow for App Review and future customers.</p>
+                  <span class="block-kicker">Publishing destinations</span>
+                  <h4>Connections are managed in Pages</h4>
+                  <p>Open Pages to connect Facebook now and choose the active publishing destination. More social sources can be added there later.</p>
                 </div>
                 <div id="facebookConnectStatus" class="connect-status">Page access not connected.</div>
               </div>
               <div class="connect-action-row">
-                <button type="button" id="btnConnectFacebookPage" class="btn primary">Connect Facebook Page</button>
+                <button type="button" id="btnOpenPagesSettings" class="btn primary">Open Pages</button>
                 <button type="button" id="btnTestFacebook2" class="btn ghost">Test Connection</button>
-                <button type="button" id="btnDisconnectFacebookPage" class="btn ghost subtle-danger">Clear Saved Page</button>
               </div>
-              <div class="settings-note clean-note">Manual token entry has been removed from the visible tool. Facebook access is handled through Connect Facebook Page.</div>
+              <div class="settings-note clean-note">Facebook access remains hidden and secure. Use the Pages menu instead of entering access tokens manually.</div>
             </div>
 
             <div class="settings-card scheduler-settings-card">

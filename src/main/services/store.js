@@ -22,12 +22,12 @@ const DEFAULT_SETTINGS = {
   uiTheme: 'aurora',
   uiDensity: 'comfortable',
   enableMotion: true,
-  cloudApiUrl: 'http://localhost:5050'
+  cloudApiUrl: 'https://api.social.inaxx.co.uk'
 };
 
 const DEFAULT_UI_TEXTS = {
   appTitle: 'INX Social',
-  appSubtitle: 'Facebook Reels & Page Scheduler',
+  appSubtitle: 'Content Scheduler',
   dashboardTitle: 'Dashboard',
   dashboardSubtitle: 'Schedule Facebook Reels using Auto or Manual Scheduler.',
   refreshButton: 'Refresh',
@@ -63,7 +63,8 @@ class AppStore {
         captions: [],
         jobs: [],
         logs: [],
-        accountSession: { token: '', user: null, license: null, device: null, lastCheckedAt: null }
+        accountSession: { token: '', user: null, license: null, device: null, lastCheckedAt: null },
+        workspace: { accounts: [], pages: [], activePage: null, pageUsage: null, plan: null, lastSyncedAt: null }
       }
     });
     fs.mkdirSync(this.videoRoot, { recursive: true });
@@ -119,6 +120,7 @@ class AppStore {
       jobs: this.store.get('jobs', []),
       logs: this.store.get('logs', []),
       account: this.getAccountState(),
+      workspace: this.getWorkspace(),
       paths: {
         userData: this.userDataPath,
         videoRoot: this.videoRoot,
@@ -210,8 +212,26 @@ class AppStore {
 
   clearAccountSession() {
     this.store.set('accountSession', { token: '', user: null, license: null, device: null, lastCheckedAt: null });
+    this.clearWorkspace();
     this.log('account', 'Signed out of INX Social Cloud.');
     return this.getAccountState();
+  }
+
+  getWorkspace() {
+    return this.store.get('workspace', { accounts: [], pages: [], activePage: null, pageUsage: null, plan: null, lastSyncedAt: null });
+  }
+
+  saveWorkspace(patch) {
+    const current = this.getWorkspace();
+    const next = { ...current, ...patch, lastSyncedAt: new Date().toISOString() };
+    this.store.set('workspace', next);
+    return next;
+  }
+
+  clearWorkspace() {
+    const empty = { accounts: [], pages: [], activePage: null, pageUsage: null, plan: null, lastSyncedAt: null };
+    this.store.set('workspace', empty);
+    return empty;
   }
 
   getVideos() {

@@ -1,13 +1,17 @@
 {
   "name": "inx-social-cloud-backend",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "INX Social Cloud backend with SMTP email delivery, Stripe subscriptions, customer portal, licences and admin controls.",
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
+    "start:production": "prisma migrate deploy && node src/server.js",
+    "check": "node scripts/check-syntax.js && prisma validate",
+    "test": "node --test test/*.test.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "seed": "node scripts/seed-admin.js"
   },

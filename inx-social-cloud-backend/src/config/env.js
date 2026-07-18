@@ -10,6 +10,7 @@ module.exports = {
   port: Number(process.env.PORT || 5050),
   nodeEnv: process.env.NODE_ENV || 'development',
   jwtSecret: required('JWT_SECRET'),
+  tokenEncryptionKey: required('TOKEN_ENCRYPTION_KEY'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   defaultTrialDays: Number(process.env.DEFAULT_TRIAL_DAYS || 5),
   appUrl: process.env.APP_URL || 'http://localhost:5050',

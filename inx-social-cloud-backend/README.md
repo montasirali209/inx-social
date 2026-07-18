@@ -1,39 +1,36 @@
-# INX Social Cloud Backend V1.4 - Admin UI Asset Fix
+# INX Social Cloud Backend 1.6.1
 
-This build fixes the admin panel loading without CSS/JS.
+Node/Express backend for INX Social authentication, licences, billing, releases, and Facebook Page workspaces. The deployed database is PostgreSQL through Prisma 5.22.0.
 
-## What changed
-
-- Admin UI CSS and JavaScript are embedded directly into `public/index.html` so the panel cannot load as plain unstyled HTML.
-- `/` redirects to `/admin`.
-- `/admin` and `/admin/` both load the admin UI.
-- Backend API, auth, Prisma schema, seed, and licence routes are unchanged from V1.3.
-
-## Run
+## Local setup
 
 ```cmd
-cd inx-social-cloud-backend
 copy .env.example .env
-npm install --no-audit --no-fund
+npm install
 npm run prisma:generate
-npm run prisma:migrate
+npx prisma migrate dev
 npm run seed
 npm run dev
 ```
 
-Open:
+Replace the example database URL and secrets first. Keep `TOKEN_ENCRYPTION_KEY` stable because it protects saved Meta tokens.
 
-```text
-http://localhost:5050/admin
+## Validation
+
+```cmd
+npm run check
+npm test
 ```
 
-Default admin:
+In production use `npm run prisma:migrate:deploy`, never `prisma migrate dev`.
 
-```text
-admin@inxsocial.local
-ChangeMe123!
-```
+## Railway release settings
 
-## Do not update Prisma
+The repository includes `railway.toml`. Configure the Railway service with:
 
-This local SQLite backend is pinned to Prisma 5.22.0. Ignore the Prisma 7 update notice for this build.
+- Root Directory: `/inx-social-cloud-backend`
+- Config file path: `/inx-social-cloud-backend/railway.toml`
+- Healthcheck: `/health`
+- Required stable secret: `TOKEN_ENCRYPTION_KEY`
+
+The pre-deploy command applies committed Prisma migrations before the new backend becomes active. Keep `TOKEN_ENCRYPTION_KEY` unchanged after Page tokens have been stored; changing it makes those encrypted tokens unreadable.

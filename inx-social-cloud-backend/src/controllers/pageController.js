@@ -36,6 +36,7 @@ const syncAccountSchema = z.object({
 });
 
 function publicPage(page) {
+  if (!page) return null;
   return {
     id: page.id,
     metaAccountId: page.metaAccountId,
@@ -52,6 +53,83 @@ function publicPage(page) {
     tokenExpiresAt: page.tokenExpiresAt,
     lastError: page.lastError
   };
+}
+
+async function getWorkspace(req, res, next) {
+  try {
+    const [accounts, pages, license] = await Promise.all([
+      prisma.metaAccount.findMany({
+        where: { userId: req.user.id, status: 'ACTIVE' },
+        orderBy: { connectedAt: 'desc' },
+        include: {
+          pages: {
+            where: { status: 'ACTIVE' },
+            orderBy: { facebookPageName: 'asc' }
+          }
+        }
+      }),
+      prisma.connectedPage.findMany({
+        where: { userId: req.user.id, status: 'ACTIVE' },
+        orderBy: [
+          { isSelected: 'desc' },
+          { facebookPageName: 'asc' }
+        ],
+        include: {
+          metaAccount: {
+            select: {
+              id: true,
+              facebookUserName: true,
+              facebookProfileImage: true,
+              status: true
+            }
+          }
+        }
+      }),
+      requireActiveLicense(req.user.id)
+    ]);
+
+    let activePage = pages.find(page => page.isSelected) || null;
+    if (!activePage && pages.length) {
+      activePage = pages[0];
+      await prisma.$transaction([
+        prisma.connectedPage.updateMany({
+          where: { userId: req.user.id, isSelected: true },
+          data: { isSelected: false }
+        }),
+        prisma.connectedPage.update({
+          where: { id: activePage.id },
+          data: { isSelected: true, lastCheckedAt: new Date() }
+        })
+      ]);
+      activePage = { ...activePage, isSelected: true };
+    }
+
+    const activePageCredentials = activePage?.encryptedAccessToken
+      ? {
+          pageId: activePage.facebookPageId,
+          pageName: activePage.facebookPageName,
+          accessToken: decryptToken(activePage.encryptedAccessToken)
+        }
+      : null;
+
+    res.json({
+      accounts: accounts.map(publicAccount),
+      pages: pages.map(page => ({
+        ...publicPage(page),
+        isSelected: Boolean(activePage && page.id === activePage.id),
+        metaAccount: page.metaAccount
+      })),
+      activePage: publicPage(activePage),
+      activePageCredentials,
+      pageUsage: {
+        connected: pages.length,
+        limit: license.limits.pages
+      },
+      plan: license.plan
+    });
+  } catch (error) {
+    next(error);
+  }
 }
 
 function publicAccount(account) {
@@ -517,6 +595,7 @@ async function connectPage(req, res, next) {
         encryptedAccessToken: input.accessToken ? encryptToken(input.accessToken) : undefined,
         tokenExpiresAt: input.tokenExpiresAt || undefined,
         status: 'ACTIVE',
+        isSelected: selectedCount === 0 ? true : undefined,
         lastCheckedAt: new Date(),
         lastSyncAt: new Date(),
         lastError: null
@@ -567,6 +646,7 @@ async function revokePage(req, res, next) {
 }
 
 module.exports = {
+  getWorkspace,
   discoverAccount,
   connectAccount,
   listAccounts,

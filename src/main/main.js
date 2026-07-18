@@ -25,7 +25,7 @@ let reelsPublisherActive = false;
 function getCloudClient() {
   const settings = appStore.getSettings();
   const session = appStore.getAccountSession();
-  return new CloudClient(settings.cloudApiUrl || 'http://localhost:5050', session.token || '');
+  return new CloudClient(settings.cloudApiUrl || 'https://api.social.inaxx.co.uk', session.token || '');
 }
 
 async function refreshCloudAccount({ activate = true } = {}) {
@@ -443,6 +443,8 @@ function extractFacebookAccessTokenFromUrl(rawUrl, expectedState) {
 function waitForFacebookTokenInPopup(authUrl, expectedState, timeoutMs = 180000) {
   return new Promise((resolve, reject) => {
     let settled = false;
+    let lastObservedUrl = '';
+    let closeTimer = null;
     // Use a fresh non-persistent Electron session for every Facebook connection attempt.
     // This prevents an old Facebook login/cookie grant from silently reusing scopes that
     // did not include Page access, which is the common cause of /me/accounts returning no Pages.
@@ -465,14 +467,16 @@ function waitForFacebookTokenInPopup(authUrl, expectedState, timeoutMs = 180000)
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearTimeout(closeTimer);
       try { if (!popup.isDestroyed()) popup.close(); } catch (_) {}
       if (err) reject(err);
       else resolve(payload);
     };
 
     const inspect = rawUrl => {
+      lastObservedUrl = String(rawUrl || lastObservedUrl || '');
       try {
-        const token = extractFacebookAccessTokenFromUrl(rawUrl, expectedState);
+        const token = extractFacebookAccessTokenFromUrl(lastObservedUrl, expectedState);
         if (token) {
           finish(null, token);
           return true;
@@ -484,12 +488,29 @@ function waitForFacebookTokenInPopup(authUrl, expectedState, timeoutMs = 180000)
       return false;
     };
 
+    const inspectLoadedLocation = () => {
+      if (settled || popup.isDestroyed()) return;
+      popup.webContents.executeJavaScript('window.location.href', true)
+        .then(url => inspect(url))
+        .catch(() => {});
+    };
+
     const timer = setTimeout(() => finish(new Error('Facebook connection timed out. Please try again.')), timeoutMs);
-    popup.on('closed', () => finish(new Error('Facebook connection window was closed before login completed.')));
+    popup.on('closed', () => {
+      if (settled) return;
+      closeTimer = setTimeout(() => {
+        if (!inspect(lastObservedUrl)) {
+          finish(new Error('Facebook login did not finish inside INX Social. Keep the Facebook window open until the app closes it automatically.'));
+        }
+      }, 350);
+    });
+    popup.webContents.on('did-start-navigation', (_, url) => inspect(url));
     popup.webContents.on('will-redirect', (event, url) => { if (inspect(url)) event.preventDefault(); });
     popup.webContents.on('will-navigate', (event, url) => { if (inspect(url)) event.preventDefault(); });
     popup.webContents.on('did-navigate', (_, url) => inspect(url));
     popup.webContents.on('did-navigate-in-page', (_, url) => inspect(url));
+    popup.webContents.on('did-finish-load', inspectLoadedLocation);
+    popup.webContents.on('dom-ready', inspectLoadedLocation);
     popup.loadURL(authUrl);
   });
 }
@@ -635,6 +656,7 @@ function buildReelQueueSlots(videoCount, startDateISO, timeValues, settings) {
   const earliest = DateTime.now().setZone(timezone).plus({ minutes: 1 });
   const occupied = new Set();
   for (const job of appStore.getJobs()) {
+    if (job.facebookPageId && settings.pageId && job.facebookPageId !== settings.pageId) continue;
     if (!job.scheduledAtISO && !job.scheduledISO) continue;
     if (!['reel_queued','reel_uploading','reel_scheduled','reel_publishing','reel_published','planned','uploading','scheduled'].includes(job.status)) continue;
     const dt = DateTime.fromISO(job.scheduledAtISO || job.scheduledISO, { zone: timezone });
@@ -675,6 +697,9 @@ function buildSessionCaptions(text, settings) {
 
 async function createReelsQueue(payload = {}) {
   const settings = appStore.getSettings();
+  if (!settings.pageId || !settings.pageAccessToken) {
+    throw new Error('Auto Scheduler cannot start until an active Facebook Page is selected.');
+  }
   const videoPaths = Array.isArray(payload.videoPaths) ? payload.videoPaths.filter(Boolean) : [];
   const captions = buildSessionCaptions(payload.captionText || '', settings);
   if (!videoPaths.length) throw new Error('Reels Queue cannot start: select at least one video.');
@@ -705,6 +730,8 @@ async function createReelsQueue(payload = {}) {
       captionName: `reel-caption-${index + 1}`,
       captionHash: crypto.createHash('sha256').update(caption, 'utf8').digest('hex'),
       captionKey: `reel-session-caption:${Date.now()}:${index}`,
+      facebookPageId: settings.pageId,
+      facebookPageName: settings.connectedPageName || settings.pageId,
       scheduledAtISO: slot.scheduledAtISO,
       scheduledUnix: slot.scheduledUnix,
       slotLabel: slot.slotLabel,
@@ -781,6 +808,9 @@ async function runDueReels(event, options = {}) {
       if (event && event.sender) event.sender.send('scheduler:progress', progress);
 
       try {
+        if (job.facebookPageId && job.facebookPageId !== settings.pageId) {
+          throw new Error(`This Reel was prepared for ${job.facebookPageName || job.facebookPageId}. Switch the active Page before uploading it.`);
+        }
         const result = await client.scheduleReel(job, { signal: schedulerControl ? schedulerControl.signal : undefined });
         job = appStore.updateJob(job.id, {
           status: result.videoState === 'SCHEDULED' ? 'reel_scheduled' : 'reel_published',
@@ -1248,17 +1278,190 @@ async function uploadDraftSession(event, payload = {}) {
   }
 }
 
+
+function saveLocalFacebookWorkspaceFallback(error) {
+  const settings = appStore.getSettings();
+  if (!settings.pageId || !settings.pageAccessToken) return null;
+
+  const current = appStore.getWorkspace() || {};
+  const account = appStore.getAccountState();
+  const previousPage = (current.pages || []).find(page => page.facebookPageId === settings.pageId) || {};
+  const page = {
+    ...previousPage,
+    id: `local-${settings.pageId}`,
+    facebookPageId: settings.pageId,
+    facebookPageName: settings.connectedPageName || previousPage.facebookPageName || settings.pageId,
+    facebookCategory: previousPage.facebookCategory || 'Facebook Page',
+    metaAccountId: 'local-facebook-account',
+    status: 'ACTIVE',
+    isSelected: true,
+    localOnly: true
+  };
+  const limit = Number(current.pageUsage?.limit || account.license?.limits?.pages || 10);
+  const warning = cloudErrorMessage(error);
+
+  return appStore.saveWorkspace({
+    accounts: [{
+      id: 'local-facebook-account',
+      facebookUserName: 'Saved Facebook connection',
+      status: 'ACTIVE',
+      legacyMode: true,
+      pages: [page]
+    }],
+    pages: [page],
+    activePage: page,
+    pageUsage: { connected: 1, limit },
+    plan: current.plan || account.license?.plan || null,
+    legacyMode: true,
+    syncWarning: warning
+  });
+}
+
+async function refreshCloudWorkspace({ preferLocalSelection = false } = {}) {
+  const session = appStore.getAccountSession();
+  if (!session.token) {
+    appStore.clearWorkspace();
+    return appStore.getWorkspace();
+  }
+
+  const settings = appStore.getSettings();
+  const client = new CloudClient(settings.cloudApiUrl, session.token);
+  try {
+    let workspaceData = null;
+    try {
+      workspaceData = await client.getWorkspace();
+    } catch (error) {
+      if ([401, 403].includes(error?.response?.status)) throw error;
+    }
+
+    let pageData = workspaceData || { pages: [] };
+    let accountData = workspaceData || { accounts: [], legacyMode: true };
+    if (!workspaceData) {
+      let pageRequestError = null;
+      try { pageData = await client.listPages(); } catch (error) { pageRequestError = error; }
+      try {
+        accountData = await client.listMetaAccounts();
+      } catch (error) {
+        if (pageRequestError) throw pageRequestError;
+      }
+
+      if (!Array.isArray(pageData.pages) || !pageData.pages.length) {
+        const accountPages = (accountData.accounts || []).flatMap(account => account.pages || []);
+        if (accountPages.length) pageData = { ...pageData, pages: accountPages };
+      }
+    }
+
+    const localSettings = appStore.getSettings();
+    let rawPages = Array.isArray(pageData.pages)
+      ? pageData.pages.filter(page => page.status !== 'REVOKED')
+      : [];
+    const localPageIsMissing = localSettings.pageId && !rawPages.some(
+      page => page.facebookPageId === localSettings.pageId
+    );
+    if (localSettings.pageId && localSettings.pageAccessToken && (!rawPages.length || (preferLocalSelection && localPageIsMissing))) {
+      rawPages = [...rawPages, {
+        id: `local-${localSettings.pageId}`,
+        facebookPageId: localSettings.pageId,
+        facebookPageName: localSettings.connectedPageName || localSettings.pageId,
+        facebookCategory: 'Facebook Page',
+        status: 'ACTIVE',
+        isSelected: true,
+        localOnly: true
+      }];
+    }
+    const serverActivePage = pageData.activePage || null;
+    const pages = rawPages.map(page => ({
+      ...page,
+      facebookCategory: page.facebookCategory || page.category || '',
+      isSelected: Boolean(
+        preferLocalSelection
+          ? localSettings.pageId && page.facebookPageId === localSettings.pageId
+          : serverActivePage
+            ? page.id === serverActivePage.id
+            : page.isSelected || (localSettings.pageId && page.facebookPageId === localSettings.pageId)
+      )
+    }));
+
+    let accounts = Array.isArray(accountData.accounts) ? accountData.accounts : [];
+    if (!accounts.length && pages.length) {
+      const legacyAccountId = 'legacy-facebook-account';
+      accounts = [{
+        id: legacyAccountId,
+        facebookUserName: 'Connected Facebook account',
+        status: 'ACTIVE',
+        legacyMode: true,
+        pages: pages.map(page => ({ ...page, metaAccountId: page.metaAccountId || legacyAccountId }))
+      }];
+      for (const page of pages) page.metaAccountId = page.metaAccountId || legacyAccountId;
+    }
+
+    const activePage = pages.find(page => page.isSelected) || serverActivePage || (pages.length === 1 ? pages[0] : null);
+    const connected = pages.filter(page => page.status !== 'REVOKED').length;
+    const limit = Number(pageData.limit || accountData.pageUsage?.limit || 0);
+    const reportedUsage = pageData.pageUsage || accountData.pageUsage || {};
+    const workspace = appStore.saveWorkspace({
+      accounts,
+      pages,
+      activePage,
+      pageUsage: {
+        connected: Math.max(connected, Number(reportedUsage.connected || 0)),
+        limit: Number(reportedUsage.limit || limit)
+      },
+      plan: accountData.plan || pageData.plan || null,
+      legacyMode: Boolean(accountData.legacyMode),
+      syncWarning: null
+    });
+
+    const credentials = pageData.activePageCredentials;
+    if (!preferLocalSelection && activePage && credentials?.accessToken) {
+      appStore.saveSettings({
+        pageId: credentials.pageId || activePage.facebookPageId,
+        pageAccessToken: credentials.accessToken,
+        connectedPageName: credentials.pageName || activePage.facebookPageName,
+        connectionMethod: 'cloud-workspace'
+      });
+    } else if (!activePage) {
+      appStore.saveSettings({
+        pageId: '',
+        pageAccessToken: '',
+        connectedPageName: '',
+        connectionMethod: 'facebook-login'
+      });
+    }
+
+    return workspace;
+  } catch (error) {
+    const status = error?.response?.status;
+    if (![401, 403].includes(status)) {
+      const fallback = saveLocalFacebookWorkspaceFallback(error);
+      if (fallback) {
+        appStore.log('workspace', `Cloud workspace unavailable; using the verified Page saved on this device: ${cloudErrorMessage(error)}`);
+        return fallback;
+      }
+    }
+    throw new Error(cloudErrorMessage(error));
+  }
+}
+
+function requireCloudSession() {
+  const session = appStore.getAccountSession();
+  if (!session.token) throw new Error('Sign in to INX Social before managing Facebook workspaces.');
+  const settings = appStore.getSettings();
+  return { session, client: new CloudClient(settings.cloudApiUrl, session.token) };
+}
+
 function registerIpc() {
   ipcMain.handle('state:get', async () => appStore.getState());
   ipcMain.handle('account:register', async (_, payload) => {
     const settings = appStore.getSettings();
-    const baseUrl = String(payload && payload.cloudApiUrl || settings.cloudApiUrl || 'http://localhost:5050').trim();
+    const baseUrl = String(payload && payload.cloudApiUrl || settings.cloudApiUrl || 'https://api.social.inaxx.co.uk').trim();
     appStore.saveSettings({ cloudApiUrl: baseUrl });
     const client = new CloudClient(baseUrl);
     try {
       const result = await client.register({ name: payload.name, email: payload.email, password: payload.password });
       appStore.saveAccountSession({ token: result.token, user: result.user });
       const account = await refreshCloudAccount({ activate: true });
+      await refreshCloudWorkspace();
       appStore.log('account', `Created cloud account for ${result.user.email}.`);
       return { account, state: appStore.getState() };
     } catch (error) { throw new Error(cloudErrorMessage(error)); }
@@ -1266,13 +1469,14 @@ function registerIpc() {
 
   ipcMain.handle('account:login', async (_, payload) => {
     const settings = appStore.getSettings();
-    const baseUrl = String(payload && payload.cloudApiUrl || settings.cloudApiUrl || 'http://localhost:5050').trim();
+    const baseUrl = String(payload && payload.cloudApiUrl || settings.cloudApiUrl || 'https://api.social.inaxx.co.uk').trim();
     appStore.saveSettings({ cloudApiUrl: baseUrl });
     const client = new CloudClient(baseUrl);
     try {
       const result = await client.login({ email: payload.email, password: payload.password });
       appStore.saveAccountSession({ token: result.token, user: result.user });
       const account = await refreshCloudAccount({ activate: true });
+      await refreshCloudWorkspace();
       appStore.log('account', `Signed in as ${result.user.email}.`);
       return { account, state: appStore.getState() };
     } catch (error) { throw new Error(cloudErrorMessage(error)); }
@@ -1280,12 +1484,153 @@ function registerIpc() {
 
   ipcMain.handle('account:refresh', async () => {
     const account = await refreshCloudAccount({ activate: true });
+    await refreshCloudWorkspace();
     return { account, state: appStore.getState() };
   });
 
   ipcMain.handle('account:logout', async () => {
     const account = appStore.clearAccountSession();
     return { account, state: appStore.getState() };
+  });
+
+
+  ipcMain.handle('workspace:get', async () => ({ workspace: appStore.getWorkspace(), state: appStore.getState() }));
+
+  ipcMain.handle('workspace:refresh', async () => {
+    const workspace = await refreshCloudWorkspace();
+    return { workspace, state: appStore.getState() };
+  });
+
+  ipcMain.handle('workspace:connect-facebook', async () => {
+    const { client } = requireCloudSession();
+    try {
+      let settings = appStore.getSettings();
+      let selected = null;
+      let reusedSavedConnection = false;
+
+      // A Page already verified in Settings does not need another Facebook login.
+      // Reuse its Page token and synchronize it into the cloud workspace directly.
+      if (settings.pageId && settings.pageAccessToken) {
+        try {
+          const savedPage = await new FacebookClient(settings).testConnection();
+          selected = {
+            id: savedPage.id || settings.pageId,
+            name: savedPage.name || settings.connectedPageName || settings.pageId,
+            category: savedPage.category || 'Facebook Page'
+          };
+          reusedSavedConnection = true;
+          appStore.saveSettings({ connectedPageName: selected.name });
+          settings = appStore.getSettings();
+          appStore.log('workspace', `Reusing verified Facebook Page connection: ${selected.name}.`);
+        } catch (savedError) {
+          appStore.log('workspace', `Saved Facebook Page could not be reused: ${savedError.message}`);
+        }
+      }
+
+      if (!selected) {
+        const localResult = await connectFacebookPageAuto();
+        selected = localResult.page;
+        settings = appStore.getSettings();
+      }
+
+      let cloudWarning = null;
+      try {
+        const cloudPage = await client.connectPage({
+          facebookPageId: selected.id,
+          facebookPageName: selected.name,
+          facebookCategory: selected.category || null,
+          accessToken: settings.pageAccessToken,
+          metaAppId: settings.facebookAppId
+        });
+        if (cloudPage?.page?.id) await client.selectPage(cloudPage.page.id);
+      } catch (cloudError) {
+        cloudWarning = cloudErrorMessage(cloudError);
+        appStore.log('workspace', `Facebook Page connected on this device, but cloud sync failed: ${cloudWarning}`);
+      }
+      // Prefer the Page just verified on this device. This also keeps the UI usable
+      // if an older cloud backend has not returned the newly synchronized Page yet.
+      const workspace = await refreshCloudWorkspace({ preferLocalSelection: true });
+      appStore.log(
+        'workspace',
+        cloudWarning
+          ? `Connected Facebook Page on this device; cloud sync is pending: ${selected.name}.`
+          : `Connected Facebook Page to cloud workspace: ${selected.name}.`
+      );
+      return { page: selected, workspace, warning: cloudWarning, reusedSavedConnection, state: appStore.getState() };
+    } catch (error) {
+      throw new Error(cloudErrorMessage(error));
+    }
+  });
+
+  ipcMain.handle('workspace:discover-account', async (_, accessToken) => {
+    const { client } = requireCloudSession();
+    try { return await client.discoverMetaAccount(accessToken); }
+    catch (error) { throw new Error(cloudErrorMessage(error)); }
+  });
+
+  ipcMain.handle('workspace:connect-account', async (_, payload) => {
+    const { client } = requireCloudSession();
+    try {
+      const result = await client.connectMetaAccount(payload);
+      const workspace = await refreshCloudWorkspace();
+      appStore.log('workspace', `Connected Meta account with ${result.connectedPageCount || 0} Page(s).`);
+      return { result, workspace, state: appStore.getState() };
+    } catch (error) { throw new Error(cloudErrorMessage(error)); }
+  });
+
+  ipcMain.handle('workspace:sync-account', async (_, accountId) => {
+    const { client } = requireCloudSession();
+    try {
+      const result = await client.syncMetaAccount(accountId);
+      const workspace = await refreshCloudWorkspace();
+      return { result, workspace, state: appStore.getState() };
+    } catch (error) { throw new Error(cloudErrorMessage(error)); }
+  });
+
+  ipcMain.handle('workspace:disconnect-account', async (_, accountId) => {
+    const { client } = requireCloudSession();
+    try {
+      const result = await client.disconnectMetaAccount(accountId);
+      const workspace = await refreshCloudWorkspace();
+      return { result, workspace, state: appStore.getState() };
+    } catch (error) { throw new Error(cloudErrorMessage(error)); }
+  });
+
+  ipcMain.handle('workspace:select-page', async (_, pageId) => {
+    const { client } = requireCloudSession();
+    try {
+      const currentWorkspace = appStore.getWorkspace();
+      const target = (currentWorkspace.pages || []).find(page => page.id === pageId);
+      const result = await client.selectPage(pageId);
+      let workspace = await refreshCloudWorkspace();
+      const selected = workspace.pages.find(page => page.id === pageId) || target || workspace.activePage;
+      if (selected) {
+        const existingSettings = appStore.getSettings();
+        if (existingSettings.pageId !== selected.facebookPageId || !existingSettings.pageAccessToken) {
+          throw new Error('Reconnect this Page through Facebook Login before selecting it for publishing. Its Page access token is not stored on this device.');
+        }
+        appStore.saveSettings({
+          pageId: selected.facebookPageId,
+          connectedPageName: selected.facebookPageName,
+          connectionMethod: result.legacyMode ? 'facebook-login' : 'cloud-workspace'
+        });
+        workspace = appStore.saveWorkspace({
+          ...workspace,
+          pages: workspace.pages.map(page => ({ ...page, isSelected: page.id === selected.id })),
+          activePage: { ...selected, isSelected: true }
+        });
+      }
+      return { result, workspace, state: appStore.getState() };
+    } catch (error) { throw new Error(cloudErrorMessage(error)); }
+  });
+
+  ipcMain.handle('workspace:revoke-page', async (_, pageId) => {
+    const { client } = requireCloudSession();
+    try {
+      const result = await client.revokePage(pageId);
+      const workspace = await refreshCloudWorkspace();
+      return { result, workspace, state: appStore.getState() };
+    } catch (error) { throw new Error(cloudErrorMessage(error)); }
   });
 
 
@@ -1553,6 +1898,7 @@ function registerIpc() {
 
   ipcMain.handle('facebook:disconnect-page', async () => {
     const saved = appStore.saveSettings({ pageId: '', pageAccessToken: '', connectedPageName: '', connectionMethod: 'manual' });
+    appStore.clearWorkspace();
     appStore.log('facebook', 'Facebook Page connection cleared from Settings.');
     return { settings: saved, state: appStore.getState() };
   });

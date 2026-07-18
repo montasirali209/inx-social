@@ -8,6 +8,7 @@ let reelsSessionVideos = [];
 let reelsSelectedTimes = [];
 let labVideoPath = '';
 let accountMode = 'login';
+let cloudWorkspace = { accounts: [], pages: [], activePage: null, pageUsage: null, plan: null };
 
 const UI_TEXT_FIELDS = [
   'appTitle', 'appSubtitle', 'dashboardTitle', 'dashboardSubtitle',
@@ -19,7 +20,9 @@ const UI_TEXT_FIELDS = [
 ];
 
 const views = {
-  dashboard: ['Dashboard', 'Reels scheduling dashboard with auto and manual scheduling.'],
+  dashboard: ['Home', 'Your INX Social publishing command centre.'],
+  workspace: ['Workspace', 'The active Facebook Page and its publishing workflow.'],
+  pages: ['Pages', 'Connect and choose the Page that receives your next scheduled content.'],
   media: ['Old Auto Scheduler', 'Hidden old Page Video scheduler.'],
   reels: ['Auto Scheduler', 'Upload videos to Meta now and schedule them as Facebook Reels for future times.'],
   lab: ['Hidden Test Tools', 'Hidden technical test tools.'],
@@ -27,6 +30,7 @@ const views = {
   manual: ['Manual Scheduler', 'Upload one Reel to Meta now and schedule it for a future time.'],
   health: ['Health Check', 'Check video, caption, schedule, and Meta connection risks before posting.'],
   calendar: ['Calendar', 'See what is planned locally and what has been published.'],
+  analytics: ['Analytics', 'Publishing health, usage and account performance.'],
   logs: ['Logs', 'Track imports, scheduled uploads, publishing, retries, and errors.'],
   settings: ['Settings', 'Facebook Connect and scheduler rules.']
 };
@@ -44,6 +48,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   });
   await refresh();
+  await refreshWorkspaceV2({ silent: true });
   renderAccountGate();
   const md = document.getElementById('manualDate');
   if (md && !md.value) md.value = defaultDateInput();
@@ -170,6 +175,7 @@ function switchView(viewName) {
   document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === viewName));
   document.getElementById('viewTitle').textContent = views[viewName][0];
   document.getElementById('viewSubtitle').textContent = views[viewName][1];
+  if (['workspace','pages','analytics'].includes(viewName)) refreshWorkspaceV2({ silent: true });
 }
 
 function bindButtons() {
@@ -194,6 +200,7 @@ function bindButtons() {
   on('btnStopDraftSession', stopScheduler);
   on('btnOpenBusinessFromDraft', () => openExternalUrl('https://business.facebook.com/latest/posts?content_table=POSTS'));
   on('btnReelsOpenSettings', () => switchView('settings'));
+  on('btnReelsManagePages', () => switchView('pages'));
   on('btnReelsPickVideos', pickReelsSessionVideos);
   on('btnReelsPickCaptions', pickReelsSessionCaptions);
   on('btnReelsClearSession', clearReelsSession);
@@ -210,6 +217,15 @@ function bindButtons() {
   if (draftMode) draftMode.addEventListener('change', renderDraftSessionSummary);
   const reelsMode = document.getElementById('reelsTimingMode');
   if (reelsMode) reelsMode.addEventListener('change', renderReelsSessionSummary);
+  const reelsPageSelect = document.getElementById('reelsPageSelect');
+  if (reelsPageSelect) reelsPageSelect.addEventListener('change', async event => {
+    const pageId = event.target.value;
+    if (!pageId) return;
+    const active = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected);
+    if (active?.id === pageId) return;
+    event.target.disabled = true;
+    await selectPageV2(pageId);
+  });
   on('btnHeroRun', () => switchView('reels'));
   on('btnHeroManual', () => switchView('manual'));
   on('btnHeroHealth', () => { switchView('health'); runHealthCheck(); });
@@ -235,6 +251,25 @@ function bindButtons() {
   on('btnManualSchedule', scheduleManualPost);
   on('btnManualClear', clearManualForm);
   on('btnRunHealthCheck', runHealthCheck);
+
+  on('btnWorkspaceRefresh', () => refreshWorkspaceV2());
+  on('btnWorkspaceOpenScheduler', () => switchView('reels'));
+  on('btnWorkspacePages', () => switchView('pages'));
+  on('btnWorkspaceImport', () => switchView('dashboard'));
+  on('btnWorkspaceCalendar', () => switchView('calendar'));
+  on('btnWorkspaceHealth', () => { switchView('health'); runHealthCheck(); });
+  on('activeWorkspaceChip', toggleActiveWorkspaceMenu);
+  on('btnAddMetaAccount', connectFacebookWorkspaceV2);
+  on('btnDisconnectActivePage', disconnectActiveWorkspacePage);
+  on('btnOpenFacebookIntegrations', () => openExternalUrl('https://www.facebook.com/settings?tab=business_tools'));
+  on('btnOpenPagesSettings', () => switchView('pages'));
+  on('btnPagesRefresh', () => refreshWorkspaceV2());
+  const pageSearch = document.getElementById('pageSearchInput');
+  if (pageSearch) pageSearch.addEventListener('input', renderPagesV2);
+  document.addEventListener('click', event => {
+    const control = document.getElementById('activeWorkspaceControl');
+    if (control && !control.contains(event.target)) closeActiveWorkspaceMenu();
+  });
 
   const form = document.getElementById('settingsForm');
   form.addEventListener('submit', async event => {
@@ -490,9 +525,10 @@ function renderReelsSessionSummary() {
   const perDay = Math.max(1, times.length || 0);
   const days = pairs ? Math.ceil(pairs / perDay) : 0;
   const box = document.getElementById('reelsSessionSummary');
+  const activePage = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected) || null;
   if (box) {
-    box.className = pairs ? 'simple-check success' : 'simple-check muted';
-    box.innerHTML = `${reelsSessionVideos.length} video(s) selected · ${captions.length} caption(s) · ${pairs} ready pair(s) · ${times.length || 0} slot(s)/day · estimated ${days} day(s).<br><span class="muted">Start Studio Upload will upload these to Meta now and Meta will hold them as scheduled Facebook Reels.</span>`;
+    box.className = pairs && activePage ? 'simple-check success' : 'simple-check muted';
+    box.innerHTML = `${reelsSessionVideos.length} video(s) selected · ${captions.length} caption(s) · ${pairs} ready pair(s) · ${times.length || 0} slot(s)/day · estimated ${days} day(s).<br><span class="muted">Destination: ${escapeHtml(activePage?.facebookPageName || 'No Page selected')}. Start Studio Upload sends every item in this session to this Page.</span>`;
   }
   renderReelsSchedulePreview();
 }
@@ -529,6 +565,8 @@ function renderReelsSchedulePreview() {
 }
 
 async function createReelsQueue() {
+  const activePage = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected) || null;
+  if (!activePage) return toast('Choose a Facebook Page before preparing this Auto Scheduler session.', true);
   const captions = getReelsCaptionBlocks();
   const mode = document.getElementById('reelsTimingMode') ? document.getElementById('reelsTimingMode').value : 'settings';
   const times = mode === 'custom' ? reelsSelectedTimes : [];
@@ -576,6 +614,8 @@ async function runDueReels() {
 
 async function startReelsWatcher() {
   if (isSchedulerRunning) return toast('Upload is already running.', true);
+  const activePage = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected) || null;
+  if (!activePage) return toast('Choose a Facebook Page before starting Auto Scheduler.', true);
   isSchedulerRunning = true;
   updateRunButtons();
   updateReelsPanel({ phase: 'Studio upload', percent: 3, message: 'Preparing selected Reels for immediate Meta schedule upload...', current: 0, total: 0, uploaded: 0, failed: 0 });
@@ -982,8 +1022,14 @@ function updateRunButtons() {
   if (draft) draft.disabled = isSchedulerRunning;
   const draftSession = document.getElementById('btnUploadDraftSession');
   const stopDraft = document.getElementById('btnStopDraftSession');
+  const studioStart = document.getElementById('btnReelsStartWatcher');
+  const studioStop = document.getElementById('btnReelsStopWatcher');
+  const pageSelect = document.getElementById('reelsPageSelect');
   if (draftSession) draftSession.disabled = isSchedulerRunning;
   if (stopDraft) stopDraft.disabled = !draftSessionRunning;
+  if (studioStart) studioStart.disabled = isSchedulerRunning;
+  if (studioStop) studioStop.disabled = !isSchedulerRunning;
+  if (pageSelect) pageSelect.disabled = isSchedulerRunning || !(cloudWorkspace?.pages || []).length;
   if (stop) stop.disabled = !isSchedulerRunning;
 }
 
@@ -1311,6 +1357,7 @@ function val(id) {
 function render() {
   renderAccountGate();
   if (!state) return;
+  cloudWorkspace = state.workspace || cloudWorkspace;
   applyThemeSettings();
   renderStats();
   renderSlotPills();
@@ -1327,6 +1374,7 @@ function render() {
   renderReelsSessionSummary();
   renderReelsQueueTable();
   if (lastPreview) renderPlan(lastPreview);
+  renderWorkspaceV2();
 }
 
 function renderStats() {
@@ -1605,7 +1653,7 @@ function applyThemeSettings() {
 function normaliseBrandText(ui) {
   const output = { ...(ui || {}) };
   if (!output.appTitle || output.appTitle === 'Facebook Reels Scheduler') output.appTitle = 'INX Social';
-  if (!output.appSubtitle || output.appSubtitle === 'Auto and manual Reel scheduling') output.appSubtitle = 'Facebook Reels & Page Scheduler';
+  if (!output.appSubtitle || ['Auto and manual Reel scheduling', 'Facebook Reels & Page Scheduler'].includes(output.appSubtitle)) output.appSubtitle = 'Content Scheduler';
   return output;
 }
 
@@ -1781,3 +1829,249 @@ function renderFacebookConnectStatus(settings) {
   box.className = 'connect-status ok';
   box.textContent = `Connected to ${name} • ${method} • credentials hidden`;
 }
+
+
+async function refreshWorkspaceV2(options = {}) {
+  if (!state?.account?.authenticated) {
+    cloudWorkspace = { accounts: [], pages: [], activePage: null, pageUsage: null, plan: null };
+    renderWorkspaceV2();
+    return;
+  }
+  try {
+    const result = await window.schedulerApi.refreshWorkspace();
+    state = result.state;
+    cloudWorkspace = result.workspace || state.workspace || cloudWorkspace;
+    renderWorkspaceV2();
+    if (!options.silent) {
+      toast(result.workspace?.syncWarning
+        ? `Using the Facebook Page saved on this device. Cloud sync is pending: ${result.workspace.syncWarning}`
+        : 'Facebook workspace refreshed.',
+      Boolean(result.workspace?.syncWarning));
+    }
+  } catch (error) {
+    if (!options.silent) toast(error.message, true);
+  }
+}
+
+function renderWorkspaceV2() {
+  if (!state) return;
+  const workspace = cloudWorkspace || state.workspace || {};
+  const accounts = workspace.accounts || [];
+  const pages = workspace.pages || accounts.flatMap(a => a.pages || []);
+  const active = workspace.activePage || pages.find(p => p.isSelected) || null;
+  const usage = workspace.pageUsage || { connected: pages.filter(p => p.status === 'ACTIVE').length, limit: state.account?.license?.limits?.pages || 0 };
+  cloudWorkspace = { ...workspace, accounts, pages, activePage: active, pageUsage: usage };
+
+  setText('activeWorkspaceName', active?.facebookPageName || 'No Page selected');
+  renderActiveWorkspaceMenu(pages, active);
+  renderReelsPageSelector(pages, active);
+  const disconnectActivePage = document.getElementById('btnDisconnectActivePage');
+  if (disconnectActivePage) disconnectActivePage.disabled = !active && !state.settings?.pageId;
+  const connectFacebookPage = document.getElementById('btnAddMetaAccount');
+  if (connectFacebookPage && !connectFacebookPage.disabled) {
+    connectFacebookPage.textContent = state.settings?.pageId && state.settings?.pageAccessToken && (!active || active.localOnly)
+      ? 'Sync saved Facebook Page'
+      : '+ Connect Facebook Page';
+  }
+  setText('workspaceHeroTitle', active ? active.facebookPageName : 'Choose a Facebook Page');
+  setText('workspaceHeroText', active ? `Publishing workspace connected through ${accountNameForPage(active)}.` : 'Every Page has its own scheduling queue, calendar and publishing history.');
+  setText('workspaceAccountCount', accounts.length || (pages.length ? 1 : 0));
+  setText('workspacePageCount', usage.connected ?? pages.length);
+  setText('workspacePageLimit', `${Math.max(0, Number(usage.limit || 0) - Number(usage.connected || 0))} available`);
+  const jobs = state.jobs || [];
+  setText('workspaceQueueCount', jobs.filter(j => !['scheduled','reel_scheduled','reel_published','published'].includes(j.status)).length);
+  setText('workspacePublishedCount', jobs.filter(j => ['scheduled','reel_scheduled','reel_published','published'].includes(j.status)).length);
+
+  const activeCard = document.getElementById('workspaceActivePage');
+  if (activeCard) activeCard.innerHTML = active ? pageCardMarkup(active, true) : '<div class="workspace-empty">Select a connected Page to unlock the scheduling workspace.</div>';
+
+  const accountUsageText = document.getElementById('accountUsageText');
+  if (accountUsageText) accountUsageText.textContent = `${usage.connected || 0} Page${Number(usage.connected || 0) === 1 ? '' : 's'} connected · ${Math.max(0, Number(usage.limit || 0) - Number(usage.connected || 0))} available on this plan`;
+  const usageBar = document.getElementById('accountUsageBar');
+  if (usageBar) usageBar.style.width = `${Math.min(100, usage.limit ? (usage.connected / usage.limit) * 100 : 0)}%`;
+  setText('accountPlanBadge', workspace.plan || state.account?.license?.plan || 'TRIAL');
+
+  renderPagesV2();
+  renderAnalyticsV2();
+  bindWorkspaceDynamicActions();
+}
+
+function renderReelsPageSelector(pages, active) {
+  const select = document.getElementById('reelsPageSelect');
+  const name = document.getElementById('reelsActivePageName');
+  const hint = document.getElementById('reelsActivePageHint');
+  const availablePages = (pages || []).filter(page => page.status !== 'REVOKED');
+
+  if (name) name.textContent = active?.facebookPageName || 'No Page selected';
+  if (hint) hint.textContent = active
+    ? `Videos selected in this session will publish only to ${active.facebookPageName}.`
+    : 'Connect and choose a Facebook Page before selecting videos.';
+  if (!select) return;
+
+  select.innerHTML = availablePages.length
+    ? availablePages.map(page => `<option value="${escapeHtml(page.id)}">${escapeHtml(page.facebookPageName)}</option>`).join('')
+    : '<option value="">No connected Pages</option>';
+  select.disabled = isSchedulerRunning || !availablePages.length;
+  select.value = active?.id || '';
+}
+
+function renderPagesV2() {
+  const grid = document.getElementById('connectedPageGrid');
+  if (!grid) return;
+  const search = String(document.getElementById('pageSearchInput')?.value || '').trim().toLowerCase();
+  const pages = (cloudWorkspace.pages || []).filter(page => {
+    const matchesSearch = !search || `${page.facebookPageName || ''} ${page.facebookCategory || ''}`.toLowerCase().includes(search);
+    return matchesSearch;
+  });
+  grid.innerHTML = pages.length ? pages.map(page => pageCardMarkup(page, false)).join('') : '<div class="workspace-empty">No connected Page matches this filter.</div>';
+  bindWorkspaceDynamicActions();
+}
+
+function pageCardMarkup(page, large) {
+  return `<article class="connected-page-card ${page.isSelected ? 'active' : ''} ${large ? 'large' : ''}"><div class="page-picture">${page.facebookPagePicture ? `<img src="${escapeHtml(page.facebookPagePicture)}">` : '<span>F</span>'}</div><div class="page-card-copy"><span>${escapeHtml(page.facebookCategory || 'Facebook Page')}</span><h3>${escapeHtml(page.facebookPageName)}</h3><p>${page.localOnly ? 'Saved on this device · reconnect once to sync' : escapeHtml(accountNameForPage(page))}</p></div><div class="page-card-state">${page.isSelected ? '<b>Active workspace</b>' : '<button class="btn secondary compact" data-select-page="'+escapeHtml(page.id)+'">Use this Page</button>'}${!large && !page.localOnly ? `<button class="icon-danger" data-revoke-page="${escapeHtml(page.id)}" title="Disconnect Page">×</button>` : ''}</div></article>`;
+}
+
+function accountNameForPage(page) {
+  return cloudWorkspace.accounts?.find(a => a.id === page.metaAccountId)?.facebookUserName || 'Connected Meta account';
+}
+
+function bindWorkspaceDynamicActions() {
+  document.querySelectorAll('[data-select-page]').forEach(button => button.onclick = () => selectPageV2(button.dataset.selectPage));
+  document.querySelectorAll('[data-revoke-page]').forEach(button => button.onclick = () => revokePageV2(button.dataset.revokePage));
+}
+
+async function selectPageV2(pageId) {
+  try {
+    closeActiveWorkspaceMenu();
+    const result = await window.schedulerApi.selectWorkspacePage(pageId);
+    state = result.state; cloudWorkspace = result.workspace;
+    renderWorkspaceV2();
+    renderReelsSessionSummary();
+    toast('Active Facebook Page changed.');
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    renderReelsPageSelector(cloudWorkspace?.pages || [], cloudWorkspace?.activePage || null);
+  }
+}
+
+function toggleActiveWorkspaceMenu(event) {
+  event?.stopPropagation();
+  const menu = document.getElementById('activeWorkspaceMenu');
+  const chip = document.getElementById('activeWorkspaceChip');
+  if (!menu || !chip) return;
+  const willOpen = menu.classList.contains('hidden');
+  menu.classList.toggle('hidden', !willOpen);
+  chip.setAttribute('aria-expanded', String(willOpen));
+}
+
+function closeActiveWorkspaceMenu() {
+  document.getElementById('activeWorkspaceMenu')?.classList.add('hidden');
+  document.getElementById('activeWorkspaceChip')?.setAttribute('aria-expanded', 'false');
+}
+
+function renderActiveWorkspaceMenu(pages, active) {
+  const menu = document.getElementById('activeWorkspaceMenu');
+  if (!menu) return;
+  const availablePages = (pages || []).filter(page => page.status !== 'REVOKED');
+  if (!availablePages.length) {
+    menu.innerHTML = '<div class="active-menu-empty"><strong>No connected Pages</strong><span>Connect Facebook from the Pages menu first.</span><button type="button" id="btnTopOpenPages" class="btn secondary compact">Open Pages</button></div>';
+    const openPages = document.getElementById('btnTopOpenPages');
+    if (openPages) openPages.onclick = () => { closeActiveWorkspaceMenu(); switchView('pages'); };
+    return;
+  }
+  menu.innerHTML = '<div class="active-menu-heading">Switch active Page</div>' + availablePages.map(page => `
+    <button type="button" class="active-menu-page ${active?.id === page.id ? 'selected' : ''}" data-top-select-page="${escapeHtml(page.id)}" role="menuitem">
+      <span>${page.facebookPagePicture ? `<img src="${escapeHtml(page.facebookPagePicture)}" alt="">` : 'F'}</span>
+      <em><strong>${escapeHtml(page.facebookPageName)}</strong><small>${escapeHtml(page.facebookCategory || 'Facebook Page')}</small></em>
+      <b>${active?.id === page.id ? '✓' : ''}</b>
+    </button>`).join('') + '<button type="button" id="btnTopManagePages" class="active-menu-manage">Manage Pages</button>';
+  menu.querySelectorAll('[data-top-select-page]').forEach(button => {
+    button.onclick = () => {
+      if (active?.id === button.dataset.topSelectPage) return closeActiveWorkspaceMenu();
+      selectPageV2(button.dataset.topSelectPage);
+    };
+  });
+  const managePages = document.getElementById('btnTopManagePages');
+  if (managePages) managePages.onclick = () => { closeActiveWorkspaceMenu(); switchView('pages'); };
+}
+
+async function revokePageV2(pageId) {
+  if (!confirm('Disconnect this Facebook Page from INX Social?')) return;
+  try { const result = await window.schedulerApi.revokeWorkspacePage(pageId); state = result.state; cloudWorkspace = result.workspace; renderWorkspaceV2(); toast('Facebook Page disconnected.'); }
+  catch (error) { toast(error.message, true); }
+}
+
+async function connectFacebookWorkspaceV2() {
+  const button = document.getElementById('btnAddMetaAccount');
+  const originalText = button?.textContent || '+ Connect Facebook account';
+  if (button) { button.disabled = true; button.textContent = 'Connecting Page…'; }
+  try {
+    const result = await window.schedulerApi.connectFacebookWorkspace();
+    state = result.state;
+    cloudWorkspace = result.workspace;
+    renderWorkspaceV2();
+    toast(result.warning
+      ? `${result.page?.name || 'Facebook Page'} is connected on this device, but cloud sync still needs attention: ${result.warning}`
+      : result.reusedSavedConnection
+        ? `${result.page?.name || 'Facebook Page'} saved connection synced successfully.`
+        : `${result.page?.name || 'Facebook Page'} connected and synced successfully.`,
+      Boolean(result.warning));
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    if (button) {
+      button.disabled = false;
+      const active = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected);
+      button.textContent = state?.settings?.pageId && state?.settings?.pageAccessToken && (!active || active.localOnly)
+        ? 'Sync saved Facebook Page'
+        : active ? '+ Connect Facebook Page' : originalText;
+    }
+  }
+}
+
+async function disconnectActiveWorkspacePage() {
+  const active = cloudWorkspace.activePage || (cloudWorkspace.pages || []).find(page => page.isSelected) || null;
+  const savedPageName = active?.facebookPageName || state.settings?.connectedPageName || 'the active Facebook Page';
+  if (!active && !state.settings?.pageId) return toast('No Facebook Page is currently connected.', true);
+  if (!confirm(`Disconnect ${savedPageName} from INX Social?\n\nThis clears the Page token from this device. Use Facebook permissions if you also want to remove INX Social from your Facebook account.`)) return;
+
+  let cloudWarning = null;
+  if (active && !active.localOnly && !String(active.id || '').startsWith('local-')) {
+    try {
+      await window.schedulerApi.revokeWorkspacePage(active.id);
+    } catch (error) {
+      cloudWarning = error.message;
+    }
+  }
+
+  try {
+    const result = await window.schedulerApi.disconnectFacebookPage();
+    state = result.state;
+    cloudWorkspace = state.workspace || { accounts: [], pages: [], activePage: null, pageUsage: null, plan: null };
+    renderWorkspaceV2();
+    toast(cloudWarning
+      ? `The Page was cleared from this device, but cloud removal still needs attention: ${cloudWarning}`
+      : `${savedPageName} disconnected from INX Social.`,
+      Boolean(cloudWarning));
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+function renderAnalyticsV2() {
+  const jobs = state.jobs || [];
+  const successful = jobs.filter(j => ['scheduled','reel_scheduled','reel_published','published'].includes(j.status)).length;
+  const failed = jobs.filter(j => String(j.status || '').includes('failed')).length;
+  const totalFinished = successful + failed;
+  setText('analyticsMedia', (state.videos?.length || 0) + (state.captions?.length || 0));
+  setText('analyticsScheduled', successful);
+  setText('analyticsFailed', failed);
+  setText('analyticsSuccessRate', `${totalFinished ? Math.round(successful/totalFinished*100) : 0}%`);
+  const bars=document.getElementById('analyticsHealthBars');
+  if(bars) bars.innerHTML=[['Successful',successful,'success'],['Failed',failed,'failed'],['Queued',Math.max(0,jobs.length-totalFinished),'queued']].map(([label,value,cls])=>`<div><span>${label}<b>${value}</b></span><i><em class="${cls}" style="width:${jobs.length?Math.max(4,value/jobs.length*100):0}%"></em></i></div>`).join('');
+  const summary=document.getElementById('analyticsAccountSummary');
+  if(summary) summary.innerHTML=`<div><span>Plan</span><strong>${escapeHtml(cloudWorkspace.plan || state.account?.license?.plan || 'TRIAL')}</strong></div><div><span>Meta accounts</span><strong>${cloudWorkspace.accounts?.length || 0}</strong></div><div><span>Connected Pages</span><strong>${cloudWorkspace.pageUsage?.connected || cloudWorkspace.pages?.length || 0}</strong></div><div><span>Active Page</span><strong>${escapeHtml(cloudWorkspace.activePage?.facebookPageName || 'None')}</strong></div>`;
+}
+
+function setText(id, value) { const el=document.getElementById(id); if(el) el.textContent=String(value ?? ''); }
