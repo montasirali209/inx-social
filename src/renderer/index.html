@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'" />
   <title>INX Social</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -40,7 +41,6 @@
       </div>
       <nav>
         <button class="nav active" data-view="dashboard"><span>⌂</span> Home</button>
-        <button class="nav" data-view="workspace"><span>◫</span> Workspace</button>
         <button class="nav" data-view="pages"><span>▤</span> Pages</button>
         <button class="nav" data-view="reels">Auto Scheduler</button>
         <button class="nav" data-view="manual">Manual Scheduler</button>
@@ -61,7 +61,7 @@
       <header class="topbar glass-pop">
         <div>
           <h2 id="viewTitle">Dashboard</h2>
-          <p id="viewSubtitle">Auto or manual scheduling for Facebook Reels.</p>
+          <p id="viewSubtitle">Plan and schedule content across your connected Pages.</p>
         </div>
         <div class="top-actions">
           <div id="accountBadge" class="account-badge hidden">
@@ -93,8 +93,8 @@
         <section class="hero-board">
           <div class="hero-copy">
             <div class="eyebrow"><span class="live-dot"></span>INX Social</div>
-            <h2>Plan, upload, and schedule Facebook Reels from one studio.</h2>
-            <p>A professional desktop scheduler for Facebook Reels. Connect your Page, prepare videos and captions, and upload them to Meta with future publish times.</p>
+            <h2>Plan, schedule, and publish content from one studio.</h2>
+            <p>Connect your Pages, prepare videos and captions, choose the active destination, and manage scheduled content from one place.</p>
             <div class="hero-actions">
               <button id="btnHeroRun" class="btn primary orb-btn" type="button">Open Scheduler</button>
               <button id="btnHeroManual" class="btn glass-btn" type="button">Manual Scheduler</button>
@@ -104,7 +104,7 @@
           <div class="hero-status">
             <div class="progress-ring" id="dashboardProgressRing" style="--p:0">
               <span id="dashboardRingPercent">0%</span>
-              <small>upload</small>
+              <small>completed</small>
             </div>
             <div class="next-card">
               <span>System state</span>
@@ -118,7 +118,7 @@
           <article class="card stat-card flutter-card"><span>Videos</span><strong id="statVideos">0</strong><em>Imported locally</em><i></i></article>
           <article class="card stat-card flutter-card"><span>Captions</span><strong id="statCaptions">0</strong><em>Text blocks ready</em><i></i></article>
           <article class="card stat-card flutter-card"><span>Ready</span><strong id="statPlanned">0</strong><em>Waiting to upload</em><i></i></article>
-          <article class="card stat-card flutter-card"><span>Published</span><strong id="statScheduled">0</strong><em>Confirmed by Meta</em><i></i></article>
+          <article class="card stat-card flutter-card"><span>Scheduled</span><strong id="statScheduled">0</strong><em>Confirmed by platform</em><i></i></article>
         </div>
 
         <div class="grid two">
@@ -146,7 +146,7 @@
           <section class="panel">
             <div class="panel-head">
               <h3>Smart scheduler</h3>
-              <p>Simple flow: import videos and captions, then click Run Safe Upload Scheduler. The app checks Meta first and only fills empty slots.</p>
+              <p>Import videos and captions, then open the scheduler. INX Social checks the active Page first and only uses available publishing slots.</p>
             </div>
             <div class="action-stack">
               <button id="btnPreviewPlan" class="btn secondary wide">Check Free Slots</button>
@@ -483,24 +483,6 @@ Third video caption #hashtags"></textarea>
         </div>
       </section>
 
-
-      <section id="workspace" class="view workspace-v2-view">
-        <div class="workspace-hero-v2">
-          <div><span class="eyebrow">Publishing workspace</span><h2 id="workspaceHeroTitle">Choose a Facebook Page</h2><p id="workspaceHeroText">Every Page has its own scheduling queue, calendar and publishing history.</p></div>
-          <div class="workspace-hero-actions"><button id="btnWorkspaceRefresh" class="btn ghost">Refresh workspace</button><button id="btnWorkspaceOpenScheduler" class="btn primary">Schedule content</button></div>
-        </div>
-        <div class="workspace-metrics-v2">
-          <article><span>Connection sources</span><strong id="workspaceAccountCount">0</strong><small>Social providers</small></article>
-          <article><span>Connected Pages</span><strong id="workspacePageCount">0</strong><small id="workspacePageLimit">0 available</small></article>
-          <article><span>Queue</span><strong id="workspaceQueueCount">0</strong><small>Waiting locally</small></article>
-          <article><span>Published</span><strong id="workspacePublishedCount">0</strong><small>Completed jobs</small></article>
-        </div>
-        <div class="workspace-grid-v2">
-          <section class="panel workspace-active-card"><div class="panel-head"><h3>Active Page</h3><p>All scheduler actions target this Page.</p></div><div id="workspaceActivePage" class="workspace-empty">No active Page selected.</div></section>
-          <section class="panel"><div class="panel-head"><h3>Quick actions</h3><p>Move through the publishing flow.</p></div><div class="workspace-quick-actions"><button class="btn secondary" id="btnWorkspacePages">Select Page</button><button class="btn secondary" id="btnWorkspaceImport">Import media</button><button class="btn secondary" id="btnWorkspaceCalendar">Open calendar</button><button class="btn secondary" id="btnWorkspaceHealth">Health check</button></div></section>
-        </div>
-      </section>
-
       <section id="pages" class="view workspace-v2-view">
         <div class="section-title-row"><div><span class="eyebrow">Publishing destinations</span><h2>Pages</h2><p>Connect, select and manage every social Page from one place. Facebook is available now; more platforms can be added later.</p></div><div class="button-row"><button id="btnAddMetaAccount" class="btn primary">+ Connect Facebook Page</button><button id="btnDisconnectActivePage" class="btn ghost subtle-danger">Disconnect active Page</button><button id="btnOpenFacebookIntegrations" class="btn ghost">Facebook permissions</button><button id="btnPagesRefresh" class="btn ghost">Refresh Pages</button></div></div>
         <div class="usage-strip"><span id="accountUsageText">0 Pages connected</span><div><i id="accountUsageBar"></i></div><b id="accountPlanBadge">TRIAL</b></div>
@@ -510,7 +492,7 @@ Third video caption #hashtags"></textarea>
       </section>
 
       <section id="analytics" class="view workspace-v2-view">
-        <div class="section-title-row"><div><span class="eyebrow">Performance</span><h2>Workspace Analytics</h2><p>Operational analytics from the local scheduler and cloud workspace.</p></div></div>
+        <div class="section-title-row"><div><span class="eyebrow">Performance</span><h2>Publishing Analytics</h2><p>Operational analytics from the local scheduler and connected Pages.</p></div></div>
         <div class="analytics-grid-v2"><article><span>Total media</span><strong id="analyticsMedia">0</strong><small>Videos and captions</small></article><article><span>Scheduled</span><strong id="analyticsScheduled">0</strong><small>Confirmed by Meta</small></article><article><span>Failed</span><strong id="analyticsFailed">0</strong><small>Needs attention</small></article><article><span>Success rate</span><strong id="analyticsSuccessRate">0%</strong><small>Completed jobs</small></article></div>
         <div class="workspace-grid-v2"><section class="panel"><div class="panel-head"><h3>Publishing health</h3></div><div id="analyticsHealthBars" class="analytics-bars"></div></section><section class="panel"><div class="panel-head"><h3>Account summary</h3></div><div id="analyticsAccountSummary" class="analytics-summary"></div></section></div>
       </section>
@@ -529,7 +511,6 @@ Third video caption #hashtags"></textarea>
           <form id="settingsForm" class="settings-form settings-stack">
             <input id="settingFacebookAppId" name="facebookAppId" type="hidden" value="969283649323618" />
             <input id="settingPageId" name="pageId" type="hidden" />
-            <textarea id="settingToken" name="pageAccessToken" class="hidden-secret-field" aria-hidden="true"></textarea>
 
             <div class="settings-card connection-settings-card">
               <div class="settings-card-head">
@@ -542,9 +523,9 @@ Third video caption #hashtags"></textarea>
               </div>
               <div class="connect-action-row">
                 <button type="button" id="btnOpenPagesSettings" class="btn primary">Open Pages</button>
-                <button type="button" id="btnTestFacebook2" class="btn ghost">Test Connection</button>
+                <button type="button" id="btnTestFacebook2" class="btn ghost">Test Active Page</button>
               </div>
-              <div class="settings-note clean-note">Facebook access remains hidden and secure. Use the Pages menu instead of entering access tokens manually.</div>
+              <div class="settings-note clean-note">The status and test follow whichever Page is selected as Active Page. Manage all Page connections in Pages; scheduler rules below apply to every connected Page.</div>
             </div>
 
             <div class="settings-card scheduler-settings-card">

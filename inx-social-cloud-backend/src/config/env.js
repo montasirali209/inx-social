@@ -35,5 +35,5 @@ module.exports = {
     portalReturnUrl: process.env.STRIPE_PORTAL_RETURN_URL || `${process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050'}/portal/`
   },
   installerUrl: process.env.INSTALLER_URL || '',
-  latestVersion: process.env.LATEST_DESKTOP_VERSION || '14.0.0'
+  latestVersion: process.env.LATEST_DESKTOP_VERSION || '14.0.1'
 };

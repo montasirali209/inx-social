@@ -21,7 +21,6 @@ const UI_TEXT_FIELDS = [
 
 const views = {
   dashboard: ['Home', 'Your INX Social publishing command centre.'],
-  workspace: ['Workspace', 'The active Facebook Page and its publishing workflow.'],
   pages: ['Pages', 'Connect and choose the Page that receives your next scheduled content.'],
   media: ['Old Auto Scheduler', 'Hidden old Page Video scheduler.'],
   reels: ['Auto Scheduler', 'Upload videos to Meta now and schedule them as Facebook Reels for future times.'],
@@ -175,7 +174,7 @@ function switchView(viewName) {
   document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === viewName));
   document.getElementById('viewTitle').textContent = views[viewName][0];
   document.getElementById('viewSubtitle').textContent = views[viewName][1];
-  if (['workspace','pages','analytics'].includes(viewName)) refreshWorkspaceV2({ silent: true });
+  if (['pages','analytics'].includes(viewName)) refreshWorkspaceV2({ silent: true });
 }
 
 function bindButtons() {
@@ -252,12 +251,6 @@ function bindButtons() {
   on('btnManualClear', clearManualForm);
   on('btnRunHealthCheck', runHealthCheck);
 
-  on('btnWorkspaceRefresh', () => refreshWorkspaceV2());
-  on('btnWorkspaceOpenScheduler', () => switchView('reels'));
-  on('btnWorkspacePages', () => switchView('pages'));
-  on('btnWorkspaceImport', () => switchView('dashboard'));
-  on('btnWorkspaceCalendar', () => switchView('calendar'));
-  on('btnWorkspaceHealth', () => { switchView('health'); runHealthCheck(); });
   on('activeWorkspaceChip', toggleActiveWorkspaceMenu);
   on('btnAddMetaAccount', connectFacebookWorkspaceV2);
   on('btnDisconnectActivePage', disconnectActiveWorkspacePage);
@@ -267,6 +260,15 @@ function bindButtons() {
   const pageSearch = document.getElementById('pageSearchInput');
   if (pageSearch) pageSearch.addEventListener('input', renderPagesV2);
   document.addEventListener('click', event => {
+    const reelsTimeButton = event.target.closest('[data-remove-reels-time]');
+    if (reelsTimeButton) removeReelsSelectedTime(reelsTimeButton.dataset.removeReelsTime);
+
+    const draftTimeButton = event.target.closest('[data-remove-draft-time]');
+    if (draftTimeButton) removeDraftSelectedTime(draftTimeButton.dataset.removeDraftTime);
+
+    const removeJobButton = event.target.closest('[data-remove-job-id]');
+    if (removeJobButton) deleteLocalJob(removeJobButton.dataset.removeJobId);
+
     const control = document.getElementById('activeWorkspaceControl');
     if (control && !control.contains(event.target)) closeActiveWorkspaceMenu();
   });
@@ -314,7 +316,9 @@ function bindDragAndDrop() {
     zone.addEventListener('drop', async event => {
       event.preventDefault();
       zone.classList.remove('dragover');
-      const paths = Array.from(event.dataTransfer.files).map(file => file.path).filter(Boolean);
+      const paths = Array.from(event.dataTransfer.files)
+        .map(file => window.schedulerApi.getPathForFile(file))
+        .filter(Boolean);
       if (!paths.length) return toast('No readable file paths found. Use the upload button instead.');
       try {
         const result = await window.schedulerApi.importDropped(paths, zone.dataset.type);
@@ -488,10 +492,10 @@ function addReelsSelectedTime() {
   renderReelsSessionSummary();
 }
 
-window.removeReelsSelectedTime = function removeReelsSelectedTime(time) {
+function removeReelsSelectedTime(time) {
   reelsSelectedTimes = reelsSelectedTimes.filter(t => t !== time);
   renderReelsSessionSummary();
-};
+}
 
 function getReelsCaptionBlocks() {
   const text = document.getElementById('reelsCaptionText') ? document.getElementById('reelsCaptionText').value : '';
@@ -516,7 +520,7 @@ function renderReelsSessionSummary() {
   const selectedTimes = document.getElementById('reelsSelectedTimes');
   if (selectedTimes) {
     selectedTimes.innerHTML = reelsSelectedTimes.length
-      ? reelsSelectedTimes.map(t => `<span class="pill">${to12(t)} <button type="button" onclick="removeReelsSelectedTime('${t}')">×</button></span>`).join('')
+      ? reelsSelectedTimes.map(t => `<span class="pill">${to12(t)} <button type="button" data-remove-reels-time="${escapeHtml(t)}" aria-label="Remove ${escapeHtml(to12(t))}">×</button></span>`).join('')
       : '<span class="muted">No custom times selected.</span>';
   }
   const captions = getReelsCaptionBlocks();
@@ -818,10 +822,10 @@ function addDraftSelectedTime() {
   renderDraftSessionSummary();
 }
 
-window.removeDraftSelectedTime = function removeDraftSelectedTime(time) {
+function removeDraftSelectedTime(time) {
   draftSelectedTimes = draftSelectedTimes.filter(t => t !== time);
   renderDraftSessionSummary();
-};
+}
 
 function getDraftCaptionBlocks() {
   const text = document.getElementById('draftCaptionText') ? document.getElementById('draftCaptionText').value : '';
@@ -846,7 +850,7 @@ function renderDraftSessionSummary() {
   const selectedTimes = document.getElementById('draftSelectedTimes');
   if (selectedTimes) {
     selectedTimes.innerHTML = draftSelectedTimes.length
-      ? draftSelectedTimes.map(t => `<span class="pill">${to12(t)} <button type="button" onclick="removeDraftSelectedTime('${t}')">×</button></span>`).join('')
+      ? draftSelectedTimes.map(t => `<span class="pill">${to12(t)} <button type="button" data-remove-draft-time="${escapeHtml(t)}" aria-label="Remove ${escapeHtml(to12(t))}">×</button></span>`).join('')
       : '<span class="muted">No custom times selected.</span>';
   }
   const captions = getDraftCaptionBlocks();
@@ -1034,37 +1038,6 @@ function updateRunButtons() {
 }
 
 
-function openManualTokenModal() {
-  const modal = document.getElementById('manualTokenModal');
-  if (!modal) return;
-  document.getElementById('manualModalPageId').value = val('settingPageId');
-  document.getElementById('manualModalToken').value = val('settingToken');
-  modal.classList.remove('hidden');
-  modal.setAttribute('aria-hidden', 'false');
-  setTimeout(() => document.getElementById('manualModalPageId').focus(), 30);
-}
-
-function closeManualTokenModal() {
-  const modal = document.getElementById('manualTokenModal');
-  if (!modal) return;
-  modal.classList.add('hidden');
-  modal.setAttribute('aria-hidden', 'true');
-}
-
-async function saveManualTokenFromModal() {
-  const pageId = document.getElementById('manualModalPageId').value.trim();
-  const token = document.getElementById('manualModalToken').value.trim();
-  if (!pageId || !token) {
-    toast('Enter both Page ID and Page Access Token.', true);
-    return;
-  }
-  document.getElementById('settingPageId').value = pageId;
-  document.getElementById('settingToken').value = token;
-  closeManualTokenModal();
-  await saveSettings({ silent: true });
-  toast('Manual connection saved. Credentials are hidden. Click Test Connection to verify it.');
-}
-
 async function connectFacebookPage() {
   try {
     const metaAppId = '969283649323618';
@@ -1073,7 +1046,6 @@ async function connectFacebookPage() {
     // so reviewers/users are never asked to type it.
     const settings = {
       pageId: val('settingPageId'),
-      pageAccessToken: val('settingToken'),
       facebookAppId: metaAppId,
       graphVersion: val('settingGraphVersion') || 'v25.0',
       timezone: val('settingTimezone') || 'Europe/London',
@@ -1128,9 +1100,9 @@ async function testFacebook() {
     const result = await window.schedulerApi.testFacebook();
     state = result.state;
     render();
-    toast(`Facebook OK: ${result.result.name || result.result.id}`);
+    toast(`Active Page verified: ${result.activePage?.name || result.result.name || result.result.id}`);
   } catch (err) {
-    toast(`Facebook test failed: ${err.message}`, true);
+    toast(`Active Page test failed: ${err.message}`, true);
   }
 }
 
@@ -1306,7 +1278,6 @@ async function deleteLocalJob(id) {
 async function saveSettings(options = {}) {
   const settings = {
     pageId: val('settingPageId'),
-    pageAccessToken: val('settingToken'),
     facebookAppId: val('settingFacebookAppId') || '969283649323618',
     graphVersion: val('settingGraphVersion'),
     timezone: val('settingTimezone'),
@@ -1398,18 +1369,21 @@ function updateDashboardPulse(stats = {}) {
   const total = Number(stats.planned || 0) + Number(stats.scheduled || 0);
   const percent = total ? Math.round((Number(stats.scheduled || 0) / total) * 100) : 0;
   if (ring) ring.style.setProperty('--p', percent);
+  if (ring) ring.title = total
+    ? `${Number(stats.scheduled || 0)} completed or scheduled out of ${total} tracked queue item${total === 1 ? '' : 's'}.`
+    : 'No tracked queue items yet.';
   if (ringText) ringText.textContent = `${percent}%`;
   if (system) {
     if (isSchedulerRunning) system.textContent = 'Publishing now';
+    else if (stats.planned) system.textContent = 'Schedule ready';
     else if (!stats.videos) system.textContent = 'Waiting for videos';
     else if (!stats.captions) system.textContent = 'Waiting for captions';
-    else if (stats.planned) system.textContent = 'Schedule ready';
     else system.textContent = 'Synced / idle';
   }
   if (hint) {
     if (isSchedulerRunning) hint.textContent = 'Live publishing progress is updating below.';
+    else if (stats.planned) hint.textContent = `${stats.planned} content item${Number(stats.planned) === 1 ? '' : 's'} ready for upload.`;
     else if (!stats.videos || !stats.captions) hint.textContent = 'Open Auto Scheduler to select videos and captions.';
-    else if (stats.planned) hint.textContent = `${stats.planned} Reel item(s) are ready for Studio upload.`;
     else hint.textContent = 'Create an Auto or Manual schedule to begin.';
   }
 }
@@ -1449,7 +1423,7 @@ function renderJobTable(jobs) {
       <td>${escapeHtml(job.slotLabel || formatDate(job.scheduledAtISO))}</td>
       <td class="code">${escapeHtml(job.fbVideoId || job.fbPostId || '-')}</td>
       <td>${escapeHtml(job.error || '')}</td>
-      <td><button class="btn ghost compact" onclick="deleteLocalJob('${job.id}')">Remove</button></td>
+      <td><button class="btn ghost compact" data-remove-job-id="${escapeHtml(job.id)}">Remove</button></td>
     </tr>`).join('')}</tbody></table>`;
 }
 
@@ -1616,7 +1590,6 @@ function formatLogExtra(extra) {
 function fillSettings() {
   const s = state.settings;
   document.getElementById('settingPageId').value = s.pageId || '';
-  document.getElementById('settingToken').value = s.pageAccessToken || '';
   const appIdField = document.getElementById('settingFacebookAppId');
   if (appIdField) appIdField.value = s.facebookAppId || '969283649323618';
   renderFacebookConnectStatus(s);
@@ -1654,6 +1627,8 @@ function normaliseBrandText(ui) {
   const output = { ...(ui || {}) };
   if (!output.appTitle || output.appTitle === 'Facebook Reels Scheduler') output.appTitle = 'INX Social';
   if (!output.appSubtitle || ['Auto and manual Reel scheduling', 'Facebook Reels & Page Scheduler'].includes(output.appSubtitle)) output.appSubtitle = 'Content Scheduler';
+  if (!output.dashboardSubtitle || output.dashboardSubtitle === 'Schedule Facebook Reels using Auto or Manual Scheduler.') output.dashboardSubtitle = 'Plan and schedule content across your connected Pages.';
+  if (!output.testFacebookButton || ['Test Facebook Connection', 'Test Connection'].includes(output.testFacebookButton)) output.testFacebookButton = 'Test Active Page';
   return output;
 }
 
@@ -1818,16 +1793,15 @@ function to12(slot) {
 function renderFacebookConnectStatus(settings) {
   const box = document.getElementById('facebookConnectStatus');
   if (!box) return;
-  const hasPage = Boolean(settings.pageId && settings.pageAccessToken);
+  const hasPage = Boolean(settings.pageId && settings.hasPageAccessToken);
   if (!hasPage) {
     box.className = 'connect-status warning';
     box.textContent = 'Page access not connected. Use Connect Facebook Page to authorise the Page for scheduling.';
     return;
   }
   const name = settings.connectedPageName || settings.pageId;
-  const method = settings.connectionMethod === 'facebook-login' ? 'Facebook Connect' : 'Saved Page access';
   box.className = 'connect-status ok';
-  box.textContent = `Connected to ${name} • ${method} • credentials hidden`;
+  box.textContent = `Active Page: ${name} • credentials protected`;
 }
 
 
@@ -1845,7 +1819,7 @@ async function refreshWorkspaceV2(options = {}) {
     if (!options.silent) {
       toast(result.workspace?.syncWarning
         ? `Using the Facebook Page saved on this device. Cloud sync is pending: ${result.workspace.syncWarning}`
-        : 'Facebook workspace refreshed.',
+        : 'Facebook Pages refreshed.',
       Boolean(result.workspace?.syncWarning));
     }
   } catch (error) {
@@ -1868,22 +1842,7 @@ function renderWorkspaceV2() {
   const disconnectActivePage = document.getElementById('btnDisconnectActivePage');
   if (disconnectActivePage) disconnectActivePage.disabled = !active && !state.settings?.pageId;
   const connectFacebookPage = document.getElementById('btnAddMetaAccount');
-  if (connectFacebookPage && !connectFacebookPage.disabled) {
-    connectFacebookPage.textContent = state.settings?.pageId && state.settings?.pageAccessToken && (!active || active.localOnly)
-      ? 'Sync saved Facebook Page'
-      : '+ Connect Facebook Page';
-  }
-  setText('workspaceHeroTitle', active ? active.facebookPageName : 'Choose a Facebook Page');
-  setText('workspaceHeroText', active ? `Publishing workspace connected through ${accountNameForPage(active)}.` : 'Every Page has its own scheduling queue, calendar and publishing history.');
-  setText('workspaceAccountCount', accounts.length || (pages.length ? 1 : 0));
-  setText('workspacePageCount', usage.connected ?? pages.length);
-  setText('workspacePageLimit', `${Math.max(0, Number(usage.limit || 0) - Number(usage.connected || 0))} available`);
-  const jobs = state.jobs || [];
-  setText('workspaceQueueCount', jobs.filter(j => !['scheduled','reel_scheduled','reel_published','published'].includes(j.status)).length);
-  setText('workspacePublishedCount', jobs.filter(j => ['scheduled','reel_scheduled','reel_published','published'].includes(j.status)).length);
-
-  const activeCard = document.getElementById('workspaceActivePage');
-  if (activeCard) activeCard.innerHTML = active ? pageCardMarkup(active, true) : '<div class="workspace-empty">Select a connected Page to unlock the scheduling workspace.</div>';
+  if (connectFacebookPage && !connectFacebookPage.disabled) connectFacebookPage.textContent = '+ Connect Facebook Page';
 
   const accountUsageText = document.getElementById('accountUsageText');
   if (accountUsageText) accountUsageText.textContent = `${usage.connected || 0} Page${Number(usage.connected || 0) === 1 ? '' : 's'} connected · ${Math.max(0, Number(usage.limit || 0) - Number(usage.connected || 0))} available on this plan`;
@@ -1928,7 +1887,7 @@ function renderPagesV2() {
 }
 
 function pageCardMarkup(page, large) {
-  return `<article class="connected-page-card ${page.isSelected ? 'active' : ''} ${large ? 'large' : ''}"><div class="page-picture">${page.facebookPagePicture ? `<img src="${escapeHtml(page.facebookPagePicture)}">` : '<span>F</span>'}</div><div class="page-card-copy"><span>${escapeHtml(page.facebookCategory || 'Facebook Page')}</span><h3>${escapeHtml(page.facebookPageName)}</h3><p>${page.localOnly ? 'Saved on this device · reconnect once to sync' : escapeHtml(accountNameForPage(page))}</p></div><div class="page-card-state">${page.isSelected ? '<b>Active workspace</b>' : '<button class="btn secondary compact" data-select-page="'+escapeHtml(page.id)+'">Use this Page</button>'}${!large && !page.localOnly ? `<button class="icon-danger" data-revoke-page="${escapeHtml(page.id)}" title="Disconnect Page">×</button>` : ''}</div></article>`;
+  return `<article class="connected-page-card ${page.isSelected ? 'active' : ''} ${large ? 'large' : ''}"><div class="page-picture">${page.facebookPagePicture ? `<img src="${escapeHtml(page.facebookPagePicture)}">` : '<span>F</span>'}</div><div class="page-card-copy"><span>${escapeHtml(page.facebookCategory || 'Facebook Page')}</span><h3>${escapeHtml(page.facebookPageName)}</h3><p>${page.localOnly ? 'Saved on this device · reconnect once to sync' : escapeHtml(accountNameForPage(page))}</p></div><div class="page-card-state">${page.isSelected ? '<b>Active Page</b>' : '<button class="btn secondary compact" data-select-page="'+escapeHtml(page.id)+'">Use this Page</button>'}${!large && !page.localOnly ? `<button class="icon-danger" data-revoke-page="${escapeHtml(page.id)}" title="Disconnect Page">×</button>` : ''}</div></article>`;
 }
 
 function accountNameForPage(page) {
@@ -1998,13 +1957,12 @@ function renderActiveWorkspaceMenu(pages, active) {
 
 async function revokePageV2(pageId) {
   if (!confirm('Disconnect this Facebook Page from INX Social?')) return;
-  try { const result = await window.schedulerApi.revokeWorkspacePage(pageId); state = result.state; cloudWorkspace = result.workspace; renderWorkspaceV2(); toast('Facebook Page disconnected.'); }
+  try { const result = await window.schedulerApi.revokeWorkspacePage(pageId); state = result.state; cloudWorkspace = result.workspace; renderWorkspaceV2(); renderReelsSessionSummary(); toast('Facebook Page disconnected.'); }
   catch (error) { toast(error.message, true); }
 }
 
 async function connectFacebookWorkspaceV2() {
   const button = document.getElementById('btnAddMetaAccount');
-  const originalText = button?.textContent || '+ Connect Facebook account';
   if (button) { button.disabled = true; button.textContent = 'Connecting Page…'; }
   try {
     const result = await window.schedulerApi.connectFacebookWorkspace();
@@ -2013,19 +1971,14 @@ async function connectFacebookWorkspaceV2() {
     renderWorkspaceV2();
     toast(result.warning
       ? `${result.page?.name || 'Facebook Page'} is connected on this device, but cloud sync still needs attention: ${result.warning}`
-      : result.reusedSavedConnection
-        ? `${result.page?.name || 'Facebook Page'} saved connection synced successfully.`
-        : `${result.page?.name || 'Facebook Page'} connected and synced successfully.`,
+      : `${result.page?.name || 'Facebook Page'} connected and synced successfully.`,
       Boolean(result.warning));
   } catch (error) {
     toast(error.message, true);
   } finally {
     if (button) {
       button.disabled = false;
-      const active = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected);
-      button.textContent = state?.settings?.pageId && state?.settings?.pageAccessToken && (!active || active.localOnly)
-        ? 'Sync saved Facebook Page'
-        : active ? '+ Connect Facebook Page' : originalText;
+      button.textContent = '+ Connect Facebook Page';
     }
   }
 }
@@ -2034,15 +1987,20 @@ async function disconnectActiveWorkspacePage() {
   const active = cloudWorkspace.activePage || (cloudWorkspace.pages || []).find(page => page.isSelected) || null;
   const savedPageName = active?.facebookPageName || state.settings?.connectedPageName || 'the active Facebook Page';
   if (!active && !state.settings?.pageId) return toast('No Facebook Page is currently connected.', true);
-  if (!confirm(`Disconnect ${savedPageName} from INX Social?\n\nThis clears the Page token from this device. Use Facebook permissions if you also want to remove INX Social from your Facebook account.`)) return;
+  if (!confirm(`Disconnect ${savedPageName} from INX Social?\n\nThis removes only this Page. Other connected Pages stay available. Use Facebook permissions if you also want to remove INX Social from your Facebook account.`)) return;
 
-  let cloudWarning = null;
   if (active && !active.localOnly && !String(active.id || '').startsWith('local-')) {
     try {
-      await window.schedulerApi.revokeWorkspacePage(active.id);
+      const result = await window.schedulerApi.revokeWorkspacePage(active.id);
+      state = result.state;
+      cloudWorkspace = result.workspace || state.workspace || { accounts: [], pages: [], activePage: null, pageUsage: null, plan: null };
+      renderWorkspaceV2();
+      renderReelsSessionSummary();
+      toast(`${savedPageName} disconnected from INX Social.`);
     } catch (error) {
-      cloudWarning = error.message;
+      toast(error.message, true);
     }
+    return;
   }
 
   try {
@@ -2050,10 +2008,8 @@ async function disconnectActiveWorkspacePage() {
     state = result.state;
     cloudWorkspace = state.workspace || { accounts: [], pages: [], activePage: null, pageUsage: null, plan: null };
     renderWorkspaceV2();
-    toast(cloudWarning
-      ? `The Page was cleared from this device, but cloud removal still needs attention: ${cloudWarning}`
-      : `${savedPageName} disconnected from INX Social.`,
-      Boolean(cloudWarning));
+    renderReelsSessionSummary();
+    toast(`${savedPageName} disconnected from INX Social.`);
   } catch (error) {
     toast(error.message, true);
   }

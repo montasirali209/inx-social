@@ -1,5 +1,6 @@
 const API = '/api';
 const token = () => localStorage.getItem('inxToken');
+let latestRelease = null;
 
 async function req(path, options = {}) {
   const response = await fetch(API + path, {
@@ -23,6 +24,32 @@ async function req(path, options = {}) {
 function logout() {
   localStorage.removeItem('inxToken');
   location.href = 'login.html';
+}
+
+function setActiveSection(sectionId) {
+  document.querySelectorAll('[data-section]').forEach(link => {
+    link.classList.toggle('active', link.dataset.section === sectionId);
+  });
+}
+
+function bindPortalNavigation() {
+  document.querySelectorAll('[data-section]').forEach(link => {
+    link.addEventListener('click', event => {
+      event.preventDefault();
+      const sectionId = link.dataset.section;
+      const section = document.getElementById(sectionId);
+      if (!section) return;
+      setActiveSection(sectionId);
+      history.replaceState(null, '', `#${sectionId}`);
+      section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  const initialSection = location.hash.slice(1);
+  if (['overview', 'subscription', 'usage', 'download'].includes(initialSection)) {
+    setActiveSection(initialSection);
+    requestAnimationFrame(() => document.getElementById(initialSection)?.scrollIntoView({ block: 'start' }));
+  }
 }
 
 function notice(message, type = 'success') {
@@ -69,7 +96,14 @@ async function loadDashboard(showQueryNotice = true) {
     document.querySelector('#limitPages').textContent = license.limits.pages;
     document.querySelector('#limitBatch').textContent = formatLimit(license.limits.batchPosts);
     document.querySelector('#limitDevices').textContent = license.limits.devices;
+    latestRelease = data.release;
     document.querySelector('#version').textContent = data.release.version;
+    const downloadButton = document.querySelector('#downloadButton');
+    const downloadStatus = document.querySelector('#downloadStatus');
+    downloadButton.disabled = !data.release.installerAvailable;
+    downloadStatus.textContent = data.release.installerAvailable
+      ? `Verified installer available${data.release.sha256 ? ' · SHA-256 checksum published' : ''}`
+      : 'The Windows installer has not been published yet.';
     document.querySelector('#periodEnd').textContent = formatDate(data.billing.currentPeriodEnd || license.trialEndsAt);
     document.querySelector('#provider').textContent = data.billing.provider ? data.billing.provider.toUpperCase() : 'INX Social trial';
 
@@ -134,10 +168,25 @@ async function manageBilling() {
 }
 
 async function downloadApp() {
+  const button = document.querySelector('#downloadButton');
+  const status = document.querySelector('#downloadStatus');
   try {
+    button.disabled = true;
+    button.textContent = 'Preparing secure download…';
     const data = await req('/portal/download');
-    location.href = data.url;
+    if (data.sha256) status.textContent = `Version ${data.version} · SHA-256 ${data.sha256}`;
+    location.assign(data.url);
   } catch (error) {
     alert(error.message);
+  } finally {
+    button.textContent = 'Download Windows app';
+    button.disabled = !latestRelease?.installerAvailable;
   }
 }
+
+window.addEventListener('DOMContentLoaded', () => {
+  bindPortalNavigation();
+  document.querySelector('#logoutButton')?.addEventListener('click', logout);
+  document.querySelector('#downloadButton')?.addEventListener('click', downloadApp);
+  loadDashboard();
+});

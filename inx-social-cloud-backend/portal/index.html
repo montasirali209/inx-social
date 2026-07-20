@@ -6,16 +6,16 @@
   <title>INX Social Customer Portal</title>
   <link rel="stylesheet" href="portal.css">
 </head>
-<body onload="loadDashboard()">
+<body>
   <div class="portal-shell">
     <aside class="sidebar">
       <a class="portal-brand" href="/"><span class="brand-mark">INX</span><div><strong>INX Social</strong><small>Customer portal</small></div></a>
       <nav>
-        <a class="active" href="#overview">Overview</a>
-        <a href="#subscription">Subscription</a>
-        <a href="#usage">Usage & limits</a>
-        <a href="#download">Download</a>
-        <a href="javascript:logout()">Log out</a>
+        <a class="active" href="#overview" data-section="overview">Overview</a>
+        <a href="#subscription" data-section="subscription">Subscription</a>
+        <a href="#usage" data-section="usage">Usage & limits</a>
+        <a href="#download" data-section="download">Download</a>
+        <button type="button" id="logoutButton" class="portal-nav-action">Log out</button>
       </nav>
       <div class="sidebar-note"><span class="dot"></span><div><strong>Secure billing</strong><small>Payments are handled by Stripe.</small></div></div>
     </aside>
@@ -63,8 +63,8 @@
       </section>
 
       <section id="download" class="panel download-panel">
-        <div><span class="eyebrow">Desktop application</span><h2>INX Social for Windows</h2><p>Latest version: <strong id="version">—</strong></p></div>
-        <button class="button primary" onclick="downloadApp()">Download Windows app</button>
+        <div><span class="eyebrow">Desktop application</span><h2>INX Social for Windows</h2><p>Latest version: <strong id="version">—</strong></p><small id="downloadStatus" class="download-status">Checking installer availability…</small></div>
+        <button id="downloadButton" class="button primary" type="button" disabled>Download Windows app</button>
       </section>
     </main>
   </div>

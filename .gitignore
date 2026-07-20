@@ -28,11 +28,20 @@ build/
 **/out/
 **/build/
 
+# The Windows installer icon is a source asset, not generated output.
+!build/
+build/*
+!build/icon.ico
+
 # Backups
 bk/
 phase61-backup/
 **/*-backup/
+_*_backup/
+**/_*_backup/
 **/*.before-*-backup
+*.zip
+**/*.zip
 
 # Runtime data
 uploads/

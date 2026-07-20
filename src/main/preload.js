@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('schedulerApi', {
   getState: () => ipcRenderer.invoke('state:get'),
@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('schedulerApi', {
   pickVideoFolder: () => ipcRenderer.invoke('folders:pick-videos'),
   pickCaptionFolder: () => ipcRenderer.invoke('folders:pick-captions'),
   importDropped: (paths, type) => ipcRenderer.invoke('files:import-dropped', { paths, type }),
+  getPathForFile: file => webUtils.getPathForFile(file),
   importCaptionText: (text, sourceName) => ipcRenderer.invoke('captions:import-text', { text, sourceName }),
   previewPlan: () => ipcRenderer.invoke('schedule:preview'),
   createPlan: () => ipcRenderer.invoke('schedule:create-plan'),

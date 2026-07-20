@@ -1,6 +1,7 @@
 const { z } = require('zod');
 const prisma = require('../db/prisma');
 const { getLicenseStatus } = require('../services/licenseService');
+const { isVersionBelow } = require('../utils/version');
 
 const deviceSchema = z.object({
   deviceId: z.string().min(3),
@@ -20,6 +21,23 @@ async function activateDevice(req, res, next) {
     const input = deviceSchema.parse(req.body);
     const license = await getLicenseStatus(req.user.id);
     if (!license.allowed) return res.status(403).json({ error: 'Trial or subscription is not active' });
+
+    const releasePolicy = await prisma.desktopRelease.findFirst({
+      where: { active: true },
+      select: { version: true, minimumSupportedVersion: true, mandatory: true }
+    });
+    if (releasePolicy?.minimumSupportedVersion) {
+      const belowMinimum = isVersionBelow(input.appVersion, releasePolicy.minimumSupportedVersion);
+      if (belowMinimum === null || belowMinimum) {
+        return res.status(426).json({
+          error: `INX Social ${releasePolicy.minimumSupportedVersion} or newer is required. Download the current signed installer from your customer portal.`,
+          code: 'APP_UPDATE_REQUIRED',
+          currentVersion: releasePolicy.version,
+          minimumSupportedVersion: releasePolicy.minimumSupportedVersion,
+          mandatory: releasePolicy.mandatory
+        });
+      }
+    }
 
     const existing = await prisma.device.findUnique({ where: { userId_deviceId: { userId: req.user.id, deviceId: input.deviceId } } });
     if (!existing) {

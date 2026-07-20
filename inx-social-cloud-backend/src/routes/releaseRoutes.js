@@ -12,7 +12,7 @@ const router = express.Router();
 // GitHub Actions uses this protected endpoint.
 router.post('/publish', requireReleaseApiKey, publishRelease);
 
-// Public metadata only. The protected download URL comes later.
+// Public metadata only. The authenticated portal endpoint returns the download URL.
 router.get('/latest', getLatestRelease);
 
 module.exports = router;

@@ -20,7 +20,7 @@ class FacebookClient {
     const url = `https://graph.facebook.com/${this.graphVersion}/${this.pageId}`;
     const response = await axios.get(url, {
       params: {
-        fields: 'id,name,access_token',
+        fields: 'id,name',
         access_token: this.pageAccessToken
       },
       timeout: 30000

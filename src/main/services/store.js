@@ -2,6 +2,29 @@ const fs = require('fs');
 const path = require('path');
 const Store = require('electron-store');
 const crypto = require('crypto');
+const { safeStorage } = require('electron');
+
+const PROTECTED_SECRET_PREFIX = 'inx-safe:v1:';
+
+function protectSecret(value) {
+  const text = String(value || '');
+  if (!text) return '';
+  if (text.startsWith(PROTECTED_SECRET_PREFIX)) return text;
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('Windows secure credential storage is unavailable. Restart Windows and try again.');
+  }
+  return `${PROTECTED_SECRET_PREFIX}${safeStorage.encryptString(text).toString('base64')}`;
+}
+
+function revealSecret(value) {
+  const text = String(value || '');
+  if (!text || !text.startsWith(PROTECTED_SECRET_PREFIX)) return text;
+  try {
+    return safeStorage.decryptString(Buffer.from(text.slice(PROTECTED_SECRET_PREFIX.length), 'base64'));
+  } catch (_) {
+    return '';
+  }
+}
 
 const DEFAULT_SETTINGS = {
   pageId: '',
@@ -29,12 +52,12 @@ const DEFAULT_UI_TEXTS = {
   appTitle: 'INX Social',
   appSubtitle: 'Content Scheduler',
   dashboardTitle: 'Dashboard',
-  dashboardSubtitle: 'Schedule Facebook Reels using Auto or Manual Scheduler.',
+  dashboardSubtitle: 'Plan and schedule content across your connected Pages.',
   refreshButton: 'Refresh',
   runSchedulerButton: 'Open Scheduler',
   stopSchedulerButton: 'Stop Scheduler',
   checkSlotsButton: 'Check Schedule Slots',
-  testFacebookButton: 'Test Facebook Connection',
+  testFacebookButton: 'Test Active Page',
   openLocalDataButton: 'Open Local Data Folder',
   uploadVideosButton: 'Upload Videos',
   importVideoFolderButton: 'Import Video Folder',
@@ -67,9 +90,22 @@ class AppStore {
         workspace: { accounts: [], pages: [], activePage: null, pageUsage: null, plan: null, lastSyncedAt: null }
       }
     });
+    this.migrateSensitiveValues();
     fs.mkdirSync(this.videoRoot, { recursive: true });
     fs.mkdirSync(this.captionRoot, { recursive: true });
     this.normaliseExistingLibrary();
+  }
+
+  migrateSensitiveValues() {
+    const settings = this.store.get('settings', {});
+    if (settings.pageAccessToken && !String(settings.pageAccessToken).startsWith(PROTECTED_SECRET_PREFIX)) {
+      this.store.set('settings', { ...settings, pageAccessToken: protectSecret(settings.pageAccessToken) });
+    }
+
+    const session = this.store.get('accountSession', {});
+    if (session.token && !String(session.token).startsWith(PROTECTED_SECRET_PREFIX)) {
+      this.store.set('accountSession', { ...session, token: protectSecret(session.token) });
+    }
   }
 
   normaliseExistingLibrary() {
@@ -113,7 +149,7 @@ class AppStore {
 
   getState() {
     return {
-      settings: this.getSettings(),
+      settings: this.getRendererSettings(),
       uiTexts: this.getUITexts(),
       videos: this.store.get('videos', []),
       captions: this.store.get('captions', []),
@@ -130,7 +166,13 @@ class AppStore {
   }
 
   getSettings() {
-    return { ...DEFAULT_SETTINGS, ...this.store.get('settings', {}) };
+    const settings = { ...DEFAULT_SETTINGS, ...this.store.get('settings', {}) };
+    return { ...settings, pageAccessToken: revealSecret(settings.pageAccessToken) };
+  }
+
+  getRendererSettings() {
+    const { pageAccessToken, ...settings } = this.getSettings();
+    return { ...settings, hasPageAccessToken: Boolean(pageAccessToken) };
   }
 
   saveSettings(partial) {
@@ -158,7 +200,10 @@ class AppStore {
     cleaned.uiDensity = ['comfortable', 'compact'].includes(cleaned.uiDensity) ? cleaned.uiDensity : DEFAULT_SETTINGS.uiDensity;
     cleaned.enableMotion = Boolean(cleaned.enableMotion);
 
-    this.store.set('settings', cleaned);
+    this.store.set('settings', {
+      ...cleaned,
+      pageAccessToken: protectSecret(cleaned.pageAccessToken)
+    });
     this.log('settings', 'Settings saved.');
     return this.getSettings();
   }
@@ -189,7 +234,8 @@ class AppStore {
 
 
   getAccountSession() {
-    return this.store.get('accountSession', { token: '', user: null, license: null, device: null, lastCheckedAt: null });
+    const session = this.store.get('accountSession', { token: '', user: null, license: null, device: null, lastCheckedAt: null });
+    return { ...session, token: revealSecret(session.token) };
   }
 
   getAccountState() {
@@ -206,7 +252,7 @@ class AppStore {
   saveAccountSession(patch) {
     const current = this.getAccountSession();
     const next = { ...current, ...patch };
-    this.store.set('accountSession', next);
+    this.store.set('accountSession', { ...next, token: protectSecret(next.token) });
     return this.getAccountState();
   }
 

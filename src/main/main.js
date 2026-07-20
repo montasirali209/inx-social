@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { fileURLToPath } = require('url');
 const http = require('http');
 const crypto = require('crypto');
 const axios = require('axios');
@@ -14,6 +15,13 @@ const { DateTime } = require('luxon');
 const { nanoid } = require('nanoid');
 
 const DEFAULT_FACEBOOK_APP_ID = '969283649323618';
+const RENDERER_ENTRY = path.join(__dirname, '../renderer/index.html');
+const ALLOWED_EXTERNAL_HOSTS = new Set([
+  'facebook.com',
+  'www.facebook.com',
+  'business.facebook.com',
+  'developers.facebook.com'
+]);
 let mainWindow;
 let appStore;
 let schedulerRunning = false;
@@ -21,6 +29,43 @@ let schedulerControl = null;
 let reelsPublisherTimer = null;
 let reelsPublisherActive = false;
 
+function normaliseTrustedPath(value) {
+  const resolved = path.resolve(value);
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+}
+
+function isTrustedRendererUrl(rawUrl) {
+  try {
+    const parsed = new URL(String(rawUrl || ''));
+    if (parsed.protocol !== 'file:') return false;
+    return normaliseTrustedPath(fileURLToPath(parsed)) === normaliseTrustedPath(RENDERER_ENTRY);
+  } catch (_) {
+    return false;
+  }
+}
+
+function assertTrustedIpcSender(event) {
+  const senderUrl = event.senderFrame?.url || event.sender?.getURL?.() || '';
+  if (!mainWindow || event.sender !== mainWindow.webContents || !isTrustedRendererUrl(senderUrl)) {
+    throw new Error('Blocked IPC request from an untrusted renderer.');
+  }
+}
+
+function handleTrustedIpc(channel, listener) {
+  ipcMain.handle(channel, (event, ...args) => {
+    assertTrustedIpcSender(event);
+    return listener(event, ...args);
+  });
+}
+
+function isAllowedExternalUrl(rawUrl) {
+  try {
+    const parsed = new URL(String(rawUrl || ''));
+    return parsed.protocol === 'https:' && ALLOWED_EXTERNAL_HOSTS.has(parsed.hostname.toLowerCase());
+  } catch (_) {
+    return false;
+  }
+}
 
 function getCloudClient() {
   const settings = appStore.getSettings();
@@ -93,11 +138,21 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: true,
+      devTools: !app.isPackaged,
+      webSecurity: true,
+      allowRunningInsecureContent: false
     }
   });
 
-  mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (!isTrustedRendererUrl(url)) event.preventDefault();
+  });
+  mainWindow.webContents.on('will-attach-webview', event => event.preventDefault());
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  mainWindow.webContents.session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+  mainWindow.webContents.session.setPermissionCheckHandler(() => false);
+  mainWindow.loadFile(RENDERER_ENTRY);
 }
 
 app.setName('INX Social');
@@ -459,9 +514,17 @@ function waitForFacebookTokenInPopup(authUrl, expectedState, timeoutMs = 180000)
         nodeIntegration: false,
         contextIsolation: true,
         sandbox: true,
+        devTools: false,
+        webSecurity: true,
+        allowRunningInsecureContent: false,
         partition: oauthPartition
       }
     });
+
+    popup.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    popup.webContents.on('will-attach-webview', event => event.preventDefault());
+    popup.webContents.session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+    popup.webContents.session.setPermissionCheckHandler(() => false);
 
     const finish = (err, payload) => {
       if (settled) return;
@@ -490,9 +553,7 @@ function waitForFacebookTokenInPopup(authUrl, expectedState, timeoutMs = 180000)
 
     const inspectLoadedLocation = () => {
       if (settled || popup.isDestroyed()) return;
-      popup.webContents.executeJavaScript('window.location.href', true)
-        .then(url => inspect(url))
-        .catch(() => {});
+      try { inspect(popup.webContents.getURL()); } catch (_) {}
     };
 
     const timer = setTimeout(() => finish(new Error('Facebook connection timed out. Please try again.')), timeoutMs);
@@ -627,7 +688,7 @@ async function connectFacebookPageAuto() {
     throw new Error('Selected Page did not return a Page access token. Try reconnecting and ensure all Page permissions are approved.');
   }
 
-  const saved = appStore.saveSettings({
+  appStore.saveSettings({
     pageId: selected.id,
     pageAccessToken: selected.access_token,
     connectedPageName: selected.name || '',
@@ -639,7 +700,7 @@ async function connectFacebookPageAuto() {
     pageId: selected.id,
     method: 'facebook-login'
   });
-  return { page: { id: selected.id, name: selected.name || selected.id, category: selected.category || '', tasks: selected.tasks || [] }, settings: saved, state: appStore.getState() };
+  return { page: { id: selected.id, name: selected.name || selected.id, category: selected.category || '', tasks: selected.tasks || [] }, settings: appStore.getRendererSettings(), state: appStore.getState() };
 }
 
 
@@ -1451,8 +1512,8 @@ function requireCloudSession() {
 }
 
 function registerIpc() {
-  ipcMain.handle('state:get', async () => appStore.getState());
-  ipcMain.handle('account:register', async (_, payload) => {
+  handleTrustedIpc('state:get', async () => appStore.getState());
+  handleTrustedIpc('account:register', async (_, payload) => {
     const settings = appStore.getSettings();
     const baseUrl = String(payload && payload.cloudApiUrl || settings.cloudApiUrl || 'https://api.social.inaxx.co.uk').trim();
     appStore.saveSettings({ cloudApiUrl: baseUrl });
@@ -1467,7 +1528,7 @@ function registerIpc() {
     } catch (error) { throw new Error(cloudErrorMessage(error)); }
   });
 
-  ipcMain.handle('account:login', async (_, payload) => {
+  handleTrustedIpc('account:login', async (_, payload) => {
     const settings = appStore.getSettings();
     const baseUrl = String(payload && payload.cloudApiUrl || settings.cloudApiUrl || 'https://api.social.inaxx.co.uk').trim();
     appStore.saveSettings({ cloudApiUrl: baseUrl });
@@ -1482,56 +1543,36 @@ function registerIpc() {
     } catch (error) { throw new Error(cloudErrorMessage(error)); }
   });
 
-  ipcMain.handle('account:refresh', async () => {
+  handleTrustedIpc('account:refresh', async () => {
     const account = await refreshCloudAccount({ activate: true });
     await refreshCloudWorkspace();
     return { account, state: appStore.getState() };
   });
 
-  ipcMain.handle('account:logout', async () => {
+  handleTrustedIpc('account:logout', async () => {
     const account = appStore.clearAccountSession();
     return { account, state: appStore.getState() };
   });
 
 
-  ipcMain.handle('workspace:get', async () => ({ workspace: appStore.getWorkspace(), state: appStore.getState() }));
+  handleTrustedIpc('workspace:get', async () => ({ workspace: appStore.getWorkspace(), state: appStore.getState() }));
 
-  ipcMain.handle('workspace:refresh', async () => {
+  handleTrustedIpc('workspace:refresh', async () => {
     const workspace = await refreshCloudWorkspace();
     return { workspace, state: appStore.getState() };
   });
 
-  ipcMain.handle('workspace:connect-facebook', async () => {
+  handleTrustedIpc('workspace:connect-facebook', async () => {
     const { client } = requireCloudSession();
     try {
-      let settings = appStore.getSettings();
-      let selected = null;
-      let reusedSavedConnection = false;
-
-      // A Page already verified in Settings does not need another Facebook login.
-      // Reuse its Page token and synchronize it into the cloud workspace directly.
-      if (settings.pageId && settings.pageAccessToken) {
-        try {
-          const savedPage = await new FacebookClient(settings).testConnection();
-          selected = {
-            id: savedPage.id || settings.pageId,
-            name: savedPage.name || settings.connectedPageName || settings.pageId,
-            category: savedPage.category || 'Facebook Page'
-          };
-          reusedSavedConnection = true;
-          appStore.saveSettings({ connectedPageName: selected.name });
-          settings = appStore.getSettings();
-          appStore.log('workspace', `Reusing verified Facebook Page connection: ${selected.name}.`);
-        } catch (savedError) {
-          appStore.log('workspace', `Saved Facebook Page could not be reused: ${savedError.message}`);
-        }
-      }
-
-      if (!selected) {
-        const localResult = await connectFacebookPageAuto();
-        selected = localResult.page;
-        settings = appStore.getSettings();
-      }
+      // "Connect Facebook Page" must always start a fresh Facebook OAuth flow.
+      // Refreshing an existing connection is handled by Refresh Pages instead.
+      // The OAuth popup uses a new non-persistent Electron session on every run,
+      // allowing the user to sign in with another Facebook account or choose a
+      // different Page managed by the same account.
+      const localResult = await connectFacebookPageAuto();
+      const selected = localResult.page;
+      const settings = appStore.getSettings();
 
       let cloudWarning = null;
       try {
@@ -1556,19 +1597,19 @@ function registerIpc() {
           ? `Connected Facebook Page on this device; cloud sync is pending: ${selected.name}.`
           : `Connected Facebook Page to cloud workspace: ${selected.name}.`
       );
-      return { page: selected, workspace, warning: cloudWarning, reusedSavedConnection, state: appStore.getState() };
+      return { page: selected, workspace, warning: cloudWarning, state: appStore.getState() };
     } catch (error) {
       throw new Error(cloudErrorMessage(error));
     }
   });
 
-  ipcMain.handle('workspace:discover-account', async (_, accessToken) => {
+  handleTrustedIpc('workspace:discover-account', async (_, accessToken) => {
     const { client } = requireCloudSession();
     try { return await client.discoverMetaAccount(accessToken); }
     catch (error) { throw new Error(cloudErrorMessage(error)); }
   });
 
-  ipcMain.handle('workspace:connect-account', async (_, payload) => {
+  handleTrustedIpc('workspace:connect-account', async (_, payload) => {
     const { client } = requireCloudSession();
     try {
       const result = await client.connectMetaAccount(payload);
@@ -1578,7 +1619,7 @@ function registerIpc() {
     } catch (error) { throw new Error(cloudErrorMessage(error)); }
   });
 
-  ipcMain.handle('workspace:sync-account', async (_, accountId) => {
+  handleTrustedIpc('workspace:sync-account', async (_, accountId) => {
     const { client } = requireCloudSession();
     try {
       const result = await client.syncMetaAccount(accountId);
@@ -1587,7 +1628,7 @@ function registerIpc() {
     } catch (error) { throw new Error(cloudErrorMessage(error)); }
   });
 
-  ipcMain.handle('workspace:disconnect-account', async (_, accountId) => {
+  handleTrustedIpc('workspace:disconnect-account', async (_, accountId) => {
     const { client } = requireCloudSession();
     try {
       const result = await client.disconnectMetaAccount(accountId);
@@ -1596,7 +1637,7 @@ function registerIpc() {
     } catch (error) { throw new Error(cloudErrorMessage(error)); }
   });
 
-  ipcMain.handle('workspace:select-page', async (_, pageId) => {
+  handleTrustedIpc('workspace:select-page', async (_, pageId) => {
     const { client } = requireCloudSession();
     try {
       const currentWorkspace = appStore.getWorkspace();
@@ -1624,7 +1665,7 @@ function registerIpc() {
     } catch (error) { throw new Error(cloudErrorMessage(error)); }
   });
 
-  ipcMain.handle('workspace:revoke-page', async (_, pageId) => {
+  handleTrustedIpc('workspace:revoke-page', async (_, pageId) => {
     const { client } = requireCloudSession();
     try {
       const result = await client.revokePage(pageId);
@@ -1634,22 +1675,24 @@ function registerIpc() {
   });
 
 
-  ipcMain.handle('settings:save', async (_, settings) => {
-    const saved = appStore.saveSettings(settings);
-    return { settings: saved, state: appStore.getState() };
+  handleTrustedIpc('settings:save', async (_, settings) => {
+    const safeSettings = { ...(settings || {}) };
+    delete safeSettings.pageAccessToken;
+    appStore.saveSettings(safeSettings);
+    return { settings: appStore.getRendererSettings(), state: appStore.getState() };
   });
 
-  ipcMain.handle('ui-texts:save', async (_, uiTexts) => {
+  handleTrustedIpc('ui-texts:save', async (_, uiTexts) => {
     const saved = appStore.saveUITexts(uiTexts);
     return { uiTexts: saved, state: appStore.getState() };
   });
 
-  ipcMain.handle('ui-texts:reset', async () => {
+  handleTrustedIpc('ui-texts:reset', async () => {
     const saved = appStore.resetUITexts();
     return { uiTexts: saved, state: appStore.getState() };
   });
 
-  ipcMain.handle('files:pick-videos', async () => {
+  handleTrustedIpc('files:pick-videos', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Choose videos',
       properties: ['openFile', 'multiSelections'],
@@ -1659,7 +1702,7 @@ function registerIpc() {
     return importFiles(appStore, result.filePaths, 'video');
   });
 
-  ipcMain.handle('files:pick-captions', async () => {
+  handleTrustedIpc('files:pick-captions', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Choose captions',
       properties: ['openFile', 'multiSelections'],
@@ -1669,7 +1712,7 @@ function registerIpc() {
     return importFiles(appStore, result.filePaths, 'caption');
   });
 
-  ipcMain.handle('folders:pick-videos', async () => {
+  handleTrustedIpc('folders:pick-videos', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Choose a folder containing videos',
       properties: ['openDirectory']
@@ -1679,7 +1722,7 @@ function registerIpc() {
     return importFiles(appStore, files, 'video');
   });
 
-  ipcMain.handle('folders:pick-captions', async () => {
+  handleTrustedIpc('folders:pick-captions', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Choose a folder containing captions',
       properties: ['openDirectory']
@@ -1689,27 +1732,27 @@ function registerIpc() {
     return importFiles(appStore, files, 'caption');
   });
 
-  ipcMain.handle('files:import-dropped', async (_, { paths, type }) => {
+  handleTrustedIpc('files:import-dropped', async (_, { paths, type }) => {
     return importFiles(appStore, Array.isArray(paths) ? paths : [], type);
   });
 
-  ipcMain.handle('captions:import-text', async (_, { text, sourceName }) => {
+  handleTrustedIpc('captions:import-text', async (_, { text, sourceName }) => {
     return importCaptionText(appStore, text, sourceName || 'pasted-captions.txt');
   });
 
 
-  ipcMain.handle('schedule:preview', async () => {
+  handleTrustedIpc('schedule:preview', async () => {
     const preview = await buildSafePlanPreview();
     return { ...preview, state: appStore.getState() };
   });
 
-  ipcMain.handle('schedule:create-plan', async () => {
+  handleTrustedIpc('schedule:create-plan', async () => {
     const result = await createSafeLocalPlan();
     return result;
   });
 
 
-  ipcMain.handle('reels:pick-session-videos', async () => {
+  handleTrustedIpc('reels:pick-session-videos', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Select videos for Reels Queue',
       properties: ['openFile', 'multiSelections'],
@@ -1719,7 +1762,7 @@ function registerIpc() {
     return { paths: result.filePaths || [] };
   });
 
-  ipcMain.handle('reels:pick-caption-file', async () => {
+  handleTrustedIpc('reels:pick-caption-file', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Select Reels Queue caption file',
       properties: ['openFile'],
@@ -1729,39 +1772,39 @@ function registerIpc() {
     return { text: fs.readFileSync(result.filePaths[0], 'utf8'), path: result.filePaths[0] };
   });
 
-  ipcMain.handle('reels:create-queue', async (_, payload) => {
+  handleTrustedIpc('reels:create-queue', async (_, payload) => {
     return createReelsQueue(payload || {});
   });
 
-  ipcMain.handle('reels:run-due', async (event, payload = {}) => {
+  handleTrustedIpc('reels:run-due', async (event, payload = {}) => {
     await assertCloudAccess();
     return runDueReels(event, { jobIds: Array.isArray(payload.jobIds) ? payload.jobIds : [] });
   });
 
-  ipcMain.handle('reels:start-watcher', async (event) => {
+  handleTrustedIpc('reels:start-watcher', async (event) => {
     await assertCloudAccess();
     return startReelsQueueWatcher(event);
   });
 
-  ipcMain.handle('reels:stop-watcher', async () => {
+  handleTrustedIpc('reels:stop-watcher', async () => {
     return stopReelsQueueWatcher();
   });
 
-  ipcMain.handle('lab:publish-reel-now', async (event, payload) => {
+  handleTrustedIpc('lab:publish-reel-now', async (event, payload) => {
     await assertCloudAccess();
     return publishLabReelNow(event, payload || {});
   });
 
-  ipcMain.handle('lab:publish-legacy-now', async (event, payload) => {
+  handleTrustedIpc('lab:publish-legacy-now', async (event, payload) => {
     await assertCloudAccess();
     return publishLabLegacyNow(event, payload || {});
   });
 
-  ipcMain.handle('lab:diagnostics', async (_, payload) => {
+  handleTrustedIpc('lab:diagnostics', async (_, payload) => {
     return fetchLabDiagnostics(payload || {});
   });
 
-  ipcMain.handle('schedule:run', async event => {
+  handleTrustedIpc('schedule:run', async event => {
     await assertCloudAccess();
     if (schedulerRunning) throw new Error('Scheduler is already running.');
     schedulerRunning = true;
@@ -1815,12 +1858,12 @@ function registerIpc() {
     }
   });
 
-  ipcMain.handle('draft:upload-test', async (event, payload) => {
+  handleTrustedIpc('draft:upload-test', async (event, payload) => {
     await assertCloudAccess();
     return uploadDraftTest(event, payload || { limit: 3 });
   });
 
-  ipcMain.handle('draft:pick-session-videos', async () => {
+  handleTrustedIpc('draft:pick-session-videos', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Select Draft Studio videos for this session',
       properties: ['openFile', 'multiSelections'],
@@ -1830,7 +1873,7 @@ function registerIpc() {
     return { paths: result.filePaths || [] };
   });
 
-  ipcMain.handle('draft:pick-session-caption-file', async () => {
+  handleTrustedIpc('draft:pick-session-caption-file', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Select Draft Studio caption file',
       properties: ['openFile'],
@@ -1840,12 +1883,12 @@ function registerIpc() {
     return { text: fs.readFileSync(result.filePaths[0], 'utf8'), path: result.filePaths[0] };
   });
 
-  ipcMain.handle('draft:upload-session', async (event, payload) => {
+  handleTrustedIpc('draft:upload-session', async (event, payload) => {
     await assertCloudAccess();
     return uploadDraftSession(event, payload || {});
   });
 
-  ipcMain.handle('schedule:stop', async event => {
+  handleTrustedIpc('schedule:stop', async event => {
     if (!schedulerRunning || !schedulerControl) {
       return { stopped: false, message: 'Scheduler is not running.', state: appStore.getState() };
     }
@@ -1863,7 +1906,7 @@ function registerIpc() {
   });
 
 
-  ipcMain.handle('manual:pick-video', async () => {
+  handleTrustedIpc('manual:pick-video', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Choose one video for manual scheduling',
       properties: ['openFile'],
@@ -1873,65 +1916,93 @@ function registerIpc() {
     return { path: result.filePaths[0] };
   });
 
-  ipcMain.handle('manual:health-check', async (_, payload) => {
+  handleTrustedIpc('manual:health-check', async (_, payload) => {
     return buildManualHealth(payload || {});
   });
 
-  ipcMain.handle('manual:schedule', async (event, payload) => {
+  handleTrustedIpc('manual:schedule', async (event, payload) => {
     await assertCloudAccess();
     return scheduleManualPost(payload || {}, event);
   });
 
-  ipcMain.handle('manual:schedule-and-upload', async (event, payload) => {
+  handleTrustedIpc('manual:schedule-and-upload', async (event, payload) => {
     await assertCloudAccess();
     return scheduleManualPostAndUpload(payload || {}, event);
   });
 
-  ipcMain.handle('health:run', async () => {
+  handleTrustedIpc('health:run', async () => {
     return buildHealthCheck();
   });
 
-  ipcMain.handle('facebook:connect-page', async () => {
+  handleTrustedIpc('facebook:connect-page', async () => {
     const result = await connectFacebookPageAuto();
     return result;
   });
 
-  ipcMain.handle('facebook:disconnect-page', async () => {
-    const saved = appStore.saveSettings({ pageId: '', pageAccessToken: '', connectedPageName: '', connectionMethod: 'manual' });
+  handleTrustedIpc('facebook:disconnect-page', async () => {
+    appStore.saveSettings({ pageId: '', pageAccessToken: '', connectedPageName: '', connectionMethod: 'manual' });
     appStore.clearWorkspace();
     appStore.log('facebook', 'Facebook Page connection cleared from Settings.');
-    return { settings: saved, state: appStore.getState() };
+    return { settings: appStore.getRendererSettings(), state: appStore.getState() };
   });
 
-  ipcMain.handle('facebook:test', async () => {
-    const client = new FacebookClient(appStore.getSettings());
-    const result = await client.testConnection();
-    appStore.log('facebook', `Facebook connection OK for Page: ${result.name || result.id}.`);
-    return { result, state: appStore.getState() };
+  handleTrustedIpc('facebook:test', async () => {
+    let workspace = appStore.getWorkspace();
+    let activePage = workspace.activePage || (workspace.pages || []).find(page => page.isSelected) || null;
+    let settings = appStore.getSettings();
+    let expectedPageId = String(activePage?.facebookPageId || settings.pageId || '');
+
+    // Page selection is stored in the cloud workspace. If the active Page and
+    // the local publishing credential ever drift apart, refresh before testing
+    // so this action always follows the current Active Page selector.
+    if (activePage && (String(settings.pageId || '') !== expectedPageId || !settings.pageAccessToken)) {
+      workspace = await refreshCloudWorkspace();
+      activePage = workspace.activePage || (workspace.pages || []).find(page => page.isSelected) || null;
+      settings = appStore.getSettings();
+      expectedPageId = String(activePage?.facebookPageId || settings.pageId || '');
+    }
+
+    if (!expectedPageId || !settings.pageAccessToken) {
+      throw new Error('No active Facebook Page is connected. Open Pages, connect a Page, and select it first.');
+    }
+    if (String(settings.pageId || '') !== expectedPageId) {
+      throw new Error('The active Facebook Page credential could not be loaded. Refresh Pages and try again.');
+    }
+
+    const client = new FacebookClient(settings);
+    const verifiedPage = await client.testConnection();
+    if (String(verifiedPage.id || '') !== expectedPageId) {
+      throw new Error('Facebook returned a different Page than the selected Active Page. Reconnect this Page before publishing.');
+    }
+
+    const result = { id: verifiedPage.id, name: verifiedPage.name || activePage?.facebookPageName || settings.connectedPageName || verifiedPage.id };
+    if (result.name !== settings.connectedPageName) appStore.saveSettings({ connectedPageName: result.name });
+    appStore.log('facebook', `Active Facebook Page verified: ${result.name}.`, { pageId: result.id });
+    return { result, activePage: { id: result.id, name: result.name }, state: appStore.getState() };
   });
 
-  ipcMain.handle('facebook:list-scheduled', async () => {
+  handleTrustedIpc('facebook:list-scheduled', async () => {
     const client = new FacebookClient(appStore.getSettings());
     const result = await client.listScheduledPosts();
     appStore.log('facebook', `Fetched ${result.data ? result.data.length : 0} scheduled posts from Meta.`);
     return { result, state: appStore.getState() };
   });
 
-  ipcMain.handle('jobs:delete-local', async (_, id) => {
+  handleTrustedIpc('jobs:delete-local', async (_, id) => {
     const jobs = appStore.deleteJob(id);
     return { jobs, state: appStore.getState() };
   });
 
-  ipcMain.handle('data:clear-all', async () => appStore.clearAll());
+  handleTrustedIpc('data:clear-all', async () => appStore.clearAll());
 
-  ipcMain.handle('app:open-user-data', async () => {
+  handleTrustedIpc('app:open-user-data', async () => {
     await shell.openPath(app.getPath('userData'));
     return app.getPath('userData');
   });
 
-  ipcMain.handle('app:open-external-url', async (_, url) => {
+  handleTrustedIpc('app:open-external-url', async (_, url) => {
     const safeUrl = String(url || '');
-    if (!/^https:\/\//i.test(safeUrl)) throw new Error('Only HTTPS links can be opened from the setup wizard.');
+    if (!isAllowedExternalUrl(safeUrl)) throw new Error('Only approved Facebook HTTPS links can be opened from INX Social.');
     await shell.openExternal(safeUrl);
     return true;
   });

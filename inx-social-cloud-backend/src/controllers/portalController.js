@@ -3,14 +3,47 @@ const env = require('../config/env');
 const { getLicenseStatus } = require('../services/licenseService');
 const stripeService = require('../services/stripeService');
 
+function releaseSummary(release) {
+  return release
+    ? {
+        version: release.version,
+        installerAvailable: true,
+        fileName: release.fileName,
+        fileSizeBytes: release.fileSizeBytes.toString(),
+        sha256: release.sha256,
+        publishedAt: release.publishedAt
+      }
+    : {
+        version: env.latestVersion,
+        installerAvailable: Boolean(env.installerUrl),
+        fileName: null,
+        fileSizeBytes: null,
+        sha256: null,
+        publishedAt: null
+      };
+}
+
+function safeDownloadUrl(value) {
+  try {
+    const parsed = new URL(String(value || ''));
+    const localDevelopmentUrl = env.nodeEnv !== 'production' && parsed.protocol === 'http:';
+    if (parsed.protocol !== 'https:' && !localDevelopmentUrl) return null;
+    if (parsed.username || parsed.password) return null;
+    return parsed.toString();
+  } catch (_) {
+    return null;
+  }
+}
+
 async function dashboard(req, res, next) {
   try {
-    const [license, devices, pages, downloads, subscription] = await Promise.all([
+    const [license, devices, pages, downloads, subscription, release] = await Promise.all([
       getLicenseStatus(req.user.id),
       prisma.device.findMany({ where: { userId: req.user.id }, orderBy: { lastSeenAt: 'desc' } }),
       prisma.connectedPage.findMany({ where: { userId: req.user.id }, select: { id: true, facebookPageId: true, facebookPageName: true, status: true, connectedAt: true } }),
       prisma.downloadHistory.findMany({ where: { userId: req.user.id }, orderBy: { createdAt: 'desc' }, take: 5 }),
-      prisma.subscription.findFirst({ where: { userId: req.user.id }, orderBy: { createdAt: 'desc' } })
+      prisma.subscription.findFirst({ where: { userId: req.user.id }, orderBy: { createdAt: 'desc' } }),
+      prisma.desktopRelease.findFirst({ where: { active: true }, orderBy: { publishedAt: 'desc' } })
     ]);
 
     res.json({
@@ -29,7 +62,7 @@ async function dashboard(req, res, next) {
         currentPeriodEnd: subscription?.currentPeriodEnd || null,
         providerSubId: subscription?.providerSubId || null
       },
-      release: { version: env.latestVersion, installerAvailable: Boolean(env.installerUrl) }
+      release: releaseSummary(release)
     });
   } catch (error) { next(error); }
 }
@@ -55,11 +88,46 @@ async function plans(req, res) {
 
 async function download(req, res, next) {
   try {
-    const license = await getLicenseStatus(req.user.id);
-    if (!license.allowed) return res.status(403).json({ error: 'An active trial or subscription is required to download INX Social.' });
-    if (!env.installerUrl) return res.status(404).json({ error: 'The Windows installer has not been published yet.' });
-    await prisma.downloadHistory.create({ data: { userId: req.user.id, version: env.latestVersion, ip: req.ip, userAgent: req.get('user-agent') } });
-    res.json({ version: env.latestVersion, url: env.installerUrl });
+    const [license, release] = await Promise.all([
+      getLicenseStatus(req.user.id),
+      prisma.desktopRelease.findFirst({ where: { active: true }, orderBy: { publishedAt: 'desc' } })
+    ]);
+
+    if (!license.allowed) {
+      return res.status(403).json({ error: 'An active trial or subscription is required to download INX Social.' });
+    }
+
+    const version = release?.version || env.latestVersion;
+    const url = safeDownloadUrl(release?.storageKey || env.installerUrl);
+    if (!url) {
+      return res.status(404).json({ error: 'The Windows installer has not been published yet.' });
+    }
+
+    const operations = [
+      prisma.downloadHistory.create({
+        data: {
+          userId: req.user.id,
+          version,
+          ip: req.ip,
+          userAgent: req.get('user-agent')
+        }
+      })
+    ];
+    if (release) {
+      operations.push(prisma.desktopRelease.update({
+        where: { id: release.id },
+        data: { downloadCount: { increment: 1 } }
+      }));
+    }
+    await prisma.$transaction(operations);
+
+    res.json({
+      version,
+      url,
+      fileName: release?.fileName || null,
+      fileSizeBytes: release ? release.fileSizeBytes.toString() : null,
+      sha256: release?.sha256 || null
+    });
   } catch (error) { next(error); }
 }
 
@@ -74,4 +142,4 @@ async function preferences(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { dashboard, plans, download, preferences };
+module.exports = { dashboard, plans, download, preferences, safeDownloadUrl, releaseSummary };
