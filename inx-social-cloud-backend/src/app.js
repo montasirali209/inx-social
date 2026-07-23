@@ -25,6 +25,15 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(morgan('dev'));
 app.use(rateLimit({ windowMs: 60 * 1000, limit: 240 }));
 
+// Cloud Studio opens Facebook in a popup and receives the OAuth result through
+// window.opener. Helmet's default "same-origin" COOP policy severs that popup
+// relationship when it navigates to facebook.com. Override the policy only for
+// Studio routes while keeping Helmet's stricter default everywhere else.
+app.use('/studio', (req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  next();
+});
+
 // This must be registered before express.json(). Stripe verifies the exact raw bytes.
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), billingController.webhook);
 
