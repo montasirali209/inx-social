@@ -27,6 +27,8 @@ model User {
   metaAccounts            MetaAccount[]
   connectedPages          ConnectedPage[]
   scheduleJobs            ScheduleJob[]
+  cloudAssets             CloudAsset[]
+  cloudPreference         CloudPreference?
   auditLogs               AuditLog[]
   emailVerificationTokens EmailVerificationToken[]
   passwordResetTokens     PasswordResetToken[]
@@ -144,11 +146,19 @@ model ScheduleJob {
   userId          String
   connectedPageId String?
   status          String    @default("DRAFT")
+  origin          String    @default("DESKTOP")
+  uploadStatus    String    @default("NOT_REQUIRED")
+  publishMode     String    @default("SCHEDULED")
+  clientRequestId String?
   contentType     String
   title           String?
   caption         String?
   localFileName   String?
   scheduledAt     DateTime?
+  attemptCount    Int       @default(0)
+  nextAttemptAt   DateTime?
+  claimedAt       DateTime?
+  completedAt     DateTime?
   metaPostId      String?
   metaVideoId     String?
   errorMessage    String?
@@ -158,12 +168,53 @@ model ScheduleJob {
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   connectedPage ConnectedPage? @relation(fields: [connectedPageId], references: [id], onDelete: SetNull)
+  cloudAsset    CloudAsset?
 
+  @@unique([userId, clientRequestId])
   @@index([userId])
   @@index([connectedPageId])
   @@index([status])
+  @@index([origin])
+  @@index([uploadStatus])
   @@index([scheduledAt])
+  @@index([nextAttemptAt])
   @@index([contentType])
+}
+
+model CloudAsset {
+  id               String    @id @default(cuid())
+  userId           String
+  scheduleJobId    String    @unique
+  provider         String    @default("UNCONFIGURED")
+  storageKey       String?   @unique
+  originalFileName String
+  mimeType         String?
+  fileSizeBytes    BigInt?
+  sha256           String?
+  status           String    @default("AWAITING_UPLOAD")
+  expiresAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scheduleJob ScheduleJob @relation(fields: [scheduleJobId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model CloudPreference {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  settingsJson String?
+  uiTextsJson  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model AppSetting {

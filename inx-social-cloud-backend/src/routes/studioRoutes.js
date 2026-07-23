@@ -1,0 +1,19 @@
+const router = require('express').Router();
+const { requireAuth } = require('../middleware/authMiddleware');
+const controller = require('../controllers/studioController');
+
+router.use(requireAuth);
+router.get('/capabilities', controller.capabilities);
+router.get('/desktop-state', controller.desktopState);
+router.put('/preferences', controller.savePreferences);
+router.post('/preferences/reset-ui-texts', controller.resetUiTexts);
+router.get('/overview', controller.overview);
+router.get('/facebook/test', controller.testActivePage);
+router.get('/facebook/scheduled-posts', controller.scheduledPosts);
+router.get('/jobs', controller.listJobs);
+router.post('/jobs', controller.createDraft);
+router.put('/jobs/:id/video', controller.uploadVideo);
+router.patch('/jobs/:id', controller.updateDraft);
+router.post('/jobs/:id/cancel', controller.cancelJob);
+
+module.exports = router;

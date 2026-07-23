@@ -74,6 +74,8 @@ const verificationActions=document.getElementById('verificationActions');
 const resendButton=document.getElementById('resendButton');
 
 const params=new URLSearchParams(location.search);
+const requestedReturn=params.get('return')||'';
+const safeReturn=requestedReturn==='/studio/'?requestedReturn:'';
 const pending=params.get('email')||localStorage.getItem('pendingEmail')||'';
 if(pending)emailInput.value=pending;
 document.querySelectorAll('.password-toggle').forEach(btn=>btn.onclick=()=>{
@@ -106,7 +108,7 @@ form.addEventListener('submit',async e=>{
     }
     localStorage.setItem('inxToken',data.token);
     localStorage.removeItem('pendingEmail');
-    location.href='index.html';
+    location.href=safeReturn||'index.html';
   }catch(err){show(err.message,'error')}
   finally{button.disabled=false;button.querySelector('span').textContent='Sign in'}
 });

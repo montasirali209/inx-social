@@ -1,6 +1,34 @@
-# INX Social Cloud Backend 1.7.0
+# INX Social Cloud Backend 2.0.0
 
-Node/Express backend for INX Social authentication, licences, billing, releases, and Facebook Page workspaces. The deployed database is PostgreSQL through Prisma 5.22.0.
+Node/Express/PostgreSQL backend for INX Social accounts, licences, Stripe billing, releases, Facebook Page workspaces, and the Phase 10 browser Cloud Studio.
+
+## Phase 10 Cloud Studio
+
+Cloud Studio is served at `/studio/`. It reuses the existing desktop renderer and therefore keeps the familiar Home, Pages, Auto Scheduler, Manual Scheduler, Health Check, Calendar, Analytics, Logs, and Settings screens.
+
+It also reuses the existing:
+
+- customer accounts and email verification;
+- trial/subscription and plan limits;
+- Stripe customer portal;
+- connected Meta accounts and Facebook Pages;
+- active Page selector;
+- PostgreSQL database and Railway service;
+- Meta scheduled-Reels publishing protocol.
+
+The Electron desktop app remains version 14.0.2 and is not replaced or changed by this backend release.
+
+### Video handling
+
+Cloud Studio does not require paid permanent object storage. A selected browser video is:
+
+1. prepared as a user-owned cloud job;
+2. streamed to a random temporary server file;
+3. streamed from the server to Meta using the selected Page's server-side encrypted token;
+4. scheduled by Meta for the requested future time;
+5. deleted from the server after success or failure.
+
+The user must keep the Cloud Studio tab open until each upload is confirmed by Meta. Once Meta confirms the schedule, the browser may close and Meta retains the scheduled Reel. Page tokens and storage paths are never returned to the browser.
 
 ## Local setup
 
@@ -9,11 +37,16 @@ copy .env.example .env
 npm install
 npm run prisma:generate
 npx prisma migrate dev
-npm run seed
 npm run dev
 ```
 
 Replace the example database URL and secrets first. Keep `TOKEN_ENCRYPTION_KEY` stable because it protects saved Meta tokens.
+
+Open:
+
+```text
+http://localhost:5050/studio/
+```
 
 ## Validation
 
@@ -24,38 +57,50 @@ npm test
 
 In production use `npm run prisma:migrate:deploy`, never `prisma migrate dev`.
 
+The additive Phase 10 migration is:
+
+```text
+prisma/migrations/20260723000000_add_cloud_studio_foundation/migration.sql
+```
+
+It adds cloud job lifecycle fields, temporary asset metadata, and per-user browser preferences. Existing desktop job rows receive `origin=DESKTOP` and remain compatible.
+
 ## Railway release settings
 
-The repository includes `railway.toml`. Configure the Railway service with:
+The repository includes `railway.toml`:
 
 - Root Directory: `/inx-social-cloud-backend`
 - Config file path: `/inx-social-cloud-backend/railway.toml`
 - Healthcheck: `/health`
 - Required stable secret: `TOKEN_ENCRYPTION_KEY`
 
-The pre-deploy command applies committed Prisma migrations before the new backend becomes active. Keep `TOKEN_ENCRYPTION_KEY` unchanged after Page tokens have been stored; changing it makes those encrypted tokens unreadable.
+The pre-deploy command applies committed Prisma migrations before the new backend becomes active.
+
+## External approvals before production
+
+Local testing, code review, and GitHub CI require no external-service change.
+
+The following actions require the owner's approval:
+
+1. Add the production callback below to Meta App Dashboard → Facebook Login → Valid OAuth Redirect URIs:
+
+   ```text
+   https://api.social.inaxx.co.uk/studio/facebook-callback.html
+   ```
+
+   This is required only for connecting additional Facebook accounts/Pages from the browser. Existing connected Pages can be tested without changing Meta.
+
+2. Push or merge into the Railway production-connected branch. Auto-deploy will build the backend and apply the Phase 10 database migration. Review CI and the migration first.
+
+No Stripe key, Stripe webhook, DNS, paid storage account, or Windows installer setting needs to change for Phase 10.
 
 ## Hardened Windows releases
 
-The root GitHub Actions workflow has two separate release paths:
+The root GitHub Actions workflow keeps desktop release publishing separate from backend deployment:
 
-- **Run workflow** builds an installer for private testing and stores it as a temporary GitHub Actions artifact. It does not publish a GitHub Release or change the production backend.
-- A tag such as `v14.0.0` must exactly match the root `package.json` version. It builds the hardened installer, requires a valid Windows code-signing certificate, and then waits at the `production-release` GitHub environment before publishing anything.
+- **Run workflow** builds a private test artifact.
+- A matching version tag builds the hardened installer and waits at the `production-release` GitHub environment.
 
-Configure these GitHub secrets before creating a production tag:
+Configure the Windows certificate secrets and `RELEASE_API_KEY` before publishing a signed installer. Phase 10 does not remove the desktop download option.
 
-- Repository secret `WINDOWS_CERTIFICATE`: the code-signing `.pfx` supplied to electron-builder (base64 or another supported `CSC_LINK` value).
-- Repository secret `WINDOWS_CERTIFICATE_PASSWORD`: the `.pfx` password.
-- `production-release` environment secret `RELEASE_API_KEY`: the same long random value stored as `RELEASE_API_KEY` in Railway.
-
-Add the repository owner as a required reviewer for the `production-release` environment. Approval permits the workflow to create or update the public GitHub Release and POST its version, SHA-256, size, and download URL to `/api/releases/publish`. Rejecting or leaving that approval pending does not change GitHub Releases or Railway data.
-
-The customer portal only returns the installer URL after an authenticated licence check and records the download. Public `/api/releases/latest` metadata deliberately omits the storage URL. `LATEST_DESKTOP_VERSION` and `INSTALLER_URL` remain only as legacy fallbacks when no `DesktopRelease` row exists.
-
-When a release is published with `minimumSupportedVersion`, device activation returns HTTP 426 for missing, invalid or older desktop versions. Leave this field empty during normal releases; raising it is a separate production decision because it locks older installed builds on their next licence check.
-
-### Electron protection boundary
-
-Electron source can never be made impossible to inspect. This build enables ASAR packaging, embedded ASAR integrity validation, `OnlyLoadAppFromAsar`, restricted Electron fuses, renderer sandboxing, IPC sender checks, a restrictive renderer Content Security Policy, and production DevTools blocking. A modified `app.asar` should terminate instead of running, and modifying a signed installer or executable invalidates its Windows signature.
-
-Do not treat minification or obfuscation as a licence system. Subscription, device, Page and download permissions must remain authoritative in the backend. For stricter control over who can fetch the installer itself, replace the GitHub asset URL with short-lived signed URLs from private object storage; customers who can install the app will still be able to possess its files.
+Electron source cannot be made impossible to inspect. Server-side licences, Page ownership, encrypted Page tokens, plan limits, and authenticated release downloads remain authoritative.
