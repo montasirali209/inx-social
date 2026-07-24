@@ -514,14 +514,24 @@ function getReelsCaptionBlocks() {
 
 function getReelsTimesForSummary() {
   const mode = document.getElementById('reelsTimingMode') ? document.getElementById('reelsTimingMode').value : 'settings';
+  if (mode === 'immediate') return [];
   if (mode === 'custom') return reelsSelectedTimes;
   return state && state.settings ? state.settings.dailySlots || [] : [];
 }
 
 function renderReelsSessionSummary() {
   const mode = document.getElementById('reelsTimingMode') ? document.getElementById('reelsTimingMode').value : 'settings';
+  const immediate = mode === 'immediate';
+  const dateBox = document.getElementById('reelsScheduleDateBox');
+  if (dateBox) dateBox.classList.toggle('hidden', immediate);
   const customBox = document.getElementById('reelsCustomTimesBox');
   if (customBox) customBox.classList.toggle('hidden', mode !== 'custom');
+  const description = document.getElementById('reelsUploadDescription');
+  if (description) {
+    description.textContent = immediate
+      ? 'Upload Now publishes every selected video to the active Facebook Page immediately.'
+      : 'Upload Now sends every selected video to Meta now, and Facebook publishes each Reel at its assigned date and time.';
+  }
   const selectedTimes = document.getElementById('reelsSelectedTimes');
   if (selectedTimes) {
     selectedTimes.innerHTML = reelsSelectedTimes.length
@@ -531,13 +541,17 @@ function renderReelsSessionSummary() {
   const captions = getReelsCaptionBlocks();
   const times = getReelsTimesForSummary();
   const pairs = Math.min(reelsSessionVideos.length, captions.length);
-  const perDay = Math.max(1, times.length || 0);
-  const days = pairs ? Math.ceil(pairs / perDay) : 0;
   const box = document.getElementById('reelsSessionSummary');
   const activePage = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected) || null;
   if (box) {
     box.className = pairs && activePage ? 'simple-check success' : 'simple-check muted';
-    box.innerHTML = `${reelsSessionVideos.length} video(s) selected · ${captions.length} caption(s) · ${pairs} ready pair(s) · ${times.length || 0} slot(s)/day · estimated ${days} day(s).<br><span class="muted">Destination: ${escapeHtml(activePage?.facebookPageName || 'No Page selected')}. Start Studio Upload sends every item in this session to this Page.</span>`;
+    if (immediate) {
+      box.innerHTML = `${reelsSessionVideos.length} video(s) selected · ${captions.length} caption(s) · ${pairs} ready to publish now.<br><span class="muted">Destination: ${escapeHtml(activePage?.facebookPageName || 'No Page selected')}. Upload Now publishes every ready pair immediately.</span>`;
+    } else {
+      const perDay = Math.max(1, times.length || 0);
+      const days = pairs ? Math.ceil(pairs / perDay) : 0;
+      box.innerHTML = `${reelsSessionVideos.length} video(s) selected · ${captions.length} caption(s) · ${pairs} ready pair(s) · ${times.length || 0} slot(s)/day · estimated ${days} day(s).<br><span class="muted">Destination: ${escapeHtml(activePage?.facebookPageName || 'No Page selected')}. Upload Now sends every item to Meta and schedules it for the assigned time.</span>`;
+    }
   }
   renderReelsSchedulePreview();
 }
@@ -546,8 +560,20 @@ function renderReelsSchedulePreview() {
   const target = document.getElementById('reelsSchedulePreview');
   if (!target) return;
   const captions = getReelsCaptionBlocks();
+  const mode = document.getElementById('reelsTimingMode') ? document.getElementById('reelsTimingMode').value : 'settings';
   const times = getReelsTimesForSummary();
   const pairs = Math.min(reelsSessionVideos.length, captions.length);
+  if (mode === 'immediate') {
+    if (!pairs) {
+      target.innerHTML = '<div class="empty">Select videos and add matching captions to preview immediate publishing.</div>';
+      return;
+    }
+    const rows = reelsSessionVideos.slice(0, Math.min(pairs, 20)).map((file, index) =>
+      `<div class="draft-preview-row"><strong>${index + 1}.</strong> <span>${escapeHtml(file.split(/[\\/]/).pop())}</span><em>Publish immediately</em></div>`
+    );
+    target.innerHTML = `<h4>Immediate upload preview</h4>${rows.join('')}${pairs > rows.length ? `<p class="muted">Showing first ${rows.length} of ${pairs} videos.</p>` : ''}`;
+    return;
+  }
   if (!pairs || !times.length) {
     target.innerHTML = '<div class="empty">Select videos, captions, and at least one time slot to preview Reel assignments.</div>';
     return;
@@ -578,6 +604,7 @@ async function createReelsQueue() {
   if (!activePage) return toast('Choose a Facebook Page before preparing this Auto Scheduler session.', true);
   const captions = getReelsCaptionBlocks();
   const mode = document.getElementById('reelsTimingMode') ? document.getElementById('reelsTimingMode').value : 'settings';
+  const immediate = mode === 'immediate';
   const times = mode === 'custom' ? reelsSelectedTimes : [];
   const pairs = Math.min(reelsSessionVideos.length, captions.length);
   if (!pairs) return toast('Select at least one Reel video and one caption.', true);
@@ -586,8 +613,9 @@ async function createReelsQueue() {
     const result = await window.schedulerApi.createReelsQueue({
       videoPaths: reelsSessionVideos.slice(0, pairs),
       captionText: document.getElementById('reelsCaptionText').value,
-      startDate: document.getElementById('reelsStartDate')?.value || defaultDateInput(),
-      times
+      startDate: immediate ? null : (document.getElementById('reelsStartDate')?.value || defaultDateInput()),
+      times,
+      publishMode: immediate ? 'NOW' : 'SCHEDULED'
     });
     state = result.state || state;
     reelsSessionVideos = [];
@@ -595,7 +623,9 @@ async function createReelsQueue() {
     const text = document.getElementById('reelsCaptionText');
     if (text) text.value = '';
     render();
-    toast(`Prepared ${result.jobs.length} Reel item(s). Start Studio Upload will upload only these selected items to Meta now.`);
+    toast(immediate
+      ? `Prepared ${result.jobs.length} Reel item(s) to publish immediately.`
+      : `Prepared ${result.jobs.length} Reel item(s) for their scheduled times.`);
   } catch (err) {
     toast(err.message, true);
   }
@@ -627,23 +657,25 @@ async function startReelsWatcher() {
   if (!activePage) return toast('Choose a Facebook Page before starting Auto Scheduler.', true);
   isSchedulerRunning = true;
   updateRunButtons();
-  updateReelsPanel({ phase: 'Studio upload', percent: 3, message: 'Preparing selected Reels for immediate Meta schedule upload...', current: 0, total: 0, uploaded: 0, failed: 0 });
+  updateReelsPanel({ phase: 'Preparing', percent: 3, message: 'Preparing the selected Reels...', current: 0, total: 0, uploaded: 0, failed: 0 });
   try {
     const captions = getReelsCaptionBlocks();
     const mode = document.getElementById('reelsTimingMode') ? document.getElementById('reelsTimingMode').value : 'settings';
+    const immediate = mode === 'immediate';
     const times = mode === 'custom' ? reelsSelectedTimes : [];
     const pairs = Math.min(reelsSessionVideos.length, captions.length);
 
     if (!pairs) {
-      throw new Error('Select videos and captions first. Start Studio Upload now uploads only the items currently selected on this screen, not old local items.');
+      throw new Error('Select at least one video and add one matching caption before clicking Upload Now.');
     }
     if (mode === 'custom' && !times.length) throw new Error('Choose at least one custom time, or switch to Settings slots.');
 
     const created = await window.schedulerApi.createReelsQueue({
       videoPaths: reelsSessionVideos.slice(0, pairs),
       captionText: document.getElementById('reelsCaptionText').value,
-      startDate: document.getElementById('reelsStartDate')?.value || defaultDateInput(),
-      times
+      startDate: immediate ? null : (document.getElementById('reelsStartDate')?.value || defaultDateInput()),
+      times,
+      publishMode: immediate ? 'NOW' : 'SCHEDULED'
     });
     state = created.state || state;
     const jobIds = (created.jobs || []).map(j => j.id);
@@ -656,8 +688,11 @@ async function startReelsWatcher() {
     const text = document.getElementById('reelsCaptionText');
     if (text) text.value = '';
     render();
-    updateReelsPanel({ phase: 'Done', percent: 100, message: result.message || `Studio upload finished. Uploaded/scheduled ${result.uploaded || 0}, failed ${result.failed || 0}.`, current: 0, total: 0, uploaded: result.uploaded || result.published || 0, failed: result.failed || 0 });
-    toast(result.message || `Studio upload finished. Uploaded/scheduled ${result.uploaded || 0}, failed ${result.failed || 0}.`);
+    const fallback = immediate
+      ? `Upload finished. Published ${result.uploaded || result.published || 0}, failed ${result.failed || 0}.`
+      : `Upload finished. Scheduled ${result.uploaded || result.published || 0}, failed ${result.failed || 0}.`;
+    updateReelsPanel({ phase: 'Done', percent: 100, message: result.message || fallback, current: 0, total: 0, uploaded: result.uploaded || result.published || 0, failed: result.failed || 0 });
+    toast(result.message || fallback);
   } catch (err) {
     updateReelsPanel({ phase: 'Error', percent: 100, message: err.message, failed: 1 });
     toast(err.message, true);

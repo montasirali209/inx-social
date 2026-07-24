@@ -302,12 +302,19 @@
     const captions = captionBlocks(payload.captionText || '');
     const count = Math.min(paths.length, captions.length);
     if (!count) throw new Error('Select at least one video and one caption.');
-    const slots = scheduleSlots(count, payload.startDate, payload.times);
+    const immediate = String(payload.publishMode || '').toUpperCase() === 'NOW';
+    const slots = immediate ? [] : scheduleSlots(count, payload.startDate, payload.times);
     const jobs = [];
     for (let index = 0; index < count; index++) {
       const file = files.get(paths[index]);
       if (!file) throw new Error(`The browser no longer has access to ${fileName(paths[index])}. Select it again.`);
-      jobs.push(await createCloudJob({ id: paths[index], file, caption: captions[index], scheduledAt: slots[index] }));
+      jobs.push(await createCloudJob({
+        id: paths[index],
+        file,
+        caption: captions[index],
+        scheduledAt: immediate ? null : slots[index],
+        publishMode: immediate ? 'NOW' : 'SCHEDULED'
+      }));
     }
     await fetchState();
     return { jobs, state: cachedState };
@@ -347,9 +354,16 @@
       }
     }
     await fetchState();
+    const immediateCount = candidates.filter(job => job.publishMode === 'NOW').length;
+    const scheduledCount = candidates.length - immediateCount;
+    const completion = immediateCount && !scheduledCount
+      ? `Published ${counters.uploaded}`
+      : scheduledCount && !immediateCount
+        ? `Scheduled ${counters.uploaded}`
+        : `Completed ${counters.uploaded}`;
     const message = stopRequested
-      ? `Upload stopped. Scheduled ${counters.uploaded}, failed ${counters.failed}.`
-      : `Studio upload finished. Completed ${counters.uploaded}, failed ${counters.failed}.`;
+      ? `Upload stopped. ${completion}, failed ${counters.failed}.`
+      : `Upload finished. ${completion}, failed ${counters.failed}.`;
     emit({ type: 'reel-finished', phase: 'Done', percent: 100, ...counters, message, state: cachedState });
     return { ...counters, published: counters.uploaded, stopped: stopRequested, results, message, state: cachedState };
   }

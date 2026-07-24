@@ -222,8 +222,8 @@
           <section class="panel">
             <div class="panel-head row">
               <div>
-                <h3>Auto Reel Scheduler</h3>
-                <p>Select videos, captions, and times. Start Studio Upload uploads them to Meta now as scheduled Facebook Reels.</p>
+                <h3>Upload Facebook Reels</h3>
+                <p>Select one or more videos and captions, then choose whether to publish them immediately or schedule them for later.</p>
               </div>
               <div class="button-row">
                 <button id="btnReelsPickVideos" class="btn secondary" type="button">Select Videos</button>
@@ -231,13 +231,14 @@
               </div>
             </div>
             <div class="settings-form">
-              <label>Start date<input id="reelsStartDate" type="date" /></label>
               <label>Timing mode
                 <select id="reelsTimingMode">
-                  <option value="settings">Use Settings slots automatically</option>
-                  <option value="custom">Use custom selected times</option>
+                  <option value="immediate">Publish immediately</option>
+                  <option value="settings">Schedule using saved daily times</option>
+                  <option value="custom">Schedule using custom times</option>
                 </select>
               </label>
+              <label id="reelsScheduleDateBox" class="hidden">Schedule start date<input id="reelsStartDate" type="date" /></label>
               <div id="reelsCustomTimesBox" class="custom-times-box hidden">
                 <label>Add custom time</label>
                 <div class="button-row">
@@ -257,24 +258,24 @@
 
           <section class="panel">
             <div class="panel-head">
-              <h3>Studio Upload</h3>
-              <p>Start Studio Upload uploads the selected videos to Meta immediately and Facebook keeps each Reel scheduled for its chosen future time.</p>
+              <h3>Upload</h3>
+              <p id="reelsUploadDescription">Upload Now publishes every selected video to the active Facebook Page immediately.</p>
             </div>
             <div class="action-stack">
-              <button id="btnReelsStartWatcher" class="btn primary wide" type="button">Start Studio Upload</button>
+              <button id="btnReelsStartWatcher" class="btn primary wide" type="button">Upload Now</button>
               <button id="btnReelsStopWatcher" class="btn danger wide" type="button">Stop Upload</button>
             </div>
             <div class="upload-progress-card">
               <div class="progress-head"><span id="reelsPhase">Idle</span><strong id="reelsPercent">0%</strong></div>
               <div class="progress-track"><div id="reelsProgressFill" class="progress-fill" style="width:0%"></div></div>
-              <div id="reelsStatusBox" class="progress-box muted">No upload running. Select videos/captions/times, then click Start Studio Upload. Old local items will not be uploaded automatically.</div>
+              <div id="reelsStatusBox" class="progress-box muted">No upload running. Select videos and captions, choose a timing mode, then click Upload Now.</div>
               <div class="progress-metrics">
                 <span>Current: <strong id="reelsCurrent">0/0</strong></span>
-                <span>Scheduled: <strong id="reelsPublished">0</strong></span>
+                <span>Completed: <strong id="reelsPublished">0</strong></span>
                 <span>Failed: <strong id="reelsFailed">0</strong></span>
               </div>
             </div>
-            <div class="panel-head row"><div><h3>Upload results</h3><p>Selected upload results: uploading, scheduled on Meta, or failed.</p></div></div>
+            <div class="panel-head row"><div><h3>Upload results</h3><p>See whether each selected Reel was published immediately, scheduled on Facebook, or failed.</p></div></div>
             <div id="reelsQueueTable" class="table-wrap tall"></div>
           </section>
         </div>
