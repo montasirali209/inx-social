@@ -8,18 +8,35 @@
   const query = new URLSearchParams(location.search);
   const accessToken = hash.get('access_token') || '';
   const returnedState = hash.get('state') || query.get('state') || '';
-  const expectedState = sessionStorage.getItem('inx-facebook-oauth-state') || '';
+  let expectedState = sessionStorage.getItem('inx-facebook-oauth-state') || '';
+  try {
+    expectedState = expectedState || window.opener?.sessionStorage.getItem('inx-facebook-oauth-state') || '';
+  } catch (_) {}
   const facebookError = hash.get('error_description')
     || query.get('error_description')
     || query.get('error_message')
     || query.get('error')
     || '';
 
-  // Remove the Facebook access token from the visible URL immediately.
   if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+
+  function notifyOpener(message) {
+    if (!window.opener || window.opener.closed) return false;
+    try {
+      window.opener.postMessage({
+        type: 'inx-facebook-oauth-result',
+        state: returnedState || expectedState,
+        ...message
+      }, location.origin);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   function showError(message) {
     sessionStorage.removeItem('inx-facebook-oauth-state');
+    notifyOpener({ ok: false, error: message });
     title.textContent = 'Facebook connection failed';
     detail.textContent = message;
     const link = document.createElement('a');
@@ -31,7 +48,7 @@
 
   async function api(url, options = {}) {
     const inxToken = localStorage.getItem(TOKEN_KEY) || localStorage.getItem('inxToken') || '';
-    if (!inxToken) throw new Error('Your INX Social login session was not found. Return to Studio and sign in again.');
+    if (!inxToken) throw new Error('Your INX Social login session was not found. Close this window, then sign in again.');
     const headers = new Headers(options.headers || {});
     headers.set('Authorization', `Bearer ${inxToken}`);
     if (options.body) headers.set('Content-Type', 'application/json');
@@ -47,7 +64,7 @@
   async function finishConnection() {
     if (facebookError) throw new Error(facebookError);
     if (!expectedState || !returnedState || returnedState !== expectedState) {
-      throw new Error('Facebook returned an invalid or expired login state. Return to Studio and try again.');
+      throw new Error('Facebook returned an invalid or expired login state. Close this window and try again.');
     }
     if (!accessToken) throw new Error('Facebook did not return an access token.');
 
@@ -72,35 +89,35 @@
       .filter(id => !currentIds.has(id))
       .slice(0, available);
 
+    let notice;
     if (!selectedPageIds.length) {
       if ((workspace.pages || []).length) {
-        sessionStorage.setItem('inx-facebook-oauth-notice', 'Facebook is already connected.');
-        sessionStorage.removeItem('inx-facebook-oauth-state');
-        location.replace('/studio/?facebook=already-connected');
-        return;
+        notice = 'Facebook is already connected. Pages refreshed automatically.';
+      } else {
+        throw new Error(available
+          ? 'Facebook did not return a manageable Page. Check your Facebook Page access.'
+          : 'Your current plan has no remaining Facebook Page slots.');
       }
-      throw new Error(available
-        ? 'Facebook did not return a manageable Page. Check your Facebook Page access.'
-        : 'Your current plan has no remaining Facebook Page slots.');
+    } else {
+      await api('/api/pages/accounts/connect', {
+        method: 'POST',
+        body: JSON.stringify({
+          accessToken,
+          selectedPageIds,
+          metaAppId: '969283649323618'
+        })
+      });
+      notice = `${selectedPageIds.length} Facebook Page(s) connected. Pages refreshed automatically.`;
     }
 
-    await api('/api/pages/accounts/connect', {
-      method: 'POST',
-      body: JSON.stringify({
-        accessToken,
-        selectedPageIds,
-        metaAppId: '969283649323618'
-      })
-    });
-
-    sessionStorage.setItem(
-      'inx-facebook-oauth-notice',
-      `${selectedPageIds.length} Facebook Page(s) connected successfully.`
-    );
     sessionStorage.removeItem('inx-facebook-oauth-state');
     title.textContent = 'Facebook connected';
-    detail.textContent = 'Returning to INX Social…';
-    location.replace('/studio/?facebook=connected');
+    detail.textContent = 'Connection complete. This window will close automatically…';
+    notifyOpener({ ok: true, notice, connectedCount: selectedPageIds.length });
+    setTimeout(() => window.close(), 250);
+    setTimeout(() => {
+      if (!window.closed) location.replace('/studio/?facebook=connected');
+    }, 1200);
   }
 
   finishConnection().catch(error => showError(error.message || 'Facebook connection failed.'));

@@ -420,11 +420,11 @@ Third video caption #hashtags"></textarea>
         <div class="grid two">
           <section class="panel">
             <div class="panel-head">
-              <h3>Manual Scheduler</h3>
-              <p>Choose one Reel, add one caption, pick the time, then upload it to Meta immediately as a scheduled Facebook Reel.</p>
+              <h3>Manual Publisher</h3>
+              <p>Choose one Reel and either publish it immediately or schedule it for a future date and time.</p>
             </div>
             <div class="mini-flow">
-              <span class="active">1 Choose video</span><span>2 Caption</span><span>3 Pick time</span><span>4 Upload to Meta schedule</span>
+              <span class="active">1 Choose video</span><span>2 Caption</span><span>3 Post now or schedule</span>
             </div>
             <div class="manual-form settings-form">
               <label>Selected Reel video<input id="manualVideoPath" readonly placeholder="No video selected yet" /></label>
@@ -437,8 +437,9 @@ Third video caption #hashtags"></textarea>
               </div>
               <label class="check"><input id="manualUseNextFree" type="checkbox" checked /> If selected slot is busy, use the next free slot automatically</label>
               <div class="button-row">
-                <button id="btnManualHealth" class="btn ghost" type="button">Check This Reel</button>
-                <button id="btnManualSchedule" class="btn primary" type="button">Upload to Meta Schedule Now</button>
+                <button id="btnManualPublishNow" class="btn primary" type="button">Post to Facebook Now</button>
+                <button id="btnManualSchedule" class="btn secondary" type="button">Schedule for Later</button>
+                <button id="btnManualHealth" class="btn ghost" type="button">Check Schedule</button>
                 <button id="btnManualClear" class="btn ghost" type="button">Clear Form</button>
               </div>
             </div>
@@ -448,11 +449,11 @@ Third video caption #hashtags"></textarea>
               <h3>Manual status</h3>
               <p>Slot availability, caption checks, and upload status for the single Reel.</p>
             </div>
-            <div id="manualHealthBox" class="health-box muted">Choose a video, write a caption, then click Check This Reel.</div>
+            <div id="manualHealthBox" class="health-box muted">Choose a video and caption, then post now or select a date and time to schedule it.</div>
             <div class="upload-progress-card manual-progress">
               <div class="progress-head"><span id="manualProgressPhase">Idle</span><strong id="manualProgressPercent">0%</strong></div>
               <div class="progress-track"><div id="manualProgressFill" class="progress-fill" style="width:0%"></div></div>
-              <div id="manualProgressBox" class="progress-box muted">No manual item uploaded yet. Add it, then use Start Studio Upload in Auto Scheduler.</div>
+              <div id="manualProgressBox" class="progress-box muted">No manual publish action is running.</div>
             </div>
           </section>
         </div>

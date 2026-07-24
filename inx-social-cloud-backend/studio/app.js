@@ -251,6 +251,7 @@ function bindButtons() {
   on('btnManualPickVideo', pickManualVideo);
   on('btnManualPickCaptionFile', pickManualCaptionFile);
   on('btnManualHealth', checkManualPost);
+  on('btnManualPublishNow', publishManualPostNow);
   on('btnManualSchedule', scheduleManualPost);
   on('btnManualClear', clearManualForm);
   on('btnRunHealthCheck', runHealthCheck);
@@ -1045,9 +1046,6 @@ function updateRunButtons() {
 async function connectFacebookPage() {
   try {
     const metaAppId = '969283649323618';
-
-    // Save the visible Settings form first. The Meta App ID is built into this app,
-    // so reviewers/users are never asked to type it.
     const settings = {
       pageId: val('settingPageId'),
       facebookAppId: metaAppId,
@@ -1068,11 +1066,13 @@ async function connectFacebookPage() {
     const saved = await window.schedulerApi.saveSettings(settings);
     state = saved.state;
 
-    toast('Opening Facebook login. Select the Page permissions, then return to the app.');
+    toast('Opening Facebook in a secure connection popup.');
     const result = await window.schedulerApi.connectFacebookPage();
     state = result.state;
+    cloudWorkspace = result.workspace || state.workspace || cloudWorkspace;
     render();
-    toast(`Connected Page: ${result.page.name}`);
+    renderWorkspaceV2();
+    toast(result.notice || 'Facebook connected. Pages refreshed automatically.');
   } catch (err) {
     toast(err.message, true);
   }
@@ -1171,6 +1171,33 @@ async function checkManualPost() {
   }
 }
 
+async function publishManualPostNow() {
+  const activePage = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected);
+  if (!activePage) return toast('Connect and select a Facebook Page first.', true);
+  if (!confirm(`Publish this Reel to ${activePage.facebookPageName} now?\n\nThis will make the Reel public on Facebook immediately.`)) return;
+
+  try {
+    updateManualProgress({ phase: 'Publishing now', percent: 5, message: 'Uploading the selected Reel to Facebook for immediate publishing…' });
+    const result = await window.schedulerApi.manualPublishNow(manualPayload());
+    state = result.state;
+    render();
+    const failed = result.upload && (result.upload.failed || 0);
+    if (failed) {
+      updateManualProgress({ phase: 'Failed', percent: 100, message: result.upload.message || 'Facebook publishing failed.' });
+      setManualHealth('The Reel could not be published. Check Logs for the exact backend error.', 'error');
+      toast(result.upload.message || 'Facebook publishing failed.', true);
+    } else {
+      updateManualProgress({ phase: 'Published', percent: 100, message: `Published to ${activePage.facebookPageName}.` });
+      setManualHealth(`Published immediately to <strong>${escapeHtml(activePage.facebookPageName)}</strong>.<br>Status: <span class="code">Published on Facebook</span>`, 'success');
+      toast('Reel published to Facebook.');
+    }
+  } catch (err) {
+    updateManualProgress({ phase: 'Failed', percent: 100, message: err.message });
+    setManualHealth(`Immediate publishing failed: ${escapeHtml(err.message)}`, 'error');
+    toast(err.message, true);
+  }
+}
+
 async function scheduleManualPost() {
   try {
     updateManualProgress({ phase: 'Starting', percent: 5, message: 'Checking selected Reel and uploading it to Meta schedule...' });
@@ -1200,8 +1227,8 @@ function clearManualForm() {
   document.getElementById('manualCaption').value = '';
   document.getElementById('manualDate').value = defaultDateInput();
   document.getElementById('manualTime').value = '';
-  setManualHealth('Choose a video, write a caption, then click Check This Reel.', '');
-  updateManualProgress({ phase: 'Idle', percent: 0, message: 'No manual schedule action running.' });
+  setManualHealth('Choose a video and caption, then post now or select a date and time to schedule it.', '');
+  updateManualProgress({ phase: 'Idle', percent: 0, message: 'No manual publish action is running.' });
 }
 
 async function runHealthCheck() {
@@ -1991,12 +2018,11 @@ async function connectFacebookWorkspaceV2() {
   try {
     const result = await window.schedulerApi.connectFacebookWorkspace();
     state = result.state;
-    cloudWorkspace = result.workspace;
+    cloudWorkspace = result.workspace || state.workspace || cloudWorkspace;
+    render();
     renderWorkspaceV2();
-    toast(result.warning
-      ? `${result.page?.name || 'Facebook Page'} is connected on this device, but cloud sync still needs attention: ${result.warning}`
-      : `${result.page?.name || 'Facebook Page'} connected and synced successfully.`,
-      Boolean(result.warning));
+    renderReelsSessionSummary();
+    toast(result.notice || 'Facebook connected. Pages refreshed automatically.');
   } catch (error) {
     toast(error.message, true);
   } finally {

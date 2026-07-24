@@ -244,9 +244,10 @@
     return result;
   }
 
-  async function createCloudJob({ id, file, caption, scheduledAt }) {
+  async function createCloudJob({ id, file, caption, scheduledAt = null, publishMode = 'SCHEDULED' }) {
     const active = cachedState.workspace?.activePage;
     if (!active) throw new Error('Connect and select a Facebook Page first.');
+    const immediate = publishMode === 'NOW';
     return api('/api/studio/jobs', {
       method: 'POST',
       body: JSON.stringify({
@@ -256,8 +257,8 @@
         originalFileName: file.name,
         mimeType: file.type || 'application/octet-stream',
         fileSizeBytes: String(file.size),
-        scheduledAt: scheduledAt.toISOString(),
-        publishMode: 'SCHEDULED'
+        scheduledAt: immediate ? null : scheduledAt.toISOString(),
+        publishMode: immediate ? 'NOW' : 'SCHEDULED'
       })
     }).then(result => {
       jobFiles.set(result.job.id, file);
@@ -291,7 +292,7 @@
       total,
       uploaded: counters.uploaded,
       failed: counters.failed,
-      message: `Scheduled on Meta ${index + 1}/${total}: ${file.name}`
+      message: job.publishMode === 'NOW' ? `Published on Facebook ${index + 1}/${total}: ${file.name}` : `Scheduled on Meta ${index + 1}/${total}: ${file.name}`
     });
     return result;
   }
@@ -348,7 +349,7 @@
     await fetchState();
     const message = stopRequested
       ? `Upload stopped. Scheduled ${counters.uploaded}, failed ${counters.failed}.`
-      : `Studio upload finished. Scheduled ${counters.uploaded}, failed ${counters.failed}.`;
+      : `Studio upload finished. Completed ${counters.uploaded}, failed ${counters.failed}.`;
     emit({ type: 'reel-finished', phase: 'Done', percent: 100, ...counters, message, state: cachedState });
     return { ...counters, published: counters.uploaded, stopped: stopRequested, results, message, state: cachedState };
   }
@@ -371,11 +372,61 @@
 
     sessionStorage.setItem('inx-facebook-oauth-state', stateValue);
     sessionStorage.removeItem('inx-facebook-oauth-notice');
-    location.assign(url.toString());
 
-    // Navigation replaces this document. Keep the desktop-shaped API promise
-    // pending so the renderer does not show a false completion notification.
-    return new Promise(() => {});
+    const width = 620;
+    const height = 760;
+    const left = Math.max(0, Math.round((window.screenX || 0) + (window.outerWidth - width) / 2));
+    const top = Math.max(0, Math.round((window.screenY || 0) + (window.outerHeight - height) / 2));
+    const popup = window.open(
+      url.toString(),
+      'inxFacebookConnect',
+      `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    );
+    if (!popup) {
+      throw new Error('Facebook popup was blocked. Allow popups for INX Social and try again.');
+    }
+    popup.focus();
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const cleanup = () => {
+        window.removeEventListener('message', receive);
+        clearInterval(closedCheck);
+        clearTimeout(timeout);
+      };
+      const finish = async message => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (message.ok) {
+          try { popup.close(); } catch (_) {}
+          await fetchState();
+          resolve({
+            state: cachedState,
+            workspace: cachedState.workspace,
+            notice: message.notice || 'Facebook connected. Pages refreshed automatically.'
+          });
+          return;
+        }
+        reject(new Error(message.error || 'Facebook connection failed.'));
+      };
+      const receive = event => {
+        if (event.origin !== location.origin) return;
+        const message = event.data || {};
+        if (message.type !== 'inx-facebook-oauth-result' || message.state !== stateValue) return;
+        finish(message).catch(reject);
+      };
+      window.addEventListener('message', receive);
+      const closedCheck = setInterval(() => {
+        if (!settled && popup.closed) {
+          finish({ ok: false, error: 'Facebook connection was closed before it completed.' }).catch(reject);
+        }
+      }, 500);
+      const timeout = setTimeout(() => {
+        try { popup.close(); } catch (_) {}
+        finish({ ok: false, error: 'Facebook connection timed out. Please try again.' }).catch(reject);
+      }, 5 * 60 * 1000);
+    });
   }
 
   async function savePreferences(settings, uiTexts) {
@@ -445,6 +496,29 @@
       scheduledUnix: Math.floor(slot.getTime() / 1000),
       slotLabel: slot.toLocaleString()
     } : null };
+  }
+
+  async function manualPublishNow(payload = {}) {
+    const file = files.get(payload.videoPath);
+    if (!file) throw new Error('Choose one video.');
+    const caption = String(payload.caption || '').trim();
+    if (!caption) throw new Error('Add a caption.');
+    if (!cachedState.workspace?.activePage) throw new Error('Connect and select a Facebook Page first.');
+
+    const job = await createCloudJob({
+      file,
+      caption,
+      publishMode: 'NOW'
+    });
+    await fetchState();
+    jobFiles.set(job.id, file);
+    const upload = await runJobs({ jobIds: [job.id] });
+    const desktop = cachedState.jobs.find(item => item.id === job.id) || {
+      id: job.id,
+      videoName: file.name,
+      slotLabel: 'Published immediately'
+    };
+    return { job: desktop, upload, state: cachedState };
   }
 
   async function manualScheduleAndUpload(payload = {}) {
@@ -636,6 +710,7 @@
     },
     manualHealthCheck: manualHealth,
     manualSchedule: unsupported('Prepare-only manual scheduling'),
+    manualPublishNow,
     manualScheduleAndUpload,
     runHealthCheck: async () => healthResult(),
     onSchedulerProgress: callback => {

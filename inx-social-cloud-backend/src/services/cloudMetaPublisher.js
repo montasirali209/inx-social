@@ -54,16 +54,18 @@ async function listScheduledPosts({ pageId, pageAccessToken, limit = 200 }) {
   return { data: collected.slice(0, limit) };
 }
 
-async function publishScheduledReel({
+async function publishReel({
   pageId,
   pageAccessToken,
   filePath,
   fileSize,
   caption,
-  scheduledAt
+  scheduledAt,
+  publishMode = 'SCHEDULED'
 }) {
-  const scheduledUnix = Math.floor(new Date(scheduledAt).getTime() / 1000);
-  if (!Number.isFinite(scheduledUnix) || scheduledUnix <= Math.floor(Date.now() / 1000)) {
+  const immediate = publishMode === 'NOW';
+  const scheduledUnix = immediate ? null : Math.floor(new Date(scheduledAt).getTime() / 1000);
+  if (!immediate && (!Number.isFinite(scheduledUnix) || scheduledUnix <= Math.floor(Date.now() / 1000))) {
     throw new Error('The selected schedule time is no longer in the future.');
   }
 
@@ -99,22 +101,25 @@ async function publishScheduledReel({
   });
   assertMetaResponse(upload, 'Facebook Reel video upload failed.');
 
-  const finish = await axios.post(reelEndpoint, {
+  const finishBody = {
     upload_phase: 'finish',
     video_id: videoId,
-    video_state: 'SCHEDULED',
-    scheduled_publish_time: scheduledUnix,
+    video_state: immediate ? 'PUBLISHED' : 'SCHEDULED',
     description: caption || '',
     access_token: pageAccessToken
-  }, {
+  };
+  if (!immediate) finishBody.scheduled_publish_time = scheduledUnix;
+
+  const finish = await axios.post(reelEndpoint, finishBody, {
     timeout: 60000,
     validateStatus: status => status >= 200 && status < 500
   });
-  assertMetaResponse(finish, 'Facebook Reel scheduling failed.');
+  assertMetaResponse(finish, immediate ? 'Facebook Reel publishing failed.' : 'Facebook Reel scheduling failed.');
 
   return {
     videoId: String(videoId),
     postId: finish.data?.post_id || finish.data?.id || null,
+    publishMode: immediate ? 'NOW' : 'SCHEDULED',
     scheduledUnix,
     start: start.data,
     upload: upload.data,
@@ -122,8 +127,18 @@ async function publishScheduledReel({
   };
 }
 
+function publishScheduledReel(input) {
+  return publishReel({ ...input, publishMode: 'SCHEDULED' });
+}
+
+function publishReelNow(input) {
+  return publishReel({ ...input, publishMode: 'NOW', scheduledAt: null });
+}
+
 module.exports = {
   testPage,
   listScheduledPosts,
-  publishScheduledReel
+  publishReel,
+  publishScheduledReel,
+  publishReelNow
 };

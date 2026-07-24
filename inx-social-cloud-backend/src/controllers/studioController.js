@@ -83,7 +83,7 @@ const draftSchema = z.object({
   mimeType: z.string().trim().max(120).nullish(),
   fileSizeBytes: fileSizeSchema,
   scheduledAt: z.string().datetime().nullish(),
-  publishMode: z.enum(['SCHEDULED', 'DRAFT']).default('SCHEDULED')
+  publishMode: z.enum(['SCHEDULED', 'DRAFT', 'NOW']).default('SCHEDULED')
 });
 
 const updateSchema = z.object({
@@ -91,7 +91,7 @@ const updateSchema = z.object({
   title: z.string().trim().max(200).nullish(),
   caption: z.string().max(5000).nullish(),
   scheduledAt: z.string().datetime().nullish(),
-  publishMode: z.enum(['SCHEDULED', 'DRAFT']).optional()
+  publishMode: z.enum(['SCHEDULED', 'DRAFT', 'NOW']).optional()
 }).refine(input => Object.keys(input).length > 0, 'Provide at least one field to update.');
 
 const preferenceSchema = z.object({
@@ -201,12 +201,13 @@ function desktopJob(job) {
     id: job.id,
     videoName: job.localFileName || job.cloudAsset?.originalFileName || 'Cloud video',
     captionName: 'Cloud caption',
+    publishMode: job.publishMode,
     caption: job.caption || '',
     facebookPageId: job.connectedPage?.facebookPageId || null,
     facebookPageName: job.connectedPage?.facebookPageName || null,
     scheduledAtISO: job.scheduledAt,
     scheduledUnix: job.scheduledAt ? Math.floor(new Date(job.scheduledAt).getTime() / 1000) : null,
-    slotLabel: job.scheduledAt ? new Date(job.scheduledAt).toLocaleString('en-GB') : 'Draft',
+    slotLabel: job.publishMode === 'NOW' ? 'Published immediately' : (job.scheduledAt ? new Date(job.scheduledAt).toLocaleString('en-GB') : 'Draft'),
     status: desktopStatus(job.status),
     attempts: job.attemptCount || 0,
     fbVideoId: job.metaVideoId,
@@ -308,7 +309,7 @@ async function capabilities(req, res, next) {
       },
       publishing: {
         enabled: true,
-        mode: 'META_SCHEDULED_REELS'
+        mode: 'META_SCHEDULED_AND_IMMEDIATE_REELS'
       }
     });
   } catch (error) {
@@ -505,8 +506,9 @@ async function createDraft(req, res, next) {
     }
 
     const page = await resolvePage(req.user.id, input.connectedPageId);
-    const scheduledAt = validateScheduleTime(input.scheduledAt);
-    if (!scheduledAt) {
+    const immediate = input.publishMode === 'NOW';
+    const scheduledAt = immediate ? null : validateScheduleTime(input.scheduledAt);
+    if (!immediate && !scheduledAt) {
       const error = new Error('Choose a future date and time before creating the upload.');
       error.status = 400;
       error.publicMessage = error.message;
@@ -520,7 +522,7 @@ async function createDraft(req, res, next) {
         status: JOB_STATUS.AWAITING_UPLOAD,
         origin: 'CLOUD',
         uploadStatus: ASSET_STATUS.AWAITING_UPLOAD,
-        publishMode: 'SCHEDULED',
+        publishMode: immediate ? 'NOW' : 'SCHEDULED',
         clientRequestId: input.clientRequestId || null,
         contentType: 'VIDEO',
         title: input.title || null,
@@ -608,7 +610,8 @@ async function uploadVideo(req, res, next) {
     });
     if (!existing) return res.status(404).json({ error: 'Cloud job not found.' });
     if (!existing.cloudAsset) return res.status(409).json({ error: 'Cloud job has no upload record.' });
-    validateScheduleTime(existing.scheduledAt);
+    const immediate = existing.publishMode === 'NOW';
+    if (!immediate) validateScheduleTime(existing.scheduledAt);
 
     const declaredSize = existing.cloudAsset.fileSizeBytes || null;
     const contentLength = req.headers['content-length'] ? BigInt(req.headers['content-length']) : null;
@@ -648,20 +651,21 @@ async function uploadVideo(req, res, next) {
     if (received !== contentLength) throw new Error('The video upload ended before all bytes arrived.');
 
     const page = await resolvePage(req.user.id, existing.connectedPageId, true);
-    const result = await metaPublisher.publishScheduledReel({
+    const result = await metaPublisher.publishReel({
       pageId: page.facebookPageId,
       pageAccessToken: decryptToken(page.encryptedAccessToken),
       filePath: tempPath,
       fileSize: Number(received),
       caption: existing.caption,
-      scheduledAt: existing.scheduledAt
+      scheduledAt: existing.scheduledAt,
+      publishMode: immediate ? 'NOW' : 'SCHEDULED'
     });
 
     const [job, asset] = await prisma.$transaction([
       prisma.scheduleJob.update({
         where: { id: existing.id },
         data: {
-          status: JOB_STATUS.SCHEDULED,
+          status: immediate ? JOB_STATUS.PUBLISHED : JOB_STATUS.SCHEDULED,
           uploadStatus: ASSET_STATUS.DELETED,
           metaPostId: result.postId,
           metaVideoId: result.videoId,
@@ -678,7 +682,7 @@ async function uploadVideo(req, res, next) {
       })
     ]);
     job.cloudAsset = asset;
-    res.json({ job: publicJob(job), scheduled: true });
+    res.json({ job: publicJob(job), scheduled: !immediate, published: immediate });
   } catch (error) {
     if (claimedJob) {
       try {

@@ -35,6 +35,32 @@ test('scheduled Reel publishing uses fixed-length streaming and the three Meta p
   assert.equal(result.postId, 'post-1');
 });
 
+test('immediate Reel publishing finishes with PUBLISHED and no schedule time', async t => {
+  const posts = [];
+  t.mock.method(fs, 'createReadStream', () => Readable.from(Buffer.from('video')));
+  t.mock.method(axios, 'post', async (url, body, options) => {
+    posts.push({ url, body, options });
+    if (posts.length === 1) return { status: 200, data: { video_id: 'video-now', upload_url: 'https://rupload.facebook.com/session-now' } };
+    if (posts.length === 2) return { status: 200, data: { success: true } };
+    return { status: 200, data: { success: true, post_id: 'post-now' } };
+  });
+
+  const result = await publisher.publishReelNow({
+    pageId: 'page-1',
+    pageAccessToken: 'page-secret',
+    filePath: '/temporary/video.mp4',
+    fileSize: 5,
+    caption: 'Publish now'
+  });
+
+  assert.equal(posts.length, 3);
+  assert.equal(posts[2].body.video_state, 'PUBLISHED');
+  assert.equal(Object.hasOwn(posts[2].body, 'scheduled_publish_time'), false);
+  assert.equal(result.publishMode, 'NOW');
+  assert.equal(result.scheduledUnix, null);
+  assert.equal(result.postId, 'post-now');
+});
+
 test('scheduled Reel publishing refuses a past time before contacting Meta', async t => {
   const post = t.mock.method(axios, 'post', async () => ({ status: 200, data: {} }));
   await assert.rejects(

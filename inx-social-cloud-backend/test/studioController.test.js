@@ -163,3 +163,29 @@ test('creating a scheduled cloud upload stores metadata but no video or storage 
   assert.equal(res.body.uploadAvailable, true);
   assert.equal(res.body.uploadUrl, '/api/studio/jobs/job-1/video');
 });
+
+test('creating an immediate cloud upload stores NOW mode without a schedule time', async () => {
+  createdInput = null;
+  const res = responseRecorder();
+  let forwardedError = null;
+  await controller.createDraft({
+    user: { id: 'user-1' },
+    body: {
+      connectedPageId: 'page-row-1',
+      clientRequestId: 'request-now-12345678',
+      caption: 'Publish immediately',
+      originalFileName: 'now.mp4',
+      mimeType: 'video/mp4',
+      fileSizeBytes: '2048',
+      scheduledAt: null,
+      publishMode: 'NOW'
+    }
+  }, res, error => { forwardedError = error; });
+
+  assert.equal(forwardedError, null);
+  assert.equal(res.statusCode, 201);
+  assert.equal(createdInput.data.publishMode, 'NOW');
+  assert.equal(createdInput.data.scheduledAt, null);
+  assert.equal(createdInput.data.status, 'AWAITING_UPLOAD');
+  assert.equal(res.body.job.publishMode, 'NOW');
+});
