@@ -365,7 +365,7 @@
     url.searchParams.set('client_id', FACEBOOK_APP_ID);
     url.searchParams.set('redirect_uri', redirectUri);
     url.searchParams.set('response_type', 'token');
-    url.searchParams.set('scope', 'public_profile,pages_show_list,pages_read_engagement,pages_manage_posts,business_management');
+    url.searchParams.set('scope', 'public_profile,pages_show_list,pages_read_engagement,pages_manage_posts');
     url.searchParams.set('state', stateValue);
     url.searchParams.set('auth_type', 'rerequest');
 
@@ -504,6 +504,18 @@
       localStorage.removeItem('inxToken');
       cachedState = unauthenticatedState();
       return { state: cachedState };
+    },
+    openBillingPortal: async () => {
+      const result = await api('/api/billing/portal', { method: 'POST', body: '{}' });
+      location.assign(result.url);
+      return result;
+    },
+    deleteAccount: async payload => {
+      const result = await api('/api/portal/account', { method: 'DELETE', body: JSON.stringify(payload) });
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem('inxToken');
+      cachedState = unauthenticatedState();
+      return result;
     },
     getWorkspace: workspaceResult,
     refreshWorkspace: workspaceResult,

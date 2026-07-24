@@ -23,11 +23,22 @@
         <label id="accountNameWrap" class="hidden">Full name<input id="accountName" autocomplete="name" /></label>
         <label>Email address<input id="accountEmail" type="email" autocomplete="email" required /></label>
         <label>Password<input id="accountPassword" type="password" autocomplete="current-password" minlength="8" required /></label>
-        <label>Cloud address<input id="accountCloudUrl" value="" readonly /><span class="field-note">This secure Cloud Studio uses the same INX Social backend.</span></label>
         <button id="btnAccountSubmit" class="btn primary account-submit" type="submit">Sign in</button>
         <div id="accountMessage" class="account-message"></div>
       </form>
     </div>
+  </div>
+
+  <div id="studioDeleteAccountModal" class="account-delete-modal hidden" role="dialog" aria-modal="true" aria-labelledby="studioDeleteAccountTitle">
+    <form id="studioDeleteAccountForm" class="account-delete-card">
+      <span class="block-kicker">Permanent action</span>
+      <h2 id="studioDeleteAccountTitle">Delete your INX Social account?</h2>
+      <p>Your linked subscription is cancelled first. INX Social then removes your connected Pages, tokens, schedules, devices and user-linked database records.</p>
+      <label>Password<input id="studioDeletePassword" type="password" autocomplete="current-password" required /></label>
+      <label>Type DELETE to confirm<input id="studioDeleteConfirmation" autocomplete="off" required /></label>
+      <div id="studioDeleteAccountMessage" class="account-delete-message"></div>
+      <div class="account-delete-actions"><button id="studioKeepAccount" class="btn ghost" type="button">Keep account</button><button id="studioConfirmDeleteAccount" class="btn danger" type="submit">Permanently delete</button></div>
+    </form>
   </div>
 
   <div class="ambient" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -41,15 +52,16 @@
         </div>
       </div>
       <nav>
-        <button class="nav active" data-view="dashboard"><span>⌂</span> Home</button>
-        <button class="nav" data-view="pages"><span>▤</span> Pages</button>
+        <button class="nav active" data-view="dashboard"><span>⌂</span> Overview</button>
+        <button class="nav" data-view="pages"><span>▤</span> Connected Pages</button>
         <button class="nav" data-view="reels">Auto Scheduler</button>
         <button class="nav" data-view="manual">Manual Scheduler</button>
         <button class="nav" data-view="health">Health Check</button>
         <button class="nav" data-view="calendar"><span>□</span> Calendar</button>
         <button class="nav" data-view="analytics"><span>↗</span> Analytics</button>
-        <button class="nav" data-view="logs">Logs</button>
+        <button class="nav" data-view="logs">Activity Logs</button>
         <button class="nav" data-view="settings">Settings</button>
+        <a class="nav portal-nav-link" href="/portal/#overview"><span>↗</span> Account &amp; Billing</a>
       </nav>
       <div class="sidebar-footer">
         <div class="mini-label">Default daily slots</div>
@@ -527,6 +539,21 @@ Third video caption #hashtags"></textarea>
                 <button type="button" id="btnTestFacebook2" class="btn ghost">Test Active Page</button>
               </div>
               <div class="settings-note clean-note">The status and test follow whichever Page is selected as Active Page. Manage all Page connections in Pages; scheduler rules below apply to every connected Page.</div>
+            </div>
+
+            <div class="settings-card account-settings-card">
+              <div class="settings-card-head">
+                <div>
+                  <span class="block-kicker">Account & billing</span>
+                  <h4>Customer portal and privacy</h4>
+                  <p>Manage your plan, cancel a subscription, review limits or permanently delete your INX Social account.</p>
+                </div>
+              </div>
+              <div class="account-setting-actions">
+                <a class="btn primary" href="/portal/#overview">Open Customer Portal</a>
+                <button type="button" id="btnStudioManageBilling" class="btn ghost">Manage or cancel subscription</button>
+                <button type="button" id="btnStudioDeleteAccount" class="btn ghost subtle-danger">Delete account</button>
+              </div>
             </div>
 
             <div class="settings-card scheduler-settings-card">

@@ -1,5 +1,7 @@
+'use strict';
+
 const API = '/api';
-const token = () => localStorage.getItem('inxToken');
+const token = () => localStorage.getItem('inxToken') || localStorage.getItem('inx-social-cloud-token');
 let latestRelease = null;
 
 async function req(path, options = {}) {
@@ -21,8 +23,13 @@ async function req(path, options = {}) {
   return data;
 }
 
-function logout() {
+function clearSession() {
   localStorage.removeItem('inxToken');
+  localStorage.removeItem('inx-social-cloud-token');
+}
+
+function logout() {
+  clearSession();
   location.href = 'login.html';
 }
 
@@ -44,9 +51,8 @@ function bindPortalNavigation() {
       section.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
-
   const initialSection = location.hash.slice(1);
-  if (['overview', 'subscription', 'usage', 'download'].includes(initialSection)) {
+  if (['overview', 'subscription', 'usage', 'download', 'account'].includes(initialSection)) {
     setActiveSection(initialSection);
     requestAnimationFrame(() => document.getElementById(initialSection)?.scrollIntoView({ block: 'start' }));
   }
@@ -90,12 +96,13 @@ async function loadDashboard(showQueryNotice = true) {
     document.querySelector('#email').textContent = `${data.user.email} · ${data.user.emailVerifiedAt ? 'Verified email' : 'Email verification pending'}`;
     document.querySelector('#plan').textContent = license.plan;
     document.querySelector('#status').textContent = license.subscriptionStatus;
-    document.querySelector('#pages').textContent = `${data.pages.filter(p => p.status === 'ACTIVE').length} / ${license.limits.pages}`;
-    document.querySelector('#devices').textContent = `${data.devices.filter(d => d.status === 'ACTIVE').length} / ${license.limits.devices}`;
+    document.querySelector('#pages').textContent = `${data.pages.filter(page => page.status === 'ACTIVE').length} / ${license.limits.pages}`;
+    document.querySelector('#devices').textContent = `${data.devices.filter(device => device.status === 'ACTIVE').length} / ${license.limits.devices}`;
     document.querySelector('#batchLimit').textContent = formatLimit(license.limits.batchPosts);
     document.querySelector('#limitPages').textContent = license.limits.pages;
     document.querySelector('#limitBatch').textContent = formatLimit(license.limits.batchPosts);
     document.querySelector('#limitDevices').textContent = license.limits.devices;
+    document.querySelector('#marketingOptIn').checked = Boolean(data.user.marketingOptIn);
     latestRelease = data.release;
     document.querySelector('#version').textContent = data.release.version;
     const downloadButton = document.querySelector('#downloadButton');
@@ -103,19 +110,17 @@ async function loadDashboard(showQueryNotice = true) {
     downloadButton.disabled = !data.release.installerAvailable;
     downloadStatus.textContent = data.release.installerAvailable
       ? `Verified installer available${data.release.sha256 ? ' · SHA-256 checksum published' : ''}`
-      : 'The Windows installer has not been published yet.';
+      : 'The optional Windows installer has not been published yet.';
     document.querySelector('#periodEnd').textContent = formatDate(data.billing.currentPeriodEnd || license.trialEndsAt);
     document.querySelector('#provider').textContent = data.billing.provider ? data.billing.provider.toUpperCase() : 'INX Social trial';
-
-    const manage = document.querySelector('#manageBillingBtn');
-    manage.classList.toggle('hidden', !data.billing.canManage);
+    document.querySelector('#manageBillingBtn').classList.toggle('hidden', !data.billing.canManage);
 
     if (data.billing.cancelAtPeriodEnd) {
       document.querySelector('#billingTitle').textContent = `${license.plan} cancellation scheduled`;
-      document.querySelector('#billingSummary').textContent = `Your paid access remains available until ${formatDate(data.billing.currentPeriodEnd)}.`;
+      document.querySelector('#billingSummary').textContent = `Paid access remains available until ${formatDate(data.billing.currentPeriodEnd)}.`;
     } else if (data.billing.provider === 'stripe') {
       document.querySelector('#billingTitle').textContent = `${license.plan} subscription`;
-      document.querySelector('#billingSummary').textContent = `Your Stripe subscription is ${String(license.subscriptionStatus).toLowerCase()}.`;
+      document.querySelector('#billingSummary').textContent = `Your Stripe subscription is ${String(license.subscriptionStatus).toLowerCase()}. Use the button below to change or cancel it.`;
     } else if (license.subscriptionStatus === 'TRIALING') {
       document.querySelector('#billingTitle').textContent = '5-day free trial';
       document.querySelector('#billingSummary').textContent = `Your trial is active until ${formatDate(license.trialEndsAt)}. Choose Starter or Pro before it ends.`;
@@ -123,7 +128,7 @@ async function loadDashboard(showQueryNotice = true) {
       document.querySelector('#billingSummary').textContent = 'Choose a paid plan to continue using INX Social.';
     }
   } catch (error) {
-    if (error.status === 401 || error.status === 403 && /token|auth/i.test(error.message)) return logout();
+    if (error.status === 401 || (error.status === 403 && /token|auth/i.test(error.message))) return logout();
     showError(error.message);
   }
 
@@ -167,6 +172,63 @@ async function manageBilling() {
   }
 }
 
+async function saveMarketingPreference() {
+  const input = document.querySelector('#marketingOptIn');
+  try {
+    input.disabled = true;
+    const result = await req('/portal/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify({ marketingOptIn: input.checked })
+    });
+    input.checked = Boolean(result.marketingOptIn);
+    notice(result.marketingOptIn ? 'Product updates enabled.' : 'Product updates disabled.');
+  } catch (error) {
+    input.checked = !input.checked;
+    showError(error.message);
+  } finally {
+    input.disabled = false;
+  }
+}
+
+function openDeleteAccount() {
+  document.querySelector('#deleteAccountModal').classList.remove('hidden');
+  document.querySelector('#deletePassword').focus();
+}
+
+function closeDeleteAccount() {
+  document.querySelector('#deleteAccountModal').classList.add('hidden');
+  document.querySelector('#deleteAccountForm').reset();
+  document.querySelector('#deleteAccountMessage').textContent = '';
+}
+
+async function deleteAccount(event) {
+  event.preventDefault();
+  const password = document.querySelector('#deletePassword').value;
+  const confirmation = document.querySelector('#deleteConfirmation').value.trim();
+  const button = document.querySelector('#confirmDeleteAccount');
+  const message = document.querySelector('#deleteAccountMessage');
+  if (confirmation !== 'DELETE') {
+    message.textContent = 'Type DELETE exactly to confirm.';
+    return;
+  }
+  try {
+    button.disabled = true;
+    button.textContent = 'Deleting account…';
+    const result = await req('/portal/account', {
+      method: 'DELETE',
+      body: JSON.stringify({ password, confirmation })
+    });
+    clearSession();
+    const warning = Array.isArray(result.warnings) && result.warnings.length ? '&warning=meta' : '';
+    location.href = `login.html?account=deleted${warning}`;
+  } catch (error) {
+    message.textContent = error.message;
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Permanently delete';
+  }
+}
+
 async function downloadApp() {
   const button = document.querySelector('#downloadButton');
   const status = document.querySelector('#downloadStatus');
@@ -188,5 +250,12 @@ window.addEventListener('DOMContentLoaded', () => {
   bindPortalNavigation();
   document.querySelector('#logoutButton')?.addEventListener('click', logout);
   document.querySelector('#downloadButton')?.addEventListener('click', downloadApp);
+  document.querySelector('#marketingOptIn')?.addEventListener('change', saveMarketingPreference);
+  document.querySelector('#openDeleteAccount')?.addEventListener('click', openDeleteAccount);
+  document.querySelector('#cancelDeleteAccount')?.addEventListener('click', closeDeleteAccount);
+  document.querySelector('#deleteAccountForm')?.addEventListener('submit', deleteAccount);
+  document.querySelector('#deleteAccountModal')?.addEventListener('click', event => {
+    if (event.target.id === 'deleteAccountModal') closeDeleteAccount();
+  });
   loadDashboard();
 });

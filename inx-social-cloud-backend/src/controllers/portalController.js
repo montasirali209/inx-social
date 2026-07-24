@@ -1,5 +1,8 @@
+const { z } = require('zod');
 const prisma = require('../db/prisma');
 const env = require('../config/env');
+const { comparePassword } = require('../utils/auth');
+const { deleteCustomerAccount } = require('../services/accountDeletionService');
 const { getLicenseStatus } = require('../services/licenseService');
 const stripeService = require('../services/stripeService');
 
@@ -47,7 +50,17 @@ async function dashboard(req, res, next) {
     ]);
 
     res.json({
-      user: req.user,
+      user: {
+        id: req.user.id,
+        name: req.user.name,
+        businessName: req.user.businessName,
+        email: req.user.email,
+        role: req.user.role,
+        status: req.user.status,
+        emailVerifiedAt: req.user.emailVerifiedAt,
+        marketingOptIn: req.user.marketingOptIn,
+        createdAt: req.user.createdAt
+      },
       license,
       devices,
       pages,
@@ -142,4 +155,31 @@ async function preferences(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { dashboard, plans, download, preferences, safeDownloadUrl, releaseSummary };
+async function deleteAccount(req, res, next) {
+  try {
+    if (['ADMIN', 'SUPER_ADMIN'].includes(req.user.role)) {
+      return res.status(403).json({ error: 'Administrator accounts must be removed through the admin process.' });
+    }
+    const input = z.object({
+      password: z.string().min(1),
+      confirmation: z.literal('DELETE')
+    }).safeParse(req.body || {});
+    if (!input.success) {
+      return res.status(400).json({ error: 'Enter your password and type DELETE exactly to confirm.' });
+    }
+    const validPassword = await comparePassword(input.data.password, req.user.passwordHash);
+    if (!validPassword) return res.status(403).json({ error: 'The password is incorrect.' });
+
+    const result = await deleteCustomerAccount(req.user.id);
+    res.json({
+      deleted: true,
+      warnings: result.warnings,
+      message: 'Your INX Social account has been permanently deleted.'
+    });
+  } catch (error) {
+    if (error.publicMessage) error.message = error.publicMessage;
+    next(error);
+  }
+}
+
+module.exports = { dashboard, plans, download, preferences, deleteAccount, safeDownloadUrl, releaseSummary };

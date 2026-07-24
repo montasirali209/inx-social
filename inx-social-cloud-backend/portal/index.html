@@ -3,28 +3,30 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>INX Social Customer Portal</title>
+  <title>Account & Billing — INX Social</title>
+  <link rel="icon" type="image/png" href="/assets/inx-social-logo.png">
   <link rel="stylesheet" href="portal.css">
 </head>
 <body>
   <div class="portal-shell">
     <aside class="sidebar">
-      <a class="portal-brand" href="/"><span class="brand-mark">INX</span><div><strong>INX Social</strong><small>Customer portal</small></div></a>
+      <a class="portal-brand" href="/"><img src="/assets/inx-social-logo.png" alt="INX Social"><div><strong>INX Social</strong><small>Account & billing</small></div></a>
+      <a class="studio-launch" href="/studio/"><span>Open Content Studio</span><b>→</b></a>
       <nav>
-        <a href="/studio/">Cloud Studio</a>
         <a class="active" href="#overview" data-section="overview">Overview</a>
-        <a href="#subscription" data-section="subscription">Subscription</a>
+        <a href="#subscription" data-section="subscription">Plan & billing</a>
         <a href="#usage" data-section="usage">Usage & limits</a>
-        <a href="#download" data-section="download">Download</a>
-        <button type="button" id="logoutButton" class="portal-nav-action">Log out</button>
+        <a href="#download" data-section="download">Windows app</a>
+        <a href="#account" data-section="account">Account & privacy</a>
+        <button type="button" id="logoutButton" class="portal-nav-action">Sign out</button>
       </nav>
-      <div class="sidebar-note"><span class="dot"></span><div><strong>Secure billing</strong><small>Payments are handled by Stripe.</small></div></div>
+      <div class="sidebar-note"><span class="dot"></span><div><strong>Secure billing</strong><small>Payments and cancellations are handled by Stripe.</small></div></div>
     </aside>
 
     <main class="portal-main">
       <header class="portal-header">
-        <div><span class="eyebrow">Account overview</span><h1 id="welcome">Customer portal</h1><p id="email">Loading your account…</p></div>
-        <div class="header-actions"><button class="button ghost" onclick="refreshDashboard()">Refresh</button><button id="manageBillingBtn" class="button dark hidden" onclick="manageBilling()">Manage billing</button></div>
+        <div><span class="eyebrow">Account overview</span><h1 id="welcome">INX Social account</h1><p id="email">Loading your account…</p></div>
+        <div class="header-actions"><a class="button ghost" href="/studio/">Open Studio</a><button class="button ghost" onclick="refreshDashboard()">Refresh</button></div>
       </header>
 
       <div id="notice" class="notice hidden"></div>
@@ -39,9 +41,10 @@
 
       <section id="subscription" class="panel subscription-panel">
         <div>
-          <span class="eyebrow">Subscription</span>
+          <span class="eyebrow">Plan & billing</span>
           <h2 id="billingTitle">Your billing status</h2>
           <p id="billingSummary">Checking subscription details…</p>
+          <button id="manageBillingBtn" class="button dark hidden" type="button" onclick="manageBilling()">Manage or cancel subscription</button>
         </div>
         <div class="subscription-meta">
           <div><span>Next period end</span><strong id="periodEnd">—</strong></div>
@@ -50,12 +53,12 @@
       </section>
 
       <section id="plans" class="plans-section">
-        <div class="section-heading"><span class="eyebrow">Upgrade your workspace</span><h2>Choose your INX Social plan</h2><p>Plan changes and cancellations are managed securely through Stripe.</p></div>
+        <div class="section-heading"><span class="eyebrow">Choose a plan</span><h2>INX Social subscriptions</h2><p>Plan changes and cancellations are managed securely through Stripe.</p></div>
         <div class="plans-grid" id="plansGrid"></div>
       </section>
 
       <section id="usage" class="panel usage-panel">
-        <div><span class="eyebrow">Plan enforcement</span><h2>Your current limits</h2><p>These limits are also returned to the desktop app whenever it validates your licence.</p></div>
+        <div><span class="eyebrow">Plan enforcement</span><h2>Your current limits</h2><p>These limits apply in Content Studio and the optional Windows app.</p></div>
         <div class="limit-list">
           <div><span>Facebook Pages</span><strong id="limitPages">—</strong></div>
           <div><span>Videos/posts per batch</span><strong id="limitBatch">—</strong></div>
@@ -64,11 +67,39 @@
       </section>
 
       <section id="download" class="panel download-panel">
-        <div><span class="eyebrow">Desktop application</span><h2>INX Social for Windows</h2><p>Latest version: <strong id="version">—</strong></p><small id="downloadStatus" class="download-status">Checking installer availability…</small></div>
+        <div><span class="eyebrow">Optional desktop application</span><h2>INX Social for Windows</h2><p>Latest version: <strong id="version">—</strong></p><small id="downloadStatus" class="download-status">Checking installer availability…</small></div>
         <button id="downloadButton" class="button primary" type="button" disabled>Download Windows app</button>
+      </section>
+
+      <section id="account" class="panel account-panel">
+        <div>
+          <span class="eyebrow">Account & privacy</span>
+          <h2>Manage your INX Social account</h2>
+          <p>Use one account for Content Studio, connected Pages, billing and the optional Windows app.</p>
+        </div>
+        <div class="account-controls">
+          <label class="preference-row"><span><strong>Product updates</strong><small>Receive INX Social product and release news.</small></span><input id="marketingOptIn" type="checkbox"></label>
+          <div class="danger-zone">
+            <div><strong>Delete account</strong><small>Cancels a linked Stripe subscription, removes INX Social data and disconnects saved Meta access. This cannot be undone.</small></div>
+            <button id="openDeleteAccount" class="button danger-outline" type="button">Delete my account</button>
+          </div>
+        </div>
       </section>
     </main>
   </div>
+
+  <div id="deleteAccountModal" class="account-modal hidden" role="dialog" aria-modal="true" aria-labelledby="deleteAccountTitle">
+    <form id="deleteAccountForm" class="account-modal-card">
+      <span class="eyebrow danger-text">Permanent action</span>
+      <h2 id="deleteAccountTitle">Delete your INX Social account?</h2>
+      <p>Your subscription will be cancelled first. Your INX Social account, connected Pages, tokens, schedules, devices and user-linked records will then be deleted.</p>
+      <label>Password<input id="deletePassword" type="password" autocomplete="current-password" required></label>
+      <label>Type <strong>DELETE</strong> to confirm<input id="deleteConfirmation" autocomplete="off" required></label>
+      <div id="deleteAccountMessage" class="modal-message"></div>
+      <div class="modal-actions"><button id="cancelDeleteAccount" class="button ghost" type="button">Keep account</button><button id="confirmDeleteAccount" class="button danger" type="submit">Permanently delete</button></div>
+    </form>
+  </div>
+
   <script src="portal.js"></script>
 </body>
 </html>

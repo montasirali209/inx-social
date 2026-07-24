@@ -88,8 +88,7 @@ async function submitAccountForm(event) {
   const payload = {
     name: document.getElementById('accountName')?.value.trim(),
     email: document.getElementById('accountEmail')?.value.trim(),
-    password: document.getElementById('accountPassword')?.value,
-    cloudApiUrl: document.getElementById('accountCloudUrl')?.value.trim()
+    password: document.getElementById('accountPassword')?.value
   };
   const button = document.getElementById('btnAccountSubmit');
   if (button) button.disabled = true;
@@ -153,8 +152,6 @@ function renderAccountGate() {
   const loggedIn = Boolean(account.authenticated);
   gate.classList.toggle('hidden', loggedIn);
   badge?.classList.toggle('hidden', !loggedIn);
-  const url = document.getElementById('accountCloudUrl');
-  if (url && state.settings?.cloudApiUrl && !loggedIn) url.value = state.settings.cloudApiUrl;
   if (!loggedIn) return;
   const user = account.user || {};
   const licence = account.license || {};
@@ -2058,3 +2055,54 @@ function renderAnalyticsV2() {
 }
 
 function setText(id, value) { const el=document.getElementById(id); if(el) el.textContent=String(value ?? ''); }
+// Phase 10.1 Studio account controls
+(() => {
+  const byId = id => document.getElementById(id);
+  const openDelete = () => {
+    byId('studioDeleteAccountModal')?.classList.remove('hidden');
+    byId('studioDeletePassword')?.focus();
+  };
+  const closeDelete = () => {
+    byId('studioDeleteAccountModal')?.classList.add('hidden');
+    byId('studioDeleteAccountForm')?.reset();
+    if (byId('studioDeleteAccountMessage')) byId('studioDeleteAccountMessage').textContent = '';
+  };
+  const bind = () => {
+    byId('btnStudioManageBilling')?.addEventListener('click', async () => {
+      try { await window.schedulerApi.openBillingPortal(); }
+      catch (error) { toast(error.message, true); }
+    });
+    byId('btnStudioDeleteAccount')?.addEventListener('click', openDelete);
+    byId('studioKeepAccount')?.addEventListener('click', closeDelete);
+    byId('studioDeleteAccountModal')?.addEventListener('click', event => {
+      if (event.target.id === 'studioDeleteAccountModal') closeDelete();
+    });
+    byId('studioDeleteAccountForm')?.addEventListener('submit', async event => {
+      event.preventDefault();
+      const message = byId('studioDeleteAccountMessage');
+      const button = byId('studioConfirmDeleteAccount');
+      const confirmation = byId('studioDeleteConfirmation')?.value.trim();
+      if (confirmation !== 'DELETE') {
+        message.textContent = 'Type DELETE exactly to confirm.';
+        return;
+      }
+      try {
+        button.disabled = true;
+        button.textContent = 'Deleting account…';
+        const result = await window.schedulerApi.deleteAccount({
+          password: byId('studioDeletePassword')?.value || '',
+          confirmation
+        });
+        const warning = result.warnings?.length ? '&warning=meta' : '';
+        location.href = '/portal/login.html?account=deleted' + warning;
+      } catch (error) {
+        message.textContent = error.message;
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Permanently delete';
+      }
+    });
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind);
+  else bind();
+})();

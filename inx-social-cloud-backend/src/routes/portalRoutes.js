@@ -1,1 +1,11 @@
-const r=require('express').Router();const c=require('../controllers/portalController');const {requireAuth}=require('../middleware/authMiddleware');r.get('/plans',c.plans);r.get('/dashboard',requireAuth,c.dashboard);r.get('/download',requireAuth,c.download);r.patch('/preferences',requireAuth,c.preferences);module.exports=r;
+const router = require('express').Router();
+const controller = require('../controllers/portalController');
+const { requireAuth } = require('../middleware/authMiddleware');
+
+router.get('/plans', controller.plans);
+router.get('/dashboard', requireAuth, controller.dashboard);
+router.get('/download', requireAuth, controller.download);
+router.patch('/preferences', requireAuth, controller.preferences);
+router.delete('/account', requireAuth, controller.deleteAccount);
+
+module.exports = router;

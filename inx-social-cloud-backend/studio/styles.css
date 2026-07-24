@@ -1546,4 +1546,16 @@ body.license-locked #btnReelsRunDue, body.license-locked #btnReelsStartWatcher, 
   display: grid;
   place-items: center;
 }
+/* Phase 10.1 account, billing and privacy */
+.sidebar nav .portal-nav-link{display:flex;align-items:center;gap:12px;text-decoration:none}
+.settings-card.account-settings-card{border-color:rgba(91,205,216,.35)}
+.account-setting-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.account-delete-modal{position:fixed;inset:0;z-index:3000;display:grid;place-items:center;padding:22px;background:rgba(3,10,19,.76);backdrop-filter:blur(12px)}
+.account-delete-modal.hidden{display:none}
+.account-delete-card{width:min(560px,100%);padding:28px;border:1px solid rgba(255,110,130,.35);border-radius:24px;background:#101a2d;box-shadow:0 30px 100px rgba(0,0,0,.48)}
+.account-delete-card h2{margin:6px 0 10px}.account-delete-card p{color:var(--muted);line-height:1.55}
+.account-delete-card label{display:grid;gap:7px;margin:14px 0;font-size:.84rem;font-weight:800}
+.account-delete-card input{height:48px;padding:0 13px;border:1px solid var(--line);border-radius:11px;background:rgba(255,255,255,.055);color:var(--text);font:inherit}
+.account-delete-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}.account-delete-message{min-height:21px;color:#ff8799;font-weight:750}
+@media(max-width:720px){.account-setting-actions,.account-delete-actions{flex-direction:column}.account-setting-actions>* ,.account-delete-actions>*{width:100%}}
 

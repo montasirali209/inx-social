@@ -249,7 +249,14 @@ async function webhook(req, res) {
     }
 
     if (['customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted'].includes(event.type)) {
-      await processSubscriptionObject(event.data.object);
+      try {
+        await processSubscriptionObject(event.data.object);
+      } catch (error) {
+        const deletedAccountEvent = event.type === 'customer.subscription.deleted' &&
+          /Unable to map Stripe subscription/.test(error.message);
+        if (!deletedAccountEvent) throw error;
+        console.warn('[STRIPE] Ignored deletion event for an account already removed from INX Social.');
+      }
     }
 
     if (['invoice.payment_failed', 'invoice.payment_action_required'].includes(event.type)) {
