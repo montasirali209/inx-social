@@ -370,23 +370,46 @@
     url.searchParams.set('auth_type', 'rerequest');
 
     const accessToken = await new Promise((resolve, reject) => {
+      const resultKey = `inx-facebook-oauth-result:${stateValue}`;
+      localStorage.removeItem(resultKey);
       const popup = window.open(url.toString(), 'inx-facebook-connect', 'popup,width=680,height=780');
       if (!popup) return reject(new Error('Allow pop-ups for this site, then try Connect Facebook Page again.'));
+
+      let settled = false;
       const timeout = setTimeout(() => finish(new Error('Facebook connection timed out.')), 180000);
+      const consumeResult = raw => {
+        if (!raw || settled) return false;
+        let data;
+        try { data = JSON.parse(raw); } catch (_) { return false; }
+        if (data?.type !== 'inx-facebook-token' || data.state !== stateValue) return false;
+        if (data.error) finish(new Error(data.error));
+        else if (data.accessToken) finish(null, data.accessToken);
+        return true;
+      };
       const poll = setInterval(() => {
+        if (consumeResult(localStorage.getItem(resultKey))) return;
         if (popup.closed) finish(new Error('Facebook connection was closed before it completed.'));
-      }, 500);
-      const listener = event => {
-        if (event.origin !== location.origin || event.source !== popup || event.data?.type !== 'inx-facebook-token') return;
+      }, 250);
+      const storageListener = event => {
+        if (event.key === resultKey) consumeResult(event.newValue);
+      };
+      const messageListener = event => {
+        if (event.origin !== location.origin || event.data?.type !== 'inx-facebook-token') return;
         if (event.data.state !== stateValue) return finish(new Error('Facebook returned an invalid login state.'));
         if (event.data.error) return finish(new Error(event.data.error));
-        finish(null, event.data.accessToken);
+        if (event.data.accessToken) finish(null, event.data.accessToken);
       };
-      window.addEventListener('message', listener);
+      window.addEventListener('storage', storageListener);
+      window.addEventListener('message', messageListener);
+
       function finish(error, value) {
+        if (settled) return;
+        settled = true;
         clearTimeout(timeout);
         clearInterval(poll);
-        window.removeEventListener('message', listener);
+        window.removeEventListener('storage', storageListener);
+        window.removeEventListener('message', messageListener);
+        localStorage.removeItem(resultKey);
         try { popup.close(); } catch (_) {}
         if (error) reject(error); else resolve(value);
       }
