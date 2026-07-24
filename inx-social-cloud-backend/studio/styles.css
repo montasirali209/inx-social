@@ -1525,3 +1525,25 @@ body.license-locked #btnReelsRunDue, body.license-locked #btnReelsStartWatcher, 
 
 /* Phase 9.2 unified Pages & Channels */
 .section-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.channel-source-row{display:flex;gap:12px;margin:18px 0}.channel-source{min-width:150px;display:grid;grid-template-columns:38px 1fr;grid-template-rows:auto auto;column-gap:10px;text-align:left;align-items:center;border:1px solid rgba(130,180,220,.22);background:rgba(8,23,42,.72);color:#eaf5ff;border-radius:14px;padding:12px 14px}.channel-source>span{grid-row:1/3;width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:#49bdf2;color:#071521;font-weight:900;font-size:20px}.channel-source strong{font-size:14px}.channel-source small{opacity:.65}.channel-source.active{border-color:#47bdf5;box-shadow:0 0 0 1px rgba(71,189,245,.15)}.channel-source.disabled{opacity:.45}.page-filter-row{grid-template-columns:minmax(220px,520px)!important}.connected-page-card{cursor:default}.connected-page-card.active{border-color:#49bdf2;box-shadow:0 0 0 1px rgba(73,189,242,.18)}
+
+/* Phase 10.0.4 — selected Facebook Page picture */
+.active-workspace-chip .workspace-avatar,
+.scheduler-target-icon {
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.active-workspace-chip .workspace-avatar img,
+.scheduler-target-icon img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.active-workspace-chip .workspace-avatar > span,
+.scheduler-target-icon > span {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+

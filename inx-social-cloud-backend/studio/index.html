@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.fbcdn.net https://*.facebook.com https://*.fbsbx.com; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'" />
   <title>INX Social</title>
+  <link rel="icon" type="image/png" href="assets/inx-social-logo.png" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -71,7 +72,7 @@
           </div>
 
           <div id="activeWorkspaceControl" class="active-workspace-control">
-            <button id="activeWorkspaceChip" class="active-workspace-chip" type="button" aria-haspopup="menu" aria-expanded="false"><span class="workspace-avatar">F</span><span><small>Active Page</small><strong id="activeWorkspaceName">No Page selected</strong></span><b>⌄</b></button>
+            <button id="activeWorkspaceChip" class="active-workspace-chip" type="button" aria-haspopup="menu" aria-expanded="false"><span id="activeWorkspaceAvatar" class="workspace-avatar"><span>F</span></span><span><small>Active Page</small><strong id="activeWorkspaceName">No Page selected</strong></span><b>⌄</b></button>
             <div id="activeWorkspaceMenu" class="active-workspace-menu hidden" role="menu"></div>
           </div>
           <div class="top-theme-control" aria-label="Interface theme colour">
@@ -192,7 +193,7 @@
           <button id="btnReelsOpenSettings" class="btn ghost compact" type="button">Settings</button>
         </div>
         <section class="scheduler-page-target" aria-labelledby="reelsDestinationLabel">
-          <div class="scheduler-target-icon">F</div>
+          <div id="reelsActivePageAvatar" class="scheduler-target-icon"><span>F</span></div>
           <div class="scheduler-target-copy">
             <small id="reelsDestinationLabel">Publishing destination</small>
             <strong id="reelsActivePageName">No Page selected</strong>

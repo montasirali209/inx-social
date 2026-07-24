@@ -1834,6 +1834,24 @@ async function refreshWorkspaceV2(options = {}) {
   }
 }
 
+function renderPageAvatar(elementId, page) {
+  const target = document.getElementById(elementId);
+  if (!target) return;
+  const picture = String(page?.facebookPagePicture || '').trim();
+  if (!picture) {
+    target.innerHTML = '<span>F</span>';
+    return;
+  }
+  const image = document.createElement('img');
+  image.src = picture;
+  image.alt = `${page?.facebookPageName || 'Facebook Page'} profile picture`;
+  image.referrerPolicy = 'no-referrer';
+  image.addEventListener('error', () => {
+    target.innerHTML = '<span>F</span>';
+  }, { once: true });
+  target.replaceChildren(image);
+}
+
 function renderWorkspaceV2() {
   if (!state) return;
   const workspace = cloudWorkspace || state.workspace || {};
@@ -1844,6 +1862,7 @@ function renderWorkspaceV2() {
   cloudWorkspace = { ...workspace, accounts, pages, activePage: active, pageUsage: usage };
 
   setText('activeWorkspaceName', active?.facebookPageName || 'No Page selected');
+  renderPageAvatar('activeWorkspaceAvatar', active);
   renderActiveWorkspaceMenu(pages, active);
   renderReelsPageSelector(pages, active);
   const disconnectActivePage = document.getElementById('btnDisconnectActivePage');
@@ -1869,6 +1888,7 @@ function renderReelsPageSelector(pages, active) {
   const availablePages = (pages || []).filter(page => page.status !== 'REVOKED');
 
   if (name) name.textContent = active?.facebookPageName || 'No Page selected';
+  renderPageAvatar('reelsActivePageAvatar', active);
   if (hint) hint.textContent = active
     ? `Videos selected in this session will publish only to ${active.facebookPageName}.`
     : 'Connect and choose a Facebook Page before selecting videos.';
