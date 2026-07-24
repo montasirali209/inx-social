@@ -1,38 +1,107 @@
 (() => {
-  const hash = new URLSearchParams(location.hash.slice(1));
-  const query = new URLSearchParams(location.search);
-  const message = {
-    type: 'inx-facebook-token',
-    accessToken: hash.get('access_token') || '',
-    state: hash.get('state') || query.get('state') || '',
-    error: hash.get('error_description')
-      || query.get('error_description')
-      || query.get('error_message')
-      || query.get('error')
-      || ''
-  };
-  if (!message.accessToken && !message.error) {
-    message.error = 'Facebook did not return an access token.';
-  }
+  'use strict';
 
-  if (message.state) {
-    try {
-      localStorage.setItem(
-        `inx-facebook-oauth-result:${message.state}`,
-        JSON.stringify(message)
-      );
-    } catch (_) {}
-  }
-
-  if (window.opener) {
-    try { window.opener.postMessage(message, location.origin); } catch (_) {}
-  }
-
+  const TOKEN_KEY = 'inx-social-cloud-token';
   const title = document.querySelector('h1');
   const detail = document.querySelector('p');
-  title.textContent = message.error ? 'Facebook connection failed' : 'Facebook connected';
-  detail.textContent = message.error || 'Return to INX Social. This window will close.';
-  setTimeout(() => {
-    try { window.close(); } catch (_) {}
-  }, message.error ? 1800 : 800);
+  const hash = new URLSearchParams(location.hash.slice(1));
+  const query = new URLSearchParams(location.search);
+  const accessToken = hash.get('access_token') || '';
+  const returnedState = hash.get('state') || query.get('state') || '';
+  const expectedState = sessionStorage.getItem('inx-facebook-oauth-state') || '';
+  const facebookError = hash.get('error_description')
+    || query.get('error_description')
+    || query.get('error_message')
+    || query.get('error')
+    || '';
+
+  // Remove the Facebook access token from the visible URL immediately.
+  if (location.hash) history.replaceState(null, '', location.pathname + location.search);
+
+  function showError(message) {
+    sessionStorage.removeItem('inx-facebook-oauth-state');
+    title.textContent = 'Facebook connection failed';
+    detail.textContent = message;
+    const link = document.createElement('a');
+    link.href = '/studio/';
+    link.textContent = 'Return to INX Social';
+    link.style.cssText = 'display:inline-block;margin-top:18px;color:#53c7ff;font-weight:700';
+    document.body.appendChild(link);
+  }
+
+  async function api(url, options = {}) {
+    const inxToken = localStorage.getItem(TOKEN_KEY) || localStorage.getItem('inxToken') || '';
+    if (!inxToken) throw new Error('Your INX Social login session was not found. Return to Studio and sign in again.');
+    const headers = new Headers(options.headers || {});
+    headers.set('Authorization', `Bearer ${inxToken}`);
+    if (options.body) headers.set('Content-Type', 'application/json');
+    const response = await fetch(url, { ...options, headers });
+    const type = response.headers.get('content-type') || '';
+    const payload = type.includes('application/json') ? await response.json() : await response.text();
+    if (!response.ok) {
+      throw new Error(payload?.error || payload?.message || `Request failed (HTTP ${response.status}).`);
+    }
+    return payload;
+  }
+
+  async function finishConnection() {
+    if (facebookError) throw new Error(facebookError);
+    if (!expectedState || !returnedState || returnedState !== expectedState) {
+      throw new Error('Facebook returned an invalid or expired login state. Return to Studio and try again.');
+    }
+    if (!accessToken) throw new Error('Facebook did not return an access token.');
+
+    title.textContent = 'Connecting Facebook Pages';
+    detail.textContent = 'Discovering the Pages you manage…';
+
+    const stateResult = await api('/api/studio/desktop-state');
+    const desktopState = stateResult.state || {};
+    const workspace = desktopState.workspace || {};
+    const discovery = await api('/api/pages/accounts/discover', {
+      method: 'POST',
+      body: JSON.stringify({ accessToken })
+    });
+
+    const currentIds = new Set((workspace.pages || []).map(page => page.facebookPageId));
+    const connectedCount = Number(workspace.pageUsage?.connected || 0);
+    const limit = Number(workspace.pageUsage?.limit || 0);
+    const available = Math.max(0, limit - connectedCount);
+    const selectedPageIds = (discovery.pages || [])
+      .map(page => page.facebookPageId || page.id)
+      .filter(Boolean)
+      .filter(id => !currentIds.has(id))
+      .slice(0, available);
+
+    if (!selectedPageIds.length) {
+      if ((workspace.pages || []).length) {
+        sessionStorage.setItem('inx-facebook-oauth-notice', 'Facebook is already connected.');
+        sessionStorage.removeItem('inx-facebook-oauth-state');
+        location.replace('/studio/?facebook=already-connected');
+        return;
+      }
+      throw new Error(available
+        ? 'Facebook did not return a manageable Page. Check your Facebook Page access.'
+        : 'Your current plan has no remaining Facebook Page slots.');
+    }
+
+    await api('/api/pages/accounts/connect', {
+      method: 'POST',
+      body: JSON.stringify({
+        accessToken,
+        selectedPageIds,
+        metaAppId: '969283649323618'
+      })
+    });
+
+    sessionStorage.setItem(
+      'inx-facebook-oauth-notice',
+      `${selectedPageIds.length} Facebook Page(s) connected successfully.`
+    );
+    sessionStorage.removeItem('inx-facebook-oauth-state');
+    title.textContent = 'Facebook connected';
+    detail.textContent = 'Returning to INX Social…';
+    location.replace('/studio/?facebook=connected');
+  }
+
+  finishConnection().catch(error => showError(error.message || 'Facebook connection failed.'));
 })();

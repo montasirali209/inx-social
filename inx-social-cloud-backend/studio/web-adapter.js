@@ -369,86 +369,13 @@
     url.searchParams.set('state', stateValue);
     url.searchParams.set('auth_type', 'rerequest');
 
-    const accessToken = await new Promise((resolve, reject) => {
-      const resultKey = `inx-facebook-oauth-result:${stateValue}`;
-      localStorage.removeItem(resultKey);
-      const popup = window.open(url.toString(), 'inx-facebook-connect', 'popup,width=680,height=780');
-      if (!popup) return reject(new Error('Allow pop-ups for this site, then try Connect Facebook Page again.'));
+    sessionStorage.setItem('inx-facebook-oauth-state', stateValue);
+    sessionStorage.removeItem('inx-facebook-oauth-notice');
+    location.assign(url.toString());
 
-      let settled = false;
-      const timeout = setTimeout(() => finish(new Error('Facebook connection timed out.')), 180000);
-      const consumeResult = raw => {
-        if (!raw || settled) return false;
-        let data;
-        try { data = JSON.parse(raw); } catch (_) { return false; }
-        if (data?.type !== 'inx-facebook-token' || data.state !== stateValue) return false;
-        if (data.error) finish(new Error(data.error));
-        else if (data.accessToken) finish(null, data.accessToken);
-        return true;
-      };
-      const poll = setInterval(() => {
-        if (consumeResult(localStorage.getItem(resultKey))) return;
-        if (popup.closed) finish(new Error('Facebook connection was closed before it completed.'));
-      }, 250);
-      const storageListener = event => {
-        if (event.key === resultKey) consumeResult(event.newValue);
-      };
-      const messageListener = event => {
-        if (event.origin !== location.origin || event.data?.type !== 'inx-facebook-token') return;
-        if (event.data.state !== stateValue) return finish(new Error('Facebook returned an invalid login state.'));
-        if (event.data.error) return finish(new Error(event.data.error));
-        if (event.data.accessToken) finish(null, event.data.accessToken);
-      };
-      window.addEventListener('storage', storageListener);
-      window.addEventListener('message', messageListener);
-
-      function finish(error, value) {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timeout);
-        clearInterval(poll);
-        window.removeEventListener('storage', storageListener);
-        window.removeEventListener('message', messageListener);
-        localStorage.removeItem(resultKey);
-        try { popup.close(); } catch (_) {}
-        if (error) reject(error); else resolve(value);
-      }
-    });
-
-    const discovery = await api('/api/pages/accounts/discover', {
-      method: 'POST',
-      body: JSON.stringify({ accessToken })
-    });
-    const currentIds = new Set((cachedState.workspace?.pages || []).map(page => page.facebookPageId));
-    const available = Math.max(
-      0,
-      Number(cachedState.workspace?.pageUsage?.limit || 0) - Number(cachedState.workspace?.pageUsage?.connected || 0)
-    );
-    const selectedPageIds = (discovery.pages || [])
-      .filter(page => !currentIds.has(page.facebookPageId || page.id))
-      .slice(0, available)
-      .map(page => page.facebookPageId || page.id);
-    if (!selectedPageIds.length) {
-      throw new Error(available
-        ? 'Facebook did not return a new manageable Page. Check Page access or log into another Facebook account.'
-        : 'Your current plan has no remaining Facebook Page slots.');
-    }
-    const connected = await api('/api/pages/accounts/connect', {
-      method: 'POST',
-      body: JSON.stringify({
-        accessToken,
-        selectedPageIds,
-        metaAppId: FACEBOOK_APP_ID
-      })
-    });
-    await fetchState();
-    const page = cachedState.workspace.pages.find(item => selectedPageIds.includes(item.facebookPageId));
-    return {
-      page: { id: page?.facebookPageId, name: page?.facebookPageName || `${selectedPageIds.length} Page(s)` },
-      account: connected.account,
-      workspace: cachedState.workspace,
-      state: cachedState
-    };
+    // Navigation replaces this document. Keep the desktop-shaped API promise
+    // pending so the renderer does not show a false completion notification.
+    return new Promise(() => {});
   }
 
   async function savePreferences(settings, uiTexts) {
