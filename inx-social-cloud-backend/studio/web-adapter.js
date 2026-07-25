@@ -376,6 +376,12 @@
 
   async function facebookLogin() {
     const stateValue = crypto.randomUUID();
+    const initialPages = new Map(
+      (cachedState.workspace?.pages || []).map(page => [
+        String(page.facebookPageId || page.id),
+        String(page.lastSyncAt || '')
+      ])
+    );
     const redirectUri = `${location.origin}/studio/facebook-callback.html`;
     const url = new URL(`https://www.facebook.com/${cachedState.settings.graphVersion || 'v25.0'}/dialog/oauth`);
     url.searchParams.set('client_id', FACEBOOK_APP_ID);
@@ -408,6 +414,7 @@
     return new Promise((resolve, reject) => {
       let settled = false;
       let popupClosedAt = 0;
+      let recoveryInFlight = false;
       const cleanup = () => {
         window.removeEventListener('message', receive);
         window.removeEventListener('storage', receiveStored);
@@ -451,19 +458,45 @@
       const receiveStored = event => {
         if (event.key === resultKey) consumeStored(event.newValue);
       };
+      const recoverFromServer = async () => {
+        if (settled || recoveryInFlight) return false;
+        recoveryInFlight = true;
+        try {
+          await fetchState();
+          const currentPages = cachedState.workspace?.pages || [];
+          const savedOrUpdated = currentPages.some(page => {
+            const id = String(page.facebookPageId || page.id);
+            if (!initialPages.has(id)) return true;
+            return String(page.lastSyncAt || '') !== initialPages.get(id);
+          });
+          if (savedOrUpdated) {
+            await finish({
+              ok: true,
+              notice: 'Facebook connected. Pages refreshed automatically.'
+            });
+            return true;
+          }
+        } catch (_) {
+          // The normal timeout still reports a failure if the server remains unavailable.
+        } finally {
+          recoveryInFlight = false;
+        }
+        return false;
+      };
       window.addEventListener('message', receive);
       window.addEventListener('storage', receiveStored);
       const closedCheck = setInterval(() => {
         if (settled || consumeStored(localStorage.getItem(resultKey))) return;
         if (popup.closed) {
           popupClosedAt = popupClosedAt || Date.now();
-          if (Date.now() - popupClosedAt >= 2000) {
+          recoverFromServer().catch(() => {});
+          if (Date.now() - popupClosedAt >= 12000 && !recoveryInFlight) {
             finish({ ok: false, error: 'Facebook connection was closed before it completed.' }).catch(reject);
           }
         } else {
           popupClosedAt = 0;
         }
-      }, 250);
+      }, 500);
       const timeout = setTimeout(() => {
         try { popup.close(); } catch (_) {}
         finish({ ok: false, error: 'Facebook connection timed out. Please try again.' }).catch(reject);
