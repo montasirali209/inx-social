@@ -21,16 +21,24 @@
   if (location.hash) history.replaceState(null, '', location.pathname + location.search);
 
   function notifyOpener(message) {
-    if (!window.opener || window.opener.closed) return false;
+    const payload = {
+      type: 'inx-facebook-oauth-result',
+      state: returnedState || expectedState,
+      ...message
+    };
+    let saved = false;
+    if (payload.state) {
+      try {
+        localStorage.setItem(`inx-facebook-oauth-result:${payload.state}`, JSON.stringify(payload));
+        saved = true;
+      } catch (_) {}
+    }
+    if (!window.opener || window.opener.closed) return saved;
     try {
-      window.opener.postMessage({
-        type: 'inx-facebook-oauth-result',
-        state: returnedState || expectedState,
-        ...message
-      }, location.origin);
+      window.opener.postMessage(payload, location.origin);
       return true;
     } catch (_) {
-      return false;
+      return saved;
     }
   }
 

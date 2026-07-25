@@ -160,9 +160,10 @@
         resolve(values);
       };
       input.addEventListener('change', () => finish([...input.files]));
-      window.addEventListener('focus', () => setTimeout(() => {
-        if (!input.files?.length) finish([]);
-      }, 500), { once: true });
+      // Chromium fires "cancel" when the chooser closes without a selection.
+      // A window-focus fallback can run before the file input's change event on
+      // Windows, which incorrectly turned a valid single-file choice into [].
+      input.addEventListener('cancel', () => finish([]), { once: true });
       input.click();
     });
   }
@@ -387,6 +388,8 @@
 
     sessionStorage.setItem('inx-facebook-oauth-state', stateValue);
     sessionStorage.removeItem('inx-facebook-oauth-notice');
+    const resultKey = `inx-facebook-oauth-result:${stateValue}`;
+    localStorage.removeItem(resultKey);
 
     const width = 620;
     const height = 760;
@@ -404,10 +407,13 @@
 
     return new Promise((resolve, reject) => {
       let settled = false;
+      let popupClosedAt = 0;
       const cleanup = () => {
         window.removeEventListener('message', receive);
+        window.removeEventListener('storage', receiveStored);
         clearInterval(closedCheck);
         clearTimeout(timeout);
+        localStorage.removeItem(resultKey);
       };
       const finish = async message => {
         if (settled) return;
@@ -425,18 +431,39 @@
         }
         reject(new Error(message.error || 'Facebook connection failed.'));
       };
+      const consumeStored = raw => {
+        if (!raw) return false;
+        try {
+          const message = JSON.parse(raw);
+          if (message.type !== 'inx-facebook-oauth-result' || message.state !== stateValue) return false;
+          finish(message).catch(reject);
+          return true;
+        } catch (_) {
+          return false;
+        }
+      };
       const receive = event => {
         if (event.origin !== location.origin) return;
         const message = event.data || {};
         if (message.type !== 'inx-facebook-oauth-result' || message.state !== stateValue) return;
         finish(message).catch(reject);
       };
+      const receiveStored = event => {
+        if (event.key === resultKey) consumeStored(event.newValue);
+      };
       window.addEventListener('message', receive);
+      window.addEventListener('storage', receiveStored);
       const closedCheck = setInterval(() => {
-        if (!settled && popup.closed) {
-          finish({ ok: false, error: 'Facebook connection was closed before it completed.' }).catch(reject);
+        if (settled || consumeStored(localStorage.getItem(resultKey))) return;
+        if (popup.closed) {
+          popupClosedAt = popupClosedAt || Date.now();
+          if (Date.now() - popupClosedAt >= 2000) {
+            finish({ ok: false, error: 'Facebook connection was closed before it completed.' }).catch(reject);
+          }
+        } else {
+          popupClosedAt = 0;
         }
-      }, 500);
+      }, 250);
       const timeout = setTimeout(() => {
         try { popup.close(); } catch (_) {}
         finish({ ok: false, error: 'Facebook connection timed out. Please try again.' }).catch(reject);
