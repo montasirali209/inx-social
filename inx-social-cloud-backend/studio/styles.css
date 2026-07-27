@@ -1559,3 +1559,20 @@ body.license-locked #btnReelsRunDue, body.license-locked #btnReelsStartWatcher, 
 .account-delete-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}.account-delete-message{min-height:21px;color:#ff8799;font-weight:750}
 @media(max-width:720px){.account-setting-actions,.account-delete-actions{flex-direction:column}.account-setting-actions>* ,.account-delete-actions>*{width:100%}}
 
+/* Phase 10.2.5 - centred ultrawide Studio workspace */
+:root {
+  --studio-workspace-max: 1600px;
+}
+
+/*
+ * Keep the navigation rail at the left edge while preventing the Studio
+ * surface from growing indefinitely on 2K, 4K and ultrawide displays.
+ * Existing responsive rules continue to control narrower windows.
+ */
+@media (min-width: 1181px) {
+  .main {
+    width: 100%;
+    max-width: var(--studio-workspace-max);
+    justify-self: center;
+  }
+}
