@@ -572,7 +572,23 @@ Third video caption #hashtags"></textarea>
                 <label>Timezone<input id="settingTimezone" name="timezone" placeholder="Europe/London" /><span class="field-note">Used when converting your chosen slots to Meta schedule times.</span></label>
               </div>
 
-              <label>Daily Slots<textarea id="settingSlots" name="dailySlots" rows="4" placeholder="11:00&#10;15:13&#10;22:15&#10;23:15"></textarea><span class="field-note">One time per line. Auto Scheduler uses these when custom times are not selected.</span></label>
+              <div class="settings-slot-editor">
+                <div class="settings-slot-heading">
+                  <div>
+                    <span class="settings-field-label">Daily schedule times</span>
+                    <span class="field-note">Choose a time and add it. Auto Scheduler uses these when custom times are not selected.</span>
+                  </div>
+                  <span id="settingSlotsCount" class="settings-slot-count">0 times</span>
+                </div>
+                <div class="settings-slot-controls">
+                  <label for="settingSlotPicker">Select time</label>
+                  <input id="settingSlotPicker" type="time" value="11:00" step="300" />
+                  <button id="btnSettingAddSlot" class="btn secondary" type="button">+ Add time</button>
+                </div>
+                <div id="settingSlotsList" class="settings-slot-list" aria-live="polite"></div>
+                <input id="settingSlots" name="dailySlots" type="hidden" />
+                <span class="field-note">Saved times are sorted automatically. Use the &times; button on a time to remove it.</span>
+              </div>
 
               <div class="settings-grid-two">
                 <label>Caption split mode<select id="settingCaptionSplitMode" name="captionSplitMode">

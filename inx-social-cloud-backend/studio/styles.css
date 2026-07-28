@@ -1576,3 +1576,153 @@ body.license-locked #btnReelsRunDue, body.license-locked #btnReelsStartWatcher, 
     justify-self: center;
   }
 }
+/* Phase 10.3.1 - professional schedule-time picker */
+.settings-slot-editor {
+  display: grid;
+  gap: 13px;
+  margin: 3px 0 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--panel-strong) 72%, transparent);
+}
+.settings-slot-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.settings-slot-heading > div {
+  display: grid;
+  gap: 4px;
+}
+.settings-field-label {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .045em;
+}
+.settings-slot-count {
+  flex: 0 0 auto;
+  padding: 5px 9px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 800;
+}
+.settings-slot-controls {
+  display: grid;
+  grid-template-columns: minmax(150px, 220px) auto;
+  gap: 10px;
+  align-items: end;
+}
+.settings-slot-controls label {
+  grid-column: 1;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .045em;
+}
+.settings-slot-controls input {
+  grid-column: 1;
+  min-height: 44px;
+  color-scheme: dark;
+}
+.settings-slot-controls .btn {
+  grid-column: 2;
+  grid-row: 2;
+  min-height: 44px;
+}
+.settings-slot-list {
+  min-height: 64px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+}
+.settings-slot-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 6px 7px 6px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent2) 35%, var(--line));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent2) 11%, var(--panel));
+  color: var(--text);
+}
+.settings-slot-chip > span {
+  display: grid;
+  line-height: 1.15;
+}
+.settings-slot-chip strong {
+  font-size: 12px;
+}
+.settings-slot-chip small {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: .06em;
+}
+.settings-slot-chip button {
+  width: 29px;
+  height: 29px;
+  border: 0;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--danger) 13%, transparent);
+  color: var(--danger);
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1;
+}
+.settings-slot-chip button:hover {
+  background: color-mix(in srgb, var(--danger) 23%, transparent);
+}
+.settings-slot-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Keep native select menus consistent with the Studio theme. */
+.settings-form select,
+.settings-card select,
+.top-theme-control select {
+  color-scheme: dark;
+  background-color: color-mix(in srgb, var(--panel-strong) 92%, #071426) !important;
+  color: var(--text) !important;
+}
+.settings-form select option,
+.settings-card select option,
+.top-theme-control select option {
+  background: #101a2d;
+  color: #eef6ff;
+}
+body[data-theme="light"] .settings-form select,
+body[data-theme="light"] .settings-card select,
+body[data-theme="light"] .top-theme-control select,
+body[data-theme="light"] .settings-slot-controls input {
+  color-scheme: light;
+}
+body[data-theme="light"] .settings-form select option,
+body[data-theme="light"] .settings-card select option,
+body[data-theme="light"] .top-theme-control select option {
+  background: #ffffff;
+  color: #10213b;
+}
+@media (max-width: 620px) {
+  .settings-slot-controls {
+    grid-template-columns: 1fr;
+  }
+  .settings-slot-controls .btn {
+    grid-column: 1;
+    grid-row: auto;
+    width: 100%;
+  }
+}

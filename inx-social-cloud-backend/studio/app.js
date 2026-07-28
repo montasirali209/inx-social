@@ -6,6 +6,7 @@ let draftSelectedTimes = [];
 let draftSessionRunning = false;
 let reelsSessionVideos = [];
 let reelsSelectedTimes = [];
+let settingsDailySlots = [];
 let labVideoPath = '';
 let accountMode = 'login';
 let cloudWorkspace = { accounts: [], pages: [], activePage: null, pageUsage: null, plan: null };
@@ -208,6 +209,15 @@ function bindButtons() {
   on('btnReelsPickCaptions', pickReelsSessionCaptions);
   on('btnReelsClearSession', clearReelsSession);
   on('btnReelsAddTime', addReelsSelectedTime);
+  on('btnSettingAddSlot', addSettingDailySlot);
+  const settingSlotPicker = document.getElementById('settingSlotPicker');
+  if (settingSlotPicker) {
+    settingSlotPicker.addEventListener('keydown', event => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      addSettingDailySlot();
+    });
+  }
   on('btnReelsCreateQueue', createReelsQueue);
   on('btnReelsRunDue', runDueReels);
   on('btnReelsStartWatcher', startReelsWatcher);
@@ -265,6 +275,9 @@ function bindButtons() {
   const pageSearch = document.getElementById('pageSearchInput');
   if (pageSearch) pageSearch.addEventListener('input', renderPagesV2);
   document.addEventListener('click', event => {
+    const settingSlotButton = event.target.closest('[data-remove-setting-slot]');
+    if (settingSlotButton) removeSettingDailySlot(settingSlotButton.dataset.removeSettingSlot);
+
     const reelsTimeButton = event.target.closest('[data-remove-reels-time]');
     if (reelsTimeButton) removeReelsSelectedTime(reelsTimeButton.dataset.removeReelsTime);
 
@@ -1653,6 +1666,63 @@ function formatLogExtra(extra) {
   }
 }
 
+
+function normaliseSettingSlot(value) {
+  const match = String(value || '').trim().match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  return match ? `${match[1]}:${match[2]}` : '';
+}
+
+function setSettingDailySlots(slots) {
+  const source = Array.isArray(slots)
+    ? slots
+    : String(slots || '').split(/\r?\n|,/);
+  settingsDailySlots = [...new Set(source.map(normaliseSettingSlot).filter(Boolean))].sort();
+  renderSettingDailySlots();
+}
+
+function renderSettingDailySlots() {
+  const hidden = document.getElementById('settingSlots');
+  const list = document.getElementById('settingSlotsList');
+  const count = document.getElementById('settingSlotsCount');
+  if (hidden) hidden.value = settingsDailySlots.join('\n');
+  if (count) count.textContent = `${settingsDailySlots.length} ${settingsDailySlots.length === 1 ? 'time' : 'times'}`;
+  if (!list) return;
+  if (!settingsDailySlots.length) {
+    list.innerHTML = '<span class="settings-slot-empty">No schedule times added yet.</span>';
+    return;
+  }
+  list.innerHTML = settingsDailySlots.map(slot => `
+    <span class="settings-slot-chip">
+      <span><strong>${escapeHtml(to12(slot))}</strong><small>${escapeHtml(slot)}</small></span>
+      <button type="button" data-remove-setting-slot="${escapeHtml(slot)}" aria-label="Remove ${escapeHtml(to12(slot))}" title="Remove time">&times;</button>
+    </span>
+  `).join('');
+}
+
+function addSettingDailySlot() {
+  const picker = document.getElementById('settingSlotPicker');
+  const slot = normaliseSettingSlot(picker ? picker.value : '');
+  if (!slot) {
+    toast('Choose a valid schedule time first.', true);
+    return;
+  }
+  if (settingsDailySlots.includes(slot)) {
+    toast(`${to12(slot)} is already in the daily schedule.`, true);
+    return;
+  }
+  if (settingsDailySlots.length >= 24) {
+    toast('You can save up to 24 daily schedule times.', true);
+    return;
+  }
+  settingsDailySlots = [...settingsDailySlots, slot].sort();
+  renderSettingDailySlots();
+}
+
+function removeSettingDailySlot(slot) {
+  settingsDailySlots = settingsDailySlots.filter(value => value !== normaliseSettingSlot(slot));
+  renderSettingDailySlots();
+}
+
 function fillSettings() {
   const s = state.settings;
   document.getElementById('settingPageId').value = s.pageId || '';
@@ -1661,7 +1731,7 @@ function fillSettings() {
   renderFacebookConnectStatus(s);
   document.getElementById('settingGraphVersion').value = s.graphVersion || 'v25.0';
   document.getElementById('settingTimezone').value = s.timezone || 'Europe/London';
-  document.getElementById('settingSlots').value = (s.dailySlots || []).join('\n');
+  setSettingDailySlots(s.dailySlots || []);
   document.getElementById('settingMaxDays').value = s.maxScheduleDays || 29;
   document.getElementById('settingLead').value = s.minLeadMinutes || 20;
   document.getElementById('settingRetries').value = s.maxRetries || 3;
