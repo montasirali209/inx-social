@@ -73,6 +73,7 @@ async function dashboard(req, res, next) {
         cancelAtPeriodEnd: subscription?.cancelAtPeriodEnd || false,
         currentPeriodStart: subscription?.currentPeriodStart || null,
         currentPeriodEnd: subscription?.currentPeriodEnd || null,
+        graceEndsAt: subscription?.graceEndsAt || null,
         providerSubId: subscription?.providerSubId || null
       },
       release: releaseSummary(release)

@@ -115,7 +115,13 @@ async function loadDashboard(showQueryNotice = true) {
     document.querySelector('#provider').textContent = data.billing.provider ? data.billing.provider.toUpperCase() : 'INX Social trial';
     document.querySelector('#manageBillingBtn').classList.toggle('hidden', !data.billing.canManage);
 
-    if (data.billing.cancelAtPeriodEnd) {
+    if (license.subscriptionStatus === 'GRACE_PERIOD') {
+      document.querySelector('#billingTitle').textContent = 'Payment update needed';
+      document.querySelector('#billingSummary').textContent = `Publishing remains available until ${formatDate(data.billing.graceEndsAt)} while Stripe retries the payment. Update your payment method now.`;
+    } else if (license.subscriptionStatus === 'PAST_DUE') {
+      document.querySelector('#billingTitle').textContent = 'Publishing access restricted';
+      document.querySelector('#billingSummary').textContent = 'The payment grace period has ended. Update your payment method to restore publishing access.';
+    } else if (data.billing.cancelAtPeriodEnd) {
       document.querySelector('#billingTitle').textContent = `${license.plan} cancellation scheduled`;
       document.querySelector('#billingSummary').textContent = `Paid access remains available until ${formatDate(data.billing.currentPeriodEnd)}.`;
     } else if (data.billing.provider === 'stripe') {

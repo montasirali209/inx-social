@@ -1,7 +1,7 @@
 const prisma = require('../db/prisma');
 
-function isTrialActive(user) {
-  return user.trialEndsAt && new Date(user.trialEndsAt).getTime() > Date.now();
+function isTrialActive(user, now = new Date()) {
+  return Boolean(user.trialEndsAt && new Date(user.trialEndsAt).getTime() > now.getTime());
 }
 
 function getPlanLimits(plan) {
@@ -14,6 +14,41 @@ function getPlanLimits(plan) {
   return limits[String(plan || 'TRIAL').toUpperCase()] || limits.TRIAL;
 }
 
+function evaluateLicense(user, sub, now = new Date()) {
+  const trialActive = isTrialActive(user, now);
+  const subscriptionStatus = String(sub?.status || '').toUpperCase();
+  const provider = String(sub?.provider || '').toLowerCase();
+  const plan = String(sub?.plan || 'TRIAL').toUpperCase();
+  const internalTrial = (!provider || provider === 'internal') && plan === 'TRIAL';
+  const stripeActive = provider === 'stripe' && ['ACTIVE', 'TRIALING'].includes(subscriptionStatus);
+  const graceActive = provider === 'stripe' &&
+    subscriptionStatus === 'PAST_DUE' &&
+    sub?.graceEndsAt &&
+    new Date(sub.graceEndsAt).getTime() > now.getTime();
+  const manualActive = (provider === 'manual' || !provider) &&
+    ['ACTIVE', 'MANUAL'].includes(subscriptionStatus) &&
+    plan !== 'TRIAL';
+  const accountEnabled = !['SUSPENDED', 'DISABLED', 'REVOKED'].includes(String(user.status || '').toUpperCase());
+  const administrator = ['ADMIN', 'SUPER_ADMIN'].includes(String(user.role || '').toUpperCase());
+  let effectiveStatus = subscriptionStatus || (trialActive ? 'TRIALING' : 'EXPIRED');
+
+  if (internalTrial) effectiveStatus = trialActive ? 'TRIALING' : 'EXPIRED';
+  else if (graceActive) effectiveStatus = 'GRACE_PERIOD';
+
+  return {
+    allowed: Boolean(accountEnabled && (administrator || (internalTrial && trialActive) || stripeActive || graceActive || manualActive)),
+    status: user.status,
+    plan,
+    subscriptionStatus: effectiveStatus,
+    provider: sub?.provider || null,
+    trialEndsAt: user.trialEndsAt,
+    currentPeriodEnd: sub?.currentPeriodEnd || null,
+    graceEndsAt: sub?.graceEndsAt || null,
+    cancelAtPeriodEnd: Boolean(sub?.cancelAtPeriodEnd),
+    limits: getPlanLimits(plan)
+  };
+}
+
 async function getLicenseStatus(userId) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -21,24 +56,7 @@ async function getLicenseStatus(userId) {
   });
   if (!user) throw new Error('User not found');
 
-  const sub = user.subscriptions[0] || null;
-  const trialActive = isTrialActive(user);
-  const subscriptionStatus = String(sub?.status || '').toUpperCase();
-  const paidActive = ['ACTIVE', 'TRIALING', 'MANUAL'].includes(subscriptionStatus);
-  const accountEnabled = !['SUSPENDED', 'DISABLED', 'REVOKED'].includes(String(user.status || '').toUpperCase());
-  const plan = String(sub?.plan || 'TRIAL').toUpperCase();
-
-  return {
-    allowed: Boolean(accountEnabled && (trialActive || paidActive || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN')),
-    status: user.status,
-    plan,
-    subscriptionStatus: sub?.status || (trialActive ? 'TRIALING' : 'EXPIRED'),
-    provider: sub?.provider || null,
-    trialEndsAt: user.trialEndsAt,
-    currentPeriodEnd: sub?.currentPeriodEnd || null,
-    cancelAtPeriodEnd: Boolean(sub?.cancelAtPeriodEnd),
-    limits: getPlanLimits(plan)
-  };
+  return evaluateLicense(user, user.subscriptions[0] || null);
 }
 
-module.exports = { getLicenseStatus, getPlanLimits };
+module.exports = { evaluateLicense, getLicenseStatus, getPlanLimits, isTrialActive };

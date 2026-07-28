@@ -226,7 +226,50 @@ async function sendSubscriptionActivated(user, plan) {
   });
 }
 
-async function sendPaymentFailed(user) {
+function displayDate(value) {
+  if (!value) return 'the end of your grace period';
+  return new Date(value).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Europe/London'
+  });
+}
+
+async function sendTrialEnding(user, daysRemaining) {
+  const days = Number(daysRemaining) === 1 ? 1 : 2;
+  return send({
+    userId: user.id,
+    to: user.email,
+    type: `TRIAL_ENDING_${days}_DAYS`,
+    subject: `Your INX Social trial ends in ${days} day${days === 1 ? '' : 's'}`,
+    html: frame(
+      'Your trial is ending',
+      `<p>Your INX Social trial ends in ${days} day${days === 1 ? '' : 's'}. Choose Starter or Pro to keep publishing without interruption.</p><p>Your account, connected Pages and history will remain saved if the trial expires.</p>`,
+      'Choose a plan',
+      portalPage('index.html', { section: 'subscription' })
+    ),
+    text: `Your INX Social trial ends in ${days} day${days === 1 ? '' : 's'}.`
+  });
+}
+
+async function sendTrialExpired(user) {
+  return send({
+    userId: user.id,
+    to: user.email,
+    type: 'TRIAL_EXPIRED',
+    subject: 'Your INX Social trial has ended',
+    html: frame(
+      'Your trial has ended',
+      '<p>Publishing access is now paused. Your account, connected Pages, settings and history remain saved.</p><p>Choose Starter or Pro to restore publishing access.</p>',
+      'Choose a plan',
+      portalPage('index.html', { section: 'subscription' })
+    ),
+    text: 'Your INX Social trial has ended. Choose a plan to restore publishing access.'
+  });
+}
+
+async function sendPaymentFailed(user, graceEndsAt) {
   return send({
     userId: user.id,
     to: user.email,
@@ -234,11 +277,75 @@ async function sendPaymentFailed(user) {
     subject: 'Action needed: INX Social payment failed',
     html: frame(
       'Payment failed',
-      '<p>We could not collect your latest INX Social subscription payment. Please update your payment method to avoid losing access.</p>',
+      `<p>We could not collect your latest INX Social subscription payment. Stripe may retry automatically.</p><p>Your publishing access remains available until ${displayDate(graceEndsAt)}. Please update your payment method before then.</p>`,
       'Manage billing',
       portalPage('index.html')
     ),
-    text: 'We could not collect your latest INX Social subscription payment.'
+    text: `We could not collect your latest INX Social subscription payment. Update your payment method before ${displayDate(graceEndsAt)}.`
+  });
+}
+
+async function sendPaymentRecovered(user) {
+  return send({
+    userId: user.id,
+    to: user.email,
+    type: 'PAYMENT_RECOVERED',
+    subject: 'Your INX Social payment was successful',
+    html: frame(
+      'Payment recovered',
+      '<p>Your subscription payment is now successful and your INX Social publishing access is active.</p>',
+      'Open customer portal',
+      portalPage('index.html')
+    ),
+    text: 'Your INX Social payment was successful and publishing access is active.'
+  });
+}
+
+async function sendCancellationScheduled(user, currentPeriodEnd) {
+  return send({
+    userId: user.id,
+    to: user.email,
+    type: 'SUBSCRIPTION_CANCELLATION_SCHEDULED',
+    subject: 'Your INX Social cancellation is scheduled',
+    html: frame(
+      'Cancellation scheduled',
+      `<p>Your subscription will not renew. Publishing access remains available until ${displayDate(currentPeriodEnd)}.</p><p>You can manage or resume the subscription from Stripe before that date.</p>`,
+      'Manage billing',
+      portalPage('index.html')
+    ),
+    text: `Your INX Social subscription will end on ${displayDate(currentPeriodEnd)}.`
+  });
+}
+
+async function sendSubscriptionEnded(user) {
+  return send({
+    userId: user.id,
+    to: user.email,
+    type: 'SUBSCRIPTION_ENDED',
+    subject: 'Your INX Social subscription has ended',
+    html: frame(
+      'Subscription ended',
+      '<p>Publishing access is now paused. Your account, connected Pages, settings and history remain saved.</p><p>Choose a plan to restore access.</p>',
+      'Choose a plan',
+      portalPage('index.html', { section: 'subscription' })
+    ),
+    text: 'Your INX Social subscription has ended. Choose a plan to restore publishing access.'
+  });
+}
+
+async function sendAccessRestricted(user) {
+  return send({
+    userId: user.id,
+    to: user.email,
+    type: 'PAYMENT_GRACE_EXPIRED',
+    subject: 'INX Social publishing access is paused',
+    html: frame(
+      'Publishing access is paused',
+      '<p>The payment grace period has ended, so publishing access is paused. Your account, connected Pages, settings and history remain saved.</p>',
+      'Update payment method',
+      portalPage('index.html')
+    ),
+    text: 'The payment grace period has ended. Update your payment method to restore INX Social publishing access.'
   });
 }
 
@@ -262,7 +369,13 @@ module.exports = {
   sendVerification,
   sendPasswordReset,
   sendTrialStarted,
+  sendTrialEnding,
+  sendTrialExpired,
   sendSubscriptionActivated,
   sendPaymentFailed,
+  sendPaymentRecovered,
+  sendCancellationScheduled,
+  sendSubscriptionEnded,
+  sendAccessRestricted,
   sendTestEmail
 };

@@ -50,6 +50,8 @@ model Subscription {
   providerSubId      String?
   currentPeriodStart DateTime?
   currentPeriodEnd   DateTime?
+  graceEndsAt        DateTime?
+  lastPaymentFailedAt DateTime?
   cancelAtPeriodEnd  Boolean   @default(false)
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt

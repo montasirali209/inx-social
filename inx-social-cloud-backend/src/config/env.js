@@ -32,7 +32,8 @@ module.exports = {
     proPriceId: process.env.STRIPE_PRO_PRICE_ID || '',
     successUrl: process.env.STRIPE_SUCCESS_URL || `${process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050'}/portal/?checkout=success`,
     cancelUrl: process.env.STRIPE_CANCEL_URL || `${process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050'}/portal/?checkout=cancelled`,
-    portalReturnUrl: process.env.STRIPE_PORTAL_RETURN_URL || `${process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050'}/portal/`
+    portalReturnUrl: process.env.STRIPE_PORTAL_RETURN_URL || `${process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050'}/portal/`,
+    paymentGraceDays: Math.max(1, Number(process.env.PAYMENT_GRACE_DAYS || 7))
   },
   installerUrl: process.env.INSTALLER_URL || '',
   latestVersion: process.env.LATEST_DESKTOP_VERSION || '14.0.1'
