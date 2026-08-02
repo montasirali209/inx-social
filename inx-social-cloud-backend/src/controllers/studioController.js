@@ -9,6 +9,7 @@ const prisma = require('../db/prisma');
 const { decryptToken } = require('../utils/tokenCrypto');
 const { getLicenseStatus } = require('../services/licenseService');
 const metaPublisher = require('../services/cloudMetaPublisher');
+const { reconcileJobs } = require('../services/metaReelStatusService');
 const {
   JOB_STATUS,
   ASSET_STATUS,
@@ -214,6 +215,8 @@ function desktopJob(job) {
     fbPostId: job.metaPostId,
     error: job.errorMessage,
     createdAt: job.createdAt,
+    uploadedAt: parseJson(job.rawMetaResponse, {}).verification?.acceptedAt || job.completedAt,
+    completedAt: job.completedAt,
     updatedAt: job.updatedAt,
     cloud: true
   };
@@ -319,13 +322,15 @@ async function capabilities(req, res, next) {
 
 async function desktopState(req, res, next) {
   try {
+    await requireStudioLicense(req.user.id);
+    await reconcileJobs({ userId: req.user.id, limit: 25 });
     const [license, preference, jobs] = await Promise.all([
       requireStudioLicense(req.user.id),
       prisma.cloudPreference.findUnique({ where: { userId: req.user.id } }),
       prisma.scheduleJob.findMany({
         where: { userId: req.user.id, origin: 'CLOUD' },
         orderBy: { createdAt: 'desc' },
-        take: 250,
+        take: 1000,
         include: { connectedPage: true, cloudAsset: true }
       })
     ]);
@@ -342,12 +347,20 @@ async function desktopState(req, res, next) {
     };
     const uiTexts = { ...DEFAULT_UI_TEXTS, ...parseJson(preference?.uiTextsJson, {}) };
     const mappedJobs = jobs.map(desktopJob);
-    const logs = mappedJobs.slice(0, 100).map(job => ({
+    const logs = mappedJobs.slice(0, 250).map(job => ({
       id: `cloud-log-${job.id}`,
       type: String(job.status).includes('failed') ? 'error' : 'cloud',
       message: `${job.videoName}: ${job.status.replaceAll('_', ' ')}`,
       createdAt: job.updatedAt,
-      extra: job.error ? { error: job.error } : null
+      extra: {
+        page: job.facebookPageName || null,
+        queuedAt: job.createdAt || null,
+        uploadedAt: job.uploadedAt || null,
+        scheduledAt: job.scheduledAtISO || null,
+        metaId: job.fbVideoId || job.fbPostId || null,
+        attempts: job.attempts || 0,
+        error: job.error || null
+      }
     }));
 
     res.json({
@@ -514,6 +527,52 @@ async function createDraft(req, res, next) {
       error.publicMessage = error.message;
       throw error;
     }
+
+    const protectedStatuses = [
+      JOB_STATUS.DRAFT,
+      JOB_STATUS.AWAITING_UPLOAD,
+      JOB_STATUS.READY,
+      JOB_STATUS.QUEUED,
+      JOB_STATUS.PROCESSING,
+      JOB_STATUS.SCHEDULED,
+      JOB_STATUS.PUBLISHED
+    ];
+    const duplicateFile = await prisma.scheduleJob.findFirst({
+      where: {
+        userId: req.user.id,
+        connectedPageId: page.id,
+        origin: 'CLOUD',
+        localFileName: input.originalFileName,
+        status: { in: protectedStatuses }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    if (duplicateFile) {
+      const error = new Error(`${input.originalFileName} is already recorded for this Page${duplicateFile.scheduledAt ? ` at ${duplicateFile.scheduledAt.toISOString()}` : ''}.`);
+      error.status = 409;
+      error.publicMessage = error.message;
+      throw error;
+    }
+
+    if (scheduledAt) {
+      const occupiedSlot = await prisma.scheduleJob.findFirst({
+        where: {
+          userId: req.user.id,
+          connectedPageId: page.id,
+          origin: 'CLOUD',
+          scheduledAt,
+          status: { in: protectedStatuses }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+      if (occupiedSlot) {
+        const error = new Error(`This Page already has ${occupiedSlot.localFileName || 'a video'} assigned to ${scheduledAt.toISOString()}. Choose another time.`);
+        error.status = 409;
+        error.publicMessage = error.message;
+        throw error;
+      }
+    }
+
     const fileSizeBytes = normaliseFileSize(input.fileSizeBytes);
     const job = await prisma.scheduleJob.create({
       data: {
@@ -599,6 +658,7 @@ async function receiveTemporaryVideo(req, destination, maximumBytes) {
 async function uploadVideo(req, res, next) {
   let tempPath = null;
   let claimedJob = null;
+  let metaAcceptedResult = null;
   try {
     await requireStudioLicense(req.user.id);
     if (!/^video\/|^application\/octet-stream$/i.test(String(req.headers['content-type'] || ''))) {
@@ -660,17 +720,26 @@ async function uploadVideo(req, res, next) {
       scheduledAt: existing.scheduledAt,
       publishMode: immediate ? 'NOW' : 'SCHEDULED'
     });
+    metaAcceptedResult = result;
 
     const [job, asset] = await prisma.$transaction([
       prisma.scheduleJob.update({
         where: { id: existing.id },
         data: {
-          status: immediate ? JOB_STATUS.PUBLISHED : JOB_STATUS.SCHEDULED,
+          status: JOB_STATUS.PROCESSING,
           uploadStatus: ASSET_STATUS.DELETED,
           metaPostId: result.postId,
           metaVideoId: result.videoId,
-          rawMetaResponse: JSON.stringify(result),
-          completedAt: new Date(),
+          rawMetaResponse: JSON.stringify({
+            ...result,
+            verification: {
+              state: 'PROCESSING',
+              acceptedAt: new Date().toISOString(),
+              confirmedAt: null
+            }
+          }),
+          completedAt: null,
+          nextAttemptAt: new Date(Date.now() + 15000),
           claimedAt: null,
           errorMessage: null
         },
@@ -682,14 +751,33 @@ async function uploadVideo(req, res, next) {
       })
     ]);
     job.cloudAsset = asset;
-    res.json({ job: publicJob(job), scheduled: !immediate, published: immediate });
+    res.status(202).json({ job: publicJob(job), accepted: true, processing: true, scheduled: false, published: false });
   } catch (error) {
     if (claimedJob) {
       try {
+        const acceptedByMeta = Boolean(metaAcceptedResult?.videoId);
         await prisma.$transaction([
           prisma.scheduleJob.update({
             where: { id: claimedJob.id },
-            data: {
+            data: acceptedByMeta ? {
+              status: JOB_STATUS.PROCESSING,
+              uploadStatus: ASSET_STATUS.DELETED,
+              metaPostId: metaAcceptedResult.postId,
+              metaVideoId: metaAcceptedResult.videoId,
+              rawMetaResponse: JSON.stringify({
+                ...metaAcceptedResult,
+                verification: {
+                  state: 'PROCESSING',
+                  acceptedAt: new Date().toISOString(),
+                  confirmedAt: null,
+                  localFinalisationError: String(error.message || error)
+                }
+              }),
+              completedAt: null,
+              nextAttemptAt: new Date(Date.now() + 15000),
+              claimedAt: null,
+              errorMessage: null
+            } : {
               status: JOB_STATUS.FAILED,
               uploadStatus: ASSET_STATUS.FAILED,
               claimedAt: null,
@@ -698,7 +786,7 @@ async function uploadVideo(req, res, next) {
           }),
           prisma.cloudAsset.update({
             where: { id: claimedJob.cloudAsset.id },
-            data: { status: ASSET_STATUS.FAILED }
+            data: { status: acceptedByMeta ? ASSET_STATUS.DELETED : ASSET_STATUS.FAILED }
           })
         ]);
       } catch (_) {}

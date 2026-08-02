@@ -747,7 +747,7 @@ function updateReelsPanel(payload = {}) {
 function statusLabel(status) {
   const labels = {
     reel_queued: 'Ready to upload',
-    reel_uploading: 'Uploading to Meta',
+    reel_uploading: 'Processing at Facebook',
     reel_publishing: 'Publishing',
     reel_scheduled: 'Scheduled on Facebook',
     reel_published: 'Published',
@@ -1475,7 +1475,7 @@ function renderSlotPills() {
 
 function renderTables() {
   const jobsSorted = [...state.jobs].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  document.getElementById('recentJobs').innerHTML = renderJobTable(jobsSorted.slice(0, 12));
+  document.getElementById('recentJobs').innerHTML = renderJobTable(jobsSorted);
   document.getElementById('videoTable').innerHTML = renderMediaTable(state.videos, 'video');
   document.getElementById('captionTable').innerHTML = renderMediaTable(state.captions, 'caption');
 }
@@ -1493,17 +1493,28 @@ function renderMediaTable(items, type) {
 }
 
 function renderJobTable(jobs) {
-  if (!jobs.length) return '<div class="empty">No schedule jobs yet.</div>';
-  return `<table><thead><tr><th>Status</th><th>Video</th><th>Caption</th><th>Scheduled Time</th><th>Meta ID</th><th>Error</th><th></th></tr></thead><tbody>${jobs.map(job => `
-    <tr>
-      <td><span class="status ${escapeHtml(job.status)}">${escapeHtml(statusLabel(job.status))}</span></td>
-      <td>${escapeHtml(job.videoName)}<br><span class="muted">${escapeHtml(job.matchType || '')}</span></td>
-      <td>${escapeHtml(job.captionName)}</td>
-      <td>${escapeHtml(job.slotLabel || formatDate(job.scheduledAtISO))}</td>
-      <td class="code">${escapeHtml(job.fbVideoId || job.fbPostId || '-')}</td>
-      <td>${escapeHtml(job.error || '')}</td>
-      <td><button class="btn ghost compact" data-remove-job-id="${escapeHtml(job.id)}">Remove</button></td>
-    </tr>`).join('')}</tbody></table>`;
+  if (!jobs.length) return '<div class="empty">No upload attempts have been recorded yet.</div>';
+  const successful = jobs.filter(job => ['reel_scheduled', 'reel_published', 'scheduled', 'published'].includes(String(job.status || ''))).length;
+  const failed = jobs.filter(job => String(job.status || '').includes('failed')).length;
+  const pending = Math.max(0, jobs.length - successful - failed);
+  return `
+    <div class="history-summary">
+      <span>All attempts: <strong>${jobs.length}</strong></span>
+      <span>Successful: <strong>${successful}</strong></span>
+      <span>Failed: <strong>${failed}</strong></span>
+      <span>Pending: <strong>${pending}</strong></span>
+    </div>
+    <table><thead><tr><th>Status</th><th>Video</th><th>Queued at</th><th>Accepted by Meta</th><th>Facebook publish time</th><th>Meta ID</th><th>Error</th><th></th></tr></thead><tbody>${jobs.map(job => `
+      <tr>
+        <td><span class="status ${escapeHtml(job.status)}">${escapeHtml(statusLabel(job.status))}</span></td>
+        <td>${escapeHtml(job.videoName)}</td>
+        <td>${escapeHtml(formatDate(job.createdAt))}</td>
+        <td>${escapeHtml(job.uploadedAt ? formatDate(job.uploadedAt) : '-')}</td>
+        <td>${escapeHtml(job.publishMode === 'NOW' ? 'Published immediately' : (job.slotLabel || formatDate(job.scheduledAtISO)))}</td>
+        <td class="code">${escapeHtml(job.fbVideoId || job.fbPostId || '-')}</td>
+        <td>${escapeHtml(job.error || '')}</td>
+        <td><button class="btn ghost compact" data-remove-job-id="${escapeHtml(job.id)}">Remove</button></td>
+      </tr>`).join('')}</tbody></table>`;
 }
 
 function renderPlan(result) {

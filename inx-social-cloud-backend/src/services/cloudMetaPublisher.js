@@ -127,6 +127,19 @@ async function publishReel({
   };
 }
 
+async function getReelStatus({ videoId, pageAccessToken }) {
+  const response = await axios.get(
+    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(videoId)}`,
+    {
+      params: { fields: 'status', access_token: pageAccessToken },
+      timeout: 30000,
+      validateStatus: status => status >= 200 && status < 500
+    }
+  );
+  assertMetaResponse(response, 'Facebook could not return the Reel processing status.');
+  return response.data || {};
+}
+
 function publishScheduledReel(input) {
   return publishReel({ ...input, publishMode: 'SCHEDULED' });
 }
@@ -138,6 +151,7 @@ function publishReelNow(input) {
 module.exports = {
   testPage,
   listScheduledPosts,
+  getReelStatus,
   publishReel,
   publishScheduledReel,
   publishReelNow

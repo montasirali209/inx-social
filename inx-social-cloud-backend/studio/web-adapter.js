@@ -123,12 +123,18 @@
     };
   }
 
-  function captionBlocks(text) {
+  function captionBlocks(text, expectedCount = 0) {
     const normal = String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
     if (!normal) return [];
     const paragraphs = normal.split(/\n\s*\n+/).map(value => value.trim()).filter(Boolean);
+    const lines = normal.split('\n').map(value => value.trim()).filter(Boolean);
+    const expected = Number(expectedCount || 0);
+    if (expected > 0) {
+      if (paragraphs.length === expected) return paragraphs;
+      if (lines.length === expected) return lines;
+    }
     if (paragraphs.length > 1) return paragraphs;
-    return normal.split('\n').map(value => value.trim()).filter(Boolean);
+    return lines;
   }
 
   function captionMeta(content, sourceName, index) {
@@ -268,7 +274,7 @@
     });
   }
 
-  async function uploadJob(jobId, file, index, total, counters) {
+  async function uploadJob(job, file, index, total, counters) {
     emit({
       type: 'reel-job-start',
       phase: 'Studio upload',
@@ -279,30 +285,52 @@
       failed: counters.failed,
       message: `Uploading ${index + 1}/${total}: ${file.name}. Keep this browser open.`
     });
-    const result = await api(`/api/studio/jobs/${encodeURIComponent(jobId)}/video`, {
+    const result = await api(`/api/studio/jobs/${encodeURIComponent(job.id)}/video`, {
       method: 'PUT',
       headers: { 'Content-Type': file.type || 'application/octet-stream' },
       body: file
     });
     counters.uploaded += 1;
     emit({
-      type: 'reel-job-success',
-      phase: 'Studio upload',
+      type: 'reel-processing',
+      phase: 'Facebook processing',
       percent: Math.round(5 + ((index + 1) / total) * 90),
       current: index + 1,
       total,
       uploaded: counters.uploaded,
       failed: counters.failed,
-      message: job.publishMode === 'NOW' ? `Published on Facebook ${index + 1}/${total}: ${file.name}` : `Scheduled on Meta ${index + 1}/${total}: ${file.name}`
+      message: `${file.name} was accepted by Meta and is processing. Activity Logs will update after Facebook confirms the result.`
     });
     return result;
   }
 
   async function createQueue(payload = {}) {
     const paths = Array.isArray(payload.videoPaths) ? payload.videoPaths : [];
-    const captions = captionBlocks(payload.captionText || '');
-    const count = Math.min(paths.length, captions.length);
-    if (!count) throw new Error('Select at least one video and one caption.');
+    const captions = captionBlocks(payload.captionText || '', paths.length);
+    if (!paths.length) throw new Error('Select at least one video.');
+    if (!captions.length) throw new Error('Add at least one caption.');
+    if (paths.length !== captions.length) {
+      throw new Error(`Selected ${paths.length} video(s), but detected ${captions.length} caption(s). Nothing was queued. Add exactly one caption for every video and try again.`);
+    }
+    const duplicateNames = [...new Set(paths.map(path => fileName(path)).filter((name, index, names) => names.indexOf(name) !== index))];
+    if (duplicateNames.length) {
+      throw new Error(`Duplicate video filename(s) selected: ${duplicateNames.slice(0, 5).join(', ')}${duplicateNames.length > 5 ? 'â€¦' : ''}. Remove duplicate files before uploading.`);
+    }
+    const activeFacebookPageId = String(cachedState.workspace?.activePage?.facebookPageId || '');
+    const existingNames = new Map(
+      (cachedState.jobs || [])
+        .filter(job => !activeFacebookPageId || String(job.facebookPageId || '') === activeFacebookPageId)
+        .filter(job => !['cancelled', 'reel_upload_failed', 'reel_failed', 'failed_retryable'].includes(String(job.status || '')))
+        .map(job => [String(job.videoName || '').toLowerCase(), job])
+    );
+    const alreadyTracked = paths
+      .map(path => fileName(path))
+      .map(name => ({ name, job: existingNames.get(String(name).toLowerCase()) }))
+      .find(item => item.job);
+    if (alreadyTracked) {
+      throw new Error(`${alreadyTracked.name} is already recorded for this Page as ${String(alreadyTracked.job.status || 'an existing job').replaceAll('_', ' ')}${alreadyTracked.job.slotLabel ? ` at ${alreadyTracked.job.slotLabel}` : ''}.`);
+    }
+    const count = paths.length;
     const immediate = String(payload.publishMode || '').toUpperCase() === 'NOW';
     const slots = immediate ? [] : scheduleSlots(count, payload.startDate, payload.times);
     const jobs = [];
@@ -338,7 +366,7 @@
       const job = candidates[index];
       const file = jobFiles.get(job.id);
       try {
-        results.push(await uploadJob(job.id, file, index, candidates.length, counters));
+        results.push(await uploadJob(job, file, index, candidates.length, counters));
         jobFiles.delete(job.id);
       } catch (error) {
         counters.failed += 1;
@@ -355,16 +383,10 @@
       }
     }
     await fetchState();
-    const immediateCount = candidates.filter(job => job.publishMode === 'NOW').length;
-    const scheduledCount = candidates.length - immediateCount;
-    const completion = immediateCount && !scheduledCount
-      ? `Published ${counters.uploaded}`
-      : scheduledCount && !immediateCount
-        ? `Scheduled ${counters.uploaded}`
-        : `Completed ${counters.uploaded}`;
+    const completion = `Accepted by Meta ${counters.uploaded}`;
     const message = stopRequested
-      ? `Upload stopped. ${completion}, failed ${counters.failed}.`
-      : `Upload finished. ${completion}, failed ${counters.failed}.`;
+      ? `Upload stopped. ${completion}, upload failures ${counters.failed}. Facebook processing results will update in Activity Logs.`
+      : `Upload finished. ${completion}, upload failures ${counters.failed}. Facebook processing results will update in Activity Logs.`;
     emit({ type: 'reel-finished', phase: 'Done', percent: 100, ...counters, message, state: cachedState });
     return { ...counters, published: counters.uploaded, stopped: stopRequested, results, message, state: cachedState };
   }

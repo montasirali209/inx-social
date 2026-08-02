@@ -182,20 +182,12 @@
                 <span>Uploaded: <strong id="progressUploaded">0</strong></span>
                 <span>Failed: <strong id="progressFailed">0</strong></span>
               </div>
-              <div id="liveFeed" class="live-feed"><div class="feed-item muted">Waiting for upload activity.</div></div>
+              <div class="progress-history-note">Current-batch progress is shown here. Open Activity Logs for the permanent record of every upload attempt.</div>
             </div>
           </section>
         </div>
 
-        <section class="panel">
-          <div class="panel-head row">
-            <div>
-              <h3>Recent schedule jobs</h3>
-              <p>Upload list plus Meta schedule status.</p>
-            </div>
-          </div>
-          <div id="recentJobs" class="table-wrap"></div>
-        </section>
+
       </section>
 
 
@@ -491,7 +483,16 @@ Third video caption #hashtags"></textarea>
       <section id="logs" class="view">
         <div class="panel">
           <div class="panel-head row">
-            <div><h3>Logs</h3><p>Import, planner, upload, and error events.</p></div>
+            <div>
+              <h3>Complete upload &amp; schedule history</h3>
+              <p>Every retained attempt, including its queue time, Meta upload completion, Facebook publish time, Meta ID and exact failure reason.</p>
+            </div>
+          </div>
+          <div id="recentJobs" class="table-wrap tall"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head row">
+            <div><h3>System event details</h3><p>Permanent backend status details for troubleshooting and audit.</p></div>
             <button id="btnClearAll" class="btn danger">Clear Local Library</button>
           </div>
           <div id="logsTable" class="table-wrap tall"></div>

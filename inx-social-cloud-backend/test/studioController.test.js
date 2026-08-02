@@ -42,6 +42,7 @@ const prisma = {
     groupBy: async () => [{ status: 'DRAFT', _count: { _all: 1 } }],
     findMany: async () => [],
     findUnique: async () => null,
+    findFirst: async () => null,
     count: async () => 0,
     create: async input => {
       createdInput = input;
