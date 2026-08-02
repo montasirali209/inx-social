@@ -632,6 +632,27 @@ Third video caption #hashtags"></textarea>
     <button id="dockHealth" title="Health Check">✓</button>
   </div>
 
+  <div id="studioActionModal" class="studio-action-modal hidden" role="dialog" aria-modal="true" aria-labelledby="studioActionTitle" aria-describedby="studioActionMessage">
+    <section id="studioActionCard" class="studio-action-card" data-tone="info">
+      <div class="studio-action-glow" aria-hidden="true"></div>
+      <header class="studio-action-header">
+        <div id="studioActionIcon" class="studio-action-icon" aria-hidden="true">!</div>
+        <div class="studio-action-heading">
+          <span id="studioActionEyebrow" class="studio-action-eyebrow">INX Social</span>
+          <h2 id="studioActionTitle">Please confirm</h2>
+          <p id="studioActionMessage"></p>
+        </div>
+        <button id="studioActionClose" class="studio-action-close" type="button" aria-label="Close">&times;</button>
+      </header>
+      <div id="studioActionMetrics" class="studio-action-metrics hidden"></div>
+      <div id="studioActionDetails" class="studio-action-details hidden"></div>
+      <footer class="studio-action-footer">
+        <button id="studioActionCancel" class="btn secondary" type="button">Cancel</button>
+        <button id="studioActionConfirm" class="btn primary studio-action-confirm" type="button">Continue</button>
+      </footer>
+    </section>
+  </div>
+
   <div id="toast" class="toast hidden"></div>
   <script src="web-adapter.js"></script>
   <script src="app.js"></script>

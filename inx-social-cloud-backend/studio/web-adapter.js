@@ -919,7 +919,12 @@
       return cachedState;
     },
     openUserData: async () => {
-      alert('Cloud Studio keeps only your current browser file selections. Videos stream temporarily to Meta and are deleted from the server after each attempt.');
+      window.dispatchEvent(new CustomEvent('inx:studio-notice', {
+        detail: {
+          message: 'Cloud Studio keeps only your current browser file selections.',
+          details: ['Videos stream temporarily to Meta and are deleted from the server after each attempt.']
+        }
+      }));
       return 'Browser session';
     },
     openExternalUrl: async url => {

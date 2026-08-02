@@ -10,6 +10,7 @@ let settingsDailySlots = [];
 let labVideoPath = '';
 let accountMode = 'login';
 let cloudWorkspace = { accounts: [], pages: [], activePage: null, pageUsage: null, plan: null };
+let studioActionModalResolver = null;
 
 const UI_TEXT_FIELDS = [
   'appTitle', 'appSubtitle', 'dashboardTitle', 'dashboardSubtitle',
@@ -36,6 +37,7 @@ const views = {
 };
 
 window.addEventListener('DOMContentLoaded', async () => {
+  bindStudioActionModal();
   bindNavigation();
   bindButtons();
   bindDragAndDrop();
@@ -58,6 +60,89 @@ window.addEventListener('DOMContentLoaded', async () => {
   buildDraftTimePicker();
   buildReelsTimePicker();
 });
+
+function bindStudioActionModal() {
+  const modal = document.getElementById('studioActionModal');
+  if (!modal) return;
+  document.getElementById('studioActionConfirm')?.addEventListener('click', () => closeStudioActionModal(true));
+  document.getElementById('studioActionCancel')?.addEventListener('click', () => closeStudioActionModal(false));
+  document.getElementById('studioActionClose')?.addEventListener('click', () => closeStudioActionModal(false));
+  modal.addEventListener('click', event => {
+    if (event.target === modal) closeStudioActionModal(false);
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !modal.classList.contains('hidden')) closeStudioActionModal(false);
+  });
+  window.addEventListener('inx:studio-notice', event => {
+    showStudioConfirm({
+      eyebrow: 'INX Social',
+      title: 'Browser privacy',
+      message: event.detail?.message || 'Your current browser selections remain private.',
+      details: event.detail?.details || [],
+      icon: 'i',
+      tone: 'info',
+      confirmText: 'Got it',
+      cancelText: ''
+    });
+  });
+}
+
+function closeStudioActionModal(result) {
+  const modal = document.getElementById('studioActionModal');
+  if (!modal || modal.classList.contains('hidden')) return;
+  modal.classList.remove('is-visible');
+  const resolve = studioActionModalResolver;
+  studioActionModalResolver = null;
+  window.setTimeout(() => modal.classList.add('hidden'), 180);
+  if (resolve) resolve(Boolean(result));
+}
+
+function showStudioConfirm(options = {}) {
+  const modal = document.getElementById('studioActionModal');
+  if (!modal) return Promise.resolve(false);
+  if (studioActionModalResolver) {
+    const previous = studioActionModalResolver;
+    studioActionModalResolver = null;
+    previous(false);
+  }
+  const card = document.getElementById('studioActionCard');
+  const eyebrow = document.getElementById('studioActionEyebrow');
+  const title = document.getElementById('studioActionTitle');
+  const message = document.getElementById('studioActionMessage');
+  const icon = document.getElementById('studioActionIcon');
+  const metrics = document.getElementById('studioActionMetrics');
+  const details = document.getElementById('studioActionDetails');
+  const cancel = document.getElementById('studioActionCancel');
+  const confirmButton = document.getElementById('studioActionConfirm');
+  if (card) card.dataset.tone = options.tone || 'info';
+  if (eyebrow) eyebrow.textContent = options.eyebrow || 'INX Social';
+  if (title) title.textContent = options.title || 'Please confirm';
+  if (message) message.textContent = options.message || '';
+  if (icon) icon.textContent = options.icon || '!';
+  if (metrics) {
+    metrics.innerHTML = (options.metrics || []).map(item => `
+      <div class="studio-action-metric">
+        <span>${escapeHtml(String(item.label || ''))}</span>
+        <strong>${escapeHtml(String(item.value ?? ''))}</strong>
+      </div>`).join('');
+    metrics.classList.toggle('hidden', !(options.metrics || []).length);
+  }
+  if (details) {
+    details.innerHTML = (options.details || []).filter(Boolean).map(item => `<p>${escapeHtml(String(item))}</p>`).join('');
+    details.classList.toggle('hidden', !(options.details || []).filter(Boolean).length);
+  }
+  if (cancel) {
+    cancel.textContent = options.cancelText || 'Cancel';
+    cancel.classList.toggle('hidden', options.cancelText === '');
+  }
+  if (confirmButton) confirmButton.textContent = options.confirmText || 'Continue';
+  modal.classList.remove('hidden');
+  window.requestAnimationFrame(() => {
+    modal.classList.add('is-visible');
+    confirmButton?.focus();
+  });
+  return new Promise(resolve => { studioActionModalResolver = resolve; });
+}
 
 
 function bindAccountUI() {
@@ -653,16 +738,26 @@ async function confirmDuplicateReels(videoPaths) {
   const inspection = await window.schedulerApi.inspectReelsSelection(videoPaths);
   if (!inspection.duplicates.length) return inspection;
   if (!inspection.acceptedCount) throw new Error('Every selected filename matches a Reel that is processing, scheduled, or published for this Page. Failed attempts can be retried and are not treated as duplicates.');
-  const names = inspection.duplicates.slice(0, 8).map(item => `• ${item.name}`).join('\n');
-  const more = inspection.duplicates.length > 8 ? `\n• and ${inspection.duplicates.length - 8} more` : '';
-  const proceed = confirm(
-    `${inspection.duplicates.length} duplicate video filename(s) were found:\n\n${names}${more}\n\n` +
-    `${inspection.acceptedCount} new video(s) can still be uploaded. Continue and skip only the duplicates?`
-  );
+  const names = inspection.duplicates.slice(0, 8).map(item => item.name);
+  if (inspection.duplicates.length > 8) names.push(`and ${inspection.duplicates.length - 8} more`);
+  const proceed = await showStudioConfirm({
+    eyebrow: 'Duplicate protection',
+    title: 'Duplicate videos found',
+    message: 'INX Social will skip filenames already confirmed on Facebook and upload only the new videos.',
+    icon: '≠',
+    tone: 'warning',
+    metrics: [
+      { label: 'Duplicates skipped', value: inspection.duplicates.length },
+      { label: 'New videos ready', value: inspection.acceptedCount }
+    ],
+    details: names,
+    confirmText: `Upload ${inspection.acceptedCount} new video${inspection.acceptedCount === 1 ? '' : 's'}`,
+    cancelText: 'Cancel'
+  });
   return proceed ? inspection : null;
 }
 
-function confirmScheduleAdjustment(schedule) {
+async function confirmScheduleAdjustment(schedule) {
   const first = schedule.firstAvailableAt ? new Date(schedule.firstAvailableAt).toLocaleString() : 'the next available slot';
   const last = schedule.lastAvailableAt ? new Date(schedule.lastAvailableAt).toLocaleString() : 'unknown';
   const reasons = [];
@@ -671,18 +766,28 @@ function confirmScheduleAdjustment(schedule) {
   const requested = Number(schedule.requestedCount || 0);
   const accepted = Number(schedule.acceptedByMetaCapacity || schedule.slots?.length || 0);
   const deferred = Number(schedule.deferredTotal || Math.max(0, requested - accepted));
-  const reasonText = reasons.length ? `\n${reasons.join(' and ')}. Those times will be skipped.` : '';
-  const deferredText = deferred
-    ? `\n\nOnly ${accepted} of ${requested} selected new video(s) can be queued now. ${deferred} will not be uploaded in this run.`
-    : `\n\nAll ${accepted} selected new video(s) can be queued.`;
-  return confirm(
-    `Facebook schedule check\n\n` +
-    `Future posts currently returned by Facebook: ${Number(schedule.metaScheduledCount || 0)}\n` +
-    `INX Social safety guardrail: ${Number(schedule.metaGuardrailLimit || 60)}\n` +
-    `Remaining guardrail capacity: ${Number(schedule.metaRemainingCapacity || 0)}` +
-    `${reasonText}${deferredText}\n\n` +
-    `First new slot: ${first}\nLast new slot: ${last}\n\nContinue?`
-  );
+  return showStudioConfirm({
+    eyebrow: 'Facebook schedule check',
+    title: deferred ? 'Some videos need a later upload' : 'Your schedule is ready',
+    message: deferred
+      ? `Facebook can accept ${accepted} of the ${requested} selected videos in this run. The remaining ${deferred} will stay in your browser and will not be uploaded.`
+      : `All ${accepted} selected videos fit the available Facebook schedule.`,
+    icon: deferred ? '!' : '✓',
+    tone: deferred ? 'warning' : 'success',
+    metrics: [
+      { label: 'Facebook future posts', value: Number(schedule.metaScheduledCount || 0) },
+      { label: 'Safety limit', value: Number(schedule.metaGuardrailLimit || 60) },
+      { label: 'Available now', value: Number(schedule.metaRemainingCapacity || 0) },
+      { label: 'Videos in this run', value: accepted }
+    ],
+    details: [
+      reasons.length ? `${reasons.join(' and ')}. Those times will be skipped.` : '',
+      `First new slot: ${first}`,
+      `Last new slot: ${last}`
+    ],
+    confirmText: deferred ? `Upload ${accepted} videos` : 'Continue upload',
+    cancelText: 'Cancel'
+  });
 }
 
 async function createReelsQueue() {
@@ -775,7 +880,7 @@ async function startReelsWatcher() {
         startDate,
         times
       });
-      if (!confirmScheduleAdjustment(schedule)) {
+      if (!await confirmScheduleAdjustment(schedule)) {
         throw new Error('Upload cancelled. No videos were queued.');
       }
     }
@@ -1229,7 +1334,7 @@ async function connectFacebookPage() {
 }
 
 async function disconnectFacebookPage() {
-  if (!confirm('Clear the saved Facebook Page ID and access token from this app?')) return;
+  if (!await showStudioConfirm({ eyebrow: 'Facebook connection', title: 'Clear the saved connection?', message: 'This removes the saved Facebook Page connection from INX Social.', icon: '×', tone: 'danger', confirmText: 'Clear connection', cancelText: 'Keep connected' })) return;
   try {
     const result = await window.schedulerApi.disconnectFacebookPage();
     state = result.state;
@@ -1324,7 +1429,7 @@ async function checkManualPost() {
 async function publishManualPostNow() {
   const activePage = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected);
   if (!activePage) return toast('Connect and select a Facebook Page first.', true);
-  if (!confirm(`Publish this Reel to ${activePage.facebookPageName} now?\n\nThis will make the Reel public on Facebook immediately.`)) return;
+  if (!await showStudioConfirm({ eyebrow: 'Publish immediately', title: `Publish to ${activePage.facebookPageName}?`, message: 'This Reel will become public on Facebook immediately.', icon: '↑', tone: 'success', confirmText: 'Publish now', cancelText: 'Cancel' })) return;
 
   try {
     updateManualProgress({ phase: 'Publishing now', percent: 5, message: 'Uploading the selected Reel to Facebook for immediate publishing…' });
@@ -1442,7 +1547,7 @@ async function openUserData() {
 }
 
 async function clearAll() {
-  if (!confirm('Clear all local videos, captions, jobs, and logs from this app? This will not delete posts already scheduled on Facebook.')) return;
+  if (!await showStudioConfirm({ eyebrow: 'Local browser data', title: 'Clear the local session?', message: 'This clears local videos, captions, jobs, and logs. It will not delete posts already scheduled on Facebook.', icon: '×', tone: 'danger', confirmText: 'Clear local data', cancelText: 'Cancel' })) return;
   state = await window.schedulerApi.clearAll();
   lastPreview = null;
   render();
@@ -1495,7 +1600,7 @@ async function saveUITexts() {
 }
 
 async function resetUITexts() {
-  if (!confirm('Reset all button names and interface labels to default?')) return;
+  if (!await showStudioConfirm({ eyebrow: 'Interface settings', title: 'Reset interface labels?', message: 'All customised button names and labels will return to their defaults.', icon: '↺', tone: 'warning', confirmText: 'Reset labels', cancelText: 'Cancel' })) return;
   const result = await window.schedulerApi.resetUITexts();
   state = result.state;
   render();
@@ -2243,7 +2348,7 @@ function renderActiveWorkspaceMenu(pages, active) {
 }
 
 async function revokePageV2(pageId) {
-  if (!confirm('Disconnect this Facebook Page from INX Social?')) return;
+  if (!await showStudioConfirm({ eyebrow: 'Connected Pages', title: 'Disconnect this Facebook Page?', message: 'The Page will no longer be available as an INX Social publishing destination.', icon: '×', tone: 'danger', confirmText: 'Disconnect Page', cancelText: 'Keep connected' })) return;
   try { const result = await window.schedulerApi.revokeWorkspacePage(pageId); state = result.state; cloudWorkspace = result.workspace; renderWorkspaceV2(); renderReelsSessionSummary(); toast('Facebook Page disconnected.'); }
   catch (error) { toast(error.message, true); }
 }
@@ -2273,7 +2378,7 @@ async function disconnectActiveWorkspacePage() {
   const active = cloudWorkspace.activePage || (cloudWorkspace.pages || []).find(page => page.isSelected) || null;
   const savedPageName = active?.facebookPageName || state.settings?.connectedPageName || 'the active Facebook Page';
   if (!active && !state.settings?.pageId) return toast('No Facebook Page is currently connected.', true);
-  if (!confirm(`Disconnect ${savedPageName} from INX Social?\n\nThis removes only this Page. Other connected Pages stay available. Use Facebook permissions if you also want to remove INX Social from your Facebook account.`)) return;
+  if (!await showStudioConfirm({ eyebrow: 'Connected Pages', title: `Disconnect ${savedPageName}?`, message: 'This removes only this Page. Other connected Pages stay available.', details: ['Use Facebook permissions if you also want to remove INX Social from your Facebook account.'], icon: '×', tone: 'danger', confirmText: 'Disconnect Page', cancelText: 'Keep connected' })) return;
 
   if (active && !active.localOnly && !String(active.id || '').startsWith('local-')) {
     try {
