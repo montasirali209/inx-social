@@ -3,6 +3,7 @@
 
   const TOKEN_KEY = 'inx-social-cloud-token';
   const FACEBOOK_APP_ID = '969283649323618';
+  const META_SCHEDULE_GUARDRAIL = 60;
   const files = new Map();
   const jobFiles = new Map();
   const pagePictureUrls = new Map();
@@ -77,6 +78,13 @@
     const url = URL.createObjectURL(await response.blob());
     pagePictureUrls.set(id, url);
     return url;
+  }
+
+  function clearPagePictureCache() {
+    for (const url of pagePictureUrls.values()) {
+      try { URL.revokeObjectURL(url); } catch (_) {}
+    }
+    pagePictureUrls.clear();
   }
 
   function withLocalState(serverState) {
@@ -228,7 +236,32 @@
     return { accepted, rejected: [], state: cachedState };
   }
 
-  function schedulePlan(count, startDate, requestedTimes) {
+  function scheduledPostDate(post) {
+    const raw = post?.scheduled_publish_time;
+    if (raw === null || raw === undefined || raw === '') return null;
+    const numeric = Number(raw);
+    const date = Number.isFinite(numeric)
+      ? new Date(numeric > 100000000000 ? numeric : numeric * 1000)
+      : new Date(raw);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  async function liveMetaSchedule() {
+    const response = await api('/api/studio/facebook/scheduled-posts');
+    const posts = Array.isArray(response?.result?.data) ? response.result.data : [];
+    const futurePosts = posts.filter(post => {
+      const date = scheduledPostDate(post);
+      return date && date.getTime() > Date.now() && post?.is_published !== true;
+    });
+    return {
+      posts: futurePosts,
+      scheduledCount: futurePosts.length,
+      guardrailLimit: META_SCHEDULE_GUARDRAIL,
+      remainingCapacity: Math.max(0, META_SCHEDULE_GUARDRAIL - futurePosts.length)
+    };
+  }
+
+  function schedulePlan(count, startDate, requestedTimes, liveSchedule = null) {
     const settings = cachedState.settings || {};
     const times = [...new Set(
       (requestedTimes?.length ? requestedTimes : settings.dailySlots || [])
@@ -242,6 +275,10 @@
         .filter(job => !String(job.status || '').includes('failed') && String(job.status || '') !== 'cancelled' && job.scheduledAtISO)
         .map(job => new Date(job.scheduledAtISO).toISOString().slice(0, 16))
     );
+    for (const post of liveSchedule?.posts || []) {
+      const date = scheduledPostDate(post);
+      if (date) occupied.add(date.toISOString().slice(0, 16));
+    }
     if (!startDate) throw new Error('Choose a schedule start date.');
     const start = new Date(`${startDate}T00:00:00`);
     if (Number.isNaN(start.getTime())) throw new Error('Choose a valid start date.');
@@ -268,16 +305,31 @@
         }
       }
     }
-    if (result.length < count) {
-      throw new Error(`Only ${result.length} future slot(s) are available inside ${maxDays} days.`);
-    }
     return {
       slots: result,
       skippedOccupied,
       skippedPast,
+      requestedCount: count,
+      unscheduledByDateWindow: Math.max(0, count - result.length),
       requestedStartDate: startDate,
       firstAvailableAt: result[0]?.toISOString() || null,
-      lastAvailableAt: result[result.length - 1]?.toISOString() || null
+      lastAvailableAt: result[result.length - 1]?.toISOString() || null,
+      metaScheduledCount: Number(liveSchedule?.scheduledCount || 0),
+      metaGuardrailLimit: Number(liveSchedule?.guardrailLimit || META_SCHEDULE_GUARDRAIL),
+      metaRemainingCapacity: Number(liveSchedule?.remainingCapacity ?? META_SCHEDULE_GUARDRAIL)
+    };
+  }
+
+  async function prepareSchedulePlan(count, startDate, requestedTimes) {
+    const liveSchedule = await liveMetaSchedule();
+    const allowedCount = Math.min(Number(count || 0), liveSchedule.remainingCapacity);
+    const plan = schedulePlan(allowedCount, startDate, requestedTimes, liveSchedule);
+    return {
+      ...plan,
+      requestedCount: Number(count || 0),
+      acceptedByMetaCapacity: plan.slots.length,
+      deferredByMetaCapacity: Math.max(0, Number(count || 0) - liveSchedule.remainingCapacity),
+      deferredTotal: Math.max(0, Number(count || 0) - plan.slots.length)
     };
   }
 
@@ -290,7 +342,7 @@
     const existingNames = new Map(
       (cachedState.jobs || [])
         .filter(job => !activeFacebookPageId || String(job.facebookPageId || '') === activeFacebookPageId)
-        .filter(job => !['cancelled', 'reel_upload_failed', 'reel_failed', 'failed_retryable'].includes(String(job.status || '')))
+        .filter(job => ['reel_uploading', 'reel_scheduled', 'reel_published', 'scheduled', 'published'].includes(String(job.status || '')))
         .map(job => [String(job.videoName || '').toLowerCase(), job])
     );
     const seen = new Set();
@@ -377,14 +429,19 @@
       throw new Error(`${inspection.duplicates.length} duplicate video filename(s) found. Confirm that duplicates should be skipped before continuing.`);
     }
     const selected = inspection.acceptedIndexes.map(index => ({ path: paths[index], caption: captions[index] }));
-    if (!selected.length) throw new Error('Every selected video is already recorded for this Page. Nothing new was queued.');
-    const count = selected.length;
+    if (!selected.length) throw new Error('Every selected filename matches a Reel that is processing, scheduled, or published for this Page. Failed attempts are not blocked.');
+    let count = selected.length;
     const immediate = String(payload.publishMode || '').toUpperCase() === 'NOW';
-    const schedule = immediate ? null : schedulePlan(count, payload.startDate, payload.times);
+    const schedule = immediate ? null : await prepareSchedulePlan(count, payload.startDate, payload.times);
+    if (!immediate) count = schedule.slots.length;
+    if (!count) {
+      throw new Error(`Facebook currently has ${schedule.metaScheduledCount} future scheduled post(s). No safe scheduling capacity is available under the ${schedule.metaGuardrailLimit}-item INX Social guardrail.`);
+    }
+    const queueSelection = selected.slice(0, count);
     const slots = schedule?.slots || [];
     const jobs = [];
     for (let index = 0; index < count; index++) {
-      const item = selected[index];
+      const item = queueSelection[index];
       const file = files.get(item.path);
       if (!file) throw new Error(`The browser no longer has access to ${fileName(item.path)}. Select it again.`);
       jobs.push(await createCloudJob({
@@ -402,6 +459,7 @@
       captionsUsed: count,
       captionsIgnored: Math.max(0, captions.length - count),
       skippedDuplicates: inspection.duplicates,
+      deferredVideos: selected.slice(count).map(item => fileName(item.path)),
       schedule
     };
   }
@@ -814,9 +872,13 @@
     },
     previewReelsSchedule: async payload => {
       await fetchState();
-      return schedulePlan(payload.count, payload.startDate, payload.times);
+      return prepareSchedulePlan(payload.count, payload.startDate, payload.times);
     },
     getPagePictureUrl: pagePictureUrl,
+    clearPagePictureCache: async () => {
+      clearPagePictureCache();
+      return { cleared: true };
+    },
     runDueReels: runJobs,
     startReelsWatcher: async () => ({ active: false, message: 'Cloud uploads run only while this browser is open.', state: cachedState }),
     stopReelsWatcher: async () => {

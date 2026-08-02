@@ -149,16 +149,25 @@ async function pagePicture(req, res, next) {
     });
     if (!page?.facebookPageId || !page?.encryptedAccessToken) return res.status(404).end();
     const graphVersion = process.env.FB_GRAPH_VERSION || process.env.GRAPH_VERSION || 'v25.0';
-    const response = await axios.get(
-      `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(page.facebookPageId)}/picture`,
+    const pageAccessToken = decryptToken(page.encryptedAccessToken);
+    const picture = await axios.get(
+      `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(page.facebookPageId)}`,
       {
-        params: { type: 'normal', access_token: decryptToken(page.encryptedAccessToken) },
-        responseType: 'arraybuffer',
+        params: { fields: 'picture.type(large)', access_token: pageAccessToken },
         timeout: 15000,
-        maxRedirects: 5
+        validateStatus: status => status >= 200 && status < 500
       }
     );
-    const contentType = String(response.headers['content-type'] || 'image/jpeg');
+    const pictureUrl = picture.data?.picture?.data?.url || page.facebookPagePicture;
+    if (!pictureUrl || picture.status >= 400 || picture.data?.error) return res.status(404).end();
+    const response = await axios.get(pictureUrl, {
+      responseType: 'arraybuffer',
+      timeout: 15000,
+      maxRedirects: 5,
+      validateStatus: status => status >= 200 && status < 500
+    });
+    const contentType = String(response.headers['content-type'] || '');
+    if (response.status >= 400) return res.status(404).end();
     if (!contentType.startsWith('image/')) return res.status(404).end();
     res.setHeader('Content-Type', contentType);
     res.setHeader('Cache-Control', 'private, max-age=300');
@@ -537,7 +546,7 @@ async function createDraft(req, res, next) {
       where: {
         userId: req.user.id,
         origin: 'CLOUD',
-        status: { in: [JOB_STATUS.DRAFT, JOB_STATUS.AWAITING_UPLOAD, JOB_STATUS.READY, JOB_STATUS.QUEUED, JOB_STATUS.PROCESSING, JOB_STATUS.FAILED] }
+        status: { in: [JOB_STATUS.DRAFT, JOB_STATUS.AWAITING_UPLOAD, JOB_STATUS.READY, JOB_STATUS.QUEUED, JOB_STATUS.PROCESSING] }
       }
     });
     if (license.limits.batchPosts !== null && currentBatchSize >= license.limits.batchPosts) {
@@ -558,10 +567,6 @@ async function createDraft(req, res, next) {
     }
 
     const protectedStatuses = [
-      JOB_STATUS.DRAFT,
-      JOB_STATUS.AWAITING_UPLOAD,
-      JOB_STATUS.READY,
-      JOB_STATUS.QUEUED,
       JOB_STATUS.PROCESSING,
       JOB_STATUS.SCHEDULED,
       JOB_STATUS.PUBLISHED
@@ -577,7 +582,7 @@ async function createDraft(req, res, next) {
       orderBy: { createdAt: 'desc' }
     });
     if (duplicateFile) {
-      const error = new Error(`${input.originalFileName} is already recorded for this Page${duplicateFile.scheduledAt ? ` at ${duplicateFile.scheduledAt.toISOString()}` : ''}.`);
+      const error = new Error(`${input.originalFileName} is already processing, scheduled, or published for this Page${duplicateFile.scheduledAt ? ` at ${duplicateFile.scheduledAt.toISOString()}` : ''}. Failed attempts may be retried.`);
       error.status = 409;
       error.publicMessage = error.message;
       throw error;

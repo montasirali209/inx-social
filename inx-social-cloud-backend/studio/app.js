@@ -640,7 +640,10 @@ function renderReelsSchedulePreview() {
     const adjustment = schedule.skippedOccupied
       ? `<p class="simple-check warning">${schedule.skippedOccupied} occupied slot(s) will be skipped. First available: ${escapeHtml(new Date(schedule.firstAvailableAt).toLocaleString())}.</p>`
       : '';
-    target.innerHTML = `<h4>Studio upload preview</h4>${adjustment}${rows.join('')}${pairs > rows.length ? `<p class="muted">Showing first ${rows.length} of ${pairs} assignments.</p>` : ''}`;
+    const capacity = Number(schedule.deferredTotal || 0)
+      ? `<p class="simple-check warning">Facebook currently has ${Number(schedule.metaScheduledCount || 0)} future scheduled post(s). INX Social can prepare ${Number(schedule.acceptedByMetaCapacity || schedule.slots.length)} of ${Number(schedule.requestedCount || pairs)} selected new video(s) now; ${Number(schedule.deferredTotal || 0)} must wait.</p>`
+      : `<p class="simple-check success">Facebook currently has ${Number(schedule.metaScheduledCount || 0)} future scheduled post(s). All ${Number(schedule.slots.length || 0)} selected new video(s) fit the available schedule.</p>`;
+    target.innerHTML = `<h4>Studio upload preview</h4>${capacity}${adjustment}${rows.join('')}${schedule.slots.length > rows.length ? `<p class="muted">Showing first ${rows.length} of ${schedule.slots.length} assignments.</p>` : ''}`;
   }).catch(error => {
     target.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
   });
@@ -649,7 +652,7 @@ function renderReelsSchedulePreview() {
 async function confirmDuplicateReels(videoPaths) {
   const inspection = await window.schedulerApi.inspectReelsSelection(videoPaths);
   if (!inspection.duplicates.length) return inspection;
-  if (!inspection.acceptedCount) throw new Error('Every selected video is already recorded for this Page. Nothing new can be uploaded.');
+  if (!inspection.acceptedCount) throw new Error('Every selected filename matches a Reel that is processing, scheduled, or published for this Page. Failed attempts can be retried and are not treated as duplicates.');
   const names = inspection.duplicates.slice(0, 8).map(item => `• ${item.name}`).join('\n');
   const more = inspection.duplicates.length > 8 ? `\n• and ${inspection.duplicates.length - 8} more` : '';
   const proceed = confirm(
@@ -665,9 +668,20 @@ function confirmScheduleAdjustment(schedule) {
   const reasons = [];
   if (schedule.skippedOccupied) reasons.push(`${schedule.skippedOccupied} slot(s) already contain scheduled videos`);
   if (schedule.skippedPast) reasons.push(`${schedule.skippedPast} slot(s) are already past the minimum lead time`);
+  const requested = Number(schedule.requestedCount || 0);
+  const accepted = Number(schedule.acceptedByMetaCapacity || schedule.slots?.length || 0);
+  const deferred = Number(schedule.deferredTotal || Math.max(0, requested - accepted));
+  const reasonText = reasons.length ? `\n${reasons.join(' and ')}. Those times will be skipped.` : '';
+  const deferredText = deferred
+    ? `\n\nOnly ${accepted} of ${requested} selected new video(s) can be queued now. ${deferred} will not be uploaded in this run.`
+    : `\n\nAll ${accepted} selected new video(s) can be queued.`;
   return confirm(
-    `The selected start date cannot use every requested slot because ${reasons.join(' and ')}.\n\n` +
-    `The next available slot is ${first}. INX Social will skip occupied slots automatically and schedule this batch through ${last}.\n\nContinue?`
+    `Facebook schedule check\n\n` +
+    `Future posts currently returned by Facebook: ${Number(schedule.metaScheduledCount || 0)}\n` +
+    `INX Social safety guardrail: ${Number(schedule.metaGuardrailLimit || 60)}\n` +
+    `Remaining guardrail capacity: ${Number(schedule.metaRemainingCapacity || 0)}` +
+    `${reasonText}${deferredText}\n\n` +
+    `First new slot: ${first}\nLast new slot: ${last}\n\nContinue?`
   );
 }
 
@@ -761,7 +775,7 @@ async function startReelsWatcher() {
         startDate,
         times
       });
-      if ((schedule.skippedOccupied || schedule.skippedPast) && !confirmScheduleAdjustment(schedule)) {
+      if (!confirmScheduleAdjustment(schedule)) {
         throw new Error('Upload cancelled. No videos were queued.');
       }
     }
@@ -786,9 +800,12 @@ async function startReelsWatcher() {
     if (text) text.value = '';
     resetReelsTimingSelection();
     render();
+    const capacityNote = created.deferredVideos?.length
+      ? ` ${created.deferredVideos.length} video(s) were not queued because the current Facebook schedule capacity or date window was full.`
+      : '';
     const fallback = immediate
       ? `Upload finished. Published ${result.uploaded || result.published || 0}, failed ${result.failed || 0}.`
-      : `Upload finished. Scheduled ${result.uploaded || result.published || 0}, failed ${result.failed || 0}.`;
+      : `Upload finished. Scheduled ${result.uploaded || result.published || 0}, failed ${result.failed || 0}.${capacityNote}`;
     updateReelsPanel({ phase: 'Done', percent: 100, message: result.message || fallback, current: 0, total: 0, uploaded: result.uploaded || result.published || 0, failed: result.failed || 0 });
     toast(result.message || fallback);
   } catch (err) {
@@ -2047,6 +2064,7 @@ async function refreshWorkspaceV2(options = {}) {
     const result = await window.schedulerApi.refreshWorkspace();
     state = result.state;
     cloudWorkspace = result.workspace || state.workspace || cloudWorkspace;
+    await window.schedulerApi.clearPagePictureCache?.();
     renderWorkspaceV2();
     if (!options.silent) {
       toast(result.workspace?.syncWarning
