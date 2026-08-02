@@ -2,6 +2,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
+const axios = require('axios');
 const { Transform } = require('stream');
 const { pipeline } = require('stream/promises');
 const { z } = require('zod');
@@ -138,6 +139,34 @@ function publicPage(page) {
     lastSyncAt: page.lastSyncAt,
     lastError: page.lastError
   };
+}
+
+async function pagePicture(req, res, next) {
+  try {
+    await requireStudioLicense(req.user.id);
+    const page = await prisma.connectedPage.findFirst({
+      where: { id: req.params.id, userId: req.user.id, status: 'ACTIVE' }
+    });
+    if (!page?.facebookPageId || !page?.encryptedAccessToken) return res.status(404).end();
+    const graphVersion = process.env.FB_GRAPH_VERSION || process.env.GRAPH_VERSION || 'v25.0';
+    const response = await axios.get(
+      `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(page.facebookPageId)}/picture`,
+      {
+        params: { type: 'normal', access_token: decryptToken(page.encryptedAccessToken) },
+        responseType: 'arraybuffer',
+        timeout: 15000,
+        maxRedirects: 5
+      }
+    );
+    const contentType = String(response.headers['content-type'] || 'image/jpeg');
+    if (!contentType.startsWith('image/')) return res.status(404).end();
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    return res.send(Buffer.from(response.data));
+  } catch (error) {
+    if (error.response?.status >= 400 && error.response?.status < 500) return res.status(404).end();
+    return next(error);
+  }
 }
 
 function publicAsset(asset) {
@@ -879,5 +908,6 @@ module.exports = {
   scheduledPosts,
   cancelJob,
   publicJob,
-  desktopJob
+  desktopJob,
+  pagePicture
 };

@@ -54,8 +54,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (md && !md.value) md.value = defaultDateInput();
   const dd = document.getElementById('draftStartDate');
   if (dd && !dd.value) dd.value = defaultDateInput();
-  const rd = document.getElementById('reelsStartDate');
-  if (rd && !rd.value) rd.value = defaultDateInput();
+  resetReelsTimingSelection();
   buildDraftTimePicker();
   buildReelsTimePicker();
 });
@@ -229,7 +228,9 @@ function bindButtons() {
   const draftMode = document.getElementById('draftTimingMode');
   if (draftMode) draftMode.addEventListener('change', renderDraftSessionSummary);
   const reelsMode = document.getElementById('reelsTimingMode');
-  if (reelsMode) reelsMode.addEventListener('change', renderReelsSessionSummary);
+  if (reelsMode) reelsMode.addEventListener('change', handleReelsTimingModeChange);
+  const reelsStartDate = document.getElementById('reelsStartDate');
+  if (reelsStartDate) reelsStartDate.addEventListener('change', renderReelsSessionSummary);
   const reelsPageSelect = document.getElementById('reelsPageSelect');
   if (reelsPageSelect) reelsPageSelect.addEventListener('change', async event => {
     const pageId = event.target.value;
@@ -486,8 +487,19 @@ function clearReelsSession() {
   reelsSelectedTimes = [];
   const text = document.getElementById('reelsCaptionText');
   if (text) text.value = '';
+  resetReelsTimingSelection();
   renderReelsSessionSummary();
   updateReelsPanel({ phase: 'Idle', percent: 0, current: 0, total: 0, uploaded: 0, failed: 0, message: 'Auto Scheduler session cleared.' });
+}
+
+function resetReelsTimingSelection() {
+  const mode = document.getElementById('reelsTimingMode');
+  const startDate = document.getElementById('reelsStartDate');
+  if (mode) mode.value = '';
+  if (startDate) {
+    startDate.value = '';
+    startDate.disabled = true;
+  }
 }
 
 function buildReelsTimePicker() {
@@ -526,24 +538,38 @@ function getReelsCaptionBlocks() {
 }
 
 function getReelsTimesForSummary() {
-  const mode = document.getElementById('reelsTimingMode') ? document.getElementById('reelsTimingMode').value : 'settings';
+  const mode = document.getElementById('reelsTimingMode')?.value || '';
   if (mode === 'immediate') return [];
   if (mode === 'custom') return reelsSelectedTimes;
-  return state && state.settings ? state.settings.dailySlots || [] : [];
+  return mode === 'settings' && state?.settings ? state.settings.dailySlots || [] : [];
+}
+
+function handleReelsTimingModeChange() {
+  const mode = document.getElementById('reelsTimingMode')?.value || '';
+  const startDate = document.getElementById('reelsStartDate');
+  const scheduled = mode === 'settings' || mode === 'custom';
+  if (startDate) {
+    startDate.disabled = !scheduled;
+    if (!scheduled) startDate.value = '';
+  }
+  renderReelsSessionSummary();
 }
 
 function renderReelsSessionSummary() {
-  const mode = document.getElementById('reelsTimingMode') ? document.getElementById('reelsTimingMode').value : 'settings';
+  const mode = document.getElementById('reelsTimingMode')?.value || '';
   const immediate = mode === 'immediate';
+  const scheduled = mode === 'settings' || mode === 'custom';
   const dateBox = document.getElementById('reelsScheduleDateBox');
-  if (dateBox) dateBox.classList.toggle('hidden', immediate);
+  if (dateBox) dateBox.classList.toggle('hidden', !scheduled);
   const customBox = document.getElementById('reelsCustomTimesBox');
   if (customBox) customBox.classList.toggle('hidden', mode !== 'custom');
   const description = document.getElementById('reelsUploadDescription');
   if (description) {
-    description.textContent = immediate
-      ? 'Upload Now publishes every selected video to the active Facebook Page immediately.'
-      : 'Upload Now sends every selected video to Meta now, and Facebook publishes each Reel at its assigned date and time.';
+    description.textContent = !mode
+      ? 'Choose a timing mode before uploading. Nothing is published or scheduled by default.'
+      : immediate
+        ? 'Upload Now publishes every selected video to the active Facebook Page immediately.'
+        : 'Upload Now sends every selected video to Meta now, and Facebook publishes each Reel at its assigned date and time.';
   }
   const selectedTimes = document.getElementById('reelsSelectedTimes');
   if (selectedTimes) {
@@ -554,16 +580,19 @@ function renderReelsSessionSummary() {
   const captions = getReelsCaptionBlocks();
   const times = getReelsTimesForSummary();
   const pairs = Math.min(reelsSessionVideos.length, captions.length);
+  const unusedCaptions = Math.max(0, captions.length - reelsSessionVideos.length);
   const box = document.getElementById('reelsSessionSummary');
   const activePage = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected) || null;
   if (box) {
     box.className = pairs && activePage ? 'simple-check success' : 'simple-check muted';
-    if (immediate) {
-      box.innerHTML = `${reelsSessionVideos.length} video(s) selected · ${captions.length} caption(s) · ${pairs} ready to publish now.<br><span class="muted">Destination: ${escapeHtml(activePage?.facebookPageName || 'No Page selected')}. Upload Now publishes every ready pair immediately.</span>`;
+    if (!mode) {
+      box.innerHTML = `${reelsSessionVideos.length} video(s) selected · ${captions.length} caption(s) · choose a timing mode to continue.${unusedCaptions ? ` The first ${reelsSessionVideos.length} captions will be used and ${unusedCaptions} extra caption(s) ignored.` : ''}`;
+    } else if (immediate) {
+      box.innerHTML = `${reelsSessionVideos.length} video(s) selected · ${captions.length} caption(s) · ${pairs} ready to publish now.${unusedCaptions ? ` First ${reelsSessionVideos.length} captions used; ${unusedCaptions} extra ignored.` : ''}<br><span class="muted">Destination: ${escapeHtml(activePage?.facebookPageName || 'No Page selected')}. Upload Now publishes every ready pair immediately.</span>`;
     } else {
       const perDay = Math.max(1, times.length || 0);
       const days = pairs ? Math.ceil(pairs / perDay) : 0;
-      box.innerHTML = `${reelsSessionVideos.length} video(s) selected · ${captions.length} caption(s) · ${pairs} ready pair(s) · ${times.length || 0} slot(s)/day · estimated ${days} day(s).<br><span class="muted">Destination: ${escapeHtml(activePage?.facebookPageName || 'No Page selected')}. Upload Now sends every item to Meta and schedules it for the assigned time.</span>`;
+      box.innerHTML = `${reelsSessionVideos.length} video(s) selected · ${captions.length} caption(s) · ${pairs} ready pair(s) · ${times.length || 0} slot(s)/day · estimated ${days} day(s).${unusedCaptions ? ` First ${reelsSessionVideos.length} captions used; ${unusedCaptions} extra ignored.` : ''}<br><span class="muted">Destination: ${escapeHtml(activePage?.facebookPageName || 'No Page selected')}. Upload Now sends every item to Meta and schedules it for the assigned time.</span>`;
     }
   }
   renderReelsSchedulePreview();
@@ -573,9 +602,13 @@ function renderReelsSchedulePreview() {
   const target = document.getElementById('reelsSchedulePreview');
   if (!target) return;
   const captions = getReelsCaptionBlocks();
-  const mode = document.getElementById('reelsTimingMode') ? document.getElementById('reelsTimingMode').value : 'settings';
+  const mode = document.getElementById('reelsTimingMode')?.value || '';
   const times = getReelsTimesForSummary();
   const pairs = Math.min(reelsSessionVideos.length, captions.length);
+  if (!mode) {
+    target.innerHTML = '<div class="empty">Choose a timing mode to preview the upload.</div>';
+    return;
+  }
   if (mode === 'immediate') {
     if (!pairs) {
       target.innerHTML = '<div class="empty">Select videos and add matching captions to preview immediate publishing.</div>';
@@ -591,54 +624,88 @@ function renderReelsSchedulePreview() {
     target.innerHTML = '<div class="empty">Select videos, captions, and at least one time slot to preview Reel assignments.</div>';
     return;
   }
-  const start = document.getElementById('reelsStartDate')?.value || defaultDateInput();
-  const rows = [];
-  let d = new Date(`${start}T00:00:00`);
-  let guard = 0;
-  while (rows.length < Math.min(pairs, 20) && guard < pairs + 60) {
-    for (const t of times) {
-      if (rows.length >= Math.min(pairs, 20)) break;
-      const [h,m] = t.split(':').map(Number);
-      const dt = new Date(d);
-      dt.setHours(h, m, 0, 0);
-      if (dt.getTime() > Date.now() + 60 * 1000) {
-        const file = reelsSessionVideos[rows.length] || '';
-        rows.push(`<div class="draft-preview-row"><strong>${rows.length + 1}.</strong> <span>${escapeHtml(file.split(/[\\/]/).pop())}</span><em>${dt.toLocaleString([], { weekday:'short', month:'short', day:'2-digit', hour:'numeric', minute:'2-digit' })}</em></div>`);
-      }
-    }
-    d.setDate(d.getDate() + 1);
-    guard++;
+  const start = document.getElementById('reelsStartDate')?.value || '';
+  if (!start) {
+    target.innerHTML = '<div class="empty">Choose a schedule start date to preview Reel assignments.</div>';
+    return;
   }
-  target.innerHTML = `<h4>Studio upload preview</h4>${rows.join('')}${pairs > rows.length ? `<p class="muted">Showing first ${rows.length} of ${pairs} assignments.</p>` : ''}`;
+  target.innerHTML = '<div class="empty">Checking existing scheduled slots...</div>';
+  window.schedulerApi.previewReelsSchedule({ count: pairs, startDate: start, times }).then(schedule => {
+    if (document.getElementById('reelsStartDate')?.value !== start) return;
+    const rows = schedule.slots.slice(0, 20).map((value, index) => {
+      const file = reelsSessionVideos[index] || '';
+      const date = new Date(value);
+      return `<div class="draft-preview-row"><strong>${index + 1}.</strong> <span>${escapeHtml(file.split(/[\\/]/).pop())}</span><em>${date.toLocaleString([], { weekday:'short', month:'short', day:'2-digit', hour:'numeric', minute:'2-digit' })}</em></div>`;
+    });
+    const adjustment = schedule.skippedOccupied
+      ? `<p class="simple-check warning">${schedule.skippedOccupied} occupied slot(s) will be skipped. First available: ${escapeHtml(new Date(schedule.firstAvailableAt).toLocaleString())}.</p>`
+      : '';
+    target.innerHTML = `<h4>Studio upload preview</h4>${adjustment}${rows.join('')}${pairs > rows.length ? `<p class="muted">Showing first ${rows.length} of ${pairs} assignments.</p>` : ''}`;
+  }).catch(error => {
+    target.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+  });
+}
+
+async function confirmDuplicateReels(videoPaths) {
+  const inspection = await window.schedulerApi.inspectReelsSelection(videoPaths);
+  if (!inspection.duplicates.length) return inspection;
+  if (!inspection.acceptedCount) throw new Error('Every selected video is already recorded for this Page. Nothing new can be uploaded.');
+  const names = inspection.duplicates.slice(0, 8).map(item => `• ${item.name}`).join('\n');
+  const more = inspection.duplicates.length > 8 ? `\n• and ${inspection.duplicates.length - 8} more` : '';
+  const proceed = confirm(
+    `${inspection.duplicates.length} duplicate video filename(s) were found:\n\n${names}${more}\n\n` +
+    `${inspection.acceptedCount} new video(s) can still be uploaded. Continue and skip only the duplicates?`
+  );
+  return proceed ? inspection : null;
+}
+
+function confirmScheduleAdjustment(schedule) {
+  const first = schedule.firstAvailableAt ? new Date(schedule.firstAvailableAt).toLocaleString() : 'the next available slot';
+  const last = schedule.lastAvailableAt ? new Date(schedule.lastAvailableAt).toLocaleString() : 'unknown';
+  const reasons = [];
+  if (schedule.skippedOccupied) reasons.push(`${schedule.skippedOccupied} slot(s) already contain scheduled videos`);
+  if (schedule.skippedPast) reasons.push(`${schedule.skippedPast} slot(s) are already past the minimum lead time`);
+  return confirm(
+    `The selected start date cannot use every requested slot because ${reasons.join(' and ')}.\n\n` +
+    `The next available slot is ${first}. INX Social will skip occupied slots automatically and schedule this batch through ${last}.\n\nContinue?`
+  );
 }
 
 async function createReelsQueue() {
   const activePage = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected) || null;
   if (!activePage) return toast('Choose a Facebook Page before preparing this Auto Scheduler session.', true);
   const captions = getReelsCaptionBlocks();
-  const mode = document.getElementById('reelsTimingMode') ? document.getElementById('reelsTimingMode').value : 'settings';
+  const mode = document.getElementById('reelsTimingMode')?.value || '';
   const immediate = mode === 'immediate';
   const times = mode === 'custom' ? reelsSelectedTimes : [];
-  const pairs = Math.min(reelsSessionVideos.length, captions.length);
-  if (!pairs) return toast('Select at least one Reel video and one caption.', true);
+  if (!mode) return toast('Choose a timing mode before preparing the upload.', true);
+  if (!reelsSessionVideos.length || !captions.length) return toast('Select at least one Reel video and one caption.', true);
+  if (captions.length < reelsSessionVideos.length) return toast(`Add ${reelsSessionVideos.length - captions.length} more caption(s) so every selected video has one.`, true);
   if (mode === 'custom' && !times.length) return toast('Choose at least one custom time, or switch to Settings slots.', true);
+  const startDate = document.getElementById('reelsStartDate')?.value || '';
+  if (!immediate && !startDate) return toast('Choose a schedule start date.', true);
   try {
+    const duplicateCheck = await confirmDuplicateReels(reelsSessionVideos);
+    if (!duplicateCheck) return;
     const result = await window.schedulerApi.createReelsQueue({
-      videoPaths: reelsSessionVideos.slice(0, pairs),
+      videoPaths: reelsSessionVideos,
       captionText: document.getElementById('reelsCaptionText').value,
-      startDate: immediate ? null : (document.getElementById('reelsStartDate')?.value || defaultDateInput()),
+      startDate: immediate ? null : startDate,
       times,
-      publishMode: immediate ? 'NOW' : 'SCHEDULED'
+      publishMode: immediate ? 'NOW' : 'SCHEDULED',
+      skipDuplicateVideos: duplicateCheck.duplicates.length > 0
     });
     state = result.state || state;
     reelsSessionVideos = [];
     reelsSelectedTimes = [];
     const text = document.getElementById('reelsCaptionText');
     if (text) text.value = '';
+    resetReelsTimingSelection();
     render();
-    toast(immediate
+    const duplicateNote = result.skippedDuplicates?.length ? ` Skipped ${result.skippedDuplicates.length} duplicate video(s).` : '';
+    toast((immediate
       ? `Prepared ${result.jobs.length} Reel item(s) to publish immediately.`
-      : `Prepared ${result.jobs.length} Reel item(s) for their scheduled times.`);
+      : `Prepared ${result.jobs.length} Reel item(s) for their scheduled times.`) + duplicateNote);
   } catch (err) {
     toast(err.message, true);
   }
@@ -673,22 +740,39 @@ async function startReelsWatcher() {
   updateReelsPanel({ phase: 'Preparing', percent: 3, message: 'Preparing the selected Reels...', current: 0, total: 0, uploaded: 0, failed: 0 });
   try {
     const captions = getReelsCaptionBlocks();
-    const mode = document.getElementById('reelsTimingMode') ? document.getElementById('reelsTimingMode').value : 'settings';
+    const mode = document.getElementById('reelsTimingMode')?.value || '';
     const immediate = mode === 'immediate';
     const times = mode === 'custom' ? reelsSelectedTimes : [];
-    const pairs = Math.min(reelsSessionVideos.length, captions.length);
-
-    if (!pairs) {
+    if (!mode) throw new Error('Choose a timing mode before clicking Upload Now.');
+    if (!reelsSessionVideos.length || !captions.length) {
       throw new Error('Select at least one video and add one matching caption before clicking Upload Now.');
     }
+    if (captions.length < reelsSessionVideos.length) {
+      throw new Error(`Add ${reelsSessionVideos.length - captions.length} more caption(s) so every selected video has one.`);
+    }
     if (mode === 'custom' && !times.length) throw new Error('Choose at least one custom time, or switch to Settings slots.');
+    const startDate = document.getElementById('reelsStartDate')?.value || '';
+    if (!immediate && !startDate) throw new Error('Choose a schedule start date before clicking Upload Now.');
+    const duplicateCheck = await confirmDuplicateReels(reelsSessionVideos);
+    if (!duplicateCheck) throw new Error('Upload cancelled. No videos were queued.');
+    if (!immediate) {
+      const schedule = await window.schedulerApi.previewReelsSchedule({
+        count: duplicateCheck.acceptedCount,
+        startDate,
+        times
+      });
+      if ((schedule.skippedOccupied || schedule.skippedPast) && !confirmScheduleAdjustment(schedule)) {
+        throw new Error('Upload cancelled. No videos were queued.');
+      }
+    }
 
     const created = await window.schedulerApi.createReelsQueue({
-      videoPaths: reelsSessionVideos.slice(0, pairs),
+      videoPaths: reelsSessionVideos,
       captionText: document.getElementById('reelsCaptionText').value,
-      startDate: immediate ? null : (document.getElementById('reelsStartDate')?.value || defaultDateInput()),
+      startDate: immediate ? null : startDate,
       times,
-      publishMode: immediate ? 'NOW' : 'SCHEDULED'
+      publishMode: immediate ? 'NOW' : 'SCHEDULED',
+      skipDuplicateVideos: duplicateCheck.duplicates.length > 0
     });
     state = created.state || state;
     const jobIds = (created.jobs || []).map(j => j.id);
@@ -700,6 +784,7 @@ async function startReelsWatcher() {
     reelsSelectedTimes = [];
     const text = document.getElementById('reelsCaptionText');
     if (text) text.value = '';
+    resetReelsTimingSelection();
     render();
     const fallback = immediate
       ? `Upload finished. Published ${result.uploaded || result.published || 0}, failed ${result.failed || 0}.`
@@ -1977,19 +2062,34 @@ async function refreshWorkspaceV2(options = {}) {
 function renderPageAvatar(elementId, page) {
   const target = document.getElementById(elementId);
   if (!target) return;
-  const picture = String(page?.facebookPagePicture || '').trim();
-  if (!picture) {
-    target.innerHTML = '<span>F</span>';
-    return;
-  }
-  const image = document.createElement('img');
-  image.src = picture;
-  image.alt = `${page?.facebookPageName || 'Facebook Page'} profile picture`;
-  image.referrerPolicy = 'no-referrer';
-  image.addEventListener('error', () => {
-    target.innerHTML = '<span>F</span>';
-  }, { once: true });
-  target.replaceChildren(image);
+  target.innerHTML = '<span>F</span>';
+  target.dataset.pagePictureId = page?.id || '';
+  hydratePagePictures(target);
+}
+
+function hydratePagePictures(root = document) {
+  const targets = [
+    ...(root.matches?.('[data-page-picture-id]') ? [root] : []),
+    ...(root.querySelectorAll?.('[data-page-picture-id]') || [])
+  ];
+  targets.forEach(async target => {
+    const pageId = target.dataset.pagePictureId;
+    if (!pageId || target.dataset.pictureLoading === 'true') return;
+    target.dataset.pictureLoading = 'true';
+    try {
+      const url = await window.schedulerApi.getPagePictureUrl(pageId);
+      if (!url || !target.isConnected || target.dataset.pagePictureId !== pageId) return;
+      const image = document.createElement('img');
+      image.src = url;
+      image.alt = 'Facebook Page profile picture';
+      image.addEventListener('error', () => target.replaceChildren(document.createTextNode('F')), { once: true });
+      target.replaceChildren(image);
+    } catch (_) {
+      target.replaceChildren(document.createTextNode('F'));
+    } finally {
+      delete target.dataset.pictureLoading;
+    }
+  });
 }
 
 function renderWorkspaceV2() {
@@ -2050,11 +2150,12 @@ function renderPagesV2() {
     return matchesSearch;
   });
   grid.innerHTML = pages.length ? pages.map(page => pageCardMarkup(page, false)).join('') : '<div class="workspace-empty">No connected Page matches this filter.</div>';
+  hydratePagePictures(grid);
   bindWorkspaceDynamicActions();
 }
 
 function pageCardMarkup(page, large) {
-  return `<article class="connected-page-card ${page.isSelected ? 'active' : ''} ${large ? 'large' : ''}"><div class="page-picture">${page.facebookPagePicture ? `<img src="${escapeHtml(page.facebookPagePicture)}">` : '<span>F</span>'}</div><div class="page-card-copy"><span>${escapeHtml(page.facebookCategory || 'Facebook Page')}</span><h3>${escapeHtml(page.facebookPageName)}</h3><p>${page.localOnly ? 'Saved on this device · reconnect once to sync' : escapeHtml(accountNameForPage(page))}</p></div><div class="page-card-state">${page.isSelected ? '<b>Active Page</b>' : '<button class="btn secondary compact" data-select-page="'+escapeHtml(page.id)+'">Use this Page</button>'}${!large && !page.localOnly ? `<button class="icon-danger" data-revoke-page="${escapeHtml(page.id)}" title="Disconnect Page">×</button>` : ''}</div></article>`;
+  return `<article class="connected-page-card ${page.isSelected ? 'active' : ''} ${large ? 'large' : ''}"><div class="page-picture" data-page-picture-id="${escapeHtml(page.id)}"><span>F</span></div><div class="page-card-copy"><span>${escapeHtml(page.facebookCategory || 'Facebook Page')}</span><h3>${escapeHtml(page.facebookPageName)}</h3><p>${page.localOnly ? 'Saved on this device · reconnect once to sync' : escapeHtml(accountNameForPage(page))}</p></div><div class="page-card-state">${page.isSelected ? '<b>Active Page</b>' : '<button class="btn secondary compact" data-select-page="'+escapeHtml(page.id)+'">Use this Page</button>'}${!large && !page.localOnly ? `<button class="icon-danger" data-revoke-page="${escapeHtml(page.id)}" title="Disconnect Page">×</button>` : ''}</div></article>`;
 }
 
 function accountNameForPage(page) {
@@ -2108,10 +2209,11 @@ function renderActiveWorkspaceMenu(pages, active) {
   }
   menu.innerHTML = '<div class="active-menu-heading">Switch active Page</div>' + availablePages.map(page => `
     <button type="button" class="active-menu-page ${active?.id === page.id ? 'selected' : ''}" data-top-select-page="${escapeHtml(page.id)}" role="menuitem">
-      <span>${page.facebookPagePicture ? `<img src="${escapeHtml(page.facebookPagePicture)}" alt="">` : 'F'}</span>
+      <span data-page-picture-id="${escapeHtml(page.id)}">F</span>
       <em><strong>${escapeHtml(page.facebookPageName)}</strong><small>${escapeHtml(page.facebookCategory || 'Facebook Page')}</small></em>
       <b>${active?.id === page.id ? '✓' : ''}</b>
     </button>`).join('') + '<button type="button" id="btnTopManagePages" class="active-menu-manage">Manage Pages</button>';
+  hydratePagePictures(menu);
   menu.querySelectorAll('[data-top-select-page]').forEach(button => {
     button.onclick = () => {
       if (active?.id === button.dataset.topSelectPage) return closeActiveWorkspaceMenu();

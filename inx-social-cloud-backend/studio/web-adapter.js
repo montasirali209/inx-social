@@ -5,6 +5,7 @@
   const FACEBOOK_APP_ID = '969283649323618';
   const files = new Map();
   const jobFiles = new Map();
+  const pagePictureUrls = new Map();
   const progressListeners = new Set();
   let localVideos = [];
   let localCaptions = [];
@@ -63,6 +64,19 @@
       throw error;
     }
     return payload;
+  }
+
+  async function pagePictureUrl(pageId) {
+    const id = String(pageId || '');
+    if (!id) return '';
+    if (pagePictureUrls.has(id)) return pagePictureUrls.get(id);
+    const headers = new Headers();
+    if (token()) headers.set('Authorization', `Bearer ${token()}`);
+    const response = await fetch(`/api/studio/pages/${encodeURIComponent(id)}/picture`, { headers });
+    if (!response.ok) return '';
+    const url = URL.createObjectURL(await response.blob());
+    pagePictureUrls.set(id, url);
+    return url;
   }
 
   function withLocalState(serverState) {
@@ -214,23 +228,28 @@
     return { accepted, rejected: [], state: cachedState };
   }
 
-  function scheduleSlots(count, startDate, requestedTimes) {
+  function schedulePlan(count, startDate, requestedTimes) {
     const settings = cachedState.settings || {};
     const times = [...new Set(
       (requestedTimes?.length ? requestedTimes : settings.dailySlots || [])
         .filter(value => /^\d{2}:\d{2}$/.test(value))
     )].sort();
     if (!times.length) throw new Error('Choose at least one valid daily time.');
+    const activeFacebookPageId = String(cachedState.workspace?.activePage?.facebookPageId || '');
     const occupied = new Set(
       (cachedState.jobs || [])
-        .filter(job => !String(job.status || '').includes('failed') && job.scheduledAtISO)
+        .filter(job => !activeFacebookPageId || String(job.facebookPageId || '') === activeFacebookPageId)
+        .filter(job => !String(job.status || '').includes('failed') && String(job.status || '') !== 'cancelled' && job.scheduledAtISO)
         .map(job => new Date(job.scheduledAtISO).toISOString().slice(0, 16))
     );
-    const start = new Date(`${startDate || new Date().toISOString().slice(0, 10)}T00:00:00`);
+    if (!startDate) throw new Error('Choose a schedule start date.');
+    const start = new Date(`${startDate}T00:00:00`);
     if (Number.isNaN(start.getTime())) throw new Error('Choose a valid start date.');
     const earliest = Date.now() + Math.max(20, Number(settings.minLeadMinutes || 20)) * 60000;
     const maxDays = Math.min(25, Number(settings.maxScheduleDays || 25));
     const result = [];
+    let skippedOccupied = 0;
+    let skippedPast = 0;
     for (let day = 0; day < maxDays && result.length < count; day++) {
       for (const value of times) {
         const [hours, minutes] = value.split(':').map(Number);
@@ -238,7 +257,11 @@
         date.setDate(start.getDate() + day);
         date.setHours(hours, minutes, 0, 0);
         const key = date.toISOString().slice(0, 16);
-        if (date.getTime() >= earliest && !occupied.has(key)) {
+        if (date.getTime() < earliest) {
+          skippedPast++;
+        } else if (occupied.has(key)) {
+          skippedOccupied++;
+        } else {
           occupied.add(key);
           result.push(date);
           if (result.length >= count) break;
@@ -248,7 +271,43 @@
     if (result.length < count) {
       throw new Error(`Only ${result.length} future slot(s) are available inside ${maxDays} days.`);
     }
-    return result;
+    return {
+      slots: result,
+      skippedOccupied,
+      skippedPast,
+      requestedStartDate: startDate,
+      firstAvailableAt: result[0]?.toISOString() || null,
+      lastAvailableAt: result[result.length - 1]?.toISOString() || null
+    };
+  }
+
+  function scheduleSlots(count, startDate, requestedTimes) {
+    return schedulePlan(count, startDate, requestedTimes).slots;
+  }
+
+  function inspectReelsSelection(paths = []) {
+    const activeFacebookPageId = String(cachedState.workspace?.activePage?.facebookPageId || '');
+    const existingNames = new Map(
+      (cachedState.jobs || [])
+        .filter(job => !activeFacebookPageId || String(job.facebookPageId || '') === activeFacebookPageId)
+        .filter(job => !['cancelled', 'reel_upload_failed', 'reel_failed', 'failed_retryable'].includes(String(job.status || '')))
+        .map(job => [String(job.videoName || '').toLowerCase(), job])
+    );
+    const seen = new Set();
+    const duplicates = [];
+    const acceptedIndexes = [];
+    paths.forEach((path, index) => {
+      const name = fileName(path);
+      const key = name.toLowerCase();
+      const existing = existingNames.get(key);
+      if (seen.has(key) || existing) {
+        duplicates.push({ index, name, existingStatus: existing?.status || 'duplicate selection', slotLabel: existing?.slotLabel || null });
+      } else {
+        seen.add(key);
+        acceptedIndexes.push(index);
+      }
+    });
+    return { duplicates, acceptedIndexes, acceptedCount: acceptedIndexes.length };
   }
 
   async function createCloudJob({ id, file, caption, scheduledAt = null, publishMode = 'SCHEDULED' }) {
@@ -305,48 +364,46 @@
   }
 
   async function createQueue(payload = {}) {
+    await fetchState();
     const paths = Array.isArray(payload.videoPaths) ? payload.videoPaths : [];
     const captions = captionBlocks(payload.captionText || '', paths.length);
     if (!paths.length) throw new Error('Select at least one video.');
     if (!captions.length) throw new Error('Add at least one caption.');
-    if (paths.length !== captions.length) {
-      throw new Error(`Selected ${paths.length} video(s), but detected ${captions.length} caption(s). Nothing was queued. Add exactly one caption for every video and try again.`);
+    if (captions.length < paths.length) {
+      throw new Error(`Selected ${paths.length} video(s), but detected only ${captions.length} caption(s). Nothing was queued. Add at least one caption for every video and try again.`);
     }
-    const duplicateNames = [...new Set(paths.map(path => fileName(path)).filter((name, index, names) => names.indexOf(name) !== index))];
-    if (duplicateNames.length) {
-      throw new Error(`Duplicate video filename(s) selected: ${duplicateNames.slice(0, 5).join(', ')}${duplicateNames.length > 5 ? 'â€¦' : ''}. Remove duplicate files before uploading.`);
+    const inspection = inspectReelsSelection(paths);
+    if (inspection.duplicates.length && !payload.skipDuplicateVideos) {
+      throw new Error(`${inspection.duplicates.length} duplicate video filename(s) found. Confirm that duplicates should be skipped before continuing.`);
     }
-    const activeFacebookPageId = String(cachedState.workspace?.activePage?.facebookPageId || '');
-    const existingNames = new Map(
-      (cachedState.jobs || [])
-        .filter(job => !activeFacebookPageId || String(job.facebookPageId || '') === activeFacebookPageId)
-        .filter(job => !['cancelled', 'reel_upload_failed', 'reel_failed', 'failed_retryable'].includes(String(job.status || '')))
-        .map(job => [String(job.videoName || '').toLowerCase(), job])
-    );
-    const alreadyTracked = paths
-      .map(path => fileName(path))
-      .map(name => ({ name, job: existingNames.get(String(name).toLowerCase()) }))
-      .find(item => item.job);
-    if (alreadyTracked) {
-      throw new Error(`${alreadyTracked.name} is already recorded for this Page as ${String(alreadyTracked.job.status || 'an existing job').replaceAll('_', ' ')}${alreadyTracked.job.slotLabel ? ` at ${alreadyTracked.job.slotLabel}` : ''}.`);
-    }
-    const count = paths.length;
+    const selected = inspection.acceptedIndexes.map(index => ({ path: paths[index], caption: captions[index] }));
+    if (!selected.length) throw new Error('Every selected video is already recorded for this Page. Nothing new was queued.');
+    const count = selected.length;
     const immediate = String(payload.publishMode || '').toUpperCase() === 'NOW';
-    const slots = immediate ? [] : scheduleSlots(count, payload.startDate, payload.times);
+    const schedule = immediate ? null : schedulePlan(count, payload.startDate, payload.times);
+    const slots = schedule?.slots || [];
     const jobs = [];
     for (let index = 0; index < count; index++) {
-      const file = files.get(paths[index]);
-      if (!file) throw new Error(`The browser no longer has access to ${fileName(paths[index])}. Select it again.`);
+      const item = selected[index];
+      const file = files.get(item.path);
+      if (!file) throw new Error(`The browser no longer has access to ${fileName(item.path)}. Select it again.`);
       jobs.push(await createCloudJob({
-        id: paths[index],
+        id: item.path,
         file,
-        caption: captions[index],
+        caption: item.caption,
         scheduledAt: immediate ? null : slots[index],
         publishMode: immediate ? 'NOW' : 'SCHEDULED'
       }));
     }
     await fetchState();
-    return { jobs, state: cachedState };
+    return {
+      jobs,
+      state: cachedState,
+      captionsUsed: count,
+      captionsIgnored: Math.max(0, captions.length - count),
+      skippedDuplicates: inspection.duplicates,
+      schedule
+    };
   }
 
   async function runJobs(payload = {}) {
@@ -751,6 +808,15 @@
       return file ? { text: await file.text(), path: file.name } : { text: '', path: '' };
     },
     createReelsQueue: createQueue,
+    inspectReelsSelection: async paths => {
+      await fetchState();
+      return inspectReelsSelection(Array.isArray(paths) ? paths : []);
+    },
+    previewReelsSchedule: async payload => {
+      await fetchState();
+      return schedulePlan(payload.count, payload.startDate, payload.times);
+    },
+    getPagePictureUrl: pagePictureUrl,
     runDueReels: runJobs,
     startReelsWatcher: async () => ({ active: false, message: 'Cloud uploads run only while this browser is open.', state: cachedState }),
     stopReelsWatcher: async () => {

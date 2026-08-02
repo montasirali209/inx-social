@@ -225,12 +225,13 @@
             <div class="settings-form">
               <label>Timing mode
                 <select id="reelsTimingMode">
+                  <option value="" selected>Select timing mode...</option>
                   <option value="immediate">Publish immediately</option>
                   <option value="settings">Schedule using saved daily times</option>
                   <option value="custom">Schedule using custom times</option>
                 </select>
               </label>
-              <label id="reelsScheduleDateBox" class="hidden">Schedule start date<input id="reelsStartDate" type="date" /></label>
+              <label id="reelsScheduleDateBox" class="hidden">Schedule start date<input id="reelsStartDate" type="date" disabled /></label>
               <div id="reelsCustomTimesBox" class="custom-times-box hidden">
                 <label>Add custom time</label>
                 <div class="button-row">
