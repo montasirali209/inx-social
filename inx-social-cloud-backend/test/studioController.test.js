@@ -190,3 +190,18 @@ test('creating an immediate cloud upload stores NOW mode without a schedule time
   assert.equal(createdInput.data.status, 'AWAITING_UPLOAD');
   assert.equal(res.body.job.publishMode, 'NOW');
 });
+
+test('only Meta-confirmed successful jobs block duplicate filenames', () => {
+  const base = {
+    status: 'PUBLISHED',
+    metaVideoId: 'meta-video-1',
+    createdAt: new Date('2026-08-01T10:00:00.000Z'),
+    updatedAt: new Date('2026-08-01T10:00:00.000Z')
+  };
+  assert.equal(controller.isDuplicateProtectedJob({
+    ...base,
+    rawMetaResponse: JSON.stringify({ verification: { state: 'PUBLISHED', confirmedAt: '2026-08-01T10:01:00.000Z' } })
+  }), true);
+  assert.equal(controller.isDuplicateProtectedJob({ ...base, rawMetaResponse: null }), false);
+  assert.equal(controller.isDuplicateProtectedJob({ ...base, status: 'FAILED' }), false);
+});

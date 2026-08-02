@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normaliseReelStatus } = require('../src/services/metaReelStatusService');
+const { normaliseReelStatus, isDefinitiveMissingMetaObject } = require('../src/services/metaReelStatusService');
 
 test('scheduled Reel remains processing until Meta processing completes', () => {
   assert.equal(normaliseReelStatus({
@@ -50,4 +50,15 @@ test('immediate Reel requires publishing confirmation', () => {
       publishing_phase: { status: 'complete' }
     }
   }, 'NOW').state, 'PUBLISHED');
+});
+
+test('a definitive missing Meta object releases the filename for retry', () => {
+  const error = new Error('Unsupported get request. Object with ID does not exist.');
+  error.meta = { error: { code: 100, error_subcode: 33, message: error.message } };
+  assert.equal(isDefinitiveMissingMetaObject(error), true);
+});
+
+test('a temporary Meta error does not release an existing Reel', () => {
+  const error = new Error('Meta request timed out.');
+  assert.equal(isDefinitiveMissingMetaObject(error), false);
 });

@@ -196,6 +196,23 @@ function publicAsset(asset) {
   };
 }
 
+function jobVerification(job) {
+  return parseJson(job?.rawMetaResponse, {}).verification || {};
+}
+
+function isDuplicateProtectedJob(job, now = Date.now()) {
+  const status = String(job?.status || '').toUpperCase();
+  if (status === JOB_STATUS.FAILED || status === JOB_STATUS.CANCELLED) return false;
+  const verification = jobVerification(job);
+  if ([JOB_STATUS.SCHEDULED, JOB_STATUS.PUBLISHED].includes(status)) {
+    return Boolean(verification.confirmedAt && ['SCHEDULED', 'PUBLISHED'].includes(String(verification.state || status).toUpperCase()));
+  }
+  if (status !== JOB_STATUS.PROCESSING) return false;
+  if (String(verification.state || '').toUpperCase() === 'PROCESSING' && job?.metaVideoId) return true;
+  const updatedAt = new Date(job?.updatedAt || job?.createdAt || 0).getTime();
+  return Number.isFinite(updatedAt) && now - updatedAt < 30 * 60 * 1000;
+}
+
 function publicJob(job) {
   return {
     id: job.id,
@@ -236,6 +253,7 @@ function desktopStatus(status) {
 }
 
 function desktopJob(job) {
+  const verification = jobVerification(job);
   return {
     id: job.id,
     videoName: job.localFileName || job.cloudAsset?.originalFileName || 'Cloud video',
@@ -256,6 +274,9 @@ function desktopJob(job) {
     uploadedAt: parseJson(job.rawMetaResponse, {}).verification?.acceptedAt || job.completedAt,
     completedAt: job.completedAt,
     updatedAt: job.updatedAt,
+    metaConfirmed: Boolean(verification.confirmedAt),
+    metaVerificationState: verification.state || null,
+    duplicateProtected: isDuplicateProtectedJob(job),
     cloud: true
   };
 }
@@ -361,7 +382,7 @@ async function capabilities(req, res, next) {
 async function desktopState(req, res, next) {
   try {
     await requireStudioLicense(req.user.id);
-    await reconcileJobs({ userId: req.user.id, limit: 25 });
+    await reconcileJobs({ userId: req.user.id, limit: 200 });
     const [license, preference, jobs] = await Promise.all([
       requireStudioLicense(req.user.id),
       prisma.cloudPreference.findUnique({ where: { userId: req.user.id } }),
@@ -571,7 +592,7 @@ async function createDraft(req, res, next) {
       JOB_STATUS.SCHEDULED,
       JOB_STATUS.PUBLISHED
     ];
-    const duplicateFile = await prisma.scheduleJob.findFirst({
+    const duplicateCandidates = await prisma.scheduleJob.findMany({
       where: {
         userId: req.user.id,
         connectedPageId: page.id,
@@ -579,8 +600,10 @@ async function createDraft(req, res, next) {
         localFileName: input.originalFileName,
         status: { in: protectedStatuses }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
+      take: 20
     });
+    const duplicateFile = duplicateCandidates.find(job => isDuplicateProtectedJob(job));
     if (duplicateFile) {
       const error = new Error(`${input.originalFileName} is already processing, scheduled, or published for this Page${duplicateFile.scheduledAt ? ` at ${duplicateFile.scheduledAt.toISOString()}` : ''}. Failed attempts may be retried.`);
       error.status = 409;
@@ -589,7 +612,7 @@ async function createDraft(req, res, next) {
     }
 
     if (scheduledAt) {
-      const occupiedSlot = await prisma.scheduleJob.findFirst({
+      const occupiedCandidates = await prisma.scheduleJob.findMany({
         where: {
           userId: req.user.id,
           connectedPageId: page.id,
@@ -597,8 +620,10 @@ async function createDraft(req, res, next) {
           scheduledAt,
           status: { in: protectedStatuses }
         },
-        orderBy: { createdAt: 'desc' }
+        orderBy: { createdAt: 'desc' },
+        take: 20
       });
+      const occupiedSlot = occupiedCandidates.find(job => isDuplicateProtectedJob(job));
       if (occupiedSlot) {
         const error = new Error(`This Page already has ${occupiedSlot.localFileName || 'a video'} assigned to ${scheduledAt.toISOString()}. Choose another time.`);
         error.status = 409;
@@ -772,6 +797,7 @@ async function uploadVideo(req, res, next) {
               confirmedAt: null
             }
           }),
+          caption: null,
           completedAt: null,
           nextAttemptAt: new Date(Date.now() + 15000),
           claimedAt: null,
@@ -807,12 +833,14 @@ async function uploadVideo(req, res, next) {
                   localFinalisationError: String(error.message || error)
                 }
               }),
+              caption: null,
               completedAt: null,
               nextAttemptAt: new Date(Date.now() + 15000),
               claimedAt: null,
               errorMessage: null
             } : {
               status: JOB_STATUS.FAILED,
+              caption: null,
               uploadStatus: ASSET_STATUS.FAILED,
               claimedAt: null,
               errorMessage: String(error.publicMessage || error.message || 'Upload failed').slice(0, 2000)
@@ -881,7 +909,7 @@ async function cancelJob(req, res, next) {
     const operations = [
       prisma.scheduleJob.update({
         where: { id: existing.id },
-        data: { status: JOB_STATUS.CANCELLED, completedAt: new Date(), nextAttemptAt: null, errorMessage: null },
+        data: { status: JOB_STATUS.CANCELLED, caption: null, completedAt: new Date(), nextAttemptAt: null, errorMessage: null },
         include: { connectedPage: true, cloudAsset: true }
       })
     ];
@@ -914,5 +942,6 @@ module.exports = {
   cancelJob,
   publicJob,
   desktopJob,
+  isDuplicateProtectedJob,
   pagePicture
 };

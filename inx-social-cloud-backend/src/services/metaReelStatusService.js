@@ -21,6 +21,15 @@ function lower(value) {
   return String(value || '').trim().toLowerCase();
 }
 
+function isDefinitiveMissingMetaObject(error) {
+  const detail = error?.meta?.error || error?.response?.data?.error || null;
+  const code = Number(detail?.code || 0);
+  const subcode = Number(detail?.error_subcode || 0);
+  const message = lower(detail?.message || error?.publicMessage || error?.message);
+  return (code === 100 && (subcode === 33 || /unsupported get request|does not exist|cannot be loaded/.test(message)))
+    || /object.*not found|reel.*not found|video.*not found/.test(message);
+}
+
 function phaseErrors(phase) {
   const errors = Array.isArray(phase?.errors) ? phase.errors : [];
   return errors.map(item => {
@@ -97,6 +106,7 @@ async function reconcileJob(job, dependencies = {}) {
       where: { id: job.id },
       data: {
         status: result.state,
+        caption: final ? null : job.caption,
         rawMetaResponse: withVerification(job, payload, result),
         completedAt: final ? (job.completedAt || new Date()) : null,
         nextAttemptAt: final ? null : new Date(Date.now() + 30000),
@@ -107,6 +117,26 @@ async function reconcileJob(job, dependencies = {}) {
     return { job: updated, state: result.state, error: result.error || null };
   } catch (error) {
     const message = String(error.publicMessage || error.message || 'Facebook status check failed').slice(0, 1000);
+    if (isDefinitiveMissingMetaObject(error)) {
+      const updated = await db.scheduleJob.update({
+        where: { id: job.id },
+        data: {
+          status: 'FAILED',
+          caption: null,
+          completedAt: job.completedAt || new Date(),
+          nextAttemptAt: null,
+          claimedAt: null,
+          errorMessage: 'Facebook no longer recognises this Reel. The local filename has been released for retry.',
+          rawMetaResponse: withVerification(
+            job,
+            null,
+            { state: 'FAILED' },
+            { missingOnMeta: true, lastCheckError: message }
+          )
+        }
+      });
+      return { job: updated, state: 'FAILED', retryable: true, error: message };
+    }
     await db.scheduleJob.update({
       where: { id: job.id },
       data: {
@@ -180,6 +210,7 @@ function startMetaReelStatusReconciliation() {
 
 module.exports = {
   normaliseReelStatus,
+  isDefinitiveMissingMetaObject,
   reconcileJob,
   reconcileJobs,
   startMetaReelStatusReconciliation

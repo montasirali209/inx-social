@@ -342,7 +342,7 @@
     const existingNames = new Map(
       (cachedState.jobs || [])
         .filter(job => !activeFacebookPageId || String(job.facebookPageId || '') === activeFacebookPageId)
-        .filter(job => ['reel_uploading', 'reel_scheduled', 'reel_published', 'scheduled', 'published'].includes(String(job.status || '')))
+        .filter(job => job.duplicateProtected === true)
         .map(job => [String(job.videoName || '').toLowerCase(), job])
     );
     const seen = new Set();
