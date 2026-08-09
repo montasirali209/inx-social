@@ -10,7 +10,6 @@ const prisma = require('../db/prisma');
 const { decryptToken } = require('../utils/tokenCrypto');
 const { getLicenseStatus } = require('../services/licenseService');
 const metaPublisher = require('../services/cloudMetaPublisher');
-const { reconcileJobs } = require('../services/metaReelStatusService');
 const {
   JOB_STATUS,
   ASSET_STATUS,
@@ -382,7 +381,6 @@ async function capabilities(req, res, next) {
 async function desktopState(req, res, next) {
   try {
     await requireStudioLicense(req.user.id);
-    await reconcileJobs({ userId: req.user.id, limit: 200 });
     const [license, preference, jobs] = await Promise.all([
       requireStudioLicense(req.user.id),
       prisma.cloudPreference.findUnique({ where: { userId: req.user.id } }),

@@ -1,6 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { normaliseReelStatus, isDefinitiveMissingMetaObject } = require('../src/services/metaReelStatusService');
+const {
+  normaliseReelStatus,
+  isDefinitiveMissingMetaObject,
+  isMetaRateLimitError,
+  nextRetryDelayMs,
+  reconcileJob
+} = require('../src/services/metaReelStatusService');
 
 test('scheduled Reel remains processing until Meta processing completes', () => {
   assert.equal(normaliseReelStatus({
@@ -61,4 +67,49 @@ test('a definitive missing Meta object releases the filename for retry', () => {
 test('a temporary Meta error does not release an existing Reel', () => {
   const error = new Error('Meta request timed out.');
   assert.equal(isDefinitiveMissingMetaObject(error), false);
+});
+
+test('Meta application rate-limit errors are detected', () => {
+  const error = new Error('Application request limit reached');
+  error.meta = { error: { code: 4, message: error.message } };
+  assert.equal(isMetaRateLimitError(error), true);
+  assert.equal(isMetaRateLimitError(new Error('Meta request timed out.')), false);
+});
+
+test('status polling uses capped exponential backoff', () => {
+  assert.equal(nextRetryDelayMs(1), 30000);
+  assert.equal(nextRetryDelayMs(2), 60000);
+  assert.equal(nextRetryDelayMs(6), 960000);
+  assert.equal(nextRetryDelayMs(20), 1800000);
+});
+
+test('a Meta rate limit pauses further checks for at least 65 minutes', async () => {
+  const updates = [];
+  const rateLimitError = new Error('Application request limit reached');
+  rateLimitError.meta = { error: { code: 4, message: rateLimitError.message } };
+  const before = Date.now();
+  const result = await reconcileJob({
+    id: 'job-rate-limited',
+    status: 'PROCESSING',
+    publishMode: 'SCHEDULED',
+    metaVideoId: '123',
+    rawMetaResponse: '{}',
+    connectedPage: { encryptedAccessToken: 'encrypted' }
+  }, {
+    prisma: {
+      scheduleJob: {
+        update: async input => {
+          updates.push(input);
+          return { id: input.where.id, ...input.data };
+        }
+      }
+    },
+    decryptToken: value => value,
+    metaPublisher: { getReelStatus: async () => { throw rateLimitError; } }
+  });
+
+  assert.equal(result.rateLimited, true);
+  assert.equal(updates.length, 1);
+  assert.ok(new Date(updates[0].data.nextAttemptAt).getTime() >= before + (65 * 60 * 1000) - 1000);
+  assert.match(updates[0].data.errorMessage, /paused for 65 minutes/i);
 });

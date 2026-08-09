@@ -6,5 +6,7 @@ const { startMetaReelStatusReconciliation } = require('./services/metaReelStatus
 app.listen(env.port, () => {
   console.log(`INX Social Cloud Backend running on http://localhost:${env.port}`);
   startSubscriptionLifecycle();
-  startMetaReelStatusReconciliation();
+  if (process.env.META_REEL_RECONCILIATION_ENABLED !== 'false') {
+    startMetaReelStatusReconciliation();
+  }
 });
