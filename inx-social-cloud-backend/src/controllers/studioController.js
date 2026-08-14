@@ -166,6 +166,30 @@ async function pagePicture(req, res, next) {
       // A temporary Graph lookup failure must not discard the picture saved at connection time.
     }
 
+    // Prefer an authenticated server-side Graph image request when the CDN URL
+    // returned in the Page record is missing, expired or protected. The access
+    // token never reaches the browser.
+    try {
+      const directPicture = await axios.get(
+        `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(page.facebookPageId)}/picture`,
+        {
+          params: { type: 'large', access_token: pageAccessToken },
+          responseType: 'arraybuffer',
+          timeout: 15000,
+          maxRedirects: 5,
+          validateStatus: status => status >= 200 && status < 500
+        }
+      );
+      const contentType = String(directPicture.headers['content-type'] || '');
+      if (directPicture.status < 400 && contentType.startsWith('image/')) {
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'private, max-age=300');
+        return res.send(Buffer.from(directPicture.data));
+      }
+    } catch (_) {
+      // Fall through to the live and stored picture URLs below.
+    }
+
     const candidates = [...new Set([livePictureUrl, page.facebookPagePicture].filter(Boolean))];
     for (const pictureUrl of candidates) {
       try {
@@ -418,22 +442,6 @@ async function desktopState(req, res, next) {
     };
     const uiTexts = { ...DEFAULT_UI_TEXTS, ...parseJson(preference?.uiTextsJson, {}) };
     const mappedJobs = jobs.map(desktopJob);
-    const logs = mappedJobs.slice(0, 250).map(job => ({
-      id: `cloud-log-${job.id}`,
-      type: String(job.status).includes('failed') ? 'error' : 'cloud',
-      message: `${job.videoName}: ${job.status.replaceAll('_', ' ')}`,
-      createdAt: job.updatedAt,
-      extra: {
-        page: job.facebookPageName || null,
-        queuedAt: job.createdAt || null,
-        uploadedAt: job.uploadedAt || null,
-        scheduledAt: job.scheduledAtISO || null,
-        metaId: job.fbVideoId || job.fbPostId || null,
-        attempts: job.attempts || 0,
-        error: job.error || null
-      }
-    }));
-
     res.json({
       state: {
         settings,
@@ -441,7 +449,9 @@ async function desktopState(req, res, next) {
         videos: [],
         captions: [],
         jobs: mappedJobs,
-        logs,
+        // Detailed backend events are intentionally reserved for administrators.
+        // Customers receive the structured publishing history above instead.
+        logs: [],
         account: {
           authenticated: true,
           user: {

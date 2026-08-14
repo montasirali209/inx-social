@@ -14,6 +14,9 @@ let studioActionModalResolver = null;
 let metaScheduledPosts = [];
 let metaScheduleLoaded = false;
 let metaScheduleLoading = false;
+let analyticsPlatform = 'facebook';
+let analyticsPage = 'all';
+let analyticsRange = '30';
 
 const UI_TEXT_FIELDS = [
   'appTitle', 'appSubtitle', 'dashboardTitle', 'dashboardSubtitle',
@@ -34,7 +37,7 @@ const views = {
   manual: ['Manual Scheduler', 'Upload one Reel to Meta now and schedule it for a future time.'],
   health: ['Health Check', 'Check video, caption, schedule, and Meta connection risks before posting.'],
   calendar: ['Calendar', 'See what is planned locally and what has been published.'],
-  analytics: ['Analytics', 'Publishing health, usage and account performance.'],
+  analytics: ['Analytics', 'Facebook publishing performance, reliability and content activity.'],
   logs: ['Logs', 'Track imports, scheduled uploads, publishing, retries, and errors.'],
   settings: ['Settings', 'Facebook Connect and scheduler rules.']
 };
@@ -367,6 +370,21 @@ function bindButtons() {
   on('btnPagesRefresh', () => refreshWorkspaceV2());
   const pageSearch = document.getElementById('pageSearchInput');
   if (pageSearch) pageSearch.addEventListener('input', renderPagesV2);
+  const analyticsPlatformSelect = document.getElementById('analyticsPlatformSelect');
+  if (analyticsPlatformSelect) analyticsPlatformSelect.addEventListener('change', event => {
+    analyticsPlatform = event.target.value;
+    renderAnalyticsV2();
+  });
+  const analyticsPageSelect = document.getElementById('analyticsPageSelect');
+  if (analyticsPageSelect) analyticsPageSelect.addEventListener('change', event => {
+    analyticsPage = event.target.value;
+    renderAnalyticsV2();
+  });
+  const analyticsRangeSelect = document.getElementById('analyticsRangeSelect');
+  if (analyticsRangeSelect) analyticsRangeSelect.addEventListener('change', event => {
+    analyticsRange = event.target.value;
+    renderAnalyticsV2();
+  });
   document.addEventListener('click', event => {
     const settingSlotButton = event.target.closest('[data-remove-setting-slot]');
     if (settingSlotButton) removeSettingDailySlot(settingSlotButton.dataset.removeSettingSlot);
@@ -1643,7 +1661,6 @@ function render() {
   renderSlotPills();
   renderTables();
   renderCalendar();
-  renderLogs();
   fillSettings();
   fillInterfaceSettings();
   applyUITexts();
@@ -1693,7 +1710,7 @@ function updateDashboardPulse(stats = {}) {
     if (isSchedulerRunning) hint.textContent = 'Live publishing progress is updating below.';
     else if (stats.planned) hint.textContent = `${stats.planned} content item${Number(stats.planned) === 1 ? '' : 's'} ready for upload.`;
     else if (!stats.videos || !stats.captions) hint.textContent = 'Open Auto Scheduler to select videos and captions.';
-    else hint.textContent = 'Create an Auto or Manual schedule to begin.';
+    else hint.textContent = 'Create an Auto Scheduler upload to begin.';
   }
 }
 
@@ -2486,18 +2503,105 @@ async function disconnectActiveWorkspacePage() {
 }
 
 function renderAnalyticsV2() {
-  const jobs = state.jobs || [];
-  const successful = jobs.filter(j => ['scheduled','reel_scheduled','reel_published','published'].includes(j.status)).length;
-  const failed = jobs.filter(j => String(j.status || '').includes('failed')).length;
-  const totalFinished = successful + failed;
-  setText('analyticsMedia', (state.videos?.length || 0) + (state.captions?.length || 0));
-  setText('analyticsScheduled', successful);
+  if (!state) return;
+  const pages = cloudWorkspace.pages || [];
+  const pageSelect = document.getElementById('analyticsPageSelect');
+  if (pageSelect) {
+    const available = new Set(pages.map(page => String(page.facebookPageId || page.id)));
+    if (analyticsPage !== 'all' && !available.has(analyticsPage)) analyticsPage = 'all';
+    pageSelect.innerHTML = '<option value="all">All Facebook Pages</option>' + pages.map(page =>
+      `<option value="${escapeHtml(page.facebookPageId || page.id)}">${escapeHtml(page.facebookPageName || 'Facebook Page')}</option>`
+    ).join('');
+    pageSelect.value = analyticsPage;
+  }
+  const platformSelect = document.getElementById('analyticsPlatformSelect');
+  if (platformSelect) platformSelect.value = analyticsPlatform;
+  const rangeSelect = document.getElementById('analyticsRangeSelect');
+  if (rangeSelect) rangeSelect.value = analyticsRange;
+
+  const now = Date.now();
+  const rangeDays = analyticsRange === 'all' ? null : Number(analyticsRange || 30);
+  const cutoff = rangeDays ? now - rangeDays * 86400000 : 0;
+  const jobs = (state.jobs || []).filter(job => {
+    const pageMatches = analyticsPage === 'all' || String(job.facebookPageId || '') === analyticsPage;
+    const timestamp = analyticsJobDate(job).getTime();
+    return pageMatches && (!cutoff || (Number.isFinite(timestamp) && timestamp >= cutoff));
+  });
+  const published = jobs.filter(job => ['published', 'reel_published'].includes(String(job.status || ''))).length;
+  const scheduled = jobs.filter(job => ['scheduled', 'reel_scheduled'].includes(String(job.status || ''))).length;
+  const failed = jobs.filter(job => String(job.status || '').includes('failed')).length;
+  const successful = published + scheduled;
+  const completed = successful + failed;
+  const pending = Math.max(0, jobs.length - completed);
+
+  setText('analyticsPublished', published);
+  setText('analyticsScheduled', scheduled);
   setText('analyticsFailed', failed);
-  setText('analyticsSuccessRate', `${totalFinished ? Math.round(successful/totalFinished*100) : 0}%`);
-  const bars=document.getElementById('analyticsHealthBars');
-  if(bars) bars.innerHTML=[['Successful',successful,'success'],['Failed',failed,'failed'],['Queued',Math.max(0,jobs.length-totalFinished),'queued']].map(([label,value,cls])=>`<div><span>${label}<b>${value}</b></span><i><em class="${cls}" style="width:${jobs.length?Math.max(4,value/jobs.length*100):0}%"></em></i></div>`).join('');
-  const summary=document.getElementById('analyticsAccountSummary');
-  if(summary) summary.innerHTML=`<div><span>Plan</span><strong>${escapeHtml(cloudWorkspace.plan || state.account?.license?.plan || 'TRIAL')}</strong></div><div><span>Meta accounts</span><strong>${cloudWorkspace.accounts?.length || 0}</strong></div><div><span>Connected Pages</span><strong>${cloudWorkspace.pageUsage?.connected || cloudWorkspace.pages?.length || 0}</strong></div><div><span>Active Page</span><strong>${escapeHtml(cloudWorkspace.activePage?.facebookPageName || 'None')}</strong></div>`;
+  setText('analyticsSuccessRate', `${completed ? Math.round((successful / completed) * 100) : 0}%`);
+  const selectedPage = pages.find(page => String(page.facebookPageId || page.id) === analyticsPage);
+  const periodLabel = analyticsRange === 'all' ? 'All time' : `Last ${analyticsRange} days`;
+  setText('analyticsScopeText', `${selectedPage?.facebookPageName || 'All connected Pages'} · ${periodLabel}`);
+  setText('analyticsResultCount', `${jobs.length} item${jobs.length === 1 ? '' : 's'}`);
+
+  const bars = document.getElementById('analyticsHealthBars');
+  if (bars) bars.innerHTML = [
+    ['Successful', successful, 'success'],
+    ['Failed', failed, 'failed'],
+    ['Pending', pending, 'queued']
+  ].map(([label, value, cls]) => `<div><span>${label}<b>${value}</b></span><i><em class="${cls}" style="width:${jobs.length ? Math.max(value ? 4 : 0, value / jobs.length * 100) : 0}%"></em></i></div>`).join('') +
+    `<div class="analytics-health-note"><span>Active Page</span><strong>${escapeHtml(cloudWorkspace.activePage?.facebookPageName || 'None selected')}</strong></div>`;
+
+  renderAnalyticsTrend(jobs, rangeDays);
+  const recent = document.getElementById('analyticsRecentContent');
+  if (recent) {
+    const sorted = [...jobs].sort((a, b) => analyticsJobDate(b) - analyticsJobDate(a)).slice(0, 15);
+    recent.innerHTML = sorted.length ? `<table><thead><tr><th>Content</th><th>Page</th><th>Status</th><th>Activity time</th><th>Publish time</th><th>Meta ID</th></tr></thead><tbody>${sorted.map(job => `
+      <tr><td><strong>${escapeHtml(job.videoName || 'Facebook Reel')}</strong></td><td>${escapeHtml(job.facebookPageName || 'Facebook Page')}</td><td><span class="status ${escapeHtml(job.status)}">${escapeHtml(statusLabel(job.status))}</span></td><td>${escapeHtml(formatDate(analyticsJobDate(job).toISOString()))}</td><td>${escapeHtml(job.publishMode === 'NOW' ? 'Published immediately' : formatDate(job.scheduledAtISO))}</td><td class="code">${escapeHtml(job.fbVideoId || job.fbPostId || '-')}</td></tr>
+    `).join('')}</tbody></table>` : '<div class="empty">No Facebook publishing activity matches these filters.</div>';
+  }
+}
+
+function analyticsJobDate(job) {
+  const candidates = [job.completedAt, job.uploadedAt, job.updatedAt, job.createdAt, job.scheduledAtISO];
+  for (const value of candidates) {
+    const date = new Date(value || 0);
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+  return new Date(0);
+}
+
+function renderAnalyticsTrend(jobs, requestedDays) {
+  const target = document.getElementById('analyticsTrend');
+  if (!target) return;
+  const now = new Date();
+  const oldest = jobs.length ? Math.min(...jobs.map(job => analyticsJobDate(job).getTime()).filter(Number.isFinite)) : now.getTime();
+  const allTimeDays = Math.max(1, Math.ceil((now.getTime() - oldest) / 86400000) + 1);
+  const days = Math.max(1, requestedDays || allTimeDays);
+  const bucketCount = Math.min(14, days);
+  const bucketDays = Math.max(1, Math.ceil(days / bucketCount));
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const start = new Date(end.getTime() - bucketCount * bucketDays * 86400000);
+  const buckets = Array.from({ length: bucketCount }, (_, index) => ({
+    start: new Date(start.getTime() + index * bucketDays * 86400000),
+    end: new Date(start.getTime() + (index + 1) * bucketDays * 86400000),
+    success: 0,
+    failed: 0
+  }));
+  for (const job of jobs) {
+    const timestamp = analyticsJobDate(job).getTime();
+    const index = Math.floor((timestamp - start.getTime()) / (bucketDays * 86400000));
+    if (index < 0 || index >= buckets.length) continue;
+    if (String(job.status || '').includes('failed')) buckets[index].failed += 1;
+    else if (['scheduled', 'reel_scheduled', 'published', 'reel_published'].includes(String(job.status || ''))) buckets[index].success += 1;
+  }
+  const maximum = Math.max(1, ...buckets.map(bucket => bucket.success + bucket.failed));
+  target.innerHTML = `<div class="analytics-chart-key"><span><i class="success"></i>Successful</span><span><i class="failed"></i>Failed</span></div><div class="analytics-chart-bars">${buckets.map(bucket => {
+    const total = bucket.success + bucket.failed;
+    const successHeight = bucket.success / maximum * 100;
+    const failedHeight = bucket.failed / maximum * 100;
+    const label = bucket.start.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+    return `<div class="analytics-chart-column" title="${escapeHtml(label)}: ${total} attempt${total === 1 ? '' : 's'}"><div class="analytics-chart-stack"><i class="failed" style="height:${failedHeight}%"></i><i class="success" style="height:${successHeight}%"></i></div><span>${escapeHtml(label)}</span></div>`;
+  }).join('')}</div>`;
 }
 
 function setText(id, value) { const el=document.getElementById(id); if(el) el.textContent=String(value ?? ''); }

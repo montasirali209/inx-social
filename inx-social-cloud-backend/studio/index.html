@@ -52,13 +52,11 @@
         </div>
       </div>
       <nav>
-        <button class="nav active" data-view="dashboard"><span>⌂</span> Overview</button>
-        <button class="nav" data-view="pages"><span>▤</span> Connected Pages</button>
+        <button class="nav active" data-view="dashboard">Overview</button>
+        <button class="nav" data-view="pages">Connected Pages</button>
         <button class="nav" data-view="reels">Auto Scheduler</button>
-        <button class="nav" data-view="manual">Manual Scheduler</button>
-        <button class="nav" data-view="health">Health Check</button>
-        <button class="nav" data-view="calendar"><span>□</span> Calendar</button>
-        <button class="nav" data-view="analytics"><span>↗</span> Analytics</button>
+        <button class="nav" data-view="calendar">Calendar</button>
+        <button class="nav" data-view="analytics">Analytics</button>
         <button class="nav" data-view="logs">Activity Logs</button>
         <button class="nav" data-view="settings">Settings</button>
         <a class="nav portal-nav-link" href="/portal/#overview"><span>↗</span> Account &amp; Billing</a>
@@ -110,8 +108,6 @@
             <p>Connect your Pages, prepare videos and captions, choose the active destination, and manage scheduled content from one place.</p>
             <div class="hero-actions">
               <button id="btnHeroRun" class="btn primary orb-btn" type="button">Open Scheduler</button>
-              <button id="btnHeroManual" class="btn glass-btn" type="button">Manual Scheduler</button>
-              <button id="btnHeroHealth" class="btn ghost" type="button">Run Health Check</button>
             </div>
           </div>
           <div class="hero-status">
@@ -122,7 +118,7 @@
             <div class="next-card">
               <span>System state</span>
               <strong id="dashboardSystemState">Idle</strong>
-              <em id="dashboardSystemHint">Ready when you create an Auto or Manual schedule.</em>
+              <em id="dashboardSystemHint">Ready when you create an Auto Scheduler upload.</em>
             </div>
           </div>
         </section>
@@ -491,13 +487,6 @@ Third video caption #hashtags"></textarea>
           </div>
           <div id="recentJobs" class="table-wrap tall"></div>
         </div>
-        <div class="panel">
-          <div class="panel-head row">
-            <div><h3>System event details</h3><p>Permanent backend status details for troubleshooting and audit.</p></div>
-            <button id="btnClearAll" class="btn danger">Clear Local Library</button>
-          </div>
-          <div id="logsTable" class="table-wrap tall"></div>
-        </div>
       </section>
 
       <section id="pages" class="view workspace-v2-view">
@@ -509,9 +498,22 @@ Third video caption #hashtags"></textarea>
       </section>
 
       <section id="analytics" class="view workspace-v2-view">
-        <div class="section-title-row"><div><span class="eyebrow">Performance</span><h2>Publishing Analytics</h2><p>Operational analytics from the local scheduler and connected Pages.</p></div></div>
-        <div class="analytics-grid-v2"><article><span>Total media</span><strong id="analyticsMedia">0</strong><small>Videos and captions</small></article><article><span>Scheduled</span><strong id="analyticsScheduled">0</strong><small>Confirmed by Meta</small></article><article><span>Failed</span><strong id="analyticsFailed">0</strong><small>Needs attention</small></article><article><span>Success rate</span><strong id="analyticsSuccessRate">0%</strong><small>Completed jobs</small></article></div>
-        <div class="workspace-grid-v2"><section class="panel"><div class="panel-head"><h3>Publishing health</h3></div><div id="analyticsHealthBars" class="analytics-bars"></div></section><section class="panel"><div class="panel-head"><h3>Account summary</h3></div><div id="analyticsAccountSummary" class="analytics-summary"></div></section></div>
+        <div class="section-title-row analytics-title-row">
+          <div><span class="eyebrow">Content performance</span><h2>Analytics</h2><p>Understand publishing output, reliability and upcoming content for every connected channel.</p></div>
+          <div class="analytics-filters" aria-label="Analytics filters">
+            <label>Platform<select id="analyticsPlatformSelect"><option value="facebook">Facebook</option><option value="youtube" disabled>YouTube — coming soon</option><option value="tiktok" disabled>TikTok — coming soon</option></select></label>
+            <label>Page<select id="analyticsPageSelect"><option value="all">All Facebook Pages</option></select></label>
+            <label>Period<select id="analyticsRangeSelect"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="all">All time</option></select></label>
+          </div>
+        </div>
+        <div class="analytics-platform-banner"><div class="analytics-platform-mark">f</div><div><strong>Facebook publishing analytics</strong><span id="analyticsScopeText">All connected Pages · Last 30 days</span></div><span class="analytics-live-pill">Active</span></div>
+        <div class="analytics-grid-v2"><article><span>Published</span><strong id="analyticsPublished">0</strong><small>Confirmed published Reels</small></article><article><span>Scheduled</span><strong id="analyticsScheduled">0</strong><small>Upcoming or confirmed schedule</small></article><article><span>Failed</span><strong id="analyticsFailed">0</strong><small>Attempts needing attention</small></article><article><span>Success rate</span><strong id="analyticsSuccessRate">0%</strong><small>Successful completed attempts</small></article></div>
+        <div class="analytics-layout">
+          <section class="panel analytics-trend-panel"><div class="panel-head"><div><h3>Publishing activity</h3><p>Successful and failed attempts over the selected period.</p></div></div><div id="analyticsTrend" class="analytics-trend"></div></section>
+          <section class="panel"><div class="panel-head"><div><h3>Publishing health</h3><p>Current status distribution.</p></div></div><div id="analyticsHealthBars" class="analytics-bars"></div></section>
+        </div>
+        <section class="panel analytics-content-panel"><div class="panel-head row"><div><h3>Recent Facebook content</h3><p>Latest publishing attempts for the selected Page and period.</p></div><span id="analyticsResultCount" class="analytics-result-count">0 items</span></div><div id="analyticsRecentContent" class="table-wrap"></div></section>
+        <section class="analytics-insights-notice"><span>i</span><div><strong>Facebook reach and engagement insights</strong><p>Publishing analytics are active now. Reach, views, watch time and engagement can be added after Meta grants the <code>read_insights</code> permission; INX Social does not invent unavailable metrics.</p></div></section>
       </section>
 
       <section id="settings" class="view">
@@ -628,8 +630,6 @@ Third video caption #hashtags"></textarea>
   <div class="floating-dock" aria-label="Quick actions">
     <button id="dockDashboard" title="Dashboard">⌂</button>
     <button id="dockAuto" title="Auto Scheduler">▣</button>
-    <button id="dockManual" title="Manual Scheduler">＋</button>
-    <button id="dockHealth" title="Health Check">✓</button>
   </div>
 
   <div id="studioActionModal" class="studio-action-modal hidden" role="dialog" aria-modal="true" aria-labelledby="studioActionTitle" aria-describedby="studioActionMessage">

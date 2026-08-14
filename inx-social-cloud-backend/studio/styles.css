@@ -345,13 +345,7 @@ nav { display: grid; gap: 8px; }
   transition: transform .18s ease, background .18s ease, border-color .18s ease, color .18s ease;
 }
 .nav::before {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--muted2);
-  box-shadow: 0 0 0 0 transparent;
-  transition: .2s ease;
+  display: none;
 }
 .nav:hover { transform: translateX(4px); color: var(--text); background: rgba(255,255,255,.055); }
 .nav.active {
@@ -360,7 +354,7 @@ nav { display: grid; gap: 8px; }
   background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 17%, transparent), rgba(255,255,255,.04));
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.035);
 }
-.nav.active::before { background: var(--accent); box-shadow: 0 0 24px var(--accent); }
+.nav.active::before { display: none; }
 
 .sidebar-footer { margin-top: auto; position: relative; z-index: 1; }
 .mini-label { color: var(--muted2); font-size: 11px; text-transform: uppercase; letter-spacing: .11em; margin-bottom: 10px; }
@@ -1977,4 +1971,126 @@ body[data-theme="light"] .top-theme-control select option {
   body { overflow: hidden; }
   .shell { min-width: 0; }
   .calendar-grid { grid-template-columns: 1fr; }
+}
+
+/* Phase 10.4.2 - focused customer navigation and channel analytics */
+.sidebar nav .nav:not(.portal-nav-link) { padding-left: 16px; }
+.analytics-title-row { align-items: flex-end; }
+.analytics-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+  gap: 10px;
+  width: min(650px, 100%);
+}
+.analytics-filters label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .075em;
+  text-transform: uppercase;
+}
+.analytics-filters select {
+  min-height: 43px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0 38px 0 12px;
+  background: color-mix(in srgb, var(--panel-strong) 88%, #071426);
+  color: var(--text);
+  color-scheme: dark;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+}
+.analytics-filters option { background: #101a2d; color: #edf6ff; }
+.analytics-platform-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, #1877f2 36%, var(--line));
+  border-radius: 16px;
+  background: linear-gradient(100deg, color-mix(in srgb, #1877f2 14%, var(--panel)), var(--panel));
+}
+.analytics-platform-mark {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: #1877f2;
+  color: #fff;
+  font-size: 22px;
+  font-weight: 950;
+}
+.analytics-platform-banner > div:nth-child(2) { display: grid; gap: 3px; }
+.analytics-platform-banner strong { font-size: 13px; }
+.analytics-platform-banner span { color: var(--muted); font-size: 11px; }
+.analytics-live-pill {
+  margin-left: auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(79,211,163,.12);
+  color: #68e1b4 !important;
+  font-size: 9px !important;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.analytics-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(280px, .75fr);
+  gap: 18px;
+  margin-bottom: 18px;
+}
+.analytics-trend-panel { min-height: 330px; }
+.analytics-trend { min-height: 225px; display: grid; gap: 16px; }
+.analytics-chart-key { display: flex; gap: 18px; color: var(--muted); font-size: 11px; }
+.analytics-chart-key span { display: inline-flex; align-items: center; gap: 7px; }
+.analytics-chart-key i { width: 9px; height: 9px; border-radius: 3px; }
+.analytics-chart-key .success { background: #4fd3a3; }
+.analytics-chart-key .failed { background: #ff667f; }
+.analytics-chart-bars {
+  min-height: 190px;
+  display: grid;
+  grid-template-columns: repeat(14, minmax(18px, 1fr));
+  gap: 8px;
+  align-items: end;
+  padding-top: 8px;
+  border-bottom: 1px solid var(--line);
+  background: repeating-linear-gradient(to top, transparent 0, transparent 47px, rgba(255,255,255,.045) 48px);
+}
+.analytics-chart-column { min-width: 0; height: 185px; display: grid; grid-template-rows: 1fr 24px; gap: 7px; align-items: end; }
+.analytics-chart-stack { height: 100%; display: flex; flex-direction: column-reverse; justify-content: flex-start; overflow: hidden; border-radius: 7px 7px 2px 2px; background: rgba(255,255,255,.035); }
+.analytics-chart-stack i { display: block; min-height: 0; transition: height .25s ease; }
+.analytics-chart-stack .success { background: linear-gradient(180deg, #67e5bd, #31ad83); }
+.analytics-chart-stack .failed { background: linear-gradient(180deg, #ff8294, #e84f69); }
+.analytics-chart-column > span { overflow: hidden; color: var(--muted); font-size: 8px; text-align: center; white-space: nowrap; text-overflow: ellipsis; }
+.analytics-health-note { margin-top: 4px; padding-top: 14px; border-top: 1px solid var(--line); }
+.analytics-health-note strong { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.analytics-content-panel { margin-bottom: 18px; }
+.analytics-result-count { padding: 6px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 10px; font-weight: 800; }
+.analytics-insights-notice {
+  display: grid;
+  grid-template-columns: 38px 1fr;
+  gap: 13px;
+  align-items: start;
+  padding: 16px;
+  border: 1px solid color-mix(in srgb, var(--accent2) 28%, var(--line));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent2) 7%, var(--panel));
+}
+.analytics-insights-notice > span { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 11px; background: color-mix(in srgb, var(--accent2) 18%, transparent); color: var(--accent2); font-weight: 950; }
+.analytics-insights-notice strong { font-size: 13px; }
+.analytics-insights-notice p { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+
+@media (max-width: 1150px) {
+  .analytics-title-row { align-items: flex-start; }
+  .analytics-filters { width: 100%; }
+  .analytics-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .analytics-filters { grid-template-columns: 1fr; }
+  .analytics-chart-bars { grid-template-columns: repeat(7, minmax(18px, 1fr)); overflow-x: auto; }
 }
