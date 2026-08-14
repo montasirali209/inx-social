@@ -11,6 +11,9 @@ let labVideoPath = '';
 let accountMode = 'login';
 let cloudWorkspace = { accounts: [], pages: [], activePage: null, pageUsage: null, plan: null };
 let studioActionModalResolver = null;
+let metaScheduledPosts = [];
+let metaScheduleLoaded = false;
+let metaScheduleLoading = false;
 
 const UI_TEXT_FIELDS = [
   'appTitle', 'appSubtitle', 'dashboardTitle', 'dashboardSubtitle',
@@ -264,6 +267,10 @@ function switchView(viewName) {
   document.getElementById('viewTitle').textContent = views[viewName][0];
   document.getElementById('viewSubtitle').textContent = views[viewName][1];
   if (['pages','analytics'].includes(viewName)) refreshWorkspaceV2({ silent: true });
+  if (viewName === 'calendar') {
+    renderCalendar();
+    if (!metaScheduleLoaded && !metaScheduleLoading) listMetaScheduled({ silent: true });
+  }
 }
 
 function bindButtons() {
@@ -1365,14 +1372,30 @@ async function testFacebook() {
   }
 }
 
-async function listMetaScheduled() {
+async function listMetaScheduled(options = {}) {
+  if (metaScheduleLoading) return;
+  metaScheduleLoading = true;
+  const button = document.getElementById('btnListMeta');
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'Syncing Facebook…';
+  }
   try {
     const result = await window.schedulerApi.listScheduledPosts();
     state = result.state;
-    renderMetaScheduled(result.result.data || []);
-    toast(`Fetched ${(result.result.data || []).length} Meta scheduled post(s).`);
+    metaScheduledPosts = Array.isArray(result.result?.data) ? result.result.data : [];
+    metaScheduleLoaded = true;
+    renderCalendar();
+    renderMetaScheduled(metaScheduledPosts);
+    if (!options.silent) toast(`Calendar synced with ${metaScheduledPosts.length} Facebook scheduled post(s).`);
   } catch (err) {
-    toast(`Could not fetch Meta scheduled posts: ${err.message}`, true);
+    if (!options.silent) toast(`Could not sync the Facebook schedule: ${err.message}`, true);
+  } finally {
+    metaScheduleLoading = false;
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'Refresh Facebook Schedule';
+    }
   }
 }
 
@@ -1817,7 +1840,9 @@ function setSimpleScheduleCheck(html, kind = '') {
 
 function renderCalendar() {
   const root = document.getElementById('calendarGrid');
+  if (!root || !state) return;
   const now = new Date();
+  now.setHours(0, 0, 0, 0);
   const days = [];
   for (let i = 0; i < 35; i++) {
     const date = new Date(now);
@@ -1825,31 +1850,85 @@ function renderCalendar() {
     days.push(date);
   }
   const jobsByDate = groupJobsByDate(state.jobs || []);
+  const metaByDate = groupMetaPostsByDate(metaScheduledPosts);
   root.innerHTML = days.map(date => {
-    const key = date.toISOString().slice(0, 10);
+    const key = localDateKey(date);
     const jobs = jobsByDate[key] || [];
-    const today = key === now.toISOString().slice(0, 10);
+    const localMetaIds = new Set(jobs.flatMap(job => [job.metaPostId, job.metaVideoId]).filter(Boolean).map(String));
+    const metaPosts = (metaByDate[key] || []).filter(post => !localMetaIds.has(String(post.id || '')));
+    const today = key === localDateKey(now);
+    const itemCount = jobs.length + metaPosts.length;
     return `<div class="day-card ${today ? 'today' : ''}">
-      <div class="day-date"><strong>${date.toLocaleDateString(undefined, { weekday: 'short' })}</strong><span>${date.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}</span></div>
-      ${jobs.map(job => `<div class="cal-job ${escapeHtml(job.status)}"><strong>${escapeHtml(timeFromIso(job.scheduledAtISO))}</strong><br>${escapeHtml(job.videoName)}<br><span class="muted">${escapeHtml(statusLabel(job.status))}</span></div>`).join('') || '<span class="muted">No jobs</span>'}
+      <div class="day-date"><span><strong>${date.toLocaleDateString(undefined, { weekday: 'short' })}</strong>${date.toLocaleDateString(undefined, { day: '2-digit', month: 'short' })}</span>${itemCount ? `<b>${itemCount}</b>` : ''}</div>
+      <div class="calendar-day-items">
+        ${jobs.map(job => `<div class="cal-job local ${escapeHtml(job.status)}"><span class="calendar-source local">INX</span><strong>${escapeHtml(timeFromIso(job.scheduledAtISO))}</strong><p>${escapeHtml(job.videoName)}</p><small>${escapeHtml(statusLabel(job.status))}</small></div>`).join('')}
+        ${metaPosts.map(post => `<div class="cal-job facebook"><span class="calendar-source facebook">Facebook</span><strong>${escapeHtml(formatMetaScheduleTime(post))}</strong><p>${escapeHtml(calendarPostLabel(post))}</p><small>Scheduled on Facebook</small></div>`).join('')}
+        ${itemCount ? '' : '<span class="calendar-empty">No scheduled content</span>'}
+      </div>
     </div>`;
   }).join('');
+  const sync = document.getElementById('calendarSyncStatus');
+  if (sync) sync.textContent = metaScheduleLoaded
+    ? `${metaScheduledPosts.length} current Facebook scheduled post${metaScheduledPosts.length === 1 ? '' : 's'} synced.`
+    : 'Facebook schedule syncs automatically when you open Calendar.';
 }
 
 function renderMetaScheduled(posts) {
   const box = document.getElementById('metaScheduledBox');
+  if (!box) return;
   box.classList.remove('hidden');
-  box.innerHTML = `<div class="panel-head"><h3>Meta scheduled posts</h3><p>Fetched live from Facebook Page scheduled_posts edge.</p></div>` +
-    (posts.length ? `<div class="table-wrap"><table><thead><tr><th>ID</th><th>Message</th><th>Scheduled</th><th>Published?</th></tr></thead><tbody>${posts.map(post => `
-      <tr><td class="code">${escapeHtml(post.id)}</td><td>${escapeHtml(post.message || '')}</td><td>${escapeHtml(post.scheduled_publish_time || '')}</td><td>${escapeHtml(String(post.is_published))}</td></tr>
-    `).join('')}</tbody></table></div>` : '<div class="empty">Meta returned no scheduled posts.</div>');
+  const sorted = [...posts].sort((a, b) => scheduledPostDate(a) - scheduledPostDate(b));
+  box.innerHTML = `<div class="panel-head"><h3>Facebook schedule details</h3><p>Current upcoming content returned directly by your active Facebook Page.</p></div>` +
+    (sorted.length ? `<div class="table-wrap"><table><thead><tr><th>Scheduled date &amp; time</th><th>Content</th><th>Status</th><th>Facebook ID</th></tr></thead><tbody>${sorted.map(post => `
+      <tr><td><strong>${escapeHtml(formatMetaScheduleDate(post))}</strong></td><td>${escapeHtml(post.message || 'Scheduled Facebook post')}</td><td><span class="status scheduled">Scheduled</span></td><td class="code">${escapeHtml(post.id || '')}</td></tr>
+    `).join('')}</tbody></table></div>` : '<div class="empty">Facebook returned no upcoming scheduled posts for this Page.</div>');
+}
+
+function scheduledPostDate(post) {
+  const raw = Number(post?.scheduled_publish_time || 0);
+  return raw ? new Date(raw < 1000000000000 ? raw * 1000 : raw) : new Date(NaN);
+}
+
+function localDateKey(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function groupMetaPostsByDate(posts) {
+  const grouped = {};
+  for (const post of posts || []) {
+    if (post.is_published === true) continue;
+    const date = scheduledPostDate(post);
+    const key = localDateKey(date);
+    if (!key) continue;
+    grouped[key] = grouped[key] || [];
+    grouped[key].push(post);
+  }
+  for (const key of Object.keys(grouped)) grouped[key].sort((a, b) => scheduledPostDate(a) - scheduledPostDate(b));
+  return grouped;
+}
+
+function formatMetaScheduleTime(post) {
+  const date = scheduledPostDate(post);
+  return Number.isNaN(date.getTime()) ? 'Time unavailable' : date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatMetaScheduleDate(post) {
+  const date = scheduledPostDate(post);
+  return Number.isNaN(date.getTime()) ? 'Date unavailable' : date.toLocaleString(undefined, { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function calendarPostLabel(post) {
+  const message = String(post?.message || '').trim();
+  return message ? (message.length > 86 ? `${message.slice(0, 83)}…` : message) : 'Scheduled Facebook post';
 }
 
 function groupJobsByDate(jobs) {
   const grouped = {};
   for (const job of jobs) {
     if (!job.scheduledAtISO) continue;
-    const key = new Date(job.scheduledAtISO).toISOString().slice(0, 10);
+    const key = localDateKey(job.scheduledAtISO);
     grouped[key] = grouped[key] || [];
     grouped[key].push(job);
   }

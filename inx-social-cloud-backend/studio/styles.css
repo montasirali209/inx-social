@@ -1883,3 +1883,98 @@ body[data-theme="light"] .top-theme-control select option {
     width: 100%;
   }
 }
+
+/* Phase 10.4.1 - live Facebook calendar and stable desktop canvas */
+.calendar-grid {
+  grid-template-columns: repeat(5, minmax(190px, 1fr));
+  align-items: start;
+}
+.day-card {
+  min-height: 128px;
+  padding: 12px;
+}
+.day-card.today {
+  border-color: color-mix(in srgb, var(--accent2) 58%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent2) 8%, transparent);
+}
+.day-date {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.day-date > span {
+  display: flex;
+  gap: 5px;
+  align-items: baseline;
+}
+.day-date strong { font-size: 12px; }
+.day-date b {
+  min-width: 23px;
+  height: 23px;
+  display: grid;
+  place-items: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent2) 15%, transparent);
+  color: var(--accent2);
+  font-size: 10px;
+}
+.calendar-day-items { display: grid; gap: 8px; }
+.cal-job {
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+  background: rgba(255,255,255,.04);
+}
+.cal-job.facebook {
+  border-color: color-mix(in srgb, #49a6ff 28%, var(--line2));
+  background: color-mix(in srgb, #1877f2 9%, transparent);
+}
+.cal-job strong { display: block; margin-top: 5px; font-size: 12px; }
+.cal-job p {
+  margin: 5px 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+.cal-job small { color: var(--muted); font-size: 9px; }
+.calendar-source {
+  display: inline-flex;
+  padding: 3px 6px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.calendar-source.facebook { color: #cde8ff; background: rgba(24,119,242,.28); }
+.calendar-source.local { color: #c8fff8; background: color-mix(in srgb, var(--accent2) 20%, transparent); }
+.calendar-empty { color: var(--muted); font-size: 11px; }
+
+/* Desktop browser zoom may enlarge text, but it no longer collapses the Studio
+ * into tablet/mobile columns. Browser accessibility zoom itself remains available. */
+@media (hover: hover) and (pointer: fine) {
+  html, body { min-width: 1180px; }
+  body { overflow-x: auto; overflow-y: hidden; }
+  .shell { min-width: 1180px; }
+}
+
+@media (max-width: 1450px) {
+  .calendar-grid { grid-template-columns: repeat(4, minmax(190px, 1fr)); }
+}
+@media (max-width: 1180px) {
+  .calendar-grid { grid-template-columns: repeat(3, minmax(190px, 1fr)); }
+}
+@media (max-width: 760px) {
+  html, body { min-width: 0; }
+  body { overflow: hidden; }
+  .shell { min-width: 0; }
+  .calendar-grid { grid-template-columns: 1fr; }
+}

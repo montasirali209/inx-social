@@ -149,28 +149,42 @@ async function pagePicture(req, res, next) {
     if (!page?.facebookPageId || !page?.encryptedAccessToken) return res.status(404).end();
     const graphVersion = process.env.FB_GRAPH_VERSION || process.env.GRAPH_VERSION || 'v25.0';
     const pageAccessToken = decryptToken(page.encryptedAccessToken);
-    const picture = await axios.get(
-      `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(page.facebookPageId)}`,
-      {
-        params: { fields: 'picture.type(large)', access_token: pageAccessToken },
-        timeout: 15000,
-        validateStatus: status => status >= 200 && status < 500
+    let livePictureUrl = null;
+    try {
+      const picture = await axios.get(
+        `https://graph.facebook.com/${graphVersion}/${encodeURIComponent(page.facebookPageId)}`,
+        {
+          params: { fields: 'picture.type(large)', access_token: pageAccessToken },
+          timeout: 15000,
+          validateStatus: status => status >= 200 && status < 500
+        }
+      );
+      if (picture.status < 400 && !picture.data?.error) {
+        livePictureUrl = picture.data?.picture?.data?.url || null;
       }
-    );
-    const pictureUrl = picture.data?.picture?.data?.url || page.facebookPagePicture;
-    if (!pictureUrl || picture.status >= 400 || picture.data?.error) return res.status(404).end();
-    const response = await axios.get(pictureUrl, {
-      responseType: 'arraybuffer',
-      timeout: 15000,
-      maxRedirects: 5,
-      validateStatus: status => status >= 200 && status < 500
-    });
-    const contentType = String(response.headers['content-type'] || '');
-    if (response.status >= 400) return res.status(404).end();
-    if (!contentType.startsWith('image/')) return res.status(404).end();
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'private, max-age=300');
-    return res.send(Buffer.from(response.data));
+    } catch (_) {
+      // A temporary Graph lookup failure must not discard the picture saved at connection time.
+    }
+
+    const candidates = [...new Set([livePictureUrl, page.facebookPagePicture].filter(Boolean))];
+    for (const pictureUrl of candidates) {
+      try {
+        const response = await axios.get(pictureUrl, {
+          responseType: 'arraybuffer',
+          timeout: 15000,
+          maxRedirects: 5,
+          validateStatus: status => status >= 200 && status < 500
+        });
+        const contentType = String(response.headers['content-type'] || '');
+        if (response.status >= 400 || !contentType.startsWith('image/')) continue;
+        res.setHeader('Content-Type', contentType);
+        res.setHeader('Cache-Control', 'private, max-age=300');
+        return res.send(Buffer.from(response.data));
+      } catch (_) {
+        // Try the next safe server-side candidate without exposing its URL to the browser.
+      }
+    }
+    return res.status(404).end();
   } catch (error) {
     if (error.response?.status >= 400 && error.response?.status < 500) return res.status(404).end();
     return next(error);
