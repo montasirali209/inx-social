@@ -63,6 +63,16 @@ app.get(['/admin', '/admin/'], (req, res) => {
 
 app.get('/studio', (req, res) => res.redirect(308, '/studio/'));
 
+app.get('/privacy', (req, res) => res.redirect(308, '/privacy.html'));
+app.get('/terms', (req, res) => res.redirect(308, '/terms.html'));
+app.get('/data-deletion', (req, res) => res.redirect(308, '/data-deletion.html'));
+
+// Preserve the legacy path previously submitted to Meta when the owner points
+// that URL at this service. The canonical public document remains at the root.
+app.get('/inx-social/data-deletion.html', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'data-deletion.html'));
+});
+
 app.get('/', (req, res) => {
   const landing = path.join(__dirname, '..', 'public', 'landing.html');
   res.sendFile(landing, error => {
