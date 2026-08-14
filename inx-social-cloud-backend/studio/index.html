@@ -12,8 +12,8 @@
   <div id="accountGate" class="account-gate hidden">
     <div class="account-gate-card">
       <div class="account-gate-brand">
-        <img src="assets/inx-social-logo.png" alt="INX Social" />
-        <div><h1>INX Social</h1><p>Sign in to open Cloud Studio.</p></div>
+        <img class="brand-wordmark" src="assets/inx-social-wordmark.png" alt="INX Social" />
+        <p>Sign in to open Content Studio.</p>
       </div>
       <div class="account-tabs">
         <button type="button" id="accountTabLogin" class="active">Sign in</button>
@@ -45,11 +45,7 @@
   <div class="shell">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark logo-mark"><img src="assets/inx-social-logo.png" alt="INX Social logo" /></div>
-        <div>
-          <h1 id="brandTitle">INX Social</h1>
-          <p id="brandSubtitle">Content Scheduler</p>
-        </div>
+        <img class="brand-wordmark" src="assets/inx-social-wordmark.png" alt="INX Social" />
       </div>
       <nav>
         <button class="nav active" data-view="dashboard">Overview</button>
@@ -499,21 +495,22 @@ Third video caption #hashtags"></textarea>
 
       <section id="analytics" class="view workspace-v2-view">
         <div class="section-title-row analytics-title-row">
-          <div><span class="eyebrow">Content performance</span><h2>Analytics</h2><p>Understand publishing output, reliability and upcoming content for every connected channel.</p></div>
+          <div><span class="eyebrow">Meta performance data</span><h2>Facebook Analytics</h2><p>Live Page, audience and content results returned by Meta for the selected Facebook Page.</p></div>
           <div class="analytics-filters" aria-label="Analytics filters">
             <label>Platform<select id="analyticsPlatformSelect"><option value="facebook">Facebook</option><option value="youtube" disabled>YouTube — coming soon</option><option value="tiktok" disabled>TikTok — coming soon</option></select></label>
-            <label>Page<select id="analyticsPageSelect"><option value="all">All Facebook Pages</option></select></label>
-            <label>Period<select id="analyticsRangeSelect"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option><option value="all">All time</option></select></label>
+            <label>Page<select id="analyticsPageSelect"><option value="">Active Facebook Page</option></select></label>
+            <label>Period<select id="analyticsRangeSelect"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></label>
+            <button id="btnRefreshAnalytics" class="btn primary analytics-refresh" type="button">Refresh analytics</button>
           </div>
         </div>
-        <div class="analytics-platform-banner"><div class="analytics-platform-mark">f</div><div><strong>Facebook publishing analytics</strong><span id="analyticsScopeText">All connected Pages · Last 30 days</span></div><span class="analytics-live-pill">Active</span></div>
-        <div class="analytics-grid-v2"><article><span>Published</span><strong id="analyticsPublished">0</strong><small>Confirmed published Reels</small></article><article><span>Scheduled</span><strong id="analyticsScheduled">0</strong><small>Upcoming or confirmed schedule</small></article><article><span>Failed</span><strong id="analyticsFailed">0</strong><small>Attempts needing attention</small></article><article><span>Success rate</span><strong id="analyticsSuccessRate">0%</strong><small>Successful completed attempts</small></article></div>
+        <div class="analytics-platform-banner"><div class="analytics-platform-mark">f</div><div><strong id="analyticsPageName">Facebook Page analytics</strong><span id="analyticsScopeText">Choose a connected Page to begin</span></div><span id="analyticsLivePill" class="analytics-live-pill">Not loaded</span></div>
+        <div class="analytics-grid-v2"><article><span>Followers</span><strong id="analyticsFollowers">—</strong><small>Current audience returned by Meta</small></article><article><span>Posts</span><strong id="analyticsPosts">—</strong><small>Content in the selected period</small></article><article><span>Engagements</span><strong id="analyticsEngagements">—</strong><small>Reactions, comments and shares</small></article><article><span>Content views</span><strong id="analyticsViews">—</strong><small>Shown only when Meta provides it</small></article></div>
         <div class="analytics-layout">
-          <section class="panel analytics-trend-panel"><div class="panel-head"><div><h3>Publishing activity</h3><p>Successful and failed attempts over the selected period.</p></div></div><div id="analyticsTrend" class="analytics-trend"></div></section>
-          <section class="panel"><div class="panel-head"><div><h3>Publishing health</h3><p>Current status distribution.</p></div></div><div id="analyticsHealthBars" class="analytics-bars"></div></section>
+          <section class="panel analytics-trend-panel"><div class="panel-head"><div><h3>Performance trend</h3><p>Daily metrics returned by Meta. Unavailable values are never estimated.</p></div></div><div id="analyticsTrend" class="analytics-trend"><div class="empty">Open Analytics to load live Meta data.</div></div></section>
+          <section class="panel"><div class="panel-head"><div><h3>Data availability</h3><p>What the current Page token and Meta API provide.</p></div></div><div id="analyticsCapabilities" class="analytics-capabilities"><div class="empty">Capability checks run with the analytics refresh.</div></div></section>
         </div>
-        <section class="panel analytics-content-panel"><div class="panel-head row"><div><h3>Recent Facebook content</h3><p>Latest publishing attempts for the selected Page and period.</p></div><span id="analyticsResultCount" class="analytics-result-count">0 items</span></div><div id="analyticsRecentContent" class="table-wrap"></div></section>
-        <section class="analytics-insights-notice"><span>i</span><div><strong>Facebook reach and engagement insights</strong><p>Publishing analytics are active now. Reach, views, watch time and engagement can be added after Meta grants the <code>read_insights</code> permission; INX Social does not invent unavailable metrics.</p></div></section>
+        <section class="panel analytics-content-panel"><div class="panel-head row"><div><h3>Facebook content performance</h3><p>Published posts and Reels returned by the selected Facebook Page.</p></div><span id="analyticsResultCount" class="analytics-result-count">0 items</span></div><div id="analyticsRecentContent" class="table-wrap"><div class="empty">No analytics loaded yet.</div></div></section>
+        <section id="analyticsNotice" class="analytics-insights-notice"><span>i</span><div><strong>Exact Meta capability detection</strong><p>INX Social checks the connected Page token and displays only values that Meta actually returns. A missing metric stays unavailable instead of being invented.</p></div></section>
       </section>
 
       <section id="settings" class="view">

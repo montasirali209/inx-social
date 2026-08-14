@@ -905,6 +905,11 @@
       const result = await api('/api/studio/facebook/scheduled-posts');
       return { ...result, state: cachedState };
     },
+    getFacebookAnalytics: async ({ connectedPageId, days = 30, force = false } = {}) => {
+      const query = new URLSearchParams({ days: String(days), force: String(Boolean(force)) });
+      if (connectedPageId) query.set('connectedPageId', connectedPageId);
+      return api(`/api/studio/analytics/facebook?${query.toString()}`);
+    },
     deleteLocalJob: async id => {
       await api(`/api/studio/jobs/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: '{}' });
       await fetchState();

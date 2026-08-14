@@ -15,8 +15,11 @@ let metaScheduledPosts = [];
 let metaScheduleLoaded = false;
 let metaScheduleLoading = false;
 let analyticsPlatform = 'facebook';
-let analyticsPage = 'all';
+let analyticsPage = '';
 let analyticsRange = '30';
+let liveFacebookAnalytics = null;
+let analyticsLoading = false;
+let analyticsLastKey = '';
 
 const UI_TEXT_FIELDS = [
   'appTitle', 'appSubtitle', 'dashboardTitle', 'dashboardSubtitle',
@@ -269,7 +272,10 @@ function switchView(viewName) {
   document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === viewName));
   document.getElementById('viewTitle').textContent = views[viewName][0];
   document.getElementById('viewSubtitle').textContent = views[viewName][1];
-  if (['pages','analytics'].includes(viewName)) refreshWorkspaceV2({ silent: true });
+  if (viewName === 'pages') refreshWorkspaceV2({ silent: true });
+  if (viewName === 'analytics') {
+    refreshWorkspaceV2({ silent: true }).then(() => loadFacebookAnalytics(false)).catch(error => renderAnalyticsError(error));
+  }
   if (viewName === 'calendar') {
     renderCalendar();
     if (!metaScheduleLoaded && !metaScheduleLoading) listMetaScheduled({ silent: true });
@@ -378,13 +384,16 @@ function bindButtons() {
   const analyticsPageSelect = document.getElementById('analyticsPageSelect');
   if (analyticsPageSelect) analyticsPageSelect.addEventListener('change', event => {
     analyticsPage = event.target.value;
-    renderAnalyticsV2();
+    liveFacebookAnalytics = null;
+    loadFacebookAnalytics(false);
   });
   const analyticsRangeSelect = document.getElementById('analyticsRangeSelect');
   if (analyticsRangeSelect) analyticsRangeSelect.addEventListener('change', event => {
     analyticsRange = event.target.value;
-    renderAnalyticsV2();
+    liveFacebookAnalytics = null;
+    loadFacebookAnalytics(false);
   });
+  on('btnRefreshAnalytics', () => loadFacebookAnalytics(true));
   document.addEventListener('click', event => {
     const settingSlotButton = event.target.closest('[data-remove-setting-slot]');
     if (settingSlotButton) removeSettingDailySlot(settingSlotButton.dataset.removeSettingSlot);
@@ -2505,102 +2514,134 @@ async function disconnectActiveWorkspacePage() {
 function renderAnalyticsV2() {
   if (!state) return;
   const pages = cloudWorkspace.pages || [];
+  const active = cloudWorkspace.activePage || pages.find(page => page.isSelected) || null;
+  if (!analyticsPage || !pages.some(page => page.id === analyticsPage)) analyticsPage = active?.id || pages[0]?.id || '';
   const pageSelect = document.getElementById('analyticsPageSelect');
   if (pageSelect) {
-    const available = new Set(pages.map(page => String(page.facebookPageId || page.id)));
-    if (analyticsPage !== 'all' && !available.has(analyticsPage)) analyticsPage = 'all';
-    pageSelect.innerHTML = '<option value="all">All Facebook Pages</option>' + pages.map(page =>
-      `<option value="${escapeHtml(page.facebookPageId || page.id)}">${escapeHtml(page.facebookPageName || 'Facebook Page')}</option>`
-    ).join('');
+    pageSelect.innerHTML = pages.length ? pages.map(page =>
+      `<option value="${escapeHtml(page.id)}">${escapeHtml(page.facebookPageName || 'Facebook Page')}</option>`
+    ).join('') : '<option value="">Connect a Facebook Page first</option>';
     pageSelect.value = analyticsPage;
+    pageSelect.disabled = analyticsLoading || !pages.length;
   }
   const platformSelect = document.getElementById('analyticsPlatformSelect');
   if (platformSelect) platformSelect.value = analyticsPlatform;
   const rangeSelect = document.getElementById('analyticsRangeSelect');
-  if (rangeSelect) rangeSelect.value = analyticsRange;
+  if (rangeSelect) { rangeSelect.value = analyticsRange; rangeSelect.disabled = analyticsLoading; }
+  const refresh = document.getElementById('btnRefreshAnalytics');
+  if (refresh) { refresh.disabled = analyticsLoading || !analyticsPage; refresh.textContent = analyticsLoading ? 'Loading Meta data…' : 'Refresh analytics'; }
+  if (!liveFacebookAnalytics) return;
+  renderFacebookAnalytics(liveFacebookAnalytics);
+}
 
-  const now = Date.now();
-  const rangeDays = analyticsRange === 'all' ? null : Number(analyticsRange || 30);
-  const cutoff = rangeDays ? now - rangeDays * 86400000 : 0;
-  const jobs = (state.jobs || []).filter(job => {
-    const pageMatches = analyticsPage === 'all' || String(job.facebookPageId || '') === analyticsPage;
-    const timestamp = analyticsJobDate(job).getTime();
-    return pageMatches && (!cutoff || (Number.isFinite(timestamp) && timestamp >= cutoff));
-  });
-  const published = jobs.filter(job => ['published', 'reel_published'].includes(String(job.status || ''))).length;
-  const scheduled = jobs.filter(job => ['scheduled', 'reel_scheduled'].includes(String(job.status || ''))).length;
-  const failed = jobs.filter(job => String(job.status || '').includes('failed')).length;
-  const successful = published + scheduled;
-  const completed = successful + failed;
-  const pending = Math.max(0, jobs.length - completed);
+async function loadFacebookAnalytics(force = false) {
+  if (analyticsLoading) return;
+  renderAnalyticsV2();
+  if (!analyticsPage) {
+    renderAnalyticsError(new Error('Connect and select a Facebook Page before opening Analytics.'));
+    return;
+  }
+  const key = `${analyticsPage}:${analyticsRange}`;
+  if (!force && liveFacebookAnalytics && analyticsLastKey === key) return renderFacebookAnalytics(liveFacebookAnalytics);
+  analyticsLoading = true;
+  renderAnalyticsLoading();
+  try {
+    const result = await window.schedulerApi.getFacebookAnalytics({ connectedPageId: analyticsPage, days: Number(analyticsRange || 30), force });
+    liveFacebookAnalytics = result.analytics;
+    analyticsLastKey = key;
+    renderFacebookAnalytics(liveFacebookAnalytics);
+  } catch (error) {
+    renderAnalyticsError(error);
+  } finally {
+    analyticsLoading = false;
+    renderAnalyticsV2();
+  }
+}
 
-  setText('analyticsPublished', published);
-  setText('analyticsScheduled', scheduled);
-  setText('analyticsFailed', failed);
-  setText('analyticsSuccessRate', `${completed ? Math.round((successful / completed) * 100) : 0}%`);
-  const selectedPage = pages.find(page => String(page.facebookPageId || page.id) === analyticsPage);
-  const periodLabel = analyticsRange === 'all' ? 'All time' : `Last ${analyticsRange} days`;
-  setText('analyticsScopeText', `${selectedPage?.facebookPageName || 'All connected Pages'} · ${periodLabel}`);
-  setText('analyticsResultCount', `${jobs.length} item${jobs.length === 1 ? '' : 's'}`);
+function renderAnalyticsLoading() {
+  setText('analyticsLivePill', 'Loading');
+  const trend = document.getElementById('analyticsTrend');
+  if (trend) trend.innerHTML = '<div class="analytics-loading"><i></i><span>Requesting the selected Page analytics from Meta…</span></div>';
+  const content = document.getElementById('analyticsRecentContent');
+  if (content) content.innerHTML = '<div class="analytics-loading"><i></i><span>Loading Facebook content performance…</span></div>';
+  renderAnalyticsV2();
+}
 
-  const bars = document.getElementById('analyticsHealthBars');
-  if (bars) bars.innerHTML = [
-    ['Successful', successful, 'success'],
-    ['Failed', failed, 'failed'],
-    ['Pending', pending, 'queued']
-  ].map(([label, value, cls]) => `<div><span>${label}<b>${value}</b></span><i><em class="${cls}" style="width:${jobs.length ? Math.max(value ? 4 : 0, value / jobs.length * 100) : 0}%"></em></i></div>`).join('') +
-    `<div class="analytics-health-note"><span>Active Page</span><strong>${escapeHtml(cloudWorkspace.activePage?.facebookPageName || 'None selected')}</strong></div>`;
+function renderAnalyticsError(error) {
+  setText('analyticsLivePill', 'Unavailable');
+  setText('analyticsFollowers', '—');
+  setText('analyticsPosts', '—');
+  setText('analyticsEngagements', '—');
+  setText('analyticsViews', '—');
+  const message = escapeHtml(error?.message || 'Facebook analytics could not be loaded.');
+  const trend = document.getElementById('analyticsTrend');
+  if (trend) trend.innerHTML = `<div class="analytics-error"><strong>Analytics not available</strong><span>${message}</span></div>`;
+  const capabilities = document.getElementById('analyticsCapabilities');
+  if (capabilities) capabilities.innerHTML = `<div class="capability-row unavailable"><span>Meta analytics request</span><strong>Unavailable</strong><small>${message}</small></div>`;
+}
 
-  renderAnalyticsTrend(jobs, rangeDays);
+function formatMetric(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return '—';
+  return new Intl.NumberFormat(undefined, { notation: Number(value) >= 10000 ? 'compact' : 'standard', maximumFractionDigits: 1 }).format(Number(value));
+}
+
+function renderFacebookAnalytics(data) {
+  if (!data) return;
+  setText('analyticsPageName', data.page?.name || 'Facebook Page analytics');
+  setText('analyticsScopeText', `${data.page?.name || 'Facebook Page'} · Last ${data.period?.days || analyticsRange} days · ${data.cache?.hit ? 'Cached safely' : 'Live Meta refresh'}`);
+  setText('analyticsLivePill', data.cache?.hit ? 'Cached' : 'Live');
+  setText('analyticsFollowers', formatMetric(data.summary?.followers));
+  setText('analyticsPosts', formatMetric(data.summary?.posts));
+  setText('analyticsEngagements', formatMetric(data.summary?.engagements));
+  setText('analyticsViews', formatMetric(data.summary?.views));
+  setText('analyticsResultCount', `${data.content?.length || 0} item${data.content?.length === 1 ? '' : 's'}`);
+  renderAnalyticsTrend(data.series || {});
+  renderAnalyticsCapabilities(data.capabilities || {}, data.warnings || []);
   const recent = document.getElementById('analyticsRecentContent');
   if (recent) {
-    const sorted = [...jobs].sort((a, b) => analyticsJobDate(b) - analyticsJobDate(a)).slice(0, 15);
-    recent.innerHTML = sorted.length ? `<table><thead><tr><th>Content</th><th>Page</th><th>Status</th><th>Activity time</th><th>Publish time</th><th>Meta ID</th></tr></thead><tbody>${sorted.map(job => `
-      <tr><td><strong>${escapeHtml(job.videoName || 'Facebook Reel')}</strong></td><td>${escapeHtml(job.facebookPageName || 'Facebook Page')}</td><td><span class="status ${escapeHtml(job.status)}">${escapeHtml(statusLabel(job.status))}</span></td><td>${escapeHtml(formatDate(analyticsJobDate(job).toISOString()))}</td><td>${escapeHtml(job.publishMode === 'NOW' ? 'Published immediately' : formatDate(job.scheduledAtISO))}</td><td class="code">${escapeHtml(job.fbVideoId || job.fbPostId || '-')}</td></tr>
-    `).join('')}</tbody></table>` : '<div class="empty">No Facebook publishing activity matches these filters.</div>';
+    const content = data.content || [];
+    recent.innerHTML = content.length ? `<table><thead><tr><th>Content</th><th>Published</th><th>Reactions</th><th>Comments</th><th>Shares</th><th>Facebook</th></tr></thead><tbody>${content.map(item => `
+      <tr><td><div class="analytics-content-cell">${item.thumbnailUrl ? `<img src="${escapeHtml(item.thumbnailUrl)}" alt="" loading="lazy">` : '<span class="analytics-content-placeholder">f</span>'}<div><strong>${escapeHtml((item.message || 'Facebook content').slice(0, 110))}</strong><small>${escapeHtml(item.contentType || 'post')}</small></div></div></td><td>${escapeHtml(formatDate(item.createdTime))}</td><td>${formatMetric(item.reactions)}</td><td>${formatMetric(item.comments)}</td><td>${formatMetric(item.shares)}</td><td>${item.permalinkUrl ? `<a class="analytics-open-link" href="${escapeHtml(item.permalinkUrl)}" target="_blank" rel="noopener noreferrer">View post</a>` : '—'}</td></tr>
+    `).join('')}</tbody></table>` : '<div class="empty">Meta returned no published content in this period.</div>';
   }
+  const notice = document.getElementById('analyticsNotice');
+  if (notice) notice.querySelector('p').textContent = data.capabilities?.pageInsights?.available
+    ? 'Meta Page Insights are available for this connection. Unsupported individual metrics remain blank and are listed in Data availability.'
+    : 'Basic post engagement is available. Meta did not provide the tested Page Insights metrics for this token; the exact reason is shown above.';
 }
 
-function analyticsJobDate(job) {
-  const candidates = [job.completedAt, job.uploadedAt, job.updatedAt, job.createdAt, job.scheduledAtISO];
-  for (const value of candidates) {
-    const date = new Date(value || 0);
-    if (!Number.isNaN(date.getTime())) return date;
-  }
-  return new Date(0);
+function renderAnalyticsCapabilities(capabilities, warnings) {
+  const target = document.getElementById('analyticsCapabilities');
+  if (!target) return;
+  const rows = [
+    ['Page and post engagement', capabilities.basicEngagement],
+    ['Page Insights', capabilities.pageInsights],
+    ['Content views', capabilities.metrics?.views],
+    ['Post engagements trend', capabilities.metrics?.engagements],
+    ['Page follows trend', capabilities.metrics?.follows]
+  ];
+  target.innerHTML = rows.map(([label, capability]) => {
+    const available = Boolean(capability?.available);
+    const state = String(capability?.state || 'unavailable').replaceAll('_', ' ');
+    return `<div class="capability-row ${available ? 'available' : 'unavailable'}"><span>${escapeHtml(label)}</span><strong>${available ? 'Available' : escapeHtml(state)}</strong><small>${escapeHtml(capability?.reason || 'Not returned by Meta.')}</small></div>`;
+  }).join('') + (warnings.length ? `<details class="analytics-warnings"><summary>${warnings.length} unavailable metric note${warnings.length === 1 ? '' : 's'}</summary>${warnings.map(item => `<p>${escapeHtml(item)}</p>`).join('')}</details>` : '');
 }
 
-function renderAnalyticsTrend(jobs, requestedDays) {
+function renderAnalyticsTrend(series) {
   const target = document.getElementById('analyticsTrend');
   if (!target) return;
-  const now = new Date();
-  const oldest = jobs.length ? Math.min(...jobs.map(job => analyticsJobDate(job).getTime()).filter(Number.isFinite)) : now.getTime();
-  const allTimeDays = Math.max(1, Math.ceil((now.getTime() - oldest) / 86400000) + 1);
-  const days = Math.max(1, requestedDays || allTimeDays);
-  const bucketCount = Math.min(14, days);
-  const bucketDays = Math.max(1, Math.ceil(days / bucketCount));
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-  const start = new Date(end.getTime() - bucketCount * bucketDays * 86400000);
-  const buckets = Array.from({ length: bucketCount }, (_, index) => ({
-    start: new Date(start.getTime() + index * bucketDays * 86400000),
-    end: new Date(start.getTime() + (index + 1) * bucketDays * 86400000),
-    success: 0,
-    failed: 0
-  }));
-  for (const job of jobs) {
-    const timestamp = analyticsJobDate(job).getTime();
-    const index = Math.floor((timestamp - start.getTime()) / (bucketDays * 86400000));
-    if (index < 0 || index >= buckets.length) continue;
-    if (String(job.status || '').includes('failed')) buckets[index].failed += 1;
-    else if (['scheduled', 'reel_scheduled', 'published', 'reel_published'].includes(String(job.status || ''))) buckets[index].success += 1;
+  const preferred = ['views', 'engagements', 'follows'].find(key => (series[key] || []).length);
+  const values = preferred ? series[preferred] : [];
+  if (!values.length) {
+    target.innerHTML = '<div class="empty">Meta did not return a daily Page Insights series for this connection.</div>';
+    return;
   }
-  const maximum = Math.max(1, ...buckets.map(bucket => bucket.success + bucket.failed));
-  target.innerHTML = `<div class="analytics-chart-key"><span><i class="success"></i>Successful</span><span><i class="failed"></i>Failed</span></div><div class="analytics-chart-bars">${buckets.map(bucket => {
-    const total = bucket.success + bucket.failed;
-    const successHeight = bucket.success / maximum * 100;
-    const failedHeight = bucket.failed / maximum * 100;
-    const label = bucket.start.toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
-    return `<div class="analytics-chart-column" title="${escapeHtml(label)}: ${total} attempt${total === 1 ? '' : 's'}"><div class="analytics-chart-stack"><i class="failed" style="height:${failedHeight}%"></i><i class="success" style="height:${successHeight}%"></i></div><span>${escapeHtml(label)}</span></div>`;
+  const maximum = Math.max(1, ...values.map(item => Number(item.value || 0)));
+  const label = preferred === 'views' ? 'Content views' : preferred === 'follows' ? 'Page follows' : 'Post engagements';
+  target.innerHTML = `<div class="analytics-chart-key"><span><i class="success"></i>${label}</span></div><div class="analytics-chart-bars">${values.map(item => {
+    const height = Number(item.value || 0) / maximum * 100;
+    const date = new Date(`${item.date}T00:00:00`).toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+    return `<div class="analytics-chart-column" title="${escapeHtml(date)}: ${formatMetric(item.value)}"><div class="analytics-chart-stack"><i class="success" style="height:${height}%"></i></div><span>${escapeHtml(date)}</span></div>`;
   }).join('')}</div>`;
 }
 

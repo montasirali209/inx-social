@@ -210,6 +210,8 @@ h2{font-size:clamp(2.3rem,4.6vw,4.15rem);line-height:1.05;letter-spacing:-.055em
 footer{padding:70px 0 28px;color:#fff;background:#06101e}
 .footer-grid{display:grid;grid-template-columns:1.4fr repeat(3,.65fr);gap:44px}
 .footer-brand p{color:#8fa0b7;max-width:350px;margin-top:18px}
+.brand .brand-wordmark{width:210px;height:78px;object-fit:cover;object-position:center;border-radius:0;box-shadow:none;margin:-17px 0}
+.logo-card{width:min(460px,92%);padding:0;background:transparent;border:0;box-shadow:none;overflow:hidden}.logo-card .hero-wordmark{display:block;width:100%;aspect-ratio:2.75/1;object-fit:cover;object-position:center;border-radius:0;filter:drop-shadow(0 28px 50px rgba(30,209,238,.22))}
 .footer-grid>div:not(.footer-brand){display:flex;flex-direction:column;gap:9px}
 .footer-grid>div>strong{margin-bottom:7px}
 .footer-grid>div>a{color:#94a4ba;font-size:.88rem}

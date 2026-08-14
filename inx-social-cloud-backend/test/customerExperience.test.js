@@ -25,13 +25,18 @@ test('customer Activity Logs exclude administrator system details', () => {
   assert.match(controller, /logs:\s*\[\]/);
 });
 
-test('Facebook analytics are platform-ready without inventing unavailable insights', () => {
+test('Facebook analytics use live capability detection without inventing unavailable insights', () => {
   const html = read('studio/index.html');
   const app = read('studio/app.js');
+  const routes = read('src/routes/studioRoutes.js');
   assert.match(html, /id="analyticsPlatformSelect"/);
   assert.match(html, /YouTube — coming soon/);
   assert.match(html, /TikTok — coming soon/);
-  assert.match(html, /read_insights/);
+  assert.doesNotMatch(html, /read_insights/);
+  assert.match(html, /Exact Meta capability detection/);
+  assert.match(routes, /analytics\/facebook/);
+  assert.match(app, /getFacebookAnalytics/);
+  assert.match(html, /Unavailable values are never estimated/);
   assert.match(app, /function renderAnalyticsTrend/);
   assert.match(app, /analyticsRecentContent/);
 });

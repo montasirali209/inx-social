@@ -10,6 +10,7 @@ const prisma = require('../db/prisma');
 const { decryptToken } = require('../utils/tokenCrypto');
 const { getLicenseStatus } = require('../services/licenseService');
 const metaPublisher = require('../services/cloudMetaPublisher');
+const { getFacebookAnalytics } = require('../services/facebookAnalyticsService');
 const {
   JOB_STATUS,
   ASSET_STATUS,
@@ -469,6 +470,26 @@ async function desktopState(req, res, next) {
         paths: { userData: 'Browser session', videoRoot: '', captionRoot: '' }
       }
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function facebookAnalytics(req, res, next) {
+  try {
+    await requireStudioLicense(req.user.id);
+    const page = await resolvePage(req.user.id, req.query.connectedPageId, true);
+    const days = Math.min(90, Math.max(7, Number(req.query.days || 30)));
+    const force = String(req.query.force || '') === 'true';
+    const result = await getFacebookAnalytics({
+      pageId: page.facebookPageId,
+      accessToken: decryptToken(page.encryptedAccessToken),
+      graphVersion: DEFAULT_SETTINGS.graphVersion,
+      days,
+      force,
+      cacheScope: req.user.id
+    });
+    res.json({ analytics: result });
   } catch (error) {
     next(error);
   }
@@ -952,6 +973,7 @@ async function cancelJob(req, res, next) {
 module.exports = {
   capabilities,
   desktopState,
+  facebookAnalytics,
   savePreferences,
   resetUiTexts,
   overview,

@@ -11,6 +11,7 @@ router.post('/preferences/reset-ui-texts', controller.resetUiTexts);
 router.get('/overview', controller.overview);
 router.get('/facebook/test', controller.testActivePage);
 router.get('/facebook/scheduled-posts', controller.scheduledPosts);
+router.get('/analytics/facebook', controller.facebookAnalytics);
 router.get('/jobs', controller.listJobs);
 router.post('/jobs', controller.createDraft);
 router.put('/jobs/:id/video', controller.uploadVideo);
