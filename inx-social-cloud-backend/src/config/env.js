@@ -36,5 +36,20 @@ module.exports = {
     paymentGraceDays: Math.max(1, Number(process.env.PAYMENT_GRACE_DAYS || 7))
   },
   installerUrl: process.env.INSTALLER_URL || '',
-  latestVersion: process.env.LATEST_DESKTOP_VERSION || '14.0.1'
+  latestVersion: process.env.LATEST_DESKTOP_VERSION || '14.0.1',
+  ollama: {
+    baseUrl: String(process.env.OLLAMA_BASE_URL || '').replace(/\/$/, ''),
+    model: process.env.OLLAMA_MODEL || 'qwen2.5:7b-instruct',
+    apiKey: process.env.OLLAMA_API_KEY || '',
+    cloudflareAccessClientId: process.env.OLLAMA_CF_ACCESS_CLIENT_ID || '',
+    cloudflareAccessClientSecret: process.env.OLLAMA_CF_ACCESS_CLIENT_SECRET || '',
+    timeoutMs: Math.max(10000, Number(process.env.OLLAMA_TIMEOUT_MS || 120000))
+  },
+  aiFallback: {
+    enabled: String(process.env.AI_PAID_FALLBACK_ENABLED || 'false') === 'true',
+    baseUrl: String(process.env.AI_PAID_FALLBACK_BASE_URL || '').replace(/\/$/, ''),
+    apiKey: process.env.AI_PAID_FALLBACK_API_KEY || '',
+    model: process.env.AI_PAID_FALLBACK_MODEL || '',
+    maxCallsPerMission: Math.max(0, Math.min(5, Number(process.env.AI_PAID_FALLBACK_MAX_CALLS_PER_MISSION || 1)))
+  }
 };

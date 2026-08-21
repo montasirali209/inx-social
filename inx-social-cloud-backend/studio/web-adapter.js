@@ -806,6 +806,7 @@
     getAgentOverview: async () => api('/api/agent/overview'),
     createAgentPlan: async payload => api('/api/agent/plans', { method: 'POST', body: JSON.stringify(payload) }),
     approveAgentPlan: async id => api(`/api/agent/plans/${encodeURIComponent(id)}/approve`, { method: 'POST', body: '{}' }),
+    resumeAgentPlan: async id => api(`/api/agent/plans/${encodeURIComponent(id)}/resume`, { method: 'POST', body: '{}' }),
     cancelAgentPlan: async id => api(`/api/agent/plans/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: '{}' }),
     getWorkspace: workspaceResult,
     refreshWorkspace: workspaceResult,

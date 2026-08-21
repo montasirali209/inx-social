@@ -38,6 +38,10 @@ function chooseExecutionMode(prompt, requestedMode) {
   return 'INX_TEMPLATE';
 }
 
+function normalizeOperationMode(value) {
+  return String(value || '').toUpperCase() === 'AUTOPILOT' ? 'AUTOPILOT' : 'HYBRID';
+}
+
 function task(type, title, description, options = {}) {
   return {
     type,
@@ -55,6 +59,7 @@ function buildPlan(input = {}) {
   const platforms = normalizePlatforms(input.platforms, prompt);
   const assetCount = requestedAssetCount(prompt);
   const executionMode = chooseExecutionMode(prompt, input.executionMode);
+  const operationMode = normalizeOperationMode(input.operationMode);
   const provider = PROVIDERS[executionMode];
   const tasks = [];
 
@@ -67,6 +72,7 @@ function buildPlan(input = {}) {
   tasks.push(task('CONTENT_STRATEGY', `Create a ${assetCount}-asset content plan`, `Plan ${assetCount} distinct ideas, campaign goals, calls to action and platform-specific formats without fabricating business facts.`));
   tasks.push(task('MEDIA_GENERATION', `Generate ${assetCount} branded media asset${assetCount === 1 ? '' : 's'}`, `${provider.label} is the selected route. The final provider and price are re-checked before generation.`, {
     executionMode,
+    operationMode,
     estimatedCostCents: provider.estimatedCentsPerAsset * assetCount,
     riskLevel: executionMode === 'INX_TEMPLATE' ? 'LOW' : 'MEDIUM'
   }));
@@ -86,15 +92,16 @@ function buildPlan(input = {}) {
     platforms,
     assetCount,
     executionMode,
+    operationMode,
     estimatedCostCents: sequenced.reduce((sum, value) => sum + value.estimatedCostCents, 0),
     provider: { code: executionMode, ...provider },
     tasks: sequenced,
     guardrails: [
-      'No publishing, spending or Page changes before explicit approval.',
-      'Generated claims and media require review before external use.',
+      operationMode === 'AUTOPILOT' ? 'Organic content may publish automatically inside the owner-defined schedule and platform limits.' : 'Hybrid mode pauses for explicit approval at the selected review checkpoint before organic publishing.',
+      'Paid promotion, advertising spend, Page deletion, ownership and security changes are never automatic.',
       'Platform permissions and commercial-content disclosures are checked at execution time.'
     ]
   };
 }
 
-module.exports = { SUPPORTED_PLATFORMS, PROVIDERS, buildPlan, cleanPrompt, normalizePlatforms, requestedAssetCount, chooseExecutionMode };
+module.exports = { SUPPORTED_PLATFORMS, PROVIDERS, buildPlan, cleanPrompt, normalizePlatforms, requestedAssetCount, chooseExecutionMode, normalizeOperationMode };

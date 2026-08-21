@@ -1,6 +1,6 @@
 const router = require('express').Router();
 const { requireAuth, requireAdmin } = require('../middleware/authMiddleware');
-const { overview, users, userDetail, updateUserAccess, settings, updateSetting } = require('../controllers/adminController');
+const { overview, users, userDetail, updateUserAccess, settings, updateSetting, aiRouting, updateAiRouting } = require('../controllers/adminController');
 
 router.use(requireAuth, requireAdmin);
 router.get('/overview', overview);
@@ -9,5 +9,7 @@ router.get('/users/:id', userDetail);
 router.patch('/users/:id/access', updateUserAccess);
 router.get('/settings', settings);
 router.put('/settings', updateSetting);
+router.get('/ai-routing', aiRouting);
+router.put('/ai-routing', updateAiRouting);
 
 module.exports = router;

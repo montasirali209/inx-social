@@ -51,3 +51,18 @@ test('Page pictures use an authenticated Graph image fallback', () => {
   assert.match(controller, /params:\s*\{ type: 'large', access_token: pageAccessToken \}/);
   assert.match(controller, /responseType:\s*'arraybuffer'/);
 });
+
+test('Social Agent exposes Autopilot, Hybrid, live runtime and working memory', () => {
+  const html = read('studio/index.html');
+  const app = read('studio/app.js');
+  const admin = read('public/index.html');
+  assert.match(html, /value="AUTOPILOT"/);
+  assert.match(html, /value="HYBRID"/);
+  assert.match(html, /id="agentMissionCore"/);
+  assert.match(html, /id="agentLiveFeed"/);
+  assert.match(html, /id="agentMemoryGrid"/);
+  assert.match(app, /resumeAgentPlan/);
+  assert.match(admin, /AI Model Routing/);
+  assert.match(admin, /Video generation policy/);
+  assert.match(admin, /Allow paid gateway only if Ollama is unavailable/);
+});

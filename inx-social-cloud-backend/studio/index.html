@@ -185,22 +185,32 @@
 
 
       <section id="agent" class="view workspace-v2-view">
-        <div class="agent-hero">
-          <div>
-            <span class="eyebrow">Approval-first automation</span>
-            <h2>Tell Social Agent what outcome you want.</h2>
-            <p>INX Social turns your instruction into a costed campaign plan for Facebook, Instagram, YouTube and TikTok. Nothing is published, purchased or changed until you approve it.</p>
+        <div class="jarvis-command-deck">
+          <div class="jarvis-core-wrap" aria-hidden="true">
+            <div class="jarvis-orbit orbit-one"><i></i><i></i><i></i></div>
+            <div class="jarvis-orbit orbit-two"><i></i><i></i></div>
+            <div id="agentMissionCore" class="jarvis-core"><span>INX</span><small>ONLINE</small></div>
           </div>
-          <div class="agent-safety-badge"><span>Human approval</span><strong>Required</strong><small>for every external action</small></div>
+          <div class="jarvis-hero-copy">
+            <span class="eyebrow">Ollama-first social intelligence</span>
+            <h2>Social Agent Mission Control</h2>
+            <p>Give one outcome. The agent plans, creates working memory and coordinates organic content across Facebook, Instagram, YouTube and TikTok.</p>
+            <div class="jarvis-status-line"><i></i><strong id="agentBrainStatus">Checking Ollama…</strong><span id="agentMissionStatus">Ready for a mission</span></div>
+          </div>
+          <div class="agent-mode-summary"><span>Operating mode</span><strong id="agentModeSummary">Hybrid</strong><small>Paid promotion is always disabled</small></div>
         </div>
 
-        <div class="agent-layout">
-          <section class="panel agent-compose-card">
-            <div class="panel-head"><div><h3>Create an automation plan</h3><p>Describe the business, campaign, content frequency, audience and desired result.</p></div></div>
+        <div class="agent-mission-grid">
+          <section class="panel agent-compose-card agent-command-panel">
+            <div class="panel-head"><div><h3>Command console</h3><p>Describe the outcome, audience, frequency and brand requirements.</p></div></div>
             <form id="agentPlanForm" class="agent-form">
-              <label>What should Social Agent do?
-                <textarea id="agentPrompt" rows="8" maxlength="4000" placeholder="Example: Create 14 educational posts for my cleaning business, make branded short videos, prepare captions and schedule one each day after I approve the plan." required></textarea>
+              <label>Mission instruction
+                <textarea id="agentPrompt" rows="7" maxlength="4000" placeholder="Example: Create 14 educational posts for my cleaning business, make branded short videos, write captions and publish one organic post each day." required></textarea>
               </label>
+              <fieldset><legend>Automation control</legend><div class="agent-mode-grid">
+                <label><input class="agent-operation-mode" type="radio" name="agentOperationMode" value="AUTOPILOT"><span><b>Autopilot</b><small>Create and publish organic content automatically inside my guardrails.</small></span></label>
+                <label><input class="agent-operation-mode" type="radio" name="agentOperationMode" value="HYBRID" checked><span><b>Hybrid</b><small>Prepare everything automatically and pause at my review checkpoint.</small></span></label>
+              </div></fieldset>
               <fieldset><legend>Platforms</legend><div class="agent-platform-grid">
                 <label><input class="agent-platform" type="checkbox" value="facebook" checked><span>Facebook</span></label>
                 <label><input class="agent-platform" type="checkbox" value="instagram"><span>Instagram</span></label>
@@ -208,24 +218,21 @@
                 <label><input class="agent-platform" type="checkbox" value="tiktok"><span>TikTok</span></label>
               </div></fieldset>
               <label>Media budget mode<select id="agentExecutionMode"><option value="INX_TEMPLATE">Economy — INX branded template video</option><option value="WAN_2_2_FAST">Generative — Wan 2.2 Fast</option><option value="LTX_2_3_FAST">Quality benchmark — LTX 2.3 Fast</option></select></label>
-              <div class="agent-guardrail"><strong>Before you continue</strong><span>The estimate covers media generation only. Exact provider availability and price are checked again before any paid request.</span></div>
-              <button id="btnAgentCreatePlan" class="btn primary wide" type="submit">Build campaign plan</button>
+              <div class="agent-guardrail"><strong>Organic automation guardrail</strong><span>Autopilot never starts paid ads, spends money, deletes a Page, or changes ownership/security. Media-provider availability is shown before a request.</span></div>
+              <button id="btnAgentCreatePlan" class="btn primary wide jarvis-launch" type="submit">Launch mission</button>
             </form>
           </section>
 
-          <section class="panel agent-plan-card">
-            <div class="panel-head row"><div><h3>Plan and approval queue</h3><p id="agentPlanHint">Create a plan to see every proposed task, risk and estimated cost.</p></div><button id="btnAgentRefresh" class="btn ghost" type="button">Refresh</button></div>
-            <div id="agentPlanWorkspace" class="agent-plan-workspace"><div class="workspace-empty">Social Agent is ready for your first instruction.</div></div>
+          <section class="panel agent-plan-card agent-runtime-panel">
+            <div class="panel-head row"><div><h3>Mission runtime</h3><p id="agentPlanHint">Real task states—not simulated progress.</p></div><button id="btnAgentRefresh" class="btn ghost" type="button">Sync</button></div>
+            <div id="agentPlanWorkspace" class="agent-plan-workspace"><div class="workspace-empty">Awaiting your first mission instruction.</div></div>
           </section>
-        </div>
 
-        <section class="agent-foundation-strip">
-          <article><span>1</span><strong>Plan</strong><small>Brief, platform variants and budget</small></article>
-          <article><span>2</span><strong>Approve</strong><small>Review every external action</small></article>
-          <article><span>3</span><strong>Create</strong><small>Media and copy workers — next phase</small></article>
-          <article><span>4</span><strong>Publish</strong><small>Connected-platform workers — next phase</small></article>
-          <article><span>5</span><strong>Learn</strong><small>Analytics-backed structured memory</small></article>
-        </section>
+          <aside class="agent-intelligence-rail">
+            <section class="panel agent-feed-card"><div class="panel-head"><div><h3>Live neural feed</h3><p>Persistent runtime events</p></div><span class="live-signal">LIVE</span></div><div id="agentLiveFeed" class="agent-live-feed"><div class="workspace-empty">No activity yet.</div></div></section>
+            <section class="panel agent-memory-card"><div class="panel-head"><div><h3>Working memory</h3><p>Reusable knowledge produced by real tasks</p></div><span id="agentMemoryCount" class="memory-count">0</span></div><div id="agentMemoryGrid" class="agent-memory-grid"><div class="workspace-empty">Memory is empty.</div></div></section>
+          </aside>
+        </div>
       </section>
 
       <section id="reels" class="view">

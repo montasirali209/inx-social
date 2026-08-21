@@ -23,6 +23,7 @@ let analyticsLastKey = '';
 let agentOverview = null;
 let agentLoading = false;
 let activeAgentPlanId = '';
+let agentLiveTimer = null;
 
 const UI_TEXT_FIELDS = [
   'appTitle', 'appSubtitle', 'dashboardTitle', 'dashboardSubtitle',
@@ -35,7 +36,7 @@ const UI_TEXT_FIELDS = [
 
 const views = {
   dashboard: ['Home', 'Your INX Social publishing command centre.'],
-  agent: ['Social Agent', 'Plan cross-platform content automation with transparent costs and human approval.'],
+  agent: ['Social Agent', 'Ollama-first organic automation with Autopilot and Hybrid control.'],
   pages: ['Pages', 'Connect and choose the Page that receives your next scheduled content.'],
   media: ['Old Auto Scheduler', 'Hidden old Page Video scheduler.'],
   reels: ['Auto Scheduler', 'Upload videos to Meta now and schedule them as Facebook Reels for future times.'],
@@ -277,7 +278,14 @@ function switchView(viewName) {
   document.getElementById('viewTitle').textContent = views[viewName][0];
   document.getElementById('viewSubtitle').textContent = views[viewName][1];
   if (viewName === 'pages') refreshWorkspaceV2({ silent: true });
-  if (viewName === 'agent') loadAgentOverview(false);
+  if (agentLiveTimer) {
+    clearInterval(agentLiveTimer);
+    agentLiveTimer = null;
+  }
+  if (viewName === 'agent') {
+    loadAgentOverview(false);
+    agentLiveTimer = setInterval(() => loadAgentOverview(false), 4000);
+  }
   if (viewName === 'analytics') {
     refreshWorkspaceV2({ silent: true }).then(() => loadFacebookAnalytics(false)).catch(error => renderAnalyticsError(error));
   }
@@ -291,6 +299,7 @@ function bindButtons() {
   on('btnRefresh', refresh);
   on('btnAgentRefresh', () => loadAgentOverview(true));
   document.getElementById('agentPlanForm')?.addEventListener('submit', createAgentPlan);
+  document.querySelectorAll('.agent-operation-mode').forEach(input => input.addEventListener('change', renderAgentModeSummary));
   on('btnPickVideos', () => importAction(window.schedulerApi.pickVideos));
   on('btnPickVideos2', () => importAction(window.schedulerApi.pickVideos));
   on('btnPickCaptions', () => importAction(window.schedulerApi.pickCaptions));
@@ -1686,22 +1695,29 @@ async function loadAgentOverview(showNotice = false) {
   } finally { agentLoading = false; }
 }
 
+function renderAgentModeSummary() {
+  const mode = document.querySelector('.agent-operation-mode:checked')?.value || 'HYBRID';
+  const target = document.getElementById('agentModeSummary');
+  if (target) target.textContent = mode === 'AUTOPILOT' ? 'Autopilot' : 'Hybrid';
+}
+
 async function createAgentPlan(event) {
   event.preventDefault();
   const prompt = document.getElementById('agentPrompt')?.value.trim() || '';
   const platforms = [...document.querySelectorAll('.agent-platform:checked')].map(input => input.value);
   if (!platforms.length) return toast('Select at least one publishing platform.', true);
   const button = document.getElementById('btnAgentCreatePlan');
-  if (button) { button.disabled = true; button.textContent = 'Building plan…'; }
+  if (button) { button.disabled = true; button.textContent = 'Launching mission…'; }
   try {
-    const result = await window.schedulerApi.createAgentPlan({ prompt, platforms, executionMode: document.getElementById('agentExecutionMode')?.value });
+    const operationMode = document.querySelector('.agent-operation-mode:checked')?.value || 'HYBRID';
+    const result = await window.schedulerApi.createAgentPlan({ prompt, platforms, operationMode, executionMode: document.getElementById('agentExecutionMode')?.value });
     agentOverview = agentOverview || { plans: [] };
     agentOverview.plans = [result.plan, ...(agentOverview.plans || []).filter(plan => plan.id !== result.plan.id)];
     activeAgentPlanId = result.plan.id;
     renderAgentWorkspace();
-    toast('Campaign plan created. Review it before approval.');
+    toast(result.notice || (operationMode === 'AUTOPILOT' ? 'Autopilot mission started.' : 'Hybrid mission created for review.'));
   } catch (error) { toast(error.message, true); }
-  finally { if (button) { button.disabled = false; button.textContent = 'Build campaign plan'; } }
+  finally { if (button) { button.disabled = false; button.textContent = 'Launch mission'; } }
 }
 
 function selectedAgentPlan() {
@@ -1713,38 +1729,78 @@ function renderAgentWorkspace() {
   const workspace = document.getElementById('agentPlanWorkspace');
   if (!workspace) return;
   const plans = agentOverview?.plans || [];
+  renderAgentIntelligence();
   if (!plans.length) {
-    workspace.innerHTML = '<div class="workspace-empty">Social Agent is ready for your first instruction.</div>';
+    workspace.innerHTML = '<div class="workspace-empty">Mission Control is online. Enter an instruction to begin.</div>';
     return;
   }
   const plan = selectedAgentPlan();
   activeAgentPlanId = plan.id;
   const strategy = plan.strategy || {};
   const provider = strategy.provider?.label || strategy.executionMode || 'INX Template Video';
-  const canApprove = plan.status === 'AWAITING_APPROVAL';
+  const mode = plan.operationMode === 'AUTOPILOT' ? 'Autopilot' : 'Hybrid';
+  const canApprove = plan.operationMode !== 'AUTOPILOT' && plan.status === 'AWAITING_APPROVAL';
+  const canResume = !['CANCELLED', 'COMPLETED', 'RUNNING', 'QUEUED', 'AWAITING_APPROVAL'].includes(plan.status);
+  const completed = (plan.tasks || []).filter(item => item.status === 'COMPLETED').length;
+  const running = (plan.tasks || []).filter(item => ['RUNNING', 'QUEUED'].includes(item.status)).length;
+  const waiting = (plan.tasks || []).filter(item => String(item.status).startsWith('WAITING')).length;
+  const missionStatus = document.getElementById('agentMissionStatus');
+  if (missionStatus) missionStatus.textContent = `${mode} · ${String(plan.status).replaceAll('_', ' ')}`;
   workspace.innerHTML = `
     <div class="agent-plan-summary">
       <label>Recent plans<select id="agentPlanSelect">${plans.map(item => `<option value="${escapeHtml(item.id)}" ${item.id === plan.id ? 'selected' : ''}>${escapeHtml(new Date(item.createdAt).toLocaleDateString())} — ${escapeHtml(item.prompt.slice(0, 58))}</option>`).join('')}</select></label>
-      <div class="agent-plan-top"><div><strong>${escapeHtml(plan.prompt)}</strong><p>${escapeHtml((plan.platforms || []).join(', '))}</p></div><span class="agent-plan-status">${escapeHtml(plan.status.replaceAll('_', ' '))}</span></div>
-      <div class="agent-plan-metrics"><div><span>Media route</span><strong>${escapeHtml(provider)}</strong></div><div><span>Estimated media</span><strong>$${(Number(plan.estimatedCostCents || 0) / 100).toFixed(2)}</strong></div><div><span>Tasks</span><strong>${plan.tasks?.length || 0}</strong></div></div>
-      <div class="agent-task-list">${(plan.tasks || []).map(item => `<article class="agent-task"><span>${item.sequence}</span><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.description)}</p></div><span class="agent-task-risk ${escapeHtml(item.riskLevel.toLowerCase())}">${escapeHtml(item.riskLevel)}</span></article>`).join('')}</div>
-      <div class="agent-plan-actions"><button id="btnAgentCancelPlan" class="btn ghost subtle-danger" type="button" ${['CANCELLED','COMPLETED'].includes(plan.status) ? 'disabled' : ''}>Cancel plan</button><button id="btnAgentApprovePlan" class="btn primary" type="button" ${canApprove ? '' : 'disabled'}>Approve plan</button></div>
+      <div class="agent-plan-top"><div><strong>${escapeHtml(plan.prompt)}</strong><p>${escapeHtml((plan.platforms || []).join(', '))} · ${escapeHtml(provider)}</p></div><div class="agent-plan-badges"><span class="agent-mode-badge">${mode}</span><span class="agent-plan-status status-${escapeHtml(String(plan.status).toLowerCase())}">${escapeHtml(plan.status.replaceAll('_', ' '))}</span></div></div>
+      <div class="agent-plan-metrics"><div><span>Brain route</span><strong>${escapeHtml(agentOverview?.capabilities?.brain?.model || 'Ollama')}</strong></div><div><span>Completed</span><strong>${completed}/${plan.tasks?.length || 0}</strong></div><div><span>Active / waiting</span><strong>${running} / ${waiting}</strong></div><div><span>Media estimate</span><strong>$${(Number(plan.estimatedCostCents || 0) / 100).toFixed(2)}</strong></div></div>
+      ${plan.lastError ? `<div class="agent-runtime-error">${escapeHtml(plan.lastError)}</div>` : ''}
+      <div class="agent-task-list">${(plan.tasks || []).map(item => {
+        const output = item.output?.content || item.output?.message || '';
+        return `<article class="agent-task status-${escapeHtml(String(item.status).toLowerCase())}"><span>${item.sequence}</span><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.description)}</p>${output ? `<details><summary>View saved output</summary><pre>${escapeHtml(output)}</pre></details>` : ''}</div><span class="agent-task-state">${escapeHtml(String(item.status).replaceAll('_', ' '))}</span></article>`;
+      }).join('')}</div>
+      <div class="agent-plan-actions"><button id="btnAgentCancelPlan" class="btn ghost subtle-danger" type="button" ${['CANCELLED','COMPLETED'].includes(plan.status) ? 'disabled' : ''}>Cancel mission</button>${canResume ? '<button id="btnAgentResumePlan" class="btn secondary" type="button">Resume mission</button>' : ''}${canApprove ? '<button id="btnAgentApprovePlan" class="btn primary" type="button">Approve &amp; run</button>' : ''}</div>
     </div>`;
   document.getElementById('agentPlanSelect')?.addEventListener('change', event => { activeAgentPlanId = event.target.value; renderAgentWorkspace(); });
   document.getElementById('btnAgentApprovePlan')?.addEventListener('click', approveAgentPlan);
+  document.getElementById('btnAgentResumePlan')?.addEventListener('click', resumeAgentPlan);
   document.getElementById('btnAgentCancelPlan')?.addEventListener('click', cancelAgentPlan);
+}
+
+function renderAgentIntelligence() {
+  const brain = agentOverview?.capabilities?.brain || {};
+  const brainStatus = document.getElementById('agentBrainStatus');
+  if (brainStatus) brainStatus.textContent = brain.configured ? `Ollama online · ${brain.model}` : 'Ollama connection required';
+  document.querySelector('.jarvis-command-deck')?.classList.toggle('brain-offline', !brain.configured);
+  const plan = selectedAgentPlan();
+  const feed = document.getElementById('agentLiveFeed');
+  const events = plan?.events || [];
+  if (feed) feed.innerHTML = events.length ? events.map(item => `<article class="agent-feed-event status-${escapeHtml(String(item.status).toLowerCase())}"><i></i><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.message)}</p><time>${escapeHtml(new Date(item.createdAt).toLocaleString())}</time></div></article>`).join('') : '<div class="workspace-empty">No runtime events yet.</div>';
+  const memories = agentOverview?.memories || [];
+  const count = document.getElementById('agentMemoryCount');
+  if (count) count.textContent = String(memories.length);
+  const grid = document.getElementById('agentMemoryGrid');
+  if (grid) grid.innerHTML = memories.length ? memories.map(item => `<article><span>${escapeHtml(item.category)}</span><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.content)}</p><small>${escapeHtml(item.source)} · confidence ${escapeHtml(String(item.confidence))}%</small></article>`).join('') : '<div class="workspace-empty">Memory is empty. Completed Ollama tasks will appear here.</div>';
 }
 
 async function approveAgentPlan() {
   const plan = selectedAgentPlan();
   if (!plan) return;
-  const confirmed = await showStudioConfirm({ eyebrow: 'Social Agent approval', title: 'Approve this campaign plan?', message: 'Approval records your consent for the proposed plan. Generation and publishing workers are not enabled in Phase 11.0, so nothing will be posted or charged yet.', metrics: [{ label: 'Tasks', value: plan.tasks?.length || 0 }, { label: 'Estimate', value: `$${(Number(plan.estimatedCostCents || 0) / 100).toFixed(2)}` }], tone: 'warning', confirmText: 'Approve plan' });
+  const confirmed = await showStudioConfirm({ eyebrow: 'Hybrid checkpoint', title: 'Approve and run this mission?', message: 'Ollama will start the approved organic-content tasks. No paid advertising or account-security action is permitted.', metrics: [{ label: 'Tasks', value: plan.tasks?.length || 0 }, { label: 'Mode', value: 'Hybrid' }], tone: 'warning', confirmText: 'Approve & run' });
   if (!confirmed) return;
   try {
     const result = await window.schedulerApi.approveAgentPlan(plan.id);
     agentOverview.plans = agentOverview.plans.map(item => item.id === result.plan.id ? result.plan : item);
     renderAgentWorkspace();
     toast(result.notice || 'Social Agent plan approved.');
+  } catch (error) { toast(error.message, true); }
+}
+
+async function resumeAgentPlan() {
+  const plan = selectedAgentPlan();
+  if (!plan) return;
+  try {
+    const result = await window.schedulerApi.resumeAgentPlan(plan.id);
+    agentOverview.plans = agentOverview.plans.map(item => item.id === result.plan.id ? result.plan : item);
+    renderAgentWorkspace();
+    toast(result.notice || 'Mission resumed.');
   } catch (error) { toast(error.message, true); }
 }
 
@@ -2734,13 +2790,12 @@ function renderAnalyticsReviewEvidence(evidence) {
   setText('analyticsReviewStatus', ready ? 'Ready to demonstrate' : 'Partial data');
   const checks = evidence.endpointChecks || [];
   const permissions = evidence.requiredPermissions || [];
-  const tasks = evidence.pageTasks || [];
   target.innerHTML = `
     <div class="analytics-evidence-summary">
       <article><span>Selected Page</span><strong>${escapeHtml(evidence.pageName || '—')}</strong><small>ID ${escapeHtml(evidence.pageId || '—')}</small></article>
       <article><span>Graph API</span><strong>${escapeHtml(evidence.graphVersion || '—')}</strong><small>${escapeHtml(evidence.dateRange?.days ? `Last ${evidence.dateRange.days} days` : 'No range')}</small></article>
       <article><span>Last verified</span><strong>${escapeHtml(evidence.fetchedAt ? formatDate(evidence.fetchedAt) : '—')}</strong><small>${ready ? 'Insights returned' : 'Basic engagement only'}</small></article>
-      <article><span>Managed Page tasks</span><strong>${tasks.length ? tasks.length : 'Not returned'}</strong><small>${escapeHtml(tasks.join(', ') || 'Meta did not expose task names')}</small></article>
+      <article><span>Permission evidence</span><strong>Live endpoints</strong><small>${escapeHtml(evidence.permissionEvidence || 'Verified from successful Page responses')}</small></article>
     </div>
     <div class="analytics-evidence-columns">
       <div><h4>Permission use</h4>${permissions.map(item => `<div class="analytics-evidence-line"><strong>${escapeHtml(item.permission)}</strong><span>${escapeHtml(item.purpose)}</span><small>${escapeHtml(String(item.verification || '').replaceAll('_', ' '))}</small></div>`).join('')}</div>

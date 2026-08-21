@@ -28,7 +28,8 @@ test('creating an agent plan persists costed tasks but performs no external acti
   await controller.createPlan({ user: { id: 'user-1' }, body: { prompt: 'Create 5 social posts for Facebook', platforms: ['facebook'] } }, res, value => { error = value; });
   assert.equal(error, null);
   assert.equal(res.statusCode, 201);
-  assert.equal(created.status, undefined);
+  assert.equal(created.status, 'AWAITING_APPROVAL');
+  assert.equal(created.operationMode, 'HYBRID');
   assert.equal(created.estimatedCostCents, 25);
   assert.ok(created.tasks.create.some(item => item.type === 'PUBLISH' && item.riskLevel === 'HIGH'));
   assert.equal(res.body.plan.status, 'AWAITING_APPROVAL');

@@ -59,6 +59,8 @@ test('Facebook analytics aggregates real Page and post engagement data', async (
   assert.deepEqual(result.reviewEvidence.returnedMetrics, ['page_media_view', 'page_post_engagements', 'page_follows']);
   assert.match(result.reviewEvidence.privacy, /never returned to the browser/);
   assert.equal(http.calls.length, 5);
+  assert.doesNotMatch(http.calls[0].params.fields, /tasks/);
+  assert.match(result.reviewEvidence.permissionEvidence, /does not request the obsolete Page tasks field/);
 });
 
 test('unsupported Meta insight metrics stay unavailable without failing the analytics page', async () => {

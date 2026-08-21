@@ -10,6 +10,9 @@
 
 </style>
 <style>.logo-wordmark{display:block;width:290px;height:108px;object-fit:cover;object-position:center;margin:-22px 0 -8px}.logo-wordmark.small{width:205px;height:76px;margin:-15px 0}</style>
+<style>
+.ai-routing-form{display:grid;grid-template-columns:repeat(2,minmax(260px,1fr));gap:14px;margin-top:18px}.ai-routing-form fieldset{display:grid;gap:10px;margin:0;padding:16px;border:1px solid var(--line);border-radius:16px;background:#f8fbff}.ai-routing-form legend{padding:0 7px;color:var(--brand);font-weight:900}.ai-routing-form label{display:grid;gap:6px;font-weight:800}.ai-routing-form .ai-fallback-toggle{grid-template-columns:auto 1fr;align-items:center;font-size:13px}.ai-routing-form .ai-fallback-toggle input{width:auto}.ai-routing-form>button{grid-column:1/-1}.ai-routing-form #mediaPolicyFields{grid-column:1/-1;grid-template-columns:repeat(2,minmax(220px,1fr))}.ai-routing-form #mediaPolicyFields legend,.ai-routing-form #mediaPolicyFields small{grid-column:1/-1}@media(max-width:900px){.ai-routing-form,.ai-routing-form #mediaPolicyFields{grid-template-columns:1fr}.ai-routing-form #mediaPolicyFields legend,.ai-routing-form #mediaPolicyFields small{grid-column:auto}}
+</style>
 </head>
 <body>
   <div id="app">
@@ -38,6 +41,7 @@
         <button class="nav active" data-page="overview">Dashboard</button>
         <button class="nav" data-page="users">Users & Access</button>
         <button class="nav" data-page="settings">App Settings</button>
+        <button class="nav" data-page="aiRouting">AI Model Routing</button>
         <button class="nav" data-page="roadmap">Backend Roadmap</button>
         <button class="logout" id="logoutBtn">Logout</button>
       </aside>
@@ -93,6 +97,17 @@
               <input id="settingDescription" placeholder="description" />
               <button type="submit">Save Setting</button>
             </form>
+          </div>
+        </section>
+
+        <section class="page hidden" id="aiRoutingPage">
+          <div class="panel">
+            <p class="eyebrow">Admin only</p>
+            <h2>AI Model Priority Routing</h2>
+            <p>Choose the Ollama-first model and optional paid-gateway fallback model for each work type. Provider secrets remain in Railway variables.</p>
+            <div id="aiBrainStatus" class="detail-card">Loading AI status…</div>
+            <form id="aiRoutingForm" class="ai-routing-form"></form>
+            <p class="hint">A paid fallback is attempted only after an Ollama availability failure, only when both this route and the Railway fallback switch are enabled.</p>
           </div>
         </section>
 
@@ -153,7 +168,7 @@ document.querySelectorAll('.nav').forEach(btn=>btn.addEventListener('click', asy
   document.querySelectorAll('.nav').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
   document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));
   const page=btn.dataset.page; $(`${page}Page`).classList.remove('hidden'); $('pageTitle').textContent=btn.textContent;
-  if(page==='overview') await loadOverview(); if(page==='users') await loadUsers(); if(page==='settings') await loadSettings();
+  if(page==='overview') await loadOverview(); if(page==='users') await loadUsers(); if(page==='settings') await loadSettings(); if(page==='aiRouting') await loadAiRouting();
 }));
 
 async function loadOverview(){
@@ -209,6 +224,21 @@ $('settingForm').addEventListener('submit', async(e)=>{
   e.preventDefault();
   await api('/api/admin/settings',{ method:'PUT', body:JSON.stringify({ key:$('settingKey').value.trim(), value:$('settingValue').value, description:$('settingDescription').value }) });
   $('settingForm').reset(); toast('Setting saved'); await loadSettings();
+});
+
+const aiRouteLabels={default:'Global default',planning:'Planning & strategy',copy:'Caption & copy writing',adaptation:'Platform adaptation',scheduling:'Scheduling decisions',mediaPrompt:'Media prompt creation'};
+async function loadAiRouting(){
+  const { routing, brain, routes, mediaPolicy, mediaProviders } = await api('/api/admin/ai-routing');
+  $('aiBrainStatus').innerHTML=`<strong>${brain.configured?'Ollama configured':'Ollama not configured'}</strong><small>Environment default: ${brain.model}</small><small>Paid gateway: ${brain.paidFallback?.enabled?'enabled':'disabled'} · maximum ${brain.paidFallback?.maxCallsPerMission||0} call(s) per mission</small>`;
+  const providerOptions=mediaProviders.map(value=>`<option value="${value}">${value.replaceAll('_',' ')}</option>`).join('');
+  $('aiRoutingForm').innerHTML=routes.map(key=>{const route=routing[key];return `<fieldset data-ai-route="${key}"><legend>${aiRouteLabels[key]}</legend><label>Priority 1 · Ollama model<input class="ai-ollama-model" value="${route.ollamaModel}" required></label><label class="ai-fallback-toggle"><input class="ai-fallback-enabled" type="checkbox" ${route.fallbackEnabled?'checked':''}> Allow paid gateway only if Ollama is unavailable</label><label>Priority 2 · paid-gateway model<input class="ai-fallback-model" value="${route.fallbackModel||''}" placeholder="for example provider/model"></label></fieldset>`}).join('')+`<fieldset id="mediaPolicyFields"><legend>Video generation policy</legend><label class="ai-fallback-toggle"><input id="mediaEnabled" type="checkbox" ${mediaPolicy.enabled?'checked':''}> Enable video-generation tasks</label><label>Priority 1 · provider<select id="mediaProvider">${providerOptions}</select></label><label>Priority 1 · model<input id="mediaModel" value="${mediaPolicy.model||''}"></label><label>Priority 2 · provider<select id="mediaFallbackProvider">${providerOptions}</select></label><label>Priority 2 · model<input id="mediaFallbackModel" value="${mediaPolicy.fallbackModel||''}"></label><label class="ai-fallback-toggle"><input id="mediaPaidAllowed" type="checkbox" ${mediaPolicy.paidGenerationAllowed?'checked':''}> Permit paid video generation within the cost ceiling</label><label>Maximum cost per asset (pence)<input id="mediaMaxCost" type="number" min="0" max="10000" value="${mediaPolicy.maxCostCentsPerAsset}"></label><small>Provider keys and adapter URLs stay in Railway variables. Selecting a provider does not expose a key or bypass availability checks.</small></fieldset><button type="submit">Save AI and media routing</button>`;
+  $('mediaProvider').value=mediaPolicy.provider; $('mediaFallbackProvider').value=mediaPolicy.fallbackProvider;
+}
+$('aiRoutingForm').addEventListener('submit',async(e)=>{
+  e.preventDefault(); const routing={};
+  document.querySelectorAll('[data-ai-route]').forEach(row=>{routing[row.dataset.aiRoute]={ollamaModel:row.querySelector('.ai-ollama-model').value.trim(),fallbackEnabled:row.querySelector('.ai-fallback-enabled').checked,fallbackModel:row.querySelector('.ai-fallback-model').value.trim()};});
+  const mediaPolicy={enabled:$('mediaEnabled').checked,provider:$('mediaProvider').value,model:$('mediaModel').value.trim(),fallbackProvider:$('mediaFallbackProvider').value,fallbackModel:$('mediaFallbackModel').value.trim(),paidGenerationAllowed:$('mediaPaidAllowed').checked,maxCostCentsPerAsset:Number($('mediaMaxCost').value||0)};
+  await api('/api/admin/ai-routing',{method:'PUT',body:JSON.stringify({routing,mediaPolicy})}); toast('AI and media routing saved'); await loadAiRouting();
 });
 
 (async function boot(){

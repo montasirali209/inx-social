@@ -102,7 +102,7 @@ async function graphGet(http, graphVersion, path, accessToken, params = {}) {
 async function fetchBasic(http, options) {
   const { graphVersion, pageId, accessToken, since, until } = options;
   const profile = await graphGet(http, graphVersion, encodeURIComponent(pageId), accessToken, {
-    fields: 'id,name,followers_count,fan_count,link,picture.type(large),tasks'
+    fields: 'id,name,followers_count,fan_count,link,picture.type(large)'
   });
   let feed;
   try {
@@ -127,8 +127,7 @@ async function fetchBasic(http, options) {
       followers: Number(profile.followers_count ?? profile.fan_count ?? 0),
       fans: Number(profile.fan_count || 0),
       link: profile.link || null,
-      pictureUrl: profile.picture?.data?.url || null,
-      tasks: Array.isArray(profile.tasks) ? profile.tasks.map(String) : []
+      pictureUrl: profile.picture?.data?.url || null
     },
     content: (feed.data || []).map(normalisePost)
   };
@@ -234,7 +233,7 @@ async function getFacebookAnalytics(options, dependencies = {}) {
         since: new Date(since * 1000).toISOString(),
         until: new Date(until * 1000).toISOString()
       },
-      pageTasks: basic.page.tasks,
+      permissionEvidence: 'The selected Page profile and published content were returned using the connected Page token. INX Social does not request the obsolete Page tasks field.',
       requiredPermissions: [
         {
           permission: 'pages_show_list',
@@ -248,7 +247,7 @@ async function getFacebookAnalytics(options, dependencies = {}) {
         }
       ],
       endpointChecks: [
-        { endpoint: `/${basic.page.id}`, purpose: 'Page profile and managed Page task check', ok: true },
+        { endpoint: `/${basic.page.id}`, purpose: 'Page identity and audience check', ok: true },
         { endpoint: `/${basic.page.id}/published_posts`, purpose: 'Published content and engagement check', ok: true },
         ...Object.values(insights).map(item => ({
           endpoint: `/${basic.page.id}/insights?metric=${item.metric}`,

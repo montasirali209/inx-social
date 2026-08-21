@@ -1,41 +1,57 @@
 # INX Social Agent
 
-## Phase 11.0 scope
+## Phase 11.1 scope
 
-Phase 11.0 establishes the approval-first control plane for the future cross-platform Social Agent.
+Phase 11.1 turns the original planning foundation into an Ollama-first mission runtime with visible execution, reusable working memory and administrator-controlled provider priority.
 
 Included now:
 
-- authenticated Social Agent workspace in Cloud Studio;
-- deterministic campaign planning for Facebook, Instagram, YouTube and TikTok;
-- economical INX Template, Wan 2.2 Fast and LTX 2.3 Fast routing choices;
-- transparent media cost estimates;
-- persistent plans and task-level audit data;
-- explicit approval and cancellation records;
-- high-risk labelling for publishing and Page changes.
+- an animated mission-control workspace with a live event feed;
+- **Autopilot** for approved organic-content workflows and **Hybrid** for an owner checkpoint;
+- Ollama-first planning, copy, adaptation and scheduling work;
+- persistent, attributable working memory created from completed tasks;
+- administrator-selected Ollama models for each work type;
+- an optional OpenAI-compatible paid fallback, disabled by default and eligible only when Ollama is unavailable;
+- administrator-selected video provider/model priorities and a mandatory per-asset cost ceiling before paid generation can be allowed;
+- persistent plans, tasks, outputs and runtime events;
+- repaired Facebook analytics capability detection without the obsolete Page `tasks` field.
 
-Not enabled in Phase 11.0:
+Deliberately not claimed as complete in Phase 11.1:
 
-- paid media-generation API calls;
-- autonomous publishing;
-- autonomous Page creation or profile changes;
-- provider API keys;
-- background execution workers.
+- provider-specific video generation adapters and credentials;
+- Instagram, YouTube and TikTok publishing adapters and their app reviews;
+- automatic Facebook Page creation, ownership, deletion or security changes;
+- paid advertising or advertising spend;
+- uncontrolled self-training from customer conversations.
 
-This separation is intentional. It lets the data model, user experience, permissions and approval boundary be reviewed before INX Social can spend money or change an external account.
+The runtime pauses visibly at an unavailable provider or platform adapter. It never reports media or publishing as complete when the corresponding external worker is not installed.
+
+## Execution and fallback rules
+
+1. Every language task uses the administrator's Priority 1 Ollama model.
+2. A paid text model is considered only after a network failure, timeout, HTTP 408, HTTP 429 or HTTP 5xx from Ollama (or when Ollama is not configured).
+3. Weak, short or imperfect Ollama output does **not** activate paid fallback.
+4. Paid fallback must be enabled both in Railway configuration and on that task route in the admin panel.
+5. Paid calls are capped per mission and recorded in the mission feed.
+6. Video generation stays disabled or waiting until its selected provider adapter and server-side credentials exist.
+7. Paid video generation additionally requires the admin switch and a non-zero maximum cost per asset.
+
+Secrets, service-token credentials and private endpoints stay in Railway variables. The admin panel controls routing policy, models, priority and budgets but never returns a secret to the browser.
 
 ## Planned execution phases
 
-1. **11.1 Brand Memory and Asset Vault** — business brief, logo files, colours, approved claims, prohibited claims and structured retrieval.
-2. **11.2 Economy Content Engine** — FFmpeg template videos, still-image posts, captions, accessibility text and cost ledger.
-3. **11.3 Provider Gateway** — Replicate/fal/BytePlus adapters, encrypted server-side keys, retries, budgets and generation result storage.
-4. **11.4 Instagram Publishing** — account connection, media container workflow, disclosures and analytics.
-5. **11.5 YouTube Publishing** — OAuth, resumable uploads, Shorts metadata, quota handling and analytics.
-6. **11.6 TikTok Publishing** — Content Posting API, privacy controls, commercial-content disclosures and TikTok review requirements.
-7. **11.7 Campaign Autopilot** — approved recurring campaigns, queue workers, failure recovery and operator alerts.
-8. **11.8 Structured Learning** — analytics summaries and reusable playbooks stored as versioned memory. This is retrieval and workflow memory, not uncontrolled model self-training.
+1. **11.2 Brand Vault and retrieval** — customer files, logos, colours, approved claims and prohibited claims.
+2. **11.3 Economy Content Engine** — FFmpeg template videos, image/carousel generation, captions, alt text and cost ledger.
+3. **11.4 Provider adapters** — local worker, Runpod, fal, Replicate, BytePlus and selected commercial video APIs.
+4. **11.5 Cross-platform workers** — Instagram, YouTube and TikTok OAuth, publishing and analytics after their reviews.
+5. **11.6 Organic Autopilot** — recurring queues, retries, operator alerts and customer-defined safety limits.
+6. **11.7 Evaluated learning** — analytics-backed, versioned playbooks promoted to memory only after validation.
 
-## Future environment variables
+## Deployment
+
+See `OLLAMA_DEPLOYMENT.md` for self-hosting choices, Cloudflare Tunnel and Access setup, Railway variables, fallback controls and acceptance checks.
+
+## Future provider variables
 
 Do not configure these until their corresponding execution phase is installed:
 

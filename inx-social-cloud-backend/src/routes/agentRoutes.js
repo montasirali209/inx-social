@@ -7,6 +7,7 @@ router.get('/overview', controller.overview);
 router.get('/plans', controller.listPlans);
 router.post('/plans', controller.createPlan);
 router.post('/plans/:id/approve', controller.approvePlan);
+router.post('/plans/:id/resume', controller.resumePlan);
 router.post('/plans/:id/cancel', controller.cancelPlan);
 
 module.exports = router;
