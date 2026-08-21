@@ -54,3 +54,9 @@ test('an Ollama request error does not silently spend paid API credit', async ()
   }), /bad prompt/);
   assert.equal(call, 1);
 });
+
+test('only approved playbooks supplied by runtime are included without chain-of-thought requests', () => {
+  const prompt = brain.taskInstruction(plan, task, [{ title: 'Approved caption pattern', content: 'Lead with the audience problem, then one factual benefit.' }]);
+  assert.match(prompt, /Approved caption pattern/);
+  assert.match(prompt, /Do not reveal hidden chain-of-thought/);
+});

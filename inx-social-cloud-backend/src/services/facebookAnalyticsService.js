@@ -104,7 +104,8 @@ async function fetchBasic(http, options) {
   const profile = await graphGet(http, graphVersion, encodeURIComponent(pageId), accessToken, {
     fields: 'id,name,followers_count,fan_count,link,picture.type(large)'
   });
-  let feed;
+  let feed = { data: [] };
+  let contentCapability = { state: 'available', available: true, reason: 'Published Page content was returned by Meta.', metaCode: null };
   try {
     feed = await graphGet(http, graphVersion, `${encodeURIComponent(pageId)}/published_posts`, accessToken, {
       fields: 'id,message,created_time,permalink_url,full_picture,status_type,shares,comments.limit(0).summary(true),reactions.limit(0).summary(true)',
@@ -113,12 +114,15 @@ async function fetchBasic(http, options) {
       limit: 100
     });
   } catch (error) {
-    feed = await graphGet(http, graphVersion, `${encodeURIComponent(pageId)}/posts`, accessToken, {
-      fields: 'id,message,created_time,permalink_url,status_type,shares,comments.limit(0).summary(true),reactions.limit(0).summary(true)',
-      since,
-      until,
-      limit: 100
-    });
+    contentCapability = capabilityFromError(error);
+    if (!['permission_required', 'rate_limited'].includes(contentCapability.state)) {
+      try {
+        feed = await graphGet(http, graphVersion, `${encodeURIComponent(pageId)}/posts`, accessToken, {
+          fields: 'id,message,created_time,permalink_url,status_type,shares,comments.limit(0).summary(true),reactions.limit(0).summary(true)', since, until, limit: 100
+        });
+        contentCapability = { state: 'available', available: true, reason: 'Page content was returned by Meta.', metaCode: null };
+      } catch (fallbackError) { contentCapability = capabilityFromError(fallbackError); }
+    }
   }
   return {
     page: {
@@ -129,7 +133,8 @@ async function fetchBasic(http, options) {
       link: profile.link || null,
       pictureUrl: profile.picture?.data?.url || null
     },
-    content: (feed.data || []).map(normalisePost)
+    content: (feed.data || []).map(normalisePost),
+    contentCapability
   };
 }
 
@@ -214,7 +219,10 @@ async function getFacebookAnalytics(options, dependencies = {}) {
     period: { days, since: new Date(since * 1000).toISOString(), until: new Date(until * 1000).toISOString() },
     page: basic.page,
     capabilities: {
-      basicEngagement: { state: 'available', available: true, reason: 'Page and post engagement data was returned by Meta.' },
+      basicEngagement: basic.contentCapability.available
+        ? { state: 'available', available: true, reason: 'Page and post engagement data was returned by Meta.' }
+        : basic.contentCapability,
+      publishedContent: basic.contentCapability,
       pageInsights: {
         state: availableInsights ? 'available' : (Object.values(insights)[0]?.capability.state || 'unavailable'),
         available: availableInsights > 0,
@@ -223,7 +231,7 @@ async function getFacebookAnalytics(options, dependencies = {}) {
       metrics: Object.fromEntries(Object.entries(insights).map(([name, item]) => [name, item.capability]))
     },
     reviewEvidence: {
-      status: availableInsights > 0 ? 'ready' : 'partial',
+      status: availableInsights > 0 && basic.contentCapability.available ? 'ready' : 'partial',
       graphVersion: prepared.graphVersion,
       pageId: basic.page.id,
       pageName: basic.page.name,
@@ -233,7 +241,9 @@ async function getFacebookAnalytics(options, dependencies = {}) {
         since: new Date(since * 1000).toISOString(),
         until: new Date(until * 1000).toISOString()
       },
-      permissionEvidence: 'The selected Page profile and published content were returned using the connected Page token. INX Social does not request the obsolete Page tasks field.',
+      permissionEvidence: basic.contentCapability.available
+        ? 'The selected Page profile and published content were returned using the connected Page token.'
+        : 'The Page identity check succeeded, but the stored Page token cannot yet read published content. Reconnect the Page after pages_read_user_content is enabled so Meta issues a token containing the new scope.',
       requiredPermissions: [
         {
           permission: 'pages_show_list',
@@ -242,13 +252,18 @@ async function getFacebookAnalytics(options, dependencies = {}) {
         },
         {
           permission: 'pages_read_engagement',
-          purpose: 'Reads the selected Page profile, published content and engagement data shown in Analytics.',
-          verification: 'verified_by_live_page_and_content_response'
+          purpose: 'Reads the selected Page profile and engagement data shown in Analytics.',
+          verification: 'verified_by_live_page_response'
+        },
+        {
+          permission: 'pages_read_user_content',
+          purpose: 'Reads posts published by the Page so INX Social can show content-level performance.',
+          verification: basic.contentCapability.available ? 'verified_by_live_published_posts_response' : 'reconnect_required'
         }
       ],
       endpointChecks: [
         { endpoint: `/${basic.page.id}`, purpose: 'Page identity and audience check', ok: true },
-        { endpoint: `/${basic.page.id}/published_posts`, purpose: 'Published content and engagement check', ok: true },
+        { endpoint: `/${basic.page.id}/published_posts`, purpose: 'Published content and engagement check', ok: Boolean(basic.contentCapability.available), state: basic.contentCapability.state, reason: basic.contentCapability.reason },
         ...Object.values(insights).map(item => ({
           endpoint: `/${basic.page.id}/insights?metric=${item.metric}`,
           purpose: item.label,
@@ -266,11 +281,12 @@ async function getFacebookAnalytics(options, dependencies = {}) {
       privacy: 'Access tokens are decrypted only on the server and are never returned to the browser.',
       reviewerSteps: [
         'Sign in to INX Social with the supplied reviewer account.',
-        'Open Connected Pages and connect or select the supplied Facebook Page.',
+        'Open Connected Pages and connect the supplied Facebook Page. If it was connected before pages_read_user_content was enabled, disconnect and reconnect it so Meta issues a fresh Page token.',
         'Open Analytics, keep Facebook selected, choose the Page and date range, then click Refresh analytics.',
         'Confirm the Page identity, live content engagement, Data availability results and this Meta review evidence panel.',
         'Change the date range and refresh again to verify that INX Social requests Page analytics for the selected period.'
-      ]
+      ],
+      reconnectRequired: basic.contentCapability.state === 'permission_required'
     },
     summary: {
       followers: basic.page.followers,

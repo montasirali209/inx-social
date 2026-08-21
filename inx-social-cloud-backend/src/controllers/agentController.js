@@ -1,8 +1,8 @@
 const prisma = require('../db/prisma');
-const { getLicenseStatus } = require('../services/licenseService');
-const { buildPlan, PROVIDERS, SUPPORTED_PLATFORMS } = require('../services/socialAgentPlanner');
-const { queuePlan } = require('../services/agentRuntimeService');
+const { buildPlan, SUPPORTED_PLATFORMS } = require('../services/socialAgentPlanner');
+const { queuePlan, getRuntimeStatus } = require('../services/agentRuntimeService');
 const agentBrain = require('../services/agentBrainService');
+const agentAccess = require('../services/agentAccessService');
 
 const PLAN_INCLUDE = { tasks: { orderBy: { sequence: 'asc' } }, events: { orderBy: { createdAt: 'desc' }, take: 80 } };
 
@@ -11,19 +11,23 @@ function parseJson(value, fallback) {
 }
 
 function publicPlan(plan) {
+  const strategy = parseJson(plan.strategyJson, {});
   return {
     id: plan.id,
     prompt: plan.prompt,
     status: plan.status,
     platforms: parseJson(plan.platformsJson, []),
-    strategy: parseJson(plan.strategyJson, {}),
-    estimatedCostCents: plan.estimatedCostCents,
+    strategy: {
+      assetCount: strategy.assetCount || 0,
+      executionMode: strategy.executionMode || null,
+      guardrails: strategy.guardrails || []
+    },
     operationMode: plan.operationMode || 'HYBRID',
     approvedAt: plan.approvedAt,
     startedAt: plan.startedAt,
     completedAt: plan.completedAt,
     cancelledAt: plan.cancelledAt,
-    lastError: plan.lastError,
+    lastError: plan.lastError ? 'INX Agent could not complete the current step. Try again or contact support if it continues.' : null,
     createdAt: plan.createdAt,
     updatedAt: plan.updatedAt,
     tasks: (plan.tasks || []).map(item => ({
@@ -36,43 +40,45 @@ function publicPlan(plan) {
       status: item.status,
       riskLevel: item.riskLevel,
       executionMode: item.executionMode,
-      estimatedCostCents: item.estimatedCostCents,
-      output: parseJson(item.outputJson, null),
+      output: publicTaskOutput(parseJson(item.outputJson, null)),
       startedAt: item.startedAt,
       completedAt: item.completedAt
     })),
-    events: (plan.events || []).map(item => ({ id: item.id, taskId: item.taskId, type: item.type, status: item.status, title: item.title, message: item.message, metadata: parseJson(item.metadataJson, null), createdAt: item.createdAt }))
+    events: (plan.events || []).map(item => ({ id: item.id, taskId: item.taskId, type: item.type, status: item.status, title: item.title, message: item.message, createdAt: item.createdAt }))
   };
 }
 
-function publicMemory(item) {
-  return { id: item.id, pageId: item.pageId, category: item.category, title: item.title, content: item.content, source: item.source, confidence: item.confidence, createdAt: item.createdAt, updatedAt: item.updatedAt };
+function publicTaskOutput(output) {
+  if (!output || typeof output !== 'object') return output;
+  const allowed = {};
+  for (const key of ['content', 'message', 'summary', 'checklist', 'recommendations', 'assets']) {
+    if (output[key] !== undefined) allowed[key] = output[key];
+  }
+  return Object.keys(allowed).length ? allowed : null;
 }
 
-async function requireAgentAccess(userId) {
-  const license = await getLicenseStatus(userId);
-  if (!license.allowed) {
-    const error = new Error('An active INX Social plan is required to use Social Agent.');
-    error.status = 403;
-    throw error;
-  }
-  return license;
+function publicMemory(item) {
+  return { id: item.id, pageId: item.pageId, category: item.category, title: item.title, content: item.content, confidence: item.confidence, approvalStatus: item.approvalStatus, importance: item.importance, createdAt: item.createdAt, updatedAt: item.updatedAt };
 }
 
 async function overview(req, res, next) {
   try {
-    const license = await requireAgentAccess(req.user.id);
+    const entitlement = await agentAccess.requireAccess(req.user.id);
     const recentPlans = await prisma.agentPlan.findMany({
       where: { userId: req.user.id },
       orderBy: { createdAt: 'desc' },
       take: 20,
       include: PLAN_INCLUDE
     });
-    const memories = await prisma.agentMemory.findMany({ where: { userId: req.user.id }, orderBy: { updatedAt: 'desc' }, take: 30 });
+    const memories = await prisma.agentMemory.findMany({ where: { userId: req.user.id, approvalStatus: 'APPROVED' }, orderBy: { updatedAt: 'desc' }, take: 30 });
+    const pendingMemoryCount = await prisma.agentMemory.count({ where: { userId: req.user.id, approvalStatus: 'PENDING_REVIEW' } });
+    const runtime = await getRuntimeStatus();
+    const userQueue = runtime.queuedPlanIds.filter(id => recentPlans.some(plan => plan.id === id));
     res.json({
-      phase: '11.1',
+      phase: '11.2.1',
       mode: 'OLLAMA_FIRST_RUNTIME',
-      license: { plan: license.plan, allowed: license.allowed },
+      license: { plan: entitlement.plan, allowed: entitlement.allowed },
+      usage: entitlement.usage,
       capabilities: {
         planning: true,
         approvals: true,
@@ -80,20 +86,21 @@ async function overview(req, res, next) {
         autonomousPublishing: true,
         hybridReview: true,
         paidPromotion: false,
-        brain: agentBrain.status(),
+        brain: { configured: agentBrain.status().configured },
         note: 'Autopilot may publish organic content inside user guardrails after the required platform and media workers are connected. Paid advertising remains disabled.'
       },
       supportedPlatforms: SUPPORTED_PLATFORMS,
-      providers: Object.entries(PROVIDERS).map(([code, value]) => ({ code, ...value })),
       plans: recentPlans.map(publicPlan),
-      memories: memories.map(publicMemory)
+      memories: memories.map(publicMemory),
+      pendingMemoryCount,
+      runtime: { ...runtime, queuedPlanIds: userQueue }
     });
   } catch (error) { next(error); }
 }
 
 async function createPlan(req, res, next) {
   try {
-    await requireAgentAccess(req.user.id);
+    await agentAccess.requireAccess(req.user.id, { consume: true });
     const strategy = buildPlan(req.body || {});
     const autopilot = strategy.operationMode === 'AUTOPILOT';
     const plan = await prisma.agentPlan.create({
@@ -138,7 +145,7 @@ async function createPlan(req, res, next) {
 
 async function listPlans(req, res, next) {
   try {
-    await requireAgentAccess(req.user.id);
+    await agentAccess.requireAccess(req.user.id);
     const plans = await prisma.agentPlan.findMany({ where: { userId: req.user.id }, orderBy: { createdAt: 'desc' }, take: 50, include: PLAN_INCLUDE });
     res.json({ plans: plans.map(publicPlan) });
   } catch (error) { next(error); }
@@ -152,7 +159,7 @@ async function findOwnedPlan(userId, id) {
 
 async function approvePlan(req, res, next) {
   try {
-    await requireAgentAccess(req.user.id);
+    await agentAccess.requireAccess(req.user.id);
     const existing = await findOwnedPlan(req.user.id, req.params.id);
     if (existing.status !== 'AWAITING_APPROVAL') return res.status(409).json({ error: `This plan is already ${existing.status.toLowerCase().replaceAll('_', ' ')}.` });
     const plan = await prisma.agentPlan.update({
@@ -169,7 +176,7 @@ async function approvePlan(req, res, next) {
 
 async function resumePlan(req, res, next) {
   try {
-    await requireAgentAccess(req.user.id);
+    await agentAccess.requireAccess(req.user.id);
     const existing = await findOwnedPlan(req.user.id, req.params.id);
     if (['CANCELLED', 'COMPLETED'].includes(existing.status)) return res.status(409).json({ error: `This plan is already ${existing.status.toLowerCase()}.` });
     if (!existing.approvedAt && existing.operationMode !== 'AUTOPILOT') return res.status(409).json({ error: 'Approve this Hybrid mission before starting it.' });
@@ -181,7 +188,7 @@ async function resumePlan(req, res, next) {
 
 async function cancelPlan(req, res, next) {
   try {
-    await requireAgentAccess(req.user.id);
+    await agentAccess.requireAccess(req.user.id);
     const existing = await findOwnedPlan(req.user.id, req.params.id);
     if (['CANCELLED', 'COMPLETED'].includes(existing.status)) return res.status(409).json({ error: `This plan is already ${existing.status.toLowerCase()}.` });
     const plan = await prisma.agentPlan.update({

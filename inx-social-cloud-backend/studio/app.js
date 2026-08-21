@@ -249,6 +249,9 @@ function renderAccountGate() {
   if (!gate || !state) return;
   const account = state.account || {};
   const loggedIn = Boolean(account.authenticated);
+  const socialAgentVisible = Boolean(account.features?.socialAgent?.visible);
+  const agentNav = document.querySelector('.agent-nav');
+  agentNav?.classList.toggle('hidden', !loggedIn || !socialAgentVisible);
   gate.classList.toggle('hidden', loggedIn);
   badge?.classList.toggle('hidden', !loggedIn);
   if (!loggedIn) return;
@@ -263,6 +266,7 @@ function renderAccountGate() {
     plan.textContent = `${licence.plan || 'TRIAL'} · ${licence.allowed ? 'Active' : 'Locked'}${suffix}`;
   }
   document.body.classList.toggle('license-locked', !licence.allowed);
+  if (!socialAgentVisible && document.body.dataset.activeView === 'agent') switchView('dashboard');
 }
 
 function bindNavigation() {
@@ -272,6 +276,10 @@ function bindNavigation() {
 }
 
 function switchView(viewName) {
+  if (viewName === 'agent' && !state?.account?.features?.socialAgent?.visible) {
+    toast('Social Agent is not currently enabled for this account.', true);
+    viewName = 'dashboard';
+  }
   document.body.dataset.activeView = viewName;
   document.querySelectorAll('.nav').forEach(btn => btn.classList.toggle('active', btn.dataset.view === viewName));
   document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === viewName));
@@ -1736,21 +1744,35 @@ function renderAgentWorkspace() {
   }
   const plan = selectedAgentPlan();
   activeAgentPlanId = plan.id;
-  const strategy = plan.strategy || {};
-  const provider = strategy.provider?.label || strategy.executionMode || 'INX Template Video';
   const mode = plan.operationMode === 'AUTOPILOT' ? 'Autopilot' : 'Hybrid';
   const canApprove = plan.operationMode !== 'AUTOPILOT' && plan.status === 'AWAITING_APPROVAL';
   const canResume = !['CANCELLED', 'COMPLETED', 'RUNNING', 'QUEUED', 'AWAITING_APPROVAL'].includes(plan.status);
   const completed = (plan.tasks || []).filter(item => item.status === 'COMPLETED').length;
   const running = (plan.tasks || []).filter(item => ['RUNNING', 'QUEUED'].includes(item.status)).length;
   const waiting = (plan.tasks || []).filter(item => String(item.status).startsWith('WAITING')).length;
+  const queueIds = agentOverview?.runtime?.queuedPlanIds || [];
+  const queuePosition = queueIds.indexOf(plan.id) + 1;
+  const usage = agentOverview?.usage || state?.account?.features?.socialAgent?.usage || {};
+  const usageLimit = usage.limit === null ? 'Unlimited' : Number(usage.limit || 0).toLocaleString();
+  const usageRemaining = usage.remaining === null ? 'Unlimited' : Number(usage.remaining || 0).toLocaleString();
+  const periodEnd = usage.periodEnd ? new Date(usage.periodEnd).toLocaleDateString() : 'Plan period';
+  const missionQueue = plans
+    .filter(item => !['CANCELLED'].includes(item.status))
+    .slice(0, 8);
   const missionStatus = document.getElementById('agentMissionStatus');
   if (missionStatus) missionStatus.textContent = `${mode} · ${String(plan.status).replaceAll('_', ' ')}`;
   workspace.innerHTML = `
     <div class="agent-plan-summary">
+      <div class="agent-queue-strip"><span><b>${escapeHtml(String(agentOverview?.runtime?.queueLength || 0))}</b> queued</span><span><b>${agentOverview?.runtime?.activePlanId ? '1' : '0'}</b> active</span><span>Mac-safe FIFO · one mission at a time</span>${queuePosition ? `<strong>Selected position ${queuePosition}</strong>` : ''}</div>
+      <div class="agent-mission-queue" aria-label="Mission queue">${missionQueue.map((item, index) => {
+        const itemQueuePosition = queueIds.indexOf(item.id) + 1;
+        const itemCompleted = (item.tasks || []).filter(task => task.status === 'COMPLETED').length;
+        const isActive = agentOverview?.runtime?.activePlanId === item.id;
+        return `<button type="button" data-agent-plan-id="${escapeHtml(item.id)}" class="agent-queue-card ${item.id === plan.id ? 'selected' : ''} ${isActive ? 'active' : ''}"><span>${isActive ? 'LIVE' : itemQueuePosition ? `Q${itemQueuePosition}` : String(index + 1).padStart(2, '0')}</span><div><strong>${escapeHtml(item.prompt.slice(0, 72))}</strong><small>${escapeHtml(String(item.status).replaceAll('_', ' '))} · ${itemCompleted}/${item.tasks?.length || 0} tasks</small></div><i></i></button>`;
+      }).join('')}</div>
       <label>Recent plans<select id="agentPlanSelect">${plans.map(item => `<option value="${escapeHtml(item.id)}" ${item.id === plan.id ? 'selected' : ''}>${escapeHtml(new Date(item.createdAt).toLocaleDateString())} — ${escapeHtml(item.prompt.slice(0, 58))}</option>`).join('')}</select></label>
-      <div class="agent-plan-top"><div><strong>${escapeHtml(plan.prompt)}</strong><p>${escapeHtml((plan.platforms || []).join(', '))} · ${escapeHtml(provider)}</p></div><div class="agent-plan-badges"><span class="agent-mode-badge">${mode}</span><span class="agent-plan-status status-${escapeHtml(String(plan.status).toLowerCase())}">${escapeHtml(plan.status.replaceAll('_', ' '))}</span></div></div>
-      <div class="agent-plan-metrics"><div><span>Brain route</span><strong>${escapeHtml(agentOverview?.capabilities?.brain?.model || 'Ollama')}</strong></div><div><span>Completed</span><strong>${completed}/${plan.tasks?.length || 0}</strong></div><div><span>Active / waiting</span><strong>${running} / ${waiting}</strong></div><div><span>Media estimate</span><strong>$${(Number(plan.estimatedCostCents || 0) / 100).toFixed(2)}</strong></div></div>
+      <div class="agent-plan-top"><div><strong>${escapeHtml(plan.prompt)}</strong><p>${escapeHtml((plan.platforms || []).join(', '))} · ${escapeHtml(mode)} organic automation</p></div><div class="agent-plan-badges"><span class="agent-mode-badge">${mode}</span><span class="agent-plan-status status-${escapeHtml(String(plan.status).toLowerCase())}">${escapeHtml(plan.status.replaceAll('_', ' '))}</span></div></div>
+      <div class="agent-plan-metrics"><div><span>Current plan</span><strong>${escapeHtml(agentOverview?.license?.plan || 'TRIAL')}</strong><small>Social Agent access</small></div><div><span>Agent missions used</span><strong>${Number(usage.used || 0).toLocaleString()} / ${usageLimit}</strong><small>this plan period</small></div><div><span>Remaining</span><strong>${usageRemaining}</strong><small>new missions available</small></div><div><span>Usage resets</span><strong>${escapeHtml(periodEnd)}</strong><small>${completed}/${plan.tasks?.length || 0} tasks complete · ${running} active · ${waiting} waiting</small></div></div>
       ${plan.lastError ? `<div class="agent-runtime-error">${escapeHtml(plan.lastError)}</div>` : ''}
       <div class="agent-task-list">${(plan.tasks || []).map(item => {
         const output = item.output?.content || item.output?.message || '';
@@ -1759,6 +1781,7 @@ function renderAgentWorkspace() {
       <div class="agent-plan-actions"><button id="btnAgentCancelPlan" class="btn ghost subtle-danger" type="button" ${['CANCELLED','COMPLETED'].includes(plan.status) ? 'disabled' : ''}>Cancel mission</button>${canResume ? '<button id="btnAgentResumePlan" class="btn secondary" type="button">Resume mission</button>' : ''}${canApprove ? '<button id="btnAgentApprovePlan" class="btn primary" type="button">Approve &amp; run</button>' : ''}</div>
     </div>`;
   document.getElementById('agentPlanSelect')?.addEventListener('change', event => { activeAgentPlanId = event.target.value; renderAgentWorkspace(); });
+  workspace.querySelectorAll('[data-agent-plan-id]').forEach(button => button.addEventListener('click', () => { activeAgentPlanId = button.dataset.agentPlanId; renderAgentWorkspace(); }));
   document.getElementById('btnAgentApprovePlan')?.addEventListener('click', approveAgentPlan);
   document.getElementById('btnAgentResumePlan')?.addEventListener('click', resumeAgentPlan);
   document.getElementById('btnAgentCancelPlan')?.addEventListener('click', cancelAgentPlan);
@@ -1767,17 +1790,23 @@ function renderAgentWorkspace() {
 function renderAgentIntelligence() {
   const brain = agentOverview?.capabilities?.brain || {};
   const brainStatus = document.getElementById('agentBrainStatus');
-  if (brainStatus) brainStatus.textContent = brain.configured ? `Ollama online · ${brain.model}` : 'Ollama connection required';
-  document.querySelector('.jarvis-command-deck')?.classList.toggle('brain-offline', !brain.configured);
+  if (brainStatus) brainStatus.textContent = brain.configured ? 'INX Agent is online' : 'INX Agent connection required';
   const plan = selectedAgentPlan();
+  const deck = document.querySelector('.jarvis-command-deck');
+  deck?.classList.toggle('brain-offline', !brain.configured);
+  ['running','queued','waiting','completed','failed'].forEach(name => deck?.classList.remove(`brain-${name}`));
+  const visualState = String(plan?.status || '').toLowerCase().replace('_provider','').replace('_review','');
+  if (visualState) deck?.classList.add(`brain-${visualState}`);
+  const core = document.getElementById('agentMissionCore');
+  if (core) core.querySelector('small').textContent = plan?.status ? String(plan.status).replaceAll('_', ' ') : (brain.configured ? 'READY' : 'OFFLINE');
   const feed = document.getElementById('agentLiveFeed');
   const events = plan?.events || [];
-  if (feed) feed.innerHTML = events.length ? events.map(item => `<article class="agent-feed-event status-${escapeHtml(String(item.status).toLowerCase())}"><i></i><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.message)}</p><time>${escapeHtml(new Date(item.createdAt).toLocaleString())}</time></div></article>`).join('') : '<div class="workspace-empty">No runtime events yet.</div>';
+  if (feed) feed.innerHTML = events.length ? events.map((item,index) => `<article class="agent-feed-event status-${escapeHtml(String(item.status).toLowerCase())} ${index===0?'latest':''}"><i></i><div><header><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(String(item.status))}</span></header><p>${escapeHtml(item.message)}</p><time>${escapeHtml(new Date(item.createdAt).toLocaleString())}</time></div></article>`).join('') : '<div class="workspace-empty">No runtime events yet.</div>';
   const memories = agentOverview?.memories || [];
   const count = document.getElementById('agentMemoryCount');
-  if (count) count.textContent = String(memories.length);
+  if (count) count.textContent = `${memories.length} approved`;
   const grid = document.getElementById('agentMemoryGrid');
-  if (grid) grid.innerHTML = memories.length ? memories.map(item => `<article><span>${escapeHtml(item.category)}</span><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.content)}</p><small>${escapeHtml(item.source)} · confidence ${escapeHtml(String(item.confidence))}%</small></article>`).join('') : '<div class="workspace-empty">Memory is empty. Completed Ollama tasks will appear here.</div>';
+  if (grid) grid.innerHTML = memories.length ? memories.map(item => `<article><header><span>${escapeHtml(item.category)}</span><b>${escapeHtml(item.importance || 'ROUTINE')}</b></header><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.content)}</p><small>Approved reusable learning · confidence ${escapeHtml(String(item.confidence))}%</small></article>`).join('') : `<div class="workspace-empty">No approved memory yet.${agentOverview?.pendingMemoryCount ? ` ${agentOverview.pendingMemoryCount} learning candidate(s) await admin review.` : ''}</div>`;
 }
 
 async function approveAgentPlan() {
@@ -1880,7 +1909,9 @@ function updateDashboardPulse(stats = {}) {
 }
 
 function renderSlotPills() {
-  document.getElementById('slotPills').innerHTML = state.settings.dailySlots
+  const target = document.getElementById('slotPills');
+  if (!target) return;
+  target.innerHTML = state.settings.dailySlots
     .map(slot => `<span class="pill">${escapeHtml(to12(slot))}</span>`)
     .join('');
 }
@@ -2775,7 +2806,8 @@ function renderFacebookAnalytics(data) {
     const content = data.content || [];
     recent.innerHTML = content.length ? `<table><thead><tr><th>Content</th><th>Published</th><th>Reactions</th><th>Comments</th><th>Shares</th><th>Facebook</th></tr></thead><tbody>${content.map(item => `
       <tr><td><div class="analytics-content-cell">${item.thumbnailUrl ? `<img src="${escapeHtml(item.thumbnailUrl)}" alt="" loading="lazy">` : '<span class="analytics-content-placeholder">f</span>'}<div><strong>${escapeHtml((item.message || 'Facebook content').slice(0, 110))}</strong><small>${escapeHtml(item.contentType || 'post')}</small></div></div></td><td>${escapeHtml(formatDate(item.createdTime))}</td><td>${formatMetric(item.reactions)}</td><td>${formatMetric(item.comments)}</td><td>${formatMetric(item.shares)}</td><td>${item.permalinkUrl ? `<a class="analytics-open-link" href="${escapeHtml(item.permalinkUrl)}" target="_blank" rel="noopener noreferrer">View post</a>` : '—'}</td></tr>
-    `).join('')}</tbody></table>` : '<div class="empty">Meta returned no published content in this period.</div>';
+    `).join('')}</tbody></table>` : data.reviewEvidence?.reconnectRequired ? '<div class="analytics-reconnect"><strong>Reconnect required for content analytics</strong><p>This Page token was created before <code>pages_read_user_content</code> was requested. Meta permissions do not update an existing token automatically.</p><button class="btn primary" type="button" data-analytics-reconnect>Reconnect Facebook Page</button></div>' : '<div class="empty">Meta returned no published content in this period.</div>';
+    recent.querySelector('[data-analytics-reconnect]')?.addEventListener('click', () => switchView('pages'));
   }
   const notice = document.getElementById('analyticsNotice');
   if (notice) notice.querySelector('p').textContent = data.capabilities?.pageInsights?.available
@@ -2801,7 +2833,9 @@ function renderAnalyticsReviewEvidence(evidence) {
       <div><h4>Permission use</h4>${permissions.map(item => `<div class="analytics-evidence-line"><strong>${escapeHtml(item.permission)}</strong><span>${escapeHtml(item.purpose)}</span><small>${escapeHtml(String(item.verification || '').replaceAll('_', ' '))}</small></div>`).join('')}</div>
       <div><h4>Live endpoint checks</h4>${checks.map(item => `<div class="analytics-evidence-line ${item.ok ? 'ok' : 'warn'}"><strong>${item.ok ? 'Passed' : escapeHtml(String(item.state || 'Unavailable').replaceAll('_', ' '))}</strong><span>${escapeHtml(item.purpose)}</span><small>${escapeHtml(item.endpoint)}</small></div>`).join('')}</div>
     </div>
+    ${evidence.reconnectRequired ? '<div class="analytics-reconnect"><strong>Fresh Page token needed</strong><p>The permission is enabled in Meta, but this saved token predates it. Go to Connected Pages, disconnect, then reconnect the review Page.</p><button class="btn primary" type="button" data-evidence-reconnect>Open Connected Pages</button></div>' : ''}
     <p class="analytics-privacy-proof">${escapeHtml(evidence.privacy || 'Tokens are never shown in Analytics.')}</p>`;
+  target.querySelector('[data-evidence-reconnect]')?.addEventListener('click', () => switchView('pages'));
 }
 
 async function copyAnalyticsReviewSteps() {
@@ -2821,6 +2855,7 @@ function renderAnalyticsCapabilities(capabilities, warnings) {
   if (!target) return;
   const rows = [
     ['Page and post engagement', capabilities.basicEngagement],
+    ['Published Page content', capabilities.publishedContent],
     ['Page Insights', capabilities.pageInsights],
     ['Content views', capabilities.metrics?.views],
     ['Post engagements trend', capabilities.metrics?.engagements],

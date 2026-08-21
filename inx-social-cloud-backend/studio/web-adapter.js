@@ -524,7 +524,7 @@
     url.searchParams.set('client_id', FACEBOOK_APP_ID);
     url.searchParams.set('redirect_uri', redirectUri);
     url.searchParams.set('response_type', 'token');
-    url.searchParams.set('scope', 'public_profile,pages_show_list,pages_read_engagement,pages_manage_posts,business_management');
+    url.searchParams.set('scope', 'public_profile,pages_show_list,pages_read_engagement,pages_read_user_content,pages_manage_posts,business_management');
     url.searchParams.set('state', stateValue);
     url.searchParams.set('auth_type', 'rerequest');
     url.searchParams.set('return_scopes', 'true');

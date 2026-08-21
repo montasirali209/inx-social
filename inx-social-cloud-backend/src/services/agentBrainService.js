@@ -17,7 +17,10 @@ function status() {
   };
 }
 
-function taskInstruction(plan, task) {
+function taskInstruction(plan, task, approvedMemories = []) {
+  const memoryBlock = approvedMemories.length
+    ? ['Approved reusable playbooks:', ...approvedMemories.map((item, index) => `${index + 1}. ${item.title}: ${item.content}`)]
+    : ['Approved reusable playbooks: none.'];
   return [
     'You are the INX Social organic-content strategist.',
     'Return practical work only. Never invent business facts, performance results, permissions or customer testimonials.',
@@ -26,7 +29,9 @@ function taskInstruction(plan, task) {
     `Platforms: ${JSON.parse(plan.platformsJson || '[]').join(', ')}`,
     `Current task: ${task.title}`,
     `Task requirement: ${task.description}`,
-    'Write a concise, production-useful result with clear headings or a compact numbered list.'
+    ...memoryBlock,
+    'Use approved playbooks as guidance, not as facts about this business.',
+    'Write a concise, production-useful result with clear headings or a compact numbered list. Do not reveal hidden chain-of-thought.'
   ].join('\n');
 }
 
@@ -47,12 +52,12 @@ function ollamaHeaders() {
   return headers;
 }
 
-async function paidFallback(plan, task, http, model) {
+async function paidFallback(plan, task, http, model, approvedMemories = []) {
   const response = await http.post(`${env.aiFallback.baseUrl}/chat/completions`, {
     model,
     messages: [
       { role: 'system', content: 'You create truthful, brand-safe organic social content and operational plans.' },
-      { role: 'user', content: taskInstruction(plan, task) }
+      { role: 'user', content: taskInstruction(plan, task, approvedMemories) }
     ],
     temperature: 0.55
   }, { timeout: env.ollama.timeoutMs, headers: { Authorization: `Bearer ${env.aiFallback.apiKey}` } });
@@ -64,6 +69,7 @@ async function paidFallback(plan, task, http, model) {
 async function generateTaskOutput(plan, task, dependencies = {}) {
   const http = dependencies.http || axios;
   const route = dependencies.route || await modelRouting.routeForTask(task);
+  const approvedMemories = dependencies.approvedMemories || [];
   const ollamaModel = route.ollamaModel || env.ollama.model;
   let ollamaError = null;
   if (env.ollama.baseUrl) {
@@ -73,7 +79,7 @@ async function generateTaskOutput(plan, task, dependencies = {}) {
         stream: false,
         messages: [
           { role: 'system', content: 'You create truthful, brand-safe organic social content and operational plans.' },
-          { role: 'user', content: taskInstruction(plan, task) }
+          { role: 'user', content: taskInstruction(plan, task, approvedMemories) }
         ],
         options: { temperature: 0.55 }
       }, { timeout: env.ollama.timeoutMs, headers: ollamaHeaders() });
@@ -87,7 +93,7 @@ async function generateTaskOutput(plan, task, dependencies = {}) {
   } else {
     ollamaError = Object.assign(new Error('Ollama is not configured. Set OLLAMA_BASE_URL and OLLAMA_MODEL to start the Social Agent brain.'), { code: 'OLLAMA_NOT_CONFIGURED' });
   }
-  if (dependencies.allowPaidFallback && route.fallbackEnabled && paidFallbackReady()) return paidFallback(plan, task, http, route.fallbackModel || env.aiFallback.model);
+  if (dependencies.allowPaidFallback && route.fallbackEnabled && paidFallbackReady()) return paidFallback(plan, task, http, route.fallbackModel || env.aiFallback.model, approvedMemories);
   throw ollamaError;
 }
 

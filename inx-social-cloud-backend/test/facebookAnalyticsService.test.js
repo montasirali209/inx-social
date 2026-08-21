@@ -55,12 +55,31 @@ test('Facebook analytics aggregates real Page and post engagement data', async (
   assert.equal(result.reviewEvidence.pageId, 'page-1');
   assert.equal(result.reviewEvidence.requiredPermissions[0].permission, 'pages_show_list');
   assert.equal(result.reviewEvidence.requiredPermissions[1].permission, 'pages_read_engagement');
+  assert.equal(result.reviewEvidence.requiredPermissions[2].permission, 'pages_read_user_content');
   assert.equal(result.reviewEvidence.endpointChecks.every(check => check.ok), true);
   assert.deepEqual(result.reviewEvidence.returnedMetrics, ['page_media_view', 'page_post_engagements', 'page_follows']);
   assert.match(result.reviewEvidence.privacy, /never returned to the browser/);
   assert.equal(http.calls.length, 5);
   assert.doesNotMatch(http.calls[0].params.fields, /tasks/);
-  assert.match(result.reviewEvidence.permissionEvidence, /does not request the obsolete Page tasks field/);
+  assert.match(result.reviewEvidence.permissionEvidence, /published content were returned/);
+});
+
+test('missing published-content scope returns partial analytics and reconnect evidence', async () => {
+  resetAnalyticsState();
+  const http = mockHttp();
+  const originalGet = http.get;
+  http.get = async (url, config) => {
+    if (/\/published_posts$/.test(url)) return { status: 403, headers: {}, data: { error: { code: 10, message: 'This endpoint requires pages_read_user_content.' } } };
+    return originalGet(url, config);
+  };
+  const result = await getFacebookAnalytics({ pageId: 'scope-page', accessToken: 'token', graphVersion: 'v25.0', days: 30 }, { http });
+  assert.equal(result.page.name, 'Test Page');
+  assert.equal(result.content.length, 0);
+  assert.equal(result.capabilities.publishedContent.state, 'permission_required');
+  assert.equal(result.reviewEvidence.status, 'partial');
+  assert.equal(result.reviewEvidence.reconnectRequired, true);
+  assert.equal(result.reviewEvidence.endpointChecks[0].ok, true);
+  assert.equal(result.reviewEvidence.endpointChecks[1].ok, false);
 });
 
 test('unsupported Meta insight metrics stay unavailable without failing the analytics page', async () => {

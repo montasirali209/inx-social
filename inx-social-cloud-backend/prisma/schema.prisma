@@ -104,6 +104,11 @@ model AgentMemory {
   content    String
   source     String   @default("AGENT")
   confidence Int      @default(80)
+  approvalStatus String @default("PENDING_REVIEW")
+  importance     String @default("ROUTINE")
+  reviewNote     String?
+  reviewedAt     DateTime?
+  reviewedById   String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -112,6 +117,8 @@ model AgentMemory {
   @@index([userId])
   @@index([pageId])
   @@index([category])
+  @@index([approvalStatus])
+  @@index([importance])
   @@index([updatedAt])
 }
 

@@ -65,4 +65,15 @@ test('Social Agent exposes Autopilot, Hybrid, live runtime and working memory', 
   assert.match(admin, /AI Model Routing/);
   assert.match(admin, /Video generation policy/);
   assert.match(admin, /Allow paid gateway only if Ollama is unavailable/);
+  assert.match(admin, /Agent Learning Control/);
+  assert.match(admin, /Social Agent availability/);
+  assert.match(admin, /Admins only — development mode/);
+  assert.match(app, /FIFO · one mission at a time/);
+  assert.match(app, /Agent missions used/);
+  assert.match(app, /new missions available/);
+  assert.doesNotMatch(app, /Disclosed AI route/);
+  assert.doesNotMatch(app, /Maximum estimate/);
+  assert.doesNotMatch(app, /Actual paid usage/);
+  assert.match(app, /account\.features\?\.socialAgent\?\.visible/);
+  assert.doesNotMatch(html, /Default daily slots/);
 });

@@ -9,6 +9,7 @@ const { z } = require('zod');
 const prisma = require('../db/prisma');
 const { decryptToken } = require('../utils/tokenCrypto');
 const { getLicenseStatus } = require('../services/licenseService');
+const agentAccess = require('../services/agentAccessService');
 const metaPublisher = require('../services/cloudMetaPublisher');
 const { getFacebookAnalytics } = require('../services/facebookAnalyticsService');
 const {
@@ -420,7 +421,7 @@ async function capabilities(req, res, next) {
 async function desktopState(req, res, next) {
   try {
     await requireStudioLicense(req.user.id);
-    const [license, preference, jobs] = await Promise.all([
+    const [license, preference, jobs, socialAgent] = await Promise.all([
       requireStudioLicense(req.user.id),
       prisma.cloudPreference.findUnique({ where: { userId: req.user.id } }),
       prisma.scheduleJob.findMany({
@@ -428,7 +429,8 @@ async function desktopState(req, res, next) {
         orderBy: { createdAt: 'desc' },
         take: 1000,
         include: { connectedPage: true, cloudAsset: true }
-      })
+      }),
+      agentAccess.getEntitlement(req.user.id)
     ]);
     const workspace = await getWorkspaceData(req.user.id, license);
     const active = workspace.activePage;
@@ -463,6 +465,13 @@ async function desktopState(req, res, next) {
             status: req.user.status
           },
           license,
+          features: {
+            socialAgent: {
+              visible: socialAgent.visible,
+              allowed: socialAgent.allowed,
+              usage: socialAgent.usage
+            }
+          },
           device: { deviceName: 'Web browser', status: 'ACTIVE' },
           lastCheckedAt: new Date()
         },

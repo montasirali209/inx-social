@@ -1,6 +1,7 @@
 const prisma = require('../db/prisma');
 const aiModelRouting = require('../services/aiModelRoutingService');
 const agentBrain = require('../services/agentBrainService');
+const agentAccess = require('../services/agentAccessService');
 
 function safeUserSelect() {
   return {
@@ -155,4 +156,44 @@ async function updateAiRouting(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { overview, users, userDetail, updateUserAccess, settings, updateSetting, aiRouting, updateAiRouting };
+async function agentAccessPolicy(req, res, next) {
+  try {
+    res.json({ policy: await agentAccess.getPolicy(), availabilityOptions: Object.values(agentAccess.AVAILABILITY) });
+  } catch (err) { next(err); }
+}
+
+async function updateAgentAccessPolicy(req, res, next) {
+  try {
+    const policy = await agentAccess.updatePolicy(req.body || {});
+    await prisma.auditLog.create({ data: { userId: req.user.id, action: 'ADMIN_UPDATE_AGENT_ACCESS', entity: 'AppSetting', metadata: JSON.stringify(policy) } });
+    res.json({ ok: true, policy });
+  } catch (err) { next(err); }
+}
+
+async function agentLearning(req, res, next) {
+  try {
+    const status = String(req.query.status || '').toUpperCase();
+    const where = status && ['PENDING_REVIEW', 'APPROVED', 'DECLINED'].includes(status) ? { approvalStatus: status } : {};
+    const memories = await prisma.agentMemory.findMany({ where, orderBy: [{ approvalStatus: 'asc' }, { importance: 'asc' }, { updatedAt: 'desc' }], take: 200, include: { user: { select: { id: true, name: true, email: true } } } });
+    const grouped = await prisma.agentMemory.groupBy({ by: ['approvalStatus'], _count: { _all: true } });
+    res.json({ memories, counts: Object.fromEntries(grouped.map(item => [item.approvalStatus, item._count._all])), policy: 'Only administrator-approved summaries and playbooks may be reused. Hidden chain-of-thought is never stored.' });
+  } catch (err) { next(err); }
+}
+
+async function reviewAgentLearning(req, res, next) {
+  try {
+    const approvalStatus = String(req.body?.approvalStatus || '').toUpperCase();
+    if (!['APPROVED', 'DECLINED', 'PENDING_REVIEW'].includes(approvalStatus)) return res.status(400).json({ error: 'approvalStatus must be APPROVED, DECLINED or PENDING_REVIEW.' });
+    const memory = await prisma.agentMemory.update({ where: { id: req.params.id }, data: {
+      approvalStatus,
+      content: req.body?.content === undefined ? undefined : String(req.body.content).trim().slice(0, 12000),
+      reviewNote: req.body?.reviewNote === undefined ? undefined : String(req.body.reviewNote).trim().slice(0, 1000),
+      reviewedAt: approvalStatus === 'PENDING_REVIEW' ? null : new Date(),
+      reviewedById: approvalStatus === 'PENDING_REVIEW' ? null : req.user.id
+    } });
+    await prisma.auditLog.create({ data: { userId: req.user.id, action: `ADMIN_AGENT_MEMORY_${approvalStatus}`, entity: 'AgentMemory', entityId: memory.id } });
+    res.json({ ok: true, memory });
+  } catch (err) { next(err); }
+}
+
+module.exports = { overview, users, userDetail, updateUserAccess, settings, updateSetting, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning };

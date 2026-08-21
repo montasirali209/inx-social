@@ -39,11 +39,11 @@ module.exports = {
   latestVersion: process.env.LATEST_DESKTOP_VERSION || '14.0.1',
   ollama: {
     baseUrl: String(process.env.OLLAMA_BASE_URL || '').replace(/\/$/, ''),
-    model: process.env.OLLAMA_MODEL || 'qwen2.5:7b-instruct',
+    model: process.env.OLLAMA_MODEL || 'qwen3:8b',
     apiKey: process.env.OLLAMA_API_KEY || '',
     cloudflareAccessClientId: process.env.OLLAMA_CF_ACCESS_CLIENT_ID || '',
     cloudflareAccessClientSecret: process.env.OLLAMA_CF_ACCESS_CLIENT_SECRET || '',
-    timeoutMs: Math.max(10000, Number(process.env.OLLAMA_TIMEOUT_MS || 120000))
+    timeoutMs: Math.max(10000, Number(process.env.OLLAMA_TIMEOUT_MS || 180000))
   },
   aiFallback: {
     enabled: String(process.env.AI_PAID_FALLBACK_ENABLED || 'false') === 'true',

@@ -12,6 +12,8 @@
 <style>.logo-wordmark{display:block;width:290px;height:108px;object-fit:cover;object-position:center;margin:-22px 0 -8px}.logo-wordmark.small{width:205px;height:76px;margin:-15px 0}</style>
 <style>
 .ai-routing-form{display:grid;grid-template-columns:repeat(2,minmax(260px,1fr));gap:14px;margin-top:18px}.ai-routing-form fieldset{display:grid;gap:10px;margin:0;padding:16px;border:1px solid var(--line);border-radius:16px;background:#f8fbff}.ai-routing-form legend{padding:0 7px;color:var(--brand);font-weight:900}.ai-routing-form label{display:grid;gap:6px;font-weight:800}.ai-routing-form .ai-fallback-toggle{grid-template-columns:auto 1fr;align-items:center;font-size:13px}.ai-routing-form .ai-fallback-toggle input{width:auto}.ai-routing-form>button{grid-column:1/-1}.ai-routing-form #mediaPolicyFields{grid-column:1/-1;grid-template-columns:repeat(2,minmax(220px,1fr))}.ai-routing-form #mediaPolicyFields legend,.ai-routing-form #mediaPolicyFields small{grid-column:1/-1}@media(max-width:900px){.ai-routing-form,.ai-routing-form #mediaPolicyFields{grid-template-columns:1fr}.ai-routing-form #mediaPolicyFields legend,.ai-routing-form #mediaPolicyFields small{grid-column:auto}}
+.learning-grid{display:grid;gap:14px}.learning-card{border:1px solid var(--line);border-radius:16px;padding:16px;background:#f8fbff}.learning-card header{display:flex;justify-content:space-between;gap:12px}.learning-card textarea{width:100%;min-height:120px;margin:12px 0;border:1px solid var(--line);border-radius:12px;padding:12px}.learning-actions{display:flex;gap:8px;flex-wrap:wrap}.learning-actions .decline{background:#fff1f2;color:#be123c;box-shadow:none}.learning-counts{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}.learning-counts span{background:#edf2fb;padding:8px 12px;border-radius:999px;font-weight:800}
+.agent-access-form{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:12px;margin:18px 0 24px;padding:18px;border:1px solid var(--line);border-radius:16px;background:#f8fbff}.agent-access-form label{display:grid;gap:6px;font-weight:800}.agent-access-form .availability{grid-column:1/-1}.agent-access-form button{grid-column:1/-1}.agent-access-form small{grid-column:1/-1;color:var(--muted)}@media(max-width:900px){.agent-access-form{grid-template-columns:1fr}.agent-access-form .availability,.agent-access-form button,.agent-access-form small{grid-column:auto}}
 </style>
 </head>
 <body>
@@ -42,6 +44,7 @@
         <button class="nav" data-page="users">Users & Access</button>
         <button class="nav" data-page="settings">App Settings</button>
         <button class="nav" data-page="aiRouting">AI Model Routing</button>
+        <button class="nav" data-page="agentLearning">Agent Learning</button>
         <button class="nav" data-page="roadmap">Backend Roadmap</button>
         <button class="logout" id="logoutBtn">Logout</button>
       </aside>
@@ -105,10 +108,33 @@
             <p class="eyebrow">Admin only</p>
             <h2>AI Model Priority Routing</h2>
             <p>Choose the Ollama-first model and optional paid-gateway fallback model for each work type. Provider secrets remain in Railway variables.</p>
+            <form id="agentAccessForm" class="agent-access-form">
+              <label class="availability">Social Agent availability<select id="agentAvailability"><option value="DISABLED">Disabled for everyone</option><option value="ADMIN_ONLY">Admins only — development mode</option><option value="EVERYONE">All eligible subscribers</option></select></label>
+              <label>Trial missions<input id="agentLimitTrial" type="number" min="0" max="1000000"></label>
+              <label>Starter missions<input id="agentLimitStarter" type="number" min="0" max="1000000"></label>
+              <label>Pro missions<input id="agentLimitPro" type="number" min="0" max="1000000"></label>
+              <label>Creator missions<input id="agentLimitCreator" type="number" min="0" max="1000000"></label>
+              <label>Lifetime missions<input id="agentLimitLifetime" type="number" min="0" max="1000000"></label>
+              <label>Agency missions<input id="agentLimitAgency" type="number" min="0" max="1000000"></label>
+              <label>Business missions<input id="agentLimitBusiness" type="number" min="0" max="1000000"></label>
+              <small>One submitted mission uses one allowance. Model routing, provider prices and paid-call records remain private to administrators.</small>
+              <button type="submit">Save Agent access policy</button>
+            </form>
             <div id="aiBrainStatus" class="detail-card">Loading AI status…</div>
             <form id="aiRoutingForm" class="ai-routing-form"></form>
             <p class="hint">A paid fallback is attempted only after an Ollama availability failure, only when both this route and the Railway fallback switch are enabled.</p>
           </div>
+        </section>
+
+        <section class="page hidden" id="agentLearningPage">
+          <div class="panel">
+            <p class="eyebrow">Admin review</p>
+            <h2>Agent Learning Control</h2>
+            <p>Review reusable summaries and playbooks produced by completed work. Only approved items are supplied to Ollama on future matching tasks; hidden chain-of-thought is never stored.</p>
+            <div id="learningCounts" class="learning-counts"></div>
+            <div class="search-row"><select id="learningStatus"><option value="">All states</option><option>PENDING_REVIEW</option><option>APPROVED</option><option>DECLINED</option></select><button id="refreshLearning" type="button">Refresh</button></div>
+          </div>
+          <div id="learningGrid" class="learning-grid"></div>
         </section>
 
         <section class="page hidden" id="roadmapPage">
@@ -168,7 +194,7 @@ document.querySelectorAll('.nav').forEach(btn=>btn.addEventListener('click', asy
   document.querySelectorAll('.nav').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
   document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));
   const page=btn.dataset.page; $(`${page}Page`).classList.remove('hidden'); $('pageTitle').textContent=btn.textContent;
-  if(page==='overview') await loadOverview(); if(page==='users') await loadUsers(); if(page==='settings') await loadSettings(); if(page==='aiRouting') await loadAiRouting();
+  if(page==='overview') await loadOverview(); if(page==='users') await loadUsers(); if(page==='settings') await loadSettings(); if(page==='aiRouting') await loadAiRouting(); if(page==='agentLearning') await loadAgentLearning();
 }));
 
 async function loadOverview(){
@@ -228,7 +254,15 @@ $('settingForm').addEventListener('submit', async(e)=>{
 
 const aiRouteLabels={default:'Global default',planning:'Planning & strategy',copy:'Caption & copy writing',adaptation:'Platform adaptation',scheduling:'Scheduling decisions',mediaPrompt:'Media prompt creation'};
 async function loadAiRouting(){
-  const { routing, brain, routes, mediaPolicy, mediaProviders } = await api('/api/admin/ai-routing');
+  const [{ routing, brain, routes, mediaPolicy, mediaProviders }, { policy }] = await Promise.all([api('/api/admin/ai-routing'),api('/api/admin/agent-access')]);
+  $('agentAvailability').value=policy.availability;
+  $('agentLimitTrial').value=policy.planLimits.TRIAL;
+  $('agentLimitStarter').value=policy.planLimits.STARTER;
+  $('agentLimitPro').value=policy.planLimits.PRO;
+  $('agentLimitCreator').value=policy.planLimits.CREATOR;
+  $('agentLimitLifetime').value=policy.planLimits.LIFETIME;
+  $('agentLimitAgency').value=policy.planLimits.AGENCY;
+  $('agentLimitBusiness').value=policy.planLimits.BUSINESS;
   $('aiBrainStatus').innerHTML=`<strong>${brain.configured?'Ollama configured':'Ollama not configured'}</strong><small>Environment default: ${brain.model}</small><small>Paid gateway: ${brain.paidFallback?.enabled?'enabled':'disabled'} · maximum ${brain.paidFallback?.maxCallsPerMission||0} call(s) per mission</small>`;
   const providerOptions=mediaProviders.map(value=>`<option value="${value}">${value.replaceAll('_',' ')}</option>`).join('');
   $('aiRoutingForm').innerHTML=routes.map(key=>{const route=routing[key];return `<fieldset data-ai-route="${key}"><legend>${aiRouteLabels[key]}</legend><label>Priority 1 · Ollama model<input class="ai-ollama-model" value="${route.ollamaModel}" required></label><label class="ai-fallback-toggle"><input class="ai-fallback-enabled" type="checkbox" ${route.fallbackEnabled?'checked':''}> Allow paid gateway only if Ollama is unavailable</label><label>Priority 2 · paid-gateway model<input class="ai-fallback-model" value="${route.fallbackModel||''}" placeholder="for example provider/model"></label></fieldset>`}).join('')+`<fieldset id="mediaPolicyFields"><legend>Video generation policy</legend><label class="ai-fallback-toggle"><input id="mediaEnabled" type="checkbox" ${mediaPolicy.enabled?'checked':''}> Enable video-generation tasks</label><label>Priority 1 · provider<select id="mediaProvider">${providerOptions}</select></label><label>Priority 1 · model<input id="mediaModel" value="${mediaPolicy.model||''}"></label><label>Priority 2 · provider<select id="mediaFallbackProvider">${providerOptions}</select></label><label>Priority 2 · model<input id="mediaFallbackModel" value="${mediaPolicy.fallbackModel||''}"></label><label class="ai-fallback-toggle"><input id="mediaPaidAllowed" type="checkbox" ${mediaPolicy.paidGenerationAllowed?'checked':''}> Permit paid video generation within the cost ceiling</label><label>Maximum cost per asset (pence)<input id="mediaMaxCost" type="number" min="0" max="10000" value="${mediaPolicy.maxCostCentsPerAsset}"></label><small>Provider keys and adapter URLs stay in Railway variables. Selecting a provider does not expose a key or bypass availability checks.</small></fieldset><button type="submit">Save AI and media routing</button>`;
@@ -240,6 +274,21 @@ $('aiRoutingForm').addEventListener('submit',async(e)=>{
   const mediaPolicy={enabled:$('mediaEnabled').checked,provider:$('mediaProvider').value,model:$('mediaModel').value.trim(),fallbackProvider:$('mediaFallbackProvider').value,fallbackModel:$('mediaFallbackModel').value.trim(),paidGenerationAllowed:$('mediaPaidAllowed').checked,maxCostCentsPerAsset:Number($('mediaMaxCost').value||0)};
   await api('/api/admin/ai-routing',{method:'PUT',body:JSON.stringify({routing,mediaPolicy})}); toast('AI and media routing saved'); await loadAiRouting();
 });
+
+$('agentAccessForm').addEventListener('submit',async(e)=>{
+  e.preventDefault();
+  const policy={availability:$('agentAvailability').value,planLimits:{TRIAL:Number($('agentLimitTrial').value||0),STARTER:Number($('agentLimitStarter').value||0),PRO:Number($('agentLimitPro').value||0),CREATOR:Number($('agentLimitCreator').value||0),LIFETIME:Number($('agentLimitLifetime').value||0),AGENCY:Number($('agentLimitAgency').value||0),BUSINESS:Number($('agentLimitBusiness').value||0)}};
+  await api('/api/admin/agent-access',{method:'PUT',body:JSON.stringify(policy)}); toast('Social Agent access policy saved'); await loadAiRouting();
+});
+
+function esc(value){return String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));}
+async function loadAgentLearning(){
+  const status=$('learningStatus').value; const data=await api('/api/admin/agent-learning'+(status?`?status=${encodeURIComponent(status)}`:''));
+  $('learningCounts').innerHTML=['PENDING_REVIEW','APPROVED','DECLINED'].map(key=>`<span>${key.replaceAll('_',' ')}: ${data.counts[key]||0}</span>`).join('');
+  $('learningGrid').innerHTML=data.memories.map(item=>`<article class="learning-card"><header><div><strong>${esc(item.title)}</strong><p>${esc(item.category)} · ${esc(item.importance)} · ${esc(item.source)}</p></div><span class="badge ${esc(item.approvalStatus)}">${esc(item.approvalStatus)}</span></header><small>${esc(item.user?.email||'Unknown user')} · confidence ${esc(item.confidence)}% · ${fmtDate(item.updatedAt)}</small><textarea id="memory-${esc(item.id)}">${esc(item.content)}</textarea><div class="learning-actions"><button onclick="reviewLearning('${esc(item.id)}','APPROVED')">Approve for reuse</button><button class="decline" onclick="reviewLearning('${esc(item.id)}','DECLINED')">Decline</button><button class="secondary" onclick="reviewLearning('${esc(item.id)}','PENDING_REVIEW')">Return to review</button></div></article>`).join('')||'<div class="panel">No learning items match this filter.</div>';
+}
+window.reviewLearning=async function(id,approvalStatus){await api(`/api/admin/agent-learning/${id}`,{method:'PATCH',body:JSON.stringify({approvalStatus,content:$(`memory-${id}`).value})});toast(`Learning ${approvalStatus.toLowerCase().replaceAll('_',' ')}`);await loadAgentLearning();};
+$('refreshLearning').addEventListener('click',loadAgentLearning); $('learningStatus').addEventListener('change',loadAgentLearning);
 
 (async function boot(){
   if(!state.token) return setLoggedIn(false);

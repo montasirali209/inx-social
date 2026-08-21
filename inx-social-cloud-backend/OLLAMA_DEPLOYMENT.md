@@ -1,114 +1,96 @@
-# INX Social Ollama deployment and fallback guide
+# Secure Mac Ollama deployment (ngrok-first)
 
-Updated: 21 August 2026. Prices change; confirm them on the provider page before purchase.
+Social Agent ships in **Admins only** mode. Configure the Mac gateway, verify missions with an administrator account, then use **Admin → AI Model Routing → Social Agent availability** to enable eligible subscribers. Customer workspaces show subscription mission usage only; model routes, provider pricing and paid-call records remain private to administrators.
 
-## What INX Social now does
+This is the initial low-cost topology for INX Social. Railway never connects directly to Ollama. It calls an authenticated local gateway through an ngrok HTTPS URL.
 
-The Social Agent always attempts Ollama first. A paid OpenAI-compatible endpoint can be configured as an emergency fallback, but it is disabled by default. It is eligible only when Ollama is not configured or returns a network failure, timeout, HTTP 408, HTTP 429, or HTTP 5xx. A normal Ollama answer, even a weak one, does not trigger paid usage. The default ceiling is one paid call per mission.
+`Railway -> ngrok HTTPS -> 127.0.0.1:5051 INX Gateway -> 127.0.0.1:11434 Ollama`
 
-## Recommended starting architecture
+## 1. Requirements on the Mac
 
-```text
-Browser -> social.inaxx.co.uk on Railway -> HTTPS + Cloudflare Access
-       -> ai.social.inaxx.co.uk -> Cloudflare Tunnel -> Ollama :11434
+- Keep the Mac awake, online and connected to power while missions run.
+- Ollama must be running. Recommended default for the 24 GB M4 MacBook Air: `qwen3:8b`. Use `qwen3:14b` only for complex tasks and expect lower throughput.
+- ngrok must be installed and authenticated.
+- Node.js 20 or newer must be installed.
+
+Verify:
+
+```bash
+ollama --version
+ollama list
+curl -s http://127.0.0.1:11434/api/version
+node --version
+ngrok version
 ```
 
-Railway stays responsible for the web application and PostgreSQL. Ollama runs on a GPU computer elsewhere because Railway does not offer GPU instances. The Ollama port must never be opened directly to the public Internet.
+## 2. Create a gateway token
 
-## Hosting choices
-
-### 1. Existing Windows or Linux GPU computer — cheapest trial
-
-Use this first when you already own a suitable machine. Install Ollama and `cloudflared`, keep the machine awake, and connect it through Cloudflare Tunnel. Cost is electricity plus any Cloudflare plan features. This is ideal for development, but availability depends on your Internet connection and computer uptime.
-
-Suggested local models:
-
-- `qwen2.5:7b-instruct` for low-memory planning and captions;
-- a current 7B–14B instruction model after testing its licence and output quality;
-- do not use a 550B model for this product stage—the GPU cost is unnecessary.
-
-### 2. Runpod Pod — recommended first hosted GPU
-
-Runpod offers persistent Pods and serverless workers. Current listed Pod examples include RTX A5000 from about $0.27/hour, A40 about $0.44/hour and L4 about $0.49/hour; availability and regional pricing vary. A 24 GB GPU is enough for a quantized 7B–14B model. Shut the Pod down when unused, but preserve model storage separately if required.
-
-### 3. Runpod Serverless — best for bursty production inference
-
-Serverless scales to zero and is billed per second while a worker runs. Current listed entry GPU classes start around $0.58/hour-equivalent. It needs a container/handler adapter rather than relying on a continuously reachable Ollama daemon. Use this after the request volume is understood.
-
-### 4. Vast.ai — potentially lowest marketplace price
-
-Vast uses a supply-and-demand GPU marketplace with per-second billing. It can be inexpensive, but host reliability, networking, storage and availability vary. Use verified hosts, encrypted storage and health checks. It is better for controlled experiments than the first customer-facing production deployment.
-
-### 5. Major clouds or dedicated GPU hosts
-
-AWS, Google Cloud, Azure, Lambda GPU Cloud and similar providers provide stronger enterprise controls and predictable support, normally at higher cost. Choose these when compliance, private networking, reserved capacity or formal support matters more than lowest price.
-
-### 6. Ollama cloud models
-
-Ollama also offers cloud-offloaded models through the Ollama client. This is convenient but is a paid/hosted service rather than your own GPU. Treat it as another external provider and review its pricing and data terms before enabling it.
-
-## Secure Cloudflare Tunnel setup
-
-The following is performed on the machine that runs Ollama, not Railway.
-
-1. Add `inaxx.co.uk` to Cloudflare DNS/Zero Trust if it is not already managed there.
-2. In Cloudflare Zero Trust, create a tunnel named `inx-social-ollama`.
-3. Install `cloudflared` using the command Cloudflare provides for that tunnel.
-4. Add a published application route:
-   - hostname: `ai.social.inaxx.co.uk`
-   - service: `http://127.0.0.1:11434`
-5. Create a self-hosted Cloudflare Access application for `ai.social.inaxx.co.uk`.
-6. Create a Service Auth policy. Do not add a public bypass rule.
-7. Create a service token and copy its Client ID and Client Secret once.
-8. Restrict the host firewall so port 11434 is local-only. Do not port-forward it on the router.
-9. Start Ollama, pull the selected model, then start the tunnel.
-10. Add the settings below as Railway variables and redeploy.
-
-For Windows development:
-
-```bat
-ollama pull qwen2.5:7b-instruct
-ollama serve
-cloudflared service install YOUR_TUNNEL_TOKEN
+```bash
+openssl rand -hex 32
 ```
 
-For a Docker GPU host, use the official Ollama container with GPU access and persistent `/root/.ollama` storage. Bind Ollama to a private Docker network or loopback-facing reverse proxy; expose only `cloudflared` outbound access.
+Save the result in a password manager. Do not paste it into Git or screenshots.
 
-## Railway variables
+## 3. Start the protected gateway
 
-```text
-OLLAMA_BASE_URL=https://ai.social.inaxx.co.uk
-OLLAMA_MODEL=qwen2.5:7b-instruct
-OLLAMA_TIMEOUT_MS=120000
-OLLAMA_CF_ACCESS_CLIENT_ID=<Cloudflare service-token client ID>
-OLLAMA_CF_ACCESS_CLIENT_SECRET=<Cloudflare service-token secret>
+```bash
+cd /path/to/inx-social-cloud-backend/ollama-gateway
+export INX_OLLAMA_GATEWAY_TOKEN='paste-the-64-character-token'
+export OLLAMA_ALLOWED_MODELS='qwen3:8b,qwen3:14b,qwen3-embedding:0.6b'
+npm start
 ```
 
-Leave paid fallback disabled while testing:
+The gateway binds to localhost only and exposes no model-management route. It accepts one active generation and keeps a bounded queue for the Mac.
+
+In a second Terminal window:
+
+```bash
+ngrok http 5051
+```
+
+Copy the forwarding HTTPS URL shown by ngrok, for example `https://example.ngrok-free.app`. A free URL may change after restart; update Railway whenever it changes. A reserved ngrok domain can be added later without changing INX Social DNS.
+
+Test the tunnel:
+
+```bash
+curl -s -H 'Authorization: Bearer paste-the-64-character-token' https://example.ngrok-free.app/health
+```
+
+## 4. Railway variables
+
+Add these to the INX Social backend service:
 
 ```text
+OLLAMA_BASE_URL=https://example.ngrok-free.app
+OLLAMA_API_KEY=paste-the-64-character-token
+OLLAMA_MODEL=qwen3:8b
+OLLAMA_TIMEOUT_MS=180000
 AI_PAID_FALLBACK_ENABLED=false
-AI_PAID_FALLBACK_BASE_URL=
-AI_PAID_FALLBACK_API_KEY=
-AI_PAID_FALLBACK_MODEL=
-AI_PAID_FALLBACK_MAX_CALLS_PER_MISSION=1
 ```
 
-When you later deliberately buy access to an OpenAI-compatible gateway, set its `/v1` base URL, key and model, then change `AI_PAID_FALLBACK_ENABLED=true`. Never put either Cloudflare or provider credentials in browser code.
+Leave the Cloudflare access variables empty when using ngrok. Redeploy only after saving the variables.
 
-## Acceptance checks
+## 5. Admin routing
 
-1. In Cloudflare Access logs, confirm unauthenticated requests are rejected.
-2. From Railway, run a health request using the service-token headers.
-3. Open Social Agent and confirm `Ollama online` and the chosen model appear.
-4. Run a Hybrid mission and confirm task outputs enter Working Memory.
-5. Stop Ollama. With paid fallback disabled, confirm the mission pauses and makes no paid call.
-6. If paid fallback is later enabled, stop Ollama and confirm at most the configured number of fallback calls is recorded in the live feed.
-7. Rotate the Cloudflare service token and tunnel token if either is exposed.
+Open Admin -> AI Model Routing. Keep Ollama as priority 1 for each task type. Paid fallback requires all of the following, so accidental spending is blocked:
 
-## Operational rules
+1. `AI_PAID_FALLBACK_ENABLED=true` in Railway;
+2. provider URL, key and model configured in Railway;
+3. the individual Admin route fallback switch enabled;
+4. a genuine Ollama availability failure;
+5. remaining per-mission fallback allowance.
 
-- Do not fine-tune Ollama automatically on production conversations. Store reviewed, versioned working memory and retrieve it as context.
-- Back up only approved brand memory, not raw access tokens or private customer uploads.
-- Add uptime monitoring for Ollama and the tunnel before enabling Autopilot for customers.
-- Autopilot covers organic content only. Paid ads, spending, Page deletion, ownership and security changes remain outside automatic execution.
+Keep paid fallback disabled during initial local testing.
+
+## 6. Learning policy
+
+Completed reasoning is converted into a concise reusable summary or playbook. Hidden chain-of-thought is never saved. New playbooks appear in Admin -> Agent Learning as `PENDING_REVIEW`. Only `APPROVED` memories can be supplied to a future matching Ollama task. Declined items are retained for audit but never reused.
+
+## 7. Operations and security
+
+- Never run `ngrok http 11434`.
+- Never expose Ollama with `OLLAMA_HOST=0.0.0.0` for this setup.
+- Rotate the gateway token after any accidental disclosure.
+- Stop ngrok or the gateway to immediately remove cloud access.
+- The free tunnel is suitable for owner testing, not guaranteed production uptime.
+- When customer load requires always-on capacity, move the same authenticated gateway contract to a GPU provider and keep the Railway routing unchanged.
