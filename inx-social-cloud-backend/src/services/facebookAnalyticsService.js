@@ -102,7 +102,7 @@ async function graphGet(http, graphVersion, path, accessToken, params = {}) {
 async function fetchBasic(http, options) {
   const { graphVersion, pageId, accessToken, since, until } = options;
   const profile = await graphGet(http, graphVersion, encodeURIComponent(pageId), accessToken, {
-    fields: 'id,name,followers_count,fan_count,link,picture.type(large)'
+    fields: 'id,name,followers_count,fan_count,link,picture.type(large),tasks'
   });
   let feed;
   try {
@@ -127,7 +127,8 @@ async function fetchBasic(http, options) {
       followers: Number(profile.followers_count ?? profile.fan_count ?? 0),
       fans: Number(profile.fan_count || 0),
       link: profile.link || null,
-      pictureUrl: profile.picture?.data?.url || null
+      pictureUrl: profile.picture?.data?.url || null,
+      tasks: Array.isArray(profile.tasks) ? profile.tasks.map(String) : []
     },
     content: (feed.data || []).map(normalisePost)
   };
@@ -221,6 +222,56 @@ async function getFacebookAnalytics(options, dependencies = {}) {
         reason: availableInsights ? `${availableInsights} of ${INSIGHT_CANDIDATES.length} tested insight metrics are available.` : 'Meta did not return any tested Page insight metric for this Page token.'
       },
       metrics: Object.fromEntries(Object.entries(insights).map(([name, item]) => [name, item.capability]))
+    },
+    reviewEvidence: {
+      status: availableInsights > 0 ? 'ready' : 'partial',
+      graphVersion: prepared.graphVersion,
+      pageId: basic.page.id,
+      pageName: basic.page.name,
+      fetchedAt: new Date().toISOString(),
+      dateRange: {
+        days,
+        since: new Date(since * 1000).toISOString(),
+        until: new Date(until * 1000).toISOString()
+      },
+      pageTasks: basic.page.tasks,
+      requiredPermissions: [
+        {
+          permission: 'pages_show_list',
+          purpose: 'Lists the Facebook Pages a person manages during the connection flow.',
+          verification: 'connection_flow'
+        },
+        {
+          permission: 'pages_read_engagement',
+          purpose: 'Reads the selected Page profile, published content and engagement data shown in Analytics.',
+          verification: 'verified_by_live_page_and_content_response'
+        }
+      ],
+      endpointChecks: [
+        { endpoint: `/${basic.page.id}`, purpose: 'Page profile and managed Page task check', ok: true },
+        { endpoint: `/${basic.page.id}/published_posts`, purpose: 'Published content and engagement check', ok: true },
+        ...Object.values(insights).map(item => ({
+          endpoint: `/${basic.page.id}/insights?metric=${item.metric}`,
+          purpose: item.label,
+          ok: Boolean(item.capability.available),
+          state: item.capability.state
+        }))
+      ],
+      requestedMetrics: INSIGHT_CANDIDATES.map(item => item.metric),
+      returnedMetrics: Object.values(insights).filter(item => item.capability.available).map(item => item.metric),
+      unavailableMetrics: Object.values(insights).filter(item => !item.capability.available).map(item => ({
+        metric: item.metric,
+        state: item.capability.state,
+        reason: item.capability.reason
+      })),
+      privacy: 'Access tokens are decrypted only on the server and are never returned to the browser.',
+      reviewerSteps: [
+        'Sign in to INX Social with the supplied reviewer account.',
+        'Open Connected Pages and connect or select the supplied Facebook Page.',
+        'Open Analytics, keep Facebook selected, choose the Page and date range, then click Refresh analytics.',
+        'Confirm the Page identity, live content engagement, Data availability results and this Meta review evidence panel.',
+        'Change the date range and refresh again to verify that INX Social requests Page analytics for the selected period.'
+      ]
     },
     summary: {
       followers: basic.page.followers,

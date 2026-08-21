@@ -16,6 +16,7 @@ const billingController = require('./controllers/billingController');
 const errorHandler = require('./middleware/errorHandler');
 const releaseRoutes = require('./routes/releaseRoutes');
 const studioRoutes = require('./routes/studioRoutes');
+const agentRoutes = require('./routes/agentRoutes');
 const packageInfo = require('../package.json');
 
 const app = express();
@@ -24,6 +25,13 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
 app.use(morgan('dev'));
 app.use(rateLimit({ windowMs: 60 * 1000, limit: 240 }));
+
+// Account, API and administration screens must not compete with the public
+// product pages in search results.
+app.use(['/admin', '/api', '/portal', '/studio'], (req, res, next) => {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  next();
+});
 
 // Cloud Studio opens Facebook in a popup and receives the OAuth result through
 // window.opener. Helmet's default "same-origin" COOP policy severs that popup
@@ -88,6 +96,7 @@ app.use('/api/admin/system', systemRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/studio', studioRoutes);
+app.use('/api/agent', agentRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
 app.use(errorHandler);

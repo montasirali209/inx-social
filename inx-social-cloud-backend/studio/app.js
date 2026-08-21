@@ -20,6 +20,9 @@ let analyticsRange = '30';
 let liveFacebookAnalytics = null;
 let analyticsLoading = false;
 let analyticsLastKey = '';
+let agentOverview = null;
+let agentLoading = false;
+let activeAgentPlanId = '';
 
 const UI_TEXT_FIELDS = [
   'appTitle', 'appSubtitle', 'dashboardTitle', 'dashboardSubtitle',
@@ -32,6 +35,7 @@ const UI_TEXT_FIELDS = [
 
 const views = {
   dashboard: ['Home', 'Your INX Social publishing command centre.'],
+  agent: ['Social Agent', 'Plan cross-platform content automation with transparent costs and human approval.'],
   pages: ['Pages', 'Connect and choose the Page that receives your next scheduled content.'],
   media: ['Old Auto Scheduler', 'Hidden old Page Video scheduler.'],
   reels: ['Auto Scheduler', 'Upload videos to Meta now and schedule them as Facebook Reels for future times.'],
@@ -273,6 +277,7 @@ function switchView(viewName) {
   document.getElementById('viewTitle').textContent = views[viewName][0];
   document.getElementById('viewSubtitle').textContent = views[viewName][1];
   if (viewName === 'pages') refreshWorkspaceV2({ silent: true });
+  if (viewName === 'agent') loadAgentOverview(false);
   if (viewName === 'analytics') {
     refreshWorkspaceV2({ silent: true }).then(() => loadFacebookAnalytics(false)).catch(error => renderAnalyticsError(error));
   }
@@ -284,6 +289,8 @@ function switchView(viewName) {
 
 function bindButtons() {
   on('btnRefresh', refresh);
+  on('btnAgentRefresh', () => loadAgentOverview(true));
+  document.getElementById('agentPlanForm')?.addEventListener('submit', createAgentPlan);
   on('btnPickVideos', () => importAction(window.schedulerApi.pickVideos));
   on('btnPickVideos2', () => importAction(window.schedulerApi.pickVideos));
   on('btnPickCaptions', () => importAction(window.schedulerApi.pickCaptions));
@@ -394,6 +401,7 @@ function bindButtons() {
     loadFacebookAnalytics(false);
   });
   on('btnRefreshAnalytics', () => loadFacebookAnalytics(true));
+  on('btnCopyAnalyticsReviewSteps', copyAnalyticsReviewSteps);
   document.addEventListener('click', event => {
     const settingSlotButton = event.target.closest('[data-remove-setting-slot]');
     if (settingSlotButton) removeSettingDailySlot(settingSlotButton.dataset.removeSettingSlot);
@@ -1661,6 +1669,98 @@ function val(id) {
   return document.getElementById(id).value.trim();
 }
 
+async function loadAgentOverview(showNotice = false) {
+  if (agentLoading || !state?.account?.authenticated) return;
+  agentLoading = true;
+  const workspace = document.getElementById('agentPlanWorkspace');
+  if (workspace && !agentOverview) workspace.innerHTML = '<div class="workspace-empty">Loading Social Agent…</div>';
+  try {
+    agentOverview = await window.schedulerApi.getAgentOverview();
+    const plans = agentOverview.plans || [];
+    if (!activeAgentPlanId && plans.length) activeAgentPlanId = plans[0].id;
+    renderAgentWorkspace();
+    if (showNotice) toast('Social Agent plans refreshed.');
+  } catch (error) {
+    if (workspace) workspace.innerHTML = `<div class="workspace-empty error">${escapeHtml(error.message)}</div>`;
+    if (showNotice) toast(error.message, true);
+  } finally { agentLoading = false; }
+}
+
+async function createAgentPlan(event) {
+  event.preventDefault();
+  const prompt = document.getElementById('agentPrompt')?.value.trim() || '';
+  const platforms = [...document.querySelectorAll('.agent-platform:checked')].map(input => input.value);
+  if (!platforms.length) return toast('Select at least one publishing platform.', true);
+  const button = document.getElementById('btnAgentCreatePlan');
+  if (button) { button.disabled = true; button.textContent = 'Building plan…'; }
+  try {
+    const result = await window.schedulerApi.createAgentPlan({ prompt, platforms, executionMode: document.getElementById('agentExecutionMode')?.value });
+    agentOverview = agentOverview || { plans: [] };
+    agentOverview.plans = [result.plan, ...(agentOverview.plans || []).filter(plan => plan.id !== result.plan.id)];
+    activeAgentPlanId = result.plan.id;
+    renderAgentWorkspace();
+    toast('Campaign plan created. Review it before approval.');
+  } catch (error) { toast(error.message, true); }
+  finally { if (button) { button.disabled = false; button.textContent = 'Build campaign plan'; } }
+}
+
+function selectedAgentPlan() {
+  const plans = agentOverview?.plans || [];
+  return plans.find(plan => plan.id === activeAgentPlanId) || plans[0] || null;
+}
+
+function renderAgentWorkspace() {
+  const workspace = document.getElementById('agentPlanWorkspace');
+  if (!workspace) return;
+  const plans = agentOverview?.plans || [];
+  if (!plans.length) {
+    workspace.innerHTML = '<div class="workspace-empty">Social Agent is ready for your first instruction.</div>';
+    return;
+  }
+  const plan = selectedAgentPlan();
+  activeAgentPlanId = plan.id;
+  const strategy = plan.strategy || {};
+  const provider = strategy.provider?.label || strategy.executionMode || 'INX Template Video';
+  const canApprove = plan.status === 'AWAITING_APPROVAL';
+  workspace.innerHTML = `
+    <div class="agent-plan-summary">
+      <label>Recent plans<select id="agentPlanSelect">${plans.map(item => `<option value="${escapeHtml(item.id)}" ${item.id === plan.id ? 'selected' : ''}>${escapeHtml(new Date(item.createdAt).toLocaleDateString())} — ${escapeHtml(item.prompt.slice(0, 58))}</option>`).join('')}</select></label>
+      <div class="agent-plan-top"><div><strong>${escapeHtml(plan.prompt)}</strong><p>${escapeHtml((plan.platforms || []).join(', '))}</p></div><span class="agent-plan-status">${escapeHtml(plan.status.replaceAll('_', ' '))}</span></div>
+      <div class="agent-plan-metrics"><div><span>Media route</span><strong>${escapeHtml(provider)}</strong></div><div><span>Estimated media</span><strong>$${(Number(plan.estimatedCostCents || 0) / 100).toFixed(2)}</strong></div><div><span>Tasks</span><strong>${plan.tasks?.length || 0}</strong></div></div>
+      <div class="agent-task-list">${(plan.tasks || []).map(item => `<article class="agent-task"><span>${item.sequence}</span><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.description)}</p></div><span class="agent-task-risk ${escapeHtml(item.riskLevel.toLowerCase())}">${escapeHtml(item.riskLevel)}</span></article>`).join('')}</div>
+      <div class="agent-plan-actions"><button id="btnAgentCancelPlan" class="btn ghost subtle-danger" type="button" ${['CANCELLED','COMPLETED'].includes(plan.status) ? 'disabled' : ''}>Cancel plan</button><button id="btnAgentApprovePlan" class="btn primary" type="button" ${canApprove ? '' : 'disabled'}>Approve plan</button></div>
+    </div>`;
+  document.getElementById('agentPlanSelect')?.addEventListener('change', event => { activeAgentPlanId = event.target.value; renderAgentWorkspace(); });
+  document.getElementById('btnAgentApprovePlan')?.addEventListener('click', approveAgentPlan);
+  document.getElementById('btnAgentCancelPlan')?.addEventListener('click', cancelAgentPlan);
+}
+
+async function approveAgentPlan() {
+  const plan = selectedAgentPlan();
+  if (!plan) return;
+  const confirmed = await showStudioConfirm({ eyebrow: 'Social Agent approval', title: 'Approve this campaign plan?', message: 'Approval records your consent for the proposed plan. Generation and publishing workers are not enabled in Phase 11.0, so nothing will be posted or charged yet.', metrics: [{ label: 'Tasks', value: plan.tasks?.length || 0 }, { label: 'Estimate', value: `$${(Number(plan.estimatedCostCents || 0) / 100).toFixed(2)}` }], tone: 'warning', confirmText: 'Approve plan' });
+  if (!confirmed) return;
+  try {
+    const result = await window.schedulerApi.approveAgentPlan(plan.id);
+    agentOverview.plans = agentOverview.plans.map(item => item.id === result.plan.id ? result.plan : item);
+    renderAgentWorkspace();
+    toast(result.notice || 'Social Agent plan approved.');
+  } catch (error) { toast(error.message, true); }
+}
+
+async function cancelAgentPlan() {
+  const plan = selectedAgentPlan();
+  if (!plan) return;
+  const confirmed = await showStudioConfirm({ eyebrow: 'Social Agent', title: 'Cancel this plan?', message: 'The plan and its tasks will stay in your audit history but cannot be executed.', tone: 'danger', confirmText: 'Cancel plan' });
+  if (!confirmed) return;
+  try {
+    const result = await window.schedulerApi.cancelAgentPlan(plan.id);
+    agentOverview.plans = agentOverview.plans.map(item => item.id === result.plan.id ? result.plan : item);
+    renderAgentWorkspace();
+    toast('Social Agent plan cancelled.');
+  } catch (error) { toast(error.message, true); }
+}
+
 function render() {
   renderAccountGate();
   if (!state) return;
@@ -2578,6 +2678,9 @@ function renderAnalyticsError(error) {
   if (trend) trend.innerHTML = `<div class="analytics-error"><strong>Analytics not available</strong><span>${message}</span></div>`;
   const capabilities = document.getElementById('analyticsCapabilities');
   if (capabilities) capabilities.innerHTML = `<div class="capability-row unavailable"><span>Meta analytics request</span><strong>Unavailable</strong><small>${message}</small></div>`;
+  setText('analyticsReviewStatus', 'Unavailable');
+  const evidence = document.getElementById('analyticsReviewEvidence');
+  if (evidence) evidence.innerHTML = `<div class="analytics-error"><strong>Review evidence could not be generated</strong><span>${message}</span></div>`;
 }
 
 function formatMetric(value) {
@@ -2595,8 +2698,22 @@ function renderFacebookAnalytics(data) {
   setText('analyticsEngagements', formatMetric(data.summary?.engagements));
   setText('analyticsViews', formatMetric(data.summary?.views));
   setText('analyticsResultCount', `${data.content?.length || 0} item${data.content?.length === 1 ? '' : 's'}`);
+  const pagePicture = document.getElementById('analyticsPagePicture');
+  const pageFallback = document.getElementById('analyticsPageFallback');
+  if (pagePicture) {
+    if (data.page?.pictureUrl) {
+      pagePicture.src = data.page.pictureUrl;
+      pagePicture.hidden = false;
+      if (pageFallback) pageFallback.hidden = true;
+    } else {
+      pagePicture.removeAttribute('src');
+      pagePicture.hidden = true;
+      if (pageFallback) pageFallback.hidden = false;
+    }
+  }
   renderAnalyticsTrend(data.series || {});
   renderAnalyticsCapabilities(data.capabilities || {}, data.warnings || []);
+  renderAnalyticsReviewEvidence(data.reviewEvidence || {});
   const recent = document.getElementById('analyticsRecentContent');
   if (recent) {
     const content = data.content || [];
@@ -2608,6 +2725,40 @@ function renderFacebookAnalytics(data) {
   if (notice) notice.querySelector('p').textContent = data.capabilities?.pageInsights?.available
     ? 'Meta Page Insights are available for this connection. Unsupported individual metrics remain blank and are listed in Data availability.'
     : 'Basic post engagement is available. Meta did not provide the tested Page Insights metrics for this token; the exact reason is shown above.';
+}
+
+function renderAnalyticsReviewEvidence(evidence) {
+  const target = document.getElementById('analyticsReviewEvidence');
+  if (!target) return;
+  const ready = evidence.status === 'ready';
+  setText('analyticsReviewStatus', ready ? 'Ready to demonstrate' : 'Partial data');
+  const checks = evidence.endpointChecks || [];
+  const permissions = evidence.requiredPermissions || [];
+  const tasks = evidence.pageTasks || [];
+  target.innerHTML = `
+    <div class="analytics-evidence-summary">
+      <article><span>Selected Page</span><strong>${escapeHtml(evidence.pageName || '—')}</strong><small>ID ${escapeHtml(evidence.pageId || '—')}</small></article>
+      <article><span>Graph API</span><strong>${escapeHtml(evidence.graphVersion || '—')}</strong><small>${escapeHtml(evidence.dateRange?.days ? `Last ${evidence.dateRange.days} days` : 'No range')}</small></article>
+      <article><span>Last verified</span><strong>${escapeHtml(evidence.fetchedAt ? formatDate(evidence.fetchedAt) : '—')}</strong><small>${ready ? 'Insights returned' : 'Basic engagement only'}</small></article>
+      <article><span>Managed Page tasks</span><strong>${tasks.length ? tasks.length : 'Not returned'}</strong><small>${escapeHtml(tasks.join(', ') || 'Meta did not expose task names')}</small></article>
+    </div>
+    <div class="analytics-evidence-columns">
+      <div><h4>Permission use</h4>${permissions.map(item => `<div class="analytics-evidence-line"><strong>${escapeHtml(item.permission)}</strong><span>${escapeHtml(item.purpose)}</span><small>${escapeHtml(String(item.verification || '').replaceAll('_', ' '))}</small></div>`).join('')}</div>
+      <div><h4>Live endpoint checks</h4>${checks.map(item => `<div class="analytics-evidence-line ${item.ok ? 'ok' : 'warn'}"><strong>${item.ok ? 'Passed' : escapeHtml(String(item.state || 'Unavailable').replaceAll('_', ' '))}</strong><span>${escapeHtml(item.purpose)}</span><small>${escapeHtml(item.endpoint)}</small></div>`).join('')}</div>
+    </div>
+    <p class="analytics-privacy-proof">${escapeHtml(evidence.privacy || 'Tokens are never shown in Analytics.')}</p>`;
+}
+
+async function copyAnalyticsReviewSteps() {
+  const steps = liveFacebookAnalytics?.reviewEvidence?.reviewerSteps || [];
+  if (!steps.length) return toast('Refresh analytics before copying reviewer steps.', true);
+  const text = ['INX Social — Facebook Analytics reviewer steps', '', ...steps.map((step, index) => `${index + 1}. ${step}`)].join('\n');
+  try {
+    await navigator.clipboard.writeText(text);
+    toast('Meta reviewer steps copied.');
+  } catch (_) {
+    toast('Clipboard access was blocked. The reviewer steps remain available in Analytics.', true);
+  }
 }
 
 function renderAnalyticsCapabilities(capabilities, warnings) {

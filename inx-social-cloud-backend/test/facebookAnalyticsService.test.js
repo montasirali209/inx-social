@@ -50,6 +50,14 @@ test('Facebook analytics aggregates real Page and post engagement data', async (
   assert.equal(result.summary.views, 10);
   assert.equal(result.capabilities.basicEngagement.available, true);
   assert.equal(result.capabilities.pageInsights.available, true);
+  assert.equal(result.reviewEvidence.status, 'ready');
+  assert.equal(result.reviewEvidence.graphVersion, 'v25.0');
+  assert.equal(result.reviewEvidence.pageId, 'page-1');
+  assert.equal(result.reviewEvidence.requiredPermissions[0].permission, 'pages_show_list');
+  assert.equal(result.reviewEvidence.requiredPermissions[1].permission, 'pages_read_engagement');
+  assert.equal(result.reviewEvidence.endpointChecks.every(check => check.ok), true);
+  assert.deepEqual(result.reviewEvidence.returnedMetrics, ['page_media_view', 'page_post_engagements', 'page_follows']);
+  assert.match(result.reviewEvidence.privacy, /never returned to the browser/);
   assert.equal(http.calls.length, 5);
 });
 
@@ -63,6 +71,19 @@ test('unsupported Meta insight metrics stay unavailable without failing the anal
   assert.equal(result.capabilities.metrics.engagements.available, true);
   assert.equal(result.content.length, 2);
   assert.equal(result.warnings.length, 2);
+  assert.equal(result.reviewEvidence.status, 'ready');
+  assert.equal(result.reviewEvidence.unavailableMetrics.length, 2);
+  assert.equal(result.reviewEvidence.endpointChecks.filter(check => !check.ok).length, 2);
+});
+
+test('analytics review evidence contains reproducible steps without exposing credentials', async () => {
+  resetAnalyticsState();
+  const result = await getFacebookAnalytics({ pageId: 'review-page', accessToken: 'super-secret-token', graphVersion: 'v25.0', days: 30 }, { http: mockHttp() });
+  const serialised = JSON.stringify(result.reviewEvidence);
+  assert.equal(result.reviewEvidence.reviewerSteps.length, 5);
+  assert.match(serialised, /Refresh analytics/);
+  assert.doesNotMatch(serialised, /super-secret-token/);
+  assert.doesNotMatch(JSON.stringify(result), /super-secret-token/);
 });
 
 test('analytics results are cached so dashboard rendering cannot repeatedly call Meta', async () => {

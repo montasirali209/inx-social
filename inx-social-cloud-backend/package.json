@@ -1,6 +1,6 @@
 {
   "name": "inx-social-cloud-backend",
-  "version": "2.5.0",
+  "version": "3.0.0",
   "description": "INX Social Cloud platform with browser studio, SMTP email, Stripe subscriptions, Meta Page workspaces, licences and admin controls.",
   "main": "src/server.js",
   "scripts": {

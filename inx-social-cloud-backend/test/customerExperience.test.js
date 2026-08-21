@@ -39,6 +39,10 @@ test('Facebook analytics use live capability detection without inventing unavail
   assert.match(html, /Unavailable values are never estimated/);
   assert.match(app, /function renderAnalyticsTrend/);
   assert.match(app, /analyticsRecentContent/);
+  assert.match(html, /id="analyticsReviewEvidence"/);
+  assert.match(html, /id="btnCopyAnalyticsReviewSteps"/);
+  assert.match(app, /renderAnalyticsReviewEvidence/);
+  assert.match(app, /copyAnalyticsReviewSteps/);
 });
 
 test('Page pictures use an authenticated Graph image fallback', () => {

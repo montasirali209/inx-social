@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+Disallow: /portal/
+Disallow: /studio/
+
+Sitemap: https://social.inaxx.co.uk/sitemap.xml

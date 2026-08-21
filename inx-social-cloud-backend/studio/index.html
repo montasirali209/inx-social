@@ -51,6 +51,7 @@
         <button class="nav active" data-view="dashboard">Overview</button>
         <button class="nav" data-view="pages">Connected Pages</button>
         <button class="nav" data-view="reels">Auto Scheduler</button>
+        <button class="nav agent-nav" data-view="agent"><span class="agent-nav-dot"></span>Social Agent <small>Beta</small></button>
         <button class="nav" data-view="calendar">Calendar</button>
         <button class="nav" data-view="analytics">Analytics</button>
         <button class="nav" data-view="logs">Activity Logs</button>
@@ -182,6 +183,50 @@
 
       </section>
 
+
+      <section id="agent" class="view workspace-v2-view">
+        <div class="agent-hero">
+          <div>
+            <span class="eyebrow">Approval-first automation</span>
+            <h2>Tell Social Agent what outcome you want.</h2>
+            <p>INX Social turns your instruction into a costed campaign plan for Facebook, Instagram, YouTube and TikTok. Nothing is published, purchased or changed until you approve it.</p>
+          </div>
+          <div class="agent-safety-badge"><span>Human approval</span><strong>Required</strong><small>for every external action</small></div>
+        </div>
+
+        <div class="agent-layout">
+          <section class="panel agent-compose-card">
+            <div class="panel-head"><div><h3>Create an automation plan</h3><p>Describe the business, campaign, content frequency, audience and desired result.</p></div></div>
+            <form id="agentPlanForm" class="agent-form">
+              <label>What should Social Agent do?
+                <textarea id="agentPrompt" rows="8" maxlength="4000" placeholder="Example: Create 14 educational posts for my cleaning business, make branded short videos, prepare captions and schedule one each day after I approve the plan." required></textarea>
+              </label>
+              <fieldset><legend>Platforms</legend><div class="agent-platform-grid">
+                <label><input class="agent-platform" type="checkbox" value="facebook" checked><span>Facebook</span></label>
+                <label><input class="agent-platform" type="checkbox" value="instagram"><span>Instagram</span></label>
+                <label><input class="agent-platform" type="checkbox" value="youtube"><span>YouTube</span></label>
+                <label><input class="agent-platform" type="checkbox" value="tiktok"><span>TikTok</span></label>
+              </div></fieldset>
+              <label>Media budget mode<select id="agentExecutionMode"><option value="INX_TEMPLATE">Economy — INX branded template video</option><option value="WAN_2_2_FAST">Generative — Wan 2.2 Fast</option><option value="LTX_2_3_FAST">Quality benchmark — LTX 2.3 Fast</option></select></label>
+              <div class="agent-guardrail"><strong>Before you continue</strong><span>The estimate covers media generation only. Exact provider availability and price are checked again before any paid request.</span></div>
+              <button id="btnAgentCreatePlan" class="btn primary wide" type="submit">Build campaign plan</button>
+            </form>
+          </section>
+
+          <section class="panel agent-plan-card">
+            <div class="panel-head row"><div><h3>Plan and approval queue</h3><p id="agentPlanHint">Create a plan to see every proposed task, risk and estimated cost.</p></div><button id="btnAgentRefresh" class="btn ghost" type="button">Refresh</button></div>
+            <div id="agentPlanWorkspace" class="agent-plan-workspace"><div class="workspace-empty">Social Agent is ready for your first instruction.</div></div>
+          </section>
+        </div>
+
+        <section class="agent-foundation-strip">
+          <article><span>1</span><strong>Plan</strong><small>Brief, platform variants and budget</small></article>
+          <article><span>2</span><strong>Approve</strong><small>Review every external action</small></article>
+          <article><span>3</span><strong>Create</strong><small>Media and copy workers — next phase</small></article>
+          <article><span>4</span><strong>Publish</strong><small>Connected-platform workers — next phase</small></article>
+          <article><span>5</span><strong>Learn</strong><small>Analytics-backed structured memory</small></article>
+        </section>
+      </section>
 
       <section id="reels" class="view">
         <div class="mode-banner reel-mode-banner">
@@ -503,12 +548,16 @@ Third video caption #hashtags"></textarea>
             <button id="btnRefreshAnalytics" class="btn primary analytics-refresh" type="button">Refresh analytics</button>
           </div>
         </div>
-        <div class="analytics-platform-banner"><div class="analytics-platform-mark">f</div><div><strong id="analyticsPageName">Facebook Page analytics</strong><span id="analyticsScopeText">Choose a connected Page to begin</span></div><span id="analyticsLivePill" class="analytics-live-pill">Not loaded</span></div>
+        <div class="analytics-platform-banner"><div class="analytics-platform-mark"><img id="analyticsPagePicture" alt="" hidden><span id="analyticsPageFallback">f</span></div><div><strong id="analyticsPageName">Facebook Page analytics</strong><span id="analyticsScopeText">Choose a connected Page to begin</span></div><span id="analyticsLivePill" class="analytics-live-pill">Not loaded</span></div>
         <div class="analytics-grid-v2"><article><span>Followers</span><strong id="analyticsFollowers">—</strong><small>Current audience returned by Meta</small></article><article><span>Posts</span><strong id="analyticsPosts">—</strong><small>Content in the selected period</small></article><article><span>Engagements</span><strong id="analyticsEngagements">—</strong><small>Reactions, comments and shares</small></article><article><span>Content views</span><strong id="analyticsViews">—</strong><small>Shown only when Meta provides it</small></article></div>
         <div class="analytics-layout">
           <section class="panel analytics-trend-panel"><div class="panel-head"><div><h3>Performance trend</h3><p>Daily metrics returned by Meta. Unavailable values are never estimated.</p></div></div><div id="analyticsTrend" class="analytics-trend"><div class="empty">Open Analytics to load live Meta data.</div></div></section>
           <section class="panel"><div class="panel-head"><div><h3>Data availability</h3><p>What the current Page token and Meta API provide.</p></div></div><div id="analyticsCapabilities" class="analytics-capabilities"><div class="empty">Capability checks run with the analytics refresh.</div></div></section>
         </div>
+        <section class="panel analytics-review-panel">
+          <div class="panel-head row"><div><span class="eyebrow">App Review evidence</span><h3>Meta analytics verification</h3><p>Reproducible evidence for the selected Page, permissions and live Graph API checks. No access token is shown.</p></div><div class="analytics-review-actions"><span id="analyticsReviewStatus" class="analytics-review-status">Not checked</span><button id="btnCopyAnalyticsReviewSteps" class="btn ghost" type="button">Copy reviewer steps</button></div></div>
+          <div id="analyticsReviewEvidence" class="analytics-review-evidence"><div class="empty">Refresh analytics to generate reviewer evidence.</div></div>
+        </section>
         <section class="panel analytics-content-panel"><div class="panel-head row"><div><h3>Facebook content performance</h3><p>Published posts and Reels returned by the selected Facebook Page.</p></div><span id="analyticsResultCount" class="analytics-result-count">0 items</span></div><div id="analyticsRecentContent" class="table-wrap"><div class="empty">No analytics loaded yet.</div></div></section>
         <section id="analyticsNotice" class="analytics-insights-notice"><span>i</span><div><strong>Exact Meta capability detection</strong><p>INX Social checks the connected Page token and displays only values that Meta actually returns. A missing metric stays unavailable instead of being invented.</p></div></section>
       </section>
