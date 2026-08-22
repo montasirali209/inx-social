@@ -62,6 +62,8 @@ function buildPlan(input = {}) {
   const operationMode = normalizeOperationMode(input.operationMode);
   const provider = PROVIDERS[executionMode];
   const tasks = [];
+  const textOnly = /\b(text|copy|caption)s?\s+only\b|\bno\s+(?:image|images|media|video|videos)\b/i.test(prompt);
+  const draftOnly = /\b(?:draft|plan)\s+only\b|\bdo\s+not\s+(?:publish|schedule|post)\b|\bno\s+publishing\b/i.test(prompt);
 
   tasks.push(task('BRAND_REVIEW', 'Review the brand brief and supplied assets', 'Extract the business name, audience, offer, tone, logo rules and prohibited claims before generating content.'));
 
@@ -70,7 +72,7 @@ function buildPlan(input = {}) {
   }
 
   tasks.push(task('CONTENT_STRATEGY', `Create a ${assetCount}-asset content plan`, `Plan ${assetCount} distinct ideas, campaign goals, calls to action and platform-specific formats without fabricating business facts.`));
-  tasks.push(task('MEDIA_GENERATION', `Generate ${assetCount} branded media asset${assetCount === 1 ? '' : 's'}`, `${provider.label} is the selected route. The final provider and price are re-checked before generation.`, {
+  if (!textOnly) tasks.push(task('MEDIA_GENERATION', `Generate ${assetCount} branded media asset${assetCount === 1 ? '' : 's'}`, `${provider.label} is the selected route. The final provider and price are re-checked before generation.`, {
     executionMode,
     operationMode,
     estimatedCostCents: provider.estimatedCentsPerAsset * assetCount,
@@ -82,9 +84,11 @@ function buildPlan(input = {}) {
     tasks.push(task('PLATFORM_VARIANT', `Prepare the ${platform} version`, `Adapt dimensions, duration, metadata and disclosure fields for ${platform}.`, { platform }));
   }
 
-  tasks.push(task('SCHEDULE', 'Propose the publishing calendar', 'Check occupied slots, account limits and timezone rules, then present the exact schedule for approval.', { riskLevel: 'MEDIUM' }));
-  tasks.push(task('PUBLISH', 'Publish approved content', 'This external action remains locked until the owner approves the plan and each connected platform is authorized.', { riskLevel: 'HIGH' }));
-  tasks.push(task('ANALYTICS', 'Measure results and prepare the next recommendation', 'Collect permitted platform analytics, compare outcomes and store reusable structured lessons.'));
+  if (!draftOnly) {
+    tasks.push(task('SCHEDULE', 'Propose the publishing calendar', 'Check occupied slots, account limits and timezone rules, then present the exact schedule for approval.', { riskLevel: 'MEDIUM' }));
+    tasks.push(task('PUBLISH', 'Publish approved content', 'This external action remains locked until the owner approves the plan and each connected platform is authorized.', { riskLevel: 'HIGH' }));
+    tasks.push(task('ANALYTICS', 'Measure results and prepare the next recommendation', 'Collect permitted platform analytics, compare outcomes and store reusable structured lessons.'));
+  }
 
   const sequenced = tasks.map((value, index) => ({ ...value, sequence: index + 1 }));
   return {

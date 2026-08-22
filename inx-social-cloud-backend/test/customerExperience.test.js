@@ -52,7 +52,7 @@ test('Page pictures use an authenticated Graph image fallback', () => {
   assert.match(controller, /responseType:\s*'arraybuffer'/);
 });
 
-test('Social Agent exposes Autopilot, Hybrid, live runtime and working memory', () => {
+test('Social Agent exposes Autopilot, Hybrid, live activity and factual Agent Thinking', () => {
   const html = read('studio/index.html');
   const app = read('studio/app.js');
   const admin = read('public/index.html');
@@ -61,6 +61,10 @@ test('Social Agent exposes Autopilot, Hybrid, live runtime and working memory', 
   assert.match(html, /id="agentMissionCore"/);
   assert.match(html, /id="agentLiveFeed"/);
   assert.match(html, /id="agentMemoryGrid"/);
+  assert.match(html, /Agent Thinking/);
+  assert.match(html, /Safe step-by-step work summaries/);
+  assert.match(html, /Private model chain-of-thought is never exposed/);
+  assert.doesNotMatch(html, />Working memory</);
   assert.match(app, /resumeAgentPlan/);
   assert.match(admin, /AI Model Routing/);
   assert.match(admin, /Video generation policy/);
@@ -76,4 +80,14 @@ test('Social Agent exposes Autopilot, Hybrid, live runtime and working memory', 
   assert.doesNotMatch(app, /Actual paid usage/);
   assert.match(app, /account\.features\?\.socialAgent\?\.visible/);
   assert.doesNotMatch(html, /Default daily slots/);
+});
+
+test('dependency states are distinct from genuine Ollama provider failures', () => {
+  const runtime = read('src/services/agentRuntimeService.js');
+  assert.match(runtime, /WAITING_MEDIA_WORKER/);
+  assert.match(runtime, /ACTION_REQUIRED/);
+  assert.match(runtime, /WAITING_PLATFORM/);
+  assert.match(runtime, /providerFailure \? 'WAITING_PROVIDER'/);
+  assert.match(runtime, /continue;\s*\n\s*}/);
+  assert.match(runtime, /Independent Ollama tasks continued/);
 });

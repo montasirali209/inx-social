@@ -36,7 +36,8 @@ async function runPlan(planId) {
     if (!plan || !['APPROVED', 'QUEUED', 'RUNNING', 'WAITING_PROVIDER'].includes(plan.status)) return false;
     await prisma.agentPlan.update({ where: { id: plan.id }, data: { status: 'RUNNING', startedAt: plan.startedAt || new Date(), lastError: null } });
     await event(plan.userId, plan.id, null, 'RUN_STARTED', 'RUNNING', 'Mission started', `${plan.operationMode === 'AUTOPILOT' ? 'Autopilot' : 'Hybrid'} execution started with the private INX Agent route.`, { queueMode: 'FIFO_SINGLE_WORKER' });
-    let waiting = false;
+    let providerFailure = false;
+    let actionRequired = false;
     let paidFallbackCalls = 0;
     for (const task of plan.tasks) {
       if (['COMPLETED', 'CANCELLED'].includes(task.status)) continue;
@@ -52,7 +53,7 @@ async function runPlan(planId) {
           await event(plan.userId, plan.id, task.id, 'LEARNING_CANDIDATE', 'REVIEW', 'Learning candidate created', 'A concise reusable playbook is waiting for administrator approval.', { memoryId: candidate.id, provider: result.provider, model: result.model });
           await event(plan.userId, plan.id, task.id, 'TASK_COMPLETED', 'SUCCESS', task.title, 'Output saved. Reuse requires administrator approval.', { provider: result.provider, model: result.model });
         } catch (error) {
-          waiting = true;
+          providerFailure = true;
           const customerMessage = error.code === 'OLLAMA_NOT_CONFIGURED'
             ? 'INX Agent is waiting for the private processing gateway to be connected.'
             : 'INX Agent is temporarily unavailable. Saved work is safe and this mission can be resumed.';
@@ -61,16 +62,23 @@ async function runPlan(planId) {
           break;
         }
       } else {
-        waiting = true;
-        if (task.type === 'MEDIA_GENERATION') await markWaiting(plan, task, 'WAITING_PROVIDER', 'Media generation is waiting for a configured local or hosted media worker. No paid request was made.');
+        actionRequired = true;
+        if (String(task.status).startsWith('WAITING_') || task.status === 'ACTION_REQUIRED') continue;
+        if (task.type === 'MEDIA_GENERATION') await markWaiting(plan, task, 'WAITING_MEDIA_WORKER', 'The content plan can continue, but media creation needs the INX template or another configured media worker. Ollama is online and no paid request was made.');
         else if (task.type === 'PUBLISH') await markWaiting(plan, task, plan.operationMode === 'AUTOPILOT' ? 'WAITING_ASSETS' : 'WAITING_REVIEW', plan.operationMode === 'AUTOPILOT' ? 'Autopilot will publish organic content when approved assets and a connected platform worker are ready.' : 'Hybrid mode is waiting for the owner review checkpoint.');
-        else if (task.type === 'PAGE_SETUP') await markWaiting(plan, task, 'WAITING_REVIEW', 'Page ownership, security and identity settings remain guided actions.');
-        else await markWaiting(plan, task, 'WAITING_DEPENDENCY', 'This task will resume when its earlier dependencies are complete.');
-        break;
+        else if (task.type === 'PAGE_SETUP') await markWaiting(plan, task, 'ACTION_REQUIRED', 'Complete the displayed Facebook Page setup steps manually. The remaining strategy and copy tasks will continue with Ollama.');
+        else if (task.type === 'ANALYTICS') await markWaiting(plan, task, 'WAITING_PLATFORM', 'Analytics will begin after content is published and the connected platform returns results.');
+        else await markWaiting(plan, task, 'WAITING_DEPENDENCY', 'This task needs a connected platform capability, but independent Ollama work will continue.');
+        continue;
       }
     }
-    await prisma.agentPlan.update({ where: { id: plan.id }, data: waiting ? { status: 'WAITING_PROVIDER' } : { status: 'COMPLETED', completedAt: new Date() } });
-    await event(plan.userId, plan.id, null, waiting ? 'RUN_PAUSED' : 'RUN_COMPLETED', waiting ? 'WAITING' : 'SUCCESS', waiting ? 'Mission paused' : 'Mission completed', waiting ? 'Completed work is saved. Resolve the displayed dependency, then resume.' : 'Every task completed successfully.');
+    const finalStatus = providerFailure ? 'WAITING_PROVIDER' : actionRequired ? 'ACTION_REQUIRED' : 'COMPLETED';
+    await prisma.agentPlan.update({ where: { id: plan.id }, data: finalStatus === 'COMPLETED' ? { status: finalStatus, completedAt: new Date() } : { status: finalStatus } });
+    await event(plan.userId, plan.id, null,
+      providerFailure ? 'RUN_PAUSED' : actionRequired ? 'RUN_ACTION_REQUIRED' : 'RUN_COMPLETED',
+      providerFailure ? 'WAITING' : actionRequired ? 'ACTION' : 'SUCCESS',
+      providerFailure ? 'Provider connection interrupted' : actionRequired ? 'AI work ready — action remains' : 'Mission completed',
+      providerFailure ? 'Ollama could not complete the current AI task. Saved work is safe; restore the provider and resume.' : actionRequired ? 'Independent Ollama tasks continued. The mission now shows the exact Page, media, publishing or analytics dependency that remains.' : 'Every task completed successfully.');
     return true;
   } catch (error) {
     await prisma.agentPlan.update({ where: { id: planId }, data: { status: 'FAILED', lastError: error.message } }).catch(() => {});

@@ -75,7 +75,7 @@ async function overview(req, res, next) {
     const runtime = await getRuntimeStatus();
     const userQueue = runtime.queuedPlanIds.filter(id => recentPlans.some(plan => plan.id === id));
     res.json({
-      phase: '11.2.1',
+      phase: '11.2.2',
       mode: 'OLLAMA_FIRST_RUNTIME',
       license: { plan: entitlement.plan, allowed: entitlement.allowed },
       usage: entitlement.usage,

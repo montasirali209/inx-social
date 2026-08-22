@@ -1749,7 +1749,7 @@ function renderAgentWorkspace() {
   const canResume = !['CANCELLED', 'COMPLETED', 'RUNNING', 'QUEUED', 'AWAITING_APPROVAL'].includes(plan.status);
   const completed = (plan.tasks || []).filter(item => item.status === 'COMPLETED').length;
   const running = (plan.tasks || []).filter(item => ['RUNNING', 'QUEUED'].includes(item.status)).length;
-  const waiting = (plan.tasks || []).filter(item => String(item.status).startsWith('WAITING')).length;
+  const waiting = (plan.tasks || []).filter(item => String(item.status).startsWith('WAITING') || item.status === 'ACTION_REQUIRED').length;
   const queueIds = agentOverview?.runtime?.queuedPlanIds || [];
   const queuePosition = queueIds.indexOf(plan.id) + 1;
   const usage = agentOverview?.usage || state?.account?.features?.socialAgent?.usage || {};
@@ -1802,11 +1802,16 @@ function renderAgentIntelligence() {
   const feed = document.getElementById('agentLiveFeed');
   const events = plan?.events || [];
   if (feed) feed.innerHTML = events.length ? events.map((item,index) => `<article class="agent-feed-event status-${escapeHtml(String(item.status).toLowerCase())} ${index===0?'latest':''}"><i></i><div><header><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(String(item.status))}</span></header><p>${escapeHtml(item.message)}</p><time>${escapeHtml(new Date(item.createdAt).toLocaleString())}</time></div></article>`).join('') : '<div class="workspace-empty">No runtime events yet.</div>';
-  const memories = agentOverview?.memories || [];
+  const tasks = plan?.tasks || [];
+  const activeTask = tasks.find(item => item.status === 'RUNNING') || tasks.find(item => ['QUEUED','PENDING'].includes(item.status)) || tasks.find(item => String(item.status).startsWith('WAITING') || item.status === 'ACTION_REQUIRED');
+  const completedTasks = tasks.filter(item => item.status === 'COMPLETED').slice(-3).reverse();
   const count = document.getElementById('agentMemoryCount');
-  if (count) count.textContent = `${memories.length} approved`;
+  if (count) count.textContent = activeTask ? String(activeTask.status).replaceAll('_', ' ') : (plan ? 'IDLE' : 'READY');
   const grid = document.getElementById('agentMemoryGrid');
-  if (grid) grid.innerHTML = memories.length ? memories.map(item => `<article><header><span>${escapeHtml(item.category)}</span><b>${escapeHtml(item.importance || 'ROUTINE')}</b></header><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.content)}</p><small>Approved reusable learning · confidence ${escapeHtml(String(item.confidence))}%</small></article>`).join('') : `<div class="workspace-empty">No approved memory yet.${agentOverview?.pendingMemoryCount ? ` ${agentOverview.pendingMemoryCount} learning candidate(s) await admin review.` : ''}</div>`;
+  if (grid) grid.innerHTML = plan ? `
+    ${activeTask ? `<article class="thinking-now"><header><span>NOW</span><b>${escapeHtml(String(activeTask.status).replaceAll('_', ' '))}</b></header><strong>${escapeHtml(activeTask.title)}</strong><p>${escapeHtml(activeTask.output?.message || activeTask.description)}</p><small>${String(activeTask.status).startsWith('WAITING') || activeTask.status === 'ACTION_REQUIRED' ? 'The mission will continue with every independent AI task.' : 'This is a factual activity summary, not hidden model reasoning.'}</small></article>` : '<div class="workspace-empty">No active step. The mission has finished its available AI work.</div>'}
+    ${completedTasks.map(item => `<article class="thinking-done"><header><span>COMPLETED</span><b>✓</b></header><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.output?.content || item.output?.message || 'Output saved successfully.')}</p><small>Saved result · reusable learning requires administrator approval</small></article>`).join('')}
+    ${agentOverview?.pendingMemoryCount ? `<div class="thinking-learning">${agentOverview.pendingMemoryCount} learning candidate(s) are awaiting administrator review.</div>` : ''}` : '<div class="workspace-empty">Launch a mission to see what the agent is doing step by step.</div>';
 }
 
 async function approveAgentPlan() {
