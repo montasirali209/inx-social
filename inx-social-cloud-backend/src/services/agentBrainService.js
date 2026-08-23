@@ -18,6 +18,9 @@ function status() {
 }
 
 function taskInstruction(plan, task, approvedMemories = []) {
+  let strategy = {};
+  try { strategy = JSON.parse(plan.strategyJson || '{}'); } catch (_) {}
+  const targetNames = (Array.isArray(strategy.pageTargets) ? strategy.pageTargets : []).map(page => String(page.name || '').trim()).filter(Boolean);
   const memoryBlock = approvedMemories.length
     ? ['Approved reusable playbooks:', ...approvedMemories.map((item, index) => `${index + 1}. ${item.title}: ${item.content}`)]
     : ['Approved reusable playbooks: none.'];
@@ -27,6 +30,7 @@ function taskInstruction(plan, task, approvedMemories = []) {
     'Do not create paid advertising campaigns or recommend spend unless the user explicitly asks for advice.',
     `Campaign instruction: ${plan.prompt}`,
     `Platforms: ${JSON.parse(plan.platformsJson || '[]').join(', ')}`,
+    `Connected Facebook Page targets: ${targetNames.length ? targetNames.join(', ') : 'none selected'}`,
     `Current task: ${task.title}`,
     `Task requirement: ${task.description}`,
     ...memoryBlock,

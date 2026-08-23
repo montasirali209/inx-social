@@ -52,7 +52,7 @@ test('Page pictures use an authenticated Graph image fallback', () => {
   assert.match(controller, /responseType:\s*'arraybuffer'/);
 });
 
-test('Social Agent exposes Autopilot, Hybrid and a professional factual mission workspace', () => {
+test('Social Agent exposes Autopilot, Hybrid, independent Page targets and distinct live intelligence views', () => {
   const html = read('studio/index.html');
   const app = read('studio/app.js');
   const admin = read('public/index.html');
@@ -61,8 +61,12 @@ test('Social Agent exposes Autopilot, Hybrid and a professional factual mission 
   assert.match(html, /id="agentMissionCore"/);
   assert.match(html, /id="agentLiveFeed"/);
   assert.match(html, /id="agentMemoryGrid"/);
+  assert.match(html, /Facebook Page targets/);
+  assert.match(html, /does not change the dashboard Active Page/);
+  assert.match(html, /id="agentPageTargetGrid"/);
   assert.match(html, /Mission timeline/);
   assert.match(html, /Agent work monitor/);
+  assert.match(html, /Live execution, blocker and next action/);
   assert.match(html, /Private model chain-of-thought is never displayed/);
   assert.doesNotMatch(html, />Working memory</);
   assert.doesNotMatch(html, /Media budget mode/);
@@ -76,6 +80,9 @@ test('Social Agent exposes Autopilot, Hybrid and a professional factual mission 
   assert.match(admin, /Admins only — development mode/);
   assert.match(app, /FIFO · one mission at a time/);
   assert.match(app, /Agent missions used/);
+  assert.match(app, /targetPageIds/);
+  assert.match(app, /renderAgentPageTargets/);
+  assert.match(app, /agent-plan-page-chips/);
   assert.match(app, /new missions available/);
   assert.match(app, /ACTION CENTRE/);
   assert.match(app, /MISSION TASKS/);

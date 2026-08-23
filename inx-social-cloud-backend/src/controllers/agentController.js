@@ -20,7 +20,8 @@ function publicPlan(plan) {
     strategy: {
       assetCount: strategy.assetCount || 0,
       executionMode: strategy.executionMode || null,
-      guardrails: strategy.guardrails || []
+      guardrails: strategy.guardrails || [],
+      pageTargets: Array.isArray(strategy.pageTargets) ? strategy.pageTargets.map(publicPageTarget) : []
     },
     operationMode: plan.operationMode || 'HYBRID',
     approvedAt: plan.approvedAt,
@@ -48,6 +49,36 @@ function publicPlan(plan) {
   };
 }
 
+function publicPageTarget(page) {
+  return {
+    id: String(page.id || ''),
+    facebookPageId: String(page.facebookPageId || ''),
+    name: String(page.name || page.facebookPageName || 'Facebook Page'),
+    picture: page.picture || page.facebookPagePicture || null,
+    category: page.category || page.facebookCategory || null
+  };
+}
+
+async function connectedPagesForUser(userId) {
+  if (typeof prisma.connectedPage?.findMany !== 'function') return [];
+  return prisma.connectedPage.findMany({
+    where: { userId, status: 'ACTIVE' },
+    orderBy: [{ isSelected: 'desc' }, { facebookPageName: 'asc' }],
+    select: { id: true, facebookPageId: true, facebookPageName: true, facebookPagePicture: true, facebookCategory: true, isSelected: true, status: true }
+  });
+}
+
+async function resolvePageTargets(userId, strategy, requestedIds) {
+  if (!strategy.platforms.includes('facebook')) return [];
+  const ids = [...new Set((Array.isArray(requestedIds) ? requestedIds : []).map(value => String(value || '').trim()).filter(Boolean))];
+  if (!ids.length) throw Object.assign(new Error('Select at least one connected Facebook Page for this mission.'), { status: 400 });
+  if (ids.length > 50) throw Object.assign(new Error('A mission can target up to 50 connected Facebook Pages.'), { status: 400 });
+  const pages = await connectedPagesForUser(userId);
+  const owned = new Map(pages.map(page => [page.id, page]));
+  if (ids.some(id => !owned.has(id))) throw Object.assign(new Error('One or more selected Facebook Pages are no longer connected to this INX Social account.'), { status: 400 });
+  return ids.map(id => publicPageTarget(owned.get(id)));
+}
+
 function publicTaskOutput(output) {
   if (!output || typeof output !== 'object') return output;
   const allowed = {};
@@ -73,9 +104,10 @@ async function overview(req, res, next) {
     const memories = await prisma.agentMemory.findMany({ where: { userId: req.user.id, approvalStatus: 'APPROVED' }, orderBy: { updatedAt: 'desc' }, take: 30 });
     const pendingMemoryCount = await prisma.agentMemory.count({ where: { userId: req.user.id, approvalStatus: 'PENDING_REVIEW' } });
     const runtime = await getRuntimeStatus();
+    const connectedPages = await connectedPagesForUser(req.user.id);
     const userQueue = runtime.queuedPlanIds.filter(id => recentPlans.some(plan => plan.id === id));
     res.json({
-      phase: '11.2.3',
+      phase: '11.3.0',
       mode: 'OLLAMA_FIRST_RUNTIME',
       license: { plan: entitlement.plan, allowed: entitlement.allowed },
       usage: entitlement.usage,
@@ -90,6 +122,7 @@ async function overview(req, res, next) {
         note: 'Autopilot may publish organic content inside user guardrails after the required platform and media workers are connected. Paid advertising remains disabled.'
       },
       supportedPlatforms: SUPPORTED_PLATFORMS,
+      connectedPages: connectedPages.map(page => ({ ...publicPageTarget(page), isSelected: Boolean(page.isSelected), status: page.status })),
       plans: recentPlans.map(publicPlan),
       memories: memories.map(publicMemory),
       pendingMemoryCount,
@@ -100,8 +133,10 @@ async function overview(req, res, next) {
 
 async function createPlan(req, res, next) {
   try {
-    await agentAccess.requireAccess(req.user.id, { consume: true });
+    await agentAccess.requireAccess(req.user.id);
     const strategy = buildPlan(req.body || {});
+    const pageTargets = await resolvePageTargets(req.user.id, strategy, req.body?.targetPageIds);
+    await agentAccess.requireAccess(req.user.id, { consume: true });
     const autopilot = strategy.operationMode === 'AUTOPILOT';
     const plan = await prisma.agentPlan.create({
       data: {
@@ -112,7 +147,8 @@ async function createPlan(req, res, next) {
           assetCount: strategy.assetCount,
           executionMode: strategy.executionMode,
           provider: strategy.provider,
-          guardrails: strategy.guardrails
+          guardrails: strategy.guardrails,
+          pageTargets
         }),
         operationMode: strategy.operationMode,
         status: autopilot ? 'APPROVED' : 'AWAITING_APPROVAL',
@@ -135,7 +171,7 @@ async function createPlan(req, res, next) {
       include: PLAN_INCLUDE
     });
     await prisma.auditLog.create({
-      data: { userId: req.user.id, action: 'AGENT_PLAN_CREATED', entity: 'AgentPlan', entityId: plan.id, metadata: JSON.stringify({ platforms: strategy.platforms, estimatedCostCents: strategy.estimatedCostCents }) }
+      data: { userId: req.user.id, action: 'AGENT_PLAN_CREATED', entity: 'AgentPlan', entityId: plan.id, metadata: JSON.stringify({ platforms: strategy.platforms, targetPageIds: pageTargets.map(page => page.id), estimatedCostCents: strategy.estimatedCostCents }) }
     });
     if (autopilot) await queuePlan(plan.id, req.user.id);
     const current = autopilot ? await findOwnedPlan(req.user.id, plan.id) : plan;
@@ -201,4 +237,4 @@ async function cancelPlan(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { overview, createPlan, listPlans, approvePlan, resumePlan, cancelPlan, publicPlan, publicMemory };
+module.exports = { overview, createPlan, listPlans, approvePlan, resumePlan, cancelPlan, publicPlan, publicMemory, publicPageTarget, resolvePageTargets };

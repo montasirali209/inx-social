@@ -25,6 +25,7 @@ let agentLoading = false;
 let activeAgentPlanId = '';
 let agentLiveTimer = null;
 const openAgentTaskOutputs = new Set();
+let agentPageTargetsInitialized = false;
 
 const UI_TEXT_FIELDS = [
   'appTitle', 'appSubtitle', 'dashboardTitle', 'dashboardSubtitle',
@@ -309,6 +310,9 @@ function bindButtons() {
   on('btnAgentRefresh', () => loadAgentOverview(true));
   document.getElementById('agentPlanForm')?.addEventListener('submit', createAgentPlan);
   document.querySelectorAll('.agent-operation-mode').forEach(input => input.addEventListener('change', renderAgentModeSummary));
+  document.querySelectorAll('.agent-platform').forEach(input => input.addEventListener('change', renderAgentPageTargets));
+  on('btnAgentPagesAll', () => setAgentPageTargets(true));
+  on('btnAgentPagesClear', () => setAgentPageTargets(false));
   on('btnPickVideos', () => importAction(window.schedulerApi.pickVideos));
   on('btnPickVideos2', () => importAction(window.schedulerApi.pickVideos));
   on('btnPickCaptions', () => importAction(window.schedulerApi.pickCaptions));
@@ -1700,6 +1704,7 @@ async function loadAgentOverview(showNotice = false) {
     const nativeMenuOpen = activeElement?.matches?.('#agentPlanSelect, #agentExecutionMode');
     if (nativeMenuOpen) renderAgentIntelligence();
     else renderAgentWorkspace();
+    renderAgentPageTargets();
     if (showNotice) toast('Social Agent plans refreshed.');
   } catch (error) {
     if (workspace) workspace.innerHTML = `<div class="workspace-empty error">${escapeHtml(error.message)}</div>`;
@@ -1713,16 +1718,58 @@ function renderAgentModeSummary() {
   if (target) target.textContent = mode === 'AUTOPILOT' ? 'Autopilot' : 'Hybrid';
 }
 
+function availableAgentPages() {
+  const source = agentOverview?.connectedPages?.length ? agentOverview.connectedPages : (cloudWorkspace?.pages || state?.workspace?.pages || []);
+  return source.filter(page => page.status !== 'REVOKED' && page.status !== 'DISCONNECTED');
+}
+
+function selectedAgentPageIds() {
+  return [...document.querySelectorAll('.agent-page-target:checked')].map(input => input.value);
+}
+
+function updateAgentPageTargetCount() {
+  const count = selectedAgentPageIds().length;
+  const target = document.getElementById('agentPageTargetCount');
+  if (target) target.textContent = `${count} Page${count === 1 ? '' : 's'} selected for this mission`;
+}
+
+function setAgentPageTargets(checked) {
+  document.querySelectorAll('.agent-page-target').forEach(input => { input.checked = checked; });
+  updateAgentPageTargetCount();
+}
+
+function renderAgentPageTargets() {
+  const container = document.getElementById('agentPageTargetGrid');
+  const fieldset = document.getElementById('agentFacebookTargets');
+  if (!container || !fieldset) return;
+  const facebookSelected = Boolean(document.querySelector('.agent-platform[value="facebook"]:checked'));
+  fieldset.hidden = !facebookSelected;
+  if (!facebookSelected) return;
+  const preserved = new Set(selectedAgentPageIds());
+  const pages = availableAgentPages();
+  if (!agentPageTargetsInitialized && !preserved.size) {
+    const preferred = pages.find(page => page.isSelected) || pages[0];
+    if (preferred) preserved.add(preferred.id);
+    agentPageTargetsInitialized = true;
+  }
+  container.innerHTML = pages.length ? pages.map(page => `<label class="agent-page-target-card"><input class="agent-page-target" type="checkbox" value="${escapeHtml(page.id)}" ${preserved.has(page.id) ? 'checked' : ''}><span class="agent-page-target-body"><span class="agent-page-avatar" data-page-picture-id="${escapeHtml(page.id)}"><b>F</b></span><span><strong>${escapeHtml(page.name || page.facebookPageName || 'Facebook Page')}</strong><small>${escapeHtml(page.category || page.facebookCategory || 'Connected Facebook Page')}</small></span><i aria-hidden="true">✓</i></span></label>`).join('') : '<div class="workspace-empty">No active Facebook Pages are connected. Connect a Page in Connected Pages first.</div>';
+  container.querySelectorAll('.agent-page-target').forEach(input => input.addEventListener('change', updateAgentPageTargetCount));
+  hydratePagePictures(container);
+  updateAgentPageTargetCount();
+}
+
 async function createAgentPlan(event) {
   event.preventDefault();
   const prompt = document.getElementById('agentPrompt')?.value.trim() || '';
   const platforms = [...document.querySelectorAll('.agent-platform:checked')].map(input => input.value);
   if (!platforms.length) return toast('Select at least one publishing platform.', true);
+  const targetPageIds = selectedAgentPageIds();
+  if (platforms.includes('facebook') && !targetPageIds.length) return toast('Select at least one connected Facebook Page for this mission.', true);
   const button = document.getElementById('btnAgentCreatePlan');
   if (button) { button.disabled = true; button.textContent = 'Launching mission…'; }
   try {
     const operationMode = document.querySelector('.agent-operation-mode:checked')?.value || 'HYBRID';
-    const result = await window.schedulerApi.createAgentPlan({ prompt, platforms, operationMode, executionMode: document.getElementById('agentExecutionMode')?.value });
+    const result = await window.schedulerApi.createAgentPlan({ prompt, platforms, targetPageIds, operationMode, executionMode: document.getElementById('agentExecutionMode')?.value });
     agentOverview = agentOverview || { plans: [] };
     agentOverview.plans = [result.plan, ...(agentOverview.plans || []).filter(plan => plan.id !== result.plan.id)];
     activeAgentPlanId = result.plan.id;
@@ -1866,6 +1913,7 @@ function renderAgentWorkspace() {
   const usageLimit = usage.limit === null ? 'Unlimited' : Number(usage.limit || 0).toLocaleString();
   const usageRemaining = usage.remaining === null ? 'Unlimited' : Number(usage.remaining || 0).toLocaleString();
   const periodEnd = usage.periodEnd ? new Date(usage.periodEnd).toLocaleDateString() : 'Plan period';
+  const pageTargets = plan.strategy?.pageTargets || [];
   const missionQueue = plans
     .filter(item => !['CANCELLED'].includes(item.status))
     .slice(0, 8);
@@ -1881,7 +1929,7 @@ function renderAgentWorkspace() {
         return `<button type="button" data-agent-plan-id="${escapeHtml(item.id)}" class="agent-queue-card ${item.id === plan.id ? 'selected' : ''} ${isActive ? 'active' : ''}"><span>${isActive ? 'LIVE' : itemQueuePosition ? `Q${itemQueuePosition}` : String(index + 1).padStart(2, '0')}</span><div><strong>${escapeHtml(item.prompt.slice(0, 72))}</strong><small>${escapeHtml(String(item.status).replaceAll('_', ' '))} · ${itemCompleted}/${item.tasks?.length || 0} tasks</small></div><i></i></button>`;
       }).join('')}</div>
       <label>Recent plans<select id="agentPlanSelect">${plans.map(item => `<option value="${escapeHtml(item.id)}" ${item.id === plan.id ? 'selected' : ''}>${escapeHtml(new Date(item.createdAt).toLocaleDateString())} — ${escapeHtml(item.prompt.slice(0, 58))}</option>`).join('')}</select></label>
-      <div class="agent-plan-top"><div><strong>${escapeHtml(plan.prompt)}</strong><p>${escapeHtml((plan.platforms || []).join(', '))} · ${escapeHtml(mode)} organic automation</p></div><div class="agent-plan-badges"><span class="agent-mode-badge">${mode}</span><span class="agent-plan-status status-${escapeHtml(String(plan.status).toLowerCase())}">${escapeHtml(plan.status.replaceAll('_', ' '))}</span></div></div>
+      <div class="agent-plan-top"><div><strong>${escapeHtml(plan.prompt)}</strong><p>${escapeHtml((plan.platforms || []).join(', '))} · ${escapeHtml(mode)} organic automation</p>${pageTargets.length ? `<div class="agent-plan-page-chips">${pageTargets.map(page => `<span>${escapeHtml(page.name)}</span>`).join('')}</div>` : ''}</div><div class="agent-plan-badges"><span class="agent-mode-badge">${mode}</span><span class="agent-plan-status status-${escapeHtml(String(plan.status).toLowerCase())}">${escapeHtml(plan.status.replaceAll('_', ' '))}</span></div></div>
       <div class="agent-plan-metrics"><div><span>Current plan</span><strong>${escapeHtml(agentOverview?.license?.plan || 'TRIAL')}</strong><small>Social Agent access</small></div><div><span>Agent missions used</span><strong>${Number(usage.used || 0).toLocaleString()} / ${usageLimit}</strong><small>this plan period</small></div><div><span>Remaining</span><strong>${usageRemaining}</strong><small>new missions available</small></div><div><span>Usage resets</span><strong>${escapeHtml(periodEnd)}</strong><small>${completed}/${plan.tasks?.length || 0} tasks complete · ${running} active · ${waiting} waiting</small></div></div>
       ${plan.lastError ? `<div class="agent-runtime-error">${escapeHtml(plan.lastError)}</div>` : ''}
       ${renderAgentActionCentre(plan.tasks || [])}
@@ -1918,22 +1966,38 @@ function renderAgentIntelligence() {
   const core = document.getElementById('agentMissionCore');
   if (core) core.querySelector('small').textContent = plan?.status ? String(plan.status).replaceAll('_', ' ') : (brain.configured ? 'READY' : 'OFFLINE');
   const feed = document.getElementById('agentLiveFeed');
-  const events = plan?.events || [];
-  if (feed) feed.innerHTML = events.length ? events.map((item,index) => {
-    const eventStatus = agentTaskStatusLabel(item.status);
-    return `<article class="agent-feed-event status-${escapeHtml(String(item.status).toLowerCase())} ${index===0?'latest':''}"><i></i><div><header><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(eventStatus)}</span></header><p>${escapeHtml(item.message)}</p><footer><b>${escapeHtml(String(item.type || 'MISSION').replaceAll('_', ' '))}</b><time>${escapeHtml(new Date(item.createdAt).toLocaleString())}</time></footer></div></article>`;
-  }).join('') : '<div class="workspace-empty">No runtime events yet.</div>';
+  const events = [...(plan?.events || [])].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  if (feed) {
+    feed.innerHTML = events.length ? events.map((item,index) => `<article class="agent-feed-event timeline-event status-${escapeHtml(String(item.status).toLowerCase())} ${index===events.length-1?'latest':''}" style="--event-index:${index}"><div class="timeline-stamp"><time>${escapeHtml(new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}</time><i></i></div><div class="timeline-content"><header><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(agentTaskStatusLabel(item.status))}</span></header><p>${escapeHtml(item.message)}</p><footer><b>${escapeHtml(String(item.type || 'MISSION').replaceAll('_', ' '))}</b><small>${escapeHtml(new Date(item.createdAt).toLocaleDateString())}</small></footer></div></article>`).join('') : '<div class="workspace-empty">No runtime events yet.</div>';
+    if (events.length) requestAnimationFrame(() => { feed.scrollTop = feed.scrollHeight; });
+  }
   const tasks = plan?.tasks || [];
   const activeTask = tasks.find(item => item.status === 'RUNNING') || tasks.find(item => ['QUEUED','PENDING'].includes(item.status)) || tasks.find(item => String(item.status).startsWith('WAITING') || item.status === 'ACTION_REQUIRED');
-  const completedTasks = tasks.filter(item => item.status === 'COMPLETED').slice(-3).reverse();
+  const activeIndex = activeTask ? tasks.indexOf(activeTask) : -1;
+  const nextTask = activeIndex >= 0 ? tasks.slice(activeIndex + 1).find(item => !['COMPLETED','CANCELLED'].includes(item.status)) : tasks.find(item => !['COMPLETED','CANCELLED'].includes(item.status));
+  const completedCount = tasks.filter(item => item.status === 'COMPLETED').length;
+  const progress = tasks.length ? Math.round((completedCount / tasks.length) * 100) : 0;
+  const blocked = activeTask && (String(activeTask.status).startsWith('WAITING') || activeTask.status === 'ACTION_REQUIRED');
+  const phases = [
+    ['Plan', ['BRAND_REVIEW','CONTENT_STRATEGY','PAGE_SETUP']],
+    ['Create', ['MEDIA_GENERATION','COPY_GENERATION','PLATFORM_VARIANT']],
+    ['Schedule', ['SCHEDULE']],
+    ['Publish', ['PUBLISH']],
+    ['Learn', ['ANALYTICS']]
+  ];
   const count = document.getElementById('agentMemoryCount');
   if (count) count.textContent = activeTask ? String(activeTask.status).replaceAll('_', ' ') : (plan ? 'IDLE' : 'READY');
   const grid = document.getElementById('agentMemoryGrid');
-  const activeGuidance = agentTaskGuidance(activeTask);
-  if (grid) grid.innerHTML = plan ? `
-    ${activeTask ? `<article class="thinking-now"><header><span>CURRENT STEP</span><b>${escapeHtml(agentTaskStatusLabel(activeTask.status))}</b></header><strong>${escapeHtml(activeTask.title)}</strong><p>${escapeHtml(activeTask.output?.message || activeTask.description)}</p><div class="thinking-stage"><span>1</span><p><b>Working on</b>${escapeHtml(activeTask.description)}</p></div>${activeGuidance ? `<div class="thinking-stage ${activeGuidance.passive ? '' : 'needs-action'}"><span>2</span><p><b>${activeGuidance.passive ? 'Next' : 'Blocked by'}</b>${escapeHtml(activeGuidance.body)}</p></div>` : '<div class="thinking-stage"><span>2</span><p><b>Next</b>The result will be saved to this task and added to the mission timeline.</p></div>'}<small>Factual execution summary · private chain-of-thought is not displayed.</small></article>` : '<div class="workspace-empty">No active step. The mission has finished all currently available work.</div>'}
-    ${completedTasks.map(item => `<article class="thinking-done"><header><span>RECENT RESULT</span><b>✓</b></header><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.output?.content || item.output?.message || 'Output saved successfully.')}</p><small>Saved result · reusable learning requires administrator approval</small></article>`).join('')}
-    ${agentOverview?.pendingMemoryCount ? `<div class="thinking-learning">${agentOverview.pendingMemoryCount} learning candidate(s) are awaiting administrator review.</div>` : ''}` : '<div class="workspace-empty">Launch a mission to see what the agent is doing step by step.</div>';
+  if (grid) grid.innerHTML = plan ? `<div class="agent-monitor-hud">
+    <div class="agent-progress-orb" style="--mission-progress:${progress * 3.6}deg"><span>${progress}%</span><small>complete</small></div>
+    <div class="agent-monitor-state"><span>${blocked ? 'BLOCKED' : activeTask ? 'WORKING' : progress === 100 ? 'COMPLETE' : 'READY'}</span><strong>${escapeHtml(activeTask?.title || (progress === 100 ? 'Mission completed' : 'Awaiting the next runnable step'))}</strong><p>${escapeHtml(activeTask?.output?.message || activeTask?.description || 'Mission Control is synchronized.')}</p></div>
+  </div>
+  <div class="agent-phase-track">${phases.map(([label, types]) => { const related = tasks.filter(item => types.includes(item.type)); const done = related.length && related.every(item => item.status === 'COMPLETED'); const current = activeTask && types.includes(activeTask.type); return `<span class="${done ? 'done' : current ? 'current' : ''}"><i></i><b>${label}</b></span>`; }).join('')}</div>
+  <div class="agent-monitor-cards">
+    <article class="monitor-now"><span>NOW</span><strong>${escapeHtml(activeTask?.title || 'No active task')}</strong><p>${escapeHtml(activeTask ? (blocked ? 'Independent AI work continues while this dependency waits.' : 'The agent is executing this task now.') : 'All currently available work has been processed.')}</p></article>
+    <article class="monitor-blocker ${blocked ? 'has-blocker' : ''}"><span>BLOCKER</span><strong>${escapeHtml(blocked ? String(activeTask.status).replaceAll('_', ' ') : 'None')}</strong><p>${escapeHtml(blocked ? (activeTask.output?.message || activeTask.description) : 'No dependency is blocking the current runnable work.')}</p></article>
+    <article class="monitor-next"><span>NEXT</span><strong>${escapeHtml(nextTask?.title || (progress === 100 ? 'Review saved results' : 'Await runtime update'))}</strong><p>${escapeHtml(nextTask?.description || 'Mission outputs remain available in the task list and timeline.')}</p></article>
+  </div>${agentOverview?.pendingMemoryCount ? `<div class="thinking-learning">${agentOverview.pendingMemoryCount} reusable learning candidate(s) await administrator review.</div>` : ''}` : '<div class="workspace-empty">Launch a mission to see live execution progress.</div>';
 }
 
 async function approveAgentPlan() {
@@ -2660,6 +2724,7 @@ function renderWorkspaceV2() {
 
   renderPagesV2();
   renderAnalyticsV2();
+  renderAgentPageTargets();
   bindWorkspaceDynamicActions();
 }
 

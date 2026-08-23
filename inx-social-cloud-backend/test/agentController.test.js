@@ -13,6 +13,9 @@ const prisma = {
     },
     findMany: async () => []
   },
+  connectedPage: {
+    findMany: async () => [{ id: 'page-1', facebookPageId: 'fb-1', facebookPageName: 'Primary Page', facebookPagePicture: null, facebookCategory: 'Brand', isSelected: true, status: 'ACTIVE' }]
+  },
   auditLog: { create: async () => ({ id: 'audit-1' }) }
 };
 require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: prisma };
@@ -27,7 +30,7 @@ function responseRecorder() {
 test('creating an agent plan persists costed tasks but performs no external action', async () => {
   const res = responseRecorder();
   let error = null;
-  await controller.createPlan({ user: { id: 'user-1' }, body: { prompt: 'Create 5 social posts for Facebook', platforms: ['facebook'] } }, res, value => { error = value; });
+  await controller.createPlan({ user: { id: 'user-1' }, body: { prompt: 'Create 5 social posts for Facebook', platforms: ['facebook'], targetPageIds: ['page-1'] } }, res, value => { error = value; });
   assert.equal(error, null);
   assert.equal(res.statusCode, 201);
   assert.equal(created.status, 'AWAITING_APPROVAL');
@@ -38,6 +41,24 @@ test('creating an agent plan persists costed tasks but performs no external acti
   assert.equal(res.body.plan.estimatedCostCents, undefined);
   assert.equal(res.body.plan.actualPaidCalls, undefined);
   assert.equal(res.body.plan.strategy.provider, undefined);
+  assert.deepEqual(res.body.plan.strategy.pageTargets.map(page => page.name), ['Primary Page']);
+});
+
+test('Facebook missions reject Pages outside the users connected Page source', async () => {
+  const res = responseRecorder();
+  let error = null;
+  await controller.createPlan({ user: { id: 'user-1' }, body: { prompt: 'Create a Facebook campaign plan', platforms: ['facebook'], targetPageIds: ['another-users-page'] } }, res, value => { error = value; });
+  assert.equal(res.body, null);
+  assert.equal(error?.status, 400);
+  assert.match(error?.message || '', /no longer connected/);
+});
+
+test('non-Facebook missions do not require Facebook Page targets', async () => {
+  const res = responseRecorder();
+  let error = null;
+  await controller.createPlan({ user: { id: 'user-1' }, body: { prompt: 'Create educational YouTube shorts', platforms: ['youtube'] } }, res, value => { error = value; });
+  assert.equal(error, null);
+  assert.deepEqual(JSON.parse(created.strategyJson).pageTargets, []);
 });
 
 test('customer plan output never exposes private routes, models or provider costs', () => {

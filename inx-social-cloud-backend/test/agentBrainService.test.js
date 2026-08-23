@@ -60,3 +60,9 @@ test('only approved playbooks supplied by runtime are included without chain-of-
   assert.match(prompt, /Approved caption pattern/);
   assert.match(prompt, /Do not reveal hidden chain-of-thought/);
 });
+
+test('mission-specific connected Facebook Page names are included in agent instructions', () => {
+  const targetedPlan = { ...plan, strategyJson: JSON.stringify({ pageTargets: [{ id: 'page-1', name: 'North Shop' }, { id: 'page-2', name: 'South Shop' }] }) };
+  const prompt = brain.taskInstruction(targetedPlan, task);
+  assert.match(prompt, /Connected Facebook Page targets: North Shop, South Shop/);
+});
