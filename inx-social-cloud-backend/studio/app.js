@@ -24,6 +24,7 @@ let agentOverview = null;
 let agentLoading = false;
 let activeAgentPlanId = '';
 let agentLiveTimer = null;
+const openAgentTaskOutputs = new Set();
 
 const UI_TEXT_FIELDS = [
   'appTitle', 'appSubtitle', 'dashboardTitle', 'dashboardSubtitle',
@@ -1695,7 +1696,10 @@ async function loadAgentOverview(showNotice = false) {
     agentOverview = await window.schedulerApi.getAgentOverview();
     const plans = agentOverview.plans || [];
     if (!activeAgentPlanId && plans.length) activeAgentPlanId = plans[0].id;
-    renderAgentWorkspace();
+    const activeElement = document.activeElement;
+    const nativeMenuOpen = activeElement?.matches?.('#agentPlanSelect, #agentExecutionMode');
+    if (nativeMenuOpen) renderAgentIntelligence();
+    else renderAgentWorkspace();
     if (showNotice) toast('Social Agent plans refreshed.');
   } catch (error) {
     if (workspace) workspace.innerHTML = `<div class="workspace-empty error">${escapeHtml(error.message)}</div>`;
@@ -1733,9 +1737,113 @@ function selectedAgentPlan() {
   return plans.find(plan => plan.id === activeAgentPlanId) || plans[0] || null;
 }
 
+function agentTaskStatusLabel(status) {
+  const labels = {
+    ACTION_REQUIRED: 'Action required',
+    WAITING_PROVIDER: 'Agent connection required',
+    WAITING_MEDIA_WORKER: 'Media worker required',
+    WAITING_REVIEW: 'Review required',
+    WAITING_ASSETS: 'Waiting for approved assets',
+    WAITING_PLATFORM: 'Waiting for platform results',
+    WAITING_DEPENDENCY: 'Dependency required',
+    COMPLETED: 'Completed',
+    RUNNING: 'In progress',
+    QUEUED: 'Queued',
+    PENDING: 'Not started',
+    FAILED: 'Failed'
+  };
+  return labels[String(status || '').toUpperCase()] || String(status || 'Pending').replaceAll('_', ' ');
+}
+
+function agentTaskGuidance(task) {
+  const status = String(task?.status || '').toUpperCase();
+  const type = String(task?.type || '').toUpperCase();
+  const savedMessage = task?.output?.message || '';
+  if (type === 'PAGE_SETUP' && status === 'ACTION_REQUIRED') return {
+    title: 'Complete the Facebook Page setup',
+    body: savedMessage || 'Open Connected Pages, confirm the correct Facebook Page is connected, then complete the Page profile, ownership and security fields directly in Facebook. Return here and resume the mission.',
+    steps: ['Open Connected Pages and verify the destination Page.', 'Complete the requested Page profile changes in Facebook.', 'Return to this mission and select Resume mission.'],
+    actionView: 'pages', actionLabel: 'Open Connected Pages'
+  };
+  if (status === 'WAITING_PROVIDER') return {
+    title: 'Connect the private INX Agent',
+    body: savedMessage || 'The Ollama gateway is unavailable. Keep Ollama, the INX gateway and the ngrok tunnel running, verify the Railway URL and token, then resume this mission.',
+    steps: ['Confirm Ollama and the INX gateway are running on the Mac.', 'Confirm the ngrok tunnel is online and Railway uses its current HTTPS URL.', 'Resume this mission after the connection is restored.']
+  };
+  if (status === 'WAITING_MEDIA_WORKER') return {
+    title: 'Choose or connect a visual-content worker',
+    body: savedMessage || 'The strategy work is ready, but the requested image or video cannot be produced until the selected visual-content method is available.',
+    steps: ['Ask an administrator to enable the INX template or selected video worker.', 'Alternatively launch a text-only mission that requests no images or video.', 'Resume after the worker is available.']
+  };
+  if (status === 'WAITING_REVIEW') return {
+    title: 'Review the prepared content',
+    body: savedMessage || 'Hybrid mode has reached its owner checkpoint. Review the saved task outputs, then approve or resume the mission.',
+    steps: ['Open the completed task outputs.', 'Check captions, assets and schedule.', 'Approve or resume when the content is ready.']
+  };
+  if (status === 'WAITING_ASSETS') return {
+    title: 'Approve the required content assets',
+    body: savedMessage || 'Publishing is paused until the mission has approved media and copy.',
+    steps: ['Review the generated copy and media.', 'Replace or approve the required assets.', 'Resume the mission to continue publishing.']
+  };
+  if (status === 'WAITING_PLATFORM') return {
+    title: 'No action needed yet',
+    body: savedMessage || 'This step will continue after content is published and the connected platform returns analytics.',
+    steps: ['Keep the platform connected.', 'Allow the published content time to collect results.', 'Sync the mission later to refresh analytics.'], passive: true
+  };
+  if (status === 'FAILED') return {
+    title: 'This task failed',
+    body: savedMessage || task?.error || 'Review the saved error, correct the reported problem and retry the mission.',
+    steps: ['Open the saved output for the exact error.', 'Correct the failed dependency.', 'Resume the mission.']
+  };
+  if (status.startsWith('WAITING') || status === 'ACTION_REQUIRED') return {
+    title: 'A dependency needs attention',
+    body: savedMessage || 'Complete the dependency shown for this task, then resume the mission.',
+    steps: ['Review this task output.', 'Complete the displayed dependency.', 'Resume the mission.']
+  };
+  return null;
+}
+
+function captureAgentWorkspaceUi(workspace) {
+  if (!workspace) return {};
+  workspace.querySelectorAll('details[data-agent-task-id]').forEach(details => {
+    if (details.open) openAgentTaskOutputs.add(details.dataset.agentTaskId);
+    else openAgentTaskOutputs.delete(details.dataset.agentTaskId);
+  });
+  const view = document.getElementById('agent');
+  return {
+    taskScrollTop: workspace.querySelector('.agent-task-list')?.scrollTop || 0,
+    workspaceScrollTop: workspace.scrollTop || 0,
+    viewScrollTop: view?.scrollTop || 0
+  };
+}
+
+function restoreAgentWorkspaceUi(workspace, snapshot) {
+  workspace.querySelectorAll('details[data-agent-task-id]').forEach(details => {
+    details.open = openAgentTaskOutputs.has(details.dataset.agentTaskId);
+    details.addEventListener('toggle', () => {
+      if (details.open) openAgentTaskOutputs.add(details.dataset.agentTaskId);
+      else openAgentTaskOutputs.delete(details.dataset.agentTaskId);
+    });
+  });
+  requestAnimationFrame(() => {
+    const taskList = workspace.querySelector('.agent-task-list');
+    if (taskList) taskList.scrollTop = snapshot.taskScrollTop || 0;
+    workspace.scrollTop = snapshot.workspaceScrollTop || 0;
+    const view = document.getElementById('agent');
+    if (view) view.scrollTop = snapshot.viewScrollTop || 0;
+  });
+}
+
+function renderAgentActionCentre(tasks) {
+  const blockers = tasks.map(task => ({ task, guidance: agentTaskGuidance(task) })).filter(item => item.guidance && !item.guidance.passive);
+  if (!blockers.length) return '';
+  return `<section class="agent-action-centre"><header><div><span>ACTION CENTRE</span><strong>${blockers.length} task${blockers.length === 1 ? '' : 's'} need attention</strong></div><b>${blockers.length}</b></header>${blockers.map(({ task, guidance }) => `<article><div class="agent-action-icon">!</div><div><strong>${escapeHtml(guidance.title)}</strong><p>${escapeHtml(guidance.body)}</p><ol>${guidance.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol></div>${guidance.actionView ? `<button type="button" class="btn secondary compact" data-agent-action-view="${escapeHtml(guidance.actionView)}">${escapeHtml(guidance.actionLabel)}</button>` : ''}</article>`).join('')}</section>`;
+}
+
 function renderAgentWorkspace() {
   const workspace = document.getElementById('agentPlanWorkspace');
   if (!workspace) return;
+  const uiSnapshot = captureAgentWorkspaceUi(workspace);
   const plans = agentOverview?.plans || [];
   renderAgentIntelligence();
   if (!plans.length) {
@@ -1750,6 +1858,8 @@ function renderAgentWorkspace() {
   const completed = (plan.tasks || []).filter(item => item.status === 'COMPLETED').length;
   const running = (plan.tasks || []).filter(item => ['RUNNING', 'QUEUED'].includes(item.status)).length;
   const waiting = (plan.tasks || []).filter(item => String(item.status).startsWith('WAITING') || item.status === 'ACTION_REQUIRED').length;
+  const totalTasks = plan.tasks?.length || 0;
+  const progressPercent = totalTasks ? Math.round((completed / totalTasks) * 100) : 0;
   const queueIds = agentOverview?.runtime?.queuedPlanIds || [];
   const queuePosition = queueIds.indexOf(plan.id) + 1;
   const usage = agentOverview?.usage || state?.account?.features?.socialAgent?.usage || {};
@@ -1774,17 +1884,25 @@ function renderAgentWorkspace() {
       <div class="agent-plan-top"><div><strong>${escapeHtml(plan.prompt)}</strong><p>${escapeHtml((plan.platforms || []).join(', '))} · ${escapeHtml(mode)} organic automation</p></div><div class="agent-plan-badges"><span class="agent-mode-badge">${mode}</span><span class="agent-plan-status status-${escapeHtml(String(plan.status).toLowerCase())}">${escapeHtml(plan.status.replaceAll('_', ' '))}</span></div></div>
       <div class="agent-plan-metrics"><div><span>Current plan</span><strong>${escapeHtml(agentOverview?.license?.plan || 'TRIAL')}</strong><small>Social Agent access</small></div><div><span>Agent missions used</span><strong>${Number(usage.used || 0).toLocaleString()} / ${usageLimit}</strong><small>this plan period</small></div><div><span>Remaining</span><strong>${usageRemaining}</strong><small>new missions available</small></div><div><span>Usage resets</span><strong>${escapeHtml(periodEnd)}</strong><small>${completed}/${plan.tasks?.length || 0} tasks complete · ${running} active · ${waiting} waiting</small></div></div>
       ${plan.lastError ? `<div class="agent-runtime-error">${escapeHtml(plan.lastError)}</div>` : ''}
+      ${renderAgentActionCentre(plan.tasks || [])}
+      <section class="agent-task-board"><header><div><span>MISSION TASKS</span><strong>${escapeHtml(plan.prompt.slice(0, 90))}</strong></div><div class="agent-overall-progress"><b>${progressPercent}%</b><small>${completed} of ${totalTasks} complete</small></div></header><div class="agent-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progressPercent}"><i style="width:${progressPercent}%"></i></div>
       <div class="agent-task-list">${(plan.tasks || []).map(item => {
         const output = item.output?.content || item.output?.message || '';
-        return `<article class="agent-task status-${escapeHtml(String(item.status).toLowerCase())}"><span>${item.sequence}</span><div><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.description)}</p>${output ? `<details><summary>View saved output</summary><pre>${escapeHtml(output)}</pre></details>` : ''}</div><span class="agent-task-state">${escapeHtml(String(item.status).replaceAll('_', ' '))}</span></article>`;
-      }).join('')}</div>
+        const status = String(item.status || 'PENDING').toLowerCase();
+        const guidance = agentTaskGuidance(item);
+        const progressClass = item.status === 'RUNNING' ? 'indeterminate' : '';
+        const taskProgress = item.status === 'COMPLETED' ? 100 : item.status === 'RUNNING' ? 58 : (String(item.status).startsWith('WAITING') || item.status === 'ACTION_REQUIRED' || item.status === 'FAILED') ? 42 : item.status === 'QUEUED' ? 12 : 4;
+        return `<article class="agent-task status-${escapeHtml(status)}"><span>${item.sequence}</span><div class="agent-task-body"><header><strong>${escapeHtml(item.title)}</strong><span class="agent-task-state">${escapeHtml(agentTaskStatusLabel(item.status))}</span></header><p>${escapeHtml(item.description)}</p><div class="agent-task-progress ${progressClass}"><i style="width:${taskProgress}%"></i></div>${guidance ? `<div class="agent-task-guidance ${guidance.passive ? 'passive' : ''}"><b>${guidance.passive ? 'NEXT' : 'ACTION'}</b><span>${escapeHtml(guidance.title)}</span><p>${escapeHtml(guidance.body)}</p></div>` : ''}${output ? `<details data-agent-task-id="${escapeHtml(item.id)}" ${openAgentTaskOutputs.has(item.id) ? 'open' : ''}><summary>View saved output</summary><pre>${escapeHtml(output)}</pre></details>` : ''}</div></article>`;
+      }).join('')}</div></section>
       <div class="agent-plan-actions"><button id="btnAgentCancelPlan" class="btn ghost subtle-danger" type="button" ${['CANCELLED','COMPLETED'].includes(plan.status) ? 'disabled' : ''}>Cancel mission</button>${canResume ? '<button id="btnAgentResumePlan" class="btn secondary" type="button">Resume mission</button>' : ''}${canApprove ? '<button id="btnAgentApprovePlan" class="btn primary" type="button">Approve &amp; run</button>' : ''}</div>
     </div>`;
   document.getElementById('agentPlanSelect')?.addEventListener('change', event => { activeAgentPlanId = event.target.value; renderAgentWorkspace(); });
   workspace.querySelectorAll('[data-agent-plan-id]').forEach(button => button.addEventListener('click', () => { activeAgentPlanId = button.dataset.agentPlanId; renderAgentWorkspace(); }));
+  workspace.querySelectorAll('[data-agent-action-view]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.agentActionView)));
   document.getElementById('btnAgentApprovePlan')?.addEventListener('click', approveAgentPlan);
   document.getElementById('btnAgentResumePlan')?.addEventListener('click', resumeAgentPlan);
   document.getElementById('btnAgentCancelPlan')?.addEventListener('click', cancelAgentPlan);
+  restoreAgentWorkspaceUi(workspace, uiSnapshot);
 }
 
 function renderAgentIntelligence() {
@@ -1801,16 +1919,20 @@ function renderAgentIntelligence() {
   if (core) core.querySelector('small').textContent = plan?.status ? String(plan.status).replaceAll('_', ' ') : (brain.configured ? 'READY' : 'OFFLINE');
   const feed = document.getElementById('agentLiveFeed');
   const events = plan?.events || [];
-  if (feed) feed.innerHTML = events.length ? events.map((item,index) => `<article class="agent-feed-event status-${escapeHtml(String(item.status).toLowerCase())} ${index===0?'latest':''}"><i></i><div><header><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(String(item.status))}</span></header><p>${escapeHtml(item.message)}</p><time>${escapeHtml(new Date(item.createdAt).toLocaleString())}</time></div></article>`).join('') : '<div class="workspace-empty">No runtime events yet.</div>';
+  if (feed) feed.innerHTML = events.length ? events.map((item,index) => {
+    const eventStatus = agentTaskStatusLabel(item.status);
+    return `<article class="agent-feed-event status-${escapeHtml(String(item.status).toLowerCase())} ${index===0?'latest':''}"><i></i><div><header><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(eventStatus)}</span></header><p>${escapeHtml(item.message)}</p><footer><b>${escapeHtml(String(item.type || 'MISSION').replaceAll('_', ' '))}</b><time>${escapeHtml(new Date(item.createdAt).toLocaleString())}</time></footer></div></article>`;
+  }).join('') : '<div class="workspace-empty">No runtime events yet.</div>';
   const tasks = plan?.tasks || [];
   const activeTask = tasks.find(item => item.status === 'RUNNING') || tasks.find(item => ['QUEUED','PENDING'].includes(item.status)) || tasks.find(item => String(item.status).startsWith('WAITING') || item.status === 'ACTION_REQUIRED');
   const completedTasks = tasks.filter(item => item.status === 'COMPLETED').slice(-3).reverse();
   const count = document.getElementById('agentMemoryCount');
   if (count) count.textContent = activeTask ? String(activeTask.status).replaceAll('_', ' ') : (plan ? 'IDLE' : 'READY');
   const grid = document.getElementById('agentMemoryGrid');
+  const activeGuidance = agentTaskGuidance(activeTask);
   if (grid) grid.innerHTML = plan ? `
-    ${activeTask ? `<article class="thinking-now"><header><span>NOW</span><b>${escapeHtml(String(activeTask.status).replaceAll('_', ' '))}</b></header><strong>${escapeHtml(activeTask.title)}</strong><p>${escapeHtml(activeTask.output?.message || activeTask.description)}</p><small>${String(activeTask.status).startsWith('WAITING') || activeTask.status === 'ACTION_REQUIRED' ? 'The mission will continue with every independent AI task.' : 'This is a factual activity summary, not hidden model reasoning.'}</small></article>` : '<div class="workspace-empty">No active step. The mission has finished its available AI work.</div>'}
-    ${completedTasks.map(item => `<article class="thinking-done"><header><span>COMPLETED</span><b>✓</b></header><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.output?.content || item.output?.message || 'Output saved successfully.')}</p><small>Saved result · reusable learning requires administrator approval</small></article>`).join('')}
+    ${activeTask ? `<article class="thinking-now"><header><span>CURRENT STEP</span><b>${escapeHtml(agentTaskStatusLabel(activeTask.status))}</b></header><strong>${escapeHtml(activeTask.title)}</strong><p>${escapeHtml(activeTask.output?.message || activeTask.description)}</p><div class="thinking-stage"><span>1</span><p><b>Working on</b>${escapeHtml(activeTask.description)}</p></div>${activeGuidance ? `<div class="thinking-stage ${activeGuidance.passive ? '' : 'needs-action'}"><span>2</span><p><b>${activeGuidance.passive ? 'Next' : 'Blocked by'}</b>${escapeHtml(activeGuidance.body)}</p></div>` : '<div class="thinking-stage"><span>2</span><p><b>Next</b>The result will be saved to this task and added to the mission timeline.</p></div>'}<small>Factual execution summary · private chain-of-thought is not displayed.</small></article>` : '<div class="workspace-empty">No active step. The mission has finished all currently available work.</div>'}
+    ${completedTasks.map(item => `<article class="thinking-done"><header><span>RECENT RESULT</span><b>✓</b></header><strong>${escapeHtml(item.title)}</strong><p>${escapeHtml(item.output?.content || item.output?.message || 'Output saved successfully.')}</p><small>Saved result · reusable learning requires administrator approval</small></article>`).join('')}
     ${agentOverview?.pendingMemoryCount ? `<div class="thinking-learning">${agentOverview.pendingMemoryCount} learning candidate(s) are awaiting administrator review.</div>` : ''}` : '<div class="workspace-empty">Launch a mission to see what the agent is doing step by step.</div>';
 }
 

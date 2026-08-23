@@ -52,7 +52,7 @@ test('Page pictures use an authenticated Graph image fallback', () => {
   assert.match(controller, /responseType:\s*'arraybuffer'/);
 });
 
-test('Social Agent exposes Autopilot, Hybrid, live activity and factual Agent Thinking', () => {
+test('Social Agent exposes Autopilot, Hybrid and a professional factual mission workspace', () => {
   const html = read('studio/index.html');
   const app = read('studio/app.js');
   const admin = read('public/index.html');
@@ -61,10 +61,12 @@ test('Social Agent exposes Autopilot, Hybrid, live activity and factual Agent Th
   assert.match(html, /id="agentMissionCore"/);
   assert.match(html, /id="agentLiveFeed"/);
   assert.match(html, /id="agentMemoryGrid"/);
-  assert.match(html, /Agent Thinking/);
-  assert.match(html, /Safe step-by-step work summaries/);
-  assert.match(html, /Private model chain-of-thought is never exposed/);
+  assert.match(html, /Mission timeline/);
+  assert.match(html, /Agent work monitor/);
+  assert.match(html, /Private model chain-of-thought is never displayed/);
   assert.doesNotMatch(html, />Working memory</);
+  assert.doesNotMatch(html, /Media budget mode/);
+  assert.match(html, /Visual content method/);
   assert.match(app, /resumeAgentPlan/);
   assert.match(admin, /AI Model Routing/);
   assert.match(admin, /Video generation policy/);
@@ -75,6 +77,10 @@ test('Social Agent exposes Autopilot, Hybrid, live activity and factual Agent Th
   assert.match(app, /FIFO · one mission at a time/);
   assert.match(app, /Agent missions used/);
   assert.match(app, /new missions available/);
+  assert.match(app, /ACTION CENTRE/);
+  assert.match(app, /MISSION TASKS/);
+  assert.match(app, /openAgentTaskOutputs/);
+  assert.match(app, /restoreAgentWorkspaceUi/);
   assert.doesNotMatch(app, /Disclosed AI route/);
   assert.doesNotMatch(app, /Maximum estimate/);
   assert.doesNotMatch(app, /Actual paid usage/);

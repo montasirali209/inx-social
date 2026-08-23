@@ -213,7 +213,7 @@
                 <label><input class="agent-platform" type="checkbox" value="youtube"><span>YouTube</span></label>
                 <label><input class="agent-platform" type="checkbox" value="tiktok"><span>TikTok</span></label>
               </div></fieldset>
-              <label>Media budget mode<select id="agentExecutionMode"><option value="INX_TEMPLATE">Economy — INX branded template video</option><option value="WAN_2_2_FAST">Generative — Wan 2.2 Fast</option><option value="LTX_2_3_FAST">Quality benchmark — LTX 2.3 Fast</option></select></label>
+              <label>Visual content method<select id="agentExecutionMode"><option value="INX_TEMPLATE">Branded templates — no external AI video</option><option value="WAN_2_2_FAST">AI video — Wan 2.2 Fast</option><option value="LTX_2_3_FAST">AI video — LTX 2.3 Fast</option></select><small class="agent-field-help">Used only when your mission requests images or video. Text-only missions skip media creation.</small></label>
               <div class="agent-guardrail"><strong>Organic automation guardrail</strong><span>Autopilot never starts paid ads, spends money, deletes a Page, or changes ownership/security. Media-provider availability is shown before a request.</span></div>
               <button id="btnAgentCreatePlan" class="btn primary wide jarvis-launch" type="submit">Launch mission</button>
             </form>
@@ -225,8 +225,8 @@
           </section>
 
           <aside class="agent-intelligence-rail">
-            <section class="panel agent-feed-card"><div class="panel-head"><div><h3>Live agent activity</h3><p>Actual task events and dependencies</p></div><span class="live-signal">LIVE</span></div><div id="agentLiveFeed" class="agent-live-feed"><div class="workspace-empty">No activity yet.</div></div></section>
-            <section class="panel agent-memory-card agent-thinking-card"><div class="panel-head"><div><h3>Agent Thinking</h3><p>Safe step-by-step work summaries</p></div><span id="agentMemoryCount" class="memory-count">READY</span></div><div id="agentMemoryGrid" class="agent-memory-grid agent-thinking-grid"><div class="workspace-empty">Launch a mission to see what the agent is doing.</div></div><small class="thinking-privacy">Operational summaries are shown here. Private model chain-of-thought is never exposed.</small></section>
+            <section class="panel agent-feed-card"><div class="panel-head"><div><h3>Mission timeline</h3><p>Newest status, completed work and blockers</p></div><span class="live-signal">LIVE</span></div><div id="agentLiveFeed" class="agent-live-feed"><div class="workspace-empty">No activity yet.</div></div></section>
+            <section class="panel agent-memory-card agent-thinking-card"><div class="panel-head"><div><h3>Agent work monitor</h3><p>What INX Agent is doing and what happens next</p></div><span id="agentMemoryCount" class="memory-count">READY</span></div><div id="agentMemoryGrid" class="agent-memory-grid agent-thinking-grid"><div class="workspace-empty">Launch a mission to see its work.</div></div><small class="thinking-privacy">This shows factual work summaries, outputs and blockers. Private model chain-of-thought is never displayed.</small></section>
           </aside>
         </div>
       </section>
