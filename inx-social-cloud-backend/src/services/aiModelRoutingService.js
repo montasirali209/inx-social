@@ -81,6 +81,7 @@ function normalizeImagePolicy(value) {
     enabled: parsed?.enabled !== false,
     provider: 'OLLAMA_IMAGE',
     model: cleanModel(parsed?.model, env.ollama.imageModel),
+    qualityModel: cleanModel(parsed?.qualityModel, process.env.OLLAMA_QUALITY_IMAGE_MODEL || 'x/flux2-klein:4b'),
     size: ['1024x1024', '1024x1536', '1536x1024'].includes(parsed?.size) ? parsed.size : '1024x1024',
     maxAssetsPerMission: Math.max(1, Math.min(4, Number(parsed?.maxAssetsPerMission || 2)))
   };

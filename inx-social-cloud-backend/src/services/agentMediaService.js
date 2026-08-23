@@ -6,7 +6,11 @@ const brain = require('./agentBrainService');
 const routing = require('./aiModelRoutingService');
 
 function status() {
-  return { configured: Boolean(env.ollama.baseUrl && env.ollama.imageModel), provider: 'OLLAMA_IMAGE', imageModel: env.ollama.imageModel };
+  return { configured: Boolean(env.ollama.baseUrl && env.ollama.imageModel), generationChoices: ['IMAGE_FAST', 'IMAGE_QUALITY'] };
+}
+
+function resolveImageModel(policy, generationChoice) {
+  return generationChoice === 'IMAGE_QUALITY' ? policy.qualityModel : policy.model;
 }
 
 function imageType(data) {
@@ -38,6 +42,9 @@ async function generateImages(plan, task, dependencies = {}) {
   if (typeof prisma.agentAsset?.create !== 'function') throw Object.assign(new Error('Generated asset storage is not available.'), { code: 'ASSET_STORAGE_UNAVAILABLE' });
   let strategy = {};
   try { strategy = JSON.parse(plan.strategyJson || '{}'); } catch (_) {}
+  const generationChoice = strategy.mediaModel === 'IMAGE_QUALITY' ? 'IMAGE_QUALITY' : 'IMAGE_FAST';
+  const selectedModel = resolveImageModel(policy, generationChoice);
+  if (!selectedModel) throw Object.assign(new Error('The selected image-generation mode is not configured.'), { code: 'OLLAMA_NOT_CONFIGURED' });
   const requested = Math.max(1, Number(strategy.assetCount || 1));
   const count = Math.min(requested, policy.maxAssetsPerMission);
   const http = dependencies.http || axios;
@@ -45,7 +52,7 @@ async function generateImages(plan, task, dependencies = {}) {
   for (let index = 0; index < count; index += 1) {
     const prompt = imagePrompt(plan, task, index);
     const response = await http.post(`${env.ollama.baseUrl}/v1/images/generations`, {
-      model: policy.model || env.ollama.imageModel,
+      model: selectedModel,
       prompt,
       size: policy.size,
       response_format: 'b64_json'
@@ -73,4 +80,4 @@ async function generateImages(plan, task, dependencies = {}) {
   return { content: `${assets.length} branded image${assets.length === 1 ? '' : 's'} generated and saved.`, summary: `Generated ${assets.length} of ${requested} requested assets in this bounded local run.`, assets };
 }
 
-module.exports = { status, imageType, imagePrompt, generateImages };
+module.exports = { status, imageType, imagePrompt, resolveImageModel, generateImages };

@@ -9,6 +9,7 @@ router.post('/assets', controller.uploadAsset);
 router.get('/assets/:id/content', controller.assetContent);
 router.delete('/assets/:id', controller.deleteAsset);
 router.post('/plans', controller.createPlan);
+router.post('/preflight', controller.preflightMission);
 router.post('/plans/:id/approve', controller.approvePlan);
 router.post('/plans/:id/resume', controller.resumePlan);
 router.post('/plans/:id/cancel', controller.cancelPlan);

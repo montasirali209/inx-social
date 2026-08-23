@@ -821,6 +821,7 @@
     uploadAgentAsset: async payload => api('/api/agent/assets', { method: 'POST', body: JSON.stringify(payload) }),
     deleteAgentAsset: async id => api(`/api/agent/assets/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     getAgentAssetUrl: agentAssetUrl,
+    preflightAgentMission: async payload => api('/api/agent/preflight', { method: 'POST', body: JSON.stringify(payload) }),
     createAgentPlan: async payload => api('/api/agent/plans', { method: 'POST', body: JSON.stringify(payload) }),
     approveAgentPlan: async id => api(`/api/agent/plans/${encodeURIComponent(id)}/approve`, { method: 'POST', body: '{}' }),
     resumeAgentPlan: async id => api(`/api/agent/plans/${encodeURIComponent(id)}/resume`, { method: 'POST', body: '{}' }),

@@ -13,7 +13,7 @@ test('Phase 11.4.2 presents explicit content outputs, model credits and a custom
   }
   assert.match(html, /class="agent-file-picker"/);
   assert.match(html, /id="agentCreditPreview"/);
-  assert.match(html, /Activity history/);
+  assert.match(html, /Mission intelligence/);
   assert.match(html, /Live work monitor/);
 });
 

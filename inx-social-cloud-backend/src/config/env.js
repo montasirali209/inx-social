@@ -53,5 +53,13 @@ module.exports = {
     apiKey: process.env.AI_PAID_FALLBACK_API_KEY || '',
     model: process.env.AI_PAID_FALLBACK_MODEL || '',
     maxCallsPerMission: Math.max(0, Math.min(5, Number(process.env.AI_PAID_FALLBACK_MAX_CALLS_PER_MISSION || 1)))
+  },
+  webResearch: {
+    enabled: String(process.env.WEB_RESEARCH_ENABLED || 'false') === 'true',
+    baseUrl: String(process.env.WEB_RESEARCH_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, ''),
+    apiKey: process.env.WEB_RESEARCH_API_KEY || '',
+    model: process.env.WEB_RESEARCH_MODEL || 'gpt-5-mini',
+    timeoutMs: Math.max(10000, Number(process.env.WEB_RESEARCH_TIMEOUT_MS || 120000)),
+    maxSources: Math.max(1, Math.min(10, Number(process.env.WEB_RESEARCH_MAX_SOURCES || 5)))
   }
 };

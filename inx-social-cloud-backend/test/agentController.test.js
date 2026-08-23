@@ -64,13 +64,16 @@ test('non-Facebook missions do not require Facebook Page targets', async () => {
 test('customer plan output never exposes private routes, models or provider costs', () => {
   const plan = controller.publicPlan({
     id: 'plan-private', prompt: 'test', status: 'COMPLETED', platformsJson: '["facebook"]',
-    strategyJson: JSON.stringify({ provider: { label: 'Private provider', estimatedCostCents: 99 }, assetCount: 1 }),
+    strategyJson: JSON.stringify({ provider: { label: 'Private provider', estimatedCostCents: 99 }, assetCount: 1, mediaModel: 'WAN_2_2_FAST', executionMode: 'WAN_2_2_FAST' }),
     estimatedCostCents: 99, lastError: 'https://private-gateway.example/model failed',
-    tasks: [{ id: 'task-private', sequence: 1, title: 'Write', description: 'Write copy', status: 'COMPLETED', outputJson: JSON.stringify({ provider: 'paid-fallback', model: 'private/model', content: 'Customer-safe output' }) }],
+    tasks: [{ id: 'task-private', sequence: 1, title: 'Write', description: 'Write copy', status: 'COMPLETED', executionMode: 'WAN_2_2_FAST', outputJson: JSON.stringify({ provider: 'paid-fallback', model: 'private/model', content: 'Customer-safe output' }) }],
     events: [{ id: 'event-private', title: 'Done', message: 'Output saved.', status: 'SUCCESS', metadataJson: JSON.stringify({ provider: 'paid-fallback', model: 'private/model' }), createdAt: new Date() }]
   });
   assert.equal(plan.estimatedCostCents, undefined);
   assert.equal(plan.strategy.provider, undefined);
+  assert.equal(plan.strategy.mediaModel, 'VIDEO_QUALITY');
+  assert.equal(plan.strategy.executionMode, 'VIDEO_QUALITY');
+  assert.equal(plan.tasks[0].executionMode, 'VIDEO_QUALITY');
   assert.equal(plan.tasks[0].output.model, undefined);
   assert.equal(plan.tasks[0].output.provider, undefined);
   assert.equal(plan.events[0].metadata, undefined);

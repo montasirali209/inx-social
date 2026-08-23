@@ -11,6 +11,7 @@ let labVideoPath = '';
 let accountMode = 'login';
 let cloudWorkspace = { accounts: [], pages: [], activePage: null, pageUsage: null, plan: null };
 let studioActionModalResolver = null;
+let studioActionModalResultFactory = null;
 let metaScheduledPosts = [];
 let metaScheduleLoaded = false;
 let metaScheduleLoading = false;
@@ -111,9 +112,11 @@ function closeStudioActionModal(result) {
   if (!modal || modal.classList.contains('hidden')) return;
   modal.classList.remove('is-visible');
   const resolve = studioActionModalResolver;
+  const resultFactory = studioActionModalResultFactory;
   studioActionModalResolver = null;
+  studioActionModalResultFactory = null;
   window.setTimeout(() => modal.classList.add('hidden'), 180);
-  if (resolve) resolve(Boolean(result));
+  if (resolve) resolve(result && resultFactory ? resultFactory() : Boolean(result));
 }
 
 function showStudioConfirm(options = {}) {
@@ -124,6 +127,7 @@ function showStudioConfirm(options = {}) {
     studioActionModalResolver = null;
     previous(false);
   }
+  studioActionModalResultFactory = null;
   const card = document.getElementById('studioActionCard');
   const eyebrow = document.getElementById('studioActionEyebrow');
   const title = document.getElementById('studioActionTitle');
@@ -1777,6 +1781,22 @@ function fileAsDataUrl(file) {
   });
 }
 
+function showMissionClarification(analysis) {
+  const modal = document.getElementById('studioActionModal');
+  if (!modal) return Promise.resolve('');
+  showStudioConfirm({ eyebrow: 'INX Agent needs one detail', title: analysis.question || 'What should this mission prioritise?', message: analysis.understanding || 'Choose the closest answer or write your own.', icon: '?', tone: 'info', confirmText: 'Continue mission', cancelText: 'Cancel' });
+  const details = document.getElementById('studioActionDetails');
+  if (details) {
+    details.innerHTML = `<div class="agent-clarification-options">${(analysis.options || []).map((option, index) => `<label><input type="radio" name="agentClarification" value="${escapeHtml(option)}" ${index === 0 ? 'checked' : ''}><span>${escapeHtml(option)}</span></label>`).join('')}<label class="agent-clarification-custom"><span>Or tell the agent</span><input id="agentClarificationCustom" maxlength="500" placeholder="Add the missing goal, audience, offer or requirement"></label></div>`;
+    details.classList.remove('hidden');
+  }
+  studioActionModalResultFactory = () => document.getElementById('agentClarificationCustom')?.value.trim() || document.querySelector('input[name="agentClarification"]:checked')?.value || '';
+  return new Promise(resolve => {
+    const original = studioActionModalResolver;
+    studioActionModalResolver = value => { original?.(value); resolve(value); };
+  });
+}
+
 function updateAgentBrandFileName() {
   const file = document.getElementById('agentBrandAssetFile')?.files?.[0];
   const target = document.getElementById('agentBrandAssetFileName');
@@ -1784,17 +1804,17 @@ function updateAgentBrandFileName() {
 }
 
 function selectedAgentContentOutput() {
-  return document.querySelector('.agent-output-type:checked')?.value || 'IMAGE';
+  return document.querySelector('.agent-output-type:checked')?.value || 'AUTO';
 }
 
 function compatibleAgentModels(outputType) {
   const kind = outputType === 'TEXT' ? 'text' : ['IMAGE', 'CAROUSEL'].includes(outputType) ? 'image' : 'video';
   const catalog = agentOverview?.mediaModels || [
     { code: 'TEXT_ONLY', label: 'No media model', kind: 'text', creditsPerAsset: 0, eligible: true },
-    { code: 'OLLAMA_IMAGE', label: 'Private INX image worker', kind: 'image', creditsPerAsset: 0, eligible: true },
-    { code: 'INX_TEMPLATE', label: 'INX branded template', kind: 'template', creditsPerAsset: 1, eligible: true },
-    { code: 'WAN_2_2_FAST', label: 'Wan 2.2 Fast', kind: 'generative-video', creditsPerAsset: 3, eligible: true },
-    { code: 'LTX_2_3_FAST', label: 'LTX 2.3 Fast', kind: 'generative-video', creditsPerAsset: 6, eligible: true }
+    { code: 'IMAGE_FAST', label: 'Fast generation', description: 'Quicker results for everyday social posts.', kind: 'image', creditsPerAsset: 0, eligible: true },
+    { code: 'IMAGE_QUALITY', label: 'Quality generation', description: 'Takes longer and prioritises detail.', kind: 'image', creditsPerAsset: 0, eligible: true },
+    { code: 'VIDEO_FAST', label: 'Fast video generation', kind: 'template', creditsPerAsset: 1, eligible: true },
+    { code: 'VIDEO_QUALITY', label: 'Quality video generation', kind: 'generative-video', creditsPerAsset: 3, eligible: true }
   ];
   return catalog.filter(model => kind === 'video' ? ['template', 'generative-video'].includes(model.kind) : model.kind === kind);
 }
@@ -1804,6 +1824,8 @@ function updateAgentContentControls() {
   const field = document.getElementById('agentMediaModelField');
   const select = document.getElementById('agentExecutionMode');
   if (!field || !select) return;
+  field.classList.toggle('hidden', outputType === 'AUTO');
+  if (outputType === 'AUTO') return;
   const models = compatibleAgentModels(outputType);
   const previous = select.value;
   select.innerHTML = models.map(model => `<option value="${escapeHtml(model.code)}" ${model.eligible === false ? 'disabled' : ''}>${escapeHtml(model.label)}${model.eligible === false ? ` — ${escapeHtml(model.minimumPlan || 'higher plan')} required` : ` — ${Number(model.creditsPerAsset || 0)} credit${Number(model.creditsPerAsset || 0) === 1 ? '' : 's'} / asset`}</option>`).join('');
@@ -1823,7 +1845,7 @@ function updateAgentCreditPreview() {
   const assetCount = Math.max(1, Math.min(100, Number(countMatch?.[1] || 1)));
   const credits = Number(model.creditsPerAsset || 0) * assetCount;
   preview.querySelector('strong').textContent = `${credits} estimated`;
-  preview.querySelector('small').textContent = model.creditsPerAsset ? `${model.creditsPerAsset} per asset. Deduction activates when provider billing is enabled.` : 'Included local processing — no paid media credits.';
+  preview.querySelector('small').textContent = model.creditsPerAsset ? `${model.creditsPerAsset} per asset. Deduction activates when provider billing is enabled.` : `${model.description || 'Included local processing.'} No paid media credits.`;
 }
 
 async function uploadAgentBrandAsset() {
@@ -1884,7 +1906,17 @@ async function createAgentPlan(event) {
   if (button) { button.disabled = true; button.textContent = 'Launching mission…'; }
   try {
     const operationMode = document.querySelector('.agent-operation-mode:checked')?.value || 'HYBRID';
-    const result = await window.schedulerApi.createAgentPlan({ prompt, platforms, targetPageIds, referenceAssetIds: [...agentSelectedAssetIds], operationMode, contentOutput: selectedAgentContentOutput(), mediaModel: document.getElementById('agentExecutionMode')?.value });
+    const requestedOutput = selectedAgentContentOutput();
+    const preflight = await window.schedulerApi.preflightAgentMission({ prompt, platforms });
+    let finalPrompt = prompt;
+    if (preflight.analysis?.needsClarification) {
+      const answer = await showMissionClarification(preflight.analysis);
+      if (!answer) return;
+      finalPrompt = `${prompt}\n\nCustomer clarification: ${answer}`;
+    }
+    const contentOutput = requestedOutput === 'AUTO' ? preflight.analysis?.inferredContentOutput || 'IMAGE' : requestedOutput;
+    const mediaModel = contentOutput === 'TEXT' ? 'TEXT_ONLY' : ['IMAGE','CAROUSEL'].includes(contentOutput) ? (preflight.analysis?.generationPreference === 'QUALITY' ? 'IMAGE_QUALITY' : 'IMAGE_FAST') : (preflight.analysis?.generationPreference === 'QUALITY' ? 'VIDEO_QUALITY' : 'VIDEO_FAST');
+    const result = await window.schedulerApi.createAgentPlan({ prompt: finalPrompt, platforms, targetPageIds, referenceAssetIds: [...agentSelectedAssetIds], operationMode, contentOutput, mediaModel: requestedOutput === 'AUTO' ? mediaModel : document.getElementById('agentExecutionMode')?.value });
     agentOverview = agentOverview || { plans: [] };
     agentOverview.plans = [result.plan, ...(agentOverview.plans || []).filter(plan => plan.id !== result.plan.id)];
     activeAgentPlanId = result.plan.id;
@@ -1908,6 +1940,7 @@ function agentTaskStatusLabel(status) {
     WAITING_ASSETS: 'Waiting for approved assets',
     WAITING_PLATFORM: 'Waiting for platform results',
     WAITING_DEPENDENCY: 'Dependency required',
+    WAITING_RESEARCH: 'Research connection required',
     COMPLETED: 'Completed',
     RUNNING: 'In progress',
     QUEUED: 'Queued',
@@ -1930,12 +1963,17 @@ function agentTaskGuidance(task) {
   if (status === 'WAITING_PROVIDER') return {
     title: 'Connect the private INX Agent',
     body: savedMessage || 'The Ollama gateway is unavailable. Keep Ollama, the INX gateway and the ngrok tunnel running, verify the Railway URL and token, then resume this mission.',
-    steps: ['Confirm Ollama and the INX gateway are running on the Mac.', 'Confirm the ngrok tunnel is online and Railway uses its current HTTPS URL.', 'Resume this mission after the connection is restored.']
+    steps: ['Confirm Ollama and the INX gateway are running on the Mac.', 'Confirm the ngrok tunnel is online and Railway uses its current HTTPS URL.', 'Resume this mission after the connection is restored.'], actionResume: true
   };
   if (status === 'WAITING_MEDIA_WORKER') return {
     title: 'Choose or connect a visual-content worker',
     body: savedMessage || 'The strategy work is ready, but the requested image or video cannot be produced until the selected visual-content method is available.',
-    steps: ['Choose another available model for a new mission.', 'An administrator can enable the requested worker.', 'Resume after the worker is available.'], passive: true
+    steps: ['Confirm the private visual worker is online.', 'Ask an administrator to enable the requested route if needed.', 'Select Resume mission after the worker is available.'], actionResume: true
+  };
+  if (status === 'WAITING_RESEARCH') return {
+    title: 'Connect current-web research',
+    body: savedMessage || 'Current research was not available, so the agent did not claim to have searched the web.',
+    steps: ['An administrator can enable the governed research connection.', 'The completed mission work remains safe.', 'Resume the mission to add sourced current research.'], actionResume: true
   };
   if (status === 'WAITING_REVIEW') return {
     title: 'Review the prepared content',
@@ -1999,7 +2037,26 @@ function restoreAgentWorkspaceUi(workspace, snapshot) {
 function renderAgentActionCentre(tasks) {
   const blockers = tasks.map(task => ({ task, guidance: agentTaskGuidance(task) })).filter(item => item.guidance && !item.guidance.passive);
   if (!blockers.length) return '';
-  return `<section class="agent-action-centre"><header><div><span>ACTION CENTRE</span><strong>${blockers.length} task${blockers.length === 1 ? '' : 's'} need attention</strong></div><b>${blockers.length}</b></header>${blockers.map(({ task, guidance }) => `<article><div class="agent-action-icon">!</div><div><strong>${escapeHtml(guidance.title)}</strong><p>${escapeHtml(guidance.body)}</p><ol>${guidance.steps.map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol></div>${guidance.actionView ? `<button type="button" class="btn secondary compact" data-agent-action-view="${escapeHtml(guidance.actionView)}">${escapeHtml(guidance.actionLabel)}</button>` : ''}</article>`).join('')}</section>`;
+  return `<section class="agent-action-centre"><header><div><span>ACTION CENTER</span><strong>${blockers.length} task${blockers.length === 1 ? '' : 's'} need attention</strong></div><b>${blockers.length}</b></header>${blockers.map(({ task, guidance }) => `<article role="button" tabindex="0" data-agent-task-detail="${escapeHtml(task.id)}"><div class="agent-action-icon">!</div><div><strong>${escapeHtml(guidance.title)}</strong><p>${escapeHtml(guidance.body)}</p><small>Click to review the exact task and next action</small></div>${guidance.actionView ? `<button type="button" class="btn secondary compact" data-agent-action-view="${escapeHtml(guidance.actionView)}">${escapeHtml(guidance.actionLabel)}</button>` : guidance.actionResume ? '<button type="button" class="btn secondary compact" data-agent-action-resume>Retry mission</button>' : '<span class="agent-action-open">Open →</span>'}</article>`).join('')}</section>`;
+}
+
+function openAgentTaskDetail(taskId) {
+  const task = selectedAgentPlan()?.tasks?.find(item => item.id === taskId);
+  if (!task) return;
+  const guidance = agentTaskGuidance(task);
+  const output = task.output?.content || task.output?.summary || task.output?.message || 'No saved output is available yet.';
+  const sources = (task.output?.sources || []).map(source => `${source.title}: ${source.url}`);
+  showStudioConfirm({
+    eyebrow: `Mission task ${task.sequence}`,
+    title: task.title,
+    message: `${agentTaskStatusLabel(task.status)} — ${task.description}`,
+    icon: task.status === 'COMPLETED' ? '✓' : String(task.status).startsWith('WAITING') || task.status === 'ACTION_REQUIRED' ? '!' : 'i',
+    tone: task.status === 'COMPLETED' ? 'success' : guidance ? 'warning' : 'info',
+    metrics: [{ label: 'Status', value: agentTaskStatusLabel(task.status) }, { label: 'Risk', value: task.riskLevel || 'LOW' }],
+    details: [...(guidance?.steps || []), output, ...sources],
+    confirmText: guidance ? 'Understood' : 'Close',
+    cancelText: ''
+  });
 }
 
 function renderAgentWorkspace() {
@@ -2050,19 +2107,19 @@ function renderAgentWorkspace() {
       ${renderAgentActionCentre(plan.tasks || [])}
       <section class="agent-task-board"><header><div><span>MISSION TASKS</span><strong>${escapeHtml(plan.prompt.slice(0, 90))}</strong></div><div class="agent-overall-progress"><b>${progressPercent}%</b><small>${completed} of ${totalTasks} complete</small></div></header><div class="agent-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progressPercent}"><i style="width:${progressPercent}%"></i></div>
       <div class="agent-task-list">${(plan.tasks || []).map(item => {
-        const output = item.output?.content || item.output?.message || '';
         const status = String(item.status || 'PENDING').toLowerCase();
-        const guidance = agentTaskGuidance(item);
-        const progressClass = item.status === 'RUNNING' ? 'indeterminate' : '';
-        const taskProgress = item.status === 'COMPLETED' ? 100 : item.status === 'RUNNING' ? 58 : (String(item.status).startsWith('WAITING') || item.status === 'ACTION_REQUIRED' || item.status === 'FAILED') ? 42 : item.status === 'QUEUED' ? 12 : 4;
-        const assetGallery = (item.output?.assets || []).length ? `<div class="agent-generated-assets">${item.output.assets.map(asset => `<button type="button" data-agent-generated-asset="${escapeHtml(asset.id)}"><span>Generated image</span></button>`).join('')}</div>` : '';
-        return `<article class="agent-task status-${escapeHtml(status)}"><span>${item.sequence}</span><div class="agent-task-body"><header><strong>${escapeHtml(item.title)}</strong><span class="agent-task-state">${escapeHtml(agentTaskStatusLabel(item.status))}</span></header><p>${escapeHtml(item.description)}</p><div class="agent-task-progress ${progressClass}"><i style="width:${taskProgress}%"></i></div>${output || assetGallery ? `<details data-agent-task-id="${escapeHtml(item.id)}" ${openAgentTaskOutputs.has(item.id) ? 'open' : ''}><summary>View saved output</summary>${output ? `<pre>${escapeHtml(output)}</pre>` : ''}${assetGallery}</details>` : ''}</div></article>`;
+        return `<button type="button" class="agent-task agent-task-row status-${escapeHtml(status)}" data-agent-task-detail="${escapeHtml(item.id)}"><span>${item.sequence}</span><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(agentTaskStatusLabel(item.status))}</small><i aria-hidden="true">›</i></button>`;
       }).join('')}</div></section>
       <div class="agent-plan-actions"><button id="btnAgentCancelPlan" class="btn ghost subtle-danger" type="button" ${['CANCELLED','COMPLETED'].includes(plan.status) ? 'disabled' : ''}>Cancel mission</button>${canResume ? '<button id="btnAgentResumePlan" class="btn secondary" type="button">Resume mission</button>' : ''}${canApprove ? '<button id="btnAgentApprovePlan" class="btn primary" type="button">Approve &amp; run</button>' : ''}</div>
     </div>`;
   document.getElementById('agentPlanSelect')?.addEventListener('change', event => { activeAgentPlanId = event.target.value; renderAgentWorkspace(); });
   workspace.querySelectorAll('[data-agent-plan-id]').forEach(button => button.addEventListener('click', () => { activeAgentPlanId = button.dataset.agentPlanId; renderAgentWorkspace(); }));
   workspace.querySelectorAll('[data-agent-action-view]').forEach(button => button.addEventListener('click', () => switchView(button.dataset.agentActionView)));
+  workspace.querySelectorAll('[data-agent-action-resume]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); resumeAgentPlan(); }));
+  workspace.querySelectorAll('[data-agent-task-detail]').forEach(target => {
+    target.addEventListener('click', event => { if (!event.target.closest('[data-agent-action-view]')) openAgentTaskDetail(target.dataset.agentTaskDetail); });
+    target.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') openAgentTaskDetail(target.dataset.agentTaskDetail); });
+  });
   document.getElementById('btnAgentApprovePlan')?.addEventListener('click', approveAgentPlan);
   document.getElementById('btnAgentResumePlan')?.addEventListener('click', resumeAgentPlan);
   document.getElementById('btnAgentCancelPlan')?.addEventListener('click', cancelAgentPlan);
@@ -2099,6 +2156,19 @@ function renderAgentIntelligence() {
     }
   }
   const tasks = plan?.tasks || [];
+  const intelligence = document.getElementById('agentMissionIntelligence');
+  if (intelligence) {
+    const research = tasks.find(item => item.type === 'WEB_RESEARCH');
+    const created = tasks.filter(item => item.status === 'COMPLETED');
+    const remaining = tasks.find(item => !['COMPLETED','CANCELLED'].includes(item.status));
+    const sources = research?.output?.sources || [];
+    intelligence.innerHTML = plan ? `<div class="mission-intelligence-grid">
+      <article><span>AI UNDERSTOOD</span><p>${escapeHtml(plan.prompt.split('Customer clarification:')[0].trim().slice(0, 240))}</p></article>
+      <article><span>CURRENT RESEARCH</span><p>${escapeHtml(research?.output?.summary || research?.output?.message || 'Research has not completed yet.')}</p>${sources.length ? `<small>${sources.length} source link${sources.length === 1 ? '' : 's'} saved</small>` : ''}</article>
+      <article><span>CREATED</span><p>${created.length ? escapeHtml(created.map(item => item.title).slice(-3).join(' · ')) : 'No task output saved yet.'}</p></article>
+      <article><span>NEXT DECISION</span><p>${escapeHtml(remaining?.title || 'Review the completed mission outputs.')}</p></article>
+    </div>` : '<div class="workspace-empty">Launch a mission to see its intelligence summary.</div>';
+  }
   const activeTask = tasks.find(item => item.status === 'RUNNING') || tasks.find(item => ['QUEUED','PENDING'].includes(item.status)) || tasks.find(item => String(item.status).startsWith('WAITING') || item.status === 'ACTION_REQUIRED');
   const activeIndex = activeTask ? tasks.indexOf(activeTask) : -1;
   const nextTask = activeIndex >= 0 ? tasks.slice(activeIndex + 1).find(item => !['COMPLETED','CANCELLED'].includes(item.status)) : tasks.find(item => !['COMPLETED','CANCELLED'].includes(item.status));

@@ -5,9 +5,17 @@ const agentBrain = require('../services/agentBrainService');
 const agentAccess = require('../services/agentAccessService');
 const agentAssets = require('../services/agentAssetService');
 const agentMedia = require('../services/agentMediaService');
+const webResearch = require('../services/webResearchService');
 
 const ASSET_SELECT = { id: true, planId: true, kind: true, source: true, status: true, originalName: true, mimeType: true, byteSize: true, createdAt: true };
 const PLAN_INCLUDE = { tasks: { orderBy: { sequence: 'asc' } }, events: { orderBy: { createdAt: 'desc' }, take: 80 }, assets: { orderBy: { createdAt: 'desc' }, select: ASSET_SELECT } };
+
+function publicGenerationChoice(value) {
+  const code = String(value || '').toUpperCase();
+  const legacy = { OLLAMA_IMAGE: 'IMAGE_FAST', INX_TEMPLATE: 'VIDEO_FAST', WAN_2_2_FAST: 'VIDEO_QUALITY', LTX_2_3_FAST: 'VIDEO_QUALITY' };
+  const safe = legacy[code] || code;
+  return ['TEXT_ONLY', 'IMAGE_FAST', 'IMAGE_QUALITY', 'VIDEO_FAST', 'VIDEO_QUALITY'].includes(safe) ? safe : null;
+}
 
 function parseJson(value, fallback) {
   try { return JSON.parse(value); } catch (_) { return fallback; }
@@ -23,9 +31,9 @@ function publicPlan(plan) {
     strategy: {
       assetCount: strategy.assetCount || 0,
       contentOutput: strategy.contentOutput || null,
-      mediaModel: strategy.mediaModel || strategy.executionMode || null,
+      mediaModel: publicGenerationChoice(strategy.mediaModel || strategy.executionMode),
       estimatedCredits: Number(strategy.estimatedCredits || 0),
-      executionMode: strategy.executionMode || null,
+      executionMode: publicGenerationChoice(strategy.executionMode),
       guardrails: strategy.guardrails || [],
       pageTargets: Array.isArray(strategy.pageTargets) ? strategy.pageTargets.map(publicPageTarget) : []
     },
@@ -34,7 +42,7 @@ function publicPlan(plan) {
     startedAt: plan.startedAt,
     completedAt: plan.completedAt,
     cancelledAt: plan.cancelledAt,
-    lastError: plan.lastError ? 'INX Agent could not complete the current step. Try again or contact support if it continues.' : null,
+    lastError: plan.lastError && ['FAILED', 'WAITING_PROVIDER'].includes(plan.status) ? 'INX Agent could not complete the current step. Try again or contact support if it continues.' : null,
     createdAt: plan.createdAt,
     updatedAt: plan.updatedAt,
     tasks: (plan.tasks || []).map(item => ({
@@ -46,7 +54,7 @@ function publicPlan(plan) {
       description: item.description,
       status: item.status,
       riskLevel: item.riskLevel,
-      executionMode: item.executionMode,
+      executionMode: publicGenerationChoice(item.executionMode),
       output: publicTaskOutput(parseJson(item.outputJson, null)),
       startedAt: item.startedAt,
       completedAt: item.completedAt
@@ -89,7 +97,7 @@ async function resolvePageTargets(userId, strategy, requestedIds) {
 function publicTaskOutput(output) {
   if (!output || typeof output !== 'object') return output;
   const allowed = {};
-  for (const key of ['content', 'message', 'summary', 'checklist', 'recommendations', 'assets']) {
+  for (const key of ['content', 'message', 'summary', 'checklist', 'recommendations', 'assets', 'sources']) {
     if (output[key] !== undefined) allowed[key] = output[key];
   }
   return Object.keys(allowed).length ? allowed : null;
@@ -115,7 +123,7 @@ async function overview(req, res, next) {
     const availableAssets = await agentAssets.list(req.user.id);
     const userQueue = runtime.queuedPlanIds.filter(id => recentPlans.some(plan => plan.id === id));
     res.json({
-      phase: '11.4.2',
+      phase: '11.4.4',
       mode: 'OLLAMA_FIRST_RUNTIME',
       license: { plan: entitlement.plan, allowed: entitlement.allowed },
       usage: entitlement.usage,
@@ -123,12 +131,13 @@ async function overview(req, res, next) {
         planning: true,
         approvals: true,
         providerRouting: true,
-        autonomousPublishing: true,
+        autonomousPublishing: false,
         hybridReview: true,
         paidPromotion: false,
         brain: { configured: agentBrain.status().configured },
         imageWorker: agentMedia.status(),
-        note: 'Autopilot may publish organic content inside user guardrails after the required platform and media workers are connected. Paid advertising remains disabled.'
+        webResearch: webResearch.status(),
+        note: 'Autopilot prepares approved organic content automatically. Direct Social Agent publishing remains paused until the governed Facebook publishing adapter is connected; paid advertising remains disabled.'
       },
       supportedPlatforms: SUPPORTED_PLATFORMS,
       contentOutputs: Object.entries(CONTENT_OUTPUTS).map(([code, value]) => ({ code, label: value.label, mediaKind: value.mediaKind })),
@@ -141,6 +150,16 @@ async function overview(req, res, next) {
       pendingMemoryCount,
       runtime: { ...runtime, queuedPlanIds: userQueue }
     });
+  } catch (error) { next(error); }
+}
+
+async function preflightMission(req, res, next) {
+  try {
+    await agentAccess.requireAccess(req.user.id);
+    const prompt = String(req.body?.prompt || '').trim();
+    if (prompt.length < 3) return res.status(400).json({ error: 'Tell the Social Agent what you want to achieve.' });
+    const analysis = await agentBrain.analyseMission({ prompt, platforms: req.body?.platforms });
+    res.json({ analysis });
   } catch (error) { next(error); }
 }
 
@@ -287,4 +306,4 @@ async function cancelPlan(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { overview, createPlan, listPlans, approvePlan, resumePlan, cancelPlan, uploadAsset, assetContent, deleteAsset, publicPlan, publicMemory, publicPageTarget, resolvePageTargets };
+module.exports = { overview, preflightMission, createPlan, listPlans, approvePlan, resumePlan, cancelPlan, uploadAsset, assetContent, deleteAsset, publicPlan, publicMemory, publicPageTarget, resolvePageTargets };

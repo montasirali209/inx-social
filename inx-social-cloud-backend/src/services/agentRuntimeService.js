@@ -2,6 +2,7 @@ const prisma = require('../db/prisma');
 const brain = require('./agentBrainService');
 const env = require('../config/env');
 const media = require('./agentMediaService');
+const webResearch = require('./webResearchService');
 
 let activePlanId = null;
 let intervalHandle = null;
@@ -42,7 +43,23 @@ async function runPlan(planId) {
     let paidFallbackCalls = 0;
     for (const task of plan.tasks) {
       if (['COMPLETED', 'CANCELLED'].includes(task.status)) continue;
-      if (BRAIN_TASKS.has(task.type)) {
+      if (task.type === 'WEB_RESEARCH') {
+        await prisma.agentTask.update({ where: { id: task.id }, data: { status: 'RUNNING', startedAt: new Date() } });
+        await event(plan.userId, plan.id, task.id, 'TASK_STARTED', 'RUNNING', task.title, 'INX Agent is checking current public sources for this mission.');
+        try {
+          const result = await webResearch.researchMission(plan);
+          await prisma.agentTask.update({ where: { id: task.id }, data: { status: 'COMPLETED', outputJson: JSON.stringify(result), completedAt: new Date() } });
+          task.status = 'COMPLETED';
+          task.outputJson = JSON.stringify(result);
+          await event(plan.userId, plan.id, task.id, 'TASK_COMPLETED', 'SUCCESS', task.title, `Current research saved with ${result.sources.length} source link${result.sources.length === 1 ? '' : 's'}.`);
+        } catch (error) {
+          actionRequired = true;
+          const message = error.code === 'WEB_RESEARCH_NOT_CONFIGURED' ? 'Current-web research is not connected. The mission will continue without claiming live research.' : 'Current-web research is temporarily unavailable. The mission will continue using supplied facts and approved knowledge only.';
+          await markWaiting(plan, task, 'WAITING_RESEARCH', message);
+          task.status = 'WAITING_RESEARCH';
+          task.outputJson = JSON.stringify({ message });
+        }
+      } else if (BRAIN_TASKS.has(task.type)) {
         await prisma.agentTask.update({ where: { id: task.id }, data: { status: 'RUNNING', startedAt: new Date() } });
         await event(plan.userId, plan.id, task.id, 'TASK_STARTED', 'RUNNING', task.title, 'Ollama is processing this task with approved reusable playbooks.');
         try {
@@ -73,7 +90,6 @@ async function runPlan(planId) {
           actionRequired = true;
           const message = error.code === 'OLLAMA_NOT_CONFIGURED' ? 'The private Ollama image worker is not connected. Your completed work is safe; connect it and resume.' : 'Image generation is paused. Check the private image worker in Admin, then resume this mission.';
           await markWaiting(plan, task, 'WAITING_MEDIA_WORKER', message);
-          await prisma.agentPlan.update({ where: { id: plan.id }, data: { lastError: error.message } });
         }
       } else {
         actionRequired = true;
@@ -87,7 +103,7 @@ async function runPlan(planId) {
       }
     }
     const finalStatus = providerFailure ? 'WAITING_PROVIDER' : actionRequired ? 'ACTION_REQUIRED' : 'COMPLETED';
-    await prisma.agentPlan.update({ where: { id: plan.id }, data: finalStatus === 'COMPLETED' ? { status: finalStatus, completedAt: new Date() } : { status: finalStatus } });
+    await prisma.agentPlan.update({ where: { id: plan.id }, data: finalStatus === 'COMPLETED' ? { status: finalStatus, completedAt: new Date(), lastError: null } : { status: finalStatus, lastError: providerFailure ? undefined : null } });
     await event(plan.userId, plan.id, null,
       providerFailure ? 'RUN_PAUSED' : actionRequired ? 'RUN_ACTION_REQUIRED' : 'RUN_COMPLETED',
       providerFailure ? 'WAITING' : actionRequired ? 'ACTION' : 'SUCCESS',
