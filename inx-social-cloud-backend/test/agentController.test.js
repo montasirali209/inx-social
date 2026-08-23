@@ -77,5 +77,5 @@ test('customer plan output never exposes private routes, models or provider cost
   assert.equal(plan.tasks[0].output.model, undefined);
   assert.equal(plan.tasks[0].output.provider, undefined);
   assert.equal(plan.events[0].metadata, undefined);
-  assert.doesNotMatch(plan.lastError, /private-gateway|model/);
+  assert.doesNotMatch(plan.lastError || '', /private-gateway|model/);
 });

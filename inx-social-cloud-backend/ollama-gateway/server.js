@@ -41,6 +41,36 @@ async function proxy(req, res, ollamaPath, allowedModels = config.models) {
     res.writeHead(response.status, { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }); res.end(text);
   } finally { release(); }
 }
+function imageDimensions(size) {
+  const allowed = new Set(['512x512', '1024x1024', '1024x1536', '1536x1024']);
+  const normalized = allowed.has(String(size || '')) ? String(size) : '1024x1024';
+  const [width, height] = normalized.split('x').map(Number);
+  return { width, height };
+}
+async function imageProxy(req, res) {
+  const body = await readJson(req);
+  const model = String(body.model || '');
+  if (!config.imageModels.has(model)) return json(res, 400, { error: 'Image model is not allowed by this gateway.' });
+  const prompt = String(body.prompt || '').trim();
+  if (!prompt || prompt.length > 12000) return json(res, 400, { error: 'A valid image prompt is required.' });
+  const { width, height } = imageDimensions(body.size);
+  await acquire();
+  try {
+    const response = await fetch(`${config.ollamaUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ model, prompt, stream: false, width, height }),
+      signal: AbortSignal.timeout(config.timeoutMs)
+    });
+    let result = null;
+    try { result = await response.json(); } catch (_) {}
+    if (!response.ok) return json(res, response.status, { error: String(result?.error || 'The local image engine rejected this request.').slice(0, 500) });
+    const encoded = String(result?.image || '');
+    if (!encoded) return json(res, 502, { error: 'The local image engine returned no image data.' });
+    if (encoded.length > 12 * 1024 * 1024) return json(res, 502, { error: 'The generated image exceeded the gateway safety limit.' });
+    return json(res, 200, { created: Math.floor(Date.now() / 1000), data: [{ b64_json: encoded }] });
+  } finally { release(); }
+}
 function createServer() {
   if (config.token.length < 32) throw new Error('INX_OLLAMA_GATEWAY_TOKEN must contain at least 32 characters.');
   return http.createServer(async (req, res) => {
@@ -49,10 +79,10 @@ function createServer() {
       if (req.method === 'GET' && req.url === '/health') return json(res, 200, { ok: true, service: 'inx-ollama-gateway', active, queued: queue.length, models: [...config.models], imageModels: [...config.imageModels], imageGeneration: config.imageModels.size > 0 });
       if (req.method === 'POST' && req.url === '/api/chat') return await proxy(req, res, '/api/chat');
       if (req.method === 'POST' && ['/api/embed', '/api/embeddings'].includes(req.url)) return await proxy(req, res, '/api/embed');
-      if (req.method === 'POST' && req.url === '/v1/images/generations') return await proxy(req, res, '/v1/images/generations', config.imageModels);
+      if (req.method === 'POST' && req.url === '/v1/images/generations') return await imageProxy(req, res);
       return json(res, 404, { error: 'Not found.' });
     } catch (error) { return json(res, Number(error.status || 502), { error: error.message || 'Gateway request failed.' }); }
   });
 }
 if (require.main === module) createServer().listen(config.port, config.host, () => console.log(`INX Ollama Gateway listening on http://${config.host}:${config.port}`));
-module.exports = { createServer, config, secureEqual };
+module.exports = { createServer, config, secureEqual, imageDimensions, imageProxy };
