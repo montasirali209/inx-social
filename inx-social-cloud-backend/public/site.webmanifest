@@ -1,0 +1,13 @@
+{
+  "name": "INX Social",
+  "short_name": "INX Social",
+  "description": "Facebook Reels and Page scheduling from one secure cloud studio.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#071224",
+  "theme_color": "#071224",
+  "icons": [
+    { "src": "/assets/inx-social-logo.png", "sizes": "any", "type": "image/png", "purpose": "any" }
+  ]
+}

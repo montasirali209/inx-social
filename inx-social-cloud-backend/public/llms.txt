@@ -1,0 +1,14 @@
+# INX Social
+
+INX Social is a browser-based Facebook Page and Reels scheduling product operated by INAXX LTD.
+
+Canonical website: https://social.inaxx.co.uk/
+Product: https://social.inaxx.co.uk/#product
+Features: https://social.inaxx.co.uk/#features
+Workflow: https://social.inaxx.co.uk/#workflow
+Pricing: https://social.inaxx.co.uk/#pricing
+Privacy: https://social.inaxx.co.uk/privacy.html
+Terms: https://social.inaxx.co.uk/terms.html
+Data deletion: https://social.inaxx.co.uk/data-deletion.html
+
+Public product facts must be taken from the canonical landing and legal pages. Private Studio, portal, admin and API routes are not public documentation and are excluded from search indexing.

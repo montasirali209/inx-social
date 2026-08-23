@@ -35,7 +35,7 @@ test('creating an agent plan persists costed tasks but performs no external acti
   assert.equal(res.statusCode, 201);
   assert.equal(created.status, 'AWAITING_APPROVAL');
   assert.equal(created.operationMode, 'HYBRID');
-  assert.equal(created.estimatedCostCents, 25);
+  assert.equal(created.estimatedCostCents, 0);
   assert.ok(created.tasks.create.some(item => item.type === 'PUBLISH' && item.riskLevel === 'HIGH'));
   assert.equal(res.body.plan.status, 'AWAITING_APPROVAL');
   assert.equal(res.body.plan.estimatedCostCents, undefined);

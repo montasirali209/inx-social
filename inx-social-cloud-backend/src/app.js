@@ -50,7 +50,13 @@ app.use('/api/releases', releaseRoutes);
 
 app.use('/admin.css', express.static(path.join(__dirname, '..', 'public', 'admin.css'), { setHeaders: res => res.setHeader('Content-Type', 'text/css') }));
 app.use('/admin.js', express.static(path.join(__dirname, '..', 'public', 'admin.js'), { setHeaders: res => res.setHeader('Content-Type', 'application/javascript') }));
-app.use(express.static(path.join(__dirname, '..', 'public'), { index: false }));
+app.use(express.static(path.join(__dirname, '..', 'public'), {
+  index: false,
+  maxAge: '1h',
+  setHeaders: (res, filePath) => {
+    if (/\.(?:css|js|png|jpe?g|webp|svg|woff2?)$/i.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+  }
+}));
 app.use('/portal', express.static(path.join(__dirname, '..', 'portal')));
 app.use('/studio', express.static(path.join(__dirname, '..', 'studio')));
 

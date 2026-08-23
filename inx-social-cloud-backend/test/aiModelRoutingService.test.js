@@ -11,6 +11,14 @@ test('AI routes keep Ollama first and require an explicit fallback model', () =>
   });
   assert.equal(routing.routeName({ type: 'COPY_GENERATION' }), 'copy');
   assert.equal(routing.routeName({ type: 'MEDIA_GENERATION' }), 'mediaPrompt');
+  assert.equal(routing.routeName({ type: 'IMAGE_GENERATION' }), 'mediaPrompt');
+});
+
+test('local image policy is Ollama-only and bounded', () => {
+  const policy = routing.normalizeImagePolicy({ enabled: true, provider: 'PAID', model: 'x/z-image-turbo', size: 'invalid', maxAssetsPerMission: 99 });
+  assert.equal(policy.provider, 'OLLAMA_IMAGE');
+  assert.equal(policy.size, '1024x1024');
+  assert.equal(policy.maxAssetsPerMission, 4);
 });
 
 test('video provider policy is bounded and paid generation requires a cost policy', () => {

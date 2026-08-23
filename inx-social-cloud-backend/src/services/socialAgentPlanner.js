@@ -64,6 +64,8 @@ function buildPlan(input = {}) {
   const tasks = [];
   const textOnly = /\b(text|copy|caption)s?\s+only\b|\bno\s+(?:image|images|media|video|videos)\b/i.test(prompt);
   const draftOnly = /\b(?:draft|plan)\s+only\b|\bdo\s+not\s+(?:publish|schedule|post)\b|\bno\s+publishing\b/i.test(prompt);
+  const wantsVideo = /\b(video|videos|reel|reels|short|shorts|animation|animated)\b/i.test(prompt) || executionMode !== 'INX_TEMPLATE';
+  const wantsImage = !textOnly && (/\b(image|images|photo|photos|picture|pictures|logo|profile|cover|carousel|graphic|post|posts|asset|assets|page)\b/i.test(prompt) || !wantsVideo);
 
   tasks.push(task('BRAND_REVIEW', 'Review the brand brief and supplied assets', 'Extract the business name, audience, offer, tone, logo rules and prohibited claims before generating content.'));
 
@@ -72,7 +74,13 @@ function buildPlan(input = {}) {
   }
 
   tasks.push(task('CONTENT_STRATEGY', `Create a ${assetCount}-asset content plan`, `Plan ${assetCount} distinct ideas, campaign goals, calls to action and platform-specific formats without fabricating business facts.`));
-  if (!textOnly) tasks.push(task('MEDIA_GENERATION', `Generate ${assetCount} branded media asset${assetCount === 1 ? '' : 's'}`, `${provider.label} is the selected route. The final provider and price are re-checked before generation.`, {
+  if (wantsImage) tasks.push(task('IMAGE_GENERATION', `Generate ${assetCount} branded image asset${assetCount === 1 ? '' : 's'}`, 'Create brand-safe post, cover or campaign images with the private local image worker. The administrator controls the model and per-mission safety limit.', {
+    executionMode: 'OLLAMA_IMAGE',
+    operationMode,
+    estimatedCostCents: 0,
+    riskLevel: 'LOW'
+  }));
+  if (!textOnly && wantsVideo) tasks.push(task('VIDEO_GENERATION', `Generate ${assetCount} branded video asset${assetCount === 1 ? '' : 's'}`, `${provider.label} is the selected route. The final provider and price are re-checked before generation.`, {
     executionMode,
     operationMode,
     estimatedCostCents: provider.estimatedCentsPerAsset * assetCount,

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.fbcdn.net https://*.facebook.com https://*.fbsbx.com; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.fbcdn.net https://*.facebook.com https://*.fbsbx.com; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'" />
   <title>INX Social</title>
   <link rel="icon" type="image/png" href="assets/inx-social-logo.png" />
   <link rel="stylesheet" href="styles.css" />
@@ -218,7 +218,13 @@
                 <div id="agentPageTargetGrid" class="agent-page-target-grid"><div class="workspace-empty">Loading connected Pages…</div></div>
                 <small id="agentPageTargetCount" class="agent-page-target-count">0 Pages selected</small>
               </fieldset>
-              <label>Visual content method<select id="agentExecutionMode"><option value="INX_TEMPLATE">Branded templates — no external AI video</option><option value="WAN_2_2_FAST">AI video — Wan 2.2 Fast</option><option value="LTX_2_3_FAST">AI video — LTX 2.3 Fast</option></select><small class="agent-field-help">Used only when your mission requests images or video. Text-only missions skip media creation.</small></label>
+              <fieldset class="agent-brand-assets"><legend>Brand and reference images <span>optional</span></legend>
+                <p>Upload an exact logo or profile picture for the mission, plus optional visual references. The local worker creates new cover and post images from your written brand brief; exact reference-image editing is not claimed.</p>
+                <div class="agent-brand-upload"><select id="agentBrandAssetKind" aria-label="Image purpose"><option value="LOGO">Logo</option><option value="PROFILE">Profile picture</option><option value="REFERENCE">Visual reference</option></select><input id="agentBrandAssetFile" type="file" accept="image/png,image/jpeg,image/webp"><button id="btnAgentUploadAsset" class="btn ghost compact" type="button">Add image</button></div>
+                <div id="agentBrandAssetGrid" class="agent-brand-asset-grid"><div class="workspace-empty">No brand images uploaded.</div></div>
+                <small>PNG, JPEG or WebP · maximum 1 MB each · select up to 10 per mission</small>
+              </fieldset>
+              <label>Visual content method<select id="agentExecutionMode"><option value="INX_TEMPLATE">Branded template video</option><option value="WAN_2_2_FAST">AI video — Wan 2.2 Fast</option><option value="LTX_2_3_FAST">AI video — LTX 2.3 Fast</option></select><small class="agent-field-help">Text-only missions skip media creation. This selector is used only for requested videos; images use the administrator-controlled private Ollama image worker.</small></label>
               <div class="agent-guardrail"><strong>Organic automation guardrail</strong><span>Autopilot never starts paid ads, spends money, deletes a Page, or changes ownership/security. Media-provider availability is shown before a request.</span></div>
               <button id="btnAgentCreatePlan" class="btn primary wide jarvis-launch" type="submit">Launch mission</button>
             </form>

@@ -1,0 +1,76 @@
+const crypto = require('node:crypto');
+const axios = require('axios');
+const prisma = require('../db/prisma');
+const env = require('../config/env');
+const brain = require('./agentBrainService');
+const routing = require('./aiModelRoutingService');
+
+function status() {
+  return { configured: Boolean(env.ollama.baseUrl && env.ollama.imageModel), provider: 'OLLAMA_IMAGE', imageModel: env.ollama.imageModel };
+}
+
+function imageType(data) {
+  if (data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return { mimeType: 'image/png', extension: 'png' };
+  if (data[0] === 0xff && data[1] === 0xd8 && data[data.length - 2] === 0xff && data[data.length - 1] === 0xd9) return { mimeType: 'image/jpeg', extension: 'jpg' };
+  if (data.subarray(0, 4).toString('ascii') === 'RIFF' && data.subarray(8, 12).toString('ascii') === 'WEBP') return { mimeType: 'image/webp', extension: 'webp' };
+  throw new Error('Ollama returned an unsupported image format.');
+}
+
+function imagePrompt(plan, task, index) {
+  let strategy = {};
+  try { strategy = JSON.parse(plan.strategyJson || '{}'); } catch (_) {}
+  const pages = (strategy.pageTargets || []).map(page => page.name).filter(Boolean).join(', ');
+  const references = (strategy.referenceAssets || []).map(asset => `${asset.kind}: ${asset.originalName || 'uploaded image'}`).join(', ');
+  return [
+    'Create a polished organic social-media visual.',
+    `Campaign brief: ${plan.prompt}`,
+    `Target Pages: ${pages || 'connected brand'}`,
+    `Supplied brand files: ${references || 'none; follow only the written brief'}.`,
+    `Asset ${index + 1}: ${task.title}.`,
+    'Use a clean modern composition with safe margins. Never redraw or invent a supplied logo; preserve the uploaded logo separately for exact placement. Do not fabricate testimonials, prices, people or claims. Do not include platform UI, watermarks or tiny unreadable text.'
+  ].join(' ');
+}
+
+async function generateImages(plan, task, dependencies = {}) {
+  const policy = dependencies.policy || await routing.getImagePolicy();
+  if (!policy.enabled) throw Object.assign(new Error('Local image generation is disabled by the administrator.'), { code: 'IMAGE_DISABLED' });
+  if (!env.ollama.baseUrl) throw Object.assign(new Error('The private Ollama image gateway is not configured.'), { code: 'OLLAMA_NOT_CONFIGURED' });
+  if (typeof prisma.agentAsset?.create !== 'function') throw Object.assign(new Error('Generated asset storage is not available.'), { code: 'ASSET_STORAGE_UNAVAILABLE' });
+  let strategy = {};
+  try { strategy = JSON.parse(plan.strategyJson || '{}'); } catch (_) {}
+  const requested = Math.max(1, Number(strategy.assetCount || 1));
+  const count = Math.min(requested, policy.maxAssetsPerMission);
+  const http = dependencies.http || axios;
+  const assets = [];
+  for (let index = 0; index < count; index += 1) {
+    const prompt = imagePrompt(plan, task, index);
+    const response = await http.post(`${env.ollama.baseUrl}/v1/images/generations`, {
+      model: policy.model || env.ollama.imageModel,
+      prompt,
+      size: policy.size,
+      response_format: 'b64_json'
+    }, { timeout: env.ollama.imageTimeoutMs, headers: brain.ollamaHeaders(), maxContentLength: 12 * 1024 * 1024 });
+    const encoded = response.data?.data?.[0]?.b64_json;
+    if (!encoded) throw new Error('Ollama image generation returned no image data.');
+    const data = Buffer.from(encoded, 'base64');
+    if (!data.length || data.length > 8 * 1024 * 1024) throw new Error('Generated image was empty or exceeded the 8 MB safety limit.');
+    const detected = imageType(data);
+    const created = await prisma.agentAsset.create({ data: {
+      userId: plan.userId,
+      planId: plan.id,
+      kind: 'GENERATED_POST',
+      source: 'OLLAMA_IMAGE',
+      status: 'READY',
+      originalName: `inx-agent-${index + 1}.${detected.extension}`,
+      mimeType: detected.mimeType,
+      byteSize: data.length,
+      checksum: crypto.createHash('sha256').update(data).digest('hex'),
+      prompt,
+      data
+    } });
+    assets.push({ id: created.id, kind: created.kind, mimeType: created.mimeType, byteSize: created.byteSize, contentUrl: `/api/agent/assets/${encodeURIComponent(created.id)}/content` });
+  }
+  return { content: `${assets.length} branded image${assets.length === 1 ? '' : 's'} generated and saved.`, summary: `Generated ${assets.length} of ${requested} requested assets in this bounded local run.`, assets };
+}
+
+module.exports = { status, imageType, imagePrompt, generateImages };

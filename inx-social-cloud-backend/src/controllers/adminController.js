@@ -143,7 +143,7 @@ async function updateSetting(req, res, next) {
 
 async function aiRouting(req, res, next) {
   try {
-    res.json({ routing: await aiModelRouting.getRouting(), mediaPolicy: await aiModelRouting.getMediaPolicy(), mediaProviders: aiModelRouting.MEDIA_PROVIDERS, brain: agentBrain.status(), routes: aiModelRouting.ROUTES });
+    res.json({ routing: await aiModelRouting.getRouting(), imagePolicy: await aiModelRouting.getImagePolicy(), mediaPolicy: await aiModelRouting.getMediaPolicy(), mediaProviders: aiModelRouting.MEDIA_PROVIDERS, brain: agentBrain.status(), routes: aiModelRouting.ROUTES });
   } catch (err) { next(err); }
 }
 
@@ -151,8 +151,9 @@ async function updateAiRouting(req, res, next) {
   try {
     const routing = await aiModelRouting.updateRouting(req.body?.routing || req.body || {});
     const mediaPolicy = await aiModelRouting.updateMediaPolicy(req.body?.mediaPolicy || {});
-    await prisma.auditLog.create({ data: { userId: req.user.id, action: 'ADMIN_UPDATE_AI_ROUTING', entity: 'AppSetting', metadata: JSON.stringify({ routing, mediaPolicy }) } });
-    res.json({ ok: true, routing, mediaPolicy, brain: agentBrain.status() });
+    const imagePolicy = await aiModelRouting.updateImagePolicy(req.body?.imagePolicy || {});
+    await prisma.auditLog.create({ data: { userId: req.user.id, action: 'ADMIN_UPDATE_AI_ROUTING', entity: 'AppSetting', metadata: JSON.stringify({ routing, imagePolicy, mediaPolicy }) } });
+    res.json({ ok: true, routing, imagePolicy, mediaPolicy, brain: agentBrain.status() });
   } catch (err) { next(err); }
 }
 

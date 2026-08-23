@@ -3,8 +3,11 @@ const { buildPlan, SUPPORTED_PLATFORMS } = require('../services/socialAgentPlann
 const { queuePlan, getRuntimeStatus } = require('../services/agentRuntimeService');
 const agentBrain = require('../services/agentBrainService');
 const agentAccess = require('../services/agentAccessService');
+const agentAssets = require('../services/agentAssetService');
+const agentMedia = require('../services/agentMediaService');
 
-const PLAN_INCLUDE = { tasks: { orderBy: { sequence: 'asc' } }, events: { orderBy: { createdAt: 'desc' }, take: 80 } };
+const ASSET_SELECT = { id: true, planId: true, kind: true, source: true, status: true, originalName: true, mimeType: true, byteSize: true, createdAt: true };
+const PLAN_INCLUDE = { tasks: { orderBy: { sequence: 'asc' } }, events: { orderBy: { createdAt: 'desc' }, take: 80 }, assets: { orderBy: { createdAt: 'desc' }, select: ASSET_SELECT } };
 
 function parseJson(value, fallback) {
   try { return JSON.parse(value); } catch (_) { return fallback; }
@@ -45,7 +48,8 @@ function publicPlan(plan) {
       startedAt: item.startedAt,
       completedAt: item.completedAt
     })),
-    events: (plan.events || []).map(item => ({ id: item.id, taskId: item.taskId, type: item.type, status: item.status, title: item.title, message: item.message, createdAt: item.createdAt }))
+    events: (plan.events || []).map(item => ({ id: item.id, taskId: item.taskId, type: item.type, status: item.status, title: item.title, message: item.message, createdAt: item.createdAt })),
+    assets: (plan.assets || []).map(agentAssets.publicAsset)
   };
 }
 
@@ -105,9 +109,10 @@ async function overview(req, res, next) {
     const pendingMemoryCount = await prisma.agentMemory.count({ where: { userId: req.user.id, approvalStatus: 'PENDING_REVIEW' } });
     const runtime = await getRuntimeStatus();
     const connectedPages = await connectedPagesForUser(req.user.id);
+    const availableAssets = await agentAssets.list(req.user.id);
     const userQueue = runtime.queuedPlanIds.filter(id => recentPlans.some(plan => plan.id === id));
     res.json({
-      phase: '11.3.0',
+      phase: '11.4.0',
       mode: 'OLLAMA_FIRST_RUNTIME',
       license: { plan: entitlement.plan, allowed: entitlement.allowed },
       usage: entitlement.usage,
@@ -119,10 +124,12 @@ async function overview(req, res, next) {
         hybridReview: true,
         paidPromotion: false,
         brain: { configured: agentBrain.status().configured },
+        imageWorker: agentMedia.status(),
         note: 'Autopilot may publish organic content inside user guardrails after the required platform and media workers are connected. Paid advertising remains disabled.'
       },
       supportedPlatforms: SUPPORTED_PLATFORMS,
       connectedPages: connectedPages.map(page => ({ ...publicPageTarget(page), isSelected: Boolean(page.isSelected), status: page.status })),
+      assets: availableAssets.map(agentAssets.publicAsset),
       plans: recentPlans.map(publicPlan),
       memories: memories.map(publicMemory),
       pendingMemoryCount,
@@ -136,6 +143,7 @@ async function createPlan(req, res, next) {
     await agentAccess.requireAccess(req.user.id);
     const strategy = buildPlan(req.body || {});
     const pageTargets = await resolvePageTargets(req.user.id, strategy, req.body?.targetPageIds);
+    const referenceAssets = await agentAssets.resolveOwned(req.user.id, Array.isArray(req.body?.referenceAssetIds) ? req.body.referenceAssetIds : []);
     await agentAccess.requireAccess(req.user.id, { consume: true });
     const autopilot = strategy.operationMode === 'AUTOPILOT';
     const plan = await prisma.agentPlan.create({
@@ -148,7 +156,8 @@ async function createPlan(req, res, next) {
           executionMode: strategy.executionMode,
           provider: strategy.provider,
           guardrails: strategy.guardrails,
-          pageTargets
+          pageTargets,
+          referenceAssets: referenceAssets.map(asset => ({ id: asset.id, kind: asset.kind, originalName: asset.originalName, mimeType: asset.mimeType, byteSize: asset.byteSize }))
         }),
         operationMode: strategy.operationMode,
         status: autopilot ? 'APPROVED' : 'AWAITING_APPROVAL',
@@ -176,6 +185,38 @@ async function createPlan(req, res, next) {
     if (autopilot) await queuePlan(plan.id, req.user.id);
     const current = autopilot ? await findOwnedPlan(req.user.id, plan.id) : plan;
     res.status(201).json({ plan: publicPlan(current), notice: autopilot ? 'Autopilot accepted the mission and started the Ollama-first runtime.' : 'Hybrid mission created. Review it, then start the run.' });
+  } catch (error) { next(error); }
+}
+
+async function uploadAsset(req, res, next) {
+  try {
+    await agentAccess.requireAccess(req.user.id);
+    const asset = await agentAssets.createUpload(req.user.id, req.body || {});
+    await prisma.auditLog.create({ data: { userId: req.user.id, action: 'AGENT_BRAND_ASSET_UPLOADED', entity: 'AgentAsset', entityId: asset.id, metadata: JSON.stringify({ kind: asset.kind, mimeType: asset.mimeType, byteSize: asset.byteSize }) } });
+    res.status(201).json({ asset: agentAssets.publicAsset(asset) });
+  } catch (error) { next(error); }
+}
+
+async function assetContent(req, res, next) {
+  try {
+    await agentAccess.requireAccess(req.user.id);
+    const asset = await agentAssets.findContent(req.user.id, req.params.id);
+    if (!asset) return res.status(404).json({ error: 'Agent image not found.' });
+    res.setHeader('Content-Type', asset.mimeType);
+    res.setHeader('Content-Length', asset.data.length);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.setHeader('ETag', `"${asset.checksum}"`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    return res.end(asset.data);
+  } catch (error) { next(error); }
+}
+
+async function deleteAsset(req, res, next) {
+  try {
+    await agentAccess.requireAccess(req.user.id);
+    const removed = await agentAssets.remove(req.user.id, req.params.id);
+    if (!removed) return res.status(409).json({ error: 'This image is attached to a mission or cannot be removed.' });
+    res.json({ ok: true });
   } catch (error) { next(error); }
 }
 
@@ -237,4 +278,4 @@ async function cancelPlan(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { overview, createPlan, listPlans, approvePlan, resumePlan, cancelPlan, publicPlan, publicMemory, publicPageTarget, resolvePageTargets };
+module.exports = { overview, createPlan, listPlans, approvePlan, resumePlan, cancelPlan, uploadAsset, assetContent, deleteAsset, publicPlan, publicMemory, publicPageTarget, resolvePageTargets };

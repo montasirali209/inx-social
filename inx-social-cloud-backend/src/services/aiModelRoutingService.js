@@ -4,6 +4,7 @@ const env = require('../config/env');
 const ROUTES = ['default', 'planning', 'copy', 'adaptation', 'scheduling', 'mediaPrompt'];
 const PREFIX = 'ai_route_';
 const MEDIA_POLICY_KEY = 'media_generation_policy';
+const IMAGE_POLICY_KEY = 'image_generation_policy';
 const MEDIA_PROVIDERS = ['INX_TEMPLATE', 'LOCAL_WORKER', 'RUNPOD', 'FAL', 'REPLICATE', 'BYTEPLUS', 'OPENAI'];
 
 function cleanModel(value, fallback = '') {
@@ -45,7 +46,7 @@ async function updateRouting(input) {
 }
 
 function routeName(task) {
-  return ({ BRAND_REVIEW: 'planning', CONTENT_STRATEGY: 'planning', COPY_GENERATION: 'copy', PLATFORM_VARIANT: 'adaptation', SCHEDULE: 'scheduling', MEDIA_GENERATION: 'mediaPrompt' })[task?.type] || 'default';
+  return ({ BRAND_REVIEW: 'planning', CONTENT_STRATEGY: 'planning', COPY_GENERATION: 'copy', PLATFORM_VARIANT: 'adaptation', SCHEDULE: 'scheduling', MEDIA_GENERATION: 'mediaPrompt', IMAGE_GENERATION: 'mediaPrompt', VIDEO_GENERATION: 'mediaPrompt' })[task?.type] || 'default';
 }
 
 async function routeForTask(task) {
@@ -71,6 +72,33 @@ function normalizeMediaPolicy(value) {
   };
 }
 
+function normalizeImagePolicy(value) {
+  let parsed = value;
+  if (typeof value === 'string') {
+    try { parsed = JSON.parse(value); } catch (_) { parsed = {}; }
+  }
+  return {
+    enabled: parsed?.enabled !== false,
+    provider: 'OLLAMA_IMAGE',
+    model: cleanModel(parsed?.model, env.ollama.imageModel),
+    size: ['1024x1024', '1024x1536', '1536x1024'].includes(parsed?.size) ? parsed.size : '1024x1024',
+    maxAssetsPerMission: Math.max(1, Math.min(4, Number(parsed?.maxAssetsPerMission || 2)))
+  };
+}
+
+async function getImagePolicy() {
+  if (typeof prisma.appSetting?.findUnique !== 'function') return normalizeImagePolicy(null);
+  const row = await prisma.appSetting.findUnique({ where: { key: IMAGE_POLICY_KEY } });
+  return normalizeImagePolicy(row?.value);
+}
+
+async function updateImagePolicy(input) {
+  const policy = normalizeImagePolicy(input);
+  const value = JSON.stringify(policy);
+  await prisma.appSetting.upsert({ where: { key: IMAGE_POLICY_KEY }, create: { key: IMAGE_POLICY_KEY, value, description: 'Local Ollama image-generation policy' }, update: { value, description: 'Local Ollama image-generation policy' } });
+  return policy;
+}
+
 async function getMediaPolicy() {
   const row = await prisma.appSetting.findUnique({ where: { key: MEDIA_POLICY_KEY } });
   return normalizeMediaPolicy(row?.value);
@@ -84,4 +112,4 @@ async function updateMediaPolicy(input) {
   return policy;
 }
 
-module.exports = { ROUTES, MEDIA_PROVIDERS, cleanModel, normalizeRoute, getRouting, updateRouting, routeName, routeForTask, normalizeMediaPolicy, getMediaPolicy, updateMediaPolicy };
+module.exports = { ROUTES, MEDIA_PROVIDERS, cleanModel, normalizeRoute, getRouting, updateRouting, routeName, routeForTask, normalizeMediaPolicy, getMediaPolicy, updateMediaPolicy, normalizeImagePolicy, getImagePolicy, updateImagePolicy };

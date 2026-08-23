@@ -43,7 +43,9 @@ module.exports = {
     apiKey: process.env.OLLAMA_API_KEY || '',
     cloudflareAccessClientId: process.env.OLLAMA_CF_ACCESS_CLIENT_ID || '',
     cloudflareAccessClientSecret: process.env.OLLAMA_CF_ACCESS_CLIENT_SECRET || '',
-    timeoutMs: Math.max(10000, Number(process.env.OLLAMA_TIMEOUT_MS || 180000))
+    timeoutMs: Math.max(10000, Number(process.env.OLLAMA_TIMEOUT_MS || 180000)),
+    imageModel: process.env.OLLAMA_IMAGE_MODEL || 'x/z-image-turbo',
+    imageTimeoutMs: Math.max(30000, Number(process.env.OLLAMA_IMAGE_TIMEOUT_MS || 300000))
   },
   aiFallback: {
     enabled: String(process.env.AI_PAID_FALLBACK_ENABLED || 'false') === 'true',

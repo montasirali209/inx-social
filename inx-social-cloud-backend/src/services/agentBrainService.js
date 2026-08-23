@@ -21,6 +21,7 @@ function taskInstruction(plan, task, approvedMemories = []) {
   let strategy = {};
   try { strategy = JSON.parse(plan.strategyJson || '{}'); } catch (_) {}
   const targetNames = (Array.isArray(strategy.pageTargets) ? strategy.pageTargets : []).map(page => String(page.name || '').trim()).filter(Boolean);
+  const referenceNames = (Array.isArray(strategy.referenceAssets) ? strategy.referenceAssets : []).map(asset => `${asset.kind}: ${asset.originalName || 'uploaded image'}`);
   const memoryBlock = approvedMemories.length
     ? ['Approved reusable playbooks:', ...approvedMemories.map((item, index) => `${index + 1}. ${item.title}: ${item.content}`)]
     : ['Approved reusable playbooks: none.'];
@@ -31,6 +32,7 @@ function taskInstruction(plan, task, approvedMemories = []) {
     `Campaign instruction: ${plan.prompt}`,
     `Platforms: ${JSON.parse(plan.platformsJson || '[]').join(', ')}`,
     `Connected Facebook Page targets: ${targetNames.length ? targetNames.join(', ') : 'none selected'}`,
+    `Supplied brand/reference images: ${referenceNames.length ? referenceNames.join(', ') : 'none supplied'}`,
     `Current task: ${task.title}`,
     `Task requirement: ${task.description}`,
     ...memoryBlock,

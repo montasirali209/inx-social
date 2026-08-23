@@ -26,6 +26,7 @@ let activeAgentPlanId = '';
 let agentLiveTimer = null;
 const openAgentTaskOutputs = new Set();
 let agentPageTargetsInitialized = false;
+const agentSelectedAssetIds = new Set();
 
 const UI_TEXT_FIELDS = [
   'appTitle', 'appSubtitle', 'dashboardTitle', 'dashboardSubtitle',
@@ -313,6 +314,7 @@ function bindButtons() {
   document.querySelectorAll('.agent-platform').forEach(input => input.addEventListener('change', renderAgentPageTargets));
   on('btnAgentPagesAll', () => setAgentPageTargets(true));
   on('btnAgentPagesClear', () => setAgentPageTargets(false));
+  on('btnAgentUploadAsset', uploadAgentBrandAsset);
   on('btnPickVideos', () => importAction(window.schedulerApi.pickVideos));
   on('btnPickVideos2', () => importAction(window.schedulerApi.pickVideos));
   on('btnPickCaptions', () => importAction(window.schedulerApi.pickCaptions));
@@ -1705,6 +1707,7 @@ async function loadAgentOverview(showNotice = false) {
     if (nativeMenuOpen) renderAgentIntelligence();
     else renderAgentWorkspace();
     renderAgentPageTargets();
+    renderAgentBrandAssets();
     if (showNotice) toast('Social Agent plans refreshed.');
   } catch (error) {
     if (workspace) workspace.innerHTML = `<div class="workspace-empty error">${escapeHtml(error.message)}</div>`;
@@ -1758,6 +1761,61 @@ function renderAgentPageTargets() {
   updateAgentPageTargetCount();
 }
 
+function fileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('The selected image could not be read.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function uploadAgentBrandAsset() {
+  const fileInput = document.getElementById('agentBrandAssetFile');
+  const file = fileInput?.files?.[0];
+  if (!file) return toast('Choose a logo, profile picture or reference image first.', true);
+  if (file.size > 1024 * 1024) return toast('Brand images must be 1 MB or smaller.', true);
+  const button = document.getElementById('btnAgentUploadAsset');
+  if (button) { button.disabled = true; button.textContent = 'Adding…'; }
+  try {
+    const result = await window.schedulerApi.uploadAgentAsset({ kind: document.getElementById('agentBrandAssetKind')?.value, name: file.name, dataUrl: await fileAsDataUrl(file) });
+    agentOverview = agentOverview || { assets: [] };
+    agentOverview.assets = [result.asset, ...(agentOverview.assets || []).filter(asset => asset.id !== result.asset.id)];
+    agentSelectedAssetIds.add(result.asset.id);
+    if (fileInput) fileInput.value = '';
+    renderAgentBrandAssets();
+    toast('Brand image added securely.');
+  } catch (error) { toast(error.message, true); }
+  finally { if (button) { button.disabled = false; button.textContent = 'Add image'; } }
+}
+
+async function removeAgentBrandAsset(id) {
+  try {
+    await window.schedulerApi.deleteAgentAsset(id);
+    agentSelectedAssetIds.delete(id);
+    agentOverview.assets = (agentOverview.assets || []).filter(asset => asset.id !== id);
+    renderAgentBrandAssets();
+    toast('Brand image removed.');
+  } catch (error) { toast(error.message, true); }
+}
+
+function renderAgentBrandAssets() {
+  const container = document.getElementById('agentBrandAssetGrid');
+  if (!container) return;
+  const assets = agentOverview?.assets || [];
+  container.innerHTML = assets.length ? assets.map(asset => `<article class="agent-brand-asset ${agentSelectedAssetIds.has(asset.id) ? 'selected' : ''}" data-agent-asset-card="${escapeHtml(asset.id)}"><button class="agent-brand-preview" type="button" data-agent-asset-select="${escapeHtml(asset.id)}" aria-pressed="${agentSelectedAssetIds.has(asset.id)}"><span data-agent-asset-image="${escapeHtml(asset.id)}">IMG</span><b>${escapeHtml(asset.kind.replaceAll('_', ' '))}</b><small>${escapeHtml(asset.originalName || 'Generated image')}</small><i>✓</i></button>${!asset.planId && asset.source === 'UPLOAD' ? `<button class="agent-brand-remove" type="button" data-agent-asset-remove="${escapeHtml(asset.id)}" aria-label="Remove ${escapeHtml(asset.originalName || 'image')}">&times;</button>` : ''}</article>`).join('') : '<div class="workspace-empty">No brand images uploaded.</div>';
+  container.querySelectorAll('[data-agent-asset-select]').forEach(button => button.addEventListener('click', () => {
+    const id = button.dataset.agentAssetSelect;
+    if (agentSelectedAssetIds.has(id)) agentSelectedAssetIds.delete(id); else if (agentSelectedAssetIds.size < 10) agentSelectedAssetIds.add(id); else return toast('Select no more than 10 images for one mission.', true);
+    renderAgentBrandAssets();
+  }));
+  container.querySelectorAll('[data-agent-asset-remove]').forEach(button => button.addEventListener('click', () => removeAgentBrandAsset(button.dataset.agentAssetRemove)));
+  container.querySelectorAll('[data-agent-asset-image]').forEach(async target => {
+    const url = await window.schedulerApi.getAgentAssetUrl(target.dataset.agentAssetImage).catch(() => '');
+    if (url && target.isConnected) target.innerHTML = `<img src="${escapeHtml(url)}" alt="">`;
+  });
+}
+
 async function createAgentPlan(event) {
   event.preventDefault();
   const prompt = document.getElementById('agentPrompt')?.value.trim() || '';
@@ -1769,7 +1827,7 @@ async function createAgentPlan(event) {
   if (button) { button.disabled = true; button.textContent = 'Launching mission…'; }
   try {
     const operationMode = document.querySelector('.agent-operation-mode:checked')?.value || 'HYBRID';
-    const result = await window.schedulerApi.createAgentPlan({ prompt, platforms, targetPageIds, operationMode, executionMode: document.getElementById('agentExecutionMode')?.value });
+    const result = await window.schedulerApi.createAgentPlan({ prompt, platforms, targetPageIds, referenceAssetIds: [...agentSelectedAssetIds], operationMode, executionMode: document.getElementById('agentExecutionMode')?.value });
     agentOverview = agentOverview || { plans: [] };
     agentOverview.plans = [result.plan, ...(agentOverview.plans || []).filter(plan => plan.id !== result.plan.id)];
     activeAgentPlanId = result.plan.id;
@@ -1940,7 +1998,8 @@ function renderAgentWorkspace() {
         const guidance = agentTaskGuidance(item);
         const progressClass = item.status === 'RUNNING' ? 'indeterminate' : '';
         const taskProgress = item.status === 'COMPLETED' ? 100 : item.status === 'RUNNING' ? 58 : (String(item.status).startsWith('WAITING') || item.status === 'ACTION_REQUIRED' || item.status === 'FAILED') ? 42 : item.status === 'QUEUED' ? 12 : 4;
-        return `<article class="agent-task status-${escapeHtml(status)}"><span>${item.sequence}</span><div class="agent-task-body"><header><strong>${escapeHtml(item.title)}</strong><span class="agent-task-state">${escapeHtml(agentTaskStatusLabel(item.status))}</span></header><p>${escapeHtml(item.description)}</p><div class="agent-task-progress ${progressClass}"><i style="width:${taskProgress}%"></i></div>${guidance ? `<div class="agent-task-guidance ${guidance.passive ? 'passive' : ''}"><b>${guidance.passive ? 'NEXT' : 'ACTION'}</b><span>${escapeHtml(guidance.title)}</span><p>${escapeHtml(guidance.body)}</p></div>` : ''}${output ? `<details data-agent-task-id="${escapeHtml(item.id)}" ${openAgentTaskOutputs.has(item.id) ? 'open' : ''}><summary>View saved output</summary><pre>${escapeHtml(output)}</pre></details>` : ''}</div></article>`;
+        const assetGallery = (item.output?.assets || []).length ? `<div class="agent-generated-assets">${item.output.assets.map(asset => `<button type="button" data-agent-generated-asset="${escapeHtml(asset.id)}"><span>Generated image</span></button>`).join('')}</div>` : '';
+        return `<article class="agent-task status-${escapeHtml(status)}"><span>${item.sequence}</span><div class="agent-task-body"><header><strong>${escapeHtml(item.title)}</strong><span class="agent-task-state">${escapeHtml(agentTaskStatusLabel(item.status))}</span></header><p>${escapeHtml(item.description)}</p><div class="agent-task-progress ${progressClass}"><i style="width:${taskProgress}%"></i></div>${guidance ? `<div class="agent-task-guidance ${guidance.passive ? 'passive' : ''}"><b>${guidance.passive ? 'NEXT' : 'ACTION'}</b><span>${escapeHtml(guidance.title)}</span><p>${escapeHtml(guidance.body)}</p></div>` : ''}${output || assetGallery ? `<details data-agent-task-id="${escapeHtml(item.id)}" ${openAgentTaskOutputs.has(item.id) ? 'open' : ''}><summary>View saved output</summary>${output ? `<pre>${escapeHtml(output)}</pre>` : ''}${assetGallery}</details>` : ''}</div></article>`;
       }).join('')}</div></section>
       <div class="agent-plan-actions"><button id="btnAgentCancelPlan" class="btn ghost subtle-danger" type="button" ${['CANCELLED','COMPLETED'].includes(plan.status) ? 'disabled' : ''}>Cancel mission</button>${canResume ? '<button id="btnAgentResumePlan" class="btn secondary" type="button">Resume mission</button>' : ''}${canApprove ? '<button id="btnAgentApprovePlan" class="btn primary" type="button">Approve &amp; run</button>' : ''}</div>
     </div>`;
@@ -1950,6 +2009,11 @@ function renderAgentWorkspace() {
   document.getElementById('btnAgentApprovePlan')?.addEventListener('click', approveAgentPlan);
   document.getElementById('btnAgentResumePlan')?.addEventListener('click', resumeAgentPlan);
   document.getElementById('btnAgentCancelPlan')?.addEventListener('click', cancelAgentPlan);
+  workspace.querySelectorAll('[data-agent-generated-asset]').forEach(async target => {
+    const url = await window.schedulerApi.getAgentAssetUrl(target.dataset.agentGeneratedAsset).catch(() => '');
+    if (url && target.isConnected) target.innerHTML = `<img src="${escapeHtml(url)}" alt="Generated campaign image"><span>Open generated image</span>`;
+    target.addEventListener('click', () => { if (url) window.open(url, '_blank', 'noopener,noreferrer'); });
+  });
   restoreAgentWorkspaceUi(workspace, uiSnapshot);
 }
 

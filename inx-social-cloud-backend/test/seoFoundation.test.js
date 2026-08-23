@@ -11,7 +11,16 @@ test('public landing has canonical metadata, social previews and structured soft
   assert.match(landing, /<link rel="canonical" href="https:\/\/social\.inaxx\.co\.uk\/">/);
   assert.match(landing, /property="og:title"/);
   assert.match(landing, /name="twitter:card" content="summary_large_image"/);
-  assert.match(landing, /"@type": "SoftwareApplication"/);
+  const jsonLd = landing.match(/<script type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/);
+  assert.ok(jsonLd, 'The public landing must include JSON-LD structured data.');
+  const structuredData = JSON.parse(jsonLd[1]);
+  const graph = Array.isArray(structuredData['@graph']) ? structuredData['@graph'] : [structuredData];
+  const software = graph.find(item => {
+    const types = Array.isArray(item['@type']) ? item['@type'] : [item['@type']];
+    return types.includes('SoftwareApplication');
+  });
+  assert.ok(software, 'The JSON-LD graph must describe INX Social as a SoftwareApplication.');
+  assert.equal(software.url, 'https://social.inaxx.co.uk/');
   assert.match(landing, /"priceCurrency": "GBP"/);
 });
 

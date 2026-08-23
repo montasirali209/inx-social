@@ -7,6 +7,7 @@
   const files = new Map();
   const jobFiles = new Map();
   const pagePictureUrls = new Map();
+  const agentAssetUrls = new Map();
   const progressListeners = new Set();
   let localVideos = [];
   let localCaptions = [];
@@ -77,6 +78,19 @@
     if (!response.ok) return '';
     const url = URL.createObjectURL(await response.blob());
     pagePictureUrls.set(id, url);
+    return url;
+  }
+
+  async function agentAssetUrl(assetId) {
+    const id = String(assetId || '');
+    if (!id) return '';
+    if (agentAssetUrls.has(id)) return agentAssetUrls.get(id);
+    const headers = new Headers();
+    if (token()) headers.set('Authorization', `Bearer ${token()}`);
+    const response = await fetch(`/api/agent/assets/${encodeURIComponent(id)}/content`, { headers });
+    if (!response.ok) return '';
+    const url = URL.createObjectURL(await response.blob());
+    agentAssetUrls.set(id, url);
     return url;
   }
 
@@ -804,6 +818,9 @@
       return result;
     },
     getAgentOverview: async () => api('/api/agent/overview'),
+    uploadAgentAsset: async payload => api('/api/agent/assets', { method: 'POST', body: JSON.stringify(payload) }),
+    deleteAgentAsset: async id => api(`/api/agent/assets/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    getAgentAssetUrl: agentAssetUrl,
     createAgentPlan: async payload => api('/api/agent/plans', { method: 'POST', body: JSON.stringify(payload) }),
     approveAgentPlan: async id => api(`/api/agent/plans/${encodeURIComponent(id)}/approve`, { method: 'POST', body: '{}' }),
     resumeAgentPlan: async id => api(`/api/agent/plans/${encodeURIComponent(id)}/resume`, { method: 'POST', body: '{}' }),

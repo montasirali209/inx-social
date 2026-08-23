@@ -2,12 +2,17 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const { buildPlan } = require('../src/services/socialAgentPlanner');
 
-test('Social Agent defaults economical social content to the INX template route', () => {
+test('Social Agent routes economical post imagery to the local image worker without paid cost', () => {
   const plan = buildPlan({ prompt: 'Create 14 educational posts for my cleaning company', platforms: ['facebook', 'instagram'] });
   assert.equal(plan.assetCount, 14);
   assert.equal(plan.executionMode, 'INX_TEMPLATE');
-  assert.equal(plan.estimatedCostCents, 70);
+  assert.equal(plan.estimatedCostCents, 0);
   assert.deepEqual(plan.platforms, ['facebook', 'instagram']);
+  const imageTask = plan.tasks.find(item => item.type === 'IMAGE_GENERATION');
+  assert.ok(imageTask);
+  assert.equal(imageTask.executionMode, 'OLLAMA_IMAGE');
+  assert.equal(imageTask.estimatedCostCents, 0);
+  assert.equal(plan.tasks.some(item => item.type === 'VIDEO_GENERATION'), false);
   assert.ok(plan.tasks.some(item => item.type === 'PUBLISH' && item.riskLevel === 'HIGH'));
 });
 
