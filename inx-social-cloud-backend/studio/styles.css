@@ -1454,6 +1454,82 @@ body[data-theme="light"] .settings-card { background: rgba(255,255,255,.92); }
   .compact-settings .form-row { grid-template-columns: 1fr; }
 }
 
+/* Phase 11.4.2 — clear mission controls and non-repeating runtime surfaces */
+.agent-brand-assets,
+.agent-content-output { overflow: visible; }
+.agent-brand-upload {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 9px;
+}
+.agent-asset-purpose { grid-column: 1 / -1; display: grid; gap: 6px; min-width: 0; }
+.agent-asset-purpose > span,
+.agent-media-model-field label > span { color: var(--muted); font-size: 9px; font-weight: 800; }
+.agent-asset-purpose select,
+.agent-media-model-field select { width: 100%; min-width: 0; height: 41px; }
+.agent-file-input {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none;
+  overflow: hidden;
+}
+.agent-file-picker {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px dashed rgba(91, 222, 255, .48);
+  border-radius: 12px;
+  background: rgba(61, 191, 234, .055);
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, transform .18s ease;
+}
+.agent-file-picker:hover { border-color: #62e8f8; background: rgba(61, 191, 234, .11); transform: translateY(-1px); }
+.agent-file-picker-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: #081522; background: linear-gradient(135deg, #69e8fb, #67deb8); font-size: 18px; font-weight: 900; }
+.agent-file-picker strong,
+.agent-file-picker small { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-file-picker strong { color: var(--text); font-size: 10px; }
+.agent-file-picker small { margin-top: 3px; color: var(--muted); font-size: 8px; }
+.agent-add-image { min-height: 56px; align-self: stretch; }
+
+.agent-content-output { padding: 13px !important; border: 1px solid rgba(102, 215, 244, .25) !important; border-radius: 14px !important; background: rgba(6, 21, 38, .42); }
+.agent-output-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.agent-output-grid label { position: relative; min-width: 0; cursor: pointer; }
+.agent-output-grid input { position: absolute; opacity: 0; pointer-events: none; }
+.agent-output-grid label > span { display: grid; gap: 3px; min-height: 54px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 11px; background: rgba(255,255,255,.025); transition: .18s ease; }
+.agent-output-grid b { color: var(--text); font-size: 10px; }
+.agent-output-grid small { color: var(--muted); font-size: 8px; line-height: 1.35; }
+.agent-output-grid input:checked + span { border-color: #61dff7; background: linear-gradient(135deg, rgba(57, 192, 236, .16), rgba(70, 224, 185, .07)); box-shadow: inset 0 0 0 1px rgba(96, 224, 247, .13), 0 0 18px rgba(48, 198, 235, .07); }
+.agent-output-grid input:focus-visible + span { outline: 2px solid #71e5f8; outline-offset: 2px; }
+.agent-media-model-field { display: grid; grid-template-columns: minmax(0, 1fr) 132px; gap: 9px; align-items: stretch; }
+.agent-media-model-field label { display: grid; gap: 6px; min-width: 0; }
+.agent-credit-preview { display: grid; align-content: center; gap: 2px; padding: 9px 11px; border: 1px solid rgba(102, 226, 187, .28); border-radius: 12px; background: rgba(46, 202, 158, .06); }
+.agent-credit-preview span { color: #75e8c2; font-size: 7px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.agent-credit-preview strong { color: var(--text); font-size: 13px; }
+.agent-credit-preview small { color: var(--muted); font-size: 7px; line-height: 1.35; }
+
+.history-signal { padding: 5px 8px; border: 1px solid rgba(136, 156, 187, .3); border-radius: 999px; color: #aab8cb; background: rgba(130, 148, 176, .08); font-size: 7px; font-weight: 900; letter-spacing: .09em; }
+.mission-timeline-card { border-color: rgba(133, 153, 184, .22) !important; background: linear-gradient(180deg, rgba(19, 29, 45, .98), rgba(11, 18, 31, .96)); }
+.mission-timeline-card .timeline-content { border-left: 3px solid rgba(117, 143, 175, .42); background: rgba(255, 255, 255, .018); box-shadow: none; }
+.mission-timeline-card .timeline-event.latest .timeline-content { border-color: rgba(97, 232, 199, .42); border-left-color: #61e8c4; box-shadow: none; }
+.timeline-event { animation: none !important; }
+.agent-monitor-card { border-color: rgba(74, 218, 247, .38) !important; box-shadow: inset 0 1px 0 rgba(112, 228, 248, .08), 0 14px 34px rgba(0, 10, 24, .18); }
+.agent-monitor-card .memory-count { color: #73eafb; background: rgba(45, 201, 237, .12); }
+.agent-monitor-cards .monitor-now { border-color: rgba(83, 221, 246, .32); background: rgba(43, 195, 232, .065); }
+.agent-monitor-cards .monitor-next { border-style: dashed; background: rgba(255,255,255,.012); }
+
+@media (max-width: 620px) {
+  .agent-brand-upload,
+  .agent-media-model-field,
+  .agent-output-grid { grid-template-columns: 1fr; }
+  .agent-add-image { min-height: 40px; }
+}
+
 /* Phase 11.1 — Ollama-first Social Agent Mission Control */
 .jarvis-command-deck {
   position: relative;

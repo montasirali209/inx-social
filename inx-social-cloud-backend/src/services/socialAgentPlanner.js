@@ -1,10 +1,22 @@
 const SUPPORTED_PLATFORMS = ['facebook', 'instagram', 'youtube', 'tiktok'];
 
 const PROVIDERS = Object.freeze({
-  INX_TEMPLATE: { label: 'INX Template Video', estimatedCentsPerAsset: 5, kind: 'template' },
-  WAN_2_2_FAST: { label: 'Wan 2.2 Fast', estimatedCentsPerAsset: 11, kind: 'generative-video' },
-  LTX_2_3_FAST: { label: 'LTX 2.3 Fast', estimatedCentsPerAsset: 24, kind: 'generative-video' }
+  TEXT_ONLY: { label: 'No media model', estimatedCentsPerAsset: 0, creditsPerAsset: 0, kind: 'text', minimumPlan: 'TRIAL' },
+  OLLAMA_IMAGE: { label: 'Private INX image worker', estimatedCentsPerAsset: 0, creditsPerAsset: 0, kind: 'image', minimumPlan: 'TRIAL' },
+  INX_TEMPLATE: { label: 'INX branded template', estimatedCentsPerAsset: 5, creditsPerAsset: 1, kind: 'template', minimumPlan: 'STARTER' },
+  WAN_2_2_FAST: { label: 'Wan 2.2 Fast', estimatedCentsPerAsset: 11, creditsPerAsset: 3, kind: 'generative-video', minimumPlan: 'PRO' },
+  LTX_2_3_FAST: { label: 'LTX 2.3 Fast', estimatedCentsPerAsset: 24, creditsPerAsset: 6, kind: 'generative-video', minimumPlan: 'PRO' }
 });
+
+const CONTENT_OUTPUTS = Object.freeze({
+  TEXT: { label: 'Text post', mediaKind: 'text' },
+  IMAGE: { label: 'Image post', mediaKind: 'image' },
+  CAROUSEL: { label: 'Carousel', mediaKind: 'image' },
+  VIDEO: { label: 'Video post', mediaKind: 'video' },
+  REEL: { label: 'Reel / short video', mediaKind: 'video' }
+});
+
+const PLAN_RANK = Object.freeze({ TRIAL: 0, STARTER: 1, PRO: 2, CREATOR: 2, LIFETIME: 3, AGENCY: 3, BUSINESS: 3, ADMIN: 3 });
 
 function cleanPrompt(value) {
   const prompt = String(value || '').replace(/\s+/g, ' ').trim();
@@ -38,6 +50,47 @@ function chooseExecutionMode(prompt, requestedMode) {
   return 'INX_TEMPLATE';
 }
 
+function normalizeContentOutput(value, prompt) {
+  const explicit = String(value || '').toUpperCase();
+  if (CONTENT_OUTPUTS[explicit]) return explicit;
+  if (/\b(text|copy|caption)s?\s+only\b|\bno\s+(?:image|images|media|video|videos)\b/i.test(prompt)) return 'TEXT';
+  if (/\bcarousel\b/i.test(prompt)) return 'CAROUSEL';
+  if (/\b(reel|reels|short|shorts)\b/i.test(prompt)) return 'REEL';
+  if (/\b(video|videos|animation|animated)\b/i.test(prompt)) return 'VIDEO';
+  return 'IMAGE';
+}
+
+function normalizeMediaModel(value, contentOutput, prompt) {
+  const kind = CONTENT_OUTPUTS[contentOutput].mediaKind;
+  if (kind === 'text') return 'TEXT_ONLY';
+  if (kind === 'image') return 'OLLAMA_IMAGE';
+  const requested = String(value || '').toUpperCase();
+  return chooseExecutionMode(prompt, requested);
+}
+
+function canUseModel(subscriptionPlan, modelCode) {
+  const planRank = PLAN_RANK[String(subscriptionPlan || 'TRIAL').toUpperCase()] ?? 0;
+  const requiredRank = PLAN_RANK[PROVIDERS[modelCode]?.minimumPlan] ?? 0;
+  return planRank >= requiredRank;
+}
+
+function mediaCatalog(subscriptionPlan) {
+  return Object.entries(PROVIDERS).map(([code, provider]) => ({
+    code,
+    label: provider.label,
+    kind: provider.kind,
+    creditsPerAsset: provider.creditsPerAsset,
+    minimumPlan: provider.minimumPlan,
+    eligible: canUseModel(subscriptionPlan, code)
+  }));
+}
+
+function requestsNewPage(prompt) {
+  const saysPageAlreadyExists = /\b(?:page|profile)\s+(?:(?:which|that)\s+)?(?:is|was|has\s+been)\s+(?:(?:already|newly|just)\s+)*(?:created|set\s*up|connected)|\b(?:existing|already[- ]connected|newly[- ]created)\s+(?:facebook\s+)?page\b/i.test(prompt);
+  if (saysPageAlreadyExists) return false;
+  return /\b(?:create|set\s*up|launch|build)\s+(?:an?\s+)?(?:new\s+)?(?:facebook\s+|instagram\s+|youtube\s+|tiktok\s+|social(?:\s+media)?\s+)?page\b/i.test(prompt);
+}
+
 function normalizeOperationMode(value) {
   return String(value || '').toUpperCase() === 'AUTOPILOT' ? 'AUTOPILOT' : 'HYBRID';
 }
@@ -58,29 +111,30 @@ function buildPlan(input = {}) {
   const prompt = cleanPrompt(input.prompt);
   const platforms = normalizePlatforms(input.platforms, prompt);
   const assetCount = requestedAssetCount(prompt);
-  const executionMode = chooseExecutionMode(prompt, input.executionMode);
+  const contentOutput = normalizeContentOutput(input.contentOutput, prompt);
+  const executionMode = normalizeMediaModel(input.mediaModel || input.executionMode, contentOutput, prompt);
   const operationMode = normalizeOperationMode(input.operationMode);
   const provider = PROVIDERS[executionMode];
+  if (input.subscriptionPlan && !canUseModel(input.subscriptionPlan, executionMode)) throw Object.assign(new Error(`${provider.label} requires the ${provider.minimumPlan} plan or above.`), { status: 403 });
   const tasks = [];
-  const textOnly = /\b(text|copy|caption)s?\s+only\b|\bno\s+(?:image|images|media|video|videos)\b/i.test(prompt);
   const draftOnly = /\b(?:draft|plan)\s+only\b|\bdo\s+not\s+(?:publish|schedule|post)\b|\bno\s+publishing\b/i.test(prompt);
-  const wantsVideo = /\b(video|videos|reel|reels|short|shorts|animation|animated)\b/i.test(prompt) || executionMode !== 'INX_TEMPLATE';
-  const wantsImage = !textOnly && (/\b(image|images|photo|photos|picture|pictures|logo|profile|cover|carousel|graphic|post|posts|asset|assets|page)\b/i.test(prompt) || !wantsVideo);
+  const wantsVideo = CONTENT_OUTPUTS[contentOutput].mediaKind === 'video';
+  const wantsImage = CONTENT_OUTPUTS[contentOutput].mediaKind === 'image';
 
   tasks.push(task('BRAND_REVIEW', 'Review the brand brief and supplied assets', 'Extract the business name, audience, offer, tone, logo rules and prohibited claims before generating content.'));
 
-  if (/create|set up|setup|new\s+(facebook\s+)?page/i.test(prompt)) {
+  if (requestsNewPage(prompt)) {
     tasks.push(task('PAGE_SETUP', 'Prepare the social Page setup checklist', 'Page creation and sensitive profile changes remain a guided manual step until the connected platform permission and App Review scope explicitly allow them.', { platform: platforms[0], riskLevel: 'HIGH' }));
   }
 
   tasks.push(task('CONTENT_STRATEGY', `Create a ${assetCount}-asset content plan`, `Plan ${assetCount} distinct ideas, campaign goals, calls to action and platform-specific formats without fabricating business facts.`));
-  if (wantsImage) tasks.push(task('IMAGE_GENERATION', `Generate ${assetCount} branded image asset${assetCount === 1 ? '' : 's'}`, 'Create brand-safe post, cover or campaign images with the private local image worker. The administrator controls the model and per-mission safety limit.', {
+  if (wantsImage) tasks.push(task('IMAGE_GENERATION', `Generate ${assetCount} branded ${contentOutput === 'CAROUSEL' ? 'carousel' : 'image'} asset${assetCount === 1 ? '' : 's'}`, 'Create brand-safe visual assets with the private local image worker. The administrator controls the model and per-mission safety limit.', {
     executionMode: 'OLLAMA_IMAGE',
     operationMode,
     estimatedCostCents: 0,
     riskLevel: 'LOW'
   }));
-  if (!textOnly && wantsVideo) tasks.push(task('VIDEO_GENERATION', `Generate ${assetCount} branded video asset${assetCount === 1 ? '' : 's'}`, `${provider.label} is the selected route. The final provider and price are re-checked before generation.`, {
+  if (wantsVideo) tasks.push(task('VIDEO_GENERATION', `Generate ${assetCount} branded ${contentOutput === 'REEL' ? 'Reel' : 'video'} asset${assetCount === 1 ? '' : 's'}`, `${provider.label} is the selected route. Credits and provider availability are re-checked before generation.`, {
     executionMode,
     operationMode,
     estimatedCostCents: provider.estimatedCentsPerAsset * assetCount,
@@ -103,9 +157,12 @@ function buildPlan(input = {}) {
     prompt,
     platforms,
     assetCount,
+    contentOutput,
+    mediaModel: executionMode,
     executionMode,
     operationMode,
     estimatedCostCents: sequenced.reduce((sum, value) => sum + value.estimatedCostCents, 0),
+    estimatedCredits: provider.creditsPerAsset * assetCount,
     provider: { code: executionMode, ...provider },
     tasks: sequenced,
     guardrails: [
@@ -116,4 +173,4 @@ function buildPlan(input = {}) {
   };
 }
 
-module.exports = { SUPPORTED_PLATFORMS, PROVIDERS, buildPlan, cleanPrompt, normalizePlatforms, requestedAssetCount, chooseExecutionMode, normalizeOperationMode };
+module.exports = { SUPPORTED_PLATFORMS, PROVIDERS, CONTENT_OUTPUTS, buildPlan, cleanPrompt, normalizePlatforms, requestedAssetCount, chooseExecutionMode, normalizeContentOutput, normalizeMediaModel, requestsNewPage, canUseModel, mediaCatalog, normalizeOperationMode };

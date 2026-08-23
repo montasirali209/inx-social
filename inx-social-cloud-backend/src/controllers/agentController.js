@@ -1,5 +1,5 @@
 const prisma = require('../db/prisma');
-const { buildPlan, SUPPORTED_PLATFORMS } = require('../services/socialAgentPlanner');
+const { buildPlan, SUPPORTED_PLATFORMS, CONTENT_OUTPUTS, mediaCatalog } = require('../services/socialAgentPlanner');
 const { queuePlan, getRuntimeStatus } = require('../services/agentRuntimeService');
 const agentBrain = require('../services/agentBrainService');
 const agentAccess = require('../services/agentAccessService');
@@ -22,6 +22,9 @@ function publicPlan(plan) {
     platforms: parseJson(plan.platformsJson, []),
     strategy: {
       assetCount: strategy.assetCount || 0,
+      contentOutput: strategy.contentOutput || null,
+      mediaModel: strategy.mediaModel || strategy.executionMode || null,
+      estimatedCredits: Number(strategy.estimatedCredits || 0),
       executionMode: strategy.executionMode || null,
       guardrails: strategy.guardrails || [],
       pageTargets: Array.isArray(strategy.pageTargets) ? strategy.pageTargets.map(publicPageTarget) : []
@@ -112,7 +115,7 @@ async function overview(req, res, next) {
     const availableAssets = await agentAssets.list(req.user.id);
     const userQueue = runtime.queuedPlanIds.filter(id => recentPlans.some(plan => plan.id === id));
     res.json({
-      phase: '11.4.0',
+      phase: '11.4.2',
       mode: 'OLLAMA_FIRST_RUNTIME',
       license: { plan: entitlement.plan, allowed: entitlement.allowed },
       usage: entitlement.usage,
@@ -128,6 +131,9 @@ async function overview(req, res, next) {
         note: 'Autopilot may publish organic content inside user guardrails after the required platform and media workers are connected. Paid advertising remains disabled.'
       },
       supportedPlatforms: SUPPORTED_PLATFORMS,
+      contentOutputs: Object.entries(CONTENT_OUTPUTS).map(([code, value]) => ({ code, label: value.label, mediaKind: value.mediaKind })),
+      mediaModels: mediaCatalog(entitlement.plan),
+      mediaCreditPolicy: { mode: 'ESTIMATE_ONLY_UNTIL_PROVIDER_BILLING', note: 'Subscription access and estimated credits are shown before launch. Deduction activates with the provider billing worker; local private image generation uses zero paid media credits.' },
       connectedPages: connectedPages.map(page => ({ ...publicPageTarget(page), isSelected: Boolean(page.isSelected), status: page.status })),
       assets: availableAssets.map(agentAssets.publicAsset),
       plans: recentPlans.map(publicPlan),
@@ -140,8 +146,8 @@ async function overview(req, res, next) {
 
 async function createPlan(req, res, next) {
   try {
-    await agentAccess.requireAccess(req.user.id);
-    const strategy = buildPlan(req.body || {});
+    const entitlement = await agentAccess.requireAccess(req.user.id);
+    const strategy = buildPlan({ ...(req.body || {}), subscriptionPlan: entitlement.plan });
     const pageTargets = await resolvePageTargets(req.user.id, strategy, req.body?.targetPageIds);
     const referenceAssets = await agentAssets.resolveOwned(req.user.id, Array.isArray(req.body?.referenceAssetIds) ? req.body.referenceAssetIds : []);
     await agentAccess.requireAccess(req.user.id, { consume: true });
@@ -153,6 +159,9 @@ async function createPlan(req, res, next) {
         platformsJson: JSON.stringify(strategy.platforms),
         strategyJson: JSON.stringify({
           assetCount: strategy.assetCount,
+          contentOutput: strategy.contentOutput,
+          mediaModel: strategy.mediaModel,
+          estimatedCredits: strategy.estimatedCredits,
           executionMode: strategy.executionMode,
           provider: strategy.provider,
           guardrails: strategy.guardrails,

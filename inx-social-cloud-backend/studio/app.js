@@ -27,6 +27,8 @@ let agentLiveTimer = null;
 const openAgentTaskOutputs = new Set();
 let agentPageTargetsInitialized = false;
 const agentSelectedAssetIds = new Set();
+let agentTimelineSignature = '';
+let agentMonitorSignature = '';
 
 const UI_TEXT_FIELDS = [
   'appTitle', 'appSubtitle', 'dashboardTitle', 'dashboardSubtitle',
@@ -315,6 +317,10 @@ function bindButtons() {
   on('btnAgentPagesAll', () => setAgentPageTargets(true));
   on('btnAgentPagesClear', () => setAgentPageTargets(false));
   on('btnAgentUploadAsset', uploadAgentBrandAsset);
+  document.getElementById('agentBrandAssetFile')?.addEventListener('change', updateAgentBrandFileName);
+  document.querySelectorAll('.agent-output-type').forEach(input => input.addEventListener('change', updateAgentContentControls));
+  document.getElementById('agentExecutionMode')?.addEventListener('change', updateAgentCreditPreview);
+  document.getElementById('agentPrompt')?.addEventListener('input', updateAgentCreditPreview);
   on('btnPickVideos', () => importAction(window.schedulerApi.pickVideos));
   on('btnPickVideos2', () => importAction(window.schedulerApi.pickVideos));
   on('btnPickCaptions', () => importAction(window.schedulerApi.pickCaptions));
@@ -1708,6 +1714,7 @@ async function loadAgentOverview(showNotice = false) {
     else renderAgentWorkspace();
     renderAgentPageTargets();
     renderAgentBrandAssets();
+    updateAgentContentControls();
     if (showNotice) toast('Social Agent plans refreshed.');
   } catch (error) {
     if (workspace) workspace.innerHTML = `<div class="workspace-empty error">${escapeHtml(error.message)}</div>`;
@@ -1770,6 +1777,55 @@ function fileAsDataUrl(file) {
   });
 }
 
+function updateAgentBrandFileName() {
+  const file = document.getElementById('agentBrandAssetFile')?.files?.[0];
+  const target = document.getElementById('agentBrandAssetFileName');
+  if (target) target.textContent = file ? `${file.name} · ${Math.max(1, Math.round(file.size / 1024))} KB` : 'PNG, JPEG or WebP · maximum 1 MB';
+}
+
+function selectedAgentContentOutput() {
+  return document.querySelector('.agent-output-type:checked')?.value || 'IMAGE';
+}
+
+function compatibleAgentModels(outputType) {
+  const kind = outputType === 'TEXT' ? 'text' : ['IMAGE', 'CAROUSEL'].includes(outputType) ? 'image' : 'video';
+  const catalog = agentOverview?.mediaModels || [
+    { code: 'TEXT_ONLY', label: 'No media model', kind: 'text', creditsPerAsset: 0, eligible: true },
+    { code: 'OLLAMA_IMAGE', label: 'Private INX image worker', kind: 'image', creditsPerAsset: 0, eligible: true },
+    { code: 'INX_TEMPLATE', label: 'INX branded template', kind: 'template', creditsPerAsset: 1, eligible: true },
+    { code: 'WAN_2_2_FAST', label: 'Wan 2.2 Fast', kind: 'generative-video', creditsPerAsset: 3, eligible: true },
+    { code: 'LTX_2_3_FAST', label: 'LTX 2.3 Fast', kind: 'generative-video', creditsPerAsset: 6, eligible: true }
+  ];
+  return catalog.filter(model => kind === 'video' ? ['template', 'generative-video'].includes(model.kind) : model.kind === kind);
+}
+
+function updateAgentContentControls() {
+  const outputType = selectedAgentContentOutput();
+  const field = document.getElementById('agentMediaModelField');
+  const select = document.getElementById('agentExecutionMode');
+  if (!field || !select) return;
+  const models = compatibleAgentModels(outputType);
+  const previous = select.value;
+  select.innerHTML = models.map(model => `<option value="${escapeHtml(model.code)}" ${model.eligible === false ? 'disabled' : ''}>${escapeHtml(model.label)}${model.eligible === false ? ` — ${escapeHtml(model.minimumPlan || 'higher plan')} required` : ` — ${Number(model.creditsPerAsset || 0)} credit${Number(model.creditsPerAsset || 0) === 1 ? '' : 's'} / asset`}</option>`).join('');
+  if (models.some(model => model.code === previous && model.eligible !== false)) select.value = previous;
+  else select.value = models.find(model => model.eligible !== false)?.code || models[0]?.code || '';
+  field.classList.toggle('text-output', outputType === 'TEXT');
+  updateAgentCreditPreview();
+}
+
+function updateAgentCreditPreview() {
+  const preview = document.getElementById('agentCreditPreview');
+  const modelCode = document.getElementById('agentExecutionMode')?.value;
+  const model = compatibleAgentModels(selectedAgentContentOutput()).find(item => item.code === modelCode);
+  if (!preview || !model) return;
+  const prompt = document.getElementById('agentPrompt')?.value || '';
+  const countMatch = prompt.match(/\b(\d{1,3})(?:\s+[a-z-]+){0,3}\s+(?:posts?|videos?|reels?|shorts?|assets?|days?)\b/i);
+  const assetCount = Math.max(1, Math.min(100, Number(countMatch?.[1] || 1)));
+  const credits = Number(model.creditsPerAsset || 0) * assetCount;
+  preview.querySelector('strong').textContent = `${credits} estimated`;
+  preview.querySelector('small').textContent = model.creditsPerAsset ? `${model.creditsPerAsset} per asset. Deduction activates when provider billing is enabled.` : 'Included local processing — no paid media credits.';
+}
+
 async function uploadAgentBrandAsset() {
   const fileInput = document.getElementById('agentBrandAssetFile');
   const file = fileInput?.files?.[0];
@@ -1783,6 +1839,7 @@ async function uploadAgentBrandAsset() {
     agentOverview.assets = [result.asset, ...(agentOverview.assets || []).filter(asset => asset.id !== result.asset.id)];
     agentSelectedAssetIds.add(result.asset.id);
     if (fileInput) fileInput.value = '';
+    updateAgentBrandFileName();
     renderAgentBrandAssets();
     toast('Brand image added securely.');
   } catch (error) { toast(error.message, true); }
@@ -1827,7 +1884,7 @@ async function createAgentPlan(event) {
   if (button) { button.disabled = true; button.textContent = 'Launching mission…'; }
   try {
     const operationMode = document.querySelector('.agent-operation-mode:checked')?.value || 'HYBRID';
-    const result = await window.schedulerApi.createAgentPlan({ prompt, platforms, targetPageIds, referenceAssetIds: [...agentSelectedAssetIds], operationMode, executionMode: document.getElementById('agentExecutionMode')?.value });
+    const result = await window.schedulerApi.createAgentPlan({ prompt, platforms, targetPageIds, referenceAssetIds: [...agentSelectedAssetIds], operationMode, contentOutput: selectedAgentContentOutput(), mediaModel: document.getElementById('agentExecutionMode')?.value });
     agentOverview = agentOverview || { plans: [] };
     agentOverview.plans = [result.plan, ...(agentOverview.plans || []).filter(plan => plan.id !== result.plan.id)];
     activeAgentPlanId = result.plan.id;
@@ -1878,7 +1935,7 @@ function agentTaskGuidance(task) {
   if (status === 'WAITING_MEDIA_WORKER') return {
     title: 'Choose or connect a visual-content worker',
     body: savedMessage || 'The strategy work is ready, but the requested image or video cannot be produced until the selected visual-content method is available.',
-    steps: ['Ask an administrator to enable the INX template or selected video worker.', 'Alternatively launch a text-only mission that requests no images or video.', 'Resume after the worker is available.']
+    steps: ['Choose another available model for a new mission.', 'An administrator can enable the requested worker.', 'Resume after the worker is available.'], passive: true
   };
   if (status === 'WAITING_REVIEW') return {
     title: 'Review the prepared content',
@@ -1999,7 +2056,7 @@ function renderAgentWorkspace() {
         const progressClass = item.status === 'RUNNING' ? 'indeterminate' : '';
         const taskProgress = item.status === 'COMPLETED' ? 100 : item.status === 'RUNNING' ? 58 : (String(item.status).startsWith('WAITING') || item.status === 'ACTION_REQUIRED' || item.status === 'FAILED') ? 42 : item.status === 'QUEUED' ? 12 : 4;
         const assetGallery = (item.output?.assets || []).length ? `<div class="agent-generated-assets">${item.output.assets.map(asset => `<button type="button" data-agent-generated-asset="${escapeHtml(asset.id)}"><span>Generated image</span></button>`).join('')}</div>` : '';
-        return `<article class="agent-task status-${escapeHtml(status)}"><span>${item.sequence}</span><div class="agent-task-body"><header><strong>${escapeHtml(item.title)}</strong><span class="agent-task-state">${escapeHtml(agentTaskStatusLabel(item.status))}</span></header><p>${escapeHtml(item.description)}</p><div class="agent-task-progress ${progressClass}"><i style="width:${taskProgress}%"></i></div>${guidance ? `<div class="agent-task-guidance ${guidance.passive ? 'passive' : ''}"><b>${guidance.passive ? 'NEXT' : 'ACTION'}</b><span>${escapeHtml(guidance.title)}</span><p>${escapeHtml(guidance.body)}</p></div>` : ''}${output || assetGallery ? `<details data-agent-task-id="${escapeHtml(item.id)}" ${openAgentTaskOutputs.has(item.id) ? 'open' : ''}><summary>View saved output</summary>${output ? `<pre>${escapeHtml(output)}</pre>` : ''}${assetGallery}</details>` : ''}</div></article>`;
+        return `<article class="agent-task status-${escapeHtml(status)}"><span>${item.sequence}</span><div class="agent-task-body"><header><strong>${escapeHtml(item.title)}</strong><span class="agent-task-state">${escapeHtml(agentTaskStatusLabel(item.status))}</span></header><p>${escapeHtml(item.description)}</p><div class="agent-task-progress ${progressClass}"><i style="width:${taskProgress}%"></i></div>${output || assetGallery ? `<details data-agent-task-id="${escapeHtml(item.id)}" ${openAgentTaskOutputs.has(item.id) ? 'open' : ''}><summary>View saved output</summary>${output ? `<pre>${escapeHtml(output)}</pre>` : ''}${assetGallery}</details>` : ''}</div></article>`;
       }).join('')}</div></section>
       <div class="agent-plan-actions"><button id="btnAgentCancelPlan" class="btn ghost subtle-danger" type="button" ${['CANCELLED','COMPLETED'].includes(plan.status) ? 'disabled' : ''}>Cancel mission</button>${canResume ? '<button id="btnAgentResumePlan" class="btn secondary" type="button">Resume mission</button>' : ''}${canApprove ? '<button id="btnAgentApprovePlan" class="btn primary" type="button">Approve &amp; run</button>' : ''}</div>
     </div>`;
@@ -2032,8 +2089,14 @@ function renderAgentIntelligence() {
   const feed = document.getElementById('agentLiveFeed');
   const events = [...(plan?.events || [])].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   if (feed) {
-    feed.innerHTML = events.length ? events.map((item,index) => `<article class="agent-feed-event timeline-event status-${escapeHtml(String(item.status).toLowerCase())} ${index===events.length-1?'latest':''}" style="--event-index:${index}"><div class="timeline-stamp"><time>${escapeHtml(new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}</time><i></i></div><div class="timeline-content"><header><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(agentTaskStatusLabel(item.status))}</span></header><p>${escapeHtml(item.message)}</p><footer><b>${escapeHtml(String(item.type || 'MISSION').replaceAll('_', ' '))}</b><small>${escapeHtml(new Date(item.createdAt).toLocaleDateString())}</small></footer></div></article>`).join('') : '<div class="workspace-empty">No runtime events yet.</div>';
-    if (events.length) requestAnimationFrame(() => { feed.scrollTop = feed.scrollHeight; });
+    const signature = `${plan?.id || 'none'}:${events.map(item => `${item.id}:${item.status}`).join('|')}`;
+    if (signature !== agentTimelineSignature) {
+      const previousScroll = feed.scrollTop;
+      const nearBottom = feed.scrollHeight - feed.clientHeight - feed.scrollTop < 32;
+      feed.innerHTML = events.length ? events.map((item,index) => `<article class="agent-feed-event timeline-event status-${escapeHtml(String(item.status).toLowerCase())} ${index===events.length-1?'latest':''}"><div class="timeline-stamp"><time>${escapeHtml(new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))}</time><i></i></div><div class="timeline-content"><header><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(agentTaskStatusLabel(item.status))}</span></header><p>${escapeHtml(item.message)}</p><footer><b>${escapeHtml(String(item.type || 'MISSION').replaceAll('_', ' '))}</b><small>${escapeHtml(new Date(item.createdAt).toLocaleDateString())}</small></footer></div></article>`).join('') : '<div class="workspace-empty">No runtime events yet.</div>';
+      agentTimelineSignature = signature;
+      requestAnimationFrame(() => { feed.scrollTop = nearBottom ? feed.scrollHeight : previousScroll; });
+    }
   }
   const tasks = plan?.tasks || [];
   const activeTask = tasks.find(item => item.status === 'RUNNING') || tasks.find(item => ['QUEUED','PENDING'].includes(item.status)) || tasks.find(item => String(item.status).startsWith('WAITING') || item.status === 'ACTION_REQUIRED');
@@ -2044,7 +2107,7 @@ function renderAgentIntelligence() {
   const blocked = activeTask && (String(activeTask.status).startsWith('WAITING') || activeTask.status === 'ACTION_REQUIRED');
   const phases = [
     ['Plan', ['BRAND_REVIEW','CONTENT_STRATEGY','PAGE_SETUP']],
-    ['Create', ['MEDIA_GENERATION','COPY_GENERATION','PLATFORM_VARIANT']],
+    ['Create', ['MEDIA_GENERATION','IMAGE_GENERATION','VIDEO_GENERATION','COPY_GENERATION','PLATFORM_VARIANT']],
     ['Schedule', ['SCHEDULE']],
     ['Publish', ['PUBLISH']],
     ['Learn', ['ANALYTICS']]
@@ -2052,16 +2115,17 @@ function renderAgentIntelligence() {
   const count = document.getElementById('agentMemoryCount');
   if (count) count.textContent = activeTask ? String(activeTask.status).replaceAll('_', ' ') : (plan ? 'IDLE' : 'READY');
   const grid = document.getElementById('agentMemoryGrid');
-  if (grid) grid.innerHTML = plan ? `<div class="agent-monitor-hud">
+  const monitorSignature = `${plan?.id || 'none'}:${activeTask?.id || 'none'}:${activeTask?.status || 'idle'}:${nextTask?.id || 'none'}:${progress}`;
+  if (grid && monitorSignature !== agentMonitorSignature) grid.innerHTML = plan ? `<div class="agent-monitor-hud">
     <div class="agent-progress-orb" style="--mission-progress:${progress * 3.6}deg"><span>${progress}%</span><small>complete</small></div>
     <div class="agent-monitor-state"><span>${blocked ? 'BLOCKED' : activeTask ? 'WORKING' : progress === 100 ? 'COMPLETE' : 'READY'}</span><strong>${escapeHtml(activeTask?.title || (progress === 100 ? 'Mission completed' : 'Awaiting the next runnable step'))}</strong><p>${escapeHtml(activeTask?.output?.message || activeTask?.description || 'Mission Control is synchronized.')}</p></div>
   </div>
   <div class="agent-phase-track">${phases.map(([label, types]) => { const related = tasks.filter(item => types.includes(item.type)); const done = related.length && related.every(item => item.status === 'COMPLETED'); const current = activeTask && types.includes(activeTask.type); return `<span class="${done ? 'done' : current ? 'current' : ''}"><i></i><b>${label}</b></span>`; }).join('')}</div>
   <div class="agent-monitor-cards">
     <article class="monitor-now"><span>NOW</span><strong>${escapeHtml(activeTask?.title || 'No active task')}</strong><p>${escapeHtml(activeTask ? (blocked ? 'Independent AI work continues while this dependency waits.' : 'The agent is executing this task now.') : 'All currently available work has been processed.')}</p></article>
-    <article class="monitor-blocker ${blocked ? 'has-blocker' : ''}"><span>BLOCKER</span><strong>${escapeHtml(blocked ? String(activeTask.status).replaceAll('_', ' ') : 'None')}</strong><p>${escapeHtml(blocked ? (activeTask.output?.message || activeTask.description) : 'No dependency is blocking the current runnable work.')}</p></article>
     <article class="monitor-next"><span>NEXT</span><strong>${escapeHtml(nextTask?.title || (progress === 100 ? 'Review saved results' : 'Await runtime update'))}</strong><p>${escapeHtml(nextTask?.description || 'Mission outputs remain available in the task list and timeline.')}</p></article>
   </div>${agentOverview?.pendingMemoryCount ? `<div class="thinking-learning">${agentOverview.pendingMemoryCount} reusable learning candidate(s) await administrator review.</div>` : ''}` : '<div class="workspace-empty">Launch a mission to see live execution progress.</div>';
+  if (grid) agentMonitorSignature = monitorSignature;
 }
 
 async function approveAgentPlan() {
