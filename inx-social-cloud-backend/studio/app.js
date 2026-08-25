@@ -30,6 +30,7 @@ let agentPageTargetsInitialized = false;
 const agentSelectedAssetIds = new Set();
 let agentTimelineSignature = '';
 let agentMonitorSignature = '';
+let agentEditingPostId = '';
 
 const UI_TEXT_FIELDS = [
   'appTitle', 'appSubtitle', 'dashboardTitle', 'dashboardSubtitle',
@@ -321,6 +322,12 @@ function bindButtons() {
   on('btnAgentPagesAll', () => setAgentPageTargets(true));
   on('btnAgentPagesClear', () => setAgentPageTargets(false));
   on('btnAgentUploadAsset', uploadAgentBrandAsset);
+  on('btnAgentPostEditorClose', closeAgentPostEditor);
+  on('btnAgentPostCancel', closeAgentPostEditor);
+  on('btnAgentPostSave', saveAgentCampaignPost);
+  on('btnAgentPostApprove', () => approveAgentCampaignPost());
+  on('btnAgentPostRegenerate', regenerateAgentCampaignPostImage);
+  document.getElementById('agentPostEditor')?.addEventListener('click', event => { if (event.target.id === 'agentPostEditor') closeAgentPostEditor(); });
   document.getElementById('agentBrandAssetFile')?.addEventListener('change', updateAgentBrandFileName);
   document.querySelectorAll('.agent-output-type').forEach(input => input.addEventListener('change', updateAgentContentControls));
   document.getElementById('agentExecutionMode')?.addEventListener('change', updateAgentCreditPreview);
@@ -1881,8 +1888,8 @@ async function removeAgentBrandAsset(id) {
 function renderAgentBrandAssets() {
   const container = document.getElementById('agentBrandAssetGrid');
   if (!container) return;
-  const assets = agentOverview?.assets || [];
-  container.innerHTML = assets.length ? assets.map(asset => `<article class="agent-brand-asset ${agentSelectedAssetIds.has(asset.id) ? 'selected' : ''}" data-agent-asset-card="${escapeHtml(asset.id)}"><button class="agent-brand-preview" type="button" data-agent-asset-select="${escapeHtml(asset.id)}" aria-pressed="${agentSelectedAssetIds.has(asset.id)}"><span data-agent-asset-image="${escapeHtml(asset.id)}">IMG</span><b>${escapeHtml(asset.kind.replaceAll('_', ' '))}</b><small>${escapeHtml(asset.originalName || 'Generated image')}</small><i>✓</i></button>${!asset.planId && asset.source === 'UPLOAD' ? `<button class="agent-brand-remove" type="button" data-agent-asset-remove="${escapeHtml(asset.id)}" aria-label="Remove ${escapeHtml(asset.originalName || 'image')}">&times;</button>` : ''}</article>`).join('') : '<div class="workspace-empty">No brand images uploaded.</div>';
+  const assets = (agentOverview?.assets || []).filter(asset => asset.source === 'UPLOAD');
+  container.innerHTML = assets.length ? assets.map(asset => `<article class="agent-brand-asset ${agentSelectedAssetIds.has(asset.id) ? 'selected' : ''}" data-agent-asset-card="${escapeHtml(asset.id)}"><button class="agent-brand-preview" type="button" data-agent-asset-select="${escapeHtml(asset.id)}" aria-pressed="${agentSelectedAssetIds.has(asset.id)}"><span data-agent-asset-image="${escapeHtml(asset.id)}">IMG</span><b>${escapeHtml(asset.kind.replaceAll('_', ' '))}</b><small>${escapeHtml(asset.originalName || 'Brand image')}</small><i>✓</i></button>${!asset.planId && asset.source === 'UPLOAD' ? `<button class="agent-brand-remove" type="button" data-agent-asset-remove="${escapeHtml(asset.id)}" aria-label="Remove ${escapeHtml(asset.originalName || 'image')}">&times;</button>` : ''}</article>`).join('') : '<div class="workspace-empty">No brand images uploaded.</div>';
   container.querySelectorAll('[data-agent-asset-select]').forEach(button => button.addEventListener('click', () => {
     const id = button.dataset.agentAssetSelect;
     if (agentSelectedAssetIds.has(id)) agentSelectedAssetIds.delete(id); else if (agentSelectedAssetIds.size < 10) agentSelectedAssetIds.add(id); else return toast('Select no more than 10 images for one mission.', true);
@@ -2059,6 +2066,176 @@ function openAgentTaskDetail(taskId) {
   });
 }
 
+function setSelectedAgentCampaign(campaign) {
+  if (!campaign || !agentOverview?.plans) return;
+  agentOverview.plans = agentOverview.plans.map(plan => plan.id === campaign.planId ? { ...plan, campaign } : plan);
+}
+
+function campaignPostStatusLabel(status) {
+  const labels = {
+    READY_FOR_REVIEW: 'Ready for review',
+    CHANGES_REQUESTED: 'Changes requested',
+    WAITING_MEDIA: 'Media required',
+    APPROVED: 'Approved',
+    SCHEDULING: 'Scheduling',
+    SCHEDULED: 'Scheduled',
+    SCHEDULE_FAILED: 'Scheduling failed',
+    PUBLISHED: 'Published'
+  };
+  return labels[status] || String(status || 'Draft').replaceAll('_', ' ');
+}
+
+function localDateTimeValue(value) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '';
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function renderAgentCampaignReview(campaign) {
+  if (!campaign) return '';
+  const posts = campaign.posts || [];
+  const readyToSchedule = posts.some(post => ['APPROVED', 'SCHEDULE_FAILED'].includes(post.status));
+  const allScheduled = posts.length && posts.every(post => ['SCHEDULED', 'PUBLISHED'].includes(post.status));
+  return `<section class="agent-campaign-review" aria-label="Campaign review">
+    <header class="agent-campaign-head">
+      <div><span>CAMPAIGN REVIEW</span><h3>${escapeHtml(campaign.name)}</h3><p>Review every caption, visual and ${escapeHtml(campaign.timezone)} publishing time. Nothing is sent to Facebook until you approve and schedule it.</p></div>
+      <div class="agent-campaign-counts"><strong>${campaign.counts?.scheduled || 0}/${campaign.counts?.total || posts.length}</strong><small>scheduled</small></div>
+    </header>
+    <div class="agent-campaign-summary"><span>${posts.length} complete posts</span><span>${campaign.counts?.approved || 0} approved</span><span>${campaign.counts?.needsAttention || 0} need review</span><span>${escapeHtml(campaign.status.replaceAll('_', ' '))}</span></div>
+    <div class="agent-campaign-post-grid">${posts.map(post => `<article class="agent-campaign-post status-${escapeHtml(String(post.status).toLowerCase())}" data-agent-campaign-post="${escapeHtml(post.id)}" tabindex="0" role="button">
+      <button class="agent-campaign-visual" type="button" data-agent-post-open="${escapeHtml(post.id)}" aria-label="Open post ${post.sequence}">${post.asset ? `<span data-agent-campaign-asset="${escapeHtml(post.asset.id)}">Loading image…</span>` : '<span class="agent-text-post-art">Aa</span>'}<i>${escapeHtml(post.format)}</i></button>
+      <div class="agent-campaign-post-body"><div class="agent-post-meta"><b>POST ${post.sequence}</b><span>${escapeHtml(campaignPostStatusLabel(post.status))}</span></div><h4>${escapeHtml(post.title || `Post ${post.sequence}`)}</h4><p>${escapeHtml(post.caption).replaceAll('\n', '<br>')}</p><small>${escapeHtml(post.page?.name || 'Facebook Page')} · ${escapeHtml(new Date(post.scheduledAt).toLocaleString())}</small></div>
+      <footer><button type="button" class="btn ghost compact" data-agent-post-open="${escapeHtml(post.id)}">Review &amp; edit</button>${!['SCHEDULED','PUBLISHED','SCHEDULING'].includes(post.status) ? `<button type="button" class="btn secondary compact" data-agent-post-approve="${escapeHtml(post.id)}">${post.status === 'APPROVED' ? 'Approved ✓' : 'Approve'}</button>` : '<span class="agent-post-scheduled">Scheduled ✓</span>'}</footer>
+    </article>`).join('')}</div>
+    <footer class="agent-campaign-actions"><div><strong>${allScheduled ? 'Campaign scheduled' : 'Final owner checkpoint'}</strong><span>${allScheduled ? 'All posts were accepted by Facebook.' : 'You can edit and approve posts individually, or approve every review-ready post and schedule the campaign.'}</span></div>${allScheduled ? '<button class="btn primary" type="button" disabled>Scheduled ✓</button>' : `<button id="btnAgentApproveScheduleCampaign" class="btn primary" type="button">${readyToSchedule ? 'Schedule approved posts' : 'Approve all &amp; schedule'}</button>`}</footer>
+  </section>`;
+}
+
+function findAgentCampaignPost(postId) {
+  return selectedAgentPlan()?.campaign?.posts?.find(post => post.id === postId) || null;
+}
+
+async function hydrateAgentCampaignImages(root) {
+  root?.querySelectorAll('[data-agent-campaign-asset]').forEach(async target => {
+    const url = await window.schedulerApi.getAgentAssetUrl(target.dataset.agentCampaignAsset).catch(() => '');
+    if (url && target.isConnected) target.innerHTML = `<img src="${escapeHtml(url)}" alt="Generated post visual">`;
+  });
+}
+
+async function openAgentPostEditor(postId) {
+  const post = findAgentCampaignPost(postId);
+  const modal = document.getElementById('agentPostEditor');
+  if (!post || !modal) return;
+  agentEditingPostId = post.id;
+  modal.dataset.campaignId = selectedAgentPlan().campaign.id;
+  document.getElementById('agentPostEditorNumber').textContent = `Post ${post.sequence}`;
+  document.getElementById('agentPostEditorStatus').textContent = campaignPostStatusLabel(post.status);
+  document.getElementById('agentPostEditorTitle').value = post.title || '';
+  document.getElementById('agentPostEditorCaption').value = post.caption || '';
+  document.getElementById('agentPostEditorAlt').value = post.altText || '';
+  document.getElementById('agentPostEditorVisualBrief').value = post.visualBrief || '';
+  document.getElementById('agentPostEditorTime').value = localDateTimeValue(post.scheduledAt);
+  document.getElementById('agentPostEditorPage').textContent = post.page?.name || 'Facebook Page';
+  document.getElementById('agentPostEditorReason').textContent = post.scheduleReason || '';
+  const visual = document.getElementById('agentPostEditorVisual');
+  visual.innerHTML = post.asset ? '<span>Loading full preview…</span>' : '<span class="agent-text-post-art">Aa</span>';
+  if (post.asset) {
+    const url = await window.schedulerApi.getAgentAssetUrl(post.asset.id).catch(() => '');
+    if (url && agentEditingPostId === post.id) visual.innerHTML = `<img src="${escapeHtml(url)}" alt="${escapeHtml(post.altText || 'Generated campaign visual')}">`;
+  }
+  const locked = ['SCHEDULED', 'PUBLISHED', 'SCHEDULING'].includes(post.status);
+  modal.querySelectorAll('input, textarea').forEach(field => { field.disabled = locked; });
+  document.getElementById('btnAgentPostSave').disabled = locked;
+  document.getElementById('btnAgentPostRegenerate').disabled = locked;
+  document.getElementById('btnAgentPostApprove').disabled = locked || post.status === 'APPROVED';
+  document.getElementById('btnAgentPostApprove').textContent = post.status === 'APPROVED' ? 'Approved ✓' : 'Approve post';
+  modal.classList.remove('hidden');
+}
+
+function closeAgentPostEditor() {
+  document.getElementById('agentPostEditor')?.classList.add('hidden');
+  agentEditingPostId = '';
+}
+
+async function saveAgentCampaignPost() {
+  const plan = selectedAgentPlan();
+  if (!plan?.campaign || !agentEditingPostId) return;
+  const button = document.getElementById('btnAgentPostSave');
+  button.disabled = true;
+  try {
+    const value = document.getElementById('agentPostEditorTime').value;
+    const result = await window.schedulerApi.updateAgentCampaignPost(plan.campaign.id, agentEditingPostId, {
+      title: document.getElementById('agentPostEditorTitle').value,
+      caption: document.getElementById('agentPostEditorCaption').value,
+      altText: document.getElementById('agentPostEditorAlt').value,
+      visualBrief: document.getElementById('agentPostEditorVisualBrief').value,
+      scheduledAt: value ? new Date(value).toISOString() : null
+    });
+    setSelectedAgentCampaign(result.campaign);
+    renderAgentWorkspace();
+    await openAgentPostEditor(agentEditingPostId);
+    toast(result.notice || 'Post saved.');
+  } catch (error) { toast(error.message, true); }
+  finally { button.disabled = false; }
+}
+
+async function approveAgentCampaignPost(postId = agentEditingPostId) {
+  const plan = selectedAgentPlan();
+  if (!plan?.campaign || !postId) return;
+  try {
+    const result = await window.schedulerApi.approveAgentCampaignPost(plan.campaign.id, postId);
+    setSelectedAgentCampaign(result.campaign);
+    renderAgentWorkspace();
+    if (agentEditingPostId) await openAgentPostEditor(postId);
+    toast(result.notice || 'Post approved.');
+  } catch (error) { toast(error.message, true); }
+}
+
+async function regenerateAgentCampaignPostImage() {
+  const plan = selectedAgentPlan();
+  if (!plan?.campaign || !agentEditingPostId) return;
+  const confirmed = await showStudioConfirm({ eyebrow: 'Creative replacement', title: 'Generate a different image?', message: 'The current image stays in the mission history. A new post-specific visual will replace it in this review card and the post approval will reset.', tone: 'warning', confirmText: 'Generate new image' });
+  if (!confirmed) return;
+  const postId = agentEditingPostId;
+  try {
+    const result = await window.schedulerApi.regenerateAgentCampaignPostImage(plan.campaign.id, postId);
+    setSelectedAgentCampaign(result.campaign);
+    renderAgentWorkspace();
+    await openAgentPostEditor(postId);
+    toast(result.notice || 'New image generated.');
+  } catch (error) { toast(error.message, true); }
+}
+
+async function approveAndScheduleAgentCampaign() {
+  const plan = selectedAgentPlan();
+  const campaign = plan?.campaign;
+  if (!campaign) return;
+  const confirmed = await showStudioConfirm({
+    eyebrow: 'Final publishing checkpoint',
+    title: 'Approve and schedule this campaign?',
+    message: `INX Social will approve review-ready posts and send the approved ${campaign.posts?.length || 0}-post schedule to the selected Facebook Page connections. This creates real scheduled posts.`,
+    metrics: [{ label: 'Posts', value: campaign.posts?.length || 0 }, { label: 'Timezone', value: campaign.timezone }],
+    tone: 'warning', confirmText: 'Approve & schedule'
+  });
+  if (!confirmed) return;
+  const button = document.getElementById('btnAgentApproveScheduleCampaign');
+  if (button) { button.disabled = true; button.textContent = 'Scheduling…'; }
+  try {
+    let current = campaign;
+    if (campaign.posts.some(post => !['APPROVED','SCHEDULED','PUBLISHED','SCHEDULE_FAILED'].includes(post.status))) {
+      const approved = await window.schedulerApi.approveAgentCampaign(campaign.id);
+      current = approved.campaign;
+      setSelectedAgentCampaign(current);
+    }
+    const result = await window.schedulerApi.scheduleAgentCampaign(current.id);
+    setSelectedAgentCampaign(result.campaign);
+    renderAgentWorkspace();
+    toast(result.notice || 'Campaign scheduling completed.', Boolean(result.results?.some(item => !item.ok)));
+  } catch (error) { toast(error.message, true); }
+  finally { if (button?.isConnected) { button.disabled = false; button.textContent = 'Approve all & schedule'; } }
+}
+
 function renderAgentWorkspace() {
   const workspace = document.getElementById('agentPlanWorkspace');
   if (!workspace) return;
@@ -2105,6 +2282,7 @@ function renderAgentWorkspace() {
       <div class="agent-plan-metrics"><div><span>Current plan</span><strong>${escapeHtml(agentOverview?.license?.plan || 'TRIAL')}</strong><small>Social Agent access</small></div><div><span>Agent missions used</span><strong>${Number(usage.used || 0).toLocaleString()} / ${usageLimit}</strong><small>this plan period</small></div><div><span>Remaining</span><strong>${usageRemaining}</strong><small>new missions available</small></div><div><span>Usage resets</span><strong>${escapeHtml(periodEnd)}</strong><small>${completed}/${plan.tasks?.length || 0} tasks complete · ${running} active · ${waiting} waiting</small></div></div>
       ${plan.lastError ? `<div class="agent-runtime-error">${escapeHtml(plan.lastError)}</div>` : ''}
       ${renderAgentActionCentre(plan.tasks || [])}
+      ${renderAgentCampaignReview(plan.campaign)}
       <section class="agent-task-board"><header><div><span>MISSION TASKS</span><strong>${escapeHtml(plan.prompt.slice(0, 90))}</strong></div><div class="agent-overall-progress"><b>${progressPercent}%</b><small>${completed} of ${totalTasks} complete</small></div></header><div class="agent-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progressPercent}"><i style="width:${progressPercent}%"></i></div>
       <div class="agent-task-list">${(plan.tasks || []).map(item => {
         const status = String(item.status || 'PENDING').toLowerCase();
@@ -2123,6 +2301,14 @@ function renderAgentWorkspace() {
   document.getElementById('btnAgentApprovePlan')?.addEventListener('click', approveAgentPlan);
   document.getElementById('btnAgentResumePlan')?.addEventListener('click', resumeAgentPlan);
   document.getElementById('btnAgentCancelPlan')?.addEventListener('click', cancelAgentPlan);
+  document.getElementById('btnAgentApproveScheduleCampaign')?.addEventListener('click', approveAndScheduleAgentCampaign);
+  workspace.querySelectorAll('[data-agent-post-open]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); openAgentPostEditor(button.dataset.agentPostOpen); }));
+  workspace.querySelectorAll('[data-agent-post-approve]').forEach(button => button.addEventListener('click', event => { event.stopPropagation(); approveAgentCampaignPost(button.dataset.agentPostApprove); }));
+  workspace.querySelectorAll('[data-agent-campaign-post]').forEach(card => {
+    card.addEventListener('click', () => openAgentPostEditor(card.dataset.agentCampaignPost));
+    card.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') openAgentPostEditor(card.dataset.agentCampaignPost); });
+  });
+  hydrateAgentCampaignImages(workspace);
   workspace.querySelectorAll('[data-agent-generated-asset]').forEach(async target => {
     const url = await window.schedulerApi.getAgentAssetUrl(target.dataset.agentGeneratedAsset).catch(() => '');
     if (url && target.isConnected) target.innerHTML = `<img src="${escapeHtml(url)}" alt="Generated campaign image"><span>Open generated image</span>`;

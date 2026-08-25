@@ -31,6 +31,14 @@ function taskInstruction(plan, task, approvedMemories = []) {
   const researchBlock = research?.content
     ? ['Current mission research:', research.content, ...(research.sources || []).map(source => `Source: ${source.title} — ${source.url}`)]
     : ['Current mission research: unavailable. Do not imply that live web research was completed.'];
+  const structuredRequirement = task.type === 'COPY_GENERATION' ? [
+    `Return JSON only with a top-level "posts" array containing exactly ${Math.max(1, Math.min(100, Number(strategy.assetCount || 1)))} distinct posts.`,
+    'Every post must contain: title, caption, altText, hashtags (array of short strings without #), visualBrief, and objective.',
+    'Make each hook, angle and visual brief meaningfully different. Captions must be ready to publish and may include a concise call to action.',
+    'Do not wrap the JSON in Markdown fences.'
+  ] : task.type === 'SCHEDULE' ? [
+    'Explain the recommended posting windows in the Page audience timezone. Separate evidence-backed findings from general best-practice assumptions.'
+  ] : [];
   return [
     'You are the INX Social organic-content strategist.',
     'Return practical work only. Never invent business facts, performance results, permissions or customer testimonials.',
@@ -43,8 +51,10 @@ function taskInstruction(plan, task, approvedMemories = []) {
     `Task requirement: ${task.description}`,
     ...memoryBlock,
     ...researchBlock,
+    ...structuredRequirement,
     'Use approved playbooks as guidance, not as facts about this business.',
-    'Write a concise, production-useful result with clear headings or a compact numbered list. Do not reveal hidden chain-of-thought.'
+    'Do not reveal hidden chain-of-thought.',
+    task.type === 'COPY_GENERATION' ? 'Return the requested machine-readable JSON only.' : 'Write a concise, production-useful result with clear headings or a compact numbered list. Do not reveal hidden chain-of-thought.'
   ].join('\n');
 }
 

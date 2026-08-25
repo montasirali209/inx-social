@@ -709,6 +709,24 @@ Third video caption #hashtags"></textarea>
     <button id="dockAuto" title="Auto Scheduler">▣</button>
   </div>
 
+  <div id="agentPostEditor" class="agent-post-editor hidden" role="dialog" aria-modal="true" aria-labelledby="agentPostEditorNumber">
+    <section class="agent-post-editor-card">
+      <header><div><span id="agentPostEditorNumber">Post</span><h2>Review and edit post</h2><p><b id="agentPostEditorStatus">Ready for review</b> · <span id="agentPostEditorPage">Facebook Page</span></p></div><button id="btnAgentPostEditorClose" type="button" aria-label="Close">&times;</button></header>
+      <div class="agent-post-editor-layout">
+        <div class="agent-post-editor-media"><div id="agentPostEditorVisual"><span>Loading preview…</span></div><button id="btnAgentPostRegenerate" class="btn secondary" type="button">Generate a different image</button><small>Generated media belongs here—not in Brand and reference images.</small></div>
+        <div class="agent-post-editor-fields">
+          <label>Post title<input id="agentPostEditorTitle" maxlength="160"></label>
+          <label>Caption<textarea id="agentPostEditorCaption" rows="8" maxlength="63206"></textarea></label>
+          <label>Accessibility text<textarea id="agentPostEditorAlt" rows="3" maxlength="1000"></textarea></label>
+          <label>Visual direction<textarea id="agentPostEditorVisualBrief" rows="3" maxlength="2000"></textarea></label>
+          <label>Publishing time<input id="agentPostEditorTime" type="datetime-local"></label>
+          <p id="agentPostEditorReason" class="agent-post-editor-reason"></p>
+        </div>
+      </div>
+      <footer><button id="btnAgentPostCancel" class="btn ghost" type="button">Close</button><button id="btnAgentPostSave" class="btn secondary" type="button">Save changes</button><button id="btnAgentPostApprove" class="btn primary" type="button">Approve post</button></footer>
+    </section>
+  </div>
+
   <div id="studioActionModal" class="studio-action-modal hidden" role="dialog" aria-modal="true" aria-labelledby="studioActionTitle" aria-describedby="studioActionMessage">
     <section id="studioActionCard" class="studio-action-card" data-tone="info">
       <div class="studio-action-glow" aria-hidden="true"></div>

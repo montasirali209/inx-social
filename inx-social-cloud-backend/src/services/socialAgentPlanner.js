@@ -131,6 +131,7 @@ function buildPlan(input = {}) {
   }
 
   tasks.push(task('CONTENT_STRATEGY', `Create a ${assetCount}-asset content plan`, `Plan ${assetCount} distinct ideas, campaign goals, calls to action and platform-specific formats without fabricating business facts.`));
+  tasks.push(task('COPY_GENERATION', 'Write captions, visual briefs and accessibility text', 'Create a distinct publish-ready caption, visual direction, call to action, hashtags and alt-text for every requested post while preserving the approved brand voice.'));
   if (wantsImage) tasks.push(task('IMAGE_GENERATION', `Generate ${assetCount} branded ${contentOutput === 'CAROUSEL' ? 'carousel' : 'image'} asset${assetCount === 1 ? '' : 's'}`, `${provider.label} will create the visual assets within the administrator-controlled safety limit.`, {
     executionMode,
     operationMode,
@@ -143,8 +144,6 @@ function buildPlan(input = {}) {
     estimatedCostCents: provider.estimatedCentsPerAsset * assetCount,
     riskLevel: executionMode === 'VIDEO_FAST' ? 'LOW' : 'MEDIUM'
   }));
-  tasks.push(task('COPY_GENERATION', 'Write captions and accessibility text', 'Create platform-specific captions, calls to action, hashtags and alt-text while preserving the approved brand voice.'));
-
   for (const platform of platforms) {
     tasks.push(task('PLATFORM_VARIANT', `Prepare the ${platform} version`, `Adapt dimensions, duration, metadata and disclosure fields for ${platform}.`, { platform }));
   }

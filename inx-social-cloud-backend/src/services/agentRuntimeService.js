@@ -3,6 +3,7 @@ const brain = require('./agentBrainService');
 const env = require('../config/env');
 const media = require('./agentMediaService');
 const webResearch = require('./webResearchService');
+const campaigns = require('./agentCampaignService');
 
 let activePlanId = null;
 let intervalHandle = null;
@@ -83,7 +84,8 @@ async function runPlan(planId) {
         await prisma.agentTask.update({ where: { id: task.id }, data: { status: 'RUNNING', startedAt: new Date() } });
         await event(plan.userId, plan.id, task.id, 'TASK_STARTED', 'RUNNING', task.title, 'The private Ollama image worker is creating bounded brand-safe assets.');
         try {
-          const result = await media.generateImages(plan, task);
+          const currentPlan = await prisma.agentPlan.findUnique({ where: { id: plan.id }, include: { tasks: { orderBy: { sequence: 'asc' } } } });
+          const result = await media.generateImages(currentPlan || plan, task);
           await prisma.agentTask.update({ where: { id: task.id }, data: { status: 'COMPLETED', outputJson: JSON.stringify(result), completedAt: new Date() } });
           await event(plan.userId, plan.id, task.id, 'TASK_COMPLETED', 'SUCCESS', task.title, result.summary || result.content, { assetCount: result.assets?.length || 0 });
         } catch (error) {
@@ -95,7 +97,15 @@ async function runPlan(planId) {
         actionRequired = true;
         if (String(task.status).startsWith('WAITING_') || task.status === 'ACTION_REQUIRED') continue;
         if (['MEDIA_GENERATION', 'VIDEO_GENERATION'].includes(task.type)) await markWaiting(plan, task, 'WAITING_MEDIA_WORKER', 'Video creation needs a configured video worker. No paid request was made; completed strategy, image and copy work remains available.');
-        else if (task.type === 'PUBLISH') await markWaiting(plan, task, plan.operationMode === 'AUTOPILOT' ? 'WAITING_ASSETS' : 'WAITING_REVIEW', plan.operationMode === 'AUTOPILOT' ? 'Autopilot will publish organic content when approved assets and a connected platform worker are ready.' : 'Hybrid mode is waiting for the owner review checkpoint.');
+        else if (task.type === 'PUBLISH') {
+          try {
+            const campaign = await campaigns.prepareReview(plan.id);
+            const message = `${campaign.posts?.length || 0} complete post${campaign.posts?.length === 1 ? '' : 's'} are ready in Campaign Review. Check each caption, image and publishing time, then approve and schedule.`;
+            await markWaiting(plan, task, 'WAITING_REVIEW', message);
+          } catch (_) {
+            await markWaiting(plan, task, 'WAITING_CAMPAIGN_REVIEW', 'Campaign Review could not be assembled yet. Saved copy and media are safe; sync or resume the mission to try again.');
+          }
+        }
         else if (task.type === 'PAGE_SETUP') await markWaiting(plan, task, 'ACTION_REQUIRED', 'Complete the displayed Facebook Page setup steps manually. The remaining strategy and copy tasks will continue with Ollama.');
         else if (task.type === 'ANALYTICS') await markWaiting(plan, task, 'WAITING_PLATFORM', 'Analytics will begin after content is published and the connected platform returns results.');
         else await markWaiting(plan, task, 'WAITING_DEPENDENCY', 'This task needs a connected platform capability, but independent Ollama work will continue.');

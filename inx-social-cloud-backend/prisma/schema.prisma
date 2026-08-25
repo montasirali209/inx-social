@@ -38,6 +38,7 @@ model User {
   agentMemories           AgentMemory[]
   agentEvents             AgentEvent[]
   agentAssets             AgentAsset[]
+  agentCampaigns          AgentCampaign[]
 
   @@index([status])
   @@index([role])
@@ -65,6 +66,7 @@ model AgentPlan {
   tasks  AgentTask[]
   events AgentEvent[]
   assets AgentAsset[]
+  campaign AgentCampaign?
 
   @@index([userId])
   @@index([status])
@@ -90,6 +92,7 @@ model AgentAsset {
 
   user User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan AgentPlan? @relation(fields: [planId], references: [id], onDelete: SetNull)
+  campaignPosts AgentCampaignPost[]
 
   @@index([userId, createdAt])
   @@index([planId])
@@ -264,6 +267,7 @@ model ConnectedPage {
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   metaAccount  MetaAccount?  @relation(fields: [metaAccountId], references: [id], onDelete: SetNull)
   scheduleJobs ScheduleJob[]
+  campaignPosts AgentCampaignPost[]
 
   @@unique([userId, facebookPageId])
   @@index([userId])
@@ -302,6 +306,7 @@ model ScheduleJob {
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   connectedPage ConnectedPage? @relation(fields: [connectedPageId], references: [id], onDelete: SetNull)
   cloudAsset    CloudAsset?
+  campaignPost  AgentCampaignPost?
 
   @@unique([userId, clientRequestId])
   @@index([userId])
@@ -312,6 +317,63 @@ model ScheduleJob {
   @@index([scheduledAt])
   @@index([nextAttemptAt])
   @@index([contentType])
+}
+
+model AgentCampaign {
+  id                String    @id @default(cuid())
+  userId            String
+  planId            String    @unique
+  name              String
+  status            String    @default("DRAFT")
+  targetPageIdsJson String
+  timezone          String    @default("Europe/London")
+  researchSummary   String?
+  approvedAt        DateTime?
+  scheduledAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan  AgentPlan           @relation(fields: [planId], references: [id], onDelete: Cascade)
+  posts AgentCampaignPost[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model AgentCampaignPost {
+  id              String    @id @default(cuid())
+  campaignId      String
+  connectedPageId String?
+  assetId         String?
+  scheduleJobId   String?   @unique
+  sequence        Int
+  status          String    @default("READY_FOR_REVIEW")
+  platform        String    @default("facebook")
+  format          String    @default("IMAGE")
+  title           String?
+  caption         String
+  altText         String?
+  hashtagsJson    String?
+  visualBrief     String?
+  scheduledAt     DateTime?
+  scheduleReason  String?
+  approvedAt      DateTime?
+  metaPostId      String?
+  lastError       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  campaign      AgentCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  connectedPage ConnectedPage? @relation(fields: [connectedPageId], references: [id], onDelete: SetNull)
+  asset         AgentAsset?    @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  scheduleJob   ScheduleJob?   @relation(fields: [scheduleJobId], references: [id], onDelete: SetNull)
+
+  @@unique([campaignId, sequence])
+  @@index([campaignId, status])
+  @@index([connectedPageId])
+  @@index([assetId])
+  @@index([scheduledAt])
 }
 
 model CloudAsset {

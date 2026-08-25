@@ -6,9 +6,15 @@ const agentAccess = require('../services/agentAccessService');
 const agentAssets = require('../services/agentAssetService');
 const agentMedia = require('../services/agentMediaService');
 const webResearch = require('../services/webResearchService');
+const agentCampaigns = require('../services/agentCampaignService');
 
 const ASSET_SELECT = { id: true, planId: true, kind: true, source: true, status: true, originalName: true, mimeType: true, byteSize: true, createdAt: true };
-const PLAN_INCLUDE = { tasks: { orderBy: { sequence: 'asc' } }, events: { orderBy: { createdAt: 'desc' }, take: 80 }, assets: { orderBy: { createdAt: 'desc' }, select: ASSET_SELECT } };
+const PLAN_INCLUDE = {
+  tasks: { orderBy: { sequence: 'asc' } },
+  events: { orderBy: { createdAt: 'desc' }, take: 80 },
+  assets: { orderBy: { createdAt: 'desc' }, select: ASSET_SELECT },
+  campaign: { include: agentCampaigns.CAMPAIGN_INCLUDE }
+};
 
 function publicGenerationChoice(value) {
   const code = String(value || '').toUpperCase();
@@ -60,7 +66,8 @@ function publicPlan(plan) {
       completedAt: item.completedAt
     })),
     events: (plan.events || []).map(item => ({ id: item.id, taskId: item.taskId, type: item.type, status: item.status, title: item.title, message: item.message, createdAt: item.createdAt })),
-    assets: (plan.assets || []).map(agentAssets.publicAsset)
+    assets: (plan.assets || []).map(agentAssets.publicAsset),
+    campaign: agentCampaigns.publicCampaign(plan.campaign)
   };
 }
 
@@ -120,10 +127,10 @@ async function overview(req, res, next) {
     const pendingMemoryCount = await prisma.agentMemory.count({ where: { userId: req.user.id, approvalStatus: 'PENDING_REVIEW' } });
     const runtime = await getRuntimeStatus();
     const connectedPages = await connectedPagesForUser(req.user.id);
-    const availableAssets = await agentAssets.list(req.user.id);
+    const availableAssets = await agentAssets.list(req.user.id, { source: 'UPLOAD' });
     const userQueue = runtime.queuedPlanIds.filter(id => recentPlans.some(plan => plan.id === id));
     res.json({
-      phase: '11.4.4',
+      phase: '11.5.0',
       mode: 'OLLAMA_FIRST_RUNTIME',
       license: { plan: entitlement.plan, allowed: entitlement.allowed },
       usage: entitlement.usage,
@@ -133,11 +140,13 @@ async function overview(req, res, next) {
         providerRouting: true,
         autonomousPublishing: false,
         hybridReview: true,
+        campaignReview: true,
+        facebookOrganicScheduling: true,
         paidPromotion: false,
         brain: { configured: agentBrain.status().configured },
         imageWorker: agentMedia.status(),
         webResearch: webResearch.status(),
-        note: 'Autopilot prepares approved organic content automatically. Direct Social Agent publishing remains paused until the governed Facebook publishing adapter is connected; paid advertising remains disabled.'
+        note: 'The agent prepares complete campaign posts. Facebook text and image posts are scheduled only after the owner approves them; paid advertising remains disabled.'
       },
       supportedPlatforms: SUPPORTED_PLATFORMS,
       contentOutputs: Object.entries(CONTENT_OUTPUTS).map(([code, value]) => ({ code, label: value.label, mediaKind: value.mediaKind })),
@@ -306,4 +315,63 @@ async function cancelPlan(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { overview, preflightMission, createPlan, listPlans, approvePlan, resumePlan, cancelPlan, uploadAsset, assetContent, deleteAsset, publicPlan, publicMemory, publicPageTarget, resolvePageTargets };
+async function campaignDetails(req, res, next) {
+  try {
+    await agentAccess.requireAccess(req.user.id);
+    const campaign = await agentCampaigns.findOwned(req.user.id, req.params.campaignId);
+    res.json({ campaign: agentCampaigns.publicCampaign(campaign) });
+  } catch (error) { next(error); }
+}
+
+async function updateCampaignPost(req, res, next) {
+  try {
+    await agentAccess.requireAccess(req.user.id);
+    const campaign = await agentCampaigns.updatePost(req.user.id, req.params.campaignId, req.params.postId, req.body || {});
+    await prisma.auditLog.create({ data: { userId: req.user.id, action: 'AGENT_CAMPAIGN_POST_EDITED', entity: 'AgentCampaignPost', entityId: req.params.postId, metadata: JSON.stringify({ campaignId: req.params.campaignId }) } });
+    res.json({ campaign: agentCampaigns.publicCampaign(campaign), notice: 'Post changes saved. Review approval was reset for this post.' });
+  } catch (error) { next(error); }
+}
+
+async function approveCampaignPost(req, res, next) {
+  try {
+    await agentAccess.requireAccess(req.user.id);
+    const campaign = await agentCampaigns.approvePost(req.user.id, req.params.campaignId, req.params.postId);
+    await prisma.auditLog.create({ data: { userId: req.user.id, action: 'AGENT_CAMPAIGN_POST_APPROVED', entity: 'AgentCampaignPost', entityId: req.params.postId, metadata: JSON.stringify({ campaignId: req.params.campaignId }) } });
+    res.json({ campaign: agentCampaigns.publicCampaign(campaign), notice: 'Post approved. It has not been scheduled yet.' });
+  } catch (error) { next(error); }
+}
+
+async function approveCampaign(req, res, next) {
+  try {
+    await agentAccess.requireAccess(req.user.id);
+    const campaign = await agentCampaigns.approveAll(req.user.id, req.params.campaignId);
+    await prisma.auditLog.create({ data: { userId: req.user.id, action: 'AGENT_CAMPAIGN_APPROVED', entity: 'AgentCampaign', entityId: req.params.campaignId } });
+    res.json({ campaign: agentCampaigns.publicCampaign(campaign), notice: 'All review-ready posts approved. Nothing has been published yet.' });
+  } catch (error) { next(error); }
+}
+
+async function regenerateCampaignPostImage(req, res, next) {
+  try {
+    await agentAccess.requireAccess(req.user.id);
+    const campaign = await agentCampaigns.regeneratePostImage(req.user.id, req.params.campaignId, req.params.postId);
+    await prisma.auditLog.create({ data: { userId: req.user.id, action: 'AGENT_CAMPAIGN_IMAGE_REGENERATED', entity: 'AgentCampaignPost', entityId: req.params.postId, metadata: JSON.stringify({ campaignId: req.params.campaignId }) } });
+    res.json({ campaign: agentCampaigns.publicCampaign(campaign), notice: 'A new image was generated for this post. Review and approve it again.' });
+  } catch (error) { next(error); }
+}
+
+async function scheduleCampaign(req, res, next) {
+  try {
+    await agentAccess.requireAccess(req.user.id);
+    const result = await agentCampaigns.scheduleCampaign(req.user.id, req.params.campaignId);
+    await prisma.auditLog.create({ data: { userId: req.user.id, action: 'AGENT_CAMPAIGN_SCHEDULED', entity: 'AgentCampaign', entityId: req.params.campaignId, metadata: JSON.stringify({ scheduled: result.scheduled, failed: result.failed }) } });
+    res.status(result.failed ? 207 : 200).json({ campaign: agentCampaigns.publicCampaign(result.campaign), results: result.results, notice: result.failed ? `${result.scheduled} posts scheduled; ${result.failed} need attention.` : `${result.scheduled} posts scheduled successfully on Facebook.` });
+  } catch (error) { next(error); }
+}
+
+module.exports = {
+  overview, preflightMission, createPlan, listPlans, approvePlan, resumePlan, cancelPlan,
+  uploadAsset, assetContent, deleteAsset,
+  campaignDetails, updateCampaignPost, approveCampaignPost, approveCampaign,
+  regenerateCampaignPostImage, scheduleCampaign,
+  publicPlan, publicMemory, publicPageTarget, resolvePageTargets
+};

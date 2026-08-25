@@ -53,9 +53,11 @@ async function createUpload(userId, input = {}) {
   } });
 }
 
-async function list(userId) {
+async function list(userId, options = {}) {
   if (typeof prisma.agentAsset?.findMany !== 'function') return [];
-  return prisma.agentAsset.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: MAX_ASSETS_PER_USER, select: { id: true, planId: true, kind: true, source: true, status: true, originalName: true, mimeType: true, byteSize: true, createdAt: true } });
+  const where = { userId };
+  if (options.source) where.source = String(options.source);
+  return prisma.agentAsset.findMany({ where, orderBy: { createdAt: 'desc' }, take: MAX_ASSETS_PER_USER, select: { id: true, planId: true, kind: true, source: true, status: true, originalName: true, mimeType: true, byteSize: true, createdAt: true } });
 }
 
 async function resolveOwned(userId, ids = []) {
@@ -63,7 +65,7 @@ async function resolveOwned(userId, ids = []) {
   if (unique.length > 10) throw Object.assign(new Error('Select no more than 10 brand/reference images for one mission.'), { status: 400 });
   if (!unique.length) return [];
   if (typeof prisma.agentAsset?.findMany !== 'function') throw Object.assign(new Error('Brand asset storage is not available.'), { status: 503 });
-  const assets = await prisma.agentAsset.findMany({ where: { userId, id: { in: unique }, status: 'READY' }, select: { id: true, kind: true, originalName: true, mimeType: true, byteSize: true } });
+  const assets = await prisma.agentAsset.findMany({ where: { userId, id: { in: unique }, status: 'READY', source: 'UPLOAD', planId: null }, select: { id: true, kind: true, originalName: true, mimeType: true, byteSize: true } });
   if (assets.length !== unique.length) throw Object.assign(new Error('One or more selected brand images are unavailable.'), { status: 400 });
   return assets;
 }

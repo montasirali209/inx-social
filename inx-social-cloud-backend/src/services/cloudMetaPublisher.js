@@ -148,11 +148,57 @@ function publishReelNow(input) {
   return publishReel({ ...input, publishMode: 'NOW', scheduledAt: null });
 }
 
+function scheduledPublishFields(scheduledAt) {
+  const unix = Math.floor(new Date(scheduledAt).getTime() / 1000);
+  const minimum = Math.floor(Date.now() / 1000) + (10 * 60);
+  if (!Number.isFinite(unix) || unix < minimum) {
+    throw new Error('Facebook scheduled posts must be at least 10 minutes in the future.');
+  }
+  return { published: false, scheduled_publish_time: unix };
+}
+
+async function publishOrganicPost({ pageId, pageAccessToken, caption, scheduledAt, asset = null }) {
+  const schedule = scheduledPublishFields(scheduledAt);
+  const base = `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(pageId)}`;
+  let response;
+  if (asset?.data?.length) {
+    const form = new FormData();
+    form.append('source', new Blob([asset.data], { type: asset.mimeType || 'image/png' }), asset.originalName || 'inx-social-post.png');
+    form.append('caption', String(caption || ''));
+    form.append('published', 'false');
+    form.append('scheduled_publish_time', String(schedule.scheduled_publish_time));
+    form.append('access_token', pageAccessToken);
+    response = await axios.post(`${base}/photos`, form, {
+      timeout: 60000,
+      maxContentLength: 12 * 1024 * 1024,
+      maxBodyLength: 12 * 1024 * 1024,
+      validateStatus: status => status >= 200 && status < 500
+    });
+  } else {
+    response = await axios.post(`${base}/feed`, {
+      message: String(caption || ''),
+      ...schedule,
+      access_token: pageAccessToken
+    }, {
+      timeout: 60000,
+      validateStatus: status => status >= 200 && status < 500
+    });
+  }
+  assertMetaResponse(response, asset ? 'Facebook image scheduling failed.' : 'Facebook post scheduling failed.');
+  return {
+    postId: response.data?.post_id || response.data?.id || null,
+    scheduledUnix: schedule.scheduled_publish_time,
+    response: response.data
+  };
+}
+
 module.exports = {
   testPage,
   listScheduledPosts,
   getReelStatus,
   publishReel,
   publishScheduledReel,
-  publishReelNow
+  publishReelNow,
+  publishOrganicPost,
+  scheduledPublishFields
 };

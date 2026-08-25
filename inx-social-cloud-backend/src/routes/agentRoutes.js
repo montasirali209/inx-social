@@ -13,5 +13,11 @@ router.post('/preflight', controller.preflightMission);
 router.post('/plans/:id/approve', controller.approvePlan);
 router.post('/plans/:id/resume', controller.resumePlan);
 router.post('/plans/:id/cancel', controller.cancelPlan);
+router.get('/campaigns/:campaignId', controller.campaignDetails);
+router.patch('/campaigns/:campaignId/posts/:postId', controller.updateCampaignPost);
+router.post('/campaigns/:campaignId/posts/:postId/approve', controller.approveCampaignPost);
+router.post('/campaigns/:campaignId/posts/:postId/regenerate-image', controller.regenerateCampaignPostImage);
+router.post('/campaigns/:campaignId/approve', controller.approveCampaign);
+router.post('/campaigns/:campaignId/schedule', controller.scheduleCampaign);
 
 module.exports = router;
