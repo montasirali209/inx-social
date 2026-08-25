@@ -16,13 +16,22 @@ test('AI decides the format by default while exact formats remain advanced prefe
   assert.match(app, /showMissionClarification/);
 });
 
-test('every mission includes governed current research before content strategy', () => {
-  const plan = buildPlan({ prompt: 'Create a Facebook post for our accounting service', subscriptionPlan: 'PRO' });
+test('complex missions include governed current research before content strategy', () => {
+  const plan = buildPlan({ prompt: 'Create our first Facebook launch post and research current competitors and audience trends for our accounting service', subscriptionPlan: 'PRO' });
   const types = plan.tasks.map(item => item.type);
   assert.ok(types.includes('WEB_RESEARCH'));
   assert.ok(types.indexOf('WEB_RESEARCH') < types.indexOf('CONTENT_STRATEGY'));
-  assert.match(read('src/services/webResearchService.js'), /web_search/);
-  assert.match(read('.env.example'), /WEB_RESEARCH_ENABLED=false/);
+  const research = read('src/services/webResearchService.js');
+  assert.match(research, /ollamaFirstDraft/);
+  assert.match(research, /openAIResearchRefinement/);
+  assert.match(research, /OLLAMA_FIRST_OPENAI_WEB_REFINED/);
+  assert.match(research, /web_search/);
+  const example = read('.env.example');
+  assert.match(example, /WEB_RESEARCH_ENABLED=false/);
+  assert.match(example, /WEB_RESEARCH_PROVIDER=openai/);
+  assert.match(example, /OPENAI_API_KEY=/);
+  const simple = buildPlan({ prompt: 'Rewrite this Facebook caption to sound friendlier', subscriptionPlan: 'PRO' });
+  assert.equal(simple.tasks.some(item => item.type === 'WEB_RESEARCH'), false);
 });
 
 test('Action Center and task list are clickable and compact', () => {

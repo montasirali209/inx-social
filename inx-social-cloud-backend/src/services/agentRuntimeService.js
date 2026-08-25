@@ -23,7 +23,38 @@ async function createLearningCandidate(userId, task, result) {
 }
 
 async function approvedMemories(userId, task) {
-  return prisma.agentMemory.findMany({ where: { userId, approvalStatus: 'APPROVED', category: task.type }, orderBy: [{ confidence: 'desc' }, { updatedAt: 'desc' }], take: 5, select: { title: true, content: true, source: true } });
+  return prisma.agentMemory.findMany({ where: { userId, approvalStatus: 'APPROVED', category: { in: [task.type, 'WEB_RESEARCH'] } }, orderBy: [{ confidence: 'desc' }, { updatedAt: 'desc' }], take: 5, select: { title: true, content: true, source: true } });
+}
+
+async function selectedVisionAssets(userId, plan) {
+  if (!env.ollama.visionEnabled || typeof prisma.agentAsset?.findMany !== 'function') return [];
+  let strategy = {};
+  try { strategy = JSON.parse(plan.strategyJson || '{}'); } catch (_) {}
+  const ids = [...new Set((Array.isArray(strategy.referenceAssets) ? strategy.referenceAssets : []).map(asset => String(asset.id || '')).filter(Boolean))].slice(0, 4);
+  if (!ids.length) return [];
+  const rows = await prisma.agentAsset.findMany({
+    where: { userId, id: { in: ids }, status: 'READY', source: 'UPLOAD' },
+    select: { id: true, mimeType: true, data: true },
+    take: 4
+  });
+  return rows.filter(row => row.data && row.data.length <= 1024 * 1024).map(row => ({ id: row.id, mimeType: row.mimeType, base64: Buffer.from(row.data).toString('base64') }));
+}
+
+async function createResearchLearningCandidate(userId, task, result) {
+  const content = String(result?.reusableLearning || '').trim();
+  if (!content) return null;
+  const existing = await prisma.agentMemory.findFirst({ where: { userId, category: 'WEB_RESEARCH', content, approvalStatus: { in: ['PENDING_REVIEW', 'APPROVED'] } }, select: { id: true } });
+  if (existing) return null;
+  return prisma.agentMemory.create({ data: {
+    userId,
+    category: 'WEB_RESEARCH',
+    title: 'Reusable live-research decision pattern',
+    content,
+    source: result.refinementUsed ? 'OLLAMA_FIRST:OPENAI_WEB_REFINED' : 'OLLAMA_FIRST',
+    confidence: result.refinementUsed ? 85 : 75,
+    approvalStatus: 'PENDING_REVIEW',
+    importance: 'HIGH'
+  } });
 }
 
 async function markWaiting(plan, task, status, message) {
@@ -51,13 +82,18 @@ async function runPlan(planId) {
       if (['COMPLETED', 'CANCELLED'].includes(task.status)) continue;
       if (task.type === 'WEB_RESEARCH') {
         await prisma.agentTask.update({ where: { id: task.id }, data: { status: 'RUNNING', startedAt: new Date() } });
-        await event(plan.userId, plan.id, task.id, 'TASK_STARTED', 'RUNNING', task.title, 'INX Agent is checking current public sources for this mission.');
+        await event(plan.userId, plan.id, task.id, 'TASK_STARTED', 'RUNNING', task.title, 'Ollama is preparing the first analysis before current public evidence is checked.');
         try {
-          const result = await webResearch.researchMission(plan);
+          const preference = await prisma.cloudPreference.findUnique({ where: { userId: plan.userId }, select: { settingsJson: true } });
+          let researchSettings = {};
+          try { researchSettings = JSON.parse(preference?.settingsJson || '{}'); } catch (_) {}
+          const result = await webResearch.researchMission({ ...plan, researchSettings });
           await prisma.agentTask.update({ where: { id: task.id }, data: { status: 'COMPLETED', outputJson: JSON.stringify(result), completedAt: new Date() } });
           task.status = 'COMPLETED';
           task.outputJson = JSON.stringify(result);
-          await event(plan.userId, plan.id, task.id, 'TASK_COMPLETED', 'SUCCESS', task.title, `Current research saved with ${result.sources.length} source link${result.sources.length === 1 ? '' : 's'}.`);
+          const candidate = await createResearchLearningCandidate(plan.userId, task, result);
+          if (candidate) await event(plan.userId, plan.id, task.id, 'LEARNING_CANDIDATE', 'REVIEW', 'Research learning candidate created', 'A durable research decision pattern is waiting for administrator approval. Current facts and hidden reasoning were not saved as memory.', { memoryId: candidate.id, ollamaFirst: true, refinementUsed: Boolean(result.refinementUsed) });
+          await event(plan.userId, plan.id, task.id, 'TASK_COMPLETED', 'SUCCESS', task.title, `Ollama produced the first analysis, then OpenAI checked current evidence from ${result.sources.length} source link${result.sources.length === 1 ? '' : 's'} and refined the final strategy.`, { sourceCount: result.sources.length, ollamaFirst: true, refinementUsed: Boolean(result.refinementUsed) });
         } catch (error) {
           const message = error.code === 'WEB_RESEARCH_NOT_CONFIGURED' ? 'Current-web research is not connected. The mission will continue without claiming live research.' : 'Current-web research is temporarily unavailable. The mission will continue using supplied facts and approved knowledge only.';
           const output = { message, sources: [], researchAvailable: false };
@@ -71,7 +107,8 @@ async function runPlan(planId) {
         await event(plan.userId, plan.id, task.id, 'TASK_STARTED', 'RUNNING', task.title, 'Ollama is processing this task with approved reusable playbooks.');
         try {
           const memories = await approvedMemories(plan.userId, task);
-          const result = await brain.generateTaskOutput(plan, task, { allowPaidFallback: paidFallbackCalls < env.aiFallback.maxCallsPerMission, approvedMemories: memories });
+          const visionAssets = task.type === 'BRAND_REVIEW' ? await selectedVisionAssets(plan.userId, plan) : [];
+          const result = await brain.generateTaskOutput(plan, task, { allowPaidFallback: paidFallbackCalls < env.aiFallback.maxCallsPerMission, approvedMemories: memories, visionAssets });
           if (result.provider === 'paid-fallback') paidFallbackCalls += 1;
           await prisma.agentTask.update({ where: { id: task.id }, data: { status: 'COMPLETED', outputJson: JSON.stringify(result), completedAt: new Date() } });
           const candidate = await createLearningCandidate(plan.userId, task, result);

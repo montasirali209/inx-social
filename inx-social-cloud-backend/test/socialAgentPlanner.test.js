@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { buildPlan } = require('../src/services/socialAgentPlanner');
+const { buildPlan, needsCurrentResearch } = require('../src/services/socialAgentPlanner');
 
 test('Social Agent routes economical post imagery to the local image worker without paid cost', () => {
   const plan = buildPlan({ prompt: 'Create 14 educational posts for my cleaning company', platforms: ['facebook', 'instagram'] });
@@ -69,4 +69,10 @@ test('selected Reel model calculates media credits and respects the subscription
     mediaModel: 'VIDEO_QUALITY',
     subscriptionPlan: 'STARTER'
   }), /requires the PRO plan/i);
+});
+
+test('paid current-web refinement is reserved for complex or explicitly current missions', () => {
+  assert.equal(needsCurrentResearch('Rewrite this caption to sound friendlier', 1), false);
+  assert.equal(needsCurrentResearch('Create our first launch post using current market and competitor research', 1), true);
+  assert.equal(needsCurrentResearch('Create five educational posts', 5), true);
 });

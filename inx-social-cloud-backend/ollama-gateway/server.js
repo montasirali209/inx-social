@@ -3,8 +3,9 @@ const crypto = require('node:crypto');
 
 const config = {
   token: process.env.INX_OLLAMA_GATEWAY_TOKEN || '',
-  ollamaUrl: process.env.OLLAMA_LOCAL_URL || 'http://127.0.0.1:11434',
-  models: new Set((process.env.OLLAMA_ALLOWED_MODELS || 'qwen3:8b,qwen3:14b,qwen3-embedding:0.6b').split(',').map(value => value.trim()).filter(Boolean)),
+  textOllamaUrl: process.env.OLLAMA_TEXT_URL || process.env.OLLAMA_LOCAL_URL || 'http://127.0.0.1:11434',
+  imageOllamaUrl: process.env.OLLAMA_IMAGE_URL || process.env.OLLAMA_LOCAL_URL || 'http://127.0.0.1:11435',
+  models: new Set((process.env.OLLAMA_ALLOWED_MODELS || 'qwen3:8b,qwen3:14b,qwen3.5:9b,qwen3-embedding:0.6b').split(',').map(value => value.trim()).filter(Boolean)),
   imageModels: new Set((process.env.OLLAMA_ALLOWED_IMAGE_MODELS || 'x/z-image-turbo').split(',').map(value => value.trim()).filter(Boolean)),
   host: process.env.GATEWAY_HOST || '127.0.0.1',
   port: Number(process.env.GATEWAY_PORT || 5051),
@@ -21,7 +22,8 @@ function secureEqual(left, right) {
 function authorised(req) { return config.token.length >= 32 && secureEqual(String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''), config.token); }
 function json(res, status, body) { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY' }); res.end(JSON.stringify(body)); }
 async function readJson(req) {
-  let raw = ''; for await (const chunk of req) { raw += chunk; if (raw.length > 524288) throw Object.assign(new Error('Request too large.'), { status: 413 }); }
+  // Authenticated vision reviews can contain one generated image encoded as base64.
+  let raw = ''; for await (const chunk of req) { raw += chunk; if (raw.length > 12 * 1024 * 1024) throw Object.assign(new Error('Request too large.'), { status: 413 }); }
   try { return JSON.parse(raw || '{}'); } catch (_) { throw Object.assign(new Error('Invalid JSON.'), { status: 400 }); }
 }
 function release() { active -= 1; queue.shift()?.(); }
@@ -33,12 +35,25 @@ async function acquire() {
 async function proxy(req, res, ollamaPath, allowedModels = config.models) {
   const body = await readJson(req);
   if (!allowedModels.has(String(body.model || ''))) return json(res, 400, { error: 'Model is not allowed by this gateway.' });
-  if (ollamaPath !== '/v1/images/generations') body.stream = false;
+  body.stream = false;
+  if (ollamaPath === '/api/chat') {
+    body.think = body.think === true;
+    body.options = body.options && typeof body.options === 'object' ? body.options : {};
+    body.options.num_ctx = Math.max(4096, Math.min(32768, Number(body.options.num_ctx || 8192)));
+    body.keep_alive = ['0', '0s', '5m', '10m'].includes(String(body.keep_alive || '')) ? body.keep_alive : '10m';
+  }
   await acquire();
   try {
-    const response = await fetch(`${config.ollamaUrl}${ollamaPath}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(config.timeoutMs) });
-    const text = await response.text();
-    res.writeHead(response.status, { 'content-type': 'application/json', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }); res.end(text);
+    const response = await fetch(`${config.textOllamaUrl}${ollamaPath}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(config.timeoutMs) });
+    let result = null;
+    try { result = await response.json(); } catch (_) {}
+    if (!result) return json(res, response.status, { error: 'The local text engine returned an invalid response.' });
+    // Hidden thinking must never cross the authenticated gateway or enter logs/memory.
+    if (result && typeof result === 'object') {
+      delete result.thinking;
+      if (result.message && typeof result.message === 'object') delete result.message.thinking;
+    }
+    return json(res, response.status, result);
   } finally { release(); }
 }
 function imageDimensions(size) {
@@ -56,10 +71,10 @@ async function imageProxy(req, res) {
   const { width, height } = imageDimensions(body.size);
   await acquire();
   try {
-    const response = await fetch(`${config.ollamaUrl}/api/generate`, {
+    const response = await fetch(`${config.imageOllamaUrl}/api/generate`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model, prompt, stream: false, width, height }),
+      body: JSON.stringify({ model, prompt, stream: false, width, height, keep_alive: 0 }),
       signal: AbortSignal.timeout(config.timeoutMs)
     });
     let result = null;
@@ -71,12 +86,22 @@ async function imageProxy(req, res) {
     return json(res, 200, { created: Math.floor(Date.now() / 1000), data: [{ b64_json: encoded }] });
   } finally { release(); }
 }
+async function upstreamVersion(baseUrl) {
+  try {
+    const response = await fetch(`${baseUrl}/api/version`, { signal: AbortSignal.timeout(3000) });
+    const data = await response.json();
+    return response.ok ? { reachable: true, version: String(data?.version || '') || null } : { reachable: false, version: null };
+  } catch (_) { return { reachable: false, version: null }; }
+}
 function createServer() {
   if (config.token.length < 32) throw new Error('INX_OLLAMA_GATEWAY_TOKEN must contain at least 32 characters.');
   return http.createServer(async (req, res) => {
     try {
       if (!authorised(req)) return json(res, 401, { error: 'Unauthorized.' });
-      if (req.method === 'GET' && req.url === '/health') return json(res, 200, { ok: true, service: 'inx-ollama-gateway', active, queued: queue.length, models: [...config.models], imageModels: [...config.imageModels], imageGeneration: config.imageModels.size > 0 });
+      if (req.method === 'GET' && req.url === '/health') {
+        const [textEngine, imageEngine] = await Promise.all([upstreamVersion(config.textOllamaUrl), upstreamVersion(config.imageOllamaUrl)]);
+        return json(res, 200, { ok: textEngine.reachable && imageEngine.reachable, service: 'inx-ollama-gateway', active, queued: queue.length, models: [...config.models], imageModels: [...config.imageModels], textEngine, imageEngine, imageGeneration: config.imageModels.size > 0 });
+      }
       if (req.method === 'POST' && req.url === '/api/chat') return await proxy(req, res, '/api/chat');
       if (req.method === 'POST' && ['/api/embed', '/api/embeddings'].includes(req.url)) return await proxy(req, res, '/api/embed');
       if (req.method === 'POST' && req.url === '/v1/images/generations') return await imageProxy(req, res);
@@ -85,4 +110,4 @@ function createServer() {
   });
 }
 if (require.main === module) createServer().listen(config.port, config.host, () => console.log(`INX Ollama Gateway listening on http://${config.host}:${config.port}`));
-module.exports = { createServer, config, secureEqual, imageDimensions, imageProxy };
+module.exports = { createServer, config, secureEqual, imageDimensions, imageProxy, upstreamVersion };

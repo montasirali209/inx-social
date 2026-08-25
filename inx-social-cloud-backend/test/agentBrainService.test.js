@@ -25,6 +25,34 @@ test('Ollama is always the first route and returns its selected task model', asy
   assert.equal(result.model, 'qwen:test');
   assert.equal(calls.length, 1);
   assert.match(calls[0].url, /\/api\/chat$/);
+  assert.equal(calls[0].body.think, false);
+  assert.equal(calls[0].body.options.num_ctx, env.ollama.simpleContext);
+});
+
+test('complex strategy tasks use governed thinking and the verified 32K context', async () => {
+  env.ollama.baseUrl = 'https://ollama.internal';
+  env.ollama.complexContext = 32768;
+  const calls = [];
+  const strategyTask = { type: 'CONTENT_STRATEGY', title: 'Build strategy', description: 'Create the evidence-led campaign strategy.' };
+  const http = { post: async (url, body) => { calls.push({ url, body }); return { data: { message: { content: 'Strategy result', thinking: 'private' } } }; } };
+  await brain.generateTaskOutput(plan, strategyTask, { http, route: { ollamaModel: 'qwen3.5:9b', fallbackEnabled: false } });
+  assert.equal(calls[0].body.think, true);
+  assert.equal(calls[0].body.options.num_ctx, 32768);
+});
+
+test('brand review sends selected real assets to the vision model only when enabled', async () => {
+  env.ollama.baseUrl = 'https://ollama.internal';
+  env.ollama.visionEnabled = true;
+  const calls = [];
+  const brandTask = { type: 'BRAND_REVIEW', title: 'Review brand', description: 'Inspect the supplied logo and product screenshot.' };
+  const http = { post: async (url, body) => { calls.push({ url, body }); return { data: { message: { content: 'Brand review' } } }; } };
+  await brain.generateTaskOutput(plan, brandTask, {
+    http,
+    visionAssets: [{ id: 'logo-1', base64: 'aW1hZ2U=' }],
+    route: { ollamaModel: 'qwen3.5:9b', fallbackEnabled: false }
+  });
+  assert.deepEqual(calls[0].body.messages[1].images, ['aW1hZ2U=']);
+  assert.match(calls[0].body.messages[1].content, /Inspect the supplied images directly/);
 });
 
 test('paid fallback is used only after genuine Ollama unavailability', async () => {

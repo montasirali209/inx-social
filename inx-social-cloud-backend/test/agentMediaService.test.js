@@ -21,6 +21,12 @@ test('local image generation stores an authenticated mission asset without paid 
   const result = await media.generateImages({ id: 'plan-1', userId: 'user-1', prompt: 'Create one branded post image', strategyJson: '{"assetCount":1}' }, { title: 'Generate image' }, {
     policy: { enabled: true, model: 'x/z-image-turbo', size: '1024x1024', maxAssetsPerMission: 1 },
     http: { post: async (url, body) => {
+      if (url.endsWith('/api/chat')) {
+        assert.equal(body.model, 'qwen3:8b');
+        assert.equal(body.think, false);
+        assert.equal(Array.isArray(body.messages[1].images), true);
+        return { data: { message: { content: JSON.stringify({ approved: true, score: 91, issues: [], correction: '' }), thinking: 'private' } } };
+      }
       assert.equal(url, 'https://private-ollama.example/v1/images/generations');
       assert.equal(body.response_format, 'b64_json');
       return { data: { data: [{ b64_json: png.toString('base64') }] } };
@@ -31,6 +37,8 @@ test('local image generation stores an authenticated mission asset without paid 
   assert.equal(stored.mimeType, 'image/png');
   assert.equal(stored.planId, 'plan-1');
   assert.equal(result.assets[0].contentUrl, '/api/agent/assets/generated-1/content');
+  assert.equal(result.assets[0].qualityReview.approved, true);
+  assert.equal(result.assets[0].qualityReview.score, 91);
 });
 
 test('generated files must have a recognised image signature', () => {

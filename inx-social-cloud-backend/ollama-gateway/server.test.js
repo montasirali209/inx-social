@@ -50,7 +50,40 @@ test('image route translates Ollama image output to b64_json', async () => {
     const body = await response.json();
     assert.equal(response.status, 200);
     assert.equal(body.data[0].b64_json, 'iVBORw0KGgo=');
-    assert.deepEqual(forwarded, { model: 'x/z-image-turbo', prompt: 'A safe test image', stream: false, width: 512, height: 512 });
+    assert.deepEqual(forwarded, { model: 'x/z-image-turbo', prompt: 'A safe test image', stream: false, width: 512, height: 512, keep_alive: 0 });
+  } finally {
+    global.fetch = originalFetch;
+    await new Promise(resolve => server.close(resolve));
+  }
+});
+
+test('text route uses the text engine, clamps context and removes hidden thinking', async () => {
+  config.models = new Set(['qwen3.5:9b']);
+  config.textOllamaUrl = 'http://127.0.0.1:11434';
+  config.imageOllamaUrl = 'http://127.0.0.1:11435';
+  const originalFetch = global.fetch;
+  let upstreamUrl = '';
+  let forwarded = null;
+  global.fetch = async (url, options) => {
+    upstreamUrl = String(url);
+    forwarded = JSON.parse(options.body);
+    return { ok: true, status: 200, json: async () => ({ model: 'qwen3.5:9b', message: { role: 'assistant', content: 'READY', thinking: 'private reasoning' }, thinking: 'private top-level reasoning' }) };
+  };
+  const server = createServer().listen(0, '127.0.0.1');
+  await new Promise(resolve => server.once('listening', resolve));
+  try {
+    const response = await originalFetch(`http://127.0.0.1:${server.address().port}/api/chat`, {
+      method: 'POST', headers: { authorization: `Bearer ${process.env.INX_OLLAMA_GATEWAY_TOKEN}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ model: 'qwen3.5:9b', messages: [{ role: 'user', content: 'test' }], think: true, options: { num_ctx: 999999 } })
+    });
+    const body = await response.json();
+    assert.equal(upstreamUrl, 'http://127.0.0.1:11434/api/chat');
+    assert.equal(forwarded.options.num_ctx, 32768);
+    assert.equal(forwarded.think, true);
+    assert.equal(forwarded.keep_alive, '10m');
+    assert.equal(body.message.content, 'READY');
+    assert.equal('thinking' in body, false);
+    assert.equal('thinking' in body.message, false);
   } finally {
     global.fetch = originalFetch;
     await new Promise(resolve => server.close(resolve));

@@ -97,6 +97,12 @@ function normalizeOperationMode(value) {
   return String(value || '').toUpperCase() === 'AUTOPILOT' ? 'AUTOPILOT' : 'HYBRID';
 }
 
+function needsCurrentResearch(prompt, assetCount = 1) {
+  if (assetCount > 1) return true;
+  if (String(prompt || '').length >= 180) return true;
+  return /\b(?:research|current|latest|trend|market|competitor|alternative|seo|keyword|hashtag|audience|engagement|best\s+(?:time|day|schedule)|launch|first\s+post|brand\s+pack|cover\s+photo|website|industry)\b|https?:\/\/|\b[a-z0-9-]+\.(?:co\.uk|com|org|net)\b/i.test(prompt);
+}
+
 function task(type, title, description, options = {}) {
   return {
     type,
@@ -122,9 +128,10 @@ function buildPlan(input = {}) {
   const draftOnly = /\b(?:draft|plan)\s+only\b|\bdo\s+not\s+(?:publish|schedule|post)\b|\bno\s+publishing\b/i.test(prompt);
   const wantsVideo = CONTENT_OUTPUTS[contentOutput].mediaKind === 'video';
   const wantsImage = CONTENT_OUTPUTS[contentOutput].mediaKind === 'image';
+  const researchRequired = needsCurrentResearch(prompt, assetCount);
 
   tasks.push(task('BRAND_REVIEW', 'Review the brand brief and supplied assets', 'Extract the business name, audience, offer, tone, logo rules and prohibited claims before generating content.'));
-  tasks.push(task('WEB_RESEARCH', 'Research current audience and social-search opportunities', 'Check current public sources for audience needs, relevant competitors or alternatives, search language and engagement opportunities. Findings must include source links and never become permanent learning without review.'));
+  if (researchRequired) tasks.push(task('WEB_RESEARCH', 'Research current audience and social-search opportunities', 'Ollama prepares the first analysis, then one governed current-web review checks audience needs, relevant competitors or alternatives, search language and engagement opportunities. Findings must include source links and never become permanent learning without review.'));
 
   if (requestsNewPage(prompt)) {
     tasks.push(task('PAGE_SETUP', 'Prepare the social Page setup checklist', 'Page creation and sensitive profile changes remain a guided manual step until the connected platform permission and App Review scope explicitly allow them.', { platform: platforms[0], riskLevel: 'HIGH' }));
@@ -135,6 +142,7 @@ function buildPlan(input = {}) {
   if (wantsImage) tasks.push(task('IMAGE_GENERATION', `Generate ${assetCount} branded ${contentOutput === 'CAROUSEL' ? 'carousel' : 'image'} asset${assetCount === 1 ? '' : 's'}`, `${provider.label} will create the visual assets within the administrator-controlled safety limit.`, {
     executionMode,
     operationMode,
+    researchRequired,
     estimatedCostCents: 0,
     riskLevel: 'LOW'
   }));
@@ -175,4 +183,4 @@ function buildPlan(input = {}) {
   };
 }
 
-module.exports = { SUPPORTED_PLATFORMS, PROVIDERS, CONTENT_OUTPUTS, buildPlan, cleanPrompt, normalizePlatforms, requestedAssetCount, chooseExecutionMode, normalizeContentOutput, normalizeMediaModel, requestsNewPage, canUseModel, mediaCatalog, normalizeOperationMode };
+module.exports = { SUPPORTED_PLATFORMS, PROVIDERS, CONTENT_OUTPUTS, buildPlan, cleanPrompt, normalizePlatforms, requestedAssetCount, chooseExecutionMode, normalizeContentOutput, normalizeMediaModel, requestsNewPage, needsCurrentResearch, canUseModel, mediaCatalog, normalizeOperationMode };

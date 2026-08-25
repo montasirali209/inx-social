@@ -44,22 +44,33 @@ module.exports = {
     cloudflareAccessClientId: process.env.OLLAMA_CF_ACCESS_CLIENT_ID || '',
     cloudflareAccessClientSecret: process.env.OLLAMA_CF_ACCESS_CLIENT_SECRET || '',
     timeoutMs: Math.max(10000, Number(process.env.OLLAMA_TIMEOUT_MS || 180000)),
+    simpleContext: Math.max(4096, Math.min(16384, Number(process.env.OLLAMA_SIMPLE_CONTEXT || 8192))),
+    complexContext: Math.max(8192, Math.min(32768, Number(process.env.OLLAMA_COMPLEX_CONTEXT || 32768))),
+    visionEnabled: String(process.env.OLLAMA_VISION_ENABLED || 'false') === 'true',
     imageModel: process.env.OLLAMA_IMAGE_MODEL || 'x/z-image-turbo',
-    imageTimeoutMs: Math.max(30000, Number(process.env.OLLAMA_IMAGE_TIMEOUT_MS || 300000))
+    imageTimeoutMs: Math.max(30000, Number(process.env.OLLAMA_IMAGE_TIMEOUT_MS || 300000)),
+    imageReviewEnabled: String(process.env.OLLAMA_IMAGE_REVIEW_ENABLED || 'true') === 'true',
+    imageReviewMinScore: Math.max(50, Math.min(95, Number(process.env.OLLAMA_IMAGE_REVIEW_MIN_SCORE || 75)))
   },
   aiFallback: {
     enabled: String(process.env.AI_PAID_FALLBACK_ENABLED || 'false') === 'true',
-    baseUrl: String(process.env.AI_PAID_FALLBACK_BASE_URL || '').replace(/\/$/, ''),
-    apiKey: process.env.AI_PAID_FALLBACK_API_KEY || '',
-    model: process.env.AI_PAID_FALLBACK_MODEL || '',
+    baseUrl: String(process.env.AI_PAID_FALLBACK_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, ''),
+    apiKey: process.env.AI_PAID_FALLBACK_API_KEY || process.env.OPENAI_API_KEY || '',
+    model: process.env.AI_PAID_FALLBACK_MODEL || process.env.OPENAI_FALLBACK_MODEL || process.env.OPENAI_MODEL || '',
     maxCallsPerMission: Math.max(0, Math.min(5, Number(process.env.AI_PAID_FALLBACK_MAX_CALLS_PER_MISSION || 1)))
   },
   webResearch: {
     enabled: String(process.env.WEB_RESEARCH_ENABLED || 'false') === 'true',
-    baseUrl: String(process.env.WEB_RESEARCH_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, ''),
-    apiKey: process.env.WEB_RESEARCH_API_KEY || '',
-    model: process.env.WEB_RESEARCH_MODEL || 'gpt-5-mini',
+    provider: String(process.env.WEB_RESEARCH_PROVIDER || 'openai').trim().toLowerCase(),
+    baseUrl: String(process.env.WEB_RESEARCH_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, ''),
+    apiKey: process.env.WEB_RESEARCH_API_KEY || process.env.OPENAI_API_KEY || '',
+    model: process.env.OPENAI_WEB_SEARCH_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6',
     timeoutMs: Math.max(10000, Number(process.env.WEB_RESEARCH_TIMEOUT_MS || 120000)),
-    maxSources: Math.max(1, Math.min(10, Number(process.env.WEB_RESEARCH_MAX_SOURCES || 5)))
+    maxSources: Math.max(1, Math.min(10, Number(process.env.WEB_RESEARCH_MAX_SOURCES || 8))),
+    maxQueries: Math.max(1, Math.min(3, Number(process.env.WEB_RESEARCH_MAX_QUERIES || 3))),
+    resultsPerQuery: Math.max(1, Math.min(10, Number(process.env.WEB_RESEARCH_RESULTS_PER_QUERY || 5))),
+    searchDepth: String(process.env.WEB_RESEARCH_SEARCH_DEPTH || 'basic').toLowerCase() === 'advanced' ? 'advanced' : 'basic',
+    country: String(process.env.WEB_RESEARCH_COUNTRY || 'GB').trim().toUpperCase().slice(0, 2),
+    language: String(process.env.WEB_RESEARCH_LANGUAGE || 'en').trim().toLowerCase().slice(0, 12)
   }
 };

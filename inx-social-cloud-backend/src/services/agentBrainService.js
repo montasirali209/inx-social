@@ -114,12 +114,14 @@ async function analyseMission(input = {}, dependencies = {}) {
     const response = await http.post(`${env.ollama.baseUrl}/api/chat`, {
       model: env.ollama.model,
       stream: false,
+      think: false,
+      keep_alive: '10m',
       format: 'json',
       messages: [
         { role: 'system', content: 'Analyse a social-content instruction. Return JSON only with needsClarification boolean, understanding string, question string, options array (maximum 3), inferredContentOutput (TEXT, IMAGE, CAROUSEL, VIDEO or REEL), generationPreference (FAST or QUALITY), and researchFocus string. Ask one short question only when a non-inferable business goal, offer or audience fact is genuinely missing. Never ask the customer to provide competitors, SEO keywords, market research or design trends when the instruction delegates research to the agent; research or infer those instead. If the instruction is detailed enough to start, set needsClarification false. Infer the media format when reasonable.' },
         { role: 'user', content: `Instruction: ${String(input.prompt || '').slice(0, 4000)}\nPlatforms: ${(input.platforms || []).join(', ') || 'facebook'}` }
       ],
-      options: { temperature: 0.15 }
+      options: { temperature: 0.15, num_ctx: env.ollama.simpleContext }
     }, { timeout: Math.min(env.ollama.timeoutMs, 60000), headers: ollamaHeaders() });
     return parsePreflight(response.data?.message?.content, input);
   } catch (_) { return fallback; }
@@ -164,14 +166,22 @@ async function generateTaskOutput(plan, task, dependencies = {}) {
   let ollamaError = null;
   if (env.ollama.baseUrl) {
     try {
+      const complexReasoning = ['BRAND_REVIEW', 'CONTENT_STRATEGY', 'SCHEDULE'].includes(task.type);
+      const userMessage = { role: 'user', content: taskInstruction(plan, task, approvedMemories) };
+      if (task.type === 'BRAND_REVIEW' && env.ollama.visionEnabled && Array.isArray(dependencies.visionAssets) && dependencies.visionAssets.length) {
+        userMessage.content += '\nInspect the supplied images directly. Treat exact logos, screenshots and visible brand rules as authoritative. Never redraw, rename or fabricate them.';
+        userMessage.images = dependencies.visionAssets.map(asset => asset.base64).filter(Boolean).slice(0, 4);
+      }
       const response = await http.post(`${env.ollama.baseUrl}/api/chat`, {
         model: ollamaModel,
         stream: false,
+        think: complexReasoning,
+        keep_alive: '10m',
         messages: [
           { role: 'system', content: 'You create truthful, brand-safe organic social content and operational plans.' },
-          { role: 'user', content: taskInstruction(plan, task, approvedMemories) }
+          userMessage
         ],
-        options: { temperature: 0.55 }
+        options: { temperature: 0.55, num_ctx: complexReasoning ? env.ollama.complexContext : env.ollama.simpleContext }
       }, { timeout: env.ollama.timeoutMs, headers: ollamaHeaders() });
       const content = String(response.data?.message?.content || '').trim();
       if (!content) throw new Error('Ollama returned an empty response.');

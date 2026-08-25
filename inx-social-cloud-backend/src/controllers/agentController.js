@@ -104,7 +104,7 @@ async function resolvePageTargets(userId, strategy, requestedIds) {
 function publicTaskOutput(output) {
   if (!output || typeof output !== 'object') return output;
   const allowed = {};
-  for (const key of ['content', 'message', 'summary', 'checklist', 'recommendations', 'assets', 'sources']) {
+  for (const key of ['content', 'message', 'summary', 'checklist', 'recommendations', 'cautions', 'assets', 'sources']) {
     if (output[key] !== undefined) allowed[key] = output[key];
   }
   return Object.keys(allowed).length ? allowed : null;
@@ -130,7 +130,7 @@ async function overview(req, res, next) {
     const availableAssets = await agentAssets.list(req.user.id, { source: 'UPLOAD' });
     const userQueue = runtime.queuedPlanIds.filter(id => recentPlans.some(plan => plan.id === id));
     res.json({
-      phase: '11.5.1',
+      phase: '11.5.2-r2',
       mode: 'OLLAMA_FIRST_RUNTIME',
       license: { plan: entitlement.plan, allowed: entitlement.allowed },
       usage: entitlement.usage,
@@ -190,6 +190,7 @@ async function createPlan(req, res, next) {
           contentOutput: strategy.contentOutput,
           mediaModel: strategy.mediaModel,
           estimatedCredits: strategy.estimatedCredits,
+          researchRequired: strategy.researchRequired,
           executionMode: strategy.executionMode,
           provider: strategy.provider,
           guardrails: strategy.guardrails,
@@ -217,7 +218,7 @@ async function createPlan(req, res, next) {
       include: PLAN_INCLUDE
     });
     await prisma.auditLog.create({
-      data: { userId: req.user.id, action: 'AGENT_PLAN_CREATED', entity: 'AgentPlan', entityId: plan.id, metadata: JSON.stringify({ platforms: strategy.platforms, targetPageIds: pageTargets.map(page => page.id), estimatedCostCents: strategy.estimatedCostCents }) }
+      data: { userId: req.user.id, action: 'AGENT_PLAN_CREATED', entity: 'AgentPlan', entityId: plan.id, metadata: JSON.stringify({ platforms: strategy.platforms, targetPageIds: pageTargets.map(page => page.id), estimatedCostCents: strategy.estimatedCostCents, researchRequired: strategy.researchRequired }) }
     });
     if (autopilot) await queuePlan(plan.id, req.user.id);
     const current = autopilot ? await findOwnedPlan(req.user.id, plan.id) : plan;

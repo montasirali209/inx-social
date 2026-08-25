@@ -20,6 +20,45 @@ function imageType(data) {
   throw new Error('Ollama returned an unsupported image format.');
 }
 
+function jsonObject(value) {
+  const raw = String(value || '').trim();
+  const start = raw.indexOf('{');
+  const end = raw.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
+  try { return JSON.parse(raw.slice(start, end + 1)); } catch (_) { return null; }
+}
+
+async function reviewGeneratedImage(plan, prompt, data, dependencies = {}) {
+  if (!env.ollama.imageReviewEnabled || dependencies.reviewImage === false) return { available: false, approved: true, score: null, issues: [], correction: '', warning: null };
+  const http = dependencies.http || axios;
+  try {
+    const response = await http.post(`${env.ollama.baseUrl}/api/chat`, {
+      model: env.ollama.model,
+      stream: false,
+      think: false,
+      keep_alive: '10m',
+      format: 'json',
+      messages: [{
+        role: 'system',
+        content: 'You are the INX Social visual quality gate. Inspect the supplied generated image, not hidden reasoning. Reject generic phone or platform-interface mockups, fabricated or altered logos, gibberish, unreadable lettering, watermarks, unsafe cropping, misleading product UI, irrelevant stock imagery, and visuals that fail to communicate the post. Return JSON only with approved boolean, score integer 0-100, issues array of short strings, and correction string containing a concise regeneration instruction. A professional, relevant visual without embedded text may pass.'
+      }, {
+        role: 'user',
+        content: `Campaign: ${String(plan.prompt || '').slice(0, 1600)}\nOriginal visual brief: ${String(prompt || '').slice(0, 3000)}\nEvaluate publish readiness.`,
+        images: [data.toString('base64')]
+      }],
+      options: { temperature: 0.05, num_ctx: env.ollama.simpleContext }
+    }, { timeout: env.ollama.timeoutMs, headers: brain.ollamaHeaders(), maxContentLength: 2 * 1024 * 1024 });
+    const parsed = jsonObject(response.data?.message?.content);
+    if (!parsed) throw new Error('Vision review returned invalid JSON.');
+    const score = Math.max(0, Math.min(100, Number(parsed.score || 0)));
+    const issues = (Array.isArray(parsed.issues) ? parsed.issues : []).map(value => String(value).trim().slice(0, 300)).filter(Boolean).slice(0, 8);
+    const approved = Boolean(parsed.approved) && score >= env.ollama.imageReviewMinScore;
+    return { available: true, approved, score, issues, correction: String(parsed.correction || '').trim().slice(0, 1200), warning: null };
+  } catch (_) {
+    return { available: false, approved: true, score: null, issues: [], correction: '', warning: 'Automated visual inspection was unavailable; customer approval remains required.' };
+  }
+}
+
 function plannedPost(plan, index) {
   const task = (plan.tasks || []).find(item => item.type === 'COPY_GENERATION' && item.outputJson);
   try {
@@ -65,16 +104,27 @@ function campaignImagePrompt(plan, post) {
 
 async function createGeneratedAsset(plan, prompt, index, options = {}) {
   const http = options.http || axios;
-  const response = await http.post(`${env.ollama.baseUrl}/v1/images/generations`, {
-    model: options.model,
-    prompt,
-    size: options.size,
-    response_format: 'b64_json'
-  }, { timeout: env.ollama.imageTimeoutMs, headers: brain.ollamaHeaders(), maxContentLength: 12 * 1024 * 1024 });
-  const encoded = response.data?.data?.[0]?.b64_json;
-  if (!encoded) throw new Error('Ollama image generation returned no image data.');
-  const data = Buffer.from(encoded, 'base64');
-  if (!data.length || data.length > 8 * 1024 * 1024) throw new Error('Generated image was empty or exceeded the 8 MB safety limit.');
+  const generate = async finalPrompt => {
+    const response = await http.post(`${env.ollama.baseUrl}/v1/images/generations`, {
+      model: options.model,
+      prompt: finalPrompt,
+      size: options.size,
+      response_format: 'b64_json'
+    }, { timeout: env.ollama.imageTimeoutMs, headers: brain.ollamaHeaders(), maxContentLength: 12 * 1024 * 1024 });
+    const encoded = response.data?.data?.[0]?.b64_json;
+    if (!encoded) throw new Error('Ollama image generation returned no image data.');
+    const output = Buffer.from(encoded, 'base64');
+    if (!output.length || output.length > 8 * 1024 * 1024) throw new Error('Generated image was empty or exceeded the 8 MB safety limit.');
+    return output;
+  };
+  let finalPrompt = prompt;
+  let data = await generate(finalPrompt);
+  let qualityReview = await reviewGeneratedImage(plan, finalPrompt, data, options);
+  if (qualityReview.available && !qualityReview.approved) {
+    finalPrompt = `${prompt} REQUIRED CORRECTION: ${qualityReview.correction || qualityReview.issues.join('; ') || 'Produce a more specific, professional and readable concept.'}`.slice(0, 12000);
+    data = await generate(finalPrompt);
+    qualityReview = await reviewGeneratedImage(plan, finalPrompt, data, options);
+  }
   const detected = imageType(data);
   const created = await prisma.agentAsset.create({ data: {
     userId: plan.userId,
@@ -86,10 +136,10 @@ async function createGeneratedAsset(plan, prompt, index, options = {}) {
     mimeType: detected.mimeType,
     byteSize: data.length,
     checksum: crypto.createHash('sha256').update(data).digest('hex'),
-    prompt,
+    prompt: finalPrompt,
     data
   } });
-  return { id: created.id, kind: created.kind, mimeType: created.mimeType, byteSize: created.byteSize, contentUrl: `/api/agent/assets/${encodeURIComponent(created.id)}/content` };
+  return { id: created.id, kind: created.kind, mimeType: created.mimeType, byteSize: created.byteSize, contentUrl: `/api/agent/assets/${encodeURIComponent(created.id)}/content`, qualityReview };
 }
 
 async function generateImages(plan, task, dependencies = {}) {
@@ -126,4 +176,4 @@ async function regenerateCampaignImage(plan, post, dependencies = {}) {
   return createGeneratedAsset(plan, campaignImagePrompt(plan, post), Number(post.sequence || 1) - 1, { http: dependencies.http || axios, model: selectedModel, size: policy.size });
 }
 
-module.exports = { status, imageType, plannedPost, imagePrompt, campaignImagePrompt, resolveImageModel, generateImages, regenerateCampaignImage };
+module.exports = { status, imageType, plannedPost, imagePrompt, campaignImagePrompt, resolveImageModel, reviewGeneratedImage, generateImages, regenerateCampaignImage };
