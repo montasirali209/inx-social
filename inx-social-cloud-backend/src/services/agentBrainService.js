@@ -77,6 +77,15 @@ function preflightFallback(input = {}) {
   };
 }
 
+function instructionIsActionable(input = {}) {
+  const prompt = String(input.prompt || '').replace(/\s+/g, ' ').trim();
+  if (prompt.length >= 100) return true;
+  const hasCreation = /\b(?:create|write|prepare|generate|schedule|publish|design|build)\b/i.test(prompt);
+  const hasScope = /\b\d{1,3}\s+(?:posts?|days?|weeks?|videos?|reels?|assets?)\b|\b(?:first|daily|weekly|page|campaign|cover photo|brand pack)\b/i.test(prompt);
+  const delegatesResearch = /\b(?:research|analyse|analyze|competitor|seo|keyword|market|audience|website)\b|https?:\/\/|\b[a-z0-9-]+\.(?:co\.uk|com|org|net)\b/i.test(prompt);
+  return hasCreation && hasScope && (delegatesResearch || prompt.length >= 60);
+}
+
 function parsePreflight(value, input) {
   try {
     const start = String(value || '').indexOf('{');
@@ -84,11 +93,12 @@ function parsePreflight(value, input) {
     const parsed = JSON.parse(String(value || '').slice(start, end + 1));
     const fallback = preflightFallback(input);
     const output = ['TEXT', 'IMAGE', 'CAROUSEL', 'VIDEO', 'REEL'].includes(String(parsed.inferredContentOutput).toUpperCase()) ? String(parsed.inferredContentOutput).toUpperCase() : fallback.inferredContentOutput;
+    const actionable = instructionIsActionable(input);
     return {
-      needsClarification: Boolean(parsed.needsClarification),
-      understanding: String(parsed.understanding || fallback.understanding).slice(0, 500),
-      question: String(parsed.question || '').slice(0, 300),
-      options: (Array.isArray(parsed.options) ? parsed.options : []).map(item => String(item).slice(0, 100)).filter(Boolean).slice(0, 3),
+      needsClarification: actionable ? false : Boolean(parsed.needsClarification),
+      understanding: String(parsed.understanding || fallback.understanding).slice(0, 280),
+      question: actionable ? '' : String(parsed.question || '').slice(0, 160),
+      options: actionable ? [] : (Array.isArray(parsed.options) ? parsed.options : []).map(item => String(item).slice(0, 70)).filter(Boolean).slice(0, 3),
       inferredContentOutput: output,
       generationPreference: String(parsed.generationPreference).toUpperCase() === 'QUALITY' ? 'QUALITY' : 'FAST',
       researchFocus: String(parsed.researchFocus || fallback.researchFocus).slice(0, 500)
@@ -106,7 +116,7 @@ async function analyseMission(input = {}, dependencies = {}) {
       stream: false,
       format: 'json',
       messages: [
-        { role: 'system', content: 'Analyse a social-content instruction. Return JSON only with needsClarification boolean, understanding string, question string, options array (maximum 3), inferredContentOutput (TEXT, IMAGE, CAROUSEL, VIDEO or REEL), generationPreference (FAST or QUALITY), and researchFocus string. Ask only when a material business goal, offer, audience or required fact is genuinely missing. Infer the media format when reasonable.' },
+        { role: 'system', content: 'Analyse a social-content instruction. Return JSON only with needsClarification boolean, understanding string, question string, options array (maximum 3), inferredContentOutput (TEXT, IMAGE, CAROUSEL, VIDEO or REEL), generationPreference (FAST or QUALITY), and researchFocus string. Ask one short question only when a non-inferable business goal, offer or audience fact is genuinely missing. Never ask the customer to provide competitors, SEO keywords, market research or design trends when the instruction delegates research to the agent; research or infer those instead. If the instruction is detailed enough to start, set needsClarification false. Infer the media format when reasonable.' },
         { role: 'user', content: `Instruction: ${String(input.prompt || '').slice(0, 4000)}\nPlatforms: ${(input.platforms || []).join(', ') || 'facebook'}` }
       ],
       options: { temperature: 0.15 }
@@ -177,4 +187,4 @@ async function generateTaskOutput(plan, task, dependencies = {}) {
   throw ollamaError;
 }
 
-module.exports = { status, generateTaskOutput, taskInstruction, analyseMission, preflightFallback, parsePreflight, ollamaUnavailable, paidFallbackReady, ollamaHeaders };
+module.exports = { status, generateTaskOutput, taskInstruction, analyseMission, preflightFallback, instructionIsActionable, parsePreflight, ollamaUnavailable, paidFallbackReady, ollamaHeaders };

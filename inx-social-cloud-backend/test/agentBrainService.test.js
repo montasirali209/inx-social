@@ -66,3 +66,19 @@ test('mission-specific connected Facebook Page names are included in agent instr
   const prompt = brain.taskInstruction(targetedPlan, task);
   assert.match(prompt, /Connected Facebook Page targets: North Shop, South Shop/);
 });
+
+test('a detailed delegated-research mission does not trigger an unnecessary clarification box', () => {
+  const input = { prompt: 'Create a brand pack, Facebook cover photo and first post for INX Social. Research our website, competitors, current SEO keywords and suitable design direction before creating it.' };
+  assert.equal(brain.instructionIsActionable(input), true);
+  const parsed = brain.parsePreflight(JSON.stringify({
+    needsClarification: true,
+    understanding: 'Prepare the requested campaign.',
+    question: 'Please provide competitors, SEO keywords and design preferences.',
+    options: ['Provide competitors', 'Provide SEO keywords'],
+    inferredContentOutput: 'IMAGE',
+    generationPreference: 'QUALITY'
+  }), input);
+  assert.equal(parsed.needsClarification, false);
+  assert.equal(parsed.question, '');
+  assert.deepEqual(parsed.options, []);
+});

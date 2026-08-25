@@ -826,6 +826,7 @@
     approveAgentPlan: async id => api(`/api/agent/plans/${encodeURIComponent(id)}/approve`, { method: 'POST', body: '{}' }),
     resumeAgentPlan: async id => api(`/api/agent/plans/${encodeURIComponent(id)}/resume`, { method: 'POST', body: '{}' }),
     cancelAgentPlan: async id => api(`/api/agent/plans/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: '{}' }),
+    prepareAgentCampaignReview: async id => api(`/api/agent/plans/${encodeURIComponent(id)}/prepare-review`, { method: 'POST', body: '{}' }),
     getAgentCampaign: async id => api(`/api/agent/campaigns/${encodeURIComponent(id)}`),
     updateAgentCampaignPost: async (campaignId, postId, payload) => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/posts/${encodeURIComponent(postId)}`, { method: 'PATCH', body: JSON.stringify(payload) }),
     approveAgentCampaignPost: async (campaignId, postId) => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/posts/${encodeURIComponent(postId)}/approve`, { method: 'POST', body: '{}' }),

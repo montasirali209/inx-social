@@ -130,7 +130,7 @@ async function overview(req, res, next) {
     const availableAssets = await agentAssets.list(req.user.id, { source: 'UPLOAD' });
     const userQueue = runtime.queuedPlanIds.filter(id => recentPlans.some(plan => plan.id === id));
     res.json({
-      phase: '11.5.0',
+      phase: '11.5.1',
       mode: 'OLLAMA_FIRST_RUNTIME',
       license: { plan: entitlement.plan, allowed: entitlement.allowed },
       usage: entitlement.usage,
@@ -307,11 +307,24 @@ async function cancelPlan(req, res, next) {
     if (['CANCELLED', 'COMPLETED'].includes(existing.status)) return res.status(409).json({ error: `This plan is already ${existing.status.toLowerCase()}.` });
     const plan = await prisma.agentPlan.update({
       where: { id: existing.id },
-      data: { status: 'CANCELLED', cancelledAt: new Date(), tasks: { updateMany: { where: { status: { in: ['PLANNED', 'APPROVED'] } }, data: { status: 'CANCELLED' } } } },
+      data: { status: 'CANCELLED', cancelledAt: new Date(), tasks: { updateMany: { where: { status: { notIn: ['COMPLETED', 'CANCELLED'] } }, data: { status: 'CANCELLED' } } } },
       include: PLAN_INCLUDE
     });
     await prisma.auditLog.create({ data: { userId: req.user.id, action: 'AGENT_PLAN_CANCELLED', entity: 'AgentPlan', entityId: plan.id } });
     res.json({ plan: publicPlan(plan) });
+  } catch (error) { next(error); }
+}
+
+async function prepareCampaignReview(req, res, next) {
+  try {
+    await agentAccess.requireAccess(req.user.id);
+    const plan = await findOwnedPlan(req.user.id, req.params.id);
+    if (plan.status === 'CANCELLED') return res.status(409).json({ error: 'A cancelled mission cannot be approved or scheduled.' });
+    const reviewTask = (plan.tasks || []).find(task => task.type === 'PUBLISH' && ['WAITING_REVIEW', 'WAITING_ASSETS'].includes(task.status));
+    if (!reviewTask && !plan.campaign) return res.status(409).json({ error: 'This mission has not reached its campaign review checkpoint yet.' });
+    const campaign = plan.campaign || await agentCampaigns.prepareReview(plan.id);
+    await prisma.auditLog.create({ data: { userId: req.user.id, action: 'AGENT_CAMPAIGN_REVIEW_OPENED', entity: 'AgentCampaign', entityId: campaign.id, metadata: JSON.stringify({ planId: plan.id, backfilled: !plan.campaign }) } });
+    res.json({ campaign: agentCampaigns.publicCampaign(campaign), notice: plan.campaign ? 'Campaign Review opened.' : 'The previous mission has been upgraded into Campaign Review.' });
   } catch (error) { next(error); }
 }
 
@@ -369,7 +382,7 @@ async function scheduleCampaign(req, res, next) {
 }
 
 module.exports = {
-  overview, preflightMission, createPlan, listPlans, approvePlan, resumePlan, cancelPlan,
+  overview, preflightMission, createPlan, listPlans, approvePlan, resumePlan, cancelPlan, prepareCampaignReview,
   uploadAsset, assetContent, deleteAsset,
   campaignDetails, updateCampaignPost, approveCampaignPost, approveCampaign,
   regenerateCampaignPostImage, scheduleCampaign,

@@ -42,6 +42,30 @@ test('Studio separates customer uploads from generated campaign media and expose
   assert.match(html, /Generate a different image/);
   assert.match(routes, /campaigns\/:campaignId\/posts\/:postId\/regenerate-image/);
   assert.match(routes, /campaigns\/:campaignId\/schedule/);
+  assert.match(routes, /plans\/:id\/prepare-review/);
+  assert.match(app, /prepareAgentCampaignReview/);
+  assert.match(app, /Open Campaign Review/);
+  assert.match(app, /activeAgentPlanId = '__none__'/);
+  assert.match(app, /cancelled mission has been cleared/);
+});
+
+test('cancellation stops waiting tasks and the runtime checks for cancellation between steps', () => {
+  const controller = read('src/controllers/agentController.js');
+  const runtime = read('src/services/agentRuntimeService.js');
+  assert.match(controller, /notIn: \['COMPLETED', 'CANCELLED'\]/);
+  assert.match(runtime, /latestState\?\.status === 'CANCELLED'/);
+  assert.match(runtime, /no further mission tasks will start/);
+});
+
+test('unavailable current-web research is a completed warning, not a customer blocker', () => {
+  const runtime = read('src/services/agentRuntimeService.js');
+  const app = read('studio/app.js');
+  assert.match(runtime, /TASK_COMPLETED_WITH_WARNING/);
+  assert.match(runtime, /researchAvailable: false/);
+  assert.doesNotMatch(runtime, /catch \(error\) \{\s*actionRequired = true;\s*const message = error\.code === 'WEB_RESEARCH_NOT_CONFIGURED'/);
+  assert.match(app, /title: 'Current-web research unavailable'/);
+  assert.match(app, /No action is required from you/);
+  assert.match(app, /passive: true/);
 });
 
 test('Phase 11.5 migration keeps campaign approval and scheduler records linked', () => {

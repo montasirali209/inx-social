@@ -43,6 +43,11 @@ async function runPlan(planId) {
     let actionRequired = false;
     let paidFallbackCalls = 0;
     for (const task of plan.tasks) {
+      const latestState = await prisma.agentPlan.findUnique({ where: { id: plan.id }, select: { status: true } });
+      if (latestState?.status === 'CANCELLED') {
+        await event(plan.userId, plan.id, null, 'RUN_CANCELLED', 'CANCELLED', 'Mission cancelled', 'The active workspace was cleared and no further mission tasks will start.');
+        return true;
+      }
       if (['COMPLETED', 'CANCELLED'].includes(task.status)) continue;
       if (task.type === 'WEB_RESEARCH') {
         await prisma.agentTask.update({ where: { id: task.id }, data: { status: 'RUNNING', startedAt: new Date() } });
@@ -54,11 +59,12 @@ async function runPlan(planId) {
           task.outputJson = JSON.stringify(result);
           await event(plan.userId, plan.id, task.id, 'TASK_COMPLETED', 'SUCCESS', task.title, `Current research saved with ${result.sources.length} source link${result.sources.length === 1 ? '' : 's'}.`);
         } catch (error) {
-          actionRequired = true;
           const message = error.code === 'WEB_RESEARCH_NOT_CONFIGURED' ? 'Current-web research is not connected. The mission will continue without claiming live research.' : 'Current-web research is temporarily unavailable. The mission will continue using supplied facts and approved knowledge only.';
-          await markWaiting(plan, task, 'WAITING_RESEARCH', message);
-          task.status = 'WAITING_RESEARCH';
-          task.outputJson = JSON.stringify({ message });
+          const output = { message, sources: [], researchAvailable: false };
+          await prisma.agentTask.update({ where: { id: task.id }, data: { status: 'COMPLETED', outputJson: JSON.stringify(output), completedAt: new Date() } });
+          task.status = 'COMPLETED';
+          task.outputJson = JSON.stringify(output);
+          await event(plan.userId, plan.id, task.id, 'TASK_COMPLETED_WITH_WARNING', 'WARNING', task.title, message, { researchAvailable: false, reason: error.code || 'WEB_RESEARCH_UNAVAILABLE' });
         }
       } else if (BRAIN_TASKS.has(task.type)) {
         await prisma.agentTask.update({ where: { id: task.id }, data: { status: 'RUNNING', startedAt: new Date() } });
@@ -112,6 +118,8 @@ async function runPlan(planId) {
         continue;
       }
     }
+    const latestState = await prisma.agentPlan.findUnique({ where: { id: plan.id }, select: { status: true } });
+    if (latestState?.status === 'CANCELLED') return true;
     const finalStatus = providerFailure ? 'WAITING_PROVIDER' : actionRequired ? 'ACTION_REQUIRED' : 'COMPLETED';
     await prisma.agentPlan.update({ where: { id: plan.id }, data: finalStatus === 'COMPLETED' ? { status: finalStatus, completedAt: new Date(), lastError: null } : { status: finalStatus, lastError: providerFailure ? undefined : null } });
     await event(plan.userId, plan.id, null,

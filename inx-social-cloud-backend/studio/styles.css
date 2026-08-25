@@ -42,7 +42,8 @@
   position: relative;
   width: min(680px, calc(100vw - 32px));
   max-height: min(780px, calc(100vh - 40px));
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 28px;
   border: 1px solid rgba(96, 165, 250, .34);
   border-radius: 26px;
@@ -1466,7 +1467,8 @@ body[data-theme="light"] .settings-card { background: rgba(255,255,255,.92); }
 .agent-action-centre>article{cursor:pointer;transition:transform .16s ease,border-color .16s ease}.agent-action-centre>article:hover,.agent-action-centre>article:focus-visible{transform:translateY(-2px);border-color:rgba(255,190,74,.7);outline:none}.agent-action-centre article ol{display:none}.agent-action-open{color:#8defff;font-size:12px;font-weight:800;white-space:nowrap}
 .agent-mission-intelligence{padding:0 14px 14px}.mission-intelligence-grid{display:grid;gap:9px}.mission-intelligence-grid article{padding:11px;border:1px solid rgba(94,184,225,.2);border-radius:11px;background:rgba(8,28,47,.55)}.mission-intelligence-grid span{display:block;color:#67e9f4;font-size:9px;font-weight:900;letter-spacing:.08em}.mission-intelligence-grid p{margin:5px 0 0;color:var(--muted);font-size:11px;line-height:1.45}.mission-intelligence-grid small{display:block;margin-top:5px;color:#75d9a5}
 .agent-audit-trail{margin:0 14px 14px}.agent-audit-trail>summary{cursor:pointer;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase}.agent-audit-trail .agent-live-feed{margin-top:10px;max-height:330px}
-.agent-clarification-options{display:grid;gap:8px}.agent-clarification-options>label:not(.agent-clarification-custom){display:flex;gap:9px;align-items:center;padding:10px;border:1px solid rgba(100,185,230,.25);border-radius:10px;cursor:pointer}.agent-clarification-custom{display:grid;gap:6px;margin-top:5px}.agent-clarification-custom input{width:100%;padding:11px;border-radius:9px;border:1px solid rgba(100,185,230,.3);background:#0b1729;color:#fff}
+.agent-clarification-options{display:grid;gap:9px}.agent-clarification-options>label:not(.agent-clarification-custom){display:grid;grid-template-columns:22px minmax(0,1fr);gap:11px;align-items:center;min-height:48px;padding:11px 13px;border:1px solid rgba(100,185,230,.25);border-radius:11px;background:rgba(5,16,34,.45);cursor:pointer}.agent-clarification-options>label:not(.agent-clarification-custom):has(input:checked){border-color:#4fd8e2;background:rgba(53,202,218,.1)}.agent-clarification-options input[type="radio"]{width:16px;height:16px;margin:0;accent-color:#4fd8e2}.agent-clarification-options label span{min-width:0;color:#dbe9f5;font-size:12px;line-height:1.4;text-align:left}.agent-clarification-custom{display:grid;gap:7px;margin-top:7px}.agent-clarification-custom>span{color:#91a9bc;font-size:11px;font-weight:700}.agent-clarification-custom input{box-sizing:border-box;width:100%;max-width:100%;padding:12px;border-radius:10px;border:1px solid rgba(100,185,230,.3);background:#0b1729;color:#fff}
+.agent-cleared-state{display:grid;place-items:center;min-height:430px;padding:42px;text-align:center;border:1px dashed rgba(96,197,216,.32);border-radius:20px;background:radial-gradient(circle at 50% 30%,rgba(56,189,248,.1),transparent 48%),rgba(5,15,29,.28)}.agent-cleared-state>span{color:#54d8e5;font-size:9px;font-weight:900;letter-spacing:.14em}.agent-cleared-state h3{margin:10px 0 7px;color:#f4fbff;font-size:21px}.agent-cleared-state p{max-width:560px;margin:0;color:#91a8bb;line-height:1.6}.agent-preflight-progress{width:min(360px,80%);height:5px;margin-top:22px;overflow:hidden;border-radius:999px;background:rgba(115,176,207,.14)}.agent-preflight-progress i{display:block;width:42%;height:100%;border-radius:inherit;background:linear-gradient(90deg,#3fb9ff,#52e0d1);animation:agentPreflight 1.25s ease-in-out infinite}@keyframes agentPreflight{0%{transform:translateX(-110%)}100%{transform:translateX(340%)}}
 
 /* Phase 11.4.2 — clear mission controls and non-repeating runtime surfaces */
 .agent-brand-assets,
