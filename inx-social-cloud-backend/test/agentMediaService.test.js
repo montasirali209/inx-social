@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
+const sharp = require('sharp');
 
 process.env.JWT_SECRET ||= 'test-jwt-secret';
 process.env.TOKEN_ENCRYPTION_KEY ||= 'test-token-key';
@@ -11,7 +12,8 @@ process.env.OLLAMA_IMAGE_MODEL ||= 'x/z-image-turbo';
 const prismaPath = require.resolve('../src/db/prisma');
 const brainPath = require.resolve('../src/services/agentBrainService');
 let stored = null;
-require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: { agentAsset: { create: async ({ data }) => { stored = data; return { id: 'generated-1', ...data }; } } } };
+let selectedUploadLogo = null;
+require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: { agentAsset: { create: async ({ data }) => { stored = data; return { id: 'generated-1', ...data }; }, findFirst: async () => selectedUploadLogo } } };
 require.cache[brainPath] = { id: brainPath, filename: brainPath, loaded: true, exports: { ollamaHeaders: () => ({ Authorization: 'Bearer private' }) } };
 const media = require('../src/services/agentMediaService');
 
@@ -43,4 +45,45 @@ test('local image generation stores an authenticated mission asset without paid 
 
 test('generated files must have a recognised image signature', () => {
   assert.throws(() => media.imageType(Buffer.from('not-an-image')), /unsupported image format/);
+});
+
+test('customer regeneration instructions are combined with AI context while generated text stays forbidden', () => {
+  const prompt = media.campaignImagePrompt({ prompt: 'Launch INX Social', strategyJson: '{"pageTargets":[{"name":"INXSocial"}]}' }, {
+    sequence: 1,
+    title: 'Welcome to INX Social',
+    visualBrief: 'A clean launch visual'
+  }, { customerPrompt: 'Use a brighter cyan background and more negative space.' });
+  assert.match(prompt, /Customer-requested change: Use a brighter cyan background/);
+  assert.match(prompt, /Include no words, letters, numbers, logos/);
+});
+
+test('exact uploaded logo and exact headline are composed after background generation', async () => {
+  const base = await sharp({ create: { width: 600, height: 800, channels: 4, background: '#12324a' } }).png().toBuffer();
+  const logo = await sharp({ create: { width: 180, height: 80, channels: 4, background: '#42dce5' } }).png().toBuffer();
+  selectedUploadLogo = { data: logo, mimeType: 'image/png' };
+  const result = await media.composeExactBranding({ userId: 'user-1', strategyJson: '{"referenceAssets":[{"id":"logo-1","kind":"LOGO"}]}' }, base, 'Welcome to INX Social');
+  const metadata = await sharp(result).metadata();
+  selectedUploadLogo = null;
+  assert.equal(metadata.width, 1080);
+  assert.equal(metadata.height, 1350);
+  assert.equal(metadata.format, 'png');
+});
+
+test('a second failed visual review is stored as rejected and never returned approval-ready', async () => {
+  let imageCalls = 0;
+  const result = await media.generateImages({ id: 'plan-2', userId: 'user-1', prompt: 'Create one branded post image', strategyJson: '{"assetCount":1,"mediaModel":"IMAGE_QUALITY"}' }, { title: 'Generate image' }, {
+    policy: { enabled: true, model: 'fast-private', qualityModel: 'quality-private', size: '1024x1536', maxAssetsPerMission: 1 },
+    http: { post: async (url, body) => {
+      if (url.endsWith('/api/chat')) return { data: { message: { content: JSON.stringify({ approved: false, score: 31, issues: ['Gibberish text'], correction: 'Remove all lettering' }) } } };
+      imageCalls += 1;
+      assert.equal(body.model, 'quality-private');
+      return { data: { data: [{ b64_json: png.toString('base64') }] } };
+    } }
+  });
+  assert.equal(imageCalls, 2);
+  assert.equal(result.assets.length, 0);
+  assert.equal(result.rejectedCount, 1);
+  assert.equal(stored.status, 'REJECTED');
+  assert.equal(stored.qualityScore, 31);
+  assert.match(stored.qualityIssuesJson, /Gibberish text/);
 });

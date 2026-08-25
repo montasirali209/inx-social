@@ -3,7 +3,7 @@ const { decryptToken } = require('../utils/tokenCrypto');
 const media = require('./agentMediaService');
 const metaPublisher = require('./cloudMetaPublisher');
 
-const POST_ASSET_SELECT = { id: true, kind: true, source: true, status: true, originalName: true, mimeType: true, byteSize: true, createdAt: true };
+const POST_ASSET_SELECT = { id: true, kind: true, source: true, status: true, originalName: true, mimeType: true, byteSize: true, customerPrompt: true, exactOverlayText: true, generationChoice: true, qualityScore: true, qualityIssuesJson: true, createdAt: true };
 const CAMPAIGN_INCLUDE = {
   posts: {
     orderBy: { sequence: 'asc' },
@@ -98,7 +98,22 @@ function recommendedSlots({ count, timezone, times, occupied = new Set(), now = 
 
 function publicAsset(asset) {
   if (!asset) return null;
-  return { ...asset, contentUrl: `/api/agent/assets/${encodeURIComponent(asset.id)}/content` };
+  const qualityIssues = parseJson(asset.qualityIssuesJson, []);
+  return {
+    id: asset.id,
+    kind: asset.kind,
+    source: asset.source,
+    status: asset.status,
+    originalName: asset.originalName,
+    mimeType: asset.mimeType,
+    byteSize: asset.byteSize,
+    customerPrompt: asset.customerPrompt || null,
+    exactOverlayText: asset.exactOverlayText || null,
+    generationChoice: asset.generationChoice || null,
+    qualityReview: asset.qualityScore !== null && asset.qualityScore !== undefined ? { approved: asset.status === 'READY', score: asset.qualityScore, issues: Array.isArray(qualityIssues) ? qualityIssues : [] } : null,
+    createdAt: asset.createdAt,
+    contentUrl: asset.status === 'READY' ? `/api/agent/assets/${encodeURIComponent(asset.id)}/content` : null
+  };
 }
 
 function publicCampaign(campaign) {
@@ -253,15 +268,16 @@ async function approvePost(userId, campaignId, postId) {
   const post = campaign.posts.find(item => item.id === postId);
   if (!post) throw Object.assign(new Error('Campaign post not found.'), { status: 404 });
   assertEditable(post);
+  if (post.status === 'WAITING_MEDIA') throw Object.assign(new Error('Generate an image that passes the visual quality review before approving this post.'), { status: 409 });
   if (!post.caption || !post.scheduledAt || !post.connectedPage) throw Object.assign(new Error('Caption, Page and publishing time are required before approval.'), { status: 409 });
-  if (post.format !== 'TEXT' && !post.asset) throw Object.assign(new Error('This post is waiting for its generated media.'), { status: 409 });
+  if (post.format !== 'TEXT' && (!post.asset || post.asset.status !== 'READY' || post.asset.qualityScore === null || post.asset.qualityScore === undefined)) throw Object.assign(new Error('Regenerate this image under the current visual quality gate before approving it.'), { status: 409 });
   await prisma.agentCampaignPost.update({ where: { id: post.id }, data: { status: 'APPROVED', approvedAt: new Date(), lastError: null } });
   return findOwned(userId, campaign.id);
 }
 
 async function approveAll(userId, campaignId) {
   const campaign = await findOwned(userId, campaignId);
-  const eligible = campaign.posts.filter(post => !['WAITING_MEDIA', 'SCHEDULING', 'SCHEDULED', 'PUBLISHED'].includes(post.status) && post.caption && post.scheduledAt && post.connectedPage);
+  const eligible = campaign.posts.filter(post => !['WAITING_MEDIA', 'SCHEDULING', 'SCHEDULED', 'PUBLISHED'].includes(post.status) && post.caption && post.scheduledAt && post.connectedPage && (post.format === 'TEXT' || (post.asset?.status === 'READY' && post.asset.qualityScore !== null && post.asset.qualityScore !== undefined)));
   if (!eligible.length) throw Object.assign(new Error('No review-ready posts are available to approve.'), { status: 409 });
   const now = new Date();
   await prisma.agentCampaignPost.updateMany({ where: { id: { in: eligible.map(post => post.id) } }, data: { status: 'APPROVED', approvedAt: now, lastError: null } });
@@ -271,17 +287,30 @@ async function approveAll(userId, campaignId) {
   return findOwned(userId, campaign.id);
 }
 
-async function regeneratePostImage(userId, campaignId, postId, dependencies = {}) {
+async function regeneratePostImage(userId, campaignId, postId, input = {}, dependencies = {}) {
   const campaign = await findOwned(userId, campaignId);
   const post = campaign.posts.find(item => item.id === postId);
   if (!post) throw Object.assign(new Error('Campaign post not found.'), { status: 404 });
   assertEditable(post);
+  const customerPrompt = String(input.customerPrompt || '').trim();
+  const overlayText = String(input.overlayText || '').trim();
+  const generationChoice = String(input.generationChoice || 'IMAGE_QUALITY').toUpperCase();
+  if (customerPrompt.length > 1200) throw Object.assign(new Error('Keep image instructions within 1,200 characters.'), { status: 400 });
+  if (overlayText.length > 120) throw Object.assign(new Error('Keep exact image text within 120 characters.'), { status: 400 });
+  if (!['IMAGE_FAST', 'IMAGE_QUALITY'].includes(generationChoice)) throw Object.assign(new Error('Choose Fast or Quality image generation.'), { status: 400 });
   const plan = await prisma.agentPlan.findFirst({ where: { id: campaign.planId, userId } });
   if (!plan) throw Object.assign(new Error('Campaign mission not found.'), { status: 404 });
-  const asset = await media.regenerateCampaignImage(plan, post, dependencies);
-  await prisma.agentCampaignPost.update({ where: { id: post.id }, data: { assetId: asset.id, format: 'IMAGE', status: 'READY_FOR_REVIEW', approvedAt: null, lastError: null } });
+  const asset = await media.regenerateCampaignImage(plan, post, { customerPrompt, overlayText, generationChoice }, dependencies);
+  const ready = asset.status === 'READY' && asset.qualityReview?.approved;
+  const issues = (asset.qualityReview?.issues || []).join('; ') || asset.qualityReview?.warning || 'The generated image did not pass visual review.';
+  await prisma.agentCampaignPost.update({
+    where: { id: post.id },
+    data: ready
+      ? { assetId: asset.id, format: 'IMAGE', status: 'READY_FOR_REVIEW', approvedAt: null, lastError: null }
+      : { format: 'IMAGE', status: 'WAITING_MEDIA', approvedAt: null, lastError: text(issues, 1000) }
+  });
   await prisma.agentCampaign.update({ where: { id: campaign.id }, data: { status: 'READY_FOR_REVIEW', approvedAt: null } });
-  return findOwned(userId, campaign.id);
+  return { campaign: await findOwned(userId, campaign.id), ready, qualityReview: asset.qualityReview };
 }
 
 async function scheduleCampaign(userId, campaignId, dependencies = {}) {
@@ -297,6 +326,9 @@ async function scheduleCampaign(userId, campaignId, dependencies = {}) {
       const page = await prisma.connectedPage.findFirst({ where: { id: post.connectedPage.id, userId, status: 'ACTIVE' } });
       if (!page?.encryptedAccessToken) throw new Error('The selected Facebook Page needs to be reconnected before scheduling.');
       if (['VIDEO', 'REEL'].includes(post.format)) throw new Error('Campaign video publishing is not connected yet; keep this post in review or use the Reel Scheduler.');
+      if (post.format !== 'TEXT' && (!post.asset || post.asset.status !== 'READY' || post.asset.qualityScore === null || post.asset.qualityScore === undefined)) {
+        throw Object.assign(new Error('Regenerate this image under the current visual quality gate before scheduling it.'), { code: 'MEDIA_REVIEW_REQUIRED' });
+      }
       job = await prisma.scheduleJob.upsert({
         where: { userId_clientRequestId: { userId, clientRequestId: `agent-campaign:${post.id}` } },
         create: {
@@ -332,7 +364,7 @@ async function scheduleCampaign(userId, campaignId, dependencies = {}) {
     } catch (error) {
       const message = text(error.publicMessage || error.message || 'Facebook scheduling failed.', 1000);
       if (job) await prisma.scheduleJob.update({ where: { id: job.id }, data: { status: 'FAILED', errorMessage: message } }).catch(() => {});
-      await prisma.agentCampaignPost.update({ where: { id: post.id }, data: { status: 'SCHEDULE_FAILED', lastError: message, scheduleJobId: job?.id || post.scheduleJobId || null } });
+      await prisma.agentCampaignPost.update({ where: { id: post.id }, data: { status: error.code === 'MEDIA_REVIEW_REQUIRED' ? 'WAITING_MEDIA' : 'SCHEDULE_FAILED', lastError: message, scheduleJobId: job?.id || post.scheduleJobId || null } });
       results.push({ postId: post.id, ok: false, error: message });
     }
   }

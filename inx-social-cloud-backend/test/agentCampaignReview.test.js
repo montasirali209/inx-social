@@ -39,7 +39,15 @@ test('Studio separates customer uploads from generated campaign media and expose
   assert.match(app, /CAMPAIGN REVIEW/);
   assert.match(app, /Approve all &amp; schedule/);
   assert.match(html, /id="agentPostEditor"/);
-  assert.match(html, /Generate a different image/);
+  assert.match(html, /Regenerate with instructions/);
+  assert.match(html, /id="agentPostImagePrompt"/);
+  assert.match(html, /id="agentPostImageOverlay"/);
+  assert.match(html, /id="agentPostImageQuality"/);
+  assert.match(app, /customerPrompt, overlayText, generationChoice/);
+  assert.match(app, /qualityReview\?\.approved !== true/);
+  assert.match(read('studio/web-adapter.js'), /JSON\.stringify\(payload\)/);
+  assert.match(read('src/services/agentCampaignService.js'), /MEDIA_REVIEW_REQUIRED/);
+  assert.match(read('src/services/agentCampaignService.js'), /asset\.qualityScore === null/);
   assert.match(routes, /campaigns\/:campaignId\/posts\/:postId\/regenerate-image/);
   assert.match(routes, /campaigns\/:campaignId\/schedule/);
   assert.match(routes, /plans\/:id\/prepare-review/);

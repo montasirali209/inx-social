@@ -713,12 +713,23 @@ Third video caption #hashtags"></textarea>
     <section class="agent-post-editor-card">
       <header><div><span id="agentPostEditorNumber">Post</span><h2>Review and edit post</h2><p><b id="agentPostEditorStatus">Ready for review</b> · <span id="agentPostEditorPage">Facebook Page</span></p></div><button id="btnAgentPostEditorClose" type="button" aria-label="Close">&times;</button></header>
       <div class="agent-post-editor-layout">
-        <div class="agent-post-editor-media"><div id="agentPostEditorVisual"><span>Loading preview…</span></div><button id="btnAgentPostRegenerate" class="btn secondary" type="button">Generate a different image</button><small>Generated media belongs here—not in Brand and reference images.</small></div>
+        <div class="agent-post-editor-media">
+          <div id="agentPostEditorVisual"><span>Loading preview…</span></div>
+          <section class="agent-image-refinement" aria-labelledby="agentImageRefinementTitle">
+            <div class="agent-image-refinement-head"><div><span>IMAGE REFINEMENT</span><h3 id="agentImageRefinementTitle">Describe the visual you want</h3></div><label>Generation quality<select id="agentPostImageQuality"><option value="IMAGE_QUALITY" selected>Quality</option><option value="IMAGE_FAST">Fast</option></select></label></div>
+            <label>Custom image instructions<textarea id="agentPostImagePrompt" rows="4" maxlength="1200" placeholder="Example: Create a clean blue and cyan launch visual showing organised content planning. Keep the exact uploaded logo. No phones or fake interfaces."></textarea></label>
+            <div class="agent-image-prompt-chips" aria-label="Quick image changes"><button type="button" data-image-prompt="Create a completely new visual concept.">New concept</button><button type="button" data-image-prompt="Use the selected website or brand imagery as visual inspiration.">Use brand imagery</button><button type="button" data-image-prompt="Make the composition brighter, cleaner and more premium.">Brighter</button><button type="button" data-image-prompt="Use a minimal composition with more negative space.">More minimal</button><button type="button" data-image-prompt="Remove phones, dashboards and interface mockups.">No fake UI</button></div>
+            <label>Exact text overlay <small>Optional—rendered exactly after generation</small><input id="agentPostImageOverlay" maxlength="120" placeholder="Leave empty for a text-free visual"></label>
+            <p id="agentPostImageQualityStatus" class="agent-image-quality-status"></p>
+            <button id="btnAgentPostRegenerate" class="btn secondary" type="button">Regenerate with instructions</button>
+          </section>
+          <small>The AI creates the background; exact uploaded logos and optional text are added separately.</small>
+        </div>
         <div class="agent-post-editor-fields">
           <label>Post title<input id="agentPostEditorTitle" maxlength="160"></label>
           <label>Caption<textarea id="agentPostEditorCaption" rows="8" maxlength="63206"></textarea></label>
           <label>Accessibility text<textarea id="agentPostEditorAlt" rows="3" maxlength="1000"></textarea></label>
-          <label>Visual direction<textarea id="agentPostEditorVisualBrief" rows="3" maxlength="2000"></textarea></label>
+          <label>AI visual plan <small>Editable creative summary—hidden reasoning is never displayed or stored</small><textarea id="agentPostEditorVisualBrief" rows="3" maxlength="2000"></textarea></label>
           <label>Publishing time<input id="agentPostEditorTime" type="datetime-local"></label>
           <p id="agentPostEditorReason" class="agent-post-editor-reason"></p>
         </div>

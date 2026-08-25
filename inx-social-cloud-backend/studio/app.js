@@ -328,6 +328,13 @@ function bindButtons() {
   on('btnAgentPostSave', saveAgentCampaignPost);
   on('btnAgentPostApprove', () => approveAgentCampaignPost());
   on('btnAgentPostRegenerate', regenerateAgentCampaignPostImage);
+  document.querySelectorAll('[data-image-prompt]').forEach(button => button.addEventListener('click', () => {
+    const field = document.getElementById('agentPostImagePrompt');
+    if (!field || field.disabled) return;
+    const instruction = button.dataset.imagePrompt || '';
+    field.value = [field.value.trim(), instruction].filter(Boolean).join(' ');
+    field.focus();
+  }));
   document.getElementById('agentPostEditor')?.addEventListener('click', event => { if (event.target.id === 'agentPostEditor') closeAgentPostEditor(); });
   document.getElementById('agentBrandAssetFile')?.addEventListener('change', updateAgentBrandFileName);
   document.querySelectorAll('.agent-output-type').forEach(input => input.addEventListener('change', updateAgentContentControls));
@@ -1840,7 +1847,7 @@ function updateAgentContentControls() {
   const previous = select.value;
   select.innerHTML = models.map(model => `<option value="${escapeHtml(model.code)}" ${model.eligible === false ? 'disabled' : ''}>${escapeHtml(model.label)}${model.eligible === false ? ` — ${escapeHtml(model.minimumPlan || 'higher plan')} required` : ` — ${Number(model.creditsPerAsset || 0)} credit${Number(model.creditsPerAsset || 0) === 1 ? '' : 's'} / asset`}</option>`).join('');
   if (models.some(model => model.code === previous && model.eligible !== false)) select.value = previous;
-  else select.value = models.find(model => model.eligible !== false)?.code || models[0]?.code || '';
+  else select.value = models.find(model => model.code === 'IMAGE_QUALITY' && model.eligible !== false)?.code || models.find(model => model.eligible !== false)?.code || models[0]?.code || '';
   field.classList.toggle('text-output', outputType === 'TEXT');
   updateAgentCreditPreview();
 }
@@ -1930,7 +1937,7 @@ async function createAgentPlan(event) {
       finalPrompt = `${prompt}\n\nCustomer clarification: ${answer}`;
     }
     const contentOutput = requestedOutput === 'AUTO' ? preflight.analysis?.inferredContentOutput || 'IMAGE' : requestedOutput;
-    const mediaModel = contentOutput === 'TEXT' ? 'TEXT_ONLY' : ['IMAGE','CAROUSEL'].includes(contentOutput) ? (preflight.analysis?.generationPreference === 'QUALITY' ? 'IMAGE_QUALITY' : 'IMAGE_FAST') : (preflight.analysis?.generationPreference === 'QUALITY' ? 'VIDEO_QUALITY' : 'VIDEO_FAST');
+    const mediaModel = contentOutput === 'TEXT' ? 'TEXT_ONLY' : ['IMAGE','CAROUSEL'].includes(contentOutput) ? (preflight.analysis?.generationPreference === 'FAST' ? 'IMAGE_FAST' : 'IMAGE_QUALITY') : (preflight.analysis?.generationPreference === 'QUALITY' ? 'VIDEO_QUALITY' : 'VIDEO_FAST');
     const result = await window.schedulerApi.createAgentPlan({ prompt: finalPrompt, platforms, targetPageIds, referenceAssetIds: [...agentSelectedAssetIds], operationMode, contentOutput, mediaModel: requestedOutput === 'AUTO' ? mediaModel : document.getElementById('agentExecutionMode')?.value });
     agentOverview = agentOverview || { plans: [] };
     agentOverview.plans = [result.plan, ...(agentOverview.plans || []).filter(plan => plan.id !== result.plan.id)];
@@ -2172,6 +2179,18 @@ async function openAgentPostEditor(postId) {
   document.getElementById('agentPostEditorTime').value = localDateTimeValue(post.scheduledAt);
   document.getElementById('agentPostEditorPage').textContent = post.page?.name || 'Facebook Page';
   document.getElementById('agentPostEditorReason').textContent = post.scheduleReason || '';
+  document.getElementById('agentPostImagePrompt').value = post.asset?.customerPrompt || '';
+  document.getElementById('agentPostImageOverlay').value = post.asset?.exactOverlayText || '';
+  document.getElementById('agentPostImageQuality').value = post.asset?.generationChoice === 'IMAGE_FAST' ? 'IMAGE_FAST' : 'IMAGE_QUALITY';
+  const qualityStatus = document.getElementById('agentPostImageQualityStatus');
+  const qualityReview = post.asset?.qualityReview;
+  if (qualityStatus) {
+    const waitingMessage = post.status === 'WAITING_MEDIA' ? post.lastError : '';
+    const issues = qualityReview?.issues?.join('; ') || '';
+    const legacyReviewRequired = post.format !== 'TEXT' && post.asset && !qualityReview ? 'Regenerate this earlier image once under the new visual quality gate before approval.' : '';
+    qualityStatus.textContent = waitingMessage || legacyReviewRequired || (qualityReview?.approved ? `Visual review passed${Number.isFinite(qualityReview.score) ? ` · ${qualityReview.score}/100` : ''}.` : issues);
+    qualityStatus.className = `agent-image-quality-status${qualityStatus.textContent ? ` visible ${qualityReview?.approved && !waitingMessage ? 'pass' : 'fail'}` : ''}`;
+  }
   const visual = document.getElementById('agentPostEditorVisual');
   visual.innerHTML = post.asset ? '<span>Loading full preview…</span>' : '<span class="agent-text-post-art">Aa</span>';
   if (post.asset) {
@@ -2179,10 +2198,11 @@ async function openAgentPostEditor(postId) {
     if (url && agentEditingPostId === post.id) visual.innerHTML = `<img src="${escapeHtml(url)}" alt="${escapeHtml(post.altText || 'Generated campaign visual')}">`;
   }
   const locked = ['SCHEDULED', 'PUBLISHED', 'SCHEDULING'].includes(post.status);
-  modal.querySelectorAll('input, textarea').forEach(field => { field.disabled = locked; });
+  modal.querySelectorAll('input, textarea, select').forEach(field => { field.disabled = locked; });
   document.getElementById('btnAgentPostSave').disabled = locked;
   document.getElementById('btnAgentPostRegenerate').disabled = locked;
-  document.getElementById('btnAgentPostApprove').disabled = locked || post.status === 'APPROVED';
+  const mediaNeedsReview = post.format !== 'TEXT' && (!post.asset || post.status === 'WAITING_MEDIA' || qualityReview?.approved !== true);
+  document.getElementById('btnAgentPostApprove').disabled = locked || post.status === 'APPROVED' || mediaNeedsReview;
   document.getElementById('btnAgentPostApprove').textContent = post.status === 'APPROVED' ? 'Approved ✓' : 'Approve post';
   modal.classList.remove('hidden');
 }
@@ -2229,16 +2249,26 @@ async function approveAgentCampaignPost(postId = agentEditingPostId) {
 async function regenerateAgentCampaignPostImage() {
   const plan = selectedAgentPlan();
   if (!plan?.campaign || !agentEditingPostId) return;
-  const confirmed = await showStudioConfirm({ eyebrow: 'Creative replacement', title: 'Generate a different image?', message: 'The current image stays in the mission history. A new post-specific visual will replace it in this review card and the post approval will reset.', tone: 'warning', confirmText: 'Generate new image' });
+  const customerPrompt = document.getElementById('agentPostImagePrompt')?.value?.trim() || '';
+  const overlayText = document.getElementById('agentPostImageOverlay')?.value?.trim() || '';
+  const generationChoice = document.getElementById('agentPostImageQuality')?.value || 'IMAGE_QUALITY';
+  const confirmed = await showStudioConfirm({ eyebrow: 'Creative replacement', title: 'Regenerate with these instructions?', message: customerPrompt || 'The AI visual plan will be used with strict text-free generation and brand safeguards. The current image remains until the replacement passes visual review.', tone: 'warning', confirmText: 'Generate replacement' });
   if (!confirmed) return;
   const postId = agentEditingPostId;
+  const button = document.getElementById('btnAgentPostRegenerate');
+  button.disabled = true;
+  button.textContent = 'Generating and checking…';
   try {
-    const result = await window.schedulerApi.regenerateAgentCampaignPostImage(plan.campaign.id, postId);
+    const result = await window.schedulerApi.regenerateAgentCampaignPostImage(plan.campaign.id, postId, { customerPrompt, overlayText, generationChoice });
     setSelectedAgentCampaign(result.campaign);
     renderAgentWorkspace();
     await openAgentPostEditor(postId);
     toast(result.notice || 'New image generated.');
   } catch (error) { toast(error.message, true); }
+  finally {
+    button.disabled = false;
+    button.textContent = 'Regenerate with instructions';
+  }
 }
 
 async function approveAndScheduleAgentCampaign() {

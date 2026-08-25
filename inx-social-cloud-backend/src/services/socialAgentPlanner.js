@@ -64,7 +64,7 @@ function normalizeMediaModel(value, contentOutput, prompt) {
   const kind = CONTENT_OUTPUTS[contentOutput].mediaKind;
   if (kind === 'text') return 'TEXT_ONLY';
   const requested = String(value || '').toUpperCase();
-  if (kind === 'image') return ['IMAGE_FAST', 'IMAGE_QUALITY'].includes(requested) ? requested : 'IMAGE_FAST';
+  if (kind === 'image') return ['IMAGE_FAST', 'IMAGE_QUALITY'].includes(requested) ? requested : 'IMAGE_QUALITY';
   if (['template', 'generative-video'].includes(PROVIDERS[requested]?.kind)) return requested;
   return chooseExecutionMode(prompt, requested);
 }

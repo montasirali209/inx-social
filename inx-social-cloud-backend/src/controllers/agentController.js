@@ -130,7 +130,7 @@ async function overview(req, res, next) {
     const availableAssets = await agentAssets.list(req.user.id, { source: 'UPLOAD' });
     const userQueue = runtime.queuedPlanIds.filter(id => recentPlans.some(plan => plan.id === id));
     res.json({
-      phase: '11.5.2-r2',
+      phase: '11.5.3',
       mode: 'OLLAMA_FIRST_RUNTIME',
       license: { plan: entitlement.plan, allowed: entitlement.allowed },
       usage: entitlement.usage,
@@ -367,9 +367,13 @@ async function approveCampaign(req, res, next) {
 async function regenerateCampaignPostImage(req, res, next) {
   try {
     await agentAccess.requireAccess(req.user.id);
-    const campaign = await agentCampaigns.regeneratePostImage(req.user.id, req.params.campaignId, req.params.postId);
-    await prisma.auditLog.create({ data: { userId: req.user.id, action: 'AGENT_CAMPAIGN_IMAGE_REGENERATED', entity: 'AgentCampaignPost', entityId: req.params.postId, metadata: JSON.stringify({ campaignId: req.params.campaignId }) } });
-    res.json({ campaign: agentCampaigns.publicCampaign(campaign), notice: 'A new image was generated for this post. Review and approve it again.' });
+    const result = await agentCampaigns.regeneratePostImage(req.user.id, req.params.campaignId, req.params.postId, req.body || {});
+    await prisma.auditLog.create({ data: { userId: req.user.id, action: result.ready ? 'AGENT_CAMPAIGN_IMAGE_REGENERATED' : 'AGENT_CAMPAIGN_IMAGE_REJECTED', entity: 'AgentCampaignPost', entityId: req.params.postId, metadata: JSON.stringify({ campaignId: req.params.campaignId, generationChoice: String(req.body?.generationChoice || 'IMAGE_QUALITY'), qualityScore: result.qualityReview?.score ?? null, issueCount: result.qualityReview?.issues?.length || 0 }) } });
+    res.json({
+      campaign: agentCampaigns.publicCampaign(result.campaign),
+      qualityReview: result.qualityReview,
+      notice: result.ready ? 'A new image passed visual review. Review and approve it again.' : 'The generated image was withheld because it did not pass visual review. Adjust the instructions and try again.'
+    });
   } catch (error) { next(error); }
 }
 

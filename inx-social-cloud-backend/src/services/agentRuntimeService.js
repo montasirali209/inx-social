@@ -130,7 +130,7 @@ async function runPlan(planId) {
           const currentPlan = await prisma.agentPlan.findUnique({ where: { id: plan.id }, include: { tasks: { orderBy: { sequence: 'asc' } } } });
           const result = await media.generateImages(currentPlan || plan, task);
           await prisma.agentTask.update({ where: { id: task.id }, data: { status: 'COMPLETED', outputJson: JSON.stringify(result), completedAt: new Date() } });
-          await event(plan.userId, plan.id, task.id, 'TASK_COMPLETED', 'SUCCESS', task.title, result.summary || result.content, { assetCount: result.assets?.length || 0 });
+          await event(plan.userId, plan.id, task.id, result.rejectedCount ? 'TASK_COMPLETED_WITH_WARNING' : 'TASK_COMPLETED', result.rejectedCount ? 'WARNING' : 'SUCCESS', task.title, result.summary || result.content, { assetCount: result.assets?.length || 0, rejectedCount: result.rejectedCount || 0 });
         } catch (error) {
           actionRequired = true;
           const message = error.code === 'OLLAMA_NOT_CONFIGURED' ? 'The private Ollama image worker is not connected. Your completed work is safe; connect it and resume.' : 'Image generation is paused. Check the private image worker in Admin, then resume this mission.';

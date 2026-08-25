@@ -85,6 +85,11 @@ model AgentAsset {
   byteSize     Int
   checksum     String
   prompt       String?
+  customerPrompt    String?
+  exactOverlayText  String?
+  generationChoice String?
+  qualityScore      Int?
+  qualityIssuesJson String?
   data         Bytes
   expiresAt    DateTime?
   createdAt    DateTime  @default(now())

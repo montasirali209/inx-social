@@ -6,13 +6,13 @@ test('Social Agent routes economical post imagery to the local image worker with
   const plan = buildPlan({ prompt: 'Create 14 educational posts for my cleaning company', platforms: ['facebook', 'instagram'] });
   assert.equal(plan.assetCount, 14);
   assert.equal(plan.contentOutput, 'IMAGE');
-  assert.equal(plan.executionMode, 'IMAGE_FAST');
+  assert.equal(plan.executionMode, 'IMAGE_QUALITY');
   assert.equal(plan.estimatedCredits, 0);
   assert.equal(plan.estimatedCostCents, 0);
   assert.deepEqual(plan.platforms, ['facebook', 'instagram']);
   const imageTask = plan.tasks.find(item => item.type === 'IMAGE_GENERATION');
   assert.ok(imageTask);
-  assert.equal(imageTask.executionMode, 'IMAGE_FAST');
+  assert.equal(imageTask.executionMode, 'IMAGE_QUALITY');
   assert.equal(imageTask.estimatedCostCents, 0);
   assert.equal(plan.tasks.some(item => item.type === 'VIDEO_GENERATION'), false);
   assert.ok(plan.tasks.some(item => item.type === 'PUBLISH' && item.riskLevel === 'HIGH'));
