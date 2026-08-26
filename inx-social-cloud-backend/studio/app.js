@@ -1963,6 +1963,8 @@ function agentTaskStatusLabel(status) {
     WAITING_PLATFORM: 'Waiting for platform results',
     WAITING_DEPENDENCY: 'Dependency required',
     WAITING_RESEARCH: 'Research unavailable',
+    WAITING_COPY_REVIEW: 'Copy quality review required',
+    WAITING_CAMPAIGN_REVIEW: 'Campaign assembly required',
     COMPLETED: 'Completed',
     RUNNING: 'In progress',
     QUEUED: 'Queued',
@@ -1997,7 +1999,12 @@ function agentTaskGuidance(task) {
     body: savedMessage || 'Current research was not available, so the agent did not claim to have searched the web.',
     steps: ['No action is required from you.', 'The agent will continue without claiming live research.', 'An administrator can enable the governed research connection later.'], passive: true
   };
-  if (type === 'PUBLISH' && ['WAITING_REVIEW', 'WAITING_ASSETS'].includes(status)) return {
+  if (status === 'WAITING_COPY_REVIEW') return {
+    title: 'Copy was withheld by the quality gate',
+    body: savedMessage || 'The draft did not meet the senior social strategy standard after one automatic repair. Resume the mission to regenerate it from the saved research.',
+    steps: ['No weak copy has been delivered or scheduled.', 'Review the mission and saved research if needed.', 'Resume to generate a new draft.'], actionResume: true
+  };
+  if (type === 'PUBLISH' && ['WAITING_REVIEW', 'WAITING_ASSETS', 'WAITING_CAMPAIGN_REVIEW'].includes(status)) return {
     title: 'Open Campaign Review',
     body: savedMessage || 'The prepared posts are waiting for your review. Open the campaign workspace to edit captions, replace images, approve posts and schedule them.',
     steps: ['Open Campaign Review.', 'Check every caption, image and publishing time.', 'Approve individual posts or approve all and schedule.'],
@@ -2369,9 +2376,12 @@ function renderAgentWorkspace() {
   const usageRemaining = usage.remaining === null ? 'Unlimited' : Number(usage.remaining || 0).toLocaleString();
   const periodEnd = usage.periodEnd ? new Date(usage.periodEnd).toLocaleDateString() : 'Plan period';
   const pageTargets = plan.strategy?.pageTargets || [];
+  const recoverableCampaign = !plan.campaign && (plan.tasks || []).some(task => task.type === 'COPY_GENERATION' && task.status === 'COMPLETED');
+  const missionComplete = item => item.status === 'COMPLETED' || ['SCHEDULED', 'PUBLISHED'].includes(item.campaign?.status);
   const missionQueue = plans
-    .filter(item => !['CANCELLED'].includes(item.status))
+    .filter(item => !['CANCELLED'].includes(item.status) && !missionComplete(item))
     .slice(0, 8);
+  const completedMissions = plans.filter(missionComplete).slice(0, 12);
   const missionStatus = document.getElementById('agentMissionStatus');
   if (missionStatus) missionStatus.textContent = `${mode} · ${String(plan.status).replaceAll('_', ' ')}`;
   workspace.innerHTML = `
@@ -2383,10 +2393,12 @@ function renderAgentWorkspace() {
         const isActive = agentOverview?.runtime?.activePlanId === item.id;
         return `<button type="button" data-agent-plan-id="${escapeHtml(item.id)}" class="agent-queue-card ${item.id === plan.id ? 'selected' : ''} ${isActive ? 'active' : ''}"><span>${isActive ? 'LIVE' : itemQueuePosition ? `Q${itemQueuePosition}` : String(index + 1).padStart(2, '0')}</span><div><strong>${escapeHtml(item.prompt.slice(0, 72))}</strong><small>${escapeHtml(String(item.status).replaceAll('_', ' '))} · ${itemCompleted}/${item.tasks?.length || 0} tasks</small></div><i></i></button>`;
       }).join('')}</div>
+      <details class="agent-completed-missions" ${missionComplete(plan) ? 'open' : ''}><summary><span>Completed missions</span><b>${completedMissions.length}</b><small>Scheduled campaigns remain saved and reopenable</small></summary><div class="agent-mission-queue completed">${completedMissions.length ? completedMissions.map(item => `<button type="button" data-agent-plan-id="${escapeHtml(item.id)}" class="agent-queue-card completed ${item.id === plan.id ? 'selected' : ''}"><span>✓</span><div><strong>${escapeHtml(item.prompt.slice(0, 72))}</strong><small>${escapeHtml(new Date(item.completedAt || item.updatedAt).toLocaleString())} · ${item.campaign?.posts?.length || 0} post${item.campaign?.posts?.length === 1 ? '' : 's'}</small></div><i></i></button>`).join('') : '<div class="workspace-empty">Successfully scheduled Autopilot and Hybrid missions will appear here.</div>'}</div></details>
       <label>Recent plans<select id="agentPlanSelect">${plans.map(item => `<option value="${escapeHtml(item.id)}" ${item.id === plan.id ? 'selected' : ''}>${escapeHtml(new Date(item.createdAt).toLocaleDateString())} — ${escapeHtml(item.prompt.slice(0, 58))}</option>`).join('')}</select></label>
       <div class="agent-plan-top"><div><strong>${escapeHtml(plan.prompt)}</strong><p>${escapeHtml((plan.platforms || []).join(', '))} · ${escapeHtml(mode)} organic automation</p>${pageTargets.length ? `<div class="agent-plan-page-chips">${pageTargets.map(page => `<span>${escapeHtml(page.name)}</span>`).join('')}</div>` : ''}</div><div class="agent-plan-badges"><span class="agent-mode-badge">${mode}</span><span class="agent-plan-status status-${escapeHtml(String(plan.status).toLowerCase())}">${escapeHtml(plan.status.replaceAll('_', ' '))}</span></div></div>
       <div class="agent-plan-metrics"><div><span>Current plan</span><strong>${escapeHtml(agentOverview?.license?.plan || 'TRIAL')}</strong><small>Social Agent access</small></div><div><span>Agent missions used</span><strong>${Number(usage.used || 0).toLocaleString()} / ${usageLimit}</strong><small>this plan period</small></div><div><span>Remaining</span><strong>${usageRemaining}</strong><small>new missions available</small></div><div><span>Usage resets</span><strong>${escapeHtml(periodEnd)}</strong><small>${completed}/${plan.tasks?.length || 0} tasks complete · ${running} active · ${waiting} waiting</small></div></div>
       ${plan.lastError ? `<div class="agent-runtime-error">${escapeHtml(plan.lastError)}</div>` : ''}
+      ${recoverableCampaign ? '<section class="agent-action-centre"><header><div><span>POST READY TO RECOVER</span><strong>Open the completed customer-facing post</strong></div><b>!</b></header><article><div class="agent-action-icon">!</div><div><strong>Campaign Review was not assembled</strong><p>The earlier mission completed internal AI tasks without displaying its caption and image. Open Campaign Review to recover the saved work.</p><small>This mission will not be treated as successfully delivered until its post is visible.</small></div><button type="button" class="btn primary compact" data-agent-campaign-review>Open Campaign Review</button></article></section>' : ''}
       ${renderAgentActionCentre(plan.tasks || [])}
       ${renderAgentCampaignReview(plan.campaign)}
       <section class="agent-task-board"><header><div><span>MISSION TASKS</span><strong>${escapeHtml(plan.prompt.slice(0, 90))}</strong></div><div class="agent-overall-progress"><b>${progressPercent}%</b><small>${completed} of ${totalTasks} complete</small></div></header><div class="agent-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progressPercent}"><i style="width:${progressPercent}%"></i></div>

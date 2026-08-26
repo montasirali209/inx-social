@@ -5,6 +5,8 @@ const prisma = require('../db/prisma');
 const env = require('../config/env');
 const brain = require('./agentBrainService');
 const routing = require('./aiModelRoutingService');
+const branding = require('./agentBrandingService');
+const managerIntelligence = require('./socialManagerIntelligence');
 
 function status() {
   return { configured: Boolean(env.ollama.baseUrl && env.ollama.imageModel), generationChoices: ['IMAGE_FAST', 'IMAGE_QUALITY'] };
@@ -66,22 +68,9 @@ function wrapOverlayText(value, maximum = 30) {
   return lines.slice(0, 3);
 }
 
-async function selectedLogo(plan) {
-  if (typeof prisma.agentAsset?.findFirst !== 'function') return null;
-  let strategy = {};
-  try { strategy = JSON.parse(plan.strategyJson || '{}'); } catch (_) {}
-  const logoId = (Array.isArray(strategy.referenceAssets) ? strategy.referenceAssets : [])
-    .find(asset => String(asset.kind || '').toUpperCase() === 'LOGO')?.id;
-  if (!logoId) return null;
-  return prisma.agentAsset.findFirst({
-    where: { id: String(logoId), userId: plan.userId, source: 'UPLOAD', status: 'READY', kind: 'LOGO' },
-    select: { data: true, mimeType: true }
-  });
-}
-
 async function composeExactBranding(plan, data, overlayText, dependencies = {}) {
   if (typeof dependencies.composeImage === 'function') return dependencies.composeImage({ plan, data, overlayText });
-  const logo = await selectedLogo(plan);
+  const logo = await branding.exactBrandMark(plan, { http: dependencies.brandHttp });
   const lines = wrapOverlayText(overlayText);
   if (!logo && !lines.length) return data;
   const layers = [];
@@ -153,9 +142,10 @@ function imagePrompt(plan, task, index) {
     `Supplied brand files: ${references || 'none; follow only the written brief'}.`,
     `Post ${index + 1} title: ${post?.title || task.title}.`,
     `Post ${index + 1} creative direction: ${post?.visualBrief || post?.objective || post?.caption || 'Create a distinct, relevant concept from the campaign brief'}.`,
+    ...managerIntelligence.playbookForTask('IMAGE_GENERATION'),
     firstPostVisualRule(plan),
     'Make this concept visibly different from the other campaign images. Never create a generic phone, app screen or social-media interface mockup.',
-    'Generate only the photographic, illustrative or abstract background layer. Include no words, letters, numbers, logos, badges, app screens, interface panels or watermarks. Exact approved text and the real uploaded logo are added programmatically after generation. Use a clean modern composition with safe margins and do not fabricate testimonials, prices, people, results or claims.'
+    'Generate only the photographic, illustrative or abstract background layer. Include no words, letters, numbers, logos, badges, app screens, interface panels or watermarks. Exact approved text and the selected brand mark or connected Page profile image are added programmatically after generation. Use a clean modern composition with safe margins and do not fabricate testimonials, prices, people, results or claims.'
   ].join(' ');
 }
 
@@ -170,9 +160,10 @@ function campaignImagePrompt(plan, post, input = {}) {
     `Post title: ${post.title || `Post ${post.sequence}`}`,
     `Creative direction: ${post.visualBrief || post.caption}`,
     cleanCustomerPrompt(input.customerPrompt) ? `Customer-requested change: ${cleanCustomerPrompt(input.customerPrompt)}` : '',
+    ...managerIntelligence.playbookForTask('IMAGE_GENERATION'),
     firstPostVisualRule(plan),
     'The visual must be meaningfully specific to this post, not a generic phone or social-media interface mockup.',
-    'Generate only the photographic, illustrative or abstract background layer. Include no words, letters, numbers, logos, badges, app screens, interface panels or watermarks. Exact approved text and the real uploaded logo are added programmatically after generation. Use a clean modern composition with safe margins and do not fabricate testimonials, prices, results, people or claims.'
+    'Generate only the photographic, illustrative or abstract background layer. Include no words, letters, numbers, logos, badges, app screens, interface panels or watermarks. Exact approved text and the selected brand mark or connected Page profile image are added programmatically after generation. Use a clean modern composition with safe margins and do not fabricate testimonials, prices, results, people or claims.'
   ].filter(Boolean).join(' ');
 }
 

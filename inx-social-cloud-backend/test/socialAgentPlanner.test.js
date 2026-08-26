@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const { buildPlan, needsCurrentResearch } = require('../src/services/socialAgentPlanner');
+const { buildPlan, needsCurrentResearch, normalizeContentOutput } = require('../src/services/socialAgentPlanner');
 
 test('Social Agent routes economical post imagery to the local image worker without paid cost', () => {
   const plan = buildPlan({ prompt: 'Create 14 educational posts for my cleaning company', platforms: ['facebook', 'instagram'] });
@@ -75,4 +75,30 @@ test('paid current-web refinement is reserved for complex or explicitly current 
   assert.equal(needsCurrentResearch('Rewrite this caption to sound friendlier', 1), false);
   assert.equal(needsCurrentResearch('Create our first launch post using current market and competitor research', 1), true);
   assert.equal(needsCurrentResearch('Create five educational posts', 5), true);
+});
+
+test('an explicit image request overrides a stale text selector', () => {
+  const prompt = 'Create and schedule a Facebook post with an image related to my service';
+  assert.equal(normalizeContentOutput('TEXT', prompt), 'IMAGE');
+  const plan = buildPlan({ prompt, contentOutput: 'TEXT', mediaModel: 'TEXT_ONLY' });
+  assert.equal(plan.contentOutput, 'IMAGE');
+  assert.ok(plan.tasks.some(item => item.type === 'IMAGE_GENERATION'));
+});
+
+test('wait for approval creates Campaign Review instead of becoming an invisible draft', () => {
+  const plan = buildPlan({
+    prompt: 'Create one Facebook post with an image. Propose a suitable time, wait for my approval and do not schedule or publish anything automatically.',
+    operationMode: 'AUTOPILOT'
+  });
+  assert.equal(plan.approvalRequested, true);
+  assert.equal(plan.draftOnly, false);
+  assert.ok(plan.tasks.some(item => item.type === 'SCHEDULE'));
+  assert.ok(plan.tasks.some(item => item.type === 'PUBLISH' && /Campaign Review/.test(item.title)));
+});
+
+test('even a draft-only content mission receives a visible Campaign Review', () => {
+  const plan = buildPlan({ prompt: 'Create a Facebook launch post and save it as a draft' });
+  assert.equal(plan.draftOnly, true);
+  assert.equal(plan.tasks.some(item => item.type === 'SCHEDULE'), false);
+  assert.equal(plan.tasks.some(item => item.type === 'PUBLISH'), true);
 });

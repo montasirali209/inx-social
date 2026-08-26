@@ -1,6 +1,7 @@
 const axios = require('axios');
 const env = require('../config/env');
 const brain = require('./agentBrainService');
+const managerIntelligence = require('./socialManagerIntelligence');
 
 function refinementReady() {
   return Boolean(env.webResearch.enabled && env.webResearch.provider === 'openai' && env.webResearch.baseUrl && env.webResearch.apiKey && env.webResearch.model);
@@ -43,12 +44,19 @@ function planContext(plan) {
   const strategy = parseJson(plan.strategyJson || '{}');
   const platforms = parseJson(plan.platformsJson || '[]', []);
   const settings = plan.researchSettings && typeof plan.researchSettings === 'object' ? plan.researchSettings : {};
-  const pages = (Array.isArray(strategy.pageTargets) ? strategy.pageTargets : [])
-    .map(page => String(page.name || '').trim()).filter(Boolean);
+  const pageDetails = (Array.isArray(strategy.pageTargets) ? strategy.pageTargets : []).map(page => ({
+    name: String(page.name || '').trim(),
+    username: String(page.username || '').trim(),
+    category: String(page.category || '').trim()
+  })).filter(page => page.name || page.username);
+  const pages = pageDetails.map(page => page.name).filter(Boolean);
+  const officialUrls = [...String(plan.prompt || '').matchAll(/https?:\/\/[^\s)\]}>,]+/gi)].map(match => safeUrl(match[0])).filter(Boolean).slice(0, 5);
   return {
     prompt: String(plan.prompt || '').replace(/\s+/g, ' ').trim().slice(0, 1200),
     platforms: platforms.map(value => String(value)).filter(Boolean).slice(0, 5),
     pages: pages.slice(0, 10),
+    pageDetails: pageDetails.slice(0, 10),
+    officialUrls,
     country: env.webResearch.country || 'GB',
     language: env.webResearch.language || 'en',
     timezone: String(settings.timezone || 'Europe/London').trim().slice(0, 100),
@@ -58,13 +66,14 @@ function planContext(plan) {
 
 function buildQueries(plan) {
   const context = planContext(plan);
-  const subject = [context.pages.join(' '), context.prompt].filter(Boolean).join(' ').slice(0, 700);
+  const pageIdentity = context.pageDetails.map(page => [page.name, page.username ? `@${page.username}` : '', page.category].filter(Boolean).join(' ')).join(' ');
+  const subject = [pageIdentity, context.officialUrls.join(' '), context.prompt].filter(Boolean).join(' ').slice(0, 700);
   const platform = context.platforms.join(' ') || 'social media';
   const location = [context.country ? `country ${context.country}` : '', context.timezone ? `timezone ${context.timezone}` : ''].filter(Boolean).join(' ');
   return [
-    `${subject} current audience needs demand trends ${location} ${context.date}`,
-    `${subject} current competitors alternatives social media positioning ${location}`,
-    `${subject} current SEO search phrases hashtags engagement and best posting times ${platform} ${location}`
+    `${subject} official website services products about brand facts ${context.date}`,
+    `${subject} current target audience needs competitors alternatives positioning content gaps ${location}`,
+    `${subject} current social search phrases hashtags content patterns engagement publishing times ${platform} ${location}`
   ].map(value => value.replace(/\s+/g, ' ').trim().slice(0, 1200)).filter(Boolean).slice(0, env.webResearch.maxQueries);
 }
 
@@ -167,8 +176,8 @@ async function ollamaFirstDraft(plan, http) {
     keep_alive: '10m',
     format: 'json',
     messages: [
-      { role: 'system', content: 'You are the private INX Social strategist. Produce the first analysis before any paid AI is used. Identify what is known from the mission, form initial content and audience hypotheses, identify uncertainties that require current evidence, and propose focused web-search queries. Do not claim that current research has been completed. Return JSON only with summary string, content string, researchQueries array (maximum 3), and uncertainties array.' },
-      { role: 'user', content: `Today: ${context.date}\nMission: ${context.prompt}\nPlatforms: ${context.platforms.join(', ') || 'facebook'}\nConnected Pages: ${context.pages.join(', ') || 'none named'}\nCountry: ${context.country}\nCustomer timezone: ${context.timezone}\nStarter queries: ${fallbackQueries.join(' | ')}` }
+      { role: 'system', content: `You are the private INX Social strategist. Produce the first analysis before any paid AI is used. ${managerIntelligence.playbookForTask('WEB_RESEARCH').join(' ')} Identify what is known from the mission, form initial content and audience hypotheses, identify uncertainties that require current evidence, and propose focused web-search queries. Do not claim that current research has been completed. Return JSON only with summary string, content string, researchQueries array (maximum 3), and uncertainties array.` },
+      { role: 'user', content: `Today: ${context.date}\nMission: ${context.prompt}\nPlatforms: ${context.platforms.join(', ') || 'facebook'}\nConnected Pages: ${context.pages.join(', ') || 'none named'}\nPage details: ${JSON.stringify(context.pageDetails)}\nCustomer-supplied official URLs: ${context.officialUrls.join(', ') || 'none'}\nCountry: ${context.country}\nCustomer timezone: ${context.timezone}\nStarter queries: ${fallbackQueries.join(' | ')}` }
     ],
     options: { temperature: 0.2, num_ctx: env.ollama.complexContext }
   }, { timeout: env.ollama.timeoutMs, headers: brain.ollamaHeaders() });
@@ -180,8 +189,8 @@ async function openAIResearchRefinement(plan, ollamaDraft, http) {
   const context = planContext(plan);
   const request = {
     model: env.webResearch.model,
-    instructions: 'You are the evidence-checking senior social-media strategist for INX Social. Use live web search to check and refine the supplied Ollama-first draft. Preserve useful reasoning, remove unsupported assumptions, and return practical organic-content guidance grounded in current public evidence. Never invent statistics, competitors, keywords, trends, dates or performance claims. The reusableLearning field must describe only a durable improvement learned by comparing the Ollama draft with the researched result; exclude current facts, brand claims, competitor names, dates, statistics and hidden chain-of-thought.',
-    input: `Today: ${context.date}\nMission: ${context.prompt}\nPlatforms: ${context.platforms.join(', ') || 'facebook'}\nConnected Pages: ${context.pages.join(', ') || 'none named'}\nResearch country: ${context.country}\nCustomer timezone: ${context.timezone}\n\nOLLAMA FIRST DRAFT\n${JSON.stringify(ollamaDraft)}\n\nOLLAMA RESEARCH QUERIES\n${ollamaDraft.researchQueries.join('\n')}`,
+    instructions: `You are the evidence-checking senior social-media strategist for INX Social. ${managerIntelligence.playbookForTask('WEB_RESEARCH').join(' ')} Use live web search to check and refine the supplied Ollama-first draft. Verify the official website or authoritative Page facts before making product claims. Use competitor evidence only to identify audience expectations and positioning gaps; never copy competitor wording or creative. Preserve useful reasoning, remove unsupported assumptions, and return practical organic-content guidance grounded in current public evidence. Never invent statistics, competitors, keywords, trends, dates or performance claims. The reusableLearning field must describe only a durable improvement learned by comparing the Ollama draft with the researched result; exclude current facts, brand claims, competitor names, dates, statistics and hidden chain-of-thought.`,
+    input: `Today: ${context.date}\nMission: ${context.prompt}\nPlatforms: ${context.platforms.join(', ') || 'facebook'}\nConnected Pages: ${context.pages.join(', ') || 'none named'}\nPage details: ${JSON.stringify(context.pageDetails)}\nCustomer-supplied official URLs: ${context.officialUrls.join(', ') || 'none'}\nResearch country: ${context.country}\nCustomer timezone: ${context.timezone}\n\nOLLAMA FIRST DRAFT\n${JSON.stringify(ollamaDraft)}\n\nOLLAMA RESEARCH QUERIES\n${ollamaDraft.researchQueries.join('\n')}`,
     tools: [{ type: 'web_search', external_web_access: true, user_location: { type: 'approximate', country: context.country, timezone: context.timezone } }],
     tool_choice: 'required',
     include: ['web_search_call.action.sources'],

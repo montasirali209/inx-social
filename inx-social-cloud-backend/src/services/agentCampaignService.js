@@ -75,6 +75,31 @@ function normalizedSlots(settings = {}) {
   return valid.length ? [...new Set(valid)].sort() : ['09:30', '13:00', '18:30'];
 }
 
+function researchSuggestedTimes(researchOutput = {}) {
+  const source = [researchOutput.summary, researchOutput.content, ...(Array.isArray(researchOutput.recommendations) ? researchOutput.recommendations : [])].filter(Boolean).join(' ');
+  const matches = source.matchAll(/\b(?:at|around|between|from|window|time|posting|publish(?:ing)?)?\s*(\d{1,2})(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)(?!\w)|\b(?:at|around|between|from|window|time|posting|publish(?:ing)?)?\s*([01]\d|2[0-3]):([0-5]\d)\b/gi);
+  const times = [];
+  for (const match of matches) {
+    let hour;
+    let minute;
+    if (match[4] !== undefined) {
+      hour = Number(match[4]);
+      minute = Number(match[5]);
+    } else {
+      hour = Number(match[1]);
+      minute = Number(match[2] || 0);
+      const suffix = String(match[3] || '').toLowerCase().replaceAll('.', '');
+      if (hour < 1 || hour > 12) continue;
+      if (suffix === 'pm' && hour !== 12) hour += 12;
+      if (suffix === 'am' && hour === 12) hour = 0;
+    }
+    const value = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+    if (!times.includes(value)) times.push(value);
+    if (times.length >= 6) break;
+  }
+  return times;
+}
+
 function recommendedSlots({ count, timezone, times, occupied = new Set(), now = new Date() }) {
   const output = [];
   const minimum = new Date(now.getTime() + 60 * 60 * 1000);
@@ -195,7 +220,10 @@ async function prepareReview(planId) {
   const timezone = text(settings.timezone, 100) || 'Europe/London';
   const occupiedRows = await prisma.scheduleJob.findMany({ where: { userId: plan.userId, scheduledAt: { gt: new Date() }, status: { in: ['SCHEDULED', 'PROCESSING', 'PENDING'] } }, select: { scheduledAt: true } });
   const occupied = new Set(occupiedRows.map(item => item.scheduledAt?.toISOString().slice(0, 16)).filter(Boolean));
-  const slots = recommendedSlots({ count, timezone, times: normalizedSlots(settings), occupied });
+  const savedTimes = Array.isArray(settings.dailySlots) && settings.dailySlots.length ? normalizedSlots(settings) : [];
+  const researchedTimes = researchSuggestedTimes(researchOutput);
+  const slotSource = savedTimes.length ? 'SAVED' : researchedTimes.length ? 'RESEARCHED' : 'GENERAL';
+  const slots = recommendedSlots({ count, timezone, times: savedTimes.length ? savedTimes : researchedTimes.length ? researchedTimes : normalizedSlots(settings), occupied });
   const contentOutput = String(strategy.contentOutput || 'IMAGE').toUpperCase();
   const researchAvailable = Boolean(researchOutput.content || researchOutput.summary);
   const readyAssets = plan.assets.filter(asset => asset.status === 'READY');
@@ -218,7 +246,7 @@ async function prepareReview(planId) {
       format: contentOutput,
       ...normalized,
       scheduledAt: slots[index],
-      scheduleReason: `${settings.dailySlots?.length ? 'Saved publishing window' : 'Recommended organic publishing window'} in ${timezone}; occupied slots checked${researchAvailable ? '; current mission research considered' : ''}.`
+      scheduleReason: `${slotSource === 'SAVED' ? 'Saved publishing preference' : slotSource === 'RESEARCHED' ? 'Current research-supported publishing window' : 'General organic testing window'} in ${timezone}; future lead time and occupied slots checked.`
     };
   });
   const targetNames = targets.map(page => page.name).filter(Boolean);
@@ -384,6 +412,19 @@ async function scheduleCampaign(userId, campaignId, dependencies = {}) {
   const failed = results.filter(result => !result.ok).length;
   const status = scheduled === campaign.posts.length ? 'SCHEDULED' : scheduled ? 'PARTIALLY_SCHEDULED' : 'SCHEDULE_FAILED';
   await prisma.agentCampaign.update({ where: { id: campaign.id }, data: { status, scheduledAt: scheduled ? new Date() : null } });
+  if (status === 'SCHEDULED') {
+    const completedAt = new Date();
+    await prisma.agentTask.updateMany({
+      where: { planId: campaign.planId, type: 'PUBLISH' },
+      data: { status: 'COMPLETED', completedAt, outputJson: JSON.stringify({ message: `${scheduled} post${scheduled === 1 ? '' : 's'} scheduled successfully and saved in Completed Missions.`, campaignId }) }
+    });
+    await prisma.agentTask.updateMany({
+      where: { planId: campaign.planId, type: 'ANALYTICS' },
+      data: { status: 'COMPLETED', completedAt, outputJson: JSON.stringify({ message: 'Post-publication analytics monitoring is registered. New evidence can produce a reviewed learning recommendation when platform data becomes available.' }) }
+    });
+    await prisma.agentPlan.update({ where: { id: campaign.planId }, data: { status: 'COMPLETED', completedAt, lastError: null } });
+    await prisma.agentEvent.create({ data: { userId, planId: campaign.planId, taskId: null, type: 'MISSION_DELIVERED', status: 'SUCCESS', title: 'Mission saved to Completed Missions', message: `${scheduled} approved post${scheduled === 1 ? ' is' : 's are'} scheduled and the complete campaign remains available for reopening.` } });
+  }
   return { campaign: await findOwned(userId, campaign.id), results, scheduled, failed };
 }
 
@@ -392,6 +433,7 @@ module.exports = {
   publicCampaign,
   extractStructuredPosts,
   normalizedSlots,
+  researchSuggestedTimes,
   recommendedSlots,
   prepareReview,
   findOwned,

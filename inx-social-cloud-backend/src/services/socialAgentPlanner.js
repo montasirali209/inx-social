@@ -1,4 +1,5 @@
 const SUPPORTED_PLATFORMS = ['facebook', 'instagram', 'youtube', 'tiktok'];
+const managerIntelligence = require('./socialManagerIntelligence');
 
 const PROVIDERS = Object.freeze({
   TEXT_ONLY: { label: 'No media model', estimatedCentsPerAsset: 0, creditsPerAsset: 0, kind: 'text', minimumPlan: 'TRIAL' },
@@ -51,12 +52,18 @@ function chooseExecutionMode(prompt, requestedMode) {
 }
 
 function normalizeContentOutput(value, prompt) {
+  const saysTextOnly = /\b(text|copy|caption)s?\s+only\b|\bno\s+(?:image|images|media|video|videos)\b/i.test(prompt);
+  const asksForCarousel = /\bcarousel\b/i.test(prompt);
+  const asksForReel = /\b(reel|reels|short|shorts)\b/i.test(prompt);
+  const asksForVideo = /\b(video|videos|animation|animated)\b/i.test(prompt);
+  const asksForImage = /\b(?:create|generate|make|design|include|with|using|need|want)(?:\s+(?:an?|one|the|my|our|branded|professional|premium|quality|related|relevant)){0,5}\s+(?:image|visual|graphic|picture|photo)\b|\b(?:image|visual|graphic|picture|photo)\s+(?:for|with|related|showing|using)\b/i.test(prompt);
+  if (saysTextOnly) return 'TEXT';
+  if (asksForCarousel) return 'CAROUSEL';
+  if (asksForReel) return 'REEL';
+  if (asksForVideo) return 'VIDEO';
+  if (asksForImage) return 'IMAGE';
   const explicit = String(value || '').toUpperCase();
   if (CONTENT_OUTPUTS[explicit]) return explicit;
-  if (/\b(text|copy|caption)s?\s+only\b|\bno\s+(?:image|images|media|video|videos)\b/i.test(prompt)) return 'TEXT';
-  if (/\bcarousel\b/i.test(prompt)) return 'CAROUSEL';
-  if (/\b(reel|reels|short|shorts)\b/i.test(prompt)) return 'REEL';
-  if (/\b(video|videos|animation|animated)\b/i.test(prompt)) return 'VIDEO';
   return 'IMAGE';
 }
 
@@ -98,9 +105,7 @@ function normalizeOperationMode(value) {
 }
 
 function needsCurrentResearch(prompt, assetCount = 1) {
-  if (assetCount > 1) return true;
-  if (String(prompt || '').length >= 180) return true;
-  return /\b(?:research|current|latest|trend|market|competitor|alternative|seo|keyword|hashtag|audience|engagement|best\s+(?:time|day|schedule)|launch|first\s+post|brand\s+pack|cover\s+photo|website|industry)\b|https?:\/\/|\b[a-z0-9-]+\.(?:co\.uk|com|org|net)\b/i.test(prompt);
+  return managerIntelligence.requiresResearch(prompt, assetCount);
 }
 
 function task(type, title, description, options = {}) {
@@ -125,20 +130,21 @@ function buildPlan(input = {}) {
   const provider = PROVIDERS[executionMode];
   if (input.subscriptionPlan && !canUseModel(input.subscriptionPlan, executionMode)) throw Object.assign(new Error(`${provider.label} requires the ${provider.minimumPlan} plan or above.`), { status: 403 });
   const tasks = [];
-  const draftOnly = /\b(?:draft|plan)\s+only\b|\bdo\s+not\s+(?:publish|schedule|post)\b|\bno\s+publishing\b/i.test(prompt);
+  const approvalRequested = /\b(?:wait|pause|stop)\s+(?:for|until)\s+(?:my|our|owner|customer)?\s*approval\b|\bdo\s+not\s+(?:schedule|publish|post)[\s\S]{0,50}\b(?:automatically|without\s+(?:my|our|owner|customer)?\s*approval)\b|\b(?:date|time|schedule)[\s\S]{0,35}\bfor\s+(?:my|our|owner|customer)\s+approval\b/i.test(prompt);
+  const draftOnly = !approvalRequested && /\b(?:draft|plan)\s+only\b|\bas\s+(?:a\s+)?draft\b|\b(?:save|keep)(?:\s+it)?\s+as\s+(?:a\s+)?draft\b|\bno\s+publishing\b|\bdo\s+not\s+(?:publish|schedule|post)(?:\s+this|\s+anything)?[.!]?$/i.test(prompt);
   const wantsVideo = CONTENT_OUTPUTS[contentOutput].mediaKind === 'video';
   const wantsImage = CONTENT_OUTPUTS[contentOutput].mediaKind === 'image';
   const researchRequired = needsCurrentResearch(prompt, assetCount);
 
-  tasks.push(task('BRAND_REVIEW', 'Review the brand brief and supplied assets', 'Extract the business name, audience, offer, tone, logo rules and prohibited claims before generating content.'));
-  if (researchRequired) tasks.push(task('WEB_RESEARCH', 'Research current audience and social-search opportunities', 'Ollama prepares the first analysis, then one governed current-web review checks audience needs, relevant competitors or alternatives, search language and engagement opportunities. Findings must include source links and never become permanent learning without review.'));
+  tasks.push(task('BRAND_REVIEW', 'Understand the Page, brand and service', 'Analyse the connected Page identity, trusted profile image, selected assets, business category, likely official website, customer offer, audience, tone, brand rules and facts that require verification.'));
+  if (researchRequired) tasks.push(task('WEB_RESEARCH', 'Research the brand, audience, competitors and social search', 'Ollama prepares the first analysis, then one governed current-web review verifies official service facts, audience needs, competitor positioning, current social-search language, hashtags, content opportunities and publishing-time evidence. Findings include source links and never become permanent learning without review.'));
 
   if (requestsNewPage(prompt)) {
     tasks.push(task('PAGE_SETUP', 'Prepare the social Page setup checklist', 'Page creation and sensitive profile changes remain a guided manual step until the connected platform permission and App Review scope explicitly allow them.', { platform: platforms[0], riskLevel: 'HIGH' }));
   }
 
-  tasks.push(task('CONTENT_STRATEGY', `Create a ${assetCount}-asset content plan`, `Plan ${assetCount} distinct ideas, campaign goals, calls to action and platform-specific formats without fabricating business facts.`));
-  tasks.push(task('COPY_GENERATION', 'Write captions, visual briefs and accessibility text', 'Create a distinct publish-ready caption, visual direction, call to action, hashtags and alt-text for every requested post while preserving the approved brand voice.'));
+  tasks.push(task('CONTENT_STRATEGY', `Create a ${assetCount}-asset professional content plan`, `Plan ${assetCount} audience-relevant ideas, objectives, hooks, calls to action, social-search themes and platform formats from verified brand and research evidence.`));
+  tasks.push(task('COPY_GENERATION', 'Write social-search-ready posts and visual briefs', 'Create distinct publish-ready captions, natural search wording, focused hashtags, service-relevant visual directions and accessibility text while preserving the verified brand voice.'));
   if (wantsImage) tasks.push(task('IMAGE_GENERATION', `Generate ${assetCount} branded ${contentOutput === 'CAROUSEL' ? 'carousel' : 'image'} asset${assetCount === 1 ? '' : 's'}`, `${provider.label} will create the visual assets within the administrator-controlled safety limit.`, {
     executionMode,
     operationMode,
@@ -157,10 +163,12 @@ function buildPlan(input = {}) {
   }
 
   if (!draftOnly) {
-    tasks.push(task('SCHEDULE', 'Propose the publishing calendar', 'Check occupied slots, account limits and timezone rules, then present the exact schedule for approval.', { riskLevel: 'MEDIUM' }));
-    tasks.push(task('PUBLISH', 'Publish approved content', 'This external action remains locked until the owner approves the plan and each connected platform is authorized.', { riskLevel: 'HIGH' }));
-    tasks.push(task('ANALYTICS', 'Measure results and prepare the next recommendation', 'Collect permitted platform analytics, compare outcomes and store reusable structured lessons.'));
+    tasks.push(task('SCHEDULE', 'Choose evidence-led publishing times', 'Combine researched audience guidance, saved preferences, occupied slots, account limits, platform lead time and timezone rules, then present the exact schedule for approval.', { riskLevel: 'MEDIUM' }));
   }
+  tasks.push(task('PUBLISH', 'Assemble Campaign Review', draftOnly
+    ? 'Create the customer-facing Campaign Review with the completed caption and media. Keep publishing disabled because the mission requested a draft only.'
+    : 'Create the customer-facing Campaign Review with the completed caption, media and publishing time. External publishing remains locked until the required approval or explicit Autopilot authorization.', { riskLevel: 'HIGH' }));
+  if (!draftOnly) tasks.push(task('ANALYTICS', 'Measure results and improve the next post', 'After publication, collect permitted platform analytics, compare outcomes with the objective and send only bounded reusable lessons through administrator review.'));
 
   const sequenced = tasks.map((value, index) => ({ ...value, sequence: index + 1 }));
   return {
@@ -171,12 +179,14 @@ function buildPlan(input = {}) {
     mediaModel: executionMode,
     executionMode,
     operationMode,
+    approvalRequested,
+    draftOnly,
     estimatedCostCents: sequenced.reduce((sum, value) => sum + value.estimatedCostCents, 0),
     estimatedCredits: provider.creditsPerAsset * assetCount,
     provider: { code: executionMode, ...provider },
     tasks: sequenced,
     guardrails: [
-      operationMode === 'AUTOPILOT' ? 'Organic content is prepared automatically; direct publishing remains locked until the governed platform publishing adapter is connected.' : 'Hybrid mode pauses for explicit approval at the selected review checkpoint before organic publishing.',
+      approvalRequested || operationMode !== 'AUTOPILOT' ? 'Campaign Review is mandatory and publishing pauses for explicit approval by the owner.' : 'Autopilot may schedule review-ready organic content only when the connected publishing adapter and all final artifact checks succeed.',
       'Paid promotion, advertising spend, Page deletion, ownership and security changes are never automatic.',
       'Platform permissions and commercial-content disclosures are checked at execution time.'
     ]

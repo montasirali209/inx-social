@@ -10,6 +10,14 @@ const original = {
   ollama: { ...env.ollama },
   aiFallback: { ...env.aiFallback }
 };
+const validCopy = JSON.stringify({ posts: [{
+  title: 'A useful introduction',
+  caption: 'Planning social content should feel clear, not chaotic. Our service helps creators and growing teams organise ideas, prepare consistent posts and keep their publishing work moving with confidence. Explore how a calmer content process can give your team more time to focus on the people it serves.',
+  altText: 'Organised content ideas flowing into a clear publishing plan.',
+  hashtags: ['SocialMediaPlanning', 'ContentStrategy'],
+  visualBrief: 'A premium service-relevant visual showing scattered content ideas becoming an organised publishing flow.',
+  objective: 'Introduce the service and encourage relevant Page visitors to learn more.'
+}] });
 
 test.afterEach(() => {
   Object.assign(env.ollama, original.ollama);
@@ -19,7 +27,7 @@ test.afterEach(() => {
 test('Ollama is always the first route and returns its selected task model', async () => {
   env.ollama.baseUrl = 'https://ollama.internal';
   const calls = [];
-  const http = { post: async (url, body) => { calls.push({ url, body }); return { data: { message: { content: 'Ollama result' } } }; } };
+  const http = { post: async (url, body) => { calls.push({ url, body }); return { data: { message: { content: validCopy } } }; } };
   const result = await brain.generateTaskOutput(plan, task, { http, allowPaidFallback: true, route: { ollamaModel: 'qwen:test', fallbackEnabled: true, fallbackModel: 'paid/test' } });
   assert.equal(result.provider, 'ollama');
   assert.equal(result.model, 'qwen:test');
@@ -121,4 +129,11 @@ test('a first Page post receives a benefit-led introduction brief and Quality ge
   assert.match(instruction, /what the product or business helps the customer accomplish/);
   assert.match(instruction, /70–140 words/);
   assert.match(instruction, /Do not request phones, fake dashboards/);
+});
+
+test('a content mission without a publishing decision asks one timing question', async () => {
+  const analysis = await brain.analyseMission({ prompt: 'Create a Facebook post for my Page', platforms: ['facebook'] });
+  assert.equal(analysis.needsClarification, true);
+  assert.match(analysis.question, /When should/i);
+  assert.deepEqual(analysis.options, ['Use AI-recommended researched time', 'Show the proposed date and time for my approval', 'Save it as a draft']);
 });

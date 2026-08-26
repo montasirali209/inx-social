@@ -77,7 +77,8 @@ function publicPageTarget(page) {
     facebookPageId: String(page.facebookPageId || ''),
     name: String(page.name || page.facebookPageName || 'Facebook Page'),
     picture: page.picture || page.facebookPagePicture || null,
-    category: page.category || page.facebookCategory || null
+    category: page.category || page.facebookCategory || null,
+    username: page.username || page.facebookPageUsername || null
   };
 }
 
@@ -86,7 +87,7 @@ async function connectedPagesForUser(userId) {
   return prisma.connectedPage.findMany({
     where: { userId, status: 'ACTIVE' },
     orderBy: [{ isSelected: 'desc' }, { facebookPageName: 'asc' }],
-    select: { id: true, facebookPageId: true, facebookPageName: true, facebookPagePicture: true, facebookCategory: true, isSelected: true, status: true }
+    select: { id: true, facebookPageId: true, facebookPageName: true, facebookPageUsername: true, facebookPagePicture: true, facebookCategory: true, isSelected: true, status: true }
   });
 }
 
@@ -130,7 +131,7 @@ async function overview(req, res, next) {
     const availableAssets = await agentAssets.list(req.user.id, { source: 'UPLOAD' });
     const userQueue = runtime.queuedPlanIds.filter(id => recentPlans.some(plan => plan.id === id));
     res.json({
-      phase: '11.5.4',
+      phase: '11.5.7',
       mode: 'OLLAMA_FIRST_RUNTIME',
       license: { plan: entitlement.plan, allowed: entitlement.allowed },
       usage: entitlement.usage,
@@ -138,7 +139,7 @@ async function overview(req, res, next) {
         planning: true,
         approvals: true,
         providerRouting: true,
-        autonomousPublishing: false,
+        autonomousPublishing: true,
         hybridReview: true,
         campaignReview: true,
         facebookOrganicScheduling: true,
@@ -146,7 +147,7 @@ async function overview(req, res, next) {
         brain: { configured: agentBrain.status().configured },
         imageWorker: agentMedia.status(),
         webResearch: webResearch.status(),
-        note: 'The agent prepares complete campaign posts. Facebook text and image posts are scheduled only after the owner approves them; paid advertising remains disabled.'
+        note: 'Every content mission must produce a visible Campaign Review. Hybrid and approval-requested missions pause there; explicitly selected Autopilot missions may schedule only after all artifact and platform checks pass. Paid advertising remains disabled.'
       },
       supportedPlatforms: SUPPORTED_PLATFORMS,
       contentOutputs: Object.entries(CONTENT_OUTPUTS).map(([code, value]) => ({ code, label: value.label, mediaKind: value.mediaKind })),
@@ -191,6 +192,8 @@ async function createPlan(req, res, next) {
           mediaModel: strategy.mediaModel,
           estimatedCredits: strategy.estimatedCredits,
           researchRequired: strategy.researchRequired,
+          approvalRequested: strategy.approvalRequested,
+          draftOnly: strategy.draftOnly,
           executionMode: strategy.executionMode,
           provider: strategy.provider,
           guardrails: strategy.guardrails,

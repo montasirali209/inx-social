@@ -24,6 +24,11 @@ test('campaign recommendations honour the Page timezone and distinct saved slots
   assert.deepEqual(slots.map(value => value.toISOString()), ['2026-08-25T09:00:00.000Z', '2026-08-25T13:00:00.000Z']);
 });
 
+test('research-backed posting times are normalized for scheduling', () => {
+  const times = campaigns.researchSuggestedTimes({ recommendations: ['Test Facebook posts around 9:15 am or 6:30pm for this UK audience.', 'Avoid unsupported timing certainty.'] });
+  assert.deepEqual(times, ['09:15', '18:30']);
+});
+
 test('Meta schedule guard rejects unsafe lead time before any external request', () => {
   assert.throws(() => publisher.scheduledPublishFields(new Date(Date.now() + 5 * 60 * 1000)), /at least 10 minutes/);
   const safe = publisher.scheduledPublishFields(new Date(Date.now() + 20 * 60 * 1000));
@@ -60,6 +65,7 @@ test('Studio separates customer uploads from generated campaign media and expose
   assert.match(routes, /plans\/:id\/prepare-review/);
   assert.match(app, /prepareAgentCampaignReview/);
   assert.match(app, /Open Campaign Review/);
+  assert.match(app, /Completed missions/);
   assert.match(app, /activeAgentPlanId = '__none__'/);
   assert.match(app, /cancelled mission has been cleared/);
 });

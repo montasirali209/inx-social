@@ -4,6 +4,7 @@ const env = require('../config/env');
 const media = require('./agentMediaService');
 const webResearch = require('./webResearchService');
 const campaigns = require('./agentCampaignService');
+const branding = require('./agentBrandingService');
 
 let activePlanId = null;
 let intervalHandle = null;
@@ -27,17 +28,8 @@ async function approvedMemories(userId, task) {
 }
 
 async function selectedVisionAssets(userId, plan) {
-  if (!env.ollama.visionEnabled || typeof prisma.agentAsset?.findMany !== 'function') return [];
-  let strategy = {};
-  try { strategy = JSON.parse(plan.strategyJson || '{}'); } catch (_) {}
-  const ids = [...new Set((Array.isArray(strategy.referenceAssets) ? strategy.referenceAssets : []).map(asset => String(asset.id || '')).filter(Boolean))].slice(0, 4);
-  if (!ids.length) return [];
-  const rows = await prisma.agentAsset.findMany({
-    where: { userId, id: { in: ids }, status: 'READY', source: 'UPLOAD' },
-    select: { id: true, mimeType: true, data: true },
-    take: 4
-  });
-  return rows.filter(row => row.data && row.data.length <= 1024 * 1024).map(row => ({ id: row.id, mimeType: row.mimeType, base64: Buffer.from(row.data).toString('base64') }));
+  if (!env.ollama.visionEnabled) return [];
+  return branding.visionAssets(userId, plan);
 }
 
 async function createResearchLearningCandidate(userId, task, result) {
@@ -62,6 +54,20 @@ async function markWaiting(plan, task, status, message) {
   await event(plan.userId, plan.id, task.id, 'TASK_WAITING', 'WAITING', task.title, message);
 }
 
+function campaignArtifactIssues(campaign, strategy = {}) {
+  const posts = Array.isArray(campaign?.posts) ? campaign.posts : [];
+  const expected = Math.max(1, Number(strategy.assetCount || 1));
+  const issues = [];
+  if (posts.length < expected) issues.push(`Only ${posts.length} of ${expected} requested posts reached Campaign Review.`);
+  posts.forEach((post, index) => {
+    if (!String(post.caption || '').trim()) issues.push(`Post ${index + 1} has no publishable caption.`);
+    if (!post.connectedPage) issues.push(`Post ${index + 1} has no connected Page target.`);
+    if (!post.scheduledAt && !strategy.draftOnly) issues.push(`Post ${index + 1} has no future publishing time.`);
+    if (String(post.format || 'IMAGE').toUpperCase() !== 'TEXT' && (!post.asset || post.asset.status !== 'READY' || post.asset.qualityScore === null || post.asset.qualityScore === undefined)) issues.push(`Post ${index + 1} has no image that passed the visual quality gate.`);
+  });
+  return issues;
+}
+
 async function runPlan(planId) {
   if (activePlanId && activePlanId !== planId) return false;
   activePlanId = planId;
@@ -72,6 +78,7 @@ async function runPlan(planId) {
     await event(plan.userId, plan.id, null, 'RUN_STARTED', 'RUNNING', 'Mission started', `${plan.operationMode === 'AUTOPILOT' ? 'Autopilot' : 'Hybrid'} execution started with the private INX Agent route.`, { queueMode: 'FIFO_SINGLE_WORKER' });
     let providerFailure = false;
     let actionRequired = false;
+    let missionDelivered = false;
     let paidFallbackCalls = 0;
     for (const task of plan.tasks) {
       const latestState = await prisma.agentPlan.findUnique({ where: { id: plan.id }, select: { status: true } });
@@ -115,6 +122,11 @@ async function runPlan(planId) {
           await event(plan.userId, plan.id, task.id, 'LEARNING_CANDIDATE', 'REVIEW', 'Learning candidate created', 'A concise reusable playbook is waiting for administrator approval.', { memoryId: candidate.id, provider: result.provider, model: result.model });
           await event(plan.userId, plan.id, task.id, 'TASK_COMPLETED', 'SUCCESS', task.title, 'Output saved. Reuse requires administrator approval.', { provider: result.provider, model: result.model });
         } catch (error) {
+          if (error.code === 'COPY_QUALITY_FAILED') {
+            actionRequired = true;
+            await markWaiting(plan, task, 'WAITING_COPY_REVIEW', `The copy was withheld after two quality checks (${error.qualityReview?.score || 0}/100). The agent will retry from the saved research when you resume; no weak post was delivered.`);
+            break;
+          }
           providerFailure = true;
           const customerMessage = error.code === 'OLLAMA_NOT_CONFIGURED'
             ? 'INX Agent is waiting for the private processing gateway to be connected.'
@@ -141,27 +153,58 @@ async function runPlan(planId) {
           await markWaiting(plan, task, 'WAITING_MEDIA_WORKER', message);
         }
       } else {
-        actionRequired = true;
         if (String(task.status).startsWith('WAITING_') || task.status === 'ACTION_REQUIRED') continue;
-        if (['MEDIA_GENERATION', 'VIDEO_GENERATION'].includes(task.type)) await markWaiting(plan, task, 'WAITING_MEDIA_WORKER', 'Video creation needs a configured video worker. No paid request was made; completed strategy, image and copy work remains available.');
-        else if (task.type === 'PUBLISH') {
+        if (['MEDIA_GENERATION', 'VIDEO_GENERATION'].includes(task.type)) {
+          actionRequired = true;
+          await markWaiting(plan, task, 'WAITING_MEDIA_WORKER', 'Video creation needs a configured video worker. No paid request was made; completed strategy, image and copy work remains available.');
+        } else if (task.type === 'PUBLISH') {
           try {
             const campaign = await campaigns.prepareReview(plan.id);
-            const message = `${campaign.posts?.length || 0} complete post${campaign.posts?.length === 1 ? '' : 's'} are ready in Campaign Review. Check each caption, image and publishing time, then approve and schedule.`;
-            await markWaiting(plan, task, 'WAITING_REVIEW', message);
-          } catch (_) {
-            await markWaiting(plan, task, 'WAITING_CAMPAIGN_REVIEW', 'Campaign Review could not be assembled yet. Saved copy and media are safe; sync or resume the mission to try again.');
+            let strategy = {};
+            try { strategy = JSON.parse(plan.strategyJson || '{}'); } catch (_) {}
+            const artifactIssues = campaignArtifactIssues(campaign, strategy);
+            if (artifactIssues.length) {
+              actionRequired = true;
+              await markWaiting(plan, task, 'WAITING_REVIEW', `Campaign Review is available, but the mission cannot complete yet: ${artifactIssues.join(' ')}`);
+            } else if (plan.operationMode === 'AUTOPILOT' && !strategy.approvalRequested && !strategy.draftOnly) {
+              const approved = await campaigns.approveAll(plan.userId, campaign.id);
+              const scheduled = await campaigns.scheduleCampaign(plan.userId, approved.id);
+              if (scheduled.failed || scheduled.scheduled < campaign.posts.length) {
+                actionRequired = true;
+                await markWaiting(plan, task, 'WAITING_REVIEW', `${scheduled.scheduled} post${scheduled.scheduled === 1 ? '' : 's'} scheduled; ${scheduled.failed} need attention in Campaign Review.`);
+              } else {
+                const output = { message: `${scheduled.scheduled} post${scheduled.scheduled === 1 ? '' : 's'} passed final checks and were scheduled.`, campaignId: campaign.id, scheduled: scheduled.scheduled };
+                await prisma.agentTask.update({ where: { id: task.id }, data: { status: 'COMPLETED', outputJson: JSON.stringify(output), completedAt: new Date() } });
+                task.status = 'COMPLETED';
+                await event(plan.userId, plan.id, task.id, 'TASK_COMPLETED', 'SUCCESS', task.title, output.message, { campaignId: campaign.id, scheduled: scheduled.scheduled });
+                missionDelivered = true;
+                break;
+              }
+            } else {
+              actionRequired = true;
+              const message = `${campaign.posts?.length || 0} complete post${campaign.posts?.length === 1 ? '' : 's'} are ready in Campaign Review. Check each caption, image and publishing time, then approve and schedule.`;
+              await markWaiting(plan, task, 'WAITING_REVIEW', message);
+            }
+          } catch (error) {
+            actionRequired = true;
+            await markWaiting(plan, task, 'WAITING_CAMPAIGN_REVIEW', `Campaign Review could not be assembled yet: ${String(error.message || 'saved copy or media is incomplete').slice(0, 400)}`);
           }
+        } else if (task.type === 'PAGE_SETUP') {
+          actionRequired = true;
+          await markWaiting(plan, task, 'ACTION_REQUIRED', 'Complete the displayed Facebook Page setup steps manually. The remaining strategy and copy tasks will continue with Ollama.');
+        } else if (task.type === 'ANALYTICS') {
+          actionRequired = true;
+          await markWaiting(plan, task, 'WAITING_PLATFORM', 'Analytics will begin after content is published and the connected platform returns results.');
+        } else {
+          actionRequired = true;
+          await markWaiting(plan, task, 'WAITING_DEPENDENCY', 'This task needs a connected platform capability, but independent Ollama work will continue.');
         }
-        else if (task.type === 'PAGE_SETUP') await markWaiting(plan, task, 'ACTION_REQUIRED', 'Complete the displayed Facebook Page setup steps manually. The remaining strategy and copy tasks will continue with Ollama.');
-        else if (task.type === 'ANALYTICS') await markWaiting(plan, task, 'WAITING_PLATFORM', 'Analytics will begin after content is published and the connected platform returns results.');
-        else await markWaiting(plan, task, 'WAITING_DEPENDENCY', 'This task needs a connected platform capability, but independent Ollama work will continue.');
         continue;
       }
     }
     const latestState = await prisma.agentPlan.findUnique({ where: { id: plan.id }, select: { status: true } });
     if (latestState?.status === 'CANCELLED') return true;
-    const finalStatus = providerFailure ? 'WAITING_PROVIDER' : actionRequired ? 'ACTION_REQUIRED' : 'COMPLETED';
+    const finalStatus = providerFailure ? 'WAITING_PROVIDER' : missionDelivered ? 'COMPLETED' : actionRequired ? 'ACTION_REQUIRED' : 'COMPLETED';
     await prisma.agentPlan.update({ where: { id: plan.id }, data: finalStatus === 'COMPLETED' ? { status: finalStatus, completedAt: new Date(), lastError: null } : { status: finalStatus, lastError: providerFailure ? undefined : null } });
     await event(plan.userId, plan.id, null,
       providerFailure ? 'RUN_PAUSED' : actionRequired ? 'RUN_ACTION_REQUIRED' : 'RUN_COMPLETED',
@@ -216,4 +259,4 @@ function startAgentRuntime() {
   intervalHandle.unref?.();
 }
 
-module.exports = { queuePlan, runPlan, recover, startAgentRuntime, getRuntimeStatus, BRAIN_TASKS };
+module.exports = { queuePlan, runPlan, recover, startAgentRuntime, getRuntimeStatus, BRAIN_TASKS, campaignArtifactIssues };

@@ -1,6 +1,8 @@
 const axios = require('axios');
 const env = require('../config/env');
 const modelRouting = require('./aiModelRoutingService');
+const managerIntelligence = require('./socialManagerIntelligence');
+const seniorStrategy = require('./seniorSocialStrategyService');
 
 function status() {
   return {
@@ -63,6 +65,8 @@ function taskInstruction(plan, task, approvedMemories = []) {
     `Task requirement: ${task.description}`,
     ...memoryBlock,
     ...researchBlock,
+    ...managerIntelligence.playbookForTask(task.type),
+    ...seniorStrategy.standardsForTask(task.type),
     ...firstPostRequirement,
     ...structuredRequirement,
     'Use approved playbooks as guidance, not as facts about this business.',
@@ -73,7 +77,7 @@ function taskInstruction(plan, task, approvedMemories = []) {
 
 function preflightFallback(input = {}) {
   const prompt = String(input.prompt || '').trim();
-  const vague = prompt.length < 24 || /^(make|create|write|post|help)(?:\s+(?:me\s+)?)?(?:a\s+)?(?:post|content|something)?[.!]?$/i.test(prompt);
+  const vague = !managerIntelligence.isSimpleManagerCommand(prompt) && (prompt.length < 24 || /^(make|create|write|post|help)(?:\s+(?:me\s+)?)?(?:a\s+)?(?:post|content|something)?[.!]?$/i.test(prompt));
   let inferredContentOutput = 'IMAGE';
   if (/\b(text|caption|copy)\s+only\b|\bno\s+(?:media|image|video)\b/i.test(prompt)) inferredContentOutput = 'TEXT';
   else if (/\bcarousel\b/i.test(prompt)) inferredContentOutput = 'CAROUSEL';
@@ -85,13 +89,14 @@ function preflightFallback(input = {}) {
     question: vague ? 'What is the main outcome you want from this post?' : '',
     options: vague ? ['Build awareness', 'Generate enquiries', 'Promote a specific offer'] : [],
     inferredContentOutput,
-    generationPreference: isFirstPostMission(prompt) || /quality|detailed|premium/i.test(prompt) ? 'QUALITY' : 'FAST',
-    researchFocus: 'Current audience interests, trustworthy facts, social search language and engagement opportunities.'
+    generationPreference: managerIntelligence.generationPreference(prompt),
+    researchFocus: managerIntelligence.researchFocus()
   };
 }
 
 function instructionIsActionable(input = {}) {
   const prompt = String(input.prompt || '').replace(/\s+/g, ' ').trim();
+  if (managerIntelligence.isSimpleManagerCommand(prompt)) return true;
   if (prompt.length >= 100) return true;
   const hasCreation = /\b(?:create|write|prepare|generate|schedule|publish|design|build)\b/i.test(prompt);
   const hasScope = /\b\d{1,3}\s+(?:posts?|days?|weeks?|videos?|reels?|assets?)\b|\b(?:first|daily|weekly|page|campaign|cover photo|brand pack)\b/i.test(prompt);
@@ -105,7 +110,7 @@ function parsePreflight(value, input) {
     const end = String(value || '').lastIndexOf('}');
     const parsed = JSON.parse(String(value || '').slice(start, end + 1));
     const fallback = preflightFallback(input);
-    const output = ['TEXT', 'IMAGE', 'CAROUSEL', 'VIDEO', 'REEL'].includes(String(parsed.inferredContentOutput).toUpperCase()) ? String(parsed.inferredContentOutput).toUpperCase() : fallback.inferredContentOutput;
+    const output = managerIntelligence.explicitMediaType(input.prompt) || (['TEXT', 'IMAGE', 'CAROUSEL', 'VIDEO', 'REEL'].includes(String(parsed.inferredContentOutput).toUpperCase()) ? String(parsed.inferredContentOutput).toUpperCase() : fallback.inferredContentOutput);
     const actionable = instructionIsActionable(input);
     return {
       needsClarification: actionable ? false : Boolean(parsed.needsClarification),
@@ -113,13 +118,15 @@ function parsePreflight(value, input) {
       question: actionable ? '' : String(parsed.question || '').slice(0, 160),
       options: actionable ? [] : (Array.isArray(parsed.options) ? parsed.options : []).map(item => String(item).slice(0, 70)).filter(Boolean).slice(0, 3),
       inferredContentOutput: output,
-      generationPreference: isFirstPostMission(input.prompt) || String(parsed.generationPreference).toUpperCase() === 'QUALITY' ? 'QUALITY' : 'FAST',
+      generationPreference: managerIntelligence.generationPreference(input.prompt) === 'QUALITY' || String(parsed.generationPreference).toUpperCase() === 'QUALITY' ? 'QUALITY' : 'FAST',
       researchFocus: String(parsed.researchFocus || fallback.researchFocus).slice(0, 500)
     };
   } catch (_) { return preflightFallback(input); }
 }
 
 async function analyseMission(input = {}, dependencies = {}) {
+  const timingQuestion = managerIntelligence.timingClarification(input.prompt);
+  if (timingQuestion) return timingQuestion;
   const fallback = preflightFallback(input);
   if (!env.ollama.baseUrl) return fallback;
   const http = dependencies.http || axios;
@@ -131,7 +138,7 @@ async function analyseMission(input = {}, dependencies = {}) {
       keep_alive: '10m',
       format: 'json',
       messages: [
-        { role: 'system', content: 'Analyse a social-content instruction. Return JSON only with needsClarification boolean, understanding string, question string, options array (maximum 3), inferredContentOutput (TEXT, IMAGE, CAROUSEL, VIDEO or REEL), generationPreference (FAST or QUALITY), and researchFocus string. Ask one short question only when a non-inferable business goal, offer or audience fact is genuinely missing. Never ask the customer to provide competitors, SEO keywords, market research or design trends when the instruction delegates research to the agent; research or infer those instead. If the instruction is detailed enough to start, set needsClarification false. Infer the media format when reasonable.' },
+        { role: 'system', content: 'Analyse a social-content instruction. Return JSON only with needsClarification boolean, understanding string, question string, options array (maximum 3), inferredContentOutput (TEXT, IMAGE, CAROUSEL, VIDEO or REEL), generationPreference (FAST or QUALITY), and researchFocus string. A short human command such as "create and schedule a post for my Page" is actionable: the Social Manager Intelligence automatically performs routine Page analysis, current research, competitor-gap analysis, social-search optimisation, service-relevant creative direction, accessibility work and schedule checks. Ask one short question only when a non-inferable business fact or external permission is genuinely required. Never ask the customer to provide competitors, SEO keywords, market research or design trends. Explicit media words in the customer instruction override an inferred format. If the instruction is detailed enough to start, set needsClarification false.' },
         { role: 'user', content: `Instruction: ${String(input.prompt || '').slice(0, 4000)}\nPlatforms: ${(input.platforms || []).join(', ') || 'facebook'}` }
       ],
       options: { temperature: 0.15, num_ctx: env.ollama.simpleContext }
@@ -185,7 +192,7 @@ async function generateTaskOutput(plan, task, dependencies = {}) {
         userMessage.content += '\nInspect the supplied images directly. Treat exact logos, screenshots and visible brand rules as authoritative. Never redraw, rename or fabricate them.';
         userMessage.images = dependencies.visionAssets.map(asset => asset.base64).filter(Boolean).slice(0, 4);
       }
-      const response = await http.post(`${env.ollama.baseUrl}/api/chat`, {
+      const request = {
         model: ollamaModel,
         stream: false,
         think: complexReasoning,
@@ -195,10 +202,24 @@ async function generateTaskOutput(plan, task, dependencies = {}) {
           userMessage
         ],
         options: { temperature: 0.55, num_ctx: complexReasoning ? env.ollama.complexContext : env.ollama.simpleContext }
-      }, { timeout: env.ollama.timeoutMs, headers: ollamaHeaders() });
-      const content = String(response.data?.message?.content || '').trim();
+      };
+      let response = await http.post(`${env.ollama.baseUrl}/api/chat`, request, { timeout: env.ollama.timeoutMs, headers: ollamaHeaders() });
+      let content = String(response.data?.message?.content || '').trim();
       if (!content) throw new Error('Ollama returned an empty response.');
-      return { provider: 'ollama', model: ollamaModel, content };
+      let qualityReview = null;
+      if (task.type === 'COPY_GENERATION') {
+        let strategy = {};
+        try { strategy = JSON.parse(plan.strategyJson || '{}'); } catch (_) {}
+        qualityReview = seniorStrategy.reviewCopyOutput(plan, content, strategy.assetCount || 1);
+        if (!qualityReview.approved) {
+          const repairRequest = { ...request, think: false, messages: [...request.messages, { role: 'assistant', content }, { role: 'user', content: seniorStrategy.repairInstruction(qualityReview) }] };
+          response = await http.post(`${env.ollama.baseUrl}/api/chat`, repairRequest, { timeout: env.ollama.timeoutMs, headers: ollamaHeaders() });
+          content = String(response.data?.message?.content || '').trim();
+          qualityReview = seniorStrategy.reviewCopyOutput(plan, content, strategy.assetCount || 1);
+        }
+        if (!qualityReview.approved) throw Object.assign(new Error(`Copy quality review failed at ${qualityReview.score}/100: ${qualityReview.issues.join(' ')}`), { code: 'COPY_QUALITY_FAILED', qualityReview });
+      }
+      return { provider: 'ollama', model: ollamaModel, content, qualityReview };
     } catch (error) {
       ollamaError = error;
       if (!ollamaUnavailable(error)) throw error;
