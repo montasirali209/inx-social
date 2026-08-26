@@ -110,3 +110,15 @@ test('a detailed delegated-research mission does not trigger an unnecessary clar
   assert.equal(parsed.question, '');
   assert.deepEqual(parsed.options, []);
 });
+
+test('a first Page post receives a benefit-led introduction brief and Quality generation', () => {
+  const firstPostPlan = { prompt: 'Create the first Facebook post for our newly created INX Social page with an image related to the product', platformsJson: '["facebook"]' };
+  const instruction = brain.taskInstruction(firstPostPlan, task);
+  const fallback = brain.preflightFallback({ prompt: firstPostPlan.prompt });
+  assert.equal(brain.isFirstPostMission(firstPostPlan.prompt), true);
+  assert.equal(fallback.generationPreference, 'QUALITY');
+  assert.match(instruction, /opening brand introduction/);
+  assert.match(instruction, /what the product or business helps the customer accomplish/);
+  assert.match(instruction, /70–140 words/);
+  assert.match(instruction, /Do not request phones, fake dashboards/);
+});

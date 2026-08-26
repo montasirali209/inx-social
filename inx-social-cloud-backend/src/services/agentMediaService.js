@@ -37,6 +37,16 @@ function cleanOverlayText(value) {
   return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 120);
 }
 
+function isFirstPostMission(value) {
+  return /\b(?:first|introductory|introduction|welcome|launch)\s+(?:facebook\s+|instagram\s+|social(?:\s+media)?\s+|page\s+)?post\b|\bpost\s+(?:for|on)\s+(?:my|our|the)\s+(?:new|newly\s+created|just\s+created)\s+(?:facebook\s+|social(?:\s+media)?\s+)?page\b/i.test(String(value || ''));
+}
+
+function firstPostVisualRule(plan) {
+  return isFirstPostMission(plan?.prompt)
+    ? 'This is the Page’s first post. Create a premium brand-introduction visual that makes the product’s customer benefit immediately understandable. Use a product-relevant visual metaphor derived from the approved creative direction. Do not turn it into a dashboard advertisement, phone mockup or feature checklist.'
+    : '';
+}
+
 function escapeXml(value) {
   return String(value || '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[character]);
 }
@@ -143,6 +153,7 @@ function imagePrompt(plan, task, index) {
     `Supplied brand files: ${references || 'none; follow only the written brief'}.`,
     `Post ${index + 1} title: ${post?.title || task.title}.`,
     `Post ${index + 1} creative direction: ${post?.visualBrief || post?.objective || post?.caption || 'Create a distinct, relevant concept from the campaign brief'}.`,
+    firstPostVisualRule(plan),
     'Make this concept visibly different from the other campaign images. Never create a generic phone, app screen or social-media interface mockup.',
     'Generate only the photographic, illustrative or abstract background layer. Include no words, letters, numbers, logos, badges, app screens, interface panels or watermarks. Exact approved text and the real uploaded logo are added programmatically after generation. Use a clean modern composition with safe margins and do not fabricate testimonials, prices, people, results or claims.'
   ].join(' ');
@@ -159,6 +170,7 @@ function campaignImagePrompt(plan, post, input = {}) {
     `Post title: ${post.title || `Post ${post.sequence}`}`,
     `Creative direction: ${post.visualBrief || post.caption}`,
     cleanCustomerPrompt(input.customerPrompt) ? `Customer-requested change: ${cleanCustomerPrompt(input.customerPrompt)}` : '',
+    firstPostVisualRule(plan),
     'The visual must be meaningfully specific to this post, not a generic phone or social-media interface mockup.',
     'Generate only the photographic, illustrative or abstract background layer. Include no words, letters, numbers, logos, badges, app screens, interface panels or watermarks. Exact approved text and the real uploaded logo are added programmatically after generation. Use a clean modern composition with safe margins and do not fabricate testimonials, prices, results, people or claims.'
   ].filter(Boolean).join(' ');
@@ -167,12 +179,19 @@ function campaignImagePrompt(plan, post, input = {}) {
 async function createGeneratedAsset(plan, prompt, index, options = {}) {
   const http = options.http || axios;
   const generate = async finalPrompt => {
-    const response = await http.post(`${env.ollama.baseUrl}/v1/images/generations`, {
-      model: options.model,
-      prompt: finalPrompt,
-      size: options.size,
-      response_format: 'b64_json'
-    }, { timeout: env.ollama.imageTimeoutMs, headers: brain.ollamaHeaders(), maxContentLength: 12 * 1024 * 1024 });
+    let response;
+    try {
+      response = await http.post(`${env.ollama.baseUrl}/v1/images/generations`, {
+        model: options.model,
+        prompt: finalPrompt,
+        size: options.size,
+        response_format: 'b64_json'
+      }, { timeout: env.ollama.imageTimeoutMs, headers: brain.ollamaHeaders(), maxContentLength: 12 * 1024 * 1024 });
+    } catch (error) {
+      const detail = String(error?.response?.data?.error || '').trim();
+      const message = detail || error.message || 'The private image worker could not create this image.';
+      throw Object.assign(new Error(message), { code: 'IMAGE_GENERATION_FAILED', status: Number(error?.response?.status || 502) });
+    }
     const encoded = response.data?.data?.[0]?.b64_json;
     if (!encoded) throw new Error('Ollama image generation returned no image data.');
     const output = Buffer.from(encoded, 'base64');
@@ -266,4 +285,4 @@ async function regenerateCampaignImage(plan, post, input = {}, dependencies = {}
   });
 }
 
-module.exports = { status, imageType, cleanCustomerPrompt, cleanOverlayText, wrapOverlayText, composeExactBranding, plannedPost, imagePrompt, campaignImagePrompt, resolveImageModel, reviewGeneratedImage, createGeneratedAsset, generateImages, regenerateCampaignImage };
+module.exports = { status, imageType, cleanCustomerPrompt, cleanOverlayText, isFirstPostMission, firstPostVisualRule, wrapOverlayText, composeExactBranding, plannedPost, imagePrompt, campaignImagePrompt, resolveImageModel, reviewGeneratedImage, createGeneratedAsset, generateImages, regenerateCampaignImage };

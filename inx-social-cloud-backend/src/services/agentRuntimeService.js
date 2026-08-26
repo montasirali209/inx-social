@@ -133,7 +133,11 @@ async function runPlan(planId) {
           await event(plan.userId, plan.id, task.id, result.rejectedCount ? 'TASK_COMPLETED_WITH_WARNING' : 'TASK_COMPLETED', result.rejectedCount ? 'WARNING' : 'SUCCESS', task.title, result.summary || result.content, { assetCount: result.assets?.length || 0, rejectedCount: result.rejectedCount || 0 });
         } catch (error) {
           actionRequired = true;
-          const message = error.code === 'OLLAMA_NOT_CONFIGURED' ? 'The private Ollama image worker is not connected. Your completed work is safe; connect it and resume.' : 'Image generation is paused. Check the private image worker in Admin, then resume this mission.';
+          const message = error.code === 'OLLAMA_NOT_CONFIGURED'
+            ? 'The private image worker is not connected. Your completed work is safe; connect it and resume.'
+            : error.code === 'IMAGE_GENERATION_FAILED'
+              ? 'The selected image quality is unavailable on the private image worker. Check that its image model is installed, then resume this mission.'
+              : 'Image generation is paused. Check the private image worker in Admin, then resume this mission.';
           await markWaiting(plan, task, 'WAITING_MEDIA_WORKER', message);
         }
       } else {

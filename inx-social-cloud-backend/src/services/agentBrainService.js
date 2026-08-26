@@ -17,6 +17,11 @@ function status() {
   };
 }
 
+function isFirstPostMission(value) {
+  const prompt = String(value || '');
+  return /\b(?:first|introductory|introduction|welcome|launch)\s+(?:facebook\s+|instagram\s+|social(?:\s+media)?\s+|page\s+)?post\b|\bpost\s+(?:for|on)\s+(?:my|our|the)\s+(?:new|newly\s+created|just\s+created)\s+(?:facebook\s+|social(?:\s+media)?\s+)?page\b/i.test(prompt);
+}
+
 function taskInstruction(plan, task, approvedMemories = []) {
   let strategy = {};
   try { strategy = JSON.parse(plan.strategyJson || '{}'); } catch (_) {}
@@ -39,6 +44,13 @@ function taskInstruction(plan, task, approvedMemories = []) {
   ] : task.type === 'SCHEDULE' ? [
     'Explain the recommended posting windows in the Page audience timezone. Separate evidence-backed findings from general best-practice assumptions.'
   ] : [];
+  const firstPostRequirement = isFirstPostMission(plan.prompt) ? [
+    'FIRST-POST RULE: This is the Page’s opening brand introduction, not a technical feature dump or an advertisement for an internal dashboard.',
+    'Introduce what the product or business helps the customer accomplish, who it is for, and two or three meaningful benefits supported by the supplied website, assets or research. Do not invent facts.',
+    'For COPY_GENERATION, write a warm, confident, publish-ready caption of roughly 70–140 words: a natural opening hook, a clear product introduction, customer benefits, and one gentle call to action. Use no more than four relevant hashtags.',
+    'For COPY_GENERATION, make the visualBrief describe one premium product-related launch composition. Prefer a clear visual metaphor for the customer outcome. Do not request phones, fake dashboards, screenshots, generated logos or embedded wording unless the customer explicitly asked for them.',
+    'Do not describe importing files, checking queue slots, API behaviour or back-office workflow unless that is the product’s central customer-facing promise and the user explicitly requested that angle.'
+  ] : [];
   return [
     'You are the INX Social organic-content strategist.',
     'Return practical work only. Never invent business facts, performance results, permissions or customer testimonials.',
@@ -51,6 +63,7 @@ function taskInstruction(plan, task, approvedMemories = []) {
     `Task requirement: ${task.description}`,
     ...memoryBlock,
     ...researchBlock,
+    ...firstPostRequirement,
     ...structuredRequirement,
     'Use approved playbooks as guidance, not as facts about this business.',
     'Do not reveal hidden chain-of-thought.',
@@ -72,7 +85,7 @@ function preflightFallback(input = {}) {
     question: vague ? 'What is the main outcome you want from this post?' : '',
     options: vague ? ['Build awareness', 'Generate enquiries', 'Promote a specific offer'] : [],
     inferredContentOutput,
-    generationPreference: /quality|detailed|premium/i.test(prompt) ? 'QUALITY' : 'FAST',
+    generationPreference: isFirstPostMission(prompt) || /quality|detailed|premium/i.test(prompt) ? 'QUALITY' : 'FAST',
     researchFocus: 'Current audience interests, trustworthy facts, social search language and engagement opportunities.'
   };
 }
@@ -100,7 +113,7 @@ function parsePreflight(value, input) {
       question: actionable ? '' : String(parsed.question || '').slice(0, 160),
       options: actionable ? [] : (Array.isArray(parsed.options) ? parsed.options : []).map(item => String(item).slice(0, 70)).filter(Boolean).slice(0, 3),
       inferredContentOutput: output,
-      generationPreference: String(parsed.generationPreference).toUpperCase() === 'QUALITY' ? 'QUALITY' : 'FAST',
+      generationPreference: isFirstPostMission(input.prompt) || String(parsed.generationPreference).toUpperCase() === 'QUALITY' ? 'QUALITY' : 'FAST',
       researchFocus: String(parsed.researchFocus || fallback.researchFocus).slice(0, 500)
     };
   } catch (_) { return preflightFallback(input); }
@@ -197,4 +210,4 @@ async function generateTaskOutput(plan, task, dependencies = {}) {
   throw ollamaError;
 }
 
-module.exports = { status, generateTaskOutput, taskInstruction, analyseMission, preflightFallback, instructionIsActionable, parsePreflight, ollamaUnavailable, paidFallbackReady, ollamaHeaders };
+module.exports = { status, generateTaskOutput, taskInstruction, analyseMission, preflightFallback, instructionIsActionable, isFirstPostMission, parsePreflight, ollamaUnavailable, paidFallbackReady, ollamaHeaders };

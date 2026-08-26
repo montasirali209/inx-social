@@ -57,6 +57,17 @@ test('customer regeneration instructions are combined with AI context while gene
   assert.match(prompt, /Include no words, letters, numbers, logos/);
 });
 
+test('first-post imagery is treated as a product introduction instead of a dashboard advertisement', () => {
+  const prompt = media.campaignImagePrompt({ prompt: 'Create our first Facebook post for the newly created INX Social page', strategyJson: '{"pageTargets":[{"name":"INX Social"}]}' }, {
+    sequence: 1,
+    title: 'Welcome to INX Social',
+    visualBrief: 'Introduce the product and its customer benefit'
+  });
+  assert.match(prompt, /Page’s first post/);
+  assert.match(prompt, /product’s customer benefit/);
+  assert.match(prompt, /Do not turn it into a dashboard advertisement/);
+});
+
 test('exact uploaded logo and exact headline are composed after background generation', async () => {
   const base = await sharp({ create: { width: 600, height: 800, channels: 4, background: '#12324a' } }).png().toBuffer();
   const logo = await sharp({ create: { width: 180, height: 80, channels: 4, background: '#42dce5' } }).png().toBuffer();

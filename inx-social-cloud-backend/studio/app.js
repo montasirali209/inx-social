@@ -328,13 +328,8 @@ function bindButtons() {
   on('btnAgentPostSave', saveAgentCampaignPost);
   on('btnAgentPostApprove', () => approveAgentCampaignPost());
   on('btnAgentPostRegenerate', regenerateAgentCampaignPostImage);
-  document.querySelectorAll('[data-image-prompt]').forEach(button => button.addEventListener('click', () => {
-    const field = document.getElementById('agentPostImagePrompt');
-    if (!field || field.disabled) return;
-    const instruction = button.dataset.imagePrompt || '';
-    field.value = [field.value.trim(), instruction].filter(Boolean).join(' ');
-    field.focus();
-  }));
+  document.getElementById('agentPostEditorDate')?.addEventListener('change', refreshAgentPostApproveAvailability);
+  document.getElementById('agentPostEditorClock')?.addEventListener('change', refreshAgentPostApproveAvailability);
   document.getElementById('agentPostEditor')?.addEventListener('click', event => { if (event.target.id === 'agentPostEditor') closeAgentPostEditor(); });
   document.getElementById('agentBrandAssetFile')?.addEventListener('change', updateAgentBrandFileName);
   document.querySelectorAll('.agent-output-type').forEach(input => input.addEventListener('change', updateAgentContentControls));
@@ -2133,6 +2128,45 @@ function localDateTimeValue(value) {
   return local.toISOString().slice(0, 16);
 }
 
+function localScheduleParts(value) {
+  const localValue = localDateTimeValue(value);
+  const [date = '', time = ''] = localValue.split('T');
+  return { date, time };
+}
+
+function editorScheduleIso() {
+  const date = document.getElementById('agentPostEditorDate')?.value || '';
+  const time = document.getElementById('agentPostEditorClock')?.value || '';
+  if (!date || !time) return null;
+  const value = new Date(`${date}T${time}`);
+  return Number.isFinite(value.getTime()) ? value.toISOString() : null;
+}
+
+function agentPostEditorUpdate() {
+  const scheduledAt = editorScheduleIso();
+  if (!scheduledAt) throw new Error('Choose both a publishing date and time.');
+  return {
+    title: document.getElementById('agentPostEditorTitle').value,
+    caption: document.getElementById('agentPostEditorCaption').value,
+    altText: document.getElementById('agentPostEditorAlt').value,
+    visualBrief: document.getElementById('agentPostEditorVisualBrief').value,
+    scheduledAt
+  };
+}
+
+function refreshAgentPostApproveAvailability() {
+  const plan = selectedAgentPlan();
+  const post = plan?.campaign?.posts?.find(item => item.id === agentEditingPostId);
+  const button = document.getElementById('btnAgentPostApprove');
+  if (!post || !button) return;
+  const scheduledAt = editorScheduleIso();
+  const scheduleReady = scheduledAt && new Date(scheduledAt).getTime() >= Date.now() + 10 * 60 * 1000;
+  const qualityReview = post.asset?.qualityReview;
+  const mediaReady = post.format === 'TEXT' || (post.asset && post.status !== 'WAITING_MEDIA' && qualityReview?.approved === true);
+  const locked = ['APPROVED', 'SCHEDULING', 'SCHEDULED', 'PUBLISHED'].includes(post.status);
+  button.disabled = locked || !mediaReady || !scheduleReady;
+}
+
 function renderAgentCampaignReview(campaign) {
   if (!campaign) return '';
   const posts = campaign.posts || [];
@@ -2176,9 +2210,14 @@ async function openAgentPostEditor(postId) {
   document.getElementById('agentPostEditorCaption').value = post.caption || '';
   document.getElementById('agentPostEditorAlt').value = post.altText || '';
   document.getElementById('agentPostEditorVisualBrief').value = post.visualBrief || '';
-  document.getElementById('agentPostEditorTime').value = localDateTimeValue(post.scheduledAt);
+  const schedule = localScheduleParts(post.scheduledAt);
+  document.getElementById('agentPostEditorDate').value = schedule.date;
+  document.getElementById('agentPostEditorClock').value = schedule.time;
   document.getElementById('agentPostEditorPage').textContent = post.page?.name || 'Facebook Page';
-  document.getElementById('agentPostEditorReason').textContent = post.scheduleReason || '';
+  const scheduledTime = new Date(post.scheduledAt).getTime();
+  const scheduleExpired = !Number.isFinite(scheduledTime) || scheduledTime < Date.now() + 10 * 60 * 1000;
+  const campaignTimezone = selectedAgentPlan()?.campaign?.timezone || 'Europe/London';
+  document.getElementById('agentPostEditorReason').textContent = scheduleExpired ? 'Choose a new future publishing date and time before approval.' : `Timezone: ${campaignTimezone}. You can change this schedule before approval.`;
   document.getElementById('agentPostImagePrompt').value = post.asset?.customerPrompt || '';
   document.getElementById('agentPostImageOverlay').value = post.asset?.exactOverlayText || '';
   document.getElementById('agentPostImageQuality').value = post.asset?.generationChoice === 'IMAGE_FAST' ? 'IMAGE_FAST' : 'IMAGE_QUALITY';
@@ -2202,7 +2241,7 @@ async function openAgentPostEditor(postId) {
   document.getElementById('btnAgentPostSave').disabled = locked;
   document.getElementById('btnAgentPostRegenerate').disabled = locked;
   const mediaNeedsReview = post.format !== 'TEXT' && (!post.asset || post.status === 'WAITING_MEDIA' || qualityReview?.approved !== true);
-  document.getElementById('btnAgentPostApprove').disabled = locked || post.status === 'APPROVED' || mediaNeedsReview;
+  document.getElementById('btnAgentPostApprove').disabled = locked || post.status === 'APPROVED' || mediaNeedsReview || scheduleExpired;
   document.getElementById('btnAgentPostApprove').textContent = post.status === 'APPROVED' ? 'Approved ✓' : 'Approve post';
   modal.classList.remove('hidden');
 }
@@ -2218,14 +2257,7 @@ async function saveAgentCampaignPost() {
   const button = document.getElementById('btnAgentPostSave');
   button.disabled = true;
   try {
-    const value = document.getElementById('agentPostEditorTime').value;
-    const result = await window.schedulerApi.updateAgentCampaignPost(plan.campaign.id, agentEditingPostId, {
-      title: document.getElementById('agentPostEditorTitle').value,
-      caption: document.getElementById('agentPostEditorCaption').value,
-      altText: document.getElementById('agentPostEditorAlt').value,
-      visualBrief: document.getElementById('agentPostEditorVisualBrief').value,
-      scheduledAt: value ? new Date(value).toISOString() : null
-    });
+    const result = await window.schedulerApi.updateAgentCampaignPost(plan.campaign.id, agentEditingPostId, agentPostEditorUpdate());
     setSelectedAgentCampaign(result.campaign);
     renderAgentWorkspace();
     await openAgentPostEditor(agentEditingPostId);
@@ -2238,6 +2270,10 @@ async function approveAgentCampaignPost(postId = agentEditingPostId) {
   const plan = selectedAgentPlan();
   if (!plan?.campaign || !postId) return;
   try {
+    if (agentEditingPostId === postId) {
+      const saved = await window.schedulerApi.updateAgentCampaignPost(plan.campaign.id, postId, agentPostEditorUpdate());
+      setSelectedAgentCampaign(saved.campaign);
+    }
     const result = await window.schedulerApi.approveAgentCampaignPost(plan.campaign.id, postId);
     setSelectedAgentCampaign(result.campaign);
     renderAgentWorkspace();
@@ -2257,7 +2293,7 @@ async function regenerateAgentCampaignPostImage() {
   const postId = agentEditingPostId;
   const button = document.getElementById('btnAgentPostRegenerate');
   button.disabled = true;
-  button.textContent = 'Generating and checking…';
+  button.textContent = 'Creating and checking…';
   try {
     const result = await window.schedulerApi.regenerateAgentCampaignPostImage(plan.campaign.id, postId, { customerPrompt, overlayText, generationChoice });
     setSelectedAgentCampaign(result.campaign);
@@ -2267,7 +2303,7 @@ async function regenerateAgentCampaignPostImage() {
   } catch (error) { toast(error.message, true); }
   finally {
     button.disabled = false;
-    button.textContent = 'Regenerate with instructions';
+    button.textContent = 'Create image';
   }
 }
 

@@ -177,7 +177,7 @@ async function prepareReview(planId) {
   if (existing) return existing;
   const plan = await prisma.agentPlan.findUnique({
     where: { id: planId },
-    include: { tasks: { orderBy: { sequence: 'asc' } }, assets: { where: { source: 'OLLAMA_IMAGE', status: 'READY' }, orderBy: { createdAt: 'asc' }, select: POST_ASSET_SELECT } }
+    include: { tasks: { orderBy: { sequence: 'asc' } }, assets: { where: { source: 'OLLAMA_IMAGE', status: { in: ['READY', 'REJECTED'] } }, orderBy: { createdAt: 'asc' }, select: POST_ASSET_SELECT } }
   });
   if (!plan) throw new Error('Agent plan not found while preparing campaign review.');
   const strategy = parseJson(plan.strategyJson, {});
@@ -188,6 +188,8 @@ async function prepareReview(planId) {
   const structured = extractStructuredPosts(copyOutput.content);
   const fallbackSections = text(copyOutput.content).split(/\n(?=\s*\d+[.)]\s+)/).map(value => value.trim()).filter(Boolean);
   const researchOutput = parseJson(plan.tasks.find(task => task.type === 'WEB_RESEARCH')?.outputJson, {});
+  const mediaTaskOutput = parseJson(plan.tasks.find(task => task.type === 'IMAGE_GENERATION')?.outputJson, {});
+  const mediaWaitingMessage = text(mediaTaskOutput.message, 1000) || null;
   const preference = await prisma.cloudPreference.findUnique({ where: { userId: plan.userId } });
   const settings = parseJson(preference?.settingsJson, {});
   const timezone = text(settings.timezone, 100) || 'Europe/London';
@@ -196,15 +198,22 @@ async function prepareReview(planId) {
   const slots = recommendedSlots({ count, timezone, times: normalizedSlots(settings), occupied });
   const contentOutput = String(strategy.contentOutput || 'IMAGE').toUpperCase();
   const researchAvailable = Boolean(researchOutput.content || researchOutput.summary);
+  const readyAssets = plan.assets.filter(asset => asset.status === 'READY');
+  const rejectedAssets = plan.assets.filter(asset => asset.status === 'REJECTED');
   const posts = Array.from({ length: count }, (_, index) => {
     const normalized = normalizePost(structured[index], index, fallbackSections[index] || fallbackSections[0] || plan.prompt);
-    const asset = plan.assets[index] || null;
+    const asset = readyAssets[index] || null;
+    const rejected = !asset ? rejectedAssets[index] || rejectedAssets[rejectedAssets.length - 1] || null : null;
+    const rejectedIssues = parseJson(rejected?.qualityIssuesJson, []);
     const needsMedia = contentOutput !== 'TEXT' && !asset;
     return {
       sequence: index + 1,
       connectedPageId: targets.length ? targets[index % targets.length].id : null,
       assetId: asset?.id || null,
       status: needsMedia ? 'WAITING_MEDIA' : 'READY_FOR_REVIEW',
+      lastError: needsMedia ? (rejected
+        ? text(Array.isArray(rejectedIssues) && rejectedIssues.length ? rejectedIssues.join('; ') : 'The generated image did not pass visual review. Describe the image you want and create a replacement.', 1000)
+        : mediaWaitingMessage) : null,
       platform: 'facebook',
       format: contentOutput,
       ...normalized,
@@ -270,6 +279,8 @@ async function approvePost(userId, campaignId, postId) {
   assertEditable(post);
   if (post.status === 'WAITING_MEDIA') throw Object.assign(new Error('Generate an image that passes the visual quality review before approving this post.'), { status: 409 });
   if (!post.caption || !post.scheduledAt || !post.connectedPage) throw Object.assign(new Error('Caption, Page and publishing time are required before approval.'), { status: 409 });
+  const scheduledAt = new Date(post.scheduledAt).getTime();
+  if (!Number.isFinite(scheduledAt) || scheduledAt < Date.now() + 10 * 60 * 1000 || scheduledAt > Date.now() + 75 * 24 * 60 * 60 * 1000) throw Object.assign(new Error('Choose a publishing time from 10 minutes to 75 days in the future.'), { status: 409 });
   if (post.format !== 'TEXT' && (!post.asset || post.asset.status !== 'READY' || post.asset.qualityScore === null || post.asset.qualityScore === undefined)) throw Object.assign(new Error('Regenerate this image under the current visual quality gate before approving it.'), { status: 409 });
   await prisma.agentCampaignPost.update({ where: { id: post.id }, data: { status: 'APPROVED', approvedAt: new Date(), lastError: null } });
   return findOwned(userId, campaign.id);

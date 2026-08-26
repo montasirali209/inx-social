@@ -31,7 +31,7 @@ test('Meta schedule guard rejects unsafe lead time before any external request',
   assert.ok(safe.scheduled_publish_time > Math.floor(Date.now() / 1000));
 });
 
-test('Studio separates customer uploads from generated campaign media and exposes full review controls', () => {
+test('Studio separates customer uploads from generated campaign media and exposes simple review controls', () => {
   const app = read('studio/app.js');
   const html = read('studio/index.html');
   const routes = read('src/routes/agentRoutes.js');
@@ -39,10 +39,17 @@ test('Studio separates customer uploads from generated campaign media and expose
   assert.match(app, /CAMPAIGN REVIEW/);
   assert.match(app, /Approve all &amp; schedule/);
   assert.match(html, /id="agentPostEditor"/);
-  assert.match(html, /Regenerate with instructions/);
+  assert.match(html, /Review your post/);
+  assert.match(html, /Create image/);
   assert.match(html, /id="agentPostImagePrompt"/);
   assert.match(html, /id="agentPostImageOverlay"/);
   assert.match(html, /id="agentPostImageQuality"/);
+  assert.match(html, /id="agentPostEditorDate"/);
+  assert.match(html, /id="agentPostEditorClock"/);
+  assert.match(html, /Advanced details/);
+  assert.doesNotMatch(html, /data-image-prompt=/);
+  assert.doesNotMatch(html, />New concept</);
+  assert.match(app, /editorScheduleIso/);
   assert.match(app, /customerPrompt, overlayText, generationChoice/);
   assert.match(app, /qualityReview\?\.approved !== true/);
   assert.match(read('studio/web-adapter.js'), /JSON\.stringify\(payload\)/);
