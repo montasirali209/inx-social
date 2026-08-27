@@ -76,3 +76,48 @@ test('scheduled Reel publishing refuses a past time before contacting Meta', asy
   );
   assert.equal(post.mock.callCount(), 0);
 });
+
+test('immediate text publishing uses the Page feed without a schedule time', async t => {
+  const posts = [];
+  t.mock.method(axios, 'post', async (url, body, options) => {
+    posts.push({ url, body, options });
+    return { status: 200, data: { id: 'page-1_post-1' } };
+  });
+
+  const result = await publisher.publishOrganicPost({
+    pageId: 'page-1',
+    pageAccessToken: 'page-secret',
+    caption: 'A direct Facebook post',
+    publishMode: 'NOW'
+  });
+
+  assert.equal(posts.length, 1);
+  assert.match(posts[0].url, /page-1\/feed$/);
+  assert.equal(posts[0].body.message, 'A direct Facebook post');
+  assert.equal(posts[0].body.published, true);
+  assert.equal(Object.hasOwn(posts[0].body, 'scheduled_publish_time'), false);
+  assert.equal(result.publishMode, 'NOW');
+  assert.equal(result.scheduledUnix, null);
+  assert.equal(result.postId, 'page-1_post-1');
+});
+
+test('scheduled text publishing sends a future Meta schedule time', async t => {
+  const posts = [];
+  t.mock.method(axios, 'post', async (url, body) => {
+    posts.push({ url, body });
+    return { status: 200, data: { id: 'page-1_scheduled-1' } };
+  });
+  const scheduledAt = new Date(Date.now() + 60 * 60 * 1000);
+
+  const result = await publisher.publishOrganicPost({
+    pageId: 'page-1',
+    pageAccessToken: 'page-secret',
+    caption: 'Scheduled direct post',
+    scheduledAt,
+    publishMode: 'SCHEDULED'
+  });
+
+  assert.equal(posts[0].body.published, false);
+  assert.equal(posts[0].body.scheduled_publish_time, Math.floor(scheduledAt.getTime() / 1000));
+  assert.equal(result.publishMode, 'SCHEDULED');
+});

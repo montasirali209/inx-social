@@ -37,7 +37,7 @@ test('Social Agent exposes AI-led missions, independent Page targets and distinc
   const html = read('studio/index.html'); const app = read('studio/app.js'); const admin = read('public/index.html');
   assert.match(html, /value="AUTOPILOT"/); assert.match(html, /value="HYBRID"/); assert.match(html, /id="agentMissionCore"/);
   assert.match(html, /id="agentLiveFeed"/); assert.match(html, /id="agentMemoryGrid"/); assert.match(html, /Facebook Page targets/);
-  assert.match(html, /does not change the dashboard Active Page/); assert.match(html, /id="agentPageTargetGrid"/);
+  assert.match(html, /Every workflow keeps its own destination selection/); assert.match(html, /id="agentPageTargetGrid"/);
   assert.match(html, /Mission intelligence/); assert.match(html, /Live work monitor/); assert.match(html, /Only the task running now and its next system step/);
   assert.match(html, /never private chain-of-thought/); assert.doesNotMatch(html, />Working memory</); assert.doesNotMatch(html, /Media budget mode/);
   assert.match(html, /AI content decision/); assert.match(html, /Let INX Agent decide/); assert.match(app, /resumeAgentPlan/);

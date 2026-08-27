@@ -260,8 +260,9 @@
     return Number.isNaN(date.getTime()) ? null : date;
   }
 
-  async function liveMetaSchedule() {
-    const response = await api('/api/studio/facebook/scheduled-posts');
+  async function liveMetaSchedule(connectedPageId = '') {
+    const query = connectedPageId ? `?connectedPageId=${encodeURIComponent(connectedPageId)}` : '';
+    const response = await api(`/api/studio/facebook/scheduled-posts${query}`);
     const posts = Array.isArray(response?.result?.data) ? response.result.data : [];
     const futurePosts = posts.filter(post => {
       const date = scheduledPostDate(post);
@@ -275,14 +276,15 @@
     };
   }
 
-  function schedulePlan(count, startDate, requestedTimes, liveSchedule = null) {
+  function schedulePlan(count, startDate, requestedTimes, liveSchedule = null, connectedPageId = '') {
     const settings = cachedState.settings || {};
     const times = [...new Set(
       (requestedTimes?.length ? requestedTimes : settings.dailySlots || [])
         .filter(value => /^\d{2}:\d{2}$/.test(value))
     )].sort();
     if (!times.length) throw new Error('Choose at least one valid daily time.');
-    const activeFacebookPageId = String(cachedState.workspace?.activePage?.facebookPageId || '');
+    const selectedPage = (cachedState.workspace?.pages || []).find(page => page.id === connectedPageId) || cachedState.workspace?.activePage;
+    const activeFacebookPageId = String(selectedPage?.facebookPageId || '');
     const occupied = new Set(
       (cachedState.jobs || [])
         .filter(job => !activeFacebookPageId || String(job.facebookPageId || '') === activeFacebookPageId)
@@ -334,10 +336,10 @@
     };
   }
 
-  async function prepareSchedulePlan(count, startDate, requestedTimes) {
-    const liveSchedule = await liveMetaSchedule();
+  async function prepareSchedulePlan(count, startDate, requestedTimes, connectedPageId = '') {
+    const liveSchedule = await liveMetaSchedule(connectedPageId);
     const allowedCount = Math.min(Number(count || 0), liveSchedule.remainingCapacity);
-    const plan = schedulePlan(allowedCount, startDate, requestedTimes, liveSchedule);
+    const plan = schedulePlan(allowedCount, startDate, requestedTimes, liveSchedule, connectedPageId);
     return {
       ...plan,
       requestedCount: Number(count || 0),
@@ -351,39 +353,39 @@
     return schedulePlan(count, startDate, requestedTimes).slots;
   }
 
-  function inspectReelsSelection(paths = []) {
-    const activeFacebookPageId = String(cachedState.workspace?.activePage?.facebookPageId || '');
-    const existingNames = new Map(
-      (cachedState.jobs || [])
-        .filter(job => !activeFacebookPageId || String(job.facebookPageId || '') === activeFacebookPageId)
+  function inspectReelsSelection(paths = [], connectedPageIds = []) {
+    const pageIds = connectedPageIds.length ? connectedPageIds : [cachedState.workspace?.activePage?.id].filter(Boolean);
+    const pageInspections = pageIds.map(connectedPageId => {
+      const page = (cachedState.workspace?.pages || []).find(item => item.id === connectedPageId);
+      const existingNames = new Map((cachedState.jobs || [])
+        .filter(job => !page?.facebookPageId || String(job.facebookPageId || '') === String(page.facebookPageId))
         .filter(job => job.duplicateProtected === true)
-        .map(job => [String(job.videoName || '').toLowerCase(), job])
-    );
-    const seen = new Set();
-    const duplicates = [];
-    const acceptedIndexes = [];
-    paths.forEach((path, index) => {
-      const name = fileName(path);
-      const key = name.toLowerCase();
-      const existing = existingNames.get(key);
-      if (seen.has(key) || existing) {
-        duplicates.push({ index, name, existingStatus: existing?.status || 'duplicate selection', slotLabel: existing?.slotLabel || null });
-      } else {
-        seen.add(key);
-        acceptedIndexes.push(index);
-      }
+        .map(job => [String(job.videoName || '').toLowerCase(), job]));
+      const seen = new Set();
+      const duplicates = [];
+      const acceptedIndexes = [];
+      paths.forEach((path, index) => {
+        const name = fileName(path);
+        const key = name.toLowerCase();
+        const existing = existingNames.get(key);
+        if (seen.has(key) || existing) duplicates.push({ index, name, pageId: connectedPageId, pageName: page?.facebookPageName || 'Facebook Page', existingStatus: existing?.status || 'duplicate selection', slotLabel: existing?.slotLabel || null });
+        else { seen.add(key); acceptedIndexes.push(index); }
+      });
+      return { connectedPageId, pageName: page?.facebookPageName || 'Facebook Page', duplicates, acceptedIndexes };
     });
-    return { duplicates, acceptedIndexes, acceptedCount: acceptedIndexes.length };
+    const duplicates = pageInspections.flatMap(item => item.duplicates);
+    const acceptedCount = pageInspections.reduce((sum, item) => sum + item.acceptedIndexes.length, 0);
+    return { duplicates, acceptedCount, acceptedVideoCount: new Set(pageInspections.flatMap(item => item.acceptedIndexes)).size, pageInspections };
   }
 
-  async function createCloudJob({ id, file, caption, scheduledAt = null, publishMode = 'SCHEDULED' }) {
-    const active = cachedState.workspace?.activePage;
-    if (!active) throw new Error('Connect and select a Facebook Page first.');
+  async function createCloudJob({ id, file, caption, scheduledAt = null, publishMode = 'SCHEDULED', connectedPageId = '' }) {
+    const selectedPage = (cachedState.workspace?.pages || []).find(page => page.id === connectedPageId) || cachedState.workspace?.activePage;
+    if (!selectedPage) throw new Error('Choose at least one connected Facebook Page.');
     const immediate = publishMode === 'NOW';
     return api('/api/studio/jobs', {
       method: 'POST',
       body: JSON.stringify({
-        connectedPageId: active.id,
+        connectedPageId: selectedPage.id,
         clientRequestId: `web-${crypto.randomUUID()}`,
         caption,
         originalFileName: file.name,
@@ -438,43 +440,46 @@
     if (captions.length < paths.length) {
       throw new Error(`Selected ${paths.length} video(s), but detected only ${captions.length} caption(s). Nothing was queued. Add at least one caption for every video and try again.`);
     }
-    const inspection = inspectReelsSelection(paths);
+    const connectedPageIds = [...new Set((payload.connectedPageIds || []).map(String).filter(Boolean))];
+    if (!connectedPageIds.length) throw new Error('Choose at least one destination Page.');
+    const inspection = inspectReelsSelection(paths, connectedPageIds);
     if (inspection.duplicates.length && !payload.skipDuplicateVideos) {
       throw new Error(`${inspection.duplicates.length} duplicate video filename(s) found. Confirm that duplicates should be skipped before continuing.`);
     }
-    const selected = inspection.acceptedIndexes.map(index => ({ path: paths[index], caption: captions[index] }));
-    if (!selected.length) throw new Error('Every selected filename matches a Reel that is processing, scheduled, or published for this Page. Failed attempts are not blocked.');
-    let count = selected.length;
+    if (!inspection.acceptedCount) throw new Error('Every selected filename is already processing, scheduled or published for the selected Pages.');
     const immediate = String(payload.publishMode || '').toUpperCase() === 'NOW';
-    const schedule = immediate ? null : await prepareSchedulePlan(count, payload.startDate, payload.times);
-    if (!immediate) count = schedule.slots.length;
-    if (!count) {
-      throw new Error(`Facebook currently has ${schedule.metaScheduledCount} future scheduled post(s). No safe scheduling capacity is available under the ${schedule.metaGuardrailLimit}-item INX Social guardrail.`);
-    }
-    const queueSelection = selected.slice(0, count);
-    const slots = schedule?.slots || [];
     const jobs = [];
-    for (let index = 0; index < count; index++) {
-      const item = queueSelection[index];
-      const file = files.get(item.path);
-      if (!file) throw new Error(`The browser no longer has access to ${fileName(item.path)}. Select it again.`);
-      jobs.push(await createCloudJob({
-        id: item.path,
-        file,
-        caption: item.caption,
-        scheduledAt: immediate ? null : slots[index],
-        publishMode: immediate ? 'NOW' : 'SCHEDULED'
-      }));
+    const schedules = [];
+    const deferredVideos = [];
+    for (const pageInspection of inspection.pageInspections) {
+      const selected = pageInspection.acceptedIndexes.map(index => ({ path: paths[index], caption: captions[index] }));
+      const schedule = immediate ? null : await prepareSchedulePlan(selected.length, payload.startDate, payload.times, pageInspection.connectedPageId);
+      const count = immediate ? selected.length : schedule.slots.length;
+      schedules.push({ connectedPageId: pageInspection.connectedPageId, pageName: pageInspection.pageName, schedule });
+      selected.slice(count).forEach(item => deferredVideos.push(`${pageInspection.pageName}: ${fileName(item.path)}`));
+      for (let index = 0; index < count; index++) {
+        const item = selected[index];
+        const file = files.get(item.path);
+        if (!file) throw new Error(`The browser no longer has access to ${fileName(item.path)}. Select it again.`);
+        jobs.push(await createCloudJob({
+          id: item.path,
+          file,
+          caption: item.caption,
+          scheduledAt: immediate ? null : schedule.slots[index],
+          publishMode: immediate ? 'NOW' : 'SCHEDULED',
+          connectedPageId: pageInspection.connectedPageId
+        }));
+      }
     }
     await fetchState();
     return {
       jobs,
       state: cachedState,
-      captionsUsed: count,
-      captionsIgnored: Math.max(0, captions.length - count),
+      captionsUsed: jobs.length,
+      captionsIgnored: Math.max(0, captions.length - paths.length),
       skippedDuplicates: inspection.duplicates,
-      deferredVideos: selected.slice(count).map(item => fileName(item.path)),
-      schedule
+      deferredVideos,
+      schedules
     };
   }
 
@@ -689,8 +694,9 @@
   function healthResult(extraChecks = []) {
     const checks = [];
     const add = (level, title, message) => checks.push({ level, title, message });
-    if (cachedState.workspace?.activePage) add('ok', 'Active Page', `${cachedState.workspace.activePage.facebookPageName} is selected.`);
-    else add('error', 'Active Page', 'Connect and select a Facebook Page.');
+    const connectedPages = (cachedState.workspace?.pages || []).filter(page => page.status !== 'REVOKED');
+    if (connectedPages.length) add('ok', 'Connected Pages', `${connectedPages.length} Facebook Page${connectedPages.length === 1 ? '' : 's'} available.`);
+    else add('error', 'Connected Pages', 'Connect a Facebook Page.');
     if (localVideos.length) add('ok', 'Browser videos', `${localVideos.length} video(s) selected in this browser session.`);
     else add('warning', 'Browser videos', 'No browser videos are selected yet.');
     if (localCaptions.length) add('ok', 'Captions', `${localCaptions.length} caption(s) are ready.`);
@@ -767,6 +773,54 @@
     return { job: desktop, upload, health, state: cachedState };
   }
 
+  async function pickDirectPostMedia(contentType = 'IMAGE') {
+    const video = String(contentType).toUpperCase() === 'VIDEO';
+    const selected = await chooseFiles({
+      accept: video ? 'video/mp4,video/quicktime,.mp4,.mov,.m4v,.avi,.mkv,.webm' : 'image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp',
+      multiple: false
+    });
+    const file = selected[0];
+    if (!file) return null;
+    const id = fileId(file);
+    return { id, name: file.name, type: file.type || (video ? 'video/mp4' : 'image/jpeg'), size: file.size, previewUrl: URL.createObjectURL(file) };
+  }
+
+  async function publishDirectPost(payload = {}) {
+    const media = payload.mediaId ? files.get(payload.mediaId) : null;
+    const contentType = String(payload.contentType || 'TEXT').toUpperCase();
+    if (contentType !== 'TEXT' && !media) throw new Error('Choose the image or video again.');
+    const created = await api('/api/studio/direct-posts', {
+      method: 'POST',
+      body: JSON.stringify({
+        connectedPageIds: payload.connectedPageIds,
+        clientRequestId: payload.clientRequestId || `direct-${crypto.randomUUID()}`,
+        title: payload.title || null,
+        caption: payload.caption,
+        contentType,
+        originalFileName: media?.name || null,
+        mimeType: media?.type || null,
+        fileSizeBytes: media ? String(media.size) : null,
+        scheduledAt: payload.publishMode === 'NOW' ? null : payload.scheduledAt,
+        publishMode: payload.publishMode
+      })
+    });
+    const failures = [...(created.failures || [])];
+    const completed = [];
+    if (created.uploadRequired && media) {
+      for (const job of created.jobs || []) {
+        if (!['AWAITING_UPLOAD', 'FAILED'].includes(String(job.status || '').toUpperCase())) { completed.push(job); continue; }
+        try {
+          const result = await api(`/api/studio/direct-posts/${encodeURIComponent(job.id)}/media`, { method: 'PUT', headers: { 'Content-Type': media.type || 'application/octet-stream' }, body: media });
+          completed.push(result.job);
+        } catch (error) {
+          failures.push({ pageId: job.page?.id || null, pageName: job.page?.facebookPageName || 'Facebook Page', error: error.message });
+        }
+      }
+    } else completed.push(...(created.jobs || []));
+    await fetchState();
+    return { jobs: completed, failures, state: cachedState };
+  }
+
   const unsupported = name => async () => {
     throw new Error(`${name} is a desktop-only legacy tool. Use Auto Scheduler or Manual Scheduler in Cloud Studio.`);
   };
@@ -834,6 +888,8 @@
     regenerateAgentCampaignPostImage: async (campaignId, postId) => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/posts/${encodeURIComponent(postId)}/regenerate-image`, { method: 'POST', body: '{}' }),
     approveAgentCampaign: async campaignId => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/approve`, { method: 'POST', body: '{}' }),
     scheduleAgentCampaign: async campaignId => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/schedule`, { method: 'POST', body: '{}' }),
+    pickDirectPostMedia,
+    publishDirectPost,
     getWorkspace: workspaceResult,
     refreshWorkspace: workspaceResult,
     connectFacebookWorkspace: facebookLogin,
@@ -897,13 +953,16 @@
       return file ? { text: await file.text(), path: file.name } : { text: '', path: '' };
     },
     createReelsQueue: createQueue,
-    inspectReelsSelection: async paths => {
+    inspectReelsSelection: async (paths, connectedPageIds = []) => {
       await fetchState();
-      return inspectReelsSelection(Array.isArray(paths) ? paths : []);
+      return inspectReelsSelection(Array.isArray(paths) ? paths : [], Array.isArray(connectedPageIds) ? connectedPageIds : []);
     },
     previewReelsSchedule: async payload => {
       await fetchState();
-      return prepareSchedulePlan(payload.count, payload.startDate, payload.times);
+      const connectedPageIds = Array.isArray(payload.connectedPageIds) && payload.connectedPageIds.length ? payload.connectedPageIds : [cachedState.workspace?.activePage?.id].filter(Boolean);
+      const schedules = [];
+      for (const pageId of connectedPageIds) schedules.push(await prepareSchedulePlan(payload.count, payload.startDate, payload.times, pageId));
+      return { ...(schedules[0] || await prepareSchedulePlan(payload.count, payload.startDate, payload.times)), destinationCount: connectedPageIds.length, destinationSchedules: schedules };
     },
     getPagePictureUrl: pagePictureUrl,
     clearPagePictureCache: async () => {

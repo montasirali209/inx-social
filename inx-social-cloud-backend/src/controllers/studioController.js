@@ -50,10 +50,10 @@ const DEFAULT_UI_TEXTS = {
   dashboardTitle: 'Dashboard',
   dashboardSubtitle: 'Plan and schedule content across your connected Pages.',
   refreshButton: 'Refresh',
-  runSchedulerButton: 'Open Scheduler',
+  runSchedulerButton: 'Open Bulk Scheduler',
   stopSchedulerButton: 'Stop Scheduler',
   checkSlotsButton: 'Check Schedule Slots',
-  testFacebookButton: 'Test Active Page',
+  testFacebookButton: 'Test Facebook Connection',
   openLocalDataButton: 'Browser session information',
   uploadVideosButton: 'Upload Videos',
   importVideoFolderButton: 'Import Video Folder',
@@ -73,9 +73,30 @@ const fileNameSchema = z.string()
   .refine(value => /\.(mp4|mov|m4v|avi|mkv|webm)$/i.test(value), 'Choose a supported video file.');
 
 const fileSizeSchema = z.union([
-  z.string().regex(/^\d+$/, 'Video file size must contain digits only.'),
+  z.string().regex(/^\d+$/, 'Media file size must contain digits only.'),
   z.number().int().positive()
 ]);
+
+const directPostSchema = z.object({
+  connectedPageIds: z.array(z.string().min(1)).min(1, 'Choose at least one connected Page.').max(50),
+  clientRequestId: z.string().trim().min(8).max(80),
+  title: z.string().trim().max(200).nullish(),
+  caption: z.string().trim().min(1, 'Write a caption before continuing.').max(5000),
+  contentType: z.enum(['TEXT', 'IMAGE', 'VIDEO']),
+  originalFileName: z.string().trim().max(255).nullish(),
+  mimeType: z.string().trim().max(120).nullish(),
+  fileSizeBytes: fileSizeSchema.nullish(),
+  scheduledAt: z.string().datetime().nullish(),
+  publishMode: z.enum(['SCHEDULED', 'NOW'])
+}).superRefine((input, context) => {
+  if (input.contentType === 'TEXT') return;
+  if (!input.originalFileName) context.addIssue({ code: z.ZodIssueCode.custom, path: ['originalFileName'], message: 'Choose an image or video.' });
+  if (!input.fileSizeBytes) context.addIssue({ code: z.ZodIssueCode.custom, path: ['fileSizeBytes'], message: 'The selected media file is empty.' });
+  if (input.contentType === 'IMAGE' && !/\.(png|jpe?g|webp)$/i.test(input.originalFileName || '')) context.addIssue({ code: z.ZodIssueCode.custom, path: ['originalFileName'], message: 'Choose a PNG, JPG, JPEG or WebP image.' });
+  if (input.contentType === 'VIDEO' && !/\.(mp4|mov|m4v|avi|mkv|webm)$/i.test(input.originalFileName || '')) context.addIssue({ code: z.ZodIssueCode.custom, path: ['originalFileName'], message: 'Choose a supported video file.' });
+});
+
+const MAX_DIRECT_IMAGE_BYTES = 15n * 1024n * 1024n;
 
 const draftSchema = z.object({
   connectedPageId: z.string().min(1).optional(),
@@ -295,10 +316,13 @@ function desktopJob(job) {
   const verification = jobVerification(job);
   return {
     id: job.id,
-    videoName: job.localFileName || job.cloudAsset?.originalFileName || 'Cloud video',
+    title: job.title || null,
+    contentType: job.contentType || 'VIDEO',
+    videoName: job.localFileName || job.cloudAsset?.originalFileName || (job.contentType === 'TEXT' ? null : 'Cloud media'),
     captionName: 'Cloud caption',
     publishMode: job.publishMode,
     caption: job.caption || '',
+    connectedPageId: job.connectedPage?.id || job.connectedPageId || null,
     facebookPageId: job.connectedPage?.facebookPageId || null,
     facebookPageName: job.connectedPage?.facebookPageName || null,
     scheduledAtISO: job.scheduledAt,
@@ -353,6 +377,26 @@ async function resolvePage(userId, connectedPageId, includeToken = false) {
     throw error;
   }
   return page;
+}
+
+async function resolvePages(userId, connectedPageIds, includeToken = false) {
+  const ids = [...new Set((connectedPageIds || []).map(String).filter(Boolean))];
+  const pages = await prisma.connectedPage.findMany({ where: { id: { in: ids }, userId, status: 'ACTIVE' } });
+  const byId = new Map(pages.map(page => [page.id, page]));
+  if (!ids.length || ids.some(id => !byId.has(id))) {
+    const error = new Error('One or more selected Pages are no longer connected to this account.');
+    error.status = 400;
+    error.publicMessage = error.message;
+    throw error;
+  }
+  const ordered = ids.map(id => byId.get(id));
+  if (includeToken && ordered.some(page => !page.encryptedAccessToken)) {
+    const error = new Error('One or more selected Pages must be reconnected before publishing.');
+    error.status = 409;
+    error.publicMessage = error.message;
+    throw error;
+  }
+  return ordered;
 }
 
 async function getWorkspaceData(userId, license) {
@@ -722,6 +766,119 @@ async function createDraft(req, res, next) {
   }
 }
 
+async function createDirectPosts(req, res, next) {
+  try {
+    const input = directPostSchema.parse(req.body);
+    const license = await requireStudioLicense(req.user.id);
+    const pages = await resolvePages(req.user.id, input.connectedPageIds, true);
+    const immediate = input.publishMode === 'NOW';
+    const scheduledAt = immediate ? null : validateScheduleTime(input.scheduledAt);
+    if (!immediate && !scheduledAt) {
+      const error = new Error('Choose a future date and time before scheduling this post.');
+      error.status = 400;
+      error.publicMessage = error.message;
+      throw error;
+    }
+    const currentBatchSize = await prisma.scheduleJob.count({ where: { userId: req.user.id, origin: 'CLOUD', status: { in: [JOB_STATUS.DRAFT, JOB_STATUS.AWAITING_UPLOAD, JOB_STATUS.READY, JOB_STATUS.QUEUED, JOB_STATUS.PROCESSING] } } });
+    if (license.limits.batchPosts !== null && currentBatchSize + pages.length > license.limits.batchPosts) {
+      const error = new Error(`This post would exceed the ${license.limits.batchPosts}-item active publishing limit for your ${license.plan} plan.`);
+      error.status = 403;
+      error.publicMessage = error.message;
+      throw error;
+    }
+    const fileSizeBytes = input.contentType === 'TEXT' ? null : normaliseFileSize(input.fileSizeBytes);
+    if (input.contentType === 'IMAGE' && fileSizeBytes > MAX_DIRECT_IMAGE_BYTES) {
+      const error = new Error('Post images must be no larger than 15 MB.');
+      error.status = 413;
+      error.publicMessage = error.message;
+      throw error;
+    }
+    const jobs = [];
+    const failures = [];
+    for (const page of pages) {
+      const clientRequestId = `${input.clientRequestId}:${page.id}`.slice(0, 100);
+      const existing = await prisma.scheduleJob.findUnique({ where: { userId_clientRequestId: { userId: req.user.id, clientRequestId } }, include: { connectedPage: true, cloudAsset: true } });
+      if (existing) { jobs.push(publicJob(existing)); continue; }
+      const media = input.contentType !== 'TEXT';
+      let job = await prisma.scheduleJob.create({
+        data: {
+          userId: req.user.id,
+          connectedPageId: page.id,
+          status: media ? JOB_STATUS.AWAITING_UPLOAD : JOB_STATUS.PROCESSING,
+          origin: 'CLOUD',
+          uploadStatus: media ? ASSET_STATUS.AWAITING_UPLOAD : 'NOT_REQUIRED',
+          publishMode: input.publishMode,
+          clientRequestId,
+          contentType: input.contentType,
+          title: input.title || null,
+          caption: input.caption,
+          localFileName: media ? input.originalFileName : null,
+          scheduledAt,
+          attemptCount: media ? 0 : 1,
+          claimedAt: media ? null : new Date(),
+          ...(media ? { cloudAsset: { create: { userId: req.user.id, provider: 'TEMPORARY_STREAM', originalFileName: input.originalFileName, mimeType: input.mimeType || 'application/octet-stream', fileSizeBytes, status: ASSET_STATUS.AWAITING_UPLOAD } } } : {})
+        },
+        include: { connectedPage: true, cloudAsset: true }
+      });
+      if (!media) {
+        try {
+          const published = await metaPublisher.publishOrganicPost({ pageId: page.facebookPageId, pageAccessToken: decryptToken(page.encryptedAccessToken), caption: input.caption, scheduledAt, publishMode: input.publishMode });
+          job = await prisma.scheduleJob.update({ where: { id: job.id }, data: { status: immediate ? JOB_STATUS.PUBLISHED : JOB_STATUS.SCHEDULED, completedAt: new Date(), claimedAt: null, metaPostId: published.postId, rawMetaResponse: JSON.stringify({ ...(published.response || {}), verification: { state: immediate ? 'PUBLISHED' : 'SCHEDULED', confirmedAt: new Date().toISOString() } }) }, include: { connectedPage: true, cloudAsset: true } });
+        } catch (error) {
+          const message = String(error.publicMessage || error.message || 'Facebook publishing failed.').slice(0, 1000);
+          job = await prisma.scheduleJob.update({ where: { id: job.id }, data: { status: JOB_STATUS.FAILED, claimedAt: null, errorMessage: message }, include: { connectedPage: true, cloudAsset: true } });
+          failures.push({ pageId: page.id, pageName: page.facebookPageName, error: message });
+        }
+      }
+      jobs.push(publicJob(job));
+    }
+    res.status(failures.length ? 207 : 201).json({ jobs, failures, uploadRequired: input.contentType !== 'TEXT' });
+  } catch (error) { next(error); }
+}
+
+async function uploadDirectPostMedia(req, res, next) {
+  let tempPath = null;
+  let existing = null;
+  try {
+    await requireStudioLicense(req.user.id);
+    existing = await prisma.scheduleJob.findFirst({ where: { id: req.params.id, userId: req.user.id, origin: 'CLOUD', contentType: { in: ['IMAGE', 'VIDEO'] } }, include: { connectedPage: true, cloudAsset: true } });
+    if (!existing?.cloudAsset) return res.status(404).json({ error: 'Direct post upload was not found.' });
+    const contentType = String(req.headers['content-type'] || '');
+    const image = existing.contentType === 'IMAGE';
+    if (image ? !/^image\/(png|jpeg|webp)$/i.test(contentType) : !/^video\/|^application\/octet-stream$/i.test(contentType)) return res.status(415).json({ error: image ? 'Upload a PNG, JPEG or WebP image.' : 'Upload a supported video file.' });
+    const contentLength = req.headers['content-length'] ? BigInt(req.headers['content-length']) : null;
+    const declaredSize = existing.cloudAsset.fileSizeBytes || null;
+    const maximum = image ? MAX_DIRECT_IMAGE_BYTES : MAX_CLOUD_FILE_BYTES;
+    if (!contentLength || contentLength <= 0n) return res.status(411).json({ error: 'The browser must send the media Content-Length.' });
+    if (contentLength > maximum || (declaredSize && contentLength !== declaredSize)) return res.status(413).json({ error: 'Media size does not match the prepared upload or exceeds the allowed limit.' });
+    const claimed = await prisma.scheduleJob.updateMany({ where: { id: existing.id, userId: req.user.id, status: { in: [JOB_STATUS.AWAITING_UPLOAD, JOB_STATUS.FAILED] } }, data: { status: JOB_STATUS.PROCESSING, uploadStatus: ASSET_STATUS.UPLOADING, attemptCount: { increment: 1 }, claimedAt: new Date(), errorMessage: null } });
+    if (claimed.count !== 1) return res.status(409).json({ error: 'This media upload is already processing or complete.' });
+    await prisma.cloudAsset.update({ where: { id: existing.cloudAsset.id }, data: { status: ASSET_STATUS.UPLOADING } });
+    const suffix = path.extname(existing.cloudAsset.originalFileName || '').slice(0, 12);
+    tempPath = path.join(os.tmpdir(), `inx-social-direct-${crypto.randomUUID()}${suffix}`);
+    const received = await receiveTemporaryVideo(req, tempPath, maximum);
+    if (received !== contentLength) throw new Error('The media upload ended before all bytes arrived.');
+    const page = await resolvePage(req.user.id, existing.connectedPageId, true);
+    const immediate = existing.publishMode === 'NOW';
+    const result = image
+      ? await metaPublisher.publishOrganicPost({ pageId: page.facebookPageId, pageAccessToken: decryptToken(page.encryptedAccessToken), caption: existing.caption, scheduledAt: existing.scheduledAt, publishMode: existing.publishMode, asset: { data: await fs.promises.readFile(tempPath), mimeType: contentType, originalName: existing.cloudAsset.originalFileName } })
+      : await metaPublisher.publishReel({ pageId: page.facebookPageId, pageAccessToken: decryptToken(page.encryptedAccessToken), filePath: tempPath, fileSize: Number(received), caption: existing.caption, scheduledAt: existing.scheduledAt, publishMode: existing.publishMode });
+    const job = await prisma.scheduleJob.update({ where: { id: existing.id }, data: { status: immediate ? JOB_STATUS.PUBLISHED : JOB_STATUS.SCHEDULED, uploadStatus: ASSET_STATUS.DELETED, completedAt: new Date(), claimedAt: null, metaPostId: result.postId, metaVideoId: result.videoId || null, rawMetaResponse: JSON.stringify({ ...(result.response || result.finish || {}), verification: { state: immediate ? 'PUBLISHED' : 'SCHEDULED', confirmedAt: new Date().toISOString() } }) }, include: { connectedPage: true, cloudAsset: true } });
+    await prisma.cloudAsset.update({ where: { id: existing.cloudAsset.id }, data: { status: ASSET_STATUS.DELETED } });
+    res.status(202).json({ job: publicJob(job), accepted: true, published: immediate, scheduled: !immediate });
+  } catch (error) {
+    if (existing) {
+      const message = String(error.publicMessage || error.message || 'Media publishing failed.').slice(0, 1000);
+      await prisma.scheduleJob.update({ where: { id: existing.id }, data: { status: JOB_STATUS.FAILED, uploadStatus: ASSET_STATUS.FAILED, claimedAt: null, errorMessage: message } }).catch(() => {});
+      if (existing.cloudAsset) await prisma.cloudAsset.update({ where: { id: existing.cloudAsset.id }, data: { status: ASSET_STATUS.FAILED } }).catch(() => {});
+      error.publicMessage = message;
+    }
+    next(error);
+  } finally {
+    if (tempPath) { try { await fs.promises.unlink(tempPath); } catch (_) {} }
+  }
+}
+
 async function updateDraft(req, res, next) {
   try {
     const input = updateSchema.parse(req.body);
@@ -933,7 +1090,7 @@ async function testActivePage(req, res, next) {
 async function scheduledPosts(req, res, next) {
   try {
     await requireStudioLicense(req.user.id);
-    const page = await resolvePage(req.user.id, null, true);
+    const page = await resolvePage(req.user.id, req.query?.connectedPageId || null, true);
     const result = await metaPublisher.listScheduledPosts({
       pageId: page.facebookPageId,
       pageAccessToken: decryptToken(page.encryptedAccessToken)
@@ -988,6 +1145,8 @@ module.exports = {
   overview,
   listJobs,
   createDraft,
+  createDirectPosts,
+  uploadDirectPostMedia,
   updateDraft,
   uploadVideo,
   testActivePage,
@@ -996,5 +1155,6 @@ module.exports = {
   publicJob,
   desktopJob,
   isDuplicateProtectedJob,
+  resolvePages,
   pagePicture
 };

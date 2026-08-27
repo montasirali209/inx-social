@@ -50,7 +50,7 @@
       <button id="btnCreateNewPost" class="sidebar-create-post" type="button"><span>＋</span> Create New Post</button>
       <nav>
         <button class="nav active" data-view="dashboard"><span class="nav-icon">⌂</span><span>Dashboard</span></button>
-        <button class="nav" data-view="reels"><span class="nav-icon">◷</span><span>Scheduler</span></button>
+        <button class="nav" data-view="reels"><span class="nav-icon">◷</span><span>Bulk Scheduler</span></button>
         <button class="nav" data-view="calendar"><span class="nav-icon">▦</span><span>Content Calendar</span></button>
         <button class="nav" data-view="posts"><span class="nav-icon">▤</span><span>Posts</span></button>
         <button class="nav" data-view="media"><span class="nav-icon">▧</span><span>Media Library</span></button>
@@ -76,10 +76,6 @@
             <button id="btnAccountLogout" class="account-icon-btn danger-text" title="Sign out">↪</button>
           </div>
 
-          <div id="activeWorkspaceControl" class="active-workspace-control">
-            <button id="activeWorkspaceChip" class="active-workspace-chip" type="button" aria-haspopup="menu" aria-expanded="false"><span id="activeWorkspaceAvatar" class="workspace-avatar"><span>F</span></span><span><small>Active Page</small><strong id="activeWorkspaceName">No Page selected</strong></span><b>⌄</b></button>
-            <div id="activeWorkspaceMenu" class="active-workspace-menu hidden" role="menu"></div>
-          </div>
           <div class="top-theme-control" aria-label="Interface theme colour">
             <span class="theme-label">Theme</span>
             <select id="settingUiTheme" name="uiTheme" title="Theme colour">
@@ -90,7 +86,7 @@
             </select>
           </div>
           <button id="btnRefresh" class="btn ghost">Refresh</button>
-          <button id="btnRunScheduler" class="btn primary">Open Scheduler</button>
+          <button id="btnRunScheduler" class="btn primary">Open Bulk Scheduler</button>
           <button id="btnStopScheduler" class="btn danger" disabled>Stop</button>
         </div>
       </header>
@@ -104,30 +100,30 @@
           </div>
           <div class="dashboard-command-actions">
             <span class="dashboard-live-state"><i></i><span><small>System</small><strong id="dashboardSystemState">Idle</strong></span></span>
-            <button id="btnHeroRun" class="btn primary" type="button">Open Scheduler</button>
+            <button id="btnHeroRun" class="btn primary" type="button">Open Bulk Scheduler</button>
           </div>
         </header>
 
         <div class="dashboard-status-grid">
           <article class="dashboard-status-card dashboard-page-status-card">
-            <header><span class="dashboard-op-icon facebook" aria-hidden="true">f</span><div><small>Active destination</small><h3>Connected Page</h3></div></header>
+            <header><span class="dashboard-op-icon facebook" aria-hidden="true">f</span><div><small>Destinations</small><h3>Connected Pages</h3></div></header>
             <div class="dashboard-active-page">
               <span id="dashboardPageAvatar" class="dashboard-page-avatar"><span>F</span></span>
-              <div><strong id="dashboardPageName">No Page selected</strong><span id="dashboardPageCategory">Facebook Page</span></div>
+              <div><strong id="dashboardPageName">No Pages connected</strong><span id="dashboardPageCategory">Choose destinations per post</span></div>
             </div>
-            <div class="dashboard-status-footer"><span id="dashboardPageStatus" class="dashboard-connected-state waiting"><i></i> Select a Page</span><button id="btnDashboardPages" class="dashboard-text-link" type="button">View Pages →</button></div>
+            <div class="dashboard-status-footer"><span id="dashboardPageStatus" class="dashboard-connected-state waiting"><i></i> Connect a Page</span><button id="btnDashboardPages" class="dashboard-text-link" type="button">Manage Pages →</button></div>
           </article>
 
           <article class="dashboard-status-card">
             <header><span class="dashboard-op-icon success" aria-hidden="true">✓</span><div><small>Publishing</small><h3>Scheduled content</h3></div></header>
             <div class="dashboard-primary-stat"><strong id="statScheduled">0</strong><span>confirmed or published</span></div>
-            <div class="dashboard-status-footer"><span><b id="statPlanned">0</b> waiting in queue</span><button id="btnDashboardQueueScheduler" class="dashboard-text-link" type="button">View Scheduler →</button></div>
+            <div class="dashboard-status-footer"><span><b id="statPlanned">0</b> waiting in queue</span><button id="btnDashboardQueueScheduler" class="dashboard-text-link" type="button">View Bulk Scheduler →</button></div>
           </article>
 
           <article class="dashboard-status-card">
             <header><span class="dashboard-op-icon" aria-hidden="true">▤</span><div><small>Content library</small><h3>Available content</h3></div></header>
             <div class="dashboard-library-stats"><span><strong id="statVideos">0</strong><small>Videos</small></span><i></i><span><strong id="statCaptions">0</strong><small>Captions</small></span></div>
-            <p class="dashboard-status-note">Prepared files currently available to Scheduler.</p>
+            <p class="dashboard-status-note">Prepared files currently available to Bulk Scheduler.</p>
           </article>
 
           <article class="dashboard-status-card dashboard-progress-card">
@@ -150,7 +146,7 @@
           <section class="dashboard-work-panel dashboard-calendar-panel">
             <header><div><small>Upcoming</small><h3 id="dashboardCalendarMonth">Publishing calendar</h3></div><button id="btnDashboardCalendar" class="btn ghost compact" type="button">Full calendar</button></header>
             <div id="dashboardCalendarMini" class="dashboard-calendar-mini"></div>
-            <p id="dashboardSystemHint" class="dashboard-system-hint">Ready when you create a Scheduler upload.</p>
+            <p id="dashboardSystemHint" class="dashboard-system-hint">Ready when you create a Bulk Scheduler upload.</p>
           </section>
         </div>
       </section>
@@ -190,7 +186,7 @@
                 <label><input class="agent-platform" type="checkbox" value="tiktok"><span>TikTok</span></label>
               </div></fieldset>
               <fieldset id="agentFacebookTargets" class="agent-page-targets"><legend>Facebook Page targets</legend>
-                <div class="agent-page-target-head"><p>Select one or several Pages already connected to INX Social. This selection belongs only to this mission and does not change the dashboard Active Page.</p><div><button id="btnAgentPagesAll" class="btn ghost compact" type="button">Select all</button><button id="btnAgentPagesClear" class="btn ghost compact" type="button">Clear</button></div></div>
+                <div class="agent-page-target-head"><p>Select one or several Pages for this mission. Every workflow keeps its own destination selection.</p><div><button id="btnAgentPagesAll" class="btn ghost compact" type="button">Select all</button><button id="btnAgentPagesClear" class="btn ghost compact" type="button">Clear</button></div></div>
                 <div id="agentPageTargetGrid" class="agent-page-target-grid"><div class="workspace-empty">Loading connected Pages…</div></div>
                 <small id="agentPageTargetCount" class="agent-page-target-count">0 Pages selected</small>
               </fieldset>
@@ -237,22 +233,18 @@
 
       <section id="reels" class="view">
         <div class="mode-banner reel-mode-banner">
-          <div><strong>Scheduler</strong><span>Select videos and captions, choose future times, then upload them to Meta as scheduled Facebook Reels.</span></div>
+          <div><strong>Bulk Scheduler</strong><span>Publish a batch of videos across one or several connected Pages without changing a global Page.</span></div>
           <button id="btnReelsOpenSettings" class="btn ghost compact" type="button">Settings</button>
         </div>
-        <section class="scheduler-page-target" aria-labelledby="reelsDestinationLabel">
-          <div id="reelsActivePageAvatar" class="scheduler-target-icon"><span>F</span></div>
+        <section class="scheduler-page-target scheduler-multi-target" aria-labelledby="reelsDestinationLabel">
+          <div class="scheduler-target-icon"><span>f</span></div>
           <div class="scheduler-target-copy">
-            <small id="reelsDestinationLabel">Publishing destination</small>
-            <strong id="reelsActivePageName">No Page selected</strong>
-            <span id="reelsActivePageHint">Choose the Facebook Page that will receive every video in this Scheduler session.</span>
+            <small id="reelsDestinationLabel">Publishing destinations</small>
+            <strong id="reelsActivePageName">Choose one or several Pages</strong>
+            <span id="reelsActivePageHint">This selection belongs only to this bulk session.</span>
           </div>
-          <label class="scheduler-target-select">Page
-            <select id="reelsPageSelect" aria-label="Choose Scheduler Facebook Page" disabled>
-              <option value="">No connected Pages</option>
-            </select>
-          </label>
-          <button id="btnReelsManagePages" class="btn ghost compact" type="button">Manage Pages</button>
+          <div class="scheduler-target-actions"><button id="btnReelsPagesAll" class="btn ghost compact" type="button">Select all</button><button id="btnReelsPagesClear" class="btn ghost compact" type="button">Clear</button><button id="btnReelsManagePages" class="btn ghost compact" type="button">Manage Pages</button></div>
+          <div id="reelsPageTargetGrid" class="multi-page-target-grid"><div class="workspace-empty">Connect a Facebook Page to start.</div></div>
         </section>
         <div class="grid two">
           <section class="panel">
@@ -537,6 +529,23 @@ Third video caption #hashtags"></textarea>
           <article><span>Published</span><strong id="postsCountPublished">0</strong></article>
           <article><span>Failed</span><strong id="postsCountFailed">0</strong></article>
         </div>
+        <section id="postComposer" class="panel post-composer hidden" aria-labelledby="postComposerTitle">
+          <header class="post-composer-head"><div><span class="eyebrow">New post</span><h3 id="postComposerTitle">Create and publish</h3><p>Write once, choose the destinations, then publish now or schedule for later.</p></div><button id="btnPostComposerClose" class="dialog-close" type="button" aria-label="Close post composer">×</button></header>
+          <div class="post-composer-grid">
+            <div class="post-compose-main">
+              <fieldset class="post-type-picker"><legend>Post type</legend><label><input type="radio" name="directPostType" value="TEXT" checked><span>Text</span></label><label><input type="radio" name="directPostType" value="IMAGE"><span>Image</span></label><label><input type="radio" name="directPostType" value="VIDEO"><span>Video</span></label></fieldset>
+              <label class="post-field">Post title <span>Private label</span><input id="directPostTitle" maxlength="200" placeholder="Example: Product launch"></label>
+              <label class="post-field">Caption <span id="directPostCharacterCount">0 / 5,000</span><textarea id="directPostCaption" maxlength="5000" rows="8" placeholder="Write the post your audience will see..."></textarea></label>
+              <div id="directPostMediaBox" class="direct-post-media hidden"><div id="directPostMediaPreview" class="direct-post-media-preview"><span>＋</span><strong>Add an image</strong><small>PNG, JPG or WebP · maximum 15 MB</small></div><button id="btnDirectPostMedia" class="btn secondary" type="button">Choose media</button></div>
+            </div>
+            <aside class="post-compose-settings">
+              <section><div class="post-setting-head"><div><strong>Publish to</strong><span id="directPostPageCount">0 selected</span></div><div><button id="btnDirectPagesAll" type="button">All</button><button id="btnDirectPagesClear" type="button">Clear</button></div></div><div id="directPostPageGrid" class="direct-post-page-grid"><div class="workspace-empty">No connected Pages.</div></div></section>
+              <section><strong>Publishing</strong><div class="post-publish-mode"><label><input type="radio" name="directPublishMode" value="NOW" checked><span>Publish now</span></label><label><input type="radio" name="directPublishMode" value="SCHEDULED"><span>Schedule</span></label></div><div id="directPostScheduleFields" class="post-schedule-fields hidden"><label>Date<input id="directPostDate" type="date"></label><label>Time<input id="directPostTime" type="time"></label></div></section>
+              <div id="directPostSummary" class="direct-post-summary">Choose at least one Page and write a caption.</div>
+            </aside>
+          </div>
+          <footer class="post-composer-actions"><button id="btnDirectPostAI" class="btn ghost" type="button">Create with AI instead</button><div><button id="btnDirectPostClear" class="btn ghost" type="button">Clear</button><button id="btnDirectPostPublish" class="btn primary" type="button">Publish now</button></div></footer>
+        </section>
         <section class="panel posts-library-panel">
           <div class="posts-toolbar">
             <div class="posts-filter-tabs" role="tablist" aria-label="Filter posts">
@@ -566,7 +575,7 @@ Third video caption #hashtags"></textarea>
       </section>
 
       <section id="pages" class="view workspace-v2-view">
-        <div class="section-title-row"><div><span class="eyebrow">Publishing destinations</span><h2>Connected Accounts &amp; Pages</h2><p>Manage official social connections and choose the destination used by your publishing workspace.</p></div><div class="button-row"><button id="btnAddMetaAccount" class="btn primary">+ Connect Facebook Page</button><button id="btnDisconnectActivePage" class="btn ghost subtle-danger">Disconnect active Page</button><button id="btnOpenFacebookIntegrations" class="btn ghost">Facebook permissions</button><button id="btnPagesRefresh" class="btn ghost">Refresh</button></div></div>
+        <div class="section-title-row"><div><span class="eyebrow">Publishing destinations</span><h2>Connected Accounts &amp; Pages</h2><p>Manage official social connections. Choose one or several destinations inside each publishing workflow.</p></div><div class="button-row"><button id="btnAddMetaAccount" class="btn primary">+ Connect Facebook Page</button><button id="btnOpenFacebookIntegrations" class="btn ghost">Facebook permissions</button><button id="btnPagesRefresh" class="btn ghost">Refresh</button></div></div>
         <div class="usage-strip"><span id="accountUsageText">0 Pages connected</span><div><i id="accountUsageBar"></i></div><b id="accountPlanBadge">TRIAL</b></div>
         <div class="channel-source-row platform-foundation-grid" aria-label="Social platform connectors">
           <button class="channel-source active" type="button"><span>f</span><strong>Facebook</strong><small>Available now</small></button>
@@ -587,7 +596,7 @@ Third video caption #hashtags"></textarea>
           <div><span class="eyebrow">Meta performance data</span><h2>Facebook Analytics</h2><p>Live Page, audience and content results returned by Meta for the selected Facebook Page.</p></div>
           <div class="analytics-filters" aria-label="Analytics filters">
             <label>Platform<select id="analyticsPlatformSelect"><option value="facebook">Facebook</option><option value="youtube" disabled>YouTube — coming soon</option><option value="tiktok" disabled>TikTok — coming soon</option></select></label>
-            <label>Page<select id="analyticsPageSelect"><option value="">Active Facebook Page</option></select></label>
+            <label>Page<select id="analyticsPageSelect"><option value="">Choose a Facebook Page</option></select></label>
             <label>Period<select id="analyticsRangeSelect"><option value="7">Last 7 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select></label>
             <button id="btnRefreshAnalytics" class="btn primary analytics-refresh" type="button">Refresh analytics</button>
           </div>
@@ -626,15 +635,15 @@ Third video caption #hashtags"></textarea>
                 <div>
                   <span class="block-kicker">Publishing destinations</span>
                   <h4>Connections are managed in Pages</h4>
-                  <p>Open Pages to connect Facebook now and choose the active publishing destination. More social sources can be added there later.</p>
+                  <p>Open Pages to connect Facebook now. Choose publishing destinations separately in Posts, Bulk Scheduler or AI Content Studio.</p>
                 </div>
                 <div id="facebookConnectStatus" class="connect-status">Page access not connected.</div>
               </div>
               <div class="connect-action-row">
                 <button type="button" id="btnOpenPagesSettings" class="btn primary">Open Pages</button>
-                <button type="button" id="btnTestFacebook2" class="btn ghost">Test Active Page</button>
+                <button type="button" id="btnTestFacebook2" class="btn ghost">Test Facebook Connection</button>
               </div>
-              <div class="settings-note clean-note">The status and test follow whichever Page is selected as Active Page. Manage all Page connections in Pages; scheduler rules below apply to every connected Page.</div>
+              <div class="settings-note clean-note">Manage connections in Connected Accounts &amp; Pages. Choose publishing destinations separately inside Posts, Bulk Scheduler, Analytics and AI Content Studio.</div>
             </div>
 
             <div class="settings-card account-settings-card">

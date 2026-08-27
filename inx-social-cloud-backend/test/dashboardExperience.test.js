@@ -9,7 +9,7 @@ const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf
 test('Dashboard navigation uses the simplified product information architecture', () => {
   const html = read('studio/index.html');
   const dashboard = html.indexOf('data-view="dashboard"><span class="nav-icon">⌂</span><span>Dashboard</span></button>');
-  const scheduler = html.indexOf('data-view="reels"><span class="nav-icon">◷</span><span>Scheduler</span></button>');
+  const scheduler = html.indexOf('data-view="reels"><span class="nav-icon">◷</span><span>Bulk Scheduler</span></button>');
   const settings = html.indexOf('data-view="settings"><span class="nav-icon">⚙</span><span>Settings</span></button>');
   const pages = html.indexOf('data-view="pages"><span class="nav-icon">◎</span><span>Connected Accounts &amp; Pages</span></button>');
   assert.ok(dashboard >= 0 && scheduler > dashboard);
@@ -29,7 +29,7 @@ test('Dashboard is an isolated status workspace backed by live application state
   assert.doesNotMatch(dashboard, /dropVideos|dropCaptions|btnPreviewPlan|Connection tools|Folder import/);
   assert.match(app, /function renderDashboardQueue\(\)/);
   assert.match(app, /function renderDashboardCalendar\(\)/);
-  assert.match(app, /function renderDashboardPage\(active\)/);
+  assert.match(app, /function renderDashboardPage\(\)/);
   assert.match(app, /state\?\.jobs/);
   assert.match(app, /metaScheduledPosts/);
   assert.match(css, /\.view\.dashboard-v3\{[^}]*display:none/);

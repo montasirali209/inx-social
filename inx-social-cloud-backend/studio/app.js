@@ -33,6 +33,9 @@ let agentMonitorSignature = '';
 let agentEditingPostId = '';
 let agentPreparingMission = false;
 let postsWorkspaceFilter = 'all';
+let directPostMedia = null;
+const directPostPageIds = new Set();
+const reelsSelectedPageIds = new Set();
 
 const UI_TEXT_FIELDS = [
   'appTitle', 'appSubtitle', 'dashboardTitle', 'dashboardSubtitle',
@@ -49,7 +52,7 @@ const views = {
   pages: ['Connected Accounts & Pages', 'Manage official social connections and publishing destinations.'],
   posts: ['Posts', 'Review drafts, approvals, schedules, publications and failed attempts.'],
   media: ['Media Library', 'Manage videos, captions and reusable publishing assets.'],
-  reels: ['Scheduler', 'Upload videos to Meta now and schedule them as Facebook Reels for future times.'],
+  reels: ['Bulk Scheduler', 'Publish video batches across one or several connected Facebook Pages.'],
   lab: ['Hidden Test Tools', 'Hidden technical test tools.'],
   draft: ['Hidden Draft Tools', 'Hidden old draft tools.'],
   manual: ['Manual Scheduler', 'Upload one Reel to Meta now and schedule it for a future time.'],
@@ -325,20 +328,37 @@ function switchView(viewName) {
 }
 
 function openNewPostWorkspace() {
-  if (!state?.account?.features?.socialAgent?.visible) {
-    toast('AI Content Studio is not currently enabled for this account.', true);
-    return;
-  }
+  switchView('posts');
+  document.getElementById('postComposer')?.classList.remove('hidden');
+  renderDirectPostComposer();
+  document.getElementById('directPostCaption')?.focus();
+  document.getElementById('postComposer')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function openAIContentStudio() {
+  if (!state?.account?.features?.socialAgent?.visible) return toast('AI Content Studio is not currently enabled for this account.', true);
   switchView('agent');
-  const prompt = document.getElementById('agentPrompt');
-  prompt?.focus();
-  prompt?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  document.getElementById('agentPrompt')?.focus();
 }
 
 function bindButtons() {
   on('btnRefresh', refresh);
   on('btnCreateNewPost', openNewPostWorkspace);
   on('btnPostsCreate', openNewPostWorkspace);
+  on('btnPostComposerClose', () => document.getElementById('postComposer')?.classList.add('hidden'));
+  on('btnDirectPostAI', openAIContentStudio);
+  on('btnDirectPostMedia', chooseDirectPostMedia);
+  on('btnDirectPagesAll', () => setDirectPostPages(true));
+  on('btnDirectPagesClear', () => setDirectPostPages(false));
+  on('btnDirectPostClear', clearDirectPostComposer);
+  on('btnDirectPostPublish', publishDirectPost);
+  on('btnReelsPagesAll', () => setReelsPageTargets(true));
+  on('btnReelsPagesClear', () => setReelsPageTargets(false));
+  document.querySelectorAll('input[name="directPostType"]').forEach(input => input.addEventListener('change', handleDirectPostTypeChange));
+  document.querySelectorAll('input[name="directPublishMode"]').forEach(input => input.addEventListener('change', renderDirectPostComposer));
+  document.getElementById('directPostCaption')?.addEventListener('input', renderDirectPostComposer);
+  document.getElementById('directPostDate')?.addEventListener('change', renderDirectPostComposer);
+  document.getElementById('directPostTime')?.addEventListener('change', renderDirectPostComposer);
   on('btnAgentRefresh', () => loadAgentOverview(true));
   document.getElementById('agentPlanForm')?.addEventListener('submit', createAgentPlan);
   document.querySelectorAll('.agent-operation-mode').forEach(input => input.addEventListener('change', renderAgentModeSummary));
@@ -415,15 +435,6 @@ function bindButtons() {
   if (reelsMode) reelsMode.addEventListener('change', handleReelsTimingModeChange);
   const reelsStartDate = document.getElementById('reelsStartDate');
   if (reelsStartDate) reelsStartDate.addEventListener('change', renderReelsSessionSummary);
-  const reelsPageSelect = document.getElementById('reelsPageSelect');
-  if (reelsPageSelect) reelsPageSelect.addEventListener('change', async event => {
-    const pageId = event.target.value;
-    if (!pageId) return;
-    const active = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected);
-    if (active?.id === pageId) return;
-    event.target.disabled = true;
-    await selectPageV2(pageId);
-  });
   on('btnHeroRun', () => switchView('reels'));
   on('btnHeroManual', () => switchView('manual'));
   on('btnHeroHealth', () => { switchView('health'); runHealthCheck(); });
@@ -451,9 +462,7 @@ function bindButtons() {
   on('btnManualClear', clearManualForm);
   on('btnRunHealthCheck', runHealthCheck);
 
-  on('activeWorkspaceChip', toggleActiveWorkspaceMenu);
   on('btnAddMetaAccount', connectFacebookWorkspaceV2);
-  on('btnDisconnectActivePage', disconnectActiveWorkspacePage);
   on('btnOpenFacebookIntegrations', () => openExternalUrl('https://www.facebook.com/settings?tab=business_tools'));
   on('btnOpenPagesSettings', () => switchView('pages'));
   on('btnPagesRefresh', () => refreshWorkspaceV2());
@@ -771,7 +780,7 @@ function renderReelsSessionSummary() {
     description.textContent = !mode
       ? 'Choose a timing mode before uploading. Nothing is published or scheduled by default.'
       : immediate
-        ? 'Upload Now publishes every selected video to the active Facebook Page immediately.'
+        ? 'Upload Now publishes every selected video to each selected Facebook Page immediately.'
         : 'Upload Now sends every selected video to Meta now, and Facebook publishes each Reel at its assigned date and time.';
   }
   const selectedTimes = document.getElementById('reelsSelectedTimes');
@@ -785,17 +794,18 @@ function renderReelsSessionSummary() {
   const pairs = Math.min(reelsSessionVideos.length, captions.length);
   const unusedCaptions = Math.max(0, captions.length - reelsSessionVideos.length);
   const box = document.getElementById('reelsSessionSummary');
-  const activePage = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected) || null;
+  const selectedPages = (cloudWorkspace?.pages || []).filter(page => reelsSelectedPageIds.has(page.id));
+  const destinationText = selectedPages.length ? selectedPages.map(page => page.facebookPageName).join(', ') : 'No Pages selected';
   if (box) {
-    box.className = pairs && activePage ? 'simple-check success' : 'simple-check muted';
+    box.className = pairs && selectedPages.length ? 'simple-check success' : 'simple-check muted';
     if (!mode) {
       box.innerHTML = `${reelsSessionVideos.length} video(s) selected · ${captions.length} caption(s) · choose a timing mode to continue.${unusedCaptions ? ` The first ${reelsSessionVideos.length} captions will be used and ${unusedCaptions} extra caption(s) ignored.` : ''}`;
     } else if (immediate) {
-      box.innerHTML = `${reelsSessionVideos.length} video(s) selected · ${captions.length} caption(s) · ${pairs} ready to publish now.${unusedCaptions ? ` First ${reelsSessionVideos.length} captions used; ${unusedCaptions} extra ignored.` : ''}<br><span class="muted">Destination: ${escapeHtml(activePage?.facebookPageName || 'No Page selected')}. Upload Now publishes every ready pair immediately.</span>`;
+      box.innerHTML = `${reelsSessionVideos.length} video(s) selected · ${captions.length} caption(s) · ${pairs} ready per Page.${unusedCaptions ? ` First ${reelsSessionVideos.length} captions used; ${unusedCaptions} extra ignored.` : ''}<br><span class="muted">Destinations: ${escapeHtml(destinationText)}. ${pairs * selectedPages.length} total Page upload${pairs * selectedPages.length === 1 ? '' : 's'}.</span>`;
     } else {
       const perDay = Math.max(1, times.length || 0);
       const days = pairs ? Math.ceil(pairs / perDay) : 0;
-      box.innerHTML = `${reelsSessionVideos.length} video(s) selected · ${captions.length} caption(s) · ${pairs} ready pair(s) · ${times.length || 0} slot(s)/day · estimated ${days} day(s).${unusedCaptions ? ` First ${reelsSessionVideos.length} captions used; ${unusedCaptions} extra ignored.` : ''}<br><span class="muted">Destination: ${escapeHtml(activePage?.facebookPageName || 'No Page selected')}. Upload Now sends every item to Meta and schedules it for the assigned time.</span>`;
+      box.innerHTML = `${reelsSessionVideos.length} video(s) selected · ${captions.length} caption(s) · ${pairs} ready pair(s) per Page · ${times.length || 0} slot(s)/day · estimated ${days} day(s).${unusedCaptions ? ` First ${reelsSessionVideos.length} captions used; ${unusedCaptions} extra ignored.` : ''}<br><span class="muted">Destinations: ${escapeHtml(destinationText)}. Each Page receives its own checked schedule.</span>`;
     }
   }
   renderReelsSchedulePreview();
@@ -833,7 +843,7 @@ function renderReelsSchedulePreview() {
     return;
   }
   target.innerHTML = '<div class="empty">Checking existing scheduled slots...</div>';
-  window.schedulerApi.previewReelsSchedule({ count: pairs, startDate: start, times }).then(schedule => {
+  window.schedulerApi.previewReelsSchedule({ count: pairs, startDate: start, times, connectedPageIds: [...reelsSelectedPageIds] }).then(schedule => {
     if (document.getElementById('reelsStartDate')?.value !== start) return;
     const rows = schedule.slots.slice(0, 20).map((value, index) => {
       const file = reelsSessionVideos[index] || '';
@@ -853,10 +863,10 @@ function renderReelsSchedulePreview() {
 }
 
 async function confirmDuplicateReels(videoPaths) {
-  const inspection = await window.schedulerApi.inspectReelsSelection(videoPaths);
+  const inspection = await window.schedulerApi.inspectReelsSelection(videoPaths, [...reelsSelectedPageIds]);
   if (!inspection.duplicates.length) return inspection;
   if (!inspection.acceptedCount) throw new Error('Every selected filename matches a Reel that is processing, scheduled, or published for this Page. Failed attempts can be retried and are not treated as duplicates.');
-  const names = inspection.duplicates.slice(0, 8).map(item => item.name);
+  const names = inspection.duplicates.slice(0, 8).map(item => `${item.pageName}: ${item.name}`);
   if (inspection.duplicates.length > 8) names.push(`and ${inspection.duplicates.length - 8} more`);
   const proceed = await showStudioConfirm({
     eyebrow: 'Duplicate protection',
@@ -909,8 +919,7 @@ async function confirmScheduleAdjustment(schedule) {
 }
 
 async function createReelsQueue() {
-  const activePage = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected) || null;
-  if (!activePage) return toast('Choose a Facebook Page before preparing this Scheduler session.', true);
+  if (!reelsSelectedPageIds.size) return toast('Choose at least one destination Page before preparing this Bulk Scheduler session.', true);
   const captions = getReelsCaptionBlocks();
   const mode = document.getElementById('reelsTimingMode')?.value || '';
   const immediate = mode === 'immediate';
@@ -930,6 +939,7 @@ async function createReelsQueue() {
       startDate: immediate ? null : startDate,
       times,
       publishMode: immediate ? 'NOW' : 'SCHEDULED',
+      connectedPageIds: [...reelsSelectedPageIds],
       skipDuplicateVideos: duplicateCheck.duplicates.length > 0
     });
     state = result.state || state;
@@ -970,8 +980,7 @@ async function runDueReels() {
 
 async function startReelsWatcher() {
   if (isSchedulerRunning) return toast('Upload is already running.', true);
-  const activePage = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected) || null;
-  if (!activePage) return toast('Choose a Facebook Page before starting Scheduler.', true);
+  if (!reelsSelectedPageIds.size) return toast('Choose at least one destination Page before starting Bulk Scheduler.', true);
   isSchedulerRunning = true;
   updateRunButtons();
   updateReelsPanel({ phase: 'Preparing', percent: 3, message: 'Preparing the selected Reels...', current: 0, total: 0, uploaded: 0, failed: 0 });
@@ -994,9 +1003,10 @@ async function startReelsWatcher() {
     if (!duplicateCheck) throw new Error('Upload cancelled. No videos were queued.');
     if (!immediate) {
       const schedule = await window.schedulerApi.previewReelsSchedule({
-        count: duplicateCheck.acceptedCount,
+        count: duplicateCheck.acceptedVideoCount,
         startDate,
-        times
+        times,
+        connectedPageIds: [...reelsSelectedPageIds]
       });
       if (!await confirmScheduleAdjustment(schedule)) {
         throw new Error('Upload cancelled. No videos were queued.');
@@ -1009,6 +1019,7 @@ async function startReelsWatcher() {
       startDate: immediate ? null : startDate,
       times,
       publishMode: immediate ? 'NOW' : 'SCHEDULED',
+      connectedPageIds: [...reelsSelectedPageIds],
       skipDuplicateVideos: duplicateCheck.duplicates.length > 0
     });
     state = created.state || state;
@@ -1406,12 +1417,11 @@ function updateRunButtons() {
   const stopDraft = document.getElementById('btnStopDraftSession');
   const studioStart = document.getElementById('btnReelsStartWatcher');
   const studioStop = document.getElementById('btnReelsStopWatcher');
-  const pageSelect = document.getElementById('reelsPageSelect');
   if (draftSession) draftSession.disabled = isSchedulerRunning;
   if (stopDraft) stopDraft.disabled = !draftSessionRunning;
   if (studioStart) studioStart.disabled = isSchedulerRunning;
   if (studioStop) studioStop.disabled = !isSchedulerRunning;
-  if (pageSelect) pageSelect.disabled = isSchedulerRunning || !(cloudWorkspace?.pages || []).length;
+  document.querySelectorAll('#reelsPageTargetGrid input').forEach(input => { input.disabled = isSchedulerRunning; });
   if (stop) stop.disabled = !isSchedulerRunning;
 }
 
@@ -1477,9 +1487,9 @@ async function testFacebook() {
     const result = await window.schedulerApi.testFacebook();
     state = result.state;
     render();
-    toast(`Active Page verified: ${result.activePage?.name || result.result.name || result.result.id}`);
+    toast(`Facebook connection verified: ${result.activePage?.name || result.result.name || result.result.id}`);
   } catch (err) {
-    toast(`Active Page test failed: ${err.message}`, true);
+    toast(`Facebook connection test failed: ${err.message}`, true);
   }
 }
 
@@ -2647,8 +2657,8 @@ function updateDashboardPulse(stats = {}) {
   if (hint) {
     if (isSchedulerRunning) hint.textContent = 'Live publishing progress is updating below.';
     else if (stats.planned) hint.textContent = `${stats.planned} content item${Number(stats.planned) === 1 ? '' : 's'} ready for upload.`;
-    else if (!stats.videos || !stats.captions) hint.textContent = 'Open Scheduler to select videos and captions.';
-    else hint.textContent = 'Create a Scheduler upload to begin.';
+    else if (!stats.videos || !stats.captions) hint.textContent = 'Open Bulk Scheduler to select videos and captions.';
+    else hint.textContent = 'Create a Bulk Scheduler upload to begin.';
   }
 }
 
@@ -2659,7 +2669,7 @@ function renderDashboardQueue() {
     .sort((a, b) => new Date(b.scheduledAtISO || b.createdAt || 0) - new Date(a.scheduledAtISO || a.createdAt || 0))
     .slice(0, 6);
   if (!jobs.length) {
-    root.innerHTML = '<div class="dashboard-empty-state"><span>＋</span><strong>Your queue is clear</strong><p>Import files in Scheduler or ask Social Agent to prepare a campaign.</p></div>';
+    root.innerHTML = '<div class="dashboard-empty-state"><span>＋</span><strong>Your queue is clear</strong><p>Create a post, import files in Bulk Scheduler or ask AI Content Studio to prepare a campaign.</p></div>';
     return;
   }
   root.innerHTML = jobs.map(job => {
@@ -2725,14 +2735,137 @@ function renderDashboardCalendar() {
     <div class="dashboard-upcoming-list">${upcoming.length ? upcoming.map(item => `<article><time>${escapeHtml(item.date.toLocaleDateString(undefined, { day: '2-digit', month: 'short' }))}<strong>${escapeHtml(item.date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }))}</strong></time><div><strong>${escapeHtml(shorten(item.title, 54))}</strong><small>${escapeHtml(item.source)} · ${escapeHtml(item.status)}</small></div></article>`).join('') : '<p>No upcoming scheduled content.</p>'}</div>`;
 }
 
-function renderDashboardPage(active) {
-  setText('dashboardPageName', active?.facebookPageName || 'No Page selected');
-  setText('dashboardPageCategory', active?.facebookCategory || 'Facebook Page');
-  renderPageAvatar('dashboardPageAvatar', active);
+function renderDashboardPage() {
+  const pages = (cloudWorkspace?.pages || []).filter(page => page.status !== 'REVOKED');
+  setText('dashboardPageName', pages.length ? `${pages.length} connected Page${pages.length === 1 ? '' : 's'}` : 'No Pages connected');
+  setText('dashboardPageCategory', 'Choose destinations separately for every post');
+  renderPageAvatar('dashboardPageAvatar', pages[0] || null);
   const status = document.getElementById('dashboardPageStatus');
   if (!status) return;
-  status.className = `dashboard-connected-state ${active ? 'connected' : 'waiting'}`;
-  status.innerHTML = active ? '<i></i> Connected and active' : '<i></i> Select a Page';
+  status.className = `dashboard-connected-state ${pages.length ? 'connected' : 'waiting'}`;
+  status.innerHTML = pages.length ? '<i></i> Ready for multi-Page publishing' : '<i></i> Connect a Page';
+}
+
+function renderDirectPostPageTargets(pages = cloudWorkspace?.pages || []) {
+  const grid = document.getElementById('directPostPageGrid');
+  const available = (pages || []).filter(page => page.status !== 'REVOKED');
+  for (const id of [...directPostPageIds]) if (!available.some(page => page.id === id)) directPostPageIds.delete(id);
+  if (!directPostPageIds.size && available.length === 1) directPostPageIds.add(available[0].id);
+  if (grid) {
+    grid.innerHTML = available.length ? available.map(page => `<label class="direct-post-page ${directPostPageIds.has(page.id) ? 'selected' : ''}"><input type="checkbox" value="${escapeHtml(page.id)}" ${directPostPageIds.has(page.id) ? 'checked' : ''}><span data-page-picture-id="${escapeHtml(page.id)}"><b>f</b></span><em><strong>${escapeHtml(page.facebookPageName)}</strong><small>${escapeHtml(page.facebookCategory || 'Facebook Page')}</small></em><i>✓</i></label>`).join('') : '<div class="workspace-empty">Connect a Facebook Page before creating a post.</div>';
+    grid.querySelectorAll('input').forEach(input => input.addEventListener('change', () => {
+      if (input.checked) directPostPageIds.add(input.value); else directPostPageIds.delete(input.value);
+      renderDirectPostPageTargets();
+      renderDirectPostComposer();
+    }));
+    hydratePagePictures(grid);
+  }
+  setText('directPostPageCount', `${directPostPageIds.size} selected`);
+}
+
+function setDirectPostPages(selectAll) {
+  directPostPageIds.clear();
+  if (selectAll) (cloudWorkspace?.pages || []).filter(page => page.status !== 'REVOKED').forEach(page => directPostPageIds.add(page.id));
+  renderDirectPostPageTargets();
+  renderDirectPostComposer();
+}
+
+function directPostType() {
+  return document.querySelector('input[name="directPostType"]:checked')?.value || 'TEXT';
+}
+
+function renderDirectPostComposer() {
+  const type = directPostType();
+  const mode = document.querySelector('input[name="directPublishMode"]:checked')?.value || 'NOW';
+  const caption = String(document.getElementById('directPostCaption')?.value || '');
+  setText('directPostCharacterCount', `${caption.length.toLocaleString()} / 5,000`);
+  document.getElementById('directPostMediaBox')?.classList.toggle('hidden', type === 'TEXT');
+  document.getElementById('directPostScheduleFields')?.classList.toggle('hidden', mode !== 'SCHEDULED');
+  const mediaPreview = document.getElementById('directPostMediaPreview');
+  if (mediaPreview && type !== 'TEXT') {
+    if (directPostMedia) {
+      mediaPreview.innerHTML = `${type === 'IMAGE' ? `<img src="${escapeHtml(directPostMedia.previewUrl)}" alt="Selected post image preview">` : `<video src="${escapeHtml(directPostMedia.previewUrl)}" muted controls preload="metadata"></video>`}<div><strong>${escapeHtml(directPostMedia.name)}</strong><small>${formatBytes(directPostMedia.size)}</small></div>`;
+    } else {
+      mediaPreview.innerHTML = `<span>＋</span><strong>Add ${type === 'IMAGE' ? 'an image' : 'a video'}</strong><small>${type === 'IMAGE' ? 'PNG, JPG or WebP · maximum 15 MB' : 'MP4, MOV, M4V, AVI, MKV or WebM'}</small>`;
+    }
+  }
+  const summary = document.getElementById('directPostSummary');
+  const publish = document.getElementById('btnDirectPostPublish');
+  const ready = directPostPageIds.size > 0 && caption.trim().length > 0 && (type === 'TEXT' || directPostMedia);
+  if (summary) summary.textContent = !directPostPageIds.size ? 'Choose at least one destination Page.' : !caption.trim() ? 'Write the caption your audience will see.' : type !== 'TEXT' && !directPostMedia ? `Choose ${type === 'IMAGE' ? 'an image' : 'a video'} for this post.` : `${mode === 'NOW' ? 'Ready to publish' : 'Ready to schedule'} ${type.toLowerCase()} content to ${directPostPageIds.size} Page${directPostPageIds.size === 1 ? '' : 's'}.`;
+  if (publish) { publish.disabled = !ready; publish.textContent = mode === 'NOW' ? 'Publish now' : 'Schedule post'; }
+  if (mode === 'SCHEDULED' && !document.getElementById('directPostDate')?.value) {
+    const suggested = new Date(Date.now() + 60 * 60 * 1000);
+    const date = document.getElementById('directPostDate');
+    const time = document.getElementById('directPostTime');
+    if (date) date.value = `${suggested.getFullYear()}-${String(suggested.getMonth() + 1).padStart(2, '0')}-${String(suggested.getDate()).padStart(2, '0')}`;
+    if (time) time.value = `${String(suggested.getHours()).padStart(2, '0')}:${String(suggested.getMinutes()).padStart(2, '0')}`;
+  }
+}
+
+function handleDirectPostTypeChange() {
+  if (directPostMedia) { try { URL.revokeObjectURL(directPostMedia.previewUrl); } catch (_) {} }
+  directPostMedia = null;
+  renderDirectPostComposer();
+}
+
+async function chooseDirectPostMedia() {
+  try {
+    const selected = await window.schedulerApi.pickDirectPostMedia(directPostType());
+    if (!selected) return;
+    if (directPostMedia) { try { URL.revokeObjectURL(directPostMedia.previewUrl); } catch (_) {} }
+    directPostMedia = selected;
+    renderDirectPostComposer();
+  } catch (error) { toast(error.message, true); }
+}
+
+function clearDirectPostComposer() {
+  if (directPostMedia) { try { URL.revokeObjectURL(directPostMedia.previewUrl); } catch (_) {} }
+  directPostMedia = null;
+  directPostPageIds.clear();
+  const title = document.getElementById('directPostTitle');
+  const caption = document.getElementById('directPostCaption');
+  if (title) title.value = '';
+  if (caption) caption.value = '';
+  const textType = document.querySelector('input[name="directPostType"][value="TEXT"]');
+  const nowMode = document.querySelector('input[name="directPublishMode"][value="NOW"]');
+  if (textType) textType.checked = true;
+  if (nowMode) nowMode.checked = true;
+  renderDirectPostPageTargets();
+  renderDirectPostComposer();
+}
+
+async function publishDirectPost() {
+  const type = directPostType();
+  const mode = document.querySelector('input[name="directPublishMode"]:checked')?.value || 'NOW';
+  const caption = String(document.getElementById('directPostCaption')?.value || '').trim();
+  if (!directPostPageIds.size) return toast('Choose at least one destination Page.', true);
+  if (!caption) return toast('Write a caption before continuing.', true);
+  if (type !== 'TEXT' && !directPostMedia) return toast(`Choose ${type === 'IMAGE' ? 'an image' : 'a video'}.`, true);
+  let scheduledAt = null;
+  if (mode === 'SCHEDULED') {
+    const date = document.getElementById('directPostDate')?.value;
+    const time = document.getElementById('directPostTime')?.value;
+    if (!date || !time) return toast('Choose the publishing date and time.', true);
+    scheduledAt = new Date(`${date}T${time}:00`);
+    if (Number.isNaN(scheduledAt.getTime())) return toast('Choose a valid publishing date and time.', true);
+  }
+  const pageNames = (cloudWorkspace?.pages || []).filter(page => directPostPageIds.has(page.id)).map(page => page.facebookPageName);
+  const confirmed = await showStudioConfirm({ eyebrow: mode === 'NOW' ? 'Publish now' : 'Schedule post', title: `${mode === 'NOW' ? 'Publish' : 'Schedule'} on ${pageNames.length} Page${pageNames.length === 1 ? '' : 's'}?`, message: mode === 'NOW' ? 'This content will become public on every selected Page.' : `This content will be scheduled for ${scheduledAt.toLocaleString()}.`, icon: mode === 'NOW' ? '↑' : '◷', tone: 'success', details: pageNames, confirmText: mode === 'NOW' ? 'Publish now' : 'Schedule post', cancelText: 'Cancel' });
+  if (!confirmed) return;
+  const button = document.getElementById('btnDirectPostPublish');
+  if (button) button.disabled = true;
+  try {
+    const result = await window.schedulerApi.publishDirectPost({ connectedPageIds: [...directPostPageIds], clientRequestId: `direct-${crypto.randomUUID()}`, title: document.getElementById('directPostTitle')?.value.trim() || null, caption, contentType: type, mediaId: directPostMedia?.id || null, publishMode: mode, scheduledAt: scheduledAt?.toISOString() || null });
+    state = result.state || state;
+    renderPostsWorkspace();
+    const successCount = result.jobs?.length || 0;
+    if (result.failures?.length) toast(`${successCount} destination${successCount === 1 ? '' : 's'} completed; ${result.failures.length} need attention in Posts.`, true);
+    else toast(`${mode === 'NOW' ? 'Published' : 'Scheduled'} successfully on ${successCount} Page${successCount === 1 ? '' : 's'}.`);
+    clearDirectPostComposer();
+    document.getElementById('postComposer')?.classList.add('hidden');
+  } catch (error) { toast(error.message, true); }
+  finally { renderDirectPostComposer(); }
 }
 
 function postStatusBucket(value) {
@@ -2750,11 +2883,11 @@ function postsWorkspaceItems() {
     title: job.title || job.videoName || 'Facebook content',
     excerpt: job.caption || job.slotLabel || '',
     platform: 'Facebook',
-    destination: cloudWorkspace?.activePage?.facebookPageName || 'Facebook Page',
+    destination: job.facebookPageName || 'Facebook Page',
     status: postStatusBucket(job.status),
     statusLabel: statusLabel(job.status),
     date: job.scheduledAtISO || job.uploadedAt || job.createdAt,
-    media: job.videoName ? 'Video' : 'Post'
+    media: String(job.contentType || '').toUpperCase() === 'IMAGE' ? 'Image' : String(job.contentType || '').toUpperCase() === 'VIDEO' || job.videoName ? 'Video' : 'Text'
   }));
   const localMetaIds = new Set((state?.jobs || []).flatMap(job => [job.fbPostId, job.fbVideoId, job.metaPostId, job.metaVideoId]).filter(Boolean).map(String));
   const meta = (metaScheduledPosts || [])
@@ -2802,7 +2935,7 @@ function renderPostsWorkspace() {
   const visible = items.filter(item => (postsWorkspaceFilter === 'all' || item.status === postsWorkspaceFilter)
     && (!query || `${item.title} ${item.excerpt} ${item.destination} ${item.platform}`.toLowerCase().includes(query)));
   if (!visible.length) {
-    root.innerHTML = `<div class="posts-empty-state"><span>✦</span><strong>${items.length ? 'No posts match this view' : 'Create your first post'}</strong><p>${items.length ? 'Choose another status or clear your search.' : 'Use AI Content Studio or Scheduler to prepare professional content.'}</p>${items.length ? '' : '<button class="btn primary compact" type="button" data-empty-create-post>+ Create New Post</button>'}</div>`;
+    root.innerHTML = `<div class="posts-empty-state"><span>✦</span><strong>${items.length ? 'No posts match this view' : 'Create your first post'}</strong><p>${items.length ? 'Choose another status or clear your search.' : 'Write a direct post, add your media, choose one or several Pages and publish from this workspace.'}</p>${items.length ? '' : '<button class="btn primary compact" type="button" data-empty-create-post>+ Create New Post</button>'}</div>`;
     root.querySelector('[data-empty-create-post]')?.addEventListener('click', openNewPostWorkspace);
     return;
   }
@@ -3182,7 +3315,7 @@ function normaliseBrandText(ui) {
   if (!output.appSubtitle || ['Auto and manual Reel scheduling', 'Facebook Reels & Page Scheduler'].includes(output.appSubtitle)) output.appSubtitle = 'Content Scheduler';
   if (!output.dashboardTitle || ['Home', 'Overview'].includes(output.dashboardTitle)) output.dashboardTitle = 'Dashboard';
   if (!output.dashboardSubtitle || output.dashboardSubtitle === 'Schedule Facebook Reels using Auto or Manual Scheduler.') output.dashboardSubtitle = 'Plan and schedule content across your connected Pages.';
-  if (!output.testFacebookButton || ['Test Facebook Connection', 'Test Connection'].includes(output.testFacebookButton)) output.testFacebookButton = 'Test Active Page';
+  if (!output.testFacebookButton || ['Test Active Page', 'Test Connection'].includes(output.testFacebookButton)) output.testFacebookButton = 'Test Facebook Connection';
   return output;
 }
 
@@ -3355,7 +3488,7 @@ function renderFacebookConnectStatus(settings) {
   }
   const name = settings.connectedPageName || settings.pageId;
   box.className = 'connect-status ok';
-  box.textContent = `Active Page: ${name} • credentials protected`;
+  box.textContent = `Facebook connection verified: ${name} • credentials protected`;
 }
 
 
@@ -3427,10 +3560,8 @@ function renderWorkspaceV2() {
   setText('activeWorkspaceName', active?.facebookPageName || 'No Page selected');
   renderPageAvatar('activeWorkspaceAvatar', active);
   renderDashboardPage(active);
-  renderActiveWorkspaceMenu(pages, active);
-  renderReelsPageSelector(pages, active);
-  const disconnectActivePage = document.getElementById('btnDisconnectActivePage');
-  if (disconnectActivePage) disconnectActivePage.disabled = !active && !state.settings?.pageId;
+  renderReelsPageSelector(pages);
+  renderDirectPostPageTargets(pages);
   const connectFacebookPage = document.getElementById('btnAddMetaAccount');
   if (connectFacebookPage && !connectFacebookPage.disabled) connectFacebookPage.textContent = '+ Connect Facebook Page';
 
@@ -3446,24 +3577,31 @@ function renderWorkspaceV2() {
   bindWorkspaceDynamicActions();
 }
 
-function renderReelsPageSelector(pages, active) {
-  const select = document.getElementById('reelsPageSelect');
+function renderReelsPageSelector(pages) {
+  const grid = document.getElementById('reelsPageTargetGrid');
   const name = document.getElementById('reelsActivePageName');
   const hint = document.getElementById('reelsActivePageHint');
   const availablePages = (pages || []).filter(page => page.status !== 'REVOKED');
+  for (const id of [...reelsSelectedPageIds]) if (!availablePages.some(page => page.id === id)) reelsSelectedPageIds.delete(id);
+  if (!reelsSelectedPageIds.size && availablePages.length === 1) reelsSelectedPageIds.add(availablePages[0].id);
+  const selected = availablePages.filter(page => reelsSelectedPageIds.has(page.id));
+  if (name) name.textContent = selected.length ? `${selected.length} Page${selected.length === 1 ? '' : 's'} selected` : 'Choose one or several Pages';
+  if (hint) hint.textContent = selected.length ? selected.map(page => page.facebookPageName).join(' · ') : 'This selection belongs only to this bulk session.';
+  if (!grid) return;
+  grid.innerHTML = availablePages.length ? availablePages.map(page => `<label class="multi-page-target ${reelsSelectedPageIds.has(page.id) ? 'selected' : ''}"><input type="checkbox" value="${escapeHtml(page.id)}" ${reelsSelectedPageIds.has(page.id) ? 'checked' : ''} ${isSchedulerRunning ? 'disabled' : ''}><span data-page-picture-id="${escapeHtml(page.id)}"><b>f</b></span><em><strong>${escapeHtml(page.facebookPageName)}</strong><small>${escapeHtml(page.facebookCategory || 'Facebook Page')}</small></em><i>✓</i></label>`).join('') : '<div class="workspace-empty">Connect a Facebook Page to start.</div>';
+  grid.querySelectorAll('input').forEach(input => input.addEventListener('change', () => {
+    if (input.checked) reelsSelectedPageIds.add(input.value); else reelsSelectedPageIds.delete(input.value);
+    renderReelsPageSelector(cloudWorkspace?.pages || []);
+    renderReelsSessionSummary();
+  }));
+  hydratePagePictures(grid);
+}
 
-  if (name) name.textContent = active?.facebookPageName || 'No Page selected';
-  renderPageAvatar('reelsActivePageAvatar', active);
-  if (hint) hint.textContent = active
-    ? `Videos selected in this session will publish only to ${active.facebookPageName}.`
-    : 'Connect and choose a Facebook Page before selecting videos.';
-  if (!select) return;
-
-  select.innerHTML = availablePages.length
-    ? availablePages.map(page => `<option value="${escapeHtml(page.id)}">${escapeHtml(page.facebookPageName)}</option>`).join('')
-    : '<option value="">No connected Pages</option>';
-  select.disabled = isSchedulerRunning || !availablePages.length;
-  select.value = active?.id || '';
+function setReelsPageTargets(selectAll) {
+  reelsSelectedPageIds.clear();
+  if (selectAll) (cloudWorkspace?.pages || []).filter(page => page.status !== 'REVOKED').forEach(page => reelsSelectedPageIds.add(page.id));
+  renderReelsPageSelector(cloudWorkspace?.pages || []);
+  renderReelsSessionSummary();
 }
 
 function renderPagesV2() {
@@ -3480,7 +3618,7 @@ function renderPagesV2() {
 }
 
 function pageCardMarkup(page, large) {
-  return `<article class="connected-page-card ${page.isSelected ? 'active' : ''} ${large ? 'large' : ''}"><div class="page-picture" data-page-picture-id="${escapeHtml(page.id)}"><span>F</span></div><div class="page-card-copy"><span>${escapeHtml(page.facebookCategory || 'Facebook Page')}</span><h3>${escapeHtml(page.facebookPageName)}</h3><p>${page.localOnly ? 'Saved on this device · reconnect once to sync' : escapeHtml(accountNameForPage(page))}</p></div><div class="page-card-state">${page.isSelected ? '<b>Active Page</b>' : '<button class="btn secondary compact" data-select-page="'+escapeHtml(page.id)+'">Use this Page</button>'}${!large && !page.localOnly ? `<button class="icon-danger" data-revoke-page="${escapeHtml(page.id)}" title="Disconnect Page">×</button>` : ''}</div></article>`;
+  return `<article class="connected-page-card ${large ? 'large' : ''}"><div class="page-picture" data-page-picture-id="${escapeHtml(page.id)}"><span>F</span></div><div class="page-card-copy"><span>${escapeHtml(page.facebookCategory || 'Facebook Page')}</span><h3>${escapeHtml(page.facebookPageName)}</h3><p>${page.localOnly ? 'Saved on this device · reconnect once to sync' : escapeHtml(accountNameForPage(page))}</p></div><div class="page-card-state"><b>Connected</b>${!large && !page.localOnly ? `<button class="icon-danger" data-revoke-page="${escapeHtml(page.id)}" title="Disconnect Page">×</button>` : ''}</div></article>`;
 }
 
 function accountNameForPage(page) {
@@ -3503,7 +3641,7 @@ async function selectPageV2(pageId) {
   } catch (error) {
     toast(error.message, true);
   } finally {
-    renderReelsPageSelector(cloudWorkspace?.pages || [], cloudWorkspace?.activePage || null);
+    renderReelsPageSelector(cloudWorkspace?.pages || []);
   }
 }
 

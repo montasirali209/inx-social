@@ -157,21 +157,22 @@ function scheduledPublishFields(scheduledAt) {
   return { published: false, scheduled_publish_time: unix };
 }
 
-async function publishOrganicPost({ pageId, pageAccessToken, caption, scheduledAt, asset = null }) {
-  const schedule = scheduledPublishFields(scheduledAt);
+async function publishOrganicPost({ pageId, pageAccessToken, caption, scheduledAt, publishMode = 'SCHEDULED', asset = null }) {
+  const immediate = String(publishMode || '').toUpperCase() === 'NOW';
+  const schedule = immediate ? { published: true } : scheduledPublishFields(scheduledAt);
   const base = `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(pageId)}`;
   let response;
   if (asset?.data?.length) {
     const form = new FormData();
     form.append('source', new Blob([asset.data], { type: asset.mimeType || 'image/png' }), asset.originalName || 'inx-social-post.png');
     form.append('caption', String(caption || ''));
-    form.append('published', 'false');
-    form.append('scheduled_publish_time', String(schedule.scheduled_publish_time));
+    form.append('published', immediate ? 'true' : 'false');
+    if (!immediate) form.append('scheduled_publish_time', String(schedule.scheduled_publish_time));
     form.append('access_token', pageAccessToken);
     response = await axios.post(`${base}/photos`, form, {
       timeout: 60000,
-      maxContentLength: 12 * 1024 * 1024,
-      maxBodyLength: 12 * 1024 * 1024,
+      maxContentLength: 20 * 1024 * 1024,
+      maxBodyLength: 20 * 1024 * 1024,
       validateStatus: status => status >= 200 && status < 500
     });
   } else {
@@ -187,7 +188,8 @@ async function publishOrganicPost({ pageId, pageAccessToken, caption, scheduledA
   assertMetaResponse(response, asset ? 'Facebook image scheduling failed.' : 'Facebook post scheduling failed.');
   return {
     postId: response.data?.post_id || response.data?.id || null,
-    scheduledUnix: schedule.scheduled_publish_time,
+    publishMode: immediate ? 'NOW' : 'SCHEDULED',
+    scheduledUnix: immediate ? null : schedule.scheduled_publish_time,
     response: response.data
   };
 }
