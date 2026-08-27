@@ -26,10 +26,11 @@ function providerErrorDetails(error) {
   const statusCode = Number(error?.response?.status || 0);
   const providerText = String(error?.response?.data?.error || error?.response?.data?.message || '').toLowerCase();
   const code = String(error?.code || '').toUpperCase();
+  const attemptedModel = modelRouting.cleanModel(error?.ollamaModel, env.ollama.model) || env.ollama.model;
   if (!env.ollama.baseUrl || code === 'OLLAMA_NOT_CONFIGURED') return { code: 'NOT_CONFIGURED', message: 'The private INX Agent URL is not configured in Railway.' };
   if ([401, 403].includes(statusCode)) return { code: 'AUTH_FAILED', message: 'Railway reached the private gateway, but its OLLAMA_API_KEY does not match the Mac gateway token.' };
   if (statusCode === 404) return { code: 'ROUTE_NOT_FOUND', message: 'Railway reached the configured address, but it is not the INX Agent gateway. Check OLLAMA_BASE_URL and the current ngrok HTTPS address.' };
-  if (statusCode === 400 && /model|allowed|permit/.test(providerText)) return { code: 'MODEL_NOT_ALLOWED', message: `The private gateway rejected ${env.ollama.model}. Confirm that the model is installed and included in OLLAMA_ALLOWED_MODELS.` };
+  if (statusCode === 400 && /model|allowed|permit/.test(providerText)) return { code: 'MODEL_NOT_ALLOWED', message: `The private gateway rejected ${attemptedModel}. Confirm that the model is installed and included in OLLAMA_ALLOWED_MODELS.` };
   if (statusCode === 429) return { code: 'BUSY', message: 'The private INX Agent is busy with another task. Wait for the current Mac job to finish, then retry.' };
   if (['ECONNABORTED', 'ETIMEDOUT'].includes(code) || /timeout/i.test(String(error?.message || ''))) return { code: 'TIMEOUT', message: 'Railway reached the private agent route, but the model did not answer before the task timeout.' };
   if (['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN'].includes(code) || !error?.response) return { code: 'UNREACHABLE', message: 'Railway cannot reach the private INX Agent. The Mac may be healthy locally while the ngrok public route is offline or changed.' };
@@ -238,6 +239,12 @@ function ollamaUnavailable(error) {
   return !error?.response || ['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN'].includes(error?.code) || statusCode === 408 || statusCode === 429 || statusCode >= 500;
 }
 
+function gatewayModelRejected(error) {
+  const statusCode = Number(error?.response?.status || 0);
+  const providerText = String(error?.response?.data?.error || error?.response?.data?.message || '').toLowerCase();
+  return statusCode === 400 && /model|allowed|permit/.test(providerText);
+}
+
 function paidFallbackReady() {
   return env.aiFallback.enabled && Boolean(env.aiFallback.baseUrl && env.aiFallback.apiKey && env.aiFallback.model);
 }
@@ -268,10 +275,12 @@ async function generateTaskOutput(plan, task, dependencies = {}) {
   const http = dependencies.http || axios;
   const route = dependencies.route || await modelRouting.routeForTask(task);
   const approvedMemories = dependencies.approvedMemories || [];
-  const ollamaModel = route.ollamaModel || env.ollama.model;
+  const configuredModel = modelRouting.cleanModel(env.ollama.model, 'qwen3:8b');
+  const routedModel = modelRouting.cleanModel(route.ollamaModel, configuredModel);
+  const modelCandidates = [...new Set([routedModel, configuredModel].filter(Boolean))];
   let ollamaError = null;
   if (env.ollama.baseUrl) {
-    try {
+    const runOllamaTask = async ollamaModel => {
       const complexReasoning = ['BRAND_REVIEW', 'CONTENT_STRATEGY', 'SCHEDULE'].includes(task.type);
       const userMessage = { role: 'user', content: taskInstruction(plan, task, approvedMemories) };
       if (task.type === 'BRAND_REVIEW' && env.ollama.visionEnabled && Array.isArray(dependencies.visionAssets) && dependencies.visionAssets.length) {
@@ -306,9 +315,19 @@ async function generateTaskOutput(plan, task, dependencies = {}) {
         if (!qualityReview.approved) throw Object.assign(new Error(`Copy quality review failed at ${qualityReview.score}/100: ${qualityReview.issues.join(' ')}`), { code: 'COPY_QUALITY_FAILED', qualityReview });
       }
       return { provider: 'ollama', model: ollamaModel, content, qualityReview };
-    } catch (error) {
-      ollamaError = error;
-      if (!ollamaUnavailable(error)) throw error;
+    };
+    for (let index = 0; index < modelCandidates.length; index += 1) {
+      const ollamaModel = modelCandidates[index];
+      try {
+        return await runOllamaTask(ollamaModel);
+      } catch (error) {
+        error.ollamaModel = ollamaModel;
+        ollamaError = error;
+        const verifiedDefaultRemains = index < modelCandidates.length - 1;
+        if (gatewayModelRejected(error) && verifiedDefaultRemains) continue;
+        if (!ollamaUnavailable(error)) throw error;
+        break;
+      }
     }
   } else {
     ollamaError = Object.assign(new Error('Ollama is not configured. Set OLLAMA_BASE_URL and OLLAMA_MODEL to start the Social Agent brain.'), { code: 'OLLAMA_NOT_CONFIGURED' });
@@ -317,4 +336,4 @@ async function generateTaskOutput(plan, task, dependencies = {}) {
   throw ollamaError;
 }
 
-module.exports = { status, checkHealth, providerErrorDetails, providerHealthResult, taskOutputLimit, generateTaskOutput, taskInstruction, analyseMission, preflightFallback, instructionIsActionable, isFirstPostMission, parsePreflight, ollamaUnavailable, paidFallbackReady, ollamaHeaders };
+module.exports = { status, checkHealth, providerErrorDetails, providerHealthResult, taskOutputLimit, generateTaskOutput, taskInstruction, analyseMission, preflightFallback, instructionIsActionable, isFirstPostMission, parsePreflight, ollamaUnavailable, gatewayModelRejected, paidFallbackReady, ollamaHeaders };

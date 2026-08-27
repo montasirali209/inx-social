@@ -88,6 +88,40 @@ test('provider health rejects a healthy non-gateway route', async () => {
   assert.equal(health.code, 'ROUTE_NOT_FOUND');
 });
 
+test('a stale saved task model is retried once with the verified Railway default', async () => {
+  env.ollama.baseUrl = 'https://private-agent.example';
+  env.ollama.model = 'qwen3.5:9b';
+  const calls = [];
+  const strategyTask = { type: 'CONTENT_STRATEGY', title: 'Build strategy', description: 'Create the evidence-led campaign strategy.' };
+  const result = await brain.generateTaskOutput(plan, strategyTask, {
+    route: { ollamaModel: 'retired-routing-model:latest', fallbackEnabled: false },
+    http: { post: async (url, body) => {
+      calls.push({ url, model: body.model });
+      if (body.model === 'retired-routing-model:latest') {
+        throw Object.assign(new Error('request failed'), { response: { status: 400, data: { error: 'Model is not allowed by this gateway.' } } });
+      }
+      return { data: { message: { content: 'Recovered strategy result' } } };
+    } }
+  });
+  assert.deepEqual(calls.map(call => call.model), ['retired-routing-model:latest', 'qwen3.5:9b']);
+  assert.equal(result.provider, 'ollama');
+  assert.equal(result.model, 'qwen3.5:9b');
+  assert.equal(result.content, 'Recovered strategy result');
+});
+
+test('a model rejection reports the model actually attempted by the task', () => {
+  env.ollama.baseUrl = 'https://private-agent.example';
+  env.ollama.model = 'qwen3.5:9b';
+  const error = Object.assign(new Error('request failed'), {
+    ollamaModel: 'retired-routing-model:latest',
+    response: { status: 400, data: { error: 'Model is not allowed by this gateway.' } }
+  });
+  const details = brain.providerErrorDetails(error);
+  assert.equal(details.code, 'MODEL_NOT_ALLOWED');
+  assert.match(details.message, /retired-routing-model:latest/);
+  assert.doesNotMatch(details.message, /rejected qwen3\.5:9b/);
+});
+
 test('brand review sends selected real assets to the vision model only when enabled', async () => {
   env.ollama.baseUrl = 'https://ollama.internal';
   env.ollama.visionEnabled = true;

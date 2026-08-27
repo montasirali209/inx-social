@@ -6,6 +6,12 @@ function required(name) {
   return value;
 }
 
+function modelName(value, fallback) {
+  const raw = String(value || fallback || '').trim();
+  const unquoted = raw.replace(/^(["'])(.*)\1$/, '$2').trim();
+  return /^[a-zA-Z0-9._:/-]{1,160}$/.test(unquoted) ? unquoted : fallback;
+}
+
 module.exports = {
   port: Number(process.env.PORT || 5050),
   nodeEnv: process.env.NODE_ENV || 'development',
@@ -39,7 +45,7 @@ module.exports = {
   latestVersion: process.env.LATEST_DESKTOP_VERSION || '14.0.1',
   ollama: {
     baseUrl: String(process.env.OLLAMA_BASE_URL || '').replace(/\/$/, ''),
-    model: process.env.OLLAMA_MODEL || 'qwen3:8b',
+    model: modelName(process.env.OLLAMA_MODEL, 'qwen3:8b'),
     apiKey: process.env.OLLAMA_API_KEY || '',
     cloudflareAccessClientId: process.env.OLLAMA_CF_ACCESS_CLIENT_ID || '',
     cloudflareAccessClientSecret: process.env.OLLAMA_CF_ACCESS_CLIENT_SECRET || '',
@@ -48,7 +54,7 @@ module.exports = {
     simpleContext: Math.max(4096, Math.min(16384, Number(process.env.OLLAMA_SIMPLE_CONTEXT || 8192))),
     complexContext: Math.max(8192, Math.min(32768, Number(process.env.OLLAMA_COMPLEX_CONTEXT || 32768))),
     visionEnabled: String(process.env.OLLAMA_VISION_ENABLED || 'false') === 'true',
-    imageModel: process.env.OLLAMA_IMAGE_MODEL || 'x/z-image-turbo',
+    imageModel: modelName(process.env.OLLAMA_IMAGE_MODEL, 'x/z-image-turbo'),
     imageTimeoutMs: Math.max(30000, Number(process.env.OLLAMA_IMAGE_TIMEOUT_MS || 300000)),
     imageReviewEnabled: String(process.env.OLLAMA_IMAGE_REVIEW_ENABLED || 'true') === 'true',
     imageReviewMinScore: Math.max(50, Math.min(95, Number(process.env.OLLAMA_IMAGE_REVIEW_MIN_SCORE || 75)))
