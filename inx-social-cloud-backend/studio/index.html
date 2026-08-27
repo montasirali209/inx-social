@@ -96,9 +96,9 @@
       <section id="dashboard" class="view active dashboard-v3">
         <header class="dashboard-command-bar">
           <div>
-            <span class="dashboard-kicker"><i></i> Publishing workspace</span>
-            <h2>Your content operation, at a glance.</h2>
-            <p>Import, review the queue, and keep your publishing schedule moving.</p>
+            <span class="dashboard-kicker"><i></i> Publishing overview</span>
+            <h2>Everything important, at a glance.</h2>
+            <p>Live status for your Page, content and upcoming publishing activity.</p>
           </div>
           <div class="dashboard-command-actions">
             <span class="dashboard-live-state"><i></i><span><small>System</small><strong id="dashboardSystemState">Idle</strong></span></span>
@@ -106,68 +106,43 @@
           </div>
         </header>
 
-        <div class="dashboard-ops-grid">
-          <article class="dashboard-op-card dashboard-import-card">
-            <header><span class="dashboard-op-icon" aria-hidden="true">⇧</span><div><small>Content</small><h3>Import files</h3></div></header>
-            <div class="dashboard-mini-metrics">
-              <span><strong id="statVideos">0</strong> videos</span>
-              <span><strong id="statCaptions">0</strong> captions</span>
-            </div>
-            <div class="dashboard-import-zones">
-              <div class="dashboard-drop-zone" id="dropVideos" data-type="video">
-                <span>Drop videos here</span>
-                <button id="btnPickVideos" class="btn secondary compact" type="button">Choose videos</button>
-              </div>
-              <div class="dashboard-drop-zone" id="dropCaptions" data-type="caption">
-                <span>Drop caption files here</span>
-                <button id="btnPickCaptions" class="btn ghost compact" type="button">Choose captions</button>
-              </div>
-            </div>
-            <details class="dashboard-card-more"><summary>Folder import</summary><div><button id="btnPickVideoFolder" class="btn ghost compact" type="button">Video folder</button><button id="btnPickCaptionFolder" class="btn ghost compact" type="button">Caption folder</button></div></details>
-          </article>
-
-          <article class="dashboard-op-card dashboard-slots-card">
-            <header><span class="dashboard-op-icon success" aria-hidden="true">✓</span><div><small>Planning</small><h3>Schedule slots</h3></div></header>
-            <div class="dashboard-stat-pair">
-              <span><strong id="statPlanned">0</strong><small>Ready</small></span>
-              <span><strong id="statScheduled">0</strong><small>Scheduled</small></span>
-            </div>
-            <div id="simpleScheduleCheck" class="simple-schedule-check dashboard-schedule-check">
-              <div class="check-body muted">Check your saved publishing times and occupied Facebook slots.</div>
-            </div>
-            <button id="btnPreviewPlan" class="btn secondary wide" type="button">Check available slots</button>
-          </article>
-
-          <article class="dashboard-op-card dashboard-progress-card">
-            <header><span class="dashboard-op-icon" aria-hidden="true">◔</span><div><small>Current batch</small><h3>Upload progress</h3></div></header>
-            <div class="dashboard-progress-main">
-              <div class="progress-ring dashboard-progress-ring" id="dashboardProgressRing" style="--p:0"><span id="dashboardRingPercent">0%</span></div>
-              <div><strong id="progressPhase">Idle</strong><span id="progressBox">No active upload.</span></div>
-            </div>
-            <div class="progress-track"><div id="progressFill" class="progress-fill" style="width:0%"></div></div>
-            <div class="dashboard-progress-details">
-              <span><small>Current</small><strong id="progressCurrent">0/0</strong></span>
-              <span><small>Uploaded</small><strong id="progressUploaded">0</strong></span>
-              <span><small>Failed</small><strong id="progressFailed">0</strong></span>
-            </div>
-            <strong id="progressPercent" class="dashboard-progress-percent">0%</strong>
-          </article>
-
-          <article class="dashboard-op-card dashboard-page-card">
-            <header><span class="dashboard-op-icon facebook" aria-hidden="true">f</span><div><small>Destination</small><h3>Connected Page</h3></div></header>
+        <div class="dashboard-status-grid">
+          <article class="dashboard-status-card dashboard-page-status-card">
+            <header><span class="dashboard-op-icon facebook" aria-hidden="true">f</span><div><small>Active destination</small><h3>Connected Page</h3></div></header>
             <div class="dashboard-active-page">
               <span id="dashboardPageAvatar" class="dashboard-page-avatar"><span>F</span></span>
               <div><strong id="dashboardPageName">No Page selected</strong><span id="dashboardPageCategory">Facebook Page</span></div>
             </div>
-            <span id="dashboardPageStatus" class="dashboard-connected-state waiting"><i></i> Select a Page</span>
-            <button id="btnDashboardPages" class="btn ghost wide" type="button">Manage connected Pages</button>
-            <details class="dashboard-card-more"><summary>Connection tools</summary><div><button id="btnTestFacebook" class="btn ghost compact" type="button">Test connection</button><button id="btnOpenUserData" class="btn ghost compact" type="button">Session info</button></div></details>
+            <div class="dashboard-status-footer"><span id="dashboardPageStatus" class="dashboard-connected-state waiting"><i></i> Select a Page</span><button id="btnDashboardPages" class="dashboard-text-link" type="button">View Pages →</button></div>
+          </article>
+
+          <article class="dashboard-status-card">
+            <header><span class="dashboard-op-icon success" aria-hidden="true">✓</span><div><small>Publishing</small><h3>Scheduled content</h3></div></header>
+            <div class="dashboard-primary-stat"><strong id="statScheduled">0</strong><span>confirmed or published</span></div>
+            <div class="dashboard-status-footer"><span><b id="statPlanned">0</b> waiting in queue</span><button id="btnDashboardQueueScheduler" class="dashboard-text-link" type="button">View Scheduler →</button></div>
+          </article>
+
+          <article class="dashboard-status-card">
+            <header><span class="dashboard-op-icon" aria-hidden="true">▤</span><div><small>Content library</small><h3>Available content</h3></div></header>
+            <div class="dashboard-library-stats"><span><strong id="statVideos">0</strong><small>Videos</small></span><i></i><span><strong id="statCaptions">0</strong><small>Captions</small></span></div>
+            <p class="dashboard-status-note">Prepared files currently available to Scheduler.</p>
+          </article>
+
+          <article class="dashboard-status-card dashboard-progress-card">
+            <header><span class="dashboard-op-icon" aria-hidden="true">◔</span><div><small>Current activity</small><h3>Publishing progress</h3></div></header>
+            <div class="dashboard-progress-main">
+              <div class="progress-ring dashboard-progress-ring compact" id="dashboardProgressRing" style="--p:0"><span id="dashboardRingPercent">0%</span></div>
+              <div><strong id="progressPhase">Idle</strong><span id="progressBox">No active upload.</span></div>
+            </div>
+            <div class="progress-track"><div id="progressFill" class="progress-fill" style="width:0%"></div></div>
+            <div class="dashboard-progress-inline"><span>Current <strong id="progressCurrent">0/0</strong></span><span>Uploaded <strong id="progressUploaded">0</strong></span><span>Failed <strong id="progressFailed">0</strong></span></div>
+            <strong id="progressPercent" class="dashboard-progress-percent">0%</strong>
           </article>
         </div>
 
         <div class="dashboard-work-grid">
           <section class="dashboard-work-panel dashboard-queue-panel">
-            <header><div><small>Publishing workflow</small><h3>Content queue</h3></div><button id="btnDashboardQueueScheduler" class="btn ghost compact" type="button">Open Scheduler</button></header>
+            <header><div><small>Publishing workflow</small><h3>Content queue</h3></div><span class="dashboard-panel-label">Live status</span></header>
             <div id="dashboardContentQueue" class="dashboard-content-queue"><div class="dashboard-empty-state">No content is waiting. Import files or ask Social Agent to prepare a campaign.</div></div>
           </section>
           <section class="dashboard-work-panel dashboard-calendar-panel">
