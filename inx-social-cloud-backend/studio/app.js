@@ -32,6 +32,7 @@ let agentTimelineSignature = '';
 let agentMonitorSignature = '';
 let agentEditingPostId = '';
 let agentPreparingMission = false;
+let postsWorkspaceFilter = 'all';
 
 const UI_TEXT_FIELDS = [
   'appTitle', 'appSubtitle', 'dashboardTitle', 'dashboardSubtitle',
@@ -43,16 +44,17 @@ const UI_TEXT_FIELDS = [
 ];
 
 const views = {
-  dashboard: ['Dashboard', 'Your INX Social publishing command centre.'],
-  agent: ['Social Agent', 'Ollama-first organic automation with Autopilot and Hybrid control.'],
-  pages: ['Connected Pages', 'Connect and choose the Page that receives your next scheduled content.'],
-  media: ['Old Scheduler', 'Hidden old Page Video scheduler.'],
+  dashboard: ['Dashboard', 'Your publishing performance and activity at a glance.'],
+  agent: ['AI Content Studio', 'Create campaigns with Social Agent, Autopilot and Hybrid approval control.'],
+  pages: ['Connected Accounts & Pages', 'Manage official social connections and publishing destinations.'],
+  posts: ['Posts', 'Review drafts, approvals, schedules, publications and failed attempts.'],
+  media: ['Media Library', 'Manage videos, captions and reusable publishing assets.'],
   reels: ['Scheduler', 'Upload videos to Meta now and schedule them as Facebook Reels for future times.'],
   lab: ['Hidden Test Tools', 'Hidden technical test tools.'],
   draft: ['Hidden Draft Tools', 'Hidden old draft tools.'],
   manual: ['Manual Scheduler', 'Upload one Reel to Meta now and schedule it for a future time.'],
   health: ['Health Check', 'Check video, caption, schedule, and Meta connection risks before posting.'],
-  calendar: ['Calendar', 'See what is planned locally and what has been published.'],
+  calendar: ['Content Calendar', 'See upcoming and completed publishing activity by date.'],
   analytics: ['Analytics', 'Facebook publishing performance, reliability and content activity.'],
   logs: ['Logs', 'Track imports, scheduled uploads, publishing, retries, and errors.'],
   settings: ['Settings', 'Facebook Connect and scheduler rules.']
@@ -282,12 +284,13 @@ function renderAccountGate() {
 }
 
 function bindNavigation() {
-  document.querySelectorAll('.nav').forEach(button => {
+  document.querySelectorAll('.nav[data-view]').forEach(button => {
     button.addEventListener('click', () => switchView(button.dataset.view));
   });
 }
 
 function switchView(viewName) {
+  if (!views[viewName]) return;
   if (viewName === 'agent' && !state?.account?.features?.socialAgent?.visible) {
     toast('Social Agent is not currently enabled for this account.', true);
     viewName = 'dashboard';
@@ -313,6 +316,7 @@ function switchView(viewName) {
     renderCalendar();
     if (!metaScheduleLoaded && !metaScheduleLoading) listMetaScheduled({ silent: true });
   }
+  if (viewName === 'posts') renderPostsWorkspace();
   if (viewName === 'dashboard') {
     renderDashboardQueue();
     renderDashboardCalendar();
@@ -320,8 +324,21 @@ function switchView(viewName) {
   }
 }
 
+function openNewPostWorkspace() {
+  if (!state?.account?.features?.socialAgent?.visible) {
+    toast('AI Content Studio is not currently enabled for this account.', true);
+    return;
+  }
+  switchView('agent');
+  const prompt = document.getElementById('agentPrompt');
+  prompt?.focus();
+  prompt?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
 function bindButtons() {
   on('btnRefresh', refresh);
+  on('btnCreateNewPost', openNewPostWorkspace);
+  on('btnPostsCreate', openNewPostWorkspace);
   on('btnAgentRefresh', () => loadAgentOverview(true));
   document.getElementById('agentPlanForm')?.addEventListener('submit', createAgentPlan);
   document.querySelectorAll('.agent-operation-mode').forEach(input => input.addEventListener('change', renderAgentModeSummary));
@@ -341,6 +358,12 @@ function bindButtons() {
   document.querySelectorAll('.agent-output-type').forEach(input => input.addEventListener('change', updateAgentContentControls));
   document.getElementById('agentExecutionMode')?.addEventListener('change', updateAgentCreditPreview);
   document.getElementById('agentPrompt')?.addEventListener('input', updateAgentCreditPreview);
+  document.getElementById('postsSearchInput')?.addEventListener('input', renderPostsWorkspace);
+  document.querySelectorAll('[data-post-filter]').forEach(button => button.addEventListener('click', () => {
+    postsWorkspaceFilter = button.dataset.postFilter || 'all';
+    document.querySelectorAll('[data-post-filter]').forEach(item => item.classList.toggle('active', item === button));
+    renderPostsWorkspace();
+  }));
   on('btnPickVideos', () => importAction(window.schedulerApi.pickVideos));
   on('btnPickVideos2', () => importAction(window.schedulerApi.pickVideos));
   on('btnPickCaptions', () => importAction(window.schedulerApi.pickCaptions));
@@ -1476,6 +1499,7 @@ async function listMetaScheduled(options = {}) {
     renderCalendar();
     renderMetaScheduled(metaScheduledPosts);
     renderDashboardCalendar();
+    renderPostsWorkspace();
     if (!options.silent) toast(`Calendar synced with ${metaScheduledPosts.length} Facebook scheduled post(s).`);
   } catch (err) {
     if (!options.silent) toast(`Could not sync the Facebook schedule: ${err.message}`, true);
@@ -1739,6 +1763,7 @@ async function loadAgentOverview(showNotice = false) {
     renderAgentPageTargets();
     renderAgentBrandAssets();
     updateAgentContentControls();
+    renderPostsWorkspace();
     if (showNotice) toast('Social Agent plans refreshed.');
   } catch (error) {
     if (workspace) workspace.innerHTML = `<div class="workspace-empty error">${escapeHtml(error.message)}</div>`;
@@ -2559,6 +2584,7 @@ function render() {
   renderStats();
   renderSlotPills();
   renderTables();
+  renderPostsWorkspace();
   renderCalendar();
   fillSettings();
   fillInterfaceSettings();
@@ -2696,6 +2722,86 @@ function renderDashboardPage(active) {
   if (!status) return;
   status.className = `dashboard-connected-state ${active ? 'connected' : 'waiting'}`;
   status.innerHTML = active ? '<i></i> Connected and active' : '<i></i> Select a Page';
+}
+
+function postStatusBucket(value) {
+  const status = String(value || 'DRAFT').toUpperCase();
+  if (status.includes('FAIL') || status.includes('ERROR')) return 'failed';
+  if (status.includes('PUBLISHED') || status === 'COMPLETED') return 'published';
+  if (status.includes('SCHEDULED') || status === 'SCHEDULING' || status === 'APPROVED') return 'scheduled';
+  if (['READY_FOR_REVIEW', 'WAITING_REVIEW', 'CHANGES_REQUESTED', 'WAITING_MEDIA'].includes(status)) return 'awaiting';
+  return 'draft';
+}
+
+function postsWorkspaceItems() {
+  const local = (state?.jobs || []).map(job => ({
+    key: `job-${job.id}`,
+    title: job.title || job.videoName || 'Facebook content',
+    excerpt: job.caption || job.slotLabel || '',
+    platform: 'Facebook',
+    destination: cloudWorkspace?.activePage?.facebookPageName || 'Facebook Page',
+    status: postStatusBucket(job.status),
+    statusLabel: statusLabel(job.status),
+    date: job.scheduledAtISO || job.uploadedAt || job.createdAt,
+    media: job.videoName ? 'Video' : 'Post'
+  }));
+  const localMetaIds = new Set((state?.jobs || []).flatMap(job => [job.fbPostId, job.fbVideoId, job.metaPostId, job.metaVideoId]).filter(Boolean).map(String));
+  const meta = (metaScheduledPosts || [])
+    .filter(post => !localMetaIds.has(String(post.id || '')))
+    .map(post => ({
+      key: `meta-${post.id}`,
+      title: calendarPostLabel(post),
+      excerpt: post.message || '',
+      platform: 'Facebook',
+      destination: cloudWorkspace?.activePage?.facebookPageName || 'Facebook Page',
+      status: post.is_published === true ? 'published' : 'scheduled',
+      statusLabel: post.is_published === true ? 'Published' : 'Scheduled',
+      date: scheduledPostDate(post),
+      media: post.attachments?.data?.length ? 'Media' : 'Post'
+    }));
+  const campaign = (agentOverview?.plans || []).flatMap(plan => (plan.campaign?.posts || []).map(post => ({
+    key: `campaign-${post.id}`,
+    title: post.title || shorten(post.caption || plan.prompt || 'AI-created post', 76),
+    excerpt: post.caption || '',
+    platform: String(post.platform || 'facebook').replace(/^./, letter => letter.toUpperCase()),
+    destination: post.page?.name || 'Selected destination',
+    status: postStatusBucket(post.status),
+    statusLabel: String(post.status || 'DRAFT').replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase()),
+    date: post.scheduledAt || plan.updatedAt || plan.createdAt,
+    media: post.format || 'Post'
+  })));
+  return [...campaign, ...local, ...meta]
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
+}
+
+function renderPostsWorkspace() {
+  const root = document.getElementById('postsTable');
+  if (!root) return;
+  const items = postsWorkspaceItems();
+  const counts = items.reduce((result, item) => {
+    result[item.status] = (result[item.status] || 0) + 1;
+    return result;
+  }, {});
+  setText('postsCountAll', items.length);
+  setText('postsCountAwaiting', counts.awaiting || 0);
+  setText('postsCountScheduled', counts.scheduled || 0);
+  setText('postsCountPublished', counts.published || 0);
+  setText('postsCountFailed', counts.failed || 0);
+  const query = String(document.getElementById('postsSearchInput')?.value || '').trim().toLowerCase();
+  const visible = items.filter(item => (postsWorkspaceFilter === 'all' || item.status === postsWorkspaceFilter)
+    && (!query || `${item.title} ${item.excerpt} ${item.destination} ${item.platform}`.toLowerCase().includes(query)));
+  if (!visible.length) {
+    root.innerHTML = `<div class="posts-empty-state"><span>✦</span><strong>${items.length ? 'No posts match this view' : 'Create your first post'}</strong><p>${items.length ? 'Choose another status or clear your search.' : 'Use AI Content Studio or Scheduler to prepare professional content.'}</p>${items.length ? '' : '<button class="btn primary compact" type="button" data-empty-create-post>+ Create New Post</button>'}</div>`;
+    root.querySelector('[data-empty-create-post]')?.addEventListener('click', openNewPostWorkspace);
+    return;
+  }
+  root.innerHTML = `<div class="posts-table-head"><span>Post</span><span>Platform</span><span>Destination</span><span>Publishing time</span><span>Status</span></div>${visible.map(item => `<article class="posts-table-row">
+    <div class="posts-item-main"><span class="posts-media-icon">${escapeHtml(String(item.media || 'P').slice(0, 1).toUpperCase())}</span><div><strong>${escapeHtml(shorten(item.title, 82))}</strong><small>${escapeHtml(shorten(item.excerpt, 100))}</small></div></div>
+    <span class="posts-platform"><i>f</i>${escapeHtml(item.platform)}</span>
+    <span>${escapeHtml(item.destination)}</span>
+    <time>${escapeHtml(item.date ? formatDate(item.date) : 'Not scheduled')}</time>
+    <span class="posts-status ${escapeHtml(item.status)}"><i></i>${escapeHtml(item.statusLabel)}</span>
+  </article>`).join('')}`;
 }
 
 function renderSlotPills() {

@@ -47,16 +47,18 @@
       <div class="brand">
         <img class="brand-wordmark" src="assets/inx-social-wordmark.png" alt="INX Social" />
       </div>
+      <button id="btnCreateNewPost" class="sidebar-create-post" type="button"><span>＋</span> Create New Post</button>
       <nav>
-        <button class="nav active" data-view="dashboard">Dashboard</button>
-        <button class="nav" data-view="reels">Scheduler</button>
-        <button class="nav agent-nav hidden" data-view="agent"><span class="agent-nav-dot"></span>Social Agent <small>Beta</small></button>
-        <button class="nav" data-view="calendar">Calendar</button>
-        <button class="nav" data-view="analytics">Analytics</button>
-        <button class="nav" data-view="logs">Activity Logs</button>
-        <button class="nav" data-view="settings">Settings</button>
-        <button class="nav" data-view="pages">Connected Pages</button>
-        <a class="nav portal-nav-link" href="/portal/#overview"><span>↗</span> Account &amp; Billing</a>
+        <button class="nav active" data-view="dashboard"><span class="nav-icon">⌂</span><span>Dashboard</span></button>
+        <button class="nav" data-view="reels"><span class="nav-icon">◷</span><span>Scheduler</span></button>
+        <button class="nav" data-view="calendar"><span class="nav-icon">▦</span><span>Content Calendar</span></button>
+        <button class="nav" data-view="posts"><span class="nav-icon">▤</span><span>Posts</span></button>
+        <button class="nav" data-view="media"><span class="nav-icon">▧</span><span>Media Library</span></button>
+        <button class="nav agent-nav hidden" data-view="agent"><span class="nav-icon">✦</span><span>AI Content Studio</span><small>Beta</small></button>
+        <button class="nav" data-view="analytics"><span class="nav-icon">⌁</span><span>Analytics</span></button>
+        <button class="nav" data-view="settings"><span class="nav-icon">⚙</span><span>Settings</span></button>
+        <button class="nav" data-view="pages"><span class="nav-icon">◎</span><span>Connected Accounts &amp; Pages</span></button>
+        <a class="nav portal-nav-link" href="/portal/#overview"><span class="nav-icon">◇</span><span>Billing &amp; Plans</span></a>
       </nav>
     </aside>
 
@@ -523,6 +525,34 @@ Third video caption #hashtags"></textarea>
         <div id="metaScheduledBox" class="panel hidden"></div>
       </section>
 
+      <section id="posts" class="view posts-workspace">
+        <div class="section-title-row posts-title-row">
+          <div><span class="eyebrow">Content library</span><h2>Posts</h2><p>Review every draft, approval, scheduled post, publication and failed attempt from one workspace.</p></div>
+          <button id="btnPostsCreate" class="btn primary" type="button">+ Create New Post</button>
+        </div>
+        <div class="posts-status-grid" aria-label="Post status summary">
+          <article><span>All posts</span><strong id="postsCountAll">0</strong></article>
+          <article><span>Awaiting approval</span><strong id="postsCountAwaiting">0</strong></article>
+          <article><span>Scheduled</span><strong id="postsCountScheduled">0</strong></article>
+          <article><span>Published</span><strong id="postsCountPublished">0</strong></article>
+          <article><span>Failed</span><strong id="postsCountFailed">0</strong></article>
+        </div>
+        <section class="panel posts-library-panel">
+          <div class="posts-toolbar">
+            <div class="posts-filter-tabs" role="tablist" aria-label="Filter posts">
+              <button class="active" type="button" data-post-filter="all">All</button>
+              <button type="button" data-post-filter="draft">Drafts</button>
+              <button type="button" data-post-filter="awaiting">Awaiting Approval</button>
+              <button type="button" data-post-filter="scheduled">Scheduled</button>
+              <button type="button" data-post-filter="published">Published</button>
+              <button type="button" data-post-filter="failed">Failed</button>
+            </div>
+            <label class="posts-search"><span class="sr-only">Search posts</span><input id="postsSearchInput" type="search" placeholder="Search posts"></label>
+          </div>
+          <div id="postsTable" class="posts-table"><div class="empty">No posts have been created yet.</div></div>
+        </section>
+      </section>
+
       <section id="logs" class="view">
         <div class="panel">
           <div class="panel-head row">
@@ -536,9 +566,18 @@ Third video caption #hashtags"></textarea>
       </section>
 
       <section id="pages" class="view workspace-v2-view">
-        <div class="section-title-row"><div><span class="eyebrow">Publishing destinations</span><h2>Pages</h2><p>Connect, select and manage every social Page from one place. Facebook is available now; more platforms can be added later.</p></div><div class="button-row"><button id="btnAddMetaAccount" class="btn primary">+ Connect Facebook Page</button><button id="btnDisconnectActivePage" class="btn ghost subtle-danger">Disconnect active Page</button><button id="btnOpenFacebookIntegrations" class="btn ghost">Facebook permissions</button><button id="btnPagesRefresh" class="btn ghost">Refresh Pages</button></div></div>
+        <div class="section-title-row"><div><span class="eyebrow">Publishing destinations</span><h2>Connected Accounts &amp; Pages</h2><p>Manage official social connections and choose the destination used by your publishing workspace.</p></div><div class="button-row"><button id="btnAddMetaAccount" class="btn primary">+ Connect Facebook Page</button><button id="btnDisconnectActivePage" class="btn ghost subtle-danger">Disconnect active Page</button><button id="btnOpenFacebookIntegrations" class="btn ghost">Facebook permissions</button><button id="btnPagesRefresh" class="btn ghost">Refresh</button></div></div>
         <div class="usage-strip"><span id="accountUsageText">0 Pages connected</span><div><i id="accountUsageBar"></i></div><b id="accountPlanBadge">TRIAL</b></div>
-        <div class="channel-source-row"><button class="channel-source active" type="button"><span>f</span><strong>Facebook</strong><small>Pages</small></button><button class="channel-source disabled" type="button" disabled><span>◎</span><strong>Instagram</strong><small>Coming later</small></button><button class="channel-source disabled" type="button" disabled><span>▶</span><strong>YouTube</strong><small>Coming later</small></button></div>
+        <div class="channel-source-row platform-foundation-grid" aria-label="Social platform connectors">
+          <button class="channel-source active" type="button"><span>f</span><strong>Facebook</strong><small>Available now</small></button>
+          <button class="channel-source disabled" type="button" disabled><span>◎</span><strong>Instagram</strong><small>Connector planned</small></button>
+          <button class="channel-source disabled" type="button" disabled><span>＠</span><strong>Threads</strong><small>Connector planned</small></button>
+          <button class="channel-source disabled" type="button" disabled><span>in</span><strong>LinkedIn</strong><small>Connector planned</small></button>
+          <button class="channel-source disabled" type="button" disabled><span>♪</span><strong>TikTok</strong><small>Connector planned</small></button>
+          <button class="channel-source disabled" type="button" disabled><span>▶</span><strong>YouTube</strong><small>Connector planned</small></button>
+          <button class="channel-source disabled" type="button" disabled><span>P</span><strong>Pinterest</strong><small>Connector planned</small></button>
+          <button class="channel-source disabled" type="button" disabled><span>𝕏</span><strong>X</strong><small>Connector planned</small></button>
+        </div>
         <div class="page-filter-row"><input id="pageSearchInput" type="search" placeholder="Search connected Pages"></div>
         <div id="connectedPageGrid" class="connected-page-grid"><div class="workspace-empty">Loading connected Pages…</div></div>
       </section>

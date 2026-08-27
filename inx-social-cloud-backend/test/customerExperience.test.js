@@ -6,11 +6,12 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
-test('customer navigation removes duplicate tools and decorative menu marks', () => {
+test('customer navigation exposes the focused professional product shell', () => {
   const html = read('studio/index.html'); const css = read('studio/styles.css');
   assert.doesNotMatch(html, /data-view="manual"/); assert.doesNotMatch(html, /data-view="health"/);
-  assert.doesNotMatch(html, /data-view="dashboard"><span>/); assert.doesNotMatch(html, /data-view="pages"><span>/);
-  assert.match(html, /portal-nav-link[^>]*><span>↗<\/span> Account &amp; Billing/); assert.match(css, /\.nav::before\s*\{\s*display:\s*none;/);
+  assert.match(html, /data-view="dashboard"><span class="nav-icon">/); assert.match(html, /data-view="pages"><span class="nav-icon">/);
+  assert.match(html, /portal-nav-link[^>]*>[\s\S]*Billing &amp; Plans/); assert.match(html, /id="btnCreateNewPost"/);
+  assert.doesNotMatch(html, />Inbox</); assert.doesNotMatch(html, />Team Members</); assert.match(css, /\.nav::before\s*\{\s*display:\s*none;/);
 });
 
 test('customer Activity Logs exclude administrator system details', () => {

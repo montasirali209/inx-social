@@ -8,10 +8,10 @@ const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf
 
 test('Dashboard navigation uses the simplified product information architecture', () => {
   const html = read('studio/index.html');
-  const dashboard = html.indexOf('data-view="dashboard">Dashboard</button>');
-  const scheduler = html.indexOf('data-view="reels">Scheduler</button>');
-  const settings = html.indexOf('data-view="settings">Settings</button>');
-  const pages = html.indexOf('data-view="pages">Connected Pages</button>');
+  const dashboard = html.indexOf('data-view="dashboard"><span class="nav-icon">⌂</span><span>Dashboard</span></button>');
+  const scheduler = html.indexOf('data-view="reels"><span class="nav-icon">◷</span><span>Scheduler</span></button>');
+  const settings = html.indexOf('data-view="settings"><span class="nav-icon">⚙</span><span>Settings</span></button>');
+  const pages = html.indexOf('data-view="pages"><span class="nav-icon">◎</span><span>Connected Accounts &amp; Pages</span></button>');
   assert.ok(dashboard >= 0 && scheduler > dashboard);
   assert.ok(settings > scheduler && pages > settings);
   assert.doesNotMatch(html, />Overview<|Auto Scheduler/);

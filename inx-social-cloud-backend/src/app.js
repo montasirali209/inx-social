@@ -17,6 +17,7 @@ const errorHandler = require('./middleware/errorHandler');
 const releaseRoutes = require('./routes/releaseRoutes');
 const studioRoutes = require('./routes/studioRoutes');
 const agentRoutes = require('./routes/agentRoutes');
+const socialPlatformRoutes = require('./routes/socialPlatformRoutes');
 const packageInfo = require('../package.json');
 
 const app = express();
@@ -103,6 +104,7 @@ app.use('/api/portal', portalRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/studio', studioRoutes);
 app.use('/api/agent', agentRoutes);
+app.use('/api/social-platforms', socialPlatformRoutes);
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
 app.use(errorHandler);
