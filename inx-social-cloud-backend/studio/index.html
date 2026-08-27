@@ -48,14 +48,14 @@
         <img class="brand-wordmark" src="assets/inx-social-wordmark.png" alt="INX Social" />
       </div>
       <nav>
-        <button class="nav active" data-view="dashboard">Overview</button>
-        <button class="nav" data-view="pages">Connected Pages</button>
-        <button class="nav" data-view="reels">Auto Scheduler</button>
+        <button class="nav active" data-view="dashboard">Dashboard</button>
+        <button class="nav" data-view="reels">Scheduler</button>
         <button class="nav agent-nav hidden" data-view="agent"><span class="agent-nav-dot"></span>Social Agent <small>Beta</small></button>
         <button class="nav" data-view="calendar">Calendar</button>
         <button class="nav" data-view="analytics">Analytics</button>
         <button class="nav" data-view="logs">Activity Logs</button>
         <button class="nav" data-view="settings">Settings</button>
+        <button class="nav" data-view="pages">Connected Pages</button>
         <a class="nav portal-nav-link" href="/portal/#overview"><span>↗</span> Account &amp; Billing</a>
       </nav>
     </aside>
@@ -93,90 +93,89 @@
         </div>
       </header>
 
-      <section id="dashboard" class="view active">
-        <section class="hero-board">
-          <div class="hero-copy">
-            <div class="eyebrow"><span class="live-dot"></span>INX Social</div>
-            <h2>Plan, schedule, and publish content from one studio.</h2>
-            <p>Connect your Pages, prepare videos and captions, choose the active destination, and manage scheduled content from one place.</p>
-            <div class="hero-actions">
-              <button id="btnHeroRun" class="btn primary orb-btn" type="button">Open Scheduler</button>
-            </div>
+      <section id="dashboard" class="view active dashboard-v3">
+        <header class="dashboard-command-bar">
+          <div>
+            <span class="dashboard-kicker"><i></i> Publishing workspace</span>
+            <h2>Your content operation, at a glance.</h2>
+            <p>Import, review the queue, and keep your publishing schedule moving.</p>
           </div>
-          <div class="hero-status">
-            <div class="progress-ring" id="dashboardProgressRing" style="--p:0">
-              <span id="dashboardRingPercent">0%</span>
-              <small>completed</small>
-            </div>
-            <div class="next-card">
-              <span>System state</span>
-              <strong id="dashboardSystemState">Idle</strong>
-              <em id="dashboardSystemHint">Ready when you create an Auto Scheduler upload.</em>
-            </div>
+          <div class="dashboard-command-actions">
+            <span class="dashboard-live-state"><i></i><span><small>System</small><strong id="dashboardSystemState">Idle</strong></span></span>
+            <button id="btnHeroRun" class="btn primary" type="button">Open Scheduler</button>
           </div>
-        </section>
+        </header>
 
-        <div class="cards stats-grid">
-          <article class="card stat-card flutter-card"><span>Videos</span><strong id="statVideos">0</strong><em>Selected in this browser</em><i></i></article>
-          <article class="card stat-card flutter-card"><span>Captions</span><strong id="statCaptions">0</strong><em>Text blocks ready</em><i></i></article>
-          <article class="card stat-card flutter-card"><span>Ready</span><strong id="statPlanned">0</strong><em>Waiting to upload</em><i></i></article>
-          <article class="card stat-card flutter-card"><span>Scheduled</span><strong id="statScheduled">0</strong><em>Confirmed by platform</em><i></i></article>
+        <div class="dashboard-ops-grid">
+          <article class="dashboard-op-card dashboard-import-card">
+            <header><span class="dashboard-op-icon" aria-hidden="true">⇧</span><div><small>Content</small><h3>Import files</h3></div></header>
+            <div class="dashboard-mini-metrics">
+              <span><strong id="statVideos">0</strong> videos</span>
+              <span><strong id="statCaptions">0</strong> captions</span>
+            </div>
+            <div class="dashboard-import-zones">
+              <div class="dashboard-drop-zone" id="dropVideos" data-type="video">
+                <span>Drop videos here</span>
+                <button id="btnPickVideos" class="btn secondary compact" type="button">Choose videos</button>
+              </div>
+              <div class="dashboard-drop-zone" id="dropCaptions" data-type="caption">
+                <span>Drop caption files here</span>
+                <button id="btnPickCaptions" class="btn ghost compact" type="button">Choose captions</button>
+              </div>
+            </div>
+            <details class="dashboard-card-more"><summary>Folder import</summary><div><button id="btnPickVideoFolder" class="btn ghost compact" type="button">Video folder</button><button id="btnPickCaptionFolder" class="btn ghost compact" type="button">Caption folder</button></div></details>
+          </article>
+
+          <article class="dashboard-op-card dashboard-slots-card">
+            <header><span class="dashboard-op-icon success" aria-hidden="true">✓</span><div><small>Planning</small><h3>Schedule slots</h3></div></header>
+            <div class="dashboard-stat-pair">
+              <span><strong id="statPlanned">0</strong><small>Ready</small></span>
+              <span><strong id="statScheduled">0</strong><small>Scheduled</small></span>
+            </div>
+            <div id="simpleScheduleCheck" class="simple-schedule-check dashboard-schedule-check">
+              <div class="check-body muted">Check your saved publishing times and occupied Facebook slots.</div>
+            </div>
+            <button id="btnPreviewPlan" class="btn secondary wide" type="button">Check available slots</button>
+          </article>
+
+          <article class="dashboard-op-card dashboard-progress-card">
+            <header><span class="dashboard-op-icon" aria-hidden="true">◔</span><div><small>Current batch</small><h3>Upload progress</h3></div></header>
+            <div class="dashboard-progress-main">
+              <div class="progress-ring dashboard-progress-ring" id="dashboardProgressRing" style="--p:0"><span id="dashboardRingPercent">0%</span></div>
+              <div><strong id="progressPhase">Idle</strong><span id="progressBox">No active upload.</span></div>
+            </div>
+            <div class="progress-track"><div id="progressFill" class="progress-fill" style="width:0%"></div></div>
+            <div class="dashboard-progress-details">
+              <span><small>Current</small><strong id="progressCurrent">0/0</strong></span>
+              <span><small>Uploaded</small><strong id="progressUploaded">0</strong></span>
+              <span><small>Failed</small><strong id="progressFailed">0</strong></span>
+            </div>
+            <strong id="progressPercent" class="dashboard-progress-percent">0%</strong>
+          </article>
+
+          <article class="dashboard-op-card dashboard-page-card">
+            <header><span class="dashboard-op-icon facebook" aria-hidden="true">f</span><div><small>Destination</small><h3>Connected Page</h3></div></header>
+            <div class="dashboard-active-page">
+              <span id="dashboardPageAvatar" class="dashboard-page-avatar"><span>F</span></span>
+              <div><strong id="dashboardPageName">No Page selected</strong><span id="dashboardPageCategory">Facebook Page</span></div>
+            </div>
+            <span id="dashboardPageStatus" class="dashboard-connected-state waiting"><i></i> Select a Page</span>
+            <button id="btnDashboardPages" class="btn ghost wide" type="button">Manage connected Pages</button>
+            <details class="dashboard-card-more"><summary>Connection tools</summary><div><button id="btnTestFacebook" class="btn ghost compact" type="button">Test connection</button><button id="btnOpenUserData" class="btn ghost compact" type="button">Session info</button></div></details>
+          </article>
         </div>
 
-        <div class="grid two">
-          <section class="panel">
-            <div class="panel-head">
-              <h3>Fast import</h3>
-              <p>Drag files here or use the buttons. Selections stay in this browser session until they are sent securely to Meta.</p>
-            </div>
-            <div class="drop-grid">
-              <div class="drop-zone" id="dropVideos" data-type="video">
-                <strong>Drop videos</strong>
-                <span>MP4, MOV, M4V, AVI, MKV, WEBM</span>
-                <button id="btnPickVideos" class="btn secondary">Upload Videos</button>
-                <button id="btnPickVideoFolder" class="btn ghost compact">Import Video Folder</button>
-              </div>
-              <div class="drop-zone" id="dropCaptions" data-type="caption">
-                <strong>Drop captions</strong>
-                <span>TXT/MD. One big captions.txt is supported; blank lines or one-caption-per-line both work.</span>
-                <button id="btnPickCaptions" class="btn secondary">Upload Captions</button>
-                <button id="btnPickCaptionFolder" class="btn ghost compact">Import Caption Folder</button>
-              </div>
-            </div>
+        <div class="dashboard-work-grid">
+          <section class="dashboard-work-panel dashboard-queue-panel">
+            <header><div><small>Publishing workflow</small><h3>Content queue</h3></div><button id="btnDashboardQueueScheduler" class="btn ghost compact" type="button">Open Scheduler</button></header>
+            <div id="dashboardContentQueue" class="dashboard-content-queue"><div class="dashboard-empty-state">No content is waiting. Import files or ask Social Agent to prepare a campaign.</div></div>
           </section>
-
-          <section class="panel">
-            <div class="panel-head">
-              <h3>Smart scheduler</h3>
-              <p>Import videos and captions, then open the scheduler. INX Social checks the active Page first and only uses available publishing slots.</p>
-            </div>
-            <div class="action-stack">
-              <button id="btnPreviewPlan" class="btn secondary wide">Check Free Slots</button>
-              <button id="btnTestFacebook" class="btn ghost wide">Test Facebook Connection</button>
-              <button id="btnOpenUserData" class="btn ghost wide">Browser Session Information</button>
-            </div>
-            <div id="simpleScheduleCheck" class="simple-schedule-check">
-              <div class="check-title">Schedule check</div>
-              <div class="check-body muted">Not checked yet. Click Check Free Slots, or just run the scheduler.</div>
-            </div>
-            <div class="upload-progress-card">
-              <div class="progress-head">
-                <span id="progressPhase">Idle</span>
-                <strong id="progressPercent">0%</strong>
-              </div>
-              <div class="progress-track"><div id="progressFill" class="progress-fill" style="width:0%"></div></div>
-              <div id="progressBox" class="progress-box muted">No active upload.</div>
-              <div class="progress-metrics">
-                <span>Current: <strong id="progressCurrent">0/0</strong></span>
-                <span>Uploaded: <strong id="progressUploaded">0</strong></span>
-                <span>Failed: <strong id="progressFailed">0</strong></span>
-              </div>
-              <div class="progress-history-note">Current-batch progress is shown here. Open Activity Logs for the permanent record of every upload attempt.</div>
-            </div>
+          <section class="dashboard-work-panel dashboard-calendar-panel">
+            <header><div><small>Upcoming</small><h3 id="dashboardCalendarMonth">Publishing calendar</h3></div><button id="btnDashboardCalendar" class="btn ghost compact" type="button">Full calendar</button></header>
+            <div id="dashboardCalendarMini" class="dashboard-calendar-mini"></div>
+            <p id="dashboardSystemHint" class="dashboard-system-hint">Ready when you create a Scheduler upload.</p>
           </section>
         </div>
-
-
       </section>
 
 
@@ -261,7 +260,7 @@
 
       <section id="reels" class="view">
         <div class="mode-banner reel-mode-banner">
-          <div><strong>Auto Scheduler</strong><span>Select videos and captions, choose future times, then upload them to Meta as scheduled Facebook Reels.</span></div>
+          <div><strong>Scheduler</strong><span>Select videos and captions, choose future times, then upload them to Meta as scheduled Facebook Reels.</span></div>
           <button id="btnReelsOpenSettings" class="btn ghost compact" type="button">Settings</button>
         </div>
         <section class="scheduler-page-target" aria-labelledby="reelsDestinationLabel">
@@ -269,10 +268,10 @@
           <div class="scheduler-target-copy">
             <small id="reelsDestinationLabel">Publishing destination</small>
             <strong id="reelsActivePageName">No Page selected</strong>
-            <span id="reelsActivePageHint">Choose the Facebook Page that will receive every video in this Auto Scheduler session.</span>
+            <span id="reelsActivePageHint">Choose the Facebook Page that will receive every video in this Scheduler session.</span>
           </div>
           <label class="scheduler-target-select">Page
-            <select id="reelsPageSelect" aria-label="Choose Auto Scheduler Facebook Page" disabled>
+            <select id="reelsPageSelect" aria-label="Choose Scheduler Facebook Page" disabled>
               <option value="">No connected Pages</option>
             </select>
           </label>
@@ -313,7 +312,7 @@
                 <button id="btnReelsClearSession" class="btn ghost" type="button">Clear Session</button>
               </div>
             </div>
-            <div id="reelsSessionSummary" class="simple-check muted">No Auto Scheduler session selected yet.</div>
+            <div id="reelsSessionSummary" class="simple-check muted">No Scheduler session selected yet.</div>
             <div id="reelsSchedulePreview" class="draft-preview"></div>
           </section>
 
@@ -644,7 +643,7 @@ Third video caption #hashtags"></textarea>
                 <div>
                   <span class="block-kicker">Scheduling rules</span>
                   <h4>Default Scheduler Behaviour</h4>
-                  <p>These rules control how Auto Scheduler pairs captions, chooses slots, retries uploads, and converts times for Meta.</p>
+                  <p>These rules control how Scheduler pairs captions, chooses slots, retries uploads, and converts times for Meta.</p>
                 </div>
               </div>
 
@@ -657,7 +656,7 @@ Third video caption #hashtags"></textarea>
                 <div class="settings-slot-heading">
                   <div>
                     <span class="settings-field-label">Daily schedule times</span>
-                    <span class="field-note">Choose a time and add it. Auto Scheduler uses these when custom times are not selected.</span>
+                    <span class="field-note">Choose a time and add it. Scheduler uses these when custom times are not selected.</span>
                   </div>
                   <span id="settingSlotsCount" class="settings-slot-count">0 times</span>
                 </div>
@@ -706,7 +705,7 @@ Third video caption #hashtags"></textarea>
 
   <div class="floating-dock" aria-label="Quick actions">
     <button id="dockDashboard" title="Dashboard">⌂</button>
-    <button id="dockAuto" title="Auto Scheduler">▣</button>
+    <button id="dockAuto" title="Scheduler">▣</button>
   </div>
 
   <div id="agentPostEditor" class="agent-post-editor hidden" role="dialog" aria-modal="true" aria-labelledby="agentPostEditorNumber">

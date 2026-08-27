@@ -43,11 +43,11 @@ const UI_TEXT_FIELDS = [
 ];
 
 const views = {
-  dashboard: ['Home', 'Your INX Social publishing command centre.'],
+  dashboard: ['Dashboard', 'Your INX Social publishing command centre.'],
   agent: ['Social Agent', 'Ollama-first organic automation with Autopilot and Hybrid control.'],
-  pages: ['Pages', 'Connect and choose the Page that receives your next scheduled content.'],
-  media: ['Old Auto Scheduler', 'Hidden old Page Video scheduler.'],
-  reels: ['Auto Scheduler', 'Upload videos to Meta now and schedule them as Facebook Reels for future times.'],
+  pages: ['Connected Pages', 'Connect and choose the Page that receives your next scheduled content.'],
+  media: ['Old Scheduler', 'Hidden old Page Video scheduler.'],
+  reels: ['Scheduler', 'Upload videos to Meta now and schedule them as Facebook Reels for future times.'],
   lab: ['Hidden Test Tools', 'Hidden technical test tools.'],
   draft: ['Hidden Draft Tools', 'Hidden old draft tools.'],
   manual: ['Manual Scheduler', 'Upload one Reel to Meta now and schedule it for a future time.'],
@@ -73,6 +73,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
   await refresh();
   await refreshWorkspaceV2({ silent: true });
+  if (cloudWorkspace?.activePage && !metaScheduleLoaded) listMetaScheduled({ silent: true });
   renderAccountGate();
   const md = document.getElementById('manualDate');
   if (md && !md.value) md.value = defaultDateInput();
@@ -312,6 +313,11 @@ function switchView(viewName) {
     renderCalendar();
     if (!metaScheduleLoaded && !metaScheduleLoading) listMetaScheduled({ silent: true });
   }
+  if (viewName === 'dashboard') {
+    renderDashboardQueue();
+    renderDashboardCalendar();
+    if (cloudWorkspace?.activePage && !metaScheduleLoaded && !metaScheduleLoading) listMetaScheduled({ silent: true });
+  }
 }
 
 function bindButtons() {
@@ -346,6 +352,9 @@ function bindButtons() {
   on('btnClearPaste', () => { document.getElementById('captionPasteText').value = ''; });
   on('btnPreviewPlan', previewPlan);
   on('btnRunScheduler', () => switchView('reels'));
+  on('btnDashboardQueueScheduler', () => switchView('reels'));
+  on('btnDashboardCalendar', () => switchView('calendar'));
+  on('btnDashboardPages', () => switchView('pages'));
   on('btnUploadDraftTest', uploadDraftTest);
   on('btnDraftPickVideos', pickDraftSessionVideos);
   on('btnDraftPickCaptions', pickDraftSessionCaptions);
@@ -636,7 +645,7 @@ async function pickReelsSessionVideos() {
     const result = await window.schedulerApi.pickReelsSessionVideos();
     reelsSessionVideos = result.paths || [];
     renderReelsSessionSummary();
-    toast(`${reelsSessionVideos.length} Auto Scheduler video(s) selected.`);
+    toast(`${reelsSessionVideos.length} Scheduler video(s) selected.`);
   } catch (err) {
     toast(err.message, true);
   }
@@ -647,7 +656,7 @@ async function pickReelsSessionCaptions() {
     const result = await window.schedulerApi.pickReelsCaptionFile();
     if (result.text) document.getElementById('reelsCaptionText').value = result.text;
     renderReelsSessionSummary();
-    toast(result.path ? 'Auto Scheduler caption file loaded.' : 'No caption file selected.');
+    toast(result.path ? 'Scheduler caption file loaded.' : 'No caption file selected.');
   } catch (err) {
     toast(err.message, true);
   }
@@ -660,7 +669,7 @@ function clearReelsSession() {
   if (text) text.value = '';
   resetReelsTimingSelection();
   renderReelsSessionSummary();
-  updateReelsPanel({ phase: 'Idle', percent: 0, current: 0, total: 0, uploaded: 0, failed: 0, message: 'Auto Scheduler session cleared.' });
+  updateReelsPanel({ phase: 'Idle', percent: 0, current: 0, total: 0, uploaded: 0, failed: 0, message: 'Scheduler session cleared.' });
 }
 
 function resetReelsTimingSelection() {
@@ -878,7 +887,7 @@ async function confirmScheduleAdjustment(schedule) {
 
 async function createReelsQueue() {
   const activePage = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected) || null;
-  if (!activePage) return toast('Choose a Facebook Page before preparing this Auto Scheduler session.', true);
+  if (!activePage) return toast('Choose a Facebook Page before preparing this Scheduler session.', true);
   const captions = getReelsCaptionBlocks();
   const mode = document.getElementById('reelsTimingMode')?.value || '';
   const immediate = mode === 'immediate';
@@ -939,7 +948,7 @@ async function runDueReels() {
 async function startReelsWatcher() {
   if (isSchedulerRunning) return toast('Upload is already running.', true);
   const activePage = cloudWorkspace?.activePage || (cloudWorkspace?.pages || []).find(page => page.isSelected) || null;
-  if (!activePage) return toast('Choose a Facebook Page before starting Auto Scheduler.', true);
+  if (!activePage) return toast('Choose a Facebook Page before starting Scheduler.', true);
   isSchedulerRunning = true;
   updateRunButtons();
   updateReelsPanel({ phase: 'Preparing', percent: 3, message: 'Preparing the selected Reels...', current: 0, total: 0, uploaded: 0, failed: 0 });
@@ -1466,6 +1475,7 @@ async function listMetaScheduled(options = {}) {
     metaScheduleLoaded = true;
     renderCalendar();
     renderMetaScheduled(metaScheduledPosts);
+    renderDashboardCalendar();
     if (!options.silent) toast(`Calendar synced with ${metaScheduledPosts.length} Facebook scheduled post(s).`);
   } catch (err) {
     if (!options.silent) toast(`Could not sync the Facebook schedule: ${err.message}`, true);
@@ -2574,6 +2584,8 @@ function renderStats() {
   document.getElementById('statPlanned').textContent = planned;
   document.getElementById('statScheduled').textContent = scheduled;
   updateDashboardPulse({ planned, scheduled, videos: videos.length, captions: captions.length });
+  renderDashboardQueue();
+  renderDashboardCalendar();
 }
 
 function updateDashboardPulse(stats = {}) {
@@ -2598,9 +2610,92 @@ function updateDashboardPulse(stats = {}) {
   if (hint) {
     if (isSchedulerRunning) hint.textContent = 'Live publishing progress is updating below.';
     else if (stats.planned) hint.textContent = `${stats.planned} content item${Number(stats.planned) === 1 ? '' : 's'} ready for upload.`;
-    else if (!stats.videos || !stats.captions) hint.textContent = 'Open Auto Scheduler to select videos and captions.';
-    else hint.textContent = 'Create an Auto Scheduler upload to begin.';
+    else if (!stats.videos || !stats.captions) hint.textContent = 'Open Scheduler to select videos and captions.';
+    else hint.textContent = 'Create a Scheduler upload to begin.';
   }
+}
+
+function renderDashboardQueue() {
+  const root = document.getElementById('dashboardContentQueue');
+  if (!root || !state) return;
+  const jobs = [...(state.jobs || [])]
+    .sort((a, b) => new Date(b.scheduledAtISO || b.createdAt || 0) - new Date(a.scheduledAtISO || a.createdAt || 0))
+    .slice(0, 6);
+  if (!jobs.length) {
+    root.innerHTML = '<div class="dashboard-empty-state"><span>＋</span><strong>Your queue is clear</strong><p>Import files in Scheduler or ask Social Agent to prepare a campaign.</p></div>';
+    return;
+  }
+  root.innerHTML = jobs.map(job => {
+    const status = String(job.status || 'planned');
+    const statusClass = status.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    const when = job.publishMode === 'NOW'
+      ? 'Publish immediately'
+      : (job.slotLabel || formatDate(job.scheduledAtISO));
+    const name = job.videoName || job.title || 'Scheduled Facebook content';
+    return `<article class="dashboard-queue-item">
+      <span class="dashboard-queue-media" aria-hidden="true">▶</span>
+      <div><strong>${escapeHtml(name)}</strong><small>${escapeHtml(when)}</small></div>
+      <span class="dashboard-queue-type">Facebook</span>
+      <span class="status ${escapeHtml(statusClass)}">${escapeHtml(statusLabel(status))}</span>
+    </article>`;
+  }).join('');
+}
+
+function dashboardCalendarItems() {
+  const localJobs = (state?.jobs || []).filter(job => job.scheduledAtISO).map(job => ({
+    date: new Date(job.scheduledAtISO),
+    title: job.videoName || job.title || 'Scheduled content',
+    status: statusLabel(job.status),
+    source: 'INX',
+    metaId: String(job.metaPostId || job.metaVideoId || '')
+  }));
+  const localMetaIds = new Set(localJobs.map(item => item.metaId).filter(Boolean));
+  const facebookItems = (metaScheduledPosts || [])
+    .filter(post => post.is_published !== true && !localMetaIds.has(String(post.id || '')))
+    .map(post => ({ date: scheduledPostDate(post), title: calendarPostLabel(post), status: 'Scheduled', source: 'Facebook' }));
+  return [...localJobs, ...facebookItems]
+    .filter(item => !Number.isNaN(item.date.getTime()))
+    .sort((a, b) => a.date - b.date);
+}
+
+function renderDashboardCalendar() {
+  const root = document.getElementById('dashboardCalendarMini');
+  if (!root || !state) return;
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const gridStart = new Date(monthStart);
+  gridStart.setDate(monthStart.getDate() - ((monthStart.getDay() + 6) % 7));
+  const items = dashboardCalendarItems();
+  const counts = items.reduce((result, item) => {
+    const key = localDateKey(item.date);
+    result[key] = (result[key] || 0) + 1;
+    return result;
+  }, {});
+  const monthTitle = document.getElementById('dashboardCalendarMonth');
+  if (monthTitle) monthTitle.textContent = now.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const dayCells = Array.from({ length: 35 }, (_, index) => {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+    const key = localDateKey(date);
+    const count = counts[key] || 0;
+    const classes = [date.getMonth() !== now.getMonth() ? 'outside' : '', key === localDateKey(now) ? 'today' : '', count ? 'has-content' : ''].filter(Boolean).join(' ');
+    return `<span class="${classes}" title="${count ? `${count} scheduled item${count === 1 ? '' : 's'}` : 'No scheduled content'}"><b>${date.getDate()}</b>${count ? `<i>${count}</i>` : ''}</span>`;
+  }).join('');
+  const upcoming = items.filter(item => item.date >= now).slice(0, 4);
+  root.innerHTML = `<div class="dashboard-calendar-weekdays"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+    <div class="dashboard-calendar-days">${dayCells}</div>
+    <div class="dashboard-upcoming-list">${upcoming.length ? upcoming.map(item => `<article><time>${escapeHtml(item.date.toLocaleDateString(undefined, { day: '2-digit', month: 'short' }))}<strong>${escapeHtml(item.date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }))}</strong></time><div><strong>${escapeHtml(shorten(item.title, 54))}</strong><small>${escapeHtml(item.source)} · ${escapeHtml(item.status)}</small></div></article>`).join('') : '<p>No upcoming scheduled content.</p>'}</div>`;
+}
+
+function renderDashboardPage(active) {
+  setText('dashboardPageName', active?.facebookPageName || 'No Page selected');
+  setText('dashboardPageCategory', active?.facebookCategory || 'Facebook Page');
+  renderPageAvatar('dashboardPageAvatar', active);
+  const status = document.getElementById('dashboardPageStatus');
+  if (!status) return;
+  status.className = `dashboard-connected-state ${active ? 'connected' : 'waiting'}`;
+  status.innerHTML = active ? '<i></i> Connected and active' : '<i></i> Select a Page';
 }
 
 function renderSlotPills() {
@@ -2968,6 +3063,7 @@ function normaliseBrandText(ui) {
   const output = { ...(ui || {}) };
   if (!output.appTitle || output.appTitle === 'Facebook Reels Scheduler') output.appTitle = 'INX Social';
   if (!output.appSubtitle || ['Auto and manual Reel scheduling', 'Facebook Reels & Page Scheduler'].includes(output.appSubtitle)) output.appSubtitle = 'Content Scheduler';
+  if (!output.dashboardTitle || ['Home', 'Overview'].includes(output.dashboardTitle)) output.dashboardTitle = 'Dashboard';
   if (!output.dashboardSubtitle || output.dashboardSubtitle === 'Schedule Facebook Reels using Auto or Manual Scheduler.') output.dashboardSubtitle = 'Plan and schedule content across your connected Pages.';
   if (!output.testFacebookButton || ['Test Facebook Connection', 'Test Connection'].includes(output.testFacebookButton)) output.testFacebookButton = 'Test Active Page';
   return output;
@@ -3213,6 +3309,7 @@ function renderWorkspaceV2() {
 
   setText('activeWorkspaceName', active?.facebookPageName || 'No Page selected');
   renderPageAvatar('activeWorkspaceAvatar', active);
+  renderDashboardPage(active);
   renderActiveWorkspaceMenu(pages, active);
   renderReelsPageSelector(pages, active);
   const disconnectActivePage = document.getElementById('btnDisconnectActivePage');

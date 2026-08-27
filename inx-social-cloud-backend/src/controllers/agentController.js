@@ -131,7 +131,7 @@ async function overview(req, res, next) {
     const availableAssets = await agentAssets.list(req.user.id, { source: 'UPLOAD' });
     const userQueue = runtime.queuedPlanIds.filter(id => recentPlans.some(plan => plan.id === id));
     res.json({
-      phase: '11.5.7',
+      phase: '11.5.8',
       mode: 'OLLAMA_FIRST_RUNTIME',
       license: { plan: entitlement.plan, allowed: entitlement.allowed },
       usage: entitlement.usage,
