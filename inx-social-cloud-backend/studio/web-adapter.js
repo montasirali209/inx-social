@@ -818,6 +818,7 @@
       return result;
     },
     getAgentOverview: async () => api('/api/agent/overview'),
+    getAgentProviderHealth: async (probe = false) => api(`/api/agent/provider-health${probe ? '?probe=1' : ''}`),
     uploadAgentAsset: async payload => api('/api/agent/assets', { method: 'POST', body: JSON.stringify(payload) }),
     deleteAgentAsset: async id => api(`/api/agent/assets/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     getAgentAssetUrl: agentAssetUrl,
@@ -830,7 +831,7 @@
     getAgentCampaign: async id => api(`/api/agent/campaigns/${encodeURIComponent(id)}`),
     updateAgentCampaignPost: async (campaignId, postId, payload) => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/posts/${encodeURIComponent(postId)}`, { method: 'PATCH', body: JSON.stringify(payload) }),
     approveAgentCampaignPost: async (campaignId, postId) => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/posts/${encodeURIComponent(postId)}/approve`, { method: 'POST', body: '{}' }),
-    regenerateAgentCampaignPostImage: async (campaignId, postId, payload = {}) => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/posts/${encodeURIComponent(postId)}/regenerate-image`, { method: 'POST', body: JSON.stringify(payload) }),
+    regenerateAgentCampaignPostImage: async (campaignId, postId) => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/posts/${encodeURIComponent(postId)}/regenerate-image`, { method: 'POST', body: '{}' }),
     approveAgentCampaign: async campaignId => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/approve`, { method: 'POST', body: '{}' }),
     scheduleAgentCampaign: async campaignId => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/schedule`, { method: 'POST', body: '{}' }),
     getWorkspace: workspaceResult,

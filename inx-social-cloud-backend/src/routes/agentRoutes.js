@@ -4,6 +4,7 @@ const controller = require('../controllers/agentController');
 
 router.use(requireAuth);
 router.get('/overview', controller.overview);
+router.get('/provider-health', controller.providerHealth);
 router.get('/plans', controller.listPlans);
 router.post('/assets', controller.uploadAsset);
 router.get('/assets/:id/content', controller.assetContent);

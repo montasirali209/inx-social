@@ -128,11 +128,11 @@ async function runPlan(planId) {
             break;
           }
           providerFailure = true;
-          const customerMessage = error.code === 'OLLAMA_NOT_CONFIGURED'
-            ? 'INX Agent is waiting for the private processing gateway to be connected.'
-            : 'INX Agent is temporarily unavailable. Saved work is safe and this mission can be resumed.';
+          const providerIssue = brain.providerErrorDetails(error);
+          const customerMessage = `${providerIssue.message} Saved work is safe; retry after correcting this connection.`;
           await markWaiting(plan, task, 'WAITING_PROVIDER', customerMessage);
-          if (error.code !== 'OLLAMA_NOT_CONFIGURED') await prisma.agentPlan.update({ where: { id: plan.id }, data: { lastError: error.message } });
+          await prisma.agentPlan.update({ where: { id: plan.id }, data: { lastError: `${providerIssue.code}: ${providerIssue.message}` } });
+          await event(plan.userId, plan.id, task.id, 'PROVIDER_DIAGNOSTIC', 'WAITING_PROVIDER', 'Private agent connection diagnosed', providerIssue.message, { providerCode: providerIssue.code });
           break;
         }
       } else if (task.type === 'IMAGE_GENERATION') {

@@ -37,15 +37,55 @@ test('Ollama is always the first route and returns its selected task model', asy
   assert.equal(calls[0].body.options.num_ctx, env.ollama.simpleContext);
 });
 
-test('complex strategy tasks use governed thinking and the verified 32K context', async () => {
+test('complex strategy tasks use bounded output without hidden thinking and keep the verified 32K context', async () => {
   env.ollama.baseUrl = 'https://ollama.internal';
   env.ollama.complexContext = 32768;
   const calls = [];
   const strategyTask = { type: 'CONTENT_STRATEGY', title: 'Build strategy', description: 'Create the evidence-led campaign strategy.' };
   const http = { post: async (url, body) => { calls.push({ url, body }); return { data: { message: { content: 'Strategy result', thinking: 'private' } } }; } };
   await brain.generateTaskOutput(plan, strategyTask, { http, route: { ollamaModel: 'qwen3.5:9b', fallbackEnabled: false } });
-  assert.equal(calls[0].body.think, true);
+  assert.equal(calls[0].body.think, false);
   assert.equal(calls[0].body.options.num_ctx, 32768);
+  assert.equal(calls[0].body.options.num_predict, 1400);
+});
+
+test('provider health verifies the authenticated gateway and a real bounded chat response', async () => {
+  env.ollama.baseUrl = 'https://private-agent.example';
+  env.ollama.model = 'qwen3.5:9b';
+  const calls = [];
+  const health = await brain.checkHealth({ http: {
+    get: async (url, options) => {
+      calls.push({ method: 'GET', url, options });
+      return { data: { ok: true, service: 'inx-ollama-gateway', models: ['qwen3.5:9b'], textEngine: { reachable: true, version: '0.32.15' } } };
+    },
+    post: async (url, body, options) => {
+      calls.push({ method: 'POST', url, body, options });
+      return { data: { message: { content: 'INX AGENT READY' } } };
+    }
+  } }, { force: true, probe: true });
+  assert.equal(health.ready, true);
+  assert.equal(health.code, 'READY');
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].body.think, false);
+  assert.equal(calls[1].body.options.num_predict, 24);
+});
+
+test('provider health gives a safe precise token mismatch diagnosis', async () => {
+  env.ollama.baseUrl = 'https://private-agent.example';
+  const health = await brain.checkHealth({ http: {
+    get: async () => { throw Object.assign(new Error('request failed'), { response: { status: 401, data: {} } }); }
+  } }, { force: true, probe: true });
+  assert.equal(health.ready, false);
+  assert.equal(health.code, 'AUTH_FAILED');
+  assert.match(health.message, /OLLAMA_API_KEY/);
+  assert.doesNotMatch(health.message, /private-agent\.example/);
+});
+
+test('provider health rejects a healthy non-gateway route', async () => {
+  env.ollama.baseUrl = 'https://wrong-route.example';
+  const health = await brain.checkHealth({ http: { get: async () => ({ data: '<html>ngrok</html>' }) } }, { force: true });
+  assert.equal(health.ready, false);
+  assert.equal(health.code, 'ROUTE_NOT_FOUND');
 });
 
 test('brand review sends selected real assets to the vision model only when enabled', async () => {

@@ -127,6 +127,7 @@ async function overview(req, res, next) {
     const memories = await prisma.agentMemory.findMany({ where: { userId: req.user.id, approvalStatus: 'APPROVED' }, orderBy: { updatedAt: 'desc' }, take: 30 });
     const pendingMemoryCount = await prisma.agentMemory.count({ where: { userId: req.user.id, approvalStatus: 'PENDING_REVIEW' } });
     const runtime = await getRuntimeStatus();
+    const brainHealth = await agentBrain.checkHealth();
     const connectedPages = await connectedPagesForUser(req.user.id);
     const availableAssets = await agentAssets.list(req.user.id, { source: 'UPLOAD' });
     const userQueue = runtime.queuedPlanIds.filter(id => recentPlans.some(plan => plan.id === id));
@@ -144,7 +145,7 @@ async function overview(req, res, next) {
         campaignReview: true,
         facebookOrganicScheduling: true,
         paidPromotion: false,
-        brain: { configured: agentBrain.status().configured },
+        brain: brainHealth,
         imageWorker: agentMedia.status(),
         webResearch: webResearch.status(),
         note: 'Every content mission must produce a visible Campaign Review. Hybrid and approval-requested missions pause there; explicitly selected Autopilot missions may schedule only after all artifact and platform checks pass. Paid advertising remains disabled.'
@@ -160,6 +161,14 @@ async function overview(req, res, next) {
       pendingMemoryCount,
       runtime: { ...runtime, queuedPlanIds: userQueue }
     });
+  } catch (error) { next(error); }
+}
+
+async function providerHealth(req, res, next) {
+  try {
+    await agentAccess.requireAccess(req.user.id);
+    const health = await agentBrain.checkHealth({}, { force: true, probe: String(req.query?.probe || '') === '1' });
+    res.json({ health });
   } catch (error) { next(error); }
 }
 
@@ -390,7 +399,7 @@ async function scheduleCampaign(req, res, next) {
 }
 
 module.exports = {
-  overview, preflightMission, createPlan, listPlans, approvePlan, resumePlan, cancelPlan, prepareCampaignReview,
+  overview, providerHealth, preflightMission, createPlan, listPlans, approvePlan, resumePlan, cancelPlan, prepareCampaignReview,
   uploadAsset, assetContent, deleteAsset,
   campaignDetails, updateCampaignPost, approveCampaignPost, approveCampaign,
   regenerateCampaignPostImage, scheduleCampaign,

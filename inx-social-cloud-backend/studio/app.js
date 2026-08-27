@@ -2013,6 +2013,7 @@ function agentTaskGuidance(task) {
   const status = String(task?.status || '').toUpperCase();
   const type = String(task?.type || '').toUpperCase();
   const savedMessage = task?.output?.message || '';
+  const provider = agentOverview?.capabilities?.brain || {};
   if (type === 'PAGE_SETUP' && status === 'ACTION_REQUIRED') return {
     title: 'Complete the Facebook Page setup',
     body: savedMessage || 'Open Connected Pages, confirm the correct Facebook Page is connected, then complete the Page profile, ownership and security fields directly in Facebook. Return here and resume the mission.',
@@ -2020,9 +2021,11 @@ function agentTaskGuidance(task) {
     actionView: 'pages', actionLabel: 'Open Connected Pages'
   };
   if (status === 'WAITING_PROVIDER') return {
-    title: 'Connect the private INX Agent',
-    body: savedMessage || 'The Ollama gateway is unavailable. Keep Ollama, the INX gateway and the ngrok tunnel running, verify the Railway URL and token, then resume this mission.',
-    steps: ['Confirm Ollama and the INX gateway are running on the Mac.', 'Confirm the ngrok tunnel is online and Railway uses its current HTTPS URL.', 'Resume this mission after the connection is restored.'], actionResume: true
+    title: provider.ready ? 'Private agent restored — retry mission' : 'Connect the private INX Agent',
+    body: provider.message || savedMessage || 'Railway cannot complete an authenticated request through the private gateway.',
+    steps: provider.ready
+      ? ['The Railway-to-Mac connection is responding.', 'Select Retry mission to continue from the saved task.']
+      : ['Mac local health alone is not enough; Railway must reach the public gateway.', 'Check the current ngrok HTTPS URL and matching token in Railway.', 'Use Retry mission to test the full route before resuming.'], actionResume: true
   };
   if (status === 'WAITING_MEDIA_WORKER') return {
     title: 'Choose or connect a visual-content worker',
@@ -2474,15 +2477,15 @@ function renderAgentWorkspace() {
 function renderAgentIntelligence() {
   const brain = agentOverview?.capabilities?.brain || {};
   const brainStatus = document.getElementById('agentBrainStatus');
-  if (brainStatus) brainStatus.textContent = brain.configured ? 'INX Agent is online' : 'INX Agent connection required';
+  if (brainStatus) brainStatus.textContent = brain.ready ? 'INX Agent is online' : (brain.message || 'INX Agent connection required');
   const plan = selectedAgentPlan();
   const deck = document.querySelector('.jarvis-command-deck');
-  deck?.classList.toggle('brain-offline', !brain.configured);
+  deck?.classList.toggle('brain-offline', !brain.ready);
   ['running','queued','waiting','completed','failed'].forEach(name => deck?.classList.remove(`brain-${name}`));
   const visualState = String(plan?.status || '').toLowerCase().replace('_provider','').replace('_review','');
   if (visualState) deck?.classList.add(`brain-${visualState}`);
   const core = document.getElementById('agentMissionCore');
-  if (core) core.querySelector('small').textContent = plan?.status ? String(plan.status).replaceAll('_', ' ') : (brain.configured ? 'READY' : 'OFFLINE');
+  if (core) core.querySelector('small').textContent = plan?.status ? String(plan.status).replaceAll('_', ' ') : (brain.ready ? 'READY' : 'OFFLINE');
   const feed = document.getElementById('agentLiveFeed');
   const events = [...(plan?.events || [])].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   if (feed) {
@@ -2555,6 +2558,14 @@ async function resumeAgentPlan() {
   const plan = selectedAgentPlan();
   if (!plan) return;
   try {
+    toast('Checking the full Railway-to-Mac agent connection…');
+    const providerResult = await window.schedulerApi.getAgentProviderHealth(true);
+    agentOverview.capabilities.brain = providerResult.health;
+    renderAgentWorkspace();
+    if (!providerResult.health?.ready) {
+      toast(providerResult.health?.message || 'The private INX Agent is not ready.', true);
+      return;
+    }
     const result = await window.schedulerApi.resumeAgentPlan(plan.id);
     agentOverview.plans = agentOverview.plans.map(item => item.id === result.plan.id ? result.plan : item);
     renderAgentWorkspace();

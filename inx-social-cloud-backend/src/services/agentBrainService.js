@@ -4,6 +4,9 @@ const modelRouting = require('./aiModelRoutingService');
 const managerIntelligence = require('./socialManagerIntelligence');
 const seniorStrategy = require('./seniorSocialStrategyService');
 
+let healthCache = null;
+let healthCacheAt = 0;
+
 function status() {
   return {
     provider: 'ollama',
@@ -17,6 +20,89 @@ function status() {
       maxCallsPerMission: env.aiFallback.maxCallsPerMission
     }
   };
+}
+
+function providerErrorDetails(error) {
+  const statusCode = Number(error?.response?.status || 0);
+  const providerText = String(error?.response?.data?.error || error?.response?.data?.message || '').toLowerCase();
+  const code = String(error?.code || '').toUpperCase();
+  if (!env.ollama.baseUrl || code === 'OLLAMA_NOT_CONFIGURED') return { code: 'NOT_CONFIGURED', message: 'The private INX Agent URL is not configured in Railway.' };
+  if ([401, 403].includes(statusCode)) return { code: 'AUTH_FAILED', message: 'Railway reached the private gateway, but its OLLAMA_API_KEY does not match the Mac gateway token.' };
+  if (statusCode === 404) return { code: 'ROUTE_NOT_FOUND', message: 'Railway reached the configured address, but it is not the INX Agent gateway. Check OLLAMA_BASE_URL and the current ngrok HTTPS address.' };
+  if (statusCode === 400 && /model|allowed|permit/.test(providerText)) return { code: 'MODEL_NOT_ALLOWED', message: `The private gateway rejected ${env.ollama.model}. Confirm that the model is installed and included in OLLAMA_ALLOWED_MODELS.` };
+  if (statusCode === 429) return { code: 'BUSY', message: 'The private INX Agent is busy with another task. Wait for the current Mac job to finish, then retry.' };
+  if (['ECONNABORTED', 'ETIMEDOUT'].includes(code) || /timeout/i.test(String(error?.message || ''))) return { code: 'TIMEOUT', message: 'Railway reached the private agent route, but the model did not answer before the task timeout.' };
+  if (['ECONNREFUSED', 'ECONNRESET', 'ENOTFOUND', 'EAI_AGAIN'].includes(code) || !error?.response) return { code: 'UNREACHABLE', message: 'Railway cannot reach the private INX Agent. The Mac may be healthy locally while the ngrok public route is offline or changed.' };
+  if (statusCode >= 500) return { code: 'GATEWAY_ERROR', message: 'The private gateway was reached, but its Ollama request failed. Check the gateway log and confirm the text model is installed on port 11434.' };
+  return { code: 'PROVIDER_ERROR', message: 'The private INX Agent rejected the task. Check the Railway gateway URL, token and permitted text model.' };
+}
+
+function providerHealthResult(data = {}, options = {}) {
+  const models = Array.isArray(data.models) ? data.models.map(String) : [];
+  const modelAvailable = !models.length || models.includes(env.ollama.model);
+  const engineReachable = data.textEngine?.reachable !== false;
+  if (!modelAvailable) return { configured: true, reachable: true, ready: false, code: 'MODEL_NOT_ALLOWED', model: env.ollama.model, modelAvailable: false, message: `${env.ollama.model} is not permitted by the private gateway.`, checkedAt: new Date().toISOString() };
+  if (!engineReachable) return { configured: true, reachable: true, ready: false, code: 'TEXT_ENGINE_OFFLINE', model: env.ollama.model, modelAvailable: true, message: 'The gateway is online, but the Ollama text engine on port 11434 is unavailable.', checkedAt: new Date().toISOString() };
+  return {
+    configured: true,
+    reachable: true,
+    ready: true,
+    code: options.probed ? 'READY' : 'GATEWAY_READY',
+    model: env.ollama.model,
+    modelAvailable: true,
+    message: options.probed ? 'The private INX Agent is connected and responding.' : 'The private gateway and text engine are reachable from Railway.',
+    checkedAt: new Date().toISOString(),
+    gateway: { active: Number(data.active || 0), queued: Number(data.queued || 0), textVersion: data.textEngine?.version || null }
+  };
+}
+
+async function checkHealth(dependencies = {}, options = {}) {
+  if (!env.ollama.baseUrl) {
+    const details = providerErrorDetails(Object.assign(new Error('not configured'), { code: 'OLLAMA_NOT_CONFIGURED' }));
+    return { configured: false, reachable: false, ready: false, code: details.code, model: env.ollama.model, modelAvailable: false, message: details.message, checkedAt: new Date().toISOString() };
+  }
+  const force = Boolean(options.force);
+  const probe = Boolean(options.probe);
+  const cacheKey = probe ? 'probe' : 'health';
+  if (!force && healthCache?.key === cacheKey && Date.now() - healthCacheAt < 20000) return healthCache.value;
+  const http = dependencies.http || axios;
+  try {
+    const response = await http.get(`${env.ollama.baseUrl}/health`, { timeout: Math.min(env.ollama.timeoutMs, 10000), headers: ollamaHeaders() });
+    if (!response.data || response.data.service !== 'inx-ollama-gateway') throw Object.assign(new Error('unexpected health route'), { response: { status: 404, data: {} } });
+    if (response.data.ok === false) throw Object.assign(new Error('gateway health check failed'), { response: { status: 502, data: response.data } });
+    let result = providerHealthResult(response.data || {});
+    if (!result.ready || !probe) {
+      healthCache = { key: cacheKey, value: result };
+      healthCacheAt = Date.now();
+      return result;
+    }
+    const probeResponse = await http.post(`${env.ollama.baseUrl}/api/chat`, {
+      model: env.ollama.model,
+      stream: false,
+      think: false,
+      keep_alive: '10m',
+      messages: [{ role: 'user', content: 'Reply only: INX AGENT READY' }],
+      options: { temperature: 0, num_ctx: 4096, num_predict: 24 }
+    }, { timeout: Math.min(env.ollama.taskTimeoutMs, 90000), headers: ollamaHeaders() });
+    if (!String(probeResponse.data?.message?.content || '').trim()) throw Object.assign(new Error('empty probe response'), { code: 'EMPTY_PROVIDER_RESPONSE' });
+    result = providerHealthResult(response.data || {}, { probed: true });
+    healthCache = { key: cacheKey, value: result };
+    healthCacheAt = Date.now();
+    return result;
+  } catch (error) {
+    const details = providerErrorDetails(error);
+    const result = { configured: Boolean(env.ollama.baseUrl), reachable: !['UNREACHABLE', 'NOT_CONFIGURED'].includes(details.code), ready: false, code: details.code, model: env.ollama.model, modelAvailable: false, message: details.message, checkedAt: new Date().toISOString() };
+    healthCache = { key: cacheKey, value: result };
+    healthCacheAt = Date.now();
+    return result;
+  }
+}
+
+function taskOutputLimit(plan, task) {
+  let strategy = {};
+  try { strategy = JSON.parse(plan.strategyJson || '{}'); } catch (_) {}
+  if (task.type === 'COPY_GENERATION') return Math.min(6000, Math.max(1200, 700 + Math.min(10, Number(strategy.assetCount || 1)) * 500));
+  return { BRAND_REVIEW: 900, CONTENT_STRATEGY: 1400, SCHEDULE: 700, PLATFORM_VARIANT: 1200 }[task.type] || 900;
 }
 
 function isFirstPostMission(value) {
@@ -195,15 +281,15 @@ async function generateTaskOutput(plan, task, dependencies = {}) {
       const request = {
         model: ollamaModel,
         stream: false,
-        think: complexReasoning,
+        think: false,
         keep_alive: '10m',
         messages: [
           { role: 'system', content: 'You create truthful, brand-safe organic social content and operational plans.' },
           userMessage
         ],
-        options: { temperature: 0.55, num_ctx: complexReasoning ? env.ollama.complexContext : env.ollama.simpleContext }
+        options: { temperature: 0.55, num_ctx: complexReasoning ? env.ollama.complexContext : env.ollama.simpleContext, num_predict: taskOutputLimit(plan, task) }
       };
-      let response = await http.post(`${env.ollama.baseUrl}/api/chat`, request, { timeout: env.ollama.timeoutMs, headers: ollamaHeaders() });
+      let response = await http.post(`${env.ollama.baseUrl}/api/chat`, request, { timeout: env.ollama.taskTimeoutMs, headers: ollamaHeaders() });
       let content = String(response.data?.message?.content || '').trim();
       if (!content) throw new Error('Ollama returned an empty response.');
       let qualityReview = null;
@@ -213,7 +299,7 @@ async function generateTaskOutput(plan, task, dependencies = {}) {
         qualityReview = seniorStrategy.reviewCopyOutput(plan, content, strategy.assetCount || 1);
         if (!qualityReview.approved) {
           const repairRequest = { ...request, think: false, messages: [...request.messages, { role: 'assistant', content }, { role: 'user', content: seniorStrategy.repairInstruction(qualityReview) }] };
-          response = await http.post(`${env.ollama.baseUrl}/api/chat`, repairRequest, { timeout: env.ollama.timeoutMs, headers: ollamaHeaders() });
+          response = await http.post(`${env.ollama.baseUrl}/api/chat`, repairRequest, { timeout: env.ollama.taskTimeoutMs, headers: ollamaHeaders() });
           content = String(response.data?.message?.content || '').trim();
           qualityReview = seniorStrategy.reviewCopyOutput(plan, content, strategy.assetCount || 1);
         }
@@ -231,4 +317,4 @@ async function generateTaskOutput(plan, task, dependencies = {}) {
   throw ollamaError;
 }
 
-module.exports = { status, generateTaskOutput, taskInstruction, analyseMission, preflightFallback, instructionIsActionable, isFirstPostMission, parsePreflight, ollamaUnavailable, paidFallbackReady, ollamaHeaders };
+module.exports = { status, checkHealth, providerErrorDetails, providerHealthResult, taskOutputLimit, generateTaskOutput, taskInstruction, analyseMission, preflightFallback, instructionIsActionable, isFirstPostMission, parsePreflight, ollamaUnavailable, paidFallbackReady, ollamaHeaders };
