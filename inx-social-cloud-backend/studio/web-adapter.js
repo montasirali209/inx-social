@@ -892,7 +892,7 @@
     getAgentCampaign: async id => api(`/api/agent/campaigns/${encodeURIComponent(id)}`),
     updateAgentCampaignPost: async (campaignId, postId, payload) => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/posts/${encodeURIComponent(postId)}`, { method: 'PATCH', body: JSON.stringify(payload) }),
     approveAgentCampaignPost: async (campaignId, postId) => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/posts/${encodeURIComponent(postId)}/approve`, { method: 'POST', body: '{}' }),
-    regenerateAgentCampaignPostImage: async (campaignId, postId) => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/posts/${encodeURIComponent(postId)}/regenerate-image`, { method: 'POST', body: '{}' }),
+    regenerateAgentCampaignPostImage: async (campaignId, postId, payload = {}) => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/posts/${encodeURIComponent(postId)}/regenerate-image`, { method: 'POST', body: JSON.stringify(payload) }),
     approveAgentCampaign: async campaignId => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/approve`, { method: 'POST', body: '{}' }),
     scheduleAgentCampaign: async campaignId => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/schedule`, { method: 'POST', body: '{}' }),
     pickDirectPostMedia,

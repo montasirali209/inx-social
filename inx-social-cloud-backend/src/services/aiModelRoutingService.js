@@ -6,6 +6,8 @@ const PREFIX = 'ai_route_';
 const MEDIA_POLICY_KEY = 'media_generation_policy';
 const IMAGE_POLICY_KEY = 'image_generation_policy';
 const MEDIA_PROVIDERS = ['INX_TEMPLATE', 'LOCAL_WORKER', 'RUNPOD', 'FAL', 'REPLICATE', 'BYTEPLUS', 'OPENAI'];
+const IMAGE_ROUTES = ['LOCAL_ONLY', 'OPENAI_PREFERRED', 'LOCAL_THEN_OPENAI'];
+const OPENAI_IMAGE_MODELS = ['gpt-image-2', 'gpt-image-1.5', 'gpt-image-1-mini'];
 
 function cleanModel(value, fallback = '') {
   const model = String(value || '').trim();
@@ -77,13 +79,23 @@ function normalizeImagePolicy(value) {
   if (typeof value === 'string') {
     try { parsed = JSON.parse(value); } catch (_) { parsed = {}; }
   }
+  const enabled = parsed?.enabled !== false;
+  const paidEnabled = Boolean(parsed?.paidEnabled);
+  const route = IMAGE_ROUTES.includes(parsed?.route) ? parsed.route : 'LOCAL_ONLY';
+  const effectiveRoute = paidEnabled ? (enabled ? route : 'OPENAI_PREFERRED') : 'LOCAL_ONLY';
+  const openaiModel = OPENAI_IMAGE_MODELS.includes(parsed?.openaiModel) ? parsed.openaiModel : env.openaiImage.model;
   return {
-    enabled: parsed?.enabled !== false,
-    provider: 'OLLAMA_IMAGE',
+    enabled,
+    provider: effectiveRoute === 'OPENAI_PREFERRED' ? 'OPENAI_IMAGE' : 'OLLAMA_IMAGE',
+    route: effectiveRoute,
     model: cleanModel(parsed?.model, env.ollama.imageModel),
     qualityModel: cleanModel(parsed?.qualityModel, process.env.OLLAMA_QUALITY_IMAGE_MODEL || 'x/flux2-klein:4b'),
-    size: ['1024x1024', '1024x1536', '1536x1024'].includes(parsed?.size) ? parsed.size : '1024x1024',
-    maxAssetsPerMission: Math.max(1, Math.min(4, Number(parsed?.maxAssetsPerMission || 2)))
+    size: ['1024x1024', '1024x1536', '1536x1024'].includes(parsed?.size) ? parsed.size : '1024x1536',
+    maxAssetsPerMission: Math.max(1, Math.min(4, Number(parsed?.maxAssetsPerMission || 2))),
+    paidEnabled,
+    openaiModel: OPENAI_IMAGE_MODELS.includes(openaiModel) ? openaiModel : 'gpt-image-2',
+    openaiQuality: ['low', 'medium', 'high'].includes(parsed?.openaiQuality) ? parsed.openaiQuality : 'medium',
+    maxPaidImagesPerMission: Math.max(1, Math.min(4, Number(parsed?.maxPaidImagesPerMission || 1)))
   };
 }
 
@@ -95,9 +107,21 @@ async function getImagePolicy() {
 
 async function updateImagePolicy(input) {
   const policy = normalizeImagePolicy(input);
+  if (policy.paidEnabled && !env.openaiImage.apiKey) throw Object.assign(new Error('Configure OPENAI_IMAGE_API_KEY or OPENAI_API_KEY before enabling paid image generation.'), { status: 400 });
   const value = JSON.stringify(policy);
-  await prisma.appSetting.upsert({ where: { key: IMAGE_POLICY_KEY }, create: { key: IMAGE_POLICY_KEY, value, description: 'Local Ollama image-generation policy' }, update: { value, description: 'Local Ollama image-generation policy' } });
+  await prisma.appSetting.upsert({ where: { key: IMAGE_POLICY_KEY }, create: { key: IMAGE_POLICY_KEY, value, description: 'Governed local and paid image-generation policy' }, update: { value, description: 'Governed local and paid image-generation policy' } });
   return policy;
+}
+
+function imageProviderCapabilities(policy = normalizeImagePolicy(null)) {
+  const paidConfigured = Boolean(env.openaiImage.apiKey);
+  return {
+    localConfigured: Boolean(env.ollama.baseUrl && policy.model && policy.qualityModel),
+    paidConfigured,
+    premiumAvailable: Boolean(policy.paidEnabled && paidConfigured),
+    generationChoices: policy.paidEnabled && paidConfigured ? ['IMAGE_FAST', 'IMAGE_QUALITY', 'IMAGE_PREMIUM'] : ['IMAGE_FAST', 'IMAGE_QUALITY'],
+    openaiModels: OPENAI_IMAGE_MODELS
+  };
 }
 
 async function getMediaPolicy() {
@@ -113,4 +137,4 @@ async function updateMediaPolicy(input) {
   return policy;
 }
 
-module.exports = { ROUTES, MEDIA_PROVIDERS, cleanModel, normalizeRoute, getRouting, updateRouting, routeName, routeForTask, normalizeMediaPolicy, getMediaPolicy, updateMediaPolicy, normalizeImagePolicy, getImagePolicy, updateImagePolicy };
+module.exports = { ROUTES, MEDIA_PROVIDERS, IMAGE_ROUTES, OPENAI_IMAGE_MODELS, cleanModel, normalizeRoute, getRouting, updateRouting, routeName, routeForTask, normalizeMediaPolicy, getMediaPolicy, updateMediaPolicy, normalizeImagePolicy, getImagePolicy, updateImagePolicy, imageProviderCapabilities };

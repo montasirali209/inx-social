@@ -202,7 +202,7 @@ async function prepareReview(planId) {
   if (existing) return existing;
   const plan = await prisma.agentPlan.findUnique({
     where: { id: planId },
-    include: { tasks: { orderBy: { sequence: 'asc' } }, assets: { where: { source: 'OLLAMA_IMAGE', status: { in: ['READY', 'REJECTED'] } }, orderBy: { createdAt: 'asc' }, select: POST_ASSET_SELECT } }
+    include: { tasks: { orderBy: { sequence: 'asc' } }, assets: { where: { source: { in: ['OLLAMA_IMAGE', 'OPENAI_IMAGE'] }, status: { in: ['READY', 'REJECTED'] } }, orderBy: { createdAt: 'asc' }, select: POST_ASSET_SELECT } }
   });
   if (!plan) throw new Error('Agent plan not found while preparing campaign review.');
   const strategy = parseJson(plan.strategyJson, {});
@@ -336,7 +336,7 @@ async function regeneratePostImage(userId, campaignId, postId, input = {}, depen
   const generationChoice = String(input.generationChoice || 'IMAGE_QUALITY').toUpperCase();
   if (customerPrompt.length > 1200) throw Object.assign(new Error('Keep image instructions within 1,200 characters.'), { status: 400 });
   if (overlayText.length > 120) throw Object.assign(new Error('Keep exact image text within 120 characters.'), { status: 400 });
-  if (!['IMAGE_FAST', 'IMAGE_QUALITY'].includes(generationChoice)) throw Object.assign(new Error('Choose Fast or Quality image generation.'), { status: 400 });
+  if (!['IMAGE_FAST', 'IMAGE_QUALITY', 'IMAGE_PREMIUM'].includes(generationChoice)) throw Object.assign(new Error('Choose Fast, Quality or Premium image generation.'), { status: 400 });
   const plan = await prisma.agentPlan.findFirst({ where: { id: campaign.planId, userId } });
   if (!plan) throw Object.assign(new Error('Campaign mission not found.'), { status: 404 });
   const asset = await media.regenerateCampaignImage(plan, post, { customerPrompt, overlayText, generationChoice }, dependencies);

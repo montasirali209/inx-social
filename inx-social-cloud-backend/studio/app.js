@@ -2288,7 +2288,11 @@ async function openAgentPostEditor(postId) {
   document.getElementById('agentPostEditorReason').textContent = scheduleExpired ? 'Choose a new future publishing date and time before approval.' : `Timezone: ${campaignTimezone}. You can change this schedule before approval.`;
   document.getElementById('agentPostImagePrompt').value = post.asset?.customerPrompt || '';
   document.getElementById('agentPostImageOverlay').value = post.asset?.exactOverlayText || '';
-  document.getElementById('agentPostImageQuality').value = post.asset?.generationChoice === 'IMAGE_FAST' ? 'IMAGE_FAST' : 'IMAGE_QUALITY';
+  const premiumAvailable = agentOverview?.capabilities?.imageWorker?.premiumAvailable === true;
+  const premiumOption = document.getElementById('agentPostImagePremiumOption');
+  if (premiumOption) premiumOption.hidden = !premiumAvailable;
+  const savedChoice = post.asset?.generationChoice;
+  document.getElementById('agentPostImageQuality').value = savedChoice === 'IMAGE_FAST' ? 'IMAGE_FAST' : savedChoice === 'IMAGE_PREMIUM' && premiumAvailable ? 'IMAGE_PREMIUM' : 'IMAGE_QUALITY';
   const qualityStatus = document.getElementById('agentPostImageQualityStatus');
   const qualityReview = post.asset?.qualityReview;
   if (qualityStatus) {
@@ -2356,7 +2360,8 @@ async function regenerateAgentCampaignPostImage() {
   const customerPrompt = document.getElementById('agentPostImagePrompt')?.value?.trim() || '';
   const overlayText = document.getElementById('agentPostImageOverlay')?.value?.trim() || '';
   const generationChoice = document.getElementById('agentPostImageQuality')?.value || 'IMAGE_QUALITY';
-  const confirmed = await showStudioConfirm({ eyebrow: 'Creative replacement', title: 'Regenerate with these instructions?', message: customerPrompt || 'The AI visual plan will be used with strict text-free generation and brand safeguards. The current image remains until the replacement passes visual review.', tone: 'warning', confirmText: 'Generate replacement' });
+  const paid = generationChoice === 'IMAGE_PREMIUM';
+  const confirmed = await showStudioConfirm({ eyebrow: paid ? 'Paid premium image' : 'Creative replacement', title: paid ? 'Use paid OpenAI image generation?' : 'Regenerate with these instructions?', message: customerPrompt || 'The AI visual plan will be used with strict text-free generation and brand safeguards. The current image remains until the replacement passes visual review.', tone: 'warning', confirmText: paid ? 'Create paid image' : 'Generate replacement' });
   if (!confirmed) return;
   const postId = agentEditingPostId;
   const button = document.getElementById('btnAgentPostRegenerate');

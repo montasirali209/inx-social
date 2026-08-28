@@ -39,5 +39,5 @@ test('customer catalog uses neutral route codes for video choices too', () => {
 test('image runtime privately maps Fast and Quality choices to separate configured models', () => {
   const service = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'agentMediaService.js'), 'utf8');
   assert.match(service, /generationChoice === 'IMAGE_QUALITY' \? policy\.qualityModel : policy\.model/);
-  assert.match(service, /model: selectedModel/);
+  assert.match(service, /model: resolveImageModel\(policy, generationChoice\)/);
 });

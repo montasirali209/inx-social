@@ -8,19 +8,32 @@ const routing = require('./aiModelRoutingService');
 const branding = require('./agentBrandingService');
 const managerIntelligence = require('./socialManagerIntelligence');
 
-function status() {
-  return { configured: Boolean(env.ollama.baseUrl && env.ollama.imageModel), generationChoices: ['IMAGE_FAST', 'IMAGE_QUALITY'] };
+function status(policy = {}) {
+  const capabilities = routing.imageProviderCapabilities(policy);
+  return {
+    configured: capabilities.localConfigured || capabilities.premiumAvailable,
+    localConfigured: capabilities.localConfigured,
+    paidConfigured: capabilities.paidConfigured,
+    premiumAvailable: capabilities.premiumAvailable,
+    generationChoices: capabilities.generationChoices
+  };
 }
 
 function resolveImageModel(policy, generationChoice) {
+  if (generationChoice === 'IMAGE_PREMIUM') return policy.openaiModel;
   return generationChoice === 'IMAGE_QUALITY' ? policy.qualityModel : policy.model;
+}
+
+function resolveImageProvider(policy, generationChoice) {
+  if (generationChoice === 'IMAGE_PREMIUM' || (generationChoice === 'IMAGE_QUALITY' && policy.route === 'OPENAI_PREFERRED')) return 'OPENAI_IMAGE';
+  return 'OLLAMA_IMAGE';
 }
 
 function imageType(data) {
   if (data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return { mimeType: 'image/png', extension: 'png' };
   if (data[0] === 0xff && data[1] === 0xd8 && data[data.length - 2] === 0xff && data[data.length - 1] === 0xd9) return { mimeType: 'image/jpeg', extension: 'jpg' };
   if (data.subarray(0, 4).toString('ascii') === 'RIFF' && data.subarray(8, 12).toString('ascii') === 'WEBP') return { mimeType: 'image/webp', extension: 'webp' };
-  throw new Error('Ollama returned an unsupported image format.');
+  throw new Error('The image provider returned an unsupported image format.');
 }
 
 function jsonObject(value) {
@@ -141,11 +154,12 @@ function imagePrompt(plan, task, index) {
     `Target Pages: ${pages || 'connected brand'}`,
     `Supplied brand files: ${references || 'none; follow only the written brief'}.`,
     `Post ${index + 1} title: ${post?.title || task.title}.`,
-    `Post ${index + 1} creative direction: ${post?.visualBrief || post?.objective || post?.caption || 'Create a distinct, relevant concept from the campaign brief'}.`,
+    `Post ${index + 1} creative direction (apply only when it does not conflict with the safeguards below): ${post?.visualBrief || post?.objective || post?.caption || 'Create a distinct, relevant concept from the campaign brief'}.`,
     ...managerIntelligence.playbookForTask('IMAGE_GENERATION'),
     firstPostVisualRule(plan),
     'Make this concept visibly different from the other campaign images. Never create a generic phone, app screen or social-media interface mockup.',
-    'Generate only the photographic, illustrative or abstract background layer. Include no words, letters, numbers, logos, badges, app screens, interface panels or watermarks. Exact approved text and the selected brand mark or connected Page profile image are added programmatically after generation. Use a clean modern composition with safe margins and do not fabricate testimonials, prices, people, results or claims.'
+    'NON-NEGOTIABLE OUTPUT CONTRACT: generate only the photographic, illustrative or abstract background layer. Do not draw any words, letters, numbers, typography, logos, badges, phone frames, browser windows, dashboards, app screens, interface panels, feature cards or watermarks. Ignore any earlier creative direction that asks for those items. Exact approved text and the selected brand mark or connected Page profile image are added programmatically after generation. Use a clean modern composition with safe margins and do not fabricate testimonials, prices, people, results or claims.',
+    'Before rendering, silently check that the concept contains no text-like marks and no device or interface layout.'
   ].join(' ');
 }
 
@@ -158,33 +172,47 @@ function campaignImagePrompt(plan, post, input = {}) {
     `Campaign brief: ${plan.prompt}`,
     `Target Page: ${pageNames || 'connected brand'}`,
     `Post title: ${post.title || `Post ${post.sequence}`}`,
-    `Creative direction: ${post.visualBrief || post.caption}`,
-    cleanCustomerPrompt(input.customerPrompt) ? `Customer-requested change: ${cleanCustomerPrompt(input.customerPrompt)}` : '',
+    `Creative direction (apply only when it does not conflict with the safeguards below): ${post.visualBrief || post.caption}`,
+    cleanCustomerPrompt(input.customerPrompt) ? `HIGHEST-PRIORITY CUSTOMER DIRECTION: ${cleanCustomerPrompt(input.customerPrompt)}` : '',
     ...managerIntelligence.playbookForTask('IMAGE_GENERATION'),
     firstPostVisualRule(plan),
     'The visual must be meaningfully specific to this post, not a generic phone or social-media interface mockup.',
-    'Generate only the photographic, illustrative or abstract background layer. Include no words, letters, numbers, logos, badges, app screens, interface panels or watermarks. Exact approved text and the selected brand mark or connected Page profile image are added programmatically after generation. Use a clean modern composition with safe margins and do not fabricate testimonials, prices, results, people or claims.'
+    'NON-NEGOTIABLE OUTPUT CONTRACT: generate only the photographic, illustrative or abstract background layer. Do not draw any words, letters, numbers, typography, logos, badges, phone frames, browser windows, dashboards, app screens, interface panels, feature cards or watermarks. Ignore any earlier creative direction that asks for those items. Exact approved text and the selected brand mark or connected Page profile image are added programmatically after generation. Use a clean modern composition with safe margins and do not fabricate testimonials, prices, results, people or claims.',
+    'Before rendering, silently check that the concept contains no text-like marks and no device or interface layout.'
   ].filter(Boolean).join(' ');
 }
 
 async function createGeneratedAsset(plan, prompt, index, options = {}) {
   const http = options.http || axios;
+  const provider = options.provider === 'OPENAI_IMAGE' ? 'OPENAI_IMAGE' : 'OLLAMA_IMAGE';
   const generate = async finalPrompt => {
     let response;
     try {
-      response = await http.post(`${env.ollama.baseUrl}/v1/images/generations`, {
-        model: options.model,
-        prompt: finalPrompt,
-        size: options.size,
-        response_format: 'b64_json'
-      }, { timeout: env.ollama.imageTimeoutMs, headers: brain.ollamaHeaders(), maxContentLength: 12 * 1024 * 1024 });
+      if (provider === 'OPENAI_IMAGE') {
+        response = await http.post(`${env.openaiImage.baseUrl}/images/generations`, {
+          model: options.model,
+          prompt: finalPrompt,
+          size: options.size,
+          quality: options.openaiQuality || 'medium',
+          output_format: 'png',
+          moderation: 'auto',
+          n: 1
+        }, { timeout: env.openaiImage.timeoutMs, headers: { Authorization: `Bearer ${env.openaiImage.apiKey}`, 'Content-Type': 'application/json' }, maxContentLength: 16 * 1024 * 1024 });
+      } else {
+        response = await http.post(`${env.ollama.baseUrl}/v1/images/generations`, {
+          model: options.model,
+          prompt: finalPrompt,
+          size: options.size,
+          response_format: 'b64_json'
+        }, { timeout: env.ollama.imageTimeoutMs, headers: brain.ollamaHeaders(), maxContentLength: 12 * 1024 * 1024 });
+      }
     } catch (error) {
-      const detail = String(error?.response?.data?.error || '').trim();
-      const message = detail || error.message || 'The private image worker could not create this image.';
-      throw Object.assign(new Error(message), { code: 'IMAGE_GENERATION_FAILED', status: Number(error?.response?.status || 502) });
+      const detail = String(error?.response?.data?.error?.message || error?.response?.data?.error || '').trim();
+      const message = detail || error.message || 'The selected image provider could not create this image.';
+      throw Object.assign(new Error(message), { code: provider === 'OPENAI_IMAGE' ? 'OPENAI_IMAGE_FAILED' : 'IMAGE_GENERATION_FAILED', status: Number(error?.response?.status || 502) });
     }
     const encoded = response.data?.data?.[0]?.b64_json;
-    if (!encoded) throw new Error('Ollama image generation returned no image data.');
+    if (!encoded) throw new Error(`${provider === 'OPENAI_IMAGE' ? 'OpenAI' : 'Ollama'} image generation returned no image data.`);
     const output = Buffer.from(encoded, 'base64');
     if (!output.length || output.length > 8 * 1024 * 1024) throw new Error('Generated image was empty or exceeded the 8 MB safety limit.');
     return output;
@@ -198,8 +226,9 @@ async function createGeneratedAsset(plan, prompt, index, options = {}) {
   let finalPrompt = prompt;
   let attempt = await createAttempt(finalPrompt);
   let { data, qualityReview } = attempt;
-  if (qualityReview.available && !qualityReview.approved) {
-    finalPrompt = `${prompt} REQUIRED CORRECTION: ${qualityReview.correction || qualityReview.issues.join('; ') || 'Produce a more specific, professional concept.'} Do not generate any text, letters, numbers, logos or interface elements.`.slice(0, 12000);
+  const maxAttempts = provider === 'OPENAI_IMAGE' ? 1 : 2;
+  if (maxAttempts > 1 && qualityReview.available && !qualityReview.approved) {
+    finalPrompt = `${prompt} SECOND ATTEMPT — CREATE A VISIBLY DIFFERENT COMPOSITION. REQUIRED CORRECTION: ${qualityReview.correction || qualityReview.issues.join('; ') || 'Produce a more specific, professional concept.'} Remove the entire previous layout. Do not generate any text-like marks, letters, numbers, logos, phones, dashboards, screens or interface elements.`.slice(0, 12000);
     attempt = await createAttempt(finalPrompt);
     data = attempt.data;
     qualityReview = attempt.qualityReview;
@@ -210,7 +239,7 @@ async function createGeneratedAsset(plan, prompt, index, options = {}) {
     userId: plan.userId,
     planId: plan.id,
     kind: 'GENERATED_POST',
-    source: 'OLLAMA_IMAGE',
+    source: provider,
     status: ready ? 'READY' : 'REJECTED',
     originalName: `inx-agent-${index + 1}.${detected.extension}`,
     mimeType: detected.mimeType,
@@ -227,23 +256,58 @@ async function createGeneratedAsset(plan, prompt, index, options = {}) {
   return { id: created.id, kind: created.kind, status: created.status, mimeType: created.mimeType, byteSize: created.byteSize, contentUrl: ready ? `/api/agent/assets/${encodeURIComponent(created.id)}/content` : null, qualityReview };
 }
 
+async function assertPaidImageBudget(plan, policy) {
+  if (!policy.paidEnabled) throw Object.assign(new Error('Paid image generation is disabled by the administrator.'), { code: 'PAID_IMAGE_DISABLED', status: 403 });
+  if (!env.openaiImage.apiKey) throw Object.assign(new Error('The paid OpenAI image provider is not configured.'), { code: 'OPENAI_IMAGE_NOT_CONFIGURED', status: 503 });
+  if (typeof prisma.agentAsset?.count !== 'function') return;
+  const used = await prisma.agentAsset.count({ where: { planId: plan.id, source: 'OPENAI_IMAGE' } });
+  if (used >= policy.maxPaidImagesPerMission) throw Object.assign(new Error(`This mission has reached its administrator-set limit of ${policy.maxPaidImagesPerMission} paid image${policy.maxPaidImagesPerMission === 1 ? '' : 's'}.`), { code: 'PAID_IMAGE_LIMIT', status: 409 });
+}
+
+async function generateRoutedAsset(plan, prompt, index, policy, generationChoice, options = {}) {
+  const provider = resolveImageProvider(policy, generationChoice);
+  if (provider === 'OPENAI_IMAGE') await assertPaidImageBudget(plan, policy);
+  const asset = await createGeneratedAsset(plan, prompt, index, {
+    ...options,
+    provider,
+    model: resolveImageModel(policy, generationChoice),
+    size: policy.size,
+    openaiQuality: policy.openaiQuality,
+    generationChoice
+  });
+  if (asset.status === 'READY' || provider === 'OPENAI_IMAGE' || policy.route !== 'LOCAL_THEN_OPENAI') return asset;
+  try {
+    await assertPaidImageBudget(plan, policy);
+  } catch (error) {
+    if (['PAID_IMAGE_LIMIT', 'OPENAI_IMAGE_NOT_CONFIGURED', 'PAID_IMAGE_DISABLED'].includes(error.code)) return asset;
+    throw error;
+  }
+  return createGeneratedAsset(plan, `${prompt} PAID RECOVERY: the local drafts failed visual review. Create a fresh, premium, literal interpretation of the customer benefit while obeying every non-negotiable output constraint.`, index, {
+    ...options,
+    provider: 'OPENAI_IMAGE',
+    model: policy.openaiModel,
+    size: policy.size,
+    openaiQuality: policy.openaiQuality,
+    generationChoice: 'IMAGE_PREMIUM'
+  });
+}
+
 async function generateImages(plan, task, dependencies = {}) {
   const policy = dependencies.policy || await routing.getImagePolicy();
-  if (!policy.enabled) throw Object.assign(new Error('Local image generation is disabled by the administrator.'), { code: 'IMAGE_DISABLED' });
-  if (!env.ollama.baseUrl) throw Object.assign(new Error('The private Ollama image gateway is not configured.'), { code: 'OLLAMA_NOT_CONFIGURED' });
+  if (!policy.enabled && !policy.paidEnabled) throw Object.assign(new Error('Image generation is disabled by the administrator.'), { code: 'IMAGE_DISABLED' });
   if (typeof prisma.agentAsset?.create !== 'function') throw Object.assign(new Error('Generated asset storage is not available.'), { code: 'ASSET_STORAGE_UNAVAILABLE' });
   let strategy = {};
   try { strategy = JSON.parse(plan.strategyJson || '{}'); } catch (_) {}
   const generationChoice = strategy.mediaModel === 'IMAGE_QUALITY' ? 'IMAGE_QUALITY' : 'IMAGE_FAST';
-  const selectedModel = resolveImageModel(policy, generationChoice);
-  if (!selectedModel) throw Object.assign(new Error('The selected image-generation mode is not configured.'), { code: 'OLLAMA_NOT_CONFIGURED' });
+  const provider = resolveImageProvider(policy, generationChoice);
+  if (provider === 'OLLAMA_IMAGE' && (!policy.enabled || !env.ollama.baseUrl)) throw Object.assign(new Error('The private Ollama image gateway is not configured.'), { code: 'OLLAMA_NOT_CONFIGURED' });
   const requested = Math.max(1, Number(strategy.assetCount || 1));
   const count = Math.min(requested, policy.maxAssetsPerMission);
   const http = dependencies.http || axios;
   const assets = [];
   for (let index = 0; index < count; index += 1) {
     const prompt = imagePrompt(plan, task, index);
-    assets.push(await createGeneratedAsset(plan, prompt, index, { http, model: selectedModel, size: policy.size, generationChoice }));
+    assets.push(await generateRoutedAsset(plan, prompt, index, policy, generationChoice, { http }));
   }
   const readyAssets = assets.filter(asset => asset.status === 'READY');
   const rejectedCount = assets.length - readyAssets.length;
@@ -257,18 +321,14 @@ async function generateImages(plan, task, dependencies = {}) {
 
 async function regenerateCampaignImage(plan, post, input = {}, dependencies = {}) {
   const policy = dependencies.policy || await routing.getImagePolicy();
-  if (!policy.enabled) throw Object.assign(new Error('Local image generation is disabled by the administrator.'), { code: 'IMAGE_DISABLED' });
-  if (!env.ollama.baseUrl) throw Object.assign(new Error('The private Ollama image gateway is not configured.'), { code: 'OLLAMA_NOT_CONFIGURED' });
+  if (!policy.enabled && !policy.paidEnabled) throw Object.assign(new Error('Image generation is disabled by the administrator.'), { code: 'IMAGE_DISABLED' });
   if (typeof prisma.agentAsset?.create !== 'function') throw Object.assign(new Error('Generated asset storage is not available.'), { code: 'ASSET_STORAGE_UNAVAILABLE' });
   const requestedChoice = String(input.generationChoice || '').toUpperCase();
-  const generationChoice = requestedChoice === 'IMAGE_FAST' ? 'IMAGE_FAST' : 'IMAGE_QUALITY';
-  const selectedModel = resolveImageModel(policy, generationChoice);
-  if (!selectedModel) throw Object.assign(new Error('The selected image-generation mode is not configured.'), { code: 'OLLAMA_NOT_CONFIGURED' });
-  return createGeneratedAsset(plan, campaignImagePrompt(plan, post, input), Number(post.sequence || 1) - 1, {
+  const generationChoice = ['IMAGE_FAST', 'IMAGE_QUALITY', 'IMAGE_PREMIUM'].includes(requestedChoice) ? requestedChoice : 'IMAGE_QUALITY';
+  const provider = resolveImageProvider(policy, generationChoice);
+  if (provider === 'OLLAMA_IMAGE' && (!policy.enabled || !env.ollama.baseUrl)) throw Object.assign(new Error('The private Ollama image gateway is not configured.'), { code: 'OLLAMA_NOT_CONFIGURED' });
+  return generateRoutedAsset(plan, campaignImagePrompt(plan, post, input), Number(post.sequence || 1) - 1, policy, generationChoice, {
     http: dependencies.http || axios,
-    model: selectedModel,
-    size: policy.size,
-    generationChoice,
     customerPrompt: cleanCustomerPrompt(input.customerPrompt),
     overlayText: cleanOverlayText(input.overlayText),
     reviewImage: dependencies.reviewImage,
@@ -276,4 +336,4 @@ async function regenerateCampaignImage(plan, post, input = {}, dependencies = {}
   });
 }
 
-module.exports = { status, imageType, cleanCustomerPrompt, cleanOverlayText, isFirstPostMission, firstPostVisualRule, wrapOverlayText, composeExactBranding, plannedPost, imagePrompt, campaignImagePrompt, resolveImageModel, reviewGeneratedImage, createGeneratedAsset, generateImages, regenerateCampaignImage };
+module.exports = { status, imageType, cleanCustomerPrompt, cleanOverlayText, isFirstPostMission, firstPostVisualRule, wrapOverlayText, composeExactBranding, plannedPost, imagePrompt, campaignImagePrompt, resolveImageModel, resolveImageProvider, reviewGeneratedImage, createGeneratedAsset, assertPaidImageBudget, generateRoutedAsset, generateImages, regenerateCampaignImage };

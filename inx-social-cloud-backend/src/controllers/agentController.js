@@ -7,6 +7,7 @@ const agentAssets = require('../services/agentAssetService');
 const agentMedia = require('../services/agentMediaService');
 const webResearch = require('../services/webResearchService');
 const agentCampaigns = require('../services/agentCampaignService');
+const aiModelRouting = require('../services/aiModelRoutingService');
 
 const ASSET_SELECT = { id: true, planId: true, kind: true, source: true, status: true, originalName: true, mimeType: true, byteSize: true, createdAt: true };
 const PLAN_INCLUDE = {
@@ -20,7 +21,7 @@ function publicGenerationChoice(value) {
   const code = String(value || '').toUpperCase();
   const legacy = { OLLAMA_IMAGE: 'IMAGE_FAST', INX_TEMPLATE: 'VIDEO_FAST', WAN_2_2_FAST: 'VIDEO_QUALITY', LTX_2_3_FAST: 'VIDEO_QUALITY' };
   const safe = legacy[code] || code;
-  return ['TEXT_ONLY', 'IMAGE_FAST', 'IMAGE_QUALITY', 'VIDEO_FAST', 'VIDEO_QUALITY'].includes(safe) ? safe : null;
+  return ['TEXT_ONLY', 'IMAGE_FAST', 'IMAGE_QUALITY', 'IMAGE_PREMIUM', 'VIDEO_FAST', 'VIDEO_QUALITY'].includes(safe) ? safe : null;
 }
 
 function parseJson(value, fallback) {
@@ -130,6 +131,7 @@ async function overview(req, res, next) {
     const brainHealth = await agentBrain.checkHealth();
     const connectedPages = await connectedPagesForUser(req.user.id);
     const availableAssets = await agentAssets.list(req.user.id, { source: 'UPLOAD' });
+    const imagePolicy = await aiModelRouting.getImagePolicy();
     const userQueue = runtime.queuedPlanIds.filter(id => recentPlans.some(plan => plan.id === id));
     res.json({
       phase: '11.5.8',
@@ -146,7 +148,7 @@ async function overview(req, res, next) {
         facebookOrganicScheduling: true,
         paidPromotion: false,
         brain: brainHealth,
-        imageWorker: agentMedia.status(),
+        imageWorker: agentMedia.status(imagePolicy),
         webResearch: webResearch.status(),
         note: 'Every content mission must produce a visible Campaign Review. Hybrid and approval-requested missions pause there; explicitly selected Autopilot missions may schedule only after all artifact and platform checks pass. Paid advertising remains disabled.'
       },

@@ -137,7 +137,7 @@ async function runPlan(planId) {
         }
       } else if (task.type === 'IMAGE_GENERATION') {
         await prisma.agentTask.update({ where: { id: task.id }, data: { status: 'RUNNING', startedAt: new Date() } });
-        await event(plan.userId, plan.id, task.id, 'TASK_STARTED', 'RUNNING', task.title, 'The private Ollama image worker is creating bounded brand-safe assets.');
+        await event(plan.userId, plan.id, task.id, 'TASK_STARTED', 'RUNNING', task.title, 'The administrator-approved image route is creating bounded brand-safe assets.');
         try {
           const currentPlan = await prisma.agentPlan.findUnique({ where: { id: plan.id }, include: { tasks: { orderBy: { sequence: 'asc' } } } });
           const result = await media.generateImages(currentPlan || plan, task);
@@ -147,6 +147,10 @@ async function runPlan(planId) {
           actionRequired = true;
           const message = error.code === 'OLLAMA_NOT_CONFIGURED'
             ? 'The private image worker is not connected. Your completed work is safe; connect it and resume.'
+            : ['OPENAI_IMAGE_NOT_CONFIGURED', 'OPENAI_IMAGE_FAILED'].includes(error.code)
+              ? 'The paid OpenAI image route is unavailable. Check the administrator image policy and API key, then resume this mission.'
+              : error.code === 'PAID_IMAGE_LIMIT'
+                ? 'The mission reached its administrator-set paid image limit. Review the existing results or increase the limit before resuming.'
             : error.code === 'IMAGE_GENERATION_FAILED'
               ? 'The selected image quality is unavailable on the private image worker. Check that its image model is installed, then resume this mission.'
               : 'Image generation is paused. Check the private image worker in Admin, then resume this mission.';

@@ -143,7 +143,8 @@ async function updateSetting(req, res, next) {
 
 async function aiRouting(req, res, next) {
   try {
-    res.json({ routing: await aiModelRouting.getRouting(), imagePolicy: await aiModelRouting.getImagePolicy(), mediaPolicy: await aiModelRouting.getMediaPolicy(), mediaProviders: aiModelRouting.MEDIA_PROVIDERS, brain: agentBrain.status(), routes: aiModelRouting.ROUTES });
+    const imagePolicy = await aiModelRouting.getImagePolicy();
+    res.json({ routing: await aiModelRouting.getRouting(), imagePolicy, imageProviders: aiModelRouting.imageProviderCapabilities(imagePolicy), imageRoutes: aiModelRouting.IMAGE_ROUTES, mediaPolicy: await aiModelRouting.getMediaPolicy(), mediaProviders: aiModelRouting.MEDIA_PROVIDERS, brain: agentBrain.status(), routes: aiModelRouting.ROUTES });
   } catch (err) { next(err); }
 }
 

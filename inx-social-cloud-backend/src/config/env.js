@@ -59,6 +59,12 @@ module.exports = {
     imageReviewEnabled: String(process.env.OLLAMA_IMAGE_REVIEW_ENABLED || 'true') === 'true',
     imageReviewMinScore: Math.max(50, Math.min(95, Number(process.env.OLLAMA_IMAGE_REVIEW_MIN_SCORE || 75)))
   },
+  openaiImage: {
+    baseUrl: String(process.env.OPENAI_IMAGE_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, ''),
+    apiKey: process.env.OPENAI_IMAGE_API_KEY || process.env.OPENAI_API_KEY || '',
+    model: modelName(process.env.OPENAI_IMAGE_MODEL, 'gpt-image-2'),
+    timeoutMs: Math.max(30000, Number(process.env.OPENAI_IMAGE_TIMEOUT_MS || 300000))
+  },
   aiFallback: {
     enabled: String(process.env.AI_PAID_FALLBACK_ENABLED || 'false') === 'true',
     baseUrl: String(process.env.AI_PAID_FALLBACK_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, ''),
