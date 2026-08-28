@@ -1,5 +1,6 @@
 [build]
 builder = "railpack"
+buildCommand = "npm run build:frontend"
 
 [deploy]
 preDeployCommand = ["npm run prisma:migrate:deploy"]

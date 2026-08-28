@@ -21,6 +21,8 @@ const socialPlatformRoutes = require('./routes/socialPlatformRoutes');
 const packageInfo = require('../package.json');
 
 const app = express();
+const reactAppRoot = path.join(__dirname, '..', 'frontend', 'dist');
+const reactAppIndex = path.join(reactAppRoot, 'index.html');
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
@@ -29,7 +31,7 @@ app.use(rateLimit({ windowMs: 60 * 1000, limit: 240 }));
 
 // Account, API and administration screens must not compete with the public
 // product pages in search results.
-app.use(['/admin', '/api', '/portal', '/studio'], (req, res, next) => {
+app.use(['/admin', '/api', '/portal', '/studio', '/app'], (req, res, next) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
   next();
 });
@@ -60,6 +62,15 @@ app.use(express.static(path.join(__dirname, '..', 'public'), {
 }));
 app.use('/portal', express.static(path.join(__dirname, '..', 'portal')));
 app.use('/studio', express.static(path.join(__dirname, '..', 'studio')));
+app.use('/app', express.static(reactAppRoot, {
+  index: false,
+  maxAge: '1h',
+  setHeaders: (res, filePath) => {
+    if (/\.(?:css|js|png|jpe?g|webp|svg|woff2?)$/i.test(filePath)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+    }
+  }
+}));
 
 app.get('/health', (req, res) => {
   res.json({
@@ -68,7 +79,8 @@ app.get('/health', (req, res) => {
     version: packageInfo.version,
     adminPanel: '/admin',
     customerPortal: '/portal/',
-    cloudStudio: '/studio/'
+    cloudStudio: '/studio/',
+    reactApp: '/app/'
   });
 });
 
@@ -77,6 +89,7 @@ app.get(['/admin', '/admin/'], (req, res) => {
 });
 
 app.get('/studio', (req, res) => res.redirect(308, '/studio/'));
+app.get(/^\/app$/, (req, res) => res.redirect(308, '/app/'));
 
 app.get('/privacy', (req, res) => res.redirect(308, '/privacy.html'));
 app.get('/terms', (req, res) => res.redirect(308, '/terms.html'));
@@ -105,6 +118,18 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/studio', studioRoutes);
 app.use('/api/agent', agentRoutes);
 app.use('/api/social-platforms', socialPlatformRoutes);
+
+// The React application is migrated route by route. Keep this fallback after
+// every API route so client-side navigation can never intercept /api requests.
+app.get('/app/*', (req, res, next) => {
+  res.sendFile(reactAppIndex, error => {
+    if (!error) return;
+    if (error.code === 'ENOENT') {
+      return res.status(503).json({ error: 'React application build is not available.' });
+    }
+    return next(error);
+  });
+});
 
 app.use((req, res) => res.status(404).json({ error: 'Route not found' }));
 app.use(errorHandler);
