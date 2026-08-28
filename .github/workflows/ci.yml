@@ -65,6 +65,8 @@ jobs:
           cache: npm
           cache-dependency-path: inx-social-cloud-backend/package-lock.json
       - run: npm ci
+      - name: Install locked React frontend dependencies
+        run: npm --prefix frontend ci
       - run: npm run prisma:generate
       - run: npm run check
       - run: npm test
