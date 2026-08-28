@@ -50,7 +50,7 @@ const views = {
   dashboard: ['Dashboard', 'Your publishing performance and activity at a glance.'],
   agent: ['AI Content Studio', 'Create campaigns with Social Agent, Autopilot and Hybrid approval control.'],
   pages: ['Connected Accounts & Pages', 'Manage official social connections and publishing destinations.'],
-  posts: ['Posts', 'Review drafts, approvals, schedules, publications and failed attempts.'],
+  posts: ['Posts', 'Create, schedule and publish content across your connected social destinations.'],
   media: ['Media Library', 'Manage videos, captions and reusable publishing assets.'],
   reels: ['Bulk Scheduler', 'Publish video batches across one or several connected Facebook Pages.'],
   lab: ['Hidden Test Tools', 'Hidden technical test tools.'],
@@ -319,7 +319,10 @@ function switchView(viewName) {
     renderCalendar();
     if (!metaScheduleLoaded && !metaScheduleLoading) listMetaScheduled({ silent: true });
   }
-  if (viewName === 'posts') renderPostsWorkspace();
+  if (viewName === 'posts') {
+    renderPostsWorkspace();
+    renderDirectPostComposer();
+  }
   if (viewName === 'dashboard') {
     renderDashboardQueue();
     renderDashboardCalendar();
@@ -329,7 +332,6 @@ function switchView(viewName) {
 
 function openNewPostWorkspace() {
   switchView('posts');
-  document.getElementById('postComposer')?.classList.remove('hidden');
   renderDirectPostComposer();
   document.getElementById('directPostCaption')?.focus();
   document.getElementById('postComposer')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -344,10 +346,11 @@ function openAIContentStudio() {
 function bindButtons() {
   on('btnRefresh', refresh);
   on('btnCreateNewPost', openNewPostWorkspace);
-  on('btnPostsCreate', openNewPostWorkspace);
-  on('btnPostComposerClose', () => document.getElementById('postComposer')?.classList.add('hidden'));
   on('btnDirectPostAI', openAIContentStudio);
   on('btnDirectPostMedia', chooseDirectPostMedia);
+  on('btnDirectPostBestTime', applyDirectPostRecommendedTime);
+  on('btnDirectPostScore', showDirectPostContentScore);
+  on('btnDirectPostPreview', previewDirectPost);
   on('btnDirectPagesAll', () => setDirectPostPages(true));
   on('btnDirectPagesClear', () => setDirectPostPages(false));
   on('btnDirectPostClear', clearDirectPostComposer);
@@ -359,6 +362,16 @@ function bindButtons() {
   document.getElementById('directPostCaption')?.addEventListener('input', renderDirectPostComposer);
   document.getElementById('directPostDate')?.addEventListener('change', renderDirectPostComposer);
   document.getElementById('directPostTime')?.addEventListener('change', renderDirectPostComposer);
+  const directMediaDrop = document.getElementById('directPostMediaBox');
+  directMediaDrop?.addEventListener('click', event => { if (!event.target.closest('button')) chooseDirectPostMedia(); });
+  directMediaDrop?.addEventListener('keydown', event => { if (['Enter', ' '].includes(event.key) && !event.target.closest('button')) { event.preventDefault(); chooseDirectPostMedia(); } });
+  directMediaDrop?.addEventListener('dragover', event => { event.preventDefault(); directMediaDrop.classList.add('dragging'); });
+  directMediaDrop?.addEventListener('dragleave', () => directMediaDrop.classList.remove('dragging'));
+  directMediaDrop?.addEventListener('drop', event => {
+    event.preventDefault();
+    directMediaDrop.classList.remove('dragging');
+    prepareDroppedDirectPostMedia(event.dataTransfer?.files?.[0]);
+  });
   on('btnAgentRefresh', () => loadAgentOverview(true));
   document.getElementById('agentPlanForm')?.addEventListener('submit', createAgentPlan);
   document.querySelectorAll('.agent-operation-mode').forEach(input => input.addEventListener('change', renderAgentModeSummary));
@@ -2779,14 +2792,13 @@ function renderDirectPostComposer() {
   const mode = document.querySelector('input[name="directPublishMode"]:checked')?.value || 'NOW';
   const caption = String(document.getElementById('directPostCaption')?.value || '');
   setText('directPostCharacterCount', `${caption.length.toLocaleString()} / 5,000`);
-  document.getElementById('directPostMediaBox')?.classList.toggle('hidden', type === 'TEXT');
   document.getElementById('directPostScheduleFields')?.classList.toggle('hidden', mode !== 'SCHEDULED');
   const mediaPreview = document.getElementById('directPostMediaPreview');
-  if (mediaPreview && type !== 'TEXT') {
+  if (mediaPreview) {
     if (directPostMedia) {
-      mediaPreview.innerHTML = `${type === 'IMAGE' ? `<img src="${escapeHtml(directPostMedia.previewUrl)}" alt="Selected post image preview">` : `<video src="${escapeHtml(directPostMedia.previewUrl)}" muted controls preload="metadata"></video>`}<div><strong>${escapeHtml(directPostMedia.name)}</strong><small>${formatBytes(directPostMedia.size)}</small></div>`;
+      mediaPreview.innerHTML = `${type === 'IMAGE' ? `<img src="${escapeHtml(directPostMedia.previewUrl)}" alt="Selected post image preview">` : `<video src="${escapeHtml(directPostMedia.previewUrl)}" muted controls preload="metadata"></video>`}<div><strong>${escapeHtml(directPostMedia.name)}</strong><small>${escapeHtml(type === 'IMAGE' ? 'Image' : 'Video / Reel')} · ${formatBytes(directPostMedia.size)}</small></div>`;
     } else {
-      mediaPreview.innerHTML = `<span>＋</span><strong>Add ${type === 'IMAGE' ? 'an image' : 'a video'}</strong><small>${type === 'IMAGE' ? 'PNG, JPG or WebP · maximum 15 MB' : 'MP4, MOV, M4V, AVI, MKV or WebM'}</small>`;
+      mediaPreview.innerHTML = `<span>↥</span><div><strong>Drag &amp; drop media here</strong><small>${type === 'VIDEO' ? 'MP4, MOV, M4V, AVI, MKV or WebM' : 'PNG, JPG or WebP · or switch to Video / Reel'}</small></div>`;
     }
   }
   const summary = document.getElementById('directPostSummary');
@@ -2794,6 +2806,9 @@ function renderDirectPostComposer() {
   const ready = directPostPageIds.size > 0 && caption.trim().length > 0 && (type === 'TEXT' || directPostMedia);
   if (summary) summary.textContent = !directPostPageIds.size ? 'Choose at least one destination Page.' : !caption.trim() ? 'Write the caption your audience will see.' : type !== 'TEXT' && !directPostMedia ? `Choose ${type === 'IMAGE' ? 'an image' : 'a video'} for this post.` : `${mode === 'NOW' ? 'Ready to publish' : 'Ready to schedule'} ${type.toLowerCase()} content to ${directPostPageIds.size} Page${directPostPageIds.size === 1 ? '' : 's'}.`;
   if (publish) { publish.disabled = !ready; publish.textContent = mode === 'NOW' ? 'Publish now' : 'Schedule post'; }
+  const score = directPostContentScore(caption);
+  setText('directPostContentScore', caption.trim() ? `Content score ${score}/100` : 'Content score');
+  setText('directPostScheduleHint', mode === 'NOW' ? 'Publish immediately after confirmation.' : 'The final date and time are shown before scheduling.');
   if (mode === 'SCHEDULED' && !document.getElementById('directPostDate')?.value) {
     const suggested = new Date(Date.now() + 60 * 60 * 1000);
     const date = document.getElementById('directPostDate');
@@ -2804,8 +2819,11 @@ function renderDirectPostComposer() {
 }
 
 function handleDirectPostTypeChange() {
-  if (directPostMedia) { try { URL.revokeObjectURL(directPostMedia.previewUrl); } catch (_) {} }
-  directPostMedia = null;
+  const nextType = directPostType();
+  if (directPostMedia && directPostMedia.contentType && directPostMedia.contentType !== nextType) {
+    try { URL.revokeObjectURL(directPostMedia.previewUrl); } catch (_) {}
+    directPostMedia = null;
+  }
   renderDirectPostComposer();
 }
 
@@ -2815,8 +2833,86 @@ async function chooseDirectPostMedia() {
     if (!selected) return;
     if (directPostMedia) { try { URL.revokeObjectURL(directPostMedia.previewUrl); } catch (_) {} }
     directPostMedia = selected;
+    const selectedType = document.querySelector(`input[name="directPostType"][value="${selected.contentType || 'IMAGE'}"]`);
+    if (selectedType) selectedType.checked = true;
     renderDirectPostComposer();
   } catch (error) { toast(error.message, true); }
+}
+
+async function prepareDroppedDirectPostMedia(file) {
+  if (!file) return;
+  const contentType = /^video\//i.test(file.type) || /\.(mp4|mov|m4v|avi|mkv|webm)$/i.test(file.name) ? 'VIDEO' : /^image\//i.test(file.type) || /\.(png|jpe?g|webp)$/i.test(file.name) ? 'IMAGE' : null;
+  if (!contentType) return toast('Drop a PNG, JPG, WebP or supported video file.', true);
+  if (contentType === 'IMAGE' && file.size > 15 * 1024 * 1024) return toast('Post images must be no larger than 15 MB.', true);
+  try {
+    const selected = await window.schedulerApi.prepareDirectPostMedia(file, contentType);
+    if (directPostMedia) { try { URL.revokeObjectURL(directPostMedia.previewUrl); } catch (_) {} }
+    directPostMedia = selected;
+    const input = document.querySelector(`input[name="directPostType"][value="${contentType}"]`);
+    if (input) input.checked = true;
+    renderDirectPostComposer();
+  } catch (error) { toast(error.message, true); }
+}
+
+function nextDirectPostSlot() {
+  const settings = state?.settings || {};
+  const slots = (settings.dailySlots || []).filter(slot => /^\d{2}:\d{2}$/.test(slot));
+  const safeSlots = slots.length ? slots : ['11:00'];
+  const leadMs = Math.max(20, Number(settings.minLeadMinutes || 20)) * 60 * 1000;
+  const earliest = Date.now() + leadMs;
+  const occupied = new Set((state?.jobs || []).filter(job => job.scheduledAtISO).map(job => new Date(job.scheduledAtISO).toISOString().slice(0, 16)));
+  for (let day = 0; day < 30; day += 1) {
+    for (const slot of safeSlots) {
+      const candidate = new Date();
+      candidate.setDate(candidate.getDate() + day);
+      const [hours, minutes] = slot.split(':').map(Number);
+      candidate.setHours(hours, minutes, 0, 0);
+      if (candidate.getTime() >= earliest && !occupied.has(candidate.toISOString().slice(0, 16))) return candidate;
+    }
+  }
+  return new Date(earliest + 60 * 60 * 1000);
+}
+
+function applyDirectPostRecommendedTime() {
+  const candidate = nextDirectPostSlot();
+  const scheduled = document.querySelector('input[name="directPublishMode"][value="SCHEDULED"]');
+  if (scheduled) scheduled.checked = true;
+  const date = document.getElementById('directPostDate');
+  const time = document.getElementById('directPostTime');
+  if (date) date.value = `${candidate.getFullYear()}-${String(candidate.getMonth() + 1).padStart(2, '0')}-${String(candidate.getDate()).padStart(2, '0')}`;
+  if (time) time.value = `${String(candidate.getHours()).padStart(2, '0')}:${String(candidate.getMinutes()).padStart(2, '0')}`;
+  renderDirectPostComposer();
+  toast(`Selected the next available saved publishing window: ${candidate.toLocaleString()}.`);
+}
+
+function directPostContentScore(value) {
+  const caption = String(value || '').trim();
+  if (!caption) return 0;
+  let score = 35;
+  const words = caption.split(/\s+/).filter(Boolean);
+  const hashtags = caption.match(/#[\p{L}\p{N}_]+/gu) || [];
+  if (words.length >= 25 && words.length <= 160) score += 25;
+  else if (words.length >= 10) score += 12;
+  if (/[.!?]/.test(caption)) score += 8;
+  if (/\b(?:learn|discover|explore|visit|tell us|join|try|book|contact|start|find out)\b/i.test(caption)) score += 14;
+  if (hashtags.length >= 1 && hashtags.length <= 4) score += 10;
+  if (caption.length <= 2200) score += 8;
+  return Math.min(100, score);
+}
+
+function showDirectPostContentScore() {
+  const caption = String(document.getElementById('directPostCaption')?.value || '').trim();
+  if (!caption) return toast('Write a caption before checking its content score.', true);
+  const score = directPostContentScore(caption);
+  toast(`Content score: ${score}/100. This checks length, readability, call to action and hashtag balance.`);
+}
+
+function previewDirectPost() {
+  const title = String(document.getElementById('directPostTitle')?.value || '').trim() || 'Untitled post';
+  const caption = String(document.getElementById('directPostCaption')?.value || '').trim();
+  const mode = document.querySelector('input[name="directPublishMode"]:checked')?.value || 'NOW';
+  const pages = (cloudWorkspace?.pages || []).filter(page => directPostPageIds.has(page.id)).map(page => page.facebookPageName);
+  showStudioConfirm({ eyebrow: 'Facebook preview', title, message: caption || 'Write a caption to preview the finished post.', icon: 'f', details: [...pages.map(page => `Destination: ${page}`), mode === 'NOW' ? 'Publishing: immediately after confirmation' : `Publishing: ${document.getElementById('directPostDate')?.value || 'date required'} at ${document.getElementById('directPostTime')?.value || 'time required'}`], confirmText: 'Close preview', cancelText: '' });
 }
 
 function clearDirectPostComposer() {
@@ -2863,7 +2959,6 @@ async function publishDirectPost() {
     if (result.failures?.length) toast(`${successCount} destination${successCount === 1 ? '' : 's'} completed; ${result.failures.length} need attention in Posts.`, true);
     else toast(`${mode === 'NOW' ? 'Published' : 'Scheduled'} successfully on ${successCount} Page${successCount === 1 ? '' : 's'}.`);
     clearDirectPostComposer();
-    document.getElementById('postComposer')?.classList.add('hidden');
   } catch (error) { toast(error.message, true); }
   finally { renderDirectPostComposer(); }
 }
@@ -2887,6 +2982,8 @@ function postsWorkspaceItems() {
     status: postStatusBucket(job.status),
     statusLabel: statusLabel(job.status),
     date: job.scheduledAtISO || job.uploadedAt || job.createdAt,
+    updated: job.updatedAt || job.completedAt || job.createdAt,
+    source: 'Direct post',
     media: String(job.contentType || '').toUpperCase() === 'IMAGE' ? 'Image' : String(job.contentType || '').toUpperCase() === 'VIDEO' || job.videoName ? 'Video' : 'Text'
   }));
   const localMetaIds = new Set((state?.jobs || []).flatMap(job => [job.fbPostId, job.fbVideoId, job.metaPostId, job.metaVideoId]).filter(Boolean).map(String));
@@ -2901,6 +2998,8 @@ function postsWorkspaceItems() {
       status: post.is_published === true ? 'published' : 'scheduled',
       statusLabel: post.is_published === true ? 'Published' : 'Scheduled',
       date: scheduledPostDate(post),
+      updated: scheduledPostDate(post),
+      source: 'Facebook sync',
       media: post.attachments?.data?.length ? 'Media' : 'Post'
     }));
   const campaign = (agentOverview?.plans || []).flatMap(plan => (plan.campaign?.posts || []).map(post => ({
@@ -2912,6 +3011,8 @@ function postsWorkspaceItems() {
     status: postStatusBucket(post.status),
     statusLabel: String(post.status || 'DRAFT').replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase()),
     date: post.scheduledAt || plan.updatedAt || plan.createdAt,
+    updated: post.updatedAt || plan.updatedAt || plan.createdAt,
+    source: plan.name || 'AI campaign',
     media: post.format || 'Post'
   })));
   return [...campaign, ...local, ...meta]
@@ -2935,17 +3036,24 @@ function renderPostsWorkspace() {
   const visible = items.filter(item => (postsWorkspaceFilter === 'all' || item.status === postsWorkspaceFilter)
     && (!query || `${item.title} ${item.excerpt} ${item.destination} ${item.platform}`.toLowerCase().includes(query)));
   if (!visible.length) {
-    root.innerHTML = `<div class="posts-empty-state"><span>✦</span><strong>${items.length ? 'No posts match this view' : 'Create your first post'}</strong><p>${items.length ? 'Choose another status or clear your search.' : 'Write a direct post, add your media, choose one or several Pages and publish from this workspace.'}</p>${items.length ? '' : '<button class="btn primary compact" type="button" data-empty-create-post>+ Create New Post</button>'}</div>`;
-    root.querySelector('[data-empty-create-post]')?.addEventListener('click', openNewPostWorkspace);
+    root.innerHTML = `<div class="posts-empty-state"><span>✦</span><strong>${items.length ? 'No posts match this view' : 'Your post history will appear here'}</strong><p>${items.length ? 'Choose another status or clear your search.' : 'Use the always-visible composer above to create your first post.'}</p></div>`;
     return;
   }
-  root.innerHTML = `<div class="posts-table-head"><span>Post</span><span>Platform</span><span>Destination</span><span>Publishing time</span><span>Status</span></div>${visible.map(item => `<article class="posts-table-row">
+  root.innerHTML = `<div class="posts-table-head"><span>Post</span><span>Platforms</span><span>Destinations</span><span>Campaign</span><span>Status</span><span>Scheduled time</span><span>Updated</span><span>Actions</span></div>${visible.map(item => `<article class="posts-table-row">
     <div class="posts-item-main"><span class="posts-media-icon">${escapeHtml(String(item.media || 'P').slice(0, 1).toUpperCase())}</span><div><strong>${escapeHtml(shorten(item.title, 82))}</strong><small>${escapeHtml(shorten(item.excerpt, 100))}</small></div></div>
     <span class="posts-platform"><i>f</i>${escapeHtml(item.platform)}</span>
     <span>${escapeHtml(item.destination)}</span>
-    <time>${escapeHtml(item.date ? formatDate(item.date) : 'Not scheduled')}</time>
+    <span class="posts-campaign">${escapeHtml(shorten(item.source, 28))}</span>
     <span class="posts-status ${escapeHtml(item.status)}"><i></i>${escapeHtml(item.statusLabel)}</span>
+    <time>${escapeHtml(item.date ? formatDate(item.date) : 'Not scheduled')}</time>
+    <time>${escapeHtml(item.updated ? formatDate(item.updated) : '—')}</time>
+    <button class="posts-row-action" type="button" data-post-preview-key="${escapeHtml(item.key)}" aria-label="View ${escapeHtml(item.title)}">View</button>
   </article>`).join('')}`;
+  root.querySelectorAll('[data-post-preview-key]').forEach(button => button.addEventListener('click', () => {
+    const item = visible.find(candidate => candidate.key === button.dataset.postPreviewKey);
+    if (!item) return;
+    showStudioConfirm({ eyebrow: `${item.platform} post`, title: item.title, message: item.excerpt || 'No caption is available for this post.', icon: 'f', details: [`Destination: ${item.destination}`, `Status: ${item.statusLabel}`, `Publishing time: ${item.date ? formatDate(item.date) : 'Not scheduled'}`], confirmText: 'Close', cancelText: '' });
+  }));
 }
 
 function renderSlotPills() {

@@ -782,7 +782,14 @@
     const file = selected[0];
     if (!file) return null;
     const id = fileId(file);
-    return { id, name: file.name, type: file.type || (video ? 'video/mp4' : 'image/jpeg'), size: file.size, previewUrl: URL.createObjectURL(file) };
+    return { id, name: file.name, type: file.type || (video ? 'video/mp4' : 'image/jpeg'), size: file.size, contentType: video ? 'VIDEO' : 'IMAGE', previewUrl: URL.createObjectURL(file) };
+  }
+
+  async function prepareDirectPostMedia(file, contentType = 'IMAGE') {
+    if (!(file instanceof File)) throw new Error('Choose a valid image or video file.');
+    const video = String(contentType).toUpperCase() === 'VIDEO';
+    const id = fileId(file);
+    return { id, name: file.name, type: file.type || (video ? 'video/mp4' : 'image/jpeg'), size: file.size, contentType: video ? 'VIDEO' : 'IMAGE', previewUrl: URL.createObjectURL(file) };
   }
 
   async function publishDirectPost(payload = {}) {
@@ -889,6 +896,7 @@
     approveAgentCampaign: async campaignId => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/approve`, { method: 'POST', body: '{}' }),
     scheduleAgentCampaign: async campaignId => api(`/api/agent/campaigns/${encodeURIComponent(campaignId)}/schedule`, { method: 'POST', body: '{}' }),
     pickDirectPostMedia,
+    prepareDirectPostMedia,
     publishDirectPost,
     getWorkspace: workspaceResult,
     refreshWorkspace: workspaceResult,

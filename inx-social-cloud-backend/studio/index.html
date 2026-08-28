@@ -517,34 +517,34 @@ Third video caption #hashtags"></textarea>
         <div id="metaScheduledBox" class="panel hidden"></div>
       </section>
 
-      <section id="posts" class="view posts-workspace">
-        <div class="section-title-row posts-title-row">
-          <div><span class="eyebrow">Content library</span><h2>Posts</h2><p>Review every draft, approval, scheduled post, publication and failed attempt from one workspace.</p></div>
-          <button id="btnPostsCreate" class="btn primary" type="button">+ Create New Post</button>
-        </div>
+      <section id="posts" class="view posts-workspace posts-workspace-v2">
         <div class="posts-status-grid" aria-label="Post status summary">
-          <article><span>All posts</span><strong id="postsCountAll">0</strong></article>
-          <article><span>Awaiting approval</span><strong id="postsCountAwaiting">0</strong></article>
-          <article><span>Scheduled</span><strong id="postsCountScheduled">0</strong></article>
-          <article><span>Published</span><strong id="postsCountPublished">0</strong></article>
-          <article><span>Failed</span><strong id="postsCountFailed">0</strong></article>
+          <article class="all"><span class="posts-summary-icon" aria-hidden="true">▤</span><div><span>All posts</span><strong id="postsCountAll">0</strong><small>Every saved publication</small></div></article>
+          <article class="awaiting"><span class="posts-summary-icon" aria-hidden="true">⌛</span><div><span>Awaiting approval</span><strong id="postsCountAwaiting">0</strong><small>Ready for your decision</small></div></article>
+          <article class="scheduled"><span class="posts-summary-icon" aria-hidden="true">▦</span><div><span>Scheduled</span><strong id="postsCountScheduled">0</strong><small>Queued for later</small></div></article>
+          <article class="published"><span class="posts-summary-icon" aria-hidden="true">✓</span><div><span>Published</span><strong id="postsCountPublished">0</strong><small>Confirmed live</small></div></article>
+          <article class="failed"><span class="posts-summary-icon" aria-hidden="true">!</span><div><span>Failed</span><strong id="postsCountFailed">0</strong><small>Needs attention</small></div></article>
         </div>
-        <section id="postComposer" class="panel post-composer hidden" aria-labelledby="postComposerTitle">
-          <header class="post-composer-head"><div><span class="eyebrow">New post</span><h3 id="postComposerTitle">Create and publish</h3><p>Write once, choose the destinations, then publish now or schedule for later.</p></div><button id="btnPostComposerClose" class="dialog-close" type="button" aria-label="Close post composer">×</button></header>
+        <section id="postComposer" class="panel post-composer" aria-labelledby="postComposerTitle">
           <div class="post-composer-grid">
             <div class="post-compose-main">
-              <fieldset class="post-type-picker"><legend>Post type</legend><label><input type="radio" name="directPostType" value="TEXT" checked><span>Text</span></label><label><input type="radio" name="directPostType" value="IMAGE"><span>Image</span></label><label><input type="radio" name="directPostType" value="VIDEO"><span>Video</span></label></fieldset>
-              <label class="post-field">Post title <span>Private label</span><input id="directPostTitle" maxlength="200" placeholder="Example: Product launch"></label>
-              <label class="post-field">Caption <span id="directPostCharacterCount">0 / 5,000</span><textarea id="directPostCaption" maxlength="5000" rows="8" placeholder="Write the post your audience will see..."></textarea></label>
-              <div id="directPostMediaBox" class="direct-post-media hidden"><div id="directPostMediaPreview" class="direct-post-media-preview"><span>＋</span><strong>Add an image</strong><small>PNG, JPG or WebP · maximum 15 MB</small></div><button id="btnDirectPostMedia" class="btn secondary" type="button">Choose media</button></div>
+              <header class="post-compose-section-head"><div><h3 id="postComposerTitle">Create and publish</h3><p>Design your post, select destinations, then publish now or schedule for later.</p></div><span class="posts-live-badge"><i></i> Facebook live</span></header>
+              <fieldset class="post-type-picker"><legend class="sr-only">Post type</legend><label><input type="radio" name="directPostType" value="TEXT" checked><span><b aria-hidden="true">T</b>Text</span></label><label><input type="radio" name="directPostType" value="IMAGE"><span><b aria-hidden="true">▧</b>Image</span></label><label><input type="radio" name="directPostType" value="VIDEO"><span><b aria-hidden="true">▶</b>Video / Reel</span></label><button class="post-type-coming" type="button" disabled title="Multi-image carousel publishing will be enabled with its official connector"><b aria-hidden="true">▣</b>Carousel <small>Coming soon</small></button></fieldset>
+              <label class="post-field">Post title <span>Optional · private label</span><input id="directPostTitle" maxlength="200" placeholder="Enter a title for your post..."></label>
+              <div class="post-caption-media-grid">
+                <label class="post-field post-caption-field">Caption <span id="directPostCharacterCount">0 / 5,000</span><textarea id="directPostCaption" maxlength="5000" rows="8" placeholder="Write your caption here..."></textarea></label>
+                <div id="directPostMediaBox" class="direct-post-media" role="button" tabindex="0" aria-label="Choose or drop post media"><div id="directPostMediaPreview" class="direct-post-media-preview"><span>↥</span><div><strong>Drag &amp; drop media here</strong><small>or browse to select an image or video</small></div></div><button id="btnDirectPostMedia" class="btn secondary compact" type="button">Browse files</button><small class="direct-post-media-help">Images up to 15 MB · supported videos stream directly to Meta</small></div>
+              </div>
+              <div class="post-smart-tools" aria-label="Post creation tools"><button id="btnDirectPostAI" type="button"><span>✦</span> AI caption suggestion</button><button id="btnDirectPostBestTime" type="button"><span>◷</span> Best time to post</button><button id="btnDirectPostScore" type="button"><span>◎</span> <b id="directPostContentScore">Content score</b></button></div>
+              <div id="directPostSummary" class="direct-post-summary">Choose at least one Page and write a caption.</div>
+              <footer class="post-composer-actions"><button id="btnDirectPostClear" class="btn ghost" type="button">Clear</button><button id="btnDirectPostPublish" class="btn primary" type="button">Publish now</button></footer>
             </div>
             <aside class="post-compose-settings">
-              <section><div class="post-setting-head"><div><strong>Publish to</strong><span id="directPostPageCount">0 selected</span></div><div><button id="btnDirectPagesAll" type="button">All</button><button id="btnDirectPagesClear" type="button">Clear</button></div></div><div id="directPostPageGrid" class="direct-post-page-grid"><div class="workspace-empty">No connected Pages.</div></div></section>
-              <section><strong>Publishing</strong><div class="post-publish-mode"><label><input type="radio" name="directPublishMode" value="NOW" checked><span>Publish now</span></label><label><input type="radio" name="directPublishMode" value="SCHEDULED"><span>Schedule</span></label></div><div id="directPostScheduleFields" class="post-schedule-fields hidden"><label>Date<input id="directPostDate" type="date"></label><label>Time<input id="directPostTime" type="time"></label></div></section>
-              <div id="directPostSummary" class="direct-post-summary">Choose at least one Page and write a caption.</div>
+              <section class="post-destinations-panel"><div class="post-setting-head"><div><strong>Publishing to</strong><span id="directPostPageCount">0 selected</span></div><div><button id="btnDirectPagesAll" type="button">Select all</button><button id="btnDirectPagesClear" type="button">Clear</button></div></div><div id="directPostPageGrid" class="direct-post-page-grid"><div class="workspace-empty">No connected Pages.</div></div></section>
+              <section class="post-schedule-panel"><strong>Schedule</strong><div class="post-publish-mode"><label><input type="radio" name="directPublishMode" value="NOW" checked><span>Publish now</span></label><label><input type="radio" name="directPublishMode" value="SCHEDULED"><span>Schedule for later</span></label></div><div id="directPostScheduleFields" class="post-schedule-fields hidden"><label>Date<input id="directPostDate" type="date"></label><label>Time<input id="directPostTime" type="time"></label></div><p id="directPostScheduleHint" class="post-schedule-hint">Publish immediately after confirmation.</p></section>
+              <section class="post-preview-panel"><div><strong>Platform preview</strong><span>Check the content and selected destinations.</span></div><div class="post-preview-platforms" aria-label="Available post platforms"><i class="facebook">f</i><i class="planned" title="Instagram connector planned">◎</i><i class="planned" title="LinkedIn connector planned">in</i><i class="planned" title="X connector planned">𝕏</i></div><button id="btnDirectPostPreview" class="btn secondary compact" type="button">Open preview</button></section>
             </aside>
           </div>
-          <footer class="post-composer-actions"><button id="btnDirectPostAI" class="btn ghost" type="button">Create with AI instead</button><div><button id="btnDirectPostClear" class="btn ghost" type="button">Clear</button><button id="btnDirectPostPublish" class="btn primary" type="button">Publish now</button></div></footer>
         </section>
         <section class="panel posts-library-panel">
           <div class="posts-toolbar">
