@@ -7,7 +7,7 @@ export function PlanCard({ overview }: { overview: StudioOverview | undefined })
   const limit = overview?.license.limits.pages
   const percentage = limit ? Math.min(100, Math.round((connected / limit) * 100)) : 0
   return (
-    <section className="interactive-surface overflow-hidden rounded-card border border-brand-blue/25 bg-[radial-gradient(circle_at_90%_10%,rgba(139,92,246,0.18),transparent_8rem),linear-gradient(145deg,rgba(36,135,255,0.14),rgba(10,27,45,0.94)_52%,rgba(139,92,246,0.08))] p-3.5 shadow-glow-blue">
+    <section className="interactive-surface overflow-hidden rounded-card border border-brand-blue/25 bg-[radial-gradient(circle_at_90%_10%,rgba(45,212,191,0.13),transparent_8rem),linear-gradient(145deg,rgba(20,184,166,0.14),rgba(7,25,35,0.94)_52%,rgba(16,185,129,0.07))] p-3.5 shadow-glow-blue">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-brand-cyan">{plan} plan</p>
       <p className="mt-2.5 text-sm font-semibold">{overview?.license.allowed ? 'Your publishing access is active' : 'Your publishing access needs attention'}</p>
       <p className="mt-2 text-xs leading-5 text-text-muted">{limit ? `${connected} of ${limit} connected Pages used.` : `${connected} connected Pages.`}</p>

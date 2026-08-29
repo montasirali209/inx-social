@@ -51,7 +51,7 @@ export function PublishingDestinationsPanel({ destinations, platforms, selectedI
     <section aria-labelledby="publishing-destinations-title" className="interactive-surface rounded-panel border p-4 sm:p-5">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-blue to-[#1558c9] text-white shadow-glow-blue"><Network aria-hidden="true" className="size-5" /></span>
+          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-blue to-[#0b766a] text-white shadow-glow-blue"><Network aria-hidden="true" className="size-5" /></span>
           <div className="min-w-0">
             <h2 className="text-base font-semibold" id="publishing-destinations-title">Publishing destinations</h2>
             <p className="mt-0.5 text-xs text-text-muted">Choose one or more connected accounts for this batch only.</p>

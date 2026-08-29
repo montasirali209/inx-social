@@ -6,7 +6,7 @@ import { StatusBadge } from './StatusBadge'
 
 function VideoMark({ job }: { job: DashboardJob }) {
   return (
-    <span className="group/video relative grid h-[58px] w-[92px] shrink-0 place-items-center overflow-hidden rounded-xl border border-brand-blue/20 bg-[radial-gradient(circle_at_28%_18%,rgba(34,211,238,0.22),transparent_34%),linear-gradient(140deg,rgba(36,135,255,0.22),rgba(6,20,36,0.96)_56%,rgba(139,92,246,0.16))] text-brand-cyan shadow-[inset_0_1px_rgba(255,255,255,0.06)]">
+    <span className="group/video relative grid h-[58px] w-[92px] shrink-0 place-items-center overflow-hidden rounded-xl border border-brand-blue/20 bg-[radial-gradient(circle_at_28%_18%,rgba(45,212,191,0.2),transparent_34%),linear-gradient(140deg,rgba(20,184,166,0.2),rgba(3,17,30,0.96)_56%,rgba(16,185,129,0.1))] text-brand-cyan shadow-[inset_0_1px_rgba(255,255,255,0.06)]">
       <span className="grid size-8 place-items-center rounded-full border border-white/15 bg-black/35 text-white backdrop-blur transition group-hover/video:scale-110 group-hover/video:bg-brand-blue/60 motion-reduce:transition-none"><Play aria-hidden="true" className="ml-0.5 size-3.5 fill-current" /></span>
       <span className="absolute bottom-1.5 right-1.5 rounded-md border border-white/10 bg-black/70 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wide text-white">{job.contentType}</span>
       <span aria-hidden="true" className="absolute -left-5 -top-5 size-12 rounded-full border border-brand-cyan/20" />
@@ -108,7 +108,7 @@ export function PublishingQueueTable({ jobs }: { jobs: DashboardJob[] }) {
               </article>
             ))}
           </div>
-          <div className="border-t border-border-soft bg-[radial-gradient(circle_at_12%_50%,rgba(36,135,255,0.09),transparent_32%),linear-gradient(90deg,rgba(255,255,255,0.02),transparent)] px-5 py-4">
+          <div className="border-t border-border-soft bg-[radial-gradient(circle_at_12%_50%,rgba(20,184,166,0.09),transparent_32%),linear-gradient(90deg,rgba(255,255,255,0.02),transparent)] px-5 py-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-brand-cyan/20 bg-brand-cyan/8 text-brand-cyan"><Sparkles aria-hidden="true" className="size-5" /></span>

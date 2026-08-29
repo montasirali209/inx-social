@@ -8,7 +8,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 }
 
 const variants: Record<ButtonVariant, string> = {
-  primary: 'border-accent-blue bg-accent-blue text-white shadow-[0_12px_30px_rgba(59,130,246,.22)] hover:border-accent-blue-hover hover:bg-accent-blue-hover active:translate-y-px',
+  primary: 'border-accent-blue bg-accent-blue text-white shadow-[0_12px_30px_rgba(20,184,166,.22)] hover:border-accent-blue-hover hover:bg-accent-blue-hover active:translate-y-px',
   secondary: 'border-border-strong bg-bg-panel-alt text-text-primary hover:border-accent-blue/60 hover:bg-bg-elevated active:translate-y-px',
   ghost: 'border-transparent bg-transparent text-text-secondary hover:bg-bg-elevated hover:text-text-primary active:translate-y-px',
 }

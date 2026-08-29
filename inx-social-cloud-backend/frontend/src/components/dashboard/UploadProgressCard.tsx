@@ -20,7 +20,7 @@ export function UploadProgressCard({ job }: { job: DashboardJob | null }) {
         <div className="relative overflow-hidden px-4 py-3.5">
           <div aria-hidden="true" className="absolute -right-9 -top-10 size-28 rounded-full bg-brand-cyan/8 blur-3xl" />
           <div className="relative flex items-center gap-4">
-            <span className="relative grid size-11 shrink-0 place-items-center rounded-xl border border-brand-cyan/20 bg-brand-cyan/8 text-brand-cyan shadow-[0_0_28px_rgba(34,211,238,0.1)]"><CloudUpload aria-hidden="true" className="icon-float size-5" /><span className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-panel bg-brand-green shadow-[0_0_10px_#22c55e]" /></span>
+            <span className="relative grid size-11 shrink-0 place-items-center rounded-xl border border-brand-cyan/20 bg-brand-cyan/8 text-brand-cyan shadow-[0_0_28px_rgba(45,212,191,0.1)]"><CloudUpload aria-hidden="true" className="icon-float size-5" /><span className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-panel bg-brand-green shadow-[0_0_10px_#22c55e]" /></span>
             <div className="min-w-0 flex-1"><strong className="text-sm">Upload station ready</strong><p className="mt-1 text-xs leading-5 text-text-muted">No transfer in progress. Drop in a video whenever you are ready.</p></div>
             <a aria-label="Upload a video" className="hidden size-10 shrink-0 place-items-center rounded-xl border border-brand-blue/25 bg-brand-blue/10 text-[#72b5ff] transition hover:bg-brand-blue/20 focus-visible:outline-2 focus-visible:outline-brand-cyan sm:grid" href="/studio/?view=reels"><Upload aria-hidden="true" className="size-4" /></a>
           </div>
@@ -33,7 +33,7 @@ export function UploadProgressCard({ job }: { job: DashboardJob | null }) {
             <span className="min-w-0"><strong className="block truncate text-sm">{jobTitle(job)}</strong><small className="mt-1 block text-xs text-text-muted">{fileDetails(job)}</small></span>
           </div>
           <div aria-label={stageLabel[job.status]} className="mt-3 h-2 overflow-hidden rounded-full bg-white/7">
-            <span className="indeterminate-progress block h-full rounded-full bg-gradient-to-r from-brand-blue via-brand-cyan to-brand-blue shadow-[0_0_14px_rgba(34,211,238,0.45)]" />
+            <span className="indeterminate-progress block h-full rounded-full bg-gradient-to-r from-brand-blue via-brand-cyan to-brand-blue shadow-[0_0_14px_rgba(45,212,191,0.42)]" />
           </div>
           <p className="mt-2 text-xs text-text-muted">{stageLabel[job.status] || 'Publishing work in progress'}</p>
         </div>

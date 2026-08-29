@@ -14,7 +14,7 @@ export function DestinationCard({ destination, selected, onToggle }: Props) {
   const [imageFailed, setImageFailed] = useState(false)
   const initials = destination.name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'IN'
   return (
-    <label className={`group relative flex min-h-[78px] items-center gap-3 rounded-xl border p-3 transition duration-200 ease-out focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-cyan motion-reduce:transition-none ${disabled ? 'cursor-not-allowed border-white/5 bg-black/12 opacity-60' : selected ? 'cursor-pointer border-brand-blue/75 bg-gradient-to-br from-brand-blue/18 to-brand-cyan/5 shadow-[0_12px_32px_rgba(36,135,255,0.14),inset_0_1px_rgba(255,255,255,0.04)] hover:-translate-y-0.5' : 'cursor-pointer border-border-soft bg-black/12 hover:-translate-y-0.5 hover:border-brand-blue/40 hover:bg-panel-hover/45'}`}>
+    <label className={`group relative flex min-h-[78px] items-center gap-3 rounded-xl border p-3 transition duration-200 ease-out focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-brand-cyan motion-reduce:transition-none ${disabled ? 'cursor-not-allowed border-white/5 bg-black/12 opacity-60' : selected ? 'cursor-pointer border-brand-blue/75 bg-gradient-to-br from-brand-blue/18 to-brand-cyan/5 shadow-[0_12px_32px_rgba(20,184,166,0.14),inset_0_1px_rgba(255,255,255,0.04)] hover:-translate-y-0.5' : 'cursor-pointer border-border-soft bg-black/12 hover:-translate-y-0.5 hover:border-brand-blue/40 hover:bg-panel-hover/45'}`}>
       <input
         checked={selected}
         className="peer sr-only"
@@ -26,7 +26,7 @@ export function DestinationCard({ destination, selected, onToggle }: Props) {
       <span className="relative shrink-0">
         {destination.avatarUrl && !imageFailed
           ? <img alt="" className="size-10 rounded-full border border-white/10 bg-panel-soft object-cover" onError={() => setImageFailed(true)} src={destination.avatarUrl} />
-          : <span aria-hidden="true" className="grid size-10 place-items-center rounded-full border border-brand-blue/30 bg-gradient-to-br from-brand-blue to-[#0758bd] text-[11px] font-bold text-white">{initials}</span>}
+          : <span aria-hidden="true" className="grid size-10 place-items-center rounded-full border border-brand-blue/30 bg-gradient-to-br from-brand-blue to-[#0b766a] text-[11px] font-bold text-white">{initials}</span>}
         <PlatformMark className="absolute -bottom-1 -right-1 ring-2 ring-panel" platform={destination.platform} size="xs" />
       </span>
       <span className="min-w-0 flex-1">
