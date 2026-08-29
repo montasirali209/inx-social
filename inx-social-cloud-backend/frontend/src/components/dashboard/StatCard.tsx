@@ -13,18 +13,18 @@ const toneStyles: Record<StatCardData['tone'], { icon: string; line: string; glo
 export function StatCard({ data, icon: Icon }: { data: StatCardData; icon: LucideIcon }) {
   const style = toneStyles[data.tone]
   return (
-    <article className="interactive-surface group relative min-w-[232px] overflow-hidden rounded-card border p-5 backdrop-blur-xl md:min-w-0">
+    <article className="interactive-surface group relative min-w-[224px] overflow-hidden rounded-card border p-4 backdrop-blur-xl md:min-w-0">
       <div aria-hidden="true" className={`absolute -right-9 -top-10 size-28 rounded-full blur-3xl ${style.glow}`} />
       <div aria-hidden="true" className={`absolute inset-0 bg-gradient-to-br ${style.wash} via-transparent to-transparent opacity-75`} />
       <div className={`absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r ${style.line} via-current to-transparent opacity-80`} />
       <div className="relative flex items-start gap-3.5">
-        <span className={`icon-float grid size-12 shrink-0 place-items-center rounded-2xl border shadow-[inset_0_1px_rgba(255,255,255,0.08)] ${style.icon}`}>
-          <Icon aria-hidden="true" className="size-[22px]" />
+        <span className={`icon-float grid size-11 shrink-0 place-items-center rounded-xl border shadow-[inset_0_1px_rgba(255,255,255,0.08)] ${style.icon}`}>
+          <Icon aria-hidden="true" className="size-5" />
         </span>
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-text-muted">{data.label}</p>
-          <strong className="mt-1 block text-[2rem] font-semibold leading-none tracking-[-0.05em] text-text-main">{data.value}</strong>
-          <p className="mt-2 truncate text-xs text-text-soft transition-colors group-hover:text-text-muted">{data.detail}</p>
+          <strong className="mt-1 block text-[1.8rem] font-semibold leading-none tracking-[-0.05em] text-text-main">{data.value}</strong>
+          <p className="mt-1.5 truncate text-xs text-text-soft transition-colors group-hover:text-text-muted">{data.detail}</p>
         </div>
       </div>
     </article>

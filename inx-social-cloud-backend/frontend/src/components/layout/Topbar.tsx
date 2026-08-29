@@ -11,7 +11,7 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
   const setOpen = useUiStore((state) => state.setMobileNavigationOpen)
   const name = overview?.user.name || overview?.user.businessName || 'INX Social account'
   return (
-    <header className="sticky top-0 z-20 flex min-h-[72px] items-center justify-between gap-4 border-b border-border-soft bg-bg/80 px-4 shadow-[0_12px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl sm:px-6 xl:px-8">
+    <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between gap-4 border-b border-border-soft bg-bg/80 px-4 shadow-[0_12px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl sm:px-6">
       <div className="flex min-w-0 items-center gap-3">
         <Button aria-label="Open navigation" className="size-10 shrink-0 px-0 md:hidden" onClick={() => setOpen(true)} variant="ghost"><Menu aria-hidden="true" className="size-5" /></Button>
         <div className="min-w-0">

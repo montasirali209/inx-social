@@ -15,7 +15,7 @@ export function AppShell() {
       <Sidebar overview={overview.data} />
       <div className="md:pl-[88px] xl:pl-[264px]">
         <Topbar overview={overview.data} />
-        <main className="mx-auto w-full max-w-[1780px] p-4 sm:p-6 xl:p-8" id="main-content">
+        <main className="mx-auto w-full max-w-[1780px] p-4 sm:p-5 xl:p-6" id="main-content">
           <Outlet />
         </main>
       </div>

@@ -108,7 +108,7 @@ export function PublishingQueueTable({ jobs }: { jobs: DashboardJob[] }) {
               </article>
             ))}
           </div>
-          <div className="border-t border-border-soft bg-[radial-gradient(circle_at_12%_50%,rgba(36,135,255,0.09),transparent_32%),linear-gradient(90deg,rgba(255,255,255,0.02),transparent)] px-5 py-5">
+          <div className="border-t border-border-soft bg-[radial-gradient(circle_at_12%_50%,rgba(36,135,255,0.09),transparent_32%),linear-gradient(90deg,rgba(255,255,255,0.02),transparent)] px-5 py-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-3">
                 <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-brand-cyan/20 bg-brand-cyan/8 text-brand-cyan"><Sparkles aria-hidden="true" className="size-5" /></span>

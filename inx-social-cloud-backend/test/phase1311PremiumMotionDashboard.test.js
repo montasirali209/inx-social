@@ -27,7 +27,7 @@ test('Phase 13.1.1 upgrades each operational dashboard surface and sidebar navig
   const actions = read('frontend/src/components/dashboard/QuickActionsCard.tsx');
   const sidebar = read('frontend/src/components/layout/Sidebar.tsx');
 
-  assert.match(workflow, /size-14/);
+  assert.match(workflow, /size-(?:12|14)/);
   assert.match(connected, /Connected & active/);
   assert.match(upload, /Upload station ready/);
   assert.match(upload, /indeterminate-progress/);

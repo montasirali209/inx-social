@@ -10,15 +10,15 @@ export function UpcomingScheduleCard({ jobs }: { jobs: DashboardJob[] }) {
       title="Upcoming Schedule"
     >
       {jobs.length === 0 ? (
-        <div className="relative flex min-h-32 items-center gap-4 overflow-hidden px-4 py-5">
+        <div className="relative flex min-h-24 items-center gap-3 overflow-hidden px-4 py-3.5">
           <span aria-hidden="true" className="absolute -right-8 top-1/2 size-28 -translate-y-1/2 rounded-full border border-brand-blue/10 bg-brand-blue/[0.025]" />
-          <span className="grid size-14 shrink-0 place-items-center rounded-2xl border border-brand-blue/20 bg-brand-blue/10 text-[#65adff] shadow-glow-blue"><CalendarClock aria-hidden="true" className="icon-float size-6" /></span>
+          <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-brand-blue/20 bg-brand-blue/10 text-[#65adff] shadow-glow-blue"><CalendarClock aria-hidden="true" className="icon-float size-5" /></span>
           <div className="relative"><strong className="text-sm">Your schedule is open</strong><p className="mt-1 max-w-[250px] text-xs leading-5 text-text-muted">No upcoming videos yet. Choose a future slot when your next video is ready.</p></div>
         </div>
       ) : (
         <ul className="divide-y divide-border-soft px-4">
           {jobs.map((job) => (
-            <li className="group/item flex items-center gap-3 py-3 transition hover:translate-x-0.5 motion-reduce:transition-none" key={job.id}>
+            <li className="group/item flex items-center gap-3 py-2.5 transition hover:translate-x-0.5 motion-reduce:transition-none" key={job.id}>
               <time className="w-10 shrink-0 text-center" dateTime={job.scheduledAt ?? undefined}>
                 <span className="block text-[10px] font-semibold uppercase text-text-soft">{new Intl.DateTimeFormat('en-GB', { month: 'short' }).format(new Date(job.scheduledAt!))}</span>
                 <strong className="block text-lg leading-5">{new Date(job.scheduledAt!).getDate()}</strong>
