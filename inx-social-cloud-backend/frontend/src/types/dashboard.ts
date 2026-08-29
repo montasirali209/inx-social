@@ -1,4 +1,4 @@
-export type Platform = 'facebook' | 'instagram' | 'youtube' | 'tiktok' | 'linkedin'
+export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'youtube' | 'tiktok' | 'x'
 
 export type BackendJobStatus =
   | 'DRAFT'
@@ -11,7 +11,7 @@ export type BackendJobStatus =
   | 'FAILED'
   | 'CANCELLED'
 
-export type VideoStatus =
+export type PostStatus =
   | 'ready'
   | 'scheduled'
   | 'in_queue'
@@ -20,13 +20,60 @@ export type VideoStatus =
   | 'pending_review'
   | 'failed'
 
+export type VideoStatus = PostStatus
+
 export type DashboardTone = 'blue' | 'cyan' | 'green' | 'purple' | 'amber' | 'red'
 
 export type StatCardData = {
   label: string
-  value: number
+  value: number | string
   detail: string
   tone: DashboardTone
+  trend?: string | null
+  trendDirection?: 'up' | 'down' | 'neutral'
+}
+
+export type DashboardStat = StatCardData
+
+export type SocialPost = {
+  id: string
+  title: string
+  excerpt: string
+  thumbnailUrl: string | null
+  platforms: Platform[]
+  status: PostStatus
+  occurredAt: string
+  engagement: number | null
+}
+
+export type PlatformMetric = {
+  platform: Platform
+  posts: number
+  engagement: number | null
+}
+
+export type ScheduledPost = {
+  id: string
+  title: string
+  scheduledAt: string
+  platforms: Platform[]
+  status: PostStatus
+}
+
+export type TopContentItem = {
+  id: string
+  title: string
+  thumbnailUrl: string | null
+  engagement: number | null
+  status: PostStatus
+}
+
+export type PublishingActivityPoint = {
+  date: string
+  label: string
+  published: number
+  scheduled: number
+  failed: number
 }
 
 export type ConnectedPage = {
@@ -112,4 +159,7 @@ export type DashboardViewData = {
   upcoming: DashboardJob[]
   activeTransfer: DashboardJob | null
   stats: StatCardData[]
+  recentPosts: SocialPost[]
+  platformMetrics: PlatformMetric[]
+  topContent: TopContentItem[]
 }

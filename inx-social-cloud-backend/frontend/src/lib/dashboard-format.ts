@@ -12,7 +12,7 @@ export function formatFileSize(value: string | null | undefined) {
   return `${Math.ceil(bytes / 1024)} KB`
 }
 
-export function formatSchedule(value: string | null, part: 'date' | 'time' | 'full' = 'full') {
+export function formatSchedule(value: string | null, part: 'date' | 'time' | 'full' = 'full', timeZone?: string) {
   if (!value) return 'Not scheduled'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return 'Invalid date'
@@ -21,7 +21,7 @@ export function formatSchedule(value: string | null, part: 'date' | 'time' | 'fu
     : part === 'time'
       ? { hour: '2-digit', minute: '2-digit' }
       : { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }
-  return new Intl.DateTimeFormat('en-GB', options).format(date)
+  return new Intl.DateTimeFormat('en-GB', { ...options, timeZone }).format(date)
 }
 
 export function fileDetails(job: DashboardJob) {

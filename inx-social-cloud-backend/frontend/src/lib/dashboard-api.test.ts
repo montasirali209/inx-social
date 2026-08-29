@@ -59,10 +59,13 @@ describe('dashboard data mapping', () => {
       job('FAILED'),
     ], now)
 
-    expect(data.stats.map((item) => item.value)).toEqual([1, 1, 2, 1, 1])
+    expect(data.stats.map((item) => item.value)).toEqual([6, 1, 1, 1, '—'])
     expect(data.queue).toHaveLength(5)
     expect(data.upcoming).toHaveLength(1)
     expect(data.activeTransfer?.status).toBe('PROCESSING')
+    expect(data.recentPosts).toHaveLength(5)
+    expect(data.platformMetrics.find((item) => item.platform === 'facebook')?.posts).toBe(6)
+    expect(data.platformMetrics.find((item) => item.platform === 'instagram')?.posts).toBe(0)
   })
 
   it('maps every backend state to a customer-facing publishing state', () => {

@@ -2,8 +2,8 @@ import { AlertTriangle, CheckCircle2, Clock3, LoaderCircle, UploadCloud } from '
 import type { VideoStatus } from '../../types/dashboard'
 
 const styles: Record<VideoStatus, string> = {
-  ready: 'border-brand-blue/25 bg-brand-blue/10 text-[#79b8ff]',
-  scheduled: 'border-brand-blue/25 bg-brand-blue/10 text-[#79b8ff]',
+  ready: 'border-[#3b82f6]/25 bg-[#3b82f6]/10 text-[#79b8ff]',
+  scheduled: 'border-[#3b82f6]/25 bg-[#3b82f6]/10 text-[#79b8ff]',
   in_queue: 'border-brand-purple/25 bg-brand-purple/10 text-[#c4a8ff]',
   publishing: 'border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan',
   published: 'border-brand-green/25 bg-brand-green/10 text-brand-green',
@@ -31,11 +31,11 @@ const icons = {
   failed: AlertTriangle,
 } satisfies Record<VideoStatus, typeof Clock3>
 
-export function StatusBadge({ status }: { status: VideoStatus }) {
+export function StatusBadge({ status, compact = false }: { status: VideoStatus; compact?: boolean }) {
   const Icon = icons[status]
   return (
-    <span className={`inline-flex min-h-7 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-semibold shadow-[inset_0_1px_rgba(255,255,255,0.04)] ${styles[status]}`}>
-      <Icon aria-hidden="true" className={`size-3.5 ${status === 'publishing' ? 'animate-spin motion-reduce:animate-none' : ''}`} />
+    <span className={`inline-flex items-center rounded-lg border font-semibold shadow-[inset_0_1px_rgba(255,255,255,0.04)] ${compact ? 'min-h-6 gap-1 px-2 py-0.5 text-[10px]' : 'min-h-7 gap-1.5 px-2.5 py-1 text-xs'} ${styles[status]}`}>
+      {!compact && <Icon aria-hidden="true" className={`size-3.5 ${status === 'publishing' ? 'animate-spin motion-reduce:animate-none' : ''}`} />}
       {labels[status]}
     </span>
   )

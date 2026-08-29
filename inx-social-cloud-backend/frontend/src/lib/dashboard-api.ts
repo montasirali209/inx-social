@@ -3,8 +3,13 @@ import type {
   BackendJobStatus,
   DashboardJob,
   DashboardViewData,
+  Platform,
+  PlatformMetric,
+  PublishingActivityPoint,
+  SocialPost,
   StatCardData,
   StudioOverview,
+  TopContentItem,
   VideoStatus,
 } from '../types/dashboard'
 
@@ -25,12 +30,51 @@ function localDayKey(value: string | Date) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
 }
 
-function isWithinLastDays(value: string | null, days: number, now = new Date()) {
-  if (!value) return false
-  const time = new Date(value).getTime()
-  if (!Number.isFinite(time)) return false
-  const age = now.getTime() - time
-  return age >= 0 && age < days * 86_400_000
+function startOfLocalDay(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate())
+}
+
+function jobPlatform(job: DashboardJob): Platform {
+  // Facebook Pages are the only live publishing connector in this phase.
+  void job
+  return 'facebook'
+}
+
+function occurredAt(job: DashboardJob) {
+  return job.completedAt || job.scheduledAt || job.updatedAt || job.createdAt
+}
+
+function socialPost(job: DashboardJob): SocialPost {
+  return {
+    id: job.id,
+    title: job.title?.trim() || job.localFileName || job.asset?.originalFileName || 'Untitled post',
+    excerpt: job.caption?.trim() || (job.errorMessage ? 'This post needs attention.' : 'Publishing details available in Posts.'),
+    thumbnailUrl: job.page?.facebookPagePicture || null,
+    platforms: [jobPlatform(job)],
+    status: videoStatus(job.status),
+    occurredAt: occurredAt(job),
+    engagement: null,
+  }
+}
+
+export function buildActivitySeries(jobs: DashboardJob[], days = 7, now = new Date()): PublishingActivityPoint[] {
+  const totalDays = Math.min(90, Math.max(7, days))
+  const today = startOfLocalDay(now)
+  return Array.from({ length: totalDays }, (_, index) => {
+    const date = new Date(today)
+    date.setDate(today.getDate() - (totalDays - index - 1))
+    const key = localDayKey(date)
+    const count = (status: BackendJobStatus, value: (job: DashboardJob) => string | null) => jobs.filter((job) => (
+      job.status === status && Boolean(value(job)) && localDayKey(value(job)!) === key
+    )).length
+    return {
+      date: date.toISOString(),
+      label: new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(date),
+      published: count('PUBLISHED', (job) => job.completedAt || job.updatedAt),
+      scheduled: count('SCHEDULED', (job) => job.scheduledAt || job.updatedAt),
+      failed: count('FAILED', (job) => job.updatedAt),
+    }
+  })
 }
 
 export function videoStatus(status: BackendJobStatus): VideoStatus {
@@ -53,23 +97,12 @@ export function buildDashboardView(
   jobs: DashboardJob[],
   now = new Date(),
 ): DashboardViewData {
-  const today = localDayKey(now)
-  const scheduledToday = jobs.filter((job) => (
-    job.status === 'SCHEDULED'
-    && Boolean(job.scheduledAt)
-    && localDayKey(job.scheduledAt!) === today
-  )).length
-  const publishedThisWeek = jobs.filter((job) => (
-    job.status === 'PUBLISHED' && isWithinLastDays(job.completedAt ?? job.updatedAt, 7, now)
-  )).length
-  const queueCount = overview.summary.queued + overview.summary.processing
-
   const stats: StatCardData[] = [
-    { label: 'Videos Ready', value: overview.summary.ready, detail: 'Prepared for scheduling', tone: 'blue' },
-    { label: 'Scheduled Today', value: scheduledToday, detail: 'Due today', tone: 'cyan' },
-    { label: 'Publishing Queue', value: queueCount, detail: 'Queued or publishing', tone: 'purple' },
-    { label: 'Published This Week', value: publishedThisWeek, detail: 'Confirmed by Meta', tone: 'green' },
-    { label: 'Needs Review', value: overview.summary.failed, detail: 'Failed items need attention', tone: 'red' },
+    { label: 'Total Posts', value: overview.summary.total, detail: 'All publishing records', tone: 'green' },
+    { label: 'Published', value: overview.summary.published, detail: 'Confirmed by Meta', tone: 'green' },
+    { label: 'Scheduled', value: overview.summary.scheduled, detail: 'Future publishing slots', tone: 'cyan' },
+    { label: 'Failed', value: overview.summary.failed, detail: 'Items needing attention', tone: 'red' },
+    { label: 'Engagement', value: '—', detail: 'Open live Analytics', tone: 'blue' },
   ]
 
   const queue = jobs.filter((job) => queueStatuses.has(job.status)).slice(0, 8)
@@ -79,7 +112,28 @@ export function buildDashboardView(
     .slice(0, 4)
   const activeTransfer = jobs.find((job) => job.status === 'PROCESSING' || job.uploadStatus === 'UPLOADING') ?? null
 
-  return { overview, jobs, queue, upcoming, activeTransfer, stats }
+  const sortedPosts = [...jobs].sort((left, right) => new Date(occurredAt(right)).getTime() - new Date(occurredAt(left)).getTime())
+  const recentPosts = sortedPosts.slice(0, 5).map(socialPost)
+  const platformCounts = new Map<Platform, number>()
+  jobs.forEach((job) => platformCounts.set(jobPlatform(job), (platformCounts.get(jobPlatform(job)) || 0) + 1))
+  const platforms: Platform[] = ['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok', 'x']
+  const platformMetrics: PlatformMetric[] = platforms.map((platform) => ({
+    platform,
+    posts: platformCounts.get(platform) || 0,
+    engagement: null,
+  }))
+  const topContent: TopContentItem[] = sortedPosts
+    .filter((job) => job.status === 'PUBLISHED')
+    .slice(0, 5)
+    .map((job) => ({
+      id: job.id,
+      title: socialPost(job).title,
+      thumbnailUrl: job.page?.facebookPagePicture || null,
+      engagement: null,
+      status: videoStatus(job.status),
+    }))
+
+  return { overview, jobs, queue, upcoming, activeTransfer, stats, recentPosts, platformMetrics, topContent }
 }
 
 export async function fetchStudioOverview() {
