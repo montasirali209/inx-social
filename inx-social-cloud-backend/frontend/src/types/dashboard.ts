@@ -56,6 +56,8 @@ export type DashboardJob = {
   scheduledAt: string | null
   completedAt: string | null
   errorMessage: string | null
+  metaPostId?: string | null
+  metaVideoId?: string | null
   createdAt: string
   updatedAt: string
   page: ConnectedPage | null

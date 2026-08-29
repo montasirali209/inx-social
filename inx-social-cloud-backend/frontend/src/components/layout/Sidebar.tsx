@@ -20,7 +20,7 @@ import { Button } from '../ui/Button'
 
 const navigation = [
   { label: 'Dashboard', icon: LayoutDashboard, reactPath: '/' },
-  { label: 'Bulk Scheduler', icon: CalendarRange, legacyView: 'reels' },
+  { label: 'Bulk Scheduler', icon: CalendarRange, reactPath: '/bulk-scheduler' },
   { label: 'Content Calendar', icon: CalendarDays, legacyView: 'calendar' },
   { label: 'Posts', icon: FileText, legacyView: 'posts' },
   { label: 'Media Library', icon: Images, legacyView: 'media' },

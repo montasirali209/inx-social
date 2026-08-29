@@ -10,7 +10,7 @@ export class ApiError extends Error {
   }
 }
 
-function storedToken() {
+export function getStoredAuthToken() {
   for (const key of TOKEN_KEYS) {
     const value = window.localStorage.getItem(key)
     if (value) return value
@@ -20,7 +20,7 @@ function storedToken() {
 
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers)
-  const token = storedToken()
+  const token = getStoredAuthToken()
 
   if (token) headers.set('Authorization', `Bearer ${token}`)
   if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
