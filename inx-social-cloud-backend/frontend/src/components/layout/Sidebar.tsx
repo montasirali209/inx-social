@@ -3,7 +3,7 @@ import {
   CalendarDays,
   CalendarRange,
   CreditCard,
-  Film,
+  FileText,
   Images,
   LayoutDashboard,
   ListVideo,
@@ -20,9 +20,9 @@ import { Button } from '../ui/Button'
 
 const navigation = [
   { label: 'Dashboard', icon: LayoutDashboard, reactPath: '/' },
-  { label: 'Scheduler', icon: CalendarRange, legacyView: 'reels' },
+  { label: 'Bulk Scheduler', icon: CalendarRange, legacyView: 'reels' },
   { label: 'Content Calendar', icon: CalendarDays, legacyView: 'calendar' },
-  { label: 'Videos', icon: Film, legacyView: 'reels' },
+  { label: 'Posts', icon: FileText, legacyView: 'posts' },
   { label: 'Media Library', icon: Images, legacyView: 'media' },
   { label: 'Publishing Queue', icon: ListVideo, legacyView: 'reels' },
   { label: 'Analytics', icon: BarChart3, legacyView: 'analytics' },
