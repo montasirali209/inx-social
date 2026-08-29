@@ -87,6 +87,8 @@ window.addEventListener('DOMContentLoaded', async () => {
   resetReelsTimingSelection();
   buildDraftTimePicker();
   buildReelsTimePicker();
+  const requestedView = new URLSearchParams(window.location.search).get('view');
+  if (requestedView && views[requestedView]) switchView(requestedView);
 });
 
 function bindStudioActionModal() {
