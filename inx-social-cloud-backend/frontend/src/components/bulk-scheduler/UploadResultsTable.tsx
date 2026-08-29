@@ -5,7 +5,7 @@ import { StatusBadge } from './StatusBadge'
 
 function ResultDestinations({ ids, destinations }: { ids: string[]; destinations: Destination[] }) {
   const selected = ids.map((id) => destinations.find((destination) => destination.id === id)).filter(Boolean) as Destination[]
-  return <span className="flex items-center gap-1">{selected.slice(0, 5).map((destination) => <PlatformMark className="size-6 text-[8px]" key={destination.id} platform={destination.platform} />)}{selected.length > 5 && <span className="rounded-full bg-white/7 px-2 py-1 text-[10px] text-text-muted">+{selected.length - 5}</span>}</span>
+  return <span className="flex items-center gap-1">{selected.slice(0, 5).map((destination) => <PlatformMark key={destination.id} platform={destination.platform} size="sm" />)}{selected.length > 5 && <span className="rounded-full bg-white/7 px-2 py-1 text-[10px] text-text-muted">+{selected.length - 5}</span>}</span>
 }
 
 export function UploadResultsTable({ results, destinations }: { results: UploadResult[]; destinations: Destination[] }) {

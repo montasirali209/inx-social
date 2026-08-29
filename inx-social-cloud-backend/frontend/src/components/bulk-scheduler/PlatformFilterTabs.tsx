@@ -33,7 +33,7 @@ export function PlatformFilterTabs({ active, counts, onChange }: Props) {
             role="tab"
             type="button"
           >
-            {filter.value !== 'all' && <PlatformMark className="size-6 text-[9px]" platform={filter.value} />}
+            {filter.value !== 'all' && <PlatformMark platform={filter.value} size="sm" />}
             {filter.label}
             <span className="rounded-full border border-white/8 bg-white/5 px-2 py-0.5 text-[10px] text-text-muted">{counts[filter.value]}</span>
           </button>

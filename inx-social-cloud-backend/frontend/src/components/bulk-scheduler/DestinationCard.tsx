@@ -27,7 +27,7 @@ export function DestinationCard({ destination, selected, onToggle }: Props) {
         {destination.avatarUrl && !imageFailed
           ? <img alt="" className="size-10 rounded-full border border-white/10 bg-panel-soft object-cover" onError={() => setImageFailed(true)} src={destination.avatarUrl} />
           : <span aria-hidden="true" className="grid size-10 place-items-center rounded-full border border-brand-blue/30 bg-gradient-to-br from-brand-blue to-[#0758bd] text-[11px] font-bold text-white">{initials}</span>}
-        <PlatformMark className="absolute -bottom-1 -right-1 size-5 text-[8px] ring-2 ring-panel" platform={destination.platform} />
+        <PlatformMark className="absolute -bottom-1 -right-1 ring-2 ring-panel" platform={destination.platform} size="xs" />
       </span>
       <span className="min-w-0 flex-1">
         <strong className="block truncate text-sm font-semibold text-text-main">{destination.handle || destination.name}</strong>
