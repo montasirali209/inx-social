@@ -1,4 +1,4 @@
-import { ArrowUpRight, CloudUpload, LoaderCircle } from 'lucide-react'
+import { ArrowUpRight, CloudUpload, FileVideo2, LoaderCircle, Upload } from 'lucide-react'
 import { fileDetails, jobTitle } from '../../lib/dashboard-format'
 import type { DashboardJob } from '../../types/dashboard'
 import { DashboardCard } from './DashboardCard'
@@ -17,18 +17,23 @@ export function UploadProgressCard({ job }: { job: DashboardJob | null }) {
       title="Upload Progress"
     >
       {!job ? (
-        <div className="flex min-h-24 items-center gap-3 px-4 py-5">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-cyan/10 text-brand-cyan"><CloudUpload aria-hidden="true" className="size-5" /></span>
-          <div><strong className="text-sm">No active upload</strong><p className="mt-1 text-xs text-text-muted">Your browser is not transferring a video.</p></div>
+        <div className="relative overflow-hidden px-4 py-5">
+          <div aria-hidden="true" className="absolute -right-9 -top-10 size-28 rounded-full bg-brand-cyan/8 blur-3xl" />
+          <div className="relative flex items-center gap-4">
+            <span className="relative grid size-14 shrink-0 place-items-center rounded-2xl border border-brand-cyan/20 bg-brand-cyan/8 text-brand-cyan shadow-[0_0_28px_rgba(34,211,238,0.1)]"><CloudUpload aria-hidden="true" className="icon-float size-6" /><span className="absolute -right-1 -top-1 size-3 rounded-full border-2 border-panel bg-brand-green shadow-[0_0_10px_#22c55e]" /></span>
+            <div className="min-w-0 flex-1"><strong className="text-sm">Upload station ready</strong><p className="mt-1 text-xs leading-5 text-text-muted">No transfer in progress. Drop in a video whenever you are ready.</p></div>
+            <a aria-label="Upload a video" className="hidden size-10 shrink-0 place-items-center rounded-xl border border-brand-blue/25 bg-brand-blue/10 text-[#72b5ff] transition hover:bg-brand-blue/20 focus-visible:outline-2 focus-visible:outline-brand-cyan sm:grid" href="/studio/?view=reels"><Upload aria-hidden="true" className="size-4" /></a>
+          </div>
+          <div className="mt-4 h-1 overflow-hidden rounded-full bg-white/6"><span className="block h-full w-full bg-gradient-to-r from-brand-cyan/20 via-brand-blue/35 to-brand-purple/20" /></div>
         </div>
       ) : (
         <div className="p-4">
           <div className="flex items-center gap-3">
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-cyan/10 text-brand-cyan"><LoaderCircle aria-hidden="true" className="size-5 animate-spin motion-reduce:animate-none" /></span>
+            <span className="relative grid size-14 shrink-0 place-items-center overflow-hidden rounded-xl border border-brand-cyan/20 bg-gradient-to-br from-brand-blue/20 to-brand-cyan/8 text-brand-cyan"><FileVideo2 aria-hidden="true" className="size-5" /><LoaderCircle aria-hidden="true" className="absolute bottom-1 right-1 size-3.5 animate-spin text-white motion-reduce:animate-none" /></span>
             <span className="min-w-0"><strong className="block truncate text-sm">{jobTitle(job)}</strong><small className="mt-1 block text-xs text-text-muted">{fileDetails(job)}</small></span>
           </div>
-          <div aria-label={stageLabel[job.status]} className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/7">
-            <span className="block h-full w-1/2 animate-pulse rounded-full bg-gradient-to-r from-brand-blue to-brand-cyan motion-reduce:animate-none" />
+          <div aria-label={stageLabel[job.status]} className="mt-4 h-2 overflow-hidden rounded-full bg-white/7">
+            <span className="indeterminate-progress block h-full rounded-full bg-gradient-to-r from-brand-blue via-brand-cyan to-brand-blue shadow-[0_0_14px_rgba(34,211,238,0.45)]" />
           </div>
           <p className="mt-2 text-xs text-text-muted">{stageLabel[job.status] || 'Publishing work in progress'}</p>
         </div>

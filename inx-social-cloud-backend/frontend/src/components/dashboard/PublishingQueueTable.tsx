@@ -1,4 +1,4 @@
-import { ExternalLink, Film, MoreHorizontal } from 'lucide-react'
+import { ExternalLink, Film, MoreHorizontal, Play, Plus, Sparkles } from 'lucide-react'
 import { fileDetails, formatSchedule, jobTitle } from '../../lib/dashboard-format'
 import { videoStatus } from '../../lib/dashboard-api'
 import type { DashboardJob } from '../../types/dashboard'
@@ -6,9 +6,10 @@ import { StatusBadge } from './StatusBadge'
 
 function VideoMark({ job }: { job: DashboardJob }) {
   return (
-    <span className="relative grid h-12 w-[76px] shrink-0 place-items-center overflow-hidden rounded-lg border border-border-soft bg-gradient-to-br from-brand-blue/18 via-panel-soft to-brand-cyan/8 text-brand-cyan">
-      <Film aria-hidden="true" className="size-5" />
-      <span className="absolute bottom-1 right-1 rounded bg-black/65 px-1 py-0.5 text-[9px] font-bold uppercase text-white">{job.contentType}</span>
+    <span className="group/video relative grid h-[58px] w-[92px] shrink-0 place-items-center overflow-hidden rounded-xl border border-brand-blue/20 bg-[radial-gradient(circle_at_28%_18%,rgba(34,211,238,0.22),transparent_34%),linear-gradient(140deg,rgba(36,135,255,0.22),rgba(6,20,36,0.96)_56%,rgba(139,92,246,0.16))] text-brand-cyan shadow-[inset_0_1px_rgba(255,255,255,0.06)]">
+      <span className="grid size-8 place-items-center rounded-full border border-white/15 bg-black/35 text-white backdrop-blur transition group-hover/video:scale-110 group-hover/video:bg-brand-blue/60 motion-reduce:transition-none"><Play aria-hidden="true" className="ml-0.5 size-3.5 fill-current" /></span>
+      <span className="absolute bottom-1.5 right-1.5 rounded-md border border-white/10 bg-black/70 px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wide text-white">{job.contentType}</span>
+      <span aria-hidden="true" className="absolute -left-5 -top-5 size-12 rounded-full border border-brand-cyan/20" />
     </span>
   )
 }
@@ -39,8 +40,8 @@ function EmptyQueue() {
 
 export function PublishingQueueTable({ jobs }: { jobs: DashboardJob[] }) {
   return (
-    <section aria-labelledby="queue-heading" className="min-w-0 overflow-hidden rounded-panel border border-border-soft bg-panel/78 shadow-panel backdrop-blur-xl">
-      <header className="flex items-center justify-between gap-4 border-b border-border-soft px-5 py-4">
+    <section aria-labelledby="queue-heading" className="interactive-surface min-w-0 overflow-hidden rounded-panel border backdrop-blur-xl">
+      <header className="flex items-center justify-between gap-4 border-b border-border-soft bg-gradient-to-r from-white/[0.025] to-transparent px-5 py-4">
         <div className="flex items-center gap-2">
           <h2 className="font-semibold" id="queue-heading">Publishing Queue</h2>
           <span className="rounded-full bg-brand-blue/12 px-2 py-0.5 text-xs font-bold text-[#70b3ff]">{jobs.length}</span>
@@ -63,7 +64,7 @@ export function PublishingQueueTable({ jobs }: { jobs: DashboardJob[] }) {
               </thead>
               <tbody className="divide-y divide-border-soft">
                 {jobs.map((job) => (
-                  <tr className="transition-colors hover:bg-panel-hover/35" key={job.id}>
+                  <tr className="group/row transition-colors hover:bg-brand-blue/[0.045]" key={job.id}>
                     <td className="px-5 py-3.5">
                       <div className="flex min-w-[260px] items-center gap-3">
                         <VideoMark job={job} />
@@ -80,7 +81,7 @@ export function PublishingQueueTable({ jobs }: { jobs: DashboardJob[] }) {
                     </td>
                     <td className="px-4 py-3.5"><StatusBadge status={videoStatus(job.status)} /></td>
                     <td className="px-5 py-3.5 text-right">
-                      <a aria-label={`Open ${jobTitle(job)} in the current scheduler`} className="inline-grid size-9 place-items-center rounded-lg text-text-muted transition hover:bg-white/6 hover:text-text-main focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/studio/?view=reels"><MoreHorizontal aria-hidden="true" className="size-5" /></a>
+                      <a aria-label={`Open ${jobTitle(job)} in the current scheduler`} className="inline-grid size-9 place-items-center rounded-lg border border-transparent text-text-muted transition group-hover/row:border-border-soft group-hover/row:bg-white/[0.035] hover:border-brand-blue/35 hover:text-text-main focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/studio/?view=reels"><MoreHorizontal aria-hidden="true" className="size-5" /></a>
                     </td>
                   </tr>
                 ))}
@@ -106,6 +107,15 @@ export function PublishingQueueTable({ jobs }: { jobs: DashboardJob[] }) {
                 <p className="mt-3 text-xs text-text-muted">{formatSchedule(job.scheduledAt)}</p>
               </article>
             ))}
+          </div>
+          <div className="border-t border-border-soft bg-[radial-gradient(circle_at_12%_50%,rgba(36,135,255,0.09),transparent_32%),linear-gradient(90deg,rgba(255,255,255,0.02),transparent)] px-5 py-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-brand-cyan/20 bg-brand-cyan/8 text-brand-cyan"><Sparkles aria-hidden="true" className="size-5" /></span>
+                <div><strong className="text-sm">Ready for your next video</strong><p className="mt-1 text-xs leading-5 text-text-muted">Add more content without leaving your live publishing workflow.</p></div>
+              </div>
+              <a className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-brand-blue/35 bg-brand-blue/10 px-4 text-sm font-semibold text-[#79baff] transition hover:-translate-y-0.5 hover:bg-brand-blue/18 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan motion-reduce:transition-none" href="/studio/?view=reels"><Plus aria-hidden="true" className="size-4" /> Add video</a>
+            </div>
           </div>
         </>
       )}

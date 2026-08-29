@@ -68,6 +68,7 @@
       radial-gradient(circle at 68% 0%, rgba(36, 135, 255, 0.13), transparent 34rem),
       radial-gradient(circle at 8% 42%, rgba(34, 211, 238, 0.05), transparent 26rem),
       var(--color-bg);
+    overflow-x: hidden;
   }
 
   button,
@@ -87,5 +88,176 @@
   .scrollbar-thin {
     scrollbar-color: rgba(125, 211, 252, 0.2) transparent;
     scrollbar-width: thin;
+  }
+
+  .dashboard-canvas {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .dashboard-canvas::before {
+    position: fixed;
+    inset: 4.5rem 0 0 5.5rem;
+    z-index: -3;
+    content: "";
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 56% 4%, rgba(36, 135, 255, 0.2), transparent 26rem),
+      radial-gradient(circle at 90% 30%, rgba(139, 92, 246, 0.09), transparent 25rem),
+      radial-gradient(circle at 24% 72%, rgba(34, 211, 238, 0.055), transparent 30rem);
+  }
+
+  .dashboard-canvas::after {
+    position: fixed;
+    inset: 4.5rem 0 0 5.5rem;
+    z-index: -2;
+    content: "";
+    pointer-events: none;
+    opacity: 0.22;
+    background-image:
+      linear-gradient(rgba(125, 211, 252, 0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(125, 211, 252, 0.035) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: linear-gradient(to bottom, black, transparent 74%);
+  }
+
+  .hero-stage {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(56, 189, 248, 0.18);
+    border-radius: var(--radius-panel);
+    background:
+      linear-gradient(110deg, rgba(10, 27, 45, 0.96) 0%, rgba(9, 30, 55, 0.86) 58%, rgba(14, 36, 56, 0.72) 100%);
+    box-shadow: var(--shadow-panel), 0 0 75px rgba(36, 135, 255, 0.1), inset 0 1px rgba(255, 255, 255, 0.04);
+  }
+
+  .hero-stage::before {
+    position: absolute;
+    width: clamp(18rem, 32vw, 34rem);
+    aspect-ratio: 1;
+    top: 50%;
+    right: clamp(-7rem, 3vw, 2rem);
+    content: "";
+    pointer-events: none;
+    transform: translateY(-50%);
+    border: 1px solid rgba(74, 150, 255, 0.18);
+    border-radius: 999px;
+    background:
+      radial-gradient(circle at 48% 45%, rgba(44, 129, 255, 0.26), rgba(15, 56, 112, 0.1) 43%, transparent 68%);
+    box-shadow: 0 0 95px rgba(36, 135, 255, 0.2), inset 0 0 70px rgba(36, 135, 255, 0.08);
+  }
+
+  .hero-stage::after {
+    position: absolute;
+    top: 50%;
+    right: clamp(3.5rem, 12vw, 11rem);
+    width: 0;
+    height: 0;
+    content: "";
+    pointer-events: none;
+    transform: translateY(-50%);
+    border-top: 2.1rem solid transparent;
+    border-bottom: 2.1rem solid transparent;
+    border-left: 3.3rem solid rgba(80, 150, 255, 0.12);
+    filter: drop-shadow(0 0 22px rgba(36, 135, 255, 0.32));
+  }
+
+  .interactive-surface {
+    position: relative;
+    isolation: isolate;
+    border-color: rgba(125, 211, 252, 0.15);
+    background:
+      linear-gradient(145deg, rgba(16, 39, 63, 0.88), rgba(7, 22, 39, 0.9));
+    box-shadow:
+      0 20px 55px rgba(0, 0, 0, 0.25),
+      inset 0 1px rgba(255, 255, 255, 0.035);
+    transition: transform 180ms ease-out, border-color 180ms ease-out, box-shadow 180ms ease-out, background-color 180ms ease-out;
+  }
+
+  .interactive-surface::after {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    content: "";
+    pointer-events: none;
+    opacity: 0;
+    background: linear-gradient(118deg, rgba(255, 255, 255, 0.055), transparent 34%, rgba(34, 211, 238, 0.035));
+    transition: opacity 180ms ease-out;
+  }
+
+  .interactive-surface:hover {
+    z-index: 3;
+    transform: perspective(1100px) translateY(-4px) rotateX(0.7deg);
+    border-color: rgba(56, 189, 248, 0.34);
+    box-shadow:
+      0 28px 70px rgba(0, 0, 0, 0.36),
+      0 0 44px rgba(36, 135, 255, 0.11),
+      inset 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .interactive-surface:hover::after {
+    opacity: 1;
+  }
+
+  .interactive-nav {
+    transition: transform 180ms ease-out, background-color 180ms ease-out, border-color 180ms ease-out, box-shadow 180ms ease-out, color 180ms ease-out;
+  }
+
+  .interactive-nav:hover {
+    transform: translateX(3px);
+  }
+
+  .glow-orb {
+    box-shadow: 0 0 28px currentColor;
+  }
+
+  .indeterminate-progress {
+    width: 44%;
+    animation: progress-slide 1.8s ease-in-out infinite;
+  }
+}
+
+@keyframes progress-slide {
+  0% { transform: translateX(-115%); }
+  55% { transform: translateX(150%); }
+  100% { transform: translateX(245%); }
+}
+
+@keyframes orbit-breathe {
+  0%, 100% { opacity: 0.62; transform: translateY(-50%) scale(0.98); }
+  50% { opacity: 0.92; transform: translateY(-50%) scale(1.035); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero-stage::before {
+    animation: orbit-breathe 7s ease-in-out infinite;
+  }
+
+  .icon-float {
+    animation: icon-float 3.8s ease-in-out infinite;
+  }
+}
+
+@keyframes icon-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .interactive-surface,
+  .interactive-surface::after,
+  .interactive-nav {
+    transition: none;
+  }
+
+  .interactive-surface:hover,
+  .interactive-nav:hover {
+    transform: none;
+  }
+
+  .indeterminate-progress {
+    width: 55%;
+    animation: none;
   }
 }

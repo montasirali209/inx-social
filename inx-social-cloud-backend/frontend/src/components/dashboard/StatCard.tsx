@@ -1,28 +1,30 @@
 import type { LucideIcon } from 'lucide-react'
 import type { StatCardData } from '../../types/dashboard'
 
-const toneStyles: Record<StatCardData['tone'], { icon: string; line: string }> = {
-  blue: { icon: 'border-brand-blue/20 bg-brand-blue/10 text-[#62a9ff]', line: 'from-brand-blue/80' },
-  cyan: { icon: 'border-brand-cyan/20 bg-brand-cyan/10 text-brand-cyan', line: 'from-brand-cyan/80' },
-  green: { icon: 'border-brand-green/20 bg-brand-green/10 text-brand-green', line: 'from-brand-green/80' },
-  purple: { icon: 'border-brand-purple/20 bg-brand-purple/10 text-[#bd9bff]', line: 'from-brand-purple/80' },
-  amber: { icon: 'border-brand-amber/20 bg-brand-amber/10 text-brand-amber', line: 'from-brand-amber/80' },
-  red: { icon: 'border-brand-red/20 bg-brand-red/10 text-[#ff7f89]', line: 'from-brand-red/80' },
+const toneStyles: Record<StatCardData['tone'], { icon: string; line: string; glow: string; wash: string }> = {
+  blue: { icon: 'border-brand-blue/25 bg-brand-blue/12 text-[#62a9ff]', line: 'from-brand-blue', glow: 'bg-brand-blue/20', wash: 'from-brand-blue/9' },
+  cyan: { icon: 'border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan', line: 'from-brand-cyan', glow: 'bg-brand-cyan/18', wash: 'from-brand-cyan/8' },
+  green: { icon: 'border-brand-green/25 bg-brand-green/10 text-brand-green', line: 'from-brand-green', glow: 'bg-brand-green/18', wash: 'from-brand-green/8' },
+  purple: { icon: 'border-brand-purple/25 bg-brand-purple/12 text-[#bd9bff]', line: 'from-brand-purple', glow: 'bg-brand-purple/20', wash: 'from-brand-purple/9' },
+  amber: { icon: 'border-brand-amber/25 bg-brand-amber/10 text-brand-amber', line: 'from-brand-amber', glow: 'bg-brand-amber/18', wash: 'from-brand-amber/8' },
+  red: { icon: 'border-brand-red/25 bg-brand-red/10 text-[#ff7f89]', line: 'from-brand-red', glow: 'bg-brand-red/18', wash: 'from-brand-red/8' },
 }
 
 export function StatCard({ data, icon: Icon }: { data: StatCardData; icon: LucideIcon }) {
   const style = toneStyles[data.tone]
   return (
-    <article className="relative min-w-[220px] overflow-hidden rounded-card border border-border-soft bg-panel/88 p-4 shadow-panel backdrop-blur-xl md:min-w-0">
-      <div className={`absolute inset-x-0 bottom-0 h-px bg-gradient-to-r ${style.line} to-transparent`} />
-      <div className="flex items-start gap-3">
-        <span className={`grid size-11 shrink-0 place-items-center rounded-xl border ${style.icon}`}>
-          <Icon aria-hidden="true" className="size-5" />
+    <article className="interactive-surface group relative min-w-[232px] overflow-hidden rounded-card border p-5 backdrop-blur-xl md:min-w-0">
+      <div aria-hidden="true" className={`absolute -right-9 -top-10 size-28 rounded-full blur-3xl ${style.glow}`} />
+      <div aria-hidden="true" className={`absolute inset-0 bg-gradient-to-br ${style.wash} via-transparent to-transparent opacity-75`} />
+      <div className={`absolute inset-x-0 bottom-0 h-[2px] bg-gradient-to-r ${style.line} via-current to-transparent opacity-80`} />
+      <div className="relative flex items-start gap-3.5">
+        <span className={`icon-float grid size-12 shrink-0 place-items-center rounded-2xl border shadow-[inset_0_1px_rgba(255,255,255,0.08)] ${style.icon}`}>
+          <Icon aria-hidden="true" className="size-[22px]" />
         </span>
         <div className="min-w-0">
           <p className="truncate text-sm font-medium text-text-muted">{data.label}</p>
-          <strong className="mt-1 block text-3xl font-semibold tracking-[-0.04em] text-text-main">{data.value}</strong>
-          <p className="mt-1 truncate text-xs text-text-soft">{data.detail}</p>
+          <strong className="mt-1 block text-[2rem] font-semibold leading-none tracking-[-0.05em] text-text-main">{data.value}</strong>
+          <p className="mt-2 truncate text-xs text-text-soft transition-colors group-hover:text-text-muted">{data.detail}</p>
         </div>
       </div>
     </article>

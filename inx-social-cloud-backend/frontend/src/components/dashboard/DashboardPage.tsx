@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, CalendarClock, CheckCircle2, Clock3, ListVideo, RefreshCw, Video } from 'lucide-react'
+import { AlertTriangle, CalendarClock, CheckCircle2, Clock3, ListVideo, RefreshCw, ShieldCheck, UploadCloud, Video } from 'lucide-react'
 import { ApiError } from '../../lib/api-client'
 import { fetchDashboardView } from '../../lib/dashboard-api'
 import { ConnectedPagesCard } from './ConnectedPagesCard'
@@ -52,16 +52,26 @@ export function DashboardPage() {
   const displayName = data.overview.user.name?.split(/\s+/)[0] || data.overview.user.businessName || 'there'
 
   return (
-    <div>
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-[#66b3ff]">Welcome back, {displayName}</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl lg:text-4xl">Your video scheduling workspace</h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-text-muted sm:text-base">Plan, schedule, and publish videos seamlessly across all your platforms.</p>
-        </div>
-        <div className="flex items-center gap-2 self-start sm:self-auto">
-          <time className="hidden min-h-10 items-center gap-2 rounded-xl border border-border-soft bg-panel/75 px-3 text-xs font-semibold text-text-muted sm:inline-flex"><Clock3 aria-hidden="true" className="size-4 text-brand-cyan" /> {weekLabel()}</time>
-          <button aria-label="Refresh dashboard" className="grid size-10 place-items-center rounded-xl border border-border-soft bg-panel/75 text-text-muted transition hover:border-brand-blue/35 hover:text-text-main focus-visible:outline-2 focus-visible:outline-brand-cyan" disabled={dashboard.isFetching} onClick={() => dashboard.refetch()} type="button"><RefreshCw aria-hidden="true" className={`size-4 ${dashboard.isFetching ? 'animate-spin motion-reduce:animate-none' : ''}`} /></button>
+    <div className="dashboard-canvas">
+      <header className="hero-stage px-5 py-6 sm:px-7 sm:py-7 lg:px-8">
+        <div className="relative z-[1] flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-semibold text-[#66b3ff]">Welcome back, {displayName}</p>
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-green/20 bg-brand-green/8 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-brand-green"><span className="size-1.5 rounded-full bg-brand-green shadow-[0_0_10px_#22c55e]" /> Workspace live</span>
+            </div>
+            <h1 className="mt-2 max-w-4xl text-2xl font-semibold tracking-[-0.04em] sm:text-3xl lg:text-[2.5rem] lg:leading-[1.08]">Your video scheduling workspace</h1>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-text-muted sm:text-base">Plan, schedule, and publish videos seamlessly across all your platforms.</p>
+            <div className="mt-5 flex flex-wrap gap-2 text-xs text-text-muted">
+              <span className="inline-flex items-center gap-2 rounded-lg border border-white/7 bg-black/15 px-3 py-2"><ShieldCheck aria-hidden="true" className="size-4 text-brand-green" /> {data.overview.pages.length} connected {data.overview.pages.length === 1 ? 'Page' : 'Pages'}</span>
+              <span className="inline-flex items-center gap-2 rounded-lg border border-white/7 bg-black/15 px-3 py-2"><ListVideo aria-hidden="true" className="size-4 text-brand-purple" /> {data.queue.length} in publishing queue</span>
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap items-center gap-2 self-start sm:self-auto">
+            <time className="hidden min-h-11 items-center gap-2 rounded-xl border border-border-soft bg-bg/55 px-3 text-xs font-semibold text-text-muted backdrop-blur sm:inline-flex"><Clock3 aria-hidden="true" className="size-4 text-brand-cyan" /> {weekLabel()}</time>
+            <button aria-label="Refresh dashboard" className="grid size-11 place-items-center rounded-xl border border-border-soft bg-bg/55 text-text-muted backdrop-blur transition hover:border-brand-blue/45 hover:bg-brand-blue/10 hover:text-text-main focus-visible:outline-2 focus-visible:outline-brand-cyan" disabled={dashboard.isFetching} onClick={() => dashboard.refetch()} type="button"><RefreshCw aria-hidden="true" className={`size-4 ${dashboard.isFetching ? 'animate-spin motion-reduce:animate-none' : ''}`} /></button>
+            <a className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-brand-blue/45 bg-gradient-to-r from-brand-blue to-[#1769d4] px-4 text-sm font-semibold text-white shadow-glow-blue transition hover:-translate-y-0.5 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan motion-reduce:transition-none" href="/studio/?view=reels"><UploadCloud aria-hidden="true" className="size-4" /> Upload video</a>
+          </div>
         </div>
       </header>
 
@@ -71,7 +81,7 @@ export function DashboardPage() {
 
       <div className="mt-5"><WorkflowStepper summary={data.overview.summary} /></div>
 
-      <div className="mt-5 grid items-start gap-5 2xl:grid-cols-[minmax(0,1fr)_390px]">
+      <div className="mt-5 grid items-start gap-5 2xl:grid-cols-[minmax(0,1fr)_430px]">
         <PublishingQueueTable jobs={data.queue} />
         <aside aria-label="Dashboard details" className="grid gap-5 md:grid-cols-2 2xl:grid-cols-1">
           <UpcomingScheduleCard jobs={data.upcoming} />
