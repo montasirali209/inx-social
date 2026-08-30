@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError } from '../../lib/api-client'
 import { createBulkDraft, fetchBulkSchedulerData, fetchFacebookScheduledPosts, uploadBulkVideo } from '../../lib/bulk-scheduler-api'
