@@ -12,6 +12,7 @@ router.get('/overview', controller.overview);
 router.get('/facebook/test', controller.testActivePage);
 router.get('/facebook/scheduled-posts', controller.scheduledPosts);
 router.get('/analytics/facebook', controller.facebookAnalytics);
+router.post('/post-enhancements', controller.enhancePostCaption);
 router.get('/jobs', controller.listJobs);
 router.post('/jobs', controller.createDraft);
 router.post('/direct-posts', controller.createDirectPosts);

@@ -12,6 +12,7 @@ const { getLicenseStatus } = require('../services/licenseService');
 const agentAccess = require('../services/agentAccessService');
 const metaPublisher = require('../services/cloudMetaPublisher');
 const { getFacebookAnalytics } = require('../services/facebookAnalyticsService');
+const postEnhancement = require('../services/postEnhancementService');
 const {
   JOB_STATUS,
   ASSET_STATUS,
@@ -94,6 +95,12 @@ const directPostSchema = z.object({
   if (!input.fileSizeBytes) context.addIssue({ code: z.ZodIssueCode.custom, path: ['fileSizeBytes'], message: 'The selected media file is empty.' });
   if (input.contentType === 'IMAGE' && !/\.(png|jpe?g|webp)$/i.test(input.originalFileName || '')) context.addIssue({ code: z.ZodIssueCode.custom, path: ['originalFileName'], message: 'Choose a PNG, JPG, JPEG or WebP image.' });
   if (input.contentType === 'VIDEO' && !/\.(mp4|mov|m4v|avi|mkv|webm)$/i.test(input.originalFileName || '')) context.addIssue({ code: z.ZodIssueCode.custom, path: ['originalFileName'], message: 'Choose a supported video file.' });
+});
+
+const postEnhancementSchema = z.object({
+  caption: z.string().trim().min(1, 'Write a caption before using AI enhancement.').max(5000),
+  action: z.enum(['rewrite', 'shorten', 'expand', 'hashtags', 'cta']),
+  tone: z.enum(['professional', 'friendly', 'concise', 'energetic']).default('professional')
 });
 
 const MAX_DIRECT_IMAGE_BYTES = 15n * 1024n * 1024n;
@@ -1152,6 +1159,17 @@ async function scheduledPosts(req, res, next) {
   }
 }
 
+async function enhancePostCaption(req, res, next) {
+  try {
+    await requireStudioLicense(req.user.id);
+    const input = postEnhancementSchema.parse(req.body || {});
+    const result = await postEnhancement.enhanceCaption(input);
+    res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function cancelJob(req, res, next) {
   try {
     await requireStudioLicense(req.user.id);
@@ -1202,6 +1220,7 @@ module.exports = {
   uploadVideo,
   testActivePage,
   scheduledPosts,
+  enhancePostCaption,
   cancelJob,
   publicJob,
   desktopJob,

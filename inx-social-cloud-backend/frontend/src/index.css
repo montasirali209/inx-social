@@ -260,6 +260,29 @@
   }
 }
 
+@keyframes posts-modal-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes posts-modal-panel-in {
+  0% {
+    opacity: 0;
+    transform: perspective(1400px) translate3d(0, 28px, -110px) rotateX(8deg) scale(.94);
+    filter: blur(7px);
+  }
+  58% {
+    opacity: 1;
+    transform: perspective(1400px) translate3d(0, -4px, 12px) rotateX(-1deg) scale(1.008);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1400px) translate3d(0, 0, 0) rotateX(0) scale(1);
+    filter: blur(0);
+  }
+}
+
 @keyframes progress-slide {
   0% { transform: translateX(-115%); }
   55% { transform: translateX(150%); }
@@ -279,6 +302,16 @@
   .icon-float {
     animation: icon-float 3.8s ease-in-out infinite;
   }
+
+  .posts-modal-backdrop {
+    animation: posts-modal-backdrop-in 180ms ease-out both;
+  }
+
+  .posts-modal-panel {
+    animation: posts-modal-panel-in 420ms cubic-bezier(.2,.8,.2,1) both;
+    transform-origin: 50% 20%;
+    will-change: transform, opacity, filter;
+  }
 }
 
 @keyframes icon-float {
@@ -288,7 +321,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .route-stage,
-  .notification-pop {
+  .notification-pop,
+  .posts-modal-backdrop,
+  .posts-modal-panel {
     animation: none;
     will-change: auto;
   }

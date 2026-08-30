@@ -1,12 +1,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { fetchPostsWorkspace, createDirectPosts, uploadDirectPostMedia } from '../../lib/posts-api'
-import type { MediaItem, PostDraft, PostType, PublishProgress, ScheduleMode } from '../../types/posts'
+import { fetchFacebookDashboardAnalytics } from '../../lib/dashboard-api'
+import { calculateBestPostTime } from '../../lib/posts-analytics'
+import type { BestTimeInsight, MediaItem, PostDraft, PostType, PublishProgress, ScheduleMode } from '../../types/posts'
 import { CreatePostPanel } from './CreatePostPanel'
 import { DestinationSelector } from './DestinationSelector'
 import { PostPreviewPanel } from './PostPreviewPanel'
 import { PostsStatCard } from './PostPrimitives'
-import { RecentPostsTable } from './RecentPostsTable'
 import { SchedulePanel } from './SchedulePanel'
 
 const draftKey = 'inx-social-post-drafts-v1'
@@ -49,6 +50,18 @@ export function PostsPage() {
   }, [jobs, drafts])
 
   const selectedPage = workspace.data?.pages.find((page) => selectedIds.includes(page.id)) || null
+  const pageAnalytics = useQuery({
+    queryKey: ['posts-best-time', selectedPage?.id],
+    queryFn: () => fetchFacebookDashboardAnalytics(selectedPage!.id, 90),
+    enabled: Boolean(selectedPage),
+    retry: 1,
+    staleTime: 5 * 60_000,
+  })
+  const bestTime = useMemo<BestTimeInsight>(() => {
+    if (!selectedPage) return { available: false, label: 'Choose a destination', time: null, detail: 'Select a connected Page to personalise the recommendation.' }
+    if (pageAnalytics.isError) return { available: false, label: 'Analytics unavailable', time: null, detail: `Live timing data for ${selectedPage.facebookPageName} could not be loaded.` }
+    return calculateBestPostTime(pageAnalytics.data)
+  }, [pageAnalytics.data, pageAnalytics.isError, selectedPage])
   const needsMedia = postType === 'image' || postType === 'video' || postType === 'reel'
   const scheduledAt = mode === 'later' && date && time ? new Date(`${date}T${time}`).toISOString() : null
   const ready = Boolean(caption.trim() && selectedIds.length && (!needsMedia || media) && (mode !== 'later' || scheduledAt))
@@ -97,7 +110,7 @@ export function PostsPage() {
         }
       }
       const failed = response.failures.length + mediaFailures
-      setProgress({ state: failed ? 'failed' : 'completed', percent: 100, message: failed ? `${response.jobs.length - failed} destinations completed; ${failed} failed. Review the queue below.` : `${response.jobs.length} destination${response.jobs.length === 1 ? '' : 's'} ${mode === 'now' ? 'published' : 'scheduled'} successfully.` })
+      setProgress({ state: failed ? 'failed' : 'completed', percent: 100, message: failed ? `${response.jobs.length - failed} destinations completed; ${failed} failed. Review the Dashboard for details.` : `${response.jobs.length} destination${response.jobs.length === 1 ? '' : 's'} ${mode === 'now' ? 'published' : 'scheduled'} successfully.` })
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['posts-workspace'] }),
         queryClient.invalidateQueries({ queryKey: ['studio-overview'] }),
@@ -115,14 +128,13 @@ export function PostsPage() {
   return (
     <div className="dashboard-canvas pb-8">
       <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 xl:grid-cols-5">{stats.map((stat) => <PostsStatCard key={stat.label} {...stat} />)}</div>
-      <div className="mt-5 grid items-start gap-5 2xl:grid-cols-[minmax(0,1.28fr)_minmax(360px,.82fr)_minmax(300px,.62fr)]">
-        <CreatePostPanel caption={caption} destinationCount={selectedIds.length} media={media} postType={postType} setCaption={setCaption} setMedia={setMedia} setPostType={setPostType} setTitle={setTitle} title={title} />
-        <DestinationSelector pages={workspace.data.pages} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
-        <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-1"><SchedulePanel campaign={campaign} canPublish={mode === 'draft' ? Boolean(title.trim() || caption.trim()) : ready} date={date} labels={labels} mode={mode} onDraft={saveDraft} onPublish={() => void publish()} progress={progress} setCampaign={setCampaign} setDate={setDate} setLabels={setLabels} setMode={setMode} setTime={setTime} time={time} /><PostPreviewPanel caption={caption} media={media} selectedPage={selectedPage} /></div>
+      <DestinationSelector pages={workspace.data.pages} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
+      <div className="mt-5 grid items-start gap-5 xl:grid-cols-[minmax(0,1.18fr)_minmax(360px,.72fr)]">
+        <CreatePostPanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} caption={caption} destinationCount={selectedIds.length} media={media} postType={postType} setCaption={setCaption} setMedia={setMedia} setPostType={setPostType} setTitle={setTitle} title={title} />
+        <div className="grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-1"><SchedulePanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} campaign={campaign} canPublish={mode === 'draft' ? Boolean(title.trim() || caption.trim()) : ready} date={date} labels={labels} mode={mode} onDraft={saveDraft} onPublish={() => void publish()} progress={progress} setCampaign={setCampaign} setDate={setDate} setLabels={setLabels} setMode={setMode} setTime={setTime} time={time} /><PostPreviewPanel caption={caption} media={media} selectedPage={selectedPage} /></div>
       </div>
-      <RecentPostsTable drafts={drafts} jobs={workspace.data.jobs} />
     </div>
   )
 }
 
-function PostsSkeleton() { return <div aria-label="Loading Posts workspace" className="space-y-5"><div className="grid gap-3 md:grid-cols-5">{Array.from({ length: 5 }, (_, index) => <div className="h-28 animate-pulse rounded-card border border-border-soft bg-panel/70" key={index} />)}</div><div className="grid gap-5 xl:grid-cols-3">{Array.from({ length: 3 }, (_, index) => <div className="h-[620px] animate-pulse rounded-panel border border-border-soft bg-panel/70" key={index} />)}</div></div> }
+function PostsSkeleton() { return <div aria-label="Loading Posts workspace" className="space-y-5"><div className="grid gap-3 md:grid-cols-5">{Array.from({ length: 5 }, (_, index) => <div className="h-28 animate-pulse rounded-card border border-border-soft bg-panel/70" key={index} />)}</div><div className="h-24 animate-pulse rounded-panel border border-border-soft bg-panel/70" /><div className="grid gap-5 xl:grid-cols-[1.18fr_.72fr]">{Array.from({ length: 2 }, (_, index) => <div className="h-[620px] animate-pulse rounded-panel border border-border-soft bg-panel/70" key={index} />)}</div></div> }

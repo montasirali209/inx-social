@@ -72,6 +72,13 @@ module.exports = {
     model: process.env.AI_PAID_FALLBACK_MODEL || process.env.OPENAI_FALLBACK_MODEL || process.env.OPENAI_MODEL || '',
     maxCallsPerMission: Math.max(0, Math.min(5, Number(process.env.AI_PAID_FALLBACK_MAX_CALLS_PER_MISSION || 1)))
   },
+  postEnhancement: {
+    enabled: String(process.env.POST_ENHANCEMENT_ENABLED || 'true') === 'true',
+    baseUrl: String(process.env.POST_ENHANCEMENT_BASE_URL || process.env.AI_PAID_FALLBACK_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, ''),
+    apiKey: process.env.POST_ENHANCEMENT_API_KEY || process.env.AI_PAID_FALLBACK_API_KEY || process.env.OPENAI_API_KEY || '',
+    model: process.env.POST_ENHANCEMENT_MODEL || process.env.AI_PAID_FALLBACK_MODEL || process.env.OPENAI_MODEL || '',
+    timeoutMs: Math.max(10000, Math.min(120000, Number(process.env.POST_ENHANCEMENT_TIMEOUT_MS || 60000)))
+  },
   webResearch: {
     enabled: String(process.env.WEB_RESEARCH_ENABLED || 'false') === 'true',
     provider: String(process.env.WEB_RESEARCH_PROVIDER || 'openai').trim().toLowerCase(),
