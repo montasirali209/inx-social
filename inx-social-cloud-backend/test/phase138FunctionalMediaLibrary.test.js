@@ -52,3 +52,19 @@ test('Media Library schema and migration preserve folders and reusable file meta
   assert.match(migration, /CREATE TABLE "MediaFolder"/);
   assert.match(migration, /ALTER TABLE "AgentAsset"/);
 });
+
+test('Media Library keeps previews compact, folders focused and More actions functional', () => {
+  const page = read('frontend/src/components/media-library/MediaLibraryPage.tsx');
+  const card = read('frontend/src/components/media-library/MediaCard.tsx');
+  const folders = read('frontend/src/components/media-library/FolderPanel.tsx');
+  const preview = read('frontend/src/components/media-library/AssetPreviewPanel.tsx');
+  assert.match(page, /2xl:max-h-\[calc\(100vh-25rem\)\]/);
+  assert.match(card, /h-44 items-start overflow-y-auto/);
+  assert.match(folders, />Folders</);
+  assert.doesNotMatch(folders, /Platform Size|Apply Filters|Folders & Filters/);
+  assert.match(preview, /More asset actions/);
+  assert.match(preview, /Asset details/);
+  assert.match(preview, /Rename/);
+  assert.match(preview, /Duplicate/);
+  assert.match(preview, /Remove/);
+});

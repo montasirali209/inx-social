@@ -1,4 +1,4 @@
-import { CalendarPlus, Download, MoreHorizontal, Send, X } from "lucide-react";
+import { CalendarPlus, Copy, Download, Info, MoreHorizontal, Pencil, Send, Trash2, X } from "lucide-react";
 import { platformReadiness } from "../../data/mediaLibraryData";
 import { formatBytes } from "../../lib/media-format";
 import type { MediaAsset } from "../../types/media-library";
@@ -15,6 +15,9 @@ type Props = {
   onUse: () => void;
   onSchedule: () => void;
   onDownload: () => void;
+  onRename: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
 };
 
 export function AssetPreviewPanel({
@@ -23,6 +26,9 @@ export function AssetPreviewPanel({
   onUse,
   onSchedule,
   onDownload,
+  onRename,
+  onDuplicate,
+  onDelete,
 }: Props) {
   const readiness = platformReadiness(asset);
   const showInformation = () =>
@@ -39,7 +45,7 @@ export function AssetPreviewPanel({
       />
       <aside
         aria-label={`Preview ${asset.fileName}`}
-        className="posts-modal-panel fixed inset-x-2 bottom-2 top-20 z-50 overflow-y-auto rounded-panel border border-brand-cyan/25 bg-panel p-4 shadow-panel sm:left-auto sm:w-[420px] 2xl:sticky 2xl:top-24 2xl:z-auto 2xl:max-h-[calc(100vh-7rem)] 2xl:w-auto"
+        className="posts-modal-panel scrollbar-thin fixed inset-x-2 bottom-2 top-20 z-50 overflow-y-auto overscroll-contain rounded-panel border border-brand-cyan/25 bg-panel p-4 shadow-panel sm:left-auto sm:w-[420px] 2xl:sticky 2xl:top-24 2xl:z-auto 2xl:max-h-[calc(100vh-7rem)] 2xl:w-auto"
       >
         <header className="flex items-center justify-between gap-3">
           <div>
@@ -59,8 +65,8 @@ export function AssetPreviewPanel({
             <X className="size-4" />
           </button>
         </header>
-        <div className="mt-4 overflow-hidden rounded-2xl border border-border-soft bg-bg/50">
-          <div className="aspect-video">
+        <div className="mt-4 rounded-2xl border border-border-soft bg-bg/50 p-2">
+          <div className="scrollbar-thin flex h-52 items-start overflow-y-auto overscroll-contain rounded-xl bg-black/20">
             {asset.type === "video" ? (
               <video
                 className="h-full w-full object-contain"
@@ -71,7 +77,7 @@ export function AssetPreviewPanel({
             ) : (
               <img
                 alt={asset.fileName}
-                className="h-full w-full object-contain"
+                className="m-auto block h-auto min-h-full w-full object-contain"
                 src={asset.fileUrl}
               />
             )}
@@ -86,7 +92,6 @@ export function AssetPreviewPanel({
             { label: "Use in Post", icon: Send, action: onUse },
             { label: "Schedule", icon: CalendarPlus, action: onSchedule },
             { label: "Download", icon: Download, action: onDownload },
-            { label: "More", icon: MoreHorizontal, action: showInformation },
           ].map(({ label, icon: Icon, action }) => (
             <button
               className="rounded-xl px-1 py-2 text-center text-[9px] text-text-muted transition hover:bg-white/5 hover:text-brand-cyan focus-visible:outline-2 focus-visible:outline-brand-cyan"
@@ -98,6 +103,17 @@ export function AssetPreviewPanel({
               {label}
             </button>
           ))}
+          <details className="group relative">
+            <summary aria-label="More asset actions" className="flex cursor-pointer list-none flex-col items-center rounded-xl px-1 py-2 text-center text-[9px] text-text-muted transition hover:bg-white/5 hover:text-brand-cyan focus-visible:outline-2 focus-visible:outline-brand-cyan"><MoreHorizontal className="mb-1 size-4" />More</summary>
+            <div className="notification-pop absolute right-0 top-full z-30 mt-1 w-44 rounded-xl border border-border-soft bg-panel p-1.5 shadow-panel">
+              {[
+                { label: "Asset details", icon: Info, action: showInformation },
+                { label: "Rename", icon: Pencil, action: onRename },
+                { label: "Duplicate", icon: Copy, action: onDuplicate },
+                { label: "Remove", icon: Trash2, action: onDelete, danger: true },
+              ].map(({ label, icon: Icon, action, danger }) => <button className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] transition hover:bg-panel-hover focus-visible:outline-2 focus-visible:outline-brand-cyan ${danger ? "text-brand-red" : "text-text-muted hover:text-white"}`} key={label} onClick={(event) => { event.preventDefault(); action(); const details = event.currentTarget.closest("details"); if (details) details.open = false }} type="button"><Icon className="size-3.5" />{label}</button>)}
+            </div>
+          </details>
         </div>
         <section
           className="mt-4 scroll-mt-3"

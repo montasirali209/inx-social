@@ -31,10 +31,10 @@ export function MediaCard(props: Props) {
         onClick={props.onSelect}
         type="button"
       >
-        <span className={`relative block overflow-hidden bg-bg/60 ${props.layout === "list" ? "h-full min-h-32 rounded-l-card" : "aspect-[4/3] rounded-t-card"}`}>
+        <span className={`scrollbar-thin relative flex overscroll-contain bg-bg/60 ${props.layout === "list" ? "h-full min-h-32 items-center overflow-hidden rounded-l-card" : "h-44 items-start overflow-y-auto rounded-t-card sm:h-48 2xl:h-44"}`}>
           {props.asset.type === "video" ? (
             <video
-              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.035] motion-reduce:transition-none"
+              className="h-full w-full object-contain transition duration-300 group-hover:scale-[1.025] motion-reduce:transition-none"
               muted
               preload="metadata"
               src={props.asset.thumbnailUrl}
@@ -42,12 +42,12 @@ export function MediaCard(props: Props) {
           ) : (
             <img
               alt=""
-              className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.035] motion-reduce:transition-none"
+              className="m-auto block h-auto min-h-full w-full object-cover transition duration-300 group-hover:scale-[1.025] motion-reduce:transition-none"
               loading="lazy"
               src={props.asset.thumbnailUrl}
             />
           )}
-          <span className="absolute inset-0 bg-gradient-to-t from-bg/45 via-transparent to-transparent" />
+          <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-bg/45 via-transparent to-transparent" />
           {duration && (
             <span className="absolute right-2 top-2 rounded-md bg-black/75 px-1.5 py-1 text-[9px] text-white">
               {duration}

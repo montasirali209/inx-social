@@ -12,11 +12,7 @@ import {
 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  emptyMediaFilters,
-  matchesTab,
-  type MediaFilters,
-} from "../../data/mediaLibraryData";
+import { matchesTab } from "../../data/mediaLibraryData";
 import {
   archiveMediaAsset,
   createMediaFolder,
@@ -38,25 +34,6 @@ import { MediaTabs } from "./MediaTabs";
 import { MediaToolbar } from "./MediaToolbar";
 
 const PAGE_SIZE = 24;
-const FILTER_SESSION_TIME = Date.now();
-
-function matchesAdvancedFilters(asset: MediaAsset, filters: MediaFilters) {
-  if (filters.type !== "all" && asset.type !== filters.type) return false;
-  if (filters.source !== "all" && asset.source !== filters.source) return false;
-  if (filters.status !== "all" && asset.status !== filters.status) return false;
-  if (filters.platformSize !== "all") {
-    if (!asset.width || !asset.height) return filters.platformSize === "unknown";
-    if (filters.platformSize === "square" && asset.width !== asset.height) return false;
-    if (filters.platformSize === "portrait" && asset.height <= asset.width) return false;
-    if (filters.platformSize === "landscape" && asset.width <= asset.height) return false;
-    if (filters.platformSize === "unknown") return false;
-  }
-  if (filters.dateAdded !== "all") {
-    const maximumAge = Number(filters.dateAdded) * 86_400_000;
-    if (FILTER_SESSION_TIME - new Date(asset.createdAt).getTime() > maximumAge) return false;
-  }
-  return true;
-}
 
 function folderMatches(asset: MediaAsset, folder: string) {
   if (folder === "all") return true;
@@ -81,13 +58,12 @@ export function MediaLibraryPage() {
   const [activeFolder, setActiveFolder] = useState("all");
   const [search, setSearch] = useState("");
   const [type, setType] = useState("all");
-  const [filters, setFilters] = useState<MediaFilters>(emptyMediaFilters);
   const [sort, setSort] = useState("newest");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [foldersOpen, setFoldersOpen] = useState(false);
   const [folderModalOpen, setFolderModalOpen] = useState(false);
   const [folderBusy, setFolderBusy] = useState(false);
   const [folderError, setFolderError] = useState("");
@@ -113,7 +89,6 @@ export function MediaLibraryPage() {
         (asset) =>
           matchesTab(asset, activeTab) &&
           folderMatches(asset, activeFolder) &&
-          matchesAdvancedFilters(asset, filters) &&
           (type === "all" || asset.type === type) &&
           (!query ||
             `${asset.fileName} ${asset.tags.join(" ")}`
@@ -129,7 +104,7 @@ export function MediaLibraryPage() {
               ? b.fileSize - a.fileSize
               : +new Date(b.createdAt) - +new Date(a.createdAt),
       );
-  }, [activeFolder, activeTab, assets, filters, search, sort, type]);
+  }, [activeFolder, activeTab, assets, search, sort, type]);
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pages);
   const visible = filtered.slice(
@@ -463,24 +438,19 @@ export function MediaLibraryPage() {
         <FolderPanel
           active={activeFolder}
           assets={assets}
-          filters={filters}
           folders={workspace.data.folders}
           onActive={(id) => {
             setActiveFolder(id);
             setPage(1);
-            setFiltersOpen(false);
+            setFoldersOpen(false);
           }}
-          onClose={() => setFiltersOpen(false)}
+          onClose={() => setFoldersOpen(false)}
           onCreateFolder={() => setFolderModalOpen(true)}
-          onFilters={(value) => {
-            setFilters(value);
-            setPage(1);
-          }}
-          open={filtersOpen}
+          open={foldersOpen}
         />
-        <main className="min-w-0">
+        <main className="min-w-0 2xl:min-h-0">
           <MediaToolbar
-            onFilters={() => setFiltersOpen(true)}
+            onFolders={() => setFoldersOpen(true)}
             onSearch={(value) => {
               setSearch(value);
               setPage(1);
@@ -499,7 +469,7 @@ export function MediaLibraryPage() {
             type={type}
             view={view}
           />
-          <div className="mt-3">
+          <div className="scrollbar-thin mt-3 min-h-[360px] overscroll-contain 2xl:max-h-[calc(100vh-25rem)] 2xl:overflow-y-auto 2xl:pr-1">
             <MediaGrid
               assets={visible}
               busyId={busyId}
@@ -571,6 +541,9 @@ export function MediaLibraryPage() {
             asset={selectedAsset}
             onClose={() => setSelectedId(null)}
             onDownload={() => handlers.onDownload(selectedAsset)}
+            onDelete={() => handlers.onDelete(selectedAsset)}
+            onDuplicate={() => handlers.onDuplicate(selectedAsset)}
+            onRename={() => handlers.onRename(selectedAsset)}
             onSchedule={() => handlers.onSchedule(selectedAsset)}
             onUse={() => handlers.onUse(selectedAsset)}
           />
