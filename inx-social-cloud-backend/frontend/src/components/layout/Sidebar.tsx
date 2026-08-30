@@ -22,7 +22,7 @@ const navigation = [
   { label: 'Dashboard', icon: LayoutDashboard, reactPath: '/' },
   { label: 'Bulk Scheduler', icon: CalendarRange, reactPath: '/bulk-scheduler' },
   { label: 'Content Calendar', icon: CalendarDays, reactPath: '/content-calendar' },
-  { label: 'Posts', icon: FileText, legacyView: 'posts' },
+  { label: 'Posts', icon: FileText, reactPath: '/posts' },
   { label: 'Media Library', icon: Images, legacyView: 'media' },
   { label: 'AI Content Studio', icon: Sparkles, legacyView: 'agent' },
   { label: 'Analytics', icon: BarChart3, legacyView: 'analytics' },
@@ -46,10 +46,10 @@ export function Sidebar({ overview }: { overview?: StudioOverview }) {
           <Button aria-label="Close navigation" className="size-10 px-0 md:hidden" onClick={() => setOpen(false)} variant="ghost"><X aria-hidden="true" className="size-5" /></Button>
         </div>
 
-        <a className="group mt-4 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-brand-cyan/45 bg-gradient-to-r from-brand-blue to-[#0f8f7f] px-4 text-sm font-bold text-white shadow-[0_14px_34px_rgba(20,184,166,0.2)] transition duration-200 hover:-translate-y-0.5 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan motion-reduce:transition-none" href="/studio/?view=posts" onClick={() => setOpen(false)}>
+        <NavLink className="group mt-4 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-brand-cyan/45 bg-gradient-to-r from-brand-blue to-[#0f8f7f] px-4 text-sm font-bold text-white shadow-[0_14px_34px_rgba(20,184,166,0.2)] transition duration-200 hover:-translate-y-0.5 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan motion-reduce:transition-none" onClick={() => setOpen(false)} to="/posts">
           <FilePlus2 aria-hidden="true" className="size-5 shrink-0 transition group-hover:rotate-6 motion-reduce:transition-none" />
           <span className="md:hidden xl:inline">Create New Post</span>
-        </a>
+        </NavLink>
 
         <nav aria-label="Main navigation" className="mt-3 flex flex-1 flex-col gap-1 overflow-y-auto">
           {navigation.map(({ label, icon: Icon, reactPath, legacyView, externalPath }) => {

@@ -17,7 +17,7 @@ test('Phase 13.1.3 exposes Bulk Scheduler and Posts without a redundant Videos m
   assert.ok(calendarIndex > bulkIndex);
   assert.ok(postsIndex > calendarIndex);
   assert.ok(mediaIndex > postsIndex);
-  assert.match(sidebar, /label: 'Posts'.*legacyView: 'posts'/);
+  assert.match(sidebar, /label: 'Posts'.*reactPath: '\/posts'/);
   assert.doesNotMatch(sidebar, /label: 'Scheduler'/);
   assert.doesNotMatch(sidebar, /label: 'Videos'/);
 });

@@ -9,7 +9,7 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 test('Create New Post is universally available from the sidebar', () => {
   const dashboard = read('frontend/src/components/dashboard/DashboardPage.tsx');
   const sidebar = read('frontend/src/components/layout/Sidebar.tsx');
-  assert.match(sidebar, /href="\/studio\/\?view=posts"/);
+  assert.match(sidebar, /to="\/posts"/);
   assert.match(sidebar, /Create New Post/);
   assert.doesNotMatch(dashboard, /Create New Post/);
 });

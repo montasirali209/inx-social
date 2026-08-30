@@ -1,0 +1,29 @@
+import { Copy, Edit3, MoreVertical, Search } from 'lucide-react'
+import type { DashboardJob } from '../../types/dashboard'
+import type { PostDraft, PostStatus } from '../../types/posts'
+import { PlatformIcon, PostsStatusBadge } from './PostPrimitives'
+
+function status(job: DashboardJob): PostStatus {
+  if (job.status === 'PUBLISHED') return 'published'
+  if (job.status === 'SCHEDULED') return 'scheduled'
+  if (job.status === 'DRAFT') return 'draft'
+  if (job.status === 'FAILED' || job.status === 'CANCELLED') return 'failed'
+  if (job.status === 'AWAITING_UPLOAD') return 'needs_review'
+  return 'awaiting_approval'
+}
+
+function formatDate(value: string | null) { return value ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—' }
+
+export function RecentPostsTable({ jobs, drafts }: { jobs: DashboardJob[]; drafts: PostDraft[] }) {
+  const rows = [...jobs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 8)
+  return (
+    <section className="interactive-surface mt-5 rounded-panel border p-4 xl:p-5">
+      <header className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-semibold">Recent Posts / Content Queue</h2><p className="mt-1 text-[10px] text-text-muted">Live publishing records and browser-saved drafts.</p></div><label className="relative"><Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" /><input aria-label="Search recent posts" className="min-h-9 rounded-xl border border-border-soft bg-bg/35 pl-9 pr-3 text-[10px] outline-none focus:border-brand-cyan" placeholder="Search posts…" /></label></header>
+      <div className="mt-4 hidden overflow-x-auto lg:block"><table className="w-full min-w-[920px] border-separate border-spacing-0 text-left"><thead><tr className="text-[9px] uppercase tracking-wider text-text-soft">{['Post', 'Platforms', 'Destinations', 'Status', 'Scheduled Time', 'Created', 'Actions'].map((item) => <th className="border-y border-border-soft bg-bg/25 px-3 py-2.5 font-semibold" key={item}>{item}</th>)}</tr></thead><tbody>{drafts.map((draft) => <tr className="group" key={draft.id}><td className="border-b border-border-soft px-3 py-3"><strong className="block max-w-64 truncate text-xs">{draft.title || draft.caption || 'Untitled draft'}</strong><span className="text-[9px] text-text-soft">Saved in this browser</span></td><td className="border-b border-border-soft px-3"><PlatformIcon platform="facebook" /></td><td className="border-b border-border-soft px-3 text-xs">{draft.selectedDestinationIds.length}</td><td className="border-b border-border-soft px-3"><PostsStatusBadge status="draft" /></td><td className="border-b border-border-soft px-3 text-[10px] text-text-muted">{formatDate(draft.scheduledAt)}</td><td className="border-b border-border-soft px-3 text-[10px] text-text-muted">{formatDate(draft.createdAt)}</td><td className="border-b border-border-soft px-3"><RowActions /></td></tr>)}{rows.map((job) => <tr className="group" key={job.id}><td className="border-b border-border-soft px-3 py-3"><strong className="block max-w-64 truncate text-xs">{job.title || job.caption || job.localFileName || 'Untitled post'}</strong><span className="block max-w-64 truncate text-[9px] text-text-soft">{job.caption || job.contentType}</span></td><td className="border-b border-border-soft px-3"><PlatformIcon platform="facebook" /></td><td className="border-b border-border-soft px-3 text-xs">{job.page?.facebookPageName || 'Facebook Page'}</td><td className="border-b border-border-soft px-3"><PostsStatusBadge status={status(job)} /></td><td className="border-b border-border-soft px-3 text-[10px] text-text-muted">{formatDate(job.scheduledAt)}</td><td className="border-b border-border-soft px-3 text-[10px] text-text-muted">{formatDate(job.createdAt)}</td><td className="border-b border-border-soft px-3"><RowActions /></td></tr>)}</tbody></table></div>
+      <div className="mt-4 grid gap-3 lg:hidden">{[...drafts.map((draft) => ({ id: draft.id, title: draft.title || draft.caption || 'Untitled draft', page: `${draft.selectedDestinationIds.length} destinations`, status: 'draft' as PostStatus, date: draft.scheduledAt || draft.createdAt })), ...rows.map((job) => ({ id: job.id, title: job.title || job.caption || job.localFileName || 'Untitled post', page: job.page?.facebookPageName || 'Facebook Page', status: status(job), date: job.scheduledAt || job.createdAt }))].map((row) => <article className="rounded-xl border border-border-soft bg-bg/25 p-3" key={row.id}><div className="flex items-start gap-3"><PlatformIcon platform="facebook" /><div className="min-w-0 flex-1"><strong className="block truncate text-xs">{row.title}</strong><p className="mt-1 truncate text-[10px] text-text-muted">{row.page}</p></div><PostsStatusBadge status={row.status} /></div><div className="mt-3 flex items-center justify-between border-t border-border-soft pt-2 text-[9px] text-text-soft"><span>{formatDate(row.date)}</span><RowActions /></div></article>)}</div>
+      {!rows.length && !drafts.length && <div className="mt-4 rounded-xl border border-dashed border-border-soft p-8 text-center"><strong className="text-xs">No posts yet</strong><p className="mt-1 text-[10px] text-text-muted">Create, schedule or save your first post above.</p></div>}
+    </section>
+  )
+}
+
+function RowActions() { return <div className="flex gap-1"><button aria-label="Edit post" className="rounded-lg p-2 text-text-muted hover:bg-white/5 hover:text-brand-cyan"><Edit3 className="size-3.5" /></button><button aria-label="Duplicate post" className="rounded-lg p-2 text-text-muted hover:bg-white/5 hover:text-brand-cyan"><Copy className="size-3.5" /></button><button aria-label="More post options" className="rounded-lg p-2 text-text-muted hover:bg-white/5 hover:text-brand-cyan"><MoreVertical className="size-3.5" /></button></div> }
