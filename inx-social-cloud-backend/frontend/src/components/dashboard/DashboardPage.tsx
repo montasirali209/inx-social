@@ -67,23 +67,29 @@ export function DashboardPage() {
     () => (jobs.data || []).filter((job) => job.page?.id === resolvedAnalyticsAccountId),
     [jobs.data, resolvedAnalyticsAccountId],
   )
-  const engagementByDate = useMemo(() => {
-    const totals: Record<string, number> = {}
+  const liveActivityByDate = useMemo(() => {
+    const posts: Record<string, number> = {}
+    const engagement: Record<string, number> = {}
     for (const post of analytics.data?.content || []) {
       if (!post.createdTime) continue
       const timestamp = new Date(post.createdTime)
       if (Number.isNaN(timestamp.getTime())) continue
       const key = timestamp.toISOString().slice(0, 10)
-      totals[key] = (totals[key] || 0) + (
+      posts[key] = (posts[key] || 0) + 1
+      engagement[key] = (engagement[key] || 0) + (
         post.insights?.totalInteractions
         ?? post.reactions + post.comments + post.shares
       )
     }
-    return totals
+    return { posts, engagement }
   }, [analytics.data])
+  const engagementByDate = liveActivityByDate.engagement
   const activity = useMemo(
-    () => buildActivitySeries(scopedJobs, rangeDays),
-    [rangeDays, scopedJobs],
+    () => buildActivitySeries(scopedJobs, rangeDays).map((point) => {
+      const key = new Date(point.date).toISOString().slice(0, 10)
+      return { ...point, published: Math.max(point.published, liveActivityByDate.posts[key] || 0) }
+    }),
+    [liveActivityByDate.posts, rangeDays, scopedJobs],
   )
   const previousActivity = useMemo(() => {
     const previousEnd = new Date()
