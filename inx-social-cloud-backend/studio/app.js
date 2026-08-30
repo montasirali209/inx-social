@@ -89,7 +89,25 @@ window.addEventListener('DOMContentLoaded', async () => {
   buildReelsTimePicker();
   const requestedView = new URLSearchParams(window.location.search).get('view');
   if (requestedView && views[requestedView]) switchView(requestedView);
+  if (requestedView === 'posts') applyRequestedPostComposerState(new URLSearchParams(window.location.search));
 });
+
+function applyRequestedPostComposerState(params) {
+  const scheduleDate = params.get('scheduleDate');
+  const scheduleTime = params.get('scheduleTime');
+  const draftOnly = params.get('draft') === 'true';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(scheduleDate || '') && /^\d{2}:\d{2}$/.test(scheduleTime || '')) {
+    const scheduled = document.querySelector('input[name="directPublishMode"][value="SCHEDULED"]');
+    if (scheduled) scheduled.checked = true;
+    const date = document.getElementById('directPostDate');
+    const time = document.getElementById('directPostTime');
+    if (date) date.value = scheduleDate;
+    if (time) time.value = scheduleTime;
+  }
+  renderDirectPostComposer();
+  if (draftOnly) toast('Create your draft. Nothing publishes until you choose a publishing action.');
+  document.getElementById('directPostCaption')?.focus();
+}
 
 function bindStudioActionModal() {
   const modal = document.getElementById('studioActionModal');
