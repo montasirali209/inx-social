@@ -51,10 +51,10 @@ export function MediaGrid(props: Props) {
   return (
     <section
       aria-label="Media assets"
-      className={`grid gap-3 ${props.view === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-2 min-[1580px]:grid-cols-3" : "grid-cols-1"}`}
+      className={`grid items-start gap-3 ${props.view === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"}`}
     >
       {props.assets.map((asset) => (
-        <div className="relative" key={asset.id}>
+        <div className="relative self-start" key={asset.id}>
           {props.busyId === asset.id && (
             <span className="absolute inset-0 z-20 grid place-items-center rounded-card bg-bg/65 backdrop-blur-sm">
               <LoaderCircle className="size-6 animate-spin text-brand-cyan motion-reduce:animate-none" />
