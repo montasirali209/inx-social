@@ -9,10 +9,12 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 test('React dashboard uses the live publishing analytics workspace', () => {
   const router = read('frontend/src/router.tsx');
   const dashboard = read('frontend/src/components/dashboard/DashboardPage.tsx');
+  const activity = read('frontend/src/components/dashboard/PublishingActivityCard.tsx');
   const data = read('frontend/src/lib/dashboard-api.ts');
   assert.match(router, /DashboardPage/);
   assert.doesNotMatch(router, /FoundationPage/);
-  assert.match(dashboard, /PublishingActivityChart/);
+  assert.match(dashboard, /PublishingActivityCard/);
+  assert.match(activity, /PublishingActivityChart/);
   assert.match(dashboard, /PlatformDonutChart/);
   assert.match(dashboard, /RecentPostsCard/);
   assert.match(data, /\/api\/studio\/overview/);
