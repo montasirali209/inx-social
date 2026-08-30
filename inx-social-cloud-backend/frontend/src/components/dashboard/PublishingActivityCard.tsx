@@ -1,6 +1,6 @@
 import { CalendarDays, Info, LineChart } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { activityTotal, publishingActivitySeries, type ActivitySeriesKey } from '../../data/publishingActivityData'
+import { activityTotal, publishingActivitySeries } from '../../data/publishingActivityData'
 import type { PublishingActivityPoint } from '../../types/dashboard'
 import { ActivityInsightRow } from './ActivityInsightRow'
 import { ActivitySummaryCard, type ActivitySummary } from './ActivitySummaryCard'
