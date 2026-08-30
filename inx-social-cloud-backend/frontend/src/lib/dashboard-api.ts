@@ -3,6 +3,7 @@ import type {
   BackendJobStatus,
   DashboardJob,
   DashboardViewData,
+  FacebookAnalytics,
   Platform,
   PlatformMetric,
   PublishingActivityPoint,
@@ -14,6 +15,7 @@ import type {
 } from '../types/dashboard'
 
 type JobsResponse = { jobs: DashboardJob[] }
+type FacebookAnalyticsResponse = { analytics: FacebookAnalytics }
 
 const queueStatuses = new Set<BackendJobStatus>([
   'AWAITING_UPLOAD',
@@ -96,13 +98,20 @@ export function buildDashboardView(
   overview: StudioOverview,
   jobs: DashboardJob[],
   now = new Date(),
+  facebookAnalytics: FacebookAnalytics | null = null,
 ): DashboardViewData {
+  const liveEngagement = facebookAnalytics?.summary.totalInteractions ?? facebookAnalytics?.summary.engagements ?? null
   const stats: StatCardData[] = [
     { label: 'Total Posts', value: overview.summary.total, detail: 'All publishing records', tone: 'green' },
     { label: 'Published', value: overview.summary.published, detail: 'Confirmed by Meta', tone: 'green' },
     { label: 'Scheduled', value: overview.summary.scheduled, detail: 'Future publishing slots', tone: 'cyan' },
     { label: 'Failed', value: overview.summary.failed, detail: 'Items needing attention', tone: 'red' },
-    { label: 'Engagement', value: '—', detail: 'Open live Analytics', tone: 'blue' },
+    {
+      label: 'Engagement',
+      value: liveEngagement ?? '—',
+      detail: liveEngagement === null ? 'Reconnect Facebook for live data' : `Live from ${facebookAnalytics?.page.name || 'Facebook'}`,
+      tone: 'blue',
+    },
   ]
 
   const queue = jobs.filter((job) => queueStatuses.has(job.status)).slice(0, 8)
@@ -113,19 +122,37 @@ export function buildDashboardView(
   const activeTransfer = jobs.find((job) => job.status === 'PROCESSING' || job.uploadStatus === 'UPLOADING') ?? null
 
   const sortedPosts = [...jobs].sort((left, right) => new Date(occurredAt(right)).getTime() - new Date(occurredAt(left)).getTime())
-  const recentPosts = sortedPosts.slice(0, 5).map(socialPost)
+  const livePosts: SocialPost[] = (facebookAnalytics?.content || []).map((post) => ({
+    id: post.id,
+    title: post.message.trim().split(/\r?\n/)[0]?.slice(0, 100) || 'Facebook content',
+    excerpt: post.message.trim() || 'Published Facebook content',
+    thumbnailUrl: post.thumbnailUrl,
+    platforms: ['facebook'],
+    status: 'published',
+    occurredAt: post.createdTime || facebookAnalytics?.fetchedAt || now.toISOString(),
+    engagement: post.insights?.totalInteractions ?? (post.reactions + post.comments + post.shares),
+  }))
+  const recentPosts = livePosts.length ? livePosts.slice(0, 5) : sortedPosts.slice(0, 5).map(socialPost)
   const platformCounts = new Map<Platform, number>()
   jobs.forEach((job) => platformCounts.set(jobPlatform(job), (platformCounts.get(jobPlatform(job)) || 0) + 1))
   const platforms: Platform[] = ['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok', 'x']
   const platformMetrics: PlatformMetric[] = platforms.map((platform) => ({
     platform,
-    posts: platformCounts.get(platform) || 0,
-    engagement: null,
+    posts: platform === 'facebook' && facebookAnalytics ? facebookAnalytics.summary.posts : (platformCounts.get(platform) || 0),
+    engagement: platform === 'facebook' ? liveEngagement : null,
   }))
-  const topContent: TopContentItem[] = sortedPosts
-    .filter((job) => job.status === 'PUBLISHED')
-    .slice(0, 5)
-    .map((job) => ({
+  const topContent: TopContentItem[] = livePosts.length
+    ? [...livePosts]
+      .sort((left, right) => (right.engagement || 0) - (left.engagement || 0))
+      .slice(0, 5)
+      .map((post) => ({
+        id: post.id,
+        title: post.title,
+        thumbnailUrl: post.thumbnailUrl,
+        engagement: post.engagement,
+        status: 'published',
+      }))
+    : sortedPosts.filter((job) => job.status === 'PUBLISHED').slice(0, 5).map((job) => ({
       id: job.id,
       title: socialPost(job).title,
       thumbnailUrl: job.page?.facebookPagePicture || null,
@@ -133,17 +160,31 @@ export function buildDashboardView(
       status: videoStatus(job.status),
     }))
 
-  return { overview, jobs, queue, upcoming, activeTransfer, stats, recentPosts, platformMetrics, topContent }
+  return { overview, jobs, queue, upcoming, activeTransfer, stats, recentPosts, platformMetrics, topContent, facebookAnalytics }
 }
 
 export async function fetchStudioOverview() {
   return apiRequest<StudioOverview>('/api/studio/overview')
 }
 
-export async function fetchDashboardView() {
+export async function fetchDashboardView(days = 7) {
   const [overview, jobsResult] = await Promise.all([
     fetchStudioOverview(),
     apiRequest<JobsResponse>('/api/studio/jobs?limit=250'),
   ])
-  return buildDashboardView(overview, jobsResult.jobs)
+  const page = overview.pages.find((candidate) => candidate.isSelected) || overview.pages[0]
+  let facebookAnalytics: FacebookAnalytics | null = null
+  if (page) {
+    try {
+      const result = await apiRequest<FacebookAnalyticsResponse>(
+        `/api/studio/analytics/facebook?connectedPageId=${encodeURIComponent(page.id)}&days=${days}`,
+      )
+      facebookAnalytics = result.analytics
+    } catch {
+      // Operational publishing remains available when Meta analytics permission
+      // is missing, expired or temporarily rate-limited. The dedicated
+      // Analytics view exposes the exact reconnect/error evidence.
+    }
+  }
+  return buildDashboardView(overview, jobsResult.jobs, new Date(), facebookAnalytics)
 }

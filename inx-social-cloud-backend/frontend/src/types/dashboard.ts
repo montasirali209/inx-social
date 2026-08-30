@@ -68,6 +68,48 @@ export type TopContentItem = {
   status: PostStatus
 }
 
+export type FacebookAnalyticsContent = {
+  id: string
+  message: string
+  createdTime: string | null
+  permalinkUrl: string | null
+  thumbnailUrl: string | null
+  contentType: string
+  reactions: number
+  comments: number
+  shares: number
+  insights: null | {
+    views: number | null
+    uniqueViewers: number | null
+    clicks: number | null
+    engagement: number
+    totalInteractions: number
+    engagementRate: number | null
+  }
+}
+
+export type FacebookAnalytics = {
+  platform: 'facebook'
+  fetchedAt: string
+  page: { id: string; name: string }
+  summary: {
+    followers: number
+    posts: number
+    reactions: number
+    comments: number
+    shares: number
+    engagements: number
+    totalInteractions: number
+    views: number | null
+    postViews: number
+    uniqueViewers: number
+    clicks: number
+    engagementRate: number | null
+    calculationNote: string
+  }
+  content: FacebookAnalyticsContent[]
+}
+
 export type PublishingActivityPoint = {
   date: string
   label: string
@@ -162,4 +204,5 @@ export type DashboardViewData = {
   recentPosts: SocialPost[]
   platformMetrics: PlatformMetric[]
   topContent: TopContentItem[]
+  facebookAnalytics: FacebookAnalytics | null
 }

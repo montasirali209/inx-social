@@ -26,8 +26,8 @@ function DashboardSkeleton() {
 export function DashboardPage() {
   const [rangeDays, setRangeDays] = useState(7)
   const dashboard = useQuery({
-    queryKey: ['dashboard-view'],
-    queryFn: fetchDashboardView,
+    queryKey: ['dashboard-view', rangeDays],
+    queryFn: () => fetchDashboardView(rangeDays),
     refetchInterval: 60_000,
   })
 

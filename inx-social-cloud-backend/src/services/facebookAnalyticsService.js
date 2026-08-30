@@ -3,6 +3,8 @@ const axios = require('axios');
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const MIN_FORCE_REFRESH_MS = 60 * 1000;
 const RATE_LIMIT_COOLDOWN_MS = 70 * 60 * 1000;
+const DEFAULT_POST_INSIGHT_LIMIT = 25;
+const POST_INSIGHT_CONCURRENCY = 3;
 const analyticsCache = new Map();
 let rateLimitUntil = 0;
 
@@ -10,6 +12,15 @@ const INSIGHT_CANDIDATES = [
   { key: 'views', metric: 'page_media_view', label: 'Content views' },
   { key: 'engagements', metric: 'page_post_engagements', label: 'Post engagements' },
   { key: 'follows', metric: 'page_follows', label: 'Page follows' }
+];
+
+// Graph API v25 replacements for the post impression metrics removed by Meta.
+// Keep these separate from the Page metrics because post insights use lifetime
+// values and are fetched from each published post rather than the Page edge.
+const POST_INSIGHT_CANDIDATES = [
+  { key: 'views', metric: 'post_media_view', label: 'Post media views' },
+  { key: 'uniqueViewers', metric: 'post_total_media_view_unique', label: 'Unique post media viewers' },
+  { key: 'clicks', metric: 'post_clicks', label: 'Post clicks' }
 ];
 
 function graphError(error) {
@@ -64,6 +75,29 @@ function metricSeries(row) {
     date: String(value.end_time || '').slice(0, 10),
     value: Number(value.value || 0)
   })).filter(item => item.date);
+}
+
+function numericMetricValue(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'string') return Number.isFinite(Number(value)) ? Number(value) : 0;
+  if (Array.isArray(value)) return value.reduce((sum, item) => sum + numericMetricValue(item), 0);
+  if (value && typeof value === 'object') {
+    return Object.values(value).reduce((sum, item) => sum + numericMetricValue(item), 0);
+  }
+  return 0;
+}
+
+function lifetimeMetricTotal(row) {
+  return (row?.values || []).reduce((sum, item) => sum + numericMetricValue(item?.value), 0);
+}
+
+function unavailablePostMetrics(capability) {
+  return Object.fromEntries(POST_INSIGHT_CANDIDATES.map(candidate => [candidate.key, {
+    metric: candidate.metric,
+    label: candidate.label,
+    value: null,
+    capability
+  }]));
 }
 
 function countSummary(edge) {
@@ -162,6 +196,113 @@ async function fetchInsight(http, options, candidate) {
   }
 }
 
+async function fetchSinglePostInsight(http, options, postId, candidate) {
+  try {
+    const data = await graphGet(
+      http,
+      options.graphVersion,
+      `${encodeURIComponent(postId)}/insights`,
+      options.accessToken,
+      { metric: candidate.metric }
+    );
+    const row = (data.data || []).find(item => item.name === candidate.metric) || data.data?.[0] || null;
+    return {
+      metric: candidate.metric,
+      label: candidate.label,
+      value: row ? lifetimeMetricTotal(row) : null,
+      capability: row
+        ? { state: 'available', available: true, reason: 'Returned by Meta for this published post.', metaCode: null }
+        : { state: 'no_data', available: false, reason: 'Meta returned no value for this post metric.', metaCode: null }
+    };
+  } catch (error) {
+    if (isRateLimit(error)) rateLimitUntil = Math.max(rateLimitUntil, Date.now() + RATE_LIMIT_COOLDOWN_MS);
+    return {
+      metric: candidate.metric,
+      label: candidate.label,
+      value: null,
+      capability: capabilityFromError(error)
+    };
+  }
+}
+
+async function fetchPostInsights(http, options, postId) {
+  if (rateLimitUntil > Date.now()) {
+    const capability = { state: 'rate_limited', available: false, reason: 'Further Meta checks were stopped to protect the application quota.', metaCode: null };
+    return { metrics: unavailablePostMetrics(capability), capability };
+  }
+
+  try {
+    const data = await graphGet(
+      http,
+      options.graphVersion,
+      `${encodeURIComponent(postId)}/insights`,
+      options.accessToken,
+      { metric: POST_INSIGHT_CANDIDATES.map(candidate => candidate.metric).join(',') }
+    );
+    const rows = new Map((data.data || []).map(row => [row.name, row]));
+    const metrics = Object.fromEntries(POST_INSIGHT_CANDIDATES.map(candidate => {
+      const row = rows.get(candidate.metric);
+      return [candidate.key, {
+        metric: candidate.metric,
+        label: candidate.label,
+        value: row ? lifetimeMetricTotal(row) : null,
+        capability: row
+          ? { state: 'available', available: true, reason: 'Returned by Meta for this published post.', metaCode: null }
+          : { state: 'no_data', available: false, reason: 'Meta returned no value for this post metric.', metaCode: null }
+      }];
+    }));
+    const available = Object.values(metrics).filter(metric => metric.capability.available).length;
+    return {
+      metrics,
+      capability: {
+        state: available ? 'available' : 'no_data',
+        available: available > 0,
+        reason: available ? `${available} of ${POST_INSIGHT_CANDIDATES.length} post insight metrics were returned by Meta.` : 'Meta returned no post insight values.',
+        metaCode: null
+      }
+    };
+  } catch (error) {
+    const capability = capabilityFromError(error);
+    if (isRateLimit(error)) rateLimitUntil = Math.max(rateLimitUntil, Date.now() + RATE_LIMIT_COOLDOWN_MS);
+    if (capability.state !== 'unsupported_metric') {
+      return { metrics: unavailablePostMetrics(capability), capability };
+    }
+
+    // A single unavailable metric can make a combined Meta request fail. Retry
+    // individually so supported values remain available instead of blanking the
+    // entire post.
+    const pairs = [];
+    for (const candidate of POST_INSIGHT_CANDIDATES) {
+      if (rateLimitUntil > Date.now()) break;
+      pairs.push([candidate.key, await fetchSinglePostInsight(http, options, postId, candidate)]);
+    }
+    const metrics = { ...unavailablePostMetrics(capability), ...Object.fromEntries(pairs) };
+    const available = Object.values(metrics).filter(metric => metric.capability.available).length;
+    return {
+      metrics,
+      capability: {
+        state: available ? 'available' : capability.state,
+        available: available > 0,
+        reason: available ? `${available} of ${POST_INSIGHT_CANDIDATES.length} post insight metrics were returned by Meta.` : capability.reason,
+        metaCode: capability.metaCode
+      }
+    };
+  }
+}
+
+async function mapWithConcurrency(items, concurrency, callback) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  async function worker() {
+    while (cursor < items.length) {
+      const index = cursor++;
+      results[index] = await callback(items[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => worker()));
+  return results;
+}
+
 function cacheKey(options) {
   return `${options.cacheScope || 'shared'}:${options.graphVersion}:${options.pageId}:${options.days}`;
 }
@@ -208,11 +349,56 @@ async function getFacebookAnalytics(options, dependencies = {}) {
     insights[candidate.key] = await fetchInsight(http, prepared, candidate);
   }
 
-  const content = basic.content;
+  const postInsightLimit = Math.min(50, Math.max(0, Number(options.postInsightLimit ?? DEFAULT_POST_INSIGHT_LIMIT)));
+  const enriched = await mapWithConcurrency(
+    basic.content.slice(0, postInsightLimit),
+    POST_INSIGHT_CONCURRENCY,
+    async item => {
+      const postInsights = await fetchPostInsights(http, prepared, item.id);
+      const views = postInsights.metrics.views?.value;
+      const uniqueViewers = postInsights.metrics.uniqueViewers?.value;
+      const clicks = postInsights.metrics.clicks?.value;
+      const engagement = item.reactions + item.comments + item.shares;
+      return {
+        ...item,
+        insights: {
+          views,
+          uniqueViewers,
+          clicks,
+          engagement,
+          totalInteractions: engagement + Number(clicks || 0),
+          engagementRate: uniqueViewers > 0
+            ? Number((((engagement + Number(clicks || 0)) / uniqueViewers) * 100).toFixed(2))
+            : null,
+          metrics: postInsights.metrics
+        },
+        insightsCapability: postInsights.capability
+      };
+    }
+  );
+  const content = [
+    ...enriched,
+    ...basic.content.slice(postInsightLimit).map(item => ({
+      ...item,
+      insights: null,
+      insightsCapability: {
+        state: 'not_requested',
+        available: false,
+        reason: `Only the ${postInsightLimit} most recent posts are enriched per refresh to protect the Meta API quota.`,
+        metaCode: null
+      }
+    }))
+  ];
   const reactions = content.reduce((sum, item) => sum + item.reactions, 0);
   const comments = content.reduce((sum, item) => sum + item.comments, 0);
   const shares = content.reduce((sum, item) => sum + item.shares, 0);
+  const postViews = content.reduce((sum, item) => sum + Number(item.insights?.views || 0), 0);
+  const uniqueViewers = content.reduce((sum, item) => sum + Number(item.insights?.uniqueViewers || 0), 0);
+  const clicks = content.reduce((sum, item) => sum + Number(item.insights?.clicks || 0), 0);
   const availableInsights = Object.values(insights).filter(item => item.capability.available).length;
+  const availablePostInsights = content.filter(item => item.insightsCapability?.available).length;
+  const insightPermissionRequired = Object.values(insights).some(item => item.capability.state === 'permission_required') ||
+    content.some(item => item.insightsCapability?.state === 'permission_required');
   const value = {
     platform: 'facebook',
     fetchedAt: new Date().toISOString(),
@@ -227,6 +413,13 @@ async function getFacebookAnalytics(options, dependencies = {}) {
         state: availableInsights ? 'available' : (Object.values(insights)[0]?.capability.state || 'unavailable'),
         available: availableInsights > 0,
         reason: availableInsights ? `${availableInsights} of ${INSIGHT_CANDIDATES.length} tested insight metrics are available.` : 'Meta did not return any tested Page insight metric for this Page token.'
+      },
+      postInsights: {
+        state: availablePostInsights ? 'available' : (content[0]?.insightsCapability?.state || 'no_content'),
+        available: availablePostInsights > 0,
+        reason: availablePostInsights
+          ? `${availablePostInsights} recent published post${availablePostInsights === 1 ? '' : 's'} include live Meta insights.`
+          : (content.length ? 'Meta did not return post insight metrics for the connected token.' : 'There is no published content in this period to enrich.')
       },
       metrics: Object.fromEntries(Object.entries(insights).map(([name, item]) => [name, item.capability]))
     },
@@ -259,6 +452,11 @@ async function getFacebookAnalytics(options, dependencies = {}) {
           permission: 'pages_read_user_content',
           purpose: 'Reads posts published by the Page so INX Social can show content-level performance.',
           verification: basic.contentCapability.available ? 'verified_by_live_published_posts_response' : 'reconnect_required'
+        },
+        {
+          permission: 'read_insights',
+          purpose: 'Reads Page and published-post performance metrics such as media views, unique viewers and clicks.',
+          verification: availableInsights > 0 || availablePostInsights > 0 ? 'verified_by_live_insights_response' : 'reconnect_required'
         }
       ],
       endpointChecks: [
@@ -269,7 +467,13 @@ async function getFacebookAnalytics(options, dependencies = {}) {
           purpose: item.label,
           ok: Boolean(item.capability.available),
           state: item.capability.state
-        }))
+        })),
+        {
+          endpoint: '/{post-id}/insights',
+          purpose: 'Published post views, unique viewers and clicks',
+          ok: availablePostInsights > 0 || content.length === 0,
+          state: availablePostInsights > 0 ? 'available' : (content[0]?.insightsCapability?.state || 'no_content')
+        }
       ],
       requestedMetrics: INSIGHT_CANDIDATES.map(item => item.metric),
       returnedMetrics: Object.values(insights).filter(item => item.capability.available).map(item => item.metric),
@@ -278,15 +482,19 @@ async function getFacebookAnalytics(options, dependencies = {}) {
         state: item.capability.state,
         reason: item.capability.reason
       })),
+      requestedPostMetrics: POST_INSIGHT_CANDIDATES.map(item => item.metric),
+      returnedPostMetrics: POST_INSIGHT_CANDIDATES
+        .filter(candidate => content.some(item => item.insights?.metrics?.[candidate.key]?.capability?.available))
+        .map(item => item.metric),
       privacy: 'Access tokens are decrypted only on the server and are never returned to the browser.',
       reviewerSteps: [
         'Sign in to INX Social with the supplied reviewer account.',
-        'Open Connected Pages and connect the supplied Facebook Page. If it was connected before pages_read_user_content was enabled, disconnect and reconnect it so Meta issues a fresh Page token.',
+        'Open Connected Pages and connect the supplied Facebook Page. If it was connected before pages_read_user_content or read_insights was enabled, disconnect and reconnect it so Meta issues a fresh Page token.',
         'Open Analytics, keep Facebook selected, choose the Page and date range, then click Refresh analytics.',
         'Confirm the Page identity, live content engagement, Data availability results and this Meta review evidence panel.',
         'Change the date range and refresh again to verify that INX Social requests Page analytics for the selected period.'
       ],
-      reconnectRequired: basic.contentCapability.state === 'permission_required'
+      reconnectRequired: basic.contentCapability.state === 'permission_required' || insightPermissionRequired
     },
     summary: {
       followers: basic.page.followers,
@@ -297,11 +505,24 @@ async function getFacebookAnalytics(options, dependencies = {}) {
       engagements: reactions + comments + shares,
       views: insights.views?.total,
       pageEngagements: insights.engagements?.total,
-      follows: insights.follows?.total
+      follows: insights.follows?.total,
+      postViews,
+      uniqueViewers,
+      clicks,
+      totalInteractions: reactions + comments + shares + clicks,
+      engagementRate: uniqueViewers > 0
+        ? Number((((reactions + comments + shares + clicks) / uniqueViewers) * 100).toFixed(2))
+        : null,
+      calculationNote: 'Total interactions include reactions, comments, shares and post clicks. Unique viewers are summed per post and are not a deduplicated Page-wide audience.'
     },
     series: Object.fromEntries(Object.entries(insights).map(([name, item]) => [name, item.series])),
     content,
-    warnings: Object.values(insights).filter(item => !item.capability.available).map(item => `${item.label}: ${item.capability.reason}`),
+    warnings: [
+      ...Object.values(insights).filter(item => !item.capability.available).map(item => `${item.label}: ${item.capability.reason}`),
+      ...content
+        .filter(item => item.insightsCapability && !item.insightsCapability.available && item.insightsCapability.state !== 'not_requested')
+        .map(item => `Post insights: ${item.insightsCapability.reason}`)
+    ].filter((warning, index, warnings) => warnings.indexOf(warning) === index),
     cache: { hit: false, expiresAt: new Date(now + CACHE_TTL_MS).toISOString() }
   };
   analyticsCache.set(key, { createdAt: now, expiresAt: now + CACHE_TTL_MS, value });
@@ -319,6 +540,8 @@ module.exports = {
   capabilityFromError,
   isRateLimit,
   INSIGHT_CANDIDATES,
+  POST_INSIGHT_CANDIDATES,
+  DEFAULT_POST_INSIGHT_LIMIT,
   CACHE_TTL_MS,
   RATE_LIMIT_COOLDOWN_MS
 };

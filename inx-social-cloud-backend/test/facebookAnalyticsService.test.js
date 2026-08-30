@@ -23,13 +23,15 @@ function mockHttp({ unsupported = [] } = {}) {
         ] });
       }
       if (/\/insights$/.test(url)) {
-        if (unsupported.includes(config.params.metric)) {
-          return { status: 400, headers: {}, data: { error: { code: 100, message: `Metric ${config.params.metric} is not valid.` } } };
+        const metrics = String(config.params.metric || '').split(',').filter(Boolean);
+        const unsupportedMetric = metrics.find(metric => unsupported.includes(metric));
+        if (unsupportedMetric) {
+          return { status: 400, headers: {}, data: { error: { code: 100, message: `Metric ${unsupportedMetric} is not valid.` } } };
         }
-        return ok({ data: [{ name: config.params.metric, values: [
+        return ok({ data: metrics.map(metric => ({ name: metric, values: [
           { end_time: '2026-08-10T08:00:00+0000', value: 4 },
           { end_time: '2026-08-11T08:00:00+0000', value: 6 }
-        ] }] });
+        ] })) });
       }
       return ok({ id: 'page-1', name: 'Test Page', followers_count: 321, fan_count: 300, picture: { data: { url: 'https://example.test/page.jpg' } } });
     }
@@ -48,20 +50,46 @@ test('Facebook analytics aggregates real Page and post engagement data', async (
   assert.equal(result.summary.shares, 3);
   assert.equal(result.summary.engagements, 27);
   assert.equal(result.summary.views, 10);
+  assert.equal(result.summary.postViews, 20);
+  assert.equal(result.summary.uniqueViewers, 20);
+  assert.equal(result.summary.clicks, 20);
+  assert.equal(result.summary.totalInteractions, 47);
+  assert.equal(result.content[0].insights.views, 10);
+  assert.equal(result.content[0].insights.totalInteractions, 27);
   assert.equal(result.capabilities.basicEngagement.available, true);
   assert.equal(result.capabilities.pageInsights.available, true);
+  assert.equal(result.capabilities.postInsights.available, true);
   assert.equal(result.reviewEvidence.status, 'ready');
   assert.equal(result.reviewEvidence.graphVersion, 'v25.0');
   assert.equal(result.reviewEvidence.pageId, 'page-1');
   assert.equal(result.reviewEvidence.requiredPermissions[0].permission, 'pages_show_list');
   assert.equal(result.reviewEvidence.requiredPermissions[1].permission, 'pages_read_engagement');
   assert.equal(result.reviewEvidence.requiredPermissions[2].permission, 'pages_read_user_content');
+  assert.equal(result.reviewEvidence.requiredPermissions[3].permission, 'read_insights');
   assert.equal(result.reviewEvidence.endpointChecks.every(check => check.ok), true);
   assert.deepEqual(result.reviewEvidence.returnedMetrics, ['page_media_view', 'page_post_engagements', 'page_follows']);
   assert.match(result.reviewEvidence.privacy, /never returned to the browser/);
-  assert.equal(http.calls.length, 5);
+  assert.equal(http.calls.length, 7);
   assert.doesNotMatch(http.calls[0].params.fields, /tasks/);
   assert.match(result.reviewEvidence.permissionEvidence, /published content were returned/);
+});
+
+test('missing read_insights permission is explicit and requires a fresh Page connection', async () => {
+  resetAnalyticsState();
+  const http = mockHttp();
+  const originalGet = http.get;
+  http.get = async (url, config) => {
+    if (/\/insights$/.test(url)) {
+      return { status: 403, headers: {}, data: { error: { code: 10, message: 'This endpoint requires the read_insights permission.' } } };
+    }
+    return originalGet(url, config);
+  };
+  const result = await getFacebookAnalytics({ pageId: 'permission-page', accessToken: 'token', graphVersion: 'v25.0', days: 30 }, { http });
+  assert.equal(result.capabilities.pageInsights.available, false);
+  assert.equal(result.capabilities.postInsights.available, false);
+  assert.equal(result.reviewEvidence.reconnectRequired, true);
+  assert.equal(result.reviewEvidence.requiredPermissions[3].verification, 'reconnect_required');
+  assert.match(result.warnings.join(' '), /read_insights/);
 });
 
 test('missing published-content scope returns partial analytics and reconnect evidence', async () => {

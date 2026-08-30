@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildDashboardView, videoStatus } from './dashboard-api'
-import type { DashboardJob, StudioOverview } from '../types/dashboard'
+import type { DashboardJob, FacebookAnalytics, StudioOverview } from '../types/dashboard'
 
 const overview: StudioOverview = {
   user: { id: 'user-1', name: 'Ali', businessName: 'INX Social', email: 'ali@example.com' },
@@ -72,5 +72,47 @@ describe('dashboard data mapping', () => {
     expect(videoStatus('PROCESSING')).toBe('publishing')
     expect(videoStatus('FAILED')).toBe('failed')
     expect(videoStatus('AWAITING_UPLOAD')).toBe('pending_review')
+  })
+
+  it('uses permitted live Facebook analytics instead of placeholder engagement', () => {
+    const analytics: FacebookAnalytics = {
+      platform: 'facebook',
+      fetchedAt: '2026-08-29T10:00:00.000Z',
+      page: { id: 'page-1', name: 'INXSocial' },
+      summary: {
+        followers: 100,
+        posts: 1,
+        reactions: 20,
+        comments: 4,
+        shares: 2,
+        engagements: 26,
+        totalInteractions: 31,
+        views: 500,
+        postViews: 450,
+        uniqueViewers: 300,
+        clicks: 5,
+        engagementRate: 10.33,
+        calculationNote: 'Unique viewers are summed per post.',
+      },
+      content: [{
+        id: 'page-1_post-1',
+        message: 'Launch update',
+        createdTime: '2026-08-29T08:00:00.000Z',
+        permalinkUrl: 'https://facebook.example/post-1',
+        thumbnailUrl: 'https://example.test/post.jpg',
+        contentType: 'added_video',
+        reactions: 20,
+        comments: 4,
+        shares: 2,
+        insights: { views: 450, uniqueViewers: 300, clicks: 5, engagement: 26, totalInteractions: 31, engagementRate: 10.33 },
+      }],
+    }
+    const data = buildDashboardView(overview, [job('PUBLISHED')], new Date('2026-08-29T10:00:00.000Z'), analytics)
+
+    expect(data.stats.at(-1)?.value).toBe(31)
+    expect(data.recentPosts[0].title).toBe('Launch update')
+    expect(data.recentPosts[0].engagement).toBe(31)
+    expect(data.platformMetrics.find((item) => item.platform === 'facebook')?.engagement).toBe(31)
+    expect(data.topContent[0].engagement).toBe(31)
   })
 })
