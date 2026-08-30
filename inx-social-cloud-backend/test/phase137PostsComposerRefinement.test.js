@@ -10,7 +10,8 @@ test('Posts keeps destinations compact and moves the full selector into an anima
   const page = read('frontend/src/components/posts/PostsPage.tsx');
   const selector = read('frontend/src/components/posts/DestinationSelector.tsx');
   const css = read('frontend/src/index.css');
-  assert.match(page, /xl:grid-cols-\[minmax\(0,1\.18fr\)_minmax\(360px,\.72fr\)\]/);
+  assert.match(page, /xl:grid-cols-\[minmax\(0,1\.35fr\)_minmax\(290px,\.72fr\)_minmax\(320px,\.82fr\)\]/);
+  assert.doesNotMatch(page, /<div className="grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-1">/);
   assert.doesNotMatch(page, /RecentPostsTable/);
   assert.match(selector, /aria-modal="true"/);
   assert.match(selector, /Selection saved for this post only/);
@@ -29,6 +30,16 @@ test('Posts caption enhancement is explicit, governed and applies only after rev
   assert.match(service, /Never add commentary/);
   assert.match(modal, /Keep original/);
   assert.match(modal, /Apply to caption/);
+  assert.match(service, /temporarily unavailable/);
+});
+
+test('Posts keeps the attachment compact and card hover text crisp', () => {
+  const createPanel = read('frontend/src/components/posts/CreatePostPanel.tsx');
+  const styles = read('frontend/src/index.css');
+  assert.match(createPanel, /Replace/);
+  assert.match(createPanel, /Ready/);
+  assert.doesNotMatch(createPanel, /alt="Selected post media"/);
+  assert.doesNotMatch(styles, /perspective\(1100px\).*rotateX/);
 });
 
 test('best-time guidance is derived from selected Page analytics', () => {
