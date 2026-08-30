@@ -183,7 +183,7 @@
     box-shadow:
       0 20px 55px rgba(0, 0, 0, 0.25),
       inset 0 1px rgba(255, 255, 255, 0.035);
-    transition: transform 180ms ease-out, border-color 180ms ease-out, box-shadow 180ms ease-out, background-color 180ms ease-out;
+    transition: border-color 180ms ease-out, box-shadow 180ms ease-out, background-color 180ms ease-out;
   }
 
   .interactive-surface::after {
@@ -200,10 +200,9 @@
 
   .interactive-surface:hover {
     z-index: 3;
-    transform: perspective(1100px) translateY(-4px) rotateX(0.7deg);
     border-color: rgba(45, 212, 191, 0.34);
     box-shadow:
-      0 28px 70px rgba(0, 0, 0, 0.36),
+      0 24px 62px rgba(0, 0, 0, 0.32),
       0 0 44px rgba(20, 184, 166, 0.11),
       inset 0 1px rgba(255, 255, 255, 0.06);
   }

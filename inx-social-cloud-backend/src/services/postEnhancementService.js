@@ -25,6 +25,24 @@ function cleanCaption(value) {
     .slice(0, 5000);
 }
 
+function providerError(error) {
+  const status = Number(error?.response?.status || 0);
+  const code = String(error?.code || '').toUpperCase();
+  if (status === 401 || status === 403) {
+    return publicError('AI caption enhancement could not authenticate with OpenAI. Check the configured API key.', 503);
+  }
+  if (status === 404) {
+    return publicError('The configured OpenAI caption model is unavailable. Check POST_ENHANCEMENT_MODEL.', 503);
+  }
+  if (status === 429) {
+    return publicError('OpenAI is temporarily rate limited. Wait a moment, then try again.', 429);
+  }
+  if (code === 'ECONNABORTED' || code === 'ETIMEDOUT') {
+    return publicError('OpenAI took too long to enhance the caption. Please try again.', 504);
+  }
+  return publicError('AI caption enhancement is temporarily unavailable. Please try again.', 502);
+}
+
 async function enhanceCaption(input, dependencies = {}) {
   const http = dependencies.http || axios;
   const config = dependencies.config || env.postEnhancement;
@@ -35,31 +53,36 @@ async function enhanceCaption(input, dependencies = {}) {
 
   const actionInstruction = instructions[input.action];
   if (!actionInstruction) throw publicError('Choose a supported caption enhancement.', 400);
-  const response = await http.post(`${String(config.baseUrl).replace(/\/$/, '')}/chat/completions`, {
-    model: config.model,
-    messages: [
-      {
-        role: 'system',
-        content: 'You are INX Social\'s professional social-media copy editor. Return only the finished caption. Never add commentary, markdown fences or invented facts. Preserve the original language unless asked otherwise.'
-      },
-      {
-        role: 'user',
-        content: `Tone: ${input.tone}.\nTask: ${actionInstruction}\n\nOriginal caption:\n${input.caption}`
+  let response;
+  try {
+    response = await http.post(`${String(config.baseUrl).replace(/\/$/, '')}/chat/completions`, {
+      model: config.model,
+      messages: [
+        {
+          role: 'system',
+          content: 'You are INX Social\'s professional social-media copy editor. Return only the finished caption. Never add commentary, markdown fences or invented facts. Preserve the original language unless asked otherwise.'
+        },
+        {
+          role: 'user',
+          content: `Tone: ${input.tone}.\nTask: ${actionInstruction}\n\nOriginal caption:\n${input.caption}`
+        }
+      ],
+      temperature: 0.35,
+      max_tokens: 1200
+    }, {
+      timeout: config.timeoutMs,
+      headers: {
+        Authorization: `Bearer ${config.apiKey}`,
+        'Content-Type': 'application/json'
       }
-    ],
-    temperature: 0.35,
-    max_tokens: 1200
-  }, {
-    timeout: config.timeoutMs,
-    headers: {
-      Authorization: `Bearer ${config.apiKey}`,
-      'Content-Type': 'application/json'
-    }
-  });
+    });
+  } catch (error) {
+    throw providerError(error);
+  }
 
   const caption = cleanCaption(response?.data?.choices?.[0]?.message?.content);
   if (!caption) throw publicError('The AI provider returned an empty caption. Please try again.', 502);
   return { caption, action: input.action, tone: input.tone };
 }
 
-module.exports = { enhanceCaption, cleanCaption };
+module.exports = { enhanceCaption, cleanCaption, providerError };

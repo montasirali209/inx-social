@@ -74,9 +74,9 @@ module.exports = {
   },
   postEnhancement: {
     enabled: String(process.env.POST_ENHANCEMENT_ENABLED || 'true') === 'true',
-    baseUrl: String(process.env.POST_ENHANCEMENT_BASE_URL || process.env.AI_PAID_FALLBACK_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, ''),
-    apiKey: process.env.POST_ENHANCEMENT_API_KEY || process.env.AI_PAID_FALLBACK_API_KEY || process.env.OPENAI_API_KEY || '',
-    model: process.env.POST_ENHANCEMENT_MODEL || process.env.AI_PAID_FALLBACK_MODEL || process.env.OPENAI_MODEL || '',
+    baseUrl: String(process.env.POST_ENHANCEMENT_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, ''),
+    apiKey: process.env.POST_ENHANCEMENT_API_KEY || process.env.OPENAI_API_KEY || process.env.AI_PAID_FALLBACK_API_KEY || '',
+    model: process.env.POST_ENHANCEMENT_MODEL || 'gpt-4o-mini',
     timeoutMs: Math.max(10000, Math.min(120000, Number(process.env.POST_ENHANCEMENT_TIMEOUT_MS || 60000)))
   },
   webResearch: {
