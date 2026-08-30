@@ -24,6 +24,10 @@ const workspaceRoutes = {
     title: 'Posts',
     subtitle: 'Create, schedule and manage content across your connected social destinations.',
   },
+  '/media-library': {
+    title: 'Media Library',
+    subtitle: 'Store, organise and reuse your uploaded and AI-generated assets.',
+  },
 } as const
 
 function initials(name: string) {

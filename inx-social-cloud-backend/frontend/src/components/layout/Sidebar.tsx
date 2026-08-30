@@ -23,7 +23,7 @@ const navigation = [
   { label: 'Bulk Scheduler', icon: CalendarRange, reactPath: '/bulk-scheduler' },
   { label: 'Content Calendar', icon: CalendarDays, reactPath: '/content-calendar' },
   { label: 'Posts', icon: FileText, reactPath: '/posts' },
-  { label: 'Media Library', icon: Images, legacyView: 'media' },
+  { label: 'Media Library', icon: Images, reactPath: '/media-library' },
   { label: 'AI Content Studio', icon: Sparkles, legacyView: 'agent' },
   { label: 'Analytics', icon: BarChart3, legacyView: 'analytics' },
   { label: 'Settings', icon: Settings, legacyView: 'settings' },

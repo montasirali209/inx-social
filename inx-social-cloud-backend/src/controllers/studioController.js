@@ -13,6 +13,7 @@ const agentAccess = require('../services/agentAccessService');
 const metaPublisher = require('../services/cloudMetaPublisher');
 const { getFacebookAnalytics } = require('../services/facebookAnalyticsService');
 const postEnhancement = require('../services/postEnhancementService');
+const mediaLibrary = require('../services/mediaLibraryService');
 const {
   JOB_STATUS,
   ASSET_STATUS,
@@ -102,6 +103,9 @@ const postEnhancementSchema = z.object({
   action: z.enum(['rewrite', 'shorten', 'expand', 'hashtags', 'cta']),
   tone: z.enum(['professional', 'friendly', 'concise', 'energetic']).default('professional')
 });
+
+const mediaFolderSchema = z.object({ name: z.string().trim().min(2).max(60) });
+const mediaRenameSchema = z.object({ fileName: z.string().trim().min(1).max(180) });
 
 const MAX_DIRECT_IMAGE_BYTES = 15n * 1024n * 1024n;
 
@@ -1170,6 +1174,74 @@ async function enhancePostCaption(req, res, next) {
   }
 }
 
+async function mediaLibraryWorkspace(req, res, next) {
+  try {
+    const license = await requireStudioLicense(req.user.id);
+    res.json(await mediaLibrary.workspace(req.user.id, license.plan));
+  } catch (error) { next(error); }
+}
+
+async function uploadMediaLibraryAsset(req, res, next) {
+  try {
+    const license = await requireStudioLicense(req.user.id);
+    let fileName = String(req.headers['x-file-name'] || 'media-asset');
+    try { fileName = decodeURIComponent(fileName); } catch (_) {}
+    const asset = await mediaLibrary.upload(req.user.id, license.plan, {
+      data: req.body,
+      fileName,
+      mimeType: req.headers['content-type'],
+      folderId: req.headers['x-folder-id'] || null
+    });
+    res.status(201).json({ asset });
+  } catch (error) { next(error); }
+}
+
+async function mediaLibraryAssetContent(req, res, next) {
+  try {
+    const userId = mediaLibrary.verifyContentAccess(req.query.access, req.params.id);
+    const asset = await mediaLibrary.findContent(userId, req.params.id);
+    if (!asset) return res.status(404).json({ error: 'Media asset not found.' });
+    res.setHeader('Content-Type', asset.mimeType);
+    res.setHeader('Content-Length', asset.data.length);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.setHeader('ETag', `"${asset.checksum}"`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (String(req.query.download || '') === '1') res.setHeader('Content-Disposition', `attachment; filename="${String(asset.originalName || 'media-asset').replace(/["\\]/g, '')}"`);
+    return res.end(asset.data);
+  } catch (error) { next(error); }
+}
+
+async function createMediaLibraryFolder(req, res, next) {
+  try {
+    await requireStudioLicense(req.user.id);
+    const input = mediaFolderSchema.parse(req.body || {});
+    res.status(201).json({ folder: await mediaLibrary.createFolder(req.user.id, input.name) });
+  } catch (error) { next(error); }
+}
+
+async function renameMediaLibraryAsset(req, res, next) {
+  try {
+    await requireStudioLicense(req.user.id);
+    const input = mediaRenameSchema.parse(req.body || {});
+    res.json({ asset: await mediaLibrary.rename(req.user.id, req.params.id, input.fileName) });
+  } catch (error) { next(error); }
+}
+
+async function duplicateMediaLibraryAsset(req, res, next) {
+  try {
+    await requireStudioLicense(req.user.id);
+    res.status(201).json({ asset: await mediaLibrary.duplicate(req.user.id, req.params.id) });
+  } catch (error) { next(error); }
+}
+
+async function archiveMediaLibraryAsset(req, res, next) {
+  try {
+    await requireStudioLicense(req.user.id);
+    await mediaLibrary.archive(req.user.id, req.params.id);
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+}
+
 async function cancelJob(req, res, next) {
   try {
     await requireStudioLicense(req.user.id);
@@ -1221,6 +1293,13 @@ module.exports = {
   testActivePage,
   scheduledPosts,
   enhancePostCaption,
+  mediaLibraryWorkspace,
+  uploadMediaLibraryAsset,
+  mediaLibraryAssetContent,
+  createMediaLibraryFolder,
+  renameMediaLibraryAsset,
+  duplicateMediaLibraryAsset,
+  archiveMediaLibraryAsset,
   cancelJob,
   publicJob,
   desktopJob,

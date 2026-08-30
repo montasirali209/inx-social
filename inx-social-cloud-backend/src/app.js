@@ -26,7 +26,8 @@ const reactAppIndex = path.join(reactAppRoot, 'index.html');
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
-app.use(morgan('dev'));
+morgan.token('safe-url', req => String(req.originalUrl || req.url || '').replace(/([?&]access=)[^&]+/g, '$1[redacted]'));
+app.use(morgan(':method :safe-url :status :response-time ms - :res[content-length]'));
 app.use(rateLimit({ windowMs: 60 * 1000, limit: 240 }));
 
 // Account, API and administration screens must not compete with the public
