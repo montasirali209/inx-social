@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildDashboardView, videoStatus } from './dashboard-api'
-import type { DashboardJob, FacebookAnalytics, StudioOverview } from '../types/dashboard'
+import { buildDashboardView, selectDashboardAnalyticsPage, videoStatus } from './dashboard-api'
+import type { ConnectedPage, DashboardJob, FacebookAnalytics, StudioOverview } from '../types/dashboard'
 
 const overview: StudioOverview = {
   user: { id: 'user-1', name: 'Ali', businessName: 'INX Social', email: 'ali@example.com' },
@@ -66,6 +66,27 @@ describe('dashboard data mapping', () => {
     expect(data.recentPosts).toHaveLength(5)
     expect(data.platformMetrics.find((item) => item.platform === 'facebook')?.posts).toBe(6)
     expect(data.platformMetrics.find((item) => item.platform === 'instagram')?.posts).toBe(0)
+  })
+
+  it('uses the dashboard account target instead of the universal Page selection', () => {
+    const connectedPage = (id: string, isSelected: boolean): ConnectedPage => ({
+      id,
+      facebookPageId: `meta-${id}`,
+      facebookPageName: `Page ${id}`,
+      facebookPageUsername: null,
+      facebookPagePicture: null,
+      facebookCategory: 'Business',
+      status: 'ACTIVE',
+      isSelected,
+      connectedAt: '2026-08-01T10:00:00.000Z',
+      lastCheckedAt: null,
+      lastSyncAt: null,
+      lastError: null,
+    })
+    const pages = [connectedPage('first', true), connectedPage('dashboard-choice', false)]
+
+    expect(selectDashboardAnalyticsPage(pages, 'dashboard-choice')?.id).toBe('dashboard-choice')
+    expect(selectDashboardAnalyticsPage(pages, 'missing')?.id).toBe('first')
   })
 
   it('maps every backend state to a customer-facing publishing state', () => {
