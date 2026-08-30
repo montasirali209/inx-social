@@ -96,6 +96,12 @@
     will-change: transform, opacity, filter;
   }
 
+  .notification-pop {
+    transform-origin: top right;
+    animation: notification-pop-in 190ms cubic-bezier(.2,.8,.2,1) both;
+    will-change: transform, opacity, filter;
+  }
+
   .dashboard-canvas {
     position: relative;
     isolation: isolate;
@@ -241,6 +247,19 @@
   }
 }
 
+@keyframes notification-pop-in {
+  0% {
+    opacity: 0;
+    transform: perspective(900px) translate3d(0, -8px, -20px) rotateX(-5deg) scale(.97);
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(900px) translate3d(0, 0, 0) rotateX(0) scale(1);
+    filter: blur(0);
+  }
+}
+
 @keyframes progress-slide {
   0% { transform: translateX(-115%); }
   55% { transform: translateX(150%); }
@@ -268,7 +287,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .route-stage {
+  .route-stage,
+  .notification-pop {
     animation: none;
     will-change: auto;
   }
