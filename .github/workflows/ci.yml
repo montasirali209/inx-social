@@ -43,7 +43,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
       - run: npm run lint
       - run: npm run check:release
 
@@ -61,7 +61,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
           cache-dependency-path: inx-social-cloud-backend/package-lock.json
       - run: npm ci
@@ -69,6 +69,19 @@ jobs:
         run: npm --prefix frontend ci
       - run: npm run prisma:generate
       - run: npm run check
+      - run: npm test
+
+  gateway-check:
+    name: Gateway checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: inx-social-cloud-backend/ollama-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - run: npm test
 
   windows-installer:
@@ -89,7 +102,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Require a signing certificate for tagged releases
@@ -167,6 +180,7 @@ jobs:
       - source-safety
       - desktop-check
       - backend-check
+      - gateway-check
       - windows-installer
     runs-on: ubuntu-latest
     permissions:

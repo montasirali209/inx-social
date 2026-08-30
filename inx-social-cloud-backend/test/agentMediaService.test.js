@@ -7,7 +7,8 @@ process.env.DATABASE_URL ||= 'postgresql://test:test@127.0.0.1:5432/test';
 process.env.OLLAMA_BASE_URL ||= 'https://private-ollama.example';
 process.env.OLLAMA_API_KEY ||= 'test-gateway-token';
 process.env.OLLAMA_IMAGE_MODEL ||= 'x/z-image-turbo';
-process.env.OPENAI_IMAGE_API_KEY ||= 'test-openai-key';
+process.env.OPENAI_IMAGE_BASE_URL = 'https://api.openai.com/v1';
+process.env.OPENAI_IMAGE_API_KEY = 'test-openai-key';
 
 const prismaPath = require.resolve('../src/db/prisma');
 const brainPath = require.resolve('../src/services/agentBrainService');
