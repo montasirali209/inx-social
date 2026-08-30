@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, AlertTriangle, CalendarDays, CalendarRange, CheckCircle2, FileText, RefreshCw } from 'lucide-react'
 import { ApiError } from '../../lib/api-client'
@@ -40,14 +40,6 @@ export function DashboardPage() {
     refetchInterval: 60_000,
   })
 
-  useEffect(() => {
-    const pages = dashboard.data?.overview.pages.filter((page) => page.status !== 'REVOKED') || []
-    if (!pages.length || pages.some((page) => page.id === analyticsAccountId)) return
-    const fallbackId = pages[0].id
-    setAnalyticsAccountId(fallbackId)
-    window.localStorage.setItem(analyticsAccountStorageKey, fallbackId)
-  }, [analyticsAccountId, dashboard.data?.overview.pages])
-
   function selectAnalyticsAccount(pageId: string) {
     setAnalyticsAccountId(pageId)
     window.localStorage.setItem(analyticsAccountStorageKey, pageId)
@@ -71,6 +63,10 @@ export function DashboardPage() {
   }
 
   const data = dashboard.data
+  const availablePages = data.overview.pages.filter((page) => page.status !== 'REVOKED')
+  const resolvedAnalyticsAccountId = availablePages.some((page) => page.id === analyticsAccountId)
+    ? analyticsAccountId
+    : (availablePages[0]?.id || '')
   return (
     <div className="dashboard-canvas space-y-4">
       <DashboardAccountSelector
@@ -78,7 +74,7 @@ export function DashboardPage() {
         onChange={selectAnalyticsAccount}
         onRefresh={() => dashboard.refetch()}
         pages={data.overview.pages}
-        value={analyticsAccountId}
+        value={resolvedAnalyticsAccountId}
       />
 
       <section aria-label="Publishing overview" className="flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-3 xl:grid-cols-6">
