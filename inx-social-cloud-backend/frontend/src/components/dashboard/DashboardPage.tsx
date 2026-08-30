@@ -2,11 +2,17 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, AlertTriangle, CalendarDays, CalendarRange, CheckCircle2, FileText, RefreshCw } from 'lucide-react'
 import { ApiError } from '../../lib/api-client'
-import { buildActivitySeries, fetchDashboardView } from '../../lib/dashboard-api'
+import {
+  buildActivitySeries,
+  buildDashboardView,
+  fetchDashboardJobs,
+  fetchFacebookDashboardAnalytics,
+  fetchStudioOverview,
+} from '../../lib/dashboard-api'
 import { DashboardAccountSelector } from './DashboardAccountSelector'
 import { EngagementOverviewCard } from './EngagementOverviewCard'
 import { PlatformDonutChart } from './PlatformDonutChart'
-import { PublishingActivityChart } from './PublishingActivityChart'
+import { PublishingActivityCard } from './PublishingActivityCard'
 import { RecentPostsCard } from './RecentPostsCard'
 import { StatCard } from './StatCard'
 import { TopPerformingContentCard } from './TopPerformingContentCard'
@@ -22,57 +28,89 @@ function savedAnalyticsAccount() {
 
 function DashboardSkeleton() {
   return (
-    <div aria-label="Loading dashboard" className="space-y-4" role="status">
+    <div aria-label="Loading dashboard workspace" className="space-y-4" role="status">
+      <div className="h-20 animate-pulse rounded-card bg-panel motion-reduce:animate-none" />
       <div className="flex gap-3 overflow-hidden md:grid md:grid-cols-3 xl:grid-cols-6">{Array.from({ length: 6 }, (_, index) => <div className="h-28 min-w-52 animate-pulse rounded-card bg-panel motion-reduce:animate-none" key={index} />)}</div>
-      <div className="grid gap-4 xl:grid-cols-3">{Array.from({ length: 3 }, (_, index) => <div className="h-[350px] animate-pulse rounded-card bg-panel motion-reduce:animate-none" key={index} />)}</div>
-      <div className="grid gap-4 xl:grid-cols-3">{Array.from({ length: 3 }, (_, index) => <div className="h-[290px] animate-pulse rounded-card bg-panel motion-reduce:animate-none" key={index} />)}</div>
+      <div className="h-[420px] animate-pulse rounded-card bg-panel motion-reduce:animate-none" />
     </div>
   )
 }
 
 export function DashboardPage() {
-  const [rangeDays, setRangeDays] = useState(7)
+  const [rangeDays, setRangeDays] = useState(30)
   const [analyticsAccountId, setAnalyticsAccountId] = useState(savedAnalyticsAccount)
-  const dashboard = useQuery({
-    queryKey: ['dashboard-view', rangeDays, analyticsAccountId],
-    queryFn: () => fetchDashboardView(rangeDays, analyticsAccountId || null),
-    placeholderData: (previousData) => previousData,
+  const overview = useQuery({
+    queryKey: ['studio-overview'],
+    queryFn: fetchStudioOverview,
     refetchInterval: 60_000,
   })
+  const jobs = useQuery({
+    queryKey: ['dashboard-jobs'],
+    queryFn: fetchDashboardJobs,
+    refetchInterval: 60_000,
+  })
+
+  const availablePages = overview.data?.pages.filter((page) => page.status !== 'REVOKED') || []
+  const resolvedAnalyticsAccountId = availablePages.some((page) => page.id === analyticsAccountId)
+    ? analyticsAccountId
+    : (availablePages[0]?.id || '')
+
+  const analytics = useQuery({
+    queryKey: ['facebook-dashboard-analytics', resolvedAnalyticsAccountId, rangeDays],
+    queryFn: () => fetchFacebookDashboardAnalytics(resolvedAnalyticsAccountId, rangeDays),
+    enabled: Boolean(resolvedAnalyticsAccountId),
+    refetchInterval: 15 * 60_000,
+    retry: 1,
+  })
+
+  const activity = useMemo(
+    () => buildActivitySeries(jobs.data || [], rangeDays),
+    [jobs.data, rangeDays],
+  )
+  const previousActivity = useMemo(() => {
+    const previousEnd = new Date()
+    previousEnd.setDate(previousEnd.getDate() - rangeDays)
+    return buildActivitySeries(jobs.data || [], rangeDays, previousEnd)
+  }, [jobs.data, rangeDays])
+  const data = useMemo(() => (
+    overview.data && jobs.data
+      ? buildDashboardView(overview.data, jobs.data, new Date(), analytics.data || null)
+      : null
+  ), [analytics.data, jobs.data, overview.data])
 
   function selectAnalyticsAccount(pageId: string) {
     setAnalyticsAccountId(pageId)
     window.localStorage.setItem(analyticsAccountStorageKey, pageId)
   }
 
-  const activity = useMemo(() => buildActivitySeries(dashboard.data?.jobs || [], rangeDays), [dashboard.data?.jobs, rangeDays])
+  function refreshDashboard() {
+    void Promise.all([overview.refetch(), jobs.refetch(), analytics.refetch()])
+  }
 
-  if (dashboard.isPending) return <DashboardSkeleton />
-  if (dashboard.isError) {
-    const sessionRequired = dashboard.error instanceof ApiError && dashboard.error.status === 401
+  if ((overview.isPending || jobs.isPending) && !data) return <DashboardSkeleton />
+  const coreError = overview.error || jobs.error
+  if (coreError || !data) {
+    const sessionRequired = coreError instanceof ApiError && coreError.status === 401
     return (
       <section className="mx-auto grid min-h-[60vh] max-w-2xl place-items-center text-center">
         <div className="rounded-panel border border-brand-red/25 bg-panel p-7 shadow-panel">
           <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-brand-red/10 text-brand-red"><AlertTriangle aria-hidden="true" className="size-6" /></span>
           <h1 className="mt-5 text-xl font-semibold">{sessionRequired ? 'Sign in to open your dashboard' : 'Dashboard data is unavailable'}</h1>
-          <p className="mt-2 text-sm leading-6 text-text-muted">{sessionRequired ? 'Your existing INX Social session is required to load private publishing data.' : dashboard.error.message}</p>
-          {sessionRequired ? <a className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand-blue px-5 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/studio/">Open sign in</a> : <button className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-blue px-5 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={() => dashboard.refetch()} type="button"><RefreshCw aria-hidden="true" className="size-4" /> Retry</button>}
+          <p className="mt-2 text-sm leading-6 text-text-muted">{sessionRequired ? 'Your existing INX Social session is required to load private publishing data.' : coreError?.message}</p>
+          {sessionRequired
+            ? <a className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand-blue px-5 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/studio/">Open sign in</a>
+            : <button className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-blue px-5 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={refreshDashboard} type="button"><RefreshCw aria-hidden="true" className="size-4" /> Retry</button>}
         </div>
       </section>
     )
   }
 
-  const data = dashboard.data
-  const availablePages = data.overview.pages.filter((page) => page.status !== 'REVOKED')
-  const resolvedAnalyticsAccountId = availablePages.some((page) => page.id === analyticsAccountId)
-    ? analyticsAccountId
-    : (availablePages[0]?.id || '')
   return (
     <div className="dashboard-canvas space-y-4">
       <DashboardAccountSelector
-        isRefreshing={dashboard.isFetching}
+        isRefreshing={overview.isFetching || jobs.isFetching || analytics.isFetching}
         onChange={selectAnalyticsAccount}
-        onRefresh={() => dashboard.refetch()}
+        onRefresh={refreshDashboard}
         pages={data.overview.pages}
         value={resolvedAnalyticsAccountId}
       />
@@ -82,8 +120,15 @@ export function DashboardPage() {
         <label className="interactive-surface flex min-h-[112px] min-w-[205px] flex-col justify-between rounded-card border p-4 md:min-w-0"><span className="text-xs font-medium text-text-muted">Dashboard period</span><span className="relative"><CalendarRange aria-hidden="true" className="pointer-events-none absolute left-0 top-1/2 size-4 -translate-y-1/2 text-brand-cyan" /><select className="min-h-10 w-full appearance-none border-0 bg-transparent pl-6 pr-2 text-sm font-semibold text-text-main focus:outline-none" onChange={(event) => setRangeDays(Number(event.target.value))} value={rangeDays}><option value={7}>Last 7 Days</option><option value={30}>Last 30 Days</option><option value={90}>Last 90 Days</option></select></span></label>
       </section>
 
-      <section aria-label="Publishing analytics" className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,.95fr)_minmax(340px,1.2fr)]">
-        <PublishingActivityChart onRangeChange={setRangeDays} points={activity} rangeDays={rangeDays} />
+      <PublishingActivityCard
+        loading={jobs.isFetching && !jobs.data}
+        onRangeChange={setRangeDays}
+        points={activity}
+        previousPoints={previousActivity}
+        rangeDays={rangeDays}
+      />
+
+      <section aria-label="Platform and recent publishing analytics" className="grid items-stretch gap-4 xl:grid-cols-[minmax(320px,.8fr)_minmax(0,1.6fr)]">
         <PlatformDonutChart metrics={data.platformMetrics} />
         <RecentPostsCard posts={data.recentPosts} />
       </section>
