@@ -20,6 +20,10 @@ const workspaceRoutes = {
     title: 'Content Calendar',
     subtitle: 'Plan, schedule and manage your content across all platforms.',
   },
+  '/posts': {
+    title: 'Posts',
+    subtitle: 'Create, schedule and manage content across your connected social destinations.',
+  },
 } as const
 
 function initials(name: string) {

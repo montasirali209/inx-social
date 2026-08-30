@@ -20,6 +20,6 @@ test('sidebar exposes one universal Create New Post action above navigation', ()
   const navigationIndex = sidebar.indexOf('<nav aria-label="Main navigation"');
   assert.ok(actionIndex > -1, 'Create New Post action is missing');
   assert.ok(navigationIndex > actionIndex, 'Create New Post must appear above navigation');
-  assert.match(sidebar, /href="\/studio\/\?view=posts"/);
+  assert.match(sidebar, /to="\/posts"/);
   assert.match(sidebar, /<FilePlus2/);
 });
