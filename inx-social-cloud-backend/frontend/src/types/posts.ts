@@ -4,6 +4,21 @@ export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'youtu
 export type PostType = 'text' | 'image' | 'video' | 'reel' | 'carousel'
 export type PostStatus = 'draft' | 'scheduled' | 'published' | 'awaiting_approval' | 'needs_review' | 'failed'
 export type ScheduleMode = 'now' | 'later' | 'draft'
+export type EnhancementAction = 'rewrite' | 'shorten' | 'expand' | 'hashtags' | 'cta'
+export type CaptionTone = 'professional' | 'friendly' | 'concise' | 'energetic'
+
+export type CaptionEnhancement = {
+  caption: string
+  action: EnhancementAction
+  tone: CaptionTone
+}
+
+export type BestTimeInsight = {
+  available: boolean
+  label: string
+  time: string | null
+  detail: string
+}
 
 export type Destination = {
   id: string

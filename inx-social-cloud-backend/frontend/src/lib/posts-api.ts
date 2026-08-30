@@ -1,6 +1,6 @@
 import { apiRequest, getStoredAuthToken } from './api-client'
 import type { DashboardJob } from '../types/dashboard'
-import type { CreateDirectPostInput, DirectPostResponse, PostsWorkspaceData } from '../types/posts'
+import type { CaptionEnhancement, CaptionTone, CreateDirectPostInput, DirectPostResponse, EnhancementAction, PostsWorkspaceData } from '../types/posts'
 import { fetchDashboardJobs, fetchStudioOverview } from './dashboard-api'
 
 export async function fetchPostsWorkspace(): Promise<PostsWorkspaceData> {
@@ -12,6 +12,13 @@ export function createDirectPosts(input: CreateDirectPostInput) {
   return apiRequest<DirectPostResponse>('/api/studio/direct-posts', {
     method: 'POST',
     body: JSON.stringify(input),
+  })
+}
+
+export function enhancePostCaption(caption: string, action: EnhancementAction, tone: CaptionTone) {
+  return apiRequest<CaptionEnhancement>('/api/studio/post-enhancements', {
+    method: 'POST',
+    body: JSON.stringify({ caption, action, tone }),
   })
 }
 

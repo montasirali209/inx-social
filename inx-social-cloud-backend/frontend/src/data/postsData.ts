@@ -18,16 +18,6 @@ export const postTypes: Array<{ id: PostType; label: string; available: boolean 
 
 export const campaigns = ['No campaign', 'Always-on content', 'Product launch', 'Community growth']
 
-export function improveCaption(value: string, action: 'rewrite' | 'shorten' | 'expand' | 'hashtags' | 'cta') {
-  const clean = value.trim().replace(/\s+/g, ' ')
-  if (action === 'rewrite') return clean ? `${clean[0].toUpperCase()}${clean.slice(1)}` : ''
-  if (action === 'shorten') return clean.length > 240 ? `${clean.slice(0, 237).trimEnd()}…` : clean
-  if (action === 'expand') return clean ? `${clean}\n\nHere is what makes this worth your attention—and how you can put it into action today.` : ''
-  if (action === 'cta') return clean ? `${clean}\n\nWhat do you think? Share your view below.` : ''
-  const tags = [...new Set(clean.toLowerCase().match(/[a-z]{5,}/g) || [])].slice(0, 4)
-  return `${clean}${clean ? '\n\n' : ''}${(tags.length ? tags : ['socialmedia', 'content']).map((tag) => `#${tag}`).join(' ')}`
-}
-
 export function contentScore(caption: string, hasMedia: boolean, destinationCount: number) {
   let score = 20
   if (caption.trim().length >= 40) score += 25
