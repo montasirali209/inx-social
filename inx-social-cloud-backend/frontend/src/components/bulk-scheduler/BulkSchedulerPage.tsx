@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, ChevronDown, RefreshCw, Square } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError } from '../../lib/api-client'
 import { createBulkDraft, fetchBulkSchedulerData, fetchFacebookScheduledPosts, uploadBulkVideo } from '../../lib/bulk-scheduler-api'
@@ -199,16 +199,11 @@ export function BulkSchedulerPage() {
 
   return (
     <div className="dashboard-canvas">
-      <header className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div><h1 className="text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">Bulk Scheduler</h1><p className="mt-1 text-sm text-text-muted">Publish video batches across one or several connected social media platforms.</p></div>
-        <div className="flex flex-wrap gap-2">
-          <label className="relative"><span className="sr-only">Theme</span><select className="min-h-10 appearance-none rounded-xl border border-border-soft bg-panel px-3 pr-9 text-xs font-semibold focus:border-brand-blue focus:outline-none" defaultValue="midnight"><option value="midnight">Theme · Midnight</option></select><ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" /></label>
-          <button className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border-soft bg-panel px-3 text-xs font-semibold transition hover:border-brand-blue/45 hover:bg-panel-hover focus-visible:outline-2 focus-visible:outline-brand-cyan" disabled={scheduler.isFetching} onClick={() => scheduler.refetch()} type="button"><RefreshCw aria-hidden="true" className={`size-4 ${scheduler.isFetching ? 'animate-spin motion-reduce:animate-none' : ''}`} /> Refresh</button>
-          <button className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-brand-blue/50 bg-gradient-to-r from-brand-blue to-[#0f8f7f] px-4 text-xs font-semibold text-white shadow-glow-blue transition hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={() => destinationSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })} type="button">Open Bulk Scheduler</button>
-          {running && <button className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-brand-red/45 bg-brand-red/15 px-4 text-xs font-semibold text-brand-red focus-visible:outline-2 focus-visible:outline-brand-red" onClick={() => abortRef.current?.abort()} type="button"><Square aria-hidden="true" className="size-3 fill-current" /> Stop Scheduler</button>}
-        </div>
-      </header>
-      <BulkSchedulerHero />
+      <BulkSchedulerHero
+        onOpen={() => destinationSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        onStop={() => abortRef.current?.abort()}
+        running={running}
+      />
       <div className="mt-4 scroll-mt-24" ref={destinationSection}><PublishingDestinationsPanel destinations={destinations} onSelectionChange={setSelectedIds} platforms={scheduler.data.platforms} selectedIds={selectedIds} /></div>
       <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,.92fr)_minmax(0,1.08fr)]">
         <UploadBatchPanel canStart={canStart} captionCount={captionBlocks.length} captions={captions} disabledReason={disabledReason} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onFallbackChange={setUseFallback} onScheduleDateChange={setScheduleDate} onScheduleTimeChange={setScheduleTime} onStart={() => void runBatch()} onTimingModeChange={setTimingMode} onVideos={selectVideos} running={running} scheduleDate={scheduleDate} scheduleTime={scheduleTime} selectedDestinations={selectedIds.size} timingMode={timingMode} useFallback={useFallback} videos={videos} />

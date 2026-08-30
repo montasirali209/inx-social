@@ -3,12 +3,14 @@ import { Link } from 'react-router-dom'
 
 export function ActivityInsightRow({
   publishedChange,
-  mostActiveDay,
+  mostActiveDate,
   mostActiveCount,
+  mostActiveEngagement,
 }: {
   publishedChange: string
-  mostActiveDay: string
+  mostActiveDate: string
   mostActiveCount: number
+  mostActiveEngagement: number | null
 }) {
   return (
     <div className="grid overflow-hidden rounded-2xl border border-border-soft bg-bg/35 md:grid-cols-3">
@@ -22,9 +24,13 @@ export function ActivityInsightRow({
       <div className="flex items-center gap-3 border-b border-border-soft p-4 md:border-b-0 md:border-r">
         <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-blue-500/10 text-blue-300"><BarChart3 aria-hidden="true" className="size-5" /></span>
         <div>
-          <p className="text-sm font-semibold text-text-main">Most active day</p>
-          <p className="mt-1 text-sm font-semibold text-blue-300">{mostActiveDay}</p>
-          <p className="mt-0.5 text-xs text-text-muted">{mostActiveCount} post{mostActiveCount === 1 ? '' : 's'} published</p>
+          <p className="text-sm font-semibold text-text-main">Most active date</p>
+          <p className="mt-1 text-sm font-semibold text-blue-300">{mostActiveDate}</p>
+          <p className="mt-0.5 text-xs text-text-muted">
+            {mostActiveCount} post{mostActiveCount === 1 ? '' : 's'} published
+            {mostActiveEngagement === null ? '' : ` · ${mostActiveEngagement.toLocaleString('en-GB')} interactions`}
+          </p>
+          <p className="mt-1 text-[10px] text-text-soft">Ranked from the selected Page activity and live engagement.</p>
         </div>
       </div>
       <div className="flex flex-col justify-center gap-2 p-4">

@@ -102,11 +102,14 @@ export function buildDashboardView(
   facebookAnalytics: FacebookAnalytics | null = null,
 ): DashboardViewData {
   const liveEngagement = facebookAnalytics?.summary.totalInteractions ?? facebookAnalytics?.summary.engagements ?? null
+  const publishedCount = jobs.filter((job) => job.status === 'PUBLISHED').length
+  const scheduledCount = jobs.filter((job) => job.status === 'SCHEDULED').length
+  const failedCount = jobs.filter((job) => job.status === 'FAILED' || job.status === 'CANCELLED').length
   const stats: StatCardData[] = [
-    { label: 'Total Posts', value: overview.summary.total, detail: 'All publishing records', tone: 'green' },
-    { label: 'Published', value: overview.summary.published, detail: 'Confirmed by Meta', tone: 'green' },
-    { label: 'Scheduled', value: overview.summary.scheduled, detail: 'Future publishing slots', tone: 'cyan' },
-    { label: 'Failed', value: overview.summary.failed, detail: 'Items needing attention', tone: 'red' },
+    { label: 'Total Posts', value: jobs.length, detail: 'Selected Page records', tone: 'green' },
+    { label: 'Published', value: publishedCount, detail: 'Selected Page · confirmed', tone: 'green' },
+    { label: 'Scheduled', value: scheduledCount, detail: 'Selected Page · upcoming', tone: 'cyan' },
+    { label: 'Failed', value: failedCount, detail: 'Selected Page · needs attention', tone: 'red' },
     {
       label: 'Engagement',
       value: liveEngagement ?? '—',
@@ -204,5 +207,6 @@ export async function fetchDashboardView(days = 7, connectedPageId?: string | nu
       // Analytics view exposes the exact reconnect/error evidence.
     }
   }
-  return buildDashboardView(overview, jobs, new Date(), facebookAnalytics)
+  const scopedJobs = page ? jobs.filter((job) => job.page?.id === page.id) : []
+  return buildDashboardView(overview, scopedJobs, new Date(), facebookAnalytics)
 }

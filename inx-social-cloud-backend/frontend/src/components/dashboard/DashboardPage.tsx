@@ -63,20 +63,44 @@ export function DashboardPage() {
     retry: 1,
   })
 
+  const scopedJobs = useMemo(
+    () => (jobs.data || []).filter((job) => job.page?.id === resolvedAnalyticsAccountId),
+    [jobs.data, resolvedAnalyticsAccountId],
+  )
+  const liveActivityByDate = useMemo(() => {
+    const posts: Record<string, number> = {}
+    const engagement: Record<string, number> = {}
+    for (const post of analytics.data?.content || []) {
+      if (!post.createdTime) continue
+      const timestamp = new Date(post.createdTime)
+      if (Number.isNaN(timestamp.getTime())) continue
+      const key = timestamp.toISOString().slice(0, 10)
+      posts[key] = (posts[key] || 0) + 1
+      engagement[key] = (engagement[key] || 0) + (
+        post.insights?.totalInteractions
+        ?? post.reactions + post.comments + post.shares
+      )
+    }
+    return { posts, engagement }
+  }, [analytics.data])
+  const engagementByDate = liveActivityByDate.engagement
   const activity = useMemo(
-    () => buildActivitySeries(jobs.data || [], rangeDays),
-    [jobs.data, rangeDays],
+    () => buildActivitySeries(scopedJobs, rangeDays).map((point) => {
+      const key = new Date(point.date).toISOString().slice(0, 10)
+      return { ...point, published: Math.max(point.published, liveActivityByDate.posts[key] || 0) }
+    }),
+    [liveActivityByDate.posts, rangeDays, scopedJobs],
   )
   const previousActivity = useMemo(() => {
     const previousEnd = new Date()
     previousEnd.setDate(previousEnd.getDate() - rangeDays)
-    return buildActivitySeries(jobs.data || [], rangeDays, previousEnd)
-  }, [jobs.data, rangeDays])
+    return buildActivitySeries(scopedJobs, rangeDays, previousEnd)
+  }, [rangeDays, scopedJobs])
   const data = useMemo(() => (
     overview.data && jobs.data
-      ? buildDashboardView(overview.data, jobs.data, new Date(), analytics.data || null)
+      ? buildDashboardView(overview.data, scopedJobs, new Date(), analytics.data || null)
       : null
-  ), [analytics.data, jobs.data, overview.data])
+  ), [analytics.data, jobs.data, overview.data, scopedJobs])
 
   function selectAnalyticsAccount(pageId: string) {
     setAnalyticsAccountId(pageId)
@@ -121,6 +145,7 @@ export function DashboardPage() {
       </section>
 
       <PublishingActivityCard
+        engagementByDate={engagementByDate}
         loading={jobs.isFetching && !jobs.data}
         onRangeChange={setRangeDays}
         points={activity}

@@ -31,14 +31,28 @@ function summaries(points: PublishingActivityPoint[], previousPoints: Publishing
   })
 }
 
-function mostActive(points: PublishingActivityPoint[]) {
-  const point = points.reduce<PublishingActivityPoint | null>((winner, current) => (
-    !winner || current.published > winner.published ? current : winner
-  ), null)
-  if (!point) return { day: 'No activity yet', count: 0 }
+function activityDateKey(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10)
+}
+
+function mostActive(points: PublishingActivityPoint[], engagementByDate: Record<string, number>) {
+  const hasLiveEngagement = Object.keys(engagementByDate).length > 0
+  const point = points.reduce<PublishingActivityPoint | null>((winner, current) => {
+    if (!winner) return current
+    const currentEngagement = engagementByDate[activityDateKey(current.date)] || 0
+    const winnerEngagement = engagementByDate[activityDateKey(winner.date)] || 0
+    const currentScore = current.published * 10 + current.scheduled * 3 - current.failed + Math.log10(currentEngagement + 1) * 12
+    const winnerScore = winner.published * 10 + winner.scheduled * 3 - winner.failed + Math.log10(winnerEngagement + 1) * 12
+    return currentScore > winnerScore ? current : winner
+  }, null)
+  const liveEngagementTotal = Object.values(engagementByDate).reduce((total, value) => total + value, 0)
+  if (!point || activityTotal(points) + liveEngagementTotal === 0) return { date: 'No activity yet', count: 0, engagement: hasLiveEngagement ? 0 : null }
+  const pointDate = new Date(point.date)
   return {
-    day: new Intl.DateTimeFormat('en-GB', { weekday: 'long' }).format(new Date(point.date)),
+    date: new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }).format(pointDate),
     count: point.published,
+    engagement: hasLiveEngagement ? engagementByDate[activityDateKey(point.date)] || 0 : null,
   }
 }
 
@@ -58,17 +72,19 @@ export function PublishingActivityCard({
   previousPoints,
   rangeDays,
   onRangeChange,
+  engagementByDate = {},
   loading = false,
 }: {
   points: PublishingActivityPoint[]
   previousPoints: PublishingActivityPoint[]
   rangeDays: number
   onRangeChange: (days: number) => void
+  engagementByDate?: Record<string, number>
   loading?: boolean
 }) {
   const cards = summaries(points, previousPoints)
   const total = activityTotal(points)
-  const active = mostActive(points)
+  const active = mostActive(points, engagementByDate)
   const published = cards.find((card) => card.tone === 'published')
   const publishedChange = published?.change || '0%'
 
@@ -119,7 +135,7 @@ export function PublishingActivityCard({
                   <PublishingActivityChart points={points} />
                 </div>
                 <div className="mt-4">
-                  <ActivityInsightRow mostActiveCount={active.count} mostActiveDay={active.day} publishedChange={publishedChange} />
+                  <ActivityInsightRow mostActiveCount={active.count} mostActiveDate={active.date} mostActiveEngagement={active.engagement} publishedChange={publishedChange} />
                 </div>
               </>
             )}

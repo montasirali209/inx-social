@@ -6,7 +6,11 @@ import { Topbar } from './Topbar'
 
 export function AppShell() {
   const location = useLocation()
-  const overview = useQuery({ queryKey: ['studio-overview'], queryFn: fetchStudioOverview })
+  const overview = useQuery({
+    queryKey: ['studio-overview'],
+    queryFn: fetchStudioOverview,
+    refetchInterval: 60_000,
+  })
 
   return (
     <div className="min-h-dvh bg-bg text-text-main">

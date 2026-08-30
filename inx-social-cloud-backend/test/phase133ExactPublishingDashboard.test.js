@@ -14,7 +14,8 @@ test('Phase 13.3 matches the publishing analytics dashboard information architec
   for (const component of ['PublishingActivityCard', 'PlatformDonutChart', 'RecentPostsCard', 'EngagementOverviewCard', 'TopPerformingContentCard', 'UpcomingScheduleCard']) {
     assert.match(dashboard, new RegExp(component));
   }
-  assert.match(topbar, /dashboardRoute \? 'Dashboard'/);
+  assert.match(topbar, /workspaceRoutes/);
+  assert.match(topbar, /title: 'Dashboard'/);
   assert.match(topbar, /Overview of your social media publishing performance/);
   assert.match(topbar, /Europe\/London/);
   for (const label of ['Dashboard', 'Bulk Scheduler', 'Content Calendar', 'Posts', 'Media Library', 'AI Content Studio', 'Analytics', 'Settings', 'Connected Accounts', 'Billing & Plans']) {
