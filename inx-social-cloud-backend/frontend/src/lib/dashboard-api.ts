@@ -168,6 +168,17 @@ export async function fetchStudioOverview() {
   return apiRequest<StudioOverview>('/api/studio/overview')
 }
 
+export async function fetchDashboardJobs() {
+  return (await apiRequest<JobsResponse>('/api/studio/jobs?limit=250')).jobs
+}
+
+export async function fetchFacebookDashboardAnalytics(connectedPageId: string, days = 7) {
+  const result = await apiRequest<FacebookAnalyticsResponse>(
+    `/api/studio/analytics/facebook?connectedPageId=${encodeURIComponent(connectedPageId)}&days=${days}`,
+  )
+  return result.analytics
+}
+
 export function selectDashboardAnalyticsPage(pages: ConnectedPage[], connectedPageId?: string | null) {
   if (!pages.length) return null
   if (connectedPageId) {
@@ -178,23 +189,20 @@ export function selectDashboardAnalyticsPage(pages: ConnectedPage[], connectedPa
 }
 
 export async function fetchDashboardView(days = 7, connectedPageId?: string | null) {
-  const [overview, jobsResult] = await Promise.all([
+  const [overview, jobs] = await Promise.all([
     fetchStudioOverview(),
-    apiRequest<JobsResponse>('/api/studio/jobs?limit=250'),
+    fetchDashboardJobs(),
   ])
   const page = selectDashboardAnalyticsPage(overview.pages, connectedPageId)
   let facebookAnalytics: FacebookAnalytics | null = null
   if (page) {
     try {
-      const result = await apiRequest<FacebookAnalyticsResponse>(
-        `/api/studio/analytics/facebook?connectedPageId=${encodeURIComponent(page.id)}&days=${days}`,
-      )
-      facebookAnalytics = result.analytics
+      facebookAnalytics = await fetchFacebookDashboardAnalytics(page.id, days)
     } catch {
       // Operational publishing remains available when Meta analytics permission
       // is missing, expired or temporarily rate-limited. The dedicated
       // Analytics view exposes the exact reconnect/error evidence.
     }
   }
-  return buildDashboardView(overview, jobsResult.jobs, new Date(), facebookAnalytics)
+  return buildDashboardView(overview, jobs, new Date(), facebookAnalytics)
 }

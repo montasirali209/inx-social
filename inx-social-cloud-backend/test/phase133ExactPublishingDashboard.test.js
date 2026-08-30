@@ -11,7 +11,7 @@ test('Phase 13.3 matches the publishing analytics dashboard information architec
   const topbar = read('frontend/src/components/layout/Topbar.tsx');
   const sidebar = read('frontend/src/components/layout/Sidebar.tsx');
 
-  for (const component of ['PublishingActivityChart', 'PlatformDonutChart', 'RecentPostsCard', 'EngagementOverviewCard', 'TopPerformingContentCard', 'UpcomingScheduleCard']) {
+  for (const component of ['PublishingActivityCard', 'PlatformDonutChart', 'RecentPostsCard', 'EngagementOverviewCard', 'TopPerformingContentCard', 'UpcomingScheduleCard']) {
     assert.match(dashboard, new RegExp(component));
   }
   assert.match(topbar, /dashboardRoute \? 'Dashboard'/);
@@ -51,4 +51,21 @@ test('Phase 13.3 uses real responsive charts and accessible controls', () => {
   assert.match(donut, /conic-gradient/);
   assert.match(sidebar, /focus-visible:outline/);
   assert.match(sidebar, /Create New Post/);
+});
+
+
+test('Dashboard analytics loads progressively and the activity card handles honest data states', () => {
+  const dashboard = read('frontend/src/components/dashboard/DashboardPage.tsx');
+  const activityCard = read('frontend/src/components/dashboard/PublishingActivityCard.tsx');
+  const activityChart = read('frontend/src/components/dashboard/PublishingActivityChart.tsx');
+
+  assert.match(dashboard, /fetchDashboardJobs/);
+  assert.match(dashboard, /fetchFacebookDashboardAnalytics/);
+  assert.match(dashboard, /enabled: Boolean\(resolvedAnalyticsAccountId\)/);
+  assert.match(activityCard, /No publishing activity yet/);
+  assert.match(activityCard, /Publishing activity is just starting/);
+  assert.match(activityCard, /Open Calendar/);
+  assert.doesNotMatch(activityCard, /Schedule Post/);
+  assert.match(activityChart, /ActivityTooltip/);
+  assert.match(activityChart, /onPointerMove/);
 });

@@ -90,6 +90,12 @@
     scrollbar-width: thin;
   }
 
+  .route-stage {
+    transform-origin: 50% 0;
+    animation: route-stage-in 360ms cubic-bezier(.2,.8,.2,1) both;
+    will-change: transform, opacity, filter;
+  }
+
   .dashboard-canvas {
     position: relative;
     isolation: isolate;
@@ -218,6 +224,23 @@
   }
 }
 
+@keyframes route-stage-in {
+  0% {
+    opacity: 0;
+    transform: perspective(1400px) translate3d(0, 18px, -34px) rotateX(2.4deg) scale(.992);
+    filter: blur(3px);
+  }
+  55% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1400px) translate3d(0, 0, 0) rotateX(0) scale(1);
+    filter: blur(0);
+  }
+}
+
 @keyframes progress-slide {
   0% { transform: translateX(-115%); }
   55% { transform: translateX(150%); }
@@ -245,6 +268,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .route-stage {
+    animation: none;
+    will-change: auto;
+  }
+
   .interactive-surface,
   .interactive-surface::after,
   .interactive-nav {
