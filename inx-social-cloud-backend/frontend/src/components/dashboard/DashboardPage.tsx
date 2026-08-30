@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Activity, AlertTriangle, CalendarDays, CalendarRange, CheckCircle2, FileText, RefreshCw } from 'lucide-react'
 import { ApiError } from '../../lib/api-client'
 import { buildActivitySeries, fetchDashboardView } from '../../lib/dashboard-api'
+import { DashboardAccountSelector } from './DashboardAccountSelector'
 import { EngagementOverviewCard } from './EngagementOverviewCard'
 import { PlatformDonutChart } from './PlatformDonutChart'
 import { PublishingActivityChart } from './PublishingActivityChart'
@@ -12,6 +13,12 @@ import { TopPerformingContentCard } from './TopPerformingContentCard'
 import { UpcomingScheduleCard } from './UpcomingScheduleCard'
 
 const statIcons = [FileText, CheckCircle2, CalendarDays, AlertTriangle, Activity]
+const analyticsAccountStorageKey = 'inx-dashboard-analytics-account'
+
+function savedAnalyticsAccount() {
+  if (typeof window === 'undefined') return ''
+  return window.localStorage.getItem(analyticsAccountStorageKey) || ''
+}
 
 function DashboardSkeleton() {
   return (
@@ -25,11 +32,18 @@ function DashboardSkeleton() {
 
 export function DashboardPage() {
   const [rangeDays, setRangeDays] = useState(7)
+  const [analyticsAccountId, setAnalyticsAccountId] = useState(savedAnalyticsAccount)
   const dashboard = useQuery({
-    queryKey: ['dashboard-view', rangeDays],
-    queryFn: () => fetchDashboardView(rangeDays),
+    queryKey: ['dashboard-view', rangeDays, analyticsAccountId],
+    queryFn: () => fetchDashboardView(rangeDays, analyticsAccountId || null),
+    placeholderData: (previousData) => previousData,
     refetchInterval: 60_000,
   })
+
+  function selectAnalyticsAccount(pageId: string) {
+    setAnalyticsAccountId(pageId)
+    window.localStorage.setItem(analyticsAccountStorageKey, pageId)
+  }
 
   const activity = useMemo(() => buildActivitySeries(dashboard.data?.jobs || [], rangeDays), [dashboard.data?.jobs, rangeDays])
 
@@ -49,8 +63,20 @@ export function DashboardPage() {
   }
 
   const data = dashboard.data
+  const availablePages = data.overview.pages.filter((page) => page.status !== 'REVOKED')
+  const resolvedAnalyticsAccountId = availablePages.some((page) => page.id === analyticsAccountId)
+    ? analyticsAccountId
+    : (availablePages[0]?.id || '')
   return (
     <div className="dashboard-canvas space-y-4">
+      <DashboardAccountSelector
+        isRefreshing={dashboard.isFetching}
+        onChange={selectAnalyticsAccount}
+        onRefresh={() => dashboard.refetch()}
+        pages={data.overview.pages}
+        value={resolvedAnalyticsAccountId}
+      />
+
       <section aria-label="Publishing overview" className="flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-3 xl:grid-cols-6">
         {data.stats.map((stat, index) => <StatCard data={stat} icon={statIcons[index]} key={stat.label} />)}
         <label className="interactive-surface flex min-h-[112px] min-w-[205px] flex-col justify-between rounded-card border p-4 md:min-w-0"><span className="text-xs font-medium text-text-muted">Dashboard period</span><span className="relative"><CalendarRange aria-hidden="true" className="pointer-events-none absolute left-0 top-1/2 size-4 -translate-y-1/2 text-brand-cyan" /><select className="min-h-10 w-full appearance-none border-0 bg-transparent pl-6 pr-2 text-sm font-semibold text-text-main focus:outline-none" onChange={(event) => setRangeDays(Number(event.target.value))} value={rangeDays}><option value={7}>Last 7 Days</option><option value={30}>Last 30 Days</option><option value={90}>Last 90 Days</option></select></span></label>
