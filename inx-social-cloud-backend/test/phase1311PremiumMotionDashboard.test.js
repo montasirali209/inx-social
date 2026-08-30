@@ -9,6 +9,7 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 test('Publishing analytics dashboard renders live data without fake metrics', () => {
   const dashboard = read('frontend/src/components/dashboard/DashboardPage.tsx');
   const styles = read('frontend/src/index.css');
+  const activity = read('frontend/src/components/dashboard/PublishingActivityCard.tsx');
   const chart = read('frontend/src/components/dashboard/PublishingActivityChart.tsx');
   const data = read('frontend/src/lib/dashboard-api.ts');
 
@@ -18,14 +19,15 @@ test('Publishing analytics dashboard renders live data without fake metrics', ()
   assert.match(styles, /\.interactive-surface/);
   assert.match(styles, /prefers-reduced-motion/);
   assert.match(chart, /<svg/);
-  assert.match(chart, /No publishing activity in this period/);
+  assert.match(activity, /No publishing activity yet/);
+  assert.match(activity, /PublishingActivityChart/);
   assert.match(data, /engagement: null/);
   assert.doesNotMatch(`${dashboard}${data}`, /24\.8K|32\.4%|128 posts/);
 });
 
 test('Publishing analytics dashboard has the six premium responsive surfaces', () => {
   const dashboard = read('frontend/src/components/dashboard/DashboardPage.tsx');
-  const activity = read('frontend/src/components/dashboard/PublishingActivityChart.tsx');
+  const activity = read('frontend/src/components/dashboard/PublishingActivityCard.tsx');
   const donut = read('frontend/src/components/dashboard/PlatformDonutChart.tsx');
   const engagement = read('frontend/src/components/dashboard/EngagementOverviewCard.tsx');
   const sidebar = read('frontend/src/components/layout/Sidebar.tsx');
