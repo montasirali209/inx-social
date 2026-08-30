@@ -1,7 +1,9 @@
 const router = require('express').Router();
+const express = require('express');
 const { requireAuth } = require('../middleware/authMiddleware');
 const controller = require('../controllers/studioController');
 
+router.get('/media-library/assets/:id/content', controller.mediaLibraryAssetContent);
 router.use(requireAuth);
 router.get('/capabilities', controller.capabilities);
 router.get('/desktop-state', controller.desktopState);
@@ -13,6 +15,12 @@ router.get('/facebook/test', controller.testActivePage);
 router.get('/facebook/scheduled-posts', controller.scheduledPosts);
 router.get('/analytics/facebook', controller.facebookAnalytics);
 router.post('/post-enhancements', controller.enhancePostCaption);
+router.get('/media-library', controller.mediaLibraryWorkspace);
+router.post('/media-library/folders', controller.createMediaLibraryFolder);
+router.post('/media-library/assets', express.raw({ type: ['image/*', 'video/*'], limit: '100mb' }), controller.uploadMediaLibraryAsset);
+router.patch('/media-library/assets/:id', controller.renameMediaLibraryAsset);
+router.post('/media-library/assets/:id/duplicate', controller.duplicateMediaLibraryAsset);
+router.delete('/media-library/assets/:id', controller.archiveMediaLibraryAsset);
 router.get('/jobs', controller.listJobs);
 router.post('/jobs', controller.createDraft);
 router.post('/direct-posts', controller.createDirectPosts);

@@ -1,8 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { fetchPostsWorkspace, createDirectPosts, uploadDirectPostMedia } from '../../lib/posts-api'
 import { fetchFacebookDashboardAnalytics } from '../../lib/dashboard-api'
+import { fetchMediaAssetFile } from '../../lib/media-library-api'
 import { calculateBestPostTime } from '../../lib/posts-analytics'
+import type { MediaAsset } from '../../types/media-library'
 import type { BestTimeInsight, MediaItem, PostDraft, PostType, PublishProgress, ScheduleMode } from '../../types/posts'
 import { CreatePostPanel } from './CreatePostPanel'
 import { DestinationSelector } from './DestinationSelector'
@@ -23,6 +26,8 @@ function defaultDate() {
 
 export function PostsPage() {
   const queryClient = useQueryClient()
+  const location = useLocation()
+  const importedAssetId = useRef<string | null>(null)
   const workspace = useQuery({ queryKey: ['posts-workspace'], queryFn: fetchPostsWorkspace, refetchInterval: 45_000 })
   const [postType, setPostType] = useState<PostType>('text')
   const [title, setTitle] = useState('')
@@ -36,6 +41,21 @@ export function PostsPage() {
   const [labels, setLabels] = useState('')
   const [drafts, setDrafts] = useState<PostDraft[]>(readDrafts)
   const [progress, setProgress] = useState<PublishProgress>({ state: 'idle', percent: 0, message: '' })
+
+  useEffect(() => {
+    const state = location.state as { mediaLibraryAsset?: MediaAsset; scheduleMode?: ScheduleMode } | null
+    const asset = state?.mediaLibraryAsset
+    if (!asset || importedAssetId.current === asset.id) return
+    importedAssetId.current = asset.id
+    setProgress({ state: 'preparing', percent: 15, message: `Attaching ${asset.fileName} from your Media Library…` })
+    void fetchMediaAssetFile(asset).then(file => {
+      const url = URL.createObjectURL(file)
+      setMedia({ id: asset.id, type: asset.type === 'video' ? 'video' : 'image', file, url, thumbnailUrl: url, fileName: asset.fileName, size: file.size })
+      setPostType(asset.type === 'video' ? 'video' : 'image')
+      if (state?.scheduleMode) setMode(state.scheduleMode)
+      setProgress({ state: 'completed', percent: 100, message: `${asset.fileName} is attached and ready to publish.` })
+    }).catch(error => setProgress({ state: 'failed', percent: 0, message: error instanceof Error ? error.message : 'The Media Library asset could not be attached.' }))
+  }, [location.state])
 
   const jobs = useMemo(() => workspace.data?.jobs || [], [workspace.data?.jobs])
   const stats = useMemo(() => {

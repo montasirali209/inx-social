@@ -38,6 +38,7 @@ model User {
   agentMemories           AgentMemory[]
   agentEvents             AgentEvent[]
   agentAssets             AgentAsset[]
+  mediaFolders            MediaFolder[]
   agentCampaigns          AgentCampaign[]
   socialConnections       SocialConnection[]
   socialProfiles          SocialProfile[]
@@ -97,15 +98,38 @@ model AgentAsset {
   expiresAt         DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+  folderId          String?
+  tagsJson          String    @default("[]")
+  width             Int?
+  height            Int?
+  durationSeconds   Int?
+  archivedAt        DateTime?
 
   user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan          AgentPlan?          @relation(fields: [planId], references: [id], onDelete: SetNull)
   campaignPosts AgentCampaignPost[]
+  folder        MediaFolder?         @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
   @@index([planId])
   @@index([checksum])
   @@index([expiresAt])
+  @@index([folderId])
+  @@index([userId, status, source])
+}
+
+model MediaFolder {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assets AgentAsset[]
+
+  @@unique([userId, name])
+  @@index([userId, createdAt])
 }
 
 model AgentTask {
