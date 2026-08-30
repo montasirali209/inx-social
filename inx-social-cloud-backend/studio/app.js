@@ -3963,8 +3963,8 @@ function renderFacebookAnalytics(data) {
   setText('analyticsLivePill', data.cache?.hit ? 'Cached' : 'Live');
   setText('analyticsFollowers', formatMetric(data.summary?.followers));
   setText('analyticsPosts', formatMetric(data.summary?.posts));
-  setText('analyticsEngagements', formatMetric(data.summary?.engagements));
-  setText('analyticsViews', formatMetric(data.summary?.views));
+  setText('analyticsEngagements', formatMetric(data.summary?.totalInteractions ?? data.summary?.engagements));
+  setText('analyticsViews', formatMetric(data.summary?.views ?? data.summary?.postViews));
   setText('analyticsResultCount', `${data.content?.length || 0} item${data.content?.length === 1 ? '' : 's'}`);
   const pagePicture = document.getElementById('analyticsPagePicture');
   const pageFallback = document.getElementById('analyticsPageFallback');
@@ -3985,9 +3985,9 @@ function renderFacebookAnalytics(data) {
   const recent = document.getElementById('analyticsRecentContent');
   if (recent) {
     const content = data.content || [];
-    recent.innerHTML = content.length ? `<table><thead><tr><th>Content</th><th>Published</th><th>Reactions</th><th>Comments</th><th>Shares</th><th>Facebook</th></tr></thead><tbody>${content.map(item => `
-      <tr><td><div class="analytics-content-cell">${item.thumbnailUrl ? `<img src="${escapeHtml(item.thumbnailUrl)}" alt="" loading="lazy">` : '<span class="analytics-content-placeholder">f</span>'}<div><strong>${escapeHtml((item.message || 'Facebook content').slice(0, 110))}</strong><small>${escapeHtml(item.contentType || 'post')}</small></div></div></td><td>${escapeHtml(formatDate(item.createdTime))}</td><td>${formatMetric(item.reactions)}</td><td>${formatMetric(item.comments)}</td><td>${formatMetric(item.shares)}</td><td>${item.permalinkUrl ? `<a class="analytics-open-link" href="${escapeHtml(item.permalinkUrl)}" target="_blank" rel="noopener noreferrer">View post</a>` : '—'}</td></tr>
-    `).join('')}</tbody></table>` : data.reviewEvidence?.reconnectRequired ? '<div class="analytics-reconnect"><strong>Reconnect required for content analytics</strong><p>This Page token was created before <code>pages_read_user_content</code> was requested. Meta permissions do not update an existing token automatically.</p><button class="btn primary" type="button" data-analytics-reconnect>Reconnect Facebook Page</button></div>' : '<div class="empty">Meta returned no published content in this period.</div>';
+    recent.innerHTML = content.length ? `<table><thead><tr><th>Content</th><th>Published</th><th>Views</th><th>Unique viewers</th><th>Interactions</th><th>Facebook</th></tr></thead><tbody>${content.map(item => `
+      <tr><td><div class="analytics-content-cell">${item.thumbnailUrl ? `<img src="${escapeHtml(item.thumbnailUrl)}" alt="" loading="lazy">` : '<span class="analytics-content-placeholder">f</span>'}<div><strong>${escapeHtml((item.message || 'Facebook content').slice(0, 110))}</strong><small>${escapeHtml(item.contentType || 'post')}</small></div></div></td><td>${escapeHtml(formatDate(item.createdTime))}</td><td>${formatMetric(item.insights?.views)}</td><td>${formatMetric(item.insights?.uniqueViewers)}</td><td>${formatMetric(item.insights?.totalInteractions ?? (item.reactions + item.comments + item.shares))}</td><td>${item.permalinkUrl ? `<a class="analytics-open-link" href="${escapeHtml(item.permalinkUrl)}" target="_blank" rel="noopener noreferrer">View post</a>` : '—'}</td></tr>
+    `).join('')}</tbody></table>` : data.reviewEvidence?.reconnectRequired ? '<div class="analytics-reconnect"><strong>Reconnect required for content analytics</strong><p>This Page token was created before <code>pages_read_user_content</code> and <code>read_insights</code> were requested. Meta permissions do not update an existing token automatically.</p><button class="btn primary" type="button" data-analytics-reconnect>Reconnect Facebook Page</button></div>' : '<div class="empty">Meta returned no published content in this period.</div>';
     recent.querySelector('[data-analytics-reconnect]')?.addEventListener('click', () => switchView('pages'));
   }
   const notice = document.getElementById('analyticsNotice');
@@ -4038,6 +4038,7 @@ function renderAnalyticsCapabilities(capabilities, warnings) {
     ['Page and post engagement', capabilities.basicEngagement],
     ['Published Page content', capabilities.publishedContent],
     ['Page Insights', capabilities.pageInsights],
+    ['Published post insights', capabilities.postInsights],
     ['Content views', capabilities.metrics?.views],
     ['Post engagements trend', capabilities.metrics?.engagements],
     ['Page follows trend', capabilities.metrics?.follows]

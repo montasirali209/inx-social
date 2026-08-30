@@ -22,7 +22,7 @@ test('customer Activity Logs exclude administrator system details', () => {
 test('Facebook analytics use live capability detection without inventing unavailable insights', () => {
   const html = read('studio/index.html'); const app = read('studio/app.js'); const routes = read('src/routes/studioRoutes.js');
   assert.match(html, /id="analyticsPlatformSelect"/); assert.match(html, /YouTube — coming soon/); assert.match(html, /TikTok — coming soon/);
-  assert.doesNotMatch(html, /read_insights/); assert.match(html, /Exact Meta capability detection/); assert.match(routes, /analytics\/facebook/);
+  assert.match(read('studio/web-adapter.js'), /pages_read_user_content,read_insights,pages_manage_posts/); assert.match(html, /Exact Meta capability detection/); assert.match(routes, /analytics\/facebook/);
   assert.match(app, /getFacebookAnalytics/); assert.match(html, /Unavailable values are never estimated/); assert.match(app, /function renderAnalyticsTrend/);
   assert.match(app, /analyticsRecentContent/); assert.match(html, /id="analyticsReviewEvidence"/); assert.match(html, /id="btnCopyAnalyticsReviewSteps"/);
   assert.match(app, /renderAnalyticsReviewEvidence/); assert.match(app, /copyAnalyticsReviewSteps/);

@@ -528,10 +528,45 @@ async function desktopState(req, res, next) {
   }
 }
 
+async function persistFacebookPublicationMetrics(userId, analytics) {
+  const rows = (analytics.content || []).filter(item => item.id && item.insights);
+  if (!rows.length) return;
+  const byExternalId = new Map(rows.map(item => [String(item.id), item]));
+  const publications = await prisma.socialPublication.findMany({
+    where: {
+      platform: { in: ['facebook', 'FACEBOOK'] },
+      externalPostId: { in: [...byExternalId.keys()] },
+      profile: { is: { userId } }
+    },
+    select: { id: true, externalPostId: true, metricsJson: true }
+  });
+  await Promise.all(publications.map(publication => {
+    const item = byExternalId.get(String(publication.externalPostId));
+    if (!item) return null;
+    const current = parseJson(publication.metricsJson, {});
+    return prisma.socialPublication.update({
+      where: { id: publication.id },
+      data: {
+        metricsJson: JSON.stringify({
+          ...current,
+          facebook: {
+            reactions: item.reactions,
+            comments: item.comments,
+            shares: item.shares,
+            ...item.insights,
+            fetchedAt: analytics.fetchedAt
+          }
+        })
+      }
+    });
+  }).filter(Boolean));
+}
+
 async function facebookAnalytics(req, res, next) {
+  let page = null;
   try {
     await requireStudioLicense(req.user.id);
-    const page = await resolvePage(req.user.id, req.query.connectedPageId, true);
+    page = await resolvePage(req.user.id, req.query.connectedPageId, true);
     const days = Math.min(90, Math.max(7, Number(req.query.days || 30)));
     const force = String(req.query.force || '') === 'true';
     const result = await getFacebookAnalytics({
@@ -542,8 +577,24 @@ async function facebookAnalytics(req, res, next) {
       force,
       cacheScope: req.user.id
     });
+    await Promise.all([
+      prisma.connectedPage.updateMany({
+        where: { id: page.id, userId: req.user.id },
+        data: { lastCheckedAt: new Date(), lastSyncAt: new Date(), lastError: null }
+      }),
+      persistFacebookPublicationMetrics(req.user.id, result).catch(() => {})
+    ]);
     res.json({ analytics: result });
   } catch (error) {
+    if (page) {
+      await prisma.connectedPage.updateMany({
+        where: { id: page.id, userId: req.user.id },
+        data: {
+          lastCheckedAt: new Date(),
+          lastError: String(error.publicMessage || error.message || 'Facebook analytics refresh failed.').slice(0, 1000)
+        }
+      }).catch(() => {});
+    }
     next(error);
   }
 }
