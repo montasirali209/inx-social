@@ -46,7 +46,8 @@ function mostActive(points: PublishingActivityPoint[], engagementByDate: Record<
     const winnerScore = winner.published * 10 + winner.scheduled * 3 - winner.failed + Math.log10(winnerEngagement + 1) * 12
     return currentScore > winnerScore ? current : winner
   }, null)
-  if (!point || activityTotal(points) === 0) return { date: 'No activity yet', count: 0, engagement: hasLiveEngagement ? 0 : null }
+  const liveEngagementTotal = Object.values(engagementByDate).reduce((total, value) => total + value, 0)
+  if (!point || activityTotal(points) + liveEngagementTotal === 0) return { date: 'No activity yet', count: 0, engagement: hasLiveEngagement ? 0 : null }
   const pointDate = new Date(point.date)
   return {
     date: new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'short' }).format(pointDate),
