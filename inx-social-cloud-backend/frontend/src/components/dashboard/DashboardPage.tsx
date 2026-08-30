@@ -63,20 +63,38 @@ export function DashboardPage() {
     retry: 1,
   })
 
+  const scopedJobs = useMemo(
+    () => (jobs.data || []).filter((job) => job.page?.id === resolvedAnalyticsAccountId),
+    [jobs.data, resolvedAnalyticsAccountId],
+  )
+  const engagementByDate = useMemo(() => {
+    const totals: Record<string, number> = {}
+    for (const post of analytics.data?.content || []) {
+      if (!post.createdTime) continue
+      const timestamp = new Date(post.createdTime)
+      if (Number.isNaN(timestamp.getTime())) continue
+      const key = timestamp.toISOString().slice(0, 10)
+      totals[key] = (totals[key] || 0) + (
+        post.insights?.totalInteractions
+        ?? post.reactions + post.comments + post.shares
+      )
+    }
+    return totals
+  }, [analytics.data])
   const activity = useMemo(
-    () => buildActivitySeries(jobs.data || [], rangeDays),
-    [jobs.data, rangeDays],
+    () => buildActivitySeries(scopedJobs, rangeDays),
+    [rangeDays, scopedJobs],
   )
   const previousActivity = useMemo(() => {
     const previousEnd = new Date()
     previousEnd.setDate(previousEnd.getDate() - rangeDays)
-    return buildActivitySeries(jobs.data || [], rangeDays, previousEnd)
-  }, [jobs.data, rangeDays])
+    return buildActivitySeries(scopedJobs, rangeDays, previousEnd)
+  }, [rangeDays, scopedJobs])
   const data = useMemo(() => (
     overview.data && jobs.data
-      ? buildDashboardView(overview.data, jobs.data, new Date(), analytics.data || null)
+      ? buildDashboardView(overview.data, scopedJobs, new Date(), analytics.data || null)
       : null
-  ), [analytics.data, jobs.data, overview.data])
+  ), [analytics.data, jobs.data, overview.data, scopedJobs])
 
   function selectAnalyticsAccount(pageId: string) {
     setAnalyticsAccountId(pageId)
@@ -121,6 +139,7 @@ export function DashboardPage() {
       </section>
 
       <PublishingActivityCard
+        engagementByDate={engagementByDate}
         loading={jobs.isFetching && !jobs.data}
         onRangeChange={setRangeDays}
         points={activity}
