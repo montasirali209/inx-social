@@ -1,6 +1,7 @@
 import { apiRequest } from './api-client'
 import type {
   BackendJobStatus,
+  ConnectedPage,
   DashboardJob,
   DashboardViewData,
   FacebookAnalytics,
@@ -167,12 +168,21 @@ export async function fetchStudioOverview() {
   return apiRequest<StudioOverview>('/api/studio/overview')
 }
 
-export async function fetchDashboardView(days = 7) {
+export function selectDashboardAnalyticsPage(pages: ConnectedPage[], connectedPageId?: string | null) {
+  if (!pages.length) return null
+  if (connectedPageId) {
+    const requested = pages.find((page) => page.id === connectedPageId && page.status !== 'REVOKED')
+    if (requested) return requested
+  }
+  return pages.find((page) => page.status !== 'REVOKED') || null
+}
+
+export async function fetchDashboardView(days = 7, connectedPageId?: string | null) {
   const [overview, jobsResult] = await Promise.all([
     fetchStudioOverview(),
     apiRequest<JobsResponse>('/api/studio/jobs?limit=250'),
   ])
-  const page = overview.pages.find((candidate) => candidate.isSelected) || overview.pages[0]
+  const page = selectDashboardAnalyticsPage(overview.pages, connectedPageId)
   let facebookAnalytics: FacebookAnalytics | null = null
   if (page) {
     try {
