@@ -500,7 +500,7 @@ Third video caption #hashtags"></textarea>
                 <div>
                   <span class="block-kicker">Scheduling rules</span>
                   <h4>Default Scheduler Behaviour</h4>
-                  <p>These rules control how Auto Scheduler pairs captions, chooses slots, retries uploads, and converts times for Meta.</p>
+                  <p>These rules control caption matching, retry safety, Meta scheduling limits and timezone conversion.</p>
                 </div>
               </div>
 
@@ -508,8 +508,6 @@ Third video caption #hashtags"></textarea>
                 <label>Graph Version<input id="settingGraphVersion" name="graphVersion" placeholder="v25.0" /><span class="field-note">Keep v25.0 unless Meta requires a different version.</span></label>
                 <label>Timezone<input id="settingTimezone" name="timezone" placeholder="Europe/London" /><span class="field-note">Used when converting your chosen slots to Meta schedule times.</span></label>
               </div>
-
-              <label>Daily Slots<textarea id="settingSlots" name="dailySlots" rows="4" placeholder="11:00&#10;15:13&#10;22:15&#10;23:15"></textarea><span class="field-note">One time per line. Auto Scheduler uses these when custom times are not selected.</span></label>
 
               <div class="settings-grid-two">
                 <label>Caption split mode<select id="settingCaptionSplitMode" name="captionSplitMode">

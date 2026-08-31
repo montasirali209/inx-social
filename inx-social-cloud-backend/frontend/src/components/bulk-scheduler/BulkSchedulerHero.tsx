@@ -2,7 +2,7 @@ import { ArrowDownToLine, CheckCircle2, ChevronRight, Layers3, Send, Square, Upl
 
 const steps = [
   { icon: Layers3, title: 'Select destinations', detail: 'Choose one or many accounts' },
-  { icon: UploadCloud, title: 'Upload & configure', detail: 'Add videos, captions and timing' },
+  { icon: UploadCloud, title: 'Upload & configure', detail: 'Add media, captions and timing' },
   { icon: Send, title: 'Publish with confidence', detail: 'Follow every result live' },
 ]
 
@@ -21,7 +21,7 @@ export function BulkSchedulerHero({
         <div>
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.12em] text-brand-cyan"><CheckCircle2 aria-hidden="true" className="size-4" /> Session-based publishing</div>
           <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em] sm:text-3xl">Bulk publishing, made simple.</h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-text-muted">Select your destinations, upload your videos and captions, choose a timing mode, then publish instantly or let the scheduler handle it for you.</p>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-text-muted">Select your destinations, upload images or videos with captions, choose a timing mode, then publish instantly or let the scheduler handle it for you.</p>
           <div className="mt-4 flex flex-wrap gap-2">
             <button className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-brand-cyan/45 bg-gradient-to-r from-brand-blue to-[#0f8f7f] px-4 text-xs font-semibold text-white shadow-glow-blue transition duration-200 hover:-translate-y-0.5 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan motion-reduce:transform-none motion-reduce:transition-none" onClick={onOpen} type="button"><ArrowDownToLine aria-hidden="true" className="size-4" /> Open Bulk Scheduler</button>
             {running ? <button className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-brand-red/45 bg-brand-red/15 px-4 text-xs font-semibold text-brand-red transition hover:bg-brand-red/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-red" onClick={onStop} type="button"><Square aria-hidden="true" className="size-3 fill-current" /> Stop Scheduler</button> : null}

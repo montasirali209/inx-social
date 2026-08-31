@@ -1036,7 +1036,6 @@ async function connectFacebookPage() {
       facebookAppId: metaAppId,
       graphVersion: val('settingGraphVersion') || 'v25.0',
       timezone: val('settingTimezone') || 'Europe/London',
-      dailySlots: val('settingSlots'),
       maxScheduleDays: Number(val('settingMaxDays') || 25),
       minLeadMinutes: Number(val('settingLead') || 20),
       maxRetries: Number(val('settingRetries') || 3),
@@ -1269,7 +1268,6 @@ async function saveSettings(options = {}) {
     facebookAppId: val('settingFacebookAppId') || '969283649323618',
     graphVersion: val('settingGraphVersion'),
     timezone: val('settingTimezone'),
-    dailySlots: val('settingSlots'),
     maxScheduleDays: Number(val('settingMaxDays')),
     minLeadMinutes: Number(val('settingLead')),
     maxRetries: Number(val('settingRetries')),
@@ -1579,7 +1577,6 @@ function fillSettings() {
   renderFacebookConnectStatus(s);
   document.getElementById('settingGraphVersion').value = s.graphVersion || 'v25.0';
   document.getElementById('settingTimezone').value = s.timezone || 'Europe/London';
-  document.getElementById('settingSlots').value = (s.dailySlots || []).join('\n');
   document.getElementById('settingMaxDays').value = s.maxScheduleDays || 29;
   document.getElementById('settingLead').value = s.minLeadMinutes || 20;
   document.getElementById('settingRetries').value = s.maxRetries || 3;
