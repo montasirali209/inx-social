@@ -51,3 +51,18 @@ test('best-time guidance is derived from selected Page analytics', () => {
   assert.match(analytics, /live engagement from/);
   assert.match(schedule, /Use time/);
 });
+
+test('Drafts stat opens an animated browser-persisted draft manager', () => {
+  const page = read('frontend/src/components/posts/PostsPage.tsx');
+  const modal = read('frontend/src/components/posts/DraftLibraryModal.tsx');
+  const primitives = read('frontend/src/components/posts/PostPrimitives.tsx');
+  assert.match(page, /inx-social-post-drafts-v1/);
+  assert.match(page, /setDraftLibraryOpen\(true\)/);
+  assert.match(page, /function loadDraft/);
+  assert.match(page, /function deleteDraft/);
+  assert.match(page, /drafts\.filter\(\(item\) => item\.id !== draft\.id\)/);
+  assert.match(modal, /posts-modal-panel/);
+  assert.match(modal, /Continue editing/);
+  assert.match(modal, /This browser/);
+  assert.match(primitives, /aria-label={`Open \${label}`}/);
+});

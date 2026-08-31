@@ -9,6 +9,7 @@ import type { MediaAsset } from '../../types/media-library'
 import type { BestTimeInsight, MediaItem, PostDraft, PostType, PublishProgress, ScheduleMode } from '../../types/posts'
 import { CreatePostPanel } from './CreatePostPanel'
 import { DestinationSelector } from './DestinationSelector'
+import { DraftLibraryModal } from './DraftLibraryModal'
 import { PostPreviewPanel } from './PostPreviewPanel'
 import { PostsStatCard } from './PostPrimitives'
 import { SchedulePanel } from './SchedulePanel'
@@ -40,6 +41,8 @@ export function PostsPage() {
   const [campaign, setCampaign] = useState('No campaign')
   const [labels, setLabels] = useState('')
   const [drafts, setDrafts] = useState<PostDraft[]>(readDrafts)
+  const [draftLibraryOpen, setDraftLibraryOpen] = useState(false)
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null)
   const [progress, setProgress] = useState<PublishProgress>({ state: 'idle', percent: 0, message: '' })
 
   useEffect(() => {
@@ -62,7 +65,7 @@ export function PostsPage() {
     const needsReview = jobs.filter((job) => ['FAILED', 'AWAITING_UPLOAD'].includes(job.status)).length
     return [
       { label: 'All Posts', value: jobs.length + drafts.length, detail: 'All publishing records', tone: 'teal' as const },
-      { label: 'Drafts', value: jobs.filter((job) => job.status === 'DRAFT').length + drafts.length, detail: 'Saved for later', tone: 'amber' as const },
+      { label: 'Drafts', value: drafts.length, detail: 'Open saved drafts', tone: 'amber' as const },
       { label: 'Scheduled', value: jobs.filter((job) => job.status === 'SCHEDULED').length, detail: 'Future publishing slots', tone: 'blue' as const },
       { label: 'Published', value: jobs.filter((job) => job.status === 'PUBLISHED').length, detail: 'Confirmed by Meta', tone: 'green' as const },
       { label: 'Needs Review', value: needsReview, detail: needsReview ? 'Action required' : 'Nothing needs attention', tone: 'red' as const },
@@ -91,11 +94,41 @@ export function PostsPage() {
       setProgress({ state: 'failed', percent: 0, message: 'Add a title or caption before saving this draft.' })
       return
     }
-    const draft: PostDraft = { id: crypto.randomUUID(), title: title.trim(), caption: caption.trim(), postType, mediaFileName: media?.fileName || null, selectedDestinationIds: selectedIds, scheduleMode: mode, scheduledAt, campaign, labels: labels.split(',').map((label) => label.trim()).filter(Boolean), status: 'draft', createdAt: new Date().toISOString() }
-    const next = [draft, ...drafts].slice(0, 30)
+    const existing = activeDraftId ? drafts.find((draft) => draft.id === activeDraftId) : null
+    const draft: PostDraft = { id: existing?.id || crypto.randomUUID(), title: title.trim(), caption: caption.trim(), postType, mediaFileName: media?.fileName || existing?.mediaFileName || null, selectedDestinationIds: selectedIds, scheduleMode: mode, scheduledAt, campaign, labels: labels.split(',').map((label) => label.trim()).filter(Boolean), status: 'draft', createdAt: existing?.createdAt || new Date().toISOString() }
+    const next = [draft, ...drafts.filter((item) => item.id !== draft.id)].slice(0, 30)
     window.localStorage.setItem(draftKey, JSON.stringify(next))
     setDrafts(next)
-    setProgress({ state: 'completed', percent: 100, message: media ? 'Draft saved in this browser. Reselect the media file before publishing.' : 'Draft saved safely in this browser.' })
+    setActiveDraftId(draft.id)
+    setProgress({ state: 'completed', percent: 100, message: existing ? 'Draft updated in this browser.' : media ? 'Draft saved in this browser. Reselect the media file before publishing.' : 'Draft saved safely in this browser.' })
+  }
+
+  function deleteDraft(id: string) {
+    const next = drafts.filter((draft) => draft.id !== id)
+    window.localStorage.setItem(draftKey, JSON.stringify(next))
+    setDrafts(next)
+    if (activeDraftId === id) setActiveDraftId(null)
+  }
+
+  function loadDraft(draft: PostDraft) {
+    setTitle(draft.title)
+    setCaption(draft.caption)
+    setPostType(draft.postType)
+    setSelectedIds(draft.selectedDestinationIds.filter((id) => workspace.data?.pages.some((page) => page.id === id)))
+    setMode(draft.scheduleMode)
+    setCampaign(draft.campaign)
+    setLabels(draft.labels.join(', '))
+    setMedia(null)
+    if (draft.scheduledAt) {
+      const scheduled = new Date(draft.scheduledAt)
+      const localValue = new Date(scheduled.getTime() - scheduled.getTimezoneOffset() * 60_000).toISOString()
+      setDate(localValue.slice(0, 10))
+      setTime(localValue.slice(11, 16))
+    }
+    setActiveDraftId(draft.id)
+    setDraftLibraryOpen(false)
+    setProgress({ state: 'completed', percent: 100, message: draft.mediaFileName ? `${draft.title || 'Draft'} loaded. Reselect ${draft.mediaFileName} before publishing.` : `${draft.title || 'Draft'} loaded and ready to continue.` })
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   async function publish() {
@@ -147,13 +180,14 @@ export function PostsPage() {
 
   return (
     <div className="dashboard-canvas pb-8">
-      <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 xl:grid-cols-5">{stats.map((stat) => <PostsStatCard key={stat.label} {...stat} />)}</div>
+      <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 xl:grid-cols-5">{stats.map((stat) => <PostsStatCard key={stat.label} {...stat} onClick={stat.label === 'Drafts' ? () => setDraftLibraryOpen(true) : undefined} />)}</div>
       <DestinationSelector pages={workspace.data.pages} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.35fr)_minmax(290px,.72fr)_minmax(320px,.82fr)]">
         <CreatePostPanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} caption={caption} destinationCount={selectedIds.length} media={media} postType={postType} setCaption={setCaption} setMedia={setMedia} setPostType={setPostType} setTitle={setTitle} title={title} />
         <SchedulePanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} campaign={campaign} canPublish={mode === 'draft' ? Boolean(title.trim() || caption.trim()) : ready} date={date} labels={labels} mode={mode} onDraft={saveDraft} onPublish={() => void publish()} progress={progress} setCampaign={setCampaign} setDate={setDate} setLabels={setLabels} setMode={setMode} setTime={setTime} time={time} />
         <PostPreviewPanel caption={caption} media={media} selectedPage={selectedPage} />
       </div>
+      {draftLibraryOpen && <DraftLibraryModal drafts={drafts} onClose={() => setDraftLibraryOpen(false)} onDelete={deleteDraft} onLoad={loadDraft} pages={workspace.data.pages} />}
     </div>
   )
 }
