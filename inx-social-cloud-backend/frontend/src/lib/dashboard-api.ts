@@ -175,9 +175,9 @@ export async function fetchDashboardJobs() {
   return (await apiRequest<JobsResponse>('/api/studio/jobs?limit=250')).jobs
 }
 
-export async function fetchFacebookDashboardAnalytics(connectedPageId: string, days = 7) {
+export async function fetchFacebookDashboardAnalytics(connectedPageId: string, days = 7, force = false) {
   const result = await apiRequest<FacebookAnalyticsResponse>(
-    `/api/studio/analytics/facebook?connectedPageId=${encodeURIComponent(connectedPageId)}&days=${days}`,
+    `/api/studio/analytics/facebook?connectedPageId=${encodeURIComponent(connectedPageId)}&days=${days}${force ? '&force=true' : ''}`,
   )
   return result.analytics
 }

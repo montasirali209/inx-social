@@ -28,6 +28,10 @@ const workspaceRoutes = {
     title: 'Media Library',
     subtitle: 'Store, organise and reuse your uploaded and AI-generated assets.',
   },
+  '/analytics': {
+    title: 'Analytics',
+    subtitle: 'Track performance, engagement and growth across your connected platforms.',
+  },
 } as const
 
 function initials(name: string) {

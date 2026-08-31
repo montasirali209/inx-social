@@ -9,7 +9,7 @@ export function EngagementOverviewCard({ metrics }: { metrics: PlatformMetric[] 
   const total = liveValues.length ? liveValues.reduce((sum, metric) => sum + (metric.engagement || 0), 0) : null
   return (
     <ChartCard
-      action={<a aria-label="Open Analytics" className="rounded-lg border border-border-soft px-2.5 py-1.5 text-[10px] text-text-muted transition hover:border-brand-cyan/45 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/studio/?view=analytics">Live Analytics</a>}
+      action={<a aria-label="Open Analytics" className="rounded-lg border border-border-soft px-2.5 py-1.5 text-[10px] text-text-muted transition hover:border-brand-cyan/45 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/analytics">Live Analytics</a>}
       className="min-h-[290px]"
       title="Engagement Overview"
     >
@@ -29,4 +29,3 @@ export function EngagementOverviewCard({ metrics }: { metrics: PlatformMetric[] 
     </ChartCard>
   )
 }
-

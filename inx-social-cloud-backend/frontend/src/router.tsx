@@ -12,6 +12,7 @@ export const router = createBrowserRouter(
         { path: 'content-calendar', lazy: async () => ({ Component: (await import('./components/calendar/ContentCalendarPage')).ContentCalendarPage }) },
         { path: 'posts', lazy: async () => ({ Component: (await import('./components/posts/PostsPage')).PostsPage }) },
         { path: 'media-library', lazy: async () => ({ Component: (await import('./components/media-library/MediaLibraryPage')).MediaLibraryPage }) },
+        { path: 'analytics', lazy: async () => ({ Component: (await import('./components/analytics/AnalyticsPage')).AnalyticsPage }) },
       ],
     },
   ],
