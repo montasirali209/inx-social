@@ -25,7 +25,7 @@ const navigation = [
   { label: 'Posts', icon: FileText, reactPath: '/posts' },
   { label: 'Media Library', icon: Images, reactPath: '/media-library' },
   { label: 'AI Content Studio', icon: Sparkles, legacyView: 'agent' },
-  { label: 'Analytics', icon: BarChart3, legacyView: 'analytics' },
+  { label: 'Analytics', icon: BarChart3, reactPath: '/analytics' },
   { label: 'Settings', icon: Settings, legacyView: 'settings' },
   { label: 'Connected Accounts', icon: UsersRound, legacyView: 'pages' },
   { label: 'Billing & Plans', icon: CreditCard, externalPath: '/portal/#overview' },

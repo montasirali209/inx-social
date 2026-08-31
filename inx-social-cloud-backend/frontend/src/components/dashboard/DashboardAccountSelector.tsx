@@ -8,6 +8,7 @@ type DashboardAccountSelectorProps = {
   isRefreshing: boolean
   onChange: (pageId: string) => void
   onRefresh: () => void
+  contextLabel?: string
 }
 
 function PageAvatar({ page, size = 'large' }: { page: ConnectedPage; size?: 'large' | 'small' }) {
@@ -28,6 +29,7 @@ export function DashboardAccountSelector({
   isRefreshing,
   onChange,
   onRefresh,
+  contextLabel = 'Dashboard',
 }: DashboardAccountSelectorProps) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
@@ -79,7 +81,7 @@ export function DashboardAccountSelector({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-sm font-semibold text-text-main">Analytics account</h2>
-              <span className="rounded-full border border-teal-300/15 bg-teal-400/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-teal-300">Dashboard only</span>
+              <span className="rounded-full border border-teal-300/15 bg-teal-400/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-teal-300">{contextLabel} only</span>
             </div>
             <p className="mt-0.5 text-xs text-text-muted">Choose which connected Page supplies the performance data below.</p>
           </div>
@@ -166,7 +168,7 @@ export function DashboardAccountSelector({
                   })}
                   {!filtered.length ? <p className="px-3 py-8 text-center text-xs text-text-muted">No connected Page matches that search.</p> : null}
                 </div>
-                <p className="border-t border-white/8 px-2 pb-1 pt-2 text-[10px] leading-4 text-text-soft">This choice affects Dashboard analytics only. It does not change destinations in Posts, Bulk Scheduler or AI Content Studio.</p>
+                <p className="border-t border-white/8 px-2 pb-1 pt-2 text-[10px] leading-4 text-text-soft">This choice affects {contextLabel} analytics only. It does not change destinations in Posts, Bulk Scheduler or AI Content Studio.</p>
               </div>
             ) : null}
           </div>

@@ -5,7 +5,7 @@ const actions = [
   { label: 'Upload Video', href: '/studio/?view=reels', icon: UploadCloud },
   { label: 'Schedule Video', href: '/studio/?view=reels', icon: CalendarPlus },
   { label: 'Create Post', href: '/studio/?view=posts', icon: FilePlus2 },
-  { label: 'View Analytics', href: '/studio/?view=analytics', icon: BarChart3 },
+  { label: 'View Analytics', href: '/app/analytics', icon: BarChart3 },
 ]
 
 export function QuickActionsCard() {

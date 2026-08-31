@@ -1,0 +1,10 @@
+import { ArrowUpRight } from 'lucide-react'
+import { formatAnalyticsValue } from '../../data/analyticsData'
+import type { TopPost } from '../../types/analytics'
+import { PlatformIcon } from '../dashboard/PlatformIcon'
+import { PostThumbnail } from '../dashboard/PostThumbnail'
+import { AnalyticsCard, AnalyticsCardHeader, UnavailableState } from './AnalyticsPrimitives'
+
+export function TopPerformingPostsCard({ posts, onViewAll }: { posts: TopPost[]; onViewAll: () => void }) {
+  return <AnalyticsCard><AnalyticsCardHeader action={<button className="text-[10px] font-semibold text-brand-cyan hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onViewAll} type="button">View all</button>} description="Ranked using live reactions, comments, shares and available post clicks." title="Top Performing Posts" />{posts.length ? <div className="divide-y divide-border-soft px-4 pb-3 sm:px-5">{posts.slice(0, 5).map((post) => { const content = <><PostThumbnail className="size-10" src={post.thumbnailUrl} title={post.title} /><span className="min-w-0 flex-1"><strong className="block truncate text-xs">{post.title}</strong><small className="mt-0.5 block text-[9px] text-text-soft">{post.date ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(new Date(post.date)) : 'Date unavailable'}</small></span><PlatformIcon className="size-5" platform="facebook" /><span className="text-right"><strong className="block text-xs">{formatAnalyticsValue(post.engagements, 'compact')}</strong><small className="text-[8px] text-text-muted">Interactions</small></span></>; return post.permalinkUrl ? <a className="flex items-center gap-3 py-3 transition hover:bg-white/[.025] focus-visible:outline-2 focus-visible:outline-brand-cyan" href={post.permalinkUrl} key={post.id} rel="noreferrer" target="_blank">{content}<ArrowUpRight className="size-3 text-text-soft" /></a> : <div className="flex items-center gap-3 py-3" key={post.id}>{content}</div> })}</div> : <UnavailableState detail="Published content will appear here after Meta returns posts for the selected period." title="No published posts in this period" />}</AnalyticsCard>
+}

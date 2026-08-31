@@ -91,7 +91,15 @@ export type FacebookAnalyticsContent = {
 export type FacebookAnalytics = {
   platform: 'facebook'
   fetchedAt: string
-  page: { id: string; name: string }
+  period?: { days: number; since: string; until: string }
+  page: { id: string; name: string; followers?: number; fans?: number; link?: string | null; pictureUrl?: string | null }
+  capabilities?: {
+    basicEngagement: AnalyticsCapability
+    publishedContent: AnalyticsCapability
+    pageInsights: AnalyticsCapability
+    postInsights: AnalyticsCapability
+    metrics: Record<string, AnalyticsCapability>
+  }
   summary: {
     followers: number
     posts: number
@@ -104,10 +112,22 @@ export type FacebookAnalytics = {
     postViews: number
     uniqueViewers: number
     clicks: number
+    follows?: number | null
+    pageEngagements?: number | null
     engagementRate: number | null
     calculationNote: string
   }
+  series?: Record<string, Array<{ date: string; value: number }>>
   content: FacebookAnalyticsContent[]
+  warnings?: string[]
+  cache?: { hit: boolean; expiresAt: string }
+}
+
+export type AnalyticsCapability = {
+  state: string
+  available: boolean
+  reason: string
+  metaCode?: number | null
 }
 
 export type PublishingActivityPoint = {
