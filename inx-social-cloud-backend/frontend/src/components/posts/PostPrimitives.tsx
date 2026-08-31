@@ -28,7 +28,7 @@ const statIcons: Record<string, LucideIcon> = {
   'Needs Review': AlertTriangle,
 }
 
-export function PostsStatCard({ label, value, detail, tone }: { label: string; value: number; detail: string; tone: 'teal' | 'green' | 'amber' | 'red' | 'blue' }) {
+export function PostsStatCard({ label, value, detail, tone, onClick }: { label: string; value: number; detail: string; tone: 'teal' | 'green' | 'amber' | 'red' | 'blue'; onClick?: () => void }) {
   const Icon = statIcons[label] || ClipboardList
   const tones = {
     teal: 'border-brand-cyan/25 text-brand-cyan bg-brand-cyan/10',
@@ -37,14 +37,17 @@ export function PostsStatCard({ label, value, detail, tone }: { label: string; v
     red: 'border-brand-red/25 text-brand-red bg-brand-red/10',
     blue: 'border-brand-blue/25 text-brand-cyan bg-brand-blue/10',
   }
-  return (
-    <article className="interactive-surface min-w-[210px] flex-1 rounded-card border p-4">
+  const content = (
+    <>
       <div className="flex items-start gap-3">
         <span className={`grid size-11 shrink-0 place-items-center rounded-xl border ${tones[tone]}`}><Icon aria-hidden="true" className="size-5" /></span>
-        <div><p className="text-xs text-text-muted">{label}</p><strong className="mt-0.5 block text-2xl tracking-tight">{value}</strong><p className="mt-1 text-[10px] text-text-soft">{detail}</p></div>
+        <div className="min-w-0 flex-1"><p className="text-xs text-text-muted">{label}</p><strong className="mt-0.5 block text-2xl tracking-tight">{value}</strong><p className="mt-1 text-[10px] text-text-soft">{detail}</p></div>
+        {onClick && <span className="self-center text-lg text-brand-cyan transition-transform group-hover:translate-x-1" aria-hidden="true">›</span>}
       </div>
-    </article>
+    </>
   )
+  if (onClick) return <button aria-label={`Open ${label}`} className="interactive-surface group min-w-[210px] flex-1 rounded-card border p-4 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan" onClick={onClick} type="button">{content}</button>
+  return <article className="interactive-surface min-w-[210px] flex-1 rounded-card border p-4">{content}</article>
 }
 
 export function PanelHeading({ step, title, subtitle }: { step: number; title: string; subtitle: string }) {
