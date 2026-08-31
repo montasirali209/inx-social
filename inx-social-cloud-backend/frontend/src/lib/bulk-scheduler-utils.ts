@@ -26,14 +26,15 @@ function roundToNextHalfHour(date: Date) {
 
 export function buildPublishingTimes(input: {
   mode: TimingMode
-  videoCount: number
+  mediaCount: number
   date: string
   time: string
+  dailyTimes?: string[]
   jobs: DashboardJob[]
   destinationIds: string[]
   externalScheduledAt?: string[]
 }) {
-  if (input.mode === 'publish_now') return Array.from({ length: input.videoCount }, () => null)
+  if (input.mode === 'publish_now') return Array.from({ length: input.mediaCount }, () => null)
   if (input.mode === 'best_engagement_time') throw new Error('Best engagement timing is not available until platform analytics are connected.')
 
   if (input.mode === 'next_available_slots') {
@@ -43,7 +44,7 @@ export function buildPublishingTimes(input: {
     input.externalScheduledAt?.forEach((value) => occupied.add(new Date(value).toISOString()))
     const result: string[] = []
     let candidate = roundToNextHalfHour(new Date(Date.now() + 20 * 60_000))
-    while (result.length < input.videoCount) {
+    while (result.length < input.mediaCount) {
       const iso = candidate.toISOString()
       if (!occupied.has(iso)) result.push(iso)
       candidate = new Date(candidate.getTime() + 30 * 60_000)
@@ -51,9 +52,30 @@ export function buildPublishingTimes(input: {
     return result
   }
 
+  if (input.mode === 'schedule_time') {
+    const times = [...new Set((input.dailyTimes || []).filter((time) => /^\d{2}:\d{2}$/.test(time)))].sort()
+    if (!input.date || !times.length) throw new Error('Choose a start date and add at least one daily publishing time.')
+    const result: string[] = []
+    const day = new Date(`${input.date}T00:00:00`)
+    if (Number.isNaN(day.getTime())) throw new Error('Choose a valid start date.')
+    let dayOffset = 0
+    while (result.length < input.mediaCount && dayOffset < input.mediaCount + 366) {
+      for (const time of times) {
+        const candidate = new Date(day)
+        candidate.setDate(candidate.getDate() + dayOffset)
+        const [hours, minutes] = time.split(':').map(Number)
+        candidate.setHours(hours, minutes, 0, 0)
+        if (candidate.getTime() >= Date.now() + 20 * 60_000) result.push(candidate.toISOString())
+        if (result.length === input.mediaCount) break
+      }
+      dayOffset += 1
+    }
+    if (result.length !== input.mediaCount) throw new Error('Could not build the selected daily publishing schedule.')
+    return result
+  }
+
   const start = localDate(input.date, input.time)
-  const interval = input.mode === 'spread_across_days' ? 24 * 60 * 60_000 : 30 * 60_000
-  return Array.from({ length: input.videoCount }, (_, index) => new Date(start.getTime() + index * interval).toISOString())
+  return Array.from({ length: input.mediaCount }, (_, index) => new Date(start.getTime() + index * 24 * 60 * 60_000).toISOString())
 }
 
 export function formatFileSize(bytes: number) {

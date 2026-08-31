@@ -33,16 +33,20 @@ export type TimingMode =
 
 export type UploadStatus = 'waiting' | 'uploading' | 'published' | 'scheduled' | 'failed' | 'blocked'
 
-export type SelectedVideo = {
+export type MediaKind = 'image' | 'video'
+
+export type SelectedMedia = {
   id: string
   file: File
   previewUrl: string
+  kind: MediaKind
 }
 
 export type UploadResult = {
   id: string
   jobId: string | null
-  videoName: string
+  fileName: string
+  mediaKind: MediaKind
   thumbnailUrl: string
   destinationIds: string[]
   status: UploadStatus
@@ -74,31 +78,12 @@ export type ScheduledPostsResponse = {
   result: { data: Array<{ id: string; scheduled_publish_time?: number }> }
 }
 
-export type CreateDraftInput = {
-  connectedPageId: string
-  clientRequestId: string
-  title: string
-  caption: string
-  originalFileName: string
-  mimeType: string
-  fileSizeBytes: number
-  scheduledAt: string | null
-  publishMode: 'SCHEDULED' | 'NOW'
-}
-
-export type CreateDraftResponse = {
-  job: DashboardJob
-  uploadAvailable: boolean
-  uploadUrl: string
-  idempotent?: boolean
-}
-
-export type UploadVideoResponse = {
+export type UploadMediaResponse = {
   job: DashboardJob
   accepted: boolean
-  processing: boolean
-  scheduled: boolean
-  published: boolean
+  processing?: boolean
+  scheduled?: boolean
+  published?: boolean
 }
 
 export type BulkSchedulerData = {

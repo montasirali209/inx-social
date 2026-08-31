@@ -14,7 +14,7 @@ const workspaceRoutes = {
   },
   '/bulk-scheduler': {
     title: 'Bulk Scheduler',
-    subtitle: 'Publish video batches across one or several connected social media platforms.',
+    subtitle: 'Publish image and video batches across one or several connected social media platforms.',
   },
   '/content-calendar': {
     title: 'Content Calendar',

@@ -2,13 +2,12 @@ import { apiRequest, getStoredAuthToken } from './api-client'
 import type {
   BulkSchedulerData,
   ConnectedPagesResponse,
-  CreateDraftInput,
-  CreateDraftResponse,
   ScheduledPostsResponse,
   StudioJobsResponse,
   StudioPlatformsResponse,
-  UploadVideoResponse,
+  UploadMediaResponse,
 } from '../types/bulk-scheduler'
+import type { CreateDirectPostInput, DirectPostResponse } from '../types/posts'
 
 export async function fetchBulkSchedulerData(): Promise<BulkSchedulerData> {
   const [pageResult, platformResult, jobResult] = await Promise.all([
@@ -19,8 +18,8 @@ export async function fetchBulkSchedulerData(): Promise<BulkSchedulerData> {
   return { pages: pageResult.pages, platforms: platformResult.platforms, jobs: jobResult.jobs }
 }
 
-export function createBulkDraft(input: CreateDraftInput) {
-  return apiRequest<CreateDraftResponse>('/api/studio/jobs', {
+export function createBulkMediaPost(input: CreateDirectPostInput) {
+  return apiRequest<DirectPostResponse>('/api/studio/direct-posts', {
     method: 'POST',
     body: JSON.stringify(input),
   })
@@ -35,13 +34,21 @@ type UploadOptions = {
   onProgress: (loaded: number, total: number) => void
 }
 
-export function uploadBulkVideo(url: string, file: File, options: UploadOptions): Promise<UploadVideoResponse> {
+function uploadContentType(file: File) {
+  if (file.type) return file.type
+  if (/\.png$/i.test(file.name)) return 'image/png'
+  if (/\.jpe?g$/i.test(file.name)) return 'image/jpeg'
+  if (/\.webp$/i.test(file.name)) return 'image/webp'
+  return 'application/octet-stream'
+}
+
+export function uploadBulkMedia(jobId: string, file: File, options: UploadOptions): Promise<UploadMediaResponse> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest()
     const abort = () => request.abort()
-    request.open('PUT', url)
+    request.open('PUT', `/api/studio/direct-posts/${encodeURIComponent(jobId)}/media`)
     request.withCredentials = true
-    request.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+    request.setRequestHeader('Content-Type', uploadContentType(file))
     const token = getStoredAuthToken()
     if (token) request.setRequestHeader('Authorization', `Bearer ${token}`)
 
@@ -53,7 +60,7 @@ export function uploadBulkVideo(url: string, file: File, options: UploadOptions)
       let payload: unknown
       try { payload = JSON.parse(request.responseText || '{}') } catch { payload = null }
       if (request.status >= 200 && request.status < 300) {
-        resolve(payload as UploadVideoResponse)
+        resolve(payload as UploadMediaResponse)
         return
       }
       const message = payload && typeof payload === 'object' && 'error' in payload
@@ -63,7 +70,7 @@ export function uploadBulkVideo(url: string, file: File, options: UploadOptions)
     })
     request.addEventListener('error', () => {
       options.signal.removeEventListener('abort', abort)
-      reject(new Error('The video upload connection was interrupted.'))
+      reject(new Error('The media upload connection was interrupted.'))
     })
     request.addEventListener('abort', () => {
       options.signal.removeEventListener('abort', abort)
