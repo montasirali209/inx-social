@@ -52,8 +52,8 @@ export function PostReuseModal({ jobs, initialView, loadingExternal = false, onC
 
   return createPortal(
     <div className="posts-modal-backdrop fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-[#020914]/82 p-4 backdrop-blur-md" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
-      <section aria-labelledby="reuse-library-title" aria-modal="true" className="posts-modal-panel my-auto flex max-h-[min(840px,calc(100vh-2rem))] w-full max-w-6xl flex-col overflow-hidden rounded-panel border border-brand-cyan/30 bg-panel shadow-[0_35px_130px_rgba(0,0,0,.72),0_0_70px_rgba(20,184,166,.13)]" role="dialog">
-        <header className="relative overflow-hidden border-b border-border-soft bg-gradient-to-br from-brand-cyan/[0.12] via-panel to-panel px-5 py-5 sm:px-6">
+      <section aria-labelledby="reuse-library-title" aria-modal="true" className="posts-modal-panel my-auto flex min-h-0 max-h-[min(840px,calc(100dvh-2rem))] w-full max-w-6xl flex-col overflow-hidden rounded-panel border border-brand-cyan/30 bg-panel shadow-[0_35px_130px_rgba(0,0,0,.72),0_0_70px_rgba(20,184,166,.13)]" role="dialog">
+        <header className="relative shrink-0 overflow-hidden border-b border-border-soft bg-gradient-to-br from-brand-cyan/[0.12] via-panel to-panel px-5 py-5 sm:px-6">
           <div className="absolute -right-10 -top-16 size-52 rounded-full border border-brand-cyan/15 bg-brand-cyan/[0.05]" />
           <button aria-label="Close reuse library" className="absolute right-4 top-4 rounded-xl border border-border-soft bg-bg/45 p-2 text-text-muted transition hover:border-brand-cyan/35 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button"><X className="size-4" /></button>
           <div className="flex items-start gap-3 pr-12"><span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan"><RotateCcw className="size-5" /></span><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold" id="reuse-library-title">Reuse a post</h2><span className="rounded-full border border-brand-green/20 bg-brand-green/8 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-brand-green">No duplicate media</span>{loadingExternal && <span className="animate-pulse rounded-full border border-brand-cyan/20 bg-brand-cyan/8 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-brand-cyan motion-reduce:animate-none">Syncing Meta</span>}</div><p className="mt-1 max-w-2xl text-xs leading-5 text-text-muted">Reopen INXSocial records or posts discovered directly on connected Facebook Pages, then choose new destinations and a new time.</p></div></div>
@@ -63,7 +63,7 @@ export function PostReuseModal({ jobs, initialView, loadingExternal = false, onC
           {tabs.map((tab) => <button aria-pressed={view === tab.id} className={`inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border px-3 text-[10px] font-semibold transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${view === tab.id ? 'border-brand-cyan/50 bg-brand-cyan/12 text-brand-cyan' : 'border-border-soft bg-panel/50 text-text-muted hover:border-brand-cyan/25 hover:text-white'}`} key={tab.id} onClick={() => setView(tab.id)} type="button">{tab.label}<span className="rounded-full bg-white/6 px-1.5 py-0.5 text-[9px]">{tabCount(jobs, tab.id)}</span></button>)}
         </nav>
 
-        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="scrollbar-thin min-h-0 flex-1 overscroll-contain overflow-y-auto p-4 sm:p-6">
           {visibleJobs.length ? <div className="grid gap-3 lg:grid-cols-2">{visibleJobs.map((job) => {
             const mediaRequired = requiresMediaReattachment(job)
             const external = job.id.startsWith('meta:')
@@ -74,7 +74,7 @@ export function PostReuseModal({ jobs, initialView, loadingExternal = false, onC
             </article>
           })}</div> : <div className="grid min-h-72 place-items-center rounded-2xl border border-dashed border-border-soft bg-bg/20 p-8 text-center"><span><span className="mx-auto grid size-14 place-items-center rounded-2xl border border-brand-cyan/20 bg-brand-cyan/8 text-brand-cyan"><RotateCcw className="size-6" /></span><strong className="mt-4 block">No {tabs.find((tab) => tab.id === view)?.label.toLowerCase()} yet</strong><p className="mt-2 max-w-sm text-xs leading-5 text-text-muted">Publishing records will appear here as soon as you create, schedule or publish content with INXSocial.</p><Button className="mt-5" onClick={onClose} type="button" variant="primary">Return to composer</Button></span></div>}
         </div>
-        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border-soft bg-bg/20 px-5 py-3 text-[10px] text-text-soft sm:px-6"><span>Reuse restores metadata only · persistent media stays in Media Library</span><button className="rounded-lg px-3 py-2 text-text-muted transition hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button">Close</button></footer>
+        <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border-soft bg-bg/20 px-5 py-3 text-[10px] text-text-soft sm:px-6"><span>Reuse restores metadata only · persistent media stays in Media Library</span><button className="rounded-lg px-3 py-2 text-text-muted transition hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button">Close</button></footer>
       </section>
     </div>,
     document.body,
