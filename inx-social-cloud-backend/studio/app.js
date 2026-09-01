@@ -10,6 +10,9 @@ let settingsDailySlots = [];
 let labVideoPath = '';
 let accountMode = 'login';
 let cloudWorkspace = { accounts: [], pages: [], activePage: null, pageUsage: null, plan: null };
+let socialConnections = [];
+let socialProviders = {};
+let socialConnectionsLoading = false;
 let studioActionModalResolver = null;
 let studioActionModalResultFactory = null;
 let metaScheduledPosts = [];
@@ -77,7 +80,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     }
   });
   await refresh();
-  await refreshWorkspaceV2({ silent: true });
+  await Promise.all([refreshWorkspaceV2({ silent: true }), refreshSocialConnectionsV2({ silent: true })]);
   if (cloudWorkspace?.activePage && !metaScheduleLoaded) listMetaScheduled({ silent: true });
   renderAccountGate();
   const md = document.getElementById('manualDate');
@@ -323,7 +326,7 @@ function switchView(viewName) {
   document.querySelectorAll('.view').forEach(view => view.classList.toggle('active', view.id === viewName));
   document.getElementById('viewTitle').textContent = views[viewName][0];
   document.getElementById('viewSubtitle').textContent = views[viewName][1];
-  if (viewName === 'pages') refreshWorkspaceV2({ silent: true });
+  if (viewName === 'pages') refreshConnectedAccountsV2({ silent: true });
   if (agentLiveTimer) {
     clearInterval(agentLiveTimer);
     agentLiveTimer = null;
@@ -496,11 +499,17 @@ function bindButtons() {
   on('btnRunHealthCheck', runHealthCheck);
 
   on('btnAddMetaAccount', connectFacebookWorkspaceV2);
+  on('btnConnectInstagram', () => connectSocialPlatformV2('instagram'));
+  on('btnConnectLinkedIn', () => connectSocialPlatformV2('linkedin'));
+  on('btnConnectYouTube', () => connectSocialPlatformV2('youtube'));
   on('btnOpenFacebookIntegrations', () => openExternalUrl('https://www.facebook.com/settings?tab=business_tools'));
   on('btnOpenPagesSettings', () => switchView('pages'));
-  on('btnPagesRefresh', () => refreshWorkspaceV2());
+  on('btnPagesRefresh', () => refreshConnectedAccountsV2());
   const pageSearch = document.getElementById('pageSearchInput');
-  if (pageSearch) pageSearch.addEventListener('input', renderPagesV2);
+  if (pageSearch) pageSearch.addEventListener('input', () => {
+    renderPagesV2();
+    renderSocialConnectionsV2();
+  });
   const analyticsPlatformSelect = document.getElementById('analyticsPlatformSelect');
   if (analyticsPlatformSelect) analyticsPlatformSelect.addEventListener('change', event => {
     analyticsPlatform = event.target.value;
@@ -3648,6 +3657,37 @@ async function refreshWorkspaceV2(options = {}) {
   }
 }
 
+async function refreshSocialConnectionsV2(options = {}) {
+  if (!state?.account?.authenticated) {
+    socialConnections = [];
+    socialProviders = {};
+    renderSocialConnectionsV2();
+    return;
+  }
+  socialConnectionsLoading = true;
+  renderSocialConnectionsV2();
+  try {
+    const result = await window.schedulerApi.listSocialConnections();
+    socialConnections = result.connections || [];
+    socialProviders = result.providers || {};
+    renderSocialConnectionsV2();
+    if (!options.silent) toast('Connected accounts refreshed.');
+  } catch (error) {
+    if (!options.silent) toast(error.message, true);
+  } finally {
+    socialConnectionsLoading = false;
+    renderSocialConnectionsV2();
+  }
+}
+
+async function refreshConnectedAccountsV2(options = {}) {
+  await Promise.all([
+    refreshWorkspaceV2({ silent: true }),
+    refreshSocialConnectionsV2({ silent: true })
+  ]);
+  if (!options.silent) toast('Connected accounts and Facebook Pages refreshed.');
+}
+
 function renderPageAvatar(elementId, page) {
   const target = document.getElementById(elementId);
   if (!target) return;
@@ -3705,6 +3745,7 @@ function renderWorkspaceV2() {
   setText('accountPlanBadge', workspace.plan || state.account?.license?.plan || 'TRIAL');
 
   renderPagesV2();
+  renderSocialConnectionsV2();
   renderAnalyticsV2();
   renderAgentPageTargets();
   bindWorkspaceDynamicActions();
@@ -3750,6 +3791,69 @@ function renderPagesV2() {
   bindWorkspaceDynamicActions();
 }
 
+function socialPlatformLabel(platform) {
+  return { instagram: 'Instagram', linkedin: 'LinkedIn', youtube: 'YouTube' }[platform] || platform;
+}
+
+function socialPlatformMark(platform) {
+  return { instagram: '◎', linkedin: 'in', youtube: '▶' }[platform] || '•';
+}
+
+function updateSocialProviderButtons() {
+  const settings = [
+    ['Instagram', 'instagram', 'Link through Meta'],
+    ['LinkedIn', 'linkedin', 'Connect account'],
+    ['YouTube', 'youtube', 'Connect channel']
+  ];
+  settings.forEach(([suffix, platform, readyText]) => {
+    const status = document.getElementById(`socialProvider${suffix}Status`);
+    if (!status) return;
+    const activeCount = socialConnections.filter(connection => connection.platform === platform && connection.status === 'ACTIVE').length;
+    if (activeCount) status.textContent = `${activeCount} connected · add another`;
+    else if (socialProviders[platform]?.configured === false) status.textContent = 'Server setup required';
+    else status.textContent = readyText;
+  });
+}
+
+function renderSocialConnectionsV2() {
+  const grid = document.getElementById('socialConnectionGrid');
+  if (!grid) return;
+  updateSocialProviderButtons();
+  if (socialConnectionsLoading && !socialConnections.length) {
+    grid.innerHTML = '<div class="workspace-empty">Loading linked accounts…</div>';
+    return;
+  }
+  const search = String(document.getElementById('pageSearchInput')?.value || '').trim().toLowerCase();
+  const connections = socialConnections.filter(connection => {
+    if (connection.status !== 'ACTIVE') return false;
+    const profileText = (connection.profiles || []).map(profile => `${profile.displayName || ''} ${profile.username || ''}`).join(' ');
+    return !search || `${connection.platform || ''} ${connection.displayName || ''} ${profileText}`.toLowerCase().includes(search);
+  });
+  grid.innerHTML = connections.length
+    ? connections.map(socialConnectionCardMarkup).join('')
+    : '<div class="workspace-empty">No linked Instagram, LinkedIn, or YouTube account matches this filter.</div>';
+  bindWorkspaceDynamicActions();
+}
+
+function socialConnectionCardMarkup(connection) {
+  const profiles = (connection.profiles || []).filter(profile => profile.status === 'ACTIVE');
+  const profile = profiles.find(item => item.isDefault) || profiles[0] || {};
+  const label = socialPlatformLabel(connection.platform);
+  const displayName = profile.displayName || connection.displayName || `${label} account`;
+  const identity = profile.username
+    ? `${connection.platform === 'instagram' && !String(profile.username).startsWith('@') ? '@' : ''}${profile.username}`
+    : connection.accountType || 'Account';
+  const extras = [];
+  if (profile.capabilities?.analytics) extras.push('Insights linked');
+  if (profile.capabilities?.readonly) extras.push('Read-only');
+  if (profiles.length > 1) extras.push(`${profiles.length} channels`);
+  if (!extras.length) extras.push('Identity linked');
+  const avatar = profile.avatarUrl
+    ? `<img src="${escapeHtml(profile.avatarUrl)}" alt="">`
+    : socialPlatformMark(connection.platform);
+  return `<article class="connected-page-card social-connection-card" data-platform="${escapeHtml(connection.platform)}"><div class="social-profile-avatar">${avatar}</div><div class="page-card-copy"><span>${escapeHtml(label)} · ${escapeHtml(profile.profileType || connection.accountType || 'Account')}</span><h3>${escapeHtml(displayName)}</h3><p class="social-connection-meta"><span>${escapeHtml(identity)}</span>${extras.map(extra => `<i>${escapeHtml(extra)}</i>`).join('')}</p></div><div class="page-card-state"><b>Connected</b><button class="icon-danger" data-disconnect-social="${escapeHtml(connection.id)}" title="Disconnect ${escapeHtml(label)}">×</button></div></article>`;
+}
+
 function pageCardMarkup(page, large) {
   return `<article class="connected-page-card ${large ? 'large' : ''}"><div class="page-picture" data-page-picture-id="${escapeHtml(page.id)}"><span>F</span></div><div class="page-card-copy"><span>${escapeHtml(page.facebookCategory || 'Facebook Page')}</span><h3>${escapeHtml(page.facebookPageName)}</h3><p>${page.localOnly ? 'Saved on this device · reconnect once to sync' : escapeHtml(accountNameForPage(page))}</p></div><div class="page-card-state"><b>Connected</b>${!large && !page.localOnly ? `<button class="icon-danger" data-revoke-page="${escapeHtml(page.id)}" title="Disconnect Page">×</button>` : ''}</div></article>`;
 }
@@ -3761,6 +3865,38 @@ function accountNameForPage(page) {
 function bindWorkspaceDynamicActions() {
   document.querySelectorAll('[data-select-page]').forEach(button => button.onclick = () => selectPageV2(button.dataset.selectPage));
   document.querySelectorAll('[data-revoke-page]').forEach(button => button.onclick = () => revokePageV2(button.dataset.revokePage));
+  document.querySelectorAll('[data-disconnect-social]').forEach(button => button.onclick = () => disconnectSocialConnectionV2(button.dataset.disconnectSocial));
+}
+
+async function connectSocialPlatformV2(platform) {
+  const suffix = { instagram: 'Instagram', linkedin: 'LinkedIn', youtube: 'YouTube' }[platform];
+  const button = document.getElementById(`btnConnect${suffix}`);
+  button?.classList.add('is-loading');
+  if (button) button.disabled = true;
+  try {
+    const result = await window.schedulerApi.connectSocialPlatform(platform);
+    await refreshSocialConnectionsV2({ silent: true });
+    const warnings = result?.warnings || [];
+    toast(`${socialPlatformLabel(platform)} connected.${warnings.length ? ` ${warnings.join(' ')}` : ''}`, Boolean(warnings.length));
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    button?.classList.remove('is-loading');
+    if (button) button.disabled = false;
+  }
+}
+
+async function disconnectSocialConnectionV2(connectionId) {
+  const connection = socialConnections.find(item => item.id === connectionId);
+  const label = socialPlatformLabel(connection?.platform || 'social');
+  if (!await showStudioConfirm({ eyebrow: 'Linked accounts', title: `Disconnect ${label}?`, message: 'INX Social will remove its saved access and refresh tokens for this connection.', icon: '×', tone: 'danger', confirmText: `Disconnect ${label}`, cancelText: 'Keep connected' })) return;
+  try {
+    await window.schedulerApi.disconnectSocialConnection(connectionId);
+    await refreshSocialConnectionsV2({ silent: true });
+    toast(`${label} disconnected.`);
+  } catch (error) {
+    toast(error.message, true);
+  }
 }
 
 async function selectPageV2(pageId) {

@@ -18,6 +18,7 @@ const releaseRoutes = require('./routes/releaseRoutes');
 const studioRoutes = require('./routes/studioRoutes');
 const agentRoutes = require('./routes/agentRoutes');
 const socialPlatformRoutes = require('./routes/socialPlatformRoutes');
+const socialConnectionRoutes = require('./routes/socialConnectionRoutes');
 const packageInfo = require('../package.json');
 
 const app = express();
@@ -119,6 +120,7 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/studio', studioRoutes);
 app.use('/api/agent', agentRoutes);
 app.use('/api/social-platforms', socialPlatformRoutes);
+app.use('/api/social-connections', socialConnectionRoutes);
 
 // The React application is migrated route by route. Keep this fallback after
 // every API route so client-side navigation can never intercept /api requests.

@@ -578,16 +578,19 @@ Third video caption #hashtags"></textarea>
         <div class="section-title-row"><div><span class="eyebrow">Publishing destinations</span><h2>Connected Accounts &amp; Pages</h2><p>Manage official social connections. Choose one or several destinations inside each publishing workflow.</p></div><div class="button-row"><button id="btnAddMetaAccount" class="btn primary">+ Connect Facebook Page</button><button id="btnOpenFacebookIntegrations" class="btn ghost">Facebook permissions</button><button id="btnPagesRefresh" class="btn ghost">Refresh</button></div></div>
         <div class="usage-strip"><span id="accountUsageText">0 Pages connected</span><div><i id="accountUsageBar"></i></div><b id="accountPlanBadge">TRIAL</b></div>
         <div class="channel-source-row platform-foundation-grid" aria-label="Social platform connectors">
-          <button class="channel-source active" type="button"><span>f</span><strong>Facebook</strong><small>Available now</small></button>
-          <button class="channel-source disabled" type="button" disabled><span>◎</span><strong>Instagram</strong><small>Connector planned</small></button>
+          <button class="channel-source active" type="button" data-platform="facebook"><span>f</span><strong>Facebook</strong><small>Publishing live</small></button>
+          <button id="btnConnectInstagram" class="channel-source active" type="button" data-platform="instagram"><span>◎</span><strong>Instagram</strong><small id="socialProviderInstagramStatus">Link through Meta</small></button>
           <button class="channel-source disabled" type="button" disabled><span>＠</span><strong>Threads</strong><small>Connector planned</small></button>
-          <button class="channel-source disabled" type="button" disabled><span>in</span><strong>LinkedIn</strong><small>Connector planned</small></button>
+          <button id="btnConnectLinkedIn" class="channel-source active" type="button" data-platform="linkedin"><span>in</span><strong>LinkedIn</strong><small id="socialProviderLinkedInStatus">Connect account</small></button>
           <button class="channel-source disabled" type="button" disabled><span>♪</span><strong>TikTok</strong><small>Connector planned</small></button>
-          <button class="channel-source disabled" type="button" disabled><span>▶</span><strong>YouTube</strong><small>Connector planned</small></button>
+          <button id="btnConnectYouTube" class="channel-source active" type="button" data-platform="youtube"><span>▶</span><strong>YouTube</strong><small id="socialProviderYouTubeStatus">Connect channel</small></button>
           <button class="channel-source disabled" type="button" disabled><span>P</span><strong>Pinterest</strong><small>Connector planned</small></button>
           <button class="channel-source disabled" type="button" disabled><span>𝕏</span><strong>X</strong><small>Connector planned</small></button>
         </div>
-        <div class="page-filter-row"><input id="pageSearchInput" type="search" placeholder="Search connected Pages"></div>
+        <div class="page-filter-row"><input id="pageSearchInput" type="search" placeholder="Search connected accounts or Pages"></div>
+        <div class="connected-section-heading"><div><span class="eyebrow">Identity &amp; insights</span><h3>Linked social accounts</h3></div><small>Linking does not enable publishing until that platform publisher is released.</small></div>
+        <div id="socialConnectionGrid" class="connected-page-grid social-connection-grid"><div class="workspace-empty">Loading linked accounts…</div></div>
+        <div class="connected-section-heading"><div><span class="eyebrow">Publishing live</span><h3>Facebook Pages</h3></div><small>These Pages are available in Posts and Bulk Scheduler.</small></div>
         <div id="connectedPageGrid" class="connected-page-grid"><div class="workspace-empty">Loading connected Pages…</div></div>
       </section>
 
