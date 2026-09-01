@@ -660,6 +660,78 @@
     });
   }
 
+  async function socialOAuth(platform) {
+    const normalized = String(platform || '').toLowerCase();
+    const resultKey = 'inx-social-oauth-result';
+    localStorage.removeItem(resultKey);
+    const start = await api(`/api/social-connections/oauth/${encodeURIComponent(normalized)}/start`, {
+      method: 'POST',
+      body: '{}'
+    });
+    const width = 620;
+    const height = 760;
+    const left = Math.max(0, Math.round((window.screenX || 0) + (window.outerWidth - width) / 2));
+    const top = Math.max(0, Math.round((window.screenY || 0) + (window.outerHeight - height) / 2));
+    const popup = window.open(
+      start.authorizationUrl,
+      `inxSocialConnect-${normalized}`,
+      `popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`
+    );
+    if (!popup) throw new Error('The connection popup was blocked. Allow popups for INX Social and try again.');
+    popup.focus();
+
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      let closedAt = 0;
+      const cleanup = () => {
+        window.removeEventListener('message', receive);
+        window.removeEventListener('storage', receiveStored);
+        clearInterval(closedCheck);
+        clearTimeout(timeout);
+        localStorage.removeItem(resultKey);
+      };
+      const finish = message => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        try { popup.close(); } catch (_) {}
+        if (!message.ok) return reject(new Error(message.error || 'The social account could not be connected.'));
+        resolve(message);
+      };
+      const consume = raw => {
+        if (!raw) return false;
+        try {
+          const message = typeof raw === 'string' ? JSON.parse(raw) : raw;
+          if (message.type !== 'inx-social-oauth-result' || message.platform !== normalized) return false;
+          finish(message);
+          return true;
+        } catch (_) {
+          return false;
+        }
+      };
+      const receive = event => {
+        if (event.origin === location.origin) consume(event.data);
+      };
+      const receiveStored = event => {
+        if (event.key === resultKey) consume(event.newValue);
+      };
+      window.addEventListener('message', receive);
+      window.addEventListener('storage', receiveStored);
+      const closedCheck = setInterval(() => {
+        if (settled || consume(localStorage.getItem(resultKey))) return;
+        if (popup.closed) {
+          closedAt = closedAt || Date.now();
+          if (Date.now() - closedAt > 1500) finish({ ok: false, error: 'The connection window was closed before it completed.' });
+        } else {
+          closedAt = 0;
+        }
+      }, 400);
+      const timeout = setTimeout(() => {
+        finish({ ok: false, error: 'The social connection timed out. Please try again.' });
+      }, 5 * 60 * 1000);
+    });
+  }
+
   async function savePreferences(settings, uiTexts) {
     const payload = {};
     if (settings) {
@@ -901,6 +973,11 @@
     getWorkspace: workspaceResult,
     refreshWorkspace: workspaceResult,
     connectFacebookWorkspace: facebookLogin,
+    listSocialConnections: () => api('/api/social-connections'),
+    connectSocialPlatform: platform => String(platform).toLowerCase() === 'instagram'
+      ? api('/api/social-connections/instagram/sync', { method: 'POST', body: '{}' })
+      : socialOAuth(platform),
+    disconnectSocialConnection: id => api(`/api/social-connections/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     discoverMetaAccount: accessToken => api('/api/pages/accounts/discover', { method: 'POST', body: JSON.stringify({ accessToken }) }),
     connectMetaAccount: payload => api('/api/pages/accounts/connect', { method: 'POST', body: JSON.stringify(payload) }),
     syncMetaAccount: accountId => api(`/api/pages/accounts/${encodeURIComponent(accountId)}/sync`, { method: 'POST', body: '{}' }),

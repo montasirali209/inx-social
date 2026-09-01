@@ -45,8 +45,11 @@ test('connected accounts page shows honest connector availability', () => {
   for (const platform of ['Facebook', 'Instagram', 'Threads', 'LinkedIn', 'TikTok', 'YouTube', 'Pinterest', 'X']) {
     assert.match(html, new RegExp(`<strong>${platform}</strong>`));
   }
-  assert.match(html, /<strong>Facebook<\/strong><small>Available now<\/small>/);
-  assert.equal((html.match(/Connector planned/g) || []).length, 7);
+  assert.match(html, /<strong>Facebook<\/strong><small>Publishing live<\/small>/);
+  for (const connectorId of ['btnConnectInstagram', 'btnConnectLinkedIn', 'btnConnectYouTube']) {
+    assert.match(html, new RegExp(`id="${connectorId}"`));
+  }
+  assert.equal((html.match(/Connector planned/g) || []).length, 4);
 });
 
 test('HTML IDs stay unique across isolated workspaces', () => {

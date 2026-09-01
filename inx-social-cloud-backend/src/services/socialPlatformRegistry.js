@@ -5,7 +5,7 @@ const PLATFORM_DEFINITIONS = Object.freeze([
     capabilities: { publishText: true, publishImage: true, publishVideo: true, publishShortVideo: true, carousel: true, scheduling: true, analytics: true }
   },
   {
-    code: 'instagram', label: 'Instagram', provider: 'meta', availability: 'PLANNED',
+    code: 'instagram', label: 'Instagram', provider: 'meta', availability: 'CONNECT_ONLY',
     profileTypes: ['BUSINESS', 'CREATOR'],
     capabilities: { publishText: false, publishImage: true, publishVideo: true, publishShortVideo: true, carousel: true, scheduling: true, analytics: true }
   },
@@ -15,7 +15,7 @@ const PLATFORM_DEFINITIONS = Object.freeze([
     capabilities: { publishText: true, publishImage: true, publishVideo: true, publishShortVideo: false, carousel: true, scheduling: true, analytics: true }
   },
   {
-    code: 'linkedin', label: 'LinkedIn', provider: 'linkedin', availability: 'PLANNED',
+    code: 'linkedin', label: 'LinkedIn', provider: 'linkedin', availability: 'CONNECT_ONLY',
     profileTypes: ['MEMBER', 'ORGANIZATION'],
     capabilities: { publishText: true, publishImage: true, publishVideo: true, publishShortVideo: false, carousel: false, scheduling: true, analytics: true }
   },
@@ -25,7 +25,7 @@ const PLATFORM_DEFINITIONS = Object.freeze([
     capabilities: { publishText: false, publishImage: true, publishVideo: true, publishShortVideo: true, carousel: true, scheduling: true, analytics: true }
   },
   {
-    code: 'youtube', label: 'YouTube', provider: 'google', availability: 'PLANNED',
+    code: 'youtube', label: 'YouTube', provider: 'google', availability: 'CONNECT_ONLY',
     profileTypes: ['CHANNEL'],
     capabilities: { publishText: false, publishImage: false, publishVideo: true, publishShortVideo: true, carousel: false, scheduling: true, analytics: true }
   },
