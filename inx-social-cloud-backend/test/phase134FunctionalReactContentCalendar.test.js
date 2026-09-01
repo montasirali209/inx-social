@@ -17,9 +17,11 @@ test('Phase 13.4 makes Content Calendar a first-class responsive React route', (
   assert.match(page, /CalendarGrid/);
   assert.match(page, /CalendarAgenda/);
   assert.match(page, /SelectedDatePanel/);
-  assert.match(toolbar, /All Platforms/);
-  assert.match(toolbar, /All Pages/);
-  assert.match(toolbar, /All Statuses/);
+  assert.match(toolbar, /CalendarFilterMenu/);
+  assert.match(toolbar, /Every platform/);
+  assert.match(toolbar, /All connected Pages/);
+  assert.match(toolbar, /Any status/);
+  assert.doesNotMatch(toolbar, /<select/);
   assert.match(toolbar, /Schedule Content/);
   assert.match(toolbar, /Import Batch/);
   assert.match(toolbar, /md:hidden/);
@@ -31,10 +33,12 @@ test('Phase 13.4 uses live cloud and selected-Page Meta data without sample cale
   const bestTime = read('frontend/src/components/calendar/BestTimeCard.tsx');
 
   assert.match(api, /\/api\/studio\/overview/);
-  assert.match(api, /\/api\/studio\/jobs\?limit=250/);
+  assert.match(api, /calendarFetchRange/);
+  assert.match(api, /limit: '1000'/);
   assert.match(api, /\/api\/studio\/facebook\/scheduled-posts/);
   assert.match(api, /pagesToSync = selectedPageId/);
   assert.match(page, /syncWarnings/);
+  assert.match(page, /monthKey.*queryKey|queryKey: \['content-calendar', timezone, pageId, monthKey\]/);
   assert.match(bestTime, /Analytics required/);
   assert.doesNotMatch(`${api}${page}`, /Product Update|Customer Story|Industry Insight|May 12, 2025/);
 });

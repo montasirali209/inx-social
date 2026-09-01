@@ -502,6 +502,7 @@ function bindButtons() {
   on('btnConnectInstagram', () => connectSocialPlatformV2('instagram'));
   on('btnConnectLinkedIn', () => connectSocialPlatformV2('linkedin'));
   on('btnConnectYouTube', () => connectSocialPlatformV2('youtube'));
+  on('btnConnectX', () => connectSocialPlatformV2('x'));
   on('btnOpenFacebookIntegrations', () => openExternalUrl('https://www.facebook.com/settings?tab=business_tools'));
   on('btnOpenPagesSettings', () => switchView('pages'));
   on('btnPagesRefresh', () => refreshConnectedAccountsV2());
@@ -3792,18 +3793,19 @@ function renderPagesV2() {
 }
 
 function socialPlatformLabel(platform) {
-  return { instagram: 'Instagram', linkedin: 'LinkedIn', youtube: 'YouTube' }[platform] || platform;
+  return { instagram: 'Instagram', linkedin: 'LinkedIn', youtube: 'YouTube', x: 'X' }[platform] || platform;
 }
 
 function socialPlatformMark(platform) {
-  return { instagram: '◎', linkedin: 'in', youtube: '▶' }[platform] || '•';
+  return { instagram: '◎', linkedin: 'in', youtube: '▶', x: '𝕏' }[platform] || '•';
 }
 
 function updateSocialProviderButtons() {
   const settings = [
     ['Instagram', 'instagram', 'Link through Meta'],
     ['LinkedIn', 'linkedin', 'Connect account'],
-    ['YouTube', 'youtube', 'Connect channel']
+    ['YouTube', 'youtube', 'Connect channel'],
+    ['X', 'x', 'Connect profile']
   ];
   settings.forEach(([suffix, platform, readyText]) => {
     const status = document.getElementById(`socialProvider${suffix}Status`);
@@ -3831,7 +3833,7 @@ function renderSocialConnectionsV2() {
   });
   grid.innerHTML = connections.length
     ? connections.map(socialConnectionCardMarkup).join('')
-    : '<div class="workspace-empty">No linked Instagram, LinkedIn, or YouTube account matches this filter.</div>';
+    : '<div class="workspace-empty">No linked Instagram, LinkedIn, YouTube, or X account matches this filter.</div>';
   bindWorkspaceDynamicActions();
 }
 
@@ -3869,7 +3871,7 @@ function bindWorkspaceDynamicActions() {
 }
 
 async function connectSocialPlatformV2(platform) {
-  const suffix = { instagram: 'Instagram', linkedin: 'LinkedIn', youtube: 'YouTube' }[platform];
+  const suffix = { instagram: 'Instagram', linkedin: 'LinkedIn', youtube: 'YouTube', x: 'X' }[platform];
   const button = document.getElementById(`btnConnect${suffix}`);
   button?.classList.add('is-loading');
   if (button) button.disabled = true;

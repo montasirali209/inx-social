@@ -31,7 +31,13 @@ export function ContentCalendarPage() {
   const [search, setSearch] = useState('')
   const [view, setView] = useState<CalendarView>(() => window.matchMedia('(max-width: 767px)').matches ? 'list' : 'calendar')
 
-  const calendar = useQuery({ queryKey: ['content-calendar', timezone, pageId], queryFn: () => fetchCalendarData(timezone, pageId), refetchInterval: 60_000 })
+  const calendar = useQuery({
+    queryKey: ['content-calendar', timezone, pageId, monthKey],
+    queryFn: () => fetchCalendarData(timezone, pageId, monthKey),
+    placeholderData: (previous) => previous,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  })
   useEffect(() => {
     const refresh = () => { void calendar.refetch() }
     window.addEventListener('inx-social:refresh', refresh)
@@ -62,7 +68,7 @@ export function ContentCalendarPage() {
 
   return <div className="dashboard-canvas">
     <section aria-label="Calendar status" className="mb-4 flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-3 xl:grid-cols-5">{calendar.data.stats.map((stat, index) => <CalendarStatCard icon={statIcons[index]} key={stat.label} stat={stat} />)}</section>
-    <CalendarToolbar monthKey={monthKey} onNext={() => chooseMonth(1)} onPage={setPageId} onPlatform={setPlatform} onPrevious={() => chooseMonth(-1)} onSearch={setSearch} onStatus={setStatus} onView={setView} pageId={pageId} pages={calendar.data.pages} platform={platform} search={search} status={status} view={view} />
+    <CalendarToolbar isRefreshing={calendar.isFetching} monthKey={monthKey} onNext={() => chooseMonth(1)} onPage={setPageId} onPlatform={setPlatform} onPrevious={() => chooseMonth(-1)} onRefresh={() => void calendar.refetch()} onSearch={setSearch} onStatus={setStatus} onView={setView} pageId={pageId} pages={calendar.data.pages} platform={platform} search={search} status={status} view={view} />
     {calendar.data.syncWarnings.length > 0 && <div className="mb-4 flex items-start gap-2 rounded-xl border border-brand-amber/20 bg-brand-amber/5 px-3 py-2 text-[10px] leading-4 text-text-muted"><AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-brand-amber" /><span>INX Social loaded saved calendar data. {calendar.data.syncWarnings.length} connected Page schedule could not be refreshed from Meta during this request.</span></div>}
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
       {view === 'calendar' ? <CalendarGrid days={days} monthLabel={formatMonth(monthKey)} onSelectDate={chooseDate} onSelectPost={(post) => chooseDate(post.date)} onToday={chooseToday} /> : <CalendarAgenda onSelectDate={chooseDate} onSelectPost={(post) => chooseDate(post.date)} posts={monthPosts} />}

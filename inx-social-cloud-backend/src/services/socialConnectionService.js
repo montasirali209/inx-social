@@ -12,6 +12,7 @@ const YOUTUBE_SCOPES = [
   'profile',
   'https://www.googleapis.com/auth/youtube.readonly'
 ];
+const X_SCOPES = ['tweet.read', 'users.read', 'offline.access'];
 
 function publicOrigin() {
   const configured = String(process.env.APP_URL || 'http://localhost:5050').trim();
@@ -49,13 +50,23 @@ function providerConfig(platform) {
       tokenUrl: 'https://oauth2.googleapis.com/token'
     };
   }
+  if (platform === 'x') {
+    return {
+      platform,
+      clientId: String(process.env.X_CLIENT_ID || '').trim(),
+      clientSecret: String(process.env.X_CLIENT_SECRET || '').trim(),
+      scopes: X_SCOPES,
+      authorizationUrl: 'https://x.com/i/oauth2/authorize',
+      tokenUrl: 'https://api.x.com/2/oauth2/token'
+    };
+  }
   throw Object.assign(new Error('This social connection provider is not supported.'), { status: 404 });
 }
 
 function requireProviderConfig(platform) {
   const config = providerConfig(platform);
   if (!config.clientId || !config.clientSecret) {
-    const label = platform === 'linkedin' ? 'LinkedIn' : 'Google/YouTube';
+    const label = platform === 'linkedin' ? 'LinkedIn' : platform === 'youtube' ? 'Google/YouTube' : 'X';
     throw Object.assign(new Error(`${label} OAuth credentials are not configured on the server.`), { status: 503 });
   }
   return config;
@@ -63,11 +74,12 @@ function requireProviderConfig(platform) {
 
 function authorization(platform, userId) {
   const config = requireProviderConfig(platform);
+  const nonce = crypto.randomBytes(18).toString('base64url');
   const state = jwt.sign({
     sub: userId,
     purpose: 'social-oauth',
     platform,
-    nonce: crypto.randomBytes(18).toString('base64url')
+    nonce
   }, stateSecret(), { expiresIn: OAUTH_TTL, issuer: 'inx-social' });
   const url = new URL(config.authorizationUrl);
   url.searchParams.set('client_id', config.clientId);
@@ -80,7 +92,16 @@ function authorization(platform, userId) {
     url.searchParams.set('include_granted_scopes', 'true');
     url.searchParams.set('prompt', 'consent select_account');
   }
+  if (platform === 'x') {
+    const verifier = xCodeVerifier(nonce);
+    url.searchParams.set('code_challenge', crypto.createHash('sha256').update(verifier).digest('base64url'));
+    url.searchParams.set('code_challenge_method', 'S256');
+  }
   return { authorizationUrl: url.toString(), redirectUri: callbackUrl(platform), platform };
+}
+
+function xCodeVerifier(nonce) {
+  return crypto.createHmac('sha256', stateSecret()).update(`x-pkce:${nonce}`).digest('base64url');
 }
 
 function verifyState(platform, state) {
@@ -96,17 +117,22 @@ function verifyState(platform, state) {
   return payload;
 }
 
-async function exchangeCode(config, code) {
+async function exchangeCode(config, code, statePayload = null) {
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
     code,
-    client_id: config.clientId,
-    client_secret: config.clientSecret,
     redirect_uri: callbackUrl(config.platform)
   });
+  const requestConfig = { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, timeout: 20000 };
+  if (config.platform === 'x') {
+    body.set('code_verifier', xCodeVerifier(statePayload.nonce));
+    requestConfig.auth = { username: config.clientId, password: config.clientSecret };
+  } else {
+    body.set('client_id', config.clientId);
+    body.set('client_secret', config.clientSecret);
+  }
   const response = await axios.post(config.tokenUrl, body.toString(), {
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    timeout: 20000
+    ...requestConfig
   });
   if (!response.data?.access_token) throw new Error(`${config.platform} did not return an access token.`);
   return response.data;
@@ -234,12 +260,50 @@ async function connectYouTube(userId, code) {
   return result;
 }
 
+async function connectX(userId, code, statePayload) {
+  const config = requireProviderConfig('x');
+  const token = await exchangeCode(config, code, statePayload);
+  const response = await axios.get('https://api.x.com/2/users/me', {
+    headers: { Authorization: `Bearer ${token.access_token}` },
+    params: { 'user.fields': 'id,name,username,profile_image_url,public_metrics,verified,description' },
+    timeout: 20000
+  });
+  const member = response.data?.data || {};
+  if (!member.id) throw new Error('X did not return an account identity.');
+  return upsertConnection({
+    userId,
+    platform: 'x',
+    externalAccountId: String(member.id),
+    accountType: 'PROFILE',
+    displayName: member.name || member.username || 'X account',
+    token,
+    scopes: X_SCOPES,
+    profile: {
+      externalProfileId: String(member.id),
+      displayName: member.name || member.username || 'X account',
+      username: member.username || null,
+      profileType: 'PROFILE',
+      avatarUrl: member.profile_image_url || null,
+      isDefault: true,
+      capabilitiesJson: JSON.stringify({ identity: true, publish: false, analytics: false, readonly: true }),
+      metadataJson: JSON.stringify({
+        verified: Boolean(member.verified),
+        description: member.description || null,
+        followers: Number(member.public_metrics?.followers_count || 0),
+        following: Number(member.public_metrics?.following_count || 0),
+        posts: Number(member.public_metrics?.tweet_count || 0)
+      })
+    }
+  });
+}
+
 async function completeOAuth(platform, query) {
   const payload = verifyState(platform, query.state);
   if (query.error) throw Object.assign(new Error(String(query.error_description || query.error)), { status: 400 });
   if (!query.code) throw Object.assign(new Error('The provider did not return an authorization code.'), { status: 400 });
   if (platform === 'linkedin') return connectLinkedIn(payload.sub, String(query.code));
   if (platform === 'youtube') return connectYouTube(payload.sub, String(query.code));
+  if (platform === 'x') return connectX(payload.sub, String(query.code), payload);
   throw Object.assign(new Error('This social connection provider is not supported.'), { status: 404 });
 }
 
@@ -363,5 +427,6 @@ module.exports = {
   publicConnection,
   callbackUrl,
   LINKEDIN_SCOPES,
-  YOUTUBE_SCOPES
+  YOUTUBE_SCOPES,
+  X_SCOPES
 };

@@ -1,7 +1,7 @@
 const { z } = require('zod');
 const service = require('../services/socialConnectionService');
 
-const oauthPlatformSchema = z.enum(['linkedin', 'youtube']);
+const oauthPlatformSchema = z.enum(['linkedin', 'youtube', 'x']);
 
 function completionPage(res, payload) {
   const safePayload = JSON.stringify({ type: 'inx-social-oauth-result', ...payload }).replace(/</g, '\\u003c');
@@ -18,7 +18,8 @@ async function list(req, res, next) {
       providers: {
         instagram: { configured: true, method: 'META_LINKED_ACCOUNT' },
         linkedin: { configured: Boolean(String(process.env.LINKEDIN_CLIENT_ID || '').trim() && String(process.env.LINKEDIN_CLIENT_SECRET || '').trim()), method: 'OAUTH_CODE' },
-        youtube: { configured: Boolean(String(process.env.GOOGLE_CLIENT_ID || '').trim() && String(process.env.GOOGLE_CLIENT_SECRET || '').trim()), method: 'OAUTH_CODE' }
+        youtube: { configured: Boolean(String(process.env.GOOGLE_CLIENT_ID || '').trim() && String(process.env.GOOGLE_CLIENT_SECRET || '').trim()), method: 'OAUTH_CODE' },
+        x: { configured: Boolean(String(process.env.X_CLIENT_ID || '').trim() && String(process.env.X_CLIENT_SECRET || '').trim()), method: 'OAUTH_CODE_PKCE' }
       }
     });
   } catch (error) { next(error); }

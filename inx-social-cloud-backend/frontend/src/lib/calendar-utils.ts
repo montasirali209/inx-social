@@ -45,6 +45,15 @@ export function calendarRangeLabel(monthKey: string) {
   return `${monthLabel} 1 – ${monthLabel} ${finalDay}, ${year}`
 }
 
+export function calendarFetchRange(monthKey: string) {
+  const [year, month] = monthKey.split('-').map(Number)
+  // Include the neighbouring dates rendered in the six-row month grid and
+  // enough timezone padding for every supported account timezone.
+  const from = new Date(Date.UTC(year, month - 1, -7, 0, 0, 0))
+  const to = new Date(Date.UTC(year, month, 16, 0, 0, 0))
+  return { from: from.toISOString(), to: to.toISOString() }
+}
+
 export function buildCalendarDays(monthKey: string, posts: CalendarPost[], selectedDate: string, todayKey: string): CalendarDay[] {
   const [year, month] = monthKey.split('-').map(Number)
   const first = new Date(Date.UTC(year, month - 1, 1, 12))
