@@ -35,7 +35,7 @@ const PLATFORM_DEFINITIONS = Object.freeze([
     capabilities: { publishText: false, publishImage: true, publishVideo: true, publishShortVideo: false, carousel: true, scheduling: true, analytics: true }
   },
   {
-    code: 'x', label: 'X', provider: 'x', availability: 'PLANNED',
+    code: 'x', label: 'X', provider: 'x', availability: 'CONNECT_ONLY',
     profileTypes: ['PROFILE'],
     capabilities: { publishText: true, publishImage: true, publishVideo: true, publishShortVideo: false, carousel: false, scheduling: true, analytics: false }
   }

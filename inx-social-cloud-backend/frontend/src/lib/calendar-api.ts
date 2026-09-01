@@ -1,5 +1,5 @@
 import { apiRequest } from './api-client'
-import { dateKeyInTimezone, timeInTimezone } from './calendar-utils'
+import { calendarFetchRange, dateKeyInTimezone, timeInTimezone } from './calendar-utils'
 import type { CalendarData, CalendarPost, CalendarPostStatus, MetaScheduledPost } from '../types/calendar'
 import type { BackendJobStatus, DashboardJob, StudioOverview } from '../types/dashboard'
 
@@ -98,10 +98,12 @@ export function buildCalendarData(overview: StudioOverview, jobs: DashboardJob[]
   }
 }
 
-export async function fetchCalendarData(timeZone: string, selectedPageId = ''): Promise<CalendarData> {
+export async function fetchCalendarData(timeZone: string, selectedPageId = '', monthKey = dateKeyInTimezone(new Date(), timeZone).slice(0, 7)): Promise<CalendarData> {
+  const range = calendarFetchRange(monthKey)
+  const jobParams = new URLSearchParams({ limit: '1000', from: range.from, to: range.to })
   const [overview, jobsResult] = await Promise.all([
     apiRequest<StudioOverview>('/api/studio/overview'),
-    apiRequest<JobsResponse>('/api/studio/jobs?limit=250'),
+    apiRequest<JobsResponse>(`/api/studio/jobs?${jobParams.toString()}`),
   ])
   // Avoid opening dozens of simultaneous Meta requests for large accounts.
   // Saved INX Social jobs always load; live Meta reconciliation runs only for

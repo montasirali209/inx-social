@@ -6,11 +6,11 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
-test('Connected Accounts exposes real Instagram, LinkedIn, and YouTube linking actions', () => {
+test('Connected Accounts exposes real Instagram, LinkedIn, YouTube, and X linking actions', () => {
   const html = read('studio/index.html');
   const app = read('studio/app.js');
   const adapter = read('studio/web-adapter.js');
-  for (const platform of ['Instagram', 'LinkedIn', 'YouTube']) {
+  for (const platform of ['Instagram', 'LinkedIn', 'YouTube', 'X']) {
     assert.match(html, new RegExp(`id="btnConnect${platform}"`));
     assert.match(app, new RegExp(`connectSocialPlatformV2\\('${platform.toLowerCase()}'\\)`));
   }
@@ -38,9 +38,11 @@ test('social connection responses never expose encrypted token fields', () => {
 
 test('privacy policy discloses connected-platform data and Google Limited Use', () => {
   const privacy = read('public/privacy.html');
-  for (const platform of ['Meta:', 'LinkedIn:', 'Google and YouTube:']) assert.match(privacy, new RegExp(platform));
+  for (const platform of ['Meta:', 'LinkedIn:', 'Google and YouTube:', 'X:']) assert.match(privacy, new RegExp(platform));
   assert.match(privacy, /Google API Services User Data Policy/);
   assert.match(privacy, /Limited Use requirements/);
   assert.match(privacy, /does not upload, edit or delete YouTube content/);
+  assert.match(privacy, /OAuth 2\.0 with PKCE/);
+  assert.match(privacy, /does not publish, edit or delete Posts on X/);
   assert.match(privacy, /do not sell connected-platform data/);
 });

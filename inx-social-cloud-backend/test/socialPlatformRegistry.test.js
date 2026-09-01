@@ -9,11 +9,11 @@ test('platform registry distinguishes live publishing, account linking, and plan
   assert.equal(platforms.filter(platform => platform.availability === 'LIVE').length, 1);
   assert.deepEqual(
     platforms.filter(platform => platform.availability === 'CONNECT_ONLY').map(platform => platform.code),
-    ['instagram', 'linkedin', 'youtube']
+    ['instagram', 'linkedin', 'youtube', 'x']
   );
   assert.deepEqual(
     platforms.filter(platform => platform.availability === 'PLANNED').map(platform => platform.code),
-    ['threads', 'tiktok', 'pinterest', 'x']
+    ['threads', 'tiktok', 'pinterest']
   );
 });
 

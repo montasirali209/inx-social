@@ -45,12 +45,14 @@ require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true
 const service = require('../src/services/socialConnectionService');
 const { decryptToken } = require('../src/utils/tokenCrypto');
 
-test('LinkedIn and YouTube authorization URLs use signed state and minimal linking scopes', () => {
+test('LinkedIn, YouTube, and X authorization URLs use signed state and minimal linking scopes', () => {
   process.env.APP_URL = 'https://social.example.test/';
   process.env.LINKEDIN_CLIENT_ID = 'linkedin-client';
   process.env.LINKEDIN_CLIENT_SECRET = 'linkedin-secret';
   process.env.GOOGLE_CLIENT_ID = 'google-client';
   process.env.GOOGLE_CLIENT_SECRET = 'google-secret';
+  process.env.X_CLIENT_ID = 'x-client';
+  process.env.X_CLIENT_SECRET = 'x-secret';
 
   const linkedIn = new URL(service.authorization('linkedin', 'user-1').authorizationUrl);
   assert.equal(linkedIn.origin, 'https://www.linkedin.com');
@@ -63,6 +65,43 @@ test('LinkedIn and YouTube authorization URLs use signed state and minimal linki
   assert.match(youtube.searchParams.get('scope'), /youtube\.readonly/);
   assert.equal(youtube.searchParams.get('access_type'), 'offline');
   assert.equal(youtube.searchParams.get('prompt'), 'consent select_account');
+
+  const x = new URL(service.authorization('x', 'user-1').authorizationUrl);
+  assert.equal(x.origin, 'https://x.com');
+  assert.equal(x.searchParams.get('redirect_uri'), 'https://social.example.test/api/social-connections/oauth/x/callback');
+  assert.deepEqual(x.searchParams.get('scope').split(' '), ['tweet.read', 'users.read', 'offline.access']);
+  assert.equal(x.searchParams.get('code_challenge_method'), 'S256');
+  assert.match(x.searchParams.get('code_challenge'), /^[A-Za-z0-9_-]{43}$/);
+});
+
+test('X linking exchanges PKCE securely and stores a read-only profile', async t => {
+  connectionRow = null;
+  profileRows = [];
+  process.env.APP_URL = 'https://social.example.test';
+  process.env.X_CLIENT_ID = 'x-client';
+  process.env.X_CLIENT_SECRET = 'x-secret';
+  const start = service.authorization('x', 'user-1');
+  const state = new URL(start.authorizationUrl).searchParams.get('state');
+  t.mock.method(axios, 'post', async (url, body, options) => {
+    assert.equal(url, 'https://api.x.com/2/oauth2/token');
+    assert.equal(options.auth.username, 'x-client');
+    assert.equal(options.auth.password, 'x-secret');
+    const params = new URLSearchParams(body);
+    assert.equal(params.get('grant_type'), 'authorization_code');
+    assert.match(params.get('code_verifier'), /^[A-Za-z0-9_-]{43}$/);
+    return { data: { access_token: 'x-access', refresh_token: 'x-refresh', expires_in: 7200 } };
+  });
+  t.mock.method(axios, 'get', async (url, options) => {
+    assert.equal(url, 'https://api.x.com/2/users/me');
+    assert.equal(options.headers.Authorization, 'Bearer x-access');
+    return { data: { data: { id: 'x-user-1', name: 'INX Social', username: 'inxsocial', profile_image_url: 'https://images.example/x.jpg', public_metrics: { followers_count: 12, following_count: 3, tweet_count: 8 } } } };
+  });
+
+  await service.completeOAuth('x', { code: 'x-code', state });
+  assert.equal(connectionRow.platform, 'x');
+  assert.equal(decryptToken(connectionRow.encryptedAccessToken), 'x-access');
+  assert.equal(decryptToken(connectionRow.encryptedRefreshToken), 'x-refresh');
+  assert.deepEqual(JSON.parse(profileRows[0].capabilitiesJson), { identity: true, publish: false, analytics: false, readonly: true });
 });
 
 test('Instagram linking stores encrypted read/insight access without claiming publishing', async t => {

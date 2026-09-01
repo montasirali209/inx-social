@@ -748,10 +748,33 @@ async function listJobs(req, res, next) {
     await requireStudioLicense(req.user.id);
     const input = z.object({
       status: z.enum(Object.values(JOB_STATUS)).optional(),
-      limit: z.coerce.number().int().min(1).max(250).default(100)
+      limit: z.coerce.number().int().min(1).max(1000).default(100),
+      from: z.string().datetime().optional(),
+      to: z.string().datetime().optional()
     }).parse(req.query);
+    if (Boolean(input.from) !== Boolean(input.to)) {
+      throw Object.assign(new Error('Both from and to are required for a calendar date range.'), { status: 400 });
+    }
+    const from = input.from ? new Date(input.from) : null;
+    const to = input.to ? new Date(input.to) : null;
+    if (from && to && from >= to) {
+      throw Object.assign(new Error('The calendar date range is invalid.'), { status: 400 });
+    }
+    const dateWindow = from && to ? { gte: from, lt: to } : null;
     const jobs = await prisma.scheduleJob.findMany({
-      where: { userId: req.user.id, origin: 'CLOUD', ...(input.status ? { status: input.status } : {}) },
+      where: {
+        userId: req.user.id,
+        origin: 'CLOUD',
+        ...(input.status ? { status: input.status } : {}),
+        ...(dateWindow ? {
+          OR: [
+            { scheduledAt: dateWindow },
+            { completedAt: dateWindow },
+            { createdAt: dateWindow },
+            { updatedAt: dateWindow }
+          ]
+        } : {})
+      },
       orderBy: { createdAt: 'desc' },
       take: input.limit,
       include: { connectedPage: true, cloudAsset: true }
