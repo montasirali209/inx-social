@@ -32,6 +32,7 @@ export type Destination = {
 
 export type MediaItem = {
   id: string
+  libraryAssetId?: string | null
   type: 'image' | 'video'
   file: File
   url: string
@@ -46,6 +47,7 @@ export type PostDraft = {
   caption: string
   postType: PostType
   mediaFileName: string | null
+  mediaLibraryAssetId?: string | null
   selectedDestinationIds: string[]
   scheduleMode: ScheduleMode
   scheduledAt: string | null
@@ -70,6 +72,7 @@ export type CreateDirectPostInput = {
   originalFileName: string | null
   mimeType: string | null
   fileSizeBytes: number | null
+  mediaLibraryAssetId?: string | null
   scheduledAt: string | null
   publishMode: 'NOW' | 'SCHEDULED'
 }

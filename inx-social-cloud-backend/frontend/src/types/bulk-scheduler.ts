@@ -37,6 +37,7 @@ export type MediaKind = 'image' | 'video'
 
 export type SelectedMedia = {
   id: string
+  libraryAssetId?: string | null
   file: File
   previewUrl: string
   kind: MediaKind

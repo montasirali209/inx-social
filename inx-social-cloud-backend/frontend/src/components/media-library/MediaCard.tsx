@@ -17,6 +17,9 @@ type Props = {
   onRename: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  trashMode?: boolean;
+  onRestore?: () => void;
+  onPurge?: () => void;
 };
 
 export function MediaCard(props: Props) {
@@ -107,9 +110,12 @@ export function MediaCard(props: Props) {
             onDelete={props.onDelete}
             onDownload={props.onDownload}
             onDuplicate={props.onDuplicate}
+            onPurge={props.onPurge}
             onRename={props.onRename}
+            onRestore={props.onRestore}
             onSchedule={props.onSchedule}
             onUse={props.onUse}
+            trashMode={props.trashMode}
           />
         </footer>
       </div>

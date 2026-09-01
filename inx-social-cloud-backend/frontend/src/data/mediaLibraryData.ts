@@ -28,6 +28,7 @@ export const systemFolders = [
   { id: 'uploaded', label: 'Uploaded Media' },
   { id: 'scheduled', label: 'Scheduled Content' },
   { id: 'published', label: 'Published Content' },
+  { id: 'trash', label: 'Trash' },
 ]
 
 const platforms: Platform[] = ['facebook', 'instagram', 'linkedin', 'tiktok', 'youtube', 'x']

@@ -88,10 +88,11 @@ const directPostSchema = z.object({
   originalFileName: z.string().trim().max(255).nullish(),
   mimeType: z.string().trim().max(120).nullish(),
   fileSizeBytes: fileSizeSchema.nullish(),
+  mediaLibraryAssetId: z.string().trim().min(1).max(100).nullish(),
   scheduledAt: z.string().datetime().nullish(),
   publishMode: z.enum(['SCHEDULED', 'NOW'])
 }).superRefine((input, context) => {
-  if (input.contentType === 'TEXT') return;
+  if (input.contentType === 'TEXT' || input.mediaLibraryAssetId) return;
   if (!input.originalFileName) context.addIssue({ code: z.ZodIssueCode.custom, path: ['originalFileName'], message: 'Choose an image or video.' });
   if (!input.fileSizeBytes) context.addIssue({ code: z.ZodIssueCode.custom, path: ['fileSizeBytes'], message: 'The selected media file is empty.' });
   if (input.contentType === 'IMAGE' && !/\.(png|jpe?g|webp)$/i.test(input.originalFileName || '')) context.addIssue({ code: z.ZodIssueCode.custom, path: ['originalFileName'], message: 'Choose a PNG, JPG, JPEG or WebP image.' });
@@ -302,6 +303,7 @@ function publicJob(job) {
     metaPostId: job.metaPostId,
     metaVideoId: job.metaVideoId,
     errorMessage: job.errorMessage,
+    mediaLibraryAssetId: job.mediaLibraryAssetId || null,
     createdAt: job.createdAt,
     updatedAt: job.updatedAt,
     page: publicPage(job.connectedPage),
@@ -848,7 +850,24 @@ async function createDirectPosts(req, res, next) {
       error.publicMessage = error.message;
       throw error;
     }
-    const fileSizeBytes = input.contentType === 'TEXT' ? null : normaliseFileSize(input.fileSizeBytes);
+    let libraryAsset = null;
+    if (input.mediaLibraryAssetId) {
+      libraryAsset = await prisma.agentAsset.findFirst({ where: { id: input.mediaLibraryAssetId, userId: req.user.id, status: 'READY', archivedAt: null }, select: { id: true, originalName: true, mimeType: true, byteSize: true } });
+      if (!libraryAsset) {
+        const error = new Error('The selected Media Library asset is unavailable. Restore it or choose another file.');
+        error.status = 404;
+        error.publicMessage = error.message;
+        throw error;
+      }
+      const libraryType = String(libraryAsset.mimeType || '').startsWith('video/') ? 'VIDEO' : 'IMAGE';
+      if (libraryType !== input.contentType) {
+        const error = new Error('The Media Library asset type does not match this post.');
+        error.status = 400;
+        error.publicMessage = error.message;
+        throw error;
+      }
+    }
+    const fileSizeBytes = input.contentType === 'TEXT' ? null : libraryAsset ? BigInt(libraryAsset.byteSize) : normaliseFileSize(input.fileSizeBytes);
     if (input.contentType === 'IMAGE' && fileSizeBytes > MAX_DIRECT_IMAGE_BYTES) {
       const error = new Error('Post images must be no larger than 15 MB.');
       error.status = 413;
@@ -874,11 +893,12 @@ async function createDirectPosts(req, res, next) {
           contentType: input.contentType,
           title: input.title || null,
           caption: input.caption,
-          localFileName: media ? input.originalFileName : null,
+          localFileName: media ? libraryAsset?.originalName || input.originalFileName : null,
+          mediaLibraryAssetId: libraryAsset?.id || null,
           scheduledAt,
           attemptCount: media ? 0 : 1,
           claimedAt: media ? null : new Date(),
-          ...(media ? { cloudAsset: { create: { userId: req.user.id, provider: 'TEMPORARY_STREAM', originalFileName: input.originalFileName, mimeType: input.mimeType || 'application/octet-stream', fileSizeBytes, status: ASSET_STATUS.AWAITING_UPLOAD } } } : {})
+          ...(media ? { cloudAsset: { create: { userId: req.user.id, provider: libraryAsset ? 'MEDIA_LIBRARY' : 'TEMPORARY_STREAM', originalFileName: libraryAsset?.originalName || input.originalFileName, mimeType: libraryAsset?.mimeType || input.mimeType || 'application/octet-stream', fileSizeBytes, status: ASSET_STATUS.AWAITING_UPLOAD } } } : {})
         },
         include: { connectedPage: true, cloudAsset: true }
       });
@@ -931,6 +951,47 @@ async function uploadDirectPostMedia(req, res, next) {
   } catch (error) {
     if (existing) {
       const message = String(error.publicMessage || error.message || 'Media publishing failed.').slice(0, 1000);
+      await prisma.scheduleJob.update({ where: { id: existing.id }, data: { status: JOB_STATUS.FAILED, uploadStatus: ASSET_STATUS.FAILED, claimedAt: null, errorMessage: message } }).catch(() => {});
+      if (existing.cloudAsset) await prisma.cloudAsset.update({ where: { id: existing.cloudAsset.id }, data: { status: ASSET_STATUS.FAILED } }).catch(() => {});
+      error.publicMessage = message;
+    }
+    next(error);
+  } finally {
+    if (tempPath) { try { await fs.promises.unlink(tempPath); } catch (_) {} }
+  }
+}
+
+async function publishDirectPostLibraryMedia(req, res, next) {
+  let tempPath = null;
+  let existing = null;
+  try {
+    await requireStudioLicense(req.user.id);
+    existing = await prisma.scheduleJob.findFirst({ where: { id: req.params.id, userId: req.user.id, origin: 'CLOUD', mediaLibraryAssetId: { not: null }, contentType: { in: ['IMAGE', 'VIDEO'] } }, include: { connectedPage: true, cloudAsset: true } });
+    if (!existing?.cloudAsset || existing.cloudAsset.provider !== 'MEDIA_LIBRARY') return res.status(404).json({ error: 'Reusable Media Library publishing job was not found.' });
+    const claimed = await prisma.scheduleJob.updateMany({ where: { id: existing.id, userId: req.user.id, status: { in: [JOB_STATUS.AWAITING_UPLOAD, JOB_STATUS.FAILED] } }, data: { status: JOB_STATUS.PROCESSING, uploadStatus: ASSET_STATUS.UPLOADING, attemptCount: { increment: 1 }, claimedAt: new Date(), errorMessage: null } });
+    if (claimed.count !== 1) return res.status(409).json({ error: 'This reusable media job is already processing or complete.' });
+    await prisma.cloudAsset.update({ where: { id: existing.cloudAsset.id }, data: { status: ASSET_STATUS.UPLOADING } });
+    const asset = await mediaLibrary.findContent(req.user.id, existing.mediaLibraryAssetId);
+    if (!asset) throw new Error('The linked Media Library asset is unavailable. Restore it before publishing.');
+    const image = existing.contentType === 'IMAGE';
+    if (image ? !/^image\/(png|jpeg|webp)$/i.test(asset.mimeType) : !/^video\//i.test(asset.mimeType)) throw new Error('The linked Media Library file format no longer matches this post.');
+    const page = await resolvePage(req.user.id, existing.connectedPageId, true);
+    const immediate = existing.publishMode === 'NOW';
+    let result;
+    if (image) {
+      result = await metaPublisher.publishOrganicPost({ pageId: page.facebookPageId, pageAccessToken: decryptToken(page.encryptedAccessToken), caption: existing.caption, scheduledAt: existing.scheduledAt, publishMode: existing.publishMode, asset: { data: asset.data, mimeType: asset.mimeType, originalName: asset.originalName } });
+    } else {
+      const suffix = path.extname(asset.originalName || '').slice(0, 12);
+      tempPath = path.join(os.tmpdir(), `inx-social-library-${crypto.randomUUID()}${suffix}`);
+      await fs.promises.writeFile(tempPath, asset.data);
+      result = await metaPublisher.publishReel({ pageId: page.facebookPageId, pageAccessToken: decryptToken(page.encryptedAccessToken), filePath: tempPath, fileSize: asset.data.length, caption: existing.caption, scheduledAt: existing.scheduledAt, publishMode: existing.publishMode });
+    }
+    const job = await prisma.scheduleJob.update({ where: { id: existing.id }, data: { status: immediate ? JOB_STATUS.PUBLISHED : JOB_STATUS.SCHEDULED, uploadStatus: ASSET_STATUS.READY, completedAt: new Date(), claimedAt: null, metaPostId: result.postId, metaVideoId: result.videoId || null, rawMetaResponse: JSON.stringify({ ...(result.response || result.finish || {}), verification: { state: immediate ? 'PUBLISHED' : 'SCHEDULED', confirmedAt: new Date().toISOString(), mediaSource: 'MEDIA_LIBRARY' } }) }, include: { connectedPage: true, cloudAsset: true } });
+    await prisma.cloudAsset.update({ where: { id: existing.cloudAsset.id }, data: { status: ASSET_STATUS.READY } });
+    res.status(202).json({ job: publicJob(job), accepted: true, published: immediate, scheduled: !immediate, reusableMedia: true });
+  } catch (error) {
+    if (existing) {
+      const message = String(error.publicMessage || error.message || 'Reusable media publishing failed.').slice(0, 1000);
       await prisma.scheduleJob.update({ where: { id: existing.id }, data: { status: JOB_STATUS.FAILED, uploadStatus: ASSET_STATUS.FAILED, claimedAt: null, errorMessage: message } }).catch(() => {});
       if (existing.cloudAsset) await prisma.cloudAsset.update({ where: { id: existing.cloudAsset.id }, data: { status: ASSET_STATUS.FAILED } }).catch(() => {});
       error.publicMessage = message;
@@ -1199,7 +1260,7 @@ async function uploadMediaLibraryAsset(req, res, next) {
 async function mediaLibraryAssetContent(req, res, next) {
   try {
     const userId = mediaLibrary.verifyContentAccess(req.query.access, req.params.id);
-    const asset = await mediaLibrary.findContent(userId, req.params.id);
+    const asset = await mediaLibrary.findContent(userId, req.params.id, { includeArchived: true });
     if (!asset) return res.status(404).json({ error: 'Media asset not found.' });
     res.setHeader('Content-Type', asset.mimeType);
     res.setHeader('Content-Length', asset.data.length);
@@ -1238,6 +1299,22 @@ async function archiveMediaLibraryAsset(req, res, next) {
   try {
     await requireStudioLicense(req.user.id);
     await mediaLibrary.archive(req.user.id, req.params.id);
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+}
+
+async function restoreMediaLibraryAsset(req, res, next) {
+  try {
+    await requireStudioLicense(req.user.id);
+    await mediaLibrary.restore(req.user.id, req.params.id);
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+}
+
+async function purgeMediaLibraryAsset(req, res, next) {
+  try {
+    await requireStudioLicense(req.user.id);
+    await mediaLibrary.purge(req.user.id, req.params.id);
     res.json({ ok: true });
   } catch (error) { next(error); }
 }
@@ -1288,6 +1365,7 @@ module.exports = {
   createDraft,
   createDirectPosts,
   uploadDirectPostMedia,
+  publishDirectPostLibraryMedia,
   updateDraft,
   uploadVideo,
   testActivePage,
@@ -1300,6 +1378,8 @@ module.exports = {
   renameMediaLibraryAsset,
   duplicateMediaLibraryAsset,
   archiveMediaLibraryAsset,
+  restoreMediaLibraryAsset,
+  purgeMediaLibraryAsset,
   cancelJob,
   publicJob,
   desktopJob,

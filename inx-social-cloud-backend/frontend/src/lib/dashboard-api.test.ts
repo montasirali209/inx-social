@@ -36,6 +36,7 @@ function job(status: DashboardJob['status'], overrides: Partial<DashboardJob> = 
     title: status,
     caption: null,
     localFileName: `${status}.mp4`,
+    mediaLibraryAssetId: null,
     scheduledAt: null,
     completedAt: null,
     errorMessage: null,

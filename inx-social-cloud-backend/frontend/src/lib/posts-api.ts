@@ -22,6 +22,10 @@ export function enhancePostCaption(caption: string, action: EnhancementAction, t
   })
 }
 
+export function publishDirectPostLibraryMedia(jobId: string) {
+  return apiRequest<{ job: DashboardJob; accepted: boolean; scheduled?: boolean; published?: boolean; reusableMedia: true }>(`/api/studio/direct-posts/${encodeURIComponent(jobId)}/library-media`, { method: 'POST' })
+}
+
 export function uploadDirectPostMedia(jobId: string, file: File, onProgress: (percent: number) => void): Promise<{ job: DashboardJob }> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest()

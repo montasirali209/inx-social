@@ -21,10 +21,13 @@ router.post('/media-library/assets', express.raw({ type: ['image/*', 'video/*'],
 router.patch('/media-library/assets/:id', controller.renameMediaLibraryAsset);
 router.post('/media-library/assets/:id/duplicate', controller.duplicateMediaLibraryAsset);
 router.delete('/media-library/assets/:id', controller.archiveMediaLibraryAsset);
+router.post('/media-library/assets/:id/restore', controller.restoreMediaLibraryAsset);
+router.delete('/media-library/assets/:id/permanent', controller.purgeMediaLibraryAsset);
 router.get('/jobs', controller.listJobs);
 router.post('/jobs', controller.createDraft);
 router.post('/direct-posts', controller.createDirectPosts);
 router.put('/direct-posts/:id/media', controller.uploadDirectPostMedia);
+router.post('/direct-posts/:id/library-media', controller.publishDirectPostLibraryMedia);
 router.put('/jobs/:id/video', controller.uploadVideo);
 router.patch('/jobs/:id', controller.updateDraft);
 router.post('/jobs/:id/cancel', controller.cancelJob);

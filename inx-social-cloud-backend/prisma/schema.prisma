@@ -108,6 +108,7 @@ model AgentAsset {
   user          User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   plan          AgentPlan?          @relation(fields: [planId], references: [id], onDelete: SetNull)
   campaignPosts AgentCampaignPost[]
+  scheduleJobs  ScheduleJob[]
   folder        MediaFolder?         @relation(fields: [folderId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
@@ -441,6 +442,7 @@ model ScheduleJob {
   metaPostId      String?
   metaVideoId     String?
   errorMessage    String?
+  mediaLibraryAssetId String?
   rawMetaResponse String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -449,6 +451,7 @@ model ScheduleJob {
   connectedPage ConnectedPage?     @relation(fields: [connectedPageId], references: [id], onDelete: SetNull)
   cloudAsset    CloudAsset?
   campaignPost  AgentCampaignPost?
+  mediaLibraryAsset AgentAsset?    @relation(fields: [mediaLibraryAssetId], references: [id], onDelete: SetNull)
 
   @@unique([userId, clientRequestId])
   @@index([userId])
@@ -459,6 +462,7 @@ model ScheduleJob {
   @@index([scheduledAt])
   @@index([nextAttemptAt])
   @@index([contentType])
+  @@index([mediaLibraryAssetId])
 }
 
 model AgentCampaign {
