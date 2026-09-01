@@ -1,4 +1,4 @@
-import { FileText, Images, Play, RotateCcw, UploadCloud } from 'lucide-react'
+import { FileText, HardDrive, Images, Play, RotateCcw, UploadCloud } from 'lucide-react'
 import { useRef } from 'react'
 import type { SelectedMedia, TimingMode } from '../../types/bulk-scheduler'
 import { Button } from '../ui/Button'
@@ -17,6 +17,7 @@ type Props = {
   scheduleTimes: string[]
   selectedDestinations: number
   useFallback: boolean
+  retainMedia: boolean
   canStart: boolean
   disabledReason: string
   running: boolean
@@ -29,6 +30,7 @@ type Props = {
   onScheduleTimeAdd: (value: string) => void
   onScheduleTimeRemove: (value: string) => void
   onFallbackChange: (value: boolean) => void
+  onRetainMediaChange: (value: boolean) => void
   onClear: () => void
   onStart: () => void
 }
@@ -37,6 +39,7 @@ export function UploadBatchPanel(props: Props) {
   const mediaInput = useRef<HTMLInputElement>(null)
   const captionInput = useRef<HTMLInputElement>(null)
   const needsDate = props.timingMode === 'schedule_time' || props.timingMode === 'spread_across_days'
+  const exceedsLibraryLimit = props.media.some((item) => item.file.size > 100 * 1024 * 1024)
   return (
     <section aria-labelledby="upload-batch-title" className="interactive-surface rounded-panel border p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -66,6 +69,12 @@ export function UploadBatchPanel(props: Props) {
 
       <div className="mt-4"><CaptionInput captionCount={props.captionCount} mediaCount={props.media.length} onChange={props.onCaptionsChange} onFallbackChange={props.onFallbackChange} useFallback={props.useFallback} value={props.captions} /></div>
       <div className="mt-4"><SessionSummary captionCount={props.captionCount} media={props.media} scheduleTimes={props.scheduleTimes} selectedDestinations={props.selectedDestinations} timingMode={props.timingMode} /></div>
+
+      <label className={`mt-4 flex items-start gap-3 rounded-xl border px-3.5 py-3 transition-colors ${props.retainMedia ? 'border-brand-teal/45 bg-brand-teal/8' : 'border-border-soft bg-bg/35'} ${exceedsLibraryLimit ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-brand-teal/30'}`}>
+        <input checked={props.retainMedia && !exceedsLibraryLimit} className="mt-0.5 size-4 accent-brand-teal" disabled={props.running || exceedsLibraryLimit || !props.media.length} onChange={(event) => props.onRetainMediaChange(event.target.checked)} type="checkbox" />
+        <HardDrive aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand-teal" />
+        <span><span className="block text-xs font-semibold text-text-main">Save selected media to Media Library for reuse</span><span className="mt-0.5 block text-[11px] leading-4 text-text-muted">Off by default. One deduplicated copy is stored and linked to every resulting post.{exceedsLibraryLimit ? ' Files over 100 MB remain temporary.' : ''}</span></span>
+      </label>
 
       <div className="mt-4 flex flex-col gap-2 sm:flex-row">
         <Button className="sm:w-auto" disabled={props.running || (!props.media.length && !props.captions)} onClick={props.onClear} type="button" variant="ghost"><RotateCcw aria-hidden="true" className="size-4" /> Clear session</Button>

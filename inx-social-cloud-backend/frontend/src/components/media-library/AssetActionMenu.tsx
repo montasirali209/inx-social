@@ -1,10 +1,14 @@
-import { CalendarPlus, Copy, Download, MoreHorizontal, Pencil, Send, Trash2 } from 'lucide-react'
+import { CalendarPlus, Copy, Download, MoreHorizontal, Pencil, RotateCcw, Send, Trash2 } from 'lucide-react'
 import type { MediaAsset } from '../../types/media-library'
 
-type Props = { asset: MediaAsset; onUse: () => void; onSchedule: () => void; onDownload: () => void; onRename: () => void; onDuplicate: () => void; onDelete: () => void }
+type Props = { asset: MediaAsset; trashMode?: boolean; onUse: () => void; onSchedule: () => void; onDownload: () => void; onRename: () => void; onDuplicate: () => void; onDelete: () => void; onRestore?: () => void; onPurge?: () => void }
 
 export function AssetActionMenu(props: Props) {
-  const actions = [
+  const actions = props.trashMode ? [
+    { label: 'Restore', icon: RotateCcw, action: props.onRestore || (() => {}) },
+    { label: 'Download', icon: Download, action: props.onDownload },
+    { label: 'Delete permanently', icon: Trash2, action: props.onPurge || (() => {}), danger: true },
+  ] : [
     { label: 'Use in Post', icon: Send, action: props.onUse },
     { label: 'Schedule', icon: CalendarPlus, action: props.onSchedule },
     { label: 'Download', icon: Download, action: props.onDownload },

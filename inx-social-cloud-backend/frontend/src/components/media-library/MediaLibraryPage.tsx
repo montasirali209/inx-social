@@ -19,7 +19,9 @@ import {
   downloadMediaAsset,
   duplicateMediaAsset,
   fetchMediaLibrary,
+  purgeMediaAsset,
   renameMediaAsset,
+  restoreMediaAsset,
   uploadMediaAsset,
 } from "../../lib/media-library-api";
 import { formatBytes } from "../../lib/media-format";
@@ -42,6 +44,7 @@ function folderMatches(asset: MediaAsset, folder: string) {
   if (folder === "uploaded") return asset.collection === "uploaded_media";
   if (folder === "scheduled" || folder === "published")
     return asset.status === folder;
+  if (folder === "trash") return true;
   return asset.folder?.id === folder;
 }
 
@@ -81,10 +84,16 @@ export function MediaLibraryPage() {
     () => workspace.data?.assets || [],
     [workspace.data?.assets],
   );
-  const selectedAsset = assets.find((asset) => asset.id === selectedId) || null;
+  const trashAssets = useMemo(
+    () => workspace.data?.trashAssets || [],
+    [workspace.data?.trashAssets],
+  );
+  const trashMode = activeFolder === "trash";
+  const displayedAssets = trashMode ? trashAssets : assets;
+  const selectedAsset = [...assets, ...trashAssets].find((asset) => asset.id === selectedId) || null;
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return assets
+    return displayedAssets
       .filter(
         (asset) =>
           matchesTab(asset, activeTab) &&
@@ -104,7 +113,7 @@ export function MediaLibraryPage() {
               ? b.fileSize - a.fileSize
               : +new Date(b.createdAt) - +new Date(a.createdAt),
       );
-  }, [activeFolder, activeTab, assets, search, sort, type]);
+  }, [activeFolder, activeTab, displayedAssets, search, sort, type]);
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pages);
   const visible = filtered.slice(
@@ -254,6 +263,24 @@ export function MediaLibraryPage() {
       );
   }
 
+  function restore(asset: MediaAsset) {
+    void runAssetAction(
+      asset,
+      () => restoreMediaAsset(asset.id),
+      "Asset restored to All Files.",
+    );
+  }
+
+  function purge(asset: MediaAsset) {
+    if (!window.confirm(`Permanently delete “${asset.fileName}”? This cannot be undone.`)) return;
+    void runAssetAction(
+      asset,
+      () => purgeMediaAsset(asset.id),
+      "Asset permanently deleted.",
+    );
+    if (selectedId === asset.id) setSelectedId(null);
+  }
+
   async function createFolder(name: string) {
     setFolderBusy(true);
     setFolderError("");
@@ -366,7 +393,7 @@ export function MediaLibraryPage() {
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <MediaTabs
             active={activeTab}
-            assets={assets}
+            assets={displayedAssets}
             onChange={(value) => {
               setActiveTab(value);
               setPage(1);
@@ -441,12 +468,15 @@ export function MediaLibraryPage() {
           folders={workspace.data.folders}
           onActive={(id) => {
             setActiveFolder(id);
+            setActiveTab("all");
+            setSelectedId(null);
             setPage(1);
             setFoldersOpen(false);
           }}
           onClose={() => setFoldersOpen(false)}
           onCreateFolder={() => setFolderModalOpen(true)}
           open={foldersOpen}
+          trashAssets={trashAssets}
         />
         <main className="min-w-0 2xl:min-h-0">
           <MediaToolbar
@@ -483,8 +513,11 @@ export function MediaLibraryPage() {
                 })
               }
               onSelect={(asset) => setSelectedId(asset.id)}
+              onPurge={purge}
+              onRestore={restore}
               onUpload={() => inputRef.current?.click()}
               selectedId={selectedId}
+              trashMode={trashMode}
               view={view}
               {...handlers}
             />
@@ -544,8 +577,11 @@ export function MediaLibraryPage() {
             onDelete={() => handlers.onDelete(selectedAsset)}
             onDuplicate={() => handlers.onDuplicate(selectedAsset)}
             onRename={() => handlers.onRename(selectedAsset)}
+            onRestore={() => restore(selectedAsset)}
+            onPurge={() => purge(selectedAsset)}
             onSchedule={() => handlers.onSchedule(selectedAsset)}
             onUse={() => handlers.onUse(selectedAsset)}
+            trashMode={trashMode}
           />
         )}
       </div>

@@ -8,11 +8,11 @@ const assets = [];
 const folders = [];
 const prisma = {
   agentAsset: {
-    aggregate: async ({ where }) => ({ _sum: { byteSize: assets.filter(asset => asset.userId === where.userId && !asset.archivedAt).reduce((total, asset) => total + asset.byteSize, 0) } }),
-    findMany: async ({ where }) => assets.filter(asset => asset.userId === where.userId && !asset.archivedAt),
-    findFirst: async ({ where }) => assets.find(asset => asset.userId === where.userId && (!where.id || asset.id === where.id) && (!where.checksum || asset.checksum === where.checksum) && !asset.archivedAt) || null,
+    aggregate: async ({ where }) => ({ _sum: { byteSize: assets.filter(asset => asset.userId === where.userId).reduce((total, asset) => total + asset.byteSize, 0) } }),
+    findMany: async ({ where }) => assets.filter(asset => asset.userId === where.userId),
+    findFirst: async ({ where }) => assets.find(asset => asset.userId === where.userId && (!where.id || asset.id === where.id) && (!where.checksum || asset.checksum === where.checksum) && (!where.status || asset.status === where.status)) || null,
     create: async ({ data }) => {
-      const row = { id: `asset-${assets.length + 1}`, createdAt: new Date('2026-08-30T12:00:00Z'), campaignPosts: [], folder: folders.find(folder => folder.id === data.folderId) || null, ...data };
+      const row = { id: `asset-${assets.length + 1}`, createdAt: new Date('2026-08-30T12:00:00Z'), campaignPosts: [], scheduleJobs: [], folder: folders.find(folder => folder.id === data.folderId) || null, ...data };
       assets.push(row);
       return row;
     },
@@ -22,10 +22,16 @@ const prisma = {
       return row;
     },
     updateMany: async ({ where, data }) => {
-      const row = assets.find(asset => asset.id === where.id && asset.userId === where.userId && !asset.archivedAt);
+      const row = assets.find(asset => asset.id === where.id && asset.userId === where.userId && (where.archivedAt?.not === null ? Boolean(asset.archivedAt) : !asset.archivedAt));
       if (!row) return { count: 0 };
       Object.assign(row, data);
       return { count: 1 };
+    },
+    deleteMany: async ({ where }) => {
+      const requireArchived = Boolean(where.archivedAt && Object.prototype.hasOwnProperty.call(where.archivedAt, 'not'));
+      const indexes = assets.map((asset, index) => ({ asset, index })).filter(({ asset }) => asset.userId === where.userId && (!where.id || asset.id === where.id) && (!requireArchived || asset.archivedAt) && (!where.archivedAt?.lt || (asset.archivedAt && asset.archivedAt < where.archivedAt.lt))).map(({ index }) => index).reverse();
+      indexes.forEach(index => assets.splice(index, 1));
+      return { count: indexes.length };
     }
   },
   mediaFolder: {
@@ -71,6 +77,14 @@ test('folders and asset content remain scoped to their owner', async () => {
 
 test('archive removes an owned asset from the active library', async () => {
   await library.archive('user-1', 'asset-1');
-  assert.equal((await library.workspace('user-1', 'PRO')).assets.length, 0);
+  const trashed = await library.workspace('user-1', 'PRO');
+  assert.equal(trashed.assets.length, 0);
+  assert.equal(trashed.trashAssets.length, 1);
+  assert.equal(trashed.storage.usedBytes, png.length);
   await assert.rejects(() => library.archive('user-2', 'asset-1'), /not found/);
+  await library.restore('user-1', 'asset-1');
+  assert.equal((await library.workspace('user-1', 'PRO')).assets.length, 1);
+  await library.archive('user-1', 'asset-1');
+  await library.purge('user-1', 'asset-1');
+  assert.equal((await library.workspace('user-1', 'PRO')).storage.usedBytes, 0);
 });

@@ -1,9 +1,10 @@
-import { Bot, CalendarClock, Folder, FolderOpen, Image, Send, Upload, X } from 'lucide-react'
+import { Bot, CalendarClock, Folder, FolderOpen, Image, Send, Trash2, Upload, X } from 'lucide-react'
 import { systemFolders } from '../../data/mediaLibraryData'
 import type { MediaAsset, MediaFolder } from '../../types/media-library'
 
 type Props = {
   assets: MediaAsset[]
+  trashAssets: MediaAsset[]
   folders: MediaFolder[]
   active: string
   open: boolean
@@ -12,13 +13,14 @@ type Props = {
   onCreateFolder: () => void
 }
 
-const icons = { all: FolderOpen, brand_assets: Image, ai_generated: Bot, uploaded: Upload, scheduled: CalendarClock, published: Send }
+const icons = { all: FolderOpen, brand_assets: Image, ai_generated: Bot, uploaded: Upload, scheduled: CalendarClock, published: Send, trash: Trash2 }
 export function FolderPanel(props: Props) {
   function count(id: string) {
     if (id === 'all') return props.assets.length
     if (id === 'brand_assets') return props.assets.filter(asset => asset.collection === 'brand_assets').length
     if (id === 'ai_generated') return props.assets.filter(asset => asset.source === 'ai_generated').length
     if (id === 'uploaded') return props.assets.filter(asset => asset.collection === 'uploaded_media').length
+    if (id === 'trash') return props.trashAssets.length
     return props.assets.filter(asset => asset.status === id).length
   }
   const content = (

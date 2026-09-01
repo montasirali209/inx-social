@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError } from '../../lib/api-client'
-import { createBulkMediaPost, fetchBulkSchedulerData, fetchFacebookScheduledPosts, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
+import { createBulkMediaPost, fetchBulkSchedulerData, fetchFacebookScheduledPosts, publishBulkLibraryMedia, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
+import { uploadMediaAsset } from '../../lib/media-library-api'
 import { buildPublishingTimes, parseCaptions } from '../../lib/bulk-scheduler-utils'
 import type { BatchProgress, Destination, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
 import { backendStatusToUploadStatus } from '../../types/bulk-scheduler'
@@ -10,6 +11,7 @@ import { BatchRunPanel } from './BatchRunPanel'
 import { BulkSchedulerHero } from './BulkSchedulerHero'
 import { PublishingDestinationsPanel } from './PublishingDestinationsPanel'
 import { UploadBatchPanel } from './UploadBatchPanel'
+import { useBulkSchedulerActivity } from './bulk-scheduler-activity-store'
 
 const idleProgress: BatchProgress = { state: 'idle', percent: 0, current: 0, total: 0, completed: 0, failed: 0, message: 'Select destinations and media, add captions, then choose a timing mode.' }
 
@@ -50,6 +52,7 @@ function mediaMimeType(file: File) {
 }
 
 export function BulkSchedulerPage() {
+  const { registerStop, update: updateActivity } = useBulkSchedulerActivity()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [media, setMedia] = useState<SelectedMedia[]>([])
   const mediaRef = useRef<SelectedMedia[]>([])
@@ -59,11 +62,13 @@ export function BulkSchedulerPage() {
   const [scheduleTime, setScheduleTime] = useState('10:00')
   const [scheduleTimes, setScheduleTimes] = useState<string[]>(['10:00'])
   const [useFallback, setUseFallback] = useState(false)
+  const [retainMedia, setRetainMedia] = useState(false)
   const [progress, setProgress] = useState<BatchProgress>(idleProgress)
   const [results, setResults] = useState<UploadResult[]>([])
   const abortRef = useRef<AbortController | null>(null)
   const destinationSection = useRef<HTMLDivElement>(null)
   const running = ['preparing', 'uploading', 'scheduling'].includes(progress.state)
+  const stopUpload = useCallback(() => abortRef.current?.abort(), [])
 
   const scheduler = useQuery({
     queryKey: ['bulk-scheduler'],
@@ -87,6 +92,29 @@ export function BulkSchedulerPage() {
     mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
     abortRef.current?.abort()
   }, [])
+
+  useEffect(() => {
+    updateActivity(progress)
+  }, [progress, updateActivity])
+
+  useEffect(() => {
+    registerStop(stopUpload)
+    return () => registerStop(null)
+  }, [registerStop, stopUpload])
+
+  useEffect(() => {
+    if (!running) return
+    const warnBeforeClose = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
+    type WakeLockHandle = { release: () => Promise<void> }
+    const wakeLockApi = (navigator as Navigator & { wakeLock?: { request: (type: 'screen') => Promise<WakeLockHandle> } }).wakeLock
+    let lock: WakeLockHandle | null = null
+    window.addEventListener('beforeunload', warnBeforeClose)
+    if (wakeLockApi) void wakeLockApi.request('screen').then((value) => { lock = value }).catch(() => {})
+    return () => {
+      window.removeEventListener('beforeunload', warnBeforeClose)
+      if (lock) void lock.release().catch(() => {})
+    }
+  }, [running])
 
   const canUseFallback = captionBlocks.length > 0 && useFallback
   const disabledReason = !selectedIds.size
@@ -113,10 +141,11 @@ export function BulkSchedulerPage() {
       return kind && file.size > 0 && withinLimit ? [{ file, kind }] : []
     })
     mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
-    const next = valid.map(({ file, kind }) => ({ id: crypto.randomUUID(), file, kind, previewUrl: URL.createObjectURL(file) }))
+    const next = valid.map(({ file, kind }) => ({ id: crypto.randomUUID(), libraryAssetId: null, file, kind, previewUrl: URL.createObjectURL(file) }))
     mediaRef.current = next
     setMedia(next)
     setResults([])
+    setRetainMedia(false)
     const rejected = files.length - valid.length
     setProgress(rejected ? { ...idleProgress, state: 'failed', message: `${rejected} unsupported, empty or oversized file${rejected === 1 ? ' was' : 's were'} not added. Images may be PNG, JPEG or WebP up to 15 MB; videos may be MP4, MOV or WebM.` } : idleProgress)
   }
@@ -129,6 +158,7 @@ export function BulkSchedulerPage() {
     setTimingMode('')
     setScheduleTimes(['10:00'])
     setUseFallback(false)
+    setRetainMedia(false)
     setResults([])
     setProgress(idleProgress)
   }
@@ -157,12 +187,36 @@ export function BulkSchedulerPage() {
       return
     }
 
-    const actions = media.flatMap((item, mediaIndex) => destinationIds.map((destinationId) => ({ item, mediaIndex, destinationId })))
+    const controller = new AbortController()
+    abortRef.current = controller
+    let publishingMedia = media
+    try {
+      if (retainMedia) {
+        const storedMedia: SelectedMedia[] = []
+        for (let mediaIndex = 0; mediaIndex < media.length; mediaIndex += 1) {
+          const item = media[mediaIndex]
+          if (controller.signal.aborted) throw new DOMException('Upload stopped by user.', 'AbortError')
+          setProgress({ state: 'uploading', percent: Math.round((mediaIndex / media.length) * 10), current: mediaIndex + 1, total: media.length, completed: 0, failed: 0, message: `Saving ${item.file.name} to Media Library for reuse…` })
+          const stored = item.libraryAssetId
+            ? { id: item.libraryAssetId }
+            : await uploadMediaAsset(item.file, null, (percent) => setProgress({ state: 'uploading', percent: Math.round(((mediaIndex + percent / 100) / media.length) * 10), current: mediaIndex + 1, total: media.length, completed: 0, failed: 0, message: `Saving ${item.file.name} to Media Library for reuse…` }), controller.signal)
+          storedMedia.push({ ...item, libraryAssetId: stored.id })
+        }
+        publishingMedia = storedMedia
+        setMedia(storedMedia)
+        mediaRef.current = storedMedia
+      }
+    } catch (error) {
+      const stopped = error instanceof DOMException && error.name === 'AbortError'
+      setProgress({ ...idleProgress, state: stopped ? 'stopped' : 'failed', message: stopped ? 'Upload stopped before reusable media storage completed.' : error instanceof Error ? error.message : 'The media could not be saved for reuse.' })
+      abortRef.current = null
+      return
+    }
+
+    const actions = publishingMedia.flatMap((item, mediaIndex) => destinationIds.map((destinationId) => ({ item, mediaIndex, destinationId })))
     const initialResults = actions.map((action, index): UploadResult => ({ id: `${action.item.id}:${action.destinationId}:${index}`, jobId: null, fileName: action.item.file.name, mediaKind: action.item.kind, thumbnailUrl: action.item.previewUrl, destinationIds: [action.destinationId], status: 'waiting', resultId: null, errorMessage: null, scheduledAt: publishingTimes[action.mediaIndex] }))
     setResults(initialResults)
     setProgress({ state: 'preparing', percent: 1, current: 0, total: actions.length, completed: 0, failed: 0, message: 'Preparing protected publishing jobs…' })
-    const controller = new AbortController()
-    abortRef.current = controller
     let completed = 0
     let failed = 0
 
@@ -182,19 +236,22 @@ export function BulkSchedulerPage() {
           originalFileName: action.item.file.name,
           mimeType: mediaMimeType(action.item.file),
           fileSizeBytes: action.item.file.size,
+          mediaLibraryAssetId: action.item.libraryAssetId || null,
           scheduledAt: publishingTimes[action.mediaIndex],
           publishMode: timingMode === 'publish_now' ? 'NOW' : 'SCHEDULED',
         })
         const job = prepared.jobs[0]
         if (!job) throw new Error(prepared.failures[0]?.error || 'The media publishing job could not be prepared.')
         setResults((current) => current.map((result) => result.id === resultId ? { ...result, jobId: job.id, status: 'uploading' } : result))
-        const uploaded = await uploadBulkMedia(job.id, action.item.file, {
-          signal: controller.signal,
-          onProgress: (loaded, total) => {
-            const actionPart = total ? loaded / total : 0
-            setProgress({ state: timingMode === 'publish_now' ? 'uploading' : 'scheduling', percent: ((index + actionPart) / actions.length) * 100, current: index + 1, total: actions.length, completed, failed, message: `${timingMode === 'publish_now' ? 'Publishing' : 'Scheduling'} ${action.item.file.name}…` })
-          },
-        })
+        const uploaded = action.item.libraryAssetId
+          ? await publishBulkLibraryMedia(job.id)
+          : await uploadBulkMedia(job.id, action.item.file, {
+              signal: controller.signal,
+              onProgress: (loaded, total) => {
+                const actionPart = total ? loaded / total : 0
+                setProgress({ state: timingMode === 'publish_now' ? 'uploading' : 'scheduling', percent: ((index + actionPart) / actions.length) * 100, current: index + 1, total: actions.length, completed, failed, message: `${timingMode === 'publish_now' ? 'Publishing' : 'Scheduling'} ${action.item.file.name}…` })
+              },
+            })
         completed += 1
         setResults((current) => current.map((result) => result.id === resultId ? { ...result, status: backendStatusToUploadStatus(uploaded.job.status), resultId: uploaded.job.metaPostId || uploaded.job.metaVideoId || null, errorMessage: null } : result))
       } catch (error) {
@@ -225,13 +282,13 @@ export function BulkSchedulerPage() {
     <div className="dashboard-canvas">
       <BulkSchedulerHero
         onOpen={() => destinationSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-        onStop={() => abortRef.current?.abort()}
+        onStop={stopUpload}
         running={running}
       />
       <div className="mt-4 scroll-mt-24" ref={destinationSection}><PublishingDestinationsPanel destinations={destinations} onSelectionChange={setSelectedIds} platforms={scheduler.data.platforms} selectedIds={selectedIds} /></div>
       <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,.92fr)_minmax(0,1.08fr)]">
-        <UploadBatchPanel canStart={canStart} captionCount={captionBlocks.length} captions={captions} disabledReason={disabledReason} media={media} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onFallbackChange={setUseFallback} onMedia={selectMedia} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeChange={setScheduleTime} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={() => void runBatch()} onTimingModeChange={setTimingMode} running={running} scheduleDate={scheduleDate} scheduleTime={scheduleTime} scheduleTimes={scheduleTimes} selectedDestinations={selectedIds.size} timingMode={timingMode} useFallback={useFallback} />
-        <BatchRunPanel canStart={canStart} destinations={destinations} disabledReason={disabledReason} onStart={() => void runBatch()} onStop={() => abortRef.current?.abort()} progress={progress} results={results} running={running} />
+        <UploadBatchPanel canStart={canStart} captionCount={captionBlocks.length} captions={captions} disabledReason={disabledReason} media={media} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onFallbackChange={setUseFallback} onMedia={selectMedia} onRetainMediaChange={setRetainMedia} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeChange={setScheduleTime} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={() => void runBatch()} onTimingModeChange={setTimingMode} retainMedia={retainMedia} running={running} scheduleDate={scheduleDate} scheduleTime={scheduleTime} scheduleTimes={scheduleTimes} selectedDestinations={selectedIds.size} timingMode={timingMode} useFallback={useFallback} />
+        <BatchRunPanel canStart={canStart} destinations={destinations} disabledReason={disabledReason} onStart={() => void runBatch()} onStop={stopUpload} progress={progress} results={results} running={running} />
       </div>
     </div>
   )

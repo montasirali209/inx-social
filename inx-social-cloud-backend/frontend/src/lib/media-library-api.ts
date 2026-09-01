@@ -21,6 +21,14 @@ export function archiveMediaAsset(id: string) {
   return apiRequest<{ ok: boolean }>(`/api/studio/media-library/assets/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
+export function restoreMediaAsset(id: string) {
+  return apiRequest<{ ok: boolean }>(`/api/studio/media-library/assets/${encodeURIComponent(id)}/restore`, { method: 'POST' })
+}
+
+export function purgeMediaAsset(id: string) {
+  return apiRequest<{ ok: boolean }>(`/api/studio/media-library/assets/${encodeURIComponent(id)}/permanent`, { method: 'DELETE' })
+}
+
 function authHeaders() {
   const headers = new Headers()
   const token = getStoredAuthToken()
@@ -28,9 +36,10 @@ function authHeaders() {
   return headers
 }
 
-export function uploadMediaAsset(file: File, folderId: string | null, onProgress: (percent: number) => void): Promise<MediaAsset> {
+export function uploadMediaAsset(file: File, folderId: string | null, onProgress: (percent: number) => void, signal?: AbortSignal): Promise<MediaAsset> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest()
+    const abort = () => request.abort()
     request.open('POST', '/api/studio/media-library/assets')
     request.withCredentials = true
     request.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
@@ -40,12 +49,21 @@ export function uploadMediaAsset(file: File, folderId: string | null, onProgress
     if (token) request.setRequestHeader('Authorization', `Bearer ${token}`)
     request.upload.onprogress = (event) => { if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100)) }
     request.onload = () => {
+      signal?.removeEventListener('abort', abort)
       let payload: { asset?: MediaAsset; error?: string } = {}
       try { payload = JSON.parse(request.responseText || '{}') } catch { /* use HTTP fallback */ }
       if (request.status >= 200 && request.status < 300 && payload.asset) resolve(payload.asset)
       else reject(new Error(payload.error || `Upload failed (HTTP ${request.status}).`))
     }
-    request.onerror = () => reject(new Error('The media upload connection was interrupted.'))
+    request.onerror = () => {
+      signal?.removeEventListener('abort', abort)
+      reject(new Error('The media upload connection was interrupted.'))
+    }
+    request.onabort = () => {
+      signal?.removeEventListener('abort', abort)
+      reject(new DOMException('Upload stopped by user.', 'AbortError'))
+    }
+    signal?.addEventListener('abort', abort, { once: true })
     request.send(file)
   })
 }

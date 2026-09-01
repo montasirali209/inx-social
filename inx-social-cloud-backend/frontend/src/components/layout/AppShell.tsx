@@ -1,11 +1,18 @@
 import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation } from 'react-router-dom'
 import { fetchStudioOverview } from '../../lib/dashboard-api'
+import { BulkSchedulerPage } from '../bulk-scheduler/BulkSchedulerPage'
+import { BulkRunDock, BulkSchedulerActivityProvider } from '../bulk-scheduler/BulkSchedulerActivity'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 
 export function AppShell() {
+  return <BulkSchedulerActivityProvider><AppShellContent /></BulkSchedulerActivityProvider>
+}
+
+function AppShellContent() {
   const location = useLocation()
+  const bulkRoute = location.pathname === '/bulk-scheduler'
   const overview = useQuery({
     queryKey: ['studio-overview'],
     queryFn: fetchStudioOverview,
@@ -21,11 +28,11 @@ export function AppShell() {
       <div className="md:pl-[88px] xl:pl-[264px]">
         <Topbar overview={overview.data} />
         <main className="mx-auto w-full max-w-[1780px] p-4 sm:p-5 xl:p-6" id="main-content">
-          <div className="route-stage" key={location.pathname}>
-            <Outlet />
-          </div>
+          <div aria-hidden={!bulkRoute} className={bulkRoute ? 'route-stage' : 'hidden'}><BulkSchedulerPage /></div>
+          {!bulkRoute && <div className="route-stage" key={location.pathname}><Outlet /></div>}
         </main>
       </div>
+      <BulkRunDock />
     </div>
   )
 }

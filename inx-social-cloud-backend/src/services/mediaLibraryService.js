@@ -6,11 +6,13 @@ const prisma = require('../db/prisma');
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const VIDEO_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/webm']);
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
+const TRASH_RETENTION_DAYS = 30;
 const STORAGE_LIMITS = Object.freeze({ TRIAL: 250 * 1024 * 1024, STARTER: 1024 * 1024 * 1024, PRO: 10 * 1024 * 1024 * 1024, LIFETIME: 10 * 1024 * 1024 * 1024, CREATOR: 10 * 1024 * 1024 * 1024, AGENCY: 25 * 1024 * 1024 * 1024, BUSINESS: 25 * 1024 * 1024 * 1024 });
 
 const ASSET_INCLUDE = {
   folder: { select: { id: true, name: true } },
-  campaignPosts: { select: { id: true, title: true, status: true, scheduleJobId: true }, take: 20, orderBy: { createdAt: 'desc' } }
+  campaignPosts: { select: { id: true, title: true, status: true, scheduleJobId: true }, take: 20, orderBy: { createdAt: 'desc' } },
+  scheduleJobs: { select: { id: true, title: true, localFileName: true, status: true }, take: 20, orderBy: { createdAt: 'desc' } }
 };
 
 function error(message, status = 400) {
@@ -46,7 +48,9 @@ function verifyContentAccess(token, assetId) {
 
 function publicAsset(asset) {
   const generated = ['OLLAMA_IMAGE', 'OPENAI_IMAGE'].includes(String(asset.source || '').toUpperCase());
-  const usedIn = (asset.campaignPosts || []).map(post => ({ id: post.id, title: post.title || 'Social Agent post', status: post.status }));
+  const campaignUsage = (asset.campaignPosts || []).map(post => ({ id: post.id, title: post.title || 'Social Agent post', status: post.status }));
+  const scheduledUsage = (asset.scheduleJobs || []).map(job => ({ id: job.id, title: job.title || job.localFileName || 'Scheduled post', status: job.status }));
+  const usedIn = [...campaignUsage, ...scheduledUsage].filter((item, index, items) => items.findIndex(candidate => candidate.id === item.id) === index);
   const access = contentAccess(asset);
   const contentUrl = `/api/studio/media-library/assets/${encodeURIComponent(asset.id)}/content?access=${encodeURIComponent(access)}`;
   return {
@@ -55,7 +59,7 @@ function publicAsset(asset) {
     type: String(asset.mimeType || '').startsWith('video/') ? 'video' : String(asset.mimeType || '') === 'image/gif' ? 'gif' : 'image',
     source: generated ? 'ai_generated' : asset.source === 'LIBRARY_UPLOAD' || asset.source === 'UPLOAD' ? 'uploaded' : 'imported',
     collection: generated ? 'ai_generated' : asset.source === 'UPLOAD' ? 'brand_assets' : asset.source === 'LIBRARY_UPLOAD' ? 'uploaded_media' : 'imported',
-    status: asset.status === 'REJECTED' ? 'needs_review' : usedIn.some(post => post.status === 'PUBLISHED') ? 'published' : usedIn.some(post => post.status === 'SCHEDULED') ? 'scheduled' : usedIn.length ? 'used' : 'unused',
+    status: asset.archivedAt ? 'archived' : asset.status === 'REJECTED' ? 'needs_review' : usedIn.some(post => post.status === 'PUBLISHED') ? 'published' : usedIn.some(post => post.status === 'SCHEDULED') ? 'scheduled' : usedIn.length ? 'used' : 'unused',
     thumbnailUrl: contentUrl,
     fileUrl: contentUrl,
     width: asset.width || null,
@@ -63,26 +67,30 @@ function publicAsset(asset) {
     duration: asset.durationSeconds || null,
     fileSize: asset.byteSize,
     createdAt: asset.createdAt,
+    archivedAt: asset.archivedAt || null,
     folder: asset.folder || null,
     tags: parseTags(asset.tagsJson),
     prompt: asset.customerPrompt || asset.prompt || null,
     qualityScore: asset.qualityScore ?? null,
     usedIn,
-    contentAvailable: asset.status === 'READY' && !asset.archivedAt
+    contentAvailable: asset.status === 'READY'
   };
 }
 
 async function workspace(userId, plan) {
+  const trashCutoff = new Date(Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  await prisma.agentAsset.deleteMany({ where: { userId, archivedAt: { lt: trashCutoff } } });
   const [assets, folders, storage] = await Promise.all([
-    prisma.agentAsset.findMany({ where: { userId, archivedAt: null }, orderBy: { createdAt: 'desc' }, take: 1000, include: ASSET_INCLUDE }),
+    prisma.agentAsset.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 1000, include: ASSET_INCLUDE }),
     prisma.mediaFolder.findMany({ where: { userId }, orderBy: { name: 'asc' }, include: { _count: { select: { assets: true } } } }),
-    prisma.agentAsset.aggregate({ where: { userId, archivedAt: null }, _sum: { byteSize: true } })
+    prisma.agentAsset.aggregate({ where: { userId }, _sum: { byteSize: true } })
   ]);
   const limit = STORAGE_LIMITS[String(plan || 'TRIAL').toUpperCase()] || STORAGE_LIMITS.TRIAL;
   return {
-    assets: assets.map(publicAsset),
+    assets: assets.filter(asset => !asset.archivedAt).map(publicAsset),
+    trashAssets: assets.filter(asset => asset.archivedAt).map(publicAsset),
     folders: folders.map(folder => ({ id: folder.id, name: folder.name, count: folder._count.assets })),
-    storage: { usedBytes: storage._sum.byteSize || 0, limitBytes: limit }
+    storage: { usedBytes: storage._sum.byteSize || 0, limitBytes: limit, trashRetentionDays: TRASH_RETENTION_DAYS }
   };
 }
 
@@ -96,14 +104,17 @@ async function upload(userId, plan, input) {
   if (!IMAGE_TYPES.has(mimeType) && !VIDEO_TYPES.has(mimeType)) throw error('Upload a PNG, JPEG, WebP, GIF, MP4, MOV or WebM file.', 415);
   if (!Buffer.isBuffer(input.data) || !input.data.length) throw error('Choose a non-empty media file.');
   if (input.data.length > MAX_FILE_BYTES) throw error('Media Library uploads must be 100 MB or smaller.', 413);
-  const current = await prisma.agentAsset.aggregate({ where: { userId, archivedAt: null }, _sum: { byteSize: true } });
+  const current = await prisma.agentAsset.aggregate({ where: { userId }, _sum: { byteSize: true } });
   const limit = STORAGE_LIMITS[String(plan || 'TRIAL').toUpperCase()] || STORAGE_LIMITS.TRIAL;
   if ((current._sum.byteSize || 0) + input.data.length > limit) throw error('This upload would exceed your Media Library storage allowance.', 413);
   const folder = input.folderId ? await prisma.mediaFolder.findFirst({ where: { id: input.folderId, userId }, select: { id: true } }) : null;
   if (input.folderId && !folder) throw error('Choose a folder that belongs to this account.');
   const checksum = crypto.createHash('sha256').update(input.data).digest('hex');
-  const duplicate = await prisma.agentAsset.findFirst({ where: { userId, checksum, archivedAt: null }, include: ASSET_INCLUDE });
-  if (duplicate) return publicAsset(duplicate);
+  const duplicate = await prisma.agentAsset.findFirst({ where: { userId, checksum }, include: ASSET_INCLUDE });
+  if (duplicate) {
+    if (duplicate.archivedAt) return publicAsset(await prisma.agentAsset.update({ where: { id: duplicate.id }, data: { archivedAt: null, originalName: safeName(input.fileName) }, include: ASSET_INCLUDE }));
+    return publicAsset(duplicate);
+  }
   const metadata = await imageMetadata(mimeType, input.data);
   const created = await prisma.agentAsset.create({ data: {
     userId,
@@ -131,8 +142,8 @@ async function createFolder(userId, name) {
   try { return await prisma.mediaFolder.create({ data: { userId, name: clean }, select: { id: true, name: true } }); } catch (value) { if (value.code === 'P2002') throw error('A folder with this name already exists.', 409); throw value; }
 }
 
-async function findContent(userId, id) {
-  return prisma.agentAsset.findFirst({ where: { id, userId, status: 'READY', archivedAt: null }, select: { mimeType: true, data: true, checksum: true, originalName: true } });
+async function findContent(userId, id, options = {}) {
+  return prisma.agentAsset.findFirst({ where: { id, userId, status: 'READY', ...(options.includeArchived ? {} : { archivedAt: null }) }, select: { mimeType: true, data: true, checksum: true, originalName: true } });
 }
 
 async function rename(userId, id, fileName) {
@@ -161,4 +172,16 @@ async function archive(userId, id) {
   return true;
 }
 
-module.exports = { IMAGE_TYPES, VIDEO_TYPES, MAX_FILE_BYTES, STORAGE_LIMITS, publicAsset, verifyContentAccess, workspace, upload, createFolder, findContent, rename, duplicate, archive };
+async function restore(userId, id) {
+  const result = await prisma.agentAsset.updateMany({ where: { id, userId, archivedAt: { not: null } }, data: { archivedAt: null } });
+  if (!result.count) throw error('Trashed media asset not found.', 404);
+  return true;
+}
+
+async function purge(userId, id) {
+  const result = await prisma.agentAsset.deleteMany({ where: { id, userId, archivedAt: { not: null } } });
+  if (!result.count) throw error('Trashed media asset not found.', 404);
+  return true;
+}
+
+module.exports = { IMAGE_TYPES, VIDEO_TYPES, MAX_FILE_BYTES, TRASH_RETENTION_DAYS, STORAGE_LIMITS, publicAsset, verifyContentAccess, workspace, upload, createFolder, findContent, rename, duplicate, archive, restore, purge };

@@ -18,6 +18,9 @@ type Props = {
   onRename: AssetAction;
   onDuplicate: AssetAction;
   onDelete: AssetAction;
+  trashMode?: boolean;
+  onRestore?: AssetAction;
+  onPurge?: AssetAction;
   onUpload: () => void;
 };
 
@@ -68,11 +71,14 @@ export function MediaGrid(props: Props) {
             onDelete={() => props.onDelete(asset)}
             onDownload={() => props.onDownload(asset)}
             onDuplicate={() => props.onDuplicate(asset)}
+            onPurge={() => props.onPurge?.(asset)}
             onRename={() => props.onRename(asset)}
+            onRestore={() => props.onRestore?.(asset)}
             onSchedule={() => props.onSchedule(asset)}
             onSelect={() => props.onSelect(asset)}
             onUse={() => props.onUse(asset)}
             selected={props.selectedId === asset.id}
+            trashMode={props.trashMode}
           />
         </div>
       ))}

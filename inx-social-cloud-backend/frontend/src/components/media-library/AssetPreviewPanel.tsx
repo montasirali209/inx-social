@@ -1,4 +1,4 @@
-import { CalendarPlus, Copy, Download, Info, MoreHorizontal, Pencil, Send, Trash2, X } from "lucide-react";
+import { CalendarPlus, Copy, Download, Info, MoreHorizontal, Pencil, RotateCcw, Send, Trash2, X } from "lucide-react";
 import { platformReadiness } from "../../data/mediaLibraryData";
 import { formatBytes } from "../../lib/media-format";
 import type { MediaAsset } from "../../types/media-library";
@@ -18,6 +18,9 @@ type Props = {
   onRename: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  trashMode?: boolean;
+  onRestore?: () => void;
+  onPurge?: () => void;
 };
 
 export function AssetPreviewPanel({
@@ -29,6 +32,9 @@ export function AssetPreviewPanel({
   onRename,
   onDuplicate,
   onDelete,
+  trashMode,
+  onRestore,
+  onPurge,
 }: Props) {
   const readiness = platformReadiness(asset);
   const showInformation = () =>
@@ -88,11 +94,15 @@ export function AssetPreviewPanel({
           <MediaStatusBadge status={asset.status} />
         </div>
         <div className="mt-4 grid grid-cols-4 gap-1 border-y border-border-soft py-3">
-          {[
+          {(trashMode ? [
+            { label: "Restore", icon: RotateCcw, action: onRestore || (() => {}) },
+            { label: "Download", icon: Download, action: onDownload },
+            { label: "Delete forever", icon: Trash2, action: onPurge || (() => {}) },
+          ] : [
             { label: "Use in Post", icon: Send, action: onUse },
             { label: "Schedule", icon: CalendarPlus, action: onSchedule },
             { label: "Download", icon: Download, action: onDownload },
-          ].map(({ label, icon: Icon, action }) => (
+          ]).map(({ label, icon: Icon, action }) => (
             <button
               className="rounded-xl px-1 py-2 text-center text-[9px] text-text-muted transition hover:bg-white/5 hover:text-brand-cyan focus-visible:outline-2 focus-visible:outline-brand-cyan"
               key={label}
@@ -103,7 +113,7 @@ export function AssetPreviewPanel({
               {label}
             </button>
           ))}
-          <details className="group relative">
+          {!trashMode && <details className="group relative">
             <summary aria-label="More asset actions" className="flex cursor-pointer list-none flex-col items-center rounded-xl px-1 py-2 text-center text-[9px] text-text-muted transition hover:bg-white/5 hover:text-brand-cyan focus-visible:outline-2 focus-visible:outline-brand-cyan"><MoreHorizontal className="mb-1 size-4" />More</summary>
             <div className="notification-pop absolute right-0 top-full z-30 mt-1 w-44 rounded-xl border border-border-soft bg-panel p-1.5 shadow-panel">
               {[
@@ -113,7 +123,7 @@ export function AssetPreviewPanel({
                 { label: "Remove", icon: Trash2, action: onDelete, danger: true },
               ].map(({ label, icon: Icon, action, danger }) => <button className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] transition hover:bg-panel-hover focus-visible:outline-2 focus-visible:outline-brand-cyan ${danger ? "text-brand-red" : "text-text-muted hover:text-white"}`} key={label} onClick={(event) => { event.preventDefault(); action(); const details = event.currentTarget.closest("details"); if (details) details.open = false }} type="button"><Icon className="size-3.5" />{label}</button>)}
             </div>
-          </details>
+          </details>}
         </div>
         <section
           className="mt-4 scroll-mt-3"
@@ -201,7 +211,7 @@ export function AssetPreviewPanel({
             </p>
           )}
         </section>
-        <Button
+        {!trashMode && <Button
           className="mt-4 w-full 2xl:hidden"
           onClick={onUse}
           type="button"
@@ -209,7 +219,7 @@ export function AssetPreviewPanel({
         >
           <Send className="size-4" />
           Use in Post
-        </Button>
+        </Button>}
       </aside>
     </>
   );

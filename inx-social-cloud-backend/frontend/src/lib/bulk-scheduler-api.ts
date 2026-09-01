@@ -25,6 +25,10 @@ export function createBulkMediaPost(input: CreateDirectPostInput) {
   })
 }
 
+export function publishBulkLibraryMedia(jobId: string) {
+  return apiRequest<UploadMediaResponse & { reusableMedia: true }>(`/api/studio/direct-posts/${encodeURIComponent(jobId)}/library-media`, { method: 'POST' })
+}
+
 export function fetchFacebookScheduledPosts(connectedPageId: string) {
   return apiRequest<ScheduledPostsResponse>(`/api/studio/facebook/scheduled-posts?connectedPageId=${encodeURIComponent(connectedPageId)}`)
 }
