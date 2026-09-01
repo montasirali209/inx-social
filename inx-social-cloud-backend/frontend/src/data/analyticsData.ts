@@ -21,6 +21,21 @@ function seriesMap(analytics: FacebookAnalytics, key: string) {
   return new Map((analytics.series?.[key] || []).map((point) => [point.date, point.value]))
 }
 
+function followerActivity(analytics: FacebookAnalytics) {
+  const points = [...(analytics.series?.follows || [])].sort((left, right) => left.date.localeCompare(right.date))
+  if (points.length < 2) {
+    return {
+      daily: new Map(points.map((point) => [point.date, point.value])),
+      net: analytics.summary.follows ?? (points[0]?.value ?? null),
+    }
+  }
+  const daily = new Map<string, number>([[points[0].date, 0]])
+  for (let index = 1; index < points.length; index += 1) {
+    daily.set(points[index].date, Math.max(0, points[index].value - points[index - 1].value))
+  }
+  return { daily, net: points.at(-1)!.value - points[0].value }
+}
+
 function contentSeries(analytics: FacebookAnalytics, key: 'engagements' | 'clicks') {
   const values = new Map<string, number>()
   analytics.content.forEach((post) => {
@@ -65,7 +80,8 @@ function heatmap(analytics: FacebookAnalytics): HeatmapCell[] {
 export function buildAnalyticsView(analytics: FacebookAnalytics, days: number): AnalyticsView {
   const views = seriesMap(analytics, 'views')
   const pageEngagements = seriesMap(analytics, 'engagements')
-  const follows = seriesMap(analytics, 'follows')
+  const followers = followerActivity(analytics)
+  const follows = followers.daily
   const postEngagements = contentSeries(analytics, 'engagements')
   const clicks = contentSeries(analytics, 'clicks')
   const performance = dateKeys(days).map(({ date, label }) => ({
@@ -84,7 +100,7 @@ export function buildAnalyticsView(analytics: FacebookAnalytics, days: number): 
     { id: 'posts', label: 'Posts Published', value: analytics.summary.posts, format: 'integer', detail: `Within the selected ${days} days`, tone: 'green', sparkline: performance.map((point) => topPosts(analytics).filter((post) => post.date?.startsWith(point.date)).length) },
   ]
   const totalEngagements = analytics.summary.totalInteractions
-  const audienceGrowth = analytics.summary.follows ?? (follows.size ? [...follows.values()].reduce((sum, value) => sum + value, 0) : null)
+  const audienceGrowth = followers.net
   return { stats, performance, topPosts: topPosts(analytics), heatmap: heatmap(analytics), totalEngagements, audienceGrowth, lowData: analytics.summary.posts < 5, source: analytics }
 }
 

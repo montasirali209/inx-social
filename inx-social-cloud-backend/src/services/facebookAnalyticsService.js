@@ -172,6 +172,82 @@ async function fetchBasic(http, options) {
   };
 }
 
+function normaliseGender(value) {
+  const gender = String(value || '').trim().toLowerCase();
+  if (['f', 'female', 'women', 'woman'].includes(gender)) return 'women';
+  if (['m', 'male', 'men', 'man'].includes(gender)) return 'men';
+  return 'unknown';
+}
+
+function normaliseInstagramDemographics(data, account) {
+  const breakdowns = data?.data?.[0]?.total_value?.breakdowns || [];
+  const counts = breakdowns.flatMap(item => {
+    const ageIndex = (item.dimension_keys || []).findIndex(key => String(key).toLowerCase() === 'age');
+    const genderIndex = (item.dimension_keys || []).findIndex(key => String(key).toLowerCase() === 'gender');
+    return (item.results || []).map(row => ({
+      age: String(row.dimension_values?.[ageIndex < 0 ? 0 : ageIndex] || 'Unknown'),
+      gender: normaliseGender(row.dimension_values?.[genderIndex < 0 ? 1 : genderIndex]),
+      value: Math.max(0, Number(row.value || 0))
+    }));
+  }).filter(row => row.value > 0);
+  const total = counts.reduce((sum, row) => sum + row.value, 0);
+  return {
+    source: 'instagram_api',
+    capturedAt: new Date().toISOString(),
+    audienceSize: account.followers || total || null,
+    account,
+    ageGender: counts.map(row => ({ ...row, percentage: total > 0 ? Number((row.value / total * 100).toFixed(2)) : 0 }))
+  };
+}
+
+async function fetchInstagramDemographics(http, options) {
+  let account;
+  try {
+    const page = await graphGet(http, options.graphVersion, encodeURIComponent(options.pageId), options.accessToken, {
+      fields: 'instagram_business_account{id,username,name,profile_picture_url,followers_count}'
+    });
+    account = page.instagram_business_account ? {
+      id: String(page.instagram_business_account.id || ''),
+      username: page.instagram_business_account.username || null,
+      name: page.instagram_business_account.name || null,
+      pictureUrl: page.instagram_business_account.profile_picture_url || null,
+      followers: Number(page.instagram_business_account.followers_count || 0)
+    } : null;
+  } catch (error) {
+    if (isRateLimit(error)) rateLimitUntil = Math.max(rateLimitUntil, Date.now() + RATE_LIMIT_COOLDOWN_MS);
+    return { data: null, capability: capabilityFromError(error) };
+  }
+  if (!account?.id) {
+    return {
+      data: null,
+      capability: { state: 'not_connected', available: false, reason: 'This Facebook Page has no linked Instagram professional account.', metaCode: null }
+    };
+  }
+  try {
+    const response = await graphGet(http, options.graphVersion, `${encodeURIComponent(account.id)}/insights`, options.accessToken, {
+      metric: 'follower_demographics',
+      period: 'lifetime',
+      metric_type: 'total_value',
+      breakdown: 'age,gender',
+      timeframe: 'last_90_days'
+    });
+    const demographics = normaliseInstagramDemographics(response, account);
+    if (!demographics.ageGender.length) {
+      return {
+        data: null,
+        capability: { state: 'no_data', available: false, reason: 'Instagram returned no follower demographic breakdown for this professional account.', metaCode: null }
+      };
+    }
+    return {
+      data: demographics,
+      capability: { state: 'available', available: true, reason: 'Live follower demographics were returned by Instagram.', metaCode: null }
+    };
+  } catch (error) {
+    if (isRateLimit(error)) rateLimitUntil = Math.max(rateLimitUntil, Date.now() + RATE_LIMIT_COOLDOWN_MS);
+    return { data: null, capability: capabilityFromError(error) };
+  }
+}
+
 async function fetchInsight(http, options, candidate) {
   const { graphVersion, pageId, accessToken, since, until } = options;
   try {
@@ -348,6 +424,9 @@ async function getFacebookAnalytics(options, dependencies = {}) {
     }
     insights[candidate.key] = await fetchInsight(http, prepared, candidate);
   }
+  const instagramDemographics = rateLimitUntil > Date.now()
+    ? { data: null, capability: { state: 'rate_limited', available: false, reason: 'Further Meta checks were stopped to protect the application quota.', metaCode: null } }
+    : await fetchInstagramDemographics(http, prepared);
 
   const postInsightLimit = Math.min(50, Math.max(0, Number(options.postInsightLimit ?? DEFAULT_POST_INSIGHT_LIMIT)));
   const enriched = await mapWithConcurrency(
@@ -421,6 +500,7 @@ async function getFacebookAnalytics(options, dependencies = {}) {
           ? `${availablePostInsights} recent published post${availablePostInsights === 1 ? '' : 's'} include live Meta insights.`
           : (content.length ? 'Meta did not return post insight metrics for the connected token.' : 'There is no published content in this period to enrich.')
       },
+      instagramDemographics: instagramDemographics.capability,
       metrics: Object.fromEntries(Object.entries(insights).map(([name, item]) => [name, item.capability]))
     },
     reviewEvidence: {
@@ -457,6 +537,16 @@ async function getFacebookAnalytics(options, dependencies = {}) {
           permission: 'read_insights',
           purpose: 'Reads Page and published-post performance metrics such as media views, unique viewers and clicks.',
           verification: availableInsights > 0 || availablePostInsights > 0 ? 'verified_by_live_insights_response' : 'reconnect_required'
+        },
+        {
+          permission: 'instagram_basic',
+          purpose: 'Discovers the Instagram professional account linked to the selected Facebook Page.',
+          verification: instagramDemographics.capability.state === 'permission_required' ? 'reconnect_required' : 'connection_checked'
+        },
+        {
+          permission: 'instagram_manage_insights',
+          purpose: 'Reads live age and gender follower demographics from a linked Instagram professional account.',
+          verification: instagramDemographics.capability.available ? 'verified_by_live_insights_response' : (instagramDemographics.capability.state === 'permission_required' ? 'reconnect_required' : 'no_linked_account_or_data')
         }
       ],
       endpointChecks: [
@@ -494,7 +584,7 @@ async function getFacebookAnalytics(options, dependencies = {}) {
         'Confirm the Page identity, live content engagement, Data availability results and this Meta review evidence panel.',
         'Change the date range and refresh again to verify that INX Social requests Page analytics for the selected period.'
       ],
-      reconnectRequired: basic.contentCapability.state === 'permission_required' || insightPermissionRequired
+      reconnectRequired: basic.contentCapability.state === 'permission_required' || insightPermissionRequired || instagramDemographics.capability.state === 'permission_required'
     },
     summary: {
       followers: basic.page.followers,
@@ -516,9 +606,14 @@ async function getFacebookAnalytics(options, dependencies = {}) {
       calculationNote: 'Total interactions include reactions, comments, shares and post clicks. Unique viewers are summed per post and are not a deduplicated Page-wide audience.'
     },
     series: Object.fromEntries(Object.entries(insights).map(([name, item]) => [name, item.series])),
+    demographics: {
+      instagram: instagramDemographics.data,
+      facebookSnapshot: options.facebookDemographicsSnapshot || null
+    },
     content,
     warnings: [
       ...Object.values(insights).filter(item => !item.capability.available).map(item => `${item.label}: ${item.capability.reason}`),
+      ...(instagramDemographics.capability.state === 'permission_required' ? [`Instagram follower demographics: ${instagramDemographics.capability.reason}`] : []),
       ...content
         .filter(item => item.insightsCapability && !item.insightsCapability.available && item.insightsCapability.state !== 'not_requested')
         .map(item => `Post insights: ${item.insightsCapability.reason}`)
@@ -534,13 +629,19 @@ function resetAnalyticsState() {
   rateLimitUntil = 0;
 }
 
+function clearAnalyticsCache() {
+  analyticsCache.clear();
+}
+
 module.exports = {
   getFacebookAnalytics,
   resetAnalyticsState,
+  clearAnalyticsCache,
   capabilityFromError,
   isRateLimit,
   INSIGHT_CANDIDATES,
   POST_INSIGHT_CANDIDATES,
+  normaliseInstagramDemographics,
   DEFAULT_POST_INSIGHT_LIMIT,
   CACHE_TTL_MS,
   RATE_LIMIT_COOLDOWN_MS

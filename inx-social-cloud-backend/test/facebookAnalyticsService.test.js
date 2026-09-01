@@ -10,7 +10,7 @@ function ok(data, headers = {}) {
   return { status: 200, data, headers };
 }
 
-function mockHttp({ unsupported = [] } = {}) {
+function mockHttp({ unsupported = [], instagram = false } = {}) {
   const calls = [];
   return {
     calls,
@@ -21,6 +21,12 @@ function mockHttp({ unsupported = [] } = {}) {
           { id: 'p1', message: 'First post', created_time: '2026-08-10T10:00:00+0000', reactions: { summary: { total_count: 12 } }, comments: { summary: { total_count: 3 } }, shares: { count: 2 } },
           { id: 'p2', message: 'Second post', created_time: '2026-08-11T10:00:00+0000', reactions: { summary: { total_count: 8 } }, comments: { summary: { total_count: 1 } }, shares: { count: 1 } }
         ] });
+      }
+      if (/\/ig-1\/insights$/.test(url)) {
+        return ok({ data: [{ name: 'follower_demographics', total_value: { breakdowns: [{ dimension_keys: ['age', 'gender'], results: [
+          { dimension_values: ['25-34', 'F'], value: 60 },
+          { dimension_values: ['25-34', 'M'], value: 40 }
+        ] }] } }] });
       }
       if (/\/insights$/.test(url)) {
         const metrics = String(config.params.metric || '').split(',').filter(Boolean);
@@ -33,7 +39,7 @@ function mockHttp({ unsupported = [] } = {}) {
           { end_time: '2026-08-11T08:00:00+0000', value: 6 }
         ] })) });
       }
-      return ok({ id: 'page-1', name: 'Test Page', followers_count: 321, fan_count: 300, picture: { data: { url: 'https://example.test/page.jpg' } } });
+      return ok({ id: 'page-1', name: 'Test Page', followers_count: 321, fan_count: 300, picture: { data: { url: 'https://example.test/page.jpg' } }, ...(instagram ? { instagram_business_account: { id: 'ig-1', username: 'inx.test', followers_count: 100 } } : {}) });
     }
   };
 }
@@ -69,9 +75,21 @@ test('Facebook analytics aggregates real Page and post engagement data', async (
   assert.equal(result.reviewEvidence.endpointChecks.every(check => check.ok), true);
   assert.deepEqual(result.reviewEvidence.returnedMetrics, ['page_media_view', 'page_post_engagements', 'page_follows']);
   assert.match(result.reviewEvidence.privacy, /never returned to the browser/);
-  assert.equal(http.calls.length, 7);
+  assert.equal(http.calls.length, 8);
   assert.doesNotMatch(http.calls[0].params.fields, /tasks/);
   assert.match(result.reviewEvidence.permissionEvidence, /published content were returned/);
+});
+
+test('linked Instagram professional accounts return live follower demographics', async () => {
+  resetAnalyticsState();
+  const result = await getFacebookAnalytics({ pageId: 'page-instagram', accessToken: 'token', graphVersion: 'v25.0', days: 30 }, { http: mockHttp({ instagram: true }) });
+  assert.equal(result.capabilities.instagramDemographics.available, true);
+  assert.equal(result.demographics.instagram.source, 'instagram_api');
+  assert.equal(result.demographics.instagram.account.username, 'inx.test');
+  assert.deepEqual(result.demographics.instagram.ageGender.map(row => [row.age, row.gender, row.percentage]), [
+    ['25-34', 'women', 60],
+    ['25-34', 'men', 40]
+  ]);
 });
 
 test('missing read_insights permission is explicit and requires a fresh Page connection', async () => {

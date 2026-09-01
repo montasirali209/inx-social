@@ -14,6 +14,7 @@ router.get('/overview', controller.overview);
 router.get('/facebook/test', controller.testActivePage);
 router.get('/facebook/scheduled-posts', controller.scheduledPosts);
 router.get('/analytics/facebook', controller.facebookAnalytics);
+router.put('/analytics/facebook/demographics-snapshot', controller.saveFacebookDemographicsSnapshot);
 router.post('/post-enhancements', controller.enhancePostCaption);
 router.get('/media-library', controller.mediaLibraryWorkspace);
 router.post('/media-library/folders', controller.createMediaLibraryFolder);

@@ -88,6 +88,21 @@ export type FacebookAnalyticsContent = {
   }
 }
 
+export type AudienceDemographicRow = {
+  age: string
+  gender: 'women' | 'men' | 'unknown'
+  value: number | null
+  percentage: number
+}
+
+export type AudienceDemographics = {
+  source: 'instagram_api' | 'facebook_snapshot'
+  capturedAt: string
+  audienceSize: number | null
+  account: { id: string; name?: string | null; username?: string | null; pictureUrl?: string | null; followers?: number }
+  ageGender: AudienceDemographicRow[]
+}
+
 export type FacebookAnalytics = {
   platform: 'facebook'
   fetchedAt: string
@@ -98,6 +113,7 @@ export type FacebookAnalytics = {
     publishedContent: AnalyticsCapability
     pageInsights: AnalyticsCapability
     postInsights: AnalyticsCapability
+    instagramDemographics?: AnalyticsCapability
     metrics: Record<string, AnalyticsCapability>
   }
   summary: {
@@ -118,6 +134,10 @@ export type FacebookAnalytics = {
     calculationNote: string
   }
   series?: Record<string, Array<{ date: string; value: number }>>
+  demographics?: {
+    instagram: AudienceDemographics | null
+    facebookSnapshot: AudienceDemographics | null
+  }
   content: FacebookAnalyticsContent[]
   warnings?: string[]
   cache?: { hit: boolean; expiresAt: string }

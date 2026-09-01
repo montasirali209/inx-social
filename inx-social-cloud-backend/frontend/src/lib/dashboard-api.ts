@@ -5,6 +5,7 @@ import type {
   DashboardJob,
   DashboardViewData,
   FacebookAnalytics,
+  AudienceDemographics,
   Platform,
   PlatformMetric,
   PublishingActivityPoint,
@@ -180,6 +181,18 @@ export async function fetchFacebookDashboardAnalytics(connectedPageId: string, d
     `/api/studio/analytics/facebook?connectedPageId=${encodeURIComponent(connectedPageId)}&days=${days}${force ? '&force=true' : ''}`,
   )
   return result.analytics
+}
+
+export async function saveFacebookDemographicsSnapshot(input: {
+  connectedPageId: string
+  capturedAt: string
+  audienceSize: number | null
+  ageGender: Array<{ age: string; women: number; men: number; unknown: number }>
+}) {
+  return apiRequest<{ snapshot: AudienceDemographics }>('/api/studio/analytics/facebook/demographics-snapshot', {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  })
 }
 
 export function selectDashboardAnalyticsPage(pages: ConnectedPage[], connectedPageId?: string | null) {

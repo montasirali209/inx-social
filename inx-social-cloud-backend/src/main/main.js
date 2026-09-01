@@ -508,7 +508,9 @@ async function connectFacebookPageAuto() {
     'pages_show_list',
     'pages_read_engagement',
     'pages_manage_posts',
-    'business_management'
+    'business_management',
+    'instagram_basic',
+    'instagram_manage_insights'
   ];
 
   const authUrl = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`);

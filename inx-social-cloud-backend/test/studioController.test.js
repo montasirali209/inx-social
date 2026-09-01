@@ -17,6 +17,7 @@ const page = {
 };
 
 let createdInput = null;
+let savedPreferenceInput = null;
 const prisma = {
   metaAccount: {
     findMany: async () => [{
@@ -32,7 +33,8 @@ const prisma = {
     findUnique: async () => ({
       settingsJson: JSON.stringify({ uiTheme: 'midnight' }),
       uiTextsJson: JSON.stringify({ appSubtitle: 'Content Scheduler' })
-    })
+    }),
+    upsert: async input => { savedPreferenceInput = input; return input.update }
   },
   connectedPage: {
     findMany: async () => [page],
@@ -120,6 +122,27 @@ test('studio overview returns safe Page data without credentials', async () => {
   assert.equal(res.body.activePage.facebookPageName, 'INX Test Page');
   assert.equal(Object.hasOwn(res.body.activePage, 'encryptedAccessToken'), false);
   assert.equal(JSON.stringify(res.body).includes('must-never-be-returned'), false);
+});
+
+test('Facebook demographic snapshots are validated and stored per connected Page', async () => {
+  savedPreferenceInput = null;
+  const res = responseRecorder();
+  let forwardedError = null;
+  await controller.saveFacebookDemographicsSnapshot({
+    user: { id: 'user-1' },
+    body: {
+      connectedPageId: 'page-row-1',
+      capturedAt: '2026-09-01',
+      audienceSize: 161500,
+      ageGender: [{ age: '25-34', women: 60, men: 40, unknown: 0 }]
+    }
+  }, res, error => { forwardedError = error; });
+  assert.equal(forwardedError, null);
+  assert.equal(res.body.snapshot.source, 'facebook_snapshot');
+  assert.equal(res.body.snapshot.ageGender[0].percentage, 60);
+  const stored = JSON.parse(savedPreferenceInput.update.settingsJson);
+  assert.equal(stored.uiTheme, 'midnight');
+  assert.equal(stored.facebookAudienceSnapshots['page-row-1'].audienceSize, 161500);
 });
 
 test('desktop-shaped cloud state reuses the renderer contract without returning Meta tokens', async () => {
