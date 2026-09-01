@@ -26,4 +26,15 @@ describe('Analytics live view', () => {
     expect(formatAnalyticsValue(3.67, 'percent')).toBe('3.67%')
     expect(formatAnalyticsValue(null, 'compact')).toBe('Unavailable')
   })
+
+  it('converts cumulative Page follower totals into daily and net growth', () => {
+    const source = liveAnalytics()
+    source.series = { ...source.series, follows: [
+      { date: '2026-08-30', value: 161_000 },
+      { date: '2026-08-31', value: 161_075 },
+    ] }
+    const view = buildAnalyticsView(source, 2)
+    expect(view.performance.find((point) => point.date === '2026-08-31')?.followers).toBe(75)
+    expect(view.audienceGrowth).toBe(75)
+  })
 })

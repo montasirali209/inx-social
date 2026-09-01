@@ -11,7 +11,7 @@ const { decryptToken } = require('../utils/tokenCrypto');
 const { getLicenseStatus } = require('../services/licenseService');
 const agentAccess = require('../services/agentAccessService');
 const metaPublisher = require('../services/cloudMetaPublisher');
-const { getFacebookAnalytics } = require('../services/facebookAnalyticsService');
+const { getFacebookAnalytics, clearAnalyticsCache } = require('../services/facebookAnalyticsService');
 const postEnhancement = require('../services/postEnhancementService');
 const mediaLibrary = require('../services/mediaLibraryService');
 const {
@@ -145,6 +145,22 @@ const preferenceSchema = z.object({
     enableMotion: z.boolean().optional()
   }).optional(),
   uiTexts: z.record(z.string().max(180)).optional()
+});
+
+const facebookDemographicsSnapshotSchema = z.object({
+  connectedPageId: z.string().trim().min(1),
+  capturedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose the Facebook snapshot date.'),
+  audienceSize: z.coerce.number().int().positive().max(2_000_000_000).nullish(),
+  ageGender: z.array(z.object({
+    age: z.enum(['13-17', '18-24', '25-34', '35-44', '45-54', '55-64', '65+']),
+    women: z.coerce.number().min(0).max(100),
+    men: z.coerce.number().min(0).max(100),
+    unknown: z.coerce.number().min(0).max(100).default(0)
+  })).min(1).max(7)
+}).superRefine((input, context) => {
+  const total = input.ageGender.reduce((sum, row) => sum + row.women + row.men + row.unknown, 0);
+  if (total <= 0) context.addIssue({ code: z.ZodIssueCode.custom, path: ['ageGender'], message: 'Enter at least one demographic percentage.' });
+  if (total > 101) context.addIssue({ code: z.ZodIssueCode.custom, path: ['ageGender'], message: 'Age and gender percentages must total no more than 100%.' });
 });
 
 function parseJson(value, fallback) {
@@ -580,6 +596,8 @@ async function facebookAnalytics(req, res, next) {
   try {
     await requireStudioLicense(req.user.id);
     page = await resolvePage(req.user.id, req.query.connectedPageId, true);
+    const preference = await prisma.cloudPreference.findUnique({ where: { userId: req.user.id } });
+    const settings = parseJson(preference?.settingsJson, {});
     const days = Math.min(90, Math.max(7, Number(req.query.days || 30)));
     const force = String(req.query.force || '') === 'true';
     const result = await getFacebookAnalytics({
@@ -588,7 +606,8 @@ async function facebookAnalytics(req, res, next) {
       graphVersion: DEFAULT_SETTINGS.graphVersion,
       days,
       force,
-      cacheScope: req.user.id
+      cacheScope: req.user.id,
+      facebookDemographicsSnapshot: settings.facebookAudienceSnapshots?.[page.id] || null
     });
     await Promise.all([
       prisma.connectedPage.updateMany({
@@ -608,6 +627,38 @@ async function facebookAnalytics(req, res, next) {
         }
       }).catch(() => {});
     }
+    next(error);
+  }
+}
+
+async function saveFacebookDemographicsSnapshot(req, res, next) {
+  try {
+    await requireStudioLicense(req.user.id);
+    const input = facebookDemographicsSnapshotSchema.parse(req.body || {});
+    const page = await resolvePage(req.user.id, input.connectedPageId, true);
+    const current = await prisma.cloudPreference.findUnique({ where: { userId: req.user.id } });
+    const settings = parseJson(current?.settingsJson, {});
+    const ageGender = input.ageGender.flatMap(row => [
+      { age: row.age, gender: 'women', value: null, percentage: row.women },
+      { age: row.age, gender: 'men', value: null, percentage: row.men },
+      ...(row.unknown > 0 ? [{ age: row.age, gender: 'unknown', value: null, percentage: row.unknown }] : [])
+    ]).filter(row => row.percentage > 0);
+    const snapshot = {
+      source: 'facebook_snapshot',
+      capturedAt: `${input.capturedAt}T00:00:00.000Z`,
+      audienceSize: input.audienceSize || null,
+      account: { id: page.facebookPageId, name: page.facebookPageName },
+      ageGender
+    };
+    const facebookAudienceSnapshots = { ...(settings.facebookAudienceSnapshots || {}), [page.id]: snapshot };
+    await prisma.cloudPreference.upsert({
+      where: { userId: req.user.id },
+      create: { userId: req.user.id, settingsJson: JSON.stringify({ ...settings, facebookAudienceSnapshots }) },
+      update: { settingsJson: JSON.stringify({ ...settings, facebookAudienceSnapshots }) }
+    });
+    clearAnalyticsCache();
+    res.json({ snapshot });
+  } catch (error) {
     next(error);
   }
 }
@@ -1358,6 +1409,7 @@ module.exports = {
   capabilities,
   desktopState,
   facebookAnalytics,
+  saveFacebookDemographicsSnapshot,
   savePreferences,
   resetUiTexts,
   overview,
