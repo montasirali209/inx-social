@@ -104,6 +104,35 @@ test('X linking exchanges PKCE securely and stores a read-only profile', async t
   assert.deepEqual(JSON.parse(profileRows[0].capabilitiesJson), { identity: true, publish: false, analytics: false, readonly: true });
 });
 
+test('YouTube linking follows channel pagination and stores every returned channel', async t => {
+  connectionRow = null;
+  profileRows = [];
+  process.env.APP_URL = 'https://social.example.test';
+  process.env.GOOGLE_CLIENT_ID = 'google-client';
+  process.env.GOOGLE_CLIENT_SECRET = 'google-secret';
+  const start = service.authorization('youtube', 'user-1');
+  const state = new URL(start.authorizationUrl).searchParams.get('state');
+  t.mock.method(axios, 'post', async (url) => {
+    assert.equal(url, 'https://oauth2.googleapis.com/token');
+    return { data: { access_token: 'youtube-access', refresh_token: 'youtube-refresh', expires_in: 3600 } };
+  });
+  t.mock.method(axios, 'get', async (url, options) => {
+    if (url === 'https://openidconnect.googleapis.com/v1/userinfo') {
+      return { data: { sub: 'google-user-1', name: 'Channel Owner', email: 'owner@example.test' } };
+    }
+    assert.equal(url, 'https://www.googleapis.com/youtube/v3/channels');
+    assert.equal(options.params.maxResults, 50);
+    if (!options.params.pageToken) return { data: { items: [{ id: 'channel-1', snippet: { title: 'Channel One' }, statistics: {} }], nextPageToken: 'second-page' } };
+    assert.equal(options.params.pageToken, 'second-page');
+    return { data: { items: [{ id: 'channel-2', snippet: { title: 'Channel Two' }, statistics: {} }] } };
+  });
+
+  const result = await service.completeOAuth('youtube', { code: 'youtube-code', state });
+  assert.equal(result.platform, 'youtube');
+  assert.deepEqual(profileRows.map(row => row.externalProfileId).sort(), ['channel-1', 'channel-2']);
+  assert.equal(profileRows.filter(row => row.isDefault).length, 1);
+});
+
 test('Instagram linking stores encrypted read/insight access without claiming publishing', async t => {
   connectionRow = null;
   profileRows = [];

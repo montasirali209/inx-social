@@ -3839,7 +3839,11 @@ function renderSocialConnectionsV2() {
 
 function socialConnectionCardMarkup(connection) {
   const profiles = (connection.profiles || []).filter(profile => profile.status === 'ACTIVE');
-  const profile = profiles.find(item => item.isDefault) || profiles[0] || {};
+  const orderedProfiles = profiles.length ? [...profiles].sort((left, right) => Number(Boolean(right.isDefault)) - Number(Boolean(left.isDefault))) : [{}];
+  return orderedProfiles.map((profile, index) => socialConnectionProfileCardMarkup(connection, profile, index, orderedProfiles.length)).join('');
+}
+
+function socialConnectionProfileCardMarkup(connection, profile, index, profileCount) {
   const label = socialPlatformLabel(connection.platform);
   const displayName = profile.displayName || connection.displayName || `${label} account`;
   const identity = profile.username
@@ -3848,7 +3852,7 @@ function socialConnectionCardMarkup(connection) {
   const extras = [];
   if (profile.capabilities?.analytics) extras.push('Insights linked');
   if (profile.capabilities?.readonly) extras.push('Read-only');
-  if (profiles.length > 1) extras.push(`${profiles.length} channels`);
+  if (profileCount > 1) extras.push(`Channel ${index + 1} of ${profileCount}`);
   if (!extras.length) extras.push('Identity linked');
   const avatar = profile.avatarUrl
     ? `<img src="${escapeHtml(profile.avatarUrl)}" alt="">`

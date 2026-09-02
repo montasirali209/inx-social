@@ -31,6 +31,7 @@ test('Phase 13.4 uses live cloud and selected-Page Meta data without sample cale
   const api = read('frontend/src/lib/calendar-api.ts');
   const page = read('frontend/src/components/calendar/ContentCalendarPage.tsx');
   const bestTime = read('frontend/src/components/calendar/BestTimeCard.tsx');
+  const toolbar = read('frontend/src/components/calendar/CalendarToolbar.tsx');
 
   assert.match(api, /\/api\/studio\/overview/);
   assert.match(api, /calendarFetchRange/);
@@ -39,7 +40,11 @@ test('Phase 13.4 uses live cloud and selected-Page Meta data without sample cale
   assert.match(api, /pagesToSync = selectedPageId/);
   assert.match(page, /syncWarnings/);
   assert.match(page, /monthKey.*queryKey|queryKey: \['content-calendar', timezone, pageId, monthKey\]/);
-  assert.match(bestTime, /Analytics required/);
+  assert.match(page, /fetchFacebookDashboardAnalytics/);
+  assert.match(page, /calculateBestPostTime/);
+  assert.match(bestTime, /Use \{insight\.time\}/);
+  assert.doesNotMatch(bestTime, /Analytics required/);
+  assert.match(toolbar, /relative z-30/);
   assert.doesNotMatch(`${api}${page}`, /Product Update|Customer Story|Industry Insight|May 12, 2025/);
 });
 
