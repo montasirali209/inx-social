@@ -75,7 +75,7 @@ export function CalendarFilterMenu<T extends string>({ kind, value, options, onC
       <ChevronDown aria-hidden="true" className={`size-3.5 text-text-muted transition ${open ? 'rotate-180' : ''}`} />
     </button>
 
-    {open ? <div className="absolute left-0 top-[calc(100%+.55rem)] z-50 w-full min-w-[250px] rounded-2xl border border-white/10 bg-[#061721]/98 p-2 shadow-[0_28px_80px_rgba(0,0,0,.58)] backdrop-blur-xl" role="listbox">
+    {open ? <div className="absolute left-0 top-[calc(100%+.55rem)] z-50 w-full min-w-[250px] rounded-2xl border border-white/12 bg-[#061721] p-2 shadow-[0_28px_80px_rgba(0,0,0,.72)]" role="listbox">
       <div className="px-2 pb-2 pt-1">
         <p className="text-[10px] font-bold uppercase tracking-[.14em] text-text-soft">Filter by {tone.eyebrow.toLowerCase()}</p>
       </div>

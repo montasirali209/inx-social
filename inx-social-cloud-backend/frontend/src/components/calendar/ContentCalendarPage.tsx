@@ -4,9 +4,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { ApiError } from '../../lib/api-client'
 import { fetchCalendarData } from '../../lib/calendar-api'
 import { availableSlotsForDate, buildCalendarDays, formatMonth, monthKeyInTimezone, shiftMonth } from '../../lib/calendar-utils'
+import { fetchFacebookDashboardAnalytics } from '../../lib/dashboard-api'
+import { calculateBestPostTime } from '../../lib/posts-analytics'
 import { useUiStore } from '../../store/ui-store'
 import type { CalendarPostStatus } from '../../types/calendar'
 import type { Platform } from '../../types/dashboard'
+import type { BestTimeInsight } from '../../types/posts'
 import { CalendarAgenda } from './CalendarAgenda'
 import { CalendarGrid } from './CalendarGrid'
 import { CalendarStatCard } from './CalendarStatCard'
@@ -55,6 +58,24 @@ export function ContentCalendarPage() {
   const days = useMemo(() => buildCalendarDays(monthKey, visiblePosts, selectedDate, todayKey), [monthKey, selectedDate, todayKey, visiblePosts])
   const selectedPosts = useMemo(() => visiblePosts.filter((post) => post.date === selectedDate).sort((left, right) => left.time.localeCompare(right.time)), [selectedDate, visiblePosts])
   const slots = useMemo(() => availableSlotsForDate(calendar.data?.posts || [], selectedDate), [calendar.data?.posts, selectedDate])
+  const recommendationPage = useMemo(() => {
+    const pages = calendar.data?.pages || []
+    const savedAnalyticsPage = window.localStorage.getItem('inx-social-analytics-account-v1') || ''
+    const preferredId = pageId || savedAnalyticsPage || selectedPosts[0]?.pageId || ''
+    return pages.find((page) => page.id === preferredId) || pages[0] || null
+  }, [calendar.data?.pages, pageId, selectedPosts])
+  const recommendationAnalytics = useQuery({
+    queryKey: ['analytics-workspace', recommendationPage?.id, 90],
+    queryFn: () => fetchFacebookDashboardAnalytics(recommendationPage!.id, 90),
+    enabled: Boolean(recommendationPage),
+    retry: 1,
+    staleTime: 10 * 60_000,
+  })
+  const bestTime = useMemo<BestTimeInsight>(() => {
+    if (!recommendationPage) return { available: false, label: 'Choose a destination', time: null, detail: 'Connect or select a Page to calculate its strongest publishing time.' }
+    if (recommendationAnalytics.isError) return { available: false, label: 'Analytics unavailable', time: null, detail: `Live timing data for ${recommendationPage.facebookPageName} could not be loaded.` }
+    return calculateBestPostTime(recommendationAnalytics.data)
+  }, [recommendationAnalytics.data, recommendationAnalytics.isError, recommendationPage])
 
   const chooseDate = (date: string) => { setSelectedDate(date); setSelectedTime('') }
   const chooseMonth = (offset: number) => { const next = shiftMonth(monthKey, offset); setMonthKey(next); chooseDate(`${next}-01`) }
@@ -72,7 +93,7 @@ export function ContentCalendarPage() {
     {calendar.data.syncWarnings.length > 0 && <div className="mb-4 flex items-start gap-2 rounded-xl border border-brand-amber/20 bg-brand-amber/5 px-3 py-2 text-[10px] leading-4 text-text-muted"><AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-brand-amber" /><span>INX Social loaded saved calendar data. {calendar.data.syncWarnings.length} connected Page schedule could not be refreshed from Meta during this request.</span></div>}
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
       {view === 'calendar' ? <CalendarGrid days={days} monthLabel={formatMonth(monthKey)} onSelectDate={chooseDate} onSelectPost={(post) => chooseDate(post.date)} onToday={chooseToday} /> : <CalendarAgenda onSelectDate={chooseDate} onSelectPost={(post) => chooseDate(post.date)} posts={monthPosts} />}
-      <SelectedDatePanel date={selectedDate} onSelectTime={setSelectedTime} posts={selectedPosts} selectedTime={selectedTime} slots={slots} />
+      <SelectedDatePanel bestTime={bestTime} bestTimeLoading={recommendationAnalytics.isLoading} date={selectedDate} onSelectTime={setSelectedTime} posts={selectedPosts} selectedTime={selectedTime} slots={slots} />
     </div>
   </div>
 }

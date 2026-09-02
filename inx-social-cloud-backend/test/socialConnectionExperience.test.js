@@ -17,6 +17,8 @@ test('Connected Accounts exposes real Instagram, LinkedIn, YouTube, and X linkin
   assert.match(adapter, /\/api\/social-connections\/oauth\/\$\{encodeURIComponent\(normalized\)\}\/start/);
   assert.match(adapter, /\/api\/social-connections\/instagram\/sync/);
   assert.match(html, /Linking does not enable publishing/);
+  assert.match(app, /orderedProfiles\.map/);
+  assert.match(app, /Channel \$\{index \+ 1\} of \$\{profileCount\}/);
 });
 
 test('social OAuth callback is public while account management remains authenticated', () => {

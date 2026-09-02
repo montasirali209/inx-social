@@ -220,14 +220,10 @@ async function connectYouTube(userId, code) {
   const headers = { Authorization: `Bearer ${token.access_token}` };
   const [identityResponse, channelsResponse] = await Promise.all([
     axios.get('https://openidconnect.googleapis.com/v1/userinfo', { headers, timeout: 20000 }),
-    axios.get('https://www.googleapis.com/youtube/v3/channels', {
-      headers,
-      params: { part: 'id,snippet,statistics', mine: 'true', maxResults: 50 },
-      timeout: 20000
-    })
+    fetchYouTubeChannels(headers)
   ]);
   const identity = identityResponse.data || {};
-  const channels = channelsResponse.data?.items || [];
+  const channels = channelsResponse;
   if (!identity.sub) throw new Error('Google did not return an account identity.');
   if (!channels.length) throw Object.assign(new Error('No YouTube channel was found for this Google account.'), { status: 400 });
   let result = null;
@@ -258,6 +254,28 @@ async function connectYouTube(userId, code) {
     });
   }
   return result;
+}
+
+async function fetchYouTubeChannels(headers) {
+  const channels = [];
+  const channelIds = new Set();
+  const visitedPageTokens = new Set();
+  let pageToken = null;
+  do {
+    const params = { part: 'id,snippet,statistics', mine: 'true', maxResults: 50 };
+    if (pageToken) params.pageToken = pageToken;
+    const response = await axios.get('https://www.googleapis.com/youtube/v3/channels', { headers, params, timeout: 20000 });
+    for (const channel of response.data?.items || []) {
+      if (!channel?.id || channelIds.has(String(channel.id))) continue;
+      channelIds.add(String(channel.id));
+      channels.push(channel);
+    }
+    const nextPageToken = String(response.data?.nextPageToken || '');
+    if (!nextPageToken || visitedPageTokens.has(nextPageToken) || channels.length >= 200) break;
+    visitedPageTokens.add(nextPageToken);
+    pageToken = nextPageToken;
+  } while (pageToken);
+  return channels;
 }
 
 async function connectX(userId, code, statePayload) {
