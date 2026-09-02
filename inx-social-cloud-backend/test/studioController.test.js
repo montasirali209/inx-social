@@ -166,6 +166,8 @@ test('settings workspace returns validated defaults and live account usage witho
   }, res, error => { forwardedError = error; });
   assert.equal(forwardedError, null);
   assert.equal(res.body.settings.workspaceName, 'INX Social');
+  assert.deepEqual(res.body.settings.defaultScheduleTimes, ['10:00']);
+  assert.equal(typeof res.body.account.emailDeliveryConfigured, 'boolean');
   assert.equal(res.body.settings.uiTheme, 'midnight');
   assert.equal(res.body.account.license.plan, 'STARTER');
   assert.equal(res.body.account.pageUsage.connected, 1);
@@ -182,7 +184,6 @@ test('settings preferences persist the responsive workspace controls', async () 
     user: { id: 'user-1' },
     body: {
       settings: {
-        workspaceName: 'INX Social Team',
         timezone: 'Europe/London',
         language: 'en-GB',
         defaultPublishMode: 'scheduled',
@@ -190,6 +191,7 @@ test('settings preferences persist the responsive workspace controls', async () 
         captionLengthReminder: true,
         postingWindow: '07:00-22:00',
         queueBehavior: 'fill-empty',
+        defaultScheduleTimes: ['18:30', '09:00', '18:30'],
         retryFailedPosts: true,
         aiDefaultQuality: 'high',
         brandTone: 'professional',
@@ -202,9 +204,10 @@ test('settings preferences persist the responsive workspace controls', async () 
   }, res, error => { forwardedError = error; });
   assert.equal(forwardedError, null);
   const stored = JSON.parse(savedPreferenceInput.update.settingsJson);
-  assert.equal(stored.workspaceName, 'INX Social Team');
+  assert.equal(Object.hasOwn(stored, 'workspaceName'), false);
   assert.equal(stored.approvalRequired, true);
   assert.equal(stored.defaultPublishMode, 'scheduled');
+  assert.deepEqual(stored.defaultScheduleTimes, ['09:00', '18:30']);
   assert.equal(res.body.settings.mediaAutoSave, true);
 });
 

@@ -1,5 +1,6 @@
 import { FileText, HardDrive, Images, Play, RotateCcw, UploadCloud } from 'lucide-react'
 import { useRef } from 'react'
+import { Link } from 'react-router-dom'
 import type { SelectedMedia, TimingMode } from '../../types/bulk-scheduler'
 import { Button } from '../ui/Button'
 import { CaptionInput } from './CaptionInput'
@@ -13,8 +14,9 @@ type Props = {
   captionCount: number
   timingMode: TimingMode | ''
   scheduleDate: string
-  scheduleTime: string
   scheduleTimes: string[]
+  savedScheduleTimes: string[]
+  timezone: string
   selectedDestinations: number
   useFallback: boolean
   retainMedia: boolean
@@ -26,7 +28,6 @@ type Props = {
   onCaptionsChange: (value: string) => void
   onTimingModeChange: (value: TimingMode) => void
   onScheduleDateChange: (value: string) => void
-  onScheduleTimeChange: (value: string) => void
   onScheduleTimeAdd: (value: string) => void
   onScheduleTimeRemove: (value: string) => void
   onFallbackChange: (value: boolean) => void
@@ -38,7 +39,7 @@ type Props = {
 export function UploadBatchPanel(props: Props) {
   const mediaInput = useRef<HTMLInputElement>(null)
   const captionInput = useRef<HTMLInputElement>(null)
-  const needsDate = props.timingMode === 'schedule_time' || props.timingMode === 'spread_across_days'
+  const needsDate = props.timingMode === 'schedule_time' || props.timingMode === 'saved_schedule'
   const exceedsLibraryLimit = props.media.some((item) => item.file.size > 100 * 1024 * 1024)
   return (
     <section aria-labelledby="upload-batch-title" className="interactive-surface rounded-panel border p-4 sm:p-5">
@@ -55,16 +56,16 @@ export function UploadBatchPanel(props: Props) {
         </div>
       </div>
 
-      <div className={`mt-4 grid gap-4 ${props.timingMode === 'schedule_time' ? '' : 'lg:grid-cols-2'}`}>
+      <div className={`mt-4 grid gap-4 ${needsDate ? '' : 'lg:grid-cols-2'}`}>
         <TimingModeSelect onChange={props.onTimingModeChange} value={props.timingMode} />
         {needsDate ? (
           <div className="grid gap-2 sm:grid-cols-[minmax(0,.72fr)_minmax(0,1.28fr)]">
             <label><span className="mb-1.5 block text-xs font-medium text-text-muted">Start date</span><input className="min-h-11 w-full rounded-xl border border-border-soft bg-bg/65 px-3 text-sm focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/20" disabled={props.running} onChange={(event) => props.onScheduleDateChange(event.target.value)} type="date" value={props.scheduleDate} /></label>
             {props.timingMode === 'schedule_time'
               ? <DailyTimeSelector disabled={props.running} onAdd={props.onScheduleTimeAdd} onRemove={props.onScheduleTimeRemove} times={props.scheduleTimes} />
-              : <label><span className="mb-1.5 block text-xs font-medium text-text-muted">Publishing time</span><input className="min-h-11 w-full rounded-xl border border-border-soft bg-bg/65 px-3 text-sm focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/20" disabled={props.running} onChange={(event) => props.onScheduleTimeChange(event.target.value)} type="time" value={props.scheduleTime} /></label>}
+              : <div><span className="mb-1.5 block text-xs font-medium text-text-muted">Saved posting times</span><div className="flex min-h-11 flex-wrap items-center gap-1.5 rounded-xl border border-border-soft bg-bg/40 px-3 py-2">{props.savedScheduleTimes.map((time) => <span className="rounded-lg border border-brand-teal/20 bg-brand-teal/8 px-2.5 py-1 text-xs font-semibold text-brand-cyan" key={time}>{time}</span>)}</div><p className="mt-1.5 text-[10px] leading-4 text-text-soft">Account timezone: {props.timezone.replaceAll('_', ' ')} · <Link className="text-brand-cyan hover:underline" to="/settings">Change saved times</Link></p></div>}
           </div>
-        ) : <div className="flex min-h-11 items-end text-xs leading-5 text-text-muted">{props.timingMode === 'publish_now' ? 'Videos publish after each upload is accepted and verified by Meta.' : props.timingMode === 'next_available_slots' ? 'The browser finds the next free 30-minute slots across the selected Pages.' : 'Choose a timing mode to continue.'}</div>}
+        ) : <div className="flex min-h-11 items-end text-xs leading-5 text-text-muted">{props.timingMode === 'publish_now' ? 'Each image or video publishes after Meta accepts the upload.' : 'Choose when this batch should publish.'}</div>}
       </div>
 
       <div className="mt-4"><CaptionInput captionCount={props.captionCount} mediaCount={props.media.length} onChange={props.onCaptionsChange} onFallbackChange={props.onFallbackChange} useFallback={props.useFallback} value={props.captions} /></div>

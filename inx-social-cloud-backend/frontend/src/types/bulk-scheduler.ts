@@ -1,4 +1,5 @@
 import type { BackendJobStatus, ConnectedPage, DashboardJob } from './dashboard'
+import type { SettingsValues } from './settings'
 
 export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'youtube' | 'x'
 
@@ -27,9 +28,7 @@ export type Destination = {
 export type TimingMode =
   | 'publish_now'
   | 'schedule_time'
-  | 'next_available_slots'
-  | 'spread_across_days'
-  | 'best_engagement_time'
+  | 'saved_schedule'
 
 export type UploadStatus = 'waiting' | 'uploading' | 'published' | 'scheduled' | 'failed' | 'blocked'
 
@@ -91,6 +90,7 @@ export type BulkSchedulerData = {
   pages: ConnectedPage[]
   platforms: PlatformDefinition[]
   jobs: DashboardJob[]
+  settings: Pick<SettingsValues, 'approvalRequired' | 'defaultScheduleTimes' | 'timezone'>
 }
 
 export function backendStatusToUploadStatus(status: BackendJobStatus): UploadStatus {

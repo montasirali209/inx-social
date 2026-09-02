@@ -3,7 +3,7 @@ import { Check, LockKeyhole, RotateCcw, Save, Search, ShieldCheck } from 'lucide
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { connectionSummary, settingsCards, settingsEqual } from '../../data/settingsData'
-import { fetchSettingsWorkspace, openBillingPortal, saveSettings } from '../../lib/settings-api'
+import { fetchSettingsWorkspace, saveSettings } from '../../lib/settings-api'
 import { useUiStore } from '../../store/ui-store'
 import type { SettingsCardData, SettingsValues } from '../../types/settings'
 import { Button } from '../ui/Button'
@@ -71,7 +71,7 @@ export function SettingsPage() {
     return [...values]
   }, [workspace.data])
 
-  function changeSetting(key: keyof SettingsValues, value: string | boolean) {
+  function changeSetting(key: keyof SettingsValues, value: string | boolean | string[]) {
     setChanges((current) => ({ ...current, [key]: value }))
     if (key === 'timezone' && typeof value === 'string') setTimezone(value)
   }
@@ -84,16 +84,8 @@ export function SettingsPage() {
   }
 
   async function cardAction(card: SettingsCardData) {
-    if (card.id === 'publishing') return navigate('/posts')
-    if (card.id === 'scheduler') return navigate('/bulk-scheduler')
-    if (card.id === 'ai_content') return window.location.assign('/studio/?view=agent')
     if (card.id === 'connected_accounts') return navigate('/connected-accounts')
-    if (card.id === 'billing') {
-      try { await openBillingPortal() } catch (error) { showNotice({ tone: 'error', message: error instanceof Error ? error.message : 'Billing portal could not be opened.' }) }
-      return
-    }
-    const target = card.id === 'notifications' ? 'emailAlerts' : 'workspaceName'
-    document.getElementById(target)?.focus()
+    if (card.id === 'billing') window.location.assign('/portal/#overview')
   }
 
   if (workspace.isLoading) return <SettingsSkeleton />
@@ -116,7 +108,7 @@ export function SettingsPage() {
         <div className="flex items-center gap-2 text-xs text-text-muted"><ShieldCheck aria-hidden="true" className="size-4 text-brand-teal" /><span>{dirty ? 'You have unsaved changes.' : 'All settings are up to date.'}</span></div>
         <div className="grid gap-2 sm:flex">
           <Button className="w-full sm:w-auto" disabled={!dirty || mutation.isPending} onClick={discardChanges} type="button" variant="secondary"><RotateCcw aria-hidden="true" className="size-4" />Discard changes</Button>
-          <Button className="w-full sm:w-auto" disabled={!dirty || mutation.isPending || !draft.workspaceName.trim()} onClick={() => mutation.mutate(draft)} type="button" variant="primary"><Save aria-hidden="true" className="size-4" />{mutation.isPending ? 'Saving…' : 'Save changes'}</Button>
+          <Button className="w-full sm:w-auto" disabled={!dirty || mutation.isPending || !draft.defaultScheduleTimes.length} onClick={() => mutation.mutate(draft)} type="button" variant="primary"><Save aria-hidden="true" className="size-4" />{mutation.isPending ? 'Saving…' : 'Save changes'}</Button>
         </div>
       </section>
 

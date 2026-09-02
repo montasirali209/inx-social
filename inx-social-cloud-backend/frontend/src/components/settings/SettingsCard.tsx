@@ -36,7 +36,7 @@ type Props = {
   card: SettingsCardData
   connectedPlatforms?: string[]
   onAction: (card: SettingsCardData) => void
-  onChange: (key: keyof SettingsValues, value: string | boolean) => void
+  onChange: (key: keyof SettingsValues, value: string | boolean | string[]) => void
 }
 
 export function SettingsCard({ card, connectedPlatforms = [], onAction, onChange }: Props) {
@@ -65,9 +65,9 @@ export function SettingsCard({ card, connectedPlatforms = [], onAction, onChange
         {card.rows.map((row) => <SettingRow key={row.id} onChange={onChange} row={row} />)}
       </div>
 
-      <button className="flex min-h-12 w-full items-center justify-between border-t border-border-soft px-4 text-left text-sm font-medium text-text-main transition hover:bg-brand-teal/7 hover:text-brand-cyan focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-cyan sm:px-5" onClick={() => onAction(card)} type="button">
+      {card.actionLabel && <button className="flex min-h-12 w-full items-center justify-between border-t border-border-soft px-4 text-left text-sm font-medium text-text-main transition hover:bg-brand-teal/7 hover:text-brand-cyan focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-cyan sm:px-5" onClick={() => onAction(card)} type="button">
         <span>{card.actionLabel}</span><ChevronRight aria-hidden="true" className="size-4 transition group-hover:translate-x-0.5" />
-      </button>
+      </button>}
     </section>
   )
 }

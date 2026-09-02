@@ -8,14 +8,23 @@ import type {
   UploadMediaResponse,
 } from '../types/bulk-scheduler'
 import type { CreateDirectPostInput, DirectPostResponse } from '../types/posts'
+import type { SettingsValues } from '../types/settings'
+import { normaliseSettings } from '../data/settingsData'
 
 export async function fetchBulkSchedulerData(): Promise<BulkSchedulerData> {
-  const [pageResult, platformResult, jobResult] = await Promise.all([
+  const [pageResult, platformResult, jobResult, preferenceResult] = await Promise.all([
     apiRequest<ConnectedPagesResponse>('/api/pages'),
     apiRequest<StudioPlatformsResponse>('/api/social-platforms'),
     apiRequest<StudioJobsResponse>('/api/studio/jobs?limit=250'),
+    apiRequest<{ settings: Partial<SettingsValues> }>('/api/studio/preferences'),
   ])
-  return { pages: pageResult.pages, platforms: platformResult.platforms, jobs: jobResult.jobs }
+  const settings = normaliseSettings(preferenceResult.settings)
+  return {
+    pages: pageResult.pages,
+    platforms: platformResult.platforms,
+    jobs: jobResult.jobs,
+    settings: { approvalRequired: settings.approvalRequired, defaultScheduleTimes: settings.defaultScheduleTimes, timezone: settings.timezone },
+  }
 }
 
 export function createBulkMediaPost(input: CreateDirectPostInput) {

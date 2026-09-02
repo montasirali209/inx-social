@@ -14,6 +14,7 @@ const metaPublisher = require('../services/cloudMetaPublisher');
 const { getFacebookAnalytics, clearAnalyticsCache } = require('../services/facebookAnalyticsService');
 const postEnhancement = require('../services/postEnhancementService');
 const mediaLibrary = require('../services/mediaLibraryService');
+const emailService = require('../services/emailService');
 const {
   JOB_STATUS,
   ASSET_STATUS,
@@ -50,6 +51,7 @@ const DEFAULT_SETTINGS = {
   captionLengthReminder: true,
   postingWindow: '07:00-22:00',
   queueBehavior: 'fill-empty',
+  defaultScheduleTimes: ['10:00'],
   retryFailedPosts: true,
   aiDefaultQuality: 'high',
   brandTone: 'professional',
@@ -146,7 +148,6 @@ const updateSchema = z.object({
 
 const preferenceSchema = z.object({
   settings: z.object({
-    workspaceName: z.string().trim().min(2).max(80).optional(),
     timezone: z.string().trim().min(1).max(100).optional(),
     language: z.enum(['en-GB', 'en-US']).optional(),
     defaultPublishMode: z.enum(['direct', 'scheduled', 'draft']).optional(),
@@ -154,6 +155,7 @@ const preferenceSchema = z.object({
     captionLengthReminder: z.boolean().optional(),
     postingWindow: z.enum(['07:00-22:00', '08:00-20:00', 'always']).optional(),
     queueBehavior: z.enum(['fill-empty', 'preserve-order', 'next-available']).optional(),
+    defaultScheduleTimes: z.array(z.string().regex(/^\d{2}:\d{2}$/)).min(1).max(12).transform(times => [...new Set(times)].sort()).optional(),
     retryFailedPosts: z.boolean().optional(),
     aiDefaultQuality: z.enum(['fast', 'high', 'premium']).optional(),
     brandTone: z.enum(['professional', 'friendly', 'energetic', 'concise']).optional(),
@@ -603,7 +605,8 @@ async function preferences(req, res, next) {
           email: req.user.email
         },
         license,
-        pageUsage: workspace.pageUsage || null
+        pageUsage: workspace.pageUsage || null,
+        emailDeliveryConfigured: emailService.isConfigured()
       },
       pages: workspace.pages || []
     });
