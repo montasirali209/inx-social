@@ -7,12 +7,15 @@ export const analyticsTabs = [
   ['competitors', 'Competitors'], ['reports', 'Reports'],
 ] as const
 
-function dateKeys(days: number) {
-  const formatter = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' })
+function dateKeys(days: number, anchorDate: string) {
+  const formatter = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+  const anchor = new Date(anchorDate)
+  const anchorTime = Number.isNaN(anchor.getTime()) ? Date.now() : anchor.getTime()
+  const end = new Date(anchorTime)
+  end.setUTCHours(0, 0, 0, 0)
   return Array.from({ length: days }, (_, index) => {
-    const date = new Date()
-    date.setHours(0, 0, 0, 0)
-    date.setDate(date.getDate() - (days - index - 1))
+    const date = new Date(end)
+    date.setUTCDate(end.getUTCDate() - (days - index - 1))
     return { date: date.toISOString().slice(0, 10), label: formatter.format(date) }
   })
 }
@@ -84,7 +87,7 @@ export function buildAnalyticsView(analytics: FacebookAnalytics, days: number): 
   const follows = followers.daily
   const postEngagements = contentSeries(analytics, 'engagements')
   const clicks = contentSeries(analytics, 'clicks')
-  const performance = dateKeys(days).map(({ date, label }) => ({
+  const performance = dateKeys(days, analytics.fetchedAt).map(({ date, label }) => ({
     date, label,
     views: views.get(date) || 0,
     engagements: pageEngagements.get(date) ?? postEngagements.get(date) ?? 0,
