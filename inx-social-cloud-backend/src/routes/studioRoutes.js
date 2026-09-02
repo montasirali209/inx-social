@@ -8,6 +8,7 @@ router.use(requireAuth);
 router.get('/capabilities', controller.capabilities);
 router.get('/desktop-state', controller.desktopState);
 router.get('/pages/:id/picture', controller.pagePicture);
+router.get('/preferences', controller.preferences);
 router.put('/preferences', controller.savePreferences);
 router.post('/preferences/reset-ui-texts', controller.resetUiTexts);
 router.get('/overview', controller.overview);

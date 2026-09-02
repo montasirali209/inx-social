@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, Menu, RefreshCw } from 'lucide-react'
+import { ChevronDown, Menu, RefreshCw, Search } from 'lucide-react'
 import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import type { StudioOverview } from '../../types/dashboard'
@@ -32,6 +32,14 @@ const workspaceRoutes = {
     title: 'Analytics',
     subtitle: 'Track performance, engagement and growth across your connected platforms.',
   },
+  '/settings': {
+    title: 'Settings',
+    subtitle: 'Control your workspace, publishing, scheduling and account preferences.',
+  },
+  '/connected-accounts': {
+    title: 'Connected Accounts',
+    subtitle: 'Connect social platforms, review sync health and manage every publishing destination.',
+  },
 } as const
 
 function initials(name: string) {
@@ -49,11 +57,14 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
   const setOpen = useUiStore((state) => state.setMobileNavigationOpen)
   const timezone = useUiStore((state) => state.timezone)
   const setTimezone = useUiStore((state) => state.setTimezone)
+  const settingsSearch = useUiStore((state) => state.settingsSearch)
+  const setSettingsSearch = useUiStore((state) => state.setSettingsSearch)
   const location = useLocation()
   const queryClient = useQueryClient()
   const [refreshing, setRefreshing] = useState(false)
   const name = overview?.user.name || overview?.user.businessName || 'INX Social account'
   const workspace = workspaceForPath(location.pathname)
+  const settingsRoute = location.pathname === '/settings'
 
   async function refreshWorkspace() {
     if (refreshing) return
@@ -79,7 +90,13 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 lg:gap-2.5">
-        <label className="relative hidden lg:block">
+        {settingsRoute && <label className="relative hidden sm:block">
+          <span className="sr-only">Search settings</span>
+          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
+          <input className="min-h-10 w-[clamp(12rem,24vw,20rem)] rounded-xl border border-border-soft bg-panel/70 pl-10 pr-3 text-xs text-text-main placeholder:text-text-soft transition hover:border-brand-cyan/35 focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/15" onChange={(event) => setSettingsSearch(event.target.value)} placeholder="Search settings…" type="search" value={settingsSearch} />
+        </label>}
+
+        {!settingsRoute && <label className="relative hidden lg:block">
           <span className="sr-only">Workspace timezone</span>
           <select className="min-h-10 min-w-48 appearance-none rounded-xl border border-border-soft bg-panel/70 pl-3 pr-9 text-xs text-text-main transition hover:border-brand-cyan/35 focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/15" onChange={(event) => setTimezone(event.target.value)} value={timezone}>
             <option value="Europe/London">Timezone · Europe/London</option>
@@ -88,15 +105,15 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
             <option value="Asia/Dhaka">Timezone · Asia/Dhaka</option>
           </select>
           <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" />
-        </label>
+        </label>}
 
-        <label className="relative hidden xl:block">
+        {!settingsRoute && <label className="relative hidden xl:block">
           <span className="sr-only">Theme</span>
           <select className="min-h-10 appearance-none rounded-xl border border-border-soft bg-panel/70 pl-3 pr-8 text-xs text-text-main transition hover:border-brand-cyan/35 focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/15" defaultValue="midnight">
             <option value="midnight">Theme · Midnight</option>
           </select>
           <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" />
-        </label>
+        </label>}
 
         <button
           aria-label={refreshing ? `Refreshing ${workspace.title}` : `Refresh ${workspace.title}`}
@@ -118,7 +135,7 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
             <ChevronDown aria-hidden="true" className="hidden size-3 text-text-soft transition group-open:rotate-180 2xl:block" />
           </summary>
           <div className="notification-pop absolute right-0 top-full mt-2 w-48 rounded-xl border border-border-soft bg-panel p-2 shadow-panel">
-            <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/studio/?view=settings">Account settings</a>
+            <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/settings">Account settings</a>
             <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/portal/#overview">Billing & plan</a>
           </div>
         </details>

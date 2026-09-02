@@ -43,6 +43,20 @@ const DEFAULT_SETTINGS = {
   uiTheme: 'aurora',
   uiDensity: 'comfortable',
   enableMotion: true,
+  workspaceName: 'INX Social',
+  language: 'en-GB',
+  defaultPublishMode: 'direct',
+  approvalRequired: false,
+  captionLengthReminder: true,
+  postingWindow: '07:00-22:00',
+  queueBehavior: 'fill-empty',
+  retryFailedPosts: true,
+  aiDefaultQuality: 'high',
+  brandTone: 'professional',
+  mediaAutoSave: true,
+  emailAlerts: true,
+  publishAlerts: true,
+  reviewReminders: false,
   cloudApiUrl: ''
 };
 
@@ -132,7 +146,21 @@ const updateSchema = z.object({
 
 const preferenceSchema = z.object({
   settings: z.object({
+    workspaceName: z.string().trim().min(2).max(80).optional(),
     timezone: z.string().trim().min(1).max(100).optional(),
+    language: z.enum(['en-GB', 'en-US']).optional(),
+    defaultPublishMode: z.enum(['direct', 'scheduled', 'draft']).optional(),
+    approvalRequired: z.boolean().optional(),
+    captionLengthReminder: z.boolean().optional(),
+    postingWindow: z.enum(['07:00-22:00', '08:00-20:00', 'always']).optional(),
+    queueBehavior: z.enum(['fill-empty', 'preserve-order', 'next-available']).optional(),
+    retryFailedPosts: z.boolean().optional(),
+    aiDefaultQuality: z.enum(['fast', 'high', 'premium']).optional(),
+    brandTone: z.enum(['professional', 'friendly', 'energetic', 'concise']).optional(),
+    mediaAutoSave: z.boolean().optional(),
+    emailAlerts: z.boolean().optional(),
+    publishAlerts: z.boolean().optional(),
+    reviewReminders: z.boolean().optional(),
     dailySlots: z.array(z.string().regex(/^\d{2}:\d{2}$/)).max(24).optional(),
     maxScheduleDays: z.coerce.number().int().min(1).max(25).optional(),
     minLeadMinutes: z.coerce.number().int().min(20).max(1440).optional(),
@@ -551,6 +579,33 @@ async function desktopState(req, res, next) {
         workspace,
         paths: { userData: 'Browser session', videoRoot: '', captionRoot: '' }
       }
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function preferences(req, res, next) {
+  try {
+    const license = await requireStudioLicense(req.user.id);
+    const [preference, workspace] = await Promise.all([
+      prisma.cloudPreference.findUnique({ where: { userId: req.user.id } }),
+      getWorkspaceData(req.user.id, license)
+    ]);
+    const settings = { ...DEFAULT_SETTINGS, ...parseJson(preference?.settingsJson, {}) };
+    res.json({
+      settings,
+      account: {
+        user: {
+          id: req.user.id,
+          name: req.user.name,
+          businessName: req.user.businessName,
+          email: req.user.email
+        },
+        license,
+        pageUsage: workspace.pageUsage || null
+      },
+      pages: workspace.pages || []
     });
   } catch (error) {
     next(error);
@@ -1431,6 +1486,7 @@ async function cancelJob(req, res, next) {
 module.exports = {
   capabilities,
   desktopState,
+  preferences,
   facebookAnalytics,
   saveFacebookDemographicsSnapshot,
   savePreferences,

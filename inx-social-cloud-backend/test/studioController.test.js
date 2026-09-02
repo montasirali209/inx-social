@@ -158,6 +158,56 @@ test('desktop-shaped cloud state reuses the renderer contract without returning 
   assert.equal(JSON.stringify(res.body).includes('must-never-be-returned'), false);
 });
 
+test('settings workspace returns validated defaults and live account usage without credentials', async () => {
+  const res = responseRecorder();
+  let forwardedError = null;
+  await controller.preferences({
+    user: { id: 'user-1', name: 'Owner', businessName: 'INX', email: 'owner@example.com' }
+  }, res, error => { forwardedError = error; });
+  assert.equal(forwardedError, null);
+  assert.equal(res.body.settings.workspaceName, 'INX Social');
+  assert.equal(res.body.settings.uiTheme, 'midnight');
+  assert.equal(res.body.account.license.plan, 'STARTER');
+  assert.equal(res.body.account.pageUsage.connected, 1);
+  assert.equal(res.body.pages[0].facebookPageName, 'INX Test Page');
+  assert.equal(Object.hasOwn(res.body.pages[0], 'encryptedAccessToken'), false);
+  assert.equal(JSON.stringify(res.body).includes('must-never-be-returned'), false);
+});
+
+test('settings preferences persist the responsive workspace controls', async () => {
+  savedPreferenceInput = null;
+  const res = responseRecorder();
+  let forwardedError = null;
+  await controller.savePreferences({
+    user: { id: 'user-1' },
+    body: {
+      settings: {
+        workspaceName: 'INX Social Team',
+        timezone: 'Europe/London',
+        language: 'en-GB',
+        defaultPublishMode: 'scheduled',
+        approvalRequired: true,
+        captionLengthReminder: true,
+        postingWindow: '07:00-22:00',
+        queueBehavior: 'fill-empty',
+        retryFailedPosts: true,
+        aiDefaultQuality: 'high',
+        brandTone: 'professional',
+        mediaAutoSave: true,
+        emailAlerts: true,
+        publishAlerts: true,
+        reviewReminders: false
+      }
+    }
+  }, res, error => { forwardedError = error; });
+  assert.equal(forwardedError, null);
+  const stored = JSON.parse(savedPreferenceInput.update.settingsJson);
+  assert.equal(stored.workspaceName, 'INX Social Team');
+  assert.equal(stored.approvalRequired, true);
+  assert.equal(stored.defaultPublishMode, 'scheduled');
+  assert.equal(res.body.settings.mediaAutoSave, true);
+});
+
 test('creating a scheduled cloud upload stores metadata but no video or storage key', async () => {
   const res = responseRecorder();
   let forwardedError = null;
