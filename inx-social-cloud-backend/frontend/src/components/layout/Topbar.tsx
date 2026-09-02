@@ -38,7 +38,7 @@ const workspaceRoutes = {
   },
   '/connected-accounts': {
     title: 'Connected Accounts',
-    subtitle: 'Connect social platforms, review sync health and manage every publishing destination.',
+    subtitle: 'Manage your social platforms and account connections.',
   },
 } as const
 
@@ -59,12 +59,15 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
   const setTimezone = useUiStore((state) => state.setTimezone)
   const settingsSearch = useUiStore((state) => state.settingsSearch)
   const setSettingsSearch = useUiStore((state) => state.setSettingsSearch)
+  const connectionsSearch = useUiStore((state) => state.connectionsSearch)
+  const setConnectionsSearch = useUiStore((state) => state.setConnectionsSearch)
   const location = useLocation()
   const queryClient = useQueryClient()
   const [refreshing, setRefreshing] = useState(false)
   const name = overview?.user.name || overview?.user.businessName || 'INX Social account'
   const workspace = workspaceForPath(location.pathname)
   const settingsRoute = location.pathname === '/settings'
+  const connectionsRoute = location.pathname === '/connected-accounts'
 
   async function refreshWorkspace() {
     if (refreshing) return
@@ -90,13 +93,13 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 lg:gap-2.5">
-        {settingsRoute && <label className="relative hidden sm:block">
-          <span className="sr-only">Search settings</span>
+        {(settingsRoute || connectionsRoute) && <label className="relative hidden sm:block">
+          <span className="sr-only">{settingsRoute ? 'Search settings' : 'Search accounts'}</span>
           <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
-          <input className="min-h-10 w-[clamp(12rem,24vw,20rem)] rounded-xl border border-border-soft bg-panel/70 pl-10 pr-3 text-xs text-text-main placeholder:text-text-soft transition hover:border-brand-cyan/35 focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/15" onChange={(event) => setSettingsSearch(event.target.value)} placeholder="Search settings…" type="search" value={settingsSearch} />
+          <input className="min-h-10 w-[clamp(12rem,24vw,20rem)] rounded-xl border border-border-soft bg-panel/70 pl-10 pr-3 text-xs text-text-main placeholder:text-text-soft transition hover:border-brand-cyan/35 focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/15" onChange={(event) => settingsRoute ? setSettingsSearch(event.target.value) : setConnectionsSearch(event.target.value)} placeholder={settingsRoute ? 'Search settings…' : 'Search accounts…'} type="search" value={settingsRoute ? settingsSearch : connectionsSearch} />
         </label>}
 
-        {!settingsRoute && <label className="relative hidden lg:block">
+        {!settingsRoute && !connectionsRoute && <label className="relative hidden lg:block">
           <span className="sr-only">Workspace timezone</span>
           <select className="min-h-10 min-w-48 appearance-none rounded-xl border border-border-soft bg-panel/70 pl-3 pr-9 text-xs text-text-main transition hover:border-brand-cyan/35 focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/15" onChange={(event) => setTimezone(event.target.value)} value={timezone}>
             <option value="Europe/London">Timezone · Europe/London</option>
@@ -107,7 +110,7 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
           <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" />
         </label>}
 
-        {!settingsRoute && <label className="relative hidden xl:block">
+        {!settingsRoute && !connectionsRoute && <label className="relative hidden xl:block">
           <span className="sr-only">Theme</span>
           <select className="min-h-10 appearance-none rounded-xl border border-border-soft bg-panel/70 pl-3 pr-8 text-xs text-text-main transition hover:border-brand-cyan/35 focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/15" defaultValue="midnight">
             <option value="midnight">Theme · Midnight</option>
