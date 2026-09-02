@@ -13,6 +13,8 @@ export const router = createBrowserRouter(
         { path: 'posts', lazy: async () => ({ Component: (await import('./components/posts/PostsPage')).PostsPage }) },
         { path: 'media-library', lazy: async () => ({ Component: (await import('./components/media-library/MediaLibraryPage')).MediaLibraryPage }) },
         { path: 'analytics', lazy: async () => ({ Component: (await import('./components/analytics/AnalyticsPage')).AnalyticsPage }) },
+        { path: 'settings', lazy: async () => ({ Component: (await import('./components/settings/SettingsPage')).SettingsPage }) },
+        { path: 'connected-accounts', lazy: async () => ({ Component: (await import('./components/connections/ConnectedAccountsPage')).ConnectedAccountsPage }) },
       ],
     },
   ],

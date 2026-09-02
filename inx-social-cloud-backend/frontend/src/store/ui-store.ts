@@ -2,8 +2,10 @@ import { create } from 'zustand'
 
 type UiState = {
   mobileNavigationOpen: boolean
+  settingsSearch: string
   timezone: string
   setMobileNavigationOpen: (open: boolean) => void
+  setSettingsSearch: (search: string) => void
   setTimezone: (timezone: string) => void
 }
 
@@ -12,8 +14,10 @@ const savedTimezone = typeof window === 'undefined' ? '' : window.localStorage.g
 
 export const useUiStore = create<UiState>((set) => ({
   mobileNavigationOpen: false,
+  settingsSearch: '',
   timezone: savedTimezone || browserTimezone,
   setMobileNavigationOpen: (mobileNavigationOpen) => set({ mobileNavigationOpen }),
+  setSettingsSearch: (settingsSearch) => set({ settingsSearch }),
   setTimezone: (timezone) => {
     window.localStorage.setItem('inx-social-timezone', timezone)
     set({ timezone })
