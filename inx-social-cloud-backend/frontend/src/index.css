@@ -344,3 +344,19 @@
     animation: none;
   }
 }
+
+.menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  text-align: left;
+}
+
+.menu-item:hover { background: var(--color-panel-hover); color: var(--color-text-main); }
+.menu-item:focus-visible { outline: 2px solid var(--color-brand-cyan); outline-offset: 2px; }
