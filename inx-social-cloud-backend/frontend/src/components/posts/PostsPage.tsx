@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { fetchPostsWorkspace, createDirectPosts, publishDirectPostLibraryMedia, uploadDirectPostMedia } from '../../lib/posts-api'
+import { zonedDateTimeToIso } from '../../lib/bulk-scheduler-utils'
 import { fetchFacebookDashboardAnalytics } from '../../lib/dashboard-api'
 import { fetchMediaAssetFile, fetchMediaLibrary, uploadMediaAsset } from '../../lib/media-library-api'
 import { calculateBestPostTime } from '../../lib/posts-analytics'
@@ -16,6 +17,7 @@ import { PostPreviewPanel } from './PostPreviewPanel'
 import { PostsStatCard } from './PostPrimitives'
 import { SchedulePanel } from './SchedulePanel'
 import type { PostLibraryView } from '../../lib/posts-reuse'
+import { PublishConfirmationDialog } from '../ui/PublishConfirmationDialog'
 
 const draftKey = 'inx-social-post-drafts-v1'
 
@@ -69,6 +71,7 @@ export function PostsPage() {
   const queryClient = useQueryClient()
   const location = useLocation()
   const importedAssetId = useRef<string | null>(null)
+  const defaultModeApplied = useRef(false)
   const workspace = useQuery({ queryKey: ['posts-workspace'], queryFn: fetchPostsWorkspace, refetchInterval: 45_000 })
   const [postType, setPostType] = useState<PostType>('text')
   const [title, setTitle] = useState('')
@@ -86,6 +89,17 @@ export function PostsPage() {
   const [postLibraryView, setPostLibraryView] = useState<PostLibraryView | null>(null)
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null)
   const [progress, setProgress] = useState<PublishProgress>({ state: 'idle', percent: 0, message: '' })
+  const [confirmationOpen, setConfirmationOpen] = useState(false)
+
+  useEffect(() => {
+    if (!workspace.data || defaultModeApplied.current) return
+    defaultModeApplied.current = true
+    const state = location.state as { scheduleMode?: ScheduleMode } | null
+    const preferredMode = workspace.data.settings.defaultPublishMode === 'direct'
+      ? 'now'
+      : workspace.data.settings.defaultPublishMode === 'draft' ? 'draft' : 'later'
+    setMode(state?.scheduleMode || preferredMode)
+  }, [location.state, workspace.data])
 
   useEffect(() => {
     const state = location.state as { mediaLibraryAsset?: MediaAsset; scheduleMode?: ScheduleMode } | null
@@ -140,7 +154,12 @@ export function PostsPage() {
     return calculateBestPostTime(pageAnalytics.data)
   }, [pageAnalytics.data, pageAnalytics.isError, selectedPage])
   const needsMedia = postType === 'image' || postType === 'video' || postType === 'reel'
-  const scheduledAt = mode === 'later' && date && time ? new Date(`${date}T${time}`).toISOString() : null
+  let scheduledAt: string | null = null
+  try {
+    scheduledAt = mode === 'later' && date && time ? zonedDateTimeToIso(date, time, workspace.data?.settings.timezone || 'UTC') : null
+  } catch {
+    scheduledAt = null
+  }
   const ready = Boolean(caption.trim() && selectedIds.length && (!needsMedia || media) && (mode !== 'later' || scheduledAt))
 
   async function saveDraft() {
@@ -295,6 +314,18 @@ export function PostsPage() {
     }
   }
 
+  function requestPublish() {
+    if (!ready) {
+      setProgress({ state: 'failed', percent: 0, message: 'Add a caption, choose destinations and complete the publishing settings.' })
+      return
+    }
+    if (workspace.data?.settings.approvalRequired) {
+      setConfirmationOpen(true)
+      return
+    }
+    void publish()
+  }
+
   if (workspace.isLoading) return <PostsSkeleton />
   if (workspace.isError || !workspace.data) return <div className="rounded-panel border border-brand-red/25 bg-brand-red/8 p-6"><h2 className="font-semibold">Posts workspace unavailable</h2><p className="mt-2 text-sm text-text-muted">{workspace.error instanceof Error ? workspace.error.message : 'Refresh the workspace and try again.'}</p><button className="mt-4 rounded-xl border border-brand-red/30 px-4 py-2 text-xs" onClick={() => void workspace.refetch()} type="button">Retry</button></div>
 
@@ -304,11 +335,20 @@ export function PostsPage() {
       <DestinationSelector pages={workspace.data.pages} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.35fr)_minmax(290px,.72fr)_minmax(320px,.82fr)]">
         <CreatePostPanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} caption={caption} destinationCount={selectedIds.length} media={media} postType={postType} retainMedia={retainMedia} setCaption={setCaption} setMedia={setMedia} setPostType={setPostType} setRetainMedia={setRetainMedia} setTitle={setTitle} title={title} />
-        <SchedulePanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} campaign={campaign} canPublish={mode === 'draft' ? Boolean(title.trim() || caption.trim()) : ready} date={date} labels={labels} mode={mode} onDraft={saveDraft} onPublish={() => void publish()} progress={progress} setCampaign={setCampaign} setDate={setDate} setLabels={setLabels} setMode={setMode} setTime={setTime} time={time} />
+        <SchedulePanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} campaign={campaign} canPublish={mode === 'draft' ? Boolean(title.trim() || caption.trim()) : ready} date={date} labels={labels} mode={mode} onDraft={saveDraft} onPublish={requestPublish} progress={progress} setCampaign={setCampaign} setDate={setDate} setLabels={setLabels} setMode={setMode} setTime={setTime} time={time} />
         <PostPreviewPanel caption={caption} media={media} selectedPage={selectedPage} />
       </div>
       {draftLibraryOpen && <DraftLibraryModal drafts={drafts} onClose={() => setDraftLibraryOpen(false)} onDelete={deleteDraft} onLoad={loadDraft} pages={workspace.data.pages} />}
       {postLibraryView && <PostReuseModal initialView={postLibraryView} jobs={reusableJobs} loadingExternal={externalPublished.isFetching} onClose={() => setPostLibraryView(null)} onReuse={reusePost} />}
+      <PublishConfirmationDialog
+        busy={progress.state === 'preparing' || progress.state === 'uploading'}
+        confirmLabel={mode === 'now' ? 'Publish now' : 'Confirm schedule'}
+        description={`${selectedIds.length} destination${selectedIds.length === 1 ? '' : 's'} will receive this post${mode === 'later' ? ` at the selected time in ${workspace.data.settings.timezone}` : ' immediately'}.`}
+        onCancel={() => setConfirmationOpen(false)}
+        onConfirm={() => { setConfirmationOpen(false); void publish() }}
+        open={confirmationOpen}
+        title={mode === 'now' ? 'Publish this post now?' : 'Schedule this post?'}
+      />
     </div>
   )
 }

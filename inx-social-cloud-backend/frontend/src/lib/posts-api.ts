@@ -2,10 +2,26 @@ import { apiRequest, getStoredAuthToken } from './api-client'
 import type { DashboardJob } from '../types/dashboard'
 import type { CaptionEnhancement, CaptionTone, CreateDirectPostInput, DirectPostResponse, EnhancementAction, PostsWorkspaceData } from '../types/posts'
 import { fetchDashboardJobs, fetchStudioOverview } from './dashboard-api'
+import { normaliseSettings } from '../data/settingsData'
+import type { SettingsValues } from '../types/settings'
 
 export async function fetchPostsWorkspace(): Promise<PostsWorkspaceData> {
-  const [overview, jobs] = await Promise.all([fetchStudioOverview(), fetchDashboardJobs()])
-  return { overview, pages: overview.pages, jobs }
+  const [overview, jobs, preferences] = await Promise.all([
+    fetchStudioOverview(),
+    fetchDashboardJobs(),
+    apiRequest<{ settings: Partial<SettingsValues> }>('/api/studio/preferences'),
+  ])
+  const settings = normaliseSettings(preferences.settings)
+  return {
+    overview,
+    pages: overview.pages,
+    jobs,
+    settings: {
+      approvalRequired: settings.approvalRequired,
+      defaultPublishMode: settings.defaultPublishMode,
+      timezone: settings.timezone,
+    },
+  }
 }
 
 export function createDirectPosts(input: CreateDirectPostInput) {

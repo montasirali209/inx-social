@@ -7,14 +7,14 @@ export type SettingsCategory =
   | 'notifications'
   | 'billing'
 
-export type SettingRowType = 'input' | 'select' | 'toggle' | 'summary' | 'progress'
+export type SettingRowType = 'input' | 'select' | 'toggle' | 'summary' | 'progress' | 'times'
 
 export type SettingRow = {
   id: string
   label: string
   description?: string
   type: SettingRowType
-  value: string | boolean | number
+  value: string | boolean | number | string[]
   options?: Array<{ label: string; value: string }>
 }
 
@@ -26,7 +26,7 @@ export type SettingsCardData = {
   icon: string
   tone: 'teal' | 'green' | 'blue' | 'purple' | 'amber' | 'red'
   rows: SettingRow[]
-  actionLabel: string
+  actionLabel?: string
 }
 
 export type SettingsValues = {
@@ -38,6 +38,7 @@ export type SettingsValues = {
   captionLengthReminder: boolean
   postingWindow: '07:00-22:00' | '08:00-20:00' | 'always'
   queueBehavior: 'fill-empty' | 'preserve-order' | 'next-available'
+  defaultScheduleTimes: string[]
   retryFailedPosts: boolean
   aiDefaultQuality: 'fast' | 'high' | 'premium'
   brandTone: 'professional' | 'friendly' | 'energetic' | 'concise'
@@ -61,6 +62,7 @@ export type SettingsAccount = {
   user: { id: string; name: string | null; businessName: string | null; email: string }
   license: SettingsLicense
   pageUsage: { connected: number; limit: number | null } | null
+  emailDeliveryConfigured: boolean
 }
 
 export type SocialProfileSummary = {

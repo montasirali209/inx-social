@@ -1,4 +1,3 @@
-import type { DashboardJob } from '../types/dashboard'
 import type { TimingMode } from '../types/bulk-scheduler'
 
 export function parseCaptions(value: string) {
@@ -10,72 +9,58 @@ export function parseCaptions(value: string) {
   return lines.length > 1 ? lines : paragraphs
 }
 
-function localDate(date: string, time: string) {
-  const parsed = new Date(`${date}T${time}:00`)
-  if (!date || !time || Number.isNaN(parsed.getTime())) throw new Error('Choose a valid future date and time.')
-  if (parsed.getTime() < Date.now() + 20 * 60_000) throw new Error('The first publishing time must be at least 20 minutes in the future.')
-  return parsed
-}
-
-function roundToNextHalfHour(date: Date) {
-  const rounded = new Date(date)
-  rounded.setSeconds(0, 0)
-  rounded.setMinutes(rounded.getMinutes() < 30 ? 30 : 60)
-  return rounded
+export function zonedDateTimeToIso(date: string, time: string, timezone: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) throw new Error('Choose a valid date and time.')
+  const [year, month, day] = date.split('-').map(Number)
+  const [hour, minute] = time.split(':').map(Number)
+  const wanted = Date.UTC(year, month - 1, day, hour, minute)
+  let guess = wanted
+  const formatter = new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit', hour: '2-digit', hourCycle: 'h23', minute: '2-digit', month: '2-digit', timeZone: timezone, year: 'numeric',
+  })
+  const readParts = (value: number) => Object.fromEntries(formatter.formatToParts(new Date(value)).filter((part) => part.type !== 'literal').map((part) => [part.type, Number(part.value)])) as Record<string, number>
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const parts = readParts(guess)
+    const represented = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute)
+    const difference = wanted - represented
+    if (!difference) break
+    guess += difference
+  }
+  const resolved = readParts(guess)
+  if (resolved.year !== year || resolved.month !== month || resolved.day !== day || resolved.hour !== hour || resolved.minute !== minute) {
+    throw new Error(`That local time does not exist in ${timezone.replaceAll('_', ' ')} because of a daylight-saving change.`)
+  }
+  return new Date(guess).toISOString()
 }
 
 export function buildPublishingTimes(input: {
   mode: TimingMode
   mediaCount: number
   date: string
-  time: string
   dailyTimes?: string[]
-  jobs: DashboardJob[]
-  destinationIds: string[]
-  externalScheduledAt?: string[]
+  timezone?: string
 }) {
   if (input.mode === 'publish_now') return Array.from({ length: input.mediaCount }, () => null)
-  if (input.mode === 'best_engagement_time') throw new Error('Best engagement timing is not available until platform analytics are connected.')
-
-  if (input.mode === 'next_available_slots') {
-    const occupied = new Set(input.jobs
-      .filter((job) => job.scheduledAt && job.page && input.destinationIds.includes(job.page.id) && !['FAILED', 'CANCELLED'].includes(job.status))
-      .map((job) => new Date(job.scheduledAt!).toISOString()))
-    input.externalScheduledAt?.forEach((value) => occupied.add(new Date(value).toISOString()))
-    const result: string[] = []
-    let candidate = roundToNextHalfHour(new Date(Date.now() + 20 * 60_000))
-    while (result.length < input.mediaCount) {
-      const iso = candidate.toISOString()
-      if (!occupied.has(iso)) result.push(iso)
-      candidate = new Date(candidate.getTime() + 30 * 60_000)
+  const times = [...new Set((input.dailyTimes || []).filter((time) => /^\d{2}:\d{2}$/.test(time)))].sort()
+  if (!input.date || !times.length) throw new Error('Choose a start date and add at least one publishing time.')
+  const timezone = input.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  const firstDay = new Date(`${input.date}T00:00:00Z`)
+  if (Number.isNaN(firstDay.getTime())) throw new Error('Choose a valid start date.')
+  const result: string[] = []
+  let dayOffset = 0
+  while (result.length < input.mediaCount && dayOffset < input.mediaCount + 366) {
+    const candidateDay = new Date(firstDay)
+    candidateDay.setUTCDate(candidateDay.getUTCDate() + dayOffset)
+    const localDate = candidateDay.toISOString().slice(0, 10)
+    for (const time of times) {
+      const candidate = zonedDateTimeToIso(localDate, time, timezone)
+      if (new Date(candidate).getTime() >= Date.now() + 20 * 60_000) result.push(candidate)
+      if (result.length === input.mediaCount) break
     }
-    return result
+    dayOffset += 1
   }
-
-  if (input.mode === 'schedule_time') {
-    const times = [...new Set((input.dailyTimes || []).filter((time) => /^\d{2}:\d{2}$/.test(time)))].sort()
-    if (!input.date || !times.length) throw new Error('Choose a start date and add at least one daily publishing time.')
-    const result: string[] = []
-    const day = new Date(`${input.date}T00:00:00`)
-    if (Number.isNaN(day.getTime())) throw new Error('Choose a valid start date.')
-    let dayOffset = 0
-    while (result.length < input.mediaCount && dayOffset < input.mediaCount + 366) {
-      for (const time of times) {
-        const candidate = new Date(day)
-        candidate.setDate(candidate.getDate() + dayOffset)
-        const [hours, minutes] = time.split(':').map(Number)
-        candidate.setHours(hours, minutes, 0, 0)
-        if (candidate.getTime() >= Date.now() + 20 * 60_000) result.push(candidate.toISOString())
-        if (result.length === input.mediaCount) break
-      }
-      dayOffset += 1
-    }
-    if (result.length !== input.mediaCount) throw new Error('Could not build the selected daily publishing schedule.')
-    return result
-  }
-
-  const start = localDate(input.date, input.time)
-  return Array.from({ length: input.mediaCount }, (_, index) => new Date(start.getTime() + index * 24 * 60 * 60_000).toISOString())
+  if (result.length !== input.mediaCount) throw new Error('Could not build the selected daily publishing schedule.')
+  return result
 }
 
 export function formatFileSize(bytes: number) {

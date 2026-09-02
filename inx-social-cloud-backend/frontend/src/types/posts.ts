@@ -1,4 +1,5 @@
 import type { ConnectedPage, DashboardJob, StudioOverview } from './dashboard'
+import type { SettingsValues } from './settings'
 
 export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'youtube' | 'x'
 export type PostType = 'text' | 'image' | 'video' | 'reel' | 'carousel'
@@ -61,6 +62,7 @@ export type PostsWorkspaceData = {
   overview: StudioOverview
   pages: ConnectedPage[]
   jobs: DashboardJob[]
+  settings: Pick<SettingsValues, 'approvalRequired' | 'defaultPublishMode' | 'timezone'>
 }
 
 export type CreateDirectPostInput = {

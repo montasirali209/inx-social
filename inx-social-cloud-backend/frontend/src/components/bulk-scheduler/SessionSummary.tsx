@@ -3,11 +3,9 @@ import type { SelectedMedia, TimingMode } from '../../types/bulk-scheduler'
 import { formatFileSize } from '../../lib/bulk-scheduler-utils'
 
 const timingLabels: Record<TimingMode, string> = {
-  publish_now: 'Publish now',
-  schedule_time: 'Selected time',
-  next_available_slots: 'Next slots',
-  spread_across_days: 'Across days',
-  best_engagement_time: 'Best time',
+  publish_now: 'Immediately',
+  schedule_time: 'Custom times',
+  saved_schedule: 'Saved times',
 }
 
 type Props = {
@@ -36,7 +34,7 @@ export function SessionSummary({ media, captionCount, timingMode, selectedDestin
       </div>
       {media.length ? (
         <>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-text-soft"><span>{imageCount} image{imageCount === 1 ? '' : 's'}</span><span aria-hidden="true">•</span><span>{videoCount} video{videoCount === 1 ? '' : 's'}</span>{timingMode === 'schedule_time' && <><span aria-hidden="true">•</span><span>{scheduleTimes.length} time{scheduleTimes.length === 1 ? '' : 's'} per day</span></>}</div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] text-text-soft"><span>{imageCount} image{imageCount === 1 ? '' : 's'}</span><span aria-hidden="true">•</span><span>{videoCount} video{videoCount === 1 ? '' : 's'}</span>{timingMode !== 'publish_now' && <><span aria-hidden="true">•</span><span>{scheduleTimes.length} time{scheduleTimes.length === 1 ? '' : 's'} per day</span></>}</div>
           <ul aria-label="Selected media preview" className="scrollbar-thin mt-3 flex gap-2 overflow-x-auto">
           {media.slice(0, 8).map((item) => (
             <li className="flex min-w-44 items-center gap-2 rounded-lg border border-white/7 bg-bg/45 p-2" key={item.id}>

@@ -9,6 +9,7 @@ export const defaultSettingsValues: SettingsValues = {
   captionLengthReminder: true,
   postingWindow: '07:00-22:00',
   queueBehavior: 'fill-empty',
+  defaultScheduleTimes: ['10:00'],
   retryFailedPosts: true,
   aiDefaultQuality: 'high',
   brandTone: 'professional',
@@ -18,19 +19,54 @@ export const defaultSettingsValues: SettingsValues = {
   reviewReminders: false,
 }
 
-const timezoneOptions = [
-  { label: '(UTC+01:00) Europe/London', value: 'Europe/London' },
-  { label: '(UTC+00:00) UTC', value: 'UTC' },
-  { label: '(UTC-04:00) America/New York', value: 'America/New_York' },
-  { label: '(UTC+06:00) Asia/Dhaka', value: 'Asia/Dhaka' },
-]
+type IntlWithTimezones = typeof Intl & { supportedValuesOf?: (key: 'timeZone') => string[] }
+
+function timezoneOffset(timezone: string, reference = new Date()) {
+  try {
+    const part = new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit',
+      timeZone: timezone,
+      timeZoneName: 'longOffset',
+    }).formatToParts(reference).find((item) => item.type === 'timeZoneName')?.value || 'GMT'
+    const label = part === 'GMT' ? 'UTC+00:00' : part.replace('GMT', 'UTC')
+    const match = label.match(/^UTC([+-])(\d{2}):(\d{2})$/)
+    const minutes = match ? (match[1] === '-' ? -1 : 1) * (Number(match[2]) * 60 + Number(match[3])) : 0
+    return { label, minutes }
+  } catch {
+    return { label: 'UTC+00:00', minutes: 0 }
+  }
+}
+
+export function buildTimezoneOptions(reference = new Date()) {
+  const supported = (Intl as IntlWithTimezones).supportedValuesOf?.('timeZone') || [
+    'Europe/London', 'America/New_York', 'America/Los_Angeles', 'Asia/Dhaka', 'Asia/Dubai', 'Asia/Kolkata', 'Asia/Singapore', 'Asia/Tokyo', 'Australia/Sydney', 'Pacific/Auckland',
+  ]
+  return [...new Set(['UTC', ...supported])]
+    .map((value) => {
+      const offset = timezoneOffset(value, reference)
+      return { label: `(${offset.label}) ${value.replaceAll('_', ' ')}`, value, offset: offset.minutes }
+    })
+    .sort((left, right) => left.offset - right.offset || left.label.localeCompare(right.label))
+    .map(({ label, value }) => ({ label, value }))
+}
+
+export const timezoneOptions = buildTimezoneOptions()
 
 export function normaliseSettings(input: Partial<SettingsValues> | null | undefined): SettingsValues {
-  return { ...defaultSettingsValues, ...(input || {}) }
+  const merged = { ...defaultSettingsValues, ...(input || {}) }
+  const defaultScheduleTimes = [...new Set((Array.isArray(merged.defaultScheduleTimes) ? merged.defaultScheduleTimes : [])
+    .filter((time): time is string => typeof time === 'string' && /^\d{2}:\d{2}$/.test(time)))]
+    .sort()
+  return { ...merged, defaultScheduleTimes: defaultScheduleTimes.length ? defaultScheduleTimes : defaultSettingsValues.defaultScheduleTimes }
 }
 
 export function settingsEqual(left: SettingsValues, right: SettingsValues) {
-  return Object.keys(defaultSettingsValues).every((key) => left[key as keyof SettingsValues] === right[key as keyof SettingsValues])
+  return Object.keys(defaultSettingsValues).every((key) => {
+    const leftValue = left[key as keyof SettingsValues]
+    const rightValue = right[key as keyof SettingsValues]
+    if (Array.isArray(leftValue) && Array.isArray(rightValue)) return leftValue.join('|') === rightValue.join('|')
+    return leftValue === rightValue
+  })
 }
 
 export function connectionSummary(workspace: SettingsWorkspace) {
@@ -85,38 +121,32 @@ export function settingsCards(values: SettingsValues, workspace: SettingsWorkspa
   const renewal = license.currentPeriodEnd
     ? new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(license.currentPeriodEnd))
     : license.plan === 'LIFETIME' ? 'No renewal required' : 'Managed in billing portal'
-
   return [
     {
-      id: 'workspace', number: 1, title: 'Workspace', description: 'Manage workspace profile and preferences.', icon: 'building', tone: 'teal', actionLabel: 'Manage workspace',
+      id: 'workspace', number: 1, title: 'Account & Region', description: 'Review your sign-in identity and regional preferences.', icon: 'building', tone: 'teal',
       rows: [
-        { id: 'workspaceName', label: 'Workspace Name', type: 'input', value: values.workspaceName },
+        { id: 'accountEmail', label: 'Account Email', description: 'The read-only email that owns these settings', type: 'summary', value: workspace.account.user.email },
         { id: 'timezone', label: 'Timezone', type: 'select', value: values.timezone, options: timezoneOptions },
         { id: 'language', label: 'Language', type: 'select', value: values.language, options: [{ label: 'English (UK)', value: 'en-GB' }, { label: 'English (US)', value: 'en-US' }] },
       ],
     },
     {
-      id: 'publishing', number: 2, title: 'Publishing', description: 'Control how content is published across platforms.', icon: 'send', tone: 'teal', actionLabel: 'Manage publishing',
+      id: 'publishing', number: 2, title: 'Publishing', description: 'Choose the safe defaults used when creating content.', icon: 'send', tone: 'teal',
       rows: [
-        { id: 'defaultPublishMode', label: 'Default Publish Mode', type: 'select', value: values.defaultPublishMode, options: [{ label: 'Direct Publish', value: 'direct' }, { label: 'Schedule for Later', value: 'scheduled' }, { label: 'Save as Draft', value: 'draft' }] },
-        { id: 'approvalRequired', label: 'Approval Required', description: 'Require review before publishing', type: 'toggle', value: values.approvalRequired },
-        { id: 'captionLengthReminder', label: 'Caption Length Reminder', description: 'Show a reminder for long captions', type: 'toggle', value: values.captionLengthReminder },
+        { id: 'defaultPublishMode', label: 'Default in Create Post', description: 'The starting choice; it can still be changed for each post', type: 'select', value: values.defaultPublishMode, options: [{ label: 'Publish immediately', value: 'direct' }, { label: 'Schedule for later', value: 'scheduled' }, { label: 'Save as draft', value: 'draft' }] },
+        { id: 'approvalRequired', label: 'Confirm Before Publishing', description: 'Ask for final confirmation before INXSocial sends or schedules content', type: 'toggle', value: values.approvalRequired },
       ],
     },
     {
-      id: 'scheduler', number: 3, title: 'Scheduler', description: 'Configure scheduling and queue behaviour.', icon: 'calendar', tone: 'green', actionLabel: 'Manage scheduler',
+      id: 'scheduler', number: 3, title: 'Scheduler', description: `Save reusable daily posting times in ${values.timezone.replaceAll('_', ' ')}.`, icon: 'calendar', tone: 'green',
       rows: [
-        { id: 'postingWindow', label: 'Posting Window', type: 'select', value: values.postingWindow, options: [{ label: '7:00 AM – 10:00 PM', value: '07:00-22:00' }, { label: '8:00 AM – 8:00 PM', value: '08:00-20:00' }, { label: 'Any time', value: 'always' }] },
-        { id: 'queueBehavior', label: 'Queue Behaviour', type: 'select', value: values.queueBehavior, options: [{ label: 'Fill empty time slots', value: 'fill-empty' }, { label: 'Preserve upload order', value: 'preserve-order' }, { label: 'Use next available time', value: 'next-available' }] },
-        { id: 'retryFailedPosts', label: 'Retry Failed Posts', description: 'Automatically retry recoverable failures', type: 'toggle', value: values.retryFailedPosts },
+        { id: 'defaultScheduleTimes', label: 'Default Posting Times', description: 'Bulk Scheduler fills every saved time before moving to the next day', type: 'times', value: values.defaultScheduleTimes },
       ],
     },
     {
-      id: 'ai_content', number: 4, title: 'AI Content Studio', description: 'Customise AI content generation settings.', icon: 'sparkles', tone: 'purple', actionLabel: 'Manage AI settings',
+      id: 'ai_content', number: 4, title: 'AI Content Studio', description: 'AI preferences will be configured with the AI Content Studio redesign.', icon: 'sparkles', tone: 'purple',
       rows: [
-        { id: 'aiDefaultQuality', label: 'Default Quality', type: 'select', value: values.aiDefaultQuality, options: [{ label: 'Fast', value: 'fast' }, { label: 'High', value: 'high' }, { label: 'Premium', value: 'premium' }] },
-        { id: 'brandTone', label: 'Brand Tone', type: 'select', value: values.brandTone, options: [{ label: 'Professional', value: 'professional' }, { label: 'Friendly', value: 'friendly' }, { label: 'Energetic', value: 'energetic' }, { label: 'Concise', value: 'concise' }] },
-        { id: 'mediaAutoSave', label: 'Media Auto-save', description: 'Save generated media to Media Library', type: 'toggle', value: values.mediaAutoSave },
+        { id: 'aiStatus', label: 'Status', description: 'No placeholder AI settings are applied from this card', type: 'summary', value: 'Coming with AI Studio' },
       ],
     },
     {
@@ -129,11 +159,10 @@ export function settingsCards(values: SettingsValues, workspace: SettingsWorkspa
       ],
     },
     {
-      id: 'notifications', number: 6, title: 'Notifications', description: 'Manage email alerts and in-app notifications.', icon: 'bell', tone: 'amber', actionLabel: 'Manage notifications',
+      id: 'notifications', number: 6, title: 'Notifications', description: 'Essential account messages without routine publishing noise.', icon: 'bell', tone: 'amber',
       rows: [
-        { id: 'emailAlerts', label: 'Email Alerts', description: 'Receive important account updates', type: 'toggle', value: values.emailAlerts },
-        { id: 'publishAlerts', label: 'Publish Success/Failure Alerts', description: 'Get notified about publishing outcomes', type: 'toggle', value: values.publishAlerts },
-        { id: 'reviewReminders', label: 'Review Reminders', description: 'Get reminded about pending reviews', type: 'toggle', value: values.reviewReminders },
+        { id: 'importantEmails', label: 'Important Account Emails', description: 'Email verification, password security, billing, subscription and access changes', type: 'summary', value: workspace.account.emailDeliveryConfigured ? 'Active' : 'Setup required' },
+        { id: 'publishingEmails', label: 'Routine Publishing Emails', description: 'Post-by-post success messages stay inside INXSocial', type: 'summary', value: 'Not sent' },
       ],
     },
     {
