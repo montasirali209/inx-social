@@ -112,6 +112,11 @@ export function syncInstagram() {
   return apiRequest('/api/social-connections/instagram/sync', { method: 'POST', body: '{}' })
 }
 
+export async function connectInstagram() {
+  await connectFacebook()
+  return syncInstagram()
+}
+
 export function disconnectSocialConnection(connectionId: string) {
   return apiRequest(`/api/social-connections/${encodeURIComponent(connectionId)}`, { method: 'DELETE' })
 }
