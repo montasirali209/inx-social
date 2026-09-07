@@ -15,10 +15,23 @@ test('Connected Accounts exposes real Instagram, LinkedIn, YouTube, and X linkin
     assert.match(app, new RegExp(`connectSocialPlatformV2\\('${platform.toLowerCase()}'\\)`));
   }
   assert.match(adapter, /\/api\/social-connections\/oauth\/\$\{encodeURIComponent\(normalized\)\}\/start/);
-  assert.match(adapter, /\/api\/social-connections\/instagram\/sync/);
+  assert.match(adapter, /connectSocialPlatform: socialOAuth/);
   assert.match(html, /Linking does not enable publishing/);
   assert.match(app, /orderedProfiles\.map/);
   assert.match(app, /Channel \$\{index \+ 1\} of \$\{profileCount\}/);
+});
+
+test('React connections use Instagram Business Login without legacy Facebook Instagram scopes', () => {
+  const api = read('frontend/src/lib/connections-api.ts');
+  const adapter = read('studio/web-adapter.js');
+  const facebookCallback = read('studio/facebook-callback.js');
+  const controller = read('src/controllers/socialConnectionController.js');
+  assert.match(api, /connectOAuthPlatform\('instagram'\)/);
+  assert.doesNotMatch(api, /instagram_basic|instagram_manage_insights/);
+  assert.doesNotMatch(adapter, /instagram_basic|instagram_manage_insights/);
+  assert.doesNotMatch(facebookCallback, /location\.replace\('\/studio\//);
+  assert.match(facebookCallback, /Close this window/);
+  assert.match(controller, /INSTAGRAM_BUSINESS_LOGIN/);
 });
 
 test('social OAuth callback is public while account management remains authenticated', () => {

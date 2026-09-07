@@ -45,14 +45,26 @@ require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true
 const service = require('../src/services/socialConnectionService');
 const { decryptToken } = require('../src/utils/tokenCrypto');
 
-test('LinkedIn, YouTube, and X authorization URLs use signed state and minimal linking scopes', () => {
+test('Instagram, LinkedIn, YouTube, and X authorization URLs use signed state and provider scopes', () => {
   process.env.APP_URL = 'https://social.example.test/';
+  process.env.INSTAGRAM_CLIENT_ID = 'instagram-client';
+  process.env.INSTAGRAM_CLIENT_SECRET = 'instagram-secret';
   process.env.LINKEDIN_CLIENT_ID = 'linkedin-client';
   process.env.LINKEDIN_CLIENT_SECRET = 'linkedin-secret';
   process.env.GOOGLE_CLIENT_ID = 'google-client';
   process.env.GOOGLE_CLIENT_SECRET = 'google-secret';
   process.env.X_CLIENT_ID = 'x-client';
   process.env.X_CLIENT_SECRET = 'x-secret';
+
+  const instagram = new URL(service.authorization('instagram', 'user-1').authorizationUrl);
+  assert.equal(instagram.origin, 'https://www.instagram.com');
+  assert.equal(instagram.searchParams.get('redirect_uri'), 'https://social.example.test/api/social-connections/oauth/instagram/callback');
+  assert.deepEqual(instagram.searchParams.get('scope').split(','), [
+    'instagram_business_basic',
+    'instagram_business_content_publish',
+    'instagram_business_manage_insights'
+  ]);
+  assert.ok(instagram.searchParams.get('state'));
 
   const linkedIn = new URL(service.authorization('linkedin', 'user-1').authorizationUrl);
   assert.equal(linkedIn.origin, 'https://www.linkedin.com');
@@ -72,6 +84,41 @@ test('LinkedIn, YouTube, and X authorization URLs use signed state and minimal l
   assert.deepEqual(x.searchParams.get('scope').split(' '), ['tweet.read', 'users.read', 'offline.access']);
   assert.equal(x.searchParams.get('code_challenge_method'), 'S256');
   assert.match(x.searchParams.get('code_challenge'), /^[A-Za-z0-9_-]{43}$/);
+});
+
+test('Instagram Business Login exchanges a long-lived token and stores the professional profile', async t => {
+  connectionRow = null;
+  profileRows = [];
+  process.env.APP_URL = 'https://social.example.test';
+  process.env.INSTAGRAM_CLIENT_ID = 'instagram-client';
+  process.env.INSTAGRAM_CLIENT_SECRET = 'instagram-secret';
+  const start = service.authorization('instagram', 'user-1');
+  const state = new URL(start.authorizationUrl).searchParams.get('state');
+  t.mock.method(axios, 'post', async (url, body, options) => {
+    assert.equal(url, 'https://api.instagram.com/oauth/access_token');
+    assert.equal(options.headers['Content-Type'], 'application/x-www-form-urlencoded');
+    const params = new URLSearchParams(body);
+    assert.equal(params.get('client_id'), 'instagram-client');
+    assert.equal(params.get('redirect_uri'), 'https://social.example.test/api/social-connections/oauth/instagram/callback');
+    assert.equal(params.get('code'), 'instagram-code');
+    return { data: { access_token: 'instagram-short', user_id: 'ig-1' } };
+  });
+  t.mock.method(axios, 'get', async (url, options) => {
+    if (url === 'https://graph.instagram.com/access_token') {
+      assert.equal(options.params.grant_type, 'ig_exchange_token');
+      assert.equal(options.params.access_token, 'instagram-short');
+      return { data: { access_token: 'instagram-long', expires_in: 5184000 } };
+    }
+    assert.equal(url, 'https://graph.instagram.com/me');
+    assert.equal(options.headers.Authorization, 'Bearer instagram-long');
+    return { data: { id: 'ig-1', username: 'inxsocial', name: 'INX Social', account_type: 'BUSINESS', followers_count: 42, media_count: 7 } };
+  });
+
+  await service.completeOAuth('instagram', { code: 'instagram-code', state });
+  assert.equal(connectionRow.platform, 'instagram');
+  assert.equal(decryptToken(connectionRow.encryptedAccessToken), 'instagram-long');
+  assert.deepEqual(JSON.parse(connectionRow.scopesJson), service.INSTAGRAM_SCOPES);
+  assert.deepEqual(JSON.parse(profileRows[0].capabilitiesJson), { identity: true, publish: true, analytics: true });
 });
 
 test('X linking exchanges PKCE securely and stores a read-only profile', async t => {

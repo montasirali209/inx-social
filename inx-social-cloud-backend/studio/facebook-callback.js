@@ -47,11 +47,12 @@
     notifyOpener({ ok: false, error: message });
     title.textContent = 'Facebook connection failed';
     detail.textContent = message;
-    const link = document.createElement('a');
-    link.href = '/studio/';
-    link.textContent = 'Return to INX Social';
-    link.style.cssText = 'display:inline-block;margin-top:18px;color:#53c7ff;font-weight:700';
-    document.body.appendChild(link);
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.textContent = 'Close this window';
+    closeButton.style.cssText = 'margin-top:18px;border:1px solid #2dd4bf;border-radius:10px;background:#0f766e;color:white;padding:10px 16px;font:700 14px system-ui;cursor:pointer';
+    closeButton.addEventListener('click', () => window.close());
+    document.body.appendChild(closeButton);
   }
 
   async function api(url, options = {}) {
@@ -123,9 +124,6 @@
     detail.textContent = 'Connection complete. This window will close automatically…';
     notifyOpener({ ok: true, notice, connectedCount: selectedPageIds.length });
     setTimeout(() => window.close(), 250);
-    setTimeout(() => {
-      if (!window.closed) location.replace('/studio/?facebook=connected');
-    }, 1200);
   }
 
   finishConnection().catch(error => showError(error.message || 'Facebook connection failed.'));

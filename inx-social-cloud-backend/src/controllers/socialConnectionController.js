@@ -1,7 +1,7 @@
 const { z } = require('zod');
 const service = require('../services/socialConnectionService');
 
-const oauthPlatformSchema = z.enum(['linkedin', 'youtube', 'x']);
+const oauthPlatformSchema = z.enum(['instagram', 'linkedin', 'youtube', 'x']);
 
 function completionPage(res, payload) {
   const safePayload = JSON.stringify({ type: 'inx-social-oauth-result', ...payload }).replace(/</g, '\\u003c');
@@ -16,7 +16,13 @@ async function list(req, res, next) {
     res.json({
       connections,
       providers: {
-        instagram: { configured: true, method: 'META_LINKED_ACCOUNT' },
+        instagram: {
+          configured: Boolean(
+            String(process.env.INSTAGRAM_CLIENT_ID || process.env.META_APP_ID || '').trim()
+            && String(process.env.INSTAGRAM_CLIENT_SECRET || process.env.META_APP_SECRET || '').trim()
+          ),
+          method: 'INSTAGRAM_BUSINESS_LOGIN'
+        },
         linkedin: { configured: Boolean(String(process.env.LINKEDIN_CLIENT_ID || '').trim() && String(process.env.LINKEDIN_CLIENT_SECRET || '').trim()), method: 'OAUTH_CODE' },
         youtube: { configured: Boolean(String(process.env.GOOGLE_CLIENT_ID || '').trim() && String(process.env.GOOGLE_CLIENT_SECRET || '').trim()), method: 'OAUTH_CODE' },
         x: { configured: Boolean(String(process.env.X_CLIENT_ID || '').trim() && String(process.env.X_CLIENT_SECRET || '').trim()), method: 'OAUTH_CODE_PKCE' }
