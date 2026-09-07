@@ -47,7 +47,8 @@ describe('settings data', () => {
     expect(JSON.stringify(cards)).not.toContain('May 18, 2025')
     expect(cards.find((card) => card.id === 'workspace')?.actionLabel).toBeUndefined()
     expect(cards.find((card) => card.id === 'publishing')?.rows.map((row) => row.label)).toContain('Confirm Before Publishing')
-    expect(cards.find((card) => card.id === 'notifications')?.rows.map((row) => row.value)).toContain('Active')
+    expect(cards.find((card) => card.id === 'notifications')?.rows.map((row) => row.id)).toEqual(['emailAlerts', 'publishAlerts', 'reviewReminders'])
+    expect(cards.find((card) => card.id === 'notifications')?.rows.every((row) => row.type === 'toggle')).toBe(true)
   })
 
   it('offers the complete timezone catalogue supported by the runtime', () => {

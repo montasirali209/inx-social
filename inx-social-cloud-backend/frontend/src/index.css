@@ -294,6 +294,65 @@
   50% { opacity: 0.92; transform: translateY(-50%) scale(1.035); }
 }
 
+@keyframes connection-card-enter {
+  0% {
+    opacity: 0;
+    transform: perspective(1000px) translate3d(0, 18px, -70px) rotateX(7deg) scale(.96);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: perspective(1000px) translate3d(0, 0, 0) rotateX(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.connection-platform-grid {
+  perspective: 1100px;
+}
+
+.connection-platform-card {
+  isolation: isolate;
+  overflow: hidden;
+  transform-style: preserve-3d;
+  transition: border-color 220ms ease, box-shadow 220ms ease, transform 220ms ease;
+}
+
+.connection-platform-card::before {
+  position: absolute;
+  inset: -45%;
+  z-index: 0;
+  content: '';
+  background: radial-gradient(circle at 25% 35%, rgba(20, 184, 166, .22), transparent 34%), radial-gradient(circle at 85% 80%, rgba(34, 197, 94, .12), transparent 30%);
+  opacity: 0;
+  transform: translate3d(-8%, 8%, 0) rotate(-8deg);
+  transition: opacity 220ms ease, transform 420ms cubic-bezier(.2,.8,.2,1);
+}
+
+.connection-platform-card::after {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  content: '';
+  background: linear-gradient(115deg, transparent 20%, rgba(255,255,255,.07) 48%, transparent 72%);
+  transform: translateX(-125%);
+  transition: transform 500ms ease;
+}
+
+.connection-platform-icon,
+.connection-platform-arrow {
+  transition: transform 260ms cubic-bezier(.2,.8,.2,1);
+}
+
+.connection-help-answer {
+  animation: connection-answer-open 180ms ease-out both;
+}
+
+@keyframes connection-answer-open {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   .hero-stage::before {
     animation: orbit-breathe 7s ease-in-out infinite;
@@ -312,6 +371,33 @@
     transform-origin: 50% 20%;
     will-change: transform, opacity, filter;
   }
+
+  .connection-platform-card {
+    animation: connection-card-enter 430ms cubic-bezier(.2,.8,.2,1) both;
+  }
+
+  .connection-platform-card:not(:disabled):hover {
+    border-color: rgba(45, 212, 191, .42);
+    box-shadow: 0 18px 44px rgba(0, 0, 0, .32), 0 0 28px rgba(20, 184, 166, .09);
+    transform: perspective(1000px) translate3d(0, -5px, 18px) rotateX(2.5deg) rotateY(-1.5deg) scale(1.01);
+  }
+
+  .connection-platform-card:not(:disabled):hover::before {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(0);
+  }
+
+  .connection-platform-card:not(:disabled):hover::after {
+    transform: translateX(125%);
+  }
+
+  .connection-platform-card:not(:disabled):hover .connection-platform-icon {
+    transform: translate3d(0, -2px, 28px) rotate(-3deg) scale(1.08);
+  }
+
+  .connection-platform-card:not(:disabled):hover .connection-platform-arrow {
+    transform: translate3d(3px, 0, 18px);
+  }
 }
 
 @keyframes icon-float {
@@ -323,9 +409,17 @@
   .route-stage,
   .notification-pop,
   .posts-modal-backdrop,
-  .posts-modal-panel {
+  .posts-modal-panel,
+  .connection-platform-card,
+  .connection-help-answer {
     animation: none;
     will-change: auto;
+  }
+
+  .connection-platform-card,
+  .connection-platform-icon,
+  .connection-platform-arrow {
+    transition: none;
   }
 
   .interactive-surface,

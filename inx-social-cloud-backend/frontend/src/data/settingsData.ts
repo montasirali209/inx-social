@@ -161,8 +161,9 @@ export function settingsCards(values: SettingsValues, workspace: SettingsWorkspa
     {
       id: 'notifications', number: 6, title: 'Notifications', description: 'Essential account messages without routine publishing noise.', icon: 'bell', tone: 'amber',
       rows: [
-        { id: 'importantEmails', label: 'Important Account Emails', description: 'Email verification, password security, billing, subscription and access changes', type: 'summary', value: workspace.account.emailDeliveryConfigured ? 'Active' : 'Setup required' },
-        { id: 'publishingEmails', label: 'Routine Publishing Emails', description: 'Post-by-post success messages stay inside INXSocial', type: 'summary', value: 'Not sent' },
+        { id: 'emailAlerts', label: 'Important Account Emails', description: workspace.account.emailDeliveryConfigured ? 'Email verification, password security, billing, subscription and access changes' : 'Email delivery must be configured before these alerts can be sent', type: 'toggle', value: values.emailAlerts },
+        { id: 'publishAlerts', label: 'Publishing Result Alerts', description: 'Show success and failure notifications inside INXSocial', type: 'toggle', value: values.publishAlerts },
+        { id: 'reviewReminders', label: 'Review Reminders', description: 'Notify you when content is waiting for approval', type: 'toggle', value: values.reviewReminders },
       ],
     },
     {

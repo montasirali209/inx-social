@@ -53,6 +53,12 @@ export type PlatformOption = {
   connectedCount: number
 }
 
+export type ConnectionHelpTopic = {
+  id: string
+  question: string
+  answer: string
+}
+
 export const platformMeta: Record<Platform, { label: string; mark: string; className: string; contentTypes: string[]; description: string; available: boolean }> = {
   facebook: { label: 'Facebook', mark: 'f', className: 'bg-[#1877f2] text-white', contentTypes: ['Post', 'Reel', 'Video', 'Story'], description: 'Publish to Pages and view Page analytics.', available: true },
   instagram: { label: 'Instagram', mark: '◎', className: 'bg-gradient-to-br from-[#833ab4] via-[#fd1d1d] to-[#fcb045] text-white', contentTypes: ['Post', 'Reel', 'Story'], description: 'Link Instagram professional accounts through Meta.', available: true },
@@ -80,3 +86,36 @@ export const advancedHealthItems = [
   ['Webhook status', 'Not enabled', 'INXSocial uses secure refresh checks for the current connections.'],
   ['API health check', 'Ready', 'Checks whether your saved connections can be read securely.'],
 ] as const
+
+export const connectionHelpTopics: ConnectionHelpTopic[] = [
+  {
+    id: 'connect-meta',
+    question: 'How do I connect Facebook Pages and Instagram professional accounts?',
+    answer: 'Choose Connect Account, select Facebook or Instagram, then continue through Meta’s official authorisation window. Approve the Pages you want INXSocial to use. Instagram accounts must be Business or Creator accounts linked to an authorised Facebook Page.',
+  },
+  {
+    id: 'missing-instagram',
+    question: 'Why is my Instagram account missing after I connect Meta?',
+    answer: 'Confirm the Instagram account is a Business or Creator account and is linked to a Facebook Page you manage. Reconnect Instagram, choose all required Pages in Meta, and grant the requested Instagram and Page permissions.',
+  },
+  {
+    id: 'missing-youtube',
+    question: 'Why are some YouTube channels not shown?',
+    answer: 'Google returns channels owned by the Google account or Brand Accounts selected during sign-in. Reconnect YouTube with the account that owns the missing channel. While the Google app is in testing, that email must also be listed as an approved test user.',
+  },
+  {
+    id: 'permissions',
+    question: 'Why does INXSocial request publishing and analytics permissions?',
+    answer: 'INXSocial requests only the permissions needed to identify destinations, publish or schedule content, and read the analytics shown in your workspace. Your social password is never stored, and access can be revoked at any time.',
+  },
+  {
+    id: 'reconnect',
+    question: 'How do I fix an expired token or permission issue?',
+    answer: 'Open the affected account, choose Reconnect, and complete the platform authorisation again without removing required permissions. Then use Sync now. Existing post history stays in INXSocial while the connection is repaired.',
+  },
+  {
+    id: 'disconnect',
+    question: 'What happens when I disconnect an account?',
+    answer: 'Future publishing and analytics sync stop for that destination. Existing INXSocial post records remain available, and content already accepted or published by the social platform is not deleted automatically.',
+  },
+]
