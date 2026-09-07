@@ -543,7 +543,7 @@
     url.searchParams.set('client_id', FACEBOOK_APP_ID);
     url.searchParams.set('redirect_uri', redirectUri);
     url.searchParams.set('response_type', 'token');
-    url.searchParams.set('scope', 'public_profile,pages_show_list,pages_read_engagement,pages_read_user_content,read_insights,pages_manage_posts,business_management,instagram_basic,instagram_manage_insights');
+    url.searchParams.set('scope', 'public_profile,pages_show_list,pages_read_engagement,pages_read_user_content,read_insights,pages_manage_posts,business_management');
     url.searchParams.set('state', stateValue);
     url.searchParams.set('auth_type', 'rerequest');
     url.searchParams.set('return_scopes', 'true');
@@ -683,6 +683,7 @@
     return new Promise((resolve, reject) => {
       let settled = false;
       let closedAt = 0;
+      let providerNavigationStarted = false;
       const cleanup = () => {
         window.removeEventListener('message', receive);
         window.removeEventListener('storage', receiveStored);
@@ -719,7 +720,12 @@
       window.addEventListener('storage', receiveStored);
       const closedCheck = setInterval(() => {
         if (settled || consume(localStorage.getItem(resultKey))) return;
-        if (popup.closed) {
+        try {
+          void popup.location.href;
+        } catch (_) {
+          providerNavigationStarted = true;
+        }
+        if (popup.closed && !providerNavigationStarted) {
           closedAt = closedAt || Date.now();
           if (Date.now() - closedAt > 1500) finish({ ok: false, error: 'The connection window was closed before it completed.' });
         } else {
@@ -974,9 +980,7 @@
     refreshWorkspace: workspaceResult,
     connectFacebookWorkspace: facebookLogin,
     listSocialConnections: () => api('/api/social-connections'),
-    connectSocialPlatform: platform => String(platform).toLowerCase() === 'instagram'
-      ? api('/api/social-connections/instagram/sync', { method: 'POST', body: '{}' })
-      : socialOAuth(platform),
+    connectSocialPlatform: socialOAuth,
     disconnectSocialConnection: id => api(`/api/social-connections/${encodeURIComponent(id)}`, { method: 'DELETE' }),
     discoverMetaAccount: accessToken => api('/api/pages/accounts/discover', { method: 'POST', body: JSON.stringify({ accessToken }) }),
     connectMetaAccount: payload => api('/api/pages/accounts/connect', { method: 'POST', body: JSON.stringify(payload) }),

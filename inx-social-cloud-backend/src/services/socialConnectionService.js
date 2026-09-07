@@ -5,6 +5,11 @@ const prisma = require('../db/prisma');
 const { encryptToken, decryptToken } = require('../utils/tokenCrypto');
 
 const OAUTH_TTL = '10m';
+const INSTAGRAM_SCOPES = [
+  'instagram_business_basic',
+  'instagram_business_content_publish',
+  'instagram_business_manage_insights'
+];
 const LINKEDIN_SCOPES = ['openid', 'profile', 'email'];
 const YOUTUBE_SCOPES = [
   'openid',
@@ -30,6 +35,16 @@ function stateSecret() {
 }
 
 function providerConfig(platform) {
+  if (platform === 'instagram') {
+    return {
+      platform,
+      clientId: String(process.env.INSTAGRAM_CLIENT_ID || process.env.META_APP_ID || '').trim(),
+      clientSecret: String(process.env.INSTAGRAM_CLIENT_SECRET || process.env.META_APP_SECRET || '').trim(),
+      scopes: INSTAGRAM_SCOPES,
+      authorizationUrl: 'https://www.instagram.com/oauth/authorize',
+      tokenUrl: 'https://api.instagram.com/oauth/access_token'
+    };
+  }
   if (platform === 'linkedin') {
     return {
       platform,
@@ -66,7 +81,7 @@ function providerConfig(platform) {
 function requireProviderConfig(platform) {
   const config = providerConfig(platform);
   if (!config.clientId || !config.clientSecret) {
-    const label = platform === 'linkedin' ? 'LinkedIn' : platform === 'youtube' ? 'Google/YouTube' : 'X';
+    const label = platform === 'instagram' ? 'Instagram' : platform === 'linkedin' ? 'LinkedIn' : platform === 'youtube' ? 'Google/YouTube' : 'X';
     throw Object.assign(new Error(`${label} OAuth credentials are not configured on the server.`), { status: 503 });
   }
   return config;
@@ -85,7 +100,7 @@ function authorization(platform, userId) {
   url.searchParams.set('client_id', config.clientId);
   url.searchParams.set('redirect_uri', callbackUrl(platform));
   url.searchParams.set('response_type', 'code');
-  url.searchParams.set('scope', config.scopes.join(' '));
+  url.searchParams.set('scope', config.scopes.join(platform === 'instagram' ? ',' : ' '));
   url.searchParams.set('state', state);
   if (platform === 'youtube') {
     url.searchParams.set('access_type', 'offline');
@@ -214,6 +229,67 @@ async function connectLinkedIn(userId, code) {
   });
 }
 
+async function connectInstagram(userId, code) {
+  const config = requireProviderConfig('instagram');
+  const shortTokenResponse = await axios.post(config.tokenUrl, new URLSearchParams({
+    client_id: config.clientId,
+    client_secret: config.clientSecret,
+    grant_type: 'authorization_code',
+    redirect_uri: callbackUrl('instagram'),
+    code
+  }).toString(), {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    timeout: 20000
+  });
+  const shortToken = shortTokenResponse.data || {};
+  if (!shortToken.access_token) throw new Error('Instagram did not return an access token.');
+
+  const longTokenResponse = await axios.get('https://graph.instagram.com/access_token', {
+    params: {
+      grant_type: 'ig_exchange_token',
+      client_secret: config.clientSecret,
+      access_token: shortToken.access_token
+    },
+    timeout: 20000
+  });
+  const token = { ...shortToken, ...(longTokenResponse.data || {}) };
+  if (!token.access_token) throw new Error('Instagram did not return a long-lived access token.');
+
+  const profileResponse = await axios.get('https://graph.instagram.com/me', {
+    headers: { Authorization: `Bearer ${token.access_token}` },
+    params: { fields: 'id,user_id,username,name,profile_picture_url,followers_count,media_count,account_type' },
+    timeout: 20000
+  });
+  const profile = profileResponse.data || {};
+  const externalAccountId = String(profile.user_id || profile.id || shortToken.user_id || '');
+  if (!externalAccountId) throw new Error('Instagram did not return a professional account identity.');
+  const displayName = profile.name || profile.username || 'Instagram professional account';
+
+  return upsertConnection({
+    userId,
+    platform: 'instagram',
+    externalAccountId,
+    accountType: String(profile.account_type || 'PROFESSIONAL').toUpperCase(),
+    displayName: profile.username ? `@${profile.username}` : displayName,
+    token,
+    scopes: INSTAGRAM_SCOPES,
+    profile: {
+      externalProfileId: externalAccountId,
+      displayName,
+      username: profile.username || null,
+      profileType: 'PROFESSIONAL',
+      avatarUrl: profile.profile_picture_url || null,
+      isDefault: true,
+      capabilitiesJson: JSON.stringify({ identity: true, publish: true, analytics: true }),
+      metadataJson: JSON.stringify({
+        accountType: profile.account_type || null,
+        followers: Number(profile.followers_count || 0),
+        media: Number(profile.media_count || 0)
+      })
+    }
+  });
+}
+
 async function connectYouTube(userId, code) {
   const config = requireProviderConfig('youtube');
   const token = await exchangeCode(config, code);
@@ -319,6 +395,7 @@ async function completeOAuth(platform, query) {
   const payload = verifyState(platform, query.state);
   if (query.error) throw Object.assign(new Error(String(query.error_description || query.error)), { status: 400 });
   if (!query.code) throw Object.assign(new Error('The provider did not return an authorization code.'), { status: 400 });
+  if (platform === 'instagram') return connectInstagram(payload.sub, String(query.code));
   if (platform === 'linkedin') return connectLinkedIn(payload.sub, String(query.code));
   if (platform === 'youtube') return connectYouTube(payload.sub, String(query.code));
   if (platform === 'x') return connectX(payload.sub, String(query.code), payload);
@@ -444,6 +521,7 @@ module.exports = {
   disconnect,
   publicConnection,
   callbackUrl,
+  INSTAGRAM_SCOPES,
   LINKEDIN_SCOPES,
   YOUTUBE_SCOPES,
   X_SCOPES

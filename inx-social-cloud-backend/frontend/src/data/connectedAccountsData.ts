@@ -61,7 +61,7 @@ export type ConnectionHelpTopic = {
 
 export const platformMeta: Record<Platform, { label: string; mark: string; className: string; contentTypes: string[]; description: string; available: boolean }> = {
   facebook: { label: 'Facebook', mark: 'f', className: 'bg-[#1877f2] text-white', contentTypes: ['Post', 'Reel', 'Video', 'Story'], description: 'Publish to Pages and view Page analytics.', available: true },
-  instagram: { label: 'Instagram', mark: '◎', className: 'bg-gradient-to-br from-[#833ab4] via-[#fd1d1d] to-[#fcb045] text-white', contentTypes: ['Post', 'Reel', 'Story'], description: 'Link Instagram professional accounts through Meta.', available: true },
+  instagram: { label: 'Instagram', mark: '◎', className: 'bg-gradient-to-br from-[#833ab4] via-[#fd1d1d] to-[#fcb045] text-white', contentTypes: ['Post', 'Reel', 'Story'], description: 'Connect Instagram professional accounts using Instagram Business Login.', available: true },
   linkedin: { label: 'LinkedIn', mark: 'in', className: 'bg-[#0a66c2] text-white', contentTypes: ['Post', 'Video'], description: 'Connect your LinkedIn identity with official OAuth.', available: true },
   tiktok: { label: 'TikTok', mark: '♪', className: 'bg-[#111827] text-white', contentTypes: ['Post', 'Video'], description: 'TikTok publishing support is being prepared.', available: false },
   youtube: { label: 'YouTube', mark: '▶', className: 'bg-[#ff0000] text-white', contentTypes: ['Video', 'Shorts'], description: 'Connect channels and inspect YouTube account data.', available: true },

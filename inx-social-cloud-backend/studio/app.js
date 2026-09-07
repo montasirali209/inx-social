@@ -3802,7 +3802,7 @@ function socialPlatformMark(platform) {
 
 function updateSocialProviderButtons() {
   const settings = [
-    ['Instagram', 'instagram', 'Link through Meta'],
+    ['Instagram', 'instagram', 'Connect professional account'],
     ['LinkedIn', 'linkedin', 'Connect account'],
     ['YouTube', 'youtube', 'Connect channel'],
     ['X', 'x', 'Connect profile']

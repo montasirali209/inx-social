@@ -33,6 +33,7 @@ function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => bo
   return new Promise<OAuthMessage>((resolve, reject) => {
     let settled = false
     let closedAt = 0
+    let providerNavigationStarted = false
     const cleanup = () => {
       window.removeEventListener('message', receive)
       window.removeEventListener('storage', receiveStored)
@@ -67,7 +68,16 @@ function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => bo
     window.addEventListener('storage', receiveStored)
     const closedCheck = window.setInterval(() => {
       if (settled || consume(window.localStorage.getItem(storageKey))) return
-      if (popup.closed) {
+      try {
+        void popup.location.href
+      } catch {
+        providerNavigationStarted = true
+      }
+      // Meta and some other providers isolate OAuth popups with COOP. That can
+      // make `popup.closed` read as true even though the window is still open.
+      // Once cross-origin navigation has started, the callback/storage result is
+      // the reliable completion signal; do not show a false "window closed" error.
+      if (popup.closed && !providerNavigationStarted) {
         closedAt ||= Date.now()
         if (Date.now() - closedAt > 2_500) finish({ ok: false, error: 'The connection window was closed before setup completed.' })
       } else closedAt = 0
@@ -76,7 +86,7 @@ function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => bo
   })
 }
 
-export async function connectOAuthPlatform(platform: 'linkedin' | 'youtube' | 'x') {
+export async function connectOAuthPlatform(platform: 'instagram' | 'linkedin' | 'youtube' | 'x') {
   const storageKey = 'inx-social-oauth-result'
   window.localStorage.removeItem(storageKey)
   const start = await apiRequest<{ authorizationUrl: string }>(`/api/social-connections/oauth/${platform}/start`, { method: 'POST', body: '{}' })
@@ -95,7 +105,7 @@ export async function connectFacebook() {
   url.searchParams.set('client_id', '969283649323618')
   url.searchParams.set('redirect_uri', redirectUri)
   url.searchParams.set('response_type', 'token')
-  url.searchParams.set('scope', 'public_profile,pages_show_list,pages_read_engagement,pages_read_user_content,read_insights,pages_manage_posts,business_management,instagram_basic,instagram_manage_insights')
+  url.searchParams.set('scope', 'public_profile,pages_show_list,pages_read_engagement,pages_read_user_content,read_insights,pages_manage_posts,business_management')
   url.searchParams.set('state', state)
   url.searchParams.set('auth_type', 'rerequest')
   url.searchParams.set('return_scopes', 'true')
@@ -113,8 +123,7 @@ export function syncInstagram() {
 }
 
 export async function connectInstagram() {
-  await connectFacebook()
-  return syncInstagram()
+  return connectOAuthPlatform('instagram')
 }
 
 export function disconnectSocialConnection(connectionId: string) {
