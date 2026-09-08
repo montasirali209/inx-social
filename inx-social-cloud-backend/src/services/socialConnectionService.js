@@ -38,8 +38,8 @@ function providerConfig(platform) {
   if (platform === 'instagram') {
     return {
       platform,
-      clientId: String(process.env.INSTAGRAM_CLIENT_ID || process.env.META_APP_ID || '').trim(),
-      clientSecret: String(process.env.INSTAGRAM_CLIENT_SECRET || process.env.META_APP_SECRET || '').trim(),
+      clientId: String(process.env.INSTAGRAM_CLIENT_ID || '').trim(),
+      clientSecret: String(process.env.INSTAGRAM_CLIENT_SECRET || '').trim(),
       scopes: INSTAGRAM_SCOPES,
       authorizationUrl: 'https://www.instagram.com/oauth/authorize',
       tokenUrl: 'https://api.instagram.com/oauth/access_token'

@@ -35,6 +35,8 @@ test('React connections use Instagram Business Login without legacy Facebook Ins
   assert.match(facebookCallback, /Close this window/);
   assert.match(controller, /INSTAGRAM_BUSINESS_LOGIN/);
   assert.match(service, /OAUTH_PROVIDER_NOT_CONFIGURED/);
+  assert.doesNotMatch(service, /INSTAGRAM_CLIENT_ID \|\| process\.env\.META_APP_ID/);
+  assert.doesNotMatch(controller, /INSTAGRAM_CLIENT_ID \|\| process\.env\.META_APP_ID/);
   assert.match(connectedAccountsPage, /Instagram setup is incomplete\./);
   assert.match(connectedAccountsPage, /Instagram setup required/);
   assert.match(connectedAccountsPage, />Close<\/Button>/);

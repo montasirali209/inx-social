@@ -18,8 +18,8 @@ async function list(req, res, next) {
       providers: {
         instagram: {
           configured: Boolean(
-            String(process.env.INSTAGRAM_CLIENT_ID || process.env.META_APP_ID || '').trim()
-            && String(process.env.INSTAGRAM_CLIENT_SECRET || process.env.META_APP_SECRET || '').trim()
+            String(process.env.INSTAGRAM_CLIENT_ID || '').trim()
+            && String(process.env.INSTAGRAM_CLIENT_SECRET || '').trim()
           ),
           method: 'INSTAGRAM_BUSINESS_LOGIN'
         },
