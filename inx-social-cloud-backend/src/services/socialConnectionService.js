@@ -82,7 +82,8 @@ function requireProviderConfig(platform) {
   const config = providerConfig(platform);
   if (!config.clientId || !config.clientSecret) {
     const label = platform === 'instagram' ? 'Instagram' : platform === 'linkedin' ? 'LinkedIn' : platform === 'youtube' ? 'Google/YouTube' : 'X';
-    throw Object.assign(new Error(`${label} OAuth credentials are not configured on the server.`), { status: 503 });
+    const message = `${label} OAuth credentials are not configured on the server.`;
+    throw Object.assign(new Error(message), { status: 503, publicMessage: message, code: 'OAUTH_PROVIDER_NOT_CONFIGURED' });
   }
   return config;
 }

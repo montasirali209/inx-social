@@ -91,12 +91,12 @@ export const connectionHelpTopics: ConnectionHelpTopic[] = [
   {
     id: 'connect-meta',
     question: 'How do I connect Facebook Pages and Instagram professional accounts?',
-    answer: 'Choose Connect Account, select Facebook or Instagram, then continue through Meta’s official authorisation window. Approve the Pages you want INXSocial to use. Instagram accounts must be Business or Creator accounts linked to an authorised Facebook Page.',
+    answer: 'Choose Connect Account and select the platform you need. Facebook opens Meta authorisation for Pages. Instagram opens Instagram Business Login directly for a Business or Creator account. These are separate secure connection flows.',
   },
   {
     id: 'missing-instagram',
     question: 'Why is my Instagram account missing after I connect Meta?',
-    answer: 'Confirm the Instagram account is a Business or Creator account and is linked to a Facebook Page you manage. Reconnect Instagram, choose all required Pages in Meta, and grant the requested Instagram and Page permissions.',
+    answer: 'Confirm the account is an Instagram Business or Creator account, then reconnect it through Instagram Business Login and grant the requested profile, publishing and insights permissions. Personal Instagram accounts are not supported by this connector.',
   },
   {
     id: 'missing-youtube',
