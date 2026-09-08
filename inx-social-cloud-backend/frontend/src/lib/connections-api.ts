@@ -171,7 +171,9 @@ export function flattenConnectedIdentities(workspace: ConnectionsWorkspace): Con
       displayName: profile.displayName || connection.displayName || `${connection.platform} account`,
       username: profile.username,
       avatarUrl: profile.avatarUrl,
-      detail: connection.platform === 'instagram' ? 'Identity and insights linked' : connection.platform === 'linkedin' ? 'Identity linked' : 'Read-only connection',
+      detail: connection.platform === 'instagram'
+        ? profile.capabilities?.publish ? 'Professional profile · Publishing permission granted' : 'Identity and insights linked'
+        : connection.platform === 'linkedin' ? 'Identity linked' : 'Read-only connection',
       status: connection.lastError ? 'attention' as const : 'connected' as const,
       connectedAt: connection.connectedAt,
       lastSyncedAt: connection.lastSyncedAt,
