@@ -103,6 +103,12 @@ function authorization(platform, userId) {
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('scope', config.scopes.join(platform === 'instagram' ? ',' : ' '));
   url.searchParams.set('state', state);
+  if (platform === 'instagram') {
+    // Instagram Business Login authorises one professional profile per flow.
+    // Force a fresh authorisation screen so users can add another profile
+    // instead of silently reconnecting the currently signed-in account.
+    url.searchParams.set('force_reauth', 'true');
+  }
   if (platform === 'youtube') {
     url.searchParams.set('access_type', 'offline');
     url.searchParams.set('include_granted_scopes', 'true');

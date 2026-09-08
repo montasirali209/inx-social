@@ -64,6 +64,7 @@ test('Instagram, LinkedIn, YouTube, and X authorization URLs use signed state an
     'instagram_business_content_publish',
     'instagram_business_manage_insights'
   ]);
+  assert.equal(instagram.searchParams.get('force_reauth'), 'true');
   assert.ok(instagram.searchParams.get('state'));
 
   const linkedIn = new URL(service.authorization('linkedin', 'user-1').authorizationUrl);
