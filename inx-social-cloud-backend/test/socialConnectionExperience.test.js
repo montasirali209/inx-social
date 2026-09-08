@@ -39,8 +39,8 @@ test('React connections use Instagram Business Login without legacy Facebook Ins
   assert.doesNotMatch(controller, /INSTAGRAM_CLIENT_ID \|\| process\.env\.META_APP_ID/);
   assert.match(connectedAccountsPage, /Instagram setup is incomplete\./);
   assert.match(connectedAccountsPage, /Instagram setup required/);
-  assert.match(connectedAccountsPage, />Close<\/Button>/);
-  assert.doesNotMatch(connectedAccountsPage, />Back<\/Button>/);
+  assert.match(connectedAccountsPage, />\s*Close\s*<\/Button>/);
+  assert.doesNotMatch(connectedAccountsPage, />\s*Back\s*<\/Button>/);
 });
 
 test('social OAuth callback is public while account management remains authenticated', () => {

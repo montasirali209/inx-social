@@ -37,7 +37,7 @@ function socialDestinations(connections: Awaited<ReturnType<typeof fetchConnecti
         // successful selection that the API cannot publish yet.
         connected: false,
         disabledReason: publishable
-          ? 'Instagram is connected. Publishing activation is being completed for this profile.'
+          ? 'Instagram is connected for identity and analytics. Publishing from INXSocial is not available yet.'
           : 'This connection currently supports identity and analytics only.',
       } satisfies Destination
     }))
