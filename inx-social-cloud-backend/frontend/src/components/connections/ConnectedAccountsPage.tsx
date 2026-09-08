@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   advancedHealthItems,
   connectionHelpTopics,
@@ -37,6 +38,7 @@ import {
   fetchConnectionsWorkspace,
   flattenConnectedIdentities,
   type ConnectedIdentity,
+  type ConnectionsWorkspace,
 } from "../../lib/connections-api";
 import { useUiStore } from "../../store/ui-store";
 import { Button } from "../ui/Button";
@@ -205,6 +207,10 @@ export function ConnectedAccountsPage() {
   const [activityOpen, setActivityOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   const [menuId, setMenuId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{
+    top: number;
+    right: number;
+  } | null>(null);
   const [toggles, setToggles] = useState<
     Record<
       string,
@@ -227,6 +233,20 @@ export function ConnectedAccountsPage() {
     );
     return () => window.clearTimeout(timer);
   }, [notice]);
+
+  useEffect(() => {
+    if (!menuId) return;
+    const closeMenu = () => {
+      setMenuId(null);
+      setMenuPosition(null);
+    };
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("scroll", closeMenu, true);
+    return () => {
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("scroll", closeMenu, true);
+    };
+  }, [menuId]);
 
   const identities = useMemo(
     () => (workspace.data ? flattenConnectedIdentities(workspace.data) : []),
@@ -253,6 +273,9 @@ export function ConnectedAccountsPage() {
       ) as Record<Platform, number>,
     [identities],
   );
+  const menuIdentity = menuId
+    ? identities.find((identity) => identity.id === menuId) || null
+    : null;
   const activities = useMemo<ConnectionActivity[]>(
     () =>
       identities
@@ -309,7 +332,27 @@ export function ConnectedAccountsPage() {
       identity.connectionId
         ? disconnectSocialConnection(identity.connectionId)
         : disconnectFacebookPage(identity.id),
-    onSuccess: async () => {
+    onSuccess: async (_, identity) => {
+      queryClient.setQueryData<ConnectionsWorkspace>(
+        ["connections-workspace"],
+        (current) =>
+          current
+            ? {
+                ...current,
+                overview: {
+                  ...current.overview,
+                  pages: current.overview.pages.filter(
+                    (page) => page.id !== identity.id,
+                  ),
+                },
+                connections: identity.connectionId
+                  ? current.connections.filter(
+                      (connection) => connection.id !== identity.connectionId,
+                    )
+                  : current.connections,
+              }
+            : current,
+      );
       await refresh();
       setDisconnecting(null);
       setManaging(null);
@@ -457,7 +500,7 @@ export function ConnectedAccountsPage() {
             <span>Last sync</span>
             <span>Actions</span>
           </div>
-          <div className="divide-y divide-border-soft">
+          <div className="max-h-[min(65vh,52rem)] divide-y divide-border-soft overflow-y-auto overscroll-contain [scrollbar-color:rgba(20,184,166,.45)_transparent] [scrollbar-width:thin]">
             {filtered.map((identity) => (
               <article
                 className="grid gap-3 p-4 transition hover:bg-panel-hover/35 lg:grid-cols-[1.1fr_1.3fr_.85fr_.85fr_auto] lg:items-center lg:gap-4 lg:px-5"
@@ -520,70 +563,26 @@ export function ConnectedAccountsPage() {
                   <button
                     aria-label={`More actions for ${identity.displayName}`}
                     className="grid size-9 place-items-center rounded-lg text-text-muted hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-brand-cyan"
-                    onClick={() =>
-                      setMenuId(menuId === identity.id ? null : identity.id)
-                    }
+                    onClick={(event) => {
+                      if (menuId === identity.id) {
+                        setMenuId(null);
+                        setMenuPosition(null);
+                        return;
+                      }
+                      const rect = event.currentTarget.getBoundingClientRect();
+                      setMenuPosition({
+                        top: Math.max(
+                          12,
+                          Math.min(rect.bottom + 6, window.innerHeight - 224),
+                        ),
+                        right: Math.max(12, window.innerWidth - rect.right),
+                      });
+                      setMenuId(identity.id);
+                    }}
                     type="button"
                   >
                     <MoreVertical className="size-4" />
                   </button>
-                  {menuId === identity.id && (
-                    <div className="absolute right-0 top-10 z-10 w-44 rounded-xl border border-border-soft bg-[#071923] p-1 shadow-panel">
-                      <button
-                        className="menu-item"
-                        onClick={() => {
-                          setMenuId(null);
-                          syncMutation.mutate();
-                        }}
-                        type="button"
-                      >
-                        Sync now
-                      </button>
-                      <button
-                        className="menu-item"
-                        onClick={() => {
-                          setMenuId(null);
-                          setManaging(identity);
-                        }}
-                        type="button"
-                      >
-                        View pages / profile
-                      </button>
-                      <button
-                        className="menu-item"
-                        onClick={() => {
-                          setMenuId(null);
-                          setSelectedPlatform(identity.platform);
-                          setConnectOpen(true);
-                        }}
-                        type="button"
-                      >
-                        Reconnect
-                      </button>
-                      <a
-                        className="menu-item"
-                        href={
-                          identity.platform === "facebook"
-                            ? "https://facebook.com"
-                            : "#platform"
-                        }
-                        rel="noreferrer"
-                        target="_blank"
-                      >
-                        Open platform <ExternalLink className="size-3" />
-                      </a>
-                      <button
-                        className="menu-item text-brand-red"
-                        onClick={() => {
-                          setMenuId(null);
-                          setDisconnecting(identity);
-                        }}
-                        type="button"
-                      >
-                        Disconnect
-                      </button>
-                    </div>
-                  )}
                 </div>
               </article>
             ))}
@@ -764,14 +763,14 @@ export function ConnectedAccountsPage() {
           </div>
           <section className="flex flex-col gap-3 rounded-2xl border border-border-soft bg-panel/45 p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
             <span className="text-text-muted">
-              Don’t see your platform? We support 15+ platforms.
+              Available now: Facebook, Instagram, LinkedIn, YouTube and X.
             </span>
             <button
               className="font-semibold text-brand-teal hover:text-brand-cyan"
               onClick={() => setSupportedOpen(true)}
               type="button"
             >
-              View all supported platforms{" "}
+              See available and planned platforms{" "}
               <ChevronRight className="inline size-4" />
             </button>
           </section>
@@ -1064,6 +1063,100 @@ export function ConnectedAccountsPage() {
           </section>
         </div>
       )}
+      {menuIdentity &&
+        menuPosition &&
+        createPortal(
+          <>
+            <button
+              aria-label="Close account actions"
+              className="fixed inset-0 z-[69] cursor-default"
+              onClick={() => {
+                setMenuId(null);
+                setMenuPosition(null);
+              }}
+              type="button"
+            />
+            <div
+              aria-label={`Actions for ${menuIdentity.displayName}`}
+              className="fixed z-[70] w-52 rounded-xl border border-border-soft bg-[#071923] p-1 shadow-panel"
+              role="menu"
+              style={{
+                right: menuPosition.right,
+                top: menuPosition.top,
+              }}
+            >
+              <button
+                className="menu-item"
+                onClick={() => {
+                  setMenuId(null);
+                  setMenuPosition(null);
+                  syncMutation.mutate();
+                }}
+                role="menuitem"
+                type="button"
+              >
+                Sync now
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => {
+                  setMenuId(null);
+                  setMenuPosition(null);
+                  setManaging(menuIdentity);
+                }}
+                role="menuitem"
+                type="button"
+              >
+                View details
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => {
+                  setMenuId(null);
+                  setMenuPosition(null);
+                  setSelectedPlatform(menuIdentity.platform);
+                  setConnectOpen(true);
+                }}
+                role="menuitem"
+                type="button"
+              >
+                Reconnect
+              </button>
+              <a
+                className="menu-item"
+                href={
+                  menuIdentity.platform === "facebook"
+                    ? "https://facebook.com"
+                    : menuIdentity.platform === "instagram"
+                      ? "https://instagram.com"
+                      : menuIdentity.platform === "linkedin"
+                        ? "https://linkedin.com"
+                        : menuIdentity.platform === "youtube"
+                          ? "https://youtube.com"
+                          : "https://x.com"
+                }
+                rel="noreferrer"
+                role="menuitem"
+                target="_blank"
+              >
+                Open platform <ExternalLink className="size-3" />
+              </a>
+              <button
+                className="menu-item text-brand-red"
+                onClick={() => {
+                  setMenuId(null);
+                  setMenuPosition(null);
+                  setDisconnecting(menuIdentity);
+                }}
+                role="menuitem"
+                type="button"
+              >
+                Disconnect
+              </button>
+            </div>
+          </>,
+          document.body,
+        )}
       {connectOpen && (
         <Modal
           panelClassName="connection-connect-panel !max-w-3xl"
@@ -1329,32 +1422,18 @@ export function ConnectedAccountsPage() {
       {disconnecting && (
         <Modal
           onClose={() => setDisconnecting(null)}
-          title={`Disconnect ${disconnecting.displayName}?`}
+          title={`Disconnect ${disconnecting.platform === "facebook" ? "Page" : "account"} “${disconnecting.displayName}”?`}
         >
           <div className="mt-4">
             <p className="text-sm leading-6 text-text-muted">
-              This removes saved authorisation for this connection. It will no
-              longer be available for future publishing, scheduling or sync.
-              Existing post records stay intact.
+              This removes the connection from INXSocial immediately. It will
+              disappear from Posts and Bulk Scheduler and will no longer publish
+              or sync. Your existing post history will remain available.
             </p>
-            <label className="mt-4 block text-sm font-medium">
-              Type{" "}
-              <code className="rounded bg-white/10 px-1.5 py-0.5">
-                DISCONNECT
-              </code>{" "}
-              to confirm
-              <input
-                className="mt-2 min-h-11 w-full rounded-xl border border-border-soft bg-bg/60 px-3 text-sm focus:border-brand-red focus:outline-none"
-                onChange={(event) => {
-                  const target = document.getElementById(
-                    "disconnect-confirm",
-                  ) as HTMLButtonElement | null;
-                  if (target)
-                    target.disabled = event.target.value !== "DISCONNECT";
-                }}
-                placeholder="DISCONNECT"
-              />
-            </label>
+            <div className="mt-4 flex items-start gap-3 rounded-xl border border-brand-red/25 bg-brand-red/7 p-3 text-sm text-text-muted">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-brand-red" />
+              <span>You can reconnect this account later through the official platform authorisation flow.</span>
+            </div>
             <div className="mt-5 grid gap-2 sm:grid-cols-2">
               <Button
                 onClick={() => setDisconnecting(null)}
@@ -1364,11 +1443,12 @@ export function ConnectedAccountsPage() {
               </Button>
               <Button
                 className="border-brand-red/40 bg-brand-red/15 text-brand-red hover:bg-brand-red/25"
-                disabled
-                id="disconnect-confirm"
+                disabled={disconnectMutation.isPending}
                 onClick={() => disconnectMutation.mutate(disconnecting)}
               >
-                {disconnectMutation.isPending ? "Disconnecting…" : "Disconnect"}
+                {disconnectMutation.isPending
+                  ? "Disconnecting…"
+                  : "Yes, disconnect"}
               </Button>
             </div>
           </div>
@@ -1444,7 +1524,7 @@ export function ConnectedAccountsPage() {
       {supportedOpen && (
         <Modal
           onClose={() => setSupportedOpen(false)}
-          title="Supported platforms"
+          title="Available and planned platforms"
         >
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             {supportedPlatforms(counts).map((platform) => (

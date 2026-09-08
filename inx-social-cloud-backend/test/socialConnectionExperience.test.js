@@ -41,6 +41,20 @@ test('React connections use Instagram Business Login without legacy Facebook Ins
   assert.match(connectedAccountsPage, /Instagram setup required/);
   assert.match(connectedAccountsPage, />\s*Close\s*<\/Button>/);
   assert.doesNotMatch(connectedAccountsPage, />\s*Back\s*<\/Button>/);
+  assert.match(service, /force_authentication/);
+  assert.match(service, /enable_fb_login/);
+  assert.doesNotMatch(service, /force_reauth/);
+  assert.match(api, /inxSocialConnect-instagram-/);
+});
+
+test('Connected Accounts menus, scrolling and disconnect confirmation remain usable', () => {
+  const page = read('frontend/src/components/connections/ConnectedAccountsPage.tsx');
+  assert.match(page, /createPortal/);
+  assert.match(page, /overflow-y-auto overscroll-contain/);
+  assert.match(page, /Yes, disconnect/);
+  assert.doesNotMatch(page, /Type\s*\{?"?\s*DISCONNECT/);
+  assert.doesNotMatch(page, /15\+ platforms/);
+  assert.match(page, /Available now: Facebook, Instagram, LinkedIn, YouTube and X\./);
 });
 
 test('social OAuth callback is public while account management remains authenticated', () => {
