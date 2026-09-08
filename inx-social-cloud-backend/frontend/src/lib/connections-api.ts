@@ -91,7 +91,10 @@ export async function connectOAuthPlatform(platform: 'instagram' | 'linkedin' | 
   window.localStorage.removeItem(storageKey)
   const start = await apiRequest<{ authorizationUrl: string }>(`/api/social-connections/oauth/${platform}/start`, { method: 'POST', body: '{}' })
   const position = popupPosition()
-  const popup = window.open(start.authorizationUrl, `inxSocialConnect-${platform}`, `popup=yes,width=${position.width},height=${position.height},left=${position.left},top=${position.top},resizable=yes,scrollbars=yes`)
+  const popupName = platform === 'instagram'
+    ? `inxSocialConnect-instagram-${window.crypto.randomUUID()}`
+    : `inxSocialConnect-${platform}`
+  const popup = window.open(start.authorizationUrl, popupName, `popup=yes,width=${position.width},height=${position.height},left=${position.left},top=${position.top},resizable=yes,scrollbars=yes`)
   if (!popup) throw new Error('The connection popup was blocked. Allow popups for INXSocial and try again.')
   popup.focus()
   return waitForOAuthPopup(popup, (message) => message.type === 'inx-social-oauth-result' && message.platform === platform, storageKey)

@@ -105,9 +105,10 @@ function authorization(platform, userId) {
   url.searchParams.set('state', state);
   if (platform === 'instagram') {
     // Instagram Business Login authorises one professional profile per flow.
-    // Force a fresh authorisation screen so users can add another profile
-    // instead of silently reconnecting the currently signed-in account.
-    url.searchParams.set('force_reauth', 'true');
+    // These are the provider-supported Business Login parameters. They prevent
+    // the ordinary Instagram session/feed from replacing the account chooser.
+    url.searchParams.set('enable_fb_login', '0');
+    url.searchParams.set('force_authentication', '1');
   }
   if (platform === 'youtube') {
     url.searchParams.set('access_type', 'offline');
