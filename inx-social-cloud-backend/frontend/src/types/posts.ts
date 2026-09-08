@@ -29,6 +29,7 @@ export type Destination = {
   type: string
   avatarUrl: string | null
   connected: boolean
+  disabledReason: string | null
 }
 
 export type MediaItem = {
@@ -61,6 +62,7 @@ export type PostDraft = {
 export type PostsWorkspaceData = {
   overview: StudioOverview
   pages: ConnectedPage[]
+  destinations: Destination[]
   jobs: DashboardJob[]
   settings: Pick<SettingsValues, 'approvalRequired' | 'defaultPublishMode' | 'timezone'>
 }

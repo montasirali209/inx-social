@@ -199,7 +199,7 @@ export function PostsPage() {
     setTitle(draft.title)
     setCaption(draft.caption)
     setPostType(draft.postType)
-    setSelectedIds(draft.selectedDestinationIds.filter((id) => workspace.data?.pages.some((page) => page.id === id)))
+    setSelectedIds(draft.selectedDestinationIds.filter((id) => workspace.data?.destinations.some((destination) => destination.id === id && destination.connected)))
     setMode(draft.scheduleMode)
     setCampaign(draft.campaign)
     setLabels(draft.labels.join(', '))
@@ -332,7 +332,7 @@ export function PostsPage() {
   return (
     <div className="dashboard-canvas pb-8">
       <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 xl:grid-cols-5">{stats.map((stat) => <PostsStatCard key={stat.label} {...stat} onClick={stat.label === 'Drafts' ? () => setDraftLibraryOpen(true) : stat.label === 'All Posts' ? () => setPostLibraryView('all') : stat.label === 'Scheduled' ? () => setPostLibraryView('scheduled') : stat.label === 'Published' ? () => setPostLibraryView('published') : stat.label === 'Needs Review' ? () => setPostLibraryView('needs_review') : undefined} />)}</div>
-      <DestinationSelector pages={workspace.data.pages} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
+      <DestinationSelector destinations={workspace.data.destinations} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.35fr)_minmax(290px,.72fr)_minmax(320px,.82fr)]">
         <CreatePostPanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} caption={caption} destinationCount={selectedIds.length} media={media} postType={postType} retainMedia={retainMedia} setCaption={setCaption} setMedia={setMedia} setPostType={setPostType} setRetainMedia={setRetainMedia} setTitle={setTitle} title={title} />
         <SchedulePanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} campaign={campaign} canPublish={mode === 'draft' ? Boolean(title.trim() || caption.trim()) : ready} date={date} labels={labels} mode={mode} onDraft={saveDraft} onPublish={requestPublish} progress={progress} setCampaign={setCampaign} setDate={setDate} setLabels={setLabels} setMode={setMode} setTime={setTime} time={time} />

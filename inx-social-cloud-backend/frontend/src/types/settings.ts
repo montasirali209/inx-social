@@ -71,6 +71,8 @@ export type SocialProfileSummary = {
   username: string | null
   avatarUrl: string | null
   status: string
+  profileType?: string
+  capabilities?: Record<string, boolean>
 }
 
 export type SocialConnectionSummary = {

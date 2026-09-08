@@ -4,17 +4,57 @@ import type { CaptionEnhancement, CaptionTone, CreateDirectPostInput, DirectPost
 import { fetchDashboardJobs, fetchStudioOverview } from './dashboard-api'
 import { normaliseSettings } from '../data/settingsData'
 import type { SettingsValues } from '../types/settings'
+import { fetchConnectionsWorkspace } from './connections-api'
+import type { Destination } from '../types/posts'
+
+function facebookDestinations(pages: Awaited<ReturnType<typeof fetchStudioOverview>>['pages']): Destination[] {
+  return pages.map((page) => ({
+    id: page.id,
+    platform: 'facebook',
+    name: page.facebookPageName,
+    handle: page.facebookPageUsername ? `@${page.facebookPageUsername.replace(/^@/, '')}` : null,
+    type: page.facebookCategory ? `Facebook Page · ${page.facebookCategory}` : 'Facebook Page',
+    avatarUrl: page.facebookPagePicture,
+    connected: page.status === 'ACTIVE',
+    disabledReason: page.status === 'ACTIVE' ? null : page.lastError || 'Reconnect this Facebook Page.',
+  }))
+}
+
+function socialDestinations(connections: Awaited<ReturnType<typeof fetchConnectionsWorkspace>>['connections']): Destination[] {
+  return connections.flatMap((connection) => connection.profiles
+    .filter((profile) => profile.status === 'ACTIVE')
+    .map((profile) => {
+      const publishable = connection.platform === 'instagram' && Boolean(profile.capabilities?.publish)
+      return {
+        id: profile.id,
+        platform: connection.platform,
+        name: profile.displayName || connection.displayName || `${connection.platform} account`,
+        handle: profile.username ? `@${profile.username.replace(/^@/, '')}` : null,
+        type: connection.platform === 'instagram' ? 'Instagram professional profile' : profile.profileType || 'Social profile',
+        avatarUrl: profile.avatarUrl,
+        // The current production publisher still accepts Facebook Page jobs only.
+        // Keep connected Instagram identities visible while preventing a false
+        // successful selection that the API cannot publish yet.
+        connected: false,
+        disabledReason: publishable
+          ? 'Instagram is connected. Publishing activation is being completed for this profile.'
+          : 'This connection currently supports identity and analytics only.',
+      } satisfies Destination
+    }))
+}
 
 export async function fetchPostsWorkspace(): Promise<PostsWorkspaceData> {
-  const [overview, jobs, preferences] = await Promise.all([
+  const [overview, jobs, preferences, connections] = await Promise.all([
     fetchStudioOverview(),
     fetchDashboardJobs(),
     apiRequest<{ settings: Partial<SettingsValues> }>('/api/studio/preferences'),
+    fetchConnectionsWorkspace(),
   ])
   const settings = normaliseSettings(preferences.settings)
   return {
     overview,
     pages: overview.pages,
+    destinations: [...facebookDestinations(overview.pages), ...socialDestinations(connections.connections)],
     jobs,
     settings: {
       approvalRequired: settings.approvalRequired,
