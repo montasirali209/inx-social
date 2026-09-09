@@ -20,16 +20,28 @@ const agentRoutes = require('./routes/agentRoutes');
 const socialPlatformRoutes = require('./routes/socialPlatformRoutes');
 const socialConnectionRoutes = require('./routes/socialConnectionRoutes');
 const packageInfo = require('../package.json');
+const env = require('./config/env');
 
 const app = express();
 const reactAppRoot = path.join(__dirname, '..', 'frontend', 'dist');
 const reactAppIndex = path.join(reactAppRoot, 'index.html');
+const adminIndex = path.join(__dirname, '..', 'public', 'index.html');
+const isAdminHost = req => Boolean(env.adminHost && String(req.hostname || '').toLowerCase() === env.adminHost);
+const secureAdminDocument = res => {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+};
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
 morgan.token('safe-url', req => String(req.originalUrl || req.url || '').replace(/([?&]access=)[^&]+/g, '$1[redacted]'));
 app.use(morgan(':method :safe-url :status :response-time ms - :res[content-length]'));
 app.use(rateLimit({ windowMs: 60 * 1000, limit: 240 }));
+app.use('/api/admin', rateLimit({ windowMs: 60 * 1000, limit: 90 }), (req, res, next) => {
+  if (env.adminHost && !isAdminHost(req)) return res.status(404).json({ error: 'Route not found' });
+  next();
+});
 
 // Account, API and administration screens must not compete with the public
 // product pages in search results.
@@ -82,7 +94,6 @@ app.get('/health', (req, res) => {
     ok: true,
     service: 'INX Social Cloud Backend',
     version: packageInfo.version,
-    adminPanel: '/admin',
     customerPortal: '/portal/',
     cloudStudio: '/app/',
     reactApp: '/app/'
@@ -90,7 +101,9 @@ app.get('/health', (req, res) => {
 });
 
 app.get(['/admin', '/admin/'], (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+  if (env.adminHost) return res.status(404).json({ error: 'Route not found' });
+  secureAdminDocument(res);
+  res.sendFile(adminIndex);
 });
 
 app.get(/^\/app$/, (req, res) => res.redirect(308, '/app/'));
@@ -106,6 +119,10 @@ app.get('/inx-social/data-deletion.html', (req, res) => {
 });
 
 app.get('/', (req, res) => {
+  if (isAdminHost(req)) {
+    secureAdminDocument(res);
+    return res.sendFile(adminIndex);
+  }
   const landing = path.join(__dirname, '..', 'public', 'landing.html');
   res.sendFile(landing, error => {
     if (error) res.redirect('/portal/');

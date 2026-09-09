@@ -57,6 +57,7 @@ nav a:hover{color:var(--teal)}
 .nav-actions{display:flex;align-items:center;gap:12px}
 .text-link{color:#fff;font-weight:750;font-size:.9rem}
 .landing-account{position:relative;color:#fff}
+.session-authenticated .guest-only,[hidden]{display:none!important}
 .landing-account[hidden]{display:none}
 .landing-account summary{display:flex;min-height:44px;cursor:pointer;list-style:none;align-items:center;gap:9px;padding:5px 10px 5px 5px;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(255,255,255,.06);font-size:.84rem;font-weight:800}
 .landing-account summary::-webkit-details-marker{display:none}

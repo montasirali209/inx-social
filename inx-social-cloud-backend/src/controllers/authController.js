@@ -168,6 +168,12 @@ async function verifyEmail(req, res, next) {
       console.error('[TRIAL EMAIL DELIVERY FAILED]', error.message);
     }
 
+    try {
+      await emailService.sendAdminTrialNotification(user);
+    } catch (error) {
+      console.error('[ADMIN TRIAL NOTIFICATION FAILED]', error.message);
+    }
+
     res.json({
       verified: true,
       message: 'Email verified. Your 5-day trial has started.'

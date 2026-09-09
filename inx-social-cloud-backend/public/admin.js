@@ -1,92 +1,38 @@
-const API = '';
-const state = { token: localStorage.getItem('pp_admin_token') || '', user: null, selectedUser: null };
-const $ = (id) => document.getElementById(id);
+const state={token:localStorage.getItem('pp_admin_token')||'',user:null,users:[],selectedUser:null,recentUsers:[],timer:null};
+const $=id=>document.getElementById(id);
+const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+const initials=value=>String(value||'IN').trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
+const fmtDate=value=>value?new Date(value).toLocaleString():'—';
+const relative=value=>{if(!value)return'—';const seconds=Math.max(0,Math.floor((Date.now()-new Date(value).getTime())/1000));if(seconds<60)return'Just now';if(seconds<3600)return`${Math.floor(seconds/60)}m ago`;if(seconds<86400)return`${Math.floor(seconds/3600)}h ago`;return`${Math.floor(seconds/86400)}d ago`};
+const planOf=user=>user.subscriptions?.[0]?.plan||'TRIAL';
+const badge=value=>`<span class="badge ${esc(value)}">${esc(String(value).replaceAll('_',' '))}</span>`;
+function toast(message){const element=$('toast');element.textContent=message;element.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>element.classList.remove('show'),4000)}
+function signOut(){clearInterval(state.timer);localStorage.removeItem('pp_admin_token');state.token='';state.user=null;$('notificationPanel').classList.add('hidden');setLoggedIn(false)}
+async function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};if(state.token)headers.Authorization=`Bearer ${state.token}`;const response=await fetch(path,{...options,headers});const data=await response.json().catch(()=>({}));if(response.status===401){signOut();throw new Error(data.error||'Your administrator session has ended.')}if(!response.ok)throw new Error(data.error||`Request failed: ${response.status}`);return data}
+function setLoggedIn(on){$('loginView').classList.toggle('hidden',on);$('dashboardView').classList.toggle('hidden',!on);if(on){const name=state.user?.name||'INXSocial Admin';$('adminName').textContent=name;$('adminEmail').textContent=state.user?.email||'';$('adminInitials').textContent=initials(name)}}
+const pageMeta={overview:['Overview','Monitor new customers and service activity.'],users:['Users & Access','Provision accounts and control live entitlements.'],aiAccess:['AI Studio Access','Manage global and per-user AI Content Studio access.'],settings:['App Settings','Update safe live configuration values.']};
+async function openPage(page){document.querySelectorAll('.nav').forEach(button=>button.classList.toggle('active',button.dataset.page===page));document.querySelectorAll('.page').forEach(section=>section.classList.toggle('hidden',section.id!==`${page}Page`));$('pageTitle').textContent=pageMeta[page][0];$('pageSubtitle').textContent=pageMeta[page][1];if(page==='overview')await loadOverview();if(page==='users')await loadUsers();if(page==='aiAccess')await loadAiAccess();if(page==='settings')await loadSettings()}
+document.querySelectorAll('.nav').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.page)));
+document.querySelectorAll('[data-open-page]').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.openPage)));
+$('loginForm').addEventListener('submit',async event=>{event.preventDefault();$('loginError').textContent='';try{const data=await api('/api/auth/login',{method:'POST',body:JSON.stringify({email:$('email').value.trim(),password:$('password').value})});if(!['ADMIN','SUPER_ADMIN'].includes(data.user?.role)){state.token=data.token;signOut();throw new Error('This account does not have administrator access.')}state.token=data.token;state.user=data.user;localStorage.setItem('pp_admin_token',state.token);setLoggedIn(true);await loadOverview();state.timer=setInterval(()=>loadOverview(true).catch(()=>{}),15000)}catch(error){$('loginError').textContent=error.message}});
+$('logoutBtn').addEventListener('click',signOut);
 
-function toast(msg){ const el=$('toast'); el.textContent=msg; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'),3500); }
-async function api(path, opts={}){
-  const headers = { 'Content-Type':'application/json', ...(opts.headers||{}) };
-  if(state.token) headers.Authorization = `Bearer ${state.token}`;
-  const res = await fetch(API+path, { ...opts, headers });
-  const data = await res.json().catch(()=>({}));
-  if(!res.ok) throw new Error(data.error || `Request failed: ${res.status}`);
-  return data;
-}
-function setLoggedIn(on){ $('loginView').classList.toggle('hidden', on); $('dashboardView').classList.toggle('hidden', !on); }
+function renderRecent(users){const html=users.map(user=>`<div class="activity-item"><span class="avatar">${esc(initials(user.name||user.email))}</span><div><b>${esc(user.name||'New customer')}</b><small>${esc(user.email)} · ${esc(planOf(user))} · ${user.emailVerifiedAt?'Verified':'Verification pending'}</small></div><time>${relative(user.createdAt)}</time></div>`).join('');$('recentUsers').innerHTML=html||'<p>No customer registrations yet.</p>';$('notificationList').innerHTML=html||'<p>No recent registrations.</p>'}
+async function loadOverview(silent=false){const {overview}=await api('/api/admin/overview');state.recentUsers=overview.recentUsers||[];const items=[['Customers',overview.users],['Joined today',overview.joinedToday,true],['Active subscriptions',overview.activeSubscriptions],['Active connections',overview.connectedPages],['Trial accounts',overview.trials],['Unverified',overview.unverifiedUsers,true],['Publishing jobs',overview.scheduleJobs],['Failed jobs',overview.failedJobs,true]];$('statsGrid').innerHTML=items.map(([label,value,attention])=>`<div class="stat ${attention&&value?'attention':''}"><b>${value}</b><span>${label}</span></div>`).join('');renderRecent(state.recentUsers);$('healthList').innerHTML=`<div class="health-item ${overview.failedJobs?'warn':''}"><div><b>Publishing failures</b><small>Jobs currently requiring review</small></div><strong>${overview.failedJobs}</strong></div><div class="health-item ${overview.suspendedUsers?'warn':''}"><div><b>Suspended accounts</b><small>Customer access currently blocked</small></div><strong>${overview.suspendedUsers}</strong></div><div class="health-item ${overview.unverifiedUsers?'warn':''}"><div><b>Pending verification</b><small>Registrations not activated</small></div><strong>${overview.unverifiedUsers}</strong></div>`;const count=overview.joinedToday||0;['notificationCount','userAlertBadge'].forEach(id=>{$(id).textContent=count;$(id).hidden=!count});if(!silent&&count)toast(`${count} customer${count===1?'':'s'} joined today`)}
+$('refreshOverviewBtn').addEventListener('click',()=>loadOverview().catch(error=>toast(error.message)));
 
-$('loginForm').addEventListener('submit', async (e)=>{
-  e.preventDefault(); $('loginError').textContent='';
-  try{
-    const data = await api('/api/auth/login',{ method:'POST', body:JSON.stringify({ email:$('email').value.trim(), password:$('password').value }) });
-    state.token=data.token; state.user=data.user; localStorage.setItem('pp_admin_token', state.token);
-    $('adminEmail').textContent=data.user.email; setLoggedIn(true); await loadOverview();
-  }catch(err){ $('loginError').textContent=err.message; }
-});
-$('logoutBtn').addEventListener('click',()=>{ localStorage.removeItem('pp_admin_token'); state.token=''; setLoggedIn(false); });
+function filteredUsers(){const filter=$('userFilter').value;return state.users.filter(user=>!filter||user.status===filter)}
+function renderUsers(){const users=filteredUsers();$('usersTable').innerHTML=users.map(user=>`<tr><td><b>${esc(user.name||'No name')}</b><small>${esc(user.email)}</small></td><td>${badge(user.emailVerifiedAt?'VERIFIED':'PENDING_VERIFICATION')} ${badge(user.status)}</td><td>${badge(planOf(user))}<small>${user.trialEndsAt?`Ends ${fmtDate(user.trialEndsAt)}`:''}</small></td><td>${badge(user.aiStudioAccess||'DEFAULT')}<small>${user.aiStudioAccess==='DEFAULT'?'Plan policy':'Individual override'}</small></td><td>${fmtDate(user.createdAt)}</td><td>${user.connectedPages?.length||0} pages · ${user.devices?.length||0} devices</td><td><button class="secondary" data-manage-user="${esc(user.id)}">Manage</button></td></tr>`).join('')||'<tr><td colspan="7">No users match this filter.</td></tr>';document.querySelectorAll('[data-manage-user]').forEach(button=>button.addEventListener('click',()=>void openUser(button.dataset.manageUser)))}
+async function loadUsers(){const query=$('userSearch').value.trim();const data=await api('/api/admin/users'+(query?`?q=${encodeURIComponent(query)}`:''));state.users=data.users||[];renderUsers()}
+$('refreshUsersBtn').addEventListener('click',()=>loadUsers().catch(error=>toast(error.message)));$('userFilter').addEventListener('change',renderUsers);$('userSearch').addEventListener('input',()=>{clearTimeout(loadUsers.timer);loadUsers.timer=setTimeout(()=>loadUsers().catch(error=>toast(error.message)),250)});
+async function openUser(id){const {user}=await api(`/api/admin/users/${encodeURIComponent(id)}`);state.selectedUser=user;$('modalTitle').textContent=`${user.name||'User'} — ${user.email}`;$('modalBody').innerHTML=`<div class="form-grid"><label>Status<select id="editStatus"><option>TRIAL</option><option>ACTIVE</option><option>SUSPENDED</option><option>CANCELLED</option></select></label><label>Role<select id="editRole"><option>USER</option><option>ADMIN</option><option>SUPER_ADMIN</option></select></label><label>Extend trial (days)<input id="editTrialDays" type="number" min="0" max="365" placeholder="No change"></label><label>Manual plan<select id="editPlan"><option value="">No plan change</option><option>TRIAL</option><option>PRO</option><option>PLUS</option><option>LIFETIME</option></select></label><label>AI Content Studio<select id="editAiAccess"><option value="DEFAULT">Use plan policy</option><option value="ALLOW">Allow this user</option><option value="DENY">Block this user</option></select></label></div><div class="detail-card"><b>Connected pages</b>${(user.connectedPages||[]).map(page=>`<small>${esc(page.facebookPageName)} — ${esc(page.status)}</small>`).join('')||'<small>No connected pages.</small>'}</div><div class="detail-card"><b>Recent jobs</b>${(user.scheduleJobs||[]).slice(0,5).map(job=>`<small>${esc(job.contentType)} — ${esc(job.status)} — ${fmtDate(job.scheduledAt)}</small>`).join('')||'<small>No publishing jobs.</small>'}</div>`;$('editStatus').value=user.status;$('editRole').value=user.role;$('editAiAccess').value=user.aiStudioAccess||'DEFAULT';$('userDialog').showModal()}
+$('saveAccessBtn').addEventListener('click',async()=>{try{const body={status:$('editStatus').value,role:$('editRole').value,aiStudioAccess:$('editAiAccess').value};const days=$('editTrialDays').value;if(days)body.trialDays=Number(days);const plan=$('editPlan').value;if(plan){body.plan=plan;body.subscriptionStatus=plan==='TRIAL'?'TRIALING':'MANUAL';body.status=plan==='TRIAL'?'TRIAL':'ACTIVE'}await api(`/api/admin/users/${encodeURIComponent(state.selectedUser.id)}/access`,{method:'PATCH',body:JSON.stringify(body)});$('userDialog').close();toast('User access updated');await Promise.all([loadUsers(),loadOverview(true)])}catch(error){toast(error.message)}});
 
-document.querySelectorAll('.nav').forEach(btn=>btn.addEventListener('click', async ()=>{
-  document.querySelectorAll('.nav').forEach(b=>b.classList.remove('active')); btn.classList.add('active');
-  document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));
-  const page=btn.dataset.page; $(`${page}Page`).classList.remove('hidden'); $('pageTitle').textContent=btn.textContent;
-  if(page==='overview') await loadOverview(); if(page==='users') await loadUsers(); if(page==='settings') await loadSettings();
-}));
+$('createUserBtn').addEventListener('click',()=>{$('createUserForm').reset();$('createTrialDays').value='5';$('trialDaysLabel').hidden=false;$('createUserDialog').showModal()});document.querySelectorAll('[data-close-create]').forEach(button=>button.addEventListener('click',()=>$('createUserDialog').close()));$('createPlan').addEventListener('change',()=>{$('trialDaysLabel').hidden=$('createPlan').value!=='TRIAL'});$('createUserForm').addEventListener('submit',async event=>{event.preventDefault();try{const body={name:$('createName').value.trim(),email:$('createEmail').value.trim(),plan:$('createPlan').value,trialDays:Number($('createTrialDays').value||5)};const result=await api('/api/admin/users',{method:'POST',body:JSON.stringify(body)});$('createUserDialog').close();$('temporaryPassword').textContent=result.temporaryPassword;$('credentialDialog').showModal();await Promise.all([loadUsers(),loadOverview(true)])}catch(error){toast(error.message)}});$('copyPasswordBtn').addEventListener('click',async()=>{await navigator.clipboard.writeText($('temporaryPassword').textContent);toast('Temporary password copied')});$('closeCredentialBtn').addEventListener('click',()=>$('credentialDialog').close());
 
-async function loadOverview(){
-  const { overview } = await api('/api/admin/overview');
-  const items = [
-    ['Users', overview.users], ['Unverified', overview.unverifiedUsers], ['Trials', overview.trials], ['Active subs', overview.activeSubscriptions], ['Connected pages', overview.connectedPages],
-    ['Jobs', overview.scheduleJobs], ['Failed jobs', overview.failedJobs], ['Active users', overview.activeUsers], ['Suspended', overview.suspendedUsers]
-  ];
-  $('statsGrid').innerHTML = items.map(([k,v])=>`<div class="stat"><b>${v}</b><span>${k}</span></div>`).join('');
-}
-
-function fmtDate(v){ return v ? new Date(v).toLocaleString() : '—'; }
-function planOf(u){ return u.subscriptions?.[0]?.plan || 'TRIAL'; }
-function statusBadge(s){ return `<span class="badge ${s}">${s}</span>`; }
-async function loadUsers(){
-  const q=$('userSearch').value.trim(); const { users } = await api('/api/admin/users' + (q?`?q=${encodeURIComponent(q)}`:''));
-  $('usersTable').innerHTML = users.map(u=>`<tr>
-    <td><strong>${u.name||'No name'}</strong><br><small>${u.email}</small></td>
-    <td>${statusBadge(u.emailVerifiedAt ? 'VERIFIED' : 'UNVERIFIED')}<br>${statusBadge(u.status)}</td><td>${fmtDate(u.trialEndsAt)}</td><td>${planOf(u)}</td>
-    <td>${u.connectedPages?.length||0}</td><td>${u.devices?.length||0}</td>
-    <td><button class="secondary" onclick="openUser('${u.id}')">Manage</button></td>
-  </tr>`).join('') || '<tr><td colspan="7">No users found.</td></tr>';
-}
-$('refreshUsersBtn').addEventListener('click',loadUsers); $('userSearch').addEventListener('keydown',(e)=>{ if(e.key==='Enter') loadUsers(); });
-
-window.openUser = async function(id){
-  const { user } = await api(`/api/admin/users/${id}`); state.selectedUser=user;
-  $('modalTitle').textContent = `${user.name || 'User'} — ${user.email}`;
-  $('modalBody').innerHTML = `<div class="modal-grid">
-    <label>Status<select id="editStatus"><option>TRIAL</option><option>ACTIVE</option><option>SUSPENDED</option><option>CANCELLED</option></select></label>
-    <label>Role<select id="editRole"><option>USER</option><option>ADMIN</option><option>SUPER_ADMIN</option></select></label>
-    <label>Extend trial days<input id="editTrialDays" type="number" min="0" placeholder="e.g. 5" /></label>
-    <label>Manual plan<select id="editPlan"><option value="">No change</option><option>STARTER</option><option>PRO</option><option>LIFETIME</option></select></label>
-  </div>
-  <div class="detail-card"><strong>Connected pages</strong>${(user.connectedPages||[]).map(p=>`<small>${p.facebookPageName} — ${p.status}</small>`).join('') || '<small>No pages connected.</small>'}</div>
-  <div class="detail-card"><strong>Recent jobs</strong>${(user.scheduleJobs||[]).map(j=>`<small>${j.contentType} — ${j.status} — ${fmtDate(j.scheduledAt)}</small>`).join('') || '<small>No jobs yet.</small>'}</div>`;
-  $('editStatus').value=user.status; $('editRole').value=user.role;
-  $('userDialog').showModal();
-}
-$('saveAccessBtn').addEventListener('click', async ()=>{
-  const body={ status:$('editStatus').value, role:$('editRole').value };
-  const days=$('editTrialDays').value; if(days) body.trialDays=Number(days);
-  const plan=$('editPlan').value; if(plan){ body.plan=plan; body.subscriptionStatus='MANUAL'; body.status='ACTIVE'; }
-  await api(`/api/admin/users/${state.selectedUser.id}/access`, { method:'PATCH', body:JSON.stringify(body) });
-  $('userDialog').close(); toast('User access updated'); await loadUsers(); await loadOverview();
-});
-
-async function loadSettings(){
-  const { settings } = await api('/api/admin/settings');
-  $('settingsList').innerHTML = settings.map(s=>`<div class="setting-item"><strong>${s.key}</strong><span>${s.value}</span><small>${s.description||''}</small></div>`).join('') || '<p>No settings yet.</p>';
-}
-$('settingForm').addEventListener('submit', async(e)=>{
-  e.preventDefault();
-  await api('/api/admin/settings',{ method:'PUT', body:JSON.stringify({ key:$('settingKey').value.trim(), value:$('settingValue').value, description:$('settingDescription').value }) });
-  $('settingForm').reset(); toast('Setting saved'); await loadSettings();
-});
-
-(async function boot(){
-  if(!state.token) return setLoggedIn(false);
-  try{ const data=await api('/api/license/status'); state.user=data.user; $('adminEmail').textContent=data.user.email; setLoggedIn(true); await loadOverview(); }
-  catch{ localStorage.removeItem('pp_admin_token'); setLoggedIn(false); }
-})();
+async function loadAiAccess(){const {policy}=await api('/api/admin/agent-access');$('agentAvailability').value=policy.availability;const limits=policy.planLimits||{};$('agentLimitTrial').value=limits.TRIAL??0;$('agentLimitPro').value=limits.PRO??0;$('agentLimitPlus').value=limits.PLUS??100;$('agentLimitLifetime').value=limits.LIFETIME??100}
+$('agentAccessForm').addEventListener('submit',async event=>{event.preventDefault();try{await api('/api/admin/agent-access',{method:'PUT',body:JSON.stringify({availability:$('agentAvailability').value,planLimits:{TRIAL:Number($('agentLimitTrial').value),PRO:Number($('agentLimitPro').value),PLUS:Number($('agentLimitPlus').value),LIFETIME:Number($('agentLimitLifetime').value)}})});toast('AI Content Studio policy updated')}catch(error){toast(error.message)}});
+async function loadSettings(){const {settings}=await api('/api/admin/settings');$('settingsList').innerHTML=settings.map(setting=>`<div class="setting-item"><b>${esc(setting.key)}</b><span>${esc(setting.value)}</span><small>${esc(setting.description||'')}</small></div>`).join('')||'<p>No application settings.</p>'}
+$('settingForm').addEventListener('submit',async event=>{event.preventDefault();try{await api('/api/admin/settings',{method:'PUT',body:JSON.stringify({key:$('settingKey').value.trim(),value:$('settingValue').value,description:$('settingDescription').value})});event.target.reset();toast('Setting saved');await loadSettings()}catch(error){toast(error.message)}});
+$('notificationBtn').addEventListener('click',event=>{event.stopPropagation();$('notificationPanel').classList.toggle('hidden')});$('closeNotifications').addEventListener('click',()=>$('notificationPanel').classList.add('hidden'));document.addEventListener('pointerdown',event=>{if(!$('notificationPanel').classList.contains('hidden')&&!$('notificationPanel').contains(event.target)&&!$('notificationBtn').contains(event.target))$('notificationPanel').classList.add('hidden')});document.addEventListener('keydown',event=>{if(event.key==='Escape')$('notificationPanel').classList.add('hidden')});
+(async function boot(){if(!state.token)return setLoggedIn(false);try{const data=await api('/api/auth/me');if(!['ADMIN','SUPER_ADMIN'].includes(data.user?.role))throw new Error('Admin access required');state.user=data.user;setLoggedIn(true);await loadOverview();state.timer=setInterval(()=>loadOverview(true).catch(()=>{}),15000)}catch{signOut()}})();

@@ -2,14 +2,16 @@ const prisma = require('../db/prisma');
 const { getLicenseStatus } = require('./licenseService');
 
 const SETTING_KEY = 'social_agent_access_policy';
+const USER_OVERRIDE_KEY = 'social_agent_user_overrides';
 const AVAILABILITY = Object.freeze({
   DISABLED: 'DISABLED',
   ADMIN_ONLY: 'ADMIN_ONLY',
+  PLUS_ONLY: 'PLUS_ONLY',
   EVERYONE: 'EVERYONE'
 });
 const DEFAULT_POLICY = Object.freeze({
-  availability: AVAILABILITY.ADMIN_ONLY,
-  planLimits: Object.freeze({ TRIAL: 1, STARTER: 10, PRO: 100, LIFETIME: 100, CREATOR: 100, AGENCY: 500, BUSINESS: 500 })
+  availability: AVAILABILITY.PLUS_ONLY,
+  planLimits: Object.freeze({ TRIAL: 0, PRO: 0, PLUS: 100, LIFETIME: 100 })
 });
 
 function clampLimit(value, fallback = 0) {
@@ -47,6 +49,34 @@ async function updatePolicy(input) {
   return policy;
 }
 
+async function getUserOverrides() {
+  if (typeof prisma.appSetting?.findUnique !== 'function') return {};
+  const row = await prisma.appSetting.findUnique({ where: { key: USER_OVERRIDE_KEY } });
+  if (!row?.value) return {};
+  try {
+    const parsed = JSON.parse(row.value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch (_) { return {}; }
+}
+
+async function getUserOverride(userId) {
+  const value = String((await getUserOverrides())[userId] || 'DEFAULT').toUpperCase();
+  return ['ALLOW', 'DENY'].includes(value) ? value : 'DEFAULT';
+}
+
+async function setUserOverride(userId, value) {
+  const override = String(value || 'DEFAULT').toUpperCase();
+  if (!['DEFAULT', 'ALLOW', 'DENY'].includes(override)) throw Object.assign(new Error('AI Studio access must be DEFAULT, ALLOW or DENY.'), { status: 400 });
+  const overrides = await getUserOverrides();
+  if (override === 'DEFAULT') delete overrides[userId]; else overrides[userId] = override;
+  await prisma.appSetting.upsert({
+    where: { key: USER_OVERRIDE_KEY },
+    create: { key: USER_OVERRIDE_KEY, value: JSON.stringify(overrides), description: 'Per-user AI Content Studio access overrides.' },
+    update: { value: JSON.stringify(overrides), description: 'Per-user AI Content Studio access overrides.' }
+  });
+  return override;
+}
+
 function isAdministrator(role) {
   return ['ADMIN', 'SUPER_ADMIN'].includes(String(role || '').toUpperCase());
 }
@@ -61,11 +91,14 @@ function endOfUtcMonth(now) {
 
 async function getEntitlement(userId, options = {}) {
   const now = options.now || new Date();
-  const [policy, license] = await Promise.all([getPolicy(), getLicenseStatus(userId)]);
+  const [policy, license, override] = await Promise.all([getPolicy(), getLicenseStatus(userId), getUserOverride(userId)]);
   const admin = isAdministrator(license.userRole);
-  const visible = policy.availability === AVAILABILITY.EVERYONE || (policy.availability === AVAILABILITY.ADMIN_ONLY && admin);
-  const allowed = Boolean(visible && license.allowed);
   const plan = String(license.plan || 'TRIAL').toUpperCase();
+  const policyVisible = policy.availability === AVAILABILITY.EVERYONE ||
+    (policy.availability === AVAILABILITY.ADMIN_ONLY && admin) ||
+    (policy.availability === AVAILABILITY.PLUS_ONLY && (admin || ['PLUS', 'LIFETIME'].includes(plan)));
+  const visible = policy.availability === AVAILABILITY.DISABLED ? false : override === 'ALLOW' ? true : override === 'DENY' ? false : policyVisible;
+  const allowed = Boolean(visible && license.allowed);
   const limit = admin ? null : clampLimit(policy.planLimits[plan], 0);
   const periodStart = license.currentPeriodStart ? new Date(license.currentPeriodStart) : startOfUtcMonth(now);
   const periodEnd = license.currentPeriodEnd ? new Date(license.currentPeriodEnd) : endOfUtcMonth(now);
@@ -75,6 +108,7 @@ async function getEntitlement(userId, options = {}) {
     visible,
     allowed,
     admin,
+    override,
     availability: policy.availability,
     plan,
     usage: {
@@ -104,4 +138,4 @@ async function requireAccess(userId, options = {}) {
   return entitlement;
 }
 
-module.exports = { SETTING_KEY, AVAILABILITY, DEFAULT_POLICY, normalizePolicy, getPolicy, updatePolicy, getEntitlement, requireAccess, isAdministrator };
+module.exports = { SETTING_KEY, USER_OVERRIDE_KEY, AVAILABILITY, DEFAULT_POLICY, normalizePolicy, getPolicy, updatePolicy, getUserOverrides, getUserOverride, setUserOverride, getEntitlement, requireAccess, isAdministrator };

@@ -31,6 +31,7 @@ async function restoreLandingSession() {
     if (landingAccountInitials) landingAccountInitials.textContent = initials(displayName);
     if (landingAccount) landingAccount.hidden = false;
     if (landingSignIn) landingSignIn.hidden = true;
+    document.body.classList.add('session-authenticated');
     document.querySelectorAll('.guest-only').forEach(element => { element.hidden = true; });
     document.querySelectorAll('.app-entry').forEach(element => {
       element.href = '/app/';
@@ -44,6 +45,21 @@ async function restoreLandingSession() {
 landingSignOut?.addEventListener('click', () => {
   clearLandingSession();
   location.reload();
+});
+
+document.addEventListener('pointerdown', event => {
+  if (landingAccount?.open && !landingAccount.contains(event.target)) landingAccount.open = false;
+});
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && landingAccount?.open) {
+    landingAccount.open = false;
+    landingAccount.querySelector('summary')?.focus();
+  }
+});
+
+landingAccount?.querySelectorAll('a, button').forEach(action => {
+  action.addEventListener('click', () => { landingAccount.open = false; });
 });
 
 void restoreLandingSession();

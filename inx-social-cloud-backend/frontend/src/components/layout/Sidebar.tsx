@@ -24,7 +24,7 @@ const navigation = [
   { label: 'Content Calendar', icon: CalendarDays, reactPath: '/content-calendar' },
   { label: 'Posts', icon: FileText, reactPath: '/posts' },
   { label: 'Media Library', icon: Images, reactPath: '/media-library' },
-  { label: 'AI Content Studio', icon: Sparkles, legacyView: 'agent' },
+  { label: 'AI Content Studio', icon: Sparkles, reactPath: '/ai-content-studio' },
   { label: 'Analytics', icon: BarChart3, reactPath: '/analytics' },
   { label: 'Settings', icon: Settings, reactPath: '/settings' },
   { label: 'Connected Accounts', icon: UsersRound, reactPath: '/connected-accounts' },

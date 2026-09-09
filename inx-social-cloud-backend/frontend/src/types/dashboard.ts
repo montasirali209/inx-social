@@ -231,6 +231,15 @@ export type StudioOverview = {
       devices: number | null
     }
   }
+  features?: {
+    aiContentStudio: {
+      visible: boolean
+      allowed: boolean
+      availability: string
+      override: 'DEFAULT' | 'ALLOW' | 'DENY'
+      usage: { used: number; limit: number | null; remaining: number | null; periodStart: string; periodEnd: string }
+    }
+  }
   pages: ConnectedPage[]
   summary: JobSummary
 }
