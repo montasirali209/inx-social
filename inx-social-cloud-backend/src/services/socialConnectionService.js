@@ -24,7 +24,8 @@ const YOUTUBE_SCOPES = [
   'openid',
   'email',
   'profile',
-  'https://www.googleapis.com/auth/youtube.readonly'
+  'https://www.googleapis.com/auth/youtube.readonly',
+  'https://www.googleapis.com/auth/yt-analytics.readonly'
 ];
 const X_SCOPES = ['tweet.read', 'users.read', 'offline.access'];
 
@@ -422,7 +423,7 @@ async function connectYouTube(userId, code) {
         profileType: 'CHANNEL',
         avatarUrl: channel.snippet?.thumbnails?.default?.url || channel.snippet?.thumbnails?.medium?.url || null,
         isDefault: index === 0,
-        capabilitiesJson: JSON.stringify({ identity: true, publish: false, analytics: false, readonly: true }),
+        capabilitiesJson: JSON.stringify({ identity: true, publish: false, analytics: true, readonly: true }),
         metadataJson: JSON.stringify({
           description: channel.snippet?.description || null,
           subscribers: Number(channel.statistics?.subscriberCount || 0),
