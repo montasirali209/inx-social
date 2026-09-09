@@ -43,7 +43,7 @@ const prisma = {
 require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true, exports: prisma };
 
 const service = require('../src/services/socialConnectionService');
-const { decryptToken } = require('../src/utils/tokenCrypto');
+const { decryptToken, encryptToken } = require('../src/utils/tokenCrypto');
 
 test('Instagram, LinkedIn, YouTube, and X authorization URLs use signed state and provider scopes', () => {
   process.env.APP_URL = 'https://social.example.test/';
@@ -183,7 +183,7 @@ test('YouTube linking follows channel pagination and stores every returned chann
   assert.equal(profileRows.filter(row => row.isDefault).length, 1);
 });
 
-test('Instagram linking stores encrypted read/insight access without claiming publishing', async t => {
+test('Meta-linked Instagram stores the profile and requested Page-linked scopes', async t => {
   connectionRow = null;
   profileRows = [];
   t.mock.method(axios, 'get', async (url, options) => {
@@ -198,9 +198,39 @@ test('Instagram linking stores encrypted read/insight access without claiming pu
   assert.equal(result.connections.length, 1);
   assert.equal(connectionRow.platform, 'instagram');
   assert.equal(decryptToken(connectionRow.encryptedAccessToken), 'page-token');
-  assert.deepEqual(JSON.parse(connectionRow.scopesJson), ['instagram_basic', 'instagram_manage_insights']);
+  assert.deepEqual(JSON.parse(connectionRow.scopesJson), ['instagram_basic', 'instagram_content_publish', 'instagram_manage_insights']);
   assert.deepEqual(JSON.parse(profileRows[0].capabilitiesJson), { identity: true, publish: false, analytics: true });
+  assert.deepEqual(JSON.parse(connectionRow.metadataJson).authMethods, ['FACEBOOK_LOGIN']);
   assert.equal(profileRows[0].metadataJson.includes('page-token'), false);
+});
+
+test('Meta discovery deduplicates a directly connected Instagram profile without replacing its token', async t => {
+  connectionRow = {
+    id: 'connection-1', userId: 'user-1', platform: 'instagram', externalAccountId: 'ig-1',
+    accountType: 'BUSINESS', displayName: '@inxsocial', status: 'ACTIVE',
+    encryptedAccessToken: encryptToken('direct-instagram-token'), encryptedRefreshToken: null,
+    tokenExpiresAt: new Date(Date.now() + 60_000),
+    scopesJson: JSON.stringify(service.INSTAGRAM_SCOPES),
+    metadataJson: JSON.stringify({ authMethod: 'INSTAGRAM_LOGIN', authMethods: ['INSTAGRAM_LOGIN'] }),
+    connectedAt: new Date(), lastSyncedAt: new Date(), lastError: null
+  };
+  profileRows = [{
+    id: 'profile-1', userId: 'user-1', connectionId: 'connection-1', platform: 'instagram',
+    externalProfileId: 'ig-1', displayName: 'INX Social', username: 'inxsocial',
+    profileType: 'PROFESSIONAL', avatarUrl: null, isDefault: true, status: 'ACTIVE',
+    capabilitiesJson: JSON.stringify({ identity: true, publish: true, analytics: true }),
+    metadataJson: JSON.stringify({ authMethods: ['INSTAGRAM_LOGIN'] })
+  }];
+  t.mock.method(axios, 'get', async () => ({ data: { instagram_business_account: {
+    id: 'ig-1', username: 'inxsocial', name: 'INX Social', followers_count: 42, media_count: 7
+  } } }));
+
+  const result = await service.syncInstagram('user-1');
+  assert.equal(result.connections.length, 1);
+  assert.equal(decryptToken(connectionRow.encryptedAccessToken), 'direct-instagram-token');
+  assert.deepEqual(JSON.parse(connectionRow.metadataJson).authMethods, ['INSTAGRAM_LOGIN', 'FACEBOOK_LOGIN']);
+  assert.equal(JSON.parse(profileRows[0].capabilitiesJson).publish, true);
+  assert.equal(JSON.parse(profileRows[0].metadataJson).facebookPageId, 'fb-page-1');
 });
 
 test('public connection data excludes credentials and tolerates malformed provider metadata', () => {

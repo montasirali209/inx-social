@@ -108,7 +108,7 @@ export async function connectFacebook() {
   url.searchParams.set('client_id', '969283649323618')
   url.searchParams.set('redirect_uri', redirectUri)
   url.searchParams.set('response_type', 'token')
-  url.searchParams.set('scope', 'public_profile,pages_show_list,pages_read_engagement,pages_read_user_content,read_insights,pages_manage_posts,business_management')
+  url.searchParams.set('scope', 'public_profile,pages_show_list,pages_read_engagement,pages_read_user_content,read_insights,pages_manage_posts,business_management,instagram_basic,instagram_content_publish,instagram_manage_insights')
   url.searchParams.set('state', state)
   url.searchParams.set('auth_type', 'rerequest')
   url.searchParams.set('return_scopes', 'true')

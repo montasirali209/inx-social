@@ -45,6 +45,11 @@ import { Button } from "../ui/Button";
 
 type Tab = "all" | "platforms" | "profiles" | "advanced";
 type Notice = { tone: "success" | "error"; message: string } | null;
+type InstagramConnectionMethod = "meta" | "direct";
+type ConnectRequest = {
+  platform: Platform;
+  instagramMethod?: InstagramConnectionMethod;
+};
 
 function PlatformIcon({
   platform,
@@ -194,6 +199,8 @@ export function ConnectedAccountsPage() {
   const [selectedPlatform, setSelectedPlatform] = useState<Platform | null>(
     null,
   );
+  const [instagramMethod, setInstagramMethod] =
+    useState<InstagramConnectionMethod | null>(null);
   const [managing, setManaging] = useState<ConnectedIdentity | null>(null);
   const [disconnecting, setDisconnecting] = useState<ConnectedIdentity | null>(
     null,
@@ -301,21 +308,29 @@ export function ConnectedAccountsPage() {
     ]);
   };
   const connectMutation = useMutation({
-    mutationFn: async (platform: Platform) => {
+    mutationFn: async ({ platform, instagramMethod }: ConnectRequest) => {
       setNotice(null);
       if (platform === "facebook") return connectFacebook();
-      if (platform === "instagram") return connectInstagram();
+      if (platform === "instagram") {
+        return instagramMethod === "meta"
+          ? connectFacebook()
+          : connectInstagram();
+      }
       if (platform === "linkedin" || platform === "youtube" || platform === "x")
         return connectOAuthPlatform(platform);
       throw new Error(`${platformMeta[platform].label} is not available yet.`);
     },
-    onSuccess: async (_, platform) => {
+    onSuccess: async (result, request) => {
       await refresh();
       setConnectOpen(false);
       setSelectedPlatform(null);
+      setInstagramMethod(null);
       setNotice({
         tone: "success",
-        message: `${platformMeta[platform].label} connected successfully.`,
+        message:
+          typeof result === "object" && result && "notice" in result
+            ? String(result.notice)
+            : `${platformMeta[request.platform].label} connected successfully.`,
       });
     },
     onError: (error) =>
@@ -1163,6 +1178,7 @@ export function ConnectedAccountsPage() {
           onClose={() => {
             setConnectOpen(false);
             setSelectedPlatform(null);
+            setInstagramMethod(null);
           }}
           title={
             selectedPlatform
@@ -1170,7 +1186,56 @@ export function ConnectedAccountsPage() {
               : "Connect an account"
           }
         >
-          {selectedPlatform ? (
+          {selectedPlatform === "instagram" && !instagramMethod ? (
+            <div className="mt-4">
+              <p className="max-w-2xl text-sm leading-6 text-text-muted">
+                Choose the connection that matches the Instagram account. You
+                can use both methods in the same INXSocial workspace.
+              </p>
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <button
+                  className="connection-platform-card group relative min-h-52 rounded-2xl border border-brand-teal/40 bg-[linear-gradient(145deg,rgba(20,184,166,.16),rgba(5,15,29,.96))] p-5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan"
+                  onClick={() => setInstagramMethod("meta")}
+                  type="button"
+                >
+                  <span className="mb-5 flex items-center justify-between gap-3">
+                    <span className="grid size-12 place-items-center rounded-xl bg-[#1877f2] text-lg font-black text-white shadow-lg shadow-[#1877f2]/20">f</span>
+                    <span className="rounded-full bg-brand-teal/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-brand-teal">Recommended</span>
+                  </span>
+                  <strong className="text-base">Connect with Meta</strong>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">
+                    Connect Facebook Pages and automatically import every
+                    Instagram professional account linked to those Pages.
+                  </p>
+                  <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-brand-teal">Best for Page-linked accounts <ChevronRight className="size-3.5" /></span>
+                </button>
+                <button
+                  className="connection-platform-card group relative min-h-52 rounded-2xl border border-border-soft bg-[linear-gradient(145deg,rgba(15,36,52,.86),rgba(5,15,29,.94))] p-5 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan"
+                  onClick={() => setInstagramMethod("direct")}
+                  type="button"
+                >
+                  <span className="mb-5 block"><PlatformIcon platform="instagram" size="lg" /></span>
+                  <strong className="text-base">Connect Instagram directly</strong>
+                  <p className="mt-2 text-sm leading-6 text-text-muted">
+                    Connect one standalone Instagram Business or Creator profile
+                    that is not linked to a Facebook Page.
+                  </p>
+                  <span className="mt-4 inline-flex items-center gap-1 text-xs font-semibold text-brand-teal">For standalone profiles <ChevronRight className="size-3.5" /></span>
+                </button>
+              </div>
+              <Button
+                className="mt-5 w-full"
+                onClick={() => {
+                  setConnectOpen(false);
+                  setSelectedPlatform(null);
+                  setInstagramMethod(null);
+                }}
+                variant="secondary"
+              >
+                Close
+              </Button>
+            </div>
+          ) : selectedPlatform ? (
             <div className="mt-4">
               <div className="connection-selected-platform flex items-center gap-3 rounded-2xl border border-brand-teal/25 bg-brand-teal/5 p-4">
                 <span className="connection-platform-icon">
@@ -1202,11 +1267,11 @@ export function ConnectedAccountsPage() {
                   </li>
                 </ul>
               </section>
-              {selectedPlatform === "instagram" &&
+              {selectedPlatform === "instagram" && instagramMethod === "direct" &&
                 (workspace.data.providers.instagram.configured ? (
                   <div className="mt-4 rounded-xl border border-brand-teal/25 bg-brand-teal/5 p-3 text-xs leading-5 text-text-muted">
                     <strong className="text-brand-teal">
-                      Choose one Instagram professional account.
+                      Direct Instagram connection
                     </strong>
                     <p className="mt-1">
                       Instagram authorises one Business or Creator profile per
@@ -1228,6 +1293,17 @@ export function ConnectedAccountsPage() {
                     as the valid OAuth redirect URI in Meta.
                   </p>
                 ))}
+              {selectedPlatform === "instagram" && instagramMethod === "meta" && (
+                <div className="mt-4 rounded-xl border border-brand-teal/25 bg-brand-teal/5 p-3 text-xs leading-5 text-text-muted">
+                  <strong className="text-brand-teal">Connect with Meta</strong>
+                  <p className="mt-1">
+                    Meta will ask you to choose the Facebook Pages INXSocial can
+                    manage. INXSocial then discovers the Instagram Business or
+                    Creator profiles linked to those Pages and imports them as
+                    separate destinations.
+                  </p>
+                </div>
+              )}
               <p className="mt-4 text-xs leading-5 text-text-muted">
                 INXSocial never receives your platform password. You can
                 disconnect at any time.
@@ -1237,6 +1313,7 @@ export function ConnectedAccountsPage() {
                   onClick={() => {
                     setConnectOpen(false);
                     setSelectedPlatform(null);
+                    setInstagramMethod(null);
                   }}
                   variant="secondary"
                 >
@@ -1246,20 +1323,25 @@ export function ConnectedAccountsPage() {
                   disabled={
                     !platformMeta[selectedPlatform].available ||
                     connectMutation.isPending ||
-                    (selectedPlatform === "instagram" &&
+                    (selectedPlatform === "instagram" && instagramMethod === "direct" &&
                       !workspace.data.providers.instagram.configured)
                   }
-                  onClick={() => connectMutation.mutate(selectedPlatform)}
+                  onClick={() =>
+                    connectMutation.mutate({
+                      platform: selectedPlatform,
+                      instagramMethod: instagramMethod || undefined,
+                    })
+                  }
                 >
                   {connectMutation.isPending ? (
                     <>
                       <LoaderCircle className="size-4 animate-spin" />
                       Opening secure authorisation…
                     </>
-                  ) : selectedPlatform === "instagram" &&
+                  ) : selectedPlatform === "instagram" && instagramMethod === "direct" &&
                     !workspace.data.providers.instagram.configured ? (
                     "Instagram setup required"
-                  ) : selectedPlatform === "instagram" &&
+                  ) : selectedPlatform === "instagram" && instagramMethod === "direct" &&
                     counts.instagram > 0 ? (
                     "Choose another Instagram account"
                   ) : (
@@ -1272,9 +1354,8 @@ export function ConnectedAccountsPage() {
             <div className="mt-4">
               <p className="max-w-xl text-sm leading-6 text-text-muted">
                 Choose a platform to open its official secure authorisation
-                flow. Facebook can return multiple managed Pages. Instagram
-                professional profiles are added one at a time, and you can
-                repeat the connection for every Business or Creator account.
+                flow. For Instagram, you can import Page-linked profiles through
+                Meta or connect a standalone professional profile directly.
               </p>
               <div className="connection-platform-grid mt-5 grid gap-3 sm:grid-cols-2">
                 {supportedPlatforms(counts)
@@ -1287,7 +1368,10 @@ export function ConnectedAccountsPage() {
                       className="connection-platform-card group relative flex min-h-28 items-center gap-4 rounded-2xl border border-border-soft bg-[linear-gradient(145deg,rgba(15,36,52,.86),rgba(5,15,29,.94))] p-4 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan disabled:cursor-not-allowed disabled:opacity-45"
                       disabled={!platform.available}
                       key={platform.platform}
-                      onClick={() => setSelectedPlatform(platform.platform)}
+                      onClick={() => {
+                        setSelectedPlatform(platform.platform);
+                        setInstagramMethod(null);
+                      }}
                       style={{ animationDelay: `${index * 55}ms` }}
                       type="button"
                     >
