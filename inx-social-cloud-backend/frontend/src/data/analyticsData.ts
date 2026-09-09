@@ -94,11 +94,21 @@ export function buildAnalyticsView(analytics: FacebookAnalytics, days: number): 
     linkClicks: clicks.get(date) || 0,
     followers: follows.get(date) || 0,
   }))
+  const contentViews = analytics.summary.views ?? analytics.summary.postViews
+  const totalInteractions = analytics.summary.totalInteractions
+  const derivedEngagementRate = analytics.summary.engagementRate ?? (contentViews > 0
+    ? Number(((totalInteractions / contentViews) * 100).toFixed(2))
+    : null)
+  const engagementDetail = analytics.summary.engagementRate !== null
+    ? analytics.summary.calculationNote
+    : derivedEngagementRate !== null
+      ? 'Interactions divided by content views'
+      : 'Available when Meta returns views and interactions'
   const stats: AnalyticsStat[] = [
     { id: 'followers', label: 'Total Followers', value: analytics.summary.followers, format: 'compact', detail: 'Current Page audience', tone: 'teal', sparkline: sparkline(performance, 'followers') },
-    { id: 'views', label: 'Content Views', value: analytics.summary.views ?? analytics.summary.postViews, format: 'compact', detail: 'Returned by Meta', tone: 'blue', sparkline: sparkline(performance, 'views'), availability: analytics.capabilities?.metrics.views?.reason },
-    { id: 'engagement-rate', label: 'Engagement Rate', value: analytics.summary.engagementRate, format: 'percent', detail: analytics.summary.calculationNote, tone: 'red', sparkline: sparkline(performance, 'engagements') },
-    { id: 'profile-visits', label: 'Profile Visits', value: null, format: 'compact', detail: 'Not supplied by this Meta API', tone: 'purple', sparkline: [], availability: 'Profile visits are not returned for the connected Facebook Page token.' },
+    { id: 'views', label: 'Content Views', value: contentViews, format: 'compact', detail: 'Returned by Meta', tone: 'blue', sparkline: sparkline(performance, 'views'), availability: analytics.capabilities?.metrics.views?.reason },
+    { id: 'engagement-rate', label: 'Engagement Rate', value: derivedEngagementRate, format: 'percent', detail: engagementDetail, tone: 'red', sparkline: sparkline(performance, 'engagements') },
+    { id: 'interactions', label: 'Total Interactions', value: totalInteractions, format: 'compact', detail: 'Reactions, comments, shares and clicks', tone: 'purple', sparkline: sparkline(performance, 'engagements') },
     { id: 'clicks', label: 'Link Clicks', value: analytics.summary.clicks, format: 'compact', detail: 'Published-post clicks', tone: 'amber', sparkline: sparkline(performance, 'linkClicks') },
     { id: 'posts', label: 'Posts Published', value: analytics.summary.posts, format: 'integer', detail: `Within the selected ${days} days`, tone: 'green', sparkline: performance.map((point) => topPosts(analytics).filter((post) => post.date?.startsWith(point.date)).length) },
   ]

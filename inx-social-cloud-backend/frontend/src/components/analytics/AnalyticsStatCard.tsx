@@ -1,8 +1,8 @@
-import { Eye, Heart, Link2, Send, UserRound, UsersRound, type LucideIcon } from 'lucide-react'
+import { Activity, Eye, Heart, Link2, Send, UsersRound, type LucideIcon } from 'lucide-react'
 import { formatAnalyticsValue } from '../../data/analyticsData'
 import type { AnalyticsStat } from '../../types/analytics'
 
-const icons: Record<string, LucideIcon> = { followers: UsersRound, views: Eye, 'engagement-rate': Heart, 'profile-visits': UserRound, clicks: Link2, posts: Send }
+const icons: Record<string, LucideIcon> = { followers: UsersRound, views: Eye, 'engagement-rate': Heart, interactions: Activity, clicks: Link2, posts: Send }
 const colours = { green: '#22c55e', blue: '#3b82f6', red: '#fb7185', purple: '#a855f7', amber: '#f59e0b', teal: '#2dd4bf' }
 const toneClasses = { green: 'border-brand-green/20 bg-brand-green/8 text-brand-green', blue: 'border-brand-blue/20 bg-brand-blue/8 text-blue-400', red: 'border-brand-red/20 bg-brand-red/8 text-brand-red', purple: 'border-brand-purple/20 bg-brand-purple/8 text-purple-400', amber: 'border-brand-amber/20 bg-brand-amber/8 text-brand-amber', teal: 'border-brand-cyan/20 bg-brand-cyan/8 text-brand-cyan' }
 
