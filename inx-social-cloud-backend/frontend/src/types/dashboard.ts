@@ -1,4 +1,4 @@
-export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'youtube' | 'tiktok' | 'pinterest'
+export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'youtube' | 'tiktok' | 'pinterest' | 'x'
 
 export type BackendJobStatus =
   | 'DRAFT'
