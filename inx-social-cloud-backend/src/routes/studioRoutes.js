@@ -2,6 +2,7 @@ const router = require('express').Router();
 const express = require('express');
 const { requireAuth } = require('../middleware/authMiddleware');
 const controller = require('../controllers/studioController');
+const analyticsController = require('../controllers/analyticsController');
 
 router.get('/media-library/assets/:id/content', controller.mediaLibraryAssetContent);
 router.use(requireAuth);
@@ -15,6 +16,7 @@ router.get('/overview', controller.overview);
 router.get('/facebook/test', controller.testActivePage);
 router.get('/facebook/scheduled-posts', controller.scheduledPosts);
 router.get('/analytics/facebook', controller.facebookAnalytics);
+router.get('/analytics/source', analyticsController.socialAnalytics);
 router.put('/analytics/facebook/demographics-snapshot', controller.saveFacebookDemographicsSnapshot);
 router.post('/post-enhancements', controller.enhancePostCaption);
 router.get('/media-library', controller.mediaLibraryWorkspace);

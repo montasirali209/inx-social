@@ -1,4 +1,4 @@
-export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'youtube' | 'tiktok' | 'x'
+export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'youtube' | 'tiktok' | 'pinterest' | 'x'
 
 export type BackendJobStatus =
   | 'DRAFT'
@@ -21,54 +21,16 @@ export type PostStatus =
   | 'failed'
 
 export type VideoStatus = PostStatus
-
 export type DashboardTone = 'blue' | 'cyan' | 'green' | 'purple' | 'amber' | 'red'
 
-export type StatCardData = {
-  label: string
-  value: number | string
-  detail: string
-  tone: DashboardTone
-  trend?: string | null
-  trendDirection?: 'up' | 'down' | 'neutral'
-}
-
+export type StatCardData = { label: string; value: number | string; detail: string; tone: DashboardTone; trend?: string | null; trendDirection?: 'up' | 'down' | 'neutral' }
 export type DashboardStat = StatCardData
+export type SocialPost = { id: string; title: string; excerpt: string; thumbnailUrl: string | null; platforms: Platform[]; status: PostStatus; occurredAt: string; engagement: number | null }
+export type PlatformMetric = { platform: Platform; posts: number; engagement: number | null }
+export type ScheduledPost = { id: string; title: string; scheduledAt: string; platforms: Platform[]; status: PostStatus }
+export type TopContentItem = { id: string; title: string; thumbnailUrl: string | null; engagement: number | null; status: PostStatus }
 
-export type SocialPost = {
-  id: string
-  title: string
-  excerpt: string
-  thumbnailUrl: string | null
-  platforms: Platform[]
-  status: PostStatus
-  occurredAt: string
-  engagement: number | null
-}
-
-export type PlatformMetric = {
-  platform: Platform
-  posts: number
-  engagement: number | null
-}
-
-export type ScheduledPost = {
-  id: string
-  title: string
-  scheduledAt: string
-  platforms: Platform[]
-  status: PostStatus
-}
-
-export type TopContentItem = {
-  id: string
-  title: string
-  thumbnailUrl: string | null
-  engagement: number | null
-  status: PostStatus
-}
-
-export type FacebookAnalyticsContent = {
+export type AnalyticsContent = {
   id: string
   message: string
   createdTime: string | null
@@ -78,36 +40,25 @@ export type FacebookAnalyticsContent = {
   reactions: number
   comments: number
   shares: number
-  insights: null | {
-    views: number | null
-    uniqueViewers: number | null
-    clicks: number | null
-    engagement: number
-    totalInteractions: number
-    engagementRate: number | null
-  }
+  insights: null | { views: number | null; uniqueViewers: number | null; clicks: number | null; engagement: number; totalInteractions: number; engagementRate: number | null }
 }
+export type FacebookAnalyticsContent = AnalyticsContent
 
-export type AudienceDemographicRow = {
-  age: string
-  gender: 'women' | 'men' | 'unknown'
-  value: number | null
-  percentage: number
-}
-
+export type AudienceDemographicRow = { age: string; gender: 'women' | 'men' | 'unknown'; value: number | null; percentage: number }
 export type AudienceDemographics = {
-  source: 'instagram_api' | 'facebook_snapshot'
+  source: 'instagram_api' | 'facebook_snapshot' | 'youtube_api'
   capturedAt: string
   audienceSize: number | null
   account: { id: string; name?: string | null; username?: string | null; pictureUrl?: string | null; followers?: number }
   ageGender: AudienceDemographicRow[]
 }
 
-export type FacebookAnalytics = {
-  platform: 'facebook'
+export type AnalyticsCapability = { state: string; available: boolean; reason: string; metaCode?: number | null }
+export type PlatformAnalytics = {
+  platform: 'facebook' | 'instagram' | 'youtube' | 'linkedin'
   fetchedAt: string
   period?: { days: number; since: string; until: string }
-  page: { id: string; name: string; followers?: number; fans?: number; link?: string | null; pictureUrl?: string | null }
+  page: { id: string; name: string; username?: string | null; followers?: number; fans?: number; link?: string | null; pictureUrl?: string | null }
   capabilities?: {
     basicEngagement: AnalyticsCapability
     publishedContent: AnalyticsCapability
@@ -134,30 +85,14 @@ export type FacebookAnalytics = {
     calculationNote: string
   }
   series?: Record<string, Array<{ date: string; value: number }>>
-  demographics?: {
-    instagram: AudienceDemographics | null
-    facebookSnapshot: AudienceDemographics | null
-  }
-  content: FacebookAnalyticsContent[]
+  demographics?: { instagram: AudienceDemographics | null; facebookSnapshot: AudienceDemographics | null }
+  content: AnalyticsContent[]
   warnings?: string[]
   cache?: { hit: boolean; expiresAt: string }
 }
+export type FacebookAnalytics = PlatformAnalytics & { platform: 'facebook' }
 
-export type AnalyticsCapability = {
-  state: string
-  available: boolean
-  reason: string
-  metaCode?: number | null
-}
-
-export type PublishingActivityPoint = {
-  date: string
-  label: string
-  published: number
-  scheduled: number
-  failed: number
-}
-
+export type PublishingActivityPoint = { date: string; label: string; published: number; scheduled: number; failed: number }
 export type ConnectedPage = {
   id: string
   facebookPageId: string
@@ -191,55 +126,14 @@ export type DashboardJob = {
   createdAt: string
   updatedAt: string
   page: ConnectedPage | null
-  asset: {
-    id: string
-    originalFileName: string
-    mimeType: string | null
-    fileSizeBytes: string | null
-    status: string
-  } | null
+  asset: { id: string; originalFileName: string; mimeType: string | null; fileSizeBytes: string | null; status: string } | null
 }
 
-export type JobSummary = {
-  total: number
-  draft: number
-  awaitingUpload: number
-  ready: number
-  queued: number
-  processing: number
-  scheduled: number
-  published: number
-  failed: number
-  cancelled: number
-}
-
+export type JobSummary = { total: number; draft: number; awaitingUpload: number; ready: number; queued: number; processing: number; scheduled: number; published: number; failed: number; cancelled: number }
 export type StudioOverview = {
-  user: {
-    id: string
-    name: string | null
-    businessName: string | null
-    email: string
-  }
-  license: {
-    allowed: boolean
-    plan: string
-    subscriptionStatus: string
-    trialEndsAt: string | null
-    limits: {
-      pages: number | null
-      batchPosts: number | null
-      devices: number | null
-    }
-  }
-  features?: {
-    aiContentStudio: {
-      visible: boolean
-      allowed: boolean
-      availability: string
-      override: 'DEFAULT' | 'ALLOW' | 'DENY'
-      usage: { used: number; limit: number | null; remaining: number | null; periodStart: string; periodEnd: string }
-    }
-  }
+  user: { id: string; name: string | null; businessName: string | null; email: string }
+  license: { allowed: boolean; plan: string; subscriptionStatus: string; trialEndsAt: string | null; limits: { pages: number | null; batchPosts: number | null; devices: number | null } }
+  features?: { aiContentStudio: { visible: boolean; allowed: boolean; availability: string; override: 'DEFAULT' | 'ALLOW' | 'DENY'; usage: { used: number; limit: number | null; remaining: number | null; periodStart: string; periodEnd: string } } }
   pages: ConnectedPage[]
   summary: JobSummary
 }
