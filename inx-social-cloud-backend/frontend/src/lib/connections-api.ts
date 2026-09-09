@@ -83,6 +83,7 @@ function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => bo
 }
 
 export async function connectOAuthPlatform(platform: 'instagram' | 'linkedin' | 'youtube' | 'x') {
+  if (platform === 'x') throw new Error('X / Twitter is not offered by INXSocial.')
   const storageKey = 'inx-social-oauth-result'
   window.localStorage.removeItem(storageKey)
   const start = await apiRequest<{ authorizationUrl: string }>(`/api/social-connections/oauth/${platform}/start`, { method: 'POST', body: '{}' })
@@ -131,7 +132,7 @@ export function disconnectFacebookPage(pageId: string) {
 export type ConnectedIdentity = {
   id: string
   connectionId: string | null
-  platform: 'facebook' | 'instagram' | 'linkedin' | 'youtube' | 'x'
+  platform: 'facebook' | 'instagram' | 'linkedin' | 'youtube'
   displayName: string
   username: string | null
   avatarUrl: string | null
@@ -141,6 +142,8 @@ export type ConnectedIdentity = {
   lastSyncedAt: string | null
   page?: ConnectedPage
 }
+
+const visibleConnectedPlatforms = new Set(['instagram', 'linkedin', 'youtube'])
 
 export function flattenConnectedIdentities(workspace: ConnectionsWorkspace): ConnectedIdentity[] {
   const pages: ConnectedIdentity[] = workspace.overview.pages.filter((page) => page.status === 'ACTIVE').map((page) => ({
@@ -156,22 +159,24 @@ export function flattenConnectedIdentities(workspace: ConnectionsWorkspace): Con
     lastSyncedAt: page.lastSyncAt,
     page,
   }))
-  const social = workspace.connections.flatMap((connection) => {
-    const profiles = connection.profiles.filter((profile) => profile.status === 'ACTIVE')
-    return (profiles.length ? profiles : [{ id: connection.id, displayName: connection.displayName, username: null, avatarUrl: null, status: 'ACTIVE' }]).map((profile) => ({
-      id: profile.id,
-      connectionId: connection.id,
-      platform: connection.platform,
-      displayName: profile.displayName || connection.displayName || `${connection.platform} account`,
-      username: profile.username,
-      avatarUrl: profile.avatarUrl,
-      detail: connection.platform === 'instagram'
-        ? profile.capabilities?.publish ? 'Professional profile · Publishing permission granted' : 'Identity and insights linked'
-        : connection.platform === 'linkedin' ? 'Identity linked' : 'Read-only connection',
-      status: connection.lastError ? 'attention' as const : 'connected' as const,
-      connectedAt: connection.connectedAt,
-      lastSyncedAt: connection.lastSyncedAt,
-    }))
-  })
+  const social = workspace.connections
+    .filter((connection) => visibleConnectedPlatforms.has(connection.platform))
+    .flatMap((connection) => {
+      const profiles = connection.profiles.filter((profile) => profile.status === 'ACTIVE')
+      return (profiles.length ? profiles : [{ id: connection.id, displayName: connection.displayName, username: null, avatarUrl: null, status: 'ACTIVE' }]).map((profile) => ({
+        id: profile.id,
+        connectionId: connection.id,
+        platform: connection.platform as 'instagram' | 'linkedin' | 'youtube',
+        displayName: profile.displayName || connection.displayName || `${connection.platform} account`,
+        username: profile.username,
+        avatarUrl: profile.avatarUrl,
+        detail: connection.platform === 'instagram'
+          ? profile.capabilities?.publish ? 'Professional profile · Publishing permission granted' : 'Identity and insights linked'
+          : connection.platform === 'linkedin' ? 'Identity linked' : 'Read-only connection',
+        status: connection.lastError ? 'attention' as const : 'connected' as const,
+        connectedAt: connection.connectedAt,
+        lastSyncedAt: connection.lastSyncedAt,
+      }))
+    })
   return [...pages, ...social]
 }
