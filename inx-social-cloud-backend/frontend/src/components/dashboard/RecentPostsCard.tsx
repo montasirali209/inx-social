@@ -11,7 +11,7 @@ export function RecentPostsCard({ posts }: { posts: SocialPost[] }) {
   const timezone = useUiStore((state) => state.timezone)
   return (
     <ChartCard
-      action={<a className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-cyan transition hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/studio/?view=posts">View All Posts <ArrowRight aria-hidden="true" className="size-3.5" /></a>}
+      action={<a className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-cyan transition hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/posts">View All Posts <ArrowRight aria-hidden="true" className="size-3.5" /></a>}
       className="min-h-[350px]"
       title="Recent Posts"
     >

@@ -28,10 +28,11 @@ test('Phase 13.0 serves the React SPA without intercepting API routes', () => {
   assert.match(app, /React application build is not available/);
 });
 
-test('Phase 13.0 keeps the legacy Studio available during phased migration', () => {
+test('React workspace replaces the legacy Studio while retaining OAuth callback assets', () => {
   const app = read('src/app.js');
   const shell = read('frontend/src/components/layout/AppShell.tsx');
   const sidebar = read('frontend/src/components/layout/Sidebar.tsx');
   assert.match(app, /app\.use\('\/studio', express\.static/);
-  assert.match(`${shell}\n${sidebar}`, /href=.*\/studio\//);
+  assert.match(app, /\['\/studio', '\/studio\/', '\/studio\/index\.html'\].*redirect\(308, '\/app\/'\)/);
+  assert.doesNotMatch(`${shell}\n${sidebar}`, /href=.*\/studio\//);
 });

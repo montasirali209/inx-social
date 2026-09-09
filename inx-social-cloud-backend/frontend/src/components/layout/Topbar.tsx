@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, CircleHelp, Menu, RefreshCw, Search } from 'lucide-react'
+import { ChevronDown, CircleHelp, LogOut, Menu, RefreshCw, Search } from 'lucide-react'
 import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import type { StudioOverview } from '../../types/dashboard'
@@ -87,6 +87,13 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
     }
   }
 
+  function signOut() {
+    window.localStorage.removeItem('inx-social-cloud-token')
+    window.localStorage.removeItem('inxToken')
+    queryClient.clear()
+    window.location.assign('/')
+  }
+
   return (
     <header
       className="sticky top-0 z-20 flex min-h-[78px] items-center justify-between gap-3 border-b border-border-soft bg-bg/88 px-3 shadow-[0_12px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl sm:px-5 xl:px-6"
@@ -150,6 +157,8 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
           <div className="notification-pop absolute right-0 top-full mt-2 w-48 rounded-xl border border-border-soft bg-panel p-2 shadow-panel">
             <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/settings">Account settings</a>
             <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/billing">Billing & plan</a>
+            <div className="my-1 border-t border-border-soft" />
+            <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-[#fda4af] transition hover:bg-brand-red/10 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-red" onClick={signOut} type="button"><LogOut aria-hidden="true" className="size-3.5" />Sign out</button>
           </div>
         </details>
       </div>

@@ -61,7 +61,7 @@ export function PublishingDestinationsPanel({ destinations, platforms, selectedI
           <span className="rounded-xl border border-border-soft bg-black/15 px-3 py-2 text-xs text-text-muted"><strong className="text-text-main">{selectedIds.size}</strong> destinations selected across <strong className="text-text-main">{selectedPlatforms}</strong> {selectedPlatforms === 1 ? 'platform' : 'platforms'}</span>
           <Button onClick={selectVisible} type="button">Select all visible</Button>
           <Button disabled={!selectedIds.size} onClick={() => onSelectionChange(new Set())} type="button" variant="ghost">Clear</Button>
-          <a className="inline-flex min-h-10 items-center gap-2 rounded-control border border-border-strong bg-bg-panel-alt px-4 py-2 text-sm font-semibold text-text-main transition hover:border-brand-blue/60 hover:bg-bg-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan" href="/studio/?view=pages"><Settings2 aria-hidden="true" className="size-4" /> Manage connections</a>
+          <a className="inline-flex min-h-10 items-center gap-2 rounded-control border border-border-strong bg-bg-panel-alt px-4 py-2 text-sm font-semibold text-text-main transition hover:border-brand-blue/60 hover:bg-bg-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan" href="/app/connected-accounts"><Settings2 aria-hidden="true" className="size-4" /> Manage connections</a>
         </div>
       </div>
 

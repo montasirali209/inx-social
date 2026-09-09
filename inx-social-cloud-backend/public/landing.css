@@ -56,6 +56,17 @@ nav a{transition:color .2s ease}
 nav a:hover{color:var(--teal)}
 .nav-actions{display:flex;align-items:center;gap:12px}
 .text-link{color:#fff;font-weight:750;font-size:.9rem}
+.landing-account{position:relative;color:#fff}
+.landing-account[hidden]{display:none}
+.landing-account summary{display:flex;min-height:44px;cursor:pointer;list-style:none;align-items:center;gap:9px;padding:5px 10px 5px 5px;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(255,255,255,.06);font-size:.84rem;font-weight:800}
+.landing-account summary::-webkit-details-marker{display:none}
+.landing-account summary i{color:#8fa1bb;font-style:normal;transition:transform .2s ease}
+.landing-account[open] summary i{transform:rotate(180deg)}
+.account-avatar{display:grid;width:33px;height:33px;place-items:center;border:1px solid rgba(88,222,214,.32);border-radius:50%;background:linear-gradient(135deg,rgba(88,222,214,.22),rgba(95,167,255,.18));color:#8df1e8;font-size:.72rem}
+.landing-account-menu{position:absolute;top:calc(100% + 9px);right:0;display:grid;width:205px;padding:8px;border:1px solid rgba(255,255,255,.13);border-radius:15px;background:rgba(7,17,31,.97);box-shadow:0 24px 60px rgba(0,0,0,.35);backdrop-filter:blur(18px)}
+.landing-account-menu a,.landing-account-menu button{padding:10px 11px;border:0;border-radius:9px;background:none;color:#c8d3e4;text-align:left;font:inherit;font-size:.8rem;font-weight:750;cursor:pointer}
+.landing-account-menu a:hover,.landing-account-menu button:hover{background:rgba(255,255,255,.07);color:#fff}
+.landing-account-menu button{border-top:1px solid rgba(255,255,255,.09);border-radius:0;color:#fda4af}
 .button{
   display:inline-flex;align-items:center;justify-content:center;gap:9px;
   min-height:48px;padding:0 22px;border:1px solid transparent;border-radius:13px;
@@ -128,7 +139,7 @@ h1 span{background:linear-gradient(100deg,#80eee4,#5e9fff);-webkit-background-cl
 .window-controls{display:flex;gap:7px}
 .window-controls i{width:9px;height:9px;border-radius:50%;background:#42536b}
 .frame-live{justify-self:end;display:flex;align-items:center;gap:8px}
-.dashboard-frame>img{width:100%;background:#0b1628}
+.dashboard-frame>img{width:100%;aspect-ratio:16/9;object-fit:cover;object-position:top center;background:#0b1628}
 .frame-shine{position:absolute;inset:50px 0 auto;height:130px;background:linear-gradient(to bottom,rgba(255,255,255,.035),transparent);pointer-events:none}
 
 .metrics-strip{background:#fff;border-bottom:1px solid #e6ebf3}
@@ -169,7 +180,7 @@ h2{font-size:clamp(2.3rem,4.6vw,4.15rem);line-height:1.05;letter-spacing:-.055em
 .workflow-steps h3{font-size:1.18rem;margin-bottom:7px}.workflow-steps p{color:#aebbd0;margin:0}
 
 .pricing-section{background:#f5f8fc}
-.pricing-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;max-width:920px;margin:auto}
+.pricing-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;max-width:1180px;margin:auto}
 .price-card{padding:36px;border-radius:26px;background:#fff;border:1px solid #e0e7f0;box-shadow:0 18px 50px rgba(13,31,54,.08)}
 .price-card-pro{position:relative;color:#fff;background:linear-gradient(145deg,#0d1b30,#183b60);border-color:#305479;transform:translateY(-12px);box-shadow:0 28px 65px rgba(11,28,51,.23)}
 .recommended{position:absolute;top:22px;right:23px;color:#87eae1;font-size:.63rem;font-weight:900;letter-spacing:.11em}
@@ -181,6 +192,7 @@ h2{font-size:clamp(2.3rem,4.6vw,4.15rem);line-height:1.05;letter-spacing:-.055em
 .price-card ul{list-style:none;padding:0;margin:25px 0}
 .price-card li{padding:8px 0;color:#526079}
 .price-card li::before{content:"✓";color:#23a77b;font-weight:900;margin-right:9px}
+.price-card li.locked{color:#9aa5b5}.price-card li.locked::before{content:"×";color:#e77b88}
 
 .trust-section{padding-top:0;background:#f5f8fc}
 .trust-panel{display:grid;grid-template-columns:1fr .8fr;gap:60px;align-items:center;padding:58px;border-radius:30px;color:#fff;background:linear-gradient(135deg,#071321,#17395b);box-shadow:var(--shadow)}
@@ -231,7 +243,9 @@ footer{padding:70px 0 28px;color:#fff;background:#06101e}
   nav{position:fixed;top:82px;left:20px;right:20px;padding:22px;border-radius:18px;background:#0c1a2e;box-shadow:var(--shadow);flex-direction:column;align-items:flex-start;opacity:0;transform:translateY(-10px);pointer-events:none;transition:.2s ease}
   nav.open{opacity:1;transform:none;pointer-events:auto}
   .menu-button{display:block}.nav-actions>.text-link,.nav-actions>.button{display:none}
-  .hero-layout,.workflow-layout,.trust-panel,.faq-layout{grid-template-columns:1fr}
+  .landing-account summary span:nth-child(2){display:none}
+  .hero-layout,.workflow-layout,.trust-panel,.faq-layout,.pricing-grid{grid-template-columns:1fr}
+  .pricing-grid{max-width:620px}.price-card-pro{transform:none}
   .hero-orbit{height:380px}.workflow-copy,.faq-intro{position:static}
   .feature-card-wide{grid-template-columns:auto 1fr}.feature-card-wide .mini-drop{grid-column:1/-1}
   .metrics{grid-template-columns:repeat(2,1fr);gap:18px}.metrics div{border:0;padding:0}

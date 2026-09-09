@@ -22,6 +22,10 @@ test('Settings, Connected Accounts and Billing are first-class authenticated Rea
   const billingApi = read('frontend/src/lib/billing-api.ts');
   const billingRoutes = read('src/routes/billingRoutes.js');
   const billingController = read('src/controllers/billingController.js');
+  const topbar = read('frontend/src/components/layout/Topbar.tsx');
+  const app = read('src/app.js');
+  const landing = read('public/landing.html');
+  const landingScript = read('public/landing.js');
 
   assert.match(router, /path: 'settings'/);
   assert.match(router, /path: 'connected-accounts'/);
@@ -59,4 +63,13 @@ test('Settings, Connected Accounts and Billing are first-class authenticated Rea
   assert.match(billingRoutes, /router\.get\('\/overview'/);
   assert.match(billingController, /planId: normalizedPlan\(license\.plan\)\.toLowerCase\(\)/);
   assert.doesNotMatch(billingController, /payment_method_details|card\.last4|billing_details/);
+  assert.match(sidebar, /overflow-x-hidden/);
+  assert.match(topbar, />Sign out<\/button>/);
+  assert.match(topbar, /removeItem\('inx-social-cloud-token'\)/);
+  assert.match(app, /\['\/studio', '\/studio\/', '\/studio\/index\.html'\].*redirect\(308, '\/app\/'\)/);
+  assert.match(landing, /id="landingAccount"/);
+  assert.match(landing, /href="\/portal\/login\.html\?return=\/app\/"/);
+  assert.doesNotMatch(landing, /href="\/studio\/"/);
+  assert.match(landingScript, /fetch\('\/api\/auth\/me'/);
+  assert.match(landingScript, /id|user/);
 });

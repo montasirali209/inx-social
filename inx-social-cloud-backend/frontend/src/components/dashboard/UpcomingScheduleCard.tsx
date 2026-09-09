@@ -10,7 +10,7 @@ export function UpcomingScheduleCard({ jobs }: { jobs: DashboardJob[] }) {
   const timezone = useUiStore((state) => state.timezone)
   return (
     <DashboardCard
-      action={<a className="inline-flex items-center gap-1 text-xs font-semibold text-brand-cyan hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/studio/?view=calendar">View Calendar <ArrowRight aria-hidden="true" className="size-3.5" /></a>}
+      action={<a className="inline-flex items-center gap-1 text-xs font-semibold text-brand-cyan hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/content-calendar">View Calendar <ArrowRight aria-hidden="true" className="size-3.5" /></a>}
       className="min-h-[290px]"
       title="Upcoming Schedule"
     >

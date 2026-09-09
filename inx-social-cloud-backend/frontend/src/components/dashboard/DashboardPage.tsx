@@ -122,7 +122,7 @@ export function DashboardPage() {
           <h1 className="mt-5 text-xl font-semibold">{sessionRequired ? 'Sign in to open your dashboard' : 'Dashboard data is unavailable'}</h1>
           <p className="mt-2 text-sm leading-6 text-text-muted">{sessionRequired ? 'Your existing INX Social session is required to load private publishing data.' : coreError?.message}</p>
           {sessionRequired
-            ? <a className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand-blue px-5 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/studio/">Open sign in</a>
+            ? <a className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand-blue px-5 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/portal/login.html?return=/app/">Open sign in</a>
             : <button className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-blue px-5 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={refreshDashboard} type="button"><RefreshCw aria-hidden="true" className="size-4" /> Retry</button>}
         </div>
       </section>

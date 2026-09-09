@@ -8,7 +8,7 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
 test('public landing exposes consistent canonical search and social metadata', () => {
   const html = read('public/landing.html');
-  assert.match(html, /<title>Facebook Reels Scheduler for Pages \| INX Social<\/title>/);
+  assert.match(html, /<title>Social Media Scheduling &amp; Publishing \| INXSocial<\/title>/);
   assert.match(html, /<link rel="canonical" href="https:\/\/social\.inaxx\.co\.uk\/">/);
   assert.match(html, /hreflang="x-default"/);
   assert.match(html, /twitter:image:alt/);
