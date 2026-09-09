@@ -21,7 +21,7 @@ test('Connected Accounts exposes real Instagram, LinkedIn, YouTube, and X linkin
   assert.match(app, /Channel \$\{index \+ 1\} of \$\{profileCount\}/);
 });
 
-test('React connections use Instagram Business Login without legacy Facebook Instagram scopes', () => {
+test('React connections support both Meta-linked and direct Instagram authorization', () => {
   const api = read('frontend/src/lib/connections-api.ts');
   const connectedAccountsPage = read('frontend/src/components/connections/ConnectedAccountsPage.tsx');
   const adapter = read('studio/web-adapter.js');
@@ -29,16 +29,22 @@ test('React connections use Instagram Business Login without legacy Facebook Ins
   const controller = read('src/controllers/socialConnectionController.js');
   const service = read('src/services/socialConnectionService.js');
   assert.match(api, /connectOAuthPlatform\('instagram'\)/);
-  assert.doesNotMatch(api, /instagram_basic|instagram_manage_insights/);
+  assert.match(api, /instagram_basic/);
+  assert.match(api, /instagram_content_publish/);
+  assert.match(api, /instagram_manage_insights/);
   assert.doesNotMatch(adapter, /instagram_basic|instagram_manage_insights/);
   assert.doesNotMatch(facebookCallback, /location\.replace\('\/studio\//);
   assert.match(facebookCallback, /Close this window/);
+  assert.match(facebookCallback, /\/api\/social-connections\/instagram\/sync/);
   assert.match(controller, /INSTAGRAM_BUSINESS_LOGIN/);
   assert.match(service, /OAUTH_PROVIDER_NOT_CONFIGURED/);
   assert.doesNotMatch(service, /INSTAGRAM_CLIENT_ID \|\| process\.env\.META_APP_ID/);
   assert.doesNotMatch(controller, /INSTAGRAM_CLIENT_ID \|\| process\.env\.META_APP_ID/);
   assert.match(connectedAccountsPage, /Instagram setup is incomplete\./);
   assert.match(connectedAccountsPage, /Instagram setup required/);
+  assert.match(connectedAccountsPage, /Connect with Meta/);
+  assert.match(connectedAccountsPage, /Connect Instagram directly/);
+  assert.match(connectedAccountsPage, /Recommended/);
   assert.match(connectedAccountsPage, />\s*Close\s*<\/Button>/);
   assert.doesNotMatch(connectedAccountsPage, />\s*Back\s*<\/Button>/);
   assert.match(service, /force_authentication/);

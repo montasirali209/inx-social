@@ -166,10 +166,33 @@ function tokenExpiry(token) {
   return seconds > 0 ? new Date(Date.now() + seconds * 1000) : null;
 }
 
-async function upsertConnection({ userId, platform, externalAccountId, accountType, displayName, token, scopes, profile }) {
+async function upsertConnection({ userId, platform, externalAccountId, accountType, displayName, token, scopes, profile, authMethod = 'OAUTH', preserveExistingToken = false }) {
   const existing = await prisma.socialConnection.findUnique({
-    where: { userId_platform_externalAccountId: { userId, platform, externalAccountId } }
+    where: { userId_platform_externalAccountId: { userId, platform, externalAccountId } },
+    include: { profiles: true }
   });
+  const existingScopes = parseJson(existing?.scopesJson, []);
+  const mergedScopes = [...new Set([...existingScopes, ...scopes])];
+  const shouldPreserveToken = preserveExistingToken
+    && existingScopes.includes('instagram_business_content_publish');
+  const existingMetadata = parseJson(existing?.metadataJson, {});
+  const authMethods = [...new Set([...(existingMetadata.authMethods || []), existingMetadata.authMethod, authMethod].filter(Boolean))];
+  const existingProfile = existing?.profiles?.find(item => item.externalProfileId === profile.externalProfileId);
+  const profileCapabilities = {
+    ...parseJson(existingProfile?.capabilitiesJson, {}),
+    ...parseJson(profile.capabilitiesJson, {})
+  };
+  for (const capability of ['identity', 'publish', 'analytics']) {
+    profileCapabilities[capability] = Boolean(
+      parseJson(existingProfile?.capabilitiesJson, {})[capability]
+      || parseJson(profile.capabilitiesJson, {})[capability]
+    );
+  }
+  const profileMetadata = {
+    ...parseJson(existingProfile?.metadataJson, {}),
+    ...parseJson(profile.metadataJson, {}),
+    authMethods
+  };
   const connection = await prisma.socialConnection.upsert({
     where: { userId_platform_externalAccountId: { userId, platform, externalAccountId } },
     create: {
@@ -182,8 +205,8 @@ async function upsertConnection({ userId, platform, externalAccountId, accountTy
       encryptedAccessToken: encryptToken(token.access_token),
       encryptedRefreshToken: encryptToken(token.refresh_token),
       tokenExpiresAt: tokenExpiry(token),
-      scopesJson: JSON.stringify(scopes),
-      metadataJson: JSON.stringify({ connectedBy: 'OAUTH', connectedAt: new Date().toISOString() }),
+      scopesJson: JSON.stringify(mergedScopes),
+      metadataJson: JSON.stringify({ connectedBy: 'OAUTH', authMethod, authMethods, connectedAt: new Date().toISOString() }),
       lastSyncedAt: new Date(),
       lastError: null
     },
@@ -191,18 +214,31 @@ async function upsertConnection({ userId, platform, externalAccountId, accountTy
       accountType,
       displayName,
       status: 'ACTIVE',
-      encryptedAccessToken: encryptToken(token.access_token),
-      encryptedRefreshToken: token.refresh_token ? encryptToken(token.refresh_token) : existing?.encryptedRefreshToken || undefined,
-      tokenExpiresAt: tokenExpiry(token) || undefined,
-      scopesJson: JSON.stringify(scopes),
+      encryptedAccessToken: shouldPreserveToken && existing?.encryptedAccessToken ? existing.encryptedAccessToken : encryptToken(token.access_token),
+      encryptedRefreshToken: shouldPreserveToken && existing?.encryptedRefreshToken
+        ? existing.encryptedRefreshToken
+        : token.refresh_token ? encryptToken(token.refresh_token) : existing?.encryptedRefreshToken || undefined,
+      tokenExpiresAt: shouldPreserveToken && existing?.tokenExpiresAt ? existing.tokenExpiresAt : tokenExpiry(token) || undefined,
+      scopesJson: JSON.stringify(mergedScopes),
+      metadataJson: JSON.stringify({ ...existingMetadata, connectedBy: 'OAUTH', authMethod, authMethods }),
       lastSyncedAt: new Date(),
       lastError: null
     }
   });
   await prisma.socialProfile.upsert({
     where: { connectionId_externalProfileId: { connectionId: connection.id, externalProfileId: profile.externalProfileId } },
-    create: { userId, connectionId: connection.id, platform, ...profile, status: 'ACTIVE' },
-    update: { ...profile, status: 'ACTIVE' }
+    create: {
+      userId, connectionId: connection.id, platform, ...profile,
+      capabilitiesJson: JSON.stringify(profileCapabilities),
+      metadataJson: JSON.stringify(profileMetadata),
+      status: 'ACTIVE'
+    },
+    update: {
+      ...profile,
+      capabilitiesJson: JSON.stringify(profileCapabilities),
+      metadataJson: JSON.stringify(profileMetadata),
+      status: 'ACTIVE'
+    }
   });
   return prisma.socialConnection.findUnique({ where: { id: connection.id }, include: { profiles: true } });
 }
@@ -281,6 +317,7 @@ async function connectInstagram(userId, code) {
     displayName: profile.username ? `@${profile.username}` : displayName,
     token,
     scopes: INSTAGRAM_SCOPES,
+    authMethod: 'INSTAGRAM_LOGIN',
     profile: {
       externalProfileId: externalAccountId,
       displayName,
@@ -435,7 +472,9 @@ async function syncInstagram(userId) {
         accountType: 'PROFESSIONAL',
         displayName: account.username ? `@${account.username}` : account.name || 'Instagram account',
         token: { access_token: accessToken },
-        scopes: ['instagram_basic', 'instagram_manage_insights'],
+        scopes: ['instagram_basic', 'instagram_content_publish', 'instagram_manage_insights'],
+        authMethod: 'FACEBOOK_LOGIN',
+        preserveExistingToken: true,
         profile: {
           externalProfileId: String(account.id),
           displayName: account.name || account.username || 'Instagram account',

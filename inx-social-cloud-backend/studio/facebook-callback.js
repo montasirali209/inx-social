@@ -119,10 +119,32 @@
       notice = `${selectedPageIds.length} Facebook Page(s) connected. Pages refreshed automatically.`;
     }
 
+    let instagramCount = 0;
+    let instagramNotice = '';
+    detail.textContent = 'Finding Instagram professional accounts linked to your Pages…';
+    try {
+      const instagramResult = await api('/api/social-connections/instagram/sync', {
+        method: 'POST',
+        body: '{}'
+      });
+      instagramCount = Number(instagramResult.connections?.length || 0);
+      if (instagramCount) {
+        instagramNotice = ` ${instagramCount} linked Instagram professional account(s) imported.`;
+      }
+      if (instagramResult.errors?.length) {
+        instagramNotice += ` Some Pages could not be checked: ${instagramResult.errors.join(' ')}`;
+      }
+    } catch (error) {
+      // A Facebook Page can be valid without a linked Instagram profile. Keep
+      // Facebook connected and give the parent window an actionable notice.
+      instagramNotice = ` No linked Instagram professional account was imported: ${error.message}`;
+    }
+
+    notice += instagramNotice;
     sessionStorage.removeItem('inx-facebook-oauth-state');
-    title.textContent = 'Facebook connected';
+    title.textContent = 'Meta accounts connected';
     detail.textContent = 'Connection complete. This window will close automatically…';
-    notifyOpener({ ok: true, notice, connectedCount: selectedPageIds.length });
+    notifyOpener({ ok: true, notice, connectedCount: selectedPageIds.length, instagramCount });
     setTimeout(() => window.close(), 250);
   }
 
