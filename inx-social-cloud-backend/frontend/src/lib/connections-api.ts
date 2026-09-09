@@ -73,10 +73,6 @@ function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => bo
       } catch {
         providerNavigationStarted = true
       }
-      // Meta and some other providers isolate OAuth popups with COOP. That can
-      // make `popup.closed` read as true even though the window is still open.
-      // Once cross-origin navigation has started, the callback/storage result is
-      // the reliable completion signal; do not show a false "window closed" error.
       if (popup.closed && !providerNavigationStarted) {
         closedAt ||= Date.now()
         if (Date.now() - closedAt > 2_500) finish({ ok: false, error: 'The connection window was closed before setup completed.' })
@@ -101,21 +97,16 @@ export async function connectOAuthPlatform(platform: 'instagram' | 'linkedin' | 
 }
 
 export async function connectFacebook() {
-  const state = window.crypto.randomUUID()
+  const start = await apiRequest<{ authorizationUrl: string; state: string }>(
+    '/api/social-connections/facebook/start',
+    { method: 'POST', body: '{}' },
+  )
+  const state = start.state
   const storageKey = `inx-facebook-oauth-result:${state}`
-  const redirectUri = `${window.location.origin}/studio/facebook-callback.html`
-  const url = new URL('https://www.facebook.com/v25.0/dialog/oauth')
-  url.searchParams.set('client_id', '969283649323618')
-  url.searchParams.set('redirect_uri', redirectUri)
-  url.searchParams.set('response_type', 'token')
-  url.searchParams.set('scope', 'public_profile,pages_show_list,pages_read_engagement,pages_read_user_content,read_insights,pages_manage_posts,business_management,instagram_basic,instagram_content_publish,instagram_manage_insights')
-  url.searchParams.set('state', state)
-  url.searchParams.set('auth_type', 'rerequest')
-  url.searchParams.set('return_scopes', 'true')
   window.sessionStorage.setItem('inx-facebook-oauth-state', state)
   window.localStorage.removeItem(storageKey)
   const position = popupPosition()
-  const popup = window.open(url.toString(), 'inxFacebookConnect', `popup=yes,width=${position.width},height=${position.height},left=${position.left},top=${position.top},resizable=yes,scrollbars=yes`)
+  const popup = window.open(start.authorizationUrl, 'inxFacebookConnect', `popup=yes,width=${position.width},height=${position.height},left=${position.left},top=${position.top},resizable=yes,scrollbars=yes`)
   if (!popup) throw new Error('The Facebook popup was blocked. Allow popups for INXSocial and try again.')
   popup.focus()
   return waitForOAuthPopup(popup, (message) => message.type === 'inx-facebook-oauth-result' && message.state === state, storageKey)

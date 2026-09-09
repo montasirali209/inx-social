@@ -31,6 +31,12 @@ async function list(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function startFacebook(req, res, next) {
+  try {
+    res.json(service.facebookAuthorization());
+  } catch (error) { next(error); }
+}
+
 async function startOAuth(req, res, next) {
   try {
     const platform = oauthPlatformSchema.parse(req.params.platform);
@@ -43,9 +49,18 @@ async function oauthCallback(req, res) {
   try {
     oauthPlatformSchema.parse(platform);
     const connection = await service.completeOAuth(platform, req.query || {});
-    completionPage(res, { ok: true, platform, connectionId: connection.id });
+    const profile = connection?.profiles?.find(item => item.status === 'ACTIVE') || connection?.profiles?.[0];
+    const instagramLabel = profile?.username ? `@${profile.username}` : profile?.displayName || connection?.displayName;
+    completionPage(res, {
+      ok: true,
+      platform,
+      connectionId: connection.id,
+      notice: platform === 'instagram' && instagramLabel
+        ? `${instagramLabel} connected directly to INXSocial.`
+        : undefined
+    });
   } catch (error) {
-    completionPage(res, { ok: false, platform, error: String(error.message || 'The social account could not be connected.').slice(0, 300) });
+    completionPage(res, { ok: false, platform, error: String(error.publicMessage || error.message || 'The social account could not be connected.').slice(0, 300) });
   }
 }
 
@@ -62,4 +77,4 @@ async function disconnect(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { list, startOAuth, oauthCallback, syncInstagram, disconnect };
+module.exports = { list, startFacebook, startOAuth, oauthCallback, syncInstagram, disconnect };

@@ -5,6 +5,15 @@ const prisma = require('../db/prisma');
 const { encryptToken, decryptToken } = require('../utils/tokenCrypto');
 
 const OAUTH_TTL = '10m';
+const FACEBOOK_PAGE_SCOPES = [
+  'public_profile',
+  'pages_show_list',
+  'pages_read_engagement',
+  'pages_read_user_content',
+  'read_insights',
+  'pages_manage_posts',
+  'business_management'
+];
 const INSTAGRAM_SCOPES = [
   'instagram_business_basic',
   'instagram_business_content_publish',
@@ -26,6 +35,35 @@ function publicOrigin() {
 
 function callbackUrl(platform) {
   return `${publicOrigin()}/api/social-connections/oauth/${platform}/callback`;
+}
+
+function facebookAuthorization() {
+  const appId = String(process.env.FACEBOOK_APP_ID || process.env.META_APP_ID || '969283649323618').trim();
+  const configId = String(process.env.FACEBOOK_LOGIN_CONFIG_ID || '').trim();
+  const graphVersion = String(process.env.FB_GRAPH_VERSION || process.env.GRAPH_VERSION || 'v25.0').trim();
+  const state = crypto.randomBytes(18).toString('base64url');
+  const redirectUri = `${publicOrigin()}/studio/facebook-callback.html`;
+  const url = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`);
+  url.searchParams.set('client_id', appId);
+  url.searchParams.set('redirect_uri', redirectUri);
+  url.searchParams.set('response_type', 'token');
+  url.searchParams.set('state', state);
+  url.searchParams.set('auth_type', 'rerequest');
+  url.searchParams.set('return_scopes', 'true');
+
+  // Facebook Login for Business stores the Page/Instagram permission set in
+  // the Meta configuration. Do not also send the legacy Instagram scopes in
+  // the OAuth query; Meta rejects that mixed scope request for this flow.
+  if (configId) url.searchParams.set('config_id', configId);
+  else url.searchParams.set('scope', FACEBOOK_PAGE_SCOPES.join(','));
+
+  return {
+    authorizationUrl: url.toString(),
+    redirectUri,
+    state,
+    appId,
+    businessLoginConfigured: Boolean(configId)
+  };
 }
 
 function stateSecret() {
@@ -104,9 +142,6 @@ function authorization(platform, userId) {
   url.searchParams.set('scope', config.scopes.join(platform === 'instagram' ? ',' : ' '));
   url.searchParams.set('state', state);
   if (platform === 'instagram') {
-    // Instagram Business Login authorises one professional profile per flow.
-    // These are the provider-supported Business Login parameters. They prevent
-    // the ordinary Instagram session/feed from replacing the account chooser.
     url.searchParams.set('enable_fb_login', '0');
     url.searchParams.set('force_authentication', '1');
   }
@@ -154,9 +189,7 @@ async function exchangeCode(config, code, statePayload = null) {
     body.set('client_id', config.clientId);
     body.set('client_secret', config.clientSecret);
   }
-  const response = await axios.post(config.tokenUrl, body.toString(), {
-    ...requestConfig
-  });
+  const response = await axios.post(config.tokenUrl, body.toString(), { ...requestConfig });
   if (!response.data?.access_token) throw new Error(`${config.platform} did not return an access token.`);
   return response.data;
 }
@@ -164,6 +197,14 @@ async function exchangeCode(config, code, statePayload = null) {
 function tokenExpiry(token) {
   const seconds = Number(token.expires_in || 0);
   return seconds > 0 ? new Date(Date.now() + seconds * 1000) : null;
+}
+
+function parseJson(value, fallback) {
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch (_) {
+    return fallback;
+  }
 }
 
 async function upsertConnection({ userId, platform, externalAccountId, accountType, displayName, token, scopes, profile, authMethod = 'OAUTH', preserveExistingToken = false }) {
@@ -178,15 +219,13 @@ async function upsertConnection({ userId, platform, externalAccountId, accountTy
   const existingMetadata = parseJson(existing?.metadataJson, {});
   const authMethods = [...new Set([...(existingMetadata.authMethods || []), existingMetadata.authMethod, authMethod].filter(Boolean))];
   const existingProfile = existing?.profiles?.find(item => item.externalProfileId === profile.externalProfileId);
+  const existingCapabilities = parseJson(existingProfile?.capabilitiesJson, {});
   const profileCapabilities = {
-    ...parseJson(existingProfile?.capabilitiesJson, {}),
+    ...existingCapabilities,
     ...parseJson(profile.capabilitiesJson, {})
   };
   for (const capability of ['identity', 'publish', 'analytics']) {
-    profileCapabilities[capability] = Boolean(
-      parseJson(existingProfile?.capabilitiesJson, {})[capability]
-      || parseJson(profile.capabilitiesJson, {})[capability]
-    );
+    profileCapabilities[capability] = Boolean(existingCapabilities[capability] || parseJson(profile.capabilitiesJson, {})[capability]);
   }
   const profileMetadata = {
     ...parseJson(existingProfile?.metadataJson, {}),
@@ -308,6 +347,25 @@ async function connectInstagram(userId, code) {
   const externalAccountId = String(profile.user_id || profile.id || shortToken.user_id || '');
   if (!externalAccountId) throw new Error('Instagram did not return a professional account identity.');
   const displayName = profile.name || profile.username || 'Instagram professional account';
+
+  const existing = await prisma.socialConnection.findUnique({
+    where: { userId_platform_externalAccountId: { userId, platform: 'instagram', externalAccountId } },
+    include: { profiles: true }
+  });
+  const existingMetadata = parseJson(existing?.metadataJson, {});
+  const existingMethods = new Set([
+    ...(existingMetadata.authMethods || []),
+    existingMetadata.authMethod
+  ].filter(Boolean));
+  if (existing?.status === 'ACTIVE' && existingMethods.has('FACEBOOK_LOGIN') && !existingMethods.has('INSTAGRAM_LOGIN')) {
+    const handle = profile.username ? `@${profile.username}` : displayName;
+    const message = `${handle} is already connected through Meta. Sign in to your other standalone Instagram Business or Creator account in the Instagram authorisation window, then try again.`;
+    throw Object.assign(new Error(message), {
+      status: 409,
+      publicMessage: message,
+      code: 'INSTAGRAM_ALREADY_CONNECTED_VIA_META'
+    });
+  }
 
   return upsertConnection({
     userId,
@@ -498,14 +556,6 @@ async function syncInstagram(userId) {
   return { connections: linked, errors };
 }
 
-function parseJson(value, fallback) {
-  try {
-    return value ? JSON.parse(value) : fallback;
-  } catch (_) {
-    return fallback;
-  }
-}
-
 function publicConnection(connection) {
   return {
     id: connection.id,
@@ -561,6 +611,7 @@ async function disconnect(userId, connectionId) {
 }
 
 module.exports = {
+  facebookAuthorization,
   authorization,
   completeOAuth,
   syncInstagram,
@@ -568,6 +619,7 @@ module.exports = {
   disconnect,
   publicConnection,
   callbackUrl,
+  FACEBOOK_PAGE_SCOPES,
   INSTAGRAM_SCOPES,
   LINKEDIN_SCOPES,
   YOUTUBE_SCOPES,
