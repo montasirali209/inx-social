@@ -89,12 +89,14 @@ export function buildAnalyticsView(analytics: PlatformAnalytics, days: number): 
   }))
   const contentViews = analytics.summary.views ?? analytics.summary.postViews
   const totalInteractions = analytics.summary.totalInteractions
+  const derivedFromViews = analytics.summary.engagementRate === null && contentViews > 0
   const derivedEngagementRate = analytics.summary.engagementRate ?? (contentViews > 0 ? Number(((totalInteractions / contentViews) * 100).toFixed(2)) : null)
+  const engagementDetail = derivedFromViews ? 'Interactions divided by content views' : analytics.summary.calculationNote
   const sourceName = platformLabel(analytics.platform)
   const stats: AnalyticsStat[] = [
     { id: 'followers', label: analytics.platform === 'youtube' ? 'Subscribers' : 'Total Followers', value: analytics.summary.followers, format: 'compact', detail: `Current ${sourceName} audience`, tone: 'teal', sparkline: sparkline(performance, 'followers') },
     { id: 'views', label: 'Content Views', value: contentViews, format: 'compact', detail: analytics.capabilities?.pageInsights.available ? `Returned by ${sourceName}` : 'Unavailable for this connection', tone: 'blue', sparkline: sparkline(performance, 'views'), availability: analytics.capabilities?.pageInsights.reason },
-    { id: 'engagement-rate', label: 'Engagement Rate', value: derivedEngagementRate, format: 'percent', detail: analytics.summary.calculationNote, tone: 'red', sparkline: sparkline(performance, 'engagements') },
+    { id: 'engagement-rate', label: 'Engagement Rate', value: derivedEngagementRate, format: 'percent', detail: engagementDetail, tone: 'red', sparkline: sparkline(performance, 'engagements') },
     { id: 'interactions', label: 'Total Interactions', value: totalInteractions, format: 'compact', detail: `Verified ${sourceName} interactions`, tone: 'purple', sparkline: sparkline(performance, 'engagements') },
     { id: 'clicks', label: 'Link Clicks', value: analytics.summary.clicks, format: 'compact', detail: analytics.summary.clicks ? 'Published-content clicks' : `Not supplied by ${sourceName} for this view`, tone: 'amber', sparkline: sparkline(performance, 'linkClicks') },
     { id: 'posts', label: analytics.platform === 'youtube' ? 'Videos' : 'Posts Published', value: analytics.summary.posts, format: 'integer', detail: analytics.platform === 'youtube' ? 'Current channel video count' : `Within the selected ${days} days`, tone: 'green', sparkline: performance.map(point => topPosts(analytics).filter(post => post.date?.startsWith(point.date)).length) },
