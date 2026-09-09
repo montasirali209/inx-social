@@ -12,13 +12,25 @@ function liveAnalytics(): FacebookAnalytics {
 }
 
 describe('Analytics live view', () => {
-  it('maps only returned Meta data and keeps unavailable metrics explicit', () => {
+  it('maps returned Meta data and exposes available interaction metrics', () => {
     const view = buildAnalyticsView(liveAnalytics(), 30)
     expect(view.stats.find((stat) => stat.id === 'followers')?.value).toBe(1200)
-    expect(view.stats.find((stat) => stat.id === 'profile-visits')?.value).toBeNull()
+    expect(view.stats.find((stat) => stat.id === 'interactions')?.value).toBe(14)
+    expect(view.stats.find((stat) => stat.id === 'engagement-rate')?.value).toBe(28)
     expect(view.topPosts[0].engagements).toBe(14)
     expect(view.audienceGrowth).toBe(4)
     expect(view.lowData).toBe(true)
+  })
+
+  it('derives engagement rate from content views when unique-viewer rate is unavailable', () => {
+    const source = liveAnalytics()
+    source.summary.engagementRate = null
+    source.summary.uniqueViewers = 0
+    source.summary.views = 100
+    source.summary.totalInteractions = 5
+    const view = buildAnalyticsView(source, 30)
+    expect(view.stats.find((stat) => stat.id === 'engagement-rate')?.value).toBe(5)
+    expect(view.stats.find((stat) => stat.id === 'engagement-rate')?.detail).toBe('Interactions divided by content views')
   })
 
   it('formats compact, percentage and unavailable values honestly', () => {
