@@ -1,4 +1,7 @@
 const prisma = require('../db/prisma');
+const crypto = require('crypto');
+const { z } = require('zod');
+const { hashPassword } = require('../utils/auth');
 const aiModelRouting = require('../services/aiModelRoutingService');
 const agentBrain = require('../services/agentBrainService');
 const agentAccess = require('../services/agentAccessService');
@@ -24,7 +27,9 @@ function safeUserSelect() {
 
 async function overview(req, res, next) {
   try {
-    const [users, trials, activeSubs, pages, jobs, failedJobs, activeUsers, suspendedUsers, unverifiedUsers] = await Promise.all([
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const [users, trials, activeSubs, pages, jobs, failedJobs, activeUsers, suspendedUsers, unverifiedUsers, joinedToday, recentUsers] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({ where: { status: 'TRIAL' } }),
       prisma.subscription.count({ where: { status: { in: ['ACTIVE', 'MANUAL'] } } }),
@@ -33,10 +38,12 @@ async function overview(req, res, next) {
       prisma.scheduleJob.count({ where: { status: 'FAILED' } }),
       prisma.user.count({ where: { status: 'ACTIVE' } }),
       prisma.user.count({ where: { status: 'SUSPENDED' } }),
-      prisma.user.count({ where: { emailVerifiedAt: null, role: 'USER' } })
+      prisma.user.count({ where: { emailVerifiedAt: null, role: 'USER' } }),
+      prisma.user.count({ where: { role: 'USER', createdAt: { gte: today } } }),
+      prisma.user.findMany({ where: { role: 'USER' }, orderBy: { createdAt: 'desc' }, take: 12, select: { id: true, name: true, email: true, status: true, createdAt: true, emailVerifiedAt: true, subscriptions: { orderBy: { createdAt: 'desc' }, take: 1, select: { plan: true, status: true } } } })
     ]);
 
-    res.json({ overview: { users, trials, activeUsers, suspendedUsers, unverifiedUsers, activeSubscriptions: activeSubs, connectedPages: pages, scheduleJobs: jobs, failedJobs } });
+    res.json({ overview: { users, trials, joinedToday, activeUsers, suspendedUsers, unverifiedUsers, activeSubscriptions: activeSubs, connectedPages: pages, scheduleJobs: jobs, failedJobs, recentUsers } });
   } catch (err) { next(err); }
 }
 
@@ -68,7 +75,8 @@ async function users(req, res, next) {
         connectedPages: { select: { id: true, facebookPageName: true, facebookPageId: true, status: true } }
       }
     });
-    res.json({ users });
+    const overrides = await agentAccess.getUserOverrides();
+    res.json({ users: users.map(user => ({ ...user, aiStudioAccess: overrides[user.id] || 'DEFAULT' })) });
   } catch (err) { next(err); }
 }
 
@@ -76,13 +84,27 @@ async function userDetail(req, res, next) {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.params.id }, select: safeUserSelect() });
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json({ user });
+    res.json({ user: { ...user, aiStudioAccess: await agentAccess.getUserOverride(user.id) } });
   } catch (err) { next(err); }
 }
 
 async function updateUserAccess(req, res, next) {
   try {
-    const { status, role, trialDays, plan, subscriptionStatus } = req.body || {};
+    const input = z.object({
+      status: z.enum(['PENDING_VERIFICATION', 'TRIAL', 'ACTIVE', 'SUSPENDED', 'CANCELLED']).optional(),
+      role: z.enum(['USER', 'ADMIN', 'SUPER_ADMIN']).optional(),
+      trialDays: z.number().int().min(0).max(365).optional(),
+      plan: z.enum(['TRIAL', 'PRO', 'PLUS', 'LIFETIME']).optional(),
+      subscriptionStatus: z.enum(['TRIALING', 'ACTIVE', 'MANUAL', 'PAST_DUE', 'CANCELLED', 'PAUSED']).optional(),
+      aiStudioAccess: z.enum(['DEFAULT', 'ALLOW', 'DENY']).optional()
+    }).parse(req.body || {});
+    const { status, role, trialDays, plan, subscriptionStatus, aiStudioAccess } = input;
+    const currentUser = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, role: true } });
+    if (!currentUser) return res.status(404).json({ error: 'User not found' });
+    if (role && role !== currentUser.role && req.user.role !== 'SUPER_ADMIN') return res.status(403).json({ error: 'Only a super administrator can change account roles.' });
+    if (req.params.id === req.user.id && ((role && !['ADMIN', 'SUPER_ADMIN'].includes(role)) || ['SUSPENDED', 'CANCELLED'].includes(status))) {
+      return res.status(400).json({ error: 'You cannot remove your own administrator access.' });
+    }
     const data = {};
     if (status) data.status = status;
     if (role) data.role = role;
@@ -92,6 +114,8 @@ async function updateUserAccess(req, res, next) {
     }
 
     const user = await prisma.user.update({ where: { id: req.params.id }, data });
+
+    if (aiStudioAccess) await agentAccess.setUserOverride(user.id, aiStudioAccess);
 
     if (plan || subscriptionStatus) {
       await prisma.subscription.create({
@@ -112,12 +136,39 @@ async function updateUserAccess(req, res, next) {
         action: 'ADMIN_UPDATE_USER_ACCESS',
         entity: 'User',
         entityId: user.id,
-        metadata: JSON.stringify({ status, role, trialDays, plan, subscriptionStatus })
+        metadata: JSON.stringify({ status, role, trialDays, plan, subscriptionStatus, aiStudioAccess })
       }
     });
 
     const updated = await prisma.user.findUnique({ where: { id: req.params.id }, select: safeUserSelect() });
-    res.json({ ok: true, user: updated });
+    res.json({ ok: true, user: { ...updated, aiStudioAccess: await agentAccess.getUserOverride(user.id) } });
+  } catch (err) { next(err); }
+}
+
+function temporaryPassword() {
+  return `Inx!${crypto.randomBytes(9).toString('base64url')}9a`;
+}
+
+async function createUser(req, res, next) {
+  try {
+    const input = z.object({
+      name: z.string().trim().min(2).max(100),
+      email: z.string().trim().email(),
+      plan: z.enum(['TRIAL', 'PRO', 'PLUS']).default('TRIAL'),
+      trialDays: z.coerce.number().int().min(1).max(365).default(5)
+    }).parse(req.body || {});
+    const email = input.email.toLowerCase();
+    if (await prisma.user.findUnique({ where: { email } })) return res.status(409).json({ error: 'A user with this email already exists.' });
+    const password = temporaryPassword();
+    const now = new Date();
+    const trialEndsAt = input.plan === 'TRIAL' ? new Date(now.getTime() + input.trialDays * 86400000) : null;
+    const user = await prisma.$transaction(async tx => {
+      const created = await tx.user.create({ data: { name: input.name, email, passwordHash: await hashPassword(password), role: 'USER', status: input.plan === 'TRIAL' ? 'TRIAL' : 'ACTIVE', emailVerifiedAt: now, trialEndsAt } });
+      await tx.subscription.create({ data: { userId: created.id, plan: input.plan, status: input.plan === 'TRIAL' ? 'TRIALING' : 'MANUAL', provider: input.plan === 'TRIAL' ? 'internal' : 'manual', currentPeriodStart: now, currentPeriodEnd: input.plan === 'TRIAL' ? trialEndsAt : new Date(now.getTime() + 30 * 86400000) } });
+      await tx.auditLog.create({ data: { userId: req.user.id, action: 'ADMIN_CREATE_USER', entity: 'User', entityId: created.id, metadata: JSON.stringify({ email, plan: input.plan }) } });
+      return created;
+    });
+    res.status(201).json({ ok: true, user: { id: user.id, name: user.name, email: user.email, status: user.status, plan: input.plan }, temporaryPassword: password, passwordNotice: 'This temporary password is shown once. Ask the user to reset it after first sign-in.' });
   } catch (err) { next(err); }
 }
 
@@ -198,4 +249,4 @@ async function reviewAgentLearning(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { overview, users, userDetail, updateUserAccess, settings, updateSetting, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning };
+module.exports = { overview, users, userDetail, createUser, updateUserAccess, settings, updateSetting, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning };

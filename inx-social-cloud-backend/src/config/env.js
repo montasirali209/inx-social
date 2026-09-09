@@ -21,6 +21,8 @@ module.exports = {
   defaultTrialDays: Number(process.env.DEFAULT_TRIAL_DAYS || 5),
   appUrl: process.env.APP_URL || 'http://localhost:5050',
   portalUrl: process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050',
+  adminHost: String(process.env.ADMIN_HOST || '').trim().toLowerCase(),
+  adminNotificationEmail: String(process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || '').trim().toLowerCase(),
   smtp: {
     host: process.env.SMTP_HOST || '',
     port: Number(process.env.SMTP_PORT || 587),

@@ -208,6 +208,23 @@ async function sendTrialStarted(user) {
   });
 }
 
+async function sendAdminTrialNotification(user) {
+  if (!env.adminNotificationEmail) return { skipped: true };
+  return send({
+    userId: user.id,
+    to: env.adminNotificationEmail,
+    type: 'ADMIN_TRIAL_STARTED',
+    subject: `New INXSocial trial: ${user.name || user.email}`,
+    html: frame(
+      'A new customer started a trial',
+      `<p><strong>${String(user.name || 'New customer').replace(/[<>&]/g, '')}</strong> (${String(user.email).replace(/[<>&]/g, '')}) verified their email and activated a trial.</p><p>Open the Control Centre to review access and activity.</p>`,
+      'Open Control Centre',
+      env.adminHost ? `https://${env.adminHost}/` : `${env.appUrl.replace(/\/$/, '')}/admin`
+    ),
+    text: `${user.name || 'A new customer'} (${user.email}) started an INXSocial trial.`
+  });
+}
+
 async function sendSubscriptionActivated(user, plan) {
   const safePlan = String(plan || 'subscription');
 
@@ -369,6 +386,7 @@ module.exports = {
   sendVerification,
   sendPasswordReset,
   sendTrialStarted,
+  sendAdminTrialNotification,
   sendTrialEnding,
   sendTrialExpired,
   sendSubscriptionActivated,

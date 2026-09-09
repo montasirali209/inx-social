@@ -1,10 +1,11 @@
 const router = require('express').Router();
 const { requireAuth, requireAdmin } = require('../middleware/authMiddleware');
-const { overview, users, userDetail, updateUserAccess, settings, updateSetting, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning } = require('../controllers/adminController');
+const { overview, users, userDetail, createUser, updateUserAccess, settings, updateSetting, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning } = require('../controllers/adminController');
 
 router.use(requireAuth, requireAdmin);
 router.get('/overview', overview);
 router.get('/users', users);
+router.post('/users', createUser);
 router.get('/users/:id', userDetail);
 router.patch('/users/:id/access', updateUserAccess);
 router.get('/settings', settings);

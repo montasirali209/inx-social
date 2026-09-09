@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, CircleHelp, LogOut, Menu, RefreshCw, Search } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import type { StudioOverview } from '../../types/dashboard'
 import { useUiStore } from '../../store/ui-store'
@@ -27,6 +27,10 @@ const workspaceRoutes = {
   '/media-library': {
     title: 'Media Library',
     subtitle: 'Store, organise and reuse your uploaded and AI-generated assets.',
+  },
+  '/ai-content-studio': {
+    title: 'AI Content Studio',
+    subtitle: 'Create and refine campaign-ready content with governed AI tools.',
   },
   '/analytics': {
     title: 'Analytics',
@@ -58,6 +62,7 @@ function workspaceForPath(pathname: string) {
 }
 
 export function Topbar({ overview }: { overview?: StudioOverview }) {
+  const profileMenu = useRef<HTMLDetailsElement>(null)
   const setOpen = useUiStore((state) => state.setMobileNavigationOpen)
   const timezone = useUiStore((state) => state.timezone)
   const setTimezone = useUiStore((state) => state.setTimezone)
@@ -76,6 +81,24 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
   const settingsRoute = location.pathname === '/settings'
   const connectionsRoute = location.pathname === '/connected-accounts'
   const billingRoute = location.pathname === '/billing'
+
+  useEffect(() => {
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (profileMenu.current?.open && !profileMenu.current.contains(event.target as Node)) profileMenu.current.open = false
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape' && profileMenu.current?.open) {
+        profileMenu.current.open = false
+        profileMenu.current.querySelector('summary')?.focus()
+      }
+    }
+    document.addEventListener('pointerdown', closeOnOutsideClick)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [])
 
   async function refreshWorkspace() {
     if (refreshing) return
@@ -148,15 +171,15 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
 
         {billingRoute && <Button aria-label="Open billing help" className="hidden sm:inline-flex" onClick={() => setBillingHelpOpen(true)} size="sm" type="button"><CircleHelp aria-hidden="true" className="size-4" /><span className="hidden xl:inline">Billing Help</span></Button>}
 
-        <details className="group relative">
+        <details className="group relative" ref={profileMenu}>
           <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl p-1 transition hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan sm:p-1.5">
             <span aria-hidden="true" className="grid size-9 place-items-center rounded-full border border-brand-blue/45 bg-gradient-to-br from-brand-blue/20 to-brand-cyan/8 text-xs font-bold text-brand-cyan shadow-glow-blue">{initials(name)}</span>
             <span className="hidden text-left 2xl:block"><strong className="block max-w-40 truncate text-xs">{name}</strong><small className="text-[10px] uppercase tracking-wide text-text-muted">{overview?.license.plan || 'Account'}</small></span>
             <ChevronDown aria-hidden="true" className="hidden size-3 text-text-soft transition group-open:rotate-180 2xl:block" />
           </summary>
           <div className="notification-pop absolute right-0 top-full mt-2 w-48 rounded-xl border border-border-soft bg-panel p-2 shadow-panel">
-            <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/settings">Account settings</a>
-            <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/billing">Billing & plan</a>
+            <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/settings" onClick={() => { if (profileMenu.current) profileMenu.current.open = false }}>Account settings</a>
+            <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/billing" onClick={() => { if (profileMenu.current) profileMenu.current.open = false }}>Billing & plan</a>
             <div className="my-1 border-t border-border-soft" />
             <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-[#fda4af] transition hover:bg-brand-red/10 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-red" onClick={signOut} type="button"><LogOut aria-hidden="true" className="size-3.5" />Sign out</button>
           </div>

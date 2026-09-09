@@ -770,7 +770,7 @@ async function resetUiTexts(req, res, next) {
 
 async function overview(req, res, next) {
   try {
-    const [license, pages, statusRows] = await Promise.all([
+    const [license, pages, statusRows, socialAgent] = await Promise.all([
       requireStudioLicense(req.user.id),
       prisma.connectedPage.findMany({
         where: { userId: req.user.id, status: 'ACTIVE' },
@@ -780,7 +780,8 @@ async function overview(req, res, next) {
         by: ['status'],
         where: { userId: req.user.id, origin: 'CLOUD' },
         _count: { _all: true }
-      })
+      }),
+      agentAccess.getEntitlement(req.user.id)
     ]);
     res.json({
       user: { id: req.user.id, name: req.user.name, businessName: req.user.businessName, email: req.user.email },
@@ -790,6 +791,15 @@ async function overview(req, res, next) {
         subscriptionStatus: license.subscriptionStatus,
         trialEndsAt: license.trialEndsAt,
         limits: license.limits
+      },
+      features: {
+        aiContentStudio: {
+          visible: socialAgent.visible,
+          allowed: socialAgent.allowed,
+          availability: socialAgent.availability,
+          override: socialAgent.override,
+          usage: socialAgent.usage
+        }
       },
       pages: pages.map(publicPage),
       activePage: publicPage(pages.find(page => page.isSelected) || null),

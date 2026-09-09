@@ -17,12 +17,13 @@ require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true
 require.cache[licensePath] = { id: licensePath, filename: licensePath, loaded: true, exports: { getLicenseStatus: async () => license } };
 const access = require('../src/services/agentAccessService');
 
-test('Social Agent defaults to administrators only', async () => {
+test('AI Content Studio defaults to Plus subscribers and administrators', async () => {
   storedPolicy = null;
   const policy = await access.getPolicy();
-  assert.equal(policy.availability, 'ADMIN_ONLY');
-  assert.equal(policy.planLimits.TRIAL, 1);
-  assert.equal(policy.planLimits.PRO, 100);
+  assert.equal(policy.availability, 'PLUS_ONLY');
+  assert.equal(policy.planLimits.TRIAL, 0);
+  assert.equal(policy.planLimits.PRO, 0);
+  assert.equal(policy.planLimits.PLUS, 100);
 });
 
 test('regular subscribers stay hidden until the admin enables everyone', async () => {
