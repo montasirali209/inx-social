@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, Menu, RefreshCw, Search } from 'lucide-react'
+import { ChevronDown, CircleHelp, Menu, RefreshCw, Search } from 'lucide-react'
 import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import type { StudioOverview } from '../../types/dashboard'
@@ -40,6 +40,10 @@ const workspaceRoutes = {
     title: 'Connected Accounts',
     subtitle: 'Manage your social platforms and account connections.',
   },
+  '/billing': {
+    title: 'Billing & Plans',
+    subtitle: 'Manage your subscription, usage and billing details.',
+  },
 } as const
 
 function initials(name: string) {
@@ -61,6 +65,9 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
   const setSettingsSearch = useUiStore((state) => state.setSettingsSearch)
   const connectionsSearch = useUiStore((state) => state.connectionsSearch)
   const setConnectionsSearch = useUiStore((state) => state.setConnectionsSearch)
+  const billingSearch = useUiStore((state) => state.billingSearch)
+  const setBillingSearch = useUiStore((state) => state.setBillingSearch)
+  const setBillingHelpOpen = useUiStore((state) => state.setBillingHelpOpen)
   const location = useLocation()
   const queryClient = useQueryClient()
   const [refreshing, setRefreshing] = useState(false)
@@ -68,6 +75,7 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
   const workspace = workspaceForPath(location.pathname)
   const settingsRoute = location.pathname === '/settings'
   const connectionsRoute = location.pathname === '/connected-accounts'
+  const billingRoute = location.pathname === '/billing'
 
   async function refreshWorkspace() {
     if (refreshing) return
@@ -93,13 +101,13 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 lg:gap-2.5">
-        {(settingsRoute || connectionsRoute) && <label className="relative hidden sm:block">
-          <span className="sr-only">{settingsRoute ? 'Search settings' : 'Search accounts'}</span>
+        {(settingsRoute || connectionsRoute || billingRoute) && <label className="relative hidden sm:block">
+          <span className="sr-only">{settingsRoute ? 'Search settings' : connectionsRoute ? 'Search accounts' : 'Search billing'}</span>
           <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
-          <input className="min-h-10 w-[clamp(12rem,24vw,20rem)] rounded-xl border border-border-soft bg-panel/70 pl-10 pr-3 text-xs text-text-main placeholder:text-text-soft transition hover:border-brand-cyan/35 focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/15" onChange={(event) => settingsRoute ? setSettingsSearch(event.target.value) : setConnectionsSearch(event.target.value)} placeholder={settingsRoute ? 'Search settings…' : 'Search accounts…'} type="search" value={settingsRoute ? settingsSearch : connectionsSearch} />
+          <input className="min-h-10 w-[clamp(12rem,24vw,20rem)] rounded-xl border border-border-soft bg-panel/70 pl-10 pr-3 text-xs text-text-main placeholder:text-text-soft transition hover:border-brand-cyan/35 focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/15" onChange={(event) => settingsRoute ? setSettingsSearch(event.target.value) : connectionsRoute ? setConnectionsSearch(event.target.value) : setBillingSearch(event.target.value)} placeholder={settingsRoute ? 'Search settings…' : connectionsRoute ? 'Search accounts…' : 'Search billing…'} type="search" value={settingsRoute ? settingsSearch : connectionsRoute ? connectionsSearch : billingSearch} />
         </label>}
 
-        {!settingsRoute && !connectionsRoute && <label className="relative hidden lg:block">
+        {!settingsRoute && !connectionsRoute && !billingRoute && <label className="relative hidden lg:block">
           <span className="sr-only">Workspace timezone</span>
           <select className="min-h-10 min-w-48 appearance-none rounded-xl border border-border-soft bg-panel/70 pl-3 pr-9 text-xs text-text-main transition hover:border-brand-cyan/35 focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/15" onChange={(event) => setTimezone(event.target.value)} value={timezone}>
             <option value="Europe/London">Timezone · Europe/London</option>
@@ -110,7 +118,7 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
           <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" />
         </label>}
 
-        {!settingsRoute && !connectionsRoute && <label className="relative hidden xl:block">
+        {!settingsRoute && !connectionsRoute && !billingRoute && <label className="relative hidden xl:block">
           <span className="sr-only">Theme</span>
           <select className="min-h-10 appearance-none rounded-xl border border-border-soft bg-panel/70 pl-3 pr-8 text-xs text-text-main transition hover:border-brand-cyan/35 focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/15" defaultValue="midnight">
             <option value="midnight">Theme · Midnight</option>
@@ -131,6 +139,8 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
 
         <NotificationCenter overview={overview} />
 
+        {billingRoute && <Button aria-label="Open billing help" className="hidden sm:inline-flex" onClick={() => setBillingHelpOpen(true)} size="sm" type="button"><CircleHelp aria-hidden="true" className="size-4" /><span className="hidden xl:inline">Billing Help</span></Button>}
+
         <details className="group relative">
           <summary className="flex cursor-pointer list-none items-center gap-2 rounded-xl p-1 transition hover:bg-white/5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan sm:p-1.5">
             <span aria-hidden="true" className="grid size-9 place-items-center rounded-full border border-brand-blue/45 bg-gradient-to-br from-brand-blue/20 to-brand-cyan/8 text-xs font-bold text-brand-cyan shadow-glow-blue">{initials(name)}</span>
@@ -139,7 +149,7 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
           </summary>
           <div className="notification-pop absolute right-0 top-full mt-2 w-48 rounded-xl border border-border-soft bg-panel p-2 shadow-panel">
             <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/settings">Account settings</a>
-            <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/portal/#overview">Billing & plan</a>
+            <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/billing">Billing & plan</a>
           </div>
         </details>
       </div>

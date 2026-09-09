@@ -28,7 +28,7 @@ const navigation = [
   { label: 'Analytics', icon: BarChart3, reactPath: '/analytics' },
   { label: 'Settings', icon: Settings, reactPath: '/settings' },
   { label: 'Connected Accounts', icon: UsersRound, reactPath: '/connected-accounts' },
-  { label: 'Billing & Plans', icon: CreditCard, externalPath: '/portal/#overview' },
+  { label: 'Billing & Plans', icon: CreditCard, reactPath: '/billing' },
 ]
 
 const itemClasses = 'interactive-nav group relative flex min-h-10 items-center gap-3 overflow-hidden rounded-xl border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan md:justify-center md:px-2 xl:justify-start xl:px-3'
@@ -52,12 +52,12 @@ export function Sidebar({ overview }: { overview?: StudioOverview }) {
         </NavLink>
 
         <nav aria-label="Main navigation" className="mt-3 flex flex-1 flex-col gap-1 overflow-y-auto">
-          {navigation.map(({ label, icon: Icon, reactPath, legacyView, externalPath }) => {
+          {navigation.map(({ label, icon: Icon, reactPath, legacyView }) => {
             const content = <><Icon aria-hidden="true" className="size-[19px] shrink-0" /><span className="min-w-0 flex-1 truncate md:hidden xl:block">{label}</span></>
             if (reactPath) {
               return <NavLink className={({ isActive }) => `${itemClasses} ${isActive ? 'border-brand-cyan/50 bg-gradient-to-r from-brand-blue/22 to-brand-cyan/5 text-text-main shadow-glow-blue before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-brand-cyan before:shadow-[0_0_12px_#2dd4bf]' : 'border-transparent text-text-muted hover:border-white/5 hover:bg-panel-hover/55 hover:text-text-main'}`} end key={label} onClick={() => setOpen(false)} to={reactPath}>{content}</NavLink>
             }
-            return <a className={`${itemClasses} border-transparent text-text-muted hover:border-white/5 hover:bg-panel-hover/55 hover:text-text-main`} href={externalPath || `/studio/?view=${legacyView}`} key={label} title={label}>{content}</a>
+            return <a className={`${itemClasses} border-transparent text-text-muted hover:border-white/5 hover:bg-panel-hover/55 hover:text-text-main`} href={`/studio/?view=${legacyView}`} key={label} title={label}>{content}</a>
           })}
         </nav>
 

@@ -52,5 +52,9 @@ module.exports = {
   getStripe,
   priceIdForPlan,
   planForPriceId,
-  planDefinition
+  planDefinition,
+  planAvailability: () => ({
+    pro: { monthly: Boolean(env.stripe.starterPriceId), yearly: false },
+    plus: { monthly: Boolean(env.stripe.proPriceId), yearly: false }
+  })
 };
