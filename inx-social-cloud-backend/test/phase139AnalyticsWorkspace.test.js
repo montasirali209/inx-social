@@ -18,14 +18,15 @@ test('Analytics is a first-class responsive React workspace', () => {
   assert.match(page, /ExportReportButton/);
 });
 
-test('Analytics uses live Meta data and labels unavailable metrics without mock values', () => {
+test('Analytics uses live Meta data and derives transparent metrics without mock values', () => {
   const page = read('frontend/src/components/analytics/AnalyticsPage.tsx');
   const data = read('frontend/src/data/analyticsData.ts');
   const api = read('frontend/src/lib/dashboard-api.ts');
   assert.match(page, /fetchFacebookDashboardAnalytics/);
   assert.match(api, /force \? '&force=true'/);
-  assert.match(data, /Profile Visits/);
-  assert.match(data, /value: null/);
+  assert.match(data, /Total Interactions/);
+  assert.match(data, /analytics\.summary\.totalInteractions/);
+  assert.match(data, /Interactions divided by content views/);
   assert.doesNotMatch(data, /128\.4K|2\.45M|89\.3K/);
   assert.match(page, /No analytics data yet/);
   assert.match(page, /Analytics are just starting/);
