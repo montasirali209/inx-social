@@ -85,7 +85,7 @@ export function SettingsPage() {
 
   async function cardAction(card: SettingsCardData) {
     if (card.id === 'connected_accounts') return navigate('/connected-accounts')
-    if (card.id === 'billing') window.location.assign('/portal/#overview')
+    if (card.id === 'billing') return navigate('/billing')
   }
 
   if (workspace.isLoading) return <SettingsSkeleton />

@@ -3,6 +3,7 @@ const prisma = require('../db/prisma');
 const env = require('../config/env');
 const stripeService = require('../services/stripeService');
 const emailService = require('../services/emailService');
+const { getLicenseStatus } = require('../services/licenseService');
 
 const ACTIVE_STRIPE_STATUSES = new Set(['active', 'trialing']);
 
@@ -118,6 +119,89 @@ async function createCheckoutSession(req, res, next) {
     });
 
     res.json({ url: session.url, sessionId: session.id });
+  } catch (error) { next(error); }
+}
+
+function normalizedPlan(plan) {
+  const value = String(plan || 'TRIAL').toUpperCase();
+  if (value === 'LIFETIME') return 'PLUS';
+  if (value === 'STARTER') return 'PRO';
+  if (value === 'PRO') return 'PLUS';
+  return value === 'TRIAL' ? value : 'TRIAL';
+}
+
+async function billingOverview(req, res, next) {
+  try {
+    const now = new Date();
+    const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const [license, subscription, preference, facebookPages, socialProfiles, scheduledContent] = await Promise.all([
+      getLicenseStatus(req.user.id),
+      latestSubscriptionForUser(req.user.id),
+      prisma.cloudPreference.findUnique({ where: { userId: req.user.id } }),
+      prisma.connectedPage.count({ where: { userId: req.user.id, status: 'ACTIVE' } }),
+      prisma.socialProfile.count({ where: { userId: req.user.id, status: 'ACTIVE' } }),
+      prisma.scheduleJob.count({ where: { userId: req.user.id, createdAt: { gte: periodStart }, status: { not: 'CANCELLED' } } })
+    ]);
+    let invoices = [];
+    let billingCycle = normalizedPlan(license.plan) === 'TRIAL' ? 'trial' : 'monthly';
+    if (subscription?.providerCustomerId && env.stripe.secretKey) {
+      try {
+        const stripe = stripeService.getStripe();
+        const requests = [stripe.invoices.list({ customer: subscription.providerCustomerId, limit: 8 })];
+        if (subscription.providerSubId) requests.push(stripe.subscriptions.retrieve(subscription.providerSubId));
+        const [result, stripeSubscription] = await Promise.all(requests);
+        const interval = stripeSubscription?.items?.data?.[0]?.price?.recurring?.interval;
+        if (interval === 'year') billingCycle = 'yearly';
+        invoices = result.data.map(invoice => ({
+          id: invoice.id,
+          date: new Date((invoice.created || 0) * 1000),
+          amount: Number(invoice.amount_due || invoice.amount_paid || 0) / 100,
+          currency: String(invoice.currency || 'gbp').toUpperCase(),
+          status: invoice.status === 'paid' ? 'paid' : invoice.status === 'void' ? 'refunded' : ['open', 'draft'].includes(invoice.status) ? 'upcoming' : 'failed',
+          invoiceUrl: invoice.hosted_invoice_url || null,
+          pdfUrl: invoice.invoice_pdf || null
+        }));
+      } catch (error) {
+        console.warn('[BILLING OVERVIEW STRIPE REFRESH FAILED]', error.message);
+      }
+    }
+    let settings = {};
+    try { settings = JSON.parse(preference?.settingsJson || '{}'); } catch (_) { settings = {}; }
+    res.json({
+      subscription: {
+        planId: normalizedPlan(license.plan).toLowerCase(),
+        sourcePlan: license.plan,
+        status: String(license.subscriptionStatus || 'TRIALING').toLowerCase(),
+        billingCycle,
+        trialEndsAt: license.trialEndsAt,
+        renewalDate: subscription?.currentPeriodEnd || null,
+        cancelAtPeriodEnd: Boolean(subscription?.cancelAtPeriodEnd),
+        canManage: Boolean(subscription?.providerCustomerId),
+        legacyLifetime: String(license.plan).toUpperCase() === 'LIFETIME'
+      },
+      usage: { connectedPages: facebookPages + socialProfiles, scheduledContent, periodStart, periodEnd: subscription?.currentPeriodEnd || null },
+      preferences: { productUpdates: Boolean(req.user.marketingOptIn), usageLimitAlerts: settings.usageLimitAlerts !== false },
+      billing: { configured: stripeService.isConfigured(), availability: stripeService.planAvailability() },
+      invoices
+    });
+  } catch (error) { next(error); }
+}
+
+async function updatePreferences(req, res, next) {
+  try {
+    const input = z.object({ productUpdates: z.boolean(), usageLimitAlerts: z.boolean() }).parse(req.body || {});
+    const current = await prisma.cloudPreference.findUnique({ where: { userId: req.user.id } });
+    let settings = {};
+    try { settings = JSON.parse(current?.settingsJson || '{}'); } catch (_) { settings = {}; }
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: req.user.id }, data: { marketingOptIn: input.productUpdates, marketingOptInAt: input.productUpdates ? new Date() : null } }),
+      prisma.cloudPreference.upsert({
+        where: { userId: req.user.id },
+        create: { userId: req.user.id, settingsJson: JSON.stringify({ ...settings, usageLimitAlerts: input.usageLimitAlerts }) },
+        update: { settingsJson: JSON.stringify({ ...settings, usageLimitAlerts: input.usageLimitAlerts }) }
+      })
+    ]);
+    res.json({ preferences: input });
   } catch (error) { next(error); }
 }
 
@@ -399,6 +483,8 @@ module.exports = {
   createCheckoutSession,
   checkoutSessionStatus,
   createCustomerPortalSession,
+  billingOverview,
+  updatePreferences,
   billingStatus,
   paymentGraceEnd,
   resolveGraceEnd,

@@ -183,7 +183,7 @@ async function ensurePageCapacity(userId, discoveredPages, selectedPageIds, lice
     where: { userId, status: 'ACTIVE' }
   });
 
-  if (currentActiveCount + newPageCount > license.limits.pages) {
+  if (license.limits.pages !== null && currentActiveCount + newPageCount > license.limits.pages) {
     const error = new Error(
       `Connecting these Pages would exceed the ${license.plan} limit of ${license.limits.pages}. ` +
       `You currently have ${currentActiveCount} active Page(s) and selected ${newPageCount} new Page(s).`
@@ -550,7 +550,7 @@ async function connectPage(req, res, next) {
       const count = await prisma.connectedPage.count({
         where: { userId: req.user.id, status: 'ACTIVE' }
       });
-      if (count >= license.limits.pages) {
+      if (license.limits.pages !== null && count >= license.limits.pages) {
         return res.status(403).json({
           error: `Facebook Page limit reached for ${license.plan} (${license.limits.pages}).`,
           code: 'PAGE_LIMIT_REACHED',

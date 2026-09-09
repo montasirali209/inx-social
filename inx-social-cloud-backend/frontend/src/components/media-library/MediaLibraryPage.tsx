@@ -418,7 +418,7 @@ export function MediaLibraryPage() {
             </div>
             <a
               className="inline-flex min-h-10 items-center justify-center rounded-xl border border-brand-cyan/25 px-3 text-[10px] font-semibold text-brand-cyan transition hover:bg-brand-cyan/10 focus-visible:outline-2 focus-visible:outline-brand-cyan"
-              href="/portal/#overview"
+              href="/app/billing"
             >
               Upgrade Plan
             </a>

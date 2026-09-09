@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { evaluateLicense } = require('../src/services/licenseService');
+const { evaluateLicense, getPlanLimits } = require('../src/services/licenseService');
 
 const NOW = new Date('2026-07-27T12:00:00.000Z');
 
@@ -91,4 +91,11 @@ test('manual lifetime access remains valid', () => {
     NOW
   );
   assert.equal(result.allowed, true);
+});
+
+test('new billing plans enforce only real numeric limits', () => {
+  assert.equal(getPlanLimits('TRIAL').pages, 2);
+  assert.equal(getPlanLimits('TRIAL').schedulingWindowDays, 30);
+  assert.equal(getPlanLimits('STARTER').pages, null);
+  assert.equal(getPlanLimits('PRO').pages, null);
 });

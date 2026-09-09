@@ -6,7 +6,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
-test('Settings and Connected Accounts are first-class authenticated React workspaces', () => {
+test('Settings, Connected Accounts and Billing are first-class authenticated React workspaces', () => {
   const router = read('frontend/src/router.tsx');
   const sidebar = read('frontend/src/components/layout/Sidebar.tsx');
   const settings = read('frontend/src/components/settings/SettingsPage.tsx');
@@ -17,14 +17,21 @@ test('Settings and Connected Accounts are first-class authenticated React worksp
   const timingMode = read('frontend/src/components/bulk-scheduler/TimingModeSelect.tsx');
   const connections = read('frontend/src/components/connections/ConnectedAccountsPage.tsx');
   const routes = read('src/routes/studioRoutes.js');
+  const billing = read('frontend/src/components/billing/BillingPlansPage.tsx');
+  const billingData = read('frontend/src/data/billingData.ts');
+  const billingApi = read('frontend/src/lib/billing-api.ts');
+  const billingRoutes = read('src/routes/billingRoutes.js');
+  const billingController = read('src/controllers/billingController.js');
 
   assert.match(router, /path: 'settings'/);
   assert.match(router, /path: 'connected-accounts'/);
+  assert.match(router, /path: 'billing'/);
   assert.match(sidebar, /label: 'Settings'.*reactPath: '\/settings'/);
   assert.match(sidebar, /label: 'Connected Accounts'.*reactPath: '\/connected-accounts'/);
+  assert.match(sidebar, /label: 'Billing & Plans'.*reactPath: '\/billing'/);
   assert.match(settingsApi, /api\/studio\/preferences/);
   assert.match(settings, /Settings saved successfully\./);
-  assert.match(settings, /window\.location\.assign\('\/portal\/#overview'\)/);
+  assert.match(settings, /navigate\('\/billing'\)/);
   assert.match(settingsData, /title: 'Account & Region'/);
   assert.match(settingsData, /label: 'Confirm Before Publishing'/);
   assert.match(settingsData, /label: 'Default Posting Times'/);
@@ -41,4 +48,15 @@ test('Settings and Connected Accounts are first-class authenticated React worksp
   assert.match(connections, /flattenConnectedIdentities/);
   assert.match(connections, /Every connected YouTube channel/);
   assert.match(routes, /router\.get\('\/preferences', controller\.preferences\)/);
+  assert.match(billing, /BillingPlansPage/);
+  assert.match(billing, /Stripe Customer Portal/);
+  assert.match(billingData, /name: 'Trial'/);
+  assert.match(billingData, /name: 'Pro'/);
+  assert.match(billingData, /name: 'Plus'/);
+  assert.doesNotMatch(billingData, /name: 'Starter'|name: 'Business'/);
+  assert.match(billingApi, /plan === 'pro' \? 'STARTER' : 'PRO'/);
+  assert.doesNotMatch(billingApi, /STRIPE_PLUS_PRICE_ID|STRIPE_PRO_YEARLY_PRICE_ID/);
+  assert.match(billingRoutes, /router\.get\('\/overview'/);
+  assert.match(billingController, /planId: normalizedPlan\(license\.plan\)\.toLowerCase\(\)/);
+  assert.doesNotMatch(billingController, /payment_method_details|card\.last4|billing_details/);
 });

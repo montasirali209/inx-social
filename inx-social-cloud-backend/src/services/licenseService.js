@@ -6,10 +6,11 @@ function isTrialActive(user, now = new Date()) {
 
 function getPlanLimits(plan) {
   const limits = {
-    TRIAL: { pages: 1, batchPosts: 25, postsPerDay: 25, devices: 1 },
-    STARTER: { pages: 10, batchPosts: 100, postsPerDay: 100, devices: 1 },
-    PRO: { pages: 50, batchPosts: null, postsPerDay: null, devices: 3 },
-    LIFETIME: { pages: 10, batchPosts: null, postsPerDay: null, devices: 2 }
+    TRIAL: { pages: 2, batchPosts: null, postsPerDay: null, devices: 1, schedulingWindowDays: 30 },
+    STARTER: { pages: null, batchPosts: null, postsPerDay: null, devices: 1, schedulingWindowDays: null },
+    PRO: { pages: null, batchPosts: null, postsPerDay: null, devices: 3, schedulingWindowDays: null },
+    PLUS: { pages: null, batchPosts: null, postsPerDay: null, devices: 3, schedulingWindowDays: null },
+    LIFETIME: { pages: null, batchPosts: null, postsPerDay: null, devices: 3, schedulingWindowDays: null }
   };
   return limits[String(plan || 'TRIAL').toUpperCase()] || limits.TRIAL;
 }
