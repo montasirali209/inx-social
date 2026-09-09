@@ -99,7 +99,7 @@ function providerConfig(platform) {
       clientId: String(process.env.GOOGLE_CLIENT_ID || '').trim(),
       clientSecret: String(process.env.GOOGLE_CLIENT_SECRET || '').trim(),
       scopes: YOUTUBE_SCOPES,
-      authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/authorization',
+      authorizationUrl: 'https://accounts.google.com/o/oauth2/v2/auth',
       tokenUrl: 'https://oauth2.googleapis.com/token'
     };
   }
