@@ -1,0 +1,40 @@
+/* Mobile guardrails shared by every customer workspace route. */
+html, body, #root { max-width: 100%; }
+#main-content, .route-stage, .route-stage > *, .analytics-fluid-canvas { min-width: 0; max-width: 100%; }
+img, video, canvas, svg { max-width: 100%; }
+
+@media (max-width: 767px) {
+  body { overflow-x: clip; }
+  #main-content { width: 100%; padding: 12px; overflow-x: clip; }
+  .route-stage { width: 100%; overflow-x: clip; }
+
+  /* Keep wide data controls usable without widening the page. */
+  .route-stage table { display: block; width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .route-stage input,
+  .route-stage select,
+  .route-stage textarea { max-width: 100%; }
+  .route-stage [role="dialog"] { max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow: auto; }
+
+  /* Analytics is the densest workspace; use the viewport as the layout boundary. */
+  .analytics-fluid-canvas { width: 100%; overflow: hidden; }
+  .analytics-fluid-canvas .analytics-data-transition { width: 100%; min-width: 0; }
+  .analytics-fluid-canvas .scrollbar-thin { width: 100%; max-width: calc(100vw - 24px); overscroll-behavior-inline: contain; scroll-snap-type: x proximity; }
+  .analytics-fluid-canvas .scrollbar-thin > * { flex: 0 0 min(82vw, 300px); scroll-snap-align: start; }
+  .analytics-fluid-canvas footer { align-items: flex-start; }
+
+  /* Prevent long provider/API messages from creating horizontal overflow. */
+  .analytics-fluid-canvas p,
+  .analytics-fluid-canvas span,
+  .analytics-fluid-canvas strong { overflow-wrap: anywhere; }
+
+  /* Touch targets and compact spacing across workspace tools. */
+  button, a, summary, select { touch-action: manipulation; }
+  button, summary { min-height: 40px; }
+}
+
+@media (max-width: 420px) {
+  #main-content { padding: 10px; }
+  .analytics-fluid-canvas { gap: 12px; }
+  .analytics-fluid-canvas .scrollbar-thin { max-width: calc(100vw - 20px); gap: 10px; }
+  .analytics-fluid-canvas .scrollbar-thin > * { flex-basis: min(86vw, 285px); }
+}
