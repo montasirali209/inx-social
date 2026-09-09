@@ -30,7 +30,7 @@ function EmptyQueue() {
         <span className="mx-auto grid size-12 place-items-center rounded-2xl border border-brand-green/20 bg-brand-green/8 text-brand-green"><Film aria-hidden="true" className="size-5" /></span>
         <h3 className="mt-4 text-base font-semibold">Your publishing queue is clear</h3>
         <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-text-muted">Upload or schedule a video when you are ready. New publishing work will appear here automatically.</p>
-        <a className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-blue/35 bg-brand-blue/10 px-4 text-sm font-semibold text-[#78b8ff] transition hover:bg-brand-blue/16 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan" href="/studio/?view=reels">
+        <a className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg border border-brand-blue/35 bg-brand-blue/10 px-4 text-sm font-semibold text-[#78b8ff] transition hover:bg-brand-blue/16 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan" href="/app/bulk-scheduler">
           Upload a video <ExternalLink aria-hidden="true" className="size-4" />
         </a>
       </div>
@@ -46,7 +46,7 @@ export function PublishingQueueTable({ jobs }: { jobs: DashboardJob[] }) {
           <h2 className="font-semibold" id="queue-heading">Publishing Queue</h2>
           <span className="rounded-full bg-brand-blue/12 px-2 py-0.5 text-xs font-bold text-[#70b3ff]">{jobs.length}</span>
         </div>
-        <a className="inline-flex items-center gap-1 text-sm font-semibold text-[#69adff] hover:text-brand-cyan focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-cyan" href="/studio/?view=reels">View full queue <ExternalLink aria-hidden="true" className="size-3.5" /></a>
+        <a className="inline-flex items-center gap-1 text-sm font-semibold text-[#69adff] hover:text-brand-cyan focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-cyan" href="/app/bulk-scheduler">View full queue <ExternalLink aria-hidden="true" className="size-3.5" /></a>
       </header>
 
       {jobs.length === 0 ? <EmptyQueue /> : (
@@ -81,7 +81,7 @@ export function PublishingQueueTable({ jobs }: { jobs: DashboardJob[] }) {
                     </td>
                     <td className="px-4 py-3.5"><StatusBadge status={videoStatus(job.status)} /></td>
                     <td className="px-5 py-3.5 text-right">
-                      <a aria-label={`Open ${jobTitle(job)} in the current scheduler`} className="inline-grid size-9 place-items-center rounded-lg border border-transparent text-text-muted transition group-hover/row:border-border-soft group-hover/row:bg-white/[0.035] hover:border-brand-blue/35 hover:text-text-main focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/studio/?view=reels"><MoreHorizontal aria-hidden="true" className="size-5" /></a>
+                      <a aria-label={`Open ${jobTitle(job)} in the current scheduler`} className="inline-grid size-9 place-items-center rounded-lg border border-transparent text-text-muted transition group-hover/row:border-border-soft group-hover/row:bg-white/[0.035] hover:border-brand-blue/35 hover:text-text-main focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/bulk-scheduler"><MoreHorizontal aria-hidden="true" className="size-5" /></a>
                     </td>
                   </tr>
                 ))}
@@ -98,7 +98,7 @@ export function PublishingQueueTable({ jobs }: { jobs: DashboardJob[] }) {
                     <strong className="block truncate text-sm">{jobTitle(job)}</strong>
                     <p className="mt-1 text-xs text-text-soft">{fileDetails(job)}</p>
                   </div>
-                  <a aria-label={`Open ${jobTitle(job)}`} className="grid size-9 shrink-0 place-items-center rounded-lg text-text-muted focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/studio/?view=reels"><MoreHorizontal aria-hidden="true" className="size-5" /></a>
+                  <a aria-label={`Open ${jobTitle(job)}`} className="grid size-9 shrink-0 place-items-center rounded-lg text-text-muted focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/bulk-scheduler"><MoreHorizontal aria-hidden="true" className="size-5" /></a>
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border-soft pt-3">
                   <PlatformMark pageName={job.page?.facebookPageName} />
@@ -114,7 +114,7 @@ export function PublishingQueueTable({ jobs }: { jobs: DashboardJob[] }) {
                 <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-brand-cyan/20 bg-brand-cyan/8 text-brand-cyan"><Sparkles aria-hidden="true" className="size-5" /></span>
                 <div><strong className="text-sm">Ready for your next video</strong><p className="mt-1 text-xs leading-5 text-text-muted">Add more content without leaving your live publishing workflow.</p></div>
               </div>
-              <a className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-brand-blue/35 bg-brand-blue/10 px-4 text-sm font-semibold text-[#79baff] transition hover:-translate-y-0.5 hover:bg-brand-blue/18 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan motion-reduce:transition-none" href="/studio/?view=reels"><Plus aria-hidden="true" className="size-4" /> Add video</a>
+              <a className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-brand-blue/35 bg-brand-blue/10 px-4 text-sm font-semibold text-[#79baff] transition hover:-translate-y-0.5 hover:bg-brand-blue/18 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan motion-reduce:transition-none" href="/app/bulk-scheduler"><Plus aria-hidden="true" className="size-4" /> Add video</a>
             </div>
           </div>
         </>

@@ -2,9 +2,9 @@ import { ArrowUpRight, BarChart3, CalendarPlus, FilePlus2, UploadCloud } from 'l
 import { DashboardCard } from './DashboardCard'
 
 const actions = [
-  { label: 'Upload Video', href: '/studio/?view=reels', icon: UploadCloud },
-  { label: 'Schedule Video', href: '/studio/?view=reels', icon: CalendarPlus },
-  { label: 'Create Post', href: '/studio/?view=posts', icon: FilePlus2 },
+  { label: 'Upload Video', href: '/app/bulk-scheduler', icon: UploadCloud },
+  { label: 'Schedule Video', href: '/app/bulk-scheduler', icon: CalendarPlus },
+  { label: 'Create Post', href: '/app/posts', icon: FilePlus2 },
   { label: 'View Analytics', href: '/app/analytics', icon: BarChart3 },
 ]
 

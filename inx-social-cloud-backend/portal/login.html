@@ -76,7 +76,7 @@ const resendButton=document.getElementById('resendButton');
 const params=new URLSearchParams(location.search);
 const requestedReturn=params.get('return')||'';
 if(params.get('account')==='deleted') show(params.get('warning')==='meta' ? 'Your INX Social account was deleted. One Meta permission could not be revoked automatically; you can also remove INX Social in Facebook Business Integrations.' : 'Your INX Social account was permanently deleted.','success');
-const safeReturn=requestedReturn==='/studio/'?requestedReturn:'';
+const safeReturn=['/app','/app/'].includes(requestedReturn)?'/app/':'';
 const pending=params.get('email')||localStorage.getItem('pendingEmail')||'';
 if(pending)emailInput.value=pending;
 document.querySelectorAll('.password-toggle').forEach(btn=>btn.onclick=()=>{

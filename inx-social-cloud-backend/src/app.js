@@ -63,6 +63,9 @@ app.use(express.static(path.join(__dirname, '..', 'public'), {
   }
 }));
 app.use('/portal', express.static(path.join(__dirname, '..', 'portal')));
+// The React workspace is now the only customer application. Keep legacy OAuth
+// callback assets under /studio, but retire the old Studio document itself.
+app.get(['/studio', '/studio/', '/studio/index.html'], (req, res) => res.redirect(308, '/app/'));
 app.use('/studio', express.static(path.join(__dirname, '..', 'studio')));
 app.use('/app', express.static(reactAppRoot, {
   index: false,
@@ -81,7 +84,7 @@ app.get('/health', (req, res) => {
     version: packageInfo.version,
     adminPanel: '/admin',
     customerPortal: '/portal/',
-    cloudStudio: '/studio/',
+    cloudStudio: '/app/',
     reactApp: '/app/'
   });
 });
@@ -90,7 +93,6 @@ app.get(['/admin', '/admin/'], (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
-app.get('/studio', (req, res) => res.redirect(308, '/studio/'));
 app.get(/^\/app$/, (req, res) => res.redirect(308, '/app/'));
 
 app.get('/privacy', (req, res) => res.redirect(308, '/privacy.html'));

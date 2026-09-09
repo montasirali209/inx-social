@@ -30,7 +30,8 @@ test('React dashboard is responsive, accessible and uses working navigation', ()
   assert.match(shell, /md:pl-\[88px\].*xl:pl-\[264px\]/);
   assert.match(sidebar, /Create New Post/);
   assert.match(sidebar, /AI Content Studio/);
-  assert.match(sidebar, /\/studio\/\?view=/);
+  assert.doesNotMatch(sidebar, /\/studio\/\?view=/);
+  assert.match(sidebar, /href="\/app\/"/);
   assert.match(dashboard, /overflow-x-auto/);
   assert.match(dashboard, /xl:grid-cols-\[/);
   assert.match(studio, /URLSearchParams\(window\.location\.search\)\.get\('view'\)/);

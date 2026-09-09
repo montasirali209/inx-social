@@ -437,7 +437,7 @@ export function MediaLibraryPage() {
             </Button>
             <a
               className="inline-flex min-h-10 items-center justify-center gap-2 rounded-control border border-brand-cyan/35 bg-brand-cyan/8 px-4 text-sm font-semibold text-brand-cyan transition hover:bg-brand-cyan/15 focus-visible:outline-2 focus-visible:outline-brand-cyan"
-              href="/studio/?view=agent"
+              href="/app/"
             >
               <Sparkles className="size-4" />
               Generate with AI

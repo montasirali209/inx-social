@@ -51,13 +51,13 @@ export function Sidebar({ overview }: { overview?: StudioOverview }) {
           <span className="md:hidden xl:inline">Create New Post</span>
         </NavLink>
 
-        <nav aria-label="Main navigation" className="mt-3 flex flex-1 flex-col gap-1 overflow-y-auto">
-          {navigation.map(({ label, icon: Icon, reactPath, legacyView }) => {
+        <nav aria-label="Main navigation" className="mt-3 flex min-w-0 flex-1 flex-col gap-1 overflow-x-hidden overflow-y-auto overscroll-contain">
+          {navigation.map(({ label, icon: Icon, reactPath }) => {
             const content = <><Icon aria-hidden="true" className="size-[19px] shrink-0" /><span className="min-w-0 flex-1 truncate md:hidden xl:block">{label}</span></>
             if (reactPath) {
               return <NavLink className={({ isActive }) => `${itemClasses} ${isActive ? 'border-brand-cyan/50 bg-gradient-to-r from-brand-blue/22 to-brand-cyan/5 text-text-main shadow-glow-blue before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-brand-cyan before:shadow-[0_0_12px_#2dd4bf]' : 'border-transparent text-text-muted hover:border-white/5 hover:bg-panel-hover/55 hover:text-text-main'}`} end key={label} onClick={() => setOpen(false)} to={reactPath}>{content}</NavLink>
             }
-            return <a className={`${itemClasses} border-transparent text-text-muted hover:border-white/5 hover:bg-panel-hover/55 hover:text-text-main`} href={`/studio/?view=${legacyView}`} key={label} title={label}>{content}</a>
+            return <a className={`${itemClasses} border-transparent text-text-muted hover:border-white/5 hover:bg-panel-hover/55 hover:text-text-main`} href="/app/" key={label} title={label}>{content}</a>
           })}
         </nav>
 

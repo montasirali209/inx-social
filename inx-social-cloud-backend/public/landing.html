@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <link rel="icon" type="image/png" href="/assets/inx-social-logo.png">
-  <title>Facebook Reels Scheduler for Pages | INX Social</title>
-  <meta name="description" content="Schedule Facebook Reels in bulk, manage multiple Pages, avoid occupied slots and track publishing from one secure browser workspace. Try INX Social free.">
+  <title>Social Media Scheduling &amp; Publishing | INXSocial</title>
+  <meta name="description" content="Plan, schedule and publish content across connected social platforms from one secure INXSocial workspace. Start with a free trial.">
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
   <meta name="author" content="INAXX LTD">
   <meta name="theme-color" content="#071224">
@@ -16,18 +16,18 @@
   <meta property="og:type" content="website">
   <meta property="og:locale" content="en_GB">
   <meta property="og:site_name" content="INX Social">
-  <meta property="og:title" content="Facebook Reels Scheduler for Pages | INX Social">
-  <meta property="og:description" content="Schedule Facebook Reels in bulk, manage multiple Pages, avoid occupied slots and track publishing from one secure browser workspace.">
+  <meta property="og:title" content="Social Media Scheduling & Publishing | INXSocial">
+  <meta property="og:description" content="Plan, schedule and publish content across connected social platforms from one secure INXSocial workspace.">
   <meta property="og:url" content="https://social.inaxx.co.uk/">
   <meta property="og:image" content="https://social.inaxx.co.uk/assets/inx-social-dashboard.jpg">
   <meta property="og:image:alt" content="INX Social cloud content studio dashboard">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Facebook Reels Scheduler for Pages | INX Social">
-  <meta name="twitter:description" content="Schedule Facebook Reels in bulk and manage multiple Pages from one secure browser workspace.">
+  <meta name="twitter:title" content="Social Media Scheduling & Publishing | INXSocial">
+  <meta name="twitter:description" content="Manage multi-platform publishing, scheduling and analytics in one secure workspace.">
   <meta name="twitter:image" content="https://social.inaxx.co.uk/assets/inx-social-dashboard.jpg">
   <meta name="twitter:image:alt" content="INX Social cloud content studio dashboard">
   <link rel="icon" href="/assets/inx-social-logo.png">
-  <link rel="stylesheet" href="/landing.css">
+  <link rel="stylesheet" href="/landing.css?v=20260909">
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -52,8 +52,8 @@
         "@type": "WebPage",
         "@id": "https://social.inaxx.co.uk/#webpage",
         "url": "https://social.inaxx.co.uk/",
-        "name": "Facebook Reels Scheduler for Pages | INX Social",
-        "description": "Schedule Facebook Reels in bulk, manage multiple Pages, avoid occupied slots and track publishing from one secure browser workspace.",
+        "name": "Social Media Scheduling & Publishing | INXSocial",
+        "description": "Plan, schedule and publish content across connected social platforms from one secure INXSocial workspace.",
         "inLanguage": "en-GB",
         "isPartOf": { "@id": "https://social.inaxx.co.uk/#website" },
         "about": { "@id": "https://social.inaxx.co.uk/#software" },
@@ -67,13 +67,14 @@
         "applicationCategory": "BusinessApplication",
         "applicationSubCategory": "Social Media Management",
         "operatingSystem": "Web browser",
-        "description": "A cloud studio for scheduling Facebook Reels, managing connected Pages and monitoring publishing activity.",
+        "description": "A professional social publishing workspace for connected accounts, content scheduling, analytics and AI-assisted creation.",
         "image": "https://social.inaxx.co.uk/assets/inx-social-dashboard.jpg",
-        "featureList": ["Bulk video and caption import", "Facebook schedule-slot checking", "Sequential Reel uploads", "Publishing calendar and activity history"],
+        "featureList": ["Multi-platform account connections", "Bulk photo and video scheduling", "Publishing calendar and analytics", "AI-assisted captions and content creation"],
         "publisher": { "@id": "https://inaxx.co.uk/#organization" },
         "offers": [
-          { "@type": "Offer", "name": "Starter", "price": "9.99", "priceCurrency": "GBP", "availability": "https://schema.org/InStock", "url": "https://social.inaxx.co.uk/#pricing" },
-          { "@type": "Offer", "name": "Pro", "price": "15.99", "priceCurrency": "GBP", "availability": "https://schema.org/InStock", "url": "https://social.inaxx.co.uk/#pricing" }
+          { "@type": "Offer", "name": "Trial", "price": "0", "priceCurrency": "GBP", "availability": "https://schema.org/InStock", "url": "https://social.inaxx.co.uk/#pricing" },
+          { "@type": "Offer", "name": "Pro", "price": "9.99", "priceCurrency": "GBP", "availability": "https://schema.org/InStock", "url": "https://social.inaxx.co.uk/#pricing" },
+          { "@type": "Offer", "name": "Plus", "price": "15.99", "priceCurrency": "GBP", "availability": "https://schema.org/InStock", "url": "https://social.inaxx.co.uk/#pricing" }
         ]
       }
     ]
@@ -101,8 +102,12 @@
       </nav>
 
       <div class="nav-actions">
-        <a class="text-link" href="/studio/">Sign in to Studio</a>
-        <a class="button button-primary button-small" href="/portal/register.html">Start free trial</a>
+        <a class="text-link app-entry" id="landingSignIn" href="/portal/login.html?return=/app/">Sign in</a>
+        <a class="button button-primary button-small guest-only" href="/portal/register.html">Start free trial</a>
+        <details class="landing-account" id="landingAccount" hidden>
+          <summary><span class="account-avatar" id="landingAccountInitials">IN</span><span id="landingAccountName">Your account</span><i>⌄</i></summary>
+          <div class="landing-account-menu"><a href="/app/">Open INXSocial</a><a href="/app/settings">Account settings</a><button id="landingSignOut" type="button">Sign out</button></div>
+        </details>
         <button class="menu-button" id="menuButton" aria-label="Open navigation" aria-expanded="false">☰</button>
       </div>
     </div>
@@ -113,18 +118,18 @@
       <div class="hero-grid-bg"></div>
       <div class="shell hero-layout">
         <div class="hero-copy" data-animate>
-          <div class="status-badge"><i></i> Cloud content studio for Facebook Pages</div>
-          <h1>Schedule more.<br><span>Repeat less.</span></h1>
-          <p class="hero-lead">Select videos in your browser, pair captions, check existing Meta schedule slots and publish Facebook Reels from one secure cloud workspace.</p>
+          <div class="status-badge"><i></i> Multi-platform social publishing workspace</div>
+          <h1>Plan once.<br><span>Publish everywhere.</span></h1>
+          <p class="hero-lead">Connect your social accounts, create content and manage publishing, scheduling and analytics from one secure INXSocial workspace.</p>
 
           <div class="hero-actions">
             <a class="button button-primary button-large" href="/portal/register.html">Start 5-day free trial</a>
-            <a class="button button-secondary button-large" href="/studio/">Sign in to Studio</a>
+            <a class="button button-secondary button-large app-entry" href="/portal/login.html?return=/app/">Sign in to INXSocial</a>
           </div>
 
           <div class="hero-points">
             <span><b>✓</b> No card required for trial</span>
-            <span><b>✓</b> Direct Facebook Page connection</span>
+            <span><b>✓</b> Official platform connections</span>
             <span><b>✓</b> Works securely in your browser</span>
           </div>
         </div>
@@ -149,20 +154,20 @@
       <div class="shell dashboard-frame" id="dashboard-preview" data-animate>
         <div class="frame-toolbar">
           <div class="window-controls"><i></i><i></i><i></i></div>
-          <span>INX Social Content Studio — Live product interface</span>
+          <span>INXSocial — Live multi-platform workspace</span>
           <span class="frame-live"><i></i> Product preview</span>
         </div>
-        <img src="/assets/inx-social-dashboard.jpg" alt="INX Social Content Studio showing Facebook Reels scheduling controls">
+        <img src="/assets/inx-social-dashboard.jpg?v=20260909" alt="INXSocial dashboard showing connected destinations, scheduled content, publishing progress and calendar activity">
         <div class="frame-shine"></div>
       </div>
     </section>
 
     <section class="metrics-strip">
       <div class="shell metrics">
-        <div><strong>Bulk</strong><span>video and caption import</span></div>
-        <div><strong>Smart</strong><span>schedule-slot checking</span></div>
-        <div><strong>Live</strong><span>upload progress and logs</span></div>
-        <div><strong>Direct</strong><span>Facebook Page connection</span></div>
+        <div><strong>Multi-platform</strong><span>connected destinations</span></div>
+        <div><strong>Smart</strong><span>publishing schedules</span></div>
+        <div><strong>Live</strong><span>activity and analytics</span></div>
+        <div><strong>Secure</strong><span>official authorisation</span></div>
       </div>
     </section>
 
@@ -170,7 +175,7 @@
       <div class="shell">
         <div class="section-heading" data-animate>
           <span class="kicker">Built for real publishing workflows</span>
-          <h2>One studio from content import to confirmed Meta schedule</h2>
+          <h2>One workspace from content creation to confirmed publishing</h2>
           <p>Every key step is visible, controllable and designed to reduce repetitive scheduling work.</p>
         </div>
 
@@ -257,39 +262,53 @@
     <section class="section pricing-section" id="pricing">
       <div class="shell">
         <div class="section-heading centered" data-animate>
-          <span class="kicker">Simple monthly plans</span>
-          <h2>Choose the capacity that fits your Page operation</h2>
-          <p>Every verified account begins with a five-day trial before choosing a paid plan.</p>
+          <span class="kicker">Trial, Pro and Plus</span>
+          <h2>Choose the plan that fits your publishing workflow</h2>
+          <p>Start with Trial, add Analytics and caption assistance with Pro, or unlock the full AI Content Studio with Plus.</p>
         </div>
 
         <div class="pricing-grid">
           <article class="price-card" data-animate>
-            <div class="price-name">Starter</div>
-            <div class="price"><sup>£</sup>9.99 <span>/ month</span></div>
-            <p>For creators and growing teams managing a regular publishing queue.</p>
+            <div class="price-name">Trial</div>
+            <div class="price"><sup>£</sup>0 <span>/ trial period</span></div>
+            <p>Explore the complete publishing workflow before choosing a paid plan.</p>
             <ul>
-              <li>Up to 100 posts or videos per batch</li>
-              <li>Manage up to 10 Facebook Pages</li>
-              <li>1 authorised device</li>
-              <li>Smart scheduling and duplicate safeguards</li>
-              <li>Customer portal and product updates</li>
+              <li>Up to 2 connected pages</li>
+              <li>Unlimited posts, photos and videos</li>
+              <li>Schedule up to 30 days per workflow</li>
+              <li>Priority support</li>
+              <li class="locked">Analytics and AI tools locked</li>
             </ul>
-            <a class="button button-dark" href="/portal/register.html?plan=STARTER">Start with Starter</a>
+            <a class="button button-dark" href="/portal/register.html">Start free trial</a>
           </article>
 
           <article class="price-card price-card-pro" data-animate>
             <div class="recommended">RECOMMENDED</div>
             <div class="price-name">Pro</div>
-            <div class="price"><sup>£</sup>15.99 <span>/ month</span></div>
-            <p>For high-volume creators, agencies and multi-Page publishing operations.</p>
+            <div class="price"><sup>£</sup>9.99 <span>/ month</span></div>
+            <p>Unlimited publishing with Analytics and intelligent caption assistance.</p>
             <ul>
-              <li>Unlimited posts or videos per batch</li>
-              <li>Manage up to 50 Facebook Pages</li>
-              <li>Up to 3 authorised devices</li>
-              <li>Full scheduling, calendar and activity tools</li>
-              <li>Priority access to product releases</li>
+              <li>Unlimited connected pages</li>
+              <li>Unlimited posts and videos</li>
+              <li>Full Analytics</li>
+              <li>AI caption writing and suggestions</li>
+              <li>Priority support</li>
             </ul>
-            <a class="button button-primary" href="/portal/register.html?plan=PRO">Start with Pro</a>
+            <a class="button button-primary" href="/portal/register.html?plan=STARTER">Choose Pro</a>
+          </article>
+
+          <article class="price-card" data-animate>
+            <div class="price-name">Plus</div>
+            <div class="price"><sup>£</sup>15.99 <span>/ month</span></div>
+            <p>Everything in Pro plus the complete AI Content Studio.</p>
+            <ul>
+              <li>Everything in Pro</li>
+              <li>AI Content Studio</li>
+              <li>AI image generation</li>
+              <li>AI video generation</li>
+              <li>Future advanced AI tools</li>
+            </ul>
+            <a class="button button-dark" href="/portal/register.html?plan=PRO">Choose Plus</a>
           </article>
         </div>
       </div>
@@ -349,7 +368,7 @@
         </div>
         <div class="final-actions">
           <a class="button button-primary button-large" href="/portal/register.html">Start free trial</a>
-          <a class="button button-secondary button-large" href="/studio/">Sign in to Studio</a>
+          <a class="button button-secondary button-large app-entry" href="/portal/login.html?return=/app/">Sign in to INXSocial</a>
         </div>
       </div>
     </section>
@@ -362,7 +381,7 @@
           <img class="brand-wordmark" src="/assets/inx-social-wordmark.png" alt="INX Social">
           <div><strong>INX Social</strong><span>by INAXX LTD</span></div>
         </a>
-        <p>Professional Facebook Reels and Page scheduling from one secure cloud studio.</p>
+        <p>Professional multi-platform scheduling, publishing and analytics from one secure workspace.</p>
       </div>
       <div>
         <strong>Product</strong>
@@ -374,7 +393,7 @@
         <strong>Account</strong>
         <a href="/portal/register.html">Create account</a>
         <a href="/portal/login.html">Log in</a>
-        <a href="/studio/">Open Content Studio</a>
+        <a href="/app/">Open INXSocial</a>
         <a href="/portal/">Account & billing</a>
       </div>
       <div>
@@ -390,6 +409,6 @@
     </div>
   </footer>
 
-  <script src="/landing.js"></script>
+  <script src="/landing.js?v=20260909"></script>
 </body>
 </html>

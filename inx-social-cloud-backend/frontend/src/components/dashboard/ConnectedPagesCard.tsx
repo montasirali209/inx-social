@@ -9,7 +9,7 @@ function initials(name: string) {
 export function ConnectedPagesCard({ pages }: { pages: ConnectedPage[] }) {
   return (
     <DashboardCard
-      action={<a className="inline-flex items-center gap-1 text-xs font-semibold text-[#6db2ff] hover:text-brand-cyan focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/studio/?view=pages">Manage <ArrowUpRight aria-hidden="true" className="size-3.5" /></a>}
+      action={<a className="inline-flex items-center gap-1 text-xs font-semibold text-[#6db2ff] hover:text-brand-cyan focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/connected-accounts">Manage <ArrowUpRight aria-hidden="true" className="size-3.5" /></a>}
       title="Connected Pages"
     >
       {pages.length === 0 ? (

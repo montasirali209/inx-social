@@ -16,7 +16,7 @@ export function EngagementOverviewCard({ metrics }: { metrics: PlatformMetric[] 
       <div className="px-5 pb-5">
         <div className="flex items-end justify-between gap-4">
           <span><strong className="block text-3xl tracking-[-0.04em]">{total === null ? '—' : total.toLocaleString('en-GB')}</strong><small className="text-text-muted">Total Engagement</small></span>
-          {total === null ? <a className="inline-flex items-center gap-1 text-xs font-medium text-brand-cyan hover:text-white" href="/studio/?view=analytics">Check availability <ArrowUpRight aria-hidden="true" className="size-3.5" /></a> : null}
+          {total === null ? <a className="inline-flex items-center gap-1 text-xs font-medium text-brand-cyan hover:text-white" href="/app/analytics">Check availability <ArrowUpRight aria-hidden="true" className="size-3.5" /></a> : null}
         </div>
         <div className="mt-6 grid grid-cols-3 gap-2 sm:grid-cols-6">
           {platformOrder.map((platform) => {
