@@ -1,5 +1,10 @@
 export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'youtube' | 'x' | 'pinterest' | 'google_business' | 'threads' | 'bluesky'
 
+export const customerFacingPlatforms = ['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok', 'pinterest'] as const satisfies readonly Platform[]
+export type CustomerFacingPlatform = (typeof customerFacingPlatforms)[number]
+export const isCustomerFacingPlatform = (platform: Platform): platform is CustomerFacingPlatform =>
+  customerFacingPlatforms.includes(platform as CustomerFacingPlatform)
+
 export type ConnectionStatus = 'connected' | 'syncing' | 'expiring_soon' | 'disconnected' | 'permission_issue' | 'reconnect_required'
 
 export type ConnectedAccount = {
@@ -65,15 +70,15 @@ export const platformMeta: Record<Platform, { label: string; mark: string; class
   linkedin: { label: 'LinkedIn', mark: 'in', className: 'bg-[#0a66c2] text-white', contentTypes: ['Post', 'Video'], description: 'Connect your LinkedIn identity with official OAuth.', available: true },
   tiktok: { label: 'TikTok', mark: '♪', className: 'bg-[#111827] text-white', contentTypes: ['Post', 'Video'], description: 'TikTok publishing support is being prepared.', available: false },
   youtube: { label: 'YouTube', mark: '▶', className: 'bg-[#ff0000] text-white', contentTypes: ['Video', 'Shorts'], description: 'Connect channels and inspect YouTube account data.', available: true },
-  x: { label: 'X / Twitter', mark: '𝕏', className: 'bg-white text-black', contentTypes: ['Post', 'Video'], description: 'Connect your X identity with official OAuth.', available: true },
+  x: { label: 'X / Twitter', mark: '𝕏', className: 'bg-white text-black', contentTypes: ['Post', 'Video'], description: 'Legacy connector hidden from the INXSocial product.', available: false },
   pinterest: { label: 'Pinterest', mark: 'P', className: 'bg-[#e60023] text-white', contentTypes: ['Post', 'Video'], description: 'Pinterest publishing support is being prepared.', available: false },
-  google_business: { label: 'Google Business', mark: 'G', className: 'bg-[#4285f4] text-white', contentTypes: ['Post'], description: 'Google Business support is being prepared.', available: false },
-  threads: { label: 'Threads', mark: '@', className: 'bg-[#111111] text-white', contentTypes: ['Post'], description: 'Threads support is coming soon.', available: false },
-  bluesky: { label: 'Bluesky', mark: '☁', className: 'bg-[#1185fe] text-white', contentTypes: ['Post'], description: 'Bluesky support is coming soon.', available: false },
+  google_business: { label: 'Google Business', mark: 'G', className: 'bg-[#4285f4] text-white', contentTypes: ['Post'], description: 'Legacy connector hidden from the INXSocial product.', available: false },
+  threads: { label: 'Threads', mark: '@', className: 'bg-[#111111] text-white', contentTypes: ['Post'], description: 'Legacy connector hidden from the INXSocial product.', available: false },
+  bluesky: { label: 'Bluesky', mark: '☁', className: 'bg-[#1185fe] text-white', contentTypes: ['Post'], description: 'Legacy connector hidden from the INXSocial product.', available: false },
 }
 
 export const supportedPlatforms = (connectedCount: Partial<Record<Platform, number>> = {}): PlatformOption[] =>
-  (Object.keys(platformMeta) as Platform[]).map((platform) => ({
+  customerFacingPlatforms.map((platform) => ({
     platform,
     label: platformMeta[platform].label,
     description: platformMeta[platform].description,
