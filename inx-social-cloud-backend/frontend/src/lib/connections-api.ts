@@ -3,7 +3,7 @@ import { fetchStudioOverview } from './dashboard-api'
 import type { ConnectedPage, StudioOverview } from '../types/dashboard'
 import type { SocialConnectionSummary } from '../types/settings'
 
-export type ProviderState = Record<'instagram' | 'linkedin' | 'youtube', { configured: boolean; method: string }>
+export type ProviderState = Record<'instagram' | 'linkedin' | 'youtube' | 'x', { configured: boolean; method: string }>
 export type ConnectionsWorkspace = {
   overview: StudioOverview
   connections: SocialConnectionSummary[]
@@ -82,7 +82,8 @@ function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => bo
   })
 }
 
-export async function connectOAuthPlatform(platform: 'instagram' | 'linkedin' | 'youtube') {
+export async function connectOAuthPlatform(platform: 'instagram' | 'linkedin' | 'youtube' | 'x') {
+  if (platform === 'x') throw new Error('X / Twitter is not offered by INXSocial.')
   const storageKey = 'inx-social-oauth-result'
   window.localStorage.removeItem(storageKey)
   const start = await apiRequest<{ authorizationUrl: string }>(`/api/social-connections/oauth/${platform}/start`, { method: 'POST', body: '{}' })
