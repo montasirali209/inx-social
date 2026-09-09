@@ -1,13 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation } from 'react-router-dom'
 import { fetchStudioOverview } from '../../lib/dashboard-api'
+import { RequireAuth } from '../auth/RequireAuth'
 import { BulkSchedulerPage } from '../bulk-scheduler/BulkSchedulerPage'
 import { BulkRunDock, BulkSchedulerActivityProvider } from '../bulk-scheduler/BulkSchedulerActivity'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 
 export function AppShell() {
-  return <BulkSchedulerActivityProvider><AppShellContent /></BulkSchedulerActivityProvider>
+  return <RequireAuth><BulkSchedulerActivityProvider><AppShellContent /></BulkSchedulerActivityProvider></RequireAuth>
 }
 
 function AppShellContent() {
@@ -27,9 +28,9 @@ function AppShellContent() {
       <Sidebar overview={overview.data} />
       <div className="md:pl-[88px] xl:pl-[264px]">
         <Topbar overview={overview.data} />
-        <main className="mx-auto w-full max-w-[1780px] p-4 sm:p-5 xl:p-6" id="main-content">
-          <div aria-hidden={!bulkRoute} className={bulkRoute ? 'route-stage' : 'hidden'}><BulkSchedulerPage /></div>
-          {!bulkRoute && <div className="route-stage" key={location.pathname}><Outlet /></div>}
+        <main className="mx-auto w-full max-w-[1780px] min-w-0 p-3 sm:p-5 xl:p-6" id="main-content">
+          <div aria-hidden={!bulkRoute} className={bulkRoute ? 'route-stage min-w-0' : 'hidden'}><BulkSchedulerPage /></div>
+          {!bulkRoute && <div className="route-stage min-w-0" key={location.pathname}><Outlet /></div>}
         </main>
       </div>
       <BulkRunDock />
