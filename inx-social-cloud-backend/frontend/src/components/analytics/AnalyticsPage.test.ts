@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import fs from 'node:fs'
+import path from 'node:path'
 import type { PerformancePoint } from '../../types/analytics'
 import { aggregatePerformance } from '../../data/analyticsAggregation'
 
@@ -22,5 +24,15 @@ describe('Analytics performance intervals', () => {
 
     expect(result.map((item) => item.views)).toEqual([2, 7, 5])
     expect(result.map((item) => item.label)).toEqual(['Jul 2026', 'Aug 2026', 'Sept 2026'])
+  })
+
+  it('uses the cross-platform Audience Pulse instead of the demographics card', () => {
+    const root = path.resolve(__dirname, '../..')
+    const page = fs.readFileSync(path.join(root, 'components/analytics/AnalyticsPage.tsx'), 'utf8')
+    const cards = fs.readFileSync(path.join(root, 'components/analytics/AudienceCards.tsx'), 'utf8')
+    expect(page).toContain('AudiencePulseCard')
+    expect(page).not.toContain('AudienceDemographicsCard')
+    expect(cards).toContain('title="Audience Pulse"')
+    expect(cards).toContain('Interactions / 1K')
   })
 })
