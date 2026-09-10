@@ -1,23 +1,8 @@
 import { Info } from 'lucide-react'
-import type { CSSProperties, PointerEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 export function AnalyticsCard({ children, className = '' }: { children: ReactNode; className?: string }) {
-  function move(event: PointerEvent<HTMLElement>) {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const rect = event.currentTarget.getBoundingClientRect()
-    const x = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width))
-    const y = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height))
-    event.currentTarget.style.setProperty('--analytics-rx', `${(0.5 - y) * 2.3}deg`)
-    event.currentTarget.style.setProperty('--analytics-ry', `${(x - 0.5) * 2.7}deg`)
-    event.currentTarget.style.setProperty('--analytics-mx', `${x * 100}%`)
-    event.currentTarget.style.setProperty('--analytics-my', `${y * 100}%`)
-  }
-  function reset(event: PointerEvent<HTMLElement>) {
-    event.currentTarget.style.setProperty('--analytics-rx', '0deg')
-    event.currentTarget.style.setProperty('--analytics-ry', '0deg')
-  }
-  const style = { '--analytics-rx': '0deg', '--analytics-ry': '0deg', '--analytics-mx': '50%', '--analytics-my': '50%' } as CSSProperties
-  return <section className={`analytics-fluid-card interactive-surface min-w-0 overflow-hidden rounded-panel border ${className}`} onPointerLeave={reset} onPointerMove={move} style={style}>{children}</section>
+  return <section className={`analytics-fluid-card interactive-surface min-w-0 overflow-hidden rounded-panel border ${className}`}>{children}</section>
 }
 
 export function AnalyticsCardHeader({ title, description, action }: { title: string; description?: string; action?: ReactNode }) {
