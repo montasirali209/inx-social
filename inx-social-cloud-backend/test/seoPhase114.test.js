@@ -27,8 +27,9 @@ test('crawl controls publish the canonical sitemap and exclude private workspace
   const app = read('src/app.js');
   assert.match(robots, /Disallow: \/admin/);
   assert.match(robots, /Disallow: \/studio\//);
+  assert.match(robots, /Disallow: \/app\//);
   assert.match(robots, /Sitemap: https:\/\/social\.inaxx\.co\.uk\/sitemap\.xml/);
-  assert.match(sitemap, /<lastmod>2026-08-23<\/lastmod>/);
+  assert.match(sitemap, /<lastmod>2026-09-10<\/lastmod>/);
   assert.match(app, /X-Robots-Tag', 'noindex, nofollow, noarchive/);
   assert.match(app, /stale-while-revalidate=86400/);
   assert.match(read('public/llms.txt'), /Canonical website: https:\/\/social\.inaxx\.co\.uk\//);
