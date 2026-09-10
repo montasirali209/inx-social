@@ -12,6 +12,7 @@ test('shared platform icon system is used by Posts, Dashboard and Analytics', ()
   const dashboard = read('frontend/src/components/dashboard/PlatformIcon.tsx');
   const analyticsSelector = read('frontend/src/components/analytics/AnalyticsAccountSelector.tsx');
   const globalStyles = read('frontend/src/social-platform-icons.css');
+  const connectionOverrides = read('frontend/src/connection-icon-overrides.css');
   const main = read('frontend/src/main.tsx');
 
   for (const platform of ['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok', 'pinterest', 'x']) {
@@ -21,15 +22,18 @@ test('shared platform icon system is used by Posts, Dashboard and Analytics', ()
   assert.match(dashboard, /SocialPlatformIcon/);
   assert.match(analyticsSelector, /SocialPlatformIcon/);
   assert.match(main, /social-platform-icons\.css/);
+  assert.match(main, /connection-icon-overrides\.css/);
   assert.match(globalStyles, /aria-label="Facebook"/);
   assert.match(globalStyles, /aria-label="Instagram"/);
+  assert.match(connectionOverrides, /connection-platform-card/);
 });
 
 test('Post Preview never renders a broken INXSocial mark as a destination avatar', () => {
   const preview = read('frontend/src/components/posts/PostPreviewPanel.tsx');
 
   assert.doesNotMatch(preview, /\/assets\/inx-social-mark\.png/);
-  assert.match(preview, /onError=\{\(\) => setFailed\(true\)\}/);
+  assert.match(preview, /setFailedPicture\(picture\)/);
+  assert.match(preview, /failedPicture !== picture/);
   assert.match(preview, /UserRound/);
   assert.match(preview, /size-11 rounded-xl/);
 });
