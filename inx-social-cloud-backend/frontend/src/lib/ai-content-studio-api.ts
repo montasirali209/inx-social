@@ -118,7 +118,7 @@ async function generate(endpoint: string, request: GenerationRequest, signal?: A
     })
   } catch (error) {
     if (error instanceof ApiError && [404, 501].includes(error.status)) {
-      throw new Error(unavailableMessage(request.type))
+      throw new Error(unavailableMessage(request.type), { cause: error })
     }
     throw error
   }
