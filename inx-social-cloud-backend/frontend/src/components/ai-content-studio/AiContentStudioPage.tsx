@@ -153,7 +153,7 @@ export function AiContentStudioPage() {
   }
 
   if (accessQuery.isLoading || !access) {
-    return <div className="space-y-4"><Card className="h-72 animate-pulse bg-panel-soft/60" /><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <Card className="h-80 animate-pulse bg-panel-soft/60" key={index} />)}</div></div>
+    return <div aria-label="Loading AI Content Studio" className="space-y-4"><Card className="h-72 animate-pulse bg-panel-soft/60"><span className="sr-only">Loading AI Content Studio</span></Card><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <Card className="h-80 animate-pulse bg-panel-soft/60" key={index}><span className="sr-only">Loading creation option {index + 1}</span></Card>)}</div></div>
   }
 
   if (accessQuery.isError) {
