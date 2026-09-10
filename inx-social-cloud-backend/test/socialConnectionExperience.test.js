@@ -21,7 +21,7 @@ test('Connected Accounts exposes real Instagram, LinkedIn, YouTube, and X linkin
   assert.match(app, /Channel \$\{index \+ 1\} of \$\{profileCount\}/);
 });
 
-test('React connections keep Meta-linked and direct Instagram authorization separated', () => {
+test('React connections use one direct Instagram Login path while legacy Meta endpoints remain isolated', () => {
   const api = read('frontend/src/lib/connections-api.ts');
   const connectedAccountsPage = read('frontend/src/components/connections/ConnectedAccountsPage.tsx');
   const adapter = read('studio/web-adapter.js');
@@ -51,9 +51,13 @@ test('React connections keep Meta-linked and direct Instagram authorization sepa
   assert.doesNotMatch(controller, /INSTAGRAM_CLIENT_ID \|\| process\.env\.META_APP_ID/);
   assert.match(connectedAccountsPage, /Instagram setup is incomplete\./);
   assert.match(connectedAccountsPage, /Instagram setup required/);
-  assert.match(connectedAccountsPage, /Connect with Meta/);
-  assert.match(connectedAccountsPage, /Connect Instagram directly/);
-  assert.match(connectedAccountsPage, /Recommended/);
+  assert.match(connectedAccountsPage, /Instagram Login/);
+  assert.match(connectedAccountsPage, /Connect Instagram/);
+  assert.match(connectedAccountsPage, /Business or Creator/);
+  assert.match(connectedAccountsPage, /Personal Instagram profiles do not support automatic/);
+  assert.match(connectedAccountsPage, /no\s+separate Meta connection is required for publishing/);
+  assert.doesNotMatch(connectedAccountsPage, /Connect with Meta/);
+  assert.doesNotMatch(connectedAccountsPage, /InstagramConnectionMethod|instagramMethod/);
   assert.match(connectedAccountsPage, />\s*Close\s*<\/Button>/);
   assert.doesNotMatch(connectedAccountsPage, />\s*Back\s*<\/Button>/);
   assert.match(service, /force_authentication/);
