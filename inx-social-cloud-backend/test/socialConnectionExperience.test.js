@@ -34,12 +34,17 @@ test('React connections keep Meta-linked and direct Instagram authorization sepa
   assert.doesNotMatch(api, /instagram_basic|instagram_content_publish|instagram_manage_insights/);
   assert.match(service, /FACEBOOK_LOGIN_CONFIG_ID/);
   assert.match(service, /FACEBOOK_PAGE_SCOPES/);
+  assert.match(service, /response_type', 'code'/);
+  assert.match(service, /async function completeFacebook/);
+  assert.doesNotMatch(service, /response_type', 'token'/);
   assert.match(service, /INSTAGRAM_ALREADY_CONNECTED_VIA_META/);
   assert.match(routes, /router\.post\('\/facebook\/start', controller\.startFacebook\)/);
+  assert.match(routes, /router\.post\('\/facebook\/complete', controller\.completeFacebook\)/);
   assert.doesNotMatch(adapter, /instagram_basic|instagram_manage_insights/);
   assert.doesNotMatch(facebookCallback, /location\.replace\('\/studio\//);
   assert.match(facebookCallback, /Close this window/);
   assert.match(facebookCallback, /\/api\/social-connections\/instagram\/sync/);
+  assert.match(facebookCallback, /\/api\/social-connections\/facebook\/complete/);
   assert.match(controller, /INSTAGRAM_BUSINESS_LOGIN/);
   assert.match(service, /OAUTH_PROVIDER_NOT_CONFIGURED/);
   assert.doesNotMatch(service, /INSTAGRAM_CLIENT_ID \|\| process\.env\.META_APP_ID/);
@@ -55,6 +60,8 @@ test('React connections keep Meta-linked and direct Instagram authorization sepa
   assert.match(service, /enable_fb_login/);
   assert.doesNotMatch(service, /force_reauth/);
   assert.match(api, /inxSocialConnect-instagram-/);
+  assert.match(api, /window\.addEventListener\('focus', checkAfterReturn\)/);
+  assert.match(connectedAccountsPage, /connectMutation\.reset\(\)/);
 });
 
 test('Connected Accounts menus, scrolling and disconnect confirmation remain usable', () => {
@@ -73,9 +80,11 @@ test('social OAuth callback is public while account management remains authentic
   const authIndex = routes.indexOf('router.use(requireAuth)');
   const listIndex = routes.indexOf("router.get('/', controller.list)");
   const facebookStartIndex = routes.indexOf("router.post('/facebook/start'");
+  const facebookCompleteIndex = routes.indexOf("router.post('/facebook/complete'");
   assert.ok(callbackIndex >= 0 && callbackIndex < authIndex);
   assert.ok(authIndex < listIndex);
   assert.ok(facebookStartIndex > authIndex);
+  assert.ok(facebookCompleteIndex > authIndex);
   assert.match(routes, /router\.delete\('\/:id', controller\.disconnect\)/);
 });
 

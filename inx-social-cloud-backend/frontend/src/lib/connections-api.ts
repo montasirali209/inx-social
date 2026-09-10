@@ -34,9 +34,13 @@ function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => bo
     let settled = false
     let closedAt = 0
     let providerNavigationStarted = false
+    let returnedFocusCheck = 0
     const cleanup = () => {
       window.removeEventListener('message', receive)
       window.removeEventListener('storage', receiveStored)
+      window.removeEventListener('focus', checkAfterReturn)
+      document.removeEventListener('visibilitychange', receiveVisibility)
+      window.clearTimeout(returnedFocusCheck)
       window.clearInterval(closedCheck)
       window.clearTimeout(timeout)
       window.localStorage.removeItem(storageKey)
@@ -64,8 +68,25 @@ function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => bo
     const receiveStored = (event: StorageEvent) => {
       if (event.key === storageKey) consume(event.newValue)
     }
+    const checkAfterReturn = () => {
+      window.clearTimeout(returnedFocusCheck)
+      returnedFocusCheck = window.setTimeout(() => {
+        if (settled || consume(window.localStorage.getItem(storageKey))) return
+        // Meta may isolate the popup with Cross-Origin-Opener-Policy, which can
+        // make polling unreliable. Once focus returns to INXSocial, an isolated
+        // or closed provider window means the attempt has ended.
+        if (popup.closed && providerNavigationStarted) {
+          finish({ ok: false, error: 'The connection did not complete. Review the provider message and try again.' })
+        }
+      }, 600)
+    }
+    const receiveVisibility = () => {
+      if (document.visibilityState === 'visible') checkAfterReturn()
+    }
     window.addEventListener('message', receive)
     window.addEventListener('storage', receiveStored)
+    window.addEventListener('focus', checkAfterReturn)
+    document.addEventListener('visibilitychange', receiveVisibility)
     const closedCheck = window.setInterval(() => {
       if (settled || consume(window.localStorage.getItem(storageKey))) return
       try {

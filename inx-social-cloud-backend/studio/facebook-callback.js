@@ -6,7 +6,9 @@
   const detail = document.querySelector('p');
   const hash = new URLSearchParams(location.hash.slice(1));
   const query = new URLSearchParams(location.search);
-  const accessToken = hash.get('access_token') || '';
+  let accessToken = hash.get('access_token') || '';
+  let tokenExpiresAt = null;
+  const authorizationCode = query.get('code') || '';
   const returnedState = hash.get('state') || query.get('state') || '';
   let expectedState = sessionStorage.getItem('inx-facebook-oauth-state') || '';
   try {
@@ -75,7 +77,18 @@
     if (!expectedState || !returnedState || returnedState !== expectedState) {
       throw new Error('Facebook returned an invalid or expired login state. Close this window and try again.');
     }
-    if (!accessToken) throw new Error('Facebook did not return an access token.');
+    if (!accessToken) {
+      if (!authorizationCode) throw new Error('Facebook did not return an authorization code.');
+      title.textContent = 'Securing Facebook authorization';
+      detail.textContent = 'Completing the secure sign-in with INXSocial…';
+      const exchange = await api('/api/social-connections/facebook/complete', {
+        method: 'POST',
+        body: JSON.stringify({ code: authorizationCode, state: returnedState })
+      });
+      accessToken = String(exchange.accessToken || '');
+      tokenExpiresAt = exchange.tokenExpiresAt || null;
+      if (!accessToken) throw new Error('Facebook did not return an access token.');
+    }
 
     title.textContent = 'Connecting Facebook Pages';
     detail.textContent = 'Discovering the Pages you manage…';
@@ -112,6 +125,7 @@
         method: 'POST',
         body: JSON.stringify({
           accessToken,
+          tokenExpiresAt,
           selectedPageIds,
           metaAppId: '969283649323618'
         })

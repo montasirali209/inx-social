@@ -342,6 +342,12 @@ export function ConnectedAccountsPage() {
             : "The account could not be connected.",
       }),
   });
+  const closeConnectModal = () => {
+    connectMutation.reset();
+    setConnectOpen(false);
+    setSelectedPlatform(null);
+    setInstagramMethod(null);
+  };
   const disconnectMutation = useMutation({
     mutationFn: (identity: ConnectedIdentity) =>
       identity.connectionId
@@ -1175,11 +1181,7 @@ export function ConnectedAccountsPage() {
       {connectOpen && (
         <Modal
           panelClassName="connection-connect-panel !max-w-3xl"
-          onClose={() => {
-            setConnectOpen(false);
-            setSelectedPlatform(null);
-            setInstagramMethod(null);
-          }}
+          onClose={closeConnectModal}
           title={
             selectedPlatform
               ? `${counts[selectedPlatform] ? "Add another" : "Connect"} ${platformMeta[selectedPlatform].label} account`
@@ -1225,11 +1227,7 @@ export function ConnectedAccountsPage() {
               </div>
               <Button
                 className="mt-5 w-full"
-                onClick={() => {
-                  setConnectOpen(false);
-                  setSelectedPlatform(null);
-                  setInstagramMethod(null);
-                }}
+                onClick={closeConnectModal}
                 variant="secondary"
               >
                 Close

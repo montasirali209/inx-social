@@ -6,6 +6,7 @@ router.get('/oauth/:platform/callback', controller.oauthCallback);
 router.use(requireAuth);
 router.get('/', controller.list);
 router.post('/facebook/start', controller.startFacebook);
+router.post('/facebook/complete', controller.completeFacebook);
 router.post('/oauth/:platform/start', controller.startOAuth);
 router.post('/instagram/sync', controller.syncInstagram);
 router.delete('/:id', controller.disconnect);
