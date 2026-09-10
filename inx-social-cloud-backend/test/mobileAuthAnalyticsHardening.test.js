@@ -37,11 +37,11 @@ test('Facebook demographic copy does not misrepresent Instagram as native Facebo
 test('landing and workspace load dedicated mobile responsive guardrails', () => {
   const main = read('frontend/src/main.tsx');
   const appMobile = read('frontend/src/mobile-responsive.css');
-  const landing = read('public/landing.js');
+  const app = read('src/app.js');
   const landingMobile = read('public/landing-mobile.css');
   assert.match(main, /mobile-responsive\.css/);
   assert.match(appMobile, /@media \(max-width: 767px\)/);
-  assert.match(landing, /landing-mobile\.css/);
+  assert.match(app, /landing-mobile\.css/);
   assert.match(landingMobile, /@media \(max-width: 900px\)/);
   assert.match(landingMobile, /#mainNav\.open/);
 });

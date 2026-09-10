@@ -4,5 +4,6 @@ Disallow: /admin
 Disallow: /api/
 Disallow: /portal/
 Disallow: /studio/
+Disallow: /app/
 
 Sitemap: https://social.inaxx.co.uk/sitemap.xml

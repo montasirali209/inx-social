@@ -1,15 +1,15 @@
 @media (max-width: 900px) {
   .shell{width:min(100% - 28px,1240px)}
-  .nav-shell{height:72px;gap:12px;justify-content:space-between}
-  .brand img{width:154px;height:56px;margin:-8px -20px}
+  .nav-shell{height:72px;gap:10px;justify-content:space-between}
+  .brand{min-width:0;flex:0 1 auto}.brand img{width:40px;height:40px;margin:0}
   .menu-button{display:grid;place-items:center;flex:0 0 43px}
-  #mainNav{position:fixed;top:72px;left:14px;right:14px;display:none;margin:0;padding:12px;flex-direction:column;align-items:stretch;gap:2px;border:1px solid var(--line);border-radius:16px;background:rgba(4,13,23,.98);box-shadow:var(--shadow);backdrop-filter:blur(20px)}
+  #mainNav{position:fixed;z-index:50;top:72px;left:14px;right:14px;display:none;margin:0;padding:12px;flex-direction:column;align-items:stretch;gap:2px;border:1px solid var(--line);border-radius:16px;background:rgba(4,13,23,.98);box-shadow:var(--shadow);backdrop-filter:blur(20px)}
   #mainNav.open{display:flex}
   #mainNav a{padding:12px;border-radius:10px}
-  .nav-actions{margin-left:auto}.nav-sign-in{display:none}
+  .nav-actions{margin-left:auto;gap:8px}.nav-sign-in{display:none}
   .account-copy{display:none}
   .landing-account summary{padding:5px}
-  .hero{padding:116px 0 44px}
+  .hero{padding:108px 0 44px}
   .hero-layout,.intelligence-grid{grid-template-columns:1fr;gap:38px}
   .hero-copy{text-align:center}.hero-copy .eyebrow{margin-inline:auto}
   h1{max-width:760px;margin:20px auto;font-size:clamp(2.55rem,11vw,4.2rem);line-height:.98;letter-spacing:-.055em}
@@ -24,10 +24,11 @@
 }
 
 @media (max-width: 560px) {
-  .shell{width:calc(100% - 22px)}
-  .nav-shell{height:66px}.brand img{width:140px;height:50px}
-  #mainNav{top:66px;left:11px;right:11px}
-  .hero{padding-top:100px}.hero-actions{display:grid}.hero-actions .button{width:100%}
+  .shell{width:calc(100% - 28px)}
+  .nav-shell{height:64px;padding-inline:0}.brand img{width:36px;height:36px}.brand-text{display:inline;font-size:1rem}
+  #mainNav{top:64px;left:14px;right:14px}
+  .nav-actions>.button-compact{display:none}
+  .hero{padding-top:92px}.hero-actions{display:grid}.hero-actions .button{width:100%}
   .hero-proof{gap:9px 14px;font-size:.7rem}
   .command-visual{min-height:300px}.visual-body{grid-template-columns:38px 1fr;min-height:245px}.visual-content{padding:12px}.visual-body aside{gap:12px;padding:12px 0}.visual-body aside i{width:18px;height:18px}.visual-body aside img{width:24px;height:24px}.visual-heading{padding:12px}.visual-heading>b{display:none}.visual-metrics{gap:6px}.visual-metrics>span{padding:9px}.visual-metrics strong{font-size:1rem}.visual-chart{height:72px;padding:10px;gap:5px}
   .orbit-a,.orbit-b{display:none}
