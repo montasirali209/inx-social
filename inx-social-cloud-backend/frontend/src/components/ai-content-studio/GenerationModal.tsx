@@ -273,10 +273,10 @@ export function GenerationModal({ open, type, access, initialDraft, onClose, onS
   const [brandKits, setBrandKits] = useState<BrandKit[]>([])
   const [mediaAssets, setMediaAssets] = useState<MediaAsset[]>([])
   const [savedAssets, setSavedAssets] = useState<MediaAsset[]>([])
-  const currentType = type || initialDraft?.contentType || null
+  const currentType: AIContentType = type ?? initialDraft?.contentType ?? 'image_post'
 
   useEffect(() => {
-    if (!open || !currentType) return
+    if (!open) return
     const next = { ...defaults }
     if (currentType === 'carousel_post') { next.goal = 'Educational'; next.aspectRatio = '1:1' }
     if (currentType === 'short_video') { next.aspectRatio = '9:16'; next.visualStyle = 'Product showcase' }
@@ -296,7 +296,7 @@ export function GenerationModal({ open, type, access, initialDraft, onClose, onS
   }, [open, currentType, initialDraft])
 
   useEffect(() => {
-    if (!open || !currentType) return
+    if (!open) return
     const timer = window.setTimeout(() => {
       void estimateGenerationCost(requestFor(currentType, values)).then((estimate) => setCredits(estimate.credits)).catch(() => {})
     }, 180)
@@ -323,7 +323,7 @@ export function GenerationModal({ open, type, access, initialDraft, onClose, onS
     return () => { document.body.style.overflow = previousOverflow; document.removeEventListener('keydown', handleKey) }
   }, [open, onClose, status])
 
-  if (!open || !currentType) return null
+  if (!open) return null
   const definition = workflowDefinitions.find((item) => item.type === currentType)!
   const Icon = definition.icon
   const generating = ['preparing', 'generating', 'processing'].includes(status)
