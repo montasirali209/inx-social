@@ -24,12 +24,17 @@ test('responsive stylesheet is not injected after first paint', () => {
   assert.doesNotMatch(landingJs, /landing-mobile\.css/);
 });
 
-test('private application routes are excluded from crawling and sitemap is current', () => {
+test('private application routes are excluded while public SEO pages are discoverable', () => {
   const robots = read('public/robots.txt');
   const sitemap = read('public/sitemap.xml');
+  assert.match(robots, /Allow: \//);
   assert.match(robots, /Disallow: \/app\//);
+  assert.match(robots, /Disallow: \/api\//);
   assert.match(robots, /Sitemap: https:\/\/social\.inaxx\.co\.uk\/sitemap\.xml/);
-  assert.match(sitemap, /<lastmod>2026-09-10<\/lastmod>/);
+  assert.match(sitemap, /social-media-scheduler\.html/);
+  assert.match(sitemap, /social-media-analytics\.html/);
+  assert.match(sitemap, /ai-social-media-tools\.html/);
+  assert.match(sitemap, /pricing\.html/);
   assert.doesNotMatch(sitemap, /\/app\//);
 });
 
@@ -38,5 +43,26 @@ test('landing retains canonical and software application structured data', () =>
   assert.match(landing, /rel="canonical" href="https:\/\/social\.inaxx\.co\.uk\/"/);
   assert.match(landing, /"SoftwareApplication"/);
   assert.match(landing, /"WebApplication"/);
+  assert.match(landing, /"WebSite"/);
   assert.match(landing, /max-image-preview:large/);
+});
+
+test('SEO product pages have unique titles, canonicals and indexable copy', () => {
+  const pages = [
+    ['public/social-media-scheduler.html', 'Social Media Scheduler for Multiple Platforms', 'social-media-scheduler.html'],
+    ['public/social-media-analytics.html', 'Social Media Analytics Dashboard', 'social-media-analytics.html'],
+    ['public/ai-social-media-tools.html', 'AI Social Media Tools for Captions, Images & Video', 'ai-social-media-tools.html'],
+    ['public/pricing.html', 'INXSocial Pricing', 'pricing.html']
+  ];
+
+  for (const [file, title, canonical] of pages) {
+    const html = read(file);
+    assert.match(html, new RegExp(`<title>${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
+    assert.match(html, /<meta name="description" content="[^"]{60,}/);
+    assert.match(html, /<meta name="robots" content="index,follow/);
+    assert.match(html, new RegExp(`rel="canonical" href="https:\\/\\/social\\.inaxx\\.co\\.uk\\/${canonical.replace('.', '\\.')}`));
+    assert.match(html, /application\/ld\+json/);
+    assert.match(html, /href="\/social-media-scheduler\.html"/);
+    assert.match(html, /href="\/pricing\.html"/);
+  }
 });
