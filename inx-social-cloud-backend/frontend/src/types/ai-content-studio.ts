@@ -62,6 +62,8 @@ export type GeneratedAsset = {
   script?: string
   hook?: string
   cta?: string
+  warnings?: string[]
+  completionStatus?: 'completed' | 'completed_with_warnings'
 }
 
 export type AIDraft = {
