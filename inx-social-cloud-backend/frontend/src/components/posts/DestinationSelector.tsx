@@ -12,6 +12,7 @@ type Props = {
   selectedIds: string[]
   setSelectedIds: (ids: string[]) => void
   mode?: DestinationMode
+  plannedPlatforms?: Platform[]
 }
 
 const copy = {
@@ -29,7 +30,7 @@ const copy = {
   },
 } as const
 
-export function DestinationSelector({ destinations, selectedIds, setSelectedIds, mode = 'post' }: Props) {
+export function DestinationSelector({ destinations, selectedIds, setSelectedIds, mode = 'post', plannedPlatforms = [] }: Props) {
   const [open, setOpen] = useState(false)
   const [activePlatform, setActivePlatform] = useState<'all' | Platform>('all')
   const [search, setSearch] = useState('')
@@ -57,7 +58,7 @@ export function DestinationSelector({ destinations, selectedIds, setSelectedIds,
         </div>
       </div>
     </section>
-    {open && <DestinationModal activePlatform={activePlatform} destinations={destinations} labels={labels} onActivePlatform={setActivePlatform} onClose={closeModal} search={search} selectedIds={selectedIds} setSearch={setSearch} setSelectedIds={setSelectedIds} />}
+    {open && <DestinationModal activePlatform={activePlatform} destinations={destinations} labels={labels} onActivePlatform={setActivePlatform} onClose={closeModal} plannedPlatforms={plannedPlatforms} search={search} selectedIds={selectedIds} setSearch={setSearch} setSelectedIds={setSelectedIds} />}
   </>
 }
 
@@ -70,13 +71,15 @@ type ModalProps = Omit<Props, 'mode'> & {
   labels: typeof copy[DestinationMode]
 }
 
-function DestinationModal({ destinations, selectedIds, setSelectedIds, activePlatform, onActivePlatform, search, setSearch, onClose, labels }: ModalProps) {
+function DestinationModal({ destinations, selectedIds, setSelectedIds, activePlatform, onActivePlatform, search, setSearch, onClose, labels, plannedPlatforms = [] }: ModalProps) {
   const matchingDestinations = useMemo(() => {
     const query = search.toLowerCase().trim()
     return destinations.filter((destination) => `${destination.name} ${destination.handle || ''} ${destination.type}`.toLowerCase().includes(query))
   }, [destinations, search])
   const visibleDestinations = activePlatform === 'all' ? matchingDestinations : matchingDestinations.filter((destination) => destination.platform === activePlatform)
   const selectedDestinations = destinations.filter((destination) => selectedIds.includes(destination.id))
+  const activePlatformLabel = activePlatform === 'all' ? 'Platform' : platforms.find((platform) => platform.id === activePlatform)?.label || activePlatform
+  const activePlatformPlanned = activePlatform !== 'all' && plannedPlatforms.includes(activePlatform)
 
   useEffect(() => {
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
@@ -129,7 +132,7 @@ function DestinationModal({ destinations, selectedIds, setSelectedIds, activePla
               <span className="relative shrink-0"><img alt="" className="size-11 rounded-full border border-white/10 object-cover" src={destination.avatarUrl || '/assets/inx-social-mark.png'} /><PlatformIcon className="absolute -bottom-1 -right-1 size-5 rounded-full" platform={destination.platform} /></span>
               <span className="min-w-0"><strong className="block truncate text-xs">{destination.name}</strong><span className="mt-0.5 block truncate text-[10px] text-text-muted">{destination.handle ? `${destination.handle} · ` : ''}{destination.type}</span><span className={`mt-1 inline-flex items-center gap-1 text-[9px] ${destination.connected ? 'text-brand-green' : 'text-brand-amber'}`}><i className="size-1.5 rounded-full bg-current" />{destination.connected ? 'Ready to publish' : destination.platform === 'facebook' ? 'Reconnect required' : destination.disabledReason}</span></span>
             </label>
-          })}</div> : <div className="mt-4 rounded-2xl border border-dashed border-border-soft bg-bg/20 p-10 text-center"><PlatformIcon className="mx-auto" platform={activePlatform === 'all' ? 'facebook' : activePlatform} /><strong className="mt-3 block text-sm">No matching connected profiles</strong><p className="mt-1 text-xs text-text-muted">{activePlatform === 'all' || activePlatform === 'facebook' ? 'Connect an account or change your search.' : 'No profile is connected yet; this connector is planned or still needs authorization.'}</p></div>}
+          })}</div> : <div className="mt-4 rounded-2xl border border-dashed border-border-soft bg-bg/20 p-10 text-center"><PlatformIcon className="mx-auto" platform={activePlatform === 'all' ? 'facebook' : activePlatform} /><strong className="mt-3 block text-sm">{activePlatformPlanned ? `${activePlatformLabel} publishing is not available yet` : 'No matching connected profiles'}</strong><p className="mt-1 text-xs text-text-muted">{activePlatformPlanned ? `${activePlatformLabel} is prepared in INXSocial's platform architecture but publishing is not live yet.` : activePlatform === 'all' || activePlatform === 'facebook' ? 'Connect an account or change your search.' : 'No profile is connected yet; this connector still needs authorization.'}</p></div>}
         </div>
         <footer className="flex flex-col gap-3 border-t border-border-soft bg-bg/35 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div className="flex min-w-0 items-center gap-3"><strong className="shrink-0 text-xs text-brand-cyan">{selectedIds.length} selected</strong><div className="flex -space-x-2">{selectedDestinations.slice(0, 5).map((destination) => <img alt={destination.name} className="size-7 rounded-full border-2 border-panel object-cover" key={destination.id} src={destination.avatarUrl || '/assets/inx-social-mark.png'} />)}{selectedDestinations.length > 5 && <span className="grid size-7 place-items-center rounded-full border-2 border-panel bg-panel-soft text-[9px]">+{selectedDestinations.length - 5}</span>}</div></div>
