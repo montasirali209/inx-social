@@ -51,9 +51,8 @@ test('React connections keep Meta-linked and direct Instagram authorization sepa
   assert.doesNotMatch(controller, /INSTAGRAM_CLIENT_ID \|\| process\.env\.META_APP_ID/);
   assert.match(connectedAccountsPage, /Instagram setup is incomplete\./);
   assert.match(connectedAccountsPage, /Instagram setup required/);
-  assert.match(connectedAccountsPage, /Connect with Meta/);
-  assert.match(connectedAccountsPage, /Connect Instagram directly/);
-  assert.match(connectedAccountsPage, /Recommended/);
+  assert.doesNotMatch(connectedAccountsPage, /Connect with Meta/);
+  assert.match(connectedAccountsPage, /Direct Instagram connection/);
   assert.match(connectedAccountsPage, />\s*Close\s*<\/Button>/);
   assert.doesNotMatch(connectedAccountsPage, />\s*Back\s*<\/Button>/);
   assert.match(service, /force_authentication/);
