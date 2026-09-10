@@ -53,10 +53,16 @@ function imageDimensions(aspectRatio = '1:1') {
   return { width, height };
 }
 
-function videoDimensions(aspectRatio = '9:16') {
-  const map = {
-    '1:1': [1024, 1024],
-    '4:5': [864, 1080],
+function videoDimensions(aspectRatio = '9:16', model = '') {
+  const wan = String(model).startsWith('alibaba:wan@3.0');
+  const map = wan ? {
+    '1:1': [960, 960],
+    '4:5': [832, 1104],
+    '9:16': [720, 1280],
+    '16:9': [1280, 720]
+  } : {
+    '1:1': [720, 720],
+    '4:5': [720, 960],
     '9:16': [720, 1280],
     '16:9': [1280, 720]
   };
@@ -98,7 +104,7 @@ async function generateImages(prompts, options = {}) {
     taskUUID: crypto.randomUUID(),
     model,
     deliveryMethod: 'sync',
-    positivePrompt: prompt,
+    positivePrompt: String(prompt).slice(0, 20000),
     width,
     height,
     numberResults: 1,
@@ -126,30 +132,64 @@ async function pollTask(taskUUID, onProgress = () => {}) {
       continue;
     }
     if (item.status === 'error') throw providerError(item.error?.message || 'AI video generation failed.', item.error?.code || 'RUNWARE_VIDEO_FAILED', 502);
-    if (item.videoURL || item.status === 'success') return item;
+    if (item.videoURL || item.status === 'success') {
+      if (!item.videoURL) throw providerError('AI video generation completed without a video URL.', 'RUNWARE_EMPTY_VIDEO', 502);
+      return item;
+    }
   }
   throw providerError('AI video generation timed out. Your credits will be returned automatically.', 'RUNWARE_VIDEO_TIMEOUT', 504);
 }
 
 async function generateVideo(input, onProgress = () => {}) {
   const duration = Math.max(2, Math.min(15, Math.floor(Number(input.duration || 5))));
-  const long = duration > 10;
-  const model = input.model || (long ? env.runware.videoLongModel : env.runware.videoModel);
-  const { width, height } = videoDimensions(input.aspectRatio);
+  const requestedModel = input.model || '';
+  let model = requestedModel || (input.referenceVideo ? env.runware.videoEditModel : duration > 10 ? env.runware.videoLongModel : env.runware.videoModel);
+
+  // P-Video supports up to 10 seconds and no video-to-video input. Route longer
+  // or source-video jobs through the configured long/edit model instead.
+  if (duration > 10 && String(model) === String(env.runware.videoModel)) model = env.runware.videoLongModel;
+  if (input.referenceVideo && String(model) === String(env.runware.videoModel)) model = env.runware.videoEditModel;
+
+  const isPVideo = String(model) === 'prunaai:p-video@0';
+  const isWan = String(model).startsWith('alibaba:wan@3.0');
+  const { width, height } = videoDimensions(input.aspectRatio, model);
   const taskUUID = crypto.randomUUID();
   const task = {
     taskType: 'videoInference',
     taskUUID,
     model,
     deliveryMethod: 'async',
-    positivePrompt: input.prompt,
-    width,
-    height,
+    positivePrompt: String(input.prompt || '').slice(0, isPVideo ? 2000 : 20000),
     duration,
     includeCost: true,
     settings: { audio: input.audio !== false }
   };
-  if (input.referenceImage) task.inputs = { frameImages: [input.referenceImage] };
+
+  if (input.referenceVideo) {
+    if (!isWan) throw providerError('The selected source video requires the configured video-edit model.', 'RUNWARE_VIDEO_EDIT_MODEL_UNSUPPORTED', 422);
+    task.inputs = { referenceVideos: [input.referenceVideo] };
+    task.width = width;
+    task.height = height;
+  } else if (input.referenceImage) {
+    if (isPVideo) {
+      // P-Video requires exactly one of frameImages or width/height. A resolution
+      // preset keeps the request valid while preserving the source image ratio.
+      task.inputs = { frameImages: [input.referenceImage] };
+      task.resolution = '720p';
+    } else if (isWan) {
+      task.inputs = { referenceImages: [input.referenceImage] };
+      task.width = width;
+      task.height = height;
+    } else {
+      task.inputs = { frameImages: [input.referenceImage] };
+      task.width = width;
+      task.height = height;
+    }
+  } else {
+    task.width = width;
+    task.height = height;
+  }
+
   onProgress(5);
   const initial = await request([task], 60000);
   const first = initial.find(entry => entry.taskUUID === taskUUID) || initial[0];
