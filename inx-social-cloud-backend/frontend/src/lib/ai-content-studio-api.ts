@@ -3,7 +3,6 @@ import { fetchMediaLibrary, uploadMediaAsset } from './media-library-api'
 import type { MediaAsset } from '../types/media-library'
 import type {
   AIDraft,
-  AIContentType,
   AIPlanAccess,
   BrandKit,
   GeneratedAsset,
