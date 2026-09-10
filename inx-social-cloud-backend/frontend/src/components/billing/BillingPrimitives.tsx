@@ -2,18 +2,19 @@ import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from 're
 import { createPortal } from 'react-dom'
 import { Check, LockKeyhole, X } from 'lucide-react'
 import type { InvoiceStatus, SubscriptionStatus } from '../../types/billing'
+import './billing-depth.css'
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <section className={`rounded-panel border border-border-soft bg-[linear-gradient(145deg,rgba(10,32,43,.88),rgba(5,21,31,.92))] shadow-[0_20px_55px_rgba(0,0,0,.22),inset_0_1px_rgba(255,255,255,.035)] backdrop-blur-xl ${className}`}>{children}</section>
+  return <section className={`billing-depth-card rounded-panel border border-border-soft bg-[linear-gradient(145deg,rgba(10,32,43,.88),rgba(5,21,31,.92))] backdrop-blur-xl ${className}`}>{children}</section>
 }
 
 export function Button({ children, className = '', tone = 'secondary', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode; tone?: 'primary' | 'secondary' | 'danger' | 'ghost' }) {
   const tones = { primary: 'border-brand-teal/60 bg-brand-teal text-[#02130f] hover:bg-brand-cyan', secondary: 'border-border-strong bg-panel-soft/70 text-white hover:bg-panel-hover', danger: 'border-brand-red/50 bg-brand-red/12 text-[#fda4af] hover:bg-brand-red/22', ghost: 'border-transparent bg-transparent text-text-muted hover:bg-white/5 hover:text-white' }
-  return <button className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold transition duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0 motion-reduce:transform-none ${tones[tone]} ${className}`} {...props}>{children}</button>
+  return <button className={`billing-depth-button inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan disabled:cursor-not-allowed disabled:opacity-45 motion-reduce:transform-none ${tones[tone]} ${className}`} {...props}>{children}</button>
 }
 
 export function Toggle({ checked, label, onChange, disabled = false }: { checked: boolean; label: string; onChange: (checked: boolean) => void; disabled?: boolean }) {
-  return <button aria-checked={checked} aria-label={label} className={`relative h-7 w-12 shrink-0 rounded-full border transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan ${checked ? 'border-brand-teal bg-brand-teal' : 'border-border-strong bg-bg/70'} disabled:opacity-45`} disabled={disabled} onClick={() => onChange(!checked)} role="switch" type="button"><span className={`absolute top-1 size-[18px] rounded-full bg-white shadow transition ${checked ? 'left-6' : 'left-1'}`} /></button>
+  return <button aria-checked={checked} aria-label={label} className={`billing-depth-toggle relative h-7 w-12 shrink-0 rounded-full border transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan ${checked ? 'border-brand-teal bg-brand-teal' : 'border-border-strong bg-bg/70'} disabled:opacity-45`} disabled={disabled} onClick={() => onChange(!checked)} role="switch" type="button"><span className={`absolute top-1 size-[18px] rounded-full bg-white shadow transition ${checked ? 'left-6' : 'left-1'}`} /></button>
 }
 
 export function ProgressBar({ label, value, max }: { label: string; value: number; max: number }) {
