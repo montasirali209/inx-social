@@ -29,7 +29,7 @@ test('shared platform icon system is used by Posts, Dashboard and Analytics', ()
   assert.match(connectionOverrides, /size-8/);
 });
 
-test('Post Preview uses a compact media placeholder and never renders a broken INXSocial avatar', () => {
+test('Post Preview uses a neutral full-width media placeholder and never renders a broken INXSocial avatar', () => {
   const preview = read('frontend/src/components/posts/PostPreviewPanel.tsx');
 
   assert.doesNotMatch(preview, /\/assets\/inx-social-mark\.png/);
@@ -37,8 +37,11 @@ test('Post Preview uses a compact media placeholder and never renders a broken I
   assert.match(preview, /failedPicture !== picture/);
   assert.match(preview, /UserRound/);
   assert.match(preview, /ImageIcon/);
-  assert.match(preview, /size-\[18px\]/);
-  assert.doesNotMatch(preview, /mx-auto mb-2\.5 size-11/);
+  assert.match(preview, /h-56 w-full place-items-center/);
+  assert.doesNotMatch(preview, /aspect-video max-h-56/);
+  assert.doesNotMatch(preview, /ImageIcon[\s\S]{0,220}<PlatformIcon/);
+  const platformIconUsages = preview.match(/<PlatformIcon/g) || [];
+  assert.equal(platformIconUsages.length, 1, 'platform icons belong only in the preview platform tabs');
 });
 
 test('Bulk Scheduler uses the same destination selector component as Posts', () => {
