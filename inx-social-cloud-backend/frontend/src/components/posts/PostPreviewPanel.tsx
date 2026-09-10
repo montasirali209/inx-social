@@ -14,7 +14,7 @@ function PreviewAvatar({ page }: { page: ConnectedPage | null }) {
   const showPicture = Boolean(picture && failedPicture !== picture)
 
   return (
-    <span className="relative grid size-11 shrink-0 place-items-center">
+    <span className="grid size-11 shrink-0 place-items-center">
       {showPicture ? (
         <img alt="" className="size-10 rounded-full border border-border-strong bg-panel object-cover shadow-[0_5px_16px_rgba(0,0,0,.22)]" onError={() => setFailedPicture(picture)} src={picture} />
       ) : (
@@ -22,7 +22,6 @@ function PreviewAvatar({ page }: { page: ConnectedPage | null }) {
           {initial || <UserRound aria-hidden="true" className="size-4 text-text-soft" />}
         </span>
       )}
-      {page ? <PlatformIcon className="absolute -bottom-0.5 -right-0.5 size-4 rounded-full ring-2 ring-[#071923] shadow-none" platform="facebook" /> : null}
     </span>
   )
 }
@@ -40,7 +39,7 @@ export function PostPreviewPanel({ caption, media, selectedPage }: Props) {
           </button>
         ))}
       </div>
-      <article className="mt-3 overflow-hidden rounded-xl border border-border-soft bg-bg/45 shadow-[0_10px_28px_rgba(0,0,0,.12)]">
+      <article className="mt-3 w-full overflow-hidden rounded-xl border border-border-soft bg-bg/45 shadow-[0_10px_28px_rgba(0,0,0,.12)]">
         <header className="flex items-center gap-3 p-3">
           <PreviewAvatar page={selectedPage} />
           <div className="min-w-0 flex-1"><strong className="block truncate text-xs">{selectedPage?.facebookPageName || 'Choose a destination'}</strong><span className="text-[9px] text-text-soft">Just now · Public</span></div>
@@ -48,19 +47,18 @@ export function PostPreviewPanel({ caption, media, selectedPage }: Props) {
         </header>
         <p className="whitespace-pre-wrap px-3 pb-3 text-xs leading-5 text-text-main">{caption || 'Your caption preview will appear here as you type.'}</p>
         {media ? (
-          <div className="aspect-video max-h-72 bg-black/35">{media.type === 'image' ? <img alt="Post preview media" className="h-full w-full object-cover" src={media.url} /> : <video aria-label="Post preview video" className="h-full w-full object-cover" muted src={media.url} />}</div>
+          <div className="h-56 w-full overflow-hidden bg-black/35">{media.type === 'image' ? <img alt="Post preview media" className="h-full w-full object-cover" src={media.url} /> : <video aria-label="Post preview video" className="h-full w-full object-cover" muted src={media.url} />}</div>
         ) : (
-          <div className="grid aspect-video max-h-56 place-items-center border-y border-border-soft bg-[radial-gradient(circle_at_50%_45%,rgba(20,184,166,.09),transparent_34%),linear-gradient(145deg,rgba(12,37,50,.74),rgba(4,18,27,.82))]">
+          <div className="grid h-56 w-full place-items-center border-y border-border-soft bg-[radial-gradient(circle_at_50%_45%,rgba(20,184,166,.09),transparent_34%),linear-gradient(145deg,rgba(12,37,50,.74),rgba(4,18,27,.82))]">
             <div className="flex flex-col items-center gap-2 text-center text-[10px] text-text-soft">
-              <span className="relative grid size-10 place-items-center rounded-xl border border-brand-cyan/15 bg-brand-cyan/[0.06] text-brand-cyan shadow-[0_8px_22px_rgba(0,0,0,.16)]">
+              <span className="grid size-10 place-items-center rounded-xl border border-brand-cyan/15 bg-brand-cyan/[0.06] text-brand-cyan shadow-[0_8px_22px_rgba(0,0,0,.16)]">
                 <ImageIcon aria-hidden="true" className="size-[18px]" />
-                <PlatformIcon className="absolute -bottom-1 -right-1 size-4 rounded-full ring-2 ring-[#071923] shadow-none" platform="facebook" />
               </span>
               <span className="font-medium text-text-muted">Media preview</span>
             </div>
           </div>
         )}
-        <div className="flex items-center justify-between border-b border-border-soft px-3 py-2 text-[10px] text-text-muted"><span className="flex items-center gap-1"><Heart className="size-3 fill-brand-red text-brand-red" /> Preview</span><span>Comments · Shares</span></div>
+        <div className="flex min-w-0 items-center justify-between gap-3 border-b border-border-soft px-3 py-2 text-[10px] text-text-muted"><span className="flex min-w-0 items-center gap-1"><Heart className="size-3 shrink-0 fill-brand-red text-brand-red" /> <span className="truncate">Preview</span></span><span className="shrink-0">Comments · Shares</span></div>
         <div className="grid grid-cols-3 p-1">{[[Heart, 'Like'], [MessageCircle, 'Comment'], [Share2, 'Share']].map(([Icon, label]) => <button className="flex items-center justify-center gap-1.5 rounded-lg py-2 text-[10px] text-text-muted transition hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" key={label as string} type="button"><Icon className="size-3.5" />{label as string}</button>)}</div>
       </article>
       <p className="mt-3 flex items-center gap-2 rounded-lg border border-border-soft bg-bg/25 p-2 text-[9px] text-text-soft"><Send className="size-3" />Preview may vary slightly when published by the platform.</p>
