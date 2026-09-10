@@ -1,5 +1,5 @@
 import { Heart, MessageCircle, MoreHorizontal, Send, Share2, UserRound } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { platforms } from '../../data/postsData'
 import type { ConnectedPage } from '../../types/dashboard'
 import type { MediaItem, Platform } from '../../types/posts'
@@ -8,16 +8,15 @@ import { PanelHeading, PlatformIcon } from './PostPrimitives'
 type Props = { caption: string; media: MediaItem | null; selectedPage: ConnectedPage | null }
 
 function PreviewAvatar({ page }: { page: ConnectedPage | null }) {
-  const [failed, setFailed] = useState(false)
+  const [failedPicture, setFailedPicture] = useState<string | null>(null)
   const picture = page?.facebookPagePicture || ''
   const initial = page?.facebookPageName?.trim().slice(0, 1).toUpperCase() || ''
-
-  useEffect(() => setFailed(false), [picture])
+  const showPicture = Boolean(picture && failedPicture !== picture)
 
   return (
     <span className="relative grid size-11 shrink-0 place-items-center">
-      {picture && !failed ? (
-        <img alt="" className="size-10 rounded-full border border-border-strong bg-panel object-cover shadow-[0_5px_16px_rgba(0,0,0,.22)]" onError={() => setFailed(true)} src={picture} />
+      {showPicture ? (
+        <img alt="" className="size-10 rounded-full border border-border-strong bg-panel object-cover shadow-[0_5px_16px_rgba(0,0,0,.22)]" onError={() => setFailedPicture(picture)} src={picture} />
       ) : (
         <span className="grid size-10 place-items-center rounded-full border border-border-strong bg-[linear-gradient(145deg,rgba(18,48,63,.95),rgba(7,25,35,.98))] text-sm font-bold text-text-main shadow-[0_5px_16px_rgba(0,0,0,.2)]">
           {initial || <UserRound aria-hidden="true" className="size-4 text-text-soft" />}
