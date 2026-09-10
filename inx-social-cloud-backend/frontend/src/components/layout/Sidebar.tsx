@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import type { StudioOverview } from '../../types/dashboard'
+import { preloadAppRoute } from '../../route-preload'
 import { useUiStore } from '../../store/ui-store'
 import { PlanCard } from '../dashboard/PlanCard'
 import { Button } from '../ui/Button'
@@ -33,6 +34,10 @@ const navigation = [
 
 const itemClasses = 'interactive-nav group relative flex min-h-10 items-center gap-3 overflow-hidden rounded-xl border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan md:justify-center md:px-2 xl:justify-start xl:px-3'
 
+function warmRoute(path: string) {
+  void preloadAppRoute(path)
+}
+
 export function Sidebar({ overview }: { overview?: StudioOverview }) {
   const open = useUiStore((state) => state.mobileNavigationOpen)
   const setOpen = useUiStore((state) => state.setMobileNavigationOpen)
@@ -46,7 +51,7 @@ export function Sidebar({ overview }: { overview?: StudioOverview }) {
           <Button aria-label="Close navigation" className="size-10 px-0 md:hidden" onClick={() => setOpen(false)} variant="ghost"><X aria-hidden="true" className="size-5" /></Button>
         </div>
 
-        <NavLink className="group mt-4 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-brand-cyan/45 bg-gradient-to-r from-brand-blue to-[#0f8f7f] px-4 text-sm font-bold text-white shadow-[0_14px_34px_rgba(20,184,166,0.2)] transition duration-200 hover:-translate-y-0.5 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan motion-reduce:transition-none" onClick={() => setOpen(false)} to="/posts">
+        <NavLink className="group mt-4 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-brand-cyan/45 bg-gradient-to-r from-brand-blue to-[#0f8f7f] px-4 text-sm font-bold text-white shadow-[0_14px_34px_rgba(20,184,166,0.2)] transition duration-200 hover:-translate-y-0.5 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan motion-reduce:transition-none" onClick={() => setOpen(false)} onFocus={() => warmRoute('/posts')} onPointerEnter={() => warmRoute('/posts')} onTouchStart={() => warmRoute('/posts')} to="/posts">
           <FilePlus2 aria-hidden="true" className="size-5 shrink-0 transition group-hover:rotate-6 motion-reduce:transition-none" />
           <span className="md:hidden xl:inline">Create New Post</span>
         </NavLink>
@@ -55,7 +60,7 @@ export function Sidebar({ overview }: { overview?: StudioOverview }) {
           {navigation.map(({ label, icon: Icon, reactPath }) => {
             const content = <><Icon aria-hidden="true" className="size-[19px] shrink-0" /><span className="min-w-0 flex-1 truncate md:hidden xl:block">{label}</span></>
             if (reactPath) {
-              return <NavLink className={({ isActive }) => `${itemClasses} ${isActive ? 'border-brand-cyan/50 bg-gradient-to-r from-brand-blue/22 to-brand-cyan/5 text-text-main shadow-glow-blue before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-brand-cyan before:shadow-[0_0_12px_#2dd4bf]' : 'border-transparent text-text-muted hover:border-white/5 hover:bg-panel-hover/55 hover:text-text-main'}`} end key={label} onClick={() => setOpen(false)} to={reactPath}>{content}</NavLink>
+              return <NavLink className={({ isActive }) => `${itemClasses} ${isActive ? 'border-brand-cyan/50 bg-gradient-to-r from-brand-blue/22 to-brand-cyan/5 text-text-main shadow-glow-blue before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-brand-cyan before:shadow-[0_0_12px_#2dd4bf]' : 'border-transparent text-text-muted hover:border-white/5 hover:bg-panel-hover/55 hover:text-text-main'}`} end key={label} onClick={() => setOpen(false)} onFocus={() => warmRoute(reactPath)} onPointerEnter={() => warmRoute(reactPath)} onTouchStart={() => warmRoute(reactPath)} to={reactPath}>{content}</NavLink>
             }
             return <a className={`${itemClasses} border-transparent text-text-muted hover:border-white/5 hover:bg-panel-hover/55 hover:text-text-main`} href="/app/" key={label} title={label}>{content}</a>
           })}

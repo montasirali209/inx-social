@@ -3,9 +3,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
-test('Facebook demographics UI explains snapshot fallback instead of presenting missing Instagram as a broken Facebook connection', () => {
-  const source = fs.readFileSync(path.resolve(__dirname, '../frontend/src/components/analytics/AudienceCards.tsx'), 'utf8');
-  assert.match(source, /Meta no longer exposes native Facebook Page age and gender/);
-  assert.match(source, /Add Business Suite snapshot/);
-  assert.match(source, /separately labelled source/);
+test('Facebook analytics replaces unsupported demographics UI with Audience Pulse', () => {
+  const cards = fs.readFileSync(path.resolve(__dirname, '../frontend/src/components/analytics/AudienceCards.tsx'), 'utf8');
+  const page = fs.readFileSync(path.resolve(__dirname, '../frontend/src/components/analytics/AnalyticsPage.tsx'), 'utf8');
+  assert.match(cards, /title="Audience Pulse"/);
+  assert.match(cards, /Interactions \/ 1K/);
+  assert.match(cards, /Verified audience change/);
+  assert.doesNotMatch(page, /AudienceDemographicsCard/);
 });

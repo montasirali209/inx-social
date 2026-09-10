@@ -27,11 +27,13 @@ test('YouTube analytics can refresh expired and provider-invalidated OAuth acces
   assert.match(tokenService, /tokenExpiresAt:/);
 });
 
-test('Facebook demographic copy does not misrepresent Instagram as native Facebook demographics', () => {
+test('Analytics replaces unsupported demographic presentation with cross-platform Audience Pulse', () => {
   const audience = read('frontend/src/components/analytics/AudienceCards.tsx');
-  assert.match(audience, /Meta no longer exposes native Facebook Page age and gender/);
-  assert.match(audience, /Facebook Business Suite snapshot/);
-  assert.match(audience, /Instagram live/);
+  const page = read('frontend/src/components/analytics/AnalyticsPage.tsx');
+  assert.match(audience, /title="Audience Pulse"/);
+  assert.match(audience, /Interactions \/ 1K/);
+  assert.match(audience, /Verified audience change/);
+  assert.doesNotMatch(page, /AudienceDemographicsCard/);
 });
 
 test('landing and workspace load dedicated mobile responsive guardrails', () => {
