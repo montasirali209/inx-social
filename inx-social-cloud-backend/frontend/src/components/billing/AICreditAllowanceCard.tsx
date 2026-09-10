@@ -33,7 +33,7 @@ export function AICreditAllowanceCard({ currentPlan, onUpgrade }: { currentPlan:
     </Card>
   }
 
-  if (access.isLoading) return <Card className="h-44 animate-pulse border-brand-teal/20 bg-panel/55" />
+  if (access.isLoading) return <Card className="h-44 animate-pulse border-brand-teal/20 bg-panel/55"><span className="sr-only">Loading AI credit allowance</span></Card>
 
   if (access.isError || !access.data) {
     return <Card className="border-brand-amber/25 p-5"><div className="flex items-start gap-3"><Coins className="mt-0.5 size-5 text-brand-amber" /><div><h2 className="font-semibold">Plus AI Studio Credits</h2><p className="mt-1 text-xs leading-5 text-text-muted">Your Plus plan includes 500 AI Studio credits per billing period. The live balance could not be loaded right now.</p><Button className="mt-3" onClick={() => void access.refetch()}>Refresh balance</Button></div></div></Card>
