@@ -24,6 +24,12 @@ export type AIPlanAccess = {
   creditsConfigured: boolean
   commercialUse: boolean
   priorityProcessing: boolean
+  monthlyRemaining?: number
+  topupRemaining?: number
+  periodStart?: string
+  periodEnd?: string
+  providerConfigured?: boolean
+  topupsSupported?: boolean
 }
 
 export type GenerationRequest = {
@@ -52,6 +58,7 @@ export type GeneratedAsset = {
   aspectRatio?: string
   mediaLibraryAssetId?: string | null
   slides?: GeneratedAsset[]
+  variants?: GeneratedAsset[]
   script?: string
   hook?: string
   cta?: string
