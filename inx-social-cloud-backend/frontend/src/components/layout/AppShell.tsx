@@ -1,6 +1,8 @@
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Outlet, useLocation } from 'react-router-dom'
 import { fetchStudioOverview } from '../../lib/dashboard-api'
+import { preloadAllAppRoutes } from '../../route-preload'
 import { RequireAuth } from '../auth/RequireAuth'
 import { BulkSchedulerPage } from '../bulk-scheduler/BulkSchedulerPage'
 import { BulkRunDock, BulkSchedulerActivityProvider } from '../bulk-scheduler/BulkSchedulerActivity'
@@ -19,6 +21,13 @@ function AppShellContent() {
     queryFn: fetchStudioOverview,
     refetchInterval: 60_000,
   })
+
+  useEffect(() => {
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection
+    if (connection?.saveData || connection?.effectiveType === 'slow-2g' || connection?.effectiveType === '2g') return
+    const timer = window.setTimeout(() => { void preloadAllAppRoutes() }, 320)
+    return () => window.clearTimeout(timer)
+  }, [])
 
   return (
     <div className="min-h-dvh bg-bg text-text-main">
