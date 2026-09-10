@@ -14,9 +14,11 @@ const portalRoutes = require('./routes/portalRoutes');
 const billingRoutes = require('./routes/billingRoutes');
 const systemRoutes = require('./routes/systemRoutes');
 const billingController = require('./controllers/billingController');
+const aiContentStudioController = require('./controllers/aiContentStudioController');
 const errorHandler = require('./middleware/errorHandler');
 const releaseRoutes = require('./routes/releaseRoutes');
 const studioRoutes = require('./routes/studioRoutes');
+const aiContentStudioRoutes = require('./routes/aiContentStudioRoutes');
 const agentRoutes = require('./routes/agentRoutes');
 const socialPlatformRoutes = require('./routes/socialPlatformRoutes');
 const socialConnectionRoutes = require('./routes/socialConnectionRoutes');
@@ -64,15 +66,14 @@ app.use('/api/admin', rateLimit({ windowMs: 60 * 1000, limit: 90 }), (req, res, 
   next();
 });
 
-// Account, API and administration screens must not compete with the public
-// product pages in search results.
 app.use(['/admin', '/api', '/portal', '/studio', '/app'], (req, res, next) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
   next();
 });
 
-// This must be registered before express.json(). Stripe verifies the exact raw bytes.
+// Stripe signatures require the exact raw request bytes. Keep both Stripe webhooks before express.json().
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), billingController.webhook);
+app.post('/api/ai-content-studio/credits/webhook', express.raw({ type: 'application/json' }), aiContentStudioController.creditWebhook);
 
 app.use(express.json({ limit: '2mb' }));
 app.use('/api/releases', releaseRoutes);
@@ -87,8 +88,6 @@ app.use(express.static(path.join(__dirname, '..', 'public'), {
   }
 }));
 app.use('/portal', express.static(path.join(__dirname, '..', 'portal')));
-// The React workspace is now the only customer application. Keep legacy OAuth
-// callback assets under /studio, but retire the old Studio document itself.
 app.get(['/studio', '/studio/', '/studio/index.html'], (req, res) => res.redirect(308, '/app/'));
 app.use('/studio', (req, res, next) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
@@ -128,8 +127,6 @@ app.get('/privacy', (req, res) => res.redirect(308, '/privacy.html'));
 app.get('/terms', (req, res) => res.redirect(308, '/terms.html'));
 app.get('/data-deletion', (req, res) => res.redirect(308, '/data-deletion.html'));
 
-// Preserve the legacy path previously submitted to Meta when the owner points
-// that URL at this service. The canonical public document remains at the root.
 app.get('/inx-social/data-deletion.html', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'data-deletion.html'));
 });
@@ -152,12 +149,11 @@ app.use('/api/admin/system', systemRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/studio', studioRoutes);
+app.use('/api/ai-content-studio', rateLimit({ windowMs: 60 * 1000, limit: 60 }), aiContentStudioRoutes);
 app.use('/api/agent', agentRoutes);
 app.use('/api/social-platforms', socialPlatformRoutes);
 app.use('/api/social-connections', socialConnectionRoutes);
 
-// The React application is migrated route by route. Keep this fallback after
-// every API route so client-side navigation can never intercept /api requests.
 app.get('/app/*', (req, res, next) => {
   res.sendFile(reactAppIndex, error => {
     if (!error) return;

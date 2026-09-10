@@ -1,10 +1,8 @@
 import { ApiError, apiRequest, getStoredAuthToken } from './api-client'
-import { fetchStudioOverview } from './dashboard-api'
 import { fetchMediaLibrary, uploadMediaAsset } from './media-library-api'
 import type { MediaAsset } from '../types/media-library'
 import type {
   AIDraft,
-  AIContentType,
   AIPlanAccess,
   BrandKit,
   GeneratedAsset,
@@ -16,13 +14,6 @@ import type {
 
 const DRAFT_KEY = 'inx-social-ai-drafts-v1'
 const HISTORY_KEY = 'inx-social-ai-generation-history-v1'
-
-function normalisePlan(plan: string): AIPlanAccess['plan'] {
-  const value = String(plan || 'TRIAL').toUpperCase()
-  if (value === 'PLUS' || value === 'LIFETIME') return 'plus'
-  if (value === 'PRO') return 'pro'
-  return 'trial'
-}
 
 function readLocal<T>(key: string, fallback: T): T {
   try {
@@ -37,60 +28,47 @@ function writeLocal<T>(key: string, value: T) {
   window.localStorage.setItem(key, JSON.stringify(value))
 }
 
-function unavailableMessage(type: AIContentType) {
-  const label = ({ image_post: 'image post', carousel_post: 'carousel', short_video: 'short video', ugc_ad: 'UGC ad' } as const)[type]
-  return `The ${label} generation provider is not connected to the new AI Content Studio service yet. Your inputs are still available to edit.`
+export function getAIStudioAccess() {
+  return apiRequest<AIPlanAccess>('/api/ai-content-studio/access')
 }
 
-export async function getAIStudioAccess(): Promise<AIPlanAccess> {
-  const overview = await fetchStudioOverview()
-  const plan = normalisePlan(overview.license.plan)
-  const studio = overview.features?.aiContentStudio
-  const extended = studio as (typeof studio & {
-    credits?: {
-      remaining?: number | null
-      limit?: number | null
-      unlimited?: boolean
-      commercialUse?: boolean
-      priorityProcessing?: boolean
-    }
-  }) | undefined
-  const credits = extended?.credits
-  return {
-    plan,
-    studioEnabled: Boolean(studio?.allowed && plan === 'plus'),
-    creditsRemaining: typeof credits?.remaining === 'number' ? credits.remaining : null,
-    creditsLimit: typeof credits?.limit === 'number' ? credits.limit : null,
-    unlimitedCredits: Boolean(credits?.unlimited),
-    creditsConfigured: Boolean(credits),
-    commercialUse: credits?.commercialUse ?? plan === 'plus',
-    priorityProcessing: credits?.priorityProcessing ?? plan === 'plus',
-  }
+export function getAICreditBalance() {
+  return apiRequest<{
+    remaining: number
+    limit: number
+    monthlyRemaining: number
+    topupRemaining: number
+    unlimited: boolean
+    configured: boolean
+    periodStart: string
+    periodEnd: string
+  }>('/api/ai-content-studio/credits/balance')
 }
 
-export async function getAICreditBalance() {
-  const access = await getAIStudioAccess()
-  return {
-    remaining: access.creditsRemaining,
-    limit: access.creditsLimit,
-    unlimited: access.unlimitedCredits,
-    configured: access.creditsConfigured,
-  }
+export async function getAICreditPacks() {
+  return apiRequest<{ supported: boolean; packs: Array<{ credits: number }> }>('/api/ai-content-studio/credits/packs')
+}
+
+export function createAICreditTopupCheckout(credits: number) {
+  return apiRequest<{ url: string; sessionId: string }>('/api/ai-content-studio/credits/checkout', {
+    method: 'POST',
+    body: JSON.stringify({ credits }),
+  })
 }
 
 function fallbackCredits(request: GenerationRequest) {
   const variants = Math.max(1, Math.min(4, Number(request.options.variants || 1)))
-  if (request.type === 'image_post') return Math.max(1, variants)
+  if (request.type === 'image_post') return 5 * variants
   if (request.type === 'carousel_post') {
     const slides = Math.max(3, Math.min(10, Number(request.options.slides || 4)))
-    return Math.max(2, Math.ceil(slides / 4) * 2)
+    return slides <= 5 ? 10 : slides <= 8 ? 15 : 20
   }
   if (request.type === 'short_video') {
-    const duration = Math.max(5, Math.min(30, Number(request.options.duration || 5)))
-    return Math.max(3, Math.ceil(duration / 5) * 3)
+    const duration = Math.max(5, Math.min(15, Number(request.options.duration || 5)))
+    return duration <= 5 ? 15 : duration <= 10 ? 25 : 35
   }
-  const duration = Math.max(5, Math.min(30, Number(request.options.duration || 5)))
-  return Math.max(2, Math.ceil(duration / 5) * 2)
+  const duration = Math.max(5, Math.min(15, Number(request.options.duration || 10)))
+  return duration <= 10 ? 25 : 50
 }
 
 export async function estimateGenerationCost(request: GenerationRequest): Promise<GenerationCostEstimate> {
@@ -100,28 +78,21 @@ export async function estimateGenerationCost(request: GenerationRequest): Promis
       body: JSON.stringify(request),
     })
   } catch (error) {
-    if (!(error instanceof ApiError) || ![404, 501].includes(error.status)) throw error
+    if (!(error instanceof ApiError) || ![404, 501, 503].includes(error.status)) throw error
     return {
       credits: fallbackCredits(request),
       source: 'fallback',
-      explanation: 'Estimated from the current Studio pricing profile. The generation service validates the final charge before starting.',
+      explanation: 'Estimated from the published INXSocial Studio credit schedule. Generation still requires the production AI service to be configured.',
     }
   }
 }
 
 async function generate(endpoint: string, request: GenerationRequest, signal?: AbortSignal): Promise<GeneratedAsset> {
-  try {
-    return await apiRequest<GeneratedAsset>(endpoint, {
-      method: 'POST',
-      body: JSON.stringify(request),
-      signal,
-    })
-  } catch (error) {
-    if (error instanceof ApiError && [404, 501].includes(error.status)) {
-      throw new Error(unavailableMessage(request.type), { cause: error })
-    }
-    throw error
-  }
+  return apiRequest<GeneratedAsset>(endpoint, {
+    method: 'POST',
+    body: JSON.stringify(request),
+    signal,
+  })
 }
 
 export function generateImagePost(request: GenerationRequest, signal?: AbortSignal) {
@@ -141,11 +112,11 @@ export function generateUGCAd(request: GenerationRequest, signal?: AbortSignal) 
 }
 
 export function getGenerationStatus(id: string) {
-  return apiRequest<{ id: string; status: GenerationStatus; asset?: GeneratedAsset | null }>(`/api/ai-content-studio/generations/${encodeURIComponent(id)}`)
+  return apiRequest<{ id: string; status: GenerationStatus; progress?: number; asset?: GeneratedAsset | null; error?: string | null }>(`/api/ai-content-studio/generations/${encodeURIComponent(id)}`)
 }
 
 export function cancelGeneration(id: string) {
-  return apiRequest<{ ok: boolean; status: GenerationStatus }>(`/api/ai-content-studio/generations/${encodeURIComponent(id)}/cancel`, { method: 'POST' })
+  return apiRequest<{ id: string; status: GenerationStatus; progress?: number }>(`/api/ai-content-studio/generations/${encodeURIComponent(id)}/cancel`, { method: 'POST' })
 }
 
 async function downloadGeneratedFile(asset: GeneratedAsset) {

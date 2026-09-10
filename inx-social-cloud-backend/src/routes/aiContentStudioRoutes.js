@@ -1,0 +1,24 @@
+const router = require('express').Router();
+const { requireAuth } = require('../middleware/authMiddleware');
+const controller = require('../controllers/aiContentStudioController');
+
+router.use(requireAuth);
+router.get('/access', controller.access);
+router.get('/credits/balance', controller.balance);
+router.get('/credits/packs', controller.packs);
+router.post('/credits/checkout', controller.createTopupCheckout);
+router.post('/estimate', controller.estimate);
+router.post('/generate/image-post', controller.generateImagePost);
+router.post('/generate/carousel-post', controller.generateCarouselPost);
+router.post('/generate/short-video', controller.generateShortVideo);
+router.post('/generate/ugc-ad', controller.generateUGCAd);
+router.get('/generations/:id', controller.generationStatus);
+router.post('/generations/:id/cancel', controller.cancelGeneration);
+router.get('/drafts', controller.recentDrafts);
+router.post('/drafts', controller.saveDraft);
+router.delete('/drafts/:id', controller.deleteDraft);
+router.post('/drafts/:id/send-to-posts', controller.sendDraftToPosts);
+router.get('/history', controller.generationHistory);
+router.get('/brand-kits', controller.brandKits);
+
+module.exports = router;

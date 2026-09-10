@@ -43,6 +43,32 @@ module.exports = {
     portalReturnUrl: process.env.STRIPE_PORTAL_RETURN_URL || `${process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050'}/portal/`,
     paymentGraceDays: Math.max(1, Number(process.env.PAYMENT_GRACE_DAYS || 7))
   },
+  aiCredits: {
+    plusMonthlyCredits: Math.max(1, Math.min(100000, Number(process.env.AI_PLUS_MONTHLY_CREDITS || 500))),
+    stripeWebhookSecret: process.env.STRIPE_AI_CREDITS_WEBHOOK_SECRET || '',
+    topupPriceIds: {
+      '250': process.env.STRIPE_AI_CREDITS_250_PRICE_ID || '',
+      '500': process.env.STRIPE_AI_CREDITS_500_PRICE_ID || '',
+      '1000': process.env.STRIPE_AI_CREDITS_1000_PRICE_ID || '',
+      '2500': process.env.STRIPE_AI_CREDITS_2500_PRICE_ID || ''
+    }
+  },
+  runware: {
+    baseUrl: String(process.env.RUNWARE_API_URL || 'https://api.runware.ai/v1').replace(/\/$/, ''),
+    apiKey: process.env.RUNWARE_API_KEY || '',
+    imageModel: modelName(process.env.RUNWARE_IMAGE_MODEL, 'runware:400@4'),
+    imagePremiumModel: modelName(process.env.RUNWARE_IMAGE_PREMIUM_MODEL, 'google:4@3'),
+    videoModel: modelName(process.env.RUNWARE_VIDEO_MODEL, 'prunaai:p-video@0'),
+    videoLongModel: modelName(process.env.RUNWARE_VIDEO_LONG_MODEL, 'alibaba:wan@3.0'),
+    videoEditModel: modelName(process.env.RUNWARE_VIDEO_EDIT_MODEL, 'prunaai:p-video@edit'),
+    ugcModel: modelName(process.env.RUNWARE_UGC_MODEL, 'prunaai:p-video@0'),
+    textModel: modelName(process.env.RUNWARE_TEXT_MODEL, 'openai-gpt-5-4-nano'),
+    timeoutMs: Math.max(30000, Number(process.env.RUNWARE_TIMEOUT_MS || 360000)),
+    imageTimeoutMs: Math.max(30000, Number(process.env.RUNWARE_IMAGE_TIMEOUT_MS || 180000)),
+    textTimeoutMs: Math.max(10000, Number(process.env.RUNWARE_TEXT_TIMEOUT_MS || 90000)),
+    videoTimeoutMs: Math.max(60000, Number(process.env.RUNWARE_VIDEO_TIMEOUT_MS || 600000)),
+    pollIntervalMs: Math.max(1000, Math.min(10000, Number(process.env.RUNWARE_POLL_INTERVAL_MS || 2500)))
+  },
   installerUrl: process.env.INSTALLER_URL || '',
   latestVersion: process.env.LATEST_DESKTOP_VERSION || '14.0.1',
   ollama: {

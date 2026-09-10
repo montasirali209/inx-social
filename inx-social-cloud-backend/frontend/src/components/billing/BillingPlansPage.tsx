@@ -5,6 +5,7 @@ import { billingHelp, getPlan } from '../../data/billingData'
 import { changePlan, deleteAccount, getBillingOverview, openStripeCustomerPortal, updateBillingPreferences } from '../../lib/billing-api'
 import { useUiStore } from '../../store/ui-store'
 import type { BillingCycle, PlanId } from '../../types/billing'
+import { AICreditAllowanceCard } from './AICreditAllowanceCard'
 import { AccountPrivacyCard, BillingInformationCard, ChangePlanSection, ComparisonTable, CurrentPlanCard, InvoicesCard, InvoiceRow, SecureBillingFooter, UsageCard, UsageDetails } from './BillingSections'
 import { Button, Card, Drawer, Modal } from './BillingPrimitives'
 
@@ -15,6 +16,7 @@ function BillingSkeleton() { return <div aria-label="Loading billing details" cl
 
 export function BillingPlansPage() {
   const [checkoutResult] = useState(() => new URLSearchParams(window.location.search).get('checkout'))
+  const [creditResult] = useState(() => new URLSearchParams(window.location.search).get('credits'))
   const queryClient = useQueryClient()
   const search = useUiStore((state) => state.billingSearch)
   const setSearch = useUiStore((state) => state.setBillingSearch)
@@ -28,7 +30,11 @@ export function BillingPlansPage() {
     ? { tone: 'success', text: 'Payment completed. Subscription status is refreshing.' }
     : checkoutResult === 'cancelled'
       ? { tone: 'error', text: 'Checkout was cancelled. No plan change was made.' }
-      : null)
+      : creditResult === 'success'
+        ? { tone: 'success', text: 'AI credit payment completed. Your balance is refreshing.' }
+        : creditResult === 'cancelled'
+          ? { tone: 'error', text: 'AI credit checkout was cancelled. No credits were added.' }
+          : null)
   const [deleteText, setDeleteText] = useState('')
   const [password, setPassword] = useState('')
   const [openHelp, setOpenHelp] = useState<number | null>(0)
@@ -43,14 +49,15 @@ export function BillingPlansPage() {
   }
 
   useEffect(() => {
-    const result = checkoutResult
-    if (result) {
+    if (checkoutResult || creditResult) {
       window.history.replaceState({}, '', '/app/billing')
       void queryClient.invalidateQueries({ queryKey: ['billing-overview'] })
+      void queryClient.invalidateQueries({ queryKey: ['ai-studio-access'] })
+      void queryClient.invalidateQueries({ queryKey: ['ai-credit-packs'] })
       noticeTimer.current = window.setTimeout(() => setNotice(null), 4500)
     }
     return () => { if (noticeTimer.current) window.clearTimeout(noticeTimer.current) }
-  }, [checkoutResult, queryClient])
+  }, [checkoutResult, creditResult, queryClient])
 
   const preferences = useMutation({
     mutationFn: updateBillingPreferences,
@@ -93,11 +100,12 @@ export function BillingPlansPage() {
 
   return <div className="space-y-4 pb-10">
     <div className="grid gap-2 sm:hidden"><label className="relative"><span className="sr-only">Search billing</span><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" /><input className="min-h-11 w-full rounded-xl border border-border-soft bg-panel/70 pl-10 pr-3 text-sm outline-none focus:border-brand-cyan" onChange={(event) => setSearch(event.target.value)} placeholder="Search billing…" type="search" value={search} /></label><Button onClick={() => setHelpOpen(true)}><CircleHelp className="size-4" />Billing Help</Button></div>
-    {search && !['current plan subscription upgrade usage billing information payment stripe invoice change plan compare account privacy product updates delete secure'].some((term) => visible(term)) && <Card className="p-8 text-center"><h2 className="font-semibold">No billing sections found</h2><p className="mt-2 text-sm text-text-muted">Try a different search term.</p></Card>}
+    {search && !['current plan subscription upgrade usage ai credits allowance topup billing information payment stripe invoice change plan compare account privacy product updates delete secure'].some((term) => visible(term)) && <Card className="p-8 text-center"><h2 className="font-semibold">No billing sections found</h2><p className="mt-2 text-sm text-text-muted">Try a different search term.</p></Card>}
     <div className="grid items-stretch gap-4 xl:grid-cols-12">
       {visible('current plan subscription upgrade manage') && <div className="xl:col-span-7"><CurrentPlanCard onManage={() => setPanel('subscription')} onUpgrade={showPlans} overview={data} /></div>}
       {visible('usage limits analytics ai scheduled connected pages') && <div className="xl:col-span-5"><UsageCard onView={() => setPanel('usage')} overview={data} /></div>}
     </div>
+    {visible('ai studio credits allowance plus topup generation') && <AICreditAllowanceCard currentPlan={data.subscription.planId} onUpgrade={showPlans} />}
     {visible('billing information payment method stripe security') && <BillingInformationCard onUpdate={() => void portal()} />}
     {visible('change plan trial pro plus upgrade downgrade compare pricing monthly yearly') && <section ref={planSection}><ChangePlanSection availability={data.billing.availability} current={data.subscription.planId} cycle={cycle} highlight={highlightPlans} onChoose={choosePlan} onCompare={() => setPanel('compare')} onCycle={setCycle} /></section>}
     <div className="grid items-stretch gap-4 xl:grid-cols-12">

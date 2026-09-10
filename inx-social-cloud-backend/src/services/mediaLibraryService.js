@@ -47,7 +47,7 @@ function verifyContentAccess(token, assetId) {
 }
 
 function publicAsset(asset) {
-  const generated = ['OLLAMA_IMAGE', 'OPENAI_IMAGE'].includes(String(asset.source || '').toUpperCase());
+  const generated = ['OLLAMA_IMAGE', 'OPENAI_IMAGE', 'AI_STUDIO'].includes(String(asset.source || '').toUpperCase());
   const campaignUsage = (asset.campaignPosts || []).map(post => ({ id: post.id, title: post.title || 'Social Agent post', status: post.status }));
   const scheduledUsage = (asset.scheduleJobs || []).map(job => ({ id: job.id, title: job.title || job.localFileName || 'Scheduled post', status: job.status }));
   const usedIn = [...campaignUsage, ...scheduledUsage].filter((item, index, items) => items.findIndex(candidate => candidate.id === item.id) === index);
