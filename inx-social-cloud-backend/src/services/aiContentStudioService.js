@@ -54,9 +54,10 @@ function requestContext(request) {
     `Goal: ${o.goal || 'engagement'}`,
     `Tone: ${request.tone || 'professional'}`,
     `Visual style: ${o.visualStyle || 'brand-led'}`,
-    o.cta ? `CTA: ${o.cta}` : '',
     o.targetAudience ? `Audience: ${o.targetAudience}` : '',
-    o.offer ? `Offer supplied by user: ${o.offer}` : ''
+    o.hook ? `Requested hook: ${o.hook}` : '',
+    o.offer ? `Offer supplied by user: ${o.offer}` : '',
+    o.cta ? `CTA: ${o.cta}` : ''
   ].filter(Boolean).join('\n');
 }
 
@@ -78,10 +79,17 @@ async function buildCopy(request) {
 
 async function loadReference(userId, assetId) {
   if (!assetId) return null;
-  const asset = await prisma.agentAsset.findFirst({ where: { id: String(assetId), userId, status: 'READY', archivedAt: null }, select: { id: true, mimeType: true, data: true } });
+  const asset = await prisma.agentAsset.findFirst({ where: { id: String(assetId), userId, status: 'READY', archivedAt: null } });
   if (!asset) throw error('The selected Media Library source asset is unavailable.', 404, 'SOURCE_MEDIA_NOT_FOUND');
   if (asset.data.length > 50 * 1024 * 1024) throw error('The source media is too large for AI generation. Choose a file under 50 MB.', 413, 'SOURCE_MEDIA_TOO_LARGE');
-  return { id: asset.id, mimeType: asset.mimeType, dataUri: `data:${asset.mimeType};base64,${asset.data.toString('base64')}` };
+  const publicAsset = mediaLibrary.publicAsset(asset);
+  const publicUrl = `${String(env.appUrl || env.portalUrl || '').replace(/\/$/, '')}${publicAsset.fileUrl}`;
+  return {
+    id: asset.id,
+    mimeType: asset.mimeType,
+    dataUri: String(asset.mimeType || '').startsWith('image/') ? `data:${asset.mimeType};base64,${asset.data.toString('base64')}` : null,
+    publicUrl
+  };
 }
 
 async function downloadProviderAsset(url, type) {
@@ -199,7 +207,11 @@ async function generate(userId, request) {
       const saved = [];
       for (let index = 0; index < generated.images.length; index += 1) {
         saved.push(await persistProviderAsset(userId, generationId, generated.images[index], {
-          type: 'image', contentType: request.type, prompt: request.prompt, visualPrompt: prompts[index], aspectRatio: request.aspectRatio || '4:5', caption: data.caption, hashtags: safeTags(data.hashtags), altText: data.altText, creditsUsed: estimatedCredits, index: index + 1
+          type: 'image', contentType: request.type, prompt: request.prompt, visualPrompt: prompts[index], aspectRatio: request.aspectRatio || '4:5',
+          caption: options.generateCaption === false ? '' : data.caption,
+          hashtags: options.generateHashtags === false ? [] : safeTags(data.hashtags),
+          altText: options.generateAltText === false ? '' : data.altText,
+          creditsUsed: estimatedCredits, index: index + 1
         }));
       }
       asset = saved[0];
@@ -214,8 +226,9 @@ async function generate(userId, request) {
       model = generated.model;
       const savedSlides = [];
       for (let index = 0; index < generated.images.length; index += 1) {
+        const slideText = options.generateSlideCopy === false ? '' : String(slides[index]?.text || '');
         const saved = await persistProviderAsset(userId, generationId, generated.images[index], {
-          type: 'image', contentType: request.type, prompt: request.prompt, visualPrompt: prompts[index], aspectRatio: request.aspectRatio || '1:1', caption: String(slides[index]?.text || ''), hashtags: [], altText: String(slides[index]?.text || ''), creditsUsed: estimatedCredits, index: index + 1
+          type: 'image', contentType: request.type, prompt: request.prompt, visualPrompt: prompts[index], aspectRatio: request.aspectRatio || '1:1', caption: slideText, hashtags: [], altText: slideText, creditsUsed: estimatedCredits, index: index + 1
         });
         savedSlides.push(saved);
       }
@@ -239,14 +252,15 @@ async function generate(userId, request) {
       const reference = await loadReference(userId, options.sourceMediaLibraryAssetId);
       const visualPrompt = `${data.visualPrompt || request.prompt}\nFormat: ${request.type === 'ugc_ad' ? options.ugcFormat || 'creator-style UGC' : options.visualStyle || 'short-form social video'}. ${options.subtitles ? 'Leave clean lower-third safe space for social captions.' : ''} ${options.cta ? `End with a visual beat suitable for CTA: ${options.cta}.` : ''}`;
       const duration = Math.max(5, Math.min(15, Number(options.duration || (request.type === 'ugc_ad' ? 10 : 5))));
+      const shortUgcModel = request.type === 'ugc_ad' && duration <= 10 && !reference?.mimeType?.startsWith('video/') ? env.runware.ugcModel : undefined;
       const video = await runware.generateVideo({
         prompt: visualPrompt,
         duration,
         aspectRatio: request.aspectRatio || '9:16',
         audio: options.music !== false || options.voiceover === true,
         referenceImage: reference?.mimeType?.startsWith('image/') ? reference.dataUri : null,
-        referenceVideo: reference?.mimeType?.startsWith('video/') ? reference.dataUri : null,
-        model: request.type === 'ugc_ad' ? env.runware.ugcModel : undefined
+        referenceVideo: reference?.mimeType?.startsWith('video/') ? reference.publicUrl : null,
+        model: shortUgcModel
       }, progress => { void updateGeneration(generationId, userId, { status: 'PROCESSING', progress, taskUuid: undefined }); });
       providerCost += video.cost;
       model = video.model;
