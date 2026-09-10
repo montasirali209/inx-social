@@ -30,7 +30,7 @@ test('Facebook Login for Business uses config_id without mixed Instagram scopes'
   process.env.FACEBOOK_LOGIN_CONFIG_ID = 'business-config';
   process.env.FB_GRAPH_VERSION = 'v25.0';
 
-  const start = service.facebookAuthorization();
+  const start = service.facebookAuthorization('user-1');
   const url = new URL(start.authorizationUrl);
 
   assert.equal(url.origin, 'https://www.facebook.com');
@@ -38,6 +38,7 @@ test('Facebook Login for Business uses config_id without mixed Instagram scopes'
   assert.equal(url.searchParams.get('client_id'), 'facebook-app');
   assert.equal(url.searchParams.get('redirect_uri'), 'https://social.example.test/studio/facebook-callback.html');
   assert.equal(url.searchParams.get('config_id'), 'business-config');
+  assert.equal(url.searchParams.get('response_type'), 'code');
   assert.equal(url.searchParams.has('scope'), false);
   assert.ok(start.state);
   assert.equal(start.businessLoginConfigured, true);
@@ -51,7 +52,7 @@ test('Facebook fallback requests Page scopes only and never legacy Instagram sco
   process.env.FACEBOOK_APP_ID = 'facebook-app';
   delete process.env.FACEBOOK_LOGIN_CONFIG_ID;
 
-  const start = service.facebookAuthorization();
+  const start = service.facebookAuthorization('user-1');
   const url = new URL(start.authorizationUrl);
   const scopes = String(url.searchParams.get('scope') || '').split(',').filter(Boolean);
 

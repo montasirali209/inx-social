@@ -253,3 +253,51 @@ test('public connection data excludes credentials and tolerates malformed provid
   assert.equal(publicRow.encryptedAccessToken, undefined);
   assert.equal(JSON.stringify(publicRow).includes('secret'), false);
 });
+
+test('Facebook Login for Business uses a user-bound authorization-code flow', () => {
+  process.env.APP_URL = 'https://social.example.test';
+  process.env.JWT_SECRET = 'test-jwt-secret';
+  process.env.FACEBOOK_APP_ID = 'facebook-client';
+  process.env.FACEBOOK_LOGIN_CONFIG_ID = 'business-config';
+
+  const start = service.facebookAuthorization('user-1');
+  const url = new URL(start.authorizationUrl);
+  assert.equal(url.searchParams.get('response_type'), 'code');
+  assert.equal(url.searchParams.get('redirect_uri'), 'https://social.example.test/studio/facebook-callback.html');
+  assert.equal(url.searchParams.get('config_id'), 'business-config');
+  assert.equal(url.searchParams.has('scope'), false);
+  assert.ok(url.searchParams.get('state'));
+});
+
+test('Facebook authorization code is exchanged securely on the backend', async t => {
+  process.env.APP_URL = 'https://social.example.test';
+  process.env.JWT_SECRET = 'test-jwt-secret';
+  process.env.FACEBOOK_APP_ID = 'facebook-client';
+  process.env.FACEBOOK_APP_SECRET = 'facebook-secret';
+  process.env.FACEBOOK_LOGIN_CONFIG_ID = 'business-config';
+
+  const start = service.facebookAuthorization('user-1');
+  const state = new URL(start.authorizationUrl).searchParams.get('state');
+  const calls = [];
+  t.mock.method(axios, 'get', async (url, options) => {
+    calls.push({ url, params: options.params });
+    if (options.params.grant_type === 'fb_exchange_token') {
+      return { data: { access_token: 'long-lived-token', expires_in: 5184000 } };
+    }
+    return { data: { access_token: 'short-lived-token', expires_in: 3600 } };
+  });
+
+  const result = await service.completeFacebook('user-1', { code: 'facebook-code', state });
+  assert.equal(result.accessToken, 'long-lived-token');
+  assert.ok(result.tokenExpiresAt);
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].params.code, 'facebook-code');
+  assert.equal(calls[0].params.redirect_uri, 'https://social.example.test/studio/facebook-callback.html');
+  assert.equal(calls[0].params.client_secret, 'facebook-secret');
+  assert.equal(calls[1].params.grant_type, 'fb_exchange_token');
+
+  await assert.rejects(
+    service.completeFacebook('another-user', { code: 'facebook-code', state }),
+    /invalid/
+  );
+});

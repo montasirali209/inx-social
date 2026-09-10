@@ -2,6 +2,10 @@ const { z } = require('zod');
 const service = require('../services/socialConnectionService');
 
 const oauthPlatformSchema = z.enum(['instagram', 'linkedin', 'youtube', 'x']);
+const facebookCompleteSchema = z.object({
+  code: z.string().min(1),
+  state: z.string().min(1)
+});
 
 function completionPage(res, payload) {
   const safePayload = JSON.stringify({ type: 'inx-social-oauth-result', ...payload }).replace(/</g, '\\u003c');
@@ -33,7 +37,14 @@ async function list(req, res, next) {
 
 async function startFacebook(req, res, next) {
   try {
-    res.json(service.facebookAuthorization());
+    res.json(service.facebookAuthorization(req.user.id));
+  } catch (error) { next(error); }
+}
+
+async function completeFacebook(req, res, next) {
+  try {
+    const input = facebookCompleteSchema.parse(req.body || {});
+    res.json(await service.completeFacebook(req.user.id, input));
   } catch (error) { next(error); }
 }
 
@@ -77,4 +88,4 @@ async function disconnect(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { list, startFacebook, startOAuth, oauthCallback, syncInstagram, disconnect };
+module.exports = { list, startFacebook, completeFacebook, startOAuth, oauthCallback, syncInstagram, disconnect };

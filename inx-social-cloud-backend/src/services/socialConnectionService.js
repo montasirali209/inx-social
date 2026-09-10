@@ -38,16 +38,32 @@ function callbackUrl(platform) {
   return `${publicOrigin()}/api/social-connections/oauth/${platform}/callback`;
 }
 
-function facebookAuthorization() {
-  const appId = String(process.env.FACEBOOK_APP_ID || process.env.META_APP_ID || '969283649323618').trim();
-  const configId = String(process.env.FACEBOOK_LOGIN_CONFIG_ID || '').trim();
-  const graphVersion = String(process.env.FB_GRAPH_VERSION || process.env.GRAPH_VERSION || 'v25.0').trim();
-  const state = crypto.randomBytes(18).toString('base64url');
-  const redirectUri = `${publicOrigin()}/studio/facebook-callback.html`;
+function facebookCallbackUrl() {
+  return `${publicOrigin()}/studio/facebook-callback.html`;
+}
+
+function facebookSettings() {
+  return {
+    appId: String(process.env.FACEBOOK_APP_ID || process.env.META_APP_ID || '969283649323618').trim(),
+    appSecret: String(process.env.FACEBOOK_APP_SECRET || process.env.META_APP_SECRET || '').trim(),
+    configId: String(process.env.FACEBOOK_LOGIN_CONFIG_ID || '').trim(),
+    graphVersion: String(process.env.FB_GRAPH_VERSION || process.env.GRAPH_VERSION || 'v25.0').trim()
+  };
+}
+
+function facebookAuthorization(userId) {
+  if (!userId) throw Object.assign(new Error('Sign in before connecting Facebook.'), { status: 401 });
+  const { appId, configId, graphVersion } = facebookSettings();
+  const state = jwt.sign({
+    sub: userId,
+    purpose: 'facebook-oauth',
+    nonce: crypto.randomBytes(18).toString('base64url')
+  }, stateSecret(), { expiresIn: OAUTH_TTL, issuer: 'inx-social' });
+  const redirectUri = facebookCallbackUrl();
   const url = new URL(`https://www.facebook.com/${graphVersion}/dialog/oauth`);
   url.searchParams.set('client_id', appId);
   url.searchParams.set('redirect_uri', redirectUri);
-  url.searchParams.set('response_type', 'token');
+  url.searchParams.set('response_type', 'code');
   url.searchParams.set('state', state);
   url.searchParams.set('auth_type', 'rerequest');
   url.searchParams.set('return_scopes', 'true');
@@ -64,6 +80,73 @@ function facebookAuthorization() {
     state,
     appId,
     businessLoginConfigured: Boolean(configId)
+  };
+}
+
+function verifyFacebookState(userId, state) {
+  let payload;
+  try {
+    payload = jwt.verify(String(state || ''), stateSecret(), { issuer: 'inx-social' });
+  } catch (_) {
+    throw Object.assign(new Error('The Facebook connection session expired. Start the connection again.'), { status: 401 });
+  }
+  if (payload.purpose !== 'facebook-oauth' || String(payload.sub) !== String(userId)) {
+    throw Object.assign(new Error('The Facebook connection session is invalid.'), { status: 401 });
+  }
+  return payload;
+}
+
+async function completeFacebook(userId, query) {
+  verifyFacebookState(userId, query.state);
+  if (query.error) throw Object.assign(new Error(String(query.error_description || query.error)), { status: 400 });
+  if (!query.code) throw Object.assign(new Error('Facebook did not return an authorization code.'), { status: 400 });
+
+  const { appId, appSecret, graphVersion } = facebookSettings();
+  if (!appSecret) {
+    const message = 'Facebook OAuth cannot be completed because the Meta app secret is not configured.';
+    throw Object.assign(new Error(message), { status: 503, publicMessage: message, code: 'FACEBOOK_APP_SECRET_NOT_CONFIGURED' });
+  }
+
+  let token;
+  try {
+    const response = await axios.get(`https://graph.facebook.com/${graphVersion}/oauth/access_token`, {
+      params: {
+        client_id: appId,
+        client_secret: appSecret,
+        redirect_uri: facebookCallbackUrl(),
+        code: String(query.code)
+      },
+      timeout: 20000
+    });
+    token = response.data || {};
+  } catch (error) {
+    const message = error.response?.data?.error?.message || error.message || 'Facebook could not complete authorization.';
+    throw Object.assign(new Error(message), { status: 400, publicMessage: message });
+  }
+  if (!token.access_token) throw Object.assign(new Error('Facebook did not return an access token.'), { status: 400 });
+
+  // Prefer a long-lived user token where Meta supports the exchange. Some
+  // Facebook Login for Business token types do not support this second step,
+  // so retaining the valid code-exchange token is the safe fallback.
+  try {
+    const longLived = await axios.get(`https://graph.facebook.com/${graphVersion}/oauth/access_token`, {
+      params: {
+        grant_type: 'fb_exchange_token',
+        client_id: appId,
+        client_secret: appSecret,
+        fb_exchange_token: token.access_token
+      },
+      timeout: 20000
+    });
+    if (longLived.data?.access_token) token = { ...token, ...longLived.data };
+  } catch (_) {
+    // The original code-exchange token remains valid.
+  }
+
+  const expiresAt = tokenExpiry(token);
+  return {
+    accessToken: token.access_token,
+    tokenExpiresAt: expiresAt ? expiresAt.toISOString() : null
   };
 }
 
@@ -613,6 +696,7 @@ async function disconnect(userId, connectionId) {
 
 module.exports = {
   facebookAuthorization,
+  completeFacebook,
   authorization,
   completeOAuth,
   syncInstagram,
@@ -620,6 +704,7 @@ module.exports = {
   disconnect,
   publicConnection,
   callbackUrl,
+  facebookCallbackUrl,
   FACEBOOK_PAGE_SCOPES,
   INSTAGRAM_SCOPES,
   LINKEDIN_SCOPES,
