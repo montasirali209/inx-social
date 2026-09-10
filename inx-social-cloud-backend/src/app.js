@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const fs = require('fs');
 const path = require('path');
 
 const authRoutes = require('./routes/authRoutes');
@@ -26,12 +27,36 @@ const app = express();
 const reactAppRoot = path.join(__dirname, '..', 'frontend', 'dist');
 const reactAppIndex = path.join(reactAppRoot, 'index.html');
 const adminIndex = path.join(__dirname, '..', 'public', 'index.html');
+const landingPath = path.join(__dirname, '..', 'public', 'landing.html');
 const isAdminHost = req => Boolean(env.adminHost && String(req.hostname || '').toLowerCase() === env.adminHost);
 const secureAdminDocument = res => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
 };
+
+const buildLandingDocument = () => {
+  const source = fs.readFileSync(landingPath, 'utf8');
+  return source
+    .replace(
+      '<title>Social Media Scheduling &amp; Publishing | INXSocial</title>',
+      '<title>Social Media Scheduler &amp; Publishing Tool | INXSocial</title>'
+    )
+    .replace(
+      '<meta name="description" content="Connect social accounts, create posts, bulk schedule content, manage a visual calendar, review analytics and use AI-assisted content tools in one secure INXSocial workspace.">',
+      '<meta name="description" content="Schedule and publish social media content from one workspace. Connect accounts, bulk schedule posts, manage a content calendar, review analytics and use AI-assisted creation with INXSocial.">'
+    )
+    .replace(
+      '<link rel="stylesheet" href="/landing.css?v=20260909c">',
+      '<link rel="stylesheet" href="/landing.css?v=20260909c">\n  <link rel="stylesheet" href="/landing-mobile.css?v=20260910b" media="(max-width: 900px)">\n  <link rel="stylesheet" href="/landing-performance.css?v=20260910a">'
+    )
+    .replace(
+      '<a class="brand" href="/" aria-label="INXSocial home"><img src="/assets/inx-social-wordmark.png" alt="INXSocial"></a>',
+      '<a class="brand" href="/" aria-label="INXSocial home"><img src="/assets/inx-social-logo.png" width="42" height="42" alt=""><span class="brand-text">INXSocial</span></a>'
+    );
+};
+
+const landingDocument = buildLandingDocument();
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
@@ -47,15 +72,6 @@ app.use('/api/admin', rateLimit({ windowMs: 60 * 1000, limit: 90 }), (req, res, 
 // product pages in search results.
 app.use(['/admin', '/api', '/portal', '/studio', '/app'], (req, res, next) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
-  next();
-});
-
-// Cloud Studio opens Facebook in a popup and receives the OAuth result through
-// window.opener. Helmet's default "same-origin" COOP policy severs that popup
-// relationship when it navigates to facebook.com. Override the policy only for
-// Studio routes while keeping Helmet's stricter default everywhere else.
-app.use('/studio', (req, res, next) => {
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   next();
 });
 
@@ -78,6 +94,10 @@ app.use('/portal', express.static(path.join(__dirname, '..', 'portal')));
 // The React workspace is now the only customer application. Keep legacy OAuth
 // callback assets under /studio, but retire the old Studio document itself.
 app.get(['/studio', '/studio/', '/studio/index.html'], (req, res) => res.redirect(308, '/app/'));
+app.use('/studio', (req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  next();
+});
 app.use('/studio', express.static(path.join(__dirname, '..', 'studio')));
 app.use('/app', express.static(reactAppRoot, {
   index: false,
@@ -123,10 +143,9 @@ app.get('/', (req, res) => {
     secureAdminDocument(res);
     return res.sendFile(adminIndex);
   }
-  const landing = path.join(__dirname, '..', 'public', 'landing.html');
-  res.sendFile(landing, error => {
-    if (error) res.redirect('/portal/');
-  });
+  res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+  res.setHeader('Vary', 'Accept-Encoding');
+  res.type('html').send(landingDocument);
 });
 
 app.use('/api/auth', authRoutes);
