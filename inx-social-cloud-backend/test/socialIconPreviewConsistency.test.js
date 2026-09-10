@@ -25,17 +25,32 @@ test('shared platform icon system is used by Posts, Dashboard and Analytics', ()
   assert.match(main, /connection-icon-overrides\.css/);
   assert.match(globalStyles, /aria-label="Facebook"/);
   assert.match(globalStyles, /aria-label="Instagram"/);
-  assert.match(connectionOverrides, /connection-platform-card/);
+  assert.match(connectionOverrides, /size-10/);
+  assert.match(connectionOverrides, /size-8/);
 });
 
-test('Post Preview never renders a broken INXSocial mark as a destination avatar', () => {
+test('Post Preview uses a compact media placeholder and never renders a broken INXSocial avatar', () => {
   const preview = read('frontend/src/components/posts/PostPreviewPanel.tsx');
 
   assert.doesNotMatch(preview, /\/assets\/inx-social-mark\.png/);
   assert.match(preview, /setFailedPicture\(picture\)/);
   assert.match(preview, /failedPicture !== picture/);
   assert.match(preview, /UserRound/);
-  assert.match(preview, /size-11 rounded-xl/);
+  assert.match(preview, /ImageIcon/);
+  assert.match(preview, /size-\[18px\]/);
+  assert.doesNotMatch(preview, /mx-auto mb-2\.5 size-11/);
+});
+
+test('Bulk Scheduler uses the same destination selector component as Posts', () => {
+  const selector = read('frontend/src/components/posts/DestinationSelector.tsx');
+  const bulk = read('frontend/src/components/bulk-scheduler/PublishingDestinationsPanel.tsx');
+
+  assert.match(selector, /mode\?: DestinationMode/);
+  assert.match(selector, /Publishing destinations/);
+  assert.match(bulk, /DestinationSelector/);
+  assert.match(bulk, /mode="batch"/);
+  assert.doesNotMatch(bulk, /DestinationCard/);
+  assert.doesNotMatch(bulk, /PlatformFilterTabs/);
 });
 
 test('Top Performing Posts uses selected analytics platform and refreshed row UI', () => {
