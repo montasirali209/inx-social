@@ -1,8 +1,3 @@
-const mobileStyles = document.createElement('link');
-mobileStyles.rel = 'stylesheet';
-mobileStyles.href = '/landing-mobile.css?v=20260909a';
-document.head.appendChild(mobileStyles);
-
 const header = document.getElementById('siteHeader');
 const menu = document.getElementById('menuButton');
 const nav = document.getElementById('mainNav');
