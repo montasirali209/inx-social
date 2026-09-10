@@ -1,7 +1,9 @@
 @media (max-width: 900px) {
   .shell{width:min(100% - 28px,1240px)}
   .nav-shell{height:72px;gap:10px;justify-content:space-between}
-  .brand{min-width:0;flex:0 1 auto}.brand img{width:40px;height:40px;margin:0}
+  .brand{min-width:0;flex:0 0 auto;overflow:visible}
+  .site-header .brand img{width:154px;height:54px;object-fit:cover;object-position:center;margin:0}
+  .footer-brand .brand img{width:176px;height:62px;object-fit:cover;object-position:center;margin:0}
   .menu-button{display:grid;place-items:center;flex:0 0 43px}
   #mainNav{position:fixed;z-index:50;top:72px;left:14px;right:14px;display:none;margin:0;padding:12px;flex-direction:column;align-items:stretch;gap:2px;border:1px solid var(--line);border-radius:16px;background:rgba(4,13,23,.98);box-shadow:var(--shadow);backdrop-filter:blur(20px)}
   #mainNav.open{display:flex}
@@ -18,14 +20,18 @@
   .visual-window{transform:none;animation:none}.orbit-a{width:320px;height:320px}.orbit-b{width:380px;height:380px}
   .float-card{display:none}
   .outcome-grid{grid-template-columns:repeat(2,1fr);gap:0}.outcome-grid div{padding:16px;border-bottom:1px solid var(--line)}
-  .capability-grid{grid-template-columns:1fr}.capability-card,.capability-card:nth-child(1),.capability-card:nth-child(2),.capability-card:nth-child(5),.capability-card:nth-child(6){grid-column:auto;min-height:360px}
+  .capability-grid{grid-template-columns:1fr}
+  .capability-card,.capability-card:nth-child(1),.capability-card:nth-child(2),.capability-card:nth-child(5),.capability-card:nth-child(6){grid-column:auto;display:flex;min-height:0;flex-direction:column}
+  .capability-card .card-link{position:static;display:inline-flex;align-items:center;align-self:flex-start;gap:6px;margin-top:auto;padding-top:24px}
   .section{padding:76px 0}.section-heading{margin-bottom:34px}.section-heading h2,h2{font-size:clamp(2rem,8vw,3.3rem)}
   .platform-rail{margin-top:38px}
 }
 
 @media (max-width: 560px) {
   .shell{width:calc(100% - 28px)}
-  .nav-shell{height:64px;padding-inline:0}.brand img{width:36px;height:36px}.brand-text{display:inline;font-size:1rem}
+  .nav-shell{height:64px;padding-inline:0}
+  .site-header .brand img{width:136px;height:48px;margin:0}
+  .footer-brand .brand img{width:164px;height:58px;margin:0}
   #mainNav{top:64px;left:14px;right:14px}
   .nav-actions>.button-compact{display:none}
   .hero{padding-top:92px}.hero-actions{display:grid}.hero-actions .button{width:100%}
@@ -33,7 +39,7 @@
   .command-visual{min-height:300px}.visual-body{grid-template-columns:38px 1fr;min-height:245px}.visual-content{padding:12px}.visual-body aside{gap:12px;padding:12px 0}.visual-body aside i{width:18px;height:18px}.visual-body aside img{width:24px;height:24px}.visual-heading{padding:12px}.visual-heading>b{display:none}.visual-metrics{gap:6px}.visual-metrics>span{padding:9px}.visual-metrics strong{font-size:1rem}.visual-chart{height:72px;padding:10px;gap:5px}
   .orbit-a,.orbit-b{display:none}
   .outcome-grid{grid-template-columns:1fr}.outcome-grid div{padding:15px 0;border-right:0}
-  .section{padding:58px 0}.capability-card{min-height:330px;padding:24px}.card-link{left:24px;bottom:22px}
+  .section{padding:58px 0}.capability-card{padding:24px}.capability-card .card-link{padding-top:22px}
   .calendar-demo{grid-template-columns:repeat(4,1fr)}.media-demo{grid-template-columns:repeat(2,1fr)}
   .landing-account-menu{right:-4px;width:min(218px,calc(100vw - 28px))}
   body{overflow-x:clip}
