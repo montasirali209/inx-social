@@ -48,11 +48,7 @@ const buildLandingDocument = () => {
     )
     .replace(
       '<link rel="stylesheet" href="/landing.css?v=20260909c">',
-      '<link rel="stylesheet" href="/landing.css?v=20260909c">\n  <link rel="stylesheet" href="/landing-mobile.css?v=20260910b" media="(max-width: 900px)">\n  <link rel="stylesheet" href="/landing-performance.css?v=20260910a">'
-    )
-    .replace(
-      '<a class="brand" href="/" aria-label="INXSocial home"><img src="/assets/inx-social-wordmark.png" alt="INXSocial"></a>',
-      '<a class="brand" href="/" aria-label="INXSocial home"><img src="/assets/inx-social-logo.png" width="42" height="42" alt=""><span class="brand-text">INXSocial</span></a>'
+      '<link rel="stylesheet" href="/landing.css?v=20260909c">\n  <link rel="stylesheet" href="/landing-mobile.css?v=20260910c" media="(max-width: 900px)">\n  <link rel="stylesheet" href="/landing-performance.css?v=20260910a">'
     );
 };
 
