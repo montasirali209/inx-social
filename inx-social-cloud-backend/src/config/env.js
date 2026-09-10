@@ -60,7 +60,7 @@ module.exports = {
     imagePremiumModel: modelName(process.env.RUNWARE_IMAGE_PREMIUM_MODEL, 'google:4@3'),
     videoModel: modelName(process.env.RUNWARE_VIDEO_MODEL, 'prunaai:p-video@0'),
     videoLongModel: modelName(process.env.RUNWARE_VIDEO_LONG_MODEL, 'alibaba:wan@3.0'),
-    videoEditModel: modelName(process.env.RUNWARE_VIDEO_EDIT_MODEL, 'alibaba:wan@3.0'),
+    videoEditModel: modelName(process.env.RUNWARE_VIDEO_EDIT_MODEL, 'prunaai:p-video@edit'),
     ugcModel: modelName(process.env.RUNWARE_UGC_MODEL, 'prunaai:p-video@0'),
     textModel: modelName(process.env.RUNWARE_TEXT_MODEL, 'openai-gpt-5-4-nano'),
     timeoutMs: Math.max(30000, Number(process.env.RUNWARE_TIMEOUT_MS || 360000)),
