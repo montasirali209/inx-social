@@ -7,6 +7,9 @@ const runware = require('./runwareService');
 const mediaLibrary = require('./mediaLibraryService');
 
 const CONTENT_TYPES = new Set(['image_post', 'carousel_post', 'short_video', 'ugc_ad']);
+const IMAGE_ASPECTS = new Set(['1:1', '4:5', '9:16', '16:9']);
+const VIDEO_ASPECTS = new Set(['9:16', '4:5', '1:1', '16:9']);
+const STANDARD_VIDEO_DURATIONS = new Set([5, 10]);
 
 function error(message, status = 400, code = 'AI_STUDIO_ERROR') {
   const value = new Error(message);
@@ -16,29 +19,68 @@ function error(message, status = 400, code = 'AI_STUDIO_ERROR') {
   return value;
 }
 
+function intOption(value, fallback) {
+  const number = Number(value);
+  return Number.isInteger(number) ? number : fallback;
+}
+
 function estimateGenerationCost(request) {
   const type = request?.type;
   const options = request?.options || {};
   if (!CONTENT_TYPES.has(type)) throw error('Choose a supported AI Content Studio format.');
-  if (type === 'image_post') return 5 * Math.max(1, Math.min(4, Number(options.variants || 1)));
+  if (type === 'image_post') return 5 * Math.max(1, Math.min(4, intOption(options.variants, 1)));
   if (type === 'carousel_post') {
-    const slides = Math.max(3, Math.min(10, Number(options.slides || 4)));
+    const slides = Math.max(3, Math.min(10, intOption(options.slides, 5)));
     return slides <= 5 ? 10 : slides <= 8 ? 15 : 20;
   }
-  if (type === 'short_video') {
-    const duration = Math.max(5, Math.min(15, Number(options.duration || 5)));
-    return duration <= 5 ? 15 : duration <= 10 ? 25 : 35;
+  const duration = intOption(options.duration, type === 'ugc_ad' ? 10 : 5);
+  if (!STANDARD_VIDEO_DURATIONS.has(duration)) throw error('Standard AI Studio video generation currently supports 5 or 10 seconds.', 422, 'AI_STUDIO_DURATION_UNSUPPORTED');
+  if (type === 'short_video') return duration === 5 ? 15 : 25;
+  return 25;
+}
+
+function validateGenerationRequest(request) {
+  if (!CONTENT_TYPES.has(request?.type)) throw error('Choose a supported AI Content Studio format.');
+  const prompt = String(request.prompt || '').trim();
+  if (!prompt) throw error('Add a clear generation prompt.');
+  if (prompt.length > 1500) throw error('Keep the generation brief under 1,500 characters.');
+
+  const options = request.options || {};
+  const aspectRatio = request.aspectRatio || (['short_video', 'ugc_ad'].includes(request.type) ? '9:16' : request.type === 'carousel_post' ? '1:1' : '4:5');
+  const allowedAspects = ['short_video', 'ugc_ad'].includes(request.type) ? VIDEO_ASPECTS : IMAGE_ASPECTS;
+  if (!allowedAspects.has(aspectRatio)) throw error('Choose a supported aspect ratio.', 422, 'AI_STUDIO_ASPECT_UNSUPPORTED');
+
+  if (request.type === 'image_post') {
+    const variants = intOption(options.variants, 1);
+    if (variants < 1 || variants > 4) throw error('Image Post supports between 1 and 4 variants.', 422, 'AI_STUDIO_VARIANTS_UNSUPPORTED');
   }
-  const duration = Math.max(5, Math.min(15, Number(options.duration || 10)));
-  return duration <= 10 ? 25 : 50;
+
+  if (request.type === 'carousel_post') {
+    const slides = intOption(options.slides, 5);
+    if (slides < 3 || slides > 10) throw error('Carousel Post supports between 3 and 10 slides.', 422, 'AI_STUDIO_SLIDES_UNSUPPORTED');
+  }
+
+  if (['short_video', 'ugc_ad'].includes(request.type)) {
+    const duration = intOption(options.duration, request.type === 'ugc_ad' ? 10 : 5);
+    if (!STANDARD_VIDEO_DURATIONS.has(duration)) throw error('Standard AI Studio video generation currently supports 5 or 10 seconds.', 422, 'AI_STUDIO_DURATION_UNSUPPORTED');
+  }
+
+  if (request.type === 'ugc_ad') {
+    if (!String(options.productName || '').trim()) throw error('Add the product or service name before generating.', 422, 'AI_STUDIO_PRODUCT_NAME_REQUIRED');
+    if (!String(options.productDescription || '').trim()) throw error('Describe what you are promoting before generating.', 422, 'AI_STUDIO_PRODUCT_DESCRIPTION_REQUIRED');
+  }
+
+  const needsSource = options.visualSource === 'Uploaded media' || options.visualSource === 'Media Library assets' || options.mediaSource === 'Upload product media' || options.mediaSource === 'Select from Media Library';
+  if (needsSource && !options.sourceMediaLibraryAssetId) throw error('Choose or upload the source media before generating.', 422, 'AI_STUDIO_SOURCE_MEDIA_REQUIRED');
+  return true;
 }
 
 function cleanJson(text) {
   const source = String(text || '').replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
   const start = source.indexOf('{');
   const end = source.lastIndexOf('}');
-  if (start < 0 || end <= start) throw error('AI copy generation returned an invalid structure. Please retry.', 502, 'AI_COPY_PARSE_ERROR');
-  try { return JSON.parse(source.slice(start, end + 1)); } catch (_) { throw error('AI copy generation returned invalid JSON. Please retry.', 502, 'AI_COPY_PARSE_ERROR'); }
+  if (start < 0 || end <= start) throw error('AI copy generation returned an invalid structure.', 502, 'AI_COPY_PARSE_ERROR');
+  try { return JSON.parse(source.slice(start, end + 1)); } catch (_) { throw error('AI copy generation returned invalid JSON.', 502, 'AI_COPY_PARSE_ERROR'); }
 }
 
 function safeTags(value) {
@@ -61,13 +103,47 @@ function requestContext(request) {
   ].filter(Boolean).join('\n');
 }
 
+function fallbackCopy(request) {
+  const o = request.options || {};
+  if (request.type === 'carousel_post') {
+    const count = Math.max(3, Math.min(10, intOption(o.slides, 5)));
+    return {
+      caption: '',
+      hashtags: [],
+      slides: Array.from({ length: count }, (_, index) => ({
+        text: '',
+        visualPrompt: `${request.prompt}. Coordinated social carousel visual ${index + 1} of ${count}.`
+      }))
+    };
+  }
+  if (request.type === 'short_video') {
+    return { caption: '', hashtags: [], script: '', visualPrompt: request.prompt };
+  }
+  if (request.type === 'ugc_ad') {
+    return { hook: o.hook || '', script: '', caption: '', cta: o.cta || '', hashtags: [], visualPrompt: request.prompt };
+  }
+  return {
+    caption: '',
+    hashtags: [],
+    altText: o.generateAltText === false ? '' : request.prompt.slice(0, 300),
+    visualPrompt: request.prompt
+  };
+}
+
+function copyHelpersRequested(request) {
+  const o = request.options || {};
+  if (request.type === 'image_post') return o.generateCaption !== false || o.generateHashtags !== false || o.generateAltText !== false;
+  if (request.type === 'carousel_post') return o.generateCaption !== false || o.generateSlideCopy !== false;
+  return true;
+}
+
 async function buildCopy(request) {
   const o = request.options || {};
   let specification;
   if (request.type === 'image_post') {
     specification = 'Return JSON only with keys caption (string), hashtags (array of strings without #), altText (string), visualPrompt (string describing a polished text-free social visual).';
   } else if (request.type === 'carousel_post') {
-    specification = `Return JSON only with keys caption, hashtags, and slides. slides must contain exactly ${Math.max(3, Math.min(10, Number(o.slides || 4)))} objects, each with text and visualPrompt. Keep slide text concise and make visual prompts coordinated but individually relevant.`;
+    specification = `Return JSON only with keys caption, hashtags, and slides. slides must contain exactly ${Math.max(3, Math.min(10, intOption(o.slides, 5)))} objects, each with text and visualPrompt. Keep slide text concise and make visual prompts coordinated but individually relevant.`;
   } else if (request.type === 'short_video') {
     specification = 'Return JSON only with keys caption, hashtags, script, visualPrompt. visualPrompt must describe the actual short-form social video, camera/motion and scene. Do not include unsupported claims.';
   } else {
@@ -75,6 +151,22 @@ async function buildCopy(request) {
   }
   const result = await runware.generateText(`${requestContext(request)}\n\n${specification}`, { maxTokens: request.type === 'carousel_post' ? 2800 : 1800 });
   return { data: cleanJson(result.text), cost: result.cost, model: result.model };
+}
+
+async function buildCopySafe(request) {
+  if (!copyHelpersRequested(request)) return { data: fallbackCopy(request), cost: 0, model: null, warnings: [] };
+  try {
+    const result = await buildCopy(request);
+    return { ...result, warnings: [] };
+  } catch (caught) {
+    console.warn('[AI STUDIO COPY FALLBACK]', caught?.code || 'AI_COPY_FAILED', caught?.providerDetail || caught?.message || '');
+    return {
+      data: fallbackCopy(request),
+      cost: 0,
+      model: null,
+      warnings: ['Media was generated from your original brief, but the optional caption/script helpers were unavailable. You can edit the publishing copy before sending to Posts.']
+    };
+  }
 }
 
 async function loadReference(userId, assetId) {
@@ -183,23 +275,23 @@ async function updateGeneration(id, userId, patch) {
 }
 
 async function generate(userId, request) {
-  if (!CONTENT_TYPES.has(request?.type)) throw error('Choose a supported AI Content Studio format.');
-  if (!String(request.prompt || '').trim()) throw error('Add a clear generation prompt.');
+  validateGenerationRequest(request);
   await credits.getBalance(userId);
   const estimatedCredits = estimateGenerationCost(request);
   const generationId = await createGenerationRow(userId, request, estimatedCredits);
   let providerCost = 0;
   try {
     await updateGeneration(generationId, userId, { status: 'GENERATING', progress: 8 });
-    const copy = await buildCopy(request);
+    const copy = await buildCopySafe(request);
     providerCost += copy.cost;
     const data = copy.data;
+    const warnings = [...copy.warnings];
     const options = request.options || {};
     let asset;
     let model;
 
     if (request.type === 'image_post') {
-      const variants = Math.max(1, Math.min(4, Number(options.variants || 1)));
+      const variants = Math.max(1, Math.min(4, intOption(options.variants, 1)));
       const prompts = Array.from({ length: variants }, (_, index) => `${data.visualPrompt || request.prompt}\nVisual style: ${options.visualStyle || 'brand-led'}. ${variants > 1 ? `Creative variation ${index + 1} of ${variants}.` : ''} No logos unless explicitly supplied. Avoid text baked into the image unless the brief explicitly requires it.`);
       const generated = await runware.generateImages(prompts, { aspectRatio: request.aspectRatio || '4:5' });
       providerCost += generated.cost;
@@ -217,9 +309,9 @@ async function generate(userId, request) {
       asset = saved[0];
       if (saved.length > 1) asset.variants = saved;
     } else if (request.type === 'carousel_post') {
-      const count = Math.max(3, Math.min(10, Number(options.slides || 4)));
+      const count = Math.max(3, Math.min(10, intOption(options.slides, 5)));
       const slides = Array.isArray(data.slides) ? data.slides.slice(0, count) : [];
-      while (slides.length < count) slides.push({ text: `Slide ${slides.length + 1}`, visualPrompt: request.prompt });
+      while (slides.length < count) slides.push({ text: '', visualPrompt: `${request.prompt}. Coordinated social carousel visual ${slides.length + 1} of ${count}.` });
       const prompts = slides.map((slide, index) => `${slide.visualPrompt || request.prompt}\nThis is slide ${index + 1} of a coordinated ${count}-slide social carousel. Keep the visual family consistent across slides. Do not bake paragraph copy into the image.`);
       const generated = await runware.generateImages(prompts, { aspectRatio: request.aspectRatio || '1:1' });
       providerCost += generated.cost;
@@ -238,8 +330,8 @@ async function generate(userId, request) {
         url: savedSlides[0]?.url || '',
         thumbnailUrl: savedSlides[0]?.thumbnailUrl,
         prompt: request.prompt,
-        caption: String(data.caption || ''),
-        hashtags: safeTags(data.hashtags),
+        caption: options.generateCaption === false ? '' : String(data.caption || ''),
+        hashtags: options.generateCaption === false ? [] : safeTags(data.hashtags),
         creditsUsed: estimatedCredits,
         createdAt: new Date().toISOString(),
         provider: 'runware',
@@ -251,13 +343,13 @@ async function generate(userId, request) {
     } else {
       const reference = await loadReference(userId, options.sourceMediaLibraryAssetId);
       const visualPrompt = `${data.visualPrompt || request.prompt}\nFormat: ${request.type === 'ugc_ad' ? options.ugcFormat || 'creator-style UGC' : options.visualStyle || 'short-form social video'}. ${options.subtitles ? 'Leave clean lower-third safe space for social captions.' : ''} ${options.cta ? `End with a visual beat suitable for CTA: ${options.cta}.` : ''}`;
-      const duration = Math.max(5, Math.min(15, Number(options.duration || (request.type === 'ugc_ad' ? 10 : 5))));
-      const shortUgcModel = request.type === 'ugc_ad' && duration <= 10 && !reference?.mimeType?.startsWith('video/') ? env.runware.ugcModel : undefined;
+      const duration = intOption(options.duration, request.type === 'ugc_ad' ? 10 : 5);
+      const shortUgcModel = request.type === 'ugc_ad' && !reference?.mimeType?.startsWith('video/') ? env.runware.ugcModel : undefined;
       const video = await runware.generateVideo({
         prompt: visualPrompt,
         duration,
         aspectRatio: request.aspectRatio || '9:16',
-        audio: options.music !== false || options.voiceover === true,
+        audio: options.music === true || options.voiceover === true,
         referenceImage: reference?.mimeType?.startsWith('image/') ? reference.dataUri : null,
         referenceVideo: reference?.mimeType?.startsWith('video/') ? reference.publicUrl : null,
         model: shortUgcModel
@@ -269,8 +361,13 @@ async function generate(userId, request) {
       });
     }
 
+    asset.warnings = warnings;
+    asset.completionStatus = warnings.length ? 'completed_with_warnings' : 'completed';
     await credits.complete(userId, generationId, estimatedCredits);
-    await updateGeneration(generationId, userId, { status: 'COMPLETED', progress: 100, model, providerCostUsd: providerCost, assetJson: asset, responseJson: { providerCostUsd: providerCost }, completedAt: new Date() });
+    await updateGeneration(generationId, userId, {
+      status: 'COMPLETED', progress: 100, model, providerCostUsd: providerCost, assetJson: asset,
+      responseJson: { providerCostUsd: providerCost, warnings, completionStatus: asset.completionStatus }, completedAt: new Date()
+    });
     return asset;
   } catch (caught) {
     await credits.refund(userId, generationId, caught.code || caught.message).catch(() => {});
@@ -362,4 +459,7 @@ async function brandKits(userId) {
   return [{ id: 'workspace-default', name: settings.workspaceName || user?.businessName || 'Workspace Brand', active: true }];
 }
 
-module.exports = { estimateGenerationCost, generate, getGeneration, cancelGeneration, history, saveDraft, recentDrafts, deleteDraft, sendDraftToPosts, brandKits };
+module.exports = {
+  estimateGenerationCost, validateGenerationRequest, fallbackCopy, generate, getGeneration, cancelGeneration,
+  history, saveDraft, recentDrafts, deleteDraft, sendDraftToPosts, brandKits
+};
