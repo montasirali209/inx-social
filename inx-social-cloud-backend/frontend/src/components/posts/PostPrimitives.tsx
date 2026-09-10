@@ -1,10 +1,9 @@
 import { AlertTriangle, CalendarClock, Check, ClipboardList, FileEdit, type LucideIcon } from 'lucide-react'
-import { platforms } from '../../data/postsData'
 import type { Platform, PostStatus } from '../../types/posts'
+import { SocialPlatformIcon } from '../ui/SocialPlatformIcon'
 
 export function PlatformIcon({ platform, className = '' }: { platform: Platform; className?: string }) {
-  const item = platforms.find((candidate) => candidate.id === platform)!
-  return <span aria-label={item.label} className={`inline-grid size-6 shrink-0 place-items-center rounded-lg text-[10px] font-black text-white shadow-sm ${item.colour} ${className}`}>{item.short}</span>
+  return <SocialPlatformIcon className={className} platform={platform} />
 }
 
 const statusStyles: Record<PostStatus, string> = {
