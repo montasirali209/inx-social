@@ -9,6 +9,11 @@ import { BulkRunDock, BulkSchedulerActivityProvider } from '../bulk-scheduler/Bu
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 
+type IdleWindow = Window & {
+  requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+  cancelIdleCallback?: (id: number) => void
+}
+
 export function AppShell() {
   return <RequireAuth><BulkSchedulerActivityProvider><AppShellContent /></BulkSchedulerActivityProvider></RequireAuth>
 }
@@ -26,9 +31,10 @@ function AppShellContent() {
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection
     if (connection?.saveData || connection?.effectiveType === 'slow-2g' || connection?.effectiveType === '2g') return
     const warm = () => { void preloadAllAppRoutes() }
-    if ('requestIdleCallback' in window) {
-      const idleId = (window as Window & { requestIdleCallback: (callback: () => void, options?: { timeout: number }) => number; cancelIdleCallback: (id: number) => void }).requestIdleCallback(warm, { timeout: 1200 })
-      return () => (window as Window & { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(idleId)
+    const idleWindow = window as IdleWindow
+    if (typeof idleWindow.requestIdleCallback === 'function') {
+      const idleId = idleWindow.requestIdleCallback(warm, { timeout: 1200 })
+      return () => idleWindow.cancelIdleCallback?.(idleId)
     }
     const timer = window.setTimeout(warm, 650)
     return () => window.clearTimeout(timer)
