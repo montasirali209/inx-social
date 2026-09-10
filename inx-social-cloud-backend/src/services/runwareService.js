@@ -145,12 +145,11 @@ async function generateVideo(input, onProgress = () => {}) {
   const requestedModel = input.model || '';
   let model = requestedModel || (input.referenceVideo ? env.runware.videoEditModel : duration > 10 ? env.runware.videoLongModel : env.runware.videoModel);
 
-  // P-Video supports up to 10 seconds and no video-to-video input. Route longer
-  // or source-video jobs through the configured long/edit model instead.
   if (duration > 10 && String(model) === String(env.runware.videoModel)) model = env.runware.videoLongModel;
   if (input.referenceVideo && String(model) === String(env.runware.videoModel)) model = env.runware.videoEditModel;
 
   const isPVideo = String(model) === 'prunaai:p-video@0';
+  const isPVideoEdit = String(model) === 'prunaai:p-video@edit';
   const isWan = String(model).startsWith('alibaba:wan@3.0');
   const { width, height } = videoDimensions(input.aspectRatio, model);
   const taskUUID = crypto.randomUUID();
@@ -160,43 +159,48 @@ async function generateVideo(input, onProgress = () => {}) {
     model,
     deliveryMethod: 'async',
     positivePrompt: String(input.prompt || '').slice(0, isPVideo ? 2000 : 20000),
-    duration,
     includeCost: true,
     settings: { audio: input.audio !== false }
   };
 
-  if (input.referenceVideo) {
-    if (!isWan) throw providerError('The selected source video requires the configured video-edit model.', 'RUNWARE_VIDEO_EDIT_MODEL_UNSUPPORTED', 422);
-    task.inputs = { referenceVideos: [input.referenceVideo] };
-    task.width = width;
-    task.height = height;
-  } else if (input.referenceImage) {
-    if (isPVideo) {
-      // P-Video requires exactly one of frameImages or width/height. A resolution
-      // preset keeps the request valid while preserving the source image ratio.
-      task.inputs = { frameImages: [input.referenceImage] };
-      task.resolution = '720p';
-    } else if (isWan) {
-      task.inputs = { referenceImages: [input.referenceImage] };
+  if (isPVideoEdit) {
+    if (!input.referenceVideo) throw providerError('A source video is required for this video-edit workflow.', 'RUNWARE_SOURCE_VIDEO_REQUIRED', 422);
+    task.inputs = { video: input.referenceVideo };
+  } else {
+    task.duration = duration;
+    if (input.referenceVideo) {
+      if (!isWan) throw providerError('The selected source video requires the configured video-edit model.', 'RUNWARE_VIDEO_EDIT_MODEL_UNSUPPORTED', 422);
+      task.inputs = { referenceVideos: [input.referenceVideo] };
       task.width = width;
       task.height = height;
+    } else if (input.referenceImage) {
+      if (isPVideo) {
+        // P-Video requires exactly one of frameImages or width/height. A resolution
+        // preset keeps the request valid while preserving the source image ratio.
+        task.inputs = { frameImages: [input.referenceImage] };
+        task.resolution = '720p';
+      } else if (isWan) {
+        task.inputs = { referenceImages: [input.referenceImage] };
+        task.width = width;
+        task.height = height;
+      } else {
+        task.inputs = { frameImages: [input.referenceImage] };
+        task.width = width;
+        task.height = height;
+      }
     } else {
-      task.inputs = { frameImages: [input.referenceImage] };
       task.width = width;
       task.height = height;
     }
-  } else {
-    task.width = width;
-    task.height = height;
   }
 
   onProgress(5);
   const initial = await request([task], 60000);
   const first = initial.find(entry => entry.taskUUID === taskUUID) || initial[0];
-  if (first?.videoURL) return { url: first.videoURL, cost: Number(first.cost || 0), model, taskUUID, width, height, duration };
+  if (first?.videoURL) return { url: first.videoURL, cost: Number(first.cost || 0), model, taskUUID, width: isPVideoEdit ? null : width, height: isPVideoEdit ? null : height, duration: isPVideoEdit ? null : duration };
   const final = await pollTask(taskUUID, onProgress);
   onProgress(100);
-  return { url: final.videoURL, cost: Number(final.cost || 0), model, taskUUID, width, height, duration };
+  return { url: final.videoURL, cost: Number(final.cost || 0), model, taskUUID, width: isPVideoEdit ? null : width, height: isPVideoEdit ? null : height, duration: isPVideoEdit ? null : duration };
 }
 
 module.exports = { isConfigured, request, generateText, generateImages, generateVideo, imageDimensions, videoDimensions };
