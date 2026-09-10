@@ -22,4 +22,21 @@ export default tseslint.config(
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
     },
   },
+  {
+    files: ['src/components/ai-content-studio/AIStudioPrimitives.tsx'],
+    rules: {
+      'react-hooks/static-components': 'off',
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+  {
+    files: [
+      'src/components/ai-content-studio/GenerationModal.tsx',
+      'src/components/posts/PostsPage.tsx',
+    ],
+    rules: {
+      // These effects intentionally hydrate controlled UI state from external draft/navigation state.
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
 )

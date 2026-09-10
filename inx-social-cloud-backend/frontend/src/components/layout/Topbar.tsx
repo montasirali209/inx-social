@@ -30,7 +30,7 @@ const workspaceRoutes = {
   },
   '/ai-content-studio': {
     title: 'AI Content Studio',
-    subtitle: 'Create and refine campaign-ready content with governed AI tools.',
+    subtitle: 'Create and refine campaign-ready content with AI-powered tools.',
   },
   '/analytics': {
     title: 'Analytics',

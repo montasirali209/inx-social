@@ -6,6 +6,7 @@ import { zonedDateTimeToIso } from '../../lib/bulk-scheduler-utils'
 import { fetchFacebookDashboardAnalytics } from '../../lib/dashboard-api'
 import { fetchMediaAssetFile, fetchMediaLibrary, uploadMediaAsset } from '../../lib/media-library-api'
 import { calculateBestPostTime } from '../../lib/posts-analytics'
+import type { AIDraft } from '../../types/ai-content-studio'
 import type { ConnectedPage, DashboardJob } from '../../types/dashboard'
 import type { MediaAsset } from '../../types/media-library'
 import type { BestTimeInsight, MediaItem, PostDraft, PostType, PublishProgress, ScheduleMode } from '../../types/posts'
@@ -20,6 +21,12 @@ import type { PostLibraryView } from '../../lib/posts-reuse'
 import { PublishConfirmationDialog } from '../ui/PublishConfirmationDialog'
 
 const draftKey = 'inx-social-post-drafts-v1'
+
+type PostsLocationState = {
+  mediaLibraryAsset?: MediaAsset
+  scheduleMode?: ScheduleMode
+  aiDraft?: AIDraft
+}
 
 function readDrafts(): PostDraft[] {
   try { return JSON.parse(window.localStorage.getItem(draftKey) || '[]') as PostDraft[] } catch { return [] }
@@ -71,6 +78,7 @@ export function PostsPage() {
   const queryClient = useQueryClient()
   const location = useLocation()
   const importedAssetId = useRef<string | null>(null)
+  const importedAiDraftId = useRef<string | null>(null)
   const defaultModeApplied = useRef(false)
   const workspace = useQuery({ queryKey: ['posts-workspace'], queryFn: fetchPostsWorkspace, refetchInterval: 45_000 })
   const [postType, setPostType] = useState<PostType>('text')
@@ -94,17 +102,17 @@ export function PostsPage() {
   useEffect(() => {
     if (!workspace.data || defaultModeApplied.current) return
     defaultModeApplied.current = true
-    const state = location.state as { scheduleMode?: ScheduleMode } | null
+    const state = location.state as PostsLocationState | null
     const preferredMode = workspace.data.settings.defaultPublishMode === 'direct'
       ? 'now'
       : workspace.data.settings.defaultPublishMode === 'draft' ? 'draft' : 'later'
-    setMode(state?.scheduleMode || preferredMode)
+    setMode(state?.scheduleMode || state?.aiDraft ? 'later' : preferredMode)
   }, [location.state, workspace.data])
 
   useEffect(() => {
-    const state = location.state as { mediaLibraryAsset?: MediaAsset; scheduleMode?: ScheduleMode } | null
+    const state = location.state as PostsLocationState | null
     const asset = state?.mediaLibraryAsset
-    if (!asset || importedAssetId.current === asset.id) return
+    if (!asset || importedAssetId.current === asset.id || state?.aiDraft) return
     importedAssetId.current = asset.id
     setProgress({ state: 'preparing', percent: 15, message: `Attaching ${asset.fileName} from your Media Library…` })
     void fetchMediaAssetFile(asset).then(file => {
@@ -115,6 +123,49 @@ export function PostsPage() {
       if (state?.scheduleMode) setMode(state.scheduleMode)
       setProgress({ state: 'completed', percent: 100, message: `${asset.fileName} is attached and ready to publish.` })
     }).catch(error => setProgress({ state: 'failed', percent: 0, message: error instanceof Error ? error.message : 'The Media Library asset could not be attached.' }))
+  }, [location.state])
+
+  useEffect(() => {
+    const state = location.state as PostsLocationState | null
+    const aiDraft = state?.aiDraft
+    if (!aiDraft || importedAiDraftId.current === aiDraft.id) return
+    importedAiDraftId.current = aiDraft.id
+
+    const hashtags = (aiDraft.hashtags || []).map((tag) => `#${tag.replace(/^#/, '')}`).join(' ')
+    setTitle(aiDraft.title || '')
+    setCaption([aiDraft.caption?.trim(), hashtags].filter(Boolean).join('\n\n'))
+    setSelectedIds([])
+    setMode('later')
+    setCampaign('No campaign')
+    setLabels('AI Content Studio')
+    setActiveDraftId(null)
+    setMedia(null)
+
+    const storedAssets = aiDraft.mediaLibraryAssets?.length
+      ? aiDraft.mediaLibraryAssets
+      : aiDraft.mediaLibraryAsset ? [aiDraft.mediaLibraryAsset] : []
+    const firstAsset = storedAssets[0]
+
+    if (!firstAsset) {
+      setRetainMedia(false)
+      setPostType(aiDraft.contentType === 'short_video' || aiDraft.contentType === 'ugc_ad' ? 'reel' : 'image')
+      setProgress({ state: 'failed', percent: 0, message: 'AI Studio content was imported, but its generated media is not available in Media Library. Return to AI Content Studio and save the generated asset before publishing.' })
+      return
+    }
+
+    setProgress({ state: 'preparing', percent: 20, message: 'Loading AI Studio media from Media Library…' })
+    void fetchMediaAssetFile(firstAsset).then((file) => {
+      const url = URL.createObjectURL(file)
+      const isVideo = firstAsset.type === 'video'
+      setMedia({ id: firstAsset.id, libraryAssetId: firstAsset.id, type: isVideo ? 'video' : 'image', file, url, thumbnailUrl: url, fileName: firstAsset.fileName, size: file.size })
+      setRetainMedia(true)
+      setPostType(isVideo ? 'reel' : 'image')
+      const carouselNote = aiDraft.contentType === 'carousel_post' && storedAssets.length > 1
+        ? ` ${storedAssets.length} carousel assets are saved in Media Library; the current composer has attached the lead slide.`
+        : ''
+      setProgress({ state: 'completed', percent: 100, message: `AI Studio content is pre-filled. Choose destination pages and your publishing time.${carouselNote}` })
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }).catch((error) => setProgress({ state: 'failed', percent: 0, message: error instanceof Error ? error.message : 'The AI Studio media could not be loaded from Media Library.' }))
   }, [location.state])
 
   const jobs = useMemo(() => workspace.data?.jobs || [], [workspace.data?.jobs])
