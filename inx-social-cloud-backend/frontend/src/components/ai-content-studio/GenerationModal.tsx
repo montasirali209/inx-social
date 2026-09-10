@@ -1,8 +1,10 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
+  ChevronDown,
   Copy,
   Download,
   GripVertical,
@@ -79,14 +81,14 @@ const defaults: FormValues = {
   brandKitId: '',
   tone: 'Professional',
   variants: 1,
-  slides: 4,
+  slides: 5,
   captionStyle: 'Concise',
   ctaStyle: 'Gentle CTA',
   duration: 5,
   visualSource: 'AI generated',
   voiceover: false,
   subtitles: true,
-  music: true,
+  music: false,
   cta: '',
   productName: '',
   productDescription: '',
@@ -119,7 +121,19 @@ function ToggleField({ checked, label, description, onChange }: { checked: boole
   return <button aria-checked={checked} className="flex w-full items-center justify-between gap-3 rounded-xl border border-border-soft bg-bg/30 p-3 text-left transition hover:border-brand-cyan/25 focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={() => onChange(!checked)} role="switch" type="button"><span><strong className="block text-xs">{label}</strong><span className="mt-1 block text-[9px] leading-4 text-text-muted">{description}</span></span><span className={`relative h-6 w-11 shrink-0 rounded-full border transition ${checked ? 'border-brand-teal bg-brand-teal' : 'border-border-strong bg-bg'}`}><span className={`absolute top-1 size-4 rounded-full bg-white transition ${checked ? 'left-6' : 'left-1'}`} /></span></button>
 }
 
-function PromptField({ value, onChange, label = 'What is this post about?', placeholder = 'Describe the idea, offer, product or message you want this post to communicate…' }: { value: string; onChange: (value: string) => void; label?: string; placeholder?: string }) {
+function CompactToggle({ checked, label, onChange }: { checked: boolean; label: string; onChange: (checked: boolean) => void }) {
+  return <button aria-checked={checked} className={`flex min-h-10 items-center justify-between gap-3 rounded-xl border px-3 text-left text-[10px] font-semibold transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${checked ? 'border-brand-teal/35 bg-brand-teal/10 text-white' : 'border-border-soft bg-bg/30 text-text-muted'}`} onClick={() => onChange(!checked)} role="switch" type="button"><span>{label}</span><span className={`size-2.5 rounded-full ${checked ? 'bg-brand-teal shadow-[0_0_10px_rgba(20,184,166,.65)]' : 'bg-text-soft/40'}`} /></button>
+}
+
+function SegmentedField({ label, value, values, onChange }: { label: string; value: string; values: string[]; onChange: (value: string) => void }) {
+  return <Field label={label}><div className="mt-1.5 grid gap-1.5 rounded-xl border border-border-soft bg-bg/30 p-1 sm:grid-cols-3">{values.map((item) => <button aria-pressed={value === item} className={`min-h-9 rounded-lg px-2 text-[10px] font-semibold transition ${value === item ? 'bg-brand-teal text-[#02130f]' : 'text-text-muted hover:bg-white/5 hover:text-white'}`} key={item} onClick={() => onChange(item)} type="button">{item}</button>)}</div></Field>
+}
+
+function AdvancedOptions({ children }: { children: ReactNode }) {
+  return <details className="group rounded-2xl border border-border-soft bg-bg/20"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[10px] font-semibold text-text-muted transition hover:text-white"><span>Advanced options</span><ChevronDown className="size-4 transition-transform group-open:rotate-180" /></summary><div className="grid gap-3 border-t border-border-soft p-4 sm:grid-cols-2">{children}</div></details>
+}
+
+function PromptField({ value, onChange, label = 'What do you want to create?', placeholder = 'Describe the idea, offer, product or message you want this post to communicate…' }: { value: string; onChange: (value: string) => void; label?: string; placeholder?: string }) {
   return <Field label={label} hint={`${value.length}/1,500`}><textarea className={textareaClass} maxLength={1500} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required value={value} /></Field>
 }
 
@@ -128,32 +142,54 @@ function BrandKitField({ brandKits, value, onChange }: { brandKits: BrandKit[]; 
 }
 
 function MediaSourceFields({ values, mediaAssets, onChange }: { values: FormValues; mediaAssets: MediaAsset[]; onChange: (patch: Partial<FormValues>) => void }) {
-  const source = values.visualSource === 'Uploaded media' || values.mediaSource === 'Upload product media'
+  const source = values.visualSource === 'Upload media' || values.mediaSource === 'Upload product media'
     ? 'upload'
-    : values.visualSource === 'Media Library assets' || values.mediaSource === 'Select from Media Library'
+    : values.visualSource === 'Media Library' || values.mediaSource === 'Select from Media Library'
       ? 'library'
       : 'generated'
 
   return <>
-    {source === 'upload' && <Field label="Upload source media" hint="Saved to Media Library before generation"><span className="mt-1.5 flex min-h-24 cursor-pointer items-center justify-center rounded-xl border border-dashed border-brand-cyan/25 bg-brand-cyan/[.025] p-4 text-center transition hover:border-brand-cyan/50"><input accept="image/*,video/*" className="sr-only" onChange={(event) => onChange({ uploadedFile: event.target.files?.[0] || null })} type="file" /><span><UploadCloud className="mx-auto size-5 text-brand-cyan" /><strong className="mt-2 block text-[10px]">{values.uploadedFile?.name || 'Choose product or source media'}</strong><span className="mt-1 block text-[9px] text-text-soft">Image or video · Media Library limits apply</span></span></span></Field>}
+    {source === 'upload' && <Field label="Upload source media" hint="Saved to Media Library first"><span className="mt-1.5 flex min-h-24 cursor-pointer items-center justify-center rounded-xl border border-dashed border-brand-cyan/25 bg-brand-cyan/[.025] p-4 text-center transition hover:border-brand-cyan/50"><input accept="image/*,video/*" className="sr-only" onChange={(event) => onChange({ uploadedFile: event.target.files?.[0] || null })} type="file" /><span><UploadCloud className="mx-auto size-5 text-brand-cyan" /><strong className="mt-2 block text-[10px]">{values.uploadedFile?.name || 'Choose source media'}</strong><span className="mt-1 block text-[9px] text-text-soft">Image or video · Media Library limits apply</span></span></span></Field>}
     {source === 'library' && <Field label="Media Library asset"><select className={inputClass} onChange={(event) => onChange({ mediaLibraryAssetId: event.target.value })} value={values.mediaLibraryAssetId}><option value="">Select an asset</option>{mediaAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.fileName}</option>)}</select></Field>}
   </>
 }
 
 export function ImageGenerationForm({ values, brandKits, onChange }: { values: FormValues; brandKits: BrandKit[]; onChange: (patch: Partial<FormValues>) => void }) {
-  return <div className="space-y-4"><PromptField onChange={(prompt) => onChange({ prompt })} value={values.prompt} /><div className="grid gap-3 sm:grid-cols-2"><SelectField label="Content goal" onChange={(goal) => onChange({ goal })} value={values.goal} values={['Brand awareness', 'Promote product/service', 'Engagement', 'Announcement', 'Educational']} /><SelectField label="Platform target" onChange={(platform) => onChange({ platform })} value={values.platform} values={['Instagram', 'Facebook', 'LinkedIn', 'YouTube', 'TikTok']} /><SelectField label="Aspect ratio" onChange={(aspectRatio) => onChange({ aspectRatio })} value={values.aspectRatio} values={['1:1', '4:5', '9:16', '16:9']} /><SelectField label="Visual style" onChange={(visualStyle) => onChange({ visualStyle })} value={values.visualStyle} values={['Brand-led', 'Editorial', 'Minimal', 'Lifestyle', 'Product focused', 'Illustrative']} /><BrandKitField brandKits={brandKits} onChange={(brandKitId) => onChange({ brandKitId })} value={values.brandKitId} /><SelectField label="Tone" onChange={(tone) => onChange({ tone })} value={values.tone} values={['Professional', 'Friendly', 'Bold', 'Minimal', 'Energetic']} /><SelectField label="Number of variants" onChange={(value) => onChange({ variants: Number(value) })} value={String(values.variants)} values={['1', '2', '3', '4']} /></div><div className="grid gap-2 sm:grid-cols-3"><ToggleField checked={values.generateCaption} label="Caption" description="Write publishing copy" onChange={(generateCaption) => onChange({ generateCaption })} /><ToggleField checked={values.generateHashtags} label="Hashtags" description="Add relevant hashtags" onChange={(generateHashtags) => onChange({ generateHashtags })} /><ToggleField checked={values.generateAltText} label="Alt text" description="Create accessible alt text" onChange={(generateAltText) => onChange({ generateAltText })} /></div></div>
+  return <div className="space-y-4">
+    <PromptField onChange={(prompt) => onChange({ prompt })} placeholder="e.g. Introduce INXSocial with a premium Facebook graphic focused on effortless scheduling" value={values.prompt} />
+    <div className="grid gap-3 sm:grid-cols-2"><SelectField label="Platform" onChange={(platform) => onChange({ platform })} value={values.platform} values={['Instagram', 'Facebook', 'LinkedIn', 'YouTube', 'TikTok']} /><SelectField label="Aspect ratio" onChange={(aspectRatio) => onChange({ aspectRatio })} value={values.aspectRatio} values={['1:1', '4:5', '9:16', '16:9']} /></div>
+    <div><p className="mb-2 text-[10px] font-semibold text-text-muted">Content helpers</p><div className="grid gap-2 sm:grid-cols-3"><CompactToggle checked={values.generateCaption} label="Caption" onChange={(generateCaption) => onChange({ generateCaption })} /><CompactToggle checked={values.generateHashtags} label="Hashtags" onChange={(generateHashtags) => onChange({ generateHashtags })} /><CompactToggle checked={values.generateAltText} label="Alt text" onChange={(generateAltText) => onChange({ generateAltText })} /></div></div>
+    <AdvancedOptions><SelectField label="Content goal" onChange={(goal) => onChange({ goal })} value={values.goal} values={['Brand awareness', 'Promote product/service', 'Engagement', 'Announcement', 'Educational']} /><SelectField label="Visual style" onChange={(visualStyle) => onChange({ visualStyle })} value={values.visualStyle} values={['Brand-led', 'Editorial', 'Minimal', 'Lifestyle', 'Product focused', 'Illustrative']} /><SelectField label="Tone" onChange={(tone) => onChange({ tone })} value={values.tone} values={['Professional', 'Friendly', 'Bold', 'Minimal', 'Energetic']} /><BrandKitField brandKits={brandKits} onChange={(brandKitId) => onChange({ brandKitId })} value={values.brandKitId} /><SelectField label="Number of variants" onChange={(value) => onChange({ variants: Number(value) })} value={String(values.variants)} values={['1', '2', '3', '4']} /></AdvancedOptions>
+  </div>
 }
 
 export function CarouselGenerationForm({ values, brandKits, onChange }: { values: FormValues; brandKits: BrandKit[]; onChange: (patch: Partial<FormValues>) => void }) {
-  return <div className="space-y-4"><PromptField label="Main topic / prompt" onChange={(prompt) => onChange({ prompt })} value={values.prompt} /><div className="grid gap-3 sm:grid-cols-2"><Field label="Number of slides" hint="3–10"><input className={inputClass} max={10} min={3} onChange={(event) => onChange({ slides: Math.min(10, Math.max(3, Number(event.target.value) || 3)) })} type="number" value={values.slides} /></Field><SelectField label="Content goal" onChange={(goal) => onChange({ goal })} value={values.goal} values={['Educational', 'Brand awareness', 'Product launch', 'Engagement', 'Announcement']} /><SelectField label="Platform target" onChange={(platform) => onChange({ platform })} value={values.platform} values={['Instagram', 'Facebook', 'LinkedIn']} /><SelectField label="Visual style" onChange={(visualStyle) => onChange({ visualStyle })} value={values.visualStyle} values={['Brand-led', 'Editorial', 'Minimal', 'Bold typography', 'Product focused']} /><BrandKitField brandKits={brandKits} onChange={(brandKitId) => onChange({ brandKitId })} value={values.brandKitId} /><SelectField label="Caption style" onChange={(captionStyle) => onChange({ captionStyle })} value={values.captionStyle} values={['Concise', 'Story-led', 'Educational', 'Conversational']} /><SelectField label="CTA style" onChange={(ctaStyle) => onChange({ ctaStyle })} value={values.ctaStyle} values={['Gentle CTA', 'Direct CTA', 'Question', 'No CTA']} /></div><div className="grid gap-2 sm:grid-cols-2"><ToggleField checked={values.generateSlideCopy} label="Generate slide copy" description="Write coordinated text for every slide" onChange={(generateSlideCopy) => onChange({ generateSlideCopy })} /><ToggleField checked={values.generateVisuals} label="Generate visuals" description="Create a coordinated visual system" onChange={(generateVisuals) => onChange({ generateVisuals })} /></div></div>
+  return <div className="space-y-4">
+    <PromptField label="Main topic" onChange={(prompt) => onChange({ prompt })} placeholder="e.g. 5 ways small businesses can save time scheduling social content" value={values.prompt} />
+    <div className="grid gap-3 sm:grid-cols-2"><SelectField label="Number of slides" onChange={(slides) => onChange({ slides: Number(slides) })} value={String(values.slides)} values={['3', '4', '5', '6', '7', '8']} /><SelectField label="Platform" onChange={(platform) => onChange({ platform })} value={values.platform} values={['Instagram', 'Facebook', 'LinkedIn']} /></div>
+    <CompactToggle checked={values.generateCaption} label="Generate caption" onChange={(generateCaption) => onChange({ generateCaption })} />
+    <AdvancedOptions><SelectField label="Visual style" onChange={(visualStyle) => onChange({ visualStyle })} value={values.visualStyle} values={['Brand-led', 'Editorial', 'Minimal', 'Bold typography', 'Product focused']} /><SelectField label="Tone" onChange={(tone) => onChange({ tone })} value={values.tone} values={['Professional', 'Friendly', 'Bold', 'Educational', 'Conversational']} /><BrandKitField brandKits={brandKits} onChange={(brandKitId) => onChange({ brandKitId })} value={values.brandKitId} /><SelectField label="CTA style" onChange={(ctaStyle) => onChange({ ctaStyle })} value={values.ctaStyle} values={['Gentle CTA', 'Direct CTA', 'Question', 'No CTA']} /><ToggleField checked={values.generateSlideCopy} label="Slide copy" description="Write coordinated copy for each slide" onChange={(generateSlideCopy) => onChange({ generateSlideCopy })} /><SelectField label="Aspect ratio" onChange={(aspectRatio) => onChange({ aspectRatio })} value={values.aspectRatio} values={['1:1', '4:5']} /></AdvancedOptions>
+  </div>
 }
 
 export function VideoGenerationForm({ values, brandKits, mediaAssets, onChange }: { values: FormValues; brandKits: BrandKit[]; mediaAssets: MediaAsset[]; onChange: (patch: Partial<FormValues>) => void }) {
-  return <div className="space-y-4"><PromptField label="Video idea / prompt" onChange={(prompt) => onChange({ prompt })} value={values.prompt} /><div className="grid gap-3 sm:grid-cols-2"><SelectField label="Duration" onChange={(duration) => onChange({ duration: Number(duration) })} value={String(values.duration)} values={['5', '10', '15']} /><SelectField label="Aspect ratio" onChange={(aspectRatio) => onChange({ aspectRatio })} value={values.aspectRatio === '4:5' ? '9:16' : values.aspectRatio} values={['9:16', '4:5', '1:1', '16:9']} /><SelectField label="Platform target" onChange={(platform) => onChange({ platform })} value={values.platform} values={['Instagram', 'Facebook', 'TikTok', 'YouTube']} /><SelectField label="Video style" onChange={(visualStyle) => onChange({ visualStyle })} value={values.visualStyle} values={['Product showcase', 'Cinematic', 'Motion graphic', 'Lifestyle', 'Educational']} /><SelectField label="Visual source" onChange={(visualSource) => onChange({ visualSource, uploadedFile: null, mediaLibraryAssetId: '' })} value={values.visualSource} values={['AI generated', 'Uploaded media', 'Media Library assets']} /><BrandKitField brandKits={brandKits} onChange={(brandKitId) => onChange({ brandKitId })} value={values.brandKitId} /></div><MediaSourceFields mediaAssets={mediaAssets} onChange={onChange} values={values} /><Field label="Call to action" hint="Optional"><input className={inputClass} maxLength={180} onChange={(event) => onChange({ cta: event.target.value })} placeholder="e.g. Learn more, Shop now, Follow for more" value={values.cta} /></Field><div className="grid gap-2 sm:grid-cols-3"><ToggleField checked={values.voiceover} description="Add generated narration" label="Voiceover" onChange={(voiceover) => onChange({ voiceover })} /><ToggleField checked={values.subtitles} description="Add social captions/subtitles" label="Captions / subtitles" onChange={(subtitles) => onChange({ subtitles })} /><ToggleField checked={values.music} description="Add suitable background audio" label="Music" onChange={(music) => onChange({ music })} /></div></div>
+  return <div className="space-y-4">
+    <PromptField label="Video idea" onChange={(prompt) => onChange({ prompt })} placeholder="e.g. A sleek 5-second reveal of a social scheduling dashboard with smooth camera movement" value={values.prompt} />
+    <div className="grid gap-3 sm:grid-cols-2"><SelectField label="Duration" onChange={(duration) => onChange({ duration: Number(duration) })} value={String(values.duration)} values={['5', '10']} /><SelectField label="Platform" onChange={(platform) => onChange({ platform })} value={values.platform} values={['Instagram', 'Facebook', 'TikTok', 'YouTube']} /></div>
+    <SegmentedField label="Source" onChange={(visualSource) => onChange({ visualSource, uploadedFile: null, mediaLibraryAssetId: '' })} value={values.visualSource} values={['AI generated', 'Upload media', 'Media Library']} />
+    <MediaSourceFields mediaAssets={mediaAssets} onChange={onChange} values={values} />
+    <AdvancedOptions><ToggleField checked={values.subtitles} description="Leave safe space for social captions" label="Captions / subtitles" onChange={(subtitles) => onChange({ subtitles })} /><ToggleField checked={values.voiceover} description="Prepare the workflow for narration" label="Voiceover" onChange={(voiceover) => onChange({ voiceover })} /><ToggleField checked={values.music} description="Request suitable background audio" label="Music" onChange={(music) => onChange({ music })} /><Field label="Call to action" hint="Optional"><input className={inputClass} maxLength={180} onChange={(event) => onChange({ cta: event.target.value })} placeholder="e.g. Learn more" value={values.cta} /></Field><BrandKitField brandKits={brandKits} onChange={(brandKitId) => onChange({ brandKitId })} value={values.brandKitId} /><SelectField label="Video style" onChange={(visualStyle) => onChange({ visualStyle })} value={values.visualStyle} values={['Product showcase', 'Cinematic', 'Motion graphic', 'Lifestyle', 'Educational']} /><SelectField label="Aspect ratio" onChange={(aspectRatio) => onChange({ aspectRatio })} value={values.aspectRatio === '4:5' ? '9:16' : values.aspectRatio} values={['9:16', '4:5', '1:1', '16:9']} /></AdvancedOptions>
+  </div>
 }
 
 export function UGCGenerationForm({ values, brandKits, mediaAssets, onChange }: { values: FormValues; brandKits: BrandKit[]; mediaAssets: MediaAsset[]; onChange: (patch: Partial<FormValues>) => void }) {
-  return <div className="space-y-4"><div className="grid gap-3 sm:grid-cols-2"><Field label="Product / service name"><input className={inputClass} maxLength={160} onChange={(event) => onChange({ productName: event.target.value })} placeholder="What are you promoting?" required value={values.productName} /></Field><SelectField label="Platform" onChange={(platform) => onChange({ platform })} value={values.platform} values={['Instagram', 'Facebook', 'TikTok', 'YouTube']} /></div><Field label="Product description"><textarea className={textareaClass} maxLength={1500} onChange={(event) => onChange({ productDescription: event.target.value, prompt: event.target.value })} placeholder="Describe the product/service, benefits and important facts. Do not include unsupported claims." required value={values.productDescription} /></Field><div className="grid gap-3 sm:grid-cols-2"><SelectField label="Campaign goal" onChange={(goal) => onChange({ goal })} value={values.goal} values={['Promote product/service', 'Generate enquiries', 'Brand awareness', 'Product launch']} /><Field label="Target audience"><input className={inputClass} maxLength={200} onChange={(event) => onChange({ audience: event.target.value })} placeholder="Who should this speak to?" value={values.audience} /></Field><Field label="Hook"><input className={inputClass} maxLength={220} onChange={(event) => onChange({ hook: event.target.value })} placeholder="Opening angle or leave blank for AI" value={values.hook} /></Field><Field label="Offer"><input className={inputClass} maxLength={220} onChange={(event) => onChange({ offer: event.target.value })} placeholder="Optional offer or incentive" value={values.offer} /></Field><Field label="CTA"><input className={inputClass} maxLength={180} onChange={(event) => onChange({ cta: event.target.value })} placeholder="What should viewers do next?" value={values.cta} /></Field><SelectField label="Tone" onChange={(tone) => onChange({ tone })} value={values.tone} values={['Natural', 'Friendly', 'Confident', 'Energetic', 'Professional']} /><SelectField label="UGC format" onChange={(ugcFormat) => onChange({ ugcFormat })} value={values.ugcFormat} values={['Talking-head style', 'Testimonial', 'Product demo', 'Problem / solution', 'Before / after']} /><SelectField label="Duration" onChange={(duration) => onChange({ duration: Number(duration) })} value={String(values.duration)} values={['5', '10', '15']} /><SelectField label="Media source" onChange={(mediaSource) => onChange({ mediaSource, uploadedFile: null, mediaLibraryAssetId: '' })} value={values.mediaSource} values={['Upload product media', 'Select from Media Library', 'Generate supporting visuals']} /><BrandKitField brandKits={brandKits} onChange={(brandKitId) => onChange({ brandKitId })} value={values.brandKitId} /></div><MediaSourceFields mediaAssets={mediaAssets} onChange={onChange} values={values} /></div>
+  return <div className="space-y-4">
+    <div className="grid gap-3 sm:grid-cols-2"><Field label="Product / service name"><input className={inputClass} maxLength={160} onChange={(event) => onChange({ productName: event.target.value })} placeholder="e.g. INXSocial" required value={values.productName} /></Field><SelectField label="Platform" onChange={(platform) => onChange({ platform })} value={values.platform} values={['Instagram', 'Facebook', 'TikTok', 'YouTube']} /></div>
+    <Field label="What are you promoting?" hint={`${values.productDescription.length}/1,500`}><textarea className={textareaClass} maxLength={1500} onChange={(event) => onChange({ productDescription: event.target.value, prompt: event.target.value })} placeholder="Describe the product or service, its real benefits and the message the creator should communicate." required value={values.productDescription} /></Field>
+    <div className="grid gap-3 sm:grid-cols-2"><SelectField label="Campaign goal" onChange={(goal) => onChange({ goal })} value={values.goal} values={['Promote product/service', 'Generate enquiries', 'Brand awareness', 'Product launch']} /><SelectField label="UGC format" onChange={(ugcFormat) => onChange({ ugcFormat })} value={values.ugcFormat} values={['Talking-head style', 'Testimonial', 'Product demo', 'Problem / solution', 'Before / after']} /></div>
+    <AdvancedOptions><Field label="Target audience"><input className={inputClass} maxLength={200} onChange={(event) => onChange({ audience: event.target.value })} placeholder="Who should this speak to?" value={values.audience} /></Field><Field label="Hook"><input className={inputClass} maxLength={220} onChange={(event) => onChange({ hook: event.target.value })} placeholder="Opening angle or leave blank for AI" value={values.hook} /></Field><Field label="Offer"><input className={inputClass} maxLength={220} onChange={(event) => onChange({ offer: event.target.value })} placeholder="Optional offer or incentive" value={values.offer} /></Field><Field label="CTA"><input className={inputClass} maxLength={180} onChange={(event) => onChange({ cta: event.target.value })} placeholder="What should viewers do next?" value={values.cta} /></Field><SelectField label="Tone" onChange={(tone) => onChange({ tone })} value={values.tone} values={['Natural', 'Friendly', 'Confident', 'Energetic', 'Professional']} /><SelectField label="Media source" onChange={(mediaSource) => onChange({ mediaSource, uploadedFile: null, mediaLibraryAssetId: '' })} value={values.mediaSource} values={['Generate supporting visuals', 'Upload product media', 'Select from Media Library']} /><BrandKitField brandKits={brandKits} onChange={(brandKitId) => onChange({ brandKitId })} value={values.brandKitId} /><SelectField label="Duration" onChange={(duration) => onChange({ duration: Number(duration) })} value={String(values.duration)} values={['5', '10']} /></AdvancedOptions>
+    <MediaSourceFields mediaAssets={mediaAssets} onChange={onChange} values={values} />
+  </div>
 }
 
 export function CarouselEditor({ asset, onChange, onRegenerateSlide }: { asset: GeneratedAsset; onChange: (asset: GeneratedAsset) => void; onRegenerateSlide: (index: number) => void }) {
@@ -232,7 +268,14 @@ function generationFunction(type: AIContentType) {
   return generateUGCAd
 }
 
+function sourceReady(type: AIContentType, values: FormValues) {
+  if (type === 'short_video' && ['Upload media', 'Media Library'].includes(values.visualSource)) return Boolean(values.uploadedFile || values.mediaLibraryAssetId)
+  if (type === 'ugc_ad' && ['Upload product media', 'Select from Media Library'].includes(values.mediaSource)) return Boolean(values.uploadedFile || values.mediaLibraryAssetId)
+  return true
+}
+
 function requiredReady(type: AIContentType, values: FormValues) {
+  if (!sourceReady(type, values)) return false
   if (type === 'ugc_ad') return Boolean(values.productName.trim() && values.productDescription.trim())
   return Boolean(values.prompt.trim())
 }
@@ -269,7 +312,7 @@ export function GenerationModal({ open, type, access, initialDraft, onClose, onS
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [asset, setAsset] = useState<GeneratedAsset | null>(null)
-  const [credits, setCredits] = useState(1)
+  const [credits, setCredits] = useState(5)
   const [brandKits, setBrandKits] = useState<BrandKit[]>([])
   const [mediaAssets, setMediaAssets] = useState<MediaAsset[]>([])
   const [savedAssets, setSavedAssets] = useState<MediaAsset[]>([])
@@ -278,9 +321,9 @@ export function GenerationModal({ open, type, access, initialDraft, onClose, onS
   useEffect(() => {
     if (!open) return
     const next = { ...defaults }
-    if (currentType === 'carousel_post') { next.goal = 'Educational'; next.aspectRatio = '1:1' }
-    if (currentType === 'short_video') { next.aspectRatio = '9:16'; next.visualStyle = 'Product showcase' }
-    if (currentType === 'ugc_ad') { next.aspectRatio = '9:16'; next.tone = 'Natural'; next.goal = 'Promote product/service' }
+    if (currentType === 'carousel_post') { next.goal = 'Educational'; next.aspectRatio = '1:1'; next.slides = 5 }
+    if (currentType === 'short_video') { next.aspectRatio = '9:16'; next.visualStyle = 'Product showcase'; next.duration = 5 }
+    if (currentType === 'ugc_ad') { next.aspectRatio = '9:16'; next.tone = 'Natural'; next.goal = 'Promote product/service'; next.duration = 10 }
     if (initialDraft) {
       next.prompt = initialDraft.prompt || ''
       next.productDescription = initialDraft.contentType === 'ugc_ad' ? initialDraft.prompt || '' : ''
@@ -343,12 +386,13 @@ export function GenerationModal({ open, type, access, initialDraft, onClose, onS
 
   async function runGeneration(extraOptions: Record<string, unknown> = {}) {
     if (!requiredReady(currentType, values)) {
-      const text = currentType === 'ugc_ad' ? 'Add the product/service name and description before generating.' : 'Add a clear prompt before generating.'
+      const text = !sourceReady(currentType, values) ? 'Choose or upload the source media before generating.' : currentType === 'ugc_ad' ? 'Add the product/service name and description before generating.' : 'Add a clear prompt before generating.'
       setError(text)
+      setMessage('')
       setStatus('failed')
       return
     }
-    if (insufficient) { setError('Not enough AI credits for this generation.'); setStatus('failed'); return }
+    if (insufficient) { setError('Not enough AI credits for this generation.'); setMessage(''); setStatus('failed'); return }
     setError('')
     setStatus('preparing')
     setMessage('Preparing your brief and validating the generation request.')
@@ -359,7 +403,7 @@ export function GenerationModal({ open, type, access, initialDraft, onClose, onS
       const request = requestFor(currentType, values, sourceAssetId)
       request.options = { ...request.options, ...extraOptions }
       setStatus('generating')
-      setMessage('Generating media and publishing copy.')
+      setMessage('Generating your media.')
       const result = await generationFunction(currentType)(request, controller.signal)
       if (controller.signal.aborted) return
       setStatus('processing')
@@ -367,9 +411,10 @@ export function GenerationModal({ open, type, access, initialDraft, onClose, onS
       setAsset(result)
       setSavedAssets([])
       setStatus('completed')
-      setMessage('Content generated successfully.')
+      const helperWarning = result.warnings?.[0]
+      setMessage(helperWarning ? 'Media created successfully. Some optional writing helpers were unavailable.' : 'Content generated successfully.')
       rememberGeneration({ id: result.id, type: currentType, prompt: request.prompt, createdAt: result.createdAt, creditsUsed: result.creditsUsed, status: 'completed', assetUrl: result.url })
-      onToast('Content generated successfully.')
+      onToast(helperWarning ? 'Media created. Review the helper warning before publishing.' : 'Content generated successfully.')
     } catch (caught) {
       if (controller.signal.aborted || (caught instanceof DOMException && caught.name === 'AbortError')) {
         setStatus('cancelled')
@@ -379,7 +424,7 @@ export function GenerationModal({ open, type, access, initialDraft, onClose, onS
       const text = caught instanceof Error ? caught.message : 'Generation failed. Please retry or edit the input.'
       setStatus('failed')
       setError(text)
-      setMessage(text)
+      setMessage('')
       rememberGeneration({ id: crypto.randomUUID(), type: currentType, prompt: requestFor(currentType, values).prompt, createdAt: new Date().toISOString(), creditsUsed: 0, status: 'failed' })
     } finally {
       controllerRef.current = null
@@ -408,6 +453,7 @@ export function GenerationModal({ open, type, access, initialDraft, onClose, onS
       const text = caught instanceof Error ? caught.message : 'Generated media could not be saved.'
       setStatus('failed')
       setError(text)
+      setMessage('')
       throw caught
     }
   }
@@ -420,6 +466,7 @@ export function GenerationModal({ open, type, access, initialDraft, onClose, onS
       onToast('AI draft saved.')
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'The draft could not be saved.')
+      setMessage('')
       setStatus('failed')
     }
   }
@@ -472,15 +519,15 @@ export function GenerationModal({ open, type, access, initialDraft, onClose, onS
 
         <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,.92fr)_minmax(0,1.08fr)]">
           <div className="scrollbar-thin min-h-0 overflow-y-auto border-b border-border-soft p-4 lg:border-b-0 lg:border-r sm:p-5">
-            <div className="mb-4 flex items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Configure your post</h3><p className="mt-1 text-[9px] text-text-soft">Every control feeds the generation request.</p></div>{asset && <Button onClick={() => setAsset(null)} size="sm" type="button"><ArrowLeft className="size-3.5" />Back to brief</Button>}</div>
+            <div className="mb-4 flex items-center justify-between gap-3"><div><h3 className="text-sm font-semibold">Create your post</h3><p className="mt-1 text-[9px] text-text-soft">Start with the essentials. Open Advanced options only when you need more control.</p></div>{asset && <Button onClick={() => setAsset(null)} size="sm" type="button"><ArrowLeft className="size-3.5" />Back to brief</Button>}</div>
             {form}
             <div className="mt-4"><CreditCostPreview configured={access.creditsConfigured} credits={credits} remaining={access.creditsRemaining} unlimited={access.unlimitedCredits} /></div>
-            <div className="mt-4"><GenerationProgress message={message || undefined} status={status} /></div>
-            {error && <div className="mt-3 rounded-2xl border border-brand-red/30 bg-brand-red/[.06] p-4"><strong className="text-xs text-brand-red">{error}</strong><div className="mt-3 flex flex-wrap gap-2"><Button disabled={generating} onClick={() => void runGeneration()} size="sm">Retry</Button><Button onClick={() => { setError(''); setStatus('idle') }} size="sm">Edit input</Button><Button onClick={onClose} size="sm" variant="ghost">Return to Studio</Button></div></div>}
+            <div className="mt-4"><GenerationProgress message={status === 'failed' ? undefined : message || undefined} status={status} /></div>
+            {error && <div className="mt-3 rounded-2xl border border-brand-red/30 bg-brand-red/[.06] p-4"><strong className="text-xs text-brand-red">{error}</strong><p className="mt-1 text-[10px] leading-4 text-text-muted">Your Studio credits are returned automatically when generation does not complete.</p><div className="mt-3 flex flex-wrap gap-2"><Button disabled={generating} onClick={() => void runGeneration()} size="sm">Retry</Button><Button onClick={() => { setError(''); setStatus('idle') }} size="sm">Edit input</Button><Button onClick={onClose} size="sm" variant="ghost">Return to Studio</Button></div></div>}
           </div>
 
           <div className="scrollbar-thin min-h-0 overflow-y-auto bg-black/[.08] p-4 sm:p-5">
-            {asset ? <><div className="mb-4 flex items-center justify-between gap-3"><div><span className="text-[9px] font-bold uppercase tracking-[.16em] text-brand-green">Generated</span><h3 className="mt-1 text-sm font-semibold">Review & refine</h3></div><span className="rounded-full border border-brand-green/25 bg-brand-green/10 px-2.5 py-1 text-[9px] font-semibold text-brand-green">{asset.creditsUsed} credits used</span></div><GeneratedAssetPreview asset={asset} onChange={setAsset} onRegenerateSlide={(index) => void regenerateSlide(index)} /><div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-3"><Button disabled={generating} onClick={() => void runGeneration()}><RefreshCw className="size-3.5" />Regenerate</Button><Button disabled={generating} onClick={() => void runGeneration({ variationOf: asset.id })}><WandSparkles className="size-3.5" />Create variation</Button><Button onClick={() => setAsset(null)}><Sparkles className="size-3.5" />Edit prompt</Button><Button onClick={downloadAsset}><Download className="size-3.5" />Download</Button><Button disabled={generating} onClick={() => void storeMedia()}><Library className="size-3.5" />Save to Media Library</Button><Button disabled={generating} onClick={() => void saveDraft()}><Save className="size-3.5" />Save draft</Button></div><Button className="mt-3 w-full" disabled={generating} onClick={() => void continueToPosts()} variant="primary"><Send className="size-4" />Continue to Posts <ArrowRight className="size-4" /></Button><p className="mt-2 text-center text-[9px] leading-4 text-text-soft">Assets are saved first. Posts is pre-filled, but destination pages and publishing time remain unselected.</p></> : <div className="grid min-h-[420px] place-items-center rounded-3xl border border-dashed border-border-soft bg-[radial-gradient(circle_at_center,rgba(34,211,238,.06),transparent_22rem)] p-8 text-center"><div><span className="mx-auto grid size-16 place-items-center rounded-2xl border border-brand-cyan/25 bg-brand-cyan/8 text-brand-cyan"><Sparkles className="size-7" /></span><h3 className="mt-4 text-lg font-semibold">Your generated post appears here.</h3><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-text-muted">Configure the brief, review the estimated credit cost, then generate. Nothing is published directly from AI Content Studio.</p>{generating ? <Button className="mt-5" onClick={cancel} variant="ghost"><X className="size-4" />Cancel generation</Button> : <Button className="mt-5" disabled={!requiredReady(currentType, values) || insufficient} onClick={() => void runGeneration()} variant="primary"><Sparkles className="size-4" />Generate {definition.title}</Button>}</div></div>}
+            {asset ? <><div className="mb-4 flex items-center justify-between gap-3"><div><span className="text-[9px] font-bold uppercase tracking-[.16em] text-brand-green">Generated</span><h3 className="mt-1 text-sm font-semibold">Review & refine</h3></div><span className="rounded-full border border-brand-green/25 bg-brand-green/10 px-2.5 py-1 text-[9px] font-semibold text-brand-green">{asset.creditsUsed} credits used</span></div>{asset.warnings?.length ? <div className="mb-4 rounded-2xl border border-brand-amber/25 bg-brand-amber/[.06] p-4"><div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-brand-amber" /><div><strong className="text-xs text-brand-amber">Media created with a helper warning</strong>{asset.warnings.map((warning) => <p className="mt-1 text-[10px] leading-4 text-text-muted" key={warning}>{warning}</p>)}</div></div></div> : null}<GeneratedAssetPreview asset={asset} onChange={setAsset} onRegenerateSlide={(index) => void regenerateSlide(index)} /><div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-3"><Button disabled={generating} onClick={() => void runGeneration()}><RefreshCw className="size-3.5" />Regenerate</Button><Button disabled={generating} onClick={() => void runGeneration({ variationOf: asset.id })}><WandSparkles className="size-3.5" />Create variation</Button><Button onClick={() => setAsset(null)}><Sparkles className="size-3.5" />Edit prompt</Button><Button onClick={downloadAsset}><Download className="size-3.5" />Download</Button><Button disabled={generating} onClick={() => void storeMedia()}><Library className="size-3.5" />Save to Media Library</Button><Button disabled={generating} onClick={() => void saveDraft()}><Save className="size-3.5" />Save draft</Button></div><Button className="mt-3 w-full" disabled={generating} onClick={() => void continueToPosts()} variant="primary"><Send className="size-4" />Continue to Posts <ArrowRight className="size-4" /></Button><p className="mt-2 text-center text-[9px] leading-4 text-text-soft">Assets are saved first. Posts is pre-filled, but destination pages and publishing time remain unselected.</p></> : <div className="grid min-h-[420px] place-items-center rounded-3xl border border-dashed border-border-soft bg-[radial-gradient(circle_at_center,rgba(34,211,238,.06),transparent_22rem)] p-8 text-center"><div><span className="mx-auto grid size-16 place-items-center rounded-2xl border border-brand-cyan/25 bg-brand-cyan/8 text-brand-cyan"><Sparkles className="size-7" /></span><h3 className="mt-4 text-lg font-semibold">Your generated post appears here.</h3><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-text-muted">Enter the essentials, review the credit cost, then generate. Nothing is published directly from AI Content Studio.</p>{generating ? <Button className="mt-5" onClick={cancel} variant="ghost"><X className="size-4" />Cancel generation</Button> : <Button className="mt-5" disabled={!requiredReady(currentType, values) || insufficient} onClick={() => void runGeneration()} variant="primary"><Sparkles className="size-4" />Generate {definition.title}</Button>}</div></div>}
           </div>
         </div>
 
