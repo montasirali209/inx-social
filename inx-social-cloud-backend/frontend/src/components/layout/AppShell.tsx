@@ -25,7 +25,12 @@ function AppShellContent() {
   useEffect(() => {
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection
     if (connection?.saveData || connection?.effectiveType === 'slow-2g' || connection?.effectiveType === '2g') return
-    const timer = window.setTimeout(() => { void preloadAllAppRoutes() }, 320)
+    const warm = () => { void preloadAllAppRoutes() }
+    if ('requestIdleCallback' in window) {
+      const idleId = (window as Window & { requestIdleCallback: (callback: () => void, options?: { timeout: number }) => number; cancelIdleCallback: (id: number) => void }).requestIdleCallback(warm, { timeout: 1200 })
+      return () => (window as Window & { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(idleId)
+    }
+    const timer = window.setTimeout(warm, 650)
     return () => window.clearTimeout(timer)
   }, [])
 
@@ -38,8 +43,8 @@ function AppShellContent() {
       <div className="md:pl-[88px] xl:pl-[264px]">
         <Topbar overview={overview.data} />
         <main className="mx-auto w-full max-w-[1780px] min-w-0 p-3 sm:p-5 xl:p-6" id="main-content">
-          <div aria-hidden={!bulkRoute} className={bulkRoute ? 'route-stage min-w-0' : 'hidden'}><BulkSchedulerPage /></div>
-          {!bulkRoute && <div className="route-stage min-w-0" key={location.pathname}><Outlet /></div>}
+          <div aria-hidden={!bulkRoute} className={bulkRoute ? 'route-stage min-w-0' : 'hidden'} style={{ animationDuration: '160ms' }}><BulkSchedulerPage /></div>
+          {!bulkRoute && <div className="route-stage min-w-0" key={location.pathname} style={{ animationDuration: '160ms' }}><Outlet /></div>}
         </main>
       </div>
       <BulkRunDock />
