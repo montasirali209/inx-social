@@ -1,4 +1,4 @@
-import { useEffect, type ButtonHTMLAttributes, type ReactNode } from 'react'
+import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, LockKeyhole, X } from 'lucide-react'
 import type { InvoiceStatus, SubscriptionStatus } from '../../types/billing'
@@ -33,16 +33,46 @@ export function FeatureAvailabilityRow({ children, available, detail }: { childr
 
 type OverlayProps = { open: boolean; title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; drawer?: boolean }
 export function Overlay({ open, title, onClose, children, footer, drawer = false }: OverlayProps) {
+  const dialogRef = useRef<HTMLElement>(null)
+  const previousFocus = useRef<HTMLElement | null>(null)
+
   useEffect(() => {
     if (!open) return
+    previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
-    window.addEventListener('keydown', close)
-    return () => { document.body.style.overflow = previous; window.removeEventListener('keydown', close) }
+    const focusable = () => Array.from(dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') || [])
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onClose()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const items = focusable()
+      if (!items.length) return
+      const first = items[0]
+      const last = items[items.length - 1]
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    const timer = window.setTimeout(() => focusable()[0]?.focus(), 0)
+    return () => {
+      window.clearTimeout(timer)
+      document.body.style.overflow = previous
+      window.removeEventListener('keydown', handleKey)
+      previousFocus.current?.focus()
+    }
   }, [open, onClose])
+
   if (!open) return null
-  return createPortal(<div className={`fixed inset-0 z-[100] flex bg-[#01070d]/82 p-3 backdrop-blur-md ${drawer ? 'justify-end' : 'items-center justify-center sm:p-6'}`} onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}><section aria-labelledby="billing-overlay-title" aria-modal="true" className={`flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden border border-brand-cyan/30 bg-panel shadow-[0_35px_130px_rgba(0,0,0,.72),0_0_70px_rgba(20,184,166,.12)] ${drawer ? 'h-full max-w-lg rounded-panel' : 'max-w-3xl rounded-panel'}`} role="dialog"><header className="flex items-center justify-between gap-4 border-b border-border-soft p-5"><h2 className="text-lg font-semibold" id="billing-overlay-title">{title}</h2><button aria-label={`Close ${title}`} autoFocus className="rounded-lg border border-border-soft p-2 text-text-muted hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button"><X aria-hidden="true" className="size-4" /></button></header><div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-5">{children}</div>{footer && <footer className="flex flex-col-reverse gap-2 border-t border-border-soft bg-bg/35 p-4 sm:flex-row sm:justify-end">{footer}</footer>}</section></div>, document.body)
+  return createPortal(<div className={`fixed inset-0 z-[100] flex bg-[#01070d]/82 p-3 backdrop-blur-md ${drawer ? 'justify-end' : 'items-center justify-center sm:p-6'}`} onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}><section aria-labelledby="billing-overlay-title" aria-modal="true" className={`flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden border border-brand-cyan/30 bg-panel shadow-[0_35px_130px_rgba(0,0,0,.72),0_0_70px_rgba(20,184,166,.12)] ${drawer ? 'h-full max-w-lg rounded-panel' : 'max-w-3xl rounded-panel'}`} ref={dialogRef} role="dialog"><header className="flex items-center justify-between gap-4 border-b border-border-soft p-5"><h2 className="text-lg font-semibold" id="billing-overlay-title">{title}</h2><button aria-label={`Close ${title}`} className="rounded-lg border border-border-soft p-2 text-text-muted hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button"><X aria-hidden="true" className="size-4" /></button></header><div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-5">{children}</div>{footer && <footer className="flex flex-col-reverse gap-2 border-t border-border-soft bg-bg/35 p-4 sm:flex-row sm:justify-end">{footer}</footer>}</section></div>, document.body)
 }
 
 export const Modal = Overlay
