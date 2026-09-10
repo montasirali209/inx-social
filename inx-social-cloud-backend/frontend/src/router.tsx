@@ -1,35 +1,16 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
-
-const loadDashboard = () => import('./components/dashboard/DashboardPage')
-const loadCalendar = () => import('./components/calendar/ContentCalendarPage')
-const loadPosts = () => import('./components/posts/PostsPage')
-const loadMediaLibrary = () => import('./components/media-library/MediaLibraryPage')
-const loadAiContentStudio = () => import('./components/ai-content-studio/AiContentStudioPage')
-const loadAnalytics = () => import('./components/analytics/AnalyticsPage')
-const loadSettings = () => import('./components/settings/SettingsPage')
-const loadConnectedAccounts = () => import('./components/connections/ConnectedAccountsPage')
-const loadBilling = () => import('./components/billing/BillingPlansPage')
-
-const routeLoaders: Record<string, () => Promise<unknown>> = {
-  '/': loadDashboard,
-  '/content-calendar': loadCalendar,
-  '/posts': loadPosts,
-  '/media-library': loadMediaLibrary,
-  '/ai-content-studio': loadAiContentStudio,
-  '/analytics': loadAnalytics,
-  '/settings': loadSettings,
-  '/connected-accounts': loadConnectedAccounts,
-  '/billing': loadBilling,
-}
-
-export function preloadAppRoute(path: string) {
-  return routeLoaders[path]?.()
-}
-
-export function preloadAllAppRoutes() {
-  return Promise.allSettled(Object.values(routeLoaders).map((load) => load()))
-}
+import {
+  loadAiContentStudio,
+  loadAnalytics,
+  loadBilling,
+  loadCalendar,
+  loadConnectedAccounts,
+  loadDashboard,
+  loadMediaLibrary,
+  loadPosts,
+  loadSettings,
+} from './route-preload'
 
 export const router = createBrowserRouter(
   [
