@@ -22,12 +22,14 @@ import {
   Sparkles,
   Trash2,
   X,
+  type LucideIcon,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { AIDraft, AIContentType, AIPlanAccess, GenerationHistoryItem, GenerationStatus } from '../../types/ai-content-studio'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { Drawer, Modal } from '../billing/BillingPrimitives'
+import { AIStudioHeroArtwork, AIWorkflowArtwork } from './AIStudioVisuals'
 
 export type WorkflowDefinition = {
   type: AIContentType
@@ -36,7 +38,7 @@ export type WorkflowDefinition = {
   description: string
   useCases: string[]
   credits: string
-  icon: typeof Image
+  icon: LucideIcon
   tone: 'teal' | 'purple' | 'cyan' | 'amber'
 }
 
@@ -85,22 +87,22 @@ export const workflowDefinitions: WorkflowDefinition[] = [
 
 const toneClasses = {
   teal: {
-    card: 'border-brand-teal/25 bg-[radial-gradient(circle_at_85%_15%,rgba(20,184,166,.16),transparent_17rem),linear-gradient(150deg,rgba(7,38,44,.9),rgba(5,19,31,.96))] hover:border-brand-teal/50',
+    card: 'border-brand-teal/25 bg-[radial-gradient(circle_at_88%_11%,rgba(20,184,166,.18),transparent_15rem),linear-gradient(150deg,rgba(7,38,44,.92),rgba(5,19,31,.98))] hover:border-brand-teal/50',
     icon: 'border-brand-teal/35 bg-brand-teal/10 text-brand-cyan',
     glow: 'from-brand-teal/20 via-brand-cyan/5 to-transparent',
   },
   purple: {
-    card: 'border-brand-purple/25 bg-[radial-gradient(circle_at_85%_15%,rgba(139,92,246,.18),transparent_17rem),linear-gradient(150deg,rgba(24,25,65,.92),rgba(6,19,32,.96))] hover:border-brand-purple/50',
+    card: 'border-brand-purple/25 bg-[radial-gradient(circle_at_88%_11%,rgba(139,92,246,.20),transparent_15rem),linear-gradient(150deg,rgba(24,25,65,.94),rgba(6,19,32,.98))] hover:border-brand-purple/50',
     icon: 'border-brand-purple/35 bg-brand-purple/10 text-[#c4b5fd]',
     glow: 'from-brand-purple/20 via-[#7c3aed]/5 to-transparent',
   },
   cyan: {
-    card: 'border-brand-cyan/25 bg-[radial-gradient(circle_at_85%_15%,rgba(34,211,238,.15),transparent_17rem),linear-gradient(150deg,rgba(3,39,52,.92),rgba(5,19,31,.96))] hover:border-brand-cyan/50',
+    card: 'border-brand-cyan/25 bg-[radial-gradient(circle_at_88%_11%,rgba(34,211,238,.16),transparent_15rem),linear-gradient(150deg,rgba(3,39,52,.94),rgba(5,19,31,.98))] hover:border-brand-cyan/50',
     icon: 'border-brand-cyan/35 bg-brand-cyan/10 text-brand-cyan',
     glow: 'from-brand-cyan/20 via-brand-teal/5 to-transparent',
   },
   amber: {
-    card: 'border-brand-amber/25 bg-[radial-gradient(circle_at_85%_15%,rgba(245,158,11,.14),transparent_17rem),linear-gradient(150deg,rgba(47,39,11,.84),rgba(6,19,30,.96))] hover:border-brand-amber/50',
+    card: 'border-brand-amber/25 bg-[radial-gradient(circle_at_88%_11%,rgba(245,158,11,.16),transparent_15rem),linear-gradient(150deg,rgba(47,39,11,.88),rgba(6,19,30,.98))] hover:border-brand-amber/50',
     icon: 'border-brand-amber/35 bg-brand-amber/10 text-brand-amber',
     glow: 'from-brand-amber/20 via-orange-400/5 to-transparent',
   },
@@ -114,14 +116,14 @@ export function AIPlanCreditCard({ access }: { access: AIPlanAccess }) {
     ? Math.min(100, Math.round((used / access.creditsLimit) * 100))
     : null
 
-  return <Card className="min-w-0 border-brand-teal/25 bg-[linear-gradient(145deg,rgba(4,43,52,.92),rgba(6,24,38,.96))] p-5 xl:w-[360px] xl:shrink-0">
+  return <Card className="min-w-0 border-brand-teal/25 bg-[linear-gradient(145deg,rgba(4,43,52,.94),rgba(6,24,38,.98))] p-5 shadow-[0_24px_70px_rgba(0,0,0,.28)] xl:w-[360px] xl:shrink-0">
     <div className="flex items-center justify-between gap-3">
       <span className="inline-flex items-center gap-2 text-sm font-semibold text-brand-cyan"><Crown className="size-4" />Plus Plan</span>
       <span className={`rounded-full border px-2 py-1 text-[9px] font-bold uppercase tracking-[.14em] ${access.studioEnabled ? 'border-brand-green/25 bg-brand-green/10 text-brand-green' : 'border-brand-amber/25 bg-brand-amber/10 text-brand-amber'}`}>{access.studioEnabled ? 'Active' : 'Locked'}</span>
     </div>
 
     <div className="mt-4">
-      {access.unlimitedCredits ? <><strong className="text-3xl tracking-tight">Unlimited</strong><span className="mt-1 block text-xs text-text-muted">AI generation allowance</span></> : access.creditsConfigured ? <><strong className="text-3xl tracking-tight">{(access.creditsRemaining ?? 0).toLocaleString()}</strong><span className="mt-1 block text-xs text-text-muted">AI credits remaining</span></> : <><strong className="text-xl tracking-tight">Credit wallet pending</strong><span className="mt-1 block text-xs leading-5 text-text-muted">The Studio will show the live monthly balance as soon as the credit service is enabled.</span></>}
+      {access.unlimitedCredits ? <><strong className="text-3xl tracking-tight">Unlimited</strong><span className="mt-1 block text-xs text-text-muted">AI generation allowance</span></> : access.creditsConfigured ? <><strong className="text-3xl tracking-tight">{(access.creditsRemaining ?? 0).toLocaleString()}</strong><span className="mt-1 block text-xs text-text-muted">AI credits remaining</span></> : <><strong className="text-xl tracking-tight">Credit wallet pending</strong><span className="mt-1 block text-xs leading-5 text-text-muted">The live monthly balance will appear here when the credit service is enabled.</span></>}
     </div>
 
     {percent !== null && <div className="mt-4">
@@ -130,7 +132,7 @@ export function AIPlanCreditCard({ access }: { access: AIPlanAccess }) {
     </div>}
 
     <div className="mt-4 grid gap-2 text-[11px] text-text-muted sm:grid-cols-2 xl:grid-cols-1">
-      <span className="flex items-center gap-2"><Check className="size-3.5 text-brand-green" />{access.unlimitedCredits ? 'Unlimited generation enabled' : access.creditsConfigured ? 'Monthly AI credits' : 'Monthly credit wallet ready'}</span>
+      <span className="flex items-center gap-2"><Check className="size-3.5 text-brand-green" />{access.unlimitedCredits ? 'Unlimited generation' : access.creditsConfigured ? 'Monthly AI credits' : 'Monthly credit wallet'}</span>
       <span className="flex items-center gap-2"><Check className="size-3.5 text-brand-green" />Commercial use</span>
       <span className="flex items-center gap-2"><Check className="size-3.5 text-brand-green" />Priority processing</span>
     </div>
@@ -139,26 +141,29 @@ export function AIPlanCreditCard({ access }: { access: AIPlanAccess }) {
   </Card>
 }
 
+const heroSteps: Array<{ icon: LucideIcon; title: string; text: string }> = [
+  { icon: Sparkles, title: 'Create with AI', text: 'Generate on-brand content in seconds' },
+  { icon: BadgeCheck, title: 'Review & refine', text: 'Edit, adjust and perfect your content' },
+  { icon: Send, title: 'Send to Posts', text: 'Choose pages, date and time to schedule' },
+]
+
 export function AIStudioHero({ access }: { access: AIPlanAccess }) {
-  return <section className="relative overflow-hidden rounded-[28px] border border-brand-cyan/20 bg-[radial-gradient(circle_at_80%_5%,rgba(34,211,238,.10),transparent_25rem),radial-gradient(circle_at_12%_0%,rgba(20,184,166,.12),transparent_28rem),linear-gradient(145deg,rgba(6,28,45,.98),rgba(4,14,27,.99))] p-5 shadow-[0_28px_80px_rgba(0,0,0,.28)] sm:p-7">
-    <div className="pointer-events-none absolute -right-12 -top-24 size-80 rounded-full border border-brand-cyan/10 bg-brand-cyan/[.025] blur-[1px]" />
-    <div className="relative grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-stretch">
+  return <section className="relative overflow-hidden rounded-[28px] border border-brand-cyan/20 bg-[radial-gradient(circle_at_80%_5%,rgba(34,211,238,.10),transparent_25rem),radial-gradient(circle_at_12%_0%,rgba(20,184,166,.12),transparent_28rem),linear-gradient(145deg,rgba(6,28,45,.99),rgba(4,14,27,.99))] p-5 shadow-[0_28px_80px_rgba(0,0,0,.28)] sm:p-7">
+    <div className="pointer-events-none absolute -right-12 -top-24 size-80 rounded-full border border-brand-cyan/10 bg-brand-cyan/[.025]" />
+    <div className="relative grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(230px,.58fr)_360px] xl:items-stretch">
       <div className="min-w-0">
         <span className="inline-flex items-center gap-2 rounded-full border border-brand-purple/25 bg-brand-purple/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[.16em] text-[#c4b5fd]"><Sparkles className="size-3.5" />AI Content Studio</span>
-        <h2 className="mt-5 max-w-4xl text-[clamp(2rem,4vw,3.8rem)] font-bold leading-[1.02] tracking-[-.045em]">Turn ideas into <span className="bg-gradient-to-r from-brand-teal via-brand-cyan to-emerald-300 bg-clip-text text-transparent">scroll-stopping content.</span></h2>
+        <h2 className="mt-5 max-w-4xl text-[clamp(2rem,4vw,3.65rem)] font-bold leading-[1.02] tracking-[-.045em]">Turn ideas into <span className="bg-gradient-to-r from-brand-teal via-brand-cyan to-emerald-300 bg-clip-text text-transparent">scroll-stopping content.</span></h2>
         <p className="mt-4 max-w-3xl text-sm leading-6 text-text-muted sm:text-[15px]">Create images, carousels, videos and UGC-style ads with AI, then send them directly to your Posts workflow for scheduling.</p>
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          {[
-            [Sparkles, 'Create with AI', 'Generate on-brand content in seconds'],
-            [BadgeCheck, 'Review & refine', 'Edit, adjust and perfect your content'],
-            [Send, 'Send to Posts', 'Choose pages, date and time to schedule'],
-          ].map(([Icon, title, text], index) => <div className="relative flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[.025] p-3.5" key={String(title)}>
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-brand-teal/25 bg-brand-teal/10 text-brand-cyan"><Icon className="size-4" /></span>
-            <span className="min-w-0"><strong className="block text-xs">{title as string}</strong><span className="mt-1 block text-[10px] leading-4 text-text-muted">{text as string}</span></span>
-            {index < 2 && <ChevronRight className="absolute -right-2 top-1/2 hidden size-4 -translate-y-1/2 text-brand-teal/50 sm:block" />}
+          {heroSteps.map(({ icon: StepIcon, title, text }, index) => <div className="relative flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[.025] p-3.5" key={title}>
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-brand-teal/25 bg-brand-teal/10 text-brand-cyan"><StepIcon className="size-4" /></span>
+            <span className="min-w-0"><strong className="block text-xs">{title}</strong><span className="mt-1 block text-[10px] leading-4 text-text-muted">{text}</span></span>
+            {index < heroSteps.length - 1 && <ChevronRight className="absolute -right-2 top-1/2 hidden size-4 -translate-y-1/2 text-brand-teal/50 sm:block" />}
           </div>)}
         </div>
       </div>
+      <AIStudioHeroArtwork />
       <AIPlanCreditCard access={access} />
     </div>
   </section>
@@ -167,19 +172,20 @@ export function AIStudioHero({ access }: { access: AIPlanAccess }) {
 export function AIWorkflowCard({ definition, enabled, onCreate }: { definition: WorkflowDefinition; enabled: boolean; onCreate: (type: AIContentType) => void }) {
   const Icon = definition.icon
   const tone = toneClasses[definition.tone]
-  return <Card className={`group relative min-h-[320px] overflow-hidden p-0 transition duration-200 ${tone.card} ${enabled ? 'hover:-translate-y-0.5 hover:shadow-[0_24px_70px_rgba(0,0,0,.3)]' : 'opacity-65'}`}>
+  return <Card className={`group relative min-h-[326px] overflow-hidden p-0 transition duration-200 ${tone.card} ${enabled ? 'hover:-translate-y-0.5 hover:shadow-[0_24px_70px_rgba(0,0,0,.3)]' : 'opacity-65'}`}>
     <div className={`pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-br ${tone.glow}`} />
-    <div className="relative flex min-h-[320px] flex-col p-5">
+    <AIWorkflowArtwork type={definition.type} />
+    <div className="relative flex min-h-[326px] flex-col p-5">
       <div className="flex items-start justify-between gap-3">
         <span className={`grid size-12 place-items-center rounded-2xl border ${tone.icon}`}><Icon className="size-5" /></span>
         {!enabled && <span className="inline-flex items-center gap-1 rounded-full border border-brand-amber/25 bg-brand-amber/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[.14em] text-brand-amber"><LockKeyhole className="size-3" />Plus</span>}
       </div>
       <span className="mt-6 text-[9px] font-bold uppercase tracking-[.18em] text-text-muted">{definition.label}</span>
       <h3 className="mt-2 text-xl font-semibold tracking-tight">{definition.title}</h3>
-      <p className="mt-2 text-xs leading-5 text-text-muted">{definition.description}</p>
+      <p className="mt-2 max-w-[88%] text-xs leading-5 text-text-muted">{definition.description}</p>
       <div className="mt-4 flex flex-wrap gap-1.5">{definition.useCases.map((item) => <span className="rounded-full border border-white/10 bg-black/15 px-2.5 py-1 text-[9px] text-text-muted" key={item}>{item}</span>)}</div>
       <div className="mt-auto flex items-end justify-between gap-3 pt-6">
-        <div><span className="flex items-center gap-1.5 text-xs font-semibold"><Coins className="size-3.5 text-brand-amber" />{definition.credits}</span><span className="mt-1 block text-[9px] text-text-soft">per generation estimate</span></div>
+        <div><span className="flex items-center gap-1.5 text-xs font-semibold"><Coins className="size-3.5 text-brand-amber" />{definition.credits}</span><span className="mt-1 block text-[9px] text-text-soft">per generation</span></div>
         <Button aria-label={`Create ${definition.title}`} onClick={() => onCreate(definition.type)} variant="primary">Create <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" /></Button>
       </div>
     </div>
@@ -279,8 +285,8 @@ export function LockedPlanState({ plan, onUpgrade }: { plan: 'trial' | 'pro'; on
     <span className="mx-auto grid size-14 place-items-center rounded-2xl border border-brand-purple/30 bg-brand-purple/10 text-[#c4b5fd]"><LockKeyhole className="size-6" /></span>
     <span className="mt-5 inline-flex rounded-full border border-brand-purple/25 bg-brand-purple/10 px-3 py-1 text-[9px] font-bold uppercase tracking-[.16em] text-[#c4b5fd]">Plus exclusive</span>
     <h2 className="mx-auto mt-4 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">Unlock the full AI Content Studio.</h2>
-    <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-text-muted">Your {plan === 'pro' ? 'Pro' : 'Trial'} plan keeps the Studio locked. Plus adds complete AI-assisted post creation while the normal Posts workflow remains in control of publishing.</p>
-    <div className="mx-auto mt-6 grid max-w-3xl gap-3 text-left sm:grid-cols-2">{['Image post generation', '3–10 slide carousel generation', 'Short Video / Reel creation', 'UGC-style ad creation', 'AI caption and hashtag output', 'Media Library + Posts handoff'].map((item) => <div className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[.025] p-3 text-xs" key={item}><Check className="size-4 shrink-0 text-brand-green" />{item}</div>)}</div>
+    <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-text-muted">Your {plan === 'pro' ? 'Pro' : 'Trial'} plan keeps generation controls locked. {plan === 'pro' ? 'You can still use AI caption writing and enhancement from Posts.' : 'Trial includes the normal publishing workflow without AI Studio generation.'}</p>
+    <div className="mx-auto mt-6 grid max-w-3xl gap-3 text-left sm:grid-cols-2">{['Image post generation', '3–10 slide carousel generation', 'Short Video / Reel creation', 'UGC-style ad creation', 'Advanced creative tools', 'Media Library + Posts handoff'].map((item) => <div className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[.025] p-3 text-xs" key={item}><Check className="size-4 shrink-0 text-brand-green" />{item}</div>)}</div>
     <div className="mt-7 flex flex-col justify-center gap-2 sm:flex-row"><Button onClick={onUpgrade} variant="primary"><Crown className="size-4" />Upgrade to Plus</Button><Link to="/billing"><Button>Compare plans</Button></Link></div>
   </section>
 }
