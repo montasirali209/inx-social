@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, ChevronDown, RefreshCw, Search, ShieldCheck } from 'lucide-react'
 import type { ConnectedPage } from '../../types/dashboard'
+import { SocialPlatformIcon } from '../ui/SocialPlatformIcon'
 
 type DashboardAccountSelectorProps = {
   pages: ConnectedPage[]
@@ -102,7 +103,7 @@ export function DashboardAccountSelector({
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-text-main">{selected?.facebookPageName || 'No connected Pages'}</span>
                 <span className="mt-0.5 flex items-center gap-1.5 text-xs text-text-muted">
-                  <span className="grid size-4 place-items-center rounded-full bg-[#1877f2] text-[10px] font-bold text-white">f</span>
+                  <SocialPlatformIcon className="size-4 rounded-[4px] shadow-none" platform="facebook" />
                   Facebook Page
                   {selected?.facebookPageUsername ? <span className="truncate text-text-soft">· @{selected.facebookPageUsername}</span> : null}
                 </span>
@@ -122,7 +123,7 @@ export function DashboardAccountSelector({
                     <p className="text-xs font-semibold text-text-main">Connected analytics sources</p>
                     <p className="text-[11px] text-text-soft">{availablePages.length} Facebook Page{availablePages.length === 1 ? '' : 's'} available</p>
                   </div>
-                  <span className="rounded-full border border-[#1877f2]/25 bg-[#1877f2]/10 px-2 py-1 text-[10px] font-semibold text-blue-300">Facebook {availablePages.length}</span>
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-[#0866ff]/25 bg-[#0866ff]/10 px-2 py-1 text-[10px] font-semibold text-blue-300"><SocialPlatformIcon className="size-3.5 rounded-[4px] shadow-none" platform="facebook" />Facebook {availablePages.length}</span>
                 </div>
 
                 {availablePages.length > 5 ? (
@@ -155,7 +156,7 @@ export function DashboardAccountSelector({
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-semibold text-text-main">{page.facebookPageName}</span>
                           <span className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] text-text-muted">
-                            <span className="grid size-3.5 place-items-center rounded-full bg-[#1877f2] text-[9px] font-bold text-white">f</span>
+                            <SocialPlatformIcon className="size-3.5 rounded-[4px] shadow-none" platform="facebook" />
                             {page.facebookCategory || 'Facebook Page'}
                             <span className="text-emerald-400">· Connected</span>
                           </span>
