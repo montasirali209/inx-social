@@ -1,112 +1,93 @@
 .analytics-fluid-canvas {
   position: relative;
   isolation: isolate;
-  perspective: 1400px;
-}
-
-.analytics-fluid-canvas::before {
-  position: absolute;
-  inset: -2rem -1rem;
-  z-index: -1;
-  content: '';
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 72% 16%, rgba(20,184,166,.08), transparent 28rem),
-    radial-gradient(circle at 18% 68%, rgba(59,130,246,.035), transparent 30rem);
-  filter: blur(3px);
-  animation: analytics-ambient-drift 12s ease-in-out infinite alternate;
 }
 
 .analytics-fluid-card {
-  transform: perspective(1400px) rotateX(var(--analytics-rx, 0deg)) rotateY(var(--analytics-ry, 0deg)) translateZ(0);
-  transform-style: preserve-3d;
-  will-change: transform;
-  transition: transform 180ms cubic-bezier(.2,.8,.2,1), border-color 180ms ease, box-shadow 220ms ease;
-}
-
-.analytics-fluid-card::before {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  content: '';
-  pointer-events: none;
-  opacity: 0;
-  background: radial-gradient(circle at var(--analytics-mx, 50%) var(--analytics-my, 50%), rgba(255,255,255,.075), rgba(45,212,191,.028) 22%, transparent 44%);
-  transition: opacity 180ms ease;
+  position: relative;
+  transform: scale(1);
+  transform-origin: center;
+  transition:
+    transform 160ms cubic-bezier(.2,.8,.2,1),
+    border-color 160ms ease,
+    box-shadow 180ms ease,
+    background-color 160ms ease;
 }
 
 .analytics-fluid-card:hover {
-  transform: perspective(1400px) rotateX(var(--analytics-rx, 0deg)) rotateY(var(--analytics-ry, 0deg)) translate3d(0,-3px,16px);
+  transform: scale(1.006);
+  border-color: rgba(45, 212, 191, .18);
+  box-shadow:
+    0 14px 34px rgba(0, 0, 0, .22),
+    0 0 0 1px rgba(45, 212, 191, .045),
+    inset 0 1px 0 rgba(255, 255, 255, .025);
 }
-.analytics-fluid-card:hover::before { opacity: 1; }
-.analytics-fluid-card > * { transform: translateZ(8px); }
 
 .analytics-stat-card {
-  transform-style: preserve-3d;
-  transition: transform 180ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms ease, border-color 180ms ease;
+  transform: scale(1);
+  transform-origin: center;
+  transition: transform 160ms cubic-bezier(.2,.8,.2,1), box-shadow 180ms ease, border-color 160ms ease;
 }
-.analytics-stat-card:hover { transform: perspective(1000px) translate3d(0,-4px,10px) rotateX(1deg); }
-.analytics-kpi-value { animation: analytics-value-arrive 520ms cubic-bezier(.2,.8,.2,1) both; }
+.analytics-stat-card:hover {
+  transform: scale(1.01);
+  border-color: rgba(45, 212, 191, .17);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, .2), inset 0 1px 0 rgba(255, 255, 255, .025);
+}
+.analytics-kpi-value { animation: analytics-value-arrive 420ms cubic-bezier(.2,.8,.2,1) both; }
 
 .analytics-line-draw {
   stroke-dasharray: 1400;
   stroke-dashoffset: 1400;
-  animation: analytics-line-draw 900ms cubic-bezier(.2,.8,.2,1) forwards;
+  animation: analytics-line-draw 760ms cubic-bezier(.2,.8,.2,1) forwards;
 }
 
 .analytics-rise-bar {
   transform-origin: bottom;
-  animation: analytics-bar-rise 520ms cubic-bezier(.2,.8,.2,1) both;
+  animation: analytics-bar-rise 460ms cubic-bezier(.2,.8,.2,1) both;
 }
 .analytics-demographic-fill {
   transform-origin: left center;
-  animation: analytics-fill-grow 620ms cubic-bezier(.2,.8,.2,1) both;
+  animation: analytics-fill-grow 520ms cubic-bezier(.2,.8,.2,1) both;
 }
 .analytics-audience-orb {
-  transform-style: preserve-3d;
-  animation: analytics-orb-float 4.6s ease-in-out infinite;
+  transform: none;
 }
 
-.analytics-selector { transform-style: preserve-3d; }
-.analytics-selector:hover { box-shadow: 0 22px 62px rgba(0,0,0,.28), 0 0 38px rgba(20,184,166,.075); }
+.analytics-selector {
+  transition: border-color 160ms ease, box-shadow 180ms ease;
+}
+.analytics-selector:hover {
+  border-color: rgba(45, 212, 191, .15);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, .22), inset 0 1px 0 rgba(255, 255, 255, .025);
+}
 
-.analytics-data-transition { animation: analytics-data-swap 330ms cubic-bezier(.2,.8,.2,1) both; }
+.analytics-data-transition { animation: analytics-data-swap 260ms cubic-bezier(.2,.8,.2,1) both; }
 .analytics-fluid-card svg { overflow: visible; }
-.analytics-fluid-card svg polyline { filter: drop-shadow(0 0 3px rgba(45,212,191,.08)); }
+.analytics-fluid-card svg polyline { filter: drop-shadow(0 0 3px rgba(45,212,191,.06)); }
 
-@keyframes analytics-ambient-drift {
-  from { transform: translate3d(-1.2%, -.6%, 0) scale(.99); opacity: .78; }
-  to { transform: translate3d(1.2%, .8%, 0) scale(1.015); opacity: 1; }
-}
 @keyframes analytics-value-arrive {
-  from { opacity: .35; transform: translate3d(0,7px,-10px) scale(.97); }
-  to { opacity: 1; transform: translate3d(0,0,0) scale(1); }
+  from { opacity: .45; transform: translateY(4px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes analytics-line-draw { to { stroke-dashoffset: 0; } }
 @keyframes analytics-bar-rise {
-  from { opacity: .2; transform: scaleY(.06) translateZ(-8px); }
-  to { opacity: 1; transform: scaleY(1) translateZ(0); }
+  from { opacity: .25; transform: scaleY(.08); }
+  to { opacity: 1; transform: scaleY(1); }
 }
 @keyframes analytics-fill-grow {
-  from { opacity: .35; transform: scaleX(0); }
+  from { opacity: .4; transform: scaleX(0); }
   to { opacity: 1; transform: scaleX(1); }
 }
-@keyframes analytics-orb-float {
-  0%,100% { transform: perspective(700px) translate3d(0,0,5px) rotateX(0deg); }
-  50% { transform: perspective(700px) translate3d(0,-4px,16px) rotateX(3deg); }
-}
 @keyframes analytics-data-swap {
-  from { opacity: .25; transform: perspective(1200px) translate3d(0,8px,-18px); filter: blur(2px); }
-  to { opacity: 1; transform: perspective(1200px) translate3d(0,0,0); filter: blur(0); }
+  from { opacity: .35; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .analytics-fluid-canvas::before,
   .analytics-kpi-value,
   .analytics-line-draw,
   .analytics-rise-bar,
   .analytics-demographic-fill,
-  .analytics-audience-orb,
   .analytics-data-transition { animation: none !important; }
   .analytics-fluid-card,
   .analytics-fluid-card:hover,
