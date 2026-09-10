@@ -1,4 +1,4 @@
-import { Heart, MessageCircle, MoreHorizontal, Send, Share2, UserRound } from 'lucide-react'
+import { Heart, Image as ImageIcon, MessageCircle, MoreHorizontal, Send, Share2, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { platforms } from '../../data/postsData'
 import type { ConnectedPage } from '../../types/dashboard'
@@ -22,7 +22,7 @@ function PreviewAvatar({ page }: { page: ConnectedPage | null }) {
           {initial || <UserRound aria-hidden="true" className="size-4 text-text-soft" />}
         </span>
       )}
-      {page ? <PlatformIcon className="absolute -bottom-0.5 -right-0.5 size-[18px] rounded-md ring-2 ring-[#071923]" platform="facebook" /> : null}
+      {page ? <PlatformIcon className="absolute -bottom-0.5 -right-0.5 size-4 rounded-full ring-2 ring-[#071923] shadow-none" platform="facebook" /> : null}
     </span>
   )
 }
@@ -32,10 +32,10 @@ export function PostPreviewPanel({ caption, media, selectedPage }: Props) {
   return (
     <section className="interactive-surface rounded-panel border p-4 xl:p-5">
       <PanelHeading step={4} subtitle="See how your post will appear before publishing." title="Post Preview" />
-      <div className="scrollbar-thin flex gap-2 overflow-x-auto border-b border-border-soft pb-2">
+      <div className="scrollbar-thin flex gap-1.5 overflow-x-auto border-b border-border-soft pb-2">
         {platforms.map((platform) => (
-          <button className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-[10px] font-medium transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${platform.id === active ? 'bg-brand-cyan/10 text-brand-cyan' : 'text-text-soft opacity-55'}`} disabled={platform.id !== active} key={platform.id} type="button">
-            <PlatformIcon className="size-5 rounded-md" platform={platform.id} />
+          <button className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-medium transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${platform.id === active ? 'bg-brand-cyan/10 text-brand-cyan' : 'text-text-soft opacity-55'}`} disabled={platform.id !== active} key={platform.id} type="button">
+            <PlatformIcon className="size-[18px] rounded-md shadow-none" platform={platform.id} />
             {platform.label}
           </button>
         ))}
@@ -51,7 +51,13 @@ export function PostPreviewPanel({ caption, media, selectedPage }: Props) {
           <div className="aspect-video max-h-72 bg-black/35">{media.type === 'image' ? <img alt="Post preview media" className="h-full w-full object-cover" src={media.url} /> : <video aria-label="Post preview video" className="h-full w-full object-cover" muted src={media.url} />}</div>
         ) : (
           <div className="grid aspect-video max-h-56 place-items-center border-y border-border-soft bg-[radial-gradient(circle_at_50%_45%,rgba(20,184,166,.09),transparent_34%),linear-gradient(145deg,rgba(12,37,50,.74),rgba(4,18,27,.82))]">
-            <span className="text-center text-[10px] text-text-soft"><PlatformIcon className="mx-auto mb-2.5 size-11 rounded-xl shadow-[0_8px_22px_rgba(8,102,255,.24)]" platform="facebook" /><span className="font-medium text-text-muted">Media preview</span></span>
+            <div className="flex flex-col items-center gap-2 text-center text-[10px] text-text-soft">
+              <span className="relative grid size-10 place-items-center rounded-xl border border-brand-cyan/15 bg-brand-cyan/[0.06] text-brand-cyan shadow-[0_8px_22px_rgba(0,0,0,.16)]">
+                <ImageIcon aria-hidden="true" className="size-[18px]" />
+                <PlatformIcon className="absolute -bottom-1 -right-1 size-4 rounded-full ring-2 ring-[#071923] shadow-none" platform="facebook" />
+              </span>
+              <span className="font-medium text-text-muted">Media preview</span>
+            </div>
           </div>
         )}
         <div className="flex items-center justify-between border-b border-border-soft px-3 py-2 text-[10px] text-text-muted"><span className="flex items-center gap-1"><Heart className="size-3 fill-brand-red text-brand-red" /> Preview</span><span>Comments · Shares</span></div>
