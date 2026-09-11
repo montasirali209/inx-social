@@ -9,8 +9,9 @@ axios.interceptors.request.use((config) => {
   if (!/\/chat\/completions(?:\?|$)/i.test(url) || !data || typeof data !== 'object' || Array.isArray(data)) return config;
   const model = String(data.model || '');
   if (/^gpt-5\.6-(?:luna|terra)(?:$|[-:])/i.test(model) && Object.prototype.hasOwnProperty.call(data, 'temperature')) {
-    const { temperature: _ignoredTemperature, ...rest } = data;
-    config.data = rest;
+    const nextData = { ...data };
+    delete nextData.temperature;
+    config.data = nextData;
   }
   return config;
 });
