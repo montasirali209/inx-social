@@ -2,26 +2,35 @@ import { apiRequest } from './api-client'
 import type { GeneratedAsset, GenerationCostEstimate } from '../types/ai-content-studio'
 import type { PostStudioBrief, PostStudioSourceAnalysis } from './ai-post-studio-api'
 
+export type VideoResolution = '480p' | '720p' | '1080p'
+export type VideoAspectRatio = '9:16' | '16:9' | '1:1'
+
 export type VideoModelOption = {
-  id: 'fast' | 'quality'
+  id: string
   name: string
   badge: string
+  speed: 'fast' | 'balanced' | 'quality' | 'premium'
   description: string
-  resolutions: Array<'480p' | '720p' | '1080p'>
+  resolutions: VideoResolution[]
   durations: number[]
-  aspects: Array<'9:16' | '16:9' | '1:1'>
+  aspects: VideoAspectRatio[]
   draftSupported: boolean
   audioSupported: boolean
   imageReferenceSupported: boolean
+  tags: string[]
 }
 
 export type VideoStudioSelection = {
-  modelRoute: 'fast' | 'quality'
+  modelRoute: string
   duration: number
-  resolution: '480p' | '720p' | '1080p'
-  aspectRatio: '9:16' | '16:9' | '1:1'
+  resolution: VideoResolution
+  aspectRatio: VideoAspectRatio
   draft: boolean
   audio: boolean
+}
+
+export type VideoModelRecommendation = VideoStudioSelection & {
+  reason: string
 }
 
 export function generateConversationalCarousel(input: {
@@ -41,6 +50,12 @@ export function generateConversationalCarousel(input: {
 export async function getVideoModels() {
   const response = await apiRequest<{ models: VideoModelOption[] }>('/api/ai-content-studio/video/models')
   return response.models
+}
+
+export function recommendVideoModel(input: { prompt: string; hasReference: boolean; aspectRatio: VideoAspectRatio }) {
+  return apiRequest<VideoModelRecommendation>('/api/ai-content-studio/video/recommend', {
+    method: 'POST', body: JSON.stringify(input),
+  })
 }
 
 export function estimateVideoCredits(selection: VideoStudioSelection) {

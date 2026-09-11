@@ -3,6 +3,7 @@ import { GenerationModal } from './GenerationModal'
 import { ImagePostChatModal } from './ImagePostChatModal'
 import { CarouselChatModal } from './CarouselChatModal'
 import { VideoStudioModal } from './VideoStudioModal'
+import './studio-controls.css'
 
 export function GenerationModalRouter(props: {
   open: boolean
