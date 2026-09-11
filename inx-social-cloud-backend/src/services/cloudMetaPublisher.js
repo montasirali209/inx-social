@@ -18,6 +18,15 @@ function assertMetaResponse(response, fallback) {
   }
 }
 
+function isHttpUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    return ['http:', 'https:'].includes(url.protocol) && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 async function testPage({ pageId, pageAccessToken }) {
   const response = await axios.get(
     `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(pageId)}`,
@@ -259,6 +268,11 @@ async function publishCarouselPost({ pageId, pageAccessToken, caption, scheduled
   const schedule = immediate ? { published: true } : scheduledPublishFields(scheduledAt);
   const base = `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(pageId)}`;
   const photoIds = [];
+  const linkedCarousel = assets.some(asset => Boolean(asset?.linkUrl));
+  if (linkedCarousel && (assets.length > 5 || assets.some(asset => !isHttpUrl(asset?.linkUrl)))) {
+    throw new Error('Facebook link carousels require a destination link on each of 2 to 5 slides.');
+  }
+  const photoUrls = [];
 
   for (let index = 0; index < assets.length; index += 1) {
     const asset = assets[index];
@@ -279,11 +293,24 @@ async function publishCarouselPost({ pageId, pageAccessToken, caption, scheduled
     const photoId = upload.data?.id;
     if (!photoId) throw metaError(upload, `Facebook did not return an ID for carousel slide ${index + 1}.`);
     photoIds.push(String(photoId));
+    if (linkedCarousel) {
+      const photo = await axios.get(`https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(photoId)}`, {
+        params: { fields: 'images', access_token: pageAccessToken },
+        timeout: 60000,
+        validateStatus: status => status >= 200 && status < 500
+      });
+      assertMetaResponse(photo, `Facebook could not prepare linked carousel slide ${index + 1}.`);
+      const source = photo.data?.images?.[0]?.source;
+      if (!source) throw metaError(photo, `Facebook did not return an image URL for linked carousel slide ${index + 1}.`);
+      photoUrls.push(String(source));
+    }
   }
 
   const response = await axios.post(`${base}/feed`, {
     message: String(caption || ''),
-    attached_media: photoIds.map(media_fbid => ({ media_fbid })),
+    ...(linkedCarousel
+      ? { child_attachments: assets.map((asset, index) => ({ link: asset.linkUrl, picture: photoUrls[index] })) }
+      : { attached_media: photoIds.map(media_fbid => ({ media_fbid })) }),
     ...schedule,
     access_token: pageAccessToken
   }, {
@@ -296,6 +323,7 @@ async function publishCarouselPost({ pageId, pageAccessToken, caption, scheduled
   return {
     postId: response.data?.post_id || response.data?.id || null,
     photoIds,
+    linkedCarousel,
     publishMode: immediate ? 'NOW' : 'SCHEDULED',
     scheduledUnix: immediate ? null : schedule.scheduled_publish_time,
     response: response.data
