@@ -20,7 +20,8 @@ test('Phase 13.4 makes Content Calendar a first-class responsive React route', (
   assert.match(toolbar, /CalendarFilterMenu/);
   assert.match(toolbar, /Every platform/);
   assert.match(toolbar, /All connected Pages/);
-  assert.match(toolbar, /Any status/);
+  assert.match(toolbar, /Upcoming only/);
+  assert.doesNotMatch(toolbar, /label: 'Published'/);
   assert.doesNotMatch(toolbar, /<select/);
   assert.match(toolbar, /Schedule Content/);
   assert.match(toolbar, /Import Batch/);
@@ -38,8 +39,12 @@ test('Phase 13.4 uses live cloud and selected-Page Meta data without sample cale
   assert.match(api, /limit: '1000'/);
   assert.match(api, /\/api\/studio\/facebook\/scheduled-posts/);
   assert.match(api, /pagesToSync = selectedPageId/);
+  assert.match(api, /scheduledFor < nowMs/);
+  assert.match(api, /post\.status === 'scheduled' \|\| post\.status === 'needs_review'/);
   assert.match(page, /syncWarnings/);
   assert.match(page, /monthKey.*queryKey|queryKey: \['content-calendar', timezone, pageId, monthKey\]/);
+  assert.match(page, /refetchInterval: 10_000/);
+  assert.match(page, /refetchIntervalInBackground: false/);
   assert.match(page, /fetchFacebookDashboardAnalytics/);
   assert.match(page, /calculateBestPostTime/);
   assert.match(bestTime, /Use \{insight\.time\}/);
