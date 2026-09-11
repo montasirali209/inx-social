@@ -9,7 +9,7 @@ export type VideoModelOption = {
   description: string
   resolutions: Array<'480p' | '720p' | '1080p'>
   durations: number[]
-  aspects: Array<'9:16' | '16:9' | '1:1' | '4:5'>
+  aspects: Array<'9:16' | '16:9' | '1:1'>
   draftSupported: boolean
   audioSupported: boolean
   imageReferenceSupported: boolean
@@ -19,7 +19,7 @@ export type VideoStudioSelection = {
   modelRoute: 'fast' | 'quality'
   duration: number
   resolution: '480p' | '720p' | '1080p'
-  aspectRatio: '9:16' | '16:9' | '1:1' | '4:5'
+  aspectRatio: '9:16' | '16:9' | '1:1'
   draft: boolean
   audio: boolean
 }
@@ -34,9 +34,7 @@ export function generateConversationalCarousel(input: {
   sourceAnalysis?: PostStudioSourceAnalysis | null
 }, signal?: AbortSignal) {
   return apiRequest<GeneratedAsset>('/api/ai-content-studio/generate/conversational-carousel', {
-    method: 'POST',
-    body: JSON.stringify(input),
-    signal,
+    method: 'POST', body: JSON.stringify(input), signal,
   })
 }
 
@@ -47,8 +45,7 @@ export async function getVideoModels() {
 
 export function estimateVideoCredits(selection: VideoStudioSelection) {
   return apiRequest<GenerationCostEstimate>('/api/ai-content-studio/video/estimate', {
-    method: 'POST',
-    body: JSON.stringify(selection),
+    method: 'POST', body: JSON.stringify(selection),
   })
 }
 
@@ -60,8 +57,6 @@ export function generateStudioVideo(input: VideoStudioSelection & {
   script?: string
 }, signal?: AbortSignal) {
   return apiRequest<GeneratedAsset>('/api/ai-content-studio/generate/video-studio', {
-    method: 'POST',
-    body: JSON.stringify(input),
-    signal,
+    method: 'POST', body: JSON.stringify(input), signal,
   })
 }
