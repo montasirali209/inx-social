@@ -43,6 +43,17 @@ test('selected library media can be attached to the real Posts composer', () => 
   assert.match(posts, /setPostType\(asset\.type === 'video' \? 'video' : 'image'\)/);
 });
 
+test('multiple selected library images can open one carousel without a preview interruption', () => {
+  const page = read('frontend/src/components/media-library/MediaLibraryPage.tsx');
+  const route = read('frontend/src/components/posts/PostsRoute.tsx');
+  assert.match(page, /Use as Carousel/);
+  assert.match(page, /mediaLibraryAssets:\s*selectedAssets/);
+  assert.match(page, /Select 2–10 available images/);
+  assert.match(page, /previewAsset = checkedIds\.size \? null : selectedAsset/);
+  assert.match(page, /checkedIds\.size \? toggleChecked\(asset\) : setSelectedId/);
+  assert.match(route, /state\?\.mediaLibraryAssets/);
+});
+
 test('Media Library schema and migration preserve folders and reusable file metadata', () => {
   const schema = read('prisma/schema.prisma');
   const migration = read('prisma/migrations/20260830170000_add_media_library/migration.sql');
