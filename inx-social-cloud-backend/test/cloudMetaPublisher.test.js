@@ -154,3 +154,67 @@ test('missing Facebook objects are identified for calendar reconciliation', () =
   assert.equal(publisher.isMissingPostError({ meta: { error: { code: 100, message: 'Unsupported get request. Object does not exist.' } } }), true);
   assert.equal(publisher.isMissingPostError({ meta: { error: { code: 190, message: 'Access token expired.' } } }), false);
 });
+
+test('media-only Facebook carousel publishes all uploaded photos as attached media', async t => {
+  const requests = [];
+  t.mock.method(axios, 'post', async (url, body) => {
+    requests.push({ url, body });
+    if (url.endsWith('/photos')) {
+      return { status: 200, data: { id: `photo-${requests.length}` } };
+    }
+    return { status: 200, data: { id: 'page-1_carousel-1' } };
+  });
+
+  const result = await publisher.publishCarouselPost({
+    pageId: 'page-1',
+    pageAccessToken: 'page-secret',
+    caption: 'Two slide carousel',
+    publishMode: 'NOW',
+    assets: [
+      { data: Buffer.from('one'), mimeType: 'image/png', originalName: 'one.png' },
+      { data: Buffer.from('two'), mimeType: 'image/jpeg', originalName: 'two.jpg' }
+    ]
+  });
+
+  assert.equal(requests.length, 3);
+  assert.deepEqual(requests[2].body.attached_media, [{ media_fbid: 'photo-1' }, { media_fbid: 'photo-2' }]);
+  assert.equal(Object.hasOwn(requests[2].body, 'child_attachments'), false);
+  assert.equal(result.linkedCarousel, false);
+  assert.deepEqual(result.photoIds, ['photo-1', 'photo-2']);
+});
+
+test('linked Facebook carousel publishes each slide with its own destination link', async t => {
+  const posts = [];
+  let photoNumber = 0;
+  t.mock.method(axios, 'post', async (url, body) => {
+    posts.push({ url, body });
+    if (url.endsWith('/photos')) {
+      photoNumber += 1;
+      return { status: 200, data: { id: `linked-photo-${photoNumber}` } };
+    }
+    return { status: 200, data: { id: 'page-1_link-carousel-1' } };
+  });
+  t.mock.method(axios, 'get', async url => ({
+    status: 200,
+    data: { images: [{ source: `https://scontent.example/${url.endsWith('linked-photo-1') ? 'one' : 'two'}.jpg` }] }
+  }));
+
+  const result = await publisher.publishCarouselPost({
+    pageId: 'page-1',
+    pageAccessToken: 'page-secret',
+    caption: 'Linked carousel',
+    publishMode: 'NOW',
+    assets: [
+      { data: Buffer.from('one'), mimeType: 'image/png', originalName: 'one.png', linkUrl: 'https://example.com/one' },
+      { data: Buffer.from('two'), mimeType: 'image/png', originalName: 'two.png', linkUrl: 'https://example.com/two' }
+    ]
+  });
+
+  const feedRequest = posts.find(request => request.url.endsWith('/feed'));
+  assert.deepEqual(feedRequest.body.child_attachments, [
+    { link: 'https://example.com/one', picture: 'https://scontent.example/one.jpg' },
+    { link: 'https://example.com/two', picture: 'https://scontent.example/two.jpg' }
+  ]);
+  assert.equal(Object.hasOwn(feedRequest.body, 'attached_media'), false);
+  assert.equal(result.linkedCarousel, true);
+});
