@@ -51,7 +51,7 @@ export function InlineManualCarouselPage({ onStandardPost }: { onStandardPost: (
   const [confirmationOpen, setConfirmationOpen] = useState(false)
 
   const jobs = useMemo(() => workspace.data?.jobs || [], [workspace.data?.jobs])
-  const draftCount = useMemo(() => browserDraftCount(), [draftVersion])
+  const draftCount = useMemo(() => draftVersion >= 0 ? browserDraftCount() : 0, [draftVersion])
   const stats = useMemo(() => {
     const needsReview = jobs.filter((job) => ['FAILED', 'AWAITING_UPLOAD'].includes(job.status)).length
     return [
