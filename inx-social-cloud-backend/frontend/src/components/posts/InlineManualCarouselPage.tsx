@@ -1,11 +1,13 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ArrowRight, ImagePlus, Images, LoaderCircle, Trash2, UploadCloud } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { ArrowLeft, ArrowRight, GripVertical, ImagePlus, Images, LoaderCircle, Trash2, UploadCloud } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { fetchFacebookDashboardAnalytics } from '../../lib/dashboard-api'
-import { uploadMediaAsset } from '../../lib/media-library-api'
+import { fetchMediaLibrary, uploadMediaAsset } from '../../lib/media-library-api'
 import { zonedDateTimeToIso } from '../../lib/bulk-scheduler-utils'
+import { clearCarouselSession, readCarouselSession, saveCarouselSession } from '../../lib/carousel-composer-session'
 import { calculateBestPostTime } from '../../lib/posts-analytics'
 import { createCarouselPosts, fetchPostsWorkspace } from '../../lib/posts-api'
+import type { AIDraft } from '../../types/ai-content-studio'
 import type { MediaAsset } from '../../types/media-library'
 import type { BestTimeInsight, PublishProgress, ScheduleMode } from '../../types/posts'
 import { Button } from '../ui/Button'
@@ -18,6 +20,12 @@ import { SchedulePanel } from './SchedulePanel'
 
 const MANUAL_DRAFT_KEY = 'inx-social-manual-carousel-draft-v1'
 const STANDARD_DRAFT_KEY = 'inx-social-post-drafts-v1'
+
+type Props = {
+  onStandardPost: () => void
+  initialDraft?: AIDraft
+  initialAssets?: MediaAsset[]
+}
 
 function isHttpUrl(value: string) {
   try {
@@ -32,6 +40,34 @@ function defaultDate() {
   return new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)
 }
 
+function initialComposerState(initialDraft?: AIDraft, initialAssets?: MediaAsset[]) {
+  if (initialDraft) {
+    const assets = initialDraft.mediaLibraryAssets?.length
+      ? initialDraft.mediaLibraryAssets
+      : initialDraft.mediaLibraryAsset ? [initialDraft.mediaLibraryAsset] : []
+    const hashtags = (initialDraft.hashtags || []).map((tag) => `#${tag.replace(/^#/, '')}`).join(' ')
+    return {
+      title: initialDraft.title || '',
+      caption: [initialDraft.caption?.trim(), hashtags].filter(Boolean).join('\n\n'),
+      assets: assets.filter((asset) => asset.type === 'image').slice(0, 10),
+      slideLinks: {}, selectedIds: [], mode: 'later' as ScheduleMode, date: defaultDate(), time: '19:30',
+      campaign: 'No campaign', labels: 'AI Content Studio, Carousel',
+    }
+  }
+  if (initialAssets?.length) {
+    return {
+      title: '', caption: '', assets: initialAssets.filter((asset) => asset.type === 'image').slice(0, 10),
+      slideLinks: {}, selectedIds: [], mode: 'later' as ScheduleMode, date: defaultDate(), time: '19:30',
+      campaign: 'No campaign', labels: 'Media Library, Carousel',
+    }
+  }
+  const restored = readCarouselSession()
+  return restored || {
+    title: '', caption: '', assets: [], slideLinks: {}, selectedIds: [], mode: 'later' as ScheduleMode,
+    date: defaultDate(), time: '19:30', campaign: 'No campaign', labels: 'Carousel',
+  }
+}
+
 function browserDraftCount() {
   try {
     const standard = JSON.parse(window.localStorage.getItem(STANDARD_DRAFT_KEY) || '[]') as unknown[]
@@ -41,25 +77,51 @@ function browserDraftCount() {
   }
 }
 
-export function InlineManualCarouselPage({ onStandardPost }: { onStandardPost: () => void }) {
+export function InlineManualCarouselPage({ onStandardPost, initialDraft, initialAssets }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const dragIndex = useRef<number | null>(null)
+  const refreshedRestoredAssets = useRef(false)
+  const [initial] = useState(() => initialComposerState(initialDraft, initialAssets))
   const queryClient = useQueryClient()
   const workspace = useQuery({ queryKey: ['posts-workspace'], queryFn: fetchPostsWorkspace, refetchInterval: 45_000 })
-  const [title, setTitle] = useState('')
-  const [caption, setCaption] = useState('')
-  const [assets, setAssets] = useState<MediaAsset[]>([])
-  const [slideLinks, setSlideLinks] = useState<Record<string, string>>({})
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [mode, setMode] = useState<ScheduleMode>('later')
-  const [date, setDate] = useState(defaultDate)
-  const [time, setTime] = useState('19:30')
-  const [campaign, setCampaign] = useState('No campaign')
-  const [labels, setLabels] = useState('Carousel')
+  const [title, setTitle] = useState(initial.title)
+  const [caption, setCaption] = useState(initial.caption)
+  const [assets, setAssets] = useState<MediaAsset[]>(initial.assets)
+  const [slideLinks, setSlideLinks] = useState<Record<string, string>>(initial.slideLinks)
+  const [selectedIds, setSelectedIds] = useState<string[]>(initial.selectedIds)
+  const [mode, setMode] = useState<ScheduleMode>(initial.mode)
+  const [date, setDate] = useState(initial.date || defaultDate())
+  const [time, setTime] = useState(initial.time)
+  const [campaign, setCampaign] = useState(initial.campaign)
+  const [labels, setLabels] = useState(initial.labels)
   const [uploading, setUploading] = useState(false)
   const [uploadPercent, setUploadPercent] = useState(0)
   const [draftVersion, setDraftVersion] = useState(0)
-  const [progress, setProgress] = useState<PublishProgress>({ state: 'idle', percent: 0, message: 'Add 2–10 images to build your carousel.' })
+  const [progress, setProgress] = useState<PublishProgress>({
+    state: initial.assets.length >= 2 ? 'completed' : 'idle',
+    percent: initial.assets.length >= 2 ? 100 : 0,
+    message: initial.assets.length >= 2 ? `${initial.assets.length} carousel slides restored and ready to edit.` : 'Add 2–10 images to build your carousel.',
+  })
   const [confirmationOpen, setConfirmationOpen] = useState(false)
+
+  useEffect(() => {
+    if (!title.trim() && !caption.trim() && !assets.length) {
+      clearCarouselSession()
+      return
+    }
+    saveCarouselSession({ title, caption, assets, slideLinks, selectedIds, mode, date, time, campaign, labels })
+  }, [assets, campaign, caption, date, labels, mode, selectedIds, slideLinks, time, title])
+
+  useEffect(() => {
+    if (initialDraft || initialAssets?.length || !initial.assets.length || refreshedRestoredAssets.current) return
+    refreshedRestoredAssets.current = true
+    void fetchMediaLibrary().then((library) => {
+      const currentById = new Map(library.assets.map((asset) => [asset.id, asset]))
+      setAssets((stored) => stored.map((asset) => currentById.get(asset.id) || asset))
+    }).catch(() => {
+      setProgress({ state: 'failed', percent: 0, message: 'Your carousel text and order were restored, but the latest slide previews could not be refreshed.' })
+    })
+  }, [initial.assets.length, initialAssets, initialDraft])
 
   const jobs = useMemo(() => workspace.data?.jobs || [], [workspace.data?.jobs])
   const draftCount = useMemo(() => draftVersion >= 0 ? browserDraftCount() : 0, [draftVersion])
@@ -146,7 +208,19 @@ export function InlineManualCarouselPage({ onStandardPost }: { onStandardPost: (
     })
   }
 
+  function moveSlideTo(source: number, target: number) {
+    if (source === target || source < 0 || target < 0) return
+    setAssets((current) => {
+      if (source >= current.length || target >= current.length) return current
+      const next = [...current]
+      const [moved] = next.splice(source, 1)
+      next.splice(target, 0, moved)
+      return next
+    })
+  }
+
   function saveDraft() {
+    saveCarouselSession({ title, caption, assets, slideLinks, selectedIds, mode, date, time, campaign, labels })
     window.localStorage.setItem(MANUAL_DRAFT_KEY, JSON.stringify({ title, caption, assetIds: assets.map((asset) => asset.id), slideLinks: orderedLinks, updatedAt: new Date().toISOString() }))
     setDraftVersion((value) => value + 1)
     setProgress({ state: 'completed', percent: 100, message: 'Carousel draft saved on this browser.' })
@@ -170,6 +244,7 @@ export function InlineManualCarouselPage({ onStandardPost }: { onStandardPost: (
       setProgress({ state: failed ? 'failed' : 'completed', percent: 100, message: failed ? `${failed} destination${failed === 1 ? '' : 's'} failed.` : `${assets.length}-slide carousel ${mode === 'now' ? 'published' : 'scheduled'} successfully.` })
       if (!failed) {
         window.localStorage.removeItem(MANUAL_DRAFT_KEY)
+        clearCarouselSession()
         setDraftVersion((value) => value + 1)
       }
       await Promise.all([
@@ -209,7 +284,33 @@ export function InlineManualCarouselPage({ onStandardPost }: { onStandardPost: (
         <CreatePostPanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} caption={caption} carouselHasMedia={assets.length > 0} carouselUploader={<div className="rounded-2xl border border-brand-cyan/20 bg-brand-cyan/[0.03] p-3">
             <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><span className="grid size-9 place-items-center rounded-xl bg-brand-cyan/10 text-brand-cyan"><Images className="size-4" /></span><div><strong className="block text-xs">Carousel slides</strong><span className="text-[9px] text-text-soft">{assets.length}/10 images · publish order is left to right</span></div></div><Button disabled={uploading || assets.length >= 10} onClick={() => inputRef.current?.click()} size="sm" variant="ghost"><ImagePlus className="size-3.5" />Add images</Button></div>
             <input accept="image/png,image/jpeg,image/webp" className="sr-only" multiple onChange={(event) => event.target.files && void addFiles(event.target.files)} ref={inputRef} type="file" />
-            {!assets.length ? <button className="mt-3 grid min-h-32 w-full place-items-center rounded-xl border border-dashed border-brand-cyan/25 bg-brand-cyan/[0.025] p-4 text-center transition hover:border-brand-cyan/55 hover:bg-brand-cyan/[0.06]" onClick={() => inputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void addFiles(event.dataTransfer.files) }} type="button"><span><UploadCloud className="mx-auto size-7 text-brand-cyan" /><strong className="mt-2 block text-xs">Drag & drop carousel images here</strong><span className="mt-1 block text-[10px] text-text-muted">PNG, JPEG or WebP · 2–10 slides</span></span></button> : <div className="scrollbar-thin mt-3 flex gap-2 overflow-x-auto pb-2">{assets.map((asset, index) => <div className="w-44 shrink-0 rounded-xl border border-border-soft bg-bg/30 p-2" key={asset.id}><div className="relative aspect-square overflow-hidden rounded-lg bg-black/30"><img alt={`Carousel slide ${index + 1}`} className="h-full w-full object-cover" src={asset.thumbnailUrl || asset.fileUrl} /><span className="absolute left-1.5 top-1.5 rounded-md bg-black/75 px-1.5 py-0.5 text-[8px] font-bold text-white">{index + 1}</span></div><label className="mt-2 block text-[9px] font-semibold text-text-muted">Slide link <span className="font-normal text-text-soft">(optional)</span><input aria-label={`Link for carousel slide ${index + 1}`} className="mt-1 w-full rounded-lg border border-border-soft bg-bg/50 px-2 py-1.5 text-[10px] text-white outline-none placeholder:text-text-soft focus:border-brand-cyan" inputMode="url" onChange={(event) => setSlideLinks((current) => ({ ...current, [asset.id]: event.target.value }))} placeholder="https://example.com" type="url" value={slideLinks[asset.id] || ''} /></label><div className="mt-2 flex items-center justify-between gap-1"><button aria-label={`Move slide ${index + 1} left`} className="rounded-md border border-border-soft p-1 text-text-muted disabled:opacity-30" disabled={index === 0} onClick={() => moveSlide(index, -1)} type="button"><ArrowLeft className="size-3" /></button><button aria-label={`Move slide ${index + 1} right`} className="rounded-md border border-border-soft p-1 text-text-muted disabled:opacity-30" disabled={index === assets.length - 1} onClick={() => moveSlide(index, 1)} type="button"><ArrowRight className="size-3" /></button><button aria-label={`Remove slide ${index + 1}`} className="rounded-md border border-brand-red/25 p-1 text-brand-red" onClick={() => { setAssets((current) => current.filter((_, itemIndex) => itemIndex !== index)); setSlideLinks((current) => { const next = { ...current }; delete next[asset.id]; return next }) }} type="button"><Trash2 className="size-3" /></button></div></div>)}</div>}
+            {!assets.length ? <button className="mt-3 grid min-h-32 w-full place-items-center rounded-xl border border-dashed border-brand-cyan/25 bg-brand-cyan/[0.025] p-4 text-center transition hover:border-brand-cyan/55 hover:bg-brand-cyan/[0.06]" onClick={() => inputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void addFiles(event.dataTransfer.files) }} type="button"><span><UploadCloud className="mx-auto size-7 text-brand-cyan" /><strong className="mt-2 block text-xs">Drag & drop carousel images here</strong><span className="mt-1 block text-[10px] text-text-muted">PNG, JPEG or WebP · 2–10 slides</span></span></button> : (
+              <div className="scrollbar-thin mt-3 flex gap-2 overflow-x-auto pb-2">
+                {assets.map((asset, index) => (
+                  <div
+                    className="w-44 shrink-0 rounded-xl border border-border-soft bg-bg/30 p-2 transition hover:border-brand-cyan/30"
+                    key={asset.id}
+                    onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }}
+                    onDrop={(event) => { event.preventDefault(); if (dragIndex.current !== null) moveSlideTo(dragIndex.current, index); dragIndex.current = null }}
+                  >
+                    <div className="relative aspect-square overflow-hidden rounded-lg bg-black/30">
+                      <img alt={`Carousel slide ${index + 1}`} className="h-full w-full object-cover" src={asset.thumbnailUrl || asset.fileUrl} />
+                      <span className="absolute left-1.5 top-1.5 rounded-md bg-black/75 px-1.5 py-0.5 text-[8px] font-bold text-white">{index + 1}</span>
+                      <button
+                        aria-label={`Drag slide ${index + 1} to reorder`}
+                        className="absolute right-1.5 top-1.5 inline-flex cursor-grab items-center gap-1 rounded-md border border-white/15 bg-black/75 px-1.5 py-1 text-[8px] font-semibold text-white active:cursor-grabbing"
+                        draggable
+                        onDragEnd={() => { dragIndex.current = null }}
+                        onDragStart={(event) => { dragIndex.current = index; event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', String(index)) }}
+                        type="button"
+                      ><GripVertical className="size-3" />Drag</button>
+                    </div>
+                    <label className="mt-2 block text-[9px] font-semibold text-text-muted">Slide link <span className="font-normal text-text-soft">(optional)</span><input aria-label={`Link for carousel slide ${index + 1}`} className="mt-1 w-full rounded-lg border border-border-soft bg-bg/50 px-2 py-1.5 text-[10px] text-white outline-none placeholder:text-text-soft focus:border-brand-cyan" inputMode="url" onChange={(event) => setSlideLinks((current) => ({ ...current, [asset.id]: event.target.value }))} placeholder="https://example.com" type="url" value={slideLinks[asset.id] || ''} /></label>
+                    <div className="mt-2 flex items-center justify-between gap-1"><button aria-label={`Move slide ${index + 1} left`} className="rounded-md border border-border-soft p-1 text-text-muted disabled:opacity-30" disabled={index === 0} onClick={() => moveSlide(index, -1)} type="button"><ArrowLeft className="size-3" /></button><button aria-label={`Move slide ${index + 1} right`} className="rounded-md border border-border-soft p-1 text-text-muted disabled:opacity-30" disabled={index === assets.length - 1} onClick={() => moveSlide(index, 1)} type="button"><ArrowRight className="size-3" /></button><button aria-label={`Remove slide ${index + 1}`} className="rounded-md border border-brand-red/25 p-1 text-brand-red" onClick={() => { setAssets((current) => current.filter((_, itemIndex) => itemIndex !== index)); setSlideLinks((current) => { const next = { ...current }; delete next[asset.id]; return next }) }} type="button"><Trash2 className="size-3" /></button></div>
+                  </div>
+                ))}
+              </div>
+            )}
             {uploading && <div className="mt-3 flex items-center gap-2 text-[10px] text-brand-cyan"><LoaderCircle className="size-3.5 animate-spin" />Uploading carousel images… {uploadPercent}%</div>}
             {linkedSlideCount > 0 && <p className={`mt-2 text-[9px] leading-4 ${linksComplete && linksValid && linkedCarouselWithinLimit ? 'text-brand-green' : 'text-brand-amber'}`}>{linksComplete && linksValid && linkedCarouselWithinLimit ? `${linkedSlideCount}-slide linked carousel ready.` : assets.length > 5 ? 'Linked Facebook carousels support 2–5 slides; media-only carousels support up to 10.' : !linksComplete ? 'Add a link to every slide, or clear all slide links.' : 'Enter complete http:// or https:// links.'}</p>}
           </div>} destinationCount={selectedIds.length} media={null} onStandardPost={onStandardPost} postType="carousel" retainMedia={false} setCaption={setCaption} setMedia={() => {}} setPostType={() => {}} setRetainMedia={() => {}} setTitle={setTitle} title={title} />
