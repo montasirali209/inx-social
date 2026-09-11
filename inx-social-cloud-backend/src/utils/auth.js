@@ -11,11 +11,11 @@ async function comparePassword(password, hash) {
   return bcrypt.compare(password, hash);
 }
 
-function signToken(user) {
+function signToken(user, expiresIn = env.jwtExpiresIn) {
   return jwt.sign(
     { sub: user.id, email: user.email, role: user.role },
     env.jwtSecret,
-    { expiresIn: env.jwtExpiresIn }
+    { expiresIn }
   );
 }
 
