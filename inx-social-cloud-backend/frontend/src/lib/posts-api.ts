@@ -7,6 +7,16 @@ import type { SettingsValues } from '../types/settings'
 import { fetchConnectionsWorkspace } from './connections-api'
 import type { Destination } from '../types/posts'
 
+export type CreateCarouselPostInput = {
+  connectedPageIds: string[]
+  clientRequestId: string
+  title: string | null
+  caption: string
+  mediaLibraryAssetIds: string[]
+  scheduledAt: string | null
+  publishMode: 'NOW' | 'SCHEDULED'
+}
+
 function facebookDestinations(pages: Awaited<ReturnType<typeof fetchStudioOverview>>['pages']): Destination[] {
   return pages.map((page) => ({
     id: page.id,
@@ -66,6 +76,13 @@ export async function fetchPostsWorkspace(): Promise<PostsWorkspaceData> {
 
 export function createDirectPosts(input: CreateDirectPostInput) {
   return apiRequest<DirectPostResponse>('/api/studio/direct-posts', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export function createCarouselPosts(input: CreateCarouselPostInput) {
+  return apiRequest<DirectPostResponse>('/api/studio/carousel-posts', {
     method: 'POST',
     body: JSON.stringify(input),
   })
