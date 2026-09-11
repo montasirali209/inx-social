@@ -39,7 +39,7 @@ test('Video Studio exposes model-driven controls and backend-authoritative dynam
 
 test('UGC remains on the existing generator while Carousel and Video receive dedicated studios', () => {
   const router = read('frontend/src/components/ai-content-studio/GenerationModalRouter.tsx');
-  assert.match(router, /contentType === 'image_post'/);
+  assert.match(router, /type === 'image_post'/);
   assert.match(router, /contentType === 'carousel_post'/);
   assert.match(router, /contentType === 'short_video'/);
   assert.match(router, /return <GenerationModal \{\.\.\.props\} \/>/);
