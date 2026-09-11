@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 const authRoutes = require('./routes/authRoutes');
+const adminAuthRoutes = require('./routes/adminAuthRoutes');
 const licenseRoutes = require('./routes/licenseRoutes');
 const pageRoutes = require('./routes/pageRoutes');
 const adminRoutes = require('./routes/adminRoutes');
@@ -38,6 +39,26 @@ const secureAdminDocument = res => {
   res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
 };
 
+const guardAdminSurface = (req, res, next) => {
+  if (env.adminHost && !isAdminHost(req)) return res.status(404).json({ error: 'Route not found' });
+
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    const origin = String(req.headers.origin || '').trim();
+    if (origin) {
+      try {
+        const parsed = new URL(origin);
+        if (parsed.host !== String(req.get('host') || '')) {
+          return res.status(403).json({ error: 'Cross-origin administrator request blocked' });
+        }
+      } catch {
+        return res.status(403).json({ error: 'Invalid administrator request origin' });
+      }
+    }
+  }
+
+  next();
+};
+
 const buildLandingDocument = () => {
   const source = fs.readFileSync(landingPath, 'utf8');
   return source
@@ -62,10 +83,16 @@ app.use(cors({ origin: true, credentials: true }));
 morgan.token('safe-url', req => String(req.originalUrl || req.url || '').replace(/([?&]access=)[^&]+/g, '$1[redacted]'));
 app.use(morgan(':method :safe-url :status :response-time ms - :res[content-length]'));
 app.use(rateLimit({ windowMs: 60 * 1000, limit: 240 }));
-app.use('/api/admin', rateLimit({ windowMs: 60 * 1000, limit: 90 }), (req, res, next) => {
-  if (env.adminHost && !isAdminHost(req)) return res.status(404).json({ error: 'Route not found' });
-  next();
-});
+app.use('/api/admin-auth/login', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: { error: 'Too many administrator sign-in attempts. Try again later.' }
+}));
+app.use('/api/admin-auth', guardAdminSurface);
+app.use('/api/admin', rateLimit({ windowMs: 60 * 1000, limit: 90 }), guardAdminSurface);
 
 app.use(['/admin', '/api', '/portal', '/studio', '/app'], (req, res, next) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
@@ -142,6 +169,7 @@ app.get('/', (req, res) => {
   res.type('html').send(landingDocument);
 });
 
+app.use('/api/admin-auth', adminAuthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/license', licenseRoutes);
 app.use('/api/pages', pageRoutes);
