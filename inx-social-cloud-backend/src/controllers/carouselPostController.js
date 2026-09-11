@@ -8,12 +8,23 @@ const metaPublisher = require('../services/cloudMetaPublisher');
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const ACTIVE_JOB_STATUSES = ['DRAFT', 'AWAITING_UPLOAD', 'READY', 'QUEUED', 'PROCESSING'];
 
+function isHttpUrl(value) {
+  if (!value) return true;
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 const carouselPostSchema = z.object({
   connectedPageIds: z.array(z.string().min(1)).min(1, 'Choose at least one connected Page.').max(50),
   clientRequestId: z.string().trim().min(8).max(80),
   title: z.string().trim().max(200).nullish(),
   caption: z.string().trim().min(1, 'Write a caption before continuing.').max(5000),
   mediaLibraryAssetIds: z.array(z.string().trim().min(1).max(100)).min(2, 'Carousel posts need at least two slides.').max(10, 'Carousel posts can contain up to ten slides.'),
+  slideLinks: z.array(z.string().trim().max(2048).refine(isHttpUrl, 'Carousel slide links must be complete http:// or https:// URLs.')).max(10).optional().default([]),
   scheduledAt: z.string().datetime().nullish(),
   publishMode: z.enum(['SCHEDULED', 'NOW'])
 });
@@ -152,6 +163,20 @@ async function createCarouselPosts(req, res, next) {
     ]);
     const scheduledAt = validateSchedule(input);
     const immediate = input.publishMode === 'NOW';
+    const slideLinks = slides.map((_, index) => input.slideLinks[index] || '');
+    const linkedSlideCount = slideLinks.filter(Boolean).length;
+    if (linkedSlideCount && linkedSlideCount !== slides.length) {
+      const error = new Error('For a linked carousel, every slide must have a destination link.');
+      error.status = 400;
+      error.publicMessage = error.message;
+      throw error;
+    }
+    if (linkedSlideCount && slides.length > 5) {
+      const error = new Error('Facebook link carousels support between 2 and 5 linked slides. Clear the links to publish up to 10 media slides.');
+      error.status = 400;
+      error.publicMessage = error.message;
+      throw error;
+    }
 
     const currentBatchSize = await prisma.scheduleJob.count({
       where: { userId: req.user.id, origin: 'CLOUD', status: { in: ACTIVE_JOB_STATUSES } }
@@ -204,7 +229,7 @@ async function createCarouselPosts(req, res, next) {
           caption: input.caption,
           scheduledAt,
           publishMode: input.publishMode,
-          assets: slides.map(slide => ({ data: slide.data, mimeType: slide.mimeType, originalName: slide.originalName }))
+          assets: slides.map((slide, index) => ({ data: slide.data, mimeType: slide.mimeType, originalName: slide.originalName, linkUrl: slideLinks[index] || null }))
         });
         job = await prisma.scheduleJob.update({
           where: { id: job.id },
@@ -218,6 +243,8 @@ async function createCarouselPosts(req, res, next) {
               carouselAssetIds: slides.map(slide => slide.id),
               slideCount: slides.length,
               photoIds: published.photoIds || [],
+              linkedCarousel: linkedSlideCount > 0,
+              slideLinks: linkedSlideCount ? slideLinks : [],
               verification: {
                 state: immediate ? 'PUBLISHED' : 'SCHEDULED',
                 confirmedAt: new Date().toISOString(),

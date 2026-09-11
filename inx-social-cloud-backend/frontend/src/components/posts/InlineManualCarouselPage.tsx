@@ -10,13 +10,23 @@ import type { MediaAsset } from '../../types/media-library'
 import type { BestTimeInsight, PublishProgress, ScheduleMode } from '../../types/posts'
 import { Button } from '../ui/Button'
 import { PublishConfirmationDialog } from '../ui/PublishConfirmationDialog'
+import { CreatePostPanel } from './CreatePostPanel'
 import { DestinationSelector } from './DestinationSelector'
-import { PanelHeading, PostsStatCard } from './PostPrimitives'
+import { PostsStatCard } from './PostPrimitives'
 import { PostPreviewPanel } from './PostPreviewPanel'
 import { SchedulePanel } from './SchedulePanel'
 
 const MANUAL_DRAFT_KEY = 'inx-social-manual-carousel-draft-v1'
 const STANDARD_DRAFT_KEY = 'inx-social-post-drafts-v1'
+
+function isHttpUrl(value: string) {
+  try {
+    const url = new URL(value)
+    return (url.protocol === 'http:' || url.protocol === 'https:') && Boolean(url.hostname)
+  } catch {
+    return false
+  }
+}
 
 function defaultDate() {
   return new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)
@@ -38,6 +48,7 @@ export function InlineManualCarouselPage({ onStandardPost }: { onStandardPost: (
   const [title, setTitle] = useState('')
   const [caption, setCaption] = useState('')
   const [assets, setAssets] = useState<MediaAsset[]>([])
+  const [slideLinks, setSlideLinks] = useState<Record<string, string>>({})
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [mode, setMode] = useState<ScheduleMode>('later')
   const [date, setDate] = useState(defaultDate)
@@ -83,7 +94,12 @@ export function InlineManualCarouselPage({ onStandardPost }: { onStandardPost: (
   } catch {
     scheduledAt = null
   }
-  const ready = Boolean(caption.trim() && assets.length >= 2 && assets.length <= 10 && selectedIds.length && (mode !== 'later' || scheduledAt))
+  const orderedLinks = assets.map((asset) => (slideLinks[asset.id] || '').trim())
+  const linkedSlideCount = orderedLinks.filter(Boolean).length
+  const linksComplete = linkedSlideCount === 0 || linkedSlideCount === assets.length
+  const linksValid = linkedSlideCount === 0 || orderedLinks.every(isHttpUrl)
+  const linkedCarouselWithinLimit = linkedSlideCount === 0 || assets.length <= 5
+  const ready = Boolean(caption.trim() && assets.length >= 2 && assets.length <= 10 && linksComplete && linksValid && linkedCarouselWithinLimit && selectedIds.length && (mode !== 'later' || scheduledAt))
 
   async function addFiles(files: FileList | File[]) {
     const remaining = Math.max(0, 10 - assets.length)
@@ -131,7 +147,7 @@ export function InlineManualCarouselPage({ onStandardPost }: { onStandardPost: (
   }
 
   function saveDraft() {
-    window.localStorage.setItem(MANUAL_DRAFT_KEY, JSON.stringify({ title, caption, assetIds: assets.map((asset) => asset.id), updatedAt: new Date().toISOString() }))
+    window.localStorage.setItem(MANUAL_DRAFT_KEY, JSON.stringify({ title, caption, assetIds: assets.map((asset) => asset.id), slideLinks: orderedLinks, updatedAt: new Date().toISOString() }))
     setDraftVersion((value) => value + 1)
     setProgress({ state: 'completed', percent: 100, message: 'Carousel draft saved on this browser.' })
   }
@@ -146,6 +162,7 @@ export function InlineManualCarouselPage({ onStandardPost }: { onStandardPost: (
         title: title.trim() || null,
         caption: caption.trim(),
         mediaLibraryAssetIds: assets.map((asset) => asset.id),
+        slideLinks: orderedLinks,
         scheduledAt,
         publishMode: mode === 'now' ? 'NOW' : 'SCHEDULED',
       })
@@ -167,7 +184,14 @@ export function InlineManualCarouselPage({ onStandardPost }: { onStandardPost: (
 
   function requestPublish() {
     if (!ready) {
-      setProgress({ state: 'failed', percent: 0, message: 'Add a caption, at least two images, destinations and complete the publishing settings.' })
+      const message = !linksComplete
+        ? 'For a linked carousel, add or clear the destination link on every slide.'
+        : !linksValid
+          ? 'Enter a complete http:// or https:// destination for every linked slide.'
+        : !linkedCarouselWithinLimit
+          ? 'Facebook link carousels support up to 5 linked slides. Use 2–5 linked slides, or clear the links to publish up to 10 media slides.'
+          : 'Add a caption, at least two images, destinations and complete the publishing settings.'
+      setProgress({ state: 'failed', percent: 0, message })
       return
     }
     if (workspace.data?.settings.approvalRequired) return setConfirmationOpen(true)
@@ -182,25 +206,13 @@ export function InlineManualCarouselPage({ onStandardPost }: { onStandardPost: (
       <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 xl:grid-cols-5">{stats.map((stat) => <PostsStatCard key={stat.label} {...stat} />)}</div>
       <DestinationSelector destinations={workspace.data.destinations} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.35fr)_minmax(290px,.72fr)_minmax(320px,.82fr)]">
-        <section className="interactive-surface rounded-panel border p-4 xl:p-5">
-          <PanelHeading step={1} subtitle="Write your message and add carousel slides." title="Create Your Post" />
-          <fieldset>
-            <legend className="mb-2 text-[11px] font-semibold text-text-muted">Post type</legend>
-            <div className="grid grid-cols-2 gap-2">
-              <button className="min-h-[52px] rounded-xl border border-border-soft bg-bg/30 px-3 py-2 text-left text-text-muted transition hover:border-brand-cyan/30 hover:text-white" onClick={onStandardPost} type="button"><span className="block text-xs font-semibold">Text / Media Post</span><span className="mt-0.5 block text-[9px] text-text-soft">Text only, image or video.</span></button>
-              <button aria-pressed="true" className="min-h-[52px] rounded-xl border border-brand-cyan/60 bg-brand-cyan/12 px-3 py-2 text-left text-brand-cyan" type="button"><span className="block text-xs font-semibold">Carousel Post</span><span className="mt-0.5 block text-[9px] text-text-soft">Upload and arrange 2–10 images.</span></button>
-            </div>
-          </fieldset>
-          <label className="mt-4 block text-[11px] font-semibold text-text-muted">Post title <span className="font-normal text-text-soft">(optional)</span><input className="mt-2 w-full rounded-xl border border-border-soft bg-bg/40 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-cyan" maxLength={200} onChange={(event) => setTitle(event.target.value)} placeholder="Give your post a working title…" value={title} /></label>
-          <label className="mt-4 block text-[11px] font-semibold text-text-muted">Caption<textarea className="mt-2 min-h-36 w-full resize-y rounded-xl border border-border-soft bg-bg/40 p-3 text-sm leading-6 text-white outline-none transition placeholder:text-text-soft focus:border-brand-cyan" maxLength={5000} onChange={(event) => setCaption(event.target.value)} placeholder="What would you like to share?" value={caption} /></label>
-          <div className="-mt-8 flex h-8 justify-end px-3 text-[10px] text-text-soft">{caption.length} / 5,000</div>
-          <div className="mt-4 rounded-2xl border border-brand-cyan/20 bg-brand-cyan/[0.03] p-3">
+        <CreatePostPanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} caption={caption} carouselHasMedia={assets.length > 0} carouselUploader={<div className="rounded-2xl border border-brand-cyan/20 bg-brand-cyan/[0.03] p-3">
             <div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2"><span className="grid size-9 place-items-center rounded-xl bg-brand-cyan/10 text-brand-cyan"><Images className="size-4" /></span><div><strong className="block text-xs">Carousel slides</strong><span className="text-[9px] text-text-soft">{assets.length}/10 images · publish order is left to right</span></div></div><Button disabled={uploading || assets.length >= 10} onClick={() => inputRef.current?.click()} size="sm" variant="ghost"><ImagePlus className="size-3.5" />Add images</Button></div>
             <input accept="image/png,image/jpeg,image/webp" className="sr-only" multiple onChange={(event) => event.target.files && void addFiles(event.target.files)} ref={inputRef} type="file" />
-            {!assets.length ? <button className="mt-3 grid min-h-32 w-full place-items-center rounded-xl border border-dashed border-brand-cyan/25 bg-brand-cyan/[0.025] p-4 text-center transition hover:border-brand-cyan/55 hover:bg-brand-cyan/[0.06]" onClick={() => inputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void addFiles(event.dataTransfer.files) }} type="button"><span><UploadCloud className="mx-auto size-7 text-brand-cyan" /><strong className="mt-2 block text-xs">Drag & drop carousel images here</strong><span className="mt-1 block text-[10px] text-text-muted">PNG, JPEG or WebP · 2–10 slides</span></span></button> : <div className="scrollbar-thin mt-3 flex gap-2 overflow-x-auto pb-2">{assets.map((asset, index) => <div className="w-28 shrink-0 rounded-xl border border-border-soft bg-bg/30 p-2" key={asset.id}><div className="relative aspect-square overflow-hidden rounded-lg bg-black/30"><img alt={`Carousel slide ${index + 1}`} className="h-full w-full object-cover" src={asset.thumbnailUrl || asset.fileUrl} /><span className="absolute left-1.5 top-1.5 rounded-md bg-black/75 px-1.5 py-0.5 text-[8px] font-bold text-white">{index + 1}</span></div><div className="mt-2 flex items-center justify-between gap-1"><button aria-label={`Move slide ${index + 1} left`} className="rounded-md border border-border-soft p-1 text-text-muted disabled:opacity-30" disabled={index === 0} onClick={() => moveSlide(index, -1)} type="button"><ArrowLeft className="size-3" /></button><button aria-label={`Move slide ${index + 1} right`} className="rounded-md border border-border-soft p-1 text-text-muted disabled:opacity-30" disabled={index === assets.length - 1} onClick={() => moveSlide(index, 1)} type="button"><ArrowRight className="size-3" /></button><button aria-label={`Remove slide ${index + 1}`} className="rounded-md border border-brand-red/25 p-1 text-brand-red" onClick={() => setAssets((current) => current.filter((_, itemIndex) => itemIndex !== index))} type="button"><Trash2 className="size-3" /></button></div></div>)}</div>}
+            {!assets.length ? <button className="mt-3 grid min-h-32 w-full place-items-center rounded-xl border border-dashed border-brand-cyan/25 bg-brand-cyan/[0.025] p-4 text-center transition hover:border-brand-cyan/55 hover:bg-brand-cyan/[0.06]" onClick={() => inputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); void addFiles(event.dataTransfer.files) }} type="button"><span><UploadCloud className="mx-auto size-7 text-brand-cyan" /><strong className="mt-2 block text-xs">Drag & drop carousel images here</strong><span className="mt-1 block text-[10px] text-text-muted">PNG, JPEG or WebP · 2–10 slides</span></span></button> : <div className="scrollbar-thin mt-3 flex gap-2 overflow-x-auto pb-2">{assets.map((asset, index) => <div className="w-44 shrink-0 rounded-xl border border-border-soft bg-bg/30 p-2" key={asset.id}><div className="relative aspect-square overflow-hidden rounded-lg bg-black/30"><img alt={`Carousel slide ${index + 1}`} className="h-full w-full object-cover" src={asset.thumbnailUrl || asset.fileUrl} /><span className="absolute left-1.5 top-1.5 rounded-md bg-black/75 px-1.5 py-0.5 text-[8px] font-bold text-white">{index + 1}</span></div><label className="mt-2 block text-[9px] font-semibold text-text-muted">Slide link <span className="font-normal text-text-soft">(optional)</span><input aria-label={`Link for carousel slide ${index + 1}`} className="mt-1 w-full rounded-lg border border-border-soft bg-bg/50 px-2 py-1.5 text-[10px] text-white outline-none placeholder:text-text-soft focus:border-brand-cyan" inputMode="url" onChange={(event) => setSlideLinks((current) => ({ ...current, [asset.id]: event.target.value }))} placeholder="https://example.com" type="url" value={slideLinks[asset.id] || ''} /></label><div className="mt-2 flex items-center justify-between gap-1"><button aria-label={`Move slide ${index + 1} left`} className="rounded-md border border-border-soft p-1 text-text-muted disabled:opacity-30" disabled={index === 0} onClick={() => moveSlide(index, -1)} type="button"><ArrowLeft className="size-3" /></button><button aria-label={`Move slide ${index + 1} right`} className="rounded-md border border-border-soft p-1 text-text-muted disabled:opacity-30" disabled={index === assets.length - 1} onClick={() => moveSlide(index, 1)} type="button"><ArrowRight className="size-3" /></button><button aria-label={`Remove slide ${index + 1}`} className="rounded-md border border-brand-red/25 p-1 text-brand-red" onClick={() => { setAssets((current) => current.filter((_, itemIndex) => itemIndex !== index)); setSlideLinks((current) => { const next = { ...current }; delete next[asset.id]; return next }) }} type="button"><Trash2 className="size-3" /></button></div></div>)}</div>}
             {uploading && <div className="mt-3 flex items-center gap-2 text-[10px] text-brand-cyan"><LoaderCircle className="size-3.5 animate-spin" />Uploading carousel images… {uploadPercent}%</div>}
-          </div>
-        </section>
+            {linkedSlideCount > 0 && <p className={`mt-2 text-[9px] leading-4 ${linksComplete && linksValid && linkedCarouselWithinLimit ? 'text-brand-green' : 'text-brand-amber'}`}>{linksComplete && linksValid && linkedCarouselWithinLimit ? `${linkedSlideCount}-slide linked carousel ready.` : assets.length > 5 ? 'Linked Facebook carousels support 2–5 slides; media-only carousels support up to 10.' : !linksComplete ? 'Add a link to every slide, or clear all slide links.' : 'Enter complete http:// or https:// links.'}</p>}
+          </div>} destinationCount={selectedIds.length} media={null} onStandardPost={onStandardPost} postType="carousel" retainMedia={false} setCaption={setCaption} setMedia={() => {}} setPostType={() => {}} setRetainMedia={() => {}} setTitle={setTitle} title={title} />
         <SchedulePanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} campaign={campaign} canPublish={mode === 'draft' ? Boolean(title.trim() || caption.trim() || assets.length) : ready} date={date} labels={labels} mode={mode} onDraft={saveDraft} onPublish={requestPublish} progress={progress} setCampaign={setCampaign} setDate={setDate} setLabels={setLabels} setMode={setMode} setTime={setTime} time={time} />
         <PostPreviewPanel caption={caption} carouselAssets={assets} media={null} selectedPage={selectedPage} />
       </div>
