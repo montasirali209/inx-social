@@ -32,7 +32,7 @@ import {
   UGCAdCard,
   UpgradeToPlusModal,
 } from './AIStudioPrimitives'
-import { GenerationModal } from './GenerationModal'
+import { GenerationModalRouter } from './GenerationModalRouter'
 
 export function AiContentStudioPage() {
   const navigate = useNavigate()
@@ -199,7 +199,7 @@ export function AiContentStudioPage() {
       <CreditsCard topUpsSupported={false} />
     </section>
 
-    <GenerationModal access={access} initialDraft={editingDraft} onClose={() => { setActiveType(null); setEditingDraft(null) }} onContinue={(draft) => void continueToPosts(draft)} onSaved={(draft) => void onDraftSaved(draft)} onToast={setToast} open={Boolean(activeType)} type={activeType} />
+    <GenerationModalRouter access={access} initialDraft={editingDraft} onClose={() => { setActiveType(null); setEditingDraft(null) }} onContinue={(draft) => void continueToPosts(draft)} onSaved={(draft) => void onDraftSaved(draft)} onToast={setToast} open={Boolean(activeType)} type={activeType} />
     <UpgradeToPlusModal onClose={() => setUpgradeOpen(false)} open={upgradeOpen} />
     <GenerationHistoryDrawer history={(historyQuery.data || []) as GenerationHistoryItem[]} onClose={() => setHistoryOpen(false)} open={historyOpen} />
     <Drawer onClose={() => setDraftsOpen(false)} open={draftsOpen} title="AI Content Studio drafts">
