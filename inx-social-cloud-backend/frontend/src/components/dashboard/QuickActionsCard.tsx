@@ -1,21 +1,21 @@
-import { ArrowUpRight, BarChart3, CalendarPlus, FilePlus2, UploadCloud } from 'lucide-react'
+import { BarChart3, CalendarDays, FilePlus2, ImageUp } from 'lucide-react'
 import { DashboardCard } from './DashboardCard'
 
 const actions = [
-  { label: 'Upload Video', href: '/app/bulk-scheduler', icon: UploadCloud },
-  { label: 'Schedule Video', href: '/app/bulk-scheduler', icon: CalendarPlus },
-  { label: 'Create Post', href: '/app/posts', icon: FilePlus2 },
-  { label: 'View Analytics', href: '/app/analytics', icon: BarChart3 },
+  { label: 'Open Calendar', detail: 'View your schedule', href: '/app/content-calendar', icon: CalendarDays },
+  { label: 'Schedule Content', detail: 'Create and schedule', href: '/app/posts', icon: FilePlus2 },
+  { label: 'Upload Media', detail: 'Add to library', href: '/app/media-library?upload=1', icon: ImageUp },
+  { label: 'View Analytics', detail: 'See detailed insights', href: '/app/analytics', icon: BarChart3 },
 ]
 
 export function QuickActionsCard() {
   return (
-    <DashboardCard title="Quick Actions">
-      <div className="grid grid-cols-2 gap-2 p-3 sm:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
-        {actions.map(({ label, href, icon: Icon }) => (
-          <a className="group relative flex min-h-20 flex-col items-center justify-center gap-2 overflow-hidden rounded-xl border border-border-soft bg-bg-soft/48 p-2 text-center text-[10px] font-semibold text-text-muted transition duration-200 hover:-translate-y-1 hover:border-brand-blue/40 hover:bg-brand-blue/[0.075] hover:text-text-main hover:shadow-glow-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan motion-reduce:transition-none" href={href} key={label}>
-            <span className="grid size-9 place-items-center rounded-xl border border-brand-blue/20 bg-brand-blue/10 text-[#68aeff] transition duration-200 group-hover:scale-105 group-hover:bg-brand-blue/18 motion-reduce:transition-none"><Icon aria-hidden="true" className="size-4.5" /></span>
-            <span className="flex items-center justify-center gap-1"><span>{label}</span><ArrowUpRight aria-hidden="true" className="size-3 shrink-0 opacity-45 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:opacity-100 motion-reduce:transition-none" /></span>
+    <DashboardCard className="min-h-[92px]" title="Quick Actions">
+      <div className="grid grid-cols-2 gap-2 p-2.5 sm:grid-cols-4">
+        {actions.map(({ label, detail, href, icon: Icon }) => (
+          <a className="group flex min-h-12 items-center gap-2 rounded-xl border border-border-soft bg-bg-soft/48 px-2.5 py-2 text-left transition duration-200 hover:-translate-y-0.5 hover:border-brand-cyan/30 hover:bg-brand-cyan/[.055] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan motion-reduce:transform-none motion-reduce:transition-none" href={href} key={label}>
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-brand-cyan/18 bg-brand-cyan/[.08] text-brand-cyan transition group-hover:scale-105 motion-reduce:transition-none"><Icon aria-hidden="true" className="size-4" /></span>
+            <span className="min-w-0"><strong className="block truncate text-[10px] font-semibold text-text-main">{label}</strong><small className="hidden truncate text-[8px] text-text-soft 2xl:block">{detail}</small></span>
           </a>
         ))}
       </div>
