@@ -10,7 +10,7 @@ import { NotificationCenter } from './NotificationCenter'
 const workspaceRoutes = {
   '/': {
     title: 'Dashboard',
-    subtitle: 'Overview of your social media publishing performance.',
+    subtitle: 'Here’s what’s happening across all your social media accounts.',
   },
   '/bulk-scheduler': {
     title: 'Bulk Scheduler',
@@ -61,6 +61,13 @@ function workspaceForPath(pathname: string) {
   }
 }
 
+function dashboardGreeting() {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning! 👋'
+  if (hour < 18) return 'Good afternoon! 👋'
+  return 'Good evening! 👋'
+}
+
 export function Topbar({ overview }: { overview?: StudioOverview }) {
   const profileMenu = useRef<HTMLDetailsElement>(null)
   const setOpen = useUiStore((state) => state.setMobileNavigationOpen)
@@ -78,6 +85,7 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
   const [refreshing, setRefreshing] = useState(false)
   const name = overview?.user.name || overview?.user.businessName || 'INX Social account'
   const workspace = workspaceForPath(location.pathname)
+  const dashboardRoute = location.pathname === '/'
   const settingsRoute = location.pathname === '/settings'
   const connectionsRoute = location.pathname === '/connected-accounts'
   const billingRoute = location.pathname === '/billing'
@@ -118,14 +126,11 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
   }
 
   return (
-    <header
-      className="sticky top-0 z-20 flex min-h-[78px] items-center justify-between gap-3 border-b border-border-soft bg-bg/88 px-3 shadow-[0_12px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl sm:px-5 xl:px-6"
-      data-design-standard="universal-workspace-topbar"
-    >
+    <header className="sticky top-0 z-20 flex min-h-[78px] items-center justify-between gap-3 border-b border-border-soft bg-bg/88 px-3 shadow-[0_12px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl sm:px-5 xl:px-6" data-design-standard="universal-workspace-topbar">
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <Button aria-label="Open navigation" className="size-10 shrink-0 px-0 md:hidden" onClick={() => setOpen(true)} variant="ghost"><Menu aria-hidden="true" className="size-5" /></Button>
         <div className="min-w-0">
-          <h1 className="truncate text-lg font-semibold tracking-[-0.03em] text-text-main sm:text-xl xl:text-2xl">{workspace.title}</h1>
+          <h1 className="truncate text-lg font-semibold tracking-[-0.03em] text-text-main sm:text-xl xl:text-2xl">{dashboardRoute ? dashboardGreeting() : workspace.title}</h1>
           <p className="hidden truncate text-[11px] text-text-muted sm:block xl:text-xs">{workspace.subtitle}</p>
         </div>
       </div>
@@ -156,13 +161,7 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
           <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" />
         </label>}
 
-        <button
-          aria-label={refreshing ? `Refreshing ${workspace.title}` : `Refresh ${workspace.title}`}
-          className="inline-flex size-10 items-center justify-center gap-2 rounded-xl border border-border-soft bg-panel/70 text-xs font-semibold text-text-muted transition duration-200 hover:-translate-y-0.5 hover:border-brand-cyan/40 hover:bg-panel-hover/80 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan disabled:cursor-wait disabled:opacity-70 motion-reduce:transform-none motion-reduce:transition-none 2xl:w-auto 2xl:px-3"
-          disabled={refreshing}
-          onClick={() => void refreshWorkspace()}
-          type="button"
-        >
+        <button aria-label={refreshing ? `Refreshing ${workspace.title}` : `Refresh ${workspace.title}`} className="inline-flex size-10 items-center justify-center gap-2 rounded-xl border border-border-soft bg-panel/70 text-xs font-semibold text-text-muted transition duration-200 hover:-translate-y-0.5 hover:border-brand-cyan/40 hover:bg-panel-hover/80 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan disabled:cursor-wait disabled:opacity-70 motion-reduce:transform-none motion-reduce:transition-none 2xl:w-auto 2xl:px-3" disabled={refreshing} onClick={() => void refreshWorkspace()} type="button">
           <RefreshCw aria-hidden="true" className={`size-4 ${refreshing ? 'animate-spin motion-reduce:animate-none' : ''}`} />
           <span className="hidden 2xl:inline">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
         </button>
@@ -178,8 +177,9 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
             <ChevronDown aria-hidden="true" className="hidden size-3 text-text-soft transition group-open:rotate-180 2xl:block" />
           </summary>
           <div className="notification-pop absolute right-0 top-full mt-2 w-48 rounded-xl border border-border-soft bg-panel p-2 shadow-panel">
-            <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/settings" onClick={() => { if (profileMenu.current) profileMenu.current.open = false }}>Account settings</a>
-            <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/billing" onClick={() => { if (profileMenu.current) profileMenu.current.open = false }}>Billing & plan</a>
+            <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/settings" onClick={() => { if (profileMenu.current) profileMenu.current.open = false }}>Account</a>
+            <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/settings" onClick={() => { if (profileMenu.current) profileMenu.current.open = false }}>Settings</a>
+            <a className="block rounded-lg px-3 py-2 text-xs text-text-muted transition hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/billing" onClick={() => { if (profileMenu.current) profileMenu.current.open = false }}>Billing</a>
             <div className="my-1 border-t border-border-soft" />
             <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-[#fda4af] transition hover:bg-brand-red/10 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-red" onClick={signOut} type="button"><LogOut aria-hidden="true" className="size-3.5" />Sign out</button>
           </div>
