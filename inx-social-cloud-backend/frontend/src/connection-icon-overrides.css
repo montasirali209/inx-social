@@ -7,31 +7,86 @@
 .connection-platform-card span[class*="bg-[#1877f2]"]::after {
   content: "";
   display: block;
-  width: 62%;
-  height: 62%;
+  width: 70%;
+  height: 70%;
   background-color: currentColor;
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M13.7 22v-8.1h2.72l.41-3.16H13.7V8.72c0-.91.25-1.54 1.57-1.54h1.68V4.36c-.29-.04-1.29-.13-2.45-.13-2.42 0-4.08 1.48-4.08 4.2v2.31H7.68v3.16h2.74V22h3.28Z'/%3E%3C/svg%3E") center / contain no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M13.7 22v-8.1h2.72l.41-3.16H13.7V8.72c0-.91.25-1.54 1.57-1.54h1.68V4.36c-.29-.04-1.29-.13-2.45-.13-2.42 0-4.08 1.48-4.08 4.2v2.31H7.68v3.16h2.74V22h3.28Z'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
-/* Legacy Connected Accounts still renders platformMeta.mark internally. The
-   global compatibility mask supplies the real glyph; these rules make every
-   connection surface use the same circular badge silhouette as the shared
-   SocialPlatformIcon component, including the Connect Account modal. */
+/*
+ * Connected Accounts still owns an older local PlatformIcon renderer. Keep its
+ * DOM stable, but make the visual output identical in size and silhouette to
+ * the shared SocialPlatformIcon used by Posts, Calendar and Analytics.
+ */
 .connection-platform-card span[aria-label]:not([role="img"]),
-.connection-platform-icon span[aria-label]:not([role="img"]) {
-  border-radius: 9999px !important;
-  box-shadow: inset 0 1px rgba(255,255,255,.18), 0 5px 14px rgba(0,0,0,.2) !important;
-}
-
+.connection-platform-icon span[aria-label]:not([role="img"]),
 span[class~="size-12"][aria-label]:not([role="img"]),
 span[class~="size-10"][aria-label]:not([role="img"]),
 span[class~="size-8"][aria-label]:not([role="img"]) {
+  display: grid !important;
+  place-items: center !important;
+  flex: none !important;
+  aspect-ratio: 1 / 1;
   border-radius: 9999px !important;
-  box-shadow: inset 0 1px rgba(255,255,255,.16), 0 5px 14px rgba(0,0,0,.18) !important;
+  overflow: hidden;
+  box-shadow: inset 0 1px rgba(255,255,255,.18), 0 5px 14px rgba(0,0,0,.2) !important;
+}
+
+/* Preserve the renderer's intended md/sm/lg hierarchy. PR #60 accidentally
+ * collapsed md (size-10) to the sm 2rem size, which made All Accounts and
+ * Pages & Profiles look like the icon change had not actually landed. */
+span[class~="size-12"][aria-label]:not([role="img"]) {
+  width: 3rem !important;
+  height: 3rem !important;
 }
 
 span[class~="size-10"][aria-label]:not([role="img"]) {
+  width: 2.5rem !important;
+  height: 2.5rem !important;
+}
+
+span[class~="size-8"][aria-label]:not([role="img"]) {
   width: 2rem !important;
   height: 2rem !important;
+}
+
+/* Match the reference logo proportions more closely on legacy surfaces. */
+span[aria-label="Facebook"]:not([role="img"])::after {
+  width: 70% !important;
+  height: 70% !important;
+}
+
+span[aria-label="Instagram"]:not([role="img"])::after,
+span[aria-label="LinkedIn"]:not([role="img"])::after,
+span[aria-label="Pinterest"]:not([role="img"])::after {
+  width: 68% !important;
+  height: 68% !important;
+}
+
+span[aria-label="YouTube"]:not([role="img"])::after {
+  width: 56% !important;
+  height: 56% !important;
+}
+
+span[aria-label="X / Twitter"]:not([role="img"])::after,
+span[aria-label="X (Twitter)"]:not([role="img"])::after,
+span[aria-label="X"]:not([role="img"])::after {
+  width: 62% !important;
+  height: 62% !important;
+}
+
+/* TikTok is multi-colour in the current brand mark. Override the monochrome
+ * compatibility mask with the same cyan/red/white layered glyph used by the
+ * shared React icon component. */
+span[aria-label="TikTok"]:not([role="img"])::after {
+  width: 70% !important;
+  height: 70% !important;
+  background-color: transparent !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M14.8 3.2c.23 1.9 1.3 3.34 3.2 4.12v2.53a8.24 8.24 0 0 1-3.18-.92v5.58a5.38 5.38 0 1 1-4.64-5.33v2.72a2.72 2.72 0 1 0 1.94 2.61V3.2h2.68Z' fill='%2325f4ee' transform='translate(-.45 .35)'/%3E%3Cpath d='M14.8 3.2c.23 1.9 1.3 3.34 3.2 4.12v2.53a8.24 8.24 0 0 1-3.18-.92v5.58a5.38 5.38 0 1 1-4.64-5.33v2.72a2.72 2.72 0 1 0 1.94 2.61V3.2h2.68Z' fill='%23fe2c55' transform='translate(.42 -.2)'/%3E%3Cpath d='M14.8 3.2c.23 1.9 1.3 3.34 3.2 4.12v2.53a8.24 8.24 0 0 1-3.18-.92v5.58a5.38 5.38 0 1 1-4.64-5.33v2.72a2.72 2.72 0 1 0 1.94 2.61V3.2h2.68Z' fill='white'/%3E%3C/svg%3E") !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-size: contain !important;
+  -webkit-mask: none !important;
+  mask: none !important;
 }
