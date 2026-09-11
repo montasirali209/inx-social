@@ -88,7 +88,7 @@ export function DashboardPage() {
     },
   })
 
-  const analyticsEntries = analytics.data?.entries || []
+  const analyticsEntries = useMemo(() => analytics.data?.entries || [], [analytics.data?.entries])
   const data = useMemo(() => (
     sources.data && jobs.data
       ? buildDashboardView(sources.data.overview, jobs.data, new Date(), analyticsEntries, accounts.length)
