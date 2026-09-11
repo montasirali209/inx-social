@@ -1,4 +1,5 @@
 const crypto = require('node:crypto');
+const dns = require('node:dns').promises;
 const axios = require('axios');
 const sharp = require('sharp');
 const prisma = require('../db/prisma');
@@ -47,6 +48,10 @@ function privateHost(hostname) {
   if (/^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) || /^169\.254\./.test(host)) return true;
   const match = host.match(/^172\.(\d{1,3})\./);
   if (match && Number(match[1]) >= 16 && Number(match[1]) <= 31) return true;
+  if (/^(?:fc|fd)[0-9a-f]{2}:/i.test(host) || /^fe8[0-9a-f]:/i.test(host)) return true;
+  if (/^::ffff:(?:127\.|10\.|192\.168\.|169\.254\.)/i.test(host)) return true;
+  const mapped172 = host.match(/^::ffff:172\.(\d{1,3})\./i);
+  if (mapped172 && Number(mapped172[1]) >= 16 && Number(mapped172[1]) <= 31) return true;
   return false;
 }
 
@@ -75,9 +80,18 @@ function htmlText(html) {
     .trim();
 }
 
+async function safePublicDns(url) {
+  try {
+    const hostname = new URL(url).hostname;
+    const records = await dns.lookup(hostname, { all: true, verbatim: true });
+    return Boolean(records.length && records.every(record => !privateHost(record.address)));
+  } catch (_) { return false; }
+}
+
 async function fetchUrlContext(value) {
   const url = normalizeUrl(value);
   if (!url) return { url: String(value || '').slice(0, 500), error: 'This URL cannot be analysed safely.' };
+  if (!(await safePublicDns(url))) return { url, error: 'This URL cannot be analysed because it does not resolve to a public address.' };
   try {
     const response = await axios.get(url, {
       timeout: 12000,
@@ -255,7 +269,6 @@ async function openAIImage(prompt, refs, options = {}) {
       form.append('size', size);
       form.append('quality', 'medium');
       form.append('output_format', 'png');
-      form.append('input_fidelity', 'high');
       refs.filter(asset => String(asset.mimeType || '').startsWith('image/')).slice(0, 4).forEach((asset, index) => {
         const blob = new Blob([asset.data], { type: asset.mimeType || 'image/png' });
         form.append('image[]', blob, asset.originalName || `reference-${index + 1}.png`);
