@@ -6,12 +6,13 @@ const test = require('node:test');
 const root = path.join(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('Posts offers only a standard post choice and an AI carousel choice', () => {
+test('Posts offers a standard post choice and a manual carousel choice', () => {
   const panel = read('frontend/src/components/posts/CreatePostPanel.tsx');
   const data = read('frontend/src/data/postsData.ts');
   assert.match(data, /Text \/ Media Post/);
   assert.match(data, /Carousel Post/);
-  assert.match(panel, /Create with AI Content Studio/);
+  assert.match(panel, /Upload and arrange 2–10 images manually/);
+  assert.match(panel, /manualCarousel:\s*true/);
   assert.doesNotMatch(data, /Video \/ Reel/);
   assert.doesNotMatch(data, /available:\s*false/);
 });

@@ -38,7 +38,7 @@ export function CreatePostPanel(props: Props) {
   }
 
   function chooseCarouselPost() {
-    navigate('/ai-content-studio')
+    navigate('/posts', { state: { manualCarousel: true } })
   }
 
   function selectFile(file?: File) {
@@ -69,7 +69,7 @@ export function CreatePostPanel(props: Props) {
                 type="button"
               >
                 <span className="block text-xs font-semibold">{item.label}</span>
-                <span className="mt-0.5 block text-[9px] font-normal text-text-soft">{item.id === 'carousel' ? 'Create with AI Content Studio, then return here to schedule.' : 'Text only, image or video — add media only when you need it.'}</span>
+                <span className="mt-0.5 block text-[9px] font-normal text-text-soft">{item.id === 'carousel' ? 'Upload and arrange 2–10 images manually, then publish or schedule.' : 'Text only, image or video — add media only when you need it.'}</span>
               </button>
             )
           })}
