@@ -36,7 +36,6 @@ import {
   fetchConnectionsWorkspace,
   flattenConnectedIdentities,
   type ConnectedIdentity,
-  type ConnectionsWorkspace,
 } from '../../lib/connections-api'
 import { useUiStore } from '../../store/ui-store'
 import { Button } from '../ui/Button'
