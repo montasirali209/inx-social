@@ -32,10 +32,11 @@ export default tseslint.config(
   {
     files: [
       'src/components/ai-content-studio/GenerationModal.tsx',
+      'src/components/ai-content-studio/ImagePostChatModalV3.tsx',
       'src/components/posts/PostsPage.tsx',
     ],
     rules: {
-      // These effects intentionally hydrate controlled UI state from external draft/navigation state.
+      // These effects intentionally hydrate controlled UI state from external draft, recovery, or navigation state.
       'react-hooks/set-state-in-effect': 'off',
     },
   },
