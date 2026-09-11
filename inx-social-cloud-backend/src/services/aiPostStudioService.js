@@ -152,7 +152,7 @@ function systemPrompt() {
     'Work conversationally. Ask at most one useful follow-up question at a time. Do not interrogate the user or ask for information that can be inferred safely.',
     'If a URL or reference image is supplied, use it as evidence. Never invent product features, prices, testimonials, results, logos or factual claims.',
     'When enough context exists, produce a practical post brief and set readyToGenerate=true. The user should not need to choose technical settings unless they explicitly want to.',
-    'Default platform to Instagram and aspect ratio to 4:5 if neither is known. Infer a sensible tone and visual style from the brief and references.',
+    'Infer the platform and aspect ratio from the conversation. If the user does not identify either, default to Instagram and 4:5. Infer a sensible tone and visual style from the brief and references.',
     'The final image is rendered separately by GPT-Image-2. Your visualDirection must therefore be a strong, detailed art-direction prompt for a complete social creative, including hierarchy, composition and any short headline/CTA that should visibly appear.',
     'Keep visible text concise enough for an image model. Preserve supplied brand marks and product screenshots when references are available; never fabricate a replacement logo.',
     'Return JSON only with this shape:',
@@ -176,8 +176,6 @@ async function assistantReply(userId, input = {}) {
   const evidence = [];
   if (urlContexts.length) evidence.push(`URL analysis:\n${urlContexts.map(item => item.error ? `- ${item.url}: ${item.error}` : `- ${item.url}\nTitle: ${item.title || 'Unknown'}\nDescription: ${item.description || ''}\nPage text: ${item.text || ''}`).join('\n\n')}`);
   if (refs.length) evidence.push(`Uploaded references: ${refs.map(asset => `${asset.originalName || asset.id} (${asset.width || '?'}x${asset.height || '?'})`).join(', ')}.`);
-  if (input.platform) evidence.push(`User-selected platform override: ${cleanText(input.platform, 80)}.`);
-  if (input.aspectRatio) evidence.push(`User-selected aspect ratio override: ${cleanText(input.aspectRatio, 20)}.`);
 
   const apiMessages = [{ role: 'system', content: systemPrompt() }, ...messages.map((message, index) => {
     if (index !== messages.length - 1 || message.role !== 'user' || !refs.some(asset => asset.visionData)) return message;
@@ -203,6 +201,7 @@ async function assistantReply(userId, input = {}) {
   const parsed = safeJson(response.data?.choices?.[0]?.message?.content);
   if (!parsed) throw publicError('The AI Post Studio returned an invalid response. Please send your message again.', 'OPENAI_CHAT_INVALID', 502);
   const brief = parsed.brief && typeof parsed.brief === 'object' ? parsed.brief : {};
+  const inferredAspectRatio = ['1:1', '4:5', '9:16', '16:9'].includes(String(brief.aspectRatio)) ? String(brief.aspectRatio) : (input.aspectRatio || '4:5');
   return {
     reply: cleanText(parsed.reply || 'I have enough context to keep building your post.', 1800),
     inScope: parsed.inScope !== false,
@@ -212,8 +211,8 @@ async function assistantReply(userId, input = {}) {
     brief: {
       objective: cleanText(brief.objective, 240),
       audience: cleanText(brief.audience, 240),
-      platform: cleanText(input.platform || brief.platform || 'Instagram', 80),
-      aspectRatio: ['1:1', '4:5', '9:16', '16:9'].includes(String(input.aspectRatio || brief.aspectRatio)) ? String(input.aspectRatio || brief.aspectRatio) : '4:5',
+      platform: cleanText(brief.platform || input.platform || 'Instagram', 80),
+      aspectRatio: inferredAspectRatio,
       tone: cleanText(brief.tone || 'Professional', 80),
       visualStyle: cleanText(brief.visualStyle || 'Premium brand-led', 120),
       headline: cleanText(brief.headline, 180),
@@ -232,8 +231,9 @@ async function assistantReply(userId, input = {}) {
 
 function sizeForRatio(ratio) {
   if (ratio === '1:1') return '1024x1024';
-  if (ratio === '16:9') return '1536x1024';
-  return '1024x1536';
+  if (ratio === '9:16') return '864x1536';
+  if (ratio === '16:9') return '1536x864';
+  return '1024x1280';
 }
 
 function imagePrompt(input) {
