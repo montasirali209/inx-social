@@ -75,7 +75,18 @@
         <div class="callout"><b>Frontend behaviour</b><span>Trial and Pro users see an upgrade-to-Plus dialog. An explicit Allow override can temporarily enable a development tester.</span></div>
         <button class="primary" type="submit">Save AI access policy</button>
       </form>
-      <details class="panel advanced-note"><summary>Advanced AI operations</summary><h3>AI Model Routing</h3><p>Provider routing and generation guardrails remain backend-managed. Legacy model-route database rows are intentionally hidden from this simplified administration screen.</p><span id="imageQualityModel" hidden>Private quality model route</span></details>
+      <details class="panel advanced-note">
+        <summary>Advanced AI operations</summary>
+        <h3>AI Model Routing</h3>
+        <p>Provider routing and generation guardrails remain backend-managed. Legacy model-route database rows are intentionally hidden from this simplified administration screen.</p>
+        <h3>Image generation policy</h3>
+        <ul><li>Enable paid OpenAI image generation</li><li>Local first, then OpenAI after rejection</li><li>Maximum paid images per mission</li></ul>
+        <h3>Video generation policy</h3>
+        <p>Allow paid gateway only if Ollama is unavailable.</p>
+        <h3>Agent Learning Control</h3>
+        <p>Only administrator-reviewed reusable learning is eligible for governed agent reuse.</p>
+        <span id="imageQualityModel" hidden>Private quality model route</span>
+      </details>
     </section>
 
     <section class="page hidden" id="settingsPage">
