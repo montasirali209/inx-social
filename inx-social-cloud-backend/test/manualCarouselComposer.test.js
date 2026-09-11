@@ -52,8 +52,38 @@ test('standard preview card supports carousel slides without replacing its shell
   assert.match(preview, /platforms\.map/);
 });
 
-test('AI generated carousel handoff remains separate and unchanged', () => {
+test('AI generated carousel handoff uses the same complete carousel editor', () => {
   const route = read('frontend/src/components/posts/PostsRoute.tsx');
   assert.match(route, /draft\?\.contentType === 'carousel_post'/);
-  assert.match(route, /CarouselPostComposerPage draft=\{draft\}/);
+  assert.match(route, /InlineManualCarouselPage/);
+  assert.match(route, /initialDraft=\{carouselDraft\}/);
+  assert.match(route, /initialAssets=\{selectedAssets\}/);
+});
+
+test('carousel work automatically survives navigation and reloads in Posts', () => {
+  const route = read('frontend/src/components/posts/PostsRoute.tsx');
+  const page = read('frontend/src/components/posts/InlineManualCarouselPage.tsx');
+  const session = read('frontend/src/lib/carousel-composer-session.ts');
+  assert.match(route, /hasCarouselSession\(\)/);
+  assert.match(page, /saveCarouselSession/);
+  assert.match(page, /useEffect/);
+  assert.match(session, /localStorage\.setItem\(CAROUSEL_SESSION_KEY/);
+  assert.match(session, /assets:\s*parsed\.assets/);
+});
+
+test('standard post work also restores after navigating away from Posts', () => {
+  const page = read('frontend/src/components/posts/PostsPage.tsx');
+  assert.match(page, /inx-social-post-composer-session-v1/);
+  assert.match(page, /readComposerSession/);
+  assert.match(page, /localStorage\.setItem\(composerSessionKey/);
+  assert.match(page, /Your unfinished post and reusable media were restored/);
+});
+
+test('carousel slides support grab ordering alongside arrow controls', () => {
+  const page = read('frontend/src/components/posts/InlineManualCarouselPage.tsx');
+  assert.match(page, /draggable/);
+  assert.match(page, /Drag slide/);
+  assert.match(page, /moveSlideTo/);
+  assert.match(page, /Move slide \$\{index \+ 1\} left/);
+  assert.match(page, /Move slide \$\{index \+ 1\} right/);
 });

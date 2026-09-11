@@ -5,6 +5,8 @@ import {
   ChevronRight,
   FolderPlus,
   HardDrive,
+  Images,
+  Send,
   ShieldAlert,
   Sparkles,
   Upload,
@@ -91,6 +93,11 @@ export function MediaLibraryPage() {
   const trashMode = activeFolder === "trash";
   const displayedAssets = trashMode ? trashAssets : assets;
   const selectedAsset = [...assets, ...trashAssets].find((asset) => asset.id === selectedId) || null;
+  const selectedAssets = useMemo(
+    () => [...checkedIds].map((id) => assets.find((asset) => asset.id === id)).filter((asset): asset is MediaAsset => Boolean(asset)),
+    [assets, checkedIds],
+  );
+  const previewAsset = checkedIds.size ? null : selectedAsset;
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
     return displayedAssets
@@ -236,6 +243,28 @@ export function MediaLibraryPage() {
 
   function openComposer(asset: MediaAsset, scheduleMode: "later" | "now") {
     navigate("/posts", { state: { mediaLibraryAsset: asset, scheduleMode } });
+  }
+
+  function toggleChecked(asset: MediaAsset) {
+    setSelectedId(null);
+    setCheckedIds((current) => {
+      const next = new Set(current);
+      if (next.has(asset.id)) next.delete(asset.id);
+      else next.add(asset.id);
+      return next;
+    });
+  }
+
+  function useSelectedAssets() {
+    if (selectedAssets.length === 1) {
+      openComposer(selectedAssets[0], "later");
+      return;
+    }
+    if (selectedAssets.length < 2 || selectedAssets.length > 10 || selectedAssets.some((asset) => asset.type !== "image" || !asset.contentAvailable)) {
+      notify("error", "Select 2–10 available images to create a carousel.");
+      return;
+    }
+    navigate("/posts", { state: { manualCarousel: true, mediaLibraryAssets: selectedAssets } });
   }
 
   function rename(asset: MediaAsset) {
@@ -460,7 +489,7 @@ export function MediaLibraryPage() {
         )}
       </section>
       <div
-        className={`mt-4 grid items-start gap-4 ${selectedAsset ? "2xl:grid-cols-[230px_minmax(0,1fr)_330px]" : "2xl:grid-cols-[230px_minmax(0,1fr)]"}`}
+        className={`mt-4 grid items-start gap-4 ${previewAsset ? "2xl:grid-cols-[230px_minmax(0,1fr)_330px]" : "2xl:grid-cols-[230px_minmax(0,1fr)]"}`}
       >
         <FolderPanel
           active={activeFolder}
@@ -499,20 +528,19 @@ export function MediaLibraryPage() {
             type={type}
             view={view}
           />
+          {checkedIds.size > 0 && (
+            <section aria-label="Selected media actions" className="mt-3 flex flex-col gap-3 rounded-2xl border border-brand-cyan/30 bg-brand-cyan/[0.06] p-3 shadow-[0_14px_36px_rgba(0,214,192,.08)] sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-brand-cyan/12 text-brand-cyan"><Images className="size-4" /></span><div><strong className="block text-xs">{checkedIds.size} selected</strong><span className="text-[10px] text-text-muted">{checkedIds.size === 1 ? 'Use this asset in a post.' : 'Use 2–10 selected images as one ordered carousel.'}</span></div></div>
+              <div className="flex flex-wrap gap-2"><Button onClick={() => setCheckedIds(new Set())} size="sm" type="button" variant="ghost"><X className="size-3.5" />Clear</Button><Button disabled={selectedAssets.length > 1 && (selectedAssets.length > 10 || selectedAssets.some((asset) => asset.type !== "image" || !asset.contentAvailable))} onClick={useSelectedAssets} size="sm" type="button" variant="primary"><Send className="size-3.5" />{selectedAssets.length === 1 ? 'Use in Post' : 'Use as Carousel'}</Button></div>
+            </section>
+          )}
           <div className="scrollbar-thin mt-3 min-h-[360px] overscroll-contain 2xl:max-h-[calc(100vh-25rem)] 2xl:overflow-y-auto 2xl:pr-1">
             <MediaGrid
               assets={visible}
               busyId={busyId}
               checkedIds={checkedIds}
-              onCheck={(asset) =>
-                setCheckedIds((current) => {
-                  const next = new Set(current);
-                  if (next.has(asset.id)) next.delete(asset.id);
-                  else next.add(asset.id);
-                  return next;
-                })
-              }
-              onSelect={(asset) => setSelectedId(asset.id)}
+              onCheck={toggleChecked}
+              onSelect={(asset) => checkedIds.size ? toggleChecked(asset) : setSelectedId(asset.id)}
               onPurge={purge}
               onRestore={restore}
               onUpload={() => inputRef.current?.click()}
@@ -569,18 +597,18 @@ export function MediaLibraryPage() {
             </nav>
           </footer>
         </main>
-        {selectedAsset && (
+        {previewAsset && (
           <AssetPreviewPanel
-            asset={selectedAsset}
+            asset={previewAsset}
             onClose={() => setSelectedId(null)}
-            onDownload={() => handlers.onDownload(selectedAsset)}
-            onDelete={() => handlers.onDelete(selectedAsset)}
-            onDuplicate={() => handlers.onDuplicate(selectedAsset)}
-            onRename={() => handlers.onRename(selectedAsset)}
-            onRestore={() => restore(selectedAsset)}
-            onPurge={() => purge(selectedAsset)}
-            onSchedule={() => handlers.onSchedule(selectedAsset)}
-            onUse={() => handlers.onUse(selectedAsset)}
+            onDownload={() => handlers.onDownload(previewAsset)}
+            onDelete={() => handlers.onDelete(previewAsset)}
+            onDuplicate={() => handlers.onDuplicate(previewAsset)}
+            onRename={() => handlers.onRename(previewAsset)}
+            onRestore={() => restore(previewAsset)}
+            onPurge={() => purge(previewAsset)}
+            onSchedule={() => handlers.onSchedule(previewAsset)}
+            onUse={() => handlers.onUse(previewAsset)}
             trashMode={trashMode}
           />
         )}
