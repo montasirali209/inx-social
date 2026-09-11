@@ -1,16 +1,151 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow,noarchive"><title>INXSocial Control Centre</title><link rel="stylesheet" href="/admin.css?v=4"></head>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>INXSocial Control Centre</title>
+  <link rel="stylesheet" href="/admin.css?v=5">
+  <link rel="stylesheet" href="/admin-security.css?v=1">
+</head>
 <body>
-<section class="login-shell" id="loginView"><div class="login-brand"><img src="/assets/inx-social-wordmark.png" alt="INXSocial"><span class="kicker">Restricted operations</span><h1>Control Centre</h1><p>Live customer access, subscriptions, platform health and governed AI controls.</p><div class="security-note"><b>Private by design</b><span>Administrative actions require a verified administrator account and are written to the audit log.</span></div></div><form class="login-card" id="loginForm"><span class="status-chip">Authorised staff only</span><h2>Secure sign in</h2><p>Use your INXSocial administrator credentials.</p><label for="email">Email address</label><input id="email" type="email" autocomplete="username" required><label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required><button class="primary full" type="submit">Sign in to Control Centre</button><div class="form-error" id="loginError" role="alert"></div></form></section>
-<section class="dashboard hidden" id="dashboardView"><aside class="sidebar"><div class="brand"><img src="/assets/inx-social-wordmark.png" alt="INXSocial"><span>Control Centre</span></div><nav aria-label="Administration"><button class="nav active" data-page="overview"><span>◫</span>Overview</button><button class="nav" data-page="users"><span>◎</span>Users & Access <i id="userAlertBadge" hidden>0</i></button><button class="nav" data-page="aiAccess"><span>✦</span>AI Studio Access</button><button class="nav" data-page="settings"><span>⚙</span>App Settings</button></nav><div class="sidebar-security"><b>Protected admin session</b><span>Role checks and audit logging are enforced by the backend.</span></div><button class="logout" id="logoutBtn">Sign out</button></aside>
-<main class="content"><header class="topbar"><div><span class="kicker">Live administration</span><h1 id="pageTitle">Overview</h1><p id="pageSubtitle">Monitor new customers and service activity.</p></div><div class="top-actions"><button class="icon-button" id="notificationBtn" aria-label="Registration notifications">♢<i id="notificationCount" hidden>0</i></button><div class="admin-pill"><span id="adminInitials">IA</span><div><b id="adminName">Administrator</b><small id="adminEmail">Secure session</small></div></div></div></header>
-<section class="page" id="overviewPage"><div class="welcome-card"><div><span class="live-dot">Live</span><h2>Operations at a glance</h2><p>Customer registrations and platform totals refresh automatically every 15 seconds.</p></div><button class="secondary" id="refreshOverviewBtn">↻ Refresh now</button></div><div class="stats" id="statsGrid" aria-live="polite"></div><div class="overview-grid"><article class="panel"><header><div><span class="kicker">New accounts</span><h2>Recent registrations</h2></div><button class="text-button" data-open-page="users">Manage users →</button></header><div class="activity-list" id="recentUsers"></div></article><article class="panel"><header><div><span class="kicker">Attention</span><h2>Operations health</h2></div></header><div class="health-list" id="healthList"></div></article></div></section>
-<section class="page hidden" id="usersPage"><div class="section-head"><div><h2>Users & Access</h2><p>Search, create and manage verified customer accounts.</p></div><button class="primary" id="createUserBtn">＋ Create user</button></div><div class="panel toolbar"><label class="search"><span>⌕</span><input id="userSearch" type="search" placeholder="Search name or email"></label><select id="userFilter" aria-label="Filter users"><option value="">All users</option><option value="TRIAL">Trial</option><option value="ACTIVE">Active</option><option value="PENDING_VERIFICATION">Unverified</option><option value="SUSPENDED">Suspended</option></select><button class="secondary" id="refreshUsersBtn">Refresh</button></div><div class="panel table-wrap"><table><thead><tr><th>Customer</th><th>Access</th><th>Plan</th><th>AI Studio</th><th>Joined</th><th>Connections</th><th></th></tr></thead><tbody id="usersTable"></tbody></table></div></section>
-<section class="page hidden" id="aiAccessPage"><div class="section-head"><div><h2>AI Content Studio Access</h2><p>Control who can see and use AI Content Studio independently of model routing.</p></div><span class="status-chip">Backend enforced</span></div><form class="panel policy-form" id="agentAccessForm"><div class="policy-hero"><span>✦</span><div><h3>Global availability</h3><p>Plus-only is the recommended production policy. Individual overrides are managed from Users & Access.</p></div></div><label>Social Agent availability<select id="agentAvailability"><option value="PLUS_ONLY">Plus subscribers only — recommended</option><option value="ADMIN_ONLY">Admins only — development mode</option><option value="EVERYONE">All active subscribers</option><option value="DISABLED">Disabled for everyone</option></select></label><div class="limit-grid"><label>Trial monthly missions<input id="agentLimitTrial" type="number" min="0"></label><label>Pro monthly missions<input id="agentLimitPro" type="number" min="0"></label><label>Plus monthly missions<input id="agentLimitPlus" type="number" min="0"></label><label>Legacy lifetime missions<input id="agentLimitLifetime" type="number" min="0"></label></div><div class="callout"><b>Frontend behaviour</b><span>Trial and Pro users see an upgrade-to-Plus dialog. An explicit Allow override can temporarily enable a development tester.</span></div><button class="primary" type="submit">Save AI access policy</button></form><details class="panel advanced-note"><summary>Advanced AI operations</summary><h3>AI Model Routing</h3><p>Video generation policy and Agent Learning Control remain governed independently from customer access. Allow paid gateway only if Ollama is unavailable.</p><ul><li>Enable paid OpenAI image generation</li><li>Local first, then OpenAI after rejection</li><li>Maximum paid images per mission</li></ul><span id="imageQualityModel" hidden>Private quality model route</span></details></section>
-<section class="page hidden" id="settingsPage"><div class="section-head"><div><h2>App Settings</h2><p>Live backend configuration values. Secrets are never shown here.</p></div></div><div class="panel"><div id="settingsList" class="settings-list"></div><form id="settingForm" class="setting-form"><input id="settingKey" placeholder="Setting key" required><input id="settingValue" placeholder="Value" required><input id="settingDescription" placeholder="Description"><button class="primary" type="submit">Save setting</button></form></div></section>
-</main></section>
-<dialog id="userDialog"><form method="dialog" class="modal"><button class="close" value="cancel" aria-label="Close">×</button><span class="kicker">Customer access</span><h2 id="modalTitle">Manage user</h2><div id="modalBody"></div><footer><button value="cancel" class="secondary">Close</button><button id="saveAccessBtn" type="button" class="primary">Save changes</button></footer></form></dialog>
-<dialog id="createUserDialog"><form class="modal" id="createUserForm"><button class="close" type="button" data-close-create aria-label="Close">×</button><span class="kicker">Direct provisioning</span><h2>Create verified user</h2><p class="muted">The account is ready immediately. A secure temporary password is displayed once after creation.</p><div class="form-grid"><label>Full name<input id="createName" required minlength="2"></label><label>Email address<input id="createEmail" type="email" required></label><label>Plan<select id="createPlan"><option value="TRIAL">Trial</option><option value="PRO">Pro — manual access</option><option value="PLUS">Plus — manual access</option></select></label><label id="trialDaysLabel">Trial length (days)<input id="createTrialDays" type="number" min="1" max="365" value="5"></label></div><footer><button type="button" class="secondary" data-close-create>Cancel</button><button type="submit" class="primary">Create user</button></footer></form></dialog>
-<dialog id="credentialDialog"><div class="modal"><span class="kicker">User created</span><h2>Copy the temporary password now</h2><p class="muted">It will not be displayed again. Send it through a secure channel and ask the customer to reset it.</p><div class="credential"><code id="temporaryPassword"></code><button id="copyPasswordBtn" class="secondary">Copy</button></div><footer><button id="closeCredentialBtn" class="primary">Done</button></footer></div></dialog>
-<div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div><div class="toast" id="toast" role="status"></div><script src="/admin.js?v=4" defer></script>
-</body></html>
+<section class="login-shell" id="loginView">
+  <div class="login-brand">
+    <img src="/assets/inx-social-wordmark.png" alt="INXSocial">
+    <span class="kicker">Restricted operations</span>
+    <h1>Control Centre</h1>
+    <p>Live customer access, subscriptions, platform health and governed AI controls.</p>
+    <div class="security-note"><b>Private by design</b><span>Administrator sessions use protected browser cookies and sensitive changes are written to the audit log.</span></div>
+  </div>
+  <form class="login-card" id="loginForm">
+    <span class="status-chip">Authorised staff only</span>
+    <h2>Secure sign in</h2>
+    <p>Use your INXSocial administrator credentials.</p>
+    <label for="email">Email address</label><input id="email" type="email" autocomplete="username" required>
+    <label for="password">Password</label><input id="password" type="password" autocomplete="current-password" required>
+    <button class="primary full" type="submit">Sign in to Control Centre</button>
+    <div class="form-error" id="loginError" role="alert"></div>
+  </form>
+</section>
+
+<section class="dashboard hidden" id="dashboardView">
+  <aside class="sidebar">
+    <div class="brand"><img src="/assets/inx-social-wordmark.png" alt="INXSocial"><span>Control Centre</span></div>
+    <nav aria-label="Administration">
+      <button class="nav active" data-page="overview"><span>◫</span>Overview</button>
+      <button class="nav" data-page="users"><span>◎</span>Customers <i id="userAlertBadge" hidden>0</i></button>
+      <button class="nav" data-page="aiAccess"><span>✦</span>AI Studio Access</button>
+      <button class="nav" data-page="settings"><span>⚙</span>System Settings</button>
+      <button class="nav" data-page="security"><span>⌾</span>Admin &amp; Security</button>
+    </nav>
+    <div class="sidebar-security"><b>Protected admin session</b><span>HttpOnly session cookie, server-side role checks and audit logging are enforced by the backend.</span></div>
+    <button class="logout" id="logoutBtn">Sign out</button>
+  </aside>
+
+  <main class="content">
+    <header class="topbar">
+      <div><span class="kicker">Live administration</span><h1 id="pageTitle">Overview</h1><p id="pageSubtitle">Monitor new customers and service activity.</p></div>
+      <div class="top-actions">
+        <button class="icon-button" id="notificationBtn" aria-label="Registration notifications">♢<i id="notificationCount" hidden>0</i></button>
+        <div class="admin-pill"><span id="adminInitials">IA</span><div><b id="adminName">Administrator</b><small id="adminEmail">Secure session</small></div></div>
+      </div>
+    </header>
+
+    <section class="page" id="overviewPage">
+      <div class="welcome-card"><div><span class="live-dot">Live</span><h2>Operations at a glance</h2><p>Customer registrations and platform totals refresh automatically every 15 seconds.</p></div><button class="secondary" id="refreshOverviewBtn">↻ Refresh now</button></div>
+      <div class="stats" id="statsGrid" aria-live="polite"></div>
+      <div class="overview-grid">
+        <article class="panel"><header><div><span class="kicker">New accounts</span><h2>Recent registrations</h2></div><button class="text-button" data-open-page="users">Manage customers →</button></header><div class="activity-list" id="recentUsers"></div></article>
+        <article class="panel"><header><div><span class="kicker">Attention</span><h2>Operations health</h2></div></header><div class="health-list" id="healthList"></div></article>
+      </div>
+    </section>
+
+    <section class="page hidden" id="usersPage">
+      <div class="section-head"><div><h2>Customers</h2><p>Search, create and manage customer subscriptions and feature access. Administrator accounts are managed separately.</p></div><button class="primary" id="createUserBtn">＋ Create customer</button></div>
+      <div class="panel toolbar"><label class="search"><span>⌕</span><input id="userSearch" type="search" placeholder="Search name or email"></label><select id="userFilter" aria-label="Filter customers"><option value="">All customers</option><option value="TRIAL">Trial</option><option value="ACTIVE">Active</option><option value="PENDING_VERIFICATION">Unverified</option><option value="SUSPENDED">Suspended</option></select><button class="secondary" id="refreshUsersBtn">Refresh</button></div>
+      <div class="panel table-wrap"><table><thead><tr><th>Customer</th><th>Access</th><th>Plan</th><th>AI Studio</th><th>Joined</th><th>Connections</th><th></th></tr></thead><tbody id="usersTable"></tbody></table></div>
+    </section>
+
+    <section class="page hidden" id="aiAccessPage">
+      <div class="section-head"><div><h2>AI Content Studio Access</h2><p>Control who can see and use AI Content Studio independently of model routing.</p></div><span class="status-chip">Backend enforced</span></div>
+      <form class="panel policy-form" id="agentAccessForm">
+        <div class="policy-hero"><span>✦</span><div><h3>Global availability</h3><p>Plus-only is the recommended production policy. Individual overrides are managed from Customers.</p></div></div>
+        <label>Social Agent availability<select id="agentAvailability"><option value="PLUS_ONLY">Plus subscribers only — recommended</option><option value="ADMIN_ONLY">Admins only — development mode</option><option value="EVERYONE">All active subscribers</option><option value="DISABLED">Disabled for everyone</option></select></label>
+        <div class="limit-grid"><label>Trial monthly missions<input id="agentLimitTrial" type="number" min="0"></label><label>Pro monthly missions<input id="agentLimitPro" type="number" min="0"></label><label>Plus monthly missions<input id="agentLimitPlus" type="number" min="0"></label><label>Legacy lifetime missions<input id="agentLimitLifetime" type="number" min="0"></label></div>
+        <div class="callout"><b>Frontend behaviour</b><span>Trial and Pro users see an upgrade-to-Plus dialog. An explicit Allow override can temporarily enable a development tester.</span></div>
+        <button class="primary" type="submit">Save AI access policy</button>
+      </form>
+      <details class="panel advanced-note">
+        <summary>Advanced AI operations</summary>
+        <h3>AI Model Routing</h3>
+        <p>Provider routing and generation guardrails remain backend-managed. Legacy model-route database rows are intentionally hidden from this simplified administration screen.</p>
+        <h3>Image generation policy</h3>
+        <ul><li>Enable paid OpenAI image generation</li><li>Local first, then OpenAI after rejection</li><li>Maximum paid images per mission</li></ul>
+        <h3>Video generation policy</h3>
+        <p>Allow paid gateway only if Ollama is unavailable.</p>
+        <h3>Agent Learning Control</h3>
+        <p>Only administrator-reviewed reusable learning is eligible for governed agent reuse.</p>
+        <span id="imageQualityModel" hidden>Private quality model route</span>
+      </details>
+    </section>
+
+    <section class="page hidden" id="settingsPage">
+      <div class="section-head"><div><h2>System Settings</h2><p>Only approved non-secret configuration is exposed here. Arbitrary key/value editing has been removed.</p></div><span class="status-chip">Allowlisted</span></div>
+      <div class="panel safe-settings-panel">
+        <div class="settings-intro"><div><span class="kicker">Live configuration</span><h3>Safe operational settings</h3></div><p id="settingsPermission">Loading permissions…</p></div>
+        <div id="systemSettingsList" class="system-settings-grid"></div>
+      </div>
+    </section>
+
+    <section class="page hidden" id="securityPage">
+      <div class="section-head"><div><h2>Admin &amp; Security</h2><p>Separate privileged staff access from customer management and review administrator security activity.</p></div><span class="status-chip">Protected</span></div>
+      <div class="security-summary" id="securitySummary"></div>
+
+      <div class="security-columns">
+        <article class="panel">
+          <header><div><span class="kicker">My security</span><h2>Change administrator password</h2></div></header>
+          <p class="muted">Use at least 12 characters with upper and lowercase letters, a number and a symbol.</p>
+          <form id="changePasswordForm" class="password-form">
+            <label>Current password<input id="currentAdminPassword" type="password" autocomplete="current-password" required></label>
+            <label>New password<input id="newAdminPassword" type="password" autocomplete="new-password" minlength="12" required></label>
+            <label>Confirm new password<input id="confirmAdminPassword" type="password" autocomplete="new-password" minlength="12" required></label>
+            <button class="primary" type="submit">Update password</button>
+          </form>
+        </article>
+
+        <article class="panel security-baseline">
+          <header><div><span class="kicker">Security baseline</span><h2>Admin surface protections</h2></div></header>
+          <div class="baseline-row"><span>Browser credential</span><b>HttpOnly + SameSite Strict</b></div>
+          <div class="baseline-row"><span>Mutation origin check</span><b>Same host only</b></div>
+          <div class="baseline-row"><span>Admin API throttle</span><b>Enabled</b></div>
+          <div class="baseline-row"><span>Login failure throttle</span><b>Enabled</b></div>
+          <div class="baseline-row"><span>Role enforcement</span><b>Backend enforced</b></div>
+        </article>
+      </div>
+
+      <div id="standardAdminNote" class="panel role-note" hidden><b>Operational administrator</b><p>Your account can manage customers and operational controls. Administrator provisioning, role changes and the full audit log require a Super Admin.</p></div>
+
+      <div id="superAdminArea">
+        <div class="section-head security-subhead"><div><h2>Administrators</h2><p>Create staff accounts independently from customer subscriptions.</p></div><button class="primary" id="inviteAdminBtn">＋ Invite administrator</button></div>
+        <div class="panel table-wrap admin-table-wrap"><table><thead><tr><th>Administrator</th><th>Role</th><th>Status</th><th>Last admin login</th><th>Actions</th></tr></thead><tbody id="administratorsTable"></tbody></table></div>
+
+        <div class="section-head security-subhead"><div><h2>Audit log</h2><p>Recent privileged and security-sensitive actions.</p></div><button class="secondary" id="refreshAuditBtn">Refresh audit</button></div>
+        <article class="panel"><div class="audit-list" id="auditList"></div></article>
+      </div>
+    </section>
+  </main>
+</section>
+
+<dialog id="userDialog"><form method="dialog" class="modal"><button class="close" value="cancel" aria-label="Close">×</button><span class="kicker">Customer access</span><h2 id="modalTitle">Manage customer</h2><div id="modalBody"></div><footer><button value="cancel" class="secondary">Close</button><button id="saveAccessBtn" type="button" class="primary">Save changes</button></footer></form></dialog>
+
+<dialog id="createUserDialog"><form class="modal" id="createUserForm"><button class="close" type="button" data-close-create aria-label="Close">×</button><span class="kicker">Direct provisioning</span><h2>Create verified customer</h2><p class="muted">The customer account is ready immediately. A secure temporary password is displayed once after creation.</p><div class="form-grid"><label>Full name<input id="createName" required minlength="2"></label><label>Email address<input id="createEmail" type="email" required></label><label>Plan<select id="createPlan"><option value="TRIAL">Trial</option><option value="PRO">Pro — manual access</option><option value="PLUS">Plus — manual access</option></select></label><label id="trialDaysLabel">Trial length (days)<input id="createTrialDays" type="number" min="1" max="365" value="5"></label></div><footer><button type="button" class="secondary" data-close-create>Cancel</button><button type="submit" class="primary">Create customer</button></footer></form></dialog>
+
+<dialog id="credentialDialog"><div class="modal"><span class="kicker">Customer created</span><h2>Copy the temporary password now</h2><p class="muted">It will not be displayed again. Send it through a secure channel and ask the customer to reset it.</p><div class="credential"><code id="temporaryPassword"></code><button id="copyPasswordBtn" class="secondary">Copy</button></div><footer><button id="closeCredentialBtn" class="primary">Done</button></footer></div></dialog>
+
+<dialog id="inviteAdminDialog"><form class="modal" id="inviteAdminForm"><button class="close" type="button" data-close-admin-invite aria-label="Close">×</button><span class="kicker">Privileged access</span><h2>Invite administrator</h2><p class="muted">A dedicated ADMIN account is created and a short-lived password setup link is emailed. Promote to Super Admin only after creation if required.</p><div class="form-grid"><label>Administrator name<input id="inviteAdminName" required minlength="2"></label><label>Email address<input id="inviteAdminEmail" type="email" required></label></div><footer><button type="button" class="secondary" data-close-admin-invite>Cancel</button><button type="submit" class="primary">Create &amp; send setup link</button></footer></form></dialog>
+
+<div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
+<div class="toast" id="toast" role="status"></div>
+<script src="/admin.js?v=5" defer></script>
+</body>
+</html>
