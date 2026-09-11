@@ -64,8 +64,27 @@ const draftSchema = z.object({
   mediaLibraryAssets: z.array(z.record(z.unknown())).max(20).optional()
 });
 
+const TRANSIENT_AI_STATUSES = new Set([500, 502, 503, 504]);
+
 function topupPacks() {
   return [250, 500, 1000, 2500].map(credits => ({ credits, priceId: env.aiCredits.topupPriceIds[String(credits)] || '' })).filter(pack => Boolean(pack.priceId));
+}
+
+function transientOpenAIError(error) {
+  const status = Number(error?.status || 0);
+  const code = String(error?.code || '');
+  return TRANSIENT_AI_STATUSES.has(status) && code.startsWith('OPENAI_');
+}
+
+async function withStudioRetry(operation, label) {
+  try {
+    return await operation();
+  } catch (error) {
+    if (!transientOpenAIError(error)) throw error;
+    console.warn(`[AI POST STUDIO] ${label} transient failure (${error.code || error.status}); retrying once.`);
+    await new Promise(resolve => setTimeout(resolve, 900));
+    return operation();
+  }
 }
 
 async function access(req, res, next) {
@@ -90,14 +109,14 @@ async function estimate(req, res, next) {
 async function assistantMessage(req, res, next) {
   try {
     const input = assistantMessageSchema.parse(req.body || {});
-    res.json(await postStudioService.assistantReply(req.user.id, input));
+    res.json(await withStudioRetry(() => postStudioService.assistantReply(req.user.id, input), 'assistant'));
   } catch (error) { next(error); }
 }
 
 async function generateConversationalImagePost(req, res, next) {
   try {
     const input = conversationalImageSchema.parse(req.body || {});
-    res.json(await postStudioService.generateImagePost(req.user.id, input));
+    res.json(await withStudioRetry(() => postStudioService.generateImagePost(req.user.id, input), 'image render'));
   } catch (error) { next(error); }
 }
 

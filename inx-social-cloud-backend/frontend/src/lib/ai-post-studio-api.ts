@@ -1,4 +1,4 @@
-import { apiRequest } from './api-client'
+import { ApiError, apiRequest } from './api-client'
 import type { GeneratedAsset } from '../types/ai-content-studio'
 
 export type PostStudioMessage = {
@@ -34,29 +34,48 @@ export type PostStudioAssistantResponse = {
   analysedReferences: Array<{ id: string; name: string }>
 }
 
-export function sendPostStudioMessage(input: {
+function studioFailure(error: unknown, kind: 'assistant' | 'render') {
+  if (error instanceof ApiError && [500, 502, 503, 504].includes(error.status)) {
+    if (kind === 'render') {
+      return new Error('Image generation hit a temporary provider or network problem. Please retry the render. If the render did not complete, its reserved credits are refunded automatically.')
+    }
+    return new Error('The AI Post Studio hit a temporary provider or network problem. Please retry your last message.')
+  }
+  return error instanceof Error ? error : new Error(kind === 'render' ? 'The post image could not be generated.' : 'The AI Post Studio could not respond.')
+}
+
+export async function sendPostStudioMessage(input: {
   messages: PostStudioMessage[]
   urls?: string[]
   referenceAssetIds?: string[]
   platform?: string
   aspectRatio?: PostStudioBrief['aspectRatio']
 }) {
-  return apiRequest<PostStudioAssistantResponse>('/api/ai-content-studio/assistant/message', {
-    method: 'POST',
-    body: JSON.stringify(input),
-  })
+  try {
+    return await apiRequest<PostStudioAssistantResponse>('/api/ai-content-studio/assistant/message', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    })
+  } catch (error) {
+    throw studioFailure(error, 'assistant')
+  }
 }
 
-export function generateConversationalImagePost(input: {
+export async function generateConversationalImagePost(input: {
   prompt: string
   platform?: string
   aspectRatio?: PostStudioBrief['aspectRatio']
   referenceAssetIds?: string[]
   brief: PostStudioBrief
 }, signal?: AbortSignal) {
-  return apiRequest<GeneratedAsset>('/api/ai-content-studio/generate/conversational-image-post', {
-    method: 'POST',
-    body: JSON.stringify(input),
-    signal,
-  })
+  try {
+    return await apiRequest<GeneratedAsset>('/api/ai-content-studio/generate/conversational-image-post', {
+      method: 'POST',
+      body: JSON.stringify(input),
+      signal,
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    throw studioFailure(error, 'render')
+  }
 }

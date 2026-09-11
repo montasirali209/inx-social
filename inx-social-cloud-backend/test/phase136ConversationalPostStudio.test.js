@@ -24,6 +24,18 @@ test('Image Post opens the conversational Studio instead of the legacy form', ()
   assert.doesNotMatch(studio, /Content goal|Visual style|Number of variants|Generate hashtags|Generate alt text/);
 });
 
+test('Ready-to-generate state is prominent in chat and preview', () => {
+  const studio = read('frontend/src/components/ai-content-studio/ImagePostChatModal.tsx');
+
+  assert.match(studio, /ReadyGenerateCard/);
+  assert.match(studio, /Ready to generate your post/);
+  assert.match(studio, /Generate post now · 5 credits/);
+  assert.match(studio, /Refine first/);
+  assert.match(studio, /Add reference/);
+  assert.match(studio, /Your post is ready to generate/);
+  assert.match(studio, /Retry final render/);
+});
+
 test('Post Studio chat is OpenAI-routed, scope constrained and cost bounded', () => {
   const service = read('src/services/aiPostStudioService.js');
   const routes = read('src/routes/aiContentStudioRoutes.js');
@@ -55,6 +67,19 @@ test('Final Image Post render uses direct GPT Image with five-credit accounting'
   assert.match(service, /credits\.complete/);
   assert.match(service, /credits\.refund/);
   assert.match(routes, /\/generate\/conversational-image-post/);
+});
+
+test('Conversational Studio retries transient OpenAI failures once and presents friendly errors', () => {
+  const controller = read('src/controllers/aiContentStudioController.js');
+  const api = read('frontend/src/lib/ai-post-studio-api.ts');
+  const app = read('src/app.js');
+
+  assert.match(controller, /TRANSIENT_AI_STATUSES = new Set\(\[500, 502, 503, 504\]\)/);
+  assert.match(controller, /withStudioRetry/);
+  assert.match(controller, /retrying once/);
+  assert.match(api, /temporary provider or network problem/);
+  assert.match(api, /reserved credits are refunded automatically/);
+  assert.match(app, /app\.set\('trust proxy', 1\)/);
 });
 
 test('GPT Image 2 receives exact social aspect-ratio sizes and URL analysis blocks private targets', () => {
