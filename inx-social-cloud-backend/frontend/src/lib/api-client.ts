@@ -1,4 +1,6 @@
-const TOKEN_KEYS = ['inx-social-cloud-token', 'inxToken'] as const
+import { getStoredAuthToken, invalidateAuthSession } from './auth-session'
+
+export { getStoredAuthToken } from './auth-session'
 
 export class ApiError extends Error {
   constructor(
@@ -8,14 +10,6 @@ export class ApiError extends Error {
     super(message)
     this.name = 'ApiError'
   }
-}
-
-export function getStoredAuthToken() {
-  for (const key of TOKEN_KEYS) {
-    const value = window.localStorage.getItem(key)
-    if (value) return value
-  }
-  return ''
 }
 
 export async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -41,6 +35,11 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
     const message = typeof payload === 'object' && payload && 'error' in payload
       ? String(payload.error)
       : `Request failed (HTTP ${response.status}).`
+
+    if (response.status === 401 || (response.status === 403 && /bearer|token|auth|session/i.test(message))) {
+      invalidateAuthSession('expired', 'api-client')
+    }
+
     throw new ApiError(message, response.status)
   }
 
