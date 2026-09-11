@@ -23,6 +23,22 @@ test('Carousel uses conversational source analysis, direct GPT image rendering a
   assert.match(service, /slides <= 5 \? 10 : slides <= 8 \? 15 : 20/);
 });
 
+test('Carousel can be refined after generation without replacing the current version before approval', () => {
+  const carousel = read('frontend/src/components/ai-content-studio/CarouselChatModalV2.tsx');
+  assert.match(carousel, /Refine generated carousel/);
+  assert.match(carousel, /Refine slide \{activeSlide \+ 1\}/);
+  assert.match(carousel, /Current slide/);
+  assert.match(carousel, /Shorter copy/);
+  assert.match(carousel, /More premium/);
+  assert.match(carousel, /Improve CTA/);
+  assert.match(carousel, /Apply refinement · \$\{cost\} credits/);
+  assert.match(carousel, /current carousel stays unchanged until you apply this refinement/i);
+  assert.match(carousel, /regenerates the full carousel for \{cost\} credits/);
+  assert.match(carousel, /supportingCopy: brief\.supportingCopy/);
+  assert.match(carousel, /caption: brief\.caption/);
+  assert.match(carousel, /hashtags: brief\.hashtags/);
+});
+
 test('Video Studio keeps the model decision simple with AI Recommended, Fast and Manual routes', () => {
   const router = read('frontend/src/components/ai-content-studio/GenerationModalRouter.tsx');
   const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV2.tsx');
