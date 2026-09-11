@@ -35,9 +35,13 @@ test('carousel publishing uses all stored images in one governed Meta multi-phot
   assert.match(routes, /carousel-posts/);
   assert.match(controller, /contentType:\s*'CAROUSEL'/);
   assert.match(controller, /mediaLibraryAssetIds/);
-  assert.match(controller, /slides\.map\(slide => \(\{ data: slide\.data/);
+  assert.match(controller, /slideLinks/);
+  assert.match(controller, /every slide must have a destination link/);
+  assert.match(controller, /slides\.map\(\(slide, index\) => \(\{ data: slide\.data/);
   assert.match(publisher, /async function publishCarouselPost/);
   assert.match(publisher, /attached_media/);
+  assert.match(publisher, /child_attachments/);
+  assert.match(publisher, /link: asset\.linkUrl/);
   assert.match(publisher, /media_fbid/);
   assert.match(publisher, /published', 'false'/);
 });
