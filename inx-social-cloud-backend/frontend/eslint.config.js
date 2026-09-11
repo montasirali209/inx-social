@@ -33,6 +33,7 @@ export default tseslint.config(
     files: [
       'src/components/ai-content-studio/GenerationModal.tsx',
       'src/components/ai-content-studio/ImagePostChatModalV3.tsx',
+      'src/components/ai-content-studio/ImagePostChatModalV4.tsx',
       'src/components/posts/PostsPage.tsx',
     ],
     rules: {
