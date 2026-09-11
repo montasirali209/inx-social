@@ -13,6 +13,7 @@ export type CreateCarouselPostInput = {
   title: string | null
   caption: string
   mediaLibraryAssetIds: string[]
+  slideLinks?: string[]
   scheduledAt: string | null
   publishMode: 'NOW' | 'SCHEDULED'
 }
