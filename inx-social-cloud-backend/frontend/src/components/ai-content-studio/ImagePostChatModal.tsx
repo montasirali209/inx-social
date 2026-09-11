@@ -1,1 +1,1 @@
-export { ImagePostChatModal } from './ImagePostChatModalV2'
+export { ImagePostChatModal } from './ImagePostChatModalV3'

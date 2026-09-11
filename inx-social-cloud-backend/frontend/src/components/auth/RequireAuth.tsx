@@ -1,33 +1,56 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { apiRequest, getStoredAuthToken } from '../../lib/api-client'
+import { apiRequest } from '../../lib/api-client'
+import {
+  getStoredAuthToken,
+  invalidateAuthSession,
+  loginUrl,
+  setCurrentAuthUserId,
+  subscribeToAuthSession,
+} from '../../lib/auth-session'
 
 type AuthState = 'checking' | 'authenticated'
-
-function loginUrl() {
-  const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`
-  return `/portal/login.html?return=${encodeURIComponent(returnTo)}`
-}
+type MeResponse = { user: { id?: string } }
 
 export function RequireAuth({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>('checking')
 
   useEffect(() => {
     let active = true
-    const token = getStoredAuthToken()
-    if (!token) {
+    let redirecting = false
+
+    function redirectToLogin() {
+      if (redirecting) return
+      redirecting = true
+      setState('checking')
       window.location.replace(loginUrl())
-      return () => { active = false }
     }
 
-    apiRequest<{ user: unknown }>('/api/auth/me')
-      .then(() => { if (active) setState('authenticated') })
+    const unsubscribe = subscribeToAuthSession((event) => {
+      if (!active) return
+      if (event.type === 'logout' || event.type === 'expired') redirectToLogin()
+    })
+
+    if (!getStoredAuthToken()) {
+      redirectToLogin()
+      return () => { active = false; unsubscribe() }
+    }
+
+    apiRequest<MeResponse>('/api/auth/me')
+      .then((payload) => {
+        if (!active) return
+        setCurrentAuthUserId(payload.user?.id)
+        setState('authenticated')
+      })
       .catch(() => {
-        window.localStorage.removeItem('inx-social-cloud-token')
-        window.localStorage.removeItem('inxToken')
-        window.location.replace(loginUrl())
+        if (!active) return
+        invalidateAuthSession('expired', 'require-auth')
+        redirectToLogin()
       })
 
-    return () => { active = false }
+    return () => {
+      active = false
+      unsubscribe()
+    }
   }, [])
 
   if (state !== 'authenticated') {
