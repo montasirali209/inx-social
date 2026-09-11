@@ -19,12 +19,14 @@ test('Posts offers a standard post choice and a manual carousel choice', () => {
 
 test('AI carousel handoff preserves every slide in the Posts scheduling workspace', () => {
   const route = read('frontend/src/components/posts/PostsRoute.tsx');
-  const composer = read('frontend/src/components/posts/CarouselPostComposerPage.tsx');
+  const composer = read('frontend/src/components/posts/InlineManualCarouselPage.tsx');
   const modal = read('frontend/src/components/ai-content-studio/CarouselChatModal.tsx');
   assert.match(route, /contentType === 'carousel_post'/);
-  assert.match(composer, /draft\.mediaLibraryAssets/);
+  assert.match(route, /initialDraft=\{carouselDraft\}/);
+  assert.match(composer, /initialDraft\.mediaLibraryAssets/);
   assert.match(composer, /mediaLibraryAssetIds:\s*assets\.map/);
-  assert.match(composer, /All slides stay in this order and publish together as one carousel/);
+  assert.match(composer, /Link for carousel slide/);
+  assert.match(composer, /moveSlideTo/);
   assert.match(modal, /Post \/ Schedule/);
 });
 
