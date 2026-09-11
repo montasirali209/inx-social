@@ -43,21 +43,22 @@ test('Universal notifications are live, responsive, animated and accessible', ()
   assert.match(styles, /prefers-reduced-motion: reduce/);
 });
 
-test('Selected analytics Page scopes every dashboard surface and active-date insight', () => {
+test('Dashboard aggregates every connected analytics source instead of selecting one Page', () => {
   const dashboard = read('frontend/src/components/dashboard/DashboardPage.tsx');
   const data = read('frontend/src/lib/dashboard-api.ts');
   const activity = read('frontend/src/components/dashboard/PublishingActivityCard.tsx');
-  const insight = read('frontend/src/components/dashboard/ActivityInsightRow.tsx');
 
-  assert.match(dashboard, /const scopedJobs/);
-  assert.match(dashboard, /job\.page\?\.id === resolvedAnalyticsAccountId/);
-  assert.match(dashboard, /buildActivitySeries\(scopedJobs/);
-  assert.match(dashboard, /buildDashboardView\(overview\.data, scopedJobs/);
-  assert.match(dashboard, /engagementByDate=\{engagementByDate\}/);
-  assert.match(data, /value: jobs\.length/);
-  assert.match(data, /const scopedJobs = page \? jobs\.filter/);
-  assert.doesNotMatch(data, /value: overview\.summary\.total/);
-  assert.match(activity, /Math\.log10\(currentEngagement \+ 1\)/);
-  assert.match(insight, /Most active date/);
-  assert.match(insight, /selected Page activity and live engagement/);
+  assert.match(dashboard, /fetchAnalyticsSources/);
+  assert.match(dashboard, /Promise\.all\(accounts\.map/);
+  assert.match(dashboard, /fetchAnalyticsForSource\(account, dashboardAnalyticsDays\)/);
+  assert.match(dashboard, /buildDashboardView\(sources\.data\.overview, jobs\.data, new Date\(\), analyticsEntries, accounts\.length\)/);
+  assert.match(dashboard, /buildActivitySeries\(jobs\.data \|\| \[\], activityRangeDays, new Date\(\), analyticsEntries\)/);
+  assert.doesNotMatch(dashboard, /DashboardAccountSelector|resolvedAnalyticsAccountId|const scopedJobs|job\.page\?\.id ===/);
+
+  assert.match(data, /const liveEngagement = analytics\.reduce/);
+  assert.match(data, /const livePublished = analytics\.reduce/);
+  assert.match(data, /analytics\.filter\(\(entry\) => entry\.platform === platform\)/);
+  assert.match(data, /Connected Accounts/);
+  assert.match(activity, /All accounts/);
+  assert.doesNotMatch(activity, /Most active date|selected Page activity/);
 });
