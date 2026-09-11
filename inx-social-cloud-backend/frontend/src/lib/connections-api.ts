@@ -32,7 +32,6 @@ function popupPosition(width = 620, height = 760) {
 function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => boolean, storageKey: string) {
   return new Promise<OAuthMessage>((resolve, reject) => {
     let settled = false
-    let closedAt = 0
     let providerNavigationStarted = false
     let returnedFocusCheck = 0
     const cleanup = () => {
@@ -72,13 +71,19 @@ function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => bo
       window.clearTimeout(returnedFocusCheck)
       returnedFocusCheck = window.setTimeout(() => {
         if (settled || consume(window.localStorage.getItem(storageKey))) return
-        // Meta may isolate the popup with Cross-Origin-Opener-Policy, which can
-        // make polling unreliable. Once focus returns to INXSocial, an isolated
-        // or closed provider window means the attempt has ended.
-        if (popup.closed && providerNavigationStarted) {
-          finish({ ok: false, error: 'The connection did not complete. Review the provider message and try again.' })
+        if (popup.closed) {
+          finish({ ok: false, error: 'Connection cancelled.' })
+          return
         }
-      }, 600)
+        // Instagram can send a cancelled Business Login flow to its own
+        // Apps & Websites screen instead of our redirect URI. If focus returns
+        // to INXSocial while the provider window is still cross-origin and no
+        // callback result exists, treat the abandoned attempt as cancelled and
+        // close the provider popup rather than leaving the UI loading for five minutes.
+        if (providerNavigationStarted) {
+          finish({ ok: false, error: 'Connection cancelled.' })
+        }
+      }, 650)
     }
     const receiveVisibility = () => {
       if (document.visibilityState === 'visible') checkAfterReturn()
@@ -94,10 +99,7 @@ function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => bo
       } catch {
         providerNavigationStarted = true
       }
-      if (popup.closed && !providerNavigationStarted) {
-        closedAt ||= Date.now()
-        if (Date.now() - closedAt > 2_500) finish({ ok: false, error: 'The connection window was closed before setup completed.' })
-      } else closedAt = 0
+      if (popup.closed) finish({ ok: false, error: 'Connection cancelled.' })
     }, 400)
     const timeout = window.setTimeout(() => finish({ ok: false, error: 'The connection timed out. Please try again.' }), 5 * 60 * 1000)
   })
@@ -112,7 +114,15 @@ export async function connectOAuthPlatform(platform: 'instagram' | 'linkedin' | 
   const popupName = platform === 'instagram'
     ? `inxSocialConnect-instagram-${window.crypto.randomUUID()}`
     : `inxSocialConnect-${platform}`
-  const popup = window.open(start.authorizationUrl, popupName, `popup=yes,width=${position.width},height=${position.height},left=${position.left},top=${position.top},resizable=yes,scrollbars=yes`)
+  let authorizationUrl = start.authorizationUrl
+  if (platform === 'instagram') {
+    // Normal Connect should let Instagram reuse an existing authorised session.
+    // Forced re-authentication is reserved for an explicit account-switch flow.
+    const url = new URL(start.authorizationUrl)
+    url.searchParams.delete('force_authentication')
+    authorizationUrl = url.toString()
+  }
+  const popup = window.open(authorizationUrl, popupName, `popup=yes,width=${position.width},height=${position.height},left=${position.left},top=${position.top},resizable=yes,scrollbars=yes`)
   if (!popup) throw new Error('The connection popup was blocked. Allow popups for INXSocial and try again.')
   popup.focus()
   return waitForOAuthPopup(popup, (message) => message.type === 'inx-social-oauth-result' && message.platform === platform, storageKey)
@@ -148,6 +158,22 @@ export function disconnectSocialConnection(connectionId: string) {
 
 export function disconnectFacebookPage(pageId: string) {
   return apiRequest(`/api/pages/${encodeURIComponent(pageId)}`, { method: 'DELETE' })
+}
+
+export async function disconnectAllConnections(workspace: ConnectionsWorkspace) {
+  const connectionIds = [...new Set(workspace.connections.map((connection) => connection.id).filter(Boolean))]
+  const pageIds = workspace.overview.pages.filter((page) => page.status === 'ACTIVE').map((page) => page.id)
+  const tasks = [
+    ...connectionIds.map((connectionId) => disconnectSocialConnection(connectionId)),
+    ...pageIds.map((pageId) => disconnectFacebookPage(pageId)),
+  ]
+  if (!tasks.length) return { disconnected: 0 }
+  const results = await Promise.allSettled(tasks)
+  const failed = results.filter((result) => result.status === 'rejected')
+  if (failed.length) {
+    throw new Error(`Disconnected ${results.length - failed.length} of ${results.length} connections. Refresh and review the remaining accounts.`)
+  }
+  return { disconnected: results.length }
 }
 
 export type ConnectedIdentity = {
