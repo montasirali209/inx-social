@@ -88,7 +88,7 @@ export function ManualCarouselComposerPage({ onStandardPost }: { onStandardPost:
       }
       setAssets((current) => [...current, ...uploaded].slice(0, 10))
       const nextCount = assets.length + uploaded.length
-      setProgress({ state: 'completed', percent: 100, message: nextCount >= 2 ? `${nextCount} carousel slides ready. Drag order is represented left to right.` : 'Add at least one more image to complete the carousel.' })
+      setProgress({ state: 'completed', percent: 100, message: nextCount >= 2 ? `${nextCount} carousel slides ready. Publish order is left to right.` : 'Add at least one more image to complete the carousel.' })
     } catch (error) {
       setProgress({ state: 'failed', percent: 0, message: error instanceof Error ? error.message : 'Carousel images could not be uploaded.' })
     } finally {
@@ -201,7 +201,7 @@ export function ManualCarouselComposerPage({ onStandardPost }: { onStandardPost:
           <article className="mt-3 overflow-hidden rounded-xl border border-border-soft bg-bg/45"><header className="flex items-center gap-3 p-3"><span className="grid size-10 place-items-center rounded-full border border-border-strong bg-panel text-sm font-bold">{selectedPage?.facebookPageName?.trim().slice(0, 1).toUpperCase() || 'P'}</span><div><strong className="block text-xs">{selectedPage?.facebookPageName || 'Selected Page'}</strong><span className="text-[9px] text-text-soft">Carousel preview</span></div></header>{assets.length ? <div className="scrollbar-thin flex snap-x gap-1 overflow-x-auto bg-black/20">{assets.map((asset, index) => <img alt={`Preview slide ${index + 1}`} className="aspect-square w-full min-w-full snap-center object-cover" key={asset.id} src={asset.thumbnailUrl || asset.fileUrl} />)}</div> : <div className="grid aspect-square place-items-center bg-bg/30 text-center text-[10px] text-text-soft"><span><Images className="mx-auto mb-2 size-7" />Add images to preview your carousel.</span></div>}<div className="p-3"><p className="whitespace-pre-wrap text-xs leading-5 text-text-main">{caption || 'Your caption will appear here.'}</p><span className="mt-2 block text-[9px] text-text-soft">{assets.length} slide{assets.length === 1 ? '' : 's'} · Preview may vary slightly on Facebook.</span></div></article>
         </section>
       </div>
-      <PublishConfirmationDialog actionLabel={mode === 'now' ? 'Publish carousel' : 'Schedule carousel'} description={`This will ${mode === 'now' ? 'publish' : 'schedule'} a ${assets.length}-slide carousel to ${selectedIds.length} destination${selectedIds.length === 1 ? '' : 's'}.`} onCancel={() => setConfirmationOpen(false)} onConfirm={() => { setConfirmationOpen(false); void publish() }} open={confirmationOpen} title="Confirm carousel publishing" />
+      <PublishConfirmationDialog confirmLabel={mode === 'now' ? 'Publish carousel' : 'Schedule carousel'} description={`This will ${mode === 'now' ? 'publish' : 'schedule'} a ${assets.length}-slide carousel to ${selectedIds.length} destination${selectedIds.length === 1 ? '' : 's'}.`} onCancel={() => setConfirmationOpen(false)} onConfirm={() => { setConfirmationOpen(false); void publish() }} open={confirmationOpen} title="Confirm carousel publishing" />
     </div>
   )
 }
