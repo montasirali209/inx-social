@@ -1,4 +1,4 @@
-.brand{display:inline-flex;align-items:center;gap:9px;min-width:0;text-decoration:none}.brand>img{width:42px;height:42px;object-fit:contain;flex:0 0 42px}.brand-text{color:#f4f8fb;font-size:1.18rem;font-weight:850;letter-spacing:-.035em;white-space:nowrap}
+.brand{display:inline-flex;align-items:center;gap:9px;min-width:0;text-decoration:none}.brand>img{height:auto;object-fit:contain;object-position:left center}.brand-text{color:#f4f8fb;font-size:1.18rem;font-weight:850;letter-spacing:-.035em;white-space:nowrap}
 
 /* Keep expensive below-the-fold sections out of the initial mobile render. */
 .workflow-section,.intelligence-section,.plan-section,.faq-section,.site-footer{content-visibility:auto;contain-intrinsic-size:900px}
@@ -7,12 +7,12 @@
 @media (prefers-reduced-motion:reduce){.ambient,.visual-orbit,.visual-window,.float-card{animation:none!important}}
 
 @media (max-width:900px){
-  .brand>img{width:40px;height:40px;flex-basis:40px;margin:0}.brand-text{font-size:1.05rem}
+  .brand-text{font-size:1.05rem}
   .ambient{display:none}.visual-orbit{animation:none}
 }
 
 @media (max-width:560px){
-  .brand{gap:7px}.brand>img{width:36px;height:36px;flex-basis:36px}.brand-text{font-size:1rem}
+  .brand{gap:7px}.brand-text{font-size:1rem}
   .hero-copy{text-align:left}.hero-copy .eyebrow{margin-inline:0}
   .hero-actions{width:100%}.hero-actions .button{justify-content:center}
   .hero-proof{justify-content:flex-start}
