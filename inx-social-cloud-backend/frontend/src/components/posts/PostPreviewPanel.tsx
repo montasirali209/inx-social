@@ -1,11 +1,17 @@
-import { Heart, Image as ImageIcon, MessageCircle, MoreHorizontal, Send, Share2, UserRound } from 'lucide-react'
+import { Heart, Image as ImageIcon, Images, MessageCircle, MoreHorizontal, Send, Share2, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { platforms } from '../../data/postsData'
 import type { ConnectedPage } from '../../types/dashboard'
+import type { MediaAsset } from '../../types/media-library'
 import type { MediaItem, Platform } from '../../types/posts'
 import { PanelHeading, PlatformIcon } from './PostPrimitives'
 
-type Props = { caption: string; media: MediaItem | null; selectedPage: ConnectedPage | null }
+type Props = {
+  caption: string
+  media: MediaItem | null
+  selectedPage: ConnectedPage | null
+  carouselAssets?: MediaAsset[]
+}
 
 function PreviewAvatar({ page }: { page: ConnectedPage | null }) {
   const [failedPicture, setFailedPicture] = useState<string | null>(null)
@@ -26,11 +32,12 @@ function PreviewAvatar({ page }: { page: ConnectedPage | null }) {
   )
 }
 
-export function PostPreviewPanel({ caption, media, selectedPage }: Props) {
+export function PostPreviewPanel({ caption, media, selectedPage, carouselAssets = [] }: Props) {
   const active: Platform = 'facebook'
+  const isCarousel = carouselAssets.length > 0
   return (
     <section className="interactive-surface rounded-panel border p-4 xl:p-5">
-      <PanelHeading step={4} subtitle="See how your post will appear before publishing." title="Post Preview" />
+      <PanelHeading step={4} subtitle={isCarousel ? 'See the carousel slide sequence before publishing.' : 'See how your post will appear before publishing.'} title="Post Preview" />
       <div className="scrollbar-thin flex gap-1.5 overflow-x-auto border-b border-border-soft pb-2">
         {platforms.map((platform) => (
           <button className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-[10px] font-medium transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${platform.id === active ? 'bg-brand-cyan/10 text-brand-cyan' : 'text-text-soft opacity-55'}`} disabled={platform.id !== active} key={platform.id} type="button">
@@ -46,13 +53,24 @@ export function PostPreviewPanel({ caption, media, selectedPage }: Props) {
           <MoreHorizontal className="size-4 text-text-muted" />
         </header>
         <p className="whitespace-pre-wrap px-3 pb-3 text-xs leading-5 text-text-main">{caption || 'Your caption preview will appear here as you type.'}</p>
-        {media ? (
+        {isCarousel ? (
+          <div className="relative h-56 w-full overflow-hidden border-y border-border-soft bg-black/35">
+            <div className="scrollbar-thin flex h-full snap-x snap-mandatory overflow-x-auto">
+              {carouselAssets.map((asset, index) => (
+                <div className="relative h-full min-w-full snap-center" key={asset.id}>
+                  <img alt={`Carousel preview slide ${index + 1}`} className="h-full w-full object-cover" src={asset.thumbnailUrl || asset.fileUrl} />
+                  <span className="absolute right-2 top-2 rounded-full bg-black/70 px-2 py-1 text-[9px] font-semibold text-white">{index + 1}/{carouselAssets.length}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : media ? (
           <div className="h-56 w-full overflow-hidden bg-black/35">{media.type === 'image' ? <img alt="Post preview media" className="h-full w-full object-cover" src={media.url} /> : <video aria-label="Post preview video" className="h-full w-full object-cover" muted src={media.url} />}</div>
         ) : (
           <div className="grid h-56 w-full place-items-center border-y border-border-soft bg-[radial-gradient(circle_at_50%_45%,rgba(20,184,166,.09),transparent_34%),linear-gradient(145deg,rgba(12,37,50,.74),rgba(4,18,27,.82))]">
             <div className="flex flex-col items-center gap-2 text-center text-[10px] text-text-soft">
               <span className="grid size-10 place-items-center rounded-xl border border-brand-cyan/15 bg-brand-cyan/[0.06] text-brand-cyan shadow-[0_8px_22px_rgba(0,0,0,.16)]">
-                <ImageIcon aria-hidden="true" className="size-[18px]" />
+                {isCarousel ? <Images aria-hidden="true" className="size-[18px]" /> : <ImageIcon aria-hidden="true" className="size-[18px]" />}
               </span>
               <span className="font-medium text-text-muted">Media preview</span>
             </div>
