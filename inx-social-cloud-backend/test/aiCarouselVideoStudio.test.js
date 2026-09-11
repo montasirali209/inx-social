@@ -30,7 +30,7 @@ test('Video Studio keeps the model decision simple with AI Recommended, Fast and
   const routes = read('src/routes/aiContentStudioRoutes.js');
   assert.match(router, /VideoStudioModal/);
   assert.match(video, /AI Recommended/);
-  assert.match(video, />Fast</);
+  assert.match(video, /title="Fast"/);
   assert.match(video, /Manual model/);
   assert.match(video, /recommendVideoModel/);
   assert.match(video, /estimateVideoCredits/);
