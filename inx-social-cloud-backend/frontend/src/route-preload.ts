@@ -5,7 +5,7 @@ export const loadMediaLibrary = () => import('./components/media-library/MediaLi
 export const loadAiContentStudio = () => import('./components/ai-content-studio/AiContentStudioPage')
 export const loadAnalytics = () => import('./components/analytics/AnalyticsPage')
 export const loadSettings = () => import('./components/settings/SettingsPage')
-export const loadConnectedAccounts = () => import('./components/connections/ConnectedAccountsPage')
+export const loadConnectedAccounts = () => import('./components/connections/ConnectedAccountsPageV2')
 export const loadBilling = () => import('./components/billing/BillingPlansPage')
 
 const routeLoaders: Record<string, () => Promise<unknown>> = {
