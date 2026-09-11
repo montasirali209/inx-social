@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, CircleDot, Clock3, FilePenLine, Filter, Layers3, List, RefreshCw, Search, Send, UploadCloud, UsersRound } from 'lucide-react'
+import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, CircleDot, Clock3, Filter, Layers3, List, RefreshCw, Search, UploadCloud, UsersRound } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { platformOrder, platformPresentation } from '../../data/dashboardData'
@@ -18,7 +18,7 @@ export function CalendarToolbar({ monthKey, pages, platform, pageId, status, sea
   const control = 'min-h-10 rounded-xl border border-border-soft bg-panel/75 px-3 text-xs text-text-main transition focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/10'
   const platformOptions = useMemo<CalendarFilterOption<Platform | 'all'>[]>(() => [
     { value: 'all', label: 'Every platform', description: 'Show all connected networks', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-blue/12 text-brand-blue"><Layers3 className="size-3.5" /></span> },
-    ...platformOrder.map((item) => ({ value: item, label: platformPresentation[item].label, description: item === 'facebook' ? 'Live publishing data' : 'Connected and planned content', icon: <PlatformIcon className="size-7" platform={item} /> })),
+    ...platformOrder.map((item) => ({ value: item, label: platformPresentation[item].label, description: item === 'facebook' ? 'Live publishing data' : 'Connected and planned content', icon: <PlatformIcon className="size-7 rounded-full" platform={item} /> })),
   ], [])
   const pageOptions = useMemo<CalendarFilterOption<string>[]>(() => [
     { value: '', label: 'All connected Pages', description: `${pages.length} destination${pages.length === 1 ? '' : 's'} available`, icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-teal/12 text-brand-teal"><UsersRound className="size-3.5" /></span> },
@@ -26,16 +26,13 @@ export function CalendarToolbar({ monthKey, pages, platform, pageId, status, sea
       value: page.id,
       label: page.facebookPageName,
       description: page.facebookPageUsername ? `@${page.facebookPageUsername}` : page.facebookCategory || 'Facebook Page',
-      icon: page.facebookPagePicture ? <img alt="" className="size-7 rounded-lg object-cover" src={page.facebookPagePicture} /> : <span className="grid size-7 place-items-center rounded-lg bg-[#1877f2] text-[10px] font-black text-white">f</span>,
+      icon: page.facebookPagePicture ? <img alt="" className="size-7 rounded-full object-cover" src={page.facebookPagePicture} /> : <PlatformIcon className="size-7 rounded-full" platform="facebook" />,
     })),
   ], [pages])
   const statusOptions = useMemo<CalendarFilterOption<CalendarPostStatus | 'all'>[]>(() => [
-    { value: 'all', label: 'Any status', description: 'Scheduled, published and drafts', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-amber/12 text-brand-amber"><CircleDot className="size-3.5" /></span> },
+    { value: 'all', label: 'Upcoming only', description: 'Only content still waiting to publish', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-amber/12 text-brand-amber"><CircleDot className="size-3.5" /></span> },
     { value: 'scheduled', label: 'Scheduled', description: 'Waiting for publishing time', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-cyan/12 text-brand-cyan"><Clock3 className="size-3.5" /></span> },
-    { value: 'published', label: 'Published', description: 'Successfully sent live', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-green/12 text-brand-green"><Send className="size-3.5" /></span> },
-    { value: 'draft', label: 'Draft', description: 'Saved but not scheduled', icon: <span className="grid size-7 place-items-center rounded-lg bg-white/7 text-text-muted"><FilePenLine className="size-3.5" /></span> },
     { value: 'needs_review', label: 'Needs review', description: 'Action needed before publishing', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-amber/12 text-brand-amber"><AlertTriangle className="size-3.5" /></span> },
-    { value: 'failed', label: 'Failed', description: 'Publishing did not complete', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-red/12 text-brand-red"><AlertTriangle className="size-3.5" /></span> },
   ], [])
   return (
     <section aria-label="Calendar controls" className="relative z-30 mb-4 rounded-panel border border-border-soft bg-panel/55 p-2.5 shadow-panel backdrop-blur-xl">
