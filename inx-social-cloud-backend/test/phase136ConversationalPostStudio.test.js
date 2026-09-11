@@ -9,38 +9,37 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 test('Image Post opens the conversational Studio instead of the legacy form', () => {
   const router = read('frontend/src/components/ai-content-studio/GenerationModalRouter.tsx');
   const wrapper = read('frontend/src/components/ai-content-studio/ImagePostChatModal.tsx');
-  const studio = read('frontend/src/components/ai-content-studio/ImagePostChatModalV2.tsx');
+  const studio = read('frontend/src/components/ai-content-studio/ImagePostChatModalV3.tsx');
   const page = read('frontend/src/components/ai-content-studio/AiContentStudioPage.tsx');
 
   assert.match(router, /type === 'image_post'/);
   assert.match(router, /ImagePostChatModal/);
-  assert.match(wrapper, /ImagePostChatModalV2/);
+  assert.match(wrapper, /ImagePostChatModalV3/);
   assert.match(page, /GenerationModalRouter/);
   assert.match(studio, /Build the post with AI/);
   assert.match(studio, /Add URL/);
-  assert.match(studio, /Upload reference image/);
+  assert.match(studio, /uploadReference/);
   assert.match(studio, /Optional controls/);
   assert.match(studio, /AI chooses sensible defaults/);
-  assert.doesNotMatch(studio, /Content goal|Visual style|Number of variants|Generate hashtags|Generate alt text/);
+  assert.doesNotMatch(studio, /Content goal|Number of variants|Generate hashtags|Generate alt text/);
 });
 
 test('Ready and regenerate actions live in chat rather than the generated-preview toolbar', () => {
-  const studio = read('frontend/src/components/ai-content-studio/ImagePostChatModalV2.tsx');
+  const studio = read('frontend/src/components/ai-content-studio/ImagePostChatModalV3.tsx');
 
-  assert.match(studio, /ReadyGenerateCard/);
   assert.match(studio, /Ready to generate your post/);
   assert.match(studio, /Generate post now · 5 credits/);
   assert.match(studio, /Your updated post is ready/);
   assert.match(studio, /Generate updated post · 5 credits/);
   assert.match(studio, /renderNeeded/);
-  assert.match(studio, /Updated brief ready/);
+  assert.match(studio, /If you change the creative direction, a new Generate updated post button appears in chat/);
   assert.doesNotMatch(studio, /New render · 5/);
 });
 
 test('Generated-preview UI hides provider and model debug metadata', () => {
-  const studio = read('frontend/src/components/ai-content-studio/ImagePostChatModalV2.tsx');
+  const studio = read('frontend/src/components/ai-content-studio/ImagePostChatModalV3.tsx');
 
-  assert.match(studio, /5 credits used/);
+  assert.match(studio, /Review & refine your post/);
   assert.doesNotMatch(studio, /Provider: OpenAI direct/);
   assert.doesNotMatch(studio, /GPT-Image-2 is rendering/);
   assert.doesNotMatch(studio, /credits used · GPT/);
@@ -70,7 +69,7 @@ test('Post Studio uses Luna for fast chat, Terra for source analysis and bounded
 test('Source analysis extracts structured verified brand intelligence and safely follows public redirects', () => {
   const service = read('src/services/aiPostStudioServiceV2.js');
   const api = read('frontend/src/lib/ai-post-studio-api.ts');
-  const studio = read('frontend/src/components/ai-content-studio/ImagePostChatModalV2.tsx');
+  const studio = read('frontend/src/components/ai-content-studio/ImagePostChatModalV3.tsx');
 
   assert.match(service, /verifiedClaims/);
   assert.match(service, /visualIdentity/);
