@@ -47,11 +47,11 @@ function weekStart(date: Date) {
 
 export function buildCalendarData(overview: StudioOverview, jobs: DashboardJob[], external: Array<{ pageId: string; pageName: string; picture: string | null; posts: MetaScheduledPost[] }>, timeZone: string, now = new Date(), syncWarnings: string[] = []): CalendarData {
   const localMetaIds = new Set(jobs.flatMap((job) => [job.metaPostId, job.metaVideoId]).filter(Boolean).map(String))
-  const posts = jobs.map((job) => jobPost(job, timeZone))
+  const allPosts = jobs.map((job) => jobPost(job, timeZone))
   external.forEach((page) => page.posts.forEach((post) => {
     if (!post.scheduled_publish_time || localMetaIds.has(String(post.id))) return
     const occurredAt = new Date(post.scheduled_publish_time * 1000).toISOString()
-    posts.push({
+    allPosts.push({
       id: `meta-${page.pageId}-${post.id}`,
       title: post.message?.trim().split(/\n+/)[0]?.slice(0, 90) || 'Facebook scheduled post',
       time: timeInTimezone(occurredAt, timeZone),
@@ -67,6 +67,17 @@ export function buildCalendarData(overview: StudioOverview, jobs: DashboardJob[]
     })
   }))
 
+  // Content Calendar is a forward-looking publishing workspace. Published,
+  // failed and draft history belongs in Posts/Analytics, not on the schedule.
+  // The time check also removes stale jobs that still say SCHEDULED after
+  // their publishing time has already passed while provider state catches up.
+  const nowMs = now.getTime()
+  const posts = allPosts.filter((post) => {
+    const scheduledFor = new Date(post.occurredAt).getTime()
+    if (!Number.isFinite(scheduledFor) || scheduledFor < nowMs) return false
+    return post.status === 'scheduled' || post.status === 'needs_review'
+  })
+
   const currentWeek = weekStart(now)
   const nextWeek = new Date(currentWeek.getTime() + 7 * 86400000)
   const previousWeek = new Date(currentWeek.getTime() - 7 * 86400000)
@@ -77,10 +88,10 @@ export function buildCalendarData(overview: StudioOverview, jobs: DashboardJob[]
   const currentMonth = nowKey.slice(0, 7)
   const previousMonthDate = new Date(Date.UTC(Number(currentMonth.slice(0, 4)), Number(currentMonth.slice(5, 7)) - 2, 1))
   const previousMonth = `${previousMonthDate.getUTCFullYear()}-${String(previousMonthDate.getUTCMonth() + 1).padStart(2, '0')}`
-  const publishedThisMonth = posts.filter((post) => post.status === 'published' && post.date.startsWith(currentMonth)).length
-  const publishedPreviousMonth = posts.filter((post) => post.status === 'published' && post.date.startsWith(previousMonth)).length
-  const drafts = posts.filter((post) => post.status === 'draft').length
-  const needsReview = posts.filter((post) => post.status === 'needs_review' || post.status === 'failed').length
+  const publishedThisMonth = allPosts.filter((post) => post.status === 'published' && post.date.startsWith(currentMonth)).length
+  const publishedPreviousMonth = allPosts.filter((post) => post.status === 'published' && post.date.startsWith(previousMonth)).length
+  const drafts = allPosts.filter((post) => post.status === 'draft').length
+  const needsReview = allPosts.filter((post) => post.status === 'needs_review' || post.status === 'failed').length
   const signed = (value: number) => `${value >= 0 ? '+' : ''}${value}`
 
   return {

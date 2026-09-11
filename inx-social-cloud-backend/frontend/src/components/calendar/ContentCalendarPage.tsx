@@ -38,8 +38,11 @@ export function ContentCalendarPage() {
     queryKey: ['content-calendar', timezone, pageId, monthKey],
     queryFn: () => fetchCalendarData(timezone, pageId, monthKey),
     placeholderData: (previous) => previous,
-    refetchInterval: 60_000,
+    refetchInterval: 10_000,
+    refetchIntervalInBackground: false,
+    refetchOnReconnect: true,
     refetchOnWindowFocus: true,
+    staleTime: 0,
   })
   useEffect(() => {
     const refresh = () => { void calendar.refetch() }

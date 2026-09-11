@@ -24,7 +24,7 @@ const labels: Record<SocialPlatformName, string> = {
 }
 
 const badgeStyles: Record<SocialPlatformName, string> = {
-  facebook: 'bg-[#0866ff] text-white',
+  facebook: 'bg-[#1877f2] text-white',
   instagram: 'bg-[radial-gradient(circle_at_30%_110%,#feda75_0%,#fa7e1e_28%,#d62976_52%,#962fbf_76%,#4f5bd5_100%)] text-white',
   linkedin: 'bg-[#0a66c2] text-white',
   youtube: 'bg-[#ff0000] text-white',
@@ -71,7 +71,7 @@ export function SocialPlatformIcon({ platform, className = '' }: { platform: Soc
   return (
     <span
       aria-label={labels[platform]}
-      className={`inline-grid size-6 shrink-0 place-items-center overflow-hidden rounded-lg shadow-[inset_0_1px_0_rgba(255,255,255,.18),0_4px_12px_rgba(0,0,0,.14)] ${badgeStyles[platform]} ${className}`}
+      className={`inline-grid size-6 shrink-0 place-items-center overflow-hidden rounded-full shadow-[inset_0_1px_0_rgba(255,255,255,.2),0_4px_12px_rgba(0,0,0,.18)] ring-1 ring-white/10 ${badgeStyles[platform]} ${className}`}
       role="img"
       title={labels[platform]}
     >

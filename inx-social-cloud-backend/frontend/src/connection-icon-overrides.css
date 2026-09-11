@@ -14,30 +14,24 @@
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M13.7 22v-8.1h2.72l.41-3.16H13.7V8.72c0-.91.25-1.54 1.57-1.54h1.68V4.36c-.29-.04-1.29-.13-2.45-.13-2.42 0-4.08 1.48-4.08 4.2v2.31H7.68v3.16h2.74V22h3.28Z'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
-/* Keep legacy Connected Accounts badges compact and visually aligned with the
-   shared platform icon system used by Posts, Dashboard and Analytics. */
-span[class~="size-10"][aria-label="Facebook"]:not([role="img"]),
-span[class~="size-10"][aria-label="Instagram"]:not([role="img"]),
-span[class~="size-10"][aria-label="LinkedIn"]:not([role="img"]),
-span[class~="size-10"][aria-label="YouTube"]:not([role="img"]),
-span[class~="size-10"][aria-label="TikTok"]:not([role="img"]),
-span[class~="size-10"][aria-label="X"]:not([role="img"]),
-span[class~="size-10"][aria-label="X / Twitter"]:not([role="img"]),
-span[class~="size-10"][aria-label="X (Twitter)"]:not([role="img"]) {
-  width: 2rem !important;
-  height: 2rem !important;
-  border-radius: 0.7rem !important;
+/* Legacy Connected Accounts still renders platformMeta.mark internally. The
+   global compatibility mask supplies the real glyph; these rules make every
+   connection surface use the same circular badge silhouette as the shared
+   SocialPlatformIcon component, including the Connect Account modal. */
+.connection-platform-card span[aria-label]:not([role="img"]),
+.connection-platform-icon span[aria-label]:not([role="img"]) {
+  border-radius: 9999px !important;
+  box-shadow: inset 0 1px rgba(255,255,255,.18), 0 5px 14px rgba(0,0,0,.2) !important;
+}
+
+span[class~="size-12"][aria-label]:not([role="img"]),
+span[class~="size-10"][aria-label]:not([role="img"]),
+span[class~="size-8"][aria-label]:not([role="img"]) {
+  border-radius: 9999px !important;
   box-shadow: inset 0 1px rgba(255,255,255,.16), 0 5px 14px rgba(0,0,0,.18) !important;
 }
 
-span[class~="size-8"][aria-label="Facebook"]:not([role="img"]),
-span[class~="size-8"][aria-label="Instagram"]:not([role="img"]),
-span[class~="size-8"][aria-label="LinkedIn"]:not([role="img"]),
-span[class~="size-8"][aria-label="YouTube"]:not([role="img"]),
-span[class~="size-8"][aria-label="TikTok"]:not([role="img"]),
-span[class~="size-8"][aria-label="X"]:not([role="img"]),
-span[class~="size-8"][aria-label="X / Twitter"]:not([role="img"]),
-span[class~="size-8"][aria-label="X (Twitter)"]:not([role="img"]) {
-  border-radius: 0.7rem !important;
-  box-shadow: inset 0 1px rgba(255,255,255,.16), 0 5px 14px rgba(0,0,0,.18) !important;
+span[class~="size-10"][aria-label]:not([role="img"]) {
+  width: 2rem !important;
+  height: 2rem !important;
 }

@@ -13,11 +13,14 @@ test('shared platform icon system is used by Posts, Dashboard and Analytics', ()
   const analyticsSelector = read('frontend/src/components/analytics/AnalyticsAccountSelector.tsx');
   const globalStyles = read('frontend/src/social-platform-icons.css');
   const connectionOverrides = read('frontend/src/connection-icon-overrides.css');
+  const connectionData = read('frontend/src/data/connectedAccountsData.ts');
   const main = read('frontend/src/main.tsx');
 
   for (const platform of ['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok', 'pinterest', 'x']) {
     assert.match(shared, new RegExp(`${platform}:`));
   }
+  assert.match(shared, /rounded-full/);
+  assert.match(shared, /#1877f2/);
   assert.match(posts, /SocialPlatformIcon/);
   assert.match(dashboard, /SocialPlatformIcon/);
   assert.match(analyticsSelector, /SocialPlatformIcon/);
@@ -27,6 +30,8 @@ test('shared platform icon system is used by Posts, Dashboard and Analytics', ()
   assert.match(globalStyles, /aria-label="Instagram"/);
   assert.match(connectionOverrides, /size-10/);
   assert.match(connectionOverrides, /size-8/);
+  assert.match(connectionData, /facebook:.*!rounded-full/);
+  assert.match(connectionData, /instagram:.*!rounded-full/);
 });
 
 test('Post Preview uses a neutral full-width media placeholder and never renders a broken INXSocial avatar', () => {
@@ -42,6 +47,19 @@ test('Post Preview uses a neutral full-width media placeholder and never renders
   assert.doesNotMatch(preview, /ImageIcon[\s\S]{0,220}<PlatformIcon/);
   const platformIconUsages = preview.match(/<PlatformIcon/g) || [];
   assert.equal(platformIconUsages.length, 1, 'platform icons belong only in the preview platform tabs');
+});
+
+test('destination and calendar cards keep platform branding separate from account thumbnails', () => {
+  const selector = read('frontend/src/components/posts/DestinationSelector.tsx');
+  const calendarCard = read('frontend/src/components/calendar/CalendarPostCard.tsx');
+  const selectedDateCard = read('frontend/src/components/calendar/ScheduledVideoCard.tsx');
+
+  assert.doesNotMatch(selector, /absolute -bottom-1 -right-1 size-5/);
+  assert.match(selector, /PlatformIcon className="ml-auto size-6/);
+  assert.match(calendarCard, /PlatformIcon className=\{`\$\{compact \? 'size-5' : 'size-6'\} ml-auto/);
+  assert.match(calendarCard, /ImageIcon/);
+  assert.match(selectedDateCard, /StatusBadge[\s\S]*PlatformIcon[\s\S]*More options/);
+  assert.doesNotMatch(selectedDateCard, /<PlatformIcon[^>]*\/>\s*<span className="min-w-0 flex-1"/);
 });
 
 test('Bulk Scheduler uses the same destination selector component as Posts', () => {
