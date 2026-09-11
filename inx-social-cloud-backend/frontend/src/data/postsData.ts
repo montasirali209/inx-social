@@ -10,10 +10,8 @@ export const platforms: Array<{ id: Platform; label: string }> = [
 ]
 
 export const postTypes: Array<{ id: PostType; label: string; available: boolean }> = [
-  { id: 'text', label: 'Text', available: true },
-  { id: 'image', label: 'Image', available: true },
-  { id: 'video', label: 'Video / Reel', available: true },
-  { id: 'carousel', label: 'Carousel', available: false },
+  { id: 'text', label: 'Text / Media Post', available: true },
+  { id: 'carousel', label: 'Carousel Post', available: true },
 ]
 
 export const campaigns = ['No campaign', 'Always-on content', 'Product launch', 'Community growth']
