@@ -1,8 +1,8 @@
 /*
- * Connected Accounts still renders a legacy local platform badge. This file
- * makes those legacy spans visually match the current SocialPlatformIcon
- * system exactly until the page is decomposed and switched to the shared
- * React component directly.
+ * Connected Accounts still renders a legacy local platform badge.
+ * This file makes that legacy renderer visually match the user's approved
+ * social-icon reference: flat circular brand badges with large, unmistakable
+ * official-style marks instead of tiny letter/triangle glyphs.
  */
 
 .connection-platform-card span[aria-label]:not([role="img"]),
@@ -16,10 +16,11 @@ span[class~="size-8"][aria-label]:not([role="img"]) {
   flex: none !important;
   aspect-ratio: 1 / 1;
   overflow: hidden;
+  border: 0 !important;
   border-radius: 9999px !important;
   font-size: 0 !important;
   line-height: 0 !important;
-  box-shadow: inset 0 1px rgba(255,255,255,.18), 0 5px 14px rgba(0,0,0,.2) !important;
+  box-shadow: none !important;
 }
 
 span[class~="size-12"][aria-label]:not([role="img"]) {
@@ -37,7 +38,7 @@ span[class~="size-8"][aria-label]:not([role="img"]) {
   height: 2rem !important;
 }
 
-/* Remove the old monochrome mask supplied by social-platform-icons.css. */
+/* Replace every old text/mask mark with a real brand silhouette. */
 span[aria-label="Facebook"]:not([role="img"])::after,
 span[aria-label="Instagram"]:not([role="img"])::after,
 span[aria-label="LinkedIn"]:not([role="img"])::after,
@@ -49,8 +50,6 @@ span[aria-label="X (Twitter)"]:not([role="img"])::after,
 span[aria-label="X"]:not([role="img"])::after {
   content: "";
   display: block;
-  width: 72% !important;
-  height: 72% !important;
   background-color: transparent !important;
   background-position: center !important;
   background-repeat: no-repeat !important;
@@ -59,83 +58,83 @@ span[aria-label="X"]:not([role="img"])::after {
   mask: none !important;
 }
 
-/* Facebook */
+/* Facebook — large white f, matching the supplied reference. */
 span[aria-label="Facebook"]:not([role="img"]) {
-  background: #1877f2 !important;
+  background: #3b7dc8 !important;
   color: #fff !important;
 }
 span[aria-label="Facebook"]:not([role="img"])::after {
-  width: 80% !important;
-  height: 80% !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M13.397 21v-8.196h2.765l.414-3.192h-3.179V7.574c0-.924.258-1.553 1.589-1.553h1.697V3.168c-.293-.039-1.3-.127-2.471-.127-2.444 0-4.118 1.492-4.118 4.231v2.34H7.332v3.192h2.762V21h3.303Z'/%3E%3C/svg%3E") !important;
+  width: 58% !important;
+  height: 84% !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 512'%3E%3Cpath fill='white' d='M279.14 288l14.22-92.66h-88.91v-60.13c0-25.35 12.42-50.06 52.24-50.06H297V6.26S260.43 0 225.36 0c-73.22 0-121.08 44.38-121.08 124.72v70.62H22.89V288h81.39v224h100.17V288z'/%3E%3C/svg%3E") !important;
 }
 
-/* Instagram */
+/* Instagram — large white camera over the familiar gradient. */
 span[aria-label="Instagram"]:not([role="img"]) {
   background: radial-gradient(circle at 30% 110%,#feda75 0%,#fa7e1e 28%,#d62976 52%,#962fbf 76%,#4f5bd5 100%) !important;
   color: #fff !important;
 }
 span[aria-label="Instagram"]:not([role="img"])::after {
-  width: 69% !important;
-  height: 69% !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Crect x='4.2' y='4.2' width='15.6' height='15.6' rx='4.5' stroke='white' stroke-width='2.15'/%3E%3Ccircle cx='12' cy='12' r='3.65' stroke='white' stroke-width='2.15'/%3E%3Ccircle cx='17.35' cy='6.75' r='1.1' fill='white'/%3E%3C/svg%3E") !important;
+  width: 76% !important;
+  height: 76% !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none'%3E%3Crect x='3.35' y='3.35' width='17.3' height='17.3' rx='5' stroke='white' stroke-width='2.15'/%3E%3Ccircle cx='12' cy='12' r='4.05' stroke='white' stroke-width='2.15'/%3E%3Ccircle cx='17.75' cy='6.25' r='1.15' fill='white'/%3E%3C/svg%3E") !important;
 }
 
-/* LinkedIn */
+/* LinkedIn — full official-style "in" silhouette, not text. */
 span[aria-label="LinkedIn"]:not([role="img"]) {
-  background: #0a66c2 !important;
+  background: #2277b6 !important;
   color: #fff !important;
 }
 span[aria-label="LinkedIn"]:not([role="img"])::after {
-  width: 72% !important;
-  height: 72% !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M6.4 8.1H3.2V20h3.2V8.1ZM4.8 3A1.85 1.85 0 1 0 4.8 6.7 1.85 1.85 0 0 0 4.8 3Zm8.05 5.1H9.78V20h3.2v-5.88c0-1.55.3-3.05 2.22-3.05 1.9 0 1.92 1.78 1.92 3.15V20h3.2v-6.51c0-3.2-.69-5.67-4.43-5.67-1.8 0-3 .99-3.49 1.92h-.04V8.1Z'/%3E%3C/svg%3E") !important;
+  width: 70% !important;
+  height: 70% !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='white' d='M100.28 448H7.4V148.9h92.88zM53.79 108.1C24.09 108.1 0 83.5 0 53.8A53.79 53.79 0 0 1 107.58 53.8c0 29.7-24.1 54.3-53.79 54.3zM447.9 448h-92.68V302.4c0-34.7-.7-79.2-48.29-79.2-48.29 0-55.69 37.7-55.69 76.7V448h-92.78V148.9h89.08v40.8h1.3c12.4-23.5 42.69-48.3 87.88-48.3 94 0 111.28 61.9 111.28 142.3V448z'/%3E%3C/svg%3E") !important;
 }
 
-/* YouTube - full current play-button mark, not a plain triangle. */
+/* YouTube — large white rounded play-button mark inside the red badge. */
 span[aria-label="YouTube"]:not([role="img"]) {
-  background: #ff0000 !important;
+  background: #ff1f24 !important;
   color: #fff !important;
 }
 span[aria-label="YouTube"]:not([role="img"])::after {
-  width: 76% !important;
-  height: 76% !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M21.2 7.2a2.72 2.72 0 0 0-1.92-1.93C17.59 4.8 12 4.8 12 4.8s-5.59 0-7.28.47A2.72 2.72 0 0 0 2.8 7.2 28.4 28.4 0 0 0 2.33 12c0 1.62.15 3.22.47 4.8a2.72 2.72 0 0 0 1.92 1.93c1.69.47 7.28.47 7.28.47s5.59 0 7.28-.47a2.72 2.72 0 0 0 1.92-1.93c.32-1.58.47-3.18.47-4.8 0-1.62-.15-3.22-.47-4.8ZM10.06 15.08V8.92L15.4 12l-5.34 3.08Z'/%3E%3C/svg%3E") !important;
+  width: 80% !important;
+  height: 66% !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 576 512'%3E%3Cpath fill='white' fill-rule='evenodd' d='M549.66 124.08c-6.28-23.65-24.81-42.28-48.35-48.59C458.78 64 288 64 288 64S117.22 64 74.69 75.49c-23.54 6.31-42.07 24.94-48.35 48.59C15 167 15 256.4 15 256.4s0 89.4 11.34 132.32c6.28 23.65 24.81 41.5 48.35 47.81C117.22 448 288 448 288 448s170.78 0 213.31-11.47c23.54-6.31 42.07-24.16 48.35-47.81C561 345.8 561 256.4 561 256.4s0-89.4-11.34-132.32ZM232 336.5v-160l142.7 80-142.7 80Z'/%3E%3C/svg%3E") !important;
 }
 
-/* TikTok - proper cyan/red/white layered mark. */
+/* TikTok — large cyan/red/white layered note. */
 span[aria-label="TikTok"]:not([role="img"]) {
-  background: #010101 !important;
+  background: #050505 !important;
   color: #fff !important;
 }
 span[aria-label="TikTok"]:not([role="img"])::after {
-  width: 72% !important;
-  height: 72% !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M14.8 3.2c.23 1.9 1.3 3.34 3.2 4.12v2.53a8.24 8.24 0 0 1-3.18-.92v5.58a5.38 5.38 0 1 1-4.64-5.33v2.72a2.72 2.72 0 1 0 1.94 2.61V3.2h2.68Z' fill='%2325f4ee' transform='translate(-.45 .35)'/%3E%3Cpath d='M14.8 3.2c.23 1.9 1.3 3.34 3.2 4.12v2.53a8.24 8.24 0 0 1-3.18-.92v5.58a5.38 5.38 0 1 1-4.64-5.33v2.72a2.72 2.72 0 1 0 1.94 2.61V3.2h2.68Z' fill='%23fe2c55' transform='translate(.42 -.2)'/%3E%3Cpath d='M14.8 3.2c.23 1.9 1.3 3.34 3.2 4.12v2.53a8.24 8.24 0 0 1-3.18-.92v5.58a5.38 5.38 0 1 1-4.64-5.33v2.72a2.72 2.72 0 1 0 1.94 2.61V3.2h2.68Z' fill='white'/%3E%3C/svg%3E") !important;
+  width: 78% !important;
+  height: 78% !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M14.8 3.2c.23 1.9 1.3 3.34 3.2 4.12v2.53a8.24 8.24 0 0 1-3.18-.92v5.58a5.38 5.38 0 1 1-4.64-5.33v2.72a2.72 2.72 0 1 0 1.94 2.61V3.2h2.68Z' fill='%2325f4ee' transform='translate(-.55 .45)'/%3E%3Cpath d='M14.8 3.2c.23 1.9 1.3 3.34 3.2 4.12v2.53a8.24 8.24 0 0 1-3.18-.92v5.58a5.38 5.38 0 1 1-4.64-5.33v2.72a2.72 2.72 0 1 0 1.94 2.61V3.2h2.68Z' fill='%23fe2c55' transform='translate(.5 -.28)'/%3E%3Cpath d='M14.8 3.2c.23 1.9 1.3 3.34 3.2 4.12v2.53a8.24 8.24 0 0 1-3.18-.92v5.58a5.38 5.38 0 1 1-4.64-5.33v2.72a2.72 2.72 0 1 0 1.94 2.61V3.2h2.68Z' fill='white'/%3E%3C/svg%3E") !important;
 }
 
-/* Pinterest */
+/* Pinterest — large standalone P mark, matching the reference (no nested circle). */
 span[aria-label="Pinterest"]:not([role="img"]) {
-  background: #e60023 !important;
+  background: #ee1b2b !important;
   color: #fff !important;
 }
 span[aria-label="Pinterest"]:not([role="img"])::after {
-  width: 74% !important;
-  height: 74% !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M12 2.3a9.7 9.7 0 0 0-3.53 18.74c-.08-.83-.15-2.1.03-3 .2-.81 1.25-5.3 1.25-5.3s-.32-.64-.32-1.58c0-1.48.86-2.59 1.93-2.59.91 0 1.35.69 1.35 1.51 0 .91-.58 2.28-.88 3.55-.25 1.06.53 1.93 1.58 1.93 1.89 0 3.35-2 3.35-4.88 0-2.55-1.84-4.34-4.46-4.34-3.03 0-4.81 2.28-4.81 4.63 0 .92.35 1.9.79 2.44.09.1.1.2.07.31l-.3 1.21c-.04.2-.15.24-.35.14-1.33-.62-2.16-2.57-2.16-4.13 0-3.37 2.44-6.46 7.05-6.46 3.7 0 6.58 2.64 6.58 6.17 0 3.68-2.32 6.64-5.53 6.64-1.08 0-2.1-.56-2.45-1.23l-.67 2.54c-.24.93-.89 2.09-1.33 2.8.99.3 2.04.47 3.13.47A9.7 9.7 0 1 0 12 2.3Z'/%3E%3C/svg%3E") !important;
+  width: 72% !important;
+  height: 82% !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 384 512'%3E%3Cpath fill='white' d='M204 6.5C104.9 6.5 38 78.5 38 172.6c0 67.1 37.5 108.7 60.9 108.7 9.7 0 15.2-27 15.2-34.7 0-9.1-23.2-28.6-23.2-66.7 0-79.1 60.2-134.3 138.3-134.3 67.1 0 116.7 38.1 116.7 108.1 0 52.3-21 150.8-89 150.8-24.6 0-45.7-17.8-45.7-43.2 0-37.3 26-73.3 26-111.8 0-65.4-92.7-53.5-92.7 25.3 0 16.6 2.1 35 9.5 50.1-13.7 59.1-41.7 147.5-41.7 208.4 0 18.8 2.8 37.4 4.7 56.1.6 6.6 1.4 15.2 5.2 20.6 2.4 3.5 4.8 4.2 7.9.8 3.4-3.8 5.7-7.6 7.3-12.2 1.7-4.9 15.2-18.8 19.8-23.5 15.6-17 25.1-40.4 30.7-62.7 15.1 28.7 54.9 44 85.9 44 114.8 0 192.5-104.6 192.5-211.1C372 73.4 296.6 6.5 204 6.5z'/%3E%3C/svg%3E") !important;
 }
 
-/* X */
+/* X — use the light-blue circular treatment from the supplied reference. */
 span[aria-label="X / Twitter"]:not([role="img"]),
 span[aria-label="X (Twitter)"]:not([role="img"]),
 span[aria-label="X"]:not([role="img"]) {
-  background: #050505 !important;
+  background: #4fb4df !important;
   color: #fff !important;
 }
 span[aria-label="X / Twitter"]:not([role="img"])::after,
 span[aria-label="X (Twitter)"]:not([role="img"])::after,
 span[aria-label="X"]:not([role="img"])::after {
-  width: 63% !important;
-  height: 63% !important;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='white' d='M4.5 4h4.2l3.93 5.24L17.25 4H20l-6.12 7.13L20.3 20h-4.2l-4.2-5.65L7 20H4.25l6.38-7.54L4.5 4Zm3.05 1.7 9.4 12.6h1.8L9.35 5.7h-1.8Z'/%3E%3C/svg%3E") !important;
+  width: 72% !important;
+  height: 72% !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 448 512'%3E%3Cpath fill='white' d='M357.2 48h69.8L274.6 222.2 454 464H313.6L203.6 320.1 77.8 464H7.9l159.7-182.6L-4.4 48H139.6l99.4 131.4L357.2 48zm-24.5 373.4h38.7L118.6 88.6H77.1l255.6 332.8z'/%3E%3C/svg%3E") !important;
 }
