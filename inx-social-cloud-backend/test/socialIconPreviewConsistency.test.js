@@ -34,18 +34,20 @@ test('shared platform icon system is used by Posts, Dashboard and Analytics', ()
   assert.match(connectionData, /instagram:.*!rounded-full/);
 });
 
-test('Connected Accounts uses full branded glyphs instead of old text marks', () => {
+test('Connected Accounts matches the supplied large branded icon reference', () => {
   const overrides = read('frontend/src/connection-icon-overrides.css');
 
   assert.match(overrides, /span\[class~="size-12"\][\s\S]*width: 3rem !important;/);
   assert.match(overrides, /span\[class~="size-10"\][\s\S]*width: 2\.5rem !important;/);
   assert.match(overrides, /span\[class~="size-8"\][\s\S]*width: 2rem !important;/);
-  assert.match(overrides, /aria-label="Facebook"[\s\S]*background-image:[\s\S]*fill='white'/);
-  assert.match(overrides, /aria-label="Instagram"[\s\S]*radial-gradient/);
-  assert.match(overrides, /aria-label="LinkedIn"[\s\S]*background-image/);
-  assert.match(overrides, /aria-label="YouTube"[\s\S]*21\.2 7\.2/);
+  assert.match(overrides, /aria-label="Facebook"[\s\S]*320 512[\s\S]*fill='white'/);
+  assert.match(overrides, /aria-label="Instagram"[\s\S]*width: 76% !important/);
+  assert.match(overrides, /aria-label="LinkedIn"[\s\S]*448 512/);
+  assert.match(overrides, /aria-label="YouTube"[\s\S]*576 512/);
   assert.match(overrides, /aria-label="TikTok"[\s\S]*%2325f4ee/);
-  assert.match(overrides, /aria-label="Pinterest"[\s\S]*background-image/);
+  assert.match(overrides, /aria-label="Pinterest"[\s\S]*384 512/);
+  assert.match(overrides, /aria-label="X"[\s\S]*#4fb4df/);
+  assert.match(overrides, /box-shadow: none !important;/);
   assert.match(overrides, /-webkit-mask: none !important;/);
   assert.doesNotMatch(overrides, /span\[class~="size-10"\][^{]*\{[^}]*width: 2rem !important;/s);
 });
