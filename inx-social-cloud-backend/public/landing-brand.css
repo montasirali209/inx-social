@@ -1,29 +1,52 @@
+.site-header .brand{
+  width:202px;
+  height:64px;
+  flex:0 0 202px;
+  justify-content:center;
+  overflow:hidden;
+}
+
 .site-header .brand>img{
   width:178px;
-  height:auto;
-  max-height:58px;
+  height:58px;
+  max-width:none;
   object-fit:contain;
-  object-position:left center;
+  object-position:center;
   margin:0;
   flex:0 0 auto;
+  transform:scale(1.9);
+  transform-origin:center;
+}
+
+.footer-brand .brand{
+  width:220px;
+  height:72px;
+  justify-content:center;
+  overflow:hidden;
 }
 
 .footer-brand .brand>img{
   width:188px;
-  height:auto;
-  max-height:66px;
+  height:66px;
+  max-width:none;
   object-fit:contain;
-  object-position:left center;
+  object-position:center;
   margin:0;
   flex:0 0 auto;
+  transform:scale(1.95);
+  transform-origin:center;
 }
 
 @media (max-width:900px){
-  .site-header .brand>img{width:154px;max-height:50px}
-  .footer-brand .brand>img{width:176px;max-height:60px}
+  .site-header .brand{width:174px;height:54px;flex-basis:174px}
+  .site-header .brand>img{width:154px;height:50px;transform:scale(1.78)}
+  .footer-brand .brand{width:194px;height:64px}
+  .footer-brand .brand>img{width:176px;height:60px;transform:scale(1.8)}
 }
 
 @media (max-width:560px){
-  .site-header .brand>img{width:136px;max-height:44px}
-  .footer-brand .brand>img{width:164px;max-height:56px}
+  .site-header .brand{width:154px;height:50px;flex-basis:154px}
+  .site-header .brand>img{width:136px;height:44px;transform:scale(1.72)}
+  .footer-brand .brand{width:180px;height:60px}
+  .footer-brand .brand>img{width:164px;height:56px;transform:scale(1.76)}
 }
