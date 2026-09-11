@@ -9,8 +9,8 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 test('Posts offers only a standard post choice and an AI carousel choice', () => {
   const panel = read('frontend/src/components/posts/CreatePostPanel.tsx');
   const data = read('frontend/src/data/postsData.ts');
-  assert.match(panel, /Text \/ Media Post/);
-  assert.match(panel, /Carousel Post/);
+  assert.match(data, /Text \/ Media Post/);
+  assert.match(data, /Carousel Post/);
   assert.match(panel, /Create with AI Content Studio/);
   assert.doesNotMatch(data, /Video \/ Reel/);
   assert.doesNotMatch(data, /available:\s*false/);
