@@ -51,7 +51,7 @@ const buildLandingDocument = () => {
     )
     .replace(
       '<link rel="stylesheet" href="/landing.css?v=20260909c">',
-      '<link rel="stylesheet" href="/landing.css?v=20260909c">\n  <link rel="stylesheet" href="/landing-mobile.css?v=20260910c" media="(max-width: 900px)">\n  <link rel="stylesheet" href="/landing-performance.css?v=20260911b">\n  <link rel="stylesheet" href="/landing-brand.css?v=20260911a">'
+      '<link rel="stylesheet" href="/landing.css?v=20260909c">\n  <link rel="stylesheet" href="/landing-mobile.css?v=20260910c" media="(max-width: 900px)">\n  <link rel="stylesheet" href="/landing-performance.css?v=20260911b">\n  <link rel="stylesheet" href="/landing-brand.css?v=20260911b">'
     );
 };
 
