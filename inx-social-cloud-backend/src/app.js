@@ -94,7 +94,7 @@ app.use('/studio', (req, res, next) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
   next();
 });
-app.use('/studio', express.static(path.join(__dirname, '..', 'studio'));
+app.use('/studio', express.static(path.join(__dirname, '..', 'studio')));
 app.use('/app', express.static(reactAppRoot, {
   index: false,
   maxAge: '1h',
