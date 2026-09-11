@@ -38,12 +38,13 @@ test('Phase 13.4 uses live cloud and selected-Page Meta data without sample cale
   assert.match(api, /calendarFetchRange/);
   assert.match(api, /limit: '1000'/);
   assert.match(api, /\/api\/studio\/facebook\/scheduled-posts/);
-  assert.match(api, /pagesToSync = selectedPageId/);
+  assert.match(api, /scheduledPageIds/);
+  assert.match(api, /page\.id === selectedPageId/);
   assert.match(api, /scheduledFor < nowMs/);
   assert.match(api, /post\.status === 'scheduled' \|\| post\.status === 'needs_review'/);
   assert.match(page, /syncWarnings/);
   assert.match(page, /monthKey.*queryKey|queryKey: \['content-calendar', timezone, pageId, monthKey\]/);
-  assert.match(page, /refetchInterval: 10_000/);
+  assert.match(page, /refetchInterval: 60_000/);
   assert.match(page, /refetchIntervalInBackground: false/);
   assert.match(page, /fetchFacebookDashboardAnalytics/);
   assert.match(page, /calculateBestPostTime/);
@@ -51,6 +52,25 @@ test('Phase 13.4 uses live cloud and selected-Page Meta data without sample cale
   assert.doesNotMatch(bestTime, /Analytics required/);
   assert.match(toolbar, /relative z-30/);
   assert.doesNotMatch(`${api}${page}`, /Product Update|Customer Story|Industry Insight|May 12, 2025/);
+});
+
+test('Content Calendar opens platform posts and manages real Meta schedules', () => {
+  const api = read('frontend/src/lib/calendar-api.ts');
+  const page = read('frontend/src/components/calendar/ContentCalendarPage.tsx');
+  const selected = read('frontend/src/components/calendar/ScheduledVideoCard.tsx');
+  const routes = read('src/routes/studioRoutes.js');
+  const controller = read('src/controllers/studioController.js');
+
+  assert.match(page, /window\.open\(post\.platformUrl/);
+  assert.match(selected, /Open on Facebook/);
+  assert.match(selected, /Reschedule/);
+  assert.match(selected, /Delete from Facebook & INXSocial/);
+  assert.match(api, /rescheduleCalendarPost/);
+  assert.match(api, /deleteCalendarPost/);
+  assert.match(routes, /jobs\/:id\/schedule/);
+  assert.match(routes, /facebook\/posts\/:postId\/schedule/);
+  assert.match(controller, /Removed from Facebook/);
+  assert.match(controller, /metaPublisher\.isMissingPostError/);
 });
 
 test('Phase 13.4 calendar actions hand selected date and time to the real post composer', () => {

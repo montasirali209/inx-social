@@ -123,6 +123,10 @@ const postEnhancementSchema = z.object({
 
 const mediaFolderSchema = z.object({ name: z.string().trim().min(2).max(60) });
 const mediaRenameSchema = z.object({ fileName: z.string().trim().min(1).max(180) });
+const calendarScheduleSchema = z.object({
+  scheduledAt: z.string().datetime(),
+  connectedPageId: z.string().trim().min(1).optional()
+});
 
 const MAX_DIRECT_IMAGE_BYTES = 15n * 1024n * 1024n;
 
@@ -1360,7 +1364,160 @@ async function scheduledPosts(req, res, next) {
       pageId: page.facebookPageId,
       pageAccessToken: decryptToken(page.encryptedAccessToken)
     });
+    const liveIds = new Set((result.data || []).flatMap(post => metaIdVariants(post.id)));
+    const localJobs = await prisma.scheduleJob.findMany({
+      where: {
+        userId: req.user.id,
+        connectedPageId: page.id,
+        origin: 'CLOUD',
+        status: JOB_STATUS.SCHEDULED,
+        scheduledAt: { gte: new Date() }
+      },
+      select: { id: true, metaPostId: true, metaVideoId: true }
+    });
+    const missingJobs = localJobs.filter(job => {
+      const ids = [job.metaPostId, job.metaVideoId].filter(Boolean).flatMap(metaIdVariants);
+      return ids.length > 0 && !ids.some(id => liveIds.has(id));
+    });
+    const token = decryptToken(page.encryptedAccessToken);
+    const reconciledJobIds = [];
+    for (let index = 0; index < missingJobs.length; index += 4) {
+      await Promise.all(missingJobs.slice(index, index + 4).map(async job => {
+        const postId = job.metaPostId || job.metaVideoId;
+        try {
+          const current = await metaPublisher.getPost({ postId, pageAccessToken: token });
+          if (current.is_published === true) {
+            const updated = await prisma.scheduleJob.updateMany({
+              where: { id: job.id, userId: req.user.id, status: JOB_STATUS.SCHEDULED },
+              data: { status: JOB_STATUS.PUBLISHED, completedAt: new Date(), errorMessage: null }
+            });
+            if (updated.count) reconciledJobIds.push(job.id);
+          }
+        } catch (error) {
+          if (!metaPublisher.isMissingPostError(error)) return;
+          const updated = await prisma.scheduleJob.updateMany({
+            where: { id: job.id, userId: req.user.id, status: JOB_STATUS.SCHEDULED },
+            data: { status: JOB_STATUS.CANCELLED, completedAt: new Date(), nextAttemptAt: null, errorMessage: 'Removed from Facebook.' }
+          });
+          if (updated.count) reconciledJobIds.push(job.id);
+        }
+      }));
+    }
+    res.json({ result, reconciledJobIds });
+  } catch (error) {
+    next(error);
+  }
+}
+
+function metaIdVariants(value) {
+  const id = String(value || '').trim();
+  if (!id) return [];
+  const pieces = id.split('_').filter(Boolean);
+  return [...new Set([id, pieces.at(-1)])];
+}
+
+function calendarMetaId(job) {
+  return job.metaPostId || job.metaVideoId || null;
+}
+
+async function rescheduleJob(req, res, next) {
+  try {
+    await requireStudioLicense(req.user.id);
+    const input = calendarScheduleSchema.parse(req.body || {});
+    const scheduledAt = validateScheduleTime(input.scheduledAt);
+    const existing = await prisma.scheduleJob.findFirst({
+      where: { id: req.params.id, userId: req.user.id, origin: 'CLOUD' },
+      include: { connectedPage: true, cloudAsset: true }
+    });
+    if (!existing) return res.status(404).json({ error: 'Scheduled content not found.' });
+    if ([JOB_STATUS.PROCESSING, JOB_STATUS.PUBLISHED, JOB_STATUS.CANCELLED].includes(existing.status)) {
+      return res.status(409).json({ error: `This ${existing.status.toLowerCase()} post cannot be rescheduled.` });
+    }
+    const postId = calendarMetaId(existing);
+    if (existing.status === JOB_STATUS.SCHEDULED) {
+      if (!postId || !existing.connectedPage) return res.status(409).json({ error: 'The Facebook post reference is unavailable.' });
+      await metaPublisher.reschedulePost({
+        postId,
+        pageAccessToken: decryptToken(existing.connectedPage.encryptedAccessToken),
+        scheduledAt
+      });
+    }
+    const verification = jobVerification(existing);
+    const job = await prisma.scheduleJob.update({
+      where: { id: existing.id },
+      data: {
+        scheduledAt,
+        publishMode: 'SCHEDULED',
+        errorMessage: null,
+        rawMetaResponse: JSON.stringify({
+          ...parseJson(existing.rawMetaResponse, {}),
+          verification: { ...verification, state: existing.status, rescheduledAt: new Date().toISOString() }
+        })
+      },
+      include: { connectedPage: true, cloudAsset: true }
+    });
+    res.json({ job: publicJob(job) });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function deleteJob(req, res, next) {
+  try {
+    await requireStudioLicense(req.user.id);
+    const existing = await prisma.scheduleJob.findFirst({
+      where: { id: req.params.id, userId: req.user.id, origin: 'CLOUD' },
+      include: { connectedPage: true, cloudAsset: true }
+    });
+    if (!existing) return res.status(404).json({ error: 'Scheduled content not found.' });
+    if (existing.status === JOB_STATUS.PROCESSING) return res.status(409).json({ error: 'Wait for the current Facebook upload to finish before deleting it.' });
+    if (existing.status === JOB_STATUS.CANCELLED) return res.json({ ok: true, job: publicJob(existing) });
+    const postId = calendarMetaId(existing);
+    if (postId && existing.connectedPage) {
+      try {
+        await metaPublisher.deletePost({ postId, pageAccessToken: decryptToken(existing.connectedPage.encryptedAccessToken) });
+      } catch (error) {
+        if (!metaPublisher.isMissingPostError(error)) throw error;
+      }
+    }
+    const job = await prisma.scheduleJob.update({
+      where: { id: existing.id },
+      data: { status: JOB_STATUS.CANCELLED, completedAt: new Date(), nextAttemptAt: null, errorMessage: null },
+      include: { connectedPage: true, cloudAsset: true }
+    });
+    res.json({ ok: true, job: publicJob(job) });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function rescheduleFacebookPost(req, res, next) {
+  try {
+    await requireStudioLicense(req.user.id);
+    const input = calendarScheduleSchema.parse(req.body || {});
+    const scheduledAt = validateScheduleTime(input.scheduledAt);
+    const page = await resolvePage(req.user.id, input.connectedPageId, true);
+    const result = await metaPublisher.reschedulePost({
+      postId: req.params.postId,
+      pageAccessToken: decryptToken(page.encryptedAccessToken),
+      scheduledAt
+    });
     res.json({ result });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function deleteFacebookPost(req, res, next) {
+  try {
+    await requireStudioLicense(req.user.id);
+    const page = await resolvePage(req.user.id, req.query?.connectedPageId || null, true);
+    try {
+      await metaPublisher.deletePost({ postId: req.params.postId, pageAccessToken: decryptToken(page.encryptedAccessToken) });
+    } catch (error) {
+      if (!metaPublisher.isMissingPostError(error)) throw error;
+    }
+    res.json({ ok: true });
   } catch (error) {
     next(error);
   }
@@ -1514,6 +1671,10 @@ module.exports = {
   uploadVideo,
   testActivePage,
   scheduledPosts,
+  rescheduleJob,
+  deleteJob,
+  rescheduleFacebookPost,
+  deleteFacebookPost,
   enhancePostCaption,
   mediaLibraryWorkspace,
   uploadMediaLibraryAsset,

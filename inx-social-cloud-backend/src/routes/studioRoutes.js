@@ -15,6 +15,8 @@ router.post('/preferences/reset-ui-texts', controller.resetUiTexts);
 router.get('/overview', controller.overview);
 router.get('/facebook/test', controller.testActivePage);
 router.get('/facebook/scheduled-posts', controller.scheduledPosts);
+router.patch('/facebook/posts/:postId/schedule', controller.rescheduleFacebookPost);
+router.delete('/facebook/posts/:postId', controller.deleteFacebookPost);
 router.get('/analytics/facebook', controller.facebookAnalytics);
 router.get('/analytics/source', analyticsController.socialAnalytics);
 router.put('/analytics/facebook/demographics-snapshot', controller.saveFacebookDemographicsSnapshot);
@@ -34,6 +36,8 @@ router.put('/direct-posts/:id/media', controller.uploadDirectPostMedia);
 router.post('/direct-posts/:id/library-media', controller.publishDirectPostLibraryMedia);
 router.put('/jobs/:id/video', controller.uploadVideo);
 router.patch('/jobs/:id', controller.updateDraft);
+router.patch('/jobs/:id/schedule', controller.rescheduleJob);
+router.delete('/jobs/:id', controller.deleteJob);
 router.post('/jobs/:id/cancel', controller.cancelJob);
 
 module.exports = router;

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { availableSlotsForDate, buildCalendarDays, calendarFetchRange, calendarRangeLabel, shiftMonth } from './calendar-utils'
 import type { CalendarPost } from '../types/calendar'
 
-const post: CalendarPost = { id: 'one', title: 'Scheduled content', time: '09:00', date: '2026-08-12', occurredAt: '2026-08-12T08:00:00.000Z', platform: 'facebook', pageId: 'page', pageName: 'INX Social', status: 'scheduled', thumbnailUrl: null, engagementScore: null, source: 'inx' }
+const post: CalendarPost = { id: 'one', title: 'Scheduled content', time: '09:00', date: '2026-08-12', occurredAt: '2026-08-12T08:00:00.000Z', platform: 'facebook', pageId: 'page', pageName: 'INX Social', status: 'scheduled', thumbnailUrl: null, engagementScore: null, source: 'inx', jobId: 'one', providerPostId: 'page_post', platformUrl: 'https://www.facebook.com/page/posts/post' }
 
 describe('calendar utilities', () => {
   it('builds a complete six-week month without placeholder posts', () => {
