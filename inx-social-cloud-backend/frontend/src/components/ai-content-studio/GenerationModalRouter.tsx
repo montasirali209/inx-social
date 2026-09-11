@@ -14,8 +14,8 @@ export function GenerationModalRouter(props: {
   onContinue: (draft: AIDraft) => void
   onToast: (message: string) => void
 }) {
+  if (props.type === 'image_post' || props.initialDraft?.contentType === 'image_post') return <ImagePostChatModal {...props} />
   const contentType = props.initialDraft?.contentType || props.type
-  if (contentType === 'image_post') return <ImagePostChatModal {...props} />
   if (contentType === 'carousel_post') return <CarouselChatModal {...props} />
   if (contentType === 'short_video') return <VideoStudioModal {...props} />
   return <GenerationModal {...props} />
