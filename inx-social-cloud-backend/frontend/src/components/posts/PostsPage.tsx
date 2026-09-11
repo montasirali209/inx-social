@@ -21,11 +21,46 @@ import type { PostLibraryView } from '../../lib/posts-reuse'
 import { PublishConfirmationDialog } from '../ui/PublishConfirmationDialog'
 
 const draftKey = 'inx-social-post-drafts-v1'
+const composerSessionKey = 'inx-social-post-composer-session-v1'
 
 type PostsLocationState = {
   mediaLibraryAsset?: MediaAsset
   scheduleMode?: ScheduleMode
   aiDraft?: AIDraft
+}
+
+type PostComposerSession = {
+  postType: Exclude<PostType, 'carousel'>
+  title: string
+  caption: string
+  mediaLibraryAssetId: string | null
+  mediaFileName: string | null
+  selectedIds: string[]
+  mode: ScheduleMode
+  date: string
+  time: string
+  campaign: string
+  labels: string
+  retainMedia: boolean
+}
+
+function readComposerSession(): PostComposerSession | null {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(composerSessionKey) || 'null') as Partial<PostComposerSession> | null
+    if (!parsed) return null
+    const postType = parsed.postType === 'image' || parsed.postType === 'video' || parsed.postType === 'reel' ? parsed.postType : 'text'
+    return {
+      postType, title: typeof parsed.title === 'string' ? parsed.title : '', caption: typeof parsed.caption === 'string' ? parsed.caption : '',
+      mediaLibraryAssetId: typeof parsed.mediaLibraryAssetId === 'string' ? parsed.mediaLibraryAssetId : null,
+      mediaFileName: typeof parsed.mediaFileName === 'string' ? parsed.mediaFileName : null,
+      selectedIds: Array.isArray(parsed.selectedIds) ? parsed.selectedIds.filter((id): id is string => typeof id === 'string') : [],
+      mode: parsed.mode === 'now' || parsed.mode === 'draft' ? parsed.mode : 'later', date: typeof parsed.date === 'string' ? parsed.date : defaultDate(),
+      time: typeof parsed.time === 'string' ? parsed.time : '19:30', campaign: typeof parsed.campaign === 'string' ? parsed.campaign : 'No campaign',
+      labels: typeof parsed.labels === 'string' ? parsed.labels : '', retainMedia: Boolean(parsed.retainMedia),
+    }
+  } catch {
+    return null
+  }
 }
 
 function readDrafts(): PostDraft[] {
@@ -79,19 +114,21 @@ export function PostsPage() {
   const location = useLocation()
   const importedAssetId = useRef<string | null>(null)
   const importedAiDraftId = useRef<string | null>(null)
+  const restoredSessionAssetId = useRef<string | null>(null)
   const defaultModeApplied = useRef(false)
+  const [initial] = useState(readComposerSession)
   const workspace = useQuery({ queryKey: ['posts-workspace'], queryFn: fetchPostsWorkspace, refetchInterval: 45_000 })
-  const [postType, setPostType] = useState<PostType>('text')
-  const [title, setTitle] = useState('')
-  const [caption, setCaption] = useState('')
+  const [postType, setPostType] = useState<PostType>(initial?.postType || 'text')
+  const [title, setTitle] = useState(initial?.title || '')
+  const [caption, setCaption] = useState(initial?.caption || '')
   const [media, setMedia] = useState<MediaItem | null>(null)
-  const [retainMedia, setRetainMedia] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [mode, setMode] = useState<ScheduleMode>('later')
-  const [date, setDate] = useState(defaultDate)
-  const [time, setTime] = useState('19:30')
-  const [campaign, setCampaign] = useState('No campaign')
-  const [labels, setLabels] = useState('')
+  const [retainMedia, setRetainMedia] = useState(initial?.retainMedia || false)
+  const [selectedIds, setSelectedIds] = useState<string[]>(initial?.selectedIds || [])
+  const [mode, setMode] = useState<ScheduleMode>(initial?.mode || 'later')
+  const [date, setDate] = useState(initial?.date || defaultDate())
+  const [time, setTime] = useState(initial?.time || '19:30')
+  const [campaign, setCampaign] = useState(initial?.campaign || 'No campaign')
+  const [labels, setLabels] = useState(initial?.labels || '')
   const [drafts, setDrafts] = useState<PostDraft[]>(readDrafts)
   const [draftLibraryOpen, setDraftLibraryOpen] = useState(false)
   const [postLibraryView, setPostLibraryView] = useState<PostLibraryView | null>(null)
@@ -106,8 +143,41 @@ export function PostsPage() {
     const preferredMode = workspace.data.settings.defaultPublishMode === 'direct'
       ? 'now'
       : workspace.data.settings.defaultPublishMode === 'draft' ? 'draft' : 'later'
-    setMode(state?.scheduleMode || state?.aiDraft ? 'later' : preferredMode)
-  }, [location.state, workspace.data])
+    if (initial && !state?.scheduleMode && !state?.aiDraft && !state?.mediaLibraryAsset) return
+    setMode(state?.scheduleMode ? state.scheduleMode : state?.aiDraft ? 'later' : preferredMode)
+  }, [initial, location.state, workspace.data])
+
+  useEffect(() => {
+    const state = location.state as PostsLocationState | null
+    if (state?.mediaLibraryAsset || state?.aiDraft || !initial?.mediaLibraryAssetId || restoredSessionAssetId.current) return
+    restoredSessionAssetId.current = initial.mediaLibraryAssetId
+    setProgress({ state: 'preparing', percent: 20, message: `Restoring ${initial.mediaFileName || 'your media'} from Media Library…` })
+    void fetchMediaLibrary().then(async (library) => {
+      const asset = library.assets.find((item) => item.id === initial.mediaLibraryAssetId)
+      if (!asset) throw new Error('The saved media is no longer available in Media Library.')
+      const file = await fetchMediaAssetFile(asset)
+      const url = URL.createObjectURL(file)
+      setMedia({ id: asset.id, libraryAssetId: asset.id, type: asset.type === 'video' ? 'video' : 'image', file, url, thumbnailUrl: url, fileName: asset.fileName, size: file.size })
+      setProgress({ state: 'completed', percent: 100, message: 'Your unfinished post and reusable media were restored.' })
+    }).catch((error) => setProgress({ state: 'failed', percent: 0, message: error instanceof Error ? error.message : 'The saved media could not be restored.' }))
+  }, [initial, location.state])
+
+  useEffect(() => {
+    const hasWork = Boolean(title.trim() || caption.trim() || media || selectedIds.length || campaign !== 'No campaign' || labels.trim())
+    if (!hasWork) {
+      window.localStorage.removeItem(composerSessionKey)
+      return
+    }
+    const retainedInitialMediaId = !location.state && !restoredSessionAssetId.current ? initial?.mediaLibraryAssetId || null : null
+    const retainedInitialFileName = retainedInitialMediaId ? initial?.mediaFileName || null : null
+    const session: PostComposerSession = {
+      postType: postType === 'carousel' ? 'text' : postType,
+      title, caption, mediaLibraryAssetId: media?.libraryAssetId || retainedInitialMediaId,
+      mediaFileName: media?.fileName || retainedInitialFileName,
+      selectedIds, mode, date, time, campaign, labels, retainMedia,
+    }
+    window.localStorage.setItem(composerSessionKey, JSON.stringify(session))
+  }, [campaign, caption, date, initial, labels, location.state, media, mode, postType, retainMedia, selectedIds, time, title])
 
   useEffect(() => {
     const state = location.state as PostsLocationState | null
@@ -354,6 +424,7 @@ export function PostsPage() {
       }
       const failed = response.failures.length + mediaFailures
       setProgress({ state: failed ? 'failed' : 'completed', percent: 100, message: failed ? `${response.jobs.length - failed} destinations completed; ${failed} failed. Review the Dashboard for details.` : `${response.jobs.length} destination${response.jobs.length === 1 ? '' : 's'} ${mode === 'now' ? 'published' : 'scheduled'} successfully.` })
+      if (!failed) window.localStorage.removeItem(composerSessionKey)
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['posts-workspace'] }),
         queryClient.invalidateQueries({ queryKey: ['studio-overview'] }),
