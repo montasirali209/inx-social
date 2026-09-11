@@ -13,6 +13,7 @@ router.post('/assistant/message', controller.assistantMessage);
 router.post('/generate/conversational-image-post', controller.generateConversationalImagePost);
 router.post('/generate/conversational-carousel', nextController.generateCarousel);
 router.get('/video/models', nextController.videoModels);
+router.post('/video/recommend', nextController.videoRecommend);
 router.post('/video/estimate', nextController.videoEstimate);
 router.post('/generate/video-studio', nextController.generateVideo);
 router.post('/generate/image-post', controller.generateImagePost);
