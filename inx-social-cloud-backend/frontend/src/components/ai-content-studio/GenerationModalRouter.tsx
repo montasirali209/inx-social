@@ -1,6 +1,8 @@
 import type { AIDraft, AIContentType, AIPlanAccess } from '../../types/ai-content-studio'
 import { GenerationModal } from './GenerationModal'
 import { ImagePostChatModal } from './ImagePostChatModal'
+import { CarouselChatModal } from './CarouselChatModal'
+import { VideoStudioModal } from './VideoStudioModal'
 
 export function GenerationModalRouter(props: {
   open: boolean
@@ -13,5 +15,8 @@ export function GenerationModalRouter(props: {
   onToast: (message: string) => void
 }) {
   if (props.type === 'image_post' || props.initialDraft?.contentType === 'image_post') return <ImagePostChatModal {...props} />
+  const contentType = props.initialDraft?.contentType || props.type
+  if (contentType === 'carousel_post') return <CarouselChatModal {...props} />
+  if (contentType === 'short_video') return <VideoStudioModal {...props} />
   return <GenerationModal {...props} />
 }
