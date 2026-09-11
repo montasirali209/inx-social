@@ -54,6 +54,63 @@ async function listScheduledPosts({ pageId, pageAccessToken, limit = 200 }) {
   return { data: collected.slice(0, limit) };
 }
 
+async function getPost({ postId, pageAccessToken }) {
+  const response = await axios.get(
+    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(postId)}`,
+    {
+      params: {
+        fields: 'id,is_published,scheduled_publish_time,permalink_url',
+        access_token: pageAccessToken
+      },
+      timeout: 30000,
+      validateStatus: status => status >= 200 && status < 500
+    }
+  );
+  assertMetaResponse(response, 'Meta could not return this post.');
+  return response.data || {};
+}
+
+async function reschedulePost({ postId, pageAccessToken, scheduledAt }) {
+  const schedule = scheduledPublishFields(scheduledAt);
+  const response = await axios.post(
+    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(postId)}`,
+    {
+      published: false,
+      scheduled_publish_time: schedule.scheduled_publish_time,
+      access_token: pageAccessToken
+    },
+    {
+      timeout: 30000,
+      validateStatus: status => status >= 200 && status < 500
+    }
+  );
+  assertMetaResponse(response, 'Facebook could not reschedule this post.');
+  return { ...response.data, scheduled_publish_time: schedule.scheduled_publish_time };
+}
+
+async function deletePost({ postId, pageAccessToken }) {
+  const response = await axios.delete(
+    `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(postId)}`,
+    {
+      params: { access_token: pageAccessToken },
+      timeout: 30000,
+      validateStatus: status => status >= 200 && status < 500
+    }
+  );
+  assertMetaResponse(response, 'Facebook could not delete this post.');
+  return response.data || {};
+}
+
+function isMissingPostError(error) {
+  const detail = error?.meta?.error || {};
+  const message = String(detail.message || error?.message || '').toLowerCase();
+  return Number(detail.code) === 100 && (
+    message.includes('does not exist') ||
+    message.includes('unsupported get request') ||
+    message.includes('cannot be loaded')
+  );
+}
+
 async function publishReel({
   pageId,
   pageAccessToken,
@@ -197,6 +254,10 @@ async function publishOrganicPost({ pageId, pageAccessToken, caption, scheduledA
 module.exports = {
   testPage,
   listScheduledPosts,
+  getPost,
+  reschedulePost,
+  deletePost,
+  isMissingPostError,
   getReelStatus,
   publishReel,
   publishScheduledReel,

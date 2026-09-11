@@ -15,6 +15,9 @@ export type CalendarPost = {
   thumbnailUrl: string | null
   engagementScore: number | null
   source: 'inx' | 'meta'
+  jobId: string | null
+  providerPostId: string | null
+  platformUrl: string | null
 }
 
 export type CalendarDay = {

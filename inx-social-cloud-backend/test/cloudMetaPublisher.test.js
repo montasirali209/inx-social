@@ -121,3 +121,36 @@ test('scheduled text publishing sends a future Meta schedule time', async t => {
   assert.equal(posts[0].body.scheduled_publish_time, Math.floor(scheduledAt.getTime() / 1000));
   assert.equal(result.publishMode, 'SCHEDULED');
 });
+
+test('rescheduling a Facebook post updates its provider schedule', async t => {
+  const requests = [];
+  t.mock.method(axios, 'post', async (url, body) => {
+    requests.push({ url, body });
+    return { status: 200, data: { success: true } };
+  });
+  const scheduledAt = new Date(Date.now() + 60 * 60 * 1000);
+  const result = await publisher.reschedulePost({ postId: 'page_post', pageAccessToken: 'page-secret', scheduledAt });
+
+  assert.match(requests[0].url, /page_post$/);
+  assert.equal(requests[0].body.published, false);
+  assert.equal(requests[0].body.access_token, 'page-secret');
+  assert.equal(result.scheduled_publish_time, Math.floor(scheduledAt.getTime() / 1000));
+});
+
+test('deleting a Facebook post uses the stored provider object ID', async t => {
+  const requests = [];
+  t.mock.method(axios, 'delete', async (url, options) => {
+    requests.push({ url, options });
+    return { status: 200, data: { success: true } };
+  });
+  const result = await publisher.deletePost({ postId: 'page_post', pageAccessToken: 'page-secret' });
+
+  assert.match(requests[0].url, /page_post$/);
+  assert.equal(requests[0].options.params.access_token, 'page-secret');
+  assert.equal(result.success, true);
+});
+
+test('missing Facebook objects are identified for calendar reconciliation', () => {
+  assert.equal(publisher.isMissingPostError({ meta: { error: { code: 100, message: 'Unsupported get request. Object does not exist.' } } }), true);
+  assert.equal(publisher.isMissingPostError({ meta: { error: { code: 190, message: 'Access token expired.' } } }), false);
+});

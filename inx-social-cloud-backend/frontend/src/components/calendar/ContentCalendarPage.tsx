@@ -1,19 +1,21 @@
-import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle, CalendarCheck2, FilePenLine, RefreshCw, Send, UsersRound } from 'lucide-react'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { AlertTriangle, CalendarCheck2, CheckCircle2, FilePenLine, RefreshCw, Send, UsersRound, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ApiError } from '../../lib/api-client'
-import { fetchCalendarData } from '../../lib/calendar-api'
+import { deleteCalendarPost, fetchCalendarData, rescheduleCalendarPost } from '../../lib/calendar-api'
 import { availableSlotsForDate, buildCalendarDays, formatMonth, monthKeyInTimezone, shiftMonth } from '../../lib/calendar-utils'
+import { zonedDateTimeToIso } from '../../lib/bulk-scheduler-utils'
 import { fetchFacebookDashboardAnalytics } from '../../lib/dashboard-api'
 import { calculateBestPostTime } from '../../lib/posts-analytics'
 import { useUiStore } from '../../store/ui-store'
-import type { CalendarPostStatus } from '../../types/calendar'
+import type { CalendarPost, CalendarPostStatus } from '../../types/calendar'
 import type { Platform } from '../../types/dashboard'
 import type { BestTimeInsight } from '../../types/posts'
 import { CalendarAgenda } from './CalendarAgenda'
 import { CalendarGrid } from './CalendarGrid'
 import { CalendarStatCard } from './CalendarStatCard'
 import { CalendarToolbar, type CalendarView } from './CalendarToolbar'
+import { CalendarPostActionDialog } from './CalendarPostActionDialog'
 import { SelectedDatePanel } from './SelectedDatePanel'
 
 const statIcons = [CalendarCheck2, Send, FilePenLine, AlertTriangle, UsersRound]
@@ -33,12 +35,17 @@ export function ContentCalendarPage() {
   const [status, setStatus] = useState<CalendarPostStatus | 'all'>('all')
   const [search, setSearch] = useState('')
   const [view, setView] = useState<CalendarView>(() => window.matchMedia('(max-width: 767px)').matches ? 'list' : 'calendar')
+  const [action, setAction] = useState<{ type: 'reschedule' | 'delete'; post: CalendarPost } | null>(null)
+  const [actionDate, setActionDate] = useState('')
+  const [actionTime, setActionTime] = useState('')
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   const calendar = useQuery({
     queryKey: ['content-calendar', timezone, pageId, monthKey],
     queryFn: () => fetchCalendarData(timezone, pageId, monthKey),
     placeholderData: (previous) => previous,
-    refetchInterval: 10_000,
+    refetchInterval: 60_000,
     refetchIntervalInBackground: false,
     refetchOnReconnect: true,
     refetchOnWindowFocus: true,
@@ -49,6 +56,27 @@ export function ContentCalendarPage() {
     window.addEventListener('inx-social:refresh', refresh)
     return () => window.removeEventListener('inx-social:refresh', refresh)
   }, [calendar])
+  useEffect(() => {
+    if (!notice) return
+    const timeout = window.setTimeout(() => setNotice(null), 4500)
+    return () => window.clearTimeout(timeout)
+  }, [notice])
+
+  const calendarAction = useMutation({
+    mutationFn: async () => {
+      if (!action) throw new Error('Choose scheduled content first.')
+      if (action.type === 'delete') return deleteCalendarPost(action.post)
+      return rescheduleCalendarPost(action.post, zonedDateTimeToIso(actionDate, actionTime, timezone))
+    },
+    onSuccess: async () => {
+      const completedAction = action?.type
+      setAction(null)
+      setActionError(null)
+      setNotice(completedAction === 'delete' ? 'Post deleted from Facebook and INXSocial.' : 'Facebook schedule updated successfully.')
+      await calendar.refetch()
+    },
+    onError: error => setActionError(error instanceof Error ? error.message : 'The calendar action could not be completed.'),
+  })
 
   const visiblePosts = useMemo(() => (calendar.data?.posts || []).filter((post) => {
     if (platform !== 'all' && post.platform !== platform) return false
@@ -83,6 +111,22 @@ export function ContentCalendarPage() {
   const chooseDate = (date: string) => { setSelectedDate(date); setSelectedTime('') }
   const chooseMonth = (offset: number) => { const next = shiftMonth(monthKey, offset); setMonthKey(next); chooseDate(`${next}-01`) }
   const chooseToday = () => { const current = monthKeyInTimezone(new Date(), timezone); setMonthKey(current); chooseDate(todayKey) }
+  const openPost = (post: CalendarPost) => {
+    chooseDate(post.date)
+    if (post.platformUrl) window.open(post.platformUrl, '_blank', 'noopener,noreferrer')
+  }
+  const openReschedule = (post: CalendarPost) => {
+    setAction({ type: 'reschedule', post })
+    setActionDate(post.date)
+    setActionTime(post.time)
+    setActionError(null)
+  }
+  const openDelete = (post: CalendarPost) => {
+    setAction({ type: 'delete', post })
+    setActionDate('')
+    setActionTime('')
+    setActionError(null)
+  }
 
   if (calendar.isPending) return <CalendarSkeleton />
   if (calendar.isError) {
@@ -95,8 +139,10 @@ export function ContentCalendarPage() {
     <CalendarToolbar isRefreshing={calendar.isFetching} monthKey={monthKey} onNext={() => chooseMonth(1)} onPage={setPageId} onPlatform={setPlatform} onPrevious={() => chooseMonth(-1)} onRefresh={() => void calendar.refetch()} onSearch={setSearch} onStatus={setStatus} onView={setView} pageId={pageId} pages={calendar.data.pages} platform={platform} search={search} status={status} view={view} />
     {calendar.data.syncWarnings.length > 0 && <div className="mb-4 flex items-start gap-2 rounded-xl border border-brand-amber/20 bg-brand-amber/5 px-3 py-2 text-[10px] leading-4 text-text-muted"><AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-brand-amber" /><span>INX Social loaded saved calendar data. {calendar.data.syncWarnings.length} connected Page schedule could not be refreshed from Meta during this request.</span></div>}
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
-      {view === 'calendar' ? <CalendarGrid days={days} monthLabel={formatMonth(monthKey)} onSelectDate={chooseDate} onSelectPost={(post) => chooseDate(post.date)} onToday={chooseToday} /> : <CalendarAgenda onSelectDate={chooseDate} onSelectPost={(post) => chooseDate(post.date)} posts={monthPosts} />}
-      <SelectedDatePanel bestTime={bestTime} bestTimeLoading={recommendationAnalytics.isLoading} date={selectedDate} onSelectTime={setSelectedTime} posts={selectedPosts} selectedTime={selectedTime} slots={slots} />
+      {view === 'calendar' ? <CalendarGrid days={days} monthLabel={formatMonth(monthKey)} onSelectDate={chooseDate} onSelectPost={openPost} onToday={chooseToday} /> : <CalendarAgenda onSelectDate={chooseDate} onSelectPost={openPost} posts={monthPosts} />}
+      <SelectedDatePanel bestTime={bestTime} bestTimeLoading={recommendationAnalytics.isLoading} busyPostId={calendarAction.isPending ? action?.post.id || null : null} date={selectedDate} onDeletePost={openDelete} onOpenPost={openPost} onReschedulePost={openReschedule} onSelectTime={setSelectedTime} posts={selectedPosts} selectedTime={selectedTime} slots={slots} />
     </div>
+    <CalendarPostActionDialog action={action?.type || 'reschedule'} busy={calendarAction.isPending} date={actionDate} error={actionError} onClose={() => { if (!calendarAction.isPending) setAction(null) }} onConfirm={() => calendarAction.mutate()} onDate={setActionDate} onTime={setActionTime} post={action?.post || null} time={actionTime} />
+    {notice && <div className="fixed bottom-5 right-5 z-[110] flex max-w-sm items-center gap-3 rounded-xl border border-brand-green/25 bg-[#071923] px-4 py-3 text-xs shadow-2xl"><CheckCircle2 className="size-4 shrink-0 text-brand-green" /><span>{notice}</span><button aria-label="Dismiss" className="ml-1 text-text-soft hover:text-white" onClick={() => setNotice(null)} type="button"><X className="size-3.5" /></button></div>}
   </div>
 }
