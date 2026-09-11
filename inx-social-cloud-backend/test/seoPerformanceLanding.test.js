@@ -12,7 +12,8 @@ test('landing response applies SEO title, description and render-critical styles
   assert.match(app, /Social Media Scheduler &amp; Publishing Tool \| INXSocial/);
   assert.match(app, /Schedule and publish social media content from one workspace/);
   assert.match(app, /landing-mobile\.css\?v=20260910c/);
-  assert.match(app, /landing-performance\.css\?v=20260910a/);
+  assert.match(app, /landing-performance\.css\?v=20260911b/);
+  assert.match(app, /landing-brand\.css\?v=20260911a/);
   assert.match(landing, /inx-social-wordmark\.png/);
   assert.doesNotMatch(app, /brand-text/);
   assert.match(app, /Cache-Control', 'public, max-age=0, must-revalidate/);

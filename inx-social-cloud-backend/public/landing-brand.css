@@ -1,0 +1,29 @@
+.site-header .brand>img{
+  width:178px;
+  height:auto;
+  max-height:58px;
+  object-fit:contain;
+  object-position:left center;
+  margin:0;
+  flex:0 0 auto;
+}
+
+.footer-brand .brand>img{
+  width:188px;
+  height:auto;
+  max-height:66px;
+  object-fit:contain;
+  object-position:left center;
+  margin:0;
+  flex:0 0 auto;
+}
+
+@media (max-width:900px){
+  .site-header .brand>img{width:154px;max-height:50px}
+  .footer-brand .brand>img{width:176px;max-height:60px}
+}
+
+@media (max-width:560px){
+  .site-header .brand>img{width:136px;max-height:44px}
+  .footer-brand .brand>img{width:164px;max-height:56px}
+}
