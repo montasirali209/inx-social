@@ -1,5 +1,6 @@
 import { AtSign, FileImage, FileVideo, Hash, ImagePlus, Link2, MapPin, RefreshCw, Smile, Sparkles, Type, UploadCloud, WandSparkles, X } from 'lucide-react'
 import { useCallback, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { contentScore, postTypes } from '../../data/postsData'
 import type { BestTimeInsight, CaptionTone, EnhancementAction, MediaItem, PostType } from '../../types/posts'
 import { Button } from '../ui/Button'
@@ -23,11 +24,22 @@ type Props = {
 }
 
 export function CreatePostPanel(props: Props) {
+  const navigate = useNavigate()
   const inputRef = useRef<HTMLInputElement>(null)
   const score = contentScore(props.caption, Boolean(props.media), props.destinationCount)
   const [tone, setTone] = useState<CaptionTone>('professional')
   const [enhancement, setEnhancement] = useState<EnhancementAction | null>(null)
   const closeEnhancement = useCallback(() => setEnhancement(null), [])
+
+  function chooseStandardPost() {
+    if (props.media?.type === 'video') props.setPostType('video')
+    else if (props.media?.type === 'image') props.setPostType('image')
+    else props.setPostType('text')
+  }
+
+  function chooseCarouselPost() {
+    navigate('/ai-content-studio')
+  }
 
   function selectFile(file?: File) {
     if (!file) return
@@ -43,13 +55,32 @@ export function CreatePostPanel(props: Props) {
   return (
     <section className="interactive-surface rounded-panel border p-4 xl:p-5">
       <PanelHeading step={1} subtitle="Write your message and add visual content." title="Create Your Post" />
-      <fieldset><legend className="mb-2 text-[11px] font-semibold text-text-muted">Post type</legend><div className="grid grid-cols-2 gap-2 sm:grid-cols-4">{postTypes.map((item) => <button aria-pressed={props.postType === item.id} className={`rounded-xl border px-2 py-2 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${props.postType === item.id ? 'border-brand-cyan/60 bg-brand-cyan/12 text-brand-cyan' : 'border-border-soft bg-bg/30 text-text-muted hover:border-brand-cyan/30 hover:text-white'} disabled:cursor-not-allowed disabled:opacity-40`} disabled={!item.available} key={item.id} onClick={() => props.setPostType(item.id)} type="button">{item.label}{!item.available && <span className="ml-1 text-[8px]">Soon</span>}</button>)}</div></fieldset>
+      <fieldset>
+        <legend className="mb-2 text-[11px] font-semibold text-text-muted">Post type</legend>
+        <div className="grid grid-cols-2 gap-2">
+          {postTypes.map((item) => {
+            const active = item.id === 'carousel' ? props.postType === 'carousel' : props.postType !== 'carousel'
+            return (
+              <button
+                aria-pressed={active}
+                className={`min-h-[52px] rounded-xl border px-3 py-2 text-left transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${active ? 'border-brand-cyan/60 bg-brand-cyan/12 text-brand-cyan' : 'border-border-soft bg-bg/30 text-text-muted hover:border-brand-cyan/30 hover:text-white'}`}
+                key={item.id}
+                onClick={item.id === 'carousel' ? chooseCarouselPost : chooseStandardPost}
+                type="button"
+              >
+                <span className="block text-xs font-semibold">{item.label}</span>
+                <span className="mt-0.5 block text-[9px] font-normal text-text-soft">{item.id === 'carousel' ? 'Create with AI Content Studio, then return here to schedule.' : 'Text only, image or video — add media only when you need it.'}</span>
+              </button>
+            )
+          })}
+        </div>
+      </fieldset>
 
       <label className="mt-4 block text-[11px] font-semibold text-text-muted">Post title <span className="font-normal text-text-soft">(optional)</span><input className="mt-2 w-full rounded-xl border border-border-soft bg-bg/40 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-cyan focus:ring-2 focus:ring-brand-cyan/10" maxLength={200} onChange={(event) => props.setTitle(event.target.value)} placeholder="Give your post a working title…" value={props.title} /></label>
       <label className="mt-4 block text-[11px] font-semibold text-text-muted">Caption<textarea className="mt-2 min-h-36 w-full resize-y rounded-xl border border-border-soft bg-bg/40 p-3 text-sm leading-6 text-white outline-none transition placeholder:text-text-soft focus:border-brand-cyan focus:ring-2 focus:ring-brand-cyan/10" maxLength={5000} onChange={(event) => props.setCaption(event.target.value)} placeholder="What would you like to share?" value={props.caption} /></label>
       <div className="-mt-10 flex h-10 items-center justify-between px-3 text-text-soft"><div className="flex gap-1">{[Smile, Hash, AtSign, Link2, MapPin, Type].map((Icon, index) => <button aria-label={['Emoji', 'Hashtag', 'Mention', 'Link', 'Location', 'Formatting'][index]} className="rounded-lg p-1.5 transition hover:bg-white/5 hover:text-brand-cyan focus-visible:outline-2 focus-visible:outline-brand-cyan" key={index} type="button"><Icon className="size-3.5" /></button>)}</div><span className="text-[10px]">{props.caption.length} / 5,000</span></div>
 
-      <div className="mt-4"><p className="mb-2 text-[11px] font-semibold text-text-muted">Media</p><input accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm" className="sr-only" onChange={(event) => selectFile(event.target.files?.[0])} ref={inputRef} type="file" />
+      <div className="mt-4"><p className="mb-2 text-[11px] font-semibold text-text-muted">Media <span className="font-normal text-text-soft">(optional)</span></p><input accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/webm" className="sr-only" onChange={(event) => selectFile(event.target.files?.[0])} ref={inputRef} type="file" />
         {props.media ? <div className="flex min-w-0 items-center gap-3 rounded-xl border border-brand-cyan/25 bg-brand-cyan/[0.035] p-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl border border-brand-cyan/20 bg-brand-cyan/10 text-brand-cyan">{props.media.type === 'image' ? <FileImage aria-hidden="true" className="size-5" /> : <FileVideo aria-hidden="true" className="size-5" />}</span><div className="min-w-0 flex-1"><strong className="block truncate text-xs text-text-main">{props.media.fileName}</strong><span className="mt-0.5 block text-[9px] uppercase tracking-wide text-text-soft">{props.media.type} · {(props.media.size / 1024 / 1024).toFixed(1)} MB · Ready</span></div><button className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border-soft px-2.5 py-2 text-[10px] font-semibold text-text-muted transition hover:border-brand-cyan/35 hover:text-brand-cyan focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={() => inputRef.current?.click()} type="button"><RefreshCw aria-hidden="true" className="size-3" />Replace</button><button aria-label={`Remove ${props.media.fileName}`} className="shrink-0 rounded-lg border border-border-soft p-2 text-text-muted transition hover:border-brand-red/40 hover:bg-brand-red/10 hover:text-brand-red focus-visible:outline-2 focus-visible:outline-brand-red" onClick={() => { URL.revokeObjectURL(props.media!.url); props.setMedia(null); props.setRetainMedia(false); props.setPostType('text') }} type="button"><X className="size-4" /></button></div> : <button className="group grid min-h-32 w-full place-items-center rounded-xl border border-dashed border-brand-cyan/25 bg-brand-cyan/[0.025] p-4 text-center transition hover:border-brand-cyan/55 hover:bg-brand-cyan/[0.06] focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={() => inputRef.current?.click()} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); selectFile(event.dataTransfer.files[0]) }} type="button"><span><UploadCloud className="mx-auto size-7 text-brand-cyan" /><strong className="mt-2 block text-xs">Drag & drop media here</strong><span className="mt-1 block text-[10px] text-text-muted">PNG, JPEG, WebP, MP4, MOV or WebM</span><span className="mt-3 inline-flex rounded-lg border border-brand-cyan/30 px-3 py-1.5 text-[11px] text-brand-cyan"><ImagePlus className="mr-1.5 size-3.5" />Upload Files</span></span></button>}
       </div>
       {props.media && <label className={`mt-2 flex items-start gap-2 rounded-xl border px-3 py-2.5 text-[10px] ${props.media.libraryAssetId ? 'border-brand-green/20 bg-brand-green/[0.045] text-brand-green' : props.media.size > 100 * 1024 * 1024 ? 'cursor-not-allowed border-brand-amber/20 bg-brand-amber/[0.04] text-brand-amber' : 'cursor-pointer border-border-soft bg-bg/25 text-text-muted hover:border-brand-cyan/25'}`}><input checked={Boolean(props.media.libraryAssetId) || props.retainMedia} className="mt-0.5 accent-[var(--color-brand-cyan)]" disabled={Boolean(props.media.libraryAssetId) || props.media.size > 100 * 1024 * 1024} onChange={(event) => props.setRetainMedia(event.target.checked)} type="checkbox" /><span><strong className="block text-text-main">{props.media.libraryAssetId ? 'Stored in Media Library' : 'Save to Media Library for reuse'}</strong><span className="mt-0.5 block">{props.media.libraryAssetId ? 'Future Reuse actions can attach this same asset without making another copy.' : props.media.size > 100 * 1024 * 1024 ? 'Files larger than 100 MB remain temporary and must be reselected for reuse.' : 'Off by default. The exact file is checksum-deduplicated and counts toward your storage allowance.'}</span></span></label>}

@@ -3,6 +3,7 @@ const express = require('express');
 const { requireAuth } = require('../middleware/authMiddleware');
 const controller = require('../controllers/studioController');
 const analyticsController = require('../controllers/analyticsController');
+const carouselPostController = require('../controllers/carouselPostController');
 
 router.get('/media-library/assets/:id/content', controller.mediaLibraryAssetContent);
 router.use(requireAuth);
@@ -32,6 +33,7 @@ router.delete('/media-library/assets/:id/permanent', controller.purgeMediaLibrar
 router.get('/jobs', controller.listJobs);
 router.post('/jobs', controller.createDraft);
 router.post('/direct-posts', controller.createDirectPosts);
+router.post('/carousel-posts', carouselPostController.createCarouselPosts);
 router.put('/direct-posts/:id/media', controller.uploadDirectPostMedia);
 router.post('/direct-posts/:id/library-media', controller.publishDirectPostLibraryMedia);
 router.put('/jobs/:id/video', controller.uploadVideo);

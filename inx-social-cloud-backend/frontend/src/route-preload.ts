@@ -1,6 +1,6 @@
 export const loadDashboard = () => import('./components/dashboard/DashboardPage')
 export const loadCalendar = () => import('./components/calendar/ContentCalendarPage')
-export const loadPosts = () => import('./components/posts/PostsPage')
+export const loadPosts = () => import('./components/posts/PostsRoute')
 export const loadMediaLibrary = () => import('./components/media-library/MediaLibraryPage')
 export const loadAiContentStudio = () => import('./components/ai-content-studio/AiContentStudioPage')
 export const loadAnalytics = () => import('./components/analytics/AnalyticsPage')

@@ -61,5 +61,7 @@ test('Phase 13.6 keeps draft, preview and enhancement controls honest and access
   assert.match(schedule, /Schedule Post/);
   assert.match(schedule, /Save as Draft/);
   assert.match(preview, /Preview may vary slightly/);
-  assert.match(data, /carousel.*available: false/);
+  assert.match(data, /label: 'Text \/ Media Post'.*available: true/);
+  assert.match(data, /label: 'Carousel Post'.*available: true/);
+  assert.doesNotMatch(data, /Video \/ Reel/);
 });
