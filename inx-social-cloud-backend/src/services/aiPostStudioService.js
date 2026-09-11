@@ -190,6 +190,7 @@ async function assistantReply(userId, input = {}) {
     response = await axios.post(`${String(env.openaiImage.baseUrl).replace(/\/$/, '')}/chat/completions`, {
       model,
       messages: apiMessages,
+      reasoning_effort: 'none',
       temperature: model === REASONING_MODEL ? 0.35 : 0.55,
       response_format: { type: 'json_object' },
       max_completion_tokens: 1800
