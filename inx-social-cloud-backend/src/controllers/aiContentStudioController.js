@@ -4,6 +4,7 @@ const env = require('../config/env');
 const stripeService = require('../services/stripeService');
 const creditService = require('../services/aiCreditService');
 const studioService = require('../services/aiContentStudioService');
+const postStudioService = require('../services/aiPostStudioService');
 const runware = require('../services/runwareService');
 
 const contentType = z.enum(['image_post', 'carousel_post', 'short_video', 'ugc_ad']);
@@ -15,6 +16,37 @@ const generationSchema = z.object({
   tone: z.string().trim().max(80).optional(),
   brandKitId: z.string().trim().max(100).optional(),
   options: z.record(z.unknown()).default({})
+});
+const assistantMessageSchema = z.object({
+  messages: z.array(z.object({
+    role: z.enum(['user', 'assistant']),
+    content: z.string().trim().min(1).max(4000)
+  })).min(1).max(18),
+  urls: z.array(z.string().trim().min(1).max(2000)).max(2).default([]),
+  referenceAssetIds: z.array(z.string().trim().min(1).max(120)).max(4).default([]),
+  platform: z.string().trim().max(80).optional(),
+  aspectRatio: z.enum(['1:1', '4:5', '9:16', '16:9']).optional()
+});
+const conversationalImageSchema = z.object({
+  prompt: z.string().trim().min(2).max(1500),
+  platform: z.string().trim().max(80).optional(),
+  aspectRatio: z.enum(['1:1', '4:5', '9:16', '16:9']).optional(),
+  referenceAssetIds: z.array(z.string().trim().min(1).max(120)).max(4).default([]),
+  brief: z.object({
+    objective: z.string().max(300).optional(),
+    audience: z.string().max(300).optional(),
+    platform: z.string().max(80).optional(),
+    aspectRatio: z.string().max(20).optional(),
+    tone: z.string().max(100).optional(),
+    visualStyle: z.string().max(200).optional(),
+    headline: z.string().max(200).optional(),
+    supportingCopy: z.string().max(400).optional(),
+    cta: z.string().max(160).optional(),
+    visualDirection: z.string().max(6000).optional(),
+    caption: z.string().max(10000).optional(),
+    hashtags: z.array(z.string().max(100)).max(20).optional(),
+    altText: z.string().max(2000).optional()
+  }).default({})
 });
 const draftSchema = z.object({
   id: z.string().min(1).max(100),
@@ -39,7 +71,7 @@ function topupPacks() {
 async function access(req, res, next) {
   try {
     const value = await creditService.getAccess(req.user.id);
-    res.json({ ...value, providerConfigured: runware.isConfigured(), topupsSupported: topupPacks().length > 0 });
+    res.json({ ...value, providerConfigured: postStudioService.isConfigured() || runware.isConfigured(), topupsSupported: topupPacks().length > 0 });
   } catch (error) { next(error); }
 }
 
@@ -52,6 +84,20 @@ async function estimate(req, res, next) {
     const input = generationSchema.parse(req.body || {});
     await creditService.getBalance(req.user.id);
     res.json({ credits: studioService.estimateGenerationCost(input), source: 'backend', explanation: 'Fixed INXSocial Studio credits. Provider cost never changes the displayed customer credit price after generation starts.' });
+  } catch (error) { next(error); }
+}
+
+async function assistantMessage(req, res, next) {
+  try {
+    const input = assistantMessageSchema.parse(req.body || {});
+    res.json(await postStudioService.assistantReply(req.user.id, input));
+  } catch (error) { next(error); }
+}
+
+async function generateConversationalImagePost(req, res, next) {
+  try {
+    const input = conversationalImageSchema.parse(req.body || {});
+    res.json(await postStudioService.generateImagePost(req.user.id, input));
   } catch (error) { next(error); }
 }
 
@@ -164,7 +210,7 @@ async function creditWebhook(req, res) {
 }
 
 module.exports = {
-  access, balance, estimate,
+  access, balance, estimate, assistantMessage, generateConversationalImagePost,
   generateImagePost: generation('image_post'),
   generateCarouselPost: generation('carousel_post'),
   generateShortVideo: generation('short_video'),

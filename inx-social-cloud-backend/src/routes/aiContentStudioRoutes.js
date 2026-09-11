@@ -8,6 +8,8 @@ router.get('/credits/balance', controller.balance);
 router.get('/credits/packs', controller.packs);
 router.post('/credits/checkout', controller.createTopupCheckout);
 router.post('/estimate', controller.estimate);
+router.post('/assistant/message', controller.assistantMessage);
+router.post('/generate/conversational-image-post', controller.generateConversationalImagePost);
 router.post('/generate/image-post', controller.generateImagePost);
 router.post('/generate/carousel-post', controller.generateCarouselPost);
 router.post('/generate/short-video', controller.generateShortVideo);
