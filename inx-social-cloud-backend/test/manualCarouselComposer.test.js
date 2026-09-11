@@ -17,12 +17,17 @@ test('Posts carousel choice opens an inline manual composer instead of AI Conten
 
 test('manual carousel changes only the Create Your Post content while retaining Posts layout surfaces', () => {
   const page = read('frontend/src/components/posts/InlineManualCarouselPage.tsx');
+  const panel = read('frontend/src/components/posts/CreatePostPanel.tsx');
   assert.match(page, /PostsStatCard/);
   assert.match(page, /DestinationSelector/);
-  assert.match(page, /Create Your Post/);
+  assert.match(page, /CreatePostPanel/);
   assert.match(page, /SchedulePanel/);
   assert.match(page, /PostPreviewPanel/);
   assert.match(page, /grid-cols-\[minmax\(0,1\.35fr\)_minmax\(290px,\.72fr\)_minmax\(320px,\.82fr\)\]/);
+  assert.match(panel, /carouselUploader/);
+  assert.match(panel, /AI Content Enhancement/);
+  assert.match(panel, /Live Content Score/);
+  assert.match(panel, /Best Time To Post/);
 });
 
 test('manual carousel supports direct upload, order, schedule and publishing', () => {
@@ -33,6 +38,9 @@ test('manual carousel supports direct upload, order, schedule and publishing', (
   assert.match(page, /moveSlide/);
   assert.match(page, /createCarouselPosts/);
   assert.match(page, /mediaLibraryAssetIds:\s*assets\.map/);
+  assert.match(page, /slideLinks:\s*orderedLinks/);
+  assert.match(page, /Link for carousel slide/);
+  assert.match(page, /up to 5 linked slides/);
   assert.match(page, /SchedulePanel/);
 });
 
