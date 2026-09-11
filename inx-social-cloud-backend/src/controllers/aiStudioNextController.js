@@ -11,7 +11,7 @@ const sourceAnalysisSchema = z.object({
   assetObservations: z.array(z.string().max(400)).max(12).optional(),
   strongestAngles: z.array(z.string().max(400)).max(10).optional(),
   cautions: z.array(z.string().max(400)).max(10).optional()
-}).optional();
+}).nullish();
 
 const briefSchema = z.object({
   objective: z.string().max(300).optional(), audience: z.string().max(300).optional(), platform: z.string().max(80).optional(),
@@ -35,7 +35,7 @@ const videoSelectionSchema = z.object({
   modelRoute: z.enum(['fast', 'quality']).default('fast'),
   duration: z.coerce.number().int().min(2).max(15).default(5),
   resolution: z.enum(['480p', '720p', '1080p']).default('720p'),
-  aspectRatio: z.enum(['9:16', '16:9', '1:1', '4:5']).default('9:16'),
+  aspectRatio: z.enum(['9:16', '16:9', '1:1']).default('9:16'),
   draft: z.boolean().default(false),
   audio: z.boolean().default(true)
 });
