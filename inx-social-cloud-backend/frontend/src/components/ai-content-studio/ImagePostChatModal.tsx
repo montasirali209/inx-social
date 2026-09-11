@@ -88,6 +88,53 @@ function AnalysisPill({ icon, children }: { icon: ReactNode; children: ReactNode
   return <span className="inline-flex min-h-8 items-center gap-2 rounded-xl border border-border-soft bg-bg/35 px-2.5 text-[9px] font-medium text-text-muted">{icon}{children}</span>
 }
 
+function ReadyGenerateCard({
+  brief,
+  platform,
+  aspectRatio,
+  sourceCount,
+  disabled,
+  insufficient,
+  onGenerate,
+  onRefine,
+  onAddReference,
+}: {
+  brief: PostStudioBrief
+  platform: string
+  aspectRatio: PostStudioBrief['aspectRatio']
+  sourceCount: number
+  disabled: boolean
+  insufficient: boolean
+  onGenerate: () => void
+  onRefine: () => void
+  onAddReference: () => void
+}) {
+  return <div className="ml-9 animate-[fadeIn_.28s_ease-out] overflow-hidden rounded-[22px] border border-brand-cyan/35 bg-[linear-gradient(145deg,rgba(8,45,56,.9),rgba(4,24,37,.94))] shadow-[0_18px_60px_rgba(6,182,212,.1)]">
+    <div className="border-b border-brand-cyan/15 px-4 py-4 sm:px-5">
+      <div className="flex items-start gap-3">
+        <span className="grid size-10 shrink-0 place-items-center rounded-2xl border border-brand-green/30 bg-brand-green/10 text-brand-green shadow-[0_0_28px_rgba(34,197,94,.12)]"><Check className="size-5" /></span>
+        <div className="min-w-0">
+          <span className="text-[9px] font-bold uppercase tracking-[.16em] text-brand-green">Creative brief complete</span>
+          <h3 className="mt-1 text-lg font-bold leading-6 text-white sm:text-xl">Ready to generate your post</h3>
+          <p className="mt-1.5 text-[10px] leading-5 text-text-muted">I have enough context to create the final visual. Generate now, or keep refining the idea before spending credits.</p>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2 text-[9px]">
+        <span className="rounded-full border border-brand-cyan/20 bg-brand-cyan/[.05] px-2.5 py-1.5 font-semibold text-brand-cyan">{platform}</span>
+        <span className="rounded-full border border-brand-cyan/20 bg-brand-cyan/[.05] px-2.5 py-1.5 font-semibold text-brand-cyan">{aspectRatio}</span>
+        {brief.tone && <span className="rounded-full border border-border-soft bg-white/[.035] px-2.5 py-1.5 text-text-muted">{brief.tone}</span>}
+        {sourceCount > 0 && <span className="rounded-full border border-border-soft bg-white/[.035] px-2.5 py-1.5 text-text-muted">{sourceCount} source{sourceCount === 1 ? '' : 's'} analysed</span>}
+      </div>
+    </div>
+    <div className="grid gap-2 bg-black/10 p-3 sm:grid-cols-[1fr_auto_auto]">
+      <button className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-brand-teal px-4 text-xs font-bold text-[#02130f] shadow-[0_0_28px_rgba(20,184,166,.2)] transition hover:-translate-y-0.5 hover:shadow-[0_0_38px_rgba(20,184,166,.3)] disabled:cursor-not-allowed disabled:opacity-45" disabled={disabled || insufficient} onClick={onGenerate} type="button"><WandSparkles className="size-4" />Generate post now · 5 credits</button>
+      <button className="min-h-11 rounded-xl border border-border-soft px-3 text-[9px] font-semibold text-text-muted transition hover:border-brand-cyan/25 hover:text-white" disabled={disabled} onClick={onRefine} type="button">Refine first</button>
+      <button className="min-h-11 rounded-xl border border-border-soft px-3 text-[9px] font-semibold text-text-muted transition hover:border-brand-cyan/25 hover:text-white" disabled={disabled} onClick={onAddReference} type="button">Add reference</button>
+    </div>
+    {insufficient && <p className="px-4 pb-3 text-[9px] text-brand-red">You need 5 AI credits before the final render can start.</p>}
+  </div>
+}
+
 export function ImagePostChatModal({
   open,
   type,
@@ -181,7 +228,7 @@ export function ImagePostChatModal({
     event.target.value = ''
     if (!file) return
     if (!file.type.startsWith('image/')) {
-      setError('For this first Image Post release, upload a PNG, JPEG, WebP or GIF reference image.')
+      setError('For Image Post references, upload a PNG, JPEG, WebP or GIF image.')
       return
     }
     setUploading(true)
@@ -302,11 +349,12 @@ export function ImagePostChatModal({
             <div className="scrollbar-thin min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-2 sm:px-5">
               {messages.map((message, index) => <ChatBubble index={index} key={`${message.role}-${index}-${message.content.slice(0, 18)}`} message={message} />)}
               {thinking && <div className="flex items-center gap-2.5"><span className="grid size-7 place-items-center rounded-xl border border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan"><Bot className="size-3.5" /></span><div className="flex items-center gap-2 rounded-2xl border border-border-soft bg-white/[.035] px-3.5 py-3 text-[10px] text-text-muted"><span className="flex gap-1"><i className="size-1.5 animate-bounce rounded-full bg-brand-cyan [animation-delay:-.2s]" /><i className="size-1.5 animate-bounce rounded-full bg-brand-cyan [animation-delay:-.1s]" /><i className="size-1.5 animate-bounce rounded-full bg-brand-cyan" /></span>Analysing your post context…</div></div>}
-              {assistantResult?.quickReplies?.length ? <div className="flex flex-wrap gap-1.5 pl-9">{assistantResult.quickReplies.map((reply) => <button className="rounded-full border border-brand-cyan/20 bg-brand-cyan/[.05] px-3 py-1.5 text-[9px] font-semibold text-brand-cyan transition hover:border-brand-cyan/45 hover:bg-brand-cyan/10" disabled={busy} key={reply} onClick={() => void sendText(reply)} type="button">{reply}</button>)}</div> : null}
+              {assistantResult?.quickReplies?.length && !ready ? <div className="flex flex-wrap gap-1.5 pl-9">{assistantResult.quickReplies.map((reply) => <button className="rounded-full border border-brand-cyan/20 bg-brand-cyan/[.05] px-3 py-1.5 text-[9px] font-semibold text-brand-cyan transition hover:border-brand-cyan/45 hover:bg-brand-cyan/10" disabled={busy} key={reply} onClick={() => void sendText(reply)} type="button">{reply}</button>)}</div> : null}
+              {ready && brief && !asset && !thinking && <ReadyGenerateCard aspectRatio={aspectRatio} brief={brief} disabled={busy} insufficient={insufficient} onAddReference={() => fileRef.current?.click()} onGenerate={() => void generateImage()} onRefine={() => inputRef.current?.focus()} platform={platform} sourceCount={sourceSummary.length} />}
             </div>
 
             <div className="shrink-0 border-t border-border-soft bg-bg/35 p-3 sm:p-4">
-              {error && <div className="mb-2 rounded-xl border border-brand-red/25 bg-brand-red/[.05] px-3 py-2 text-[10px] leading-4 text-brand-red">{error}</div>}
+              {error && <div className="mb-2 rounded-2xl border border-brand-red/25 bg-brand-red/[.05] px-3.5 py-3"><div className="flex items-start gap-2.5"><span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg border border-brand-red/25 bg-brand-red/10 text-brand-red">!</span><div className="min-w-0"><strong className="block text-[10px] text-brand-red">The Studio could not complete that request</strong><p className="mt-1 text-[9px] leading-4 text-text-muted">{error}</p>{ready && !asset && <button className="mt-2 inline-flex items-center gap-1.5 text-[9px] font-semibold text-brand-cyan transition hover:text-white" disabled={busy || insufficient} onClick={() => void generateImage()} type="button"><RefreshCw className="size-3" />Retry final render</button>}</div></div></div>}
               {uploading && <div className="mb-2 flex items-center gap-2 rounded-xl border border-brand-cyan/20 bg-brand-cyan/[.04] px-3 py-2 text-[9px] text-text-muted"><LoaderCircle className="size-3 animate-spin text-brand-cyan" />Uploading reference · {uploadProgress}%</div>}
               <div className="rounded-2xl border border-border-strong bg-[#04111c]/85 p-2 shadow-[0_18px_50px_rgba(0,0,0,.24)] transition focus-within:border-brand-cyan/35 focus-within:shadow-[0_18px_55px_rgba(6,182,212,.08)]">
                 <textarea aria-label="Message AI Post Studio" className="min-h-20 w-full resize-none bg-transparent px-2 py-1.5 text-xs leading-5 text-text-main outline-none placeholder:text-text-soft" disabled={busy} maxLength={4000} onChange={(event) => setComposer(event.target.value)} onKeyDown={handleKey} placeholder="Describe your post idea, paste a product URL, or ask the Studio to refine the current concept…" ref={inputRef} value={composer} />
@@ -327,16 +375,12 @@ export function ImagePostChatModal({
           </div>
 
           <div className="scrollbar-thin min-h-0 overflow-y-auto bg-black/[.07] p-4 sm:p-5">
-            {!asset ? <div className="relative grid min-h-[520px] h-full place-items-center overflow-hidden rounded-[28px] border border-dashed border-brand-cyan/18 bg-[radial-gradient(circle_at_50%_45%,rgba(34,211,238,.075),transparent_23rem)] p-7 text-center">
+            {!asset ? <div className={`relative grid min-h-[520px] h-full place-items-center overflow-hidden rounded-[28px] border bg-[radial-gradient(circle_at_50%_45%,rgba(34,211,238,.075),transparent_23rem)] p-7 text-center ${ready ? 'border-brand-green/25' : 'border-dashed border-brand-cyan/18'}`}>
               <div aria-hidden="true" className="absolute left-[17%] top-[20%] size-24 rounded-full bg-brand-cyan/[.04] blur-2xl transition-transform duration-700 group-hover/studio:-translate-y-2" />
               <div aria-hidden="true" className="absolute bottom-[16%] right-[16%] size-32 rounded-full bg-brand-teal/[.045] blur-3xl transition-transform duration-700 group-hover/studio:translate-y-2" />
               <div className="relative max-w-lg">
-                <span className="relative mx-auto grid size-16 place-items-center rounded-[22px] border border-brand-cyan/25 bg-brand-cyan/[.07] text-brand-cyan shadow-[0_0_50px_rgba(34,211,238,.08)]"><Sparkles className="size-7" /><span className="absolute inset-0 animate-ping rounded-[22px] border border-brand-cyan/10 [animation-duration:3s]" /></span>
-                {generating ? <><h3 className="mt-5 text-lg font-semibold">Creating your final post…</h3><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-text-muted">GPT-Image-2 is rendering the approved creative direction and applying your references. Your 5 credits are committed only when generation completes.</p><div className="mx-auto mt-5 h-1.5 max-w-xs overflow-hidden rounded-full bg-white/[.05]"><div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-brand-teal to-brand-cyan" /></div></> : <><h3 className="mt-5 text-lg font-semibold">Your post comes together here.</h3><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-text-muted">Chat naturally on the left. The Studio can analyse URLs and references, prepare the caption and creative direction, then render one final post when you are ready.</p>
-                  <div className="mt-5 flex flex-wrap justify-center gap-2"><AnalysisPill icon={<MessageSquareText className="size-3" />}>Ask & refine</AnalysisPill><AnalysisPill icon={<Globe2 className="size-3" />}>Analyse URLs</AnalysisPill><AnalysisPill icon={<ImagePlus className="size-3" />}>Use references</AnalysisPill></div>
-                  <Button className="mt-6" disabled={!ready || insufficient || busy} onClick={() => void generateImage()} variant="primary"><WandSparkles className="size-4" />{ready ? 'Generate final post · 5 credits' : 'Build the brief in chat first'}</Button>
-                  {insufficient && <p className="mt-2 text-[9px] text-brand-red">You need 5 AI credits for the final render.</p>}
-                </>}
+                <span className={`relative mx-auto grid size-16 place-items-center rounded-[22px] border shadow-[0_0_50px_rgba(34,211,238,.08)] ${ready ? 'border-brand-green/30 bg-brand-green/[.08] text-brand-green' : 'border-brand-cyan/25 bg-brand-cyan/[.07] text-brand-cyan'}`}>{ready ? <Check className="size-7" /> : <Sparkles className="size-7" />}<span className="absolute inset-0 animate-ping rounded-[22px] border border-brand-cyan/10 [animation-duration:3s]" /></span>
+                {generating ? <><h3 className="mt-5 text-lg font-semibold">Creating your final post…</h3><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-text-muted">GPT-Image-2 is rendering the approved creative direction and applying your references. The backend automatically retries one temporary OpenAI failure before returning an error.</p><div className="mx-auto mt-5 h-1.5 max-w-xs overflow-hidden rounded-full bg-white/[.05]"><div className="h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-brand-teal to-brand-cyan" /></div></> : ready && brief ? <><span className="mt-5 inline-flex rounded-full border border-brand-green/25 bg-brand-green/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[.14em] text-brand-green">Ready</span><h3 className="mt-3 text-xl font-bold">Your post is ready to generate.</h3><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-text-muted">{brief.headline ? `Creative direction prepared for “${brief.headline}”.` : 'Creative direction, caption and publishing copy are prepared.'}</p><div className="mt-4 flex flex-wrap justify-center gap-2"><AnalysisPill icon={<MessageSquareText className="size-3" />}>{platform}</AnalysisPill><AnalysisPill icon={<ImagePlus className="size-3" />}>{aspectRatio}</AnalysisPill>{sourceSummary.length > 0 && <AnalysisPill icon={<Globe2 className="size-3" />}>{sourceSummary.length} source{sourceSummary.length === 1 ? '' : 's'}</AnalysisPill>}</div><Button className="mt-6 min-h-12 px-6 text-xs font-bold" disabled={insufficient || busy} onClick={() => void generateImage()} variant="primary"><WandSparkles className="size-4" />Generate final post · 5 credits</Button>{insufficient && <p className="mt-2 text-[9px] text-brand-red">You need 5 AI credits for the final render.</p>}</> : <><h3 className="mt-5 text-lg font-semibold">Your post comes together here.</h3><p className="mx-auto mt-2 max-w-md text-xs leading-5 text-text-muted">Chat naturally on the left. The Studio can analyse URLs and references, prepare the caption and creative direction, then render one final post when you are ready.</p><div className="mt-5 flex flex-wrap justify-center gap-2"><AnalysisPill icon={<MessageSquareText className="size-3" />}>Ask & refine</AnalysisPill><AnalysisPill icon={<Globe2 className="size-3" />}>Analyse URLs</AnalysisPill><AnalysisPill icon={<ImagePlus className="size-3" />}>Use references</AnalysisPill></div><Button className="mt-6" disabled variant="primary"><WandSparkles className="size-4" />Build the brief in chat first</Button></>}
               </div>
             </div> : <div>
               <div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><span className="inline-flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[.15em] text-brand-green"><Check className="size-3" />Generated</span><h3 className="mt-1 text-sm font-semibold">Review & refine your post</h3><p className="mt-1 text-[9px] text-text-soft">Keep chatting on the left to change the concept or publishing copy.</p></div><span className="rounded-full border border-brand-green/25 bg-brand-green/10 px-2.5 py-1 text-[9px] font-semibold text-brand-green">5 credits used · GPT-Image-2</span></div>
