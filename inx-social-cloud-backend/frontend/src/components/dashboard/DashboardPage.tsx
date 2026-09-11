@@ -1,47 +1,47 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, AlertTriangle, CalendarDays, CalendarRange, CheckCircle2, FileText, RefreshCw } from 'lucide-react'
+import { Activity, AlertTriangle, CalendarClock, Files, RefreshCw, Send, UsersRound } from 'lucide-react'
 import { ApiError } from '../../lib/api-client'
-import {
-  buildActivitySeries,
-  buildDashboardView,
-  fetchDashboardJobs,
-  fetchFacebookDashboardAnalytics,
-  fetchStudioOverview,
-} from '../../lib/dashboard-api'
-import { DashboardAccountSelector } from './DashboardAccountSelector'
-import { EngagementOverviewCard } from './EngagementOverviewCard'
+import { fetchAnalyticsForSource, fetchAnalyticsSources } from '../../lib/analytics-api'
+import { buildActivitySeries, buildDashboardView, fetchDashboardJobs } from '../../lib/dashboard-api'
+import type { DashboardAnalyticsEntry } from '../../types/dashboard'
+import { AIStudioPromoCard } from './AIStudioPromoCard'
 import { PlatformDonutChart } from './PlatformDonutChart'
 import { PublishingActivityCard } from './PublishingActivityCard'
+import { QuickActionsCard } from './QuickActionsCard'
 import { RecentPostsCard } from './RecentPostsCard'
 import { StatCard } from './StatCard'
 import { TopPerformingContentCard } from './TopPerformingContentCard'
 import { UpcomingScheduleCard } from './UpcomingScheduleCard'
 
-const statIcons = [FileText, CheckCircle2, CalendarDays, AlertTriangle, Activity]
-const analyticsAccountStorageKey = 'inx-dashboard-analytics-account'
+const statIcons = [Send, CalendarClock, Files, AlertTriangle, Activity, UsersRound]
+const dashboardAnalyticsDays = 30
 
-function savedAnalyticsAccount() {
-  if (typeof window === 'undefined') return ''
-  return window.localStorage.getItem(analyticsAccountStorageKey) || ''
+type DashboardAnalyticsResult = {
+  entries: DashboardAnalyticsEntry[]
+  failures: Array<{ platform: string; sourceName: string; message: string }>
 }
 
 function DashboardSkeleton() {
   return (
-    <div aria-label="Loading dashboard workspace" className="space-y-4" role="status">
-      <div className="h-20 animate-pulse rounded-card bg-panel motion-reduce:animate-none" />
-      <div className="flex gap-3 overflow-hidden md:grid md:grid-cols-3 xl:grid-cols-6">{Array.from({ length: 6 }, (_, index) => <div className="h-28 min-w-52 animate-pulse rounded-card bg-panel motion-reduce:animate-none" key={index} />)}</div>
-      <div className="h-[420px] animate-pulse rounded-card bg-panel motion-reduce:animate-none" />
+    <div aria-label="Loading dashboard workspace" className="space-y-3" role="status">
+      <div className="flex gap-3 overflow-hidden md:grid md:grid-cols-3 xl:grid-cols-6">
+        {Array.from({ length: 6 }, (_, index) => <div className="h-24 min-w-48 animate-pulse rounded-card bg-panel motion-reduce:animate-none" key={index} />)}
+      </div>
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.9fr)_minmax(300px,.85fr)]">
+        <div className="h-64 animate-pulse rounded-card bg-panel motion-reduce:animate-none" />
+        <div className="h-64 animate-pulse rounded-card bg-panel motion-reduce:animate-none" />
+      </div>
+      <div className="h-56 animate-pulse rounded-card bg-panel motion-reduce:animate-none" />
     </div>
   )
 }
 
 export function DashboardPage() {
-  const [rangeDays, setRangeDays] = useState(30)
-  const [analyticsAccountId, setAnalyticsAccountId] = useState(savedAnalyticsAccount)
-  const overview = useQuery({
-    queryKey: ['studio-overview'],
-    queryFn: fetchStudioOverview,
+  const [activityRangeDays, setActivityRangeDays] = useState(14)
+  const sources = useQuery({
+    queryKey: ['dashboard-all-account-sources'],
+    queryFn: fetchAnalyticsSources,
     refetchInterval: 60_000,
   })
   const jobs = useQuery({
@@ -50,69 +50,61 @@ export function DashboardPage() {
     refetchInterval: 60_000,
   })
 
-  const availablePages = overview.data?.pages.filter((page) => page.status !== 'REVOKED') || []
-  const resolvedAnalyticsAccountId = availablePages.some((page) => page.id === analyticsAccountId)
-    ? analyticsAccountId
-    : (availablePages[0]?.id || '')
-
-  const analytics = useQuery({
-    queryKey: ['facebook-dashboard-analytics', resolvedAnalyticsAccountId, rangeDays],
-    queryFn: () => fetchFacebookDashboardAnalytics(resolvedAnalyticsAccountId, rangeDays),
-    enabled: Boolean(resolvedAnalyticsAccountId),
-    refetchInterval: 15 * 60_000,
-    retry: 1,
+  const accounts = sources.data?.accounts || []
+  const accountKey = accounts.map((account) => account.analyticsKey).sort().join('|')
+  const analytics = useQuery<DashboardAnalyticsResult>({
+    queryKey: ['dashboard-all-account-analytics', dashboardAnalyticsDays, accountKey],
+    enabled: accounts.length > 0,
+    refetchInterval: 5 * 60_000,
+    retry: false,
+    queryFn: async () => {
+      const results = await Promise.all(accounts.map(async (account) => {
+        try {
+          const platformAnalytics = await fetchAnalyticsForSource(account, dashboardAnalyticsDays)
+          return {
+            ok: true as const,
+            entry: {
+              accountId: account.id,
+              platform: account.platform,
+              sourceName: account.displayName,
+              analytics: platformAnalytics,
+            } satisfies DashboardAnalyticsEntry,
+          }
+        } catch (error) {
+          return {
+            ok: false as const,
+            failure: {
+              platform: account.platform,
+              sourceName: account.displayName,
+              message: error instanceof Error ? error.message : 'Live data is temporarily unavailable.',
+            },
+          }
+        }
+      }))
+      return {
+        entries: results.flatMap((result) => result.ok ? [result.entry] : []),
+        failures: results.flatMap((result) => result.ok ? [] : [result.failure]),
+      }
+    },
   })
 
-  const scopedJobs = useMemo(
-    () => (jobs.data || []).filter((job) => job.page?.id === resolvedAnalyticsAccountId),
-    [jobs.data, resolvedAnalyticsAccountId],
-  )
-  const liveActivityByDate = useMemo(() => {
-    const posts: Record<string, number> = {}
-    const engagement: Record<string, number> = {}
-    for (const post of analytics.data?.content || []) {
-      if (!post.createdTime) continue
-      const timestamp = new Date(post.createdTime)
-      if (Number.isNaN(timestamp.getTime())) continue
-      const key = timestamp.toISOString().slice(0, 10)
-      posts[key] = (posts[key] || 0) + 1
-      engagement[key] = (engagement[key] || 0) + (
-        post.insights?.totalInteractions
-        ?? post.reactions + post.comments + post.shares
-      )
-    }
-    return { posts, engagement }
-  }, [analytics.data])
-  const engagementByDate = liveActivityByDate.engagement
-  const activity = useMemo(
-    () => buildActivitySeries(scopedJobs, rangeDays).map((point) => {
-      const key = new Date(point.date).toISOString().slice(0, 10)
-      return { ...point, published: Math.max(point.published, liveActivityByDate.posts[key] || 0) }
-    }),
-    [liveActivityByDate.posts, rangeDays, scopedJobs],
-  )
-  const previousActivity = useMemo(() => {
-    const previousEnd = new Date()
-    previousEnd.setDate(previousEnd.getDate() - rangeDays)
-    return buildActivitySeries(scopedJobs, rangeDays, previousEnd)
-  }, [rangeDays, scopedJobs])
+  const analyticsEntries = useMemo(() => analytics.data?.entries || [], [analytics.data?.entries])
   const data = useMemo(() => (
-    overview.data && jobs.data
-      ? buildDashboardView(overview.data, scopedJobs, new Date(), analytics.data || null)
+    sources.data && jobs.data
+      ? buildDashboardView(sources.data.overview, jobs.data, new Date(), analyticsEntries, accounts.length)
       : null
-  ), [analytics.data, jobs.data, overview.data, scopedJobs])
-
-  function selectAnalyticsAccount(pageId: string) {
-    setAnalyticsAccountId(pageId)
-    window.localStorage.setItem(analyticsAccountStorageKey, pageId)
-  }
+  ), [accounts.length, analyticsEntries, jobs.data, sources.data])
+  const activity = useMemo(
+    () => buildActivitySeries(jobs.data || [], activityRangeDays, new Date(), analyticsEntries),
+    [activityRangeDays, analyticsEntries, jobs.data],
+  )
 
   function refreshDashboard() {
-    void Promise.all([overview.refetch(), jobs.refetch(), analytics.refetch()])
+    void Promise.all([sources.refetch(), jobs.refetch(), analytics.refetch()])
   }
 
-  if ((overview.isPending || jobs.isPending) && !data) return <DashboardSkeleton />
-  const coreError = overview.error || jobs.error
+  if ((sources.isPending || jobs.isPending) && !data) return <DashboardSkeleton />
+  const coreError = sources.error || jobs.error
   if (coreError || !data) {
     const sessionRequired = coreError instanceof ApiError && coreError.status === 401
     return (
@@ -129,39 +121,41 @@ export function DashboardPage() {
     )
   }
 
+  const failures = analytics.data?.failures || []
+  const analyticsLoading = accounts.length > 0 && analytics.isPending
+
   return (
-    <div className="dashboard-canvas space-y-4">
-      <DashboardAccountSelector
-        isRefreshing={overview.isFetching || jobs.isFetching || analytics.isFetching}
-        onChange={selectAnalyticsAccount}
-        onRefresh={refreshDashboard}
-        pages={data.overview.pages}
-        value={resolvedAnalyticsAccountId}
-      />
+    <div className="dashboard-canvas grid gap-3 2xl:min-h-0 2xl:grid-rows-[auto_minmax(250px,1.12fr)_minmax(215px,.96fr)_auto]">
+      {failures.length ? (
+        <div className="flex min-h-9 items-center gap-2 rounded-xl border border-amber-300/15 bg-amber-400/[.06] px-3 text-[11px] text-amber-100" role="status">
+          <AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />
+          <span className="truncate">Live insights unavailable for {failures.map((failure) => failure.sourceName).join(', ')}. Data from the other connected accounts is still live.</span>
+        </div>
+      ) : null}
 
-      <section aria-label="Publishing overview" className="flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-3 xl:grid-cols-6">
+      <section aria-label="All-account publishing overview" className="flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-3 md:overflow-visible xl:grid-cols-6">
         {data.stats.map((stat, index) => <StatCard data={stat} icon={statIcons[index]} key={stat.label} />)}
-        <label className="interactive-surface flex min-h-[112px] min-w-[205px] flex-col justify-between rounded-card border p-4 md:min-w-0"><span className="text-xs font-medium text-text-muted">Dashboard period</span><span className="relative"><CalendarRange aria-hidden="true" className="pointer-events-none absolute left-0 top-1/2 size-4 -translate-y-1/2 text-brand-cyan" /><select className="min-h-10 w-full appearance-none border-0 bg-transparent pl-6 pr-2 text-sm font-semibold text-text-main focus:outline-none" onChange={(event) => setRangeDays(Number(event.target.value))} value={rangeDays}><option value={7}>Last 7 Days</option><option value={30}>Last 30 Days</option><option value={90}>Last 90 Days</option></select></span></label>
       </section>
 
-      <PublishingActivityCard
-        engagementByDate={engagementByDate}
-        loading={jobs.isFetching && !jobs.data}
-        onRangeChange={setRangeDays}
-        points={activity}
-        previousPoints={previousActivity}
-        rangeDays={rangeDays}
-      />
-
-      <section aria-label="Platform and recent publishing analytics" className="grid items-stretch gap-4 xl:grid-cols-[minmax(320px,.8fr)_minmax(0,1.6fr)]">
+      <section aria-label="Workspace publishing activity" className="grid min-h-0 items-stretch gap-3 xl:grid-cols-[minmax(0,1.9fr)_minmax(300px,.85fr)]">
+        <PublishingActivityCard
+          loading={analyticsLoading || (jobs.isFetching && !jobs.data)}
+          onRangeChange={setActivityRangeDays}
+          points={activity}
+          rangeDays={activityRangeDays}
+        />
         <PlatformDonutChart metrics={data.platformMetrics} />
-        <RecentPostsCard posts={data.recentPosts} />
       </section>
 
-      <section aria-label="Content performance and schedule" className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,.95fr)_minmax(0,1fr)_minmax(340px,1.15fr)]">
-        <EngagementOverviewCard metrics={data.platformMetrics} />
-        <TopPerformingContentCard items={data.topContent} />
+      <section aria-label="Recent workspace activity" className="grid min-h-0 items-stretch gap-3 xl:grid-cols-3">
+        <RecentPostsCard posts={data.recentPosts} />
         <UpcomingScheduleCard jobs={data.upcoming} />
+        <TopPerformingContentCard items={data.topContent} />
+      </section>
+
+      <section aria-label="Dashboard shortcuts" className="grid gap-3 xl:grid-cols-[minmax(0,.95fr)_minmax(0,1.35fr)]">
+        <QuickActionsCard />
+        <AIStudioPromoCard overview={data.overview} />
       </section>
     </div>
   )

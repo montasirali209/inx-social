@@ -23,12 +23,49 @@ export type PostStatus =
 export type VideoStatus = PostStatus
 export type DashboardTone = 'blue' | 'cyan' | 'green' | 'purple' | 'amber' | 'red'
 
-export type StatCardData = { label: string; value: number | string; detail: string; tone: DashboardTone; trend?: string | null; trendDirection?: 'up' | 'down' | 'neutral' }
+export type StatCardData = {
+  label: string
+  value: number | string
+  detail: string
+  tone: DashboardTone
+  trend?: string | null
+  trendDirection?: 'up' | 'down' | 'neutral'
+  route?: string
+}
 export type DashboardStat = StatCardData
-export type SocialPost = { id: string; title: string; excerpt: string; thumbnailUrl: string | null; platforms: Platform[]; status: PostStatus; occurredAt: string; engagement: number | null }
+
+export type ContentMetrics = {
+  likes: number
+  comments: number
+  shares: number
+  views: number | null
+  interactions: number
+}
+
+export type SocialPost = {
+  id: string
+  title: string
+  excerpt: string
+  thumbnailUrl: string | null
+  platforms: Platform[]
+  status: PostStatus
+  occurredAt: string
+  engagement: number | null
+  metrics?: ContentMetrics | null
+  sourceName?: string | null
+}
 export type PlatformMetric = { platform: Platform; posts: number; engagement: number | null }
 export type ScheduledPost = { id: string; title: string; scheduledAt: string; platforms: Platform[]; status: PostStatus }
-export type TopContentItem = { id: string; title: string; thumbnailUrl: string | null; engagement: number | null; status: PostStatus }
+export type TopContentItem = {
+  id: string
+  title: string
+  thumbnailUrl: string | null
+  engagement: number | null
+  status: PostStatus
+  platform: Platform
+  metrics?: ContentMetrics | null
+  sourceName?: string | null
+}
 
 export type AnalyticsContent = {
   id: string
@@ -91,8 +128,9 @@ export type PlatformAnalytics = {
   cache?: { hit: boolean; expiresAt: string }
 }
 export type FacebookAnalytics = PlatformAnalytics & { platform: 'facebook' }
+export type DashboardAnalyticsEntry = { accountId: string; platform: Platform; sourceName: string; analytics: PlatformAnalytics }
 
-export type PublishingActivityPoint = { date: string; label: string; published: number; scheduled: number; failed: number }
+export type PublishingActivityPoint = { date: string; label: string; published: number; scheduled: number; failed: number; engagement: number }
 export type ConnectedPage = {
   id: string
   facebookPageId: string
@@ -148,5 +186,5 @@ export type DashboardViewData = {
   recentPosts: SocialPost[]
   platformMetrics: PlatformMetric[]
   topContent: TopContentItem[]
-  facebookAnalytics: FacebookAnalytics | null
+  analytics: DashboardAnalyticsEntry[]
 }

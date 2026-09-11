@@ -8,12 +8,11 @@ export function ChartCard({ title, action, children, className = '' }: {
 }) {
   return (
     <section className={`interactive-surface overflow-hidden rounded-card border backdrop-blur-xl ${className}`}>
-      <header className="flex min-h-13 items-center justify-between gap-3 px-4 py-3">
-        <h2 className="text-sm font-semibold tracking-[-0.02em] text-text-main">{title}</h2>
+      <header className="flex min-h-11 items-center justify-between gap-3 px-3 py-2.5">
+        <h2 className="text-[13px] font-semibold tracking-[-0.02em] text-text-main">{title}</h2>
         {action}
       </header>
       {children}
     </section>
   )
 }
-
