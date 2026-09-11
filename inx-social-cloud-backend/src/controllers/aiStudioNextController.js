@@ -32,12 +32,18 @@ const carouselSchema = z.object({
 });
 
 const videoSelectionSchema = z.object({
-  modelRoute: z.enum(['fast', 'quality']).default('fast'),
-  duration: z.coerce.number().int().min(2).max(15).default(5),
+  modelRoute: z.string().trim().min(1).max(50).default('pvideo'),
+  duration: z.coerce.number().int().min(2).max(30).default(5),
   resolution: z.enum(['480p', '720p', '1080p']).default('720p'),
   aspectRatio: z.enum(['9:16', '16:9', '1:1']).default('9:16'),
   draft: z.boolean().default(false),
   audio: z.boolean().default(true)
+});
+
+const videoRecommendationSchema = z.object({
+  prompt: z.string().trim().min(2).max(1500),
+  hasReference: z.boolean().default(false),
+  aspectRatio: z.enum(['9:16', '16:9', '1:1']).default('9:16')
 });
 
 const videoGenerationSchema = videoSelectionSchema.extend({
@@ -56,10 +62,14 @@ async function videoModels(req, res, next) {
   try { res.json({ models: videoStudio.catalog() }); } catch (error) { next(error); }
 }
 
+async function videoRecommend(req, res, next) {
+  try { res.json(await videoStudio.recommendModel(videoRecommendationSchema.parse(req.body || {}))); } catch (error) { next(error); }
+}
+
 async function videoEstimate(req, res, next) {
   try {
     const input = videoSelectionSchema.parse(req.body || {});
-    res.json({ credits: videoStudio.estimateCredits(input), source: 'backend', explanation: 'Credits update from the selected video model, duration, resolution and draft mode before generation starts.' });
+    res.json({ credits: videoStudio.estimateCredits(input), source: 'backend', explanation: 'Credits update from the selected model, duration, resolution, audio and draft mode before generation starts.' });
   } catch (error) { next(error); }
 }
 
@@ -67,4 +77,4 @@ async function generateVideo(req, res, next) {
   try { res.json(await videoStudio.generateVideo(req.user.id, videoGenerationSchema.parse(req.body || {}))); } catch (error) { next(error); }
 }
 
-module.exports = { generateCarousel, videoModels, videoEstimate, generateVideo };
+module.exports = { generateCarousel, videoModels, videoRecommend, videoEstimate, generateVideo };
