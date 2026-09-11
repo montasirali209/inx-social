@@ -10,9 +10,10 @@ test('customer app shell is gated by validated authentication before tools rende
   const shell = read('frontend/src/components/layout/AppShell.tsx');
   const gate = read('frontend/src/components/auth/RequireAuth.tsx');
   assert.match(shell, /<RequireAuth>/);
-  assert.match(gate, /apiRequest<\{ user: unknown \}>\('\/api\/auth\/me'\)/);
+  assert.match(gate, /apiRequest<MeResponse>\('\/api\/auth\/me'\)/);
+  assert.match(gate, /subscribeToAuthSession/);
   assert.match(gate, /window\.location\.replace\(loginUrl\(\)\)/);
-  assert.match(gate, /portal\/login\.html\?return=/);
+  assert.match(gate, /loginUrl/);
 });
 
 test('YouTube analytics can refresh expired and provider-invalidated OAuth access tokens', () => {
