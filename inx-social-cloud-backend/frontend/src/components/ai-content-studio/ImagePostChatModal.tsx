@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom'
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import {
   ArrowRight,
   Bot,
@@ -44,6 +44,12 @@ function extractUrls(text: string) {
   return [...new Set(matches.map((value) => value.replace(/[.,;!?]+$/, '')))].slice(0, 2)
 }
 
+function initialMessagesFor(draft?: AIDraft | null): PostStudioMessage[] {
+  const seed: PostStudioMessage[] = [{ role: 'assistant', content: INITIAL_ASSISTANT }]
+  if (draft?.prompt) seed.push({ role: 'user', content: draft.prompt })
+  return seed
+}
+
 function buildDraft(asset: GeneratedAsset, messages: PostStudioMessage[], brief: PostStudioBrief | null, existing?: AIDraft | null): AIDraft {
   const prompt = firstPrompt(messages, brief)
   return {
@@ -78,7 +84,7 @@ function ChatBubble({ message, index }: { message: PostStudioMessage; index: num
   </div>
 }
 
-function AnalysisPill({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
+function AnalysisPill({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return <span className="inline-flex min-h-8 items-center gap-2 rounded-xl border border-border-soft bg-bg/35 px-2.5 text-[9px] font-medium text-text-muted">{icon}{children}</span>
 }
 
@@ -105,13 +111,13 @@ export function ImagePostChatModal({
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const controllerRef = useRef<AbortController | null>(null)
-  const [messages, setMessages] = useState<PostStudioMessage[]>([])
+  const [messages, setMessages] = useState<PostStudioMessage[]>(() => initialMessagesFor(initialDraft))
   const [composer, setComposer] = useState('')
   const [references, setReferences] = useState<MediaAsset[]>([])
-  const [urls, setUrls] = useState<string[]>([])
+  const [urls, setUrls] = useState<string[]>(() => extractUrls(initialDraft?.prompt || ''))
   const [assistantResult, setAssistantResult] = useState<PostStudioAssistantResponse | null>(null)
   const [brief, setBrief] = useState<PostStudioBrief | null>(null)
-  const [asset, setAsset] = useState<GeneratedAsset | null>(null)
+  const [asset, setAsset] = useState<GeneratedAsset | null>(() => initialDraft?.asset?.type === 'image' ? initialDraft.asset : null)
   const [platform, setPlatform] = useState('Instagram')
   const [aspectRatio, setAspectRatio] = useState<PostStudioBrief['aspectRatio']>('4:5')
   const [thinking, setThinking] = useState(false)
@@ -121,30 +127,11 @@ export function ImagePostChatModal({
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (!open || type !== 'image_post') return
-    const initialMessages: PostStudioMessage[] = [{ role: 'assistant', content: INITIAL_ASSISTANT }]
-    if (initialDraft?.prompt) initialMessages.push({ role: 'user', content: initialDraft.prompt })
-    setMessages(initialMessages)
-    setComposer('')
-    setReferences([])
-    setUrls(extractUrls(initialDraft?.prompt || ''))
-    setAssistantResult(null)
-    setBrief(null)
-    setAsset(initialDraft?.asset?.type === 'image' ? initialDraft.asset : null)
-    setPlatform('Instagram')
-    setAspectRatio('4:5')
-    setThinking(false)
-    setGenerating(false)
-    setUploading(false)
-    setError('')
-    window.setTimeout(() => inputRef.current?.focus(), 80)
-  }, [open, type, initialDraft])
-
-  useEffect(() => {
     if (!open) return
     const prior = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prior }
+    const timer = window.setTimeout(() => inputRef.current?.focus(), 80)
+    return () => { document.body.style.overflow = prior; window.clearTimeout(timer) }
   }, [open])
 
   const ready = Boolean(assistantResult?.readyToGenerate && brief?.visualDirection)
@@ -269,7 +256,7 @@ export function ImagePostChatModal({
     window.setTimeout(() => inputRef.current?.focus(), 0)
   }
 
-  function reactToPointer(event: React.PointerEvent<HTMLElement>) {
+  function reactToPointer(event: PointerEvent<HTMLElement>) {
     const box = event.currentTarget.getBoundingClientRect()
     const x = ((event.clientX - box.left) / Math.max(1, box.width)) * 100
     const y = ((event.clientY - box.top) / Math.max(1, box.height)) * 100
