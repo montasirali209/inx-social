@@ -64,17 +64,17 @@ export type ConnectionHelpTopic = {
   answer: string
 }
 
-export const platformMeta: Record<Platform, { label: string; mark: string; className: string; contentTypes: string[]; description: string; available: boolean }> = {
-  facebook: { label: 'Facebook', mark: 'f', className: '!rounded-full bg-[#1877f2] text-white ring-1 ring-white/10', contentTypes: ['Post', 'Reel', 'Video', 'Story'], description: 'Publish to Pages and view Page analytics.', available: true },
-  instagram: { label: 'Instagram', mark: '◎', className: '!rounded-full bg-[radial-gradient(circle_at_30%_110%,#feda75_0%,#fa7e1e_28%,#d62976_52%,#962fbf_76%,#4f5bd5_100%)] text-white ring-1 ring-white/10', contentTypes: ['Post', 'Reel', 'Story'], description: 'Connect Instagram professional accounts using Instagram Business Login.', available: true },
-  linkedin: { label: 'LinkedIn', mark: 'in', className: '!rounded-full bg-[#0a66c2] text-white ring-1 ring-white/10', contentTypes: ['Post', 'Video'], description: 'Connect your LinkedIn identity with official OAuth.', available: true },
-  tiktok: { label: 'TikTok', mark: '♪', className: '!rounded-full border border-white/15 bg-[#010101] text-white', contentTypes: ['Post', 'Video'], description: 'TikTok publishing support is being prepared.', available: false },
-  youtube: { label: 'YouTube', mark: '▶', className: '!rounded-full bg-[#ff0000] text-white ring-1 ring-white/10', contentTypes: ['Video', 'Shorts'], description: 'Connect channels and inspect YouTube account data.', available: true },
-  x: { label: 'X / Twitter', mark: '𝕏', className: '!rounded-full border border-white/15 bg-[#050505] text-white', contentTypes: ['Post', 'Video'], description: 'Legacy connector hidden from the INXSocial product.', available: false },
-  pinterest: { label: 'Pinterest', mark: 'P', className: '!rounded-full bg-[#e60023] text-white ring-1 ring-white/10', contentTypes: ['Post', 'Video'], description: 'Pinterest publishing support is being prepared.', available: false },
-  google_business: { label: 'Google Business', mark: 'G', className: '!rounded-full border border-black/10 bg-white text-[#4285f4]', contentTypes: ['Post'], description: 'Legacy connector hidden from the INXSocial product.', available: false },
-  threads: { label: 'Threads', mark: '@', className: '!rounded-full border border-white/15 bg-[#101010] text-white', contentTypes: ['Post'], description: 'Legacy connector hidden from the INXSocial product.', available: false },
-  bluesky: { label: 'Bluesky', mark: '☁', className: '!rounded-full bg-[#1185fe] text-white ring-1 ring-white/10', contentTypes: ['Post'], description: 'Legacy connector hidden from the INXSocial product.', available: false },
+export const platformMeta: Record<Platform, { label: string; contentTypes: string[]; description: string; available: boolean }> = {
+  facebook: { label: 'Facebook', contentTypes: ['Post', 'Reel', 'Video', 'Story'], description: 'Publish to Pages and view Page analytics.', available: true },
+  instagram: { label: 'Instagram', contentTypes: ['Post', 'Reel', 'Story'], description: 'Connect Instagram professional accounts using Instagram Business Login.', available: true },
+  linkedin: { label: 'LinkedIn', contentTypes: ['Post', 'Video'], description: 'Connect your LinkedIn identity with official OAuth.', available: true },
+  tiktok: { label: 'TikTok', contentTypes: ['Post', 'Video'], description: 'TikTok publishing support is being prepared.', available: false },
+  youtube: { label: 'YouTube', contentTypes: ['Video', 'Shorts'], description: 'Connect channels and inspect YouTube account data.', available: true },
+  x: { label: 'X / Twitter', contentTypes: ['Post', 'Video'], description: 'Legacy connector hidden from the INXSocial product.', available: false },
+  pinterest: { label: 'Pinterest', contentTypes: ['Post', 'Video'], description: 'Pinterest publishing support is being prepared.', available: false },
+  google_business: { label: 'Google Business', contentTypes: ['Post'], description: 'Legacy connector hidden from the INXSocial product.', available: false },
+  threads: { label: 'Threads', contentTypes: ['Post'], description: 'Legacy connector hidden from the INXSocial product.', available: false },
+  bluesky: { label: 'Bluesky', contentTypes: ['Post'], description: 'Legacy connector hidden from the INXSocial product.', available: false },
 }
 
 export const supportedPlatforms = (connectedCount: Partial<Record<Platform, number>> = {}): PlatformOption[] =>

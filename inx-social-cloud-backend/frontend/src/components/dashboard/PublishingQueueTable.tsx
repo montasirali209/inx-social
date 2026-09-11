@@ -2,6 +2,7 @@ import { ExternalLink, Film, MoreHorizontal, Play, Plus, Sparkles } from 'lucide
 import { fileDetails, formatSchedule, jobTitle } from '../../lib/dashboard-format'
 import { videoStatus } from '../../lib/dashboard-api'
 import type { DashboardJob } from '../../types/dashboard'
+import { SocialPlatformIcon } from '../ui/SocialPlatformIcon'
 import { StatusBadge } from './StatusBadge'
 
 function VideoMark({ job }: { job: DashboardJob }) {
@@ -17,7 +18,7 @@ function VideoMark({ job }: { job: DashboardJob }) {
 function PlatformMark({ pageName }: { pageName?: string }) {
   return (
     <span aria-label={pageName ? `Facebook Page: ${pageName}` : 'Facebook'} className="inline-flex items-center gap-2 text-xs text-text-muted">
-      <span aria-hidden="true" className="grid size-7 place-items-center rounded-lg bg-[#1877f2] text-sm font-bold text-white">f</span>
+      <SocialPlatformIcon className="!size-7" platform="facebook" />
       <span className="hidden max-w-28 truncate 2xl:inline">{pageName || 'Facebook'}</span>
     </span>
   )

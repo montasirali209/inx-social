@@ -42,6 +42,7 @@ import {
 } from "../../lib/connections-api";
 import { useUiStore } from "../../store/ui-store";
 import { Button } from "../ui/Button";
+import { SocialPlatformIcon } from "../ui/SocialPlatformIcon";
 
 type Tab = "all" | "platforms" | "profiles" | "advanced";
 type Notice = { tone: "success" | "error"; message: string } | null;
@@ -56,20 +57,12 @@ function PlatformIcon({
   platform: Platform;
   size?: "sm" | "md" | "lg";
 }) {
-  const meta = platformMeta[platform];
   const sizes = {
-    sm: "size-8 text-xs",
-    md: "size-10 text-sm",
-    lg: "size-12 text-base",
+    sm: "!size-8",
+    md: "!size-10",
+    lg: "!size-12",
   };
-  return (
-    <span
-      aria-label={meta.label}
-      className={`grid shrink-0 place-items-center rounded-xl font-black shadow-sm ${sizes[size]} ${meta.className}`}
-    >
-      {meta.mark}
-    </span>
-  );
+  return <SocialPlatformIcon className={sizes[size]} platform={platform} />;
 }
 
 function StatusBadge({ status }: { status: ConnectionStatus }) {

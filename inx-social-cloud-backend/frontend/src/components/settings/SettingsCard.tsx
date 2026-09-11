@@ -1,6 +1,7 @@
 import { Bell, Building2, CalendarClock, ChevronRight, Crown, Link2, Send, Sparkles } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { SettingsCardData, SettingsValues } from '../../types/settings'
+import { SocialPlatformIcon, type SocialPlatformName } from '../ui/SocialPlatformIcon'
 import { SettingRow } from './SettingRow'
 
 const icons: Record<string, LucideIcon> = {
@@ -22,15 +23,8 @@ const toneClasses = {
   red: 'border-brand-red/20 bg-brand-red/10 text-[#fb7185]',
 }
 
-const platformStyle: Record<string, string> = {
-  facebook: 'bg-[#1877f2] text-white',
-  instagram: 'bg-gradient-to-br from-[#833ab4] via-[#fd1d1d] to-[#fcb045] text-white',
-  linkedin: 'bg-[#0a66c2] text-white',
-  youtube: 'bg-[#ff0000] text-white',
-  x: 'bg-white text-black',
-}
-
-const platformMark: Record<string, string> = { facebook: 'f', instagram: '◎', linkedin: 'in', youtube: '▶', x: '𝕏' }
+const socialPlatformNames = new Set<SocialPlatformName>(['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok', 'pinterest', 'x', 'threads', 'bluesky', 'google_business'])
+const isSocialPlatformName = (platform: string): platform is SocialPlatformName => socialPlatformNames.has(platform as SocialPlatformName)
 
 type Props = {
   card: SettingsCardData
@@ -56,7 +50,9 @@ export function SettingsCard({ card, connectedPlatforms = [], onAction, onChange
       {card.id === 'connected_accounts' && connectedPlatforms.length > 0 && (
         <div aria-label="Connected platforms" className="flex flex-wrap gap-2 px-4 pb-2 sm:px-5">
           {connectedPlatforms.map((platform) => (
-            <span className={`grid size-7 place-items-center rounded-lg text-[10px] font-black ${platformStyle[platform] || 'bg-panel-soft text-text-main'}`} key={platform} title={platform}>{platformMark[platform] || '•'}</span>
+            isSocialPlatformName(platform)
+              ? <SocialPlatformIcon className="!size-7" key={platform} platform={platform} />
+              : <span className="grid size-7 place-items-center rounded-full bg-panel-soft text-[10px] text-text-main" key={platform} title={platform}>•</span>
           ))}
         </div>
       )}

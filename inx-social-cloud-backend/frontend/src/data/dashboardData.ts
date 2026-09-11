@@ -2,17 +2,15 @@ import type { Platform } from '../types/dashboard'
 
 export const platformPresentation: Record<Platform, {
   label: string
-  shortLabel: string
   colour: string
-  className: string
 }> = {
-  facebook: { label: 'Facebook', shortLabel: 'f', colour: '#1877f2', className: 'bg-[#1877f2] text-white' },
-  instagram: { label: 'Instagram', shortLabel: '◎', colour: '#d9468f', className: 'bg-gradient-to-br from-[#f59e0b] via-[#ec4899] to-[#7c3aed] text-white' },
-  linkedin: { label: 'LinkedIn', shortLabel: 'in', colour: '#0a66c2', className: 'bg-[#0a66c2] text-white' },
-  youtube: { label: 'YouTube', shortLabel: '▶', colour: '#ff0033', className: 'bg-[#ff0033] text-white' },
-  tiktok: { label: 'TikTok', shortLabel: '♪', colour: '#111827', className: 'border border-white/15 bg-black text-white' },
-  pinterest: { label: 'Pinterest', shortLabel: 'P', colour: '#e60023', className: 'bg-[#e60023] text-white' },
-  x: { label: 'X', shortLabel: '𝕏', colour: '#374151', className: 'border border-white/15 bg-black text-white' },
+  facebook: { label: 'Facebook', colour: '#3b7dc8' },
+  instagram: { label: 'Instagram', colour: '#d9468f' },
+  linkedin: { label: 'LinkedIn', colour: '#0a66c2' },
+  youtube: { label: 'YouTube', colour: '#ff0000' },
+  tiktok: { label: 'TikTok', colour: '#111827' },
+  pinterest: { label: 'Pinterest', colour: '#e60023' },
+  x: { label: 'X', colour: '#4fb4df' },
 }
 
 export const platformOrder: Platform[] = ['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok', 'pinterest', 'x']
