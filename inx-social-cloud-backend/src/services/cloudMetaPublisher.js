@@ -251,6 +251,57 @@ async function publishOrganicPost({ pageId, pageAccessToken, caption, scheduledA
   };
 }
 
+async function publishCarouselPost({ pageId, pageAccessToken, caption, scheduledAt, publishMode = 'SCHEDULED', assets = [] }) {
+  if (!Array.isArray(assets) || assets.length < 2 || assets.length > 10) {
+    throw new Error('Facebook carousel posts require between 2 and 10 image slides.');
+  }
+  const immediate = String(publishMode || '').toUpperCase() === 'NOW';
+  const schedule = immediate ? { published: true } : scheduledPublishFields(scheduledAt);
+  const base = `https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(pageId)}`;
+  const photoIds = [];
+
+  for (let index = 0; index < assets.length; index += 1) {
+    const asset = assets[index];
+    if (!asset?.data?.length || !/^image\/(png|jpeg|webp)$/i.test(String(asset.mimeType || ''))) {
+      throw new Error(`Carousel slide ${index + 1} is not a supported image.`);
+    }
+    const form = new FormData();
+    form.append('source', new Blob([asset.data], { type: asset.mimeType }), asset.originalName || `carousel-slide-${index + 1}.png`);
+    form.append('published', 'false');
+    form.append('access_token', pageAccessToken);
+    const upload = await axios.post(`${base}/photos`, form, {
+      timeout: 60000,
+      maxContentLength: 20 * 1024 * 1024,
+      maxBodyLength: 20 * 1024 * 1024,
+      validateStatus: status => status >= 200 && status < 500
+    });
+    assertMetaResponse(upload, `Facebook could not upload carousel slide ${index + 1}.`);
+    const photoId = upload.data?.id;
+    if (!photoId) throw metaError(upload, `Facebook did not return an ID for carousel slide ${index + 1}.`);
+    photoIds.push(String(photoId));
+  }
+
+  const response = await axios.post(`${base}/feed`, {
+    message: String(caption || ''),
+    attached_media: photoIds.map(media_fbid => ({ media_fbid })),
+    ...schedule,
+    access_token: pageAccessToken
+  }, {
+    timeout: 60000,
+    maxContentLength: 5 * 1024 * 1024,
+    maxBodyLength: 5 * 1024 * 1024,
+    validateStatus: status => status >= 200 && status < 500
+  });
+  assertMetaResponse(response, immediate ? 'Facebook carousel publishing failed.' : 'Facebook carousel scheduling failed.');
+  return {
+    postId: response.data?.post_id || response.data?.id || null,
+    photoIds,
+    publishMode: immediate ? 'NOW' : 'SCHEDULED',
+    scheduledUnix: immediate ? null : schedule.scheduled_publish_time,
+    response: response.data
+  };
+}
+
 module.exports = {
   testPage,
   listScheduledPosts,
@@ -263,5 +314,6 @@ module.exports = {
   publishScheduledReel,
   publishReelNow,
   publishOrganicPost,
+  publishCarouselPost,
   scheduledPublishFields
 };
