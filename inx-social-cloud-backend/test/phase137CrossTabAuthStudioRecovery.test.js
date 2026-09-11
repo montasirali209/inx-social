@@ -24,7 +24,7 @@ test('workspace auth invalidates immediately across tabs and unauthorized API re
 
 test('AI Post Studio keeps a user-scoped recoverable unfinished session', () => {
   const recovery = read('frontend/src/lib/ai-post-studio-recovery.ts');
-  const studio = read('frontend/src/components/ai-content-studio/ImagePostChatModalV3.tsx');
+  const studio = read('frontend/src/components/ai-content-studio/ImagePostChatModalV4.tsx');
   const router = read('frontend/src/components/ai-content-studio/ImagePostChatModal.tsx');
 
   assert.match(recovery, /inx-social-ai-post-recovery-v1:/);
@@ -36,11 +36,11 @@ test('AI Post Studio keeps a user-scoped recoverable unfinished session', () => 
   assert.match(studio, /writePostStudioRecovery/);
   assert.match(studio, /clearPostStudioRecovery/);
   assert.match(studio, /Previous AI Post Studio session restored/);
-  assert.match(router, /ImagePostChatModalV3/);
+  assert.match(router, /ImagePostChatModalV4/);
 });
 
 test('successful handoff or explicit draft save clears transient recovery', () => {
-  const studio = read('frontend/src/components/ai-content-studio/ImagePostChatModalV3.tsx');
+  const studio = read('frontend/src/components/ai-content-studio/ImagePostChatModalV4.tsx');
   assert.match(studio, /saveAIDraft[\s\S]*clearPostStudioRecovery/);
   assert.match(studio, /function continueToPosts\(\)[\s\S]*clearPostStudioRecovery/);
 });
