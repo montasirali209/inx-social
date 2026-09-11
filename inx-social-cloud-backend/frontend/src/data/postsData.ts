@@ -1,12 +1,12 @@
 import type { Platform, PostType } from '../types/posts'
 
-export const platforms: Array<{ id: Platform; label: string; short: string; colour: string }> = [
-  { id: 'facebook', label: 'Facebook', short: 'f', colour: 'bg-[#1877f2]' },
-  { id: 'instagram', label: 'Instagram', short: '◎', colour: 'bg-gradient-to-br from-[#f9ce34] via-[#ee2a7b] to-[#6228d7]' },
-  { id: 'linkedin', label: 'LinkedIn', short: 'in', colour: 'bg-[#0a66c2]' },
-  { id: 'tiktok', label: 'TikTok', short: '♪', colour: 'bg-black' },
-  { id: 'youtube', label: 'YouTube', short: '▶', colour: 'bg-[#ff0033]' },
-  { id: 'x', label: 'X', short: 'X', colour: 'bg-black' },
+export const platforms: Array<{ id: Platform; label: string }> = [
+  { id: 'facebook', label: 'Facebook' },
+  { id: 'instagram', label: 'Instagram' },
+  { id: 'linkedin', label: 'LinkedIn' },
+  { id: 'tiktok', label: 'TikTok' },
+  { id: 'youtube', label: 'YouTube' },
+  { id: 'x', label: 'X' },
 ]
 
 export const postTypes: Array<{ id: PostType; label: string; available: boolean }> = [

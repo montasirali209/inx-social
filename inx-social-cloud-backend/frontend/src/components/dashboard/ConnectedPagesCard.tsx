@@ -1,5 +1,6 @@
 import { ArrowUpRight, CheckCircle2, Link2 } from 'lucide-react'
 import type { ConnectedPage } from '../../types/dashboard'
+import { SocialPlatformIcon } from '../ui/SocialPlatformIcon'
 import { DashboardCard } from './DashboardCard'
 
 function initials(name: string) {
@@ -22,7 +23,7 @@ export function ConnectedPagesCard({ pages }: { pages: ConnectedPage[] }) {
           {pages.slice(0, 6).map((page) => (
             <li className="group/page min-w-0 rounded-xl border border-border-soft bg-bg-soft/48 p-2.5 transition duration-200 hover:-translate-y-0.5 hover:border-[#1877f2]/35 hover:bg-[#1877f2]/[0.065] motion-reduce:transition-none" key={page.id}>
               <div className="flex items-center gap-2.5">
-                <span className="relative grid size-10 shrink-0 place-items-center rounded-full border border-[#4a9cff]/30 bg-gradient-to-br from-[#2991ff] to-[#0758bd] text-xs font-bold text-white shadow-[0_0_20px_rgba(24,119,242,0.18)]" title={page.facebookPageName}><span aria-hidden="true" className="absolute -right-0.5 -top-0.5 grid size-4 place-items-center rounded-full border-2 border-panel bg-white text-[10px] font-black text-[#1877f2]">f</span>{initials(page.facebookPageName)}</span>
+                <span className="relative grid size-10 shrink-0 place-items-center rounded-full border border-[#4a9cff]/30 bg-gradient-to-br from-[#2991ff] to-[#0758bd] text-xs font-bold text-white shadow-[0_0_20px_rgba(24,119,242,0.18)]" title={page.facebookPageName}><SocialPlatformIcon className="absolute -right-0.5 -top-0.5 !size-4 shadow-none ring-2 ring-panel" platform="facebook" />{initials(page.facebookPageName)}</span>
                 <span className="min-w-0"><strong className="block truncate text-xs" title={page.facebookPageName}>{page.facebookPageName}</strong><small className="mt-1 flex items-center gap-1 text-[10px] text-brand-green"><CheckCircle2 aria-hidden="true" className="size-3" /> Connected & active</small></span>
               </div>
             </li>

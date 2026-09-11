@@ -6,13 +6,16 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('shared platform icon system is used by Posts, Dashboard and Analytics', () => {
+test('one shared platform icon system is used throughout the React workspace', () => {
   const shared = read('frontend/src/components/ui/SocialPlatformIcon.tsx');
   const posts = read('frontend/src/components/posts/PostPrimitives.tsx');
   const dashboard = read('frontend/src/components/dashboard/PlatformIcon.tsx');
+  const connectedPages = read('frontend/src/components/dashboard/ConnectedPagesCard.tsx');
+  const publishingQueue = read('frontend/src/components/dashboard/PublishingQueueTable.tsx');
+  const bulkScheduler = read('frontend/src/components/bulk-scheduler/PlatformMark.tsx');
   const analyticsSelector = read('frontend/src/components/analytics/AnalyticsAccountSelector.tsx');
-  const globalStyles = read('frontend/src/social-platform-icons.css');
-  const connectionOverrides = read('frontend/src/connection-icon-overrides.css');
+  const connectedAccounts = read('frontend/src/components/connections/ConnectedAccountsPage.tsx');
+  const settings = read('frontend/src/components/settings/SettingsCard.tsx');
   const connectionData = read('frontend/src/data/connectedAccountsData.ts');
   const main = read('frontend/src/main.tsx');
 
@@ -20,36 +23,38 @@ test('shared platform icon system is used by Posts, Dashboard and Analytics', ()
     assert.match(shared, new RegExp(`${platform}:`));
   }
   assert.match(shared, /rounded-full/);
-  assert.match(shared, /#1877f2/);
+  assert.match(shared, /#3b7dc8/);
+  assert.match(shared, /x: 'bg-\[#4fb4df\] text-white'/);
+  assert.match(shared, /fill="#ff0000"/);
   assert.match(posts, /SocialPlatformIcon/);
   assert.match(dashboard, /SocialPlatformIcon/);
+  assert.match(connectedPages, /SocialPlatformIcon/);
+  assert.match(publishingQueue, /SocialPlatformIcon/);
+  assert.match(bulkScheduler, /SocialPlatformIcon/);
   assert.match(analyticsSelector, /SocialPlatformIcon/);
-  assert.match(main, /social-platform-icons\.css/);
-  assert.match(main, /connection-icon-overrides\.css/);
-  assert.match(globalStyles, /aria-label="Facebook"/);
-  assert.match(globalStyles, /aria-label="Instagram"/);
-  assert.match(connectionOverrides, /size-10/);
-  assert.match(connectionOverrides, /size-8/);
-  assert.match(connectionData, /facebook:.*!rounded-full/);
-  assert.match(connectionData, /instagram:.*!rounded-full/);
+  assert.match(connectedAccounts, /SocialPlatformIcon/);
+  assert.match(settings, /SocialPlatformIcon/);
+  assert.doesNotMatch(connectedAccounts, /\{meta\.mark\}/);
+  assert.doesNotMatch(bulkScheduler, /mark: ['"]/);
+  assert.doesNotMatch(publishingQueue, />f<\/span>/);
+  assert.doesNotMatch(connectionData, /mark:|className:/);
+  assert.doesNotMatch(main, /social-platform-icons\.css|connection-icon-overrides\.css/);
 });
 
-test('Connected Accounts matches the supplied large branded icon reference', () => {
-  const overrides = read('frontend/src/connection-icon-overrides.css');
+test('universal icons match the supplied circular branded reference', () => {
+  const shared = read('frontend/src/components/ui/SocialPlatformIcon.tsx');
 
-  assert.match(overrides, /span\[class~="size-12"\][\s\S]*width: 3rem !important;/);
-  assert.match(overrides, /span\[class~="size-10"\][\s\S]*width: 2\.5rem !important;/);
-  assert.match(overrides, /span\[class~="size-8"\][\s\S]*width: 2rem !important;/);
-  assert.match(overrides, /aria-label="Facebook"[\s\S]*320 512[\s\S]*fill='white'/);
-  assert.match(overrides, /aria-label="Instagram"[\s\S]*width: 76% !important/);
-  assert.match(overrides, /aria-label="LinkedIn"[\s\S]*448 512/);
-  assert.match(overrides, /aria-label="YouTube"[\s\S]*576 512/);
-  assert.match(overrides, /aria-label="TikTok"[\s\S]*%2325f4ee/);
-  assert.match(overrides, /aria-label="Pinterest"[\s\S]*384 512/);
-  assert.match(overrides, /aria-label="X"[\s\S]*#4fb4df/);
-  assert.match(overrides, /box-shadow: none !important;/);
-  assert.match(overrides, /-webkit-mask: none !important;/);
-  assert.doesNotMatch(overrides, /span\[class~="size-10"\][^{]*\{[^}]*width: 2rem !important;/s);
+  assert.match(shared, /!rounded-full/);
+  assert.match(shared, /facebook: 'bg-\[#3b7dc8\] text-white'/);
+  assert.match(shared, /instagram: 'bg-\[radial-gradient/);
+  assert.match(shared, /linkedin: 'bg-\[#0a66c2\] text-white'/);
+  assert.match(shared, /youtube: 'bg-\[#ff0000\] text-white'/);
+  assert.match(shared, /tiktok: 'border border-white\/15 bg-\[#010101\] text-white'/);
+  assert.match(shared, /pinterest: 'bg-\[#e60023\] text-white'/);
+  assert.match(shared, /x: 'bg-\[#4fb4df\] text-white'/);
+  assert.match(shared, /fill="#25f4ee"/);
+  assert.match(shared, /fill="#fe2c55"/);
+  assert.match(shared, /fill="#ff0000"/);
 });
 
 test('Post Preview uses a neutral full-width media placeholder and never renders a broken INXSocial avatar', () => {
