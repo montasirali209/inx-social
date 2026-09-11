@@ -26,6 +26,7 @@ const packageInfo = require('../package.json');
 const env = require('./config/env');
 
 const app = express();
+app.set('trust proxy', 1);
 const reactAppRoot = path.join(__dirname, '..', 'frontend', 'dist');
 const reactAppIndex = path.join(reactAppRoot, 'index.html');
 const adminIndex = path.join(__dirname, '..', 'public', 'index.html');
