@@ -34,6 +34,17 @@ test('shared platform icon system is used by Posts, Dashboard and Analytics', ()
   assert.match(connectionData, /instagram:.*!rounded-full/);
 });
 
+test('Connected Accounts keeps official-looking circular platform badges at their intended sizes', () => {
+  const overrides = read('frontend/src/connection-icon-overrides.css');
+
+  assert.match(overrides, /span\[class~="size-12"\][\s\S]*width: 3rem !important;/);
+  assert.match(overrides, /span\[class~="size-10"\][\s\S]*width: 2\.5rem !important;/);
+  assert.match(overrides, /span\[class~="size-8"\][\s\S]*width: 2rem !important;/);
+  assert.match(overrides, /aria-label="TikTok"[\s\S]*#25f4ee|%2325f4ee/);
+  assert.match(overrides, /aria-label="Facebook"[\s\S]*width: 70% !important;/);
+  assert.doesNotMatch(overrides, /span\[class~="size-10"\][^{]*\{[^}]*width: 2rem !important;/s);
+});
+
 test('Post Preview uses a neutral full-width media placeholder and never renders a broken INXSocial avatar', () => {
   const preview = read('frontend/src/components/posts/PostPreviewPanel.tsx');
 
