@@ -6,6 +6,7 @@ export const CAROUSEL_SESSION_KEY = 'inx-social-carousel-composer-session-v2'
 export type CarouselComposerSession = {
   title: string
   caption: string
+  captionIdea: string
   assets: MediaAsset[]
   slideLinks: Record<string, string>
   selectedIds: string[]
@@ -24,6 +25,7 @@ export function readCarouselSession(): CarouselComposerSession | null {
     return {
       title: typeof parsed.title === 'string' ? parsed.title : '',
       caption: typeof parsed.caption === 'string' ? parsed.caption : '',
+      captionIdea: typeof parsed.captionIdea === 'string' ? parsed.captionIdea : '',
       assets: parsed.assets.filter((asset): asset is MediaAsset => Boolean(asset?.id)).slice(0, 10),
       slideLinks: parsed.slideLinks && typeof parsed.slideLinks === 'object' ? parsed.slideLinks : {},
       selectedIds: Array.isArray(parsed.selectedIds) ? parsed.selectedIds.filter((id): id is string => typeof id === 'string') : [],
@@ -49,5 +51,5 @@ export function clearCarouselSession() {
 
 export function hasCarouselSession() {
   const session = readCarouselSession()
-  return Boolean(session && (session.title.trim() || session.caption.trim() || session.assets.length))
+  return Boolean(session && (session.title.trim() || session.caption.trim() || session.captionIdea.trim() || session.assets.length))
 }

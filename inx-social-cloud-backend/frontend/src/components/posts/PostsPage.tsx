@@ -6,6 +6,7 @@ import { zonedDateTimeToIso } from '../../lib/bulk-scheduler-utils'
 import { fetchFacebookDashboardAnalytics } from '../../lib/dashboard-api'
 import { fetchMediaAssetFile, fetchMediaLibrary, uploadMediaAsset } from '../../lib/media-library-api'
 import { calculateBestPostTime } from '../../lib/posts-analytics'
+import { clearPostComposerFile, readPostComposerFile, savePostComposerFile } from '../../lib/post-composer-file-session'
 import type { AIDraft } from '../../types/ai-content-studio'
 import type { ConnectedPage, DashboardJob } from '../../types/dashboard'
 import type { MediaAsset } from '../../types/media-library'
@@ -33,6 +34,7 @@ type PostComposerSession = {
   postType: Exclude<PostType, 'carousel'>
   title: string
   caption: string
+  captionIdea: string
   mediaLibraryAssetId: string | null
   mediaFileName: string | null
   selectedIds: string[]
@@ -51,6 +53,7 @@ function readComposerSession(): PostComposerSession | null {
     const postType = parsed.postType === 'image' || parsed.postType === 'video' || parsed.postType === 'reel' ? parsed.postType : 'text'
     return {
       postType, title: typeof parsed.title === 'string' ? parsed.title : '', caption: typeof parsed.caption === 'string' ? parsed.caption : '',
+      captionIdea: typeof parsed.captionIdea === 'string' ? parsed.captionIdea : '',
       mediaLibraryAssetId: typeof parsed.mediaLibraryAssetId === 'string' ? parsed.mediaLibraryAssetId : null,
       mediaFileName: typeof parsed.mediaFileName === 'string' ? parsed.mediaFileName : null,
       selectedIds: Array.isArray(parsed.selectedIds) ? parsed.selectedIds.filter((id): id is string => typeof id === 'string') : [],
@@ -121,6 +124,7 @@ export function PostsPage() {
   const [postType, setPostType] = useState<PostType>(initial?.postType || 'text')
   const [title, setTitle] = useState(initial?.title || '')
   const [caption, setCaption] = useState(initial?.caption || '')
+  const [captionIdea, setCaptionIdea] = useState(initial?.captionIdea || '')
   const [media, setMedia] = useState<MediaItem | null>(null)
   const [retainMedia, setRetainMedia] = useState(initial?.retainMedia || false)
   const [selectedIds, setSelectedIds] = useState<string[]>(initial?.selectedIds || [])
@@ -163,7 +167,27 @@ export function PostsPage() {
   }, [initial, location.state])
 
   useEffect(() => {
-    const hasWork = Boolean(title.trim() || caption.trim() || media || selectedIds.length || campaign !== 'No campaign' || labels.trim())
+    const state = location.state as PostsLocationState | null
+    if (state?.mediaLibraryAsset || state?.aiDraft || initial?.mediaLibraryAssetId || !initial?.mediaFileName || restoredSessionAssetId.current) return
+    restoredSessionAssetId.current = `browser:${initial.mediaFileName}`
+    setProgress({ state: 'preparing', percent: 20, message: `Restoring ${initial.mediaFileName} from this browser…` })
+    void readPostComposerFile().then((file) => {
+      if (!file) throw new Error('The unfinished text was restored, but its local media is no longer available. Please select the file again.')
+      const url = URL.createObjectURL(file)
+      const type = file.type.startsWith('video/') || initial.postType === 'video' || initial.postType === 'reel' ? 'video' : 'image'
+      setMedia({ id: crypto.randomUUID(), libraryAssetId: null, type, file, url, thumbnailUrl: url, fileName: file.name, size: file.size })
+      setProgress({ state: 'completed', percent: 100, message: 'Your unfinished post and local media were restored.' })
+    }).catch((error) => setProgress({ state: 'failed', percent: 0, message: error instanceof Error ? error.message : 'The local draft media could not be restored.' }))
+  }, [initial, location.state])
+
+  function updateMedia(value: MediaItem | null) {
+    setMedia(value)
+    if (value && !value.libraryAssetId) void savePostComposerFile(value.file).catch(() => {})
+    if (!value) void clearPostComposerFile().catch(() => {})
+  }
+
+  useEffect(() => {
+    const hasWork = Boolean(title.trim() || caption.trim() || captionIdea.trim() || media || selectedIds.length || campaign !== 'No campaign' || labels.trim())
     if (!hasWork) {
       window.localStorage.removeItem(composerSessionKey)
       return
@@ -172,12 +196,12 @@ export function PostsPage() {
     const retainedInitialFileName = retainedInitialMediaId ? initial?.mediaFileName || null : null
     const session: PostComposerSession = {
       postType: postType === 'carousel' ? 'text' : postType,
-      title, caption, mediaLibraryAssetId: media?.libraryAssetId || retainedInitialMediaId,
+      title, caption, captionIdea, mediaLibraryAssetId: media?.libraryAssetId || retainedInitialMediaId,
       mediaFileName: media?.fileName || retainedInitialFileName,
       selectedIds, mode, date, time, campaign, labels, retainMedia,
     }
     window.localStorage.setItem(composerSessionKey, JSON.stringify(session))
-  }, [campaign, caption, date, initial, labels, location.state, media, mode, postType, retainMedia, selectedIds, time, title])
+  }, [campaign, caption, captionIdea, date, initial, labels, location.state, media, mode, postType, retainMedia, selectedIds, time, title])
 
   useEffect(() => {
     const state = location.state as PostsLocationState | null
@@ -424,7 +448,10 @@ export function PostsPage() {
       }
       const failed = response.failures.length + mediaFailures
       setProgress({ state: failed ? 'failed' : 'completed', percent: 100, message: failed ? `${response.jobs.length - failed} destinations completed; ${failed} failed. Review the Dashboard for details.` : `${response.jobs.length} destination${response.jobs.length === 1 ? '' : 's'} ${mode === 'now' ? 'published' : 'scheduled'} successfully.` })
-      if (!failed) window.localStorage.removeItem(composerSessionKey)
+      if (!failed) {
+        window.localStorage.removeItem(composerSessionKey)
+        void clearPostComposerFile().catch(() => {})
+      }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['posts-workspace'] }),
         queryClient.invalidateQueries({ queryKey: ['studio-overview'] }),
@@ -456,7 +483,7 @@ export function PostsPage() {
       <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 xl:grid-cols-5">{stats.map((stat) => <PostsStatCard key={stat.label} {...stat} onClick={stat.label === 'Drafts' ? () => setDraftLibraryOpen(true) : stat.label === 'All Posts' ? () => setPostLibraryView('all') : stat.label === 'Scheduled' ? () => setPostLibraryView('scheduled') : stat.label === 'Published' ? () => setPostLibraryView('published') : stat.label === 'Needs Review' ? () => setPostLibraryView('needs_review') : undefined} />)}</div>
       <DestinationSelector destinations={workspace.data.destinations} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.35fr)_minmax(290px,.72fr)_minmax(320px,.82fr)]">
-        <CreatePostPanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} caption={caption} destinationCount={selectedIds.length} media={media} postType={postType} retainMedia={retainMedia} setCaption={setCaption} setMedia={setMedia} setPostType={setPostType} setRetainMedia={setRetainMedia} setTitle={setTitle} title={title} />
+        <CreatePostPanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} caption={caption} captionIdea={captionIdea} destinationCount={selectedIds.length} media={media} postType={postType} retainMedia={retainMedia} setCaption={setCaption} setCaptionIdea={setCaptionIdea} setMedia={updateMedia} setPostType={setPostType} setRetainMedia={setRetainMedia} setTitle={setTitle} title={title} />
         <SchedulePanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} campaign={campaign} canPublish={mode === 'draft' ? Boolean(title.trim() || caption.trim()) : ready} date={date} labels={labels} mode={mode} onDraft={saveDraft} onPublish={requestPublish} progress={progress} setCampaign={setCampaign} setDate={setDate} setLabels={setLabels} setMode={setMode} setTime={setTime} time={time} />
         <PostPreviewPanel caption={caption} media={media} selectedPage={selectedPage} />
       </div>

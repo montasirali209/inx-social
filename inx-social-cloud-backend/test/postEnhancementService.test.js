@@ -20,6 +20,22 @@ test('caption enhancement uses the governed provider and returns only safe publi
   assert.equal(JSON.stringify(result).includes('test-secret'), false);
 });
 
+test('caption writer turns a short idea into a governed publish-ready caption', async () => {
+  let request;
+  const http = { post: async (...args) => {
+    request = args;
+    return { data: { choices: [{ message: { content: 'A complete caption.\n\n#Focused #Useful' } }] } };
+  } };
+  const result = await service.enhanceCaption(
+    { caption: 'launch our weekend service', action: 'write', tone: 'friendly' },
+    { http, config: { enabled: true, baseUrl: 'https://provider.example/v1', apiKey: 'test-secret', model: 'test-model', timeoutMs: 5000 } }
+  );
+
+  assert.equal(result.caption, 'A complete caption.\n\n#Focused #Useful');
+  assert.match(request[1].messages[1].content, /Short idea:/);
+  assert.match(request[1].messages[1].content, /two to five focused relevant hashtags/i);
+});
+
 test('caption enhancement fails closed when the provider is not configured', async () => {
   await assert.rejects(
     service.enhanceCaption(

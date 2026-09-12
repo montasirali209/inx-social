@@ -82,7 +82,7 @@ test('standard post work also restores after navigating away from Posts', () => 
 test('carousel slides support grab ordering alongside arrow controls', () => {
   const page = read('frontend/src/components/posts/InlineManualCarouselPage.tsx');
   assert.match(page, /draggable/);
-  assert.match(page, /Drag slide/);
+  assert.match(page, /Grab anywhere/);
   assert.match(page, /moveSlideTo/);
   assert.match(page, /Move slide \$\{index \+ 1\} left/);
   assert.match(page, /Move slide \$\{index \+ 1\} right/);

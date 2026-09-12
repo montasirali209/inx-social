@@ -1,11 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { ApiError } from '../../lib/api-client'
 import { createBulkMediaPost, fetchBulkSchedulerData, publishBulkLibraryMedia, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
-import { uploadMediaAsset } from '../../lib/media-library-api'
+import { fetchMediaAssetFile, uploadMediaAsset } from '../../lib/media-library-api'
 import { buildPublishingTimes, parseCaptions } from '../../lib/bulk-scheduler-utils'
 import type { BatchProgress, Destination, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
+import type { MediaAsset } from '../../types/media-library'
 import { backendStatusToUploadStatus } from '../../types/bulk-scheduler'
 import { BatchRunPanel } from './BatchRunPanel'
 import { BulkSchedulerHero } from './BulkSchedulerHero'
@@ -53,6 +55,7 @@ function mediaMimeType(file: File) {
 }
 
 export function BulkSchedulerPage() {
+  const location = useLocation()
   const { registerStop, update: updateActivity } = useBulkSchedulerActivity()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [media, setMedia] = useState<SelectedMedia[]>([])
@@ -67,6 +70,7 @@ export function BulkSchedulerPage() {
   const [results, setResults] = useState<UploadResult[]>([])
   const [confirmationOpen, setConfirmationOpen] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+  const importedLibrarySelection = useRef('')
   const destinationSection = useRef<HTMLDivElement>(null)
   const running = ['preparing', 'uploading', 'scheduling'].includes(progress.state)
   const stopUpload = useCallback(() => abortRef.current?.abort(), [])
@@ -149,6 +153,30 @@ export function BulkSchedulerPage() {
     const rejected = files.length - valid.length
     setProgress(rejected ? { ...idleProgress, state: 'failed', message: `${rejected} unsupported, empty or oversized file${rejected === 1 ? ' was' : 's were'} not added. Images may be PNG, JPEG or WebP up to 15 MB; videos may be MP4, MOV or WebM.` } : idleProgress)
   }
+
+  useEffect(() => {
+    const selectedAssets = (location.state as { mediaLibraryAssets?: MediaAsset[] } | null)?.mediaLibraryAssets || []
+    const fingerprint = selectedAssets.map((asset) => asset.id).join(':')
+    if (!fingerprint || importedLibrarySelection.current === fingerprint) return
+    importedLibrarySelection.current = fingerprint
+    setProgress({ ...idleProgress, state: 'preparing', message: `Loading ${selectedAssets.length} Media Library assets for separate bulk posts…` })
+    void Promise.all(selectedAssets.map(async (asset): Promise<SelectedMedia> => {
+      const file = await fetchMediaAssetFile(asset)
+      const kind = mediaKind(file)
+      if (!kind) throw new Error(`${asset.fileName} is not a supported image or video.`)
+      return { id: asset.id, libraryAssetId: asset.id, file, kind, previewUrl: URL.createObjectURL(file) }
+    })).then((items) => {
+      mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+      mediaRef.current = items
+      setMedia(items)
+      setRetainMedia(true)
+      setResults([])
+      setProgress({ ...idleProgress, state: 'completed', message: `${items.length} Media Library assets are ready as separate bulk posts. Add one caption per asset, or enable the fallback caption.` })
+    }).catch((error) => {
+      importedLibrarySelection.current = ''
+      setProgress({ ...idleProgress, state: 'failed', message: error instanceof Error ? error.message : 'The selected Media Library assets could not be loaded.' })
+    })
+  }, [location.state])
 
   const clearSession = () => {
     mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))

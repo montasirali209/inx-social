@@ -117,7 +117,7 @@ const directPostSchema = z.object({
 
 const postEnhancementSchema = z.object({
   caption: z.string().trim().min(1, 'Write a caption before using AI enhancement.').max(5000),
-  action: z.enum(['rewrite', 'shorten', 'expand', 'hashtags', 'cta']),
+  action: z.enum(['write', 'rewrite', 'shorten', 'expand', 'hashtags', 'cta']),
   tone: z.enum(['professional', 'friendly', 'concise', 'energetic']).default('professional')
 });
 
