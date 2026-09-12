@@ -1,16 +1,20 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { PostReuseModal } from './PostReuseModal'
 
 describe('PostReuseModal', () => {
   it('keeps the title and footer outside the scrolling results region', () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
     render(
-      <PostReuseModal
-        initialView="scheduled"
-        jobs={[]}
-        onClose={vi.fn()}
-        onReuse={vi.fn()}
-      />,
+      <QueryClientProvider client={queryClient}>
+        <PostReuseModal
+          initialView="scheduled"
+          jobs={[]}
+          onClose={vi.fn()}
+          onReuse={vi.fn()}
+        />
+      </QueryClientProvider>,
     )
 
     const dialog = screen.getByRole('dialog', { name: 'Reuse a post' })
