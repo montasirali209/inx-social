@@ -23,7 +23,7 @@ const assistantMessageSchema = z.object({
     content: z.string().trim().min(1).max(4000)
   })).min(1).max(18),
   urls: z.array(z.string().trim().min(1).max(2000)).max(2).default([]),
-  referenceAssetIds: z.array(z.string().trim().min(1).max(120)).max(4).default([]),
+  referenceAssetIds: z.array(z.string().trim().min(1).max(120)).max(8).default([]),
   platform: z.string().trim().max(80).optional(),
   aspectRatio: z.enum(['1:1', '4:5', '9:16', '16:9']).optional()
 });
@@ -31,7 +31,7 @@ const conversationalImageSchema = z.object({
   prompt: z.string().trim().min(2).max(1500),
   platform: z.string().trim().max(80).optional(),
   aspectRatio: z.enum(['1:1', '4:5', '9:16', '16:9']).optional(),
-  referenceAssetIds: z.array(z.string().trim().min(1).max(120)).max(4).default([]),
+  referenceAssetIds: z.array(z.string().trim().min(1).max(120)).max(8).default([]),
   brief: z.object({
     objective: z.string().max(300).optional(),
     audience: z.string().max(300).optional(),
@@ -103,6 +103,20 @@ async function estimate(req, res, next) {
     const input = generationSchema.parse(req.body || {});
     await creditService.getBalance(req.user.id);
     res.json({ credits: studioService.estimateGenerationCost(input), source: 'backend', explanation: 'Fixed INXSocial Studio credits. Provider cost never changes the displayed customer credit price after generation starts.' });
+  } catch (error) { next(error); }
+}
+
+async function uploadReference(req, res, next) {
+  try {
+    const encodedName = String(req.headers['x-file-name'] || 'reference');
+    let fileName = encodedName;
+    try { fileName = decodeURIComponent(encodedName); } catch (_) { /* keep raw name */ }
+    const reference = await postStudioService.saveReference(req.user.id, {
+      fileName,
+      mimeType: String(req.headers['content-type'] || 'application/octet-stream').split(';')[0],
+      data: Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '')
+    });
+    res.status(201).json({ reference });
   } catch (error) { next(error); }
 }
 
@@ -229,7 +243,7 @@ async function creditWebhook(req, res) {
 }
 
 module.exports = {
-  access, balance, estimate, assistantMessage, generateConversationalImagePost,
+  access, balance, estimate, uploadReference, assistantMessage, generateConversationalImagePost,
   generateImagePost: generation('image_post'),
   generateCarouselPost: generation('carousel_post'),
   generateShortVideo: generation('short_video'),
