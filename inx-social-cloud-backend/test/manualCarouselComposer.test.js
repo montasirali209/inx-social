@@ -16,11 +16,11 @@ test('Posts carousel choice opens an inline manual composer instead of AI Conten
 
 test('manual carousel changes only the Create Your Post content while retaining Posts layout surfaces', () => {
   const page = read('frontend/src/components/posts/InlineManualCarouselPage.tsx');
-  assert.match(page, /PostsStats/);
+  assert.match(page, /PostsStatCard/);
   assert.match(page, /DestinationSelector/);
+  assert.match(page, /CreatePostPanel/);
   assert.match(page, /SchedulePanel/);
-  assert.match(page, /PostPreviewCard/);
-  assert.match(page, /Create Your Post/);
+  assert.match(page, /PostPreviewPanel/);
   assert.match(page, /Carousel slides/);
 });
 
@@ -30,18 +30,19 @@ test('manual carousel supports direct upload, order, schedule and publishing', (
   assert.match(page, /multiple/);
   assert.match(page, /uploadMediaAsset/);
   assert.match(page, /moveSlide/);
-  assert.match(page, /removeSlide/);
+  assert.match(page, /setAssets\(\(current\) => current\.filter/);
   assert.match(page, /createCarouselPosts/);
   assert.match(page, /mediaLibraryAssetIds:\s*assets\.map/);
   assert.match(page, /SchedulePanel/);
   assert.match(page, /Manual carousel posting is available without AI Content Studio/);
 });
 
-test('standard preview card supports carousel slides without replacing its shell', () => {
-  const preview = read('frontend/src/components/posts/PostPreviewCard.tsx');
+test('standard preview panel supports carousel slides without replacing its shell', () => {
+  const preview = read('frontend/src/components/posts/PostPreviewPanel.tsx');
   assert.match(preview, /carouselAssets/);
-  assert.match(preview, /carouselIndex/);
-  assert.match(preview, /Facebook carousel/);
+  assert.match(preview, /isCarousel/);
+  assert.match(preview, /Carousel preview slide/);
+  assert.match(preview, /Post Preview/);
 });
 
 test('AI generated carousel handoff uses the same complete carousel editor', () => {
