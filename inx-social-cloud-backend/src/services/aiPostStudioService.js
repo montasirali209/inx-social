@@ -16,4 +16,7 @@ axios.interceptors.request.use((config) => {
   return config;
 });
 
-module.exports = require('./aiPostStudioServiceV2');
+const studio = require('./aiPostStudioServiceV2');
+const references = require('./aiStudioReferenceService');
+
+module.exports = { ...studio, saveReference: references.saveReference };

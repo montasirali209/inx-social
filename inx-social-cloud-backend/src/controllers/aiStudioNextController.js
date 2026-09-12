@@ -27,7 +27,7 @@ const carouselSchema = z.object({
   platform: z.string().trim().max(80).optional(),
   aspectRatio: z.enum(['1:1', '4:5', '9:16', '16:9']).default('1:1'),
   slides: z.coerce.number().int().min(3).max(10).default(5),
-  referenceAssetIds: z.array(z.string().trim().min(1).max(120)).max(4).default([]),
+  referenceAssetIds: z.array(z.string().trim().min(1).max(120)).max(8).default([]),
   brief: briefSchema,
   sourceAnalysis: sourceAnalysisSchema
 });

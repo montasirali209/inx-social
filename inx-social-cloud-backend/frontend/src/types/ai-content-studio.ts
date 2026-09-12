@@ -66,6 +66,7 @@ export type GeneratedAsset = {
   completionStatus?: 'completed' | 'completed_with_warnings'
   expiresAt?: string
   retentionDays?: number
+  studioState?: Record<string, unknown>
   provenance?: Array<{
     provider: string
     providerId: string

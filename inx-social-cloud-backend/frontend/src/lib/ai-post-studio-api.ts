@@ -1,4 +1,4 @@
-import { ApiError, apiRequest } from './api-client'
+import { ApiError, apiRequest, getStoredAuthToken } from './api-client'
 import type { GeneratedAsset } from '../types/ai-content-studio'
 
 export const SOURCE_MEMORY_PREFIX = '[[INXSOCIAL_SOURCE_ANALYSIS_V2]]'
@@ -57,9 +57,37 @@ export type PostStudioAssistantResponse = {
   analysedReferences: Array<{ id: string; name: string }>
 }
 
+export type PostStudioReferenceUpload = {
+  id: string
+  fileName: string
+  mimeType: string
+  byteSize: number
+  convertedToPreview: boolean
+}
+
+function compactStrings(values: string[] | undefined, maxItems: number, maxChars: number) {
+  return (values || []).slice(0, maxItems).map((value) => String(value || '').slice(0, maxChars)).filter(Boolean)
+}
+
 export function sourceAnalysisMemoryMessage(analysis: PostStudioSourceAnalysis | null): PostStudioMessage | null {
   if (!analysis?.fingerprint) return null
-  return { role: 'assistant', content: `${SOURCE_MEMORY_PREFIX}${JSON.stringify(analysis)}` }
+  // Assistant-message validation is capped at 4,000 characters. This intentionally
+  // keeps reusable research memory below ~3 KB so a mature conversation cannot fail
+  // validation simply because its source analysis became detailed.
+  const compact = {
+    fingerprint: analysis.fingerprint,
+    productName: String(analysis.productName || '').slice(0, 100),
+    summary: String(analysis.summary || '').slice(0, 350),
+    positioning: String(analysis.positioning || '').slice(0, 180),
+    audience: compactStrings(analysis.audience, 3, 60),
+    verifiedClaims: compactStrings(analysis.verifiedClaims, 4, 100),
+    visualIdentity: compactStrings(analysis.visualIdentity, 3, 80),
+    assetObservations: compactStrings(analysis.assetObservations, 3, 100),
+    strongestAngles: compactStrings(analysis.strongestAngles, 3, 100),
+    cautions: compactStrings(analysis.cautions, 2, 100),
+    sources: (analysis.sources || []).slice(0, 4).map((item) => ({ type: item.type, label: String(item.label || '').slice(0, 80), ok: item.ok })),
+  }
+  return { role: 'assistant', content: `${SOURCE_MEMORY_PREFIX}${JSON.stringify(compact)}` }
 }
 
 function studioFailure(error: unknown, kind: 'assistant' | 'render') {
@@ -87,6 +115,29 @@ export async function sendPostStudioMessage(input: {
   } catch (error) {
     throw studioFailure(error, 'assistant')
   }
+}
+
+export function uploadPostStudioReference(file: File, onProgress: (percent: number) => void): Promise<PostStudioReferenceUpload> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('POST', '/api/ai-content-studio/references')
+    request.withCredentials = true
+    request.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+    request.setRequestHeader('X-File-Name', encodeURIComponent(file.name))
+    const token = getStoredAuthToken()
+    if (token) request.setRequestHeader('Authorization', `Bearer ${token}`)
+    request.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100))
+    }
+    request.onload = () => {
+      let payload: { reference?: PostStudioReferenceUpload; error?: string } = {}
+      try { payload = JSON.parse(request.responseText || '{}') } catch { /* use HTTP fallback */ }
+      if (request.status >= 200 && request.status < 300 && payload.reference) resolve(payload.reference)
+      else reject(new Error(payload.error || `Reference upload failed (HTTP ${request.status}).`))
+    }
+    request.onerror = () => reject(new Error('The reference upload connection was interrupted.'))
+    request.send(file)
+  })
 }
 
 export async function generateConversationalImagePost(input: {

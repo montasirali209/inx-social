@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const express = require('express');
 const { requireAuth } = require('../middleware/authMiddleware');
 const controller = require('../controllers/aiContentStudioController');
 const nextController = require('../controllers/aiStudioNextController');
@@ -9,6 +10,10 @@ router.get('/credits/balance', controller.balance);
 router.get('/credits/packs', controller.packs);
 router.post('/credits/checkout', controller.createTopupCheckout);
 router.post('/estimate', controller.estimate);
+router.post('/references', express.raw({
+  type: ['image/*', 'application/pdf', 'text/*', 'application/json', 'application/xml', 'application/rtf', 'application/octet-stream'],
+  limit: '20mb'
+}), controller.uploadReference);
 router.post('/assistant/message', controller.assistantMessage);
 router.post('/generate/conversational-image-post', controller.generateConversationalImagePost);
 router.post('/generate/conversational-carousel', nextController.generateCarousel);
