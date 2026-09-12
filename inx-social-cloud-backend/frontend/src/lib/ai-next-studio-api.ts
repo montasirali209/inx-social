@@ -43,6 +43,7 @@ export type StockVideoAccess = {
   periodEnd?: string
   providers?: { pexels: boolean; pixabay: boolean; archiveOrg: boolean }
   commercialOutput?: boolean
+  runtime?: { name: string; commit?: string; pipelines: string[]; providerMenu?: unknown } | null
 }
 
 export type StockVideoSelection = {
@@ -53,6 +54,7 @@ export type StockVideoSelection = {
   tone: 'Natural' | 'Friendly' | 'Confident' | 'Energetic' | 'Professional' | 'Cinematic'
   voiceover: boolean
   captions: boolean
+  fullRunAuthorized: boolean
 }
 
 export function generateConversationalCarousel(input: {
