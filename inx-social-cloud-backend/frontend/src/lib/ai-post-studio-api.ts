@@ -71,21 +71,21 @@ function compactStrings(values: string[] | undefined, maxItems: number, maxChars
 
 export function sourceAnalysisMemoryMessage(analysis: PostStudioSourceAnalysis | null): PostStudioMessage | null {
   if (!analysis?.fingerprint) return null
-  // Assistant-message validation is intentionally capped at 4,000 characters. Keep the
-  // reusable source memory comfortably below that ceiling rather than sending the full
-  // research object back through the conversational message field.
+  // Assistant-message validation is capped at 4,000 characters. This intentionally
+  // keeps reusable research memory below ~3 KB so a mature conversation cannot fail
+  // validation simply because its source analysis became detailed.
   const compact = {
     fingerprint: analysis.fingerprint,
-    productName: String(analysis.productName || '').slice(0, 140),
-    summary: String(analysis.summary || '').slice(0, 700),
-    positioning: String(analysis.positioning || '').slice(0, 420),
-    audience: compactStrings(analysis.audience, 4, 120),
-    verifiedClaims: compactStrings(analysis.verifiedClaims, 6, 180),
-    visualIdentity: compactStrings(analysis.visualIdentity, 5, 150),
-    assetObservations: compactStrings(analysis.assetObservations, 5, 170),
-    strongestAngles: compactStrings(analysis.strongestAngles, 4, 180),
-    cautions: compactStrings(analysis.cautions, 4, 160),
-    sources: (analysis.sources || []).slice(0, 8).map((item) => ({ type: item.type, label: String(item.label || '').slice(0, 160), ok: item.ok })),
+    productName: String(analysis.productName || '').slice(0, 100),
+    summary: String(analysis.summary || '').slice(0, 350),
+    positioning: String(analysis.positioning || '').slice(0, 180),
+    audience: compactStrings(analysis.audience, 3, 60),
+    verifiedClaims: compactStrings(analysis.verifiedClaims, 4, 100),
+    visualIdentity: compactStrings(analysis.visualIdentity, 3, 80),
+    assetObservations: compactStrings(analysis.assetObservations, 3, 100),
+    strongestAngles: compactStrings(analysis.strongestAngles, 3, 100),
+    cautions: compactStrings(analysis.cautions, 2, 100),
+    sources: (analysis.sources || []).slice(0, 4).map((item) => ({ type: item.type, label: String(item.label || '').slice(0, 80), ok: item.ok })),
   }
   return { role: 'assistant', content: `${SOURCE_MEMORY_PREFIX}${JSON.stringify(compact)}` }
 }
