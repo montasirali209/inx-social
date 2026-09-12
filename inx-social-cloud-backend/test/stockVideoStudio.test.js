@@ -20,16 +20,19 @@ test('Stock Video Creator is an isolated Plus workflow with a separate monthly a
   assert.match(controller, /res\.status\(202\)/);
 });
 
-test('Stock Video Creator plans, sources, composes and preserves provenance', () => {
+test('Stock Video Creator delegates to the isolated real OpenMontage runtime and preserves provenance', () => {
   const service = read('src/services/stockVideoStudioService.js');
-  assert.match(service, /api\.pexels\.com\/videos\/search/);
-  assert.match(service, /pixabay\.com\/api\/videos/);
-  assert.match(service, /archive\.org\/advancedsearch\.php/);
-  assert.match(service, /archiveCommercialLicense/);
-  assert.match(service, /openmontage-documentary-montage/);
-  assert.match(service, /ffmpeg-static/);
-  assert.match(service, /createNarration/);
-  assert.match(service, /createSrt/);
+  const worker = read('../openmontage-worker/main.py');
+  const dockerfile = read('../openmontage-worker/Dockerfile');
+  const notice = read('../OPENMONTAGE-NOTICE.md');
+  assert.match(service, /openMontageUrl.*\/jobs/);
+  assert.match(service, /OPENMONTAGE_PIPELINE_FAILED/);
+  assert.match(dockerfile, /github\.com\/calesthio\/OpenMontage\.git/);
+  assert.match(dockerfile, /08e2151fa02de28a5d6a312b3d575692bf147ad7/);
+  assert.match(worker, /registry\.get\("direct_clip_search"\)/);
+  assert.match(worker, /registry\.get\("video_compose"\)/);
+  assert.match(worker, /write_checkpoint/);
+  assert.match(notice, /separately deployed/);
   assert.match(service, /provenance/);
   assert.match(service, /mediaLibrary\.publicAsset/);
 });
@@ -42,6 +45,7 @@ test('Stock Video Creator UI resumes active jobs and hands completed video to Po
   assert.match(component, /30.*remaining|remaining.*limit/);
   assert.match(component, /Post \/ Schedule/);
   assert.match(component, /Licensed-source provenance included/);
+  assert.match(component, /Authorize the complete OpenMontage run/);
   assert.match(videoStudio, /Stock Video Creator/);
   assert.match(videoStudio, /StockVideoCreator/);
 });

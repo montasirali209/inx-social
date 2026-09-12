@@ -56,7 +56,10 @@ module.exports = {
   stockVideo: {
     monthlyLimit: Math.max(1, Math.min(100, Number(process.env.STOCK_VIDEO_MONTHLY_LIMIT || 30))),
     pexelsConfigured: Boolean(process.env.PEXELS_API_KEY),
-    pixabayConfigured: Boolean(process.env.PIXABAY_API_KEY)
+    pixabayConfigured: Boolean(process.env.PIXABAY_API_KEY),
+    openMontageUrl: String(process.env.OPENMONTAGE_WORKER_URL || '').replace(/\/$/, ''),
+    openMontageToken: String(process.env.OPENMONTAGE_INTERNAL_TOKEN || ''),
+    openMontageTimeoutMs: Math.max(60000, Number(process.env.OPENMONTAGE_JOB_TIMEOUT_MS || 45 * 60 * 1000))
   },
   runware: {
     baseUrl: String(process.env.RUNWARE_API_URL || 'https://api.runware.ai/v1').replace(/\/$/, ''),

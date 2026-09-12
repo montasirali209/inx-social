@@ -62,7 +62,8 @@ const stockVideoGenerationSchema = z.object({
   aspectRatio: z.enum(['9:16', '16:9', '1:1']).default('9:16'),
   tone: z.enum(['Natural', 'Friendly', 'Confident', 'Energetic', 'Professional', 'Cinematic']).default('Natural'),
   voiceover: z.boolean().default(true),
-  captions: z.boolean().default(true)
+  captions: z.boolean().default(true),
+  fullRunAuthorized: z.boolean().default(true)
 });
 
 async function generateCarousel(req, res, next) {
