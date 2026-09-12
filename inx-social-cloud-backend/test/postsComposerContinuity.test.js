@@ -33,10 +33,12 @@ test('standard and carousel drafts remain independent while switching composer t
   const standard = read('frontend/src/components/posts/PostsPage.tsx');
   const carousel = read('frontend/src/lib/carousel-composer-session.ts');
   const fileStore = read('frontend/src/lib/post-composer-file-session.ts');
-  assert.match(route, /inx-social-active-post-composer-v1/);
+  assert.match(route, /getActivePostComposer/);
+  assert.match(route, /setActivePostComposer/);
   assert.doesNotMatch(route, /clearCarouselSession/);
   assert.match(standard, /captionIdea/);
   assert.match(carousel, /captionIdea/);
+  assert.match(carousel, /let activePostComposer/);
   assert.match(fileStore, /indexedDB/);
 });
 
