@@ -125,7 +125,7 @@ export function uploadDirectPostMedia(jobId: string, file: File, onProgress: (pe
       const message = payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : `Upload failed (HTTP ${request.status}).`
       reject(new Error(message))
     })
-    request.addEventListener('error', () => reject(new Error('The media upload connection was interrupted.'))
+    request.addEventListener('error', () => reject(new Error('The media upload connection was interrupted.')))
     request.send(file)
   })
 }
