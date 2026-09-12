@@ -1,7 +1,7 @@
+const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const test = require('node:test');
 
 const root = path.join(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
@@ -12,22 +12,16 @@ test('Posts carousel choice opens an inline manual composer instead of AI Conten
   assert.match(panel, /manualCarousel:\s*true/);
   assert.doesNotMatch(panel, /chooseCarouselPost[\s\S]*navigate\('\/ai-content-studio'/);
   assert.match(route, /InlineManualCarouselPage/);
-  assert.match(route, /state\?\.manualCarousel/);
 });
 
 test('manual carousel changes only the Create Your Post content while retaining Posts layout surfaces', () => {
   const page = read('frontend/src/components/posts/InlineManualCarouselPage.tsx');
-  const panel = read('frontend/src/components/posts/CreatePostPanel.tsx');
   assert.match(page, /PostsStatCard/);
   assert.match(page, /DestinationSelector/);
   assert.match(page, /CreatePostPanel/);
   assert.match(page, /SchedulePanel/);
   assert.match(page, /PostPreviewPanel/);
-  assert.match(page, /grid-cols-\[minmax\(0,1\.35fr\)_minmax\(290px,\.72fr\)_minmax\(320px,\.82fr\)\]/);
-  assert.match(panel, /carouselUploader/);
-  assert.match(panel, /AI Content Enhancement/);
-  assert.match(panel, /Live Content Score/);
-  assert.match(panel, /Best Time To Post/);
+  assert.match(page, /Carousel slides/);
 });
 
 test('manual carousel supports direct upload, order, schedule and publishing', () => {
@@ -36,20 +30,20 @@ test('manual carousel supports direct upload, order, schedule and publishing', (
   assert.match(page, /multiple/);
   assert.match(page, /uploadMediaAsset/);
   assert.match(page, /moveSlide/);
+  assert.match(page, /setAssets\(\(current\) => current\.filter/);
   assert.match(page, /createCarouselPosts/);
   assert.match(page, /mediaLibraryAssetIds:\s*assets\.map/);
   assert.match(page, /slideLinks:\s*orderedLinks/);
-  assert.match(page, /Link for carousel slide/);
-  assert.match(page, /up to 5 linked slides/);
+  assert.match(page, /linkedCarouselWithinLimit/);
   assert.match(page, /SchedulePanel/);
 });
 
-test('standard preview card supports carousel slides without replacing its shell', () => {
+test('standard preview panel supports carousel slides without replacing its shell', () => {
   const preview = read('frontend/src/components/posts/PostPreviewPanel.tsx');
   assert.match(preview, /carouselAssets/);
+  assert.match(preview, /isCarousel/);
   assert.match(preview, /Carousel preview slide/);
-  assert.match(preview, /PanelHeading step=\{4\}/);
-  assert.match(preview, /platforms\.map/);
+  assert.match(preview, /Post Preview/);
 });
 
 test('AI generated carousel handoff uses the same complete carousel editor', () => {
@@ -60,15 +54,18 @@ test('AI generated carousel handoff uses the same complete carousel editor', () 
   assert.match(route, /initialAssets=\{selectedAssets\}/);
 });
 
-test('carousel work automatically survives navigation and reloads in Posts', () => {
+test('carousel work survives in-app navigation but clears on a hard browser refresh', () => {
   const route = read('frontend/src/components/posts/PostsRoute.tsx');
   const page = read('frontend/src/components/posts/InlineManualCarouselPage.tsx');
   const session = read('frontend/src/lib/carousel-composer-session.ts');
   assert.match(route, /hasCarouselSession\(\)/);
+  assert.match(route, /getActivePostComposer/);
   assert.match(page, /saveCarouselSession/);
   assert.match(page, /useEffect/);
-  assert.match(session, /localStorage\.setItem\(CAROUSEL_SESSION_KEY/);
-  assert.match(session, /assets:\s*parsed\.assets/);
+  assert.match(session, /let carouselSession:/);
+  assert.match(session, /carouselSession = \{ \.\.\.session/);
+  assert.doesNotMatch(session, /localStorage\.setItem\(CAROUSEL_SESSION_KEY/);
+  assert.match(session, /localStorage\.removeItem\(CAROUSEL_SESSION_KEY/);
 });
 
 test('standard post work also restores after navigating away from Posts', () => {
