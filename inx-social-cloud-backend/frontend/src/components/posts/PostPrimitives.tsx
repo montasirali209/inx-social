@@ -36,17 +36,16 @@ export function PostsStatCard({ label, value, detail, tone, onClick }: { label: 
     red: 'border-brand-red/25 text-brand-red bg-brand-red/10',
     blue: 'border-brand-blue/25 text-brand-cyan bg-brand-blue/10',
   }
-  const content = (
-    <>
+  const open = onClick || (() => window.dispatchEvent(new CustomEvent('inx-posts-stat-open', { detail: { label, source: 'fallback' } })))
+  return (
+    <button aria-label={`Open ${label}`} className="interactive-surface group min-w-[210px] flex-1 rounded-card border p-4 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan" onClick={open} type="button">
       <div className="flex items-start gap-3">
         <span className={`grid size-11 shrink-0 place-items-center rounded-xl border ${tones[tone]}`}><Icon aria-hidden="true" className="size-5" /></span>
         <div className="min-w-0 flex-1"><p className="text-xs text-text-muted">{label}</p><strong className="mt-0.5 block text-2xl tracking-tight">{value}</strong><p className="mt-1 text-[10px] text-text-soft">{detail}</p></div>
-        {onClick && <span className="self-center text-lg text-brand-cyan transition-transform group-hover:translate-x-1" aria-hidden="true">›</span>}
+        <span className="self-center text-lg text-brand-cyan transition-transform group-hover:translate-x-1" aria-hidden="true">›</span>
       </div>
-    </>
+    </button>
   )
-  if (onClick) return <button aria-label={`Open ${label}`} className="interactive-surface group min-w-[210px] flex-1 rounded-card border p-4 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan" onClick={onClick} type="button">{content}</button>
-  return <article className="interactive-surface min-w-[210px] flex-1 rounded-card border p-4">{content}</article>
 }
 
 export function PanelHeading({ step, title, subtitle }: { step: number; title: string; subtitle: string }) {
