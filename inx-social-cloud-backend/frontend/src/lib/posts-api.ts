@@ -82,11 +82,18 @@ export function createDirectPosts(input: CreateDirectPostInput) {
   })
 }
 
-export function createCarouselPosts(input: CreateCarouselPostInput) {
-  return apiRequest<DirectPostResponse>('/api/studio/carousel-posts', {
+export async function createCarouselPosts(input: CreateCarouselPostInput) {
+  const response = await apiRequest<DirectPostResponse>('/api/studio/carousel-posts', {
     method: 'POST',
     body: JSON.stringify(input),
   })
+  if (response.failures.length) {
+    const details = response.failures
+      .map((failure) => `${failure.pageName || 'Facebook Page'}: ${failure.error || 'Carousel publishing failed.'}`)
+      .join(' · ')
+    throw new Error(details)
+  }
+  return response
 }
 
 export function enhancePostCaption(caption: string, action: EnhancementAction, tone: CaptionTone) {
@@ -118,7 +125,7 @@ export function uploadDirectPostMedia(jobId: string, file: File, onProgress: (pe
       const message = payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : `Upload failed (HTTP ${request.status}).`
       reject(new Error(message))
     })
-    request.addEventListener('error', () => reject(new Error('The media upload connection was interrupted.')))
+    request.addEventListener('error', () => reject(new Error('The media upload connection was interrupted.'))
     request.send(file)
   })
 }
