@@ -10,10 +10,12 @@ import { StudioSelect } from './StudioSelect'
 const ACTIVE_JOB_KEY = 'inx-social-stock-video-active-job-v1'
 
 function buildDraft(asset: GeneratedAsset, prompt: string, existing?: AIDraft | null): AIDraft {
+  const caption = asset.caption?.trim() || 'Your generated stock-footage video is ready to share.'
+  const title = caption.split(/[.!?]/)[0]?.trim() || 'Stock video'
   return {
-    id: existing?.id || crypto.randomUUID(), contentType: 'short_video', title: (asset.caption || prompt || 'Stock video').slice(0, 70),
+    id: existing?.id || crypto.randomUUID(), contentType: 'short_video', title: title.slice(0, 70),
     thumbnailUrl: asset.thumbnailUrl || asset.url, updatedAt: new Date().toISOString(), status: 'ready', prompt: prompt.slice(0, 1500),
-    caption: asset.caption || '', hashtags: asset.hashtags || [], altText: '', asset,
+    caption, hashtags: asset.hashtags || [], altText: '', asset,
     mediaLibraryAsset: existing?.mediaLibraryAsset || null, mediaLibraryAssets: existing?.mediaLibraryAssets || [],
   }
 }

@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchPostsWorkspace, createDirectPosts, publishDirectPostLibraryMedia, uploadDirectPostMedia } from '../../lib/posts-api'
 import { zonedDateTimeToIso } from '../../lib/bulk-scheduler-utils'
 import { fetchFacebookDashboardAnalytics } from '../../lib/dashboard-api'
@@ -23,6 +23,7 @@ import { PublishConfirmationDialog } from '../ui/PublishConfirmationDialog'
 
 const draftKey = 'inx-social-post-drafts-v1'
 const composerSessionKey = 'inx-social-post-composer-session-v1'
+let browserReloadCleanupConsumed = false
 
 type PostsLocationState = {
   mediaLibraryAsset?: MediaAsset
@@ -64,6 +65,18 @@ function readComposerSession(): PostComposerSession | null {
   } catch {
     return null
   }
+}
+
+function readInitialComposerSession(): PostComposerSession | null {
+  const navigation = window.performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
+  if (!browserReloadCleanupConsumed && navigation?.type === 'reload') {
+    browserReloadCleanupConsumed = true
+    window.localStorage.removeItem(composerSessionKey)
+    void clearPostComposerFile().catch(() => {})
+    return null
+  }
+  browserReloadCleanupConsumed = true
+  return readComposerSession()
 }
 
 function readDrafts(): PostDraft[] {
@@ -115,11 +128,12 @@ async function fetchExternalPublishedPosts(pages: ConnectedPage[]): Promise<Dash
 export function PostsPage() {
   const queryClient = useQueryClient()
   const location = useLocation()
+  const navigate = useNavigate()
   const importedAssetId = useRef<string | null>(null)
   const importedAiDraftId = useRef<string | null>(null)
   const restoredSessionAssetId = useRef<string | null>(null)
   const defaultModeApplied = useRef(false)
-  const [initial] = useState(readComposerSession)
+  const [initial] = useState(readInitialComposerSession)
   const workspace = useQuery({ queryKey: ['posts-workspace'], queryFn: fetchPostsWorkspace, refetchInterval: 45_000 })
   const [postType, setPostType] = useState<PostType>(initial?.postType || 'text')
   const [title, setTitle] = useState(initial?.title || '')
@@ -139,6 +153,11 @@ export function PostsPage() {
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null)
   const [progress, setProgress] = useState<PublishProgress>({ state: 'idle', percent: 0, message: '' })
   const [confirmationOpen, setConfirmationOpen] = useState(false)
+
+  useEffect(() => {
+    if (!location.state) return
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.pathname, location.state, navigate])
 
   useEffect(() => {
     if (!workspace.data || defaultModeApplied.current) return

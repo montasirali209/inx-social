@@ -83,7 +83,7 @@ def public_job(job: dict[str, Any]) -> dict[str, Any]:
 
 def json_completion(system: str, user: dict[str, Any]) -> dict[str, Any]:
     from openai import OpenAI
-    client = OpenAI()
+    client = OpenAI(timeout=45.0, max_retries=1)
     response = client.chat.completions.create(
         model=os.environ.get("OPENMONTAGE_TEXT_MODEL", "gpt-4o-mini"),
         messages=[{"role": "system", "content": system}, {"role": "user", "content": json.dumps(user)}],
@@ -97,15 +97,43 @@ def json_completion(system: str, user: dict[str, Any]) -> dict[str, Any]:
 def fallback_plan(req: JobRequest) -> dict[str, Any]:
     count = 4 if req.duration <= 15 else 6 if req.duration <= 30 else 8
     hold = req.duration / count
-    words = re.findall(r"[A-Za-z0-9]+", req.prompt)[:6]
-    query = " ".join(words) or "people city nature"
+    subject = re.sub(r"^(?:please\s+)?(?:make|create|generate)(?:\s+me)?\s+(?:a\s+)?(?:\d+[- ]?second\s+)?(?:short\s+)?video\s+(?:about|of|showing)?\s*", "", req.prompt.strip(), flags=re.I)
+    subject = subject.rstrip(".!? ") or "a meaningful human story"
+    if re.search(r"\bkarma|revenge|wrong(?:doing| doing)|mean (?:woman|character)\b", subject, re.I):
+        title = "When Her Cruelty Came Back Around"
+        caption = "She treated kindness like weakness—until every choice returned to her. A short story about consequences, accountability and change."
+        hashtags = ["karma", "lifeLesson", "shortStory", "accountability", "INXSocial"]
+        narration = (
+            "She believed that being cruel made her powerful. She dismissed people, embarrassed those who trusted her, "
+            "and never imagined that her choices would return to her. Then the situation changed. The people she had pushed "
+            "aside were no longer there when she needed help, and the doors she once controlled began closing on her. For the "
+            "first time, she felt the loneliness she had created for others. Karma was not a sudden act of revenge; it was the "
+            "natural result of every choice she had made. When she finally apologised and changed her behaviour, she learned "
+            "that respect is not weakness. What we give to others often finds its way back to us."
+        )
+        searches = ["confident woman office", "woman arguing coworker", "sad colleague alone", "tense business meeting",
+                    "woman rejected doorway", "regretful woman alone", "woman sincere apology", "peaceful woman sunrise"]
+    else:
+        keywords = [word.lower() for word in re.findall(r"[A-Za-z0-9]+", subject)
+                    if word.lower() not in {"a", "an", "the", "and", "or", "to", "for", "with", "from", "that", "this", "video"}][:5]
+        topic = " ".join(keywords) or "people everyday life"
+        title = subject[:90].capitalize()
+        caption = f"A concise visual story exploring {subject}, why it matters, and what viewers can take from it."
+        hashtags = [*keywords[:3], "story", "INXSocial"]
+        narration = (
+            f"This is a story about {subject}. It begins with a familiar moment and a simple question: what can this experience "
+            "teach us? Look beyond the first impression and the details start to matter. Each choice changes what happens next, "
+            "while every setback creates a chance to respond differently. The turning point comes when action replaces hesitation. "
+            "Progress is rarely instant, but small decisions build momentum. By the end, the lesson is clear: meaningful change "
+            "starts when we understand the situation, accept what it asks of us, and choose the next step with purpose."
+        )
+        searches = [f"{topic} people", f"{topic} close up", f"{topic} daily life", f"{topic} action",
+                    f"{topic} challenge", f"{topic} reflection", f"{topic} positive change", f"{topic} hopeful ending"]
     return {
-        "title": req.prompt[:90], "hook": req.prompt[:140], "caption": req.prompt,
-        "hashtags": ["video", "story", "INXSocial"],
-        "narration": req.prompt,
-        "thematicQuestion": f"What does {req.prompt[:80].rstrip('.?!')} reveal?",
-        "scenes": [{"description": f"{query}, {kind}, cinematic real footage", "query": f"{query} {kind}", "seconds": hold}
-                   for kind in ("wide", "people", "detail", "movement", "place", "closing", "texture", "hope")[:count]],
+        "title": title, "hook": narration.split(".", 1)[0], "caption": caption, "hashtags": hashtags,
+        "narration": narration, "thematicQuestion": f"What can {subject[:80]} teach us?",
+        "scenes": [{"description": f"Cinematic real footage: {query}", "query": query, "seconds": hold}
+                   for query in searches[:count]],
     }
 
 
@@ -117,8 +145,16 @@ def create_plan(req: JobRequest) -> dict[str, Any]:
             "You are the OpenMontage documentary montage idea and scene director. Return JSON only with title, hook, caption, hashtags (without #), narration, thematicQuestion, and scenes. Produce 4-8 scenes; every scene has description, query (2-5 concrete stock-search words), and seconds. Scene seconds must total the requested duration. Use real searchable subjects, not abstract feelings. Do not invent factual claims.",
             req.model_dump(),
         )
+        narration = str(plan.get("narration") or "").strip()
+        minimum_words = max(35, int(req.duration * 1.25))
+        normalized_prompt = re.sub(r"\W+", " ", req.prompt).strip().lower()
+        normalized_narration = re.sub(r"\W+", " ", narration).strip().lower()
         if not isinstance(plan.get("scenes"), list) or len(plan["scenes"]) < 3:
             raise ValueError("invalid scene plan")
+        if len(narration.split()) < minimum_words or normalized_narration == normalized_prompt:
+            raise ValueError("planner returned an incomplete narration")
+        if any(re.search(r"\b(?:make|create|generate)\b.*\bvideo\b", str(scene.get("query") or ""), re.I) for scene in plan["scenes"]):
+            raise ValueError("planner returned production instructions as a footage query")
         scenes = plan["scenes"][:8]
         total = sum(max(2.0, float(scene.get("seconds") or 0)) for scene in scenes)
         for scene in scenes:
@@ -143,15 +179,36 @@ def probe(path: str) -> dict[str, Any]:
 
 
 def srt(text: str, duration: int) -> str:
-    chunks = [part.strip() for part in re.split(r"(?<=[.!?])\s+", text) if part.strip()] or [text]
+    words = text.split()
+    chunks = [" ".join(words[index:index + 7]) for index in range(0, len(words), 7)] or [text]
     def ts(value: float) -> str:
         ms = int(max(0, value) * 1000); h, rem = divmod(ms, 3600000); m, rem = divmod(rem, 60000); sec, milli = divmod(rem, 1000)
         return f"{h:02d}:{m:02d}:{sec:02d},{milli:03d}"
     lines = []
+    total_words = max(1, sum(len(chunk.split()) for chunk in chunks)); elapsed_words = 0
     for index, chunk in enumerate(chunks):
-        start = duration * index / len(chunks); end = duration * (index + 1) / len(chunks)
+        start = duration * elapsed_words / total_words
+        elapsed_words += len(chunk.split())
+        end = duration * elapsed_words / total_words
         lines.extend([str(index + 1), f"{ts(start)} --> {ts(end)}", chunk, ""])
     return "\n".join(lines)
+
+
+def generated_music_bed(project: Path, duration: int) -> str:
+    output = project / "assets" / "music" / "generated-bed.m4a"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    fade_out = max(0, duration - 2)
+    command = [
+        "ffmpeg", "-y", "-f", "lavfi", "-i",
+        f"sine=frequency=110:duration={duration}:sample_rate=44100",
+        "-f", "lavfi", "-i", f"sine=frequency=165:duration={duration}:sample_rate=44100",
+        "-filter_complex",
+        f"[0:a]volume=0.035,lowpass=f=450[a0];[1:a]volume=0.018,lowpass=f=550[a1];"
+        f"[a0][a1]amix=inputs=2:duration=longest,afade=t=in:st=0:d=1,afade=t=out:st={fade_out}:d=2[a]",
+        "-map", "[a]", "-t", str(duration), "-c:a", "aac", "-b:a", "128k", str(output),
+    ]
+    subprocess.run(command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return str(output)
 
 
 def mix_audio(project: Path, narration: str | None, music: str | None, duration: int) -> str | None:
@@ -178,7 +235,7 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
                  "core_message": str(plan.get("caption") or req.prompt), "tone": req.tone, "style": "clean-professional",
                  "target_platform": "instagram" if req.aspectRatio == "9:16" else "generic", "target_duration_seconds": req.duration,
                  "metadata": {"thematic_question": plan.get("thematicQuestion"), "shape": "single-image expansion", "full_run_authorized": True,
-                              "music_plan": {"source": "pixabay_music", "fallback": "none"}, "render_runtime": "ffmpeg"}}
+                              "music_plan": {"source": "pixabay_music", "fallback": "generated_original"}, "render_runtime": "ffmpeg"}}
         write_stage(job, "idea", "brief", brief, 12)
 
         cursor = 0.0; scene_rows = []
@@ -197,12 +254,20 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
         search = registry.get("direct_clip_search")
         result = search.execute({"output_dir": str(project / "assets" / "video"),
                                  "queries": [{"query": str(plan["scenes"][i].get("query")), "slot_id": row["id"], "kind": "video"} for i, row in enumerate(scene_rows)],
-                                 "clips_per_query": 1, "filters": {"orientation": "portrait" if req.aspectRatio == "9:16" else "square" if req.aspectRatio == "1:1" else "landscape", "min_width": 640},
+                                 "clips_per_query": 2, "filters": {"orientation": "portrait" if req.aspectRatio == "9:16" else "square" if req.aspectRatio == "1:1" else "landscape", "min_width": 640},
                                  "extract_thumbnails": True, "timeout_seconds": 900})
         if not result.success:
             raise RuntimeError(result.error or "OpenMontage clip acquisition failed")
         clips = result.data.get("clips", [])
-        by_slot = {str(clip.get("slot_id")): clip for clip in clips}
+        by_slot: dict[str, dict[str, Any]] = {}
+        used_urls: set[str] = set()
+        unsafe_license = re.compile(r"(?:^|[- /])(?:NC|ND)(?:$|[- /])|noncommercial|no derivatives", re.I)
+        for clip in clips:
+            slot_id = str(clip.get("slot_id")); source_url = str(clip.get("source_url") or "")
+            if unsafe_license.search(str(clip.get("license") or "")) or source_url in used_urls or slot_id in by_slot:
+                continue
+            by_slot[slot_id] = clip
+            if source_url: used_urls.add(source_url)
         if any(row["id"] not in by_slot for row in scene_rows):
             raise RuntimeError("OpenMontage could not retrieve licensed footage for every scene")
 
@@ -219,7 +284,11 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
             music_result = music_tool.execute({"query": f"{req.tone} cinematic background", "min_duration": req.duration, "max_duration": max(req.duration * 4, 90), "output_path": str(project / "assets" / "music" / "bed.mp3")})
             if music_result.success:
                 music_path = str(music_result.data.get("output")); assets.append({"id": "asset_music", "type": "music", "path": music_path, "source_tool": "pixabay_music", "scene_id": "scene_01", "provider": "pixabay_music", "license": str(music_result.data.get("license") or "Pixabay Content License"), "original_url": str(music_result.data.get("source_url") or "")})
-            else: warnings.append("Royalty-free music search was unavailable; the render uses narration/source audio only.")
+            else: warnings.append("Royalty-free music search was unavailable; an original ambient music bed was generated for this render.")
+        if not music_path:
+            music_path = generated_music_bed(project, req.duration)
+            assets.append({"id": "asset_music", "type": "music", "path": music_path, "source_tool": "inx_generated_music", "scene_id": "scene_01",
+                           "provider": "INXSocial", "license": "Original generated audio", "original_url": ""})
 
         narration_path = None
         if req.voiceover and plan.get("narration") and registry.get("openai_tts"):
