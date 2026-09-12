@@ -33,8 +33,9 @@ test('manual carousel supports direct upload, order, schedule and publishing', (
   assert.match(page, /setAssets\(\(current\) => current\.filter/);
   assert.match(page, /createCarouselPosts/);
   assert.match(page, /mediaLibraryAssetIds:\s*assets\.map/);
+  assert.match(page, /slideLinks:\s*orderedLinks/);
+  assert.match(page, /linkedCarouselWithinLimit/);
   assert.match(page, /SchedulePanel/);
-  assert.match(page, /Manual carousel posting is available without AI Content Studio/);
 });
 
 test('standard preview panel supports carousel slides without replacing its shell', () => {
