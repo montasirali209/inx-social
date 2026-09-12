@@ -1,6 +1,8 @@
-import { AlertTriangle, CalendarClock, Check, ClipboardList, Image, PencilLine, RotateCcw, X } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { AlertTriangle, CalendarClock, Check, ClipboardList, Image, PencilLine, RotateCcw, Trash2, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { dismissPostJob } from '../../lib/posts-api'
 import { matchesPostLibraryView, requiresMediaReattachment, type PostLibraryView } from '../../lib/posts-reuse'
 import type { DashboardJob } from '../../types/dashboard'
 import { Button } from '../ui/Button'
@@ -39,8 +41,14 @@ function tabCount(jobs: DashboardJob[], view: PostLibraryView) {
 }
 
 export function PostReuseModal({ jobs, initialView, loadingExternal = false, onClose, onReuse }: Props) {
+  const queryClient = useQueryClient()
   const [view, setView] = useState<PostLibraryView>(initialView)
-  const visibleJobs = useMemo(() => jobs.filter((job) => matchesPostLibraryView(job, view)), [jobs, view])
+  const [clearedIds, setClearedIds] = useState<Set<string>>(() => new Set())
+  const [clearing, setClearing] = useState(false)
+  const [clearError, setClearError] = useState('')
+  const activeJobs = useMemo(() => jobs.filter((job) => !clearedIds.has(job.id)), [clearedIds, jobs])
+  const visibleJobs = useMemo(() => activeJobs.filter((job) => matchesPostLibraryView(job, view)), [activeJobs, view])
+  const reviewJobs = useMemo(() => activeJobs.filter((job) => matchesPostLibraryView(job, 'needs_review')), [activeJobs])
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
@@ -49,6 +57,24 @@ export function PostReuseModal({ jobs, initialView, loadingExternal = false, onC
     document.addEventListener('keydown', closeOnEscape)
     return () => { document.body.style.overflow = previousOverflow; document.removeEventListener('keydown', closeOnEscape) }
   }, [onClose])
+
+  async function clearNeedsReview() {
+    if (!reviewJobs.length || clearing) return
+    if (!window.confirm(`Clear ${reviewJobs.length} item${reviewJobs.length === 1 ? '' : 's'} from Needs Review? The publishing history will remain under All Posts as cancelled records.`)) return
+    setClearing(true)
+    setClearError('')
+    const settled = await Promise.allSettled(reviewJobs.map((job) => dismissPostJob(job.id)))
+    const succeeded = reviewJobs.filter((_, index) => settled[index]?.status === 'fulfilled').map((job) => job.id)
+    const failed = settled.length - succeeded.length
+    if (succeeded.length) setClearedIds((current) => new Set([...current, ...succeeded]))
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['posts-workspace'] }),
+      queryClient.invalidateQueries({ queryKey: ['dashboard-jobs'] }),
+      queryClient.invalidateQueries({ queryKey: ['content-calendar'] }),
+    ])
+    if (failed) setClearError(`${failed} review item${failed === 1 ? '' : 's'} could not be cleared. Refresh and try again.`)
+    setClearing(false)
+  }
 
   return createPortal(
     <div className="posts-modal-backdrop fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-[#020914]/82 p-4 backdrop-blur-md" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
@@ -59,9 +85,13 @@ export function PostReuseModal({ jobs, initialView, loadingExternal = false, onC
           <div className="flex items-start gap-3 pr-12"><span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan"><RotateCcw className="size-5" /></span><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-xl font-semibold" id="reuse-library-title">Reuse a post</h2><span className="rounded-full border border-brand-green/20 bg-brand-green/8 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-brand-green">No duplicate media</span>{loadingExternal && <span className="animate-pulse rounded-full border border-brand-cyan/20 bg-brand-cyan/8 px-2 py-1 text-[9px] font-bold uppercase tracking-wider text-brand-cyan motion-reduce:animate-none">Syncing Meta</span>}</div><p className="mt-1 max-w-2xl text-xs leading-5 text-text-muted">Reopen INXSocial records or posts discovered directly on connected Facebook Pages, then choose new destinations and a new time.</p></div></div>
         </header>
 
-        <nav aria-label="Post library filters" className="scrollbar-thin flex shrink-0 gap-2 overflow-x-auto border-b border-border-soft bg-bg/25 px-4 py-3 sm:px-6">
-          {tabs.map((tab) => <button aria-pressed={view === tab.id} className={`inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border px-3 text-[10px] font-semibold transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${view === tab.id ? 'border-brand-cyan/50 bg-brand-cyan/12 text-brand-cyan' : 'border-border-soft bg-panel/50 text-text-muted hover:border-brand-cyan/25 hover:text-white'}`} key={tab.id} onClick={() => setView(tab.id)} type="button">{tab.label}<span className="rounded-full bg-white/6 px-1.5 py-0.5 text-[9px]">{tabCount(jobs, tab.id)}</span></button>)}
+        <nav aria-label="Post library filters" className="scrollbar-thin flex shrink-0 items-center gap-2 overflow-x-auto border-b border-border-soft bg-bg/25 px-4 py-3 sm:px-6">
+          {tabs.map((tab) => <button aria-pressed={view === tab.id} className={`inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border px-3 text-[10px] font-semibold transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${view === tab.id ? 'border-brand-cyan/50 bg-brand-cyan/12 text-brand-cyan' : 'border-border-soft bg-panel/50 text-text-muted hover:border-brand-cyan/25 hover:text-white'}`} key={tab.id} onClick={() => { setView(tab.id); setClearError('') }} type="button">{tab.label}<span className="rounded-full bg-white/6 px-1.5 py-0.5 text-[9px]">{tabCount(activeJobs, tab.id)}</span></button>)}
+          <span className="min-w-2 flex-1" />
+          {view === 'needs_review' && reviewJobs.length > 0 && <button className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-xl border border-brand-red/25 bg-brand-red/[0.06] px-3 text-[10px] font-semibold text-brand-red transition hover:bg-brand-red/10 focus-visible:outline-2 focus-visible:outline-brand-red disabled:cursor-wait disabled:opacity-60" disabled={clearing} onClick={() => void clearNeedsReview()} type="button"><Trash2 className="size-3.5" />{clearing ? 'Clearing…' : 'Clear Needs Review'}</button>}
         </nav>
+
+        {clearError && <div className="mx-4 mt-3 rounded-xl border border-brand-red/25 bg-brand-red/8 px-3 py-2 text-[10px] text-brand-red sm:mx-6">{clearError}</div>}
 
         <div className="scrollbar-thin min-h-0 flex-1 overscroll-contain overflow-y-auto p-4 sm:p-6">
           {visibleJobs.length ? <div className="grid gap-3 lg:grid-cols-2">{visibleJobs.map((job) => {

@@ -52,7 +52,9 @@ export function PostPreviewPanel({ caption, media, selectedPage, carouselAssets 
           <div className="min-w-0 flex-1"><strong className="block truncate text-xs">{selectedPage?.facebookPageName || 'Choose a destination'}</strong><span className="text-[9px] text-text-soft">Just now · Public</span></div>
           <MoreHorizontal className="size-4 text-text-muted" />
         </header>
-        <p className="whitespace-pre-wrap px-3 pb-3 text-xs leading-5 text-text-main">{caption || 'Your caption preview will appear here as you type.'}</p>
+        <div className="scrollbar-thin max-h-36 overflow-y-auto overscroll-contain px-3 pb-3 pr-2 text-xs leading-5 text-text-main">
+          <p className="whitespace-pre-wrap break-words">{caption || 'Your caption preview will appear here as you type.'}</p>
+        </div>
         {isCarousel ? (
           <div className="relative h-56 w-full overflow-hidden border-y border-border-soft bg-black/35">
             <div className="scrollbar-thin flex h-full snap-x snap-mandatory overflow-x-auto">

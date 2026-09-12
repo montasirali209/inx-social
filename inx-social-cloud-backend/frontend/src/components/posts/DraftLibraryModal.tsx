@@ -29,6 +29,12 @@ export function DraftLibraryModal({ drafts, pages, onClose, onDelete, onLoad }: 
     return () => { document.body.style.overflow = previousOverflow; document.removeEventListener('keydown', closeOnEscape) }
   }, [onClose])
 
+  function clearAllDrafts() {
+    if (!drafts.length) return
+    if (!window.confirm(`Clear all ${drafts.length} saved draft${drafts.length === 1 ? '' : 's'} from this browser? This cannot be undone.`)) return
+    drafts.forEach((draft) => onDelete(draft.id))
+  }
+
   return createPortal(
     <div className="posts-modal-backdrop fixed inset-0 z-[90] grid place-items-center overflow-y-auto bg-[#020914]/82 p-4 backdrop-blur-md" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
       <section aria-labelledby="draft-library-title" aria-modal="true" className="posts-modal-panel my-auto flex max-h-[min(820px,calc(100vh-2rem))] w-full max-w-5xl flex-col overflow-hidden rounded-panel border border-brand-cyan/30 bg-panel shadow-[0_35px_130px_rgba(0,0,0,.72),0_0_70px_rgba(20,184,166,.13)]" role="dialog">
@@ -48,7 +54,7 @@ export function DraftLibraryModal({ drafts, pages, onClose, onDelete, onLoad }: 
             </article>
           })}</div> : <div className="grid min-h-72 place-items-center rounded-2xl border border-dashed border-border-soft bg-bg/20 p-8 text-center"><span><span className="mx-auto grid size-14 place-items-center rounded-2xl border border-brand-amber/20 bg-brand-amber/8 text-brand-amber"><FileEdit className="size-6" /></span><strong className="mt-4 block">No saved drafts yet</strong><p className="mt-2 max-w-sm text-xs leading-5 text-text-muted">Write a title or caption, then choose Save as Draft in the composer. It will appear here instantly.</p><Button className="mt-5" onClick={onClose} type="button" variant="primary">Return to composer</Button></span></div>}
         </div>
-        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border-soft bg-bg/20 px-5 py-3 text-[10px] text-text-soft sm:px-6"><span>{drafts.length} saved draft{drafts.length === 1 ? '' : 's'} · stored on this browser</span><button className="rounded-lg px-3 py-2 text-text-muted transition hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button">Close</button></footer>
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border-soft bg-bg/20 px-5 py-3 text-[10px] text-text-soft sm:px-6"><span>{drafts.length} saved draft{drafts.length === 1 ? '' : 's'} · stored on this browser</span><div className="flex items-center gap-2">{drafts.length > 0 && <button className="inline-flex items-center gap-1.5 rounded-lg border border-brand-red/25 px-3 py-2 font-semibold text-brand-red transition hover:bg-brand-red/10 focus-visible:outline-2 focus-visible:outline-brand-red" onClick={clearAllDrafts} type="button"><Trash2 className="size-3.5" />Clear all drafts</button>}<button className="rounded-lg px-3 py-2 text-text-muted transition hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button">Close</button></div></footer>
       </section>
     </div>,
     document.body,
