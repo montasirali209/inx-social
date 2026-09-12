@@ -1,7 +1,11 @@
 import type { MediaAsset } from '../types/media-library'
 import type { ScheduleMode } from '../types/posts'
 
+// Composer recovery is intentionally in-memory. It survives normal React Router
+// navigation and switching between post types, but a browser refresh starts a
+// clean composer unless the user explicitly saved a draft.
 export const CAROUSEL_SESSION_KEY = 'inx-social-carousel-composer-session-v2'
+const LEGACY_ACTIVE_COMPOSER_KEY = 'inx-social-active-post-composer-v1'
 
 export type CarouselComposerSession = {
   title: string
@@ -18,38 +22,41 @@ export type CarouselComposerSession = {
   updatedAt: string
 }
 
+export type ActivePostComposer = 'standard' | 'carousel'
+
+let carouselSession: CarouselComposerSession | null = null
+let activePostComposer: ActivePostComposer | null = null
+
+// Remove persistence created by earlier builds. This migration runs when the
+// Posts bundle is loaded after a refresh, preventing stale unsaved content from
+// unexpectedly reappearing.
+if (typeof window !== 'undefined') {
+  window.localStorage.removeItem(CAROUSEL_SESSION_KEY)
+  window.localStorage.removeItem(LEGACY_ACTIVE_COMPOSER_KEY)
+}
+
 export function readCarouselSession(): CarouselComposerSession | null {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(CAROUSEL_SESSION_KEY) || 'null') as Partial<CarouselComposerSession> | null
-    if (!parsed || !Array.isArray(parsed.assets)) return null
-    return {
-      title: typeof parsed.title === 'string' ? parsed.title : '',
-      caption: typeof parsed.caption === 'string' ? parsed.caption : '',
-      captionIdea: typeof parsed.captionIdea === 'string' ? parsed.captionIdea : '',
-      assets: parsed.assets.filter((asset): asset is MediaAsset => Boolean(asset?.id)).slice(0, 10),
-      slideLinks: parsed.slideLinks && typeof parsed.slideLinks === 'object' ? parsed.slideLinks : {},
-      selectedIds: Array.isArray(parsed.selectedIds) ? parsed.selectedIds.filter((id): id is string => typeof id === 'string') : [],
-      mode: parsed.mode === 'now' || parsed.mode === 'draft' ? parsed.mode : 'later',
-      date: typeof parsed.date === 'string' ? parsed.date : '',
-      time: typeof parsed.time === 'string' ? parsed.time : '19:30',
-      campaign: typeof parsed.campaign === 'string' ? parsed.campaign : 'No campaign',
-      labels: typeof parsed.labels === 'string' ? parsed.labels : 'Carousel',
-      updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
-    }
-  } catch {
-    return null
-  }
+  return carouselSession
 }
 
 export function saveCarouselSession(session: Omit<CarouselComposerSession, 'updatedAt'>) {
-  window.localStorage.setItem(CAROUSEL_SESSION_KEY, JSON.stringify({ ...session, updatedAt: new Date().toISOString() }))
+  carouselSession = { ...session, updatedAt: new Date().toISOString() }
 }
 
 export function clearCarouselSession() {
-  window.localStorage.removeItem(CAROUSEL_SESSION_KEY)
+  carouselSession = null
+  if (typeof window !== 'undefined') window.localStorage.removeItem(CAROUSEL_SESSION_KEY)
 }
 
 export function hasCarouselSession() {
-  const session = readCarouselSession()
+  const session = carouselSession
   return Boolean(session && (session.title.trim() || session.caption.trim() || session.captionIdea.trim() || session.assets.length))
+}
+
+export function getActivePostComposer(): ActivePostComposer | null {
+  return activePostComposer
+}
+
+export function setActivePostComposer(value: ActivePostComposer) {
+  activePostComposer = value
 }
