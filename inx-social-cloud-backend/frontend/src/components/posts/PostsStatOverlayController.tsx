@@ -5,6 +5,7 @@ import { fetchMediaLibrary } from '../../lib/media-library-api'
 import { saveCarouselSession, setActivePostComposer } from '../../lib/carousel-composer-session'
 import { fetchPostsWorkspace } from '../../lib/posts-api'
 import type { DashboardJob } from '../../types/dashboard'
+import type { MediaAsset } from '../../types/media-library'
 import type { PostDraft, PostType, ScheduleMode } from '../../types/posts'
 import type { PostLibraryView } from '../../lib/posts-reuse'
 import { DraftLibraryModal } from './DraftLibraryModal'
@@ -163,7 +164,7 @@ export function PostsStatOverlayController() {
       const assetIds = Array.isArray(stored.assetIds) ? stored.assetIds.filter((id): id is string => typeof id === 'string') : []
       const library = await fetchMediaLibrary()
       const byId = new Map(library.assets.map((asset) => [asset.id, asset]))
-      const assets = assetIds.map((id) => byId.get(id)).filter((asset): asset is NonNullable<typeof asset> => Boolean(asset))
+      const assets = assetIds.map((id) => byId.get(id)).filter((asset): asset is MediaAsset => Boolean(asset))
       const rawLinks = stored.slideLinks
       const slideLinks: Record<string, string> = {}
       if (Array.isArray(rawLinks)) assetIds.forEach((id, index) => { if (typeof rawLinks[index] === 'string' && rawLinks[index]) slideLinks[id] = rawLinks[index] })
