@@ -1,18 +1,40 @@
 import { createPortal } from 'react-dom'
 import { useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
-import { ArrowLeft, ArrowRight, Bot, Globe2, ImagePlus, Layers3, LoaderCircle, Paperclip, Save, Send, Sparkles, WandSparkles, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Bot, FileText, Globe2, ImagePlus, Layers3, LoaderCircle, Paperclip, Save, Send, Sparkles, WandSparkles, X } from 'lucide-react'
 import type { AIDraft, AIContentType, AIPlanAccess, GeneratedAsset } from '../../types/ai-content-studio'
-import { uploadMediaAsset } from '../../lib/media-library-api'
 import { saveAIDraft } from '../../lib/ai-content-studio-api'
 import { generateConversationalCarousel } from '../../lib/ai-next-studio-api'
-import { sendPostStudioMessage, sourceAnalysisMemoryMessage, type PostStudioAssistantResponse, type PostStudioBrief, type PostStudioMessage, type PostStudioSourceAnalysis } from '../../lib/ai-post-studio-api'
+import { sendPostStudioMessage, sourceAnalysisMemoryMessage, uploadPostStudioReference, type PostStudioAssistantResponse, type PostStudioBrief, type PostStudioMessage, type PostStudioSourceAnalysis } from '../../lib/ai-post-studio-api'
 import { Button } from '../ui/Button'
 import { StudioSelect } from './StudioSelect'
 
 const INTRO = 'Tell me the story you want this carousel to tell. Add a website, product screenshot, logo or reference if useful. I’ll analyse the sources, shape the narrative, then build the slides.'
 const PLATFORMS = ['Instagram', 'Facebook', 'LinkedIn']
 const RATIOS: PostStudioBrief['aspectRatio'][] = ['1:1', '4:5']
-type Reference = { id: string; fileName: string }
+const MAX_REFERENCE_FILES = 4
+
+type Reference = {
+  id: string
+  fileName: string
+  mimeType?: string
+  byteSize?: number
+  convertedToPreview?: boolean
+}
+
+type CarouselStudioState = {
+  version: 1
+  messages: PostStudioMessage[]
+  brief: PostStudioBrief | null
+  sourceAnalysis: PostStudioSourceAnalysis | null
+  references: Reference[]
+  urls: string[]
+  platform: string
+  aspectRatio: PostStudioBrief['aspectRatio']
+  slides: number
+  lastRenderedKey: string
+}
+
+type CarouselAssetWithState = GeneratedAsset & { studioState?: CarouselStudioState }
 
 function extractUrls(text: string) {
   return [...new Set((text.match(/https?:\/\/[^\s<>()]+/gi) || []).map((value) => value.replace(/[.,;!?]+$/, '')))].slice(0, 2)
@@ -42,7 +64,7 @@ function renderKey(brief: PostStudioBrief | null, slides: number, platform: stri
   })
 }
 
-function buildDraft(asset: GeneratedAsset, brief: PostStudioBrief | null, messages: PostStudioMessage[], existing?: AIDraft | null): AIDraft {
+function buildDraft(asset: GeneratedAsset, brief: PostStudioBrief | null, messages: PostStudioMessage[], studioState: CarouselStudioState, existing?: AIDraft | null): AIDraft {
   const prompt = messages.find((item) => item.role === 'user')?.content || brief?.objective || 'Carousel post'
   return {
     id: existing?.id || crypto.randomUUID(),
@@ -55,10 +77,16 @@ function buildDraft(asset: GeneratedAsset, brief: PostStudioBrief | null, messag
     caption: asset.caption || brief?.caption || '',
     hashtags: asset.hashtags || brief?.hashtags || [],
     altText: '',
-    asset,
+    asset: { ...asset, studioState },
     mediaLibraryAsset: existing?.mediaLibraryAsset || null,
     mediaLibraryAssets: existing?.mediaLibraryAssets || [],
   }
+}
+
+function prettySize(bytes?: number) {
+  if (!bytes) return ''
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
 }
 
 export function CarouselChatModal({ open, type, access, initialDraft, onClose, onSaved, onContinue, onToast }: {
@@ -73,31 +101,41 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
-  const [messages, setMessages] = useState<PostStudioMessage[]>(() => [
-    { role: 'assistant', content: INTRO },
-    ...(initialDraft?.prompt ? [{ role: 'user' as const, content: initialDraft.prompt }] : []),
-  ])
+  const restored = (initialDraft?.asset as CarouselAssetWithState | null)?.studioState || null
+  const restoredAsset = initialDraft?.asset?.type === 'carousel' ? initialDraft.asset : null
+  const restoredSlides = restored?.slides || restoredAsset?.slides?.length || 5
+  const restoredPlatform = restored?.platform || 'Instagram'
+  const restoredRatio = restored?.aspectRatio || ((restoredAsset?.aspectRatio === '4:5' || restoredAsset?.aspectRatio === '1:1') ? restoredAsset.aspectRatio : '1:1')
+  const restoredAnalysis = restored?.sourceAnalysis || null
+  const restoredBrief = restored?.brief || null
+  const initialRenderKey = restored?.lastRenderedKey || (restoredAsset && restoredBrief ? renderKey(restoredBrief, restoredSlides, restoredPlatform, restoredRatio, restoredAnalysis) : '')
+
+  const [messages, setMessages] = useState<PostStudioMessage[]>(() => restored?.messages?.length
+    ? restored.messages
+    : [{ role: 'assistant', content: INTRO }, ...(initialDraft?.prompt ? [{ role: 'user' as const, content: initialDraft.prompt }] : [])])
   const [composer, setComposer] = useState('')
-  const [urls, setUrls] = useState<string[]>(() => extractUrls(initialDraft?.prompt || ''))
-  const [references, setReferences] = useState<Reference[]>([])
+  const [urls, setUrls] = useState<string[]>(() => restored?.urls || extractUrls(initialDraft?.prompt || ''))
+  const [references, setReferences] = useState<Reference[]>(() => restored?.references || [])
+  const [pendingReferences, setPendingReferences] = useState<Reference[]>([])
   const [assistantResult, setAssistantResult] = useState<PostStudioAssistantResponse | null>(null)
-  const [sourceAnalysis, setSourceAnalysis] = useState<PostStudioSourceAnalysis | null>(null)
-  const [brief, setBrief] = useState<PostStudioBrief | null>(null)
-  const [asset, setAsset] = useState<GeneratedAsset | null>(() => initialDraft?.asset?.type === 'carousel' ? initialDraft.asset : null)
-  const [platform, setPlatform] = useState('Instagram')
-  const [aspectRatio, setAspectRatio] = useState<PostStudioBrief['aspectRatio']>('1:1')
-  const [slides, setSlides] = useState(5)
+  const [sourceAnalysis, setSourceAnalysis] = useState<PostStudioSourceAnalysis | null>(() => restoredAnalysis)
+  const [brief, setBrief] = useState<PostStudioBrief | null>(() => restoredBrief)
+  const [asset, setAsset] = useState<GeneratedAsset | null>(() => restoredAsset)
+  const [platform, setPlatform] = useState(restoredPlatform)
+  const [aspectRatio, setAspectRatio] = useState<PostStudioBrief['aspectRatio']>(restoredRatio)
+  const [slides, setSlides] = useState(restoredSlides)
   const [activeSlide, setActiveSlide] = useState(0)
-  const [lastRenderedKey, setLastRenderedKey] = useState('')
+  const [lastRenderedKey, setLastRenderedKey] = useState(initialRenderKey)
   const [refineMode, setRefineMode] = useState(false)
   const [thinking, setThinking] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState('')
 
   if (!open || (type !== 'carousel_post' && initialDraft?.contentType !== 'carousel_post')) return null
 
-  const ready = Boolean(assistantResult?.readyToGenerate && brief?.visualDirection)
+  const ready = Boolean(brief?.visualDirection && (assistantResult?.readyToGenerate ?? Boolean(asset)))
   const currentKey = renderKey(brief, slides, platform, aspectRatio, sourceAnalysis)
   const renderNeeded = Boolean(ready && currentKey && (!asset || currentKey !== lastRenderedKey))
   const cost = carouselCredits(slides)
@@ -106,6 +144,22 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
   const slideAssets = asset?.slides || []
   const selectedSlide = slideAssets[Math.min(activeSlide, Math.max(0, slideAssets.length - 1))]
   const pendingRefinement = Boolean(asset && renderNeeded)
+  const hasPendingReferences = pendingReferences.length > 0
+
+  function studioState(nextLastRenderedKey = lastRenderedKey): CarouselStudioState {
+    return {
+      version: 1,
+      messages: messages.slice(-18),
+      brief,
+      sourceAnalysis,
+      references,
+      urls,
+      platform,
+      aspectRatio,
+      slides,
+      lastRenderedKey: nextLastRenderedKey,
+    }
+  }
 
   async function ask(nextMessages: PostStudioMessage[], nextUrls = urls, nextRefs = references) {
     setThinking(true)
@@ -129,7 +183,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
       setPlatform(result.brief.platform || platform)
       if (result.brief.aspectRatio === '1:1' || result.brief.aspectRatio === '4:5') setAspectRatio(result.brief.aspectRatio)
       setMessages((current) => [...current, { role: 'assistant', content: result.reply }])
-      setRefineMode(false)
+      setRefineMode(Boolean(asset))
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'The Carousel Studio could not respond.')
     } finally {
@@ -138,53 +192,72 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
   }
 
   async function sendText(value = composer) {
-    const text = value.trim()
-    if (!text || busy) return
+    const text = value.trim().slice(0, 3400)
+    if ((!text && !pendingReferences.length) || busy) return
+    const nextRefs = [...references]
+    for (const reference of pendingReferences) {
+      if (!nextRefs.some((item) => item.id === reference.id)) nextRefs.push(reference)
+    }
+    const attachmentSummary = pendingReferences.length
+      ? `Attached references: ${pendingReferences.map((item) => item.fileName).join(', ')}`
+      : ''
+    const messageText = [text || 'Analyse the attached references and use them for this carousel.', attachmentSummary].filter(Boolean).join('\n\n').slice(0, 3950)
     const nextUrls = [...new Set([...urls, ...extractUrls(text)])].slice(0, 2)
+    const next = [...messages, { role: 'user' as const, content: messageText }]
     setUrls(nextUrls)
+    setReferences(nextRefs)
+    setPendingReferences([])
     setComposer('')
-    const next = [...messages, { role: 'user' as const, content: text }]
     setMessages(next)
-    await ask(next, nextUrls, references)
+    await ask(next, nextUrls, nextRefs)
   }
 
   async function uploadReference(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
+    const files = Array.from(event.target.files || [])
     event.target.value = ''
-    if (!file) return
-    if (!file.type.startsWith('image/')) {
-      setError('Upload an image, logo or screenshot as the carousel reference.')
+    if (!files.length) return
+    const available = Math.max(0, MAX_REFERENCE_FILES - references.length - pendingReferences.length)
+    if (!available) {
+      setError(`You can use up to ${MAX_REFERENCE_FILES} references in one carousel conversation.`)
       return
     }
+    const selected = files.slice(0, available)
     setUploading(true)
     setError('')
     try {
-      const stored = await uploadMediaAsset(file, null, () => {})
-      const nextRefs = [{ id: stored.id, fileName: stored.fileName }, ...references.filter((item) => item.id !== stored.id)].slice(0, 4)
-      setReferences(nextRefs)
-      const next = [...messages, { role: 'user' as const, content: `I uploaded “${stored.fileName}” as a carousel reference. Analyse it and use it where useful.` }]
-      setMessages(next)
-      await ask(next, urls, nextRefs)
+      const staged = [...pendingReferences]
+      for (let index = 0; index < selected.length; index += 1) {
+        const file = selected[index]
+        if (file.size > 20 * 1024 * 1024) throw new Error(`${file.name} is larger than the 20 MB reference limit.`)
+        const stored = await uploadPostStudioReference(file, (percent) => {
+          setUploadProgress(Math.round(((index + percent / 100) / selected.length) * 100))
+        })
+        if (!references.some((item) => item.id === stored.id) && !staged.some((item) => item.id === stored.id)) staged.push(stored)
+      }
+      setPendingReferences(staged.slice(0, MAX_REFERENCE_FILES - references.length))
+      requestAnimationFrame(() => inputRef.current?.focus())
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Reference upload failed.')
     } finally {
       setUploading(false)
+      setUploadProgress(0)
     }
   }
 
   async function generate() {
-    if (!brief || !renderNeeded || generating || insufficient) return
+    if (!brief || !renderNeeded || generating || insufficient || hasPendingReferences) return
     const wasRefinement = Boolean(asset)
     setGenerating(true)
     setError('')
     try {
       const prompt = messages.find((item) => item.role === 'user')?.content || brief.objective
+      const visualReferences = references.filter((item) => !item.convertedToPreview)
       const result = await generateConversationalCarousel({
         prompt,
         platform,
         aspectRatio,
         slides,
-        referenceAssetIds: references.map((item) => item.id),
+        referenceAssetIds: visualReferences.map((item) => item.id),
         brief: { ...brief, platform, aspectRatio },
         sourceAnalysis,
       })
@@ -203,16 +276,16 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
   async function saveDraft() {
     if (!asset) return
     try {
-      const draft = await saveAIDraft(buildDraft(asset, brief, messages, initialDraft))
+      const draft = await saveAIDraft(buildDraft(asset, brief, messages, studioState(), initialDraft))
       onSaved(draft)
-      onToast('Carousel saved to drafts.')
+      onToast('Carousel saved to drafts with its Studio conversation and reference context.')
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Draft could not be saved.')
     }
   }
 
   function continueToPosts() {
-    if (asset) onContinue(buildDraft(asset, brief, messages, initialDraft))
+    if (asset) onContinue(buildDraft(asset, brief, messages, studioState(), initialDraft))
   }
 
   function keyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -224,7 +297,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
 
   function startRefinement(prefill = '') {
     setRefineMode(true)
-    setComposer(prefill)
+    if (prefill) setComposer(prefill)
     requestAnimationFrame(() => inputRef.current?.focus())
   }
 
@@ -248,7 +321,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
   }))
 
   const primaryAction = asset && !renderNeeded ? () => startRefinement() : () => void generate()
-  const primaryDisabled = generating || (renderNeeded && insufficient) || (!asset && !renderNeeded)
+  const primaryDisabled = generating || hasPendingReferences || (renderNeeded && insufficient) || (!asset && !renderNeeded)
   const primaryLabel = asset
     ? renderNeeded ? `Apply changes · ${cost} credits` : 'Refine carousel'
     : `Generate · ${cost} credits`
@@ -292,7 +365,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
                 </div>
               )}
 
-              {thinking && <div className="ml-9 flex items-center gap-2 text-[10px] text-text-muted"><LoaderCircle className="size-3.5 animate-spin text-brand-cyan" />Analysing your requested changes…</div>}
+              {thinking && <div className="ml-9 flex items-center gap-2 text-[10px] text-text-muted"><LoaderCircle className="size-3.5 animate-spin text-brand-cyan" />Analysing your requested changes and references…</div>}
 
               {ready && renderNeeded && (
                 <div className="ml-9 rounded-[24px] border border-brand-green/30 bg-[linear-gradient(135deg,rgba(5,62,58,.58),rgba(4,25,35,.86))] p-5 shadow-[0_18px_60px_rgba(0,214,192,.08)]">
@@ -303,7 +376,8 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
                       ? `Your current carousel stays unchanged until you apply this refinement. Applying it regenerates the complete ${slides}-slide sequence and uses ${cost} credits.`
                       : 'The story, source context and visual direction are prepared. Keep refining in chat or render the complete sequence.'}
                   </p>
-                  <Button className="mt-4 min-h-11" variant="primary" disabled={insufficient || generating} onClick={() => void generate()}>
+                  {hasPendingReferences && <p className="mt-2 text-[9px] text-amber-300">Send the staged reference files with your message before rendering so the AI can analyse them first.</p>}
+                  <Button className="mt-4 min-h-11" variant="primary" disabled={insufficient || generating || hasPendingReferences} onClick={() => void generate()}>
                     <WandSparkles className="size-4" />{asset ? `Apply refinement · ${cost} credits` : `Generate carousel · ${cost} credits`}
                   </Button>
                 </div>
@@ -331,22 +405,37 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
               )}
 
               <div className={`overflow-hidden rounded-2xl border bg-black/15 transition ${refineMode ? 'border-brand-cyan/55 shadow-[0_0_0_1px_rgba(0,214,192,.08)]' : 'border-brand-cyan/25'}`}>
+                {refineMode && asset && <div className="border-b border-brand-cyan/15 bg-brand-cyan/[.035] px-3.5 py-2 text-[9px] text-brand-cyan">Refinement mode is active. Describe the change, attach any references, then press Send. AI will analyse it before the regenerate button becomes available.</div>}
+                {pendingReferences.length > 0 && (
+                  <div className="flex flex-wrap gap-2 border-b border-border-soft px-3 py-2.5">
+                    {pendingReferences.map((reference) => (
+                      <span key={reference.id} className="inline-flex max-w-full items-center gap-2 rounded-xl border border-brand-cyan/25 bg-brand-cyan/[.055] px-2.5 py-2 text-[9px] text-text-main">
+                        {reference.convertedToPreview ? <FileText className="size-3.5 shrink-0 text-brand-cyan" /> : <ImagePlus className="size-3.5 shrink-0 text-brand-cyan" />}
+                        <span className="max-w-44 truncate">{reference.fileName}</span>
+                        {reference.byteSize ? <span className="text-text-soft">{prettySize(reference.byteSize)}</span> : null}
+                        <button aria-label={`Remove ${reference.fileName}`} className="rounded-md p-0.5 text-text-soft hover:bg-white/5 hover:text-white" onClick={() => setPendingReferences((current) => current.filter((item) => item.id !== reference.id))} type="button"><X className="size-3" /></button>
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <textarea
                   ref={inputRef}
                   value={composer}
                   onChange={(event) => setComposer(event.target.value)}
                   onKeyDown={keyDown}
                   rows={3}
+                  maxLength={3400}
                   className="w-full resize-none bg-transparent px-3.5 py-3 text-[11px] outline-none placeholder:text-text-soft"
                   placeholder={asset ? `Tell me what to change${selectedSlide ? ` — e.g. “make slide ${activeSlide + 1} headline shorter”` : ''}…` : 'Describe the carousel, paste a URL, or ask to refine the story…'}
                 />
                 <div className="flex items-center justify-between border-t border-border-soft px-2.5 py-2">
                   <div className="flex items-center gap-1">
-                    <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={uploadReference} />
-                    <button onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[9px] text-text-muted hover:bg-white/5" type="button"><Paperclip className="size-3.5" />Reference</button>
+                    <input ref={fileRef} type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,text/markdown,text/csv,application/json,text/html,text/xml,application/xml,application/rtf,.png,.jpg,.jpeg,.webp,.gif,.pdf,.txt,.md,.csv,.json,.html,.htm,.xml,.rtf" className="hidden" onChange={uploadReference} />
+                    <button disabled={uploading || references.length + pendingReferences.length >= MAX_REFERENCE_FILES} onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[9px] text-text-muted hover:bg-white/5 disabled:opacity-40" type="button"><Paperclip className="size-3.5" />{uploading ? `Uploading ${uploadProgress}%` : 'Reference'}</button>
                     <button onClick={() => { setComposer((value) => `${value}${value ? ' ' : ''}https://`); inputRef.current?.focus() }} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[9px] text-text-muted hover:bg-white/5" type="button"><Globe2 className="size-3.5" />Add URL</button>
+                    {(references.length > 0 || pendingReferences.length > 0) && <span className="ml-1 text-[8px] text-text-soft">{references.length + pendingReferences.length}/{MAX_REFERENCE_FILES} refs</span>}
                   </div>
-                  <button disabled={!composer.trim() || busy} onClick={() => void sendText()} className="grid size-9 place-items-center rounded-xl bg-brand-teal text-white disabled:opacity-40" type="button"><Send className="size-4" /></button>
+                  <button disabled={(!composer.trim() && !pendingReferences.length) || busy} onClick={() => void sendText()} className="grid size-9 place-items-center rounded-xl bg-brand-teal text-white disabled:opacity-40" type="button"><Send className="size-4" /></button>
                 </div>
               </div>
 
@@ -415,6 +504,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
               <Button variant="primary" disabled={primaryDisabled} onClick={primaryAction}><WandSparkles className="size-3.5" />{primaryLabel}</Button>
             </div>
             {asset && pendingRefinement && <p className="mt-2 text-right text-[9px] text-amber-300">Changes are ready but not rendered yet. Applying them regenerates the full carousel for {cost} credits.</p>}
+            {asset && !pendingRefinement && refineMode && <p className="mt-2 text-right text-[9px] text-brand-cyan">Refinement mode is active. Send your change request first; AI will then prepare the regenerate action.</p>}
           </section>
         </div>
       </div>
