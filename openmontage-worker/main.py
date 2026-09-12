@@ -262,14 +262,25 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
         by_slot: dict[str, dict[str, Any]] = {}
         used_urls: set[str] = set()
         unsafe_license = re.compile(r"(?:^|[- /])(?:NC|ND)(?:$|[- /])|noncommercial|no derivatives", re.I)
-        for clip in clips:
-            slot_id = str(clip.get("slot_id")); source_url = str(clip.get("source_url") or "")
-            if unsafe_license.search(str(clip.get("license") or "")) or source_url in used_urls or slot_id in by_slot:
-                continue
-            by_slot[slot_id] = clip
-            if source_url: used_urls.add(source_url)
+        safe_clips = [clip for clip in clips if not unsafe_license.search(str(clip.get("license") or ""))]
+        for row in scene_rows:
+            candidates = [clip for clip in safe_clips if str(clip.get("slot_id")) == row["id"]]
+            selected = next((clip for clip in candidates if str(clip.get("source_url") or "") not in used_urls), None)
+            if selected is None and candidates:
+                selected = candidates[0]
+            if selected is not None:
+                by_slot[row["id"]] = selected
+                source_url = str(selected.get("source_url") or "")
+                if source_url: used_urls.add(source_url)
+        missing_rows = [row for row in scene_rows if row["id"] not in by_slot]
+        if missing_rows and safe_clips:
+            reusable = list(by_slot.values()) or safe_clips
+            for index, row in enumerate(missing_rows):
+                by_slot[row["id"]] = reusable[index % len(reusable)]
         if any(row["id"] not in by_slot for row in scene_rows):
             raise RuntimeError("OpenMontage could not retrieve licensed footage for every scene")
+        footage_warnings = ([f"Stock providers returned no safe clip for {len(missing_rows)} scene(s); licensed footage was reused to complete the edit."]
+                            if missing_rows else [])
 
         assets = []
         for row in scene_rows:
@@ -278,7 +289,7 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
                            "duration_seconds": duration, "subtype": "stock", "provider": str(clip.get("source") or "OpenMontage stock source"),
                            "license": str(clip.get("license") or "Provider content license"), "original_url": str(clip.get("source_url") or "")})
 
-        music_path = None; warnings = []
+        music_path = None; warnings = footage_warnings
         music_tool = registry.get("pixabay_music")
         if music_tool:
             music_result = music_tool.execute({"query": f"{req.tone} cinematic background", "min_duration": req.duration, "max_duration": max(req.duration * 4, 90), "output_path": str(project / "assets" / "music" / "bed.mp3")})
