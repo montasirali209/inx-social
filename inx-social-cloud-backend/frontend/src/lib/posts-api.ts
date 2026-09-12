@@ -43,9 +43,6 @@ function socialDestinations(connections: Awaited<ReturnType<typeof fetchConnecti
         handle: profile.username ? `@${profile.username.replace(/^@/, '')}` : null,
         type: connection.platform === 'instagram' ? 'Instagram professional profile' : profile.profileType || 'Social profile',
         avatarUrl: profile.avatarUrl,
-        // The current production publisher still accepts Facebook Page jobs only.
-        // Keep connected Instagram identities visible while preventing a false
-        // successful selection that the API cannot publish yet.
         connected: false,
         disabledReason: publishable
           ? 'Instagram is connected for identity and analytics. Publishing from INXSocial is not available yet.'
@@ -96,6 +93,10 @@ export async function createCarouselPosts(input: CreateCarouselPostInput) {
   return response
 }
 
+export function dismissPostJob(jobId: string) {
+  return apiRequest<{ ok: boolean; job: DashboardJob }>(`/api/studio/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE' })
+}
+
 export function enhancePostCaption(caption: string, action: EnhancementAction, tone: CaptionTone) {
   return apiRequest<CaptionEnhancement>('/api/studio/post-enhancements', {
     method: 'POST',
@@ -125,7 +126,7 @@ export function uploadDirectPostMedia(jobId: string, file: File, onProgress: (pe
       const message = payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : `Upload failed (HTTP ${request.status}).`
       reject(new Error(message))
     })
-    request.addEventListener('error', () => reject(new Error('The media upload connection was interrupted.')))
+    request.addEventListener('error', () => reject(new Error('The media upload connection was interrupted.'))
     request.send(file)
   })
 }
