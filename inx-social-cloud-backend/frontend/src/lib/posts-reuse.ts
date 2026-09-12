@@ -6,7 +6,7 @@ export function matchesPostLibraryView(job: DashboardJob, view: PostLibraryView)
   if (view === 'all') return true
   if (view === 'scheduled') return job.status === 'SCHEDULED'
   if (view === 'published') return job.status === 'PUBLISHED'
-  return ['FAILED', 'AWAITING_UPLOAD', 'CANCELLED'].includes(job.status)
+  return ['FAILED', 'AWAITING_UPLOAD'].includes(job.status)
 }
 
 export function requiresMediaReattachment(job: DashboardJob) {
