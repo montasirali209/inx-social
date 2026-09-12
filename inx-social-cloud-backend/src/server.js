@@ -3,6 +3,7 @@ const env = require('./config/env');
 const { startSubscriptionLifecycle } = require('./services/subscriptionLifecycleService');
 const { startMetaReelStatusReconciliation } = require('./services/metaReelStatusService');
 const { startAgentRuntime } = require('./services/agentRuntimeService');
+const { startMediaRetention } = require('./services/mediaRetentionService');
 
 app.listen(env.port, () => {
   console.log(`INX Social Cloud Backend running on http://localhost:${env.port}`);
@@ -11,4 +12,5 @@ app.listen(env.port, () => {
     startMetaReelStatusReconciliation();
   }
   startAgentRuntime();
+  startMediaRetention();
 });

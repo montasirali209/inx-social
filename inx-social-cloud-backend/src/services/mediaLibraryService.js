@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const jwt = require('jsonwebtoken');
 const sharp = require('sharp');
 const prisma = require('../db/prisma');
+const { expiresAtFor, VIDEO_RETENTION_DAYS, OTHER_MEDIA_RETENTION_DAYS } = require('./mediaRetentionService');
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const VIDEO_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/webm']);
@@ -67,6 +68,7 @@ function publicAsset(asset) {
     duration: asset.durationSeconds || null,
     fileSize: asset.byteSize,
     createdAt: asset.createdAt,
+    expiresAt: asset.expiresAt || expiresAtFor(asset.mimeType, asset.createdAt),
     archivedAt: asset.archivedAt || null,
     folder: asset.folder || null,
     tags: parseTags(asset.tagsJson),
@@ -90,7 +92,7 @@ async function workspace(userId, plan) {
     assets: assets.filter(asset => !asset.archivedAt).map(publicAsset),
     trashAssets: assets.filter(asset => asset.archivedAt).map(publicAsset),
     folders: folders.map(folder => ({ id: folder.id, name: folder.name, count: folder._count.assets })),
-    storage: { usedBytes: storage._sum.byteSize || 0, limitBytes: limit, trashRetentionDays: TRASH_RETENTION_DAYS }
+    storage: { usedBytes: storage._sum.byteSize || 0, limitBytes: limit, trashRetentionDays: TRASH_RETENTION_DAYS, videoRetentionDays: VIDEO_RETENTION_DAYS, otherMediaRetentionDays: OTHER_MEDIA_RETENTION_DAYS }
   };
 }
 
@@ -129,7 +131,8 @@ async function upload(userId, plan, input) {
     data: input.data,
     width: metadata.width,
     height: metadata.height,
-    tagsJson: '[]'
+    tagsJson: '[]',
+    expiresAt: expiresAtFor(mimeType)
   }, include: ASSET_INCLUDE });
   return publicAsset(created);
 }
@@ -161,7 +164,8 @@ async function duplicate(userId, id) {
     byteSize: existing.byteSize, checksum: `${existing.checksum}-copy-${crypto.randomUUID()}`, prompt: existing.prompt,
     customerPrompt: existing.customerPrompt, exactOverlayText: existing.exactOverlayText, generationChoice: existing.generationChoice,
     qualityScore: existing.qualityScore, qualityIssuesJson: existing.qualityIssuesJson, data: existing.data, tagsJson: existing.tagsJson,
-    width: existing.width, height: existing.height, durationSeconds: existing.durationSeconds
+    width: existing.width, height: existing.height, durationSeconds: existing.durationSeconds,
+    expiresAt: expiresAtFor(existing.mimeType)
   }, include: ASSET_INCLUDE });
   return publicAsset(copy);
 }

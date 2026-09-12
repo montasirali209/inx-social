@@ -5,6 +5,7 @@ const env = require('../config/env');
 const credits = require('./aiCreditService');
 const runware = require('./runwareService');
 const mediaLibrary = require('./mediaLibraryService');
+const { expiresAtFor } = require('./mediaRetentionService');
 
 const CONTENT_TYPES = new Set(['image_post', 'carousel_post', 'short_video', 'ugc_ad']);
 const IMAGE_ASPECTS = new Set(['1:1', '4:5', '9:16', '16:9']);
@@ -217,7 +218,8 @@ async function persistProviderAsset(userId, generationId, result, meta) {
       data: downloaded.data,
       width: result.width || null,
       height: result.height || null,
-      durationSeconds: result.duration || null
+      durationSeconds: result.duration || null,
+      expiresAt: expiresAtFor(downloaded.mimeType)
     }
   });
   const publicAsset = mediaLibrary.publicAsset(record);

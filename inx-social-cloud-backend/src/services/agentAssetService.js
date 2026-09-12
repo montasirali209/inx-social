@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const prisma = require('../db/prisma');
+const { expiresAtFor } = require('./mediaRetentionService');
 
 const UPLOAD_KINDS = new Set(['LOGO', 'PROFILE', 'REFERENCE']);
 const MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -49,7 +50,7 @@ async function createUpload(userId, input = {}) {
     byteSize: data.length,
     checksum,
     data,
-    expiresAt: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+    expiresAt: expiresAtFor(mimeType)
   } });
 }
 

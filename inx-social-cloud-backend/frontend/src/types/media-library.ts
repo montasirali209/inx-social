@@ -24,6 +24,7 @@ export type MediaAsset = {
   duration: number | null
   fileSize: number
   createdAt: string
+  expiresAt?: string
   archivedAt: string | null
   folder: { id: string; name: string } | null
   tags: string[]
@@ -39,7 +40,7 @@ export type MediaLibraryWorkspace = {
   assets: MediaAsset[]
   trashAssets: MediaAsset[]
   folders: MediaFolder[]
-  storage: { usedBytes: number; limitBytes: number; trashRetentionDays: number }
+  storage: { usedBytes: number; limitBytes: number; trashRetentionDays: number; videoRetentionDays?: number; otherMediaRetentionDays?: number }
 }
 
 export type MediaTabId = 'all' | 'videos' | 'images' | 'ai_generated' | 'brand_assets' | 'scheduled' | 'published' | 'unused'

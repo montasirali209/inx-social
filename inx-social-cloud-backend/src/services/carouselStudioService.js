@@ -5,6 +5,7 @@ const prisma = require('../db/prisma');
 const env = require('../config/env');
 const credits = require('./aiCreditService');
 const mediaLibrary = require('./mediaLibraryService');
+const { expiresAtFor } = require('./mediaRetentionService');
 
 const REASONING_MODEL = String(process.env.OPENAI_REASONING_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-terra').trim();
 const SLIDE_LIMITS = { min: 3, max: 10 };
@@ -193,7 +194,8 @@ async function persistSlide(userId, generationId, output, input, plan, slide, am
       tagsJson: JSON.stringify(['ai-generated', 'ai-content-studio', 'carousel-post', `slide-${slide.index}`]),
       data: output.data,
       width: Number(metadata.width || 0) || null,
-      height: Number(metadata.height || 0) || null
+      height: Number(metadata.height || 0) || null,
+      expiresAt: expiresAtFor('image/png')
     }
   });
   const publicAsset = mediaLibrary.publicAsset(record);

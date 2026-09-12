@@ -6,6 +6,7 @@ const prisma = require('../db/prisma');
 const env = require('../config/env');
 const credits = require('./aiCreditService');
 const mediaLibrary = require('./mediaLibraryService');
+const { expiresAtFor } = require('./mediaRetentionService');
 
 const CHAT_MODEL = String(process.env.OPENAI_CHAT_MODEL || 'gpt-5.6-luna').trim();
 const REASONING_MODEL = String(process.env.OPENAI_REASONING_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-terra').trim();
@@ -554,7 +555,8 @@ async function persistImage(userId, generationId, output, input, prompt) {
     tagsJson: JSON.stringify(['ai-generated', 'ai-content-studio', 'image-post']),
     data: output.data,
     width: metadata.width || null,
-    height: metadata.height || null
+    height: metadata.height || null,
+    expiresAt: expiresAtFor('image/png')
   } });
   const publicAsset = mediaLibrary.publicAsset(created);
   const brief = input.brief || {};

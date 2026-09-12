@@ -6,6 +6,7 @@ import {
   ChevronRight,
   FolderPlus,
   HardDrive,
+  TimerReset,
   Images,
   Send,
   ShieldAlert,
@@ -428,6 +429,10 @@ export function MediaLibraryPage() {
         ))}
       </div>
       <section className="mt-4 rounded-panel border border-border-soft bg-panel/65 p-3 shadow-panel">
+        <div className="mb-3 flex items-center gap-2 rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.035] px-3 py-2 text-[9px] text-text-muted">
+          <TimerReset className="size-3.5 shrink-0 text-brand-cyan" />
+          Videos are retained for {workspace.data.storage.videoRetentionDays ?? 10} days; images and other media for {workspace.data.storage.otherMediaRetentionDays ?? 30} days. Download anything you need to keep permanently.
+        </div>
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <MediaTabs
             active={activeTab}
