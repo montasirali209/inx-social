@@ -1,4 +1,4 @@
-import { AtSign, FileImage, FileVideo, Hash, ImagePlus, Link2, MapPin, RefreshCw, Smile, Sparkles, Type, UploadCloud, WandSparkles, X } from 'lucide-react'
+import { AtSign, FileImage, FileVideo, Hash, ImagePlus, RefreshCw, Smile, Sparkles, UploadCloud, WandSparkles, X } from 'lucide-react'
 import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { contentScore, postTypes } from '../../data/postsData'
@@ -6,6 +6,19 @@ import type { BestTimeInsight, CaptionTone, EnhancementAction, MediaItem, PostTy
 import { Button } from '../ui/Button'
 import { CaptionEnhancementModal } from './CaptionEnhancementModal'
 import { PanelHeading } from './PostPrimitives'
+
+const CAPTION_EMOJIS = [
+  '😀', '😃', '😄', '😁', '😊', '😍', '🥰', '😘',
+  '😎', '🤩', '🥳', '😂', '🤣', '😉', '🤔', '🫡',
+  '👍', '👎', '👏', '🙌', '🤝', '🙏', '💪', '👀',
+  '❤️', '🩷', '🧡', '💛', '💚', '💙', '💜', '🤍',
+  '🔥', '✨', '⭐', '🌟', '💫', '⚡', '💥', '🎉',
+  '🎊', '🎯', '🏆', '🥇', '✅', '☑️', '💡', '🚀',
+  '📣', '📢', '📌', '📍', '📝', '📸', '🎥', '🎬',
+  '💻', '📱', '🌍', '🌎', '🌐', '📈', '💰', '🛍️',
+  '🎁', '💎', '🔔', '⏰', '👉', '👈', '👇', '👆',
+  '➡️', '⬅️', '⬆️', '⬇️', '💬', '🗣️', '🤗', '🙋',
+]
 
 type Props = {
   postType: PostType
@@ -35,7 +48,7 @@ export function CreatePostPanel(props: Props) {
   const score = contentScore(props.caption, Boolean(props.media) || Boolean(props.carouselHasMedia), props.destinationCount)
   const [tone, setTone] = useState<CaptionTone>('professional')
   const [enhancement, setEnhancement] = useState<EnhancementAction | null>(null)
-  const [captionTool, setCaptionTool] = useState<'emoji' | 'format' | null>(null)
+  const [captionTool, setCaptionTool] = useState<'emoji' | null>(null)
   const closeEnhancement = useCallback(() => setEnhancement(null), [])
 
   function chooseStandardPost() {
@@ -51,29 +64,17 @@ export function CreatePostPanel(props: Props) {
     navigate('/posts', { state: { manualCarousel: true } })
   }
 
-  function insertCaptionText(value: string, replaceSelection = false) {
+  function insertCaptionText(value: string, keepEmojiPickerOpen = false) {
     const field = captionRef.current
     const start = field?.selectionStart ?? props.caption.length
     const end = field?.selectionEnd ?? start
-    const selected = props.caption.slice(start, end)
-    const inserted = replaceSelection ? value.replace('{selection}', selected) : value
-    props.setCaption(`${props.caption.slice(0, start)}${inserted}${props.caption.slice(end)}`.slice(0, 5000))
-    setCaptionTool(null)
+    props.setCaption(`${props.caption.slice(0, start)}${value}${props.caption.slice(end)}`.slice(0, 5000))
+    if (!keepEmojiPickerOpen) setCaptionTool(null)
     window.requestAnimationFrame(() => {
       field?.focus()
-      const cursor = Math.min(5000, start + inserted.length)
+      const cursor = Math.min(5000, start + value.length)
       field?.setSelectionRange(cursor, cursor)
     })
-  }
-
-  function promptForLink() {
-    const value = window.prompt('Paste the link to add to this caption', 'https://')?.trim()
-    if (value) insertCaptionText(`${props.caption && !/\s$/.test(props.caption.slice(0, captionRef.current?.selectionStart ?? 0)) ? ' ' : ''}${value}`)
-  }
-
-  function promptForLocation() {
-    const value = window.prompt('Add a location', '')?.trim()
-    if (value) insertCaptionText(`${props.caption && !/\s$/.test(props.caption.slice(0, captionRef.current?.selectionStart ?? 0)) ? '\n' : ''}📍 ${value}`)
   }
 
   function selectFile(file?: File) {
@@ -115,16 +116,19 @@ export function CreatePostPanel(props: Props) {
       <label className="mt-4 block text-[11px] font-semibold text-text-muted">Caption<textarea className="mt-2 min-h-36 w-full resize-y rounded-xl border border-border-soft bg-bg/40 p-3 pb-11 text-sm leading-6 text-white outline-none transition placeholder:text-text-soft focus:border-brand-cyan focus:ring-2 focus:ring-brand-cyan/10" maxLength={5000} onChange={(event) => props.setCaption(event.target.value)} placeholder="What would you like to share?" ref={captionRef} value={props.caption} /></label>
       <div className="relative -mt-10 flex h-10 items-center justify-between px-3 text-text-soft">
         <div className="flex gap-1">
-          <button aria-label="Add emoji" className="rounded-lg p-1.5 transition hover:bg-white/5 hover:text-brand-cyan" onClick={() => setCaptionTool((value) => value === 'emoji' ? null : 'emoji')} title="Add emoji" type="button"><Smile className="size-3.5" /></button>
+          <button aria-expanded={captionTool === 'emoji'} aria-label="Add emoji" className={`rounded-lg p-1.5 transition hover:bg-white/5 hover:text-brand-cyan ${captionTool === 'emoji' ? 'bg-brand-cyan/10 text-brand-cyan' : ''}`} onClick={() => setCaptionTool((value) => value === 'emoji' ? null : 'emoji')} title="Add emoji" type="button"><Smile className="size-3.5" /></button>
           <button aria-label="Add hashtag" className="rounded-lg p-1.5 transition hover:bg-white/5 hover:text-brand-cyan" onClick={() => insertCaptionText(' #')} title="Add hashtag" type="button"><Hash className="size-3.5" /></button>
           <button aria-label="Add mention" className="rounded-lg p-1.5 transition hover:bg-white/5 hover:text-brand-cyan" onClick={() => insertCaptionText(' @')} title="Add mention" type="button"><AtSign className="size-3.5" /></button>
-          <button aria-label="Add link" className="rounded-lg p-1.5 transition hover:bg-white/5 hover:text-brand-cyan" onClick={promptForLink} title="Add link" type="button"><Link2 className="size-3.5" /></button>
-          <button aria-label="Add location" className="rounded-lg p-1.5 transition hover:bg-white/5 hover:text-brand-cyan" onClick={promptForLocation} title="Add location" type="button"><MapPin className="size-3.5" /></button>
-          <button aria-label="Format caption" className="rounded-lg p-1.5 transition hover:bg-white/5 hover:text-brand-cyan" onClick={() => setCaptionTool((value) => value === 'format' ? null : 'format')} title="Format caption" type="button"><Type className="size-3.5" /></button>
         </div>
         <span className="text-[10px]">{props.caption.length} / 5,000</span>
-        {captionTool === 'emoji' && <div className="absolute bottom-10 left-2 z-20 flex flex-wrap gap-1 rounded-xl border border-border-soft bg-panel p-2 shadow-xl">{['😀', '😍', '🎉', '🔥', '👏', '💡', '✅', '🚀', '❤️', '📣'].map((emoji) => <button aria-label={`Add ${emoji}`} className="grid size-8 place-items-center rounded-lg text-base hover:bg-white/7" key={emoji} onClick={() => insertCaptionText(emoji)} type="button">{emoji}</button>)}</div>}
-        {captionTool === 'format' && <div className="absolute bottom-10 left-2 z-20 flex gap-1 rounded-xl border border-border-soft bg-panel p-2 text-[10px] shadow-xl"><button className="rounded-lg px-2 py-1.5 hover:bg-white/7" onClick={() => insertCaptionText('\n\n')} type="button">New paragraph</button><button className="rounded-lg px-2 py-1.5 hover:bg-white/7" onClick={() => insertCaptionText('• ')} type="button">Bullet</button><button className="rounded-lg px-2 py-1.5 hover:bg-white/7" onClick={() => insertCaptionText('“{selection}”', true)} type="button">Quote selection</button></div>}
+        {captionTool === 'emoji' && (
+          <div className="absolute bottom-10 left-2 z-20 w-[304px] max-w-[calc(100vw-3rem)] rounded-xl border border-border-soft bg-panel p-2.5 shadow-2xl">
+            <div className="mb-2 flex items-center justify-between px-1"><span className="text-[10px] font-semibold text-text-muted">Choose an emoji</span><span className="text-[9px] text-text-soft">{CAPTION_EMOJIS.length} available</span></div>
+            <div className="scrollbar-thin grid max-h-48 grid-cols-8 gap-1 overflow-y-auto pr-1">
+              {CAPTION_EMOJIS.map((emoji, index) => <button aria-label={`Add ${emoji}`} className="grid size-8 place-items-center rounded-lg text-base transition hover:bg-white/7 focus-visible:outline-2 focus-visible:outline-brand-cyan" key={`${emoji}-${index}`} onClick={() => insertCaptionText(emoji, true)} type="button">{emoji}</button>)}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mt-4 rounded-2xl border border-brand-cyan/25 bg-brand-cyan/[0.045] p-3"><div className="flex items-center gap-2 text-[11px] font-semibold text-text-main"><Sparkles className="size-3.5 text-brand-cyan" />AI Caption Writer</div><p className="mt-1 text-[9px] text-text-soft">Give a short idea and AI will write a complete caption with a CTA and relevant hashtags.</p><div className="mt-2 flex flex-col gap-2 sm:flex-row"><input aria-label="Short caption idea" className="min-h-10 flex-1 rounded-xl border border-border-soft bg-bg/50 px-3 text-xs text-white outline-none placeholder:text-text-soft focus:border-brand-cyan" maxLength={500} onChange={(event) => props.setCaptionIdea(event.target.value)} placeholder="Example: announce our new weekend service" value={props.captionIdea} /><Button disabled={!props.captionIdea.trim()} onClick={() => setEnhancement('write')} type="button" variant="primary"><Sparkles className="size-3.5" />Write caption</Button></div></div>
