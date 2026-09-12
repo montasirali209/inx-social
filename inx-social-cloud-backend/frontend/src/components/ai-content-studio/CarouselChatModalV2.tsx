@@ -166,14 +166,24 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
     setError('')
     try {
       const memory = sourceAnalysisMemoryMessage(sourceAnalysis)
+      const currentSlideSummary = asset
+        ? (asset.slides || []).slice(0, 8).map((slide, index) => `Slide ${index + 1}: ${(slide.altText || slide.caption || slide.prompt || '').slice(0, 180)}`).join('\n')
+        : ''
+      const currentCarouselContext = asset
+        ? `\nAn existing generated carousel is open in this Studio right now. Treat the user's request as an edit to that carousel; never say you cannot access the current carousel. It has ${(asset.slides || []).length || slides} slides. Current caption: ${(asset.caption || initialDraft?.caption || '').slice(0, 700)}.\n${currentSlideSummary}`.slice(0, 2200)
+        : ''
       const formatInstruction: PostStudioMessage = {
         role: 'user',
-        content: `Output format: a ${slides}-slide social carousel. Build one coherent narrative across the slides; do not treat this as a single-image post. If I am refining an already generated carousel, preserve everything I did not explicitly ask to change and update only the necessary creative brief fields.`,
+        content: (`Output format: a ${slides}-slide social carousel. Build one coherent narrative across the slides; do not treat this as a single-image post. If I am refining an already generated carousel, preserve everything I did not explicitly ask to change and update only the necessary creative brief fields.${currentCarouselContext}`).slice(0, 3900),
       }
+      const legacySlideIds = asset && !brief
+        ? (asset.slides || []).map((slide) => slide.mediaLibraryAssetId).filter((value): value is string => Boolean(value))
+        : []
+      const analysisReferenceIds = [...new Set([...nextRefs.map((item) => item.id), ...legacySlideIds])].slice(0, MAX_REFERENCE_FILES)
       const result = await sendPostStudioMessage({
         messages: [...(memory ? [memory] : []), formatInstruction, ...nextMessages.filter((_, index) => index > 0).slice(-16)],
         urls: nextUrls,
-        referenceAssetIds: nextRefs.map((item) => item.id),
+        referenceAssetIds: analysisReferenceIds,
         platform,
         aspectRatio,
       })
