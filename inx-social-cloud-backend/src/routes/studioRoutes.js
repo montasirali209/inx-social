@@ -3,6 +3,7 @@ const express = require('express');
 const { requireAuth } = require('../middleware/authMiddleware');
 const controller = require('../controllers/studioController');
 const analyticsController = require('../controllers/analyticsController');
+require('../services/carouselMetaPublisherFix').install();
 const carouselPostController = require('../controllers/carouselPostController');
 
 router.get('/media-library/assets/:id/content', controller.mediaLibraryAssetContent);
