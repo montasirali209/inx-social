@@ -2,6 +2,7 @@ const axios = require('axios');
 const env = require('../config/env');
 
 const instructions = {
+  write: 'Use the short idea as a creative brief and write a complete, publish-ready social caption. Include a natural call to action and two to five focused relevant hashtags. Do not invent facts, offers, dates, links or claims.',
   rewrite: 'Rewrite the caption for clarity, flow and impact while preserving every factual claim, link, mention and intended meaning.',
   shorten: 'Shorten the caption by roughly one third. Keep the important facts, links, mentions and call to action.',
   expand: 'Expand the caption with useful structure and context, but do not invent facts, offers, claims, dates or links.',
@@ -64,7 +65,7 @@ async function enhanceCaption(input, dependencies = {}) {
         },
         {
           role: 'user',
-          content: `Tone: ${input.tone}.\nTask: ${actionInstruction}\n\nOriginal caption:\n${input.caption}`
+          content: `Tone: ${input.tone}.\nTask: ${actionInstruction}\n\n${input.action === 'write' ? 'Short idea' : 'Original caption'}:\n${input.caption}`
         }
       ],
       temperature: 0.35,
