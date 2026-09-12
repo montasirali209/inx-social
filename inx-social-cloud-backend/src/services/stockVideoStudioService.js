@@ -48,7 +48,22 @@ function providerConfig() {
 }
 
 function isConfigured() {
-  return Boolean(ffmpegPath);
+  return Boolean(env.stockVideo.openMontageUrl && env.stockVideo.openMontageToken);
+}
+
+function workerHeaders() {
+  return { Authorization: `Bearer ${env.stockVideo.openMontageToken}` };
+}
+
+let capabilityCache = { value: null, expiresAt: 0 };
+async function workerCapabilities() {
+  if (!isConfigured()) return null;
+  if (capabilityCache.value && capabilityCache.expiresAt > Date.now()) return capabilityCache.value;
+  try {
+    const response = await axios.get(`${env.stockVideo.openMontageUrl}/capabilities`, { headers: workerHeaders(), timeout: 30000 });
+    capabilityCache = { value: response.data, expiresAt: Date.now() + 5 * 60 * 1000 };
+    return response.data;
+  } catch (_) { return null; }
 }
 
 function dimensions(aspectRatio, resolution) {
@@ -359,7 +374,9 @@ async function access(userId) {
   const entitlement = await credits.getEntitlement(userId);
   if (!entitlement.studioEnabled) return { enabled: false, configured: isConfigured(), limit: MONTHLY_LIMIT(), used: 0, remaining: 0 };
   await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'FAILED\',"errorCode"=\'STOCK_VIDEO_WORKER_INTERRUPTED\',"errorMessage"=\'The production worker restarted before this video completed. Please try again.\',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=$1 AND "contentType"=\'stock_video\' AND "status" IN (\'PREPARING\',\'PROCESSING\') AND "updatedAt" < CURRENT_TIMESTAMP - INTERVAL \'30 minutes\'', userId);
-  return { enabled: true, configured: isConfigured(), ...(await quota(userId)), providers: { pexels: Boolean(providerConfig().pexels), pixabay: Boolean(providerConfig().pixabay), archiveOrg: true }, commercialOutput: true };
+  const capabilities = await workerCapabilities();
+  return { enabled: true, configured: isConfigured() && Boolean(capabilities), ...(await quota(userId)), providers: { pexels: Boolean(providerConfig().pexels), pixabay: true, archiveOrg: true }, commercialOutput: true,
+    runtime: capabilities ? { name: capabilities.runtime, commit: capabilities.commit, pipelines: capabilities.pipelines || [], providerMenu: capabilities.providerMenu || null } : null };
 }
 
 function drainQueue() {
@@ -396,38 +413,49 @@ async function updateJob(id, status, progress, extra = {}) {
 async function processJob(userId, generationId, input) {
   if (activeJobs.has(generationId)) return;
   activeJobs.add(generationId);
-  const workDir = await fs.mkdtemp(path.join(os.tmpdir(), `inx-stock-${generationId.slice(0, 8)}-`));
-  const progress = value => { void updateJob(generationId, 'PROCESSING', Math.max(2, Math.min(98, value))).catch(() => {}); };
   try {
     await updateJob(generationId, 'PROCESSING', 4);
-    const plan = normalizePlan(await createPlan(input), input);
-    progress(10);
-    const clips = await selectClips(plan, input, progress);
-    const composed = await composeVideo(workDir, clips, plan, input, progress);
-    const data = await fs.readFile(composed.outputPath);
+    const started = await axios.post(`${env.stockVideo.openMontageUrl}/jobs`, { ...input, fullRunAuthorized: input.fullRunAuthorized !== false }, { headers: workerHeaders(), timeout: 60000 });
+    const workerJobId = String(started.data?.id || '');
+    if (!workerJobId) throw publicError('The OpenMontage worker did not accept the production.', 'OPENMONTAGE_JOB_REJECTED', 502);
+    await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "taskUuid"=$2,"responseJson"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, workerJobId, JSON.stringify({ runtime: 'OpenMontage', workerJobId, stage: 'preflight' }));
+    const deadline = Date.now() + env.stockVideo.openMontageTimeoutMs;
+    let workerJob = started.data;
+    while (Date.now() < deadline) {
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      const polled = await axios.get(`${env.stockVideo.openMontageUrl}/jobs/${encodeURIComponent(workerJobId)}`, { headers: workerHeaders(), timeout: 30000 });
+      workerJob = polled.data || {};
+      await updateJob(generationId, 'PROCESSING', Math.max(2, Math.min(98, Number(workerJob.progress || 2))), { responseJson: { runtime: 'OpenMontage', workerJobId, stage: workerJob.stage || 'processing', openmontageCommit: workerJob.result?.openmontageCommit } });
+      if (workerJob.status === 'completed' || workerJob.status === 'failed') break;
+    }
+    if (workerJob.status !== 'completed') {
+      throw publicError(workerJob.error || 'OpenMontage did not finish this production in time.', workerJob.status === 'failed' ? 'OPENMONTAGE_PIPELINE_FAILED' : 'OPENMONTAGE_TIMEOUT', 502);
+    }
+    const downloadResponse = await axios.get(`${env.stockVideo.openMontageUrl}/jobs/${encodeURIComponent(workerJobId)}/output`, { responseType: 'arraybuffer', headers: workerHeaders(), timeout: 180000, maxContentLength: FINAL_MAX_BYTES, maxBodyLength: FINAL_MAX_BYTES });
+    const data = Buffer.from(downloadResponse.data || []);
     if (!data.length || data.length > FINAL_MAX_BYTES) throw publicError('The finished stock video was empty or too large for Media Library.', 'STOCK_VIDEO_OUTPUT_INVALID', 502);
-    const provenance = clips.map(clip => ({ provider: clip.provider, providerId: clip.providerId, sourceUrl: clip.sourceUrl, creator: clip.creator, creatorUrl: clip.creatorUrl, searchQuery: clip.searchQuery, license: clip.license || (clip.provider === 'Pexels' ? 'Pexels Content License' : clip.provider === 'Pixabay' ? 'Pixabay Content License' : '') }));
+    const result = workerJob.result || {};
+    const provenance = Array.isArray(result.provenance) ? result.provenance : [];
     const record = await prisma.agentAsset.create({ data: {
       userId, kind: 'AI_VIDEO', source: 'AI_STUDIO', status: 'READY', originalName: `INXSocial-stock-video-${generationId.slice(0, 8)}.mp4`, mimeType: 'video/mp4', byteSize: data.length,
       checksum: crypto.createHash('sha256').update(data).digest('hex'), prompt: clean(input.prompt, 1500), customerPrompt: clean(input.prompt, 1500),
-      generationChoice: JSON.stringify({ pipeline: 'openmontage-documentary-montage', renderer: 'ffmpeg', generationId, duration: input.duration, resolution: input.resolution, aspectRatio: input.aspectRatio, provenance }),
-      tagsJson: JSON.stringify(['ai-assisted', 'stock-video', 'openmontage-workflow', ...new Set(provenance.map(item => item.provider.toLowerCase()))]), data, durationSeconds: input.duration,
+      generationChoice: JSON.stringify({ runtime: 'OpenMontage', openmontageCommit: result.openmontageCommit, pipeline: result.pipeline, renderer: 'ffmpeg', generationId, workerJobId, duration: input.duration, resolution: input.resolution, aspectRatio: input.aspectRatio, provenance }),
+      tagsJson: JSON.stringify(['ai-assisted', 'stock-video', 'openmontage', ...new Set(provenance.map(item => String(item.provider || '').toLowerCase()).filter(Boolean))]), data, durationSeconds: input.duration,
       expiresAt: expiresAtFor('video/mp4')
     }});
     const media = mediaLibrary.publicAsset(record);
     const asset = {
-      id: record.id, type: 'video', url: media.fileUrl, prompt: clean(input.prompt, 1500), caption: plan.caption,
-      hashtags: plan.hashtags, creditsUsed: 0, createdAt: record.createdAt.toISOString(), provider: 'OpenMontage stock workflow',
-      model: 'Documentary Montage', aspectRatio: input.aspectRatio, mediaLibraryAssetId: record.id, script: plan.narration,
+      id: record.id, type: 'video', url: media.fileUrl, prompt: clean(input.prompt, 1500), caption: clean(result.caption || input.prompt, 10000),
+      hashtags: Array.isArray(result.hashtags) ? result.hashtags : [], creditsUsed: 0, createdAt: record.createdAt.toISOString(), provider: 'OpenMontage',
+      model: result.pipeline || 'INX Stock Montage', aspectRatio: input.aspectRatio, mediaLibraryAssetId: record.id, script: clean(result.script, 10000),
       completionStatus: 'completed', provenance, expiresAt: record.expiresAt.toISOString(), retentionDays: 10,
-      warnings: composed.hasNarration || input.voiceover === false ? [] : ['Narration was unavailable, so the video was rendered with captions only.']
+      warnings: Array.isArray(result.warnings) ? result.warnings : []
     };
-    await updateJob(generationId, 'COMPLETED', 100, { assetJson: asset, responseJson: { pipeline: 'openmontage-documentary-montage', renderer: 'ffmpeg', provenance }, completedAt: new Date() });
+    await updateJob(generationId, 'COMPLETED', 100, { assetJson: asset, responseJson: { runtime: 'OpenMontage', openmontageCommit: result.openmontageCommit, pipeline: result.pipeline, renderer: 'ffmpeg', provenance }, completedAt: new Date() });
   } catch (caught) {
     await updateJob(generationId, 'FAILED', 0, { errorCode: clean(caught?.code || 'STOCK_VIDEO_FAILED', 120), errorMessage: clean(caught?.publicMessage || caught?.message || 'Stock video creation failed.', 700), completedAt: new Date() }).catch(() => {});
   } finally {
     activeJobs.delete(generationId);
-    await fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
     drainQueue();
   }
 }
