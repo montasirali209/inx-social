@@ -1,4 +1,4 @@
-FROM node:24-bookworm-slim
+FROM public.ecr.aws/docker/library/node:24-bookworm-slim
 
 ARG OPENMONTAGE_COMMIT=08e2151fa02de28a5d6a312b3d575692bf147ad7
 
