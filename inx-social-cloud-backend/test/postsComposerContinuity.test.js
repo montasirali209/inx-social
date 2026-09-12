@@ -6,15 +6,21 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('both post composers expose caption writing and working caption tools', () => {
+test('both post composers expose caption writing and the simplified caption toolbar', () => {
   const panel = read('frontend/src/components/posts/CreatePostPanel.tsx');
   assert.match(panel, /AI Caption Writer/);
   assert.match(panel, /setEnhancement\('write'\)/);
   assert.match(panel, /insertCaptionText/);
-  assert.match(panel, /promptForLink/);
-  assert.match(panel, /promptForLocation/);
   assert.match(panel, /captionTool === 'emoji'/);
-  assert.match(panel, /captionTool === 'format'/);
+  assert.match(panel, /CAPTION_EMOJIS/);
+  assert.match(panel, /aria-label="Add hashtag"/);
+  assert.match(panel, /aria-label="Add mention"/);
+  assert.match(panel, /80 available|CAPTION_EMOJIS\.length/);
+  assert.doesNotMatch(panel, /promptForLink/);
+  assert.doesNotMatch(panel, /promptForLocation/);
+  assert.doesNotMatch(panel, /captionTool === 'format'/);
+  assert.doesNotMatch(panel, /aria-label="Add link"/);
+  assert.doesNotMatch(panel, /aria-label="Add location"/);
 });
 
 test('every carousel source uses the full-card animated 3D reorder interaction', () => {
