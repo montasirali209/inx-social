@@ -6,6 +6,7 @@ import { saveAIDraft } from '../../lib/ai-content-studio-api'
 import { generateConversationalCarousel } from '../../lib/ai-next-studio-api'
 import { sendPostStudioMessage, sourceAnalysisMemoryMessage, uploadPostStudioReference, type PostStudioAssistantResponse, type PostStudioBrief, type PostStudioMessage, type PostStudioSourceAnalysis } from '../../lib/ai-post-studio-api'
 import { Button } from '../ui/Button'
+import { CarouselCreativeLab } from './CarouselCreativeLab'
 import { StudioSelect } from './StudioSelect'
 
 const INTRO = 'Tell me the story you want this carousel to tell. Add a website, product screenshot, logo or reference if useful. I’ll analyse the sources, shape the narrative, then build the slides.'
@@ -96,7 +97,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
   initialDraft?: AIDraft | null
   onClose: () => void
   onSaved: (draft: AIDraft) => void
-  onContinue: (draft: AIDraft) => void
+  onContinue: (draft: AIDraft) => void | Promise<void>
   onToast: (message: string) => void
 }) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -129,6 +130,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
   const [refineMode, setRefineMode] = useState(false)
   const [thinking, setThinking] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [continuing, setContinuing] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState('')
@@ -140,7 +142,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
   const renderNeeded = Boolean(ready && currentKey && (!asset || currentKey !== lastRenderedKey))
   const cost = carouselCredits(slides)
   const insufficient = access.creditsConfigured && !access.unlimitedCredits && access.creditsRemaining !== null && access.creditsRemaining < cost
-  const busy = thinking || generating || uploading
+  const busy = thinking || generating || uploading || continuing
   const slideAssets = asset?.slides || []
   const selectedSlide = slideAssets[Math.min(activeSlide, Math.max(0, slideAssets.length - 1))]
   const pendingRefinement = Boolean(asset && renderNeeded)
@@ -284,7 +286,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
   }
 
   async function saveDraft() {
-    if (!asset) return
+    if (!asset || continuing) return
     try {
       const draft = await saveAIDraft(buildDraft(asset, brief, messages, studioState(), initialDraft))
       onSaved(draft)
@@ -294,8 +296,16 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
     }
   }
 
-  function continueToPosts() {
-    if (asset) onContinue(buildDraft(asset, brief, messages, studioState(), initialDraft))
+  async function continueToPosts() {
+    if (!asset || continuing || generating) return
+    setContinuing(true)
+    setError('')
+    try {
+      await onContinue(buildDraft(asset, brief, messages, studioState(), initialDraft))
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'The carousel could not be prepared for Posts.')
+      setContinuing(false)
+    }
   }
 
   function keyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -331,7 +341,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
   }))
 
   const primaryAction = asset && !renderNeeded ? () => startRefinement() : () => void generate()
-  const primaryDisabled = generating || hasPendingReferences || (renderNeeded && insufficient) || (!asset && !renderNeeded)
+  const primaryDisabled = generating || continuing || hasPendingReferences || (renderNeeded && insufficient) || (!asset && !renderNeeded)
   const primaryLabel = asset
     ? renderNeeded ? `Apply changes · ${cost} credits` : 'Refine carousel'
     : `Generate · ${cost} credits`
@@ -346,7 +356,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
           </div>
           <div className="flex items-center gap-2">
             <span className="rounded-full border border-amber-400/25 bg-amber-400/[.06] px-3 py-1 text-[9px] font-bold text-amber-300">{cost} credits · {slides} slides</span>
-            <button className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:-translate-y-0.5 hover:border-brand-cyan/30 hover:text-white" onClick={onClose} type="button"><X className="size-4" /></button>
+            <button disabled={continuing} className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:-translate-y-0.5 hover:border-brand-cyan/30 hover:text-white disabled:cursor-wait disabled:opacity-35" onClick={onClose} type="button"><X className="size-4" /></button>
           </div>
         </header>
 
@@ -387,7 +397,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
                       : 'The story, source context and visual direction are prepared. Keep refining in chat or render the complete sequence.'}
                   </p>
                   {hasPendingReferences && <p className="mt-2 text-[9px] text-amber-300">Send the staged reference files with your message before rendering so the AI can analyse them first.</p>}
-                  <Button className="mt-4 min-h-11" variant="primary" disabled={insufficient || generating || hasPendingReferences} onClick={() => void generate()}>
+                  <Button className="mt-4 min-h-11" variant="primary" disabled={insufficient || generating || continuing || hasPendingReferences} onClick={() => void generate()}>
                     <WandSparkles className="size-4" />{asset ? `Apply refinement · ${cost} credits` : `Generate carousel · ${cost} credits`}
                   </Button>
                 </div>
@@ -441,8 +451,8 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
                 <div className="flex items-center justify-between border-t border-border-soft px-2.5 py-2">
                   <div className="flex items-center gap-1">
                     <input ref={fileRef} type="file" multiple accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,text/markdown,text/csv,application/json,text/html,text/xml,application/xml,application/rtf,.png,.jpg,.jpeg,.webp,.gif,.pdf,.txt,.md,.csv,.json,.html,.htm,.xml,.rtf" className="hidden" onChange={uploadReference} />
-                    <button disabled={uploading || references.length + pendingReferences.length >= MAX_REFERENCE_FILES} onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[9px] text-text-muted hover:bg-white/5 disabled:opacity-40" type="button"><Paperclip className="size-3.5" />{uploading ? `Uploading ${uploadProgress}%` : 'Reference'}</button>
-                    <button onClick={() => { setComposer((value) => `${value}${value ? ' ' : ''}https://`); inputRef.current?.focus() }} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[9px] text-text-muted hover:bg-white/5" type="button"><Globe2 className="size-3.5" />Add URL</button>
+                    <button disabled={uploading || references.length + pendingReferences.length >= MAX_REFERENCE_FILES || continuing} onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[9px] text-text-muted hover:bg-white/5 disabled:opacity-40" type="button"><Paperclip className="size-3.5" />{uploading ? `Uploading ${uploadProgress}%` : 'Reference'}</button>
+                    <button disabled={continuing} onClick={() => { setComposer((value) => `${value}${value ? ' ' : ''}https://`); inputRef.current?.focus() }} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[9px] text-text-muted hover:bg-white/5 disabled:opacity-40" type="button"><Globe2 className="size-3.5" />Add URL</button>
                     {(references.length > 0 || pendingReferences.length > 0) && <span className="ml-1 text-[8px] text-text-soft">{references.length + pendingReferences.length}/{MAX_REFERENCE_FILES} refs</span>}
                   </div>
                   <button disabled={(!composer.trim() && !pendingReferences.length) || busy} onClick={() => void sendText()} className="grid size-9 place-items-center rounded-xl bg-brand-teal text-white disabled:opacity-40" type="button"><Send className="size-4" /></button>
@@ -472,15 +482,10 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
                 </div>
               )}
 
-              {!asset && generating && (
-                <div className="grid h-full min-h-[420px] place-items-center text-center">
-                  <div><LoaderCircle className="mx-auto size-9 animate-spin text-brand-cyan" /><h3 className="mt-4 text-base font-bold">Designing all {slides} slides…</h3><p className="mt-2 text-[10px] text-text-muted">Keeping story, typography and brand direction consistent across the full carousel.</p></div>
-                </div>
-              )}
+              {generating && <CarouselCreativeLab slides={slides} refining={Boolean(asset)} />}
 
-              {asset && selectedSlide && (
+              {!generating && asset && selectedSlide && (
                 <div>
-                  {generating && <div className="mb-3 flex items-center gap-2 rounded-xl border border-brand-cyan/25 bg-brand-cyan/[.06] px-3 py-2 text-[10px] text-brand-cyan"><LoaderCircle className="size-3.5 animate-spin" />Rendering your refined carousel. The current version remains visible until the new sequence is ready.</div>}
                   <div className="overflow-hidden rounded-2xl border border-border-soft bg-black/30"><img src={selectedSlide.url} alt={`Carousel slide ${activeSlide + 1}`} className="mx-auto max-h-[560px] w-full object-contain" /></div>
                   <div className="mt-3 flex items-center justify-between">
                     <Button size="sm" disabled={activeSlide <= 0} onClick={() => setActiveSlide((value) => Math.max(0, value - 1))}><ArrowLeft className="size-3.5" />Previous</Button>
@@ -509,12 +514,13 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
             </div>
 
             <div className="mt-4 grid gap-2 sm:grid-cols-3">
-              <Button disabled={!asset} onClick={() => void saveDraft()}><Save className="size-3.5" />Save draft</Button>
-              <Button disabled={!asset} onClick={continueToPosts}>Continue to Posts <ArrowRight className="size-3.5" /></Button>
+              <Button disabled={!asset || generating || continuing} onClick={() => void saveDraft()}><Save className="size-3.5" />Save draft</Button>
+              <Button disabled={!asset || generating || continuing} onClick={() => void continueToPosts()}>{continuing ? <LoaderCircle className="size-3.5 animate-spin" /> : null}{continuing ? 'Preparing Posts…' : 'Continue to Posts'} {!continuing && <ArrowRight className="size-3.5" />}</Button>
               <Button variant="primary" disabled={primaryDisabled} onClick={primaryAction}><WandSparkles className="size-3.5" />{primaryLabel}</Button>
             </div>
-            {asset && pendingRefinement && <p className="mt-2 text-right text-[9px] text-amber-300">Changes are ready but not rendered yet. Applying them regenerates the full carousel for {cost} credits.</p>}
-            {asset && !pendingRefinement && refineMode && <p className="mt-2 text-right text-[9px] text-brand-cyan">Refinement mode is active. Send your change request first; AI will then prepare the regenerate action.</p>}
+            {continuing && <p className="mt-2 text-center text-[9px] text-brand-cyan">Preparing your generated slides and publishing data. You only need to click once.</p>}
+            {asset && pendingRefinement && !continuing && <p className="mt-2 text-right text-[9px] text-amber-300">Changes are ready but not rendered yet. Applying them regenerates the full carousel for {cost} credits.</p>}
+            {asset && !pendingRefinement && refineMode && !continuing && <p className="mt-2 text-right text-[9px] text-brand-cyan">Refinement mode is active. Send your change request first; AI will then prepare the regenerate action.</p>}
           </section>
         </div>
       </div>
