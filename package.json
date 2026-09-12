@@ -65,5 +65,8 @@
     },
     "artifactName": "INX-Social-Setup-${version}.${ext}"
   },
-  "productName": "INX Social"
+  "productName": "INX Social",
+  "prisma": {
+    "schema": "inx-social-cloud-backend/prisma/schema.prisma"
+  }
 }

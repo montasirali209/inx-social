@@ -7,6 +7,7 @@ const brain = require('./agentBrainService');
 const routing = require('./aiModelRoutingService');
 const branding = require('./agentBrandingService');
 const managerIntelligence = require('./socialManagerIntelligence');
+const { expiresAtFor } = require('./mediaRetentionService');
 
 function status(policy = {}) {
   const capabilities = routing.imageProviderCapabilities(policy);
@@ -251,7 +252,8 @@ async function createGeneratedAsset(plan, prompt, index, options = {}) {
     generationChoice: options.generationChoice || null,
     qualityScore: Number.isFinite(qualityReview.score) ? qualityReview.score : null,
     qualityIssuesJson: JSON.stringify(qualityReview.issues || []),
-    data
+    data,
+    expiresAt: expiresAtFor(detected.mimeType)
   } });
   return { id: created.id, kind: created.kind, status: created.status, mimeType: created.mimeType, byteSize: created.byteSize, contentUrl: ready ? `/api/agent/assets/${encodeURIComponent(created.id)}/content` : null, qualityReview };
 }

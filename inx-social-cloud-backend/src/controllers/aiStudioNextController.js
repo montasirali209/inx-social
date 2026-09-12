@@ -1,6 +1,7 @@
 const { z } = require('zod');
 const carouselStudio = require('../services/carouselStudioService');
 const videoStudio = require('../services/videoStudioService');
+const stockVideoStudio = require('../services/stockVideoStudioService');
 
 const sourceAnalysisSchema = z.object({
   productName: z.string().max(160).optional(),
@@ -54,6 +55,16 @@ const videoGenerationSchema = videoSelectionSchema.extend({
   script: z.string().max(5000).optional()
 });
 
+const stockVideoGenerationSchema = z.object({
+  prompt: z.string().trim().min(2).max(1500),
+  duration: z.coerce.number().int().refine(value => [15, 30, 45, 60].includes(value), 'Choose 15, 30, 45 or 60 seconds.').default(30),
+  resolution: z.enum(['720p', '1080p']).default('720p'),
+  aspectRatio: z.enum(['9:16', '16:9', '1:1']).default('9:16'),
+  tone: z.enum(['Natural', 'Friendly', 'Confident', 'Energetic', 'Professional', 'Cinematic']).default('Natural'),
+  voiceover: z.boolean().default(true),
+  captions: z.boolean().default(true)
+});
+
 async function generateCarousel(req, res, next) {
   try { res.json(await carouselStudio.generateCarousel(req.user.id, carouselSchema.parse(req.body || {}))); } catch (error) { next(error); }
 }
@@ -77,4 +88,12 @@ async function generateVideo(req, res, next) {
   try { res.json(await videoStudio.generateVideo(req.user.id, videoGenerationSchema.parse(req.body || {}))); } catch (error) { next(error); }
 }
 
-module.exports = { generateCarousel, videoModels, videoRecommend, videoEstimate, generateVideo };
+async function stockVideoAccess(req, res, next) {
+  try { res.json(await stockVideoStudio.access(req.user.id)); } catch (error) { next(error); }
+}
+
+async function generateStockVideo(req, res, next) {
+  try { res.status(202).json(await stockVideoStudio.createJob(req.user.id, stockVideoGenerationSchema.parse(req.body || {}))); } catch (error) { next(error); }
+}
+
+module.exports = { generateCarousel, videoModels, videoRecommend, videoEstimate, generateVideo, stockVideoAccess, generateStockVideo };

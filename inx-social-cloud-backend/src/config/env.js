@@ -53,6 +53,11 @@ module.exports = {
       '2500': process.env.STRIPE_AI_CREDITS_2500_PRICE_ID || ''
     }
   },
+  stockVideo: {
+    monthlyLimit: Math.max(1, Math.min(100, Number(process.env.STOCK_VIDEO_MONTHLY_LIMIT || 30))),
+    pexelsConfigured: Boolean(process.env.PEXELS_API_KEY),
+    pixabayConfigured: Boolean(process.env.PIXABAY_API_KEY)
+  },
   runware: {
     baseUrl: String(process.env.RUNWARE_API_URL || 'https://api.runware.ai/v1').replace(/\/$/, ''),
     apiKey: process.env.RUNWARE_API_KEY || '',

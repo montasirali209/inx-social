@@ -33,7 +33,7 @@ export function ChangePlanSection({ current, cycle, availability, highlight, onC
 function PlusCreditPanel() {
   return <div className="mb-4 overflow-hidden rounded-2xl border border-brand-amber/30 bg-[radial-gradient(circle_at_100%_0%,rgba(245,158,11,.15),transparent_9rem),linear-gradient(145deg,rgba(20,49,52,.78),rgba(12,27,41,.92))] p-3.5 shadow-[0_14px_34px_rgba(0,0,0,.14)]">
     <div className="flex items-start gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl border border-brand-amber/25 bg-brand-amber/10 text-brand-amber"><Coins className="size-4" /></span><div><span className="text-[9px] font-bold uppercase tracking-[.15em] text-brand-amber">AI Content Studio allowance</span><p className="mt-1 text-sm font-bold text-white">500 AI Studio Credits included</p><p className="mt-1 text-[10px] leading-4 text-text-muted">Refreshes each billing period. Use them only for Image Posts, Carousels, Short Videos/Reels and UGC Ad generation.</p></div></div>
-    <div className="mt-3 rounded-xl border border-white/8 bg-black/15 px-3 py-2 text-[10px] leading-4 text-text-muted"><strong className="text-white">Example 500-credit month:</strong> 30 image posts + 15 five-second short videos + 5 standard UGC ads.</div>
+    <div className="mt-3 rounded-xl border border-white/8 bg-black/15 px-3 py-2 text-[10px] leading-4 text-text-muted"><strong className="text-white">Also included:</strong> 30 stock-footage video productions per billing period. These do not use the 500 AI Studio credits.</div>
   </div>
 }
 

@@ -33,6 +33,28 @@ export type VideoModelRecommendation = VideoStudioSelection & {
   reason: string
 }
 
+export type StockVideoAccess = {
+  enabled: boolean
+  configured: boolean
+  limit: number
+  used: number
+  remaining: number
+  periodStart?: string
+  periodEnd?: string
+  providers?: { pexels: boolean; pixabay: boolean; archiveOrg: boolean }
+  commercialOutput?: boolean
+}
+
+export type StockVideoSelection = {
+  prompt: string
+  duration: 15 | 30 | 45 | 60
+  resolution: '720p' | '1080p'
+  aspectRatio: VideoAspectRatio
+  tone: 'Natural' | 'Friendly' | 'Confident' | 'Energetic' | 'Professional' | 'Cinematic'
+  voiceover: boolean
+  captions: boolean
+}
+
 export function generateConversationalCarousel(input: {
   prompt: string
   platform?: string
@@ -73,5 +95,15 @@ export function generateStudioVideo(input: VideoStudioSelection & {
 }, signal?: AbortSignal) {
   return apiRequest<GeneratedAsset>('/api/ai-content-studio/generate/video-studio', {
     method: 'POST', body: JSON.stringify(input), signal,
+  })
+}
+
+export function getStockVideoAccess() {
+  return apiRequest<StockVideoAccess>('/api/ai-content-studio/stock-video/access')
+}
+
+export function generateStockVideo(input: StockVideoSelection) {
+  return apiRequest<{ id: string; status: 'preparing'; progress: number }>('/api/ai-content-studio/generate/stock-video', {
+    method: 'POST', body: JSON.stringify(input),
   })
 }

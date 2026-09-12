@@ -1,4 +1,4 @@
-import { Check, Film, ImageIcon } from "lucide-react";
+import { Check, Film, ImageIcon, TimerReset } from "lucide-react";
 import { formatBytes, formatDuration } from "../../lib/media-format";
 import type { MediaAsset } from "../../types/media-library";
 import { AssetActionMenu } from "./AssetActionMenu";
@@ -24,6 +24,12 @@ type Props = {
 
 export function MediaCard(props: Props) {
   const duration = formatDuration(props.asset.duration);
+  const expiryLabel = props.asset.expiresAt
+    ? new Intl.DateTimeFormat("en-GB", {
+        day: "numeric",
+        month: "short",
+      }).format(new Date(props.asset.expiresAt))
+    : null;
   return (
     <article
       className={`interactive-surface group relative min-w-0 overflow-visible rounded-card border transition ${props.layout === "list" ? "grid grid-cols-[minmax(112px,34%)_minmax(0,1fr)]" : ""} ${props.selected ? "border-brand-cyan/65 bg-brand-cyan/[0.055] shadow-[0_0_35px_rgba(20,184,166,.11)]" : "border-border-soft bg-panel/80"}`}
@@ -95,6 +101,11 @@ export function MediaCard(props: Props) {
         <div className="mt-2 flex flex-wrap gap-1">
           <SourceBadge source={props.asset.source} />
           <MediaStatusBadge status={props.asset.status} />
+          {expiryLabel && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/15 bg-amber-400/[.04] px-2 py-0.5 text-[8px] text-amber-200">
+              <TimerReset className="size-2.5" /> Stored until {expiryLabel}
+            </span>
+          )}
         </div>
         <footer className="mt-2 flex items-center justify-between gap-2">
           <span className="truncate text-[9px] text-text-soft">

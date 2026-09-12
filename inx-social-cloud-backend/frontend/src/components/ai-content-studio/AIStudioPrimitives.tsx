@@ -286,14 +286,14 @@ export function LockedPlanState({ plan, onUpgrade }: { plan: 'trial' | 'pro'; on
     <span className="mt-5 inline-flex rounded-full border border-brand-purple/25 bg-brand-purple/10 px-3 py-1 text-[9px] font-bold uppercase tracking-[.16em] text-[#c4b5fd]">Plus exclusive</span>
     <h2 className="mx-auto mt-4 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">Unlock the full AI Content Studio.</h2>
     <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-text-muted">Your {plan === 'pro' ? 'Pro' : 'Trial'} plan keeps generation controls locked. {plan === 'pro' ? 'You can still use AI caption writing and enhancement from Posts.' : 'Trial includes the normal publishing workflow without AI Studio generation.'}</p>
-    <div className="mx-auto mt-6 grid max-w-3xl gap-3 text-left sm:grid-cols-2">{['500 AI Studio credits each billing period', 'Image post generation', '3–10 slide carousel generation', 'Short Video / Reel creation', 'UGC-style ad creation', 'Media Library + Posts handoff'].map((item) => <div className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[.025] p-3 text-xs" key={item}><Check className="size-4 shrink-0 text-brand-green" />{item}</div>)}</div>
+    <div className="mx-auto mt-6 grid max-w-3xl gap-3 text-left sm:grid-cols-2">{['500 AI Studio credits each billing period', '30 stock-footage videos each billing period', 'Image post generation', '3–10 slide carousel generation', 'Short Video / Reel creation', 'UGC-style ad creation', 'Media Library + Posts handoff'].map((item) => <div className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[.025] p-3 text-xs" key={item}><Check className="size-4 shrink-0 text-brand-green" />{item}</div>)}</div>
     <div className="mt-7 flex flex-col justify-center gap-2 sm:flex-row"><Button onClick={onUpgrade} variant="primary"><Crown className="size-4" />Upgrade to Plus</Button><Link to="/billing"><Button>Compare plans</Button></Link></div>
   </section>
 }
 
 export function UpgradeToPlusModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   return <Modal footer={<><Button onClick={onClose}>Not now</Button><Link to="/billing"><Button variant="primary">Upgrade to Plus</Button></Link></>} onClose={onClose} open={open} title="AI Content Studio is a Plus feature">
-    <div className="rounded-2xl border border-brand-purple/25 bg-brand-purple/8 p-5"><Crown className="size-7 text-[#c4b5fd]" /><h3 className="mt-3 text-base font-semibold">Create complete social posts with AI</h3><p className="mt-2 text-sm leading-6 text-text-muted">Plus includes 500 AI Studio credits each billing period and unlocks Image Posts, Carousels, Short Video / Reels and UGC Ad Posts. Generated content is reviewed here, saved to Media Library, then sent to Posts for destination selection and scheduling.</p></div>
+    <div className="rounded-2xl border border-brand-purple/25 bg-brand-purple/8 p-5"><Crown className="size-7 text-[#c4b5fd]" /><h3 className="mt-3 text-base font-semibold">Create complete social posts with AI</h3><p className="mt-2 text-sm leading-6 text-text-muted">Plus includes 500 AI Studio credits and 30 separate stock-footage video productions each billing period. Generated content is reviewed here, saved to Media Library, then sent to Posts for destination selection and scheduling.</p></div>
   </Modal>
 }
 

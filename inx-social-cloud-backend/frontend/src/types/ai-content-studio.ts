@@ -64,6 +64,17 @@ export type GeneratedAsset = {
   cta?: string
   warnings?: string[]
   completionStatus?: 'completed' | 'completed_with_warnings'
+  expiresAt?: string
+  retentionDays?: number
+  provenance?: Array<{
+    provider: string
+    providerId: string
+    sourceUrl: string
+    creator: string
+    creatorUrl?: string
+    searchQuery?: string
+    license?: string
+  }>
 }
 
 export type AIDraft = {

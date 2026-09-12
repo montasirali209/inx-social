@@ -1,6 +1,6 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
-import { ArrowRight, Check, Film, Gauge, ImagePlus, LoaderCircle, Save, Sparkles, Upload, WandSparkles, X, Zap } from 'lucide-react'
+import { ArrowRight, Check, Clapperboard, Film, Gauge, ImagePlus, LoaderCircle, Save, Sparkles, Upload, WandSparkles, X, Zap } from 'lucide-react'
 import type { AIDraft, AIContentType, AIPlanAccess, GeneratedAsset } from '../../types/ai-content-studio'
 import { uploadMediaAsset } from '../../lib/media-library-api'
 import { saveAIDraft } from '../../lib/ai-content-studio-api'
@@ -17,6 +17,7 @@ import {
 import { sendPostStudioMessage, type PostStudioBrief } from '../../lib/ai-post-studio-api'
 import { Button } from '../ui/Button'
 import { StudioSelect } from './StudioSelect'
+import { StockVideoCreator } from './StockVideoCreator'
 
 function extractUrls(text: string) {
   return [...new Set((text.match(/https?:\/\/[^\s<>()]+/gi) || []).map((value) => value.replace(/[.,;!?]+$/, '')))].slice(0, 2)
@@ -61,6 +62,7 @@ export function VideoStudioModal({ open, type, access, initialDraft, onClose, on
   const [uploading, setUploading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
+  const [studioKind, setStudioKind] = useState<'generative' | 'stock'>(() => initialDraft?.asset?.provider === 'OpenMontage stock workflow' ? 'stock' : 'generative')
 
   const selected = useMemo(() => models.find((item) => item.id === modelRoute) || models[0], [models, modelRoute])
   const selection = useMemo<VideoStudioSelection>(() => ({ modelRoute, duration, resolution, aspectRatio, draft, audio }), [modelRoute, duration, resolution, aspectRatio, draft, audio])
@@ -83,6 +85,8 @@ export function VideoStudioModal({ open, type, access, initialDraft, onClose, on
   }, [open, selected, selection])
 
   if (!open || (type !== 'short_video' && initialDraft?.contentType !== 'short_video')) return null
+
+  if (studioKind === 'stock') return <StockVideoCreator initialDraft={initialDraft} onClose={onClose} onSwitchToGenerative={() => setStudioKind('generative')} onSaved={onSaved} onContinue={onContinue} onToast={onToast} />
 
   function applyModel(model: VideoModelOption, preferred?: Partial<VideoStudioSelection>) {
     setModelRoute(model.id)
@@ -165,7 +169,7 @@ export function VideoStudioModal({ open, type, access, initialDraft, onClose, on
   const audioOptions = [{ value: 'on', label: 'Native audio on', meta: 'Generate sound when the model supports it' }, { value: 'off', label: 'Silent video', meta: 'Visual-only generation' }]
 
   return createPortal(<div className="fixed inset-0 z-[100] grid place-items-center bg-[#01070d]/92 p-2 backdrop-blur-xl sm:p-5"><div className="flex h-[min(920px,95vh)] w-full max-w-[1540px] flex-col overflow-hidden rounded-[30px] border border-brand-cyan/25 bg-[radial-gradient(circle_at_12%_12%,rgba(0,214,192,.09),transparent_27%),linear-gradient(145deg,#061824,#020b13)] shadow-[0_44px_160px_rgba(0,0,0,.74)]">
-    <header className="flex min-h-16 items-center justify-between border-b border-border-soft px-4 sm:px-6"><div><span className="text-[8px] font-bold uppercase tracking-[.18em] text-brand-cyan">Generative Video</span><h2 className="mt-1 text-base font-bold">AI Video Studio <span className="font-medium text-text-soft">· Reel / Video</span></h2></div><div className="flex items-center gap-2"><span className="rounded-full border border-amber-400/25 bg-amber-400/[.06] px-3 py-1 text-[9px] font-bold text-amber-300">{credits} credits</span><button className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:-translate-y-0.5 hover:border-brand-cyan/30 hover:text-white" onClick={onClose}><X className="size-4"/></button></div></header>
+    <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-border-soft px-4 sm:px-6"><div><span className="text-[8px] font-bold uppercase tracking-[.18em] text-brand-cyan">Generative Video</span><h2 className="mt-1 text-base font-bold">AI Video Studio <span className="font-medium text-text-soft">· Reel / Video</span></h2></div><div className="flex items-center gap-2"><button className="rounded-xl border border-brand-green/25 bg-brand-green/[.05] px-3 py-2 text-[9px] font-semibold text-brand-green transition hover:-translate-y-0.5 hover:bg-brand-green/10" onClick={() => setStudioKind('stock')}><Clapperboard className="mr-1.5 inline size-3.5"/>Stock Video Creator</button><span className="rounded-full border border-amber-400/25 bg-amber-400/[.06] px-3 py-1 text-[9px] font-bold text-amber-300">{credits} credits</span><button className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:-translate-y-0.5 hover:border-brand-cyan/30 hover:text-white" onClick={onClose}><X className="size-4"/></button></div></header>
     <div className="grid min-h-0 flex-1 lg:grid-cols-[57%_43%]">
       <section className="min-h-0 overflow-y-auto border-r border-border-soft p-4 sm:p-5">
         <div className="rounded-[24px] border border-border-soft bg-black/12 p-4 shadow-[inset_0_1px_rgba(255,255,255,.025)]"><div className="flex items-center justify-between gap-3"><div><span className="text-[8px] font-bold uppercase tracking-[.14em] text-text-soft">Creative brief</span><h3 className="mt-1 text-sm font-bold">Describe the video you want</h3></div><Button size="sm" variant="secondary" disabled={polishing || prompt.trim().length < 2} onClick={() => void polishWithAI()}>{polishing ? <LoaderCircle className="size-3.5 animate-spin"/> : <Sparkles className="size-3.5"/>}AI analyse & polish</Button></div><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={5} className="mt-3 w-full resize-none rounded-2xl border border-brand-cyan/20 bg-bg/60 px-3.5 py-3 text-[11px] leading-5 outline-none transition focus:-translate-y-0.5 focus:border-brand-cyan/45 focus:shadow-[0_16px_50px_rgba(0,214,192,.06)]" placeholder="e.g. Create a fast-paced 9:16 Reel showing the creator workflow from upload to scheduled posts. Start with a strong hook, show product UI, finish on the CTA…"/><p className="mt-2 text-[8px] text-text-soft">Paste a product URL here or upload a reference image below. AI Recommended analyses them before choosing a model.</p></div>

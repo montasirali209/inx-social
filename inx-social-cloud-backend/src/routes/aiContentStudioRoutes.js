@@ -16,6 +16,8 @@ router.get('/video/models', nextController.videoModels);
 router.post('/video/recommend', nextController.videoRecommend);
 router.post('/video/estimate', nextController.videoEstimate);
 router.post('/generate/video-studio', nextController.generateVideo);
+router.get('/stock-video/access', nextController.stockVideoAccess);
+router.post('/generate/stock-video', nextController.generateStockVideo);
 router.post('/generate/image-post', controller.generateImagePost);
 router.post('/generate/carousel-post', controller.generateCarouselPost);
 router.post('/generate/short-video', controller.generateShortVideo);
