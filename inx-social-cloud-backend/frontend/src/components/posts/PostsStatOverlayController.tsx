@@ -142,6 +142,7 @@ export function PostsStatOverlayController() {
 
   const drafts = useMemo(() => {
     void draftVersion
+    void draftOpen
     const carousel = carouselDraftSummary(storedCarouselDraft())
     return [...standardDrafts(), ...(carousel ? [carousel] : [])]
   }, [draftVersion, draftOpen])
