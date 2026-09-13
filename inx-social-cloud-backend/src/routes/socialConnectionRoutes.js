@@ -3,10 +3,16 @@ const { requireAuth } = require('../middleware/authMiddleware');
 const controller = require('../controllers/socialConnectionController');
 
 router.get('/oauth/:platform/callback', controller.oauthCallback);
+router.get('/linkedin/callback', controller.linkedinCallback);
 router.use(requireAuth);
 router.get('/', controller.list);
 router.post('/facebook/start', controller.startFacebook);
 router.post('/facebook/complete', controller.completeFacebook);
+router.post('/linkedin/start', controller.startLinkedIn);
+router.post('/linkedin/posts', controller.createLinkedInPosts);
+router.get('/linkedin/publications', controller.listLinkedInPublications);
+router.post('/linkedin/publications/:id/library-media', controller.publishLinkedInLibraryMedia);
+router.put('/linkedin/publications/:id/media', controller.uploadLinkedInMedia);
 router.post('/oauth/:platform/start', controller.startOAuth);
 router.post('/instagram/sync', controller.syncInstagram);
 router.delete('/:id', controller.disconnect);

@@ -75,11 +75,6 @@ function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => bo
           finish({ ok: false, error: 'Connection cancelled.' })
           return
         }
-        // Instagram can send a cancelled Business Login flow to its own
-        // Apps & Websites screen instead of our redirect URI. If focus returns
-        // to INXSocial while the provider window is still cross-origin and no
-        // callback result exists, treat the abandoned attempt as cancelled and
-        // close the provider popup rather than leaving the UI loading for five minutes.
         if (providerNavigationStarted) {
           finish({ ok: false, error: 'Connection cancelled.' })
         }
@@ -109,15 +104,16 @@ export async function connectOAuthPlatform(platform: 'instagram' | 'linkedin' | 
   if (platform === 'x') throw new Error('X / Twitter is not offered by INXSocial.')
   const storageKey = 'inx-social-oauth-result'
   window.localStorage.removeItem(storageKey)
-  const start = await apiRequest<{ authorizationUrl: string }>(`/api/social-connections/oauth/${platform}/start`, { method: 'POST', body: '{}' })
+  const startPath = platform === 'linkedin'
+    ? '/api/social-connections/linkedin/start'
+    : `/api/social-connections/oauth/${platform}/start`
+  const start = await apiRequest<{ authorizationUrl: string }>(startPath, { method: 'POST', body: '{}' })
   const position = popupPosition()
   const popupName = platform === 'instagram'
     ? `inxSocialConnect-instagram-${window.crypto.randomUUID()}`
     : `inxSocialConnect-${platform}`
   let authorizationUrl = start.authorizationUrl
   if (platform === 'instagram') {
-    // Normal Connect should let Instagram reuse an existing authorised session.
-    // Forced re-authentication is reserved for an explicit account-switch flow.
     const url = new URL(start.authorizationUrl)
     url.searchParams.delete('force_authentication')
     authorizationUrl = url.toString()
@@ -199,7 +195,7 @@ export function flattenConnectedIdentities(workspace: ConnectionsWorkspace): Con
     platform: 'facebook',
     displayName: page.facebookPageName,
     username: page.facebookPageUsername,
-    avatarUrl: page.facebookPagePicture,
+    avatarUrl: `/api/studio/pages/${encodeURIComponent(page.id)}/picture`,
     detail: 'Publishing and analytics live',
     status: page.lastError ? 'attention' : 'connected',
     connectedAt: page.connectedAt,
@@ -219,7 +215,9 @@ export function flattenConnectedIdentities(workspace: ConnectionsWorkspace): Con
         avatarUrl: profile.avatarUrl,
         detail: connection.platform === 'instagram'
           ? profile.capabilities?.publish ? 'Professional profile · Publishing permission granted' : 'Identity and insights linked'
-          : connection.platform === 'linkedin' ? 'Identity linked' : 'Read-only connection',
+          : connection.platform === 'linkedin'
+            ? profile.capabilities?.publish ? 'Personal profile · Publishing permission granted' : 'Reconnect to enable publishing'
+            : 'Read-only connection',
         status: connection.lastError ? 'attention' as const : 'connected' as const,
         connectedAt: connection.connectedAt,
         lastSyncedAt: connection.lastSyncedAt,
