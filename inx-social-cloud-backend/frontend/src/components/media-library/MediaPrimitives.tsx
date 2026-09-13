@@ -16,7 +16,7 @@ export function MediaStatCard({ label, value, detail, tone, icon }: { label: str
   const Icon = icons[icon]
   const reviewCard = label === 'Needs Review'
   const displayLabel = reviewCard ? 'Assets Needing Review' : label
-  const displayDetail = reviewCard ? 'Click to view the media assets needing attention' : detail
+  const displayDetail = reviewCard ? 'Media assets needing attention · click to view' : detail
   const content = <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl border border-current/20 bg-current/[0.07]"><Icon className="size-5" /></span><div className="min-w-0 flex-1"><p className="text-[11px] text-text-muted">{displayLabel}</p><strong className="mt-1 block text-2xl text-text-main">{value.toLocaleString()}</strong><p className="mt-1 text-[9px] text-current">{displayDetail}</p></div>{reviewCard ? <ChevronRight aria-hidden="true" className="mt-4 size-4 shrink-0 transition-transform group-hover:translate-x-1" /> : null}</div>
   const className = `interactive-surface min-w-[210px] rounded-card border p-4 ${tones[tone]}`
   if (reviewCard) {
