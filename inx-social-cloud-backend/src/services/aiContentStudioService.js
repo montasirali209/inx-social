@@ -428,6 +428,7 @@ async function history(userId, limit = 50) {
       creditsUsed: Number(row.creditsUsed || 0),
       status: String(row.status || '').toLowerCase(),
       progress: Number(row.progress || 0),
+      error: row.errorMessage || null,
       assetUrl: asset?.url || null,
       thumbnailUrl: asset?.thumbnailUrl || null
     };

@@ -29,9 +29,9 @@ export function VideoProductionRail({ currentJobId, onOpen }: {
   const items = query.data || []
 
   async function open(item: GenerationHistoryItem) {
-    if (item.status === 'completed') {
+    if (['completed', 'failed', 'cancelled'].includes(item.status)) {
       const job = await getGenerationStatus(item.id)
-      onOpen(item, job.asset || null)
+      onOpen({ ...item, error: job.error }, job.asset || null)
       return
     }
     onOpen(item, null)
@@ -50,6 +50,7 @@ export function VideoProductionRail({ currentJobId, onOpen }: {
           <button type="button" onClick={() => void open(item)} className="block w-full min-w-0 p-2.5 pr-9 text-left">
             <span className="flex items-center justify-between gap-2"><span className={`grid size-7 shrink-0 place-items-center rounded-lg ${kind === 'stock' ? 'bg-brand-green/10 text-brand-green' : 'bg-violet-400/10 text-violet-300'}`}>{kind === 'stock' ? <Clapperboard className="size-3.5"/> : <Film className="size-3.5"/>}</span>{busy ? <LoaderCircle className="size-3.5 shrink-0 animate-spin text-brand-cyan"/> : failed ? <AlertTriangle className="size-3.5 shrink-0 text-red-300"/> : <Check className="size-3.5 shrink-0 text-brand-green"/>}</span>
             <strong className="mt-2 block break-words line-clamp-2 text-[9px] leading-3.5 text-white">{item.prompt || (kind === 'stock' ? 'Stock video' : 'AI video')}</strong>
+            {failed && item.error ? <span className="mt-1 block line-clamp-2 text-[7px] leading-3 text-red-200">{item.error}</span> : null}
             <span className="mt-1 block truncate text-[7px] font-semibold uppercase tracking-wide text-text-soft">{kind === 'stock' ? 'Stock' : 'AI generated'} · {busy ? `${Math.max(1, Number(item.progress || 0))}%` : item.status}</span>
             {busy ? <span className="mt-2 block h-1 overflow-hidden rounded-full bg-white/5"><span className="block h-full rounded-full bg-gradient-to-r from-brand-cyan to-brand-green transition-all" style={{ width: `${Math.max(3, Number(item.progress || 0))}%` }}/></span> : null}
           </button>

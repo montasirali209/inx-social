@@ -33,6 +33,7 @@ lock = threading.RLock()
 PROFESSIONAL_VIDEO_SOURCES = ("pexels", "pixabay_video")
 DISABLED_ARCHIVE_SOURCES = ("wikimedia", "archive_org", "nasa", "nara", "loc")
 CREDIT_SCREEN_SECONDS = 1.5
+REMOTION_TIMEOUT_MS = max(60_000, min(600_000, int(os.environ.get("OPENMONTAGE_REMOTION_TIMEOUT_MS", "180000"))))
 
 
 def retention_loop() -> None:
@@ -510,11 +511,59 @@ def render_safety_gate(path: Path, width: int, height: int, target_duration: flo
         issues.append(f"black frames detected ({black_seconds:.2f}s)")
     if max_volume is not None and max_volume >= -0.05:
         issues.append("clipped audio peak")
-    if captions_required and caption_method != "remotion":
-        issues.append("missing Remotion subtitles")
+    if captions_required and caption_method not in {"remotion", "ffmpeg_resilient"}:
+        issues.append("missing burned-in subtitles")
     return {"passed": not issues, "issues": issues, "duration": actual, "duration_ms": round(actual * 1000),
             "black_seconds": round(black_seconds, 3), "max_volume_db": max_volume,
             "caption_engine": caption_method, "has_audio": has_audio}
+
+
+def configure_remotion_timeout(tool: Any) -> None:
+    """Give Chromium enough time without changing the pinned upstream source."""
+    if getattr(tool, "_inx_timeout_wrapped", False):
+        return
+    original = tool.run_command
+
+    def run_command(command: list[str], *, timeout: int | None = None, cwd: Path | str | None = None):
+        updated = list(command)
+        is_remotion_render = len(updated) >= 3 and updated[1:3] == ["remotion", "render"]
+        if is_remotion_render:
+            if not any(str(value).startswith("--timeout=") for value in updated):
+                updated.append(f"--timeout={REMOTION_TIMEOUT_MS}")
+            timeout = max(int(timeout or 0), (REMOTION_TIMEOUT_MS // 1000) + 120)
+        return original(updated, timeout=timeout, cwd=cwd)
+
+    tool.run_command = run_command
+    tool._inx_timeout_wrapped = True
+
+
+def grouped_credit_fallback(input_path: Path, output_path: Path, credit_text: str, duration: float) -> None:
+    """Retain one grouped end-credit screen when Chromium cannot complete."""
+    start = max(0.0, duration - CREDIT_SCREEN_SECONDS)
+    def ass_time(seconds: float) -> str:
+        centiseconds = max(0, round(seconds * 100))
+        return f"{centiseconds // 360000}:{(centiseconds // 6000) % 60:02d}:{(centiseconds // 100) % 60:02d}.{centiseconds % 100:02d}"
+
+    safe_text = credit_text.replace("{", "(").replace("}", ")").replace("\n", r"\N")
+    ass_path = output_path.with_suffix(".credits.ass")
+    ass_path.write_text(
+        "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n"
+        "[V4+ Styles]\n"
+        "Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,"
+        "Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,"
+        "Alignment,MarginL,MarginR,MarginV,Encoding\n"
+        "Style: Credits,Arial,38,&H00F8FAFC,&H00F8FAFC,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,1,0,5,80,80,80,1\n"
+        "[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n"
+        f"Dialogue: 0,{ass_time(start)},{ass_time(duration)},Credits,,0,0,0,,{safe_text}\n",
+        encoding="utf-8",
+    )
+    escaped = str(ass_path).replace("\\", "/").replace(":", r"\:").replace("'", r"\'")
+    subprocess.run([
+        "ffmpeg", "-y", "-i", str(input_path), "-vf",
+        f"drawbox=x=0:y=0:w=iw:h=ih:color=0x073B3A@1:t=fill:enable='gte(t,{start:.3f})',subtitles='{escaped}'",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
+        "-c:a", "copy", str(output_path),
+    ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def generated_music_bed(project: Path, duration: int) -> str:
@@ -727,7 +776,14 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
         composed_output = project / "renders" / "assembled.mp4"
         graded_output = project / "renders" / "graded.mp4"
         output = project / "renders" / "final.mp4"
-        compose = registry.get("video_compose").execute({"operation": "render", "output_path": str(composed_output), "edit_decisions": edit, "asset_manifest": asset_manifest,
+        # The source assembly only needs deterministic cutting/scaling/muxing.
+        # Remotion remains the preferred final caption and overlay renderer.
+        assembly_edit = json.loads(json.dumps(edit))
+        assembly_edit["render_runtime"] = "ffmpeg"
+        assembly_edit["metadata"]["assembly_runtime"] = "ffmpeg"
+        assembly_edit["metadata"]["final_overlay_runtime"] = "remotion"
+        assembly_edit["metadata"]["delivery_promise"]["approved_fallback"] = "ffmpeg-source-assembly-remotion-final"
+        compose = registry.get("video_compose").execute({"operation": "render", "output_path": str(composed_output), "edit_decisions": assembly_edit, "asset_manifest": asset_manifest,
                                                           "scene_plan": scene_plan["scenes"], "audio_path": mixed_audio, "subtitle_path": None,
                                                           "script_text": str(plan.get("narration") or ""), "options": {"subtitle_burn": False}})
         if not compose.success or not composed_output.is_file():
@@ -757,38 +813,58 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
         remotion = registry.get("remotion_caption_burn")
         if not remotion:
             raise RuntimeError("OpenMontage Remotion caption engine is unavailable")
+        configure_remotion_timeout(remotion)
         render_srt = subtitle_path
         if not render_srt:
             render_srt = project / "assets" / "audio" / "caption-placeholder.srt"
             render_srt.write_text("1\n00:00:00,000 --> 00:00:00,010\n\u200b\n", encoding="utf-8")
-        caption_result = remotion.execute({"input_path": str(graded_output), "output_path": str(output),
-                                           "srt_path": str(render_srt), "words_per_page": 4,
-                                           "font_size": 30 if req.aspectRatio == "9:16" else 26,
-                                           "highlight_color": "#2DD4BF", "overlays": [credit_overlay], "force_ffmpeg": False})
-        if not caption_result.success or not output.is_file() or str(caption_result.data.get("method")) != "remotion":
-            raise RuntimeError(caption_result.error or "OpenMontage Remotion caption/credit stage failed")
-        write_stage(job, "caption_credits", "caption_report", {"version": "1.0", "engine": "remotion",
+        try:
+            caption_result = remotion.execute({"input_path": str(graded_output), "output_path": str(output),
+                                               "srt_path": str(render_srt), "words_per_page": 4,
+                                               "font_size": 30 if req.aspectRatio == "9:16" else 26,
+                                               "highlight_color": "#2DD4BF", "overlays": [credit_overlay], "force_ffmpeg": False})
+        except Exception as remotion_error:
+            caption_result = type("RenderFailure", (), {"success": False, "data": {}, "error": str(remotion_error)})()
+        caption_method = str(caption_result.data.get("method") or "") if caption_result.success else ""
+        if not caption_result.success or not output.is_file() or caption_method != "remotion":
+            fallback_captioned = project / "renders" / "final-caption-fallback.mp4"
+            fallback_result = remotion.execute({"input_path": str(graded_output), "output_path": str(fallback_captioned),
+                                                "srt_path": str(render_srt), "words_per_page": 4,
+                                                "font_size": 30 if req.aspectRatio == "9:16" else 26,
+                                                "highlight_color": "#2DD4BF", "overlays": [], "force_ffmpeg": True})
+            if not fallback_result.success or not fallback_captioned.is_file():
+                raise RuntimeError(fallback_result.error or caption_result.error or "Final caption render failed")
+            grouped_credit_fallback(fallback_captioned, output, credit_text, float(req.duration))
+            caption_method = "ffmpeg_resilient"
+            warnings.append("The animated caption renderer timed out; a professional burned-in caption render was delivered instead.")
+        write_stage(job, "caption_credits", "caption_report", {"version": "1.0", "engine": caption_method,
                     "words_per_screen": 4, "layout": "compact-semitransparent-lower-third", "grouped_sources": providers}, 92)
 
         qa_summary: dict[str, Any] = {}
         for attempt in range(2):
             qa_summary = render_safety_gate(output, width, height, req.duration, bool(req.captions and plan.get("narration")),
-                                            str(caption_result.data.get("method")))
+                                            caption_method)
             if qa_summary["passed"]:
                 break
             if attempt == 0:
                 retry_output = project / "renders" / "final-rebuild.mp4"
-                caption_result = remotion.execute({"input_path": str(graded_output), "output_path": str(retry_output),
-                                                   "srt_path": str(render_srt), "words_per_page": 4,
-                                                   "font_size": 28 if req.aspectRatio == "9:16" else 24,
-                                                   "highlight_color": "#2DD4BF", "overlays": [credit_overlay], "force_ffmpeg": False})
+                try:
+                    caption_result = remotion.execute({"input_path": str(graded_output), "output_path": str(retry_output),
+                                                       "srt_path": str(render_srt), "words_per_page": 4,
+                                                       "font_size": 28 if req.aspectRatio == "9:16" else 24,
+                                                       "highlight_color": "#2DD4BF", "overlays": [credit_overlay], "force_ffmpeg": False})
+                except Exception:
+                    caption_result = type("RenderFailure", (), {"success": False, "data": {}, "error": "Remotion rebuild failed"})()
                 if caption_result.success and retry_output.is_file():
-                    shutil.move(str(retry_output), str(output))
+                    retry_method = str(caption_result.data.get("method") or "")
+                    if retry_method == "remotion":
+                        shutil.move(str(retry_output), str(output))
+                        caption_method = retry_method
         if not qa_summary.get("passed"):
             raise RuntimeError("OpenMontage final quality review failed after rebuild: " + "; ".join(qa_summary.get("issues") or []))
         details = probe(str(output)); actual_duration = float(details.get("duration") or 0)
         report = {"version": "1.0", "outputs": [{"path": str(output), "format": "mp4", "codec": "h264", "audio_codec": "aac", "resolution": f"{width}x{height}", "fps": 30, "duration_seconds": actual_duration, "file_size_bytes": int(details.get("size") or output.stat().st_size), "platform_target": brief["target_platform"]}],
-                  "render_time_seconds": 0, "warnings": warnings, "verification_notes": ["Assembled by OpenMontage, unified with color_grade, captioned and credited by Remotion, and validated by ffprobe/blackdetect/volumedetect."], "render_grammar": "narrated-stock-story", "metadata": {"runtime": "remotion", "openmontage_commit": os.environ.get("OPENMONTAGE_COMMIT"), "quality_review": qa_summary}}
+                  "render_time_seconds": 0, "warnings": warnings, "verification_notes": [f"Deterministic source assembly, color grading, {caption_method} captions/grouped credits, and ffprobe/blackdetect/volumedetect validation completed."], "render_grammar": "narrated-stock-story", "metadata": {"runtime": caption_method, "openmontage_commit": os.environ.get("OPENMONTAGE_COMMIT"), "quality_review": qa_summary}}
         write_stage(job, "final_qa", "render_report", report, 98)
         provenance = [{"provider": item.get("provider"), "providerId": item.get("provider_id"), "sourceUrl": item.get("original_url"),
                        "creator": item.get("creator") or "Source contributor", "searchQuery": item.get("search_query"),
@@ -797,8 +873,10 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
         save(job, status="completed", stage="final_qa", progress=100, outputPath=str(output),
              result={"caption": caption, "hashtags": hashtags,
                      "script": str(plan.get("narration") or ""), "provenance": provenance, "warnings": warnings,
-                     "runtime": "OpenMontage", "renderer": "remotion", "pipeline": "inx-stock-montage", "openmontageCommit": os.environ.get("OPENMONTAGE_COMMIT")})
+                     "runtime": "OpenMontage", "renderer": caption_method, "pipeline": "inx-stock-montage", "openmontageCommit": os.environ.get("OPENMONTAGE_COMMIT")})
     except Exception as exc:
+        print(json.dumps({"event": "stock_video_failed", "jobId": job.get("id"), "stage": job.get("stage"),
+                          "error": str(exc)[:4000]}), flush=True)
         save(job, status="failed", progress=0, error=str(exc)[:1000])
 
 

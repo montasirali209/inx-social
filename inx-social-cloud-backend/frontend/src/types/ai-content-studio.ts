@@ -112,6 +112,7 @@ export type GenerationHistoryItem = {
   progress?: number
   assetUrl?: string | null
   thumbnailUrl?: string | null
+  error?: string | null
 }
 
 export type GenerationJob = {
