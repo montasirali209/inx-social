@@ -407,8 +407,15 @@ async function cancelGeneration(userId, id) {
   return getGeneration(userId, id);
 }
 
+async function dismissGeneration(userId, id) {
+  const rows = await prisma.$queryRawUnsafe('SELECT "id" FROM "AiGeneration" WHERE "id"=$1 AND "userId"=$2 LIMIT 1', id, userId);
+  if (!rows[0]) throw error('AI generation not found.', 404, 'GENERATION_NOT_FOUND');
+  await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "hiddenAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$2', id, userId);
+  return true;
+}
+
 async function history(userId, limit = 50) {
-  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "AiGeneration" WHERE "userId"=$1 ORDER BY "createdAt" DESC LIMIT $2', userId, Math.max(1, Math.min(100, Number(limit || 50))));
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "AiGeneration" WHERE "userId"=$1 AND "hiddenAt" IS NULL ORDER BY "createdAt" DESC LIMIT $2', userId, Math.max(1, Math.min(100, Number(limit || 50))));
   return rows.map(row => {
     const asset = parseJson(row.assetJson, null);
     return {
@@ -488,6 +495,6 @@ async function brandKits(userId) {
 }
 
 module.exports = {
-  estimateGenerationCost, validateGenerationRequest, fallbackCopy, generate, getGeneration, cancelGeneration,
+  estimateGenerationCost, validateGenerationRequest, fallbackCopy, generate, getGeneration, cancelGeneration, dismissGeneration,
   history, saveDraft, recentDrafts, deleteDraft, sendDraftToPosts, brandKits
 };

@@ -29,6 +29,7 @@ router.post('/generate/short-video', controller.generateShortVideo);
 router.post('/generate/ugc-ad', controller.generateUGCAd);
 router.get('/generations/:id', controller.generationStatus);
 router.post('/generations/:id/cancel', controller.cancelGeneration);
+router.delete('/generations/:id', controller.dismissGeneration);
 router.get('/drafts', controller.recentDrafts);
 router.post('/drafts', controller.saveDraft);
 router.delete('/drafts/:id', controller.deleteDraft);

@@ -73,9 +73,22 @@ test('OpenMontage worker ships a fourteen-stage standalone professional workflow
   assert.match(dockerfile, /stock_sources\/__init__\.py/);
 });
 
+test('worker writes every checkpoint in the exact manifest order', () => {
+  const manifest = read('../openmontage-worker/pipeline_defs/inx-stock-montage.yaml');
+  const worker = read('../openmontage-worker/main.py');
+  const expected = [...manifest.matchAll(/^  - name: ([a-z_]+)$/gm)].map(match => match[1]);
+  const runBody = worker.slice(worker.indexOf('def run_job('), worker.indexOf('@app.get("/health")'));
+  const actual = [...runBody.matchAll(/write_stage\(job, "([a-z_]+)"/g)].map(match => match[1]);
+  assert.deepEqual(actual, expected);
+  assert.ok(actual.indexOf('edit') < actual.indexOf('audio_mix'));
+});
+
 test('Stock Video Creator UI resumes active jobs and hands completed video to Posts', () => {
   const component = read('frontend/src/components/ai-content-studio/StockVideoCreator.tsx');
   const videoStudio = read('frontend/src/components/ai-content-studio/VideoStudioModalV2.tsx');
+  const productionRail = read('frontend/src/components/ai-content-studio/VideoProductionRail.tsx');
+  const routes = read('src/routes/aiContentStudioRoutes.js');
+  const service = read('src/services/aiContentStudioService.js');
   assert.match(component, /ACTIVE_JOB_KEY/);
   assert.match(component, /getGenerationStatus/);
   assert.match(component, /30.*remaining|remaining.*limit/);
@@ -89,6 +102,11 @@ test('Stock Video Creator UI resumes active jobs and hands completed video to Po
   assert.match(videoStudio, /Stock Video Creator/);
   assert.match(videoStudio, /StockVideoCreator/);
   assert.doesNotMatch(videoStudio, /OpenMontage writes/);
+  assert.match(productionRail, /Remove video from queue/);
+  assert.match(productionRail, /2xl:w-\[216px\]/);
+  assert.match(productionRail, /2xl:min-w-0/);
+  assert.match(routes, /router\.delete\('\/generations\/:id'/);
+  assert.match(service, /"hiddenAt" IS NULL/);
 });
 
 test('script checkpoints normalize required duration before every schema validation', () => {

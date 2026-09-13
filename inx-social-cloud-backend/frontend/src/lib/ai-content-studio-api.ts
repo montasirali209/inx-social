@@ -120,6 +120,10 @@ export function cancelGeneration(id: string) {
   return apiRequest<{ id: string; status: GenerationStatus; progress?: number }>(`/api/ai-content-studio/generations/${encodeURIComponent(id)}/cancel`, { method: 'POST' })
 }
 
+export function dismissGeneration(id: string) {
+  return apiRequest<{ ok: true }>(`/api/ai-content-studio/generations/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
 async function downloadGeneratedFile(asset: GeneratedAsset) {
   const headers = new Headers()
   const token = getStoredAuthToken()
