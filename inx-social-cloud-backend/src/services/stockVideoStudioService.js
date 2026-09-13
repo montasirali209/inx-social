@@ -367,7 +367,11 @@ async function processJob(userId, generationId, input) {
     if (workerJob.status !== 'completed') {
       const internalError = clean(workerJob.error || 'Video engine timeout', 4000);
       console.error('[stock-video] production failed', { generationId, workerJobId, status: workerJob.status, error: internalError });
-      throw publicError('Video preparation failed before rendering. Please try again.', workerJob.status === 'failed' ? 'STOCK_VIDEO_PIPELINE_FAILED' : 'STOCK_VIDEO_TIMEOUT', 502);
+      const renderingStages = new Set(['assembly', 'color_grade', 'caption_credits', 'final_qa']);
+      const publicMessage = renderingStages.has(String(workerJob.stage || ''))
+        ? 'Video rendering could not be completed. Please retry; your previous attempt was not counted.'
+        : 'Video preparation could not be completed. Please retry; your previous attempt was not counted.';
+      throw publicError(publicMessage, workerJob.status === 'failed' ? 'STOCK_VIDEO_PIPELINE_FAILED' : 'STOCK_VIDEO_TIMEOUT', 502);
     }
     const downloadResponse = await axios.get(`${env.stockVideo.openMontageUrl}/jobs/${encodeURIComponent(workerJobId)}/output`, { responseType: 'arraybuffer', headers: workerHeaders(), timeout: 180000, maxContentLength: FINAL_MAX_BYTES, maxBodyLength: FINAL_MAX_BYTES });
     const data = Buffer.from(downloadResponse.data || []);

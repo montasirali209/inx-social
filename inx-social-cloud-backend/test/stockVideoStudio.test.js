@@ -43,6 +43,12 @@ test('Stock Video Creator delegates to the isolated real OpenMontage runtime and
   assert.match(worker, /current_us_hashtags/);
   assert.match(worker, /words_per_page": 4/);
   assert.match(worker, /for attempt in range\(2\)/);
+  assert.match(worker, /OPENMONTAGE_REMOTION_TIMEOUT_MS/);
+  assert.match(worker, /--timeout=/);
+  assert.match(worker, /assembly_edit\["render_runtime"\] = "ffmpeg"/);
+  assert.match(worker, /"force_ffmpeg": True/);
+  assert.match(worker, /ffmpeg_resilient/);
+  assert.match(worker, /grouped_credit_fallback/);
   assert.match(worker, /def scene_srt/);
   assert.match(worker, /def fit_narration/);
   assert.match(worker, /def clip_relevance/);
@@ -103,6 +109,8 @@ test('Stock Video Creator UI resumes active jobs and hands completed video to Po
   assert.match(videoStudio, /StockVideoCreator/);
   assert.doesNotMatch(videoStudio, /OpenMontage writes/);
   assert.match(productionRail, /Remove video from queue/);
+  assert.match(productionRail, /item\.error/);
+  assert.match(component, /Dismiss error/);
   assert.match(productionRail, /2xl:w-\[216px\]/);
   assert.match(productionRail, /2xl:min-w-0/);
   assert.match(routes, /router\.delete\('\/generations\/:id'/);
