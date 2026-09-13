@@ -32,7 +32,6 @@ lock = threading.RLock()
 
 PROFESSIONAL_VIDEO_SOURCES = ("pexels", "pixabay_video")
 DISABLED_ARCHIVE_SOURCES = ("wikimedia", "archive_org", "nasa", "nara", "loc")
-CREDIT_SCREEN_SECONDS = 1.5
 REMOTION_TIMEOUT_MS = max(60_000, min(600_000, int(os.environ.get("OPENMONTAGE_REMOTION_TIMEOUT_MS", "180000"))))
 
 
@@ -137,7 +136,7 @@ def final_caption(plan: dict[str, Any]) -> tuple[str, list[str]]:
 
 def fallback_plan(req: JobRequest) -> dict[str, Any]:
     count = 4 if req.duration <= 15 else 6 if req.duration <= 30 else 8
-    hold = max(1.0, (req.duration - CREDIT_SCREEN_SECONDS) / count)
+    hold = max(1.0, req.duration / count)
     subject = re.sub(r"^(?:please\s+)?(?:make|create|generate)(?:\s+me)?\s+(?:a\s+)?(?:\d+[- ]?second\s+)?(?:short\s+)?video\s+(?:about|of|showing)?\s*", "", req.prompt.strip(), flags=re.I)
     subject = subject.rstrip(".!? ") or "a meaningful human story"
     subject = " ".join(subject.split()[:18])
@@ -185,7 +184,7 @@ def fallback_plan(req: JobRequest) -> dict[str, Any]:
             "That consequence carries into the next scene.",
         ]
         scene_narration = [f"{line} {extensions[index % len(extensions)]}" for index, line in enumerate(scene_narration)]
-    target_words = max(count * 5, round((req.duration - CREDIT_SCREEN_SECONDS) * 2.35))
+    target_words = max(count * 5, round(req.duration * 2.35))
     words_per_scene = max(5, round(target_words / count))
     scene_narration = [" ".join(line.split()[:words_per_scene]).rstrip(",;:.") + "." for line in scene_narration]
     narration = " ".join(scene_narration)
@@ -238,7 +237,7 @@ def normalize_plan(plan: dict[str, Any], req: JobRequest) -> dict[str, Any]:
     scene_script = " ".join(scene["narration"] for scene in scenes if scene["narration"]).strip()
     if not narration:
         narration = scene_script
-    spoken_duration = max(10.0, req.duration - CREDIT_SCREEN_SECONDS)
+    spoken_duration = max(10.0, req.duration)
     minimum_words = max(24, int(spoken_duration * 1.9))
     maximum_words = int(spoken_duration * 2.75)
     normalized_prompt = re.sub(r"\W+", " ", req.prompt).strip().lower()
@@ -284,7 +283,7 @@ def create_plan(req: JobRequest) -> dict[str, Any]:
     try:
         plan = json_completion(
             "You are a professional short-form stock-video scriptwriter and scene director. Return JSON only with title, hook, caption, hashtags (without #), narration, thematicQuestion, and scenes. Produce 4-8 chronological story beats. Every scene must have description, queries (an array of 2-3 alternative concrete stock-search phrases of 2-5 words each), narration (the exact spoken line for that scene), and seconds. The narration must form a complete hook, setup, development, turn, and landing; never repeat the user's production instruction. Write 1.9-2.5 spoken words per requested second and use a measured natural voice. Each scene's footage must literally illustrate its own narration using searchable people, actions, places, and objects—not abstract feelings. Avoid factual claims that require sources. Caption is a polished social post, not the prompt. Hashtags must be specific and relevant.",
-            {**req.model_dump(), "targetNarrationWords": round((req.duration - CREDIT_SCREEN_SECONDS) * 2.2)},
+            {**req.model_dump(), "targetNarrationWords": round(req.duration * 2.2)},
         )
         return normalize_plan(plan, req)
     except Exception:
@@ -537,35 +536,6 @@ def configure_remotion_timeout(tool: Any) -> None:
     tool._inx_timeout_wrapped = True
 
 
-def grouped_credit_fallback(input_path: Path, output_path: Path, credit_text: str, duration: float) -> None:
-    """Retain one grouped end-credit screen when Chromium cannot complete."""
-    start = max(0.0, duration - CREDIT_SCREEN_SECONDS)
-    def ass_time(seconds: float) -> str:
-        centiseconds = max(0, round(seconds * 100))
-        return f"{centiseconds // 360000}:{(centiseconds // 6000) % 60:02d}:{(centiseconds // 100) % 60:02d}.{centiseconds % 100:02d}"
-
-    safe_text = credit_text.replace("{", "(").replace("}", ")").replace("\n", r"\N")
-    ass_path = output_path.with_suffix(".credits.ass")
-    ass_path.write_text(
-        "[Script Info]\nScriptType: v4.00+\nPlayResX: 1080\nPlayResY: 1920\n"
-        "[V4+ Styles]\n"
-        "Format: Name,Fontname,Fontsize,PrimaryColour,SecondaryColour,OutlineColour,BackColour,"
-        "Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,Spacing,Angle,BorderStyle,Outline,Shadow,"
-        "Alignment,MarginL,MarginR,MarginV,Encoding\n"
-        "Style: Credits,Arial,38,&H00F8FAFC,&H00F8FAFC,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,1,0,5,80,80,80,1\n"
-        "[Events]\nFormat: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text\n"
-        f"Dialogue: 0,{ass_time(start)},{ass_time(duration)},Credits,,0,0,0,,{safe_text}\n",
-        encoding="utf-8",
-    )
-    escaped = str(ass_path).replace("\\", "/").replace(":", r"\:").replace("'", r"\'")
-    subprocess.run([
-        "ffmpeg", "-y", "-i", str(input_path), "-vf",
-        f"drawbox=x=0:y=0:w=iw:h=ih:color=0x073B3A@1:t=fill:enable='gte(t,{start:.3f})',subtitles='{escaped}'",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "18", "-pix_fmt", "yuv420p",
-        "-c:a", "copy", str(output_path),
-    ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-
 def generated_music_bed(project: Path, duration: int) -> str:
     output = project / "assets" / "music" / "generated-bed.m4a"
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -703,7 +673,7 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
         if req.voiceover and plan.get("narration") and registry.get("openai_tts"):
             voice = registry.get("openai_tts").execute({"text": str(plan["narration"]), "voice": "alloy", "instructions": f"Speak in a {req.tone.lower()}, clear documentary style at a measured 145 to 155 words per minute. Respect sentence pauses, keep the story expressive, and do not rush.", "output_path": str(project / "assets" / "audio" / "narration.mp3")})
             if voice.success:
-                narration_path, original_voice_duration, narration_duration = fit_narration(project, str(voice.data.get("output")), req.duration - CREDIT_SCREEN_SECONDS)
+                narration_path, original_voice_duration, narration_duration = fit_narration(project, str(voice.data.get("output")), req.duration)
                 assets.append({"id": "asset_narration", "type": "narration", "path": narration_path, "source_tool": "openai_tts", "scene_id": "scene_01", "provider": "openai", "model": str(voice.model or "gpt-4o-mini-tts"), "cost_usd": float(voice.cost_usd or 0), "original_duration_seconds": original_voice_duration, "timed_duration_seconds": narration_duration, "timed_duration_ms": round(narration_duration * 1000)})
             else: warnings.append("Narration generation was unavailable.")
         if req.voiceover and not narration_path:
@@ -726,9 +696,6 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
             wanted = row["end_seconds"] - row["start_seconds"]
             cuts.append({"id": f"cut_{index + 1:02d}", "source": asset["id"], "in_seconds": 0, "out_seconds": round(wanted, 3), "layer": "primary",
                          "transition_in": "fade_in" if index == 0 else "cut", "transition_out": "fade_out" if index == len(scene_rows) - 1 else "cut", "reason": row["description"]})
-        cuts.append({"id": "cut_credits", "source": cuts[-1]["source"], "in_seconds": 0,
-                     "out_seconds": CREDIT_SCREEN_SECONDS, "layer": "primary", "transition_in": "cut",
-                     "transition_out": "fade_out", "reason": "Grouped source credits"})
         width, height = (720, 1280) if req.resolution == "720p" and req.aspectRatio == "9:16" else (1280, 720) if req.resolution == "720p" and req.aspectRatio == "16:9" else (720, 720) if req.resolution == "720p" else (1080, 1920) if req.aspectRatio == "9:16" else (1920, 1080) if req.aspectRatio == "16:9" else (1080, 1080)
         subtitle_path = None
         if req.captions and plan.get("narration"):
@@ -783,6 +750,8 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
         assembly_edit["metadata"]["assembly_runtime"] = "ffmpeg"
         assembly_edit["metadata"]["final_overlay_runtime"] = "remotion"
         assembly_edit["metadata"]["delivery_promise"]["approved_fallback"] = "ffmpeg-source-assembly-remotion-final"
+        assembly_edit["subtitles"]["enabled"] = False
+        assembly_edit["subtitles"]["source"] = ""
         compose = registry.get("video_compose").execute({"operation": "render", "output_path": str(composed_output), "edit_decisions": assembly_edit, "asset_manifest": asset_manifest,
                                                           "scene_plan": scene_plan["scenes"], "audio_path": mixed_audio, "subtitle_path": None,
                                                           "script_text": str(plan.get("narration") or ""), "options": {"subtitle_burn": False}})
@@ -805,11 +774,6 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
                     "profile": grade_profiles.get(req.tone.lower(), "neutral")}, 87)
 
         providers = sorted({str(item.get("provider") or "") for item in assets if item.get("type") == "video"})
-        creators = sorted({str(item.get("creator") or "Source contributor") for item in assets if item.get("type") == "video"})
-        credit_text = "Footage: " + " + ".join(providers) + "\nCreators: " + ", ".join(creators[:5])
-        credit_overlay = {"id": "grouped_sources", "type": "text_card", "in_seconds": req.duration - CREDIT_SCREEN_SECONDS,
-                          "out_seconds": req.duration, "position": "full_overlay", "text": credit_text,
-                          "backgroundColor": "#073B3A", "color": "#F8FAFC", "accentColor": "#2DD4BF", "fontSize": 32}
         remotion = registry.get("remotion_caption_burn")
         if not remotion:
             raise RuntimeError("OpenMontage Remotion caption engine is unavailable")
@@ -822,7 +786,7 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
             caption_result = remotion.execute({"input_path": str(graded_output), "output_path": str(output),
                                                "srt_path": str(render_srt), "words_per_page": 4,
                                                "font_size": 30 if req.aspectRatio == "9:16" else 26,
-                                               "highlight_color": "#2DD4BF", "overlays": [credit_overlay], "force_ffmpeg": False})
+                                               "highlight_color": "#2DD4BF", "overlays": [], "force_ffmpeg": False})
         except Exception as remotion_error:
             caption_result = type("RenderFailure", (), {"success": False, "data": {}, "error": str(remotion_error)})()
         caption_method = str(caption_result.data.get("method") or "") if caption_result.success else ""
@@ -834,11 +798,12 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
                                                 "highlight_color": "#2DD4BF", "overlays": [], "force_ffmpeg": True})
             if not fallback_result.success or not fallback_captioned.is_file():
                 raise RuntimeError(fallback_result.error or caption_result.error or "Final caption render failed")
-            grouped_credit_fallback(fallback_captioned, output, credit_text, float(req.duration))
+            shutil.move(str(fallback_captioned), str(output))
             caption_method = "ffmpeg_resilient"
             warnings.append("The animated caption renderer timed out; a professional burned-in caption render was delivered instead.")
         write_stage(job, "caption_credits", "caption_report", {"version": "1.0", "engine": caption_method,
-                    "words_per_screen": 4, "layout": "compact-semitransparent-lower-third", "grouped_sources": providers}, 92)
+                    "words_per_screen": 4, "layout": "compact-semitransparent-lower-third",
+                    "source_credits_embedded": False, "source_providers": providers}, 92)
 
         qa_summary: dict[str, Any] = {}
         for attempt in range(2):
@@ -852,7 +817,7 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
                     caption_result = remotion.execute({"input_path": str(graded_output), "output_path": str(retry_output),
                                                        "srt_path": str(render_srt), "words_per_page": 4,
                                                        "font_size": 28 if req.aspectRatio == "9:16" else 24,
-                                                       "highlight_color": "#2DD4BF", "overlays": [credit_overlay], "force_ffmpeg": False})
+                                                       "highlight_color": "#2DD4BF", "overlays": [], "force_ffmpeg": False})
                 except Exception:
                     caption_result = type("RenderFailure", (), {"success": False, "data": {}, "error": "Remotion rebuild failed"})()
                 if caption_result.success and retry_output.is_file():
@@ -864,7 +829,7 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
             raise RuntimeError("OpenMontage final quality review failed after rebuild: " + "; ".join(qa_summary.get("issues") or []))
         details = probe(str(output)); actual_duration = float(details.get("duration") or 0)
         report = {"version": "1.0", "outputs": [{"path": str(output), "format": "mp4", "codec": "h264", "audio_codec": "aac", "resolution": f"{width}x{height}", "fps": 30, "duration_seconds": actual_duration, "file_size_bytes": int(details.get("size") or output.stat().st_size), "platform_target": brief["target_platform"]}],
-                  "render_time_seconds": 0, "warnings": warnings, "verification_notes": [f"Deterministic source assembly, color grading, {caption_method} captions/grouped credits, and ffprobe/blackdetect/volumedetect validation completed."], "render_grammar": "narrated-stock-story", "metadata": {"runtime": caption_method, "openmontage_commit": os.environ.get("OPENMONTAGE_COMMIT"), "quality_review": qa_summary}}
+                  "render_time_seconds": 0, "warnings": warnings, "verification_notes": [f"Deterministic source assembly, color grading, one {caption_method} caption layer, and ffprobe/blackdetect/volumedetect validation completed."], "render_grammar": "narrated-stock-story", "metadata": {"runtime": caption_method, "openmontage_commit": os.environ.get("OPENMONTAGE_COMMIT"), "quality_review": qa_summary}}
         write_stage(job, "final_qa", "render_report", report, 98)
         provenance = [{"provider": item.get("provider"), "providerId": item.get("provider_id"), "sourceUrl": item.get("original_url"),
                        "creator": item.get("creator") or "Source contributor", "searchQuery": item.get("search_query"),

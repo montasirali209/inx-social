@@ -48,7 +48,8 @@ test('Stock Video Creator delegates to the isolated real OpenMontage runtime and
   assert.match(worker, /assembly_edit\["render_runtime"\] = "ffmpeg"/);
   assert.match(worker, /"force_ffmpeg": True/);
   assert.match(worker, /ffmpeg_resilient/);
-  assert.match(worker, /grouped_credit_fallback/);
+  assert.match(worker, /assembly_edit\["subtitles"\]\["enabled"\] = False/);
+  assert.doesNotMatch(worker, /cut_credits|credit_overlay|grouped_credit_fallback/);
   assert.match(worker, /def scene_srt/);
   assert.match(worker, /def fit_narration/);
   assert.match(worker, /def clip_relevance/);
