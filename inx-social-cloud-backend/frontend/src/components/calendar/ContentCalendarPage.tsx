@@ -7,6 +7,7 @@ import { availableSlotsForDate, buildCalendarDays, formatMonth, monthKeyInTimezo
 import { zonedDateTimeToIso } from '../../lib/bulk-scheduler-utils'
 import { fetchFacebookDashboardAnalytics } from '../../lib/dashboard-api'
 import { calculateBestPostTime } from '../../lib/posts-analytics'
+import { fetchUniversalPublishingKpis, universalPublishingKpiQueryKey } from '../../lib/universal-publishing-kpis'
 import { useUiStore } from '../../store/ui-store'
 import type { CalendarPost, CalendarPostStatus } from '../../types/calendar'
 import type { Platform } from '../../types/dashboard'
@@ -51,11 +52,17 @@ export function ContentCalendarPage() {
     refetchOnWindowFocus: true,
     staleTime: 0,
   })
+  const universalKpis = useQuery({
+    queryKey: universalPublishingKpiQueryKey,
+    queryFn: fetchUniversalPublishingKpis,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  })
   useEffect(() => {
-    const refresh = () => { void calendar.refetch() }
+    const refresh = () => { void Promise.all([calendar.refetch(), universalKpis.refetch()]) }
     window.addEventListener('inx-social:refresh', refresh)
     return () => window.removeEventListener('inx-social:refresh', refresh)
-  }, [calendar])
+  }, [calendar, universalKpis])
   useEffect(() => {
     if (!notice) return
     const timeout = window.setTimeout(() => setNotice(null), 4500)
@@ -73,7 +80,7 @@ export function ContentCalendarPage() {
       setAction(null)
       setActionError(null)
       setNotice(completedAction === 'delete' ? 'Post deleted from Facebook and INXSocial.' : 'Facebook schedule updated successfully.')
-      await calendar.refetch()
+      await Promise.all([calendar.refetch(), universalKpis.refetch()])
     },
     onError: error => setActionError(error instanceof Error ? error.message : 'The calendar action could not be completed.'),
   })
@@ -107,6 +114,17 @@ export function ContentCalendarPage() {
     if (recommendationAnalytics.isError) return { available: false, label: 'Analytics unavailable', time: null, detail: `Live timing data for ${recommendationPage.facebookPageName} could not be loaded.` }
     return calculateBestPostTime(recommendationAnalytics.data)
   }, [recommendationAnalytics.data, recommendationAnalytics.isError, recommendationPage])
+  const universalStats = useMemo(() => {
+    const kpis = universalKpis.data
+    if (!kpis) return []
+    return [
+      { label: 'Scheduled', value: kpis.scheduled, detail: 'Future publishing slots', tone: 'teal' as const },
+      { label: 'Published', value: kpis.published, detail: 'Published via INXSocial', tone: 'green' as const },
+      { label: 'Drafts', value: kpis.drafts, detail: kpis.drafts ? 'Saved unfinished posts' : 'No saved drafts', tone: 'teal' as const },
+      { label: 'Needs Review', value: kpis.needsReview, detail: kpis.needsReview ? 'Action required' : 'Nothing needs attention', tone: kpis.needsReview ? 'amber' as const : 'green' as const },
+      { label: 'Connected Accounts', value: kpis.connectedAccounts, detail: 'Across all active platforms', tone: 'purple' as const },
+    ]
+  }, [universalKpis.data])
 
   const chooseDate = (date: string) => { setSelectedDate(date); setSelectedTime('') }
   const chooseMonth = (offset: number) => { const next = shiftMonth(monthKey, offset); setMonthKey(next); chooseDate(`${next}-01`) }
@@ -128,15 +146,16 @@ export function ContentCalendarPage() {
     setActionError(null)
   }
 
-  if (calendar.isPending) return <CalendarSkeleton />
-  if (calendar.isError) {
-    const sessionRequired = calendar.error instanceof ApiError && calendar.error.status === 401
-    return <section className="grid min-h-[60vh] place-items-center"><div className="max-w-lg rounded-panel border border-brand-red/25 bg-panel p-7 text-center shadow-panel"><AlertTriangle className="mx-auto size-8 text-brand-red" /><h1 className="mt-4 text-xl font-semibold">{sessionRequired ? 'Sign in to open Content Calendar' : 'Content Calendar is unavailable'}</h1><p className="mt-2 text-sm text-text-muted">{sessionRequired ? 'Your private INX Social session is required.' : calendar.error.message}</p>{sessionRequired ? <a className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand-blue px-5 text-sm font-semibold" href="/portal/login.html?return=/app/">Open sign in</a> : <button className="mt-5 inline-flex items-center gap-2 rounded-xl bg-brand-blue px-5 py-3 text-sm font-semibold" onClick={() => calendar.refetch()} type="button"><RefreshCw className="size-4" /> Retry</button>}</div></section>
+  if (calendar.isPending || universalKpis.isPending) return <CalendarSkeleton />
+  if (calendar.isError || universalKpis.isError) {
+    const currentError = calendar.error || universalKpis.error
+    const sessionRequired = currentError instanceof ApiError && currentError.status === 401
+    return <section className="grid min-h-[60vh] place-items-center"><div className="max-w-lg rounded-panel border border-brand-red/25 bg-panel p-7 text-center shadow-panel"><AlertTriangle className="mx-auto size-8 text-brand-red" /><h1 className="mt-4 text-xl font-semibold">{sessionRequired ? 'Sign in to open Content Calendar' : 'Content Calendar is unavailable'}</h1><p className="mt-2 text-sm text-text-muted">{sessionRequired ? 'Your private INX Social session is required.' : currentError?.message}</p>{sessionRequired ? <a className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand-blue px-5 text-sm font-semibold" href="/portal/login.html?return=/app/">Open sign in</a> : <button className="mt-5 inline-flex items-center gap-2 rounded-xl bg-brand-blue px-5 py-3 text-sm font-semibold" onClick={() => void Promise.all([calendar.refetch(), universalKpis.refetch()])} type="button"><RefreshCw className="size-4" /> Retry</button>}</div></section>
   }
 
   return <div className="dashboard-canvas">
-    <section aria-label="Calendar status" className="mb-4 flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-3 xl:grid-cols-5">{calendar.data.stats.map((stat, index) => <CalendarStatCard icon={statIcons[index]} key={stat.label} stat={stat} />)}</section>
-    <CalendarToolbar isRefreshing={calendar.isFetching} monthKey={monthKey} onNext={() => chooseMonth(1)} onPage={setPageId} onPlatform={setPlatform} onPrevious={() => chooseMonth(-1)} onRefresh={() => void calendar.refetch()} onSearch={setSearch} onStatus={setStatus} onView={setView} pageId={pageId} pages={calendar.data.pages} platform={platform} search={search} status={status} view={view} />
+    <section aria-label="Universal publishing status" className="mb-4 flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-3 xl:grid-cols-5">{universalStats.map((stat, index) => <CalendarStatCard icon={statIcons[index]} key={stat.label} stat={stat} />)}</section>
+    <CalendarToolbar isRefreshing={calendar.isFetching || universalKpis.isFetching} monthKey={monthKey} onNext={() => chooseMonth(1)} onPage={setPageId} onPlatform={setPlatform} onPrevious={() => chooseMonth(-1)} onRefresh={() => void Promise.all([calendar.refetch(), universalKpis.refetch()])} onSearch={setSearch} onStatus={setStatus} onView={setView} pageId={pageId} pages={calendar.data.pages} platform={platform} search={search} status={status} view={view} />
     {calendar.data.syncWarnings.length > 0 && <div className="mb-4 flex items-start gap-2 rounded-xl border border-brand-amber/20 bg-brand-amber/5 px-3 py-2 text-[10px] leading-4 text-text-muted"><AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-brand-amber" /><span>INX Social loaded saved calendar data. {calendar.data.syncWarnings.length} connected Page schedule could not be refreshed from Meta during this request.</span></div>}
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
       {view === 'calendar' ? <CalendarGrid days={days} monthLabel={formatMonth(monthKey)} onSelectDate={chooseDate} onSelectPost={openPost} onToday={chooseToday} /> : <CalendarAgenda onSelectDate={chooseDate} onSelectPost={openPost} posts={monthPosts} />}
