@@ -41,9 +41,9 @@ export type StockVideoAccess = {
   remaining: number
   periodStart?: string
   periodEnd?: string
-  providers?: { pexels: boolean; pixabay: boolean; archiveOrg: boolean }
+  providers?: { pexels: boolean; pixabay: boolean }
   commercialOutput?: boolean
-  runtime?: { name: string; commit?: string; pipelines: string[]; providerMenu?: unknown } | null
+  runtime?: { name: string; commit?: string; pipelines: string[]; studioWorkflow?: { name: string; version: string; stageCount: number; stages: string[] } | null; providerMenu?: unknown } | null
 }
 
 export type StockVideoSelection = {

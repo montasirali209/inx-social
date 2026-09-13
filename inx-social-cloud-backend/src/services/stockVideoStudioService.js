@@ -1,6 +1,5 @@
 const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
-const os = require('node:os');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const axios = require('axios');
@@ -152,7 +151,7 @@ async function searchPexels(query, input) {
   const key = providerConfig().pexels;
   if (!key) return [];
   const orientation = input.aspectRatio === '9:16' ? 'portrait' : input.aspectRatio === '16:9' ? 'landscape' : 'square';
-  const response = await axios.get('https://api.pexels.com/videos/search', {
+  const response = await axios.get('https://api.pexels.com/v1/videos/search', {
     params: { query, orientation, size: 'medium', per_page: 12 },
     timeout: STOCK_TIMEOUT,
     headers: { Authorization: key }
@@ -190,69 +189,6 @@ async function searchPixabay(query, input) {
   }).filter(Boolean);
 }
 
-// Adapted from OpenMontage's AGPL-3.0 ArchiveOrgSource strategy. The full
-// upstream source and licence are linked in OPENMONTAGE-NOTICE.md.
-const ARCHIVE_FORMATS = ['h.264', 'MPEG4', 'h.264 HD', '512Kb MPEG4', 'WebM'];
-const ARCHIVE_STOP_WORDS = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'into', 'your', 'our', 'video', 'footage', 'stock']);
-
-function archiveQuery(value) {
-  const tokens = clean(value, 100).toLowerCase().match(/[a-z0-9]{3,}/g)?.filter(token => !ARCHIVE_STOP_WORDS.has(token)) || [];
-  const distinctive = [...new Set(tokens)].sort((a, b) => b.length - a.length).slice(0, 3);
-  const terms = distinctive.length ? distinctive.map(token => `\"${token}\"`).join(' OR ') : '\"documentary\"';
-  return `mediatype:movies AND (collection:prelinger OR collection:opensource_movies OR collection:home_movies) AND (${terms})`;
-}
-
-function archiveLength(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return 0;
-  const parts = raw.split(':').map(Number);
-  if (parts.some(Number.isNaN)) return Number(raw) || 0;
-  return parts.reduce((total, part) => total * 60 + part, 0);
-}
-
-function archiveFile(files) {
-  for (const format of ARCHIVE_FORMATS) {
-    const candidates = (files || []).filter(file => file?.format === format && file?.name && !/thumb|preview|\.gif/i.test(file.name) && Number(file.size || 0) > 0 && Number(file.size) <= 90 * 1024 * 1024);
-    if (candidates.length) return candidates.sort((a, b) => Number(b.size) - Number(a.size))[0];
-  }
-  return null;
-}
-
-function archiveCommercialLicense(doc, metadata) {
-  const collection = [doc?.collection, metadata?.metadata?.collection].flat().map(value => String(value || '').toLowerCase());
-  const license = clean(doc?.licenseurl || metadata?.metadata?.licenseurl, 500);
-  if (collection.some(value => value.includes('prelinger'))) return { allowed: true, license: license || 'Public domain / Prelinger Archives' };
-  return { allowed: /creativecommons\.org|publicdomain|public domain/i.test(license), license };
-}
-
-async function searchArchiveOrg(query) {
-  const response = await axios.get('https://archive.org/advancedsearch.php', {
-    params: { q: archiveQuery(query), 'fl[]': 'identifier,title,creator,licenseurl,collection', rows: 8, page: 1, output: 'json' }, timeout: STOCK_TIMEOUT
-  });
-  const results = [];
-  for (const doc of response.data?.response?.docs || []) {
-    if (!doc?.identifier) continue;
-    try {
-      const metadataResponse = await axios.get(`https://archive.org/metadata/${encodeURIComponent(doc.identifier)}`, { timeout: STOCK_TIMEOUT });
-      const metadata = metadataResponse.data || {};
-      const license = archiveCommercialLicense(doc, metadata);
-      if (!license.allowed) continue;
-      const file = archiveFile(metadata.files);
-      const duration = archiveLength(file?.length);
-      if (!file || (duration && duration > 1200)) continue;
-      const fileName = String(file.name).split('/').map(encodeURIComponent).join('/');
-      results.push({
-        provider: 'Archive.org', providerId: String(doc.identifier), downloadUrl: `https://archive.org/download/${encodeURIComponent(doc.identifier)}/${fileName}`,
-        sourceUrl: `https://archive.org/details/${encodeURIComponent(doc.identifier)}`, creator: clean(doc.creator || metadata.metadata?.creator || 'Archive.org contributor', 200),
-        creatorUrl: `https://archive.org/details/${encodeURIComponent(doc.identifier)}`, width: Number(file.width || 0), height: Number(file.height || 0), duration,
-        license: license.license
-      });
-      if (results.length >= 5) break;
-    } catch (_) { /* try the next public archive item */ }
-  }
-  return results;
-}
-
 async function selectClips(plan, input, onProgress) {
   const used = new Set();
   const selected = [];
@@ -262,9 +198,6 @@ async function selectClips(plan, input, onProgress) {
     try { candidates = await searchPexels(scene.searchQuery, input); } catch (_) { /* fallback below */ }
     if (!candidates.some(item => !used.has(`${item.provider}:${item.providerId}`))) {
       try { candidates.push(...await searchPixabay(scene.searchQuery, input)); } catch (_) { /* handled below */ }
-    }
-    if (!candidates.some(item => !used.has(`${item.provider}:${item.providerId}`))) {
-      try { candidates.push(...await searchArchiveOrg(scene.searchQuery)); } catch (_) { /* handled below */ }
     }
     const clip = candidates.find(item => !used.has(`${item.provider}:${item.providerId}`));
     if (!clip) throw publicError(`No suitable royalty-free stock clip was found for scene ${index + 1}. Try a broader idea.`, 'STOCK_VIDEO_NO_FOOTAGE', 422);
@@ -375,8 +308,11 @@ async function access(userId) {
   if (!entitlement.studioEnabled) return { enabled: false, configured: isConfigured(), limit: MONTHLY_LIMIT(), used: 0, remaining: 0 };
   await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'FAILED\',"errorCode"=\'STOCK_VIDEO_WORKER_INTERRUPTED\',"errorMessage"=\'The production worker restarted before this video completed. Please try again.\',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=$1 AND "contentType"=\'stock_video\' AND "status" IN (\'PREPARING\',\'PROCESSING\') AND "updatedAt" < CURRENT_TIMESTAMP - INTERVAL \'30 minutes\'', userId);
   const capabilities = await workerCapabilities();
-  return { enabled: true, configured: isConfigured() && Boolean(capabilities), ...(await quota(userId)), providers: { pexels: Boolean(providerConfig().pexels), pixabay: true, archiveOrg: true }, commercialOutput: true,
-    runtime: capabilities ? { name: capabilities.runtime, commit: capabilities.commit, pipelines: capabilities.pipelines || [], providerMenu: capabilities.providerMenu || null } : null };
+  const activeSources = Array.isArray(capabilities?.professionalSources) ? capabilities.professionalSources : [];
+  return { enabled: true, configured: isConfigured() && Boolean(capabilities) && activeSources.length > 0, ...(await quota(userId)),
+    providers: { pexels: activeSources.includes('pexels'), pixabay: activeSources.includes('pixabay_video') }, commercialOutput: true,
+    runtime: capabilities ? { name: capabilities.runtime, commit: capabilities.commit, pipelines: capabilities.pipelines || [],
+      studioWorkflow: capabilities.studioWorkflow || null, providerMenu: capabilities.providerMenu || null } : null };
 }
 
 function drainQueue() {
@@ -439,19 +375,21 @@ async function processJob(userId, generationId, input) {
     const record = await prisma.agentAsset.create({ data: {
       userId, kind: 'AI_VIDEO', source: 'AI_STUDIO', status: 'READY', originalName: `INXSocial-stock-video-${generationId.slice(0, 8)}.mp4`, mimeType: 'video/mp4', byteSize: data.length,
       checksum: crypto.createHash('sha256').update(data).digest('hex'), prompt: clean(input.prompt, 1500), customerPrompt: clean(input.prompt, 1500),
-      generationChoice: JSON.stringify({ runtime: 'OpenMontage', openmontageCommit: result.openmontageCommit, pipeline: result.pipeline, renderer: 'ffmpeg', generationId, workerJobId, duration: input.duration, resolution: input.resolution, aspectRatio: input.aspectRatio, provenance }),
+      generationChoice: JSON.stringify({ runtime: 'OpenMontage', openmontageCommit: result.openmontageCommit, pipeline: result.pipeline, renderer: result.renderer || 'remotion', generationId, workerJobId, duration: input.duration, resolution: input.resolution, aspectRatio: input.aspectRatio, provenance }),
       tagsJson: JSON.stringify(['ai-assisted', 'stock-video', 'openmontage', ...new Set(provenance.map(item => String(item.provider || '').toLowerCase()).filter(Boolean))]), data, durationSeconds: input.duration,
       expiresAt: expiresAtFor('video/mp4')
     }});
     const media = mediaLibrary.publicAsset(record);
+    const caption = clean(result.caption || input.prompt, 10000);
+    const captionTags = new Set((caption.match(/#[A-Za-z0-9_]+/g) || []).map(tag => tag.slice(1).toLowerCase()));
     const asset = {
-      id: record.id, type: 'video', url: media.fileUrl, prompt: clean(input.prompt, 1500), caption: clean(result.caption || input.prompt, 10000),
-      hashtags: Array.isArray(result.hashtags) ? result.hashtags : [], creditsUsed: 0, createdAt: record.createdAt.toISOString(), provider: 'OpenMontage',
+      id: record.id, type: 'video', url: media.fileUrl, prompt: clean(input.prompt, 1500), caption,
+      hashtags: Array.isArray(result.hashtags) ? result.hashtags.filter(tag => !captionTags.has(String(tag).replace(/^#/, '').toLowerCase())) : [], creditsUsed: 0, createdAt: record.createdAt.toISOString(), provider: 'OpenMontage',
       model: result.pipeline || 'INX Stock Montage', aspectRatio: input.aspectRatio, mediaLibraryAssetId: record.id, script: clean(result.script, 10000),
       completionStatus: 'completed', provenance, expiresAt: record.expiresAt.toISOString(), retentionDays: 10,
       warnings: Array.isArray(result.warnings) ? result.warnings : []
     };
-    await updateJob(generationId, 'COMPLETED', 100, { assetJson: asset, responseJson: { runtime: 'OpenMontage', openmontageCommit: result.openmontageCommit, pipeline: result.pipeline, renderer: 'ffmpeg', provenance }, completedAt: new Date() });
+    await updateJob(generationId, 'COMPLETED', 100, { assetJson: asset, responseJson: { runtime: 'OpenMontage', openmontageCommit: result.openmontageCommit, pipeline: result.pipeline, renderer: result.renderer || 'remotion', provenance }, completedAt: new Date() });
   } catch (caught) {
     await updateJob(generationId, 'FAILED', 0, { errorCode: clean(caught?.code || 'STOCK_VIDEO_FAILED', 120), errorMessage: clean(caught?.publicMessage || caught?.message || 'Stock video creation failed.', 700), completedAt: new Date() }).catch(() => {});
   } finally {

@@ -1,8 +1,9 @@
 # INXSocial OpenMontage Worker
 
-This independently deployed HTTP service integrates the unmodified
+This independently deployed HTTP service integrates the
 [OpenMontage](https://github.com/calesthio/OpenMontage) runtime at pinned commit
-`08e2151fa02de28a5d6a312b3d575692bf147ad7`.
+`08e2151fa02de28a5d6a312b3d575692bf147ad7` with the AGPL-covered INXSocial
+workflow and professional-source registry overrides in this directory.
 
 It is deliberately isolated from the INXSocial application. The two services
 communicate only through the authenticated HTTP endpoints in `main.py`; they do
@@ -23,6 +24,10 @@ application is not part of this worker process or combined runtime.
 - `GET /jobs/{id}` — stage and progress
 - `GET /jobs/{id}/output` — completed MP4
 
+The production manifest has 14 sequential checkpoints. Stock retrieval is
+restricted at registry level to Pexels and Pixabay Video, both of which require
+their respective API keys. Wikimedia, NASA and Archive.org are not registered
+in this worker.
+
 All endpoints except health require `Authorization: Bearer
 $OPENMONTAGE_INTERNAL_TOKEN`.
-
