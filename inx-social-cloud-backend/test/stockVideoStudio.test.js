@@ -31,10 +31,46 @@ test('Stock Video Creator delegates to the isolated real OpenMontage runtime and
   assert.match(dockerfile, /08e2151fa02de28a5d6a312b3d575692bf147ad7/);
   assert.match(worker, /registry\.get\("direct_clip_search"\)/);
   assert.match(worker, /registry\.get\("video_compose"\)/);
+  assert.match(worker, /registry\.get\("audio_mixer"\)/);
+  assert.match(worker, /registry\.get\("color_grade"\)/);
+  assert.match(worker, /def render_safety_gate/);
+  assert.match(worker, /registry\.get\("remotion_caption_burn"\)/);
+  assert.match(worker, /PROFESSIONAL_VIDEO_SOURCES = \("pexels", "pixabay_video"\)/);
+  assert.match(worker, /professional_query/);
+  assert.match(worker, /\+cinematic \+4k/);
+  assert.match(worker, /pre_compose_gate/);
+  assert.match(worker, /render_safety_gate/);
+  assert.match(worker, /current_us_hashtags/);
+  assert.match(worker, /words_per_page": 4/);
+  assert.match(worker, /for attempt in range\(2\)/);
+  assert.match(worker, /def scene_srt/);
+  assert.match(worker, /def fit_narration/);
+  assert.match(worker, /def clip_relevance/);
   assert.match(worker, /write_checkpoint/);
   assert.match(notice, /separately deployed/);
   assert.match(service, /provenance/);
   assert.match(service, /mediaLibrary\.publicAsset/);
+  assert.match(service, /result\.renderer \|\| 'remotion'/);
+});
+
+test('OpenMontage worker ships a fourteen-stage standalone professional workflow', () => {
+  const manifest = read('../openmontage-worker/pipeline_defs/inx-stock-montage.yaml');
+  const registry = read('../openmontage-worker/overrides/stock_sources_init.py');
+  const dockerfile = read('../openmontage-worker/Dockerfile');
+  const stages = [...manifest.matchAll(/^  - name: ([a-z_]+)$/gm)].map(match => match[1]);
+  assert.deepEqual(stages, [
+    'idea', 'script', 'scene_plan', 'stock_retrieval', 'music', 'tts', 'asset_ready',
+    'pre_compose_validation', 'edit', 'audio_mix', 'assembly', 'color_grade',
+    'caption_credits', 'final_qa'
+  ]);
+  assert.match(registry, /_SOURCE_CLASSES = \(PexelsSource, PixabayVideoSource\)/);
+  assert.doesNotMatch(registry, /WikimediaSource|ArchiveOrgSource|NasaSource/);
+  assert.match(dockerfile, /remotion-composer && npm ci/);
+  assert.doesNotMatch(dockerfile, /npm ci --omit=optional/);
+  assert.match(dockerfile, /apt-get install[^\n]*chromium/);
+  assert.match(dockerfile, /REMOTION_BROWSER_EXECUTABLE=\/usr\/bin\/chromium/);
+  assert.match(dockerfile, /overrides\/remotion\.config\.ts/);
+  assert.match(dockerfile, /stock_sources\/__init__\.py/);
 });
 
 test('Stock Video Creator UI resumes active jobs and hands completed video to Posts', () => {
@@ -45,7 +81,11 @@ test('Stock Video Creator UI resumes active jobs and hands completed video to Po
   assert.match(component, /30.*remaining|remaining.*limit/);
   assert.match(component, /Post \/ Schedule/);
   assert.match(component, /Licensed-source provenance included/);
+  assert.match(component, /Licensed footage sources/);
+  assert.match(component, /sourceGroups/);
   assert.match(component, /Authorize the complete OpenMontage run/);
+  assert.match(component, /stageCount/);
+  assert.match(component, /Pexels\/Pixabay only/);
   assert.match(videoStudio, /Stock Video Creator/);
   assert.match(videoStudio, /StockVideoCreator/);
 });

@@ -1,12 +1,12 @@
 name: inx-stock-montage
-version: "1.0"
-description: INXSocial one-prompt stock-footage montage powered by the OpenMontage tool and checkpoint runtime.
-category: documentary
+version: "2.0"
+description: INXSocial standalone narrated stock studio using a complete 14-stage OpenMontage checkpoint workflow.
+category: hybrid
 stability: beta
 default_checkpoint_policy: auto_noncreative
 orchestration:
   mode: executive-producer
-  skill: pipelines/documentary-montage/executive-producer
+  skill: pipelines/hybrid/executive-producer
   budget_default_usd: 1.00
   max_revisions_per_stage: 2
   max_send_backs: 1
@@ -17,62 +17,146 @@ extensions:
   custom_skills: false
   custom_tools: false
 required_skills:
-  - pipelines/documentary-montage/idea-director
-  - pipelines/documentary-montage/scene-director
+  - pipelines/hybrid/idea-director
+  - pipelines/hybrid/script-director
+  - pipelines/hybrid/scene-director
   - pipelines/documentary-montage/asset-director
-  - pipelines/documentary-montage/edit-director
-  - pipelines/documentary-montage/compose-director
+  - pipelines/hybrid/edit-director
+  - pipelines/hybrid/compose-director
   - meta/reviewer
   - meta/checkpoint-protocol
-compatible_playbooks:
-  - clean-professional
-  - premium-minimalist
+  - meta/voice-performance-director
+compatible_playbooks: [clean-professional, premium-minimalist]
 stages:
   - name: idea
-    skill: pipelines/documentary-montage/idea-director
+    skill: pipelines/hybrid/idea-director
     produces: [brief]
     tools_available: []
     checkpoint_required: true
     human_approval_default: false
-    review_focus: [Clear theme, concrete duration, one tone]
-    success_criteria: [Schema-valid brief artifact]
-  - name: scene_plan
-    skill: pipelines/documentary-montage/scene-director
+    review_focus: [Clear theme, duration and tone]
+    success_criteria: [Schema-valid brief]
+  - name: script
+    skill: pipelines/hybrid/script-director
     required_artifacts_in: [brief]
+    produces: [script]
+    tools_available: []
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus: [Complete scene-specific narration]
+    success_criteria: [Narration word count matches duration]
+  - name: scene_plan
+    skill: pipelines/hybrid/scene-director
+    required_artifacts_in: [brief, script]
     produces: [scene_plan]
     tools_available: []
     checkpoint_required: true
     human_approval_default: false
-    review_focus: [Concrete searchable scenes, duration coverage]
-    success_criteria: [Schema-valid scene_plan artifact]
-  - name: assets
+    review_focus: [Concrete searchable human-story scenes]
+    success_criteria: [Timed scene plan]
+  - name: stock_retrieval
     skill: pipelines/documentary-montage/asset-director
-    required_artifacts_in: [brief, scene_plan]
-    produces: [asset_manifest]
+    required_artifacts_in: [scene_plan]
+    produces: [retrieval_report]
     required_tools: [direct_clip_search]
-    optional_tools: [pixabay_music, openai_tts]
-    tools_available: [direct_clip_search, pixabay_music, openai_tts]
+    tools_available: [direct_clip_search, corpus_builder, clip_search]
     checkpoint_required: true
     human_approval_default: false
-    review_focus: [One licensed clip per scene, provenance recorded]
-    success_criteria: [Schema-valid asset_manifest artifact]
-  - name: edit
-    skill: pipelines/documentary-montage/edit-director
-    required_artifacts_in: [scene_plan, asset_manifest]
-    produces: [edit_decisions]
+    review_focus: [Pexels and Pixabay only, unique motion per scene]
+    success_criteria: [Every scene filled by a professional source]
+  - name: music
+    skill: pipelines/documentary-montage/asset-director
+    required_artifacts_in: [brief]
+    produces: [music_report]
+    tools_available: [pixabay_music]
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus: [Licensed music or original generated bed]
+    success_criteria: [Music asset ready]
+  - name: tts
+    skill: meta/voice-performance-director
+    required_artifacts_in: [script]
+    produces: [tts_report]
+    required_tools: [openai_tts]
+    tools_available: [openai_tts, tts_selector]
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus: [Measured delivery and ffprobe duration]
+    success_criteria: [Narration ready with millisecond duration]
+  - name: asset_ready
+    skill: pipelines/documentary-montage/asset-director
+    required_artifacts_in: [retrieval_report, music_report, tts_report]
+    produces: [asset_manifest]
     tools_available: []
     checkpoint_required: true
     human_approval_default: false
-    review_focus: [Runtime remains locked, exact cut durations]
-    success_criteria: [Schema-valid edit_decisions artifact]
-  - name: compose
-    skill: pipelines/documentary-montage/compose-director
-    required_artifacts_in: [brief, asset_manifest, edit_decisions]
-    produces: [render_report]
+    review_focus: [All internal assets present and licensed]
+    success_criteria: [Complete asset manifest]
+  - name: pre_compose_validation
+    skill: meta/reviewer
+    required_artifacts_in: [brief, scene_plan, asset_manifest]
+    produces: [validation_report]
+    tools_available: [visual_qa, video_understand]
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus: [Slideshow risk, delivery promise, source quality, scene coverage]
+    success_criteria: [All pre-compose gates pass]
+  - name: edit
+    skill: pipelines/hybrid/edit-director
+    required_artifacts_in: [validation_report]
+    produces: [edit_decisions]
+    tools_available: [subtitle_gen]
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus: [Exact cut timing and scene continuity]
+    success_criteria: [Remotion-locked edit decisions]
+  - name: audio_mix
+    skill: pipelines/hybrid/edit-director
+    required_artifacts_in: [edit_decisions, asset_manifest]
+    produces: [audio_report]
+    required_tools: [audio_mixer]
+    tools_available: [audio_mixer]
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus: [Speech clarity, music ducking, exact duration]
+    success_criteria: [Mixed audio duration equals target]
+  - name: assembly
+    skill: pipelines/hybrid/compose-director
+    required_artifacts_in: [edit_decisions, audio_report]
+    produces: [assembly_report]
     required_tools: [video_compose]
     tools_available: [video_compose]
     checkpoint_required: true
     human_approval_default: false
-    review_focus: [Output exists, resolution and duration verified]
-    success_criteria: [Schema-valid render_report artifact]
-
+    review_focus: [Motion assembly and audio synchronization]
+    success_criteria: [Assembled master exists]
+  - name: color_grade
+    skill: pipelines/hybrid/compose-director
+    required_artifacts_in: [assembly_report]
+    produces: [grade_report]
+    required_tools: [color_grade]
+    tools_available: [color_grade]
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus: [Shot-to-shot color consistency]
+    success_criteria: [Graded master exists]
+  - name: caption_credits
+    skill: pipelines/hybrid/compose-director
+    required_artifacts_in: [grade_report, asset_manifest]
+    produces: [caption_report]
+    required_tools: [remotion_caption_burn]
+    tools_available: [remotion_caption_burn]
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus: [Four-word lower thirds and grouped source credits]
+    success_criteria: [Remotion render succeeds]
+  - name: final_qa
+    skill: meta/reviewer
+    required_artifacts_in: [caption_report]
+    produces: [render_report]
+    required_tools: [visual_qa]
+    tools_available: [visual_qa, video_understand]
+    checkpoint_required: true
+    human_approval_default: false
+    review_focus: [Black frames, clipped audio, subtitles, resolution, duration]
+    success_criteria: [Post-render safety gate passes after at most one rebuild]
