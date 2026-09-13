@@ -43,4 +43,4 @@ export type MediaLibraryWorkspace = {
   storage: { usedBytes: number; limitBytes: number; trashRetentionDays: number; videoRetentionDays?: number; otherMediaRetentionDays?: number }
 }
 
-export type MediaTabId = 'all' | 'videos' | 'images' | 'ai_generated' | 'brand_assets' | 'scheduled' | 'published' | 'unused'
+export type MediaTabId = 'all' | 'videos' | 'images' | 'ai_generated' | 'brand_assets' | 'scheduled' | 'published' | 'unused' | 'needs_review'
