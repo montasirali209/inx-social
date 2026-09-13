@@ -1,4 +1,7 @@
+import { useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, CalendarClock, Check, ClipboardList, FileEdit, type LucideIcon } from 'lucide-react'
+import { fetchUniversalPublishingKpis, universalPublishingKpiQueryKey } from '../../lib/universal-publishing-kpis'
 import type { Platform, PostStatus } from '../../types/posts'
 import { SocialPlatformIcon } from '../ui/SocialPlatformIcon'
 
@@ -28,6 +31,30 @@ const statIcons: Record<string, LucideIcon> = {
 }
 
 export function PostsStatCard({ label, value, detail, tone, onClick }: { label: string; value: number; detail: string; tone: 'teal' | 'green' | 'amber' | 'red' | 'blue'; onClick?: () => void }) {
+  const universalKpis = useQuery({
+    queryKey: universalPublishingKpiQueryKey,
+    queryFn: fetchUniversalPublishingKpis,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
+  })
+  useEffect(() => {
+    if (universalKpis.data) void universalKpis.refetch()
+  }, [value])
+
+  const universalValues: Record<string, number | undefined> = {
+    'All Posts': universalKpis.data?.allPosts,
+    Drafts: universalKpis.data?.drafts,
+    Scheduled: universalKpis.data?.scheduled,
+    Published: universalKpis.data?.published,
+    'Needs Review': universalKpis.data?.needsReview,
+  }
+  const universalDetails: Record<string, string> = {
+    'All Posts': 'All INXSocial publishing records',
+    Drafts: 'Saved unfinished posts',
+    Scheduled: 'Future publishing slots',
+    Published: 'Published via INXSocial',
+    'Needs Review': universalKpis.data?.needsReview ? 'Action required' : 'Nothing needs attention',
+  }
   const Icon = statIcons[label] || ClipboardList
   const tones = {
     teal: 'border-brand-cyan/25 text-brand-cyan bg-brand-cyan/10',
@@ -37,11 +64,13 @@ export function PostsStatCard({ label, value, detail, tone, onClick }: { label: 
     blue: 'border-brand-blue/25 text-brand-cyan bg-brand-blue/10',
   }
   const open = onClick || (() => window.dispatchEvent(new CustomEvent('inx-posts-stat-open', { detail: { label, source: 'fallback' } })))
+  const displayValue = universalValues[label] ?? value
+  const displayDetail = universalDetails[label] || detail
   return (
     <button aria-label={`Open ${label}`} className="interactive-surface group min-w-[210px] flex-1 rounded-card border p-4 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan" onClick={open} type="button">
       <div className="flex items-start gap-3">
         <span className={`grid size-11 shrink-0 place-items-center rounded-xl border ${tones[tone]}`}><Icon aria-hidden="true" className="size-5" /></span>
-        <div className="min-w-0 flex-1"><p className="text-xs text-text-muted">{label}</p><strong className="mt-0.5 block text-2xl tracking-tight">{value}</strong><p className="mt-1 text-[10px] text-text-soft">{detail}</p></div>
+        <div className="min-w-0 flex-1"><p className="text-xs text-text-muted">{label}</p><strong className="mt-0.5 block text-2xl tracking-tight">{displayValue}</strong><p className="mt-1 text-[10px] text-text-soft">{displayDetail}</p></div>
         <span className="self-center text-lg text-brand-cyan transition-transform group-hover:translate-x-1" aria-hidden="true">›</span>
       </div>
     </button>
