@@ -35,3 +35,15 @@ test('Media Library review KPI is explicitly asset-scoped', () => {
   assert.match(media, /Assets Needing Review/);
   assert.match(media, /Media assets needing attention/);
 });
+
+test('Media Library review KPI drills into the affected assets', () => {
+  const primitives = read('frontend/src/components/media-library/MediaPrimitives.tsx');
+  const tabs = read('frontend/src/components/media-library/MediaTabs.tsx');
+  const data = read('frontend/src/data/mediaLibraryData.ts');
+  const types = read('frontend/src/types/media-library.ts');
+  assert.match(primitives, /inx-media-kpi-filter/);
+  assert.match(primitives, /tab: 'needs_review'/);
+  assert.match(tabs, /inx-media-kpi-filter/);
+  assert.match(data, /id: 'needs_review', label: 'Needs Review'/);
+  assert.match(types, /\| 'needs_review'/);
+});
