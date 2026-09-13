@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Bot, CalendarClock, Folder, FolderOpen, Image, Send, Trash2, Upload, X } from 'lucide-react'
 import { systemFolders } from '../../data/mediaLibraryData'
 import type { MediaAsset, MediaFolder } from '../../types/media-library'
@@ -15,6 +16,14 @@ type Props = {
 
 const icons = { all: FolderOpen, brand_assets: Image, ai_generated: Bot, uploaded: Upload, scheduled: CalendarClock, published: Send, trash: Trash2 }
 export function FolderPanel(props: Props) {
+  useEffect(() => {
+    const resetForKpi = () => {
+      if (props.active !== 'all') props.onActive('all')
+    }
+    window.addEventListener('inx-media-kpi-filter', resetForKpi)
+    return () => window.removeEventListener('inx-media-kpi-filter', resetForKpi)
+  }, [props.active, props.onActive])
+
   function count(id: string) {
     if (id === 'all') return props.assets.length
     if (id === 'brand_assets') return props.assets.filter(asset => asset.collection === 'brand_assets').length
