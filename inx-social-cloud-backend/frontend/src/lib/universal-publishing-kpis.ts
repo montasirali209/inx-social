@@ -18,6 +18,7 @@ export type UniversalPublishingKpis = {
 type ConnectionsResponse = { connections: SocialConnectionSummary[] }
 
 function browserDraftCount() {
+  if (typeof window === 'undefined') return 0
   try {
     const parsed = JSON.parse(window.localStorage.getItem(browserDraftKey) || '[]')
     return Array.isArray(parsed) ? parsed.length : 0
@@ -38,7 +39,7 @@ function activeSocialAccountCount(connections: SocialConnectionSummary[]) {
 export async function fetchUniversalPublishingKpis(): Promise<UniversalPublishingKpis> {
   const [overview, social] = await Promise.all([
     fetchStudioOverview(),
-    apiRequest<ConnectionsResponse>('/api/social-connections'),
+    apiRequest<ConnectionsResponse>('/api/social-connections').catch(() => ({ connections: [] })),
   ])
 
   const localDrafts = browserDraftCount()
