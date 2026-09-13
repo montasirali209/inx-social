@@ -10,7 +10,6 @@ import {
   Images,
   Send,
   ShieldAlert,
-  Sparkles,
   Upload,
   X,
 } from "lucide-react";
@@ -478,13 +477,6 @@ export function MediaLibraryPage() {
               <Upload className="size-4" />
               {uploadState ? `${uploadState.percent}%` : "Upload Media"}
             </Button>
-            <a
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-control border border-brand-cyan/35 bg-brand-cyan/8 px-4 text-sm font-semibold text-brand-cyan transition hover:bg-brand-cyan/15 focus-visible:outline-2 focus-visible:outline-brand-cyan"
-              href="/app/"
-            >
-              <Sparkles className="size-4" />
-              Generate with AI
-            </a>
           </div>
         </div>
         {uploadState && (
