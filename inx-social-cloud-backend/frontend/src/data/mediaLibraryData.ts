@@ -19,6 +19,7 @@ export const mediaTabs: Array<{ id: MediaTabId; label: string }> = [
   { id: 'scheduled', label: 'Scheduled' },
   { id: 'published', label: 'Published' },
   { id: 'unused', label: 'Unused' },
+  { id: 'needs_review', label: 'Needs Review' },
 ]
 
 export const systemFolders = [

@@ -1,4 +1,4 @@
-import { Archive, Bot, CheckCircle2, FileImage, Images, Send, ShieldAlert } from 'lucide-react'
+import { Archive, Bot, CheckCircle2, ChevronRight, FileImage, Images, Send, ShieldAlert } from 'lucide-react'
 import type { MediaSource, MediaStatus, Platform } from '../../types/media-library'
 import { PlatformIcon } from '../posts/PostPrimitives'
 
@@ -14,9 +14,15 @@ const icons = { total: Images, ai: Bot, ready: CheckCircle2, used: Send, review:
 
 export function MediaStatCard({ label, value, detail, tone, icon }: { label: string; value: number; detail: string; tone: keyof typeof tones; icon: keyof typeof icons }) {
   const Icon = icons[icon]
-  const displayLabel = label === 'Needs Review' ? 'Assets Needing Review' : label
-  const displayDetail = label === 'Needs Review' ? 'Media assets needing attention' : detail
-  return <article className={`interactive-surface min-w-[210px] rounded-card border p-4 ${tones[tone]}`}><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl border border-current/20 bg-current/[0.07]"><Icon className="size-5" /></span><div><p className="text-[11px] text-text-muted">{displayLabel}</p><strong className="mt-1 block text-2xl text-text-main">{value.toLocaleString()}</strong><p className="mt-1 text-[9px] text-current">{displayDetail}</p></div></div></article>
+  const reviewCard = label === 'Needs Review'
+  const displayLabel = reviewCard ? 'Assets Needing Review' : label
+  const displayDetail = reviewCard ? 'Media assets needing attention · click to view' : detail
+  const content = <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl border border-current/20 bg-current/[0.07]"><Icon className="size-5" /></span><div className="min-w-0 flex-1"><p className="text-[11px] text-text-muted">{displayLabel}</p><strong className="mt-1 block text-2xl text-text-main">{value.toLocaleString()}</strong><p className="mt-1 text-[9px] text-current">{displayDetail}</p></div>{reviewCard ? <ChevronRight aria-hidden="true" className="mt-4 size-4 shrink-0 transition-transform group-hover:translate-x-1" /> : null}</div>
+  const className = `interactive-surface min-w-[210px] rounded-card border p-4 ${tones[tone]}`
+  if (reviewCard) {
+    return <button aria-label={`View ${value} media assets needing review`} className={`${className} group w-full text-left focus-visible:outline-2 focus-visible:outline-brand-cyan`} onClick={() => window.dispatchEvent(new CustomEvent('inx-media-kpi-filter', { detail: { tab: 'needs_review' } }))} type="button">{content}</button>
+  }
+  return <article className={className}>{content}</article>
 }
 
 const statusStyle: Record<MediaStatus, string> = {

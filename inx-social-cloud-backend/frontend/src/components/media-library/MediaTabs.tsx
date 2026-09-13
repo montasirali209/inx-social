@@ -1,7 +1,20 @@
+import { useEffect } from 'react'
 import { mediaTabs } from '../../data/mediaLibraryData'
 import type { MediaAsset, MediaTabId } from '../../types/media-library'
 
 export function MediaTabs({ active, assets, onChange }: { active: MediaTabId; assets: MediaAsset[]; onChange: (value: MediaTabId) => void }) {
+  useEffect(() => {
+    const openKpiFilter = (event: Event) => {
+      const tab = (event as CustomEvent<{ tab?: MediaTabId }>).detail?.tab
+      if (!tab || !mediaTabs.some(item => item.id === tab)) return
+      // Let the sibling folder/filter controls reset first, then activate the
+      // requested KPI view so the card always reveals the complete result set.
+      window.setTimeout(() => onChange(tab), 0)
+    }
+    window.addEventListener('inx-media-kpi-filter', openKpiFilter)
+    return () => window.removeEventListener('inx-media-kpi-filter', openKpiFilter)
+  }, [onChange])
+
   function count(tab: MediaTabId) {
     if (tab === 'all') return assets.length
     if (tab === 'videos') return assets.filter(asset => asset.type === 'video').length
