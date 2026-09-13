@@ -684,6 +684,22 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
         subtitle_path = None
         if req.captions and plan.get("narration"):
             subtitle_path = project / "assets" / "audio" / "captions.srt"; subtitle_path.write_text(scene_srt(scene_rows), encoding="utf-8")
+
+        # The manifest requires the editorial timeline before the audio mix.
+        # Keep checkpoint writes in the exact manifest order: the upstream
+        # prerequisite gate deliberately rejects any stage that jumps ahead.
+        edit = {"version": "1.0", "cuts": cuts, "renderer_family": "documentary-montage", "render_runtime": "remotion",
+                "audio": {"music": {"asset_id": "asset_music", "volume": 0.16, "fade_in_seconds": 1, "fade_out_seconds": 2, "ducking": bool(narration_path)}} if music_path else {},
+                "subtitles": {"enabled": bool(subtitle_path), "source": str(subtitle_path or ""), "position": "bottom-center",
+                              "style": {"font": "DejaVu Sans", "font_size": 13 if req.aspectRatio == "9:16" else 16, "bold": True,
+                                        "primary_color": "&H00FFFFFF", "outline_color": "&H00000000", "back_color": "&H78000000",
+                                        "border_style": 1, "outline_width": 1.2, "shadow": 0, "margin_v": 24, "alignment": 2}},
+                "metadata": {"pipeline": "inx-stock-montage", "total_duration_seconds": sum(c["out_seconds"] for c in cuts), "target_duration_seconds": req.duration,
+                             "compose_target": {"width": width, "height": height, "fit": "cover"}, "proposal_render_runtime": "remotion",
+                             "delivery_promise": {"promise_type": "hybrid", "motion_required": True, "source_required": True,
+                                                  "tone_mode": req.tone.lower(), "quality_floor": "presentable", "approved_fallback": None}}}
+        write_stage(job, "edit", "edit_decisions", edit, 68)
+
         mixed_audio = None
         mixer = registry.get("audio_mixer")
         mix_tracks = []
@@ -706,18 +722,7 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
         if not mixed_audio or abs(float(probe(mixed_audio).get("duration") or 0) - req.duration) > 0.12:
             raise RuntimeError("OpenMontage audio mix did not match the requested duration")
         write_stage(job, "audio_mix", "audio_report", {"version": "1.0", "path": mixed_audio,
-                    "duration_ms": round(float(probe(mixed_audio).get("duration") or 0) * 1000), "target_duration_ms": req.duration * 1000}, 70)
-        edit = {"version": "1.0", "cuts": cuts, "renderer_family": "documentary-montage", "render_runtime": "remotion",
-                "audio": {"music": {"asset_id": "asset_music", "volume": 0.16, "fade_in_seconds": 1, "fade_out_seconds": 2, "ducking": bool(narration_path)}} if music_path else {},
-                "subtitles": {"enabled": bool(subtitle_path), "source": str(subtitle_path or ""), "position": "bottom-center",
-                              "style": {"font": "DejaVu Sans", "font_size": 13 if req.aspectRatio == "9:16" else 16, "bold": True,
-                                        "primary_color": "&H00FFFFFF", "outline_color": "&H00000000", "back_color": "&H78000000",
-                                        "border_style": 1, "outline_width": 1.2, "shadow": 0, "margin_v": 24, "alignment": 2}},
-                "metadata": {"pipeline": "inx-stock-montage", "total_duration_seconds": sum(c["out_seconds"] for c in cuts), "target_duration_seconds": req.duration,
-                             "compose_target": {"width": width, "height": height, "fit": "cover"}, "proposal_render_runtime": "remotion",
-                             "delivery_promise": {"promise_type": "hybrid", "motion_required": True, "source_required": True,
-                                                  "tone_mode": req.tone.lower(), "quality_floor": "presentable", "approved_fallback": None}}}
-        write_stage(job, "edit", "edit_decisions", edit, 74)
+                    "duration_ms": round(float(probe(mixed_audio).get("duration") or 0) * 1000), "target_duration_ms": req.duration * 1000}, 74)
 
         composed_output = project / "renders" / "assembled.mp4"
         graded_output = project / "renders" / "graded.mp4"

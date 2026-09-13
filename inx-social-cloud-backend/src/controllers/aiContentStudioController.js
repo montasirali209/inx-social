@@ -151,6 +151,10 @@ async function cancelGeneration(req, res, next) {
   try { res.json(await studioService.cancelGeneration(req.user.id, req.params.id)); } catch (error) { next(error); }
 }
 
+async function dismissGeneration(req, res, next) {
+  try { await studioService.dismissGeneration(req.user.id, req.params.id); res.json({ ok: true }); } catch (error) { next(error); }
+}
+
 async function recentDrafts(req, res, next) {
   try {
     const limit = z.coerce.number().int().min(1).max(40).default(8).parse(req.query.limit);
@@ -248,6 +252,6 @@ module.exports = {
   generateCarouselPost: generation('carousel_post'),
   generateShortVideo: generation('short_video'),
   generateUGCAd: generation('ugc_ad'),
-  generationStatus, cancelGeneration, recentDrafts, saveDraft, deleteDraft, sendDraftToPosts,
+  generationStatus, cancelGeneration, dismissGeneration, recentDrafts, saveDraft, deleteDraft, sendDraftToPosts,
   generationHistory, brandKits, packs, createTopupCheckout, creditWebhook
 };
