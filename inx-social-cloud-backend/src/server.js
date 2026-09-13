@@ -4,6 +4,7 @@ const { startSubscriptionLifecycle } = require('./services/subscriptionLifecycle
 const { startMetaReelStatusReconciliation } = require('./services/metaReelStatusService');
 const { startAgentRuntime } = require('./services/agentRuntimeService');
 const { startMediaRetention } = require('./services/mediaRetentionService');
+const { startWorker: startLinkedInPublishingWorker } = require('./services/linkedinPublishingService');
 
 app.listen(env.port, () => {
   console.log(`INX Social Cloud Backend running on http://localhost:${env.port}`);
@@ -13,4 +14,5 @@ app.listen(env.port, () => {
   }
   startAgentRuntime();
   startMediaRetention();
+  startLinkedInPublishingWorker();
 });
