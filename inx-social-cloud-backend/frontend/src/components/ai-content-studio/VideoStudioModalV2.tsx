@@ -1,9 +1,9 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
-import { ArrowRight, Check, Clapperboard, Film, Gauge, ImagePlus, LoaderCircle, Save, Sparkles, Upload, WandSparkles, X, Zap } from 'lucide-react'
-import type { AIDraft, AIContentType, AIPlanAccess, GeneratedAsset } from '../../types/ai-content-studio'
+import { ArrowLeft, ArrowRight, Check, Film, Gauge, ImagePlus, Layers3, LoaderCircle, Save, Sparkles, Upload, WandSparkles, X, Zap } from 'lucide-react'
+import type { AIDraft, AIContentType, AIPlanAccess, GeneratedAsset, GenerationHistoryItem } from '../../types/ai-content-studio'
 import { uploadMediaAsset } from '../../lib/media-library-api'
-import { saveAIDraft } from '../../lib/ai-content-studio-api'
+import { getGenerationStatus, saveAIDraft } from '../../lib/ai-content-studio-api'
 import {
   estimateVideoCredits,
   generateStudioVideo,
@@ -18,6 +18,10 @@ import { sendPostStudioMessage, type PostStudioBrief } from '../../lib/ai-post-s
 import { Button } from '../ui/Button'
 import { StudioSelect } from './StudioSelect'
 import { StockVideoCreator } from './StockVideoCreator'
+import { VideoProductionRail } from './VideoProductionRail'
+import { videoProductionKind, type VideoProductionKind } from './video-production-utils'
+
+const ACTIVE_AI_VIDEO_JOB_KEY = 'inx-social-ai-video-active-job-v1'
 
 function extractUrls(text: string) {
   return [...new Set((text.match(/https?:\/\/[^\s<>()]+/gi) || []).map((value) => value.replace(/[.,;!?]+$/, '')))].slice(0, 2)
@@ -41,7 +45,7 @@ function ModeButton({ active, icon, title, text, onClick, busy }: { active: bool
   </button>
 }
 
-export function VideoStudioModal({ open, type, access, initialDraft, onClose, onSaved, onContinue, onToast }: { open: boolean; type: AIContentType | null; access: AIPlanAccess; initialDraft?: AIDraft | null; onClose: () => void; onSaved: (draft: AIDraft) => void; onContinue: (draft: AIDraft) => void; onToast: (message: string) => void }) {
+export function VideoStudioModal({ open, type, access, initialDraft, initialVideoKind, initialGenerationId, onClose, onSaved, onContinue, onToast }: { open: boolean; type: AIContentType | null; access: AIPlanAccess; initialDraft?: AIDraft | null; initialVideoKind?: VideoProductionKind | null; initialGenerationId?: string | null; onClose: () => void; onSaved: (draft: AIDraft) => void; onContinue: (draft: AIDraft) => void; onToast: (message: string) => void }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [models, setModels] = useState<VideoModelOption[]>([])
   const [prompt, setPrompt] = useState(initialDraft?.prompt || '')
@@ -61,12 +65,15 @@ export function VideoStudioModal({ open, type, access, initialDraft, onClose, on
   const [polishing, setPolishing] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [jobId, setJobId] = useState(() => (initialVideoKind === 'generative' ? initialGenerationId : '') || window.localStorage.getItem(ACTIVE_AI_VIDEO_JOB_KEY) || '')
   const [error, setError] = useState('')
-  const [studioKind, setStudioKind] = useState<'generative' | 'stock'>(() => initialDraft?.asset?.provider === 'OpenMontage stock workflow' ? 'stock' : 'generative')
+  const [selectedProductionId, setSelectedProductionId] = useState(initialGenerationId || '')
+  const [studioKind, setStudioKind] = useState<'choose' | VideoProductionKind>(() => initialVideoKind || (initialDraft ? (initialDraft.asset?.provider === 'OpenMontage stock workflow' ? 'stock' : 'generative') : 'choose'))
 
   const selected = useMemo(() => models.find((item) => item.id === modelRoute) || models[0], [models, modelRoute])
   const selection = useMemo<VideoStudioSelection>(() => ({ modelRoute, duration, resolution, aspectRatio, draft, audio }), [modelRoute, duration, resolution, aspectRatio, draft, audio])
   const insufficient = access.creditsConfigured && !access.unlimitedCredits && access.creditsRemaining !== null && access.creditsRemaining < credits
+  const rendering = generating || Boolean(jobId)
 
   useEffect(() => {
     if (!open || (type !== 'short_video' && initialDraft?.contentType !== 'short_video')) return
@@ -84,9 +91,53 @@ export function VideoStudioModal({ open, type, access, initialDraft, onClose, on
     return () => { active = false; window.clearTimeout(timer) }
   }, [open, selected, selection])
 
+  useEffect(() => {
+    if (!jobId || studioKind !== 'generative') return
+    let active = true
+    async function poll() {
+      try {
+        const result = await getGenerationStatus(jobId)
+        if (!active) return
+        if (result.status === 'completed' && result.asset) {
+          setAsset(result.asset); setPrompt(current => current || result.prompt || ''); setGenerating(false); setJobId('')
+          window.localStorage.removeItem(ACTIVE_AI_VIDEO_JOB_KEY)
+          onToast('AI video created and saved to Media Library.')
+          return
+        }
+        if (result.status === 'failed' || result.status === 'cancelled') {
+          setError(result.error || 'AI video generation failed.'); setGenerating(false); setJobId('')
+          window.localStorage.removeItem(ACTIVE_AI_VIDEO_JOB_KEY)
+          return
+        }
+        window.setTimeout(() => { if (active) void poll() }, 3000)
+      } catch (caught) {
+        if (!active) return
+        setError(caught instanceof Error ? caught.message : 'Video progress could not be checked.'); setGenerating(false)
+      }
+    }
+    void poll()
+    return () => { active = false }
+  }, [jobId, studioKind, onToast])
+
   if (!open || (type !== 'short_video' && initialDraft?.contentType !== 'short_video')) return null
 
-  if (studioKind === 'stock') return <StockVideoCreator initialDraft={initialDraft} onClose={onClose} onSwitchToGenerative={() => setStudioKind('generative')} onSaved={onSaved} onContinue={onContinue} onToast={onToast} />
+  if (studioKind === 'choose') return createPortal(<div className="fixed inset-0 z-[100] grid place-items-center bg-[#01070d]/92 p-3 backdrop-blur-xl"><div className="video-studio-choice-pop w-full max-w-[860px] overflow-hidden rounded-[30px] border border-brand-cyan/25 bg-[radial-gradient(circle_at_20%_0%,rgba(0,214,192,.12),transparent_42%),linear-gradient(145deg,#071c29,#020b13)] shadow-[0_44px_160px_rgba(0,0,0,.78)]"><header className="flex items-center justify-between border-b border-border-soft px-5 py-4 sm:px-7"><div><span className="text-[8px] font-bold uppercase tracking-[.18em] text-brand-cyan">Short video / Reel</span><h2 className="mt-1 text-lg font-bold">How would you like to create it?</h2><p className="mt-1 text-[10px] text-text-muted">Choose AI-generated motion or a complete story edited from professional stock footage.</p></div><button className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted hover:text-white" onClick={onClose}><X className="size-4"/></button></header><div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-7">
+    <button type="button" onClick={() => setStudioKind('generative')} className="group relative min-h-[250px] overflow-hidden rounded-[25px] border border-violet-400/20 bg-[linear-gradient(145deg,rgba(139,92,246,.12),rgba(3,15,25,.82))] p-6 text-left transition duration-500 hover:-translate-y-1 hover:scale-[1.015] hover:border-violet-300/45 hover:shadow-[0_28px_80px_rgba(139,92,246,.16)]"><span className="absolute -right-10 -top-10 size-40 rounded-full bg-violet-400/10 blur-3xl transition duration-500 group-hover:scale-125"/><span className="grid size-14 place-items-center rounded-[20px] border border-violet-300/25 bg-violet-400/10 text-violet-200"><Sparkles className="size-6 transition duration-500 group-hover:rotate-12 group-hover:scale-110"/></span><span className="mt-8 block text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">Original AI motion</span><strong className="mt-2 block text-xl">AI Generated Video</strong><span className="mt-2 block text-[10px] leading-5 text-text-muted">Create new video frames from your prompt or reference image using the best AI model for your brief.</span><span className="mt-6 inline-flex items-center gap-2 text-[10px] font-bold text-violet-200">Open AI Video Studio <ArrowRight className="size-4 transition group-hover:translate-x-1"/></span></button>
+    <button type="button" onClick={() => setStudioKind('stock')} className="group relative min-h-[250px] overflow-hidden rounded-[25px] border border-brand-green/20 bg-[linear-gradient(145deg,rgba(16,185,129,.12),rgba(3,15,25,.82))] p-6 text-left transition duration-500 hover:-translate-y-1 hover:scale-[1.015] hover:border-brand-green/45 hover:shadow-[0_28px_80px_rgba(16,185,129,.15)]"><span className="absolute -right-10 -top-10 size-40 rounded-full bg-brand-green/10 blur-3xl transition duration-500 group-hover:scale-125"/><span className="grid size-14 place-items-center rounded-[20px] border border-brand-green/25 bg-brand-green/10 text-brand-green"><Layers3 className="size-6 transition duration-500 group-hover:-rotate-6 group-hover:scale-110"/></span><span className="mt-8 block text-[9px] font-bold uppercase tracking-[.16em] text-brand-green">Professional real footage</span><strong className="mt-2 block text-xl">Stock Video Creator</strong><span className="mt-2 block text-[10px] leading-5 text-text-muted">OpenMontage writes the script, finds stock scenes, adds narration and captions, then assembles the full edit.</span><span className="mt-6 inline-flex items-center gap-2 text-[10px] font-bold text-brand-green">Open Stock Video Creator <ArrowRight className="size-4 transition group-hover:translate-x-1"/></span></button>
+  </div><div className="border-t border-border-soft px-6 py-3 text-center text-[8px] text-text-soft">Both creators continue rendering after you close this window and save finished videos to Media Library.</div></div></div>, document.body)
+
+  function openProduction(item: GenerationHistoryItem, selectedAsset: GeneratedAsset | null) {
+    const kind = videoProductionKind(item)
+    setSelectedProductionId(item.id)
+    setStudioKind(kind)
+    setPrompt(item.prompt || '')
+    if (kind === 'generative') {
+      setAsset(selectedAsset)
+      if (!selectedAsset && ['preparing', 'generating', 'processing'].includes(item.status)) { setJobId(item.id); window.localStorage.setItem(ACTIVE_AI_VIDEO_JOB_KEY, item.id) }
+    }
+  }
+
+  if (studioKind === 'stock') return <StockVideoCreator initialDraft={initialDraft} initialGenerationId={selectedProductionId || (initialVideoKind === 'stock' ? initialGenerationId : '')} onClose={onClose} onBackToChooser={() => setStudioKind('choose')} onOpenProduction={openProduction} onSaved={onSaved} onContinue={onContinue} onToast={onToast} />
 
   function applyModel(model: VideoModelOption, preferred?: Partial<VideoStudioSelection>) {
     setModelRoute(model.id)
@@ -148,12 +199,13 @@ export function VideoStudioModal({ open, type, access, initialDraft, onClose, on
   }
 
   async function generate() {
-    if (prompt.trim().length < 2 || generating || insufficient || !selected) return
+    if (prompt.trim().length < 2 || rendering || insufficient || !selected) return
     setGenerating(true); setError('')
     try {
       const result = await generateStudioVideo({ ...selection, prompt: prompt.trim(), sourceMediaLibraryAssetId: sourceAsset?.id || null, caption: brief?.caption || '', hashtags: brief?.hashtags || [], script: brief?.supportingCopy || '' })
-      setAsset(result); onToast(`Video created · ${result.creditsUsed} credits used.`)
-    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Video generation failed.') } finally { setGenerating(false) }
+      window.localStorage.setItem(ACTIVE_AI_VIDEO_JOB_KEY, result.id); setSelectedProductionId(result.id); setJobId(result.id)
+      onToast('AI video production started. You can safely leave this screen while it renders.')
+    } catch (caught) { setError(caught instanceof Error ? caught.message : 'Video generation failed.'); setGenerating(false) }
   }
 
   async function saveDraft() {
@@ -169,7 +221,7 @@ export function VideoStudioModal({ open, type, access, initialDraft, onClose, on
   const audioOptions = [{ value: 'on', label: 'Native audio on', meta: 'Generate sound when the model supports it' }, { value: 'off', label: 'Silent video', meta: 'Visual-only generation' }]
 
   return createPortal(<div className="fixed inset-0 z-[100] grid place-items-center bg-[#01070d]/92 p-2 backdrop-blur-xl sm:p-5"><div className="flex h-[min(920px,95vh)] w-full max-w-[1540px] flex-col overflow-hidden rounded-[30px] border border-brand-cyan/25 bg-[radial-gradient(circle_at_12%_12%,rgba(0,214,192,.09),transparent_27%),linear-gradient(145deg,#061824,#020b13)] shadow-[0_44px_160px_rgba(0,0,0,.74)]">
-    <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-border-soft px-4 sm:px-6"><div><span className="text-[8px] font-bold uppercase tracking-[.18em] text-brand-cyan">Generative Video</span><h2 className="mt-1 text-base font-bold">AI Video Studio <span className="font-medium text-text-soft">· Reel / Video</span></h2></div><div className="flex items-center gap-2"><button className="rounded-xl border border-brand-green/25 bg-brand-green/[.05] px-3 py-2 text-[9px] font-semibold text-brand-green transition hover:-translate-y-0.5 hover:bg-brand-green/10" onClick={() => setStudioKind('stock')}><Clapperboard className="mr-1.5 inline size-3.5"/>Stock Video Creator</button><span className="rounded-full border border-amber-400/25 bg-amber-400/[.06] px-3 py-1 text-[9px] font-bold text-amber-300">{credits} credits</span><button className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:-translate-y-0.5 hover:border-brand-cyan/30 hover:text-white" onClick={onClose}><X className="size-4"/></button></div></header>
+    <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-border-soft px-4 sm:px-6"><div><span className="text-[8px] font-bold uppercase tracking-[.18em] text-brand-cyan">Generative Video</span><h2 className="mt-1 text-base font-bold">AI Video Studio <span className="font-medium text-text-soft">· Reel / Video</span></h2></div><div className="flex items-center gap-2"><button className="rounded-xl border border-border-soft px-3 py-2 text-[9px] font-semibold text-text-muted transition hover:border-brand-cyan/30 hover:text-white" onClick={() => setStudioKind('choose')}><ArrowLeft className="mr-1.5 inline size-3.5"/>Video types</button><span className="rounded-full border border-amber-400/25 bg-amber-400/[.06] px-3 py-1 text-[9px] font-bold text-amber-300">{credits} credits</span><button className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:-translate-y-0.5 hover:border-brand-cyan/30 hover:text-white" onClick={onClose}><X className="size-4"/></button></div></header>
     <div className="grid min-h-0 flex-1 lg:grid-cols-[57%_43%]">
       <section className="min-h-0 overflow-y-auto border-r border-border-soft p-4 sm:p-5">
         <div className="rounded-[24px] border border-border-soft bg-black/12 p-4 shadow-[inset_0_1px_rgba(255,255,255,.025)]"><div className="flex items-center justify-between gap-3"><div><span className="text-[8px] font-bold uppercase tracking-[.14em] text-text-soft">Creative brief</span><h3 className="mt-1 text-sm font-bold">Describe the video you want</h3></div><Button size="sm" variant="secondary" disabled={polishing || prompt.trim().length < 2} onClick={() => void polishWithAI()}>{polishing ? <LoaderCircle className="size-3.5 animate-spin"/> : <Sparkles className="size-3.5"/>}AI analyse & polish</Button></div><textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={5} className="mt-3 w-full resize-none rounded-2xl border border-brand-cyan/20 bg-bg/60 px-3.5 py-3 text-[11px] leading-5 outline-none transition focus:-translate-y-0.5 focus:border-brand-cyan/45 focus:shadow-[0_16px_50px_rgba(0,214,192,.06)]" placeholder="e.g. Create a fast-paced 9:16 Reel showing the creator workflow from upload to scheduled posts. Start with a strong hook, show product UI, finish on the CTA…"/><p className="mt-2 text-[8px] text-text-soft">Paste a product URL here or upload a reference image below. AI Recommended analyses them before choosing a model.</p></div>
@@ -186,7 +238,7 @@ export function VideoStudioModal({ open, type, access, initialDraft, onClose, on
         {error && <div className="mt-4 rounded-2xl border border-red-400/25 bg-red-500/[.06] px-3 py-2.5 text-[9px] text-red-200">{error}</div>}
       </section>
 
-      <section className="flex min-h-0 flex-col bg-black/10 p-4 sm:p-5"><div className="min-h-0 flex-1 overflow-y-auto rounded-[26px] border border-border-soft bg-[radial-gradient(circle_at_50%_25%,rgba(0,214,192,.08),transparent_43%)] p-4">{!asset && !generating && <div className="grid h-full min-h-[470px] place-items-center text-center"><div className="max-w-md"><span className="mx-auto grid size-16 place-items-center rounded-[22px] border border-brand-cyan/25 bg-brand-cyan/[.07] text-brand-cyan shadow-[0_18px_60px_rgba(0,214,192,.08)]"><Film className="size-7"/></span><h3 className="mt-5 text-lg font-bold">Your generated video appears here.</h3><p className="mt-2 text-[10px] leading-5 text-text-muted">Start with the idea. Use AI Recommended for automatic model routing, Fast for speed, or Manual when you want exact control.</p>{selected && <div className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-border-soft bg-black/20 px-3 py-1.5 text-[8px] text-text-soft"><span className="size-1.5 rounded-full bg-brand-green"/>{selected.name} · {duration}s · {resolution}</div>}</div></div>}{generating && <div className="grid h-full min-h-[470px] place-items-center text-center"><div><LoaderCircle className="mx-auto size-10 animate-spin text-brand-cyan"/><h3 className="mt-4 text-base font-bold">Generating your video…</h3><p className="mt-2 text-[9px] text-text-muted">Rendering the approved brief with your selected route.</p></div></div>}{asset && <div><video className="max-h-[580px] w-full rounded-2xl bg-black object-contain" controls src={asset.url}/><div className="mt-4 rounded-2xl border border-border-soft bg-bg/35 p-4"><span className="text-[8px] font-bold uppercase tracking-[.13em] text-text-soft">Post package</span><p className="mt-2 text-[10px] leading-5">{brief?.caption || asset.caption || 'Video generated and ready for your post.'}</p>{(brief?.hashtags || asset.hashtags || []).length > 0 && <p className="mt-2 text-[9px] text-text-muted">{(brief?.hashtags || asset.hashtags || []).map((tag) => `#${tag.replace(/^#/, '')}`).join(' ')}</p>}</div></div>}</div><div className="mt-4 grid gap-2 sm:grid-cols-3"><Button disabled={!asset} onClick={() => void saveDraft()}><Save className="size-3.5"/>Save draft</Button><Button disabled={!asset} onClick={continueToPosts}>Post / Schedule <ArrowRight className="size-3.5"/></Button><Button variant="primary" disabled={generating || insufficient || prompt.trim().length < 2 || !selected} onClick={() => void generate()}><WandSparkles className="size-3.5"/>Generate video · {credits} credits</Button></div>{insufficient && <p className="mt-2 text-right text-[8px] text-red-300">You need more AI credits for this configuration.</p>}</section>
+      <section className="flex min-h-0 flex-col bg-black/10 p-4 sm:p-5"><div className="flex min-h-0 flex-1 flex-col gap-3 xl:flex-row"><div className="min-h-0 flex-1 overflow-y-auto rounded-[26px] border border-border-soft bg-[radial-gradient(circle_at_50%_25%,rgba(0,214,192,.08),transparent_43%)] p-4">{!asset && !rendering && <div className="grid h-full min-h-[470px] place-items-center text-center"><div className="max-w-md"><span className="mx-auto grid size-16 place-items-center rounded-[22px] border border-brand-cyan/25 bg-brand-cyan/[.07] text-brand-cyan shadow-[0_18px_60px_rgba(0,214,192,.08)]"><Film className="size-7"/></span><h3 className="mt-5 text-lg font-bold">Your generated video appears here.</h3><p className="mt-2 text-[10px] leading-5 text-text-muted">Start with the idea. Use AI Recommended for automatic model routing, Fast for speed, or Manual when you want exact control.</p>{selected && <div className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-border-soft bg-black/20 px-3 py-1.5 text-[8px] text-text-soft"><span className="size-1.5 rounded-full bg-brand-green"/>{selected.name} · {duration}s · {resolution}</div>}</div></div>}{rendering && <div className="grid h-full min-h-[470px] place-items-center text-center"><div><LoaderCircle className="mx-auto size-10 animate-spin text-brand-cyan"/><h3 className="mt-4 text-base font-bold">Generating in the background…</h3><p className="mt-2 text-[9px] text-text-muted">You may close this window. Progress remains in your video queue and notifications.</p></div></div>}{asset && <div><video className="max-h-[580px] w-full rounded-2xl bg-black object-contain" controls src={asset.url}/><div className="mt-4 rounded-2xl border border-border-soft bg-bg/35 p-4"><span className="text-[8px] font-bold uppercase tracking-[.13em] text-text-soft">Post package</span><p className="mt-2 text-[10px] leading-5">{brief?.caption || asset.caption || 'Video generated and ready for your post.'}</p>{(brief?.hashtags || asset.hashtags || []).length > 0 && <p className="mt-2 text-[9px] text-text-muted">{(brief?.hashtags || asset.hashtags || []).map((tag) => `#${tag.replace(/^#/, '')}`).join(' ')}</p>}</div></div>}</div><VideoProductionRail currentJobId={selectedProductionId || jobId} onOpen={openProduction}/></div><div className="mt-4 grid gap-2 sm:grid-cols-3"><Button disabled={!asset} onClick={() => void saveDraft()}><Save className="size-3.5"/>Save draft</Button><Button disabled={!asset} onClick={continueToPosts}>Post / Schedule <ArrowRight className="size-3.5"/></Button><Button variant="primary" disabled={rendering || insufficient || prompt.trim().length < 2 || !selected} onClick={() => void generate()}><WandSparkles className="size-3.5"/>{rendering ? 'Rendering in background…' : <>Generate video · {credits} credits</>}</Button></div>{insufficient && <p className="mt-2 text-right text-[8px] text-red-300">You need more AI credits for this configuration.</p>}</section>
     </div>
   </div></div>, document.body)
 }

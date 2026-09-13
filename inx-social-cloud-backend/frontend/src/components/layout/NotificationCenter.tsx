@@ -6,8 +6,13 @@ import {
   CheckCheck,
   Clock3,
   PlugZap,
+  Clapperboard,
+  Film,
 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { getVideoProductions } from '../../lib/ai-content-studio-api'
+import type { GenerationHistoryItem } from '../../types/ai-content-studio'
 import type { StudioOverview } from '../../types/dashboard'
 
 type NotificationTone = 'danger' | 'warning' | 'info' | 'success'
@@ -31,13 +36,45 @@ const toneStyles: Record<NotificationTone, string> = {
   success: 'border-teal-300/20 bg-teal-400/8 text-teal-200',
 }
 
-function workspaceNotifications(overview?: StudioOverview): WorkspaceNotification[] {
-  if (!overview) return []
-  const notices: WorkspaceNotification[] = []
-  const activeWork = overview.summary.queued + overview.summary.processing
-  const reconnects = overview.pages.filter((page) => page.status !== 'ACTIVE').length
+function videoKind(item: GenerationHistoryItem) {
+  return item.type === 'stock_video' || String(item.provider || '').toLowerCase().includes('openmontage') ? 'stock' : 'generative'
+}
 
-  if (overview.summary.failed > 0) {
+function workspaceNotifications(overview?: StudioOverview, videos: GenerationHistoryItem[] = []): WorkspaceNotification[] {
+  const notices: WorkspaceNotification[] = []
+  const activeWork = overview ? overview.summary.queued + overview.summary.processing : 0
+  const reconnects = overview ? overview.pages.filter((page) => page.status !== 'ACTIVE').length : 0
+  const activeVideos = videos.filter((item) => ['preparing', 'generating', 'processing'].includes(item.status))
+  const completedVideos = videos.filter((item) => item.status === 'completed' && item.assetUrl).slice(0, 3)
+
+  if (activeVideos.length) {
+    const first = activeVideos[0]
+    const kind = videoKind(first)
+    notices.push({
+      id: `video-rendering-${activeVideos.map((item) => item.id).join('-')}`,
+      title: 'Video rendering in background',
+      description: `${activeVideos.length} video${activeVideos.length === 1 ? '' : 's'} preparing. You can keep working while the render finishes.`,
+      href: `/app/ai-content-studio?videoStudio=${kind}&generation=${encodeURIComponent(first.id)}`,
+      count: activeVideos.length,
+      tone: 'info',
+      icon: kind === 'stock' ? Clapperboard : Film,
+    })
+  }
+
+  completedVideos.forEach((item) => {
+    const kind = videoKind(item)
+    notices.push({
+      id: `video-ready-${item.id}`,
+      title: kind === 'stock' ? 'Stock video is ready' : 'AI video is ready',
+      description: `${(item.prompt || 'Your video').slice(0, 72)}${(item.prompt || '').length > 72 ? '…' : ''}`,
+      href: `/app/ai-content-studio?videoStudio=${kind}&generation=${encodeURIComponent(item.id)}`,
+      count: 1,
+      tone: 'success',
+      icon: kind === 'stock' ? Clapperboard : Film,
+    })
+  })
+
+  if (overview && overview.summary.failed > 0) {
     notices.push({
       id: 'publishing-failed',
       title: 'Publishing needs attention',
@@ -59,7 +96,7 @@ function workspaceNotifications(overview?: StudioOverview): WorkspaceNotificatio
       icon: Clock3,
     })
   }
-  if (overview.summary.scheduled > 0) {
+  if (overview && overview.summary.scheduled > 0) {
     notices.push({
       id: 'content-scheduled',
       title: 'Content is scheduled',
@@ -86,7 +123,13 @@ function workspaceNotifications(overview?: StudioOverview): WorkspaceNotificatio
 }
 
 export function NotificationCenter({ overview }: { overview?: StudioOverview }) {
-  const notices = useMemo(() => workspaceNotifications(overview), [overview])
+  const videosQuery = useQuery({
+    queryKey: ['video-productions', 'notifications'],
+    queryFn: () => getVideoProductions(8),
+    refetchInterval: (state) => state.state.data?.some((item) => ['preparing', 'generating', 'processing'].includes(item.status)) ? 5000 : 30_000,
+    staleTime: 3000,
+  })
+  const notices = useMemo(() => workspaceNotifications(overview, videosQuery.data || []), [overview, videosQuery.data])
   const fingerprint = notices.map((notice) => `${notice.id}:${notice.count}`).join('|')
   const [open, setOpen] = useState(false)
   const [readFingerprint, setReadFingerprint] = useState(() => (
@@ -159,7 +202,7 @@ export function NotificationCenter({ overview }: { overview?: StudioOverview }) 
           </header>
 
           <div className="max-h-[min(430px,65vh)] space-y-2 overflow-y-auto p-3 scrollbar-thin">
-            {!overview ? (
+            {!overview && videosQuery.isLoading ? (
               <div aria-label="Loading notifications" className="space-y-2" role="status">
                 {Array.from({ length: 3 }, (_, index) => <div className="h-[74px] animate-pulse rounded-xl bg-white/[.04] motion-reduce:animate-none" key={index} />)}
               </div>
@@ -180,7 +223,7 @@ export function NotificationCenter({ overview }: { overview?: StudioOverview }) 
                 <div>
                   <span className="mx-auto grid size-12 place-items-center rounded-2xl border border-teal-300/20 bg-teal-400/8 text-teal-300"><Check aria-hidden="true" className="size-5" /></span>
                   <h3 className="mt-3 text-sm font-semibold text-text-main">All caught up</h3>
-                  <p className="mt-1 text-xs leading-5 text-text-muted">New publishing, scheduling, and connection updates will appear here.</p>
+                  <p className="mt-1 text-xs leading-5 text-text-muted">New video, publishing, scheduling, and connection updates will appear here.</p>
                 </div>
               </div>
             )}

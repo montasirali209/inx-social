@@ -102,12 +102,29 @@ export type BrandKit = {
 
 export type GenerationHistoryItem = {
   id: string
-  type: AIContentType
+  type: AIContentType | 'stock_video'
+  provider?: string | null
   prompt: string
   createdAt: string
+  completedAt?: string | null
   creditsUsed: number
   status: Exclude<GenerationStatus, 'idle'>
+  progress?: number
   assetUrl?: string | null
+  thumbnailUrl?: string | null
+}
+
+export type GenerationJob = {
+  id: string
+  type?: AIContentType | 'stock_video'
+  provider?: string | null
+  prompt?: string
+  status: GenerationStatus
+  progress?: number
+  asset?: GeneratedAsset | null
+  error?: string | null
+  createdAt?: string
+  completedAt?: string | null
 }
 
 export type GenerationCostEstimate = {

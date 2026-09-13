@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, History, Send, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   deleteAIDraft,
   duplicateAIDraft,
@@ -36,8 +36,11 @@ import { GenerationModalRouter } from './GenerationModalRouter'
 
 export function AiContentStudioPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
-  const [activeType, setActiveType] = useState<AIContentType | null>(null)
+  const requestedVideoKind = searchParams.get('videoStudio') === 'stock' ? 'stock' : searchParams.get('videoStudio') === 'generative' ? 'generative' : null
+  const requestedGenerationId = searchParams.get('generation')
+  const [activeType, setActiveType] = useState<AIContentType | null>(() => requestedVideoKind ? 'short_video' : null)
   const [editingDraft, setEditingDraft] = useState<AIDraft | null>(null)
   const [upgradeOpen, setUpgradeOpen] = useState(false)
   const [draftsOpen, setDraftsOpen] = useState(false)
@@ -61,7 +64,7 @@ export function AiContentStudioPage() {
   })
   const historyQuery = useQuery({
     queryKey: ['ai-studio-history'],
-    queryFn: getGenerationHistory,
+    queryFn: () => getGenerationHistory(),
     staleTime: 5_000,
     enabled: historyOpen,
   })
@@ -199,7 +202,7 @@ export function AiContentStudioPage() {
       <CreditsCard topUpsSupported={false} />
     </section>
 
-    <GenerationModalRouter access={access} initialDraft={editingDraft} onClose={() => { setActiveType(null); setEditingDraft(null) }} onContinue={(draft) => void continueToPosts(draft)} onSaved={(draft) => void onDraftSaved(draft)} onToast={setToast} open={Boolean(activeType)} type={activeType} />
+    <GenerationModalRouter access={access} initialDraft={editingDraft} initialGenerationId={requestedGenerationId} initialVideoKind={requestedVideoKind} onClose={() => { setActiveType(null); setEditingDraft(null); if (requestedVideoKind || requestedGenerationId) setSearchParams({}, { replace: true }) }} onContinue={(draft) => void continueToPosts(draft)} onSaved={(draft) => void onDraftSaved(draft)} onToast={setToast} open={Boolean(activeType)} type={activeType} />
     <UpgradeToPlusModal onClose={() => setUpgradeOpen(false)} open={upgradeOpen} />
     <GenerationHistoryDrawer history={(historyQuery.data || []) as GenerationHistoryItem[]} onClose={() => setHistoryOpen(false)} open={historyOpen} />
     <Drawer onClose={() => setDraftsOpen(false)} open={draftsOpen} title="AI Content Studio drafts">

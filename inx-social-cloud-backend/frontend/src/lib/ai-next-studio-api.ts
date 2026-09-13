@@ -95,7 +95,7 @@ export function generateStudioVideo(input: VideoStudioSelection & {
   hashtags?: string[]
   script?: string
 }, signal?: AbortSignal) {
-  return apiRequest<GeneratedAsset>('/api/ai-content-studio/generate/video-studio', {
+  return apiRequest<{ id: string; status: 'preparing'; progress: number }>('/api/ai-content-studio/generate/video-studio', {
     method: 'POST', body: JSON.stringify(input), signal,
   })
 }

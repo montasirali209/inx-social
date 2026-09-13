@@ -384,7 +384,18 @@ async function getGeneration(userId, id) {
   const rows = await prisma.$queryRawUnsafe('SELECT * FROM "AiGeneration" WHERE "id"=$1 AND "userId"=$2 LIMIT 1', id, userId);
   const row = rows[0];
   if (!row) throw error('AI generation not found.', 404, 'GENERATION_NOT_FOUND');
-  return { id: row.id, status: String(row.status || '').toLowerCase(), progress: Number(row.progress || 0), asset: parseJson(row.assetJson, null), error: row.errorMessage || null };
+  return {
+    id: row.id,
+    type: row.contentType,
+    provider: row.provider || null,
+    prompt: row.prompt || '',
+    status: String(row.status || '').toLowerCase(),
+    progress: Number(row.progress || 0),
+    asset: parseJson(row.assetJson, null),
+    error: row.errorMessage || null,
+    createdAt: row.createdAt,
+    completedAt: row.completedAt || null
+  };
 }
 
 async function cancelGeneration(userId, id) {
@@ -398,7 +409,22 @@ async function cancelGeneration(userId, id) {
 
 async function history(userId, limit = 50) {
   const rows = await prisma.$queryRawUnsafe('SELECT * FROM "AiGeneration" WHERE "userId"=$1 ORDER BY "createdAt" DESC LIMIT $2', userId, Math.max(1, Math.min(100, Number(limit || 50))));
-  return rows.map(row => ({ id: row.id, type: row.contentType, prompt: row.prompt, createdAt: row.createdAt, creditsUsed: Number(row.creditsUsed || 0), status: String(row.status || '').toLowerCase(), assetUrl: parseJson(row.assetJson, null)?.url || null }));
+  return rows.map(row => {
+    const asset = parseJson(row.assetJson, null);
+    return {
+      id: row.id,
+      type: row.contentType,
+      provider: row.provider || null,
+      prompt: row.prompt,
+      createdAt: row.createdAt,
+      completedAt: row.completedAt || null,
+      creditsUsed: Number(row.creditsUsed || 0),
+      status: String(row.status || '').toLowerCase(),
+      progress: Number(row.progress || 0),
+      assetUrl: asset?.url || null,
+      thumbnailUrl: asset?.thumbnailUrl || null
+    };
+  });
 }
 
 async function hydrateDraft(row) {
