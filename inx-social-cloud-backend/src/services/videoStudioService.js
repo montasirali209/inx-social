@@ -250,6 +250,20 @@ async function persistVideo(userId, generationId, output, input, amount) {
   return { id: record.id, type: 'video', url: publicAsset.fileUrl, prompt: clean(input.prompt, 1500), caption: clean(input.caption, 10000), hashtags: Array.isArray(input.hashtags) ? input.hashtags.map(tag => clean(tag, 100).replace(/^#/, '')).filter(Boolean).slice(0, 20) : [], creditsUsed: amount, createdAt: record.createdAt.toISOString(), aspectRatio: output.aspect, mediaLibraryAssetId: record.id, script: clean(input.script, 5000), completionStatus: 'completed' };
 }
 
+async function runVideoGeneration(userId, generationId, input, amount, profile, duration, resolution, aspect) {
+  try {
+    const reference = await sourceImage(userId, input.sourceMediaLibraryAssetId);
+    if (reference && !profile.imageReferenceSupported) throw publicError('The selected model does not accept an image reference.', 'AI_VIDEO_REFERENCE_UNSUPPORTED', 422);
+    await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"progress"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'PROCESSING', 5);
+    const output = await providerGenerate({ ...input, duration, resolution, aspectRatio: aspect, modelRoute: profile.id }, reference, progress => { void prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"progress"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'PROCESSING', Math.max(5, Math.min(95, progress))).catch(() => {}); });
+    const asset = await persistVideo(userId, generationId, output, input, amount); await credits.complete(userId, generationId, amount);
+    await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"progress"=100,"model"=$3,"providerCostUsd"=$4,"taskUuid"=$5,"assetJson"=$6,"responseJson"=$7,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'COMPLETED', output.model, Number(output.item.cost || 0), output.taskUUID, JSON.stringify(asset), JSON.stringify({ route: output.route, duration, resolution, creditsUsed: amount }));
+  } catch (caught) {
+    await credits.refund(userId, generationId, caught?.code || 'video_failed').catch(() => {});
+    await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"errorCode"=$3,"errorMessage"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'FAILED', clean(caught?.code || 'AI_VIDEO_FAILED', 120), clean(caught?.publicMessage || caught?.message || 'Video generation failed.', 700)).catch(() => {});
+  }
+}
+
 async function generateVideo(userId, input = {}) {
   if (!runware.isConfigured()) throw publicError('Video generation is temporarily unavailable.', 'AI_VIDEO_NOT_CONFIGURED', 503);
   if (clean(input.prompt, 1500).length < 2) throw publicError('Describe the video you want to create.');
@@ -258,21 +272,11 @@ async function generateVideo(userId, input = {}) {
   if (!profile.durations.includes(duration)) throw publicError('Choose a duration supported by the selected model.', 'AI_VIDEO_DURATION_UNSUPPORTED', 422);
   if (!profile.resolutions.includes(resolution)) throw publicError('Choose a resolution supported by the selected model.', 'AI_VIDEO_RESOLUTION_UNSUPPORTED', 422);
   if (!profile.aspects.includes(aspect)) throw publicError('Choose a supported video aspect ratio.', 'AI_VIDEO_ASPECT_UNSUPPORTED', 422);
-  const amount = estimateCredits({ ...input, duration, resolution, aspectRatio: aspect, modelRoute: profile.id }); await credits.getBalance(userId);
-  const generationId = await createGenerationRow(userId, { ...input, duration, resolution, aspectRatio: aspect, modelRoute: profile.id }, amount);
-  try {
-    const reference = await sourceImage(userId, input.sourceMediaLibraryAssetId);
-    if (reference && !profile.imageReferenceSupported) throw publicError('The selected model does not accept an image reference.', 'AI_VIDEO_REFERENCE_UNSUPPORTED', 422);
-    await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"progress"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'PROCESSING', 5);
-    const output = await providerGenerate({ ...input, duration, resolution, aspectRatio: aspect, modelRoute: profile.id }, reference, progress => { void prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"progress"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'PROCESSING', Math.max(5, Math.min(95, progress))).catch(() => {}); });
-    const asset = await persistVideo(userId, generationId, output, input, amount); await credits.complete(userId, generationId, amount);
-    await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"progress"=100,"model"=$3,"providerCostUsd"=$4,"taskUuid"=$5,"assetJson"=$6,"responseJson"=$7,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'COMPLETED', output.model, Number(output.item.cost || 0), output.taskUUID, JSON.stringify(asset), JSON.stringify({ route: output.route, duration, resolution, creditsUsed: amount }));
-    return asset;
-  } catch (caught) {
-    await credits.refund(userId, generationId, caught?.code || 'video_failed').catch(() => {});
-    await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"errorCode"=$3,"errorMessage"=$4,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'FAILED', clean(caught?.code || 'AI_VIDEO_FAILED', 120), clean(caught?.publicMessage || caught?.message || 'Video generation failed.', 700)).catch(() => {});
-    throw caught;
-  }
+  const normalized = { ...input, duration, resolution, aspectRatio: aspect, modelRoute: profile.id };
+  const amount = estimateCredits(normalized); await credits.getBalance(userId);
+  const generationId = await createGenerationRow(userId, normalized, amount);
+  setImmediate(() => { void runVideoGeneration(userId, generationId, normalized, amount, profile, duration, resolution, aspect); });
+  return { id: generationId, status: 'preparing', progress: 0 };
 }
 
 module.exports = { catalog, estimateCredits, recommendModel, generateVideo };

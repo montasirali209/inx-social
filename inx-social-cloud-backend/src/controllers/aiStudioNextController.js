@@ -86,7 +86,7 @@ async function videoEstimate(req, res, next) {
 }
 
 async function generateVideo(req, res, next) {
-  try { res.json(await videoStudio.generateVideo(req.user.id, videoGenerationSchema.parse(req.body || {}))); } catch (error) { next(error); }
+  try { res.status(202).json(await videoStudio.generateVideo(req.user.id, videoGenerationSchema.parse(req.body || {}))); } catch (error) { next(error); }
 }
 
 async function stockVideoAccess(req, res, next) {

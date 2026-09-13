@@ -66,6 +66,26 @@ test('Video Studio keeps the model decision simple with AI Recommended, Fast and
   assert.match(routes, /\/generate\/video-studio/);
 });
 
+test('Short Video opens an animated creator choice and both video routes use persistent background jobs', () => {
+  const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV2.tsx');
+  const stock = read('frontend/src/components/ai-content-studio/StockVideoCreator.tsx');
+  const rail = read('frontend/src/components/ai-content-studio/VideoProductionRail.tsx');
+  const notifications = read('frontend/src/components/layout/NotificationCenter.tsx');
+  const controller = read('src/controllers/aiStudioNextController.js');
+  const service = read('src/services/videoStudioService.js');
+  assert.match(video, /How would you like to create it\?/);
+  assert.match(video, /AI Generated Video/);
+  assert.match(video, /Open Stock Video Creator/);
+  assert.match(video, /ACTIVE_AI_VIDEO_JOB_KEY/);
+  assert.match(stock, /VideoProductionRail/);
+  assert.match(rail, /Media preparing/);
+  assert.match(rail, /getVideoProductions/);
+  assert.match(notifications, /Video rendering in background/);
+  assert.match(notifications, /generation=\$\{encodeURIComponent/);
+  assert.match(controller, /generateVideo[\s\S]*res\.status\(202\)/);
+  assert.match(service, /setImmediate\(\(\) => \{ void runVideoGeneration/);
+});
+
 test('Image Post retains professional animated styling for any remaining native dropdowns', () => {
   const router = read('frontend/src/components/ai-content-studio/GenerationModalRouter.tsx');
   const styles = read('frontend/src/components/ai-content-studio/studio-controls.css');

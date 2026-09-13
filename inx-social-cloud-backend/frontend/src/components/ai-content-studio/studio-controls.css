@@ -27,3 +27,16 @@ select[class*="border-border-soft"] option {
   background: #061824;
   color: #f4fbfd;
 }
+
+@keyframes video-studio-choice-enter {
+  from { opacity: 0; transform: translateY(18px) scale(.965); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.video-studio-choice-pop {
+  animation: video-studio-choice-enter .38s cubic-bezier(.2,.85,.25,1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .video-studio-choice-pop { animation: none; }
+}

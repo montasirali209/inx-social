@@ -8,6 +8,7 @@ import type {
   GeneratedAsset,
   GenerationCostEstimate,
   GenerationHistoryItem,
+  GenerationJob,
   GenerationRequest,
   GenerationStatus,
 } from '../types/ai-content-studio'
@@ -112,7 +113,7 @@ export function generateUGCAd(request: GenerationRequest, signal?: AbortSignal) 
 }
 
 export function getGenerationStatus(id: string) {
-  return apiRequest<{ id: string; status: GenerationStatus; progress?: number; asset?: GeneratedAsset | null; error?: string | null }>(`/api/ai-content-studio/generations/${encodeURIComponent(id)}`)
+  return apiRequest<GenerationJob>(`/api/ai-content-studio/generations/${encodeURIComponent(id)}`)
 }
 
 export function cancelGeneration(id: string) {
@@ -216,14 +217,19 @@ export async function getBrandKits(): Promise<BrandKit[]> {
   }
 }
 
-export async function getGenerationHistory(): Promise<GenerationHistoryItem[]> {
+export async function getGenerationHistory(limit = 50): Promise<GenerationHistoryItem[]> {
   try {
-    const response = await apiRequest<{ history: GenerationHistoryItem[] }>('/api/ai-content-studio/history?limit=50')
+    const response = await apiRequest<{ history: GenerationHistoryItem[] }>(`/api/ai-content-studio/history?limit=${Math.max(1, Math.min(100, limit))}`)
     return response.history
   } catch (error) {
     if (!(error instanceof ApiError) || ![404, 501].includes(error.status)) throw error
     return readLocal<GenerationHistoryItem[]>(HISTORY_KEY, [])
   }
+}
+
+export async function getVideoProductions(limit = 12): Promise<GenerationHistoryItem[]> {
+  const history = await getGenerationHistory(Math.max(limit * 3, 30))
+  return history.filter((item) => item.type === 'short_video' || item.type === 'stock_video').slice(0, limit)
 }
 
 export function rememberGeneration(item: GenerationHistoryItem) {

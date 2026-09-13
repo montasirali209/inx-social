@@ -4,12 +4,15 @@ import { ImagePostChatModal } from './ImagePostChatModal'
 import { CarouselChatModal } from './CarouselChatModal'
 import { VideoStudioModal } from './VideoStudioModal'
 import './studio-controls.css'
+import type { VideoProductionKind } from './video-production-utils'
 
 export function GenerationModalRouter(props: {
   open: boolean
   type: AIContentType | null
   access: AIPlanAccess
   initialDraft?: AIDraft | null
+  initialVideoKind?: VideoProductionKind | null
+  initialGenerationId?: string | null
   onClose: () => void
   onSaved: (draft: AIDraft) => void
   onContinue: (draft: AIDraft) => void
