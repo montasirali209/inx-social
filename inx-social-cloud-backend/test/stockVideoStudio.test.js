@@ -26,7 +26,7 @@ test('Stock Video Creator delegates to the isolated real OpenMontage runtime and
   const dockerfile = read('../openmontage-worker/Dockerfile');
   const notice = read('../OPENMONTAGE-NOTICE.md');
   assert.match(service, /openMontageUrl.*\/jobs/);
-  assert.match(service, /OPENMONTAGE_PIPELINE_FAILED/);
+  assert.match(service, /STOCK_VIDEO_PIPELINE_FAILED/);
   assert.match(dockerfile, /github\.com\/calesthio\/OpenMontage\.git/);
   assert.match(dockerfile, /08e2151fa02de28a5d6a312b3d575692bf147ad7/);
   assert.match(worker, /registry\.get\("direct_clip_search"\)/);
@@ -83,11 +83,24 @@ test('Stock Video Creator UI resumes active jobs and hands completed video to Po
   assert.match(component, /Licensed-source provenance included/);
   assert.match(component, /Licensed footage sources/);
   assert.match(component, /sourceGroups/);
-  assert.match(component, /Authorize the complete OpenMontage run/);
-  assert.match(component, /stageCount/);
-  assert.match(component, /Pexels\/Pixabay only/);
+  assert.match(component, /Create stock video/);
+  assert.doesNotMatch(component, /Real OpenMontage runtime|OpenMontage connected|Loading allowance|Create with OpenMontage/);
+  assert.match(component, /disabled=\{working \|\| noRemaining \|\| prompt\.trim\(\)\.length < 2\}/);
   assert.match(videoStudio, /Stock Video Creator/);
   assert.match(videoStudio, /StockVideoCreator/);
+  assert.doesNotMatch(videoStudio, /OpenMontage writes/);
+});
+
+test('script checkpoints normalize required duration before every schema validation', () => {
+  const worker = read('../openmontage-worker/main.py');
+  assert.match(worker, /def normalize_script_payload/);
+  assert.match(worker, /normalized\.setdefault\("version", "1\.0"\)/);
+  assert.match(worker, /normalized\.setdefault\("title", "Untitled video"\)/);
+  assert.match(worker, /normalized\["total_duration_seconds"\] = duration/);
+  assert.match(worker, /\(job\.get\("request"\) or \{\}\)\.get\("duration"\)/);
+  assert.match(worker, /"normalization_applied": applied/);
+  assert.match(worker, /"selected_ui_duration": selected_ui_duration/);
+  assert.match(worker, /"normalized_script_payload": normalized/);
 });
 
 test('Stock video plans are normalised to a safe social-video envelope', () => {

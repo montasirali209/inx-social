@@ -290,7 +290,45 @@ def create_plan(req: JobRequest) -> dict[str, Any]:
         return normalize_plan(fallback_plan(req), req)
 
 
+def normalize_script_payload(payload: dict[str, Any], selected_ui_duration: Any = None) -> dict[str, Any]:
+    """Guarantee the upstream script schema before any checkpoint validator sees it."""
+    normalized = dict(payload or {})
+    applied = False
+    normalized.setdefault("version", "1.0")
+    normalized.setdefault("title", "Untitled video")
+    if not isinstance(normalized.get("sections"), list):
+        normalized["sections"] = []
+        applied = True
+
+    duration = normalized.get("total_duration_seconds")
+    if duration is None:
+        duration = normalized.get("target_duration_seconds")
+    if duration is None:
+        duration = selected_ui_duration
+    if duration is None:
+        duration = sum(float(section.get("duration_seconds") or 0) for section in normalized["sections"] if isinstance(section, dict))
+    try:
+        duration = float(duration)
+    except (TypeError, ValueError):
+        duration = 0.0
+    if duration <= 0:
+        raise ValueError("Script duration could not be resolved from the request or generated sections")
+    if normalized.get("total_duration_seconds") != duration:
+        normalized["total_duration_seconds"] = duration
+        applied = True
+
+    print(json.dumps({
+        "event": "script_schema_normalization",
+        "normalization_applied": applied,
+        "selected_ui_duration": selected_ui_duration,
+        "normalized_script_payload": normalized,
+    }, ensure_ascii=False), flush=True)
+    return normalized
+
+
 def write_stage(job: dict[str, Any], stage: str, artifact_name: str, artifact: dict[str, Any], progress: int) -> None:
+    if artifact_name == "script":
+        artifact = normalize_script_payload(artifact, (job.get("request") or {}).get("duration"))
     write_checkpoint(PROJECTS, job["id"], stage, "completed", {artifact_name: artifact},
                      pipeline_type="inx-stock-montage", style_playbook="clean-professional",
                      checkpoint_policy="auto_noncreative", human_approved=True,
@@ -523,7 +561,7 @@ def run_job(job: dict[str, Any], req: JobRequest) -> None:
                               "music_plan": {"source": "pixabay_music", "fallback": "generated_original"}, "render_runtime": "remotion"}}
         write_stage(job, "idea", "brief", brief, 12)
 
-        script_artifact = {"version": "1.0", "title": brief["title"], "target_duration_seconds": req.duration,
+        script_artifact = {"version": "1.0", "title": brief["title"], "total_duration_seconds": req.duration, "target_duration_seconds": req.duration,
                            "word_count": len(str(plan.get("narration") or "").split()),
                            "sections": [{"id": f"beat_{index + 1:02d}", "text": str(scene.get("narration") or ""),
                                          "duration_seconds": float(scene.get("seconds") or 0), "visual_direction": str(scene.get("description") or "")}
