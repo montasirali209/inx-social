@@ -1,5 +1,6 @@
 const { z } = require('zod');
 const service = require('../services/socialConnectionService');
+const linkedin = require('../services/linkedinPublishingService');
 
 const oauthPlatformSchema = z.enum(['instagram', 'linkedin', 'youtube', 'x']);
 const facebookCompleteSchema = z.object({
@@ -55,6 +56,12 @@ async function startOAuth(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function startLinkedIn(req, res, next) {
+  try {
+    res.json(linkedin.authorization(req.user.id));
+  } catch (error) { next(error); }
+}
+
 async function oauthCallback(req, res) {
   const platform = String(req.params.platform || '').toLowerCase();
   try {
@@ -75,10 +82,71 @@ async function oauthCallback(req, res) {
   }
 }
 
+async function linkedinCallback(req, res) {
+  try {
+    const connection = await linkedin.completeOAuth(req.query || {});
+    const profile = connection?.profiles?.find(item => item.status === 'ACTIVE') || connection?.profiles?.[0];
+    completionPage(res, {
+      ok: true,
+      platform: 'linkedin',
+      connectionId: connection.id,
+      notice: `${profile?.displayName || connection.displayName || 'LinkedIn'} is ready to publish from INXSocial.`
+    });
+  } catch (error) {
+    completionPage(res, { ok: false, platform: 'linkedin', error: String(error.publicMessage || error.response?.data?.message || error.message || 'LinkedIn could not be connected.').slice(0, 300) });
+  }
+}
+
 async function syncInstagram(req, res, next) {
   try {
     const result = await service.syncInstagram(req.user.id);
     res.json({ connections: result.connections.map(service.publicConnection), warnings: result.errors });
+  } catch (error) { next(error); }
+}
+
+async function createLinkedInPosts(req, res, next) {
+  try {
+    const result = await linkedin.createPublications(req.user.id, req.body || {});
+    res.status(result.failures.length ? 207 : 201).json(result);
+  } catch (error) { next(error); }
+}
+
+async function readBody(req, maxBytes = 100 * 1024 * 1024) {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of req) {
+    total += chunk.length;
+    if (total > maxBytes) throw Object.assign(new Error('LinkedIn media uploads must be 100 MB or smaller.'), { status: 413, publicMessage: 'LinkedIn media uploads must be 100 MB or smaller.' });
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+async function uploadLinkedInMedia(req, res, next) {
+  try {
+    const data = await readBody(req);
+    const job = await linkedin.attachMedia(req.user.id, req.params.id, {
+      data,
+      mimeType: String(req.headers['content-type'] || 'application/octet-stream').split(';')[0],
+      fileName: String(req.headers['x-file-name'] || '') || null
+    });
+    res.json({ job, published: job.status === 'PUBLISHED', scheduled: job.status === 'SCHEDULED' });
+  } catch (error) { next(error); }
+}
+
+async function publishLinkedInLibraryMedia(req, res, next) {
+  try {
+    const publication = await linkedin.listPublications(req.user.id, 250);
+    const match = publication.find(job => job.id === `linkedin:${req.params.id}`);
+    if (!match?.mediaLibraryAssetId) return res.status(404).json({ error: 'The LinkedIn publication has no Media Library asset.' });
+    const job = await linkedin.attachMedia(req.user.id, req.params.id, { mediaLibraryAssetId: match.mediaLibraryAssetId });
+    res.json({ job, published: job.status === 'PUBLISHED', scheduled: job.status === 'SCHEDULED', reusableMedia: true });
+  } catch (error) { next(error); }
+}
+
+async function listLinkedInPublications(req, res, next) {
+  try {
+    res.json({ jobs: await linkedin.listPublications(req.user.id, req.query.limit) });
   } catch (error) { next(error); }
 }
 
@@ -88,4 +156,18 @@ async function disconnect(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { list, startFacebook, completeFacebook, startOAuth, oauthCallback, syncInstagram, disconnect };
+module.exports = {
+  list,
+  startFacebook,
+  completeFacebook,
+  startOAuth,
+  startLinkedIn,
+  oauthCallback,
+  linkedinCallback,
+  syncInstagram,
+  createLinkedInPosts,
+  uploadLinkedInMedia,
+  publishLinkedInLibraryMedia,
+  listLinkedInPublications,
+  disconnect
+};
