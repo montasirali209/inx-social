@@ -4,6 +4,7 @@ import { Activity, AlertTriangle, CalendarClock, Files, RefreshCw, Send, UsersRo
 import { ApiError } from '../../lib/api-client'
 import { fetchAnalyticsForSource, fetchAnalyticsSources } from '../../lib/analytics-api'
 import { buildActivitySeries, buildDashboardView, fetchDashboardJobs } from '../../lib/dashboard-api'
+import { fetchUniversalPublishingKpis, universalPublishingKpiQueryKey } from '../../lib/universal-publishing-kpis'
 import type { DashboardAnalyticsEntry } from '../../types/dashboard'
 import { AIStudioPromoCard } from './AIStudioPromoCard'
 import { PlatformDonutChart } from './PlatformDonutChart'
@@ -48,6 +49,12 @@ export function DashboardPage() {
     queryKey: ['dashboard-jobs'],
     queryFn: fetchDashboardJobs,
     refetchInterval: 60_000,
+  })
+  const universalKpis = useQuery({
+    queryKey: universalPublishingKpiQueryKey,
+    queryFn: fetchUniversalPublishingKpis,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   })
 
   const accounts = sources.data?.accounts || []
@@ -98,9 +105,21 @@ export function DashboardPage() {
     () => buildActivitySeries(jobs.data || [], activityRangeDays, new Date(), analyticsEntries),
     [activityRangeDays, analyticsEntries, jobs.data],
   )
+  const dashboardStats = useMemo(() => {
+    if (!data) return []
+    const universal = universalKpis.data
+    return [
+      { ...data.stats[0], label: 'Published', value: universal?.published ?? data.overview.summary.published, detail: 'Published via INXSocial' },
+      { ...data.stats[1], label: 'Scheduled', value: universal?.scheduled ?? data.overview.summary.scheduled, detail: 'Future publishing slots' },
+      { ...data.stats[2], label: 'Drafts', value: universal?.drafts ?? data.overview.summary.draft, detail: 'Saved unfinished posts' },
+      { ...data.stats[3], label: 'Needs Review', value: universal?.needsReview ?? (data.overview.summary.failed + data.overview.summary.awaitingUpload), detail: 'Action required' },
+      data.stats[4],
+      { ...data.stats[5], label: 'Connected Accounts', value: universal?.connectedAccounts ?? accounts.length, detail: 'Across all active platforms' },
+    ]
+  }, [accounts.length, data, universalKpis.data])
 
   function refreshDashboard() {
-    void Promise.all([sources.refetch(), jobs.refetch(), analytics.refetch()])
+    void Promise.all([sources.refetch(), jobs.refetch(), analytics.refetch(), universalKpis.refetch()])
   }
 
   if ((sources.isPending || jobs.isPending) && !data) return <DashboardSkeleton />
@@ -133,8 +152,8 @@ export function DashboardPage() {
         </div>
       ) : null}
 
-      <section aria-label="All-account publishing overview" className="flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-3 md:overflow-visible xl:grid-cols-6">
-        {data.stats.map((stat, index) => <StatCard data={stat} icon={statIcons[index]} key={stat.label} />)}
+      <section aria-label="Universal publishing overview" className="flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-3 md:overflow-visible xl:grid-cols-6">
+        {dashboardStats.map((stat, index) => <StatCard data={stat} icon={statIcons[index]} key={stat.label} />)}
       </section>
 
       <section aria-label="Workspace publishing activity" className="grid min-h-0 items-stretch gap-3 xl:grid-cols-[minmax(0,1.9fr)_minmax(300px,.85fr)]">
