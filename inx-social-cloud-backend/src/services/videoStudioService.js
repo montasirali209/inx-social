@@ -209,8 +209,8 @@ function buildProviderTask(profile, input, reference, taskUUID) {
     const [width, height] = dimensions(resolution, aspect); task.width = width; task.height = height;
   }
   if (profile.id === 'pvideo') { task.settings = { audio, draft: Boolean(input.draft), promptUpsampling: true }; task.fps = 24; }
-  // Wan 3.0 produces native audio from the prompt. Its current Runware schema does not expose promptExtend,
-  // so keep this request on the documented core video fields instead of sending a stale optional setting.
+  // Wan 3.0 produces native audio from the prompt. Keep this request on Runware's documented core
+  // video fields instead of sending model settings that are absent from the current schema.
   if (profile.id === 'wan30' && !audio) task.positivePrompt = `${task.positivePrompt}\n\nCreate a silent video with no dialogue, voice, music or sound effects.`;
   if (profile.id === 'ltx25pro' || profile.id === 'seedance25') task.settings = { audio };
   if (profile.id === 'kling30') task.providerSettings = { klingai: { sound: audio } };
