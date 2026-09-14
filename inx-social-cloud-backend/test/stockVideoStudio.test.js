@@ -27,6 +27,7 @@ test('Stock Video Creator delegates to the full isolated OpenMontage service and
   const compatibility = read('../openmontage-worker/compat_bridge.py');
   const stockProfile = read('../openmontage-worker/stock_compat_entry.py');
   const dockerfile = read('../openmontage-worker/Dockerfile');
+  const railway = read('../openmontage-worker/railway.toml');
   const notice = read('../OPENMONTAGE-NOTICE.md');
 
   assert.match(service, /axios\.post\(`\$\{env\.stockVideo\.openMontageUrl\}\/jobs`/);
@@ -39,6 +40,7 @@ test('Stock Video Creator delegates to the full isolated OpenMontage service and
   assert.match(dockerfile, /github\.com\/calesthio\/OpenMontage\.git/);
   assert.match(dockerfile, /08e2151fa02de28a5d6a312b3d575692bf147ad7/);
   assert.match(dockerfile, /uvicorn stock_compat_entry:app/);
+  assert.match(railway, /uvicorn stock_compat_entry:app/);
   assert.match(stockProfile, /STOCK_PIPELINE = "documentary-montage"/);
   assert.match(stockProfile, /force_ffmpeg=true/);
   assert.match(stockProfile, /small bottom-centred/);
@@ -102,6 +104,20 @@ test('full worker requires a reviewed final video and retains production artifac
   assert.match(bridge, /"upstreamModified": False/);
   assert.match(bridge, /"renderer": "openmontage-native"/);
   assert.match(bridge, /Preserve provenance, checkpoints, decision logs, costs and review artifacts/);
+});
+
+test('Stock Video Creator recovers durable jobs across SaaS and worker restarts', () => {
+  const service = read('src/services/stockVideoStudioService.js');
+  const server = read('src/server.js');
+
+  assert.match(service, /recoverStockVideoJobs/);
+  assert.match(service, /"taskUuid"/);
+  assert.match(service, /STOCK_VIDEO_WORKER_INTERRUPTED/);
+  assert.match(service, /worker state was unavailable; restarting saved production/);
+  assert.match(service, /worker lost active state; restarting saved production/);
+  assert.match(service, /INTERVAL '15 seconds'/);
+  assert.doesNotMatch(service, /SET "status"='FAILED'.*STOCK_VIDEO_WORKER_INTERRUPTED/);
+  assert.match(server, /startStockVideoRuntime\(\)/);
 });
 
 test('Stock Video Creator UI resumes active jobs and hands completed video to Posts', () => {
