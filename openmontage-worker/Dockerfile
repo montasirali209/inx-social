@@ -30,7 +30,7 @@ RUN cd /opt/OpenMontage/remotion-composer && npm ci \
     && cd /opt/OpenMontage \
     && npx --yes hyperframes --version >/dev/null 2>&1 || true
 
-COPY full_bridge.py compat_bridge.py /app/
+COPY full_bridge.py compat_bridge.py stock_compat_entry.py /app/
 
 ENV OPENMONTAGE_ROOT=/opt/OpenMontage \
     OPENMONTAGE_COMMIT=$OPENMONTAGE_COMMIT \
@@ -39,4 +39,4 @@ ENV OPENMONTAGE_ROOT=/opt/OpenMontage \
     PYTHONPATH=/opt/OpenMontage
 
 WORKDIR /app
-CMD ["/bin/sh", "-c", "/opt/venv/bin/uvicorn compat_bridge:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["/bin/sh", "-c", "/opt/venv/bin/uvicorn stock_compat_entry:app --host 0.0.0.0 --port ${PORT:-8080}"]
