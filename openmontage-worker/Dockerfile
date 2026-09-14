@@ -9,8 +9,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Keep the upstream OpenMontage checkout pristine. INXSocial integration lives
-# entirely in /app/full_bridge.py and never overwrites upstream tools, skills,
-# pipeline manifests, provider registries, schemas or renderers.
+# only in /app and never overwrites upstream tools, skills, pipeline manifests,
+# provider registries, schemas or renderers.
 WORKDIR /opt
 RUN git clone https://github.com/calesthio/OpenMontage.git OpenMontage \
     && cd OpenMontage \
@@ -30,7 +30,7 @@ RUN cd /opt/OpenMontage/remotion-composer && npm ci \
     && cd /opt/OpenMontage \
     && npx --yes hyperframes --version >/dev/null 2>&1 || true
 
-COPY full_bridge.py /app/full_bridge.py
+COPY full_bridge.py compat_bridge.py /app/
 
 ENV OPENMONTAGE_ROOT=/opt/OpenMontage \
     OPENMONTAGE_COMMIT=$OPENMONTAGE_COMMIT \
@@ -39,4 +39,4 @@ ENV OPENMONTAGE_ROOT=/opt/OpenMontage \
     PYTHONPATH=/opt/OpenMontage
 
 WORKDIR /app
-CMD ["/bin/sh", "-c", "/opt/venv/bin/uvicorn full_bridge:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["/bin/sh", "-c", "/opt/venv/bin/uvicorn compat_bridge:app --host 0.0.0.0 --port ${PORT:-8080}"]
