@@ -25,6 +25,7 @@ test('Stock Video Creator delegates to the full isolated OpenMontage service and
   const service = read('src/services/stockVideoStudioService.js');
   const bridge = read('../openmontage-worker/full_bridge.py');
   const compatibility = read('../openmontage-worker/compat_bridge.py');
+  const stockProfile = read('../openmontage-worker/stock_compat_entry.py');
   const dockerfile = read('../openmontage-worker/Dockerfile');
   const notice = read('../OPENMONTAGE-NOTICE.md');
 
@@ -37,7 +38,10 @@ test('Stock Video Creator delegates to the full isolated OpenMontage service and
 
   assert.match(dockerfile, /github\.com\/calesthio\/OpenMontage\.git/);
   assert.match(dockerfile, /08e2151fa02de28a5d6a312b3d575692bf147ad7/);
-  assert.match(dockerfile, /uvicorn compat_bridge:app/);
+  assert.match(dockerfile, /uvicorn stock_compat_entry:app/);
+  assert.match(stockProfile, /STOCK_PIPELINE = "documentary-montage"/);
+  assert.match(stockProfile, /force_ffmpeg=true/);
+  assert.match(stockProfile, /small bottom-centred/);
   assert.match(bridge, /@app\.post\("\/jobs"/);
   assert.match(bridge, /@app\.get\("\/jobs\/\{job_id\}"/);
   assert.match(bridge, /@app\.get\("\/jobs\/\{job_id\}\/output"/);
