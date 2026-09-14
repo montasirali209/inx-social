@@ -1,12 +1,14 @@
-"""INXSocial HTTP compatibility surface for the full, unchanged OpenMontage engine.
+"""INXSocial compatibility surface for the full, unchanged OpenMontage engine.
 
-This module does not patch upstream OpenMontage. It only keeps the existing
-INXSocial backend contract stable while exposing the complete capability
-catalog produced by full_bridge.
+This module keeps the existing INXSocial backend contract stable while routing
+new productions through the complete upstream pipeline/tool/skill/provider
+catalog exposed by full_bridge.
 """
 from __future__ import annotations
 
 from typing import Any
+
+from fastapi import HTTPException
 
 import full_bridge as bridge
 
@@ -29,24 +31,53 @@ def _compatible_capabilities() -> dict[str, Any]:
     ]
 
     native.update({
-        # Legacy fields consumed by the current INXSocial backend.
         "commit": native.get("openmontageCommit"),
         "pipelines": pipeline_ids,
         "pipelineCatalog": pipeline_catalog,
         "professionalSources": active_sources,
-        "providerMenu": native.get("providerMenu") or [],
+        "providerMenu": native.get("providerMenu") or {},
         "studioWorkflow": {
-            "name": "full-video-production",
+            "name": "native-auto-routing",
             "version": "2.0",
             "stageCount": 0,
             "stages": [],
         },
-        # Explicit full-engine metadata for new clients.
         "fullIntegration": True,
         "upstreamModified": False,
     })
     return native
 
 
+def _auto_pipeline(req: bridge.JobRequest) -> str:
+    """Use all upstream pipelines by default; honor an explicit pipeline choice."""
+    if req.pipeline and str(req.pipeline).strip():
+        return str(req.pipeline).strip()
+    return "auto"
+
+
 bridge._capabilities = _compatible_capabilities
+bridge._selected_pipeline = _auto_pipeline
 app = bridge.app
+
+
+@app.get("/ready")
+def ready() -> dict[str, Any]:
+    capabilities = _compatible_capabilities()
+    pipelines = list(capabilities.get("pipelineCatalog") or [])
+    tool_count = int(capabilities.get("toolCount") or 0)
+    if not pipelines or tool_count <= 0:
+        raise HTTPException(status_code=503, detail={
+            "ready": False,
+            "pipelineCount": len(pipelines),
+            "toolCount": tool_count,
+        })
+    return {
+        "ready": True,
+        "runtime": capabilities.get("runtime"),
+        "commit": capabilities.get("commit"),
+        "pipelineCount": len(pipelines),
+        "toolCount": tool_count,
+        "skillsCount": int(capabilities.get("skillsCount") or 0),
+        "availableStockSources": len(capabilities.get("professionalSources") or []),
+        "fullIntegration": True,
+    }
