@@ -2,15 +2,19 @@ const router = require('express').Router();
 const express = require('express');
 const { requireAuth } = require('../middleware/authMiddleware');
 const controller = require('../controllers/studioController');
+const facebookPagePictureController = require('../controllers/facebookPagePictureController');
 const analyticsController = require('../controllers/analyticsController');
 require('../services/carouselMetaPublisherFix').install();
 const carouselPostController = require('../controllers/carouselPostController');
 
 router.get('/media-library/assets/:id/content', controller.mediaLibraryAssetContent);
+// Facebook Page profile images are public provider assets. Serve them through
+// the backend before bearer auth so regular <img> elements can load them while
+// keeping Meta Page tokens server-side.
+router.get('/pages/:id/picture', facebookPagePictureController.pagePicture);
 router.use(requireAuth);
 router.get('/capabilities', controller.capabilities);
 router.get('/desktop-state', controller.desktopState);
-router.get('/pages/:id/picture', controller.pagePicture);
 router.get('/preferences', controller.preferences);
 router.put('/preferences', controller.savePreferences);
 router.post('/preferences/reset-ui-texts', controller.resetUiTexts);

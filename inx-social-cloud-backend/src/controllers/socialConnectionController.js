@@ -1,6 +1,7 @@
 const { z } = require('zod');
 const service = require('../services/socialConnectionService');
 const linkedin = require('../services/linkedinPublishingService');
+const linkedinOAuth = require('../services/linkedinOAuthService');
 
 const oauthPlatformSchema = z.enum(['instagram', 'linkedin', 'youtube', 'x']);
 const facebookCompleteSchema = z.object({
@@ -52,13 +53,15 @@ async function completeFacebook(req, res, next) {
 async function startOAuth(req, res, next) {
   try {
     const platform = oauthPlatformSchema.parse(req.params.platform);
-    res.json(service.authorization(platform, req.user.id));
+    res.json(platform === 'linkedin'
+      ? linkedinOAuth.authorization(req.user.id)
+      : service.authorization(platform, req.user.id));
   } catch (error) { next(error); }
 }
 
 async function startLinkedIn(req, res, next) {
   try {
-    res.json(linkedin.authorization(req.user.id));
+    res.json(linkedinOAuth.authorization(req.user.id));
   } catch (error) { next(error); }
 }
 
@@ -66,25 +69,29 @@ async function oauthCallback(req, res) {
   const platform = String(req.params.platform || '').toLowerCase();
   try {
     oauthPlatformSchema.parse(platform);
-    const connection = await service.completeOAuth(platform, req.query || {});
+    const connection = platform === 'linkedin'
+      ? await linkedinOAuth.completeOAuth(req.query || {})
+      : await service.completeOAuth(platform, req.query || {});
     const profile = connection?.profiles?.find(item => item.status === 'ACTIVE') || connection?.profiles?.[0];
     const instagramLabel = profile?.username ? `@${profile.username}` : profile?.displayName || connection?.displayName;
     completionPage(res, {
       ok: true,
       platform,
       connectionId: connection.id,
-      notice: platform === 'instagram' && instagramLabel
-        ? `${instagramLabel} connected directly to INXSocial.`
-        : undefined
+      notice: platform === 'linkedin'
+        ? `${profile?.displayName || connection.displayName || 'LinkedIn'} is ready to publish from INXSocial.`
+        : platform === 'instagram' && instagramLabel
+          ? `${instagramLabel} connected directly to INXSocial.`
+          : undefined
     });
   } catch (error) {
-    completionPage(res, { ok: false, platform, error: String(error.publicMessage || error.message || 'The social account could not be connected.').slice(0, 300) });
+    completionPage(res, { ok: false, platform, error: String(error.publicMessage || error.response?.data?.message || error.message || 'The social account could not be connected.').slice(0, 300) });
   }
 }
 
 async function linkedinCallback(req, res) {
   try {
-    const connection = await linkedin.completeOAuth(req.query || {});
+    const connection = await linkedinOAuth.completeOAuth(req.query || {});
     const profile = connection?.profiles?.find(item => item.status === 'ACTIVE') || connection?.profiles?.[0];
     completionPage(res, {
       ok: true,
