@@ -18,6 +18,9 @@ const FINAL_MAX_BYTES = 120 * 1024 * 1024;
 const activeJobs = new Set();
 const pendingJobs = [];
 const MAX_CONCURRENT_JOBS = () => Math.max(1, Math.min(4, Number(process.env.STOCK_VIDEO_MAX_CONCURRENT_JOBS || 2)));
+const RECOVERY_INTERVAL_MS = 15000;
+let recoveryIntervalHandle = null;
+let recoveryPassRunning = false;
 
 function publicError(message, code = 'STOCK_VIDEO_ERROR', status = 400) {
   const error = new Error(message);
@@ -306,7 +309,7 @@ async function quota(userId) {
 async function access(userId) {
   const entitlement = await credits.getEntitlement(userId);
   if (!entitlement.studioEnabled) return { enabled: false, configured: isConfigured(), limit: MONTHLY_LIMIT(), used: 0, remaining: 0 };
-  await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'FAILED\',"errorCode"=\'STOCK_VIDEO_WORKER_INTERRUPTED\',"errorMessage"=\'The production worker restarted before this video completed. Please try again.\',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "userId"=$1 AND "contentType"=\'stock_video\' AND "status" IN (\'PREPARING\',\'PROCESSING\') AND "updatedAt" < CURRENT_TIMESTAMP - INTERVAL \'30 minutes\'', userId);
+  void recoverStockVideoJobs();
   const capabilities = await workerCapabilities();
   const activeSources = Array.isArray(capabilities?.professionalSources) ? capabilities.professionalSources : [];
   return { enabled: true, configured: isConfigured() && Boolean(capabilities) && activeSources.length > 0, ...(await quota(userId)),
@@ -318,13 +321,67 @@ async function access(userId) {
 function drainQueue() {
   while (activeJobs.size < MAX_CONCURRENT_JOBS() && pendingJobs.length) {
     const job = pendingJobs.shift();
-    if (job) void processJob(job.userId, job.generationId, job.input);
+    if (job) void processJob(job.userId, job.generationId, job.input, job.workerJobId);
   }
 }
 
-function enqueueJob(userId, generationId, input) {
-  if (!pendingJobs.some(job => job.generationId === generationId) && !activeJobs.has(generationId)) pendingJobs.push({ userId, generationId, input });
+function enqueueJob(userId, generationId, input, workerJobId = null) {
+  if (!pendingJobs.some(job => job.generationId === generationId) && !activeJobs.has(generationId)) {
+    pendingJobs.push({ userId, generationId, input, workerJobId: clean(workerJobId, 160) || null });
+  }
   drainQueue();
+}
+
+function storedRequest(value) {
+  if (value && typeof value === 'object' && !Buffer.isBuffer(value)) return value;
+  try { return JSON.parse(String(value || '{}')); } catch (_) { return {}; }
+}
+
+async function recoverStockVideoJobs() {
+  if (!isConfigured() || recoveryPassRunning) return;
+  recoveryPassRunning = true;
+  try {
+    // A stale heartbeat means the process that owned the poll loop is gone. The
+    // delay also prevents the old and new Railway instances from completing the
+    // same job during a rolling deployment overlap.
+    const rows = await prisma.$queryRawUnsafe(`
+      SELECT "id", "userId", "requestJson", "taskUuid", "status", "errorCode"
+      FROM "AiGeneration"
+      WHERE "contentType"='stock_video'
+        AND "hiddenAt" IS NULL
+        AND (
+          ("status" IN ('PREPARING','PROCESSING') AND "updatedAt" < CURRENT_TIMESTAMP - INTERVAL '15 seconds')
+          OR
+          ("status"='FAILED' AND "errorCode"='STOCK_VIDEO_WORKER_INTERRUPTED' AND "completedAt" > CURRENT_TIMESTAMP - INTERVAL '6 hours')
+        )
+      ORDER BY "createdAt" ASC
+      LIMIT 20
+    `);
+    if (rows.length) console.info('[stock-video] recovering persisted productions', { count: rows.length });
+    for (const row of rows) {
+      const input = storedRequest(row.requestJson);
+      if (!clean(input.prompt, 1500)) {
+        await updateJob(row.id, 'FAILED', 0, {
+          errorCode: 'STOCK_VIDEO_RECOVERY_INVALID',
+          errorMessage: 'This saved video request could not be recovered. Please create it again.',
+          completedAt: new Date()
+        });
+        continue;
+      }
+      enqueueJob(row.userId, row.id, input, row.taskUuid);
+    }
+  } catch (error) {
+    console.error('[stock-video] recovery pass failed', { error: clean(error?.message, 1000) });
+  } finally {
+    recoveryPassRunning = false;
+  }
+}
+
+function startStockVideoRuntime() {
+  if (recoveryIntervalHandle) return;
+  void recoverStockVideoJobs();
+  recoveryIntervalHandle = setInterval(() => { void recoverStockVideoJobs(); }, RECOVERY_INTERVAL_MS);
+  recoveryIntervalHandle.unref?.();
 }
 
 async function createJob(userId, input) {
@@ -346,21 +403,53 @@ async function updateJob(id, status, progress, extra = {}) {
   await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"progress"=$3,"assetJson"=COALESCE($4,"assetJson"),"responseJson"=COALESCE($5,"responseJson"),"errorCode"=$6,"errorMessage"=$7,"completedAt"=$8,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', id, status, progress, extra.assetJson ? JSON.stringify(extra.assetJson) : null, extra.responseJson ? JSON.stringify(extra.responseJson) : null, extra.errorCode || null, extra.errorMessage || null, extra.completedAt || null);
 }
 
-async function processJob(userId, generationId, input) {
+async function startWorkerProduction(input) {
+  const started = await axios.post(`${env.stockVideo.openMontageUrl}/jobs`, { ...input, fullRunAuthorized: input.fullRunAuthorized !== false }, { headers: workerHeaders(), timeout: 60000 });
+  const workerJobId = String(started.data?.id || '');
+  if (!workerJobId) throw publicError('The video engine did not accept this production. Please try again.', 'STOCK_VIDEO_JOB_REJECTED', 502);
+  return { workerJobId, workerJob: started.data || {} };
+}
+
+async function loadWorkerProduction(workerJobId) {
+  try {
+    const response = await axios.get(`${env.stockVideo.openMontageUrl}/jobs/${encodeURIComponent(workerJobId)}`, { headers: workerHeaders(), timeout: 30000 });
+    return response.data || {};
+  } catch (error) {
+    if (Number(error?.response?.status || 0) === 404) return null;
+    throw error;
+  }
+}
+
+async function processJob(userId, generationId, input, existingWorkerJobId = null) {
   if (activeJobs.has(generationId)) return;
   activeJobs.add(generationId);
   try {
     await updateJob(generationId, 'PROCESSING', 4);
-    const started = await axios.post(`${env.stockVideo.openMontageUrl}/jobs`, { ...input, fullRunAuthorized: input.fullRunAuthorized !== false }, { headers: workerHeaders(), timeout: 60000 });
-    const workerJobId = String(started.data?.id || '');
-    if (!workerJobId) throw publicError('The video engine did not accept this production. Please try again.', 'STOCK_VIDEO_JOB_REJECTED', 502);
-    await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "taskUuid"=$2,"responseJson"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, workerJobId, JSON.stringify({ runtime: 'OpenMontage', workerJobId, stage: 'preflight' }));
+    let workerJobId = clean(existingWorkerJobId, 160);
+    let workerJob = workerJobId ? await loadWorkerProduction(workerJobId) : null;
+    if (workerJobId && workerJob) {
+      console.info('[stock-video] resumed persisted worker production', { generationId, workerJobId, status: workerJob.status });
+    } else {
+      if (workerJobId) console.warn('[stock-video] worker state was unavailable; restarting saved production', { generationId, workerJobId });
+      const started = await startWorkerProduction(input);
+      workerJobId = started.workerJobId;
+      workerJob = started.workerJob;
+      await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "taskUuid"=$2,"responseJson"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, workerJobId, JSON.stringify({ runtime: 'OpenMontage', workerJobId, stage: 'preflight' }));
+    }
     const deadline = Date.now() + env.stockVideo.openMontageTimeoutMs;
-    let workerJob = started.data;
     while (Date.now() < deadline) {
+      if (workerJob.status === 'completed' || workerJob.status === 'failed') break;
       await new Promise(resolve => setTimeout(resolve, 3000));
-      const polled = await axios.get(`${env.stockVideo.openMontageUrl}/jobs/${encodeURIComponent(workerJobId)}`, { headers: workerHeaders(), timeout: 30000 });
-      workerJob = polled.data || {};
+      const polled = await loadWorkerProduction(workerJobId);
+      if (!polled) {
+        console.warn('[stock-video] worker lost active state; restarting saved production', { generationId, workerJobId });
+        const restarted = await startWorkerProduction(input);
+        workerJobId = restarted.workerJobId;
+        workerJob = restarted.workerJob;
+        await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "taskUuid"=$2,"responseJson"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, workerJobId, JSON.stringify({ runtime: 'OpenMontage', workerJobId, stage: 'preflight', recovered: true }));
+        continue;
+      }
+      workerJob = polled;
       await updateJob(generationId, 'PROCESSING', Math.max(2, Math.min(98, Number(workerJob.progress || 2))), { responseJson: { runtime: 'OpenMontage', workerJobId, stage: workerJob.stage || 'processing', openmontageCommit: workerJob.result?.openmontageCommit } });
       if (workerJob.status === 'completed' || workerJob.status === 'failed') break;
     }
@@ -405,4 +494,4 @@ async function processJob(userId, generationId, input) {
   }
 }
 
-module.exports = { access, createJob, isConfigured, normalizePlan, createSrt, dimensions };
+module.exports = { access, createJob, isConfigured, normalizePlan, createSrt, dimensions, recoverStockVideoJobs, startStockVideoRuntime };
