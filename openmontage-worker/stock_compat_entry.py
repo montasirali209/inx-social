@@ -25,12 +25,12 @@ def _stock_pipeline(req: bridge.JobRequest) -> str:
 def _stock_instructions(job: dict[str, Any], req: bridge.JobRequest) -> str:
     base = _base_instructions(job, req)
     caption_rule = (
-        "Captions are requested. Use a timed subtitle track only. Keep it small, bottom-centred, no more than two lines, inside the lower safe margin. Use the upstream caption burn path with overlays empty; do not put narration text in the centre of the frame."
+        "Captions are requested. Create a timed SRT from the final narration, then use the upstream remotion_caption_burn tool with force_ffmpeg=true and overlays=[]. This deliberately uses the bottom-subtitle fallback: small bottom-centred text, maximum two lines, inside the lower safe margin, white text with dark outline/shadow. Never place narration text in the centre of the frame and never use large word-by-word/karaoke captions."
         if req.captions is not False
         else "Captions are disabled, so render no visible text overlays."
     )
     voice_rule = (
-        "Use one continuous narration track for the complete video and mix it once. Do not duplicate, restart, echo or stack narration segments."
+        "Use exactly one continuous narration track for the complete video and mix it once. Do not duplicate, restart, loop, echo or stack narration segments. Verify the encoded final file has clean continuous speech."
         if req.voiceover is not False
         else "Voiceover is disabled, so create no narration track."
     )
@@ -56,11 +56,12 @@ def _stock_capabilities() -> dict[str, Any]:
     value = dict(_base_capabilities())
     value["studioWorkflow"] = {
         "name": "inx-stock-footage-profile",
-        "version": "3.0",
+        "version": "3.1",
         "pipeline": STOCK_PIPELINE,
         "realMovingFootageOnly": True,
         "subtitleLayout": "small-bottom-centre",
         "presentationCards": False,
+        "captionBurn": "remotion_caption_burn:force_ffmpeg",
     }
     return value
 
