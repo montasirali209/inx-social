@@ -66,6 +66,16 @@ test('Video Studio keeps the model decision simple with AI Recommended, Fast and
   assert.match(routes, /\/generate\/video-studio/);
 });
 
+test('Wan Video Studio sends current schema fields and preserves safe provider diagnostics', () => {
+  const service = read('src/services/videoStudioService.js');
+  const runware = read('src/services/runwareService.js');
+  assert.doesNotMatch(service, /promptExtend/);
+  assert.match(service, /Wan 3\.0 produces native audio from the prompt/);
+  assert.match(service, /\[AI VIDEO GENERATION FAILED\]/);
+  assert.match(runware, /\[RUNWARE REQUEST REJECTED\]/);
+  assert.match(runware, /!\['positivePrompt', 'messages', 'inputs'\]\.includes\(key\)/);
+});
+
 test('Short Video opens an animated creator choice and both video routes use persistent background jobs', () => {
   const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV2.tsx');
   const stock = read('frontend/src/components/ai-content-studio/StockVideoCreator.tsx');

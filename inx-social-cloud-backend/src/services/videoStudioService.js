@@ -209,7 +209,9 @@ function buildProviderTask(profile, input, reference, taskUUID) {
     const [width, height] = dimensions(resolution, aspect); task.width = width; task.height = height;
   }
   if (profile.id === 'pvideo') { task.settings = { audio, draft: Boolean(input.draft), promptUpsampling: true }; task.fps = 24; }
-  if (profile.id === 'wan30') task.settings = { audio, promptExtend: true };
+  // Wan 3.0 produces native audio from the prompt. Keep this request on Runware's documented core
+  // video fields instead of sending model settings that are absent from the current schema.
+  if (profile.id === 'wan30' && !audio) task.positivePrompt = `${task.positivePrompt}\n\nCreate a silent video with no dialogue, voice, music or sound effects.`;
   if (profile.id === 'ltx25pro' || profile.id === 'seedance25') task.settings = { audio };
   if (profile.id === 'kling30') task.providerSettings = { klingai: { sound: audio } };
   return { task, duration, resolution, aspect };
@@ -259,6 +261,14 @@ async function runVideoGeneration(userId, generationId, input, amount, profile, 
     const asset = await persistVideo(userId, generationId, output, input, amount); await credits.complete(userId, generationId, amount);
     await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"progress"=100,"model"=$3,"providerCostUsd"=$4,"taskUuid"=$5,"assetJson"=$6,"responseJson"=$7,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'COMPLETED', output.model, Number(output.item.cost || 0), output.taskUUID, JSON.stringify(asset), JSON.stringify({ route: output.route, duration, resolution, creditsUsed: amount }));
   } catch (caught) {
+    console.error('[AI VIDEO GENERATION FAILED]', JSON.stringify({
+      generationId,
+      route: profile.id,
+      model: profile.model,
+      code: clean(caught?.code || 'AI_VIDEO_FAILED', 120),
+      status: Number(caught?.status || 0),
+      providerDetail: clean(caught?.providerDetail, 700)
+    }));
     await credits.refund(userId, generationId, caught?.code || 'video_failed').catch(() => {});
     await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"errorCode"=$3,"errorMessage"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'FAILED', clean(caught?.code || 'AI_VIDEO_FAILED', 120), clean(caught?.publicMessage || caught?.message || 'Video generation failed.', 700)).catch(() => {});
   }
