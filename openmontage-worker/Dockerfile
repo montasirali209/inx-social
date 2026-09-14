@@ -37,4 +37,4 @@ ENV OPENMONTAGE_ROOT=/opt/OpenMontage \
     PYTHONPATH=/opt/OpenMontage
 
 WORKDIR /app
-CMD ["/bin/sh", "-c", "/opt/venv/bin/uvicorn resilient_entry:app --host 0.0.0.0 --port ${PORT:-8080}"]
+CMD ["/bin/sh", "-c", "/opt/venv/bin/uvicorn app_entry:app --host 0.0.0.0 --port ${PORT:-8080}"]
