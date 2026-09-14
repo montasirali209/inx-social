@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
+const exists = relative => fs.existsSync(path.join(root, relative));
 const stockVideo = require('../src/services/stockVideoStudioService');
 
 test('Stock Video Creator is an isolated Plus workflow with a separate monthly allowance', () => {
@@ -20,74 +21,83 @@ test('Stock Video Creator is an isolated Plus workflow with a separate monthly a
   assert.match(controller, /res\.status\(202\)/);
 });
 
-test('Stock Video Creator delegates to the isolated real OpenMontage runtime and preserves provenance', () => {
+test('Stock Video Creator delegates to the full isolated OpenMontage service and persists the finished video', () => {
   const service = read('src/services/stockVideoStudioService.js');
-  const worker = read('../openmontage-worker/main.py');
+  const bridge = read('../openmontage-worker/full_bridge.py');
+  const compatibility = read('../openmontage-worker/compat_bridge.py');
   const dockerfile = read('../openmontage-worker/Dockerfile');
   const notice = read('../OPENMONTAGE-NOTICE.md');
-  assert.match(service, /openMontageUrl.*\/jobs/);
+
+  assert.match(service, /axios\.post\(`\$\{env\.stockVideo\.openMontageUrl\}\/jobs`/);
+  assert.match(service, /axios\.get\(`\$\{env\.stockVideo\.openMontageUrl\}\/jobs\/\$\{encodeURIComponent\(workerJobId\)\}`/);
+  assert.match(service, /\/output`/);
   assert.match(service, /STOCK_VIDEO_PIPELINE_FAILED/);
-  assert.match(dockerfile, /github\.com\/calesthio\/OpenMontage\.git/);
-  assert.match(dockerfile, /08e2151fa02de28a5d6a312b3d575692bf147ad7/);
-  assert.match(worker, /registry\.get\("direct_clip_search"\)/);
-  assert.match(worker, /registry\.get\("video_compose"\)/);
-  assert.match(worker, /registry\.get\("audio_mixer"\)/);
-  assert.match(worker, /registry\.get\("color_grade"\)/);
-  assert.match(worker, /def render_safety_gate/);
-  assert.match(worker, /registry\.get\("remotion_caption_burn"\)/);
-  assert.match(worker, /PROFESSIONAL_VIDEO_SOURCES = \("pexels", "pixabay_video"\)/);
-  assert.match(worker, /professional_query/);
-  assert.match(worker, /\+cinematic \+4k/);
-  assert.match(worker, /pre_compose_gate/);
-  assert.match(worker, /render_safety_gate/);
-  assert.match(worker, /current_us_hashtags/);
-  assert.match(worker, /words_per_page": 4/);
-  assert.match(worker, /for attempt in range\(2\)/);
-  assert.match(worker, /OPENMONTAGE_REMOTION_TIMEOUT_MS/);
-  assert.match(worker, /--timeout=/);
-  assert.match(worker, /assembly_edit\["render_runtime"\] = "ffmpeg"/);
-  assert.match(worker, /"force_ffmpeg": True/);
-  assert.match(worker, /ffmpeg_resilient/);
-  assert.match(worker, /assembly_edit\["subtitles"\]\["enabled"\] = False/);
-  assert.doesNotMatch(worker, /cut_credits|credit_overlay|grouped_credit_fallback/);
-  assert.match(worker, /def scene_srt/);
-  assert.match(worker, /def fit_narration/);
-  assert.match(worker, /def clip_relevance/);
-  assert.match(worker, /write_checkpoint/);
-  assert.match(notice, /separately deployed/);
   assert.match(service, /provenance/);
   assert.match(service, /mediaLibrary\.publicAsset/);
-  assert.match(service, /result\.renderer \|\| 'remotion'/);
+
+  assert.match(dockerfile, /github\.com\/calesthio\/OpenMontage\.git/);
+  assert.match(dockerfile, /08e2151fa02de28a5d6a312b3d575692bf147ad7/);
+  assert.match(dockerfile, /uvicorn compat_bridge:app/);
+  assert.match(bridge, /@app\.post\("\/jobs"/);
+  assert.match(bridge, /@app\.get\("\/jobs\/\{job_id\}"/);
+  assert.match(bridge, /@app\.get\("\/jobs\/\{job_id\}\/output"/);
+  assert.match(bridge, /_project_artifacts/);
+  assert.match(bridge, /reviewed final MP4/);
+  assert.match(compatibility, /fullIntegration/);
+  assert.match(notice, /separately deployed/);
 });
 
-test('OpenMontage worker ships a fourteen-stage standalone professional workflow', () => {
-  const manifest = read('../openmontage-worker/pipeline_defs/inx-stock-montage.yaml');
-  const registry = read('../openmontage-worker/overrides/stock_sources_init.py');
+test('full OpenMontage worker discovers native pipelines tools skills providers and stock sources', () => {
+  const bridge = read('../openmontage-worker/full_bridge.py');
+  const compatibility = read('../openmontage-worker/compat_bridge.py');
   const dockerfile = read('../openmontage-worker/Dockerfile');
-  const stages = [...manifest.matchAll(/^  - name: ([a-z_]+)$/gm)].map(match => match[1]);
-  assert.deepEqual(stages, [
-    'idea', 'script', 'scene_plan', 'stock_retrieval', 'music', 'tts', 'asset_ready',
-    'pre_compose_validation', 'edit', 'audio_mix', 'assembly', 'color_grade',
-    'caption_credits', 'final_qa'
-  ]);
-  assert.match(registry, /_SOURCE_CLASSES = \(PexelsSource, PixabayVideoSource\)/);
-  assert.doesNotMatch(registry, /WikimediaSource|ArchiveOrgSource|NasaSource/);
+
+  assert.match(bridge, /pipeline_defs/);
+  assert.match(bridge, /from tools\.tool_registry import registry/);
+  assert.match(bridge, /registry\.discover\(\)/);
+  assert.match(bridge, /registry\.provider_menu_summary\(\)/);
+  assert.match(bridge, /registry\.provider_menu\(\)/);
+  assert.match(bridge, /from tools\.video\.stock_sources import source_catalog, source_summary/);
+  assert.match(bridge, /skillsCount/);
+  assert.match(bridge, /providerSummary/);
+  assert.match(bridge, /stockSources/);
+  assert.match(compatibility, /pipelineCatalog/);
+  assert.match(compatibility, /professionalSources/);
+  assert.match(compatibility, /return "auto"/);
   assert.match(dockerfile, /remotion-composer && npm ci/);
-  assert.doesNotMatch(dockerfile, /npm ci --omit=optional/);
-  assert.match(dockerfile, /apt-get install[^\n]*chromium/);
+  assert.match(dockerfile, /hyperframes --version/);
+  assert.match(dockerfile, /piper-tts/);
+  assert.match(dockerfile, /chromium/);
   assert.match(dockerfile, /REMOTION_BROWSER_EXECUTABLE=\/usr\/bin\/chromium/);
-  assert.match(dockerfile, /overrides\/remotion\.config\.ts/);
-  assert.match(dockerfile, /stock_sources\/__init__\.py/);
 });
 
-test('worker writes every checkpoint in the exact manifest order', () => {
-  const manifest = read('../openmontage-worker/pipeline_defs/inx-stock-montage.yaml');
-  const worker = read('../openmontage-worker/main.py');
-  const expected = [...manifest.matchAll(/^  - name: ([a-z_]+)$/gm)].map(match => match[1]);
-  const runBody = worker.slice(worker.indexOf('def run_job('), worker.indexOf('@app.get("/health")'));
-  const actual = [...runBody.matchAll(/write_stage\(job, "([a-z_]+)"/g)].map(match => match[1]);
-  assert.deepEqual(actual, expected);
-  assert.ok(actual.indexOf('edit') < actual.indexOf('audio_mix'));
+test('reduced worker restrictions are removed instead of shadowing native OpenMontage behavior', () => {
+  const dockerfile = read('../openmontage-worker/Dockerfile');
+  const bridge = read('../openmontage-worker/full_bridge.py');
+
+  assert.equal(exists('../openmontage-worker/main.py'), false);
+  assert.equal(exists('../openmontage-worker/app_entry.py'), false);
+  assert.equal(exists('../openmontage-worker/resilient_entry.py'), false);
+  assert.equal(exists('../openmontage-worker/pipeline_defs/inx-stock-montage.yaml'), false);
+  assert.equal(exists('../openmontage-worker/overrides/stock_sources_init.py'), false);
+  assert.equal(exists('../openmontage-worker/overrides/remotion.config.ts'), false);
+  assert.doesNotMatch(dockerfile, /COPY overrides|COPY pipeline_defs/);
+  assert.doesNotMatch(bridge, /PROFESSIONAL_VIDEO_SOURCES/);
+  assert.match(bridge, /"stockSourceOverride": False/);
+  assert.match(bridge, /"toolRegistryOverride": False/);
+  assert.match(bridge, /"skillOverride": False/);
+  assert.match(bridge, /"pipelineOverride": False/);
+});
+
+test('full worker requires a reviewed final video and retains production artifacts', () => {
+  const bridge = read('../openmontage-worker/full_bridge.py');
+  assert.match(bridge, /projects\/\{slug\}\/renders\/final\.mp4/);
+  assert.match(bridge, /if not output: raise RuntimeError/);
+  assert.match(bridge, /artifacts = _project_artifacts/);
+  assert.match(bridge, /"artifactCount": len\(artifacts\)/);
+  assert.match(bridge, /"upstreamModified": False/);
+  assert.match(bridge, /"renderer": "openmontage-native"/);
+  assert.match(bridge, /Preserve provenance, checkpoints, decision logs, costs and review artifacts/);
 });
 
 test('Stock Video Creator UI resumes active jobs and hands completed video to Posts', () => {
@@ -116,18 +126,6 @@ test('Stock Video Creator UI resumes active jobs and hands completed video to Po
   assert.match(productionRail, /2xl:min-w-0/);
   assert.match(routes, /router\.delete\('\/generations\/:id'/);
   assert.match(service, /"hiddenAt" IS NULL/);
-});
-
-test('script checkpoints normalize required duration before every schema validation', () => {
-  const worker = read('../openmontage-worker/main.py');
-  assert.match(worker, /def normalize_script_payload/);
-  assert.match(worker, /normalized\.setdefault\("version", "1\.0"\)/);
-  assert.match(worker, /normalized\.setdefault\("title", "Untitled video"\)/);
-  assert.match(worker, /normalized\["total_duration_seconds"\] = duration/);
-  assert.match(worker, /\(job\.get\("request"\) or \{\}\)\.get\("duration"\)/);
-  assert.match(worker, /"normalization_applied": applied/);
-  assert.match(worker, /"selected_ui_duration": selected_ui_duration/);
-  assert.match(worker, /"normalized_script_payload": normalized/);
 });
 
 test('Stock video plans are normalised to a safe social-video envelope', () => {
