@@ -1,0 +1,63 @@
+name: OpenMontage Worker CI
+
+on:
+  pull_request:
+    paths:
+      - 'openmontage-worker/**'
+      - '.github/workflows/openmontage-worker-ci.yml'
+  push:
+    branches:
+      - deployment/railway-postgres
+    paths:
+      - 'openmontage-worker/**'
+      - '.github/workflows/openmontage-worker-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openmontage-worker-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  full-worker:
+    name: Full worker build and readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Python syntax
+        run: python -m py_compile openmontage-worker/full_bridge.py openmontage-worker/compat_bridge.py
+
+      - name: Build full upstream worker image
+        run: docker build --tag inx-openmontage-ci openmontage-worker
+
+      - name: Start worker
+        run: |
+          docker run -d --name inx-openmontage-ci \
+            -p 18080:8080 \
+            -e OPENMONTAGE_INTERNAL_TOKEN=ci-token \
+            -e OPENAI_API_KEY=ci-placeholder \
+            -e OPENMONTAGE_AGENT_MODEL=gpt-5.6-terra \
+            inx-openmontage-ci
+
+      - name: Verify full-engine readiness
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --silent --show-error --fail http://127.0.0.1:18080/ready > /tmp/openmontage-ready.json; then
+              cat /tmp/openmontage-ready.json
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs inx-openmontage-ci
+          exit 1
+
+      - name: Worker logs on failure
+        if: failure()
+        run: docker logs inx-openmontage-ci || true
