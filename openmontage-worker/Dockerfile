@@ -28,6 +28,7 @@ COPY overrides/stock_sources_init.py /opt/OpenMontage/tools/video/stock_sources/
 RUN sed -i 's#https://api.pexels.com/videos/search#https://api.pexels.com/v1/videos/search#' /opt/OpenMontage/tools/video/stock_sources/pexels.py
 COPY main.py /app/main.py
 COPY app_entry.py /app/app_entry.py
+COPY resilient_entry.py /app/resilient_entry.py
 
 ENV OPENMONTAGE_ROOT=/opt/OpenMontage \
     OPENMONTAGE_COMMIT=$OPENMONTAGE_COMMIT \
