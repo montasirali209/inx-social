@@ -76,12 +76,25 @@ async function request(tasks, timeoutMs = env.runware?.timeoutMs || 360000) {
         await wait(response.status === 429 ? 1200 : 650);
         continue;
       }
+      console.error('[RUNWARE REQUEST REJECTED]', JSON.stringify({
+        status: response.status,
+        taskTypes: tasks.map(task => String(task?.taskType || '')).filter(Boolean),
+        models: tasks.map(task => String(task?.model || '')).filter(Boolean),
+        parameters: tasks.map(task => Object.keys(task || {}).filter(key => !['positivePrompt', 'messages', 'inputs'].includes(key)).sort()),
+        detail: providerDetail(response.data)
+      }));
       throw httpError(response.status, response.data);
     }
 
     const payload = response.data || {};
     if (Array.isArray(payload.errors) && payload.errors.length) {
       const first = payload.errors[0] || {};
+      console.error('[RUNWARE TASK REJECTED]', JSON.stringify({
+        taskTypes: tasks.map(task => String(task?.taskType || '')).filter(Boolean),
+        models: tasks.map(task => String(task?.model || '')).filter(Boolean),
+        code: String(first.code || ''),
+        detail: String(first.message || '').slice(0, 700)
+      }));
       const code = String(first.code || 'RUNWARE_GENERATION_FAILED');
       const detail = String(first.message || '');
       const blocked = /nsfw|safety|moderation|content/i.test(`${code} ${detail}`);
