@@ -17,6 +17,12 @@ test('canonical legal documents and desktop OAuth callback are packaged', () => 
   }
 });
 
+test('Google Search Console verification file is packaged unchanged', () => {
+  const verificationFile = 'public/google7c26ec3b08d0dfff.html';
+  assert.equal(fs.existsSync(path.join(root, verificationFile)), true, `${verificationFile} is missing`);
+  assert.equal(read(verificationFile).trim(), 'google-site-verification: google7c26ec3b08d0dfff.html');
+});
+
 test('public pages use the canonical www.inxsocial.co.uk origin', () => {
   for (const file of [
     'public/landing.html',
