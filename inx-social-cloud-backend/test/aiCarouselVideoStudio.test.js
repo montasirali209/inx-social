@@ -52,7 +52,7 @@ test('Video Studio keeps the model decision simple with AI Recommended, Fast and
   assert.match(video, /estimateVideoCredits/);
   assert.match(video, /Generate video · \{credits\} credits/);
   assert.match(video, /StudioSelect/);
-  assert.match(service, /name: 'P-Video'/);
+  assert.match(service, /name: 'P-Video-2'/);
   assert.match(service, /name: 'MiniMax H3 Fast'/);
   assert.match(service, /name: 'Kling VIDEO 3\.0'/);
   assert.match(service, /name: 'Wan 3\.0'/);
@@ -64,6 +64,20 @@ test('Video Studio keeps the model decision simple with AI Recommended, Fast and
   assert.match(routes, /\/video\/recommend/);
   assert.match(routes, /\/video\/estimate/);
   assert.match(routes, /\/generate\/video-studio/);
+});
+
+test('Video Studio uses P-Video-2 as the economical 720p route with conservative credit estimates', () => {
+  const service = read('src/services/videoStudioService.js');
+  const environment = read('src/config/env.js');
+  const example = read('.env.example');
+  assert.match(environment, /videoEconomyModel: modelName\(process\.env\.RUNWARE_VIDEO_ECONOMY_MODEL, 'prunaai:p-video@2'\)/);
+  assert.match(example, /RUNWARE_VIDEO_ECONOMY_MODEL=prunaai:p-video@2/);
+  assert.match(service, /env\.runware\.videoEconomyModel \|\| 'prunaai:p-video@2'/);
+  assert.match(service, /rates: \{ '720p': 0\.026 \}, draftRates: \{ '720p': 0\.016 \}/);
+  assert.match(service, /pVideo2 = \{ '16:9': \[1280, 704\], '9:16': \[704, 1280\], '1:1': \[960, 960\] \}/);
+  assert.match(service, /positivePrompt: clean\(input\.prompt, profile\.id === 'pvideo' \? 2048/);
+  assert.match(service, /task\.fps = 24/);
+  assert.match(service, /task\.settings = \{ audio, draft: Boolean\(input\.draft\), promptUpsampling: true \}/);
 });
 
 test('Wan Video Studio sends current schema fields and preserves safe provider diagnostics', () => {
