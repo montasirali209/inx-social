@@ -24,15 +24,35 @@ test('public landing has canonical metadata, social previews and structured soft
   assert.match(landing, /"priceCurrency": "GBP"/);
 });
 
-test('robots and sitemap expose public documents but exclude private product areas', () => {
+test('served homepage injects crawlable links to the public SEO landing pages', () => {
+  const app = read('src/app.js');
+  for (const href of [
+    '/social-media-scheduler.html',
+    '/bulk-social-media-scheduler.html',
+    '/social-media-content-calendar.html',
+    '/ai-social-media-tools.html',
+    '/social-media-analytics.html',
+    '/pricing.html'
+  ]) {
+    assert.equal(app.includes(`href=\"${href}\"`), true, `${href} is missing from homepage SEO navigation`);
+  }
+});
+
+test('robots exposes public/noindexable documents while blocking API and admin crawl paths', () => {
   const robots = read('public/robots.txt');
   const sitemap = read('public/sitemap.xml');
-  assert.match(robots, /Disallow: \/studio\//);
-  assert.match(robots, /Disallow: \/portal\//);
+  assert.match(robots, /Disallow: \/admin/);
+  assert.match(robots, /Disallow: \/api\//);
+  assert.doesNotMatch(robots, /Disallow: \/studio\//);
+  assert.doesNotMatch(robots, /Disallow: \/portal\//);
+  assert.doesNotMatch(robots, /Disallow: \/app\//);
   assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/sitemap\.xml/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/privacy\.html/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/bulk-social-media-scheduler\.html/);
+  assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/social-media-content-calendar\.html/);
   assert.doesNotMatch(sitemap, /\/studio\//);
+  assert.doesNotMatch(sitemap, /\/portal\//);
+  assert.doesNotMatch(sitemap, /\/app\//);
 });
 
 test('bulk scheduler landing page has unique canonical metadata and structured FAQ content', () => {
@@ -42,4 +62,13 @@ test('bulk scheduler landing page has unique canonical metadata and structured F
   assert.match(page, /"@type":"FAQPage"/);
   assert.match(page, /bulk schedule social media posts/i);
   assert.match(page, /href="\/social-media-scheduler\.html"/);
+});
+
+test('content calendar landing page has unique canonical metadata and structured FAQ content', () => {
+  const page = read('public/social-media-content-calendar.html');
+  assert.match(page, /<title>Social Media Content Calendar & Publishing Planner \| INXSocial<\/title>/);
+  assert.match(page, /<link rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/social-media-content-calendar\.html">/);
+  assert.match(page, /"@type":"FAQPage"/);
+  assert.match(page, /visual content calendar/i);
+  assert.match(page, /href="\/bulk-social-media-scheduler\.html"/);
 });

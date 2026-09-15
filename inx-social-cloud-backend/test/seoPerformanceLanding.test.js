@@ -25,18 +25,28 @@ test('responsive stylesheet is not injected after first paint', () => {
   assert.doesNotMatch(landingJs, /landing-mobile\.css/);
 });
 
-test('private application routes are excluded while public SEO pages are discoverable', () => {
+test('legacy utility routes can expose noindex while public SEO pages stay discoverable', () => {
   const robots = read('public/robots.txt');
   const sitemap = read('public/sitemap.xml');
+  const app = read('src/app.js');
   assert.match(robots, /Allow: \//);
-  assert.match(robots, /Disallow: \/app\//);
+  assert.match(robots, /Disallow: \/admin/);
   assert.match(robots, /Disallow: \/api\//);
+  assert.doesNotMatch(robots, /Disallow: \/app\//);
+  assert.doesNotMatch(robots, /Disallow: \/portal\//);
+  assert.doesNotMatch(robots, /Disallow: \/studio\//);
+  assert.match(app, /\['\/admin', '\/index\.html', '\/api', '\/portal', '\/studio', '\/app', '\/health', '\/oauth-callback\.html'\]/);
+  assert.match(app, /X-Robots-Tag', 'noindex, nofollow, noarchive'/);
   assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/sitemap\.xml/);
   assert.match(sitemap, /social-media-scheduler\.html/);
+  assert.match(sitemap, /bulk-social-media-scheduler\.html/);
+  assert.match(sitemap, /social-media-content-calendar\.html/);
   assert.match(sitemap, /social-media-analytics\.html/);
   assert.match(sitemap, /ai-social-media-tools\.html/);
   assert.match(sitemap, /pricing\.html/);
   assert.doesNotMatch(sitemap, /\/app\//);
+  assert.doesNotMatch(sitemap, /\/portal\//);
+  assert.doesNotMatch(sitemap, /\/studio\//);
 });
 
 test('landing retains canonical and software application structured data', () => {
@@ -51,6 +61,8 @@ test('landing retains canonical and software application structured data', () =>
 test('SEO product pages have unique titles, canonicals and indexable copy', () => {
   const pages = [
     ['public/social-media-scheduler.html', 'Social Media Scheduler for Multiple Platforms', 'social-media-scheduler.html'],
+    ['public/bulk-social-media-scheduler.html', 'Bulk Social Media Scheduler for Multiple Accounts', 'bulk-social-media-scheduler.html'],
+    ['public/social-media-content-calendar.html', 'Social Media Content Calendar & Publishing Planner', 'social-media-content-calendar.html'],
     ['public/social-media-analytics.html', 'Social Media Analytics Dashboard', 'social-media-analytics.html'],
     ['public/ai-social-media-tools.html', 'AI Social Media Tools for Captions, Images & Video', 'ai-social-media-tools.html'],
     ['public/pricing.html', 'INXSocial Pricing', 'pricing.html']
@@ -64,6 +76,5 @@ test('SEO product pages have unique titles, canonicals and indexable copy', () =
     assert.match(html, new RegExp(`rel="canonical" href="https:\\/\\/www\\.inxsocial\\.co\\.uk\\/${canonical.replace('.', '\\.')}`));
     assert.match(html, /application\/ld\+json/);
     assert.match(html, /href="\/social-media-scheduler\.html"/);
-    assert.match(html, /href="\/pricing\.html"/);
   }
 });

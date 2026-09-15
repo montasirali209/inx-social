@@ -21,15 +21,20 @@ test('public landing exposes consistent canonical search and social metadata', (
   assert.doesNotMatch(html, /aggregateRating|reviewCount/);
 });
 
-test('crawl controls publish the canonical sitemap and exclude private workspaces', () => {
+test('crawl controls publish the canonical sitemap and let legacy utility URLs expose noindex', () => {
   const robots = read('public/robots.txt');
   const sitemap = read('public/sitemap.xml');
   const app = read('src/app.js');
   assert.match(robots, /Disallow: \/admin/);
-  assert.match(robots, /Disallow: \/studio\//);
-  assert.match(robots, /Disallow: \/app\//);
+  assert.match(robots, /Disallow: \/api\//);
+  assert.doesNotMatch(robots, /Disallow: \/studio\//);
+  assert.doesNotMatch(robots, /Disallow: \/portal\//);
+  assert.doesNotMatch(robots, /Disallow: \/app\//);
   assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/sitemap\.xml/);
   assert.match(sitemap, /<lastmod>2026-09-15<\/lastmod>/);
+  assert.doesNotMatch(sitemap, /\/studio\//);
+  assert.doesNotMatch(sitemap, /\/portal\//);
+  assert.doesNotMatch(sitemap, /\/app\//);
   assert.match(app, /X-Robots-Tag', 'noindex, nofollow, noarchive/);
   assert.match(app, /stale-while-revalidate=86400/);
   assert.match(read('public/llms.txt'), /Canonical website: https:\/\/www\.inxsocial\.co\.uk\//);
