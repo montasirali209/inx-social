@@ -24,16 +24,21 @@ test('public landing has canonical metadata, social previews and structured soft
   assert.match(landing, /"priceCurrency": "GBP"/);
 });
 
-test('robots and sitemap expose public documents but exclude private product areas', () => {
+test('robots exposes public/noindexable documents while blocking API and admin crawl paths', () => {
   const robots = read('public/robots.txt');
   const sitemap = read('public/sitemap.xml');
-  assert.match(robots, /Disallow: \/studio\//);
-  assert.match(robots, /Disallow: \/portal\//);
+  assert.match(robots, /Disallow: \/admin/);
+  assert.match(robots, /Disallow: \/api\//);
+  assert.doesNotMatch(robots, /Disallow: \/studio\//);
+  assert.doesNotMatch(robots, /Disallow: \/portal\//);
+  assert.doesNotMatch(robots, /Disallow: \/app\//);
   assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/sitemap\.xml/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/privacy\.html/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/bulk-social-media-scheduler\.html/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/social-media-content-calendar\.html/);
   assert.doesNotMatch(sitemap, /\/studio\//);
+  assert.doesNotMatch(sitemap, /\/portal\//);
+  assert.doesNotMatch(sitemap, /\/app\//);
 });
 
 test('bulk scheduler landing page has unique canonical metadata and structured FAQ content', () => {
