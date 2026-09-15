@@ -85,20 +85,21 @@ The following actions require the owner's approval:
 1. Add the production callback below to Meta App Dashboard → Facebook Login → Valid OAuth Redirect URIs:
 
    ```text
-   https://social.inaxx.co.uk/studio/facebook-callback.html
+   https://www.inxsocial.co.uk/studio/facebook-callback.html
    ```
 
    This is required only for connecting additional Facebook accounts/Pages from the browser. Existing connected Pages can be tested without changing Meta.
 
 2. Push or merge into the Railway production-connected branch. Auto-deploy will build the backend and apply the Phase 10 database migration. Review CI and the migration first.
 
-The canonical browser application is `https://social.inaxx.co.uk`. Keep
+The canonical browser application is `https://www.inxsocial.co.uk`. Keep
 `https://api.social.inaxx.co.uk` available for the existing Windows desktop
 client unless a separately tested desktop release changes its API address.
 
-When moving the browser application from `app.social.inaxx.co.uk`, update the
+The migration from `social.inaxx.co.uk` to `www.inxsocial.co.uk` requires the
 Railway `APP_URL` and `PORTAL_URL`, Stripe return URLs, Stripe webhook endpoint,
-and Meta browser OAuth redirect URI as described in `DOMAIN_MIGRATION.md`.
+and OAuth provider redirect URIs to be updated as described in
+`DOMAIN_MIGRATION.md`.
 
 ## Hardened Windows releases
 

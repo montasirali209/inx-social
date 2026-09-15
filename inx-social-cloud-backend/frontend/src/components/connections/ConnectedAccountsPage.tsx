@@ -1232,7 +1232,7 @@ export function ConnectedAccountsPage() {
                     Add the Instagram App ID and App Secret to Railway, then
                     register{" "}
                     <code className="break-all text-text-main">
-                      https://social.inaxx.co.uk/api/social-connections/oauth/instagram/callback
+                      https://www.inxsocial.co.uk/api/social-connections/oauth/instagram/callback
                     </code>{" "}
                     as the valid OAuth redirect URI in Meta.
                   </p>

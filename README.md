@@ -37,8 +37,8 @@ Without a configured code-signing certificate this is an unsigned test build and
 The packaged application uses ASAR integrity and Electron fuses. Editing or replacing `app.asar` makes the packaged app terminate. A production installer also requires a trusted Windows Authenticode certificate; any executable modification invalidates that signature. Electron files can still be inspected, so licence, subscription and device enforcement remains server-side.
 
 ## Facebook connection callback
-Upload `META-WEBSITE-UPLOAD/oauth-callback.html` to the root of `social.inaxx.co.uk`, then add this exact URL in Meta Facebook Login settings:
+The callback page is served by the INXSocial production service. Add this exact URL in Meta Facebook Login settings:
 
-`https://social.inaxx.co.uk/oauth-callback.html`
+`https://www.inxsocial.co.uk/oauth-callback.html`
 
 The existing automatic Facebook Page connector is retained. Normal users do not enter raw Page tokens.

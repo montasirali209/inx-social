@@ -583,7 +583,7 @@ async function connectFacebookPageAuto() {
     throw new Error('Facebook App ID is not configured in this build.');
   }
   const graphVersion = settings.graphVersion || 'v25.0';
-  const redirectUri = 'https://social.inaxx.co.uk/oauth-callback.html';
+  const redirectUri = 'https://www.inxsocial.co.uk/oauth-callback.html';
   const state = crypto.randomBytes(16).toString('hex');
   const scopes = [
     'public_profile',

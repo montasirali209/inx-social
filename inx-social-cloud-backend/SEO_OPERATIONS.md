@@ -1,6 +1,6 @@
 # INX Social SEO operations
 
-Canonical origin: `https://social.inaxx.co.uk`
+Canonical origin: `https://www.inxsocial.co.uk`
 
 ## Implemented in Phase 11.4
 
@@ -15,8 +15,8 @@ The schema deliberately contains no invented reviews, ratings, customer counts o
 
 ## Required owner actions after deployment
 
-1. Open Google Search Console and add the `social.inaxx.co.uk` URL-prefix property.
-2. Submit `https://social.inaxx.co.uk/sitemap.xml`.
+1. Open Google Search Console and add the `https://www.inxsocial.co.uk/` URL-prefix property.
+2. Submit `https://www.inxsocial.co.uk/sitemap.xml`.
 3. Inspect the canonical home URL and request indexing after the new deployment is live.
 4. Run Google Rich Results Test and Schema Markup Validator against the live home page.
 5. Test mobile and desktop performance with PageSpeed Insights. Optimise real measured LCP/CLS/INP issues; do not chase a synthetic score without evidence.

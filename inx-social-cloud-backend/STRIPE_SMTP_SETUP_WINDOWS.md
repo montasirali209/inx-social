@@ -80,6 +80,6 @@ Only after local testing:
 - deploy the backend over HTTPS;
 - replace test keys and price IDs with live values;
 - create the live webhook endpoint;
-- update all Stripe return URLs to `https://social.inaxx.co.uk`;
+- update all Stripe return URLs to `https://www.inxsocial.co.uk`;
 - use production SMTP credentials;
 - set `NODE_ENV=production`.
