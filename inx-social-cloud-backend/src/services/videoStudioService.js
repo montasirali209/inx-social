@@ -1,5 +1,10 @@
 const crypto = require('node:crypto');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
+const { spawn } = require('node:child_process');
 const axios = require('axios');
+const ffmpegPath = require('ffmpeg-static');
 const prisma = require('../db/prisma');
 const env = require('../config/env');
 const credits = require('./aiCreditService');
@@ -18,6 +23,49 @@ function safeJson(text) {
   const start = raw.indexOf('{'); const end = raw.lastIndexOf('}');
   if (start < 0 || end <= start) return null;
   try { return JSON.parse(raw.slice(start, end + 1)); } catch (_) { return null; }
+}
+
+function runFfmpeg(args, timeoutMs = 90_000) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(ffmpegPath, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    let stderr = '';
+    let settled = false;
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error); else resolve();
+    };
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      finish(new Error('MP4 normalization timed out'));
+    }, timeoutMs);
+    child.stderr.on('data', chunk => { stderr = `${stderr}${chunk}`.slice(-2000); });
+    child.once('error', finish);
+    child.once('close', code => finish(code === 0 ? null : new Error(stderr || `ffmpeg exited with code ${code}`)));
+  });
+}
+
+async function browserReadyMp4(data, generationId) {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'inxsocial-video-'));
+  const inputPath = path.join(directory, `${generationId}-source.mp4`);
+  const outputPath = path.join(directory, `${generationId}-faststart.mp4`);
+  try {
+    await fs.writeFile(inputPath, data);
+    await runFfmpeg([
+      '-hide_banner', '-loglevel', 'error', '-y', '-fflags', '+genpts', '-i', inputPath,
+      '-map', '0:v:0', '-map', '0:a?', '-c', 'copy', '-avoid_negative_ts', 'make_zero',
+      '-movflags', '+faststart', outputPath
+    ]);
+    const normalized = await fs.readFile(outputPath);
+    return normalized.length ? normalized : data;
+  } catch (caught) {
+    // The paid provider result is still usable even if a defensive remux fails.
+    console.warn('[AI VIDEO NORMALIZE FALLBACK]', JSON.stringify({ generationId, error: clean(caught?.message, 500) }));
+    return data;
+  } finally {
+    await fs.rm(directory, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 function catalog() {
@@ -239,8 +287,9 @@ async function persistVideo(userId, generationId, output, input, amount) {
   let response;
   try { response = await axios.get(output.item.videoURL, { responseType: 'arraybuffer', timeout: 120000, maxContentLength: 120 * 1024 * 1024, maxBodyLength: 120 * 1024 * 1024 }); }
   catch (_) { throw publicError('The generated video could not be copied into your INXSocial Media Library.', 'AI_VIDEO_DOWNLOAD_FAILED', 502); }
-  const data = Buffer.from(response.data || []);
-  if (!data.length || data.length > 120 * 1024 * 1024) throw publicError('The generated video output was empty or too large.', 'AI_VIDEO_OUTPUT_INVALID', 502);
+  const downloaded = Buffer.from(response.data || []);
+  if (!downloaded.length || downloaded.length > 120 * 1024 * 1024) throw publicError('The generated video output was empty or too large.', 'AI_VIDEO_OUTPUT_INVALID', 502);
+  const data = await browserReadyMp4(downloaded, generationId);
   const record = await prisma.agentAsset.create({ data: {
     userId, kind: 'AI_VIDEO', source: 'AI_STUDIO', status: 'READY', originalName: `INXSocial-video-${generationId.slice(0, 8)}.mp4`, mimeType: String(response.headers['content-type'] || 'video/mp4').split(';')[0], byteSize: data.length,
     checksum: crypto.createHash('sha256').update(data).digest('hex'), prompt: clean(input.prompt, 1500), customerPrompt: clean(input.prompt, 1500),

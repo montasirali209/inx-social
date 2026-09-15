@@ -74,6 +74,8 @@ test('Wan Video Studio sends current schema fields and preserves safe provider d
   assert.match(service, /\[AI VIDEO GENERATION FAILED\]/);
   assert.match(runware, /\[RUNWARE REQUEST REJECTED\]/);
   assert.match(runware, /!\['positivePrompt', 'messages', 'inputs'\]\.includes\(key\)/);
+  assert.match(service, /browserReadyMp4/);
+  assert.match(service, /-movflags', '\+faststart'/);
 });
 
 test('Short Video opens an animated creator choice and both video routes use persistent background jobs', () => {
@@ -94,6 +96,16 @@ test('Short Video opens an animated creator choice and both video routes use per
   assert.match(notifications, /generation=\$\{encodeURIComponent/);
   assert.match(controller, /generateVideo[\s\S]*res\.status\(202\)/);
   assert.match(service, /setImmediate\(\(\) => \{ void runVideoGeneration/);
+});
+
+test('AI video completion polling survives temporary rate limits and avoids cached status', () => {
+  const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV2.tsx');
+  const api = read('frontend/src/lib/ai-content-studio-api.ts');
+  const app = read('src/app.js');
+  assert.match(video, /caught\.status === 429 \? 5000/);
+  assert.match(video, /Keep polling with a bounded backoff/);
+  assert.match(api, /cache: 'no-store'/);
+  assert.match(app, /skip: req => \['GET', 'HEAD', 'OPTIONS'\]\.includes\(req\.method\)/);
 });
 
 test('Image Post retains professional animated styling for any remaining native dropdowns', () => {
