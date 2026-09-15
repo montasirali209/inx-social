@@ -17,12 +17,18 @@ const STOCK_TIMEOUT = Math.max(15000, Number(process.env.STOCK_VIDEO_PROVIDER_TI
 const FINAL_MAX_BYTES = 120 * 1024 * 1024;
 const activeJobs = new Set();
 const pendingJobs = [];
-// One native OpenMontage render per Railway worker. Additional requests remain
-// durable in AiGeneration and are drained in order without competing for RAM.
-const MAX_CONCURRENT_JOBS = () => 1;
+// Each isolated OpenMontage service renders one production at a time. INXSocial
+// can safely drive several services concurrently without changing the native
+// OpenMontage pipeline or making multiple renders compete inside one container.
+const workerUrls = () => Array.from(new Set((env.stockVideo.openMontageUrls || [env.stockVideo.openMontageUrl]).map(value => clean(value, 500)).filter(Boolean)));
+const MAX_CONCURRENT_JOBS = () => {
+  const requested = Number(process.env.STOCK_VIDEO_MAX_CONCURRENT_JOBS || workerUrls().length || 1);
+  return Math.max(1, Math.min(workerUrls().length || 1, Number.isFinite(requested) ? requested : 1, 3));
+};
 const RECOVERY_INTERVAL_MS = 15000;
 let recoveryIntervalHandle = null;
 let recoveryPassRunning = false;
+let nextWorkerIndex = 0;
 
 function publicError(message, code = 'STOCK_VIDEO_ERROR', status = 400) {
   const error = new Error(message);
@@ -52,7 +58,7 @@ function providerConfig() {
 }
 
 function isConfigured() {
-  return Boolean(env.stockVideo.openMontageUrl && env.stockVideo.openMontageToken);
+  return Boolean(workerUrls().length && env.stockVideo.openMontageToken);
 }
 
 function workerHeaders() {
@@ -63,11 +69,14 @@ let capabilityCache = { value: null, expiresAt: 0 };
 async function workerCapabilities() {
   if (!isConfigured()) return null;
   if (capabilityCache.value && capabilityCache.expiresAt > Date.now()) return capabilityCache.value;
-  try {
-    const response = await axios.get(`${env.stockVideo.openMontageUrl}/capabilities`, { headers: workerHeaders(), timeout: 30000 });
-    capabilityCache = { value: response.data, expiresAt: Date.now() + 5 * 60 * 1000 };
-    return response.data;
-  } catch (_) { return null; }
+  for (const workerUrl of workerUrls()) {
+    try {
+      const response = await axios.get(`${workerUrl}/capabilities`, { headers: workerHeaders(), timeout: 30000 });
+      capabilityCache = { value: response.data, expiresAt: Date.now() + 5 * 60 * 1000 };
+      return response.data;
+    } catch (_) { /* try the next isolated worker */ }
+  }
+  return null;
 }
 
 function dimensions(aspectRatio, resolution) {
@@ -323,13 +332,19 @@ async function access(userId) {
 function drainQueue() {
   while (activeJobs.size < MAX_CONCURRENT_JOBS() && pendingJobs.length) {
     const job = pendingJobs.shift();
-    if (job) void processJob(job.userId, job.generationId, job.input, job.workerJobId);
+    if (job) void processJob(job.userId, job.generationId, job.input, job.workerJobId, job.workerUrl);
   }
 }
 
-function enqueueJob(userId, generationId, input, workerJobId = null) {
+function enqueueJob(userId, generationId, input, workerJobId = null, workerUrl = null) {
   if (!pendingJobs.some(job => job.generationId === generationId) && !activeJobs.has(generationId)) {
-    pendingJobs.push({ userId, generationId, input, workerJobId: clean(workerJobId, 160) || null });
+    pendingJobs.push({
+      userId,
+      generationId,
+      input,
+      workerJobId: clean(workerJobId, 160) || null,
+      workerUrl: clean(workerUrl, 500) || null
+    });
   }
   drainQueue();
 }
@@ -347,7 +362,7 @@ async function recoverStockVideoJobs() {
     // delay also prevents the old and new Railway instances from completing the
     // same job during a rolling deployment overlap.
     const rows = await prisma.$queryRawUnsafe(`
-      SELECT "id", "userId", "requestJson", "taskUuid", "status", "errorCode"
+      SELECT "id", "userId", "requestJson", "responseJson", "taskUuid", "status", "errorCode"
       FROM "AiGeneration"
       WHERE "contentType"='stock_video'
         AND "hiddenAt" IS NULL
@@ -370,7 +385,8 @@ async function recoverStockVideoJobs() {
         });
         continue;
       }
-      enqueueJob(row.userId, row.id, input, row.taskUuid);
+      const response = storedRequest(row.responseJson);
+      enqueueJob(row.userId, row.id, input, row.taskUuid, response.workerUrl);
     }
   } catch (error) {
     console.error('[stock-video] recovery pass failed', { error: clean(error?.message, 1000) });
@@ -405,16 +421,38 @@ async function updateJob(id, status, progress, extra = {}) {
   await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"progress"=$3,"assetJson"=COALESCE($4,"assetJson"),"responseJson"=COALESCE($5,"responseJson"),"errorCode"=$6,"errorMessage"=$7,"completedAt"=$8,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', id, status, progress, extra.assetJson ? JSON.stringify(extra.assetJson) : null, extra.responseJson ? JSON.stringify(extra.responseJson) : null, extra.errorCode || null, extra.errorMessage || null, extra.completedAt || null);
 }
 
-async function startWorkerProduction(input) {
-  const started = await axios.post(`${env.stockVideo.openMontageUrl}/jobs`, { ...input, fullRunAuthorized: input.fullRunAuthorized !== false }, { headers: workerHeaders(), timeout: 60000 });
-  const workerJobId = String(started.data?.id || '');
-  if (!workerJobId) throw publicError('The video engine did not accept this production. Please try again.', 'STOCK_VIDEO_JOB_REJECTED', 502);
-  return { workerJobId, workerJob: started.data || {} };
+function workerCandidates(preferredUrl = null) {
+  const available = workerUrls();
+  const preferred = clean(preferredUrl, 500);
+  if (preferred && available.includes(preferred)) return [preferred, ...available.filter(url => url !== preferred)];
+  if (!available.length) return [];
+  const offset = nextWorkerIndex % available.length;
+  nextWorkerIndex = (nextWorkerIndex + 1) % available.length;
+  return [...available.slice(offset), ...available.slice(0, offset)];
 }
 
-async function loadWorkerProduction(workerJobId) {
+async function startWorkerProduction(input, preferredUrl = null) {
+  let lastError = null;
+  for (const workerUrl of workerCandidates(preferredUrl)) {
+    try {
+      const started = await axios.post(`${workerUrl}/jobs`, { ...input, fullRunAuthorized: input.fullRunAuthorized !== false }, { headers: workerHeaders(), timeout: 60000 });
+      const workerJobId = String(started.data?.id || '');
+      if (!workerJobId) throw publicError('The video engine did not accept this production. Please try again.', 'STOCK_VIDEO_JOB_REJECTED', 502);
+      return { workerJobId, workerJob: started.data || {}, workerUrl };
+    } catch (error) {
+      lastError = error;
+      console.warn('[stock-video] isolated worker did not accept production; trying next worker', {
+        worker: workerUrls().indexOf(workerUrl) + 1,
+        error: clean(error?.message, 600)
+      });
+    }
+  }
+  throw lastError || publicError('No video worker is currently available. Please try again.', 'STOCK_VIDEO_WORKERS_UNAVAILABLE', 503);
+}
+
+async function loadWorkerProduction(workerJobId, workerUrl) {
   try {
-    const response = await axios.get(`${env.stockVideo.openMontageUrl}/jobs/${encodeURIComponent(workerJobId)}`, { headers: workerHeaders(), timeout: 30000 });
+    const response = await axios.get(`${workerUrl}/jobs/${encodeURIComponent(workerJobId)}`, { headers: workerHeaders(), timeout: 30000 });
     return response.data || {};
   } catch (error) {
     if (Number(error?.response?.status || 0) === 404) return null;
@@ -422,37 +460,41 @@ async function loadWorkerProduction(workerJobId) {
   }
 }
 
-async function processJob(userId, generationId, input, existingWorkerJobId = null) {
+async function processJob(userId, generationId, input, existingWorkerJobId = null, existingWorkerUrl = null) {
   if (activeJobs.has(generationId)) return;
   activeJobs.add(generationId);
   try {
     await updateJob(generationId, 'PROCESSING', 4);
     let workerJobId = clean(existingWorkerJobId, 160);
-    let workerJob = workerJobId ? await loadWorkerProduction(workerJobId) : null;
+    let workerUrl = clean(existingWorkerUrl, 500);
+    if (workerJobId && !workerUrl) workerUrl = workerUrls()[0] || '';
+    let workerJob = workerJobId ? await loadWorkerProduction(workerJobId, workerUrl) : null;
     if (workerJobId && workerJob) {
       console.info('[stock-video] resumed persisted worker production', { generationId, workerJobId, status: workerJob.status });
     } else {
       if (workerJobId) console.warn('[stock-video] worker state was unavailable; restarting saved production', { generationId, workerJobId });
-      const started = await startWorkerProduction(input);
+      const started = await startWorkerProduction(input, workerJobId ? workerUrl : null);
       workerJobId = started.workerJobId;
       workerJob = started.workerJob;
-      await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "taskUuid"=$2,"responseJson"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, workerJobId, JSON.stringify({ runtime: 'OpenMontage', workerJobId, stage: 'preflight' }));
+      workerUrl = started.workerUrl;
+      await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "taskUuid"=$2,"responseJson"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, workerJobId, JSON.stringify({ runtime: 'OpenMontage', workerJobId, workerUrl, stage: 'preflight' }));
     }
     const deadline = Date.now() + env.stockVideo.openMontageTimeoutMs;
     while (Date.now() < deadline) {
       if (workerJob.status === 'completed' || workerJob.status === 'failed') break;
       await new Promise(resolve => setTimeout(resolve, 3000));
-      const polled = await loadWorkerProduction(workerJobId);
+      const polled = await loadWorkerProduction(workerJobId, workerUrl);
       if (!polled) {
         console.warn('[stock-video] worker lost active state; restarting saved production', { generationId, workerJobId });
-        const restarted = await startWorkerProduction(input);
+        const restarted = await startWorkerProduction(input, workerUrl);
         workerJobId = restarted.workerJobId;
         workerJob = restarted.workerJob;
-        await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "taskUuid"=$2,"responseJson"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, workerJobId, JSON.stringify({ runtime: 'OpenMontage', workerJobId, stage: 'preflight', recovered: true }));
+        workerUrl = restarted.workerUrl;
+        await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "taskUuid"=$2,"responseJson"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, workerJobId, JSON.stringify({ runtime: 'OpenMontage', workerJobId, workerUrl, stage: 'preflight', recovered: true }));
         continue;
       }
       workerJob = polled;
-      await updateJob(generationId, 'PROCESSING', Math.max(2, Math.min(98, Number(workerJob.progress || 2))), { responseJson: { runtime: 'OpenMontage', workerJobId, stage: workerJob.stage || 'processing', openmontageCommit: workerJob.result?.openmontageCommit } });
+      await updateJob(generationId, 'PROCESSING', Math.max(2, Math.min(98, Number(workerJob.progress || 2))), { responseJson: { runtime: 'OpenMontage', workerJobId, workerUrl, stage: workerJob.stage || 'processing', openmontageCommit: workerJob.result?.openmontageCommit } });
       if (workerJob.status === 'completed' || workerJob.status === 'failed') break;
     }
     if (workerJob.status !== 'completed') {
@@ -464,7 +506,7 @@ async function processJob(userId, generationId, input, existingWorkerJobId = nul
         : 'Video preparation could not be completed. Please retry; your previous attempt was not counted.';
       throw publicError(publicMessage, workerJob.status === 'failed' ? 'STOCK_VIDEO_PIPELINE_FAILED' : 'STOCK_VIDEO_TIMEOUT', 502);
     }
-    const downloadResponse = await axios.get(`${env.stockVideo.openMontageUrl}/jobs/${encodeURIComponent(workerJobId)}/output`, { responseType: 'arraybuffer', headers: workerHeaders(), timeout: 180000, maxContentLength: FINAL_MAX_BYTES, maxBodyLength: FINAL_MAX_BYTES });
+    const downloadResponse = await axios.get(`${workerUrl}/jobs/${encodeURIComponent(workerJobId)}/output`, { responseType: 'arraybuffer', headers: workerHeaders(), timeout: 180000, maxContentLength: FINAL_MAX_BYTES, maxBodyLength: FINAL_MAX_BYTES });
     const data = Buffer.from(downloadResponse.data || []);
     if (!data.length || data.length > FINAL_MAX_BYTES) throw publicError('The finished stock video was empty or too large for Media Library.', 'STOCK_VIDEO_OUTPUT_INVALID', 502);
     const result = workerJob.result || {};
@@ -486,7 +528,7 @@ async function processJob(userId, generationId, input, existingWorkerJobId = nul
       completionStatus: 'completed', provenance, expiresAt: record.expiresAt.toISOString(), retentionDays: 10,
       warnings: Array.isArray(result.warnings) ? result.warnings : []
     };
-    await updateJob(generationId, 'COMPLETED', 100, { assetJson: asset, responseJson: { runtime: 'OpenMontage', openmontageCommit: result.openmontageCommit, pipeline: result.pipeline, renderer: result.renderer || 'remotion', provenance }, completedAt: new Date() });
+    await updateJob(generationId, 'COMPLETED', 100, { assetJson: asset, responseJson: { runtime: 'OpenMontage', workerJobId, workerUrl, openmontageCommit: result.openmontageCommit, pipeline: result.pipeline, renderer: result.renderer || 'remotion', provenance }, completedAt: new Date() });
   } catch (caught) {
     console.error('[stock-video] job error', { generationId, code: caught?.code || 'STOCK_VIDEO_FAILED', error: clean(caught?.message, 4000) });
     await updateJob(generationId, 'FAILED', 0, { errorCode: clean(caught?.code || 'STOCK_VIDEO_FAILED', 120), errorMessage: clean(caught?.publicMessage || caught?.message || 'Stock video creation failed.', 700), completedAt: new Date() }).catch(() => {});
