@@ -22,8 +22,10 @@ test('OpenMontage worker boots through the stock-footage compatibility entrypoin
   assert.match(compatibility, /bridge\._selected_pipeline = _auto_pipeline/);
   assert.match(stockProfile, /STOCK_PIPELINE = "documentary-montage"/);
   assert.match(stockProfile, /real moving stock-footage montage/);
-  assert.match(stockProfile, /force_ffmpeg=true/);
-  assert.match(stockProfile, /small bottom-centred/);
+  assert.match(stockProfile, /operation='burn_subtitles'/);
+  assert.match(stockProfile, /font_size": 18/);
+  assert.match(stockProfile, /"alignment": 2/);
+  assert.match(stockProfile, /never use remotion_caption_burn/);
   assert.match(compatibility, /@app\.get\("\/ready"\)/);
 });
 
