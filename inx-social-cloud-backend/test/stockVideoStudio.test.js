@@ -107,15 +107,19 @@ test('full worker requires a reviewed final video and retains production artifac
 test('Stock Video Creator recovers durable jobs across SaaS and worker restarts', () => {
   const service = read('src/services/stockVideoStudioService.js');
   const server = read('src/server.js');
+  const bridge = read('../openmontage-worker/full_bridge.py');
 
   assert.match(service, /recoverStockVideoJobs/);
   assert.match(service, /"taskUuid"/);
   assert.match(service, /STOCK_VIDEO_WORKER_INTERRUPTED/);
   assert.match(service, /worker state was unavailable; restarting saved production/);
   assert.match(service, /worker lost active state; restarting saved production/);
+  assert.match(service, /const MAX_CONCURRENT_JOBS = \(\) => 1/);
   assert.match(service, /INTERVAL '15 seconds'/);
   assert.doesNotMatch(service, /SET "status"='FAILED'.*STOCK_VIDEO_WORKER_INTERRUPTED/);
   assert.match(server, /startStockVideoRuntime\(\)/);
+  assert.match(bridge, /_discard_interrupted_state/);
+  assert.match(bridge, /stock_video_stage_complete/);
 });
 
 test('Stock Video Creator UI resumes active jobs and hands completed video to Posts', () => {
