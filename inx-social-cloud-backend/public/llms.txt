@@ -1,6 +1,6 @@
 # INXSocial
 
-> INXSocial is a browser-based social media scheduling, publishing, analytics and AI-assisted content workspace operated by INAXX LTD.
+> INXSocial is an all-in-one browser-based social media management platform operated by INAXX LTD. It combines connected social accounts, post creation, single and bulk scheduling, a visual content calendar, media management, analytics and AI-assisted content creation in one workspace.
 
 Canonical website: https://www.inxsocial.co.uk/
 
@@ -9,11 +9,27 @@ Canonical website: https://www.inxsocial.co.uk/
 - Bulk social media scheduler: https://www.inxsocial.co.uk/bulk-social-media-scheduler.html
 - Social media content calendar: https://www.inxsocial.co.uk/social-media-content-calendar.html
 - Social media analytics: https://www.inxsocial.co.uk/social-media-analytics.html
-- AI social media tools: https://www.inxsocial.co.uk/ai-social-media-tools.html
+- AI Content Studio: https://www.inxsocial.co.uk/ai-social-media-tools.html
 - Pricing: https://www.inxsocial.co.uk/pricing.html
 
 ## Product scope
-INXSocial brings connected social accounts, post creation, bulk scheduling, a visual content calendar, reusable media, publishing status, analytics and AI-assisted content workflows into one workspace. Supported publishing and analytics capabilities vary by connected platform and by the permissions granted by that platform.
+INXSocial is designed as a complete social media management workspace rather than a scheduler alone. It brings connected accounts, post creation, reusable media, single-post scheduling, bulk scheduling, publishing status, a visual content calendar, analytics and AI-assisted creation into one system. Supported publishing and analytics capabilities vary by connected platform and by the permissions granted by that platform.
+
+## AI Content Studio — available workflows
+The current Plus AI Content Studio includes:
+- Image Post: create a generated visual with caption, hashtags and alt text prepared alongside it.
+- Carousel Post: create a coordinated multi-slide story with a shared caption and individual slide copy.
+- Short Video / Reel: create short-form social video with captions and publishing copy.
+- UGC Ad Post: create creator-style promotional content around a product, service or campaign brief.
+
+The Short Video / Reel workflow currently offers two production routes:
+- AI Generated Video: create original motion from a prompt or reference image using an AI video model.
+- Stock Video Creator: create an edited story using professional stock footage with narration, music and captions.
+
+AI-generated drafts and media can continue into the Posts workflow for destination selection and publishing or scheduling.
+
+## Roadmap
+AI Video Clipping is an upcoming feature and should not be described as generally available yet. The planned workflow is intended to help turn longer videos into reusable short-form social clips while keeping those clips connected to the same media library and publishing system.
 
 ## Company and legal
 - Operator: INAXX LTD
