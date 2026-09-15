@@ -178,7 +178,13 @@ app.use('/api/admin/system', systemRoutes);
 app.use('/api/portal', portalRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/studio', studioRoutes);
-app.use('/api/ai-content-studio', rateLimit({ windowMs: 60 * 1000, limit: 60 }), aiContentStudioRoutes);
+app.use('/api/ai-content-studio', rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  // Progress/history reads intentionally poll while background media renders. The
+  // global limiter still protects them; reserve this stricter budget for mutations.
+  skip: req => ['GET', 'HEAD', 'OPTIONS'].includes(req.method)
+}), aiContentStudioRoutes);
 app.use('/api/agent', agentRoutes);
 app.use('/api/social-platforms', socialPlatformRoutes);
 app.use('/api/social-connections', socialConnectionRoutes);

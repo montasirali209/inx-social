@@ -113,7 +113,7 @@ export function generateUGCAd(request: GenerationRequest, signal?: AbortSignal) 
 }
 
 export function getGenerationStatus(id: string) {
-  return apiRequest<GenerationJob>(`/api/ai-content-studio/generations/${encodeURIComponent(id)}`)
+  return apiRequest<GenerationJob>(`/api/ai-content-studio/generations/${encodeURIComponent(id)}`, { cache: 'no-store' })
 }
 
 export function cancelGeneration(id: string) {

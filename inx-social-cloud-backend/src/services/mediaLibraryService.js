@@ -149,6 +149,22 @@ async function findContent(userId, id, options = {}) {
   return prisma.agentAsset.findFirst({ where: { id, userId, status: 'READY', ...(options.includeArchived ? {} : { archivedAt: null }) }, select: { mimeType: true, data: true, checksum: true, originalName: true } });
 }
 
+async function findContentMetadata(userId, id, options = {}) {
+  return prisma.agentAsset.findFirst({
+    where: { id, userId, status: 'READY', ...(options.includeArchived ? {} : { archivedAt: null }) },
+    select: { mimeType: true, byteSize: true, checksum: true, originalName: true }
+  });
+}
+
+async function findContentRange(userId, id, start, length, options = {}) {
+  const archivedClause = options.includeArchived ? '' : 'AND "archivedAt" IS NULL';
+  const rows = await prisma.$queryRawUnsafe(
+    `SELECT substring("data" FROM $3 FOR $4) AS "data" FROM "AgentAsset" WHERE "id"=$1 AND "userId"=$2 AND "status"='READY' ${archivedClause} LIMIT 1`,
+    id, userId, Math.max(0, Number(start)) + 1, Math.max(1, Number(length))
+  );
+  return rows[0]?.data || null;
+}
+
 async function rename(userId, id, fileName) {
   const existing = await prisma.agentAsset.findFirst({ where: { id, userId, archivedAt: null }, select: { id: true } });
   if (!existing) throw error('Media asset not found.', 404);
@@ -188,4 +204,4 @@ async function purge(userId, id) {
   return true;
 }
 
-module.exports = { IMAGE_TYPES, VIDEO_TYPES, MAX_FILE_BYTES, TRASH_RETENTION_DAYS, STORAGE_LIMITS, publicAsset, verifyContentAccess, workspace, upload, createFolder, findContent, rename, duplicate, archive, restore, purge };
+module.exports = { IMAGE_TYPES, VIDEO_TYPES, MAX_FILE_BYTES, TRASH_RETENTION_DAYS, STORAGE_LIMITS, publicAsset, verifyContentAccess, workspace, upload, createFolder, findContent, findContentMetadata, findContentRange, rename, duplicate, archive, restore, purge };

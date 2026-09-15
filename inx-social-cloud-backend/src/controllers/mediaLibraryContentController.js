@@ -1,4 +1,5 @@
 const mediaLibrary = require('../services/mediaLibraryService');
+const MAX_VIDEO_CHUNK_BYTES = 2 * 1024 * 1024;
 
 function parseRange(value, total) {
   const match = /^bytes=(\d*)-(\d*)$/i.exec(String(value || '').trim());
@@ -26,11 +27,11 @@ function parseRange(value, total) {
 async function mediaLibraryAssetContent(req, res, next) {
   try {
     const userId = mediaLibrary.verifyContentAccess(req.query.access, req.params.id);
-    const asset = await mediaLibrary.findContent(userId, req.params.id, { includeArchived: true });
+    const requestedRange = req.headers.range;
+    const asset = await mediaLibrary.findContentMetadata(userId, req.params.id, { includeArchived: true });
     if (!asset) return res.status(404).json({ error: 'Media asset not found.' });
 
-    const data = Buffer.isBuffer(asset.data) ? asset.data : Buffer.from(asset.data || []);
-    const total = data.length;
+    const total = Number(asset.byteSize || 0);
     const isVideo = String(asset.mimeType || '').startsWith('video/');
 
     res.setHeader('Content-Type', asset.mimeType);
@@ -42,25 +43,32 @@ async function mediaLibraryAssetContent(req, res, next) {
       res.setHeader('Content-Disposition', `attachment; filename="${String(asset.originalName || 'media-asset').replace(/["\\]/g, '')}"`);
     }
 
-    if (!isVideo || !req.headers.range) {
-      res.setHeader('Content-Length', total);
+    if (!isVideo || !requestedRange) {
+      const content = await mediaLibrary.findContent(userId, req.params.id, { includeArchived: true });
+      const data = Buffer.isBuffer(content?.data) ? content.data : Buffer.from(content?.data || []);
+      if (!data.length && total) return res.status(404).end();
+      res.setHeader('Content-Length', data.length);
       return res.status(200).end(data);
     }
 
-    const range = parseRange(req.headers.range, total);
+    const range = parseRange(requestedRange, total);
     if (!range) {
       res.setHeader('Content-Range', `bytes */${total}`);
       return res.status(416).end();
     }
 
-    const length = range.end - range.start + 1;
+    const end = Math.min(range.end, range.start + MAX_VIDEO_CHUNK_BYTES - 1);
+    const length = end - range.start + 1;
+    const chunk = await mediaLibrary.findContentRange(userId, req.params.id, range.start, length, { includeArchived: true });
+    if (!chunk?.length) return res.status(404).end();
+    const actualEnd = range.start + chunk.length - 1;
     res.status(206);
-    res.setHeader('Content-Range', `bytes ${range.start}-${range.end}/${total}`);
-    res.setHeader('Content-Length', length);
-    return res.end(data.subarray(range.start, range.end + 1));
+    res.setHeader('Content-Range', `bytes ${range.start}-${actualEnd}/${total}`);
+    res.setHeader('Content-Length', chunk.length);
+    return res.end(chunk);
   } catch (error) {
     next(error);
   }
 }
 
-module.exports = { mediaLibraryAssetContent, parseRange };
+module.exports = { MAX_VIDEO_CHUNK_BYTES, mediaLibraryAssetContent, parseRange };

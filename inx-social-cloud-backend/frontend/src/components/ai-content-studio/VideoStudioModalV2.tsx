@@ -15,6 +15,7 @@ import {
   type VideoStudioSelection,
 } from '../../lib/ai-next-studio-api'
 import { sendPostStudioMessage, type PostStudioBrief } from '../../lib/ai-post-studio-api'
+import { ApiError } from '../../lib/api-client'
 import { Button } from '../ui/Button'
 import { StudioSelect } from './StudioSelect'
 import { StockVideoCreator } from './StockVideoCreator'
@@ -94,10 +95,17 @@ export function VideoStudioModal({ open, type, access, initialDraft, initialVide
   useEffect(() => {
     if (!jobId || studioKind !== 'generative') return
     let active = true
+    let timer = 0
+    let retryCount = 0
+    const schedule = (delay = 3000) => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => { if (active) void poll() }, delay)
+    }
     async function poll() {
       try {
         const result = await getGenerationStatus(jobId)
         if (!active) return
+        retryCount = 0
         if (result.status === 'completed' && result.asset) {
           setAsset(result.asset); setPrompt(current => current || result.prompt || ''); setGenerating(false); setJobId('')
           window.localStorage.removeItem(ACTIVE_AI_VIDEO_JOB_KEY)
@@ -109,14 +117,23 @@ export function VideoStudioModal({ open, type, access, initialDraft, initialVide
           window.localStorage.removeItem(ACTIVE_AI_VIDEO_JOB_KEY)
           return
         }
-        window.setTimeout(() => { if (active) void poll() }, 3000)
+        schedule()
       } catch (caught) {
         if (!active) return
-        setError(caught instanceof Error ? caught.message : 'Video progress could not be checked.'); setGenerating(false)
+        const terminal = caught instanceof ApiError && [401, 403, 404].includes(caught.status)
+        if (terminal) {
+          setError(caught.message || 'Video progress could not be checked.'); setGenerating(false); setJobId('')
+          window.localStorage.removeItem(ACTIVE_AI_VIDEO_JOB_KEY)
+          return
+        }
+        // A temporary 429, 5xx or network interruption must never strand a completed
+        // render behind the loading view. Keep polling with a bounded backoff.
+        retryCount += 1
+        schedule(caught instanceof ApiError && caught.status === 429 ? 5000 : Math.min(15_000, 2000 + retryCount * 1500))
       }
     }
     void poll()
-    return () => { active = false }
+    return () => { active = false; window.clearTimeout(timer) }
   }, [jobId, studioKind, onToast])
 
   if (!open || (type !== 'short_video' && initialDraft?.contentType !== 'short_video')) return null
