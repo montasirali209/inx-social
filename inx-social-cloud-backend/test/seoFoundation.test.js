@@ -31,5 +31,15 @@ test('robots and sitemap expose public documents but exclude private product are
   assert.match(robots, /Disallow: \/portal\//);
   assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/sitemap\.xml/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/privacy\.html/);
+  assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/bulk-social-media-scheduler\.html/);
   assert.doesNotMatch(sitemap, /\/studio\//);
+});
+
+test('bulk scheduler landing page has unique canonical metadata and structured FAQ content', () => {
+  const page = read('public/bulk-social-media-scheduler.html');
+  assert.match(page, /<title>Bulk Social Media Scheduler for Multiple Accounts \| INXSocial<\/title>/);
+  assert.match(page, /<link rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/bulk-social-media-scheduler\.html">/);
+  assert.match(page, /"@type":"FAQPage"/);
+  assert.match(page, /bulk schedule social media posts/i);
+  assert.match(page, /href="\/social-media-scheduler\.html"/);
 });
