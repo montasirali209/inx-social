@@ -32,6 +32,7 @@ test('robots and sitemap expose public documents but exclude private product are
   assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/sitemap\.xml/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/privacy\.html/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/bulk-social-media-scheduler\.html/);
+  assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/social-media-content-calendar\.html/);
   assert.doesNotMatch(sitemap, /\/studio\//);
 });
 
@@ -42,4 +43,13 @@ test('bulk scheduler landing page has unique canonical metadata and structured F
   assert.match(page, /"@type":"FAQPage"/);
   assert.match(page, /bulk schedule social media posts/i);
   assert.match(page, /href="\/social-media-scheduler\.html"/);
+});
+
+test('content calendar landing page has unique canonical metadata and structured FAQ content', () => {
+  const page = read('public/social-media-content-calendar.html');
+  assert.match(page, /<title>Social Media Content Calendar & Publishing Planner \| INXSocial<\/title>/);
+  assert.match(page, /<link rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/social-media-content-calendar\.html">/);
+  assert.match(page, /"@type":"FAQPage"/);
+  assert.match(page, /visual content calendar/i);
+  assert.match(page, /href="\/bulk-social-media-scheduler\.html"/);
 });
