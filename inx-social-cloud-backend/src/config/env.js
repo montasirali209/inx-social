@@ -66,6 +66,7 @@ module.exports = {
     apiKey: process.env.RUNWARE_API_KEY || '',
     imageModel: modelName(process.env.RUNWARE_IMAGE_MODEL, 'runware:400@4'),
     imagePremiumModel: modelName(process.env.RUNWARE_IMAGE_PREMIUM_MODEL, 'google:4@3'),
+    videoEconomyModel: modelName(process.env.RUNWARE_VIDEO_ECONOMY_MODEL, 'prunaai:p-video@2'),
     videoModel: modelName(process.env.RUNWARE_VIDEO_MODEL, 'prunaai:p-video@0'),
     videoLongModel: modelName(process.env.RUNWARE_VIDEO_LONG_MODEL, 'alibaba:wan@3.0'),
     videoEditModel: modelName(process.env.RUNWARE_VIDEO_EDIT_MODEL, 'prunaai:p-video@edit'),

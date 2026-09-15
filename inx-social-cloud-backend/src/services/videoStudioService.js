@@ -71,11 +71,11 @@ async function browserReadyMp4(data, generationId) {
 function catalog() {
   return [
     {
-      id: 'pvideo', name: 'P-Video', badge: 'Fast value', speed: 'fast',
-      description: 'The fastest low-cost route for Reels, motion tests and everyday social clips.',
-      model: env.runware.videoModel || 'prunaai:p-video@0', resolutions: ['720p', '1080p'], durations: [5, 10], aspects: ['9:16', '16:9', '1:1'],
+      id: 'pvideo', name: 'P-Video-2', badge: 'Best value', speed: 'fast',
+      description: 'Quality-focused 720p generation for everyday Reels at roughly one quarter of the cost of Wan 3.0.',
+      model: env.runware.videoEconomyModel || 'prunaai:p-video@2', resolutions: ['720p'], durations: [5, 10], aspects: ['9:16', '16:9', '1:1'],
       draftSupported: true, audioSupported: true, imageReferenceSupported: true, referenceMode: 'frame',
-      rates: { '720p': 0.02, '1080p': 0.04 }, draftRates: { '720p': 0.005, '1080p': 0.01 }, tags: ['fast', 'budget', 'social', 'reel']
+      rates: { '720p': 0.026 }, draftRates: { '720p': 0.016 }, tags: ['fast', 'budget', 'quality', 'social', 'reel']
     },
     {
       id: 'h3fast', name: 'MiniMax H3 Fast', badge: 'Fast references', speed: 'fast',
@@ -125,7 +125,7 @@ function catalog() {
 function internalProfiles() {
   const publicItems = catalog();
   const raw = [
-    { id: 'pvideo', model: env.runware.videoModel || 'prunaai:p-video@0', referenceMode: 'frame', rates: { '720p': 0.02, '1080p': 0.04 }, draftRates: { '720p': 0.005, '1080p': 0.01 } },
+    { id: 'pvideo', model: env.runware.videoEconomyModel || 'prunaai:p-video@2', referenceMode: 'frame', rates: { '720p': 0.026 }, draftRates: { '720p': 0.016 } },
     { id: 'h3fast', model: 'minimax:h3@fast', referenceMode: 'frame', rates: { '480p': 0.046 } },
     { id: 'kling30', model: 'klingai:kling-video@3-standard', referenceMode: 'frame', rates: { '720p': 0.084 }, audioRates: { '720p': 0.126 } },
     { id: 'wan30', model: env.runware.videoLongModel || 'alibaba:wan@3.0', referenceMode: 'reference', rates: { '480p': 0.05, '720p': 0.10, '1080p': 0.20 } },
@@ -182,7 +182,7 @@ async function recommendModel(input = {}) {
     const response = await axios.post(`${String(env.openaiImage.baseUrl).replace(/\/$/, '')}/chat/completions`, {
       model: CHAT_MODEL,
       messages: [
-        { role: 'system', content: 'You are the private INXSocial video routing engine. Choose one model from the supplied catalog for the user brief. Optimise quality-to-cost, not maximum quality by default. Prefer P-Video for ordinary fast social clips, H3 Fast for cheap reference-heavy iteration, Kling for synchronized audio/people, LTX-2.5 Pro for polished product/commercial reference work, Runway for cinematic realism, Wan for high-quality hero visuals, and Seedance only when long-form or complex premium direction justifies its cost. Return JSON only.' },
+        { role: 'system', content: 'You are the private INXSocial video routing engine. Choose one model from the supplied catalog for the user brief. Optimise quality-to-cost, not maximum quality by default. Prefer P-Video-2 for ordinary high-quality social clips, H3 Fast for cheap reference-heavy iteration, Kling for synchronized audio/people, LTX-2.5 Pro for polished product/commercial reference work, Runway for cinematic realism, Wan for high-quality hero visuals, and Seedance only when long-form or complex premium direction justifies its cost. Return JSON only.' },
         { role: 'user', content: JSON.stringify({ prompt, hasReference: Boolean(input.hasReference), aspectRatio: input.aspectRatio || '9:16', candidates }) }
       ],
       reasoning_effort: 'none', temperature: 0.2, response_format: { type: 'json_object' }, max_completion_tokens: 450
@@ -206,7 +206,11 @@ async function recommendModel(input = {}) {
   }
 }
 
-function dimensions(resolution, aspect) {
+function dimensions(resolution, aspect, profileId = '') {
+  if (profileId === 'pvideo') {
+    const pVideo2 = { '16:9': [1280, 704], '9:16': [704, 1280], '1:1': [960, 960] };
+    return pVideo2[aspect] || pVideo2['9:16'];
+  }
   const maps = {
     '480p': { '16:9': [864, 480], '9:16': [480, 864], '1:1': [480, 480] },
     '720p': { '16:9': [1280, 720], '9:16': [720, 1280], '1:1': [960, 960] },
@@ -247,16 +251,19 @@ function buildProviderTask(profile, input, reference, taskUUID) {
   const aspect = String(input.aspectRatio || profile.aspects[0]);
   const audio = input.audio !== false && profile.audioSupported;
   const task = {
-    taskType: 'videoInference', taskUUID, model: profile.model, deliveryMethod: 'async', positivePrompt: clean(input.prompt, profile.id === 'runway45' ? 1000 : 7000), duration,
+    taskType: 'videoInference', taskUUID, model: profile.model, deliveryMethod: 'async', positivePrompt: clean(input.prompt, profile.id === 'pvideo' ? 2048 : profile.id === 'runway45' ? 1000 : 7000), duration,
     includeCost: true, outputType: 'URL'
   };
   if (reference) {
     task.inputs = profile.referenceMode === 'reference' ? { referenceImages: [reference.dataUri] } : { frameImages: [reference.dataUri] };
     if (profile.id === 'pvideo' || profile.id === 'wan30' || profile.id === 'seedance25') task.resolution = resolution;
   } else {
-    const [width, height] = dimensions(resolution, aspect); task.width = width; task.height = height;
+    const [width, height] = dimensions(resolution, aspect, profile.id); task.width = width; task.height = height;
   }
-  if (profile.id === 'pvideo') { task.settings = { audio, draft: Boolean(input.draft), promptUpsampling: true }; task.fps = 24; }
+  if (profile.id === 'pvideo') {
+    task.fps = 24;
+    task.settings = { audio, draft: Boolean(input.draft), promptUpsampling: true };
+  }
   // Wan 3.0 produces native audio from the prompt. Keep this request on Runware's documented core
   // video fields instead of sending model settings that are absent from the current schema.
   if (profile.id === 'wan30' && !audio) task.positivePrompt = `${task.positivePrompt}\n\nCreate a silent video with no dialogue, voice, music or sound effects.`;
