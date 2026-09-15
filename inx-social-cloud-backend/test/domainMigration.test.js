@@ -17,9 +17,20 @@ test('canonical legal documents and desktop OAuth callback are packaged', () => 
   }
 });
 
-test('public pages use the canonical social.inaxx.co.uk origin', () => {
-  for (const file of ['public/landing.html', 'public/privacy.html', 'public/terms.html', 'public/data-deletion.html']) {
+test('public pages use the canonical www.inxsocial.co.uk origin', () => {
+  for (const file of [
+    'public/landing.html',
+    'public/privacy.html',
+    'public/terms.html',
+    'public/data-deletion.html',
+    'public/social-media-scheduler.html',
+    'public/social-media-analytics.html',
+    'public/ai-social-media-tools.html',
+    'public/pricing.html'
+  ]) {
     const source = read(file);
+    assert.match(source, /https:\/\/www\.inxsocial\.co\.uk/);
+    assert.doesNotMatch(source, /https:\/\/social\.inaxx\.co\.uk/);
     assert.doesNotMatch(source, /app\.social\.inaxx\.co\.uk/);
     assert.doesNotMatch(source, /https:\/\/inaxx\.co\.uk\/inx-social\/data-deletion\.html/);
   }
@@ -27,7 +38,7 @@ test('public pages use the canonical social.inaxx.co.uk origin', () => {
 
 test('browser and desktop callback paths remain distinct and documented', () => {
   const migration = read('DOMAIN_MIGRATION.md');
-  assert.match(migration, /https:\/\/social\.inaxx\.co\.uk\/studio\/facebook-callback\.html/);
-  assert.match(migration, /https:\/\/social\.inaxx\.co\.uk\/oauth-callback\.html/);
+  assert.match(migration, /https:\/\/www\.inxsocial\.co\.uk\/studio\/facebook-callback\.html/);
+  assert.match(migration, /https:\/\/www\.inxsocial\.co\.uk\/oauth-callback\.html/);
   assert.match(migration, /https:\/\/api\.social\.inaxx\.co\.uk\/health/);
 });

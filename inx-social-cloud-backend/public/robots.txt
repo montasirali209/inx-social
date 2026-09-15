@@ -6,4 +6,4 @@ Disallow: /portal/
 Disallow: /studio/
 Disallow: /app/
 
-Sitemap: https://social.inaxx.co.uk/sitemap.xml
+Sitemap: https://www.inxsocial.co.uk/sitemap.xml

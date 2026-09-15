@@ -8,7 +8,7 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
 test('public landing has canonical metadata, social previews and structured software data', () => {
   const landing = read('public/landing.html');
-  assert.match(landing, /<link rel="canonical" href="https:\/\/social\.inaxx\.co\.uk\/">/);
+  assert.match(landing, /<link rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/">/);
   assert.match(landing, /property="og:title"/);
   assert.match(landing, /name="twitter:card" content="summary_large_image"/);
   const jsonLd = landing.match(/<script type="application\/ld\+json">\s*([\s\S]*?)\s*<\/script>/);
@@ -20,7 +20,7 @@ test('public landing has canonical metadata, social previews and structured soft
     return types.includes('SoftwareApplication');
   });
   assert.ok(software, 'The JSON-LD graph must describe INX Social as a SoftwareApplication.');
-  assert.equal(software.url, 'https://social.inaxx.co.uk/');
+  assert.equal(software.url, 'https://www.inxsocial.co.uk/');
   assert.match(landing, /"priceCurrency": "GBP"/);
 });
 
@@ -29,7 +29,7 @@ test('robots and sitemap expose public documents but exclude private product are
   const sitemap = read('public/sitemap.xml');
   assert.match(robots, /Disallow: \/studio\//);
   assert.match(robots, /Disallow: \/portal\//);
-  assert.match(robots, /Sitemap: https:\/\/social\.inaxx\.co\.uk\/sitemap\.xml/);
-  assert.match(sitemap, /https:\/\/social\.inaxx\.co\.uk\/privacy\.html/);
+  assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/sitemap\.xml/);
+  assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/privacy\.html/);
   assert.doesNotMatch(sitemap, /\/studio\//);
 });

@@ -31,7 +31,7 @@ test('private application routes are excluded while public SEO pages are discove
   assert.match(robots, /Allow: \//);
   assert.match(robots, /Disallow: \/app\//);
   assert.match(robots, /Disallow: \/api\//);
-  assert.match(robots, /Sitemap: https:\/\/social\.inaxx\.co\.uk\/sitemap\.xml/);
+  assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/sitemap\.xml/);
   assert.match(sitemap, /social-media-scheduler\.html/);
   assert.match(sitemap, /social-media-analytics\.html/);
   assert.match(sitemap, /ai-social-media-tools\.html/);
@@ -41,7 +41,7 @@ test('private application routes are excluded while public SEO pages are discove
 
 test('landing retains canonical and software application structured data', () => {
   const landing = read('public/landing.html');
-  assert.match(landing, /rel="canonical" href="https:\/\/social\.inaxx\.co\.uk\/"/);
+  assert.match(landing, /rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/"/);
   assert.match(landing, /"SoftwareApplication"/);
   assert.match(landing, /"WebApplication"/);
   assert.match(landing, /"WebSite"/);
@@ -61,7 +61,7 @@ test('SEO product pages have unique titles, canonicals and indexable copy', () =
     assert.match(html, new RegExp(`<title>${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
     assert.match(html, /<meta name="description" content="[^"]{60,}/);
     assert.match(html, /<meta name="robots" content="index,follow/);
-    assert.match(html, new RegExp(`rel="canonical" href="https:\\/\\/social\\.inaxx\\.co\\.uk\\/${canonical.replace('.', '\\.')}`));
+    assert.match(html, new RegExp(`rel="canonical" href="https:\\/\\/www\\.inxsocial\\.co\\.uk\\/${canonical.replace('.', '\\.')}`));
     assert.match(html, /application\/ld\+json/);
     assert.match(html, /href="\/social-media-scheduler\.html"/);
     assert.match(html, /href="\/pricing\.html"/);

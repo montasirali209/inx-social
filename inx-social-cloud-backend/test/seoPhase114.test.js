@@ -9,7 +9,7 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 test('public landing exposes consistent canonical search and social metadata', () => {
   const html = read('public/landing.html');
   assert.match(html, /<title>Social Media Scheduling &amp; Publishing \| INXSocial<\/title>/);
-  assert.match(html, /<link rel="canonical" href="https:\/\/social\.inaxx\.co\.uk\/">/);
+  assert.match(html, /<link rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/">/);
   assert.match(html, /hreflang="x-default"/);
   assert.match(html, /twitter:image:alt/);
   assert.equal((html.match(/<h1[ >]/g) || []).length, 1);
@@ -28,9 +28,9 @@ test('crawl controls publish the canonical sitemap and exclude private workspace
   assert.match(robots, /Disallow: \/admin/);
   assert.match(robots, /Disallow: \/studio\//);
   assert.match(robots, /Disallow: \/app\//);
-  assert.match(robots, /Sitemap: https:\/\/social\.inaxx\.co\.uk\/sitemap\.xml/);
-  assert.match(sitemap, /<lastmod>2026-09-10<\/lastmod>/);
+  assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/sitemap\.xml/);
+  assert.match(sitemap, /<lastmod>2026-09-15<\/lastmod>/);
   assert.match(app, /X-Robots-Tag', 'noindex, nofollow, noarchive/);
   assert.match(app, /stale-while-revalidate=86400/);
-  assert.match(read('public/llms.txt'), /Canonical website: https:\/\/social\.inaxx\.co\.uk\//);
+  assert.match(read('public/llms.txt'), /Canonical website: https:\/\/www\.inxsocial\.co\.uk\//);
 });
