@@ -11,6 +11,17 @@ import compat_bridge
 import full_bridge as bridge
 
 STOCK_PIPELINE = "documentary-montage"
+STOCK_SUBTITLE_STYLE = {
+    "font": "Arial",
+    "font_size": 18,
+    "bold": True,
+    "primary_color": "&H00FFFFFF",
+    "outline_color": "&H00000000",
+    "outline_width": 3,
+    "shadow": 2,
+    "margin_v": 60,
+    "alignment": 2,
+}
 _base_instructions = bridge._agent_instructions
 _base_prompt = bridge._agent_prompt
 _base_capabilities = bridge._capabilities
@@ -25,7 +36,8 @@ def _stock_pipeline(req: bridge.JobRequest) -> str:
 def _stock_instructions(job: dict[str, Any], req: bridge.JobRequest) -> str:
     base = _base_instructions(job, req)
     caption_rule = (
-        "Captions are requested. Create a timed SRT from the final narration, then use the upstream remotion_caption_burn tool with force_ffmpeg=true and overlays=[]. This deliberately uses the bottom-subtitle fallback: small bottom-centred text, maximum two lines, inside the lower safe margin, white text with dark outline/shadow. Never place narration text in the centre of the frame and never use large word-by-word/karaoke captions."
+        "Captions are requested. After TTS is final, transcribe that exact narration audio and require real word-level start/end timestamps; never estimate caption timing from the script or shift remaining words into the next narration phrase. Create one timed SRT from those timestamped words with subtitle_gen, max_words_per_cue=4 and highlight_style='none'. Treat four words only as a visual page limit: each cue must start with its first spoken word and end with its last spoken word. Burn it exactly once onto the clean final montage using the upstream video_compose tool with operation='burn_subtitles' and subtitle_style="
+        f"{STOCK_SUBTITLE_STYLE!r}. Use that returned file as the final MP4. During final review, compare the SRT against the encoded narration and reject/rebuild any output with early, late, stale or missing subtitle words. This is a compact bottom-centred accessibility subtitle: never use remotion_caption_burn, CaptionOverlay, word-by-word/karaoke captions, a second caption layer, centre-screen narration text, or any other visible transcript overlay."
         if req.captions is not False
         else "Captions are disabled, so render no visible text overlays."
     )
@@ -56,12 +68,13 @@ def _stock_capabilities() -> dict[str, Any]:
     value = dict(_base_capabilities())
     value["studioWorkflow"] = {
         "name": "inx-stock-footage-profile",
-        "version": "3.1",
+        "version": "3.2",
         "pipeline": STOCK_PIPELINE,
         "realMovingFootageOnly": True,
-        "subtitleLayout": "small-bottom-centre",
+        "subtitleLayout": "compact-bottom-centre",
+        "subtitleStyle": STOCK_SUBTITLE_STYLE,
         "presentationCards": False,
-        "captionBurn": "remotion_caption_burn:force_ffmpeg",
+        "captionBurn": "video_compose:burn_subtitles",
     }
     return value
 

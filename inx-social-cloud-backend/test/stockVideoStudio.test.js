@@ -40,8 +40,13 @@ test('Stock Video Creator delegates to the full isolated OpenMontage service and
   assert.match(dockerfile, /08e2151fa02de28a5d6a312b3d575692bf147ad7/);
   assert.match(dockerfile, /uvicorn stock_compat_entry:app/);
   assert.match(stockProfile, /STOCK_PIPELINE = "documentary-montage"/);
-  assert.match(stockProfile, /force_ffmpeg=true/);
-  assert.match(stockProfile, /small bottom-centred/);
+  assert.match(stockProfile, /operation='burn_subtitles'/);
+  assert.match(stockProfile, /font_size": 18/);
+  assert.match(stockProfile, /"alignment": 2/);
+  assert.match(stockProfile, /real word-level start\/end timestamps/);
+  assert.match(stockProfile, /never estimate caption timing/);
+  assert.match(stockProfile, /reject\/rebuild any output with early, late, stale or missing subtitle words/);
+  assert.match(stockProfile, /never use remotion_caption_burn/);
   assert.match(bridge, /@app\.post\("\/jobs"/);
   assert.match(bridge, /@app\.get\("\/jobs\/\{job_id\}"/);
   assert.match(bridge, /@app\.get\("\/jobs\/\{job_id\}\/output"/);
