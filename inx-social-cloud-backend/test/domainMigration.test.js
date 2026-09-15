@@ -48,3 +48,19 @@ test('browser and desktop callback paths remain distinct and documented', () => 
   assert.match(migration, /https:\/\/www\.inxsocial\.co\.uk\/oauth-callback\.html/);
   assert.match(migration, /https:\/\/api\.social\.inaxx\.co\.uk\/health/);
 });
+
+test('legacy browser hosts permanently redirect safe navigation to the canonical host', () => {
+  const source = read('src/app.js');
+  assert.match(source, /CANONICAL_BROWSER_HOST = 'www\.inxsocial\.co\.uk'/);
+  assert.match(source, /MIGRATION_BROWSER_HOSTS = new Set\(\['social\.inaxx\.co\.uk', 'inxsocial\.co\.uk'\]\)/);
+  assert.match(source, /MIGRATION_BROWSER_HOSTS\.has\(host\) && isSafeNavigation && !isApiRequest/);
+  assert.match(source, /res\.redirect\(308, destination\.toString\(\)\)/);
+});
+
+test('private and utility surfaces emit noindex robot headers before static files', () => {
+  const source = read('src/app.js');
+  for (const route of ['/admin', '/index.html', '/api', '/portal', '/studio', '/app', '/health', '/oauth-callback.html']) {
+    assert.equal(source.includes(`'${route}'`), true, `${route} is missing from crawl controls`);
+  }
+  assert.match(source, /X-Robots-Tag', 'noindex, nofollow, noarchive'/);
+});

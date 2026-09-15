@@ -32,6 +32,8 @@ const reactAppRoot = path.join(__dirname, '..', 'frontend', 'dist');
 const reactAppIndex = path.join(reactAppRoot, 'index.html');
 const adminIndex = path.join(__dirname, '..', 'public', 'index.html');
 const landingPath = path.join(__dirname, '..', 'public', 'landing.html');
+const CANONICAL_BROWSER_HOST = 'www.inxsocial.co.uk';
+const MIGRATION_BROWSER_HOSTS = new Set(['social.inaxx.co.uk', 'inxsocial.co.uk']);
 const isAdminHost = req => Boolean(env.adminHost && String(req.hostname || '').toLowerCase() === env.adminHost);
 const secureAdminDocument = res => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
@@ -78,6 +80,20 @@ const buildLandingDocument = () => {
 
 const landingDocument = buildLandingDocument();
 
+app.use((req, res, next) => {
+  const forwardedHost = String(req.headers['x-forwarded-host'] || req.headers.host || '');
+  const host = forwardedHost.split(',')[0].trim().split(':')[0].toLowerCase();
+  const isSafeNavigation = req.method === 'GET' || req.method === 'HEAD';
+  const isApiRequest = req.path === '/api' || req.path.startsWith('/api/');
+
+  if (MIGRATION_BROWSER_HOSTS.has(host) && isSafeNavigation && !isApiRequest) {
+    const destination = new URL(req.originalUrl || req.url || '/', `https://${CANONICAL_BROWSER_HOST}`);
+    return res.redirect(308, destination.toString());
+  }
+
+  next();
+});
+
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({ origin: true, credentials: true }));
 morgan.token('safe-url', req => String(req.originalUrl || req.url || '').replace(/([?&]access=)[^&]+/g, '$1[redacted]'));
@@ -94,7 +110,7 @@ app.use('/api/admin-auth/login', rateLimit({
 app.use('/api/admin-auth', guardAdminSurface);
 app.use('/api/admin', rateLimit({ windowMs: 60 * 1000, limit: 90 }), guardAdminSurface);
 
-app.use(['/admin', '/api', '/portal', '/studio', '/app'], (req, res, next) => {
+app.use(['/admin', '/index.html', '/api', '/portal', '/studio', '/app', '/health', '/oauth-callback.html'], (req, res, next) => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
   next();
 });
