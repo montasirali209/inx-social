@@ -58,6 +58,10 @@ module.exports = {
     pexelsConfigured: Boolean(process.env.PEXELS_API_KEY),
     pixabayConfigured: Boolean(process.env.PIXABAY_API_KEY),
     openMontageUrl: String(process.env.OPENMONTAGE_WORKER_URL || '').replace(/\/$/, ''),
+    openMontageUrls: String(process.env.OPENMONTAGE_WORKER_URLS || process.env.OPENMONTAGE_WORKER_URL || '')
+      .split(',')
+      .map(value => value.trim().replace(/\/$/, ''))
+      .filter(Boolean),
     openMontageToken: String(process.env.OPENMONTAGE_INTERNAL_TOKEN || ''),
     openMontageTimeoutMs: Math.max(60000, Number(process.env.OPENMONTAGE_JOB_TIMEOUT_MS || 45 * 60 * 1000))
   },

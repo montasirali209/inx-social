@@ -29,8 +29,8 @@ test('Stock Video Creator delegates to the full isolated OpenMontage service and
   const dockerfile = read('../openmontage-worker/Dockerfile');
   const notice = read('../OPENMONTAGE-NOTICE.md');
 
-  assert.match(service, /axios\.post\(`\$\{env\.stockVideo\.openMontageUrl\}\/jobs`/);
-  assert.match(service, /axios\.get\(`\$\{env\.stockVideo\.openMontageUrl\}\/jobs\/\$\{encodeURIComponent\(workerJobId\)\}`/);
+  assert.match(service, /axios\.post\(`\$\{workerUrl\}\/jobs`/);
+  assert.match(service, /axios\.get\(`\$\{workerUrl\}\/jobs\/\$\{encodeURIComponent\(workerJobId\)\}`/);
   assert.match(service, /\/output`/);
   assert.match(service, /STOCK_VIDEO_PIPELINE_FAILED/);
   assert.match(service, /provenance/);
@@ -114,7 +114,11 @@ test('Stock Video Creator recovers durable jobs across SaaS and worker restarts'
   assert.match(service, /STOCK_VIDEO_WORKER_INTERRUPTED/);
   assert.match(service, /worker state was unavailable; restarting saved production/);
   assert.match(service, /worker lost active state; restarting saved production/);
-  assert.match(service, /const MAX_CONCURRENT_JOBS = \(\) => 1/);
+  assert.match(service, /const MAX_CONCURRENT_JOBS = \(\) => \{/);
+  assert.match(service, /STOCK_VIDEO_MAX_CONCURRENT_JOBS/);
+  assert.match(service, /workerUrls\(\)\.length/);
+  assert.match(service, /workerUrl: clean\(workerUrl, 500\)/);
+  assert.match(service, /response\.workerUrl/);
   assert.match(service, /INTERVAL '15 seconds'/);
   assert.doesNotMatch(service, /SET "status"='FAILED'.*STOCK_VIDEO_WORKER_INTERRUPTED/);
   assert.match(server, /startStockVideoRuntime\(\)/);
