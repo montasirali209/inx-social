@@ -21,7 +21,11 @@ test('public landing has canonical metadata, social previews and structured soft
   });
   assert.ok(software, 'The JSON-LD graph must describe INX Social as a SoftwareApplication.');
   assert.equal(software.url, 'https://www.inxsocial.co.uk/');
-  assert.match(landing, /"priceCurrency": "GBP"/);
+  assert.equal(software.applicationSubCategory, 'Social Media Management');
+  assert.ok(Array.isArray(software.offers) && software.offers.length > 0, 'The SoftwareApplication must expose its public offers.');
+  assert.ok(software.offers.every(offer => offer.priceCurrency === 'GBP'), 'Every structured public offer must use GBP.');
+  assert.match(landing, /All-in-One Social Media Management/);
+  assert.match(landing, /AI Content Studio/);
 });
 
 test('served homepage injects crawlable links to the public SEO landing pages', () => {

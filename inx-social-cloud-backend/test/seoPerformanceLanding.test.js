@@ -9,11 +9,12 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 test('landing response applies SEO title, description and render-critical styles server-side', () => {
   const app = read('src/app.js');
   const landing = read('public/landing.html');
-  assert.match(app, /Social Media Scheduler &amp; Publishing Tool \| INXSocial/);
-  assert.match(app, /Schedule and publish social media content from one workspace/);
   assert.match(app, /landing-mobile\.css\?v=20260910c/);
   assert.match(app, /landing-performance\.css\?v=20260911b/);
   assert.match(app, /landing-brand\.css\?v=20260911b/);
+  assert.match(landing, /<title>All-in-One Social Media Management &amp; AI Content \| INXSocial<\/title>/);
+  assert.match(landing, /Manage connected social accounts, create posts and media with AI/);
+  assert.match(landing, /landing-ai-studio\.css\?v=20260915a/);
   assert.match(landing, /inx-social-wordmark\.png/);
   assert.doesNotMatch(app, /brand-text/);
   assert.match(app, /Cache-Control', 'public, max-age=0, must-revalidate/);
@@ -56,6 +57,13 @@ test('landing retains canonical and software application structured data', () =>
   assert.match(landing, /"WebApplication"/);
   assert.match(landing, /"WebSite"/);
   assert.match(landing, /max-image-preview:large/);
+  assert.match(landing, /Image Post/);
+  assert.match(landing, /Carousel Post/);
+  assert.match(landing, /Short Video \/ Reel/);
+  assert.match(landing, /UGC Ad Post/);
+  assert.match(landing, /Stock Video Creator/);
+  assert.match(landing, /AI Video Clipping/);
+  assert.match(landing, /Coming soon/i);
 });
 
 test('SEO product pages have unique titles, canonicals and indexable copy', () => {
@@ -64,7 +72,7 @@ test('SEO product pages have unique titles, canonicals and indexable copy', () =
     ['public/bulk-social-media-scheduler.html', 'Bulk Social Media Scheduler for Multiple Accounts', 'bulk-social-media-scheduler.html'],
     ['public/social-media-content-calendar.html', 'Social Media Content Calendar & Publishing Planner', 'social-media-content-calendar.html'],
     ['public/social-media-analytics.html', 'Social Media Analytics Dashboard', 'social-media-analytics.html'],
-    ['public/ai-social-media-tools.html', 'AI Social Media Tools for Captions, Images & Video', 'ai-social-media-tools.html'],
+    ['public/ai-social-media-tools.html', 'AI Social Media Content Creation: Images, Carousels, UGC & Video', 'ai-social-media-tools.html'],
     ['public/pricing.html', 'INXSocial Pricing', 'pricing.html']
   ];
 
