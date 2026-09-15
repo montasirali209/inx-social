@@ -17,7 +17,9 @@ const STOCK_TIMEOUT = Math.max(15000, Number(process.env.STOCK_VIDEO_PROVIDER_TI
 const FINAL_MAX_BYTES = 120 * 1024 * 1024;
 const activeJobs = new Set();
 const pendingJobs = [];
-const MAX_CONCURRENT_JOBS = () => Math.max(1, Math.min(4, Number(process.env.STOCK_VIDEO_MAX_CONCURRENT_JOBS || 2)));
+// One native OpenMontage render per Railway worker. Additional requests remain
+// durable in AiGeneration and are drained in order without competing for RAM.
+const MAX_CONCURRENT_JOBS = () => 1;
 const RECOVERY_INTERVAL_MS = 15000;
 let recoveryIntervalHandle = null;
 let recoveryPassRunning = false;
