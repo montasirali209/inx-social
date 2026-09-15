@@ -152,6 +152,10 @@ def _run_command(job: dict[str, Any], command: str, timeout_seconds: int) -> str
         "durationSeconds": round(time.time() - started, 2), "output": output[-12000:],
     })
     save(job, events=events[-80:])
+    print(json.dumps({
+        "event": "stock_video_stage_complete", "jobId": job.get("id"), "stage": stage,
+        "seconds": round(time.time() - started, 2), "exitCode": completed.returncode,
+    }), flush=True)
     return output
 
 
@@ -384,6 +388,23 @@ def _run_full_job(job: dict[str, Any], req: JobRequest) -> None:
         save(job, status="failed", stage=job.get("stage") or "failed", error=_redact(str(exc))[:12000], progress=min(99, int(job.get("progress", 0))))
 
 
+def _discard_interrupted_state() -> None:
+    """Let the SaaS durable queue replay work lost by a container restart."""
+    if not STATE_ROOT.exists():
+        return
+    for state in STATE_ROOT.glob("*.json"):
+        try:
+            value = json.loads(state.read_text(encoding="utf-8"))
+            if value.get("status") in {"queued", "processing"}:
+                state.unlink(missing_ok=True)
+                print(json.dumps({
+                    "event": "stock_video_interrupted_state_released", "jobId": value.get("id"),
+                    "previousStage": value.get("stage"),
+                }), flush=True)
+        except Exception:
+            state.unlink(missing_ok=True)
+
+
 def _retention_loop() -> None:
     while True:
         cutoff = time.time() - RETENTION_SECONDS
@@ -398,6 +419,7 @@ def _retention_loop() -> None:
         time.sleep(6 * 60 * 60)
 
 
+_discard_interrupted_state()
 threading.Thread(target=_retention_loop, name="openmontage-retention", daemon=True).start()
 
 

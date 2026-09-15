@@ -42,8 +42,14 @@ def _resilient_openai_response(payload: dict[str, Any]) -> dict[str, Any]:
     """Retry transient OpenAI orchestration failures instead of killing the video job."""
     last_error: Exception | None = None
     for attempt in range(MAX_ORCHESTRATION_RETRIES):
+        started = time.monotonic()
         try:
-            return _native_openai_response(payload)
+            response = _native_openai_response(payload)
+            print({
+                "event": "stock_video_orchestration_complete", "seconds": round(time.monotonic() - started, 2),
+                "attempt": attempt + 1,
+            }, flush=True)
+            return response
         except RuntimeError as exc:
             last_error = exc
             message = str(exc)
