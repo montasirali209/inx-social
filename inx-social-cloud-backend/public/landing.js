@@ -57,18 +57,7 @@ function renderWorkspaceFeatureRail() {
     </div>`;
   currentRail.replaceWith(wrapper);
 }
-
-function installWorkspaceFeatureRail() {
-  if (document.querySelector('link[data-workspace-feature-rail]')) return renderWorkspaceFeatureRail();
-  const stylesheet = document.createElement('link');
-  stylesheet.rel = 'stylesheet';
-  stylesheet.href = '/landing-feature-rail.css?v=20260916a';
-  stylesheet.dataset.workspaceFeatureRail = 'true';
-  stylesheet.addEventListener('load', renderWorkspaceFeatureRail, { once: true });
-  document.head.appendChild(stylesheet);
-  window.setTimeout(renderWorkspaceFeatureRail, 1200);
-}
-installWorkspaceFeatureRail();
+renderWorkspaceFeatureRail();
 
 const sessionToken = () => localStorage.getItem('inxToken') || localStorage.getItem('inx-social-cloud-token');
 function clearLandingSession() { localStorage.removeItem('inxToken'); localStorage.removeItem('inx-social-cloud-token'); }
