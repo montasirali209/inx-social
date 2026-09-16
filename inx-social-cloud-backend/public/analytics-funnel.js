@@ -3,6 +3,35 @@
   window.__inxSocialAnalyticsFunnelPatched = true;
 
   const nativeFetch = window.fetch.bind(window);
+  const CONSENT_KEY = 'inxsocial_analytics_consent_v1';
+  const TOKEN_KEYS = ['inx-social-cloud-token', 'inxToken'];
+
+  function hasAnalyticsConsent() {
+    try { return localStorage.getItem(CONSENT_KEY) === 'accepted'; } catch { return false; }
+  }
+
+  function storedAuthToken() {
+    try {
+      for (const key of TOKEN_KEYS) {
+        const value = localStorage.getItem(key);
+        if (value) return value;
+      }
+    } catch {}
+    return '';
+  }
+
+  function trackOnce(storageKey, name, parameters = {}) {
+    if (!hasAnalyticsConsent() || typeof window.inxTrack !== 'function') return false;
+    try {
+      if (sessionStorage.getItem(storageKey)) return true;
+      window.inxTrack(name, parameters);
+      sessionStorage.setItem(storageKey, '1');
+      return true;
+    } catch {
+      window.inxTrack(name, parameters);
+      return true;
+    }
+  }
 
   function requestDetails(input, init) {
     const rawUrl = typeof input === 'string' ? input : input instanceof URL ? input.href : input?.url;
@@ -57,10 +86,52 @@
     if (path === '/api/studio/carousel-posts') return window.inxTrack('post_submission_success', { content_type: 'carousel' });
   }
 
+  async function verifyPurchaseReturn(attempt = 0) {
+    if (location.pathname !== '/app/billing') return;
+    const query = new URLSearchParams(location.search);
+    if (query.get('checkout') !== 'success') return;
+    const sessionId = String(query.get('session_id') || '').trim();
+    if (!/^cs_[A-Za-z0-9_]+$/.test(sessionId)) return;
+
+    if (!hasAnalyticsConsent() || typeof window.inxTrack !== 'function') {
+      if (attempt < 20) setTimeout(() => void verifyPurchaseReturn(attempt + 1), 1000);
+      return;
+    }
+
+    const token = storedAuthToken();
+    if (!token) {
+      if (attempt < 8) setTimeout(() => void verifyPurchaseReturn(attempt + 1), 1200);
+      return;
+    }
+
+    try {
+      const response = await nativeFetch(`/api/billing/checkout/${encodeURIComponent(sessionId)}`, {
+        credentials: 'same-origin',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) throw new Error(`Checkout verification failed (${response.status})`);
+      const data = await response.json();
+      const confirmed = data?.paymentStatus === 'paid' || data?.activated === true;
+      if (!confirmed) {
+        if (attempt < 8) setTimeout(() => void verifyPurchaseReturn(attempt + 1), 1500);
+        return;
+      }
+      const plan = String(data?.plan || '').toUpperCase();
+      trackOnce(`inxsocial_ga_purchase_${sessionId}`, 'purchase', {
+        transaction_id: sessionId,
+        ...(plan ? { plan } : {})
+      });
+    } catch {
+      if (attempt < 8) setTimeout(() => void verifyPurchaseReturn(attempt + 1), 1500);
+    }
+  }
+
   window.fetch = async (...args) => {
     const details = requestDetails(args[0], args[1]);
     const response = await nativeFetch(...args);
     if (response.ok) queueMicrotask(() => trackSuccessfulAction(details));
     return response;
   };
+
+  setTimeout(() => void verifyPurchaseReturn(), 0);
 })();
