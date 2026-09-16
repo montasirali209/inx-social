@@ -135,6 +135,11 @@ app.use(express.static(path.join(__dirname, '..', 'public'), {
     if (/\.(?:css|js|png|jpe?g|webp|svg|woff2?)$/i.test(filePath)) res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
   }
 }));
+app.get(['/portal', '/portal/', '/portal/index.html'], (req, res) => {
+  const queryIndex = req.originalUrl.indexOf('?');
+  const query = queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : '';
+  res.redirect(308, `/app/billing${query}`);
+});
 app.use('/portal', express.static(path.join(__dirname, '..', 'portal')));
 app.get(['/studio', '/studio/', '/studio/index.html'], (req, res) => res.redirect(308, '/app/'));
 app.use('/studio', (req, res, next) => {
@@ -157,7 +162,7 @@ app.get('/health', (req, res) => {
     ok: true,
     service: 'INX Social Cloud Backend',
     version: packageInfo.version,
-    customerPortal: '/portal/',
+    customerPortal: '/app/billing',
     cloudStudio: '/app/',
     reactApp: '/app/'
   });

@@ -39,9 +39,9 @@ changes it.
 4. Set the Railway production variables:
    - `APP_URL=https://www.inxsocial.co.uk`
    - `PORTAL_URL=https://www.inxsocial.co.uk`
-   - `STRIPE_SUCCESS_URL=https://www.inxsocial.co.uk/portal/?checkout=success`
-   - `STRIPE_CANCEL_URL=https://www.inxsocial.co.uk/portal/?checkout=cancelled`
-   - `STRIPE_PORTAL_RETURN_URL=https://www.inxsocial.co.uk/portal/`
+   - `STRIPE_SUCCESS_URL=https://www.inxsocial.co.uk/app/billing?checkout=success`
+   - `STRIPE_CANCEL_URL=https://www.inxsocial.co.uk/app/billing?checkout=cancelled`
+   - `STRIPE_PORTAL_RETURN_URL=https://www.inxsocial.co.uk/app/billing`
 5. In Stripe Workbench/Webhooks, create or update the live webhook destination
    to `https://www.inxsocial.co.uk/api/billing/webhook`. Keep the same signing
    secret only when Stripe confirms it is the same endpoint; a newly created
