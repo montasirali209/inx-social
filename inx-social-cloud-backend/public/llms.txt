@@ -12,6 +12,14 @@ Canonical website: https://www.inxsocial.co.uk/
 - AI Content Studio: https://www.inxsocial.co.uk/ai-social-media-tools.html
 - Pricing: https://www.inxsocial.co.uk/pricing.html
 
+## Free public tools
+These pages are public, indexable acquisition tools and can be used without an INXSocial account:
+- Free social media tools hub: https://www.inxsocial.co.uk/free-social-media-tools.html
+- Free social media caption generator: https://www.inxsocial.co.uk/social-media-caption-generator.html
+- Free 30-day social media content planner: https://www.inxsocial.co.uk/30-day-social-media-content-planner.html
+
+The free caption generator and 30-day planner run locally in the browser. They do not represent the full authenticated AI Content Studio. Their purpose is to give visitors useful draft ideas before they decide to create an INXSocial account.
+
 ## Product scope
 INXSocial is designed as a complete social media management workspace rather than a scheduler alone. It brings connected accounts, post creation, reusable media, single-post scheduling, bulk scheduling, publishing status, a visual content calendar, analytics and AI-assisted creation into one system. Supported publishing and analytics capabilities vary by connected platform and by the permissions granted by that platform.
 
