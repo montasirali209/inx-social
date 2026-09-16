@@ -1,12 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowRight, History, Send, Sparkles } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { History, Send, Sparkles } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   deleteAIDraft,
   duplicateAIDraft,
   getAIStudioAccess,
-  getBrandKits,
   getGenerationHistory,
   getRecentAIDrafts,
   saveAIDraft,
@@ -19,7 +18,6 @@ import { Card } from '../ui/Card'
 import { Drawer } from '../billing/BillingPrimitives'
 import {
   AIStudioHero,
-  BrandSafetyCard,
   CarouselPostCard,
   CreditsCard,
   GenerationHistoryDrawer,
@@ -57,11 +55,6 @@ export function AiContentStudioPage() {
     queryFn: getRecentAIDrafts,
     staleTime: 5_000,
   })
-  const brandKitsQuery = useQuery({
-    queryKey: ['ai-studio-brand-kits'],
-    queryFn: getBrandKits,
-    staleTime: 60_000,
-  })
   const historyQuery = useQuery({
     queryKey: ['ai-studio-history'],
     queryFn: () => getGenerationHistory(),
@@ -77,7 +70,6 @@ export function AiContentStudioPage() {
 
   const access = accessQuery.data
   const drafts = draftsQuery.data || []
-  const activeBrandKit = useMemo(() => brandKitsQuery.data?.find((kit) => kit.active) || brandKitsQuery.data?.[0] || null, [brandKitsQuery.data])
 
   function openCreator(type: AIContentType) {
     if (!access?.studioEnabled) {
@@ -183,22 +175,11 @@ export function AiContentStudioPage() {
       </div>
     </section>
 
-    <section className="mt-4 grid min-w-0 gap-4 xl:grid-cols-[1.1fr_.9fr]">
-      <Card className="p-5 sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><span className="text-[9px] font-bold uppercase tracking-[.16em] text-text-soft">Your creation workflow</span><h3 className="mt-1 text-sm font-semibold">From idea to scheduled post — all in one flow.</h3></div><Button onClick={() => openCreator('image_post')} size="sm" variant="primary">Start creating <ArrowRight className="size-3.5" /></Button></div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          {[
-            ['1', 'Create', 'Generate media and publishing copy.'],
-            ['2', 'Review', 'Edit the result before it leaves AI Content Studio.'],
-            ['3', 'Continue to Posts', 'Select pages, date/time, then publish or schedule.'],
-          ].map(([number, title, text]) => <div className="relative rounded-2xl border border-border-soft bg-bg/30 p-4" key={number}><span className="grid size-8 place-items-center rounded-full border border-brand-teal/30 bg-brand-teal/10 text-xs font-bold text-brand-cyan">{number}</span><strong className="mt-3 block text-xs">{title}</strong><p className="mt-1 text-[10px] leading-4 text-text-muted">{text}</p></div>)}
-        </div>
-      </Card>
+    <section className="mt-4 min-w-0">
       <RecentDrafts drafts={drafts} onDelete={(draft) => void removeDraft(draft)} onDuplicate={(draft) => void duplicateDraft(draft)} onOpen={openDraft} onSend={(draft) => void continueToPosts(draft)} onViewAll={() => setDraftsOpen(true)} />
     </section>
 
-    <section className="mt-4 grid gap-4 xl:grid-cols-[1.1fr_.9fr]">
-      <BrandSafetyCard brandKitName={activeBrandKit?.name} />
+    <section className="mt-4">
       <CreditsCard topUpsSupported={false} />
     </section>
 
