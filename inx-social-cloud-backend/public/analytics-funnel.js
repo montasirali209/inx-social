@@ -11,7 +11,8 @@
     try { url = new URL(rawUrl, location.origin); } catch { return null; }
     if (url.origin !== location.origin) return null;
     const method = String(init?.method || input?.method || 'GET').toUpperCase();
-    return { path: url.pathname, method, body: init?.body };
+    const body = url.pathname === '/api/billing/checkout' ? init?.body : null;
+    return { path: url.pathname, method, body };
   }
 
   function safePlan(body) {
