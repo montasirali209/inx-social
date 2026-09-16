@@ -126,16 +126,17 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
   }
 
   return (
-    <header className="sticky top-0 z-20 flex min-h-[78px] items-center justify-between gap-3 border-b border-border-soft bg-bg/88 px-3 shadow-[0_12px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl sm:px-5 xl:px-6" data-design-standard="universal-workspace-topbar">
-      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+    <header className="sticky top-0 z-20 min-h-[78px] border-b border-border-soft bg-bg/88 shadow-[0_12px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl" data-design-standard="universal-workspace-topbar">
+      <div className="workspace-frame flex min-h-[78px] items-center justify-between gap-3 px-3 sm:px-5 xl:px-6">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <Button aria-label="Open navigation" className="size-10 shrink-0 px-0 md:hidden" onClick={() => setOpen(true)} variant="ghost"><Menu aria-hidden="true" className="size-5" /></Button>
         <div className="min-w-0">
           <h1 className="truncate text-lg font-semibold tracking-[-0.03em] text-text-main sm:text-xl xl:text-2xl">{dashboardRoute ? dashboardGreeting() : workspace.title}</h1>
           <p className="hidden truncate text-[11px] text-text-muted sm:block xl:text-xs">{workspace.subtitle}</p>
         </div>
-      </div>
+        </div>
 
-      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 lg:gap-2.5">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 lg:gap-2.5">
         {(settingsRoute || connectionsRoute || billingRoute) && <label className="relative hidden sm:block">
           <span className="sr-only">{settingsRoute ? 'Search settings' : connectionsRoute ? 'Search accounts' : 'Search billing'}</span>
           <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
@@ -184,6 +185,7 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
             <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs text-[#fda4af] transition hover:bg-brand-red/10 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-red" onClick={signOut} type="button"><LogOut aria-hidden="true" className="size-3.5" />Sign out</button>
           </div>
         </details>
+        </div>
       </div>
     </header>
   )
