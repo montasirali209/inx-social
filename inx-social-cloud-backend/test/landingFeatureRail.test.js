@@ -9,6 +9,7 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 test('landing upgrades the legacy channel strip into the all-in-one workspace rail', () => {
   const js = read('public/landing.js');
   const css = read('public/landing-feature-rail.css');
+  const studioCss = read('public/landing-ai-studio.css');
 
   assert.match(js, /All-in-one<em>workspace<\/em>/);
   assert.match(js, /Plan\. Create\. Publish\. Grow\./);
@@ -21,7 +22,8 @@ test('landing upgrades the legacy channel strip into the all-in-one workspace ra
   assert.match(js, /Video Clipping/);
   assert.match(js, /workspace-soon">Soon/);
   assert.match(js, /\/assets\/inx-social-logo\.png/);
-  assert.match(js, /landing-feature-rail\.css\?v=20260916a/);
+  assert.doesNotMatch(js, /createElement\(['"]link['"]\)/);
+  assert.match(studioCss, /@import url\("\/landing-feature-rail\.css\?v=20260916a"\)/);
   assert.match(css, /\.workspace-rail\{/);
   assert.match(css, /\.workspace-platform\.facebook/);
   assert.match(css, /\.workspace-platform\.instagram/);
