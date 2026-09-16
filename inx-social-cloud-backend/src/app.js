@@ -30,15 +30,52 @@ const app = express();
 app.set('trust proxy', 1);
 const reactAppRoot = path.join(__dirname, '..', 'frontend', 'dist');
 const reactAppIndex = path.join(reactAppRoot, 'index.html');
-const adminIndex = path.join(__dirname, '..', 'public', 'index.html');
-const landingPath = path.join(__dirname, '..', 'public', 'landing.html');
+const publicRoot = path.join(__dirname, '..', 'public');
+const portalRoot = path.join(__dirname, '..', 'portal');
+const adminIndex = path.join(publicRoot, 'index.html');
+const landingPath = path.join(publicRoot, 'landing.html');
 const CANONICAL_BROWSER_HOST = 'www.inxsocial.co.uk';
 const MIGRATION_BROWSER_HOSTS = new Set(['social.inaxx.co.uk', 'inxsocial.co.uk']);
+const ANALYTICS_SCRIPT_TAG = '<script src="/analytics-consent.js?v=20260916a" defer></script>';
+const TRACKED_PUBLIC_HTML = [
+  '/social-media-scheduler.html',
+  '/bulk-social-media-scheduler.html',
+  '/social-media-content-calendar.html',
+  '/social-media-analytics.html',
+  '/ai-social-media-tools.html',
+  '/pricing.html',
+  '/free-social-media-tools.html',
+  '/social-media-caption-generator.html',
+  '/30-day-social-media-content-planner.html',
+  '/privacy.html',
+  '/terms.html',
+  '/data-deletion.html'
+];
 const isAdminHost = req => Boolean(env.adminHost && String(req.hostname || '').toLowerCase() === env.adminHost);
 const secureAdminDocument = res => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+};
+
+const injectAnalyticsConsent = source => {
+  if (!source || source.includes('/analytics-consent.js')) return source;
+  if (source.includes('</head>')) return source.replace('</head>', `  ${ANALYTICS_SCRIPT_TAG}\n</head>`);
+  return `${source}\n${ANALYTICS_SCRIPT_TAG}`;
+};
+
+const sendTrackedHtml = (filePath, res, next, options = {}) => {
+  fs.readFile(filePath, 'utf8', (error, source) => {
+    if (error) {
+      if (error.code === 'ENOENT' && options.unavailableMessage) {
+        return res.status(503).json({ error: options.unavailableMessage });
+      }
+      return next(error);
+    }
+    res.setHeader('Cache-Control', options.cacheControl || 'public, max-age=0, must-revalidate');
+    res.setHeader('Vary', 'Accept-Encoding');
+    return res.type('html').send(injectAnalyticsConsent(source));
+  });
 };
 
 const guardAdminSurface = (req, res, next) => {
@@ -63,7 +100,7 @@ const guardAdminSurface = (req, res, next) => {
 
 const buildLandingDocument = () => {
   const source = fs.readFileSync(landingPath, 'utf8');
-  return source
+  const document = source
     .replace(
       '<title>Social Media Scheduling &amp; Publishing | INXSocial</title>',
       '<title>Social Media Scheduler &amp; Publishing Tool | INXSocial</title>'
@@ -96,6 +133,7 @@ const buildLandingDocument = () => {
       '<div><strong>Platform</strong><a href="#workflows">Workflows</a><a href="#intelligence">AI &amp; Analytics</a><a href="#pricing">Pricing</a><a href="/app/">Open app</a></div>',
       '<div><strong>Explore</strong><a href="/social-media-scheduler.html">Social media scheduler</a><a href="/bulk-social-media-scheduler.html">Bulk scheduling</a><a href="/social-media-content-calendar.html">Content calendar</a><a href="/ai-social-media-tools.html">AI tools</a><a href="/social-media-analytics.html">Analytics</a><a href="/free-social-media-tools.html">Free tools</a><a href="/pricing.html">Pricing</a></div>'
     );
+  return injectAnalyticsConsent(document);
 };
 
 const landingDocument = buildLandingDocument();
@@ -142,9 +180,10 @@ app.post('/api/ai-content-studio/credits/webhook', express.raw({ type: 'applicat
 app.use(express.json({ limit: '2mb' }));
 app.use('/api/releases', releaseRoutes);
 
-app.use('/admin.css', express.static(path.join(__dirname, '..', 'public', 'admin.css'), { setHeaders: res => res.setHeader('Content-Type', 'text/css') }));
-app.use('/admin.js', express.static(path.join(__dirname, '..', 'public', 'admin.js'), { setHeaders: res => res.setHeader('Content-Type', 'application/javascript') }));
-app.use(express.static(path.join(__dirname, '..', 'public'), {
+app.use('/admin.css', express.static(path.join(publicRoot, 'admin.css'), { setHeaders: res => res.setHeader('Content-Type', 'text/css') }));
+app.use('/admin.js', express.static(path.join(publicRoot, 'admin.js'), { setHeaders: res => res.setHeader('Content-Type', 'application/javascript') }));
+app.get(TRACKED_PUBLIC_HTML, (req, res, next) => sendTrackedHtml(path.join(publicRoot, req.path.slice(1)), res, next));
+app.use(express.static(publicRoot, {
   index: false,
   maxAge: '1h',
   setHeaders: (res, filePath) => {
@@ -156,7 +195,11 @@ app.get(['/portal', '/portal/', '/portal/index.html'], (req, res) => {
   const query = queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : '';
   res.redirect(308, `/app/billing${query}`);
 });
-app.use('/portal', express.static(path.join(__dirname, '..', 'portal')));
+app.get(['/portal/login.html', '/portal/register.html'], (req, res, next) => {
+  const fileName = path.basename(req.path);
+  sendTrackedHtml(path.join(portalRoot, fileName), res, next, { cacheControl: 'no-store' });
+});
+app.use('/portal', express.static(portalRoot));
 app.get(['/studio', '/studio/', '/studio/index.html'], (req, res) => res.redirect(308, '/app/'));
 app.use('/studio', (req, res, next) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
@@ -196,8 +239,8 @@ app.get('/privacy', (req, res) => res.redirect(308, '/privacy.html'));
 app.get('/terms', (req, res) => res.redirect(308, '/terms.html'));
 app.get('/data-deletion', (req, res) => res.redirect(308, '/data-deletion.html'));
 
-app.get('/inx-social/data-deletion.html', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'data-deletion.html'));
+app.get('/inx-social/data-deletion.html', (req, res, next) => {
+  sendTrackedHtml(path.join(publicRoot, 'data-deletion.html'), res, next);
 });
 
 app.get('/', (req, res) => {
@@ -231,12 +274,9 @@ app.use('/api/social-platforms', socialPlatformRoutes);
 app.use('/api/social-connections', socialConnectionRoutes);
 
 app.get('/app/*', (req, res, next) => {
-  res.sendFile(reactAppIndex, error => {
-    if (!error) return;
-    if (error.code === 'ENOENT') {
-      return res.status(503).json({ error: 'React application build is not available.' });
-    }
-    return next(error);
+  sendTrackedHtml(reactAppIndex, res, next, {
+    cacheControl: 'no-store',
+    unavailableMessage: 'React application build is not available.'
   });
 });
 

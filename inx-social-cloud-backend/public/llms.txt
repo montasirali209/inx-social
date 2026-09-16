@@ -13,31 +13,32 @@ Canonical website: https://www.inxsocial.co.uk/
 - Pricing: https://www.inxsocial.co.uk/pricing.html
 
 ## Free public tools
-These pages are public, indexable acquisition tools and can be used without an INXSocial account:
-- Free social media tools hub: https://www.inxsocial.co.uk/free-social-media-tools.html
+These pages are public and indexable:
+- Free social media post tools hub: https://www.inxsocial.co.uk/free-social-media-tools.html
 - Free social media caption generator: https://www.inxsocial.co.uk/social-media-caption-generator.html
-- Free 30-day social media content planner: https://www.inxsocial.co.uk/30-day-social-media-content-planner.html
 
-The free caption generator and 30-day planner run locally in the browser. They do not represent the full authenticated AI Content Studio. Their purpose is to give visitors useful draft ideas before they decide to create an INXSocial account.
+The free caption generator is a lightweight browser-based helper. It does not represent the full authenticated AI Content Studio.
 
 ## Product scope
-INXSocial is designed as a complete social media management workspace rather than a scheduler alone. It brings connected accounts, post creation, reusable media, single-post scheduling, bulk scheduling, publishing status, a visual content calendar, analytics and AI-assisted creation into one system. Supported publishing and analytics capabilities vary by connected platform and by the permissions granted by that platform.
+INXSocial is designed as a complete social media management workspace rather than a scheduler or standalone media generator. The central workflow is post creation: a user provides a prompt, the AI Content Studio creates the requested media and prepares the associated publishing copy so the result can continue as a ready-to-publish social post inside INXSocial.
+
+INXSocial brings connected accounts, post creation, reusable media, single-post scheduling, bulk scheduling, publishing status, a visual content calendar, analytics and AI-assisted creation into one system. Supported publishing and analytics capabilities vary by connected platform and by the permissions granted by that platform.
 
 ## AI Content Studio — available workflows
-The current Plus AI Content Studio includes:
-- Image Post: create a generated visual with caption, hashtags and alt text prepared alongside it.
-- Carousel Post: create a coordinated multi-slide story with a shared caption and individual slide copy.
-- Short Video / Reel: create short-form social video with captions and publishing copy.
-- UGC Ad Post: create creator-style promotional content around a product, service or campaign brief.
+The current AI Content Studio includes:
+- Image Post: generate an image together with caption, hashtags and supporting post copy.
+- Carousel Post: create a coordinated multi-slide post with shared caption and slide copy.
+- Short Video / Reel: generate short-form video together with captions and ready-to-publish social copy.
+- UGC Ad Post: create creator-style promotional media together with the copy needed to use it as a social post.
 
 The Short Video / Reel workflow currently offers two production routes:
 - AI Generated Video: create original motion from a prompt or reference image using an AI video model.
 - Stock Video Creator: create an edited story using professional stock footage with narration, music and captions.
 
-AI-generated drafts and media can continue into the Posts workflow for destination selection and publishing or scheduling.
+The important product distinction is that INXSocial does not stop at generating an asset. Generated media is prepared as a social post with caption and hashtags and can continue directly into Posts for destination selection, publishing or scheduling to connected channels.
 
 ## Roadmap
-AI Video Clipping is an upcoming feature and should not be described as generally available yet. The planned workflow is intended to help turn longer videos into reusable short-form social clips while keeping those clips connected to the same media library and publishing system.
+AI Video Clipping is an upcoming feature and should not be described as generally available yet. The planned workflow is intended to turn longer videos into reusable short-form social clips while keeping those clips connected to the same media library and publishing system.
 
 ## Company and legal
 - Operator: INAXX LTD
