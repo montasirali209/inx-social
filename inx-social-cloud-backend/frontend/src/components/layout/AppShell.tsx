@@ -48,7 +48,7 @@ function AppShellContent() {
       <Sidebar overview={overview.data} />
       <div className="md:pl-[88px] xl:pl-[264px]">
         <Topbar overview={overview.data} />
-        <main className="mx-auto w-full max-w-[1780px] min-w-0 p-3 sm:p-5 xl:p-6" id="main-content">
+        <main className="workspace-frame min-w-0 p-3 sm:p-5 xl:p-6" id="main-content">
           <div aria-hidden={!bulkRoute} className={bulkRoute ? 'route-stage min-w-0' : 'hidden'} style={{ animationDuration: '160ms' }}><BulkSchedulerPage /></div>
           {!bulkRoute && <div className="route-stage min-w-0" key={location.pathname} style={{ animationDuration: '160ms' }}><Outlet /></div>}
         </main>
