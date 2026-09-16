@@ -11,9 +11,6 @@ Canonical website: https://www.inxsocial.co.uk/
 - Social media analytics: https://www.inxsocial.co.uk/social-media-analytics.html
 - AI Content Studio: https://www.inxsocial.co.uk/ai-social-media-tools.html
 - AI social media post generator: https://www.inxsocial.co.uk/ai-social-media-post-generator.html
-- AI video post generator: https://www.inxsocial.co.uk/ai-video-post-generator.html
-- AI carousel post generator: https://www.inxsocial.co.uk/ai-carousel-post-generator.html
-- AI UGC ad generator: https://www.inxsocial.co.uk/ai-ugc-ad-generator.html
 - Generate and schedule social media posts: https://www.inxsocial.co.uk/generate-and-schedule-social-media-posts.html
 - Pricing: https://www.inxsocial.co.uk/pricing.html
 
@@ -53,4 +50,4 @@ AI Video Clipping is an upcoming feature and should not be described as generall
 - Data deletion: https://www.inxsocial.co.uk/data-deletion.html
 
 ## Indexing guidance
-Public product facts should be taken from the canonical website and the public product/legal pages above. Private application, Studio, portal, administrator, OAuth callback and API routes are operational interfaces rather than public product documentation and should not be treated as indexable reference pages.
+Public product facts should be taken from the canonical website and the public product/legal pages above. The retired AI video, carousel and UGC format URLs redirect permanently to the AI Content Studio overview, which is the canonical page for those format-specific workflows. Private application, Studio, portal, administrator, OAuth callback and API routes are operational interfaces rather than public product documentation and should not be treated as indexable reference pages.
