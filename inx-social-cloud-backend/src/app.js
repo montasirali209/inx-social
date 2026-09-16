@@ -85,8 +85,16 @@ const buildLandingDocument = () => {
       '<script src="/landing.js?v=20260916b"></script>'
     )
     .replace(
+      '<nav id="mainNav" aria-label="Main navigation"><a href="#platform">Platform</a><a href="#workflows">Workflows</a><a href="#intelligence">AI Studio</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a></nav>',
+      '<nav id="mainNav" aria-label="Main navigation"><a href="#platform">Platform</a><a href="#workflows">Workflows</a><a href="#intelligence">AI Studio</a><a href="/free-social-media-tools.html">Free tools</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a></nav>'
+    )
+    .replace(
+      '<a href="/pricing.html">Pricing</a></div><div><strong>Account</strong>',
+      '<a href="/pricing.html">Pricing</a><a href="/free-social-media-tools.html">Free tools</a></div><div><strong>Account</strong>'
+    )
+    .replace(
       '<div><strong>Platform</strong><a href="#workflows">Workflows</a><a href="#intelligence">AI &amp; Analytics</a><a href="#pricing">Pricing</a><a href="/app/">Open app</a></div>',
-      '<div><strong>Explore</strong><a href="/social-media-scheduler.html">Social media scheduler</a><a href="/bulk-social-media-scheduler.html">Bulk scheduling</a><a href="/social-media-content-calendar.html">Content calendar</a><a href="/ai-social-media-tools.html">AI tools</a><a href="/social-media-analytics.html">Analytics</a><a href="/pricing.html">Pricing</a></div>'
+      '<div><strong>Explore</strong><a href="/social-media-scheduler.html">Social media scheduler</a><a href="/bulk-social-media-scheduler.html">Bulk scheduling</a><a href="/social-media-content-calendar.html">Content calendar</a><a href="/ai-social-media-tools.html">AI tools</a><a href="/social-media-analytics.html">Analytics</a><a href="/free-social-media-tools.html">Free tools</a><a href="/pricing.html">Pricing</a></div>'
     );
 };
 
