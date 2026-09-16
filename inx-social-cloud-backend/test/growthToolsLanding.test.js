@@ -15,7 +15,8 @@ test('free social post tools are indexable canonical acquisition pages', () => {
     assert.match(source, /portal\/register\.html/);
   }
   assert.match(captions, /id="captionForm"/);
-  assert.match(hub, /ready-to-publish social posts|ready-to-publish post/i);
+  assert.match(hub, /caption and hashtags|captions and hashtags/i);
+  assert.match(hub, /ready[- ]to[- ]publish|ready to send into your publishing workflow/i);
 });
 
 test('retired 30-day planner does not claim a live product capability', () => {
