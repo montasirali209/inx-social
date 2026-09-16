@@ -77,6 +77,14 @@ const buildLandingDocument = () => {
       '<link rel="stylesheet" href="/landing.css?v=20260909c">\n  <link rel="stylesheet" href="/landing-mobile.css?v=20260910c" media="(max-width: 900px)">\n  <link rel="stylesheet" href="/landing-performance.css?v=20260911b">\n  <link rel="stylesheet" href="/landing-brand.css?v=20260911b">'
     )
     .replace(
+      '<link rel="stylesheet" href="/landing-ai-studio.css?v=20260915a">',
+      '<link rel="stylesheet" href="/landing-ai-studio.css?v=20260916b">'
+    )
+    .replace(
+      '<script src="/landing.js?v=20260909c"></script>',
+      '<script src="/landing.js?v=20260916b"></script>'
+    )
+    .replace(
       '<div><strong>Platform</strong><a href="#workflows">Workflows</a><a href="#intelligence">AI &amp; Analytics</a><a href="#pricing">Pricing</a><a href="/app/">Open app</a></div>',
       '<div><strong>Explore</strong><a href="/social-media-scheduler.html">Social media scheduler</a><a href="/bulk-social-media-scheduler.html">Bulk scheduling</a><a href="/social-media-content-calendar.html">Content calendar</a><a href="/ai-social-media-tools.html">AI tools</a><a href="/social-media-analytics.html">Analytics</a><a href="/pricing.html">Pricing</a></div>'
     );
