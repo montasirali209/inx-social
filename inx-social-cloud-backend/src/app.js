@@ -46,7 +46,6 @@ const TRACKED_PUBLIC_HTML = [
   '/pricing.html',
   '/free-social-media-tools.html',
   '/social-media-caption-generator.html',
-  '/30-day-social-media-content-planner.html',
   '/privacy.html',
   '/terms.html',
   '/data-deletion.html'
@@ -182,6 +181,7 @@ app.use('/api/releases', releaseRoutes);
 
 app.use('/admin.css', express.static(path.join(publicRoot, 'admin.css'), { setHeaders: res => res.setHeader('Content-Type', 'text/css') }));
 app.use('/admin.js', express.static(path.join(publicRoot, 'admin.js'), { setHeaders: res => res.setHeader('Content-Type', 'application/javascript') }));
+app.get('/30-day-social-media-content-planner.html', (req, res) => res.redirect(308, '/ai-social-media-tools.html'));
 app.get(TRACKED_PUBLIC_HTML, (req, res, next) => sendTrackedHtml(path.join(publicRoot, req.path.slice(1)), res, next));
 app.use(express.static(publicRoot, {
   index: false,
