@@ -10,6 +10,7 @@ Canonical website: https://www.inxsocial.co.uk/
 - Social media content calendar: https://www.inxsocial.co.uk/social-media-content-calendar.html
 - Social media analytics: https://www.inxsocial.co.uk/social-media-analytics.html
 - AI Content Studio: https://www.inxsocial.co.uk/ai-social-media-tools.html
+- For content creators: https://www.inxsocial.co.uk/for-content-creators.html
 - AI social media post generator: https://www.inxsocial.co.uk/ai-social-media-post-generator.html
 - AI video post generator: https://www.inxsocial.co.uk/ai-video-post-generator.html
 - AI carousel post generator: https://www.inxsocial.co.uk/ai-carousel-post-generator.html
@@ -23,6 +24,9 @@ These pages are public and indexable:
 - Free social media caption generator: https://www.inxsocial.co.uk/social-media-caption-generator.html
 
 The free caption generator is a lightweight browser-based helper. It does not represent the full authenticated AI Content Studio.
+
+## Audience
+INXSocial is built for content creators, social media managers, freelancers, small teams and businesses that create and publish social content regularly. The creator workflow is designed to reduce handoffs between idea generation, media creation, publishing copy and scheduling.
 
 ## Product scope
 INXSocial is designed as a complete social media management workspace rather than a scheduler or standalone media generator. The central workflow is post creation: a user provides a prompt, the AI Content Studio creates the requested media and prepares the associated publishing copy so the result can continue as a ready-to-publish social post inside INXSocial.
