@@ -10,6 +10,11 @@ Canonical website: https://www.inxsocial.co.uk/
 - Social media content calendar: https://www.inxsocial.co.uk/social-media-content-calendar.html
 - Social media analytics: https://www.inxsocial.co.uk/social-media-analytics.html
 - AI Content Studio: https://www.inxsocial.co.uk/ai-social-media-tools.html
+- AI social media post generator: https://www.inxsocial.co.uk/ai-social-media-post-generator.html
+- AI video post generator: https://www.inxsocial.co.uk/ai-video-post-generator.html
+- AI carousel post generator: https://www.inxsocial.co.uk/ai-carousel-post-generator.html
+- AI UGC ad generator: https://www.inxsocial.co.uk/ai-ugc-ad-generator.html
+- Generate and schedule social media posts: https://www.inxsocial.co.uk/generate-and-schedule-social-media-posts.html
 - Pricing: https://www.inxsocial.co.uk/pricing.html
 
 ## Free public tools
