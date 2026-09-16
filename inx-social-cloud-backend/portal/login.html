@@ -16,13 +16,13 @@
       <div class="showcase-copy">
         <span class="kicker">Customer access</span>
         <h1>Return to your <span>publishing workspace.</span></h1>
-        <p>Use the same verified account across INX Social Content Studio, connected Pages, billing and account controls.</p>
+        <p>Sign in to create, schedule and publish content across your connected social accounts.</p>
       </div>
       <ul class="benefits">
-        <li><b>✓</b> View trial and subscription status</li>
-        <li><b>✓</b> Open Content Studio in your browser</li>
-        <li><b>✓</b> Manage billing, cancellation and privacy</li>
-        <li><b>✓</b> Access connected Facebook Page limits</li>
+        <li><b>✓</b> Open your complete INXSocial workspace</li>
+        <li><b>✓</b> Manage all connected social accounts</li>
+        <li><b>✓</b> Create, schedule and publish content</li>
+        <li><b>✓</b> Review analytics and account settings</li>
       </ul>
       <div class="showcase-footer">Secure customer sign-in · INX Social</div>
     </section>
@@ -76,7 +76,17 @@ const resendButton=document.getElementById('resendButton');
 const params=new URLSearchParams(location.search);
 const requestedReturn=params.get('return')||'';
 if(params.get('account')==='deleted') show(params.get('warning')==='meta' ? 'Your INX Social account was deleted. One Meta permission could not be revoked automatically; you can also remove INX Social in Facebook Business Integrations.' : 'Your INX Social account was permanently deleted.','success');
-const safeReturn=['/app','/app/'].includes(requestedReturn)?'/app/':'';
+function safeAppReturn(value){
+  if(!value)return '/app/';
+  try{
+    if(!value.startsWith('/')||value.startsWith('//')||value.includes('\\'))return '/app/';
+    const destination=new URL(value,location.origin);
+    if(destination.origin!==location.origin)return '/app/';
+    if(destination.pathname!=='/app'&&!destination.pathname.startsWith('/app/'))return '/app/';
+    return destination.pathname==='/app'?'/app/':destination.pathname+destination.search+destination.hash;
+  }catch{return '/app/'}
+}
+const safeReturn=safeAppReturn(requestedReturn);
 const pending=params.get('email')||localStorage.getItem('pendingEmail')||'';
 if(pending)emailInput.value=pending;
 document.querySelectorAll('.password-toggle').forEach(btn=>btn.onclick=()=>{
@@ -109,7 +119,7 @@ form.addEventListener('submit',async e=>{
     }
     localStorage.setItem('inxToken',data.token);
     localStorage.removeItem('pendingEmail');
-    location.href=safeReturn||'index.html';
+    location.href=safeReturn;
   }catch(err){show(err.message,'error')}
   finally{button.disabled=false;button.querySelector('span').textContent='Sign in'}
 });
