@@ -31,6 +31,15 @@ test('landing upgrades the legacy channel strip into the all-in-one workspace ra
   assert.match(css, /\.workspace-platform\.youtube/);
 });
 
+test('landing connection rail names every currently supported customer network', () => {
+  const js = read('public/landing.js');
+  assert.match(js, /9 networks:/);
+  for (const platform of ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'YouTube', 'Pinterest', 'Threads', 'Bluesky']) {
+    assert.equal(js.includes(platform), true, `${platform} should appear in the landing connection rail`);
+  }
+  assert.match(js, /Bluesky &amp; X/);
+});
+
 test('landing rail links important capabilities to crawlable public product pages', () => {
   const js = read('public/landing.js');
   for (const href of [
