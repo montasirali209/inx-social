@@ -3,12 +3,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchPostsWorkspace, createDirectPosts, publishDirectPostLibraryMedia, uploadDirectPostMedia } from '../../lib/posts-api'
 import { zonedDateTimeToIso } from '../../lib/bulk-scheduler-utils'
-import { fetchFacebookDashboardAnalytics } from '../../lib/dashboard-api'
 import { fetchMediaAssetFile, fetchMediaLibrary, uploadMediaAsset } from '../../lib/media-library-api'
-import { calculateBestPostTime } from '../../lib/posts-analytics'
 import { clearPostComposerFile, readPostComposerFile, savePostComposerFile } from '../../lib/post-composer-file-session'
 import type { AIDraft } from '../../types/ai-content-studio'
-import type { ConnectedPage, DashboardJob } from '../../types/dashboard'
+import type { DashboardJob } from '../../types/dashboard'
 import type { MediaAsset } from '../../types/media-library'
 import type { BestTimeInsight, MediaItem, PostDraft, PostType, PublishProgress, ScheduleMode } from '../../types/posts'
 import { CreatePostPanel } from './CreatePostPanel'
@@ -86,43 +84,6 @@ function readDrafts(): PostDraft[] {
 function defaultDate() {
   const value = new Date(Date.now() + 86_400_000)
   return value.toISOString().slice(0, 10)
-}
-
-async function fetchExternalPublishedPosts(pages: ConnectedPage[]): Promise<DashboardJob[]> {
-  const jobs: DashboardJob[] = []
-  for (let offset = 0; offset < pages.length; offset += 4) {
-    const batch = pages.slice(offset, offset + 4)
-    const results = await Promise.allSettled(batch.map((page) => fetchFacebookDashboardAnalytics(page.id, 90)))
-    results.forEach((result, index) => {
-      if (result.status !== 'fulfilled') return
-      const page = batch[index]
-      result.value.content.forEach((post) => {
-        const firstLine = post.message.trim().split(/\r?\n/)[0]
-        const looksLikeVideo = /video/i.test(post.contentType)
-        jobs.push({
-          id: `meta:${page.id}:${post.id}`,
-          status: 'PUBLISHED',
-          uploadStatus: null,
-          publishMode: 'NOW',
-          contentType: looksLikeVideo ? 'VIDEO' : post.thumbnailUrl ? 'IMAGE' : 'TEXT',
-          title: firstLine?.slice(0, 200) || 'Facebook post',
-          caption: post.message || null,
-          localFileName: null,
-          scheduledAt: null,
-          completedAt: post.createdTime,
-          errorMessage: null,
-          mediaLibraryAssetId: null,
-          metaPostId: post.id,
-          metaVideoId: null,
-          createdAt: post.createdTime || result.value.fetchedAt,
-          updatedAt: result.value.fetchedAt,
-          page,
-          asset: null,
-        })
-      })
-    })
-  }
-  return jobs
 }
 
 export function PostsPage() {
@@ -276,47 +237,31 @@ export function PostsPage() {
       const carouselNote = aiDraft.contentType === 'carousel_post' && storedAssets.length > 1
         ? ` ${storedAssets.length} carousel assets are saved in Media Library; the current composer has attached the lead slide.`
         : ''
-      setProgress({ state: 'completed', percent: 100, message: `AI Studio content is pre-filled. Choose destination pages and your publishing time.${carouselNote}` })
+      setProgress({ state: 'completed', percent: 100, message: `AI Studio content is pre-filled. Choose destinations and your publishing time.${carouselNote}` })
       window.scrollTo({ top: 0, behavior: 'smooth' })
     }).catch((error) => setProgress({ state: 'failed', percent: 0, message: error instanceof Error ? error.message : 'The AI Studio media could not be loaded from Media Library.' }))
   }, [location.state])
 
   const jobs = useMemo(() => workspace.data?.jobs || [], [workspace.data?.jobs])
-  const externalPublished = useQuery({
-    queryKey: ['posts-external-published', workspace.data?.pages.map((page) => page.id).join(',')],
-    queryFn: () => fetchExternalPublishedPosts((workspace.data?.pages || []).filter((page) => page.status === 'ACTIVE')),
-    enabled: postLibraryView === 'all' || postLibraryView === 'published',
-    staleTime: 5 * 60_000,
-    retry: false,
-  })
-  const reusableJobs = useMemo(() => {
-    const localMetaIds = new Set(jobs.flatMap((job) => [job.metaPostId, job.metaVideoId].filter((id): id is string => Boolean(id))))
-    return [...jobs, ...(externalPublished.data || []).filter((job) => !job.metaPostId || !localMetaIds.has(job.metaPostId))]
-  }, [externalPublished.data, jobs])
+  const reusableJobs = jobs
   const stats = useMemo(() => {
     const needsReview = jobs.filter((job) => ['FAILED', 'AWAITING_UPLOAD'].includes(job.status)).length
     return [
       { label: 'All Posts', value: jobs.length + drafts.length, detail: 'All publishing records', tone: 'teal' as const },
       { label: 'Drafts', value: drafts.length, detail: 'Open saved drafts', tone: 'amber' as const },
       { label: 'Scheduled', value: jobs.filter((job) => job.status === 'SCHEDULED').length, detail: 'Future publishing slots', tone: 'blue' as const },
-      { label: 'Published', value: jobs.filter((job) => job.status === 'PUBLISHED').length, detail: 'Confirmed by Meta', tone: 'green' as const },
+      { label: 'Published', value: jobs.filter((job) => job.status === 'PUBLISHED').length, detail: 'Confirmed by platform', tone: 'green' as const },
       { label: 'Needs Review', value: needsReview, detail: needsReview ? 'Action required' : 'Nothing needs attention', tone: 'red' as const },
     ]
   }, [jobs, drafts])
 
-  const selectedPage = workspace.data?.pages.find((page) => selectedIds.includes(page.id)) || null
-  const pageAnalytics = useQuery({
-    queryKey: ['posts-best-time', selectedPage?.id],
-    queryFn: () => fetchFacebookDashboardAnalytics(selectedPage!.id, 90),
-    enabled: Boolean(selectedPage),
-    retry: 1,
-    staleTime: 5 * 60_000,
-  })
-  const bestTime = useMemo<BestTimeInsight>(() => {
-    if (!selectedPage) return { available: false, label: 'Choose a destination', time: null, detail: 'Select a connected Page to personalise the recommendation.' }
-    if (pageAnalytics.isError) return { available: false, label: 'Analytics unavailable', time: null, detail: `Live timing data for ${selectedPage.facebookPageName} could not be loaded.` }
-    return calculateBestPostTime(pageAnalytics.data)
-  }, [pageAnalytics.data, pageAnalytics.isError, selectedPage])
+  const selectedDestination = workspace.data?.destinations.find((destination) => selectedIds.includes(destination.id)) || null
+  const bestTime = useMemo<BestTimeInsight>(() => ({
+    available: false,
+    label: selectedDestination ? 'Connected destination selected' : 'Choose a destination',
+    time: null,
+    detail: selectedDestination ? `Timing recommendations for ${selectedDestination.name} will use cross-platform feed metrics as they accumulate.` : 'Select a connected account to continue.'
+  }), [selectedDestination])
   const needsMedia = postType === 'image' || postType === 'video' || postType === 'reel'
   let scheduledAt: string | null = null
   try {
@@ -395,11 +340,12 @@ export function PostsPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  async function reusePost(job: (typeof jobs)[number]) {
+  async function reusePost(job: DashboardJob) {
     setTitle(job.title || '')
     setCaption(job.caption || '')
     setPostType(job.contentType === 'IMAGE' ? 'image' : job.contentType === 'VIDEO' ? 'video' : 'text')
-    setSelectedIds(job.page && workspace.data?.pages.some((page) => page.id === job.page?.id) ? [job.page.id] : [])
+    const destinationId = job.destination?.id || job.page?.id || null
+    setSelectedIds(destinationId && workspace.data?.destinations.some((destination) => destination.id === destinationId) ? [destinationId] : [])
     setMode('later')
     setDate(defaultDate())
     setMedia(null)
@@ -458,7 +404,7 @@ export function PostsPage() {
         for (const job of response.jobs) {
           try {
             if (publishingMedia.libraryAssetId) await publishDirectPostLibraryMedia(job.id)
-            else await uploadDirectPostMedia(job.id, publishingMedia.file, (filePercent) => setProgress({ state: 'uploading', percent: Math.round(((completed + filePercent / 100) / response.jobs.length) * 100), message: `Publishing to ${job.page?.facebookPageName || 'destination'}…` }))
+            else await uploadDirectPostMedia(job.id, publishingMedia.file, (filePercent) => setProgress({ state: 'uploading', percent: Math.round(((completed + filePercent / 100) / response.jobs.length) * 100), message: `Publishing to ${job.destination?.name || job.page?.facebookPageName || 'destination'}…` }))
           } catch {
             mediaFailures += 1
           }
@@ -502,12 +448,12 @@ export function PostsPage() {
       <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 xl:grid-cols-5">{stats.map((stat) => <PostsStatCard key={stat.label} {...stat} onClick={stat.label === 'Drafts' ? () => setDraftLibraryOpen(true) : stat.label === 'All Posts' ? () => setPostLibraryView('all') : stat.label === 'Scheduled' ? () => setPostLibraryView('scheduled') : stat.label === 'Published' ? () => setPostLibraryView('published') : stat.label === 'Needs Review' ? () => setPostLibraryView('needs_review') : undefined} />)}</div>
       <DestinationSelector destinations={workspace.data.destinations} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.35fr)_minmax(290px,.72fr)_minmax(320px,.82fr)]">
-        <CreatePostPanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} caption={caption} captionIdea={captionIdea} destinationCount={selectedIds.length} media={media} postType={postType} retainMedia={retainMedia} setCaption={setCaption} setCaptionIdea={setCaptionIdea} setMedia={updateMedia} setPostType={setPostType} setRetainMedia={setRetainMedia} setTitle={setTitle} title={title} />
-        <SchedulePanel bestTime={bestTime} bestTimeLoading={pageAnalytics.isLoading} campaign={campaign} canPublish={mode === 'draft' ? Boolean(title.trim() || caption.trim()) : ready} date={date} labels={labels} mode={mode} onDraft={saveDraft} onPublish={requestPublish} progress={progress} setCampaign={setCampaign} setDate={setDate} setLabels={setLabels} setMode={setMode} setTime={setTime} time={time} />
-        <PostPreviewPanel caption={caption} media={media} selectedPage={selectedPage} />
+        <CreatePostPanel bestTime={bestTime} bestTimeLoading={false} caption={caption} captionIdea={captionIdea} destinationCount={selectedIds.length} media={media} postType={postType} retainMedia={retainMedia} setCaption={setCaption} setCaptionIdea={setCaptionIdea} setMedia={updateMedia} setPostType={setPostType} setRetainMedia={setRetainMedia} setTitle={setTitle} title={title} />
+        <SchedulePanel bestTime={bestTime} bestTimeLoading={false} campaign={campaign} canPublish={mode === 'draft' ? Boolean(title.trim() || caption.trim()) : ready} date={date} labels={labels} mode={mode} onDraft={saveDraft} onPublish={requestPublish} progress={progress} setCampaign={setCampaign} setDate={setDate} setLabels={setLabels} setMode={setMode} setTime={setTime} time={time} />
+        <PostPreviewPanel caption={caption} media={media} selectedPage={null} />
       </div>
-      {draftLibraryOpen && <DraftLibraryModal drafts={drafts} onClose={() => setDraftLibraryOpen(false)} onDelete={deleteDraft} onLoad={loadDraft} pages={workspace.data.pages} />}
-      {postLibraryView && <PostReuseModal initialView={postLibraryView} jobs={reusableJobs} loadingExternal={externalPublished.isFetching} onClose={() => setPostLibraryView(null)} onReuse={reusePost} />}
+      {draftLibraryOpen && <DraftLibraryModal drafts={drafts} onClose={() => setDraftLibraryOpen(false)} onDelete={deleteDraft} onLoad={loadDraft} pages={[]} />}
+      {postLibraryView && <PostReuseModal initialView={postLibraryView} jobs={reusableJobs} loadingExternal={false} onClose={() => setPostLibraryView(null)} onReuse={reusePost} />}
       <PublishConfirmationDialog
         busy={progress.state === 'preparing' || progress.state === 'uploading'}
         confirmLabel={mode === 'now' ? 'Publish now' : 'Confirm schedule'}

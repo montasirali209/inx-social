@@ -42,13 +42,13 @@ test('Posts keeps the attachment compact and card hover text crisp', () => {
   assert.doesNotMatch(styles, /perspective\(1100px\).*rotateX/);
 });
 
-test('best-time guidance is derived from selected Page analytics', () => {
+test('best-time guidance is provider-neutral and destination-aware', () => {
   const page = read('frontend/src/components/posts/PostsPage.tsx');
-  const analytics = read('frontend/src/lib/posts-analytics.ts');
   const schedule = read('frontend/src/components/posts/SchedulePanel.tsx');
-  assert.match(page, /fetchFacebookDashboardAnalytics\(selectedPage!\.id, 90\)/);
-  assert.match(analytics, /totalInteractions/);
-  assert.match(analytics, /live engagement from/);
+  assert.match(page, /workspace\.data\?\.destinations\.find/);
+  assert.match(page, /Connected destination selected/);
+  assert.match(page, /cross-platform feed metrics/);
+  assert.doesNotMatch(page, /fetchFacebookDashboardAnalytics/);
   assert.match(schedule, /Use time/);
 });
 

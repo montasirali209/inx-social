@@ -6,97 +6,69 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf8');
 
-test('Connected Accounts exposes real Instagram, LinkedIn, YouTube, and X linking actions', () => {
-  const html = read('studio/index.html');
-  const app = read('studio/app.js');
-  const adapter = read('studio/web-adapter.js');
-  for (const platform of ['Instagram', 'LinkedIn', 'YouTube', 'X']) {
-    assert.match(html, new RegExp(`id="btnConnect${platform}"`));
-    assert.match(app, new RegExp(`connectSocialPlatformV2\\('${platform.toLowerCase()}'\\)`));
-  }
-  assert.match(adapter, /\/api\/social-connections\/oauth\/\$\{encodeURIComponent\(normalized\)\}\/start/);
-  assert.match(adapter, /connectSocialPlatform: socialOAuth/);
-  assert.match(html, /Linking does not enable publishing/);
-  assert.match(app, /orderedProfiles\.map/);
-  assert.match(app, /Channel \$\{index \+ 1\} of \$\{profileCount\}/);
-});
-
-test('React connections use one direct Instagram Login path while legacy Meta endpoints remain isolated', () => {
+test('Connected Accounts exposes the nine Post for Me networks', () => {
+  const data = read('frontend/src/data/connectedAccountsData.ts');
+  const page = read('frontend/src/components/connections/ConnectedAccountsPageV3.tsx');
   const api = read('frontend/src/lib/connections-api.ts');
-  const connectedAccountsPage = read('frontend/src/components/connections/ConnectedAccountsPage.tsx');
-  const adapter = read('studio/web-adapter.js');
-  const facebookCallback = read('studio/facebook-callback.js');
+  for (const platform of ['facebook', 'instagram', 'linkedin', 'tiktok', 'youtube', 'pinterest', 'threads', 'bluesky', 'x']) {
+    assert.match(data, new RegExp(`'${platform}'`));
+  }
+  assert.match(page, /Available networks/);
+  assert.match(page, />9</);
+  assert.match(api, /connectPostForMePlatform/);
+  assert.match(api, /\/api\/social-connections\/post-for-me\/\$\{platform\}\/start/);
+});
+
+test('React connections use Post for Me as the only active social gateway', () => {
+  const api = read('frontend/src/lib/connections-api.ts');
+  const connectedAccountsPage = read('frontend/src/components/connections/ConnectedAccountsPageV3.tsx');
   const controller = read('src/controllers/socialConnectionController.js');
-  const service = read('src/services/socialConnectionService.js');
   const routes = read('src/routes/socialConnectionRoutes.js');
-  assert.match(api, /connectOAuthPlatform\('instagram'\)/);
-  assert.match(api, /\/api\/social-connections\/facebook\/start/);
-  assert.doesNotMatch(api, /instagram_basic|instagram_content_publish|instagram_manage_insights/);
-  assert.match(service, /FACEBOOK_LOGIN_CONFIG_ID/);
-  assert.match(service, /FACEBOOK_PAGE_SCOPES/);
-  assert.match(service, /response_type', 'code'/);
-  assert.match(service, /async function completeFacebook/);
-  assert.doesNotMatch(service, /response_type', 'token'/);
-  assert.match(service, /INSTAGRAM_ALREADY_CONNECTED_VIA_META/);
-  assert.match(routes, /router\.post\('\/facebook\/start', controller\.startFacebook\)/);
-  assert.match(routes, /router\.post\('\/facebook\/complete', controller\.completeFacebook\)/);
-  assert.doesNotMatch(adapter, /instagram_basic|instagram_manage_insights/);
-  assert.doesNotMatch(facebookCallback, /location\.replace\('\/studio\//);
-  assert.match(facebookCallback, /Close this window/);
-  assert.match(facebookCallback, /\/api\/social-connections\/instagram\/sync/);
-  assert.match(facebookCallback, /\/api\/social-connections\/facebook\/complete/);
-  assert.match(controller, /INSTAGRAM_BUSINESS_LOGIN/);
-  assert.match(service, /OAUTH_PROVIDER_NOT_CONFIGURED/);
-  assert.doesNotMatch(service, /INSTAGRAM_CLIENT_ID \|\| process\.env\.META_APP_ID/);
-  assert.doesNotMatch(controller, /INSTAGRAM_CLIENT_ID \|\| process\.env\.META_APP_ID/);
-  assert.match(connectedAccountsPage, /Instagram setup is incomplete\./);
-  assert.match(connectedAccountsPage, /Instagram setup required/);
-  assert.match(connectedAccountsPage, /Instagram Login/);
-  assert.match(connectedAccountsPage, /Connect Instagram/);
-  assert.match(connectedAccountsPage, /Business or Creator/);
-  assert.match(connectedAccountsPage, /Personal Instagram profiles do not support automatic/);
-  assert.match(connectedAccountsPage, /no\s+separate Meta connection is required for publishing/);
-  assert.doesNotMatch(connectedAccountsPage, /Connect with Meta/);
-  assert.doesNotMatch(connectedAccountsPage, /InstagramConnectionMethod|instagramMethod/);
-  assert.match(connectedAccountsPage, />\s*Close\s*<\/Button>/);
-  assert.doesNotMatch(connectedAccountsPage, />\s*Back\s*<\/Button>/);
-  assert.match(service, /force_authentication/);
-  assert.match(service, /enable_fb_login/);
-  assert.doesNotMatch(service, /force_reauth/);
-  assert.match(api, /inxSocialConnect-instagram-/);
-  assert.match(api, /window\.addEventListener\('focus', checkAfterReturn\)/);
-  assert.match(connectedAccountsPage, /connectMutation\.reset\(\)/);
+  const pfm = read('src/services/postForMeService.js');
+
+  assert.match(api, /connectPostForMePlatform/);
+  assert.match(api, /post-for-me\/\$\{platform\}\/start/);
+  assert.match(pfm, /PROVIDER_ENGINE = 'POST_FOR_ME'/);
+  assert.match(pfm, /permissions: \['posts', 'feeds'\]/);
+  assert.match(pfm, /external_id: String\(userId\)/);
+  assert.match(routes, /post-for-me\/callback/);
+  assert.match(routes, /post-for-me\/webhook/);
+  assert.doesNotMatch(routes, /facebook\/start|facebook\/complete|linkedin\/start|oauth\/:platform\/start/);
+  assert.match(controller, /module\.exports = \{\};/);
+  assert.match(connectedAccountsPage, /customerFacingPlatforms\.map/);
+  assert.match(connectedAccountsPage, /Bluesky handle/);
+  assert.match(connectedAccountsPage, /App password/);
 });
 
-test('Connected Accounts menus, scrolling and disconnect confirmation remain usable', () => {
-  const page = read('frontend/src/components/connections/ConnectedAccountsPage.tsx');
-  assert.match(page, /createPortal/);
-  assert.match(page, /overflow-y-auto overscroll-contain/);
-  assert.match(page, /Yes, disconnect/);
-  assert.doesNotMatch(page, /Type\s*\{?"?\s*DISCONNECT/);
+test('Connected Accounts menus and disconnect confirmation remain usable', () => {
+  const page = read('frontend/src/components/connections/ConnectedAccountsPageV3.tsx');
+  assert.match(page, /Connect Account/);
+  assert.match(page, /Disconnect account/);
+  assert.match(page, /Connected destinations/);
+  assert.match(page, /Social networks/);
   assert.doesNotMatch(page, /15\+ platforms/);
-  assert.match(page, /Available now: Facebook, Instagram, LinkedIn, YouTube and X\./);
 });
 
-test('social OAuth callback is public while account management remains authenticated', () => {
+test('Post for Me callback and webhook are public while account management remains authenticated', () => {
   const routes = read('src/routes/socialConnectionRoutes.js');
-  const callbackIndex = routes.indexOf("router.get('/oauth/:platform/callback'");
+  const callbackIndex = routes.indexOf("router.get('/post-for-me/callback'");
+  const webhookIndex = routes.indexOf("router.post('/post-for-me/webhook'");
   const authIndex = routes.indexOf('router.use(requireAuth)');
-  const listIndex = routes.indexOf("router.get('/', controller.list)");
-  const facebookStartIndex = routes.indexOf("router.post('/facebook/start'");
-  const facebookCompleteIndex = routes.indexOf("router.post('/facebook/complete'");
+  const listIndex = routes.indexOf("router.get('/', postForMeController.list)");
+  const startIndex = routes.indexOf("router.post('/post-for-me/:platform/start'");
   assert.ok(callbackIndex >= 0 && callbackIndex < authIndex);
+  assert.ok(webhookIndex >= 0 && webhookIndex < authIndex);
   assert.ok(authIndex < listIndex);
-  assert.ok(facebookStartIndex > authIndex);
-  assert.ok(facebookCompleteIndex > authIndex);
-  assert.match(routes, /router\.delete\('\/:id', controller\.disconnect\)/);
+  assert.ok(startIndex > authIndex);
+  assert.match(routes, /router\.delete\('\/:id', postForMeController\.disconnect\)/);
 });
 
-test('social connection responses never expose encrypted token fields', () => {
-  const service = read('src/services/socialConnectionService.js');
-  const publicConnection = service.match(/function publicConnection\(connection\) \{[\s\S]*?\n\}/)?.[0] || '';
-  assert.doesNotMatch(publicConnection, /encryptedAccessToken|encryptedRefreshToken/);
-  assert.match(service, /encryptToken\(token\.access_token\)/);
+test('Post for Me connection responses use local mappings without provider credentials', () => {
+  const service = read('src/services/postForMeService.js');
+  assert.match(service, /encryptedAccessToken: null/);
+  assert.match(service, /encryptedRefreshToken: null/);
+  assert.match(service, /postForMeAccountId/);
+  assert.doesNotMatch(service, /encryptToken\(/);
 });
 
 test('privacy policy discloses connected-platform data and Google Limited Use', () => {
@@ -104,8 +76,5 @@ test('privacy policy discloses connected-platform data and Google Limited Use', 
   for (const platform of ['Meta:', 'LinkedIn:', 'Google and YouTube:', 'X:']) assert.match(privacy, new RegExp(platform));
   assert.match(privacy, /Google API Services User Data Policy/);
   assert.match(privacy, /Limited Use requirements/);
-  assert.match(privacy, /does not upload, edit or delete YouTube content/);
-  assert.match(privacy, /OAuth 2\.0 with PKCE/);
-  assert.match(privacy, /does not publish, edit or delete Posts on X/);
   assert.match(privacy, /do not sell connected-platform data/);
 });

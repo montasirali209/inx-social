@@ -24,13 +24,15 @@ test('Phase 13.6 makes Posts a first-class responsive React workspace', () => {
   assert.doesNotMatch(page, /studio\/\?view=posts/);
 });
 
-test('Phase 13.6 publishes multi-Page posts through the governed direct post endpoints', () => {
+test('Phase 13.6 publishes multi-destination posts through the Post for Me gateway', () => {
   const api = read('frontend/src/lib/posts-api.ts');
   const page = read('frontend/src/components/posts/PostsPage.tsx');
   const destinations = read('frontend/src/components/posts/DestinationSelector.tsx');
 
-  assert.match(api, /\/api\/studio\/direct-posts/);
-  assert.match(api, /direct-posts\/\$\{encodeURIComponent\(jobId\)\}\/media/);
+  assert.match(api, /\/api\/social-connections\/publications/);
+  assert.match(api, /publications\/\$\{encodeURIComponent\(jobId\)\}\/media/);
+  assert.match(api, /profileIds: input\.connectedPageIds/);
+  assert.doesNotMatch(api, /\/api\/studio\/direct-posts/);
   assert.match(page, /connectedPageIds: selectedIds/);
   assert.match(page, /publishMode: mode === 'now' \? 'NOW' : 'SCHEDULED'/);
   assert.match(page, /for \(const job of response\.jobs\)/);
@@ -38,7 +40,6 @@ test('Phase 13.6 publishes multi-Page posts through the governed direct post end
   assert.match(destinations, /createPortal/);
   assert.match(destinations, /Choose publishing destinations/);
   assert.match(destinations, /Reconnect required/);
-  assert.match(destinations, /connector is planned/);
   assert.doesNotMatch(`${page}${destinations}`, /INX Social Shop|@inx\.lifestyle|INX Social Careers/);
 });
 

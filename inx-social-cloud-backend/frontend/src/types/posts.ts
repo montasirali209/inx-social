@@ -1,7 +1,7 @@
 import type { ConnectedPage, DashboardJob, StudioOverview } from './dashboard'
 import type { SettingsValues } from './settings'
 
-export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'youtube' | 'x'
+export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'youtube' | 'pinterest' | 'threads' | 'bluesky' | 'x'
 export type PostType = 'text' | 'image' | 'video' | 'reel' | 'carousel'
 export type PostStatus = 'draft' | 'scheduled' | 'published' | 'awaiting_approval' | 'needs_review' | 'failed'
 export type ScheduleMode = 'now' | 'later' | 'draft'
