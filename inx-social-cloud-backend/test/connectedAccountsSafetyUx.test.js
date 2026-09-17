@@ -16,10 +16,10 @@ test('Post for Me connection popup cancellation settles promptly', () => {
 });
 
 test('Connected Accounts keeps provider diagnostics out of the customer UI', () => {
-  const page = read('frontend/src/components/connections/ConnectedAccountsPageV3.tsx');
+  const page = read('frontend/src/components/connections/ConnectedAccountsPageV4.tsx');
   assert.match(page, /Connected destinations/);
-  assert.match(page, /Social networks/);
-  assert.match(page, /Available networks/);
+  assert.match(page, /All Connected Platforms/);
+  assert.match(page, /Connect a new account/);
   assert.doesNotMatch(page, /Token Expiry Alerts/);
   assert.doesNotMatch(page, /Webhook status/);
   assert.doesNotMatch(page, /API health check/);
@@ -27,15 +27,15 @@ test('Connected Accounts keeps provider diagnostics out of the customer UI', () 
 });
 
 test('Connected Accounts disconnects provider-backed connections through one gateway', () => {
-  const page = read('frontend/src/components/connections/ConnectedAccountsPageV3.tsx');
+  const page = read('frontend/src/components/connections/ConnectedAccountsPageV4.tsx');
   const api = read('frontend/src/lib/connections-api.ts');
-  assert.match(page, /disconnectSocialConnection\(identity\.connectionId\)/);
+  assert.match(page, /disconnectSocialConnection\(account\.connectionId\)/);
   assert.match(page, /Disconnect account/);
   assert.match(api, /\/api\/social-connections\/\$\{encodeURIComponent\(connectionId\)\}/);
   assert.match(api, /syncPostForMeConnections/);
 });
 
-test('Connected Accounts route loads the Post for Me workspace', () => {
+test('Connected Accounts route loads the premium Post for Me workspace', () => {
   const preload = read('frontend/src/route-preload.ts');
-  assert.match(preload, /ConnectedAccountsPageV3/);
+  assert.match(preload, /ConnectedAccountsPageV4/);
 });
