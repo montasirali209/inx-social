@@ -1,5 +1,6 @@
 const { z } = require('zod');
 const service = require('../services/socialConnectionService');
+const postForMe = require('../services/postForMeService');
 const linkedin = require('../services/linkedinPublishingService');
 const linkedinOAuth = require('../services/linkedinOAuthService');
 
@@ -18,21 +19,27 @@ function completionPage(res, payload) {
 
 async function list(req, res, next) {
   try {
+    // Post for Me is the primary connection engine once configured. Keep the
+    // existing native rows untouched as rollback data, but sync the provider-owned
+    // destinations into the platform-neutral SocialConnection/SocialProfile tables.
+    if (postForMe.configured()) await postForMe.syncConnections(req.user.id);
     const connections = await service.listConnections(req.user.id);
     res.json({
       connections,
-      providers: {
-        instagram: {
-          configured: Boolean(
-            String(process.env.INSTAGRAM_CLIENT_ID || '').trim()
-            && String(process.env.INSTAGRAM_CLIENT_SECRET || '').trim()
-          ),
-          method: 'INSTAGRAM_BUSINESS_LOGIN'
-        },
-        linkedin: { configured: Boolean(String(process.env.LINKEDIN_CLIENT_ID || '').trim() && String(process.env.LINKEDIN_CLIENT_SECRET || '').trim()), method: 'OAUTH_CODE' },
-        youtube: { configured: Boolean(String(process.env.GOOGLE_CLIENT_ID || '').trim() && String(process.env.GOOGLE_CLIENT_SECRET || '').trim()), method: 'OAUTH_CODE' },
-        x: { configured: Boolean(String(process.env.X_CLIENT_ID || '').trim() && String(process.env.X_CLIENT_SECRET || '').trim()), method: 'OAUTH_CODE_PKCE' }
-      }
+      providers: postForMe.configured()
+        ? postForMe.providerState()
+        : {
+            instagram: {
+              configured: Boolean(
+                String(process.env.INSTAGRAM_CLIENT_ID || '').trim()
+                && String(process.env.INSTAGRAM_CLIENT_SECRET || '').trim()
+              ),
+              method: 'INSTAGRAM_BUSINESS_LOGIN'
+            },
+            linkedin: { configured: Boolean(String(process.env.LINKEDIN_CLIENT_ID || '').trim() && String(process.env.LINKEDIN_CLIENT_SECRET || '').trim()), method: 'OAUTH_CODE' },
+            youtube: { configured: Boolean(String(process.env.GOOGLE_CLIENT_ID || '').trim() && String(process.env.GOOGLE_CLIENT_SECRET || '').trim()), method: 'OAUTH_CODE' },
+            x: { configured: Boolean(String(process.env.X_CLIENT_ID || '').trim() && String(process.env.X_CLIENT_SECRET || '').trim()), method: 'OAUTH_CODE_PKCE' }
+          }
     });
   } catch (error) { next(error); }
 }
@@ -159,6 +166,10 @@ async function listLinkedInPublications(req, res, next) {
 
 async function disconnect(req, res, next) {
   try {
+    if (postForMe.configured()) {
+      const result = await postForMe.disconnect(req.user.id, req.params.id);
+      if (result) return res.json(result);
+    }
     res.json(await service.disconnect(req.user.id, req.params.id));
   } catch (error) { next(error); }
 }
