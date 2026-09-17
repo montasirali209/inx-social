@@ -72,7 +72,7 @@ test('SEO product pages have unique titles, canonicals and indexable copy', () =
     ['public/bulk-social-media-scheduler.html', 'Bulk Social Media Scheduler for Multiple Accounts', 'bulk-social-media-scheduler.html'],
     ['public/social-media-content-calendar.html', 'Social Media Content Calendar & Publishing Planner', 'social-media-content-calendar.html'],
     ['public/social-media-analytics.html', 'Social Media Analytics Dashboard', 'social-media-analytics.html'],
-    ['public/ai-social-media-tools.html', 'AI Content Studio for Social Media', 'ai-social-media-tools.html'],
+    ['public/ai-social-media-tools.html', 'AI Social Media Content Studio', 'ai-social-media-tools.html'],
     ['public/pricing.html', 'INXSocial Pricing', 'pricing.html']
   ];
 
