@@ -19,7 +19,7 @@ test('Phase 13.4 makes Content Calendar a first-class responsive React route', (
   assert.match(page, /SelectedDatePanel/);
   assert.match(toolbar, /CalendarFilterMenu/);
   assert.match(toolbar, /Every platform/);
-  assert.match(toolbar, /All connected Pages/);
+  assert.match(toolbar, /All connected accounts/);
   assert.match(toolbar, /Upcoming only/);
   assert.doesNotMatch(toolbar, /label: 'Published'/);
   assert.doesNotMatch(toolbar, /<select/);
@@ -28,49 +28,43 @@ test('Phase 13.4 makes Content Calendar a first-class responsive React route', (
   assert.match(toolbar, /md:hidden/);
 });
 
-test('Phase 13.4 uses live cloud and selected-Page Meta data without sample calendar posts', () => {
+test('Phase 13.4 uses universal Post for Me publishing state without sample calendar posts', () => {
   const api = read('frontend/src/lib/calendar-api.ts');
   const page = read('frontend/src/components/calendar/ContentCalendarPage.tsx');
   const bestTime = read('frontend/src/components/calendar/BestTimeCard.tsx');
   const toolbar = read('frontend/src/components/calendar/CalendarToolbar.tsx');
 
-  assert.match(api, /\/api\/studio\/overview/);
-  assert.match(api, /calendarFetchRange/);
-  assert.match(api, /limit: '1000'/);
-  assert.match(api, /\/api\/studio\/facebook\/scheduled-posts/);
-  assert.match(api, /scheduledPageIds/);
-  assert.match(api, /page\.id === selectedPageId/);
-  assert.match(api, /scheduledFor < nowMs/);
+  assert.match(api, /fetchConnectionsWorkspace/);
+  assert.match(api, /\/api\/social-publications\?limit=500/);
+  assert.match(api, /source: 'post_for_me'/);
   assert.match(api, /post\.status === 'scheduled' \|\| post\.status === 'needs_review'/);
-  assert.match(page, /syncWarnings/);
-  assert.match(page, /monthKey.*queryKey|queryKey: \['content-calendar', timezone, pageId, monthKey\]/);
-  assert.match(page, /refetchInterval: 60_000/);
+  assert.match(page, /queryKey: \['content-calendar', 'post-for-me', timezone\]/);
+  assert.match(page, /refetchInterval: 30_000/);
   assert.match(page, /refetchIntervalInBackground: false/);
-  assert.match(page, /fetchFacebookDashboardAnalytics/);
+  assert.match(page, /fetchAnalyticsSources/);
+  assert.match(page, /fetchAnalyticsForSource/);
   assert.match(page, /calculateBestPostTime/);
   assert.match(bestTime, /Use \{insight\.time\}/);
   assert.doesNotMatch(bestTime, /Analytics required/);
   assert.match(toolbar, /relative z-30/);
-  assert.doesNotMatch(`${api}${page}`, /Product Update|Customer Story|Industry Insight|May 12, 2025/);
+  assert.doesNotMatch(`${api}${page}`, /\/api\/studio\/facebook\/scheduled-posts|Product Update|Customer Story|Industry Insight|May 12, 2025/);
 });
 
-test('Content Calendar opens platform posts and manages real Meta schedules', () => {
+test('Content Calendar opens platform posts and manages universal provider schedules', () => {
   const api = read('frontend/src/lib/calendar-api.ts');
   const page = read('frontend/src/components/calendar/ContentCalendarPage.tsx');
   const selected = read('frontend/src/components/calendar/ScheduledVideoCard.tsx');
-  const routes = read('src/routes/studioRoutes.js');
-  const controller = read('src/controllers/studioController.js');
+  const dialog = read('frontend/src/components/calendar/CalendarPostActionDialog.tsx');
 
   assert.match(page, /window\.open\(post\.platformUrl/);
-  assert.match(selected, /Open on Facebook/);
-  assert.match(selected, /Reschedule/);
-  assert.match(selected, /Delete from Facebook & INXSocial/);
+  assert.match(selected, /Open on \{platformLabel\}/);
+  assert.match(selected, /Delete from \{platformLabel\} & INXSocial/);
+  assert.match(dialog, /scheduled post from \{platformLabel\}/);
   assert.match(api, /rescheduleCalendarPost/);
   assert.match(api, /deleteCalendarPost/);
-  assert.match(routes, /jobs\/:id\/schedule/);
-  assert.match(routes, /facebook\/posts\/:postId\/schedule/);
-  assert.match(controller, /Removed from Facebook/);
-  assert.match(controller, /metaPublisher\.isMissingPostError/);
+  assert.match(api, /\/api\/social-publications\/\$\{encodeURIComponent\(post\.jobId\)\}\/schedule/);
+  assert.match(api, /\/api\/social-publications\/\$\{encodeURIComponent\(post\.jobId\)\}/);
+  assert.doesNotMatch(`${api}${selected}${dialog}`, /facebook\/posts|Open on Facebook|Delete from Facebook|Facebook requires/);
 });
 
 test('Phase 13.4 calendar actions hand selected date and time to the real post composer', () => {

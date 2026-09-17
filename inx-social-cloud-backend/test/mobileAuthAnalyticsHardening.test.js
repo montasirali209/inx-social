@@ -16,16 +16,16 @@ test('customer app shell is gated by validated authentication before tools rende
   assert.match(gate, /loginUrl/);
 });
 
-test('YouTube analytics can refresh expired and provider-invalidated OAuth access tokens', () => {
+test('YouTube analytics uses Post for Me feed metrics without local OAuth token handling', () => {
   const controller = read('src/controllers/analyticsController.js');
-  const tokenService = read('src/services/youtubeTokenService.js');
-  assert.match(controller, /ensureFreshYouTubeToken/);
-  assert.match(controller, /forceRefreshYouTubeToken/);
-  assert.match(controller, /invalid authentication credentials/);
-  assert.match(tokenService, /https:\/\/oauth2\.googleapis\.com\/token/);
-  assert.match(tokenService, /grant_type: 'refresh_token'/);
-  assert.match(tokenService, /encryptedAccessToken: encryptToken\(token\.access_token\)/);
-  assert.match(tokenService, /tokenExpiresAt:/);
+  const service = read('src/services/postForMeAnalyticsService.js');
+  assert.match(controller, /getPostForMeAnalytics/);
+  assert.match(service, /platform === 'youtube'/);
+  assert.match(service, /subscribersGained/);
+  assert.match(service, /subscribersLost/);
+  assert.match(service, /social-account-feeds/);
+  assert.match(service, /params\.append\('expand', 'metrics'\)/);
+  assert.doesNotMatch(controller, /ensureFreshYouTubeToken|forceRefreshYouTubeToken/);
 });
 
 test('Analytics replaces unsupported demographic presentation with cross-platform Audience Pulse', () => {

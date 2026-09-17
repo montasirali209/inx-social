@@ -32,7 +32,7 @@ test('Phase 13.3 is live-data driven across connected accounts and does not pres
   const topContent = read('frontend/src/components/dashboard/TopPerformingContentCard.tsx');
 
   assert.match(data, /\/api\/studio\/overview/);
-  assert.match(data, /\/api\/studio\/jobs\?limit=250/);
+  assert.match(data, /\/api\/social-publications\?limit=250/);
   assert.match(data, /buildActivitySeries/);
   assert.match(dashboard, /fetchAnalyticsSources/);
   assert.match(dashboard, /fetchAnalyticsForSource/);
