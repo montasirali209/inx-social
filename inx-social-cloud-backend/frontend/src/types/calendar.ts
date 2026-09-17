@@ -1,6 +1,14 @@
-import type { ConnectedPage, DashboardJob, Platform } from './dashboard'
+import type { DashboardJob, Platform } from './dashboard'
 
 export type CalendarPostStatus = 'scheduled' | 'published' | 'draft' | 'needs_review' | 'failed'
+
+export type CalendarDestination = {
+  id: string
+  platform: Platform
+  name: string
+  username: string | null
+  avatarUrl: string | null
+}
 
 export type CalendarPost = {
   id: string
@@ -14,7 +22,7 @@ export type CalendarPost = {
   status: CalendarPostStatus
   thumbnailUrl: string | null
   engagementScore: number | null
-  source: 'inx' | 'meta'
+  source: 'inx' | 'post_for_me'
   jobId: string | null
   providerPostId: string | null
   platformUrl: string | null
@@ -42,18 +50,9 @@ export type CalendarStat = {
   tone: 'green' | 'teal' | 'amber' | 'purple' | 'red'
 }
 
-export type MetaScheduledPost = {
-  id: string
-  message?: string
-  created_time?: string
-  scheduled_publish_time?: number
-  is_published?: boolean
-  permalink_url?: string
-}
-
 export type CalendarData = {
   posts: CalendarPost[]
-  pages: ConnectedPage[]
+  destinations: CalendarDestination[]
   jobs: DashboardJob[]
   stats: CalendarStat[]
   syncWarnings: string[]
