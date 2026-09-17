@@ -1,6 +1,6 @@
 export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'youtube' | 'x' | 'pinterest' | 'google_business' | 'threads' | 'bluesky'
 
-export const customerFacingPlatforms = ['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok', 'pinterest'] as const satisfies readonly Platform[]
+export const customerFacingPlatforms = ['facebook', 'instagram', 'linkedin', 'tiktok', 'youtube', 'pinterest', 'threads', 'bluesky', 'x'] as const satisfies readonly Platform[]
 export type CustomerFacingPlatform = (typeof customerFacingPlatforms)[number]
 export const isCustomerFacingPlatform = (platform: Platform): platform is CustomerFacingPlatform =>
   customerFacingPlatforms.includes(platform as CustomerFacingPlatform)
@@ -65,16 +65,16 @@ export type ConnectionHelpTopic = {
 }
 
 export const platformMeta: Record<Platform, { label: string; contentTypes: string[]; description: string; available: boolean }> = {
-  facebook: { label: 'Facebook', contentTypes: ['Post', 'Reel', 'Video', 'Story'], description: 'Publish to Pages and view Page analytics.', available: true },
-  instagram: { label: 'Instagram', contentTypes: ['Post', 'Reel', 'Story'], description: 'Connect Instagram professional accounts using Instagram Business Login.', available: true },
-  linkedin: { label: 'LinkedIn', contentTypes: ['Post', 'Video'], description: 'Connect your LinkedIn identity with official OAuth.', available: true },
-  tiktok: { label: 'TikTok', contentTypes: ['Post', 'Video'], description: 'TikTok publishing support is being prepared.', available: false },
-  youtube: { label: 'YouTube', contentTypes: ['Video', 'Shorts'], description: 'Connect channels and inspect YouTube account data.', available: true },
-  x: { label: 'X / Twitter', contentTypes: ['Post', 'Video'], description: 'Legacy connector hidden from the INXSocial product.', available: false },
-  pinterest: { label: 'Pinterest', contentTypes: ['Post', 'Video'], description: 'Pinterest publishing support is being prepared.', available: false },
-  google_business: { label: 'Google Business', contentTypes: ['Post'], description: 'Legacy connector hidden from the INXSocial product.', available: false },
-  threads: { label: 'Threads', contentTypes: ['Post'], description: 'Legacy connector hidden from the INXSocial product.', available: false },
-  bluesky: { label: 'Bluesky', contentTypes: ['Post'], description: 'Legacy connector hidden from the INXSocial product.', available: false },
+  facebook: { label: 'Facebook', contentTypes: ['Post', 'Image', 'Video', 'Reel', 'Story'], description: 'Connect Facebook destinations for publishing, scheduling and analytics.', available: true },
+  instagram: { label: 'Instagram', contentTypes: ['Post', 'Carousel', 'Reel', 'Story'], description: 'Publish and schedule Instagram content from the same INXSocial workspace.', available: true },
+  linkedin: { label: 'LinkedIn', contentTypes: ['Post', 'Image', 'Video'], description: 'Connect LinkedIn profiles and supported organisation destinations.', available: true },
+  tiktok: { label: 'TikTok', contentTypes: ['Image', 'Video'], description: 'Connect TikTok accounts for direct or scheduled publishing.', available: true },
+  youtube: { label: 'YouTube', contentTypes: ['Video', 'Shorts'], description: 'Connect YouTube channels for uploads, scheduling and performance data.', available: true },
+  x: { label: 'X / Twitter', contentTypes: ['Post', 'Image', 'Video'], description: 'Publish and schedule posts to X from INXSocial.', available: true },
+  pinterest: { label: 'Pinterest', contentTypes: ['Pin', 'Image', 'Video'], description: 'Connect Pinterest accounts and publish to selected boards.', available: true },
+  threads: { label: 'Threads', contentTypes: ['Post', 'Image', 'Video'], description: 'Publish and schedule Threads content alongside your other networks.', available: true },
+  bluesky: { label: 'Bluesky', contentTypes: ['Post', 'Image'], description: 'Connect Bluesky using your handle and an app password.', available: true },
+  google_business: { label: 'Google Business', contentTypes: ['Post'], description: 'Not currently supplied by the INXSocial publishing gateway.', available: false },
 }
 
 export const supportedPlatforms = (connectedCount: Partial<Record<Platform, number>> = {}): PlatformOption[] =>
@@ -88,39 +88,39 @@ export const supportedPlatforms = (connectedCount: Partial<Record<Platform, numb
   }))
 
 export const advancedHealthItems = [
-  ['Webhook status', 'Not enabled', 'INXSocial uses secure refresh checks for the current connections.'],
-  ['API health check', 'Ready', 'Checks whether your saved connections can be read securely.'],
+  ['Webhook status', 'Enabled when configured', 'Post for Me webhooks update account and publishing state in real time.'],
+  ['API health check', 'Ready', 'Checks whether your saved connections can be read securely from the INXSocial backend.'],
 ] as const
 
 export const connectionHelpTopics: ConnectionHelpTopic[] = [
   {
-    id: 'connect-meta',
-    question: 'How do I connect Facebook Pages and Instagram professional accounts?',
-    answer: 'Choose Connect Account and select the platform you need. Facebook opens Meta authorisation for Pages. Instagram opens Instagram Business Login directly for a Business or Creator account. These are separate secure connection flows.',
+    id: 'connect-account',
+    question: 'How do I connect a social account?',
+    answer: 'Choose Connect Account, select the network, and complete its secure authorisation flow. INXSocial requests publishing and feed permissions so scheduling and analytics can work from the same connection.',
   },
   {
-    id: 'missing-instagram',
-    question: 'Why is my Instagram account missing after I connect Meta?',
-    answer: 'Confirm the account is an Instagram Business or Creator account, then reconnect it through Instagram Business Login and grant the requested profile, publishing and insights permissions. Personal Instagram accounts are not supported by this connector.',
+    id: 'bluesky',
+    question: 'How do I connect Bluesky?',
+    answer: 'Bluesky uses an app password rather than the normal OAuth popup. Create an app password in Bluesky, then enter your handle and that app password in INXSocial. Your main Bluesky password is not required.',
   },
   {
-    id: 'missing-youtube',
-    question: 'Why are some YouTube channels not shown?',
-    answer: 'Google returns channels owned by the Google account or Brand Accounts selected during sign-in. Reconnect YouTube with the account that owns the missing channel. While the Google app is in testing, that email must also be listed as an approved test user.',
+    id: 'multiple-accounts',
+    question: 'Can I connect more than one account on the same platform?',
+    answer: 'Yes. You can add multiple destinations from the same network and choose one or many of them for each post or scheduled task.',
   },
   {
     id: 'permissions',
-    question: 'Why does INXSocial request publishing and analytics permissions?',
-    answer: 'INXSocial requests only the permissions needed to identify destinations, publish or schedule content, and read the analytics shown in your workspace. Your social password is never stored, and access can be revoked at any time.',
+    question: 'Why does INXSocial request publishing and feed permissions?',
+    answer: 'Publishing permissions are required to send or schedule content. Feed permissions let INXSocial show supported account activity and analytics. Your social password is never stored by INXSocial.',
   },
   {
     id: 'reconnect',
-    question: 'How do I fix an expired token or permission issue?',
-    answer: 'Open the affected account, choose Reconnect, and complete the platform authorisation again without removing required permissions. Then use Sync now. Existing post history stays in INXSocial while the connection is repaired.',
+    question: 'How do I fix an expired connection or permission issue?',
+    answer: 'Open the affected account, choose Reconnect, and complete the authorisation flow again. Existing INXSocial post history stays in your workspace.',
   },
   {
     id: 'disconnect',
     question: 'What happens when I disconnect an account?',
-    answer: 'Future publishing and analytics sync stop for that destination. Existing INXSocial post records remain available, and content already accepted or published by the social platform is not deleted automatically.',
+    answer: 'Future publishing and analytics sync stop for that destination. Existing INXSocial post records remain available, and content already published on the social network is not removed automatically.',
   },
 ]
