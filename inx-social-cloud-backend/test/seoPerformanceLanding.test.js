@@ -86,3 +86,21 @@ test('SEO product pages have unique titles, canonicals and indexable copy', () =
     assert.match(html, /href="\/social-media-scheduler\.html"/);
   }
 });
+
+test('scheduler and GEO documentation expose the nine-network publishing scope', () => {
+  const scheduler = read('public/social-media-scheduler.html');
+  const bulk = read('public/bulk-social-media-scheduler.html');
+  const createAndSchedule = read('public/generate-and-schedule-social-media-posts.html');
+  const llms = read('public/llms.txt');
+  const platforms = ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'YouTube', 'Pinterest', 'Threads', 'Bluesky'];
+
+  for (const platform of platforms) {
+    assert.equal(scheduler.includes(platform), true, `${platform} missing from scheduler SEO page`);
+    assert.equal(llms.includes(platform), true, `${platform} missing from llms.txt`);
+  }
+  assert.match(scheduler, /Bluesky and X/);
+  assert.match(bulk, /Bluesky and X/);
+  assert.match(createAndSchedule, /Bluesky and X/);
+  assert.match(llms, /X \/ Twitter/);
+  assert.match(llms, /Google Business is not currently supplied/);
+});
