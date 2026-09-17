@@ -1,23 +1,19 @@
 const app = require('./app');
 const env = require('./config/env');
 const { startSubscriptionLifecycle } = require('./services/subscriptionLifecycleService');
-const { startMetaReelStatusReconciliation } = require('./services/metaReelStatusService');
 const { startAgentRuntime } = require('./services/agentRuntimeService');
 const { startMediaRetention } = require('./services/mediaRetentionService');
-const { startWorker: startLinkedInPublishingWorker } = require('./services/linkedinPublishingService');
 const { startStockVideoRuntime } = require('./services/stockVideoStudioService');
+const { startRuntime: startPostForMeRuntime } = require('./services/postForMeService');
 const prisma = require('./db/prisma');
 
 const server = app.listen(env.port, () => {
   console.log(`INX Social Cloud Backend running on http://localhost:${env.port}`);
   startSubscriptionLifecycle();
-  if (process.env.META_REEL_RECONCILIATION_ENABLED !== 'false') {
-    startMetaReelStatusReconciliation();
-  }
   startAgentRuntime();
   startMediaRetention();
-  startLinkedInPublishingWorker();
   startStockVideoRuntime();
+  startPostForMeRuntime();
 });
 
 let shuttingDown = false;
