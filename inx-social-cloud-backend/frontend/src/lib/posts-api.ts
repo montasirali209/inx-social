@@ -107,9 +107,6 @@ export async function createCarouselPosts(input: CreateCarouselPostInput) {
 }
 
 export function dismissPostJob(jobId: string) {
-  // Deleting provider-backed posts is handled by the publication endpoint. The
-  // DELETE route is introduced alongside calendar migration; until then the UI can
-  // continue hiding/dismissing historical cards without invoking native Meta jobs.
   return apiRequest<{ ok: boolean; job?: DashboardJob }>(`/api/social-connections/publications/${encodeURIComponent(jobId)}`, { method: 'DELETE' })
 }
 
@@ -146,7 +143,7 @@ export function uploadDirectPostMedia(jobId: string, file: File, onProgress: (pe
       const message = payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : `Upload failed (HTTP ${request.status}).`
       reject(new Error(message))
     })
-    request.addEventListener('error', () => reject(new Error('The media upload connection was interrupted.'))
+    request.addEventListener('error', () => reject(new Error('The media upload connection was interrupted.')))
     request.send(file)
   })
 }
