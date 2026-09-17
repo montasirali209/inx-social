@@ -16,8 +16,8 @@ type Props = {
 
 function Avatar({ account }: { account: AnalyticsAccount }) {
   return <span className="relative grid size-9 shrink-0 place-items-center overflow-hidden rounded-xl border border-white/10 bg-bg/75 shadow-[0_8px_20px_rgba(0,0,0,.25)]">
-    {account.avatarUrl ? <img alt="" className="size-full object-cover" onError={(event) => { event.currentTarget.style.display = 'none' }} src={account.avatarUrl} /> : null}
     <SocialPlatformIcon className="absolute inset-1 size-7 rounded-lg shadow-none" platform={account.platform} />
+    {account.avatarUrl ? <img alt="" className="relative z-10 size-full object-cover" onError={event => { event.currentTarget.style.display = 'none' }} src={account.avatarUrl} /> : null}
   </span>
 }
 
