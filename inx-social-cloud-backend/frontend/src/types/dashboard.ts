@@ -67,8 +67,11 @@ export type TopContentItem = {
   sourceName?: string | null
 }
 
+export type ProviderMetricSummary = { key: string; value: number; aggregation: 'sum' | 'average'; samples: number }
+
 export type AnalyticsContent = {
   id: string
+  platform?: Platform
   message: string
   createdTime: string | null
   permalinkUrl: string | null
@@ -77,6 +80,7 @@ export type AnalyticsContent = {
   reactions: number
   comments: number
   shares: number
+  providerMetrics?: Record<string, unknown>
   insights: null | { views: number | null; uniqueViewers: number | null; clicks: number | null; engagement: number; totalInteractions: number; engagementRate: number | null }
 }
 export type FacebookAnalyticsContent = AnalyticsContent
@@ -92,9 +96,10 @@ export type AudienceDemographics = {
 
 export type AnalyticsCapability = { state: string; available: boolean; reason: string; metaCode?: number | null }
 export type PlatformAnalytics = {
-  platform: 'facebook' | 'instagram' | 'youtube' | 'linkedin'
+  platform: Platform
   fetchedAt: string
   period?: { days: number; since: string; until: string }
+  scope?: { accountCount: number; platforms: Platform[]; label: string }
   page: { id: string; name: string; username?: string | null; followers?: number; fans?: number; link?: string | null; pictureUrl?: string | null }
   capabilities?: {
     basicEngagement: AnalyticsCapability
@@ -126,6 +131,7 @@ export type PlatformAnalytics = {
   content: AnalyticsContent[]
   warnings?: string[]
   cache?: { hit: boolean; expiresAt: string }
+  provider?: { engine?: string; accountId?: string; postsWithMetrics?: number; metricSummary?: ProviderMetricSummary[] }
 }
 export type FacebookAnalytics = PlatformAnalytics & { platform: 'facebook' }
 export type DashboardAnalyticsEntry = { accountId: string; platform: Platform; sourceName: string; analytics: PlatformAnalytics }

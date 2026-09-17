@@ -1,4 +1,4 @@
-import type { PlatformAnalytics } from './dashboard'
+import type { Platform, PlatformAnalytics } from './dashboard'
 
 export type AnalyticsTab = 'overview' | 'content_performance' | 'audience' | 'engagement' | 'reach' | 'videos' | 'stories' | 'competitors' | 'reports'
 export type AnalyticsTone = 'green' | 'blue' | 'red' | 'purple' | 'amber' | 'teal'
@@ -14,7 +14,7 @@ export type AnalyticsStat = {
   availability?: string
 }
 export type PerformancePoint = { date: string; label: string; views: number; engagements: number; linkClicks: number; followers: number }
-export type TopPost = { id: string; title: string; date: string | null; thumbnailUrl: string | null; engagements: number; contentType: string; permalinkUrl: string | null }
+export type TopPost = { id: string; title: string; date: string | null; thumbnailUrl: string | null; engagements: number; contentType: string; permalinkUrl: string | null; platform?: Platform }
 export type HeatmapCell = { day: string; hour: number; value: number }
 export type AnalyticsView = {
   stats: AnalyticsStat[]

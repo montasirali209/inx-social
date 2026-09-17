@@ -6,15 +6,16 @@ const test = require('node:test');
 const root = path.join(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('universal publishing KPI source defines one status policy', () => {
+test('universal publishing KPI source defines one Post for Me status policy', () => {
   const source = read('frontend/src/lib/universal-publishing-kpis.ts');
-  assert.match(source, /allPosts:\s*summary\.total \+ localDrafts/);
-  assert.match(source, /drafts:\s*summary\.draft \+ localDrafts/);
-  assert.match(source, /scheduled:\s*summary\.scheduled/);
-  assert.match(source, /published:\s*summary\.published/);
-  assert.match(source, /needsReview:\s*summary\.failed \+ summary\.awaitingUpload/);
-  assert.match(source, /connectedAccounts:\s*facebookAccounts \+ activeSocialAccountCount/);
-  assert.doesNotMatch(source, /needsReview:[^\n]*cancelled/i);
+  assert.match(source, /\/api\/social-publications\?limit=500/);
+  assert.match(source, /allPosts:\s*jobs\.length \+ localDrafts/);
+  assert.match(source, /const drafts = jobs\.filter\(job => job\.status === 'DRAFT'\)\.length \+ localDrafts/);
+  assert.match(source, /const scheduled = jobs\.filter\(job => job\.status === 'SCHEDULED'\)\.length/);
+  assert.match(source, /const published = jobs\.filter\(job => job\.status === 'PUBLISHED'\)\.length/);
+  assert.match(source, /\['FAILED', 'AWAITING_UPLOAD', 'READY'\]\.includes\(job\.status\)/);
+  assert.match(source, /connectedAccounts:\s*activeSocialAccountCount\(social\.connections \|\| \[\]\)/);
+  assert.doesNotMatch(source, /needsReview[^\n]*CANCELLED/i);
 });
 
 test('Dashboard Calendar and Posts consume the same KPI query', () => {

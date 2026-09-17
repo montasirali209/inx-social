@@ -18,8 +18,9 @@ test('Post for Me connection popup cancellation settles promptly', () => {
 test('Connected Accounts keeps provider diagnostics out of the customer UI', () => {
   const page = read('frontend/src/components/connections/ConnectedAccountsPageV3.tsx');
   assert.match(page, /Connected destinations/);
-  assert.match(page, /Social networks/);
+  assert.match(page, /One connection universe for publishing, scheduling and analytics across every supported network/);
   assert.match(page, /Available networks/);
+  assert.match(page, /customerFacingPlatforms\.map/);
   assert.doesNotMatch(page, /Token Expiry Alerts/);
   assert.doesNotMatch(page, /Webhook status/);
   assert.doesNotMatch(page, /API health check/);

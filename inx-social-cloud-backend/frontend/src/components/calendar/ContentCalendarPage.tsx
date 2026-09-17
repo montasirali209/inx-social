@@ -2,10 +2,10 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { AlertTriangle, CalendarCheck2, CheckCircle2, FilePenLine, RefreshCw, Send, UsersRound, X } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ApiError } from '../../lib/api-client'
+import { fetchAnalyticsForSource, fetchAnalyticsSources } from '../../lib/analytics-api'
 import { deleteCalendarPost, fetchCalendarData, rescheduleCalendarPost } from '../../lib/calendar-api'
 import { availableSlotsForDate, buildCalendarDays, formatMonth, monthKeyInTimezone, shiftMonth } from '../../lib/calendar-utils'
 import { zonedDateTimeToIso } from '../../lib/bulk-scheduler-utils'
-import { fetchFacebookDashboardAnalytics } from '../../lib/dashboard-api'
 import { calculateBestPostTime } from '../../lib/posts-analytics'
 import { fetchUniversalPublishingKpis, universalPublishingKpiQueryKey } from '../../lib/universal-publishing-kpis'
 import { useUiStore } from '../../store/ui-store'
@@ -26,7 +26,7 @@ function CalendarSkeleton() {
 }
 
 export function ContentCalendarPage() {
-  const timezone = useUiStore((state) => state.timezone)
+  const timezone = useUiStore(state => state.timezone)
   const todayKey = useMemo(() => new Intl.DateTimeFormat('en-CA', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: timezone }).format(new Date()), [timezone])
   const [monthKey, setMonthKey] = useState(() => monthKeyInTimezone(new Date(), timezone))
   const [selectedDate, setSelectedDate] = useState(todayKey)
@@ -43,14 +43,20 @@ export function ContentCalendarPage() {
   const [notice, setNotice] = useState<string | null>(null)
 
   const calendar = useQuery({
-    queryKey: ['content-calendar', timezone, pageId, monthKey],
-    queryFn: () => fetchCalendarData(timezone, pageId, monthKey),
-    placeholderData: (previous) => previous,
-    refetchInterval: 60_000,
+    queryKey: ['content-calendar', 'post-for-me', timezone],
+    queryFn: () => fetchCalendarData(timezone),
+    placeholderData: previous => previous,
+    refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     refetchOnReconnect: true,
     refetchOnWindowFocus: true,
     staleTime: 0,
+  })
+  const analyticsSources = useQuery({
+    queryKey: ['calendar-analytics-sources', 'post-for-me'],
+    queryFn: fetchAnalyticsSources,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   })
   const universalKpis = useQuery({
     queryKey: universalPublishingKpiQueryKey,
@@ -59,10 +65,10 @@ export function ContentCalendarPage() {
     refetchOnWindowFocus: true,
   })
   useEffect(() => {
-    const refresh = () => { void Promise.all([calendar.refetch(), universalKpis.refetch()]) }
+    const refresh = () => { void Promise.all([calendar.refetch(), analyticsSources.refetch(), universalKpis.refetch()]) }
     window.addEventListener('inx-social:refresh', refresh)
     return () => window.removeEventListener('inx-social:refresh', refresh)
-  }, [calendar, universalKpis])
+  }, [analyticsSources, calendar, universalKpis])
   useEffect(() => {
     if (!notice) return
     const timeout = window.setTimeout(() => setNotice(null), 4500)
@@ -79,41 +85,41 @@ export function ContentCalendarPage() {
       const completedAction = action?.type
       setAction(null)
       setActionError(null)
-      setNotice(completedAction === 'delete' ? 'Post deleted from Facebook and INXSocial.' : 'Facebook schedule updated successfully.')
+      setNotice(completedAction === 'delete' ? 'Post removed from the Post for Me schedule.' : 'Post for Me schedule updated successfully.')
       await Promise.all([calendar.refetch(), universalKpis.refetch()])
     },
     onError: error => setActionError(error instanceof Error ? error.message : 'The calendar action could not be completed.'),
   })
 
-  const visiblePosts = useMemo(() => (calendar.data?.posts || []).filter((post) => {
+  const visiblePosts = useMemo(() => (calendar.data?.posts || []).filter(post => {
     if (platform !== 'all' && post.platform !== platform) return false
     if (pageId && post.pageId !== pageId) return false
     if (status !== 'all' && post.status !== status) return false
     if (search && !`${post.title} ${post.pageName}`.toLowerCase().includes(search.toLowerCase())) return false
     return true
   }), [calendar.data?.posts, pageId, platform, search, status])
-  const monthPosts = useMemo(() => visiblePosts.filter((post) => post.date.startsWith(monthKey)), [monthKey, visiblePosts])
+  const monthPosts = useMemo(() => visiblePosts.filter(post => post.date.startsWith(monthKey)), [monthKey, visiblePosts])
   const days = useMemo(() => buildCalendarDays(monthKey, visiblePosts, selectedDate, todayKey), [monthKey, selectedDate, todayKey, visiblePosts])
-  const selectedPosts = useMemo(() => visiblePosts.filter((post) => post.date === selectedDate).sort((left, right) => left.time.localeCompare(right.time)), [selectedDate, visiblePosts])
+  const selectedPosts = useMemo(() => visiblePosts.filter(post => post.date === selectedDate).sort((left, right) => left.time.localeCompare(right.time)), [selectedDate, visiblePosts])
   const slots = useMemo(() => availableSlotsForDate(calendar.data?.posts || [], selectedDate), [calendar.data?.posts, selectedDate])
-  const recommendationPage = useMemo(() => {
-    const pages = calendar.data?.pages || []
-    const savedAnalyticsPage = window.localStorage.getItem('inx-social-analytics-account-v1') || ''
-    const preferredId = pageId || savedAnalyticsPage || selectedPosts[0]?.pageId || ''
-    return pages.find((page) => page.id === preferredId) || pages[0] || null
-  }, [calendar.data?.pages, pageId, selectedPosts])
+  const recommendationAccount = useMemo(() => {
+    const accounts = analyticsSources.data?.accounts || []
+    const preferredId = pageId || selectedPosts[0]?.pageId || ''
+    return accounts.find(account => account.id === preferredId) || accounts[0] || null
+  }, [analyticsSources.data?.accounts, pageId, selectedPosts])
   const recommendationAnalytics = useQuery({
-    queryKey: ['analytics-workspace', recommendationPage?.id, 90],
-    queryFn: () => fetchFacebookDashboardAnalytics(recommendationPage!.id, 90),
-    enabled: Boolean(recommendationPage),
+    queryKey: ['calendar-best-time', 'post-for-me', recommendationAccount?.analyticsKey, 90],
+    queryFn: () => fetchAnalyticsForSource(recommendationAccount!, 90),
+    enabled: Boolean(recommendationAccount),
     retry: 1,
-    staleTime: 10 * 60_000,
+    refetchInterval: 5 * 60_000,
+    refetchOnWindowFocus: true,
   })
   const bestTime = useMemo<BestTimeInsight>(() => {
-    if (!recommendationPage) return { available: false, label: 'Choose a destination', time: null, detail: 'Connect or select a Page to calculate its strongest publishing time.' }
-    if (recommendationAnalytics.isError) return { available: false, label: 'Analytics unavailable', time: null, detail: `Live timing data for ${recommendationPage.facebookPageName} could not be loaded.` }
+    if (!recommendationAccount) return { available: false, label: 'Choose a destination', time: null, detail: 'Connect or select an account to calculate its strongest publishing time.' }
+    if (recommendationAnalytics.isError) return { available: false, label: 'Analytics unavailable', time: null, detail: `Live timing data for ${recommendationAccount.displayName} could not be loaded.` }
     return calculateBestPostTime(recommendationAnalytics.data)
-  }, [recommendationAnalytics.data, recommendationAnalytics.isError, recommendationPage])
+  }, [recommendationAccount, recommendationAnalytics.data, recommendationAnalytics.isError])
   const universalStats = useMemo(() => {
     const kpis = universalKpis.data
     if (!kpis) return []
@@ -154,9 +160,9 @@ export function ContentCalendarPage() {
   }
 
   return <div className="dashboard-canvas">
-    <section aria-label="Universal publishing status" className="mb-4 flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-3 xl:grid-cols-5">{universalStats.map((stat, index) => <CalendarStatCard icon={statIcons[index]} key={stat.label} stat={stat} />)}</section>
-    <CalendarToolbar isRefreshing={calendar.isFetching || universalKpis.isFetching} monthKey={monthKey} onNext={() => chooseMonth(1)} onPage={setPageId} onPlatform={setPlatform} onPrevious={() => chooseMonth(-1)} onRefresh={() => void Promise.all([calendar.refetch(), universalKpis.refetch()])} onSearch={setSearch} onStatus={setStatus} onView={setView} pageId={pageId} pages={calendar.data.pages} platform={platform} search={search} status={status} view={view} />
-    {calendar.data.syncWarnings.length > 0 && <div className="mb-4 flex items-start gap-2 rounded-xl border border-brand-amber/20 bg-brand-amber/5 px-3 py-2 text-[10px] leading-4 text-text-muted"><AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-brand-amber" /><span>INX Social loaded saved calendar data. {calendar.data.syncWarnings.length} connected Page schedule could not be refreshed from Meta during this request.</span></div>}
+    <section aria-label="Universal publishing status" className="mb-4 flex items-start gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-3 xl:grid-cols-5">{universalStats.map((stat, index) => <CalendarStatCard icon={statIcons[index]} key={stat.label} stat={stat} />)}</section>
+    <CalendarToolbar destinations={calendar.data.destinations} monthKey={monthKey} onNext={() => chooseMonth(1)} onPage={setPageId} onPlatform={setPlatform} onPrevious={() => chooseMonth(-1)} onSearch={setSearch} onStatus={setStatus} onView={setView} pageId={pageId} platform={platform} search={search} status={status} view={view} />
+    {calendar.data.syncWarnings.length > 0 && <div className="mb-4 flex items-start gap-2 rounded-xl border border-brand-amber/20 bg-brand-amber/5 px-3 py-2 text-[10px] leading-4 text-text-muted"><AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-brand-amber" /><span>Some Post for Me publishing state could not be refreshed during this request. Saved INXSocial schedule data is still shown.</span></div>}
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
       {view === 'calendar' ? <CalendarGrid days={days} monthLabel={formatMonth(monthKey)} onSelectDate={chooseDate} onSelectPost={openPost} onToday={chooseToday} /> : <CalendarAgenda onSelectDate={chooseDate} onSelectPost={openPost} posts={monthPosts} />}
       <SelectedDatePanel bestTime={bestTime} bestTimeLoading={recommendationAnalytics.isLoading} busyPostId={calendarAction.isPending ? action?.post.id || null : null} date={selectedDate} onDeletePost={openDelete} onOpenPost={openPost} onReschedulePost={openReschedule} onSelectTime={setSelectedTime} posts={selectedPosts} selectedTime={selectedTime} slots={slots} />
