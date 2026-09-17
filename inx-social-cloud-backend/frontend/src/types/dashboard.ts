@@ -1,4 +1,4 @@
-export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'youtube' | 'tiktok' | 'pinterest' | 'x'
+export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'youtube' | 'tiktok' | 'pinterest' | 'threads' | 'bluesky' | 'x'
 
 export type BackendJobStatus =
   | 'DRAFT'
@@ -164,6 +164,8 @@ export type DashboardJob = {
   createdAt: string
   updatedAt: string
   page: ConnectedPage | null
+  destination?: { id: string; platform: Platform; name: string; username: string | null; avatarUrl: string | null } | null
+  platformUrl?: string | null
   asset: { id: string; originalFileName: string; mimeType: string | null; fileSizeBytes: string | null; status: string } | null
 }
 
