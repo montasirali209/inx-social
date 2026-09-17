@@ -20,8 +20,7 @@ const platformLabels: Record<PlatformAnalytics['platform'], string> = {
 }
 
 function sourceLabel(analytics: PlatformAnalytics) {
-  const scoped = analytics as PlatformAnalytics & { scope?: { label?: string } }
-  return scoped.scope?.label || platformLabels[analytics.platform]
+  return analytics.scope?.label || platformLabels[analytics.platform]
 }
 
 function dateKeys(days: number, anchorDate: string) {
@@ -76,6 +75,7 @@ function topPosts(analytics: PlatformAnalytics): TopPost[] {
     engagements: post.insights?.totalInteractions ?? post.reactions + post.comments + post.shares,
     contentType: post.contentType,
     permalinkUrl: post.permalinkUrl,
+    platform: post.platform || analytics.platform,
   })).sort((a, b) => b.engagements - a.engagements)
 }
 function heatmap(analytics: PlatformAnalytics): HeatmapCell[] {
