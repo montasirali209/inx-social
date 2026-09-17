@@ -4,6 +4,15 @@ const prisma = require('../db/prisma');
 
 const PROVIDER_ENGINE = 'POST_FOR_ME';
 const DEFAULT_BASE_URL = 'https://api.postforme.dev/v1';
+const DEFAULT_WEBHOOK_URL = 'https://www.inxsocial.co.uk/api/social-connections/post-for-me/webhook';
+const WEBHOOK_EVENTS = Object.freeze([
+  'social.post.created',
+  'social.post.updated',
+  'social.post.deleted',
+  'social.post.result.created',
+  'social.account.created',
+  'social.account.updated'
+]);
 const SUPPORTED_PLATFORMS = Object.freeze([
   'facebook',
   'instagram',
@@ -28,6 +37,10 @@ const PLATFORM_LABELS = Object.freeze({
   x: 'X'
 });
 
+let runtimeWebhookSecret = '';
+let runtimeWebhookId = '';
+let runtimeTimer = null;
+
 function parseJson(value, fallback = {}) {
   try {
     return value ? JSON.parse(value) : fallback;
@@ -38,10 +51,6 @@ function parseJson(value, fallback = {}) {
 
 function apiKey() {
   return String(process.env.POST_FOR_ME_API_KEY || '').trim();
-}
-
-function webhookSecret() {
-  return String(process.env.POST_FOR_ME_WEBHOOK_SECRET || '').trim();
 }
 
 function configured() {
@@ -72,8 +81,33 @@ function client() {
   });
 }
 
+async function apiRequest(method, path, options = {}) {
+  try {
+    const response = await client().request({
+      method,
+      url: path,
+      data: options.data,
+      params: options.params,
+      headers: options.headers,
+      timeout: options.timeout || Number(process.env.POST_FOR_ME_TIMEOUT_MS || 30000)
+    });
+    return response.data;
+  } catch (error) {
+    const raw = error.response?.data;
+    const message = Array.isArray(raw?.error)
+      ? raw.error.join(' · ')
+      : raw?.message || raw?.error || error.message || 'Post for Me request failed.';
+    throw Object.assign(new Error(String(message)), {
+      status: Number(error.response?.status || 502),
+      publicMessage: String(message).slice(0, 500),
+      provider: PROVIDER_ENGINE,
+      providerResponse: raw
+    });
+  }
+}
+
 function publicPlatform(platform) {
-  return platform === 'tiktok_business' ? 'tiktok' : String(platform || '').toLowerCase();
+  return String(platform || '').toLowerCase() === 'tiktok_business' ? 'tiktok' : String(platform || '').toLowerCase();
 }
 
 function providerPlatform(account) {
@@ -122,28 +156,14 @@ async function createAuthUrl(userId, requestedPlatform, input = {}) {
   const platformData = safePlatformData(platform, input);
   if (platformData) body.platform_data = platformData;
 
-  // Post for Me Quickstart projects reject redirect_url_override. White-label
-  // deployments can opt into it later by setting this explicit environment value.
+  // Quickstart projects reject redirect_url_override. White-label projects can opt
+  // into it explicitly once the provider credentials are owned by INXSocial.
   const redirectOverride = String(process.env.POST_FOR_ME_REDIRECT_URL_OVERRIDE || '').trim();
   if (redirectOverride) body.redirect_url_override = redirectOverride;
 
-  try {
-    const response = await client().post('/social-accounts/auth-url', body);
-    const url = response.data?.url;
-    if (!url) throw new Error('Post for Me did not return an authorization URL.');
-    return {
-      authorizationUrl: url,
-      platform,
-      providerEngine: PROVIDER_ENGINE
-    };
-  } catch (error) {
-    const message = error.response?.data?.message || error.response?.data?.error || error.message || 'The social connection could not be started.';
-    throw Object.assign(new Error(String(message)), {
-      status: Number(error.response?.status || 502),
-      publicMessage: String(message).slice(0, 300),
-      code: 'POST_FOR_ME_CONNECTION_START_FAILED'
-    });
-  }
+  const data = await apiRequest('POST', '/social-accounts/auth-url', { data: body });
+  if (!data?.url) throw Object.assign(new Error('Post for Me did not return an authorization URL.'), { status: 502 });
+  return { authorizationUrl: data.url, platform, providerEngine: PROVIDER_ENGINE };
 }
 
 async function listProviderAccounts(userId) {
@@ -153,10 +173,10 @@ async function listProviderAccounts(userId) {
   const limit = 100;
   while (rows.length < 2000) {
     const query = `/social-accounts?external_id=${encodeURIComponent(String(userId))}&limit=${limit}&offset=${offset}`;
-    const response = await client().get(query);
-    const page = Array.isArray(response.data?.data) ? response.data.data : [];
+    const response = await apiRequest('GET', query);
+    const page = Array.isArray(response?.data) ? response.data : [];
     rows.push(...page);
-    const total = Number(response.data?.meta?.total || rows.length);
+    const total = Number(response?.meta?.total || rows.length);
     if (!page.length || rows.length >= total || page.length < limit) break;
     offset += page.length;
   }
@@ -292,22 +312,64 @@ async function syncConnections(userId) {
   return accounts;
 }
 
+function publicConnection(connection) {
+  return {
+    id: connection.id,
+    platform: connection.platform,
+    accountType: connection.accountType,
+    displayName: connection.displayName,
+    status: connection.status,
+    scopes: parseJson(connection.scopesJson, []),
+    connectedAt: connection.connectedAt,
+    lastSyncedAt: connection.lastSyncedAt,
+    lastError: connection.lastError,
+    profiles: (connection.profiles || []).map((profile) => ({
+      id: profile.id,
+      platform: profile.platform,
+      externalProfileId: profile.externalProfileId,
+      displayName: profile.displayName,
+      username: profile.username,
+      profileType: profile.profileType,
+      avatarUrl: profile.avatarUrl,
+      status: profile.status,
+      isDefault: profile.isDefault,
+      capabilities: parseJson(profile.capabilitiesJson, {}),
+      metadata: parseJson(profile.metadataJson, {})
+    }))
+  };
+}
+
+async function listConnections(userId) {
+  const rows = await prisma.socialConnection.findMany({
+    where: { userId, status: 'ACTIVE' },
+    orderBy: [{ platform: 'asc' }, { connectedAt: 'desc' }],
+    include: {
+      profiles: {
+        where: { status: 'ACTIVE' },
+        orderBy: [{ isDefault: 'desc' }, { displayName: 'asc' }]
+      }
+    }
+  });
+  return rows
+    .filter((row) => parseJson(row.metadataJson, {}).providerEngine === PROVIDER_ENGINE)
+    .map(publicConnection);
+}
+
 async function disconnect(userId, connectionId) {
   const connection = await prisma.socialConnection.findFirst({ where: { id: connectionId, userId }, include: { profiles: true } });
   if (!connection) throw Object.assign(new Error('Social connection not found.'), { status: 404 });
   const metadata = parseJson(connection.metadataJson, {});
-  if (metadata.providerEngine !== PROVIDER_ENGINE) return null;
+  if (metadata.providerEngine !== PROVIDER_ENGINE) {
+    throw Object.assign(new Error('This is a legacy connection. Reconnect it through the new INXSocial connection flow.'), { status: 409 });
+  }
 
   const postForMeAccountId = String(metadata.postForMeAccountId || connection.externalAccountId || '');
   if (!postForMeAccountId) throw Object.assign(new Error('The Post for Me account mapping is missing.'), { status: 409 });
 
   try {
-    await client().post(`/social-accounts/${encodeURIComponent(postForMeAccountId)}/disconnect`);
+    await apiRequest('POST', `/social-accounts/${encodeURIComponent(postForMeAccountId)}/disconnect`);
   } catch (error) {
-    if (Number(error.response?.status || 0) !== 404) {
-      const message = error.response?.data?.message || error.response?.data?.error || error.message || 'The social account could not be disconnected.';
-      throw Object.assign(new Error(String(message)), { status: Number(error.response?.status || 502), publicMessage: String(message).slice(0, 300) });
-    }
+    if (Number(error.status || 0) !== 404) throw error;
   }
 
   await prisma.$transaction([
@@ -317,22 +379,70 @@ async function disconnect(userId, connectionId) {
   return { ok: true };
 }
 
-function verifyWebhookSecret(received) {
-  const expected = webhookSecret();
-  if (!expected) return false;
-  const left = Buffer.from(String(received || ''), 'utf8');
-  const right = Buffer.from(expected, 'utf8');
-  return left.length === right.length && crypto.timingSafeEqual(left, right);
+function configuredWebhookSecret() {
+  return String(process.env.POST_FOR_ME_WEBHOOK_SECRET || runtimeWebhookSecret || '').trim();
 }
 
-async function handleWebhook(payload) {
+function secureEquals(leftValue, rightValue) {
+  const left = Buffer.from(String(leftValue || ''), 'utf8');
+  const right = Buffer.from(String(rightValue || ''), 'utf8');
+  return Boolean(left.length && left.length === right.length && crypto.timingSafeEqual(left, right));
+}
+
+async function ensureWebhook() {
+  requireConfigured();
+  const url = String(process.env.POST_FOR_ME_WEBHOOK_URL || DEFAULT_WEBHOOK_URL).trim();
+  const encodedUrl = encodeURIComponent(url);
+  const response = await apiRequest('GET', `/webhooks?url=${encodedUrl}&limit=50&offset=0`);
+  const webhooks = Array.isArray(response?.data) ? response.data : [];
+  let webhook = webhooks.find((item) => String(item.url || '') === url) || null;
+
+  if (!webhook) {
+    webhook = await apiRequest('POST', '/webhooks', { data: { url, event_types: [...WEBHOOK_EVENTS] } });
+  } else {
+    const currentEvents = new Set(Array.isArray(webhook.event_types) ? webhook.event_types : []);
+    const missingEvent = WEBHOOK_EVENTS.some((event) => !currentEvents.has(event));
+    if (missingEvent) {
+      webhook = await apiRequest('PATCH', `/webhooks/${encodeURIComponent(webhook.id)}`, {
+        data: { url, event_types: [...WEBHOOK_EVENTS] }
+      });
+    }
+  }
+
+  if (!webhook?.secret) throw new Error('Post for Me webhook registration did not return a verification secret.');
+  runtimeWebhookId = String(webhook.id || '');
+  runtimeWebhookSecret = String(webhook.secret);
+  return { id: runtimeWebhookId, url, eventTypes: [...WEBHOOK_EVENTS] };
+}
+
+async function verifyWebhookSecret(received) {
+  let expected = configuredWebhookSecret();
+  if (!expected && configured()) {
+    await ensureWebhook();
+    expected = configuredWebhookSecret();
+  }
+  return secureEquals(received, expected);
+}
+
+async function handleAccountWebhook(payload) {
   const eventType = String(payload?.event_type || '');
   const data = payload?.data || {};
+  if (eventType !== 'social.account.created' && eventType !== 'social.account.updated') return false;
+  const userId = String(data.external_id || '');
+  if (!userId || !data.id) return true;
+  await upsertProviderAccount(userId, data);
+  return true;
+}
 
-  if (eventType === 'social.account.created' || eventType === 'social.account.updated') {
-    const userId = String(data.external_id || '');
-    if (!userId || !data.id) return;
-    await upsertProviderAccount(userId, data);
+function startRuntime() {
+  if (!configured()) return;
+  const refresh = () => ensureWebhook().catch((error) => {
+    console.error('[post-for-me] webhook registration failed:', error?.message || error);
+  });
+  setTimeout(refresh, 1500).unref?.();
+  if (!runtimeTimer) {
+    runtimeTimer = setInterval(refresh, 6 * 60 * 60 * 1000);
+    runtimeTimer.unref?.();
   }
 }
 
@@ -347,15 +457,21 @@ function providerState() {
 
 module.exports = {
   PROVIDER_ENGINE,
+  WEBHOOK_EVENTS,
   SUPPORTED_PLATFORMS,
   configured,
+  apiRequest,
   createAuthUrl,
   listProviderAccounts,
   upsertProviderAccount,
   syncConnections,
+  listConnections,
   disconnect,
+  ensureWebhook,
   verifyWebhookSecret,
-  handleWebhook,
+  handleAccountWebhook,
+  startRuntime,
   providerState,
-  publicPlatform
+  publicPlatform,
+  parseJson
 };
