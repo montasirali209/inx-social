@@ -35,9 +35,10 @@ export async function searchConnectedAccounts(query: string) {
   return accounts.filter((account) => `${account.platform} ${account.displayName} ${account.username || ''} ${account.detail}`.toLowerCase().includes(term))
 }
 
-export async function refreshConnection(_connectionId?: string | null) {
-  // Post for Me currently exposes one secure workspace sync endpoint. The optional
-  // connection id keeps the UI contract ready for a future per-connection sync API.
+export async function refreshConnection(connectionId?: string | null) {
+  // Post for Me currently exposes one secure workspace sync endpoint. Keep the
+  // optional id in the facade so a future per-connection sync can use the same UI contract.
+  void connectionId
   return syncPostForMeConnections()
 }
 
