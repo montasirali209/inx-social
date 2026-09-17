@@ -7,7 +7,22 @@ export const analyticsTabs = [
   ['competitors', 'Competitors'], ['reports', 'Reports'],
 ] as const
 
-const platformLabel = (platform: PlatformAnalytics['platform']) => ({ facebook: 'Meta', instagram: 'Instagram', youtube: 'YouTube', linkedin: 'LinkedIn' }[platform])
+const platformLabels: Record<PlatformAnalytics['platform'], string> = {
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  linkedin: 'LinkedIn',
+  tiktok: 'TikTok',
+  youtube: 'YouTube',
+  pinterest: 'Pinterest',
+  threads: 'Threads',
+  bluesky: 'Bluesky',
+  x: 'X',
+}
+
+function sourceLabel(analytics: PlatformAnalytics) {
+  const scoped = analytics as PlatformAnalytics & { scope?: { label?: string } }
+  return scoped.scope?.label || platformLabels[analytics.platform]
+}
 
 function dateKeys(days: number, anchorDate: string) {
   const formatter = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
@@ -28,6 +43,9 @@ function seriesMap(analytics: PlatformAnalytics, key: string) {
 
 function followerActivity(analytics: PlatformAnalytics) {
   const points = [...(analytics.series?.follows || [])].sort((left, right) => left.date.localeCompare(right.date))
+  if (analytics.provider?.engine === 'POST_FOR_ME') {
+    return { daily: new Map(points.map(point => [point.date, point.value])), net: analytics.summary.follows ?? (points.length ? points.reduce((sum, point) => sum + point.value, 0) : null) }
+  }
   if (analytics.platform === 'youtube') {
     return { daily: new Map(points.map(point => [point.date, point.value])), net: analytics.summary.follows ?? null }
   }
@@ -92,14 +110,15 @@ export function buildAnalyticsView(analytics: PlatformAnalytics, days: number): 
   const derivedFromViews = analytics.summary.engagementRate === null && contentViews > 0
   const derivedEngagementRate = analytics.summary.engagementRate ?? (contentViews > 0 ? Number(((totalInteractions / contentViews) * 100).toFixed(2)) : null)
   const engagementDetail = derivedFromViews ? 'Interactions divided by content views' : analytics.summary.calculationNote
-  const sourceName = platformLabel(analytics.platform)
+  const sourceName = sourceLabel(analytics)
+  const hasAudienceTotal = analytics.summary.followers > 0 || analytics.summary.follows !== null && analytics.summary.follows !== undefined
   const stats: AnalyticsStat[] = [
-    { id: 'followers', label: analytics.platform === 'youtube' ? 'Subscribers' : 'Total Followers', value: analytics.summary.followers, format: 'compact', detail: `Current ${sourceName} audience`, tone: 'teal', sparkline: sparkline(performance, 'followers') },
+    { id: 'followers', label: analytics.platform === 'youtube' ? 'Subscribers' : 'Total Followers', value: hasAudienceTotal ? analytics.summary.followers : null, format: 'compact', detail: hasAudienceTotal ? `Current ${sourceName} audience` : 'Audience total is not supplied by this Post for Me source', tone: 'teal', sparkline: sparkline(performance, 'followers') },
     { id: 'views', label: 'Content Views', value: contentViews, format: 'compact', detail: analytics.capabilities?.pageInsights.available ? `Returned by ${sourceName}` : 'Unavailable for this connection', tone: 'blue', sparkline: sparkline(performance, 'views'), availability: analytics.capabilities?.pageInsights.reason },
     { id: 'engagement-rate', label: 'Engagement Rate', value: derivedEngagementRate, format: 'percent', detail: engagementDetail, tone: 'red', sparkline: sparkline(performance, 'engagements') },
     { id: 'interactions', label: 'Total Interactions', value: totalInteractions, format: 'compact', detail: `Verified ${sourceName} interactions`, tone: 'purple', sparkline: sparkline(performance, 'engagements') },
     { id: 'clicks', label: 'Link Clicks', value: analytics.summary.clicks, format: 'compact', detail: analytics.summary.clicks ? 'Published-content clicks' : `Not supplied by ${sourceName} for this view`, tone: 'amber', sparkline: sparkline(performance, 'linkClicks') },
-    { id: 'posts', label: analytics.platform === 'youtube' ? 'Videos' : 'Posts Published', value: analytics.summary.posts, format: 'integer', detail: analytics.platform === 'youtube' ? 'Current channel video count' : `Within the selected ${days} days`, tone: 'green', sparkline: performance.map(point => topPosts(analytics).filter(post => post.date?.startsWith(point.date)).length) },
+    { id: 'posts', label: analytics.platform === 'youtube' ? 'Videos' : 'Posts Published', value: analytics.summary.posts, format: 'integer', detail: `Within the selected ${days} days`, tone: 'green', sparkline: performance.map(point => topPosts(analytics).filter(post => post.date?.startsWith(point.date)).length) },
   ]
   return { stats, performance, topPosts: topPosts(analytics), heatmap: heatmap(analytics), totalEngagements: analytics.summary.totalInteractions, audienceGrowth: followers.net, lowData: analytics.summary.posts < 5, source: analytics }
 }
