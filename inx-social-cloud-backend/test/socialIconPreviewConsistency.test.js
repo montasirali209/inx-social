@@ -104,7 +104,7 @@ test('Top Performing Posts uses selected analytics platform and refreshed row UI
   const page = read('frontend/src/components/analytics/AnalyticsPage.tsx');
 
   assert.match(card, /platform: PlatformAnalytics\['platform'\]/);
-  assert.match(card, /platform=\{platform\}/);
+  assert.match(card, /platform=\{post\.platform \|\| platform\}/);
   assert.doesNotMatch(card, /platform="facebook"/);
   assert.match(card, /Trophy/);
   assert.match(card, /Interactions/);
