@@ -158,8 +158,10 @@ async function findContentMetadata(userId, id, options = {}) {
 
 async function findContentRange(userId, id, start, length, options = {}) {
   const archivedClause = options.includeArchived ? '' : 'AND "archivedAt" IS NULL';
+  // Prisma binds raw numeric placeholders as bigint. PostgreSQL's bytea substring
+  // overload requires integer offsets/lengths, so cast the bounded range explicitly.
   const rows = await prisma.$queryRawUnsafe(
-    `SELECT substring("data" FROM $3 FOR $4) AS "data" FROM "AgentAsset" WHERE "id"=$1 AND "userId"=$2 AND "status"='READY' ${archivedClause} LIMIT 1`,
+    `SELECT substring("data" FROM CAST($3 AS integer) FOR CAST($4 AS integer)) AS "data" FROM "AgentAsset" WHERE "id"=$1 AND "userId"=$2 AND "status"='READY' ${archivedClause} LIMIT 1`,
     id, userId, Math.max(0, Number(start)) + 1, Math.max(1, Number(length))
   );
   return rows[0]?.data || null;
