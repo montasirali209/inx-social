@@ -1,4 +1,5 @@
 const publishing = require('../services/postForMePublishingService');
+const mutations = require('../services/postForMePostMutationService');
 
 async function readBody(req, maxBytes = 500 * 1024 * 1024) {
   const chunks = [];
@@ -67,4 +68,16 @@ async function feed(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { list, create, createCarousel, uploadMedia, libraryMedia, feed };
+async function remove(req, res, next) {
+  try {
+    res.json(await mutations.remove(req.user.id, req.params.publicationId));
+  } catch (error) { next(error); }
+}
+
+async function reschedule(req, res, next) {
+  try {
+    res.json(await mutations.reschedule(req.user.id, req.params.publicationId, req.body?.scheduledAt));
+  } catch (error) { next(error); }
+}
+
+module.exports = { list, create, createCarousel, uploadMedia, libraryMedia, feed, remove, reschedule };
