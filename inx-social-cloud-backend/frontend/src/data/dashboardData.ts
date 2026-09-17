@@ -10,7 +10,9 @@ export const platformPresentation: Record<Platform, {
   youtube: { label: 'YouTube', colour: '#ff0000' },
   tiktok: { label: 'TikTok', colour: '#111827' },
   pinterest: { label: 'Pinterest', colour: '#e60023' },
+  threads: { label: 'Threads', colour: '#111111' },
+  bluesky: { label: 'Bluesky', colour: '#1185fe' },
   x: { label: 'X', colour: '#4fb4df' },
 }
 
-export const platformOrder: Platform[] = ['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok', 'pinterest', 'x']
+export const platformOrder: Platform[] = ['facebook', 'instagram', 'linkedin', 'tiktok', 'youtube', 'pinterest', 'threads', 'bluesky', 'x']
