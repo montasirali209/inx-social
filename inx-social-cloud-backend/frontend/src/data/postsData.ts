@@ -6,6 +6,9 @@ export const platforms: Array<{ id: Platform; label: string }> = [
   { id: 'linkedin', label: 'LinkedIn' },
   { id: 'tiktok', label: 'TikTok' },
   { id: 'youtube', label: 'YouTube' },
+  { id: 'pinterest', label: 'Pinterest' },
+  { id: 'threads', label: 'Threads' },
+  { id: 'bluesky', label: 'Bluesky' },
   { id: 'x', label: 'X' },
 ]
 
