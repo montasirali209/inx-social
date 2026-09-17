@@ -65,6 +65,8 @@ export type SettingsAccount = {
   emailDeliveryConfigured: boolean
 }
 
+export type SocialPlatform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'youtube' | 'pinterest' | 'threads' | 'bluesky' | 'x'
+
 export type SocialProfileSummary = {
   id: string
   displayName: string | null
@@ -73,11 +75,12 @@ export type SocialProfileSummary = {
   status: string
   profileType?: string
   capabilities?: Record<string, boolean>
+  metadata?: Record<string, unknown>
 }
 
 export type SocialConnectionSummary = {
   id: string
-  platform: 'instagram' | 'linkedin' | 'youtube' | 'x'
+  platform: SocialPlatform
   displayName: string | null
   status: string
   connectedAt: string
