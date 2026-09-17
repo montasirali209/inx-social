@@ -111,6 +111,55 @@ function normaliseMetrics(platform, raw = {}) {
   return { views: 0, reactions: 0, comments: 0, shares: 0, clicks: 0, follows: 0, interactions: 0 };
 }
 
+function metricAggregation(key) {
+  return /(rate|percentage|percent|average|avg)/i.test(key) ? 'average' : 'sum';
+}
+
+function collectNumericMetrics(value, path = '', output = new Map()) {
+  if (value == null) return output;
+  if (typeof value === 'number' && Number.isFinite(value) && path) {
+    const row = output.get(path) || { values: [], aggregation: metricAggregation(path) };
+    row.values.push(value);
+    output.set(path, row);
+    return output;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => {
+      if (item && typeof item === 'object' && !Array.isArray(item)) {
+        const label = item.age || item.country || item.region || item.gender || item.name || item.type || item.key || '';
+        const prefix = label ? `${path}.${String(label).replace(/\s+/g, '_')}` : path;
+        collectNumericMetrics(item, prefix, output);
+      } else {
+        collectNumericMetrics(item, path, output);
+      }
+    });
+    return output;
+  }
+  if (typeof value === 'object') {
+    Object.entries(value).forEach(([key, child]) => {
+      if (['age', 'country', 'region', 'gender', 'name', 'type', 'key'].includes(key) && typeof child === 'string') return;
+      collectNumericMetrics(child, path ? `${path}.${key}` : key, output);
+    });
+  }
+  return output;
+}
+
+function providerMetricSummary(posts) {
+  const metrics = new Map();
+  posts.forEach((post) => collectNumericMetrics(post.metrics || {}, '', metrics));
+  return [...metrics.entries()].map(([key, row]) => {
+    const values = row.values || [];
+    const sum = values.reduce((total, value) => total + value, 0);
+    const value = row.aggregation === 'average' && values.length ? sum / values.length : sum;
+    return {
+      key,
+      value: Number(value.toFixed(4)),
+      aggregation: row.aggregation,
+      samples: values.length
+    };
+  }).sort((left, right) => left.key.localeCompare(right.key));
+}
+
 function mediaThumbnail(media) {
   if (!Array.isArray(media)) return null;
   for (const item of media.flat(Infinity)) {
@@ -193,8 +242,9 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
   const followsSeries = new Map();
   let postsWithMetrics = 0;
   const content = feed.map((post) => {
-    const metrics = normaliseMetrics(profile.platform, post.metrics || {});
-    if (post.metrics && Object.keys(post.metrics).length) postsWithMetrics += 1;
+    const rawMetrics = post.metrics && typeof post.metrics === 'object' ? post.metrics : {};
+    const metrics = normaliseMetrics(profile.platform, rawMetrics);
+    if (Object.keys(rawMetrics).length) postsWithMetrics += 1;
     for (const key of Object.keys(totals)) totals[key] += number(metrics[key]);
     const date = post.posted_at ? String(post.posted_at).slice(0, 10) : '';
     incrementSeries(viewsSeries, date, metrics.views);
@@ -202,6 +252,7 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
     incrementSeries(followsSeries, date, metrics.follows);
     return {
       id: String(post.platform_post_id || post.external_post_id || post.social_post_result_id || `${profile.id}:${post.posted_at}`),
+      platform: profile.platform,
       message: String(post.caption || ''),
       createdTime: post.posted_at || null,
       permalinkUrl: post.platform_url || null,
@@ -210,6 +261,7 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
       reactions: metrics.reactions,
       comments: metrics.comments,
       shares: metrics.shares,
+      providerMetrics: rawMetrics,
       insights: {
         views: metrics.views || null,
         uniqueViewers: null,
@@ -231,6 +283,7 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
   const engagementRate = totals.views > 0 ? Number((totals.interactions / totals.views * 100).toFixed(2)) : null;
   const profileMeta = postForMe.parseJson(profile.metadataJson, {});
   const followerValue = number(profileMeta.followers || profileMeta.subscribers || 0);
+  const metricSummary = providerMetricSummary(feed);
 
   return {
     platform: profile.platform,
@@ -249,8 +302,8 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
       publishedContent: contentCapability,
       pageInsights: metricCapability,
       postInsights: metricCapability,
-      instagramDemographics: unavailable('Post for Me does not expose account-level audience demographics through the current feed endpoint.', 'not_available'),
-      metrics: {}
+      instagramDemographics: unavailable('Post for Me does not expose a separate account-level audience-demographics endpoint. Demographic breakdowns present inside returned post metrics are retained in providerMetrics.', 'not_available'),
+      metrics: Object.fromEntries(metricSummary.map((metric) => [metric.key, available(`Returned by Post for Me for ${metric.samples} metric sample${metric.samples === 1 ? '' : 's'}.`)]))
     },
     summary: {
       followers: followerValue,
@@ -277,8 +330,13 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
     demographics: { instagram: null, facebookSnapshot: null },
     content,
     warnings: hasMetrics ? [] : ['Some platforms only return analytics after provider-side processing or when a metric is available for that content type.'],
-    provider: { engine: postForMe.PROVIDER_ENGINE, accountId: providerAccountId(profile), postsWithMetrics }
+    provider: {
+      engine: postForMe.PROVIDER_ENGINE,
+      accountId: providerAccountId(profile),
+      postsWithMetrics,
+      metricSummary
+    }
   };
 }
 
-module.exports = { getPostForMeAnalytics, normaliseMetrics };
+module.exports = { getPostForMeAnalytics, normaliseMetrics, collectNumericMetrics, providerMetricSummary };
