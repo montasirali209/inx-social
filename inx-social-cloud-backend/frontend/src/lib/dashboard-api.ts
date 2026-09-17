@@ -42,11 +42,7 @@ function startOfLocalDay(value: Date) {
 }
 
 function jobPlatform(job: DashboardJob): Platform {
-  // The current production publishing queue still creates Facebook Page jobs.
-  // Live dashboard content for other connected platforms is supplied by their
-  // analytics connectors instead of pretending those jobs exist.
-  void job
-  return 'facebook'
+  return job.destination?.platform || 'facebook'
 }
 
 function occurredAt(job: DashboardJob) {
@@ -69,13 +65,13 @@ function socialPost(job: DashboardJob): SocialPost {
     id: job.id,
     title: job.title?.trim() || job.localFileName || job.asset?.originalFileName || 'Untitled post',
     excerpt: job.caption?.trim() || (job.errorMessage ? 'This post needs attention.' : 'Publishing details available in Posts.'),
-    thumbnailUrl: job.page?.facebookPagePicture || null,
+    thumbnailUrl: job.destination?.avatarUrl || job.page?.facebookPagePicture || null,
     platforms: [jobPlatform(job)],
     status: videoStatus(job.status),
     occurredAt: occurredAt(job),
     engagement: null,
     metrics: null,
-    sourceName: job.page?.facebookPageName || null,
+    sourceName: job.destination?.name || job.page?.facebookPageName || null,
   }
 }
 
@@ -172,7 +168,7 @@ export function buildDashboardView(
   const stats: StatCardData[] = [
     {
       label: 'Total Published',
-      value: analytics.length ? livePublished : overview.summary.published,
+      value: analytics.length ? livePublished : jobs.filter(job => job.status === 'PUBLISHED').length,
       detail: analytics.length ? `${livePeriod} · all platforms` : 'Across INXSocial publishing',
       tone: 'green',
     },
@@ -182,7 +178,7 @@ export function buildDashboardView(
     {
       label: 'Total Engagement',
       value: analytics.length ? liveEngagement : '—',
-      detail: analytics.length ? `${livePeriod} · likes, comments, shares` : 'Connect insights-capable accounts',
+      detail: analytics.length ? `${livePeriod} · verified interactions` : 'Connect insights-capable accounts',
       tone: 'green',
       route: '/analytics',
     },
@@ -215,7 +211,7 @@ export function buildDashboardView(
   livePosts.sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime())
   const recentPosts = livePosts.length ? livePosts.slice(0, 5) : sortedJobs.slice(0, 5).map(socialPost)
 
-  const platforms: Platform[] = ['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok', 'pinterest', 'x']
+  const platforms: Platform[] = ['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok', 'pinterest', 'threads', 'bluesky', 'x']
   const platformMetrics: PlatformMetric[] = platforms.map((platform) => {
     const entries = analytics.filter((entry) => entry.platform === platform)
     if (entries.length) {
@@ -225,10 +221,8 @@ export function buildDashboardView(
         engagement: entries.reduce((sum, entry) => sum + entry.analytics.summary.totalInteractions, 0),
       }
     }
-    const fallbackPosts = platform === 'facebook'
-      ? jobs.filter((job) => job.status === 'PUBLISHED' && jobPlatform(job) === platform).length
-      : 0
-    return { platform, posts: fallbackPosts, engagement: null }
+    const fallbackPosts = jobs.filter((job) => job.status === 'PUBLISHED' && jobPlatform(job) === platform).length
+    return { platform, posts: fallbackPosts, engagement: fallbackPosts ? 0 : null }
   })
 
   const topContent: TopContentItem[] = livePosts
@@ -254,9 +248,11 @@ export async function fetchStudioOverview() {
 }
 
 export async function fetchDashboardJobs() {
-  return (await apiRequest<JobsResponse>('/api/studio/jobs?limit=250')).jobs
+  return (await apiRequest<JobsResponse>('/api/social-publications?limit=250')).jobs
 }
 
+// Legacy helper kept only for older tests/admin views. Production Analytics uses
+// the Post for Me source endpoint for Facebook as well as every other platform.
 export async function fetchFacebookDashboardAnalytics(connectedPageId: string, days = 7, force = false) {
   const result = await apiRequest<FacebookAnalyticsResponse>(
     `/api/studio/analytics/facebook?connectedPageId=${encodeURIComponent(connectedPageId)}&days=${days}${force ? '&force=true' : ''}`,
@@ -296,8 +292,7 @@ export async function fetchDashboardView(days = 30, connectedPageId?: string | n
     try {
       facebookAnalytics = await fetchFacebookDashboardAnalytics(page.id, days)
     } catch {
-      // Keep operational publishing available when a provider insight request
-      // fails. The production Dashboard uses all-source partial-failure handling.
+      // Older fallback only. The production Dashboard fetches Post for Me sources directly.
     }
   }
   return buildDashboardView(overview, jobs, new Date(), facebookAnalytics)

@@ -7,7 +7,7 @@ import { PlatformIcon } from './PlatformIcon'
 import { StatusBadge } from './StatusBadge'
 
 export function UpcomingScheduleCard({ jobs }: { jobs: DashboardJob[] }) {
-  const timezone = useUiStore((state) => state.timezone)
+  const timezone = useUiStore(state => state.timezone)
   return (
     <DashboardCard action={<a className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-cyan hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/content-calendar">View Calendar <ArrowRight aria-hidden="true" className="size-3" /></a>} className="min-h-[215px]" title="Upcoming Schedule">
       {jobs.length === 0 ? (
@@ -18,11 +18,11 @@ export function UpcomingScheduleCard({ jobs }: { jobs: DashboardJob[] }) {
         </div>
       ) : (
         <ul className="divide-y divide-border-soft px-3 pb-1">
-          {jobs.map((job) => (
+          {jobs.map(job => (
             <li className="group/item flex items-center gap-2 py-1.5 transition hover:translate-x-0.5 motion-reduce:transition-none" key={job.id}>
               <time className="w-9 shrink-0 text-center" dateTime={job.scheduledAt ?? undefined}><span className="block text-[8px] font-semibold uppercase text-text-soft">{new Intl.DateTimeFormat('en-GB', { month: 'short', timeZone: timezone }).format(new Date(job.scheduledAt!))}</span><strong className="block text-base leading-4">{new Intl.DateTimeFormat('en-GB', { day: 'numeric', timeZone: timezone }).format(new Date(job.scheduledAt!))}</strong></time>
-              <PlatformIcon className="size-[18px]" platform="facebook" />
-              <span className="min-w-0 flex-1"><strong className="block truncate text-[11px] font-semibold">{jobTitle(job)}</strong><small className="mt-0.5 block truncate text-[9px] text-text-muted">{formatSchedule(job.scheduledAt, 'time', timezone)}</small></span>
+              <PlatformIcon className="size-[18px]" platform={job.destination?.platform || 'facebook'} />
+              <span className="min-w-0 flex-1"><strong className="block truncate text-[11px] font-semibold">{jobTitle(job)}</strong><small className="mt-0.5 block truncate text-[9px] text-text-muted">{job.destination?.name ? `${job.destination.name} · ` : ''}{formatSchedule(job.scheduledAt, 'time', timezone)}</small></span>
               <StatusBadge compact status="scheduled" />
             </li>
           ))}

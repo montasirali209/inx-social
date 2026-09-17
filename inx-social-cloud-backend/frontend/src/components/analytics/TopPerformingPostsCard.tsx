@@ -30,7 +30,7 @@ export function TopPerformingPostsCard({ posts, onViewAll, platform }: { posts: 
                   </span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2.5">
-                  <PlatformIcon className="size-7 rounded-lg" platform={platform} />
+                  <PlatformIcon className="size-7 rounded-lg" platform={post.platform || platform} />
                   <span className="min-w-[78px] rounded-lg border border-border-soft bg-panel/55 px-2.5 py-1.5 text-right shadow-[inset_0_1px_0_rgba(255,255,255,.02)]">
                     <strong className="block text-sm leading-4 text-text-main">{formatAnalyticsValue(post.engagements, 'compact')}</strong>
                     <small className="text-[8px] uppercase tracking-[.08em] text-text-muted">Interactions</small>

@@ -13,8 +13,11 @@ test('Connected Accounts exposes the nine Post for Me networks', () => {
   for (const platform of ['facebook', 'instagram', 'linkedin', 'tiktok', 'youtube', 'pinterest', 'threads', 'bluesky', 'x']) {
     assert.match(data, new RegExp(`'${platform}'`));
   }
+  const platformList = data.match(/customerFacingPlatforms = \[([^\]]+)\]/);
+  assert.ok(platformList, 'customerFacingPlatforms must remain explicit');
+  assert.equal((platformList[1].match(/'/g) || []).length / 2, 9);
   assert.match(page, /Available networks/);
-  assert.match(page, />9</);
+  assert.match(page, /customerFacingPlatforms\.map/);
   assert.match(api, /connectPostForMePlatform/);
   assert.match(api, /\/api\/social-connections\/post-for-me\/\$\{platform\}\/start/);
 });
@@ -45,7 +48,7 @@ test('Connected Accounts menus and disconnect confirmation remain usable', () =>
   assert.match(page, /Connect Account/);
   assert.match(page, /Disconnect account/);
   assert.match(page, /Connected destinations/);
-  assert.match(page, /Social networks/);
+  assert.match(page, /Available networks/);
   assert.doesNotMatch(page, /15\+ platforms/);
 });
 

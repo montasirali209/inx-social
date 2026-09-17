@@ -15,21 +15,25 @@ test('Analytics is a first-class responsive React workspace', () => {
   assert.match(sidebar, /label: 'Analytics'.*reactPath: '\/analytics'/);
   assert.match(page, /AnalyticsTabs/);
   assert.match(page, /AnalyticsAccountSelector/);
-  assert.match(selector, /Choose any connected account/);
+  assert.match(selector, /Select one account, multiple accounts, a whole platform, or everything/);
+  assert.match(selector, /All accounts/);
   assert.match(page, /sm:grid-cols-2 xl:grid-cols-6/);
   assert.match(page, /ExportReportButton/);
 });
 
-test('Analytics uses live platform data and derives transparent metrics without mock values', () => {
+test('Analytics uses live Post for Me platform data and derives transparent metrics without mock values', () => {
   const page = read('frontend/src/components/analytics/AnalyticsPage.tsx');
   const data = read('frontend/src/data/analyticsData.ts');
   const api = read('frontend/src/lib/analytics-api.ts');
-  const service = read('src/services/socialAnalyticsService.js');
+  const service = read('src/services/postForMeAnalyticsService.js');
   assert.match(page, /fetchAnalyticsForSource/);
-  assert.match(api, /fetchFacebookDashboardAnalytics/);
   assert.match(api, /\/api\/studio\/analytics\/source/);
-  assert.match(service, /getInstagramAnalytics/);
-  assert.match(service, /getYouTubeAnalytics/);
+  assert.match(service, /getPostForMeAnalytics/);
+  assert.match(service, /social-account-feeds/);
+  assert.match(service, /providerMetricSummary/);
+  assert.match(service, /platform === 'youtube'/);
+  assert.match(service, /platform === 'pinterest'/);
+  assert.match(service, /platform === 'x'/);
   assert.match(data, /Total Interactions/);
   assert.match(data, /analytics\.summary\.totalInteractions/);
   assert.match(data, /Interactions divided by content views/);

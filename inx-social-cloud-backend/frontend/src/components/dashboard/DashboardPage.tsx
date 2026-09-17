@@ -44,11 +44,13 @@ export function DashboardPage() {
     queryKey: ['dashboard-all-account-sources'],
     queryFn: fetchAnalyticsSources,
     refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
   })
   const jobs = useQuery({
-    queryKey: ['dashboard-jobs'],
+    queryKey: ['dashboard-jobs', 'post-for-me'],
     queryFn: fetchDashboardJobs,
-    refetchInterval: 60_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: true,
   })
   const universalKpis = useQuery({
     queryKey: universalPublishingKpiQueryKey,
@@ -60,9 +62,10 @@ export function DashboardPage() {
   const accounts = sources.data?.accounts || []
   const accountKey = accounts.map((account) => account.analyticsKey).sort().join('|')
   const analytics = useQuery<DashboardAnalyticsResult>({
-    queryKey: ['dashboard-all-account-analytics', dashboardAnalyticsDays, accountKey],
+    queryKey: ['dashboard-all-account-analytics', 'post-for-me', dashboardAnalyticsDays, accountKey],
     enabled: accounts.length > 0,
-    refetchInterval: 5 * 60_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
     retry: false,
     queryFn: async () => {
       const results = await Promise.all(accounts.map(async (account) => {
@@ -109,10 +112,10 @@ export function DashboardPage() {
     if (!data) return []
     const universal = universalKpis.data
     return [
-      { ...data.stats[0], label: 'Published', value: universal?.published ?? data.overview.summary.published, detail: 'Published via INXSocial' },
-      { ...data.stats[1], label: 'Scheduled', value: universal?.scheduled ?? data.overview.summary.scheduled, detail: 'Future publishing slots' },
-      { ...data.stats[2], label: 'Drafts', value: universal?.drafts ?? data.overview.summary.draft, detail: 'Saved unfinished posts' },
-      { ...data.stats[3], label: 'Needs Review', value: universal?.needsReview ?? (data.overview.summary.failed + data.overview.summary.awaitingUpload), detail: 'Action required' },
+      { ...data.stats[0], label: 'Published', value: universal?.published ?? data.stats[0].value, detail: 'Published via INXSocial' },
+      { ...data.stats[1], label: 'Scheduled', value: universal?.scheduled ?? data.stats[1].value, detail: 'Future publishing slots' },
+      { ...data.stats[2], label: 'Drafts', value: universal?.drafts ?? data.stats[2].value, detail: 'Saved unfinished posts' },
+      { ...data.stats[3], label: 'Needs Review', value: universal?.needsReview ?? data.stats[3].value, detail: 'Action required' },
       data.stats[4],
       { ...data.stats[5], label: 'Connected Accounts', value: universal?.connectedAccounts ?? accounts.length, detail: 'Across all active platforms' },
     ]
@@ -144,7 +147,7 @@ export function DashboardPage() {
   const analyticsLoading = accounts.length > 0 && analytics.isPending
 
   return (
-    <div className="dashboard-canvas grid gap-3 2xl:min-h-0 2xl:grid-rows-[auto_minmax(250px,1.12fr)_minmax(215px,.96fr)_auto]">
+    <div className="dashboard-canvas grid content-start gap-3">
       {failures.length ? (
         <div className="flex min-h-9 items-center gap-2 rounded-xl border border-amber-300/15 bg-amber-400/[.06] px-3 text-[11px] text-amber-100" role="status">
           <AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />
@@ -152,11 +155,11 @@ export function DashboardPage() {
         </div>
       ) : null}
 
-      <section aria-label="Universal publishing overview" className="flex gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-3 md:overflow-visible xl:grid-cols-6">
+      <section aria-label="Universal publishing overview" className="flex items-start gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-3 md:overflow-visible xl:grid-cols-6">
         {dashboardStats.map((stat, index) => <StatCard data={stat} icon={statIcons[index]} key={stat.label} />)}
       </section>
 
-      <section aria-label="Workspace publishing activity" className="grid min-h-0 items-stretch gap-3 xl:grid-cols-[minmax(0,1.9fr)_minmax(300px,.85fr)]">
+      <section aria-label="Workspace publishing activity" className="grid min-h-[250px] items-stretch gap-3 xl:grid-cols-[minmax(0,1.9fr)_minmax(300px,.85fr)]">
         <PublishingActivityCard
           loading={analyticsLoading || (jobs.isFetching && !jobs.data)}
           onRangeChange={setActivityRangeDays}
@@ -166,7 +169,7 @@ export function DashboardPage() {
         <PlatformDonutChart metrics={data.platformMetrics} />
       </section>
 
-      <section aria-label="Recent workspace activity" className="grid min-h-0 items-stretch gap-3 xl:grid-cols-3">
+      <section aria-label="Recent workspace activity" className="grid min-h-[215px] items-stretch gap-3 xl:grid-cols-3">
         <RecentPostsCard posts={data.recentPosts} />
         <UpcomingScheduleCard jobs={data.upcoming} />
         <TopPerformingContentCard items={data.topContent} />

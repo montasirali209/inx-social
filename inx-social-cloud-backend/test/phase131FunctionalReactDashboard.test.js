@@ -18,7 +18,7 @@ test('React dashboard uses the live publishing analytics workspace', () => {
   assert.match(dashboard, /PlatformDonutChart/);
   assert.match(dashboard, /RecentPostsCard/);
   assert.match(data, /\/api\/studio\/overview/);
-  assert.match(data, /\/api\/studio\/jobs\?limit=250/);
+  assert.match(data, /\/api\/social-publications\?limit=250/);
   assert.doesNotMatch(dashboard, /Foundation ready|Railway integrated|React \+ TypeScript/);
 });
 
