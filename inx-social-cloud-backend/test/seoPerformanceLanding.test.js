@@ -12,12 +12,22 @@ test('landing response applies SEO title, description and render-critical styles
   assert.match(app, /landing-mobile\.css\?v=20260910c/);
   assert.match(app, /landing-performance\.css\?v=20260911b/);
   assert.match(app, /landing-brand\.css\?v=20260911b/);
+  assert.match(app, /landing\.js\?v=20260917a/);
   assert.match(landing, /<title>All-in-One Social Media Management &amp; AI Content \| INXSocial<\/title>/);
   assert.match(landing, /Manage connected social accounts, create posts and media with AI/);
   assert.match(landing, /landing-ai-studio\.css\?v=20260915a/);
   assert.match(landing, /inx-social-wordmark\.png/);
   assert.doesNotMatch(app, /brand-text/);
   assert.match(app, /Cache-Control', 'public, max-age=0, must-revalidate/);
+});
+
+test('server-rendered landing fallback exposes all current social networks', () => {
+  const app = read('src/app.js');
+  assert.match(app, /9 supported networks/);
+  for (const platform of ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'YouTube', 'Pinterest', 'Threads', 'Bluesky']) {
+    assert.equal(app.includes(platform), true, `${platform} should appear in the server-rendered platform rail replacement`);
+  }
+  assert.match(app, /<div class="platform-pill more">X<\/div>/);
 });
 
 test('responsive stylesheet is not injected after first paint', () => {
@@ -71,7 +81,7 @@ test('SEO product pages have unique titles, canonicals and indexable copy', () =
     ['public/social-media-scheduler.html', 'Social Media Scheduler for Multiple Platforms', 'social-media-scheduler.html'],
     ['public/bulk-social-media-scheduler.html', 'Bulk Social Media Scheduler for Multiple Accounts', 'bulk-social-media-scheduler.html'],
     ['public/social-media-content-calendar.html', 'Social Media Content Calendar & Publishing Planner', 'social-media-content-calendar.html'],
-    ['public/social-media-analytics.html', 'Social Media Analytics Dashboard', 'social-media-analytics.html'],
+    ['public/social-media-analytics.html', 'Multi-Platform Social Media Analytics Dashboard', 'social-media-analytics.html'],
     ['public/ai-social-media-tools.html', 'AI Social Media Content Studio', 'ai-social-media-tools.html'],
     ['public/pricing.html', 'INXSocial Pricing', 'pricing.html']
   ];
@@ -85,4 +95,25 @@ test('SEO product pages have unique titles, canonicals and indexable copy', () =
     assert.match(html, /application\/ld\+json/);
     assert.match(html, /href="\/social-media-scheduler\.html"/);
   }
+});
+
+test('scheduler, analytics and GEO documentation expose the nine-network publishing scope', () => {
+  const scheduler = read('public/social-media-scheduler.html');
+  const bulk = read('public/bulk-social-media-scheduler.html');
+  const analytics = read('public/social-media-analytics.html');
+  const createAndSchedule = read('public/generate-and-schedule-social-media-posts.html');
+  const llms = read('public/llms.txt');
+  const platforms = ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'YouTube', 'Pinterest', 'Threads', 'Bluesky'];
+
+  for (const platform of platforms) {
+    assert.equal(scheduler.includes(platform), true, `${platform} missing from scheduler SEO page`);
+    assert.equal(analytics.includes(platform), true, `${platform} missing from analytics SEO page`);
+    assert.equal(llms.includes(platform), true, `${platform} missing from llms.txt`);
+  }
+  assert.match(scheduler, /Bluesky and X/);
+  assert.match(bulk, /Bluesky and X/);
+  assert.match(analytics, /Bluesky and X/);
+  assert.match(createAndSchedule, /Bluesky and X/);
+  assert.match(llms, /X \/ Twitter/);
+  assert.match(llms, /Google Business is not currently supplied/);
 });
