@@ -81,7 +81,7 @@ test('SEO product pages have unique titles, canonicals and indexable copy', () =
     ['public/social-media-scheduler.html', 'Social Media Scheduler for Multiple Platforms', 'social-media-scheduler.html'],
     ['public/bulk-social-media-scheduler.html', 'Bulk Social Media Scheduler for Multiple Accounts', 'bulk-social-media-scheduler.html'],
     ['public/social-media-content-calendar.html', 'Social Media Content Calendar & Publishing Planner', 'social-media-content-calendar.html'],
-    ['public/social-media-analytics.html', 'Social Media Analytics Dashboard', 'social-media-analytics.html'],
+    ['public/social-media-analytics.html', 'Multi-Platform Social Media Analytics Dashboard', 'social-media-analytics.html'],
     ['public/ai-social-media-tools.html', 'AI Social Media Content Studio', 'ai-social-media-tools.html'],
     ['public/pricing.html', 'INXSocial Pricing', 'pricing.html']
   ];
@@ -97,19 +97,22 @@ test('SEO product pages have unique titles, canonicals and indexable copy', () =
   }
 });
 
-test('scheduler and GEO documentation expose the nine-network publishing scope', () => {
+test('scheduler, analytics and GEO documentation expose the nine-network publishing scope', () => {
   const scheduler = read('public/social-media-scheduler.html');
   const bulk = read('public/bulk-social-media-scheduler.html');
+  const analytics = read('public/social-media-analytics.html');
   const createAndSchedule = read('public/generate-and-schedule-social-media-posts.html');
   const llms = read('public/llms.txt');
   const platforms = ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'YouTube', 'Pinterest', 'Threads', 'Bluesky'];
 
   for (const platform of platforms) {
     assert.equal(scheduler.includes(platform), true, `${platform} missing from scheduler SEO page`);
+    assert.equal(analytics.includes(platform), true, `${platform} missing from analytics SEO page`);
     assert.equal(llms.includes(platform), true, `${platform} missing from llms.txt`);
   }
   assert.match(scheduler, /Bluesky and X/);
   assert.match(bulk, /Bluesky and X/);
+  assert.match(analytics, /Bluesky and X/);
   assert.match(createAndSchedule, /Bluesky and X/);
   assert.match(llms, /X \/ Twitter/);
   assert.match(llms, /Google Business is not currently supplied/);
