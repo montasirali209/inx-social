@@ -12,12 +12,22 @@ test('landing response applies SEO title, description and render-critical styles
   assert.match(app, /landing-mobile\.css\?v=20260910c/);
   assert.match(app, /landing-performance\.css\?v=20260911b/);
   assert.match(app, /landing-brand\.css\?v=20260911b/);
+  assert.match(app, /landing\.js\?v=20260917a/);
   assert.match(landing, /<title>All-in-One Social Media Management &amp; AI Content \| INXSocial<\/title>/);
   assert.match(landing, /Manage connected social accounts, create posts and media with AI/);
   assert.match(landing, /landing-ai-studio\.css\?v=20260915a/);
   assert.match(landing, /inx-social-wordmark\.png/);
   assert.doesNotMatch(app, /brand-text/);
   assert.match(app, /Cache-Control', 'public, max-age=0, must-revalidate/);
+});
+
+test('server-rendered landing fallback exposes all current social networks', () => {
+  const app = read('src/app.js');
+  assert.match(app, /9 supported networks/);
+  for (const platform of ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'YouTube', 'Pinterest', 'Threads', 'Bluesky']) {
+    assert.equal(app.includes(platform), true, `${platform} should appear in the server-rendered platform rail replacement`);
+  }
+  assert.match(app, /<div class="platform-pill more">X<\/div>/);
 });
 
 test('responsive stylesheet is not injected after first paint', () => {
