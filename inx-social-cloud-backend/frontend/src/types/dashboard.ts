@@ -92,7 +92,7 @@ export type AudienceDemographics = {
 
 export type AnalyticsCapability = { state: string; available: boolean; reason: string; metaCode?: number | null }
 export type PlatformAnalytics = {
-  platform: 'facebook' | 'instagram' | 'youtube' | 'linkedin'
+  platform: Platform
   fetchedAt: string
   period?: { days: number; since: string; until: string }
   page: { id: string; name: string; username?: string | null; followers?: number; fans?: number; link?: string | null; pictureUrl?: string | null }
@@ -126,6 +126,7 @@ export type PlatformAnalytics = {
   content: AnalyticsContent[]
   warnings?: string[]
   cache?: { hit: boolean; expiresAt: string }
+  provider?: { engine?: string; accountId?: string; postsWithMetrics?: number }
 }
 export type FacebookAnalytics = PlatformAnalytics & { platform: 'facebook' }
 export type DashboardAnalyticsEntry = { accountId: string; platform: Platform; sourceName: string; analytics: PlatformAnalytics }
