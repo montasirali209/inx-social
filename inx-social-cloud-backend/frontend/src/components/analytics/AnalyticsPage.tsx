@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, CalendarDays, Radio } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { buildAnalyticsView } from '../../data/analyticsData'
 import { aggregatePerformance } from '../../data/analyticsAggregation'
 import { fetchAnalyticsForSource, fetchAnalyticsSources, mergeAnalyticsResults, type AnalyticsSourceAccount } from '../../lib/analytics-api'
@@ -51,23 +51,17 @@ export function AnalyticsPage() {
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   })
-  const accounts = sources.data?.accounts || []
-
-  useEffect(() => {
-    if (!accounts.length) return
+  const accounts = useMemo(() => sources.data?.accounts || [], [sources.data?.accounts])
+  const effectiveSelectedKeys = useMemo(() => {
+    if (!accounts.length) return []
     const validKeys = new Set(accounts.map(account => account.analyticsKey))
     const validSelected = selectedKeys.filter(key => validKeys.has(key))
-    const next = validSelected.length ? validSelected : accounts.map(account => account.analyticsKey)
-    if (next.join('|') !== selectedKeys.join('|')) {
-      setSelectedKeys(next)
-      window.localStorage.setItem(selectionKey, JSON.stringify(next))
-    }
+    return validSelected.length ? validSelected : accounts.map(account => account.analyticsKey)
   }, [accounts, selectedKeys])
-
   const selectedAccounts = useMemo(() => {
-    const values = new Set(selectedKeys)
+    const values = new Set(effectiveSelectedKeys)
     return accounts.filter(account => values.has(account.analyticsKey))
-  }, [accounts, selectedKeys])
+  }, [accounts, effectiveSelectedKeys])
   const selectedScopeKey = selectedAccounts.map(account => account.analyticsKey).sort().join('|')
 
   const analytics = useQuery<LiveAnalyticsData>({
@@ -126,7 +120,7 @@ export function AnalyticsPage() {
 
   return <div className="analytics-fluid-canvas dashboard-canvas space-y-4 pb-8">
     <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
-      <AnalyticsAccountSelector accounts={selectorAccounts} isLive={!analytics.isError} onChange={changeSelection} values={selectedKeys} />
+      <AnalyticsAccountSelector accounts={selectorAccounts} isLive={!analytics.isError} onChange={changeSelection} values={effectiveSelectedKeys} />
       <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
         <label className="rounded-xl border border-border-soft bg-panel/70 px-3 py-2"><span className="block text-[9px] uppercase tracking-wider text-text-soft">Analytics period</span><select className="mt-1 min-h-7 min-w-40 bg-transparent text-xs font-semibold outline-none" onChange={(event) => setDays(Number(event.target.value))} value={days}><option value={7}>Last 7 Days</option><option value={30}>Last 30 Days</option><option value={90}>Last 90 Days</option></select></label>
         {view && <ExportReportButton view={view} />}
