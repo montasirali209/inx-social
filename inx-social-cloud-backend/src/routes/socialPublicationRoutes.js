@@ -9,5 +9,7 @@ router.post('/carousel', controller.createCarousel);
 router.get('/feeds/:profileId', controller.feed);
 router.post('/:publicationId/library-media', controller.libraryMedia);
 router.put('/:publicationId/media', controller.uploadMedia);
+router.put('/:publicationId/schedule', controller.reschedule);
+router.delete('/:publicationId', controller.remove);
 
 module.exports = router;
