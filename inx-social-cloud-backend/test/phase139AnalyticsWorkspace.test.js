@@ -102,18 +102,18 @@ test('Analytics charts, tabs and report actions remain accessible and functional
   assert.match(chart, /Performance chart interval/);
   assert.match(chart, /exactDate/);
   assert.match(chart, /areaPath/);
-  assert.match(chart, /Move across the line for exact dates/);
+  assert.match(chart, /Hover for exact post-date performance/);
   assert.match(chart, /Content Performance by Publish Date/);
-  assert.match(chart, /Live Performance Trend/);
-  assert.match(chart, /Content history/);
-  assert.match(chart, /Tracks new performance changes/);
-  assert.match(chart, /New performance changes will appear here/);
+  assert.doesNotMatch(chart, /Live Performance Trend/);
+  assert.doesNotMatch(chart, /Content history/);
+  assert.doesNotMatch(chart, /Live trend/);
+  assert.match(chart, /latest verified performance/i);
   assert.match(chart, /const tension = 0\.82/);
-  assert.match(page, /trackedPerformance/);
   assert.match(page, /view\.publishedPerformance/);
-  assert.match(page, /chartMode === 'content'/);
-  assert.match(page, /interval === 'monthly' \? chartBase/);
+  assert.match(page, /aggregatePerformance\(view\.publishedPerformance, interval\)/);
   assert.match(tabs, /aria-current/);
+  assert.doesNotMatch(page, /activeTab === 'stories'|activeTab === 'competitors'/);
+  assert.doesNotMatch(read('frontend/src/data/analyticsData.ts'), /\['stories', 'Stories'\]|\['competitors', 'Competitors'\]/);
   assert.match(exportButton, /Export CSV/);
   assert.match(exportButton, /Export Excel/);
   assert.match(exportButton, /window\.print/);
@@ -138,7 +138,8 @@ test('only live-data workspaces use page-level loading states', () => {
   assert.doesNotMatch(main, /WorkspaceLoadingState|Suspense fallback/);
   assert.match(dashboard, /DashboardSkeleton/);
   assert.match(calendar, /CalendarSkeleton/);
-  assert.match(analytics, /AnalyticsSkeleton/);
+  assert.match(analytics, /AnalyticsKpiSkeleton/);
+  assert.doesNotMatch(analytics, /Preparing your latest trend data|Bringing your analytics together|Engagement by Platform/);
 
   for (const page of [posts, media, bulk, studio, settings, connections, billing]) {
     assert.doesNotMatch(page, /WorkspaceLoadingState/);
