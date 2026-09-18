@@ -18,52 +18,78 @@ function getPlanLimits(plan) {
   return limits[String(plan || 'TRIAL').toUpperCase()] || limits.TRIAL;
 }
 
-function evaluateLicense(user, sub, now = new Date()) {
+function isActiveAdminOverride(sub, now = new Date()) {
+  if (String(sub?.provider || '').toLowerCase() !== 'admin_override') return false;
+  if (!['ACTIVE', 'MANUAL'].includes(String(sub?.status || '').toUpperCase())) return false;
+  return !sub?.currentPeriodEnd || new Date(sub.currentPeriodEnd).getTime() > now.getTime();
+}
+
+function selectEffectiveSubscription(subscriptions = [], now = new Date()) {
+  const activeOverride = subscriptions.find(sub => isActiveAdminOverride(sub, now));
+  if (activeOverride) return { subscription: activeOverride, override: activeOverride };
+  const subscription = subscriptions.find(sub => String(sub?.provider || '').toLowerCase() !== 'admin_override') || null;
+  return { subscription, override: null };
+}
+
+function evaluateLicense(user, sub, now = new Date(), override = null) {
   const trialActive = isTrialActive(user, now);
   const subscriptionStatus = String(sub?.status || '').toUpperCase();
   const provider = String(sub?.provider || '').toLowerCase();
-  const plan = String(sub?.plan || 'TRIAL').toUpperCase();
-  const internalTrial = (!provider || provider === 'internal') && plan === 'TRIAL';
+  const sourcePlan = String(sub?.plan || 'TRIAL').toUpperCase();
+  const administrator = ['ADMIN', 'SUPER_ADMIN'].includes(String(user.role || '').toUpperCase());
+  const plan = administrator ? 'AGENCY' : sourcePlan;
+  const internalTrial = (!provider || provider === 'internal') && sourcePlan === 'TRIAL';
   const stripeActive = provider === 'stripe' && ['ACTIVE', 'TRIALING'].includes(subscriptionStatus);
   const graceActive = provider === 'stripe' &&
     subscriptionStatus === 'PAST_DUE' &&
     sub?.graceEndsAt &&
     new Date(sub.graceEndsAt).getTime() > now.getTime();
-  const manualActive = (provider === 'manual' || !provider) &&
+  const manualActive = ['manual', 'admin_override'].includes(provider) &&
     ['ACTIVE', 'MANUAL'].includes(subscriptionStatus) &&
-    plan !== 'TRIAL';
+    sourcePlan !== 'TRIAL' &&
+    (!sub?.currentPeriodEnd || new Date(sub.currentPeriodEnd).getTime() > now.getTime());
   const accountEnabled = !['SUSPENDED', 'DISABLED', 'REVOKED'].includes(String(user.status || '').toUpperCase());
-  const administrator = ['ADMIN', 'SUPER_ADMIN'].includes(String(user.role || '').toUpperCase());
   let effectiveStatus = subscriptionStatus || (trialActive ? 'TRIALING' : 'EXPIRED');
 
-  if (internalTrial) effectiveStatus = trialActive ? 'TRIALING' : 'EXPIRED';
+  if (administrator) effectiveStatus = 'MANUAL';
+  else if (internalTrial) effectiveStatus = trialActive ? 'TRIALING' : 'EXPIRED';
   else if (graceActive) effectiveStatus = 'GRACE_PERIOD';
+
+  const limits = administrator
+    ? { ...getPlanLimits('AGENCY'), pages: null, devices: null }
+    : getPlanLimits(plan);
 
   return {
     allowed: Boolean(accountEnabled && (administrator || (internalTrial && trialActive) || stripeActive || graceActive || manualActive)),
     status: user.status,
     plan,
+    sourcePlan,
     subscriptionStatus: effectiveStatus,
-    provider: sub?.provider || null,
+    provider: administrator ? 'admin' : (sub?.provider || null),
     userRole: user.role || 'USER',
+    administrator,
+    manualOverride: Boolean(override),
+    overrideId: override?.id || null,
+    overrideExpiresAt: override?.currentPeriodEnd || null,
     trialEndsAt: user.trialEndsAt,
     trialStartsAt: user.createdAt || null,
     currentPeriodStart: sub?.currentPeriodStart || null,
     currentPeriodEnd: sub?.currentPeriodEnd || null,
     graceEndsAt: sub?.graceEndsAt || null,
     cancelAtPeriodEnd: Boolean(sub?.cancelAtPeriodEnd),
-    limits: getPlanLimits(plan)
+    limits
   };
 }
 
 async function getLicenseStatus(userId) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    include: { subscriptions: { orderBy: { createdAt: 'desc' }, take: 1 } }
+    include: { subscriptions: { orderBy: { createdAt: 'desc' }, take: 20 } }
   });
   if (!user) throw new Error('User not found');
 
-  return evaluateLicense(user, user.subscriptions[0] || null);
+  const { subscription, override } = selectEffectiveSubscription(user.subscriptions || []);
+  return evaluateLicense(user, subscription, new Date(), override);
 }
 
-module.exports = { evaluateLicense, getLicenseStatus, getPlanLimits, isTrialActive };
+module.exports = { evaluateLicense, getLicenseStatus, getPlanLimits, isTrialActive, isActiveAdminOverride, selectEffectiveSubscription };
