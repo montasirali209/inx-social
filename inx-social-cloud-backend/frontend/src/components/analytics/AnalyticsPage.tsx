@@ -9,6 +9,7 @@ import type { Platform, PlatformAnalytics } from '../../types/dashboard'
 import { AnalyticsAccountSelector, type AnalyticsAccount } from './AnalyticsAccountSelector'
 import { AnalyticsSkeleton, AnalyticsCard, AnalyticsCardHeader, UnavailableState } from './AnalyticsPrimitives'
 import { AnalyticsStatCard } from './AnalyticsStatCard'
+import { AnalyticsScopeNotice } from './AnalyticsScopeNotice'
 import { AnalyticsTabs } from './AnalyticsTabs'
 import { ContentEfficiencyCard, PublishingRhythmCard } from './ContentInsightsCards'
 import { BestTimeToPostCard } from './BestTimeToPostCard'
@@ -149,6 +150,7 @@ export function AnalyticsPage() {
       </div>
     </div>
     <AnalyticsTabs active={activeTab} onChange={setActiveTab} />
+    {view && <AnalyticsScopeNotice analytics={view.source} sourceName={sourceName} />}
     {analytics.data?.failures.length ? <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber">Some live metrics could not refresh for {analytics.data.failures.map(failure => failure.account.displayName).join(', ')}. INXSocial has kept the other verified sources and will retry automatically.</div> : null}
     {analytics.isLoading && <AnalyticsSkeleton />}
     {analytics.isError && <div className="rounded-panel border border-brand-red/25 bg-brand-red/8 p-6"><h2 className="font-semibold">Analytics could not be loaded</h2><p className="mt-2 text-xs leading-5 text-text-muted">{analytics.error instanceof Error ? analytics.error.message : 'Reconnect this account or try again.'}</p><a className="mt-4 inline-flex min-h-10 items-center rounded-xl border border-border-soft px-4 text-xs" href="/app/connected-accounts">Review connected accounts</a></div>}
@@ -164,7 +166,7 @@ export function AnalyticsPage() {
       {activeTab === 'videos' && <><TopPerformingPostsCard onViewAll={() => {}} platform={view.source.platform} posts={view.topPosts.filter(post => /video|reel/i.test(post.contentType))} /><ProviderMetricsCard sources={providerMetricSources} /></>}
       {['stories', 'competitors'].includes(activeTab) && <AnalyticsCard><UnavailableState detail={`${activeTab === 'stories' ? 'Story' : 'Competitor'} analytics are not available from the connected platform data currently returned to INXSocial. This view will activate when verified data is available.`} title={`${activeTab === 'stories' ? 'Stories' : 'Competitors'} data unavailable`} /></AnalyticsCard>}
       {activeTab === 'reports' && <AnalyticsCard><AnalyticsCardHeader description="Export the currently selected live account scope and date range without including credentials or access tokens." title="Analytics Reports" /><div className="grid min-h-56 place-items-center p-6 text-center"><span><CalendarDays className="mx-auto size-8 text-brand-cyan" /><strong className="mt-3 block">Report ready for {sourceName}</strong><p className="mt-2 text-xs text-text-muted">Live data fetched {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(view.source.fetchedAt))}</p><div className="mt-4 inline-block"><ExportReportButton view={view} /></div></span></div></AnalyticsCard>}
-      <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-soft bg-panel/55 px-4 py-3 text-[10px] text-text-soft"><span>Live analytics for {sourceName}.</span><span>Auto-updates every 5 minutes · Last update {lastUpdated}</span></footer>
+      <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-soft bg-panel/55 px-4 py-3 text-[10px] text-text-soft"><span>Current post-performance analytics for {sourceName}.</span><span>Latest metrics refresh every 5 minutes · Last update {lastUpdated}</span></footer>
     </div>}
   </div>
 }
