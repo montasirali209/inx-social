@@ -113,7 +113,7 @@ const buildLandingDocument = () => {
     )
     .replace(
       '<link rel="stylesheet" href="/landing.css?v=20260909c">',
-      '<link rel="stylesheet" href="/landing.css?v=20260909c">\n  <link rel="stylesheet" href="/landing-mobile.css?v=20260910c" media="(max-width: 900px)">\n  <link rel="stylesheet" href="/landing-performance.css?v=20260911b">\n  <link rel="stylesheet" href="/landing-brand.css?v=20260911b">'
+      '<link rel="stylesheet" href="/landing.css?v=20260918a">\n  <link rel="stylesheet" href="/landing-mobile.css?v=20260910c" media="(max-width: 900px)">\n  <link rel="stylesheet" href="/landing-performance.css?v=20260911b">\n  <link rel="stylesheet" href="/landing-brand.css?v=20260911b">'
     )
     .replace(
       '<link rel="stylesheet" href="/landing-ai-studio.css?v=20260915a">',
@@ -121,7 +121,7 @@ const buildLandingDocument = () => {
     )
     .replace(
       '<script src="/landing.js?v=20260909c"></script>',
-      '<script src="/landing.js?v=20260917a"></script>'
+      '<script src="/landing.js?v=20260918a"></script>'
     )
     .replace(
       '<nav id="mainNav" aria-label="Main navigation"><a href="#platform">Platform</a><a href="#workflows">Workflows</a><a href="#intelligence">AI Studio</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a></nav>',
