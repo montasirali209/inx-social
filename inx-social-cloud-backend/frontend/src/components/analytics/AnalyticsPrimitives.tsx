@@ -22,23 +22,14 @@ const loadingStats = [
   ['⚡', 'Content insights'],
 ] as const
 
-export function AnalyticsSkeleton() {
-  return <div aria-label="Loading Analytics" className="space-y-4" role="status">
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-      {loadingStats.map(([emoji, label], index) => <div className="relative min-h-28 overflow-hidden rounded-card border border-border-soft bg-panel/70 p-3" key={label}>
-        <div aria-hidden="true" className="absolute -right-5 -top-5 size-16 rounded-full bg-brand-cyan/[.05] blur-2xl" />
-        <div className="relative flex items-center gap-2"><span className="grid size-8 place-items-center rounded-lg border border-white/[.07] bg-white/[.025] text-base motion-safe:animate-bounce" style={{ animationDelay: `${index * 90}ms` }}>{emoji}</span><span className="text-[10px] font-semibold text-text-muted">{label}</span></div>
-        <strong className="relative mt-3 block text-sm text-text-main">Updating…</strong>
-        <div className="relative mt-3 h-1.5 overflow-hidden rounded-full bg-border-soft"><span className="block h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-brand-teal/60 to-brand-cyan motion-reduce:animate-none" /></div>
-        <small className="relative mt-2 block text-[9px] text-text-soft">Fetching latest metrics</small>
-      </div>)}
-    </div>
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(300px,.72fr)]">
-      <div className="relative min-h-[310px] overflow-hidden rounded-panel border border-border-soft bg-panel/70 p-5">
-        <div className="flex items-center justify-between"><span><strong className="block text-sm">Post Performance Trend</strong><small className="mt-1 block text-[10px] text-text-muted">Preparing your latest trend data</small></span><span className="text-2xl motion-safe:animate-pulse">📈</span></div>
-        <div className="mt-8 grid h-44 place-items-center rounded-xl border border-dashed border-border-soft bg-bg/20"><span className="text-center"><span className="block text-3xl motion-safe:animate-bounce">⏳</span><strong className="mt-3 block text-xs">Bringing your analytics together</strong><small className="mt-1 block text-[10px] text-text-soft">This normally takes a few seconds.</small></span></div>
-      </div>
-      <div className="min-h-[310px] rounded-panel border border-border-soft bg-panel/70 p-5"><strong className="text-sm">Engagement by Platform</strong><div className="mt-8 grid place-items-center"><div className="grid size-36 place-items-center rounded-full border-[14px] border-brand-teal/10"><span className="text-center"><span className="block text-2xl motion-safe:animate-spin">✨</span><small className="mt-2 block text-[9px] text-text-soft">Loading</small></span></div></div></div>
-    </div>
+export function AnalyticsKpiSkeleton() {
+  return <div aria-label="Loading Analytics metrics" className="scrollbar-thin flex gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 xl:grid-cols-6" role="status">
+    {loadingStats.map(([emoji, label], index) => <div className="relative min-w-[205px] min-h-28 overflow-hidden rounded-card border border-border-soft bg-panel/70 p-3" key={label}>
+      <div aria-hidden="true" className="absolute -right-5 -top-5 size-16 rounded-full bg-brand-cyan/[.05] blur-2xl" />
+      <div className="relative flex items-center gap-2"><span className="grid size-8 place-items-center rounded-lg border border-white/[.07] bg-white/[.025] text-base motion-safe:animate-bounce" style={{ animationDelay: `${index * 90}ms` }}>{emoji}</span><span className="text-[10px] font-semibold text-text-muted">{label}</span></div>
+      <strong className="relative mt-3 block text-sm text-text-main">Updating…</strong>
+      <div className="relative mt-3 h-1.5 overflow-hidden rounded-full bg-border-soft"><span className="block h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-brand-teal/60 to-brand-cyan motion-reduce:animate-none" /></div>
+      <small className="relative mt-2 block text-[9px] text-text-soft">Fetching latest metrics</small>
+    </div>)}
   </div>
 }
