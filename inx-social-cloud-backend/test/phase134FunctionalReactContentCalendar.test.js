@@ -20,8 +20,9 @@ test('Phase 13.4 makes Content Calendar a first-class responsive React route', (
   assert.match(toolbar, /CalendarFilterMenu/);
   assert.match(toolbar, /Every platform/);
   assert.match(toolbar, /All connected accounts/);
-  assert.match(toolbar, /Upcoming only/);
-  assert.doesNotMatch(toolbar, /label: 'Published'/);
+  assert.match(toolbar, /All content/);
+  assert.match(toolbar, /label: 'Published'/);
+  assert.match(toolbar, /label: 'Failed'/);
   assert.doesNotMatch(toolbar, /<select/);
   assert.match(toolbar, /Schedule Content/);
   assert.match(toolbar, /Import Batch/);
