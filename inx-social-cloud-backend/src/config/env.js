@@ -45,6 +45,7 @@ module.exports = {
     successUrl: process.env.STRIPE_SUCCESS_URL || `${process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050'}/app/billing?checkout=success`,
     cancelUrl: process.env.STRIPE_CANCEL_URL || `${process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050'}/app/billing?checkout=cancelled`,
     portalReturnUrl: process.env.STRIPE_PORTAL_RETURN_URL || `${process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050'}/app/billing`,
+    portalConfigurationId: process.env.STRIPE_PORTAL_CONFIGURATION_ID || '',
     paymentGraceDays: Math.max(1, Number(process.env.PAYMENT_GRACE_DAYS || 7))
   },
   aiCredits: {
