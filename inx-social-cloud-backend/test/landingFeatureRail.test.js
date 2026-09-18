@@ -15,7 +15,7 @@ test('landing is capability-first instead of exposing a separate page for every 
     assert.match(landing, new RegExp(area));
   }
 
-  assert.match(landing, /inxsocial-dashboard-user-preview\.webp/);
+  assert.match(landing, /inxsocial-dashboard-landing\\.webp/);
   assert.match(landing, /Everything you need to run your social media, in one place/);
   assert.match(landing, /From idea to results, in five clear steps/);
   assert.match(js, /setupDashboardMotion/);
@@ -25,7 +25,13 @@ test('landing is capability-first instead of exposing a separate page for every 
   assert.match(css, /prefers-reduced-motion:reduce/);
   assert.match(css, /\.plan-card:hover/);
   assert.match(css, /\.plan-featured::before/);
+  assert.match(css, /\.ai-feature-grid/);
+  assert.match(css, /\.ai-feature-wide/);
   assert.doesNotMatch(landing, /data-tour-target|data-tour-panel/);
+  assert.equal((landing.match(/class="ai-feature-card/g) || []).length, 5);
+  for (const feature of ['Image Post','Carousel Post','Short Video / Reel','UGC Ad Post','Video Clipping']) {
+    assert.equal(landing.includes(feature), true, `${feature} should appear in the premium AI Studio section`);
+  }
 });
 
 test('landing names all nine supported social networks and renders their brand logos', () => {
@@ -39,7 +45,7 @@ test('landing names all nine supported social networks and renders their brand l
     assert.equal(landing.includes(logoClass), true, `${logoClass} should render as a local inline platform logo`);
   }
   assert.doesNotMatch(landing, /api\.iconify\.design/);
-  assert.match(landing, /dashboard-logo-mask/);
+  assert.doesNotMatch(landing, /dashboard-logo-mask/);
 
   assert.doesNotMatch(landing, /INX Social Admin|Trails & Tales|Ali The Dad|Taslim/);
 });
