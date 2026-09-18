@@ -81,6 +81,23 @@ describe('Analytics live view', () => {
     })
   })
 
+  it('groups current post metrics by publish date without pretending those views happened on that date', () => {
+    const source = liveAnalytics()
+    source.fetchedAt = '2026-09-18T10:00:00.000Z'
+    source.content = [{
+      ...source.content[0],
+      id: 'historical-post',
+      createdTime: '2026-09-05T10:00:00.000Z',
+      insights: { views: 750, uniqueViewers: null, clicks: 5, engagement: 22, totalInteractions: 22, engagementRate: 2.93 },
+    }]
+    const view = buildAnalyticsView(source, 30)
+    expect(view.publishedPerformance.find(point => point.date === '2026-09-05')).toMatchObject({
+      views: 750,
+      engagements: 22,
+      linkClicks: 5,
+    })
+  })
+
   it('formats compact, percentage and unavailable values honestly', () => {
     expect(formatAnalyticsValue(2450, 'compact')).toMatch(/2\.5K/i)
     expect(formatAnalyticsValue(3.67, 'percent')).toBe('3.67%')
