@@ -90,7 +90,7 @@ async function withStudioRetry(operation, label) {
 async function access(req, res, next) {
   try {
     const value = await creditService.getAccess(req.user.id);
-    res.json({ ...value, providerConfigured: postStudioService.isConfigured() || runware.isConfigured(), topupsSupported: topupPacks().length > 0 });
+    res.json({ ...value, providerConfigured: postStudioService.isConfigured() || runware.isConfigured(), topupsSupported: Boolean(value.topupsEnabled && topupPacks().length > 0) });
   } catch (error) { next(error); }
 }
 
@@ -188,7 +188,7 @@ async function brandKits(req, res, next) {
 async function packs(req, res, next) {
   try {
     const entitlement = await creditService.getEntitlement(req.user.id);
-    res.json({ supported: entitlement.studioEnabled && topupPacks().length > 0, packs: topupPacks().map(({ credits }) => ({ credits })) });
+    res.json({ supported: entitlement.topupsEnabled && topupPacks().length > 0, packs: topupPacks().map(({ credits }) => ({ credits })) });
   } catch (error) { next(error); }
 }
 
@@ -198,7 +198,7 @@ async function createTopupCheckout(req, res, next) {
     const pack = topupPacks().find(item => item.credits === input.credits);
     if (!pack) return res.status(503).json({ error: 'This AI credit top-up is not configured in Stripe.' });
     const entitlement = await creditService.getEntitlement(req.user.id);
-    if (!entitlement.studioEnabled) return res.status(403).json({ error: 'AI credit top-ups are available to Plus customers.' });
+    if (!entitlement.topupsEnabled) return res.status(403).json({ error: 'AI credit top-ups are available on paid INXSocial plans.' });
     const stripe = stripeService.getStripe();
     const subscription = await prisma.subscription.findFirst({ where: { userId: req.user.id }, orderBy: { createdAt: 'desc' } });
     let customerId = subscription?.providerCustomerId || null;
