@@ -78,7 +78,7 @@ export function AnalyticsPage() {
     staleTime: 20_000,
     refetchInterval: (query) => {
       const data = query.state.data as LiveAnalyticsData | undefined
-      return data?.results.some(result => result.analytics.provider?.cacheState === 'refreshing') ? 10_000 : 5 * 60_000
+      return data?.results?.some(result => result.analytics?.provider?.cacheState === 'refreshing') ? 10_000 : 5 * 60_000
     },
     refetchOnWindowFocus: true,
   })
@@ -150,7 +150,7 @@ export function AnalyticsPage() {
   const noVerifiedMetrics = Boolean(view && !view.source.capabilities?.pageInsights.available)
   const lastUpdated = view ? new Intl.DateTimeFormat('en-GB', { timeStyle: 'medium' }).format(new Date(view.source.fetchedAt)) : ''
   const providerMetricSources = analytics.data?.results || []
-  const backgroundRefreshing = Boolean(analytics.data?.results.some(result => result.analytics.provider?.cacheState === 'refreshing'))
+  const backgroundRefreshing = Boolean(analytics.data?.results?.some(result => result.analytics?.provider?.cacheState === 'refreshing'))
   const syncLabel = analytics.isFetching
     ? `Checking latest · Last sync ${lastUpdated || 'Waiting'}`
     : backgroundRefreshing

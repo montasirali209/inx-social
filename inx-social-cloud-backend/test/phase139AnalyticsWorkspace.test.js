@@ -75,6 +75,8 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(page, /mapWithConcurrency\(selectedAccounts, 2/);
   assert.match(page, /fetchAnalyticsForSource\(account, days\)/);
   assert.match(page, /backgroundRefreshing/);
+  assert.match(page, /data\?\.results\?\.some/);
+  assert.match(page, /analytics\.data\?\.results\?\.some/);
   assert.match(page, /Refreshing in background/);
   assert.match(page, /Last sync ·/);
   assert.match(page, /\(sources\.isLoading \|\| analytics\.isLoading\) && !view && <AnalyticsKpiSkeleton/);
