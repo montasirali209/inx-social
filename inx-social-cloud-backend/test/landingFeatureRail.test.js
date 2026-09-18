@@ -31,13 +31,10 @@ test('landing names all nine supported social networks without using private acc
   assert.doesNotMatch(landing, /INX Social Admin|Trails & Tales|Ali The Dad|Taslim/);
 });
 
-test('landing product tour links to crawlable public product pages', () => {
+test('landing product-tour navigation stays on the canonical public page', () => {
   const landing = read('public/landing.html');
-  for (const href of [
-    '/social-media-scheduler.html',
-    '/bulk-social-media-scheduler.html',
-    '/ai-social-media-tools.html',
-    '/social-media-content-calendar.html',
-    '/social-media-analytics.html'
-  ]) assert.equal(landing.includes(`href="${href}"`), true, `${href} should be linked from the landing page`);
+  for (const href of ['#product','#workflows','#intelligence']) {
+    assert.equal(landing.includes(`href="${href}"`), true, `${href} should be linked from the landing page`);
+  }
+  assert.doesNotMatch(landing, /href="\/(?:social-media-scheduler|bulk-social-media-scheduler|ai-social-media-tools|social-media-content-calendar|social-media-analytics)\.html"/);
 });
