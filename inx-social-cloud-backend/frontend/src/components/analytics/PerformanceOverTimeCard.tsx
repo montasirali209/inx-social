@@ -90,10 +90,11 @@ export function PerformanceOverTimeCard({
     value: points.reduce((sum, point) => sum + point[item.key], 0),
   })), [points])
 
-  const availableKeys = useMemo(
-    () => totals.filter(item => item.value > 0).map(item => item.key),
-    [totals],
-  )
+  const availableMetrics = useMemo(() => {
+    const active = totals.filter(item => item.value > 0)
+    return active.length ? active : totals.slice(0, 1)
+  }, [totals])
+  const availableKeys = availableMetrics.map(item => item.key)
   const effectiveMetricKey = availableKeys.includes(selectedMetricKey)
     ? selectedMetricKey
     : availableKeys[0] || 'views'
@@ -133,13 +134,11 @@ export function PerformanceOverTimeCard({
   }
 
   const metricControl = <div aria-label="Performance metric" className="flex items-center gap-1 rounded-xl border border-border-soft bg-bg/35 p-1">
-    {totals.map(item => {
+    {availableMetrics.map(item => {
       const active = item.key === effectiveMetricKey
-      const disabled = item.value <= 0
       return <button
         aria-pressed={active}
-        className={`min-h-7 rounded-lg px-2.5 text-[9px] font-semibold transition ${active ? 'bg-brand-cyan/12 text-brand-cyan shadow-[inset_0_0_0_1px_rgba(34,211,238,.18)]' : 'text-text-muted hover:bg-white/[.04] hover:text-white'} disabled:cursor-not-allowed disabled:opacity-35`}
-        disabled={disabled}
+        className={`min-h-7 rounded-lg px-2.5 text-[9px] font-semibold transition ${active ? 'bg-brand-cyan/12 text-brand-cyan shadow-[inset_0_0_0_1px_rgba(34,211,238,.18)]' : 'text-text-muted hover:bg-white/[.04] hover:text-white'}`}
         key={item.key}
         onClick={() => setSelectedMetricKey(item.key)}
         type="button"
@@ -168,7 +167,7 @@ export function PerformanceOverTimeCard({
           <span className="mt-0.5 block text-[9px] text-text-soft">Current totals for posts published on this date</span>
         </div>
         <div className="mt-2 space-y-1.5">
-          {metricSeries.map(item => <span className={`flex items-center justify-between gap-6 ${item.key === effectiveMetricKey ? 'text-white' : 'text-text-muted'}`} key={item.key}>
+          {availableMetrics.map(item => <span className={`flex items-center justify-between gap-6 ${item.key === effectiveMetricKey ? 'text-white' : 'text-text-muted'}`} key={item.key}>
             <span className="flex items-center gap-1.5">
               <i className="inline-block size-2 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: item.colour, color: item.colour }} />
               {item.label}
@@ -243,10 +242,9 @@ export function PerformanceOverTimeCard({
       </div>
     </div>
 
-    <div className="grid grid-cols-3 border-t border-border-soft">
-      {totals.map(item => <button
-        className={`border-border-soft p-3 text-left transition sm:border-r last:border-r-0 ${item.key === effectiveMetricKey ? 'bg-white/[.025]' : 'hover:bg-white/[.018]'} disabled:cursor-not-allowed`}
-        disabled={item.value <= 0}
+    <div className="grid border-t border-border-soft" style={{ gridTemplateColumns: `repeat(${availableMetrics.length}, minmax(0, 1fr))` }}>
+      {availableMetrics.map(item => <button
+        className={`border-border-soft p-3 text-left transition sm:border-r last:border-r-0 ${item.key === effectiveMetricKey ? 'bg-white/[.025]' : 'hover:bg-white/[.018]'}`}
         key={item.key}
         onClick={() => setSelectedMetricKey(item.key)}
         type="button"
