@@ -81,21 +81,19 @@ export function connectionSummary(workspace: SettingsWorkspace) {
   const destinationCount = usesUnifiedConnections ? profileCount : legacyFacebookCount
   const platforms = new Set<string>(activeConnections.map((connection) => connection.platform))
   if (!usesUnifiedConnections && legacyFacebookCount) platforms.add('facebook')
-  const errors = [
-    ...activeConnections.filter((connection) => connection.lastError),
-    ...activePages.filter((page) => page.lastError),
-  ]
-  const latestSync = [...activeConnections
-    .map((connection) => connection.lastSyncedAt)
+  const errors = usesUnifiedConnections
+    ? activeConnections.filter((connection) => connection.lastError)
+    : activePages.filter((page) => page.lastError)
+  const syncCandidates = usesUnifiedConnections
+    ? activeConnections.map((connection) => connection.lastSyncedAt)
+    : activePages.map((page) => page.lastSyncAt)
+  const latestSync = syncCandidates
     .filter((value): value is string => Boolean(value))
-    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime()), ...activePages
-    .map((page) => page.lastSyncAt)
-    .filter((value): value is string => Boolean(value))]
     .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] || null
   return {
     destinations: destinationCount,
     platforms: platforms.size,
-    status: errors.length ? `${errors.length} need attention` : activeConnections.length || facebookCount ? 'All synced' : 'No accounts connected',
+    status: errors.length ? `${errors.length} need attention` : destinationCount ? 'All synced' : 'No accounts connected',
     healthy: errors.length === 0,
     latestSync,
   }
