@@ -2,7 +2,7 @@ import type { AnalyticsStat, AnalyticsView, HeatmapCell, PerformancePoint, TopPo
 import type { PlatformAnalytics } from '../types/dashboard'
 
 export const analyticsTabs = [
-  ['overview', 'Overview'], ['content_performance', 'Content Performance'], ['audience', 'Audience'],
+  ['overview', 'Overview'], ['content_performance', 'Content Performance'], ['audience', 'Content Insights'],
   ['engagement', 'Engagement'], ['reach', 'Reach'], ['videos', 'Videos'], ['stories', 'Stories'],
   ['competitors', 'Competitors'], ['reports', 'Reports'],
 ] as const
@@ -105,20 +105,43 @@ export function buildAnalyticsView(analytics: PlatformAnalytics, days: number): 
     linkClicks: clicks.get(date) || 0,
     followers: followers.daily.get(date) || 0,
   }))
-  const contentViews = analytics.summary.views ?? analytics.summary.postViews
+  const hasViewData = analytics.summary.views !== null && analytics.summary.views !== undefined || analytics.summary.postViews > 0
+  const contentViews = analytics.summary.views ?? (analytics.summary.postViews > 0 ? analytics.summary.postViews : null)
   const totalInteractions = analytics.summary.totalInteractions
-  const derivedFromViews = analytics.summary.engagementRate === null && contentViews > 0
-  const derivedEngagementRate = analytics.summary.engagementRate ?? (contentViews > 0 ? Number(((totalInteractions / contentViews) * 100).toFixed(2)) : null)
+  const derivedFromViews = analytics.summary.engagementRate === null && contentViews !== null && contentViews > 0
+  const derivedEngagementRate = analytics.summary.engagementRate ?? (contentViews !== null && contentViews > 0 ? Number(((totalInteractions / contentViews) * 100).toFixed(2)) : null)
   const engagementDetail = derivedFromViews ? 'Interactions divided by content views' : analytics.summary.calculationNote
   const sourceName = sourceLabel(analytics)
   const hasAudienceTotal = analytics.summary.followers > 0 || analytics.summary.follows !== null && analytics.summary.follows !== undefined
+  const postCount = analytics.summary.posts
+  const avgInteractions = postCount > 0 ? totalInteractions / postCount : 0
+  const engagedPosts = analytics.content.filter(post => (post.insights?.totalInteractions ?? post.reactions + post.comments + post.shares) > 0).length
+  const hasClickData = analytics.content.some(post => post.insights?.clicks !== null && post.insights?.clicks !== undefined)
+    || Boolean(analytics.provider?.metricSummary?.some(metric => /click|link/i.test(metric.key)))
+
+  const audienceOrEfficiency: AnalyticsStat = hasAudienceTotal
+    ? { id: 'followers', label: analytics.platform === 'youtube' ? 'Subscribers' : 'Total Followers', value: analytics.summary.followers, format: 'compact', detail: `Current ${sourceName} audience`, tone: 'teal', sparkline: sparkline(performance, 'followers') }
+    : { id: 'avg-interactions', label: 'Avg Interactions / Post', value: avgInteractions, format: 'compact', detail: 'Interactions divided by published posts', tone: 'teal', sparkline: sparkline(performance, 'engagements') }
+
+  const viewsOrReactions: AnalyticsStat = hasViewData
+    ? { id: 'views', label: 'Content Views', value: contentViews, format: 'compact', detail: `Live views for ${sourceName}`, tone: 'blue', sparkline: sparkline(performance, 'views'), availability: analytics.capabilities?.pageInsights.reason }
+    : { id: 'reactions', label: 'Reactions', value: analytics.summary.reactions, format: 'compact', detail: 'Reactions returned for published content', tone: 'blue', sparkline: sparkline(performance, 'engagements') }
+
+  const rateOrComments: AnalyticsStat = derivedEngagementRate !== null
+    ? { id: 'engagement-rate', label: 'Engagement Rate', value: derivedEngagementRate, format: 'percent', detail: engagementDetail, tone: 'red', sparkline: sparkline(performance, 'engagements') }
+    : { id: 'comments', label: 'Comments', value: analytics.summary.comments, format: 'compact', detail: 'Comments returned for published content', tone: 'red', sparkline: sparkline(performance, 'engagements') }
+
+  const clicksOrEngagedPosts: AnalyticsStat = hasClickData
+    ? { id: 'clicks', label: 'Link Clicks', value: analytics.summary.clicks, format: 'compact', detail: 'Published-content clicks', tone: 'amber', sparkline: sparkline(performance, 'linkClicks') }
+    : { id: 'engaged-posts', label: 'Engaged Posts', value: engagedPosts, format: 'integer', detail: 'Posts with at least one interaction', tone: 'amber', sparkline: performance.map(point => point.engagements > 0 ? 1 : 0) }
+
   const stats: AnalyticsStat[] = [
-    { id: 'followers', label: analytics.platform === 'youtube' ? 'Subscribers' : 'Total Followers', value: hasAudienceTotal ? analytics.summary.followers : null, format: 'compact', detail: hasAudienceTotal ? `Current ${sourceName} audience` : 'Audience total is not supplied by this Post for Me source', tone: 'teal', sparkline: sparkline(performance, 'followers') },
-    { id: 'views', label: 'Content Views', value: contentViews, format: 'compact', detail: analytics.capabilities?.pageInsights.available ? `Returned by ${sourceName}` : 'Unavailable for this connection', tone: 'blue', sparkline: sparkline(performance, 'views'), availability: analytics.capabilities?.pageInsights.reason },
-    { id: 'engagement-rate', label: 'Engagement Rate', value: derivedEngagementRate, format: 'percent', detail: engagementDetail, tone: 'red', sparkline: sparkline(performance, 'engagements') },
+    audienceOrEfficiency,
+    viewsOrReactions,
+    rateOrComments,
     { id: 'interactions', label: 'Total Interactions', value: totalInteractions, format: 'compact', detail: `Verified ${sourceName} interactions`, tone: 'purple', sparkline: sparkline(performance, 'engagements') },
-    { id: 'clicks', label: 'Link Clicks', value: analytics.summary.clicks, format: 'compact', detail: analytics.summary.clicks ? 'Published-content clicks' : `Not supplied by ${sourceName} for this view`, tone: 'amber', sparkline: sparkline(performance, 'linkClicks') },
-    { id: 'posts', label: analytics.platform === 'youtube' ? 'Videos' : 'Posts Published', value: analytics.summary.posts, format: 'integer', detail: `Within the selected ${days} days`, tone: 'green', sparkline: performance.map(point => topPosts(analytics).filter(post => post.date?.startsWith(point.date)).length) },
+    clicksOrEngagedPosts,
+    { id: 'posts', label: analytics.platform === 'youtube' ? 'Videos' : 'Posts Published', value: postCount, format: 'integer', detail: `Within the selected ${days} days`, tone: 'green', sparkline: performance.map(point => topPosts(analytics).filter(post => post.date?.startsWith(point.date)).length) },
   ]
   return { stats, performance, topPosts: topPosts(analytics), heatmap: heatmap(analytics), totalEngagements: analytics.summary.totalInteractions, audienceGrowth: followers.net, lowData: analytics.summary.posts < 5, source: analytics }
 }

@@ -201,7 +201,7 @@ async function resolveProfile(userId, profileId, expectedPlatform) {
   const connectionMeta = postForMe.parseJson(profile.connection.metadataJson, {});
   const profileMeta = postForMe.parseJson(profile.metadataJson, {});
   if (connectionMeta.providerEngine !== postForMe.PROVIDER_ENGINE || profileMeta.providerEngine !== postForMe.PROVIDER_ENGINE) {
-    throw Object.assign(new Error('Reconnect this account through Post for Me before loading analytics.'), { status: 409 });
+    throw Object.assign(new Error('Reconnect this account before loading analytics.'), { status: 409 });
   }
   if (expectedPlatform && String(profile.platform) !== String(expectedPlatform)) {
     throw Object.assign(new Error('The selected analytics source does not match that platform.'), { status: 400 });
@@ -211,7 +211,7 @@ async function resolveProfile(userId, profileId, expectedPlatform) {
 
 async function fetchFeed(profile, days) {
   const accountId = providerAccountId(profile);
-  if (!accountId) throw Object.assign(new Error('The Post for Me account mapping is missing.'), { status: 409 });
+  if (!accountId) throw Object.assign(new Error('The analytics connection mapping is missing.'), { status: 409 });
   const { since } = dateRange(days);
   const rows = [];
   let cursor = '';
@@ -280,10 +280,10 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
 
   const hasMetrics = postsWithMetrics > 0;
   const metricCapability = hasMetrics
-    ? available(`Live post metrics returned by Post for Me for ${postsWithMetrics} post${postsWithMetrics === 1 ? '' : 's'}.`)
-    : unavailable('Post for Me returned feed content but no metrics for this source yet.', feed.length ? 'no_data' : 'no_content');
+    ? available(`Live post metrics returned for ${postsWithMetrics} post${postsWithMetrics === 1 ? '' : 's'}.`)
+    : unavailable('Connected content was returned, but no numeric metrics are available for this source yet.', feed.length ? 'no_data' : 'no_content');
   const contentCapability = feed.length
-    ? available('Live connected-account feed returned by Post for Me.')
+    ? available('Live connected-account content returned successfully.')
     : unavailable('No feed posts were returned for the selected period.', 'no_data');
   const engagementRate = totals.views > 0 ? Number((totals.interactions / totals.views * 100).toFixed(2)) : null;
   const profileMeta = postForMe.parseJson(profile.metadataJson, {});
@@ -307,8 +307,8 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       publishedContent: contentCapability,
       pageInsights: metricCapability,
       postInsights: metricCapability,
-      instagramDemographics: unavailable('Post for Me does not expose a separate account-level audience-demographics endpoint. Demographic breakdowns present inside returned post metrics are retained in providerMetrics.', 'not_available'),
-      metrics: Object.fromEntries(metricSummary.map((metric) => [metric.key, available(`Returned by Post for Me for ${metric.samples} metric sample${metric.samples === 1 ? '' : 's'}.`)]))
+      instagramDemographics: unavailable('Separate account-level audience demographics are not available for this connection. Demographic breakdowns present inside returned post metrics are retained with the analytics item.', 'not_available'),
+      metrics: Object.fromEntries(metricSummary.map((metric) => [metric.key, available(`Returned for ${metric.samples} metric sample${metric.samples === 1 ? '' : 's'}.`)]))
     },
     summary: {
       followers: followerValue,
@@ -325,7 +325,7 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       follows: totals.follows || null,
       pageEngagements: totals.interactions,
       engagementRate,
-      calculationNote: 'INXSocial aggregates the verified metrics returned by Post for Me for the selected connected account and period.'
+      calculationNote: 'INXSocial aggregates the verified metrics returned for the selected connected account and period.'
     },
     series: {
       views: [...viewsSeries.entries()].map(([date, value]) => ({ date, value })),
@@ -375,7 +375,7 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
         return withCacheState(
           cached.value,
           'stale',
-          'Post for Me temporarily rate-limited the live refresh, so INXSocial is showing the most recent verified analytics snapshot.'
+          'The live analytics source temporarily rate-limited the refresh, so INXSocial is showing the most recent verified analytics snapshot.'
         );
       }
       throw error;

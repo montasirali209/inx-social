@@ -96,11 +96,11 @@ export function mergeAnalyticsResults(results: PlatformAnalytics[], accounts: An
     period: { days, since: results.map(result => result.period?.since).filter(Boolean).sort()[0] || '', until: results.map(result => result.period?.until).filter(Boolean).sort().at(-1) || '' },
     page: { id: `combined:${accounts.map(account => account.id).join(',')}`, name: `${accounts.length} selected accounts`, username: null, followers: summary.followers, pictureUrl: null },
     capabilities: {
-      basicEngagement: capability(metricAvailable, 'Aggregated live Post for Me metrics from the selected accounts.'),
+      basicEngagement: capability(metricAvailable, 'Aggregated live metrics from the selected accounts.'),
       publishedContent: capability(contentAvailable, 'Aggregated connected-account feeds from the selected accounts.'),
-      pageInsights: capability(metricAvailable, 'Aggregated post-level analytics supplied by Post for Me.'),
+      pageInsights: capability(metricAvailable, 'Aggregated post-level analytics from the selected accounts.'),
       postInsights: capability(metricAvailable, 'Post-level metrics are combined across selected destinations.'),
-      instagramDemographics: capability(false, 'Audience demographics are not exposed by the current Post for Me feed endpoint.'),
+      instagramDemographics: capability(false, 'Audience demographics are not available from the current connected-account data.'),
       metrics: {},
     },
     summary: {
@@ -109,7 +109,7 @@ export function mergeAnalyticsResults(results: PlatformAnalytics[], accounts: An
       follows: summary.follows || null,
       pageEngagements: summary.pageEngagements,
       engagementRate,
-      calculationNote: `Aggregated from ${accounts.length} selected Post for Me connected accounts.`,
+      calculationNote: `Aggregated from ${accounts.length} selected connected accounts.`,
     },
     series: {
       views: mergeSeries(results, 'views'),
