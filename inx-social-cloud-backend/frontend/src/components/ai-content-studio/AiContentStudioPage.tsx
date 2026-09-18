@@ -12,7 +12,7 @@ import {
   saveGeneratedAssets,
   sendDraftToPosts,
 } from '../../lib/ai-content-studio-api'
-import type { AIDraft, AIContentType, GenerationHistoryItem } from '../../types/ai-content-studio'
+import type { AIDraft, AIContentType, AIPlanAccess, GenerationHistoryItem } from '../../types/ai-content-studio'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { Drawer } from '../billing/BillingPrimitives'
@@ -31,6 +31,17 @@ import {
   UpgradeToPlusModal,
 } from './AIStudioPrimitives'
 import { GenerationModalRouter } from './GenerationModalRouter'
+
+const immediateAiAccess: AIPlanAccess = {
+  plan: 'trial',
+  studioEnabled: false,
+  creditsRemaining: null,
+  creditsLimit: null,
+  unlimitedCredits: false,
+  creditsConfigured: false,
+  commercialUse: false,
+  priorityProcessing: false,
+}
 
 export function AiContentStudioPage() {
   const navigate = useNavigate()
@@ -72,7 +83,11 @@ export function AiContentStudioPage() {
   const drafts = draftsQuery.data || []
 
   function openCreator(type: AIContentType) {
-    if (!access?.studioEnabled) {
+    if (!access) {
+      setToast('Account access is still being checked. Try again in a moment.')
+      return
+    }
+    if (!access.studioEnabled) {
       setUpgradeOpen(true)
       return
     }
@@ -81,7 +96,11 @@ export function AiContentStudioPage() {
   }
 
   function openDraft(draft: AIDraft) {
-    if (!access?.studioEnabled) {
+    if (!access) {
+      setToast('Account access is still being checked. Try again in a moment.')
+      return
+    }
+    if (!access.studioEnabled) {
       setUpgradeOpen(true)
       return
     }
@@ -147,15 +166,7 @@ export function AiContentStudioPage() {
     }
   }
 
-  if (accessQuery.isLoading || !access) {
-    return <div aria-label="Loading AI Content Studio" className="space-y-4" role="status"><Card className="h-72 animate-pulse bg-panel-soft/60 motion-reduce:animate-none"><span className="sr-only">Loading AI Content Studio</span></Card><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <Card className="h-80 animate-pulse bg-panel-soft/60 motion-reduce:animate-none" key={index}><span className="sr-only">Loading creation option {index + 1}</span></Card>)}</div></div>
-  }
-
-  if (accessQuery.isError) {
-    return <Card className="mx-auto max-w-3xl p-6 text-center"><Sparkles className="mx-auto size-7 text-brand-cyan" /><h2 className="mt-3 text-lg font-semibold">AI Content Studio could not load.</h2><p className="mt-2 text-xs leading-5 text-text-muted">{accessQuery.error instanceof Error ? accessQuery.error.message : 'The workspace is temporarily unavailable.'}</p><Button className="mt-4" onClick={() => void accessQuery.refetch()} variant="primary">Retry</Button></Card>
-  }
-
-  if (!access.studioEnabled) {
+  if (access && !access.studioEnabled) {
     return <>
       <LockedPlanState onUpgrade={() => setUpgradeOpen(true)} />
       <UpgradeToPlusModal onClose={() => setUpgradeOpen(false)} open={upgradeOpen} />
@@ -163,15 +174,16 @@ export function AiContentStudioPage() {
   }
 
   return <>
-    <AIStudioHero access={access} />
+    {access ? <AIStudioHero access={access} /> : <Card className="border-brand-cyan/20 bg-[radial-gradient(circle_at_80%_5%,rgba(34,211,238,.10),transparent_25rem),linear-gradient(145deg,rgba(7,31,45,.96),rgba(5,18,30,.99))] p-6 sm:p-8"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><span className="text-[10px] font-bold uppercase tracking-[.18em] text-brand-cyan">AI Content Studio</span><h2 className="mt-2 text-2xl font-bold">Create images, carousels and social video with AI</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-text-muted">The creation workspace is ready immediately. Account credits and plan access fill in as soon as the live account response arrives.</p></div><Sparkles className="size-8 shrink-0 text-brand-cyan" /></div></Card>}
+    {accessQuery.isError && <Card className="mt-4 flex flex-col gap-3 border-brand-red/25 p-4 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs text-text-muted">{accessQuery.error instanceof Error ? accessQuery.error.message : 'AI account access could not refresh.'}</span><Button onClick={() => void accessQuery.refetch()} size="sm">Retry account access</Button></Card>}
 
     <section className="mt-6">
       <StudioSectionHeading action={<Button onClick={() => setHistoryOpen(true)} size="sm"><History className="size-3.5" />Generation history</Button>} text="Choose a workflow below. Each creator is optimised for one social post format." title="What do you want to create?" />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <ImagePostCard enabled={access.studioEnabled} onCreate={openCreator} />
-        <CarouselPostCard enabled={access.studioEnabled} onCreate={openCreator} />
-        <ShortVideoCard enabled={access.studioEnabled} onCreate={openCreator} />
-        <UGCAdCard enabled={access.studioEnabled} onCreate={openCreator} />
+        <ImagePostCard enabled={access?.studioEnabled ?? true} onCreate={openCreator} />
+        <CarouselPostCard enabled={access?.studioEnabled ?? true} onCreate={openCreator} />
+        <ShortVideoCard enabled={access?.studioEnabled ?? true} onCreate={openCreator} />
+        <UGCAdCard enabled={access?.studioEnabled ?? true} onCreate={openCreator} />
       </div>
     </section>
 
@@ -183,7 +195,7 @@ export function AiContentStudioPage() {
       <CreditsCard topUpsSupported={false} />
     </section>
 
-    <GenerationModalRouter access={access} initialDraft={editingDraft} initialGenerationId={requestedGenerationId} initialVideoKind={requestedVideoKind} onClose={() => { setActiveType(null); setEditingDraft(null); if (requestedVideoKind || requestedGenerationId) setSearchParams({}, { replace: true }) }} onContinue={(draft) => void continueToPosts(draft)} onSaved={(draft) => void onDraftSaved(draft)} onToast={setToast} open={Boolean(activeType)} type={activeType} />
+    <GenerationModalRouter access={access || immediateAiAccess} initialDraft={editingDraft} initialGenerationId={requestedGenerationId} initialVideoKind={requestedVideoKind} onClose={() => { setActiveType(null); setEditingDraft(null); if (requestedVideoKind || requestedGenerationId) setSearchParams({}, { replace: true }) }} onContinue={(draft) => void continueToPosts(draft)} onSaved={(draft) => void onDraftSaved(draft)} onToast={setToast} open={Boolean(activeType && access)} type={activeType} />
     <UpgradeToPlusModal onClose={() => setUpgradeOpen(false)} open={upgradeOpen} />
     <GenerationHistoryDrawer history={(historyQuery.data || []) as GenerationHistoryItem[]} onClose={() => setHistoryOpen(false)} open={historyOpen} />
     <Drawer onClose={() => setDraftsOpen(false)} open={draftsOpen} title="AI Content Studio drafts">
