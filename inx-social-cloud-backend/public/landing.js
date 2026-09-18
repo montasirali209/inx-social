@@ -47,23 +47,23 @@ function showAuthenticatedNavigation(user) {
 
 function updatePlanButtons(currentPlan, administrator) {
   document.querySelectorAll('[data-plan-card]').forEach(card => card.classList.remove('current-plan'));
-  document.querySelectorAll('.member-only.plan-action').forEach(button => {
-    const targetPlan = button.dataset.plan;
-    button.href = '/app/billing';
+
+  document.querySelectorAll('.plan-card .plan-action').forEach(button => {
+    const targetPlan = String(button.dataset.plan || '').toLowerCase();
+    if (!targetPlan) return;
+
     if (administrator) {
-      button.textContent = 'Review subscription options';
+      button.href = '/app/billing';
       return;
     }
+
+    if (!currentPlan) return;
+
+    button.href = '/app/billing';
     if (targetPlan === currentPlan) {
       button.textContent = 'Current plan · Manage';
       document.querySelector('[data-plan-card="' + targetPlan + '"]')?.classList.add('current-plan');
-      return;
     }
-    const ranks = { trial: 0, creator: 1, pro: 2, business: 3, agency: 4 };
-    const labels = { trial: 'Trial', creator: 'Creator', pro: 'Pro', business: 'Business', agency: 'Agency' };
-    button.textContent = (ranks[targetPlan] ?? 0) > (ranks[currentPlan] ?? 0)
-      ? 'Upgrade to ' + (labels[targetPlan] || 'plan')
-      : 'Review subscription';
   });
 }
 
