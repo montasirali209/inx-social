@@ -155,9 +155,9 @@ export function AiContentStudioPage() {
     return <Card className="mx-auto max-w-3xl p-6 text-center"><Sparkles className="mx-auto size-7 text-brand-cyan" /><h2 className="mt-3 text-lg font-semibold">AI Content Studio could not load.</h2><p className="mt-2 text-xs leading-5 text-text-muted">{accessQuery.error instanceof Error ? accessQuery.error.message : 'The workspace is temporarily unavailable.'}</p><Button className="mt-4" onClick={() => void accessQuery.refetch()} variant="primary">Retry</Button></Card>
   }
 
-  if (access.plan !== 'plus' || !access.studioEnabled) {
+  if (!access.studioEnabled) {
     return <>
-      <LockedPlanState onUpgrade={() => setUpgradeOpen(true)} plan={access.plan === 'pro' ? 'pro' : 'trial'} />
+      <LockedPlanState onUpgrade={() => setUpgradeOpen(true)} />
       <UpgradeToPlusModal onClose={() => setUpgradeOpen(false)} open={upgradeOpen} />
     </>
   }
