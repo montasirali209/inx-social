@@ -118,7 +118,7 @@ test('Analytics charts, tabs and report actions remain accessible and functional
   assert.match(chart, /latest verified performance/i);
   assert.match(chart, /const tension = 0\.82/);
   assert.match(page, /view\.publishedPerformance/);
-  assert.match(page, /aggregatePerformance\(view\.publishedPerformance, interval\)/);
+  assert.match(page, /aggregatePerformance\(view\.publishedPerformance, chartInterval\)/);
   assert.match(tabs, /aria-current/);
   assert.doesNotMatch(page, /activeTab === 'stories'|activeTab === 'competitors'/);
   assert.doesNotMatch(read('frontend/src/data/analyticsData.ts'), /\['stories', 'Stories'\]|\['competitors', 'Competitors'\]/);
