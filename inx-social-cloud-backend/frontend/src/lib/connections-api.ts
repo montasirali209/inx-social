@@ -13,6 +13,7 @@ export type ConnectionsWorkspace = {
 
 type OAuthMessage = { type?: string; ok?: boolean; platform?: string; error?: string; state?: string; notice?: string }
 export type PostForMeConnectionInput = { handle?: string; appPassword?: string; connectionType?: 'instagram' | 'facebook' }
+type ConnectablePlatformInput = SocialPlatform | 'google_business'
 
 export async function fetchConnectionsWorkspace(): Promise<ConnectionsWorkspace> {
   const [overview, social] = await Promise.all([
@@ -96,7 +97,8 @@ function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => bo
   })
 }
 
-export async function connectPostForMePlatform(platform: SocialPlatform, input: PostForMeConnectionInput = {}) {
+export async function connectPostForMePlatform(platform: ConnectablePlatformInput, input: PostForMeConnectionInput = {}) {
+  if (platform === 'google_business') throw new Error('Google Business is not enabled by the current social connection gateway.')
   const storageKey = 'inx-social-oauth-result'
   window.localStorage.removeItem(storageKey)
   const start = await apiRequest<{ authorizationUrl: string }>(`/api/social-connections/post-for-me/${platform}/start`, {

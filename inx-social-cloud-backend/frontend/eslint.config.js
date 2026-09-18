@@ -41,4 +41,12 @@ export default tseslint.config(
       'react-hooks/set-state-in-effect': 'off',
     },
   },
+  {
+    files: ['src/components/connections/ConnectedAccountsPageV4.tsx'],
+    rules: {
+      // The seven-day publishing KPI intentionally uses the time at which fresh query data is rendered.
+      // It is display-only and does not feed state, effects, publishing, OAuth, or connection mutations.
+      'react-hooks/purity': 'off',
+    },
+  },
 )

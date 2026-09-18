@@ -24,7 +24,7 @@ test('one shared platform icon system is used throughout the React workspace', (
   }
   assert.match(shared, /rounded-full/);
   assert.match(shared, /#3b7dc8/);
-  assert.match(shared, /x: 'bg-\[#4fb4df\] text-white'/);
+  assert.match(shared, /x: 'border border-white\/15 bg-\[#090909\] text-white'/);
   assert.match(shared, /fill="#ff0000"/);
   assert.match(posts, /SocialPlatformIcon/);
   assert.match(dashboard, /SocialPlatformIcon/);
@@ -51,7 +51,9 @@ test('universal icons match the supplied circular branded reference', () => {
   assert.match(shared, /youtube: 'bg-\[#ff0000\] text-white'/);
   assert.match(shared, /tiktok: 'border border-white\/15 bg-\[#010101\] text-white'/);
   assert.match(shared, /pinterest: 'bg-\[#e60023\] text-white'/);
-  assert.match(shared, /x: 'bg-\[#4fb4df\] text-white'/);
+  assert.match(shared, /x: 'border border-white\/15 bg-\[#090909\] text-white'/);
+  assert.match(shared, /whatsapp: 'bg-\[#25d366\] text-white'/);
+  assert.match(shared, /mastodon: 'bg-\[#6364ff\] text-white'/);
   assert.match(shared, /fill="#25f4ee"/);
   assert.match(shared, /fill="#fe2c55"/);
   assert.match(shared, /fill="#ff0000"/);
