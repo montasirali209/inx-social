@@ -35,6 +35,9 @@ test('Settings, Connected Accounts and Billing are first-class authenticated Rea
   assert.match(sidebar, /label: 'Billing & Plans'.*reactPath: '\/billing'/);
   assert.match(settingsApi, /api\/studio\/preferences/);
   assert.match(settings, /Settings saved successfully\./);
+  assert.match(settings, /refetchInterval: 60_000/);
+  assert.match(settingsData, /usesUnifiedConnections/);
+  assert.match(settingsData, /destinations: destinationCount/);
   assert.match(settings, /navigate\('\/billing'\)/);
   assert.match(settingsData, /title: 'Account & Region'/);
   assert.match(settingsData, /label: 'Confirm Before Publishing'/);

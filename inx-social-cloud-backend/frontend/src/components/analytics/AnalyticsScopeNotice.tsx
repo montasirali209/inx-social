@@ -1,11 +1,11 @@
 import { Activity, Clock3, FileBarChart2, Layers3 } from 'lucide-react'
 import type { PlatformAnalytics } from '../../types/dashboard'
 
-function dateLabel(value?: string | null) {
-  if (!value) return null
+function syncLabel(value?: string | null) {
+  if (!value) return 'Waiting for sync'
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return null
-  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(date)
+  if (Number.isNaN(date.getTime())) return 'Waiting for sync'
+  return new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(date)
 }
 
 export function AnalyticsScopeNotice({
@@ -15,7 +15,6 @@ export function AnalyticsScopeNotice({
   analytics: PlatformAnalytics
   sourceName: string
 }) {
-  const trackingStarted = dateLabel(analytics.tracking?.startedAt)
 
   return <section className="relative overflow-hidden rounded-panel border border-brand-cyan/15 bg-[radial-gradient(circle_at_0%_0%,rgba(34,211,238,.09),transparent_32%),linear-gradient(135deg,rgba(8,31,42,.92),rgba(5,20,30,.92))] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,.025)] sm:px-5">
     <div aria-hidden="true" className="pointer-events-none absolute -right-14 -top-16 size-40 rounded-full bg-brand-teal/[.06] blur-3xl" />
@@ -28,7 +27,7 @@ export function AnalyticsScopeNotice({
             <span className="rounded-full border border-brand-green/15 bg-brand-green/8 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[.13em] text-brand-green">Live</span>
           </div>
           <p className="mt-1 max-w-4xl text-[10px] leading-5 text-text-muted">
-            Latest performance for published posts from {sourceName}. Trend data builds from the point INXSocial starts tracking changes.
+            Latest verified performance for published posts from {sourceName}. Values update from the connected platform analytics source.
           </p>
         </div>
       </div>
@@ -44,7 +43,7 @@ export function AnalyticsScopeNotice({
         </span>
         <span className="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] px-3 py-2">
           <Clock3 className="size-3.5 shrink-0 text-brand-amber" />
-          <span><b className="block text-[9px] font-semibold text-text-main">Trend history</b><small className="block text-[8px] leading-4 text-text-soft">{trackingStarted ? `Tracking since ${trackingStarted}` : 'Starts building automatically'}</small></span>
+          <span><b className="block text-[9px] font-semibold text-text-main">Last synced</b><small className="block text-[8px] leading-4 text-text-soft">{syncLabel(analytics.fetchedAt)}</small></span>
         </span>
       </div>
     </div>

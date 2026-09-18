@@ -50,10 +50,11 @@ export async function fetchAnalyticsSources(): Promise<{ overview: StudioOvervie
   return { overview, accounts }
 }
 
-export async function fetchAnalyticsForSource(account: AnalyticsSourceAccount, days = 30, mode: 'full' | 'summary' = 'full'): Promise<PlatformAnalytics> {
+export async function fetchAnalyticsForSource(account: AnalyticsSourceAccount, days = 30, mode: 'full' | 'summary' = 'full', force = false): Promise<PlatformAnalytics> {
   const summary = mode === 'summary' ? '&mode=summary' : ''
+  const forceRefresh = force ? '&force=1' : ''
   const result = await apiRequest<{ analytics: PlatformAnalytics }>(
-    `/api/studio/analytics/source?platform=${encodeURIComponent(account.platform)}&profileId=${encodeURIComponent(account.id)}&days=${days}${summary}`,
+    `/api/studio/analytics/source?platform=${encodeURIComponent(account.platform)}&profileId=${encodeURIComponent(account.id)}&days=${days}${summary}${forceRefresh}`,
   )
   return result.analytics
 }
@@ -106,7 +107,12 @@ export function mergeAnalyticsResults(results: PlatformAnalytics[], accounts: An
   return {
     ...first,
     platform: platforms[0] || first.platform,
-    fetchedAt: new Date().toISOString(),
+    fetchedAt: (() => {
+      const timestamps = results
+        .map(result => new Date(result.fetchedAt).getTime())
+        .filter(Number.isFinite)
+      return timestamps.length ? new Date(Math.min(...timestamps)).toISOString() : new Date().toISOString()
+    })(),
     period: { days, since: results.map(result => result.period?.since).filter(Boolean).sort()[0] || '', until: results.map(result => result.period?.until).filter(Boolean).sort().at(-1) || '' },
     page: { id: `combined:${accounts.map(account => account.id).join(',')}`, name: `${accounts.length} selected accounts`, username: null, followers: summary.followers, pictureUrl: null },
     capabilities: {

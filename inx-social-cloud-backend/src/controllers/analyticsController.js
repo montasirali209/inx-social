@@ -22,14 +22,15 @@ async function socialAnalytics(req, res, next) {
     }
 
     const summaryMode = ['1', 'true', 'summary'].includes(String(req.query.summary || req.query.mode || '').toLowerCase());
+    const forceRefresh = ['1', 'true', 'yes'].includes(String(req.query.force || '').toLowerCase());
     const analytics = await getPostForMeAnalytics(
       req.user.id,
       platform,
       profileId,
       days,
       summaryMode
-        ? { feedMaxPages: 1, feedMaxPosts: 100, cacheVariant: 'summary' }
-        : { cacheVariant: 'full' }
+        ? { feedMaxPages: 1, feedMaxPosts: 100, cacheVariant: 'summary', forceRefresh }
+        : { cacheVariant: 'full', forceRefresh }
     );
     return res.json({ analytics });
   } catch (error) {

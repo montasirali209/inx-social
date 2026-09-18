@@ -579,6 +579,7 @@ async function runSnapshotSweep() {
 }
 
 function startAnalyticsSnapshotRuntime() {
+  if (String(process.env.ANALYTICS_BACKGROUND_SNAPSHOT_ENABLED || '').toLowerCase() !== 'true') return;
   if (!postForMe.configured()) return;
   setTimeout(() => { void runSnapshotSweep(); }, 30000).unref?.();
   if (!snapshotRuntimeTimer) {
@@ -604,7 +605,8 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
   const key = cacheKey(userId, platform, profileId, daysInput, options);
   const cached = analyticsCache.get(key);
   const age = cached ? Date.now() - cached.updatedAt : Infinity;
-  if (cached && age <= ANALYTICS_CACHE_TTL_MS) return withCacheState(cached.value, 'fresh');
+  const forceRefresh = Boolean(options.forceRefresh);
+  if (!forceRefresh && cached && age <= ANALYTICS_CACHE_TTL_MS) return withCacheState(cached.value, 'fresh');
 
   const existing = analyticsInflight.get(key);
   if (existing) return existing;

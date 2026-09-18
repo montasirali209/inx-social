@@ -68,12 +68,14 @@ export function PerformanceOverTimeCard({
   points,
   interval,
   setInterval,
+  days,
 }: {
   points: PerformancePoint[]
   interval: 'daily' | 'weekly' | 'monthly'
   setInterval: (value: 'daily' | 'weekly' | 'monthly') => void
+  days: number
 }) {
-  const [active, setActive] = useState<number | null>(null)
+  const [hover, setHover] = useState<{ index: number; x: number; position: number } | null>(null)
   const gradientId = useId().replace(/:/g, '')
   const maximumValue = Math.max(1, ...points.flatMap(point => metricSeries.map(item => point[item.key])))
   const roughStep = maximumValue / 5
@@ -89,17 +91,30 @@ export function PerformanceOverTimeCard({
     const bounds = event.currentTarget.getBoundingClientRect()
     const viewX = (event.clientX - bounds.left) / bounds.width * 1000
     const ratio = Math.max(0, Math.min(1, (viewX - plot.left) / (plot.right - plot.left)))
-    setActive(Math.round(ratio * Math.max(0, points.length - 1)))
+    const position = ratio * Math.max(0, points.length - 1)
+    setHover({
+      index: Math.round(position),
+      x: plot.left + ratio * (plot.right - plot.left),
+      position,
+    })
   }
 
-  const activePoint = active === null ? null : points[active]
-  const activeX = active === null ? null : pointX(active, points.length)
+  const activePoint = hover === null ? null : points[hover.index]
+  const activeX = hover?.x ?? null
   const tooltipLeft = activeX === null ? 50 : Math.min(83, Math.max(17, activeX / 10))
+  const hoverValue = (key: SeriesKey) => {
+    if (!hover || !points.length) return 0
+    const lower = Math.floor(hover.position)
+    const upper = Math.min(points.length - 1, Math.ceil(hover.position))
+    if (lower === upper) return points[lower]?.[key] || 0
+    const fraction = hover.position - lower
+    return (points[lower]?.[key] || 0) * (1 - fraction) + (points[upper]?.[key] || 0) * fraction
+  }
   const totals = metricSeries.map(item => ({ ...item, value: points.reduce((sum, point) => sum + point[item.key], 0) }))
 
   return <AnalyticsCard>
     <AnalyticsCardHeader
-      action={<select aria-label="Performance chart interval" className="min-h-9 rounded-xl border border-border-soft bg-bg/45 px-3 text-[10px] outline-none focus:border-brand-cyan" onChange={event => setInterval(event.target.value as 'daily' | 'weekly' | 'monthly')} value={interval}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>}
+      action={<select aria-label="Performance chart interval" className="min-h-9 rounded-xl border border-border-soft bg-bg/45 px-3 text-[10px] outline-none focus:border-brand-cyan" onChange={event => setInterval(event.target.value as 'daily' | 'weekly' | 'monthly')} value={interval}><option value="daily">Daily</option>{days > 7 && <option value="weekly">Weekly</option>}{days > 30 && <option value="monthly">Monthly</option>}</select>}
       description="Shows the latest verified performance of posts published in the selected period."
       title="Content Performance by Publish Date"
     />
@@ -107,12 +122,12 @@ export function PerformanceOverTimeCard({
     <div className="relative px-3 sm:px-5">
       <div className="mb-1 mt-2 flex items-center justify-between px-1 text-[9px] text-text-soft"><span>Verified performance grouped by post publish date</span><span className="hidden sm:inline">Hover for exact post-date performance</span></div>
 
-      {activePoint && <div className="pointer-events-none absolute top-8 z-20 w-[218px] -translate-x-1/2 rounded-xl border border-brand-cyan/20 bg-[#061923]/[.97] p-3 text-[10px] shadow-[0_18px_50px_rgba(0,0,0,.45),0_0_0_1px_rgba(45,212,191,.04)] backdrop-blur-xl" style={{ left: `${tooltipLeft}%` }}>
+      {activePoint && <div className="analytics-chart-tooltip pointer-events-none absolute top-8 z-20 w-[218px] -translate-x-1/2 rounded-xl border border-brand-cyan/20 bg-[#061923]/[.97] p-3 text-[10px] shadow-[0_18px_50px_rgba(0,0,0,.45),0_0_0_1px_rgba(45,212,191,.04)] backdrop-blur-xl" style={{ left: `${tooltipLeft}%` }}>
         <div className="border-b border-white/[.07] pb-2"><strong className="block text-[11px] text-white">{interval === 'weekly' ? activePoint.label : exactDate(activePoint)}</strong><span className="mt-0.5 block text-[9px] text-text-soft">Latest totals for posts published on this date</span></div>
         <div className="mt-2 space-y-1.5">{metricSeries.map(item => <span className="flex items-center justify-between gap-6 text-text-muted" key={item.key}><span className="flex items-center gap-1.5"><i className="inline-block size-2 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: item.colour, color: item.colour }} />{item.label}</span><b className="text-white">{formatAnalyticsValue(activePoint[item.key], 'compact')}</b></span>)}</div>
       </div>}
 
-      <svg aria-label="Performance over time chart" className="h-[280px] w-full touch-pan-y sm:h-[330px]" onPointerLeave={() => setActive(null)} onPointerMove={track} preserveAspectRatio="none" role="img" viewBox="0 0 1000 282">
+      <svg aria-label="Performance over time chart" className="analytics-performance-chart h-[280px] w-full touch-pan-y sm:h-[330px]" onPointerLeave={() => setHover(null)} onPointerMove={track} preserveAspectRatio="none" role="img" viewBox="0 0 1000 282">
         <defs>
           <linearGradient id={`${gradientId}-views-area`} x1="0" x2="0" y1="0" y2="1">
             <stop offset="0%" stopColor="#3b82f6" stopOpacity=".2" />
@@ -138,9 +153,9 @@ export function PerformanceOverTimeCard({
           <path className="analytics-line-draw" d={smoothPath(points, item.key, maximum)} fill="none" stroke={item.colour} strokeLinecap="round" strokeLinejoin="round" strokeWidth={item.key === 'views' ? 2.25 : 1.8} style={{ animationDelay: `${seriesIndex * 90}ms` }} />
         </g>)}
 
-        {active !== null && activePoint && activeX !== null && <>
-          <line stroke="rgba(45,212,191,.52)" strokeDasharray="3 4" x1={activeX} x2={activeX} y1={plot.top} y2={plot.bottom} />
-          {renderedSeries.map(item => <g key={item.key}><circle cx={activeX} cy={pointY(activePoint[item.key], maximum)} fill="#061923" r="5.5" stroke={item.colour} strokeWidth="2" /><circle cx={activeX} cy={pointY(activePoint[item.key], maximum)} fill={item.colour} filter={`url(#${gradientId}-glow)`} r="2.4" /></g>)}
+        {hover !== null && activePoint && activeX !== null && <>
+          <line className="analytics-hover-guide" stroke="rgba(45,212,191,.52)" strokeDasharray="3 4" x1={activeX} x2={activeX} y1={plot.top} y2={plot.bottom} />
+          {renderedSeries.map(item => <g className="analytics-hover-point" key={item.key}><circle cx={activeX} cy={pointY(hoverValue(item.key), maximum)} fill="#061923" r="5.5" stroke={item.colour} strokeWidth="2" /><circle cx={activeX} cy={pointY(hoverValue(item.key), maximum)} fill={item.colour} filter={`url(#${gradientId}-glow)`} r="2.4" /></g>)}
         </>}
 
         {points.map((point, index) => index % labelEvery === 0 || index === points.length - 1 ? <g key={`${point.date}-axis`}><line stroke="rgba(148,163,184,.10)" x1={pointX(index, points.length)} x2={pointX(index, points.length)} y1={plot.bottom} y2={plot.bottom + 5} /><text fill="#718096" fontSize="9" textAnchor={points.length === 1 ? 'middle' : index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle'} x={pointX(index, points.length)} y="266">{axisDate(point, interval)}</text></g> : null)}

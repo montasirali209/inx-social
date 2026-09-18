@@ -40,7 +40,13 @@ export function SettingsPage() {
   const [changes, setChanges] = useState<Partial<SettingsValues>>({})
   const [notice, setNotice] = useState<Notice>(null)
   const noticeTimer = useRef<number | null>(null)
-  const workspace = useQuery({ queryKey: ['settings-workspace'], queryFn: fetchSettingsWorkspace })
+  const workspace = useQuery({
+    queryKey: ['settings-workspace'],
+    queryFn: fetchSettingsWorkspace,
+    staleTime: 15_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  })
 
   useEffect(() => () => {
     if (noticeTimer.current) window.clearTimeout(noticeTimer.current)

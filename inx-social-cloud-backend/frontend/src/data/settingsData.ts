@@ -71,33 +71,36 @@ export function settingsEqual(left: SettingsValues, right: SettingsValues) {
 
 export function connectionSummary(workspace: SettingsWorkspace) {
   const activePages = (workspace.pages || []).filter((page) => page.status === 'ACTIVE')
-  const facebookCount = workspace.account.pageUsage?.connected ?? activePages.length
+  const legacyFacebookCount = workspace.account.pageUsage?.connected ?? activePages.length
   const activeConnections = workspace.connections.filter((connection) => connection.status === 'ACTIVE')
-  const profileCount = activeConnections.reduce((total, connection) => total + Math.max(1, connection.profiles.filter((profile) => profile.status === 'ACTIVE').length), 0)
+  const profileCount = activeConnections.reduce((total, connection) => {
+    const activeProfiles = connection.profiles.filter((profile) => profile.status === 'ACTIVE').length
+    return total + Math.max(1, activeProfiles)
+  }, 0)
+  const usesUnifiedConnections = activeConnections.length > 0
+  const destinationCount = usesUnifiedConnections ? profileCount : legacyFacebookCount
   const platforms = new Set<string>(activeConnections.map((connection) => connection.platform))
-  if (facebookCount) platforms.add('facebook')
-  const errors = [
-    ...activeConnections.filter((connection) => connection.lastError),
-    ...activePages.filter((page) => page.lastError),
-  ]
-  const latestSync = [...activeConnections
-    .map((connection) => connection.lastSyncedAt)
+  if (!usesUnifiedConnections && legacyFacebookCount) platforms.add('facebook')
+  const errors = usesUnifiedConnections
+    ? activeConnections.filter((connection) => connection.lastError)
+    : activePages.filter((page) => page.lastError)
+  const syncCandidates = usesUnifiedConnections
+    ? activeConnections.map((connection) => connection.lastSyncedAt)
+    : activePages.map((page) => page.lastSyncAt)
+  const latestSync = syncCandidates
     .filter((value): value is string => Boolean(value))
-    .sort((left, right) => new Date(right).getTime() - new Date(left).getTime()), ...activePages
-    .map((page) => page.lastSyncAt)
-    .filter((value): value is string => Boolean(value))]
     .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())[0] || null
   return {
-    destinations: facebookCount + profileCount,
+    destinations: destinationCount,
     platforms: platforms.size,
-    status: errors.length ? `${errors.length} need attention` : activeConnections.length || facebookCount ? 'All synced' : 'No accounts connected',
+    status: errors.length ? `${errors.length} need attention` : destinationCount ? 'All synced' : 'No accounts connected',
     healthy: errors.length === 0,
     latestSync,
   }
 }
 
 export function billingUsage(workspace: SettingsWorkspace) {
-  const connected = workspace.account.pageUsage?.connected || 0
+  const connected = connectionSummary(workspace).destinations
   const limit = workspace.account.pageUsage?.limit ?? workspace.account.license.limits.pages
   const percent = limit ? Math.min(100, Math.round((connected / limit) * 100)) : 0
   return { connected, limit, percent }
