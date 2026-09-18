@@ -199,7 +199,7 @@ test('only live-data workspaces use page-level loading states', () => {
   assert.match(posts, /post composer remains available/i);
   assert.match(media, /Media Library interface remains available/);
   assert.match(bulk, /Bulk Scheduler interface remains available/);
-  assert.match(studio, /creation workspace is ready immediately/i);
+  assert.match(studio, /AIStudioHeroSkeleton/);
   assert.match(settings, /Settings remain available/);
   assert.match(connections, /connection workspace remains available/);
   assert.match(billing, /BillingImmediateState/);

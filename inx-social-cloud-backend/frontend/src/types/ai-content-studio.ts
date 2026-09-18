@@ -17,6 +17,7 @@ export type GenerationStatus =
 
 export type AIPlanAccess = {
   plan: 'trial' | 'creator' | 'pro' | 'business' | 'agency'
+  administrator?: boolean
   studioEnabled: boolean
   creditsRemaining: number | null
   creditsLimit: number | null

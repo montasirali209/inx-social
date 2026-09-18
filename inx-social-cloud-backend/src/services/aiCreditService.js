@@ -126,6 +126,7 @@ async function getAccess(userId) {
   if (!entitlement.studioEnabled) {
     return {
       plan: entitlement.plan,
+      administrator: Boolean(entitlement.administrator),
       studioEnabled: false,
       topupsEnabled: false,
       creditsRemaining: 0,
@@ -140,6 +141,7 @@ async function getAccess(userId) {
   const balance = publicBalance(wallet);
   return {
     plan: entitlement.plan,
+    administrator: Boolean(entitlement.administrator),
     studioEnabled: true,
     topupsEnabled: entitlement.topupsEnabled,
     creditsRemaining: balance.remaining,
