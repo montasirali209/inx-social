@@ -601,13 +601,7 @@ function withCacheState(value, cacheState, warning) {
   };
 }
 
-async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30, options = {}) {
-  const key = cacheKey(userId, platform, profileId, daysInput, options);
-  const cached = analyticsCache.get(key);
-  const age = cached ? Date.now() - cached.updatedAt : Infinity;
-  const forceRefresh = Boolean(options.forceRefresh);
-  if (!forceRefresh && cached && age <= ANALYTICS_CACHE_TTL_MS) return withCacheState(cached.value, 'fresh');
-
+function startAnalyticsRefresh(key, userId, platform, profileId, daysInput, options = {}) {
   const existing = analyticsInflight.get(key);
   if (existing) return existing;
 
@@ -616,20 +610,49 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
       analyticsCache.set(key, { value, updatedAt: Date.now() });
       return withCacheState(value, 'live');
     })
-    .catch((error) => {
-      if (cached && age <= ANALYTICS_STALE_TTL_MS && Number(error?.status || 0) === 429) {
-        return withCacheState(
-          cached.value,
-          'stale',
-          'The live analytics source temporarily rate-limited the refresh, so INXSocial is showing the most recent verified analytics snapshot.'
-        );
-      }
-      throw error;
-    })
     .finally(() => analyticsInflight.delete(key));
 
   analyticsInflight.set(key, task);
   return task;
+}
+
+async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30, options = {}) {
+  const key = cacheKey(userId, platform, profileId, daysInput, options);
+  const cached = analyticsCache.get(key);
+  const age = cached ? Date.now() - cached.updatedAt : Infinity;
+  const forceRefresh = Boolean(options.forceRefresh);
+
+  if (!forceRefresh && cached && age <= ANALYTICS_CACHE_TTL_MS) {
+    return withCacheState(cached.value, 'fresh');
+  }
+
+  if (!forceRefresh && cached && age <= ANALYTICS_STALE_TTL_MS) {
+    const refresh = startAnalyticsRefresh(key, userId, platform, profileId, daysInput, options);
+    void refresh.catch((error) => {
+      console.warn('[analytics-refresh] background refresh delayed', {
+        profileId: String(profileId),
+        platform: String(platform),
+        status: Number(error?.status || 0) || null,
+        error: error?.message || String(error)
+      });
+    });
+    return withCacheState(cached.value, 'refreshing');
+  }
+
+  try {
+    return await startAnalyticsRefresh(key, userId, platform, profileId, daysInput, options);
+  } catch (error) {
+    const status = Number(error?.status || 0);
+    const transient = status === 429 || status >= 500 || status === 0;
+    if (cached && age <= ANALYTICS_STALE_TTL_MS && transient) {
+      return withCacheState(
+        cached.value,
+        'stale',
+        'The live analytics source is taking longer than expected, so INXSocial is showing the most recent verified analytics while the next refresh is retried.'
+      );
+    }
+    throw error;
+  }
 }
 
 module.exports = {
