@@ -68,6 +68,32 @@ function dashboardGreeting() {
   return 'Good evening! 👋'
 }
 
+
+function worldTimezones(currentTimezone: string) {
+  const supportedValuesOf = (Intl as typeof Intl & { supportedValuesOf?: (key: 'timeZone') => string[] }).supportedValuesOf
+  const zones = supportedValuesOf ? supportedValuesOf('timeZone') : [
+    'Africa/Cairo', 'Africa/Johannesburg', 'Africa/Lagos', 'America/Anchorage', 'America/Argentina/Buenos_Aires',
+    'America/Bogota', 'America/Chicago', 'America/Denver', 'America/Halifax', 'America/Los_Angeles',
+    'America/Mexico_City', 'America/New_York', 'America/Phoenix', 'America/Sao_Paulo', 'America/Toronto',
+    'America/Vancouver', 'Asia/Baghdad', 'Asia/Bangkok', 'Asia/Dhaka', 'Asia/Dubai', 'Asia/Hong_Kong',
+    'Asia/Jakarta', 'Asia/Jerusalem', 'Asia/Karachi', 'Asia/Kathmandu', 'Asia/Kolkata', 'Asia/Manila',
+    'Asia/Riyadh', 'Asia/Seoul', 'Asia/Shanghai', 'Asia/Singapore', 'Asia/Tokyo', 'Australia/Adelaide',
+    'Australia/Brisbane', 'Australia/Melbourne', 'Australia/Perth', 'Australia/Sydney', 'Europe/Amsterdam',
+    'Europe/Athens', 'Europe/Berlin', 'Europe/Istanbul', 'Europe/London', 'Europe/Madrid', 'Europe/Moscow',
+    'Europe/Paris', 'Europe/Rome', 'Pacific/Auckland', 'Pacific/Fiji', 'Pacific/Honolulu',
+  ]
+  return Array.from(new Set(['UTC', currentTimezone, ...zones])).filter(Boolean).sort((left, right) => {
+    if (left === 'UTC') return -1
+    if (right === 'UTC') return 1
+    return left.localeCompare(right)
+  })
+}
+
+function timezoneLabel(timezone: string) {
+  if (timezone === 'UTC') return 'UTC'
+  return timezone.replace(/_/g, ' ')
+}
+
 export function Topbar({ overview }: { overview?: StudioOverview }) {
   const profileMenu = useRef<HTMLDetailsElement>(null)
   const setOpen = useUiStore((state) => state.setMobileNavigationOpen)
@@ -89,6 +115,7 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
   const settingsRoute = location.pathname === '/settings'
   const connectionsRoute = location.pathname === '/connected-accounts'
   const billingRoute = location.pathname === '/billing'
+  const timezoneOptions = worldTimezones(timezone)
 
   useEffect(() => {
     function closeOnOutsideClick(event: PointerEvent) {
@@ -159,21 +186,10 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
 
           {!settingsRoute && !billingRoute && <label className="relative hidden lg:block">
             <span className="sr-only">Workspace timezone</span>
-            <select className="min-h-10 min-w-44 appearance-none rounded-xl border border-border-soft bg-panel/70 pl-3 pr-9 text-xs text-text-main transition hover:border-brand-cyan/35 focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/15" onChange={(event) => setTimezone(event.target.value)} value={timezone}>
-              <option value="Europe/London">Timezone · Europe/London</option>
-              <option value="UTC">Timezone · UTC</option>
-              <option value="America/New_York">Timezone · America/New York</option>
-              <option value="Asia/Dhaka">Timezone · Asia/Dhaka</option>
+            <select className="min-h-10 min-w-52 max-w-[17rem] appearance-none rounded-xl border border-border-soft bg-panel/70 pl-3 pr-9 text-xs text-text-main transition hover:border-brand-cyan/35 focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/15" onChange={(event) => setTimezone(event.target.value)} value={timezone}>
+              {timezoneOptions.map((zone) => <option key={zone} value={zone}>{`Timezone · ${timezoneLabel(zone)}`}</option>)}
             </select>
             <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" />
-          </label>}
-
-          {!settingsRoute && !billingRoute && <label className="relative hidden xl:block">
-            <span className="sr-only">Theme</span>
-            <select className="min-h-10 appearance-none rounded-xl border border-border-soft bg-panel/70 pl-3 pr-8 text-xs text-text-main transition hover:border-brand-cyan/35 focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/15" defaultValue="midnight">
-              <option value="midnight">Theme · Midnight</option>
-            </select>
-            <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" />
           </label>}
 
           <button aria-label={refreshing ? `Refreshing ${workspace.title}` : `Refresh ${workspace.title}`} className="inline-flex size-10 items-center justify-center gap-2 rounded-xl border border-border-soft bg-panel/70 text-xs font-semibold text-text-muted transition duration-200 hover:-translate-y-0.5 hover:border-brand-cyan/40 hover:bg-panel-hover/80 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan disabled:cursor-wait disabled:opacity-70 motion-reduce:transform-none motion-reduce:transition-none 2xl:w-auto 2xl:px-3" disabled={refreshing} onClick={() => void refreshWorkspace()} type="button">
