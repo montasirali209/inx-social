@@ -6,47 +6,38 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('landing upgrades the legacy channel strip into the all-in-one workspace rail', () => {
+test('landing exposes the interactive product tour and 3D motion system', () => {
+  const landing = read('public/landing.html');
   const js = read('public/landing.js');
-  const css = read('public/landing-feature-rail.css');
-  const studioCss = read('public/landing-ai-studio.css');
+  const css = read('public/landing-redesign.css');
 
-  assert.match(js, /All-in-one<em>workspace<\/em>/);
-  assert.match(js, /Plan\. Create\. Publish\. Grow\./);
-  assert.match(js, /Connect Accounts/);
-  assert.match(js, /Schedule &amp; Publish/);
-  assert.match(js, /Bulk Scheduler/);
-  assert.match(js, /AI Content Studio/);
-  assert.match(js, /Content Calendar/);
-  assert.match(js, /Analytics/);
-  assert.match(js, /Video Clipping/);
-  assert.match(js, /workspace-soon">Soon/);
-  assert.match(js, /\/assets\/inx-social-logo\.png/);
-  assert.doesNotMatch(js, /createElement\(['"]link['"]\)/);
-  assert.match(studioCss, /@import url\("\/landing-feature-rail\.css\?v=20260916a"\)/);
-  assert.match(css, /\.workspace-rail\{/);
-  assert.match(css, /\.workspace-platform\.facebook/);
-  assert.match(css, /\.workspace-platform\.instagram/);
-  assert.match(css, /\.workspace-platform\.linkedin/);
-  assert.match(css, /\.workspace-platform\.youtube/);
-});
-
-test('landing connection rail names every currently supported customer network', () => {
-  const js = read('public/landing.js');
-  assert.match(js, /9 networks:/);
-  for (const platform of ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'YouTube', 'Pinterest', 'Threads', 'Bluesky']) {
-    assert.equal(js.includes(platform), true, `${platform} should appear in the landing connection rail`);
+  for (const area of ['Bulk Scheduler','Content Calendar','Analytics','AI Content Studio','Connected Accounts']) {
+    assert.match(landing, new RegExp(area));
   }
-  assert.match(js, /Bluesky &amp; X/);
+  assert.match(js, /activateTour/);
+  assert.match(js, /setupTilt/);
+  assert.match(js, /data-tour-target/);
+  assert.match(css, /\.product-tour\{/);
+  assert.match(css, /\.hero-scene\{/);
+  assert.match(css, /transform:rotateY\(var\(--ry/);
+  assert.match(css, /prefers-reduced-motion:reduce/);
 });
 
-test('landing rail links important capabilities to crawlable public product pages', () => {
-  const js = read('public/landing.js');
+test('landing names all nine supported social networks without using private account data', () => {
+  const landing = read('public/landing.html');
+  for (const platform of ['Facebook','Instagram','LinkedIn','TikTok','YouTube','Pinterest','Threads','Bluesky','X']) {
+    assert.equal(landing.includes(platform), true, `${platform} should appear in the landing network section`);
+  }
+  assert.doesNotMatch(landing, /INX Social Admin|Trails & Tales|Ali The Dad|Taslim/);
+});
+
+test('landing product tour links to crawlable public product pages', () => {
+  const landing = read('public/landing.html');
   for (const href of [
     '/social-media-scheduler.html',
     '/bulk-social-media-scheduler.html',
     '/ai-social-media-tools.html',
     '/social-media-content-calendar.html',
     '/social-media-analytics.html'
-  ]) assert.equal(js.includes(`href=\"${href}\"`), true, `${href} should be linked from the workspace rail`);
+  ]) assert.equal(landing.includes(`href="${href}"`), true, `${href} should be linked from the landing page`);
 });
