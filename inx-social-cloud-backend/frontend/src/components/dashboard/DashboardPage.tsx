@@ -85,7 +85,7 @@ export function DashboardPage() {
     initialDataUpdatedAt: 0,
     placeholderData: previous => previous,
     staleTime: 30_000,
-    refetchInterval: 60_000,
+    refetchInterval: 5 * 60_000,
     refetchOnWindowFocus: true,
   })
   const jobs = useQuery({
@@ -124,14 +124,14 @@ export function DashboardPage() {
     enabled: accounts.length > 0,
     initialData: () => accountKey ? readSessionCache<DashboardAnalyticsResult>(dashboardAnalyticsCacheKey(accountKey)) : undefined,
     initialDataUpdatedAt: 0,
-    refetchInterval: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
     refetchOnWindowFocus: false,
-    staleTime: 2 * 60_000,
+    staleTime: 5 * 60_000,
     retry: false,
     queryFn: async () => {
-      const results = await mapWithConcurrency(accounts, 3, async (account) => {
+      const results = await mapWithConcurrency(accounts, 2, async (account) => {
         try {
-          const platformAnalytics = await fetchAnalyticsForSource(account, dashboardAnalyticsDays)
+          const platformAnalytics = await fetchAnalyticsForSource(account, dashboardAnalyticsDays, 'summary')
           return {
             ok: true as const,
             entry: {
