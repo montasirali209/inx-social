@@ -5,11 +5,16 @@ import { formatAnalyticsValue } from '../../data/analyticsData'
 import { AnalyticsCard, AnalyticsCardHeader } from './AnalyticsPrimitives'
 
 type SeriesKey = 'views' | 'engagements' | 'linkClicks' | 'followers'
-const series: Array<{ key: SeriesKey; label: string; totalLabel: string; colour: string }> = [
+const trendSeries: Array<{ key: SeriesKey; label: string; totalLabel: string; colour: string }> = [
   { key: 'views', label: 'Views gained', totalLabel: 'Views gained', colour: '#3b82f6' },
   { key: 'engagements', label: 'Interactions gained', totalLabel: 'Interactions gained', colour: '#2dd4bf' },
   { key: 'linkClicks', label: 'Clicks gained', totalLabel: 'Clicks gained', colour: '#f59e0b' },
   { key: 'followers', label: 'Follows gained', totalLabel: 'Follows gained', colour: '#a855f7' },
+]
+const contentSeries: Array<{ key: SeriesKey; label: string; totalLabel: string; colour: string }> = [
+  { key: 'views', label: 'Current views', totalLabel: 'Current views', colour: '#3b82f6' },
+  { key: 'engagements', label: 'Interactions', totalLabel: 'Interactions', colour: '#2dd4bf' },
+  { key: 'linkClicks', label: 'Clicks', totalLabel: 'Clicks', colour: '#f59e0b' },
 ]
 const plot = { left: 62, right: 944, top: 24, bottom: 242 }
 
@@ -78,22 +83,27 @@ export function PerformanceOverTimeCard({
   interval,
   setInterval,
   tracking,
+  mode,
+  onModeChange,
 }: {
   points: PerformancePoint[]
   interval: 'daily' | 'weekly' | 'monthly'
   setInterval: (value: 'daily' | 'weekly' | 'monthly') => void
   tracking?: PlatformAnalytics['tracking']
+  mode: 'content' | 'trend'
+  onModeChange: (mode: 'content' | 'trend') => void
 }) {
   const [active, setActive] = useState<number | null>(null)
   const gradientId = useId().replace(/:/g, '')
-  const maximumValue = Math.max(1, ...points.flatMap(point => series.map(item => point[item.key])))
+  const metricSeries = mode === 'content' ? contentSeries : trendSeries
+  const maximumValue = Math.max(1, ...points.flatMap(point => metricSeries.map(item => point[item.key])))
   const roughStep = maximumValue / 5
   const magnitude = Math.pow(10, Math.floor(Math.log10(Math.max(1, roughStep))))
   const niceStep = Math.max(1, Math.ceil(roughStep / magnitude) * magnitude)
   const maximum = Math.max(5, niceStep * 5)
   const labelEvery = Math.max(1, Math.ceil(points.length / 6))
-  const activeSeries = useMemo(() => series.filter(item => points.some(point => point[item.key] !== 0)), [points])
-  const renderedSeries = activeSeries.length ? activeSeries : [series[0]]
+  const activeSeries = useMemo(() => metricSeries.filter(item => points.some(point => point[item.key] !== 0)), [metricSeries, points])
+  const renderedSeries = activeSeries.length ? activeSeries : [metricSeries[0]]
   const startedLabel = trackingDate(tracking?.startedAt)
 
   function track(event: ReactPointerEvent<SVGSVGElement>) {
@@ -107,24 +117,24 @@ export function PerformanceOverTimeCard({
   const activePoint = active === null ? null : points[active]
   const activeX = active === null ? null : pointX(active, points.length)
   const tooltipLeft = activeX === null ? 50 : Math.min(83, Math.max(17, activeX / 10))
-  const totals = series.map(item => ({ ...item, value: points.reduce((sum, point) => sum + point[item.key], 0) }))
-  const hasDailyHistory = Boolean(tracking?.historicalDailyAvailable && points.length > 1)
+  const totals = metricSeries.map(item => ({ ...item, value: points.reduce((sum, point) => sum + point[item.key], 0) }))
+  const hasDailyHistory = mode === 'content' || Boolean(tracking?.historicalDailyAvailable && points.length > 1)
 
   return <AnalyticsCard>
     <AnalyticsCardHeader
-      action={<select aria-label="Performance chart interval" className="min-h-9 rounded-xl border border-border-soft bg-bg/45 px-3 text-[10px] outline-none focus:border-brand-cyan" onChange={event => setInterval(event.target.value as 'daily' | 'weekly' | 'monthly')} value={interval}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>}
-      description="Tracks changes in views and engagement from the time INXSocial starts monitoring."
-      title="Post Performance Trend"
+      action={<div className="flex flex-wrap items-center gap-2"><div className="inline-flex rounded-xl border border-border-soft bg-bg/35 p-1"><button className={`rounded-lg px-2.5 py-1.5 text-[9px] font-semibold transition ${mode === 'content' ? 'bg-brand-cyan/12 text-brand-cyan' : 'text-text-soft hover:text-white'}`} onClick={() => onModeChange('content')} type="button">Content history</button><button className={`rounded-lg px-2.5 py-1.5 text-[9px] font-semibold transition ${mode === 'trend' ? 'bg-brand-cyan/12 text-brand-cyan' : 'text-text-soft hover:text-white'}`} onClick={() => onModeChange('trend')} type="button">Live trend</button></div><select aria-label="Performance chart interval" className="min-h-9 rounded-xl border border-border-soft bg-bg/45 px-3 text-[10px] outline-none focus:border-brand-cyan" onChange={event => setInterval(event.target.value as 'daily' | 'weekly' | 'monthly')} value={interval}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div>}
+      description={mode === 'content' ? 'Shows the latest performance of posts published on each date in the selected period.' : 'Tracks new performance changes from the time INXSocial starts monitoring.'}
+      title={mode === 'content' ? 'Content Performance by Publish Date' : 'Live Performance Trend'}
     />
 
-    {!hasDailyHistory && startedLabel && <div className="mx-5 mt-1 rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.045] px-3 py-2 text-[10px] leading-5 text-text-muted"><strong className="text-brand-cyan">Trend tracking started {startedLabel}.</strong> New performance changes will appear here as they are measured.</div>}
+    {mode === 'trend' && !hasDailyHistory && startedLabel && <div className="mx-5 mt-1 rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.045] px-3 py-2 text-[10px] leading-5 text-text-muted"><strong className="text-brand-cyan">Trend tracking started {startedLabel}.</strong> New performance changes will appear here as they are measured.</div>}
 
     <div className="relative px-3 sm:px-5">
-      <div className="mb-1 mt-2 flex items-center justify-between px-1 text-[9px] text-text-soft"><span>{interval === 'monthly' ? 'Day-by-day performance change' : `${interval[0].toUpperCase() + interval.slice(1)} performance change`}</span><span className="hidden sm:inline">{hasDailyHistory ? 'Move across the line for exact dates' : 'Trend history builds automatically'}</span></div>
+      <div className="mb-1 mt-2 flex items-center justify-between px-1 text-[9px] text-text-soft"><span>{mode === 'content' ? 'Current performance grouped by post publish date' : interval === 'monthly' ? 'Day-by-day performance change' : `${interval[0].toUpperCase() + interval.slice(1)} performance change`}</span><span className="hidden sm:inline">{mode === 'content' ? 'Hover for exact post-date performance' : hasDailyHistory ? 'Move across the line for exact dates' : 'Trend history builds automatically'}</span></div>
 
       {activePoint && <div className="pointer-events-none absolute top-8 z-20 w-[218px] -translate-x-1/2 rounded-xl border border-brand-cyan/20 bg-[#061923]/[.97] p-3 text-[10px] shadow-[0_18px_50px_rgba(0,0,0,.45),0_0_0_1px_rgba(45,212,191,.04)] backdrop-blur-xl" style={{ left: `${tooltipLeft}%` }}>
-        <div className="border-b border-white/[.07] pb-2"><strong className="block text-[11px] text-white">{interval === 'weekly' ? activePoint.label : exactDate(activePoint)}</strong><span className="mt-0.5 block text-[9px] text-text-soft">Change recorded for this period</span></div>
-        <div className="mt-2 space-y-1.5">{series.map(item => <span className="flex items-center justify-between gap-6 text-text-muted" key={item.key}><span className="flex items-center gap-1.5"><i className="inline-block size-2 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: item.colour, color: item.colour }} />{item.label}</span><b className="text-white">{formatAnalyticsValue(activePoint[item.key], 'compact')}</b></span>)}</div>
+        <div className="border-b border-white/[.07] pb-2"><strong className="block text-[11px] text-white">{interval === 'weekly' ? activePoint.label : exactDate(activePoint)}</strong><span className="mt-0.5 block text-[9px] text-text-soft">{mode === 'content' ? 'Latest totals for posts published on this date' : 'Change recorded for this period'}</span></div>
+        <div className="mt-2 space-y-1.5">{metricSeries.map(item => <span className="flex items-center justify-between gap-6 text-text-muted" key={item.key}><span className="flex items-center gap-1.5"><i className="inline-block size-2 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: item.colour, color: item.colour }} />{item.label}</span><b className="text-white">{formatAnalyticsValue(activePoint[item.key], 'compact')}</b></span>)}</div>
       </div>}
 
       <svg aria-label="Performance over time chart" className="h-[280px] w-full touch-pan-y sm:h-[330px]" onPointerLeave={() => setActive(null)} onPointerMove={track} preserveAspectRatio="none" role="img" viewBox="0 0 1000 282">
@@ -161,7 +171,7 @@ export function PerformanceOverTimeCard({
         {points.map((point, index) => index % labelEvery === 0 || index === points.length - 1 ? <g key={`${point.date}-axis`}><line stroke="rgba(148,163,184,.10)" x1={pointX(index, points.length)} x2={pointX(index, points.length)} y1={plot.bottom} y2={plot.bottom + 5} /><text fill="#718096" fontSize="9" textAnchor={points.length === 1 ? 'middle' : index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle'} x={pointX(index, points.length)} y="266">{axisDate(point, interval)}</text></g> : null)}
       </svg>
 
-      <div className="flex flex-wrap justify-center gap-5 pb-3 text-[10px] text-text-muted">{series.map(item => <span className="flex items-center gap-2" key={item.key}><i className="h-0.5 w-5 rounded-full" style={{ backgroundColor: item.colour, boxShadow: `0 0 8px ${item.colour}55` }} />{item.label}</span>)}</div>
+      <div className="flex flex-wrap justify-center gap-5 pb-3 text-[10px] text-text-muted">{renderedSeries.map(item => <span className="flex items-center gap-2" key={item.key}><i className="h-0.5 w-5 rounded-full" style={{ backgroundColor: item.colour, boxShadow: `0 0 8px ${item.colour}55` }} />{item.label}</span>)}</div>
     </div>
     <div className="grid grid-cols-2 border-t border-border-soft sm:grid-cols-4">{totals.map(item => <div className="border-border-soft p-3 sm:border-r last:border-r-0" key={item.key}><span className="text-[9px] text-text-muted">{item.totalLabel}</span><strong className="mt-1 block text-sm" style={{ color: item.colour }}>{formatAnalyticsValue(item.value, 'compact')}</strong></div>)}</div>
   </AnalyticsCard>
