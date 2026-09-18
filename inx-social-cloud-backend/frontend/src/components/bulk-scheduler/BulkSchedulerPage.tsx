@@ -15,7 +15,6 @@ import { PublishingDestinationsPanel } from './PublishingDestinationsPanel'
 import { UploadBatchPanel } from './UploadBatchPanel'
 import { useBulkSchedulerActivity } from './bulk-scheduler-activity-store'
 import { PublishConfirmationDialog } from '../ui/PublishConfirmationDialog'
-import { WorkspaceLoadingState } from '../ui/WorkspaceLoadingState'
 
 const idleProgress: BatchProgress = { state: 'idle', percent: 0, current: 0, total: 0, completed: 0, failed: 0, message: 'Select destinations and media, add captions, then choose a timing mode.' }
 
@@ -300,22 +299,7 @@ export function BulkSchedulerPage() {
     else void runBatch()
   }
 
-  if (scheduler.isPending) return <WorkspaceLoadingState
-    message="Preparing destinations, saved schedule times and batch publishing controls."
-    panels={[
-      { title: 'Publishing Destinations', emoji: '🌐', rows: 5 },
-      { title: 'Upload Batch', emoji: '📤', rows: 5, minHeight: '340px' },
-      { title: 'Batch Progress', emoji: '⚡', rows: 5, minHeight: '340px' },
-    ]}
-    stats={[
-      { label: 'Destinations', emoji: '🌐' },
-      { label: 'Selected Media', emoji: '🖼️' },
-      { label: 'Posts', emoji: '📝' },
-      { label: 'Schedule', emoji: '🗓️' },
-      { label: 'Progress', emoji: '⚡' },
-    ]}
-    title="Bulk Scheduler"
-  />
+  if (scheduler.isPending) return <div aria-label="Loading Bulk Scheduler" className="space-y-4" role="status"><div className="h-20 animate-pulse rounded-panel border border-border-soft bg-panel motion-reduce:animate-none" /><div className="h-36 animate-pulse rounded-panel border border-border-soft bg-panel motion-reduce:animate-none" /><div className="h-72 animate-pulse rounded-panel border border-border-soft bg-panel motion-reduce:animate-none" /></div>
   if (scheduler.isError) {
     const sessionRequired = scheduler.error instanceof ApiError && scheduler.error.status === 401
     return <section className="grid min-h-[60vh] place-items-center"><div className="max-w-lg rounded-panel border border-brand-red/25 bg-panel p-7 text-center shadow-panel"><AlertTriangle className="mx-auto size-8 text-brand-red" /><h1 className="mt-4 text-xl font-semibold">{sessionRequired ? 'Sign in to open Bulk Scheduler' : 'Bulk Scheduler is unavailable'}</h1><p className="mt-2 text-sm text-text-muted">{sessionRequired ? 'Your private INX Social session is required.' : scheduler.error.message}</p>{sessionRequired ? <a className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand-blue px-5 text-sm font-semibold" href="/portal/login.html?return=/app/">Open sign in</a> : <button className="mt-5 rounded-xl bg-brand-blue px-5 py-3 text-sm font-semibold" onClick={() => scheduler.refetch()} type="button">Retry</button>}</div></section>
