@@ -40,11 +40,11 @@ test('Analytics replaces unsupported demographic presentation with cross-platfor
 test('landing and workspace load dedicated mobile responsive guardrails', () => {
   const main = read('frontend/src/main.tsx');
   const appMobile = read('frontend/src/mobile-responsive.css');
-  const app = read('src/app.js');
-  const landingMobile = read('public/landing-mobile.css');
+  const landing = read('public/landing.html');
+  const landingResponsive = read('public/landing-redesign.css');
   assert.match(main, /mobile-responsive\.css/);
   assert.match(appMobile, /@media \(max-width: 767px\)/);
-  assert.match(app, /landing-mobile\.css/);
-  assert.match(landingMobile, /@media \(max-width: 900px\)/);
-  assert.match(landingMobile, /#mainNav\.open/);
+  assert.match(landing, /landing-redesign\.css/);
+  assert.match(landingResponsive, /@media\(max-width:900px\)/);
+  assert.match(landingResponsive, /#mainNav\.open\{display:flex\}/);
 });
