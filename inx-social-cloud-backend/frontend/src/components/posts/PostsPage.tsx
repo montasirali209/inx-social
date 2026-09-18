@@ -18,7 +18,6 @@ import { PostsStatCard } from './PostPrimitives'
 import { SchedulePanel } from './SchedulePanel'
 import type { PostLibraryView } from '../../lib/posts-reuse'
 import { PublishConfirmationDialog } from '../ui/PublishConfirmationDialog'
-import { WorkspaceLoadingState } from '../ui/WorkspaceLoadingState'
 
 const draftKey = 'inx-social-post-drafts-v1'
 const composerSessionKey = 'inx-social-post-composer-session-v1'
