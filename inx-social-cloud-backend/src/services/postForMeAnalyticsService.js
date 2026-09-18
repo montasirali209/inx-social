@@ -489,6 +489,53 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
   };
 }
 
+async function runSnapshotSweep() {
+  if (snapshotRuntimeRunning || !postForMe.configured()) return;
+  snapshotRuntimeRunning = true;
+  try {
+    const profiles = await prisma.socialProfile.findMany({
+      where: { status: 'ACTIVE', connection: { status: 'ACTIVE' } },
+      include: { connection: true },
+      orderBy: { updatedAt: 'desc' }
+    });
+    const providerProfiles = profiles.filter((profile) => {
+      const connectionMeta = postForMe.parseJson(profile.connection?.metadataJson, {});
+      const profileMeta = postForMe.parseJson(profile.metadataJson, {});
+      return connectionMeta.providerEngine === postForMe.PROVIDER_ENGINE && profileMeta.providerEngine === postForMe.PROVIDER_ENGINE;
+    });
+
+    for (let index = 0; index < providerProfiles.length; index += 1) {
+      const profile = providerProfiles[index];
+      try {
+        await loadPostForMeAnalytics(profile.userId, profile.platform, profile.id, 90);
+      } catch (error) {
+        console.warn('[analytics-snapshot] profile refresh skipped', {
+          profileId: profile.id,
+          platform: profile.platform,
+          status: error?.status || null,
+          error: error?.message || String(error)
+        });
+      }
+      if (index < providerProfiles.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, SNAPSHOT_RUNTIME_ACCOUNT_DELAY_MS));
+      }
+    }
+  } catch (error) {
+    console.error('[analytics-snapshot] sweep failed', { error: error?.message || String(error) });
+  } finally {
+    snapshotRuntimeRunning = false;
+  }
+}
+
+function startAnalyticsSnapshotRuntime() {
+  if (!postForMe.configured()) return;
+  setTimeout(() => { void runSnapshotSweep(); }, 30000).unref?.();
+  if (!snapshotRuntimeTimer) {
+    snapshotRuntimeTimer = setInterval(() => { void runSnapshotSweep(); }, SNAPSHOT_RUNTIME_INTERVAL_MS);
+    snapshotRuntimeTimer.unref?.();
+  }
+}
+
 function cacheKey(userId, platform, profileId, daysInput) {
   return [String(userId), String(platform), String(profileId), String(safeDays(daysInput))].join(':');
 }
@@ -531,4 +578,11 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
   return task;
 }
 
-module.exports = { getPostForMeAnalytics, normaliseMetrics, collectNumericMetrics, providerMetricSummary };
+module.exports = {
+  getPostForMeAnalytics,
+  normaliseMetrics,
+  collectNumericMetrics,
+  providerMetricSummary,
+  runSnapshotSweep,
+  startAnalyticsSnapshotRuntime
+};
