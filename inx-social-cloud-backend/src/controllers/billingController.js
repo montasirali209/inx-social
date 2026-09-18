@@ -133,14 +133,30 @@ function normalizedPlan(plan) {
 async function billingOverview(req, res, next) {
   try {
     const now = new Date();
-    const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const [license, subscription, preference, facebookPages, socialProfiles, scheduledContent] = await Promise.all([
+    const calendarStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const [license, subscription, preference, facebookPages, socialProfiles] = await Promise.all([
       getLicenseStatus(req.user.id),
       latestSubscriptionForUser(req.user.id),
       prisma.cloudPreference.findUnique({ where: { userId: req.user.id } }),
       prisma.connectedPage.count({ where: { userId: req.user.id, status: 'ACTIVE' } }),
-      prisma.socialProfile.count({ where: { userId: req.user.id, status: 'ACTIVE' } }),
-      prisma.scheduleJob.count({ where: { userId: req.user.id, createdAt: { gte: periodStart }, status: { not: 'CANCELLED' } } })
+      prisma.socialProfile.count({ where: { userId: req.user.id, status: 'ACTIVE' } })
+    ]);
+    const trialPlan = normalizedPlan(license.plan) === 'TRIAL';
+    const usageStart = trialPlan
+      ? new Date(license.trialStartsAt || calendarStart)
+      : new Date(subscription?.currentPeriodStart || calendarStart);
+    const usageEnd = trialPlan
+      ? (license.trialEndsAt ? new Date(license.trialEndsAt) : null)
+      : (subscription?.currentPeriodEnd || null);
+    const [scheduledContent, publishedPosts] = await Promise.all([
+      prisma.scheduleJob.count({ where: { userId: req.user.id, createdAt: { gte: usageStart }, status: { not: 'CANCELLED' } } }),
+      prisma.socialPublication.count({
+        where: {
+          profile: { userId: req.user.id },
+          status: 'PUBLISHED',
+          publishedAt: { gte: usageStart }
+        }
+      })
     ]);
     let invoices = [];
     let billingCycle = normalizedPlan(license.plan) === 'TRIAL' ? 'trial' : 'monthly';
@@ -179,7 +195,7 @@ async function billingOverview(req, res, next) {
         canManage: Boolean(subscription?.providerCustomerId),
         legacyLifetime: String(license.plan).toUpperCase() === 'LIFETIME'
       },
-      usage: { connectedPages: facebookPages + socialProfiles, scheduledContent, periodStart, periodEnd: subscription?.currentPeriodEnd || null },
+      usage: { connectedPages: facebookPages + socialProfiles, scheduledContent, publishedPosts, periodStart: usageStart, periodEnd: usageEnd },
       preferences: { productUpdates: Boolean(req.user.marketingOptIn), usageLimitAlerts: settings.usageLimitAlerts !== false },
       billing: { configured: stripeService.isConfigured(), availability: stripeService.planAvailability() },
       invoices
