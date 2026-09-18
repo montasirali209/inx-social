@@ -10,7 +10,6 @@ const credits = require('./aiCreditService');
 const mediaLibrary = require('./mediaLibraryService');
 const { expiresAtFor } = require('./mediaRetentionService');
 
-const MONTHLY_LIMIT = () => Math.max(1, Math.min(100, Number(process.env.STOCK_VIDEO_MONTHLY_LIMIT || 30)));
 const CHAT_MODEL = String(process.env.OPENAI_CHAT_MODEL || 'gpt-5.6-luna').trim();
 const TTS_MODEL = String(process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts').trim();
 const STOCK_TIMEOUT = Math.max(15000, Number(process.env.STOCK_VIDEO_PROVIDER_TIMEOUT_MS || 45000));
@@ -40,6 +39,13 @@ function publicError(message, code = 'STOCK_VIDEO_ERROR', status = 400) {
 
 function clean(value, max = 4000) {
   return String(value || '').replace(/\u0000/g, '').trim().slice(0, max);
+}
+
+function estimateCredits(input = {}) {
+  const duration = Number(input.duration || 30);
+  const base = duration <= 15 ? 20 : duration <= 30 ? 30 : duration <= 45 ? 40 : 50;
+  const resolutionMultiplier = String(input.resolution || '720p') === '1080p' ? 1.25 : 1;
+  return Math.max(1, Math.ceil(base * resolutionMultiplier));
 }
 
 function safeJson(text) {
@@ -307,26 +313,33 @@ async function composeVideo(workDir, clips, plan, input, onProgress) {
   return { outputPath, hasNarration };
 }
 
-async function quota(userId) {
-  const access = await credits.getAccess(userId);
-  if (!access.studioEnabled) throw publicError('Stock Video Creator is available on the Plus plan.', 'STOCK_VIDEO_PLUS_REQUIRED', 403);
-  const start = access.periodStart ? new Date(access.periodStart) : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1));
-  const end = access.periodEnd ? new Date(access.periodEnd) : new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth() + 1, 1));
-  const rows = await prisma.$queryRawUnsafe('SELECT COUNT(*)::int AS count FROM "AiGeneration" WHERE "userId"=$1 AND "contentType"=$2 AND "createdAt">=$3 AND "createdAt"<$4 AND "status" IN (\'PREPARING\',\'PROCESSING\',\'COMPLETED\')', userId, 'stock_video', start, end);
-  const used = Number(rows[0]?.count || 0);
-  return { limit: MONTHLY_LIMIT(), used, remaining: Math.max(0, MONTHLY_LIMIT() - used), periodStart: start, periodEnd: end };
-}
-
 async function access(userId) {
   const entitlement = await credits.getEntitlement(userId);
-  if (!entitlement.studioEnabled) return { enabled: false, configured: isConfigured(), limit: MONTHLY_LIMIT(), used: 0, remaining: 0 };
+  if (!entitlement.studioEnabled) return { enabled: false, configured: isConfigured(), creditsRemaining: 0, creditsLimit: 0, estimates: { '15:720p': 20, '30:720p': 30, '45:720p': 40, '60:720p': 50 } };
   void recoverStockVideoJobs();
   const capabilities = await workerCapabilities();
   const activeSources = Array.isArray(capabilities?.professionalSources) ? capabilities.professionalSources : [];
-  return { enabled: true, configured: isConfigured() && Boolean(capabilities) && activeSources.length > 0, ...(await quota(userId)),
-    providers: { pexels: activeSources.includes('pexels'), pixabay: activeSources.includes('pixabay_video') }, commercialOutput: true,
-    runtime: capabilities ? { name: capabilities.runtime, commit: capabilities.commit, pipelines: capabilities.pipelines || [],
-      studioWorkflow: capabilities.studioWorkflow || null, providerMenu: capabilities.providerMenu || null } : null };
+  const balance = await credits.getAccess(userId);
+  const estimates = {};
+  for (const duration of [15, 30, 45, 60]) {
+    for (const resolution of ['720p', '1080p']) estimates[`${duration}:${resolution}`] = estimateCredits({ duration, resolution });
+  }
+  return {
+    enabled: true,
+    configured: isConfigured() && Boolean(capabilities) && activeSources.length > 0,
+    creditsRemaining: Number(balance.creditsRemaining || 0),
+    creditsLimit: Number(balance.creditsLimit || 0),
+    estimates,
+    providers: { pexels: activeSources.includes('pexels'), pixabay: activeSources.includes('pixabay_video') },
+    commercialOutput: entitlement.plan !== 'trial',
+    runtime: capabilities ? {
+      name: capabilities.runtime,
+      commit: capabilities.commit,
+      pipelines: capabilities.pipelines || [],
+      studioWorkflow: capabilities.studioWorkflow || null,
+      providerMenu: capabilities.providerMenu || null
+    } : null
+  };
 }
 
 function drainQueue() {
@@ -405,16 +418,22 @@ function startStockVideoRuntime() {
 async function createJob(userId, input) {
   if (!isConfigured()) throw publicError('Stock Video Creator is still preparing. Please try again shortly.', 'STOCK_VIDEO_NOT_CONFIGURED', 503);
   const entitlement = await credits.getEntitlement(userId);
-  if (!entitlement.studioEnabled) throw publicError('Stock Video Creator is available on the Plus plan.', 'STOCK_VIDEO_PLUS_REQUIRED', 403);
+  if (!entitlement.studioEnabled) throw publicError('Stock Video Creator is unavailable for this account or subscription.', 'STOCK_VIDEO_ACCESS_REQUIRED', 403);
+  const amount = estimateCredits(input);
+  await credits.getBalance(userId);
   const generationId = crypto.randomUUID();
-  await prisma.$transaction(async tx => {
-    await tx.$queryRawUnsafe('SELECT "id" FROM "User" WHERE "id"=$1 FOR UPDATE', userId);
-    const usage = await quota(userId);
-    if (usage.remaining <= 0) throw publicError(`You have used all ${usage.limit} Stock Video Creator renders for this billing period.`, 'STOCK_VIDEO_LIMIT_REACHED', 402);
-    await tx.$executeRawUnsafe('INSERT INTO "AiGeneration" ("id","userId","contentType","status","provider","prompt","requestJson","reservedCredits","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)', generationId, userId, 'stock_video', 'PREPARING', 'openmontage-stock', clean(input.prompt, 1500), JSON.stringify(input));
-  });
+  await prisma.$executeRawUnsafe(
+    'INSERT INTO "AiGeneration" ("id","userId","contentType","status","provider","prompt","requestJson","reservedCredits","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+    generationId, userId, 'stock_video', 'PREPARING', 'openmontage-stock', clean(input.prompt, 1500), JSON.stringify(input)
+  );
+  try {
+    await credits.reserve(userId, generationId, amount);
+  } catch (error) {
+    await prisma.$executeRawUnsafe('DELETE FROM "AiGeneration" WHERE "id"=$1 AND "userId"=$2', generationId, userId).catch(() => {});
+    throw error;
+  }
   setImmediate(() => enqueueJob(userId, generationId, input));
-  return { id: generationId, status: 'preparing', progress: 1 };
+  return { id: generationId, status: 'preparing', progress: 1, credits: amount };
 }
 
 async function updateJob(id, status, progress, extra = {}) {
@@ -523,14 +542,17 @@ async function processJob(userId, generationId, input, existingWorkerJobId = nul
     const captionTags = new Set((caption.match(/#[A-Za-z0-9_]+/g) || []).map(tag => tag.slice(1).toLowerCase()));
     const asset = {
       id: record.id, type: 'video', url: media.fileUrl, prompt: clean(input.prompt, 1500), caption,
-      hashtags: Array.isArray(result.hashtags) ? result.hashtags.filter(tag => !captionTags.has(String(tag).replace(/^#/, '').toLowerCase())) : [], creditsUsed: 0, createdAt: record.createdAt.toISOString(), provider: 'OpenMontage',
+      hashtags: Array.isArray(result.hashtags) ? result.hashtags.filter(tag => !captionTags.has(String(tag).replace(/^#/, '').toLowerCase())) : [], creditsUsed: estimateCredits(input), createdAt: record.createdAt.toISOString(), provider: 'OpenMontage',
       model: result.pipeline || 'INX Stock Montage', aspectRatio: input.aspectRatio, mediaLibraryAssetId: record.id, script: clean(result.script, 10000),
       completionStatus: 'completed', provenance, expiresAt: record.expiresAt.toISOString(), retentionDays: 10,
       warnings: Array.isArray(result.warnings) ? result.warnings : []
     };
-    await updateJob(generationId, 'COMPLETED', 100, { assetJson: asset, responseJson: { runtime: 'OpenMontage', workerJobId, workerUrl, openmontageCommit: result.openmontageCommit, pipeline: result.pipeline, renderer: result.renderer || 'remotion', provenance }, completedAt: new Date() });
+    const chargedCredits = estimateCredits(input);
+    await credits.complete(userId, generationId, chargedCredits);
+    await updateJob(generationId, 'COMPLETED', 100, { assetJson: asset, responseJson: { runtime: 'OpenMontage', workerJobId, workerUrl, openmontageCommit: result.openmontageCommit, pipeline: result.pipeline, renderer: result.renderer || 'remotion', provenance, creditsUsed: chargedCredits }, completedAt: new Date() });
   } catch (caught) {
     console.error('[stock-video] job error', { generationId, code: caught?.code || 'STOCK_VIDEO_FAILED', error: clean(caught?.message, 4000) });
+    await credits.refund(userId, generationId, caught?.code || 'stock_video_failed').catch(() => {});
     await updateJob(generationId, 'FAILED', 0, { errorCode: clean(caught?.code || 'STOCK_VIDEO_FAILED', 120), errorMessage: clean(caught?.publicMessage || caught?.message || 'Stock video creation failed.', 700), completedAt: new Date() }).catch(() => {});
   } finally {
     activeJobs.delete(generationId);
@@ -538,4 +560,4 @@ async function processJob(userId, generationId, input, existingWorkerJobId = nul
   }
 }
 
-module.exports = { access, createJob, isConfigured, normalizePlan, createSrt, dimensions, recoverStockVideoJobs, startStockVideoRuntime };
+module.exports = { access, createJob, estimateCredits, isConfigured, normalizePlan, createSrt, dimensions, recoverStockVideoJobs, startStockVideoRuntime };
