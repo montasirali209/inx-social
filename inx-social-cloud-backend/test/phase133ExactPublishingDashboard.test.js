@@ -36,7 +36,9 @@ test('Phase 13.3 is live-data driven across connected accounts and does not pres
   assert.match(data, /buildActivitySeries/);
   assert.match(dashboard, /fetchAnalyticsSources/);
   assert.match(dashboard, /fetchAnalyticsForSource/);
-  assert.match(dashboard, /Promise\.all\(accounts\.map/);
+  assert.match(dashboard, /mapWithConcurrency\(accounts, 3/);
+  assert.match(dashboard, /readSessionCache/);
+  assert.match(dashboard, /writeSessionCache/);
   assert.match(recent, /likes \/ reactions/);
   assert.match(recent, /comments/);
   assert.match(recent, /shares/);
@@ -79,4 +81,15 @@ test('Dashboard analytics loads progressively and the activity card handles hone
   assert.doesNotMatch(activityCard, /Most active date|Publishing activity is just starting/);
   assert.match(activityChart, /ActivityTooltip/);
   assert.match(activityChart, /onPointerMove/);
+});
+
+
+test('Dashboard renders meaningful loading cards instead of blank placeholder blocks', () => {
+  const dashboard = read('frontend/src/components/dashboard/DashboardPage.tsx');
+
+  assert.match(dashboard, /Syncing posts and insights/);
+  assert.match(dashboard, /Published/);
+  assert.match(dashboard, /Scheduled/);
+  assert.match(dashboard, /Top Performing Content/);
+  assert.match(dashboard, /refetchInterval: 5 \* 60_000/);
 });

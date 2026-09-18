@@ -7,7 +7,7 @@ import { deleteCalendarPost, fetchCalendarData, rescheduleCalendarPost } from '.
 import { availableSlotsForDate, buildCalendarDays, formatMonth, monthKeyInTimezone, shiftMonth } from '../../lib/calendar-utils'
 import { zonedDateTimeToIso } from '../../lib/bulk-scheduler-utils'
 import { calculateBestPostTime } from '../../lib/posts-analytics'
-import { fetchUniversalPublishingKpis, universalPublishingKpiQueryKey } from '../../lib/universal-publishing-kpis'
+import { readSessionCache, writeSessionCache } from '../../lib/session-cache'
 import { useUiStore } from '../../store/ui-store'
 import type { CalendarPost, CalendarPostStatus } from '../../types/calendar'
 import type { Platform } from '../../types/dashboard'
@@ -20,9 +20,25 @@ import { CalendarPostActionDialog } from './CalendarPostActionDialog'
 import { SelectedDatePanel } from './SelectedDatePanel'
 
 const statIcons = [CalendarCheck2, Send, FilePenLine, AlertTriangle, UsersRound]
+const calendarSourcesCacheKey = 'inx-social-cache:calendar-sources-v1'
+
+function calendarCacheKey(timezone: string) {
+  return `inx-social-cache:calendar:${encodeURIComponent(timezone)}`
+}
 
 function CalendarSkeleton() {
-  return <div aria-label="Loading Content Calendar" className="space-y-4" role="status"><div className="flex gap-3 overflow-hidden md:grid md:grid-cols-3 xl:grid-cols-5">{Array.from({ length: 5 }, (_, index) => <div className="h-28 min-w-56 animate-pulse rounded-card bg-panel motion-reduce:animate-none" key={index} />)}</div><div className="h-12 animate-pulse rounded-card bg-panel motion-reduce:animate-none" /><div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_310px]"><div className="h-[680px] animate-pulse rounded-panel bg-panel motion-reduce:animate-none" /><div className="h-[620px] animate-pulse rounded-panel bg-panel motion-reduce:animate-none" /></div></div>
+  const stats = [
+    ['🗓️', 'Scheduled This Week'],
+    ['🚀', 'Published This Month'],
+    ['📝', 'Drafts'],
+    ['⚠️', 'Needs Review'],
+    ['🔗', 'Connected Accounts'],
+  ] as const
+  return <div aria-label="Loading Content Calendar" className="space-y-4" role="status">
+    <div className="flex gap-3 overflow-hidden md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">{stats.map(([emoji, label], index) => <div className="min-h-28 min-w-56 rounded-card border border-border-soft bg-panel/70 p-4 md:min-w-0" key={label}><div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl border border-white/[.07] bg-white/[.025] text-lg motion-safe:animate-bounce" style={{ animationDelay: `${index * 80}ms` }}>{emoji}</span><span><small className="block text-[10px] text-text-muted">{label}</small><strong className="mt-1 block text-sm">Updating…</strong></span></div><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-border-soft"><span className="block h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-brand-teal/60 to-brand-cyan motion-reduce:animate-none" /></div></div>)}</div>
+    <div className="h-12 rounded-card border border-border-soft bg-panel/70 p-3"><div className="h-full animate-pulse rounded-lg bg-white/[.025] motion-reduce:animate-none" /></div>
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_310px]"><div className="min-h-[620px] rounded-panel border border-border-soft bg-panel/70 p-5"><div className="flex items-center justify-between"><strong className="text-sm">Content Calendar</strong><span className="text-2xl motion-safe:animate-pulse">📅</span></div><div className="mt-8 grid min-h-[500px] place-items-center rounded-xl border border-dashed border-border-soft bg-bg/20"><span className="text-center"><span className="block text-3xl motion-safe:animate-bounce">⏳</span><small className="mt-2 block text-[10px] text-text-soft">Loading your publishing schedule</small></span></div></div><div className="min-h-[420px] rounded-panel border border-border-soft bg-panel/70 p-4"><strong className="text-sm">Selected Date</strong><div className="mt-4 space-y-3">{Array.from({ length: 4 }, (_, index) => <div className="h-16 animate-pulse rounded-xl bg-white/[.025] motion-reduce:animate-none" key={index} />)}</div></div></div>
+  </div>
 }
 
 export function ContentCalendarPage() {
@@ -44,31 +60,39 @@ export function ContentCalendarPage() {
 
   const calendar = useQuery({
     queryKey: ['content-calendar', 'post-for-me', timezone],
-    queryFn: () => fetchCalendarData(timezone),
+    queryFn: async () => {
+      const result = await fetchCalendarData(timezone)
+      writeSessionCache(calendarCacheKey(timezone), result)
+      return result
+    },
+    initialData: () => readSessionCache<Awaited<ReturnType<typeof fetchCalendarData>>>(calendarCacheKey(timezone)),
+    initialDataUpdatedAt: 0,
     placeholderData: previous => previous,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     refetchOnReconnect: true,
     refetchOnWindowFocus: true,
-    staleTime: 0,
+    staleTime: 20_000,
   })
   const analyticsSources = useQuery({
     queryKey: ['calendar-analytics-sources', 'post-for-me'],
-    queryFn: fetchAnalyticsSources,
+    queryFn: async () => {
+      const result = await fetchAnalyticsSources()
+      writeSessionCache(calendarSourcesCacheKey, result)
+      return result
+    },
+    initialData: () => readSessionCache<Awaited<ReturnType<typeof fetchAnalyticsSources>>>(calendarSourcesCacheKey),
+    initialDataUpdatedAt: 0,
+    placeholderData: previous => previous,
+    staleTime: 30_000,
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   })
-  const universalKpis = useQuery({
-    queryKey: universalPublishingKpiQueryKey,
-    queryFn: fetchUniversalPublishingKpis,
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: true,
-  })
   useEffect(() => {
-    const refresh = () => { void Promise.all([calendar.refetch(), analyticsSources.refetch(), universalKpis.refetch()]) }
+    const refresh = () => { void Promise.all([calendar.refetch(), analyticsSources.refetch()]) }
     window.addEventListener('inx-social:refresh', refresh)
     return () => window.removeEventListener('inx-social:refresh', refresh)
-  }, [analyticsSources, calendar, universalKpis])
+  }, [analyticsSources, calendar])
   useEffect(() => {
     if (!notice) return
     const timeout = window.setTimeout(() => setNotice(null), 4500)
@@ -85,8 +109,8 @@ export function ContentCalendarPage() {
       const completedAction = action?.type
       setAction(null)
       setActionError(null)
-      setNotice(completedAction === 'delete' ? 'Post removed from the Post for Me schedule.' : 'Post for Me schedule updated successfully.')
-      await Promise.all([calendar.refetch(), universalKpis.refetch()])
+      setNotice(completedAction === 'delete' ? 'Post removed from the schedule.' : 'Schedule updated successfully.')
+      await calendar.refetch()
     },
     onError: error => setActionError(error instanceof Error ? error.message : 'The calendar action could not be completed.'),
   })
@@ -120,17 +144,7 @@ export function ContentCalendarPage() {
     if (recommendationAnalytics.isError) return { available: false, label: 'Analytics unavailable', time: null, detail: `Live timing data for ${recommendationAccount.displayName} could not be loaded.` }
     return calculateBestPostTime(recommendationAnalytics.data)
   }, [recommendationAccount, recommendationAnalytics.data, recommendationAnalytics.isError])
-  const universalStats = useMemo(() => {
-    const kpis = universalKpis.data
-    if (!kpis) return []
-    return [
-      { label: 'Scheduled', value: kpis.scheduled, detail: 'Future publishing slots', tone: 'teal' as const },
-      { label: 'Published', value: kpis.published, detail: 'Published via INXSocial', tone: 'green' as const },
-      { label: 'Drafts', value: kpis.drafts, detail: kpis.drafts ? 'Saved unfinished posts' : 'No saved drafts', tone: 'teal' as const },
-      { label: 'Needs Review', value: kpis.needsReview, detail: kpis.needsReview ? 'Action required' : 'Nothing needs attention', tone: kpis.needsReview ? 'amber' as const : 'green' as const },
-      { label: 'Connected Accounts', value: kpis.connectedAccounts, detail: 'Across all active platforms', tone: 'purple' as const },
-    ]
-  }, [universalKpis.data])
+  const calendarStats = calendar.data?.stats || []
 
   const chooseDate = (date: string) => { setSelectedDate(date); setSelectedTime('') }
   const chooseMonth = (offset: number) => { const next = shiftMonth(monthKey, offset); setMonthKey(next); chooseDate(`${next}-01`) }
@@ -152,17 +166,17 @@ export function ContentCalendarPage() {
     setActionError(null)
   }
 
-  if (calendar.isPending || universalKpis.isPending) return <CalendarSkeleton />
-  if (calendar.isError || universalKpis.isError) {
-    const currentError = calendar.error || universalKpis.error
+  if (calendar.isPending) return <CalendarSkeleton />
+  if (calendar.isError) {
+    const currentError = calendar.error
     const sessionRequired = currentError instanceof ApiError && currentError.status === 401
-    return <section className="grid min-h-[60vh] place-items-center"><div className="max-w-lg rounded-panel border border-brand-red/25 bg-panel p-7 text-center shadow-panel"><AlertTriangle className="mx-auto size-8 text-brand-red" /><h1 className="mt-4 text-xl font-semibold">{sessionRequired ? 'Sign in to open Content Calendar' : 'Content Calendar is unavailable'}</h1><p className="mt-2 text-sm text-text-muted">{sessionRequired ? 'Your private INX Social session is required.' : currentError?.message}</p>{sessionRequired ? <a className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand-blue px-5 text-sm font-semibold" href="/portal/login.html?return=/app/">Open sign in</a> : <button className="mt-5 inline-flex items-center gap-2 rounded-xl bg-brand-blue px-5 py-3 text-sm font-semibold" onClick={() => void Promise.all([calendar.refetch(), universalKpis.refetch()])} type="button"><RefreshCw className="size-4" /> Retry</button>}</div></section>
+    return <section className="grid min-h-[60vh] place-items-center"><div className="max-w-lg rounded-panel border border-brand-red/25 bg-panel p-7 text-center shadow-panel"><AlertTriangle className="mx-auto size-8 text-brand-red" /><h1 className="mt-4 text-xl font-semibold">{sessionRequired ? 'Sign in to open Content Calendar' : 'Content Calendar is unavailable'}</h1><p className="mt-2 text-sm text-text-muted">{sessionRequired ? 'Your private INX Social session is required.' : currentError?.message}</p>{sessionRequired ? <a className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand-blue px-5 text-sm font-semibold" href="/portal/login.html?return=/app/">Open sign in</a> : <button className="mt-5 inline-flex items-center gap-2 rounded-xl bg-brand-blue px-5 py-3 text-sm font-semibold" onClick={() => void calendar.refetch()} type="button"><RefreshCw className="size-4" /> Retry</button>}</div></section>
   }
 
   return <div className="dashboard-canvas">
-    <section aria-label="Universal publishing status" className="mb-4 flex items-start gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-3 xl:grid-cols-5">{universalStats.map((stat, index) => <CalendarStatCard icon={statIcons[index]} key={stat.label} stat={stat} />)}</section>
+    <section aria-label="Calendar publishing status" className="mb-4 flex items-start gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-3 xl:grid-cols-5">{calendarStats.map((stat, index) => <CalendarStatCard icon={statIcons[index]} key={stat.label} stat={stat} />)}</section>
     <CalendarToolbar destinations={calendar.data.destinations} monthKey={monthKey} onNext={() => chooseMonth(1)} onPage={setPageId} onPlatform={setPlatform} onPrevious={() => chooseMonth(-1)} onSearch={setSearch} onStatus={setStatus} onView={setView} pageId={pageId} platform={platform} search={search} status={status} view={view} />
-    {calendar.data.syncWarnings.length > 0 && <div className="mb-4 flex items-start gap-2 rounded-xl border border-brand-amber/20 bg-brand-amber/5 px-3 py-2 text-[10px] leading-4 text-text-muted"><AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-brand-amber" /><span>Some Post for Me publishing state could not be refreshed during this request. Saved INXSocial schedule data is still shown.</span></div>}
+    {calendar.data.syncWarnings.length > 0 && <div className="mb-4 flex items-start gap-2 rounded-xl border border-brand-amber/20 bg-brand-amber/5 px-3 py-2 text-[10px] leading-4 text-text-muted"><AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-brand-amber" /><span>Some publishing updates could not be refreshed. Your saved schedule is still shown.</span></div>}
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
       {view === 'calendar' ? <CalendarGrid days={days} monthLabel={formatMonth(monthKey)} onSelectDate={chooseDate} onSelectPost={openPost} onToday={chooseToday} /> : <CalendarAgenda onSelectDate={chooseDate} onSelectPost={openPost} posts={monthPosts} />}
       <SelectedDatePanel bestTime={bestTime} bestTimeLoading={recommendationAnalytics.isLoading} busyPostId={calendarAction.isPending ? action?.post.id || null : null} date={selectedDate} onDeletePost={openDelete} onOpenPost={openPost} onReschedulePost={openReschedule} onSelectTime={setSelectedTime} posts={selectedPosts} selectedTime={selectedTime} slots={slots} />

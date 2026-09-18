@@ -33,6 +33,7 @@ test('Phase 13.4 uses universal Post for Me publishing state without sample cale
   const page = read('frontend/src/components/calendar/ContentCalendarPage.tsx');
   const bestTime = read('frontend/src/components/calendar/BestTimeCard.tsx');
   const toolbar = read('frontend/src/components/calendar/CalendarToolbar.tsx');
+  const selectedDate = read('frontend/src/components/calendar/SelectedDatePanel.tsx');
 
   assert.match(api, /fetchConnectionsWorkspace/);
   assert.match(api, /\/api\/social-publications\?limit=500/);
@@ -44,6 +45,11 @@ test('Phase 13.4 uses universal Post for Me publishing state without sample cale
   assert.match(page, /fetchAnalyticsSources/);
   assert.match(page, /fetchAnalyticsForSource/);
   assert.match(page, /calculateBestPostTime/);
+  assert.match(page, /calendar\.data\?\.stats/);
+  assert.doesNotMatch(page, /fetchUniversalPublishingKpis|universalPublishingKpiQueryKey/);
+  assert.doesNotMatch(selectedDate, /CalendarQuickActionsCard/);
+  assert.match(page, /readSessionCache/);
+  assert.match(page, /writeSessionCache/);
   assert.match(bestTime, /Use \{insight\.time\}/);
   assert.doesNotMatch(bestTime, /Analytics required/);
   assert.match(toolbar, /relative z-30/);
@@ -67,16 +73,12 @@ test('Content Calendar opens platform posts and manages universal provider sched
   assert.doesNotMatch(`${api}${selected}${dialog}`, /facebook\/posts|Open on Facebook|Delete from Facebook|Facebook requires/);
 });
 
-test('Phase 13.4 calendar actions hand selected date and time to the real post composer', () => {
-  const actions = read('frontend/src/components/calendar/CalendarQuickActionsCard.tsx');
-  const studio = read('studio/app.js');
+test('Calendar keeps scheduling focused without a redundant quick-actions panel', () => {
+  const selectedDate = read('frontend/src/components/calendar/SelectedDatePanel.tsx');
+  const toolbar = read('frontend/src/components/calendar/CalendarToolbar.tsx');
   const slots = read('frontend/src/components/calendar/AvailableSlotsCard.tsx');
 
-  assert.match(actions, /scheduleDate=/);
-  assert.match(actions, /scheduleTime=/);
-  assert.match(studio, /applyRequestedPostComposerState/);
-  assert.match(studio, /directPublishMode/);
-  assert.match(studio, /directPostDate/);
-  assert.match(studio, /directPostTime/);
+  assert.doesNotMatch(selectedDate, /CalendarQuickActionsCard|Quick Actions/);
+  assert.match(toolbar, /Schedule Content/);
   assert.match(slots, /disabled={!slot\.available}/);
 });

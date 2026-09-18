@@ -42,16 +42,24 @@ test('universal publishing KPI source defines one Post for Me status policy', ()
   assert.doesNotMatch(source, /needsReview[^\n]*CANCELLED/i);
 });
 
-test('Dashboard Calendar and Posts consume the same KPI query', () => {
+test('Dashboard and Posts share universal KPIs while Calendar uses calendar-scoped publication metrics', () => {
   const dashboard = read('frontend/src/components/dashboard/DashboardPage.tsx');
   const calendar = read('frontend/src/components/calendar/ContentCalendarPage.tsx');
+  const calendarApi = read('frontend/src/lib/calendar-api.ts');
   const posts = read('frontend/src/components/posts/PostPrimitives.tsx');
-  for (const source of [dashboard, calendar, posts]) {
+
+  for (const source of [dashboard, posts]) {
     assert.match(source, /universalPublishingKpiQueryKey/);
     assert.match(source, /fetchUniversalPublishingKpis/);
   }
+
+  assert.doesNotMatch(calendar, /universalPublishingKpiQueryKey|fetchUniversalPublishingKpis/);
+  assert.match(calendar, /calendar\.data\?\.stats/);
+  assert.match(calendarApi, /Scheduled This Week/);
+  assert.match(calendarApi, /Published This Month/);
+  assert.match(calendarApi, /Connected Accounts/);
+  assert.match(calendarApi, /\/api\/social-publications\?limit=500/);
   assert.match(dashboard, /Published via INXSocial/);
-  assert.match(calendar, /Across all active platforms/);
   assert.match(posts, /All INXSocial publishing records/);
 });
 

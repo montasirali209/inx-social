@@ -4,7 +4,6 @@ import type { AvailableSlot, CalendarPost } from '../../types/calendar'
 import type { BestTimeInsight } from '../../types/posts'
 import { AvailableSlotsCard } from './AvailableSlotsCard'
 import { BestTimeCard } from './BestTimeCard'
-import { CalendarQuickActionsCard } from './CalendarQuickActionsCard'
 import { ScheduledVideoCard } from './ScheduledVideoCard'
 
 export function SelectedDatePanel({ date, posts, slots, selectedTime, bestTime, bestTimeLoading, busyPostId, onSelectTime, onOpenPost, onReschedulePost, onDeletePost }: { date: string; posts: CalendarPost[]; slots: AvailableSlot[]; selectedTime: string; bestTime: BestTimeInsight; bestTimeLoading: boolean; busyPostId: string | null; onSelectTime: (time: string) => void; onOpenPost: (post: CalendarPost) => void; onReschedulePost: (post: CalendarPost) => void; onDeletePost: (post: CalendarPost) => void }) {
@@ -15,6 +14,5 @@ export function SelectedDatePanel({ date, posts, slots, selectedTime, bestTime, 
     </section>
     <BestTimeCard insight={bestTime} isLoading={bestTimeLoading} onUseTime={onSelectTime} />
     <AvailableSlotsCard onSelect={onSelectTime} selectedTime={selectedTime} slots={slots} />
-    <CalendarQuickActionsCard date={date} time={selectedTime} />
   </aside>
 }
