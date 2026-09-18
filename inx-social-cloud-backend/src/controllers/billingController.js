@@ -77,7 +77,7 @@ async function createCheckoutSession(req, res, next) {
       return res.status(403).json({ error: 'Verify your email before choosing a subscription.' });
     }
 
-    const input = z.object({ plan: z.enum(['STARTER', 'PRO']) }).parse(req.body);
+    const input = z.object({ plan: z.enum(['CREATOR', 'PRO', 'BUSINESS', 'AGENCY']) }).parse(req.body);
     const stripe = stripeService.getStripe();
     const priceId = stripeService.priceIdForPlan(input.plan);
     if (!priceId) return res.status(503).json({ error: `${input.plan} Stripe Price ID is not configured.` });
@@ -124,10 +124,10 @@ async function createCheckoutSession(req, res, next) {
 
 function normalizedPlan(plan) {
   const value = String(plan || 'TRIAL').toUpperCase();
-  if (value === 'LIFETIME') return 'PLUS';
-  if (value === 'STARTER') return 'PRO';
-  if (value === 'PRO') return 'PLUS';
-  return value === 'TRIAL' ? value : 'TRIAL';
+  if (value === 'STARTER') return 'CREATOR';
+  if (value === 'PLUS' || value === 'LIFETIME') return 'PRO';
+  if (['TRIAL', 'CREATOR', 'PRO', 'BUSINESS', 'AGENCY'].includes(value)) return value;
+  return 'TRIAL';
 }
 
 async function billingOverview(req, res, next) {
