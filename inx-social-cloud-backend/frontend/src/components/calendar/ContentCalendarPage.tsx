@@ -212,7 +212,7 @@ export function ContentCalendarPage() {
     setActionError(null)
   }
 
-  if (calendar.isPending) return <CalendarSkeleton />
+  if (calendar.isPending || (feedAccounts.length > 0 && accountFeed.isPending && !accountFeed.data)) return <CalendarSkeleton />
   if (calendar.isError) {
     const currentError = calendar.error
     const sessionRequired = currentError instanceof ApiError && currentError.status === 401

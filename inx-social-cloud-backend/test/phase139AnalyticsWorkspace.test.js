@@ -51,7 +51,10 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(service, /providerMetricSummary/);
   assert.match(service, /ANALYTICS_CACHE_TTL_MS/);
   assert.match(service, /limit: '100'/);
-  assert.match(service, /page < 3 && rows\.length < 300/);
+  assert.match(service, /FEED_HISTORY_MAX_PAGES = 30/);
+  assert.match(service, /FEED_HISTORY_MAX_POSTS = 3000/);
+  assert.match(service, /seenCursors/);
+  assert.match(service, /newest && newest < since\.getTime\(\)/);
   assert.match(service, /cacheState/);
   assert.match(service, /persistMetricSnapshots/);
   assert.match(service, /buildMeasuredSeries/);
@@ -112,4 +115,27 @@ test('Analytics charts, tabs and report actions remain accessible and functional
   assert.match(exportButton, /window\.print/);
   assert.match(exportButton, /mailto:/);
   assert.match(motion, /prefers-reduced-motion/);
+});
+
+
+test('all sidebar workspaces use labelled progressive loading states instead of blank blocks', () => {
+  const loader = read('frontend/src/components/ui/WorkspaceLoadingState.tsx');
+  const main = read('frontend/src/main.tsx');
+  const posts = read('frontend/src/components/posts/PostsPage.tsx');
+  const media = read('frontend/src/components/media-library/MediaLibraryPage.tsx');
+  const bulk = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
+  const studio = read('frontend/src/components/ai-content-studio/AiContentStudioPage.tsx');
+  const settings = read('frontend/src/components/settings/SettingsPage.tsx');
+  const connections = read('frontend/src/components/connections/ConnectedAccountsPageV4.tsx');
+  const billing = read('frontend/src/components/billing/BillingPlansPage.tsx');
+  const calendar = read('frontend/src/components/calendar/ContentCalendarPage.tsx');
+  const analytics = read('frontend/src/components/analytics/AnalyticsPrimitives.tsx');
+
+  assert.match(loader, /Updating…/);
+  assert.match(loader, /Syncing live data/);
+  assert.match(loader, /motion-safe:animate-bounce/);
+  assert.match(main, /Suspense fallback/);
+  for (const page of [posts, media, bulk, studio, settings, connections, billing]) assert.match(page, /WorkspaceLoadingState/);
+  assert.match(calendar, /CalendarSkeleton/);
+  assert.match(analytics, /AnalyticsSkeleton/);
 });

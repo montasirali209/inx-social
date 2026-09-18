@@ -7,6 +7,8 @@ const SNAPSHOT_MIN_INTERVAL_MS = 45 * 60 * 1000;
 const SNAPSHOT_RETENTION_DAYS = 120;
 const SNAPSHOT_RUNTIME_INTERVAL_MS = 60 * 60 * 1000;
 const SNAPSHOT_RUNTIME_ACCOUNT_DELAY_MS = 5000;
+const FEED_HISTORY_MAX_PAGES = 30;
+const FEED_HISTORY_MAX_POSTS = 3000;
 const analyticsCache = new Map();
 const analyticsInflight = new Map();
 let snapshotRuntimeTimer = null;
@@ -53,21 +55,37 @@ function pinterestWindow(metrics) {
   return metrics?.lifetime_metrics || metrics?.['90d'] || {};
 }
 
+function genericMetrics(raw = {}) {
+  const reactions = pick(raw, ['reactions_total', 'reactions', 'likes', 'like_count']);
+  const comments = pick(raw, ['comments', 'comment_count', 'replies', 'reply_count']);
+  const shares = pick(raw, ['shares', 'share_count', 'reposts', 'retweet_count']);
+  const saves = pick(raw, ['saves', 'saved', 'bookmarks', 'bookmark_count']);
+  const clicks = pick(raw, ['clicks', 'link_clicks', 'post_clicks', 'outbound_clicks', 'website_clicks']);
+  const views = pick(raw, ['views', 'media_views', 'video_views', 'impressions', 'impression_count', 'reach']);
+  const explicitInteractions = pick(raw, ['engagements', 'engagement', 'total_interactions', 'interactions']);
+  const interactions = explicitInteractions || reactions + comments + shares + saves;
+  const follows = pick(raw, ['follows', 'new_followers', 'subscribers_gained']);
+  return { views, reactions, comments, shares, clicks, follows, interactions };
+}
+
 function normaliseMetrics(platform, raw = {}) {
+  const generic = genericMetrics(raw);
   if (platform === 'facebook') {
-    const views = pick(raw, ['media_views', 'video_views', 'reach']);
-    const reactions = pick(raw, ['reactions_total']);
-    const comments = pick(raw, ['comments']);
-    const shares = pick(raw, ['shares']);
-    return { views, reactions, comments, shares, clicks: 0, follows: 0, interactions: reactions + comments + shares };
+    const views = generic.views || pick(raw, ['media_views', 'video_views', 'reach', 'impressions']);
+    const reactions = generic.reactions || pick(raw, ['reactions_total']);
+    const comments = generic.comments || pick(raw, ['comments']);
+    const shares = generic.shares || pick(raw, ['shares']);
+    const clicks = generic.clicks || pick(raw, ['post_clicks', 'link_clicks']);
+    const interactions = generic.interactions || reactions + comments + shares;
+    return { views, reactions, comments, shares, clicks, follows: generic.follows, interactions };
   }
   if (platform === 'instagram') {
-    const reactions = pick(raw, ['likes']);
-    const comments = pick(raw, ['comments', 'replies']);
-    const shares = pick(raw, ['shares']);
-    const interactions = pick(raw, ['total_interactions']) || reactions + comments + shares + pick(raw, ['saved']);
+    const reactions = generic.reactions || pick(raw, ['likes']);
+    const comments = generic.comments || pick(raw, ['comments', 'replies']);
+    const shares = generic.shares || pick(raw, ['shares']);
+    const interactions = generic.interactions || pick(raw, ['total_interactions']) || reactions + comments + shares + pick(raw, ['saved']);
     const profileActivity = typeof raw.profile_activity === 'number' ? raw.profile_activity : 0;
-    return { views: pick(raw, ['views', 'reach']), reactions, comments, shares, clicks: profileActivity, follows: pick(raw, ['follows']), interactions };
+    return { views: generic.views || pick(raw, ['views', 'reach', 'impressions']), reactions, comments, shares, clicks: generic.clicks || profileActivity, follows: generic.follows || pick(raw, ['follows']), interactions };
   }
   if (platform === 'linkedin') {
     const reactions = pick(raw, ['likeCount']);
@@ -119,7 +137,7 @@ function normaliseMetrics(platform, raw = {}) {
     const shares = pick(raw, ['repostCount', 'quoteCount']);
     return { views: 0, reactions, comments, shares, clicks: 0, follows: 0, interactions: reactions + comments + shares };
   }
-  return { views: 0, reactions: 0, comments: 0, shares: 0, clicks: 0, follows: 0, interactions: 0 };
+  return generic;
 }
 
 function metricAggregation(key) {
@@ -364,20 +382,43 @@ async function fetchFeed(profile, days) {
   if (!accountId) throw Object.assign(new Error('The analytics connection mapping is missing.'), { status: 409 });
   const { since } = dateRange(days);
   const rows = [];
+  const seenPostIds = new Set();
+  const seenCursors = new Set();
   let cursor = '';
-  for (let page = 0; page < 3 && rows.length < 300; page += 1) {
+
+  for (let page = 0; page < FEED_HISTORY_MAX_PAGES && rows.length < FEED_HISTORY_MAX_POSTS; page += 1) {
     const params = new URLSearchParams({ limit: '100' });
     params.append('expand', 'metrics');
     if (cursor) params.set('cursor', cursor);
+
     const response = await postForMe.apiRequest('GET', `/social-account-feeds/${encodeURIComponent(accountId)}?${params.toString()}`);
     const items = Array.isArray(response?.data) ? response.data : [];
-    rows.push(...items);
-    if (!items.length || !response?.meta?.has_more) break;
-    const oldest = items.map((item) => new Date(item.posted_at || 0).getTime()).filter(Number.isFinite).sort((a, b) => a - b)[0];
-    if (oldest && oldest < since.getTime()) break;
-    cursor = String(response?.meta?.cursor || '');
-    if (!cursor) break;
+    for (const item of items) {
+      const key = String(item?.id || item?.platform_post_id || item?.external_post_id || `${item?.posted_at || ''}:${item?.caption || ''}`);
+      if (key && seenPostIds.has(key)) continue;
+      if (key) seenPostIds.add(key);
+      rows.push(item);
+      if (rows.length >= FEED_HISTORY_MAX_POSTS) break;
+    }
+
+    if (!items.length || !response?.meta?.has_more || rows.length >= FEED_HISTORY_MAX_POSTS) break;
+
+    const timestamps = items
+      .map((item) => new Date(item.posted_at || 0).getTime())
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const newest = timestamps.length ? Math.max(...timestamps) : null;
+
+    // Account feeds are normally newest-first. Only stop at the date boundary
+    // when the entire returned page is already older than the requested range.
+    // A page that merely straddles the boundary can still contain valid posts.
+    if (newest && newest < since.getTime()) break;
+
+    const nextCursor = String(response?.meta?.cursor || '').trim();
+    if (!nextCursor || seenCursors.has(nextCursor)) break;
+    seenCursors.add(nextCursor);
+    cursor = nextCursor;
   }
+
   return rows;
 }
 
