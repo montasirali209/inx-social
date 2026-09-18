@@ -153,7 +153,8 @@ export function buildAnalyticsView(analytics: PlatformAnalytics, days: number): 
     ? { id: 'engagement-rate', label: 'Engagement Rate', value: derivedEngagementRate, format: 'percent', detail: engagementDetail, tone: 'red', sparkline: sparkline(performance, 'engagements') }
     : { id: 'comments', label: 'Comments', value: analytics.summary.comments, format: 'compact', detail: 'Comments returned for published content', tone: 'red', sparkline: sparkline(performance, 'engagements') }
 
-  const clicksOrEngagedPosts: AnalyticsStat = hasClickData
+  const hasClickActivity = hasClickData && Number(analytics.summary.clicks || 0) > 0
+  const clicksOrEngagedPosts: AnalyticsStat = hasClickActivity
     ? { id: 'clicks', label: 'Link Clicks', value: analytics.summary.clicks, format: 'compact', detail: 'Published-content clicks', tone: 'amber', sparkline: sparkline(performance, 'linkClicks') }
     : { id: 'engaged-posts', label: 'Engaged Posts', value: engagedPosts, format: 'integer', detail: 'Posts with at least one interaction', tone: 'amber', sparkline: performance.map(point => point.engagements > 0 ? 1 : 0) }
 
