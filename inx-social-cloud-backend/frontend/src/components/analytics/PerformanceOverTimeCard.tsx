@@ -81,7 +81,7 @@ export function PerformanceOverTimeCard({
   const niceStep = Math.max(1, Math.ceil(roughStep / magnitude) * magnitude)
   const maximum = Math.max(5, niceStep * 5)
   const labelEvery = Math.max(1, Math.ceil(points.length / 6))
-  const activeSeries = useMemo(() => metricSeries.filter(item => points.some(point => point[item.key] !== 0)), [metricSeries, points])
+  const activeSeries = useMemo(() => metricSeries.filter(item => points.some(point => point[item.key] !== 0)), [points])
   const renderedSeries = activeSeries.length ? activeSeries : [metricSeries[0]]
 
   function track(event: ReactPointerEvent<SVGSVGElement>) {
