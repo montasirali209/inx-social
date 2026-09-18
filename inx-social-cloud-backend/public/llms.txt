@@ -38,7 +38,23 @@ The free caption generator is a lightweight browser-based helper. It does not re
 ## Product scope
 INXSocial is designed as a complete social media management workspace rather than a scheduler or standalone media generator. The central workflow is post creation: a user provides a prompt, the AI Content Studio creates the requested media and prepares the associated publishing copy so the result can continue as a ready-to-publish social post inside INXSocial.
 
-INXSocial brings connected accounts, post creation, reusable media, single-post scheduling, bulk scheduling, publishing status, a visual content calendar, analytics and AI-assisted creation into one system. A user can connect multiple destinations across the nine supported social networks and choose one or many appropriate destinations for each post. Supported publishing and analytics capabilities vary by connected platform and by the permissions granted by that platform.
+INXSocial brings connected accounts, post creation, reusable media, single-post scheduling, bulk scheduling, publishing status, a visual content calendar, analytics and AI-assisted creation into one system. A user can connect multiple destinations across the nine supported social networks and choose one or many appropriate destinations for each post. The Content Calendar can combine scheduled INXSocial publications with available connected-account feed history, including posts published natively outside INXSocial. Analytics can show current post performance grouped by publish date and a separate measured live performance trend based on snapshots captured after INXSocial begins tracking. Supported publishing, feed and analytics capabilities vary by connected platform and by the permissions granted by that platform.
+
+## Current commercial plans
+- Trial: £0 for 7 days, up to 2 connected accounts, up to 50 destination publications during the trial, full workflow and 20 AI credits.
+- Creator: £18.99/month, up to 5 connected accounts and 150 AI credits/month.
+- Pro: £34.99/month, up to 12 connected accounts, 500 AI credits/month and Priority support.
+- Business: £59.99/month, up to 25 connected accounts, 1,200 AI credits/month and Priority support.
+- Agency: £99.99/month, up to 50 connected accounts, 2,500 AI credits/month and Priority+ support.
+
+All current plans include scheduling, Bulk Scheduler, Full Analytics, AI caption assistance and AI Content Studio. Paid plans are unlimited at the INXSocial publishing-product layer; external network permissions, formats and provider limits still apply. Paid plans can purchase one-time AI credit top-ups.
+
+## Calendar and analytics behaviour
+- Content Calendar imports available published feed history from connected accounts, including posts published natively outside INXSocial, and deduplicates that history against INXSocial publications where provider identifiers or platform URLs allow it.
+- Historical/native published feed items are read-only. Supported scheduled INXSocial posts retain management actions such as reschedule or remove.
+- Analytics defaults to Content Performance by Publish Date: current metrics for posts published in the selected period.
+- Live Performance Trend is separate and shows measured snapshot-to-snapshot changes after INXSocial begins tracking. It does not fabricate historical daily activity before tracking exists.
+- Analytics comparison currently supports up to three selected account sources. Metric coverage varies by network and granted permissions.
 
 ## AI Content Studio — available workflows
 The current AI Content Studio includes:

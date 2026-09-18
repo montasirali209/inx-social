@@ -34,7 +34,7 @@ test('crawl controls publish the canonical sitemap and let legacy utility URLs e
   assert.doesNotMatch(robots, /Disallow: \/portal\//);
   assert.doesNotMatch(robots, /Disallow: \/app\//);
   assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/sitemap\.xml/);
-  assert.match(sitemap, /<lastmod>2026-09-15<\/lastmod>/);
+  assert.match(sitemap, /<lastmod>2026-09-18<\/lastmod>/);
   assert.doesNotMatch(sitemap, /\/studio\//);
   assert.doesNotMatch(sitemap, /\/portal\//);
   assert.doesNotMatch(sitemap, /\/app\//);
