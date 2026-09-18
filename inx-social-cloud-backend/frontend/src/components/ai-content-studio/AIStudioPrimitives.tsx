@@ -225,7 +225,7 @@ export function AIWorkflowCard({ definition, enabled, onCreate }: { definition: 
     <div className="relative flex min-h-[326px] flex-col p-5">
       <div className="flex items-start justify-between gap-3">
         <span className={`grid size-12 place-items-center rounded-2xl border ${tone.icon}`}><Icon className="size-5" /></span>
-        {!enabled && <span className="inline-flex items-center gap-1 rounded-full border border-brand-amber/25 bg-brand-amber/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[.14em] text-brand-amber"><LockKeyhole className="size-3" />Plus</span>}
+        {!enabled && <span className="inline-flex items-center gap-1 rounded-full border border-brand-amber/25 bg-brand-amber/10 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[.14em] text-brand-amber"><LockKeyhole className="size-3" />Plan</span>}
       </div>
       <span className="mt-6 text-[9px] font-bold uppercase tracking-[.18em] text-text-muted">{definition.label}</span>
       <h3 className="mt-2 text-xl font-semibold tracking-tight">{definition.title}</h3>
@@ -249,7 +249,7 @@ export function CreditCostPreview({ credits, remaining, unlimited, configured }:
   return <div className={`rounded-2xl border p-4 ${insufficient ? 'border-brand-red/30 bg-brand-red/[.06]' : 'border-brand-teal/25 bg-brand-teal/[.045]'}`}>
     <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-xs font-semibold"><Coins className={`size-4 ${insufficient ? 'text-brand-red' : 'text-brand-amber'}`} />Estimated credit cost</span><strong className="text-lg">{credits}</strong></div>
     <p className="mt-1.5 text-[10px] leading-4 text-text-muted">This generation will use approximately {credits} credit{credits === 1 ? '' : 's'}. The backend validates and returns the final charge before the balance is updated.</p>
-    {insufficient && <div className="mt-3"><strong className="text-xs text-brand-red">Not enough AI credits.</strong><div className="mt-2 flex flex-wrap gap-2"><Link to="/billing"><Button size="sm">View Plus usage</Button></Link><Link to="/billing"><Button size="sm" variant="primary">Billing & Plans</Button></Link></div></div>}
+    {insufficient && <div className="mt-3"><strong className="text-xs text-brand-red">Not enough AI credits.</strong><div className="mt-2 flex flex-wrap gap-2"><Link to="/billing"><Button size="sm">View credit usage</Button></Link><Link to="/billing"><Button size="sm" variant="primary">Billing & Plans</Button></Link></div></div>}
   </div>
 }
 
