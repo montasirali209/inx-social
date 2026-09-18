@@ -36,11 +36,9 @@ export type VideoModelRecommendation = VideoStudioSelection & {
 export type StockVideoAccess = {
   enabled: boolean
   configured: boolean
-  limit: number
-  used: number
-  remaining: number
-  periodStart?: string
-  periodEnd?: string
+  creditsRemaining: number
+  creditsLimit: number
+  estimates: Record<string, number>
   providers?: { pexels: boolean; pixabay: boolean }
   commercialOutput?: boolean
   runtime?: { name: string; commit?: string; pipelines: string[]; studioWorkflow?: { name: string; version: string; stageCount: number; stages: string[] } | null; providerMenu?: unknown } | null
@@ -105,7 +103,7 @@ export function getStockVideoAccess() {
 }
 
 export function generateStockVideo(input: StockVideoSelection) {
-  return apiRequest<{ id: string; status: 'preparing'; progress: number }>('/api/ai-content-studio/generate/stock-video', {
+  return apiRequest<{ id: string; status: 'preparing'; progress: number; credits: number }>('/api/ai-content-studio/generate/stock-video', {
     method: 'POST', body: JSON.stringify(input),
   })
 }
