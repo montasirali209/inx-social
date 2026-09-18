@@ -54,7 +54,7 @@ test('Dashboard and Posts share universal KPIs while Calendar uses calendar-scop
   }
 
   assert.doesNotMatch(calendar, /universalPublishingKpiQueryKey|fetchUniversalPublishingKpis/);
-  assert.match(calendar, /calendar\.data\?\.stats/);
+  assert.match(calendar, /calendarData\?\.stats/);
   assert.match(calendarApi, /Scheduled This Week/);
   assert.match(calendarApi, /Published This Month/);
   assert.match(calendarApi, /Connected Accounts/);
