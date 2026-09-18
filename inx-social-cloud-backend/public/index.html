@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=5">
+  <link rel="stylesheet" href="/admin.css?v=6">
   <link rel="stylesheet" href="/admin-security.css?v=1">
 </head>
 <body>
@@ -69,10 +69,10 @@
     <section class="page hidden" id="aiAccessPage">
       <div class="section-head"><div><h2>AI Content Studio Access</h2><p>Control who can see and use AI Content Studio independently of model routing.</p></div><span class="status-chip">Backend enforced</span></div>
       <form class="panel policy-form" id="agentAccessForm">
-        <div class="policy-hero"><span>✦</span><div><h3>Global availability</h3><p>Plus-only is the recommended production policy. Individual overrides are managed from Customers.</p></div></div>
-        <label>Social Agent availability<select id="agentAvailability"><option value="PLUS_ONLY">Plus subscribers only — recommended</option><option value="ADMIN_ONLY">Admins only — development mode</option><option value="EVERYONE">All active subscribers</option><option value="DISABLED">Disabled for everyone</option></select></label>
+        <div class="policy-hero"><span>✦</span><div><h3>Social Agent availability</h3><p>This policy controls the autonomous Social Agent separately from the AI Content Studio credit system. Customer plan and credit overrides are managed from Customers.</p></div></div>
+        <label>Social Agent availability<select id="agentAvailability"><option value="PLUS_ONLY">Higher-tier/legacy policy</option><option value="ADMIN_ONLY">Admins only — development mode</option><option value="EVERYONE">All active subscribers</option><option value="DISABLED">Disabled for everyone</option></select></label>
         <div class="limit-grid"><label>Trial monthly missions<input id="agentLimitTrial" type="number" min="0"></label><label>Pro monthly missions<input id="agentLimitPro" type="number" min="0"></label><label>Plus monthly missions<input id="agentLimitPlus" type="number" min="0"></label><label>Legacy lifetime missions<input id="agentLimitLifetime" type="number" min="0"></label></div>
-        <div class="callout"><b>Frontend behaviour</b><span>Trial and Pro users see an upgrade-to-Plus dialog. An explicit Allow override can temporarily enable a development tester.</span></div>
+        <div class="callout"><b>Important distinction</b><span>Social Agent mission limits are separate from AI Content Studio generation credits. Use the Customers screen to override Creator, Pro, Business or Agency access and to adjust AI credits.</span></div>
         <button class="primary" type="submit">Save AI access policy</button>
       </form>
       <details class="panel advanced-note">
@@ -138,7 +138,7 @@
 
 <dialog id="userDialog"><form method="dialog" class="modal"><button class="close" value="cancel" aria-label="Close">×</button><span class="kicker">Customer access</span><h2 id="modalTitle">Manage customer</h2><div id="modalBody"></div><footer><button value="cancel" class="secondary">Close</button><button id="saveAccessBtn" type="button" class="primary">Save changes</button></footer></form></dialog>
 
-<dialog id="createUserDialog"><form class="modal" id="createUserForm"><button class="close" type="button" data-close-create aria-label="Close">×</button><span class="kicker">Direct provisioning</span><h2>Create verified customer</h2><p class="muted">The customer account is ready immediately. A secure temporary password is displayed once after creation.</p><div class="form-grid"><label>Full name<input id="createName" required minlength="2"></label><label>Email address<input id="createEmail" type="email" required></label><label>Plan<select id="createPlan"><option value="TRIAL">Trial</option><option value="PRO">Pro — manual access</option><option value="PLUS">Plus — manual access</option></select></label><label id="trialDaysLabel">Trial length (days)<input id="createTrialDays" type="number" min="1" max="365" value="5"></label></div><footer><button type="button" class="secondary" data-close-create>Cancel</button><button type="submit" class="primary">Create customer</button></footer></form></dialog>
+<dialog id="createUserDialog"><form class="modal" id="createUserForm"><button class="close" type="button" data-close-create aria-label="Close">×</button><span class="kicker">Direct provisioning</span><h2>Create verified customer</h2><p class="muted">The customer account is ready immediately. A secure temporary password is displayed once after creation.</p><div class="form-grid"><label>Full name<input id="createName" required minlength="2"></label><label>Email address<input id="createEmail" type="email" required></label><label>Plan<select id="createPlan"><option value="TRIAL">Trial</option><option value="CREATOR">Creator — manual access</option><option value="PRO">Pro — manual access</option><option value="BUSINESS">Business — manual access</option><option value="AGENCY">Agency — manual access</option></select></label><label id="trialDaysLabel">Trial length (days)<input id="createTrialDays" type="number" min="1" max="365" value="7"></label></div><footer><button type="button" class="secondary" data-close-create>Cancel</button><button type="submit" class="primary">Create customer</button></footer></form></dialog>
 
 <dialog id="credentialDialog"><div class="modal"><span class="kicker">Customer created</span><h2>Copy the temporary password now</h2><p class="muted">It will not be displayed again. Send it through a secure channel and ask the customer to reset it.</p><div class="credential"><code id="temporaryPassword"></code><button id="copyPasswordBtn" class="secondary">Copy</button></div><footer><button id="closeCredentialBtn" class="primary">Done</button></footer></div></dialog>
 
@@ -146,6 +146,6 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=5" defer></script>
+<script src="/admin.js?v=6" defer></script>
 </body>
 </html>

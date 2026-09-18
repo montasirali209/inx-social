@@ -5,6 +5,8 @@ const { hashPassword } = require('../utils/auth');
 const aiModelRouting = require('../services/aiModelRoutingService');
 const agentBrain = require('../services/agentBrainService');
 const agentAccess = require('../services/agentAccessService');
+const licenseService = require('../services/licenseService');
+const aiCredits = require('../services/aiCreditService');
 
 function safeUserSelect() {
   return {
@@ -22,6 +24,51 @@ function safeUserSelect() {
     devices: { orderBy: { createdAt: 'desc' }, take: 10 },
     connectedPages: { orderBy: { createdAt: 'desc' }, take: 10 },
     scheduleJobs: { orderBy: { createdAt: 'desc' }, take: 10 }
+  };
+}
+
+function activeAdminOverride(subscriptions = [], now = new Date()) {
+  return subscriptions.find(sub => licenseService.isActiveAdminOverride(sub, now)) || null;
+}
+
+function underlyingSubscription(subscriptions = []) {
+  return subscriptions.find(sub => String(sub?.provider || '').toLowerCase() !== 'admin_override') || null;
+}
+
+async function commercialSnapshot(userId) {
+  const subscriptions = await prisma.subscription.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    take: 20
+  });
+  const license = await licenseService.getLicenseStatus(userId);
+  let credits = null;
+  if (license.allowed) {
+    try { credits = await aiCredits.getBalance(userId); } catch (_) { credits = null; }
+  }
+  const override = activeAdminOverride(subscriptions);
+  const billing = underlyingSubscription(subscriptions);
+  return {
+    effectivePlan: license.plan,
+    sourcePlan: license.sourcePlan,
+    provider: license.provider,
+    administrator: Boolean(license.administrator),
+    manualOverride: override ? {
+      id: override.id,
+      plan: override.plan,
+      status: override.status,
+      startsAt: override.currentPeriodStart,
+      expiresAt: override.currentPeriodEnd,
+      permanent: !override.currentPeriodEnd
+    } : null,
+    underlyingBilling: billing ? {
+      plan: billing.plan,
+      status: billing.status,
+      provider: billing.provider,
+      currentPeriodEnd: billing.currentPeriodEnd,
+      stripeManaged: billing.provider === 'stripe'
+    } : null,
+    credits
   };
 }
 
@@ -70,13 +117,21 @@ async function users(req, res, next) {
         emailVerifiedAt: true,
         marketingOptIn: true,
         createdAt: true,
-        subscriptions: { orderBy: { createdAt: 'desc' }, take: 1 },
+        subscriptions: { orderBy: { createdAt: 'desc' }, take: 8 },
         devices: { select: { id: true, deviceName: true, deviceId: true, status: true, lastSeenAt: true } },
         connectedPages: { select: { id: true, facebookPageName: true, facebookPageId: true, status: true } }
       }
     });
     const overrides = await agentAccess.getUserOverrides();
-    res.json({ users: users.map(user => ({ ...user, aiStudioAccess: overrides[user.id] || 'DEFAULT' })) });
+    const now = new Date();
+    res.json({ users: users.map(user => {
+      const override = activeAdminOverride(user.subscriptions || [], now);
+      const base = underlyingSubscription(user.subscriptions || []);
+      const effectivePlan = ['ADMIN', 'SUPER_ADMIN'].includes(String(user.role || '').toUpperCase())
+        ? 'AGENCY'
+        : (override?.plan || base?.plan || 'TRIAL');
+      return { ...user, effectivePlan, manualPlanOverride: Boolean(override), aiStudioAccess: overrides[user.id] || 'DEFAULT' };
+    }) });
   } catch (err) { next(err); }
 }
 
@@ -84,7 +139,7 @@ async function userDetail(req, res, next) {
   try {
     const user = await prisma.user.findUnique({ where: { id: req.params.id }, select: safeUserSelect() });
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json({ user: { ...user, aiStudioAccess: await agentAccess.getUserOverride(user.id) } });
+    res.json({ user: { ...user, effectivePlan: (await licenseService.getLicenseStatus(user.id)).plan, commercialAccess: await commercialSnapshot(user.id), aiStudioAccess: await agentAccess.getUserOverride(user.id) } });
   } catch (err) { next(err); }
 }
 
@@ -94,11 +149,9 @@ async function updateUserAccess(req, res, next) {
       status: z.enum(['PENDING_VERIFICATION', 'TRIAL', 'ACTIVE', 'SUSPENDED', 'CANCELLED']).optional(),
       role: z.enum(['USER', 'ADMIN', 'SUPER_ADMIN']).optional(),
       trialDays: z.number().int().min(0).max(365).optional(),
-      plan: z.enum(['TRIAL', 'PRO', 'PLUS', 'LIFETIME']).optional(),
-      subscriptionStatus: z.enum(['TRIALING', 'ACTIVE', 'MANUAL', 'PAST_DUE', 'CANCELLED', 'PAUSED']).optional(),
       aiStudioAccess: z.enum(['DEFAULT', 'ALLOW', 'DENY']).optional()
     }).parse(req.body || {});
-    const { status, role, trialDays, plan, subscriptionStatus, aiStudioAccess } = input;
+    const { status, role, trialDays, aiStudioAccess } = input;
     const currentUser = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, role: true } });
     if (!currentUser) return res.status(404).json({ error: 'User not found' });
     if (role && role !== currentUser.role && req.user.role !== 'SUPER_ADMIN') return res.status(403).json({ error: 'Only a super administrator can change account roles.' });
@@ -114,21 +167,7 @@ async function updateUserAccess(req, res, next) {
     }
 
     const user = await prisma.user.update({ where: { id: req.params.id }, data });
-
     if (aiStudioAccess) await agentAccess.setUserOverride(user.id, aiStudioAccess);
-
-    if (plan || subscriptionStatus) {
-      await prisma.subscription.create({
-        data: {
-          userId: user.id,
-          plan: plan || 'MANUAL',
-          status: subscriptionStatus || 'MANUAL',
-          provider: 'manual',
-          currentPeriodStart: new Date(),
-          currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-        }
-      });
-    }
 
     await prisma.auditLog.create({
       data: {
@@ -136,12 +175,89 @@ async function updateUserAccess(req, res, next) {
         action: 'ADMIN_UPDATE_USER_ACCESS',
         entity: 'User',
         entityId: user.id,
-        metadata: JSON.stringify({ status, role, trialDays, plan, subscriptionStatus, aiStudioAccess })
+        metadata: JSON.stringify({ status, role, trialDays, aiStudioAccess })
       }
     });
 
     const updated = await prisma.user.findUnique({ where: { id: req.params.id }, select: safeUserSelect() });
-    res.json({ ok: true, user: { ...updated, aiStudioAccess: await agentAccess.getUserOverride(user.id) } });
+    res.json({ ok: true, user: { ...updated, commercialAccess: await commercialSnapshot(user.id), aiStudioAccess: await agentAccess.getUserOverride(user.id) } });
+  } catch (err) { next(err); }
+}
+
+async function updateCommercialPlan(req, res, next) {
+  try {
+    const input = z.object({
+      action: z.enum(['APPLY', 'REVOKE']).default('APPLY'),
+      plan: z.enum(['TRIAL', 'CREATOR', 'PRO', 'BUSINESS', 'AGENCY']).optional(),
+      durationDays: z.number().int().min(1).max(3650).nullable().optional(),
+      reason: z.string().trim().max(500).optional()
+    }).parse(req.body || {});
+    const user = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, role: true, status: true } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (user.role !== 'USER') return res.status(400).json({ error: 'Administrator accounts already receive administrator access and do not need a customer plan override.' });
+
+    const now = new Date();
+    await prisma.subscription.updateMany({
+      where: { userId: user.id, provider: 'admin_override', status: { in: ['ACTIVE', 'MANUAL'] } },
+      data: { status: 'CANCELLED', currentPeriodEnd: now }
+    });
+
+    if (input.action === 'APPLY') {
+      if (!input.plan) return res.status(400).json({ error: 'plan is required when applying an override.' });
+      const effectiveDays = input.plan === 'TRIAL' && input.durationDays == null ? 7 : input.durationDays;
+      const expiresAt = typeof effectiveDays === 'number' ? new Date(now.getTime() + effectiveDays * 86400000) : null;
+      await prisma.subscription.create({
+        data: {
+          userId: user.id,
+          plan: input.plan,
+          status: 'MANUAL',
+          provider: 'admin_override',
+          currentPeriodStart: now,
+          currentPeriodEnd: expiresAt
+        }
+      });
+      if (user.status !== 'SUSPENDED') {
+        await prisma.user.update({ where: { id: user.id }, data: { status: input.plan === 'TRIAL' ? 'TRIAL' : 'ACTIVE', ...(input.plan === 'TRIAL' && expiresAt ? { trialEndsAt: expiresAt } : {}) } });
+      }
+    }
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: input.action === 'APPLY' ? 'ADMIN_PLAN_OVERRIDE_APPLIED' : 'ADMIN_PLAN_OVERRIDE_REVOKED',
+        entity: 'User',
+        entityId: user.id,
+        metadata: JSON.stringify({ plan: input.plan || null, durationDays: input.durationDays ?? null, reason: input.reason || null })
+      }
+    });
+
+    res.json({ ok: true, commercialAccess: await commercialSnapshot(user.id) });
+  } catch (err) { next(err); }
+}
+
+async function adjustUserCredits(req, res, next) {
+  try {
+    const input = z.object({
+      action: z.enum(['ADD', 'REMOVE', 'SET', 'RESET_PLAN']),
+      credits: z.number().int().min(0).max(1000000).default(0),
+      reason: z.string().trim().max(500).optional()
+    }).parse(req.body || {});
+    const user = await prisma.user.findUnique({ where: { id: req.params.id }, select: { id: true, role: true } });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    const balance = await aiCredits.adminAdjustCredits(user.id, input.action, input.credits, {
+      adminUserId: req.user.id,
+      reason: input.reason || null
+    });
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'ADMIN_AI_CREDITS_ADJUSTED',
+        entity: 'User',
+        entityId: user.id,
+        metadata: JSON.stringify({ action: input.action, credits: input.credits, reason: input.reason || null, resultingBalance: balance.remaining })
+      }
+    });
+    res.json({ ok: true, balance, commercialAccess: await commercialSnapshot(user.id) });
   } catch (err) { next(err); }
 }
 
@@ -154,8 +270,8 @@ async function createUser(req, res, next) {
     const input = z.object({
       name: z.string().trim().min(2).max(100),
       email: z.string().trim().email(),
-      plan: z.enum(['TRIAL', 'PRO', 'PLUS']).default('TRIAL'),
-      trialDays: z.coerce.number().int().min(1).max(365).default(5)
+      plan: z.enum(['TRIAL', 'CREATOR', 'PRO', 'BUSINESS', 'AGENCY']).default('TRIAL'),
+      trialDays: z.coerce.number().int().min(1).max(365).default(7)
     }).parse(req.body || {});
     const email = input.email.toLowerCase();
     if (await prisma.user.findUnique({ where: { email } })) return res.status(409).json({ error: 'A user with this email already exists.' });
@@ -164,7 +280,7 @@ async function createUser(req, res, next) {
     const trialEndsAt = input.plan === 'TRIAL' ? new Date(now.getTime() + input.trialDays * 86400000) : null;
     const user = await prisma.$transaction(async tx => {
       const created = await tx.user.create({ data: { name: input.name, email, passwordHash: await hashPassword(password), role: 'USER', status: input.plan === 'TRIAL' ? 'TRIAL' : 'ACTIVE', emailVerifiedAt: now, trialEndsAt } });
-      await tx.subscription.create({ data: { userId: created.id, plan: input.plan, status: input.plan === 'TRIAL' ? 'TRIALING' : 'MANUAL', provider: input.plan === 'TRIAL' ? 'internal' : 'manual', currentPeriodStart: now, currentPeriodEnd: input.plan === 'TRIAL' ? trialEndsAt : new Date(now.getTime() + 30 * 86400000) } });
+      await tx.subscription.create({ data: { userId: created.id, plan: input.plan, status: input.plan === 'TRIAL' ? 'TRIALING' : 'MANUAL', provider: input.plan === 'TRIAL' ? 'internal' : 'admin_override', currentPeriodStart: now, currentPeriodEnd: input.plan === 'TRIAL' ? trialEndsAt : null } });
       await tx.auditLog.create({ data: { userId: req.user.id, action: 'ADMIN_CREATE_USER', entity: 'User', entityId: created.id, metadata: JSON.stringify({ email, plan: input.plan }) } });
       return created;
     });
@@ -249,4 +365,4 @@ async function reviewAgentLearning(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { overview, users, userDetail, createUser, updateUserAccess, settings, updateSetting, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning };
+module.exports = { overview, users, userDetail, createUser, updateUserAccess, updateCommercialPlan, adjustUserCredits, settings, updateSetting, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning };

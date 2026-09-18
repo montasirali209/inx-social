@@ -32,6 +32,9 @@ export type Subscription = {
   cancelAtPeriodEnd: boolean
   canManage: boolean
   legacyLifetime?: boolean
+  administrator?: boolean
+  manualOverride?: boolean
+  overrideExpiresAt?: string | null
 }
 
 export type InvoiceStatus = 'paid' | 'upcoming' | 'failed' | 'refunded'
