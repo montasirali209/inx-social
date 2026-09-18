@@ -39,7 +39,7 @@ import { useUiStore } from '../../store/ui-store'
 import { Button } from '../ui/Button'
 import { SocialPlatformIcon, type SocialPlatformName } from '../ui/SocialPlatformIcon'
 
-type UiPlatform = Platform | 'whatsapp' | 'mastodon'
+type UiPlatform = Platform
 type ConnectionStatus =
   | 'connected'
   | 'syncing'
@@ -83,26 +83,14 @@ type ActivityItem = {
   status: 'success' | 'warning' | 'error' | 'info'
 }
 
-const extraPlatformMeta = {
-  whatsapp: {
-    label: 'WhatsApp',
-    description: 'Business messaging connection support is not enabled by the current publishing gateway.',
-  },
-  mastodon: {
-    label: 'Mastodon',
-    description: 'Federated publishing support is not enabled by the current publishing gateway.',
-  },
-} as const
-
-const allUiPlatforms: UiPlatform[] = [...customerFacingPlatforms, 'whatsapp', 'mastodon']
-const connectTiles: UiPlatform[] = [...customerFacingPlatforms, 'whatsapp']
+const allUiPlatforms: UiPlatform[] = customerFacingPlatforms.filter((platform) => platform !== 'google_business')
+const connectTiles: UiPlatform[] = [...allUiPlatforms]
 
 function isGatewayPlatform(platform: UiPlatform): platform is Platform {
-  return platform !== 'whatsapp' && platform !== 'mastodon' && platform !== 'google_business'
+  return platform !== 'google_business'
 }
 
 function metaFor(platform: UiPlatform) {
-  if (platform === 'whatsapp' || platform === 'mastodon') return extraPlatformMeta[platform]
   return platformMeta[platform]
 }
 
@@ -122,8 +110,6 @@ function platformHome(platform: UiPlatform) {
     threads: 'https://www.threads.net/',
     bluesky: 'https://bsky.app/',
     google_business: 'https://business.google.com/',
-    whatsapp: 'https://www.whatsapp.com/',
-    mastodon: 'https://joinmastodon.org/',
   }
   return urls[platform]
 }
@@ -217,24 +203,6 @@ function toAccountModel(identity: ConnectedIdentity, workspace: Awaited<ReturnTy
   }
 }
 
-function placeholderAccount(platform: UiPlatform): AccountModel {
-  return {
-    id: `placeholder:${platform}`,
-    connectionId: null,
-    platform,
-    platformLabel: labelFor(platform),
-    accountName: 'Not Connected',
-    accountType: 'Connect when available',
-    status: 'not_connected',
-    publishingEnabled: false,
-    schedulerEnabled: false,
-    analyticsEnabled: false,
-    tokenStatus: 'Not connected',
-    permissions: [],
-    detail: metaFor(platform).description,
-  }
-}
-
 function Modal({ title, subtitle, onClose, children, maxWidth = 'max-w-xl' }: { title: string; subtitle?: string; onClose: () => void; children: ReactNode; maxWidth?: string }) {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-3 backdrop-blur-sm sm:p-5" role="dialog" aria-modal="true" aria-label={title}>
@@ -253,13 +221,23 @@ function Modal({ title, subtitle, onClose, children, maxWidth = 'max-w-xl' }: { 
 }
 
 function Drawer({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const [entered, setEntered] = useState(false)
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setEntered(true))
+    return () => window.cancelAnimationFrame(frame)
+  }, [])
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-end bg-black/60 backdrop-blur-[2px] sm:items-stretch" role="dialog" aria-modal="true" aria-label={title}>
+    <div className={`fixed inset-0 z-50 flex items-end justify-end transition-[background-color,backdrop-filter] duration-300 sm:items-stretch ${entered ? 'bg-black/62 backdrop-blur-[5px]' : 'bg-black/0 backdrop-blur-0'}`} role="dialog" aria-modal="true" aria-label={title}>
       <button aria-label="Close drawer" className="absolute inset-0 cursor-default" onClick={onClose} type="button" />
-      <section className="relative z-10 max-h-[88dvh] w-full overflow-y-auto rounded-t-3xl border border-border-soft bg-[#061622] shadow-[-30px_0_90px_rgba(0,0,0,.42)] sm:max-h-none sm:max-w-[31rem] sm:rounded-none sm:border-y-0 sm:border-r-0">
-        <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border-soft bg-[#061622]/95 p-5 backdrop-blur-xl">
-          <h2 className="text-base font-semibold">{title}</h2>
-          <button aria-label="Close" className="grid size-9 place-items-center rounded-xl text-text-muted transition hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button"><X className="size-4" /></button>
+      <section className={`relative z-10 max-h-[90dvh] w-full overflow-y-auto rounded-t-[1.65rem] border border-brand-teal/18 bg-[linear-gradient(155deg,rgba(7,28,40,.985),rgba(4,17,29,.995))] shadow-[-38px_0_100px_rgba(0,0,0,.5),-1px_0_30px_rgba(20,184,166,.06)] transition-[transform,opacity] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] sm:max-h-none sm:max-w-[32rem] sm:rounded-none sm:border-y-0 sm:border-r-0 ${entered ? 'translate-y-0 opacity-100 sm:translate-x-0' : 'translate-y-full opacity-70 sm:translate-x-full sm:translate-y-0'}`}>
+        <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-brand-teal/12 bg-[#061622]/88 p-5 backdrop-blur-2xl">
+          <div>
+            <span className="text-[9px] font-semibold uppercase tracking-[.18em] text-brand-teal">Connected account</span>
+            <h2 className="mt-1 text-base font-semibold">{title}</h2>
+          </div>
+          <button aria-label="Close" className="grid size-9 place-items-center rounded-xl border border-transparent text-text-muted transition duration-200 hover:rotate-3 hover:border-brand-teal/20 hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button"><X className="size-4" /></button>
         </header>
         {children}
       </section>
@@ -289,9 +267,9 @@ function Toast({ toast, onClose }: { toast: ToastState; onClose: () => void }) {
   )
 }
 
-function PlatformIcon({ platform, size = 'md' }: { platform: UiPlatform; size?: 'sm' | 'md' | 'lg' }) {
+function PlatformIcon({ platform, size = 'md', className = '' }: { platform: UiPlatform; size?: 'sm' | 'md' | 'lg'; className?: string }) {
   const sizes = { sm: '!size-8', md: '!size-10', lg: '!size-12' }
-  return <SocialPlatformIcon className={sizes[size]} platform={platformIconName(platform)} />
+  return <SocialPlatformIcon className={`${sizes[size]} ${className}`} platform={platformIconName(platform)} />
 }
 
 function AccountStatusBadge({ status }: { status: ConnectionStatus }) {
@@ -314,35 +292,65 @@ function AccountStatusBadge({ status }: { status: ConnectionStatus }) {
   return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-semibold ${styles[status]}`}><span className="size-1.5 rounded-full bg-current" />{labels[status]}</span>
 }
 
-function Sparkline({ variant = 'line' }: { variant?: 'line' | 'bars' | 'ring' }) {
-  if (variant === 'ring') {
-    return (
-      <div className="relative size-12 rounded-full bg-[conic-gradient(#2dd4bf_0_86%,rgba(148,163,184,.14)_86%_100%)] p-[5px]">
-        <div className="size-full rounded-full bg-[#091b28]" />
-      </div>
-    )
-  }
-  if (variant === 'bars') {
-    return <div className="flex h-10 items-end gap-1">{[36, 54, 42, 76, 66, 92].map((height, index) => <span className="w-1.5 rounded-t bg-gradient-to-t from-brand-teal/25 to-brand-cyan/90" key={index} style={{ height: `${height}%` }} />)}</div>
-  }
+type TrendTone = 'positive' | 'negative' | 'neutral'
+
+function DataSparkline({ values, tone = 'neutral' }: { values: number[]; tone?: TrendTone }) {
+  const safe = values.length ? values : [0, 0]
+  const min = Math.min(...safe)
+  const max = Math.max(...safe)
+  const span = Math.max(1, max - min)
+  const points = safe.map((value, index) => {
+    const x = safe.length === 1 ? 40 : 3 + (index / (safe.length - 1)) * 74
+    const y = 34 - ((value - min) / span) * 27
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  }).join(' ')
+  const stroke = tone === 'negative' ? '#f59e0b' : tone === 'positive' ? '#2dd4bf' : '#64748b'
   return (
-    <svg aria-hidden="true" className="h-10 w-20 overflow-visible" viewBox="0 0 80 40">
-      <defs><linearGradient id="connectionSpark" x1="0" x2="1"><stop offset="0" stopColor="#14b8a6" stopOpacity=".35" /><stop offset="1" stopColor="#2dd4bf" stopOpacity=".95" /></linearGradient></defs>
-      <path d="M2 33 C9 31,10 24,16 25 S25 34,31 23 S42 20,47 13 S57 22,63 12 S72 11,78 4" fill="none" stroke="url(#connectionSpark)" strokeLinecap="round" strokeWidth="2" />
+    <svg aria-hidden="true" className="h-8 w-[4.6rem] overflow-visible" viewBox="0 0 80 40">
+      <polyline fill="none" points={points} stroke={stroke} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+      {safe.map((value, index) => {
+        const [x, y] = points.split(' ')[index].split(',')
+        return <circle cx={x} cy={y} fill={stroke} key={`${index}:${value}`} opacity={index === safe.length - 1 ? 1 : .42} r={index === safe.length - 1 ? 2.4 : 1.25} />
+      })}
     </svg>
   )
 }
 
-function StatCard({ icon, title, value, supporting, variant }: { icon: ReactNode; title: string; value: string; supporting: string; variant: 'line' | 'bars' | 'ring' }) {
+function ActivityBars({ active, total }: { active: number; total: number }) {
+  const count = Math.max(1, total)
   return (
-    <article className="group min-w-[230px] rounded-2xl border border-border-soft bg-[linear-gradient(145deg,rgba(10,27,45,.92),rgba(5,15,29,.96))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.025),0_16px_38px_rgba(0,0,0,.14)] transition duration-200 hover:-translate-y-0.5 hover:border-brand-teal/30 focus-within:border-brand-cyan/45 sm:min-w-0">
-      <div className="flex items-center justify-between gap-3">
-        <span className="grid size-11 place-items-center rounded-xl border border-brand-cyan/20 bg-gradient-to-br from-brand-cyan/13 to-brand-teal/5 text-brand-cyan shadow-[0_0_24px_rgba(34,211,238,.06)]">{icon}</span>
-        <Sparkline variant={variant} />
+    <div aria-label={`${active} of ${total} platforms active`} className="flex h-8 items-end gap-1" role="img">
+      {Array.from({ length: count }, (_, index) => {
+        const enabled = index < active
+        return <span className={`w-1.5 rounded-full transition-all duration-300 ${enabled ? 'bg-gradient-to-t from-brand-teal/45 to-brand-cyan shadow-[0_0_10px_rgba(34,211,238,.12)]' : 'bg-white/8'}`} key={index} style={{ height: `${enabled ? 36 + ((index * 13) % 52) : 20}%` }} />
+      })}
+    </div>
+  )
+}
+
+function HealthRing({ value }: { value: number }) {
+  const clamped = Math.max(0, Math.min(100, value))
+  return (
+    <div aria-label={`${clamped}% connection health`} className="relative size-10 rounded-full p-[4px]" role="img" style={{ background: `conic-gradient(#2dd4bf 0 ${clamped}%, rgba(148,163,184,.12) ${clamped}% 100%)` }}>
+      <div className="size-full rounded-full bg-[#091b28] shadow-[inset_0_0_12px_rgba(0,0,0,.35)]" />
+    </div>
+  )
+}
+
+function StatCard({ icon, title, value, supporting, tone = 'neutral', visual }: { icon: ReactNode; title: string; value: string; supporting: string; tone?: TrendTone; visual: ReactNode }) {
+  const supportTone = tone === 'positive' ? 'text-emerald-300' : tone === 'negative' ? 'text-amber-300' : 'text-text-muted'
+  return (
+    <article className="group relative min-w-[210px] overflow-hidden rounded-xl border border-border-soft bg-[linear-gradient(145deg,rgba(9,27,41,.88),rgba(4,16,27,.95))] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,.025),0_10px_28px_rgba(0,0,0,.11)] transition-[transform,border-color,box-shadow,background-color] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:scale-[1.008] hover:border-brand-teal/30 hover:shadow-[0_18px_38px_rgba(0,0,0,.18),0_0_28px_rgba(20,184,166,.04),inset_0_1px_0_rgba(255,255,255,.035)] focus-within:border-brand-cyan/45 sm:min-w-0">
+      <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-10 size-24 rounded-full bg-brand-teal/[.035] blur-xl transition duration-500 group-hover:scale-125 group-hover:bg-brand-teal/[.07]" />
+      <div className="relative flex items-start justify-between gap-3">
+        <span className="grid size-8 place-items-center rounded-lg border border-brand-cyan/18 bg-gradient-to-br from-brand-cyan/10 to-brand-teal/4 text-brand-cyan transition duration-300 group-hover:-rotate-3 group-hover:scale-105 group-hover:border-brand-teal/32 group-hover:shadow-[0_0_20px_rgba(20,184,166,.08)]">{icon}</span>
+        <div className="transition duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5">{visual}</div>
       </div>
-      <p className="mt-3 text-xs font-medium text-text-muted">{title}</p>
-      <strong className="mt-0.5 block text-2xl font-semibold tracking-[-0.035em] text-white">{value}</strong>
-      <p className="mt-1 text-[11px] font-medium text-emerald-300">{supporting}</p>
+      <div className="relative mt-2.5">
+        <p className="text-[10px] font-medium text-text-muted">{title}</p>
+        <strong className="mt-0.5 block text-xl font-semibold tracking-[-0.035em] text-white">{value}</strong>
+        <p className={`mt-1 text-[10px] font-medium ${supportTone}`}>{supporting}</p>
+      </div>
     </article>
   )
 }
@@ -360,15 +368,26 @@ function ConnectedAccountsHeader() {
   )
 }
 
-function ConnectedAccountsStats({ total, addedThisMonth, activePlatforms, platformTotal, postsThisWeek, postsTrend, health }: { total: number; addedThisMonth: number; activePlatforms: number; platformTotal: number; postsThisWeek: number; postsTrend: number; health: number }) {
-  const healthText = total ? `${health}% connection health` : 'Connect your first account'
-  const trendText = postsTrend >= 0 ? `+${postsTrend}% from last week` : `${postsTrend}% from last week`
+function ConnectedAccountsStats({ total, addedThisMonth, activePlatforms, platformTotal, postsThisWeek, postsPreviousWeek, postSeries, accountSeries, health }: { total: number; addedThisMonth: number; activePlatforms: number; platformTotal: number; postsThisWeek: number; postsPreviousWeek: number; postSeries: number[]; accountSeries: number[]; health: number }) {
+  const postDelta = postsThisWeek - postsPreviousWeek
+  const postTone: TrendTone = postDelta > 0 ? 'positive' : postDelta < 0 ? 'negative' : 'neutral'
+  const postText = postsThisWeek === 0 && postsPreviousWeek === 0
+    ? 'No posts published this week'
+    : postDelta === 0
+      ? 'No change from last week'
+      : postsPreviousWeek === 0
+        ? `${postsThisWeek} published this week`
+        : `${postDelta > 0 ? '+' : ''}${Math.round((postDelta / postsPreviousWeek) * 100)}% from last week`
+  const accountTone: TrendTone = addedThisMonth > 0 ? 'positive' : 'neutral'
+  const healthTone: TrendTone = health === 100 ? 'positive' : health >= 80 ? 'neutral' : 'negative'
+  const healthText = total ? (health === 100 ? 'All connections healthy' : `${health}% of connections healthy`) : 'Connect your first account'
+
   return (
-    <section className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4">
-      <StatCard icon={<UsersRound className="size-5" />} supporting={addedThisMonth ? `+${addedThisMonth} this month` : 'No new accounts this month'} title="Total Connected Accounts" value={String(total)} variant="line" />
-      <StatCard icon={<Sparkles className="size-5" />} supporting={activePlatforms ? 'All active connections visible' : 'Connect a platform to begin'} title="Active Platforms" value={`${activePlatforms} / ${platformTotal}`} variant="bars" />
-      <StatCard icon={<BarChart3 className="size-5" />} supporting={trendText} title="Posts This Week" value={String(postsThisWeek)} variant="line" />
-      <StatCard icon={<ShieldCheck className="size-5" />} supporting={healthText} title="Connection Health" value={`${health}%`} variant="ring" />
+    <section className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4">
+      <StatCard icon={<UsersRound className="size-4" />} supporting={addedThisMonth ? `+${addedThisMonth} this month` : 'No change this month'} title="Total Connected Accounts" tone={accountTone} value={String(total)} visual={<DataSparkline tone={accountTone} values={accountSeries} />} />
+      <StatCard icon={<Sparkles className="size-4" />} supporting={activePlatforms ? `${activePlatforms} active platform${activePlatforms === 1 ? '' : 's'}` : 'Connect a platform to begin'} title="Active Platforms" tone={activePlatforms ? 'positive' : 'neutral'} value={`${activePlatforms} / ${platformTotal}`} visual={<ActivityBars active={activePlatforms} total={platformTotal} />} />
+      <StatCard icon={<BarChart3 className="size-4" />} supporting={postText} title="Posts This Week" tone={postTone} value={String(postsThisWeek)} visual={<DataSparkline tone={postTone} values={postSeries} />} />
+      <StatCard icon={<ShieldCheck className="size-4" />} supporting={healthText} title="Connection Health" tone={healthTone} value={`${health}%`} visual={<HealthRing value={health} />} />
     </section>
   )
 }
@@ -447,7 +466,7 @@ function ConnectionActionsMenu({ account, onView, onRefresh, onReconnect, onPerm
 function PlatformCard({ account, refreshing, onView, onRefresh, onReconnect, onDisconnect, onConnect }: { account: AccountModel; refreshing: boolean; onView: () => void; onRefresh: () => void; onReconnect: () => void; onDisconnect: () => void; onConnect: () => void }) {
   const connected = account.status !== 'not_connected'
   return (
-    <article className="group relative min-h-[154px] rounded-xl border border-border-soft bg-[linear-gradient(150deg,rgba(13,34,50,.88),rgba(5,15,29,.96))] p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,.018)] transition duration-200 hover:-translate-y-0.5 hover:border-brand-teal/30 hover:bg-panel-hover/45 focus-within:border-brand-cyan/40">
+    <article className="group relative min-h-[132px] overflow-hidden rounded-xl border border-border-soft bg-[linear-gradient(150deg,rgba(12,32,47,.84),rgba(5,15,29,.95))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,.018)] transition-[transform,border-color,box-shadow,background-color] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:scale-[1.006] hover:border-brand-teal/30 hover:bg-panel-hover/38 hover:shadow-[0_14px_30px_rgba(0,0,0,.16),0_0_24px_rgba(20,184,166,.035)] focus-within:border-brand-cyan/40">
       <div className="flex items-start gap-3">
         <PlatformIcon platform={account.platform} />
         <div className="min-w-0 flex-1">
@@ -462,7 +481,7 @@ function PlatformCard({ account, refreshing, onView, onRefresh, onReconnect, onD
           {account.handle && <p className="mt-0.5 truncate text-[10px] text-text-soft">{metricLabel(account)}</p>}
         </div>
       </div>
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-2.5 flex items-center gap-2">
         {connected ? <>
           <Button className="min-w-0 flex-1" onClick={onView} size="sm" variant="secondary"><Eye className="size-3.5" />View</Button>
           <RefreshConnectionButton onRefresh={onRefresh} refreshing={refreshing} />
@@ -531,8 +550,8 @@ function ConnectedPlatformsSection({ accounts, viewMode, search, platformFilter,
   onMorePlatforms: () => void
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-border-soft bg-panel/45 backdrop-blur-xl">
-      <header className="border-b border-border-soft p-4">
+    <section className="overflow-hidden rounded-2xl border border-border-soft bg-panel/42 shadow-[inset_0_1px_0_rgba(255,255,255,.018)] backdrop-blur-xl">
+      <header className="border-b border-border-soft px-3 py-3">
         <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-end 2xl:justify-between">
           <div>
             <h2 className="text-base font-semibold">All Connected Platforms</h2>
@@ -552,7 +571,7 @@ function ConnectedPlatformsSection({ accounts, viewMode, search, platformFilter,
       </header>
 
       {!accounts.length ? <EmptyState onConnect={() => onConnect()} /> : viewMode === 'grid' ? (
-        <div className="grid gap-3 p-3 sm:grid-cols-2 2xl:grid-cols-3">
+        <div className="grid gap-2 p-2.5 sm:grid-cols-2 2xl:grid-cols-3">
           {accounts.map((account) => <PlatformCard account={account} key={account.id} onConnect={() => onConnect(account.platform)} onDisconnect={() => onDisconnect(account)} onReconnect={() => onReconnect(account)} onRefresh={() => onRefresh(account)} onView={() => onView(account)} refreshing={refreshingId === account.id} />)}
           <MorePlatformsCard onOpen={onMorePlatforms} />
         </div>
@@ -595,40 +614,47 @@ function ConnectionActivityPanel({ items, onViewAll }: { items: ActivityItem[]; 
 
 function ConnectPlatformTile({ platform, available, onConnect }: { platform: UiPlatform; available: boolean; onConnect: () => void }) {
   return (
-    <button className="group flex min-h-[92px] min-w-[94px] flex-col items-center justify-center rounded-xl border border-border-soft bg-bg/32 px-2 py-3 text-center transition hover:-translate-y-0.5 hover:border-brand-teal/35 hover:bg-panel-hover/40 focus-visible:outline-2 focus-visible:outline-brand-cyan disabled:cursor-not-allowed disabled:opacity-55" disabled={!available} onClick={onConnect} type="button">
-      <PlatformIcon platform={platform} size="sm" />
-      <strong className="mt-2 text-[11px]">{labelFor(platform)}</strong>
-      <span className={`mt-0.5 text-[10px] font-semibold ${available ? 'text-brand-cyan' : 'text-text-soft'}`}>{available ? 'Connect' : 'Unavailable'}</span>
+    <button className="group relative flex min-h-[78px] min-w-[82px] flex-col items-center justify-center rounded-xl border border-transparent bg-transparent px-2 py-2 text-center [perspective:500px] transition-[transform,background-color,border-color] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:border-brand-teal/10 hover:bg-brand-teal/[.025] focus-visible:outline-2 focus-visible:outline-brand-cyan disabled:cursor-not-allowed disabled:opacity-45" disabled={!available} onClick={onConnect} type="button">
+      <span className="relative grid place-items-center transition-[transform,filter] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] group-hover:[transform:rotateX(8deg)_rotateY(-8deg)_translateY(-2px)_scale(1.12)] group-hover:drop-shadow-[0_10px_18px_rgba(20,184,166,.22)]">
+        <span aria-hidden="true" className="absolute size-11 rounded-full bg-brand-teal/0 blur-xl transition duration-300 group-hover:bg-brand-teal/16" />
+        <PlatformIcon className="relative" platform={platform} size="sm" />
+      </span>
+      <strong className="mt-2 text-[10px] transition-colors duration-200 group-hover:text-white">{labelFor(platform)}</strong>
+      <span className="mt-0.5 text-[9px] font-semibold text-brand-cyan/90 transition group-hover:text-cyan-200">{available ? 'Connect' : 'Unavailable'}</span>
     </button>
   )
 }
 
 function ConnectNewAccountSection({ configured, onConnect, onMore }: { configured: boolean; onConnect: (platform: UiPlatform) => void; onMore: () => void }) {
   return (
-    <section className="rounded-2xl border border-border-soft bg-[linear-gradient(105deg,rgba(10,27,45,.78),rgba(5,15,29,.94))] p-4">
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-        <div><h2 className="text-base font-semibold">Connect a new account</h2><p className="mt-1 text-xs text-text-muted">Expand your reach. Connect more platforms and grow faster.</p></div>
-        <p className="hidden text-[11px] font-semibold italic text-brand-teal/80 lg:block">More platforms. Bigger possibilities.</p>
+    <section className="group relative overflow-hidden rounded-2xl border border-border-soft bg-[linear-gradient(105deg,rgba(9,28,42,.72),rgba(5,15,29,.9))] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,.02)] transition duration-300 hover:border-brand-teal/18">
+      <div aria-hidden="true" className="pointer-events-none absolute -right-20 -top-20 size-52 rounded-full bg-brand-teal/[.025] blur-3xl transition duration-500 group-hover:bg-brand-teal/[.05]" />
+      <div className="relative flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div><h2 className="text-sm font-semibold">Connect a new account</h2><p className="mt-0.5 text-[11px] text-text-muted">Expand your reach. Connect more platforms and grow faster.</p></div>
+        <p className="hidden text-[10px] font-semibold italic text-brand-teal/75 lg:block">More platforms. Bigger possibilities.</p>
       </div>
-      <div className="mt-4 flex gap-2 overflow-x-auto pb-1 xl:grid xl:grid-cols-11 xl:overflow-visible">
+      <div className="relative mt-2.5 flex gap-1 overflow-x-auto pb-1 xl:grid xl:grid-cols-10 xl:overflow-visible">
         {connectTiles.map((platform) => <ConnectPlatformTile available={configured && isGatewayPlatform(platform)} key={platform} onConnect={() => onConnect(platform)} platform={platform} />)}
-        <button className="flex min-h-[92px] min-w-[94px] flex-col items-center justify-center rounded-xl border border-border-soft bg-bg/32 px-2 py-3 text-center transition hover:-translate-y-0.5 hover:border-brand-teal/35 focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onMore} type="button"><span className="grid size-8 place-items-center rounded-full border border-border-soft bg-panel"><MoreHorizontal className="size-4 text-brand-cyan" /></span><strong className="mt-2 text-[11px]">More Platforms</strong><span className="mt-0.5 text-[10px] font-semibold text-brand-cyan">View All</span></button>
+        <button className="group/more flex min-h-[78px] min-w-[82px] flex-col items-center justify-center rounded-xl border border-transparent bg-transparent px-2 py-2 text-center transition duration-300 hover:-translate-y-1 hover:border-brand-teal/10 hover:bg-brand-teal/[.025] focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onMore} type="button"><span className="grid size-8 place-items-center rounded-full border border-brand-teal/18 bg-brand-teal/[.04] transition duration-300 group-hover/more:rotate-6 group-hover/more:scale-110 group-hover/more:border-brand-teal/35 group-hover/more:shadow-[0_0_20px_rgba(20,184,166,.1)]"><MoreHorizontal className="size-4 text-brand-cyan" /></span><strong className="mt-2 text-[10px]">More Platforms</strong><span className="mt-0.5 text-[9px] font-semibold text-brand-cyan">View All</span></button>
       </div>
     </section>
   )
 }
 
 function DetailValue({ label, value, ok }: { label: string; value: ReactNode; ok?: boolean }) {
-  return <div className="flex items-center justify-between gap-4 rounded-xl border border-border-soft bg-bg/30 px-3 py-2.5"><span className="text-xs text-text-muted">{label}</span><span className={`text-right text-xs font-medium ${ok === true ? 'text-emerald-300' : ok === false ? 'text-rose-300' : 'text-text-main'}`}>{value}</span></div>
+  return <div className="group flex items-center justify-between gap-4 rounded-xl border border-border-soft bg-bg/24 px-3 py-2.5 transition duration-200 hover:border-brand-teal/18 hover:bg-brand-teal/[.025]"><span className="text-[11px] text-text-muted">{label}</span><span className={`text-right text-xs font-medium transition-colors ${ok === true ? 'text-emerald-300' : ok === false ? 'text-rose-300' : 'text-text-main'}`}>{value}</span></div>
 }
 
 function AccountDetailsDrawer({ account, refreshing, onClose, onRefresh, onReconnect, onDisconnect }: { account: AccountModel; refreshing: boolean; onClose: () => void; onRefresh: () => void; onReconnect: () => void; onDisconnect: () => void }) {
   return (
     <Drawer onClose={onClose} title="Account details">
       <div className="p-5">
-        <div className="flex items-start gap-3 rounded-2xl border border-brand-teal/20 bg-brand-teal/[.045] p-4">
+        <div className="relative overflow-hidden rounded-2xl border border-brand-teal/24 bg-[linear-gradient(135deg,rgba(20,184,166,.09),rgba(7,25,37,.74))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.025),0_16px_38px_rgba(0,0,0,.12)]">
+          <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-brand-cyan/[.05] blur-2xl" />
+          <div className="relative flex items-start gap-3">
           <PlatformIcon platform={account.platform} size="lg" />
           <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><strong className="truncate text-base">{account.accountName}</strong><AccountStatusBadge status={account.status} /></div><p className="mt-1 text-xs text-text-muted">{account.platformLabel}{account.handle ? ` · ${account.handle}` : ''}</p><p className="mt-1 text-[11px] text-text-soft">{metricLabel(account)}</p></div>
+          </div>
         </div>
 
         {account.status === 'reconnect_required' && <div className="mt-4 rounded-xl border border-brand-red/25 bg-brand-red/[.06] p-3"><strong className="text-xs text-rose-200">Reconnect required.</strong><p className="mt-1 text-xs leading-5 text-text-muted">This connection needs renewed permissions before INXSocial can publish or sync data.</p><Button className="mt-3" onClick={onReconnect} size="sm">Reconnect</Button></div>}
@@ -819,20 +845,53 @@ export function ConnectedAccountsPage() {
   const health = accounts.length ? Math.round((healthyCount / accounts.length) * 100) : 0
 
   const weeklyPosts = useMemo(() => {
-    const now = Date.now()
-    const week = 7 * 24 * 60 * 60 * 1000
-    const data = jobs.data || []
-    const occurredAt = (job: (typeof data)[number]) => job.completedAt || job.scheduledAt || job.updatedAt || job.createdAt
-    const count = (start: number, end: number) => data.filter((job) => {
+    const now = new Date()
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const day = 24 * 60 * 60 * 1000
+    const data = (jobs.data || []).filter((job) => job.status === 'PUBLISHED')
+    const occurredAt = (job: (typeof data)[number]) => job.completedAt || job.updatedAt || job.createdAt
+    const daily = Array.from({ length: 7 }, (_, index) => {
+      const start = startOfToday - ((6 - index) * day)
+      const end = start + day
+      return data.filter((job) => {
+        const value = occurredAt(job)
+        const timestamp = value ? new Date(value).getTime() : Number.NaN
+        return Number.isFinite(timestamp) && timestamp >= start && timestamp < end
+      }).length
+    })
+    const current = daily.reduce((sum, value) => sum + value, 0)
+    const previousStart = startOfToday - (13 * day)
+    const previousEnd = startOfToday - (6 * day)
+    const previous = data.filter((job) => {
       const value = occurredAt(job)
       const timestamp = value ? new Date(value).getTime() : Number.NaN
-      return Number.isFinite(timestamp) && timestamp >= start && timestamp < end
+      return Number.isFinite(timestamp) && timestamp >= previousStart && timestamp < previousEnd
     }).length
-    const current = count(now - week, now)
-    const previous = count(now - (2 * week), now - week)
-    const trend = previous ? Math.round(((current - previous) / previous) * 100) : current ? 100 : 0
-    return { current, trend }
+    return { current, previous, daily }
   }, [jobs.data])
+
+  const accountSeries = useMemo(() => {
+    const now = new Date()
+    const day = 24 * 60 * 60 * 1000
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - (35 * day)
+    const buckets = Array(6).fill(0) as number[]
+    let baseline = 0
+    accounts.forEach((account) => {
+      if (!account.connectedAt) return
+      const timestamp = new Date(account.connectedAt).getTime()
+      if (!Number.isFinite(timestamp)) return
+      if (timestamp < start) baseline += 1
+      else {
+        const bucket = Math.min(5, Math.max(0, Math.floor((timestamp - start) / (7 * day))))
+        buckets[bucket] += 1
+      }
+    })
+    let running = baseline
+    return buckets.map((value) => {
+      running += value
+      return running
+    })
+  }, [accounts])
 
   const activities = useMemo<ActivityItem[]>(() => accounts
     .map((account) => ({
@@ -851,8 +910,7 @@ export function ConnectedAccountsPage() {
 
   const visibleAccounts = useMemo(() => {
     const term = globalSearch.trim().toLowerCase()
-    const source = accounts.length ? [...accounts, placeholderAccount('mastodon')] : accounts
-    return source.filter((account) => {
+    return accounts.filter((account) => {
       const matchesSearch = !term || `${account.platformLabel} ${account.accountName} ${account.handle || ''} ${account.accountType}`.toLowerCase().includes(term)
       const matchesPlatform = platformFilter === 'all' || account.platform === platformFilter
       const matchesStatus = statusFilter === 'all' || account.status === statusFilter
@@ -944,7 +1002,9 @@ export function ConnectedAccountsPage() {
 
       {!configured && <section className="rounded-xl border border-brand-amber/25 bg-brand-amber/[.055] px-4 py-3"><div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-brand-amber" /><div><strong className="text-xs text-amber-200">Connection gateway requires configuration</strong><p className="mt-1 text-xs leading-5 text-text-muted">Connect actions remain disabled until the server-side Post for Me credentials are configured. No OAuth secrets are exposed in the browser.</p></div></div></section>}
 
-      <ConnectedAccountsStats activePlatforms={activePlatforms} addedThisMonth={addedThisMonth} health={health} platformTotal={allUiPlatforms.filter((platform) => platform !== 'google_business').length} postsThisWeek={weeklyPosts.current} postsTrend={weeklyPosts.trend} total={accounts.length} />
+      <ConnectedAccountsStats accountSeries={accountSeries} activePlatforms={activePlatforms} addedThisMonth={addedThisMonth} health={health} platformTotal={allUiPlatforms.length} postSeries={weeklyPosts.daily} postsPreviousWeek={weeklyPosts.previous} postsThisWeek={weeklyPosts.current} total={accounts.length} />
+
+      <ConnectNewAccountSection configured={configured} onConnect={openConnect} onMore={() => setMorePlatformsOpen(true)} />
 
       <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <ConnectedPlatformsSection
@@ -967,8 +1027,6 @@ export function ConnectedAccountsPage() {
         />
         <ConnectionActivityPanel items={activities} onViewAll={() => setActivityOpen(true)} />
       </div>
-
-      <ConnectNewAccountSection configured={configured} onConnect={openConnect} onMore={() => setMorePlatformsOpen(true)} />
 
       {selectedAccount && <AccountDetailsDrawer account={selectedAccount} onClose={() => setSelectedAccount(null)} onDisconnect={() => setDisconnecting(selectedAccount)} onReconnect={() => reconnect(selectedAccount)} onRefresh={() => void refreshAccount(selectedAccount)} refreshing={refreshingId === selectedAccount.id} />}
       {disconnecting && <DisconnectAccountModal account={disconnecting} onCancel={() => setDisconnecting(null)} onConfirm={() => disconnectMutation.mutate(disconnecting)} pending={disconnectMutation.isPending} />}
