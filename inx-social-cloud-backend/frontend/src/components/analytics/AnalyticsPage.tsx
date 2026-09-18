@@ -48,7 +48,7 @@ async function mapWithConcurrency<T, R>(items: T[], concurrency: number, worker:
     while (cursor < items.length) {
       const index = cursor
       cursor += 1
-      results[index] = await worker(items[index])
+      results[index] = await worker(items[index]!)
     }
   })
   await Promise.all(runners)
