@@ -468,20 +468,14 @@ export function PostsPage() {
 }
 
 function PostsSkeleton() {
-  return <WorkspaceLoadingState
-    message="Preparing destinations, drafts and your publishing workspace."
-    panels={[
-      { title: 'Create Post', emoji: '✍️', rows: 4, minHeight: '420px' },
-      { title: 'Post Preview', emoji: '👀', rows: 4, minHeight: '420px' },
-      { title: 'Schedule', emoji: '🗓️', rows: 4, minHeight: '420px' },
-    ]}
-    stats={[
-      { label: 'Connected Accounts', emoji: '🔗' },
-      { label: 'Drafts', emoji: '📝' },
-      { label: 'Scheduled', emoji: '🗓️' },
-      { label: 'Published', emoji: '🚀' },
-      { label: 'Needs Review', emoji: '⚠️' },
-    ]}
-    title="Posts workspace"
-  />
+  const statLabels = ['All Posts', 'Drafts', 'Scheduled', 'Published', 'Needs Review']
+  return <div aria-label="Loading Posts workspace" className="dashboard-canvas pb-8" role="status">
+    <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 xl:grid-cols-5">
+      {statLabels.map((label) => <div className="min-h-28 min-w-52 rounded-card border border-border-soft bg-panel/70 p-4 md:min-w-0" key={label}><small className="block text-[10px] text-text-muted">{label}</small><strong className="mt-2 block text-sm">Updating…</strong><div className="mt-4 h-1.5 overflow-hidden rounded-full bg-border-soft"><span className="block h-full w-2/3 animate-pulse rounded-full bg-brand-cyan/40 motion-reduce:animate-none" /></div></div>)}
+    </div>
+    <div className="mt-3 h-24 animate-pulse rounded-panel border border-border-soft bg-panel/70 motion-reduce:animate-none" />
+    <div className="mt-5 grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.35fr)_minmax(290px,.72fr)_minmax(320px,.82fr)]">
+      {Array.from({ length: 3 }, (_, index) => <div className="h-[620px] animate-pulse rounded-panel border border-border-soft bg-panel/70 motion-reduce:animate-none" key={index} />)}
+    </div>
+  </div>
 }
