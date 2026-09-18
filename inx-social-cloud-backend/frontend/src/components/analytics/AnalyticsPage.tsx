@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, CalendarDays, Radio } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { buildAnalyticsView } from '../../data/analyticsData'
 import { aggregatePerformance } from '../../data/analyticsAggregation'
 import { fetchAnalyticsForSource, fetchAnalyticsSources, mergeAnalyticsResults, type AnalyticsSourceAccount } from '../../lib/analytics-api'
@@ -68,6 +68,11 @@ export function AnalyticsPage() {
   const [days, setDays] = useState(30)
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('overview')
   const [interval, setInterval] = useState<'daily' | 'weekly' | 'monthly'>('daily')
+
+  useEffect(() => {
+    if (days <= 7 && interval !== 'daily') setInterval('daily')
+    else if (days <= 30 && interval === 'monthly') setInterval('daily')
+  }, [days, interval])
   const sources = useQuery({
     queryKey: ['analytics-sources', 'post-for-me'],
     queryFn: async () => {
@@ -156,7 +161,7 @@ export function AnalyticsPage() {
       <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
         <label className="rounded-xl border border-border-soft bg-panel/70 px-3 py-2"><span className="block text-[9px] uppercase tracking-wider text-text-soft">Analytics period</span><select className="mt-1 min-h-7 min-w-40 bg-transparent text-xs font-semibold outline-none" onChange={(event) => setDays(Number(event.target.value))} value={days}><option value={7}>Last 7 Days</option><option value={30}>Last 30 Days</option><option value={90}>Last 90 Days</option></select></label>
         {view && <ExportReportButton view={view} />}
-        <div className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-brand-green/15 bg-brand-green/[.055] px-3 text-[10px] text-brand-green"><Radio className={`size-3.5 ${analytics.isFetching ? 'animate-pulse motion-reduce:animate-none' : ''}`} /><span>{analytics.isFetching ? 'Syncing live data…' : `Live · ${lastUpdated}`}</span></div>
+        <div className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-[10px] ${analytics.isFetching ? 'border-brand-cyan/20 bg-brand-cyan/[.06] text-brand-cyan' : 'border-brand-green/15 bg-brand-green/[.055] text-brand-green'}`}><Radio className={`size-3.5 ${analytics.isFetching ? 'animate-pulse motion-reduce:animate-none' : ''}`} /><span>{analytics.isFetching ? 'Syncing analytics…' : `Last sync · ${lastUpdated || 'Waiting'}`}</span></div>
       </div>
     </div>
     <AnalyticsTabs active={activeTab} onChange={setActiveTab} />
@@ -166,17 +171,19 @@ export function AnalyticsPage() {
     {analytics.isError && view && <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber"><strong>Live refresh delayed.</strong> INXSocial is keeping the last verified analytics visible and will retry automatically instead of replacing the workspace with an error state.</div>}
     {analytics.isError && !view && <div className="rounded-panel border border-brand-red/25 bg-brand-red/8 p-6"><h2 className="font-semibold">Analytics could not be loaded</h2><p className="mt-2 text-xs leading-5 text-text-muted">{analytics.error instanceof Error ? analytics.error.message : 'Reconnect this account or try again.'}</p><a className="mt-4 inline-flex min-h-10 items-center rounded-xl border border-border-soft px-4 text-xs" href="/app/connected-accounts">Review connected accounts</a></div>}
     {view && <div className="analytics-data-transition space-y-4" key={`${selectedScopeKey}-${days}`}>
-      <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 xl:grid-cols-6">{view.stats.map(stat => <AnalyticsStatCard key={stat.id} stat={stat} />)}</div>
+      {analytics.isFetching
+        ? <AnalyticsKpiSkeleton />
+        : <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 xl:grid-cols-6">{view.stats.map(stat => <AnalyticsStatCard key={stat.id} stat={stat} />)}</div>}
       {noVerifiedMetrics && <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber"><strong>{sourceName} analytics are partially available.</strong> {view.source.capabilities?.pageInsights.reason || 'Live metrics are not available for the selected content yet.'}</div>}
       {view.lowData && !noVerifiedMetrics && <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber">Analytics are just starting. More insight will appear as the selected accounts publish additional content.</div>}
-      {activeTab === 'overview' && <><div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,.72fr)]"><PerformanceOverTimeCard interval={interval} points={chartPoints} setInterval={setInterval} /><EngagementByPlatformCard breakdown={breakdown} total={view.totalEngagements} /></div><div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(260px,.75fr)_minmax(300px,.9fr)]"><TopPerformingPostsCard onViewAll={() => setActiveTab('content_performance')} platform={view.source.platform} posts={view.topPosts} /><ContentEfficiencyCard analytics={view.source} /><PublishingRhythmCard analytics={view.source} days={days} /></div><BestTimeToPostCard cells={view.heatmap} /><ProviderMetricsCard sources={providerMetricSources} /></>}
-      {activeTab === 'content_performance' && <><div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,.75fr)]"><PerformanceOverTimeCard interval={interval} points={chartPoints} setInterval={setInterval} /><TopPerformingPostsCard onViewAll={() => {}} platform={view.source.platform} posts={view.topPosts} /></div><ProviderMetricsCard sources={providerMetricSources} /></>}
+      {activeTab === 'overview' && <><div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,.72fr)]"><PerformanceOverTimeCard days={days} interval={interval} points={chartPoints} setInterval={setInterval} /><EngagementByPlatformCard breakdown={breakdown} total={view.totalEngagements} /></div><div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(260px,.75fr)_minmax(300px,.9fr)]"><TopPerformingPostsCard onViewAll={() => setActiveTab('content_performance')} platform={view.source.platform} posts={view.topPosts} /><ContentEfficiencyCard analytics={view.source} /><PublishingRhythmCard analytics={view.source} days={days} /></div><BestTimeToPostCard cells={view.heatmap} /><ProviderMetricsCard sources={providerMetricSources} /></>}
+      {activeTab === 'content_performance' && <><div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,.75fr)]"><PerformanceOverTimeCard days={days} interval={interval} points={chartPoints} setInterval={setInterval} /><TopPerformingPostsCard onViewAll={() => {}} platform={view.source.platform} posts={view.topPosts} /></div><ProviderMetricsCard sources={providerMetricSources} /></>}
       {activeTab === 'audience' && <><div className="grid gap-4 lg:grid-cols-2"><ContentEfficiencyCard analytics={view.source} /><PublishingRhythmCard analytics={view.source} days={days} /></div><BestTimeToPostCard cells={view.heatmap} /></>}
-      {activeTab === 'engagement' && <><div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,.7fr)]"><PerformanceOverTimeCard interval={interval} points={chartPoints} setInterval={setInterval} /><EngagementByPlatformCard breakdown={breakdown} total={view.totalEngagements} /></div><BestTimeToPostCard cells={view.heatmap} /></>}
-      {activeTab === 'reach' && <><PerformanceOverTimeCard interval={interval} points={chartPoints} setInterval={setInterval} /><ProviderMetricsCard sources={providerMetricSources} /></>}
+      {activeTab === 'engagement' && <><div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,.7fr)]"><PerformanceOverTimeCard days={days} interval={interval} points={chartPoints} setInterval={setInterval} /><EngagementByPlatformCard breakdown={breakdown} total={view.totalEngagements} /></div><BestTimeToPostCard cells={view.heatmap} /></>}
+      {activeTab === 'reach' && <><PerformanceOverTimeCard days={days} interval={interval} points={chartPoints} setInterval={setInterval} /><ProviderMetricsCard sources={providerMetricSources} /></>}
       {activeTab === 'videos' && <><TopPerformingPostsCard onViewAll={() => {}} platform={view.source.platform} posts={view.topPosts.filter(post => /video|reel/i.test(post.contentType))} /><ProviderMetricsCard sources={providerMetricSources} /></>}
       {activeTab === 'reports' && <AnalyticsCard><AnalyticsCardHeader description="Export the currently selected live account scope and date range without including credentials or access tokens." title="Analytics Reports" /><div className="grid min-h-56 place-items-center p-6 text-center"><span><CalendarDays className="mx-auto size-8 text-brand-cyan" /><strong className="mt-3 block">Report ready for {sourceName}</strong><p className="mt-2 text-xs text-text-muted">Live data fetched {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(view.source.fetchedAt))}</p><div className="mt-4 inline-block"><ExportReportButton view={view} /></div></span></div></AnalyticsCard>}
-      <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-soft bg-panel/55 px-4 py-3 text-[10px] text-text-soft"><span>Current post-performance analytics for {sourceName}.</span><span>Latest metrics refresh every 5 minutes · Last update {lastUpdated}</span></footer>
+      <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-soft bg-panel/55 px-4 py-3 text-[10px] text-text-soft"><span>Current post-performance analytics for {sourceName}.</span><span>Latest metrics refresh every 5 minutes · Last sync {lastUpdated}</span></footer>
     </div>}
   </div>
 }
