@@ -256,7 +256,8 @@ async function createCustomerPortalSession(req, res, next) {
 
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.providerCustomerId,
-      return_url: env.stripe.portalReturnUrl
+      return_url: env.stripe.portalReturnUrl,
+      ...(env.stripe.portalConfigurationId ? { configuration: env.stripe.portalConfigurationId } : {})
     });
     res.json({ url: session.url });
   } catch (error) { next(error); }
