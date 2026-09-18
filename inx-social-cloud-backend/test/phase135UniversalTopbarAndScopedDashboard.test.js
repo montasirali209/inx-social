@@ -17,8 +17,10 @@ test('Every React workspace route uses the locked universal topbar contract', ()
   for (const label of ['Dashboard', 'Bulk Scheduler', 'Content Calendar']) {
     assert.match(topbar, new RegExp(`title: '${label}'`));
   }
-  assert.match(topbar, /Timezone · Europe\/London/);
-  assert.match(topbar, /Theme · Midnight/);
+  assert.match(topbar, /supportedValuesOf/);
+  assert.match(topbar, /worldTimezones/);
+  assert.match(topbar, /Timezone · \$\{timezoneLabel\(zone\)\}/);
+  assert.doesNotMatch(topbar, /Theme · Midnight|sr-only">Theme/);
   assert.match(topbar, /queryClient\.invalidateQueries\(\{ refetchType: 'active' \}\)/);
   assert.doesNotMatch(bulk, /<h1[^>]*>Bulk Scheduler/);
   assert.match(hero, /Open Bulk Scheduler/);
