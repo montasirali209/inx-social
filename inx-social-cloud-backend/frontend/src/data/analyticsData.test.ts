@@ -34,6 +34,17 @@ describe('Analytics live view', () => {
   })
 
 
+  it('replaces a zero-click KPI with engaged-post activity instead of exposing a dead control', () => {
+    const source = liveAnalytics()
+    source.summary.clicks = 0
+    source.content[0].insights = { ...source.content[0].insights!, clicks: 0 }
+    source.provider = { metricSummary: [{ key: 'clicks', value: 0, aggregation: 'sum', samples: 1 }] }
+
+    const view = buildAnalyticsView(source, 30)
+    expect(view.stats.find((stat) => stat.id === 'clicks')).toBeUndefined()
+    expect(view.stats.find((stat) => stat.id === 'engaged-posts')?.value).toBe(1)
+  })
+
   it('uses live content-efficiency KPIs when audience, views and clicks are unavailable', () => {
     const source = liveAnalytics()
     source.summary.followers = 0
