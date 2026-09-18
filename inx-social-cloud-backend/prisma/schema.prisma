@@ -361,6 +361,7 @@ model SocialProfile {
   user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   connection   SocialConnection    @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   publications SocialPublication[]
+  analyticsSnapshots AnalyticsMetricSnapshot[]
 
   @@unique([connectionId, externalProfileId])
   @@index([userId, platform])
@@ -420,6 +421,28 @@ model SocialPublication {
   @@index([platform, status])
   @@index([externalPostId])
 }
+
+model AnalyticsMetricSnapshot {
+  id              String   @id @default(cuid())
+  userId          String
+  profileId       String
+  platform        String
+  externalPostId  String
+  postPublishedAt DateTime?
+  capturedAt      DateTime @default(now())
+  views           Int      @default(0)
+  interactions    Int      @default(0)
+  clicks          Int      @default(0)
+  follows         Int      @default(0)
+  metricsJson     String?
+
+  profile SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, capturedAt])
+  @@index([profileId, externalPostId, capturedAt])
+  @@index([userId, capturedAt])
+}
+
 
 model ScheduleJob {
   id              String    @id @default(cuid())
