@@ -2,9 +2,13 @@ import type { AnalyticsStat, AnalyticsView, HeatmapCell, PerformancePoint, TopPo
 import type { PlatformAnalytics } from '../types/dashboard'
 
 export const analyticsTabs = [
-  ['overview', 'Overview'], ['content_performance', 'Content Performance'], ['audience', 'Content Insights'],
-  ['engagement', 'Engagement'], ['reach', 'Reach'], ['videos', 'Videos'], ['stories', 'Stories'],
-  ['competitors', 'Competitors'], ['reports', 'Reports'],
+  ['overview', 'Overview'],
+  ['content_performance', 'Content Performance'],
+  ['audience', 'Content Insights'],
+  ['engagement', 'Engagement'],
+  ['reach', 'Reach'],
+  ['videos', 'Videos'],
+  ['reports', 'Reports'],
 ] as const
 
 const platformLabels: Record<PlatformAnalytics['platform'], string> = {
