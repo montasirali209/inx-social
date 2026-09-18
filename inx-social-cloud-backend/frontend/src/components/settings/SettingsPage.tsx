@@ -7,28 +7,18 @@ import { fetchSettingsWorkspace, saveSettings } from '../../lib/settings-api'
 import { useUiStore } from '../../store/ui-store'
 import type { SettingsCardData, SettingsValues } from '../../types/settings'
 import { Button } from '../ui/Button'
-import { WorkspaceLoadingState } from '../ui/WorkspaceLoadingState'
 import { SettingsCard } from './SettingsCard'
 
 type Notice = { tone: 'success' | 'error'; message: string } | null
 
 function SettingsSkeleton() {
-  return <WorkspaceLoadingState
-    message="Loading workspace preferences, publishing defaults and connected-account settings."
-    panels={[
-      { title: 'Workspace', emoji: '⚙️', rows: 4 },
-      { title: 'Publishing', emoji: '🚀', rows: 4 },
-      { title: 'Scheduler', emoji: '🗓️', rows: 4 },
-    ]}
-    stats={[
-      { label: 'Workspace', emoji: '🏢' },
-      { label: 'Publishing', emoji: '🚀' },
-      { label: 'Scheduler', emoji: '🗓️' },
-      { label: 'Connections', emoji: '🔗' },
-      { label: 'Notifications', emoji: '🔔' },
-    ]}
-    title="Settings"
-  />
+  return (
+    <div aria-label="Loading settings" className="grid gap-4 md:grid-cols-2 2xl:grid-cols-12" role="status">
+      {Array.from({ length: 7 }, (_, index) => (
+        <div className={`h-[310px] animate-pulse rounded-2xl border border-border-soft bg-panel/55 motion-reduce:animate-none ${index < 3 ? '2xl:col-span-4' : '2xl:col-span-3'}`} key={index} />
+      ))}
+    </div>
+  )
 }
 
 export function SettingsPage() {
