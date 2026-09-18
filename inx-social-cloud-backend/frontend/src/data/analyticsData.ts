@@ -65,6 +65,20 @@ function contentSeries(analytics: PlatformAnalytics, key: 'engagements' | 'click
   return values
 }
 
+function publishedContentPerformance(analytics: PlatformAnalytics, days: number): PerformancePoint[] {
+  const points = new Map(dateKeys(days, analytics.fetchedAt).map(point => [point.date, { ...point, views: 0, engagements: 0, linkClicks: 0, followers: 0 }]))
+  analytics.content.forEach(post => {
+    if (!post.createdTime) return
+    const date = post.createdTime.slice(0, 10)
+    const point = points.get(date)
+    if (!point) return
+    point.views += Number(post.insights?.views || 0)
+    point.engagements += Number(post.insights?.totalInteractions ?? (post.reactions + post.comments + post.shares))
+    point.linkClicks += Number(post.insights?.clicks || 0)
+  })
+  return [...points.values()]
+}
+
 function sparkline(points: PerformancePoint[], key: keyof Pick<PerformancePoint, 'views' | 'engagements' | 'linkClicks' | 'followers'>) { return points.map(point => point[key]) }
 function topPosts(analytics: PlatformAnalytics): TopPost[] {
   return analytics.content.map(post => ({
@@ -147,7 +161,7 @@ export function buildAnalyticsView(analytics: PlatformAnalytics, days: number): 
     clicksOrEngagedPosts,
     { id: 'posts', label: analytics.platform === 'youtube' ? 'Videos' : 'Posts Published', value: postCount, format: 'integer', detail: `Within the selected ${days} days`, tone: 'green', sparkline: performance.map(point => topPosts(analytics).filter(post => post.date?.startsWith(point.date)).length) },
   ]
-  return { stats, performance, topPosts: topPosts(analytics), heatmap: heatmap(analytics), totalEngagements: analytics.summary.totalInteractions, audienceGrowth: followers.net, lowData: analytics.summary.posts < 5, source: analytics }
+  return { stats, performance, publishedPerformance: publishedContentPerformance(analytics, days), topPosts: topPosts(analytics), heatmap: heatmap(analytics), totalEngagements: analytics.summary.totalInteractions, audienceGrowth: followers.net, lowData: analytics.summary.posts < 5, source: analytics }
 }
 
 export function formatAnalyticsValue(value: number | null, format: AnalyticsStat['format']) {
