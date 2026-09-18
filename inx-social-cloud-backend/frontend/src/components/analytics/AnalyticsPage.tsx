@@ -76,7 +76,10 @@ export function AnalyticsPage() {
     initialData: () => readSessionCache<Awaited<ReturnType<typeof fetchAnalyticsSources>>>(analyticsSourcesCacheKey),
     initialDataUpdatedAt: 0,
     staleTime: 20_000,
-    refetchInterval: 5 * 60_000,
+    refetchInterval: (query) => {
+      const data = query.state.data as LiveAnalyticsData | undefined
+      return data?.results.some(result => result.analytics.provider?.cacheState === 'refreshing') ? 10_000 : 5 * 60_000
+    },
     refetchOnWindowFocus: true,
   })
   const accounts = useMemo(() => sources.data?.accounts || [], [sources.data?.accounts])
@@ -104,7 +107,7 @@ export function AnalyticsPage() {
     queryFn: async () => {
       const settled = await mapWithConcurrency(selectedAccounts, 2, async account => {
         try {
-          return { ok: true as const, account, analytics: await fetchAnalyticsForSource(account, days, 'full', true) }
+          return { ok: true as const, account, analytics: await fetchAnalyticsForSource(account, days) }
         } catch (error) {
           return { ok: false as const, account, message: error instanceof Error ? error.message : 'Live analytics could not be loaded.' }
         }
@@ -147,6 +150,12 @@ export function AnalyticsPage() {
   const noVerifiedMetrics = Boolean(view && !view.source.capabilities?.pageInsights.available)
   const lastUpdated = view ? new Intl.DateTimeFormat('en-GB', { timeStyle: 'medium' }).format(new Date(view.source.fetchedAt)) : ''
   const providerMetricSources = analytics.data?.results || []
+  const backgroundRefreshing = Boolean(analytics.data?.results.some(result => result.analytics.provider?.cacheState === 'refreshing'))
+  const syncLabel = analytics.isFetching && !analytics.data
+    ? 'Loading analytics…'
+    : backgroundRefreshing
+      ? `Refreshing in background · Last sync ${lastUpdated || 'Waiting'}`
+      : `Last sync · ${lastUpdated || 'Waiting'}`
 
   return <div className="analytics-fluid-canvas dashboard-canvas space-y-4 pb-8">
     <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
@@ -154,7 +163,7 @@ export function AnalyticsPage() {
       <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
         <label className="rounded-xl border border-border-soft bg-panel/70 px-3 py-2"><span className="block text-[9px] uppercase tracking-wider text-text-soft">Analytics period</span><select className="mt-1 min-h-7 min-w-40 bg-transparent text-xs font-semibold outline-none" onChange={(event) => setDays(Number(event.target.value))} value={days}><option value={7}>Last 7 Days</option><option value={30}>Last 30 Days</option><option value={90}>Last 90 Days</option></select></label>
         {view && <ExportReportButton view={view} />}
-        <div className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-[10px] ${analytics.isFetching ? 'border-brand-cyan/20 bg-brand-cyan/[.06] text-brand-cyan' : 'border-brand-green/15 bg-brand-green/[.055] text-brand-green'}`}><Radio className={`size-3.5 ${analytics.isFetching ? 'animate-pulse motion-reduce:animate-none' : ''}`} /><span>{analytics.isFetching ? 'Syncing analytics…' : `Last sync · ${lastUpdated || 'Waiting'}`}</span></div>
+        <div className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-[10px] ${analytics.isFetching || backgroundRefreshing ? 'border-brand-cyan/20 bg-brand-cyan/[.06] text-brand-cyan' : 'border-brand-green/15 bg-brand-green/[.055] text-brand-green'}`}><Radio className={`size-3.5 ${analytics.isFetching || backgroundRefreshing ? 'animate-pulse motion-reduce:animate-none' : ''}`} /><span>{syncLabel}</span></div>
       </div>
     </div>
     <AnalyticsTabs active={activeTab} onChange={setActiveTab} />
@@ -164,9 +173,7 @@ export function AnalyticsPage() {
     {analytics.isError && view && <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber"><strong>Live refresh delayed.</strong> INXSocial is keeping the last verified analytics visible and will retry automatically instead of replacing the workspace with an error state.</div>}
     {analytics.isError && !view && <div className="rounded-panel border border-brand-red/25 bg-brand-red/8 p-6"><h2 className="font-semibold">Analytics could not be loaded</h2><p className="mt-2 text-xs leading-5 text-text-muted">{analytics.error instanceof Error ? analytics.error.message : 'Reconnect this account or try again.'}</p><a className="mt-4 inline-flex min-h-10 items-center rounded-xl border border-border-soft px-4 text-xs" href="/app/connected-accounts">Review connected accounts</a></div>}
     {view && <div className="analytics-data-transition space-y-4" key={`${selectedScopeKey}-${days}`}>
-      {analytics.isFetching
-        ? <AnalyticsKpiSkeleton />
-        : <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 xl:grid-cols-6">{view.stats.map(stat => <AnalyticsStatCard key={stat.id} stat={stat} />)}</div>}
+      <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 xl:grid-cols-6">{view.stats.map(stat => <AnalyticsStatCard key={stat.id} stat={stat} />)}</div>
       {noVerifiedMetrics && <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber"><strong>{sourceName} analytics are partially available.</strong> {view.source.capabilities?.pageInsights.reason || 'Live metrics are not available for the selected content yet.'}</div>}
       {view.lowData && !noVerifiedMetrics && <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber">Analytics are just starting. More insight will appear as the selected accounts publish additional content.</div>}
       {activeTab === 'overview' && <><div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,.72fr)]"><PerformanceOverTimeCard days={days} points={chartPoints} /><EngagementByPlatformCard breakdown={breakdown} total={view.totalEngagements} /></div><div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(260px,.75fr)_minmax(300px,.9fr)]"><TopPerformingPostsCard onViewAll={() => setActiveTab('content_performance')} platform={view.source.platform} posts={view.topPosts} /><ContentEfficiencyCard analytics={view.source} /><PublishingRhythmCard analytics={view.source} days={days} /></div><BestTimeToPostCard cells={view.heatmap} /><ProviderMetricsCard sources={providerMetricSources} /></>}
