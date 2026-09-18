@@ -14,7 +14,6 @@ import {
 } from '../../lib/ai-content-studio-api'
 import type { AIDraft, AIContentType, GenerationHistoryItem } from '../../types/ai-content-studio'
 import { Button } from '../ui/Button'
-import { WorkspaceLoadingState } from '../ui/WorkspaceLoadingState'
 import { Card } from '../ui/Card'
 import { Drawer } from '../billing/BillingPrimitives'
 import {
@@ -149,22 +148,7 @@ export function AiContentStudioPage() {
   }
 
   if (accessQuery.isLoading || !access) {
-    return <WorkspaceLoadingState
-      message="Checking AI access, credits, drafts and creation workflows."
-      panels={[
-        { title: 'AI Image Post', emoji: '🖼️', rows: 4, minHeight: '300px' },
-        { title: 'Carousel Studio', emoji: '🎠', rows: 4, minHeight: '300px' },
-        { title: 'AI Video', emoji: '🎬', rows: 4, minHeight: '300px' },
-      ]}
-      stats={[
-        { label: 'AI Credits', emoji: '✨' },
-        { label: 'Image Creator', emoji: '🖼️' },
-        { label: 'Carousel Creator', emoji: '🎠' },
-        { label: 'Video Creator', emoji: '🎬' },
-        { label: 'Recent Drafts', emoji: '📝' },
-      ]}
-      title="AI Content Studio"
-    />
+    return <div aria-label="Loading AI Content Studio" className="space-y-4" role="status"><Card className="h-72 animate-pulse bg-panel-soft/60 motion-reduce:animate-none"><span className="sr-only">Loading AI Content Studio</span></Card><div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <Card className="h-80 animate-pulse bg-panel-soft/60 motion-reduce:animate-none" key={index}><span className="sr-only">Loading creation option {index + 1}</span></Card>)}</div></div>
   }
 
   if (accessQuery.isError) {
