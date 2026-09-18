@@ -886,11 +886,7 @@ export function ConnectedAccountsPage() {
         buckets[bucket] += 1
       }
     })
-    let running = baseline
-    return buckets.map((value) => {
-      running += value
-      return running
-    })
+    return buckets.map((_, index) => baseline + buckets.slice(0, index + 1).reduce((sum, value) => sum + value, 0))
   }, [accounts])
 
   const activities = useMemo<ActivityItem[]>(() => accounts
