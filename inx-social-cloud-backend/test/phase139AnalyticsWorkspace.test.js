@@ -11,6 +11,7 @@ test('Analytics is a first-class responsive React workspace', () => {
   const sidebar = read('frontend/src/components/layout/Sidebar.tsx');
   const page = read('frontend/src/components/analytics/AnalyticsPage.tsx');
   const selector = read('frontend/src/components/analytics/AnalyticsAccountSelector.tsx');
+  const scopeNotice = read('frontend/src/components/analytics/AnalyticsScopeNotice.tsx');
   assert.match(router, /path: 'analytics'/);
   assert.match(sidebar, /label: 'Analytics'.*reactPath: '\/analytics'/);
   assert.match(page, /AnalyticsTabs/);
@@ -26,6 +27,13 @@ test('Analytics is a first-class responsive React workspace', () => {
   assert.match(selector, /transition-\[opacity,transform\]/);
   assert.match(page, /sm:grid-cols-2 xl:grid-cols-6/);
   assert.match(page, /ExportReportButton/);
+  assert.match(page, /AnalyticsScopeNotice/);
+  assert.match(scopeNotice, /Post performance analytics/);
+  assert.match(scopeNotice, /Current metrics/);
+  assert.match(scopeNotice, /Latest post metrics/);
+  assert.match(scopeNotice, /Selected sources only/);
+  assert.match(scopeNotice, /Trend tracking/);
+  assert.match(scopeNotice, /complete native-platform account history/);
 });
 
 test('Analytics uses live Post for Me platform data and derives transparent metrics without mock values', () => {
@@ -86,7 +94,8 @@ test('Analytics charts, tabs and report actions remain accessible and functional
   assert.match(chart, /exactDate/);
   assert.match(chart, /areaPath/);
   assert.match(chart, /Move across the line for exact dates/);
-  assert.match(chart, /Measured changes between stored live metric snapshots/);
+  assert.match(chart, /Post Performance Over Time/);
+  assert.match(chart, /Measured changes in the selected posts/);
   assert.match(chart, /Earlier lifetime views remain included in the KPI totals/);
   assert.match(chart, /const tension = 0\.82/);
   assert.match(page, /trackedPerformance/);
