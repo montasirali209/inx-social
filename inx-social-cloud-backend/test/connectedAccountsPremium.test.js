@@ -68,9 +68,28 @@ test('Connected Accounts keeps the platform treatments and universal topbar cont
   assert.match(plan, /More connected accounts/);
 });
 
-test('Unsupported networks are visible but never fake a production OAuth flow', () => {
+test('Connected Accounts removes unsupported WhatsApp and Mastodon connection surfaces', () => {
   const page = read('frontend/src/components/connections/ConnectedAccountsPageV4.tsx');
-  assert.match(page, /platform !== 'whatsapp' && platform !== 'mastodon'/);
-  assert.match(page, /not enabled by the current production gateway/i);
-  assert.match(page, /will not start a fake or incomplete connection flow/i);
+  assert.doesNotMatch(page, /WhatsApp|Mastodon|'whatsapp'|'mastodon'/);
+  assert.match(page, /const allUiPlatforms: UiPlatform\[\] = \[\.\.\.customerFacingPlatforms\]/);
+  assert.match(page, /const connectTiles: UiPlatform\[\] = \[\.\.\.customerFacingPlatforms\]/);
+});
+
+test('Connected Accounts KPI visuals use live activity instead of decorative growth', () => {
+  const page = read('frontend/src/components/connections/ConnectedAccountsPageV4.tsx');
+  assert.match(page, /job\.status === 'PUBLISHED'/);
+  assert.match(page, /No posts published this week/);
+  assert.match(page, /connectionSeries/);
+  assert.match(page, /platformSeries/);
+  assert.match(page, /postsSeries/);
+  assert.doesNotMatch(page, /\+\$\{postsTrend\}% from last week/);
+});
+
+test('Connect a new account is rendered before the connected platform workspace', () => {
+  const page = read('frontend/src/components/connections/ConnectedAccountsPageV4.tsx');
+  const connectIndex = page.indexOf('<ConnectNewAccountSection');
+  const platformsIndex = page.indexOf('<ConnectedPlatformsSection');
+  assert.ok(connectIndex > -1);
+  assert.ok(platformsIndex > -1);
+  assert.ok(connectIndex < platformsIndex);
 });
