@@ -76,10 +76,7 @@ export function AnalyticsPage() {
     initialData: () => readSessionCache<Awaited<ReturnType<typeof fetchAnalyticsSources>>>(analyticsSourcesCacheKey),
     initialDataUpdatedAt: 0,
     staleTime: 20_000,
-    refetchInterval: (query) => {
-      const data = query.state.data as LiveAnalyticsData | undefined
-      return data?.results?.some(result => result.analytics?.provider?.cacheState === 'refreshing') ? 10_000 : 5 * 60_000
-    },
+    refetchInterval: 5 * 60_000,
     refetchOnWindowFocus: true,
   })
   const accounts = useMemo(() => sources.data?.accounts || [], [sources.data?.accounts])
@@ -98,7 +95,11 @@ export function AnalyticsPage() {
   const analytics = useQuery<LiveAnalyticsData>({
     queryKey: ['analytics-workspace', 'post-for-me', selectedScopeKey, days],
     enabled: selectedAccounts.length > 0,
-    refetchInterval: 5 * 60_000,
+    refetchInterval: (query) => {
+      const data = query.state.data as LiveAnalyticsData | undefined
+      const refreshing = data?.results?.some(result => ['refreshing', 'stale'].includes(String(result.analytics?.provider?.cacheState || '')))
+      return refreshing ? 8_000 : 5 * 60_000
+    },
     refetchOnWindowFocus: false,
     retry: 0,
     staleTime: 2 * 60_000,
