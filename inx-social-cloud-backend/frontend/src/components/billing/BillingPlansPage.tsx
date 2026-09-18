@@ -8,28 +8,36 @@ import type { BillingCycle, PlanId } from '../../types/billing'
 import { AICreditAllowanceCard } from './AICreditAllowanceCard'
 import { AccountPrivacyCard, BillingInformationCard, ChangePlanSection, ComparisonTable, CurrentPlanCard, InvoicesCard, InvoiceRow, SecureBillingFooter, UsageCard, UsageDetails } from './BillingSections'
 import { Button, Card, Drawer, Modal } from './BillingPrimitives'
-import { WorkspaceLoadingState } from '../ui/WorkspaceLoadingState'
 
 type Panel = null | 'subscription' | 'usage' | 'invoices' | 'compare' | 'plan' | 'delete' | 'security'
 type Notice = { tone: 'success' | 'error'; text: string } | null
 
-function BillingSkeleton() {
-  return <WorkspaceLoadingState
-    message="Checking your current plan, AI credits, usage and billing status."
-    panels={[
-      { title: 'Current Plan', emoji: '👑', rows: 4 },
-      { title: 'Usage & Credits', emoji: '✨', rows: 4 },
-      { title: 'Plans & Billing', emoji: '💳', rows: 5, minHeight: '340px' },
-    ]}
-    stats={[
-      { label: 'Current Plan', emoji: '👑' },
-      { label: 'AI Credits', emoji: '✨' },
-      { label: 'Connected Accounts', emoji: '🔗' },
-      { label: 'Monthly Usage', emoji: '📊' },
-      { label: 'Renewal', emoji: '🗓️' },
-    ]}
-    title="Billing & Plans"
-  />
+function BillingImmediateState({ error, onRetry }: { error?: string; onRetry: () => void }) {
+  return <div className="space-y-4 pb-10">
+    {error && <Card className="flex flex-col gap-3 border-brand-red/25 p-4 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs text-text-muted">{error}</span><Button onClick={onRetry}>Retry billing data</Button></Card>}
+    <div className="grid items-stretch gap-4 xl:grid-cols-12">
+      <Card className="xl:col-span-7 p-5 sm:p-6">
+        <p className="text-xs text-text-muted">Current Plan</p>
+        <h2 className="mt-1 text-2xl font-bold">Your INXSocial plan</h2>
+        <p className="mt-2 text-sm text-text-muted">Plan, renewal and administrator details appear here as soon as the account response arrives. Billing controls stay disabled until then.</p>
+        <Button className="mt-5" disabled>Manage Subscription</Button>
+      </Card>
+      <Card className="xl:col-span-5 p-5">
+        <h2 className="font-semibold">Current Usage</h2>
+        <div className="mt-5 space-y-4 text-sm">
+          <div className="flex items-center justify-between"><span className="text-text-muted">Connected Accounts</span><b>—</b></div>
+          <div className="flex items-center justify-between"><span className="text-text-muted">Scheduled Content</span><b>—</b></div>
+          <div className="flex items-center justify-between"><span className="text-text-muted">Published Posts</span><b>—</b></div>
+        </div>
+      </Card>
+    </div>
+    <Card className="p-5 sm:p-6">
+      <h2 className="font-semibold">AI Studio Credits</h2>
+      <p className="mt-2 text-sm text-text-muted">Your shared AI wallet will appear here with the live account balance. Image, carousel and video creation use the same credit wallet.</p>
+    </Card>
+    <Card className="p-5"><h2 className="font-semibold">Billing Information</h2><p className="mt-2 text-sm text-text-muted">Payment-method controls appear here after the account subscription response is available. INXSocial never displays or stores full card details.</p><Button className="mt-4" disabled>Update Payment Method</Button></Card>
+    <Card className="p-5"><h2 className="font-semibold">Secure billing powered by Stripe</h2><p className="mt-2 text-xs text-text-muted">Plan changes and payment-method updates are completed through Stripe.</p></Card>
+  </div>
 }
 
 export function BillingPlansPage() {
@@ -105,8 +113,7 @@ export function BillingPlansPage() {
   function choosePlan(plan: PlanId) { setTargetPlan(plan); setPanel('plan') }
   function visible(...terms: string[]) { const query = search.trim().toLowerCase(); return !query || terms.join(' ').toLowerCase().includes(query) }
 
-  if (overview.isLoading) return <BillingSkeleton />
-  if (overview.isError || !overview.data) return <Card className="p-6"><TriangleAlert className="size-8 text-brand-red" /><h2 className="mt-3 text-lg font-semibold">Billing details are unavailable</h2><p className="mt-2 text-sm text-text-muted">{overview.error instanceof Error ? overview.error.message : 'Please try again.'}</p><Button className="mt-4" onClick={() => void overview.refetch()}>Try again</Button></Card>
+  if (!overview.data) return <BillingImmediateState error={overview.isError ? (overview.error instanceof Error ? overview.error.message : 'Billing details are temporarily unavailable.') : undefined} onRetry={() => void overview.refetch()} />
 
   const data = overview.data
   const currentPlan = getPlan(data.subscription.planId)

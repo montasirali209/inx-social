@@ -23,7 +23,7 @@ export function AICreditAllowanceCard({ currentPlan, onUpgrade, administrator = 
     onSuccess: ({ url }) => window.location.assign(url),
   })
 
-  if (access.isLoading) return <Card className="h-44 animate-pulse border-brand-teal/20 bg-panel/55"><span className="sr-only">Loading AI credit allowance</span></Card>
+  if (access.isLoading) return <Card className="border-brand-teal/20 bg-panel/55 p-5 sm:p-6"><div className="flex items-start gap-3"><Coins className="mt-0.5 size-5 text-brand-cyan" /><div><h2 className="font-semibold">{administrator ? 'Administrator AI Studio Credits' : `${plan.name} AI Studio Credits`}</h2><p className="mt-1 text-xs leading-5 text-text-muted">The AI wallet is available here without blocking the Billing page. The live balance will fill in when the account response arrives.</p></div></div></Card>
 
   if (access.isError || !access.data) {
     return <Card className="border-brand-amber/25 p-5"><div className="flex items-start gap-3"><Coins className="mt-0.5 size-5 text-brand-amber" /><div><h2 className="font-semibold">{administrator ? 'Administrator AI Studio Credits' : `${plan.name} AI Studio Credits`}</h2><p className="mt-1 text-xs leading-5 text-text-muted">{administrator ? `Administrator access receives an operational allowance of ${plan.monthlyAiCredits.toLocaleString()} shared AI credits per period.` : `Your ${plan.name} access includes ${plan.monthlyAiCredits.toLocaleString()} shared AI credits${currentPlan === 'trial' ? ' for this trial' : ' per billing period'}.`} The live balance could not be loaded right now.</p><Button className="mt-3" onClick={() => void access.refetch()}>Refresh balance</Button></div></div></Card>

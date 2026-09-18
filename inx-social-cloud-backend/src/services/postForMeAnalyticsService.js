@@ -1,8 +1,8 @@
 const prisma = require('../db/prisma');
 const postForMe = require('./postForMeService');
 
-const ANALYTICS_CACHE_TTL_MS = 3 * 60 * 1000;
-const ANALYTICS_STALE_TTL_MS = 30 * 60 * 1000;
+const ANALYTICS_CACHE_TTL_MS = 5 * 60 * 1000;
+const ANALYTICS_STALE_TTL_MS = 6 * 60 * 60 * 1000;
 const SNAPSHOT_MIN_INTERVAL_MS = 45 * 60 * 1000;
 const SNAPSHOT_RETENTION_DAYS = 120;
 const SNAPSHOT_RUNTIME_INTERVAL_MS = 60 * 60 * 1000;
@@ -377,16 +377,18 @@ async function resolveProfile(userId, profileId, expectedPlatform) {
   return profile;
 }
 
-async function fetchFeed(profile, days) {
+async function fetchFeed(profile, days, options = {}) {
   const accountId = providerAccountId(profile);
   if (!accountId) throw Object.assign(new Error('The analytics connection mapping is missing.'), { status: 409 });
   const { since } = dateRange(days);
   const rows = [];
   const seenPostIds = new Set();
   const seenCursors = new Set();
+  const maxPages = Math.max(1, Math.min(FEED_HISTORY_MAX_PAGES, Number(options.feedMaxPages || FEED_HISTORY_MAX_PAGES)));
+  const maxPosts = Math.max(1, Math.min(FEED_HISTORY_MAX_POSTS, Number(options.feedMaxPosts || FEED_HISTORY_MAX_POSTS)));
   let cursor = '';
 
-  for (let page = 0; page < FEED_HISTORY_MAX_PAGES && rows.length < FEED_HISTORY_MAX_POSTS; page += 1) {
+  for (let page = 0; page < maxPages && rows.length < maxPosts; page += 1) {
     const params = new URLSearchParams({ limit: '100' });
     params.append('expand', 'metrics');
     if (cursor) params.set('cursor', cursor);
@@ -398,10 +400,10 @@ async function fetchFeed(profile, days) {
       if (key && seenPostIds.has(key)) continue;
       if (key) seenPostIds.add(key);
       rows.push(item);
-      if (rows.length >= FEED_HISTORY_MAX_POSTS) break;
+      if (rows.length >= maxPosts) break;
     }
 
-    if (!items.length || !response?.meta?.has_more || rows.length >= FEED_HISTORY_MAX_POSTS) break;
+    if (!items.length || !response?.meta?.has_more || rows.length >= maxPosts) break;
 
     const timestamps = items
       .map((item) => new Date(item.posted_at || 0).getTime())
@@ -422,11 +424,11 @@ async function fetchFeed(profile, days) {
   return rows;
 }
 
-async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 30) {
+async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 30, options = {}) {
   const days = safeDays(daysInput);
   const profile = await resolveProfile(userId, profileId, platform);
   const { since, until } = dateRange(days);
-  const allFeed = await fetchFeed(profile, days);
+  const allFeed = await fetchFeed(profile, days, options);
   const feed = allFeed.filter((item) => {
     const timestamp = new Date(item.posted_at || 0).getTime();
     return Number.isFinite(timestamp) && timestamp >= since.getTime() && timestamp <= until.getTime();
@@ -556,7 +558,7 @@ async function runSnapshotSweep() {
     for (let index = 0; index < providerProfiles.length; index += 1) {
       const profile = providerProfiles[index];
       try {
-        await loadPostForMeAnalytics(profile.userId, profile.platform, profile.id, 90);
+        await loadPostForMeAnalytics(profile.userId, profile.platform, profile.id, 90, { feedMaxPages: 1, feedMaxPosts: 100 });
       } catch (error) {
         console.warn('[analytics-snapshot] profile refresh skipped', {
           profileId: profile.id,
@@ -585,8 +587,9 @@ function startAnalyticsSnapshotRuntime() {
   }
 }
 
-function cacheKey(userId, platform, profileId, daysInput) {
-  return [String(userId), String(platform), String(profileId), String(safeDays(daysInput))].join(':');
+function cacheKey(userId, platform, profileId, daysInput, options = {}) {
+  const variant = String(options.cacheVariant || 'full');
+  return [String(userId), String(platform), String(profileId), String(safeDays(daysInput)), variant].join(':');
 }
 
 function withCacheState(value, cacheState, warning) {
@@ -597,8 +600,8 @@ function withCacheState(value, cacheState, warning) {
   };
 }
 
-async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30) {
-  const key = cacheKey(userId, platform, profileId, daysInput);
+async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30, options = {}) {
+  const key = cacheKey(userId, platform, profileId, daysInput, options);
   const cached = analyticsCache.get(key);
   const age = cached ? Date.now() - cached.updatedAt : Infinity;
   if (cached && age <= ANALYTICS_CACHE_TTL_MS) return withCacheState(cached.value, 'fresh');
@@ -606,7 +609,7 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
   const existing = analyticsInflight.get(key);
   if (existing) return existing;
 
-  const task = loadPostForMeAnalytics(userId, platform, profileId, daysInput)
+  const task = loadPostForMeAnalytics(userId, platform, profileId, daysInput, options)
     .then((value) => {
       analyticsCache.set(key, { value, updatedAt: Date.now() });
       return withCacheState(value, 'live');

@@ -21,7 +21,16 @@ async function socialAnalytics(req, res, next) {
       return res.status(400).json({ error: 'This analytics source is not supported.' });
     }
 
-    const analytics = await getPostForMeAnalytics(req.user.id, platform, profileId, days);
+    const summaryMode = ['1', 'true', 'summary'].includes(String(req.query.summary || req.query.mode || '').toLowerCase());
+    const analytics = await getPostForMeAnalytics(
+      req.user.id,
+      platform,
+      profileId,
+      days,
+      summaryMode
+        ? { feedMaxPages: 1, feedMaxPosts: 100, cacheVariant: 'summary' }
+        : { cacheVariant: 'full' }
+    );
     return res.json({ analytics });
   } catch (error) {
     return next(error);

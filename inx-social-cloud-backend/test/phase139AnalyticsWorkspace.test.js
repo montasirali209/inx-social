@@ -63,7 +63,11 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.doesNotMatch(service, /incrementSeries\(viewsSeries, date, metrics\.views\)/);
   assert.match(provider, /retry-after/);
   assert.match(provider, /status === 429/);
-  assert.match(page, /mapWithConcurrency\(selectedAccounts, 3/);
+  assert.match(provider, /PROVIDER_GET_MAX_PER_SECOND/);
+  assert.match(provider, /PROVIDER_GET_MAX_PER_MINUTE/);
+  assert.match(provider, /reserveProviderReadSlot/);
+  assert.match(provider, /CONNECTION_SYNC_TTL_MS/);
+  assert.match(page, /mapWithConcurrency\(selectedAccounts, 2/);
   assert.match(page, /refetchInterval: 5 \* 60_000/);
   assert.match(page, /readSessionCache/);
   assert.match(page, /writeSessionCache/);
@@ -118,9 +122,11 @@ test('Analytics charts, tabs and report actions remain accessible and functional
 });
 
 
-test('all sidebar workspaces use labelled progressive loading states instead of blank blocks', () => {
-  const loader = read('frontend/src/components/ui/WorkspaceLoadingState.tsx');
+test('only live-data workspaces use page-level loading states', () => {
   const main = read('frontend/src/main.tsx');
+  const dashboard = read('frontend/src/components/dashboard/DashboardPage.tsx');
+  const calendar = read('frontend/src/components/calendar/ContentCalendarPage.tsx');
+  const analytics = read('frontend/src/components/analytics/AnalyticsPrimitives.tsx');
   const posts = read('frontend/src/components/posts/PostsPage.tsx');
   const media = read('frontend/src/components/media-library/MediaLibraryPage.tsx');
   const bulk = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
@@ -128,14 +134,37 @@ test('all sidebar workspaces use labelled progressive loading states instead of 
   const settings = read('frontend/src/components/settings/SettingsPage.tsx');
   const connections = read('frontend/src/components/connections/ConnectedAccountsPageV4.tsx');
   const billing = read('frontend/src/components/billing/BillingPlansPage.tsx');
-  const calendar = read('frontend/src/components/calendar/ContentCalendarPage.tsx');
-  const analytics = read('frontend/src/components/analytics/AnalyticsPrimitives.tsx');
 
-  assert.match(loader, /Updating…/);
-  assert.match(loader, /Syncing live data/);
-  assert.match(loader, /motion-safe:animate-bounce/);
-  assert.match(main, /Suspense fallback/);
-  for (const page of [posts, media, bulk, studio, settings, connections, billing]) assert.match(page, /WorkspaceLoadingState/);
+  assert.doesNotMatch(main, /WorkspaceLoadingState|Suspense fallback/);
+  assert.match(dashboard, /DashboardSkeleton/);
   assert.match(calendar, /CalendarSkeleton/);
   assert.match(analytics, /AnalyticsSkeleton/);
+
+  for (const page of [posts, media, bulk, studio, settings, connections, billing]) {
+    assert.doesNotMatch(page, /WorkspaceLoadingState/);
+    assert.doesNotMatch(page, /if \([^\n]*(?:isLoading|isPending)[^\n]*\) return/);
+  }
+
+  assert.match(posts, /post composer remains available/i);
+  assert.match(media, /Media Library interface remains available/);
+  assert.match(bulk, /Bulk Scheduler interface remains available/);
+  assert.match(studio, /creation workspace is ready immediately/i);
+  assert.match(settings, /Settings remain available/);
+  assert.match(connections, /connection workspace remains available/);
+  assert.match(billing, /BillingImmediateState/);
+});
+
+test('Dashboard uses lightweight paced analytics instead of deep feed history for every connected account', () => {
+  const dashboard = read('frontend/src/components/dashboard/DashboardPage.tsx');
+  const api = read('frontend/src/lib/analytics-api.ts');
+  const controller = read('src/controllers/analyticsController.js');
+  const service = read('src/services/postForMeAnalyticsService.js');
+
+  assert.match(dashboard, /mapWithConcurrency\(accounts, 2/);
+  assert.match(dashboard, /fetchAnalyticsForSource\(account, dashboardAnalyticsDays, 'summary'\)/);
+  assert.match(api, /mode === 'summary'/);
+  assert.match(controller, /feedMaxPages: 1/);
+  assert.match(controller, /feedMaxPosts: 100/);
+  assert.match(service, /cacheVariant/);
+  assert.match(service, /feedMaxPages: 1, feedMaxPosts: 100/);
 });

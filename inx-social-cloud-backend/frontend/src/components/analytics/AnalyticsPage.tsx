@@ -79,7 +79,7 @@ export function AnalyticsPage() {
     initialData: () => readSessionCache<Awaited<ReturnType<typeof fetchAnalyticsSources>>>(analyticsSourcesCacheKey),
     initialDataUpdatedAt: 0,
     staleTime: 20_000,
-    refetchInterval: 60_000,
+    refetchInterval: 5 * 60_000,
     refetchOnWindowFocus: true,
   })
   const accounts = useMemo(() => sources.data?.accounts || [], [sources.data?.accounts])
@@ -105,7 +105,7 @@ export function AnalyticsPage() {
     initialData: () => selectedScopeKey ? readSessionCache<LiveAnalyticsData>(analyticsWorkspaceCacheKey(selectedScopeKey, days)) : undefined,
     initialDataUpdatedAt: 0,
     queryFn: async () => {
-      const settled = await mapWithConcurrency(selectedAccounts, 3, async account => {
+      const settled = await mapWithConcurrency(selectedAccounts, 2, async account => {
         try {
           return { ok: true as const, account, analytics: await fetchAnalyticsForSource(account, days) }
         } catch (error) {
@@ -173,8 +173,9 @@ export function AnalyticsPage() {
     <AnalyticsTabs active={activeTab} onChange={setActiveTab} />
     {view && <AnalyticsScopeNotice analytics={view.source} sourceName={sourceName} />}
     {analytics.data?.failures.length ? <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber">Some live metrics could not refresh for {analytics.data.failures.map(failure => failure.account.displayName).join(', ')}. INXSocial has kept the other verified sources and will retry automatically.</div> : null}
-    {analytics.isLoading && <AnalyticsSkeleton />}
-    {analytics.isError && <div className="rounded-panel border border-brand-red/25 bg-brand-red/8 p-6"><h2 className="font-semibold">Analytics could not be loaded</h2><p className="mt-2 text-xs leading-5 text-text-muted">{analytics.error instanceof Error ? analytics.error.message : 'Reconnect this account or try again.'}</p><a className="mt-4 inline-flex min-h-10 items-center rounded-xl border border-border-soft px-4 text-xs" href="/app/connected-accounts">Review connected accounts</a></div>}
+    {analytics.isLoading && !view && <AnalyticsSkeleton />}
+    {analytics.isError && view && <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber"><strong>Live refresh delayed.</strong> INXSocial is keeping the last verified analytics visible and will retry automatically instead of replacing the workspace with an error state.</div>}
+    {analytics.isError && !view && <div className="rounded-panel border border-brand-red/25 bg-brand-red/8 p-6"><h2 className="font-semibold">Analytics could not be loaded</h2><p className="mt-2 text-xs leading-5 text-text-muted">{analytics.error instanceof Error ? analytics.error.message : 'Reconnect this account or try again.'}</p><a className="mt-4 inline-flex min-h-10 items-center rounded-xl border border-border-soft px-4 text-xs" href="/app/connected-accounts">Review connected accounts</a></div>}
     {view && <div className="analytics-data-transition space-y-4" key={`${selectedScopeKey}-${days}`}>
       <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 xl:grid-cols-6">{view.stats.map(stat => <AnalyticsStatCard key={stat.id} stat={stat} />)}</div>
       {noVerifiedMetrics && <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber"><strong>{sourceName} analytics are partially available.</strong> {view.source.capabilities?.pageInsights.reason || 'Live metrics are not available for the selected content yet.'}</div>}
