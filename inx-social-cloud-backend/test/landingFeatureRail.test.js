@@ -34,14 +34,20 @@ test('AI Content Studio is a premium static five-feature marketing section', () 
   const landing = read('public/landing.html');
   const css = read('public/landing-redesign.css');
 
-  assert.equal((landing.match(/inxsocial-ai-studio-cards-final\.avif/g) || []).length, 1);
+  assert.equal((landing.match(/class="ai-feature-card/g) || []).length, 5);
   for (const feature of ['Image Post','Carousel Post','Short Video / Reel','UGC Ad Post','Video Clipping']) {
     assert.equal(landing.includes(feature), true, `${feature} should appear in AI Content Studio`);
   }
   assert.equal(landing.includes('Stock Video Creator'), true);
   assert.equal(landing.includes('AI Video Clipping'), true);
   assert.match(landing, /coming soon/i);
-  assert.match(css, /\.ai-studio-visual/);
+  assert.match(css, /\.ai-feature-grid/);
+  assert.match(css, /\.ai-feature-wide/);
+  assert.match(css, /\.image-post-art/);
+  assert.match(css, /\.carousel-post-art/);
+  assert.match(css, /\.video-post-art/);
+  assert.match(css, /\.ugc-post-art/);
+  assert.match(css, /\.clipping-post-art/);
 });
 
 test('landing names all nine supported social networks and uses local inline logos', () => {
