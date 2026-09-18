@@ -45,7 +45,7 @@ test('Posts keeps the attachment compact and card hover text crisp', () => {
 test('best-time guidance is provider-neutral and destination-aware', () => {
   const page = read('frontend/src/components/posts/PostsPage.tsx');
   const schedule = read('frontend/src/components/posts/SchedulePanel.tsx');
-  assert.match(page, /workspace\.data\?\.destinations\.find/);
+  assert.match(page, /workspaceData\.destinations\.find/);
   assert.match(page, /Connected destination selected/);
   assert.match(page, /cross-platform feed metrics/);
   assert.doesNotMatch(page, /fetchFacebookDashboardAnalytics/);
