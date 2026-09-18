@@ -36,15 +36,29 @@ module.exports = {
   stripe: {
     secretKey: process.env.STRIPE_SECRET_KEY || '',
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || '',
-    starterPriceId: process.env.STRIPE_STARTER_PRICE_ID || '',
+    creatorPriceId: process.env.STRIPE_CREATOR_PRICE_ID || '',
     proPriceId: process.env.STRIPE_PRO_PRICE_ID || '',
+    businessPriceId: process.env.STRIPE_BUSINESS_PRICE_ID || '',
+    agencyPriceId: process.env.STRIPE_AGENCY_PRICE_ID || '',
+    legacyStarterPriceId: process.env.STRIPE_LEGACY_STARTER_PRICE_ID || process.env.STRIPE_STARTER_PRICE_ID || '',
+    legacyPlusPriceId: process.env.STRIPE_LEGACY_PLUS_PRICE_ID || '',
     successUrl: process.env.STRIPE_SUCCESS_URL || `${process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050'}/app/billing?checkout=success`,
     cancelUrl: process.env.STRIPE_CANCEL_URL || `${process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050'}/app/billing?checkout=cancelled`,
     portalReturnUrl: process.env.STRIPE_PORTAL_RETURN_URL || `${process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050'}/app/billing`,
+    portalConfigurationId: process.env.STRIPE_PORTAL_CONFIGURATION_ID || '',
     paymentGraceDays: Math.max(1, Number(process.env.PAYMENT_GRACE_DAYS || 7))
   },
   aiCredits: {
-    plusMonthlyCredits: Math.max(1, Math.min(100000, Number(process.env.AI_PLUS_MONTHLY_CREDITS || 500))),
+    monthlyByPlan: {
+      TRIAL: Math.max(1, Math.min(100000, Number(process.env.AI_TRIAL_CREDITS || 20))),
+      CREATOR: Math.max(1, Math.min(100000, Number(process.env.AI_CREATOR_MONTHLY_CREDITS || 150))),
+      PRO: Math.max(1, Math.min(100000, Number(process.env.AI_PRO_MONTHLY_CREDITS || 500))),
+      BUSINESS: Math.max(1, Math.min(100000, Number(process.env.AI_BUSINESS_MONTHLY_CREDITS || 1200))),
+      AGENCY: Math.max(1, Math.min(100000, Number(process.env.AI_AGENCY_MONTHLY_CREDITS || 2500))),
+      STARTER: Math.max(1, Math.min(100000, Number(process.env.AI_CREATOR_MONTHLY_CREDITS || 150))),
+      PLUS: Math.max(1, Math.min(100000, Number(process.env.AI_PRO_MONTHLY_CREDITS || 500))),
+      LIFETIME: Math.max(1, Math.min(100000, Number(process.env.AI_PRO_MONTHLY_CREDITS || 500)))
+    },
     stripeWebhookSecret: process.env.STRIPE_AI_CREDITS_WEBHOOK_SECRET || '',
     topupPriceIds: {
       '250': process.env.STRIPE_AI_CREDITS_250_PRICE_ID || '',

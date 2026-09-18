@@ -6,11 +6,14 @@ function isTrialActive(user, now = new Date()) {
 
 function getPlanLimits(plan) {
   const limits = {
-    TRIAL: { pages: 2, batchPosts: null, postsPerDay: null, devices: 1, schedulingWindowDays: 30 },
-    STARTER: { pages: null, batchPosts: null, postsPerDay: null, devices: 1, schedulingWindowDays: null },
-    PRO: { pages: null, batchPosts: null, postsPerDay: null, devices: 3, schedulingWindowDays: null },
-    PLUS: { pages: null, batchPosts: null, postsPerDay: null, devices: 3, schedulingWindowDays: null },
-    LIFETIME: { pages: null, batchPosts: null, postsPerDay: null, devices: 3, schedulingWindowDays: null }
+    TRIAL: { pages: 2, batchPosts: null, postsPerDay: null, publishedPostsPerTrial: 50, devices: 1, schedulingWindowDays: null },
+    CREATOR: { pages: 5, batchPosts: null, postsPerDay: null, publishedPostsPerTrial: null, devices: 1, schedulingWindowDays: null },
+    PRO: { pages: 12, batchPosts: null, postsPerDay: null, publishedPostsPerTrial: null, devices: 3, schedulingWindowDays: null },
+    BUSINESS: { pages: 25, batchPosts: null, postsPerDay: null, publishedPostsPerTrial: null, devices: 5, schedulingWindowDays: null },
+    AGENCY: { pages: 50, batchPosts: null, postsPerDay: null, publishedPostsPerTrial: null, devices: 10, schedulingWindowDays: null },
+    STARTER: { pages: 5, batchPosts: null, postsPerDay: null, publishedPostsPerTrial: null, devices: 1, schedulingWindowDays: null },
+    PLUS: { pages: 12, batchPosts: null, postsPerDay: null, publishedPostsPerTrial: null, devices: 3, schedulingWindowDays: null },
+    LIFETIME: { pages: 12, batchPosts: null, postsPerDay: null, publishedPostsPerTrial: null, devices: 3, schedulingWindowDays: null }
   };
   return limits[String(plan || 'TRIAL').toUpperCase()] || limits.TRIAL;
 }
@@ -44,6 +47,7 @@ function evaluateLicense(user, sub, now = new Date()) {
     provider: sub?.provider || null,
     userRole: user.role || 'USER',
     trialEndsAt: user.trialEndsAt,
+    trialStartsAt: user.createdAt || null,
     currentPeriodStart: sub?.currentPeriodStart || null,
     currentPeriodEnd: sub?.currentPeriodEnd || null,
     graceEndsAt: sub?.graceEndsAt || null,

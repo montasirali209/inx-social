@@ -77,7 +77,7 @@ async function createCheckoutSession(req, res, next) {
       return res.status(403).json({ error: 'Verify your email before choosing a subscription.' });
     }
 
-    const input = z.object({ plan: z.enum(['STARTER', 'PRO']) }).parse(req.body);
+    const input = z.object({ plan: z.enum(['CREATOR', 'PRO', 'BUSINESS', 'AGENCY']) }).parse(req.body);
     const stripe = stripeService.getStripe();
     const priceId = stripeService.priceIdForPlan(input.plan);
     if (!priceId) return res.status(503).json({ error: `${input.plan} Stripe Price ID is not configured.` });
@@ -124,23 +124,37 @@ async function createCheckoutSession(req, res, next) {
 
 function normalizedPlan(plan) {
   const value = String(plan || 'TRIAL').toUpperCase();
-  if (value === 'LIFETIME') return 'PLUS';
-  if (value === 'STARTER') return 'PRO';
-  if (value === 'PRO') return 'PLUS';
-  return value === 'TRIAL' ? value : 'TRIAL';
+  if (value === 'STARTER') return 'CREATOR';
+  if (value === 'PLUS' || value === 'LIFETIME') return 'PRO';
+  if (['TRIAL', 'CREATOR', 'PRO', 'BUSINESS', 'AGENCY'].includes(value)) return value;
+  return 'TRIAL';
 }
 
 async function billingOverview(req, res, next) {
   try {
     const now = new Date();
-    const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const [license, subscription, preference, facebookPages, socialProfiles, scheduledContent] = await Promise.all([
+    const calendarStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const [license, subscription, preference, facebookPages, socialProfiles] = await Promise.all([
       getLicenseStatus(req.user.id),
       latestSubscriptionForUser(req.user.id),
       prisma.cloudPreference.findUnique({ where: { userId: req.user.id } }),
       prisma.connectedPage.count({ where: { userId: req.user.id, status: 'ACTIVE' } }),
-      prisma.socialProfile.count({ where: { userId: req.user.id, status: 'ACTIVE' } }),
-      prisma.scheduleJob.count({ where: { userId: req.user.id, createdAt: { gte: periodStart }, status: { not: 'CANCELLED' } } })
+      prisma.socialProfile.count({ where: { userId: req.user.id, status: 'ACTIVE' } })
+    ]);
+    const trialPlan = normalizedPlan(license.plan) === 'TRIAL';
+    const usageStart = trialPlan
+      ? new Date(license.trialStartsAt || calendarStart)
+      : new Date(subscription?.currentPeriodStart || calendarStart);
+    const usageEnd = trialPlan
+      ? (license.trialEndsAt ? new Date(license.trialEndsAt) : null)
+      : (subscription?.currentPeriodEnd || null);
+    const [scheduledContent, publishedPosts] = await Promise.all([
+      prisma.scheduleJob.count({ where: { userId: req.user.id, createdAt: { gte: usageStart }, status: { not: 'CANCELLED' } } }),
+      prisma.socialPublication.count({
+        where: trialPlan
+          ? { profile: { userId: req.user.id }, externalPostId: { not: null }, createdAt: { gte: usageStart } }
+          : { profile: { userId: req.user.id }, status: 'PUBLISHED', publishedAt: { gte: usageStart } }
+      })
     ]);
     let invoices = [];
     let billingCycle = normalizedPlan(license.plan) === 'TRIAL' ? 'trial' : 'monthly';
@@ -179,7 +193,7 @@ async function billingOverview(req, res, next) {
         canManage: Boolean(subscription?.providerCustomerId),
         legacyLifetime: String(license.plan).toUpperCase() === 'LIFETIME'
       },
-      usage: { connectedPages: facebookPages + socialProfiles, scheduledContent, periodStart, periodEnd: subscription?.currentPeriodEnd || null },
+      usage: { connectedPages: facebookPages + socialProfiles, scheduledContent, publishedPosts, periodStart: usageStart, periodEnd: usageEnd },
       preferences: { productUpdates: Boolean(req.user.marketingOptIn), usageLimitAlerts: settings.usageLimitAlerts !== false },
       billing: { configured: stripeService.isConfigured(), availability: stripeService.planAvailability() },
       invoices
@@ -240,7 +254,8 @@ async function createCustomerPortalSession(req, res, next) {
 
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.providerCustomerId,
-      return_url: env.stripe.portalReturnUrl
+      return_url: env.stripe.portalReturnUrl,
+      ...(env.stripe.portalConfigurationId ? { configuration: env.stripe.portalConfigurationId } : {})
     });
     res.json({ url: session.url });
   } catch (error) { next(error); }

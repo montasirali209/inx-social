@@ -1,6 +1,7 @@
 const axios = require('axios');
 const crypto = require('crypto');
 const prisma = require('../db/prisma');
+const { getLicenseStatus } = require('./licenseService');
 
 const PROVIDER_ENGINE = 'POST_FOR_ME';
 const DEFAULT_BASE_URL = 'https://api.postforme.dev/v1';
@@ -247,6 +248,30 @@ async function upsertProviderAccount(userId, account) {
   const displayName = username || `${PLATFORM_LABELS[platform]} account`;
   const active = String(account.status || '').toLowerCase() === 'connected';
   const metadata = connectionMetadata(account);
+
+  const existingConnection = await prisma.socialConnection.findUnique({
+    where: { userId_platform_externalAccountId: { userId, platform, externalAccountId } }
+  });
+  if (!existingConnection) {
+    const license = await getLicenseStatus(userId);
+    const limit = license.limits?.pages;
+    if (Number.isFinite(limit)) {
+      const activeConnections = await prisma.socialConnection.findMany({
+        where: { userId, status: 'ACTIVE' },
+        select: { metadataJson: true }
+      });
+      const providerCount = activeConnections.filter(row => parseJson(row.metadataJson, {}).providerEngine === PROVIDER_ENGINE).length;
+      if (providerCount >= Number(limit)) {
+        try { await apiRequest('POST', `/social-accounts/${encodeURIComponent(externalAccountId)}/disconnect`); } catch (_) { /* local limit still applies */ }
+        const message = `Your current INXSocial plan supports up to ${limit} connected social accounts. Upgrade in Billing & Plans to connect another account.`;
+        throw Object.assign(new Error(message), {
+          status: 402,
+          publicMessage: message,
+          code: 'CONNECTED_ACCOUNT_LIMIT_REACHED'
+        });
+      }
+    }
+  }
 
   const connection = await prisma.socialConnection.upsert({
     where: { userId_platform_externalAccountId: { userId, platform, externalAccountId } },

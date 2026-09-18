@@ -20,7 +20,7 @@ test('AI Content Studio keeps the launch credit schedule', () => {
   assert.throws(() => estimateGenerationCost({ type: 'short_video', options: { duration: 15 } }), /5 or 10 seconds/);
 
   assert.equal(estimateGenerationCost({ type: 'ugc_ad', options: { duration: 5 } }), 25);
-  assert.equal(estimateGenerationCost({ type: 'ugc_ad', options: { duration: 10 } }), 25);
+  assert.equal(estimateGenerationCost({ type: 'ugc_ad', options: { duration: 10 } }), 40);
   assert.throws(() => estimateGenerationCost({ type: 'ugc_ad', options: { duration: 15 } }), /5 or 10 seconds/);
 });
 
@@ -63,11 +63,14 @@ test('Runware text model aliases normalize to the supported AIR model id', () =>
   assert.equal(normalizeModelId('runware:400@4'), 'runware:400@4');
 });
 
-test('legacy Stripe plan ids map to the customer-facing Pro and Plus plans', () => {
+test('legacy and current Stripe plan ids map to the new customer-facing plan ladder', () => {
   assert.equal(customerPlan('TRIAL', 'USER'), 'trial');
-  assert.equal(customerPlan('STARTER', 'USER'), 'pro');
-  assert.equal(customerPlan('PRO', 'USER'), 'plus');
-  assert.equal(customerPlan('PLUS', 'USER'), 'plus');
-  assert.equal(customerPlan('LIFETIME', 'USER'), 'plus');
-  assert.equal(customerPlan('TRIAL', 'ADMIN'), 'plus');
+  assert.equal(customerPlan('STARTER', 'USER'), 'creator');
+  assert.equal(customerPlan('CREATOR', 'USER'), 'creator');
+  assert.equal(customerPlan('PRO', 'USER'), 'pro');
+  assert.equal(customerPlan('PLUS', 'USER'), 'pro');
+  assert.equal(customerPlan('LIFETIME', 'USER'), 'pro');
+  assert.equal(customerPlan('BUSINESS', 'USER'), 'business');
+  assert.equal(customerPlan('AGENCY', 'USER'), 'agency');
+  assert.equal(customerPlan('TRIAL', 'ADMIN'), 'agency');
 });

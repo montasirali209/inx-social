@@ -37,7 +37,8 @@ function estimateGenerationCost(request) {
   const duration = intOption(options.duration, type === 'ugc_ad' ? 10 : 5);
   if (!STANDARD_VIDEO_DURATIONS.has(duration)) throw error('Standard AI Studio video generation currently supports 5 or 10 seconds.', 422, 'AI_STUDIO_DURATION_UNSUPPORTED');
   if (type === 'short_video') return duration === 5 ? 15 : 25;
-  return 25;
+  // UGC uses a more expensive video route than the economical short-video path.
+  return duration === 5 ? 25 : 40;
 }
 
 function validateGenerationRequest(request) {

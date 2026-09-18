@@ -8,17 +8,23 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const exists = relative => fs.existsSync(path.join(root, relative));
 const stockVideo = require('../src/services/stockVideoStudioService');
 
-test('Stock Video Creator is an isolated Plus workflow with a separate monthly allowance', () => {
+test('Stock Video Creator uses the shared AI credit wallet with duration and resolution pricing', () => {
   const service = read('src/services/stockVideoStudioService.js');
   const routes = read('src/routes/aiContentStudioRoutes.js');
   const controller = read('src/controllers/aiStudioNextController.js');
-  assert.match(service, /STOCK_VIDEO_MONTHLY_LIMIT \|\| 30/);
-  assert.match(service, /contentType\"=\$2/);
-  assert.match(service, /'stock_video'/);
-  assert.match(service, /credits\.getEntitlement/);
+  assert.doesNotMatch(service, /STOCK_VIDEO_MONTHLY_LIMIT/);
+  assert.match(service, /function estimateCredits/);
+  assert.match(service, /duration <= 15 \? 20 : duration <= 30 \? 30 : duration <= 45 \? 40 : 50/);
+  assert.match(service, /resolutionMultiplier.*1080p.*1\.25/);
+  assert.match(service, /credits\.reserve\(userId, generationId, amount\)/);
+  assert.match(service, /credits\.complete\(userId, generationId, chargedCredits\)/);
+  assert.match(service, /credits\.refund\(userId, generationId/);
   assert.match(routes, /\/stock-video\/access/);
   assert.match(routes, /\/generate\/stock-video/);
   assert.match(controller, /res\.status\(202\)/);
+  assert.equal(stockVideo.estimateCredits({ duration: 15, resolution: '720p' }), 20);
+  assert.equal(stockVideo.estimateCredits({ duration: 30, resolution: '720p' }), 30);
+  assert.equal(stockVideo.estimateCredits({ duration: 60, resolution: '1080p' }), 63);
 });
 
 test('Stock Video Creator delegates to the full isolated OpenMontage service and persists the finished video', () => {
@@ -139,12 +145,14 @@ test('Stock Video Creator UI resumes active jobs and hands completed video to Po
   const service = read('src/services/aiContentStudioService.js');
   assert.match(component, /ACTIVE_JOB_KEY/);
   assert.match(component, /getGenerationStatus/);
-  assert.match(component, /30.*remaining|remaining.*limit/);
+  assert.match(component, /credits available/);
+  assert.match(component, /selectedCost/);
+  assert.match(component, /shared AI credit wallet/);
   assert.match(component, /Post \/ Schedule/);
   assert.match(component, /Licensed-source provenance included/);
   assert.match(component, /Licensed footage sources/);
   assert.match(component, /sourceGroups/);
-  assert.match(component, /Create stock video/);
+  assert.match(component, /Create stock video · \$\{selectedCost\} credits/);
   assert.doesNotMatch(component, /Real OpenMontage runtime|OpenMontage connected|Loading allowance|Create with OpenMontage/);
   assert.match(component, /disabled=\{working \|\| noRemaining \|\| prompt\.trim\(\)\.length < 2\}/);
   assert.match(videoStudio, /Stock Video Creator/);

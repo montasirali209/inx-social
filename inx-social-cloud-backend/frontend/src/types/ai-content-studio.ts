@@ -16,7 +16,7 @@ export type GenerationStatus =
   | 'cancelled'
 
 export type AIPlanAccess = {
-  plan: 'trial' | 'pro' | 'plus'
+  plan: 'trial' | 'creator' | 'pro' | 'business' | 'agency'
   studioEnabled: boolean
   creditsRemaining: number | null
   creditsLimit: number | null
@@ -30,6 +30,7 @@ export type AIPlanAccess = {
   periodEnd?: string
   providerConfigured?: boolean
   topupsSupported?: boolean
+  topupsEnabled?: boolean
 }
 
 export type GenerationRequest = {
