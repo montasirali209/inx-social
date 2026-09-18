@@ -13,6 +13,7 @@ const mediaLibrary = require('./mediaLibraryService');
 const { expiresAtFor } = require('./mediaRetentionService');
 
 const CHAT_MODEL = String(process.env.OPENAI_CHAT_MODEL || 'gpt-5.6-luna').trim();
+const CREDIT_COST_BUFFER = 1.15;
 
 function publicError(message, code = 'AI_VIDEO_STUDIO_ERROR', status = 400) {
   const error = new Error(message); error.code = code; error.status = status; error.publicMessage = message; return error;
@@ -154,7 +155,9 @@ function estimateCredits(input = {}) {
   if (input.aspectRatio && !profile.aspects.includes(String(input.aspectRatio))) throw publicError('Choose an aspect ratio supported by the selected video model.', 'AI_VIDEO_ASPECT_UNSUPPORTED', 422);
   const rateTable = draft && profile.draftRates ? profile.draftRates : audio && profile.audioRates ? profile.audioRates : profile.rates;
   const usdPerSecond = Number(rateTable?.[resolution] || profile.rates?.[resolution] || 0.12);
-  return Math.max(1, Math.ceil(duration * usdPerSecond * 100));
+  // One credit is roughly one US cent of provider cost, with a small safety buffer for
+  // provider-price/FX drift. Premium models therefore consume materially more credits.
+  return Math.max(1, Math.ceil(duration * usdPerSecond * 100 * CREDIT_COST_BUFFER));
 }
 
 function fallbackRecommendation(input = {}) {
