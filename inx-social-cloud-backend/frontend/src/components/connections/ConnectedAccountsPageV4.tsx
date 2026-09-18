@@ -83,11 +83,11 @@ type ActivityItem = {
   status: 'success' | 'warning' | 'error' | 'info'
 }
 
-const allUiPlatforms: UiPlatform[] = customerFacingPlatforms.filter((platform) => platform !== 'google_business')
+const allUiPlatforms: UiPlatform[] = [...customerFacingPlatforms]
 const connectTiles: UiPlatform[] = [...allUiPlatforms]
 
 function isGatewayPlatform(platform: UiPlatform): platform is Platform {
-  return platform !== 'google_business'
+  return customerFacingPlatforms.includes(platform)
 }
 
 function metaFor(platform: UiPlatform) {
