@@ -106,7 +106,7 @@ export function AnalyticsPage() {
   })
 
   const view = useMemo(() => analytics.data ? buildAnalyticsView(analytics.data.analytics, days) : null, [analytics.data, days])
-  const chartPoints = useMemo(() => view ? aggregatePerformance(view.performance, interval) : [], [view, interval])
+  const chartPoints = useMemo(() => view ? (interval === 'monthly' ? view.performance : aggregatePerformance(view.performance, interval)) : [], [view, interval])
   const breakdown = useMemo<EngagementPlatformRow[]>(() => {
     const values = new Map<Platform, EngagementPlatformRow>()
     analytics.data?.results.forEach(({ account, analytics: result }) => {
