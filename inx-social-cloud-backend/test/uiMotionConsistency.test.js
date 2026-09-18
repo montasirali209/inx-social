@@ -30,3 +30,11 @@ test('Billing surfaces communicate depth without hover lift', () => {
   assert.match(depth, /inset 0 1px 0/);
   assert.doesNotMatch(depth, /translateY|translate3d|rotateX|rotateY|perspective\(/);
 });
+
+
+test('workspace frame stays left-anchored when browser zoom widens the CSS viewport', () => {
+  const css = read('frontend/src/index.css');
+
+  assert.match(css, /\.workspace-frame\s*\{[\s\S]*?max-width:\s*96rem;[\s\S]*?min-width:\s*0;[\s\S]*?margin-inline:\s*0 auto;/);
+  assert.doesNotMatch(css, /\.workspace-frame\s*\{[\s\S]*?margin-inline:\s*auto;/);
+});
