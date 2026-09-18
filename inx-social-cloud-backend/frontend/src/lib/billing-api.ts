@@ -4,9 +4,8 @@ import type { BillingCycle, BillingOverview, PlanId } from '../types/billing'
 
 export function getBillingOverview() { return apiRequest<BillingOverview>('/api/billing/overview') }
 export async function changePlan(plan: Exclude<PlanId, 'trial'>, billingCycle: Exclude<BillingCycle, 'trial'>) {
-  if (billingCycle !== 'monthly') throw new Error('Yearly billing is not available for the existing Stripe plans.')
-  const stripePlan = plan === 'pro' ? 'STARTER' : 'PRO'
-  return apiRequest<{ url: string }>('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ plan: stripePlan }) })
+  if (billingCycle !== 'monthly') throw new Error('Yearly billing is not available yet.')
+  return apiRequest<{ url: string }>('/api/billing/checkout', { method: 'POST', body: JSON.stringify({ plan: plan.toUpperCase() }) })
 }
 export async function openStripeCustomerPortal() { return apiRequest<{ url: string }>('/api/billing/portal', { method: 'POST', body: '{}' }) }
 export async function updateBillingPreferences(settings: { productUpdates: boolean; usageLimitAlerts: boolean }) {
