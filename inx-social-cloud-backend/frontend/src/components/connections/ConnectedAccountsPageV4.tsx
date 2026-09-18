@@ -39,7 +39,7 @@ import { useUiStore } from '../../store/ui-store'
 import { Button } from '../ui/Button'
 import { SocialPlatformIcon, type SocialPlatformName } from '../ui/SocialPlatformIcon'
 
-type UiPlatform = Platform
+type UiPlatform = Exclude<Platform, 'google_business'>
 type ConnectionStatus =
   | 'connected'
   | 'syncing'
@@ -86,8 +86,8 @@ type ActivityItem = {
 const allUiPlatforms: UiPlatform[] = [...customerFacingPlatforms]
 const connectTiles: UiPlatform[] = [...allUiPlatforms]
 
-function isGatewayPlatform(platform: UiPlatform): platform is Platform {
-  return customerFacingPlatforms.includes(platform)
+function isGatewayPlatform(platform: UiPlatform): platform is UiPlatform {
+  return allUiPlatforms.includes(platform)
 }
 
 function metaFor(platform: UiPlatform) {
@@ -109,7 +109,6 @@ function platformHome(platform: UiPlatform) {
     pinterest: 'https://www.pinterest.com/',
     threads: 'https://www.threads.net/',
     bluesky: 'https://bsky.app/',
-    google_business: 'https://business.google.com/',
   }
   return urls[platform]
 }
@@ -398,7 +397,7 @@ function PlatformFilter({ value, onChange }: { value: 'all' | UiPlatform; onChan
       <span className="sr-only">Filter by platform</span>
       <select className="min-h-10 appearance-none rounded-xl border border-border-soft bg-bg/45 pl-3 pr-9 text-xs text-text-main outline-none transition hover:border-brand-cyan/30 focus:border-brand-cyan focus:ring-2 focus:ring-brand-cyan/10" onChange={(event) => onChange(event.target.value as 'all' | UiPlatform)} value={value}>
         <option value="all">All Platforms</option>
-        {allUiPlatforms.filter((platform) => platform !== 'google_business').map((platform) => <option key={platform} value={platform}>{labelFor(platform)}</option>)}
+        {allUiPlatforms.map((platform) => <option key={platform} value={platform}>{labelFor(platform)}</option>)}
       </select>
       <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" />
     </label>
@@ -784,7 +783,7 @@ function ActivityDrawer({ items, onClose }: { items: ActivityItem[]; onClose: ()
     <Drawer onClose={onClose} title="Connection Activity">
       <div className="p-5">
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="relative"><span className="sr-only">Filter activity platform</span><select className="min-h-10 w-full appearance-none rounded-xl border border-border-soft bg-bg/40 px-3 pr-9 text-xs outline-none focus:border-brand-cyan" onChange={(event) => setPlatform(event.target.value as 'all' | UiPlatform)} value={platform}><option value="all">All platforms</option>{allUiPlatforms.filter((item) => item !== 'google_business').map((item) => <option key={item} value={item}>{labelFor(item)}</option>)}</select><ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" /></label>
+          <label className="relative"><span className="sr-only">Filter activity platform</span><select className="min-h-10 w-full appearance-none rounded-xl border border-border-soft bg-bg/40 px-3 pr-9 text-xs outline-none focus:border-brand-cyan" onChange={(event) => setPlatform(event.target.value as 'all' | UiPlatform)} value={platform}><option value="all">All platforms</option>{allUiPlatforms.map((item) => <option key={item} value={item}>{labelFor(item)}</option>)}</select><ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" /></label>
           <label className="relative"><span className="sr-only">Filter activity status</span><select className="min-h-10 w-full appearance-none rounded-xl border border-border-soft bg-bg/40 px-3 pr-9 text-xs outline-none focus:border-brand-cyan" onChange={(event) => setStatus(event.target.value as 'all' | ActivityItem['status'])} value={status}><option value="all">All statuses</option><option value="success">Success</option><option value="info">Info</option><option value="warning">Warning</option><option value="error">Error</option></select><ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" /></label>
         </div>
         {filtered.length ? <div className="ml-1 mt-5 border-l border-brand-teal/20 pl-5">{filtered.map((item) => <ConnectionActivityItem item={item} key={item.id} />)}</div> : <div className="mt-5 rounded-xl border border-dashed border-border-soft p-6 text-center text-xs text-text-muted">No activity matches these filters.</div>}
@@ -797,7 +796,7 @@ function MorePlatformsModal({ configured, onClose, onConnect }: { configured: bo
   return (
     <Modal maxWidth="max-w-2xl" onClose={onClose} subtitle="Networks enabled by the live publishing gateway can be connected immediately." title="More Platforms">
       <div className="mt-5 grid gap-2 sm:grid-cols-2">
-        {allUiPlatforms.filter((platform) => platform !== 'google_business').map((platform) => {
+        {allUiPlatforms.map((platform) => {
           const available = configured && isGatewayPlatform(platform)
           return <button className="flex items-center gap-3 rounded-xl border border-border-soft bg-bg/30 p-3 text-left transition hover:border-brand-teal/30 focus-visible:outline-2 focus-visible:outline-brand-cyan disabled:cursor-not-allowed disabled:opacity-55" disabled={!available} key={platform} onClick={() => onConnect(platform)} type="button"><PlatformIcon platform={platform} /><span className="min-w-0 flex-1"><strong className="block text-sm">{labelFor(platform)}</strong><small className="mt-0.5 block text-[11px] text-text-muted">{available ? 'Available now' : 'Not enabled by current gateway'}</small></span>{available ? <Plus className="size-4 text-brand-cyan" /> : <span className="rounded-full border border-white/8 px-2 py-1 text-[9px] text-text-soft">Unavailable</span>}</button>
         })}
