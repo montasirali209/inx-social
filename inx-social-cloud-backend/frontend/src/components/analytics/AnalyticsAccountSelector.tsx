@@ -95,8 +95,8 @@ export function AnalyticsAccountSelector({ accounts, values, isLive, loading = f
   }
 
   function filter(platform: 'all' | SocialPlatform) {
+    if (open) commitSelection()
     setPlatformFilter(platform)
-    setOpen(false)
   }
 
   const selectedLabel = selectedAccounts.length
