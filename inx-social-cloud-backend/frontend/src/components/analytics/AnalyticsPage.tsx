@@ -40,6 +40,21 @@ type LiveAnalyticsData = {
   failures: Array<{ account: AnalyticsSourceAccount; message: string }>
 }
 
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  if (!items.length) return []
+  const results = new Array<R>(items.length)
+  let cursor = 0
+  const runners = Array.from({ length: Math.min(Math.max(1, concurrency), items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor
+      cursor += 1
+      results[index] = await worker(items[index])
+    }
+  })
+  await Promise.all(runners)
+  return results
+}
+
 export function AnalyticsPage() {
   const [selectedKeys, setSelectedKeys] = useState<string[]>(savedSelection)
   const [days, setDays] = useState(30)
@@ -68,18 +83,18 @@ export function AnalyticsPage() {
   const analytics = useQuery<LiveAnalyticsData>({
     queryKey: ['analytics-workspace', 'post-for-me', selectedScopeKey, days],
     enabled: selectedAccounts.length > 0,
-    refetchInterval: 60_000,
-    refetchOnWindowFocus: true,
-    retry: 1,
-    staleTime: 20_000,
+    refetchInterval: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: 0,
+    staleTime: 2 * 60_000,
     queryFn: async () => {
-      const settled = await Promise.all(selectedAccounts.map(async account => {
+      const settled = await mapWithConcurrency(selectedAccounts, 3, async account => {
         try {
           return { ok: true as const, account, analytics: await fetchAnalyticsForSource(account, days) }
         } catch (error) {
           return { ok: false as const, account, message: error instanceof Error ? error.message : 'Live analytics could not be loaded.' }
         }
-      }))
+      })
       const successes = settled.flatMap(result => result.ok ? [{ account: result.account, analytics: result.analytics }] : [])
       const failures = settled.flatMap(result => result.ok ? [] : [{ account: result.account, message: result.message }])
       if (!successes.length) throw new Error(failures[0]?.message || 'Post for Me did not return analytics for the selected sources.')
@@ -130,7 +145,7 @@ export function AnalyticsPage() {
       </div>
     </div>
     <AnalyticsTabs active={activeTab} onChange={setActiveTab} />
-    {analytics.data?.failures.length ? <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber">Live metrics are temporarily unavailable for {analytics.data.failures.map(failure => failure.account.displayName).join(', ')}. Other selected sources are still included.</div> : null}
+    {analytics.data?.failures.length ? <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber">Some live metrics could not refresh for {analytics.data.failures.map(failure => failure.account.displayName).join(', ')}. INXSocial has kept the other verified sources and will retry automatically.</div> : null}
     {analytics.isLoading && <AnalyticsSkeleton />}
     {analytics.isError && <div className="rounded-panel border border-brand-red/25 bg-brand-red/8 p-6"><h2 className="font-semibold">Analytics could not be loaded</h2><p className="mt-2 text-xs leading-5 text-text-muted">{analytics.error instanceof Error ? analytics.error.message : 'Reconnect this account or try again.'}</p><a className="mt-4 inline-flex min-h-10 items-center rounded-xl border border-border-soft px-4 text-xs" href="/app/connected-accounts">Review connected accounts</a></div>}
     {view && <div className="analytics-data-transition space-y-4" key={`${selectedScopeKey}-${days}`}>
@@ -145,7 +160,7 @@ export function AnalyticsPage() {
       {activeTab === 'videos' && <><TopPerformingPostsCard onViewAll={() => {}} platform={view.source.platform} posts={view.topPosts.filter(post => /video|reel/i.test(post.contentType))} /><ProviderMetricsCard sources={providerMetricSources} /></>}
       {['stories', 'competitors'].includes(activeTab) && <AnalyticsCard><UnavailableState detail={`${activeTab === 'stories' ? 'Story' : 'Competitor'} analytics are not exposed by the current Post for Me feed contract. INXSocial will activate this view only when verified provider data is available.`} title={`${activeTab === 'stories' ? 'Stories' : 'Competitors'} data unavailable`} /></AnalyticsCard>}
       {activeTab === 'reports' && <AnalyticsCard><AnalyticsCardHeader description="Export the currently selected live account scope and date range without including credentials or access tokens." title="Analytics Reports" /><div className="grid min-h-56 place-items-center p-6 text-center"><span><CalendarDays className="mx-auto size-8 text-brand-cyan" /><strong className="mt-3 block">Report ready for {sourceName}</strong><p className="mt-2 text-xs text-text-muted">Post for Me data fetched {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(view.source.fetchedAt))}</p><div className="mt-4 inline-block"><ExportReportButton view={view} /></div></span></div></AnalyticsCard>}
-      <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-soft bg-panel/55 px-4 py-3 text-[10px] text-text-soft"><span>Source: live Post for Me feed metrics for {sourceName}.</span><span>Auto-updates every minute · Last update {lastUpdated}</span></footer>
+      <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-soft bg-panel/55 px-4 py-3 text-[10px] text-text-soft"><span>Source: live Post for Me feed metrics for {sourceName}.</span><span>Auto-updates every 5 minutes · Last update {lastUpdated}</span></footer>
     </div>}
   </div>
 }
