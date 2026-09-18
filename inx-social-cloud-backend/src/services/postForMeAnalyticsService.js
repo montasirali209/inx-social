@@ -579,6 +579,7 @@ async function runSnapshotSweep() {
 }
 
 function startAnalyticsSnapshotRuntime() {
+  if (String(process.env.ANALYTICS_BACKGROUND_SNAPSHOT_ENABLED || '').toLowerCase() !== 'true') return;
   if (!postForMe.configured()) return;
   setTimeout(() => { void runSnapshotSweep(); }, 30000).unref?.();
   if (!snapshotRuntimeTimer) {
