@@ -407,7 +407,6 @@ async function fetchFeed(profile, days) {
       .map((item) => new Date(item.posted_at || 0).getTime())
       .filter((value) => Number.isFinite(value) && value > 0);
     const newest = timestamps.length ? Math.max(...timestamps) : null;
-    const oldest = timestamps.length ? Math.min(...timestamps) : null;
 
     // Account feeds are normally newest-first. Only stop at the date boundary
     // when the entire returned page is already older than the requested range.
@@ -418,10 +417,6 @@ async function fetchFeed(profile, days) {
     if (!nextCursor || seenCursors.has(nextCursor)) break;
     seenCursors.add(nextCursor);
     cursor = nextCursor;
-
-    // Keep the boundary values available for diagnostics without using the
-    // presence of a single old post as a reason to truncate the feed.
-    void oldest;
   }
 
   return rows;
