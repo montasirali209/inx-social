@@ -38,6 +38,7 @@ import { fetchDashboardJobs } from '../../lib/dashboard-api'
 import { useUiStore } from '../../store/ui-store'
 import { Button } from '../ui/Button'
 import { SocialPlatformIcon, type SocialPlatformName } from '../ui/SocialPlatformIcon'
+import { WorkspaceLoadingState } from '../ui/WorkspaceLoadingState'
 
 type UiPlatform = Exclude<Platform, 'google_business'>
 type ConnectionStatus =
@@ -986,7 +987,22 @@ export function ConnectedAccountsPage() {
     openConnect(account.platform)
   }
 
-  if (workspace.isLoading) return <div className="h-[42rem] animate-pulse rounded-2xl border border-border-soft bg-panel/50" />
+  if (workspace.isLoading) return <WorkspaceLoadingState
+    message="Syncing connected profiles, account health and publishing access."
+    panels={[
+      { title: 'Connect an Account', emoji: '➕', rows: 3 },
+      { title: 'Connected Platforms', emoji: '🌐', rows: 5, minHeight: '360px' },
+      { title: 'Connection Activity', emoji: '⚡', rows: 5, minHeight: '360px' },
+    ]}
+    stats={[
+      { label: 'Connected Accounts', emoji: '🔗' },
+      { label: 'Platforms', emoji: '🌐' },
+      { label: 'Healthy', emoji: '✅' },
+      { label: 'Needs Attention', emoji: '⚠️' },
+      { label: 'Publishing Ready', emoji: '🚀' },
+    ]}
+    title="Connected Accounts"
+  />
   if (workspace.isError || !workspace.data) {
     return <section className="rounded-2xl border border-brand-red/25 bg-brand-red/[.055] p-6"><h2 className="text-lg font-semibold">Connected accounts unavailable</h2><p className="mt-2 text-sm text-text-muted">{workspace.error instanceof Error ? workspace.error.message : 'Refresh and try again.'}</p><Button className="mt-4" onClick={() => void workspace.refetch()}>Try again</Button></section>
   }
