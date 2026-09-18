@@ -113,22 +113,35 @@ export function CreatePostPanel(props: Props) {
       </fieldset>
 
       <label className="mt-4 block text-[11px] font-semibold text-text-muted">Post title <span className="font-normal text-text-soft">(optional)</span><input className="mt-2 w-full rounded-xl border border-border-soft bg-bg/40 px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-cyan focus:ring-2 focus:ring-brand-cyan/10" maxLength={200} onChange={(event) => props.setTitle(event.target.value)} placeholder="Give your post a working title…" value={props.title} /></label>
-      <label className="mt-4 block text-[11px] font-semibold text-text-muted">Caption<textarea className="mt-2 min-h-36 w-full resize-y rounded-xl border border-border-soft bg-bg/40 p-3 pb-11 text-sm leading-6 text-white outline-none transition placeholder:text-text-soft focus:border-brand-cyan focus:ring-2 focus:ring-brand-cyan/10" maxLength={5000} onChange={(event) => props.setCaption(event.target.value)} placeholder="What would you like to share?" ref={captionRef} value={props.caption} /></label>
-      <div className="relative -mt-10 flex h-10 items-center justify-between px-3 text-text-soft">
-        <div className="flex gap-1">
-          <button aria-expanded={captionTool === 'emoji'} aria-label="Add emoji" className={`rounded-lg p-1.5 transition hover:bg-white/5 hover:text-brand-cyan ${captionTool === 'emoji' ? 'bg-brand-cyan/10 text-brand-cyan' : ''}`} onClick={() => setCaptionTool((value) => value === 'emoji' ? null : 'emoji')} title="Add emoji" type="button"><Smile className="size-3.5" /></button>
-          <button aria-label="Add hashtag" className="rounded-lg p-1.5 transition hover:bg-white/5 hover:text-brand-cyan" onClick={() => insertCaptionText(' #')} title="Add hashtag" type="button"><Hash className="size-3.5" /></button>
-          <button aria-label="Add mention" className="rounded-lg p-1.5 transition hover:bg-white/5 hover:text-brand-cyan" onClick={() => insertCaptionText(' @')} title="Add mention" type="button"><AtSign className="size-3.5" /></button>
-        </div>
-        <span className="text-[10px]">{props.caption.length} / 5,000</span>
-        {captionTool === 'emoji' && (
-          <div className="absolute bottom-10 left-2 z-20 w-[304px] max-w-[calc(100vw-3rem)] rounded-xl border border-border-soft bg-panel p-2.5 shadow-2xl">
-            <div className="mb-2 flex items-center justify-between px-1"><span className="text-[10px] font-semibold text-text-muted">Choose an emoji</span><span className="text-[9px] text-text-soft">{CAPTION_EMOJIS.length} available</span></div>
-            <div className="scrollbar-thin grid max-h-48 grid-cols-8 gap-1 overflow-y-auto pr-1">
-              {CAPTION_EMOJIS.map((emoji, index) => <button aria-label={`Add ${emoji}`} className="grid size-8 place-items-center rounded-lg text-base transition hover:bg-white/7 focus-visible:outline-2 focus-visible:outline-brand-cyan" key={`${emoji}-${index}`} onClick={() => insertCaptionText(emoji, true)} type="button">{emoji}</button>)}
+      <div className="mt-4">
+        <label className="block text-[11px] font-semibold text-text-muted" htmlFor="post-caption">Caption</label>
+        <div className="mt-2 rounded-xl border border-border-soft bg-bg/40 transition focus-within:border-brand-cyan focus-within:ring-2 focus-within:ring-brand-cyan/10">
+          <textarea
+            className="block min-h-36 max-h-[32rem] w-full resize-y rounded-t-xl border-0 bg-transparent p-3 text-sm leading-6 text-white outline-none placeholder:text-text-soft"
+            id="post-caption"
+            maxLength={5000}
+            onChange={(event) => props.setCaption(event.target.value)}
+            placeholder="What would you like to share?"
+            ref={captionRef}
+            value={props.caption}
+          />
+          <div className="relative flex min-h-10 items-center justify-between border-t border-border-soft/80 px-3 py-1.5 text-text-soft">
+            <div className="flex gap-1">
+              <button aria-expanded={captionTool === 'emoji'} aria-label="Add emoji" className={`rounded-lg p-1.5 transition hover:bg-white/5 hover:text-brand-cyan ${captionTool === 'emoji' ? 'bg-brand-cyan/10 text-brand-cyan' : ''}`} onClick={() => setCaptionTool((value) => value === 'emoji' ? null : 'emoji')} title="Add emoji" type="button"><Smile className="size-3.5" /></button>
+              <button aria-label="Add hashtag" className="rounded-lg p-1.5 transition hover:bg-white/5 hover:text-brand-cyan" onClick={() => insertCaptionText(' #')} title="Add hashtag" type="button"><Hash className="size-3.5" /></button>
+              <button aria-label="Add mention" className="rounded-lg p-1.5 transition hover:bg-white/5 hover:text-brand-cyan" onClick={() => insertCaptionText(' @')} title="Add mention" type="button"><AtSign className="size-3.5" /></button>
             </div>
+            <span className="shrink-0 pl-3 text-[10px]">{props.caption.length} / 5,000</span>
+            {captionTool === 'emoji' && (
+              <div className="absolute bottom-full left-2 z-20 mb-2 w-[304px] max-w-[calc(100vw-3rem)] rounded-xl border border-border-soft bg-panel p-2.5 shadow-2xl">
+                <div className="mb-2 flex items-center justify-between px-1"><span className="text-[10px] font-semibold text-text-muted">Choose an emoji</span><span className="text-[9px] text-text-soft">{CAPTION_EMOJIS.length} available</span></div>
+                <div className="scrollbar-thin grid max-h-48 grid-cols-8 gap-1 overflow-y-auto pr-1">
+                  {CAPTION_EMOJIS.map((emoji, index) => <button aria-label={`Add ${emoji}`} className="grid size-8 place-items-center rounded-lg text-base transition hover:bg-white/7 focus-visible:outline-2 focus-visible:outline-brand-cyan" key={`${emoji}-${index}`} onClick={() => insertCaptionText(emoji, true)} type="button">{emoji}</button>)}
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
 
       <div className="mt-4 rounded-2xl border border-brand-cyan/25 bg-brand-cyan/[0.045] p-3"><div className="flex items-center gap-2 text-[11px] font-semibold text-text-main"><Sparkles className="size-3.5 text-brand-cyan" />AI Caption Writer</div><p className="mt-1 text-[9px] text-text-soft">Give a short idea and AI will write a complete caption with a CTA and relevant hashtags.</p><div className="mt-2 flex flex-col gap-2 sm:flex-row"><input aria-label="Short caption idea" className="min-h-10 flex-1 rounded-xl border border-border-soft bg-bg/50 px-3 text-xs text-white outline-none placeholder:text-text-soft focus:border-brand-cyan" maxLength={500} onChange={(event) => props.setCaptionIdea(event.target.value)} placeholder="Example: announce our new weekend service" value={props.captionIdea} /><Button disabled={!props.captionIdea.trim()} onClick={() => setEnhancement('write')} type="button" variant="primary"><Sparkles className="size-3.5" />Write caption</Button></div></div>
@@ -140,7 +153,7 @@ export function CreatePostPanel(props: Props) {
       </div>
       {props.postType !== 'carousel' && props.media && <label className={`mt-2 flex items-start gap-2 rounded-xl border px-3 py-2.5 text-[10px] ${props.media.libraryAssetId ? 'border-brand-green/20 bg-brand-green/[0.045] text-brand-green' : props.media.size > 100 * 1024 * 1024 ? 'cursor-not-allowed border-brand-amber/20 bg-brand-amber/[0.04] text-brand-amber' : 'cursor-pointer border-border-soft bg-bg/25 text-text-muted hover:border-brand-cyan/25'}`}><input checked={Boolean(props.media.libraryAssetId) || props.retainMedia} className="mt-0.5 accent-[var(--color-brand-cyan)]" disabled={Boolean(props.media.libraryAssetId) || props.media.size > 100 * 1024 * 1024} onChange={(event) => props.setRetainMedia(event.target.checked)} type="checkbox" /><span><strong className="block text-text-main">{props.media.libraryAssetId ? 'Stored in Media Library' : 'Save to Media Library for reuse'}</strong><span className="mt-0.5 block">{props.media.libraryAssetId ? 'Future Reuse actions can attach this same asset without making another copy.' : props.media.size > 100 * 1024 * 1024 ? 'Files larger than 100 MB remain temporary and must be reselected for reuse.' : 'Off by default. The exact file is checksum-deduplicated and counts toward your storage allowance.'}</span></span></label>}
 
-      <div className="mt-4 rounded-2xl border border-brand-cyan/15 bg-brand-cyan/[0.025] p-3"><div className="mb-2 flex items-center justify-between gap-3"><div className="flex items-center gap-2 text-[11px] font-semibold text-text-muted"><WandSparkles className="size-3.5 text-brand-cyan" />AI Content Enhancement</div><span className="rounded-full bg-brand-cyan/8 px-2 py-1 text-[8px] font-bold uppercase tracking-wider text-brand-cyan">OpenAI powered</span></div><div className="flex flex-wrap gap-2">{([['rewrite', 'Rewrite'], ['shorten', 'Shorten'], ['expand', 'Expand'], ['hashtags', 'Add Hashtags'], ['cta', 'Improve CTA']] as const).map(([action, label]) => <Button className="min-h-8 px-2.5 py-1 text-[10px]" disabled={!props.caption.trim()} key={action} onClick={() => setEnhancement(action)} title={props.caption.trim() ? `${label} with AI` : 'Write a caption first'} type="button" variant="ghost"><Sparkles className="size-3" />{label}</Button>)}<select aria-label="Caption tone" className="min-h-8 rounded-lg border border-border-soft bg-bg/50 px-2 text-[10px] capitalize text-text-muted outline-none focus:border-brand-cyan" onChange={(event) => setTone(event.target.value as CaptionTone)} value={tone}><option value="professional">Professional</option><option value="friendly">Friendly</option><option value="concise">Concise</option><option value="energetic">Energetic</option></select></div><p className="mt-2 text-[9px] text-text-soft">Suggestions open in a review window. Nothing replaces your caption until you approve it.</p></div>
+      <div className="mt-4 rounded-2xl border border-brand-cyan/15 bg-brand-cyan/[0.025] p-3"><div className="mb-2 flex items-center gap-2 text-[11px] font-semibold text-text-muted"><WandSparkles className="size-3.5 text-brand-cyan" />AI Content Enhancement</div><div className="flex flex-wrap gap-2">{([['rewrite', 'Rewrite'], ['shorten', 'Shorten'], ['expand', 'Expand'], ['hashtags', 'Add Hashtags'], ['cta', 'Improve CTA']] as const).map(([action, label]) => <Button className="min-h-8 px-2.5 py-1 text-[10px]" disabled={!props.caption.trim()} key={action} onClick={() => setEnhancement(action)} title={props.caption.trim() ? `${label} with AI` : 'Write a caption first'} type="button" variant="ghost"><Sparkles className="size-3" />{label}</Button>)}<select aria-label="Caption tone" className="min-h-8 rounded-lg border border-border-soft bg-bg/50 px-2 text-[10px] capitalize text-text-muted outline-none focus:border-brand-cyan" onChange={(event) => setTone(event.target.value as CaptionTone)} value={tone}><option value="professional">Professional</option><option value="friendly">Friendly</option><option value="concise">Concise</option><option value="energetic">Energetic</option></select></div><p className="mt-2 text-[9px] text-text-soft">Suggestions open in a review window. Nothing replaces your caption until you approve it.</p></div>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <div className="rounded-xl border border-border-soft bg-bg/30 p-3">
           <span className="text-[10px] text-text-muted">Live Content Score</span>
