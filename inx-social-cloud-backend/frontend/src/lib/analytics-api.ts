@@ -84,6 +84,19 @@ export function mergeAnalyticsResults(results: PlatformAnalytics[], accounts: An
   }), { followers: 0, posts: 0, reactions: 0, comments: 0, shares: 0, engagements: 0, totalInteractions: 0, views: 0, postViews: 0, uniqueViewers: 0, clicks: 0, follows: 0, pageEngagements: 0 })
   const platforms = [...new Set(results.map(result => result.platform))] as Platform[]
   const content = results.flatMap((result, resultIndex) => result.content.map(item => ({ ...item, id: `${accounts[resultIndex]?.analyticsKey || result.platform}:${item.id}` })))
+  const trackingRows = results.map(result => result.tracking).filter((row): row is NonNullable<PlatformAnalytics['tracking']> => Boolean(row))
+  const trackingStarts = trackingRows.map(row => row.startedAt).filter((value): value is string => Boolean(value)).sort()
+  const trackingLatest = trackingRows.map(row => row.latestAt).filter((value): value is string => Boolean(value)).sort()
+  const combinedTracking = trackingRows.length ? {
+    mode: 'measured_snapshot_delta' as const,
+    startedAt: trackingStarts.at(-1) || null,
+    latestAt: trackingLatest.at(-1) || null,
+    sampledDays: Math.min(...trackingRows.map(row => row.sampledDays)),
+    historicalDailyAvailable: trackingRows.every(row => row.historicalDailyAvailable),
+    note: trackingRows.every(row => row.historicalDailyAvailable)
+      ? 'Daily trend values are measured changes between stored metric snapshots across the selected accounts.'
+      : 'Daily trend tracking is still building for at least one selected account. Earlier lifetime totals are not assigned to historical dates.'
+  } : undefined
   const engagementRate = summary.views > 0 ? Number((summary.totalInteractions / summary.views * 100).toFixed(2)) : null
   const metricAvailable = results.some(result => result.capabilities?.pageInsights.available)
   const contentAvailable = results.some(result => result.capabilities?.publishedContent.available)
@@ -114,8 +127,10 @@ export function mergeAnalyticsResults(results: PlatformAnalytics[], accounts: An
     series: {
       views: mergeSeries(results, 'views'),
       engagements: mergeSeries(results, 'engagements'),
+      clicks: mergeSeries(results, 'clicks'),
       follows: mergeSeries(results, 'follows'),
     },
+    tracking: combinedTracking,
     demographics: { instagram: null, facebookSnapshot: null },
     content,
     warnings: results.flatMap(result => result.warnings || []),
