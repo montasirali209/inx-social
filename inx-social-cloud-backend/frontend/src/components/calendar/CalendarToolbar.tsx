@@ -17,7 +17,7 @@ export function CalendarToolbar({ monthKey, destinations, platform, pageId, stat
   const [filtersOpen, setFiltersOpen] = useState(false)
   const control = 'min-h-10 rounded-xl border border-border-soft bg-panel/75 px-3 text-xs text-text-main transition focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/10'
   const platformOptions = useMemo<CalendarFilterOption<Platform | 'all'>[]>(() => [
-    { value: 'all', label: 'Every platform', description: 'Show every Post for Me destination', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-blue/12 text-brand-blue"><Layers3 className="size-3.5" /></span> },
+    { value: 'all', label: 'Every platform', description: 'Show every connected destination', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-blue/12 text-brand-blue"><Layers3 className="size-3.5" /></span> },
     ...platformOrder.map(item => ({ value: item, label: platformPresentation[item].label, description: 'Live connected publishing destination', icon: <PlatformIcon className="size-7 rounded-full" platform={item} /> })),
   ], [])
   const destinationOptions = useMemo<CalendarFilterOption<string>[]>(() => [
@@ -30,9 +30,11 @@ export function CalendarToolbar({ monthKey, destinations, platform, pageId, stat
     })),
   ], [destinations])
   const statusOptions = useMemo<CalendarFilterOption<CalendarPostStatus | 'all'>[]>(() => [
-    { value: 'all', label: 'Upcoming only', description: 'Content still waiting to publish', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-amber/12 text-brand-amber"><CircleDot className="size-3.5" /></span> },
+    { value: 'all', label: 'All content', description: 'Published history and upcoming content', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-teal/12 text-brand-teal"><CircleDot className="size-3.5" /></span> },
+    { value: 'published', label: 'Published', description: 'Already live on connected accounts', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-green/12 text-brand-green"><Radio className="size-3.5" /></span> },
     { value: 'scheduled', label: 'Scheduled', description: 'Waiting for publishing time', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-cyan/12 text-brand-cyan"><Clock3 className="size-3.5" /></span> },
     { value: 'needs_review', label: 'Needs review', description: 'Action needed before publishing', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-amber/12 text-brand-amber"><AlertTriangle className="size-3.5" /></span> },
+    { value: 'failed', label: 'Failed', description: 'Publishing attempt needs attention', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-red/12 text-brand-red"><AlertTriangle className="size-3.5" /></span> },
   ], [])
   return (
     <section aria-label="Calendar controls" className="relative z-30 mb-4 rounded-panel border border-border-soft bg-panel/55 p-2.5 shadow-panel backdrop-blur-xl">
