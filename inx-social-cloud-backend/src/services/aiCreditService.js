@@ -239,6 +239,51 @@ async function addTopup(userId, credits, reference, metadata = {}) {
   });
 }
 
+async function adminAdjustCredits(userId, action, credits, metadata = {}) {
+  const mode = String(action || '').toUpperCase();
+  if (!['ADD', 'REMOVE', 'SET', 'RESET_PLAN'].includes(mode)) throw accessError('Unsupported administrator credit action.', 'ADMIN_CREDIT_ACTION_INVALID', 400);
+  const amount = Math.max(0, Math.min(1000000, Math.floor(Number(credits || 0))));
+  await ensureWallet(userId);
+  return prisma.$transaction(async tx => {
+    const wallets = await tx.$queryRawUnsafe('SELECT * FROM "AiCreditWallet" WHERE "userId"=$1 FOR UPDATE', userId);
+    const wallet = wallets[0];
+    if (!wallet) throw accessError('AI credit wallet is unavailable.', 'AI_CREDIT_WALLET_MISSING', 503);
+
+    const beforeMonthly = Number(wallet.monthlyBalance || 0);
+    const beforeTopup = Number(wallet.topupBalance || 0);
+    let monthly = beforeMonthly;
+    let topup = beforeTopup;
+
+    if (mode === 'ADD') topup += amount;
+    if (mode === 'REMOVE') {
+      let remaining = Math.min(amount, monthly + topup);
+      const fromTopup = Math.min(topup, remaining);
+      topup -= fromTopup;
+      remaining -= fromTopup;
+      monthly = Math.max(0, monthly - remaining);
+    }
+    if (mode === 'SET') {
+      monthly = 0;
+      topup = amount;
+    }
+    if (mode === 'RESET_PLAN') monthly = Number(wallet.monthlyLimit || 0);
+
+    const beforeTotal = beforeMonthly + beforeTopup;
+    const afterTotal = monthly + topup;
+    const reference = `admin-credit:${userId}:${crypto.randomUUID()}`;
+    await tx.$executeRawUnsafe(
+      'UPDATE "AiCreditWallet" SET "monthlyBalance"=$2,"topupBalance"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+      wallet.id, monthly, topup
+    );
+    await tx.$executeRawUnsafe(
+      'INSERT INTO "AiCreditTransaction" ("id","userId","walletId","type","bucket","amount","balanceMonthly","balanceTopup","reference","metadataJson") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
+      crypto.randomUUID(), userId, wallet.id, 'ADMIN_CREDIT_ADJUSTMENT', 'ADMIN', afterTotal - beforeTotal, monthly, topup, reference,
+      JSON.stringify({ action: mode, requestedCredits: amount, ...metadata })
+    );
+    return publicBalance({ ...wallet, monthlyBalance: monthly, topupBalance: topup });
+  });
+}
+
 module.exports = {
   PAID_STUDIO_PLANS,
   customerPlan,
@@ -250,5 +295,6 @@ module.exports = {
   reserve,
   refund,
   complete,
-  addTopup
+  addTopup,
+  adminAdjustCredits
 };
