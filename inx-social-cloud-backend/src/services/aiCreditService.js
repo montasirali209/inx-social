@@ -51,9 +51,10 @@ function accessError(message, code = 'AI_STUDIO_ACCESS_REQUIRED', status = 403) 
 async function getEntitlement(userId) {
   const license = await getLicenseStatus(userId);
   const plan = customerPlan(license.plan, license.userRole);
+  const administrator = ['ADMIN', 'SUPER_ADMIN'].includes(String(license.userRole || '').toUpperCase());
   const studioEnabled = Boolean(license.allowed && ['trial', 'creator', 'pro', 'business', 'agency'].includes(plan));
-  const topupsEnabled = Boolean(studioEnabled && PAID_STUDIO_PLANS.has(plan));
-  return { license, plan, studioEnabled, topupsEnabled };
+  const topupsEnabled = Boolean(studioEnabled && !administrator && PAID_STUDIO_PLANS.has(plan));
+  return { license, plan, studioEnabled, topupsEnabled, administrator };
 }
 
 async function ensureWallet(userId, now = new Date()) {
