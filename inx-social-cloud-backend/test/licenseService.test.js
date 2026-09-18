@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { evaluateLicense, getPlanLimits } = require('../src/services/licenseService');
+const { evaluateLicense, getPlanLimits, selectEffectiveSubscription } = require('../src/services/licenseService');
 
 const NOW = new Date('2026-07-27T12:00:00.000Z');
 
@@ -101,4 +101,45 @@ test('new billing plans enforce connected-account and Trial publishing limits', 
   assert.equal(getPlanLimits('PRO').pages, 12);
   assert.equal(getPlanLimits('BUSINESS').pages, 25);
   assert.equal(getPlanLimits('AGENCY').pages, 50);
+});
+
+
+test('active administrator override wins over an underlying Stripe subscription', () => {
+  const override = subscription({
+    provider: 'admin_override',
+    plan: 'BUSINESS',
+    status: 'MANUAL',
+    currentPeriodEnd: new Date('2026-08-27T12:00:00.000Z')
+  });
+  const stripe = subscription({ provider: 'stripe', plan: 'CREATOR', status: 'ACTIVE' });
+  const selected = selectEffectiveSubscription([override, stripe], NOW);
+  assert.equal(selected.subscription.plan, 'BUSINESS');
+  assert.equal(selected.override.plan, 'BUSINESS');
+});
+
+test('expired administrator override falls back to normal billing', () => {
+  const override = subscription({
+    provider: 'admin_override',
+    plan: 'AGENCY',
+    status: 'MANUAL',
+    currentPeriodEnd: new Date('2026-07-26T12:00:00.000Z')
+  });
+  const stripe = subscription({ provider: 'stripe', plan: 'PRO', status: 'ACTIVE' });
+  const selected = selectEffectiveSubscription([override, stripe], NOW);
+  assert.equal(selected.subscription.plan, 'PRO');
+  assert.equal(selected.override, null);
+});
+
+test('administrator accounts receive explicit Agency-equivalent access without customer limits', () => {
+  const result = evaluateLicense(
+    user({ role: 'ADMIN', trialEndsAt: null }),
+    subscription({ provider: 'stripe', plan: 'PRO', status: 'ACTIVE' }),
+    NOW
+  );
+  assert.equal(result.allowed, true);
+  assert.equal(result.administrator, true);
+  assert.equal(result.plan, 'AGENCY');
+  assert.equal(result.sourcePlan, 'PRO');
+  assert.equal(result.provider, 'admin');
+  assert.equal(result.limits.pages, null);
 });
