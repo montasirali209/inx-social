@@ -10,7 +10,7 @@ test('redesigned landing ships responsive rules in the render-critical styleshee
   const script = read('public/landing.js');
   const css = read('public/landing-redesign.css');
 
-  assert.equal(landing.includes('landing-redesign.css?v=20260918f'), true);
+  assert.equal(landing.includes('landing-redesign.css?v=20260918g'), true);
   assert.doesNotMatch(script, /createElement\(['"]link['"]\)/);
   assert.match(css, /@media\(max-width:1080px\)/);
   assert.match(css, /@media\(max-width:860px\)/);
@@ -27,7 +27,7 @@ test('mobile landing stacks product, AI Studio and final CTA layouts', () => {
   assert.match(css, /\.hero-grid\{grid-template-columns:1fr\}/);
   assert.match(css, /\.product-proof-grid,.ai-grid\{grid-template-columns:1fr\}/);
   assert.match(css, /\.ai-studio-layout\{grid-template-columns:1fr/);
-  assert.match(css, /\.ai-feature-grid\{grid-template-columns:1fr\}/);
+  assert.match(css, /\.ai-studio-visual/);
   assert.match(css, /\.final-card\{grid-template-columns:1fr\}/);
   assert.match(landing, /aria-label="Open navigation"/);
   assert.match(landing, /class="skip-link"/);
