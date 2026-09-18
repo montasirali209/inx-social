@@ -37,10 +37,10 @@ describe('settings data', () => {
     expect(settingsEqual(saved, { ...saved, mediaAutoSave: false })).toBe(false)
   })
 
-  it('uses live connection and licence values instead of screenshot samples', () => {
+  it('uses unified live connection identities instead of double-counting legacy Facebook pages', () => {
     const data = workspace()
-    expect(connectionSummary(data)).toMatchObject({ destinations: 11, platforms: 2, status: 'All synced' })
-    expect(billingUsage(data)).toEqual({ connected: 9, limit: 50, percent: 18 })
+    expect(connectionSummary(data)).toMatchObject({ destinations: 2, platforms: 1, status: 'All synced' })
+    expect(billingUsage(data)).toEqual({ connected: 2, limit: 50, percent: 4 })
     const cards = settingsCards(data.settings, data)
     expect(cards).toHaveLength(7)
     expect(cards.find((card) => card.id === 'billing')?.rows.map((row) => row.value)).toContain('Pro Plan')
