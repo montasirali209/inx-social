@@ -6,6 +6,8 @@ const {
   userDetail,
   createUser,
   updateUserAccess,
+  updateCommercialPlan,
+  adjustUserCredits,
   settings,
   aiRouting,
   updateAiRouting,
@@ -23,6 +25,8 @@ router.get('/users', users);
 router.post('/users', createUser);
 router.get('/users/:id', userDetail);
 router.patch('/users/:id/access', updateUserAccess);
+router.patch('/users/:id/commercial-plan', updateCommercialPlan);
+router.post('/users/:id/credits', adjustUserCredits);
 router.get('/settings', settings);
 router.put('/settings', requireSuperAdmin, adminSecurity.secureLegacySettingUpdate);
 router.get('/ai-routing', aiRouting);
