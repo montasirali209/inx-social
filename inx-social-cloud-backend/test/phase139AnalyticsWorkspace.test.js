@@ -61,6 +61,8 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(service, /prisma\.analyticsSourceCache\.upsert/);
   assert.match(service, /persistAnalyticsPayload/);
   assert.match(service, /runAnalyticsCacheRefreshSweep/);
+  assert.match(service, /retryCooldownActive/);
+  assert.match(service, /ANALYTICS_CACHE_RUNTIME_RETRY_AFTER_MS/);
   assert.match(service, /startAnalyticsCacheRuntime/);
   assert.match(server, /startAnalyticsCacheRuntime/);
   assert.doesNotMatch(service, /const analyticsCache = new Map/);
@@ -95,8 +97,10 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(page, /Last sync ·/);
   assert.match(page, /\(sources\.isLoading \|\| analytics\.isLoading\) && !view && <AnalyticsKpiSkeleton/);
   assert.match(page, /refetchInterval: 5 \* 60_000/);
-  assert.match(page, /\['refreshing', 'stale'\]/);
-  assert.match(page, /return refreshing \? 8_000 : 5 \* 60_000/);
+  assert.match(page, /states\.includes\('refreshing'\)/);
+  assert.match(page, /return 8_000/);
+  assert.match(page, /states\.includes\('stale'\)/);
+  assert.match(page, /return 60_000/);
   assert.match(page, /readSessionCache/);
   assert.match(page, /writeSessionCache/);
   assert.match(insights, /Content Efficiency/);
