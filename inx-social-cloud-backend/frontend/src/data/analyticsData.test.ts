@@ -33,6 +33,25 @@ describe('Analytics live view', () => {
     expect(view.stats.find((stat) => stat.id === 'engagement-rate')?.detail).toBe('Interactions divided by content views')
   })
 
+
+  it('uses live content-efficiency KPIs when audience, views and clicks are unavailable', () => {
+    const source = liveAnalytics()
+    source.summary.followers = 0
+    source.summary.follows = null
+    source.summary.views = null
+    source.summary.postViews = 0
+    source.summary.engagementRate = null
+    source.summary.clicks = 0
+    source.content[0].insights = { ...source.content[0].insights!, views: null, clicks: null, engagementRate: null }
+
+    const view = buildAnalyticsView(source, 30)
+    expect(view.stats.find((stat) => stat.id === 'avg-interactions')?.value).toBe(14)
+    expect(view.stats.find((stat) => stat.id === 'reactions')?.value).toBe(8)
+    expect(view.stats.find((stat) => stat.id === 'comments')?.value).toBe(2)
+    expect(view.stats.find((stat) => stat.id === 'engaged-posts')?.value).toBe(1)
+    expect(view.stats.every((stat) => stat.value !== null)).toBe(true)
+  })
+
   it('formats compact, percentage and unavailable values honestly', () => {
     expect(formatAnalyticsValue(2450, 'compact')).toMatch(/2\.5K/i)
     expect(formatAnalyticsValue(3.67, 'percent')).toBe('3.67%')
