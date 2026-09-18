@@ -35,6 +35,7 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(service, /providerMetricSummary/);
   assert.match(service, /ANALYTICS_CACHE_TTL_MS/);
   assert.match(service, /limit: '100'/);
+  assert.match(service, /page < 3 && rows\.length < 300/);
   assert.match(service, /cacheState/);
   assert.match(provider, /retry-after/);
   assert.match(provider, /status === 429/);
