@@ -2,7 +2,8 @@ import { apiRequest } from './api-client'
 import { dateKeyInTimezone, timeInTimezone } from './calendar-utils'
 import { fetchConnectionsWorkspace, flattenConnectedIdentities } from './connections-api'
 import type { CalendarData, CalendarDestination, CalendarPost, CalendarPostStatus } from '../types/calendar'
-import type { BackendJobStatus, DashboardJob, Platform } from '../types/dashboard'
+import type { BackendJobStatus, DashboardJob, Platform, PlatformAnalytics } from '../types/dashboard'
+import type { AnalyticsSourceAccount } from './analytics-api'
 
 type JobsResponse = { jobs: DashboardJob[] }
 
@@ -57,8 +58,10 @@ export function buildCalendarData(jobs: DashboardJob[], destinations: CalendarDe
   const allPosts = jobs.map(job => jobPost(job, timeZone))
   const nowMs = now.getTime()
   const posts = allPosts.filter(post => {
-    const scheduledFor = new Date(post.occurredAt).getTime()
-    if (!Number.isFinite(scheduledFor) || scheduledFor < nowMs) return false
+    const occurredAt = new Date(post.occurredAt).getTime()
+    if (!Number.isFinite(occurredAt)) return false
+    if (post.status === 'published' || post.status === 'failed') return true
+    if (occurredAt < nowMs) return false
     return post.status === 'scheduled' || post.status === 'needs_review'
   })
 
@@ -91,6 +94,70 @@ export function buildCalendarData(jobs: DashboardJob[], destinations: CalendarDe
       { label: 'Connected Accounts', value: destinations.length, detail: 'Across all active platforms', tone: 'purple' },
     ],
   }
+}
+
+
+export type CalendarFeedEntry = {
+  account: AnalyticsSourceAccount
+  analytics: PlatformAnalytics
+}
+
+function feedPost(entry: CalendarFeedEntry, item: PlatformAnalytics['content'][number], timeZone: string): CalendarPost | null {
+  if (!item.createdTime) return null
+  const timestamp = new Date(item.createdTime)
+  if (Number.isNaN(timestamp.getTime())) return null
+  const interactions = item.insights?.totalInteractions ?? (item.reactions + item.comments + item.shares)
+  return {
+    id: `feed:${entry.account.platform}:${entry.account.id}:${item.id}`,
+    title: item.message.trim().split(/\n+/)[0]?.slice(0, 90) || `${entry.account.platform} post`,
+    time: timeInTimezone(item.createdTime, timeZone),
+    date: dateKeyInTimezone(item.createdTime, timeZone),
+    occurredAt: item.createdTime,
+    platform: entry.account.platform as Platform,
+    pageId: entry.account.id,
+    pageName: entry.account.displayName,
+    status: 'published',
+    thumbnailUrl: item.thumbnailUrl,
+    engagementScore: interactions,
+    source: 'post_for_me',
+    jobId: null,
+    providerPostId: item.id,
+    platformUrl: item.permalinkUrl,
+  }
+}
+
+function previousMonthKey(currentMonth: string) {
+  const value = new Date(Date.UTC(Number(currentMonth.slice(0, 4)), Number(currentMonth.slice(5, 7)) - 2, 1))
+  return `${value.getUTCFullYear()}-${String(value.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+export function mergeCalendarFeedData(data: CalendarData, entries: CalendarFeedEntry[], timeZone: string, now = new Date()): CalendarData {
+  const existingProviderIds = new Set(
+    data.posts
+      .filter(post => post.providerPostId)
+      .map(post => `${post.platform}:${post.providerPostId}`)
+  )
+  const existingUrls = new Set(data.posts.map(post => post.platformUrl).filter(Boolean))
+  const feedPosts = entries
+    .flatMap(entry => entry.analytics.content.map(item => feedPost(entry, item, timeZone)).filter((post): post is CalendarPost => Boolean(post)))
+    .filter(post => {
+      if (post.providerPostId && existingProviderIds.has(`${post.platform}:${post.providerPostId}`)) return false
+      if (post.platformUrl && existingUrls.has(post.platformUrl)) return false
+      return true
+    })
+
+  const posts = [...data.posts, ...feedPosts].sort((left, right) => left.occurredAt.localeCompare(right.occurredAt))
+  const nowKey = dateKeyInTimezone(now, timeZone)
+  const currentMonth = nowKey.slice(0, 7)
+  const previousMonth = previousMonthKey(currentMonth)
+  const publishedThisMonth = posts.filter(post => post.status === 'published' && post.date.startsWith(currentMonth)).length
+  const publishedPreviousMonth = posts.filter(post => post.status === 'published' && post.date.startsWith(previousMonth)).length
+  const signed = (value: number) => `${value >= 0 ? '+' : ''}${value}`
+  const stats = data.stats.map(stat => stat.label === 'Published This Month'
+    ? { ...stat, value: publishedThisMonth, detail: `${signed(publishedThisMonth - publishedPreviousMonth)} vs last month` }
+    : stat)
+
+  return { ...data, posts, stats }
 }
 
 export async function fetchCalendarData(timeZone: string): Promise<CalendarData> {
