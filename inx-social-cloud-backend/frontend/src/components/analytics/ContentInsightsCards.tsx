@@ -33,7 +33,7 @@ export function ContentEfficiencyCard({ analytics }: { analytics: PlatformAnalyt
     { label: 'Avg interactions / post', value: compact(avgInteractions), icon: Gauge },
     { label: 'Engaged posts', value: `${engagedPosts}/${posts}`, icon: Activity },
     { label: 'Best post interactions', value: compact(bestPostInteractions), icon: Trophy },
-    { label: 'Comments + shares', value: compact(conversationActions), icon: MessageCircleMore },
+    { label: 'Comments + shares', value: compact(conversationActions), icon: MessageCircle },
   ]
 
   return <AnalyticsCard>
