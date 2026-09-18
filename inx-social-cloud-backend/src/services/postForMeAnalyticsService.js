@@ -9,8 +9,12 @@ const SNAPSHOT_RUNTIME_INTERVAL_MS = 60 * 60 * 1000;
 const SNAPSHOT_RUNTIME_ACCOUNT_DELAY_MS = 5000;
 const FEED_HISTORY_MAX_PAGES = 30;
 const FEED_HISTORY_MAX_POSTS = 3000;
+const FEED_CACHE_TTL_MS = 5 * 60 * 1000;
+const FEED_STALE_TTL_MS = 60 * 60 * 1000;
 const analyticsCache = new Map();
 const analyticsInflight = new Map();
+const feedCache = new Map();
+const feedInflight = new Map();
 let snapshotRuntimeTimer = null;
 let snapshotRuntimeRunning = false;
 
@@ -377,7 +381,7 @@ async function resolveProfile(userId, profileId, expectedPlatform) {
   return profile;
 }
 
-async function fetchFeed(profile, days) {
+async function fetchFeedLive(profile, days) {
   const accountId = providerAccountId(profile);
   if (!accountId) throw Object.assign(new Error('The analytics connection mapping is missing.'), { status: 409 });
   const { since } = dateRange(days);
@@ -408,9 +412,6 @@ async function fetchFeed(profile, days) {
       .filter((value) => Number.isFinite(value) && value > 0);
     const newest = timestamps.length ? Math.max(...timestamps) : null;
 
-    // Account feeds are normally newest-first. Only stop at the date boundary
-    // when the entire returned page is already older than the requested range.
-    // A page that merely straddles the boundary can still contain valid posts.
     if (newest && newest < since.getTime()) break;
 
     const nextCursor = String(response?.meta?.cursor || '').trim();
@@ -420,6 +421,48 @@ async function fetchFeed(profile, days) {
   }
 
   return rows;
+}
+
+async function fetchFeed(profile, days) {
+  const requestedDays = safeDays(days);
+  const accountId = providerAccountId(profile);
+  if (!accountId) throw Object.assign(new Error('The analytics connection mapping is missing.'), { status: 409 });
+  const key = String(accountId);
+  const cached = feedCache.get(key);
+  const age = cached ? Date.now() - cached.updatedAt : Infinity;
+
+  if (cached && cached.days >= requestedDays && age <= FEED_CACHE_TTL_MS) {
+    return cached.rows;
+  }
+
+  const active = feedInflight.get(key);
+  if (active) {
+    const shared = await active;
+    if (shared.days >= requestedDays) return shared.rows;
+  }
+
+  const task = fetchFeedLive(profile, requestedDays)
+    .then((rows) => {
+      const current = feedCache.get(key);
+      const next = current && current.days > requestedDays && Date.now() - current.updatedAt <= FEED_STALE_TTL_MS
+        ? current
+        : { rows, days: requestedDays, updatedAt: Date.now() };
+      feedCache.set(key, next);
+      return next;
+    })
+    .catch((error) => {
+      const fallback = feedCache.get(key);
+      const fallbackAge = fallback ? Date.now() - fallback.updatedAt : Infinity;
+      if (fallback && fallback.days >= requestedDays && fallbackAge <= FEED_STALE_TTL_MS && Number(error?.status || 0) === 429) {
+        return fallback;
+      }
+      throw error;
+    })
+    .finally(() => feedInflight.delete(key));
+
+  feedInflight.set(key, task);
+  const result = await task;
+  return result.rows;
 }
 
 async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 30) {
