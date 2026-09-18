@@ -215,7 +215,7 @@ async function fetchFeed(profile, days) {
   const { since } = dateRange(days);
   const rows = [];
   let cursor = '';
-  for (let page = 0; page < 10 && rows.length < 500; page += 1) {
+  for (let page = 0; page < 3 && rows.length < 300; page += 1) {
     const params = new URLSearchParams({ limit: '100' });
     params.append('expand', 'metrics');
     if (cursor) params.set('cursor', cursor);
