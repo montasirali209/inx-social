@@ -99,7 +99,7 @@ export function BulkSchedulerPage() {
       if (!job) return result
       return { ...result, status: backendStatusToUploadStatus(job.status), resultId: job.metaPostId || job.metaVideoId || result.resultId, errorMessage: job.errorMessage || result.errorMessage }
     }))
-  }, [scheduler.data?.jobs, results.length])
+  }, [schedulerData.jobs, results.length])
 
   useEffect(() => () => {
     mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
