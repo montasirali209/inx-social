@@ -42,9 +42,10 @@ test('landing and workspace load dedicated mobile responsive guardrails', () => 
   const appMobile = read('frontend/src/mobile-responsive.css');
   const landing = read('public/landing.html');
   const landingResponsive = read('public/landing-redesign.css');
+
   assert.match(main, /mobile-responsive\.css/);
   assert.match(appMobile, /@media \(max-width: 767px\)/);
   assert.match(landing, /landing-redesign\.css/);
-  assert.match(landingResponsive, /@media\(max-width:900px\)/);
+  assert.match(landingResponsive, /@media\(max-width:860px\)/);
   assert.match(landingResponsive, /#mainNav\.open\{display:flex\}/);
 });
