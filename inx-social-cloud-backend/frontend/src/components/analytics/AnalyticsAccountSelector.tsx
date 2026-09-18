@@ -124,7 +124,7 @@ export function AnalyticsAccountSelector({ accounts, values, isLive, loading = f
           <strong className="mt-0.5 block truncate text-xs text-text-main">{selectedLabel}</strong>
         </button>
         <div className="flex shrink-0 items-center gap-2 pr-2">
-          <span className="rounded-full border border-brand-cyan/20 bg-brand-cyan/8 px-2 py-1 text-[9px] font-semibold text-brand-cyan">{selectedAccounts.length}/{MAX_ANALYTICS_SOURCES}</span>
+          <span aria-live="polite" className="rounded-full border border-brand-cyan/20 bg-brand-cyan/8 px-2 py-1 text-[9px] font-semibold text-brand-cyan">{selectedAccounts.length}/{MAX_ANALYTICS_SOURCES}</span>
           {open && <button className="inline-flex min-h-8 items-center rounded-lg border border-brand-cyan/30 bg-brand-cyan/12 px-3 text-[10px] font-semibold text-brand-cyan transition hover:bg-brand-cyan/18 focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={commitSelection} type="button">Select</button>}
           <button aria-label={open ? 'Apply selected analytics accounts' : 'Open analytics account selector'} className="grid size-8 place-items-center rounded-lg text-text-soft transition hover:bg-white/[.05] hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan disabled:cursor-wait disabled:opacity-50" disabled={loading} onClick={togglePicker} type="button"><ChevronDown className={`size-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} /></button>
         </div>
