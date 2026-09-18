@@ -19,21 +19,7 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <Suspense fallback={<WorkspaceLoadingState
-        message="Opening the workspace and preparing the latest live data."
-        panels={[
-          { title: 'Workspace', emoji: '✨', rows: 4, minHeight: '320px' },
-          { title: 'Live Data', emoji: '📊', rows: 4, minHeight: '320px' },
-        ]}
-        stats={[
-          { label: 'Workspace', emoji: '🏠' },
-          { label: 'Publishing', emoji: '🚀' },
-          { label: 'Schedule', emoji: '🗓️' },
-          { label: 'Analytics', emoji: '📊' },
-          { label: 'Connections', emoji: '🔗' },
-        ]}
-        title="INXSocial"
-      />}>
+      <Suspense fallback={<div aria-label="Opening INXSocial" className="grid min-h-[45vh] place-items-center" role="status"><div className="flex items-center gap-3 rounded-xl border border-border-soft bg-panel/60 px-4 py-3 text-sm text-text-muted"><span className="size-4 animate-spin rounded-full border-2 border-brand-cyan/25 border-t-brand-cyan motion-reduce:animate-none" /><span>Opening workspace…</span></div></div>}>
         <RouterProvider router={router} />
       </Suspense>
     </QueryClientProvider>
