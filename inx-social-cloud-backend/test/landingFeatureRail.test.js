@@ -15,7 +15,7 @@ test('landing is capability-first instead of exposing a separate page for every 
     assert.match(landing, new RegExp(area));
   }
 
-  assert.match(landing, /inxsocial-dashboard-user-preview\\.webp/);
+  assert.match(landing, /inxsocial-dashboard-user-preview\.webp/);
   assert.match(landing, /Everything you need to run your social media, in one place/);
   assert.match(landing, /From idea to results, in five clear steps/);
   assert.match(js, /setupDashboardMotion/);
