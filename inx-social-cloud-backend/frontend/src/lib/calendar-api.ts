@@ -63,7 +63,7 @@ export function buildCalendarData(jobs: DashboardJob[], destinations: CalendarDe
     if (post.status === 'published' || post.status === 'failed') return true
     if (occurredAt < nowMs) return false
     return post.status === 'scheduled' || post.status === 'needs_review'
-  })
+  }).sort((left, right) => left.occurredAt.localeCompare(right.occurredAt))
 
   const currentWeek = weekStart(now)
   const nextWeek = new Date(currentWeek.getTime() + 7 * 86400000)
