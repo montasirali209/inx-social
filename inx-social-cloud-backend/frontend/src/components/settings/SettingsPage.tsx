@@ -7,28 +7,27 @@ import { fetchSettingsWorkspace, saveSettings } from '../../lib/settings-api'
 import { useUiStore } from '../../store/ui-store'
 import type { SettingsCardData, SettingsValues } from '../../types/settings'
 import { Button } from '../ui/Button'
-import { WorkspaceLoadingState } from '../ui/WorkspaceLoadingState'
 import { SettingsCard } from './SettingsCard'
 
 type Notice = { tone: 'success' | 'error'; message: string } | null
 
 function SettingsSkeleton() {
-  return <WorkspaceLoadingState
-    message="Loading workspace preferences, publishing defaults and connected-account settings."
-    panels={[
-      { title: 'Workspace', emoji: '⚙️', rows: 4 },
-      { title: 'Publishing', emoji: '🚀', rows: 4 },
-      { title: 'Scheduler', emoji: '🗓️', rows: 4 },
-    ]}
-    stats={[
-      { label: 'Workspace', emoji: '🏢' },
-      { label: 'Publishing', emoji: '🚀' },
-      { label: 'Scheduler', emoji: '🗓️' },
-      { label: 'Connections', emoji: '🔗' },
-      { label: 'Notifications', emoji: '🔔' },
-    ]}
-    title="Settings"
-  />
+  const cards = ['Workspace', 'Publishing', 'Scheduler', 'Connected Accounts', 'Billing', 'Notifications', 'AI Content Studio']
+  return (
+    <div aria-label="Loading settings" className="grid gap-4 md:grid-cols-2 2xl:grid-cols-12" role="status">
+      {cards.map((label, index) => (
+        <section className={'rounded-2xl border border-border-soft bg-panel/55 p-4 ' + (index < 3 ? '2xl:col-span-4' : '2xl:col-span-3')} key={label}>
+          <div className="flex items-center justify-between gap-3">
+            <strong className="text-sm">{label}</strong>
+            <span className="size-4 animate-pulse rounded-full bg-brand-cyan/25 motion-reduce:animate-none" />
+          </div>
+          <div className="mt-5 space-y-3">
+            {Array.from({ length: 4 }, (_, row) => <div className="h-12 animate-pulse rounded-xl border border-white/[.035] bg-white/[.02] motion-reduce:animate-none" key={row} />)}
+          </div>
+        </section>
+      ))}
+    </div>
+  )
 }
 
 export function SettingsPage() {
