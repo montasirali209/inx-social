@@ -17,7 +17,8 @@ test('analytics metric snapshots persist measured post deltas instead of fabrica
   assert.match(service, /positiveDelta/);
   assert.match(service, /SNAPSHOT_RUNTIME_INTERVAL_MS/);
   assert.match(service, /SNAPSHOT_RUNTIME_ACCOUNT_DELAY_MS/);
-  assert.match(server, /startAnalyticsSnapshotRuntime/);
+  assert.match(service, /persistMetricSnapshots/);
+  assert.match(server, /startAnalyticsCacheRuntime/);
 });
 
 test('universal publishing API is mounted before the application fallback', () => {
