@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ApiError } from '../../lib/api-client'
