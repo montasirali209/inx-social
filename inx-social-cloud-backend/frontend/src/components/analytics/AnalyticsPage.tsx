@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { buildAnalyticsView } from '../../data/analyticsData'
 import { aggregatePerformance } from '../../data/analyticsAggregation'
 import { fetchAnalyticsForSource, fetchAnalyticsSources, mergeAnalyticsResults, type AnalyticsSourceAccount } from '../../lib/analytics-api'
+import { readSessionCache, writeSessionCache } from '../../lib/session-cache'
 import type { AnalyticsTab } from '../../types/analytics'
 import type { Platform, PlatformAnalytics } from '../../types/dashboard'
 import { AnalyticsAccountSelector, type AnalyticsAccount } from './AnalyticsAccountSelector'
@@ -21,7 +22,12 @@ import { TopPerformingPostsCard } from './TopPerformingPostsCard'
 import './analytics-motion.css'
 
 const selectionKey = 'inx-social-analytics-sources-v4'
+const analyticsSourcesCacheKey = 'inx-social-cache:analytics-sources-v1'
 const MAX_ANALYTICS_SOURCES = 3
+
+function analyticsWorkspaceCacheKey(scope: string, days: number) {
+  return `inx-social-cache:analytics:${encodeURIComponent(scope)}:${days}`
+}
 
 function savedSelection() {
   try {
@@ -64,7 +70,13 @@ export function AnalyticsPage() {
   const [interval, setInterval] = useState<'daily' | 'weekly' | 'monthly'>('daily')
   const sources = useQuery({
     queryKey: ['analytics-sources', 'post-for-me'],
-    queryFn: fetchAnalyticsSources,
+    queryFn: async () => {
+      const result = await fetchAnalyticsSources()
+      writeSessionCache(analyticsSourcesCacheKey, result)
+      return result
+    },
+    initialData: () => readSessionCache<Awaited<ReturnType<typeof fetchAnalyticsSources>>>(analyticsSourcesCacheKey),
+    initialDataUpdatedAt: 0,
     staleTime: 20_000,
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
@@ -89,6 +101,8 @@ export function AnalyticsPage() {
     refetchOnWindowFocus: false,
     retry: 0,
     staleTime: 2 * 60_000,
+    initialData: () => selectedScopeKey ? readSessionCache<LiveAnalyticsData>(analyticsWorkspaceCacheKey(selectedScopeKey, days)) : undefined,
+    initialDataUpdatedAt: 0,
     queryFn: async () => {
       const settled = await mapWithConcurrency(selectedAccounts, 3, async account => {
         try {
@@ -102,7 +116,9 @@ export function AnalyticsPage() {
       if (!successes.length) throw new Error(failures[0]?.message || 'Live analytics could not be loaded for the selected sources.')
       const merged = mergeAnalyticsResults(successes.map(result => result.analytics), successes.map(result => result.account), days)
       if (!merged) throw new Error('No analytics data was returned for the selected sources.')
-      return { analytics: merged, results: successes, failures }
+      const result = { analytics: merged, results: successes, failures }
+      writeSessionCache(analyticsWorkspaceCacheKey(selectedScopeKey, days), result)
+      return result
     },
   })
 
