@@ -29,7 +29,7 @@ export function ProviderMetricsCard({ sources }: { sources: ProviderMetricsSourc
   const withMetrics = sources.filter(source => (source.analytics.provider?.metricSummary?.length || 0) > 0)
   return <AnalyticsCard>
     <AnalyticsCardHeader
-      description="Every numeric analytics field returned by Post for Me is retained here, including platform-specific video, click, reach, watch-time and organic metrics."
+      description="Every numeric analytics field returned for the selected accounts is retained here, including platform-specific video, click, reach, watch-time and organic metrics."
       title="Provider Metrics"
     />
     {withMetrics.length ? <div className="space-y-2 px-4 pb-4 sm:px-5">
@@ -38,7 +38,7 @@ export function ProviderMetricsCard({ sources }: { sources: ProviderMetricsSourc
         return <details className="group overflow-hidden rounded-xl border border-border-soft bg-[linear-gradient(145deg,rgba(7,29,40,.72),rgba(4,18,27,.48))]" key={account.analyticsKey} open={withMetrics.length === 1}>
           <summary className="flex cursor-pointer list-none items-center gap-3 px-3 py-3 transition hover:bg-white/[.025] focus-visible:outline-2 focus-visible:outline-brand-cyan">
             <PlatformIcon className="size-8 rounded-xl" platform={account.platform} />
-            <span className="min-w-0 flex-1"><strong className="block truncate text-xs">{account.displayName}</strong><small className="mt-0.5 block text-[9px] text-text-muted">{metrics.length} Post for Me metric field{metrics.length === 1 ? '' : 's'} · {analytics.provider?.postsWithMetrics || 0} measured post{analytics.provider?.postsWithMetrics === 1 ? '' : 's'}</small></span>
+            <span className="min-w-0 flex-1"><strong className="block truncate text-xs">{account.displayName}</strong><small className="mt-0.5 block text-[9px] text-text-muted">{metrics.length} live metric field{metrics.length === 1 ? '' : 's'} · {analytics.provider?.postsWithMetrics || 0} measured post{analytics.provider?.postsWithMetrics === 1 ? '' : 's'}</small></span>
             <span className="inline-flex items-center gap-1 rounded-full border border-brand-teal/15 bg-brand-teal/7 px-2 py-1 text-[9px] font-semibold text-brand-cyan"><DatabaseZap className="size-3" />Live</span>
             <ChevronDown className="size-4 text-text-soft transition group-open:rotate-180" />
           </summary>
@@ -53,6 +53,6 @@ export function ProviderMetricsCard({ sources }: { sources: ProviderMetricsSourc
           </div>
         </details>
       })}
-    </div> : <UnavailableState detail="Post for Me has not returned numeric provider metrics for the selected sources yet. Feed content will continue to auto-update." title="Provider metrics are not available yet" />}
+    </div> : <UnavailableState detail="Numeric platform-specific metrics are not available for the selected sources yet. Connected content will continue to auto-update." title="Provider metrics are not available yet" />}
   </AnalyticsCard>
 }
