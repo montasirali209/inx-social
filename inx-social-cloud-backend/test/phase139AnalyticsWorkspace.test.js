@@ -122,9 +122,11 @@ test('Analytics charts, tabs and report actions remain accessible and functional
 });
 
 
-test('workspace loading states stay inside each menu design instead of replacing every route with one generic interface', () => {
+test('only live-data workspaces use page-level loading states', () => {
   const main = read('frontend/src/main.tsx');
   const dashboard = read('frontend/src/components/dashboard/DashboardPage.tsx');
+  const calendar = read('frontend/src/components/calendar/ContentCalendarPage.tsx');
+  const analytics = read('frontend/src/components/analytics/AnalyticsPrimitives.tsx');
   const posts = read('frontend/src/components/posts/PostsPage.tsx');
   const media = read('frontend/src/components/media-library/MediaLibraryPage.tsx');
   const bulk = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
@@ -132,21 +134,24 @@ test('workspace loading states stay inside each menu design instead of replacing
   const settings = read('frontend/src/components/settings/SettingsPage.tsx');
   const connections = read('frontend/src/components/connections/ConnectedAccountsPageV4.tsx');
   const billing = read('frontend/src/components/billing/BillingPlansPage.tsx');
-  const calendar = read('frontend/src/components/calendar/ContentCalendarPage.tsx');
-  const analytics = read('frontend/src/components/analytics/AnalyticsPrimitives.tsx');
 
   assert.doesNotMatch(main, /WorkspaceLoadingState|Suspense fallback/);
-  for (const page of [posts, media, bulk, studio, settings, connections, billing]) assert.doesNotMatch(page, /WorkspaceLoadingState/);
-  assert.match(settings, /Loading settings/);
-  assert.match(posts, /Loading Posts workspace/);
-  assert.match(media, /Loading Media Library/);
-  assert.match(bulk, /Loading Bulk Scheduler/);
-  assert.match(studio, /Loading AI Content Studio/);
-  assert.match(connections, /Loading connected accounts/);
-  assert.match(billing, /Loading billing details/);
-  assert.match(dashboard, /Updating…/);
+  assert.match(dashboard, /DashboardSkeleton/);
   assert.match(calendar, /CalendarSkeleton/);
   assert.match(analytics, /AnalyticsSkeleton/);
+
+  for (const page of [posts, media, bulk, studio, settings, connections, billing]) {
+    assert.doesNotMatch(page, /WorkspaceLoadingState/);
+    assert.doesNotMatch(page, /if \([^\n]*(?:isLoading|isPending)[^\n]*\) return/);
+  }
+
+  assert.match(posts, /post composer remains available/i);
+  assert.match(media, /Media Library interface remains available/);
+  assert.match(bulk, /Bulk Scheduler interface remains available/);
+  assert.match(studio, /creation workspace is ready immediately/i);
+  assert.match(settings, /Settings remain available/);
+  assert.match(connections, /connection workspace remains available/);
+  assert.match(billing, /BillingImmediateState/);
 });
 
 test('Dashboard uses lightweight paced analytics instead of deep feed history for every connected account', () => {
