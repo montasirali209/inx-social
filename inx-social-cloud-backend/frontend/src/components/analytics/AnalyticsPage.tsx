@@ -151,8 +151,8 @@ export function AnalyticsPage() {
   const lastUpdated = view ? new Intl.DateTimeFormat('en-GB', { timeStyle: 'medium' }).format(new Date(view.source.fetchedAt)) : ''
   const providerMetricSources = analytics.data?.results || []
   const backgroundRefreshing = Boolean(analytics.data?.results.some(result => result.analytics.provider?.cacheState === 'refreshing'))
-  const syncLabel = analytics.isFetching && !analytics.data
-    ? 'Loading analytics…'
+  const syncLabel = analytics.isFetching
+    ? `Checking latest · Last sync ${lastUpdated || 'Waiting'}`
     : backgroundRefreshing
       ? `Refreshing in background · Last sync ${lastUpdated || 'Waiting'}`
       : `Last sync · ${lastUpdated || 'Waiting'}`
