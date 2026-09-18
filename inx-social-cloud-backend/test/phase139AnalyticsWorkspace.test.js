@@ -20,6 +20,10 @@ test('Analytics is a first-class responsive React workspace', () => {
   assert.match(selector, /platformFilter/);
   assert.match(selector, /All accounts/);
   assert.doesNotMatch(selector, /overflow-x-auto/);
+  assert.match(selector, /document\.addEventListener\('pointerdown', closeOnOutside\)/);
+  assert.match(selector, /setOpen\(false\)/);
+  assert.match(selector, /analytics-source-picker-menu/);
+  assert.match(selector, /transition-\[opacity,transform\]/);
   assert.match(page, /sm:grid-cols-2 xl:grid-cols-6/);
   assert.match(page, /ExportReportButton/);
 });
@@ -73,6 +77,10 @@ test('Analytics charts, tabs and report actions remain accessible and functional
   const motion = read('frontend/src/components/analytics/analytics-motion.css');
   assert.match(chart, /onPointerMove/);
   assert.match(chart, /Performance chart interval/);
+  assert.match(chart, /exactDate/);
+  assert.match(chart, /areaPath/);
+  assert.match(chart, /Move across the line for exact dates/);
+  assert.match(page, /interval === 'monthly' \? view\.performance/);
   assert.match(tabs, /aria-current/);
   assert.match(exportButton, /Export CSV/);
   assert.match(exportButton, /Export Excel/);
