@@ -113,8 +113,8 @@ export function PerformanceOverTimeCard({
   return <AnalyticsCard>
     <AnalyticsCardHeader
       action={<select aria-label="Performance chart interval" className="min-h-9 rounded-xl border border-border-soft bg-bg/45 px-3 text-[10px] outline-none focus:border-brand-cyan" onChange={event => setInterval(event.target.value as 'daily' | 'weekly' | 'monthly')} value={interval}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>}
-      description="Measured changes between stored live metric snapshots. Lifetime post totals are not backdated to the day a post was published."
-      title="Performance Over Time"
+      description="Measured changes in the selected posts after INXSocial begins tracking them. Current lifetime post totals stay in the KPI cards and are not backdated."
+      title="Post Performance Over Time"
     />
 
     {!hasDailyHistory && startedLabel && <div className="mx-5 mt-1 rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.045] px-3 py-2 text-[10px] leading-5 text-text-muted"><strong className="text-brand-cyan">Daily trend tracking started {startedLabel}.</strong> Earlier lifetime views remain included in the KPI totals, but they are not placed on historical dates because the connected source does not provide a historical daily breakdown.</div>}
