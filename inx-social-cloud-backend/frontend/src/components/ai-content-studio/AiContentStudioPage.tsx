@@ -181,10 +181,10 @@ export function AiContentStudioPage() {
     <section className="mt-6">
       <StudioSectionHeading action={<Button onClick={() => setHistoryOpen(true)} size="sm"><History className="size-3.5" />Generation history</Button>} text="Choose a workflow below. Each creator is optimised for one social post format." title="What do you want to create?" />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <ImagePostCard enabled={Boolean(access?.studioEnabled)} onCreate={openCreator} />
-        <CarouselPostCard enabled={Boolean(access?.studioEnabled)} onCreate={openCreator} />
-        <ShortVideoCard enabled={Boolean(access?.studioEnabled)} onCreate={openCreator} />
-        <UGCAdCard enabled={Boolean(access?.studioEnabled)} onCreate={openCreator} />
+        <ImagePostCard enabled={access?.studioEnabled ?? true} onCreate={openCreator} />
+        <CarouselPostCard enabled={access?.studioEnabled ?? true} onCreate={openCreator} />
+        <ShortVideoCard enabled={access?.studioEnabled ?? true} onCreate={openCreator} />
+        <UGCAdCard enabled={access?.studioEnabled ?? true} onCreate={openCreator} />
       </div>
     </section>
 
