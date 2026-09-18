@@ -3,12 +3,14 @@ import type { PerformancePoint } from '../../types/analytics'
 import { formatAnalyticsValue } from '../../data/analyticsData'
 import { AnalyticsCard, AnalyticsCardHeader } from './AnalyticsPrimitives'
 
-type SeriesKey = 'views' | 'engagements' | 'linkClicks' | 'followers'
+type SeriesKey = 'views' | 'engagements' | 'linkClicks'
+
 const metricSeries: Array<{ key: SeriesKey; label: string; totalLabel: string; colour: string }> = [
-  { key: 'views', label: 'Current views', totalLabel: 'Current views', colour: '#3b82f6' },
+  { key: 'views', label: 'Views', totalLabel: 'Current views', colour: '#3b82f6' },
   { key: 'engagements', label: 'Interactions', totalLabel: 'Interactions', colour: '#2dd4bf' },
   { key: 'linkClicks', label: 'Clicks', totalLabel: 'Clicks', colour: '#f59e0b' },
 ]
+
 const plot = { left: 62, right: 944, top: 24, bottom: 242 }
 
 function pointX(index: number, count: number) {
@@ -26,7 +28,10 @@ function clampY(value: number) {
 
 function smoothPath(points: PerformancePoint[], key: SeriesKey, maximum: number) {
   if (!points.length) return ''
-  const coordinates = points.map((point, index) => ({ x: pointX(index, points.length), y: pointY(point[key], maximum) }))
+  const coordinates = points.map((point, index) => ({
+    x: pointX(index, points.length),
+    y: pointY(point[key], maximum),
+  }))
   if (coordinates.length === 1) return `M ${coordinates[0].x} ${coordinates[0].y}`
   if (coordinates.length === 2) return `M ${coordinates[0].x} ${coordinates[0].y} L ${coordinates[1].x} ${coordinates[1].y}`
 
@@ -54,11 +59,16 @@ function areaPath(points: PerformancePoint[], key: SeriesKey, maximum: number) {
 function exactDate(point: PerformancePoint) {
   const date = new Date(`${point.date}T12:00:00Z`)
   if (Number.isNaN(date.getTime())) return point.label
-  return new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(date)
+  return new Intl.DateTimeFormat('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date)
 }
 
-function axisDate(point: PerformancePoint, interval: 'daily' | 'weekly' | 'monthly') {
-  if (interval === 'weekly') return point.label
+function axisDate(point: PerformancePoint) {
   const date = new Date(`${point.date}T12:00:00Z`)
   if (Number.isNaN(date.getTime())) return point.label
   return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(date)
@@ -66,25 +76,35 @@ function axisDate(point: PerformancePoint, interval: 'daily' | 'weekly' | 'month
 
 export function PerformanceOverTimeCard({
   points,
-  interval,
-  setInterval,
   days,
 }: {
   points: PerformancePoint[]
-  interval: 'daily' | 'weekly' | 'monthly'
-  setInterval: (value: 'daily' | 'weekly' | 'monthly') => void
   days: number
 }) {
   const [hover, setHover] = useState<{ index: number; x: number; position: number } | null>(null)
+  const [selectedMetricKey, setSelectedMetricKey] = useState<SeriesKey>('views')
   const gradientId = useId().replace(/:/g, '')
-  const maximumValue = Math.max(1, ...points.flatMap(point => metricSeries.map(item => point[item.key])))
+
+  const totals = useMemo(() => metricSeries.map(item => ({
+    ...item,
+    value: points.reduce((sum, point) => sum + point[item.key], 0),
+  })), [points])
+
+  const availableKeys = useMemo(
+    () => totals.filter(item => item.value > 0).map(item => item.key),
+    [totals],
+  )
+  const effectiveMetricKey = availableKeys.includes(selectedMetricKey)
+    ? selectedMetricKey
+    : availableKeys[0] || 'views'
+  const selectedMetric = metricSeries.find(item => item.key === effectiveMetricKey) || metricSeries[0]
+
+  const maximumValue = Math.max(1, ...points.map(point => point[selectedMetric.key]))
   const roughStep = maximumValue / 5
   const magnitude = Math.pow(10, Math.floor(Math.log10(Math.max(1, roughStep))))
   const niceStep = Math.max(1, Math.ceil(roughStep / magnitude) * magnitude)
   const maximum = Math.max(5, niceStep * 5)
-  const labelEvery = Math.max(1, Math.ceil(points.length / 6))
-  const activeSeries = useMemo(() => metricSeries.filter(item => points.some(point => point[item.key] !== 0)), [points])
-  const renderedSeries = activeSeries.length ? activeSeries : [metricSeries[0]]
+  const labelEvery = Math.max(1, Math.ceil(points.length / 7))
 
   function track(event: ReactPointerEvent<SVGSVGElement>) {
     if (!points.length) return
@@ -102,7 +122,8 @@ export function PerformanceOverTimeCard({
   const activePoint = hover === null ? null : points[hover.index]
   const activeX = hover?.x ?? null
   const tooltipLeft = activeX === null ? 50 : Math.min(83, Math.max(17, activeX / 10))
-  const hoverValue = (key: SeriesKey) => {
+
+  function hoverValue(key: SeriesKey) {
     if (!hover || !points.length) return 0
     const lower = Math.floor(hover.position)
     const upper = Math.min(points.length - 1, Math.ceil(hover.position))
@@ -110,29 +131,67 @@ export function PerformanceOverTimeCard({
     const fraction = hover.position - lower
     return (points[lower]?.[key] || 0) * (1 - fraction) + (points[upper]?.[key] || 0) * fraction
   }
-  const totals = metricSeries.map(item => ({ ...item, value: points.reduce((sum, point) => sum + point[item.key], 0) }))
+
+  const metricControl = <div aria-label="Performance metric" className="flex items-center gap-1 rounded-xl border border-border-soft bg-bg/35 p-1">
+    {totals.map(item => {
+      const active = item.key === effectiveMetricKey
+      const disabled = item.value <= 0
+      return <button
+        aria-pressed={active}
+        className={`min-h-7 rounded-lg px-2.5 text-[9px] font-semibold transition ${active ? 'bg-brand-cyan/12 text-brand-cyan shadow-[inset_0_0_0_1px_rgba(34,211,238,.18)]' : 'text-text-muted hover:bg-white/[.04] hover:text-white'} disabled:cursor-not-allowed disabled:opacity-35`}
+        disabled={disabled}
+        key={item.key}
+        onClick={() => setSelectedMetricKey(item.key)}
+        type="button"
+      >
+        {item.label}
+      </button>
+    })}
+  </div>
 
   return <AnalyticsCard>
     <AnalyticsCardHeader
-      action={<select aria-label="Performance chart interval" className="min-h-9 rounded-xl border border-border-soft bg-bg/45 px-3 text-[10px] outline-none focus:border-brand-cyan" onChange={event => setInterval(event.target.value as 'daily' | 'weekly' | 'monthly')} value={interval}><option value="daily">Daily</option>{days > 7 && <option value="weekly">Weekly</option>}{days > 30 && <option value="monthly">Monthly</option>}</select>}
-      description="Shows the latest verified performance of posts published in the selected period."
+      action={metricControl}
+      description="Each point shows the current performance of posts published on that date. Switch metrics to give each measure its own readable scale."
       title="Content Performance by Publish Date"
     />
 
     <div className="relative px-3 sm:px-5">
-      <div className="mb-1 mt-2 flex items-center justify-between px-1 text-[9px] text-text-soft"><span>Verified performance grouped by post publish date</span><span className="hidden sm:inline">Hover for exact post-date performance</span></div>
+      <div className="mb-1 mt-2 flex items-center justify-between gap-3 px-1 text-[9px] text-text-soft">
+        <span>Daily publish-date points · Last {days} days</span>
+        <span className="hidden sm:inline">Hover for exact post-date performance</span>
+      </div>
 
       {activePoint && <div className="analytics-chart-tooltip pointer-events-none absolute top-8 z-20 w-[218px] -translate-x-1/2 rounded-xl border border-brand-cyan/20 bg-[#061923]/[.97] p-3 text-[10px] shadow-[0_18px_50px_rgba(0,0,0,.45),0_0_0_1px_rgba(45,212,191,.04)] backdrop-blur-xl" style={{ left: `${tooltipLeft}%` }}>
-        <div className="border-b border-white/[.07] pb-2"><strong className="block text-[11px] text-white">{interval === 'weekly' ? activePoint.label : exactDate(activePoint)}</strong><span className="mt-0.5 block text-[9px] text-text-soft">Latest totals for posts published on this date</span></div>
-        <div className="mt-2 space-y-1.5">{metricSeries.map(item => <span className="flex items-center justify-between gap-6 text-text-muted" key={item.key}><span className="flex items-center gap-1.5"><i className="inline-block size-2 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: item.colour, color: item.colour }} />{item.label}</span><b className="text-white">{formatAnalyticsValue(activePoint[item.key], 'compact')}</b></span>)}</div>
+        <div className="border-b border-white/[.07] pb-2">
+          <strong className="block text-[11px] text-white">{exactDate(activePoint)}</strong>
+          <span className="mt-0.5 block text-[9px] text-text-soft">Current totals for posts published on this date</span>
+        </div>
+        <div className="mt-2 space-y-1.5">
+          {metricSeries.map(item => <span className={`flex items-center justify-between gap-6 ${item.key === effectiveMetricKey ? 'text-white' : 'text-text-muted'}`} key={item.key}>
+            <span className="flex items-center gap-1.5">
+              <i className="inline-block size-2 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: item.colour, color: item.colour }} />
+              {item.label}
+            </span>
+            <b className="text-white">{formatAnalyticsValue(activePoint[item.key], 'compact')}</b>
+          </span>)}
+        </div>
       </div>}
 
-      <svg aria-label="Performance over time chart" className="analytics-performance-chart h-[280px] w-full touch-pan-y sm:h-[330px]" onPointerLeave={() => setHover(null)} onPointerMove={track} preserveAspectRatio="none" role="img" viewBox="0 0 1000 282">
+      <svg
+        aria-label={`${selectedMetric.label} by post publish date`}
+        className="analytics-performance-chart h-[280px] w-full touch-pan-y sm:h-[330px]"
+        onPointerLeave={() => setHover(null)}
+        onPointerMove={track}
+        preserveAspectRatio="none"
+        role="img"
+        viewBox="0 0 1000 282"
+      >
         <defs>
-          <linearGradient id={`${gradientId}-views-area`} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity=".2" />
-            <stop offset="72%" stopColor="#3b82f6" stopOpacity=".035" />
-            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+          <linearGradient id={`${gradientId}-metric-area`} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={selectedMetric.colour} stopOpacity=".2" />
+            <stop offset="72%" stopColor={selectedMetric.colour} stopOpacity=".035" />
+            <stop offset="100%" stopColor={selectedMetric.colour} stopOpacity="0" />
           </linearGradient>
           <filter id={`${gradientId}-glow`} height="180%" width="180%" x="-40%" y="-40%">
             <feGaussianBlur result="blur" stdDeviation="2.5" />
@@ -141,28 +200,60 @@ export function PerformanceOverTimeCard({
         </defs>
 
         <rect fill="rgba(2,12,18,.13)" height={plot.bottom - plot.top} rx="10" width={plot.right - plot.left} x={plot.left} y={plot.top} />
+
         {Array.from({ length: 6 }, (_, index) => {
           const y = plot.top + index * (plot.bottom - plot.top) / 5
           const value = maximum - index * maximum / 5
-          return <g key={index}><line stroke="rgba(148,163,184,.10)" strokeDasharray="3 6" x1={plot.left} x2={plot.right} y1={y} y2={y} /><text fill="#64748b" fontSize="9" textAnchor="end" x={plot.left - 11} y={y + 3}>{formatAnalyticsValue(value, 'compact')}</text></g>
+          return <g key={index}>
+            <line stroke="rgba(148,163,184,.10)" strokeDasharray="3 6" x1={plot.left} x2={plot.right} y1={y} y2={y} />
+            <text fill="#64748b" fontSize="9" textAnchor="end" x={plot.left - 11} y={y + 3}>{formatAnalyticsValue(value, 'compact')}</text>
+          </g>
         })}
 
-        {points.length > 1 && points.some(point => point.views > 0) && <path d={areaPath(points, 'views', maximum)} fill={`url(#${gradientId}-views-area)`} />}
-        {renderedSeries.map((item, seriesIndex) => <g key={item.key}>
-          <path d={smoothPath(points, item.key, maximum)} fill="none" opacity=".13" stroke={item.colour} strokeLinecap="round" strokeLinejoin="round" strokeWidth="8" />
-          <path className="analytics-line-draw" d={smoothPath(points, item.key, maximum)} fill="none" stroke={item.colour} strokeLinecap="round" strokeLinejoin="round" strokeWidth={item.key === 'views' ? 2.25 : 1.8} style={{ animationDelay: `${seriesIndex * 90}ms` }} />
-        </g>)}
+        {points.length > 1 && points.some(point => point[selectedMetric.key] > 0) && <path d={areaPath(points, selectedMetric.key, maximum)} fill={`url(#${gradientId}-metric-area)`} />}
+
+        <path d={smoothPath(points, selectedMetric.key, maximum)} fill="none" opacity=".13" stroke={selectedMetric.colour} strokeLinecap="round" strokeLinejoin="round" strokeWidth="8" />
+        <path className="analytics-line-draw" d={smoothPath(points, selectedMetric.key, maximum)} fill="none" stroke={selectedMetric.colour} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.25" />
 
         {hover !== null && activePoint && activeX !== null && <>
           <line className="analytics-hover-guide" stroke="rgba(45,212,191,.52)" strokeDasharray="3 4" x1={activeX} x2={activeX} y1={plot.top} y2={plot.bottom} />
-          {renderedSeries.map(item => <g className="analytics-hover-point" key={item.key}><circle cx={activeX} cy={pointY(hoverValue(item.key), maximum)} fill="#061923" r="5.5" stroke={item.colour} strokeWidth="2" /><circle cx={activeX} cy={pointY(hoverValue(item.key), maximum)} fill={item.colour} filter={`url(#${gradientId}-glow)`} r="2.4" /></g>)}
+          <g className="analytics-hover-point">
+            <circle cx={activeX} cy={pointY(hoverValue(selectedMetric.key), maximum)} fill="#061923" r="5.5" stroke={selectedMetric.colour} strokeWidth="2" />
+            <circle cx={activeX} cy={pointY(hoverValue(selectedMetric.key), maximum)} fill={selectedMetric.colour} filter={`url(#${gradientId}-glow)`} r="2.4" />
+          </g>
         </>}
 
-        {points.map((point, index) => index % labelEvery === 0 || index === points.length - 1 ? <g key={`${point.date}-axis`}><line stroke="rgba(148,163,184,.10)" x1={pointX(index, points.length)} x2={pointX(index, points.length)} y1={plot.bottom} y2={plot.bottom + 5} /><text fill="#718096" fontSize="9" textAnchor={points.length === 1 ? 'middle' : index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle'} x={pointX(index, points.length)} y="266">{axisDate(point, interval)}</text></g> : null)}
+        {points.map((point, index) => index % labelEvery === 0 || index === points.length - 1 ? <g key={`${point.date}-axis`}>
+          <line stroke="rgba(148,163,184,.10)" x1={pointX(index, points.length)} x2={pointX(index, points.length)} y1={plot.bottom} y2={plot.bottom + 5} />
+          <text
+            fill="#718096"
+            fontSize="9"
+            textAnchor={points.length === 1 ? 'middle' : index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle'}
+            x={pointX(index, points.length)}
+            y="266"
+          >
+            {axisDate(point)}
+          </text>
+        </g> : null)}
       </svg>
 
-      <div className="flex flex-wrap justify-center gap-5 pb-3 text-[10px] text-text-muted">{renderedSeries.map(item => <span className="flex items-center gap-2" key={item.key}><i className="h-0.5 w-5 rounded-full" style={{ backgroundColor: item.colour, boxShadow: `0 0 8px ${item.colour}55` }} />{item.label}</span>)}</div>
+      <div className="flex items-center justify-center gap-2 pb-3 text-[10px] text-text-muted">
+        <i className="h-0.5 w-5 rounded-full" style={{ backgroundColor: selectedMetric.colour, boxShadow: `0 0 8px ${selectedMetric.colour}55` }} />
+        <span>{selectedMetric.label} · own scale</span>
+      </div>
     </div>
-    <div className="grid grid-cols-2 border-t border-border-soft sm:grid-cols-4">{totals.map(item => <div className="border-border-soft p-3 sm:border-r last:border-r-0" key={item.key}><span className="text-[9px] text-text-muted">{item.totalLabel}</span><strong className="mt-1 block text-sm" style={{ color: item.colour }}>{formatAnalyticsValue(item.value, 'compact')}</strong></div>)}</div>
+
+    <div className="grid grid-cols-3 border-t border-border-soft">
+      {totals.map(item => <button
+        className={`border-border-soft p-3 text-left transition sm:border-r last:border-r-0 ${item.key === effectiveMetricKey ? 'bg-white/[.025]' : 'hover:bg-white/[.018]'} disabled:cursor-not-allowed`}
+        disabled={item.value <= 0}
+        key={item.key}
+        onClick={() => setSelectedMetricKey(item.key)}
+        type="button"
+      >
+        <span className="text-[9px] text-text-muted">{item.totalLabel}</span>
+        <strong className="mt-1 block text-sm" style={{ color: item.colour }}>{formatAnalyticsValue(item.value, 'compact')}</strong>
+      </button>)}
+    </div>
   </AnalyticsCard>
 }
