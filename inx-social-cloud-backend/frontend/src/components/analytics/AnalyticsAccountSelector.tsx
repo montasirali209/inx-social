@@ -11,6 +11,7 @@ type Props = {
   accounts: AnalyticsAccount[]
   values: string[]
   isLive: boolean
+  loading?: boolean
   onChange: (keys: string[]) => void
 }
 
@@ -23,7 +24,7 @@ function Avatar({ account }: { account: AnalyticsAccount }) {
   </span>
 }
 
-export function AnalyticsAccountSelector({ accounts, values, isLive, onChange }: Props) {
+export function AnalyticsAccountSelector({ accounts, values, isLive, loading = false, onChange }: Props) {
   const [platformFilter, setPlatformFilter] = useState<'all' | SocialPlatform>('all')
   const [open, setOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -69,14 +70,14 @@ export function AnalyticsAccountSelector({ accounts, values, isLive, onChange }:
 
   const selectedLabel = selectedAccounts.length
     ? selectedAccounts.map(account => account.displayName).join(', ')
-    : 'Choose an account'
+    : loading ? 'Preparing connected accounts…' : 'Choose an account'
 
   return <section className="analytics-selector relative rounded-card border border-border-soft bg-[radial-gradient(circle_at_82%_-40%,rgba(22,196,181,.13),transparent_36%),linear-gradient(145deg,rgba(10,32,43,.9),rgba(5,21,31,.94))] p-3 shadow-[0_16px_38px_rgba(0,0,0,.2),inset_0_1px_0_rgba(255,255,255,.03)] sm:p-4">
     <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-20 size-44 rounded-full bg-brand-cyan/[.06] blur-3xl" />
     <div className="relative flex flex-wrap items-center gap-3">
-      <span className="relative grid size-10 shrink-0 place-items-center rounded-xl border border-brand-teal/20 bg-brand-teal/10 text-brand-cyan"><ShieldCheck className="size-5" /><span className={`absolute -right-1 -top-1 size-2.5 rounded-full border-2 border-panel ${isLive ? 'animate-pulse bg-brand-green motion-reduce:animate-none' : 'bg-brand-amber'}`} /></span>
+      <span className="relative grid size-10 shrink-0 place-items-center rounded-xl border border-brand-teal/20 bg-brand-teal/10 text-brand-cyan"><ShieldCheck className="size-5" /><span className={`absolute -right-1 -top-1 size-2.5 rounded-full border-2 border-panel ${loading ? 'bg-text-soft' : isLive ? 'animate-pulse bg-brand-green motion-reduce:animate-none' : 'bg-brand-amber'}`} /></span>
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2"><h2 className="text-sm font-semibold">Analytics sources</h2><span className="rounded-full border border-brand-teal/15 bg-brand-teal/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.14em] text-brand-cyan">{selectedAccounts.length}/{MAX_ANALYTICS_SOURCES} selected</span><span className="inline-flex items-center gap-1.5 rounded-full border border-brand-green/15 bg-brand-green/8 px-2 py-0.5 text-[10px] font-semibold text-brand-green"><span className="size-1.5 animate-pulse rounded-full bg-brand-green motion-reduce:animate-none" />Live</span></div>
+        <div className="flex flex-wrap items-center gap-2"><h2 className="text-sm font-semibold">Analytics sources</h2><span className="rounded-full border border-brand-teal/15 bg-brand-teal/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.14em] text-brand-cyan">{selectedAccounts.length}/{MAX_ANALYTICS_SOURCES} selected</span><span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${loading ? 'border-white/10 bg-white/[.03] text-text-muted' : 'border-brand-green/15 bg-brand-green/8 text-brand-green'}`}><span className={`size-1.5 rounded-full ${loading ? 'bg-text-soft' : 'animate-pulse bg-brand-green motion-reduce:animate-none'}`} />{loading ? 'Preparing' : 'Live'}</span></div>
         <p className="mt-0.5 text-xs text-text-muted">Select 1–3 accounts for a clearer comparison. Use the platform buttons to filter the account list.</p>
       </div>
       <span className="hidden text-[10px] uppercase tracking-[.16em] text-text-soft lg:block">{accounts.length} account{accounts.length === 1 ? '' : 's'} · {platformCount} platform{platformCount === 1 ? '' : 's'}</span>
@@ -93,7 +94,7 @@ export function AnalyticsAccountSelector({ accounts, values, isLive, onChange }:
     </div>
 
     <div className="relative mt-3" ref={dropdownRef}>
-      <button aria-expanded={open} aria-haspopup="listbox" className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-white/[.08] bg-bg/45 px-3 text-left transition duration-200 hover:border-brand-cyan/25 hover:bg-white/[.025] focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={() => setOpen(value => !value)} type="button">
+      <button aria-expanded={open} aria-haspopup="listbox" className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-white/[.08] bg-bg/45 px-3 text-left transition duration-200 hover:border-brand-cyan/25 hover:bg-white/[.025] focus-visible:outline-2 focus-visible:outline-brand-cyan disabled:cursor-wait disabled:opacity-80" disabled={loading} onClick={() => setOpen(value => !value)} type="button">
         <span className="min-w-0 flex-1"><span className="block text-[9px] uppercase tracking-[.14em] text-text-soft">Selected accounts</span><strong className="mt-0.5 block truncate text-xs text-text-main">{selectedLabel}</strong></span>
         <span className="rounded-full border border-brand-cyan/20 bg-brand-cyan/8 px-2 py-1 text-[9px] font-semibold text-brand-cyan">{selectedAccounts.length}/{MAX_ANALYTICS_SOURCES}</span>
         <ChevronDown className={`size-4 text-text-soft transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
