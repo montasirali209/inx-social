@@ -52,6 +52,35 @@ describe('Analytics live view', () => {
     expect(view.stats.every((stat) => stat.value !== null)).toBe(true)
   })
 
+  it('uses measured snapshot deltas instead of assigning lifetime metrics to the post publish date', () => {
+    const source = liveAnalytics()
+    source.fetchedAt = '2026-09-18T10:00:00.000Z'
+    source.provider = { engine: 'POST_FOR_ME' }
+    source.tracking = {
+      mode: 'measured_snapshot_delta',
+      startedAt: '2026-09-17T10:00:00.000Z',
+      latestAt: '2026-09-18T10:00:00.000Z',
+      sampledDays: 2,
+      historicalDailyAvailable: true,
+    }
+    source.content[0].createdTime = '2026-08-20T10:00:00.000Z'
+    source.series = {
+      views: [{ date: '2026-09-18', value: 25 }],
+      engagements: [{ date: '2026-09-18', value: 3 }],
+      clicks: [{ date: '2026-09-18', value: 2 }],
+      follows: [{ date: '2026-09-18', value: 1 }],
+    }
+
+    const view = buildAnalyticsView(source, 30)
+    expect(view.performance.find((point) => point.date === '2026-08-20')?.views).toBe(0)
+    expect(view.performance.find((point) => point.date === '2026-09-18')).toMatchObject({
+      views: 25,
+      engagements: 3,
+      linkClicks: 2,
+      followers: 1,
+    })
+  })
+
   it('formats compact, percentage and unavailable values honestly', () => {
     expect(formatAnalyticsValue(2450, 'compact')).toMatch(/2\.5K/i)
     expect(formatAnalyticsValue(3.67, 'percent')).toBe('3.67%')

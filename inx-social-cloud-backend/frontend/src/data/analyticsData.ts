@@ -97,11 +97,15 @@ export function buildAnalyticsView(analytics: PlatformAnalytics, days: number): 
   const sourceEngagements = seriesMap(analytics, 'engagements')
   const followers = followerActivity(analytics)
   const postEngagements = contentSeries(analytics, 'engagements')
-  const clicks = contentSeries(analytics, 'clicks')
+  const clicks = analytics.tracking?.mode === 'measured_snapshot_delta'
+    ? seriesMap(analytics, 'clicks')
+    : contentSeries(analytics, 'clicks')
   const performance = dateKeys(days, analytics.fetchedAt).map(({ date, label }) => ({
     date, label,
     views: views.get(date) || 0,
-    engagements: sourceEngagements.get(date) ?? postEngagements.get(date) ?? 0,
+    engagements: analytics.tracking?.mode === 'measured_snapshot_delta'
+      ? sourceEngagements.get(date) || 0
+      : sourceEngagements.get(date) ?? postEngagements.get(date) ?? 0,
     linkClicks: clicks.get(date) || 0,
     followers: followers.daily.get(date) || 0,
   }))

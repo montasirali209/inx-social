@@ -6,6 +6,20 @@ const test = require('node:test');
 const root = path.join(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
+test('analytics metric snapshots persist measured post deltas instead of fabricated historical dates', () => {
+  const schema = read('prisma/schema.prisma');
+  const service = read('src/services/postForMeAnalyticsService.js');
+  const server = read('src/server.js');
+
+  assert.match(schema, /model AnalyticsMetricSnapshot/);
+  assert.match(schema, /externalPostId\s+String/);
+  assert.match(schema, /capturedAt\s+DateTime/);
+  assert.match(service, /positiveDelta/);
+  assert.match(service, /SNAPSHOT_RUNTIME_INTERVAL_MS/);
+  assert.match(service, /SNAPSHOT_RUNTIME_ACCOUNT_DELAY_MS/);
+  assert.match(server, /startAnalyticsSnapshotRuntime/);
+});
+
 test('universal publishing API is mounted before the application fallback', () => {
   const app = read('src/app.js');
   const routes = read('src/routes/socialPublicationRoutes.js');

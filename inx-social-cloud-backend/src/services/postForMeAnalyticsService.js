@@ -3,8 +3,14 @@ const postForMe = require('./postForMeService');
 
 const ANALYTICS_CACHE_TTL_MS = 3 * 60 * 1000;
 const ANALYTICS_STALE_TTL_MS = 30 * 60 * 1000;
+const SNAPSHOT_MIN_INTERVAL_MS = 45 * 60 * 1000;
+const SNAPSHOT_RETENTION_DAYS = 120;
+const SNAPSHOT_RUNTIME_INTERVAL_MS = 60 * 60 * 1000;
+const SNAPSHOT_RUNTIME_ACCOUNT_DELAY_MS = 5000;
 const analyticsCache = new Map();
 const analyticsInflight = new Map();
+let snapshotRuntimeTimer = null;
+let snapshotRuntimeRunning = false;
 
 function number(value) {
   const parsed = Number(value);
@@ -190,6 +196,150 @@ function incrementSeries(map, date, value) {
   map.set(date, (map.get(date) || 0) + value);
 }
 
+function postExternalId(profile, post) {
+  return String(post.platform_post_id || post.external_post_id || post.social_post_result_id || `${profile.id}:${post.posted_at || 'unknown'}`);
+}
+
+function utcDay(value) {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : '';
+}
+
+function metricSnapshotRow(userId, profile, post, capturedAt) {
+  const rawMetrics = post.metrics && typeof post.metrics === 'object' ? post.metrics : {};
+  const metrics = normaliseMetrics(profile.platform, rawMetrics);
+  const publishedAt = post.posted_at ? new Date(post.posted_at) : null;
+  return {
+    userId,
+    profileId: profile.id,
+    platform: profile.platform,
+    externalPostId: postExternalId(profile, post),
+    postPublishedAt: publishedAt && Number.isFinite(publishedAt.getTime()) ? publishedAt : null,
+    capturedAt,
+    views: Math.max(0, Math.round(number(metrics.views))),
+    interactions: Math.max(0, Math.round(number(metrics.interactions))),
+    clicks: Math.max(0, Math.round(number(metrics.clicks))),
+    follows: Math.round(number(metrics.follows)),
+    metricsJson: Object.keys(rawMetrics).length ? JSON.stringify(rawMetrics) : null
+  };
+}
+
+async function persistMetricSnapshots(userId, profile, feed) {
+  if (!feed.length) return false;
+  const latest = await prisma.analyticsMetricSnapshot.findFirst({
+    where: { profileId: profile.id },
+    orderBy: { capturedAt: 'desc' },
+    select: { capturedAt: true }
+  });
+  if (latest?.capturedAt && Date.now() - latest.capturedAt.getTime() < SNAPSHOT_MIN_INTERVAL_MS) return false;
+
+  const capturedAt = new Date();
+  const rows = feed.map((post) => metricSnapshotRow(userId, profile, post, capturedAt));
+  if (!rows.length) return false;
+
+  await prisma.analyticsMetricSnapshot.createMany({ data: rows });
+  const retentionCutoff = new Date(Date.now() - SNAPSHOT_RETENTION_DAYS * 86400000);
+  await prisma.analyticsMetricSnapshot.deleteMany({
+    where: { profileId: profile.id, capturedAt: { lt: retentionCutoff } }
+  });
+  return true;
+}
+
+function positiveDelta(current, previous) {
+  return Math.max(0, number(current) - number(previous));
+}
+
+async function buildMeasuredSeries(profile, feed, since) {
+  const externalPostIds = [...new Set(feed.map((post) => postExternalId(profile, post)).filter(Boolean))];
+  const empty = {
+    views: new Map(),
+    engagements: new Map(),
+    clicks: new Map(),
+    follows: new Map(),
+    tracking: { mode: 'measured_snapshot_delta', startedAt: null, latestAt: null, sampledDays: 0, historicalDailyAvailable: false }
+  };
+  if (!externalPostIds.length) return empty;
+
+  const querySince = new Date(since.getTime() - 2 * 86400000);
+  const [snapshots, firstSnapshot, latestSnapshot] = await Promise.all([
+    prisma.analyticsMetricSnapshot.findMany({
+      where: {
+        profileId: profile.id,
+        externalPostId: { in: externalPostIds },
+        capturedAt: { gte: querySince }
+      },
+      select: {
+        externalPostId: true,
+        capturedAt: true,
+        views: true,
+        interactions: true,
+        clicks: true,
+        follows: true
+      },
+      orderBy: [{ externalPostId: 'asc' }, { capturedAt: 'asc' }]
+    }),
+    prisma.analyticsMetricSnapshot.findFirst({
+      where: { profileId: profile.id },
+      orderBy: { capturedAt: 'asc' },
+      select: { capturedAt: true }
+    }),
+    prisma.analyticsMetricSnapshot.findFirst({
+      where: { profileId: profile.id },
+      orderBy: { capturedAt: 'desc' },
+      select: { capturedAt: true }
+    })
+  ]);
+
+  const byPost = new Map();
+  const sampledDays = new Set();
+  for (const snapshot of snapshots) {
+    const day = utcDay(snapshot.capturedAt);
+    if (!day) continue;
+    sampledDays.add(day);
+    const postDays = byPost.get(snapshot.externalPostId) || new Map();
+    const dayRows = postDays.get(day) || { first: snapshot, last: snapshot };
+    dayRows.last = snapshot;
+    postDays.set(day, dayRows);
+    byPost.set(snapshot.externalPostId, postDays);
+  }
+
+  const views = new Map();
+  const engagements = new Map();
+  const clicks = new Map();
+  const follows = new Map();
+  const selectedSince = utcDay(since);
+
+  for (const postDays of byPost.values()) {
+    const rows = [...postDays.entries()].sort(([left], [right]) => left.localeCompare(right));
+    let previousLast = null;
+    for (const [day, bucket] of rows) {
+      const baseline = previousLast || bucket.first;
+      if (day >= selectedSince) {
+        incrementSeries(views, day, positiveDelta(bucket.last.views, baseline.views));
+        incrementSeries(engagements, day, positiveDelta(bucket.last.interactions, baseline.interactions));
+        incrementSeries(clicks, day, positiveDelta(bucket.last.clicks, baseline.clicks));
+        const followDelta = number(bucket.last.follows) - number(baseline.follows);
+        if (followDelta) incrementSeries(follows, day, followDelta);
+      }
+      previousLast = bucket.last;
+    }
+  }
+
+  return {
+    views,
+    engagements,
+    clicks,
+    follows,
+    tracking: {
+      mode: 'measured_snapshot_delta',
+      startedAt: firstSnapshot?.capturedAt?.toISOString?.() || null,
+      latestAt: latestSnapshot?.capturedAt?.toISOString?.() || null,
+      sampledDays: sampledDays.size,
+      historicalDailyAvailable: sampledDays.size >= 2
+    }
+  };
+}
+
 async function resolveProfile(userId, profileId, expectedPlatform) {
   const profile = await prisma.socialProfile.findFirst({
     where: { id: String(profileId), userId, status: 'ACTIVE' },
@@ -242,21 +392,14 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
   });
 
   const totals = { views: 0, reactions: 0, comments: 0, shares: 0, clicks: 0, follows: 0, interactions: 0 };
-  const viewsSeries = new Map();
-  const engagementSeries = new Map();
-  const followsSeries = new Map();
   let postsWithMetrics = 0;
   const content = feed.map((post) => {
     const rawMetrics = post.metrics && typeof post.metrics === 'object' ? post.metrics : {};
     const metrics = normaliseMetrics(profile.platform, rawMetrics);
     if (Object.keys(rawMetrics).length) postsWithMetrics += 1;
     for (const key of Object.keys(totals)) totals[key] += number(metrics[key]);
-    const date = post.posted_at ? String(post.posted_at).slice(0, 10) : '';
-    incrementSeries(viewsSeries, date, metrics.views);
-    incrementSeries(engagementSeries, date, metrics.interactions);
-    incrementSeries(followsSeries, date, metrics.follows);
     return {
-      id: String(post.platform_post_id || post.external_post_id || post.social_post_result_id || `${profile.id}:${post.posted_at}`),
+      id: postExternalId(profile, post),
       platform: profile.platform,
       message: String(post.caption || ''),
       createdTime: post.posted_at || null,
@@ -277,6 +420,9 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       }
     };
   });
+
+  await persistMetricSnapshots(userId, profile, feed);
+  const measuredSeries = await buildMeasuredSeries(profile, feed, since);
 
   const hasMetrics = postsWithMetrics > 0;
   const metricCapability = hasMetrics
@@ -325,12 +471,19 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       follows: totals.follows || null,
       pageEngagements: totals.interactions,
       engagementRate,
-      calculationNote: 'INXSocial aggregates the verified metrics returned for the selected connected account and period.'
+      calculationNote: 'Current totals are lifetime post metrics for content returned in the selected period. The timeline uses measured snapshot-to-snapshot changes instead of assigning lifetime totals to publish dates.'
     },
     series: {
-      views: [...viewsSeries.entries()].map(([date, value]) => ({ date, value })),
-      engagements: [...engagementSeries.entries()].map(([date, value]) => ({ date, value })),
-      follows: [...followsSeries.entries()].map(([date, value]) => ({ date, value }))
+      views: [...measuredSeries.views.entries()].map(([date, value]) => ({ date, value })),
+      engagements: [...measuredSeries.engagements.entries()].map(([date, value]) => ({ date, value })),
+      clicks: [...measuredSeries.clicks.entries()].map(([date, value]) => ({ date, value })),
+      follows: [...measuredSeries.follows.entries()].map(([date, value]) => ({ date, value }))
+    },
+    tracking: {
+      ...measuredSeries.tracking,
+      note: measuredSeries.tracking.historicalDailyAvailable
+        ? 'Daily trend values are measured changes between stored metric snapshots.'
+        : 'Daily trend tracking has just started. Earlier lifetime totals cannot be placed on historical dates without fabricating when those views happened.'
     },
     demographics: { instagram: null, facebookSnapshot: null },
     content,
@@ -342,6 +495,53 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       metricSummary
     }
   };
+}
+
+async function runSnapshotSweep() {
+  if (snapshotRuntimeRunning || !postForMe.configured()) return;
+  snapshotRuntimeRunning = true;
+  try {
+    const profiles = await prisma.socialProfile.findMany({
+      where: { status: 'ACTIVE', connection: { is: { status: 'ACTIVE' } } },
+      include: { connection: true },
+      orderBy: { updatedAt: 'desc' }
+    });
+    const providerProfiles = profiles.filter((profile) => {
+      const connectionMeta = postForMe.parseJson(profile.connection?.metadataJson, {});
+      const profileMeta = postForMe.parseJson(profile.metadataJson, {});
+      return connectionMeta.providerEngine === postForMe.PROVIDER_ENGINE && profileMeta.providerEngine === postForMe.PROVIDER_ENGINE;
+    });
+
+    for (let index = 0; index < providerProfiles.length; index += 1) {
+      const profile = providerProfiles[index];
+      try {
+        await loadPostForMeAnalytics(profile.userId, profile.platform, profile.id, 90);
+      } catch (error) {
+        console.warn('[analytics-snapshot] profile refresh skipped', {
+          profileId: profile.id,
+          platform: profile.platform,
+          status: error?.status || null,
+          error: error?.message || String(error)
+        });
+      }
+      if (index < providerProfiles.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, SNAPSHOT_RUNTIME_ACCOUNT_DELAY_MS));
+      }
+    }
+  } catch (error) {
+    console.error('[analytics-snapshot] sweep failed', { error: error?.message || String(error) });
+  } finally {
+    snapshotRuntimeRunning = false;
+  }
+}
+
+function startAnalyticsSnapshotRuntime() {
+  if (!postForMe.configured()) return;
+  setTimeout(() => { void runSnapshotSweep(); }, 30000).unref?.();
+  if (!snapshotRuntimeTimer) {
+    snapshotRuntimeTimer = setInterval(() => { void runSnapshotSweep(); }, SNAPSHOT_RUNTIME_INTERVAL_MS);
+    snapshotRuntimeTimer.unref?.();
+  }
 }
 
 function cacheKey(userId, platform, profileId, daysInput) {
@@ -386,4 +586,11 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
   return task;
 }
 
-module.exports = { getPostForMeAnalytics, normaliseMetrics, collectNumericMetrics, providerMetricSummary };
+module.exports = {
+  getPostForMeAnalytics,
+  normaliseMetrics,
+  collectNumericMetrics,
+  providerMetricSummary,
+  runSnapshotSweep,
+  startAnalyticsSnapshotRuntime
+};
