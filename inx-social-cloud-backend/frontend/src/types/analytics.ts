@@ -1,6 +1,6 @@
 import type { Platform, PlatformAnalytics } from './dashboard'
 
-export type AnalyticsTab = 'overview' | 'content_performance' | 'audience' | 'engagement' | 'reach' | 'videos' | 'stories' | 'competitors' | 'reports'
+export type AnalyticsTab = 'overview' | 'content_performance' | 'audience' | 'engagement' | 'reach' | 'videos' | 'reports'
 export type AnalyticsTone = 'green' | 'blue' | 'red' | 'purple' | 'amber' | 'teal'
 
 export type AnalyticsStat = {
