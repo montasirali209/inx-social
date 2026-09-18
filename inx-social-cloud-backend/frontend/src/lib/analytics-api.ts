@@ -106,7 +106,12 @@ export function mergeAnalyticsResults(results: PlatformAnalytics[], accounts: An
   return {
     ...first,
     platform: platforms[0] || first.platform,
-    fetchedAt: new Date().toISOString(),
+    fetchedAt: (() => {
+      const timestamps = results
+        .map(result => new Date(result.fetchedAt).getTime())
+        .filter(Number.isFinite)
+      return timestamps.length ? new Date(Math.min(...timestamps)).toISOString() : new Date().toISOString()
+    })(),
     period: { days, since: results.map(result => result.period?.since).filter(Boolean).sort()[0] || '', until: results.map(result => result.period?.until).filter(Boolean).sort().at(-1) || '' },
     page: { id: `combined:${accounts.map(account => account.id).join(',')}`, name: `${accounts.length} selected accounts`, username: null, followers: summary.followers, pictureUrl: null },
     capabilities: {
