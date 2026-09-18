@@ -1,18 +1,24 @@
 const prisma = require('../db/prisma');
 const postForMe = require('./postForMeService');
 
-const ANALYTICS_CACHE_TTL_MS = 5 * 60 * 1000;
+const ANALYTICS_CACHE_TTL_MS = 2 * 60 * 1000;
 const ANALYTICS_STALE_TTL_MS = 6 * 60 * 60 * 1000;
+const ANALYTICS_PERSISTED_MAX_STALE_MS = 14 * 24 * 60 * 60 * 1000;
+const ANALYTICS_CACHE_RUNTIME_INTERVAL_MS = 2 * 60 * 1000;
+const ANALYTICS_CACHE_RUNTIME_BATCH_SIZE = 4;
+const ANALYTICS_CACHE_RUNTIME_ACCOUNT_DELAY_MS = 1500;
+const ANALYTICS_CACHE_RUNTIME_RETRY_AFTER_MS = 10 * 60 * 1000;
 const SNAPSHOT_MIN_INTERVAL_MS = 45 * 60 * 1000;
 const SNAPSHOT_RETENTION_DAYS = 120;
 const SNAPSHOT_RUNTIME_INTERVAL_MS = 60 * 60 * 1000;
 const SNAPSHOT_RUNTIME_ACCOUNT_DELAY_MS = 5000;
 const FEED_HISTORY_MAX_PAGES = 30;
 const FEED_HISTORY_MAX_POSTS = 3000;
-const analyticsCache = new Map();
 const analyticsInflight = new Map();
 let snapshotRuntimeTimer = null;
 let snapshotRuntimeRunning = false;
+let analyticsCacheRuntimeTimer = null;
+let analyticsCacheRuntimeRunning = false;
 
 function number(value) {
   const parsed = Number(value);
