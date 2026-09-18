@@ -30,7 +30,6 @@ import {
 import { formatBytes } from "../../lib/media-format";
 import type { MediaAsset, MediaTabId } from "../../types/media-library";
 import { Button } from "../ui/Button";
-import { WorkspaceLoadingState } from "../ui/WorkspaceLoadingState";
 import { AssetPreviewPanel } from "./AssetPreviewPanel";
 import { CreateFolderModal } from "./CreateFolderModal";
 import { FolderPanel } from "./FolderPanel";
@@ -639,21 +638,28 @@ export function MediaLibraryPage() {
 
 function MediaLibrarySkeleton() {
   return (
-    <WorkspaceLoadingState
-      message="Indexing your media, folders, recent creations and storage usage."
-      panels={[
-        { title: "Folders", emoji: "📁", rows: 5, minHeight: "360px" },
-        { title: "Media Library", emoji: "🖼️", rows: 6, minHeight: "420px" },
-        { title: "Preview & Details", emoji: "👀", rows: 5, minHeight: "360px" },
-      ]}
-      stats={[
-        { label: "All Media", emoji: "🗂️" },
-        { label: "Images", emoji: "🖼️" },
-        { label: "Videos", emoji: "🎬" },
-        { label: "AI Creations", emoji: "✨" },
-        { label: "Storage", emoji: "💾" },
-      ]}
-      title="Media Library"
-    />
+    <div aria-label="Loading Media Library" className="space-y-4" role="status">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        {Array.from({ length: 5 }, (_, index) => (
+          <div
+            className="h-28 animate-pulse rounded-card border border-border-soft bg-panel/70 motion-reduce:animate-none"
+            key={index}
+          />
+        ))}
+      </div>
+      <div className="h-16 animate-pulse rounded-panel border border-border-soft bg-panel/70 motion-reduce:animate-none" />
+      <div className="grid gap-4 2xl:grid-cols-[230px_1fr_330px]">
+        <div className="h-[640px] animate-pulse rounded-panel border border-border-soft bg-panel/70 motion-reduce:animate-none" />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          {Array.from({ length: 9 }, (_, index) => (
+            <div
+              className="h-64 animate-pulse rounded-card border border-border-soft bg-panel/70 motion-reduce:animate-none"
+              key={index}
+            />
+          ))}
+        </div>
+        <div className="h-[640px] animate-pulse rounded-panel border border-border-soft bg-panel/70 motion-reduce:animate-none" />
+      </div>
+    </div>
   );
 }
