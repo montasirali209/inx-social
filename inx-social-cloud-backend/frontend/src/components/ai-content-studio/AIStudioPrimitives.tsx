@@ -108,6 +108,23 @@ const toneClasses = {
   },
 } as const
 
+const planLabels: Record<AIPlanAccess['plan'], string> = {
+  trial: 'Trial',
+  creator: 'Creator',
+  pro: 'Pro',
+  business: 'Business',
+  agency: 'Agency',
+}
+
+function allowanceLabel(access: AIPlanAccess) {
+  if (access.unlimitedCredits) return 'Unlimited generation'
+  if (!access.creditsConfigured || access.creditsLimit === null) return 'AI credit wallet'
+  const credits = access.creditsLimit.toLocaleString()
+  if (access.administrator) return `${credits} operational AI credits / period`
+  if (access.plan === 'trial') return `${credits} Trial AI Studio credits`
+  return `${credits} monthly AI Studio credits`
+}
+
 export function AIPlanCreditCard({ access }: { access: AIPlanAccess }) {
   const used = access.creditsLimit !== null && access.creditsRemaining !== null
     ? Math.max(0, access.creditsLimit - access.creditsRemaining)
@@ -115,29 +132,30 @@ export function AIPlanCreditCard({ access }: { access: AIPlanAccess }) {
   const percent = used !== null && access.creditsLimit
     ? Math.min(100, Math.round((used / access.creditsLimit) * 100))
     : null
+  const accessLabel = access.administrator ? 'Administrator Access' : `${planLabels[access.plan]} Plan`
 
   return <Card className="min-w-0 border-brand-teal/25 bg-[linear-gradient(145deg,rgba(4,43,52,.94),rgba(6,24,38,.98))] p-5 shadow-[0_24px_70px_rgba(0,0,0,.28)] xl:w-[360px] xl:shrink-0">
     <div className="flex items-center justify-between gap-3">
-      <span className="inline-flex items-center gap-2 text-sm font-semibold text-brand-cyan"><Crown className="size-4" />Plus Plan</span>
+      <span className="inline-flex items-center gap-2 text-sm font-semibold text-brand-cyan"><Crown className="size-4" />{accessLabel}</span>
       <span className={`rounded-full border px-2 py-1 text-[9px] font-bold uppercase tracking-[.14em] ${access.studioEnabled ? 'border-brand-green/25 bg-brand-green/10 text-brand-green' : 'border-brand-amber/25 bg-brand-amber/10 text-brand-amber'}`}>{access.studioEnabled ? 'Active' : 'Locked'}</span>
     </div>
 
     <div className="mt-4">
-      {access.unlimitedCredits ? <><strong className="text-3xl tracking-tight">Unlimited</strong><span className="mt-1 block text-xs text-text-muted">AI generation allowance</span></> : access.creditsConfigured ? <><strong className="text-3xl tracking-tight">{(access.creditsRemaining ?? 0).toLocaleString()}</strong><span className="mt-1 block text-xs text-text-muted">AI credits remaining</span></> : <><strong className="text-xl tracking-tight">Credit wallet pending</strong><span className="mt-1 block text-xs leading-5 text-text-muted">The live monthly balance will appear here when the credit service is enabled.</span></>}
+      {access.unlimitedCredits ? <><strong className="text-3xl tracking-tight">Unlimited</strong><span className="mt-1 block text-xs text-text-muted">AI generation allowance</span></> : access.creditsConfigured ? <><strong className="text-3xl tracking-tight">{(access.creditsRemaining ?? 0).toLocaleString()}</strong><span className="mt-1 block text-xs text-text-muted">AI credits remaining</span></> : <><strong className="text-xl tracking-tight">Credit wallet pending</strong><span className="mt-1 block text-xs leading-5 text-text-muted">The live balance will appear here when the credit service is ready.</span></>}
     </div>
 
     {percent !== null && <div className="mt-4">
       <div className="mb-1.5 flex items-center justify-between text-[10px] text-text-muted"><span>{used?.toLocaleString()} used</span><span>{percent}% used</span></div>
-      <div aria-label={`${percent}% of monthly AI credits used`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={percent} className="h-2 overflow-hidden rounded-full bg-white/8" role="progressbar"><div className="h-full rounded-full bg-gradient-to-r from-brand-teal to-brand-cyan transition-all" style={{ width: `${percent}%` }} /></div>
+      <div aria-label={`${percent}% of AI credits used`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={percent} className="h-2 overflow-hidden rounded-full bg-white/8" role="progressbar"><div className="h-full rounded-full bg-gradient-to-r from-brand-teal to-brand-cyan transition-all" style={{ width: `${percent}%` }} /></div>
     </div>}
 
     <div className="mt-4 grid gap-2 text-[11px] text-text-muted sm:grid-cols-2 xl:grid-cols-1">
-      <span className="flex items-center gap-2"><Check className="size-3.5 text-brand-green" />{access.unlimitedCredits ? 'Unlimited generation' : access.creditsConfigured ? '500 monthly AI Studio credits' : 'Monthly credit wallet'}</span>
-      <span className="flex items-center gap-2"><Check className="size-3.5 text-brand-green" />Commercial use</span>
-      <span className="flex items-center gap-2"><Check className="size-3.5 text-brand-green" />Priority processing</span>
+      <span className="flex items-center gap-2"><Check className="size-3.5 text-brand-green" />{allowanceLabel(access)}</span>
+      <span className="flex items-center gap-2"><Check className="size-3.5 text-brand-green" />{access.administrator ? 'Administrator workspace access' : access.commercialUse ? 'Commercial use' : 'Trial access'}</span>
+      <span className="flex items-center gap-2"><Check className="size-3.5 text-brand-green" />{access.priorityProcessing ? 'Priority processing' : 'Standard processing'}</span>
     </div>
 
-    <Link className="mt-4 block" to="/billing"><Button className="w-full" variant="primary">Billing & Plans <ArrowRight className="size-4" /></Button></Link>
+    <Link className="mt-4 block" to="/billing"><Button className="w-full" variant="primary">{access.administrator ? 'View Access & Credits' : 'Billing & Plans'} <ArrowRight className="size-4" /></Button></Link>
   </Card>
 }
 
@@ -165,6 +183,35 @@ export function AIStudioHero({ access }: { access: AIPlanAccess }) {
       </div>
       <AIStudioHeroArtwork />
       <AIPlanCreditCard access={access} />
+    </div>
+  </section>
+}
+
+
+export function AIStudioHeroSkeleton() {
+  return <section aria-busy="true" aria-label="Loading AI Content Studio access" className="relative overflow-hidden rounded-[28px] border border-brand-cyan/20 bg-[radial-gradient(circle_at_80%_5%,rgba(34,211,238,.10),transparent_25rem),radial-gradient(circle_at_12%_0%,rgba(20,184,166,.12),transparent_28rem),linear-gradient(145deg,rgba(6,28,45,.99),rgba(4,14,27,.99))] p-5 shadow-[0_28px_80px_rgba(0,0,0,.28)] sm:p-7">
+    <div className="pointer-events-none absolute -right-12 -top-24 size-80 rounded-full border border-brand-cyan/10 bg-brand-cyan/[.025]" />
+    <div className="relative grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(230px,.58fr)_360px] xl:items-stretch">
+      <div className="min-w-0">
+        <span className="inline-flex items-center gap-2 rounded-full border border-brand-purple/25 bg-brand-purple/10 px-3 py-1 text-[10px] font-bold uppercase tracking-[.16em] text-[#c4b5fd]"><Sparkles className="size-3.5" />AI Content Studio</span>
+        <h2 className="mt-5 max-w-4xl text-[clamp(2rem,4vw,3.65rem)] font-bold leading-[1.02] tracking-[-.045em]">Turn ideas into <span className="bg-gradient-to-r from-brand-teal via-brand-cyan to-emerald-300 bg-clip-text text-transparent">scroll-stopping content.</span></h2>
+        <p className="mt-4 max-w-3xl text-sm leading-6 text-text-muted sm:text-[15px]">Create images, carousels, videos and UGC-style ads with AI, then send them directly to your Posts workflow for scheduling.</p>
+        <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          {heroSteps.map(({ icon: StepIcon, title, text }, index) => <div className="relative flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[.025] p-3.5" key={title}>
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-brand-teal/25 bg-brand-teal/10 text-brand-cyan"><StepIcon className="size-4" /></span>
+            <span className="min-w-0"><strong className="block text-xs">{title}</strong><span className="mt-1 block text-[10px] leading-4 text-text-muted">{text}</span></span>
+            {index < heroSteps.length - 1 && <ChevronRight className="absolute -right-2 top-1/2 hidden size-4 -translate-y-1/2 text-brand-teal/50 sm:block" />}
+          </div>)}
+        </div>
+      </div>
+      <AIStudioHeroArtwork />
+      <Card className="min-h-[260px] min-w-0 animate-pulse border-brand-teal/25 bg-[linear-gradient(145deg,rgba(4,43,52,.94),rgba(6,24,38,.98))] p-5 shadow-[0_24px_70px_rgba(0,0,0,.28)] motion-reduce:animate-none xl:w-[360px] xl:shrink-0">
+        <div className="flex items-center justify-between gap-3"><span className="h-4 w-36 rounded-full bg-white/10" /><span className="h-6 w-14 rounded-full bg-white/8" /></div>
+        <div className="mt-6 h-9 w-28 rounded-lg bg-white/10" /><div className="mt-2 h-3 w-32 rounded bg-white/7" />
+        <div className="mt-5 h-2 w-full rounded-full bg-white/8" />
+        <div className="mt-5 space-y-3"><div className="h-3 w-48 rounded bg-white/8" /><div className="h-3 w-40 rounded bg-white/8" /><div className="h-3 w-36 rounded bg-white/8" /></div>
+        <div className="mt-5 h-10 w-full rounded-xl bg-white/8" />
+      </Card>
     </div>
   </section>
 }
