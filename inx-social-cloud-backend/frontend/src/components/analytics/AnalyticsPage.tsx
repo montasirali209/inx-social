@@ -97,8 +97,10 @@ export function AnalyticsPage() {
     enabled: selectedAccounts.length > 0,
     refetchInterval: (query) => {
       const data = query.state.data as LiveAnalyticsData | undefined
-      const refreshing = data?.results?.some(result => ['refreshing', 'stale'].includes(String(result.analytics?.provider?.cacheState || '')))
-      return refreshing ? 8_000 : 5 * 60_000
+      const states = data?.results?.map(result => String(result.analytics?.provider?.cacheState || '')) || []
+      if (states.includes('refreshing')) return 8_000
+      if (states.includes('stale')) return 60_000
+      return 5 * 60_000
     },
     refetchOnWindowFocus: false,
     retry: 0,
