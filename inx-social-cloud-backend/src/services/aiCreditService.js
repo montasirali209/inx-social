@@ -3,14 +3,21 @@ const prisma = require('../db/prisma');
 const env = require('../config/env');
 const { getLicenseStatus } = require('./licenseService');
 
-const PLUS_MONTHLY_CREDITS = () => Math.max(1, Math.min(100000, Number(env.aiCredits?.plusMonthlyCredits || 500)));
+const PAID_STUDIO_PLANS = new Set(['creator', 'pro', 'business', 'agency']);
 
 function customerPlan(rawPlan, role) {
-  if (['ADMIN', 'SUPER_ADMIN'].includes(String(role || '').toUpperCase())) return 'plus';
+  if (['ADMIN', 'SUPER_ADMIN'].includes(String(role || '').toUpperCase())) return 'agency';
   const plan = String(rawPlan || 'TRIAL').toUpperCase();
-  if (['PRO', 'PLUS', 'LIFETIME'].includes(plan)) return 'plus';
-  if (plan === 'STARTER') return 'pro';
+  if (plan === 'CREATOR' || plan === 'STARTER') return 'creator';
+  if (plan === 'PRO' || plan === 'PLUS' || plan === 'LIFETIME') return 'pro';
+  if (plan === 'BUSINESS') return 'business';
+  if (plan === 'AGENCY') return 'agency';
   return 'trial';
+}
+
+function creditLimitForPlan(plan) {
+  const key = String(plan || 'trial').toUpperCase();
+  return Math.max(1, Math.min(100000, Number(env.aiCredits?.monthlyByPlan?.[key] || 20)));
 }
 
 function monthWindow(now = new Date()) {
@@ -20,14 +27,20 @@ function monthWindow(now = new Date()) {
   };
 }
 
-function billingWindow(license, now = new Date()) {
+function billingWindow(entitlement, now = new Date()) {
+  const { license, plan } = entitlement;
+  if (plan === 'trial' && license.trialEndsAt) {
+    const end = new Date(license.trialEndsAt);
+    const start = license.trialStartsAt ? new Date(license.trialStartsAt) : new Date(end.getTime() - (7 * 86400000));
+    return { start, end, key: `trial:${start.toISOString()}::${end.toISOString()}` };
+  }
   const fallback = monthWindow(now);
   const start = license.currentPeriodStart ? new Date(license.currentPeriodStart) : fallback.start;
   const end = license.currentPeriodEnd ? new Date(license.currentPeriodEnd) : fallback.end;
   return { start, end, key: `${start.toISOString()}::${end.toISOString()}` };
 }
 
-function accessError(message, code = 'AI_STUDIO_PLUS_REQUIRED', status = 403) {
+function accessError(message, code = 'AI_STUDIO_ACCESS_REQUIRED', status = 403) {
   const error = new Error(message);
   error.status = status;
   error.code = code;
@@ -38,15 +51,16 @@ function accessError(message, code = 'AI_STUDIO_PLUS_REQUIRED', status = 403) {
 async function getEntitlement(userId) {
   const license = await getLicenseStatus(userId);
   const plan = customerPlan(license.plan, license.userRole);
-  const studioEnabled = Boolean(license.allowed && plan === 'plus');
-  return { license, plan, studioEnabled };
+  const studioEnabled = Boolean(license.allowed && ['trial', 'creator', 'pro', 'business', 'agency'].includes(plan));
+  const topupsEnabled = Boolean(studioEnabled && PAID_STUDIO_PLANS.has(plan));
+  return { license, plan, studioEnabled, topupsEnabled };
 }
 
 async function ensureWallet(userId, now = new Date()) {
   const entitlement = await getEntitlement(userId);
-  if (!entitlement.studioEnabled) throw accessError('AI Content Studio is available on the Plus plan.');
-  const limit = PLUS_MONTHLY_CREDITS();
-  const period = billingWindow(entitlement.license, now);
+  if (!entitlement.studioEnabled) throw accessError('AI Content Studio is unavailable for this account or subscription.');
+  const limit = creditLimitForPlan(entitlement.plan);
+  const period = billingWindow(entitlement, now);
   return prisma.$transaction(async tx => {
     let rows = await tx.$queryRawUnsafe('SELECT * FROM "AiCreditWallet" WHERE "userId" = $1 FOR UPDATE', userId);
     let wallet = rows[0] || null;
@@ -59,9 +73,9 @@ async function ensureWallet(userId, now = new Date()) {
       wallet = rows[0];
       await tx.$executeRawUnsafe(
         'INSERT INTO "AiCreditTransaction" ("id","userId","walletId","type","bucket","amount","balanceMonthly","balanceTopup","reference","metadataJson") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT ("reference") DO NOTHING',
-        crypto.randomUUID(), userId, wallet.id, 'MONTHLY_GRANT', 'MONTHLY', limit, limit, Number(wallet.topupBalance || 0), `monthly:${userId}:${period.key}`, JSON.stringify({ periodStart: period.start, periodEnd: period.end })
+        crypto.randomUUID(), userId, wallet.id, entitlement.plan === 'trial' ? 'TRIAL_GRANT' : 'MONTHLY_GRANT', 'MONTHLY', limit, limit, Number(wallet.topupBalance || 0), `grant:${userId}:${period.key}`, JSON.stringify({ plan: entitlement.plan, periodStart: period.start, periodEnd: period.end })
       );
-    } else if (wallet.periodKey !== period.key || Number(wallet.monthlyLimit) !== limit) {
+    } else if (wallet.periodKey !== period.key) {
       rows = await tx.$queryRawUnsafe(
         'UPDATE "AiCreditWallet" SET "monthlyBalance"=$2,"monthlyLimit"=$2,"periodKey"=$3,"periodStart"=$4,"periodEnd"=$5,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 RETURNING *',
         wallet.id, limit, period.key, period.start, period.end
@@ -69,10 +83,24 @@ async function ensureWallet(userId, now = new Date()) {
       wallet = rows[0];
       await tx.$executeRawUnsafe(
         'INSERT INTO "AiCreditTransaction" ("id","userId","walletId","type","bucket","amount","balanceMonthly","balanceTopup","reference","metadataJson") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT ("reference") DO NOTHING',
-        crypto.randomUUID(), userId, wallet.id, 'MONTHLY_GRANT', 'MONTHLY', limit, limit, Number(wallet.topupBalance || 0), `monthly:${userId}:${period.key}`, JSON.stringify({ periodStart: period.start, periodEnd: period.end })
+        crypto.randomUUID(), userId, wallet.id, entitlement.plan === 'trial' ? 'TRIAL_GRANT' : 'MONTHLY_GRANT', 'MONTHLY', limit, limit, Number(wallet.topupBalance || 0), `grant:${userId}:${period.key}`, JSON.stringify({ plan: entitlement.plan, periodStart: period.start, periodEnd: period.end })
+      );
+    } else if (Number(wallet.monthlyLimit) !== limit) {
+      const previousLimit = Math.max(0, Number(wallet.monthlyLimit || 0));
+      const previousBalance = Math.max(0, Number(wallet.monthlyBalance || 0));
+      const consumed = Math.max(0, previousLimit - previousBalance);
+      const nextBalance = Math.max(0, limit - consumed);
+      rows = await tx.$queryRawUnsafe(
+        'UPDATE "AiCreditWallet" SET "monthlyBalance"=$2,"monthlyLimit"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 RETURNING *',
+        wallet.id, nextBalance, limit
+      );
+      wallet = rows[0];
+      await tx.$executeRawUnsafe(
+        'INSERT INTO "AiCreditTransaction" ("id","userId","walletId","type","bucket","amount","balanceMonthly","balanceTopup","reference","metadataJson") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT ("reference") DO NOTHING',
+        crypto.randomUUID(), userId, wallet.id, 'PLAN_CREDIT_ADJUSTMENT', 'MONTHLY', nextBalance - previousBalance, nextBalance, Number(wallet.topupBalance || 0), `plan-adjustment:${userId}:${period.key}:${limit}`, JSON.stringify({ plan: entitlement.plan, previousLimit, limit, consumed })
       );
     }
-    return { ...wallet, plan: entitlement.plan };
+    return { ...wallet, plan: entitlement.plan, topupsEnabled: entitlement.topupsEnabled };
   });
 }
 
@@ -81,7 +109,7 @@ function publicBalance(wallet) {
   const topup = Number(wallet.topupBalance || 0);
   return {
     remaining: monthly + topup,
-    limit: Number(wallet.monthlyLimit || PLUS_MONTHLY_CREDITS()),
+    limit: Number(wallet.monthlyLimit || 0),
     monthlyRemaining: monthly,
     topupRemaining: topup,
     unlimited: false,
@@ -93,12 +121,14 @@ function publicBalance(wallet) {
 
 async function getAccess(userId) {
   const entitlement = await getEntitlement(userId);
+  const limit = creditLimitForPlan(entitlement.plan);
   if (!entitlement.studioEnabled) {
     return {
       plan: entitlement.plan,
       studioEnabled: false,
+      topupsEnabled: false,
       creditsRemaining: 0,
-      creditsLimit: PLUS_MONTHLY_CREDITS(),
+      creditsLimit: limit,
       unlimitedCredits: false,
       creditsConfigured: true,
       commercialUse: false,
@@ -108,14 +138,15 @@ async function getAccess(userId) {
   const wallet = await ensureWallet(userId);
   const balance = publicBalance(wallet);
   return {
-    plan: 'plus',
+    plan: entitlement.plan,
     studioEnabled: true,
+    topupsEnabled: entitlement.topupsEnabled,
     creditsRemaining: balance.remaining,
     creditsLimit: balance.limit,
     unlimitedCredits: false,
     creditsConfigured: true,
-    commercialUse: true,
-    priorityProcessing: true,
+    commercialUse: entitlement.plan !== 'trial',
+    priorityProcessing: ['pro', 'business', 'agency'].includes(entitlement.plan),
     monthlyRemaining: balance.monthlyRemaining,
     topupRemaining: balance.topupRemaining,
     periodStart: balance.periodStart,
@@ -186,6 +217,8 @@ async function complete(userId, generationId, creditsUsed) {
 
 async function addTopup(userId, credits, reference, metadata = {}) {
   const amount = Math.max(1, Math.floor(Number(credits || 0)));
+  const entitlement = await getEntitlement(userId);
+  if (!entitlement.topupsEnabled) throw accessError('AI credit top-ups are available on paid INXSocial plans.', 'AI_CREDIT_TOPUP_PAID_PLAN_REQUIRED', 403);
   await ensureWallet(userId);
   return prisma.$transaction(async tx => {
     const duplicate = await tx.$queryRawUnsafe('SELECT * FROM "AiCreditTransaction" WHERE "reference"=$1 LIMIT 1', reference);
@@ -206,4 +239,16 @@ async function addTopup(userId, credits, reference, metadata = {}) {
   });
 }
 
-module.exports = { customerPlan, getEntitlement, getAccess, getBalance, ensureWallet, reserve, refund, complete, addTopup, PLUS_MONTHLY_CREDITS };
+module.exports = {
+  PAID_STUDIO_PLANS,
+  customerPlan,
+  creditLimitForPlan,
+  getEntitlement,
+  getAccess,
+  getBalance,
+  ensureWallet,
+  reserve,
+  refund,
+  complete,
+  addTopup
+};
