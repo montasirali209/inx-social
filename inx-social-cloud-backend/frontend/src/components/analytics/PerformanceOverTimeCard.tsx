@@ -1,4 +1,4 @@
-import { useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useId, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import type { PerformancePoint } from '../../types/analytics'
 import { formatAnalyticsValue } from '../../data/analyticsData'
 import { AnalyticsCard, AnalyticsCardHeader } from './AnalyticsPrimitives'
@@ -10,34 +10,124 @@ const series: Array<{ key: SeriesKey; label: string; colour: string }> = [
   { key: 'linkClicks', label: 'Link Clicks', colour: '#f59e0b' },
   { key: 'followers', label: 'New Followers', colour: '#a855f7' },
 ]
-const plot = { left: 58, right: 942, top: 20, bottom: 238 }
+const plot = { left: 62, right: 944, top: 24, bottom: 242 }
 
-function pointX(index: number, count: number) { if (count <= 1) return (plot.left + plot.right) / 2; return plot.left + index / (count - 1) * (plot.right - plot.left) }
-function linePoints(points: PerformancePoint[], key: SeriesKey, maximum: number) { return points.map((point, index) => `${pointX(index, points.length)},${plot.bottom - point[key] / maximum * (plot.bottom - plot.top)}`).join(' ') }
+function pointX(index: number, count: number) {
+  if (count <= 1) return (plot.left + plot.right) / 2
+  return plot.left + index / (count - 1) * (plot.right - plot.left)
+}
+
+function pointY(value: number, maximum: number) {
+  return plot.bottom - value / maximum * (plot.bottom - plot.top)
+}
+
+function smoothPath(points: PerformancePoint[], key: SeriesKey, maximum: number) {
+  if (!points.length) return ''
+  const firstX = pointX(0, points.length)
+  const firstY = pointY(points[0][key], maximum)
+  if (points.length === 1) return `M ${firstX} ${firstY}`
+  let path = `M ${firstX} ${firstY}`
+  for (let index = 1; index < points.length; index += 1) {
+    const previousX = pointX(index - 1, points.length)
+    const previousY = pointY(points[index - 1][key], maximum)
+    const currentX = pointX(index, points.length)
+    const currentY = pointY(points[index][key], maximum)
+    const middleX = (previousX + currentX) / 2
+    path += ` C ${middleX} ${previousY}, ${middleX} ${currentY}, ${currentX} ${currentY}`
+  }
+  return path
+}
+
+function areaPath(points: PerformancePoint[], key: SeriesKey, maximum: number) {
+  if (!points.length) return ''
+  return `${smoothPath(points, key, maximum)} L ${pointX(points.length - 1, points.length)} ${plot.bottom} L ${pointX(0, points.length)} ${plot.bottom} Z`
+}
+
+function exactDate(point: PerformancePoint) {
+  const date = new Date(`${point.date}T12:00:00Z`)
+  if (Number.isNaN(date.getTime())) return point.label
+  return new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(date)
+}
+
+function axisDate(point: PerformancePoint, interval: 'daily' | 'weekly' | 'monthly') {
+  if (interval === 'weekly') return point.label
+  const date = new Date(`${point.date}T12:00:00Z`)
+  if (Number.isNaN(date.getTime())) return point.label
+  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(date)
+}
 
 export function PerformanceOverTimeCard({ points, interval, setInterval }: { points: PerformancePoint[]; interval: 'daily' | 'weekly' | 'monthly'; setInterval: (value: 'daily' | 'weekly' | 'monthly') => void }) {
   const [active, setActive] = useState<number | null>(null)
+  const gradientId = useId().replace(/:/g, '')
   const maximumValue = Math.max(1, ...points.flatMap(point => series.map(item => point[item.key])))
-  const maximum = Math.ceil(maximumValue / 5) * 5 || 5
-  const labelEvery = Math.max(1, Math.ceil(points.length / 7))
+  const roughStep = maximumValue / 5
+  const magnitude = Math.pow(10, Math.floor(Math.log10(Math.max(1, roughStep))))
+  const niceStep = Math.max(1, Math.ceil(roughStep / magnitude) * magnitude)
+  const maximum = Math.max(5, niceStep * 5)
+  const labelEvery = Math.max(1, Math.ceil(points.length / 6))
+
   function track(event: ReactPointerEvent<SVGSVGElement>) {
+    if (!points.length) return
     const bounds = event.currentTarget.getBoundingClientRect()
     const viewX = (event.clientX - bounds.left) / bounds.width * 1000
     const ratio = Math.max(0, Math.min(1, (viewX - plot.left) / (plot.right - plot.left)))
     setActive(Math.round(ratio * Math.max(0, points.length - 1)))
   }
+
   const activePoint = active === null ? null : points[active]
+  const activeX = active === null ? null : pointX(active, points.length)
+  const tooltipLeft = activeX === null ? 50 : Math.min(83, Math.max(17, activeX / 10))
   const totals = series.map(item => ({ ...item, value: points.reduce((sum, point) => sum + point[item.key], 0) }))
+
   return <AnalyticsCard>
-    <AnalyticsCardHeader action={<select aria-label="Performance chart interval" className="min-h-9 rounded-xl border border-border-soft bg-bg/45 px-3 text-[10px] outline-none focus:border-brand-cyan" onChange={event => setInterval(event.target.value as 'daily' | 'weekly' | 'monthly')} value={interval}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>} description="Verified performance metrics returned by the currently selected connected account." title="Performance Over Time" />
-    <div className="relative px-3 sm:px-5">{activePoint && <div className="pointer-events-none absolute right-6 top-2 z-10 rounded-xl border border-brand-cyan/20 bg-bg/95 p-3 text-[10px] shadow-panel"><strong>{activePoint.label}</strong>{series.map(item => <span className="mt-1 flex items-center justify-between gap-8 text-text-muted" key={item.key}><span><i className="mr-1.5 inline-block size-2 rounded-full" style={{ backgroundColor: item.colour }} />{item.label}</span><b className="text-white">{formatAnalyticsValue(activePoint[item.key], 'compact')}</b></span>)}</div>}
-      <svg aria-label="Performance over time chart" className="h-[260px] w-full touch-pan-y sm:h-[310px]" onPointerLeave={() => setActive(null)} onPointerMove={track} preserveAspectRatio="none" role="img" viewBox="0 0 1000 275">
-        {Array.from({ length: 6 }, (_, index) => { const y = plot.top + index * (plot.bottom - plot.top) / 5; const value = maximum - index * maximum / 5; return <g key={index}><line stroke="rgba(148,163,184,.11)" strokeDasharray="4 5" x1={plot.left} x2={plot.right} y1={y} y2={y} /><text fill="#64748b" fontSize="10" textAnchor="end" x={plot.left - 10} y={y + 4}>{formatAnalyticsValue(value, 'compact')}</text></g> })}
-        {series.map((item, seriesIndex) => <g key={item.key}><polyline fill="none" opacity=".18" points={linePoints(points, item.key, maximum)} stroke={item.colour} strokeLinecap="round" strokeLinejoin="round" strokeWidth="6" /><polyline className="analytics-line-draw" fill="none" points={linePoints(points, item.key, maximum)} stroke={item.colour} strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" style={{ animationDelay: `${seriesIndex * 90}ms` }} />{points.length === 1 && <circle cx={pointX(0, 1)} cy={plot.bottom - points[0][item.key] / maximum * (plot.bottom - plot.top)} fill={item.colour} r="4" />}</g>)}
-        {active !== null && <line stroke="rgba(45,212,191,.45)" strokeDasharray="4 4" x1={pointX(active, points.length)} x2={pointX(active, points.length)} y1={plot.top} y2={plot.bottom} />}
-        {points.map((point, index) => index % labelEvery === 0 || index === points.length - 1 ? <text fill="#64748b" fontSize="10" key={point.date} textAnchor={points.length === 1 ? 'middle' : index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle'} x={pointX(index, points.length)} y="262">{point.label}</text> : null)}
+    <AnalyticsCardHeader
+      action={<select aria-label="Performance chart interval" className="min-h-9 rounded-xl border border-border-soft bg-bg/45 px-3 text-[10px] outline-none focus:border-brand-cyan" onChange={event => setInterval(event.target.value as 'daily' | 'weekly' | 'monthly')} value={interval}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>}
+      description={interval === 'monthly' ? 'Month view keeps day-level points visible. Hover the chart to inspect the exact date and metrics.' : 'Hover the chart to inspect the exact period and verified performance metrics.'}
+      title="Performance Over Time"
+    />
+    <div className="relative px-3 sm:px-5">
+      <div className="mb-1 flex items-center justify-between px-1 text-[9px] text-text-soft"><span>{interval === 'monthly' ? 'Daily detail across the selected monthly period' : `${interval[0].toUpperCase() + interval.slice(1)} performance`}</span><span className="hidden sm:inline">Move across the line for exact dates</span></div>
+
+      {activePoint && <div className="pointer-events-none absolute top-8 z-20 w-[210px] -translate-x-1/2 rounded-xl border border-brand-cyan/20 bg-[#061923]/[.97] p-3 text-[10px] shadow-[0_18px_50px_rgba(0,0,0,.45),0_0_0_1px_rgba(45,212,191,.04)] backdrop-blur-xl" style={{ left: `${tooltipLeft}%` }}>
+        <div className="border-b border-white/[.07] pb-2"><strong className="block text-[11px] text-white">{interval === 'weekly' ? activePoint.label : exactDate(activePoint)}</strong><span className="mt-0.5 block text-[9px] text-text-soft">{interval === 'monthly' ? 'Exact daily performance' : 'Performance snapshot'}</span></div>
+        <div className="mt-2 space-y-1.5">{series.map(item => <span className="flex items-center justify-between gap-6 text-text-muted" key={item.key}><span className="flex items-center gap-1.5"><i className="inline-block size-2 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: item.colour, color: item.colour }} />{item.label}</span><b className="text-white">{formatAnalyticsValue(activePoint[item.key], 'compact')}</b></span>)}</div>
+      </div>}
+
+      <svg aria-label="Performance over time chart" className="h-[280px] w-full touch-pan-y sm:h-[330px]" onPointerLeave={() => setActive(null)} onPointerMove={track} preserveAspectRatio="none" role="img" viewBox="0 0 1000 282">
+        <defs>
+          <linearGradient id={`${gradientId}-views-area`} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#3b82f6" stopOpacity=".22" />
+            <stop offset="72%" stopColor="#3b82f6" stopOpacity=".045" />
+            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+          </linearGradient>
+          <filter id={`${gradientId}-glow`} height="180%" width="180%" x="-40%" y="-40%">
+            <feGaussianBlur result="blur" stdDeviation="3" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+
+        <rect fill="rgba(2,12,18,.13)" height={plot.bottom - plot.top} rx="10" width={plot.right - plot.left} x={plot.left} y={plot.top} />
+        {Array.from({ length: 6 }, (_, index) => {
+          const y = plot.top + index * (plot.bottom - plot.top) / 5
+          const value = maximum - index * maximum / 5
+          return <g key={index}><line stroke="rgba(148,163,184,.10)" strokeDasharray="3 6" x1={plot.left} x2={plot.right} y1={y} y2={y} /><text fill="#64748b" fontSize="9" textAnchor="end" x={plot.left - 11} y={y + 3}>{formatAnalyticsValue(value, 'compact')}</text></g>
+        })}
+
+        {points.length > 1 && <path d={areaPath(points, 'views', maximum)} fill={`url(#${gradientId}-views-area)`} />}
+        {series.map((item, seriesIndex) => <g key={item.key}>
+          <path d={smoothPath(points, item.key, maximum)} fill="none" opacity=".17" stroke={item.colour} strokeLinecap="round" strokeLinejoin="round" strokeWidth="7" />
+          <path className="analytics-line-draw" d={smoothPath(points, item.key, maximum)} fill="none" stroke={item.colour} strokeLinecap="round" strokeLinejoin="round" strokeWidth={item.key === 'views' ? 2.4 : 1.8} style={{ animationDelay: `${seriesIndex * 90}ms` }} />
+        </g>)}
+
+        {active !== null && activePoint && activeX !== null && <>
+          <line stroke="rgba(45,212,191,.52)" strokeDasharray="3 4" x1={activeX} x2={activeX} y1={plot.top} y2={plot.bottom} />
+          {series.map(item => <g key={item.key}><circle cx={activeX} cy={pointY(activePoint[item.key], maximum)} fill="#061923" r="5.5" stroke={item.colour} strokeWidth="2" /><circle cx={activeX} cy={pointY(activePoint[item.key], maximum)} fill={item.colour} filter={`url(#${gradientId}-glow)`} r="2.4" /></g>)}
+        </>}
+
+        {points.map((point, index) => index % labelEvery === 0 || index === points.length - 1 ? <g key={`${point.date}-axis`}><line stroke="rgba(148,163,184,.10)" x1={pointX(index, points.length)} x2={pointX(index, points.length)} y1={plot.bottom} y2={plot.bottom + 5} /><text fill="#718096" fontSize="9" textAnchor={points.length === 1 ? 'middle' : index === 0 ? 'start' : index === points.length - 1 ? 'end' : 'middle'} x={pointX(index, points.length)} y="266">{axisDate(point, interval)}</text></g> : null)}
       </svg>
-      <div className="flex flex-wrap justify-center gap-5 pb-3 text-[10px] text-text-muted">{series.map(item => <span className="flex items-center gap-2" key={item.key}><i className="h-0.5 w-5" style={{ backgroundColor: item.colour }} />{item.label}</span>)}</div>
+
+      <div className="flex flex-wrap justify-center gap-5 pb-3 text-[10px] text-text-muted">{series.map(item => <span className="flex items-center gap-2" key={item.key}><i className="h-0.5 w-5 rounded-full" style={{ backgroundColor: item.colour, boxShadow: `0 0 8px ${item.colour}55` }} />{item.label}</span>)}</div>
     </div>
     <div className="grid grid-cols-2 border-t border-border-soft sm:grid-cols-4">{totals.map(item => <div className="border-border-soft p-3 sm:border-r last:border-r-0" key={item.key}><span className="text-[9px] text-text-muted">{item.label}</span><strong className="mt-1 block text-sm" style={{ color: item.colour }}>{formatAnalyticsValue(item.value, 'compact')}</strong></div>)}</div>
   </AnalyticsCard>
