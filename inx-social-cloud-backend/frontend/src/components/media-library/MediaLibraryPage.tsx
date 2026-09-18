@@ -28,7 +28,7 @@ import {
   uploadMediaAsset,
 } from "../../lib/media-library-api";
 import { formatBytes } from "../../lib/media-format";
-import type { MediaAsset, MediaTabId } from "../../types/media-library";
+import type { MediaAsset, MediaLibraryWorkspace, MediaTabId } from "../../types/media-library";
 import { Button } from "../ui/Button";
 import { AssetPreviewPanel } from "./AssetPreviewPanel";
 import { CreateFolderModal } from "./CreateFolderModal";
@@ -39,6 +39,19 @@ import { MediaTabs } from "./MediaTabs";
 import { MediaToolbar } from "./MediaToolbar";
 
 const PAGE_SIZE = 24;
+
+const immediateMediaLibraryWorkspace: MediaLibraryWorkspace = {
+  assets: [],
+  trashAssets: [],
+  folders: [],
+  storage: {
+    usedBytes: 0,
+    limitBytes: 1,
+    trashRetentionDays: 30,
+    videoRetentionDays: 10,
+    otherMediaRetentionDays: 30,
+  },
+};
 
 function folderMatches(asset: MediaAsset, folder: string) {
   if (folder === "all") return true;
@@ -82,14 +95,15 @@ export function MediaLibraryPage() {
     tone: "success" | "error";
     text: string;
   } | null>(null);
+  const workspaceData = workspace.data || immediateMediaLibraryWorkspace;
 
   const assets = useMemo(
-    () => workspace.data?.assets || [],
-    [workspace.data?.assets],
+    () => workspaceData.assets,
+    [workspaceData.assets],
   );
   const trashAssets = useMemo(
-    () => workspace.data?.trashAssets || [],
-    [workspace.data?.trashAssets],
+    () => workspaceData.trashAssets,
+    [workspaceData.trashAssets],
   );
   const trashMode = activeFolder === "trash";
   const displayedAssets = trashMode ? trashAssets : assets;
@@ -187,7 +201,7 @@ export function MediaLibraryPage() {
   async function uploadFiles(files: FileList | File[]) {
     const chosen = Array.from(files);
     if (!chosen.length) return;
-    const customFolderId = workspace.data?.folders.some(
+    const customFolderId = workspaceData.folders.some(
       (folder) => folder.id === activeFolder,
     )
       ? activeFolder
@@ -359,31 +373,11 @@ export function MediaLibraryPage() {
     onDelete: remove,
   };
 
-  if (workspace.isLoading) return <MediaLibrarySkeleton />;
-  if (workspace.isError || !workspace.data)
-    return (
-      <section className="rounded-panel border border-brand-red/25 bg-brand-red/8 p-6">
-        <h2 className="font-semibold">Media Library unavailable</h2>
-        <p className="mt-2 text-sm text-text-muted">
-          {workspace.error instanceof Error
-            ? workspace.error.message
-            : "Refresh the workspace and try again."}
-        </p>
-        <Button
-          className="mt-4"
-          onClick={() => void workspace.refetch()}
-          type="button"
-        >
-          Retry
-        </Button>
-      </section>
-    );
-
   const storagePercent = Math.min(
     100,
     Math.round(
-      (workspace.data.storage.usedBytes /
-        Math.max(1, workspace.data.storage.limitBytes)) *
+      (workspaceData.storage.usedBytes /
+        Math.max(1, workspaceData.storage.limitBytes)) *
         100,
     ),
   );
@@ -392,6 +386,12 @@ export function MediaLibraryPage() {
 
   return (
     <div className="dashboard-canvas pb-8">
+      {workspace.isError && (
+        <section className="mb-4 flex flex-col gap-3 rounded-xl border border-brand-red/25 bg-brand-red/8 px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between">
+          <span>Media items could not refresh. The Media Library interface remains available.</span>
+          <Button onClick={() => void workspace.refetch()} size="sm" type="button">Retry library data</Button>
+        </section>
+      )}
       <input
         accept="image/png,image/jpeg,image/webp,image/gif,video/mp4,video/quicktime,video/webm"
         className="sr-only"
@@ -430,7 +430,7 @@ export function MediaLibraryPage() {
       <section className="mt-4 rounded-panel border border-border-soft bg-panel/65 p-3 shadow-panel">
         <div className="mb-3 flex items-center gap-2 rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.035] px-3 py-2 text-[9px] text-text-muted">
           <TimerReset className="size-3.5 shrink-0 text-brand-cyan" />
-          Videos are retained for {workspace.data.storage.videoRetentionDays ?? 10} days; images and other media for {workspace.data.storage.otherMediaRetentionDays ?? 30} days. Download anything you need to keep permanently.
+          Videos are retained for {workspaceData.storage.videoRetentionDays ?? 10} days; images and other media for {workspaceData.storage.otherMediaRetentionDays ?? 30} days. Download anything you need to keep permanently.
         </div>
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <MediaTabs
@@ -446,8 +446,8 @@ export function MediaLibraryPage() {
               <div className="flex items-center justify-between gap-3 text-[9px]">
                 <span className="flex items-center gap-1.5 text-text-muted">
                   <HardDrive className="size-3.5 text-brand-cyan" />
-                  {formatBytes(workspace.data.storage.usedBytes)} of{" "}
-                  {formatBytes(workspace.data.storage.limitBytes)}
+                  {formatBytes(workspaceData.storage.usedBytes)} of{" "}
+                  {formatBytes(workspaceData.storage.limitBytes)}
                 </span>
                 <span className="text-brand-cyan">{storagePercent}%</span>
               </div>
@@ -500,7 +500,7 @@ export function MediaLibraryPage() {
         <FolderPanel
           active={activeFolder}
           assets={assets}
-          folders={workspace.data.folders}
+          folders={workspaceData.folders}
           onActive={(id) => {
             setActiveFolder(id);
             setActiveTab("all");
@@ -636,30 +636,3 @@ export function MediaLibraryPage() {
   );
 }
 
-function MediaLibrarySkeleton() {
-  return (
-    <div aria-label="Loading Media Library" className="space-y-4" role="status">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        {Array.from({ length: 5 }, (_, index) => (
-          <div
-            className="h-28 animate-pulse rounded-card border border-border-soft bg-panel/70 motion-reduce:animate-none"
-            key={index}
-          />
-        ))}
-      </div>
-      <div className="h-16 animate-pulse rounded-panel border border-border-soft bg-panel/70 motion-reduce:animate-none" />
-      <div className="grid gap-4 2xl:grid-cols-[230px_1fr_330px]">
-        <div className="h-[640px] animate-pulse rounded-panel border border-border-soft bg-panel/70 motion-reduce:animate-none" />
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-          {Array.from({ length: 9 }, (_, index) => (
-            <div
-              className="h-64 animate-pulse rounded-card border border-border-soft bg-panel/70 motion-reduce:animate-none"
-              key={index}
-            />
-          ))}
-        </div>
-        <div className="h-[640px] animate-pulse rounded-panel border border-border-soft bg-panel/70 motion-reduce:animate-none" />
-      </div>
-    </div>
-  );
-}
