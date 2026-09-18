@@ -37,13 +37,6 @@ export function AnalyticsAccountSelector({ accounts, values, isLive, loading = f
   const visibleAccounts = platformFilter === 'all' ? accounts : accounts.filter(account => account.platform === platformFilter)
   const atLimit = selectedAccounts.length >= MAX_ANALYTICS_SOURCES
 
-  useEffect(() => {
-    if (open) return
-    const next = values.slice(0, MAX_ANALYTICS_SOURCES)
-    draftValuesRef.current = next
-    setDraftValues(next)
-  }, [open, values])
-
   const commitSelection = useCallback(() => {
     const next = [...new Set(draftValuesRef.current)].slice(0, MAX_ANALYTICS_SOURCES)
     if (!next.length) return
