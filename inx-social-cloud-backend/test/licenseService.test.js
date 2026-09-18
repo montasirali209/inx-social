@@ -93,9 +93,12 @@ test('manual lifetime access remains valid', () => {
   assert.equal(result.allowed, true);
 });
 
-test('new billing plans enforce only real numeric limits', () => {
+test('new billing plans enforce connected-account and Trial publishing limits', () => {
   assert.equal(getPlanLimits('TRIAL').pages, 2);
-  assert.equal(getPlanLimits('TRIAL').schedulingWindowDays, 30);
-  assert.equal(getPlanLimits('STARTER').pages, null);
-  assert.equal(getPlanLimits('PRO').pages, null);
+  assert.equal(getPlanLimits('TRIAL').publishedPostsPerTrial, 50);
+  assert.equal(getPlanLimits('TRIAL').schedulingWindowDays, null);
+  assert.equal(getPlanLimits('CREATOR').pages, 5);
+  assert.equal(getPlanLimits('PRO').pages, 12);
+  assert.equal(getPlanLimits('BUSINESS').pages, 25);
+  assert.equal(getPlanLimits('AGENCY').pages, 50);
 });
