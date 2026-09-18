@@ -121,7 +121,6 @@ test('Analytics charts, tabs and report actions remain accessible and functional
   assert.match(chart, /Interactions/);
   assert.match(chart, /Clicks/);
   assert.match(chart, /own scale/);
-  assert.match(page, /view\.publishedPerformance/);
   assert.match(page, /view\?\.publishedPerformance \|\| \[\]/);
   assert.doesNotMatch(page, /aggregatePerformance|chartInterval|setInterval/);
   assert.match(tabs, /aria-current/);
