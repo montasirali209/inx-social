@@ -1,18 +1,24 @@
 const prisma = require('../db/prisma');
 const postForMe = require('./postForMeService');
 
-const ANALYTICS_CACHE_TTL_MS = 5 * 60 * 1000;
+const ANALYTICS_CACHE_TTL_MS = 2 * 60 * 1000;
 const ANALYTICS_STALE_TTL_MS = 6 * 60 * 60 * 1000;
+const ANALYTICS_PERSISTED_MAX_STALE_MS = 14 * 24 * 60 * 60 * 1000;
+const ANALYTICS_CACHE_RUNTIME_INTERVAL_MS = 2 * 60 * 1000;
+const ANALYTICS_CACHE_RUNTIME_BATCH_SIZE = 4;
+const ANALYTICS_CACHE_RUNTIME_ACCOUNT_DELAY_MS = 1500;
+const ANALYTICS_CACHE_RUNTIME_RETRY_AFTER_MS = 10 * 60 * 1000;
 const SNAPSHOT_MIN_INTERVAL_MS = 45 * 60 * 1000;
 const SNAPSHOT_RETENTION_DAYS = 120;
 const SNAPSHOT_RUNTIME_INTERVAL_MS = 60 * 60 * 1000;
 const SNAPSHOT_RUNTIME_ACCOUNT_DELAY_MS = 5000;
 const FEED_HISTORY_MAX_PAGES = 30;
 const FEED_HISTORY_MAX_POSTS = 3000;
-const analyticsCache = new Map();
 const analyticsInflight = new Map();
 let snapshotRuntimeTimer = null;
 let snapshotRuntimeRunning = false;
+let analyticsCacheRuntimeTimer = null;
+let analyticsCacheRuntimeRunning = false;
 
 function number(value) {
   const parsed = Number(value);
@@ -588,9 +594,28 @@ function startAnalyticsSnapshotRuntime() {
   }
 }
 
-function cacheKey(userId, platform, profileId, daysInput, options = {}) {
-  const variant = String(options.cacheVariant || 'full');
-  return [String(userId), String(platform), String(profileId), String(safeDays(daysInput)), variant].join(':');
+function cacheDescriptor(userId, platform, profileId, daysInput, options = {}) {
+  const periodDays = safeDays(daysInput);
+  const cacheVariant = String(options.cacheVariant || 'full');
+  return {
+    key: [String(userId), String(platform), String(profileId), String(periodDays), cacheVariant].join(':'),
+    userId: String(userId),
+    platform: String(platform),
+    profileId: String(profileId),
+    periodDays,
+    cacheVariant
+  };
+}
+
+function cacheUniqueWhere(descriptor) {
+  return {
+    userId_profileId_periodDays_cacheVariant: {
+      userId: descriptor.userId,
+      profileId: descriptor.profileId,
+      periodDays: descriptor.periodDays,
+      cacheVariant: descriptor.cacheVariant
+    }
+  };
 }
 
 function withCacheState(value, cacheState, warning) {
@@ -601,57 +626,222 @@ function withCacheState(value, cacheState, warning) {
   };
 }
 
-function startAnalyticsRefresh(key, userId, platform, profileId, daysInput, options = {}) {
-  const existing = analyticsInflight.get(key);
+function parsePersistedPayload(row) {
+  if (!row?.payloadJson) return null;
+  try {
+    const value = JSON.parse(row.payloadJson);
+    return value && typeof value === 'object' ? value : null;
+  } catch (error) {
+    console.warn('[analytics-cache] invalid persisted payload ignored', {
+      cacheId: row.id,
+      profileId: row.profileId,
+      error: error?.message || String(error)
+    });
+    return null;
+  }
+}
+
+async function readPersistedAnalyticsCache(descriptor) {
+  const row = await prisma.analyticsSourceCache.findUnique({
+    where: cacheUniqueWhere(descriptor)
+  });
+  return { row, value: parsePersistedPayload(row) };
+}
+
+async function markAnalyticsRefreshStarted(descriptor) {
+  const now = new Date();
+  await prisma.analyticsSourceCache.upsert({
+    where: cacheUniqueWhere(descriptor),
+    create: {
+      userId: descriptor.userId,
+      profileId: descriptor.profileId,
+      platform: descriptor.platform,
+      periodDays: descriptor.periodDays,
+      cacheVariant: descriptor.cacheVariant,
+      syncStatus: 'REFRESHING',
+      refreshRequestedAt: now,
+      lastAttemptAt: now
+    },
+    update: {
+      platform: descriptor.platform,
+      syncStatus: 'REFRESHING',
+      refreshRequestedAt: now,
+      lastAttemptAt: now,
+      lastError: null
+    }
+  });
+}
+
+async function persistAnalyticsPayload(descriptor, value) {
+  const now = new Date();
+  const fetchedAt = new Date(value?.fetchedAt || now);
+  const syncedAt = Number.isFinite(fetchedAt.getTime()) ? fetchedAt : now;
+  await prisma.analyticsSourceCache.upsert({
+    where: cacheUniqueWhere(descriptor),
+    create: {
+      userId: descriptor.userId,
+      profileId: descriptor.profileId,
+      platform: descriptor.platform,
+      periodDays: descriptor.periodDays,
+      cacheVariant: descriptor.cacheVariant,
+      payloadJson: JSON.stringify(value),
+      syncStatus: 'READY',
+      syncedAt,
+      lastAttemptAt: now
+    },
+    update: {
+      platform: descriptor.platform,
+      payloadJson: JSON.stringify(value),
+      syncStatus: 'READY',
+      syncedAt,
+      refreshRequestedAt: null,
+      lastAttemptAt: now,
+      lastError: null
+    }
+  });
+}
+
+async function markAnalyticsRefreshFailed(descriptor, error) {
+  await prisma.analyticsSourceCache.updateMany({
+    where: {
+      userId: descriptor.userId,
+      profileId: descriptor.profileId,
+      periodDays: descriptor.periodDays,
+      cacheVariant: descriptor.cacheVariant
+    },
+    data: {
+      syncStatus: 'ERROR',
+      refreshRequestedAt: null,
+      lastAttemptAt: new Date(),
+      lastError: String(error?.message || error || 'Analytics refresh failed').slice(0, 1000)
+    }
+  });
+}
+
+function startAnalyticsRefresh(userId, platform, profileId, daysInput = 30, options = {}) {
+  const descriptor = cacheDescriptor(userId, platform, profileId, daysInput, options);
+  const existing = analyticsInflight.get(descriptor.key);
   if (existing) return existing;
 
-  const task = loadPostForMeAnalytics(userId, platform, profileId, daysInput, options)
-    .then((value) => {
-      analyticsCache.set(key, { value, updatedAt: Date.now() });
+  const task = (async () => {
+    await markAnalyticsRefreshStarted(descriptor);
+    try {
+      const value = await loadPostForMeAnalytics(userId, platform, profileId, descriptor.periodDays, options);
+      await persistAnalyticsPayload(descriptor, value);
       return withCacheState(value, 'live');
-    })
-    .finally(() => analyticsInflight.delete(key));
+    } catch (error) {
+      await markAnalyticsRefreshFailed(descriptor, error).catch(() => {});
+      throw error;
+    }
+  })().finally(() => analyticsInflight.delete(descriptor.key));
 
-  analyticsInflight.set(key, task);
+  analyticsInflight.set(descriptor.key, task);
   return task;
 }
 
+function queueAnalyticsRefresh(userId, platform, profileId, daysInput = 30, options = {}) {
+  const refresh = startAnalyticsRefresh(userId, platform, profileId, daysInput, options);
+  void refresh.catch((error) => {
+    console.warn('[analytics-refresh] background refresh delayed', {
+      profileId: String(profileId),
+      platform: String(platform),
+      status: Number(error?.status || 0) || null,
+      error: error?.message || String(error)
+    });
+  });
+  return refresh;
+}
+
 async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30, options = {}) {
-  const key = cacheKey(userId, platform, profileId, daysInput, options);
-  const cached = analyticsCache.get(key);
-  const age = cached ? Date.now() - cached.updatedAt : Infinity;
+  const descriptor = cacheDescriptor(userId, platform, profileId, daysInput, options);
+  await resolveProfile(userId, profileId, platform);
+
+  const { row, value } = await readPersistedAnalyticsCache(descriptor);
+  const referenceTime = row?.syncedAt || row?.updatedAt || null;
+  const age = referenceTime ? Math.max(0, Date.now() - referenceTime.getTime()) : Infinity;
   const forceRefresh = Boolean(options.forceRefresh);
 
-  if (!forceRefresh && cached && age <= ANALYTICS_CACHE_TTL_MS) {
-    return withCacheState(cached.value, 'fresh');
-  }
+  if (value) {
+    if (forceRefresh || age > ANALYTICS_CACHE_TTL_MS) {
+      const retryCooldownActive = row?.syncStatus === 'ERROR'
+        && row?.lastAttemptAt
+        && Date.now() - row.lastAttemptAt.getTime() < ANALYTICS_CACHE_RUNTIME_RETRY_AFTER_MS;
 
-  if (!forceRefresh && cached && age <= ANALYTICS_STALE_TTL_MS) {
-    const refresh = startAnalyticsRefresh(key, userId, platform, profileId, daysInput, options);
-    void refresh.catch((error) => {
-      console.warn('[analytics-refresh] background refresh delayed', {
-        profileId: String(profileId),
-        platform: String(platform),
-        status: Number(error?.status || 0) || null,
-        error: error?.message || String(error)
-      });
-    });
-    return withCacheState(cached.value, 'refreshing');
-  }
+      if (!retryCooldownActive) {
+        queueAnalyticsRefresh(userId, platform, profileId, descriptor.periodDays, options);
+      }
 
-  try {
-    return await startAnalyticsRefresh(key, userId, platform, profileId, daysInput, options);
-  } catch (error) {
-    const status = Number(error?.status || 0);
-    const transient = status === 429 || status >= 500 || status === 0;
-    if (cached && age <= ANALYTICS_STALE_TTL_MS && transient) {
-      return withCacheState(
-        cached.value,
-        'stale',
-        'The live analytics source is taking longer than expected, so INXSocial is showing the most recent verified analytics while the next refresh is retried.'
-      );
+      const stale = age > ANALYTICS_STALE_TTL_MS || Boolean(retryCooldownActive);
+      const veryStale = age > ANALYTICS_PERSISTED_MAX_STALE_MS;
+      const warning = retryCooldownActive
+        ? 'The connected platform delayed the latest refresh. INXSocial is keeping the last verified analytics visible and will retry automatically.'
+        : veryStale
+          ? 'INXSocial is showing an older verified analytics snapshot while the connected platform is refreshed in the background.'
+          : stale
+            ? 'INXSocial is showing the most recent verified analytics snapshot while the connected platform refreshes in the background.'
+            : null;
+      return withCacheState(value, stale ? 'stale' : 'refreshing', warning);
     }
-    throw error;
+    return withCacheState(value, 'fresh');
+  }
+
+  const existing = analyticsInflight.get(descriptor.key);
+  if (existing) return existing;
+
+  return startAnalyticsRefresh(userId, platform, profileId, descriptor.periodDays, options);
+}
+
+async function runAnalyticsCacheRefreshSweep() {
+  if (analyticsCacheRuntimeRunning || !postForMe.configured()) return;
+  analyticsCacheRuntimeRunning = true;
+  try {
+    const refreshBefore = new Date(Date.now() - ANALYTICS_CACHE_TTL_MS);
+    const retryBefore = new Date(Date.now() - ANALYTICS_CACHE_RUNTIME_RETRY_AFTER_MS);
+    const rows = await prisma.analyticsSourceCache.findMany({
+      where: {
+        payloadJson: { not: null },
+        OR: [{ syncedAt: null }, { syncedAt: { lt: refreshBefore } }],
+        AND: [{
+          OR: [{ lastAttemptAt: null }, { lastAttemptAt: { lt: retryBefore } }]
+        }]
+      },
+      orderBy: [{ syncedAt: 'asc' }, { updatedAt: 'asc' }],
+      take: ANALYTICS_CACHE_RUNTIME_BATCH_SIZE
+    });
+
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      const options = row.cacheVariant === 'summary'
+        ? { cacheVariant: 'summary', feedMaxPages: 1, feedMaxPosts: 100 }
+        : { cacheVariant: row.cacheVariant || 'full' };
+      try {
+        await startAnalyticsRefresh(row.userId, row.platform, row.profileId, row.periodDays, options);
+      } catch (error) {
+        console.warn('[analytics-cache] scheduled refresh skipped', {
+          cacheId: row.id,
+          profileId: row.profileId,
+          platform: row.platform,
+          status: Number(error?.status || 0) || null,
+          error: error?.message || String(error)
+        });
+      }
+      if (index < rows.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, ANALYTICS_CACHE_RUNTIME_ACCOUNT_DELAY_MS));
+      }
+    }
+  } catch (error) {
+    console.error('[analytics-cache] refresh sweep failed', { error: error?.message || String(error) });
+  } finally {
+    analyticsCacheRuntimeRunning = false;
+  }
+}
+
+function startAnalyticsCacheRuntime() {
+  if (!postForMe.configured()) return;
+  setTimeout(() => { void runAnalyticsCacheRefreshSweep(); }, 20000).unref?.();
+  if (!analyticsCacheRuntimeTimer) {
+    analyticsCacheRuntimeTimer = setInterval(() => { void runAnalyticsCacheRefreshSweep(); }, ANALYTICS_CACHE_RUNTIME_INTERVAL_MS);
+    analyticsCacheRuntimeTimer.unref?.();
   }
 }
 
@@ -661,5 +851,7 @@ module.exports = {
   collectNumericMetrics,
   providerMetricSummary,
   runSnapshotSweep,
-  startAnalyticsSnapshotRuntime
+  startAnalyticsSnapshotRuntime,
+  runAnalyticsCacheRefreshSweep,
+  startAnalyticsCacheRuntime
 };

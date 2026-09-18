@@ -360,8 +360,9 @@ model SocialProfile {
 
   user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   connection   SocialConnection    @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  publications SocialPublication[]
+  publications      SocialPublication[]
   analyticsSnapshots AnalyticsMetricSnapshot[]
+  analyticsCaches    AnalyticsSourceCache[]
 
   @@unique([connectionId, externalProfileId])
   @@index([userId, platform])
@@ -442,6 +443,31 @@ model AnalyticsMetricSnapshot {
   @@index([profileId, externalPostId, capturedAt])
   @@index([userId, capturedAt])
 }
+
+model AnalyticsSourceCache {
+  id                 String    @id @default(cuid())
+  userId             String
+  profileId          String
+  platform           String
+  periodDays         Int
+  cacheVariant       String    @default("full")
+  payloadJson        String?
+  syncStatus         String    @default("EMPTY")
+  syncedAt           DateTime?
+  refreshRequestedAt DateTime?
+  lastAttemptAt      DateTime?
+  lastError          String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  profile SocialProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, profileId, periodDays, cacheVariant])
+  @@index([profileId, syncedAt])
+  @@index([userId, updatedAt])
+  @@index([syncStatus, refreshRequestedAt])
+}
+
 
 
 model ScheduleJob {
