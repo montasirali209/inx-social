@@ -7,6 +7,8 @@ const SNAPSHOT_MIN_INTERVAL_MS = 45 * 60 * 1000;
 const SNAPSHOT_RETENTION_DAYS = 120;
 const SNAPSHOT_RUNTIME_INTERVAL_MS = 60 * 60 * 1000;
 const SNAPSHOT_RUNTIME_ACCOUNT_DELAY_MS = 5000;
+const FEED_HISTORY_MAX_PAGES = 30;
+const FEED_HISTORY_MAX_POSTS = 3000;
 const analyticsCache = new Map();
 const analyticsInflight = new Map();
 let snapshotRuntimeTimer = null;
@@ -364,20 +366,48 @@ async function fetchFeed(profile, days) {
   if (!accountId) throw Object.assign(new Error('The analytics connection mapping is missing.'), { status: 409 });
   const { since } = dateRange(days);
   const rows = [];
+  const seenPostIds = new Set();
+  const seenCursors = new Set();
   let cursor = '';
-  for (let page = 0; page < 3 && rows.length < 300; page += 1) {
+
+  for (let page = 0; page < FEED_HISTORY_MAX_PAGES && rows.length < FEED_HISTORY_MAX_POSTS; page += 1) {
     const params = new URLSearchParams({ limit: '100' });
     params.append('expand', 'metrics');
     if (cursor) params.set('cursor', cursor);
+
     const response = await postForMe.apiRequest('GET', `/social-account-feeds/${encodeURIComponent(accountId)}?${params.toString()}`);
     const items = Array.isArray(response?.data) ? response.data : [];
-    rows.push(...items);
-    if (!items.length || !response?.meta?.has_more) break;
-    const oldest = items.map((item) => new Date(item.posted_at || 0).getTime()).filter(Number.isFinite).sort((a, b) => a - b)[0];
-    if (oldest && oldest < since.getTime()) break;
-    cursor = String(response?.meta?.cursor || '');
-    if (!cursor) break;
+    for (const item of items) {
+      const key = String(item?.id || item?.platform_post_id || item?.external_post_id || `${item?.posted_at || ''}:${item?.caption || ''}`);
+      if (key && seenPostIds.has(key)) continue;
+      if (key) seenPostIds.add(key);
+      rows.push(item);
+      if (rows.length >= FEED_HISTORY_MAX_POSTS) break;
+    }
+
+    if (!items.length || !response?.meta?.has_more || rows.length >= FEED_HISTORY_MAX_POSTS) break;
+
+    const timestamps = items
+      .map((item) => new Date(item.posted_at || 0).getTime())
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const newest = timestamps.length ? Math.max(...timestamps) : null;
+    const oldest = timestamps.length ? Math.min(...timestamps) : null;
+
+    // Account feeds are normally newest-first. Only stop at the date boundary
+    // when the entire returned page is already older than the requested range.
+    // A page that merely straddles the boundary can still contain valid posts.
+    if (newest && newest < since.getTime()) break;
+
+    const nextCursor = String(response?.meta?.cursor || '').trim();
+    if (!nextCursor || seenCursors.has(nextCursor)) break;
+    seenCursors.add(nextCursor);
+    cursor = nextCursor;
+
+    // Keep the boundary values available for diagnostics without using the
+    // presence of a single old post as a reason to truncate the feed.
+    void oldest;
   }
+
   return rows;
 }
 
