@@ -446,11 +446,11 @@ function RefreshConnectionButton({ refreshing, disabled, onRefresh }: { refreshi
 function ConnectionActionsMenu({ account, onView, onRefresh, onReconnect, onPermissions, onDisconnect }: { account: AccountModel; onView: () => void; onRefresh: () => void; onReconnect: () => void; onPermissions: () => void; onDisconnect: () => void }) {
   const connected = account.status !== 'not_connected'
   return (
-    <details className="group relative">
+    <details className="group relative z-10 open:z-[90]">
       <summary aria-label={`More actions for ${account.accountName}`} className="grid size-9 cursor-pointer list-none place-items-center rounded-lg border border-border-soft bg-bg/35 text-text-muted transition hover:border-brand-cyan/30 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan">
         <MoreHorizontal className="size-4" />
       </summary>
-      <div className="absolute right-0 z-30 mt-2 w-48 rounded-xl border border-border-soft bg-[#071925] p-1.5 text-xs shadow-2xl">
+      <div className="absolute right-0 z-[100] mt-2 w-48 rounded-xl border border-border-soft bg-[#071925] p-1.5 text-xs shadow-[0_24px_70px_rgba(0,0,0,.55)]">
         <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-white/5 hover:text-white" onClick={onView} type="button"><Eye className="size-3.5" />View account</button>
         {connected && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-white/5 hover:text-white" onClick={onRefresh} type="button"><RefreshCw className="size-3.5" />Sync now</button>}
         {connected && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-white/5 hover:text-white" onClick={onReconnect} type="button"><Link2 className="size-3.5" />Reconnect</button>}
@@ -465,7 +465,7 @@ function ConnectionActionsMenu({ account, onView, onRefresh, onReconnect, onPerm
 function PlatformCard({ account, refreshing, onView, onRefresh, onReconnect, onDisconnect, onConnect }: { account: AccountModel; refreshing: boolean; onView: () => void; onRefresh: () => void; onReconnect: () => void; onDisconnect: () => void; onConnect: () => void }) {
   const connected = account.status !== 'not_connected'
   return (
-    <article className="group relative min-h-[132px] overflow-hidden rounded-xl border border-border-soft bg-[linear-gradient(150deg,rgba(12,32,47,.84),rgba(5,15,29,.95))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,.018)] transition-[transform,border-color,box-shadow,background-color] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:scale-[1.006] hover:border-brand-teal/30 hover:bg-panel-hover/38 hover:shadow-[0_14px_30px_rgba(0,0,0,.16),0_0_24px_rgba(20,184,166,.035)] focus-within:border-brand-cyan/40">
+    <article className="group relative z-0 min-h-[132px] overflow-visible rounded-xl border border-border-soft bg-[linear-gradient(150deg,rgba(12,32,47,.84),rgba(5,15,29,.95))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,.018)] transition-[transform,border-color,box-shadow,background-color] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:scale-[1.006] hover:border-brand-teal/30 hover:bg-panel-hover/38 hover:shadow-[0_14px_30px_rgba(0,0,0,.16),0_0_24px_rgba(20,184,166,.035)] focus-within:z-[70] focus-within:border-brand-cyan/40">
       <div className="flex items-start gap-3">
         <PlatformIcon platform={account.platform} />
         <div className="min-w-0 flex-1">
@@ -494,7 +494,7 @@ function PlatformCard({ account, refreshing, onView, onRefresh, onReconnect, onD
 function PlatformListRow({ account, refreshing, onView, onRefresh, onReconnect, onDisconnect, onConnect }: { account: AccountModel; refreshing: boolean; onView: () => void; onRefresh: () => void; onReconnect: () => void; onDisconnect: () => void; onConnect: () => void }) {
   const connected = account.status !== 'not_connected'
   return (
-    <article className="grid gap-3 border-b border-border-soft px-4 py-3 last:border-b-0 hover:bg-white/[.015] sm:grid-cols-[1.2fr_1.1fr_.8fr_.65fr_auto] sm:items-center">
+    <article className="relative z-0 grid gap-3 border-b border-border-soft px-4 py-3 last:border-b-0 hover:bg-white/[.015] focus-within:z-[70] sm:grid-cols-[1.2fr_1.1fr_.8fr_.65fr_auto] sm:items-center">
       <div className="flex min-w-0 items-center gap-3"><PlatformIcon platform={account.platform} size="sm" /><div className="min-w-0"><strong className="block truncate text-sm">{account.platformLabel}</strong><span className="block truncate text-[11px] text-text-muted">{account.accountType}</span></div></div>
       <div className="min-w-0"><p className="truncate text-xs font-medium">{account.accountName}</p><p className="truncate text-[11px] text-text-muted">{account.handle || '—'}</p></div>
       <AccountStatusBadge status={account.status} />
@@ -549,7 +549,7 @@ function ConnectedPlatformsSection({ accounts, viewMode, search, platformFilter,
   onMorePlatforms: () => void
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-border-soft bg-panel/42 shadow-[inset_0_1px_0_rgba(255,255,255,.018)] backdrop-blur-xl">
+    <section className="relative overflow-visible rounded-2xl border border-border-soft bg-panel/42 shadow-[inset_0_1px_0_rgba(255,255,255,.018)] backdrop-blur-xl">
       <header className="border-b border-border-soft px-3 py-3">
         <div className="flex flex-col gap-3 2xl:flex-row 2xl:items-end 2xl:justify-between">
           <div>
