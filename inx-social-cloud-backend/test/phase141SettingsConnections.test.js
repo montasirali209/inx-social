@@ -55,10 +55,12 @@ test('Settings, Connected Accounts and Billing are first-class authenticated Rea
   assert.match(billing, /BillingPlansPage/);
   assert.match(billing, /Stripe Customer Portal/);
   assert.match(billingData, /name: 'Trial'/);
+  assert.match(billingData, /name: 'Creator'/);
   assert.match(billingData, /name: 'Pro'/);
-  assert.match(billingData, /name: 'Plus'/);
-  assert.doesNotMatch(billingData, /name: 'Starter'|name: 'Business'/);
-  assert.match(billingApi, /plan === 'pro' \? 'STARTER' : 'PRO'/);
+  assert.match(billingData, /name: 'Business'/);
+  assert.match(billingData, /name: 'Agency'/);
+  assert.doesNotMatch(billingData, /name: 'Starter'|name: 'Plus'/);
+  assert.match(billingApi, /plan\.toUpperCase\(\)/);
   assert.doesNotMatch(billingApi, /STRIPE_PLUS_PRICE_ID|STRIPE_PRO_YEARLY_PRICE_ID/);
   assert.match(billingRoutes, /router\.get\('\/overview'/);
   assert.match(billingController, /planId: normalizedPlan\(license\.plan\)\.toLowerCase\(\)/);
