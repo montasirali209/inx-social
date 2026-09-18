@@ -384,21 +384,14 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
   });
 
   const totals = { views: 0, reactions: 0, comments: 0, shares: 0, clicks: 0, follows: 0, interactions: 0 };
-  const viewsSeries = new Map();
-  const engagementSeries = new Map();
-  const followsSeries = new Map();
   let postsWithMetrics = 0;
   const content = feed.map((post) => {
     const rawMetrics = post.metrics && typeof post.metrics === 'object' ? post.metrics : {};
     const metrics = normaliseMetrics(profile.platform, rawMetrics);
     if (Object.keys(rawMetrics).length) postsWithMetrics += 1;
     for (const key of Object.keys(totals)) totals[key] += number(metrics[key]);
-    const date = post.posted_at ? String(post.posted_at).slice(0, 10) : '';
-    incrementSeries(viewsSeries, date, metrics.views);
-    incrementSeries(engagementSeries, date, metrics.interactions);
-    incrementSeries(followsSeries, date, metrics.follows);
     return {
-      id: String(post.platform_post_id || post.external_post_id || post.social_post_result_id || `${profile.id}:${post.posted_at}`),
+      id: postExternalId(profile, post),
       platform: profile.platform,
       message: String(post.caption || ''),
       createdTime: post.posted_at || null,
@@ -419,6 +412,9 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       }
     };
   });
+
+  await persistMetricSnapshots(userId, profile, feed);
+  const measuredSeries = await buildMeasuredSeries(profile, feed, since);
 
   const hasMetrics = postsWithMetrics > 0;
   const metricCapability = hasMetrics
@@ -467,12 +463,19 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       follows: totals.follows || null,
       pageEngagements: totals.interactions,
       engagementRate,
-      calculationNote: 'INXSocial aggregates the verified metrics returned for the selected connected account and period.'
+      calculationNote: 'Current totals are lifetime post metrics for content returned in the selected period. The timeline uses measured snapshot-to-snapshot changes instead of assigning lifetime totals to publish dates.'
     },
     series: {
-      views: [...viewsSeries.entries()].map(([date, value]) => ({ date, value })),
-      engagements: [...engagementSeries.entries()].map(([date, value]) => ({ date, value })),
-      follows: [...followsSeries.entries()].map(([date, value]) => ({ date, value }))
+      views: [...measuredSeries.views.entries()].map(([date, value]) => ({ date, value })),
+      engagements: [...measuredSeries.engagements.entries()].map(([date, value]) => ({ date, value })),
+      clicks: [...measuredSeries.clicks.entries()].map(([date, value]) => ({ date, value })),
+      follows: [...measuredSeries.follows.entries()].map(([date, value]) => ({ date, value }))
+    },
+    tracking: {
+      ...measuredSeries.tracking,
+      note: measuredSeries.tracking.historicalDailyAvailable
+        ? 'Daily trend values are measured changes between stored metric snapshots.'
+        : 'Daily trend tracking has just started. Earlier lifetime totals cannot be placed on historical dates without fabricating when those views happened.'
     },
     demographics: { instagram: null, facebookSnapshot: null },
     content,
