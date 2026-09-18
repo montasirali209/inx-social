@@ -134,7 +134,7 @@ test('all sidebar workspaces use labelled progressive loading states instead of 
   assert.match(loader, /Updating…/);
   assert.match(loader, /Syncing live data/);
   assert.match(loader, /motion-safe:animate-bounce/);
-  assert.match(main, /fallbackElement/);
+  assert.match(main, /Suspense fallback/);
   for (const page of [posts, media, bulk, studio, settings, connections, billing]) assert.match(page, /WorkspaceLoadingState/);
   assert.match(calendar, /CalendarSkeleton/);
   assert.match(analytics, /AnalyticsSkeleton/);
