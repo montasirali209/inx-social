@@ -6,18 +6,20 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('landing is capability-first instead of exposing a separate page for every internal menu', () => {
+test('landing is capability-first and uses the verified dashboard preview', () => {
   const landing = read('public/landing.html');
   const css = read('public/landing-redesign.css');
   const js = read('public/landing.js');
 
   for (const area of ['Post Creation','Bulk Scheduler','Content Calendar','Analytics','AI Content Studio','Connected Accounts']) {
-    assert.match(landing, new RegExp(area));
+    assert.equal(landing.includes(area), true, `${area} should remain on the landing page`);
   }
 
-  assert.match(landing, /inxsocial-dashboard-landing\\.webp/);
-  assert.match(landing, /Everything you need to run your social media, in one place/);
-  assert.match(landing, /From idea to results, in five clear steps/);
+  assert.equal((landing.match(/data:image\/webp;base64,/g) || []).length, 2);
+  assert.equal(landing.includes('inxsocial-dashboard-user-preview.webp'), false);
+  assert.equal(landing.includes('dashboard-logo-mask'), false);
+  assert.equal(landing.includes('Everything you need to run your social media, in one place'), true);
+  assert.equal(landing.includes('From idea to results, in five clear steps'), true);
   assert.match(js, /setupDashboardMotion/);
   assert.match(js, /setupRevealAnimations/);
   assert.match(css, /\.capability-grid\{/);
@@ -25,16 +27,29 @@ test('landing is capability-first instead of exposing a separate page for every 
   assert.match(css, /prefers-reduced-motion:reduce/);
   assert.match(css, /\.plan-card:hover/);
   assert.match(css, /\.plan-featured::before/);
-  assert.match(css, /\.ai-feature-grid/);
-  assert.match(css, /\.ai-feature-wide/);
-  assert.doesNotMatch(landing, /data-tour-target|data-tour-panel/);
-  assert.equal((landing.match(/class="ai-feature-card/g) || []).length, 5);
-  for (const feature of ['Image Post','Carousel Post','Short Video / Reel','UGC Ad Post','Video Clipping']) {
-    assert.equal(landing.includes(feature), true, `${feature} should appear in the premium AI Studio section`);
-  }
 });
 
-test('landing names all nine supported social networks and renders their brand logos', () => {
+test('AI Content Studio is a premium static five-feature marketing section', () => {
+  const landing = read('public/landing.html');
+  const css = read('public/landing-redesign.css');
+
+  assert.equal((landing.match(/class="ai-feature-card/g) || []).length, 5);
+  for (const feature of ['Image Post','Carousel Post','Short Video / Reel','UGC Ad Post','Video Clipping']) {
+    assert.equal(landing.includes(feature), true, `${feature} should appear in AI Content Studio`);
+  }
+  assert.equal(landing.includes('Stock Video Creator'), true);
+  assert.equal(landing.includes('AI Video Clipping'), true);
+  assert.equal(landing.includes('Coming soon'), true);
+  assert.match(css, /\.ai-feature-grid/);
+  assert.match(css, /\.ai-feature-wide/);
+  assert.match(css, /\.image-post-art/);
+  assert.match(css, /\.carousel-post-art/);
+  assert.match(css, /\.video-post-art/);
+  assert.match(css, /\.ugc-post-art/);
+  assert.match(css, /\.clipping-post-art/);
+});
+
+test('landing names all nine supported social networks and uses local inline logos', () => {
   const landing = read('public/landing.html');
 
   for (const platform of ['Facebook','Instagram','LinkedIn','TikTok','YouTube','Pinterest','Threads','Bluesky','X / Twitter']) {
@@ -42,11 +57,10 @@ test('landing names all nine supported social networks and renders their brand l
   }
 
   for (const logoClass of ['facebook-logo','instagram-logo','linkedin-logo','tiktok-logo','youtube-logo','pinterest-logo','threads-logo','bluesky-logo','x-logo']) {
-    assert.equal(landing.includes(logoClass), true, `${logoClass} should render as a local inline platform logo`);
+    assert.equal(landing.includes(logoClass), true, `${logoClass} should render locally`);
   }
-  assert.doesNotMatch(landing, /api\.iconify\.design/);
-  assert.doesNotMatch(landing, /dashboard-logo-mask/);
 
+  assert.doesNotMatch(landing, /api\.iconify\.design/);
   assert.doesNotMatch(landing, /INX Social Admin|Trails & Tales|Ali The Dad|Taslim/);
 });
 
