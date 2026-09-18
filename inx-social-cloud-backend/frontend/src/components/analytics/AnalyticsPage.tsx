@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { AlertTriangle, CalendarDays, Radio } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { buildAnalyticsView } from '../../data/analyticsData'
 import { aggregatePerformance } from '../../data/analyticsAggregation'
 import { fetchAnalyticsForSource, fetchAnalyticsSources, mergeAnalyticsResults, type AnalyticsSourceAccount } from '../../lib/analytics-api'
@@ -68,11 +68,7 @@ export function AnalyticsPage() {
   const [days, setDays] = useState(30)
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('overview')
   const [interval, setInterval] = useState<'daily' | 'weekly' | 'monthly'>('daily')
-
-  useEffect(() => {
-    if (days <= 7 && interval !== 'daily') setInterval('daily')
-    else if (days <= 30 && interval === 'monthly') setInterval('daily')
-  }, [days, interval])
+  const chartInterval: 'daily' | 'weekly' | 'monthly' = days <= 7 ? 'daily' : days <= 30 && interval === 'monthly' ? 'daily' : interval
   const sources = useQuery({
     queryKey: ['analytics-sources', 'post-for-me'],
     queryFn: async () => {
@@ -128,7 +124,7 @@ export function AnalyticsPage() {
   })
 
   const view = useMemo(() => analytics.data ? buildAnalyticsView(analytics.data.analytics, days) : null, [analytics.data, days])
-  const chartPoints = useMemo(() => view ? aggregatePerformance(view.publishedPerformance, interval) : [], [interval, view])
+  const chartPoints = useMemo(() => view ? aggregatePerformance(view.publishedPerformance, chartInterval) : [], [chartInterval, view])
   const breakdown = useMemo<EngagementPlatformRow[]>(() => {
     const values = new Map<Platform, EngagementPlatformRow>()
     analytics.data?.results.forEach(({ account, analytics: result }) => {
@@ -176,11 +172,11 @@ export function AnalyticsPage() {
         : <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 xl:grid-cols-6">{view.stats.map(stat => <AnalyticsStatCard key={stat.id} stat={stat} />)}</div>}
       {noVerifiedMetrics && <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber"><strong>{sourceName} analytics are partially available.</strong> {view.source.capabilities?.pageInsights.reason || 'Live metrics are not available for the selected content yet.'}</div>}
       {view.lowData && !noVerifiedMetrics && <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber">Analytics are just starting. More insight will appear as the selected accounts publish additional content.</div>}
-      {activeTab === 'overview' && <><div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,.72fr)]"><PerformanceOverTimeCard days={days} interval={interval} points={chartPoints} setInterval={setInterval} /><EngagementByPlatformCard breakdown={breakdown} total={view.totalEngagements} /></div><div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(260px,.75fr)_minmax(300px,.9fr)]"><TopPerformingPostsCard onViewAll={() => setActiveTab('content_performance')} platform={view.source.platform} posts={view.topPosts} /><ContentEfficiencyCard analytics={view.source} /><PublishingRhythmCard analytics={view.source} days={days} /></div><BestTimeToPostCard cells={view.heatmap} /><ProviderMetricsCard sources={providerMetricSources} /></>}
-      {activeTab === 'content_performance' && <><div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,.75fr)]"><PerformanceOverTimeCard days={days} interval={interval} points={chartPoints} setInterval={setInterval} /><TopPerformingPostsCard onViewAll={() => {}} platform={view.source.platform} posts={view.topPosts} /></div><ProviderMetricsCard sources={providerMetricSources} /></>}
+      {activeTab === 'overview' && <><div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,.72fr)]"><PerformanceOverTimeCard days={days} interval={chartInterval} points={chartPoints} setInterval={setInterval} /><EngagementByPlatformCard breakdown={breakdown} total={view.totalEngagements} /></div><div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(260px,.75fr)_minmax(300px,.9fr)]"><TopPerformingPostsCard onViewAll={() => setActiveTab('content_performance')} platform={view.source.platform} posts={view.topPosts} /><ContentEfficiencyCard analytics={view.source} /><PublishingRhythmCard analytics={view.source} days={days} /></div><BestTimeToPostCard cells={view.heatmap} /><ProviderMetricsCard sources={providerMetricSources} /></>}
+      {activeTab === 'content_performance' && <><div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,.75fr)]"><PerformanceOverTimeCard days={days} interval={chartInterval} points={chartPoints} setInterval={setInterval} /><TopPerformingPostsCard onViewAll={() => {}} platform={view.source.platform} posts={view.topPosts} /></div><ProviderMetricsCard sources={providerMetricSources} /></>}
       {activeTab === 'audience' && <><div className="grid gap-4 lg:grid-cols-2"><ContentEfficiencyCard analytics={view.source} /><PublishingRhythmCard analytics={view.source} days={days} /></div><BestTimeToPostCard cells={view.heatmap} /></>}
-      {activeTab === 'engagement' && <><div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,.7fr)]"><PerformanceOverTimeCard days={days} interval={interval} points={chartPoints} setInterval={setInterval} /><EngagementByPlatformCard breakdown={breakdown} total={view.totalEngagements} /></div><BestTimeToPostCard cells={view.heatmap} /></>}
-      {activeTab === 'reach' && <><PerformanceOverTimeCard days={days} interval={interval} points={chartPoints} setInterval={setInterval} /><ProviderMetricsCard sources={providerMetricSources} /></>}
+      {activeTab === 'engagement' && <><div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,.7fr)]"><PerformanceOverTimeCard days={days} interval={chartInterval} points={chartPoints} setInterval={setInterval} /><EngagementByPlatformCard breakdown={breakdown} total={view.totalEngagements} /></div><BestTimeToPostCard cells={view.heatmap} /></>}
+      {activeTab === 'reach' && <><PerformanceOverTimeCard days={days} interval={chartInterval} points={chartPoints} setInterval={setInterval} /><ProviderMetricsCard sources={providerMetricSources} /></>}
       {activeTab === 'videos' && <><TopPerformingPostsCard onViewAll={() => {}} platform={view.source.platform} posts={view.topPosts.filter(post => /video|reel/i.test(post.contentType))} /><ProviderMetricsCard sources={providerMetricSources} /></>}
       {activeTab === 'reports' && <AnalyticsCard><AnalyticsCardHeader description="Export the currently selected live account scope and date range without including credentials or access tokens." title="Analytics Reports" /><div className="grid min-h-56 place-items-center p-6 text-center"><span><CalendarDays className="mx-auto size-8 text-brand-cyan" /><strong className="mt-3 block">Report ready for {sourceName}</strong><p className="mt-2 text-xs text-text-muted">Live data fetched {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(view.source.fetchedAt))}</p><div className="mt-4 inline-block"><ExportReportButton view={view} /></div></span></div></AnalyticsCard>}
       <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-soft bg-panel/55 px-4 py-3 text-[10px] text-text-soft"><span>Current post-performance analytics for {sourceName}.</span><span>Latest metrics refresh every 5 minutes · Last sync {lastUpdated}</span></footer>
