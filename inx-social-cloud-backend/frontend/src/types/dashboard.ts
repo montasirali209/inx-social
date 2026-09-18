@@ -127,6 +127,14 @@ export type PlatformAnalytics = {
     calculationNote: string
   }
   series?: Record<string, Array<{ date: string; value: number }>>
+  tracking?: {
+    mode: 'measured_snapshot_delta'
+    startedAt: string | null
+    latestAt: string | null
+    sampledDays: number
+    historicalDailyAvailable: boolean
+    note?: string
+  }
   demographics?: { instagram: AudienceDemographics | null; facebookSnapshot: AudienceDemographics | null }
   content: AnalyticsContent[]
   warnings?: string[]
