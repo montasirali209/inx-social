@@ -18,7 +18,6 @@ import { PostsStatCard } from './PostPrimitives'
 import { SchedulePanel } from './SchedulePanel'
 import type { PostLibraryView } from '../../lib/posts-reuse'
 import { PublishConfirmationDialog } from '../ui/PublishConfirmationDialog'
-import { WorkspaceLoadingState } from '../ui/WorkspaceLoadingState'
 
 const draftKey = 'inx-social-post-drafts-v1'
 const composerSessionKey = 'inx-social-post-composer-session-v1'
@@ -469,20 +468,9 @@ export function PostsPage() {
 }
 
 function PostsSkeleton() {
-  return <WorkspaceLoadingState
-    message="Preparing destinations, drafts and your publishing workspace."
-    panels={[
-      { title: 'Create Post', emoji: '✍️', rows: 4, minHeight: '420px' },
-      { title: 'Post Preview', emoji: '👀', rows: 4, minHeight: '420px' },
-      { title: 'Schedule', emoji: '🗓️', rows: 4, minHeight: '420px' },
-    ]}
-    stats={[
-      { label: 'Connected Accounts', emoji: '🔗' },
-      { label: 'Drafts', emoji: '📝' },
-      { label: 'Scheduled', emoji: '🗓️' },
-      { label: 'Published', emoji: '🚀' },
-      { label: 'Needs Review', emoji: '⚠️' },
-    ]}
-    title="Posts workspace"
-  />
+  return <div aria-label="Loading Posts workspace" className="space-y-5" role="status">
+    <div className="grid gap-3 md:grid-cols-5">{Array.from({ length: 5 }, (_, index) => <div className="h-28 animate-pulse rounded-card border border-border-soft bg-panel/70 motion-reduce:animate-none" key={index} />)}</div>
+    <div className="h-24 animate-pulse rounded-panel border border-border-soft bg-panel/70 motion-reduce:animate-none" />
+    <div className="grid gap-5 lg:grid-cols-2 xl:grid-cols-[1.35fr_.72fr_.82fr]">{Array.from({ length: 3 }, (_, index) => <div className="h-[620px] animate-pulse rounded-panel border border-border-soft bg-panel/70 motion-reduce:animate-none" key={index} />)}</div>
+  </div>
 }
