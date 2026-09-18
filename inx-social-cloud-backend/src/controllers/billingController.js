@@ -151,11 +151,9 @@ async function billingOverview(req, res, next) {
     const [scheduledContent, publishedPosts] = await Promise.all([
       prisma.scheduleJob.count({ where: { userId: req.user.id, createdAt: { gte: usageStart }, status: { not: 'CANCELLED' } } }),
       prisma.socialPublication.count({
-        where: {
-          profile: { userId: req.user.id },
-          status: 'PUBLISHED',
-          publishedAt: { gte: usageStart }
-        }
+        where: trialPlan
+          ? { profile: { userId: req.user.id }, externalPostId: { not: null }, createdAt: { gte: usageStart } }
+          : { profile: { userId: req.user.id }, status: 'PUBLISHED', publishedAt: { gte: usageStart } }
       })
     ]);
     let invoices = [];
