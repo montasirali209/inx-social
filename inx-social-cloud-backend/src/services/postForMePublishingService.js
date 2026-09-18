@@ -1,6 +1,7 @@
 const axios = require('axios');
 const prisma = require('../db/prisma');
 const postForMe = require('./postForMeService');
+const { getLicenseStatus } = require('./licenseService');
 
 const MAX_DIRECT_UPLOAD_BYTES = 500 * 1024 * 1024;
 const TERMINAL_STATUSES = new Set(['PUBLISHED', 'FAILED', 'CANCELLED']);
@@ -110,6 +111,35 @@ async function createPublicationRows(userId, input) {
 
   const { content, existing, key } = await findOrCreateContent(userId, input, profiles);
   const existingByProfile = new Map(existing.map((publication) => [publication.profileId, publication]));
+
+  const license = await getLicenseStatus(userId);
+  const trialLimit = license.limits?.publishedPostsPerTrial;
+  const isAdministrator = ['ADMIN', 'SUPER_ADMIN'].includes(String(license.userRole || '').toUpperCase());
+  if (!isAdministrator && String(license.plan || '').toUpperCase() === 'TRIAL' && Number.isFinite(trialLimit)) {
+    const newDestinationCount = profiles.filter(profile => !existingByProfile.has(profile.id)).length;
+    if (newDestinationCount > 0) {
+      const trialStart = license.trialStartsAt ? new Date(license.trialStartsAt) : new Date(Date.now() - (7 * 86400000));
+      const submitted = await prisma.socialPublication.count({
+        where: {
+          profile: { userId },
+          externalPostId: { not: null },
+          createdAt: { gte: trialStart }
+        }
+      });
+      if (submitted + newDestinationCount > Number(trialLimit)) {
+        const remaining = Math.max(0, Number(trialLimit) - submitted);
+        const message = remaining
+          ? `Your Trial has ${remaining} publishing destination${remaining === 1 ? '' : 's'} remaining. Reduce the selected destinations or upgrade your plan.`
+          : `You have used all ${trialLimit} Trial publishing destinations. Upgrade in Billing & Plans to continue publishing.`;
+        throw Object.assign(new Error(message), {
+          status: 402,
+          publicMessage: message,
+          code: 'TRIAL_PUBLISHING_LIMIT_REACHED'
+        });
+      }
+    }
+  }
+
   const meta = mediaMetadata(input);
   const rows = [];
 
