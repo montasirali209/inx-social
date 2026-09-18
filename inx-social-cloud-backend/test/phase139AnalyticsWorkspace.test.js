@@ -115,7 +115,7 @@ test('Analytics charts, tabs and report actions remain accessible and functional
   assert.doesNotMatch(chart, /Live Performance Trend/);
   assert.doesNotMatch(chart, /Content history/);
   assert.doesNotMatch(chart, /Live trend/);
-  assert.match(chart, /latest verified performance/i);
+  assert.match(chart, /current performance of posts published on that date/i);
   assert.match(chart, /const tension = 0\.82/);
   assert.match(chart, /Views/);
   assert.match(chart, /Interactions/);
