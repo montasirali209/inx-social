@@ -87,7 +87,7 @@ function showAuthenticatedNavigation(user) {
   if (guestCopy) guestCopy.hidden = true;
   if (memberCopy) {
     memberCopy.hidden = false;
-    if (administrator) memberCopy.textContent = 'Administrator session detected. Billing remains separate from administrator access, so your account is not labelled as a Plus subscription.';
+    if (administrator) memberCopy.textContent = 'Administrator session detected. Billing remains separate from administrator access, so administrator privileges are not shown as a customer subscription.';
   }
   document.querySelectorAll('.authenticated-billing-link').forEach(link => {
     link.href = '/app/billing';
@@ -105,9 +105,13 @@ function updatePlanButtons(currentPlan, administrator) {
     else if (targetPlan === currentPlan) {
       button.textContent = 'Current plan · Manage';
       document.querySelector('[data-plan-card="' + targetPlan + '"]')?.classList.add('current-plan');
-    } else if (currentPlan === 'trial' && (targetPlan === 'pro' || targetPlan === 'plus')) button.textContent = 'Upgrade to ' + (targetPlan === 'pro' ? 'Pro' : 'Plus');
-    else if (currentPlan === 'pro' && targetPlan === 'plus') button.textContent = 'Upgrade to Plus';
-    else button.textContent = 'Review plan';
+    } else {
+      const ranks = { trial: 0, creator: 1, pro: 2, business: 3, agency: 4 };
+      const labels = { trial: 'Trial', creator: 'Creator', pro: 'Pro', business: 'Business', agency: 'Agency' };
+      button.textContent = (ranks[targetPlan] ?? 0) > (ranks[currentPlan] ?? 0)
+        ? 'Upgrade to ' + (labels[targetPlan] || 'plan')
+        : 'Review plan';
+    }
   });
 }
 
