@@ -28,8 +28,8 @@ test('public landing has canonical metadata, social previews and structured soft
   assert.match(landing, /AI Content Studio/);
 });
 
-test('served homepage injects crawlable links to the public SEO landing pages', () => {
-  const app = read('src/app.js');
+test('served homepage contains crawlable links to the public SEO landing pages', () => {
+  const landing = read('public/landing.html');
   for (const href of [
     '/social-media-scheduler.html',
     '/bulk-social-media-scheduler.html',
@@ -38,7 +38,7 @@ test('served homepage injects crawlable links to the public SEO landing pages', 
     '/social-media-analytics.html',
     '/pricing.html'
   ]) {
-    assert.equal(app.includes(`href=\"${href}\"`), true, `${href} is missing from homepage SEO navigation`);
+    assert.equal(landing.includes(`href="${href}"`), true, `${href} is missing from homepage SEO navigation`);
   }
 });
 

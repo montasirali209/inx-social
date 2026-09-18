@@ -6,18 +6,13 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('landing page keeps the full INXSocial wordmark visible and large enough at desktop and mobile sizes', () => {
-  const app = read('src/app.js');
-  const brand = read('public/landing-brand.css');
-  const performance = read('public/landing-performance.css');
+test('redesigned landing keeps the full INXSocial wordmark visible in header and footer', () => {
+  const landing = read('public/landing.html');
+  const css = read('public/landing-redesign.css');
 
-  assert.match(app, /landing-brand\.css\?v=20260911b/);
-  assert.match(app, /landing-performance\.css\?v=20260911b/);
-  assert.match(brand, /\.site-header \.brand\{[\s\S]*width:202px[\s\S]*overflow:hidden/);
-  assert.match(brand, /\.site-header \.brand>img\{[\s\S]*width:178px[\s\S]*transform:scale\(1\.9\)/);
-  assert.match(brand, /object-fit:contain/);
-  assert.match(brand, /\.footer-brand \.brand>img\{[\s\S]*transform:scale\(1\.95\)/);
-  assert.match(brand, /@media \(max-width:900px\)[\s\S]*transform:scale\(1\.78\)/);
-  assert.doesNotMatch(performance, /\.brand>img\{width:42px;height:42px/);
-  assert.doesNotMatch(performance, /flex-basis:40px|flex-basis:36px/);
+  assert.match(landing, /class="brand"[^>]*><img src="\/assets\/inx-social-wordmark\.png"/);
+  assert.match(landing, /footer-brand[\s\S]*inx-social-wordmark\.png/);
+  assert.match(css, /\.brand img\{width:176px;height:60px;object-fit:cover;object-position:center/);
+  assert.match(css, /@media\(max-width:900px\)[\s\S]*\.brand img\{width:154px;height:54px\}/);
+  assert.doesNotMatch(css, /brand-text/);
 });

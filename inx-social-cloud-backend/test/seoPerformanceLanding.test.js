@@ -6,33 +6,31 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('landing response applies SEO title, description and render-critical styles server-side', () => {
+test('landing response applies SEO title, description and redesigned render-critical styles server-side', () => {
   const app = read('src/app.js');
   const landing = read('public/landing.html');
-  assert.match(app, /landing\.css\?v=20260918a/);
-  assert.match(app, /landing-mobile\.css\?v=20260910c/);
-  assert.match(app, /landing-performance\.css\?v=20260911b/);
-  assert.match(app, /landing-brand\.css\?v=20260911b/);
-  assert.match(app, /landing\.js\?v=20260918a/);
+  assert.match(landing, /landing-redesign\.css\?v=20260918a/);
+  assert.match(landing, /landing\.js\?v=20260918b/);
   assert.match(landing, /<title>All-in-One Social Media Management &amp; AI Content \| INXSocial<\/title>/);
   assert.match(landing, /Manage connected social accounts, create posts and media with AI/);
-  assert.match(landing, /landing-ai-studio\.css\?v=20260915a/);
   assert.match(landing, /inx-social-wordmark\.png/);
-  assert.doesNotMatch(app, /brand-text/);
+  assert.match(app, /return injectAnalyticsConsent\(source\)/);
   assert.match(app, /Cache-Control', 'public, max-age=0, must-revalidate/);
 });
 
-test('server-rendered landing fallback exposes all current social networks', () => {
-  const app = read('src/app.js');
-  assert.match(app, /9 supported networks/);
+test('server-rendered landing exposes all current social networks', () => {
+  const landing = read('public/landing.html');
+  assert.match(landing, /9 supported networks/);
   for (const platform of ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'YouTube', 'Pinterest', 'Threads', 'Bluesky']) {
-    assert.equal(app.includes(platform), true, `${platform} should appear in the server-rendered platform rail replacement`);
+    assert.equal(landing.includes(platform), true, `${platform} should appear in the server-rendered landing`);
   }
-  assert.match(app, /<div class="platform-pill more">X<\/div>/);
+  assert.match(landing, />X<\/span>/);
 });
 
 test('responsive stylesheet is not injected after first paint', () => {
+  const landing = read('public/landing.html');
   const landingJs = read('public/landing.js');
+  assert.match(landing, /landing-redesign\.css/);
   assert.doesNotMatch(landingJs, /createElement\(['"]link['"]\)/);
   assert.doesNotMatch(landingJs, /landing-mobile\.css/);
 });
@@ -74,7 +72,7 @@ test('landing retains canonical and software application structured data', () =>
   assert.match(landing, /UGC Ad Post/);
   assert.match(landing, /Stock Video Creator/);
   assert.match(landing, /AI Video Clipping/);
-  assert.match(landing, /Coming soon/i);
+  assert.match(landing, /coming soon/i);
 });
 
 test('SEO product pages have unique titles, canonicals and indexable copy', () => {
