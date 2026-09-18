@@ -1,17 +1,10 @@
 import { useId, useMemo, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import type { PerformancePoint } from '../../types/analytics'
-import type { PlatformAnalytics } from '../../types/dashboard'
 import { formatAnalyticsValue } from '../../data/analyticsData'
 import { AnalyticsCard, AnalyticsCardHeader } from './AnalyticsPrimitives'
 
 type SeriesKey = 'views' | 'engagements' | 'linkClicks' | 'followers'
-const trendSeries: Array<{ key: SeriesKey; label: string; totalLabel: string; colour: string }> = [
-  { key: 'views', label: 'Views gained', totalLabel: 'Views gained', colour: '#3b82f6' },
-  { key: 'engagements', label: 'Interactions gained', totalLabel: 'Interactions gained', colour: '#2dd4bf' },
-  { key: 'linkClicks', label: 'Clicks gained', totalLabel: 'Clicks gained', colour: '#f59e0b' },
-  { key: 'followers', label: 'Follows gained', totalLabel: 'Follows gained', colour: '#a855f7' },
-]
-const contentSeries: Array<{ key: SeriesKey; label: string; totalLabel: string; colour: string }> = [
+const metricSeries: Array<{ key: SeriesKey; label: string; totalLabel: string; colour: string }> = [
   { key: 'views', label: 'Current views', totalLabel: 'Current views', colour: '#3b82f6' },
   { key: 'engagements', label: 'Interactions', totalLabel: 'Interactions', colour: '#2dd4bf' },
   { key: 'linkClicks', label: 'Clicks', totalLabel: 'Clicks', colour: '#f59e0b' },
@@ -71,31 +64,17 @@ function axisDate(point: PerformancePoint, interval: 'daily' | 'weekly' | 'month
   return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(date)
 }
 
-function trackingDate(value?: string | null) {
-  if (!value) return null
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return null
-  return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(date)
-}
-
 export function PerformanceOverTimeCard({
   points,
   interval,
   setInterval,
-  tracking,
-  mode,
-  onModeChange,
 }: {
   points: PerformancePoint[]
   interval: 'daily' | 'weekly' | 'monthly'
   setInterval: (value: 'daily' | 'weekly' | 'monthly') => void
-  tracking?: PlatformAnalytics['tracking']
-  mode: 'content' | 'trend'
-  onModeChange: (mode: 'content' | 'trend') => void
 }) {
   const [active, setActive] = useState<number | null>(null)
   const gradientId = useId().replace(/:/g, '')
-  const metricSeries = mode === 'content' ? contentSeries : trendSeries
   const maximumValue = Math.max(1, ...points.flatMap(point => metricSeries.map(item => point[item.key])))
   const roughStep = maximumValue / 5
   const magnitude = Math.pow(10, Math.floor(Math.log10(Math.max(1, roughStep))))
@@ -104,7 +83,6 @@ export function PerformanceOverTimeCard({
   const labelEvery = Math.max(1, Math.ceil(points.length / 6))
   const activeSeries = useMemo(() => metricSeries.filter(item => points.some(point => point[item.key] !== 0)), [metricSeries, points])
   const renderedSeries = activeSeries.length ? activeSeries : [metricSeries[0]]
-  const startedLabel = trackingDate(tracking?.startedAt)
 
   function track(event: ReactPointerEvent<SVGSVGElement>) {
     if (!points.length) return
@@ -118,22 +96,19 @@ export function PerformanceOverTimeCard({
   const activeX = active === null ? null : pointX(active, points.length)
   const tooltipLeft = activeX === null ? 50 : Math.min(83, Math.max(17, activeX / 10))
   const totals = metricSeries.map(item => ({ ...item, value: points.reduce((sum, point) => sum + point[item.key], 0) }))
-  const hasDailyHistory = mode === 'content' || Boolean(tracking?.historicalDailyAvailable && points.length > 1)
 
   return <AnalyticsCard>
     <AnalyticsCardHeader
-      action={<div className="flex flex-wrap items-center gap-2"><div className="inline-flex rounded-xl border border-border-soft bg-bg/35 p-1"><button className={`rounded-lg px-2.5 py-1.5 text-[9px] font-semibold transition ${mode === 'content' ? 'bg-brand-cyan/12 text-brand-cyan' : 'text-text-soft hover:text-white'}`} onClick={() => onModeChange('content')} type="button">Content history</button><button className={`rounded-lg px-2.5 py-1.5 text-[9px] font-semibold transition ${mode === 'trend' ? 'bg-brand-cyan/12 text-brand-cyan' : 'text-text-soft hover:text-white'}`} onClick={() => onModeChange('trend')} type="button">Live trend</button></div><select aria-label="Performance chart interval" className="min-h-9 rounded-xl border border-border-soft bg-bg/45 px-3 text-[10px] outline-none focus:border-brand-cyan" onChange={event => setInterval(event.target.value as 'daily' | 'weekly' | 'monthly')} value={interval}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div>}
-      description={mode === 'content' ? 'Shows the latest performance of posts published on each date in the selected period.' : 'Tracks new performance changes from the time INXSocial starts monitoring.'}
-      title={mode === 'content' ? 'Content Performance by Publish Date' : 'Live Performance Trend'}
+      action={<select aria-label="Performance chart interval" className="min-h-9 rounded-xl border border-border-soft bg-bg/45 px-3 text-[10px] outline-none focus:border-brand-cyan" onChange={event => setInterval(event.target.value as 'daily' | 'weekly' | 'monthly')} value={interval}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>}
+      description="Shows the latest verified performance of posts published in the selected period."
+      title="Content Performance by Publish Date"
     />
 
-    {mode === 'trend' && !hasDailyHistory && startedLabel && <div className="mx-5 mt-1 rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.045] px-3 py-2 text-[10px] leading-5 text-text-muted"><strong className="text-brand-cyan">Trend tracking started {startedLabel}.</strong> New performance changes will appear here as they are measured.</div>}
-
     <div className="relative px-3 sm:px-5">
-      <div className="mb-1 mt-2 flex items-center justify-between px-1 text-[9px] text-text-soft"><span>{mode === 'content' ? 'Current performance grouped by post publish date' : interval === 'monthly' ? 'Day-by-day performance change' : `${interval[0].toUpperCase() + interval.slice(1)} performance change`}</span><span className="hidden sm:inline">{mode === 'content' ? 'Hover for exact post-date performance' : hasDailyHistory ? 'Move across the line for exact dates' : 'Trend history builds automatically'}</span></div>
+      <div className="mb-1 mt-2 flex items-center justify-between px-1 text-[9px] text-text-soft"><span>Verified performance grouped by post publish date</span><span className="hidden sm:inline">Hover for exact post-date performance</span></div>
 
       {activePoint && <div className="pointer-events-none absolute top-8 z-20 w-[218px] -translate-x-1/2 rounded-xl border border-brand-cyan/20 bg-[#061923]/[.97] p-3 text-[10px] shadow-[0_18px_50px_rgba(0,0,0,.45),0_0_0_1px_rgba(45,212,191,.04)] backdrop-blur-xl" style={{ left: `${tooltipLeft}%` }}>
-        <div className="border-b border-white/[.07] pb-2"><strong className="block text-[11px] text-white">{interval === 'weekly' ? activePoint.label : exactDate(activePoint)}</strong><span className="mt-0.5 block text-[9px] text-text-soft">{mode === 'content' ? 'Latest totals for posts published on this date' : 'Change recorded for this period'}</span></div>
+        <div className="border-b border-white/[.07] pb-2"><strong className="block text-[11px] text-white">{interval === 'weekly' ? activePoint.label : exactDate(activePoint)}</strong><span className="mt-0.5 block text-[9px] text-text-soft">Latest totals for posts published on this date</span></div>
         <div className="mt-2 space-y-1.5">{metricSeries.map(item => <span className="flex items-center justify-between gap-6 text-text-muted" key={item.key}><span className="flex items-center gap-1.5"><i className="inline-block size-2 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: item.colour, color: item.colour }} />{item.label}</span><b className="text-white">{formatAnalyticsValue(activePoint[item.key], 'compact')}</b></span>)}</div>
       </div>}
 
