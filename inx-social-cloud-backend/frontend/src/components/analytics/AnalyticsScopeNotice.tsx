@@ -24,11 +24,11 @@ export function AnalyticsScopeNotice({
         <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-brand-cyan/20 bg-brand-cyan/8 text-brand-cyan"><FileBarChart2 className="size-4.5" /></span>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <strong className="text-xs text-text-main">Post performance analytics</strong>
-            <span className="rounded-full border border-brand-green/15 bg-brand-green/8 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[.13em] text-brand-green">Current metrics</span>
+            <strong className="text-xs text-text-main">Current post performance</strong>
+            <span className="rounded-full border border-brand-green/15 bg-brand-green/8 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[.13em] text-brand-green">Live</span>
           </div>
           <p className="mt-1 max-w-4xl text-[10px] leading-5 text-text-muted">
-            This workspace analyses the posts available for {sourceName}. KPI totals show the latest performance currently reported for those posts — views, interactions, clicks and publishing activity — rather than a complete native-platform account history.
+            Latest performance for published posts from {sourceName}. Trend data builds from the point INXSocial starts tracking changes.
           </p>
         </div>
       </div>
@@ -36,15 +36,15 @@ export function AnalyticsScopeNotice({
       <div className="grid shrink-0 gap-2 sm:grid-cols-3 xl:w-[520px]">
         <span className="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] px-3 py-2">
           <Activity className="size-3.5 shrink-0 text-brand-cyan" />
-          <span><b className="block text-[9px] font-semibold text-text-main">Latest post metrics</b><small className="block text-[8px] leading-4 text-text-soft">Current totals from published content</small></span>
+          <span><b className="block text-[9px] font-semibold text-text-main">Post metrics</b><small className="block text-[8px] leading-4 text-text-soft">Latest views and engagement</small></span>
         </span>
         <span className="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] px-3 py-2">
           <Layers3 className="size-3.5 shrink-0 text-brand-teal" />
-          <span><b className="block text-[9px] font-semibold text-text-main">Selected sources only</b><small className="block text-[8px] leading-4 text-text-soft">Up to 3 accounts compared together</small></span>
+          <span><b className="block text-[9px] font-semibold text-text-main">Selected accounts</b><small className="block text-[8px] leading-4 text-text-soft">Compare up to 3 at once</small></span>
         </span>
         <span className="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] px-3 py-2">
           <Clock3 className="size-3.5 shrink-0 text-brand-amber" />
-          <span><b className="block text-[9px] font-semibold text-text-main">Trend tracking</b><small className="block text-[8px] leading-4 text-text-soft">{trackingStarted ? `Measured from ${trackingStarted}` : 'Builds from live snapshots over time'}</small></span>
+          <span><b className="block text-[9px] font-semibold text-text-main">Trend history</b><small className="block text-[8px] leading-4 text-text-soft">{trackingStarted ? `Tracking since ${trackingStarted}` : 'Starts building automatically'}</small></span>
         </span>
       </div>
     </div>
