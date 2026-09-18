@@ -1,5 +1,5 @@
 import { Check, ChevronDown, Layers3, ShieldCheck } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { customerFacingPlatforms, platformMeta } from '../../data/connectedAccountsData'
 import type { ConnectedIdentity } from '../../lib/connections-api'
 import type { SocialPlatform } from '../../types/settings'
@@ -27,20 +27,31 @@ function Avatar({ account }: { account: AnalyticsAccount }) {
 export function AnalyticsAccountSelector({ accounts, values, isLive, loading = false, onChange }: Props) {
   const [platformFilter, setPlatformFilter] = useState<'all' | SocialPlatform>('all')
   const [open, setOpen] = useState(false)
+  const [draftValues, setDraftValues] = useState<string[]>(values)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const selected = useMemo(() => new Set(values), [values])
+  const draftValuesRef = useRef<string[]>(values)
+  const activeValues = open ? draftValues : values
+  const selected = useMemo(() => new Set(activeValues), [activeValues])
   const selectedAccounts = accounts.filter(account => selected.has(account.analyticsKey))
   const platformCount = new Set(accounts.map(account => account.platform)).size
   const visibleAccounts = platformFilter === 'all' ? accounts : accounts.filter(account => account.platform === platformFilter)
   const atLimit = selectedAccounts.length >= MAX_ANALYTICS_SOURCES
 
+  const commitSelection = useCallback(() => {
+    const next = [...new Set(draftValuesRef.current)].slice(0, MAX_ANALYTICS_SOURCES)
+    if (!next.length) return
+    const changed = next.length !== values.length || next.some((key, index) => key !== values[index])
+    if (changed) onChange(next)
+    setOpen(false)
+  }, [onChange, values])
+
   useEffect(() => {
     if (!open) return
     const closeOnOutside = (event: PointerEvent) => {
-      if (!dropdownRef.current?.contains(event.target as Node)) setOpen(false)
+      if (!dropdownRef.current?.contains(event.target as Node)) commitSelection()
     }
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape') commitSelection()
     }
     document.addEventListener('pointerdown', closeOnOutside)
     document.addEventListener('keydown', closeOnEscape)
@@ -48,10 +59,22 @@ export function AnalyticsAccountSelector({ accounts, values, isLive, loading = f
       document.removeEventListener('pointerdown', closeOnOutside)
       document.removeEventListener('keydown', closeOnEscape)
     }
-  }, [open])
+  }, [commitSelection, open])
+
+  function openPicker() {
+    const next = values.slice(0, MAX_ANALYTICS_SOURCES)
+    draftValuesRef.current = next
+    setDraftValues(next)
+    setOpen(true)
+  }
+
+  function togglePicker() {
+    if (open) commitSelection()
+    else openPicker()
+  }
 
   function toggleAccount(key: string) {
-    const next = new Set(values)
+    const next = new Set(draftValuesRef.current)
     if (next.has(key)) {
       if (next.size === 1) return
       next.delete(key)
@@ -59,13 +82,14 @@ export function AnalyticsAccountSelector({ accounts, values, isLive, loading = f
       if (next.size >= MAX_ANALYTICS_SOURCES) return
       next.add(key)
     }
-    onChange([...next].slice(0, MAX_ANALYTICS_SOURCES))
-    setOpen(false)
+    const updated = [...next].slice(0, MAX_ANALYTICS_SOURCES)
+    draftValuesRef.current = updated
+    setDraftValues(updated)
   }
 
   function filter(platform: 'all' | SocialPlatform) {
+    if (open) commitSelection()
     setPlatformFilter(platform)
-    setOpen(false)
   }
 
   const selectedLabel = selectedAccounts.length
@@ -94,11 +118,17 @@ export function AnalyticsAccountSelector({ accounts, values, isLive, loading = f
     </div>
 
     <div className="relative mt-3" ref={dropdownRef}>
-      <button aria-expanded={open} aria-haspopup="listbox" className="flex min-h-12 w-full items-center gap-3 rounded-xl border border-white/[.08] bg-bg/45 px-3 text-left transition duration-200 hover:border-brand-cyan/25 hover:bg-white/[.025] focus-visible:outline-2 focus-visible:outline-brand-cyan disabled:cursor-wait disabled:opacity-80" disabled={loading} onClick={() => setOpen(value => !value)} type="button">
-        <span className="min-w-0 flex-1"><span className="block text-[9px] uppercase tracking-[.14em] text-text-soft">Selected accounts</span><strong className="mt-0.5 block truncate text-xs text-text-main">{selectedLabel}</strong></span>
-        <span className="rounded-full border border-brand-cyan/20 bg-brand-cyan/8 px-2 py-1 text-[9px] font-semibold text-brand-cyan">{selectedAccounts.length}/{MAX_ANALYTICS_SOURCES}</span>
-        <ChevronDown className={`size-4 text-text-soft transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-      </button>
+      <div className="flex min-h-12 w-full items-center rounded-xl border border-white/[.08] bg-bg/45 transition duration-200 hover:border-brand-cyan/25 hover:bg-white/[.025] focus-within:border-brand-cyan/35">
+        <button aria-expanded={open} aria-haspopup="listbox" className="min-w-0 flex-1 px-3 py-2 text-left focus-visible:outline-none disabled:cursor-wait disabled:opacity-80" disabled={loading} onClick={togglePicker} type="button">
+          <span className="block text-[9px] uppercase tracking-[.14em] text-text-soft">Selected accounts</span>
+          <strong className="mt-0.5 block truncate text-xs text-text-main">{selectedLabel}</strong>
+        </button>
+        <div className="flex shrink-0 items-center gap-2 pr-2">
+          <span aria-live="polite" className="rounded-full border border-brand-cyan/20 bg-brand-cyan/8 px-2 py-1 text-[9px] font-semibold text-brand-cyan">{selectedAccounts.length}/{MAX_ANALYTICS_SOURCES}</span>
+          {open && <button className="inline-flex min-h-8 items-center rounded-lg border border-brand-cyan/30 bg-brand-cyan/12 px-3 text-[10px] font-semibold text-brand-cyan transition hover:bg-brand-cyan/18 focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={commitSelection} type="button">Select</button>}
+          <button aria-label={open ? 'Apply selected analytics accounts' : 'Open analytics account selector'} className="grid size-8 place-items-center rounded-lg text-text-soft transition hover:bg-white/[.05] hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan disabled:cursor-wait disabled:opacity-50" disabled={loading} onClick={togglePicker} type="button"><ChevronDown className={`size-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} /></button>
+        </div>
+      </div>
 
       <div aria-hidden={!open} className={`analytics-source-picker-menu absolute inset-x-0 top-full z-40 mt-2 overflow-hidden rounded-xl border border-border-soft bg-panel shadow-panel transition-[opacity,transform] duration-200 ease-out ${open ? 'pointer-events-auto translate-y-0 scale-[1] opacity-100' : 'pointer-events-none -translate-y-1 scale-[.985] opacity-0'}`} role="listbox">
         <div className="flex items-center justify-between border-b border-border-soft px-3 py-2 text-[9px] text-text-soft">

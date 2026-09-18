@@ -22,6 +22,13 @@ test('Analytics is a first-class responsive React workspace', () => {
   assert.match(selector, /All accounts/);
   assert.doesNotMatch(selector, /overflow-x-auto/);
   assert.match(selector, /document\.addEventListener\('pointerdown', closeOnOutside\)/);
+  assert.match(selector, /draftValues/);
+  assert.match(selector, /draftValuesRef/);
+  assert.match(selector, /commitSelection/);
+  assert.match(selector, /if \(!dropdownRef\.current\?\.contains\(event\.target as Node\)\) commitSelection\(\)/);
+  assert.match(selector, />Select<\/button>/);
+  assert.match(selector, /toggleAccount[\s\S]*setDraftValues\(updated\)/);
+  assert.doesNotMatch(selector, /toggleAccount[\s\S]{0,500}onChange\(/);
   assert.match(selector, /setOpen\(false\)/);
   assert.match(selector, /analytics-source-picker-menu/);
   assert.match(selector, /transition-\[opacity,transform\]/);
