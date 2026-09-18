@@ -605,7 +605,8 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
   const key = cacheKey(userId, platform, profileId, daysInput, options);
   const cached = analyticsCache.get(key);
   const age = cached ? Date.now() - cached.updatedAt : Infinity;
-  if (cached && age <= ANALYTICS_CACHE_TTL_MS) return withCacheState(cached.value, 'fresh');
+  const forceRefresh = Boolean(options.forceRefresh);
+  if (!forceRefresh && cached && age <= ANALYTICS_CACHE_TTL_MS) return withCacheState(cached.value, 'fresh');
 
   const existing = analyticsInflight.get(key);
   if (existing) return existing;
