@@ -3,7 +3,7 @@ import { AlertTriangle, CalendarCheck2, CheckCircle2, FilePenLine, RefreshCw, Se
 import { useEffect, useMemo, useState } from 'react'
 import { ApiError } from '../../lib/api-client'
 import { fetchAnalyticsForSource, fetchAnalyticsSources } from '../../lib/analytics-api'
-import { deleteCalendarPost, fetchCalendarData, rescheduleCalendarPost } from '../../lib/calendar-api'
+import { deleteCalendarPost, fetchCalendarData, mergeCalendarFeedData, rescheduleCalendarPost, type CalendarFeedEntry } from '../../lib/calendar-api'
 import { availableSlotsForDate, buildCalendarDays, formatMonth, monthKeyInTimezone, shiftMonth } from '../../lib/calendar-utils'
 import { zonedDateTimeToIso } from '../../lib/bulk-scheduler-utils'
 import { calculateBestPostTime } from '../../lib/posts-analytics'
@@ -24,6 +24,25 @@ const calendarSourcesCacheKey = 'inx-social-cache:calendar-sources-v1'
 
 function calendarCacheKey(timezone: string) {
   return `inx-social-cache:calendar:${encodeURIComponent(timezone)}`
+}
+
+function calendarFeedCacheKey(accountKey: string) {
+  return `inx-social-cache:calendar-feed:${encodeURIComponent(accountKey)}:90`
+}
+
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  if (!items.length) return []
+  const results = new Array<R>(items.length)
+  let cursor = 0
+  const runners = Array.from({ length: Math.min(Math.max(1, concurrency), items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor
+      cursor += 1
+      results[index] = await worker(items[index]!)
+    }
+  })
+  await Promise.all(runners)
+  return results
 }
 
 function CalendarSkeleton() {
@@ -88,11 +107,39 @@ export function ContentCalendarPage() {
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   })
+  const feedAccounts = analyticsSources.data?.accounts || []
+  const feedAccountKey = feedAccounts.map(account => account.analyticsKey).sort().join('|')
+  const accountFeed = useQuery<{ entries: CalendarFeedEntry[]; failures: string[] }>({
+    queryKey: ['calendar-account-feed', feedAccountKey, 90],
+    enabled: feedAccounts.length > 0,
+    initialData: () => feedAccountKey ? readSessionCache<{ entries: CalendarFeedEntry[]; failures: string[] }>(calendarFeedCacheKey(feedAccountKey)) : undefined,
+    initialDataUpdatedAt: 0,
+    placeholderData: previous => previous,
+    staleTime: 2 * 60_000,
+    refetchInterval: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    retry: false,
+    queryFn: async () => {
+      const rows = await mapWithConcurrency(feedAccounts, 3, async account => {
+        try {
+          return { ok: true as const, entry: { account, analytics: await fetchAnalyticsForSource(account, 90) } satisfies CalendarFeedEntry }
+        } catch (error) {
+          return { ok: false as const, failure: `${account.displayName}: ${error instanceof Error ? error.message : 'Could not refresh account history.'}` }
+        }
+      })
+      const result = {
+        entries: rows.flatMap(row => row.ok ? [row.entry] : []),
+        failures: rows.flatMap(row => row.ok ? [] : [row.failure]),
+      }
+      writeSessionCache(calendarFeedCacheKey(feedAccountKey), result)
+      return result
+    },
+  })
   useEffect(() => {
-    const refresh = () => { void Promise.all([calendar.refetch(), analyticsSources.refetch()]) }
+    const refresh = () => { void Promise.all([calendar.refetch(), analyticsSources.refetch(), accountFeed.refetch()]) }
     window.addEventListener('inx-social:refresh', refresh)
     return () => window.removeEventListener('inx-social:refresh', refresh)
-  }, [analyticsSources, calendar])
+  }, [accountFeed, analyticsSources, calendar])
   useEffect(() => {
     if (!notice) return
     const timeout = window.setTimeout(() => setNotice(null), 4500)
@@ -115,36 +162,35 @@ export function ContentCalendarPage() {
     onError: error => setActionError(error instanceof Error ? error.message : 'The calendar action could not be completed.'),
   })
 
-  const visiblePosts = useMemo(() => (calendar.data?.posts || []).filter(post => {
+  const calendarData = useMemo(() => calendar.data
+    ? mergeCalendarFeedData(calendar.data, accountFeed.data?.entries || [], timezone, new Date())
+    : null, [accountFeed.data?.entries, calendar.data, timezone])
+  const visiblePosts = useMemo(() => (calendarData?.posts || []).filter(post => {
     if (platform !== 'all' && post.platform !== platform) return false
     if (pageId && post.pageId !== pageId) return false
     if (status !== 'all' && post.status !== status) return false
     if (search && !`${post.title} ${post.pageName}`.toLowerCase().includes(search.toLowerCase())) return false
     return true
-  }), [calendar.data?.posts, pageId, platform, search, status])
+  }), [calendarData?.posts, pageId, platform, search, status])
   const monthPosts = useMemo(() => visiblePosts.filter(post => post.date.startsWith(monthKey)), [monthKey, visiblePosts])
   const days = useMemo(() => buildCalendarDays(monthKey, visiblePosts, selectedDate, todayKey), [monthKey, selectedDate, todayKey, visiblePosts])
   const selectedPosts = useMemo(() => visiblePosts.filter(post => post.date === selectedDate).sort((left, right) => left.time.localeCompare(right.time)), [selectedDate, visiblePosts])
-  const slots = useMemo(() => availableSlotsForDate(calendar.data?.posts || [], selectedDate), [calendar.data?.posts, selectedDate])
+  const slots = useMemo(() => availableSlotsForDate(calendarData?.posts || [], selectedDate), [calendarData?.posts, selectedDate])
   const recommendationAccount = useMemo(() => {
-    const accounts = analyticsSources.data?.accounts || []
+    const accounts = feedAccounts
     const preferredId = pageId || selectedPosts[0]?.pageId || ''
     return accounts.find(account => account.id === preferredId) || accounts[0] || null
-  }, [analyticsSources.data?.accounts, pageId, selectedPosts])
-  const recommendationAnalytics = useQuery({
-    queryKey: ['calendar-best-time', 'post-for-me', recommendationAccount?.analyticsKey, 90],
-    queryFn: () => fetchAnalyticsForSource(recommendationAccount!, 90),
-    enabled: Boolean(recommendationAccount),
-    retry: 1,
-    refetchInterval: 5 * 60_000,
-    refetchOnWindowFocus: true,
-  })
+  }, [feedAccounts, pageId, selectedPosts])
+  const recommendationAnalytics = recommendationAccount
+    ? accountFeed.data?.entries.find(entry => entry.account.analyticsKey === recommendationAccount.analyticsKey)?.analytics
+    : undefined
+  const recommendationFailed = Boolean(recommendationAccount && accountFeed.data?.failures.some(failure => failure.startsWith(`${recommendationAccount.displayName}:`)))
   const bestTime = useMemo<BestTimeInsight>(() => {
     if (!recommendationAccount) return { available: false, label: 'Choose a destination', time: null, detail: 'Connect or select an account to calculate its strongest publishing time.' }
-    if (recommendationAnalytics.isError) return { available: false, label: 'Analytics unavailable', time: null, detail: `Live timing data for ${recommendationAccount.displayName} could not be loaded.` }
-    return calculateBestPostTime(recommendationAnalytics.data)
-  }, [recommendationAccount, recommendationAnalytics.data, recommendationAnalytics.isError])
-  const calendarStats = calendar.data?.stats || []
+    if (recommendationFailed) return { available: false, label: 'Analytics unavailable', time: null, detail: `Timing data for ${recommendationAccount.displayName} could not be loaded.` }
+    return calculateBestPostTime(recommendationAnalytics)
+  }, [recommendationAccount, recommendationAnalytics, recommendationFailed])
+  const calendarStats = calendarData?.stats || []
 
   const chooseDate = (date: string) => { setSelectedDate(date); setSelectedTime('') }
   const chooseMonth = (offset: number) => { const next = shiftMonth(monthKey, offset); setMonthKey(next); chooseDate(`${next}-01`) }
@@ -175,11 +221,11 @@ export function ContentCalendarPage() {
 
   return <div className="dashboard-canvas">
     <section aria-label="Calendar publishing status" className="mb-4 flex items-start gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-3 xl:grid-cols-5">{calendarStats.map((stat, index) => <CalendarStatCard icon={statIcons[index]} key={stat.label} stat={stat} />)}</section>
-    <CalendarToolbar destinations={calendar.data.destinations} monthKey={monthKey} onNext={() => chooseMonth(1)} onPage={setPageId} onPlatform={setPlatform} onPrevious={() => chooseMonth(-1)} onSearch={setSearch} onStatus={setStatus} onView={setView} pageId={pageId} platform={platform} search={search} status={status} view={view} />
-    {calendar.data.syncWarnings.length > 0 && <div className="mb-4 flex items-start gap-2 rounded-xl border border-brand-amber/20 bg-brand-amber/5 px-3 py-2 text-[10px] leading-4 text-text-muted"><AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-brand-amber" /><span>Some publishing updates could not be refreshed. Your saved schedule is still shown.</span></div>}
+    <CalendarToolbar destinations={calendarData?.destinations || []} monthKey={monthKey} onNext={() => chooseMonth(1)} onPage={setPageId} onPlatform={setPlatform} onPrevious={() => chooseMonth(-1)} onSearch={setSearch} onStatus={setStatus} onView={setView} pageId={pageId} platform={platform} search={search} status={status} view={view} />
+    {((calendarData?.syncWarnings.length || 0) > 0 || (accountFeed.data?.failures.length || 0) > 0) && <div className="mb-4 flex items-start gap-2 rounded-xl border border-brand-amber/20 bg-brand-amber/5 px-3 py-2 text-[10px] leading-4 text-text-muted"><AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-brand-amber" /><span>Some connected-account history could not refresh. Available calendar content is still shown.</span></div>}
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
       {view === 'calendar' ? <CalendarGrid days={days} monthLabel={formatMonth(monthKey)} onSelectDate={chooseDate} onSelectPost={openPost} onToday={chooseToday} /> : <CalendarAgenda onSelectDate={chooseDate} onSelectPost={openPost} posts={monthPosts} />}
-      <SelectedDatePanel bestTime={bestTime} bestTimeLoading={recommendationAnalytics.isLoading} busyPostId={calendarAction.isPending ? action?.post.id || null : null} date={selectedDate} onDeletePost={openDelete} onOpenPost={openPost} onReschedulePost={openReschedule} onSelectTime={setSelectedTime} posts={selectedPosts} selectedTime={selectedTime} slots={slots} />
+      <SelectedDatePanel bestTime={bestTime} bestTimeLoading={accountFeed.isFetching && !recommendationAnalytics} busyPostId={calendarAction.isPending ? action?.post.id || null : null} canSchedule={selectedDate >= todayKey} date={selectedDate} onDeletePost={openDelete} onOpenPost={openPost} onReschedulePost={openReschedule} onSelectTime={setSelectedTime} posts={selectedPosts} selectedTime={selectedTime} slots={slots} />
     </div>
     <CalendarPostActionDialog action={action?.type || 'reschedule'} busy={calendarAction.isPending} date={actionDate} error={actionError} onClose={() => { if (!calendarAction.isPending) setAction(null) }} onConfirm={() => calendarAction.mutate()} onDate={setActionDate} onTime={setActionTime} post={action?.post || null} time={actionTime} />
     {notice && <div className="fixed bottom-5 right-5 z-[110] flex max-w-sm items-center gap-3 rounded-xl border border-brand-green/25 bg-[#071923] px-4 py-3 text-xs shadow-2xl"><CheckCircle2 className="size-4 shrink-0 text-brand-green" /><span>{notice}</span><button aria-label="Dismiss" className="ml-1 text-text-soft hover:text-white" onClick={() => setNotice(null)} type="button"><X className="size-3.5" /></button></div>}
