@@ -15,7 +15,8 @@ test('landing is capability-first and uses the verified dashboard preview', () =
     assert.equal(landing.includes(area), true, `${area} should remain on the landing page`);
   }
 
-  assert.equal((landing.match(/data:image\/webp;base64,/g) || []).length, 2);
+  assert.equal((landing.match(/\/assets\/inx-social-dashboard\.jpg/g) || []).length, 2);
+  assert.doesNotMatch(landing, /data:image\/webp;base64,/);
   assert.equal(landing.includes('inxsocial-dashboard-user-preview.webp'), false);
   assert.equal(landing.includes('dashboard-logo-mask'), false);
   assert.equal(landing.includes('Everything you need to run your social media, in one place'), true);
@@ -33,20 +34,14 @@ test('AI Content Studio is a premium static five-feature marketing section', () 
   const landing = read('public/landing.html');
   const css = read('public/landing-redesign.css');
 
-  assert.equal((landing.match(/class="ai-feature-card/g) || []).length, 5);
+  assert.equal((landing.match(/inxsocial-ai-studio-cards-final\.avif/g) || []).length, 1);
   for (const feature of ['Image Post','Carousel Post','Short Video / Reel','UGC Ad Post','Video Clipping']) {
     assert.equal(landing.includes(feature), true, `${feature} should appear in AI Content Studio`);
   }
   assert.equal(landing.includes('Stock Video Creator'), true);
   assert.equal(landing.includes('AI Video Clipping'), true);
-  assert.equal(landing.includes('Coming soon'), true);
-  assert.match(css, /\.ai-feature-grid/);
-  assert.match(css, /\.ai-feature-wide/);
-  assert.match(css, /\.image-post-art/);
-  assert.match(css, /\.carousel-post-art/);
-  assert.match(css, /\.video-post-art/);
-  assert.match(css, /\.ugc-post-art/);
-  assert.match(css, /\.clipping-post-art/);
+  assert.match(landing, /coming soon/i);
+  assert.match(css, /\.ai-studio-visual/);
 });
 
 test('landing names all nine supported social networks and uses local inline logos', () => {
