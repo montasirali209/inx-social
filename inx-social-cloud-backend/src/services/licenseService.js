@@ -72,7 +72,7 @@ function evaluateLicense(user, sub, now = new Date(), override = null) {
     overrideId: override?.id || null,
     overrideExpiresAt: override?.currentPeriodEnd || null,
     trialEndsAt: user.trialEndsAt,
-    trialStartsAt: user.createdAt || null,
+    trialStartsAt: provider === 'admin_override' && sourcePlan === 'TRIAL' ? (sub?.currentPeriodStart || user.createdAt || null) : (user.createdAt || null),
     currentPeriodStart: sub?.currentPeriodStart || null,
     currentPeriodEnd: sub?.currentPeriodEnd || null,
     graceEndsAt: sub?.graceEndsAt || null,
