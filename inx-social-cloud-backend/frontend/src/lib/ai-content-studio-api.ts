@@ -68,8 +68,8 @@ function fallbackCredits(request: GenerationRequest) {
     const duration = Math.max(5, Math.min(15, Number(request.options.duration || 5)))
     return duration <= 5 ? 15 : duration <= 10 ? 25 : 35
   }
-  const duration = Math.max(5, Math.min(15, Number(request.options.duration || 10)))
-  return duration <= 10 ? 25 : 50
+  const duration = Math.max(5, Math.min(10, Number(request.options.duration || 10)))
+  return duration <= 5 ? 25 : 40
 }
 
 export async function estimateGenerationCost(request: GenerationRequest): Promise<GenerationCostEstimate> {
