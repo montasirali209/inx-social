@@ -204,7 +204,8 @@ async function updateCommercialPlan(req, res, next) {
 
     if (input.action === 'APPLY') {
       if (!input.plan) return res.status(400).json({ error: 'plan is required when applying an override.' });
-      const expiresAt = typeof input.durationDays === 'number' ? new Date(now.getTime() + input.durationDays * 86400000) : null;
+      const effectiveDays = input.plan === 'TRIAL' && input.durationDays == null ? 7 : input.durationDays;
+      const expiresAt = typeof effectiveDays === 'number' ? new Date(now.getTime() + effectiveDays * 86400000) : null;
       await prisma.subscription.create({
         data: {
           userId: user.id,
