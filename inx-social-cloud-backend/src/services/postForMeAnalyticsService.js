@@ -55,21 +55,37 @@ function pinterestWindow(metrics) {
   return metrics?.lifetime_metrics || metrics?.['90d'] || {};
 }
 
+function genericMetrics(raw = {}) {
+  const reactions = pick(raw, ['reactions_total', 'reactions', 'likes', 'like_count']);
+  const comments = pick(raw, ['comments', 'comment_count', 'replies', 'reply_count']);
+  const shares = pick(raw, ['shares', 'share_count', 'reposts', 'retweet_count']);
+  const saves = pick(raw, ['saves', 'saved', 'bookmarks', 'bookmark_count']);
+  const clicks = pick(raw, ['clicks', 'link_clicks', 'post_clicks', 'outbound_clicks', 'website_clicks']);
+  const views = pick(raw, ['views', 'media_views', 'video_views', 'impressions', 'impression_count', 'reach']);
+  const explicitInteractions = pick(raw, ['engagements', 'engagement', 'total_interactions', 'interactions']);
+  const interactions = explicitInteractions || reactions + comments + shares + saves;
+  const follows = pick(raw, ['follows', 'new_followers', 'subscribers_gained']);
+  return { views, reactions, comments, shares, clicks, follows, interactions };
+}
+
 function normaliseMetrics(platform, raw = {}) {
+  const generic = genericMetrics(raw);
   if (platform === 'facebook') {
-    const views = pick(raw, ['media_views', 'video_views', 'reach']);
-    const reactions = pick(raw, ['reactions_total']);
-    const comments = pick(raw, ['comments']);
-    const shares = pick(raw, ['shares']);
-    return { views, reactions, comments, shares, clicks: 0, follows: 0, interactions: reactions + comments + shares };
+    const views = generic.views || pick(raw, ['media_views', 'video_views', 'reach', 'impressions']);
+    const reactions = generic.reactions || pick(raw, ['reactions_total']);
+    const comments = generic.comments || pick(raw, ['comments']);
+    const shares = generic.shares || pick(raw, ['shares']);
+    const clicks = generic.clicks || pick(raw, ['post_clicks', 'link_clicks']);
+    const interactions = generic.interactions || reactions + comments + shares;
+    return { views, reactions, comments, shares, clicks, follows: generic.follows, interactions };
   }
   if (platform === 'instagram') {
-    const reactions = pick(raw, ['likes']);
-    const comments = pick(raw, ['comments', 'replies']);
-    const shares = pick(raw, ['shares']);
-    const interactions = pick(raw, ['total_interactions']) || reactions + comments + shares + pick(raw, ['saved']);
+    const reactions = generic.reactions || pick(raw, ['likes']);
+    const comments = generic.comments || pick(raw, ['comments', 'replies']);
+    const shares = generic.shares || pick(raw, ['shares']);
+    const interactions = generic.interactions || pick(raw, ['total_interactions']) || reactions + comments + shares + pick(raw, ['saved']);
     const profileActivity = typeof raw.profile_activity === 'number' ? raw.profile_activity : 0;
-    return { views: pick(raw, ['views', 'reach']), reactions, comments, shares, clicks: profileActivity, follows: pick(raw, ['follows']), interactions };
+    return { views: generic.views || pick(raw, ['views', 'reach', 'impressions']), reactions, comments, shares, clicks: generic.clicks || profileActivity, follows: generic.follows || pick(raw, ['follows']), interactions };
   }
   if (platform === 'linkedin') {
     const reactions = pick(raw, ['likeCount']);
@@ -121,7 +137,7 @@ function normaliseMetrics(platform, raw = {}) {
     const shares = pick(raw, ['repostCount', 'quoteCount']);
     return { views: 0, reactions, comments, shares, clicks: 0, follows: 0, interactions: reactions + comments + shares };
   }
-  return { views: 0, reactions: 0, comments: 0, shares: 0, clicks: 0, follows: 0, interactions: 0 };
+  return generic;
 }
 
 function metricAggregation(key) {
