@@ -81,28 +81,60 @@ function client() {
   });
 }
 
+function retryAfterMs(headers) {
+  const raw = headers?.['retry-after'];
+  if (raw == null || raw === '') return 0;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds)) return Math.max(0, Math.round(seconds * 1000));
+  const timestamp = Date.parse(String(raw));
+  return Number.isFinite(timestamp) ? Math.max(0, timestamp - Date.now()) : 0;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function apiRequest(method, path, options = {}) {
-  try {
-    const response = await client().request({
-      method,
-      url: path,
-      data: options.data,
-      params: options.params,
-      headers: options.headers,
-      timeout: options.timeout || Number(process.env.POST_FOR_ME_TIMEOUT_MS || 30000)
-    });
-    return response.data;
-  } catch (error) {
-    const raw = error.response?.data;
-    const message = Array.isArray(raw?.error)
-      ? raw.error.join(' · ')
-      : raw?.message || raw?.error || error.message || 'Post for Me request failed.';
-    throw Object.assign(new Error(String(message)), {
-      status: Number(error.response?.status || 502),
-      publicMessage: String(message).slice(0, 500),
-      provider: PROVIDER_ENGINE,
-      providerResponse: raw
-    });
+  const upperMethod = String(method || 'GET').toUpperCase();
+  const maxRetries = Number.isInteger(options.maxRetries) ? options.maxRetries : (upperMethod === 'GET' ? 2 : 0);
+  let attempt = 0;
+
+  while (true) {
+    try {
+      const response = await client().request({
+        method: upperMethod,
+        url: path,
+        data: options.data,
+        params: options.params,
+        headers: options.headers,
+        timeout: options.timeout || Number(process.env.POST_FOR_ME_TIMEOUT_MS || 30000)
+      });
+      return response.data;
+    } catch (error) {
+      const raw = error.response?.data;
+      const status = Number(error.response?.status || 502);
+      const retryDelay = retryAfterMs(error.response?.headers);
+      if (status === 429 && attempt < maxRetries) {
+        const fallbackDelay = 900 * (attempt + 1);
+        await sleep(Math.min(15000, Math.max(750, retryDelay || fallbackDelay)));
+        attempt += 1;
+        continue;
+      }
+
+      const rawError = raw?.error;
+      const message = Array.isArray(rawError)
+        ? rawError.join(' · ')
+        : typeof rawError === 'string'
+          ? rawError
+          : raw?.message || (rawError && typeof rawError === 'object' ? rawError.message : null) || error.message || 'Post for Me request failed.';
+      throw Object.assign(new Error(String(message)), {
+        status,
+        publicMessage: String(message).slice(0, 500),
+        provider: PROVIDER_ENGINE,
+        providerResponse: raw,
+        retryAfterMs: retryDelay
+      });
+    }
   }
 }
 

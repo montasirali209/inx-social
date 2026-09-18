@@ -89,7 +89,8 @@
   .workspace-frame {
     width: 100%;
     max-width: 96rem;
-    margin-inline: auto;
+    min-width: 0;
+    margin-inline: 0 auto;
   }
 
   .scrollbar-thin {

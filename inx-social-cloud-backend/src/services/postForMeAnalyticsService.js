@@ -1,6 +1,11 @@
 const prisma = require('../db/prisma');
 const postForMe = require('./postForMeService');
 
+const ANALYTICS_CACHE_TTL_MS = 3 * 60 * 1000;
+const ANALYTICS_STALE_TTL_MS = 30 * 60 * 1000;
+const analyticsCache = new Map();
+const analyticsInflight = new Map();
+
 function number(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -210,8 +215,8 @@ async function fetchFeed(profile, days) {
   const { since } = dateRange(days);
   const rows = [];
   let cursor = '';
-  for (let page = 0; page < 10 && rows.length < 500; page += 1) {
-    const params = new URLSearchParams({ limit: '50' });
+  for (let page = 0; page < 3 && rows.length < 300; page += 1) {
+    const params = new URLSearchParams({ limit: '100' });
     params.append('expand', 'metrics');
     if (cursor) params.set('cursor', cursor);
     const response = await postForMe.apiRequest('GET', `/social-account-feeds/${encodeURIComponent(accountId)}?${params.toString()}`);
@@ -226,7 +231,7 @@ async function fetchFeed(profile, days) {
   return rows;
 }
 
-async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30) {
+async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 30) {
   const days = safeDays(daysInput);
   const profile = await resolveProfile(userId, profileId, platform);
   const { since, until } = dateRange(days);
@@ -337,6 +342,48 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
       metricSummary
     }
   };
+}
+
+function cacheKey(userId, platform, profileId, daysInput) {
+  return [String(userId), String(platform), String(profileId), String(safeDays(daysInput))].join(':');
+}
+
+function withCacheState(value, cacheState, warning) {
+  return {
+    ...value,
+    warnings: warning ? [...(value.warnings || []), warning] : (value.warnings || []),
+    provider: { ...(value.provider || {}), cacheState }
+  };
+}
+
+async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30) {
+  const key = cacheKey(userId, platform, profileId, daysInput);
+  const cached = analyticsCache.get(key);
+  const age = cached ? Date.now() - cached.updatedAt : Infinity;
+  if (cached && age <= ANALYTICS_CACHE_TTL_MS) return withCacheState(cached.value, 'fresh');
+
+  const existing = analyticsInflight.get(key);
+  if (existing) return existing;
+
+  const task = loadPostForMeAnalytics(userId, platform, profileId, daysInput)
+    .then((value) => {
+      analyticsCache.set(key, { value, updatedAt: Date.now() });
+      return withCacheState(value, 'live');
+    })
+    .catch((error) => {
+      if (cached && age <= ANALYTICS_STALE_TTL_MS && Number(error?.status || 0) === 429) {
+        return withCacheState(
+          cached.value,
+          'stale',
+          'Post for Me temporarily rate-limited the live refresh, so INXSocial is showing the most recent verified analytics snapshot.'
+        );
+      }
+      throw error;
+    })
+    .finally(() => analyticsInflight.delete(key));
+
+  analyticsInflight.set(key, task);
+  return task;
 }
 
 module.exports = { getPostForMeAnalytics, normaliseMetrics, collectNumericMetrics, providerMetricSummary };

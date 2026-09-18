@@ -6,7 +6,7 @@ import { AnalyticsCard, AnalyticsCardHeader, UnavailableState } from './Analytic
 
 export function AudienceGrowthCard({ points, total }: { points: PerformancePoint[]; total: number | null }) {
   const maximum = Math.max(1, ...points.map(point => Math.abs(point.followers)))
-  return <AnalyticsCard><AnalyticsCardHeader description="Follower or subscriber change returned by the selected platform for this period." title="Audience Growth" />{total === null ? <UnavailableState detail="The selected source did not return audience-growth data for this period." title="Audience growth unavailable" /> : <div className="px-5 pb-5"><strong className="text-2xl">{formatAnalyticsValue(total, 'compact')}</strong><p className="mt-1 text-[10px] text-text-muted">Net audience change in this period</p><div className="mt-5 flex h-40 items-end gap-1 border-b border-border-soft">{points.map((point, index) => <span className="analytics-rise-bar group relative min-w-0 flex-1 rounded-t bg-gradient-to-t from-brand-teal/55 to-brand-cyan transition hover:brightness-125" key={point.date} style={{ height: `${Math.max(2, Math.abs(point.followers) / maximum * 100)}%`, animationDelay: `${index * 24}ms` }}><span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-bg px-2 py-1 text-[9px] shadow-panel group-hover:block">{point.label}: {point.followers}</span></span>)}</div><div className="mt-2 flex justify-between text-[9px] text-text-soft"><span>{points[0]?.label}</span><span>{points.at(-1)?.label}</span></div></div>}</AnalyticsCard>
+  return <AnalyticsCard><AnalyticsCardHeader description="Follower or subscriber change returned by the selected platform for this period." title="Audience Growth" />{total === null ? <UnavailableState detail="Post for Me provides post-level analytics here, but this source did not expose account-level follower or subscriber change for the selected period." title="Audience growth unavailable" /> : <div className="px-5 pb-5"><strong className="text-2xl">{formatAnalyticsValue(total, 'compact')}</strong><p className="mt-1 text-[10px] text-text-muted">Net audience change in this period</p><div className="mt-5 flex h-40 items-end gap-1 border-b border-border-soft">{points.map((point, index) => <span className="analytics-rise-bar group relative min-w-0 flex-1 rounded-t bg-gradient-to-t from-brand-teal/55 to-brand-cyan transition hover:brightness-125" key={point.date} style={{ height: `${Math.max(2, Math.abs(point.followers) / maximum * 100)}%`, animationDelay: `${index * 24}ms` }}><span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded bg-bg px-2 py-1 text-[9px] shadow-panel group-hover:block">{point.label}: {point.followers}</span></span>)}</div><div className="mt-2 flex justify-between text-[9px] text-text-soft"><span>{points[0]?.label}</span><span>{points.at(-1)?.label}</span></div></div>}</AnalyticsCard>
 }
 
 type AudiencePulseProps = {
@@ -35,6 +35,13 @@ function signedPercent(value: number | null) {
 }
 
 export function AudiencePulseCard({ platform, audience, growth, interactions, contentCount, days }: AudiencePulseProps) {
+  if (audience === null && growth === null) {
+    return <AnalyticsCard>
+      <AnalyticsCardHeader description={`Post for Me is supplying live post-level ${platformLabels[platform]} analytics.`} title="Audience Pulse" />
+      <UnavailableState detail="Account-level follower totals and audience growth are not supplied for this connection. Content views, interactions, post performance and provider metrics above remain live." title="Account-level audience data unavailable" />
+    </AnalyticsCard>
+  }
+
   const startAudience = audience !== null && growth !== null ? audience - growth : null
   const growthRate = startAudience !== null && startAudience > 0 && growth !== null ? (growth / startAudience) * 100 : null
   const interactionsPerThousand = audience !== null && audience > 0 ? (interactions / audience) * 1000 : null

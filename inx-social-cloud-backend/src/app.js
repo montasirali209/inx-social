@@ -23,6 +23,7 @@ const aiContentStudioRoutes = require('./routes/aiContentStudioRoutes');
 const agentRoutes = require('./routes/agentRoutes');
 const socialPlatformRoutes = require('./routes/socialPlatformRoutes');
 const socialConnectionRoutes = require('./routes/socialConnectionRoutes');
+const socialPublicationRoutes = require('./routes/socialPublicationRoutes');
 const packageInfo = require('../package.json');
 const env = require('./config/env');
 
@@ -279,6 +280,7 @@ app.use('/api/ai-content-studio', rateLimit({
 app.use('/api/agent', agentRoutes);
 app.use('/api/social-platforms', socialPlatformRoutes);
 app.use('/api/social-connections', socialConnectionRoutes);
+app.use('/api/social-publications', socialPublicationRoutes);
 
 app.get('/app/*', (req, res, next) => {
   sendTrackedHtml(reactAppIndex, res, next, {
