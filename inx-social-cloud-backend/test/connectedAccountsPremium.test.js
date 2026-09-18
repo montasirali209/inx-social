@@ -68,9 +68,12 @@ test('Connected Accounts keeps the platform treatments and universal topbar cont
   assert.match(plan, /More connected accounts/);
 });
 
-test('Unsupported networks are visible but never fake a production OAuth flow', () => {
+test('Connected Accounts only surfaces live gateway networks and real KPI activity', () => {
   const page = read('frontend/src/components/connections/ConnectedAccountsPageV4.tsx');
-  assert.match(page, /platform !== 'whatsapp' && platform !== 'mastodon'/);
-  assert.match(page, /not enabled by the current production gateway/i);
-  assert.match(page, /will not start a fake or incomplete connection flow/i);
+  assert.doesNotMatch(page, /WhatsApp|Mastodon/);
+  assert.match(page, /job\.status === 'PUBLISHED'/);
+  assert.match(page, /No posts published this week/);
+  assert.match(page, /HealthRing/);
+  assert.match(page, /DataSparkline/);
+  assert.match(page, /ConnectNewAccountSection[\s\S]*ConnectedPlatformsSection/);
 });
