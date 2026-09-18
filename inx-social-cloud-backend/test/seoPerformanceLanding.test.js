@@ -10,7 +10,7 @@ test('landing response applies SEO title, description and render-critical styles
   const app = read('src/app.js');
   const landing = read('public/landing.html');
 
-  assert.match(landing, /landing-redesign\.css\?v=20260918e/);
+  assert.match(landing, /landing-redesign\\.css\\?v=20260918f/);
   assert.match(landing, /landing\.js\?v=20260918d/);
   assert.match(landing, /<title>INXSocial \| Create, Schedule, Analyse &amp; Manage Social Media<\/title>/);
   assert.match(landing, /Manage connected social accounts, create content with AI/);
