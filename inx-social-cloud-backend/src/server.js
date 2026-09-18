@@ -5,7 +5,7 @@ const { startAgentRuntime } = require('./services/agentRuntimeService');
 const { startMediaRetention } = require('./services/mediaRetentionService');
 const { startStockVideoRuntime } = require('./services/stockVideoStudioService');
 const { startRuntime: startPostForMeRuntime } = require('./services/postForMeService');
-const { startAnalyticsSnapshotRuntime } = require('./services/postForMeAnalyticsService');
+const { startAnalyticsCacheRuntime } = require('./services/postForMeAnalyticsService');
 const prisma = require('./db/prisma');
 
 const server = app.listen(env.port, () => {
@@ -15,7 +15,7 @@ const server = app.listen(env.port, () => {
   startMediaRetention();
   startStockVideoRuntime();
   startPostForMeRuntime();
-  startAnalyticsSnapshotRuntime();
+  startAnalyticsCacheRuntime();
 });
 
 let shuttingDown = false;
