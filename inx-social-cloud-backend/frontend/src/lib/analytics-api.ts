@@ -102,6 +102,14 @@ export function mergeAnalyticsResults(results: PlatformAnalytics[], accounts: An
   const engagementRate = summary.views > 0 ? Number((summary.totalInteractions / summary.views * 100).toFixed(2)) : null
   const metricAvailable = results.some(result => result.capabilities?.pageInsights.available)
   const contentAvailable = results.some(result => result.capabilities?.publishedContent.available)
+  const cacheStates = results.map(result => result.provider?.cacheState).filter(Boolean)
+  const combinedCacheState = cacheStates.includes('refreshing')
+    ? 'refreshing'
+    : cacheStates.includes('stale')
+      ? 'stale'
+      : cacheStates.includes('live')
+        ? 'live'
+        : cacheStates.length ? 'fresh' : undefined
   const capability = (available: boolean, reason: string) => ({ state: available ? 'available' : 'no_data', available, reason, metaCode: null })
 
   return {
@@ -141,6 +149,7 @@ export function mergeAnalyticsResults(results: PlatformAnalytics[], accounts: An
     demographics: { instagram: null, facebookSnapshot: null },
     content,
     warnings: results.flatMap(result => result.warnings || []),
+    provider: { ...(first.provider || {}), cacheState: combinedCacheState },
     scope: { accountCount: accounts.length, platforms, label: platforms.length === 1 ? `${accounts.length} ${platforms[0]} accounts` : `${accounts.length} selected accounts` },
   } as PlatformAnalytics
 }
