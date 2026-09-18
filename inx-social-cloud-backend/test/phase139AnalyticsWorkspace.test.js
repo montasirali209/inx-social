@@ -28,12 +28,12 @@ test('Analytics is a first-class responsive React workspace', () => {
   assert.match(page, /sm:grid-cols-2 xl:grid-cols-6/);
   assert.match(page, /ExportReportButton/);
   assert.match(page, /AnalyticsScopeNotice/);
-  assert.match(scopeNotice, /Post performance analytics/);
-  assert.match(scopeNotice, /Current metrics/);
-  assert.match(scopeNotice, /Latest post metrics/);
-  assert.match(scopeNotice, /Selected sources only/);
-  assert.match(scopeNotice, /Trend tracking/);
-  assert.match(scopeNotice, /complete native-platform account history/);
+  assert.match(scopeNotice, /Current post performance/);
+  assert.match(scopeNotice, />Live</);
+  assert.match(scopeNotice, /Post metrics/);
+  assert.match(scopeNotice, /Selected accounts/);
+  assert.match(scopeNotice, /Trend history/);
+  assert.match(scopeNotice, /Latest performance for published posts/);
 });
 
 test('Analytics uses live Post for Me platform data and derives transparent metrics without mock values', () => {
@@ -62,6 +62,8 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(provider, /status === 429/);
   assert.match(page, /mapWithConcurrency\(selectedAccounts, 3/);
   assert.match(page, /refetchInterval: 5 \* 60_000/);
+  assert.match(page, /readSessionCache/);
+  assert.match(page, /writeSessionCache/);
   assert.match(insights, /Content Efficiency/);
   assert.match(insights, /Publishing Rhythm/);
   assert.match(insights, /Avg interactions \/ post/);
@@ -94,9 +96,9 @@ test('Analytics charts, tabs and report actions remain accessible and functional
   assert.match(chart, /exactDate/);
   assert.match(chart, /areaPath/);
   assert.match(chart, /Move across the line for exact dates/);
-  assert.match(chart, /Post Performance Over Time/);
-  assert.match(chart, /Measured changes in the selected posts/);
-  assert.match(chart, /Earlier lifetime views remain included in the KPI totals/);
+  assert.match(chart, /Post Performance Trend/);
+  assert.match(chart, /Tracks changes in views and engagement/);
+  assert.match(chart, /New performance changes will appear here/);
   assert.match(chart, /const tension = 0\.82/);
   assert.match(page, /trackedPerformance/);
   assert.match(page, /interval === 'monthly' \? trackedPerformance/);
