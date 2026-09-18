@@ -11,6 +11,7 @@ const statuses: Record<CalendarPost['status'], VideoStatus> = { scheduled: 'sche
 export function ScheduledVideoCard({ post, busy = false, onOpen, onReschedule, onDelete }: { post: CalendarPost; busy?: boolean; onOpen: (post: CalendarPost) => void; onReschedule: (post: CalendarPost) => void; onDelete: (post: CalendarPost) => void }) {
   const [open, setOpen] = useState(false)
   const platformLabel = platformPresentation[post.platform].label
+  const canManageSchedule = Boolean(post.jobId && (post.status === 'scheduled' || post.status === 'needs_review'))
   return <article className="min-w-0 rounded-xl border border-border-soft bg-black/15 p-2 transition hover:border-brand-cyan/30 hover:bg-panel-hover/40">
     <div className="flex min-w-0 items-center gap-2">
       <button aria-label={`Open ${post.title} on ${platformLabel}`} className="contents" disabled={!post.platformUrl} onClick={() => onOpen(post)} type="button">
@@ -23,8 +24,8 @@ export function ScheduledVideoCard({ post, busy = false, onOpen, onReschedule, o
     </div>
     {open && <div className="mt-2 grid gap-1 border-t border-border-soft pt-2">
       {post.platformUrl && <button className="flex min-h-8 items-center gap-2 rounded-lg px-2 text-left text-[10px] text-text-muted hover:bg-white/5 hover:text-white" onClick={() => { setOpen(false); onOpen(post) }} type="button"><ExternalLink className="size-3.5 text-brand-cyan" />Open on {platformLabel}</button>}
-      <button className="flex min-h-8 items-center gap-2 rounded-lg px-2 text-left text-[10px] text-text-muted hover:bg-white/5 hover:text-white" onClick={() => { setOpen(false); onReschedule(post) }} type="button"><CalendarClock className="size-3.5 text-brand-cyan" />Reschedule</button>
-      <button className="flex min-h-8 items-center gap-2 rounded-lg px-2 text-left text-[10px] text-brand-red hover:bg-brand-red/10" onClick={() => { setOpen(false); onDelete(post) }} type="button"><Trash2 className="size-3.5" />Delete from {platformLabel} & INXSocial</button>
+      {canManageSchedule && <button className="flex min-h-8 items-center gap-2 rounded-lg px-2 text-left text-[10px] text-text-muted hover:bg-white/5 hover:text-white" onClick={() => { setOpen(false); onReschedule(post) }} type="button"><CalendarClock className="size-3.5 text-brand-cyan" />Reschedule</button>}
+      {canManageSchedule && <button className="flex min-h-8 items-center gap-2 rounded-lg px-2 text-left text-[10px] text-brand-red hover:bg-brand-red/10" onClick={() => { setOpen(false); onDelete(post) }} type="button"><Trash2 className="size-3.5" />Remove scheduled post</button>}
     </div>}
   </article>
 }

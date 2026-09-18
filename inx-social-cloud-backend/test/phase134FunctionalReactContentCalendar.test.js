@@ -20,8 +20,9 @@ test('Phase 13.4 makes Content Calendar a first-class responsive React route', (
   assert.match(toolbar, /CalendarFilterMenu/);
   assert.match(toolbar, /Every platform/);
   assert.match(toolbar, /All connected accounts/);
-  assert.match(toolbar, /Upcoming only/);
-  assert.doesNotMatch(toolbar, /label: 'Published'/);
+  assert.match(toolbar, /All content/);
+  assert.match(toolbar, /label: 'Published'/);
+  assert.match(toolbar, /label: 'Failed'/);
   assert.doesNotMatch(toolbar, /<select/);
   assert.match(toolbar, /Schedule Content/);
   assert.match(toolbar, /Import Batch/);
@@ -38,14 +39,17 @@ test('Phase 13.4 uses universal Post for Me publishing state without sample cale
   assert.match(api, /fetchConnectionsWorkspace/);
   assert.match(api, /\/api\/social-publications\?limit=500/);
   assert.match(api, /source: 'post_for_me'/);
-  assert.match(api, /post\.status === 'scheduled' \|\| post\.status === 'needs_review'/);
+  assert.match(api, /post\.status === 'published' \|\| post\.status === 'failed'/);
   assert.match(page, /queryKey: \['content-calendar', 'post-for-me', timezone\]/);
   assert.match(page, /refetchInterval: 30_000/);
   assert.match(page, /refetchIntervalInBackground: false/);
   assert.match(page, /fetchAnalyticsSources/);
   assert.match(page, /fetchAnalyticsForSource/);
   assert.match(page, /calculateBestPostTime/);
-  assert.match(page, /calendar\.data\?\.stats/);
+  assert.match(page, /mergeCalendarFeedData/);
+  assert.match(page, /calendarData\?\.stats/);
+  assert.match(page, /calendar-account-feed/);
+  assert.match(page, /mapWithConcurrency\(feedAccounts, 3/);
   assert.doesNotMatch(page, /fetchUniversalPublishingKpis|universalPublishingKpiQueryKey/);
   assert.doesNotMatch(selectedDate, /CalendarQuickActionsCard/);
   assert.match(page, /readSessionCache/);
@@ -64,13 +68,27 @@ test('Content Calendar opens platform posts and manages universal provider sched
 
   assert.match(page, /window\.open\(post\.platformUrl/);
   assert.match(selected, /Open on \{platformLabel\}/);
-  assert.match(selected, /Delete from \{platformLabel\} & INXSocial/);
+  assert.match(selected, /canManageSchedule/);
+  assert.match(selected, /Remove scheduled post/);
   assert.match(dialog, /scheduled post from \{platformLabel\}/);
   assert.match(api, /rescheduleCalendarPost/);
   assert.match(api, /deleteCalendarPost/);
   assert.match(api, /\/api\/social-publications\/\$\{encodeURIComponent\(post\.jobId\)\}\/schedule/);
   assert.match(api, /\/api\/social-publications\/\$\{encodeURIComponent\(post\.jobId\)\}/);
   assert.doesNotMatch(`${api}${selected}${dialog}`, /facebook\/posts|Open on Facebook|Delete from Facebook|Facebook requires/);
+});
+
+test('Content Calendar imports connected account history instead of showing only INXSocial-created posts', () => {
+  const page = read('frontend/src/components/calendar/ContentCalendarPage.tsx');
+  const api = read('frontend/src/lib/calendar-api.ts');
+  const panel = read('frontend/src/components/calendar/SelectedDatePanel.tsx');
+
+  assert.match(page, /fetchAnalyticsForSource\(account, 90\)/);
+  assert.match(api, /mergeCalendarFeedData/);
+  assert.match(api, /entry\.analytics\.content/);
+  assert.match(api, /status: 'published'/);
+  assert.match(panel, />Content</);
+  assert.match(panel, /Published account content will appear here/);
 });
 
 test('Calendar keeps scheduling focused without a redundant quick-actions panel', () => {

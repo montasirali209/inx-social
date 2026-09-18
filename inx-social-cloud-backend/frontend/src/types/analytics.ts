@@ -19,6 +19,7 @@ export type HeatmapCell = { day: string; hour: number; value: number }
 export type AnalyticsView = {
   stats: AnalyticsStat[]
   performance: PerformancePoint[]
+  publishedPerformance: PerformancePoint[]
   topPosts: TopPost[]
   heatmap: HeatmapCell[]
   totalEngagements: number

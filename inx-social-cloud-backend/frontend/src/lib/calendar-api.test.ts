@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildCalendarData } from './calendar-api'
+import { buildCalendarData, mergeCalendarFeedData } from './calendar-api'
 import type { CalendarDestination } from '../types/calendar'
 import type { DashboardJob } from '../types/dashboard'
 
@@ -50,7 +50,7 @@ describe('Post for Me calendar identity', () => {
     expect(result.destinations).toEqual([destination])
   })
 
-  it('keeps the actionable calendar focused on future Post for Me schedule state', () => {
+  it('keeps published history alongside future schedule state', () => {
     const publishedJob = {
       ...scheduledJob,
       id: 'pfm:published-1',
@@ -60,7 +60,47 @@ describe('Post for Me calendar identity', () => {
       metaPostId: 'published-1',
     } satisfies DashboardJob
     const result = buildCalendarData([scheduledJob, publishedJob], [destination], 'UTC', new Date('2026-09-11T00:00:00.000Z'))
-    expect(result.posts.map(post => post.id)).toEqual(['pfm:post-1'])
+    expect(result.posts.map(post => post.id)).toEqual(['pfm:published-1', 'pfm:post-1'])
     expect(result.stats.find(stat => stat.label === 'Connected Accounts')?.value).toBe(1)
   })
+  it('merges native account feed posts into the calendar and monthly published KPI', () => {
+    const result = buildCalendarData([scheduledJob], [destination], 'UTC', new Date('2026-09-18T00:00:00.000Z'))
+    const merged = mergeCalendarFeedData(result, [{
+      account: {
+        analyticsKey: 'instagram:profile-1',
+        id: 'profile-1',
+        platform: 'instagram',
+        displayName: 'INXSocial',
+        username: 'inxsocial',
+        avatarUrl: null,
+        detail: 'PROFESSIONAL',
+        status: 'connected',
+        connectedAt: '2026-09-01T00:00:00.000Z',
+        lastSyncedAt: null,
+        connectionId: 'connection-1',
+      },
+      analytics: {
+        platform: 'instagram',
+        fetchedAt: '2026-09-18T10:00:00.000Z',
+        page: { id: 'profile-1', name: 'INXSocial' },
+        summary: { followers: 0, posts: 1, reactions: 10, comments: 2, shares: 1, engagements: 13, totalInteractions: 13, views: 200, postViews: 200, uniqueViewers: 0, clicks: 0, engagementRate: 6.5, calculationNote: 'Current post metrics.' },
+        content: [{
+          id: 'native-post-1',
+          message: 'Published natively',
+          createdTime: '2026-09-08T12:00:00.000Z',
+          permalinkUrl: 'https://www.instagram.com/p/native-post-1',
+          thumbnailUrl: 'https://example.com/native.jpg',
+          contentType: 'IMAGE',
+          reactions: 10,
+          comments: 2,
+          shares: 1,
+          insights: { views: 200, uniqueViewers: null, clicks: null, engagement: 13, totalInteractions: 13, engagementRate: 6.5 },
+        }],
+      },
+    }], 'UTC', new Date('2026-09-18T00:00:00.000Z'))
+
+    expect(merged.posts.some(post => post.providerPostId === 'native-post-1' && post.status === 'published')).toBe(true)
+    expect(merged.stats.find(stat => stat.label === 'Published This Month')?.value).toBe(1)
+  })
+
 })
