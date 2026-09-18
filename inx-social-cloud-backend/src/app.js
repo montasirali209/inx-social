@@ -102,44 +102,7 @@ const guardAdminSurface = (req, res, next) => {
 
 const buildLandingDocument = () => {
   const source = fs.readFileSync(landingPath, 'utf8');
-  const document = source
-    .replace(
-      '<title>Social Media Scheduling &amp; Publishing | INXSocial</title>',
-      '<title>Social Media Scheduler &amp; Publishing Tool | INXSocial</title>'
-    )
-    .replace(
-      '<meta name="description" content="Connect social accounts, create posts, bulk schedule content, manage a visual calendar, review analytics and use AI-assisted content tools in one secure INXSocial workspace.">',
-      '<meta name="description" content="Schedule and publish social media content from one workspace. Connect accounts, bulk schedule posts, manage a content calendar, review analytics and use AI-assisted creation with INXSocial.">'
-    )
-    .replace(
-      '<link rel="stylesheet" href="/landing.css?v=20260909c">',
-      '<link rel="stylesheet" href="/landing.css?v=20260918a">\n  <link rel="stylesheet" href="/landing-mobile.css?v=20260910c" media="(max-width: 900px)">\n  <link rel="stylesheet" href="/landing-performance.css?v=20260911b">\n  <link rel="stylesheet" href="/landing-brand.css?v=20260911b">'
-    )
-    .replace(
-      '<link rel="stylesheet" href="/landing-ai-studio.css?v=20260915a">',
-      '<link rel="stylesheet" href="/landing-ai-studio.css?v=20260916b">'
-    )
-    .replace(
-      '<script src="/landing.js?v=20260909c"></script>',
-      '<script src="/landing.js?v=20260918a"></script>'
-    )
-    .replace(
-      '<nav id="mainNav" aria-label="Main navigation"><a href="#platform">Platform</a><a href="#workflows">Workflows</a><a href="#intelligence">AI Studio</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a></nav>',
-      '<nav id="mainNav" aria-label="Main navigation"><a href="#platform">Platform</a><a href="#workflows">Workflows</a><a href="#intelligence">AI Studio</a><a href="/free-social-media-tools.html">Free tools</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a></nav>'
-    )
-    .replace(
-      '<a href="/pricing.html">Pricing</a></div><div><strong>Account</strong>',
-      '<a href="/pricing.html">Pricing</a><a href="/free-social-media-tools.html">Free tools</a></div><div><strong>Account</strong>'
-    )
-    .replace(
-      '<div><strong>Platform</strong><a href="#workflows">Workflows</a><a href="#intelligence">AI &amp; Analytics</a><a href="#pricing">Pricing</a><a href="/app/">Open app</a></div>',
-      '<div><strong>Explore</strong><a href="/social-media-scheduler.html">Social media scheduler</a><a href="/bulk-social-media-scheduler.html">Bulk scheduling</a><a href="/social-media-content-calendar.html">Content calendar</a><a href="/ai-social-media-tools.html">AI tools</a><a href="/social-media-analytics.html">Analytics</a><a href="/free-social-media-tools.html">Free tools</a><a href="/pricing.html">Pricing</a></div>'
-    )
-    .replace(
-      '<div class="shell platform-rail" data-animate><span class="rail-label">Connect your channels</span><div class="platform-pill facebook"><b>f</b> Facebook Pages</div><div class="platform-pill instagram"><b>◎</b> Instagram via Meta</div><div class="platform-pill instagram"><b>＠</b> Direct Instagram</div><div class="platform-pill linkedin"><b>in</b> LinkedIn</div><div class="platform-pill youtube"><b>▶</b> YouTube</div><div class="platform-pill more"><b>＋</b> More connectors</div></div>',
-      '<div class="shell platform-rail" data-animate><span class="rail-label">9 supported networks</span><div class="platform-pill facebook"><b>f</b> Facebook</div><div class="platform-pill instagram"><b>◎</b> Instagram</div><div class="platform-pill linkedin"><b>in</b> LinkedIn</div><div class="platform-pill more">TikTok</div><div class="platform-pill youtube"><b>▶</b> YouTube</div><div class="platform-pill more">Pinterest</div><div class="platform-pill more">Threads</div><div class="platform-pill more">Bluesky</div><div class="platform-pill more">X</div></div>'
-    );
-  return injectAnalyticsConsent(document);
+  return injectAnalyticsConsent(source);
 };
 
 const landingDocument = buildLandingDocument();
