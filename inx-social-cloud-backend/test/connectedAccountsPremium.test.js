@@ -61,8 +61,9 @@ test('Connected Accounts keeps the platform treatments and universal topbar cont
   assert.match(icons, /#25d366/);
   assert.match(icons, /#6364ff/);
   assert.match(topbar, /Search anything\.\.\./);
-  assert.match(topbar, /Timezone · Europe\/London/);
-  assert.match(topbar, /Theme · Midnight/);
+  assert.match(topbar, /worldTimezones/);
+  assert.match(topbar, /supportedValuesOf/);
+  assert.doesNotMatch(topbar, /Theme · Midnight/);
   assert.match(plan, /AI content generation/);
   assert.match(plan, /Advanced analytics/);
   assert.match(plan, /More connected accounts/);
