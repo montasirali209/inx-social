@@ -45,6 +45,11 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(service, /limit: '100'/);
   assert.match(service, /page < 3 && rows\.length < 300/);
   assert.match(service, /cacheState/);
+  assert.match(service, /persistMetricSnapshots/);
+  assert.match(service, /buildMeasuredSeries/);
+  assert.match(service, /measured_snapshot_delta/);
+  assert.match(service, /startAnalyticsSnapshotRuntime/);
+  assert.doesNotMatch(service, /incrementSeries\(viewsSeries, date, metrics\.views\)/);
   assert.match(provider, /retry-after/);
   assert.match(provider, /status === 429/);
   assert.match(page, /mapWithConcurrency\(selectedAccounts, 3/);
@@ -81,7 +86,11 @@ test('Analytics charts, tabs and report actions remain accessible and functional
   assert.match(chart, /exactDate/);
   assert.match(chart, /areaPath/);
   assert.match(chart, /Move across the line for exact dates/);
-  assert.match(page, /interval === 'monthly' \? view\.performance/);
+  assert.match(chart, /Measured changes between stored live metric snapshots/);
+  assert.match(chart, /Earlier lifetime views remain included in the KPI totals/);
+  assert.match(chart, /const tension = 0\.82/);
+  assert.match(page, /trackedPerformance/);
+  assert.match(page, /interval === 'monthly' \? trackedPerformance/);
   assert.match(tabs, /aria-current/);
   assert.match(exportButton, /Export CSV/);
   assert.match(exportButton, /Export Excel/);
