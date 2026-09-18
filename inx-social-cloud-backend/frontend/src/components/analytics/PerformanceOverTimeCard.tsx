@@ -6,10 +6,10 @@ import { AnalyticsCard, AnalyticsCardHeader } from './AnalyticsPrimitives'
 
 type SeriesKey = 'views' | 'engagements' | 'linkClicks' | 'followers'
 const series: Array<{ key: SeriesKey; label: string; totalLabel: string; colour: string }> = [
-  { key: 'views', label: 'Views gained', totalLabel: 'Tracked views gained', colour: '#3b82f6' },
-  { key: 'engagements', label: 'Interactions gained', totalLabel: 'Tracked interactions', colour: '#2dd4bf' },
-  { key: 'linkClicks', label: 'Clicks gained', totalLabel: 'Tracked clicks', colour: '#f59e0b' },
-  { key: 'followers', label: 'Follows gained', totalLabel: 'Tracked follows', colour: '#a855f7' },
+  { key: 'views', label: 'Views gained', totalLabel: 'Views gained', colour: '#3b82f6' },
+  { key: 'engagements', label: 'Interactions gained', totalLabel: 'Interactions gained', colour: '#2dd4bf' },
+  { key: 'linkClicks', label: 'Clicks gained', totalLabel: 'Clicks gained', colour: '#f59e0b' },
+  { key: 'followers', label: 'Follows gained', totalLabel: 'Follows gained', colour: '#a855f7' },
 ]
 const plot = { left: 62, right: 944, top: 24, bottom: 242 }
 
@@ -113,17 +113,17 @@ export function PerformanceOverTimeCard({
   return <AnalyticsCard>
     <AnalyticsCardHeader
       action={<select aria-label="Performance chart interval" className="min-h-9 rounded-xl border border-border-soft bg-bg/45 px-3 text-[10px] outline-none focus:border-brand-cyan" onChange={event => setInterval(event.target.value as 'daily' | 'weekly' | 'monthly')} value={interval}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>}
-      description="Measured changes in the selected posts after INXSocial begins tracking them. Current lifetime post totals stay in the KPI cards and are not backdated."
-      title="Post Performance Over Time"
+      description="Tracks changes in views and engagement from the time INXSocial starts monitoring."
+      title="Post Performance Trend"
     />
 
-    {!hasDailyHistory && startedLabel && <div className="mx-5 mt-1 rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.045] px-3 py-2 text-[10px] leading-5 text-text-muted"><strong className="text-brand-cyan">Daily trend tracking started {startedLabel}.</strong> Earlier lifetime views remain included in the KPI totals, but they are not placed on historical dates because the connected source does not provide a historical daily breakdown.</div>}
+    {!hasDailyHistory && startedLabel && <div className="mx-5 mt-1 rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.045] px-3 py-2 text-[10px] leading-5 text-text-muted"><strong className="text-brand-cyan">Trend tracking started {startedLabel}.</strong> New performance changes will appear here as they are measured.</div>}
 
     <div className="relative px-3 sm:px-5">
-      <div className="mb-1 mt-2 flex items-center justify-between px-1 text-[9px] text-text-soft"><span>{interval === 'monthly' ? 'Day-by-day measured change across the selected period' : `${interval[0].toUpperCase() + interval.slice(1)} measured change`}</span><span className="hidden sm:inline">{hasDailyHistory ? 'Move across the line for exact dates' : 'Trend history builds automatically from live snapshots'}</span></div>
+      <div className="mb-1 mt-2 flex items-center justify-between px-1 text-[9px] text-text-soft"><span>{interval === 'monthly' ? 'Day-by-day performance change' : `${interval[0].toUpperCase() + interval.slice(1)} performance change`}</span><span className="hidden sm:inline">{hasDailyHistory ? 'Move across the line for exact dates' : 'Trend history builds automatically'}</span></div>
 
       {activePoint && <div className="pointer-events-none absolute top-8 z-20 w-[218px] -translate-x-1/2 rounded-xl border border-brand-cyan/20 bg-[#061923]/[.97] p-3 text-[10px] shadow-[0_18px_50px_rgba(0,0,0,.45),0_0_0_1px_rgba(45,212,191,.04)] backdrop-blur-xl" style={{ left: `${tooltipLeft}%` }}>
-        <div className="border-b border-white/[.07] pb-2"><strong className="block text-[11px] text-white">{interval === 'weekly' ? activePoint.label : exactDate(activePoint)}</strong><span className="mt-0.5 block text-[9px] text-text-soft">Measured change since the previous stored snapshot</span></div>
+        <div className="border-b border-white/[.07] pb-2"><strong className="block text-[11px] text-white">{interval === 'weekly' ? activePoint.label : exactDate(activePoint)}</strong><span className="mt-0.5 block text-[9px] text-text-soft">Change recorded for this period</span></div>
         <div className="mt-2 space-y-1.5">{series.map(item => <span className="flex items-center justify-between gap-6 text-text-muted" key={item.key}><span className="flex items-center gap-1.5"><i className="inline-block size-2 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: item.colour, color: item.colour }} />{item.label}</span><b className="text-white">{formatAnalyticsValue(activePoint[item.key], 'compact')}</b></span>)}</div>
       </div>}
 
