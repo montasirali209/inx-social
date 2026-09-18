@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { History, Send, Sparkles } from 'lucide-react'
+import { History, Send } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
@@ -18,6 +18,7 @@ import { Card } from '../ui/Card'
 import { Drawer } from '../billing/BillingPrimitives'
 import {
   AIStudioHero,
+  AIStudioHeroSkeleton,
   CarouselPostCard,
   CreditsCard,
   GenerationHistoryDrawer,
@@ -174,16 +175,16 @@ export function AiContentStudioPage() {
   }
 
   return <>
-    {access ? <AIStudioHero access={access} /> : <Card className="border-brand-cyan/20 bg-[radial-gradient(circle_at_80%_5%,rgba(34,211,238,.10),transparent_25rem),linear-gradient(145deg,rgba(7,31,45,.96),rgba(5,18,30,.99))] p-6 sm:p-8"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><span className="text-[10px] font-bold uppercase tracking-[.18em] text-brand-cyan">AI Content Studio</span><h2 className="mt-2 text-2xl font-bold">Create images, carousels and social video with AI</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-text-muted">The creation workspace is ready immediately. Account credits and plan access fill in as soon as the live account response arrives.</p></div><Sparkles className="size-8 shrink-0 text-brand-cyan" /></div></Card>}
+    {access ? <AIStudioHero access={access} /> : <AIStudioHeroSkeleton />}
     {accessQuery.isError && <Card className="mt-4 flex flex-col gap-3 border-brand-red/25 p-4 sm:flex-row sm:items-center sm:justify-between"><span className="text-xs text-text-muted">{accessQuery.error instanceof Error ? accessQuery.error.message : 'AI account access could not refresh.'}</span><Button onClick={() => void accessQuery.refetch()} size="sm">Retry account access</Button></Card>}
 
     <section className="mt-6">
       <StudioSectionHeading action={<Button onClick={() => setHistoryOpen(true)} size="sm"><History className="size-3.5" />Generation history</Button>} text="Choose a workflow below. Each creator is optimised for one social post format." title="What do you want to create?" />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <ImagePostCard enabled={access?.studioEnabled ?? true} onCreate={openCreator} />
-        <CarouselPostCard enabled={access?.studioEnabled ?? true} onCreate={openCreator} />
-        <ShortVideoCard enabled={access?.studioEnabled ?? true} onCreate={openCreator} />
-        <UGCAdCard enabled={access?.studioEnabled ?? true} onCreate={openCreator} />
+        <ImagePostCard enabled={Boolean(access?.studioEnabled)} onCreate={openCreator} />
+        <CarouselPostCard enabled={Boolean(access?.studioEnabled)} onCreate={openCreator} />
+        <ShortVideoCard enabled={Boolean(access?.studioEnabled)} onCreate={openCreator} />
+        <UGCAdCard enabled={Boolean(access?.studioEnabled)} onCreate={openCreator} />
       </div>
     </section>
 
