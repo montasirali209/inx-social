@@ -92,7 +92,7 @@ export function BulkSchedulerPage() {
   const activeScheduleTimes = timingMode === 'saved_schedule' ? schedulerData.settings.defaultScheduleTimes : scheduleTimes
 
   useEffect(() => {
-    if (!scheduler.data?.jobs.length || !results.length) return
+    if (!schedulerData.jobs.length || !results.length) return
     setResults((current) => current.map((result) => {
       if (!result.jobId) return result
       const job = schedulerData.jobs.find((candidate) => candidate.id === result.jobId)
