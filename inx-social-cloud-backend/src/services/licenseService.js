@@ -46,7 +46,7 @@ function evaluateLicense(user, sub, now = new Date(), override = null) {
     new Date(sub.graceEndsAt).getTime() > now.getTime();
   const manualActive = ['manual', 'admin_override'].includes(provider) &&
     ['ACTIVE', 'MANUAL'].includes(subscriptionStatus) &&
-    sourcePlan !== 'TRIAL' &&
+    (provider === 'admin_override' || sourcePlan !== 'TRIAL') &&
     (!sub?.currentPeriodEnd || new Date(sub.currentPeriodEnd).getTime() > now.getTime());
   const accountEnabled = !['SUSPENDED', 'DISABLED', 'REVOKED'].includes(String(user.status || '').toUpperCase());
   let effectiveStatus = subscriptionStatus || (trialActive ? 'TRIALING' : 'EXPIRED');
