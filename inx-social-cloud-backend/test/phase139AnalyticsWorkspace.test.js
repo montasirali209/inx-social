@@ -71,6 +71,7 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
 });
 
 test('Analytics charts, tabs and report actions remain accessible and functional', () => {
+  const page = read('frontend/src/components/analytics/AnalyticsPage.tsx');
   const chart = read('frontend/src/components/analytics/PerformanceOverTimeCard.tsx');
   const tabs = read('frontend/src/components/analytics/AnalyticsTabs.tsx');
   const exportButton = read('frontend/src/components/analytics/ExportReportButton.tsx');
