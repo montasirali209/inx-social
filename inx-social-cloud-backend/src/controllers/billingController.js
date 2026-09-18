@@ -33,7 +33,10 @@ async function sendLifecycleEmailOnce(user, type, sendEmail) {
 }
 
 async function latestSubscriptionForUser(userId) {
-  return prisma.subscription.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } });
+  return prisma.subscription.findFirst({
+    where: { userId, NOT: { provider: 'admin_override' } },
+    orderBy: { createdAt: 'desc' }
+  });
 }
 
 async function findUserFromStripeObject(object) {
@@ -184,14 +187,17 @@ async function billingOverview(req, res, next) {
     res.json({
       subscription: {
         planId: normalizedPlan(license.plan).toLowerCase(),
-        sourcePlan: license.plan,
+        sourcePlan: license.sourcePlan || license.plan,
         status: String(license.subscriptionStatus || 'TRIALING').toLowerCase(),
         billingCycle,
         trialEndsAt: license.trialEndsAt,
-        renewalDate: subscription?.currentPeriodEnd || null,
-        cancelAtPeriodEnd: Boolean(subscription?.cancelAtPeriodEnd),
-        canManage: Boolean(subscription?.providerCustomerId),
-        legacyLifetime: String(license.plan).toUpperCase() === 'LIFETIME'
+        renewalDate: license.administrator ? null : (subscription?.currentPeriodEnd || null),
+        cancelAtPeriodEnd: license.administrator ? false : Boolean(subscription?.cancelAtPeriodEnd),
+        canManage: Boolean(!license.administrator && subscription?.providerCustomerId),
+        legacyLifetime: String(license.sourcePlan || license.plan).toUpperCase() === 'LIFETIME',
+        administrator: Boolean(license.administrator),
+        manualOverride: Boolean(license.manualOverride),
+        overrideExpiresAt: license.overrideExpiresAt || null
       },
       usage: { connectedPages: facebookPages + socialProfiles, scheduledContent, publishedPosts, periodStart: usageStart, periodEnd: usageEnd },
       preferences: { productUpdates: Boolean(req.user.marketingOptIn), usageLimitAlerts: settings.usageLimitAlerts !== false },
