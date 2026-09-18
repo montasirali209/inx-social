@@ -8,7 +8,7 @@ import { readSessionCache, writeSessionCache } from '../../lib/session-cache'
 import type { AnalyticsTab } from '../../types/analytics'
 import type { Platform, PlatformAnalytics } from '../../types/dashboard'
 import { AnalyticsAccountSelector, type AnalyticsAccount } from './AnalyticsAccountSelector'
-import { AnalyticsSkeleton, AnalyticsCard, AnalyticsCardHeader, UnavailableState } from './AnalyticsPrimitives'
+import { AnalyticsKpiSkeleton, AnalyticsCard, AnalyticsCardHeader } from './AnalyticsPrimitives'
 import { AnalyticsStatCard } from './AnalyticsStatCard'
 import { AnalyticsScopeNotice } from './AnalyticsScopeNotice'
 import { AnalyticsTabs } from './AnalyticsTabs'
@@ -68,7 +68,6 @@ export function AnalyticsPage() {
   const [days, setDays] = useState(30)
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('overview')
   const [interval, setInterval] = useState<'daily' | 'weekly' | 'monthly'>('daily')
-  const [chartMode, setChartMode] = useState<'content' | 'trend'>('content')
   const sources = useQuery({
     queryKey: ['analytics-sources', 'post-for-me'],
     queryFn: async () => {
@@ -124,16 +123,7 @@ export function AnalyticsPage() {
   })
 
   const view = useMemo(() => analytics.data ? buildAnalyticsView(analytics.data.analytics, days) : null, [analytics.data, days])
-  const trackedPerformance = useMemo(() => {
-    if (!view) return []
-    const startedAt = view.source.tracking?.startedAt?.slice(0, 10)
-    return startedAt ? view.performance.filter(point => point.date >= startedAt) : view.performance
-  }, [view])
-  const chartBase = useMemo(() => {
-    if (!view) return []
-    return chartMode === 'content' ? view.publishedPerformance : trackedPerformance
-  }, [chartMode, trackedPerformance, view])
-  const chartPoints = useMemo(() => interval === 'monthly' ? chartBase : aggregatePerformance(chartBase, interval), [chartBase, interval])
+  const chartPoints = useMemo(() => view ? aggregatePerformance(view.publishedPerformance, interval) : [], [interval, view])
   const breakdown = useMemo<EngagementPlatformRow[]>(() => {
     const values = new Map<Platform, EngagementPlatformRow>()
     analytics.data?.results.forEach(({ account, analytics: result }) => {
@@ -151,8 +141,7 @@ export function AnalyticsPage() {
     window.localStorage.setItem(selectionKey, JSON.stringify(next))
   }
 
-  if (sources.isLoading) return <AnalyticsSkeleton />
-  if (!accounts.length) return <div className="grid min-h-[55vh] place-items-center rounded-panel border border-border-soft bg-panel/70 p-8 text-center"><span><AlertTriangle className="mx-auto size-9 text-brand-amber" /><h2 className="mt-4 text-lg font-semibold">Connect an account to unlock Analytics</h2><p className="mx-auto mt-2 max-w-md text-sm text-text-muted">Connect any supported social network to view live content performance and engagement metrics.</p><a className="mt-5 inline-flex min-h-10 items-center rounded-xl bg-brand-teal px-4 text-sm font-semibold text-white" href="/app/connected-accounts">Manage connected accounts</a></span></div>
+  if (!sources.isLoading && !accounts.length) return <div className="grid min-h-[55vh] place-items-center rounded-panel border border-border-soft bg-panel/70 p-8 text-center"><span><AlertTriangle className="mx-auto size-9 text-brand-amber" /><h2 className="mt-4 text-lg font-semibold">Connect an account to unlock Analytics</h2><p className="mx-auto mt-2 max-w-md text-sm text-text-muted">Connect any supported social network to view live content performance and engagement metrics.</p><a className="mt-5 inline-flex min-h-10 items-center rounded-xl bg-brand-teal px-4 text-sm font-semibold text-white" href="/app/connected-accounts">Manage connected accounts</a></span></div>
 
   const selectorAccounts = accounts as unknown as AnalyticsAccount[]
   const singleSource = selectedAccounts.length === 1 ? selectedAccounts[0] : null
@@ -163,7 +152,7 @@ export function AnalyticsPage() {
 
   return <div className="analytics-fluid-canvas dashboard-canvas space-y-4 pb-8">
     <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
-      <AnalyticsAccountSelector accounts={selectorAccounts} isLive={!analytics.isError} onChange={changeSelection} values={effectiveSelectedKeys} />
+      <AnalyticsAccountSelector accounts={selectorAccounts} isLive={Boolean(view) && !analytics.isError} loading={sources.isLoading} onChange={changeSelection} values={effectiveSelectedKeys} />
       <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
         <label className="rounded-xl border border-border-soft bg-panel/70 px-3 py-2"><span className="block text-[9px] uppercase tracking-wider text-text-soft">Analytics period</span><select className="mt-1 min-h-7 min-w-40 bg-transparent text-xs font-semibold outline-none" onChange={(event) => setDays(Number(event.target.value))} value={days}><option value={7}>Last 7 Days</option><option value={30}>Last 30 Days</option><option value={90}>Last 90 Days</option></select></label>
         {view && <ExportReportButton view={view} />}
@@ -173,20 +162,19 @@ export function AnalyticsPage() {
     <AnalyticsTabs active={activeTab} onChange={setActiveTab} />
     {view && <AnalyticsScopeNotice analytics={view.source} sourceName={sourceName} />}
     {analytics.data?.failures.length ? <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber">Some live metrics could not refresh for {analytics.data.failures.map(failure => failure.account.displayName).join(', ')}. INXSocial has kept the other verified sources and will retry automatically.</div> : null}
-    {analytics.isLoading && !view && <AnalyticsSkeleton />}
+    {(sources.isLoading || analytics.isLoading) && !view && <AnalyticsKpiSkeleton />}
     {analytics.isError && view && <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber"><strong>Live refresh delayed.</strong> INXSocial is keeping the last verified analytics visible and will retry automatically instead of replacing the workspace with an error state.</div>}
     {analytics.isError && !view && <div className="rounded-panel border border-brand-red/25 bg-brand-red/8 p-6"><h2 className="font-semibold">Analytics could not be loaded</h2><p className="mt-2 text-xs leading-5 text-text-muted">{analytics.error instanceof Error ? analytics.error.message : 'Reconnect this account or try again.'}</p><a className="mt-4 inline-flex min-h-10 items-center rounded-xl border border-border-soft px-4 text-xs" href="/app/connected-accounts">Review connected accounts</a></div>}
     {view && <div className="analytics-data-transition space-y-4" key={`${selectedScopeKey}-${days}`}>
       <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 xl:grid-cols-6">{view.stats.map(stat => <AnalyticsStatCard key={stat.id} stat={stat} />)}</div>
       {noVerifiedMetrics && <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber"><strong>{sourceName} analytics are partially available.</strong> {view.source.capabilities?.pageInsights.reason || 'Live metrics are not available for the selected content yet.'}</div>}
       {view.lowData && !noVerifiedMetrics && <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber">Analytics are just starting. More insight will appear as the selected accounts publish additional content.</div>}
-      {activeTab === 'overview' && <><div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,.72fr)]"><PerformanceOverTimeCard interval={interval} mode={chartMode} onModeChange={setChartMode} points={chartPoints} setInterval={setInterval} tracking={view.source.tracking} /><EngagementByPlatformCard breakdown={breakdown} total={view.totalEngagements} /></div><div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(260px,.75fr)_minmax(300px,.9fr)]"><TopPerformingPostsCard onViewAll={() => setActiveTab('content_performance')} platform={view.source.platform} posts={view.topPosts} /><ContentEfficiencyCard analytics={view.source} /><PublishingRhythmCard analytics={view.source} days={days} /></div><BestTimeToPostCard cells={view.heatmap} /><ProviderMetricsCard sources={providerMetricSources} /></>}
-      {activeTab === 'content_performance' && <><div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,.75fr)]"><PerformanceOverTimeCard interval={interval} mode={chartMode} onModeChange={setChartMode} points={chartPoints} setInterval={setInterval} tracking={view.source.tracking} /><TopPerformingPostsCard onViewAll={() => {}} platform={view.source.platform} posts={view.topPosts} /></div><ProviderMetricsCard sources={providerMetricSources} /></>}
+      {activeTab === 'overview' && <><div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(320px,.72fr)]"><PerformanceOverTimeCard interval={interval} points={chartPoints} setInterval={setInterval} /><EngagementByPlatformCard breakdown={breakdown} total={view.totalEngagements} /></div><div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(260px,.75fr)_minmax(300px,.9fr)]"><TopPerformingPostsCard onViewAll={() => setActiveTab('content_performance')} platform={view.source.platform} posts={view.topPosts} /><ContentEfficiencyCard analytics={view.source} /><PublishingRhythmCard analytics={view.source} days={days} /></div><BestTimeToPostCard cells={view.heatmap} /><ProviderMetricsCard sources={providerMetricSources} /></>}
+      {activeTab === 'content_performance' && <><div className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,.75fr)]"><PerformanceOverTimeCard interval={interval} points={chartPoints} setInterval={setInterval} /><TopPerformingPostsCard onViewAll={() => {}} platform={view.source.platform} posts={view.topPosts} /></div><ProviderMetricsCard sources={providerMetricSources} /></>}
       {activeTab === 'audience' && <><div className="grid gap-4 lg:grid-cols-2"><ContentEfficiencyCard analytics={view.source} /><PublishingRhythmCard analytics={view.source} days={days} /></div><BestTimeToPostCard cells={view.heatmap} /></>}
-      {activeTab === 'engagement' && <><div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,.7fr)]"><PerformanceOverTimeCard interval={interval} mode={chartMode} onModeChange={setChartMode} points={chartPoints} setInterval={setInterval} tracking={view.source.tracking} /><EngagementByPlatformCard breakdown={breakdown} total={view.totalEngagements} /></div><BestTimeToPostCard cells={view.heatmap} /></>}
-      {activeTab === 'reach' && <><PerformanceOverTimeCard interval={interval} mode={chartMode} onModeChange={setChartMode} points={chartPoints} setInterval={setInterval} tracking={view.source.tracking} /><ProviderMetricsCard sources={providerMetricSources} /></>}
+      {activeTab === 'engagement' && <><div className="grid gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,.7fr)]"><PerformanceOverTimeCard interval={interval} points={chartPoints} setInterval={setInterval} /><EngagementByPlatformCard breakdown={breakdown} total={view.totalEngagements} /></div><BestTimeToPostCard cells={view.heatmap} /></>}
+      {activeTab === 'reach' && <><PerformanceOverTimeCard interval={interval} points={chartPoints} setInterval={setInterval} /><ProviderMetricsCard sources={providerMetricSources} /></>}
       {activeTab === 'videos' && <><TopPerformingPostsCard onViewAll={() => {}} platform={view.source.platform} posts={view.topPosts.filter(post => /video|reel/i.test(post.contentType))} /><ProviderMetricsCard sources={providerMetricSources} /></>}
-      {['stories', 'competitors'].includes(activeTab) && <AnalyticsCard><UnavailableState detail={`${activeTab === 'stories' ? 'Story' : 'Competitor'} analytics are not available from the connected platform data currently returned to INXSocial. This view will activate when verified data is available.`} title={`${activeTab === 'stories' ? 'Stories' : 'Competitors'} data unavailable`} /></AnalyticsCard>}
       {activeTab === 'reports' && <AnalyticsCard><AnalyticsCardHeader description="Export the currently selected live account scope and date range without including credentials or access tokens." title="Analytics Reports" /><div className="grid min-h-56 place-items-center p-6 text-center"><span><CalendarDays className="mx-auto size-8 text-brand-cyan" /><strong className="mt-3 block">Report ready for {sourceName}</strong><p className="mt-2 text-xs text-text-muted">Live data fetched {new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(view.source.fetchedAt))}</p><div className="mt-4 inline-block"><ExportReportButton view={view} /></div></span></div></AnalyticsCard>}
       <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-soft bg-panel/55 px-4 py-3 text-[10px] text-text-soft"><span>Current post-performance analytics for {sourceName}.</span><span>Latest metrics refresh every 5 minutes · Last update {lastUpdated}</span></footer>
     </div>}
