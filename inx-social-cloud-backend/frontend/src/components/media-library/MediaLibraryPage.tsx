@@ -637,22 +637,18 @@ export function MediaLibraryPage() {
 }
 
 function MediaLibrarySkeleton() {
+  const labels = ["All Media", "Images", "Videos", "AI Creations", "Storage"];
   return (
-    <WorkspaceLoadingState
-      message="Indexing your media, folders, recent creations and storage usage."
-      panels={[
-        { title: "Folders", emoji: "📁", rows: 5, minHeight: "360px" },
-        { title: "Media Library", emoji: "🖼️", rows: 6, minHeight: "420px" },
-        { title: "Preview & Details", emoji: "👀", rows: 5, minHeight: "360px" },
-      ]}
-      stats={[
-        { label: "All Media", emoji: "🗂️" },
-        { label: "Images", emoji: "🖼️" },
-        { label: "Videos", emoji: "🎬" },
-        { label: "AI Creations", emoji: "✨" },
-        { label: "Storage", emoji: "💾" },
-      ]}
-      title="Media Library"
-    />
+    <div aria-label="Loading Media Library" className="space-y-4" role="status">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        {labels.map((label) => <div className="h-28 rounded-card border border-border-soft bg-panel/70 p-4" key={label}><small className="text-[10px] text-text-muted">{label}</small><strong className="mt-2 block text-sm">Updating…</strong><div className="mt-4 h-1.5 overflow-hidden rounded-full bg-border-soft"><span className="block h-full w-2/3 animate-pulse rounded-full bg-brand-cyan/40 motion-reduce:animate-none" /></div></div>)}
+      </div>
+      <div className="h-16 animate-pulse rounded-panel border border-border-soft bg-panel/70 motion-reduce:animate-none" />
+      <div className="grid gap-4 2xl:grid-cols-[230px_1fr_330px]">
+        <div className="h-[640px] animate-pulse rounded-panel border border-border-soft bg-panel/70 motion-reduce:animate-none" />
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">{Array.from({ length: 9 }, (_, index) => <div className="h-64 animate-pulse rounded-card border border-border-soft bg-panel/70 motion-reduce:animate-none" key={index} />)}</div>
+        <div className="h-[640px] animate-pulse rounded-panel border border-border-soft bg-panel/70 motion-reduce:animate-none" />
+      </div>
+    </div>
   );
 }
