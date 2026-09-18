@@ -1,4 +1,4 @@
-import { Activity, CalendarDays, Clock3, Gauge, ImageIcon, MessageCircleMore, Trophy, Video } from 'lucide-react'
+import { Activity, CalendarDays, Clock, Gauge, Image, MessageCircle, Trophy, Video } from 'lucide-react'
 import type { PlatformAnalytics } from '../../types/dashboard'
 import { AnalyticsCard, AnalyticsCardHeader } from './AnalyticsPrimitives'
 
@@ -66,11 +66,11 @@ export function PublishingRhythmCard({ analytics, days }: { analytics: PlatformA
         <div className="rounded-xl border border-border-soft bg-bg/30 p-3"><span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-text-soft"><CalendarDays className="size-3" />Posts in period</span><strong className="mt-1.5 block text-lg">{content.length.toLocaleString('en-GB')}</strong></div>
         <div className="rounded-xl border border-border-soft bg-bg/30 p-3"><span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-text-soft"><Activity className="size-3" />Active days</span><strong className="mt-1.5 block text-lg">{activeDays}</strong></div>
         <div className="rounded-xl border border-border-soft bg-bg/30 p-3"><span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-text-soft"><Gauge className="size-3" />Posts / week</span><strong className="mt-1.5 block text-lg">{postsPerWeek.toFixed(1)}</strong></div>
-        <div className="rounded-xl border border-border-soft bg-bg/30 p-3"><span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-text-soft"><Clock3 className="size-3" />Latest post</span><strong className="mt-1.5 block text-sm">{latest ? new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(latest) : 'No posts'}</strong></div>
+        <div className="rounded-xl border border-border-soft bg-bg/30 p-3"><span className="flex items-center gap-1.5 text-[9px] uppercase tracking-wider text-text-soft"><Clock className="size-3" />Latest post</span><strong className="mt-1.5 block text-sm">{latest ? new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(latest) : 'No posts'}</strong></div>
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-border-soft bg-bg/30 p-3 text-[10px]">
         <span className="mr-auto text-text-muted">Most active day <strong className="ml-1 text-text-main">{mostActiveDay}</strong></span>
-        <span className="inline-flex items-center gap-1 rounded-full border border-white/[.07] px-2 py-1 text-text-muted"><ImageIcon className="size-3" />Images {mix.image}</span>
+        <span className="inline-flex items-center gap-1 rounded-full border border-white/[.07] px-2 py-1 text-text-muted"><Image className="size-3" />Images {mix.image}</span>
         <span className="inline-flex items-center gap-1 rounded-full border border-white/[.07] px-2 py-1 text-text-muted"><Video className="size-3" />Video {mix.video}</span>
         <span className="inline-flex items-center gap-1 rounded-full border border-white/[.07] px-2 py-1 text-text-muted">Other {mix.other}</span>
       </div>
