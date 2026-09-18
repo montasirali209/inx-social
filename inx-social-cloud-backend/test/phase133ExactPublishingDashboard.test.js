@@ -36,7 +36,7 @@ test('Phase 13.3 is live-data driven across connected accounts and does not pres
   assert.match(data, /buildActivitySeries/);
   assert.match(dashboard, /fetchAnalyticsSources/);
   assert.match(dashboard, /fetchAnalyticsForSource/);
-  assert.match(dashboard, /mapWithConcurrency\(accounts, 3/);
+  assert.match(dashboard, /mapWithConcurrency\(accounts, 2/);
   assert.match(dashboard, /readSessionCache/);
   assert.match(dashboard, /writeSessionCache/);
   assert.match(recent, /likes \/ reactions/);

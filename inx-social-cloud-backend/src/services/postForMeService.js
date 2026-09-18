@@ -42,6 +42,14 @@ let runtimeWebhookSecret = '';
 let runtimeWebhookId = '';
 let runtimeTimer = null;
 
+const PROVIDER_GET_MAX_PER_SECOND = Math.max(1, Math.min(5, Number(process.env.POST_FOR_ME_GET_MAX_PER_SECOND || 4)));
+const PROVIDER_GET_MAX_PER_MINUTE = Math.max(PROVIDER_GET_MAX_PER_SECOND, Math.min(40, Number(process.env.POST_FOR_ME_GET_MAX_PER_MINUTE || 32)));
+const CONNECTION_SYNC_TTL_MS = Math.max(60_000, Number(process.env.POST_FOR_ME_CONNECTION_SYNC_TTL_MS || 5 * 60 * 1000));
+const providerReadTimestamps = [];
+const connectionSyncState = new Map();
+let providerReadQueue = Promise.resolve();
+let providerCooldownUntil = 0;
+
 function parseJson(value, fallback = {}) {
   try {
     return value ? JSON.parse(value) : fallback;
@@ -95,6 +103,42 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function pruneProviderReadTimestamps(now) {
+  while (providerReadTimestamps.length && providerReadTimestamps[0] <= now - 60_000) {
+    providerReadTimestamps.shift();
+  }
+}
+
+function providerReadDelay(now) {
+  pruneProviderReadTimestamps(now);
+  let waitMs = Math.max(0, providerCooldownUntil - now);
+  const recentSecond = providerReadTimestamps.filter((timestamp) => timestamp > now - 1000);
+  if (recentSecond.length >= PROVIDER_GET_MAX_PER_SECOND) {
+    waitMs = Math.max(waitMs, recentSecond[recentSecond.length - PROVIDER_GET_MAX_PER_SECOND] + 1000 - now);
+  }
+  if (providerReadTimestamps.length >= PROVIDER_GET_MAX_PER_MINUTE) {
+    waitMs = Math.max(waitMs, providerReadTimestamps[providerReadTimestamps.length - PROVIDER_GET_MAX_PER_MINUTE] + 60_000 - now);
+  }
+  return waitMs;
+}
+
+function reserveProviderReadSlot() {
+  const task = providerReadQueue.then(async () => {
+    while (true) {
+      const now = Date.now();
+      const waitMs = providerReadDelay(now);
+      if (waitMs > 0) {
+        await sleep(Math.min(60_000, waitMs + 25));
+        continue;
+      }
+      providerReadTimestamps.push(Date.now());
+      return;
+    }
+  });
+  providerReadQueue = task.catch(() => {});
+  return task;
+}
+
 async function apiRequest(method, path, options = {}) {
   const upperMethod = String(method || 'GET').toUpperCase();
   const maxRetries = Number.isInteger(options.maxRetries) ? options.maxRetries : (upperMethod === 'GET' ? 2 : 0);
@@ -102,6 +146,7 @@ async function apiRequest(method, path, options = {}) {
 
   while (true) {
     try {
+      if (upperMethod === 'GET') await reserveProviderReadSlot();
       const response = await client().request({
         method: upperMethod,
         url: path,
@@ -115,11 +160,15 @@ async function apiRequest(method, path, options = {}) {
       const raw = error.response?.data;
       const status = Number(error.response?.status || 502);
       const retryDelay = retryAfterMs(error.response?.headers);
-      if (status === 429 && attempt < maxRetries) {
-        const fallbackDelay = 900 * (attempt + 1);
-        await sleep(Math.min(15000, Math.max(750, retryDelay || fallbackDelay)));
-        attempt += 1;
-        continue;
+      if (status === 429) {
+        const fallbackDelay = 1200 * (attempt + 1);
+        const cooldown = Math.min(60_000, Math.max(1000, retryDelay || fallbackDelay));
+        providerCooldownUntil = Math.max(providerCooldownUntil, Date.now() + cooldown);
+        if (attempt < maxRetries) {
+          await sleep(cooldown);
+          attempt += 1;
+          continue;
+        }
       }
 
       const rawError = raw?.error;
@@ -342,7 +391,7 @@ async function upsertProviderAccount(userId, account) {
   return prisma.socialConnection.findUnique({ where: { id: connection.id }, include: { profiles: true } });
 }
 
-async function syncConnections(userId) {
+async function performConnectionSync(userId) {
   const accounts = await listProviderAccounts(userId);
   const seen = new Set();
   for (const account of accounts) {
@@ -367,6 +416,31 @@ async function syncConnections(userId) {
   }
 
   return accounts;
+}
+
+async function syncConnections(userId, options = {}) {
+  const key = String(userId);
+  const force = Boolean(options.force);
+  const current = connectionSyncState.get(key);
+  if (!force && current?.updatedAt && Date.now() - current.updatedAt < CONNECTION_SYNC_TTL_MS) {
+    return current.accounts || [];
+  }
+  if (current?.promise) return current.promise;
+
+  const promise = performConnectionSync(userId);
+  connectionSyncState.set(key, { ...(current || {}), promise });
+  try {
+    const accounts = await promise;
+    connectionSyncState.set(key, { accounts, updatedAt: Date.now(), promise: null });
+    return accounts;
+  } catch (error) {
+    if (current?.updatedAt) {
+      connectionSyncState.set(key, { ...current, promise: null });
+    } else {
+      connectionSyncState.delete(key);
+    }
+    throw error;
+  }
 }
 
 function publicConnection(connection) {

@@ -2,33 +2,33 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, LockKeyhole, RotateCcw, Save, Search, ShieldCheck } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { connectionSummary, settingsCards, settingsEqual } from '../../data/settingsData'
+import { connectionSummary, defaultSettingsValues, settingsCards, settingsEqual } from '../../data/settingsData'
 import { fetchSettingsWorkspace, saveSettings } from '../../lib/settings-api'
 import { useUiStore } from '../../store/ui-store'
-import type { SettingsCardData, SettingsValues } from '../../types/settings'
+import type { SettingsCardData, SettingsValues, SettingsWorkspace } from '../../types/settings'
 import { Button } from '../ui/Button'
-import { WorkspaceLoadingState } from '../ui/WorkspaceLoadingState'
 import { SettingsCard } from './SettingsCard'
 
 type Notice = { tone: 'success' | 'error'; message: string } | null
 
-function SettingsSkeleton() {
-  return <WorkspaceLoadingState
-    message="Loading workspace preferences, publishing defaults and connected-account settings."
-    panels={[
-      { title: 'Workspace', emoji: '⚙️', rows: 4 },
-      { title: 'Publishing', emoji: '🚀', rows: 4 },
-      { title: 'Scheduler', emoji: '🗓️', rows: 4 },
-    ]}
-    stats={[
-      { label: 'Workspace', emoji: '🏢' },
-      { label: 'Publishing', emoji: '🚀' },
-      { label: 'Scheduler', emoji: '🗓️' },
-      { label: 'Connections', emoji: '🔗' },
-      { label: 'Notifications', emoji: '🔔' },
-    ]}
-    title="Settings"
-  />
+const immediateSettingsWorkspace: SettingsWorkspace = {
+  settings: defaultSettingsValues,
+  account: {
+    user: { id: '', name: null, businessName: null, email: '—' },
+    license: {
+      plan: 'TRIAL',
+      subscriptionStatus: 'loading',
+      provider: null,
+      currentPeriodEnd: null,
+      trialEndsAt: null,
+      cancelAtPeriodEnd: false,
+      limits: { pages: null, batchPosts: null, devices: null },
+    },
+    pageUsage: null,
+    emailDeliveryConfigured: false,
+  },
+  connections: [],
+  pages: [],
 }
 
 export function SettingsPage() {
@@ -64,17 +64,22 @@ export function SettingsPage() {
     noticeTimer.current = window.setTimeout(() => setNotice(null), 4200)
   }
 
-  const draft = useMemo(() => workspace.data ? { ...workspace.data.settings, ...changes } : null, [changes, workspace.data])
+  const workspaceData = workspace.data || immediateSettingsWorkspace
+  const draft = useMemo(() => ({ ...workspaceData.settings, ...changes }), [changes, workspaceData.settings])
 
   const cards = useMemo(() => {
-    if (!draft || !workspace.data) return []
-    const all = settingsCards(draft, { ...workspace.data, settings: draft })
+    const all = settingsCards(draft, { ...workspaceData, settings: draft }).map((card) => {
+      if (workspace.data) return card
+      if (card.id === 'workspace') return { ...card, rows: card.rows.map((row) => row.id === 'accountEmail' ? { ...row, value: '—' } : row) }
+      if (card.id === 'connected_accounts' || card.id === 'billing') return { ...card, rows: card.rows.map((row) => ({ ...row, value: row.type === 'progress' ? 0 : '—', description: row.type === 'progress' ? 'Live usage will appear when account data is ready' : row.description })) }
+      return card
+    })
     const term = search.trim().toLowerCase()
     if (!term) return all
     return all.filter((card) => `${card.title} ${card.description} ${card.rows.map((row) => `${row.label} ${row.description || ''}`).join(' ')}`.toLowerCase().includes(term))
-  }, [draft, search, workspace.data])
+  }, [draft, search, workspace.data, workspaceData])
 
-  const dirty = Boolean(draft && workspace.data && !settingsEqual(draft, workspace.data.settings))
+  const dirty = Boolean(workspace.data && !settingsEqual(draft, workspace.data.settings))
   const connectedPlatforms = useMemo(() => {
     if (!workspace.data) return []
     const values = new Set<string>()
@@ -100,16 +105,11 @@ export function SettingsPage() {
     if (card.id === 'billing') return navigate('/billing')
   }
 
-  if (workspace.isLoading) return <SettingsSkeleton />
-
-  if (workspace.isError || !workspace.data || !draft) {
-    return <section className="rounded-2xl border border-brand-red/25 bg-brand-red/7 p-6"><h2 className="text-lg font-semibold">Settings unavailable</h2><p className="mt-2 text-sm text-text-muted">{workspace.error instanceof Error ? workspace.error.message : 'Refresh the page and try again.'}</p><Button className="mt-4" onClick={() => void workspace.refetch()} type="button">Try again</Button></section>
-  }
-
-  const sync = connectionSummary({ ...workspace.data, settings: draft })
+  const sync = connectionSummary({ ...workspaceData, settings: draft })
 
   return (
     <div className="space-y-4 pb-8">
+      {workspace.isError && <section className="flex flex-col gap-3 rounded-xl border border-brand-red/25 bg-brand-red/7 px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between"><span>Live account details could not refresh. Settings remain available; account-linked values may be temporarily unavailable.</span><Button onClick={() => void workspace.refetch()} size="sm" type="button">Retry account data</Button></section>}
       <label className="relative block sm:hidden">
         <span className="sr-only">Search settings</span>
         <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
@@ -119,8 +119,8 @@ export function SettingsPage() {
       <section className="flex flex-col gap-3 rounded-2xl border border-border-soft bg-panel/45 p-3 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:p-4">
         <div className="flex items-center gap-2 text-xs text-text-muted"><ShieldCheck aria-hidden="true" className="size-4 text-brand-teal" /><span>{dirty ? 'You have unsaved changes.' : 'All settings are up to date.'}</span></div>
         <div className="grid gap-2 sm:flex">
-          <Button className="w-full sm:w-auto" disabled={!dirty || mutation.isPending} onClick={discardChanges} type="button" variant="secondary"><RotateCcw aria-hidden="true" className="size-4" />Discard changes</Button>
-          <Button className="w-full sm:w-auto" disabled={!dirty || mutation.isPending || !draft.defaultScheduleTimes.length} onClick={() => mutation.mutate(draft)} type="button" variant="primary"><Save aria-hidden="true" className="size-4" />{mutation.isPending ? 'Saving…' : 'Save changes'}</Button>
+          <Button className="w-full sm:w-auto" disabled={!workspace.data || !dirty || mutation.isPending} onClick={discardChanges} type="button" variant="secondary"><RotateCcw aria-hidden="true" className="size-4" />Discard changes</Button>
+          <Button className="w-full sm:w-auto" disabled={!workspace.data || !dirty || mutation.isPending || !draft.defaultScheduleTimes.length} onClick={() => mutation.mutate(draft)} type="button" variant="primary"><Save aria-hidden="true" className="size-4" />{mutation.isPending ? 'Saving…' : 'Save changes'}</Button>
         </div>
       </section>
 

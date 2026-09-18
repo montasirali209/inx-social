@@ -37,7 +37,7 @@ async function start(req, res, next) {
 
 async function sync(req, res, next) {
   try {
-    await postForMe.syncConnections(req.user.id);
+    await postForMe.syncConnections(req.user.id, { force: true });
     res.json({ ok: true, connections: await postForMe.listConnections(req.user.id) });
   } catch (error) { next(error); }
 }

@@ -49,8 +49,8 @@ test('Dashboard aggregates every connected analytics source instead of selecting
   const activity = read('frontend/src/components/dashboard/PublishingActivityCard.tsx');
 
   assert.match(dashboard, /fetchAnalyticsSources/);
-  assert.match(dashboard, /mapWithConcurrency\(accounts, 3/);
-  assert.match(dashboard, /fetchAnalyticsForSource\(account, dashboardAnalyticsDays\)/);
+  assert.match(dashboard, /mapWithConcurrency\(accounts, 2/);
+  assert.match(dashboard, /fetchAnalyticsForSource\(account, dashboardAnalyticsDays, 'summary'\)/);
   assert.match(dashboard, /buildDashboardView\(sources\.data\.overview, jobs\.data, new Date\(\), analyticsEntries, accounts\.length\)/);
   assert.match(dashboard, /buildActivitySeries\(jobs\.data \|\| \[\], activityRangeDays, new Date\(\), analyticsEntries\)/);
   assert.doesNotMatch(dashboard, /DashboardAccountSelector|resolvedAnalyticsAccountId|const scopedJobs|job\.page\?\.id ===/);

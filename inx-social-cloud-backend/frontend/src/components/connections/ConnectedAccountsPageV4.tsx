@@ -38,7 +38,6 @@ import { fetchDashboardJobs } from '../../lib/dashboard-api'
 import { useUiStore } from '../../store/ui-store'
 import { Button } from '../ui/Button'
 import { SocialPlatformIcon, type SocialPlatformName } from '../ui/SocialPlatformIcon'
-import { WorkspaceLoadingState } from '../ui/WorkspaceLoadingState'
 
 type UiPlatform = Exclude<Platform, 'google_business'>
 type ConnectionStatus =
@@ -829,7 +828,7 @@ export function ConnectedAccountsPage() {
 
   const identities = useMemo(() => workspace.data ? flattenConnectedIdentities(workspace.data) : [], [workspace.data])
   const accounts = useMemo(() => workspace.data ? identities.map((identity) => toAccountModel(identity, workspace.data)) : [], [identities, workspace.data])
-  const configured = workspace.data ? Object.values(workspace.data.providers || {}).some((provider) => provider?.providerEngine === 'POST_FOR_ME' && provider.configured) : false
+  const configured = workspace.data ? Object.values(workspace.data.providers || {}).some((provider) => provider?.providerEngine === 'POST_FOR_ME' && provider.configured) : true
 
   const addedThisMonth = useMemo(() => {
     const now = new Date()
@@ -987,29 +986,10 @@ export function ConnectedAccountsPage() {
     openConnect(account.platform)
   }
 
-  if (workspace.isLoading) return <WorkspaceLoadingState
-    message="Syncing connected profiles, account health and publishing access."
-    panels={[
-      { title: 'Connect an Account', emoji: '➕', rows: 3 },
-      { title: 'Connected Platforms', emoji: '🌐', rows: 5, minHeight: '360px' },
-      { title: 'Connection Activity', emoji: '⚡', rows: 5, minHeight: '360px' },
-    ]}
-    stats={[
-      { label: 'Connected Accounts', emoji: '🔗' },
-      { label: 'Platforms', emoji: '🌐' },
-      { label: 'Healthy', emoji: '✅' },
-      { label: 'Needs Attention', emoji: '⚠️' },
-      { label: 'Publishing Ready', emoji: '🚀' },
-    ]}
-    title="Connected Accounts"
-  />
-  if (workspace.isError || !workspace.data) {
-    return <section className="rounded-2xl border border-brand-red/25 bg-brand-red/[.055] p-6"><h2 className="text-lg font-semibold">Connected accounts unavailable</h2><p className="mt-2 text-sm text-text-muted">{workspace.error instanceof Error ? workspace.error.message : 'Refresh and try again.'}</p><Button className="mt-4" onClick={() => void workspace.refetch()}>Try again</Button></section>
-  }
-
   return (
     <div className="space-y-3 pb-8">
       <ConnectedAccountsHeader />
+      {workspace.isError && <section className="flex flex-col gap-3 rounded-xl border border-brand-red/25 bg-brand-red/[.055] px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between"><span>Connected-account data could not refresh. The connection workspace remains available.</span><Button onClick={() => void workspace.refetch()} size="sm">Retry account data</Button></section>}
 
       {!configured && <section className="rounded-xl border border-brand-amber/25 bg-brand-amber/[.055] px-4 py-3"><div className="flex items-start gap-3"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-brand-amber" /><div><strong className="text-xs text-amber-200">Connection gateway requires configuration</strong><p className="mt-1 text-xs leading-5 text-text-muted">Connect actions remain disabled until the server-side Post for Me credentials are configured. No OAuth secrets are exposed in the browser.</p></div></div></section>}
 

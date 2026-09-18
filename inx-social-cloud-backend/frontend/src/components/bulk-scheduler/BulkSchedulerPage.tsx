@@ -1,12 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { AlertTriangle } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ApiError } from '../../lib/api-client'
 import { createBulkMediaPost, fetchBulkSchedulerData, publishBulkLibraryMedia, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
 import { fetchMediaAssetFile, uploadMediaAsset } from '../../lib/media-library-api'
 import { buildPublishingTimes, parseCaptions } from '../../lib/bulk-scheduler-utils'
-import type { BatchProgress, Destination, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
+import type { BatchProgress, BulkSchedulerData, Destination, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
 import type { MediaAsset } from '../../types/media-library'
 import { backendStatusToUploadStatus } from '../../types/bulk-scheduler'
 import { BatchRunPanel } from './BatchRunPanel'
@@ -15,9 +14,15 @@ import { PublishingDestinationsPanel } from './PublishingDestinationsPanel'
 import { UploadBatchPanel } from './UploadBatchPanel'
 import { useBulkSchedulerActivity } from './bulk-scheduler-activity-store'
 import { PublishConfirmationDialog } from '../ui/PublishConfirmationDialog'
-import { WorkspaceLoadingState } from '../ui/WorkspaceLoadingState'
 
 const idleProgress: BatchProgress = { state: 'idle', percent: 0, current: 0, total: 0, completed: 0, failed: 0, message: 'Select destinations and media, add captions, then choose a timing mode.' }
+
+const immediateSchedulerData: BulkSchedulerData = {
+  pages: [],
+  platforms: [],
+  jobs: [],
+  settings: { approvalRequired: false, defaultScheduleTimes: ['10:00'], timezone: 'Europe/London' },
+}
 
 function initialDate() {
   const date = new Date(Date.now() + 24 * 60 * 60_000)
@@ -81,15 +86,16 @@ export function BulkSchedulerPage() {
     queryFn: fetchBulkSchedulerData,
     refetchInterval: results.some((result) => result.status === 'uploading') ? 8_000 : false,
   })
-  const destinations = useMemo(() => pageDestinations(scheduler.data?.pages || []), [scheduler.data?.pages])
+  const schedulerData = scheduler.data || immediateSchedulerData
+  const destinations = useMemo(() => pageDestinations(schedulerData.pages), [schedulerData.pages])
   const captionBlocks = useMemo(() => parseCaptions(captions), [captions])
-  const activeScheduleTimes = timingMode === 'saved_schedule' ? scheduler.data?.settings.defaultScheduleTimes || ['10:00'] : scheduleTimes
+  const activeScheduleTimes = timingMode === 'saved_schedule' ? schedulerData.settings.defaultScheduleTimes : scheduleTimes
 
   useEffect(() => {
     if (!scheduler.data?.jobs.length || !results.length) return
     setResults((current) => current.map((result) => {
       if (!result.jobId) return result
-      const job = scheduler.data.jobs.find((candidate) => candidate.id === result.jobId)
+      const job = schedulerData.jobs.find((candidate) => candidate.id === result.jobId)
       if (!job) return result
       return { ...result, status: backendStatusToUploadStatus(job.status), resultId: job.metaPostId || job.metaVideoId || result.resultId, errorMessage: job.errorMessage || result.errorMessage }
     }))
@@ -203,7 +209,7 @@ export function BulkSchedulerPage() {
     const destinationIds = [...selectedIds]
     let publishingTimes: Array<string | null>
     try {
-      publishingTimes = buildPublishingTimes({ mode: timingMode as TimingMode, mediaCount: media.length, date: scheduleDate, dailyTimes: activeScheduleTimes, timezone: scheduler.data.settings.timezone })
+      publishingTimes = buildPublishingTimes({ mode: timingMode as TimingMode, mediaCount: media.length, date: scheduleDate, dailyTimes: activeScheduleTimes, timezone: schedulerData.settings.timezone })
     } catch (error) {
       setProgress({ ...idleProgress, state: 'failed', message: error instanceof Error ? error.message : 'The publishing schedule is invalid.' })
       return
@@ -300,37 +306,19 @@ export function BulkSchedulerPage() {
     else void runBatch()
   }
 
-  if (scheduler.isPending) return <WorkspaceLoadingState
-    message="Preparing destinations, saved schedule times and batch publishing controls."
-    panels={[
-      { title: 'Publishing Destinations', emoji: '🌐', rows: 5 },
-      { title: 'Upload Batch', emoji: '📤', rows: 5, minHeight: '340px' },
-      { title: 'Batch Progress', emoji: '⚡', rows: 5, minHeight: '340px' },
-    ]}
-    stats={[
-      { label: 'Destinations', emoji: '🌐' },
-      { label: 'Selected Media', emoji: '🖼️' },
-      { label: 'Posts', emoji: '📝' },
-      { label: 'Schedule', emoji: '🗓️' },
-      { label: 'Progress', emoji: '⚡' },
-    ]}
-    title="Bulk Scheduler"
-  />
-  if (scheduler.isError) {
-    const sessionRequired = scheduler.error instanceof ApiError && scheduler.error.status === 401
-    return <section className="grid min-h-[60vh] place-items-center"><div className="max-w-lg rounded-panel border border-brand-red/25 bg-panel p-7 text-center shadow-panel"><AlertTriangle className="mx-auto size-8 text-brand-red" /><h1 className="mt-4 text-xl font-semibold">{sessionRequired ? 'Sign in to open Bulk Scheduler' : 'Bulk Scheduler is unavailable'}</h1><p className="mt-2 text-sm text-text-muted">{sessionRequired ? 'Your private INX Social session is required.' : scheduler.error.message}</p>{sessionRequired ? <a className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-brand-blue px-5 text-sm font-semibold" href="/portal/login.html?return=/app/">Open sign in</a> : <button className="mt-5 rounded-xl bg-brand-blue px-5 py-3 text-sm font-semibold" onClick={() => scheduler.refetch()} type="button">Retry</button>}</div></section>
-  }
+  const sessionRequired = scheduler.error instanceof ApiError && scheduler.error.status === 401
 
   return (
     <div className="dashboard-canvas">
+      {scheduler.isError && <section className="mb-4 flex flex-col gap-3 rounded-xl border border-brand-red/25 bg-brand-red/7 px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between"><span>{sessionRequired ? 'Your session must be refreshed before connected destinations can be loaded.' : 'Connected destinations could not refresh. The Bulk Scheduler interface remains available.'}</span>{sessionRequired ? <a className="inline-flex min-h-9 items-center justify-center rounded-lg border border-border-soft px-3 font-semibold" href="/portal/login.html?return=/app/">Sign in</a> : <button className="min-h-9 rounded-lg border border-border-soft px-3 font-semibold" onClick={() => scheduler.refetch()} type="button">Retry destinations</button>}</section>}
       <BulkSchedulerHero
         onOpen={() => destinationSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         onStop={stopUpload}
         running={running}
       />
-      <div className="mt-4 scroll-mt-24" ref={destinationSection}><PublishingDestinationsPanel destinations={destinations} onSelectionChange={setSelectedIds} platforms={scheduler.data.platforms} selectedIds={selectedIds} /></div>
+      <div className="mt-4 scroll-mt-24" ref={destinationSection}><PublishingDestinationsPanel destinations={destinations} onSelectionChange={setSelectedIds} platforms={schedulerData.platforms} selectedIds={selectedIds} /></div>
       <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,.92fr)_minmax(0,1.08fr)]">
-        <UploadBatchPanel canStart={canStart} captionCount={captionBlocks.length} captions={captions} disabledReason={disabledReason} media={media} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onFallbackChange={setUseFallback} onMedia={selectMedia} onRetainMediaChange={setRetainMedia} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={requestStart} onTimingModeChange={setTimingMode} retainMedia={retainMedia} running={running} savedScheduleTimes={scheduler.data.settings.defaultScheduleTimes} scheduleDate={scheduleDate} scheduleTimes={activeScheduleTimes} selectedDestinations={selectedIds.size} timezone={scheduler.data.settings.timezone} timingMode={timingMode} useFallback={useFallback} />
+        <UploadBatchPanel canStart={canStart} captionCount={captionBlocks.length} captions={captions} disabledReason={disabledReason} media={media} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onFallbackChange={setUseFallback} onMedia={selectMedia} onRetainMediaChange={setRetainMedia} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={requestStart} onTimingModeChange={setTimingMode} retainMedia={retainMedia} running={running} savedScheduleTimes={schedulerData.settings.defaultScheduleTimes} scheduleDate={scheduleDate} scheduleTimes={activeScheduleTimes} selectedDestinations={selectedIds.size} timezone={schedulerData.settings.timezone} timingMode={timingMode} useFallback={useFallback} />
         <BatchRunPanel canStart={canStart} destinations={destinations} disabledReason={disabledReason} onStart={requestStart} onStop={stopUpload} progress={progress} results={results} running={running} />
       </div>
       <PublishConfirmationDialog busy={running} confirmLabel={timingMode === 'publish_now' ? 'Publish batch' : 'Schedule batch'} description={`You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} ${media.length} media file${media.length === 1 ? '' : 's'} across ${selectedIds.size} destination${selectedIds.size === 1 ? '' : 's'}.`} onCancel={() => setConfirmationOpen(false)} onConfirm={() => { setConfirmationOpen(false); void runBatch() }} open={confirmationOpen} title="Confirm this bulk publishing action" />

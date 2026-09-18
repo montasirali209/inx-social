@@ -18,7 +18,6 @@ import { PostsStatCard } from './PostPrimitives'
 import { SchedulePanel } from './SchedulePanel'
 import type { PostLibraryView } from '../../lib/posts-reuse'
 import { PublishConfirmationDialog } from '../ui/PublishConfirmationDialog'
-import { WorkspaceLoadingState } from '../ui/WorkspaceLoadingState'
 
 const draftKey = 'inx-social-post-drafts-v1'
 const composerSessionKey = 'inx-social-post-composer-session-v1'
@@ -97,6 +96,11 @@ export function PostsPage() {
   const defaultModeApplied = useRef(false)
   const [initial] = useState(readInitialComposerSession)
   const workspace = useQuery({ queryKey: ['posts-workspace'], queryFn: fetchPostsWorkspace, refetchInterval: 45_000 })
+  const workspaceData = {
+    destinations: workspace.data?.destinations || [],
+    jobs: workspace.data?.jobs || [],
+    settings: workspace.data?.settings || { approvalRequired: false, defaultPublishMode: 'scheduled' as const, timezone: 'Europe/London' },
+  }
   const [postType, setPostType] = useState<PostType>(initial?.postType || 'text')
   const [title, setTitle] = useState(initial?.title || '')
   const [caption, setCaption] = useState(initial?.caption || '')
@@ -243,7 +247,7 @@ export function PostsPage() {
     }).catch((error) => setProgress({ state: 'failed', percent: 0, message: error instanceof Error ? error.message : 'The AI Studio media could not be loaded from Media Library.' }))
   }, [location.state])
 
-  const jobs = useMemo(() => workspace.data?.jobs || [], [workspace.data?.jobs])
+  const jobs = useMemo(() => workspaceData.jobs, [workspaceData.jobs])
   const reusableJobs = jobs
   const stats = useMemo(() => {
     const needsReview = jobs.filter((job) => ['FAILED', 'AWAITING_UPLOAD'].includes(job.status)).length
@@ -256,7 +260,7 @@ export function PostsPage() {
     ]
   }, [jobs, drafts])
 
-  const selectedDestination = workspace.data?.destinations.find((destination) => selectedIds.includes(destination.id)) || null
+  const selectedDestination = workspaceData.destinations.find((destination) => selectedIds.includes(destination.id)) || null
   const bestTime = useMemo<BestTimeInsight>(() => ({
     available: false,
     label: selectedDestination ? 'Connected destination selected' : 'Choose a destination',
@@ -266,7 +270,7 @@ export function PostsPage() {
   const needsMedia = postType === 'image' || postType === 'video' || postType === 'reel'
   let scheduledAt: string | null = null
   try {
-    scheduledAt = mode === 'later' && date && time ? zonedDateTimeToIso(date, time, workspace.data?.settings.timezone || 'UTC') : null
+    scheduledAt = mode === 'later' && date && time ? zonedDateTimeToIso(date, time, workspaceData.settings.timezone) : null
   } catch {
     scheduledAt = null
   }
@@ -309,7 +313,7 @@ export function PostsPage() {
     setTitle(draft.title)
     setCaption(draft.caption)
     setPostType(draft.postType)
-    setSelectedIds(draft.selectedDestinationIds.filter((id) => workspace.data?.destinations.some((destination) => destination.id === id && destination.connected)))
+    setSelectedIds(draft.selectedDestinationIds.filter((id) => workspaceData.destinations.some((destination) => destination.id === id && destination.connected)))
     setMode(draft.scheduleMode)
     setCampaign(draft.campaign)
     setLabels(draft.labels.join(', '))
@@ -346,7 +350,7 @@ export function PostsPage() {
     setCaption(job.caption || '')
     setPostType(job.contentType === 'IMAGE' ? 'image' : job.contentType === 'VIDEO' ? 'video' : 'text')
     const destinationId = job.destination?.id || job.page?.id || null
-    setSelectedIds(destinationId && workspace.data?.destinations.some((destination) => destination.id === destinationId) ? [destinationId] : [])
+    setSelectedIds(destinationId && workspaceData.destinations.some((destination) => destination.id === destinationId) ? [destinationId] : [])
     setMode('later')
     setDate(defaultDate())
     setMedia(null)
@@ -434,20 +438,18 @@ export function PostsPage() {
       setProgress({ state: 'failed', percent: 0, message: 'Add a caption, choose destinations and complete the publishing settings.' })
       return
     }
-    if (workspace.data?.settings.approvalRequired) {
+    if (workspaceData.settings.approvalRequired) {
       setConfirmationOpen(true)
       return
     }
     void publish()
   }
 
-  if (workspace.isLoading) return <PostsSkeleton />
-  if (workspace.isError || !workspace.data) return <div className="rounded-panel border border-brand-red/25 bg-brand-red/8 p-6"><h2 className="font-semibold">Posts workspace unavailable</h2><p className="mt-2 text-sm text-text-muted">{workspace.error instanceof Error ? workspace.error.message : 'Refresh the workspace and try again.'}</p><button className="mt-4 rounded-xl border border-brand-red/30 px-4 py-2 text-xs" onClick={() => void workspace.refetch()} type="button">Retry</button></div>
-
   return (
     <div className="dashboard-canvas pb-8">
+      {workspace.isError && <div className="mb-4 flex flex-col gap-3 rounded-xl border border-brand-red/25 bg-brand-red/8 px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between"><span>Connected destinations and publishing history could not refresh. The post composer remains available.</span><button className="min-h-9 rounded-lg border border-border-soft px-3 font-semibold" onClick={() => void workspace.refetch()} type="button">Retry publishing data</button></div>}
       <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 xl:grid-cols-5">{stats.map((stat) => <PostsStatCard key={stat.label} {...stat} onClick={stat.label === 'Drafts' ? () => setDraftLibraryOpen(true) : stat.label === 'All Posts' ? () => setPostLibraryView('all') : stat.label === 'Scheduled' ? () => setPostLibraryView('scheduled') : stat.label === 'Published' ? () => setPostLibraryView('published') : stat.label === 'Needs Review' ? () => setPostLibraryView('needs_review') : undefined} />)}</div>
-      <DestinationSelector destinations={workspace.data.destinations} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
+      <DestinationSelector destinations={workspaceData.destinations} selectedIds={selectedIds} setSelectedIds={setSelectedIds} />
       <div className="mt-5 grid items-start gap-5 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.35fr)_minmax(290px,.72fr)_minmax(320px,.82fr)]">
         <CreatePostPanel bestTime={bestTime} bestTimeLoading={false} caption={caption} captionIdea={captionIdea} destinationCount={selectedIds.length} media={media} postType={postType} retainMedia={retainMedia} setCaption={setCaption} setCaptionIdea={setCaptionIdea} setMedia={updateMedia} setPostType={setPostType} setRetainMedia={setRetainMedia} setTitle={setTitle} title={title} />
         <SchedulePanel bestTime={bestTime} bestTimeLoading={false} campaign={campaign} canPublish={mode === 'draft' ? Boolean(title.trim() || caption.trim()) : ready} date={date} labels={labels} mode={mode} onDraft={saveDraft} onPublish={requestPublish} progress={progress} setCampaign={setCampaign} setDate={setDate} setLabels={setLabels} setMode={setMode} setTime={setTime} time={time} />
@@ -458,7 +460,7 @@ export function PostsPage() {
       <PublishConfirmationDialog
         busy={progress.state === 'preparing' || progress.state === 'uploading'}
         confirmLabel={mode === 'now' ? 'Publish now' : 'Confirm schedule'}
-        description={`${selectedIds.length} destination${selectedIds.length === 1 ? '' : 's'} will receive this post${mode === 'later' ? ` at the selected time in ${workspace.data.settings.timezone}` : ' immediately'}.`}
+        description={`${selectedIds.length} destination${selectedIds.length === 1 ? '' : 's'} will receive this post${mode === 'later' ? ` at the selected time in ${workspaceData.settings.timezone}` : ' immediately'}.`}
         onCancel={() => setConfirmationOpen(false)}
         onConfirm={() => { setConfirmationOpen(false); void publish() }}
         open={confirmationOpen}
@@ -468,21 +470,3 @@ export function PostsPage() {
   )
 }
 
-function PostsSkeleton() {
-  return <WorkspaceLoadingState
-    message="Preparing destinations, drafts and your publishing workspace."
-    panels={[
-      { title: 'Create Post', emoji: '✍️', rows: 4, minHeight: '420px' },
-      { title: 'Post Preview', emoji: '👀', rows: 4, minHeight: '420px' },
-      { title: 'Schedule', emoji: '🗓️', rows: 4, minHeight: '420px' },
-    ]}
-    stats={[
-      { label: 'Connected Accounts', emoji: '🔗' },
-      { label: 'Drafts', emoji: '📝' },
-      { label: 'Scheduled', emoji: '🗓️' },
-      { label: 'Published', emoji: '🚀' },
-      { label: 'Needs Review', emoji: '⚠️' },
-    ]}
-    title="Posts workspace"
-  />
-}
