@@ -107,7 +107,7 @@ export function ContentCalendarPage() {
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   })
-  const feedAccounts = analyticsSources.data?.accounts || []
+  const feedAccounts = useMemo(() => analyticsSources.data?.accounts || [], [analyticsSources.data?.accounts])
   const feedAccountKey = feedAccounts.map(account => account.analyticsKey).sort().join('|')
   const accountFeed = useQuery<{ entries: CalendarFeedEntry[]; failures: string[] }>({
     queryKey: ['calendar-account-feed', feedAccountKey, 90],
