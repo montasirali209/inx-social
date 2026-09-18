@@ -15,8 +15,11 @@ test('Analytics is a first-class responsive React workspace', () => {
   assert.match(sidebar, /label: 'Analytics'.*reactPath: '\/analytics'/);
   assert.match(page, /AnalyticsTabs/);
   assert.match(page, /AnalyticsAccountSelector/);
-  assert.match(selector, /Select one account, multiple accounts, a whole platform, or everything/);
+  assert.match(selector, /Select 1–3 accounts for a clearer comparison/);
+  assert.match(selector, /MAX_ANALYTICS_SOURCES = 3/);
+  assert.match(selector, /platformFilter/);
   assert.match(selector, /All accounts/);
+  assert.doesNotMatch(selector, /overflow-x-auto/);
   assert.match(page, /sm:grid-cols-2 xl:grid-cols-6/);
   assert.match(page, /ExportReportButton/);
 });
@@ -27,7 +30,8 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   const api = read('frontend/src/lib/analytics-api.ts');
   const service = read('src/services/postForMeAnalyticsService.js');
   const provider = read('src/services/postForMeService.js');
-  const audience = read('frontend/src/components/analytics/AudienceCards.tsx');
+  const insights = read('frontend/src/components/analytics/ContentInsightsCards.tsx');
+  const providerMetrics = read('frontend/src/components/analytics/ProviderMetricsCard.tsx');
   assert.match(page, /fetchAnalyticsForSource/);
   assert.match(api, /\/api\/studio\/analytics\/source/);
   assert.match(service, /getPostForMeAnalytics/);
@@ -41,7 +45,11 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(provider, /status === 429/);
   assert.match(page, /mapWithConcurrency\(selectedAccounts, 3/);
   assert.match(page, /refetchInterval: 5 \* 60_000/);
-  assert.match(audience, /post-level analytics/);
+  assert.match(insights, /Content Efficiency/);
+  assert.match(insights, /Publishing Rhythm/);
+  assert.match(insights, /Avg interactions \/ post/);
+  assert.match(page, /ContentEfficiencyCard/);
+  assert.match(page, /PublishingRhythmCard/);
   assert.match(service, /platform === 'youtube'/);
   assert.match(service, /platform === 'pinterest'/);
   assert.match(service, /platform === 'x'/);
@@ -51,6 +59,11 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.doesNotMatch(data, /128\.4K|2\.45M|89\.3K/);
   assert.match(page, /Analytics are just starting/);
   assert.match(page, /analytics are partially available/);
+  assert.doesNotMatch(page, /Post for Me/i);
+  assert.doesNotMatch(data, /Post for Me/i);
+  assert.doesNotMatch(api, /Post for Me/i);
+  assert.doesNotMatch(service, /Post for Me/i);
+  assert.doesNotMatch(providerMetrics, /Post for Me/i);
 });
 
 test('Analytics charts, tabs and report actions remain accessible and functional', () => {
