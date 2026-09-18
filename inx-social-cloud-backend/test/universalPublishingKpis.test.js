@@ -6,6 +6,16 @@ const test = require('node:test');
 const root = path.join(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
+test('universal publishing API is mounted before the application fallback', () => {
+  const app = read('src/app.js');
+  const routes = read('src/routes/socialPublicationRoutes.js');
+  assert.match(app, /const socialPublicationRoutes = require\('\.\/routes\/socialPublicationRoutes'\);/);
+  assert.match(app, /app\.use\('\/api\/social-publications', socialPublicationRoutes\);/);
+  assert.match(routes, /router\.get\('\/', controller\.list\);/);
+  assert.match(routes, /router\.put\('\/:publicationId\/schedule', controller\.reschedule\);/);
+  assert.match(routes, /router\.delete\('\/:publicationId', controller\.remove\);/);
+});
+
 test('universal publishing KPI source defines one Post for Me status policy', () => {
   const source = read('frontend/src/lib/universal-publishing-kpis.ts');
   assert.match(source, /\/api\/social-publications\?limit=500/);
