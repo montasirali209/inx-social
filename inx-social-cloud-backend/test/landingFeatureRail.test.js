@@ -15,7 +15,7 @@ test('landing is capability-first instead of exposing a separate page for every 
     assert.match(landing, new RegExp(area));
   }
 
-  assert.match(landing, /inxsocial-dashboard-preview\.webp/);
+  assert.match(landing, /inxsocial-dashboard-user-preview\.webp/);
   assert.match(landing, /Everything you need to run your social media, in one place/);
   assert.match(landing, /From idea to results, in five clear steps/);
   assert.match(js, /setupDashboardMotion/);
@@ -23,6 +23,8 @@ test('landing is capability-first instead of exposing a separate page for every 
   assert.match(css, /\.capability-grid\{/);
   assert.match(css, /\.workflow-line\{/);
   assert.match(css, /prefers-reduced-motion:reduce/);
+  assert.match(css, /\.plan-card:hover/);
+  assert.match(css, /\.plan-featured::before/);
   assert.doesNotMatch(landing, /data-tour-target|data-tour-panel/);
 });
 
@@ -33,9 +35,11 @@ test('landing names all nine supported social networks and renders their brand l
     assert.equal(landing.includes(platform), true, `${platform} should appear in the supported platform section`);
   }
 
-  for (const logo of ['logos:facebook.svg','logos:instagram-icon.svg','logos:linkedin-icon.svg','logos:tiktok-icon.svg','logos:youtube-icon.svg','logos:pinterest.svg','logos:threads.svg','logos:bluesky.svg','logos:x.svg']) {
-    assert.equal(landing.includes(logo), true, `${logo} should be used as a recognisable platform logo`);
+  for (const logoClass of ['facebook-logo','instagram-logo','linkedin-logo','tiktok-logo','youtube-logo','pinterest-logo','threads-logo','bluesky-logo','x-logo']) {
+    assert.equal(landing.includes(logoClass), true, `${logoClass} should render as a local inline platform logo`);
   }
+  assert.doesNotMatch(landing, /api\.iconify\.design/);
+  assert.match(landing, /dashboard-logo-mask/);
 
   assert.doesNotMatch(landing, /INX Social Admin|Trails & Tales|Ali The Dad|Taslim/);
 });
@@ -47,5 +51,6 @@ test('landing navigation remains one canonical public experience', () => {
     assert.equal(landing.includes(`href="${href}"`), true, `${href} should be linked from the canonical landing page`);
   }
 
+  assert.match(landing, /href="#platforms"[\s\S]*href="#capabilities"[\s\S]*href="#workflow"[\s\S]*href="#ai"[\s\S]*href="#pricing"/);
   assert.doesNotMatch(landing, /href="\/(?:social-media-scheduler|bulk-social-media-scheduler|ai-social-media-tools|social-media-content-calendar|social-media-analytics|pricing|free-social-media-tools)\.html"/);
 });
