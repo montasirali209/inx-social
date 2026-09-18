@@ -2,26 +2,31 @@ import { describe, expect, it } from 'vitest'
 import { comparisonRows, getPlan, plans } from './billingData'
 
 describe('billing plans', () => {
-  it('uses only the Trial, Pro and Plus subscription model', () => {
-    expect(plans.map((plan) => plan.id)).toEqual(['trial', 'pro', 'plus'])
-    expect(plans.map((plan) => plan.monthlyPrice)).toEqual([undefined, 9.99, 15.99])
+  it('uses Trial plus Creator, Pro, Business and Agency pricing', () => {
+    expect(plans.map((plan) => plan.id)).toEqual(['trial', 'creator', 'pro', 'business', 'agency'])
+    expect(plans.map((plan) => plan.monthlyPrice)).toEqual([undefined, 18.99, 34.99, 59.99, 99.99])
     expect(getPlan('trial').connectedPagesLimit).toBe(2)
-    expect(getPlan('trial').schedulingWindowDays).toBe(30)
+    expect(getPlan('trial').publishedPostsLimit).toBe(50)
+    expect(getPlan('pro').recommended).toBe(true)
   })
 
-  it('keeps analytics and caption tools out of Trial and full AI Studio in Plus only', () => {
-    expect(getPlan('trial').features).not.toContain('analytics')
-    expect(getPlan('trial').features).not.toContain('ai_caption_writing')
-    expect(getPlan('pro').features).toContain('analytics')
-    expect(getPlan('pro').features).toContain('ai_caption_writing')
-    expect(getPlan('pro').features).not.toContain('ai_content_studio')
-    expect(getPlan('plus').features).toContain('ai_content_studio')
-    expect(getPlan('plus').features).toContain('ai_image_generation')
-    expect(getPlan('plus').features).toContain('ai_video_generation')
+  it('gives Trial the full workflow with a small one-time AI allowance', () => {
+    expect(getPlan('trial').features).toContain('analytics')
+    expect(getPlan('trial').features).toContain('ai_caption_writing')
+    expect(getPlan('trial').features).toContain('ai_content_studio')
+    expect(getPlan('trial').monthlyAiCredits).toBe(20)
+    expect(getPlan('creator').monthlyAiCredits).toBe(150)
+    expect(getPlan('pro').monthlyAiCredits).toBe(500)
+    expect(getPlan('business').monthlyAiCredits).toBe(1200)
+    expect(getPlan('agency').monthlyAiCredits).toBe(2500)
   })
 
-  it('includes priority support in all plans and matches comparison values', () => {
-    expect(plans.every((plan) => plan.features.includes('priority_support'))).toBe(true)
-    expect(comparisonRows.find((row) => row.label === 'Analytics')?.values).toEqual({ trial: false, pro: 'Full', plus: 'Full' })
+  it('reserves priority support for higher paid tiers', () => {
+    expect(getPlan('trial').features).not.toContain('priority_support')
+    expect(getPlan('creator').features).not.toContain('priority_support')
+    expect(getPlan('pro').features).toContain('priority_support')
+    expect(getPlan('business').features).toContain('priority_support')
+    expect(getPlan('agency').features).toContain('priority_plus_support')
+    expect(comparisonRows.find((row) => row.label === 'Full Analytics')?.values).toEqual({ trial: true, creator: true, pro: true, business: true, agency: true })
   })
 })
