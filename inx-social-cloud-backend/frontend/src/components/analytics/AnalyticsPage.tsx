@@ -111,7 +111,7 @@ export function AnalyticsPage() {
     queryFn: async () => {
       const settled = await mapWithConcurrency(selectedAccounts, 2, async account => {
         try {
-          return { ok: true as const, account, analytics: await fetchAnalyticsForSource(account, days) }
+          return { ok: true as const, account, analytics: await fetchAnalyticsForSource(account, days, 'full', true) }
         } catch (error) {
           return { ok: false as const, account, message: error instanceof Error ? error.message : 'Live analytics could not be loaded.' }
         }
