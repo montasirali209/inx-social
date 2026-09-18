@@ -35,8 +35,8 @@ function BillingImmediateState({ error, onRetry }: { error?: string; onRetry: ()
       <h2 className="font-semibold">AI Studio Credits</h2>
       <p className="mt-2 text-sm text-text-muted">Your shared AI wallet will appear here with the live account balance. Image, carousel and video creation use the same credit wallet.</p>
     </Card>
-    <BillingInformationCard onUpdate={() => {}} />
-    <SecureBillingFooter onLearn={() => {}} />
+    <Card className="p-5"><h2 className="font-semibold">Billing Information</h2><p className="mt-2 text-sm text-text-muted">Payment-method controls appear here after the account subscription response is available. INXSocial never displays or stores full card details.</p><Button className="mt-4" disabled>Update Payment Method</Button></Card>
+    <Card className="p-5"><h2 className="font-semibold">Secure billing powered by Stripe</h2><p className="mt-2 text-xs text-text-muted">Plan changes and payment-method updates are completed through Stripe.</p></Card>
   </div>
 }
 
