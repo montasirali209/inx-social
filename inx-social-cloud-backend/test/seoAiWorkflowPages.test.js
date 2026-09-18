@@ -21,7 +21,8 @@ test('canonical AI acquisition pages are indexable and self-canonical', () => {
     const html = read(`public/${file}`);
     assert.match(html, /<meta name="robots" content="index,follow/);
     assert.equal(html.includes(`<link rel="canonical" href="${canonical}">`), true, `${file} should have its canonical URL`);
-    assert.match(html, /portal\/register\.html\?plan=PRO/);
+    assert.match(html, /portal\/register\.html/);
+    assert.doesNotMatch(html, /portal\/register\.html\?plan=PRO/);
   }
 });
 
