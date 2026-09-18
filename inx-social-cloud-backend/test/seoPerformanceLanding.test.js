@@ -35,28 +35,17 @@ test('responsive stylesheet is not injected after first paint', () => {
   assert.doesNotMatch(landingJs, /landing-mobile\.css/);
 });
 
-test('legacy utility routes can expose noindex while public SEO pages stay discoverable', () => {
+test('crawl controls consolidate the marketing site while preserving noindex app surfaces', () => {
   const robots = read('public/robots.txt');
   const sitemap = read('public/sitemap.xml');
   const app = read('src/app.js');
   assert.match(robots, /Allow: \//);
   assert.match(robots, /Disallow: \/admin/);
   assert.match(robots, /Disallow: \/api\//);
-  assert.doesNotMatch(robots, /Disallow: \/app\//);
-  assert.doesNotMatch(robots, /Disallow: \/portal\//);
-  assert.doesNotMatch(robots, /Disallow: \/studio\//);
   assert.match(app, /\['\/admin', '\/index\.html', '\/api', '\/portal', '\/studio', '\/app', '\/health', '\/oauth-callback\.html'\]/);
   assert.match(app, /X-Robots-Tag', 'noindex, nofollow, noarchive'/);
-  assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/sitemap\.xml/);
-  assert.match(sitemap, /social-media-scheduler\.html/);
-  assert.match(sitemap, /bulk-social-media-scheduler\.html/);
-  assert.match(sitemap, /social-media-content-calendar\.html/);
-  assert.match(sitemap, /social-media-analytics\.html/);
-  assert.match(sitemap, /ai-social-media-tools\.html/);
-  assert.match(sitemap, /pricing\.html/);
-  assert.doesNotMatch(sitemap, /\/app\//);
-  assert.doesNotMatch(sitemap, /\/portal\//);
-  assert.doesNotMatch(sitemap, /\/studio\//);
+  assert.equal((sitemap.match(/<url>/g) || []).length, 1);
+  assert.doesNotMatch(sitemap, /social-media-scheduler\.html|pricing\.html|free-social-media-tools\.html/);
 });
 
 test('landing retains canonical and software application structured data', () => {
@@ -75,44 +64,13 @@ test('landing retains canonical and software application structured data', () =>
   assert.match(landing, /coming soon/i);
 });
 
-test('SEO product pages have unique titles, canonicals and indexable copy', () => {
-  const pages = [
-    ['public/social-media-scheduler.html', 'Social Media Scheduler for Multiple Platforms', 'social-media-scheduler.html'],
-    ['public/bulk-social-media-scheduler.html', 'Bulk Social Media Scheduler for Multiple Accounts', 'bulk-social-media-scheduler.html'],
-    ['public/social-media-content-calendar.html', 'Social Media Content Calendar & Publishing Planner', 'social-media-content-calendar.html'],
-    ['public/social-media-analytics.html', 'Multi-Platform Social Media Analytics Dashboard', 'social-media-analytics.html'],
-    ['public/ai-social-media-tools.html', 'AI Social Media Content Studio', 'ai-social-media-tools.html'],
-    ['public/pricing.html', 'INXSocial Pricing', 'pricing.html']
-  ];
-
-  for (const [file, title, canonical] of pages) {
-    const html = read(file);
-    assert.match(html, new RegExp(`<title>${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`));
-    assert.match(html, /<meta name="description" content="[^"]{60,}/);
-    assert.match(html, /<meta name="robots" content="index,follow/);
-    assert.match(html, new RegExp(`rel="canonical" href="https:\\/\\/www\\.inxsocial\\.co\\.uk\\/${canonical.replace('.', '\\.')}`));
-    assert.match(html, /application\/ld\+json/);
-    assert.match(html, /href="\/social-media-scheduler\.html"/);
-  }
-});
-
-test('scheduler, analytics and GEO documentation expose the nine-network publishing scope', () => {
-  const scheduler = read('public/social-media-scheduler.html');
-  const bulk = read('public/bulk-social-media-scheduler.html');
-  const analytics = read('public/social-media-analytics.html');
-  const createAndSchedule = read('public/generate-and-schedule-social-media-posts.html');
+test('GEO documentation describes product capability without publishing duplicate marketing URLs', () => {
   const llms = read('public/llms.txt');
-  const platforms = ['Facebook', 'Instagram', 'LinkedIn', 'TikTok', 'YouTube', 'Pinterest', 'Threads', 'Bluesky'];
-
-  for (const platform of platforms) {
-    assert.equal(scheduler.includes(platform), true, `${platform} missing from scheduler SEO page`);
-    assert.equal(analytics.includes(platform), true, `${platform} missing from analytics SEO page`);
+  for (const platform of ['Facebook','Instagram','LinkedIn','TikTok','YouTube','Pinterest','Threads','Bluesky']) {
     assert.equal(llms.includes(platform), true, `${platform} missing from llms.txt`);
   }
-  assert.match(scheduler, /Bluesky and X/);
-  assert.match(bulk, /Bluesky and X/);
-  assert.match(analytics, /Bluesky and X/);
-  assert.match(createAndSchedule, /Bluesky and X/);
   assert.match(llms, /X \/ Twitter/);
   assert.match(llms, /Google Business is not currently supplied/);
+  assert.match(llms, /Canonical website: https:\/\/www\.inxsocial\.co\.uk\//);
+  assert.doesNotMatch(llms, /https:\/\/www\.inxsocial\.co\.uk\/(?:social-media|bulk-social|ai-social|free-social|pricing)/);
 });

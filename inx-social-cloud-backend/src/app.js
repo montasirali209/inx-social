@@ -39,20 +39,27 @@ const CANONICAL_BROWSER_HOST = 'www.inxsocial.co.uk';
 const MIGRATION_BROWSER_HOSTS = new Set(['social.inaxx.co.uk', 'inxsocial.co.uk']);
 const ANALYTICS_SCRIPT_TAG = '<script src="/analytics-consent.js?v=20260916a" defer></script>';
 const TRACKED_PUBLIC_HTML = [
-  '/social-media-scheduler.html',
-  '/bulk-social-media-scheduler.html',
-  '/social-media-content-calendar.html',
-  '/social-media-analytics.html',
-  '/ai-social-media-tools.html',
-  '/ai-social-media-post-generator.html',
-  '/generate-and-schedule-social-media-posts.html',
-  '/pricing.html',
-  '/free-social-media-tools.html',
-  '/social-media-caption-generator.html',
   '/privacy.html',
   '/terms.html',
   '/data-deletion.html'
 ];
+
+const LEGACY_MARKETING_REDIRECTS = {
+  '/social-media-scheduler.html': '/#workflows',
+  '/bulk-social-media-scheduler.html': '/#workflows',
+  '/social-media-content-calendar.html': '/#product',
+  '/social-media-analytics.html': '/#intelligence',
+  '/ai-social-media-tools.html': '/#intelligence',
+  '/ai-social-media-post-generator.html': '/#intelligence',
+  '/generate-and-schedule-social-media-posts.html': '/#workflows',
+  '/pricing.html': '/#pricing',
+  '/free-social-media-tools.html': '/',
+  '/social-media-caption-generator.html': '/',
+  '/30-day-social-media-content-planner.html': '/#product',
+  '/ai-video-post-generator.html': '/#intelligence',
+  '/ai-carousel-post-generator.html': '/#intelligence',
+  '/ai-ugc-ad-generator.html': '/#intelligence'
+};
 const isAdminHost = req => Boolean(env.adminHost && String(req.hostname || '').toLowerCase() === env.adminHost);
 const secureAdminDocument = res => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
@@ -151,8 +158,9 @@ app.use('/api/releases', releaseRoutes);
 
 app.use('/admin.css', express.static(path.join(publicRoot, 'admin.css'), { setHeaders: res => res.setHeader('Content-Type', 'text/css') }));
 app.use('/admin.js', express.static(path.join(publicRoot, 'admin.js'), { setHeaders: res => res.setHeader('Content-Type', 'application/javascript') }));
-app.get('/30-day-social-media-content-planner.html', (req, res) => res.redirect(308, '/ai-social-media-tools.html'));
-app.get(['/ai-video-post-generator.html', '/ai-carousel-post-generator.html', '/ai-ugc-ad-generator.html'], (req, res) => res.redirect(308, '/ai-social-media-tools.html'));
+app.get(Object.keys(LEGACY_MARKETING_REDIRECTS), (req, res) => {
+  res.redirect(301, LEGACY_MARKETING_REDIRECTS[req.path] || '/');
+});
 app.get(TRACKED_PUBLIC_HTML, (req, res, next) => sendTrackedHtml(path.join(publicRoot, req.path.slice(1)), res, next));
 app.use(express.static(publicRoot, {
   index: false,

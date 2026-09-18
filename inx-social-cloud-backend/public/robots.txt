@@ -3,6 +3,4 @@ Allow: /
 Disallow: /admin
 Disallow: /api/
 
-# Portal, studio and app URLs intentionally remain crawlable so search engines can
-# read their X-Robots-Tag: noindex headers and remove any legacy indexed copies.
 Sitemap: https://www.inxsocial.co.uk/sitemap.xml
