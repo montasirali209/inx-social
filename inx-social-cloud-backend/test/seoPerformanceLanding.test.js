@@ -9,10 +9,11 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 test('landing response applies SEO title, description and render-critical styles server-side', () => {
   const app = read('src/app.js');
   const landing = read('public/landing.html');
+  assert.match(app, /landing\.css\?v=20260918a/);
   assert.match(app, /landing-mobile\.css\?v=20260910c/);
   assert.match(app, /landing-performance\.css\?v=20260911b/);
   assert.match(app, /landing-brand\.css\?v=20260911b/);
-  assert.match(app, /landing\.js\?v=20260917a/);
+  assert.match(app, /landing\.js\?v=20260918a/);
   assert.match(landing, /<title>All-in-One Social Media Management &amp; AI Content \| INXSocial<\/title>/);
   assert.match(landing, /Manage connected social accounts, create posts and media with AI/);
   assert.match(landing, /landing-ai-studio\.css\?v=20260915a/);
