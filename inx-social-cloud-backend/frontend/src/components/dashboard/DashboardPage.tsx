@@ -5,6 +5,7 @@ import { ApiError } from '../../lib/api-client'
 import { fetchAnalyticsForSource, fetchAnalyticsSources } from '../../lib/analytics-api'
 import { buildActivitySeries, buildDashboardView, fetchDashboardJobs } from '../../lib/dashboard-api'
 import { fetchUniversalPublishingKpis, universalPublishingKpiQueryKey } from '../../lib/universal-publishing-kpis'
+import { readSessionCache, writeSessionCache } from '../../lib/session-cache'
 import type { DashboardAnalyticsEntry } from '../../types/dashboard'
 import { AIStudioPromoCard } from './AIStudioPromoCard'
 import { PlatformDonutChart } from './PlatformDonutChart'
@@ -17,6 +18,28 @@ import { UpcomingScheduleCard } from './UpcomingScheduleCard'
 
 const statIcons = [Send, CalendarClock, Files, AlertTriangle, Activity, UsersRound]
 const dashboardAnalyticsDays = 30
+const dashboardSourcesCacheKey = 'inx-social-cache:dashboard-sources-v1'
+const dashboardJobsCacheKey = 'inx-social-cache:dashboard-jobs-v1'
+const dashboardKpisCacheKey = 'inx-social-cache:dashboard-kpis-v1'
+
+function dashboardAnalyticsCacheKey(accountKey: string) {
+  return `inx-social-cache:dashboard-analytics:${encodeURIComponent(accountKey)}:${dashboardAnalyticsDays}`
+}
+
+async function mapWithConcurrency<T, R>(items: T[], concurrency: number, worker: (item: T) => Promise<R>): Promise<R[]> {
+  if (!items.length) return []
+  const results = new Array<R>(items.length)
+  let cursor = 0
+  const runners = Array.from({ length: Math.min(Math.max(1, concurrency), items.length) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor
+      cursor += 1
+      results[index] = await worker(items[index]!)
+    }
+  })
+  await Promise.all(runners)
+  return results
+}
 
 type DashboardAnalyticsResult = {
   entries: DashboardAnalyticsEntry[]
@@ -24,16 +47,27 @@ type DashboardAnalyticsResult = {
 }
 
 function DashboardSkeleton() {
+  const stats = [
+    ['🚀', 'Published'],
+    ['🗓️', 'Scheduled'],
+    ['📝', 'Drafts'],
+    ['⚠️', 'Needs Review'],
+    ['💬', 'Engagement'],
+    ['🔗', 'Connected Accounts'],
+  ] as const
   return (
-    <div aria-label="Loading dashboard workspace" className="space-y-3" role="status">
-      <div className="flex gap-3 overflow-hidden md:grid md:grid-cols-3 xl:grid-cols-6">
-        {Array.from({ length: 6 }, (_, index) => <div className="h-24 min-w-48 animate-pulse rounded-card bg-panel motion-reduce:animate-none" key={index} />)}
-      </div>
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1.9fr)_minmax(300px,.85fr)]">
-        <div className="h-64 animate-pulse rounded-card bg-panel motion-reduce:animate-none" />
-        <div className="h-64 animate-pulse rounded-card bg-panel motion-reduce:animate-none" />
-      </div>
-      <div className="h-56 animate-pulse rounded-card bg-panel motion-reduce:animate-none" />
+    <div aria-label="Loading dashboard workspace" className="dashboard-canvas grid content-start gap-3" role="status">
+      <section className="flex items-start gap-3 overflow-hidden md:grid md:grid-cols-3 xl:grid-cols-6">
+        {stats.map(([emoji, label], index) => <div className="relative min-h-[92px] min-w-48 overflow-hidden rounded-card border border-border-soft bg-panel/70 p-3 md:min-w-0" key={label}>
+          <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl border border-white/[.07] bg-white/[.025] text-lg motion-safe:animate-bounce" style={{ animationDelay: `${index * 80}ms` }}>{emoji}</span><span><small className="block text-[10px] font-semibold text-text-muted">{label}</small><strong className="mt-1 block text-sm">Updating…</strong></span></div>
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-border-soft"><span className="block h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-brand-teal/60 to-brand-cyan motion-reduce:animate-none" /></div>
+        </div>)}
+      </section>
+      <section className="grid min-h-[250px] gap-3 xl:grid-cols-[minmax(0,1.9fr)_minmax(300px,.85fr)]">
+        <div className="rounded-card border border-border-soft bg-panel/70 p-5"><div className="flex justify-between"><span><strong className="block text-sm">Publishing Activity</strong><small className="mt-1 block text-[10px] text-text-muted">Loading your latest workspace activity</small></span><span className="text-2xl motion-safe:animate-pulse">📊</span></div><div className="mt-8 grid h-36 place-items-center rounded-xl border border-dashed border-border-soft bg-bg/20"><span className="text-center"><span className="block text-3xl motion-safe:animate-bounce">⏳</span><small className="mt-2 block text-[10px] text-text-soft">Syncing posts and insights</small></span></div></div>
+        <div className="rounded-card border border-border-soft bg-panel/70 p-5"><strong className="text-sm">Posts by Platform</strong><div className="mt-8 grid place-items-center"><div className="grid size-32 place-items-center rounded-full border-[13px] border-brand-teal/10"><span className="text-2xl motion-safe:animate-spin">✨</span></div></div></div>
+      </section>
+      <section className="grid min-h-[190px] gap-3 xl:grid-cols-3">{['Recent Posts', 'Upcoming Schedule', 'Top Performing Content'].map(label => <div className="rounded-card border border-border-soft bg-panel/70 p-4" key={label}><strong className="text-sm">{label}</strong><div className="mt-4 space-y-2">{Array.from({ length: 3 }, (_, i) => <div className="h-10 animate-pulse rounded-lg bg-white/[.025] motion-reduce:animate-none" key={i} />)}</div></div>)}</section>
     </div>
   )
 }
@@ -42,19 +76,43 @@ export function DashboardPage() {
   const [activityRangeDays, setActivityRangeDays] = useState(14)
   const sources = useQuery({
     queryKey: ['dashboard-all-account-sources'],
-    queryFn: fetchAnalyticsSources,
+    queryFn: async () => {
+      const result = await fetchAnalyticsSources()
+      writeSessionCache(dashboardSourcesCacheKey, result)
+      return result
+    },
+    initialData: () => readSessionCache<Awaited<ReturnType<typeof fetchAnalyticsSources>>>(dashboardSourcesCacheKey),
+    initialDataUpdatedAt: 0,
+    placeholderData: previous => previous,
+    staleTime: 30_000,
     refetchInterval: 60_000,
     refetchOnWindowFocus: true,
   })
   const jobs = useQuery({
     queryKey: ['dashboard-jobs', 'post-for-me'],
-    queryFn: fetchDashboardJobs,
+    queryFn: async () => {
+      const result = await fetchDashboardJobs()
+      writeSessionCache(dashboardJobsCacheKey, result)
+      return result
+    },
+    initialData: () => readSessionCache<Awaited<ReturnType<typeof fetchDashboardJobs>>>(dashboardJobsCacheKey),
+    initialDataUpdatedAt: 0,
+    placeholderData: previous => previous,
+    staleTime: 20_000,
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   })
   const universalKpis = useQuery({
     queryKey: universalPublishingKpiQueryKey,
-    queryFn: fetchUniversalPublishingKpis,
+    queryFn: async () => {
+      const result = await fetchUniversalPublishingKpis()
+      writeSessionCache(dashboardKpisCacheKey, result)
+      return result
+    },
+    initialData: () => readSessionCache<Awaited<ReturnType<typeof fetchUniversalPublishingKpis>>>(dashboardKpisCacheKey),
+    initialDataUpdatedAt: 0,
+    placeholderData: previous => previous,
+    staleTime: 20_000,
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   })
@@ -64,11 +122,14 @@ export function DashboardPage() {
   const analytics = useQuery<DashboardAnalyticsResult>({
     queryKey: ['dashboard-all-account-analytics', 'post-for-me', dashboardAnalyticsDays, accountKey],
     enabled: accounts.length > 0,
-    refetchInterval: 60_000,
-    refetchOnWindowFocus: true,
+    initialData: () => accountKey ? readSessionCache<DashboardAnalyticsResult>(dashboardAnalyticsCacheKey(accountKey)) : undefined,
+    initialDataUpdatedAt: 0,
+    refetchInterval: 5 * 60_000,
+    refetchOnWindowFocus: false,
+    staleTime: 2 * 60_000,
     retry: false,
     queryFn: async () => {
-      const results = await Promise.all(accounts.map(async (account) => {
+      const results = await mapWithConcurrency(accounts, 3, async (account) => {
         try {
           const platformAnalytics = await fetchAnalyticsForSource(account, dashboardAnalyticsDays)
           return {
@@ -90,11 +151,13 @@ export function DashboardPage() {
             },
           }
         }
-      }))
-      return {
-        entries: results.flatMap((result) => result.ok ? [result.entry] : []),
-        failures: results.flatMap((result) => result.ok ? [] : [result.failure]),
+      })
+      const result = {
+        entries: results.flatMap((item) => item.ok ? [item.entry] : []),
+        failures: results.flatMap((item) => item.ok ? [] : [item.failure]),
       }
+      writeSessionCache(dashboardAnalyticsCacheKey(accountKey), result)
+      return result
     },
   })
 
