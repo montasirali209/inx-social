@@ -29,6 +29,6 @@ export function calculateBestPostTime(analytics: PlatformAnalytics | null | unde
     available: true,
     label: `Around ${formatHour(hour)}`,
     time: `${String(hour).padStart(2, '0')}:00`,
-    detail: `Based on ${evidence.posts} published post${evidence.posts === 1 ? '' : 's'} and live Post for Me engagement from ${analytics.page.name}.`,
+    detail: `Based on ${evidence.posts} published post${evidence.posts === 1 ? '' : 's'} and current engagement from ${analytics.page.name}.`,
   }
 }
