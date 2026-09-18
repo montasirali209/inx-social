@@ -30,7 +30,6 @@ import {
 import { formatBytes } from "../../lib/media-format";
 import type { MediaAsset, MediaTabId } from "../../types/media-library";
 import { Button } from "../ui/Button";
-import { WorkspaceLoadingState } from "../ui/WorkspaceLoadingState";
 import { AssetPreviewPanel } from "./AssetPreviewPanel";
 import { CreateFolderModal } from "./CreateFolderModal";
 import { FolderPanel } from "./FolderPanel";
