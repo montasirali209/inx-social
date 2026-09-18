@@ -32,8 +32,8 @@ test('Analytics is a first-class responsive React workspace', () => {
   assert.match(scopeNotice, />Live</);
   assert.match(scopeNotice, /Post metrics/);
   assert.match(scopeNotice, /Selected accounts/);
-  assert.match(scopeNotice, /Trend history/);
-  assert.match(scopeNotice, /Latest performance for published posts/);
+  assert.match(scopeNotice, /Last synced/);
+  assert.match(scopeNotice, /Latest verified performance for published posts/);
 });
 
 test('Analytics uses live Post for Me platform data and derives transparent metrics without mock values', () => {
@@ -60,6 +60,8 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(service, /buildMeasuredSeries/);
   assert.match(service, /measured_snapshot_delta/);
   assert.match(service, /startAnalyticsSnapshotRuntime/);
+  assert.match(service, /ANALYTICS_BACKGROUND_SNAPSHOT_ENABLED/);
+  assert.match(service, /forceRefresh/);
   assert.doesNotMatch(service, /incrementSeries\(viewsSeries, date, metrics\.views\)/);
   assert.match(provider, /retry-after/);
   assert.match(provider, /status === 429/);
@@ -68,6 +70,9 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(provider, /reserveProviderReadSlot/);
   assert.match(provider, /CONNECTION_SYNC_TTL_MS/);
   assert.match(page, /mapWithConcurrency\(selectedAccounts, 2/);
+  assert.match(page, /fetchAnalyticsForSource\(account, days, 'full', true\)/);
+  assert.match(page, /Last sync ·/);
+  assert.match(page, /analytics\.isFetching[\s\S]*AnalyticsKpiSkeleton/);
   assert.match(page, /refetchInterval: 5 \* 60_000/);
   assert.match(page, /readSessionCache/);
   assert.match(page, /writeSessionCache/);
@@ -103,6 +108,9 @@ test('Analytics charts, tabs and report actions remain accessible and functional
   assert.match(chart, /exactDate/);
   assert.match(chart, /areaPath/);
   assert.match(chart, /Hover for exact post-date performance/);
+  assert.match(chart, /hoverValue/);
+  assert.match(chart, /position: Math\.round|position,/);
+  assert.match(chart, /days > 30/);
   assert.match(chart, /Content Performance by Publish Date/);
   assert.doesNotMatch(chart, /Live Performance Trend/);
   assert.doesNotMatch(chart, /Content history/);
@@ -119,6 +127,8 @@ test('Analytics charts, tabs and report actions remain accessible and functional
   assert.match(exportButton, /window\.print/);
   assert.match(exportButton, /mailto:/);
   assert.match(motion, /prefers-reduced-motion/);
+  assert.match(motion, /analytics-chart-tooltip/);
+  assert.match(motion, /cubic-bezier\(\.16,1,\.3,1\)/);
 });
 
 
