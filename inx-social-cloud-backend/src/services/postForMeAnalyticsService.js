@@ -268,6 +268,14 @@ async function buildMeasuredSeries(profile, feed, since) {
         externalPostId: { in: externalPostIds },
         capturedAt: { gte: querySince }
       },
+      select: {
+        externalPostId: true,
+        capturedAt: true,
+        views: true,
+        interactions: true,
+        clicks: true,
+        follows: true
+      },
       orderBy: [{ externalPostId: 'asc' }, { capturedAt: 'asc' }]
     }),
     prisma.analyticsMetricSnapshot.findFirst({
@@ -494,7 +502,7 @@ async function runSnapshotSweep() {
   snapshotRuntimeRunning = true;
   try {
     const profiles = await prisma.socialProfile.findMany({
-      where: { status: 'ACTIVE', connection: { status: 'ACTIVE' } },
+      where: { status: 'ACTIVE', connection: { is: { status: 'ACTIVE' } } },
       include: { connection: true },
       orderBy: { updatedAt: 'desc' }
     });
