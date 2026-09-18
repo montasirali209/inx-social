@@ -179,10 +179,12 @@ export function DashboardPage() {
       { ...data.stats[1], label: 'Scheduled', value: universal?.scheduled ?? data.stats[1].value, detail: 'Future publishing slots' },
       { ...data.stats[2], label: 'Drafts', value: universal?.drafts ?? data.stats[2].value, detail: 'Saved unfinished posts' },
       { ...data.stats[3], label: 'Needs Review', value: universal?.needsReview ?? data.stats[3].value, detail: 'Action required' },
-      data.stats[4],
+      accounts.length > 0 && analytics.isPending
+        ? { ...data.stats[4], label: 'Total Engagement', value: '⏳', detail: 'Updating latest interactions' }
+        : data.stats[4],
       { ...data.stats[5], label: 'Connected Accounts', value: universal?.connectedAccounts ?? accounts.length, detail: 'Across all active platforms' },
     ]
-  }, [accounts.length, data, universalKpis.data])
+  }, [accounts.length, analytics.isPending, data, universalKpis.data])
 
   function refreshDashboard() {
     void Promise.all([sources.refetch(), jobs.refetch(), analytics.refetch(), universalKpis.refetch()])
