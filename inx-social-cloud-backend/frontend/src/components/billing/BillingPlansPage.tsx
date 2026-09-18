@@ -8,28 +8,18 @@ import type { BillingCycle, PlanId } from '../../types/billing'
 import { AICreditAllowanceCard } from './AICreditAllowanceCard'
 import { AccountPrivacyCard, BillingInformationCard, ChangePlanSection, ComparisonTable, CurrentPlanCard, InvoicesCard, InvoiceRow, SecureBillingFooter, UsageCard, UsageDetails } from './BillingSections'
 import { Button, Card, Drawer, Modal } from './BillingPrimitives'
-import { WorkspaceLoadingState } from '../ui/WorkspaceLoadingState'
 
 type Panel = null | 'subscription' | 'usage' | 'invoices' | 'compare' | 'plan' | 'delete' | 'security'
 type Notice = { tone: 'success' | 'error'; text: string } | null
 
 function BillingSkeleton() {
-  return <WorkspaceLoadingState
-    message="Checking your current plan, AI credits, usage and billing status."
-    panels={[
-      { title: 'Current Plan', emoji: '👑', rows: 4 },
-      { title: 'Usage & Credits', emoji: '✨', rows: 4 },
-      { title: 'Plans & Billing', emoji: '💳', rows: 5, minHeight: '340px' },
-    ]}
-    stats={[
-      { label: 'Current Plan', emoji: '👑' },
-      { label: 'AI Credits', emoji: '✨' },
-      { label: 'Connected Accounts', emoji: '🔗' },
-      { label: 'Monthly Usage', emoji: '📊' },
-      { label: 'Renewal', emoji: '🗓️' },
-    ]}
-    title="Billing & Plans"
-  />
+  return <div aria-label="Loading billing details" className="grid gap-4 xl:grid-cols-12" role="status">
+    <div className="h-72 animate-pulse rounded-panel border border-border-soft bg-panel/55 motion-reduce:animate-none xl:col-span-8" />
+    <div className="h-72 animate-pulse rounded-panel border border-border-soft bg-panel/55 motion-reduce:animate-none xl:col-span-4" />
+    <div className="h-48 animate-pulse rounded-panel border border-border-soft bg-panel/55 motion-reduce:animate-none xl:col-span-7" />
+    <div className="h-48 animate-pulse rounded-panel border border-border-soft bg-panel/55 motion-reduce:animate-none xl:col-span-5" />
+    <div className="h-[520px] animate-pulse rounded-panel border border-border-soft bg-panel/55 motion-reduce:animate-none xl:col-span-12" />
+  </div>
 }
 
 export function BillingPlansPage() {
