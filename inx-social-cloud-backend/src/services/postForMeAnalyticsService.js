@@ -763,14 +763,23 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
 
   if (value) {
     if (forceRefresh || age > ANALYTICS_CACHE_TTL_MS) {
-      queueAnalyticsRefresh(userId, platform, profileId, descriptor.periodDays, options);
-      const stale = age > ANALYTICS_STALE_TTL_MS;
+      const retryCooldownActive = row?.syncStatus === 'ERROR'
+        && row?.lastAttemptAt
+        && Date.now() - row.lastAttemptAt.getTime() < ANALYTICS_CACHE_RUNTIME_RETRY_AFTER_MS;
+
+      if (!retryCooldownActive) {
+        queueAnalyticsRefresh(userId, platform, profileId, descriptor.periodDays, options);
+      }
+
+      const stale = age > ANALYTICS_STALE_TTL_MS || Boolean(retryCooldownActive);
       const veryStale = age > ANALYTICS_PERSISTED_MAX_STALE_MS;
-      const warning = veryStale
-        ? 'INXSocial is showing an older verified analytics snapshot while the connected platform is refreshed in the background.'
-        : stale
-          ? 'INXSocial is showing the most recent verified analytics snapshot while the connected platform refreshes in the background.'
-          : null;
+      const warning = retryCooldownActive
+        ? 'The connected platform delayed the latest refresh. INXSocial is keeping the last verified analytics visible and will retry automatically.'
+        : veryStale
+          ? 'INXSocial is showing an older verified analytics snapshot while the connected platform is refreshed in the background.'
+          : stale
+            ? 'INXSocial is showing the most recent verified analytics snapshot while the connected platform refreshes in the background.'
+            : null;
       return withCacheState(value, stale ? 'stale' : 'refreshing', warning);
     }
     return withCacheState(value, 'fresh');
