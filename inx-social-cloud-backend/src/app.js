@@ -114,6 +114,46 @@ const buildLandingDocument = () => {
 
 const landingDocument = buildLandingDocument();
 
+const isNextLandingEnabled = () => /^(?:1|true|yes|on)$/i.test(String(process.env.NEXT_LANDING_ENABLED || '').trim());
+const getNextLandingOrigin = () => String(process.env.NEXT_LANDING_ORIGIN || '').trim().replace(/\/+$/, '');
+
+const fetchNextLanding = async (requestPath, options = {}) => {
+  const origin = getNextLandingOrigin();
+  if (!isNextLandingEnabled() || !origin) return null;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 2500);
+
+  try {
+    const response = await fetch(`${origin}${requestPath}`, {
+      method: options.method || 'GET',
+      headers: {
+        accept: options.accept || '*/*',
+        'user-agent': 'INXSocial-Landing-Proxy/1.0'
+      },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      console.warn('[landing-proxy] upstream returned non-success; using legacy landing', {
+        path: requestPath,
+        status: response.status
+      });
+      return null;
+    }
+
+    return response;
+  } catch (error) {
+    console.warn('[landing-proxy] upstream unavailable; using legacy landing', {
+      path: requestPath,
+      error: error?.message
+    });
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 app.use((req, res, next) => {
   const forwardedHost = String(req.headers['x-forwarded-host'] || req.headers.host || '');
   const host = forwardedHost.split(',')[0].trim().split(':')[0].toLowerCase();
@@ -155,6 +195,27 @@ app.post('/api/ai-content-studio/credits/webhook', express.raw({ type: 'applicat
 
 app.use(express.json({ limit: '2mb' }));
 app.use('/api/releases', releaseRoutes);
+
+app.use('/_next', async (req, res, next) => {
+  if (!['GET', 'HEAD'].includes(req.method) || !isNextLandingEnabled()) return next();
+
+  const upstream = await fetchNextLanding(req.originalUrl, {
+    method: req.method,
+    accept: req.headers.accept
+  });
+  if (!upstream) return next();
+
+  for (const header of ['content-type', 'cache-control', 'etag', 'last-modified']) {
+    const value = upstream.headers.get(header);
+    if (value) res.setHeader(header, value);
+  }
+
+  res.status(upstream.status);
+  if (req.method === 'HEAD') return res.end();
+
+  const payload = Buffer.from(await upstream.arrayBuffer());
+  return res.send(payload);
+});
 
 app.use('/admin.css', express.static(path.join(publicRoot, 'admin.css'), { setHeaders: res => res.setHeader('Content-Type', 'text/css') }));
 app.use('/admin.js', express.static(path.join(publicRoot, 'admin.js'), { setHeaders: res => res.setHeader('Content-Type', 'application/javascript') }));
@@ -222,14 +283,33 @@ app.get('/inx-social/data-deletion.html', (req, res, next) => {
   sendTrackedHtml(path.join(publicRoot, 'data-deletion.html'), res, next);
 });
 
-app.get('/', (req, res) => {
+app.get('/', async (req, res) => {
   if (isAdminHost(req)) {
     secureAdminDocument(res);
     return res.sendFile(adminIndex);
   }
+
+  if (isNextLandingEnabled()) {
+    const upstream = await fetchNextLanding('/');
+    if (upstream) {
+      try {
+        const source = await upstream.text();
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+        res.setHeader('Vary', 'Accept-Encoding');
+        res.setHeader('X-INX-Landing', 'next');
+        return res.type('html').send(injectAnalyticsConsent(source));
+      } catch (error) {
+        console.warn('[landing-proxy] failed to read upstream HTML; using legacy landing', {
+          error: error?.message
+        });
+      }
+    }
+  }
+
   res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
   res.setHeader('Vary', 'Accept-Encoding');
-  res.type('html').send(landingDocument);
+  res.setHeader('X-INX-Landing', 'legacy');
+  return res.type('html').send(landingDocument);
 });
 
 app.use('/api/admin-auth', adminAuthRoutes);
