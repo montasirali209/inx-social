@@ -224,11 +224,16 @@ function dimensions(resolution, aspect, profileId = '') {
 
 async function sourceImage(userId, assetId) {
   if (!assetId) return null;
-  const asset = await prisma.agentAsset.findFirst({ where: { id: String(assetId), userId, status: 'READY', archivedAt: null } });
+  const asset = await prisma.agentAsset.findFirst({
+    where: { id: String(assetId), userId, status: 'READY', archivedAt: null },
+    select: { id: true, mimeType: true, originalName: true, byteSize: true }
+  });
   if (!asset) throw publicError('The selected source image is unavailable.', 'AI_VIDEO_SOURCE_NOT_FOUND', 404);
   if (!String(asset.mimeType || '').startsWith('image/')) throw publicError('Upload an image, product shot or first-frame reference.', 'AI_VIDEO_SOURCE_TYPE', 422);
-  if (asset.data.length > 20 * 1024 * 1024) throw publicError('Choose a source image under 20 MB.', 'AI_VIDEO_SOURCE_TOO_LARGE', 413);
-  return { id: asset.id, dataUri: `data:${asset.mimeType};base64,${asset.data.toString('base64')}`, mimeType: asset.mimeType, name: asset.originalName || 'Reference image' };
+  if (asset.byteSize > 20 * 1024 * 1024) throw publicError('Choose a source image under 20 MB.', 'AI_VIDEO_SOURCE_TOO_LARGE', 413);
+  const content = await mediaLibrary.findContent(userId, asset.id);
+  if (!Buffer.isBuffer(content?.data) || !content.data.length) throw publicError('The selected source image is unavailable.', 'AI_VIDEO_SOURCE_NOT_FOUND', 404);
+  return { id: asset.id, dataUri: `data:${asset.mimeType};base64,${content.data.toString('base64')}`, mimeType: asset.mimeType, name: asset.originalName || 'Reference image' };
 }
 
 async function poll(taskUUID, timeoutMs, onProgress = () => {}) {
