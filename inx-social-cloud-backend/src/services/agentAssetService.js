@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const prisma = require('../db/prisma');
 const { expiresAtFor } = require('./mediaRetentionService');
+const objectStorage = require('./mediaObjectStorageService');
 
 const UPLOAD_KINDS = new Set(['LOGO', 'PROFILE', 'REFERENCE']);
 const MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -40,16 +41,20 @@ async function createUpload(userId, input = {}) {
   const checksum = crypto.createHash('sha256').update(data).digest('hex');
   const duplicate = await prisma.agentAsset.findFirst({ where: { userId, checksum, kind }, orderBy: { createdAt: 'desc' } });
   if (duplicate) return duplicate;
+  const originalName = String(input.name || 'brand-image').replace(/[^a-zA-Z0-9._ -]/g, '').slice(0, 160) || 'brand-image';
+  const stored = await objectStorage.persistBuffer({ userId, data, mimeType, originalName, prefix: 'agent-assets' });
   return prisma.agentAsset.create({ data: {
     userId,
     kind,
     source: 'UPLOAD',
     status: 'READY',
-    originalName: String(input.name || 'brand-image').replace(/[^a-zA-Z0-9._ -]/g, '').slice(0, 160) || 'brand-image',
+    originalName,
     mimeType,
     byteSize: data.length,
     checksum,
-    data,
+    data: stored.data,
+    storageProvider: stored.storageProvider,
+    storageKey: stored.storageKey,
     expiresAt: expiresAtFor(mimeType)
   } });
 }
@@ -73,18 +78,39 @@ async function resolveOwned(userId, ids = []) {
 
 async function findContent(userId, id) {
   if (typeof prisma.agentAsset?.findFirst !== 'function') return null;
-  return prisma.agentAsset.findFirst({ where: { id, userId, status: 'READY' }, select: { mimeType: true, data: true, checksum: true } });
+  const asset = await prisma.agentAsset.findFirst({
+    where: { id, userId, status: 'READY' },
+    select: { mimeType: true, data: true, checksum: true, storageKey: true }
+  });
+  if (!asset) return null;
+  if (asset.storageKey) {
+    return { ...asset, data: await objectStorage.getBuffer(asset.storageKey) };
+  }
+  return asset;
 }
 
 async function remove(userId, id) {
   if (typeof prisma.agentAsset?.deleteMany !== 'function') return false;
-  const result = await prisma.agentAsset.deleteMany({ where: { id, userId, planId: null, source: 'UPLOAD' } });
-  return result.count > 0;
+  const existing = await prisma.agentAsset.findFirst({
+    where: { id, userId, planId: null, source: 'UPLOAD' },
+    select: { id: true, storageKey: true }
+  });
+  if (!existing) return false;
+  const result = await prisma.agentAsset.deleteMany({ where: { id: existing.id } });
+  if (!result.count) return false;
+  if (existing.storageKey) await objectStorage.deleteObject(existing.storageKey).catch(() => {});
+  return true;
 }
 
 async function cleanupExpired(now = new Date()) {
   if (typeof prisma.agentAsset?.deleteMany !== 'function') return 0;
-  const result = await prisma.agentAsset.deleteMany({ where: { planId: null, source: 'UPLOAD', expiresAt: { lt: now } } });
+  const expired = await prisma.agentAsset.findMany({
+    where: { planId: null, source: 'UPLOAD', expiresAt: { lt: now } },
+    select: { id: true, storageKey: true }
+  });
+  if (!expired.length) return 0;
+  const result = await prisma.agentAsset.deleteMany({ where: { id: { in: expired.map(asset => asset.id) } } });
+  await Promise.allSettled(expired.filter(asset => asset.storageKey).map(asset => objectStorage.deleteObject(asset.storageKey)));
   return result.count;
 }
 

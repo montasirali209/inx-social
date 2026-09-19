@@ -94,7 +94,9 @@ model AgentAsset {
   generationChoice  String?
   qualityScore      Int?
   qualityIssuesJson String?
-  data              Bytes
+  data              Bytes?
+  storageProvider   String    @default("DATABASE")
+  storageKey        String?   @unique
   expiresAt         DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
@@ -117,6 +119,7 @@ model AgentAsset {
   @@index([expiresAt])
   @@index([folderId])
   @@index([userId, status, source])
+  @@index([storageProvider])
 }
 
 model MediaFolder {

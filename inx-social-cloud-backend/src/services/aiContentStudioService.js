@@ -6,6 +6,7 @@ const credits = require('./aiCreditService');
 const runware = require('./runwareService');
 const mediaLibrary = require('./mediaLibraryService');
 const { expiresAtFor } = require('./mediaRetentionService');
+const objectStorage = require('./mediaObjectStorageService');
 
 const CONTENT_TYPES = new Set(['image_post', 'carousel_post', 'short_video', 'ugc_ad']);
 const IMAGE_ASPECTS = new Set(['1:1', '4:5', '9:16', '16:9']);
@@ -202,13 +203,15 @@ async function persistProviderAsset(userId, generationId, result, meta) {
   const downloaded = await downloadProviderAsset(result.url, meta.type);
   const checksum = crypto.createHash('sha256').update(downloaded.data).digest('hex');
   const extension = meta.type === 'video' ? 'mp4' : downloaded.mimeType.includes('png') ? 'png' : 'jpg';
+  const originalName = `INXSocial-${meta.contentType}-${generationId.slice(0, 8)}${meta.index ? `-${meta.index}` : ''}.${extension}`;
+  const stored = await objectStorage.persistBuffer({ userId, data: downloaded.data, mimeType: downloaded.mimeType, originalName, prefix: 'ai-studio' });
   const record = await prisma.agentAsset.create({
     data: {
       userId,
       kind: meta.type === 'video' ? 'AI_VIDEO' : 'AI_IMAGE',
       source: 'AI_STUDIO',
       status: 'READY',
-      originalName: `INXSocial-${meta.contentType}-${generationId.slice(0, 8)}${meta.index ? `-${meta.index}` : ''}.${extension}`,
+      originalName,
       mimeType: downloaded.mimeType,
       byteSize: downloaded.data.length,
       checksum,
@@ -216,7 +219,9 @@ async function persistProviderAsset(userId, generationId, result, meta) {
       customerPrompt: meta.prompt,
       generationChoice: JSON.stringify({ provider: 'runware', model: result.model, aspectRatio: meta.aspectRatio, generationId, providerCostUsd: result.cost || 0, taskUUID: result.taskUUID || null }),
       tagsJson: JSON.stringify(['ai-generated', 'ai-content-studio', meta.contentType]),
-      data: downloaded.data,
+      data: stored.data,
+      storageProvider: stored.storageProvider,
+      storageKey: stored.storageKey,
       width: result.width || null,
       height: result.height || null,
       durationSeconds: result.duration || null,

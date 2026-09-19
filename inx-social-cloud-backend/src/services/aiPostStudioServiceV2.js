@@ -7,6 +7,7 @@ const env = require('../config/env');
 const credits = require('./aiCreditService');
 const mediaLibrary = require('./mediaLibraryService');
 const { expiresAtFor } = require('./mediaRetentionService');
+const objectStorage = require('./mediaObjectStorageService');
 
 const CHAT_MODEL = String(process.env.OPENAI_CHAT_MODEL || 'gpt-5.6-luna').trim();
 const REASONING_MODEL = String(process.env.OPENAI_REASONING_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-terra').trim();
@@ -540,12 +541,14 @@ async function createGenerationRow(userId, input) {
 async function persistImage(userId, generationId, output, input, prompt) {
   const metadata = await sharp(output.data).metadata().catch(() => ({}));
   const checksum = crypto.createHash('sha256').update(output.data).digest('hex');
+  const originalName = `INXSocial-image-post-${generationId.slice(0, 8)}.png`;
+  const stored = await objectStorage.persistBuffer({ userId, data: output.data, mimeType: 'image/png', originalName, prefix: 'ai-studio' });
   const created = await prisma.agentAsset.create({ data: {
     userId,
     kind: 'AI_IMAGE',
     source: 'AI_STUDIO',
     status: 'READY',
-    originalName: `INXSocial-image-post-${generationId.slice(0, 8)}.png`,
+    originalName,
     mimeType: 'image/png',
     byteSize: output.data.length,
     checksum,
@@ -553,7 +556,9 @@ async function persistImage(userId, generationId, output, input, prompt) {
     customerPrompt: cleanText(input.prompt, 1500),
     generationChoice: JSON.stringify({ provider: 'openai', model: output.model, quality: 'medium', size: output.size, generationId }),
     tagsJson: JSON.stringify(['ai-generated', 'ai-content-studio', 'image-post']),
-    data: output.data,
+    data: stored.data,
+    storageProvider: stored.storageProvider,
+    storageKey: stored.storageKey,
     width: metadata.width || null,
     height: metadata.height || null,
     expiresAt: expiresAtFor('image/png')

@@ -6,6 +6,7 @@ const env = require('../config/env');
 const credits = require('./aiCreditService');
 const mediaLibrary = require('./mediaLibraryService');
 const { expiresAtFor } = require('./mediaRetentionService');
+const objectStorage = require('./mediaObjectStorageService');
 
 const REASONING_MODEL = String(process.env.OPENAI_REASONING_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-terra').trim();
 const SLIDE_LIMITS = { min: 3, max: 10 };
@@ -178,13 +179,15 @@ async function createGenerationRow(userId, input, amount) {
 async function persistSlide(userId, generationId, output, input, plan, slide, amount) {
   const metadata = await sharp(output.data).metadata().catch(() => ({}));
   const checksum = crypto.createHash('sha256').update(output.data).digest('hex');
+  const originalName = `INXSocial-carousel-${generationId.slice(0, 8)}-${slide.index}.png`;
+  const stored = await objectStorage.persistBuffer({ userId, data: output.data, mimeType: 'image/png', originalName, prefix: 'ai-studio' });
   const record = await prisma.agentAsset.create({
     data: {
       userId,
       kind: 'AI_IMAGE',
       source: 'AI_STUDIO',
       status: 'READY',
-      originalName: `INXSocial-carousel-${generationId.slice(0, 8)}-${slide.index}.png`,
+      originalName,
       mimeType: 'image/png',
       byteSize: output.data.length,
       checksum,
@@ -192,7 +195,9 @@ async function persistSlide(userId, generationId, output, input, plan, slide, am
       customerPrompt: clean(input.prompt, 1500),
       generationChoice: JSON.stringify({ provider: 'openai', model: output.model, aspectRatio: input.aspectRatio || input.brief?.aspectRatio || '1:1', generationId, slide: slide.index }),
       tagsJson: JSON.stringify(['ai-generated', 'ai-content-studio', 'carousel-post', `slide-${slide.index}`]),
-      data: output.data,
+      data: stored.data,
+      storageProvider: stored.storageProvider,
+      storageKey: stored.storageKey,
       width: Number(metadata.width || 0) || null,
       height: Number(metadata.height || 0) || null,
       expiresAt: expiresAtFor('image/png')

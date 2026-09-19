@@ -1,6 +1,7 @@
 'use strict';
 
 const prisma = require('../db/prisma');
+const objectStorage = require('./mediaObjectStorageService');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const VIDEO_RETENTION_DAYS = 10;
@@ -22,15 +23,25 @@ async function runMediaRetention(options = {}) {
   const now = options.now || new Date();
   const videoCutoff = new Date(now.getTime() - VIDEO_RETENTION_DAYS * DAY_MS);
   const otherCutoff = new Date(now.getTime() - OTHER_MEDIA_RETENTION_DAYS * DAY_MS);
-  const result = await database.agentAsset.deleteMany({
-    where: {
-      OR: [
-        { expiresAt: { lte: now } },
-        { expiresAt: null, mimeType: { startsWith: 'video/' }, createdAt: { lte: videoCutoff } },
-        { expiresAt: null, NOT: { mimeType: { startsWith: 'video/' } }, createdAt: { lte: otherCutoff } },
-      ],
-    },
-  });
+  const where = {
+    OR: [
+      { expiresAt: { lte: now } },
+      { expiresAt: null, mimeType: { startsWith: 'video/' }, createdAt: { lte: videoCutoff } },
+      { expiresAt: null, NOT: { mimeType: { startsWith: 'video/' } }, createdAt: { lte: otherCutoff } },
+    ],
+  };
+  if (typeof database.agentAsset.findMany !== 'function') {
+    const result = await database.agentAsset.deleteMany({ where });
+    return result.count;
+  }
+  const expired = await database.agentAsset.findMany({ where, select: { id: true, storageKey: true } });
+  if (!expired.length) return 0;
+  const result = await database.agentAsset.deleteMany({ where: { id: { in: expired.map(asset => asset.id) } } });
+  await Promise.allSettled(
+    expired
+      .filter(asset => asset.storageKey)
+      .map(asset => objectStorage.deleteObject(asset.storageKey))
+  );
   return result.count;
 }
 
