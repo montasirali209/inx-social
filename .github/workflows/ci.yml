@@ -84,6 +84,8 @@ jobs:
           node-version: 24
       - name: Install marketing dependencies
         run: npm install --no-audit --no-fund
+      - name: Audit production marketing dependencies
+        run: npm audit --omit=dev --audit-level=high
       - run: npm run typecheck
       - run: npm run build
 
