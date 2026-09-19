@@ -31,6 +31,11 @@ async function runMediaRetention(options = {}) {
     ],
   };
 
+  if (typeof database.agentAsset.findMany !== 'function') {
+    const legacyResult = await database.agentAsset.deleteMany({ where });
+    return legacyResult.count;
+  }
+
   const expired = await database.agentAsset.findMany({
     where,
     select: { id: true, storageKey: true },
