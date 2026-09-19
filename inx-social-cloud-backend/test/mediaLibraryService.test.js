@@ -9,8 +9,25 @@ const folders = [];
 const prisma = {
   agentAsset: {
     aggregate: async ({ where }) => ({ _sum: { byteSize: assets.filter(asset => asset.userId === where.userId).reduce((total, asset) => total + asset.byteSize, 0) } }),
-    findMany: async ({ where }) => assets.filter(asset => asset.userId === where.userId),
-    findFirst: async ({ where }) => assets.find(asset => asset.userId === where.userId && (!where.id || asset.id === where.id) && (!where.checksum || asset.checksum === where.checksum) && (!where.status || asset.status === where.status)) || null,
+    findMany: async ({ where = {} }) => assets.filter(asset => {
+      const ids = where.id?.in || (where.id ? [where.id] : null);
+      if (where.userId && asset.userId !== where.userId) return false;
+      if (ids && !ids.includes(asset.id)) return false;
+      if (where.archivedAt === null && asset.archivedAt) return false;
+      if (where.archivedAt?.not === null && !asset.archivedAt) return false;
+      if (where.archivedAt?.lt && !(asset.archivedAt && asset.archivedAt < where.archivedAt.lt)) return false;
+      if (where.byteSize?.gt != null && !(asset.byteSize > where.byteSize.gt)) return false;
+      return true;
+    }),
+    findFirst: async ({ where }) => assets.find(asset => {
+      if (asset.userId !== where.userId) return false;
+      if (where.id && asset.id !== where.id) return false;
+      if (where.checksum && asset.checksum !== where.checksum) return false;
+      if (where.status && asset.status !== where.status) return false;
+      if (where.archivedAt === null && asset.archivedAt) return false;
+      if (where.archivedAt?.not === null && !asset.archivedAt) return false;
+      return true;
+    }) || null,
     create: async ({ data }) => {
       const row = { id: `asset-${assets.length + 1}`, createdAt: new Date('2026-08-30T12:00:00Z'), campaignPosts: [], scheduleJobs: [], folder: folders.find(folder => folder.id === data.folderId) || null, ...data };
       assets.push(row);
