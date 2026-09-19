@@ -229,11 +229,19 @@
               <p>Generate a single visual with caption, hashtags and alt-text ready for publishing.</p>
             </div>
             <div class="ai-feature-art image-post-art" aria-hidden="true">
-              <div class="media-glow"></div>
-              <div class="image-preview-card">
-                <div class="image-preview-landscape"><span></span><i></i></div>
-                <b></b><b></b><b class="short"></b>
+              <div class="visual-orbit image-orbit"></div>
+              <div class="image-workbench">
+                <div class="visual-toolbar"><span class="visual-status-dot"></span><b>Generate</b><i>1:1</i></div>
+                <div class="image-canvas">
+                  <span class="image-sun"></span>
+                  <span class="image-mountain mountain-a"></span>
+                  <span class="image-mountain mountain-b"></span>
+                  <span class="image-ground"></span>
+                </div>
+                <div class="image-caption-lines"><i></i><i></i><i></i></div>
               </div>
+              <div class="image-prompt-chip"><span>✦</span> Create visual</div>
+              <div class="image-output-chip">Alt text <b>✓</b></div>
               <span class="spark spark-a">✦</span><span class="spark spark-b">✧</span>
             </div>
           </article>
@@ -248,10 +256,18 @@
               <p>Build coordinated multi-slide stories with individual slide copy and links.</p>
             </div>
             <div class="ai-feature-art carousel-post-art" aria-hidden="true">
-              <div class="carousel-card c3"></div>
-              <div class="carousel-card c2"></div>
-              <div class="carousel-card c1">
-                <div class="carousel-photo"><span></span><i></i></div>
+              <div class="carousel-workbench">
+                <div class="carousel-toolbar"><span>4 slides</span><b>Auto layout</b></div>
+                <div class="carousel-stage">
+                  <div class="carousel-card c3"><i></i><b></b></div>
+                  <div class="carousel-card c2"><i></i><b></b></div>
+                  <div class="carousel-card c1">
+                    <div class="carousel-photo"><span></span><i></i></div>
+                    <b class="carousel-title-line"></b>
+                    <b class="carousel-copy-line"></b>
+                  </div>
+                </div>
+                <div class="carousel-mini-strip"><i class="active"></i><i></i><i></i><i></i></div>
               </div>
               <div class="carousel-count">1 / 4</div>
               <div class="carousel-dots"><i></i><i></i><i></i><i></i></div>
@@ -268,11 +284,16 @@
               <p>Create short-form video through AI-generated or stock-video workflows.</p>
             </div>
             <div class="ai-feature-art video-post-art" aria-hidden="true">
+              <div class="video-ratio-pill">9:16</div>
               <div class="video-waveform"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
               <div class="video-phone">
+                <div class="video-phone-top"><span></span><i></i></div>
                 <div class="video-scene"><span></span></div>
                 <div class="video-play"></div>
+                <div class="video-caption-pill">Your caption appears here</div>
+                <div class="video-progress"><i></i></div>
               </div>
+              <div class="video-duration">00:18</div>
               <div class="video-ring"></div>
             </div>
           </article>
@@ -287,13 +308,18 @@
               <p>Create creator-style promotional content around a product, service or campaign brief.</p>
             </div>
             <div class="ai-feature-art ugc-post-art" aria-hidden="true">
-              <div class="ugc-back-card"></div>
+              <div class="ugc-creator-pill"><span class="ugc-avatar"></span><b>Creator brief</b><i>REC</i></div>
+              <div class="ugc-back-card">
+                <span class="ugc-camera-dot"></span>
+                <div class="ugc-person"><i></i><b></b></div>
+                <div class="ugc-copy">Real creators<br>Real results</div>
+              </div>
               <div class="ugc-product">
                 <span class="ugc-cap"></span>
                 <span class="ugc-body"><i>INX</i></span>
               </div>
-              <div class="ugc-copy">Real<br>Creators<br>Real Results</div>
-              <div class="ugc-tag"></div>
+              <div class="ugc-engagement"><span>♥ 2.4k</span><span>◌ 186</span></div>
+              <div class="ugc-tag">Product focus</div>
             </div>
           </article>
 
@@ -310,14 +336,24 @@
               <p>Clip longer videos into short social-ready moments with an AI-assisted editing workflow.</p>
             </div>
             <div class="ai-feature-art clipping-post-art" aria-hidden="true">
-              <div class="clip-rail">
-                <span></span><span></span><span></span><span></span><span></span><span></span>
+              <div class="clip-preview-window">
+                <div class="clip-preview-scene"><span></span><i></i></div>
+                <div class="clip-preview-play"></div>
+                <b>12:46 source</b>
               </div>
-              <div class="clip-selection"><i></i><i></i></div>
+              <div class="clip-editor">
+                <div class="clip-editor-bar"><span>AI highlights</span><b>3 clips found</b></div>
+                <div class="clip-rail">
+                  <span></span><span></span><span></span><span></span><span></span><span></span>
+                </div>
+                <div class="clip-selection"><i></i><i></i></div>
+                <div class="clip-playhead"></div>
+                <div class="clip-waveform"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+                <div class="clip-ticks"></div>
+              </div>
               <div class="clip-scissors">
                 <svg viewBox="0 0 24 24"><circle cx="7" cy="7" r="2.2"/><circle cx="7" cy="17" r="2.2"/><path d="m9 8.3 10 7.4M9 15.7 19 8.3"/></svg>
               </div>
-              <div class="clip-ticks"></div>
             </div>
           </article>
         </div>
