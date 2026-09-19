@@ -8,8 +8,8 @@ const ANALYTICS_CACHE_RUNTIME_INTERVAL_MS = 2 * 60 * 1000;
 const ANALYTICS_CACHE_RUNTIME_BATCH_SIZE = 4;
 const ANALYTICS_CACHE_RUNTIME_ACCOUNT_DELAY_MS = 1500;
 const ANALYTICS_CACHE_RUNTIME_RETRY_AFTER_MS = 10 * 60 * 1000;
-const SNAPSHOT_MIN_INTERVAL_MS = 45 * 60 * 1000;
-const SNAPSHOT_RETENTION_DAYS = 120;
+const SNAPSHOT_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const SNAPSHOT_RETENTION_DAYS = 30;
 const SNAPSHOT_RUNTIME_INTERVAL_MS = 60 * 60 * 1000;
 const SNAPSHOT_RUNTIME_ACCOUNT_DELAY_MS = 5000;
 const FEED_HISTORY_MAX_PAGES = 30;
@@ -244,7 +244,7 @@ function metricSnapshotRow(userId, profile, post, capturedAt) {
     interactions: Math.max(0, Math.round(number(metrics.interactions))),
     clicks: Math.max(0, Math.round(number(metrics.clicks))),
     follows: Math.round(number(metrics.follows)),
-    metricsJson: Object.keys(rawMetrics).length ? JSON.stringify(rawMetrics) : null
+    metricsJson: null
   };
 }
 
