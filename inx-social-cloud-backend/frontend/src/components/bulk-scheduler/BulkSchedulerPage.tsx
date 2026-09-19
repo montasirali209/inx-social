@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom'
 import { ApiError } from '../../lib/api-client'
 import { createBulkMediaPost, fetchBulkSchedulerData, publishBulkLibraryMedia, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
 import { fetchMediaAssetFile, uploadMediaAsset } from '../../lib/media-library-api'
-import { buildPublishingTimes, getBulkScheduleCapacity, MAX_BULK_SCHEDULE_DAYS, parseCaptions } from '../../lib/bulk-scheduler-utils'
+import { buildPublishingTimes, parseCaptions } from '../../lib/bulk-scheduler-utils'
 import type { BatchProgress, BulkSchedulerData, Destination, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
 import type { MediaAsset } from '../../types/media-library'
 import { backendStatusToUploadStatus } from '../../types/bulk-scheduler'
@@ -91,12 +91,6 @@ export function BulkSchedulerPage() {
   const destinations = useMemo(() => pageDestinations(schedulerData.pages), [schedulerData.pages])
   const captionBlocks = useMemo(() => parseCaptions(captions), [captions])
   const activeScheduleTimes = timingMode === 'saved_schedule' ? schedulerData.settings.defaultScheduleTimes : scheduleTimes
-  const scheduleCapacity = useMemo(
-    () => timingMode && timingMode !== 'publish_now' && scheduleDate && activeScheduleTimes.length
-      ? getBulkScheduleCapacity({ date: scheduleDate, dailyTimes: activeScheduleTimes, timezone: schedulerData.settings.timezone }).capacity
-      : null,
-    [activeScheduleTimes, scheduleDate, schedulerData.settings.timezone, timingMode],
-  )
 
   useEffect(() => {
     if (!schedulerData.jobs.length || !results.length) return
@@ -149,9 +143,7 @@ export function BulkSchedulerPage() {
             ? 'Choose a timing mode.'
             : timingMode !== 'publish_now' && (!scheduleDate || !activeScheduleTimes.length)
               ? 'Choose a start date and add at least one publishing time.'
-              : timingMode !== 'publish_now' && scheduleCapacity !== null && media.length > scheduleCapacity
-                ? `This plan needs ${media.length} publishing slots, but only ${scheduleCapacity} fit inside the current ${MAX_BULK_SCHEDULE_DAYS}-day window. Add more daily times or reduce the batch.`
-                : ''
+              : ''
   const canStart = !disabledReason && !running
 
   const selectMedia = (files: File[]) => {
@@ -287,7 +279,7 @@ export function BulkSchedulerPage() {
               signal: controller.signal,
               onProgress: (loaded, total) => {
                 const actionPart = total ? loaded / total : 0
-                setProgress({ state: timingMode === 'publish_now' ? 'uploading' : 'scheduling', percent: ((index + actionPart) / actions.length) * 100, current: index + 1, total: actions.length, completed, failed, message: `${timingMode === 'publish_now' ? 'Publishing' : 'Scheduling'} ${action.item.file.name}…` })
+                setProgress({ state: timingMode === 'publish_now' ? 'uploading' : 'scheduling', percent: ((index + actionPart) / actions.length) * 100, current: index + 1, total: actions.length, completed, failed, message: `${timingMode === 'publish_now' ? 'Publishing' : 'Securing for the publishing queue'} ${action.item.file.name}…` })
               },
             })
         completed += 1
@@ -305,7 +297,7 @@ export function BulkSchedulerPage() {
 
     const stopped = controller.signal.aborted
     if (stopped) setResults((current) => current.map((result) => result.status === 'waiting' ? { ...result, status: 'blocked', errorMessage: 'Not started because the batch was stopped.' } : result))
-    setProgress({ state: stopped ? 'stopped' : failed === actions.length ? 'failed' : 'completed', percent: stopped ? ((completed + failed) / actions.length) * 100 : 100, current: completed + failed, total: actions.length, completed, failed, message: stopped ? 'Upload stopped. Unstarted actions were blocked safely.' : failed ? `Batch finished with ${failed} failed action${failed === 1 ? '' : 's'}.` : 'Every file was accepted. Meta verification continues in the live result rows.' })
+    setProgress({ state: stopped ? 'stopped' : failed === actions.length ? 'failed' : 'completed', percent: stopped ? ((completed + failed) / actions.length) * 100 : 100, current: completed + failed, total: actions.length, completed, failed, message: stopped ? 'Upload stopped. Unstarted actions were blocked safely.' : failed ? `Batch finished with ${failed} failed action${failed === 1 ? '' : 's'}.` : timingMode === 'publish_now' ? 'Every file was accepted for publishing.' : 'Every file is secured in the INX Social queue and will be sent to the destination at its scheduled time.' })
     abortRef.current = null
     scheduler.refetch()
   }
@@ -360,7 +352,7 @@ export function BulkSchedulerPage() {
       />
       <div className="mt-4 scroll-mt-24" ref={destinationSection}><PublishingDestinationsPanel destinations={destinations} onSelectionChange={setSelectedIds} platforms={schedulerData.platforms} selectedIds={selectedIds} /></div>
       <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,.92fr)_minmax(0,1.08fr)]">
-        <UploadBatchPanel canStart={canStart} captionCount={captionBlocks.length} captions={captions} disabledReason={disabledReason} media={media} scheduleCapacity={scheduleCapacity} scheduleHorizonDays={MAX_BULK_SCHEDULE_DAYS} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onFallbackChange={setUseFallback} onMedia={selectMedia} onRetainMediaChange={setRetainMedia} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={requestStart} onTimingModeChange={setTimingMode} retainMedia={retainMedia} running={running} savedScheduleTimes={schedulerData.settings.defaultScheduleTimes} scheduleDate={scheduleDate} scheduleTimes={activeScheduleTimes} selectedDestinations={selectedIds.size} timezone={schedulerData.settings.timezone} timingMode={timingMode} useFallback={useFallback} />
+        <UploadBatchPanel canStart={canStart} captionCount={captionBlocks.length} captions={captions} disabledReason={disabledReason} media={media} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onFallbackChange={setUseFallback} onMedia={selectMedia} onRetainMediaChange={setRetainMedia} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={requestStart} onTimingModeChange={setTimingMode} retainMedia={retainMedia} running={running} savedScheduleTimes={schedulerData.settings.defaultScheduleTimes} scheduleDate={scheduleDate} scheduleTimes={activeScheduleTimes} selectedDestinations={selectedIds.size} timezone={schedulerData.settings.timezone} timingMode={timingMode} useFallback={useFallback} />
         <BatchRunPanel canStart={canStart} destinations={destinations} disabledReason={disabledReason} onRetry={retryFailedUpload} onStart={requestStart} onStop={stopUpload} progress={progress} results={results} retryingId={retryingId} running={running} />
       </div>
       <PublishConfirmationDialog busy={running} confirmLabel={timingMode === 'publish_now' ? 'Publish batch' : 'Schedule batch'} description={`You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} ${media.length} media file${media.length === 1 ? '' : 's'} across ${selectedIds.size} destination${selectedIds.size === 1 ? '' : 's'}.`} onCancel={() => setConfirmationOpen(false)} onConfirm={() => { setConfirmationOpen(false); void runBatch() }} open={confirmationOpen} title="Confirm this bulk publishing action" />
