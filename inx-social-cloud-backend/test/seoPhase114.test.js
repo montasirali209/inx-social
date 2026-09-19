@@ -9,7 +9,10 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 test('public landing exposes consistent canonical search and social metadata', () => {
   const html = read('public/landing.html');
 
-  assert.match(html, /<title>Social Media Scheduler &amp; AI Content Studio \\| INXSocial<\\/title>/);
+  assert.equal(
+    html.includes('<title>Social Media Scheduler &amp; AI Content Studio | INXSocial</title>'),
+    true
+  );
   assert.match(html, /<link rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/">/);
   assert.match(html, /hreflang="x-default"/);
   assert.match(html, /twitter:image:alt/);
@@ -38,7 +41,7 @@ test('crawl controls publish the canonical sitemap and let legacy utility URLs e
   assert.doesNotMatch(robots, /Disallow: \/portal\//);
   assert.doesNotMatch(robots, /Disallow: \/app\//);
   assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/sitemap\.xml/);
-  assert.match(sitemap, /<lastmod>\\d{4}-\\d{2}-\\d{2}<\\/lastmod>/);
+  assert.match(sitemap, /<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/);
   assert.doesNotMatch(sitemap, /\/studio\//);
   assert.doesNotMatch(sitemap, /\/portal\//);
   assert.doesNotMatch(sitemap, /\/app\//);
