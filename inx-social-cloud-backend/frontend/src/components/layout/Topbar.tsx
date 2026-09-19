@@ -154,7 +154,7 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
 
   return (
     <header className="sticky top-0 z-20 min-h-[78px] border-b border-border-soft bg-bg/88 shadow-[0_12px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl" data-design-standard="universal-workspace-topbar">
-      <div className="workspace-frame flex min-h-[78px] items-center justify-between gap-3 px-3 sm:px-5 xl:px-6">
+      <div className="flex min-h-[78px] w-full min-w-0 items-center justify-between gap-3 px-3 sm:px-5 xl:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <Button aria-label="Open navigation" className="size-10 shrink-0 px-0 md:hidden" onClick={() => setOpen(true)} variant="ghost"><Menu aria-hidden="true" className="size-5" /></Button>
           {connectionsRoute ? (
