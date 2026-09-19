@@ -22,14 +22,28 @@ const prisma = {
       return row;
     },
     updateMany: async ({ where, data }) => {
-      const row = assets.find(asset => asset.id === where.id && asset.userId === where.userId && (where.archivedAt?.not === null ? Boolean(asset.archivedAt) : !asset.archivedAt));
-      if (!row) return { count: 0 };
-      Object.assign(row, data);
-      return { count: 1 };
+      const ids = where.id?.in || (where.id ? [where.id] : null);
+      const rows = assets.filter(asset =>
+        (!where.userId || asset.userId === where.userId) &&
+        (!ids || ids.includes(asset.id)) &&
+        (where.archivedAt?.not === null ? Boolean(asset.archivedAt) : where.archivedAt === null ? !asset.archivedAt : true)
+      );
+      rows.forEach(row => Object.assign(row, data));
+      return { count: rows.length };
     },
     deleteMany: async ({ where }) => {
       const requireArchived = Boolean(where.archivedAt && Object.prototype.hasOwnProperty.call(where.archivedAt, 'not'));
-      const indexes = assets.map((asset, index) => ({ asset, index })).filter(({ asset }) => asset.userId === where.userId && (!where.id || asset.id === where.id) && (!requireArchived || asset.archivedAt) && (!where.archivedAt?.lt || (asset.archivedAt && asset.archivedAt < where.archivedAt.lt))).map(({ index }) => index).reverse();
+      const ids = where.id?.in || (where.id ? [where.id] : null);
+      const indexes = assets
+        .map((asset, index) => ({ asset, index }))
+        .filter(({ asset }) =>
+          (!where.userId || asset.userId === where.userId) &&
+          (!ids || ids.includes(asset.id)) &&
+          (!requireArchived || asset.archivedAt) &&
+          (!where.archivedAt?.lt || (asset.archivedAt && asset.archivedAt < where.archivedAt.lt))
+        )
+        .map(({ index }) => index)
+        .reverse();
       indexes.forEach(index => assets.splice(index, 1));
       return { count: indexes.length };
     }
@@ -50,7 +64,7 @@ const library = require('../src/services/mediaLibraryService');
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
 
-test('media uploads are private, persistent, deduplicated and measured against plan storage', async () => {
+test('media uploads are private, persistent, deduplicated and measured against the fixed 200 MB storage cap', async () => {
   const first = await library.upload('user-1', 'PRO', { data: png, mimeType: 'image/png', fileName: '../Launch?.png' });
   const duplicate = await library.upload('user-1', 'PRO', { data: png, mimeType: 'image/png', fileName: 'copy.png' });
   assert.equal(first.id, duplicate.id);
@@ -64,7 +78,7 @@ test('media uploads are private, persistent, deduplicated and measured against p
   const workspace = await library.workspace('user-1', 'PRO');
   assert.equal(workspace.assets.length, 1);
   assert.equal(workspace.storage.usedBytes, png.length);
-  assert.equal(workspace.storage.limitBytes, 10 * 1024 * 1024 * 1024);
+  assert.equal(workspace.storage.limitBytes, 200 * 1024 * 1024);
 });
 
 test('folders and asset content remain scoped to their owner', async () => {
@@ -87,4 +101,20 @@ test('archive removes an owned asset from the active library', async () => {
   await library.archive('user-1', 'asset-1');
   await library.purge('user-1', 'asset-1');
   assert.equal((await library.workspace('user-1', 'PRO')).storage.usedBytes, 0);
+});
+
+
+test('bulk archive and purge apply only to the signed-in user assets', async () => {
+  const a = await library.upload('user-bulk', 'AGENCY', { data: Buffer.from('first-bulk-image'), mimeType: 'image/png', fileName: 'first.png' });
+  const b = await library.upload('user-bulk', 'AGENCY', { data: Buffer.from('second-bulk-image'), mimeType: 'image/png', fileName: 'second.png' });
+  const foreign = await library.upload('other-user', 'AGENCY', { data: Buffer.from('foreign-bulk-image'), mimeType: 'image/png', fileName: 'foreign.png' });
+
+  assert.equal(await library.archiveMany('user-bulk', [a.id, b.id, foreign.id]), 2);
+  const trashed = await library.workspace('user-bulk', 'AGENCY');
+  assert.equal(trashed.assets.length, 0);
+  assert.equal(trashed.trashAssets.length, 2);
+
+  assert.equal(await library.purgeMany('user-bulk', [a.id, b.id, foreign.id]), 2);
+  assert.equal((await library.workspace('user-bulk', 'AGENCY')).storage.usedBytes, 0);
+  assert.ok(await library.findContent('other-user', foreign.id));
 });
