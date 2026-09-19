@@ -77,9 +77,11 @@ function axisDate(point: PerformancePoint) {
 export function PerformanceOverTimeCard({
   points,
   days,
+  compact = false,
 }: {
   points: PerformancePoint[]
   days: number
+  compact?: boolean
 }) {
   const [hover, setHover] = useState<{ index: number; x: number; position: number } | null>(null)
   const [selectedMetricKey, setSelectedMetricKey] = useState<SeriesKey>('views')
@@ -179,7 +181,7 @@ export function PerformanceOverTimeCard({
 
       <svg
         aria-label={`${selectedMetric.label} by post publish date`}
-        className="analytics-performance-chart h-[280px] w-full touch-pan-y sm:h-[330px]"
+        className={`analytics-performance-chart w-full touch-pan-y ${compact ? 'h-[225px] sm:h-[265px]' : 'h-[280px] sm:h-[330px]'}`}
         onPointerLeave={() => setHover(null)}
         onPointerMove={track}
         preserveAspectRatio="none"
@@ -244,7 +246,7 @@ export function PerformanceOverTimeCard({
 
     <div className="grid border-t border-border-soft" style={{ gridTemplateColumns: `repeat(${availableMetrics.length}, minmax(0, 1fr))` }}>
       {availableMetrics.map(item => <button
-        className={`border-border-soft p-3 text-left transition sm:border-r last:border-r-0 ${item.key === effectiveMetricKey ? 'bg-white/[.025]' : 'hover:bg-white/[.018]'}`}
+        className={`border-border-soft ${compact ? 'px-3 py-2.5' : 'p-3'} text-left transition sm:border-r last:border-r-0 ${item.key === effectiveMetricKey ? 'bg-white/[.025]' : 'hover:bg-white/[.018]'}`}
         key={item.key}
         onClick={() => setSelectedMetricKey(item.key)}
         type="button"

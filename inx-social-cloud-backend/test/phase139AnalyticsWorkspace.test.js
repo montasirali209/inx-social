@@ -139,6 +139,11 @@ test('Analytics charts, tabs and report actions remain accessible and functional
   const motion = read('frontend/src/components/analytics/analytics-motion.css');
   assert.match(chart, /onPointerMove/);
   assert.match(chart, /Performance metric/);
+  assert.match(chart, /compact\?: boolean/);
+  assert.match(chart, /h-\[225px\] sm:h-\[265px\]/);
+  assert.match(page, /<PerformanceOverTimeCard compact days=\{days\}/);
+  assert.match(page, /<EngagementByPlatformCard breakdown=\{breakdown\} compact/);
+  assert.match(page, /minmax\(280px,.62fr\)/);
   assert.match(chart, /exactDate/);
   assert.match(chart, /areaPath/);
   assert.match(chart, /Hover for exact post-date performance/);
