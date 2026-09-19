@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Suspense, type ReactNode } from 'react'
 import './globals.css'
+import './landing-v5.css'
 import { PageAnalytics } from '@/components/page-analytics'
 import { ProductJsonLd } from '@/components/json-ld'
 import { SiteFooter } from '@/components/site-footer'
@@ -34,8 +35,8 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#04131e',
-  colorScheme: 'dark',
+  themeColor: '#f8fbfa',
+  colorScheme: 'light dark',
   width: 'device-width',
   initialScale: 1,
 }
