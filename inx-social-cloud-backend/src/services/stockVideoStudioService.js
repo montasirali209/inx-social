@@ -530,13 +530,13 @@ async function processJob(userId, generationId, input, existingWorkerJobId = nul
     if (!data.length || data.length > FINAL_MAX_BYTES) throw publicError('The finished stock video was empty or too large for Media Library.', 'STOCK_VIDEO_OUTPUT_INVALID', 502);
     const result = workerJob.result || {};
     const provenance = Array.isArray(result.provenance) ? result.provenance : [];
-    const record = await prisma.agentAsset.create({ data: {
+    const record = await mediaLibrary.createStoredAsset({
       userId, kind: 'AI_VIDEO', source: 'AI_STUDIO', status: 'READY', originalName: `INXSocial-stock-video-${generationId.slice(0, 8)}.mp4`, mimeType: 'video/mp4', byteSize: data.length,
       checksum: crypto.createHash('sha256').update(data).digest('hex'), prompt: clean(input.prompt, 1500), customerPrompt: clean(input.prompt, 1500),
       generationChoice: JSON.stringify({ runtime: 'OpenMontage', openmontageCommit: result.openmontageCommit, pipeline: result.pipeline, renderer: result.renderer || 'remotion', generationId, workerJobId, duration: input.duration, resolution: input.resolution, aspectRatio: input.aspectRatio, provenance }),
       tagsJson: JSON.stringify(['ai-assisted', 'stock-video', 'openmontage', ...new Set(provenance.map(item => String(item.provider || '').toLowerCase()).filter(Boolean))]), data, durationSeconds: input.duration,
       expiresAt: expiresAtFor('video/mp4')
-    }});
+    });
     const media = mediaLibrary.publicAsset(record);
     const caption = clean(result.caption || input.prompt, 10000);
     const captionTags = new Set((caption.match(/#[A-Za-z0-9_]+/g) || []).map(tag => tag.slice(1).toLowerCase()));
