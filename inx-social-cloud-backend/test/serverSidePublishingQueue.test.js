@@ -17,7 +17,8 @@ test('scheduled cloud posts stay in the INX Social queue until their due time', 
   assert.match(controller, /queued: true/);
   assert.match(queue, /scheduledAt: \{ lte: now \}/);
   assert.match(queue, /publishMode: 'NOW'/);
-  assert.match(queue, /status: JOB_STATUS\.PUBLISHED/);
+  assert.match(queue, /videoNeedsVerification \? JOB_STATUS\.PROCESSING : JOB_STATUS\.PUBLISHED/);
+  assert.match(queue, /if \(!videoNeedsVerification\) await cleanupQueueAsset/);
   assert.match(storage, /'scheduled-publishing'/);
   assert.match(server, /startCloudPublishingQueue\(\)/);
 });
