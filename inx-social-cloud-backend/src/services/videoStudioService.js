@@ -11,6 +11,7 @@ const credits = require('./aiCreditService');
 const runware = require('./runwareService');
 const mediaLibrary = require('./mediaLibraryService');
 const { expiresAtFor } = require('./mediaRetentionService');
+const objectStorage = require('./mediaObjectStorageService');
 
 const CHAT_MODEL = String(process.env.OPENAI_CHAT_MODEL || 'gpt-5.6-luna').trim();
 const CREDIT_COST_BUFFER = 1.15;
@@ -300,11 +301,14 @@ async function persistVideo(userId, generationId, output, input, amount) {
   const downloaded = Buffer.from(response.data || []);
   if (!downloaded.length || downloaded.length > 120 * 1024 * 1024) throw publicError('The generated video output was empty or too large.', 'AI_VIDEO_OUTPUT_INVALID', 502);
   const data = await browserReadyMp4(downloaded, generationId);
+  const mimeType = String(response.headers['content-type'] || 'video/mp4').split(';')[0];
+  const originalName = `INXSocial-video-${generationId.slice(0, 8)}.mp4`;
+  const stored = await objectStorage.persistBuffer({ userId, data, mimeType, originalName, prefix: 'ai-video' });
   const record = await prisma.agentAsset.create({ data: {
-    userId, kind: 'AI_VIDEO', source: 'AI_STUDIO', status: 'READY', originalName: `INXSocial-video-${generationId.slice(0, 8)}.mp4`, mimeType: String(response.headers['content-type'] || 'video/mp4').split(';')[0], byteSize: data.length,
+    userId, kind: 'AI_VIDEO', source: 'AI_STUDIO', status: 'READY', originalName, mimeType, byteSize: data.length,
     checksum: crypto.createHash('sha256').update(data).digest('hex'), prompt: clean(input.prompt, 1500), customerPrompt: clean(input.prompt, 1500),
     generationChoice: JSON.stringify({ route: output.route, model: output.model, resolution: output.resolution, duration: output.duration, aspectRatio: output.aspect, generationId, providerCostUsd: Number(output.item.cost || 0), taskUUID: output.taskUUID }),
-    tagsJson: JSON.stringify(['ai-generated', 'ai-content-studio', 'short-video', output.route]), data, durationSeconds: output.duration,
+    tagsJson: JSON.stringify(['ai-generated', 'ai-content-studio', 'short-video', output.route]), data: stored.data, storageProvider: stored.storageProvider, storageKey: stored.storageKey, durationSeconds: output.duration,
     expiresAt: expiresAtFor('video/mp4')
   }});
   const publicAsset = mediaLibrary.publicAsset(record);
