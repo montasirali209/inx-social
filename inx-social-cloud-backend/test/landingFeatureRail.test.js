@@ -48,7 +48,7 @@ test('AI Content Studio is a premium static five-feature marketing section', () 
   assert.match(css, /\.video-post-art/);
   assert.match(css, /\.ugc-post-art/);
   assert.match(css, /\.clipping-post-art/);
-  assert.match(css, /\.ai-feature-card:hover/);
+  assert.match(css, /\.ai-feature-card:hover/);\n  assert.match(css, /\.ai-feature-card>\.ai-feature-art\\{[\\s\\S]*?position:absolute/);
   assert.match(css, /aiPlayPulse/);
   assert.match(css, /aiClipSweep/);
   assert.match(css, /prefers-reduced-motion:reduce/);
