@@ -34,7 +34,7 @@ import { AssetPreviewPanel } from "./AssetPreviewPanel";
 import { CreateFolderModal } from "./CreateFolderModal";
 import { FolderPanel } from "./FolderPanel";
 import { MediaGrid } from "./MediaGrid";
-import { MediaStatCard } from "./MediaPrimitives";
+import { MediaStatCard, MediaStatSkeleton } from "./MediaPrimitives";
 import { MediaTabs } from "./MediaTabs";
 import { MediaToolbar } from "./MediaToolbar";
 
@@ -64,6 +64,28 @@ function folderMatches(asset: MediaAsset, folder: string) {
   return asset.folder?.id === folder;
 }
 
+
+function MediaGridSkeleton({ view }: { view: "grid" | "list" }) {
+  return (
+    <section
+      aria-label="Loading media assets"
+      className={`grid items-start gap-3 ${view === "grid" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"}`}
+      role="status"
+    >
+      {Array.from({ length: view === "grid" ? 9 : 6 }, (_, index) => (
+        <div className="overflow-hidden rounded-card border border-border-soft bg-panel/55 p-3" key={index}>
+          <div className={`${view === "grid" ? "h-40" : "h-16"} animate-pulse rounded-xl bg-white/[.045] motion-reduce:animate-none`} style={{ animationDelay: `${index * 55}ms` }} />
+          <div className="mt-3 flex items-center gap-3">
+            <span className="block h-2.5 w-2/5 animate-pulse rounded bg-white/[.07] motion-reduce:animate-none" style={{ animationDelay: `${index * 55}ms` }} />
+            <span className="block h-2.5 w-16 animate-pulse rounded bg-brand-cyan/[.07] motion-reduce:animate-none" style={{ animationDelay: `${index * 55}ms` }} />
+          </div>
+          <span className="mt-2 block h-2 w-1/3 animate-pulse rounded bg-white/[.04] motion-reduce:animate-none" style={{ animationDelay: `${index * 55}ms` }} />
+        </div>
+      ))}
+    </section>
+  );
+}
+
 export function MediaLibraryPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -72,6 +94,7 @@ export function MediaLibraryPage() {
     queryKey: ["media-library"],
     queryFn: fetchMediaLibrary,
     refetchInterval: 60_000,
+    staleTime: 30_000,
   });
   const [activeTab, setActiveTab] = useState<MediaTabId>("all");
   const [activeFolder, setActiveFolder] = useState("all");
@@ -95,6 +118,7 @@ export function MediaLibraryPage() {
     tone: "success" | "error";
     text: string;
   } | null>(null);
+  const initialLoading = workspace.isLoading && !workspace.data;
   const workspaceData = workspace.data || immediateMediaLibraryWorkspace;
 
   const assets = useMemo(
@@ -423,9 +447,9 @@ export function MediaLibraryPage() {
         </div>
       )}
       <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 xl:grid-cols-5">
-        {stats.map((stat) => (
-          <MediaStatCard key={stat.label} {...stat} />
-        ))}
+        {initialLoading
+          ? Array.from({ length: 5 }, (_, index) => <MediaStatSkeleton index={index} key={index} />)
+          : stats.map((stat) => <MediaStatCard key={stat.label} {...stat} />)}
       </div>
       <section className="mt-4 rounded-panel border border-border-soft bg-panel/65 p-3 shadow-panel">
         <div className="mb-3 flex items-center gap-2 rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.035] px-3 py-2 text-[9px] text-text-muted">
@@ -446,15 +470,14 @@ export function MediaLibraryPage() {
               <div className="flex items-center justify-between gap-3 text-[9px]">
                 <span className="flex items-center gap-1.5 text-text-muted">
                   <HardDrive className="size-3.5 text-brand-cyan" />
-                  {formatBytes(workspaceData.storage.usedBytes)} of{" "}
-                  {formatBytes(workspaceData.storage.limitBytes)}
+                  {initialLoading ? "Loading storage…" : <>{formatBytes(workspaceData.storage.usedBytes)} of{" "}{formatBytes(workspaceData.storage.limitBytes)}</>}
                 </span>
-                <span className="text-brand-cyan">{storagePercent}%</span>
+                <span className="text-brand-cyan">{initialLoading ? "…" : `${storagePercent}%`}</span>
               </div>
               <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/7">
                 <span
-                  className="block h-full rounded-full bg-gradient-to-r from-brand-green to-brand-cyan"
-                  style={{ width: `${storagePercent}%` }}
+                  className={`block h-full rounded-full bg-gradient-to-r from-brand-green to-brand-cyan ${initialLoading ? "w-2/3 animate-pulse motion-reduce:animate-none" : ""}`}
+                  style={initialLoading ? undefined : { width: `${storagePercent}%` }}
                 />
               </div>
             </div>
@@ -541,25 +564,28 @@ export function MediaLibraryPage() {
             </section>
           )}
           <div className="scrollbar-thin mt-3 min-h-[360px] overscroll-contain 2xl:max-h-[calc(100vh-25rem)] 2xl:overflow-y-auto 2xl:pr-1">
-            <MediaGrid
-              assets={visible}
-              busyId={busyId}
-              checkedIds={checkedIds}
-              onCheck={toggleChecked}
-              onSelect={(asset) => checkedIds.size ? toggleChecked(asset) : setSelectedId(asset.id)}
-              onPurge={purge}
-              onRestore={restore}
-              onUpload={() => inputRef.current?.click()}
-              selectedId={selectedId}
-              trashMode={trashMode}
-              view={view}
-              {...handlers}
-            />
+            {initialLoading ? (
+              <MediaGridSkeleton view={view} />
+            ) : (
+              <MediaGrid
+                assets={visible}
+                busyId={busyId}
+                checkedIds={checkedIds}
+                onCheck={toggleChecked}
+                onSelect={(asset) => checkedIds.size ? toggleChecked(asset) : setSelectedId(asset.id)}
+                onPurge={purge}
+                onRestore={restore}
+                onUpload={() => inputRef.current?.click()}
+                selectedId={selectedId}
+                trashMode={trashMode}
+                view={view}
+                {...handlers}
+              />
+            )}
           </div>
           <footer className="mt-5 flex flex-col items-center justify-between gap-3 rounded-xl border border-border-soft bg-panel/40 p-3 text-[10px] text-text-muted sm:flex-row">
-            <span>
-              Showing {first} to {last} of {filtered.length.toLocaleString()}{" "}
-              assets
+            <span aria-live="polite">
+              {initialLoading ? "Loading media assets…" : <>Showing {first} to {last} of {filtered.length.toLocaleString()}{" "}assets</>}
             </span>
             <nav
               aria-label="Media pagination"

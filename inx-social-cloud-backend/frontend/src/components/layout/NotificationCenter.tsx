@@ -27,7 +27,23 @@ type WorkspaceNotification = {
   icon: typeof Bell
 }
 
-const readStorageKey = 'inx-social-notification-fingerprint'
+const legacyReadStorageKey = 'inx-social-notification-fingerprint'
+const readIdsStorageKey = 'inx-social-notification-read-ids-v2'
+
+function parseStoredReadIds() {
+  if (typeof window === 'undefined') return [] as string[]
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(readIdsStorageKey) || '[]')
+    if (Array.isArray(stored)) return stored.map(String).filter(Boolean).slice(-250)
+  } catch {
+    // Fall through to the legacy fingerprint migration below.
+  }
+
+  return (window.localStorage.getItem(legacyReadStorageKey) || '')
+    .split('|')
+    .map((entry) => entry.replace(/:\d+$/, '').trim())
+    .filter(Boolean)
+}
 
 const toneStyles: Record<NotificationTone, string> = {
   danger: 'border-red-400/20 bg-red-500/8 text-red-300',
@@ -51,7 +67,7 @@ function workspaceNotifications(overview?: StudioOverview, videos: GenerationHis
     const first = activeVideos[0]
     const kind = videoKind(first)
     notices.push({
-      id: `video-rendering-${activeVideos.map((item) => item.id).join('-')}`,
+      id: `video-rendering-${activeVideos.map((item) => item.id).sort().join('-')}`,
       title: 'Video rendering in background',
       description: `${activeVideos.length} video${activeVideos.length === 1 ? '' : 's'} preparing. You can keep working while the render finishes.`,
       href: `/app/ai-content-studio?videoStudio=${kind}&generation=${encodeURIComponent(first.id)}`,
@@ -130,14 +146,13 @@ export function NotificationCenter({ overview }: { overview?: StudioOverview }) 
     staleTime: 3000,
   })
   const notices = useMemo(() => workspaceNotifications(overview, videosQuery.data || []), [overview, videosQuery.data])
-  const fingerprint = notices.map((notice) => `${notice.id}:${notice.count}`).join('|')
   const [open, setOpen] = useState(false)
-  const [readFingerprint, setReadFingerprint] = useState(() => (
-    typeof window === 'undefined' ? '' : window.localStorage.getItem(readStorageKey) || ''
-  ))
+  const [readIds, setReadIds] = useState<string[]>(parseStoredReadIds)
+  const readSet = useMemo(() => new Set(readIds), [readIds])
   const containerRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const unreadCount = fingerprint && fingerprint !== readFingerprint ? notices.length : 0
+  const notificationsReady = Boolean(overview) && !videosQuery.isLoading
+  const unreadCount = notificationsReady ? notices.filter((notice) => !readSet.has(notice.id)).length : 0
 
   useEffect(() => {
     if (!open) return
@@ -157,9 +172,20 @@ export function NotificationCenter({ overview }: { overview?: StudioOverview }) 
     }
   }, [open])
 
+  useEffect(() => {
+    function syncReadState(event: StorageEvent) {
+      if (event.key !== readIdsStorageKey) return
+      setReadIds(parseStoredReadIds())
+    }
+    window.addEventListener('storage', syncReadState)
+    return () => window.removeEventListener('storage', syncReadState)
+  }, [])
+
   function markAllRead() {
-    window.localStorage.setItem(readStorageKey, fingerprint)
-    setReadFingerprint(fingerprint)
+    const next = Array.from(new Set([...readIds, ...notices.map((notice) => notice.id)])).slice(-250)
+    window.localStorage.setItem(readIdsStorageKey, JSON.stringify(next))
+    window.localStorage.removeItem(legacyReadStorageKey)
+    setReadIds(next)
   }
 
   return (

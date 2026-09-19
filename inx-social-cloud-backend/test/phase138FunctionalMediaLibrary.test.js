@@ -15,6 +15,10 @@ test('Media Library is a native responsive React workspace with the universal sh
   assert.match(sidebar, /reactPath: '\/media-library'/);
   assert.match(topbar, /'\/media-library'/);
   assert.match(page, /MediaGrid/);
+  assert.match(page, /MediaGridSkeleton/);
+  assert.match(page, /MediaStatSkeleton/);
+  assert.match(page, /initialLoading/);
+  assert.match(page, /Loading media assets/);
   assert.match(page, /2xl:grid-cols-\[230px_minmax\(0,1fr\)_330px\]/);
   assert.doesNotMatch(page, /Summer Sale Post|Product Launch Reel|1,248/);
 });
@@ -31,6 +35,9 @@ test('Media Library operations use authenticated owned backend endpoints', () =>
   assert.match(service, /archivedAt: null/);
   assert.match(service, /STORAGE_LIMITS/);
   assert.match(service, /checksum/);
+  assert.match(service, /LIBRARY_ASSET_SELECT/);
+  assert.match(service, /select: LIBRARY_ASSET_SELECT/);
+  assert.doesNotMatch(service.match(/const LIBRARY_ASSET_SELECT = \{[\s\S]*?\n\};/)?.[0] || '', /data:\s*true/);
   assert.match(app, /access=\)\[\^&\]\+\/g, '\$1\[redacted\]'/);
 });
 
