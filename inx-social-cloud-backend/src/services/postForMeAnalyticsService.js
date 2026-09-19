@@ -8,8 +8,8 @@ const ANALYTICS_CACHE_RUNTIME_INTERVAL_MS = 2 * 60 * 1000;
 const ANALYTICS_CACHE_RUNTIME_BATCH_SIZE = 4;
 const ANALYTICS_CACHE_RUNTIME_ACCOUNT_DELAY_MS = 1500;
 const ANALYTICS_CACHE_RUNTIME_RETRY_AFTER_MS = 10 * 60 * 1000;
-const SNAPSHOT_MIN_INTERVAL_MS = 45 * 60 * 1000;
-const SNAPSHOT_RETENTION_DAYS = 120;
+const SNAPSHOT_MIN_INTERVAL_MS = 2 * 60 * 60 * 1000;
+const SNAPSHOT_RETENTION_DAYS = 100;
 const SNAPSHOT_RUNTIME_INTERVAL_MS = 60 * 60 * 1000;
 const SNAPSHOT_RUNTIME_ACCOUNT_DELAY_MS = 5000;
 const FEED_HISTORY_MAX_PAGES = 30;
@@ -244,7 +244,9 @@ function metricSnapshotRow(userId, profile, post, capturedAt) {
     interactions: Math.max(0, Math.round(number(metrics.interactions))),
     clicks: Math.max(0, Math.round(number(metrics.clicks))),
     follows: Math.round(number(metrics.follows)),
-    metricsJson: Object.keys(rawMetrics).length ? JSON.stringify(rawMetrics) : null
+    // Historical trend calculations use the normalized numeric columns below.
+    // Do not duplicate the provider's raw JSON on every snapshot.
+    metricsJson: null
   };
 }
 
@@ -261,12 +263,45 @@ async function persistMetricSnapshots(userId, profile, feed) {
   const rows = feed.map((post) => metricSnapshotRow(userId, profile, post, capturedAt));
   if (!rows.length) return false;
 
-  await prisma.analyticsMetricSnapshot.createMany({ data: rows });
+  const externalPostIds = [...new Set(rows.map((row) => row.externalPostId).filter(Boolean))];
+  const recent = await prisma.analyticsMetricSnapshot.findMany({
+    where: {
+      profileId: profile.id,
+      externalPostId: { in: externalPostIds }
+    },
+    select: {
+      externalPostId: true,
+      views: true,
+      interactions: true,
+      clicks: true,
+      follows: true,
+      capturedAt: true
+    },
+    orderBy: { capturedAt: 'desc' },
+    take: Math.max(externalPostIds.length, Math.min(6000, externalPostIds.length * 2))
+  });
+  const latestByPost = new Map();
+  for (const snapshot of recent) {
+    if (!latestByPost.has(snapshot.externalPostId)) latestByPost.set(snapshot.externalPostId, snapshot);
+  }
+
+  const changedRows = rows.filter((row) => {
+    const previous = latestByPost.get(row.externalPostId);
+    return !previous
+      || previous.views !== row.views
+      || previous.interactions !== row.interactions
+      || previous.clicks !== row.clicks
+      || previous.follows !== row.follows;
+  });
+
+  if (changedRows.length) {
+    await prisma.analyticsMetricSnapshot.createMany({ data: changedRows });
+  }
   const retentionCutoff = new Date(Date.now() - SNAPSHOT_RETENTION_DAYS * 86400000);
   await prisma.analyticsMetricSnapshot.deleteMany({
     where: { profileId: profile.id, capturedAt: { lt: retentionCutoff } }
   });
-  return true;
+  return changedRows.length > 0;
 }
 
 function positiveDelta(current, previous) {
