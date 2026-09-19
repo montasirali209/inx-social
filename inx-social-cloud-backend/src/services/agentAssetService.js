@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const prisma = require('../db/prisma');
 const { expiresAtFor } = require('./mediaRetentionService');
+const objectStorage = require('./mediaObjectStorageService');
 
 const UPLOAD_KINDS = new Set(['LOGO', 'PROFILE', 'REFERENCE']);
 const MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -40,16 +41,20 @@ async function createUpload(userId, input = {}) {
   const checksum = crypto.createHash('sha256').update(data).digest('hex');
   const duplicate = await prisma.agentAsset.findFirst({ where: { userId, checksum, kind }, orderBy: { createdAt: 'desc' } });
   if (duplicate) return duplicate;
+  const originalName = String(input.name || 'brand-image').replace(/[^a-zA-Z0-9._ -]/g, '').slice(0, 160) || 'brand-image';
+  const stored = await objectStorage.persistBuffer({ userId, data, mimeType, originalName, prefix: 'agent-assets' });
   return prisma.agentAsset.create({ data: {
     userId,
     kind,
     source: 'UPLOAD',
     status: 'READY',
-    originalName: String(input.name || 'brand-image').replace(/[^a-zA-Z0-9._ -]/g, '').slice(0, 160) || 'brand-image',
+    originalName,
     mimeType,
     byteSize: data.length,
     checksum,
-    data,
+    data: stored.data,
+    storageProvider: stored.storageProvider,
+    storageKey: stored.storageKey,
     expiresAt: expiresAtFor(mimeType)
   } });
 }
