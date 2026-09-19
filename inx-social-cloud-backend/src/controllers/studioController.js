@@ -511,15 +511,15 @@ async function capabilities(req, res, next) {
       },
       upload: {
         enabled: true,
-        provider: 'TEMPORARY_STREAM_TO_META',
-        persistentStorage: false,
+        provider: 'R2_SERVER_QUEUE',
+        persistentStorage: true,
         maximumFileSizeBytes: MAX_CLOUD_FILE_BYTES.toString(),
         acceptedExtensions: ['.mp4', '.mov', '.m4v', '.avi', '.mkv', '.webm'],
-        note: 'Keep this browser open until each upload reaches Meta. Temporary server files are deleted after every attempt.'
+        note: 'Scheduled media is stored durably after upload. The browser does not need to remain open until the publishing time.'
       },
       publishing: {
         enabled: true,
-        mode: 'META_SCHEDULED_AND_IMMEDIATE_REELS'
+        mode: 'SERVER_SIDE_QUEUE_AND_IMMEDIATE_PUBLISH'
       }
     });
   } catch (error) {
