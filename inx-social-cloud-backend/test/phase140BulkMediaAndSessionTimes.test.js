@@ -30,3 +30,20 @@ test('selected-date scheduling owns its multiple daily times inside the current 
   assert.match(utilities, /input\.dailyTimes/);
   assert.doesNotMatch(settings, /id="settingSlots"/);
 });
+
+
+test('Bulk Scheduler preflights its 25-day window and exposes reviewable failed results', () => {
+  const page = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
+  const utilities = read('frontend/src/lib/bulk-scheduler-utils.ts');
+  const panel = read('frontend/src/components/bulk-scheduler/BatchRunPanel.tsx');
+  const results = read('frontend/src/components/bulk-scheduler/UploadResultsTable.tsx');
+  assert.match(utilities, /MAX_BULK_SCHEDULE_DAYS = 25/);
+  assert.match(utilities, /getBulkScheduleCapacity/);
+  assert.match(page, /only \$\{scheduleCapacity\} fit inside the current/);
+  assert.match(panel, /Needs review/);
+  assert.match(panel, /Why items need review/);
+  assert.match(results, /Retry upload/);
+  assert.match(results, /Needs review/);
+  assert.match(results, /PAGE_SIZE = 12/);
+  assert.doesNotMatch(results, /results\.slice\(0, 12\)/);
+});
