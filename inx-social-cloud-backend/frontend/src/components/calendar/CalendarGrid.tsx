@@ -1,17 +1,32 @@
-import { CalendarDays } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
 import { calendarWeekdays } from '../../data/calendarData'
 import type { CalendarDay, CalendarPost } from '../../types/calendar'
 import { CalendarDayCell } from './CalendarDayCell'
 
-export function CalendarGrid({ days, monthLabel, onSelectDate, onSelectPost, onToday }: { days: CalendarDay[]; monthLabel: string; onSelectDate: (date: string) => void; onSelectPost: (post: CalendarPost) => void; onToday: () => void }) {
+export function CalendarGrid({ days, monthLabel, onSelectDate, onSelectPost, onToday, onPreviousMonth, onNextMonth }: {
+  days: CalendarDay[]
+  monthLabel: string
+  onSelectDate: (date: string) => void
+  onSelectPost: (post: CalendarPost) => void
+  onToday: () => void
+  onPreviousMonth: () => void
+  onNextMonth: () => void
+}) {
   const hasPosts = days.some((day) => day.posts.length)
   return (
     <section className="interactive-surface min-w-0 overflow-hidden rounded-panel border">
-      <header className="flex items-center justify-between border-b border-border-soft px-4 py-3"><h2 className="text-base font-semibold">{monthLabel}</h2><button className="min-h-9 rounded-lg border border-border-soft bg-black/15 px-3 text-xs font-semibold transition hover:border-brand-cyan/40 focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onToday} type="button">Today</button></header>
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border-soft px-4 py-3">
+        <div className="flex items-center gap-1">
+          <button aria-label="Previous month" className="grid size-9 place-items-center rounded-lg border border-border-soft bg-black/15 text-text-muted transition hover:border-brand-cyan/35 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onPreviousMonth} type="button"><ChevronLeft className="size-4" /></button>
+          <h2 className="min-w-36 text-center text-base font-semibold">{monthLabel}</h2>
+          <button aria-label="Next month" className="grid size-9 place-items-center rounded-lg border border-border-soft bg-black/15 text-text-muted transition hover:border-brand-cyan/35 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onNextMonth} type="button"><ChevronRight className="size-4" /></button>
+        </div>
+        <button className="min-h-9 rounded-lg border border-border-soft bg-black/15 px-3 text-xs font-semibold transition hover:border-brand-cyan/40 focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onToday} type="button">Today</button>
+      </header>
       <div className="grid grid-cols-7 border-b border-border-soft bg-black/12">{calendarWeekdays.map((day) => <span className="py-2 text-center text-[10px] font-semibold text-text-muted" key={day}>{day}</span>)}</div>
       <div className="relative grid grid-cols-7 overflow-hidden">
         {days.map((day) => <CalendarDayCell day={day} key={day.date} onSelectDate={onSelectDate} onSelectPost={onSelectPost} />)}
-        {!hasPosts && <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center"><span className="rounded-xl border border-border-soft bg-bg/90 px-5 py-3 text-center shadow-panel backdrop-blur"><CalendarDays aria-hidden="true" className="mx-auto size-5 text-brand-cyan" /><strong className="mt-2 block text-xs">No published or scheduled content found</strong><small className="mt-1 block text-[10px] text-text-muted">Connected account history and future scheduled posts will appear here.</small></span></div>}
+        {!hasPosts && <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center"><span className="rounded-xl border border-border-soft bg-bg/90 px-5 py-3 text-center shadow-panel backdrop-blur"><CalendarDays aria-hidden="true" className="mx-auto size-5 text-brand-cyan" /><strong className="mt-2 block text-xs">No published or queued content found</strong><small className="mt-1 block text-[10px] text-text-muted">Published history and future INX Social queue items will appear here.</small></span></div>}
       </div>
     </section>
   )
