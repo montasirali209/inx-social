@@ -113,3 +113,54 @@ test('a Meta rate limit pauses further checks for at least 65 minutes', async ()
   assert.ok(new Date(updates[0].data.nextAttemptAt).getTime() >= before + (65 * 60 * 1000) - 1000);
   assert.match(updates[0].data.errorMessage, /paused for 65 minutes/i);
 });
+
+
+test('server-queued Reel media is deleted only after Meta confirms it published', async () => {
+  const deleted = [];
+  const assetUpdates = [];
+  const result = await reconcileJob({
+    id: 'queued-video-job',
+    status: 'PROCESSING',
+    publishMode: 'NOW',
+    metaVideoId: 'video-queued-1',
+    rawMetaResponse: JSON.stringify({ verification: { serverQueue: true } }),
+    connectedPage: { encryptedAccessToken: 'encrypted' },
+    cloudAsset: {
+      id: 'asset-queued-1',
+      provider: 'CLOUDFLARE_R2',
+      storageKey: 'scheduled-publishing/user-1/video.mp4'
+    }
+  }, {
+    prisma: {
+      scheduleJob: {
+        update: async input => ({ id: input.where.id, ...input.data })
+      },
+      cloudAsset: {
+        update: async input => {
+          assetUpdates.push(input);
+          return input.data;
+        }
+      }
+    },
+    decryptToken: value => value,
+    objectStorage: {
+      deleteObject: async (key, provider) => {
+        deleted.push({ key, provider });
+        return true;
+      }
+    },
+    metaPublisher: {
+      getReelStatus: async () => ({
+        status: {
+          video_status: 'published',
+          publishing_phase: { status: 'complete' }
+        }
+      })
+    }
+  });
+
+  assert.equal(result.state, 'PUBLISHED');
+  assert.deepEqual(deleted, [{ key: 'scheduled-publishing/user-1/video.mp4', provider: 'CLOUDFLARE_R2' }]);
+  assert.equal(assetUpdates[0].data.storageKey, null);
+  assert.equal(assetUpdates[0].data.status, 'DELETED');
+});
