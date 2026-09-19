@@ -264,14 +264,6 @@ app.get(LANDING_DASHBOARD_ASSET_PATH, (req, res, next) => {
   return res.send(landingDashboardAsset);
 });
 
-app.get('/assets/landing-dashboard-20260919.webp', (req, res, next) => {
-  if (!landingDashboardAsset) return next();
-  res.setHeader('Content-Type', 'image/webp');
-  res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
-  res.setHeader('Content-Length', String(landingDashboardAsset.length));
-  return res.send(landingDashboardAsset);
-});
-
 app.use('/admin.css', express.static(path.join(publicRoot, 'admin.css'), { setHeaders: res => res.setHeader('Content-Type', 'text/css') }));
 app.use('/admin.js', express.static(path.join(publicRoot, 'admin.js'), { setHeaders: res => res.setHeader('Content-Type', 'application/javascript') }));
 app.get(Object.keys(LEGACY_MARKETING_REDIRECTS), (req, res) => {
