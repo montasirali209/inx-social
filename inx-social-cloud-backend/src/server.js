@@ -3,6 +3,7 @@ const env = require('./config/env');
 const { startSubscriptionLifecycle } = require('./services/subscriptionLifecycleService');
 const { startAgentRuntime } = require('./services/agentRuntimeService');
 const { startMediaRetention } = require('./services/mediaRetentionService');
+const { startCloudPublishingQueue } = require('./services/cloudPublishingQueueService');
 const { startStockVideoRuntime } = require('./services/stockVideoStudioService');
 const { startRuntime: startPostForMeRuntime } = require('./services/postForMeService');
 const { startAnalyticsCacheRuntime } = require('./services/postForMeAnalyticsService');
@@ -45,6 +46,7 @@ const server = app.listen(env.port, () => {
   startSubscriptionLifecycle();
   startAgentRuntime();
   startMediaRetention();
+  startCloudPublishingQueue();
   startStockVideoRuntime();
   startPostForMeRuntime();
   startAnalyticsCacheRuntime();
