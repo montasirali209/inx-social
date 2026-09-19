@@ -1,9 +1,44 @@
 import { CalendarPlus, Copy, Download, MoreHorizontal, Pencil, RotateCcw, Send, Trash2 } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import type { MediaAsset } from '../../types/media-library'
 
 type Props = { asset: MediaAsset; trashMode?: boolean; onUse: () => void; onSchedule: () => void; onDownload: () => void; onRename: () => void; onDuplicate: () => void; onDelete: () => void; onRestore?: () => void; onPurge?: () => void }
 
+const MEDIA_ACTION_MENU_OPENED = 'inx-media-action-menu-opened'
+
 export function AssetActionMenu(props: Props) {
+  const detailsRef = useRef<HTMLDetailsElement>(null)
+
+  useEffect(() => {
+    const closeMenu = () => {
+      if (detailsRef.current) detailsRef.current.open = false
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const details = detailsRef.current
+      if (!details?.open) return
+      if (event.target instanceof Node && !details.contains(event.target)) closeMenu()
+    }
+
+    const handleAnotherMenuOpened = (event: Event) => {
+      const openedAssetId = (event as CustomEvent<string>).detail
+      if (openedAssetId !== props.asset.id) closeMenu()
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeMenu()
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown, true)
+    document.addEventListener(MEDIA_ACTION_MENU_OPENED, handleAnotherMenuOpened)
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown, true)
+      document.removeEventListener(MEDIA_ACTION_MENU_OPENED, handleAnotherMenuOpened)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [props.asset.id])
+
   const actions = props.trashMode ? [
     { label: 'Restore', icon: RotateCcw, action: props.onRestore || (() => {}) },
     { label: 'Download', icon: Download, action: props.onDownload },
@@ -16,5 +51,40 @@ export function AssetActionMenu(props: Props) {
     { label: 'Duplicate', icon: Copy, action: props.onDuplicate },
     { label: 'Delete', icon: Trash2, action: props.onDelete, danger: true },
   ]
-  return <details className="group relative"><summary aria-label={`Actions for ${props.asset.fileName}`} className="grid size-8 cursor-pointer list-none place-items-center rounded-lg text-text-muted transition hover:bg-white/7 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan"><MoreHorizontal className="size-4" /></summary><div className="notification-pop absolute bottom-full right-0 z-30 mb-1 w-40 rounded-xl border border-border-soft bg-panel p-1.5 shadow-panel">{actions.map(({ label, icon: Icon, action, danger }) => <button className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] transition hover:bg-panel-hover focus-visible:outline-2 focus-visible:outline-brand-cyan ${danger ? 'text-brand-red' : 'text-text-muted hover:text-white'}`} key={label} onClick={(event) => { event.preventDefault(); action(); const details = event.currentTarget.closest('details'); if (details) details.open = false }} type="button"><Icon className="size-3.5" />{label}</button>)}</div></details>
+
+  return (
+    <details
+      className="group relative"
+      onToggle={(event) => {
+        if (event.currentTarget.open) {
+          document.dispatchEvent(new CustomEvent<string>(MEDIA_ACTION_MENU_OPENED, { detail: props.asset.id }))
+        }
+      }}
+      ref={detailsRef}
+    >
+      <summary
+        aria-label={`Actions for ${props.asset.fileName}`}
+        className="grid size-8 cursor-pointer list-none place-items-center rounded-lg text-text-muted transition hover:bg-white/7 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan"
+      >
+        <MoreHorizontal className="size-4" />
+      </summary>
+      <div className="notification-pop absolute bottom-full right-0 z-30 mb-1 w-40 rounded-xl border border-border-soft bg-panel p-1.5 shadow-panel">
+        {actions.map(({ label, icon: Icon, action, danger }) => (
+          <button
+            className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] transition hover:bg-panel-hover focus-visible:outline-2 focus-visible:outline-brand-cyan ${danger ? 'text-brand-red' : 'text-text-muted hover:text-white'}`}
+            key={label}
+            onClick={(event) => {
+              event.preventDefault()
+              action()
+              if (detailsRef.current) detailsRef.current.open = false
+            }}
+            type="button"
+          >
+            <Icon className="size-3.5" />
+            {label}
+          </button>
+        ))}
+      </div>
+    </details>
+  )
 }
