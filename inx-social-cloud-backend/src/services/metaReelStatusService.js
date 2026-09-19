@@ -1,6 +1,7 @@
 const prisma = require('../db/prisma');
 const { decryptToken } = require('../utils/tokenCrypto');
 const metaPublisher = require('./cloudMetaPublisher');
+const objectStorage = require('./mediaObjectStorageService');
 
 const CHECKABLE_STATUSES = ['PROCESSING'];
 const FAILURE_WORDS = new Set(['error', 'failed', 'failure', 'rejected', 'expired']);
@@ -134,10 +135,25 @@ function withVerification(job, statusPayload, result, extra = {}) {
   });
 }
 
+async function cleanupServerQueueAsset(job, db, storage) {
+  const key = String(job?.cloudAsset?.storageKey || '');
+  if (!key.startsWith('scheduled-publishing/')) return;
+  await storage.deleteObject(key, job.cloudAsset.provider || null).catch(error => {
+    console.warn('[META STATUS] scheduled media cleanup failed', { jobId: job.id, error: error?.message });
+  });
+  if (db.cloudAsset?.update) {
+    await db.cloudAsset.update({
+      where: { id: job.cloudAsset.id },
+      data: { status: 'DELETED', storageKey: null }
+    }).catch(() => {});
+  }
+}
+
 async function reconcileJob(job, dependencies = {}) {
   const db = dependencies.prisma || prisma;
   const publisher = dependencies.metaPublisher || metaPublisher;
   const decrypt = dependencies.decryptToken || decryptToken;
+  const storage = dependencies.objectStorage || objectStorage;
   if (!job?.metaVideoId || !job.connectedPage?.encryptedAccessToken) return { skipped: true };
 
   const previousAttempts = statusCheckAttempts(job);
@@ -174,6 +190,7 @@ async function reconcileJob(job, dependencies = {}) {
         errorMessage: result.error ? String(result.error).slice(0, 2000) : null
       }
     });
+    if (result.state === 'PUBLISHED') await cleanupServerQueueAsset(job, db, storage);
     return { job: updated, state: result.state, error: result.error || null };
   } catch (error) {
     const message = String(error.publicMessage || error.message || 'Facebook status check failed').slice(0, 1000);
@@ -266,7 +283,7 @@ async function reconcileJobs({ userId = null, limit = 50 } = {}, dependencies = 
     },
     orderBy: { createdAt: 'desc' },
     take: Math.max(20, Number(limit || 50) * 4),
-    include: { connectedPage: true }
+    include: { connectedPage: true, cloudAsset: true }
   });
   const due = candidates.filter(job => {
     if (job.nextAttemptAt && new Date(job.nextAttemptAt) > now) return false;
