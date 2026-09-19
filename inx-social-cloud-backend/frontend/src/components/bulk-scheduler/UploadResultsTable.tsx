@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, Film, Image as ImageIcon, RefreshCw } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { Destination, UploadResult } from '../../types/bulk-scheduler'
 import { Button } from '../ui/Button'
 import { PlatformMark } from './PlatformMark'
@@ -58,13 +58,6 @@ export function UploadResultsTable({
     review: results.filter((result) => result.status === 'failed' || result.status === 'blocked').length,
   }
 
-  useEffect(() => {
-    setPage(1)
-  }, [filter])
-
-  useEffect(() => {
-    if (page > pages) setPage(pages)
-  }, [page, pages])
 
   if (!results.length) return <div className="grid min-h-36 place-items-center rounded-xl border border-dashed border-border-soft bg-black/10 text-center"><span><Film aria-hidden="true" className="mx-auto size-6 text-brand-cyan" /><strong className="mt-2 block text-sm">No upload results yet</strong><small className="mt-1 block text-text-soft">Completed and failed publishing actions will appear here live.</small></span></div>
 
@@ -83,7 +76,7 @@ export function UploadResultsTable({
           <button
             className={`rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold transition ${filter === item.id ? 'border-brand-cyan/35 bg-brand-cyan/10 text-brand-cyan' : 'border-border-soft bg-black/10 text-text-muted hover:border-brand-cyan/20 hover:text-white'}`}
             key={item.id}
-            onClick={() => setFilter(item.id)}
+            onClick={() => { setFilter(item.id); setPage(1) }}
             type="button"
           >
             {item.label} <span className="ml-1 opacity-70">{item.count}</span>
