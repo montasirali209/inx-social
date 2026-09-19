@@ -97,7 +97,7 @@ export type BulkSchedulerData = {
 
 export function backendStatusToUploadStatus(status: BackendJobStatus): UploadStatus {
   if (status === 'PUBLISHED') return 'published'
-  if (status === 'SCHEDULED') return 'scheduled'
+  if (status === 'SCHEDULED' || status === 'QUEUED') return 'scheduled'
   if (status === 'FAILED' || status === 'CANCELLED') return 'failed'
   if (status === 'PROCESSING') return 'uploading'
   return 'waiting'
