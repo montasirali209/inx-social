@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=6">
+  <link rel="stylesheet" href="/admin.css?v=7">
   <link rel="stylesheet" href="/admin-security.css?v=1">
 </head>
 <body>
@@ -34,7 +34,7 @@
     <nav aria-label="Administration">
       <button class="nav active" data-page="overview"><span>◫</span>Overview</button>
       <button class="nav" data-page="users"><span>◎</span>Customers <i id="userAlertBadge" hidden>0</i></button>
-      <button class="nav" data-page="aiAccess"><span>✦</span>AI Studio Access</button>
+      <button class="nav" data-page="aiAccess"><span>✦</span>AI &amp; Automation</button>
       <button class="nav" data-page="settings"><span>⚙</span>System Settings</button>
       <button class="nav" data-page="security"><span>⌾</span>Admin &amp; Security</button>
     </nav>
@@ -63,29 +63,62 @@
     <section class="page hidden" id="usersPage">
       <div class="section-head"><div><h2>Customers</h2><p>Search, create and manage customer subscriptions and feature access. Administrator accounts are managed separately.</p></div><button class="primary" id="createUserBtn">＋ Create customer</button></div>
       <div class="panel toolbar"><label class="search"><span>⌕</span><input id="userSearch" type="search" placeholder="Search name or email"></label><select id="userFilter" aria-label="Filter customers"><option value="">All customers</option><option value="TRIAL">Trial</option><option value="ACTIVE">Active</option><option value="PENDING_VERIFICATION">Unverified</option><option value="SUSPENDED">Suspended</option></select><button class="secondary" id="refreshUsersBtn">Refresh</button></div>
-      <div class="panel table-wrap"><table><thead><tr><th>Customer</th><th>Access</th><th>Plan</th><th>AI Studio</th><th>Joined</th><th>Connections</th><th></th></tr></thead><tbody id="usersTable"></tbody></table></div>
+      <div class="panel table-wrap"><table><thead><tr><th>Customer</th><th>Access</th><th>Plan</th><th>Social Agent</th><th>Joined</th><th>Connections</th><th></th></tr></thead><tbody id="usersTable"></tbody></table></div>
     </section>
 
     <section class="page hidden" id="aiAccessPage">
-      <div class="section-head"><div><h2>AI Content Studio Access</h2><p>Control who can see and use AI Content Studio independently of model routing.</p></div><span class="status-chip">Backend enforced</span></div>
-      <form class="panel policy-form" id="agentAccessForm">
-        <div class="policy-hero"><span>✦</span><div><h3>Social Agent availability</h3><p>This policy controls the autonomous Social Agent separately from the AI Content Studio credit system. Customer plan and credit overrides are managed from Customers.</p></div></div>
-        <label>Social Agent availability<select id="agentAvailability"><option value="PLUS_ONLY">Higher-tier/legacy policy</option><option value="ADMIN_ONLY">Admins only — development mode</option><option value="EVERYONE">All active subscribers</option><option value="DISABLED">Disabled for everyone</option></select></label>
-        <div class="limit-grid"><label>Trial monthly missions<input id="agentLimitTrial" type="number" min="0"></label><label>Pro monthly missions<input id="agentLimitPro" type="number" min="0"></label><label>Plus monthly missions<input id="agentLimitPlus" type="number" min="0"></label><label>Legacy lifetime missions<input id="agentLimitLifetime" type="number" min="0"></label></div>
-        <div class="callout"><b>Important distinction</b><span>Social Agent mission limits are separate from AI Content Studio generation credits. Use the Customers screen to override Creator, Pro, Business or Agency access and to adjust AI credits.</span></div>
-        <button class="primary" type="submit">Save AI access policy</button>
+      <div class="section-head ai-admin-heading">
+        <div><span class="kicker">AI operations</span><h2>AI &amp; Automation Administration</h2><p>Control global AI Studio availability, Social Agent allowances and review the live generation stack. Individual customer plan and credit overrides stay in Customers.</p></div>
+        <span class="status-chip">Backend enforced</span>
+      </div>
+
+      <div class="ai-ops-status-grid" id="aiOpsStatusGrid" aria-live="polite">
+        <article class="ai-status-card loading"><span>AI Content Studio</span><b>Loading…</b><small>Reading live policy</small></article>
+        <article class="ai-status-card loading"><span>Runware</span><b>Loading…</b><small>Checking generation configuration</small></article>
+        <article class="ai-status-card loading"><span>Stock Video Creator</span><b>Loading…</b><small>Checking worker configuration</small></article>
+        <article class="ai-status-card loading"><span>Credit system</span><b>Loading…</b><small>Reading plan allowances</small></article>
+      </div>
+
+      <div class="ai-admin-grid">
+        <form class="panel policy-form ai-studio-policy-card" id="aiStudioPolicyForm">
+          <div class="policy-hero"><span>✦</span><div><span class="kicker">Generation access</span><h3>AI Content Studio policy</h3><p>Emergency and plan-level access controls for Image Post, Carousel, AI Video, UGC and Stock Video Creator. These switches do not change Stripe subscriptions or customer credit balances.</p></div></div>
+          <div class="policy-switch-grid">
+            <label class="policy-switch"><input id="studioEnabled" type="checkbox"><span><b>AI Content Studio</b><small>Global generation master switch</small></span></label>
+            <label class="policy-switch"><input id="studioTrialEnabled" type="checkbox"><span><b>Trial access</b><small>Allow the 7-day Trial to use its 20-credit allowance</small></span></label>
+            <label class="policy-switch"><input id="studioPaidEnabled" type="checkbox"><span><b>Paid plan access</b><small>Creator, Pro, Business and Agency</small></span></label>
+            <label class="policy-switch"><input id="studioAdminEnabled" type="checkbox"><span><b>Administrator access</b><small>Operational AI allowance for Admin/Super Admin</small></span></label>
+          </div>
+          <div class="callout"><b>Per-user exceptions</b><span>Use Customers to assign a manual commercial plan or adjust an individual AI credit balance. This global policy remains the final generation gate.</span></div>
+          <div class="policy-footer"><span id="studioPolicyPermission" class="muted">Global policy changes require Super Admin.</span><button class="primary" id="saveStudioPolicyBtn" type="submit">Save AI Studio policy</button></div>
+        </form>
+
+        <article class="panel ai-credit-policy">
+          <div class="policy-hero compact"><span>◎</span><div><span class="kicker">Shared wallet</span><h3>AI credit allowances</h3><p>Live plan allowances used by the generation wallet. Individual adjustments are managed from Customers.</p></div></div>
+          <div class="credit-plan-grid" id="aiCreditPlanGrid"></div>
+          <div class="credit-topup-status" id="aiCreditTopupStatus"></div>
+        </article>
+      </div>
+
+      <form class="panel policy-form social-agent-card" id="agentAccessForm">
+        <div class="policy-hero"><span>◆</span><div><span class="kicker">Automation</span><h3>Social Agent policy</h3><p>The autonomous Social Agent is separate from AI Content Studio generation. Control who can run missions and how many missions each customer plan receives.</p></div></div>
+        <label>Availability<select id="agentAvailability"><option value="ADMIN_ONLY">Admins only — development mode</option><option value="PAID_PLANS">Paid plans</option><option value="EVERYONE">All active subscribers</option><option value="DISABLED">Disabled for everyone</option></select></label>
+        <div class="limit-grid current-plan-limits">
+          <label>Trial missions <small>7-day Trial</small><input id="agentLimitTrial" type="number" min="0"></label>
+          <label>Creator missions <small>per billing period</small><input id="agentLimitCreator" type="number" min="0"></label>
+          <label>Pro missions <small>per billing period</small><input id="agentLimitPro" type="number" min="0"></label>
+          <label>Business missions <small>per billing period</small><input id="agentLimitBusiness" type="number" min="0"></label>
+          <label>Agency missions <small>per billing period</small><input id="agentLimitAgency" type="number" min="0"></label>
+        </div>
+        <div class="callout"><b>Separate usage meter</b><span>Social Agent mission allowances do not consume AI Content Studio credits. Legacy Plus/Lifetime controls are retained only in backend compatibility mapping and are no longer exposed as current plans.</span></div>
+        <button class="primary" type="submit">Save Social Agent policy</button>
       </form>
-      <details class="panel advanced-note">
+
+      <details class="panel advanced-note ai-advanced" open>
         <summary>Advanced AI operations</summary>
-        <h3>AI Model Routing</h3>
-        <p>Provider routing and generation guardrails remain backend-managed. Legacy model-route database rows are intentionally hidden from this simplified administration screen.</p>
-        <h3>Image generation policy</h3>
-        <ul><li>Enable paid OpenAI image generation</li><li>Local first, then OpenAI after rejection</li><li>Maximum paid images per mission</li></ul>
-        <h3>Video generation policy</h3>
-        <p>Allow paid gateway only if Ollama is unavailable.</p>
-        <h3>Agent Learning Control</h3>
-        <p>Only administrator-reviewed reusable learning is eligible for governed agent reuse.</p>
-        <span id="imageQualityModel" hidden>Private quality model route</span>
+        <div class="advanced-ai-intro"><div><span class="kicker">Live production routes</span><h3>Generation architecture</h3></div><p>Provider credentials and low-level routing remain backend-managed so a dashboard edit cannot accidentally expose secrets or break production model contracts.</p></div>
+        <div class="provider-grid" id="aiProviderGrid"></div>
+        <div class="routing-summary" id="aiRoutingSummary"></div>
+        <div class="callout"><b>Agent learning governance</b><span>Only administrator-reviewed reusable learning is eligible for governed Social Agent reuse. Hidden reasoning is never stored as reusable memory.</span></div>
       </details>
     </section>
 
@@ -146,6 +179,6 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=6" defer></script>
+<script src="/admin.js?v=7" defer></script>
 </body>
 </html>
