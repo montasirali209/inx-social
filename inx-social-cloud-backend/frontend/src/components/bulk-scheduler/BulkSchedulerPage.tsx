@@ -9,6 +9,8 @@ import type { BatchProgress, BulkSchedulerData, Destination, MediaKind, Selected
 import type { MediaAsset } from '../../types/media-library'
 import { backendStatusToUploadStatus } from '../../types/bulk-scheduler'
 import { BatchRunPanel } from './BatchRunPanel'
+import { BulkScheduleManager } from './BulkScheduleManager'
+import { BulkSchedulerStats, type BulkHistoryView } from './BulkSchedulerStats'
 import { BulkSchedulerHero } from './BulkSchedulerHero'
 import { PublishingDestinationsPanel } from './PublishingDestinationsPanel'
 import { UploadBatchPanel } from './UploadBatchPanel'
@@ -76,6 +78,7 @@ export function BulkSchedulerPage() {
   const [results, setResults] = useState<UploadResult[]>([])
   const [confirmationOpen, setConfirmationOpen] = useState(false)
   const [retryingId, setRetryingId] = useState<string | null>(null)
+  const [historyView, setHistoryView] = useState<BulkHistoryView | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const importedLibrarySelection = useRef('')
   const destinationSection = useRef<HTMLDivElement>(null)
@@ -85,7 +88,7 @@ export function BulkSchedulerPage() {
   const scheduler = useQuery({
     queryKey: ['bulk-scheduler'],
     queryFn: fetchBulkSchedulerData,
-    refetchInterval: results.some((result) => result.status === 'uploading') ? 8_000 : false,
+    refetchInterval: results.some((result) => result.status === 'uploading') ? 8_000 : 15_000,
   })
   const schedulerData = scheduler.data || immediateSchedulerData
   const destinations = useMemo(() => pageDestinations(schedulerData.pages), [schedulerData.pages])
@@ -350,11 +353,13 @@ export function BulkSchedulerPage() {
         onStop={stopUpload}
         running={running}
       />
+      <BulkSchedulerStats jobs={schedulerData.jobs} onOpen={setHistoryView} />
       <div className="mt-4 scroll-mt-24" ref={destinationSection}><PublishingDestinationsPanel destinations={destinations} onSelectionChange={setSelectedIds} platforms={schedulerData.platforms} selectedIds={selectedIds} /></div>
       <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,.92fr)_minmax(0,1.08fr)]">
         <UploadBatchPanel canStart={canStart} captionCount={captionBlocks.length} captions={captions} disabledReason={disabledReason} media={media} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onFallbackChange={setUseFallback} onMedia={selectMedia} onRetainMediaChange={setRetainMedia} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={requestStart} onTimingModeChange={setTimingMode} retainMedia={retainMedia} running={running} savedScheduleTimes={schedulerData.settings.defaultScheduleTimes} scheduleDate={scheduleDate} scheduleTimes={activeScheduleTimes} selectedDestinations={selectedIds.size} timezone={schedulerData.settings.timezone} timingMode={timingMode} useFallback={useFallback} />
         <BatchRunPanel canStart={canStart} destinations={destinations} disabledReason={disabledReason} onRetry={retryFailedUpload} onStart={requestStart} onStop={stopUpload} progress={progress} results={results} retryingId={retryingId} running={running} />
       </div>
+      {historyView && <BulkScheduleManager initialView={historyView} jobs={schedulerData.jobs} onChanged={() => scheduler.refetch()} onClose={() => setHistoryView(null)} timezone={schedulerData.settings.timezone} />}
       <PublishConfirmationDialog busy={running} confirmLabel={timingMode === 'publish_now' ? 'Publish batch' : 'Schedule batch'} description={`You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} ${media.length} media file${media.length === 1 ? '' : 's'} across ${selectedIds.size} destination${selectedIds.size === 1 ? '' : 's'}.`} onCancel={() => setConfirmationOpen(false)} onConfirm={() => { setConfirmationOpen(false); void runBatch() }} open={confirmationOpen} title="Confirm this bulk publishing action" />
     </div>
   )
