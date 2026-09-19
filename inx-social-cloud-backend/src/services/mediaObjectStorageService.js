@@ -122,17 +122,21 @@ async function request(method, key, options = {}) {
   return response;
 }
 
-function safeFileName(value) {
-  return String(value || 'media-asset')
+function safeSegment(value, fallback = 'value') {
+  return String(value || fallback)
     .replace(/[^a-zA-Z0-9._-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '')
-    .slice(0, 120) || 'media-asset';
+    .slice(0, 120) || fallback;
+}
+
+function safeFileName(value) {
+  return safeSegment(value, 'media-asset');
 }
 
 function keyFor(userId, assetId, originalName) {
   const date = new Date().toISOString().slice(0, 10);
-  return `media/${rfc3986(userId)}/${date}/${rfc3986(assetId)}/${rfc3986(safeFileName(originalName))}`;
+  return `media/${safeSegment(userId, 'user')}/${date}/${safeSegment(assetId, 'asset')}/${safeFileName(originalName)}`;
 }
 
 async function putObject(key, data, contentType) {
