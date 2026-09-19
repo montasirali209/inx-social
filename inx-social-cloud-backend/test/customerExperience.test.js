@@ -41,8 +41,8 @@ test('Social Agent exposes AI-led missions, independent Page targets and distinc
   assert.match(html, /Mission intelligence/); assert.match(html, /Live work monitor/); assert.match(html, /Only the task running now and its next system step/);
   assert.match(html, /never private chain-of-thought/); assert.doesNotMatch(html, />Working memory</); assert.doesNotMatch(html, /Media budget mode/);
   assert.match(html, /AI content decision/); assert.match(html, /Let INX Agent decide/); assert.match(app, /resumeAgentPlan/);
-  assert.match(admin, /AI Model Routing/); assert.match(admin, /Video generation policy/); assert.match(admin, /Allow paid gateway only if Ollama is unavailable/);
-  assert.match(admin, /Agent Learning Control/); assert.match(admin, /Social Agent availability/); assert.match(admin, /Admins only — development mode/);
+  assert.match(admin, /AI &amp; Automation Administration/); assert.match(admin, /Generation architecture/); assert.match(admin, /AI credit allowances/);
+  assert.match(admin, /Agent learning governance/); assert.match(admin, /Social Agent policy/); assert.match(admin, /Admins only — development mode/);
   assert.match(app, /FIFO · one mission at a time/); assert.match(app, /Agent missions used/); assert.match(app, /targetPageIds/);
   assert.match(app, /renderAgentPageTargets/); assert.match(app, /agent-plan-page-chips/); assert.match(app, /new missions available/);
   assert.match(app, /ACTION CENTER/); assert.match(app, /MISSION TASKS/); assert.match(app, /data-agent-task-detail/); assert.match(app, /openAgentTaskOutputs/);

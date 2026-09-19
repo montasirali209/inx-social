@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const prisma = require('../db/prisma');
 const env = require('../config/env');
 const { getLicenseStatus } = require('./licenseService');
+const aiStudioPolicy = require('./aiStudioPolicyService');
 
 const PAID_STUDIO_PLANS = new Set(['creator', 'pro', 'business', 'agency']);
 
@@ -49,12 +50,17 @@ function accessError(message, code = 'AI_STUDIO_ACCESS_REQUIRED', status = 403) 
 }
 
 async function getEntitlement(userId) {
-  const license = await getLicenseStatus(userId);
+  const [license, policy] = await Promise.all([getLicenseStatus(userId), aiStudioPolicy.getPolicy()]);
   const plan = customerPlan(license.plan, license.userRole);
   const administrator = ['ADMIN', 'SUPER_ADMIN'].includes(String(license.userRole || '').toUpperCase());
-  const studioEnabled = Boolean(license.allowed && ['trial', 'creator', 'pro', 'business', 'agency'].includes(plan));
+  const planEligible = ['trial', 'creator', 'pro', 'business', 'agency'].includes(plan);
+  const studioEnabled = Boolean(
+    license.allowed &&
+    planEligible &&
+    aiStudioPolicy.permits(policy, { administrator, plan })
+  );
   const topupsEnabled = Boolean(studioEnabled && !administrator && PAID_STUDIO_PLANS.has(plan));
-  return { license, plan, studioEnabled, topupsEnabled, administrator };
+  return { license, plan, studioEnabled, topupsEnabled, administrator, studioPolicy: policy };
 }
 
 async function ensureWallet(userId, now = new Date()) {

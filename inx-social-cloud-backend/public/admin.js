@@ -11,7 +11,7 @@ function clearSession(){clearInterval(state.timer);state.user=null;state.users=[
 async function signOut(){try{await fetch('/api/admin-auth/logout',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'}})}catch{}finally{clearSession()}}
 async function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};const response=await fetch(path,{...options,headers,credentials:'same-origin'});const data=await response.json().catch(()=>({}));if(response.status===401){clearSession();throw new Error(data.error||'Your administrator session has ended.')}if(!response.ok)throw new Error(data.error||`Request failed: ${response.status}`);return data}
 function setLoggedIn(on){$('loginView').classList.toggle('hidden',on);$('dashboardView').classList.toggle('hidden',!on);if(on){const name=state.user?.name||'INXSocial Admin';$('adminName').textContent=name;$('adminEmail').textContent=`${state.user?.email||''}${state.user?.role?` · ${state.user.role.replace('_',' ')}`:''}`;$('adminInitials').textContent=initials(name)}}
-const pageMeta={overview:['Overview','Monitor new customers and service activity.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI Studio Access','Manage global and per-user AI Content Studio access.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
+const pageMeta={overview:['Overview','Monitor new customers and service activity.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI & Automation','Manage AI Studio policy, Social Agent allowances and generation infrastructure.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
 async function openPage(page){document.querySelectorAll('.nav').forEach(button=>button.classList.toggle('active',button.dataset.page===page));document.querySelectorAll('.page').forEach(section=>section.classList.toggle('hidden',section.id!==`${page}Page`));$('pageTitle').textContent=pageMeta[page][0];$('pageSubtitle').textContent=pageMeta[page][1];if(page==='overview')await loadOverview();if(page==='users')await loadUsers();if(page==='aiAccess')await loadAiAccess();if(page==='settings')await loadSettings();if(page==='security')await loadSecurity()}
 document.querySelectorAll('.nav').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.page)));
 document.querySelectorAll('[data-open-page]').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.openPage)));
@@ -23,7 +23,7 @@ async function loadOverview(silent=false){const {overview}=await api('/api/admin
 $('refreshOverviewBtn').addEventListener('click',()=>loadOverview().catch(error=>toast(error.message)));
 
 function filteredUsers(){const filter=$('userFilter').value;return state.users.filter(user=>!filter||user.status===filter)}
-function renderUsers(){const users=filteredUsers();$('usersTable').innerHTML=users.map(user=>`<tr><td><b>${esc(user.name||'No name')}</b><small>${esc(user.email)}</small></td><td>${badge(user.emailVerifiedAt?'VERIFIED':'PENDING_VERIFICATION')} ${badge(user.status)}</td><td>${badge(planOf(user))}<small>${user.manualPlanOverride?'Administrator override active':user.trialEndsAt?`Ends ${fmtDate(user.trialEndsAt)}`:'Billing policy'}</small></td><td>${badge(user.aiStudioAccess||'DEFAULT')}<small>${user.aiStudioAccess==='DEFAULT'?'Plan policy':'Individual override'}</small></td><td>${fmtDate(user.createdAt)}</td><td>${user.connectedPages?.length||0} pages · ${user.devices?.length||0} devices</td><td><button class="secondary" data-manage-user="${esc(user.id)}">Manage</button></td></tr>`).join('')||'<tr><td colspan="7">No customers match this filter.</td></tr>';document.querySelectorAll('[data-manage-user]').forEach(button=>button.addEventListener('click',()=>void openUser(button.dataset.manageUser)))}
+function renderUsers(){const users=filteredUsers();$('usersTable').innerHTML=users.map(user=>`<tr><td><b>${esc(user.name||'No name')}</b><small>${esc(user.email)}</small></td><td>${badge(user.emailVerifiedAt?'VERIFIED':'PENDING_VERIFICATION')} ${badge(user.status)}</td><td>${badge(planOf(user))}<small>${user.manualPlanOverride?'Administrator override active':user.trialEndsAt?`Ends ${fmtDate(user.trialEndsAt)}`:'Billing policy'}</small></td><td>${badge(user.aiStudioAccess||'DEFAULT')}<small>${user.aiStudioAccess==='DEFAULT'?'Global Social Agent policy':'Social Agent override'}</small></td><td>${fmtDate(user.createdAt)}</td><td>${user.connectedPages?.length||0} pages · ${user.devices?.length||0} devices</td><td><button class="secondary" data-manage-user="${esc(user.id)}">Manage</button></td></tr>`).join('')||'<tr><td colspan="7">No customers match this filter.</td></tr>';document.querySelectorAll('[data-manage-user]').forEach(button=>button.addEventListener('click',()=>void openUser(button.dataset.manageUser)))}
 async function loadUsers(){const query=$('userSearch').value.trim();const data=await api('/api/admin/users'+(query?`?q=${encodeURIComponent(query)}`:''));state.users=(data.users||[]).filter(user=>user.role==='USER');renderUsers()}
 $('refreshUsersBtn').addEventListener('click',()=>loadUsers().catch(error=>toast(error.message)));$('userFilter').addEventListener('change',renderUsers);$('userSearch').addEventListener('input',()=>{clearTimeout(loadUsers.timer);loadUsers.timer=setTimeout(()=>loadUsers().catch(error=>toast(error.message)),250)});
 
@@ -40,7 +40,7 @@ function renderUserModal(user){
   const override=access.manualOverride;
   $('modalTitle').textContent=`${user.name||'User'} — ${user.email}`;
   $('modalBody').innerHTML=`<div class="detail-card commercial-card"><b>Commercial entitlement</b><small>Manual overrides take priority over payment status without changing or cancelling the customer's Stripe subscription.</small>${commercialSummary(user)}</div>
-  <div class="form-grid"><label>Account status<select id="editStatus"><option>TRIAL</option><option>ACTIVE</option><option>SUSPENDED</option><option>CANCELLED</option></select></label><label>Extend trial (days)<input id="editTrialDays" type="number" min="0" max="365" placeholder="No change"></label><label>AI Content Studio policy<select id="editAiAccess"><option value="DEFAULT">Use commercial plan</option><option value="ALLOW">Force allow</option><option value="DENY">Force block</option></select></label></div>
+  <div class="form-grid"><label>Account status<select id="editStatus"><option>TRIAL</option><option>ACTIVE</option><option>SUSPENDED</option><option>CANCELLED</option></select></label><label>Extend trial (days)<input id="editTrialDays" type="number" min="0" max="365" placeholder="No change"></label><label>Social Agent policy<select id="editAiAccess"><option value="DEFAULT">Use global policy</option><option value="ALLOW">Force allow</option><option value="DENY">Force block</option></select></label></div>
   <div class="detail-card"><b>Manual plan override</b><small>Use this for complimentary access, support cases, testing or partner accounts. Stripe remains untouched underneath.</small><div class="form-grid"><label>Plan<select id="overridePlan"><option value="TRIAL">Trial</option><option value="CREATOR">Creator</option><option value="PRO">Pro</option><option value="BUSINESS">Business</option><option value="AGENCY">Agency</option></select></label><label>Duration<input id="overrideDays" type="number" min="1" max="3650" placeholder="Blank = no expiry"></label><label>Reason<input id="overrideReason" maxlength="500" placeholder="Optional audit note"></label></div><div class="admin-actions entitlement-actions"><button class="primary" type="button" id="applyPlanOverride">Apply plan override</button><button class="secondary" type="button" id="revokePlanOverride" ${override?'':'disabled'}>Return to normal billing</button></div></div>
   <div class="detail-card"><b>AI credit override</b><small>Add complimentary credits, remove credits, set the exact currently available balance, or reset the monthly plan allowance. Every change is audit logged.</small><div class="form-grid"><label>Action<select id="creditAction"><option value="ADD">Add credits</option><option value="REMOVE">Remove credits</option><option value="SET">Set available credits</option><option value="RESET_PLAN">Reset monthly plan allowance</option></select></label><label>Credits<input id="creditAmount" type="number" min="0" max="1000000" value="100"></label><label>Reason<input id="creditReason" maxlength="500" placeholder="Optional audit note"></label></div><button class="primary" type="button" id="applyCreditOverride">Apply credit adjustment</button></div>
   <div class="detail-card"><b>Connected pages</b>${(user.connectedPages||[]).map(page=>`<small>${esc(page.facebookPageName)} — ${esc(page.status)}</small>`).join('')||'<small>No connected pages.</small>'}</div><div class="detail-card"><b>Recent jobs</b>${(user.scheduleJobs||[]).slice(0,5).map(job=>`<small>${esc(job.contentType)} — ${esc(job.status)} — ${fmtDate(job.scheduledAt)}</small>`).join('')||'<small>No publishing jobs.</small>'}</div>`;
@@ -66,8 +66,102 @@ $('saveAccessBtn').addEventListener('click',async()=>{try{const body={status:$('
 
 $('createUserBtn').addEventListener('click',()=>{$('createUserForm').reset();$('createTrialDays').value='7';$('trialDaysLabel').hidden=false;$('createUserDialog').showModal()});document.querySelectorAll('[data-close-create]').forEach(button=>button.addEventListener('click',()=>$('createUserDialog').close()));$('createPlan').addEventListener('change',()=>{$('trialDaysLabel').hidden=$('createPlan').value!=='TRIAL'});$('createUserForm').addEventListener('submit',async event=>{event.preventDefault();try{const body={name:$('createName').value.trim(),email:$('createEmail').value.trim(),plan:$('createPlan').value,trialDays:Number($('createTrialDays').value||7)};const result=await api('/api/admin/users',{method:'POST',body:JSON.stringify(body)});$('createUserDialog').close();$('temporaryPassword').textContent=result.temporaryPassword;$('credentialDialog').showModal();await Promise.all([loadUsers(),loadOverview(true)])}catch(error){toast(error.message)}});$('copyPasswordBtn').addEventListener('click',async()=>{await navigator.clipboard.writeText($('temporaryPassword').textContent);toast('Temporary password copied')});$('closeCredentialBtn').addEventListener('click',()=>$('credentialDialog').close());
 
-async function loadAiAccess(){const {policy}=await api('/api/admin/agent-access');$('agentAvailability').value=policy.availability;const limits=policy.planLimits||{};$('agentLimitTrial').value=limits.TRIAL??0;$('agentLimitPro').value=limits.PRO??0;$('agentLimitPlus').value=limits.PLUS??100;$('agentLimitLifetime').value=limits.LIFETIME??100}
-$('agentAccessForm').addEventListener('submit',async event=>{event.preventDefault();try{await api('/api/admin/agent-access',{method:'PUT',body:JSON.stringify({availability:$('agentAvailability').value,planLimits:{TRIAL:Number($('agentLimitTrial').value),PRO:Number($('agentLimitPro').value),PLUS:Number($('agentLimitPlus').value),LIFETIME:Number($('agentLimitLifetime').value)}})});toast('Social Agent policy updated')}catch(error){toast(error.message)}});
+function aiStatusCard(label,active,detail){
+  return `<article class="ai-status-card ${active?'ok':'warn'}"><span>${esc(label)}</span><div class="ai-status-value"><i></i><b>${active?'Ready':'Attention'}</b></div><small>${esc(detail)}</small></article>`;
+}
+function renderAiOperations(data){
+  const policy=data.policy||{};
+  const providers=data.providers||{};
+  const credits=data.credits||{};
+  const topups=data.topups||{};
+
+  $('studioEnabled').checked=Boolean(policy.enabled);
+  $('studioTrialEnabled').checked=Boolean(policy.trialEnabled);
+  $('studioPaidEnabled').checked=Boolean(policy.paidEnabled);
+  $('studioAdminEnabled').checked=Boolean(policy.administratorEnabled);
+
+  const superAdmin=state.user?.role==='SUPER_ADMIN';
+  ['studioEnabled','studioTrialEnabled','studioPaidEnabled','studioAdminEnabled','saveStudioPolicyBtn'].forEach(id=>{$(id).disabled=!superAdmin});
+  $('studioPolicyPermission').textContent=superAdmin?'Super Admin changes are audit logged.':'Read only — Super Admin is required to change global generation access.';
+
+  $('aiOpsStatusGrid').innerHTML=[
+    aiStatusCard('AI Content Studio',Boolean(policy.enabled),policy.enabled?'Generation policy enabled':'Global generation is paused'),
+    aiStatusCard('Runware',Boolean(providers.runware?.configured),providers.runware?.detail||'Provider status unavailable'),
+    aiStatusCard('Stock Video Creator',Boolean(providers.openMontage?.configured),providers.openMontage?.detail||'Worker status unavailable'),
+    aiStatusCard('Credit system',Object.values(credits).some(Number.isFinite),topups.configured?`Plan wallet active · ${topups.packs.length} top-up packs`:'Plan wallet active · top-ups unavailable')
+  ].join('');
+
+  const order=['TRIAL','CREATOR','PRO','BUSINESS','AGENCY'];
+  $('aiCreditPlanGrid').innerHTML=order.map(plan=>`<div class="credit-plan"><span>${plan==='TRIAL'?'Trial':plan[0]+plan.slice(1).toLowerCase()}</span><b>${Number(credits[plan]||0).toLocaleString()}</b><small>${plan==='TRIAL'?'one-time Trial credits':'credits / billing period'}</small></div>`).join('');
+  $('aiCreditTopupStatus').innerHTML=`<span class="status-dot ${topups.configured?'ok':''}"></span><div><b>Credit top-ups ${topups.configured?'configured':'not fully configured'}</b><small>${topups.packs?.length?`Available packs: ${topups.packs.map(value=>Number(value).toLocaleString()).join(', ')} credits`:'No live packs detected'}</small></div>`;
+
+  const providerCards=[
+    ['Runware',providers.runware?.configured,providers.runware?.detail,[
+      ['Image',providers.runware?.models?.image],
+      ['Premium image',providers.runware?.models?.premiumImage],
+      ['Economy video',providers.runware?.models?.economyVideo],
+      ['Video',providers.runware?.models?.video],
+      ['Long video',providers.runware?.models?.longVideo],
+      ['UGC',providers.runware?.models?.ugc]
+    ]],
+    ['Stock Video Creator',providers.openMontage?.configured,providers.openMontage?.detail,[
+      ['Pexels',providers.openMontage?.sources?.pexels?'Configured':'Not configured'],
+      ['Pixabay',providers.openMontage?.sources?.pixabay?'Configured':'Not configured']
+    ]],
+    ['OpenAI support routes',providers.openai?.configured,providers.openai?.detail,[
+      ['Image/support model',providers.openai?.models?.image],
+      ['Caption enhancement',providers.openai?.models?.postEnhancement]
+    ]]
+  ];
+  $('aiProviderGrid').innerHTML=providerCards.map(([name,configured,detail,rows])=>`<article class="provider-card"><div class="provider-head"><div><span class="status-dot ${configured?'ok':''}"></span><b>${esc(name)}</b></div><span class="provider-state ${configured?'ok':'warn'}">${configured?'Configured':'Attention'}</span></div><p>${esc(detail||'')}</p><div class="provider-routes">${rows.filter(([,value])=>value).map(([label,value])=>`<div><span>${esc(label)}</span><code>${esc(value)}</code></div>`).join('')}</div></article>`).join('');
+
+  $('aiRoutingSummary').innerHTML='<div><b>Routing guardrail</b><span>Low-level model routing stays backend-managed. This screen exposes active configured model names without exposing API secrets.</span></div><div><b>Cost guardrail</b><span>AI generation uses the shared credit wallet and model-weighted video charging configured in the production backend.</span></div>';
+}
+
+async function loadAiAccess(){
+  const [studio,agent]=await Promise.all([api('/api/admin/ai-studio-policy'),api('/api/admin/agent-access')]);
+  renderAiOperations(studio);
+  const policy=agent.policy||{};
+  $('agentAvailability').value=policy.availability==='PLUS_ONLY'?'PAID_PLANS':policy.availability;
+  const limits=policy.planLimits||{};
+  $('agentLimitTrial').value=limits.TRIAL??1;
+  $('agentLimitCreator').value=limits.CREATOR??25;
+  $('agentLimitPro').value=limits.PRO??100;
+  $('agentLimitBusiness').value=limits.BUSINESS??250;
+  $('agentLimitAgency').value=limits.AGENCY??500;
+}
+
+$('aiStudioPolicyForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  try{
+    await api('/api/admin/ai-studio-policy',{method:'PUT',body:JSON.stringify({
+      enabled:$('studioEnabled').checked,
+      trialEnabled:$('studioTrialEnabled').checked,
+      paidEnabled:$('studioPaidEnabled').checked,
+      administratorEnabled:$('studioAdminEnabled').checked
+    })});
+    toast('AI Content Studio policy updated');
+    await loadAiAccess();
+  }catch(error){toast(error.message)}
+});
+
+$('agentAccessForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  try{
+    await api('/api/admin/agent-access',{method:'PUT',body:JSON.stringify({
+      availability:$('agentAvailability').value,
+      planLimits:{
+        TRIAL:Number($('agentLimitTrial').value),
+        CREATOR:Number($('agentLimitCreator').value),
+        PRO:Number($('agentLimitPro').value),
+        BUSINESS:Number($('agentLimitBusiness').value),
+        AGENCY:Number($('agentLimitAgency').value)
+      }
+    })});
+    toast('Social Agent policy updated');
+    await loadAiAccess();
+  }catch(error){toast(error.message)}
+});
 
 function settingControl(setting,canEdit){const disabled=canEdit?'':'disabled';const value=esc(setting.value);if(setting.type==='boolean')return`<select id="setting-${esc(setting.key)}" ${disabled}><option value="false" ${setting.value==='false'?'selected':''}>Disabled</option><option value="true" ${setting.value==='true'?'selected':''}>Enabled</option></select>`;if(setting.type==='number')return`<input id="setting-${esc(setting.key)}" type="number" min="1" max="30" value="${value}" ${disabled}>`;return`<input id="setting-${esc(setting.key)}" value="${value}" ${disabled}>`}
 async function loadSettings(){const data=await api('/api/admin/security/settings');const canEdit=Boolean(data.canEdit);$('settingsPermission').textContent=canEdit?'Super administrator changes are audit logged.':'Read only — a super administrator is required to change system settings.';$('systemSettingsList').innerHTML=(data.settings||[]).map(setting=>`<article class="system-setting-card"><div><span class="kicker">${esc(setting.key)}</span><h3>${esc(setting.label)}</h3><p>${esc(setting.description)}</p>${setting.updatedAt?`<small>Last updated ${esc(fmtDate(setting.updatedAt))}</small>`:''}</div><div class="system-setting-action">${settingControl(setting,canEdit)}<button class="primary" data-save-setting="${esc(setting.key)}" ${canEdit?'':'disabled'}>Save</button></div></article>`).join('')||'<p>No safe system settings are available.</p>';document.querySelectorAll('[data-save-setting]').forEach(button=>button.addEventListener('click',()=>void saveSystemSetting(button.dataset.saveSetting)))}

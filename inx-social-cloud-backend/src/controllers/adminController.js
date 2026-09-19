@@ -7,6 +7,8 @@ const agentBrain = require('../services/agentBrainService');
 const agentAccess = require('../services/agentAccessService');
 const licenseService = require('../services/licenseService');
 const aiCredits = require('../services/aiCreditService');
+const aiStudioPolicy = require('../services/aiStudioPolicyService');
+const env = require('../config/env');
 
 function safeUserSelect() {
   return {
@@ -308,6 +310,89 @@ async function updateSetting(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function aiStudioPolicyStatus(req, res, next) {
+  try {
+    const policy = await aiStudioPolicy.getPolicy();
+    const credits = {
+      TRIAL: aiCredits.creditLimitForPlan('trial'),
+      CREATOR: aiCredits.creditLimitForPlan('creator'),
+      PRO: aiCredits.creditLimitForPlan('pro'),
+      BUSINESS: aiCredits.creditLimitForPlan('business'),
+      AGENCY: aiCredits.creditLimitForPlan('agency')
+    };
+    const topupPacks = Object.entries(env.aiCredits?.topupPriceIds || {})
+      .filter(([, priceId]) => Boolean(priceId))
+      .map(([amount]) => Number(amount))
+      .filter(Number.isFinite)
+      .sort((a, b) => a - b);
+
+    res.json({
+      policy,
+      credits,
+      topups: {
+        configured: Boolean(env.aiCredits?.stripeWebhookSecret && topupPacks.length),
+        packs: topupPacks
+      },
+      providers: {
+        runware: {
+          configured: Boolean(env.runware?.apiKey),
+          label: 'Runware',
+          detail: env.runware?.apiKey ? 'Image and AI video generation gateway' : 'API key not configured',
+          models: {
+            image: env.runware?.imageModel || null,
+            premiumImage: env.runware?.imagePremiumModel || null,
+            economyVideo: env.runware?.videoEconomyModel || null,
+            video: env.runware?.videoModel || null,
+            longVideo: env.runware?.videoLongModel || null,
+            ugc: env.runware?.ugcModel || null
+          }
+        },
+        openMontage: {
+          configured: Boolean(env.stockVideo?.openMontageUrls?.length),
+          label: 'Stock Video Creator',
+          detail: env.stockVideo?.openMontageUrls?.length
+            ? `${env.stockVideo.openMontageUrls.length} worker endpoint${env.stockVideo.openMontageUrls.length === 1 ? '' : 's'} configured`
+            : 'No worker endpoint configured',
+          sources: {
+            pexels: Boolean(env.stockVideo?.pexelsConfigured),
+            pixabay: Boolean(env.stockVideo?.pixabayConfigured)
+          }
+        },
+        openai: {
+          configured: Boolean(env.openaiImage?.apiKey || env.postEnhancement?.apiKey),
+          label: 'OpenAI support routes',
+          detail: 'Caption enhancement, planning/review and configured support tasks',
+          models: {
+            image: env.openaiImage?.model || null,
+            postEnhancement: env.postEnhancement?.model || null
+          }
+        }
+      }
+    });
+  } catch (err) { next(err); }
+}
+
+async function updateAiStudioPolicy(req, res, next) {
+  try {
+    const input = z.object({
+      enabled: z.boolean(),
+      trialEnabled: z.boolean(),
+      paidEnabled: z.boolean(),
+      administratorEnabled: z.boolean()
+    }).parse(req.body || {});
+    const policy = await aiStudioPolicy.updatePolicy(input);
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'ADMIN_UPDATE_AI_STUDIO_POLICY',
+        entity: 'AppSetting',
+        metadata: JSON.stringify(policy)
+      }
+    });
+    res.json({ ok: true, policy });
+  } catch (err) { next(err); }
+}
+
 async function aiRouting(req, res, next) {
   try {
     const imagePolicy = await aiModelRouting.getImagePolicy();
@@ -365,4 +450,4 @@ async function reviewAgentLearning(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { overview, users, userDetail, createUser, updateUserAccess, updateCommercialPlan, adjustUserCredits, settings, updateSetting, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning };
+module.exports = { overview, users, userDetail, createUser, updateUserAccess, updateCommercialPlan, adjustUserCredits, settings, updateSetting, aiStudioPolicyStatus, updateAiStudioPolicy, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning };

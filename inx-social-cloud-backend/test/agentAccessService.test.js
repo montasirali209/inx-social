@@ -17,26 +17,34 @@ require.cache[prismaPath] = { id: prismaPath, filename: prismaPath, loaded: true
 require.cache[licensePath] = { id: licensePath, filename: licensePath, loaded: true, exports: { getLicenseStatus: async () => license } };
 const access = require('../src/services/agentAccessService');
 
-test('AI Content Studio defaults to Plus subscribers and administrators', async () => {
+test('Social Agent defaults to administrator-only access with current plan limits', async () => {
   storedPolicy = null;
   const policy = await access.getPolicy();
-  assert.equal(policy.availability, 'PLUS_ONLY');
-  assert.equal(policy.planLimits.TRIAL, 0);
-  assert.equal(policy.planLimits.PRO, 0);
-  assert.equal(policy.planLimits.PLUS, 100);
+  assert.equal(policy.availability, 'ADMIN_ONLY');
+  assert.equal(policy.planLimits.TRIAL, 1);
+  assert.equal(policy.planLimits.CREATOR, 25);
+  assert.equal(policy.planLimits.PRO, 100);
+  assert.equal(policy.planLimits.BUSINESS, 250);
+  assert.equal(policy.planLimits.AGENCY, 500);
 });
 
-test('regular subscribers stay hidden until the admin enables everyone', async () => {
+test('regular subscribers can be enabled for paid plans or everyone', async () => {
   storedPolicy = { availability: 'ADMIN_ONLY', planLimits: { PRO: 100 } };
   used = 7;
-  license = { ...license, userRole: 'USER' };
+  license = { ...license, userRole: 'USER', plan: 'PRO' };
   const hidden = await access.getEntitlement('user-1');
   assert.equal(hidden.visible, false);
-  storedPolicy = { availability: 'EVERYONE', planLimits: { PRO: 100 } };
-  const enabled = await access.getEntitlement('user-1');
-  assert.equal(enabled.visible, true);
-  assert.equal(enabled.usage.used, 7);
-  assert.equal(enabled.usage.remaining, 93);
+
+  storedPolicy = { availability: 'PAID_PLANS', planLimits: { PRO: 100 } };
+  const paid = await access.getEntitlement('user-1');
+  assert.equal(paid.visible, true);
+  assert.equal(paid.usage.remaining, 93);
+
+  license = { ...license, plan: 'TRIAL' };
+  storedPolicy = { availability: 'EVERYONE', planLimits: { TRIAL: 1 } };
+  const trial = await access.getEntitlement('user-1');
+  assert.equal(trial.visible, true);
+  assert.equal(trial.usage.limit, 1);
 });
 
 test('admin development access bypasses mission quota but disabled blocks everyone', async () => {

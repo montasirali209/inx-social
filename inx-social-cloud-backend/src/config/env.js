@@ -18,7 +18,7 @@ module.exports = {
   jwtSecret: required('JWT_SECRET'),
   tokenEncryptionKey: required('TOKEN_ENCRYPTION_KEY'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  defaultTrialDays: Number(process.env.DEFAULT_TRIAL_DAYS || 5),
+  defaultTrialDays: Number(process.env.DEFAULT_TRIAL_DAYS || 7),
   appUrl: process.env.APP_URL || 'http://localhost:5050',
   portalUrl: process.env.PORTAL_URL || process.env.APP_URL || 'http://localhost:5050',
   adminHost: String(process.env.ADMIN_HOST || '').trim().toLowerCase(),
