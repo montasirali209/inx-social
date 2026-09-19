@@ -88,13 +88,15 @@ model AgentAsset {
   mimeType          String
   byteSize          Int
   checksum          String
+  storageProvider   String?
+  storageKey        String?   @unique
   prompt            String?
   customerPrompt    String?
   exactOverlayText  String?
   generationChoice  String?
   qualityScore      Int?
   qualityIssuesJson String?
-  data              Bytes
+  data              Bytes?
   expiresAt         DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt

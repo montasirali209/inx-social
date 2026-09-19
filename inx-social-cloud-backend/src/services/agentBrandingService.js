@@ -1,5 +1,6 @@
 const axios = require('axios');
 const prisma = require('../db/prisma');
+const mediaLibrary = require('./mediaLibraryService');
 
 const MAX_BRAND_BYTES = 1024 * 1024;
 const TRUSTED_FACEBOOK_HOSTS = ['facebook.com', 'fbcdn.net', 'fbsbx.com'];
@@ -31,10 +32,12 @@ async function selectedUploadedBrand(plan) {
   if (!preferred?.id) return null;
   const row = await prisma.agentAsset.findFirst({
     where: { id: String(preferred.id), userId: plan.userId, source: 'UPLOAD', status: 'READY', kind: { in: ['LOGO', 'PROFILE'] } },
-    select: { id: true, data: true, mimeType: true }
+    select: { id: true, mimeType: true, byteSize: true }
   });
-  if (!row?.data || row.data.length > MAX_BRAND_BYTES || !supportedMimeType(row.mimeType)) return null;
-  return { id: row.id, data: Buffer.from(row.data), mimeType: supportedMimeType(row.mimeType), source: 'SELECTED_UPLOAD' };
+  if (!row || row.byteSize > MAX_BRAND_BYTES || !supportedMimeType(row.mimeType)) return null;
+  const content = await mediaLibrary.findContent(plan.userId, row.id, { includeArchived: true });
+  if (!Buffer.isBuffer(content?.data) || !content.data.length) return null;
+  return { id: row.id, data: content.data, mimeType: supportedMimeType(row.mimeType), source: 'SELECTED_UPLOAD' };
 }
 
 async function connectedPageProfile(plan, dependencies = {}) {
@@ -68,11 +71,16 @@ async function visionAssets(userId, plan, dependencies = {}) {
   const ids = [...new Set((Array.isArray(strategy.referenceAssets) ? strategy.referenceAssets : []).map(asset => String(asset.id || '')).filter(Boolean))].slice(0, 4);
   const rows = ids.length ? await prisma.agentAsset.findMany({
     where: { userId, id: { in: ids }, status: 'READY', source: 'UPLOAD' },
-    select: { id: true, mimeType: true, data: true },
+    select: { id: true, mimeType: true, byteSize: true },
     take: 4
   }) : [];
-  const assets = rows.filter(row => row.data && row.data.length <= MAX_BRAND_BYTES && supportedMimeType(row.mimeType))
-    .map(row => ({ id: row.id, mimeType: supportedMimeType(row.mimeType), base64: Buffer.from(row.data).toString('base64'), source: 'SELECTED_UPLOAD' }));
+  const loaded = await Promise.all(rows.map(async row => {
+    if (row.byteSize > MAX_BRAND_BYTES || !supportedMimeType(row.mimeType)) return null;
+    const content = await mediaLibrary.findContent(userId, row.id, { includeArchived: true });
+    if (!Buffer.isBuffer(content?.data) || !content.data.length) return null;
+    return { id: row.id, mimeType: supportedMimeType(row.mimeType), base64: content.data.toString('base64'), source: 'SELECTED_UPLOAD' };
+  }));
+  const assets = loaded.filter(Boolean);
   if (assets.length < 4) {
     const profile = await connectedPageProfile(plan, dependencies);
     if (profile && !assets.some(asset => asset.id === profile.id)) assets.push({ id: profile.id, mimeType: profile.mimeType, base64: profile.data.toString('base64'), source: profile.source });

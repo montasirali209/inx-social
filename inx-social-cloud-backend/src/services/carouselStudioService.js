@@ -55,9 +55,13 @@ async function loadReferences(userId, ids) {
   if (!unique.length) return [];
   const rows = await prisma.agentAsset.findMany({
     where: { id: { in: unique }, userId, status: 'READY', archivedAt: null },
-    select: { id: true, originalName: true, mimeType: true, data: true }
+    select: { id: true, originalName: true, mimeType: true, byteSize: true }
   });
-  return unique.map(id => rows.find(row => row.id === id)).filter(row => row && String(row.mimeType || '').startsWith('image/'));
+  const ordered = unique.map(id => rows.find(row => row.id === id)).filter(row => row && String(row.mimeType || '').startsWith('image/'));
+  return Promise.all(ordered.map(async row => {
+    const content = await mediaLibrary.findContent(userId, row.id);
+    return { ...row, data: Buffer.isBuffer(content?.data) ? content.data : Buffer.from(content?.data || []) };
+  }));
 }
 
 async function planCarousel(input, slides) {
@@ -178,8 +182,7 @@ async function createGenerationRow(userId, input, amount) {
 async function persistSlide(userId, generationId, output, input, plan, slide, amount) {
   const metadata = await sharp(output.data).metadata().catch(() => ({}));
   const checksum = crypto.createHash('sha256').update(output.data).digest('hex');
-  const record = await prisma.agentAsset.create({
-    data: {
+  const record = await mediaLibrary.createStoredAsset({
       userId,
       kind: 'AI_IMAGE',
       source: 'AI_STUDIO',
@@ -196,7 +199,6 @@ async function persistSlide(userId, generationId, output, input, plan, slide, am
       width: Number(metadata.width || 0) || null,
       height: Number(metadata.height || 0) || null,
       expiresAt: expiresAtFor('image/png')
-    }
   });
   const publicAsset = mediaLibrary.publicAsset(record);
   return {

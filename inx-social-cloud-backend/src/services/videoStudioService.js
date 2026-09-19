@@ -224,11 +224,16 @@ function dimensions(resolution, aspect, profileId = '') {
 
 async function sourceImage(userId, assetId) {
   if (!assetId) return null;
-  const asset = await prisma.agentAsset.findFirst({ where: { id: String(assetId), userId, status: 'READY', archivedAt: null } });
+  const asset = await prisma.agentAsset.findFirst({
+    where: { id: String(assetId), userId, status: 'READY', archivedAt: null },
+    select: { id: true, mimeType: true, originalName: true, byteSize: true }
+  });
   if (!asset) throw publicError('The selected source image is unavailable.', 'AI_VIDEO_SOURCE_NOT_FOUND', 404);
   if (!String(asset.mimeType || '').startsWith('image/')) throw publicError('Upload an image, product shot or first-frame reference.', 'AI_VIDEO_SOURCE_TYPE', 422);
-  if (asset.data.length > 20 * 1024 * 1024) throw publicError('Choose a source image under 20 MB.', 'AI_VIDEO_SOURCE_TOO_LARGE', 413);
-  return { id: asset.id, dataUri: `data:${asset.mimeType};base64,${asset.data.toString('base64')}`, mimeType: asset.mimeType, name: asset.originalName || 'Reference image' };
+  if (asset.byteSize > 20 * 1024 * 1024) throw publicError('Choose a source image under 20 MB.', 'AI_VIDEO_SOURCE_TOO_LARGE', 413);
+  const content = await mediaLibrary.findContent(userId, asset.id);
+  if (!Buffer.isBuffer(content?.data) || !content.data.length) throw publicError('The selected source image is unavailable.', 'AI_VIDEO_SOURCE_NOT_FOUND', 404);
+  return { id: asset.id, dataUri: `data:${asset.mimeType};base64,${content.data.toString('base64')}`, mimeType: asset.mimeType, name: asset.originalName || 'Reference image' };
 }
 
 async function poll(taskUUID, timeoutMs, onProgress = () => {}) {
@@ -300,13 +305,13 @@ async function persistVideo(userId, generationId, output, input, amount) {
   const downloaded = Buffer.from(response.data || []);
   if (!downloaded.length || downloaded.length > 120 * 1024 * 1024) throw publicError('The generated video output was empty or too large.', 'AI_VIDEO_OUTPUT_INVALID', 502);
   const data = await browserReadyMp4(downloaded, generationId);
-  const record = await prisma.agentAsset.create({ data: {
+  const record = await mediaLibrary.createStoredAsset({
     userId, kind: 'AI_VIDEO', source: 'AI_STUDIO', status: 'READY', originalName: `INXSocial-video-${generationId.slice(0, 8)}.mp4`, mimeType: String(response.headers['content-type'] || 'video/mp4').split(';')[0], byteSize: data.length,
     checksum: crypto.createHash('sha256').update(data).digest('hex'), prompt: clean(input.prompt, 1500), customerPrompt: clean(input.prompt, 1500),
     generationChoice: JSON.stringify({ route: output.route, model: output.model, resolution: output.resolution, duration: output.duration, aspectRatio: output.aspect, generationId, providerCostUsd: Number(output.item.cost || 0), taskUUID: output.taskUUID }),
     tagsJson: JSON.stringify(['ai-generated', 'ai-content-studio', 'short-video', output.route]), data, durationSeconds: output.duration,
     expiresAt: expiresAtFor('video/mp4')
-  }});
+  });
   const publicAsset = mediaLibrary.publicAsset(record);
   return { id: record.id, type: 'video', url: publicAsset.fileUrl, prompt: clean(input.prompt, 1500), caption: clean(input.caption, 10000), hashtags: Array.isArray(input.hashtags) ? input.hashtags.map(tag => clean(tag, 100).replace(/^#/, '')).filter(Boolean).slice(0, 20) : [], creditsUsed: amount, createdAt: record.createdAt.toISOString(), aspectRatio: output.aspect, mediaLibraryAssetId: record.id, script: clean(input.script, 5000), completionStatus: 'completed' };
 }

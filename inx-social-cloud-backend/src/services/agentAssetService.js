@@ -1,6 +1,8 @@
 const crypto = require('node:crypto');
 const prisma = require('../db/prisma');
 const { expiresAtFor } = require('./mediaRetentionService');
+const mediaLibrary = require('./mediaLibraryService');
+const objectStorage = require('./mediaObjectStorageService');
 
 const UPLOAD_KINDS = new Set(['LOGO', 'PROFILE', 'REFERENCE']);
 const MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
@@ -40,7 +42,7 @@ async function createUpload(userId, input = {}) {
   const checksum = crypto.createHash('sha256').update(data).digest('hex');
   const duplicate = await prisma.agentAsset.findFirst({ where: { userId, checksum, kind }, orderBy: { createdAt: 'desc' } });
   if (duplicate) return duplicate;
-  return prisma.agentAsset.create({ data: {
+  return mediaLibrary.createStoredAsset({
     userId,
     kind,
     source: 'UPLOAD',
@@ -51,7 +53,7 @@ async function createUpload(userId, input = {}) {
     checksum,
     data,
     expiresAt: expiresAtFor(mimeType)
-  } });
+  });
 }
 
 async function list(userId, options = {}) {
@@ -73,18 +75,37 @@ async function resolveOwned(userId, ids = []) {
 
 async function findContent(userId, id) {
   if (typeof prisma.agentAsset?.findFirst !== 'function') return null;
-  return prisma.agentAsset.findFirst({ where: { id, userId, status: 'READY' }, select: { mimeType: true, data: true, checksum: true } });
+  return mediaLibrary.findContent(userId, id, { includeArchived: true });
 }
 
 async function remove(userId, id) {
   if (typeof prisma.agentAsset?.deleteMany !== 'function') return false;
-  const result = await prisma.agentAsset.deleteMany({ where: { id, userId, planId: null, source: 'UPLOAD' } });
-  return result.count > 0;
+  const asset = await prisma.agentAsset.findFirst({
+    where: { id, userId, planId: null, source: 'UPLOAD' },
+    select: { id: true, storageKey: true }
+  });
+  if (!asset) return false;
+  if (asset.storageKey && objectStorage.configured()) await objectStorage.deleteObject(asset.storageKey);
+  await prisma.agentAsset.delete({ where: { id: asset.id } });
+  return true;
 }
 
 async function cleanupExpired(now = new Date()) {
   if (typeof prisma.agentAsset?.deleteMany !== 'function') return 0;
-  const result = await prisma.agentAsset.deleteMany({ where: { planId: null, source: 'UPLOAD', expiresAt: { lt: now } } });
+  const assets = await prisma.agentAsset.findMany({
+    where: { planId: null, source: 'UPLOAD', expiresAt: { lt: now } },
+    select: { id: true, storageKey: true },
+    take: 100
+  });
+  const removable = [];
+  for (const asset of assets) {
+    try {
+      if (asset.storageKey && objectStorage.configured()) await objectStorage.deleteObject(asset.storageKey);
+      removable.push(asset.id);
+    } catch (_) {}
+  }
+  if (!removable.length) return 0;
+  const result = await prisma.agentAsset.deleteMany({ where: { id: { in: removable } } });
   return result.count;
 }
 

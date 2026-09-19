@@ -8,6 +8,7 @@ const routing = require('./aiModelRoutingService');
 const branding = require('./agentBrandingService');
 const managerIntelligence = require('./socialManagerIntelligence');
 const { expiresAtFor } = require('./mediaRetentionService');
+const mediaLibrary = require('./mediaLibraryService');
 
 function status(policy = {}) {
   const capabilities = routing.imageProviderCapabilities(policy);
@@ -236,7 +237,7 @@ async function createGeneratedAsset(plan, prompt, index, options = {}) {
   }
   const detected = imageType(data);
   const ready = Boolean(qualityReview.approved);
-  const created = await prisma.agentAsset.create({ data: {
+  const created = await mediaLibrary.createStoredAsset({
     userId: plan.userId,
     planId: plan.id,
     kind: 'GENERATED_POST',
@@ -254,7 +255,7 @@ async function createGeneratedAsset(plan, prompt, index, options = {}) {
     qualityIssuesJson: JSON.stringify(qualityReview.issues || []),
     data,
     expiresAt: expiresAtFor(detected.mimeType)
-  } });
+  });
   return { id: created.id, kind: created.kind, status: created.status, mimeType: created.mimeType, byteSize: created.byteSize, contentUrl: ready ? `/api/agent/assets/${encodeURIComponent(created.id)}/content` : null, qualityReview };
 }
 
