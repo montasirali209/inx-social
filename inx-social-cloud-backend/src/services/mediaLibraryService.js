@@ -2,14 +2,14 @@ const crypto = require('node:crypto');
 const jwt = require('jsonwebtoken');
 const sharp = require('sharp');
 const prisma = require('../db/prisma');
-const { expiresAtFor, VIDEO_RETENTION_DAYS, OTHER_MEDIA_RETENTION_DAYS } = require('./mediaRetentionService');
+const { expiresAtFor, VIDEO_RETENTION_DAYS, OTHER_MEDIA_RETENTION_DAYS, MEDIA_STORAGE_LIMIT_BYTES, runUserStorageQuota, scheduleUserStorageQuota } = require('./mediaRetentionService');
 const objectStorage = require('./mediaObjectStorageService');
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const VIDEO_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/webm']);
 const MAX_FILE_BYTES = 100 * 1024 * 1024;
 const TRASH_RETENTION_DAYS = 30;
-const STORAGE_LIMITS = Object.freeze({ TRIAL: 250 * 1024 * 1024, STARTER: 1024 * 1024 * 1024, PRO: 10 * 1024 * 1024 * 1024, LIFETIME: 10 * 1024 * 1024 * 1024, CREATOR: 10 * 1024 * 1024 * 1024, AGENCY: 25 * 1024 * 1024 * 1024, BUSINESS: 25 * 1024 * 1024 * 1024 });
+const STORAGE_LIMITS = Object.freeze({ TRIAL: MEDIA_STORAGE_LIMIT_BYTES, STARTER: MEDIA_STORAGE_LIMIT_BYTES, PRO: MEDIA_STORAGE_LIMIT_BYTES, LIFETIME: MEDIA_STORAGE_LIMIT_BYTES, CREATOR: MEDIA_STORAGE_LIMIT_BYTES, AGENCY: MEDIA_STORAGE_LIMIT_BYTES, BUSINESS: MEDIA_STORAGE_LIMIT_BYTES });
 
 const ASSET_INCLUDE = {
   folder: { select: { id: true, name: true } },
@@ -105,6 +105,9 @@ function publicAsset(asset) {
 }
 
 async function workspace(userId, plan) {
+  // Enforce the rolling quota before returning the workspace so the UI never advertises
+  // more than the account's 200 MB Media Library allowance.
+  await runUserStorageQuota(userId);
   const trashCutoff = new Date(Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000);
   const visibleAssetWhere = {
     userId,
@@ -118,11 +121,11 @@ async function workspace(userId, plan) {
   void (async () => {
     const expiredTrash = await prisma.agentAsset.findMany({
       where: { userId, archivedAt: { lt: trashCutoff } },
-      select: { id: true, storageKey: true }
+      select: { id: true, storageKey: true, storageProvider: true }
     });
     if (!expiredTrash.length) return;
     await prisma.agentAsset.deleteMany({ where: { id: { in: expiredTrash.map(asset => asset.id) } } });
-    await Promise.allSettled(expiredTrash.filter(asset => asset.storageKey).map(asset => objectStorage.deleteObject(asset.storageKey)));
+    await Promise.allSettled(expiredTrash.filter(asset => asset.storageKey).map(asset => objectStorage.deleteObject(asset.storageKey, asset.storageProvider || null)));
   })().catch((cleanupError) => {
     console.warn('[media-library] expired trash cleanup delayed', { userId, error: cleanupError?.message || String(cleanupError) });
   });
@@ -132,9 +135,9 @@ async function workspace(userId, plan) {
     // made the library response scale with file sizes instead of the number of records.
     prisma.agentAsset.findMany({ where: visibleAssetWhere, orderBy: { createdAt: 'desc' }, take: 1000, select: LIBRARY_ASSET_SELECT }),
     prisma.mediaFolder.findMany({ where: { userId }, orderBy: { name: 'asc' }, include: { _count: { select: { assets: true } } } }),
-    prisma.agentAsset.aggregate({ where: visibleAssetWhere, _sum: { byteSize: true } })
+    prisma.agentAsset.aggregate({ where: { userId }, _sum: { byteSize: true } })
   ]);
-  const limit = STORAGE_LIMITS[String(plan || 'TRIAL').toUpperCase()] || STORAGE_LIMITS.TRIAL;
+  const limit = MEDIA_STORAGE_LIMIT_BYTES;
   return {
     assets: assets.filter(asset => !asset.archivedAt).map(publicAsset),
     trashAssets: assets.filter(asset => asset.archivedAt).map(publicAsset),
@@ -153,9 +156,6 @@ async function upload(userId, plan, input) {
   if (!IMAGE_TYPES.has(mimeType) && !VIDEO_TYPES.has(mimeType)) throw error('Upload a PNG, JPEG, WebP, GIF, MP4, MOV or WebM file.', 415);
   if (!Buffer.isBuffer(input.data) || !input.data.length) throw error('Choose a non-empty media file.');
   if (input.data.length > MAX_FILE_BYTES) throw error('Media Library uploads must be 100 MB or smaller.', 413);
-  const current = await prisma.agentAsset.aggregate({ where: { userId }, _sum: { byteSize: true } });
-  const limit = STORAGE_LIMITS[String(plan || 'TRIAL').toUpperCase()] || STORAGE_LIMITS.TRIAL;
-  if ((current._sum.byteSize || 0) + input.data.length > limit) throw error('This upload would exceed your Media Library storage allowance.', 413);
   const folder = input.folderId ? await prisma.mediaFolder.findFirst({ where: { id: input.folderId, userId }, select: { id: true } }) : null;
   if (input.folderId && !folder) throw error('Choose a folder that belongs to this account.');
   const checksum = crypto.createHash('sha256').update(input.data).digest('hex');
@@ -196,6 +196,7 @@ async function upload(userId, plan, input) {
     if (stored.storageKey) await objectStorage.deleteObject(stored.storageKey).catch(() => {});
     throw createError;
   }
+  scheduleUserStorageQuota(userId);
   return publicAsset(created);
 }
 
@@ -280,6 +281,7 @@ async function duplicate(userId, id) {
       width: existing.width, height: existing.height, durationSeconds: existing.durationSeconds,
       expiresAt: expiresAtFor(existing.mimeType)
     }, include: ASSET_INCLUDE });
+    scheduleUserStorageQuota(userId);
     return publicAsset(copy);
   } catch (createError) {
     if (stored.storageKey) await objectStorage.deleteObject(stored.storageKey).catch(() => {});
@@ -293,6 +295,16 @@ async function archive(userId, id) {
   return true;
 }
 
+async function archiveMany(userId, ids) {
+  const uniqueIds = [...new Set((Array.isArray(ids) ? ids : []).map(String).filter(Boolean))].slice(0, 1000);
+  if (!uniqueIds.length) return 0;
+  const result = await prisma.agentAsset.updateMany({
+    where: { userId, id: { in: uniqueIds }, archivedAt: null },
+    data: { archivedAt: new Date() }
+  });
+  return result.count;
+}
+
 async function restore(userId, id) {
   const result = await prisma.agentAsset.updateMany({ where: { id, userId, archivedAt: { not: null } }, data: { archivedAt: null } });
   if (!result.count) throw error('Trashed media asset not found.', 404);
@@ -302,15 +314,34 @@ async function restore(userId, id) {
 async function purge(userId, id) {
   const existing = await prisma.agentAsset.findFirst({
     where: { id, userId, archivedAt: { not: null } },
-    select: { id: true, storageKey: true }
+    select: { id: true, storageKey: true, storageProvider: true }
   });
   if (!existing) throw error('Trashed media asset not found.', 404);
   const result = await prisma.agentAsset.deleteMany({ where: { id: existing.id, userId, archivedAt: { not: null } } });
   if (!result.count) throw error('Trashed media asset not found.', 404);
-  if (existing.storageKey) await objectStorage.deleteObject(existing.storageKey).catch((deleteError) => {
+  if (existing.storageKey) await objectStorage.deleteObject(existing.storageKey, existing.storageProvider || null).catch((deleteError) => {
     console.warn('[media-library] bucket purge delayed', { id, error: deleteError?.message || String(deleteError) });
   });
   return true;
 }
 
-module.exports = { IMAGE_TYPES, VIDEO_TYPES, MAX_FILE_BYTES, TRASH_RETENTION_DAYS, STORAGE_LIMITS, publicAsset, verifyContentAccess, workspace, upload, createFolder, findContent, findContentMetadata, findContentRange, rename, duplicate, archive, restore, purge };
+async function purgeMany(userId, ids) {
+  const uniqueIds = [...new Set((Array.isArray(ids) ? ids : []).map(String).filter(Boolean))].slice(0, 1000);
+  if (!uniqueIds.length) return 0;
+  const existing = await prisma.agentAsset.findMany({
+    where: { userId, id: { in: uniqueIds }, archivedAt: { not: null } },
+    select: { id: true, storageKey: true, storageProvider: true }
+  });
+  if (!existing.length) return 0;
+  const result = await prisma.agentAsset.deleteMany({
+    where: { userId, id: { in: existing.map(asset => asset.id) }, archivedAt: { not: null } }
+  });
+  void Promise.allSettled(
+    existing
+      .filter(asset => asset.storageKey)
+      .map(asset => objectStorage.deleteObject(asset.storageKey, asset.storageProvider || null))
+  );
+  return result.count;
+}
+
+module.exports = { IMAGE_TYPES, VIDEO_TYPES, MAX_FILE_BYTES, TRASH_RETENTION_DAYS, STORAGE_LIMITS, publicAsset, verifyContentAccess, workspace, upload, createFolder, findContent, findContentMetadata, findContentRange, rename, duplicate, archive, archiveMany, restore, purge, purgeMany };
