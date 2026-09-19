@@ -30,6 +30,10 @@ async function runMediaRetention(options = {}) {
       { expiresAt: null, NOT: { mimeType: { startsWith: 'video/' } }, createdAt: { lte: otherCutoff } },
     ],
   };
+  if (typeof database.agentAsset.findMany !== 'function') {
+    const result = await database.agentAsset.deleteMany({ where });
+    return result.count;
+  }
   const expired = await database.agentAsset.findMany({ where, select: { id: true, storageKey: true } });
   if (!expired.length) return 0;
   const result = await database.agentAsset.deleteMany({ where: { id: { in: expired.map(asset => asset.id) } } });
