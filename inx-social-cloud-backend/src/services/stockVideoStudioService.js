@@ -9,6 +9,7 @@ const env = require('../config/env');
 const credits = require('./aiCreditService');
 const mediaLibrary = require('./mediaLibraryService');
 const { expiresAtFor } = require('./mediaRetentionService');
+const objectStorage = require('./mediaObjectStorageService');
 
 const CHAT_MODEL = String(process.env.OPENAI_CHAT_MODEL || 'gpt-5.6-luna').trim();
 const TTS_MODEL = String(process.env.OPENAI_TTS_MODEL || 'gpt-4o-mini-tts').trim();
@@ -530,11 +531,13 @@ async function processJob(userId, generationId, input, existingWorkerJobId = nul
     if (!data.length || data.length > FINAL_MAX_BYTES) throw publicError('The finished stock video was empty or too large for Media Library.', 'STOCK_VIDEO_OUTPUT_INVALID', 502);
     const result = workerJob.result || {};
     const provenance = Array.isArray(result.provenance) ? result.provenance : [];
+    const originalName = `INXSocial-stock-video-${generationId.slice(0, 8)}.mp4`;
+    const stored = await objectStorage.persistBuffer({ userId, data, mimeType: 'video/mp4', originalName, prefix: 'stock-video' });
     const record = await prisma.agentAsset.create({ data: {
-      userId, kind: 'AI_VIDEO', source: 'AI_STUDIO', status: 'READY', originalName: `INXSocial-stock-video-${generationId.slice(0, 8)}.mp4`, mimeType: 'video/mp4', byteSize: data.length,
+      userId, kind: 'AI_VIDEO', source: 'AI_STUDIO', status: 'READY', originalName, mimeType: 'video/mp4', byteSize: data.length,
       checksum: crypto.createHash('sha256').update(data).digest('hex'), prompt: clean(input.prompt, 1500), customerPrompt: clean(input.prompt, 1500),
       generationChoice: JSON.stringify({ runtime: 'OpenMontage', openmontageCommit: result.openmontageCommit, pipeline: result.pipeline, renderer: result.renderer || 'remotion', generationId, workerJobId, duration: input.duration, resolution: input.resolution, aspectRatio: input.aspectRatio, provenance }),
-      tagsJson: JSON.stringify(['ai-assisted', 'stock-video', 'openmontage', ...new Set(provenance.map(item => String(item.provider || '').toLowerCase()).filter(Boolean))]), data, durationSeconds: input.duration,
+      tagsJson: JSON.stringify(['ai-assisted', 'stock-video', 'openmontage', ...new Set(provenance.map(item => String(item.provider || '').toLowerCase()).filter(Boolean))]), data: stored.data, storageProvider: stored.storageProvider, storageKey: stored.storageKey, durationSeconds: input.duration,
       expiresAt: expiresAtFor('video/mp4')
     }});
     const media = mediaLibrary.publicAsset(record);
