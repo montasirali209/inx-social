@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const appSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'app.js'), 'utf8');
 const serverSource = fs.readFileSync(path.join(__dirname, '..', 'src', 'server.js'), 'utf8');
+const landingSource = fs.readFileSync(path.join(__dirname, '..', 'public', 'landing.html'), 'utf8');
 
 test('Next landing cutover keeps an explicit kill switch and legacy fallback', () => {
   assert.match(appSource, /NEXT_LANDING_ENABLED/);
@@ -28,4 +29,15 @@ test('production startup verifies the private Next landing path without blocking
   assert.match(serverSource, /legacy fallback remains active/);
   assert.match(serverSource, /\$\{origin\}\/health/);
   assert.match(serverSource, /controller\.abort\(\), 2500/);
+});
+
+
+test('dashboard preview asset is served as a cacheable WebP and used by the landing', () => {
+  assert.match(appSource, /LANDING_DASHBOARD_ASSET_PATH = '\/assets\/landing-dashboard-20260919\.webp'/);
+  assert.match(appSource, /Array\.from\(\{ length: 7 \}/);
+  assert.match(appSource, /decoded\.toString\('ascii', 8, 12\) === 'WEBP'/);
+  assert.match(appSource, /res\.type\('image\/webp'\)/);
+  assert.match(appSource, /max-age=31536000, immutable/);
+  assert.equal((landingSource.match(/\/assets\/landing-dashboard-20260919\.webp/g) || []).length, 4);
+  assert.doesNotMatch(landingSource, /\/assets\/inx-social-dashboard\.jpg/);
 });
