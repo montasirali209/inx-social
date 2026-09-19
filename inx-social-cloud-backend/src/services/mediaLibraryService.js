@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const sharp = require('sharp');
 const prisma = require('../db/prisma');
 const { expiresAtFor, VIDEO_RETENTION_DAYS, OTHER_MEDIA_RETENTION_DAYS } = require('./mediaRetentionService');
+const objectStorage = require('./mediaObjectStorageService');
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const VIDEO_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/webm']);
@@ -45,6 +46,63 @@ function error(message, status = 400) {
   value.status = status;
   value.publicMessage = message;
   return value;
+}
+
+async function createStoredAsset(data, query = {}) {
+  const body = Buffer.isBuffer(data?.data) ? data.data : Buffer.from(data?.data || []);
+  if (!body.length) throw error('Media content is empty.', 400);
+
+  if (!objectStorage.configured()) {
+    if (String(process.env.NODE_ENV || '').toLowerCase() === 'production') {
+      throw error('Media storage is temporarily unavailable. Please retry shortly.', 503);
+    }
+    return prisma.agentAsset.create({ data: { ...data, data: body }, ...query });
+  }
+
+  const id = data.id || crypto.randomUUID();
+  const storageKey = objectStorage.keyFor(data.userId, id, data.originalName);
+  await objectStorage.putObject(storageKey, body, data.mimeType);
+
+  try {
+    return await prisma.agentAsset.create({
+      data: {
+        ...data,
+        id,
+        data: null,
+        storageProvider: 'RAILWAY_BUCKET',
+        storageKey
+      },
+      ...query
+    });
+  } catch (createError) {
+    await objectStorage.deleteObject(storageKey).catch(() => {});
+    throw createError;
+  }
+}
+
+async function deleteStoredAssetObject(asset) {
+  if (!asset?.storageKey) return;
+  await objectStorage.deleteObject(asset.storageKey);
+}
+
+async function purgeArchivedBefore(userId, cutoff) {
+  const expired = await prisma.agentAsset.findMany({
+    where: { userId, archivedAt: { lt: cutoff } },
+    select: { id: true, storageKey: true },
+    take: 100
+  });
+  for (const asset of expired) {
+    await deleteStoredAssetObject(asset).catch((storageError) => {
+      console.warn('[media-library] archived object cleanup delayed', {
+        assetId: asset.id,
+        error: storageError?.message || String(storageError)
+      });
+    });
+  }
+  if (expired.length) {
+    await prisma.agentAsset.deleteMany({ where: { id: { in: expired.map((asset) => asset.id) } } });
+  }
+  return expired.length;
 }
 
 function safeName(value) {
@@ -114,7 +172,7 @@ async function workspace(userId, plan) {
   };
 
   // Trash cleanup must never delay the visible Media Library request.
-  void prisma.agentAsset.deleteMany({ where: { userId, archivedAt: { lt: trashCutoff } } }).catch((cleanupError) => {
+  void purgeArchivedBefore(userId, trashCutoff).catch((cleanupError) => {
     console.warn('[media-library] expired trash cleanup delayed', { userId, error: cleanupError?.message || String(cleanupError) });
   });
 
@@ -150,13 +208,13 @@ async function upload(userId, plan, input) {
   const folder = input.folderId ? await prisma.mediaFolder.findFirst({ where: { id: input.folderId, userId }, select: { id: true } }) : null;
   if (input.folderId && !folder) throw error('Choose a folder that belongs to this account.');
   const checksum = crypto.createHash('sha256').update(input.data).digest('hex');
-  const duplicate = await prisma.agentAsset.findFirst({ where: { userId, checksum }, include: ASSET_INCLUDE });
+  const duplicate = await prisma.agentAsset.findFirst({ where: { userId, checksum }, select: LIBRARY_ASSET_SELECT });
   if (duplicate) {
-    if (duplicate.archivedAt) return publicAsset(await prisma.agentAsset.update({ where: { id: duplicate.id }, data: { archivedAt: null, originalName: safeName(input.fileName) }, include: ASSET_INCLUDE }));
+    if (duplicate.archivedAt) return publicAsset(await prisma.agentAsset.update({ where: { id: duplicate.id }, data: { archivedAt: null, originalName: safeName(input.fileName) }, select: LIBRARY_ASSET_SELECT }));
     return publicAsset(duplicate);
   }
   const metadata = await imageMetadata(mimeType, input.data);
-  const created = await prisma.agentAsset.create({ data: {
+  const created = await createStoredAsset({
     userId,
     folderId: folder?.id || null,
     kind: mimeType.startsWith('video/') ? 'LIBRARY_VIDEO' : mimeType === 'image/gif' ? 'LIBRARY_GIF' : 'LIBRARY_IMAGE',
@@ -171,7 +229,7 @@ async function upload(userId, plan, input) {
     height: metadata.height,
     tagsJson: '[]',
     expiresAt: expiresAtFor(mimeType)
-  }, include: ASSET_INCLUDE });
+  }, { select: LIBRARY_ASSET_SELECT });
   return publicAsset(created);
 }
 
@@ -184,7 +242,15 @@ async function createFolder(userId, name) {
 }
 
 async function findContent(userId, id, options = {}) {
-  return prisma.agentAsset.findFirst({ where: { id, userId, status: 'READY', ...(options.includeArchived ? {} : { archivedAt: null }) }, select: { mimeType: true, data: true, checksum: true, originalName: true } });
+  const asset = await prisma.agentAsset.findFirst({
+    where: { id, userId, status: 'READY', ...(options.includeArchived ? {} : { archivedAt: null }) },
+    select: { mimeType: true, data: true, storageKey: true, storageProvider: true, checksum: true, originalName: true }
+  });
+  if (!asset) return null;
+  if (asset.storageKey) {
+    return { ...asset, data: await objectStorage.getObject(asset.storageKey) };
+  }
+  return asset;
 }
 
 async function findContentMetadata(userId, id, options = {}) {
@@ -195,9 +261,17 @@ async function findContentMetadata(userId, id, options = {}) {
 }
 
 async function findContentRange(userId, id, start, length, options = {}) {
+  const asset = await prisma.agentAsset.findFirst({
+    where: { id, userId, status: 'READY', ...(options.includeArchived ? {} : { archivedAt: null }) },
+    select: { storageKey: true }
+  });
+  if (!asset) return null;
+  if (asset.storageKey) {
+    return objectStorage.getObjectRange(asset.storageKey, start, length);
+  }
+
   const archivedClause = options.includeArchived ? '' : 'AND "archivedAt" IS NULL';
-  // Prisma binds raw numeric placeholders as bigint. PostgreSQL's bytea substring
-  // overload requires integer offsets/lengths, so cast the bounded range explicitly.
+  // Legacy PostgreSQL-backed assets remain readable during object-storage migration.
   const rows = await prisma.$queryRawUnsafe(
     `SELECT substring("data" FROM CAST($3 AS integer) FOR CAST($4 AS integer)) AS "data" FROM "AgentAsset" WHERE "id"=$1 AND "userId"=$2 AND "status"='READY' ${archivedClause} LIMIT 1`,
     id, userId, Math.max(0, Number(start)) + 1, Math.max(1, Number(length))
