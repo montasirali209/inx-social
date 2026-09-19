@@ -173,15 +173,20 @@ async function buildCopySafe(request) {
 
 async function loadReference(userId, assetId) {
   if (!assetId) return null;
-  const asset = await prisma.agentAsset.findFirst({ where: { id: String(assetId), userId, status: 'READY', archivedAt: null } });
+  const asset = await prisma.agentAsset.findFirst({
+    where: { id: String(assetId), userId, status: 'READY', archivedAt: null },
+    select: { id: true, userId: true, source: true, status: true, originalName: true, mimeType: true, byteSize: true, createdAt: true, expiresAt: true, archivedAt: true }
+  });
   if (!asset) throw error('The selected Media Library source asset is unavailable.', 404, 'SOURCE_MEDIA_NOT_FOUND');
-  if (asset.data.length > 50 * 1024 * 1024) throw error('The source media is too large for AI generation. Choose a file under 50 MB.', 413, 'SOURCE_MEDIA_TOO_LARGE');
+  if (asset.byteSize > 50 * 1024 * 1024) throw error('The source media is too large for AI generation. Choose a file under 50 MB.', 413, 'SOURCE_MEDIA_TOO_LARGE');
+  const content = await mediaLibrary.findContent(userId, asset.id);
+  if (!Buffer.isBuffer(content?.data) || !content.data.length) throw error('The selected Media Library source asset is unavailable.', 404, 'SOURCE_MEDIA_NOT_FOUND');
   const publicAsset = mediaLibrary.publicAsset(asset);
   const publicUrl = `${String(env.appUrl || env.portalUrl || '').replace(/\/$/, '')}${publicAsset.fileUrl}`;
   return {
     id: asset.id,
     mimeType: asset.mimeType,
-    dataUri: String(asset.mimeType || '').startsWith('image/') ? `data:${asset.mimeType};base64,${asset.data.toString('base64')}` : null,
+    dataUri: String(asset.mimeType || '').startsWith('image/') ? `data:${asset.mimeType};base64,${content.data.toString('base64')}` : null,
     publicUrl
   };
 }
@@ -437,7 +442,17 @@ async function history(userId, limit = 50) {
 async function hydrateDraft(row) {
   const asset = parseJson(row.assetJson, null);
   const ids = parseJson(row.mediaLibraryAssetIdsJson, []);
-  const media = ids.length ? await prisma.agentAsset.findMany({ where: { id: { in: ids }, userId: row.userId, status: 'READY' } }) : [];
+  const media = ids.length ? await prisma.agentAsset.findMany({
+    where: { id: { in: ids }, userId: row.userId, status: 'READY' },
+    select: {
+      id: true, userId: true, source: true, status: true, originalName: true, mimeType: true, byteSize: true,
+      createdAt: true, expiresAt: true, archivedAt: true, width: true, height: true, durationSeconds: true,
+      tagsJson: true, prompt: true, customerPrompt: true, qualityScore: true,
+      folder: { select: { id: true, name: true } },
+      campaignPosts: { select: { id: true, title: true, status: true } },
+      scheduleJobs: { select: { id: true, title: true, localFileName: true, status: true } }
+    }
+  }) : [];
   const publicMedia = media.map(mediaLibrary.publicAsset);
   return {
     id: row.id,
