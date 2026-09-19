@@ -15,7 +15,7 @@ export async function fetchBulkSchedulerData(): Promise<BulkSchedulerData> {
   const [pageResult, platformResult, jobResult, preferenceResult] = await Promise.all([
     apiRequest<ConnectedPagesResponse>('/api/pages'),
     apiRequest<StudioPlatformsResponse>('/api/social-platforms'),
-    apiRequest<StudioJobsResponse>('/api/studio/jobs?limit=250'),
+    apiRequest<StudioJobsResponse>('/api/studio/jobs?limit=1000'),
     apiRequest<{ settings: Partial<SettingsValues> }>('/api/studio/preferences'),
   ])
   const settings = normaliseSettings(preferenceResult.settings)
