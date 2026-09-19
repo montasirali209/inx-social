@@ -109,29 +109,33 @@ async function publishQueuedJob(job) {
       throw new Error(`Unsupported queued content type: ${job.contentType}`);
     }
 
-    const completedAt = new Date();
+    const acceptedAt = new Date();
+    const videoNeedsVerification = job.contentType === 'VIDEO' && Boolean(result.videoId);
     await prisma.scheduleJob.update({
       where: { id: job.id },
       data: {
-        status: JOB_STATUS.PUBLISHED,
-        uploadStatus: job.contentType === 'TEXT' ? 'NOT_REQUIRED' : ASSET_STATUS.DELETED,
-        completedAt,
+        status: videoNeedsVerification ? JOB_STATUS.PROCESSING : JOB_STATUS.PUBLISHED,
+        uploadStatus: job.contentType === 'TEXT'
+          ? 'NOT_REQUIRED'
+          : videoNeedsVerification ? ASSET_STATUS.READY : ASSET_STATUS.DELETED,
+        completedAt: videoNeedsVerification ? null : acceptedAt,
         claimedAt: null,
-        nextAttemptAt: null,
+        nextAttemptAt: videoNeedsVerification ? new Date(Date.now() + 30_000) : null,
         errorMessage: null,
         metaPostId: result.postId || null,
         metaVideoId: result.videoId || null,
         rawMetaResponse: JSON.stringify({
           ...(result.response || result.finish || {}),
           verification: {
-            state: 'PUBLISHED',
+            state: videoNeedsVerification ? 'PROCESSING' : 'PUBLISHED',
             serverQueue: true,
-            publishedAt: completedAt.toISOString()
+            acceptedAt: acceptedAt.toISOString(),
+            confirmedAt: videoNeedsVerification ? null : acceptedAt.toISOString()
           }
         })
       }
     });
-    await cleanupQueueAsset(job);
+    if (!videoNeedsVerification) await cleanupQueueAsset(job);
     return true;
   } finally {
     if (tempPath) await fs.promises.unlink(tempPath).catch(() => {});
@@ -231,7 +235,7 @@ function startCloudPublishingQueue() {
     running = true;
     try {
       const count = await runCloudPublishingQueue();
-      if (count) console.log(`[PUBLISH QUEUE] Published ${count} due cloud job(s).`);
+      if (count) console.log(`[PUBLISH QUEUE] Submitted ${count} due cloud job(s) to the destination.`);
     } catch (error) {
       console.error('[PUBLISH QUEUE]', error);
     } finally {
