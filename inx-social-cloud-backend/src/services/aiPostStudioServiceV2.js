@@ -161,23 +161,25 @@ async function referenceAssets(userId, ids) {
   if (!unique.length) return [];
   const rows = await prisma.agentAsset.findMany({
     where: { id: { in: unique }, userId, status: 'READY', archivedAt: null },
-    select: { id: true, originalName: true, mimeType: true, data: true, width: true, height: true }
+    select: { id: true, originalName: true, mimeType: true, byteSize: true, width: true, height: true }
   });
   const ordered = unique.map(id => rows.find(row => row.id === id)).filter(Boolean);
   return Promise.all(ordered.map(async asset => {
+    const content = await mediaLibrary.findContent(userId, asset.id);
+    const data = Buffer.isBuffer(content?.data) ? content.data : Buffer.from(content?.data || []);
     let visionData = null;
-    if (String(asset.mimeType || '').startsWith('image/')) {
+    if (data.length && String(asset.mimeType || '').startsWith('image/')) {
       try {
-        visionData = await sharp(asset.data, { animated: false })
+        visionData = await sharp(data, { animated: false })
           .rotate()
           .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
           .jpeg({ quality: 82 })
           .toBuffer();
       } catch (_) {
-        visionData = asset.data.length <= 2 * 1024 * 1024 ? asset.data : null;
+        visionData = data.length <= 2 * 1024 * 1024 ? data : null;
       }
     }
-    return { ...asset, visionData };
+    return { ...asset, data, visionData };
   }));
 }
 
