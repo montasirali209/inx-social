@@ -48,10 +48,16 @@ test('AI Content Studio is a premium static five-feature marketing section', () 
   assert.match(css, /\.video-post-art/);
   assert.match(css, /\.ugc-post-art/);
   assert.match(css, /\.clipping-post-art/);
-  assert.match(css, /\.ai-feature-card:hover/);\n  assert.match(css, /\.ai-feature-card>\.ai-feature-art\\{[\\s\\S]*?position:absolute/);
+  assert.match(css, /\.ai-feature-card:hover/);
+  assert.match(css, /\.ai-feature-card>\.ai-feature-art\{[\s\S]*?position:absolute/);
   assert.match(css, /aiPlayPulse/);
   assert.match(css, /aiClipSweep/);
   assert.match(css, /prefers-reduced-motion:reduce/);
+  const dashboardParts = [1, 2, 3, 4].map(index =>
+    read(`public/assets/dashboard-final.parts/part${index}.b64`).trim()
+  );
+  assert.equal(dashboardParts.join('').length, 63304);
+  assert.match(read('scripts/prepare-landing-assets.js'), /47478/);
 });
 
 test('landing names all nine supported social networks and uses local inline logos', () => {
