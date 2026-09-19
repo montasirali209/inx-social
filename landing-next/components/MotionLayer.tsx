@@ -27,7 +27,7 @@ export default function MotionLayer() {
       if (!target) return;
       const href = target.getAttribute("href");
       if (!href || href === "#") return;
-      const element = document.querySelector(href);
+      const element = document.querySelector<HTMLElement>(href);
       if (!element) return;
       event.preventDefault();
       lenis.scrollTo(element, { offset: -78, duration: 1.05 });
