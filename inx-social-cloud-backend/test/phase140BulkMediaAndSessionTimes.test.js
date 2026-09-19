@@ -32,14 +32,21 @@ test('selected-date scheduling owns its multiple daily times inside the current 
 });
 
 
-test('Bulk Scheduler preflights its 25-day window and exposes reviewable failed results', () => {
+test('Bulk Scheduler supports long-range server-side queueing and reviewable failed results', () => {
   const page = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
   const utilities = read('frontend/src/lib/bulk-scheduler-utils.ts');
+  const uploadPanel = read('frontend/src/components/bulk-scheduler/UploadBatchPanel.tsx');
   const panel = read('frontend/src/components/bulk-scheduler/BatchRunPanel.tsx');
   const results = read('frontend/src/components/bulk-scheduler/UploadResultsTable.tsx');
-  assert.match(utilities, /MAX_BULK_SCHEDULE_DAYS = 25/);
-  assert.match(utilities, /getBulkScheduleCapacity/);
-  assert.match(page, /only \$\{scheduleCapacity\} fit inside the current/);
+  const stats = read('frontend/src/components/bulk-scheduler/BulkSchedulerStats.tsx');
+  const manager = read('frontend/src/components/bulk-scheduler/BulkScheduleManager.tsx');
+  assert.doesNotMatch(utilities, /MAX_BULK_SCHEDULE_DAYS|getBulkScheduleCapacity|25-day scheduling window/);
+  assert.match(uploadPanel, /Server-side publishing queue/);
+  assert.match(page, /BulkSchedulerStats/);
+  assert.match(page, /BulkScheduleManager/);
+  assert.match(stats, /Held in INX Social queue/);
+  assert.match(manager, /rescheduleBulkJob/);
+  assert.match(manager, /deleteBulkJob/);
   assert.match(panel, /Needs review/);
   assert.match(panel, /Why items need review/);
   assert.match(results, /Retry upload/);
