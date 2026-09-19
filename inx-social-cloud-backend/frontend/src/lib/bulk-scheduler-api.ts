@@ -93,3 +93,17 @@ export function uploadBulkMedia(jobId: string, file: File, options: UploadOption
     request.send(file)
   })
 }
+
+
+export function rescheduleBulkJob(jobId: string, scheduledAt: string) {
+  return apiRequest<{ job: import('../types/dashboard').DashboardJob }>(`/api/studio/jobs/${encodeURIComponent(jobId)}/schedule`, {
+    method: 'PATCH',
+    body: JSON.stringify({ scheduledAt }),
+  })
+}
+
+export function deleteBulkJob(jobId: string) {
+  return apiRequest<{ ok: boolean; job: import('../types/dashboard').DashboardJob }>(`/api/studio/jobs/${encodeURIComponent(jobId)}`, {
+    method: 'DELETE',
+  })
+}
