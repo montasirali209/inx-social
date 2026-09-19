@@ -116,6 +116,14 @@ async function deleteObject(key) {
 }
 
 async function persistBuffer({ userId, data, mimeType, originalName, prefix }) {
+  if (!isConfigured()) {
+    if (String(process.env.NODE_ENV || '').toLowerCase() === 'production') {
+      const error = new Error('Media object storage is not configured; refusing to write binary media into PostgreSQL.');
+      error.code = 'MEDIA_OBJECT_STORAGE_REQUIRED';
+      throw error;
+    }
+    return { storageProvider: 'DATABASE', storageKey: null, data };
+  }
   const key = createStorageKey({ userId, mimeType, originalName, prefix });
   await putBuffer({ key, data, mimeType });
   return {
