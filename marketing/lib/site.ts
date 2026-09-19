@@ -10,7 +10,8 @@ export const site = {
 
 export const primaryNav = [
   { label: 'Product', href: '/#product' },
+  { label: 'Bulk Scheduler', href: '/#bulk-scheduler' },
   { label: 'AI Studio', href: '/#ai-studio' },
-  { label: 'Platforms', href: '/#platforms' },
-  { label: 'Pricing', href: '/pricing' },
+  { label: 'Analytics', href: '/#analytics' },
+  { label: 'Pricing', href: '/#pricing' },
 ] as const
