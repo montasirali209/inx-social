@@ -136,6 +136,24 @@ const buildLandingDocument = () => {
 
 const landingDocument = buildLandingDocument();
 
+const buildLandingDashboardAsset = () => {
+  try {
+    const assetRoot = path.join(publicRoot, 'assets');
+    const encoded = [
+      'landing-dashboard-webp.part01.b64',
+      'landing-dashboard-webp.part02.b64'
+    ].map(fileName => fs.readFileSync(path.join(assetRoot, fileName), 'utf8').trim()).join('');
+    return Buffer.from(encoded, 'base64');
+  } catch (error) {
+    console.warn('[landing-dashboard] custom dashboard preview unavailable; legacy asset remains available', {
+      error: error?.message
+    });
+    return null;
+  }
+};
+
+const landingDashboardAsset = buildLandingDashboardAsset();
+
 const isNextLandingEnabled = () => /^(?:1|true|yes|on)$/i.test(String(process.env.NEXT_LANDING_ENABLED || '').trim());
 const getNextLandingOrigin = () => String(process.env.NEXT_LANDING_ORIGIN || '').trim().replace(/\/+$/, '');
 
@@ -243,6 +261,14 @@ app.get(LANDING_DASHBOARD_ASSET_PATH, (req, res, next) => {
   if (!landingDashboardAsset) return next();
   res.type('image/webp');
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  return res.send(landingDashboardAsset);
+});
+
+app.get('/assets/landing-dashboard-20260919.webp', (req, res, next) => {
+  if (!landingDashboardAsset) return next();
+  res.setHeader('Content-Type', 'image/webp');
+  res.setHeader('Cache-Control', 'public, max-age=604800, stale-while-revalidate=86400');
+  res.setHeader('Content-Length', String(landingDashboardAsset.length));
   return res.send(landingDashboardAsset);
 });
 
