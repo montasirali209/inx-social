@@ -83,38 +83,6 @@ test('status polling uses capped exponential backoff', () => {
   assert.equal(nextRetryDelayMs(20), 1800000);
 });
 
-test('a Meta rate limit pauses further checks for at least 65 minutes', async () => {
-  const updates = [];
-  const rateLimitError = new Error('Application request limit reached');
-  rateLimitError.meta = { error: { code: 4, message: rateLimitError.message } };
-  const before = Date.now();
-  const result = await reconcileJob({
-    id: 'job-rate-limited',
-    status: 'PROCESSING',
-    publishMode: 'SCHEDULED',
-    metaVideoId: '123',
-    rawMetaResponse: '{}',
-    connectedPage: { encryptedAccessToken: 'encrypted' }
-  }, {
-    prisma: {
-      scheduleJob: {
-        update: async input => {
-          updates.push(input);
-          return { id: input.where.id, ...input.data };
-        }
-      }
-    },
-    decryptToken: value => value,
-    metaPublisher: { getReelStatus: async () => { throw rateLimitError; } }
-  });
-
-  assert.equal(result.rateLimited, true);
-  assert.equal(updates.length, 1);
-  assert.ok(new Date(updates[0].data.nextAttemptAt).getTime() >= before + (65 * 60 * 1000) - 1000);
-  assert.match(updates[0].data.errorMessage, /paused for 65 minutes/i);
-});
-
-
 test('server-queued Reel media is deleted only after Meta confirms it published', async () => {
   const deleted = [];
   const assetUpdates = [];
@@ -164,3 +132,36 @@ test('server-queued Reel media is deleted only after Meta confirms it published'
   assert.equal(assetUpdates[0].data.storageKey, null);
   assert.equal(assetUpdates[0].data.status, 'DELETED');
 });
+
+
+test('a Meta rate limit pauses further checks for at least 65 minutes', async () => {
+  const updates = [];
+  const rateLimitError = new Error('Application request limit reached');
+  rateLimitError.meta = { error: { code: 4, message: rateLimitError.message } };
+  const before = Date.now();
+  const result = await reconcileJob({
+    id: 'job-rate-limited',
+    status: 'PROCESSING',
+    publishMode: 'SCHEDULED',
+    metaVideoId: '123',
+    rawMetaResponse: '{}',
+    connectedPage: { encryptedAccessToken: 'encrypted' }
+  }, {
+    prisma: {
+      scheduleJob: {
+        update: async input => {
+          updates.push(input);
+          return { id: input.where.id, ...input.data };
+        }
+      }
+    },
+    decryptToken: value => value,
+    metaPublisher: { getReelStatus: async () => { throw rateLimitError; } }
+  });
+
+  assert.equal(result.rateLimited, true);
+  assert.equal(updates.length, 1);
+  assert.ok(new Date(updates[0].data.nextAttemptAt).getTime() >= before + (65 * 60 * 1000) - 1000);
+  assert.match(updates[0].data.errorMessage, /paused for 65 minutes/i);
+});
+
