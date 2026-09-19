@@ -48,6 +48,10 @@ test('AI Content Studio is a premium static five-feature marketing section', () 
   assert.match(css, /\.video-post-art/);
   assert.match(css, /\.ugc-post-art/);
   assert.match(css, /\.clipping-post-art/);
+  assert.match(css, /\.ai-feature-card:hover/);
+  assert.match(css, /aiPlayPulse/);
+  assert.match(css, /aiClipSweep/);
+  assert.match(css, /prefers-reduced-motion:reduce/);
 });
 
 test('landing names all nine supported social networks and uses local inline logos', () => {
