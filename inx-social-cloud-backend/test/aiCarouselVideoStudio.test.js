@@ -104,8 +104,13 @@ test('Short Video opens an animated creator choice and both video routes use per
   assert.match(video, /Open Stock Video Creator/);
   assert.match(video, /ACTIVE_AI_VIDEO_JOB_KEY/);
   assert.match(stock, /VideoProductionRail/);
-  assert.match(rail, /Media preparing/);
-  assert.match(rail, /getVideoProductions/);
+  assert.match(rail, /Generated media/);
+  assert.match(rail, /Your Generated Videos/);
+  assert.match(rail, /getVideoProductions\(36\)/);
+  assert.match(rail, /item\.status === 'completed'/);
+  assert.match(stock, /kind="stock"/);
+  assert.match(video, /kind="generative"/);
+  assert.doesNotMatch(rail, /Your video queue|Media preparing/);
   assert.match(notifications, /Video rendering in background/);
   assert.match(notifications, /generation=\$\{encodeURIComponent/);
   assert.match(controller, /generateVideo[\s\S]*res\.status\(202\)/);
