@@ -9,6 +9,8 @@ const {
   updateCommercialPlan,
   adjustUserCredits,
   settings,
+  aiStudioPolicyStatus,
+  updateAiStudioPolicy,
   aiRouting,
   updateAiRouting,
   agentAccessPolicy,
@@ -29,6 +31,8 @@ router.patch('/users/:id/commercial-plan', updateCommercialPlan);
 router.post('/users/:id/credits', adjustUserCredits);
 router.get('/settings', settings);
 router.put('/settings', requireSuperAdmin, adminSecurity.secureLegacySettingUpdate);
+router.get('/ai-studio-policy', aiStudioPolicyStatus);
+router.put('/ai-studio-policy', requireSuperAdmin, updateAiStudioPolicy);
 router.get('/ai-routing', aiRouting);
 router.put('/ai-routing', updateAiRouting);
 router.get('/agent-access', agentAccessPolicy);
