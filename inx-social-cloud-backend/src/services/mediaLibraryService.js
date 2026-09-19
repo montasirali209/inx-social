@@ -282,21 +282,48 @@ async function findContentRange(userId, id, start, length, options = {}) {
 async function rename(userId, id, fileName) {
   const existing = await prisma.agentAsset.findFirst({ where: { id, userId, archivedAt: null }, select: { id: true } });
   if (!existing) throw error('Media asset not found.', 404);
-  return publicAsset(await prisma.agentAsset.update({ where: { id }, data: { originalName: safeName(fileName) }, include: ASSET_INCLUDE }));
+  return publicAsset(await prisma.agentAsset.update({
+    where: { id },
+    data: { originalName: safeName(fileName) },
+    select: LIBRARY_ASSET_SELECT
+  }));
 }
 
 async function duplicate(userId, id) {
-  const existing = await prisma.agentAsset.findFirst({ where: { id, userId, status: 'READY', archivedAt: null } });
+  const existing = await prisma.agentAsset.findFirst({
+    where: { id, userId, status: 'READY', archivedAt: null },
+    select: {
+      id: true, folderId: true, kind: true, source: true, originalName: true, mimeType: true, byteSize: true,
+      checksum: true, prompt: true, customerPrompt: true, exactOverlayText: true, generationChoice: true,
+      qualityScore: true, qualityIssuesJson: true, tagsJson: true, width: true, height: true, durationSeconds: true
+    }
+  });
   if (!existing) throw error('Media asset not found.', 404);
-  const copy = await prisma.agentAsset.create({ data: {
-    userId, folderId: existing.folderId, kind: existing.kind, source: existing.source, status: 'READY',
-    originalName: `Copy of ${existing.originalName || 'media asset'}`.slice(0, 180), mimeType: existing.mimeType,
-    byteSize: existing.byteSize, checksum: `${existing.checksum}-copy-${crypto.randomUUID()}`, prompt: existing.prompt,
-    customerPrompt: existing.customerPrompt, exactOverlayText: existing.exactOverlayText, generationChoice: existing.generationChoice,
-    qualityScore: existing.qualityScore, qualityIssuesJson: existing.qualityIssuesJson, data: existing.data, tagsJson: existing.tagsJson,
-    width: existing.width, height: existing.height, durationSeconds: existing.durationSeconds,
+  const content = await findContent(userId, id);
+  if (!Buffer.isBuffer(content?.data) || !content.data.length) throw error('Media content is unavailable.', 404);
+  const copy = await createStoredAsset({
+    userId,
+    folderId: existing.folderId,
+    kind: existing.kind,
+    source: existing.source,
+    status: 'READY',
+    originalName: `Copy of ${existing.originalName || 'media asset'}`.slice(0, 180),
+    mimeType: existing.mimeType,
+    byteSize: existing.byteSize,
+    checksum: `${existing.checksum}-copy-${crypto.randomUUID()}`,
+    prompt: existing.prompt,
+    customerPrompt: existing.customerPrompt,
+    exactOverlayText: existing.exactOverlayText,
+    generationChoice: existing.generationChoice,
+    qualityScore: existing.qualityScore,
+    qualityIssuesJson: existing.qualityIssuesJson,
+    data: content.data,
+    tagsJson: existing.tagsJson,
+    width: existing.width,
+    height: existing.height,
+    durationSeconds: existing.durationSeconds,
     expiresAt: expiresAtFor(existing.mimeType)
-  }, include: ASSET_INCLUDE });
+  }, { select: LIBRARY_ASSET_SELECT });
   return publicAsset(copy);
 }
 
@@ -313,9 +340,33 @@ async function restore(userId, id) {
 }
 
 async function purge(userId, id) {
-  const result = await prisma.agentAsset.deleteMany({ where: { id, userId, archivedAt: { not: null } } });
-  if (!result.count) throw error('Trashed media asset not found.', 404);
+  const existing = await prisma.agentAsset.findFirst({
+    where: { id, userId, archivedAt: { not: null } },
+    select: { id: true, storageKey: true }
+  });
+  if (!existing) throw error('Trashed media asset not found.', 404);
+  await deleteStoredAssetObject(existing);
+  await prisma.agentAsset.delete({ where: { id: existing.id } });
   return true;
 }
 
-module.exports = { IMAGE_TYPES, VIDEO_TYPES, MAX_FILE_BYTES, TRASH_RETENTION_DAYS, STORAGE_LIMITS, publicAsset, verifyContentAccess, workspace, upload, createFolder, findContent, findContentMetadata, findContentRange, rename, duplicate, archive, restore, purge };
+module.exports = {
+  IMAGE_TYPES,
+  VIDEO_TYPES,
+  MAX_FILE_BYTES,
+  TRASH_RETENTION_DAYS,
+  STORAGE_LIMITS,
+  publicAsset,
+  verifyContentAccess,
+  workspace,
+  upload,
+  createStoredAsset,
+  findContent,
+  findContentMetadata,
+  findContentRange,
+  rename,
+  duplicate,
+  archive,
+  restore,
+  purge
+};
