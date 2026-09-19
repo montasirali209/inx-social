@@ -25,6 +25,20 @@ export function MediaStatCard({ label, value, detail, tone, icon }: { label: str
   return <article className={className}>{content}</article>
 }
 
+
+export function MediaStatSkeleton({ index = 0 }: { index?: number }) {
+  return <div aria-hidden="true" className="min-w-[210px] rounded-card border border-border-soft bg-panel/70 p-4">
+    <div className="flex items-start gap-3">
+      <span className="size-10 shrink-0 animate-pulse rounded-xl border border-white/[.06] bg-white/[.045] motion-reduce:animate-none" style={{ animationDelay: `${index * 80}ms` }} />
+      <div className="min-w-0 flex-1">
+        <span className="block h-2.5 w-24 animate-pulse rounded bg-white/[.05] motion-reduce:animate-none" style={{ animationDelay: `${index * 80}ms` }} />
+        <span className="mt-3 block h-7 w-16 animate-pulse rounded bg-white/[.07] motion-reduce:animate-none" style={{ animationDelay: `${index * 80}ms` }} />
+        <span className="mt-2 block h-2 w-28 animate-pulse rounded bg-brand-cyan/[.07] motion-reduce:animate-none" style={{ animationDelay: `${index * 80}ms` }} />
+      </div>
+    </div>
+  </div>
+}
+
 const statusStyle: Record<MediaStatus, string> = {
   unused: 'border-white/10 bg-white/5 text-text-muted', used: 'border-brand-green/20 bg-brand-green/10 text-brand-green', scheduled: 'border-brand-amber/20 bg-brand-amber/10 text-brand-amber', published: 'border-brand-green/20 bg-brand-green/10 text-brand-green', needs_review: 'border-brand-red/20 bg-brand-red/10 text-brand-red', archived: 'border-white/10 bg-white/5 text-text-soft',
 }
