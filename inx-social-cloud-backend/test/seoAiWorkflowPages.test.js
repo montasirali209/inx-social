@@ -15,7 +15,7 @@ const retiredAiRoutes = [
   '/ai-ugc-ad-generator.html'
 ];
 
-test('AI acquisition microsites permanently consolidate into the canonical landing experience', () => {
+test('legacy AI acquisition URLs permanently redirect into canonical clean feature pages', () => {
   const app = read('src/app.js');
   for (const route of retiredAiRoutes) {
     assert.equal(app.includes(`'${route}'`), true, `${route} should keep a redirect for existing links and search results`);
@@ -25,7 +25,7 @@ test('AI acquisition microsites permanently consolidate into the canonical landi
   assert.match(app, /res\.redirect\(301,/);
 });
 
-test('canonical sitemap and llms documentation do not advertise retired AI microsites', () => {
+test('canonical sitemap and llms documentation advertise clean AI URLs, not retired html URLs', () => {
   const sitemap = read('public/sitemap.xml');
   const llms = read('public/llms.txt');
   for (const route of retiredAiRoutes) {
