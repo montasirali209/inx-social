@@ -14,6 +14,8 @@ test('Every React workspace route uses the locked universal topbar contract', ()
 
   assert.match(shell, /<Topbar overview=/);
   assert.match(topbar, /data-design-standard="universal-workspace-topbar"/);
+  assert.match(topbar, /className="flex min-h-\[78px\] w-full min-w-0 items-center justify-between/);
+  assert.doesNotMatch(topbar, /workspace-frame flex min-h-\[78px\]/);
   for (const label of ['Dashboard', 'Bulk Scheduler', 'Content Calendar']) {
     assert.match(topbar, new RegExp(`title: '${label}'`));
   }
