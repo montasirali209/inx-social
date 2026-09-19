@@ -26,6 +26,8 @@ test('landing is capability-first and uses the verified dashboard preview', () =
   assert.match(css, /\.capability-grid\{/);
   assert.match(css, /\.workflow-line\{/);
   assert.match(css, /prefers-reduced-motion:reduce/);
+  assert.match(css, /\\.ai-feature-card>\\.ai-feature-art\\{position:absolute;z-index:2\\}/);
+  assert.doesNotMatch(css, /\\.ai-feature-card>\\.ai-feature-copy,\\s*\\.ai-feature-card>\\.ai-feature-art\\{\\s*position:relative/);
   assert.match(css, /\.plan-card:hover/);
   assert.match(css, /\.plan-featured::before/);
 });
