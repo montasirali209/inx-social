@@ -6,12 +6,13 @@ const USER_OVERRIDE_KEY = 'social_agent_user_overrides';
 const AVAILABILITY = Object.freeze({
   DISABLED: 'DISABLED',
   ADMIN_ONLY: 'ADMIN_ONLY',
+  PAID_PLANS: 'PAID_PLANS',
   PLUS_ONLY: 'PLUS_ONLY',
   EVERYONE: 'EVERYONE'
 });
 const DEFAULT_POLICY = Object.freeze({
-  availability: AVAILABILITY.PLUS_ONLY,
-  planLimits: Object.freeze({ TRIAL: 0, PRO: 0, PLUS: 100, LIFETIME: 100 })
+  availability: AVAILABILITY.ADMIN_ONLY,
+  planLimits: Object.freeze({ TRIAL: 1, CREATOR: 25, PRO: 100, BUSINESS: 250, AGENCY: 500 })
 });
 
 function clampLimit(value, fallback = 0) {
@@ -25,9 +26,15 @@ function normalizePolicy(input = {}) {
     ? String(input.availability).toUpperCase()
     : DEFAULT_POLICY.availability;
   const supplied = input.planLimits && typeof input.planLimits === 'object' ? input.planLimits : {};
+  const legacy = {
+    CREATOR: supplied.CREATOR ?? supplied.STARTER ?? supplied.PRO,
+    PRO: supplied.PRO ?? supplied.PLUS ?? supplied.LIFETIME,
+    BUSINESS: supplied.BUSINESS ?? supplied.PLUS,
+    AGENCY: supplied.AGENCY ?? supplied.LIFETIME ?? supplied.PLUS
+  };
   const planLimits = {};
   for (const [plan, fallback] of Object.entries(DEFAULT_POLICY.planLimits)) {
-    planLimits[plan] = clampLimit(supplied[plan], fallback);
+    planLimits[plan] = clampLimit(plan === 'TRIAL' ? supplied.TRIAL : legacy[plan], fallback);
   }
   return { availability, planLimits };
 }
@@ -66,13 +73,13 @@ async function getUserOverride(userId) {
 
 async function setUserOverride(userId, value) {
   const override = String(value || 'DEFAULT').toUpperCase();
-  if (!['DEFAULT', 'ALLOW', 'DENY'].includes(override)) throw Object.assign(new Error('AI Studio access must be DEFAULT, ALLOW or DENY.'), { status: 400 });
+  if (!['DEFAULT', 'ALLOW', 'DENY'].includes(override)) throw Object.assign(new Error('Social Agent access must be DEFAULT, ALLOW or DENY.'), { status: 400 });
   const overrides = await getUserOverrides();
   if (override === 'DEFAULT') delete overrides[userId]; else overrides[userId] = override;
   await prisma.appSetting.upsert({
     where: { key: USER_OVERRIDE_KEY },
-    create: { key: USER_OVERRIDE_KEY, value: JSON.stringify(overrides), description: 'Per-user AI Content Studio access overrides.' },
-    update: { value: JSON.stringify(overrides), description: 'Per-user AI Content Studio access overrides.' }
+    create: { key: USER_OVERRIDE_KEY, value: JSON.stringify(overrides), description: 'Per-user Social Agent access overrides.' },
+    update: { value: JSON.stringify(overrides), description: 'Per-user Social Agent access overrides.' }
   });
   return override;
 }
@@ -94,12 +101,14 @@ async function getEntitlement(userId, options = {}) {
   const [policy, license, override] = await Promise.all([getPolicy(), getLicenseStatus(userId), getUserOverride(userId)]);
   const admin = isAdministrator(license.userRole);
   const plan = String(license.plan || 'TRIAL').toUpperCase();
+  const paidPlan = ['CREATOR', 'PRO', 'BUSINESS', 'AGENCY', 'STARTER', 'PLUS', 'LIFETIME'].includes(plan);
   const policyVisible = policy.availability === AVAILABILITY.EVERYONE ||
     (policy.availability === AVAILABILITY.ADMIN_ONLY && admin) ||
-    (policy.availability === AVAILABILITY.PLUS_ONLY && (admin || ['PLUS', 'LIFETIME'].includes(plan)));
+    ([AVAILABILITY.PAID_PLANS, AVAILABILITY.PLUS_ONLY].includes(policy.availability) && (admin || paidPlan));
   const visible = policy.availability === AVAILABILITY.DISABLED ? false : override === 'ALLOW' ? true : override === 'DENY' ? false : policyVisible;
   const allowed = Boolean(visible && license.allowed);
-  const limit = admin ? null : clampLimit(policy.planLimits[plan], 0);
+  const normalizedPlan = plan === 'STARTER' ? 'CREATOR' : ['PLUS', 'LIFETIME'].includes(plan) ? 'PRO' : plan;
+  const limit = admin ? null : clampLimit(policy.planLimits[normalizedPlan], 0);
   const periodStart = license.currentPeriodStart ? new Date(license.currentPeriodStart) : startOfUtcMonth(now);
   const periodEnd = license.currentPeriodEnd ? new Date(license.currentPeriodEnd) : endOfUtcMonth(now);
   const used = visible ? await prisma.agentPlan.count({ where: { userId, createdAt: { gte: periodStart, lt: periodEnd } } }) : 0;
