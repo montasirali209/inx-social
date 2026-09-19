@@ -16,3 +16,88 @@ html.lenis body {
 .reveal {
   will-change: opacity, transform;
 }
+
+/* Scroll choreography: motion only, never layout geometry. */
+html.inx-scroll-motion .hero-glow {
+  transform: translate3d(0, var(--hero-parallax, 0px), 0);
+  will-change: transform;
+}
+
+html.inx-scroll-motion .workflow-line {
+  --workflow-progress: 0;
+  position: relative;
+}
+
+html.inx-scroll-motion .workflow-step,
+html.inx-scroll-motion .step-arrow {
+  position: relative;
+  z-index: 1;
+}
+
+html.inx-scroll-motion .workflow-step .step-icon {
+  transition:
+    transform .32s cubic-bezier(.22,.8,.24,1),
+    box-shadow .32s cubic-bezier(.22,.8,.24,1),
+    filter .32s ease;
+}
+
+html.inx-scroll-motion .workflow-step.is-flow-active .step-icon {
+  transform: translateY(-3px) scale(1.055);
+  filter: saturate(1.1) brightness(1.045);
+  box-shadow:
+    0 16px 32px rgba(6,72,80,.2),
+    0 0 0 6px rgba(63,220,204,.08);
+}
+
+html.inx-scroll-motion .dashboard-showcase > .dashboard-screenshot-wrap {
+  transform:
+    translate3d(0, var(--dashboard-shift, 0px), 0)
+    scale(var(--dashboard-scale, 1));
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+html.inx-scroll-motion .final-card > div {
+  transform: translate3d(0, var(--final-shift, 0px), 0);
+  will-change: transform;
+}
+
+@media (min-width: 1081px) {
+  html.inx-scroll-motion .workflow-line::before,
+  html.inx-scroll-motion .workflow-line::after {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    left: 7%;
+    right: 7%;
+    top: 32px;
+    height: 2px;
+    border-radius: 999px;
+    pointer-events: none;
+  }
+
+  html.inx-scroll-motion .workflow-line::before {
+    background: #dce8ea;
+  }
+
+  html.inx-scroll-motion .workflow-line::after {
+    background: linear-gradient(90deg, #0b756f, #4bd5c7);
+    transform: scaleX(var(--workflow-progress, 0));
+    transform-origin: left center;
+    box-shadow: 0 0 16px rgba(36,196,182,.24);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.inx-scroll-motion .hero-glow,
+  html.inx-scroll-motion .dashboard-showcase > .dashboard-screenshot-wrap,
+  html.inx-scroll-motion .final-card > div,
+  html.inx-scroll-motion .workflow-step .step-icon {
+    transform: none !important;
+    transition: none !important;
+  }
+
+  html.inx-scroll-motion .workflow-line::after {
+    transform: scaleX(1) !important;
+  }
+}
