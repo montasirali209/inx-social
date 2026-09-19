@@ -5,8 +5,8 @@
   "main": "src/server.js",
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js",
-    "start:production": "prisma migrate deploy && node src/server.js",
+    "start": "node scripts/prepare-landing-assets.js && node src/server.js",
+    "start:production": "prisma migrate deploy && node scripts/prepare-landing-assets.js && node src/server.js",
     "build:frontend": "npm --prefix frontend ci && npm --prefix frontend run build",
     "check:frontend": "npm --prefix frontend run check",
     "check": "node scripts/check-syntax.js && prisma validate && npm run check:frontend",
