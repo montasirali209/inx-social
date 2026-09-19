@@ -35,6 +35,28 @@ const publicRoot = path.join(__dirname, '..', 'public');
 const portalRoot = path.join(__dirname, '..', 'portal');
 const adminIndex = path.join(publicRoot, 'index.html');
 const landingPath = path.join(publicRoot, 'landing.html');
+const LANDING_DASHBOARD_ASSET_PATH = '/assets/landing-dashboard-20260919.webp';
+const landingDashboardPartPaths = Array.from({ length: 7 }, (_, index) =>
+  path.join(publicRoot, 'assets', `landing-dashboard-20260919.part${String(index + 1).padStart(3, '0')}.b64`)
+);
+const loadLandingDashboardAsset = () => {
+  try {
+    const encoded = landingDashboardPartPaths
+      .map(filePath => fs.readFileSync(filePath, 'utf8').trim())
+      .join('');
+    const decoded = Buffer.from(encoded, 'base64');
+    const isWebp =
+      decoded.length > 10000 &&
+      decoded.toString('ascii', 0, 4) === 'RIFF' &&
+      decoded.toString('ascii', 8, 12) === 'WEBP';
+    if (!isWebp) throw new Error('decoded landing dashboard asset is not a valid WebP');
+    return decoded;
+  } catch (error) {
+    console.warn('[landing] dashboard preview asset unavailable', { error: error?.message });
+    return null;
+  }
+};
+const landingDashboardAsset = loadLandingDashboardAsset();
 const CANONICAL_BROWSER_HOST = 'www.inxsocial.co.uk';
 const MIGRATION_BROWSER_HOSTS = new Set(['social.inaxx.co.uk', 'inxsocial.co.uk']);
 const ANALYTICS_SCRIPT_TAG = '<script src="/analytics-consent.js?v=20260916a" defer></script>';
@@ -215,6 +237,13 @@ app.use('/_next', async (req, res, next) => {
 
   const payload = Buffer.from(await upstream.arrayBuffer());
   return res.send(payload);
+});
+
+app.get(LANDING_DASHBOARD_ASSET_PATH, (req, res, next) => {
+  if (!landingDashboardAsset) return next();
+  res.type('image/webp');
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  return res.send(landingDashboardAsset);
 });
 
 app.use('/admin.css', express.static(path.join(publicRoot, 'admin.css'), { setHeaders: res => res.setHeader('Content-Type', 'text/css') }));
