@@ -690,10 +690,13 @@ img{max-width:100%}
     linear-gradient(120deg,rgba(255,255,255,.025),transparent 48%);
   transition:opacity .28s var(--ease);
 }
-.ai-feature-card>.ai-feature-copy,
-.ai-feature-card>.ai-feature-art{
+.ai-feature-card>.ai-feature-copy{
   position:relative;
-  z-index:1;
+  z-index:3;
+}
+.ai-feature-card>.ai-feature-art{
+  position:absolute;
+  z-index:2;
 }
 .ai-feature-art{
   transition:
