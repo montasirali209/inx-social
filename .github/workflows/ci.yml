@@ -71,6 +71,21 @@ jobs:
       - run: npm run check
       - run: npm test
 
+  landing-next-check:
+    name: Landing Next build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: landing-next
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm run build
+
   gateway-check:
     name: Gateway checks
     runs-on: ubuntu-latest
