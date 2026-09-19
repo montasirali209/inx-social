@@ -12,8 +12,7 @@ export function SiteHeader() {
     <header className="site-header">
       <div className="container-shell header-inner">
         <TrackLink className="brand" href="/" eventName="brand_home_click" aria-label="INXSocial home">
-          <span className="brand-mark" aria-hidden="true">IX</span>
-          <span className="brand-name">INX<span>Social</span></span>
+          <img className="brand-wordmark" src="https://social.inaxx.co.uk/assets/inx-social-wordmark.png" alt="" width="148" height="38" />
         </TrackLink>
 
         <nav className="desktop-nav" aria-label="Primary navigation">

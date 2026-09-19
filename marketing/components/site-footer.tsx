@@ -6,7 +6,7 @@ export function SiteFooter() {
     <footer className="site-footer">
       <div className="container-shell footer-grid footer-grid-phase-two">
         <div className="footer-intro">
-          <div className="brand footer-brand"><span className="brand-mark">IX</span><span className="brand-name">INX<span>Social</span></span></div>
+          <div className="brand footer-brand"><img className="brand-wordmark" src="https://social.inaxx.co.uk/assets/inx-social-wordmark.png" alt="INXSocial" width="148" height="38" /></div>
           <p>Create. Schedule. Analyse. Grow. One connected workspace for social publishing and AI-assisted content creation.</p>
           <span className="footer-company">A product by {site.company}</span>
         </div>
