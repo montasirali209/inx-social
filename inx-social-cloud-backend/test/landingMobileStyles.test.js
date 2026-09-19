@@ -10,7 +10,7 @@ test('redesigned landing ships responsive rules in the render-critical styleshee
   const script = read('public/landing.js');
   const css = read('public/landing-redesign.css');
 
-  assert.equal(landing.includes('landing-redesign.css?v=20260918h'), true);
+  assert.equal(landing.includes('landing-redesign.css?v=20260919a'), true);
   assert.doesNotMatch(script, /createElement\(['"]link['"]\)/);
   assert.match(css, /@media\(max-width:1080px\)/);
   assert.match(css, /@media\(max-width:860px\)/);
