@@ -4,8 +4,11 @@ import {
   BarChart3,
   CalendarDays,
   Check,
+  Clock3,
+  ImageIcon,
   Layers3,
   Link2,
+  Play,
   Send,
   Sparkles,
   Video,
@@ -23,41 +26,6 @@ export const metadata: Metadata = {
   description: 'Create, schedule, publish and analyse social content across nine networks with Bulk Scheduler, AI Content Studio and one connected INXSocial workspace.',
   alternates: { canonical: '/' },
 }
-
-const pillars = [
-  {
-    index: '01',
-    title: 'Dashboard',
-    copy: 'See publishing activity, engagement, recent posts, upcoming schedule and connected-account coverage from one overview.',
-    href: '/features',
-    image: productShots.dashboard,
-    alt: 'Real INXSocial dashboard interface',
-  },
-  {
-    index: '02',
-    title: 'Bulk Scheduler',
-    copy: 'Upload media in batches, select destinations, add captions and timing, then publish or schedule the full batch from one session.',
-    href: '/bulk-scheduler',
-    image: productShots.bulk,
-    alt: 'Real INXSocial Bulk Scheduler interface',
-  },
-  {
-    index: '03',
-    title: 'Analytics',
-    copy: 'Use verified connected-account data to review performance, engagement, content views, reach and publishing trends.',
-    href: '/analytics',
-    image: productShots.analytics,
-    alt: 'Real INXSocial Analytics interface',
-  },
-  {
-    index: '04',
-    title: 'AI Content Studio',
-    copy: 'Generate images, carousels, short video and UGC-style creative, then send finished content directly into Posts.',
-    href: '/ai-content-studio',
-    image: productShots.ai,
-    alt: 'Real INXSocial AI Content Studio interface',
-  },
-]
 
 const paidPlans = plans.filter((plan) => plan.id !== 'trial')
 
@@ -96,24 +64,24 @@ export default function HomePage() {
           <Reveal className="phase4-hero-product" delay={80}>
             <ProductShot
               src={productShots.dashboard}
-              alt="INXSocial real dashboard showing publishing activity, engagement, connected accounts and recent posts"
+              alt="INXSocial dashboard showing publishing activity, engagement, connected accounts and recent posts"
               label="INXSocial Dashboard"
-              caption="The actual product interface — not a recreated marketing mockup."
               eager
               className="phase4-hero-shot"
             />
             <div className="phase4-floating-note note-one">
               <span>Connected workflow</span>
-              <strong>Post scheduled</strong>
-              <small>Dashboard → Posts → Calendar</small>
-            </div>
-            <div className="phase4-floating-note note-two">
-              <span>AI + publishing</span>
               <strong>One workspace</strong>
               <small>Create · Schedule · Analyse</small>
             </div>
+            <div className="phase4-floating-note note-two">
+              <span>Publishing overview</span>
+              <strong>See what matters now</strong>
+              <small>Posts · Schedule · Engagement</small>
+            </div>
           </Reveal>
         </div>
+
         <div className="container-shell phase4-trust">
           <span><b>9</b> supported networks</span>
           <span><b>7 days</b> free Trial</span>
@@ -128,24 +96,53 @@ export default function HomePage() {
           <Reveal className="phase4-light-heading">
             <span>Everything you need to run social media</span>
             <h2>Powerful tools. A clearer way to work.</h2>
-            <p>Every major part of the homepage now shows the real INXSocial interface, framed to explain the workflow instead of replacing it with a fake marketing UI.</p>
+            <p>The landing page explains the real product without turning every section into another screenshot. Only Dashboard and Analytics use real interface imagery; the rest is presented through cleaner marketing visuals inspired by the product design.</p>
           </Reveal>
 
           <div className="phase4-pillar-grid">
-            {pillars.map((pillar, index) => (
-              <Reveal className="phase4-pillar-card" delay={index * 50} key={pillar.title}>
-                <div className="phase4-pillar-head">
-                  <span>{pillar.index}</span>
-                  <div><h3>{pillar.title}</h3><p>{pillar.copy}</p></div>
-                </div>
-                <div className="phase4-pillar-media">
-                  <img src={pillar.image} alt={pillar.alt} width="1280" height="860" loading="lazy" decoding="async" />
-                </div>
-                <TrackLink className="phase4-text-link" href={pillar.href} eventName="pillar_click" eventData={{ feature: pillar.title }}>
-                  Explore {pillar.title} <ArrowRight />
-                </TrackLink>
-              </Reveal>
-            ))}
+            <Reveal className="phase4-pillar-card" delay={0}>
+              <div className="phase4-pillar-head">
+                <span>01</span>
+                <div><h3>Dashboard</h3><p>Understand publishing activity, engagement and account coverage at a glance.</p></div>
+              </div>
+              <DashboardMarketingVisual />
+              <TrackLink className="phase4-text-link" href="/features" eventName="pillar_click" eventData={{ feature: 'Dashboard' }}>
+                Explore Dashboard <ArrowRight />
+              </TrackLink>
+            </Reveal>
+
+            <Reveal className="phase4-pillar-card" delay={50}>
+              <div className="phase4-pillar-head">
+                <span>02</span>
+                <div><h3>Bulk Scheduler</h3><p>Prepare destinations, content and timing in one campaign-building flow.</p></div>
+              </div>
+              <BulkMarketingVisual compact />
+              <TrackLink className="phase4-text-link" href="/bulk-scheduler" eventName="pillar_click" eventData={{ feature: 'Bulk Scheduler' }}>
+                Explore Bulk Scheduler <ArrowRight />
+              </TrackLink>
+            </Reveal>
+
+            <Reveal className="phase4-pillar-card" delay={100}>
+              <div className="phase4-pillar-head">
+                <span>03</span>
+                <div><h3>Analytics</h3><p>Review real connected-account performance and publishing trends.</p></div>
+              </div>
+              <AnalyticsMarketingVisual />
+              <TrackLink className="phase4-text-link" href="/analytics" eventName="pillar_click" eventData={{ feature: 'Analytics' }}>
+                Explore Analytics <ArrowRight />
+              </TrackLink>
+            </Reveal>
+
+            <Reveal className="phase4-pillar-card" delay={150}>
+              <div className="phase4-pillar-head">
+                <span>04</span>
+                <div><h3>AI Content Studio</h3><p>Create images, carousels, short video and UGC-style content from one studio.</p></div>
+              </div>
+              <AIStudioMarketingVisual compact />
+              <TrackLink className="phase4-text-link" href="/ai-content-studio" eventName="pillar_click" eventData={{ feature: 'AI Content Studio' }}>
+                Explore AI Content Studio <ArrowRight />
+              </TrackLink>
+            </Reveal>
           </div>
         </div>
       </section>
@@ -155,21 +152,16 @@ export default function HomePage() {
           <Reveal className="phase4-story-copy">
             <span className="phase4-kicker">Bulk Scheduler</span>
             <h2>Publish more without repeating the same scheduling work.</h2>
-            <p>The actual Bulk Scheduler already has a stronger product story than a fabricated landing-page illustration. Phase 4 uses it directly and lets the surrounding design explain why it matters.</p>
+            <p>Bulk Scheduler is presented as a clean campaign workflow rather than a literal screenshot. The design follows your product language — destinations, media, captions, timing and run status — while keeping the landing page visually premium.</p>
             <div className="phase4-feature-list">
-              <div><span><Layers3 /></span><div><strong>Batch-first publishing</strong><p>Select destinations, upload media, add captions and choose timing in one session.</p></div></div>
-              <div><span><CalendarDays /></span><div><strong>Scheduling built in</strong><p>Choose when the batch should publish without reopening the composer for each post.</p></div></div>
-              <div><span><Send /></span><div><strong>Clear run status</strong><p>Monitor completed, failed and blocked publishing actions in the same workspace.</p></div></div>
+              <div><span><Layers3 /></span><div><strong>Batch-first publishing</strong><p>Prepare several media items and captions inside one scheduling session.</p></div></div>
+              <div><span><CalendarDays /></span><div><strong>Choose timing once</strong><p>Set the publishing mode and planned time instead of reopening the composer repeatedly.</p></div></div>
+              <div><span><Send /></span><div><strong>Destination-aware</strong><p>Select the connected accounts that should receive the batch before publishing begins.</p></div></div>
             </div>
             <TrackLink className="button button-primary" href="/bulk-scheduler" eventName="phase4_bulk_click">Explore Bulk Scheduler <ArrowRight /></TrackLink>
           </Reveal>
           <Reveal className="phase4-story-shot" delay={80}>
-            <ProductShot
-              src={productShots.bulk}
-              alt="INXSocial Bulk Scheduler with publishing destinations, media batch and run status"
-              label="Bulk Scheduler"
-              caption="Actual Bulk Scheduler interface"
-            />
+            <BulkMarketingVisual />
           </Reveal>
         </div>
       </section>
@@ -183,23 +175,13 @@ export default function HomePage() {
               <h2>From idea to scroll-stopping content — without leaving the publishing workflow.</h2>
             </div>
             <div>
-              <p>AI Content Studio is now presented as the hero product it actually is: real UI, real plan credits, and a stronger visual frame around Image Post, Carousel, Short Video and UGC creation.</p>
+              <p>AI Content Studio gets the strongest custom visual treatment on the page. The landing experience is inspired by your real Studio UI, but it is designed specifically for marketing rather than showing the application screenshot again.</p>
               <TrackLink className="phase4-light-link" href="/ai-content-studio" eventName="phase4_ai_click">Explore AI Content Studio <ArrowRight /></TrackLink>
             </div>
           </Reveal>
 
-          <Reveal className="phase4-ai-stage" delay={70}>
-            <ProductShot
-              src={productShots.ai}
-              alt="INXSocial AI Content Studio showing Image Post, Carousel Post, Short Video and UGC Ad creation"
-              label="AI Content Studio"
-              caption="Actual AI Content Studio interface"
-              className="phase4-ai-shot"
-            />
-            <div className="phase4-ai-chip chip-image"><Sparkles /><span><strong>Image</strong><small>Generate visual + copy</small></span></div>
-            <div className="phase4-ai-chip chip-carousel"><Layers3 /><span><strong>Carousel</strong><small>Multi-slide stories</small></span></div>
-            <div className="phase4-ai-chip chip-video"><Video /><span><strong>Video</strong><small>AI + Stock Video Creator</small></span></div>
-            <div className="phase4-ai-chip chip-ugc"><WandSparkles /><span><strong>UGC</strong><small>Creator-style promotion</small></span></div>
+          <Reveal className="phase4-ai-stage phase4-ai-stage-custom" delay={70}>
+            <AIStudioMarketingVisual />
           </Reveal>
         </div>
       </section>
@@ -211,13 +193,12 @@ export default function HomePage() {
               src={productShots.analytics}
               alt="INXSocial Analytics showing account filters, post performance metrics and engagement by platform"
               label="Full Analytics"
-              caption="Verified connected-account performance data"
             />
           </Reveal>
           <Reveal className="phase4-light-copy" delay={70}>
             <span>Full Analytics</span>
             <h2>Turn real publishing data into the next content decision.</h2>
-            <p>Use the actual Analytics workspace to explain the product: selected account context, live metrics, content performance and platform engagement — not placeholder marketing charts.</p>
+            <p>Analytics is one of the places where the real product UI adds credibility. The landing page therefore uses your actual Analytics interface rather than a marketing recreation.</p>
             <ul>
               <li><Check /> Selected connected-account analytics</li>
               <li><Check /> Content views, interactions and engagement rate</li>
@@ -236,6 +217,7 @@ export default function HomePage() {
             <h2>From creation to results — all in one flow.</h2>
             <p>Use AI or your own media, schedule across connected destinations, review performance and repeat what works.</p>
           </Reveal>
+
           <div className="phase4-flow-grid">
             {[
               ['01','Create',Sparkles,'Use AI or upload your own content.'],
@@ -244,15 +226,18 @@ export default function HomePage() {
               ['04','Grow',Link2,'Use what works across your connected accounts.'],
             ].map(([number,title,Icon,copy], index) => {
               const FlowIcon = Icon as typeof Sparkles
-              return <Reveal className="phase4-flow-step" delay={index * 45} key={String(title)}>
-                <span className="phase4-flow-number">{String(number)}</span>
-                <span className="phase4-flow-icon"><FlowIcon /></span>
-                <h3>{String(title)}</h3>
-                <p>{String(copy)}</p>
-                {index < 3 && <ArrowRight className="phase4-flow-arrow" aria-hidden="true" />}
-              </Reveal>
+              return (
+                <Reveal className="phase4-flow-step" delay={index * 45} key={String(title)}>
+                  <span className="phase4-flow-number">{String(number)}</span>
+                  <span className="phase4-flow-icon"><FlowIcon /></span>
+                  <h3>{String(title)}</h3>
+                  <p>{String(copy)}</p>
+                  {index < 3 && <ArrowRight className="phase4-flow-arrow" aria-hidden="true" />}
+                </Reveal>
+              )
             })}
           </div>
+
           <Reveal className="phase4-platform-strip" delay={100}>
             <div><span>Connect major platforms</span><strong>Publish everywhere. Manage in one place.</strong></div>
             <div className="phase4-platform-marks">{platforms.map((platform) => <span key={platform.name} title={platform.name}>{platform.mark}</span>)}</div>
@@ -266,6 +251,7 @@ export default function HomePage() {
             <span>Simple pricing</span>
             <h2>Start with the full workflow. Scale capacity when you need it.</h2>
           </Reveal>
+
           <div className="phase4-plan-grid">
             {paidPlans.map((plan, index) => (
               <Reveal className={`phase4-plan ${plan.featured ? 'featured' : ''}`} delay={index * 40} key={plan.id}>
@@ -284,6 +270,7 @@ export default function HomePage() {
               </Reveal>
             ))}
           </div>
+
           <Reveal className="phase4-trial-line">
             <div><span>7-day Trial</span><strong>2 accounts · 50 published posts · 20 AI credits · no card required</strong></div>
             <TrackLink className="button phase4-outline-button" href={site.registerUrl} eventName="phase4_trial_click">Start Trial <ArrowRight /></TrackLink>
@@ -317,5 +304,123 @@ export default function HomePage() {
         </div>
       </section>
     </>
+  )
+}
+
+function DashboardMarketingVisual() {
+  return (
+    <div className="marketing-mini marketing-dashboard-mini" aria-hidden="true">
+      <div className="marketing-mini-kpis">
+        <span><i /><strong>Published</strong><b>28</b></span>
+        <span><i /><strong>Scheduled</strong><b>16</b></span>
+        <span><i /><strong>Engagement</strong><b>8.4k</b></span>
+      </div>
+      <div className="marketing-mini-chart">
+        <div className="chart-bars">{[36,62,48,82,56,91,72,87].map((height, index) => <i key={index} style={{ height: `${height}%` }} />)}</div>
+        <div className="chart-line" />
+      </div>
+    </div>
+  )
+}
+
+function AnalyticsMarketingVisual() {
+  return (
+    <div className="marketing-mini marketing-analytics-mini" aria-hidden="true">
+      <div className="marketing-analytics-head"><span>Performance</span><strong>Last 30 days</strong></div>
+      <div className="marketing-analytics-metrics">
+        <span><small>Views</small><strong>12.8k</strong></span>
+        <span><small>Engagement</small><strong>4.9%</strong></span>
+        <span><small>Published</small><strong>84</strong></span>
+      </div>
+      <div className="marketing-analytics-graph"><i /><i /><i /><i /><b /></div>
+    </div>
+  )
+}
+
+function BulkMarketingVisual({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className={`bulk-marketing-visual ${compact ? 'is-compact' : ''}`} aria-label="Bulk Scheduler marketing visual">
+      <div className="bulk-visual-top">
+        <div><span>Bulk Scheduler</span><strong>Campaign workspace</strong></div>
+        <span className="bulk-status"><i /> Ready</span>
+      </div>
+
+      <div className="bulk-visual-steps">
+        <div><span><Layers3 /></span><strong>Select destinations</strong><small>Choose connected accounts</small></div>
+        <ArrowRight />
+        <div><span><ImageIcon /></span><strong>Add content</strong><small>Media + captions</small></div>
+        <ArrowRight />
+        <div><span><Clock3 /></span><strong>Choose timing</strong><small>Publish or schedule</small></div>
+      </div>
+
+      <div className="bulk-visual-body">
+        <div className="bulk-visual-content">
+          <span className="visual-label">Content queue</span>
+          {['Launch teaser','Carousel story','Product reel','Customer proof'].map((item, index) => (
+            <div className="bulk-content-row" key={item}>
+              <span className={`bulk-content-thumb tone-${index + 1}`} />
+              <div><strong>{item}</strong><small>{index + 2} destinations</small></div>
+              <Check />
+            </div>
+          ))}
+        </div>
+
+        <div className="bulk-visual-timing">
+          <span className="visual-label">Planned timing</span>
+          {['11:00','15:15','19:30','22:15'].map((time, index) => (
+            <div className="bulk-time-row" key={time}><strong>{time}</strong><span>{['Mon','Tue','Wed','Thu'][index]}</span><i /></div>
+          ))}
+          <div className="bulk-run-card"><span>Batch run</span><strong>12 posts ready</strong><div><i /></div></div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function AIStudioMarketingVisual({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className={`ai-marketing-visual ${compact ? 'is-compact' : ''}`} aria-label="AI Content Studio marketing visual">
+      <div className="ai-visual-glow" aria-hidden="true" />
+      <div className="ai-visual-top">
+        <div><span><Sparkles /> AI Content Studio</span><strong>Turn ideas into social-ready creative.</strong></div>
+        <span className="ai-credit-pill"><i /> Shared AI credits</span>
+      </div>
+
+      <div className="ai-visual-grid">
+        <div className="ai-format-card image-format">
+          <span><ImageIcon /> Single visual</span>
+          <strong>Image Post</strong>
+          <p>Visual, caption, hashtags and alt text.</p>
+          <div className="image-format-art"><i /><b /><b /></div>
+        </div>
+
+        <div className="ai-format-card carousel-format">
+          <span><Layers3 /> Multi-slide</span>
+          <strong>Carousel</strong>
+          <p>Coordinated slides and per-slide copy.</p>
+          <div className="carousel-format-art"><i /><i /><i /></div>
+        </div>
+
+        <div className="ai-format-card video-format">
+          <span><Video /> Short video</span>
+          <strong>Video / Reel</strong>
+          <p>AI video or Stock Video Creator.</p>
+          <div className="video-format-art"><span><Play /></span><i /><i /><i /></div>
+        </div>
+
+        <div className="ai-format-card ugc-format">
+          <span><WandSparkles /> Creator style</span>
+          <strong>UGC Ad</strong>
+          <p>Promotional creative from a campaign brief.</p>
+          <div className="ugc-format-art"><span>UGC</span><b>Real people.<br />Real results.</b></div>
+        </div>
+      </div>
+
+      {!compact && (
+        <div className="ai-visual-flow">
+          <span><i /> Idea</span><ArrowRight /><span><i /> Generate</span><ArrowRight /><span><i /> Refine</span><ArrowRight /><span><i /> Send to Posts</span>
+        </div>
+      )}
+    </div>
   )
 }
