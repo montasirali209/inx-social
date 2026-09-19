@@ -123,6 +123,7 @@ const postEnhancementSchema = z.object({
 
 const mediaFolderSchema = z.object({ name: z.string().trim().min(2).max(60) });
 const mediaRenameSchema = z.object({ fileName: z.string().trim().min(1).max(180) });
+const mediaBulkIdsSchema = z.object({ ids: z.array(z.string().trim().min(1).max(100)).min(1).max(1000) });
 const calendarScheduleSchema = z.object({
   scheduledAt: z.string().datetime(),
   connectedPageId: z.string().trim().min(1).optional()
@@ -1602,6 +1603,15 @@ async function archiveMediaLibraryAsset(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function archiveMediaLibraryAssets(req, res, next) {
+  try {
+    await requireStudioLicense(req.user.id);
+    const input = mediaBulkIdsSchema.parse(req.body || {});
+    const count = await mediaLibrary.archiveMany(req.user.id, input.ids);
+    res.json({ ok: true, count });
+  } catch (error) { next(error); }
+}
+
 async function restoreMediaLibraryAsset(req, res, next) {
   try {
     await requireStudioLicense(req.user.id);
@@ -1615,6 +1625,15 @@ async function purgeMediaLibraryAsset(req, res, next) {
     await requireStudioLicense(req.user.id);
     await mediaLibrary.purge(req.user.id, req.params.id);
     res.json({ ok: true });
+  } catch (error) { next(error); }
+}
+
+async function purgeMediaLibraryAssets(req, res, next) {
+  try {
+    await requireStudioLicense(req.user.id);
+    const input = mediaBulkIdsSchema.parse(req.body || {});
+    const count = await mediaLibrary.purgeMany(req.user.id, input.ids);
+    res.json({ ok: true, count });
   } catch (error) { next(error); }
 }
 
@@ -1683,8 +1702,10 @@ module.exports = {
   renameMediaLibraryAsset,
   duplicateMediaLibraryAsset,
   archiveMediaLibraryAsset,
+  archiveMediaLibraryAssets,
   restoreMediaLibraryAsset,
   purgeMediaLibraryAsset,
+  purgeMediaLibraryAssets,
   cancelJob,
   publicJob,
   desktopJob,

@@ -1,12 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CheckCircle2,
+  CheckCheck,
   CalendarRange,
   ChevronLeft,
   ChevronRight,
   FolderPlus,
   HardDrive,
   TimerReset,
+  Trash2,
   Images,
   Send,
   ShieldAlert,
@@ -18,11 +20,13 @@ import { useNavigate } from "react-router-dom";
 import { matchesTab } from "../../data/mediaLibraryData";
 import {
   archiveMediaAsset,
+  archiveMediaAssets,
   createMediaFolder,
   downloadMediaAsset,
   duplicateMediaAsset,
   fetchMediaLibrary,
   purgeMediaAsset,
+  purgeMediaAssets,
   renameMediaAsset,
   restoreMediaAsset,
   uploadMediaAsset,
@@ -110,6 +114,7 @@ export function MediaLibraryPage() {
   const [folderBusy, setFolderBusy] = useState(false);
   const [folderError, setFolderError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selectionBusy, setSelectionBusy] = useState(false);
   const [uploadState, setUploadState] = useState<{
     label: string;
     percent: number;
@@ -133,8 +138,8 @@ export function MediaLibraryPage() {
   const displayedAssets = trashMode ? trashAssets : assets;
   const selectedAsset = [...assets, ...trashAssets].find((asset) => asset.id === selectedId) || null;
   const selectedAssets = useMemo(
-    () => [...checkedIds].map((id) => assets.find((asset) => asset.id === id)).filter((asset): asset is MediaAsset => Boolean(asset)),
-    [assets, checkedIds],
+    () => [...checkedIds].map((id) => displayedAssets.find((asset) => asset.id === id)).filter((asset): asset is MediaAsset => Boolean(asset)),
+    [displayedAssets, checkedIds],
   );
   const previewAsset = checkedIds.size ? null : selectedAsset;
   const filtered = useMemo(() => {
@@ -160,6 +165,7 @@ export function MediaLibraryPage() {
               : +new Date(b.createdAt) - +new Date(a.createdAt),
       );
   }, [activeFolder, activeTab, displayedAssets, search, sort, type]);
+  const allFilteredSelected = filtered.length > 0 && filtered.every((asset) => checkedIds.has(asset.id));
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pages);
   const visible = filtered.slice(
@@ -292,6 +298,44 @@ export function MediaLibraryPage() {
       else next.add(asset.id);
       return next;
     });
+  }
+
+  function selectAllFiltered() {
+    setSelectedId(null);
+    setCheckedIds(new Set(filtered.map((asset) => asset.id)));
+  }
+
+  async function deleteSelectedAssets() {
+    const ids = selectedAssets.map((asset) => asset.id);
+    if (!ids.length) return;
+    const permanent = trashMode;
+    const prompt = permanent
+      ? `Permanently delete ${ids.length} selected media asset${ids.length === 1 ? "" : "s"}? This cannot be undone.`
+      : `Move ${ids.length} selected media asset${ids.length === 1 ? "" : "s"} to Trash?`;
+    if (!window.confirm(prompt)) return;
+
+    setSelectionBusy(true);
+    try {
+      const result = permanent
+        ? await purgeMediaAssets(ids)
+        : await archiveMediaAssets(ids);
+      setCheckedIds(new Set());
+      setSelectedId(null);
+      await refresh();
+      notify(
+        "success",
+        permanent
+          ? `${result.count} media asset${result.count === 1 ? "" : "s"} permanently deleted.`
+          : `${result.count} media asset${result.count === 1 ? "" : "s"} moved to Trash.`,
+      );
+    } catch (error) {
+      notify(
+        "error",
+        error instanceof Error ? error.message : "The selected media could not be deleted.",
+      );
+    } finally {
+      setSelectionBusy(false);
+    }
   }
 
   function useSelectedAssets() {
@@ -454,7 +498,7 @@ export function MediaLibraryPage() {
       <section className="mt-4 rounded-panel border border-border-soft bg-panel/65 p-3 shadow-panel">
         <div className="mb-3 flex items-center gap-2 rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.035] px-3 py-2 text-[9px] text-text-muted">
           <TimerReset className="size-3.5 shrink-0 text-brand-cyan" />
-          Videos are retained for {workspaceData.storage.videoRetentionDays ?? 10} days; images and other media for {workspaceData.storage.otherMediaRetentionDays ?? 30} days. Download anything you need to keep permanently.
+          Media Library storage is capped at 200 MB per account. When new media pushes storage above the limit, the oldest media is removed first in the background. Videos are also retained for {workspaceData.storage.videoRetentionDays ?? 10} days; images and other media for {workspaceData.storage.otherMediaRetentionDays ?? 30} days.
         </div>
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <MediaTabs
@@ -462,6 +506,8 @@ export function MediaLibraryPage() {
             assets={displayedAssets}
             onChange={(value) => {
               setActiveTab(value);
+              setCheckedIds(new Set());
+              setSelectedId(null);
               setPage(1);
             }}
           />
@@ -481,12 +527,6 @@ export function MediaLibraryPage() {
                 />
               </div>
             </div>
-            <a
-              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-brand-cyan/25 px-3 text-[10px] font-semibold text-brand-cyan transition hover:bg-brand-cyan/10 focus-visible:outline-2 focus-visible:outline-brand-cyan"
-              href="/app/billing"
-            >
-              Upgrade Plan
-            </a>
             <Button onClick={() => setFolderModalOpen(true)} type="button">
               <FolderPlus className="size-4" />
               Create Folder
@@ -528,6 +568,7 @@ export function MediaLibraryPage() {
             setActiveFolder(id);
             setActiveTab("all");
             setSelectedId(null);
+            setCheckedIds(new Set());
             setPage(1);
             setFoldersOpen(false);
           }}
@@ -541,6 +582,8 @@ export function MediaLibraryPage() {
             onFolders={() => setFoldersOpen(true)}
             onSearch={(value) => {
               setSearch(value);
+              setCheckedIds(new Set());
+              setSelectedId(null);
               setPage(1);
             }}
             onSort={(value) => {
@@ -549,6 +592,8 @@ export function MediaLibraryPage() {
             }}
             onType={(value) => {
               setType(value);
+              setCheckedIds(new Set());
+              setSelectedId(null);
               setPage(1);
             }}
             onView={setView}
@@ -557,10 +602,57 @@ export function MediaLibraryPage() {
             type={type}
             view={view}
           />
-          {checkedIds.size > 0 && (
-            <section aria-label="Selected media actions" className="mt-3 flex flex-col gap-3 rounded-2xl border border-brand-cyan/30 bg-brand-cyan/[0.06] p-3 shadow-[0_14px_36px_rgba(0,214,192,.08)] sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-brand-cyan/12 text-brand-cyan"><Images className="size-4" /></span><div><strong className="block text-xs">{checkedIds.size} selected</strong><span className="text-[10px] text-text-muted">{checkedIds.size === 1 ? 'Use this asset in a post.' : 'Use 2–10 selected images as one ordered carousel.'}</span></div></div>
-              <div className="flex flex-wrap gap-2"><Button onClick={() => setCheckedIds(new Set())} size="sm" type="button" variant="ghost"><X className="size-3.5" />Clear</Button>{selectedAssets.length > 1 && <Button disabled={selectedAssets.some((asset) => !asset.contentAvailable)} onClick={useSelectedAssetsAsBulkPosts} size="sm" type="button" variant="ghost"><CalendarRange className="size-3.5" />Use as Bulk Posts</Button>}<Button disabled={selectedAssets.length > 1 && (selectedAssets.length > 10 || selectedAssets.some((asset) => asset.type !== "image" || !asset.contentAvailable))} onClick={useSelectedAssets} size="sm" type="button" variant="primary"><Send className="size-3.5" />{selectedAssets.length === 1 ? 'Use in Post' : 'Use as Carousel'}</Button></div>
+          <div className="mt-2 flex justify-end">
+            <Button
+              disabled={!filtered.length || allFilteredSelected || selectionBusy}
+              onClick={selectAllFiltered}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              <CheckCheck className="size-3.5" />
+              {allFilteredSelected ? `All ${filtered.length} selected` : `Select all ${filtered.length || ""}`}
+            </Button>
+          </div>
+          {selectedAssets.length > 0 && (
+            <section aria-label="Selected media actions" className="mt-2 flex flex-col gap-3 rounded-2xl border border-brand-cyan/30 bg-brand-cyan/[0.06] p-3 shadow-[0_14px_36px_rgba(0,214,192,.08)] sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <span className="grid size-9 place-items-center rounded-xl bg-brand-cyan/12 text-brand-cyan"><Images className="size-4" /></span>
+                <div>
+                  <strong className="block text-xs">{selectedAssets.length} selected</strong>
+                  <span className="text-[10px] text-text-muted">
+                    {trashMode
+                      ? "Selected items can be permanently deleted."
+                      : selectedAssets.length === 1
+                        ? "Use this asset in a post or delete it."
+                        : "Use selected media for bulk posts, a carousel, or delete them together."}
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button disabled={selectionBusy} onClick={() => setCheckedIds(new Set())} size="sm" type="button" variant="ghost"><X className="size-3.5" />Clear</Button>
+                <Button
+                  className="border-brand-red/25 text-brand-red hover:border-brand-red/45 hover:bg-brand-red/10 hover:text-brand-red"
+                  disabled={selectionBusy}
+                  onClick={() => void deleteSelectedAssets()}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Trash2 className="size-3.5" />
+                  {trashMode ? "Delete permanently" : "Delete selected"}
+                </Button>
+                {!trashMode && selectedAssets.length > 1 && (
+                  <Button disabled={selectionBusy || selectedAssets.some((asset) => !asset.contentAvailable)} onClick={useSelectedAssetsAsBulkPosts} size="sm" type="button" variant="ghost">
+                    <CalendarRange className="size-3.5" />Use as Bulk Posts
+                  </Button>
+                )}
+                {!trashMode && (
+                  <Button disabled={selectionBusy || (selectedAssets.length > 1 && (selectedAssets.length > 10 || selectedAssets.some((asset) => asset.type !== "image" || !asset.contentAvailable)))} onClick={useSelectedAssets} size="sm" type="button" variant="primary">
+                    <Send className="size-3.5" />{selectedAssets.length === 1 ? "Use in Post" : "Use as Carousel"}
+                  </Button>
+                )}
+              </div>
             </section>
           )}
           <div className="scrollbar-thin mt-3 min-h-[360px] overscroll-contain 2xl:max-h-[calc(100vh-25rem)] 2xl:overflow-y-auto 2xl:pr-1">
