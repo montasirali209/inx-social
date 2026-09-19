@@ -202,8 +202,7 @@ async function persistProviderAsset(userId, generationId, result, meta) {
   const downloaded = await downloadProviderAsset(result.url, meta.type);
   const checksum = crypto.createHash('sha256').update(downloaded.data).digest('hex');
   const extension = meta.type === 'video' ? 'mp4' : downloaded.mimeType.includes('png') ? 'png' : 'jpg';
-  const record = await prisma.agentAsset.create({
-    data: {
+  const record = await mediaLibrary.createStoredAsset({
       userId,
       kind: meta.type === 'video' ? 'AI_VIDEO' : 'AI_IMAGE',
       source: 'AI_STUDIO',
@@ -221,7 +220,6 @@ async function persistProviderAsset(userId, generationId, result, meta) {
       height: result.height || null,
       durationSeconds: result.duration || null,
       expiresAt: expiresAtFor(downloaded.mimeType)
-    }
   });
   const publicAsset = mediaLibrary.publicAsset(record);
   return {
