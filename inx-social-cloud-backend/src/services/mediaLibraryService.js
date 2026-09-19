@@ -16,6 +16,30 @@ const ASSET_INCLUDE = {
   scheduleJobs: { select: { id: true, title: true, localFileName: true, status: true }, take: 20, orderBy: { createdAt: 'desc' } }
 };
 
+
+const LIBRARY_ASSET_SELECT = {
+  id: true,
+  userId: true,
+  source: true,
+  status: true,
+  originalName: true,
+  mimeType: true,
+  byteSize: true,
+  prompt: true,
+  customerPrompt: true,
+  qualityScore: true,
+  expiresAt: true,
+  createdAt: true,
+  tagsJson: true,
+  width: true,
+  height: true,
+  durationSeconds: true,
+  archivedAt: true,
+  folder: { select: { id: true, name: true } },
+  campaignPosts: { select: { id: true, title: true, status: true, scheduleJobId: true }, take: 20, orderBy: { createdAt: 'desc' } },
+  scheduleJobs: { select: { id: true, title: true, localFileName: true, status: true }, take: 20, orderBy: { createdAt: 'desc' } }
+};
+
 function error(message, status = 400) {
   const value = new Error(message);
   value.status = status;
@@ -81,11 +105,25 @@ function publicAsset(asset) {
 
 async function workspace(userId, plan) {
   const trashCutoff = new Date(Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000);
-  await prisma.agentAsset.deleteMany({ where: { userId, archivedAt: { lt: trashCutoff } } });
+  const visibleAssetWhere = {
+    userId,
+    OR: [
+      { archivedAt: null },
+      { archivedAt: { gte: trashCutoff } }
+    ]
+  };
+
+  // Trash cleanup must never delay the visible Media Library request.
+  void prisma.agentAsset.deleteMany({ where: { userId, archivedAt: { lt: trashCutoff } } }).catch((cleanupError) => {
+    console.warn('[media-library] expired trash cleanup delayed', { userId, error: cleanupError?.message || String(cleanupError) });
+  });
+
   const [assets, folders, storage] = await Promise.all([
-    prisma.agentAsset.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 1000, include: ASSET_INCLUDE }),
+    // Do not fetch AgentAsset.data here. Loading binary media blobs for a metadata grid
+    // made the library response scale with file sizes instead of the number of records.
+    prisma.agentAsset.findMany({ where: visibleAssetWhere, orderBy: { createdAt: 'desc' }, take: 1000, select: LIBRARY_ASSET_SELECT }),
     prisma.mediaFolder.findMany({ where: { userId }, orderBy: { name: 'asc' }, include: { _count: { select: { assets: true } } } }),
-    prisma.agentAsset.aggregate({ where: { userId }, _sum: { byteSize: true } })
+    prisma.agentAsset.aggregate({ where: visibleAssetWhere, _sum: { byteSize: true } })
   ]);
   const limit = STORAGE_LIMITS[String(plan || 'TRIAL').toUpperCase()] || STORAGE_LIMITS.TRIAL;
   return {
