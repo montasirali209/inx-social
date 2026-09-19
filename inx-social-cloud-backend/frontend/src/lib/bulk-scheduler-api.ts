@@ -15,7 +15,7 @@ export async function fetchBulkSchedulerData(): Promise<BulkSchedulerData> {
   const [pageResult, platformResult, jobResult, preferenceResult] = await Promise.all([
     apiRequest<ConnectedPagesResponse>('/api/pages'),
     apiRequest<StudioPlatformsResponse>('/api/social-platforms'),
-    apiRequest<StudioJobsResponse>('/api/studio/jobs?limit=250'),
+    apiRequest<StudioJobsResponse>('/api/studio/jobs?limit=1000'),
     apiRequest<{ settings: Partial<SettingsValues> }>('/api/studio/preferences'),
   ])
   const settings = normaliseSettings(preferenceResult.settings)
@@ -91,5 +91,19 @@ export function uploadBulkMedia(jobId: string, file: File, options: UploadOption
     })
     options.signal.addEventListener('abort', abort, { once: true })
     request.send(file)
+  })
+}
+
+
+export function rescheduleBulkJob(jobId: string, scheduledAt: string) {
+  return apiRequest<{ job: import('../types/dashboard').DashboardJob }>(`/api/studio/jobs/${encodeURIComponent(jobId)}/schedule`, {
+    method: 'PATCH',
+    body: JSON.stringify({ scheduledAt }),
+  })
+}
+
+export function deleteBulkJob(jobId: string) {
+  return apiRequest<{ ok: boolean; job: import('../types/dashboard').DashboardJob }>(`/api/studio/jobs/${encodeURIComponent(jobId)}`, {
+    method: 'DELETE',
   })
 }

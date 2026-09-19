@@ -14,6 +14,7 @@ const metaPublisher = require('../services/cloudMetaPublisher');
 const { getFacebookAnalytics, clearAnalyticsCache } = require('../services/facebookAnalyticsService');
 const postEnhancement = require('../services/postEnhancementService');
 const mediaLibrary = require('../services/mediaLibraryService');
+const objectStorage = require('../services/mediaObjectStorageService');
 const emailService = require('../services/emailService');
 const {
   JOB_STATUS,
@@ -34,7 +35,7 @@ const DEFAULT_SETTINGS = {
   graphVersion: process.env.FB_GRAPH_VERSION || process.env.GRAPH_VERSION || 'v25.0',
   timezone: 'Europe/London',
   dailySlots: ['11:00', '15:13', '22:15', '23:15'],
-  maxScheduleDays: 25,
+  maxScheduleDays: 0,
   minLeadMinutes: 20,
   maxRetries: 3,
   retryBaseDelayMs: 5000,
@@ -510,15 +511,15 @@ async function capabilities(req, res, next) {
       },
       upload: {
         enabled: true,
-        provider: 'TEMPORARY_STREAM_TO_META',
-        persistentStorage: false,
+        provider: 'R2_SERVER_QUEUE',
+        persistentStorage: true,
         maximumFileSizeBytes: MAX_CLOUD_FILE_BYTES.toString(),
         acceptedExtensions: ['.mp4', '.mov', '.m4v', '.avi', '.mkv', '.webm'],
-        note: 'Keep this browser open until each upload reaches Meta. Temporary server files are deleted after every attempt.'
+        note: 'Scheduled media is stored durably after upload. The browser does not need to remain open until the publishing time.'
       },
       publishing: {
         enabled: true,
-        mode: 'META_SCHEDULED_AND_IMMEDIATE_REELS'
+        mode: 'SERVER_SIDE_QUEUE_AND_IMMEDIATE_PUBLISH'
       }
     });
   } catch (error) {
@@ -997,9 +998,13 @@ async function createDirectPosts(req, res, next) {
       error.publicMessage = error.message;
       throw error;
     }
+
     let libraryAsset = null;
     if (input.mediaLibraryAssetId) {
-      libraryAsset = await prisma.agentAsset.findFirst({ where: { id: input.mediaLibraryAssetId, userId: req.user.id, status: 'READY', archivedAt: null }, select: { id: true, originalName: true, mimeType: true, byteSize: true } });
+      libraryAsset = await prisma.agentAsset.findFirst({
+        where: { id: input.mediaLibraryAssetId, userId: req.user.id, status: 'READY', archivedAt: null },
+        select: { id: true, originalName: true, mimeType: true, byteSize: true }
+      });
       if (!libraryAsset) {
         const error = new Error('The selected Media Library asset is unavailable. Restore it or choose another file.');
         error.status = 404;
@@ -1014,25 +1019,44 @@ async function createDirectPosts(req, res, next) {
         throw error;
       }
     }
-    const fileSizeBytes = input.contentType === 'TEXT' ? null : libraryAsset ? BigInt(libraryAsset.byteSize) : normaliseFileSize(input.fileSizeBytes);
+
+    const fileSizeBytes = input.contentType === 'TEXT'
+      ? null
+      : libraryAsset
+        ? BigInt(libraryAsset.byteSize)
+        : normaliseFileSize(input.fileSizeBytes);
     if (input.contentType === 'IMAGE' && fileSizeBytes > MAX_DIRECT_IMAGE_BYTES) {
       const error = new Error('Post images must be no larger than 15 MB.');
       error.status = 413;
       error.publicMessage = error.message;
       throw error;
     }
+
     const jobs = [];
     const failures = [];
     for (const page of pages) {
       const clientRequestId = `${input.clientRequestId}:${page.id}`.slice(0, 100);
-      const existing = await prisma.scheduleJob.findUnique({ where: { userId_clientRequestId: { userId: req.user.id, clientRequestId } }, include: { connectedPage: true, cloudAsset: true } });
-      if (existing) { jobs.push(publicJob(existing)); continue; }
+      const existing = await prisma.scheduleJob.findUnique({
+        where: { userId_clientRequestId: { userId: req.user.id, clientRequestId } },
+        include: { connectedPage: true, cloudAsset: true }
+      });
+      if (existing) {
+        jobs.push(publicJob(existing));
+        continue;
+      }
+
       const media = input.contentType !== 'TEXT';
+      const initialStatus = media
+        ? JOB_STATUS.AWAITING_UPLOAD
+        : immediate
+          ? JOB_STATUS.PROCESSING
+          : JOB_STATUS.QUEUED;
+
       let job = await prisma.scheduleJob.create({
         data: {
           userId: req.user.id,
           connectedPageId: page.id,
-          status: media ? JOB_STATUS.AWAITING_UPLOAD : JOB_STATUS.PROCESSING,
+          status: initialStatus,
           origin: 'CLOUD',
           uploadStatus: media ? ASSET_STATUS.AWAITING_UPLOAD : 'NOT_REQUIRED',
           publishMode: input.publishMode,
@@ -1043,26 +1067,70 @@ async function createDirectPosts(req, res, next) {
           localFileName: media ? libraryAsset?.originalName || input.originalFileName : null,
           mediaLibraryAssetId: libraryAsset?.id || null,
           scheduledAt,
-          attemptCount: media ? 0 : 1,
-          claimedAt: media ? null : new Date(),
-          ...(media ? { cloudAsset: { create: { userId: req.user.id, provider: libraryAsset ? 'MEDIA_LIBRARY' : 'TEMPORARY_STREAM', originalFileName: libraryAsset?.originalName || input.originalFileName, mimeType: libraryAsset?.mimeType || input.mimeType || 'application/octet-stream', fileSizeBytes, status: ASSET_STATUS.AWAITING_UPLOAD } } } : {})
+          attemptCount: 0,
+          claimedAt: immediate && !media ? new Date() : null,
+          nextAttemptAt: !immediate && !media ? scheduledAt : null,
+          rawMetaResponse: !immediate ? JSON.stringify({ serverQueue: true, queuedAt: new Date().toISOString() }) : null,
+          ...(media ? {
+            cloudAsset: {
+              create: {
+                userId: req.user.id,
+                provider: libraryAsset ? 'MEDIA_LIBRARY' : (!immediate ? 'QUEUE_PENDING' : 'TEMPORARY_STREAM'),
+                originalFileName: libraryAsset?.originalName || input.originalFileName,
+                mimeType: libraryAsset?.mimeType || input.mimeType || 'application/octet-stream',
+                fileSizeBytes,
+                status: ASSET_STATUS.AWAITING_UPLOAD
+              }
+            }
+          } : {})
         },
         include: { connectedPage: true, cloudAsset: true }
       });
-      if (!media) {
+
+      if (!media && immediate) {
         try {
-          const published = await metaPublisher.publishOrganicPost({ pageId: page.facebookPageId, pageAccessToken: decryptToken(page.encryptedAccessToken), caption: input.caption, scheduledAt, publishMode: input.publishMode });
-          job = await prisma.scheduleJob.update({ where: { id: job.id }, data: { status: immediate ? JOB_STATUS.PUBLISHED : JOB_STATUS.SCHEDULED, completedAt: new Date(), claimedAt: null, metaPostId: published.postId, rawMetaResponse: JSON.stringify({ ...(published.response || {}), verification: { state: immediate ? 'PUBLISHED' : 'SCHEDULED', confirmedAt: new Date().toISOString() } }) }, include: { connectedPage: true, cloudAsset: true } });
+          const published = await metaPublisher.publishOrganicPost({
+            pageId: page.facebookPageId,
+            pageAccessToken: decryptToken(page.encryptedAccessToken),
+            caption: input.caption,
+            scheduledAt: null,
+            publishMode: 'NOW'
+          });
+          job = await prisma.scheduleJob.update({
+            where: { id: job.id },
+            data: {
+              status: JOB_STATUS.PUBLISHED,
+              attemptCount: { increment: 1 },
+              completedAt: new Date(),
+              claimedAt: null,
+              metaPostId: published.postId,
+              rawMetaResponse: JSON.stringify({ ...(published.response || {}), verification: { state: 'PUBLISHED', confirmedAt: new Date().toISOString() } })
+            },
+            include: { connectedPage: true, cloudAsset: true }
+          });
         } catch (error) {
           const message = String(error.publicMessage || error.message || 'Facebook publishing failed.').slice(0, 1000);
-          job = await prisma.scheduleJob.update({ where: { id: job.id }, data: { status: JOB_STATUS.FAILED, claimedAt: null, errorMessage: message }, include: { connectedPage: true, cloudAsset: true } });
+          job = await prisma.scheduleJob.update({
+            where: { id: job.id },
+            data: { status: JOB_STATUS.FAILED, attemptCount: { increment: 1 }, claimedAt: null, errorMessage: message },
+            include: { connectedPage: true, cloudAsset: true }
+          });
           failures.push({ pageId: page.id, pageName: page.facebookPageName, error: message });
         }
       }
+
       jobs.push(publicJob(job));
     }
-    res.status(failures.length ? 207 : 201).json({ jobs, failures, uploadRequired: input.contentType !== 'TEXT' });
-  } catch (error) { next(error); }
+
+    res.status(failures.length ? 207 : 201).json({
+      jobs,
+      failures,
+      uploadRequired: input.contentType !== 'TEXT',
+      serverQueued: !immediate
+    });
+  } catch (error) {
+    next(error);
+  }
 }
 
 async function uploadDirectPostMedia(req, res, next) {
@@ -1070,41 +1138,128 @@ async function uploadDirectPostMedia(req, res, next) {
   let existing = null;
   try {
     await requireStudioLicense(req.user.id);
-    existing = await prisma.scheduleJob.findFirst({ where: { id: req.params.id, userId: req.user.id, origin: 'CLOUD', contentType: { in: ['IMAGE', 'VIDEO'] } }, include: { connectedPage: true, cloudAsset: true } });
+    existing = await prisma.scheduleJob.findFirst({
+      where: { id: req.params.id, userId: req.user.id, origin: 'CLOUD', contentType: { in: ['IMAGE', 'VIDEO'] } },
+      include: { connectedPage: true, cloudAsset: true }
+    });
     if (!existing?.cloudAsset) return res.status(404).json({ error: 'Direct post upload was not found.' });
+
     const contentType = String(req.headers['content-type'] || '');
     const image = existing.contentType === 'IMAGE';
-    if (image ? !/^image\/(png|jpeg|webp)$/i.test(contentType) : !/^video\/|^application\/octet-stream$/i.test(contentType)) return res.status(415).json({ error: image ? 'Upload a PNG, JPEG or WebP image.' : 'Upload a supported video file.' });
+    if (image ? !/^image\/(png|jpeg|webp)$/i.test(contentType) : !/^video\/|^application\/octet-stream$/i.test(contentType)) {
+      return res.status(415).json({ error: image ? 'Upload a PNG, JPEG or WebP image.' : 'Upload a supported video file.' });
+    }
+
     const contentLength = req.headers['content-length'] ? BigInt(req.headers['content-length']) : null;
     const declaredSize = existing.cloudAsset.fileSizeBytes || null;
     const maximum = image ? MAX_DIRECT_IMAGE_BYTES : MAX_CLOUD_FILE_BYTES;
     if (!contentLength || contentLength <= 0n) return res.status(411).json({ error: 'The browser must send the media Content-Length.' });
-    if (contentLength > maximum || (declaredSize && contentLength !== declaredSize)) return res.status(413).json({ error: 'Media size does not match the prepared upload or exceeds the allowed limit.' });
-    const claimed = await prisma.scheduleJob.updateMany({ where: { id: existing.id, userId: req.user.id, status: { in: [JOB_STATUS.AWAITING_UPLOAD, JOB_STATUS.FAILED] } }, data: { status: JOB_STATUS.PROCESSING, uploadStatus: ASSET_STATUS.UPLOADING, attemptCount: { increment: 1 }, claimedAt: new Date(), errorMessage: null } });
+    if (contentLength > maximum || (declaredSize && contentLength !== declaredSize)) {
+      return res.status(413).json({ error: 'Media size does not match the prepared upload or exceeds the allowed limit.' });
+    }
+
+    const claimed = await prisma.scheduleJob.updateMany({
+      where: { id: existing.id, userId: req.user.id, status: { in: [JOB_STATUS.AWAITING_UPLOAD, JOB_STATUS.FAILED] } },
+      data: { status: JOB_STATUS.PROCESSING, uploadStatus: ASSET_STATUS.UPLOADING, claimedAt: new Date(), errorMessage: null }
+    });
     if (claimed.count !== 1) return res.status(409).json({ error: 'This media upload is already processing or complete.' });
     await prisma.cloudAsset.update({ where: { id: existing.cloudAsset.id }, data: { status: ASSET_STATUS.UPLOADING } });
+
     const suffix = path.extname(existing.cloudAsset.originalFileName || '').slice(0, 12);
     tempPath = path.join(os.tmpdir(), `inx-social-direct-${crypto.randomUUID()}${suffix}`);
     const received = await receiveTemporaryVideo(req, tempPath, maximum);
     if (received !== contentLength) throw new Error('The media upload ended before all bytes arrived.');
-    const page = await resolvePage(req.user.id, existing.connectedPageId, true);
+
     const immediate = existing.publishMode === 'NOW';
+    if (!immediate) {
+      const provider = objectStorage.providerForPrefix('scheduled-publishing');
+      if (!provider) throw new Error('Durable scheduled-media storage is not configured.');
+      const storageKey = objectStorage.createStorageKey({
+        userId: req.user.id,
+        mimeType: contentType,
+        originalName: existing.cloudAsset.originalFileName,
+        prefix: 'scheduled-publishing'
+      });
+      await objectStorage.putFile({ key: storageKey, filePath: tempPath, mimeType: contentType, provider });
+      if (existing.cloudAsset.storageKey && existing.cloudAsset.storageKey !== storageKey) {
+        await objectStorage.deleteObject(existing.cloudAsset.storageKey, existing.cloudAsset.provider || null).catch(() => {});
+      }
+      const [job] = await prisma.$transaction([
+        prisma.scheduleJob.update({
+          where: { id: existing.id },
+          data: {
+            status: JOB_STATUS.QUEUED,
+            uploadStatus: ASSET_STATUS.READY,
+            claimedAt: null,
+            nextAttemptAt: existing.scheduledAt,
+            completedAt: null,
+            errorMessage: null,
+            rawMetaResponse: JSON.stringify({ serverQueue: true, queuedAt: new Date().toISOString() })
+          },
+          include: { connectedPage: true, cloudAsset: true }
+        }),
+        prisma.cloudAsset.update({
+          where: { id: existing.cloudAsset.id },
+          data: { provider, storageKey, status: ASSET_STATUS.READY, expiresAt: null }
+        })
+      ]);
+      const fresh = await prisma.scheduleJob.findUnique({ where: { id: job.id }, include: { connectedPage: true, cloudAsset: true } });
+      return res.status(202).json({ job: publicJob(fresh), accepted: true, queued: true, scheduled: true, published: false });
+    }
+
+    const page = await resolvePage(req.user.id, existing.connectedPageId, true);
     const result = image
-      ? await metaPublisher.publishOrganicPost({ pageId: page.facebookPageId, pageAccessToken: decryptToken(page.encryptedAccessToken), caption: existing.caption, scheduledAt: existing.scheduledAt, publishMode: existing.publishMode, asset: { data: await fs.promises.readFile(tempPath), mimeType: contentType, originalName: existing.cloudAsset.originalFileName } })
-      : await metaPublisher.publishReel({ pageId: page.facebookPageId, pageAccessToken: decryptToken(page.encryptedAccessToken), filePath: tempPath, fileSize: Number(received), caption: existing.caption, scheduledAt: existing.scheduledAt, publishMode: existing.publishMode });
-    const job = await prisma.scheduleJob.update({ where: { id: existing.id }, data: { status: immediate ? JOB_STATUS.PUBLISHED : JOB_STATUS.SCHEDULED, uploadStatus: ASSET_STATUS.DELETED, completedAt: new Date(), claimedAt: null, metaPostId: result.postId, metaVideoId: result.videoId || null, rawMetaResponse: JSON.stringify({ ...(result.response || result.finish || {}), verification: { state: immediate ? 'PUBLISHED' : 'SCHEDULED', confirmedAt: new Date().toISOString() } }) }, include: { connectedPage: true, cloudAsset: true } });
+      ? await metaPublisher.publishOrganicPost({
+          pageId: page.facebookPageId,
+          pageAccessToken: decryptToken(page.encryptedAccessToken),
+          caption: existing.caption,
+          scheduledAt: null,
+          publishMode: 'NOW',
+          asset: { data: await fs.promises.readFile(tempPath), mimeType: contentType, originalName: existing.cloudAsset.originalFileName }
+        })
+      : await metaPublisher.publishReel({
+          pageId: page.facebookPageId,
+          pageAccessToken: decryptToken(page.encryptedAccessToken),
+          filePath: tempPath,
+          fileSize: Number(received),
+          caption: existing.caption,
+          scheduledAt: null,
+          publishMode: 'NOW'
+        });
+
+    const job = await prisma.scheduleJob.update({
+      where: { id: existing.id },
+      data: {
+        status: JOB_STATUS.PUBLISHED,
+        uploadStatus: ASSET_STATUS.DELETED,
+        attemptCount: { increment: 1 },
+        completedAt: new Date(),
+        claimedAt: null,
+        metaPostId: result.postId,
+        metaVideoId: result.videoId || null,
+        rawMetaResponse: JSON.stringify({ ...(result.response || result.finish || {}), verification: { state: 'PUBLISHED', confirmedAt: new Date().toISOString() } })
+      },
+      include: { connectedPage: true, cloudAsset: true }
+    });
     await prisma.cloudAsset.update({ where: { id: existing.cloudAsset.id }, data: { status: ASSET_STATUS.DELETED } });
-    res.status(202).json({ job: publicJob(job), accepted: true, published: immediate, scheduled: !immediate });
+    return res.status(202).json({ job: publicJob(job), accepted: true, published: true, scheduled: false });
   } catch (error) {
     if (existing) {
       const message = String(error.publicMessage || error.message || 'Media publishing failed.').slice(0, 1000);
-      await prisma.scheduleJob.update({ where: { id: existing.id }, data: { status: JOB_STATUS.FAILED, uploadStatus: ASSET_STATUS.FAILED, claimedAt: null, errorMessage: message } }).catch(() => {});
-      if (existing.cloudAsset) await prisma.cloudAsset.update({ where: { id: existing.cloudAsset.id }, data: { status: ASSET_STATUS.FAILED } }).catch(() => {});
+      await prisma.scheduleJob.update({
+        where: { id: existing.id },
+        data: { status: JOB_STATUS.FAILED, uploadStatus: ASSET_STATUS.FAILED, claimedAt: null, errorMessage: message }
+      }).catch(() => {});
+      if (existing.cloudAsset) {
+        await prisma.cloudAsset.update({ where: { id: existing.cloudAsset.id }, data: { status: ASSET_STATUS.FAILED } }).catch(() => {});
+      }
       error.publicMessage = message;
     }
     next(error);
   } finally {
-    if (tempPath) { try { await fs.promises.unlink(tempPath); } catch (_) {} }
+    if (tempPath) {
+      try { await fs.promises.unlink(tempPath); } catch (_) {}
+    }
   }
 }
 
@@ -1113,39 +1268,127 @@ async function publishDirectPostLibraryMedia(req, res, next) {
   let existing = null;
   try {
     await requireStudioLicense(req.user.id);
-    existing = await prisma.scheduleJob.findFirst({ where: { id: req.params.id, userId: req.user.id, origin: 'CLOUD', mediaLibraryAssetId: { not: null }, contentType: { in: ['IMAGE', 'VIDEO'] } }, include: { connectedPage: true, cloudAsset: true } });
-    if (!existing?.cloudAsset || existing.cloudAsset.provider !== 'MEDIA_LIBRARY') return res.status(404).json({ error: 'Reusable Media Library publishing job was not found.' });
-    const claimed = await prisma.scheduleJob.updateMany({ where: { id: existing.id, userId: req.user.id, status: { in: [JOB_STATUS.AWAITING_UPLOAD, JOB_STATUS.FAILED] } }, data: { status: JOB_STATUS.PROCESSING, uploadStatus: ASSET_STATUS.UPLOADING, attemptCount: { increment: 1 }, claimedAt: new Date(), errorMessage: null } });
+    existing = await prisma.scheduleJob.findFirst({
+      where: { id: req.params.id, userId: req.user.id, origin: 'CLOUD', mediaLibraryAssetId: { not: null }, contentType: { in: ['IMAGE', 'VIDEO'] } },
+      include: { connectedPage: true, cloudAsset: true }
+    });
+    if (!existing?.cloudAsset || !['MEDIA_LIBRARY', 'QUEUE_PENDING'].includes(existing.cloudAsset.provider)) {
+      return res.status(404).json({ error: 'Reusable Media Library publishing job was not found.' });
+    }
+
+    const claimed = await prisma.scheduleJob.updateMany({
+      where: { id: existing.id, userId: req.user.id, status: { in: [JOB_STATUS.AWAITING_UPLOAD, JOB_STATUS.FAILED] } },
+      data: { status: JOB_STATUS.PROCESSING, uploadStatus: ASSET_STATUS.UPLOADING, claimedAt: new Date(), errorMessage: null }
+    });
     if (claimed.count !== 1) return res.status(409).json({ error: 'This reusable media job is already processing or complete.' });
     await prisma.cloudAsset.update({ where: { id: existing.cloudAsset.id }, data: { status: ASSET_STATUS.UPLOADING } });
+
     const asset = await mediaLibrary.findContent(req.user.id, existing.mediaLibraryAssetId);
     if (!asset) throw new Error('The linked Media Library asset is unavailable. Restore it before publishing.');
     const image = existing.contentType === 'IMAGE';
-    if (image ? !/^image\/(png|jpeg|webp)$/i.test(asset.mimeType) : !/^video\//i.test(asset.mimeType)) throw new Error('The linked Media Library file format no longer matches this post.');
-    const page = await resolvePage(req.user.id, existing.connectedPageId, true);
+    if (image ? !/^image\/(png|jpeg|webp)$/i.test(asset.mimeType) : !/^video\//i.test(asset.mimeType)) {
+      throw new Error('The linked Media Library file format no longer matches this post.');
+    }
+
     const immediate = existing.publishMode === 'NOW';
+    if (!immediate) {
+      const stored = await objectStorage.persistBuffer({
+        userId: req.user.id,
+        data: asset.data,
+        mimeType: asset.mimeType,
+        originalName: asset.originalName,
+        prefix: 'scheduled-publishing'
+      });
+      if (!stored.storageKey) throw new Error('Durable scheduled-media storage is required for queued publishing.');
+      const [job] = await prisma.$transaction([
+        prisma.scheduleJob.update({
+          where: { id: existing.id },
+          data: {
+            status: JOB_STATUS.QUEUED,
+            uploadStatus: ASSET_STATUS.READY,
+            claimedAt: null,
+            nextAttemptAt: existing.scheduledAt,
+            completedAt: null,
+            errorMessage: null,
+            rawMetaResponse: JSON.stringify({ serverQueue: true, queuedAt: new Date().toISOString(), mediaSource: 'MEDIA_LIBRARY_COPY' })
+          },
+          include: { connectedPage: true, cloudAsset: true }
+        }),
+        prisma.cloudAsset.update({
+          where: { id: existing.cloudAsset.id },
+          data: {
+            provider: stored.storageProvider,
+            storageKey: stored.storageKey,
+            status: ASSET_STATUS.READY,
+            fileSizeBytes: BigInt(asset.data.length),
+            mimeType: asset.mimeType,
+            expiresAt: null
+          }
+        })
+      ]);
+      const fresh = await prisma.scheduleJob.findUnique({ where: { id: job.id }, include: { connectedPage: true, cloudAsset: true } });
+      return res.status(202).json({ job: publicJob(fresh), accepted: true, queued: true, scheduled: true, published: false, reusableMedia: true });
+    }
+
+    const page = await resolvePage(req.user.id, existing.connectedPageId, true);
     let result;
     if (image) {
-      result = await metaPublisher.publishOrganicPost({ pageId: page.facebookPageId, pageAccessToken: decryptToken(page.encryptedAccessToken), caption: existing.caption, scheduledAt: existing.scheduledAt, publishMode: existing.publishMode, asset: { data: asset.data, mimeType: asset.mimeType, originalName: asset.originalName } });
+      result = await metaPublisher.publishOrganicPost({
+        pageId: page.facebookPageId,
+        pageAccessToken: decryptToken(page.encryptedAccessToken),
+        caption: existing.caption,
+        scheduledAt: null,
+        publishMode: 'NOW',
+        asset: { data: asset.data, mimeType: asset.mimeType, originalName: asset.originalName }
+      });
     } else {
       const suffix = path.extname(asset.originalName || '').slice(0, 12);
       tempPath = path.join(os.tmpdir(), `inx-social-library-${crypto.randomUUID()}${suffix}`);
       await fs.promises.writeFile(tempPath, asset.data);
-      result = await metaPublisher.publishReel({ pageId: page.facebookPageId, pageAccessToken: decryptToken(page.encryptedAccessToken), filePath: tempPath, fileSize: asset.data.length, caption: existing.caption, scheduledAt: existing.scheduledAt, publishMode: existing.publishMode });
+      result = await metaPublisher.publishReel({
+        pageId: page.facebookPageId,
+        pageAccessToken: decryptToken(page.encryptedAccessToken),
+        filePath: tempPath,
+        fileSize: asset.data.length,
+        caption: existing.caption,
+        scheduledAt: null,
+        publishMode: 'NOW'
+      });
     }
-    const job = await prisma.scheduleJob.update({ where: { id: existing.id }, data: { status: immediate ? JOB_STATUS.PUBLISHED : JOB_STATUS.SCHEDULED, uploadStatus: ASSET_STATUS.READY, completedAt: new Date(), claimedAt: null, metaPostId: result.postId, metaVideoId: result.videoId || null, rawMetaResponse: JSON.stringify({ ...(result.response || result.finish || {}), verification: { state: immediate ? 'PUBLISHED' : 'SCHEDULED', confirmedAt: new Date().toISOString(), mediaSource: 'MEDIA_LIBRARY' } }) }, include: { connectedPage: true, cloudAsset: true } });
+
+    const job = await prisma.scheduleJob.update({
+      where: { id: existing.id },
+      data: {
+        status: JOB_STATUS.PUBLISHED,
+        uploadStatus: ASSET_STATUS.READY,
+        attemptCount: { increment: 1 },
+        completedAt: new Date(),
+        claimedAt: null,
+        metaPostId: result.postId,
+        metaVideoId: result.videoId || null,
+        rawMetaResponse: JSON.stringify({ ...(result.response || result.finish || {}), verification: { state: 'PUBLISHED', confirmedAt: new Date().toISOString(), mediaSource: 'MEDIA_LIBRARY' } })
+      },
+      include: { connectedPage: true, cloudAsset: true }
+    });
     await prisma.cloudAsset.update({ where: { id: existing.cloudAsset.id }, data: { status: ASSET_STATUS.READY } });
-    res.status(202).json({ job: publicJob(job), accepted: true, published: immediate, scheduled: !immediate, reusableMedia: true });
+    return res.status(202).json({ job: publicJob(job), accepted: true, published: true, scheduled: false, reusableMedia: true });
   } catch (error) {
     if (existing) {
       const message = String(error.publicMessage || error.message || 'Reusable media publishing failed.').slice(0, 1000);
-      await prisma.scheduleJob.update({ where: { id: existing.id }, data: { status: JOB_STATUS.FAILED, uploadStatus: ASSET_STATUS.FAILED, claimedAt: null, errorMessage: message } }).catch(() => {});
-      if (existing.cloudAsset) await prisma.cloudAsset.update({ where: { id: existing.cloudAsset.id }, data: { status: ASSET_STATUS.FAILED } }).catch(() => {});
+      await prisma.scheduleJob.update({
+        where: { id: existing.id },
+        data: { status: JOB_STATUS.FAILED, uploadStatus: ASSET_STATUS.FAILED, claimedAt: null, errorMessage: message }
+      }).catch(() => {});
+      if (existing.cloudAsset) {
+        await prisma.cloudAsset.update({ where: { id: existing.cloudAsset.id }, data: { status: ASSET_STATUS.FAILED } }).catch(() => {});
+      }
       error.publicMessage = message;
     }
     next(error);
   } finally {
-    if (tempPath) { try { await fs.promises.unlink(tempPath); } catch (_) {} }
+    if (tempPath) {
+      try { await fs.promises.unlink(tempPath); } catch (_) {}
+    }
   }
 }
 
@@ -1434,25 +1677,39 @@ async function rescheduleJob(req, res, next) {
     if ([JOB_STATUS.PROCESSING, JOB_STATUS.PUBLISHED, JOB_STATUS.CANCELLED].includes(existing.status)) {
       return res.status(409).json({ error: `This ${existing.status.toLowerCase()} post cannot be rescheduled.` });
     }
+
     const postId = calendarMetaId(existing);
-    if (existing.status === JOB_STATUS.SCHEDULED) {
-      if (!postId || !existing.connectedPage) return res.status(409).json({ error: 'The Facebook post reference is unavailable.' });
+    const legacyMetaScheduled = existing.status === JOB_STATUS.SCHEDULED && Boolean(postId);
+    if (legacyMetaScheduled) {
+      if (!existing.connectedPage) return res.status(409).json({ error: 'The Facebook Page reference is unavailable.' });
       await metaPublisher.reschedulePost({
         postId,
         pageAccessToken: decryptToken(existing.connectedPage.encryptedAccessToken),
         scheduledAt
       });
     }
+
+    const assetReady = existing.contentType === 'TEXT'
+      || existing.cloudAsset?.status === ASSET_STATUS.READY
+      || Boolean(existing.cloudAsset?.storageKey);
+    const canRequeue = !legacyMetaScheduled
+      && assetReady
+      && [JOB_STATUS.QUEUED, JOB_STATUS.READY, JOB_STATUS.FAILED, JOB_STATUS.SCHEDULED].includes(existing.status);
+
     const verification = jobVerification(existing);
     const job = await prisma.scheduleJob.update({
       where: { id: existing.id },
       data: {
         scheduledAt,
         publishMode: 'SCHEDULED',
-        errorMessage: null,
+        status: canRequeue ? JOB_STATUS.QUEUED : existing.status,
+        nextAttemptAt: canRequeue ? scheduledAt : existing.nextAttemptAt,
+        claimedAt: canRequeue ? null : existing.claimedAt,
+        errorMessage: canRequeue ? null : existing.errorMessage,
         rawMetaResponse: JSON.stringify({
           ...parseJson(existing.rawMetaResponse, {}),
-          verification: { ...verification, state: existing.status, rescheduledAt: new Date().toISOString() }
+          serverQueue: canRequeue || parseJson(existing.rawMetaResponse, {})?.serverQueue || false,
+          verification: { ...verification, state: canRequeue ? 'QUEUED' : existing.status, rescheduledAt: new Date().toISOString() }
         })
       },
       include: { connectedPage: true, cloudAsset: true }
@@ -1471,8 +1728,9 @@ async function deleteJob(req, res, next) {
       include: { connectedPage: true, cloudAsset: true }
     });
     if (!existing) return res.status(404).json({ error: 'Scheduled content not found.' });
-    if (existing.status === JOB_STATUS.PROCESSING) return res.status(409).json({ error: 'Wait for the current Facebook upload to finish before deleting it.' });
+    if (existing.status === JOB_STATUS.PROCESSING) return res.status(409).json({ error: 'Wait for the current publishing attempt to finish before deleting it.' });
     if (existing.status === JOB_STATUS.CANCELLED) return res.json({ ok: true, job: publicJob(existing) });
+
     const postId = calendarMetaId(existing);
     if (postId && existing.connectedPage) {
       try {
@@ -1481,11 +1739,28 @@ async function deleteJob(req, res, next) {
         if (!metaPublisher.isMissingPostError(error)) throw error;
       }
     }
-    const job = await prisma.scheduleJob.update({
-      where: { id: existing.id },
-      data: { status: JOB_STATUS.CANCELLED, completedAt: new Date(), nextAttemptAt: null, errorMessage: null },
-      include: { connectedPage: true, cloudAsset: true }
-    });
+
+    if (existing.cloudAsset?.storageKey) {
+      await objectStorage.deleteObject(existing.cloudAsset.storageKey, existing.cloudAsset.provider || null).catch(error => {
+        console.warn('[PUBLISH QUEUE] delete cleanup failed', { jobId: existing.id, error: error?.message });
+      });
+    }
+
+    const operations = [
+      prisma.scheduleJob.update({
+        where: { id: existing.id },
+        data: { status: JOB_STATUS.CANCELLED, completedAt: new Date(), claimedAt: null, nextAttemptAt: null, errorMessage: null },
+        include: { connectedPage: true, cloudAsset: true }
+      })
+    ];
+    if (existing.cloudAsset) {
+      operations.push(prisma.cloudAsset.update({
+        where: { id: existing.cloudAsset.id },
+        data: { status: ASSET_STATUS.DELETED, storageKey: null }
+      }));
+    }
+    const [job, asset] = await prisma.$transaction(operations);
+    if (asset) job.cloudAsset = asset;
     res.json({ ok: true, job: publicJob(job) });
   } catch (error) {
     next(error);
@@ -1649,19 +1924,24 @@ async function cancelJob(req, res, next) {
       return res.status(409).json({ error: `This job is already ${existing.status.toLowerCase()}.` });
     }
     if ([JOB_STATUS.PROCESSING, JOB_STATUS.SCHEDULED].includes(existing.status)) {
-      return res.status(409).json({ error: 'A processing or Meta-scheduled job cannot be cancelled here.' });
+      return res.status(409).json({ error: 'A processing or legacy Meta-scheduled job cannot be cancelled here.' });
     }
+
+    if (existing.cloudAsset?.storageKey) {
+      await objectStorage.deleteObject(existing.cloudAsset.storageKey, existing.cloudAsset.provider || null).catch(() => {});
+    }
+
     const operations = [
       prisma.scheduleJob.update({
         where: { id: existing.id },
-        data: { status: JOB_STATUS.CANCELLED, caption: null, completedAt: new Date(), nextAttemptAt: null, errorMessage: null },
+        data: { status: JOB_STATUS.CANCELLED, caption: null, completedAt: new Date(), claimedAt: null, nextAttemptAt: null, errorMessage: null },
         include: { connectedPage: true, cloudAsset: true }
       })
     ];
     if (existing.cloudAsset) {
       operations.push(prisma.cloudAsset.update({
         where: { id: existing.cloudAsset.id },
-        data: { status: ASSET_STATUS.DELETED }
+        data: { status: ASSET_STATUS.DELETED, storageKey: null }
       }));
     }
     const [job, asset] = await prisma.$transaction(operations);

@@ -1,9 +1,18 @@
 const prisma = require('../db/prisma');
 const postForMe = require('./postForMeService');
+const objectStorage = require('./mediaObjectStorageService');
 
 function localId(value) {
   const raw = String(value || '');
   return raw.startsWith('pfm:') ? raw.slice(4) : raw;
+}
+
+function json(value, fallback = {}) {
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch (_) {
+    return fallback;
+  }
 }
 
 async function ownedPublication(userId, rawId) {
@@ -15,12 +24,26 @@ async function ownedPublication(userId, rawId) {
   return publication;
 }
 
+async function cleanupQueuedMedia(publications) {
+  const refs = new Map();
+  for (const publication of publications || []) {
+    const media = json(publication.mediaJson, {});
+    for (const ref of Array.isArray(media.queuedMedia) ? media.queuedMedia : []) {
+      if (!ref?.storageKey) continue;
+      refs.set(`${ref.storageProvider || ''}:${ref.storageKey}`, ref);
+    }
+  }
+  await Promise.allSettled(
+    [...refs.values()].map(ref => objectStorage.deleteObject(ref.storageKey, ref.storageProvider || null))
+  );
+}
+
 async function remove(userId, rawId) {
   const publication = await ownedPublication(userId, rawId);
   const parentId = publication.externalPostId;
   const siblings = await prisma.socialPublication.findMany({
     where: { contentId: publication.contentId },
-    select: { id: true }
+    select: { id: true, mediaJson: true }
   });
 
   if (parentId) {
@@ -29,6 +52,8 @@ async function remove(userId, rawId) {
     } catch (error) {
       if (Number(error.status || 0) !== 404) throw error;
     }
+  } else {
+    await cleanupQueuedMedia(siblings);
   }
 
   await prisma.socialPublication.updateMany({
@@ -41,9 +66,18 @@ async function remove(userId, rawId) {
 
 async function reschedule(userId, rawId, scheduledAt) {
   const publication = await ownedPublication(userId, rawId);
-  if (!publication.externalPostId) throw Object.assign(new Error('This post has not been submitted to the publishing gateway yet.'), { status: 409 });
   const date = new Date(scheduledAt);
   if (Number.isNaN(date.getTime())) throw Object.assign(new Error('Choose a valid publishing date and time.'), { status: 400 });
+  if (date.getTime() <= Date.now()) throw Object.assign(new Error('Choose a publishing time in the future.'), { status: 400 });
+
+  if (!publication.externalPostId) {
+    await prisma.socialPublication.updateMany({
+      where: { contentId: publication.contentId, status: { notIn: ['PUBLISHED', 'CANCELLED'] } },
+      data: { scheduledAt: date, status: 'SCHEDULED', lastError: null, lastAttemptAt: null }
+    });
+    await prisma.socialContent.update({ where: { id: publication.contentId }, data: { status: 'SCHEDULED' } });
+    return { ok: true, scheduledAt: date.toISOString(), serverQueued: true };
+  }
 
   const parent = await postForMe.apiRequest('GET', `/social-posts/${encodeURIComponent(publication.externalPostId)}`);
   const accountIds = Array.isArray(parent?.social_accounts)
@@ -69,7 +103,7 @@ async function reschedule(userId, rawId, scheduledAt) {
     data: { scheduledAt: date, status: 'SCHEDULED', lastError: null }
   });
   await prisma.socialContent.update({ where: { id: publication.contentId }, data: { status: 'SCHEDULED' } });
-  return { ok: true, scheduledAt: date.toISOString() };
+  return { ok: true, scheduledAt: date.toISOString(), serverQueued: false };
 }
 
 module.exports = { remove, reschedule };

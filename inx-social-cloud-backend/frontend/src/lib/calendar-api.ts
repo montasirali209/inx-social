@@ -25,9 +25,10 @@ function jobPlatform(job: DashboardJob): Platform {
   return job.destination?.platform || 'facebook'
 }
 
-function jobPost(job: DashboardJob, timeZone: string): CalendarPost {
+function jobPost(job: DashboardJob, timeZone: string, source: CalendarPost['source'] = 'post_for_me'): CalendarPost {
   const occurredAt = jobDate(job)
   const destination = job.destination
+  const page = job.page
   return {
     id: job.id,
     title: job.title?.trim() || job.caption?.trim().split(/\n+/)[0]?.slice(0, 90) || job.localFileName || destination?.name || 'Untitled content',
@@ -35,12 +36,12 @@ function jobPost(job: DashboardJob, timeZone: string): CalendarPost {
     date: dateKeyInTimezone(occurredAt, timeZone),
     occurredAt,
     platform: jobPlatform(job),
-    pageId: destination?.id || null,
-    pageName: destination?.name || destination?.username || 'Connected account',
+    pageId: destination?.id || page?.id || null,
+    pageName: destination?.name || destination?.username || page?.facebookPageName || page?.facebookPageUsername || 'Connected account',
     status: calendarStatus(job.status),
-    thumbnailUrl: destination?.avatarUrl || null,
+    thumbnailUrl: destination?.avatarUrl || page?.facebookPagePicture || null,
     engagementScore: null,
-    source: 'post_for_me',
+    source,
     jobId: job.id,
     providerPostId: job.metaPostId || null,
     platformUrl: job.platformUrl || null,
@@ -54,8 +55,8 @@ function weekStart(date: Date) {
   return value
 }
 
-export function buildCalendarData(jobs: DashboardJob[], destinations: CalendarDestination[], timeZone: string, now = new Date()): CalendarData {
-  const allPosts = jobs.map(job => jobPost(job, timeZone))
+export function buildCalendarData(jobs: DashboardJob[], destinations: CalendarDestination[], timeZone: string, now = new Date(), cloudJobs: DashboardJob[] = []): CalendarData {
+  const allPosts = [...jobs.map(job => jobPost(job, timeZone, 'post_for_me')), ...cloudJobs.map(job => jobPost(job, timeZone, 'inx'))]
   const nowMs = now.getTime()
   const posts = allPosts.filter(post => {
     const occurredAt = new Date(post.occurredAt).getTime()
@@ -84,7 +85,7 @@ export function buildCalendarData(jobs: DashboardJob[], destinations: CalendarDe
   return {
     posts,
     destinations,
-    jobs,
+    jobs: [...jobs, ...cloudJobs],
     syncWarnings: [],
     stats: [
       { label: 'Scheduled This Week', value: scheduledThisWeek, detail: `${signed(scheduledThisWeek - scheduledPreviousWeek)} vs last week`, tone: 'teal' },
@@ -161,22 +162,37 @@ export function mergeCalendarFeedData(data: CalendarData, entries: CalendarFeedE
 }
 
 export async function fetchCalendarData(timeZone: string): Promise<CalendarData> {
-  const [workspace, jobsResult] = await Promise.all([
+  const [workspace, publicationResult, cloudResult] = await Promise.all([
     fetchConnectionsWorkspace(),
     apiRequest<JobsResponse>('/api/social-publications?limit=500'),
+    apiRequest<JobsResponse>('/api/studio/jobs?limit=500'),
   ])
-  const destinations: CalendarDestination[] = flattenConnectedIdentities(workspace).map(identity => ({
+  const universalDestinations: CalendarDestination[] = flattenConnectedIdentities(workspace).map(identity => ({
     id: identity.id,
     platform: identity.platform as Platform,
     name: identity.displayName,
     username: identity.username,
     avatarUrl: identity.avatarUrl,
   }))
-  return buildCalendarData(jobsResult.jobs || [], destinations, timeZone, new Date())
+  const cloudDestinations: CalendarDestination[] = (cloudResult.jobs || []).flatMap(job => job.page ? [{
+    id: job.page.id,
+    platform: 'facebook' as Platform,
+    name: job.page.facebookPageName,
+    username: job.page.facebookPageUsername,
+    avatarUrl: job.page.facebookPagePicture,
+  }] : [])
+  const destinations = [...new Map([...universalDestinations, ...cloudDestinations].map(destination => [`${destination.platform}:${destination.id}`, destination])).values()]
+  return buildCalendarData(publicationResult.jobs || [], destinations, timeZone, new Date(), cloudResult.jobs || [])
 }
 
 export async function rescheduleCalendarPost(post: CalendarPost, scheduledAt: string) {
-  if (!post.jobId) throw new Error('The Post for Me publication reference is unavailable.')
+  if (!post.jobId) throw new Error('The INX Social publishing reference is unavailable.')
+  if (post.source === 'inx') {
+    return apiRequest<{ job: DashboardJob }>(`/api/studio/jobs/${encodeURIComponent(post.jobId)}/schedule`, {
+      method: 'PATCH',
+      body: JSON.stringify({ scheduledAt }),
+    })
+  }
   return apiRequest<{ ok: boolean; scheduledAt: string }>(`/api/social-publications/${encodeURIComponent(post.jobId)}/schedule`, {
     method: 'PUT',
     body: JSON.stringify({ scheduledAt }),
@@ -184,6 +200,9 @@ export async function rescheduleCalendarPost(post: CalendarPost, scheduledAt: st
 }
 
 export async function deleteCalendarPost(post: CalendarPost) {
-  if (!post.jobId) throw new Error('The Post for Me publication reference is unavailable.')
+  if (!post.jobId) throw new Error('The INX Social publishing reference is unavailable.')
+  if (post.source === 'inx') {
+    return apiRequest<{ ok: boolean; job: DashboardJob }>(`/api/studio/jobs/${encodeURIComponent(post.jobId)}`, { method: 'DELETE' })
+  }
   return apiRequest<{ ok: boolean; publicationId: string; affected: number }>(`/api/social-publications/${encodeURIComponent(post.jobId)}`, { method: 'DELETE' })
 }

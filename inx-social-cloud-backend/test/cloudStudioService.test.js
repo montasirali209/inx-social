@@ -17,7 +17,7 @@ test('cloud job transitions allow only the reviewed queue path', () => {
   assert.equal(canTransition('CANCELLED', 'PROCESSING'), false);
 });
 
-test('schedule validation enforces Meta lead time and horizon', () => {
+test('schedule validation enforces lead time without an artificial future horizon', () => {
   const now = new Date('2026-07-23T10:00:00.000Z');
   const valid = validateScheduleTime('2026-07-23T10:20:00.000Z', now);
   assert.equal(valid.toISOString(), '2026-07-23T10:20:00.000Z');
@@ -25,10 +25,7 @@ test('schedule validation enforces Meta lead time and horizon', () => {
     () => validateScheduleTime('2026-07-23T10:19:59.999Z', now),
     /at least 20 minutes/
   );
-  assert.throws(
-    () => validateScheduleTime('2026-08-17T10:00:00.001Z', now),
-    /more than 25 days/
-  );
+  assert.equal(validateScheduleTime('2027-08-17T10:00:00.001Z', now).toISOString(), '2027-08-17T10:00:00.001Z');
 });
 
 test('cloud file size is stored exactly and capped at 10 GB', () => {

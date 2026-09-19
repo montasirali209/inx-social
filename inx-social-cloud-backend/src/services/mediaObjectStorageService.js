@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('node:crypto');
+const fs = require('node:fs');
 const axios = require('axios');
 const aws4 = require('aws4');
 
@@ -9,12 +10,13 @@ const PROVIDERS = {
   RAILWAY_S3: 'RAILWAY_S3'
 };
 
-// R2 is intentionally reserved for high-volume customer generation outputs.
-// Everything operational stays on Railway object storage.
+// R2 is reserved for high-volume customer media. Scheduled publishing media
+// also belongs here because it may need to remain durable for weeks or months.
 const R2_GENERATED_MEDIA_PREFIXES = new Set([
   'ai-studio',
   'ai-video',
-  'stock-video'
+  'stock-video',
+  'scheduled-publishing'
 ]);
 
 function clean(value) {
@@ -171,8 +173,8 @@ function signedRequest(method, key, { data, headers = {}, responseType = 'arrayb
     data: body,
     responseType,
     timeout: 180000,
-    maxContentLength: 150 * 1024 * 1024,
-    maxBodyLength: 150 * 1024 * 1024,
+    maxContentLength: Infinity,
+    maxBodyLength: Infinity,
     validateStatus: status => status >= 200 && status < 300
   });
 }
@@ -202,6 +204,74 @@ async function putBuffer({ key, data, mimeType, provider = null }) {
     responseType: 'text'
   }, targetConfig);
   return { key, provider: targetConfig.provider };
+}
+
+async function sha256File(filePath) {
+  const hash = crypto.createHash('sha256');
+  await new Promise((resolve, reject) => {
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', chunk => hash.update(chunk));
+    stream.once('error', reject);
+    stream.once('end', resolve);
+  });
+  return hash.digest('hex');
+}
+
+async function putFile({ key, filePath, mimeType, provider = null }) {
+  const targetConfig = orderedConfigs(provider)[0];
+  if (!targetConfig) throw notConfiguredError();
+  const stat = await fs.promises.stat(filePath);
+  if (!stat.isFile() || stat.size <= 0) throw new Error('Cannot store an empty media file.');
+  const target = objectTarget(key, targetConfig);
+  const payloadHash = await sha256File(filePath);
+  const request = {
+    host: target.host,
+    path: target.path,
+    method: 'PUT',
+    service: 's3',
+    region: targetConfig.region,
+    headers: {
+      Host: target.host,
+      'Content-Type': String(mimeType || 'application/octet-stream'),
+      'Content-Length': String(stat.size),
+      'x-amz-content-sha256': payloadHash
+    }
+  };
+  aws4.sign(request, {
+    accessKeyId: targetConfig.accessKeyId,
+    secretAccessKey: targetConfig.secretAccessKey
+  });
+  await axios({
+    method: 'PUT',
+    url: target.url,
+    headers: request.headers,
+    data: fs.createReadStream(filePath),
+    responseType: 'text',
+    timeout: 0,
+    maxContentLength: Infinity,
+    maxBodyLength: Infinity,
+    validateStatus: status => status >= 200 && status < 300
+  });
+  return { key, provider: targetConfig.provider, byteSize: stat.size };
+}
+
+async function getStream(key, provider = null) {
+  const configs = orderedConfigs(provider);
+  if (!configs.length) throw notConfiguredError();
+
+  let lastNotFound = null;
+  for (const storageConfig of configs) {
+    try {
+      return await signedRequest('GET', key, { responseType: 'stream' }, storageConfig);
+    } catch (error) {
+      if (error?.response?.status === 404) {
+        lastNotFound = error;
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastNotFound || new Error('Media object was not found in configured storage providers.');
 }
 
 async function getBuffer(key, range = null, provider = null) {
@@ -278,6 +348,8 @@ module.exports = {
   providerStatus,
   createStorageKey,
   putBuffer,
+  putFile,
+  getStream,
   getBuffer,
   deleteObject,
   persistBuffer
