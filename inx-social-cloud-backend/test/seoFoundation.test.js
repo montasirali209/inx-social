@@ -56,17 +56,17 @@ test('homepage navigation stays inside one consistent marketing experience', () 
   }
 });
 
-test('robots and sitemap expose one canonical public marketing URL', () => {
+test('robots and sitemap expose the canonical public marketing page cluster', () => {
   const robots = read('public/robots.txt');
   const sitemap = read('public/sitemap.xml');
 
   assert.match(robots, /Disallow: \/admin/);
   assert.match(robots, /Disallow: \/api\//);
   assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/sitemap\.xml/);
-  assert.equal((sitemap.match(/<url>/g) || []).length, 1);
+  assert.equal((sitemap.match(/<url>/g) || []).length, 11);
   assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/<\/loc>/);
 
-  for (const route of retiredMarketingRoutes) assert.equal(sitemap.includes(route), false);
+  for (const route of retiredMarketingRoutes) assert.equal(sitemap.includes(route), false);\n  assert.match(sitemap, /https:\\/\\/www\\.inxsocial\\.co\\.uk\\/social-media-scheduler/);\n  assert.match(sitemap, /https:\\/\\/www\\.inxsocial\\.co\\.uk\\/pricing/);
 });
 
 test('legacy marketing URLs retain permanent redirects instead of duplicate page designs', () => {
