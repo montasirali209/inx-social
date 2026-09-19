@@ -86,6 +86,10 @@ async function deleteStoredAssetObject(asset) {
 }
 
 async function purgeArchivedBefore(userId, cutoff) {
+  if (!objectStorage.configured()) {
+    const result = await prisma.agentAsset.deleteMany({ where: { userId, archivedAt: { lt: cutoff } } });
+    return result.count;
+  }
   const expired = await prisma.agentAsset.findMany({
     where: { userId, archivedAt: { lt: cutoff } },
     select: { id: true, storageKey: true },
@@ -346,8 +350,8 @@ async function purge(userId, id) {
   });
   if (!existing) throw error('Trashed media asset not found.', 404);
   await deleteStoredAssetObject(existing);
-  await prisma.agentAsset.delete({ where: { id: existing.id } });
-  return true;
+  const result = await prisma.agentAsset.deleteMany({ where: { id: existing.id, userId, archivedAt: { not: null } } });
+  return result.count > 0;
 }
 
 module.exports = {
