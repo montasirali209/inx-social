@@ -103,4 +103,46 @@ describe('Post for Me calendar identity', () => {
     expect(merged.stats.find(stat => stat.label === 'Published This Month')?.value).toBe(1)
   })
 
+
+  it('merges future INX Social cloud queue jobs into the same calendar', () => {
+    const cloudJob = {
+      ...scheduledJob,
+      id: 'cloud-queued-1',
+      status: 'QUEUED',
+      metaPostId: null,
+      destination: null,
+      page: {
+        id: 'page-1',
+        facebookPageId: 'facebook-page-1',
+        facebookPageName: 'Trails & Tales',
+        facebookPageUsername: 'trailsandtales',
+        facebookPagePicture: null,
+        facebookCategory: null,
+        status: 'ACTIVE',
+        isSelected: false,
+        connectedAt: '2026-09-01T00:00:00.000Z',
+        lastCheckedAt: null,
+        lastSyncAt: null,
+        lastError: null,
+      },
+      platformUrl: null,
+    } satisfies DashboardJob
+    const facebookDestination: CalendarDestination = {
+      id: 'page-1',
+      platform: 'facebook',
+      name: 'Trails & Tales',
+      username: 'trailsandtales',
+      avatarUrl: null,
+    }
+    const result = buildCalendarData([scheduledJob], [destination, facebookDestination], 'UTC', new Date('2026-09-11T00:00:00.000Z'), [cloudJob])
+    expect(result.posts.find(post => post.id === 'cloud-queued-1')).toMatchObject({
+      status: 'scheduled',
+      source: 'inx',
+      platform: 'facebook',
+      pageId: 'page-1',
+      pageName: 'Trails & Tales',
+    })
+    expect(result.jobs).toHaveLength(2)
+  })
+
 })
