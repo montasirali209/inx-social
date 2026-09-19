@@ -7,8 +7,11 @@ import { SiteFooter } from '@/components/site-footer'
 import { SiteHeader } from '@/components/site-header'
 import { site } from '@/lib/site'
 
+const indexable = process.env.NEXT_PUBLIC_INDEXABLE === 'true'
+
 export const metadata: Metadata = {
   metadataBase: new URL(site.url),
+  robots: indexable ? { index: true, follow: true } : { index: false, follow: false },
   title: {
     default: 'INXSocial — Social scheduling, analytics and AI content',
     template: '%s | INXSocial',
