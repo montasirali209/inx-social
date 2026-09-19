@@ -71,6 +71,18 @@ test('Media Library schema and migration preserve folders and reusable file meta
   assert.match(migration, /ALTER TABLE "AgentAsset"/);
 });
 
+
+test('Media Library action menus dismiss on outside click and when another menu opens', () => {
+  const menu = read('frontend/src/components/media-library/AssetActionMenu.tsx');
+  assert.match(menu, /useRef<HTMLDetailsElement>/);
+  assert.match(menu, /document\.addEventListener\('pointerdown', handlePointerDown, true\)/);
+  assert.match(menu, /MEDIA_ACTION_MENU_OPENED/);
+  assert.match(menu, /openedAssetId !== props\.asset\.id/);
+  assert.match(menu, /event\.currentTarget\.open/);
+  assert.match(menu, /document\.dispatchEvent\(new CustomEvent<string>/);
+  assert.match(menu, /event\.key === 'Escape'/);
+});
+
 test('Media Library keeps previews compact, folders focused and More actions functional', () => {
   const page = read('frontend/src/components/media-library/MediaLibraryPage.tsx');
   const card = read('frontend/src/components/media-library/MediaCard.tsx');
