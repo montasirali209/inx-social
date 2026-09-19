@@ -186,7 +186,8 @@ async function recoverStaleClaims(now = new Date()) {
       metaPostId: null,
       metaVideoId: null,
       claimedAt: { lt: cutoff },
-      scheduledAt: { not: null }
+      scheduledAt: { not: null },
+      nextAttemptAt: { not: null }
     },
     data: {
       status: JOB_STATUS.QUEUED,
