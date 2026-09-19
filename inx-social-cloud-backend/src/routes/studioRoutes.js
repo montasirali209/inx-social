@@ -31,6 +31,8 @@ router.post('/post-enhancements', controller.enhancePostCaption);
 router.get('/media-library', controller.mediaLibraryWorkspace);
 router.post('/media-library/folders', controller.createMediaLibraryFolder);
 router.post('/media-library/assets', express.raw({ type: ['image/*', 'video/*'], limit: '100mb' }), controller.uploadMediaLibraryAsset);
+router.post('/media-library/assets/batch/archive', controller.archiveMediaLibraryAssets);
+router.post('/media-library/assets/batch/purge', controller.purgeMediaLibraryAssets);
 router.patch('/media-library/assets/:id', controller.renameMediaLibraryAsset);
 router.post('/media-library/assets/:id/duplicate', controller.duplicateMediaLibraryAsset);
 router.delete('/media-library/assets/:id', controller.archiveMediaLibraryAsset);
