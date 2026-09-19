@@ -96,7 +96,8 @@ async function remove(userId, id) {
     select: { id: true, storageKey: true }
   });
   if (!existing) return false;
-  await prisma.agentAsset.delete({ where: { id: existing.id } });
+  const result = await prisma.agentAsset.deleteMany({ where: { id: existing.id } });
+  if (!result.count) return false;
   if (existing.storageKey) await objectStorage.deleteObject(existing.storageKey).catch(() => {});
   return true;
 }
