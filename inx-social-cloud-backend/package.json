@@ -35,7 +35,8 @@
     "resend": "^6.17.2",
     "sharp": "0.35.4",
     "stripe": "^18.5.0",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "aws4": "1.13.2"
   },
   "devDependencies": {
     "nodemon": "^3.1.7",
