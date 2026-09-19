@@ -305,7 +305,8 @@ async function purge(userId, id) {
     select: { id: true, storageKey: true }
   });
   if (!existing) throw error('Trashed media asset not found.', 404);
-  await prisma.agentAsset.delete({ where: { id: existing.id } });
+  const result = await prisma.agentAsset.deleteMany({ where: { id: existing.id } });
+  if (!result.count) throw error('Trashed media asset not found.', 404);
   if (existing.storageKey) await objectStorage.deleteObject(existing.storageKey).catch((deleteError) => {
     console.warn('[media-library] bucket purge delayed', { id, error: deleteError?.message || String(deleteError) });
   });
