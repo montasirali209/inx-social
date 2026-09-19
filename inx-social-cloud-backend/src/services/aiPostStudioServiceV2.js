@@ -540,7 +540,7 @@ async function createGenerationRow(userId, input) {
 async function persistImage(userId, generationId, output, input, prompt) {
   const metadata = await sharp(output.data).metadata().catch(() => ({}));
   const checksum = crypto.createHash('sha256').update(output.data).digest('hex');
-  const created = await prisma.agentAsset.create({ data: {
+  const created = await mediaLibrary.createStoredAsset({
     userId,
     kind: 'AI_IMAGE',
     source: 'AI_STUDIO',
@@ -557,7 +557,7 @@ async function persistImage(userId, generationId, output, input, prompt) {
     width: metadata.width || null,
     height: metadata.height || null,
     expiresAt: expiresAtFor('image/png')
-  } });
+  });
   const publicAsset = mediaLibrary.publicAsset(created);
   const brief = input.brief || {};
   return {
