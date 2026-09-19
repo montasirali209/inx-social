@@ -20,10 +20,14 @@ test('Premium is customer-visible only through the capability-controlled option'
   assert.match(app, /premiumOption\.hidden = !premiumAvailable/);
 });
 
-test('administrator receives governed OpenAI image controls', () => {
+test('administrator receives governed provider visibility without exposing legacy route controls', () => {
   const admin = read('public/index.html');
-  assert.match(admin, /Enable paid OpenAI image generation/);
-  assert.match(admin, /Local first, then OpenAI after rejection/);
-  assert.match(admin, /Maximum paid images per mission/);
-  assert.match(admin, /imageQualityModel/);
+  const controller = read('src/controllers/adminController.js');
+  assert.match(admin, /AI &amp; Automation Administration/);
+  assert.match(admin, /Low-level model routing/);
+  assert.match(admin, /aiProviderGrid/);
+  assert.match(controller, /Runware/);
+  assert.match(controller, /OpenAI support routes/);
+  assert.doesNotMatch(admin, /Local first, then OpenAI after rejection/);
+  assert.doesNotMatch(admin, /Maximum paid images per mission/);
 });
