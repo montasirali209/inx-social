@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import type { AcquisitionPage as AcquisitionPageData } from '@/lib/acquisition'
 import { site } from '@/lib/site'
+import { ProductShot, productShots } from './product-shot'
 import { Reveal } from './reveal'
 import { TrackLink } from './track-link'
 
@@ -171,6 +172,22 @@ function StructuredPageSchema({ page }: { page: AcquisitionPageData }) {
 }
 
 function AcquisitionVisual({ page }: { page: AcquisitionPageData }) {
+  if (page.visual === 'ai') {
+    return <ProductShot src={productShots.ai} alt="Real INXSocial AI Content Studio interface" label="AI Content Studio" caption="Actual product interface" className="acq-real-shot" />
+  }
+
+  if (page.visual === 'bulk') {
+    return <ProductShot src={productShots.bulk} alt="Real INXSocial Bulk Scheduler interface" label="Bulk Scheduler" caption="Actual product interface" className="acq-real-shot" />
+  }
+
+  if (page.visual === 'analytics') {
+    return <ProductShot src={productShots.analytics} alt="Real INXSocial Analytics interface" label="Full Analytics" caption="Actual product interface" className="acq-real-shot" />
+  }
+
+  if (page.visual === 'features') {
+    return <ProductShot src={productShots.dashboard} alt="Real INXSocial dashboard interface" label="INXSocial Dashboard" caption="Actual product interface" className="acq-real-shot" />
+  }
+
   if (page.visual === 'platform') {
     return (
       <div className="acq-visual-card platform-acq-visual">
@@ -185,49 +202,6 @@ function AcquisitionVisual({ page }: { page: AcquisitionPageData }) {
           <div><span>Destination</span><strong>{page.platform}</strong></div>
         </div>
         <div className="platform-acq-status"><span><i /> Connected</span><b>One INXSocial workspace</b></div>
-      </div>
-    )
-  }
-
-  if (page.visual === 'ai') {
-    return (
-      <div className="acq-visual-card ai-acq-visual">
-        <div className="acq-window-head"><Sparkles /> AI Content Studio <span>Credit estimate before generation</span></div>
-        <div className="ai-acq-grid">
-          <div className="ai-acq-tile"><ImageIcon /><span>Image Post</span><i /></div>
-          <div className="ai-acq-tile"><Layers3 /><span>Carousel</span><i /></div>
-          <div className="ai-acq-tile ai-acq-featured"><Video /><span>Short Video</span><div><Play /></div></div>
-          <div className="ai-acq-tile"><WandSparkles /><span>UGC Ad</span><i /></div>
-        </div>
-        <div className="acq-wallet"><span>Shared AI wallet</span><strong>500 credits</strong><small>Example Pro monthly allowance</small></div>
-      </div>
-    )
-  }
-
-  if (page.visual === 'bulk') {
-    return (
-      <div className="acq-visual-card bulk-acq-visual">
-        <div className="acq-window-head"><CalendarDays /> Build Schedule <span>Campaign workspace</span></div>
-        <div className="bulk-acq-body">
-          <div className="bulk-acq-queue">
-            {['Launch teaser','Carousel story','Product reel','Customer proof'].map((item, index) => (
-              <div key={item}><i className={`bulk-acq-thumb b${index+1}`} /><span><strong>{item}</strong><small>{index + 2} destinations</small></span><Check /></div>
-            ))}
-          </div>
-          <div className="bulk-acq-slots">
-            {['11:00','15:15','19:30','22:15'].map((slot, index) => <div key={slot}><span>{slot}</span><strong>{['Mon','Tue','Wed','Thu'][index]}</strong><i /></div>)}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  if (page.visual === 'analytics') {
-    return (
-      <div className="acq-visual-card analytics-acq-visual">
-        <div className="acq-window-head"><BarChart3 /> Full Analytics <span>Connected account context</span></div>
-        <div className="analytics-acq-kpis"><div><span>Published</span><strong>84</strong></div><div><span>Engagement</span><strong>12.8k</strong></div><div><span>Reach</span><strong>96.4k</strong></div></div>
-        <div className="analytics-acq-chart"><i /><i /><i /><i /><svg viewBox="0 0 600 180" role="presentation"><path d="M0 150 C60 148 72 110 125 116 S208 150 255 100 S339 55 390 82 S485 38 600 26" fill="none" stroke="currentColor" strokeWidth="5" strokeLinecap="round" /></svg></div>
       </div>
     )
   }
@@ -251,30 +225,10 @@ function AcquisitionVisual({ page }: { page: AcquisitionPageData }) {
   }
 
   if (page.visual === 'scheduler') {
-    return (
-      <div className="acq-visual-card scheduler-acq-visual">
-        <div className="acq-window-head"><Send /> Social Scheduler <span>9 supported networks</span></div>
-        <div className="scheduler-acq-calendar">
-          {['Mon','Tue','Wed','Thu','Fri'].map((day, index) => <div key={day}><span>{day}</span>{index !== 2 && <i className={`sched-post p${index+1}`} />}{index === 1 && <i className="sched-post p5" />}</div>)}
-        </div>
-        <div className="scheduler-acq-footer"><span>Publish now</span><span>Schedule later</span><span>Bulk Scheduler</span></div>
-      </div>
-    )
+    return <ProductShot src={productShots.bulk} alt="Real INXSocial scheduling workflow" label="Scheduling workflow" caption="Bulk Scheduler product interface" className="acq-real-shot" />
   }
 
-  return (
-    <div className="acq-visual-card features-acq-visual">
-      <div className="acq-window-head"><Waypoints /> INXSocial workspace <span>Connected workflow</span></div>
-      <div className="features-acq-grid">
-        <div><Send /><span>Posts</span></div>
-        <div><Layers3 /><span>Bulk Scheduler</span></div>
-        <div><CalendarDays /><span>Calendar</span></div>
-        <div><Sparkles /><span>AI Studio</span></div>
-        <div><BarChart3 /><span>Analytics</span></div>
-        <div><Link2 /><span>Accounts</span></div>
-      </div>
-    </div>
-  )
+  return <ProductShot src={productShots.dashboard} alt="Real INXSocial product interface" label="INXSocial" caption="Actual product interface" className="acq-real-shot" />
 }
 
 function PlatformNetworkBand({ page }: { page: AcquisitionPageData }) {
