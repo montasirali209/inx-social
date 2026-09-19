@@ -14,6 +14,7 @@ const metaPublisher = require('../services/cloudMetaPublisher');
 const { getFacebookAnalytics, clearAnalyticsCache } = require('../services/facebookAnalyticsService');
 const postEnhancement = require('../services/postEnhancementService');
 const mediaLibrary = require('../services/mediaLibraryService');
+const objectStorage = require('../services/mediaObjectStorageService');
 const emailService = require('../services/emailService');
 const {
   JOB_STATUS,
@@ -34,7 +35,7 @@ const DEFAULT_SETTINGS = {
   graphVersion: process.env.FB_GRAPH_VERSION || process.env.GRAPH_VERSION || 'v25.0',
   timezone: 'Europe/London',
   dailySlots: ['11:00', '15:13', '22:15', '23:15'],
-  maxScheduleDays: 25,
+  maxScheduleDays: 0,
   minLeadMinutes: 20,
   maxRetries: 3,
   retryBaseDelayMs: 5000,
