@@ -8,6 +8,7 @@ const routing = require('./aiModelRoutingService');
 const branding = require('./agentBrandingService');
 const managerIntelligence = require('./socialManagerIntelligence');
 const { expiresAtFor } = require('./mediaRetentionService');
+const objectStorage = require('./mediaObjectStorageService');
 
 function status(policy = {}) {
   const capabilities = routing.imageProviderCapabilities(policy);
@@ -236,13 +237,15 @@ async function createGeneratedAsset(plan, prompt, index, options = {}) {
   }
   const detected = imageType(data);
   const ready = Boolean(qualityReview.approved);
+  const originalName = `inx-agent-${index + 1}.${detected.extension}`;
+  const stored = await objectStorage.persistBuffer({ userId: plan.userId, data, mimeType: detected.mimeType, originalName, prefix: 'agent-generated' });
   const created = await prisma.agentAsset.create({ data: {
     userId: plan.userId,
     planId: plan.id,
     kind: 'GENERATED_POST',
     source: provider,
     status: ready ? 'READY' : 'REJECTED',
-    originalName: `inx-agent-${index + 1}.${detected.extension}`,
+    originalName,
     mimeType: detected.mimeType,
     byteSize: data.length,
     checksum: crypto.createHash('sha256').update(data).digest('hex'),
@@ -252,7 +255,9 @@ async function createGeneratedAsset(plan, prompt, index, options = {}) {
     generationChoice: options.generationChoice || null,
     qualityScore: Number.isFinite(qualityReview.score) ? qualityReview.score : null,
     qualityIssuesJson: JSON.stringify(qualityReview.issues || []),
-    data,
+    data: stored.data,
+    storageProvider: stored.storageProvider,
+    storageKey: stored.storageKey,
     expiresAt: expiresAtFor(detected.mimeType)
   } });
   return { id: created.id, kind: created.kind, status: created.status, mimeType: created.mimeType, byteSize: created.byteSize, contentUrl: ready ? `/api/agent/assets/${encodeURIComponent(created.id)}/content` : null, qualityReview };
