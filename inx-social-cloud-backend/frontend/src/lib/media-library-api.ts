@@ -21,12 +21,26 @@ export function archiveMediaAsset(id: string) {
   return apiRequest<{ ok: boolean }>(`/api/studio/media-library/assets/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
+export function archiveMediaAssets(ids: string[]) {
+  return apiRequest<{ ok: boolean; count: number }>('/api/studio/media-library/assets/batch/archive', {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  })
+}
+
 export function restoreMediaAsset(id: string) {
   return apiRequest<{ ok: boolean }>(`/api/studio/media-library/assets/${encodeURIComponent(id)}/restore`, { method: 'POST' })
 }
 
 export function purgeMediaAsset(id: string) {
   return apiRequest<{ ok: boolean }>(`/api/studio/media-library/assets/${encodeURIComponent(id)}/permanent`, { method: 'DELETE' })
+}
+
+export function purgeMediaAssets(ids: string[]) {
+  return apiRequest<{ ok: boolean; count: number }>('/api/studio/media-library/assets/batch/purge', {
+    method: 'POST',
+    body: JSON.stringify({ ids }),
+  })
 }
 
 function authHeaders() {
