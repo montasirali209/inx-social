@@ -8,6 +8,36 @@ const { startRuntime: startPostForMeRuntime } = require('./services/postForMeSer
 const { startAnalyticsCacheRuntime } = require('./services/postForMeAnalyticsService');
 const prisma = require('./db/prisma');
 
+async function verifyNextLandingUpstream() {
+  if (!/^(?:1|true|yes|on)$/i.test(String(process.env.NEXT_LANDING_ENABLED || '').trim())) return;
+
+  const origin = String(process.env.NEXT_LANDING_ORIGIN || '').trim().replace(/\/+$/, '');
+  if (!origin) {
+    console.warn('[landing-proxy] startup probe skipped: NEXT_LANDING_ORIGIN is missing; legacy fallback remains active');
+    return;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 2500);
+
+  try {
+    const response = await fetch(`${origin}/health`, {
+      headers: { 'user-agent': 'INXSocial-Landing-Startup-Probe/1.0' },
+      signal: controller.signal
+    });
+
+    if (response.ok) {
+      console.info('[landing-proxy] upstream healthy', { status: response.status });
+    } else {
+      console.warn('[landing-proxy] upstream health check failed; legacy fallback remains active', { status: response.status });
+    }
+  } catch (error) {
+    console.warn('[landing-proxy] upstream unavailable at startup; legacy fallback remains active', { error: error?.message });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const server = app.listen(env.port, () => {
   console.log(`INX Social Cloud Backend running on http://localhost:${env.port}`);
   startSubscriptionLifecycle();
@@ -16,6 +46,7 @@ const server = app.listen(env.port, () => {
   startStockVideoRuntime();
   startPostForMeRuntime();
   startAnalyticsCacheRuntime();
+  void verifyNextLandingUpstream();
 });
 
 let shuttingDown = false;
