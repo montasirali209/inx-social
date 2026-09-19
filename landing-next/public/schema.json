@@ -1,71 +1,138 @@
 {
-    "@context":"https://schema.org",
-    "@graph":[
-      {
-        "@type":"Organization",
-        "@id":"https://inaxx.co.uk/#organization",
-        "name":"INAXX LTD",
-        "url":"https://inaxx.co.uk/",
-        "logo":"https://www.inxsocial.co.uk/assets/inx-social-logo.png",
-        "email":"contact@inaxx.co.uk"
-      },
-      {
-        "@type":"WebSite",
-        "@id":"https://www.inxsocial.co.uk/#website",
-        "url":"https://www.inxsocial.co.uk/",
-        "name":"INXSocial",
-        "inLanguage":"en-GB",
-        "publisher":{"@id":"https://inaxx.co.uk/#organization"}
-      },
-      {
-        "@type":"WebPage",
-        "@id":"https://www.inxsocial.co.uk/#webpage",
-        "url":"https://www.inxsocial.co.uk/",
-        "name":"INXSocial | Create, Schedule, Analyse & Manage Social Media",
-        "isPartOf":{"@id":"https://www.inxsocial.co.uk/#website"},
-        "about":{"@id":"https://www.inxsocial.co.uk/#software"},
-        "inLanguage":"en-GB"
-      },
-      {
-        "@type":["SoftwareApplication","WebApplication"],
-        "@id":"https://www.inxsocial.co.uk/#software",
-        "name":"INXSocial",
-        "url":"https://www.inxsocial.co.uk/",
-        "applicationCategory":"BusinessApplication",
-        "applicationSubCategory":"Social Media Management",
-        "operatingSystem":"Web browser",
-        "description":"An all-in-one social media management platform for connected accounts, post creation, bulk scheduling, content calendars, analytics and AI-assisted image, carousel, UGC and video creation.",
-        "featureList":[
-          "Nine supported social networks",
-          "Post creation and preview",
-          "Single-post scheduling",
-          "Bulk social media scheduling",
-          "Visual content calendar",
-          "Media library",
-          "Social media analytics",
-          "AI caption assistance",
-          "AI image and carousel creation",
-          "AI short video and Reel creation",
-          "Stock Video Creator",
-          "AI-assisted UGC ad creation"
-        ],
-        "publisher":{"@id":"https://inaxx.co.uk/#organization"},
-        "offers":[
-          {"@type":"Offer","name":"Trial","price":"0","priceCurrency":"GBP","url":"https://www.inxsocial.co.uk/#pricing"},
-          {"@type":"Offer","name":"Creator","price":"18.99","priceCurrency":"GBP","url":"https://www.inxsocial.co.uk/#pricing"},
-          {"@type":"Offer","name":"Pro","price":"34.99","priceCurrency":"GBP","url":"https://www.inxsocial.co.uk/#pricing"},
-          {"@type":"Offer","name":"Business","price":"59.99","priceCurrency":"GBP","url":"https://www.inxsocial.co.uk/#pricing"},
-          {"@type":"Offer","name":"Agency","price":"99.99","priceCurrency":"GBP","url":"https://www.inxsocial.co.uk/#pricing"}
-        ]
-      },
-      {
-        "@type":"FAQPage",
-        "@id":"https://www.inxsocial.co.uk/#faq",
-        "mainEntity":[
-          {"@type":"Question","name":"Which social networks does INXSocial support?","acceptedAnswer":{"@type":"Answer","text":"INXSocial currently supports Facebook, Instagram, LinkedIn, TikTok, YouTube, Pinterest, Threads, Bluesky and X. Available publishing, feed and analytics capabilities vary by network permissions and account type."}},
-          {"@type":"Question","name":"Can I schedule multiple posts at once?","acceptedAnswer":{"@type":"Answer","text":"Yes. Bulk Scheduler lets you prepare multiple media items, captions, destinations and timing rules in one batch workflow."}},
-          {"@type":"Question","name":"What can I create with AI Content Studio?","acceptedAnswer":{"@type":"Answer","text":"AI Content Studio supports Image Post, Carousel Post, Short Video or Reel, and UGC Ad Post workflows, with AI-generated and stock-video routes for video creation."}}
-        ]
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://inaxx.co.uk/#organization",
+      "name": "INAXX LTD",
+      "url": "https://inaxx.co.uk/",
+      "logo": "https://www.inxsocial.co.uk/assets/inx-social-logo.png",
+      "email": "contact@inaxx.co.uk"
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://www.inxsocial.co.uk/#website",
+      "url": "https://www.inxsocial.co.uk/",
+      "name": "INXSocial",
+      "inLanguage": "en-GB",
+      "publisher": {
+        "@id": "https://inaxx.co.uk/#organization"
       }
-    ]
-  }
+    },
+    {
+      "@type": "WebPage",
+      "@id": "https://www.inxsocial.co.uk/#webpage",
+      "url": "https://www.inxsocial.co.uk/",
+      "name": "Social Media Scheduler & AI Content Studio | INXSocial",
+      "isPartOf": {
+        "@id": "https://www.inxsocial.co.uk/#website"
+      },
+      "about": {
+        "@id": "https://www.inxsocial.co.uk/#software"
+      },
+      "inLanguage": "en-GB",
+      "description": "Create, bulk schedule and analyse social media from one workspace, with a visual content calendar and AI-assisted image, carousel and video creation."
+    },
+    {
+      "@type": [
+        "SoftwareApplication",
+        "WebApplication"
+      ],
+      "@id": "https://www.inxsocial.co.uk/#software",
+      "name": "INXSocial",
+      "url": "https://www.inxsocial.co.uk/",
+      "applicationCategory": "BusinessApplication",
+      "applicationSubCategory": "Social Media Management",
+      "operatingSystem": "Web browser",
+      "description": "An all-in-one social media management platform for connected accounts, post creation, bulk scheduling, content calendars, analytics and AI-assisted image, carousel, UGC and video creation.",
+      "featureList": [
+        "Nine supported social networks",
+        "Post creation and preview",
+        "Single-post scheduling",
+        "Bulk social media scheduling",
+        "Visual content calendar",
+        "Media library",
+        "Social media analytics",
+        "AI caption assistance",
+        "AI image and carousel creation",
+        "AI short video and Reel creation",
+        "Stock Video Creator",
+        "AI-assisted UGC ad creation"
+      ],
+      "publisher": {
+        "@id": "https://inaxx.co.uk/#organization"
+      },
+      "offers": [
+        {
+          "@type": "Offer",
+          "name": "Trial",
+          "price": "0",
+          "priceCurrency": "GBP",
+          "url": "https://www.inxsocial.co.uk/pricing"
+        },
+        {
+          "@type": "Offer",
+          "name": "Creator",
+          "price": "18.99",
+          "priceCurrency": "GBP",
+          "url": "https://www.inxsocial.co.uk/pricing"
+        },
+        {
+          "@type": "Offer",
+          "name": "Pro",
+          "price": "34.99",
+          "priceCurrency": "GBP",
+          "url": "https://www.inxsocial.co.uk/pricing"
+        },
+        {
+          "@type": "Offer",
+          "name": "Business",
+          "price": "59.99",
+          "priceCurrency": "GBP",
+          "url": "https://www.inxsocial.co.uk/pricing"
+        },
+        {
+          "@type": "Offer",
+          "name": "Agency",
+          "price": "99.99",
+          "priceCurrency": "GBP",
+          "url": "https://www.inxsocial.co.uk/pricing"
+        }
+      ],
+      "audience": {
+        "@type": "Audience",
+        "audienceType": "Creators, businesses and social media teams"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://www.inxsocial.co.uk/#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Which social networks does INXSocial support?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "INXSocial currently supports Facebook, Instagram, LinkedIn, TikTok, YouTube, Pinterest, Threads, Bluesky and X. Available publishing, feed and analytics capabilities vary by network permissions and account type."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can I schedule multiple posts at once?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Bulk Scheduler lets you prepare multiple media items, captions, destinations and timing rules in one batch workflow."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What can I create with AI Content Studio?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "AI Content Studio supports Image Post, Carousel Post, Short Video or Reel, and UGC Ad Post workflows, with AI-generated and stock-video routes for video creation."
+          }
+        }
+      ]
+    }
+  ]
+}
