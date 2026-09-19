@@ -15,23 +15,33 @@ const retiredAiRoutes = [
   '/ai-ugc-ad-generator.html'
 ];
 
-test('AI acquisition microsites permanently consolidate into the canonical landing experience', () => {
+test('legacy AI acquisition URLs permanently redirect into canonical clean feature pages', () => {
   const app = read('src/app.js');
+
   for (const route of retiredAiRoutes) {
     assert.equal(app.includes(`'${route}'`), true, `${route} should keep a redirect for existing links and search results`);
   }
-  assert.match(app, /'\/ai-social-media-tools\.html': '\/#intelligence'/);
-  assert.match(app, /'\/generate-and-schedule-social-media-posts\.html': '\/#workflows'/);
+
+  assert.match(app, /'\/ai-social-media-tools\.html': '\/ai-social-media-tools'/);
+  assert.match(app, /'\/ai-social-media-post-generator\.html': '\/ai-social-media-post-generator'/);
+  assert.match(app, /'\/generate-and-schedule-social-media-posts\.html': '\/social-media-scheduler'/);
+  assert.match(app, /'\/ai-video-post-generator\.html': '\/ai-video-post-generator'/);
+  assert.match(app, /'\/ai-carousel-post-generator\.html': '\/ai-carousel-post-generator'/);
+  assert.match(app, /'\/ai-ugc-ad-generator\.html': '\/ai-ugc-ad-generator'/);
   assert.match(app, /res\.redirect\(301,/);
 });
 
-test('canonical sitemap and llms documentation do not advertise retired AI microsites', () => {
+test('canonical sitemap and llms documentation advertise clean AI URLs, not retired html URLs', () => {
   const sitemap = read('public/sitemap.xml');
   const llms = read('public/llms.txt');
+
   for (const route of retiredAiRoutes) {
     assert.equal(sitemap.includes(route), false, `${route} should not be in sitemap.xml`);
     assert.equal(llms.includes(route), false, `${route} should not be in llms.txt`);
   }
+
   assert.match(llms, /AI Content Studio/);
   assert.match(llms, /Short Video \/ Reel/);
+  assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-tools/);
+  assert.match(llms, /https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-tools/);
 });

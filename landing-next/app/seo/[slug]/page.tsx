@@ -1,0 +1,363 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { getSeoPage, seoPageSlugs } from "@/lib/seo-pages";
+import styles from "./seo-page.module.css";
+
+const SITE = "https://www.inxsocial.co.uk";
+
+export function generateStaticParams() {
+  return seoPageSlugs.map(slug => ({ slug }));
+}
+
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const page = getSeoPage(slug);
+  if (!page) return {};
+
+  const canonical = `${SITE}/${page.slug}`;
+
+  return {
+    title: page.title,
+    description: page.metaDescription,
+    authors: [{ name: "INAXX LTD" }],
+    category: "software",
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: {
+        index: true,
+        follow: true,
+        "max-image-preview": "large",
+        "max-snippet": -1,
+        "max-video-preview": -1
+      }
+    },
+    alternates: {
+      canonical,
+      languages: {
+        "en-GB": canonical,
+        "x-default": canonical
+      }
+    },
+    openGraph: {
+      type: "website",
+      locale: "en_GB",
+      siteName: "INXSocial",
+      title: page.title,
+      description: page.metaDescription,
+      url: canonical,
+      images: [
+        {
+          url: "/assets/landing-dashboard-20260919.webp",
+          width: 1200,
+          height: 675,
+          alt: "INXSocial social media management dashboard"
+        }
+      ]
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: page.title,
+      description: page.metaDescription,
+      images: ["/assets/landing-dashboard-20260919.webp"]
+    }
+  };
+}
+
+function buildSchema(slug: string) {
+  const page = getSeoPage(slug);
+  if (!page) return null;
+
+  const url = `${SITE}/${page.slug}`;
+
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebPage",
+        "@id": `${url}#webpage`,
+        url,
+        name: page.title,
+        description: page.metaDescription,
+        inLanguage: "en-GB",
+        isPartOf: { "@id": `${SITE}/#website` },
+        about: { "@id": `${SITE}/#software` }
+      },
+      {
+        "@type": "BreadcrumbList",
+        "@id": `${url}#breadcrumb`,
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: "INXSocial",
+            item: `${SITE}/`
+          },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: page.eyebrow,
+            item: url
+          }
+        ]
+      },
+      {
+        "@type": "FAQPage",
+        "@id": `${url}#faq`,
+        mainEntity: page.faq.map(item => ({
+          "@type": "Question",
+          name: item.question,
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: item.answer
+          }
+        }))
+      }
+    ]
+  };
+}
+
+export default async function SeoMarketingPage({
+  params
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const page = getSeoPage(slug);
+  if (!page) notFound();
+
+  const schema = buildSchema(slug);
+
+  return (
+    <div className={styles.page}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+      />
+
+      <header className={styles.header}>
+        <div className={styles.shell}>
+          <Link className={styles.brand} href="/" aria-label="INXSocial home">
+            <img src="/assets/inx-social-wordmark.png" alt="INXSocial" width="166" height="42" />
+          </Link>
+          <nav className={styles.nav} aria-label="Marketing navigation">
+            <Link href="/social-media-scheduler">Scheduler</Link>
+            <Link href="/bulk-social-media-scheduler">Bulk Scheduler</Link>
+            <Link href="/ai-social-media-tools">AI Studio</Link>
+            <Link href="/pricing">Pricing</Link>
+          </nav>
+          <div className={styles.headerActions}>
+            <a className={styles.signIn} href="/portal/login.html?return=/app/">Sign in</a>
+            <a className={styles.primaryButton} href="/portal/register.html">Start free trial</a>
+          </div>
+        </div>
+      </header>
+
+      <main>
+        <section className={styles.hero}>
+          <div className={styles.heroGlow} aria-hidden="true" />
+          <div className={`${styles.shell} ${styles.heroGrid}`}>
+            <div className={styles.heroCopy}>
+              <nav className={styles.breadcrumbs} aria-label="Breadcrumb">
+                <Link href="/">INXSocial</Link>
+                <span aria-hidden="true">/</span>
+                <span>{page.eyebrow}</span>
+              </nav>
+              <span className={styles.eyebrow}>{page.eyebrow}</span>
+              <h1>{page.h1}</h1>
+              <p className={styles.lead}>{page.lead}</p>
+              <div className={styles.heroActions}>
+                <a className={styles.primaryButtonLarge} href="/portal/register.html">
+                  Start free trial <span aria-hidden="true">→</span>
+                </a>
+                <Link className={styles.secondaryButton} href="/pricing">View pricing</Link>
+              </div>
+              <div className={styles.proof}>
+                <span>✓ 7-day trial</span>
+                <span>✓ 9 supported platforms</span>
+                <span>✓ No card required</span>
+              </div>
+            </div>
+
+            <div className={styles.heroVisual}>
+              <div className={styles.visualLabel}>Actual INXSocial workspace</div>
+              <img
+                src="/assets/landing-dashboard-20260919.webp"
+                width="1200"
+                height="675"
+                alt="INXSocial dashboard showing publishing activity, scheduling, analytics and connected accounts"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.introSection}>
+          <div className={`${styles.shell} ${styles.introGrid}`}>
+            <div>
+              <span className={styles.kicker}>Why it matters</span>
+              <h2>{page.h1}</h2>
+            </div>
+            <div className={styles.longCopy}>
+              {page.intro.map(paragraph => <p key={paragraph}>{paragraph}</p>)}
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.featuresSection}>
+          <div className={styles.shell}>
+            <span className={styles.kicker}>Inside the workflow</span>
+            <h2 className={styles.sectionTitle}>Built around the work you actually need to finish.</h2>
+            <div className={styles.featureGrid}>
+              {page.highlights.map((item, index) => (
+                <article className={styles.featureCard} key={item.title}>
+                  <span className={styles.featureNumber}>{String(index + 1).padStart(2, "0")}</span>
+                  <h3>{item.title}</h3>
+                  <p>{item.body}</p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.workflowSection}>
+          <div className={styles.shell}>
+            <span className={styles.kicker}>How it works</span>
+            <h2 className={styles.sectionTitle}>{page.workflowHeading}</h2>
+            <div className={styles.workflowGrid}>
+              {page.workflow.map((item, index) => (
+                <article className={styles.workflowCard} key={item.title}>
+                  <span>{index + 1}</span>
+                  <div>
+                    <h3>{item.title}</h3>
+                    <p>{item.body}</p>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.detailSection}>
+          <div className={`${styles.shell} ${styles.detailGrid}`}>
+            <div>
+              <span className={styles.kicker}>INXSocial context</span>
+              <h2>{page.detailHeading}</h2>
+            </div>
+            <div className={styles.longCopy}>
+              {page.details.map(paragraph => <p key={paragraph}>{paragraph}</p>)}
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.platformSection}>
+          <div className={styles.shell}>
+            <span className={styles.kicker}>Connected platforms</span>
+            <h2 className={styles.sectionTitle}>One workspace across the networks that matter.</h2>
+            <p className={styles.platformNote}>
+              Facebook, Instagram, LinkedIn, TikTok, YouTube, Pinterest, Threads, Bluesky and X are represented in the connected-account experience. Publishing and analytics capabilities vary by network permissions and account type.
+            </p>
+            <div className={styles.platformList} aria-label="Supported social platforms">
+              {["Facebook","Instagram","LinkedIn","TikTok","YouTube","Pinterest","Threads","Bluesky","X / Twitter"].map(platform => (
+                <span key={platform}>{platform}</span>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.faqSection}>
+          <div className={`${styles.shell} ${styles.faqGrid}`}>
+            <div>
+              <span className={styles.kicker}>FAQ</span>
+              <h2>Questions people ask before choosing a social media tool.</h2>
+            </div>
+            <div className={styles.faqList}>
+              {page.faq.map(item => (
+                <details key={item.question}>
+                  <summary>{item.question}<span aria-hidden="true">+</span></summary>
+                  <p>{item.answer}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.relatedSection}>
+          <div className={styles.shell}>
+            <span className={styles.kicker}>Explore INXSocial</span>
+            <h2 className={styles.sectionTitle}>Related product workflows</h2>
+            <div className={styles.relatedGrid}>
+              {page.related.map(relatedSlug => {
+                const related = getSeoPage(relatedSlug);
+                if (!related) return null;
+                return (
+                  <Link className={styles.relatedCard} href={`/${related.slug}`} key={related.slug}>
+                    <span>{related.eyebrow}</span>
+                    <strong>{related.h1}</strong>
+                    <small>Learn more →</small>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.ctaSection}>
+          <div className={`${styles.shell} ${styles.ctaCard}`}>
+            <div>
+              <span className={styles.eyebrow}>Ready to run the workflow?</span>
+              <h2>Create, schedule, analyse and grow from one workspace.</h2>
+              <p>Start with the trial, connect the accounts you use and build your next publishing cycle in INXSocial.</p>
+            </div>
+            <div className={styles.ctaActions}>
+              <a className={styles.primaryButtonLarge} href="/portal/register.html">Start free trial →</a>
+              <a className={styles.darkButton} href="/portal/login.html?return=/app/">Open INXSocial</a>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className={styles.footer}>
+        <div className={`${styles.shell} ${styles.footerGrid}`}>
+          <div>
+            <img src="/assets/inx-social-wordmark.png" alt="INXSocial" width="166" height="42" />
+            <p>Create. Schedule. Analyse. Grow.</p>
+          </div>
+          <div>
+            <strong>Product</strong>
+            <Link href="/social-media-scheduler">Social media scheduler</Link>
+            <Link href="/bulk-social-media-scheduler">Bulk scheduler</Link>
+            <Link href="/social-media-content-calendar">Content calendar</Link>
+            <Link href="/social-media-analytics">Analytics</Link>
+          </div>
+          <div>
+            <strong>AI Content Studio</strong>
+            <Link href="/ai-social-media-tools">AI social media tools</Link>
+            <Link href="/ai-social-media-post-generator">AI post generator</Link>
+            <Link href="/ai-carousel-post-generator">AI carousel generator</Link>
+            <Link href="/ai-video-post-generator">AI video generator</Link>
+            <Link href="/ai-ugc-ad-generator">AI UGC ads</Link>
+          </div>
+          <div>
+            <strong>Company</strong>
+            <Link href="/pricing">Pricing</Link>
+            <a href="https://inaxx.co.uk/">INAXX LTD</a>
+            <a href="/privacy.html">Privacy</a>
+            <a href="/terms.html">Terms</a>
+          </div>
+        </div>
+        <div className={`${styles.shell} ${styles.footerBottom}`}>
+          <span>© 2026 INAXX LTD. All rights reserved.</span>
+          <Link href="/">INXSocial home</Link>
+        </div>
+      </footer>
+    </div>
+  );
+}

@@ -12,9 +12,13 @@ test('landing response applies SEO title, description and render-critical styles
 
   assert.equal(landing.includes('landing-redesign.css?v=20260919a'), true);
   assert.equal(landing.includes('landing.js?v=20260918d'), true);
-  assert.match(landing, /<title>INXSocial \| Create, Schedule, Analyse &amp; Manage Social Media<\/title>/);
-  assert.match(landing, /Manage connected social accounts, create content with AI/);
+  assert.equal(
+    landing.includes('<title>Social Media Scheduler &amp; AI Content Studio | INXSocial</title>'),
+    true
+  );
+  assert.match(landing, /Create, bulk schedule and analyse social media from one workspace/);
   assert.match(landing, /inx-social-wordmark\.png/);
+  assert.match(landing, /rel="preload" as="image" href="\/assets\/landing-dashboard-20260919\.webp"/);
   assert.match(app, /return injectAnalyticsConsent\(source\)/);
   assert.match(app, /Cache-Control', 'public, max-age=0, must-revalidate/);
 });
@@ -37,7 +41,7 @@ test('responsive stylesheet is present before first paint', () => {
   assert.doesNotMatch(landingJs, /landing-mobile\.css/);
 });
 
-test('crawl controls consolidate marketing URLs while app surfaces remain noindex', () => {
+test('crawl controls expose canonical marketing pages while app surfaces remain noindex', () => {
   const robots = read('public/robots.txt');
   const sitemap = read('public/sitemap.xml');
   const app = read('src/app.js');
@@ -47,8 +51,10 @@ test('crawl controls consolidate marketing URLs while app surfaces remain noinde
   assert.match(robots, /Disallow: \/api\//);
   assert.match(app, /\['\/admin', '\/index\.html', '\/api', '\/portal', '\/studio', '\/app', '\/health', '\/oauth-callback\.html'\]/);
   assert.match(app, /X-Robots-Tag', 'noindex, nofollow, noarchive'/);
-  assert.equal((sitemap.match(/<url>/g) || []).length, 1);
+  assert.equal((sitemap.match(/<url>/g) || []).length, 11);
   assert.doesNotMatch(sitemap, /social-media-scheduler\.html|pricing\.html|free-social-media-tools\.html/);
+  assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/social-media-scheduler/);
+  assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/pricing/);
 });
 
 test('landing retains canonical structured data and current AI capabilities', () => {
@@ -68,7 +74,7 @@ test('landing retains canonical structured data and current AI capabilities', ()
   assert.match(landing, /coming soon/i);
 });
 
-test('GEO documentation describes capability without duplicate public microsites', () => {
+test('GEO documentation points to the canonical website and supporting product pages', () => {
   const llms = read('public/llms.txt');
 
   for (const platform of ['Facebook','Instagram','LinkedIn','TikTok','YouTube','Pinterest','Threads','Bluesky']) {
@@ -78,5 +84,8 @@ test('GEO documentation describes capability without duplicate public microsites
   assert.match(llms, /X \/ Twitter/);
   assert.match(llms, /Google Business is not currently supplied/);
   assert.match(llms, /Canonical website: https:\/\/www\.inxsocial\.co\.uk\//);
-  assert.doesNotMatch(llms, /https:\/\/www\.inxsocial\.co\.uk\/(?:social-media|bulk-social|ai-social|free-social|pricing)/);
+  assert.match(llms, /https:\/\/www\.inxsocial\.co\.uk\/social-media-scheduler/);
+  assert.match(llms, /https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-tools/);
+  assert.match(llms, /https:\/\/www\.inxsocial\.co\.uk\/pricing/);
+  assert.match(llms, /supporting pages on the same canonical INXSocial website/i);
 });
