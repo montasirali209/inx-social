@@ -66,21 +66,34 @@ const TRACKED_PUBLIC_HTML = [
   '/data-deletion.html'
 ];
 
+const SEO_MARKETING_ROUTES = new Map([
+  ['/social-media-scheduler', '/#workflow'],
+  ['/bulk-social-media-scheduler', '/#workflow'],
+  ['/social-media-content-calendar', '/#capabilities'],
+  ['/social-media-analytics', '/#capabilities'],
+  ['/ai-social-media-tools', '/#ai'],
+  ['/ai-social-media-post-generator', '/#ai'],
+  ['/ai-carousel-post-generator', '/#ai'],
+  ['/ai-video-post-generator', '/#ai'],
+  ['/ai-ugc-ad-generator', '/#ai'],
+  ['/pricing', '/#pricing']
+]);
+
 const LEGACY_MARKETING_REDIRECTS = {
-  '/social-media-scheduler.html': '/#workflows',
-  '/bulk-social-media-scheduler.html': '/#workflows',
-  '/social-media-content-calendar.html': '/#product',
-  '/social-media-analytics.html': '/#intelligence',
-  '/ai-social-media-tools.html': '/#intelligence',
-  '/ai-social-media-post-generator.html': '/#intelligence',
-  '/generate-and-schedule-social-media-posts.html': '/#workflows',
-  '/pricing.html': '/#pricing',
-  '/free-social-media-tools.html': '/',
-  '/social-media-caption-generator.html': '/',
-  '/30-day-social-media-content-planner.html': '/#product',
-  '/ai-video-post-generator.html': '/#intelligence',
-  '/ai-carousel-post-generator.html': '/#intelligence',
-  '/ai-ugc-ad-generator.html': '/#intelligence'
+  '/social-media-scheduler.html': '/social-media-scheduler',
+  '/bulk-social-media-scheduler.html': '/bulk-social-media-scheduler',
+  '/social-media-content-calendar.html': '/social-media-content-calendar',
+  '/social-media-analytics.html': '/social-media-analytics',
+  '/ai-social-media-tools.html': '/ai-social-media-tools',
+  '/ai-social-media-post-generator.html': '/ai-social-media-post-generator',
+  '/generate-and-schedule-social-media-posts.html': '/social-media-scheduler',
+  '/pricing.html': '/pricing',
+  '/free-social-media-tools.html': '/ai-social-media-tools',
+  '/social-media-caption-generator.html': '/ai-social-media-post-generator',
+  '/30-day-social-media-content-planner.html': '/social-media-content-calendar',
+  '/ai-video-post-generator.html': '/ai-video-post-generator',
+  '/ai-carousel-post-generator.html': '/ai-carousel-post-generator',
+  '/ai-ugc-ad-generator.html': '/ai-ugc-ad-generator'
 };
 const isAdminHost = req => Boolean(env.adminHost && String(req.hostname || '').toLowerCase() === env.adminHost);
 const secureAdminDocument = res => {
@@ -211,6 +224,11 @@ app.use(['/admin', '/index.html', '/api', '/portal', '/studio', '/app', '/health
   next();
 });
 
+app.use(['/privacy.html', '/terms.html', '/data-deletion.html', '/inx-social/data-deletion.html'], (req, res, next) => {
+  res.setHeader('X-Robots-Tag', 'noindex, follow');
+  next();
+});
+
 // Stripe signatures require the exact raw request bytes. Keep both Stripe webhooks before express.json().
 app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), billingController.webhook);
 app.post('/api/ai-content-studio/credits/webhook', express.raw({ type: 'application/json' }), aiContentStudioController.creditWebhook);
@@ -237,6 +255,31 @@ app.use('/_next', async (req, res, next) => {
 
   const payload = Buffer.from(await upstream.arrayBuffer());
   return res.send(payload);
+});
+
+app.get([...SEO_MARKETING_ROUTES.keys()], async (req, res) => {
+  if (isNextLandingEnabled()) {
+    const upstream = await fetchNextLanding(req.path, {
+      accept: req.headers.accept
+    });
+
+    if (upstream) {
+      try {
+        const source = await upstream.text();
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+        res.setHeader('Vary', 'Accept-Encoding');
+        res.setHeader('X-INX-Landing', 'next-seo');
+        return res.type('html').send(injectAnalyticsConsent(source));
+      } catch (error) {
+        console.warn('[seo-proxy] failed to read upstream page; using homepage fallback', {
+          path: req.path,
+          error: error?.message
+        });
+      }
+    }
+  }
+
+  return res.redirect(302, SEO_MARKETING_ROUTES.get(req.path) || '/');
 });
 
 app.get(LANDING_DASHBOARD_ASSET_PATH, (req, res, next) => {
