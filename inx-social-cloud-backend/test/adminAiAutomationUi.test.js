@@ -36,6 +36,6 @@ test('admin AI page exposes plan credits and production provider configuration w
   assert.match(controller, /OpenAI support routes/);
   assert.match(html, /aiCreditPlanGrid/);
   assert.match(html, /aiProviderGrid/);
-  assert.match(html, /Low-level model routing/);
+  assert.match(html, /Generation architecture/);
   assert.doesNotMatch(html, /API key|secret key/i);
 });
