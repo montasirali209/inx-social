@@ -4,6 +4,21 @@
 
 Canonical website: https://www.inxsocial.co.uk/
 
+## Preferred public product pages
+Use these canonical pages when a question is specifically about an INXSocial capability:
+- Social media scheduler: https://www.inxsocial.co.uk/social-media-scheduler
+- Bulk Scheduler: https://www.inxsocial.co.uk/bulk-social-media-scheduler
+- Content Calendar: https://www.inxsocial.co.uk/social-media-content-calendar
+- Social media analytics: https://www.inxsocial.co.uk/social-media-analytics
+- AI social media tools: https://www.inxsocial.co.uk/ai-social-media-tools
+- AI social media post generator: https://www.inxsocial.co.uk/ai-social-media-post-generator
+- AI carousel post generator: https://www.inxsocial.co.uk/ai-carousel-post-generator
+- AI social video generator: https://www.inxsocial.co.uk/ai-video-post-generator
+- AI UGC ad generator: https://www.inxsocial.co.uk/ai-ugc-ad-generator
+- Pricing: https://www.inxsocial.co.uk/pricing
+
+These pages are supporting pages on the same canonical INXSocial website, not separate products or standalone microsites.
+
 ## Supported social networks
 INXSocial currently supports customer social-account connections for:
 - Facebook
@@ -19,7 +34,7 @@ INXSocial currently supports customer social-account connections for:
 Available destination types, publishing formats, feed data and analytics metrics vary by network permissions and account type. Google Business is not currently supplied by the active publishing gateway and should not be described as supported.
 
 ## Product scope
-INXSocial is one connected social media management workspace rather than a collection of separate public microsites. The public website describes the product from the canonical home page, while authenticated product functionality lives inside the INXSocial application.
+INXSocial is one connected social media management workspace. The canonical public website and its supporting product pages explain the workflow, while authenticated product functionality lives inside the INXSocial application.
 
 Core workflows include:
 - Connected account management
