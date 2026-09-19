@@ -323,7 +323,7 @@ export function BulkSchedulerPage() {
     try {
       const uploaded = item.libraryAssetId
         ? await publishBulkLibraryMedia(result.jobId)
-        : await uploadBulkMedia(result.jobId, item.file)
+        : await uploadBulkMedia(result.jobId, item.file, { signal: new AbortController().signal, onProgress: () => {} })
       setResults((current) => current.map((candidate) => candidate.id === result.id ? {
         ...candidate,
         status: backendStatusToUploadStatus(uploaded.job.status),
