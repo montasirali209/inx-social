@@ -1192,3 +1192,164 @@ img{max-width:100%}
     transform:none!important;
   }
 }
+
+
+/* AI Content Studio — colourful visual pass */
+.ai-feature-card{
+  background:
+    radial-gradient(circle at 83% 16%,rgba(72,230,213,.12),transparent 27%),
+    radial-gradient(circle at 100% 100%,rgba(135,91,255,.07),transparent 34%),
+    linear-gradient(145deg,rgba(9,57,68,.97),rgba(5,31,42,.99) 70%);
+}
+.ai-feature-image::before{background:radial-gradient(circle,rgba(255,126,175,.14),transparent 68%)}
+.ai-feature-carousel::before{background:radial-gradient(circle,rgba(125,98,255,.14),transparent 68%)}
+.ai-feature-video::before{background:radial-gradient(circle,rgba(56,205,255,.14),transparent 68%)}
+.ai-feature-ugc::before{background:radial-gradient(circle,rgba(255,145,83,.17),transparent 68%)}
+.ai-feature-clipping::before{background:radial-gradient(circle,rgba(168,98,255,.12),transparent 68%)}
+
+/* Image Post — warm editorial artwork */
+.image-canvas{
+  background:
+    linear-gradient(180deg,#ff94c2 0%,#ffbd75 46%,#7a5ee8 47%,#31517c 100%);
+}
+.image-sun{background:#fff7b9;box-shadow:0 0 25px rgba(255,232,124,.8)}
+.mountain-a{background:#5f46a2}
+.mountain-b{background:#284f7f}
+.image-ground{background:linear-gradient(180deg,#2c617a,#17394d)}
+.image-prompt-chip{
+  background:linear-gradient(135deg,rgba(131,82,255,.92),rgba(255,102,154,.9));
+  border-color:rgba(255,255,255,.2);color:#fff;
+}
+.image-output-chip{
+  background:linear-gradient(135deg,rgba(15,69,77,.95),rgba(12,105,103,.9));
+  border-color:rgba(104,239,221,.27);color:#c6f5ed
+}
+.image-output-chip b{color:#ffdb6f}
+.spark-a{color:#ff9ac5;text-shadow:0 0 14px rgba(255,105,176,.75)}
+.spark-b{color:#ffe36f;text-shadow:0 0 14px rgba(255,218,89,.75)}
+
+/* Carousel — each slide gets its own campaign colour */
+.carousel-card.c1{
+  background:linear-gradient(155deg,#694fe2,#402b82);
+}
+.carousel-card.c2{
+  background:linear-gradient(155deg,#ff6f9f,#8c3e75);
+}
+.carousel-card.c3{
+  background:linear-gradient(155deg,#ffad55,#8c5432);
+}
+.carousel-card.c1 .carousel-photo{
+  background:linear-gradient(180deg,#6ae0dd 0%,#5f7de8 56%,#352a74 57% 100%);
+}
+.carousel-card.c2 i{background:linear-gradient(145deg,#ff8eb5,#7657dc)}
+.carousel-card.c3 i{background:linear-gradient(145deg,#ffd166,#ef7d5d)}
+.carousel-mini-strip i:nth-child(1){background:linear-gradient(145deg,#7058e9,#4a36a6)}
+.carousel-mini-strip i:nth-child(2){background:linear-gradient(145deg,#ff75a6,#a94980)}
+.carousel-mini-strip i:nth-child(3){background:linear-gradient(145deg,#ffbc64,#b5633d)}
+.carousel-mini-strip i:nth-child(4){background:linear-gradient(145deg,#52d9d0,#2d7b91)}
+.carousel-mini-strip i.active{box-shadow:0 0 0 1px rgba(255,255,255,.28),0 0 13px rgba(123,96,255,.38)}
+
+/* Video — social reel with violet/coral/cyan lighting */
+.video-phone{
+  background:linear-gradient(160deg,#5f50d8,#163c5e 62%,#082937);
+  border-color:rgba(142,124,255,.35)
+}
+.video-scene{
+  background:
+    radial-gradient(circle at 68% 26%,rgba(255,126,166,.46),transparent 26%),
+    radial-gradient(circle at 30% 72%,rgba(66,219,208,.26),transparent 34%),
+    linear-gradient(155deg,#442f7f 0%,#173a5c 55%,#0a2433 100%);
+}
+.video-play{border-color:rgba(255,255,255,.96);box-shadow:0 0 25px rgba(136,99,255,.34)}
+.video-progress i{background:linear-gradient(90deg,#ff6da9,#8f6cff,#53e1d4)}
+.video-waveform i:nth-child(odd){background:linear-gradient(#ff72ad,#7c55e6)}
+.video-waveform i:nth-child(even){background:linear-gradient(#63e6db,#3693cc)}
+.video-ratio-pill{color:#ffd7ea;border-color:rgba(255,115,176,.22)}
+.video-duration{color:#cbf9f4;border-color:rgba(95,229,215,.22)}
+
+/* UGC — colourful generic consumer product, no INX branding */
+.ugc-back-card{
+  background:
+    radial-gradient(circle at 75% 24%,rgba(255,112,167,.24),transparent 30%),
+    radial-gradient(circle at 24% 82%,rgba(105,232,217,.16),transparent 34%),
+    linear-gradient(150deg,#3b316e,#173f5a 58%,#0a2834)
+}
+.ugc-creator-pill{
+  background:linear-gradient(135deg,rgba(102,76,211,.95),rgba(15,68,78,.94));
+  border-color:rgba(178,146,255,.28)
+}
+.ugc-avatar{background:linear-gradient(145deg,#ffb16c,#ff729e 48%,#7358df)}
+.ugc-creator-pill i{color:#ffcf70}
+.ugc-copy{color:#fff0f8;text-shadow:0 0 13px rgba(255,105,170,.45)}
+.ugc-product{display:none!important}
+.ugc-product-visual{
+  position:absolute;z-index:5;right:31px;top:76px;width:105px;height:105px;
+  filter:drop-shadow(0 16px 18px rgba(0,0,0,.30));
+  transform:rotate(-2deg);
+  transform-origin:50% 70%;
+}
+.ugc-product-visual svg{display:block;width:100%;height:100%;overflow:visible}
+.ugc-engagement{
+  background:linear-gradient(135deg,rgba(90,69,184,.90),rgba(8,48,58,.92));
+  border-color:rgba(174,143,255,.24);color:#f1ebff
+}
+.ugc-engagement span:first-child{color:#ff9bc0}
+.ugc-tag{
+  background:linear-gradient(135deg,rgba(255,129,95,.22),rgba(137,91,255,.20));
+  border-color:rgba(255,168,127,.25);color:#ffd2b5
+}
+
+/* Video Clipping — multicolour edit timeline */
+.clip-preview-scene{
+  background:
+    linear-gradient(180deg,#7964e9 0%,#4b78c7 47%,#2f6d75 48%,#173743 100%)
+}
+.clip-preview-scene i{background:#ffd45f;box-shadow:0 0 15px rgba(255,212,95,.65)}
+.clip-editor .clip-rail span:nth-child(1){background:linear-gradient(145deg,#6d58df,#4534a2)}
+.clip-editor .clip-rail span:nth-child(2){background:linear-gradient(145deg,#ff719e,#a84979)}
+.clip-editor .clip-rail span:nth-child(3){background:linear-gradient(145deg,#4fd8d0,#277989)}
+.clip-editor .clip-rail span:nth-child(4){background:linear-gradient(145deg,#ffb257,#a96237)}
+.clip-editor .clip-rail span:nth-child(5){background:linear-gradient(145deg,#8e68ef,#533aa4)}
+.clip-editor .clip-rail span:nth-child(6){background:linear-gradient(145deg,#42c7ec,#27658f)}
+.clip-editor .clip-selection{
+  border-color:#ffdf72;
+  box-shadow:0 0 25px rgba(255,216,102,.35),inset 0 0 18px rgba(255,216,102,.06)
+}
+.clip-playhead{background:#ff7faa;box-shadow:0 0 10px rgba(255,114,165,.8)}
+.clip-playhead::before{background:#ff7faa}
+.clip-waveform i:nth-child(3n+1){background:linear-gradient(#ff72aa,#8c55dc)}
+.clip-waveform i:nth-child(3n+2){background:linear-gradient(#67e1d5,#2e8db8)}
+.clip-waveform i:nth-child(3n){background:linear-gradient(#ffd166,#dd7b55)}
+.clip-scissors{
+  background:linear-gradient(145deg,#7d5fe6,#e2569c);
+  border-color:rgba(255,183,226,.34);
+  box-shadow:0 12px 25px rgba(0,0,0,.24),0 0 20px rgba(201,88,211,.13)
+}
+
+/* Keep colour premium rather than neon-heavy */
+@media(hover:hover) and (pointer:fine){
+  .ai-feature-ugc:hover .ugc-product-visual{
+    transform:translate3d(-5px,-8px,0) rotate(1deg) scale(1.055);
+    filter:drop-shadow(0 20px 22px rgba(0,0,0,.34)) saturate(1.08);
+  }
+  .ai-feature-image:hover .image-canvas,
+  .ai-feature-carousel:hover .carousel-stage,
+  .ai-feature-video:hover .video-scene,
+  .ai-feature-clipping:hover .clip-editor{
+    filter:saturate(1.08) brightness(1.025);
+  }
+}
+.ugc-product-visual,
+.image-canvas,
+.carousel-stage,
+.video-scene,
+.clip-editor{
+  transition:transform .36s cubic-bezier(.2,.75,.25,1),filter .34s ease;
+}
+@media(prefers-reduced-motion:reduce){
+  .ugc-product-visual,
+  .image-canvas,
+  .carousel-stage,
+  .video-scene,
+  .clip-editor{transition:none!important;transform:none!important}
+}
