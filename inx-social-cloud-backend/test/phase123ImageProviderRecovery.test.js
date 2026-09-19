@@ -24,7 +24,7 @@ test('administrator receives governed provider visibility without exposing legac
   const admin = read('public/index.html');
   const controller = read('src/controllers/adminController.js');
   assert.match(admin, /AI &amp; Automation Administration/);
-  assert.match(admin, /Low-level model routing/);
+  assert.match(admin, /Generation architecture/);
   assert.match(admin, /aiProviderGrid/);
   assert.match(controller, /Runware/);
   assert.match(controller, /OpenAI support routes/);
