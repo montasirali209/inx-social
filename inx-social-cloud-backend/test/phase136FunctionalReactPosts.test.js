@@ -35,7 +35,9 @@ test('Phase 13.6 publishes multi-destination posts through the Post for Me gatew
   assert.doesNotMatch(api, /\/api\/studio\/direct-posts/);
   assert.match(page, /connectedPageIds: selectedIds/);
   assert.match(page, /publishMode: mode === 'now' \? 'NOW' : 'SCHEDULED'/);
-  assert.match(page, /for \(const job of response\.jobs\)/);
+  assert.match(page, /const uploadJob = response\.jobs\[0\]/);
+  assert.match(page, /INX Social will hold this content securely/);
+  assert.doesNotMatch(page, /for \(const job of response\.jobs\)/);
   assert.match(destinations, /Select All Visible/);
   assert.match(destinations, /createPortal/);
   assert.match(destinations, /Choose publishing destinations/);
