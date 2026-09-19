@@ -214,7 +214,7 @@ async function findContent(userId, id, options = {}) {
   });
   if (!asset) return null;
   if (asset.storageKey) {
-    const data = await objectStorage.getBuffer(asset.storageKey);
+    const data = await objectStorage.getBuffer(asset.storageKey, null, asset.storageProvider);
     return { ...asset, data };
   }
   return asset;
@@ -230,13 +230,13 @@ async function findContentMetadata(userId, id, options = {}) {
 async function findContentRange(userId, id, start, length, options = {}) {
   const asset = await prisma.agentAsset.findFirst({
     where: { id, userId, status: 'READY', ...(options.includeArchived ? {} : { archivedAt: null }) },
-    select: { storageKey: true }
+    select: { storageKey: true, storageProvider: true }
   });
   if (!asset) return null;
   if (asset.storageKey) {
     const safeStart = Math.max(0, Number(start));
     const safeLength = Math.max(1, Number(length));
-    return objectStorage.getBuffer(asset.storageKey, `bytes=${safeStart}-${safeStart + safeLength - 1}`);
+    return objectStorage.getBuffer(asset.storageKey, `bytes=${safeStart}-${safeStart + safeLength - 1}`, asset.storageProvider);
   }
   const archivedClause = options.includeArchived ? '' : 'AND "archivedAt" IS NULL';
   // Prisma binds raw numeric placeholders as bigint. PostgreSQL's bytea substring
@@ -258,7 +258,7 @@ async function duplicate(userId, id) {
   const existing = await prisma.agentAsset.findFirst({ where: { id, userId, status: 'READY', archivedAt: null } });
   if (!existing) throw error('Media asset not found.', 404);
   const bytes = existing.storageKey
-    ? await objectStorage.getBuffer(existing.storageKey)
+    ? await objectStorage.getBuffer(existing.storageKey, null, existing.storageProvider)
     : Buffer.from(existing.data || []);
   if (!bytes.length) throw error('Media asset content is unavailable.', 404);
   const copyName = `Copy of ${existing.originalName || 'media asset'}`.slice(0, 180);
