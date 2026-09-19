@@ -678,23 +678,10 @@ img{max-width:100%}
     background .28s var(--ease);
 }
 .ai-feature-card::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  z-index:0;
-  pointer-events:none;
-  border-radius:inherit;
-  opacity:0;
-  background:
-    radial-gradient(circle at 78% 24%,rgba(73,230,216,.14),transparent 34%),
-    linear-gradient(120deg,rgba(255,255,255,.025),transparent 48%);
-  transition:opacity .28s var(--ease);
+  transition:filter .28s var(--ease),opacity .28s var(--ease);
 }
-.ai-feature-card>.ai-feature-copy,
-.ai-feature-card>.ai-feature-art{
-  position:relative;
-  z-index:1;
-}
+.ai-feature-card>.ai-feature-copy{position:relative;z-index:3}
+.ai-feature-card>.ai-feature-art{position:absolute;z-index:2}
 .ai-feature-art{
   transition:
     transform .34s cubic-bezier(.2,.75,.25,1),
@@ -722,7 +709,7 @@ img{max-width:100%}
       0 0 0 1px rgba(75,224,210,.055),
       inset 0 1px 0 rgba(255,255,255,.035);
   }
-  .ai-feature-card:hover::before{opacity:1}
+  .ai-feature-card:hover::before{filter:brightness(1.14)}
   .ai-feature-card:hover .ai-feature-icon{
     transform:translateY(-2px) scale(1.045);
     border-color:rgba(112,244,231,.52);
