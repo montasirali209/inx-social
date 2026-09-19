@@ -1677,25 +1677,39 @@ async function rescheduleJob(req, res, next) {
     if ([JOB_STATUS.PROCESSING, JOB_STATUS.PUBLISHED, JOB_STATUS.CANCELLED].includes(existing.status)) {
       return res.status(409).json({ error: `This ${existing.status.toLowerCase()} post cannot be rescheduled.` });
     }
+
     const postId = calendarMetaId(existing);
-    if (existing.status === JOB_STATUS.SCHEDULED) {
-      if (!postId || !existing.connectedPage) return res.status(409).json({ error: 'The Facebook post reference is unavailable.' });
+    const legacyMetaScheduled = existing.status === JOB_STATUS.SCHEDULED && Boolean(postId);
+    if (legacyMetaScheduled) {
+      if (!existing.connectedPage) return res.status(409).json({ error: 'The Facebook Page reference is unavailable.' });
       await metaPublisher.reschedulePost({
         postId,
         pageAccessToken: decryptToken(existing.connectedPage.encryptedAccessToken),
         scheduledAt
       });
     }
+
+    const assetReady = existing.contentType === 'TEXT'
+      || existing.cloudAsset?.status === ASSET_STATUS.READY
+      || Boolean(existing.cloudAsset?.storageKey);
+    const canRequeue = !legacyMetaScheduled
+      && assetReady
+      && [JOB_STATUS.QUEUED, JOB_STATUS.READY, JOB_STATUS.FAILED, JOB_STATUS.SCHEDULED].includes(existing.status);
+
     const verification = jobVerification(existing);
     const job = await prisma.scheduleJob.update({
       where: { id: existing.id },
       data: {
         scheduledAt,
         publishMode: 'SCHEDULED',
-        errorMessage: null,
+        status: canRequeue ? JOB_STATUS.QUEUED : existing.status,
+        nextAttemptAt: canRequeue ? scheduledAt : existing.nextAttemptAt,
+        claimedAt: canRequeue ? null : existing.claimedAt,
+        errorMessage: canRequeue ? null : existing.errorMessage,
         rawMetaResponse: JSON.stringify({
           ...parseJson(existing.rawMetaResponse, {}),
-          verification: { ...verification, state: existing.status, rescheduledAt: new Date().toISOString() }
+          serverQueue: canRequeue || parseJson(existing.rawMetaResponse, {})?.serverQueue || false,
+          verification: { ...verification, state: canRequeue ? 'QUEUED' : existing.status, rescheduledAt: new Date().toISOString() }
         })
       },
       include: { connectedPage: true, cloudAsset: true }
@@ -1714,8 +1728,9 @@ async function deleteJob(req, res, next) {
       include: { connectedPage: true, cloudAsset: true }
     });
     if (!existing) return res.status(404).json({ error: 'Scheduled content not found.' });
-    if (existing.status === JOB_STATUS.PROCESSING) return res.status(409).json({ error: 'Wait for the current Facebook upload to finish before deleting it.' });
+    if (existing.status === JOB_STATUS.PROCESSING) return res.status(409).json({ error: 'Wait for the current publishing attempt to finish before deleting it.' });
     if (existing.status === JOB_STATUS.CANCELLED) return res.json({ ok: true, job: publicJob(existing) });
+
     const postId = calendarMetaId(existing);
     if (postId && existing.connectedPage) {
       try {
@@ -1724,11 +1739,28 @@ async function deleteJob(req, res, next) {
         if (!metaPublisher.isMissingPostError(error)) throw error;
       }
     }
-    const job = await prisma.scheduleJob.update({
-      where: { id: existing.id },
-      data: { status: JOB_STATUS.CANCELLED, completedAt: new Date(), nextAttemptAt: null, errorMessage: null },
-      include: { connectedPage: true, cloudAsset: true }
-    });
+
+    if (existing.cloudAsset?.storageKey) {
+      await objectStorage.deleteObject(existing.cloudAsset.storageKey, existing.cloudAsset.provider || null).catch(error => {
+        console.warn('[PUBLISH QUEUE] delete cleanup failed', { jobId: existing.id, error: error?.message });
+      });
+    }
+
+    const operations = [
+      prisma.scheduleJob.update({
+        where: { id: existing.id },
+        data: { status: JOB_STATUS.CANCELLED, completedAt: new Date(), claimedAt: null, nextAttemptAt: null, errorMessage: null },
+        include: { connectedPage: true, cloudAsset: true }
+      })
+    ];
+    if (existing.cloudAsset) {
+      operations.push(prisma.cloudAsset.update({
+        where: { id: existing.cloudAsset.id },
+        data: { status: ASSET_STATUS.DELETED, storageKey: null }
+      }));
+    }
+    const [job, asset] = await prisma.$transaction(operations);
+    if (asset) job.cloudAsset = asset;
     res.json({ ok: true, job: publicJob(job) });
   } catch (error) {
     next(error);
@@ -1892,19 +1924,24 @@ async function cancelJob(req, res, next) {
       return res.status(409).json({ error: `This job is already ${existing.status.toLowerCase()}.` });
     }
     if ([JOB_STATUS.PROCESSING, JOB_STATUS.SCHEDULED].includes(existing.status)) {
-      return res.status(409).json({ error: 'A processing or Meta-scheduled job cannot be cancelled here.' });
+      return res.status(409).json({ error: 'A processing or legacy Meta-scheduled job cannot be cancelled here.' });
     }
+
+    if (existing.cloudAsset?.storageKey) {
+      await objectStorage.deleteObject(existing.cloudAsset.storageKey, existing.cloudAsset.provider || null).catch(() => {});
+    }
+
     const operations = [
       prisma.scheduleJob.update({
         where: { id: existing.id },
-        data: { status: JOB_STATUS.CANCELLED, caption: null, completedAt: new Date(), nextAttemptAt: null, errorMessage: null },
+        data: { status: JOB_STATUS.CANCELLED, caption: null, completedAt: new Date(), claimedAt: null, nextAttemptAt: null, errorMessage: null },
         include: { connectedPage: true, cloudAsset: true }
       })
     ];
     if (existing.cloudAsset) {
       operations.push(prisma.cloudAsset.update({
         where: { id: existing.cloudAsset.id },
-        data: { status: ASSET_STATUS.DELETED }
+        data: { status: ASSET_STATUS.DELETED, storageKey: null }
       }));
     }
     const [job, asset] = await prisma.$transaction(operations);
