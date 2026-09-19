@@ -39,7 +39,11 @@ test('Universal notifications are live, responsive, animated and accessible', ()
   assert.match(notifications, /aria-expanded=\{open\}/);
   assert.match(notifications, /role="dialog"/);
   assert.match(notifications, /Mark all read/);
-  assert.match(notifications, /inx-social-notification-fingerprint/);
+  assert.match(notifications, /inx-social-notification-read-ids-v2/);
+  assert.match(notifications, /parseStoredReadIds/);
+  assert.match(notifications, /notificationsReady/);
+  assert.match(notifications, /notices\.filter\(\(notice\) => !readSet\.has\(notice\.id\)\)/);
+  assert.match(notifications, /localStorage\.removeItem\(legacyReadStorageKey\)/);
   assert.match(notifications, /fixed inset-x-3/);
   assert.match(styles, /@keyframes notification-pop-in/);
   assert.match(styles, /prefers-reduced-motion: reduce/);
