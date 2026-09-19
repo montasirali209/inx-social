@@ -582,9 +582,11 @@ async function processDueContent(contentId) {
 
     const providerMedia = [];
     for (const ref of queuedMedia) providerMedia.push(await uploadQueuedMediaRef(ref));
-    if (providerMedia.length) await updatePublicationMedia(bundle.publications, { providerMedia, queuedMedia: null });
 
+    // Keep the durable R2 references until the provider has accepted the post.
+    // If provider submission fails, the same queued objects remain available for retry.
     await submitBundle(bundle, providerMedia, { forceImmediate: true });
+    if (providerMedia.length) await updatePublicationMedia(bundle.publications, { providerMedia, queuedMedia: null });
     await cleanupQueuedMedia(queuedMedia);
     return true;
   } catch (error) {
