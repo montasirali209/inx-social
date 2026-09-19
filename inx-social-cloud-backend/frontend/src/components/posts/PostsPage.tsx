@@ -405,19 +405,28 @@ export function PostsPage() {
       })
       let mediaFailures = 0
       if (response.uploadRequired && publishingMedia) {
-        let completed = 0
-        for (const job of response.jobs) {
+        const uploadJob = response.jobs[0]
+        if (!uploadJob) mediaFailures = 1
+        else {
           try {
-            if (publishingMedia.libraryAssetId) await publishDirectPostLibraryMedia(job.id)
-            else await uploadDirectPostMedia(job.id, publishingMedia.file, (filePercent) => setProgress({ state: 'uploading', percent: Math.round(((completed + filePercent / 100) / response.jobs.length) * 100), message: `Publishing to ${job.destination?.name || job.page?.facebookPageName || 'destination'}…` }))
+            if (publishingMedia.libraryAssetId) await publishDirectPostLibraryMedia(uploadJob.id)
+            else await uploadDirectPostMedia(uploadJob.id, publishingMedia.file, (filePercent) => setProgress({
+              state: 'uploading',
+              percent: filePercent,
+              message: mode === 'now'
+                ? `Uploading ${publishingMedia!.fileName} for immediate publishing…`
+                : `Securing ${publishingMedia!.fileName} in the INX Social publishing queue…`,
+            }))
           } catch {
-            mediaFailures += 1
+            mediaFailures = 1
           }
-          completed += 1
         }
       }
       const failed = response.failures.length + mediaFailures
-      setProgress({ state: failed ? 'failed' : 'completed', percent: 100, message: failed ? `${response.jobs.length - failed} destinations completed; ${failed} failed. Review the Dashboard for details.` : `${response.jobs.length} destination${response.jobs.length === 1 ? '' : 's'} ${mode === 'now' ? 'published' : 'scheduled'} successfully.` })
+      const successMessage = mode === 'now'
+        ? `${response.jobs.length} destination${response.jobs.length === 1 ? '' : 's'} published successfully.`
+        : `Scheduled successfully. INX Social will hold this content securely and send it to the selected destination${response.jobs.length === 1 ? '' : 's'} when the publishing time arrives.`
+      setProgress({ state: failed ? 'failed' : 'completed', percent: 100, message: failed ? `${Math.max(0, response.jobs.length - failed)} destinations completed; ${failed} failed. Review Needs Review for details.` : successMessage })
       if (!failed) {
         window.localStorage.removeItem(composerSessionKey)
         void clearPostComposerFile().catch(() => {})
