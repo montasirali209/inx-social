@@ -10,7 +10,7 @@ test('landing response applies SEO title, description and render-critical styles
   const app = read('src/app.js');
   const landing = read('public/landing.html');
 
-  assert.equal(landing.includes('landing-redesign.css?v=20260918h'), true);
+  assert.equal(landing.includes('landing-redesign.css?v=20260919a'), true);
   assert.equal(landing.includes('landing.js?v=20260918d'), true);
   assert.match(landing, /<title>INXSocial \| Create, Schedule, Analyse &amp; Manage Social Media<\/title>/);
   assert.match(landing, /Manage connected social accounts, create content with AI/);
