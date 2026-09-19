@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { buildPublishingTimes, parseCaptions, zonedDateTimeToIso } from './bulk-scheduler-utils'
+import { buildPublishingTimes, getBulkScheduleCapacity, parseCaptions, zonedDateTimeToIso } from './bulk-scheduler-utils'
 
 describe('Bulk Scheduler session utilities', () => {
   it('parses paragraph captions without splitting multiline copy', () => {
@@ -38,6 +38,14 @@ describe('Bulk Scheduler session utilities', () => {
 
   it('rejects local times that do not exist during a daylight-saving change', () => {
     expect(() => zonedDateTimeToIso('2026-03-29', '01:30', 'Europe/London')).toThrow(/daylight-saving change/i)
+  })
+
+  it('preflights the 25-day scheduling horizon before starting a large batch', () => {
+    vi.setSystemTime(new Date('2026-09-19T20:12:00.000Z'))
+    const capacity = getBulkScheduleCapacity({ date: '2026-09-20', dailyTimes: ['10:00', '11:00', '21:00', '23:00'], timezone: 'Europe/London' })
+    expect(capacity.capacity).toBe(99)
+    expect(() => buildPublishingTimes({ mode: 'schedule_time', mediaCount: 130, date: '2026-09-20', dailyTimes: ['10:00', '11:00', '21:00', '23:00'], timezone: 'Europe/London' })).toThrow(/only 99 fit inside the current 25-day scheduling window/i)
+    vi.useRealTimers()
   })
 
   it('requires at least one session time for selected-date scheduling', () => {

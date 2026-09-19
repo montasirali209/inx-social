@@ -44,6 +44,8 @@ export type SelectedMedia = {
 
 export type UploadResult = {
   id: string
+  mediaId: string
+  mediaIndex: number
   jobId: string | null
   fileName: string
   mediaKind: MediaKind
