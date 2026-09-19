@@ -71,24 +71,6 @@ jobs:
       - run: npm run check
       - run: npm test
 
-  marketing-check:
-    name: Marketing foundation
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: marketing
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-      - name: Install marketing dependencies
-        run: npm install --no-audit --no-fund
-      - name: Audit production marketing dependencies
-        run: npm audit --omit=dev --audit-level=high
-      - run: npm run typecheck
-      - run: npm run build
-
   gateway-check:
     name: Gateway checks
     runs-on: ubuntu-latest
@@ -198,7 +180,6 @@ jobs:
       - source-safety
       - desktop-check
       - backend-check
-      - marketing-check
       - gateway-check
       - windows-installer
     runs-on: ubuntu-latest

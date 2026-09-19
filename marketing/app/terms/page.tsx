@@ -1,1 +1,0 @@
-export default function TermsPage(){return <section className="section legal-page"><div className="container-shell"><span className="eyebrow">Legal</span><h1 className="page-title">Terms</h1><p>This Phase 1 route preserves the public terms URL while the full legal page is migrated. Existing INXSocial terms remain authoritative until migration is complete.</p></div></section>}
