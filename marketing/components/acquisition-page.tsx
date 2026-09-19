@@ -1,19 +1,5 @@
 import type { CSSProperties } from 'react'
-import {
-  ArrowRight,
-  BarChart3,
-  CalendarDays,
-  Check,
-  ImageIcon,
-  Layers3,
-  Link2,
-  Play,
-  Send,
-  Sparkles,
-  Video,
-  WandSparkles,
-  Waypoints,
-} from 'lucide-react'
+import { ArrowRight, Check, Link2 } from 'lucide-react'
 import type { AcquisitionPage as AcquisitionPageData } from '@/lib/acquisition'
 import { site } from '@/lib/site'
 import { ProductShot, productShots } from './product-shot'
