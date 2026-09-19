@@ -99,7 +99,7 @@ function responseRecorder() {
   };
 }
 
-test('studio capabilities enable temporary streaming without persistent video storage', async () => {
+test('studio capabilities report durable server-side scheduled media storage', async () => {
   const res = responseRecorder();
   let forwardedError = null;
   await controller.capabilities({ user: { id: 'user-1' } }, res, error => { forwardedError = error; });
@@ -107,8 +107,9 @@ test('studio capabilities enable temporary streaming without persistent video st
   assert.equal(res.body.phase, '10.0');
   assert.equal(res.body.mode, 'FULL_BROWSER_STUDIO');
   assert.equal(res.body.upload.enabled, true);
-  assert.equal(res.body.upload.persistentStorage, false);
-  assert.equal(res.body.upload.provider, 'TEMPORARY_STREAM_TO_META');
+  assert.equal(res.body.upload.persistentStorage, true);
+  assert.equal(res.body.upload.provider, 'R2_SERVER_QUEUE');
+  assert.equal(res.body.publishing.mode, 'SERVER_SIDE_QUEUE_AND_IMMEDIATE_PUBLISH');
   assert.equal(res.body.publishing.enabled, true);
 });
 
