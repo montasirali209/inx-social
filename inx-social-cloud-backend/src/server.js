@@ -8,6 +8,7 @@ const { startRuntime: startPostForMeRuntime } = require('./services/postForMeSer
 const { startAnalyticsCacheRuntime } = require('./services/postForMeAnalyticsService');
 const prisma = require('./db/prisma');
 const { runStorageDiagnostics } = require('./services/storageDiagnosticsService');
+const { startMediaObjectMigration } = require('./services/mediaObjectMigrationService');
 
 async function verifyNextLandingUpstream() {
   if (!/^(?:1|true|yes|on)$/i.test(String(process.env.NEXT_LANDING_ENABLED || '').trim())) return;
@@ -44,6 +45,7 @@ const server = app.listen(env.port, () => {
   startSubscriptionLifecycle();
   startAgentRuntime();
   startMediaRetention();
+  startMediaObjectMigration();
   startStockVideoRuntime();
   startPostForMeRuntime();
   startAnalyticsCacheRuntime();
