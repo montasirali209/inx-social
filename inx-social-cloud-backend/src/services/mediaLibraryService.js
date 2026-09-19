@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const sharp = require('sharp');
 const prisma = require('../db/prisma');
 const { expiresAtFor, VIDEO_RETENTION_DAYS, OTHER_MEDIA_RETENTION_DAYS } = require('./mediaRetentionService');
+const objectStorage = require('./mediaObjectStorageService');
 
 const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const VIDEO_TYPES = new Set(['video/mp4', 'video/quicktime', 'video/webm']);
@@ -114,7 +115,15 @@ async function workspace(userId, plan) {
   };
 
   // Trash cleanup must never delay the visible Media Library request.
-  void prisma.agentAsset.deleteMany({ where: { userId, archivedAt: { lt: trashCutoff } } }).catch((cleanupError) => {
+  void (async () => {
+    const expiredTrash = await prisma.agentAsset.findMany({
+      where: { userId, archivedAt: { lt: trashCutoff } },
+      select: { id: true, storageKey: true }
+    });
+    if (!expiredTrash.length) return;
+    await prisma.agentAsset.deleteMany({ where: { id: { in: expiredTrash.map(asset => asset.id) } } });
+    await Promise.allSettled(expiredTrash.filter(asset => asset.storageKey).map(asset => objectStorage.deleteObject(asset.storageKey)));
+  })().catch((cleanupError) => {
     console.warn('[media-library] expired trash cleanup delayed', { userId, error: cleanupError?.message || String(cleanupError) });
   });
 
@@ -156,7 +165,16 @@ async function upload(userId, plan, input) {
     return publicAsset(duplicate);
   }
   const metadata = await imageMetadata(mimeType, input.data);
-  const created = await prisma.agentAsset.create({ data: {
+  const stored = await objectStorage.persistBuffer({
+    userId,
+    data: input.data,
+    mimeType,
+    originalName: safeName(input.fileName),
+    prefix: 'media-library'
+  });
+  let created;
+  try {
+    created = await prisma.agentAsset.create({ data: {
     userId,
     folderId: folder?.id || null,
     kind: mimeType.startsWith('video/') ? 'LIBRARY_VIDEO' : mimeType === 'image/gif' ? 'LIBRARY_GIF' : 'LIBRARY_IMAGE',
@@ -166,12 +184,18 @@ async function upload(userId, plan, input) {
     mimeType,
     byteSize: input.data.length,
     checksum,
-    data: input.data,
+    data: stored.data,
+    storageProvider: stored.storageProvider,
+    storageKey: stored.storageKey,
     width: metadata.width,
     height: metadata.height,
     tagsJson: '[]',
     expiresAt: expiresAtFor(mimeType)
-  }, include: ASSET_INCLUDE });
+    }, include: ASSET_INCLUDE });
+  } catch (createError) {
+    if (stored.storageKey) await objectStorage.deleteObject(stored.storageKey).catch(() => {});
+    throw createError;
+  }
   return publicAsset(created);
 }
 
@@ -184,17 +208,36 @@ async function createFolder(userId, name) {
 }
 
 async function findContent(userId, id, options = {}) {
-  return prisma.agentAsset.findFirst({ where: { id, userId, status: 'READY', ...(options.includeArchived ? {} : { archivedAt: null }) }, select: { mimeType: true, data: true, checksum: true, originalName: true } });
+  const asset = await prisma.agentAsset.findFirst({
+    where: { id, userId, status: 'READY', ...(options.includeArchived ? {} : { archivedAt: null }) },
+    select: { mimeType: true, data: true, checksum: true, originalName: true, storageProvider: true, storageKey: true }
+  });
+  if (!asset) return null;
+  if (asset.storageKey) {
+    const data = await objectStorage.getBuffer(asset.storageKey);
+    return { ...asset, data };
+  }
+  return asset;
 }
 
 async function findContentMetadata(userId, id, options = {}) {
   return prisma.agentAsset.findFirst({
     where: { id, userId, status: 'READY', ...(options.includeArchived ? {} : { archivedAt: null }) },
-    select: { mimeType: true, byteSize: true, checksum: true, originalName: true }
+    select: { mimeType: true, byteSize: true, checksum: true, originalName: true, storageProvider: true, storageKey: true }
   });
 }
 
 async function findContentRange(userId, id, start, length, options = {}) {
+  const asset = await prisma.agentAsset.findFirst({
+    where: { id, userId, status: 'READY', ...(options.includeArchived ? {} : { archivedAt: null }) },
+    select: { storageKey: true }
+  });
+  if (!asset) return null;
+  if (asset.storageKey) {
+    const safeStart = Math.max(0, Number(start));
+    const safeLength = Math.max(1, Number(length));
+    return objectStorage.getBuffer(asset.storageKey, `bytes=${safeStart}-${safeStart + safeLength - 1}`);
+  }
   const archivedClause = options.includeArchived ? '' : 'AND "archivedAt" IS NULL';
   // Prisma binds raw numeric placeholders as bigint. PostgreSQL's bytea substring
   // overload requires integer offsets/lengths, so cast the bounded range explicitly.
@@ -214,16 +257,34 @@ async function rename(userId, id, fileName) {
 async function duplicate(userId, id) {
   const existing = await prisma.agentAsset.findFirst({ where: { id, userId, status: 'READY', archivedAt: null } });
   if (!existing) throw error('Media asset not found.', 404);
-  const copy = await prisma.agentAsset.create({ data: {
-    userId, folderId: existing.folderId, kind: existing.kind, source: existing.source, status: 'READY',
-    originalName: `Copy of ${existing.originalName || 'media asset'}`.slice(0, 180), mimeType: existing.mimeType,
-    byteSize: existing.byteSize, checksum: `${existing.checksum}-copy-${crypto.randomUUID()}`, prompt: existing.prompt,
-    customerPrompt: existing.customerPrompt, exactOverlayText: existing.exactOverlayText, generationChoice: existing.generationChoice,
-    qualityScore: existing.qualityScore, qualityIssuesJson: existing.qualityIssuesJson, data: existing.data, tagsJson: existing.tagsJson,
-    width: existing.width, height: existing.height, durationSeconds: existing.durationSeconds,
-    expiresAt: expiresAtFor(existing.mimeType)
-  }, include: ASSET_INCLUDE });
-  return publicAsset(copy);
+  const bytes = existing.storageKey
+    ? await objectStorage.getBuffer(existing.storageKey)
+    : Buffer.from(existing.data || []);
+  if (!bytes.length) throw error('Media asset content is unavailable.', 404);
+  const copyName = `Copy of ${existing.originalName || 'media asset'}`.slice(0, 180);
+  const stored = await objectStorage.persistBuffer({
+    userId,
+    data: bytes,
+    mimeType: existing.mimeType,
+    originalName: copyName,
+    prefix: 'media-library'
+  });
+  try {
+    const copy = await prisma.agentAsset.create({ data: {
+      userId, folderId: existing.folderId, kind: existing.kind, source: existing.source, status: 'READY',
+      originalName: copyName, mimeType: existing.mimeType,
+      byteSize: existing.byteSize, checksum: `${existing.checksum}-copy-${crypto.randomUUID()}`, prompt: existing.prompt,
+      customerPrompt: existing.customerPrompt, exactOverlayText: existing.exactOverlayText, generationChoice: existing.generationChoice,
+      qualityScore: existing.qualityScore, qualityIssuesJson: existing.qualityIssuesJson,
+      data: stored.data, storageProvider: stored.storageProvider, storageKey: stored.storageKey, tagsJson: existing.tagsJson,
+      width: existing.width, height: existing.height, durationSeconds: existing.durationSeconds,
+      expiresAt: expiresAtFor(existing.mimeType)
+    }, include: ASSET_INCLUDE });
+    return publicAsset(copy);
+  } catch (createError) {
+    if (stored.storageKey) await objectStorage.deleteObject(stored.storageKey).catch(() => {});
+    throw createError;
+  }
 }
 
 async function archive(userId, id) {
@@ -239,8 +300,15 @@ async function restore(userId, id) {
 }
 
 async function purge(userId, id) {
-  const result = await prisma.agentAsset.deleteMany({ where: { id, userId, archivedAt: { not: null } } });
-  if (!result.count) throw error('Trashed media asset not found.', 404);
+  const existing = await prisma.agentAsset.findFirst({
+    where: { id, userId, archivedAt: { not: null } },
+    select: { id: true, storageKey: true }
+  });
+  if (!existing) throw error('Trashed media asset not found.', 404);
+  await prisma.agentAsset.delete({ where: { id: existing.id } });
+  if (existing.storageKey) await objectStorage.deleteObject(existing.storageKey).catch((deleteError) => {
+    console.warn('[media-library] bucket purge delayed', { id, error: deleteError?.message || String(deleteError) });
+  });
   return true;
 }
 
