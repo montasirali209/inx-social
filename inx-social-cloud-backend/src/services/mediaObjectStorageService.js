@@ -9,6 +9,14 @@ const PROVIDERS = {
   RAILWAY_S3: 'RAILWAY_S3'
 };
 
+// R2 is intentionally reserved for high-volume customer generation outputs.
+// Everything operational stays on Railway object storage.
+const R2_GENERATED_MEDIA_PREFIXES = new Set([
+  'ai-studio',
+  'ai-video',
+  'stock-video'
+]);
+
 function clean(value) {
   return String(value || '').trim();
 }
@@ -41,14 +49,42 @@ function complete(value) {
   return Boolean(value?.endpoint && value?.bucket && value?.accessKeyId && value?.secretAccessKey);
 }
 
-function configuredProviders() {
-  // R2 is intentionally first. Once all R2 variables are present, new writes switch
-  // to R2 automatically while the existing Railway bucket remains a read fallback.
-  return [cloudflareR2Config(), railwayS3Config()].filter(complete);
+function isGeneratedMediaPrefix(prefix) {
+  return R2_GENERATED_MEDIA_PREFIXES.has(clean(prefix).toLowerCase());
 }
 
-function primaryConfig() {
-  return configuredProviders()[0] || null;
+function configuredProviders() {
+  // Railway remains the default/operational backend. R2 is secondary and is
+  // selected explicitly only for generated-media prefixes.
+  return [railwayS3Config(), cloudflareR2Config()].filter(complete);
+}
+
+function operationalConfig() {
+  const railway = railwayS3Config();
+  return complete(railway) ? railway : null;
+}
+
+function generatedMediaConfig() {
+  const r2 = cloudflareR2Config();
+  if (complete(r2)) return r2;
+
+  // Until R2 is configured, preserve today's production behavior and keep
+  // generated media on Railway rather than falling back to PostgreSQL.
+  const railway = railwayS3Config();
+  return complete(railway) ? railway : null;
+}
+
+function config() {
+  return operationalConfig() || generatedMediaConfig() || railwayS3Config();
+}
+
+function providerForPrefix(prefix) {
+  const selected = isGeneratedMediaPrefix(prefix) ? generatedMediaConfig() : operationalConfig();
+  return selected?.provider || null;
+}
+
+function storageConfigForPrefix(prefix) {
+  return isGeneratedMediaPrefix(prefix) ? generatedMediaConfig() : operationalConfig();
 }
 
 function orderedConfigs(preferredProvider = null) {
@@ -60,21 +96,20 @@ function orderedConfigs(preferredProvider = null) {
   ];
 }
 
-function config() {
-  return primaryConfig() || cloudflareR2Config();
-}
-
 function isConfigured() {
-  return Boolean(primaryConfig());
+  return configuredProviders().length > 0;
 }
 
 function providerStatus() {
   const r2 = cloudflareR2Config();
   const railway = railwayS3Config();
   return {
-    primary: primaryConfig()?.provider || null,
+    operationalProvider: complete(railway) ? PROVIDERS.RAILWAY_S3 : null,
+    generatedMediaProvider: complete(r2)
+      ? PROVIDERS.CLOUDFLARE_R2
+      : (complete(railway) ? PROVIDERS.RAILWAY_S3 : null),
     cloudflareR2Configured: complete(r2),
-    railwayLegacyConfigured: complete(railway)
+    railwayConfigured: complete(railway)
   };
 }
 
@@ -85,9 +120,6 @@ function encodeKey(key) {
 function objectTarget(key, storageConfig) {
   const base = new URL(storageConfig.endpoint);
   const encoded = encodeKey(key);
-  // Both Railway's S3-compatible bucket and Cloudflare R2 support virtual-hosted
-  // object addressing. Cloudflare documents:
-  // https://<bucket>.<ACCOUNT_ID>.r2.cloudflarestorage.com/<key>
   const host = base.hostname.startsWith(`${storageConfig.bucket}.`)
     ? base.hostname
     : `${storageConfig.bucket}.${base.hostname}`;
@@ -101,13 +133,18 @@ function objectTarget(key, storageConfig) {
   };
 }
 
-function notConfiguredError() {
-  const error = new Error('Media object storage is not configured.');
+function notConfiguredError(prefix = null) {
+  const operational = prefix && !isGeneratedMediaPrefix(prefix);
+  const error = new Error(
+    operational
+      ? 'Railway media object storage is not configured for operational media.'
+      : 'Media object storage is not configured.'
+  );
   error.code = 'MEDIA_OBJECT_STORAGE_NOT_CONFIGURED';
   return error;
 }
 
-function signedRequest(method, key, { data, headers = {}, responseType = 'arraybuffer' } = {}, storageConfig = primaryConfig()) {
+function signedRequest(method, key, { data, headers = {}, responseType = 'arraybuffer' } = {}, storageConfig = config()) {
   if (!storageConfig || !complete(storageConfig)) throw notConfiguredError();
   const target = objectTarget(key, storageConfig);
   const body = data == null ? undefined : data;
@@ -196,15 +233,15 @@ async function deleteObject(key, provider = null) {
 
   let deleted = false;
   let firstError = null;
-  // Delete from every configured backend so a migrated object cannot leave a
-  // stale duplicate behind in the Railway legacy bucket.
   for (const storageConfig of configs) {
     try {
       await signedRequest('DELETE', key, { responseType: 'text' }, storageConfig);
       deleted = true;
+      if (provider) break;
     } catch (error) {
       if (error?.response?.status === 404) continue;
       firstError ||= error;
+      if (provider) break;
     }
   }
   if (firstError && !deleted) throw firstError;
@@ -212,10 +249,10 @@ async function deleteObject(key, provider = null) {
 }
 
 async function persistBuffer({ userId, data, mimeType, originalName, prefix }) {
-  const targetConfig = primaryConfig();
+  const targetConfig = storageConfigForPrefix(prefix);
   if (!targetConfig) {
     if (String(process.env.NODE_ENV || '').toLowerCase() === 'production') {
-      const error = new Error('Media object storage is not configured; refusing to write binary media into PostgreSQL.');
+      const error = notConfiguredError(prefix);
       error.code = 'MEDIA_OBJECT_STORAGE_REQUIRED';
       throw error;
     }
@@ -233,8 +270,11 @@ async function persistBuffer({ userId, data, mimeType, originalName, prefix }) {
 
 module.exports = {
   PROVIDERS,
+  R2_GENERATED_MEDIA_PREFIXES,
   config,
   isConfigured,
+  isGeneratedMediaPrefix,
+  providerForPrefix,
   providerStatus,
   createStorageKey,
   putBuffer,
