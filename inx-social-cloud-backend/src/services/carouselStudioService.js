@@ -178,8 +178,7 @@ async function createGenerationRow(userId, input, amount) {
 async function persistSlide(userId, generationId, output, input, plan, slide, amount) {
   const metadata = await sharp(output.data).metadata().catch(() => ({}));
   const checksum = crypto.createHash('sha256').update(output.data).digest('hex');
-  const record = await prisma.agentAsset.create({
-    data: {
+  const record = await mediaLibrary.createStoredAsset({
       userId,
       kind: 'AI_IMAGE',
       source: 'AI_STUDIO',
@@ -196,7 +195,6 @@ async function persistSlide(userId, generationId, output, input, plan, slide, am
       width: Number(metadata.width || 0) || null,
       height: Number(metadata.height || 0) || null,
       expiresAt: expiresAtFor('image/png')
-    }
   });
   const publicAsset = mediaLibrary.publicAsset(record);
   return {
