@@ -85,7 +85,7 @@ export function buildCalendarData(jobs: DashboardJob[], destinations: CalendarDe
   return {
     posts,
     destinations,
-    jobs,
+    jobs: [...jobs, ...cloudJobs],
     syncWarnings: [],
     stats: [
       { label: 'Scheduled This Week', value: scheduledThisWeek, detail: `${signed(scheduledThisWeek - scheduledPreviousWeek)} vs last week`, tone: 'teal' },
