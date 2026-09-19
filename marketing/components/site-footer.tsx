@@ -10,22 +10,28 @@ export function SiteFooter() {
           <p>Create. Schedule. Analyse. Grow. One connected workspace for social publishing and AI-assisted content creation.</p>
           <span className="footer-company">A product by {site.company}</span>
         </div>
+
         <div className="footer-links">
           <strong>Product</strong>
-          <TrackLink href="/#product" eventName="footer_nav_click">Capabilities</TrackLink>
-          <TrackLink href="/#bulk-scheduler" eventName="footer_nav_click">Bulk Scheduler</TrackLink>
-          <TrackLink href="/#ai-studio" eventName="footer_nav_click">AI Content Studio</TrackLink>
-          <TrackLink href="/#analytics" eventName="footer_nav_click">Analytics</TrackLink>
+          <TrackLink href="/features" eventName="footer_nav_click">All features</TrackLink>
+          <TrackLink href="/bulk-scheduler" eventName="footer_nav_click">Bulk Scheduler</TrackLink>
+          <TrackLink href="/ai-content-studio" eventName="footer_nav_click">AI Content Studio</TrackLink>
+          <TrackLink href="/analytics" eventName="footer_nav_click">Analytics</TrackLink>
+          <TrackLink href="/connected-accounts" eventName="footer_nav_click">Connected Accounts</TrackLink>
         </div>
+
         <div className="footer-links">
-          <strong>Explore</strong>
-          <TrackLink href="/#platforms" eventName="footer_nav_click">Platforms</TrackLink>
-          <TrackLink href="/#pricing" eventName="footer_nav_click">Pricing</TrackLink>
-          <TrackLink href="/#faq" eventName="footer_nav_click">FAQ</TrackLink>
-          <TrackLink href={site.appUrl} eventName="footer_nav_click">Open app</TrackLink>
+          <strong>Scheduling</strong>
+          <TrackLink href="/social-media-scheduler" eventName="footer_nav_click">Social media scheduler</TrackLink>
+          <TrackLink href="/facebook-scheduler" eventName="footer_nav_click">Facebook scheduler</TrackLink>
+          <TrackLink href="/instagram-scheduler" eventName="footer_nav_click">Instagram scheduler</TrackLink>
+          <TrackLink href="/linkedin-scheduler" eventName="footer_nav_click">LinkedIn scheduler</TrackLink>
+          <TrackLink href="/tiktok-scheduler" eventName="footer_nav_click">TikTok scheduler</TrackLink>
         </div>
+
         <div className="footer-links">
           <strong>Company</strong>
+          <TrackLink href="/pricing" eventName="footer_nav_click">Pricing</TrackLink>
           <a href="https://inaxx.co.uk/">INAXX LTD</a>
           <TrackLink href="/privacy" eventName="footer_nav_click">Privacy</TrackLink>
           <TrackLink href="/terms" eventName="footer_nav_click">Terms</TrackLink>
