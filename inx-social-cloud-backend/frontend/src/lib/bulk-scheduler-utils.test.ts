@@ -40,7 +40,7 @@ describe('Bulk Scheduler session utilities', () => {
     expect(() => zonedDateTimeToIso('2026-03-29', '01:30', 'Europe/London')).toThrow(/daylight-saving change/i)
   })
 
-  it('builds long-range schedules beyond 25 days for the server-side queue', () => {
+  it('builds long-range schedules beyond 25 days for Post for Me', () => {
     vi.setSystemTime(new Date('2026-09-19T20:12:00.000Z'))
     const result = buildPublishingTimes({ mode: 'schedule_time', mediaCount: 130, date: '2026-09-20', dailyTimes: ['10:00', '11:00', '21:00', '23:00'], timezone: 'Europe/London' })
     expect(result).toHaveLength(130)
