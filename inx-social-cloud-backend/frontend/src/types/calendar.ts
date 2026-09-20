@@ -26,6 +26,7 @@ export type CalendarPost = {
   jobId: string | null
   providerPostId: string | null
   platformUrl: string | null
+  errorMessage: string | null
 }
 
 export type CalendarDay = {
