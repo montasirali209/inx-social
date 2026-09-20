@@ -44,6 +44,7 @@ const EDITABLE_STATUSES = new Set([
 
 const MAX_CLOUD_FILE_BYTES = 10n * 1024n * 1024n * 1024n;
 const MIN_SCHEDULE_LEAD_MS = 20 * 60 * 1000;
+const MAX_SCHEDULE_AHEAD_MS = 25 * 24 * 60 * 60 * 1000;
 
 function canTransition(from, to) {
   return Boolean(TRANSITIONS[String(from || '').toUpperCase()]?.has(String(to || '').toUpperCase()));
@@ -62,6 +63,12 @@ function validateScheduleTime(value, now = new Date()) {
   const delay = scheduledAt.getTime() - now.getTime();
   if (delay < MIN_SCHEDULE_LEAD_MS) {
     const error = new Error('Schedule time must be at least 20 minutes from now.');
+    error.status = 400;
+    error.publicMessage = error.message;
+    throw error;
+  }
+  if (delay > MAX_SCHEDULE_AHEAD_MS) {
+    const error = new Error('Schedule time cannot be more than 25 days ahead.');
     error.status = 400;
     error.publicMessage = error.message;
     throw error;
@@ -130,6 +137,7 @@ module.exports = {
   EDITABLE_STATUSES,
   MAX_CLOUD_FILE_BYTES,
   MIN_SCHEDULE_LEAD_MS,
+  MAX_SCHEDULE_AHEAD_MS,
   canTransition,
   validateScheduleTime,
   normaliseFileSize,
