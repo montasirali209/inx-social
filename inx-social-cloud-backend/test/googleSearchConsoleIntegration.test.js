@@ -81,3 +81,10 @@ test('Search Console reporting includes period comparison and SEO opportunity ex
   assert.match(service, /row\.position >= 4 && row\.position <= 30/);
   assert.match(service, /row\.ctr < 0\.08/);
 });
+
+
+test('Search Console status auto-selects the preferred INXSocial property after API access becomes available', () => {
+  const service = read('src/services/googleSearchConsoleService.js');
+  assert.match(service, /selectedSiteUrl = preferredSite\(sites\)/);
+  assert.match(service, /sites\.some\(item => item\.siteUrl === selectedSiteUrl\)/);
+});
