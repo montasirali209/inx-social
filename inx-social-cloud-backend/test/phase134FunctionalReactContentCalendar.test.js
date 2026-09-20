@@ -42,6 +42,7 @@ test('Phase 13.4 uses universal Post for Me publishing state without sample cale
   assert.match(api, /'post_for_me'/);
   assert.match(api, /'inx'/);
   assert.match(api, /post\.status === 'published' \|\| post\.status === 'failed'/);
+  assert.match(api, /status === 'FAILED'\) return 'needs_review'/);
   assert.match(page, /queryKey: \['content-calendar', 'publishing-queue', timezone\]/);
   assert.match(page, /refetchInterval: 30_000/);
   assert.match(page, /refetchIntervalInBackground: false/);
@@ -72,6 +73,8 @@ test('Content Calendar opens platform posts and manages Post for Me plus legacy 
   assert.match(page, /window\.open\(post\.platformUrl/);
   assert.match(selected, /Open on \{platformLabel\}/);
   assert.match(selected, /canManageSchedule/);
+  assert.match(selected, /Pending review/);
+  assert.match(selected, /post\.errorMessage/);
   assert.match(selected, /Remove scheduled post/);
   assert.match(dialog, /provider-held publishing time/);
   assert.match(api, /rescheduleCalendarPost/);

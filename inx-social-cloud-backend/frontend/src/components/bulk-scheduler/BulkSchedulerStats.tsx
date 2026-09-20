@@ -8,7 +8,7 @@ export function BulkSchedulerStats({ jobs, onOpen }: { jobs: DashboardJob[]; onO
   const scheduled = unique.filter(job => job.status === 'SCHEDULED').length
   const published = unique.filter(job => job.status === 'PUBLISHED').length
   const processing = unique.filter(job => ['AWAITING_UPLOAD', 'READY', 'PROCESSING'].includes(job.status)).length
-  const needsReview = unique.filter(job => job.status === 'FAILED' || job.status === 'CANCELLED').length
+  const needsReview = unique.filter(job => job.status === 'FAILED').length
   const cards = [
     { label: 'All Bulk Jobs', value: unique.length, detail: 'Publishing records', icon: ClipboardList, tone: 'border-brand-cyan/25 bg-brand-cyan/8 text-brand-cyan', view: 'all' as const },
     { label: 'Scheduled', value: scheduled, detail: 'Held by Post for Me', icon: CalendarClock, tone: 'border-brand-blue/25 bg-brand-blue/8 text-brand-cyan', view: 'scheduled' as const },

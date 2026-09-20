@@ -76,7 +76,7 @@ test('provider submission failures persist into Needs Review instead of remainin
   assert.match(publishing, /lastError: message/);
   assert.match(publishing, /await markBundleFailed\(bundle, error\)/);
   assert.match(publishing, /staleUnsubmittedText/);
-  assert.match(publishing, /was not accepted by Post for Me/);
+  assert.match(publishing, /No Post for Me schedule was created for this legacy attempt/);
   assert.match(stats, /job\.status === 'FAILED'/);
   assert.match(stats, /Needs Review/);
 });
@@ -89,4 +89,22 @@ test('Post for Me post creation retries provider 429 responses with bounded back
   assert.match(provider, /status === 429/);
   assert.match(provider, /retryAfterMs/);
   assert.match(provider, /await sleep\(cooldown\)/);
+});
+
+
+test('failed provider submissions expose a safe retry endpoint and professional review workspace', () => {
+  const publishing = read('src/services/postForMePublishingService.js');
+  const controller = read('src/controllers/socialPublicationController.js');
+  const routes = read('src/routes/socialPublicationRoutes.js');
+  const manager = read('frontend/src/components/bulk-scheduler/BulkScheduleManager.tsx');
+  const postsApi = read('frontend/src/lib/posts-api.ts');
+
+  assert.match(publishing, /async function retryPublication/);
+  assert.match(publishing, /Only failed or incomplete provider submissions can be retried/);
+  assert.match(controller, /publishing\.retryPublication/);
+  assert.match(routes, /:publicationId\/retry/);
+  assert.match(postsApi, /retryFailedScheduledPost/);
+  assert.match(manager, /Pending Review/);
+  assert.match(manager, /Provider submission incomplete/);
+  assert.match(manager, /Retry now/);
 });

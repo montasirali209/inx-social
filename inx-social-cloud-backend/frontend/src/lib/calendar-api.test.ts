@@ -104,6 +104,25 @@ describe('Post for Me calendar identity', () => {
   })
 
 
+  it('maps failed publishing jobs into Calendar pending review with the provider error', () => {
+    const failedJob = {
+      ...scheduledJob,
+      id: 'pfm:failed-1',
+      status: 'FAILED',
+      scheduledAt: '2026-09-20T11:00:00.000Z',
+      metaPostId: null,
+      providerPostId: null,
+      errorMessage: 'Rate limit exceeded. Please try again later.',
+    } satisfies DashboardJob
+    const result = buildCalendarData([failedJob], [destination], 'UTC', new Date('2026-09-11T00:00:00.000Z'))
+    expect(result.posts[0]).toMatchObject({
+      id: 'pfm:failed-1',
+      status: 'needs_review',
+      errorMessage: 'Rate limit exceeded. Please try again later.',
+    })
+    expect(result.stats.find(stat => stat.label === 'Needs Review')?.value).toBe(1)
+  })
+
   it('merges future INX Social cloud queue jobs into the same calendar', () => {
     const cloudJob = {
       ...scheduledJob,
