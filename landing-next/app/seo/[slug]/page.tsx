@@ -6,6 +6,32 @@ import styles from "./seo-page.module.css";
 
 const SITE = "https://www.inxsocial.co.uk";
 
+const INTRO_HEADINGS: Record<string, string> = {
+  "social-media-scheduler": "A social media scheduler should connect planning, publishing and review.",
+  "bulk-social-media-scheduler": "Bulk scheduling should remove repetitive publishing work, not hide it.",
+  "social-media-content-calendar": "A content calendar works best when it reflects the real publishing queue.",
+  "social-media-analytics": "Social analytics are more useful when they sit next to the publishing workflow.",
+  "ai-social-media-tools": "AI social media tools should shorten the path from idea to published content.",
+  "ai-social-media-post-generator": "AI post generation is more valuable when the result is already publishing-ready.",
+  "ai-carousel-post-generator": "Strong carousel creation starts with sequence, not isolated slides.",
+  "ai-video-post-generator": "Short-form video production should stay connected to the social workflow.",
+  "ai-ugc-ad-generator": "UGC-style creative needs a social-first workflow around the product story.",
+  pricing: "Compare INXSocial plans by connected accounts, AI credits and operating scale."
+};
+
+const HERO_IMAGE_ALTS: Record<string, string> = {
+  "social-media-scheduler": "INXSocial social media scheduler dashboard with publishing activity, scheduled content and connected accounts",
+  "bulk-social-media-scheduler": "INXSocial dashboard supporting bulk social media scheduling and publishing workflows",
+  "social-media-content-calendar": "INXSocial social media planning workspace with scheduling and content activity",
+  "social-media-analytics": "INXSocial social media analytics dashboard showing publishing activity, engagement and platform distribution",
+  "ai-social-media-tools": "INXSocial dashboard for AI-assisted social media creation, publishing and analytics",
+  "ai-social-media-post-generator": "INXSocial social media creation and publishing dashboard",
+  "ai-carousel-post-generator": "INXSocial workspace for carousel creation, social publishing and scheduling",
+  "ai-video-post-generator": "INXSocial workspace for short-form social video creation, scheduling and publishing",
+  "ai-ugc-ad-generator": "INXSocial social content workspace for UGC-style creative and campaign publishing",
+  pricing: "INXSocial dashboard included across social media management plans"
+};
+
 export function generateStaticParams() {
   return seoPageSlugs.map(slug => ({ slug }));
 }
@@ -74,10 +100,51 @@ function buildSchema(slug: string) {
   if (!page) return null;
 
   const url = `${SITE}/${page.slug}`;
+  const image = `${SITE}/assets/landing-dashboard-20260919.webp`;
 
   return {
     "@context": "https://schema.org",
     "@graph": [
+      {
+        "@type": "Organization",
+        "@id": "https://inaxx.co.uk/#organization",
+        name: "INAXX LTD",
+        url: "https://inaxx.co.uk/"
+      },
+      {
+        "@type": "Brand",
+        "@id": `${SITE}/#brand`,
+        name: "INXSocial",
+        url: `${SITE}/`,
+        logo: `${SITE}/assets/inx-social-logo.png`
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${SITE}/#website`,
+        url: `${SITE}/`,
+        name: "INXSocial",
+        inLanguage: "en-GB",
+        publisher: { "@id": "https://inaxx.co.uk/#organization" }
+      },
+      {
+        "@type": ["SoftwareApplication", "WebApplication"],
+        "@id": `${SITE}/#software`,
+        name: "INXSocial",
+        url: `${SITE}/`,
+        applicationCategory: "BusinessApplication",
+        applicationSubCategory: "Social Media Management",
+        operatingSystem: "Web browser",
+        description: "Social media management software for content creation, scheduling, bulk publishing, content calendars, analytics and AI-assisted social content production.",
+        brand: { "@id": `${SITE}/#brand` },
+        publisher: { "@id": "https://inaxx.co.uk/#organization" },
+        offers: [
+          { "@type": "Offer", name: "Trial", price: "0", priceCurrency: "GBP", url: `${SITE}/pricing` },
+          { "@type": "Offer", name: "Creator", price: "18.99", priceCurrency: "GBP", url: `${SITE}/pricing` },
+          { "@type": "Offer", name: "Pro", price: "34.99", priceCurrency: "GBP", url: `${SITE}/pricing` },
+          { "@type": "Offer", name: "Business", price: "59.99", priceCurrency: "GBP", url: `${SITE}/pricing` },
+          { "@type": "Offer", name: "Agency", price: "99.99", priceCurrency: "GBP", url: `${SITE}/pricing` }
+        ]
+      },
       {
         "@type": "WebPage",
         "@id": `${url}#webpage`,
@@ -86,7 +153,15 @@ function buildSchema(slug: string) {
         description: page.metaDescription,
         inLanguage: "en-GB",
         isPartOf: { "@id": `${SITE}/#website` },
-        about: { "@id": `${SITE}/#software` }
+        about: { "@id": `${SITE}/#software` },
+        primaryImageOfPage: {
+          "@type": "ImageObject",
+          contentUrl: image,
+          url: image,
+          width: 1200,
+          height: 675
+        },
+        breadcrumb: { "@id": `${url}#breadcrumb` }
       },
       {
         "@type": "BreadcrumbList",
@@ -190,7 +265,7 @@ export default async function SeoMarketingPage({
                 src="/assets/landing-dashboard-20260919.webp"
                 width="1200"
                 height="675"
-                alt="INXSocial dashboard showing publishing activity, scheduling, analytics and connected accounts"
+                alt={HERO_IMAGE_ALTS[page.slug] ?? "INXSocial social media management dashboard"}
                 loading="eager"
                 fetchPriority="high"
                 decoding="async"
@@ -203,7 +278,7 @@ export default async function SeoMarketingPage({
           <div className={`${styles.shell} ${styles.introGrid}`}>
             <div>
               <span className={styles.kicker}>Why it matters</span>
-              <h2>{page.h1}</h2>
+              <h2>{INTRO_HEADINGS[page.slug] ?? page.h1}</h2>
             </div>
             <div className={styles.longCopy}>
               {page.intro.map(paragraph => <p key={paragraph}>{paragraph}</p>)}
