@@ -123,6 +123,28 @@ describe('Post for Me calendar identity', () => {
     expect(result.stats.find(stat => stat.label === 'Needs Review')?.value).toBe(1)
   })
 
+  it('keeps overdue failed publishing jobs visible in Needs Review so the KPI can drill into them', () => {
+    const failedJob = {
+      ...scheduledJob,
+      id: 'pfm:failed-overdue',
+      status: 'FAILED',
+      scheduledAt: '2026-09-10T11:00:00.000Z',
+      metaPostId: null,
+      providerPostId: null,
+      errorMessage: 'Publishing provider rejected the post.',
+    } satisfies DashboardJob
+    const result = buildCalendarData([failedJob], [destination], 'UTC', new Date('2026-09-20T12:00:00.000Z'))
+
+    expect(result.posts).toHaveLength(1)
+    expect(result.posts[0]).toMatchObject({
+      id: 'pfm:failed-overdue',
+      date: '2026-09-10',
+      status: 'needs_review',
+      errorMessage: 'Publishing provider rejected the post.',
+    })
+    expect(result.stats.find(stat => stat.label === 'Needs Review')?.value).toBe(1)
+  })
+
   it('merges future INX Social cloud queue jobs into the same calendar', () => {
     const cloudJob = {
       ...scheduledJob,
