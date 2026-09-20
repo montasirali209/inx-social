@@ -108,6 +108,40 @@ const injectAnalyticsConsent = source => {
   return `${source}\n${ANALYTICS_SCRIPT_TAG}`;
 };
 
+const buildSeoFallbackDocuments = () => {
+  const documents = new Map();
+
+  for (const routePath of SEO_MARKETING_ROUTES.keys()) {
+    const fallbackPath = path.join(publicRoot, `${routePath.slice(1)}.html`);
+    try {
+      let source = fs.readFileSync(fallbackPath, 'utf8');
+      const canonicalUrl = `https://www.inxsocial.co.uk${routePath}`;
+      const legacyUrl = `${canonicalUrl}.html`;
+
+      source = source
+        .split(legacyUrl).join(canonicalUrl)
+        .split('/assets/inx-social-dashboard.jpg').join(LANDING_DASHBOARD_ASSET_PATH);
+
+      for (const [legacyPath, cleanPath] of Object.entries(LEGACY_MARKETING_REDIRECTS)) {
+        source = source
+          .split(`href="${legacyPath}"`).join(`href="${cleanPath}"`)
+          .split(`https://www.inxsocial.co.uk${legacyPath}`).join(`https://www.inxsocial.co.uk${cleanPath}`);
+      }
+
+      documents.set(routePath, injectAnalyticsConsent(source));
+    } catch (error) {
+      console.warn('[seo-fallback] unable to build fallback page', {
+        routePath,
+        error: error?.message
+      });
+    }
+  }
+
+  return documents;
+};
+
+const seoFallbackDocuments = buildSeoFallbackDocuments();
+
 const sendTrackedHtml = (filePath, res, next, options = {}) => {
   fs.readFile(filePath, 'utf8', (error, source) => {
     if (error) {
@@ -258,8 +292,16 @@ app.use('/_next', async (req, res, next) => {
 });
 
 app.get([...SEO_MARKETING_ROUTES.keys()], async (req, res) => {
+  const cleanPath = req.path.length > 1 ? req.path.replace(/\/+$/, '') : req.path;
+
+  if (req.path !== cleanPath) {
+    const queryIndex = req.originalUrl.indexOf('?');
+    const query = queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : '';
+    return res.redirect(308, `${cleanPath}${query}`);
+  }
+
   if (isNextLandingEnabled()) {
-    const upstream = await fetchNextLanding(req.path, {
+    const upstream = await fetchNextLanding(cleanPath, {
       accept: req.headers.accept
     });
 
@@ -271,15 +313,23 @@ app.get([...SEO_MARKETING_ROUTES.keys()], async (req, res) => {
         res.setHeader('X-INX-Landing', 'next-seo');
         return res.type('html').send(injectAnalyticsConsent(source));
       } catch (error) {
-        console.warn('[seo-proxy] failed to read upstream page; using homepage fallback', {
-          path: req.path,
+        console.warn('[seo-proxy] failed to read upstream page; using canonical static fallback', {
+          path: cleanPath,
           error: error?.message
         });
       }
     }
   }
 
-  return res.redirect(302, SEO_MARKETING_ROUTES.get(req.path) || '/');
+  const fallback = seoFallbackDocuments.get(cleanPath);
+  if (fallback) {
+    res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+    res.setHeader('Vary', 'Accept-Encoding');
+    res.setHeader('X-INX-Landing', 'legacy-seo-fallback');
+    return res.type('html').send(fallback);
+  }
+
+  return res.status(404).json({ error: 'Route not found' });
 });
 
 app.get(LANDING_DASHBOARD_ASSET_PATH, (req, res, next) => {
