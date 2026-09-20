@@ -32,7 +32,9 @@ export type TimingMode =
 
 export type UploadStatus = 'waiting' | 'uploading' | 'published' | 'scheduled' | 'failed' | 'blocked'
 
-export type MediaKind = 'image' | 'video'
+export type BulkContentMode = 'media' | 'text'
+
+export type MediaKind = 'image' | 'video' | 'text'
 
 export type SelectedMedia = {
   id: string
@@ -50,6 +52,7 @@ export type UploadResult = {
   fileName: string
   mediaKind: MediaKind
   thumbnailUrl: string
+  textPreview?: string | null
   destinationIds: string[]
   status: UploadStatus
   resultId: string | null

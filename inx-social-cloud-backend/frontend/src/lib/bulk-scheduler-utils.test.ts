@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { buildPublishingTimes, parseCaptions, zonedDateTimeToIso } from './bulk-scheduler-utils'
+import { buildPublishingTimes, parseCaptions, parseTextPosts, zonedDateTimeToIso } from './bulk-scheduler-utils'
 
 describe('Bulk Scheduler session utilities', () => {
   it('parses paragraph captions without splitting multiline copy', () => {
@@ -7,6 +7,18 @@ describe('Bulk Scheduler session utilities', () => {
       'First line\ncontinues here',
       'Second caption',
     ])
+  })
+
+  it('parses complete multiline text posts only at explicit separator lines', () => {
+    expect(parseTextPosts('First paragraph\n\nSecond paragraph\n#tag\n\n---\n\nAnother post\nwith two lines\n\n---\nFinal post')).toEqual([
+      'First paragraph\n\nSecond paragraph\n#tag',
+      'Another post\nwith two lines',
+      'Final post',
+    ])
+  })
+
+  it('treats blank lines inside a text post as content rather than separators', () => {
+    expect(parseTextPosts('Line one\n\nLine two\n\n#hashtag')).toEqual(['Line one\n\nLine two\n\n#hashtag'])
   })
 
   it('creates one immediate action time per video without scheduling', () => {

@@ -4,8 +4,8 @@ import { useLocation } from 'react-router-dom'
 import { ApiError } from '../../lib/api-client'
 import { createBulkMediaPost, fetchBulkSchedulerData, publishBulkLibraryMedia, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
 import { fetchMediaAssetFile, uploadMediaAsset } from '../../lib/media-library-api'
-import { buildPublishingTimes, parseCaptions } from '../../lib/bulk-scheduler-utils'
-import type { BatchProgress, BulkSchedulerData, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
+import { buildPublishingTimes, parseCaptions, parseTextPosts } from '../../lib/bulk-scheduler-utils'
+import type { BatchProgress, BulkContentMode, BulkSchedulerData, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
 import type { MediaAsset } from '../../types/media-library'
 import { backendStatusToUploadStatus } from '../../types/bulk-scheduler'
 import { BatchRunPanel } from './BatchRunPanel'
@@ -17,7 +17,9 @@ import { UploadBatchPanel } from './UploadBatchPanel'
 import { useBulkSchedulerActivity } from './bulk-scheduler-activity-store'
 import { PublishConfirmationDialog } from '../ui/PublishConfirmationDialog'
 
-const idleProgress: BatchProgress = { state: 'idle', percent: 0, current: 0, total: 0, completed: 0, failed: 0, message: 'Select destinations and media, add captions, then choose a timing mode.' }
+const idleProgress: BatchProgress = { state: 'idle', percent: 0, current: 0, total: 0, completed: 0, failed: 0, message: 'Select destinations, choose Media Posts or Text Posts, add content, then choose a timing mode.' }
+
+const TEXT_POST_PLATFORMS = new Set(['facebook', 'x', 'linkedin', 'threads', 'bluesky'])
 
 const immediateSchedulerData: BulkSchedulerData = {
   destinations: [],
@@ -53,6 +55,7 @@ export function BulkSchedulerPage() {
   const location = useLocation()
   const { registerStop, update: updateActivity } = useBulkSchedulerActivity()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [contentMode, setContentMode] = useState<BulkContentMode>('media')
   const [media, setMedia] = useState<SelectedMedia[]>([])
   const mediaRef = useRef<SelectedMedia[]>([])
   const [captions, setCaptions] = useState('')
@@ -79,7 +82,10 @@ export function BulkSchedulerPage() {
   })
   const schedulerData = scheduler.data || immediateSchedulerData
   const destinations = schedulerData.destinations
-  const captionBlocks = useMemo(() => parseCaptions(captions), [captions])
+  const captionBlocks = useMemo(() => contentMode === 'text' ? parseTextPosts(captions) : parseCaptions(captions), [captions, contentMode])
+  const selectedDestinations = destinations.filter((destination) => selectedIds.has(destination.id))
+  const incompatibleTextDestinations = contentMode === 'text' ? selectedDestinations.filter((destination) => !TEXT_POST_PLATFORMS.has(destination.platform)) : []
+  const batchCount = contentMode === 'text' ? captionBlocks.length : media.length
   const activeScheduleTimes = timingMode === 'saved_schedule' ? schedulerData.settings.defaultScheduleTimes : scheduleTimes
 
   useEffect(() => {
@@ -120,20 +126,24 @@ export function BulkSchedulerPage() {
     }
   }, [running])
 
-  const canUseFallback = captionBlocks.length > 0 && useFallback
+  const canUseFallback = contentMode === 'media' && captionBlocks.length > 0 && useFallback
   const disabledReason = !selectedIds.size
     ? 'Select at least one connected destination.'
-    : !media.length
-      ? 'Select one or more image or video files.'
-      : !captionBlocks.length
-        ? 'Add at least one caption.'
-        : captionBlocks.length < media.length && !canUseFallback
-          ? 'Add matching captions or confirm the fallback caption.'
-          : !timingMode
-            ? 'Choose a timing mode.'
-            : timingMode !== 'publish_now' && (!scheduleDate || !activeScheduleTimes.length)
-              ? 'Choose a start date and add at least one publishing time.'
-              : ''
+    : contentMode === 'text' && incompatibleTextDestinations.length
+      ? `Text-only posts are not supported by ${incompatibleTextDestinations.map((destination) => destination.name).join(', ')}. Deselect those destinations or switch to Media Posts.`
+      : contentMode === 'text' && !captionBlocks.length
+        ? 'Add at least one complete text post. Separate multiple posts with a line containing ---.'
+        : contentMode === 'media' && !media.length
+          ? 'Select one or more image or video files.'
+          : contentMode === 'media' && !captionBlocks.length
+            ? 'Add at least one caption.'
+            : contentMode === 'media' && captionBlocks.length < media.length && !canUseFallback
+              ? 'Add matching captions or confirm the fallback caption.'
+              : !timingMode
+                ? 'Choose a timing mode.'
+                : timingMode !== 'publish_now' && (!scheduleDate || !activeScheduleTimes.length)
+                  ? 'Choose a start date and add at least one publishing time.'
+                  : ''
   const canStart = !disabledReason && !running
 
   const selectMedia = (files: File[]) => {
@@ -157,6 +167,7 @@ export function BulkSchedulerPage() {
     const fingerprint = selectedAssets.map((asset) => asset.id).join(':')
     if (!fingerprint || importedLibrarySelection.current === fingerprint) return
     importedLibrarySelection.current = fingerprint
+    setContentMode('media')
     setProgress({ ...idleProgress, state: 'preparing', message: `Loading ${selectedAssets.length} Media Library assets for separate bulk posts…` })
     void Promise.all(selectedAssets.map(async (asset): Promise<SelectedMedia> => {
       const file = await fetchMediaAssetFile(asset)
@@ -192,8 +203,17 @@ export function BulkSchedulerPage() {
   }
 
   const readCaptionFile = async (file: File) => {
-    if (file.size > 2 * 1024 * 1024) throw new Error('Caption files must be smaller than 2 MB.')
+    if (file.size > 2 * 1024 * 1024) throw new Error('Text files must be smaller than 2 MB.')
     setCaptions(await file.text())
+  }
+
+  const changeContentMode = (value: BulkContentMode) => {
+    if (running || value === contentMode) return
+    setContentMode(value)
+    setUseFallback(false)
+    setRetainMedia(false)
+    setResults([])
+    setProgress(idleProgress)
   }
 
   const runBatch = async () => {
@@ -201,7 +221,7 @@ export function BulkSchedulerPage() {
     const destinationIds = [...selectedIds]
     let publishingTimes: Array<string | null>
     try {
-      publishingTimes = buildPublishingTimes({ mode: timingMode as TimingMode, mediaCount: media.length, date: scheduleDate, dailyTimes: activeScheduleTimes, timezone: schedulerData.settings.timezone })
+      publishingTimes = buildPublishingTimes({ mode: timingMode as TimingMode, mediaCount: batchCount, date: scheduleDate, dailyTimes: activeScheduleTimes, timezone: schedulerData.settings.timezone })
     } catch (error) {
       setProgress({ ...idleProgress, state: 'failed', message: error instanceof Error ? error.message : 'The publishing schedule is invalid.' })
       return
@@ -209,6 +229,89 @@ export function BulkSchedulerPage() {
 
     const controller = new AbortController()
     abortRef.current = controller
+
+    if (contentMode === 'text') {
+      const initialResults: UploadResult[] = captionBlocks.map((post, index) => ({
+        id: `text:${index}:${crypto.randomUUID()}`,
+        mediaId: `text:${index}`,
+        mediaIndex: index,
+        jobId: null,
+        fileName: `Text post ${index + 1}`,
+        mediaKind: 'text',
+        thumbnailUrl: '',
+        textPreview: post.replace(/\s+/g, ' ').slice(0, 180),
+        destinationIds,
+        status: 'waiting',
+        resultId: null,
+        errorMessage: null,
+        scheduledAt: publishingTimes[index],
+      }))
+      setResults(initialResults)
+      setProgress({ state: 'preparing', percent: 1, current: 0, total: captionBlocks.length, completed: 0, failed: 0, message: 'Preparing text posts for Post for Me…' })
+      let completed = 0
+      let failed = 0
+
+      for (let index = 0; index < captionBlocks.length; index += 1) {
+        if (controller.signal.aborted) break
+        const post = captionBlocks[index]
+        const resultId = initialResults[index].id
+        try {
+          setProgress({ state: timingMode === 'publish_now' ? 'preparing' : 'scheduling', percent: (index / captionBlocks.length) * 100, current: index + 1, total: captionBlocks.length, completed, failed, message: `${timingMode === 'publish_now' ? 'Publishing' : 'Scheduling'} text post ${index + 1} of ${captionBlocks.length}…` })
+          const prepared = await createBulkMediaPost({
+            connectedPageIds: destinationIds,
+            clientRequestId: `bulk-text-${crypto.randomUUID()}`,
+            title: null,
+            caption: post,
+            contentType: 'TEXT',
+            originalFileName: null,
+            mimeType: null,
+            fileSizeBytes: null,
+            mediaLibraryAssetId: null,
+            scheduledAt: publishingTimes[index],
+            publishMode: timingMode === 'publish_now' ? 'NOW' : 'SCHEDULED',
+          })
+          const job = prepared.jobs[0]
+          if (!job) throw new Error(prepared.failures[0]?.error || 'Post for Me could not create this text post.')
+          completed += 1
+          setResults((current) => current.map((result) => result.id === resultId ? {
+            ...result,
+            jobId: job.id,
+            status: backendStatusToUploadStatus(job.status),
+            resultId: job.providerPostId || job.metaPostId || null,
+            errorMessage: prepared.failures.length ? prepared.failures.map((failure) => failure.error).join(' · ') : null,
+          } : result))
+        } catch (error) {
+          failed += 1
+          setResults((current) => current.map((result) => result.id === resultId ? {
+            ...result,
+            status: 'failed',
+            errorMessage: error instanceof Error ? error.message : 'Text post failed.',
+          } : result))
+        }
+      }
+
+      const stopped = controller.signal.aborted
+      if (stopped) setResults((current) => current.map((result) => result.status === 'waiting' ? { ...result, status: 'blocked', errorMessage: 'Not started because the batch was stopped.' } : result))
+      setProgress({
+        state: stopped ? 'stopped' : failed === captionBlocks.length ? 'failed' : 'completed',
+        percent: stopped ? ((completed + failed) / captionBlocks.length) * 100 : 100,
+        current: completed + failed,
+        total: captionBlocks.length,
+        completed,
+        failed,
+        message: stopped
+          ? 'Text batch stopped. Unstarted posts were blocked safely.'
+          : failed
+            ? `Text batch finished with ${failed} failed post${failed === 1 ? '' : 's'}.`
+            : timingMode === 'publish_now'
+              ? `${completed} text post${completed === 1 ? '' : 's'} accepted for publishing.`
+              : `${completed} text post${completed === 1 ? '' : 's'} scheduled with Post for Me using your selected daily times.`,
+      })
+      abortRef.current = null
+      await scheduler.refetch()
+      return
+    }
+
     let publishingMedia = media
     try {
       if (retainMedia) {
@@ -396,11 +499,11 @@ export function BulkSchedulerPage() {
       <BulkSchedulerStats jobs={schedulerData.jobs} onOpen={setHistoryView} />
       <div className="mt-4 scroll-mt-24" ref={destinationSection}><PublishingDestinationsPanel destinations={destinations} onSelectionChange={setSelectedIds} platforms={schedulerData.platforms} selectedIds={selectedIds} /></div>
       <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,.92fr)_minmax(0,1.08fr)]">
-        <UploadBatchPanel canStart={canStart} captionCount={captionBlocks.length} captions={captions} disabledReason={disabledReason} media={media} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onFallbackChange={setUseFallback} onMedia={selectMedia} onRetainMediaChange={setRetainMedia} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={requestStart} onTimingModeChange={setTimingMode} retainMedia={retainMedia} running={running} savedScheduleTimes={schedulerData.settings.defaultScheduleTimes} scheduleDate={scheduleDate} scheduleTimes={activeScheduleTimes} selectedDestinations={selectedIds.size} timezone={schedulerData.settings.timezone} timingMode={timingMode} useFallback={useFallback} />
+        <UploadBatchPanel canStart={canStart} captionCount={captionBlocks.length} captions={captions} contentMode={contentMode} disabledReason={disabledReason} media={media} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onContentModeChange={changeContentMode} onFallbackChange={setUseFallback} onMedia={selectMedia} onRetainMediaChange={setRetainMedia} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={requestStart} onTimingModeChange={setTimingMode} retainMedia={retainMedia} running={running} savedScheduleTimes={schedulerData.settings.defaultScheduleTimes} scheduleDate={scheduleDate} scheduleTimes={activeScheduleTimes} selectedDestinations={selectedIds.size} timezone={schedulerData.settings.timezone} timingMode={timingMode} useFallback={useFallback} />
         <BatchRunPanel canStart={canStart} destinations={destinations} disabledReason={disabledReason} onRetry={retryFailedUpload} onStart={requestStart} onStop={stopUpload} progress={progress} results={results} retryingId={retryingId} running={running} />
       </div>
       {historyView && <BulkScheduleManager initialView={historyView} jobs={schedulerData.jobs} onChanged={() => scheduler.refetch()} onClose={() => setHistoryView(null)} timezone={schedulerData.settings.timezone} />}
-      <PublishConfirmationDialog busy={running} confirmLabel={timingMode === 'publish_now' ? 'Publish batch' : 'Schedule batch'} description={`You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} ${media.length} media file${media.length === 1 ? '' : 's'} across ${selectedIds.size} destination${selectedIds.size === 1 ? '' : 's'}.`} onCancel={() => setConfirmationOpen(false)} onConfirm={() => { setConfirmationOpen(false); void runBatch() }} open={confirmationOpen} title="Confirm this bulk publishing action" />
+      <PublishConfirmationDialog busy={running} confirmLabel={timingMode === 'publish_now' ? 'Publish batch' : 'Schedule batch'} description={`You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} ${batchCount} ${contentMode === 'text' ? `text post${batchCount === 1 ? '' : 's'}` : `media file${batchCount === 1 ? '' : 's'}`} across ${selectedIds.size} destination${selectedIds.size === 1 ? '' : 's'}.`} onCancel={() => setConfirmationOpen(false)} onConfirm={() => { setConfirmationOpen(false); void runBatch() }} open={confirmationOpen} title="Confirm this bulk publishing action" />
     </div>
   )
 }
