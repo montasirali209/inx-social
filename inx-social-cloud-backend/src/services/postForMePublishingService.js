@@ -256,6 +256,25 @@ function parentStatus(data, scheduledAt) {
   return 'PROCESSING';
 }
 
+async function markBundleFailed(bundle, error) {
+  const message = String(error?.publicMessage || error?.message || 'Post for Me rejected this publishing request.').slice(0, 1000);
+  const now = new Date();
+  await prisma.socialPublication.updateMany({
+    where: { id: { in: bundle.publications.map((publication) => publication.id) } },
+    data: {
+      status: 'FAILED',
+      attemptCount: { increment: 1 },
+      lastAttemptAt: now,
+      lastError: message
+    }
+  });
+  await prisma.socialContent.update({
+    where: { id: bundle.content.id },
+    data: { status: 'FAILED' }
+  }).catch(() => {});
+  return message;
+}
+
 async function submitBundle(bundle, providerMedia = []) {
   const alreadySubmitted = bundle.publications.find((publication) => publication.externalPostId);
   if (alreadySubmitted) return alreadySubmitted.externalPostId;
@@ -305,7 +324,14 @@ async function createPublications(userId, input) {
   if (providerMedia.length) await updatePublicationMedia(bundle.publications, providerMedia);
 
   const uploadRequired = contentType !== 'TEXT' && !providerMedia.length;
-  if (!uploadRequired) await submitBundle(bundle, providerMedia);
+  if (!uploadRequired) {
+    try {
+      await submitBundle(bundle, providerMedia);
+    } catch (error) {
+      await markBundleFailed(bundle, error);
+      throw error;
+    }
+  }
   const publications = await getPublicationsByIds(bundle.publications.map((publication) => publication.id));
   return {
     jobs: publications.map(publicationToJob),
@@ -359,7 +385,12 @@ async function attachMedia(userId, rawPublicationId, input) {
   }
   const providerMedia = [await uploadBuffer(input.data, input.mimeType)];
   await updatePublicationMedia(bundle.publications, providerMedia);
-  await submitBundle(bundle, providerMedia);
+  try {
+    await submitBundle(bundle, providerMedia);
+  } catch (error) {
+    await markBundleFailed(bundle, error);
+    throw error;
+  }
   const fresh = await prisma.socialPublication.findUnique({ where: { id: bundle.publication.id }, include: { content: true, profile: true } });
   return publicationToJob(fresh);
 }
@@ -372,7 +403,12 @@ async function attachMediaStream(userId, rawPublicationId, input) {
   }
   const providerMedia = [await uploadStream(input.stream, { mimeType: input.mimeType, contentLength: input.contentLength })];
   await updatePublicationMedia(bundle.publications, providerMedia);
-  await submitBundle(bundle, providerMedia);
+  try {
+    await submitBundle(bundle, providerMedia);
+  } catch (error) {
+    await markBundleFailed(bundle, error);
+    throw error;
+  }
   const fresh = await prisma.socialPublication.findUnique({ where: { id: bundle.publication.id }, include: { content: true, profile: true } });
   return publicationToJob(fresh);
 }
@@ -388,7 +424,12 @@ async function attachLibraryMedia(userId, rawPublicationId) {
   if (!ids.length) throw Object.assign(new Error('This publication has no Media Library asset attached.'), { status: 404 });
   const providerMedia = await uploadLibraryAssets(userId, ids);
   await updatePublicationMedia(bundle.publications, providerMedia);
-  await submitBundle(bundle, providerMedia);
+  try {
+    await submitBundle(bundle, providerMedia);
+  } catch (error) {
+    await markBundleFailed(bundle, error);
+    throw error;
+  }
   const fresh = await prisma.socialPublication.findUnique({ where: { id: bundle.publication.id }, include: { content: true, profile: true } });
   return publicationToJob(fresh);
 }
@@ -396,9 +437,14 @@ async function attachLibraryMedia(userId, rawPublicationId) {
 function publicationToJob(publication) {
   const meta = json(publication.mediaJson, {});
   const result = json(publication.metricsJson, {});
+  const staleUnsubmittedText = publication.status === 'READY'
+    && meta.contentType === 'TEXT'
+    && !publication.externalPostId
+    && Date.now() - publication.createdAt.getTime() > 10_000;
   const status = publication.status === 'AWAITING_MEDIA' ? 'AWAITING_UPLOAD'
-    : publication.status === 'READY' ? 'READY'
-      : publication.status === 'SCHEDULED' ? 'SCHEDULED'
+    : staleUnsubmittedText ? 'FAILED'
+      : publication.status === 'READY' ? 'READY'
+        : publication.status === 'SCHEDULED' ? 'SCHEDULED'
         : publication.status === 'PUBLISHED' ? 'PUBLISHED'
           : publication.status === 'FAILED' ? 'FAILED'
             : publication.status === 'CANCELLED' ? 'CANCELLED'
@@ -414,7 +460,7 @@ function publicationToJob(publication) {
     localFileName: meta.originalFileName || null,
     scheduledAt: publication.scheduledAt?.toISOString() || null,
     completedAt: publication.publishedAt?.toISOString() || null,
-    errorMessage: publication.lastError || null,
+    errorMessage: publication.lastError || (staleUnsubmittedText ? 'This text post was prepared in INX Social but was not accepted by Post for Me. Review and retry it.' : null),
     mediaLibraryAssetId: meta.mediaLibraryAssetId || null,
     metaPostId: result.platformPostId || null,
     metaVideoId: null,
@@ -542,5 +588,6 @@ module.exports = {
   uploadBuffer,
   uploadStream,
   attachMediaStream,
-  validateScheduledAt
+  validateScheduledAt,
+  markBundleFailed
 };
