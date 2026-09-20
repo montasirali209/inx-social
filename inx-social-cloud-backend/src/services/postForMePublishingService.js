@@ -1,15 +1,10 @@
 const axios = require('axios');
 const prisma = require('../db/prisma');
 const postForMe = require('./postForMeService');
-const objectStorage = require('./mediaObjectStorageService');
-const mediaLibrary = require('./mediaLibraryService');
 const { getLicenseStatus } = require('./licenseService');
 
-const MAX_DIRECT_UPLOAD_BYTES = 500 * 1024 * 1024;
+const MAX_DIRECT_UPLOAD_BYTES = 10 * 1024 * 1024 * 1024;
 const TERMINAL_STATUSES = new Set(['PUBLISHED', 'FAILED', 'CANCELLED']);
-const QUEUE_POLL_MS = 15_000;
-const QUEUE_RETRY_MS = 2 * 60_000;
-const QUEUE_MAX_ATTEMPTS = 5;
 
 function json(value, fallback = {}) {
   return postForMe.parseJson(value, fallback);
@@ -29,16 +24,16 @@ function providerAccountId(profile) {
   return String(metadata.postForMeAccountId || profile.externalProfileId || '');
 }
 
-function isScheduledInput(input) {
-  return Boolean(input?.scheduledAt) && String(input?.publishMode || 'SCHEDULED').toUpperCase() !== 'NOW';
-}
-
-function validateScheduledInput(input) {
-  if (!isScheduledInput(input)) return null;
-  const value = new Date(input.scheduledAt);
-  if (Number.isNaN(value.getTime())) throw Object.assign(new Error('Choose a valid publishing date and time.'), { status: 400 });
-  if (value.getTime() <= Date.now()) throw Object.assign(new Error('Choose a publishing time in the future.'), { status: 400 });
-  return value;
+function validateScheduledAt(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const scheduledAt = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(scheduledAt.getTime())) {
+    throw Object.assign(new Error('Choose a valid publishing date and time.'), { status: 400, publicMessage: 'Choose a valid publishing date and time.' });
+  }
+  if (scheduledAt.getTime() <= Date.now()) {
+    throw Object.assign(new Error('Choose a publishing time in the future.'), { status: 400, publicMessage: 'Choose a publishing time in the future.' });
+  }
+  return scheduledAt.toISOString();
 }
 
 async function resolveProfiles(userId, profileIds) {
@@ -69,9 +64,7 @@ function mediaMetadata(input) {
     fileSizeBytes: input.fileSizeBytes == null ? null : Number(input.fileSizeBytes),
     mediaLibraryAssetId: input.mediaLibraryAssetId || null,
     mediaLibraryAssetIds: Array.isArray(input.mediaLibraryAssetIds) ? input.mediaLibraryAssetIds : null,
-    platformConfigurations: input.platformConfigurations || null,
     providerMedia: null,
-    queuedMedia: null,
     providerPostStatus: null
   };
 }
@@ -121,7 +114,8 @@ async function findOrCreateContent(userId, input, profiles) {
 }
 
 async function createPublicationRows(userId, input) {
-  const scheduledAt = validateScheduledInput(input);
+  const scheduledAt = validateScheduledAt(input.scheduledAt);
+  input = { ...input, scheduledAt };
   await postForMe.syncConnections(userId);
   const requestedIds = input.profileIds || input.connectedPageIds || [];
   const { profiles, missing } = await resolveProfiles(userId, requestedIds);
@@ -177,7 +171,7 @@ async function createPublicationRows(userId, input) {
         status: meta.contentType === 'TEXT' || meta.mediaLibraryAssetId || meta.mediaLibraryAssetIds?.length ? 'READY' : 'AWAITING_MEDIA',
         platformCaption: cleanText(input.caption, 5000),
         mediaJson: JSON.stringify(meta),
-        scheduledAt,
+        scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : null,
         idempotencyKey: key
       },
       include: { profile: true, content: true }
@@ -188,7 +182,7 @@ async function createPublicationRows(userId, input) {
     content,
     publications: rows,
     profiles,
-    input: { ...input, scheduledAt: scheduledAt?.toISOString() || null },
+    input,
     failures: missing.map((id) => ({ pageId: id, pageName: 'Unavailable destination', error: 'This destination is not connected through the current social gateway.' }))
   };
 }
@@ -211,16 +205,20 @@ async function uploadBuffer(data, mimeType) {
   return { url: signed.media_url };
 }
 
-async function uploadQueuedMediaRef(ref) {
-  if (!ref?.storageKey) throw new Error('Queued media reference is missing.');
+async function uploadStream(stream, { mimeType, contentLength }) {
+  const size = Number(contentLength || 0);
+  if (!Number.isFinite(size) || size <= 0) {
+    throw Object.assign(new Error('The browser must send the media Content-Length.'), { status: 411, publicMessage: 'The browser must send the media Content-Length.' });
+  }
+  if (size > MAX_DIRECT_UPLOAD_BYTES) {
+    throw Object.assign(new Error('This media file exceeds the current 10 GB upload ceiling.'), { status: 413, publicMessage: 'This media file exceeds the current 10 GB upload ceiling.' });
+  }
   const signed = await postForMe.apiRequest('POST', '/media/create-upload-url');
   if (!signed?.upload_url || !signed?.media_url) throw new Error('Post for Me did not return a media upload URL.');
-  const stored = await objectStorage.getStream(ref.storageKey, ref.storageProvider || null);
-  const byteSize = Number(ref.byteSize || stored.headers?.['content-length'] || 0);
-  await axios.put(signed.upload_url, stored.data, {
+  await axios.put(signed.upload_url, stream, {
     headers: {
-      'Content-Type': String(ref.mimeType || 'application/octet-stream').split(';')[0],
-      ...(byteSize > 0 ? { 'Content-Length': byteSize } : {})
+      'Content-Type': String(mimeType || 'application/octet-stream').split(';')[0],
+      'Content-Length': size
     },
     timeout: 0,
     maxBodyLength: Infinity,
@@ -232,62 +230,23 @@ async function uploadQueuedMediaRef(ref) {
 async function uploadLibraryAssets(userId, assetIds) {
   const ids = [...new Set((assetIds || []).map(String).filter(Boolean))];
   if (!ids.length) return [];
+  const assets = await prisma.agentAsset.findMany({ where: { id: { in: ids }, userId, status: 'READY' } });
+  const byId = new Map(assets.map((asset) => [asset.id, asset]));
   const media = [];
   for (const id of ids) {
-    const asset = await mediaLibrary.findContent(userId, id);
+    const asset = byId.get(id);
     if (!asset) throw Object.assign(new Error('One of the selected Media Library assets is unavailable.'), { status: 404 });
-    media.push(await uploadBuffer(asset.data, asset.mimeType));
+    media.push(await uploadBuffer(Buffer.from(asset.data), asset.mimeType));
   }
   return media;
 }
 
-async function queueBuffer(userId, data, mimeType, originalName) {
-  if (!Buffer.isBuffer(data) || !data.length) throw Object.assign(new Error('The media file is empty.'), { status: 400 });
-  if (data.length > MAX_DIRECT_UPLOAD_BYTES) throw Object.assign(new Error('This media file is too large for the current uploader.'), { status: 413 });
-  const stored = await objectStorage.persistBuffer({
-    userId,
-    data,
-    mimeType,
-    originalName: originalName || 'scheduled-media',
-    prefix: 'scheduled-publishing'
-  });
-  if (!stored.storageKey) throw new Error('Durable scheduled-media storage is required.');
-  return {
-    storageProvider: stored.storageProvider,
-    storageKey: stored.storageKey,
-    mimeType: String(mimeType || 'application/octet-stream'),
-    originalName: originalName || 'scheduled-media',
-    byteSize: data.length
-  };
-}
-
-async function queueLibraryAssets(userId, assetIds) {
-  const ids = [...new Set((assetIds || []).map(String).filter(Boolean))];
-  const queued = [];
-  for (const id of ids) {
-    const asset = await mediaLibrary.findContent(userId, id);
-    if (!asset) throw Object.assign(new Error('One of the selected Media Library assets is unavailable.'), { status: 404 });
-    queued.push(await queueBuffer(userId, asset.data, asset.mimeType, asset.originalName));
-  }
-  return queued;
-}
-
-async function updatePublicationMedia(publications, patch) {
+async function updatePublicationMedia(publications, providerMedia) {
   for (const publication of publications) {
     const current = json(publication.mediaJson, {});
-    const next = { ...current, ...patch };
-    publication.mediaJson = JSON.stringify(next);
+    publication.mediaJson = JSON.stringify({ ...current, providerMedia });
     await prisma.socialPublication.update({ where: { id: publication.id }, data: { mediaJson: publication.mediaJson } });
   }
-}
-
-async function markBundleScheduled(bundle, queuedMedia = null) {
-  if (queuedMedia?.length) await updatePublicationMedia(bundle.publications, { queuedMedia, providerMedia: null });
-  await prisma.socialPublication.updateMany({
-    where: { id: { in: bundle.publications.map(publication => publication.id) } },
-    data: { status: 'SCHEDULED', lastError: null, lastAttemptAt: null }
-  });
-  await prisma.socialContent.update({ where: { id: bundle.content.id }, data: { status: 'SCHEDULED' } });
 }
 
 function parentStatus(data, scheduledAt) {
@@ -298,17 +257,16 @@ function parentStatus(data, scheduledAt) {
   return 'PROCESSING';
 }
 
-async function submitBundle(bundle, providerMedia = [], options = {}) {
+async function submitBundle(bundle, providerMedia = []) {
   const alreadySubmitted = bundle.publications.find((publication) => publication.externalPostId);
   if (alreadySubmitted) return alreadySubmitted.externalPostId;
 
   const socialAccounts = bundle.profiles.map(providerAccountId).filter(Boolean);
-  const scheduledAt = options.forceImmediate ? null : bundle.input.scheduledAt || null;
   const body = {
     caption: cleanText(bundle.input.caption, 5000),
     social_accounts: socialAccounts,
     external_id: `inx:${bundle.content.id}`,
-    scheduled_at: scheduledAt
+    scheduled_at: bundle.input.scheduledAt || null
   };
   if (providerMedia.length) body.media = providerMedia;
   const platformConfigurations = buildPlatformConfigurations(bundle.profiles, bundle.input);
@@ -317,7 +275,7 @@ async function submitBundle(bundle, providerMedia = [], options = {}) {
 
   const post = await postForMe.apiRequest('POST', '/social-posts', { data: body });
   if (!post?.id) throw new Error('Post for Me did not return a post identifier.');
-  const status = parentStatus(post, scheduledAt);
+  const status = parentStatus(post, bundle.input.scheduledAt);
   const now = new Date();
 
   await prisma.socialPublication.updateMany({
@@ -337,26 +295,7 @@ async function submitBundle(bundle, providerMedia = [], options = {}) {
 async function createPublications(userId, input) {
   const bundle = await createPublicationRows(userId, input);
   const contentType = String(input.contentType || 'TEXT').toUpperCase();
-  const scheduled = isScheduledInput(bundle.input);
   let providerMedia = Array.isArray(input.media) ? input.media.filter((item) => item?.url) : [];
-
-  if (scheduled) {
-    let queuedMedia = [];
-    if (input.mediaLibraryAssetId) queuedMedia = await queueLibraryAssets(userId, [input.mediaLibraryAssetId]);
-    if (!queuedMedia.length && Array.isArray(input.mediaLibraryAssetIds) && input.mediaLibraryAssetIds.length) {
-      queuedMedia = await queueLibraryAssets(userId, input.mediaLibraryAssetIds);
-    }
-
-    const uploadRequired = contentType !== 'TEXT' && !queuedMedia.length;
-    if (!uploadRequired) await markBundleScheduled(bundle, queuedMedia);
-    const publications = await getPublicationsByIds(bundle.publications.map((publication) => publication.id));
-    return {
-      jobs: publications.map(publicationToJob),
-      failures: bundle.failures,
-      uploadRequired,
-      serverQueued: !uploadRequired
-    };
-  }
 
   if (!providerMedia.length && input.mediaLibraryAssetId) {
     providerMedia = await uploadLibraryAssets(userId, [input.mediaLibraryAssetId]);
@@ -364,7 +303,7 @@ async function createPublications(userId, input) {
   if (!providerMedia.length && Array.isArray(input.mediaLibraryAssetIds) && input.mediaLibraryAssetIds.length) {
     providerMedia = await uploadLibraryAssets(userId, input.mediaLibraryAssetIds);
   }
-  if (providerMedia.length) await updatePublicationMedia(bundle.publications, { providerMedia, queuedMedia: null });
+  if (providerMedia.length) await updatePublicationMedia(bundle.publications, providerMedia);
 
   const uploadRequired = contentType !== 'TEXT' && !providerMedia.length;
   if (!uploadRequired) await submitBundle(bundle, providerMedia);
@@ -372,8 +311,7 @@ async function createPublications(userId, input) {
   return {
     jobs: publications.map(publicationToJob),
     failures: bundle.failures,
-    uploadRequired,
-    serverQueued: false
+    uploadRequired
   };
 }
 
@@ -408,9 +346,7 @@ async function bundleForPublication(userId, rawPublicationId) {
       contentType: inputMeta.contentType || 'TEXT',
       scheduledAt: publication.scheduledAt?.toISOString() || null,
       mediaLibraryAssetId: inputMeta.mediaLibraryAssetId || null,
-      mediaLibraryAssetIds: inputMeta.mediaLibraryAssetIds || null,
-      platformConfigurations: inputMeta.platformConfigurations || null,
-      publishMode: publication.scheduledAt ? 'SCHEDULED' : 'NOW'
+      mediaLibraryAssetIds: inputMeta.mediaLibraryAssetIds || null
     },
     publication
   };
@@ -422,19 +358,22 @@ async function attachMedia(userId, rawPublicationId, input) {
     const fresh = await prisma.socialPublication.findUnique({ where: { id: bundle.publication.id }, include: { content: true, profile: true } });
     return publicationToJob(fresh);
   }
+  const providerMedia = [await uploadBuffer(input.data, input.mimeType)];
+  await updatePublicationMedia(bundle.publications, providerMedia);
+  await submitBundle(bundle, providerMedia);
+  const fresh = await prisma.socialPublication.findUnique({ where: { id: bundle.publication.id }, include: { content: true, profile: true } });
+  return publicationToJob(fresh);
+}
 
-  const existingMeta = json(bundle.publication.mediaJson, {});
-  if (isScheduledInput(bundle.input)) {
-    if (!existingMeta.queuedMedia?.length) {
-      const queuedMedia = [await queueBuffer(userId, input.data, input.mimeType, input.fileName || existingMeta.originalFileName)];
-      await markBundleScheduled(bundle, queuedMedia);
-    }
-  } else {
-    const providerMedia = [await uploadBuffer(input.data, input.mimeType)];
-    await updatePublicationMedia(bundle.publications, { providerMedia, queuedMedia: null });
-    await submitBundle(bundle, providerMedia);
+async function attachMediaStream(userId, rawPublicationId, input) {
+  const bundle = await bundleForPublication(userId, rawPublicationId);
+  if (bundle.publications.some((item) => item.externalPostId)) {
+    const fresh = await prisma.socialPublication.findUnique({ where: { id: bundle.publication.id }, include: { content: true, profile: true } });
+    return publicationToJob(fresh);
   }
-
+  const providerMedia = [await uploadStream(input.stream, { mimeType: input.mimeType, contentLength: input.contentLength })];
+  await updatePublicationMedia(bundle.publications, providerMedia);
+  await submitBundle(bundle, providerMedia);
   const fresh = await prisma.socialPublication.findUnique({ where: { id: bundle.publication.id }, include: { content: true, profile: true } });
   return publicationToJob(fresh);
 }
@@ -445,20 +384,12 @@ async function attachLibraryMedia(userId, rawPublicationId) {
     const fresh = await prisma.socialPublication.findUnique({ where: { id: bundle.publication.id }, include: { content: true, profile: true } });
     return publicationToJob(fresh);
   }
-
   const meta = json(bundle.publication.mediaJson, {});
   const ids = meta.mediaLibraryAssetIds?.length ? meta.mediaLibraryAssetIds : meta.mediaLibraryAssetId ? [meta.mediaLibraryAssetId] : [];
   if (!ids.length) throw Object.assign(new Error('This publication has no Media Library asset attached.'), { status: 404 });
-
-  if (isScheduledInput(bundle.input)) {
-    const queuedMedia = meta.queuedMedia?.length ? meta.queuedMedia : await queueLibraryAssets(userId, ids);
-    await markBundleScheduled(bundle, queuedMedia);
-  } else {
-    const providerMedia = await uploadLibraryAssets(userId, ids);
-    await updatePublicationMedia(bundle.publications, { providerMedia, queuedMedia: null });
-    await submitBundle(bundle, providerMedia);
-  }
-
+  const providerMedia = await uploadLibraryAssets(userId, ids);
+  await updatePublicationMedia(bundle.publications, providerMedia);
+  await submitBundle(bundle, providerMedia);
   const fresh = await prisma.socialPublication.findUnique({ where: { id: bundle.publication.id }, include: { content: true, profile: true } });
   return publicationToJob(fresh);
 }
@@ -476,11 +407,7 @@ function publicationToJob(publication) {
   return {
     id: `pfm:${publication.id}`,
     status,
-    uploadStatus: publication.status === 'AWAITING_MEDIA'
-      ? 'AWAITING_UPLOAD'
-      : meta.providerMedia?.length || meta.queuedMedia?.length
-        ? 'COMPLETE'
-        : 'NOT_REQUIRED',
+    uploadStatus: publication.status === 'AWAITING_MEDIA' ? 'AWAITING_UPLOAD' : meta.providerMedia?.length ? 'COMPLETE' : 'NOT_REQUIRED',
     publishMode: publication.scheduledAt ? 'SCHEDULED' : 'NOW',
     contentType: ['IMAGE', 'VIDEO'].includes(meta.contentType) ? meta.contentType : 'TEXT',
     title: publication.content?.title || null,
@@ -503,7 +430,10 @@ function publicationToJob(publication) {
       avatarUrl: publication.profile.avatarUrl
     } : null,
     platformUrl: result.platformUrl || null,
-    asset: null
+    asset: null,
+    contentId: publication.contentId,
+    providerPostId: publication.externalPostId || null,
+    providerStatus: meta.providerPostStatus || null
   };
 }
 
@@ -514,7 +444,7 @@ async function listPublications(userId, limit = 150) {
     where: { profileId: { in: profiles.map((profile) => profile.id) } },
     include: { content: true, profile: true },
     orderBy: { createdAt: 'desc' },
-    take: Math.min(500, Math.max(1, Number(limit) || 150))
+    take: Math.min(1000, Math.max(1, Number(limit) || 150))
   });
   return rows.map(publicationToJob);
 }
@@ -530,132 +460,6 @@ async function refreshContentStatus(contentId) {
   else if (statuses.every((item) => TERMINAL_STATUSES.has(item))) status = 'PARTIAL';
   else if (statuses.some((item) => item === 'AWAITING_MEDIA')) status = 'AWAITING_MEDIA';
   await prisma.socialContent.update({ where: { id: contentId }, data: { status } }).catch(() => {});
-}
-
-async function cleanupQueuedMedia(refs) {
-  const unique = new Map();
-  for (const ref of refs || []) {
-    if (ref?.storageKey) unique.set(`${ref.storageProvider || ''}:${ref.storageKey}`, ref);
-  }
-  await Promise.allSettled([...unique.values()].map(ref => objectStorage.deleteObject(ref.storageKey, ref.storageProvider || null)));
-}
-
-async function bundleForContent(contentId) {
-  const publications = await prisma.socialPublication.findMany({
-    where: { contentId },
-    include: { content: true, profile: true }
-  });
-  if (!publications.length) return null;
-  const first = publications[0];
-  const meta = json(first.mediaJson, {});
-  return {
-    content: first.content,
-    publications,
-    profiles: publications.map(publication => publication.profile),
-    input: {
-      caption: first.content.caption || first.platformCaption || '',
-      title: first.content.title || null,
-      contentType: meta.contentType || 'TEXT',
-      scheduledAt: first.scheduledAt?.toISOString() || null,
-      platformConfigurations: meta.platformConfigurations || null,
-      publishMode: 'SCHEDULED'
-    },
-    meta
-  };
-}
-
-async function processDueContent(contentId) {
-  const claimedAt = new Date();
-  const claimed = await prisma.socialPublication.updateMany({
-    where: { contentId, status: 'SCHEDULED', externalPostId: null, scheduledAt: { lte: claimedAt } },
-    data: { status: 'PROCESSING', lastAttemptAt: claimedAt, lastError: null }
-  });
-  if (!claimed.count) return false;
-
-  const bundle = await bundleForContent(contentId);
-  if (!bundle) return false;
-  const queuedMedia = Array.isArray(bundle.meta.queuedMedia) ? bundle.meta.queuedMedia : [];
-
-  try {
-    const contentType = String(bundle.meta.contentType || 'TEXT').toUpperCase();
-    if (contentType !== 'TEXT' && !queuedMedia.length) throw new Error('Scheduled media is unavailable from the server queue.');
-
-    const providerMedia = [];
-    for (const ref of queuedMedia) providerMedia.push(await uploadQueuedMediaRef(ref));
-
-    // Keep the durable R2 references until the provider has accepted the post.
-    // If provider submission fails, the same queued objects remain available for retry.
-    await submitBundle(bundle, providerMedia, { forceImmediate: true });
-    if (providerMedia.length) await updatePublicationMedia(bundle.publications, { providerMedia, queuedMedia: null });
-    await cleanupQueuedMedia(queuedMedia);
-    return true;
-  } catch (error) {
-    const latest = await prisma.socialPublication.findMany({
-      where: { contentId },
-      select: { attemptCount: true }
-    });
-    const attempt = Math.max(0, ...latest.map(row => Number(row.attemptCount || 0))) + 1;
-    const terminal = attempt >= QUEUE_MAX_ATTEMPTS;
-    const message = String(error?.publicMessage || error?.message || 'Scheduled publishing failed.').slice(0, 1000);
-    await prisma.socialPublication.updateMany({
-      where: { contentId, externalPostId: null },
-      data: {
-        status: terminal ? 'FAILED' : 'SCHEDULED',
-        attemptCount: { increment: 1 },
-        lastAttemptAt: new Date(),
-        lastError: message
-      }
-    });
-    await prisma.socialContent.update({
-      where: { id: contentId },
-      data: { status: terminal ? 'FAILED' : 'SCHEDULED' }
-    }).catch(() => {});
-    console.error('[SOCIAL PUBLISH QUEUE] content failed', { contentId, attempt, terminal, error: message });
-    return false;
-  }
-}
-
-async function runScheduledPublishingQueue(options = {}) {
-  const now = options.now || new Date();
-  const retryBefore = new Date(now.getTime() - QUEUE_RETRY_MS);
-  const due = await prisma.socialPublication.findMany({
-    where: {
-      status: 'SCHEDULED',
-      externalPostId: null,
-      scheduledAt: { lte: now },
-      OR: [{ lastAttemptAt: null }, { lastAttemptAt: { lte: retryBefore } }]
-    },
-    distinct: ['contentId'],
-    select: { contentId: true },
-    orderBy: { scheduledAt: 'asc' },
-    take: 20
-  });
-
-  let published = 0;
-  for (const row of due) {
-    if (await processDueContent(row.contentId)) published += 1;
-  }
-  return published;
-}
-
-function startScheduledPublishingRuntime() {
-  let running = false;
-  const tick = async () => {
-    if (running) return;
-    running = true;
-    try {
-      const count = await runScheduledPublishingQueue();
-      if (count) console.log(`[SOCIAL PUBLISH QUEUE] Submitted ${count} due content item(s).`);
-    } catch (error) {
-      console.error('[SOCIAL PUBLISH QUEUE]', error);
-    } finally {
-      running = false;
-    }
-  };
-  void tick();
-  const timer = setInterval(() => { void tick(); }, QUEUE_POLL_MS);
-  timer.unref?.();
-  return timer;
 }
 
 function resultError(data) {
@@ -736,7 +540,7 @@ module.exports = {
   handleWebhook,
   getFeed,
   uploadBuffer,
-  runScheduledPublishingQueue,
-  startScheduledPublishingRuntime,
-  cleanupQueuedMedia
+  uploadStream,
+  attachMediaStream,
+  validateScheduledAt
 };
