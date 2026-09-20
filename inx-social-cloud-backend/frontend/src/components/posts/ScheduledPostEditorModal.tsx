@@ -37,7 +37,6 @@ export function ScheduledPostEditorModal({
   onChanged: () => Promise<unknown> | void
 }) {
   const initial = useMemo(() => localParts(job.scheduledAt, timezone), [job.scheduledAt, timezone])
-  const [title, setTitle] = useState(job.title || '')
   const [caption, setCaption] = useState(job.caption || '')
   const [date, setDate] = useState(initial.date)
   const [time, setTime] = useState(initial.time)
@@ -53,7 +52,7 @@ export function ScheduledPostEditorModal({
     setError('')
     try {
       const scheduledAt = zonedDateTimeToIso(date, time, timezone)
-      await updateScheduledPost(job.id, { title: title.trim() || null, caption: caption.trim(), scheduledAt })
+      await updateScheduledPost(job.id, { caption: caption.trim(), scheduledAt })
       if (replacement) {
         await replaceScheduledPostMedia(job.id, replacement, setProgress)
       }
@@ -98,11 +97,6 @@ export function ScheduledPostEditorModal({
         <div className="space-y-4 p-5">
           {!editable && <div className="flex gap-2 rounded-xl border border-brand-amber/25 bg-brand-amber/8 p-3 text-xs text-brand-amber"><AlertTriangle className="mt-0.5 size-4 shrink-0" /><span>This post is already {job.status.toLowerCase().replaceAll('_', ' ')}. Post for Me only allows changes while a post is draft or scheduled.</span></div>}
           {error && <div className="rounded-xl border border-brand-red/25 bg-brand-red/8 p-3 text-xs text-brand-red">{error}</div>}
-
-          <label className="block">
-            <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[.08em] text-text-muted">Title</span>
-            <input className="min-h-11 w-full rounded-xl border border-border-soft bg-bg/45 px-3 text-sm outline-none focus:border-brand-cyan/45" disabled={!editable || Boolean(busy)} maxLength={200} onChange={(event) => setTitle(event.target.value)} value={title} />
-          </label>
 
           <label className="block">
             <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[.08em] text-text-muted">Caption</span>
