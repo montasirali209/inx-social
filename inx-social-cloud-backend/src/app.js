@@ -234,6 +234,10 @@ app.use((req, res, next) => {
     return res.redirect(308, destination.toString());
   }
 
+  if (host.endsWith('.up.railway.app')) {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  }
+
   next();
 });
 
