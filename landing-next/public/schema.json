@@ -6,8 +6,14 @@
       "@id": "https://inaxx.co.uk/#organization",
       "name": "INAXX LTD",
       "url": "https://inaxx.co.uk/",
-      "logo": "https://www.inxsocial.co.uk/assets/inx-social-logo.png",
       "email": "contact@inaxx.co.uk"
+    },
+    {
+      "@type": "Brand",
+      "@id": "https://www.inxsocial.co.uk/#brand",
+      "name": "INXSocial",
+      "url": "https://www.inxsocial.co.uk/",
+      "logo": "https://www.inxsocial.co.uk/assets/inx-social-logo.png"
     },
     {
       "@type": "WebSite",
@@ -23,15 +29,23 @@
       "@type": "WebPage",
       "@id": "https://www.inxsocial.co.uk/#webpage",
       "url": "https://www.inxsocial.co.uk/",
-      "name": "Social Media Scheduler & AI Content Studio | INXSocial",
+      "name": "Social Media Management Platform, Scheduler & AI | INXSocial",
+      "description": "Manage, create, bulk schedule and analyse social media in one workspace with a visual content calendar, multi-platform publishing and AI content creation.",
       "isPartOf": {
         "@id": "https://www.inxsocial.co.uk/#website"
       },
       "about": {
         "@id": "https://www.inxsocial.co.uk/#software"
       },
+      "primaryImageOfPage": {
+        "@type": "ImageObject",
+        "contentUrl": "https://www.inxsocial.co.uk/assets/landing-dashboard-20260919.webp",
+        "url": "https://www.inxsocial.co.uk/assets/landing-dashboard-20260919.webp",
+        "width": 1200,
+        "height": 675
+      },
       "inLanguage": "en-GB",
-      "description": "Create, bulk schedule and analyse social media from one workspace, with a visual content calendar and AI-assisted image, carousel and video creation."
+      "dateModified": "2026-09-20"
     },
     {
       "@type": [
@@ -59,6 +73,9 @@
         "Stock Video Creator",
         "AI-assisted UGC ad creation"
       ],
+      "brand": {
+        "@id": "https://www.inxsocial.co.uk/#brand"
+      },
       "publisher": {
         "@id": "https://inaxx.co.uk/#organization"
       },
