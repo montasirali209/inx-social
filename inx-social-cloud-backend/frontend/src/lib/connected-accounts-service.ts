@@ -36,7 +36,7 @@ export async function searchConnectedAccounts(query: string) {
 }
 
 export async function refreshConnection(connectionId?: string | null) {
-  // Post for Me currently exposes one secure workspace sync endpoint. Keep the
+  // social publishing gateway currently exposes one secure workspace sync endpoint. Keep the
   // optional id in the facade so a future per-connection sync can use the same UI contract.
   void connectionId
   return syncPostForMeConnections()
@@ -80,7 +80,7 @@ export async function getAvailableDestinations(workspace?: ConnectionsWorkspace,
 }
 
 export async function saveConnectedDestinations(destinationIds: string[], available: ConnectedIdentity[]) {
-  // The current Post for Me connection contract authorises returned destinations
+  // The current social publishing gateway connection contract authorises returned destinations
   // together. Keep this facade so a future selective-destination endpoint can be
   // introduced without changing the Connected Accounts UI contract.
   const availableIds = new Set(available.map((destination) => destination.id))
