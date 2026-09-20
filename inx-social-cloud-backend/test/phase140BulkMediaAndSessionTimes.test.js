@@ -42,10 +42,10 @@ test('Bulk Scheduler uses Post for Me long-range scheduling with editable provid
   const manager = read('frontend/src/components/bulk-scheduler/BulkScheduleManager.tsx');
   const api = read('frontend/src/lib/bulk-scheduler-api.ts');
   assert.doesNotMatch(utilities, /MAX_BULK_SCHEDULE_DAYS|getBulkScheduleCapacity|25-day scheduling window/);
-  assert.match(uploadPanel, /Post for Me scheduling/);
+  assert.match(uploadPanel, /Scheduled publishing/);
   assert.match(page, /BulkSchedulerStats/);
   assert.match(page, /BulkScheduleManager/);
-  assert.match(stats, /Held by Post for Me/);
+  assert.match(stats, /Held for scheduled publishing/);
   assert.match(manager, /ScheduledPostEditorModal/);
   assert.match(manager, /Review provider-held schedules/);
   assert.match(api, /updateBulkScheduledPost/);
