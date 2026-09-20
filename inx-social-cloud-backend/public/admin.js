@@ -1,4 +1,4 @@
-const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],timer:null};
+const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,timer:null};
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const initials=value=>String(value||'IN').trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
@@ -11,11 +11,11 @@ function clearSession(){clearInterval(state.timer);state.user=null;state.users=[
 async function signOut(){try{await fetch('/api/admin-auth/logout',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'}})}catch{}finally{clearSession()}}
 async function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};const response=await fetch(path,{...options,headers,credentials:'same-origin'});const data=await response.json().catch(()=>({}));if(response.status===401){clearSession();throw new Error(data.error||'Your administrator session has ended.')}if(!response.ok)throw new Error(data.error||`Request failed: ${response.status}`);return data}
 function setLoggedIn(on){$('loginView').classList.toggle('hidden',on);$('dashboardView').classList.toggle('hidden',!on);if(on){const name=state.user?.name||'INXSocial Admin';$('adminName').textContent=name;$('adminEmail').textContent=`${state.user?.email||''}${state.user?.role?` · ${state.user.role.replace('_',' ')}`:''}`;$('adminInitials').textContent=initials(name)}}
-const pageMeta={overview:['Overview','Monitor new customers and service activity.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI & Automation','Manage AI Studio policy, Social Agent allowances and generation infrastructure.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
-async function openPage(page){document.querySelectorAll('.nav').forEach(button=>button.classList.toggle('active',button.dataset.page===page));document.querySelectorAll('.page').forEach(section=>section.classList.toggle('hidden',section.id!==`${page}Page`));$('pageTitle').textContent=pageMeta[page][0];$('pageSubtitle').textContent=pageMeta[page][1];if(page==='overview')await loadOverview();if(page==='users')await loadUsers();if(page==='aiAccess')await loadAiAccess();if(page==='settings')await loadSettings();if(page==='security')await loadSecurity()}
+const pageMeta={overview:['Overview','Monitor new customers and service activity.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI & Automation','Manage AI Studio policy, Social Agent allowances and generation infrastructure.'],searchConsole:['Search Console','Monitor Google Search visibility, queries, landing pages and SEO opportunities.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
+async function openPage(page){document.querySelectorAll('.nav').forEach(button=>button.classList.toggle('active',button.dataset.page===page));document.querySelectorAll('.page').forEach(section=>section.classList.toggle('hidden',section.id!==`${page}Page`));$('pageTitle').textContent=pageMeta[page][0];$('pageSubtitle').textContent=pageMeta[page][1];if(page==='overview')await loadOverview();if(page==='users')await loadUsers();if(page==='aiAccess')await loadAiAccess();if(page==='searchConsole')await loadSearchConsole();if(page==='settings')await loadSettings();if(page==='security')await loadSecurity()}
 document.querySelectorAll('.nav').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.page)));
 document.querySelectorAll('[data-open-page]').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.openPage)));
-$('loginForm').addEventListener('submit',async event=>{event.preventDefault();$('loginError').textContent='';try{const data=await api('/api/admin-auth/login',{method:'POST',body:JSON.stringify({email:$('email').value.trim(),password:$('password').value})});state.user=data.user;setLoggedIn(true);$('password').value='';await loadOverview();state.timer=setInterval(()=>loadOverview(true).catch(()=>{}),15000)}catch(error){$('loginError').textContent=error.message}});
+$('loginForm').addEventListener('submit',async event=>{event.preventDefault();$('loginError').textContent='';try{const data=await api('/api/admin-auth/login',{method:'POST',body:JSON.stringify({email:$('email').value.trim(),password:$('password').value})});state.user=data.user;setLoggedIn(true);$('password').value='';await postAuthLanding();state.timer=setInterval(()=>loadOverview(true).catch(()=>{}),15000)}catch(error){$('loginError').textContent=error.message}});
 $('logoutBtn').addEventListener('click',()=>void signOut());
 
 function renderRecent(users){const html=users.map(user=>`<div class="activity-item"><span class="avatar">${esc(initials(user.name||user.email))}</span><div><b>${esc(user.name||'New customer')}</b><small>${esc(user.email)} · ${esc(planOf(user))} · ${user.emailVerifiedAt?'Verified':'Verification pending'}</small></div><time>${relative(user.createdAt)}</time></div>`).join('');$('recentUsers').innerHTML=html||'<p>No customer registrations yet.</p>';$('notificationList').innerHTML=html||'<p>No recent registrations.</p>'}
@@ -163,6 +163,140 @@ $('agentAccessForm').addEventListener('submit',async event=>{
   }catch(error){toast(error.message)}
 });
 
+
+const formatNumber=value=>Number(value||0).toLocaleString(undefined,{maximumFractionDigits:0});
+const formatPct=value=>`${(Number(value||0)*100).toFixed(2)}%`;
+const formatPosition=value=>Number(value||0)>0?Number(value).toFixed(1):'—';
+function gscDelta(value,suffix='%'){const number=Number(value||0);const direction=number>0?'up':number<0?'down':'flat';const sign=number>0?'+':'';return `<small class="gsc-delta ${direction}">${sign}${number.toFixed(1)}${suffix}</small>`}
+function setGscLoading(on){$('gscRefreshBtn').disabled=on;$('gscRefreshBtn').textContent=on?'Refreshing…':'↻ Refresh Search Console data'}
+function renderGscStatus(data){
+  state.searchConsole=data;
+  const superAdmin=state.user?.role==='SUPER_ADMIN';
+  const connected=Boolean(data.connected);
+  const configured=Boolean(data.configured);
+  $('gscStatusChip').textContent=!configured?'OAuth setup required':connected?(data.status==='ERROR'?'Connection attention':'Connected'):'Not connected';
+  $('gscStatusChip').className=`status-chip ${connected&&data.status!=='ERROR'?'gsc-connected':data.status==='ERROR'?'gsc-error':''}`;
+  $('gscCallbackUri').textContent=data.callbackUrl||'—';
+  $('gscConnectBtn').hidden=!superAdmin;
+  $('gscConnectBtn').textContent=connected?'Reconnect Google':'Connect Google Search Console';
+  $('gscConnectBtn').disabled=!configured||!superAdmin;
+  $('gscDisconnectBtn').hidden=!connected||!superAdmin;
+
+  const select=$('gscPropertySelect');
+  const sites=data.sites||[];
+  select.innerHTML=sites.length
+    ? sites.map(site=>`<option value="${esc(site.siteUrl)}" ${site.siteUrl===data.selectedSiteUrl?'selected':''}>${esc(site.siteUrl)} · ${esc(site.permissionLevel)}</option>`).join('')
+    : '<option value="">No Search Console properties found</option>';
+  select.disabled=!connected||!sites.length||!superAdmin;
+
+  if(!configured){
+    $('gscConnectionMessage').textContent='Google OAuth credentials are not configured on the backend. Add a Google OAuth web client before connecting.';
+  }else if(data.lastError){
+    $('gscConnectionMessage').textContent=data.lastError;
+  }else if(connected){
+    $('gscConnectionMessage').textContent=`Connected directly to Google. ${sites.length} Search Console propert${sites.length===1?'y':'ies'} available.`;
+  }else{
+    $('gscConnectionMessage').textContent='Ready to connect directly to Google Search Console with read-only access.';
+  }
+  $('gscSyncMeta').textContent=data.lastSyncedAt?`Last Google sync ${fmtDate(data.lastSyncedAt)}`:'Connect a property to load live search performance.';
+}
+function renderGscTrend(rows){
+  const data=rows||[];
+  if(!data.length){$('gscTrendChart').innerHTML='<div class="gsc-empty">No daily Search Console data for this period.</div>';return}
+  const max=Math.max(...data.map(row=>Number(row.impressions||0)),1);
+  $('gscTrendChart').innerHTML=data.map(row=>{
+    const height=Math.max(3,Math.round((Number(row.impressions||0)/max)*100));
+    const clicks=Number(row.clicks||0);
+    return `<div class="gsc-bar-col" title="${esc(row.date)} · ${formatNumber(row.impressions)} impressions · ${formatNumber(clicks)} clicks"><i style="height:${height}%"></i><span>${esc(String(row.date||'').slice(5))}</span></div>`;
+  }).join('');
+}
+function gscRows(rows,key){
+  return (rows||[]).slice(0,20).map(row=>`<tr><td><b>${esc(row[key]||'—')}</b></td><td>${formatNumber(row.clicks)}</td><td>${formatNumber(row.impressions)}</td><td>${formatPct(row.ctr)}</td><td>${formatPosition(row.position)}</td></tr>`).join('')||'<tr><td colspan="5">No data for this period.</td></tr>';
+}
+function renderGscBreakdown(target,rows,key){
+  const data=(rows||[]).slice(0,10);
+  if(!data.length){$(target).innerHTML='<div class="gsc-empty">No data.</div>';return}
+  const max=Math.max(...data.map(row=>Number(row.impressions||0)),1);
+  $(target).innerHTML=data.map(row=>`<div class="gsc-breakdown-row"><div><b>${esc(row[key]||'Unknown')}</b><small>${formatNumber(row.clicks)} clicks · ${formatPct(row.ctr)} CTR</small></div><div class="gsc-mini-track"><i style="width:${Math.max(2,(Number(row.impressions||0)/max)*100)}%"></i></div><strong>${formatNumber(row.impressions)}</strong></div>`).join('');
+}
+function renderGscPerformance(data){
+  const s=data.summary||{},c=data.comparison||{};
+  $('gscMetrics').innerHTML=[
+    ['Clicks',formatNumber(s.clicks),gscDelta(c.clicksPercent),'Google Search visits'],
+    ['Impressions',formatNumber(s.impressions),gscDelta(c.impressionsPercent),'Search result appearances'],
+    ['CTR',formatPct(s.ctr),gscDelta(c.ctrPoints,' pp'),'Click-through rate'],
+    ['Average position',formatPosition(s.position),gscDelta(c.positionChange),'Positive = ranking improved']
+  ].map(([label,value,delta,note])=>`<article class="gsc-metric"><span>${label}</span><div><b>${value}</b>${delta}</div><small>${note}</small></article>`).join('');
+  $('gscRangeLabel').textContent=`${data.range?.startDate||''} → ${data.range?.endDate||''}`;
+  renderGscTrend(data.daily);
+  $('gscQueriesTable').innerHTML=gscRows(data.topQueries,'query');
+  $('gscPagesTable').innerHTML=gscRows(data.topPages,'page');
+  renderGscBreakdown('gscCountries',data.countries,'country');
+  renderGscBreakdown('gscDevices',data.devices,'device');
+  const opp=data.opportunities||[];
+  $('gscOpportunities').innerHTML=opp.length?opp.map(row=>`<div class="gsc-opportunity"><div><b>${esc(row.query)}</b><small>${formatNumber(row.impressions)} impressions · ${formatPct(row.ctr)} CTR</small></div><span>Pos. ${formatPosition(row.position)}</span></div>`).join(''):'<div class="gsc-empty">No high-impression ranking opportunities detected in this period.</div>';
+  $('gscSyncMeta').textContent=`${esc(data.siteUrl)} · ${data.periodDays} day report · refreshed just now`;
+}
+async function loadGscPerformance(){
+  if(!state.searchConsole?.connected||!state.searchConsole?.selectedSiteUrl)return;
+  setGscLoading(true);
+  try{
+    const data=await api(`/api/admin/search-console/performance?days=${encodeURIComponent($('gscPeriod').value)}`);
+    renderGscPerformance(data);
+  }catch(error){
+    $('gscSyncMeta').textContent=error.message;
+    toast(error.message);
+  }finally{setGscLoading(false)}
+}
+async function loadSearchConsole(){
+  try{
+    const data=await api('/api/admin/search-console/status');
+    renderGscStatus(data);
+    if(data.connected&&data.selectedSiteUrl)await loadGscPerformance();
+  }catch(error){
+    $('gscConnectionMessage').textContent=error.message;
+    toast(error.message);
+  }
+}
+$('gscConnectBtn').addEventListener('click',async()=>{
+  try{
+    const data=await api('/api/admin/search-console/oauth/start',{method:'POST',body:'{}'});
+    window.location.assign(data.authorizationUrl);
+  }catch(error){toast(error.message)}
+});
+$('gscDisconnectBtn').addEventListener('click',async()=>{
+  if(!window.confirm('Disconnect Google Search Console from INXSocial?'))return;
+  try{
+    await api('/api/admin/search-console',{method:'DELETE'});
+    toast('Google Search Console disconnected');
+    state.searchConsole=null;
+    await loadSearchConsole();
+  }catch(error){toast(error.message)}
+});
+$('gscPropertySelect').addEventListener('change',async event=>{
+  if(!event.target.value)return;
+  try{
+    await api('/api/admin/search-console/site',{method:'POST',body:JSON.stringify({siteUrl:event.target.value})});
+    toast('Search Console property updated');
+    await loadSearchConsole();
+  }catch(error){toast(error.message)}
+});
+$('gscPeriod').addEventListener('change',()=>loadGscPerformance().catch(error=>toast(error.message)));
+$('gscRefreshBtn').addEventListener('click',()=>loadSearchConsole().catch(error=>toast(error.message)));
+
+async function postAuthLanding(){
+  const params=new URLSearchParams(window.location.search);
+  const gsc=params.get('gsc');
+  if(gsc){
+    await openPage('searchConsole');
+    if(gsc==='connected')toast('Google Search Console connected');
+    if(gsc==='error')toast(params.get('message')||'Google Search Console connection failed');
+    history.replaceState({},'',window.location.pathname);
+    return;
+  }
+  await loadOverview();
+}
+
 function settingControl(setting,canEdit){const disabled=canEdit?'':'disabled';const value=esc(setting.value);if(setting.type==='boolean')return`<select id="setting-${esc(setting.key)}" ${disabled}><option value="false" ${setting.value==='false'?'selected':''}>Disabled</option><option value="true" ${setting.value==='true'?'selected':''}>Enabled</option></select>`;if(setting.type==='number')return`<input id="setting-${esc(setting.key)}" type="number" min="1" max="30" value="${value}" ${disabled}>`;return`<input id="setting-${esc(setting.key)}" value="${value}" ${disabled}>`}
 async function loadSettings(){const data=await api('/api/admin/security/settings');const canEdit=Boolean(data.canEdit);$('settingsPermission').textContent=canEdit?'Super administrator changes are audit logged.':'Read only — a super administrator is required to change system settings.';$('systemSettingsList').innerHTML=(data.settings||[]).map(setting=>`<article class="system-setting-card"><div><span class="kicker">${esc(setting.key)}</span><h3>${esc(setting.label)}</h3><p>${esc(setting.description)}</p>${setting.updatedAt?`<small>Last updated ${esc(fmtDate(setting.updatedAt))}</small>`:''}</div><div class="system-setting-action">${settingControl(setting,canEdit)}<button class="primary" data-save-setting="${esc(setting.key)}" ${canEdit?'':'disabled'}>Save</button></div></article>`).join('')||'<p>No safe system settings are available.</p>';document.querySelectorAll('[data-save-setting]').forEach(button=>button.addEventListener('click',()=>void saveSystemSetting(button.dataset.saveSetting)))}
 async function saveSystemSetting(key){try{const input=$(`setting-${key}`);await api(`/api/admin/security/settings/${encodeURIComponent(key)}`,{method:'PUT',body:JSON.stringify({value:input.value})});toast('System setting updated');await loadSettings()}catch(error){toast(error.message)}}
@@ -181,4 +315,4 @@ $('inviteAdminBtn').addEventListener('click',()=>{$('inviteAdminForm').reset();$
 $('refreshAuditBtn').addEventListener('click',()=>loadAudit().catch(error=>toast(error.message)));
 
 $('notificationBtn').addEventListener('click',event=>{event.stopPropagation();$('notificationPanel').classList.toggle('hidden')});$('closeNotifications').addEventListener('click',()=>$('notificationPanel').classList.add('hidden'));document.addEventListener('pointerdown',event=>{if(!$('notificationPanel').classList.contains('hidden')&&!$('notificationPanel').contains(event.target)&&!$('notificationBtn').contains(event.target))$('notificationPanel').classList.add('hidden')});document.addEventListener('keydown',event=>{if(event.key==='Escape')$('notificationPanel').classList.add('hidden')});
-(async function boot(){try{const data=await api('/api/admin-auth/me');state.user=data.user;setLoggedIn(true);await loadOverview();state.timer=setInterval(()=>loadOverview(true).catch(()=>{}),15000)}catch{clearSession()}})();
+(async function boot(){try{const data=await api('/api/admin-auth/me');state.user=data.user;setLoggedIn(true);await postAuthLanding();state.timer=setInterval(()=>loadOverview(true).catch(()=>{}),15000)}catch{clearSession()}})();

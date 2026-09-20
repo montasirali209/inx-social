@@ -735,3 +735,25 @@ model DesktopRelease {
 
   @@index([active, publishedAt])
 }
+
+
+model SearchConsoleConnection {
+  id                    String   @id
+  provider              String   @default("google")
+  connectedByUserId     String?
+  encryptedAccessToken  String?
+  encryptedRefreshToken String?
+  tokenExpiresAt        DateTime?
+  scopesJson            String?
+  selectedSiteUrl       String?
+  availableSitesJson    String?
+  status                String   @default("ACTIVE")
+  connectedAt           DateTime @default(now())
+  lastSyncedAt          DateTime?
+  lastError              String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([status])
+  @@index([updatedAt])
+}
