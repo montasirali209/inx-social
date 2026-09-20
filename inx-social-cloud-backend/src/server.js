@@ -9,6 +9,7 @@ const { startAnalyticsCacheRuntime } = require('./services/postForMeAnalyticsSer
 const prisma = require('./db/prisma');
 const { runStorageDiagnostics } = require('./services/storageDiagnosticsService');
 const { startAgentAssetBucketBackfill } = require('./services/agentAssetBucketBackfillService');
+const { runOneOffXTextSanitizer } = require('./services/oneOffXTextSanitizer');
 
 async function verifyNextLandingUpstream() {
   if (!/^(?:1|true|yes|on)$/i.test(String(process.env.NEXT_LANDING_ENABLED || '').trim())) return;
@@ -51,6 +52,9 @@ const server = app.listen(env.port, () => {
   void runStorageDiagnostics();
   startAgentAssetBucketBackfill();
   void verifyNextLandingUpstream();
+  setTimeout(() => {
+    void runOneOffXTextSanitizer().catch((error) => console.error('[one-off-x-cleanup] failed', { error: error?.message || String(error) }));
+  }, 3000).unref?.();
 });
 
 let shuttingDown = false;
