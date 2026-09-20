@@ -65,3 +65,28 @@ test('scheduled editor exposes provider-supported caption media timing and cance
   assert.match(postsApi, /cancelScheduledPost/);
   assert.match(bulkManager, /ScheduledPostEditorModal/);
 });
+
+
+test('provider submission failures persist into Needs Review instead of remaining Processing', () => {
+  const publishing = read('src/services/postForMePublishingService.js');
+  const stats = read('frontend/src/components/bulk-scheduler/BulkSchedulerStats.tsx');
+
+  assert.match(publishing, /async function markBundleFailed/);
+  assert.match(publishing, /status: 'FAILED'/);
+  assert.match(publishing, /lastError: message/);
+  assert.match(publishing, /await markBundleFailed\(bundle, error\)/);
+  assert.match(publishing, /staleUnsubmittedText/);
+  assert.match(publishing, /was not accepted by Post for Me/);
+  assert.match(stats, /job\.status === 'FAILED'/);
+  assert.match(stats, /Needs Review/);
+});
+
+test('Post for Me post creation retries provider 429 responses with bounded backoff', () => {
+  const publishing = read('src/services/postForMePublishingService.js');
+  const provider = read('src/services/postForMeService.js');
+
+  assert.match(publishing, /'\/social-posts'.*maxRetries: 5/);
+  assert.match(provider, /status === 429/);
+  assert.match(provider, /retryAfterMs/);
+  assert.match(provider, /await sleep\(cooldown\)/);
+});
