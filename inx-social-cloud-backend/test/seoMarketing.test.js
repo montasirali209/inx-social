@@ -24,7 +24,7 @@ const canonicalRoutes = [
 test('homepage exposes complete canonical SEO metadata', () => {
   const landing = readBackend('public/landing.html');
 
-  assert.match(landing, /<title>Social Media Management Platform, Scheduler &amp; AI \\| INXSocial<\\/title>/);
+  assert.equal(landing.includes('<title>Social Media Management Platform, Scheduler &amp; AI | INXSocial</title>'), true);
   assert.match(landing, /<link rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/">/);
   assert.match(landing, /<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">/);
   assert.match(landing, /og:image:type" content="image\/webp"/);
@@ -105,7 +105,7 @@ test('Next marketing layer has unique page content, metadata and duplicate-index
   assert.match(seoPage, /FAQPage/);
   assert.match(seoPage, /fetchPriority="high"/);
   assert.match(nextRobots, /Disallow: \//);
-  assert.match(layout, /Social Media Management Platform, Scheduler & AI \\| INXSocial/);
+  assert.equal(layout.includes('Social Media Management Platform, Scheduler & AI | INXSocial'), true);
   assert.match(layout, /landing-dashboard-20260919\.webp/);
   assert.doesNotMatch(layout, /inx-social-dashboard\.jpg/);
 });
