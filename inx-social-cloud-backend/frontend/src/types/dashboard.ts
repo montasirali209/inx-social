@@ -175,6 +175,9 @@ export type DashboardJob = {
   mediaLibraryAssetId: string | null
   metaPostId?: string | null
   metaVideoId?: string | null
+  contentId?: string | null
+  providerPostId?: string | null
+  providerStatus?: string | null
   createdAt: string
   updatedAt: string
   page: ConnectedPage | null
