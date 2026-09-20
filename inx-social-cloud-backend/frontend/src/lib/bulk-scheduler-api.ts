@@ -1,8 +1,8 @@
 import { apiRequest, getStoredAuthToken } from './api-client'
+import { fetchConnectionsWorkspace, flattenConnectedIdentities } from './connections-api'
 import type {
   BulkSchedulerData,
-  ConnectedPagesResponse,
-  ScheduledPostsResponse,
+  Destination,
   StudioJobsResponse,
   StudioPlatformsResponse,
   UploadMediaResponse,
@@ -11,16 +11,31 @@ import type { CreateDirectPostInput, DirectPostResponse } from '../types/posts'
 import type { SettingsValues } from '../types/settings'
 import { normaliseSettings } from '../data/settingsData'
 
+function universalDestinations(workspace: Awaited<ReturnType<typeof fetchConnectionsWorkspace>>): Destination[] {
+  return flattenConnectedIdentities(workspace)
+    .filter((identity) => identity.status === 'connected')
+    .map((identity) => ({
+      id: identity.id,
+      name: identity.displayName,
+      handle: identity.username ? `@${identity.username.replace(/^@/, '')}` : null,
+      platform: identity.platform as Destination['platform'],
+      type: identity.detail,
+      avatarUrl: identity.avatarUrl,
+      connected: true,
+      disabledReason: null,
+    }))
+}
+
 export async function fetchBulkSchedulerData(): Promise<BulkSchedulerData> {
-  const [pageResult, platformResult, jobResult, preferenceResult] = await Promise.all([
-    apiRequest<ConnectedPagesResponse>('/api/pages'),
+  const [connections, platformResult, jobResult, preferenceResult] = await Promise.all([
+    fetchConnectionsWorkspace(),
     apiRequest<StudioPlatformsResponse>('/api/social-platforms'),
-    apiRequest<StudioJobsResponse>('/api/studio/jobs?limit=1000'),
+    apiRequest<StudioJobsResponse>('/api/social-connections/publications?limit=1000'),
     apiRequest<{ settings: Partial<SettingsValues> }>('/api/studio/preferences'),
   ])
   const settings = normaliseSettings(preferenceResult.settings)
   return {
-    pages: pageResult.pages,
+    destinations: universalDestinations(connections),
     platforms: platformResult.platforms,
     jobs: jobResult.jobs,
     settings: { approvalRequired: settings.approvalRequired, defaultScheduleTimes: settings.defaultScheduleTimes, timezone: settings.timezone },
@@ -28,18 +43,27 @@ export async function fetchBulkSchedulerData(): Promise<BulkSchedulerData> {
 }
 
 export function createBulkMediaPost(input: CreateDirectPostInput) {
-  return apiRequest<DirectPostResponse>('/api/studio/direct-posts', {
+  return apiRequest<DirectPostResponse>('/api/social-connections/publications', {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      profileIds: input.connectedPageIds,
+      clientRequestId: input.clientRequestId,
+      title: input.title,
+      caption: input.caption,
+      contentType: input.contentType,
+      originalFileName: input.originalFileName,
+      mimeType: input.mimeType,
+      fileSizeBytes: input.fileSizeBytes,
+      mediaLibraryAssetId: input.mediaLibraryAssetId,
+      scheduledAt: input.scheduledAt,
+      publishMode: input.publishMode,
+      source: 'BULK_SCHEDULER',
+    }),
   })
 }
 
 export function publishBulkLibraryMedia(jobId: string) {
-  return apiRequest<UploadMediaResponse & { reusableMedia: true }>(`/api/studio/direct-posts/${encodeURIComponent(jobId)}/library-media`, { method: 'POST' })
-}
-
-export function fetchFacebookScheduledPosts(connectedPageId: string) {
-  return apiRequest<ScheduledPostsResponse>(`/api/studio/facebook/scheduled-posts?connectedPageId=${encodeURIComponent(connectedPageId)}`)
+  return apiRequest<UploadMediaResponse & { reusableMedia: true }>(`/api/social-connections/publications/${encodeURIComponent(jobId)}/library-media`, { method: 'POST' })
 }
 
 type UploadOptions = {
@@ -59,9 +83,10 @@ export function uploadBulkMedia(jobId: string, file: File, options: UploadOption
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest()
     const abort = () => request.abort()
-    request.open('PUT', `/api/studio/direct-posts/${encodeURIComponent(jobId)}/media`)
+    request.open('PUT', `/api/social-connections/publications/${encodeURIComponent(jobId)}/media`)
     request.withCredentials = true
     request.setRequestHeader('Content-Type', uploadContentType(file))
+    request.setRequestHeader('X-File-Name', file.name)
     const token = getStoredAuthToken()
     if (token) request.setRequestHeader('Authorization', `Bearer ${token}`)
 
@@ -94,16 +119,45 @@ export function uploadBulkMedia(jobId: string, file: File, options: UploadOption
   })
 }
 
-
 export function rescheduleBulkJob(jobId: string, scheduledAt: string) {
-  return apiRequest<{ job: import('../types/dashboard').DashboardJob }>(`/api/studio/jobs/${encodeURIComponent(jobId)}/schedule`, {
-    method: 'PATCH',
+  return apiRequest<{ ok: boolean; scheduledAt: string }>(`/api/social-connections/publications/${encodeURIComponent(jobId)}/schedule`, {
+    method: 'PUT',
     body: JSON.stringify({ scheduledAt }),
   })
 }
 
+export function updateBulkScheduledPost(jobId: string, input: { title?: string | null; caption?: string; scheduledAt?: string }) {
+  return apiRequest<{ ok: boolean; scheduledAt: string; caption: string; title: string | null }>(`/api/social-connections/publications/${encodeURIComponent(jobId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  })
+}
+
+export function replaceBulkScheduledMedia(jobId: string, file: File, onProgress: (percent: number) => void) {
+  return new Promise<{ ok: boolean; mediaReplaced: boolean }>((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('PUT', `/api/social-connections/publications/${encodeURIComponent(jobId)}/scheduled-media`)
+    request.withCredentials = true
+    request.setRequestHeader('Content-Type', uploadContentType(file))
+    request.setRequestHeader('X-File-Name', file.name)
+    const token = getStoredAuthToken()
+    if (token) request.setRequestHeader('Authorization', `Bearer ${token}`)
+    request.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100))
+    })
+    request.addEventListener('load', () => {
+      let payload: unknown
+      try { payload = JSON.parse(request.responseText || '{}') } catch { payload = null }
+      if (request.status >= 200 && request.status < 300) return resolve(payload as { ok: boolean; mediaReplaced: boolean })
+      reject(new Error(payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : `Media replacement failed (HTTP ${request.status}).`))
+    })
+    request.addEventListener('error', () => reject(new Error('The replacement media upload was interrupted.')))
+    request.send(file)
+  })
+}
+
 export function deleteBulkJob(jobId: string) {
-  return apiRequest<{ ok: boolean; job: import('../types/dashboard').DashboardJob }>(`/api/studio/jobs/${encodeURIComponent(jobId)}`, {
+  return apiRequest<{ ok: boolean; publicationId: string; affected: number }>(`/api/social-connections/publications/${encodeURIComponent(jobId)}`, {
     method: 'DELETE',
   })
 }
