@@ -19,10 +19,18 @@ const {
   reviewAgentLearning
 } = require('../controllers/adminController');
 const adminSecurity = require('../controllers/adminSecurityController');
+const googleSearchConsole = require('../controllers/googleSearchConsoleController');
 const adminSecurityRoutes = require('./adminSecurityRoutes');
+
+router.get('/search-console/oauth/callback', googleSearchConsole.oauthCallback);
 
 router.use(requireAuth, requireAdmin);
 router.get('/overview', overview);
+router.get('/search-console/status', googleSearchConsole.status);
+router.post('/search-console/oauth/start', requireSuperAdmin, googleSearchConsole.startOAuth);
+router.post('/search-console/site', requireSuperAdmin, googleSearchConsole.selectSite);
+router.get('/search-console/performance', googleSearchConsole.performance);
+router.delete('/search-console', requireSuperAdmin, googleSearchConsole.disconnect);
 router.get('/users', users);
 router.post('/users', createUser);
 router.get('/users/:id', userDetail);
