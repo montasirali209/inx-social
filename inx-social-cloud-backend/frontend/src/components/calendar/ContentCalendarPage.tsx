@@ -195,6 +195,19 @@ export function ContentCalendarPage() {
   const chooseDate = (date: string) => { setSelectedDate(date); setSelectedTime('') }
   const chooseMonth = (offset: number) => { const next = shiftMonth(monthKey, offset); setMonthKey(next); chooseDate(`${next}-01`) }
   const chooseToday = () => { const current = monthKeyInTimezone(new Date(), timezone); setMonthKey(current); chooseDate(todayKey) }
+  const openNeedsReview = () => {
+    const reviewPosts = (calendarData?.posts || []).filter(post => post.status === 'needs_review')
+    const target = reviewPosts.find(post => post.date >= todayKey) || reviewPosts.at(-1) || null
+    setPlatform('all')
+    setPageId('')
+    setSearch('')
+    setStatus('needs_review')
+    setView('calendar')
+    if (target) {
+      setMonthKey(target.date.slice(0, 7))
+      chooseDate(target.date)
+    }
+  }
   const openPost = (post: CalendarPost) => {
     chooseDate(post.date)
     if (post.platformUrl) window.open(post.platformUrl, '_blank', 'noopener,noreferrer')
@@ -220,7 +233,7 @@ export function ContentCalendarPage() {
   }
 
   return <div className="dashboard-canvas">
-    <section aria-label="Calendar publishing status" className="mb-4 flex items-start gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-3 xl:grid-cols-5">{calendarStats.map((stat, index) => <CalendarStatCard icon={statIcons[index]} key={stat.label} stat={stat} />)}</section>
+    <section aria-label="Calendar publishing status" className="mb-4 flex items-start gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-3 xl:grid-cols-5">{calendarStats.map((stat, index) => <CalendarStatCard icon={statIcons[index]} key={stat.label} onClick={stat.label === 'Needs Review' && stat.value > 0 ? openNeedsReview : undefined} stat={stat} />)}</section>
     <CalendarToolbar destinations={calendarData?.destinations || []} monthKey={monthKey} onNext={() => chooseMonth(1)} onPage={setPageId} onPlatform={setPlatform} onPrevious={() => chooseMonth(-1)} onSearch={setSearch} onStatus={setStatus} onView={setView} pageId={pageId} platform={platform} search={search} status={status} view={view} />
     {((calendarData?.syncWarnings.length || 0) > 0 || (accountFeed.data?.failures.length || 0) > 0) && <div className="mb-4 flex items-start gap-2 rounded-xl border border-brand-amber/20 bg-brand-amber/5 px-3 py-2 text-[10px] leading-4 text-text-muted"><AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-brand-amber" /><span>Some connected-account history could not refresh. Available calendar content is still shown.</span></div>}
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
