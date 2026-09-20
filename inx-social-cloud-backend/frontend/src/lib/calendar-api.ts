@@ -43,7 +43,7 @@ function jobPost(job: DashboardJob, timeZone: string, source: CalendarPost['sour
     engagementScore: null,
     source,
     jobId: job.id,
-    providerPostId: job.metaPostId || null,
+    providerPostId: job.providerPostId || job.metaPostId || null,
     platformUrl: job.platformUrl || null,
   }
 }
