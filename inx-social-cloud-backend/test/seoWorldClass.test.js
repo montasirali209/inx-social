@@ -101,3 +101,24 @@ test('sitemap exposes only canonical acquisition URLs with current modification 
   assert.doesNotMatch(sitemap, /\.html<\/loc>/);
   assert.doesNotMatch(sitemap, /social\.inaxx\.co\.uk|up\.railway\.app/);
 });
+
+
+test('every canonical acquisition route has a static 200 fallback document', () => {
+  for (const route of [
+    'social-media-scheduler',
+    'bulk-social-media-scheduler',
+    'social-media-content-calendar',
+    'social-media-analytics',
+    'ai-social-media-tools',
+    'ai-social-media-post-generator',
+    'ai-carousel-post-generator',
+    'ai-video-post-generator',
+    'ai-ugc-ad-generator',
+    'pricing'
+  ]) {
+    const filePath = path.join(backendRoot, 'public', route + '.html');
+    assert.equal(fs.existsSync(filePath), true, route + ' should have a static fallback');
+    const source = fs.readFileSync(filePath, 'utf8');
+    assert.match(source, /<meta name="robots" content="index,follow/);
+  }
+});
