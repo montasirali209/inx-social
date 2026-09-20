@@ -70,8 +70,8 @@ export function UploadBatchPanel(props: Props) {
 
       {needsDate && (
         <div className="mt-3 rounded-xl border border-brand-cyan/20 bg-brand-cyan/[.045] px-3.5 py-3 text-xs leading-5 text-text-muted">
-          <strong className="text-text-main">Server-side publishing queue:</strong>{' '}
-          Scheduled media is held securely by INX Social and is sent to the destination only when its publishing time arrives. Long-range schedules are supported without pre-scheduling every item on the platform.
+          <strong className="text-text-main">Post for Me scheduling:</strong>{' '}
+          Future posts are uploaded to Post for Me with their scheduled time. Post for Me holds the scheduled post and hands it to the social platform when that time arrives. You can edit the caption, media or time while the provider status is still scheduled.
         </div>
       )}
 
