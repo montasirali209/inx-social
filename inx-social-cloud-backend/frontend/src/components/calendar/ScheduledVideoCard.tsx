@@ -1,4 +1,4 @@
-import { CalendarClock, ExternalLink, ImageIcon, MoreVertical, Trash2 } from 'lucide-react'
+import { AlertTriangle, CalendarClock, ExternalLink, ImageIcon, MoreVertical, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { platformPresentation } from '../../data/dashboardData'
 import type { CalendarPost } from '../../types/calendar'
@@ -11,17 +11,19 @@ const statuses: Record<CalendarPost['status'], VideoStatus> = { scheduled: 'sche
 export function ScheduledVideoCard({ post, busy = false, onOpen, onReschedule, onDelete }: { post: CalendarPost; busy?: boolean; onOpen: (post: CalendarPost) => void; onReschedule: (post: CalendarPost) => void; onDelete: (post: CalendarPost) => void }) {
   const [open, setOpen] = useState(false)
   const platformLabel = platformPresentation[post.platform].label
-  const canManageSchedule = Boolean(post.jobId && (post.status === 'scheduled' || post.status === 'needs_review'))
-  return <article className="min-w-0 rounded-xl border border-border-soft bg-black/15 p-2 transition hover:border-brand-cyan/30 hover:bg-panel-hover/40">
+  const review = post.status === 'needs_review'
+  const canManageSchedule = Boolean(post.jobId && post.status === 'scheduled')
+  return <article className={`min-w-0 rounded-xl border p-2 transition ${review ? 'border-brand-amber/25 bg-brand-amber/[.045]' : 'border-border-soft bg-black/15 hover:border-brand-cyan/30 hover:bg-panel-hover/40'}`}>
     <div className="flex min-w-0 items-center gap-2">
-      <button aria-label={`Open ${post.title} on ${platformLabel}`} className="contents" disabled={!post.platformUrl} onClick={() => onOpen(post)} type="button">
-        {post.thumbnailUrl ? <img alt="" className="size-9 shrink-0 rounded-lg object-cover" loading="lazy" src={post.thumbnailUrl} /> : <span className="grid size-9 shrink-0 place-items-center rounded-lg border border-border-soft bg-panel-hover/55 text-text-soft"><ImageIcon className="size-4" /></span>}
+      <button aria-label={`${post.platformUrl ? 'Open' : 'Select'} ${post.title}`} className="contents" disabled={!post.platformUrl} onClick={() => onOpen(post)} type="button">
+        {post.thumbnailUrl ? <img alt="" className="size-9 shrink-0 rounded-lg object-cover" loading="lazy" src={post.thumbnailUrl} /> : <span className={`grid size-9 shrink-0 place-items-center rounded-lg border ${review ? 'border-brand-amber/25 bg-brand-amber/8 text-brand-amber' : 'border-border-soft bg-panel-hover/55 text-text-soft'}`}>{review ? <AlertTriangle className="size-4" /> : <ImageIcon className="size-4" />}</span>}
         <span className="min-w-0 flex-1 text-left"><strong className="block truncate text-[11px]">{post.title}</strong><small className="mt-0.5 block truncate text-[9px] text-text-soft">{post.time} · {post.pageName}</small></span>
       </button>
       <StatusBadge compact status={statuses[post.status]} />
       <PlatformIcon className="size-5 shrink-0 rounded-full shadow-none" platform={post.platform} />
       <button aria-expanded={open} aria-label={`More options for ${post.title}`} className="grid size-7 shrink-0 place-items-center rounded-lg text-text-soft hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" disabled={busy} onClick={() => setOpen(value => !value)} type="button"><MoreVertical aria-hidden="true" className="size-3.5" /></button>
     </div>
+    {review && <div className="mt-2 rounded-lg border border-brand-amber/20 bg-black/15 px-2.5 py-2"><p className="flex items-start gap-1.5 text-[9px] leading-4 text-brand-amber"><AlertTriangle className="mt-0.5 size-3 shrink-0" /><span><strong>Pending review.</strong> {post.errorMessage || 'This publishing job needs attention before it can be considered scheduled.'}</span></p></div>}
     {open && <div className="mt-2 grid gap-1 border-t border-border-soft pt-2">
       {post.platformUrl && <button className="flex min-h-8 items-center gap-2 rounded-lg px-2 text-left text-[10px] text-text-muted hover:bg-white/5 hover:text-white" onClick={() => { setOpen(false); onOpen(post) }} type="button"><ExternalLink className="size-3.5 text-brand-cyan" />Open on {platformLabel}</button>}
       {canManageSchedule && <button className="flex min-h-8 items-center gap-2 rounded-lg px-2 text-left text-[10px] text-text-muted hover:bg-white/5 hover:text-white" onClick={() => { setOpen(false); onReschedule(post) }} type="button"><CalendarClock className="size-3.5 text-brand-cyan" />Reschedule</button>}
