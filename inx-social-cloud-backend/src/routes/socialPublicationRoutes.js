@@ -12,6 +12,7 @@ router.put('/:publicationId/media', controller.uploadMedia);
 router.put('/:publicationId/scheduled-media', controller.replaceScheduledMedia);
 router.patch('/:publicationId', controller.updateScheduled);
 router.put('/:publicationId/schedule', controller.reschedule);
+router.post('/:publicationId/retry', controller.retry);
 router.delete('/:publicationId', controller.remove);
 
 module.exports = router;
