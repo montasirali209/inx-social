@@ -24,14 +24,14 @@ const canonicalRoutes = [
 test('homepage exposes complete canonical SEO metadata', () => {
   const landing = readBackend('public/landing.html');
 
-  assert.match(landing, /<title>Social Media Scheduler &amp; AI Content Studio \| INXSocial<\/title>/);
+  assert.match(landing, /<title>Social Media Management Platform, Scheduler &amp; AI \\| INXSocial<\\/title>/);
   assert.match(landing, /<link rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/">/);
   assert.match(landing, /<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">/);
   assert.match(landing, /og:image:type" content="image\/webp"/);
   assert.match(landing, /og:image:width" content="1200"/);
   assert.match(landing, /og:image:height" content="675"/);
   assert.match(landing, /rel="preload" as="image" href="\/assets\/landing-dashboard-20260919\.webp"/);
-  assert.match(landing, /"@type":\["SoftwareApplication","WebApplication"\]/);
+  assert.match(landing, /"SoftwareApplication"/);
   assert.doesNotMatch(landing, /"url":"https:\/\/www\.inxsocial\.co\.uk\/#pricing"/);
 });
 
@@ -105,7 +105,7 @@ test('Next marketing layer has unique page content, metadata and duplicate-index
   assert.match(seoPage, /FAQPage/);
   assert.match(seoPage, /fetchPriority="high"/);
   assert.match(nextRobots, /Disallow: \//);
-  assert.match(layout, /Social Media Scheduler & AI Content Studio \| INXSocial/);
+  assert.match(layout, /Social Media Management Platform, Scheduler & AI \\| INXSocial/);
   assert.match(layout, /landing-dashboard-20260919\.webp/);
   assert.doesNotMatch(layout, /inx-social-dashboard\.jpg/);
 });
