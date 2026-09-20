@@ -13,6 +13,7 @@ describe('PostReuseModal', () => {
           jobs={[]}
           onClose={vi.fn()}
           onReuse={vi.fn()}
+          timezone="Europe/London"
         />
       </QueryClientProvider>,
     )
