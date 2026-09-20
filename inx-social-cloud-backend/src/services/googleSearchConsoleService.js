@@ -321,12 +321,17 @@ async function status() {
 
   let sites = [];
   let lastError = connection.lastError;
+  let selectedSiteUrl = connection.selectedSiteUrl;
   try {
     sites = await listSites(connection);
     lastError = null;
+    if (!selectedSiteUrl || !sites.some(item => item.siteUrl === selectedSiteUrl)) {
+      selectedSiteUrl = preferredSite(sites);
+    }
     await prisma.searchConsoleConnection.update({
       where: { id: CONNECTION_ID },
       data: {
+        selectedSiteUrl,
         availableSitesJson: JSON.stringify(sites),
         lastSyncedAt: new Date(),
         status: 'ACTIVE',
@@ -344,7 +349,7 @@ async function status() {
     status: lastError ? 'ERROR' : connection.status,
     callbackUrl: callbackUrl(),
     scope: SEARCH_CONSOLE_SCOPE,
-    selectedSiteUrl: connection.selectedSiteUrl,
+    selectedSiteUrl,
     sites,
     connectedAt: connection.connectedAt,
     lastSyncedAt: connection.lastSyncedAt,
