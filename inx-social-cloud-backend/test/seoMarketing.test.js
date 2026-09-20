@@ -109,3 +109,32 @@ test('Next marketing layer has unique page content, metadata and duplicate-index
   assert.match(layout, /landing-dashboard-20260919\.webp/);
   assert.doesNotMatch(layout, /inx-social-dashboard\.jpg/);
 });
+
+
+test('canonical SEO pages retain resilient 200 fallbacks and deep internal links', () => {
+  const app = readBackend('src/app.js');
+  const landing = readBackend('public/landing.html');
+  const seoPage = readRepo('landing-next/app/seo/[slug]/page.tsx');
+
+  assert.match(app, /buildSeoFallbackDocuments/);
+  assert.match(app, /legacy-seo-fallback/);
+  assert.doesNotMatch(app, /res\.redirect\(302, SEO_MARKETING_ROUTES/);
+  assert.match(app, /res\.redirect\(308,/);
+
+  for (const href of [
+    '/ai-social-media-post-generator',
+    '/ai-carousel-post-generator',
+    '/ai-video-post-generator',
+    '/ai-ugc-ad-generator'
+  ]) {
+    assert.equal(landing.includes(`href="${href}"`), true, `${href} should receive a contextual homepage link`);
+  }
+
+  for (const entity of ['Organization','Brand','WebSite','SoftwareApplication','BreadcrumbList','FAQPage']) {
+    assert.equal(seoPage.includes(`"@type": "${entity}"`) || seoPage.includes(`"@type": ["SoftwareApplication", "WebApplication"]`), true, `${entity} should be represented in SEO page schema`);
+  }
+
+  assert.match(seoPage, /primaryImageOfPage/);
+  assert.match(seoPage, /INTRO_HEADINGS/);
+  assert.match(seoPage, /HERO_IMAGE_ALTS/);
+});
