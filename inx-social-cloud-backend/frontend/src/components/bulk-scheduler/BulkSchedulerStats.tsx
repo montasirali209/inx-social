@@ -11,7 +11,7 @@ export function BulkSchedulerStats({ jobs, onOpen }: { jobs: DashboardJob[]; onO
   const needsReview = unique.filter(job => job.status === 'FAILED').length
   const cards = [
     { label: 'All Bulk Jobs', value: unique.length, detail: 'Publishing records', icon: ClipboardList, tone: 'border-brand-cyan/25 bg-brand-cyan/8 text-brand-cyan', view: 'all' as const },
-    { label: 'Scheduled', value: scheduled, detail: 'Held by Post for Me', icon: CalendarClock, tone: 'border-brand-blue/25 bg-brand-blue/8 text-brand-cyan', view: 'scheduled' as const },
+    { label: 'Scheduled', value: scheduled, detail: 'Held for scheduled publishing', icon: CalendarClock, tone: 'border-brand-blue/25 bg-brand-blue/8 text-brand-cyan', view: 'scheduled' as const },
     { label: 'Published', value: published, detail: 'Completed publishing', icon: CheckCircle2, tone: 'border-brand-green/25 bg-brand-green/8 text-brand-green', view: 'published' as const },
     { label: 'Processing', value: processing, detail: 'Upload or publish in progress', icon: LoaderCircle, tone: 'border-brand-purple/25 bg-brand-purple/8 text-brand-purple', view: 'all' as const },
     { label: 'Needs Review', value: needsReview, detail: needsReview ? 'Action required' : 'Nothing needs attention', icon: AlertTriangle, tone: needsReview ? 'border-brand-red/25 bg-brand-red/8 text-brand-red' : 'border-border-soft bg-white/[.025] text-text-muted', view: 'needs_review' as const },

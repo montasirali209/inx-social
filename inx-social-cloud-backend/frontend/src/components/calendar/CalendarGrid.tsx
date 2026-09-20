@@ -26,7 +26,7 @@ export function CalendarGrid({ days, monthLabel, onSelectDate, onSelectPost, onT
       <div className="grid grid-cols-7 border-b border-border-soft bg-black/12">{calendarWeekdays.map((day) => <span className="py-2 text-center text-[10px] font-semibold text-text-muted" key={day}>{day}</span>)}</div>
       <div className="relative grid grid-cols-7 overflow-hidden">
         {days.map((day) => <CalendarDayCell day={day} key={day.date} onSelectDate={onSelectDate} onSelectPost={onSelectPost} />)}
-        {!hasPosts && <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center"><span className="rounded-xl border border-border-soft bg-bg/90 px-5 py-3 text-center shadow-panel backdrop-blur"><CalendarDays aria-hidden="true" className="mx-auto size-5 text-brand-cyan" /><strong className="mt-2 block text-xs">No published or queued content found</strong><small className="mt-1 block text-[10px] text-text-muted">Published history and future Post for Me scheduled items will appear here.</small></span></div>}
+        {!hasPosts && <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center"><span className="rounded-xl border border-border-soft bg-bg/90 px-5 py-3 text-center shadow-panel backdrop-blur"><CalendarDays aria-hidden="true" className="mx-auto size-5 text-brand-cyan" /><strong className="mt-2 block text-xs">No published or queued content found</strong><small className="mt-1 block text-[10px] text-text-muted">Published history and future scheduled items will appear here.</small></span></div>}
       </div>
     </section>
   )

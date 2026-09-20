@@ -252,7 +252,7 @@ export async function fetchDashboardJobs() {
 }
 
 // Legacy helper kept only for older tests/admin views. Production Analytics uses
-// the Post for Me source endpoint for Facebook as well as every other platform.
+// the social publishing gateway source endpoint for Facebook as well as every other platform.
 export async function fetchFacebookDashboardAnalytics(connectedPageId: string, days = 7, force = false) {
   const result = await apiRequest<FacebookAnalyticsResponse>(
     `/api/studio/analytics/facebook?connectedPageId=${encodeURIComponent(connectedPageId)}&days=${days}${force ? '&force=true' : ''}`,
@@ -292,7 +292,7 @@ export async function fetchDashboardView(days = 30, connectedPageId?: string | n
     try {
       facebookAnalytics = await fetchFacebookDashboardAnalytics(page.id, days)
     } catch {
-      // Older fallback only. The production Dashboard fetches Post for Me sources directly.
+      // Older fallback only. The production Dashboard fetches social publishing gateway sources directly.
     }
   }
   return buildDashboardView(overview, jobs, new Date(), facebookAnalytics)

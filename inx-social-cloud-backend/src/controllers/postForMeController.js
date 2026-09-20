@@ -67,7 +67,7 @@ async function webhook(req, res) {
   try {
     const received = req.get('Post-For-Me-Webhook-Secret');
     if (!await postForMe.verifyWebhookSecret(received)) {
-      return res.status(401).json({ error: 'Invalid Post for Me webhook secret.' });
+      return res.status(401).json({ error: 'Invalid social publishing webhook secret.' });
     }
 
     const payload = req.body || {};

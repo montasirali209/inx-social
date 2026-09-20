@@ -981,7 +981,7 @@ async function createDirectPosts(req, res, next) {
   try {
     const input = directPostSchema.parse(req.body);
     if (input.publishMode !== 'NOW' || input.scheduledAt) {
-      const error = new Error('Future scheduling uses the Post for Me publishing queue. Submit scheduled posts through the universal social publications endpoint.');
+      const error = new Error('Future scheduling uses the universal publishing queue. Submit scheduled posts through the social publications endpoint.');
       error.status = 409;
       error.publicMessage = error.message;
       throw error;

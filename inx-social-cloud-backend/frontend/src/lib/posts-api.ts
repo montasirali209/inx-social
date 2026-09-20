@@ -56,7 +56,7 @@ export async function fetchPostsWorkspace(): Promise<PostsWorkspaceData> {
   return {
     overview,
     // ConnectedPage was the old Meta-only destination model. Keep the field for
-    // component compatibility, but Post for Me profiles are now the sole destinations.
+    // component compatibility, but social publishing gateway profiles are now the sole destinations.
     pages: [],
     destinations: socialDestinations(connections.connections),
     jobs: publications.filter((job) => job.source !== 'BULK_SCHEDULER'),

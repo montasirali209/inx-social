@@ -55,7 +55,7 @@ function accountIds(parent) {
 
 async function providerParent(publication) {
   if (!publication.externalPostId) {
-    throw Object.assign(new Error('This post has not been submitted to Post for Me yet.'), { status: 409, publicMessage: 'This post has not been submitted to Post for Me yet.' });
+    throw Object.assign(new Error('This post has not been submitted to the publishing provider yet.'), { status: 409, publicMessage: 'This post has not been submitted to the publishing provider yet.' });
   }
   const parent = await postForMe.apiRequest('GET', `/social-posts/${encodeURIComponent(publication.externalPostId)}`);
   assertEditableProviderPost(parent, publication);
@@ -67,7 +67,7 @@ async function update(userId, rawId, input = {}) {
   const parent = await providerParent(publication);
   const accounts = accountIds(parent);
   if (!accounts.length) {
-    throw Object.assign(new Error('Post for Me did not return the destinations for this scheduled post.'), { status: 409, publicMessage: 'Post for Me did not return the destinations for this scheduled post.' });
+    throw Object.assign(new Error('The publishing provider did not return the destinations for this scheduled post.'), { status: 409, publicMessage: 'The publishing provider did not return the destinations for this scheduled post.' });
   }
 
   const scheduledAt = input.scheduledAt === undefined

@@ -121,7 +121,7 @@ async function createPublicationRows(userId, input) {
   const requestedIds = input.profileIds || input.connectedPageIds || [];
   const { profiles, missing } = await resolveProfiles(userId, requestedIds);
   if (!profiles.length) {
-    throw Object.assign(new Error('None of the selected destinations is connected through Post for Me.'), { status: 400 });
+    throw Object.assign(new Error('None of the selected destinations is connected through the social publishing gateway.'), { status: 400 });
   }
 
   const { content, existing, key } = await findOrCreateContent(userId, input, profiles);
@@ -193,7 +193,7 @@ async function uploadBuffer(data, mimeType) {
   if (data.length > MAX_DIRECT_UPLOAD_BYTES) throw Object.assign(new Error('This media file is too large for the current uploader.'), { status: 413 });
 
   const signed = await postForMe.apiRequest('POST', '/media/create-upload-url');
-  if (!signed?.upload_url || !signed?.media_url) throw new Error('Post for Me did not return a media upload URL.');
+  if (!signed?.upload_url || !signed?.media_url) throw new Error('The social publishing gateway did not return a media upload URL.');
   await axios.put(signed.upload_url, data, {
     headers: {
       'Content-Type': String(mimeType || 'application/octet-stream').split(';')[0],
@@ -215,7 +215,7 @@ async function uploadStream(stream, { mimeType, contentLength }) {
     throw Object.assign(new Error('This media file exceeds the current 10 GB upload ceiling.'), { status: 413, publicMessage: 'This media file exceeds the current 10 GB upload ceiling.' });
   }
   const signed = await postForMe.apiRequest('POST', '/media/create-upload-url');
-  if (!signed?.upload_url || !signed?.media_url) throw new Error('Post for Me did not return a media upload URL.');
+  if (!signed?.upload_url || !signed?.media_url) throw new Error('The social publishing gateway did not return a media upload URL.');
   await axios.put(signed.upload_url, stream, {
     headers: {
       'Content-Type': String(mimeType || 'application/octet-stream').split(';')[0],
@@ -257,7 +257,7 @@ function parentStatus(data, scheduledAt) {
 }
 
 async function markBundleFailed(bundle, error) {
-  const message = String(error?.publicMessage || error?.message || 'Post for Me rejected this publishing request.').slice(0, 1000);
+  const message = String(error?.publicMessage || error?.message || 'The social publishing gateway rejected this publishing request.').slice(0, 1000);
   const now = new Date();
   await prisma.socialPublication.updateMany({
     where: { id: { in: bundle.publications.map((publication) => publication.id) } },
@@ -292,7 +292,7 @@ async function submitBundle(bundle, providerMedia = []) {
   if (bundle.input.isDraft) body.isDraft = true;
 
   const post = await postForMe.apiRequest('POST', '/social-posts', { data: body, maxRetries: 5 });
-  if (!post?.id) throw new Error('Post for Me did not return a post identifier.');
+  if (!post?.id) throw new Error('The social publishing gateway did not return a post identifier.');
   const status = parentStatus(post, bundle.input.scheduledAt);
   const now = new Date();
 
@@ -437,9 +437,9 @@ async function attachLibraryMedia(userId, rawPublicationId) {
 async function retryPublication(userId, rawPublicationId) {
   const bundle = await bundleForPublication(userId, rawPublicationId);
   if (bundle.publications.some((item) => item.externalPostId)) {
-    throw Object.assign(new Error('This post already has a Post for Me schedule and cannot be retried as a new submission.'), {
+    throw Object.assign(new Error('This post already has an active provider schedule and cannot be retried as a new submission.'), {
       status: 409,
-      publicMessage: 'This post already has a Post for Me schedule.'
+      publicMessage: 'This post already has an active provider schedule.'
     });
   }
   if (!bundle.publications.some((item) => item.status === 'FAILED' || item.status === 'READY')) {
@@ -506,7 +506,7 @@ function publicationToJob(publication) {
     localFileName: meta.originalFileName || null,
     scheduledAt: publication.scheduledAt?.toISOString() || null,
     completedAt: publication.publishedAt?.toISOString() || null,
-    errorMessage: publication.lastError || (staleUnsubmittedText ? 'No Post for Me schedule was created for this legacy attempt. The original provider response was not stored. Retry the post to submit it again.' : null),
+    errorMessage: publication.lastError || (staleUnsubmittedText ? 'No provider schedule was created for this legacy attempt. The original provider response was not stored. Retry the post to submit it again.' : null),
     mediaLibraryAssetId: meta.mediaLibraryAssetId || null,
     metaPostId: result.platformPostId || null,
     metaVideoId: null,

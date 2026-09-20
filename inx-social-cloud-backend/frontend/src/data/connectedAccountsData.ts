@@ -88,7 +88,7 @@ export const supportedPlatforms = (connectedCount: Partial<Record<Platform, numb
   }))
 
 export const advancedHealthItems = [
-  ['Webhook status', 'Enabled when configured', 'Post for Me webhooks update account and publishing state in real time.'],
+  ['Webhook status', 'Enabled when configured', 'Secure publishing webhooks update account and publishing state in real time.'],
   ['API health check', 'Ready', 'Checks whether your saved connections can be read securely from the INXSocial backend.'],
 ] as const
 

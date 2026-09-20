@@ -76,7 +76,7 @@ test('Content Calendar opens platform posts and manages Post for Me plus legacy 
   assert.match(selected, /Pending review/);
   assert.match(selected, /post\.errorMessage/);
   assert.match(selected, /Remove scheduled post/);
-  assert.match(dialog, /provider-held publishing time/);
+  assert.match(dialog, /updates the publishing time while the post is still scheduled/);
   assert.match(api, /rescheduleCalendarPost/);
   assert.match(api, /deleteCalendarPost/);
   assert.match(api, /post\.source === 'inx'/);

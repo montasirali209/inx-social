@@ -3,10 +3,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ApiError } from '../../lib/api-client'
 import { createBulkMediaPost, fetchBulkSchedulerData, publishBulkLibraryMedia, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
+import { retryFailedScheduledPost } from '../../lib/posts-api'
 import { fetchMediaAssetFile, uploadMediaAsset } from '../../lib/media-library-api'
 import { buildPublishingTimes, parseCaptions, parseTextPosts } from '../../lib/bulk-scheduler-utils'
 import type { BatchProgress, BulkContentMode, BulkSchedulerData, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
 import type { MediaAsset } from '../../types/media-library'
+import type { DashboardJob } from '../../types/dashboard'
 import { backendStatusToUploadStatus } from '../../types/bulk-scheduler'
 import { BatchRunPanel } from './BatchRunPanel'
 import { BulkScheduleManager } from './BulkScheduleManager'
@@ -72,6 +74,7 @@ export function BulkSchedulerPage() {
   const abortRef = useRef<AbortController | null>(null)
   const importedLibrarySelection = useRef('')
   const destinationSection = useRef<HTMLDivElement>(null)
+  const batchRunSection = useRef<HTMLDivElement>(null)
   const running = ['preparing', 'uploading', 'scheduling'].includes(progress.state)
   const stopUpload = useCallback(() => abortRef.current?.abort(), [])
 
@@ -247,7 +250,7 @@ export function BulkSchedulerPage() {
         scheduledAt: publishingTimes[index],
       }))
       setResults(initialResults)
-      setProgress({ state: 'preparing', percent: 1, current: 0, total: captionBlocks.length, completed: 0, failed: 0, message: 'Preparing text posts for Post for Me…' })
+      setProgress({ state: 'preparing', percent: 1, current: 0, total: captionBlocks.length, completed: 0, failed: 0, message: 'Preparing text posts for publishing provider…' })
       let completed = 0
       let failed = 0
 
@@ -271,7 +274,7 @@ export function BulkSchedulerPage() {
             publishMode: timingMode === 'publish_now' ? 'NOW' : 'SCHEDULED',
           })
           const job = prepared.jobs[0]
-          if (!job) throw new Error(prepared.failures[0]?.error || 'Post for Me could not create this text post.')
+          if (!job) throw new Error(prepared.failures[0]?.error || 'publishing provider could not create this text post.')
           completed += 1
           setResults((current) => current.map((result) => result.id === resultId ? {
             ...result,
@@ -305,7 +308,7 @@ export function BulkSchedulerPage() {
             ? `Text batch finished with ${failed} failed post${failed === 1 ? '' : 's'}.`
             : timingMode === 'publish_now'
               ? `${completed} text post${completed === 1 ? '' : 's'} accepted for publishing.`
-              : `${completed} text post${completed === 1 ? '' : 's'} scheduled with Post for Me using your selected daily times.`,
+              : `${completed} text post${completed === 1 ? '' : 's'} scheduled with publishing provider using your selected daily times.`,
       })
       abortRef.current = null
       await scheduler.refetch()
@@ -352,7 +355,7 @@ export function BulkSchedulerPage() {
       scheduledAt: publishingTimes[action.mediaIndex],
     }))
     setResults(initialResults)
-    setProgress({ state: 'preparing', percent: 1, current: 0, total: actions.length, completed: 0, failed: 0, message: 'Preparing Post for Me publishing records…' })
+    setProgress({ state: 'preparing', percent: 1, current: 0, total: actions.length, completed: 0, failed: 0, message: 'Preparing publishing provider publishing records…' })
     let completed = 0
     let failed = 0
 
@@ -377,7 +380,7 @@ export function BulkSchedulerPage() {
           publishMode: timingMode === 'publish_now' ? 'NOW' : 'SCHEDULED',
         })
         const job = prepared.jobs[0]
-        if (!job) throw new Error(prepared.failures[0]?.error || 'Post for Me could not prepare this publishing record.')
+        if (!job) throw new Error(prepared.failures[0]?.error || 'publishing provider could not prepare this publishing record.')
         setResults((current) => current.map((result) => result.id === resultId ? {
           ...result,
           jobId: job.id,
@@ -402,7 +405,7 @@ export function BulkSchedulerPage() {
                     failed,
                     message: timingMode === 'publish_now'
                       ? `Publishing ${action.item.file.name}…`
-                      : `Uploading ${action.item.file.name} to the Post for Me schedule…`,
+                      : `Uploading ${action.item.file.name} to the publishing provider schedule…`,
                   })
                 },
               })
@@ -442,7 +445,7 @@ export function BulkSchedulerPage() {
           ? `Batch finished with ${failed} failed post${failed === 1 ? '' : 's'}.`
           : timingMode === 'publish_now'
             ? 'Every media item was accepted for publishing.'
-            : 'Every future post is scheduled with Post for Me. You can edit its caption, media or publishing time until processing begins.',
+            : 'Every future post is scheduled with publishing provider. You can edit its caption, media or publishing time until processing begins.',
     })
     abortRef.current = null
     await scheduler.refetch()
@@ -450,34 +453,144 @@ export function BulkSchedulerPage() {
 
   const retryFailedUpload = async (result: UploadResult) => {
     if (running || retryingId || !result.jobId) return
-    const item = media.find((candidate) => candidate.id === result.mediaId)
-    if (!item) {
-      setResults((current) => current.map((candidate) => candidate.id === result.id ? { ...candidate, errorMessage: 'The original media is no longer available in this browser session.' } : candidate))
-      return
-    }
 
     setRetryingId(result.id)
     setResults((current) => current.map((candidate) => candidate.id === result.id ? { ...candidate, status: 'uploading', errorMessage: null } : candidate))
+    setProgress({ state: 'scheduling', percent: 15, current: 1, total: 1, completed: 0, failed: 0, message: `Retrying ${result.fileName}…` })
+
     try {
-      const uploaded = item.libraryAssetId
-        ? await publishBulkLibraryMedia(result.jobId)
-        : await uploadBulkMedia(result.jobId, item.file, { signal: new AbortController().signal, onProgress: () => {} })
-      setResults((current) => current.map((candidate) => candidate.id === result.id ? {
-        ...candidate,
-        status: backendStatusToUploadStatus(uploaded.job.status),
-        resultId: uploaded.job.metaPostId || uploaded.job.metaVideoId || candidate.resultId,
-        errorMessage: null,
-      } : candidate))
+      if (result.mediaKind === 'text') {
+        const response = await retryFailedScheduledPost(result.jobId)
+        setResults((current) => current.map((candidate) => candidate.id === result.id ? {
+          ...candidate,
+          status: backendStatusToUploadStatus(response.job.status),
+          resultId: response.job.providerPostId || response.job.metaPostId || candidate.resultId,
+          errorMessage: response.job.errorMessage || null,
+        } : candidate))
+      } else {
+        const item = media.find((candidate) => candidate.id === result.mediaId)
+        if (!item) throw new Error('The original media is no longer available in this browser session.')
+        const uploaded = item.libraryAssetId
+          ? await publishBulkLibraryMedia(result.jobId)
+          : await uploadBulkMedia(result.jobId, item.file, { signal: new AbortController().signal, onProgress: (loaded, total) => {
+            const percent = total > 0 ? Math.max(15, Math.min(90, Math.round((loaded / total) * 90))) : 40
+            setProgress({ state: 'uploading', percent, current: 1, total: 1, completed: 0, failed: 0, message: `Retrying ${result.fileName}…` })
+          } })
+        setResults((current) => current.map((candidate) => candidate.id === result.id ? {
+          ...candidate,
+          status: backendStatusToUploadStatus(uploaded.job.status),
+          resultId: uploaded.job.metaPostId || uploaded.job.metaVideoId || candidate.resultId,
+          errorMessage: null,
+        } : candidate))
+      }
+      setProgress({ state: 'completed', percent: 100, current: 1, total: 1, completed: 1, failed: 0, message: 'Retry completed successfully.' })
       await scheduler.refetch()
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Retry failed.'
       setResults((current) => current.map((candidate) => candidate.id === result.id ? {
         ...candidate,
         status: 'failed',
-        errorMessage: error instanceof Error ? error.message : 'Retry failed.',
+        errorMessage: message,
       } : candidate))
+      setProgress({ state: 'failed', percent: 100, current: 1, total: 1, completed: 0, failed: 1, message })
     } finally {
       setRetryingId(null)
     }
+  }
+
+  const retryReviewJobs = async (jobs: DashboardJob[]) => {
+    if (running || retryingId) return
+    const retryable = jobs.filter((job) => job.status === 'FAILED' && !job.providerPostId)
+    if (!retryable.length) return
+
+    setHistoryView(null)
+    const retryResults: UploadResult[] = retryable.map((job, index) => ({
+      id: `review-retry:${job.id}`,
+      mediaId: job.id,
+      mediaIndex: index,
+      jobId: job.id,
+      fileName: job.localFileName || (job.contentType === 'TEXT' ? `Text post ${index + 1}` : `Failed post ${index + 1}`),
+      mediaKind: job.contentType === 'IMAGE' ? 'image' : job.contentType === 'VIDEO' ? 'video' : 'text',
+      thumbnailUrl: '',
+      textPreview: job.caption?.replace(/\s+/g, ' ').slice(0, 180) || null,
+      destinationIds: job.destination?.id ? [job.destination.id] : [],
+      status: 'waiting',
+      resultId: null,
+      errorMessage: null,
+      scheduledAt: job.scheduledAt,
+    }))
+    setResults(retryResults)
+    setProgress({
+      state: 'preparing',
+      percent: 0,
+      current: 0,
+      total: retryable.length,
+      completed: 0,
+      failed: 0,
+      message: `Preparing ${retryable.length} failed post${retryable.length === 1 ? '' : 's'} for retry…`,
+    })
+
+    const controller = new AbortController()
+    abortRef.current = controller
+    window.requestAnimationFrame(() => batchRunSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+
+    let completed = 0
+    let failed = 0
+    for (let index = 0; index < retryable.length; index += 1) {
+      if (controller.signal.aborted) break
+      const job = retryable[index]
+      const resultId = retryResults[index].id
+      setRetryingId(resultId)
+      setResults((current) => current.map((result) => result.id === resultId ? { ...result, status: 'uploading', errorMessage: null } : result))
+      setProgress({
+        state: 'scheduling',
+        percent: Math.round((index / retryable.length) * 100),
+        current: index + 1,
+        total: retryable.length,
+        completed,
+        failed,
+        message: `Retrying post ${index + 1} of ${retryable.length}…`,
+      })
+
+      try {
+        const response = await retryFailedScheduledPost(job.id)
+        completed += 1
+        setResults((current) => current.map((result) => result.id === resultId ? {
+          ...result,
+          status: backendStatusToUploadStatus(response.job.status),
+          resultId: response.job.providerPostId || response.job.metaPostId || result.resultId,
+          errorMessage: response.job.errorMessage || null,
+        } : result))
+      } catch (error) {
+        failed += 1
+        setResults((current) => current.map((result) => result.id === resultId ? {
+          ...result,
+          status: 'failed',
+          errorMessage: error instanceof Error ? error.message : 'Retry failed.',
+        } : result))
+      }
+    }
+
+    const stopped = controller.signal.aborted
+    if (stopped) {
+      setResults((current) => current.map((result) => result.status === 'waiting' ? { ...result, status: 'blocked', errorMessage: 'Not retried because the retry batch was stopped.' } : result))
+    }
+    setProgress({
+      state: stopped ? 'stopped' : failed === retryable.length ? 'failed' : 'completed',
+      percent: stopped ? Math.round(((completed + failed) / retryable.length) * 100) : 100,
+      current: completed + failed,
+      total: retryable.length,
+      completed,
+      failed,
+      message: stopped
+        ? `Retry batch stopped after ${completed + failed} of ${retryable.length} posts.`
+        : failed
+          ? `Retry finished: ${completed} recovered, ${failed} still need review.`
+          : `Retry complete. ${completed} post${completed === 1 ? '' : 's'} recovered successfully.`,
+    })
+    setRetryingId(null)
+    abortRef.current = null
+    await scheduler.refetch()
   }
 
   const requestStart = () => {
@@ -500,9 +613,9 @@ export function BulkSchedulerPage() {
       <div className="mt-4 scroll-mt-24" ref={destinationSection}><PublishingDestinationsPanel destinations={destinations} onSelectionChange={setSelectedIds} platforms={schedulerData.platforms} selectedIds={selectedIds} /></div>
       <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,.92fr)_minmax(0,1.08fr)]">
         <UploadBatchPanel canStart={canStart} captionCount={captionBlocks.length} captions={captions} contentMode={contentMode} disabledReason={disabledReason} media={media} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onContentModeChange={changeContentMode} onFallbackChange={setUseFallback} onMedia={selectMedia} onRetainMediaChange={setRetainMedia} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={requestStart} onTimingModeChange={setTimingMode} retainMedia={retainMedia} running={running} savedScheduleTimes={schedulerData.settings.defaultScheduleTimes} scheduleDate={scheduleDate} scheduleTimes={activeScheduleTimes} selectedDestinations={selectedIds.size} timezone={schedulerData.settings.timezone} timingMode={timingMode} useFallback={useFallback} />
-        <BatchRunPanel canStart={canStart} destinations={destinations} disabledReason={disabledReason} onRetry={retryFailedUpload} onStart={requestStart} onStop={stopUpload} progress={progress} results={results} retryingId={retryingId} running={running} />
+        <div className="scroll-mt-24" ref={batchRunSection}><BatchRunPanel canStart={canStart} destinations={destinations} disabledReason={disabledReason} onRetry={retryFailedUpload} onStart={requestStart} onStop={stopUpload} progress={progress} results={results} retryingId={retryingId} running={running} /></div>
       </div>
-      {historyView && <BulkScheduleManager initialView={historyView} jobs={schedulerData.jobs} onChanged={() => scheduler.refetch()} onClose={() => setHistoryView(null)} timezone={schedulerData.settings.timezone} />}
+      {historyView && <BulkScheduleManager initialView={historyView} jobs={schedulerData.jobs} onChanged={() => scheduler.refetch()} onClose={() => setHistoryView(null)} onRetryJobs={(jobs) => { void retryReviewJobs(jobs) }} timezone={schedulerData.settings.timezone} />}
       <PublishConfirmationDialog busy={running} confirmLabel={timingMode === 'publish_now' ? 'Publish batch' : 'Schedule batch'} description={`You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} ${batchCount} ${contentMode === 'text' ? `text post${batchCount === 1 ? '' : 's'}` : `media file${batchCount === 1 ? '' : 's'}`} across ${selectedIds.size} destination${selectedIds.size === 1 ? '' : 's'}.`} onCancel={() => setConfirmationOpen(false)} onConfirm={() => { setConfirmationOpen(false); void runBatch() }} open={confirmationOpen} title="Confirm this bulk publishing action" />
     </div>
   )
