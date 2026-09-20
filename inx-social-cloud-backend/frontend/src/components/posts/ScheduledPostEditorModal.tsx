@@ -68,7 +68,7 @@ export function ScheduledPostEditorModal({
 
   async function remove() {
     if (!editable || busy) return
-    if (!window.confirm('Cancel this scheduled post? Post for Me will remove it from its queue before publishing.')) return
+    if (!window.confirm('Cancel this scheduled post? It will be removed from the publishing queue before it goes live.')) return
     setBusy('delete')
     setError('')
     try {
@@ -89,13 +89,13 @@ export function ScheduledPostEditorModal({
           <span className="grid size-11 place-items-center rounded-xl border border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan"><CalendarClock className="size-5" /></span>
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold">Edit scheduled post</h2>
-            <p className="mt-1 text-xs leading-5 text-text-muted">Post for Me is holding this post. Caption, media and publishing time can be changed while its provider status remains scheduled.</p>
+            <p className="mt-1 text-xs leading-5 text-text-muted">This post is scheduled for future publishing. Caption, media and publishing time can be changed while its status remains scheduled.</p>
           </div>
           <button aria-label="Close editor" className="grid size-9 place-items-center rounded-lg text-text-muted hover:bg-white/5" disabled={Boolean(busy)} onClick={onClose} type="button"><X className="size-4" /></button>
         </header>
 
         <div className="space-y-4 p-5">
-          {!editable && <div className="flex gap-2 rounded-xl border border-brand-amber/25 bg-brand-amber/8 p-3 text-xs text-brand-amber"><AlertTriangle className="mt-0.5 size-4 shrink-0" /><span>This post is already {job.status.toLowerCase().replaceAll('_', ' ')}. Post for Me only allows changes while a post is draft or scheduled.</span></div>}
+          {!editable && <div className="flex gap-2 rounded-xl border border-brand-amber/25 bg-brand-amber/8 p-3 text-xs text-brand-amber"><AlertTriangle className="mt-0.5 size-4 shrink-0" /><span>This post is already {job.status.toLowerCase().replaceAll('_', ' ')}. Changes are only available while a post is draft or scheduled.</span></div>}
           {error && <div className="rounded-xl border border-brand-red/25 bg-brand-red/8 p-3 text-xs text-brand-red">{error}</div>}
 
           <label className="block">
@@ -123,7 +123,7 @@ export function ScheduledPostEditorModal({
           </label>}
 
           <div className="rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.035] p-3 text-[10px] leading-5 text-text-muted">
-            Destination: <strong className="text-text-main">{job.destination?.name || job.destination?.username || 'Connected account'}</strong>. Post for Me controls the final queue and platform delivery; INX Social mirrors the status and edits.
+            Destination: <strong className="text-text-main">{job.destination?.name || job.destination?.username || 'Connected account'}</strong>. INX Social keeps the live publishing status and available edits synchronized.
           </div>
         </div>
 
