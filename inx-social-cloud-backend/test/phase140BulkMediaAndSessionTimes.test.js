@@ -54,6 +54,12 @@ test('Bulk Scheduler uses Post for Me long-range scheduling with editable provid
   assert.match(panel, /Needs review/);
   assert.match(panel, /Why items need review/);
   assert.match(results, /Retry upload/);
+  assert.match(results, /Retry post/);
+  assert.match(manager, /Retry All/);
+  assert.match(manager, /onRetryJobs/);
+  assert.match(page, /retryReviewJobs/);
+  assert.match(page, /batchRunSection/);
+  assert.match(page, /Retrying post/);
   assert.match(results, /Needs review/);
   assert.match(results, /PAGE_SIZE = 12/);
   assert.doesNotMatch(results, /results\.slice\(0, 12\)/);
@@ -80,4 +86,26 @@ test('Bulk Scheduler supports text-only batches in the same workflow', () => {
   assert.match(page, /TEXT_POST_PLATFORMS/);
   assert.match(results, /text post/);
   assert.match(results, /FileText/);
+});
+
+
+test('customer-facing scheduling UI never exposes the underlying publishing provider brand', () => {
+  const roots = [
+    path.join(root, 'frontend', 'src', 'components'),
+    path.join(root, 'frontend', 'src', 'data'),
+    path.join(root, 'frontend', 'src', 'lib'),
+  ];
+  const files = [];
+  const walk = directory => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const full = path.join(directory, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/\.(ts|tsx|js|jsx)$/.test(entry.name) && !/\.test\./.test(entry.name)) files.push(full);
+    }
+  };
+  roots.forEach(walk);
+  for (const file of files) {
+    const source = fs.readFileSync(file, 'utf8');
+    assert.doesNotMatch(source, /Post for Me/i, `Provider branding leaked into ${path.relative(root, file)}`);
+  }
 });
