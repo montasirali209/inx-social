@@ -415,7 +415,7 @@ export function PostsPage() {
               percent: filePercent,
               message: mode === 'now'
                 ? `Uploading ${publishingMedia!.fileName} for immediate publishing…`
-                : `Uploading ${publishingMedia!.fileName} to the Post for Me schedule…`,
+                : `Uploading ${publishingMedia!.fileName} to the publishing schedule…`,
             }))
           } catch {
             mediaFailures = 1
@@ -425,7 +425,7 @@ export function PostsPage() {
       const failed = response.failures.length + mediaFailures
       const successMessage = mode === 'now'
         ? `${response.jobs.length} destination${response.jobs.length === 1 ? '' : 's'} published successfully.`
-        : `Scheduled successfully with Post for Me. You can edit the caption, media or publishing time until the post begins processing.`
+        : `Scheduled successfully. You can edit the caption, media or publishing time until the post begins processing.`
       setProgress({ state: failed ? 'failed' : 'completed', percent: 100, message: failed ? `${Math.max(0, response.jobs.length - failed)} destinations completed; ${failed} failed. Review Needs Review for details.` : successMessage })
       if (!failed) {
         window.localStorage.removeItem(composerSessionKey)
