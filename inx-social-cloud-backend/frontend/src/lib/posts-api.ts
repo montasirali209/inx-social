@@ -59,7 +59,7 @@ export async function fetchPostsWorkspace(): Promise<PostsWorkspaceData> {
     // component compatibility, but Post for Me profiles are now the sole destinations.
     pages: [],
     destinations: socialDestinations(connections.connections),
-    jobs: publications,
+    jobs: publications.filter((job) => job.source !== 'BULK_SCHEDULER'),
     settings: {
       approvalRequired: settings.approvalRequired,
       defaultPublishMode: settings.defaultPublishMode,
