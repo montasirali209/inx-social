@@ -78,7 +78,7 @@ export function ContentCalendarPage() {
   const [notice, setNotice] = useState<string | null>(null)
 
   const calendar = useQuery({
-    queryKey: ['content-calendar', 'post-for-me', timezone],
+    queryKey: ['content-calendar', 'publishing-queue', timezone],
     queryFn: async () => {
       const result = await fetchCalendarData(timezone)
       writeSessionCache(calendarCacheKey(timezone), result)
@@ -224,7 +224,7 @@ export function ContentCalendarPage() {
     <CalendarToolbar destinations={calendarData?.destinations || []} monthKey={monthKey} onNext={() => chooseMonth(1)} onPage={setPageId} onPlatform={setPlatform} onPrevious={() => chooseMonth(-1)} onSearch={setSearch} onStatus={setStatus} onView={setView} pageId={pageId} platform={platform} search={search} status={status} view={view} />
     {((calendarData?.syncWarnings.length || 0) > 0 || (accountFeed.data?.failures.length || 0) > 0) && <div className="mb-4 flex items-start gap-2 rounded-xl border border-brand-amber/20 bg-brand-amber/5 px-3 py-2 text-[10px] leading-4 text-text-muted"><AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-brand-amber" /><span>Some connected-account history could not refresh. Available calendar content is still shown.</span></div>}
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
-      {view === 'calendar' ? <CalendarGrid days={days} monthLabel={formatMonth(monthKey)} onSelectDate={chooseDate} onSelectPost={openPost} onToday={chooseToday} /> : <CalendarAgenda onSelectDate={chooseDate} onSelectPost={openPost} posts={monthPosts} />}
+      {view === 'calendar' ? <CalendarGrid days={days} monthLabel={formatMonth(monthKey)} onNextMonth={() => chooseMonth(1)} onPreviousMonth={() => chooseMonth(-1)} onSelectDate={chooseDate} onSelectPost={openPost} onToday={chooseToday} /> : <CalendarAgenda onSelectDate={chooseDate} onSelectPost={openPost} posts={monthPosts} />}
       <SelectedDatePanel bestTime={bestTime} bestTimeLoading={accountFeed.isFetching && !recommendationAnalytics} busyPostId={calendarAction.isPending ? action?.post.id || null : null} canSchedule={selectedDate >= todayKey} date={selectedDate} onDeletePost={openDelete} onOpenPost={openPost} onReschedulePost={openReschedule} onSelectTime={setSelectedTime} posts={selectedPosts} selectedTime={selectedTime} slots={slots} />
     </div>
     <CalendarPostActionDialog action={action?.type || 'reschedule'} busy={calendarAction.isPending} date={actionDate} error={actionError} onClose={() => { if (!calendarAction.isPending) setAction(null) }} onConfirm={() => calendarAction.mutate()} onDate={setActionDate} onTime={setActionTime} post={action?.post || null} time={actionTime} />

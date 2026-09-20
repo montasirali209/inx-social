@@ -1,7 +1,7 @@
-import type { BackendJobStatus, ConnectedPage, DashboardJob } from './dashboard'
+import type { BackendJobStatus, DashboardJob } from './dashboard'
 import type { SettingsValues } from './settings'
 
-export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'youtube' | 'x'
+export type Platform = 'facebook' | 'instagram' | 'linkedin' | 'tiktok' | 'youtube' | 'pinterest' | 'threads' | 'bluesky' | 'x'
 
 export type PlatformAvailability = 'LIVE' | 'PLANNED'
 
@@ -74,8 +74,6 @@ export type StudioPlatformsResponse = {
 
 export type StudioJobsResponse = { jobs: DashboardJob[] }
 
-export type ConnectedPagesResponse = { pages: ConnectedPage[] }
-
 export type ScheduledPostsResponse = {
   result: { data: Array<{ id: string; scheduled_publish_time?: number }> }
 }
@@ -89,7 +87,7 @@ export type UploadMediaResponse = {
 }
 
 export type BulkSchedulerData = {
-  pages: ConnectedPage[]
+  destinations: Destination[]
   platforms: PlatformDefinition[]
   jobs: DashboardJob[]
   settings: Pick<SettingsValues, 'approvalRequired' | 'defaultScheduleTimes' | 'timezone'>
@@ -97,7 +95,7 @@ export type BulkSchedulerData = {
 
 export function backendStatusToUploadStatus(status: BackendJobStatus): UploadStatus {
   if (status === 'PUBLISHED') return 'published'
-  if (status === 'SCHEDULED') return 'scheduled'
+  if (status === 'SCHEDULED' || status === 'QUEUED') return 'scheduled'
   if (status === 'FAILED' || status === 'CANCELLED') return 'failed'
   if (status === 'PROCESSING') return 'uploading'
   return 'waiting'

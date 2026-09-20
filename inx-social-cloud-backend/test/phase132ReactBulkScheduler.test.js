@@ -23,6 +23,7 @@ test('Bulk Scheduler exposes honest platform capability filters and real browser
   assert.match(filters, /facebook.*instagram.*linkedin.*tiktok.*youtube.*x/s);
   assert.match(panel, /availability === 'PLANNED'/);
   assert.match(api, /XMLHttpRequest/);
-  assert.match(api, /\/api\/studio\/jobs/);
+  assert.match(api, /\/api\/social-connections\/publications/);
+  assert.doesNotMatch(api, /\/api\/studio\/direct-posts/);
   assert.match(api, /request\.upload\.addEventListener\('progress'/);
 });

@@ -40,13 +40,36 @@ async function createCarousel(req, res, next) {
 
 async function uploadMedia(req, res, next) {
   try {
-    const data = await readBody(req);
-    const job = await publishing.attachMedia(req.user.id, req.params.publicationId, {
-      data,
+    const job = await publishing.attachMediaStream(req.user.id, req.params.publicationId, {
+      stream: req,
+      contentLength: req.headers['content-length'],
       mimeType: String(req.headers['content-type'] || 'application/octet-stream').split(';')[0],
       fileName: String(req.headers['x-file-name'] || '') || null
     });
     res.json({ job, accepted: true, scheduled: job.status === 'SCHEDULED', published: job.status === 'PUBLISHED' });
+  } catch (error) { next(error); }
+}
+
+async function updateScheduled(req, res, next) {
+  try {
+    res.json(await mutations.update(req.user.id, req.params.publicationId, {
+      title: req.body?.title,
+      caption: req.body?.caption,
+      scheduledAt: req.body?.scheduledAt
+    }));
+  } catch (error) { next(error); }
+}
+
+async function replaceScheduledMedia(req, res, next) {
+  try {
+    const media = await publishing.uploadStream(req, {
+      contentLength: req.headers['content-length'],
+      mimeType: String(req.headers['content-type'] || 'application/octet-stream').split(';')[0]
+    });
+    const result = await mutations.update(req.user.id, req.params.publicationId, {
+      providerMedia: [media]
+    });
+    res.json({ ...result, mediaReplaced: true });
   } catch (error) { next(error); }
 }
 
@@ -80,4 +103,4 @@ async function reschedule(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { list, create, createCarousel, uploadMedia, libraryMedia, feed, remove, reschedule };
+module.exports = { list, create, createCarousel, uploadMedia, libraryMedia, feed, remove, reschedule, updateScheduled, replaceScheduledMedia };

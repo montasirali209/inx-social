@@ -16,8 +16,6 @@ type Props = {
   scheduleDate: string
   scheduleTimes: string[]
   savedScheduleTimes: string[]
-  scheduleCapacity: number | null
-  scheduleHorizonDays: number
   timezone: string
   selectedDestinations: number
   useFallback: boolean
@@ -70,11 +68,10 @@ export function UploadBatchPanel(props: Props) {
         ) : <div className="flex min-h-11 items-end text-xs leading-5 text-text-muted">{props.timingMode === 'publish_now' ? 'Each image or video publishes after Meta accepts the upload.' : 'Choose when this batch should publish.'}</div>}
       </div>
 
-      {needsDate && props.scheduleCapacity !== null && (
-        <div className={`mt-3 rounded-xl border px-3.5 py-3 text-xs leading-5 ${props.media.length > props.scheduleCapacity ? 'border-brand-red/30 bg-brand-red/7 text-brand-red' : 'border-brand-cyan/20 bg-brand-cyan/[.045] text-text-muted'}`}>
-          <strong className="text-text-main">Scheduling window:</strong>{' '}
-          Up to <strong>{props.scheduleCapacity}</strong> media file{props.scheduleCapacity === 1 ? '' : 's'} fit inside the current {props.scheduleHorizonDays}-day window with these daily times.
-          {props.media.length > props.scheduleCapacity ? ' This batch will not start until the media count or daily timing is adjusted, preventing partial scheduling.' : ''}
+      {needsDate && (
+        <div className="mt-3 rounded-xl border border-brand-cyan/20 bg-brand-cyan/[.045] px-3.5 py-3 text-xs leading-5 text-text-muted">
+          <strong className="text-text-main">Post for Me scheduling:</strong>{' '}
+          Future posts are uploaded to Post for Me with their scheduled time. Post for Me holds the scheduled post and hands it to the social platform when that time arrives. You can edit the caption, media or time while the provider status is still scheduled.
         </div>
       )}
 

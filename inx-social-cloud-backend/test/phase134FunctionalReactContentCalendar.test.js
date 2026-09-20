@@ -38,9 +38,11 @@ test('Phase 13.4 uses universal Post for Me publishing state without sample cale
 
   assert.match(api, /fetchConnectionsWorkspace/);
   assert.match(api, /\/api\/social-publications\?limit=500/);
-  assert.match(api, /source: 'post_for_me'/);
+  assert.match(api, /\/api\/studio\/jobs\?limit=500/);
+  assert.match(api, /'post_for_me'/);
+  assert.match(api, /'inx'/);
   assert.match(api, /post\.status === 'published' \|\| post\.status === 'failed'/);
-  assert.match(page, /queryKey: \['content-calendar', 'post-for-me', timezone\]/);
+  assert.match(page, /queryKey: \['content-calendar', 'publishing-queue', timezone\]/);
   assert.match(page, /refetchInterval: 30_000/);
   assert.match(page, /refetchIntervalInBackground: false/);
   assert.match(page, /fetchAnalyticsSources/);
@@ -60,9 +62,10 @@ test('Phase 13.4 uses universal Post for Me publishing state without sample cale
   assert.doesNotMatch(`${api}${page}`, /\/api\/studio\/facebook\/scheduled-posts|Product Update|Customer Story|Industry Insight|May 12, 2025/);
 });
 
-test('Content Calendar opens platform posts and manages universal provider schedules', () => {
+test('Content Calendar opens platform posts and manages Post for Me plus legacy direct schedules', () => {
   const api = read('frontend/src/lib/calendar-api.ts');
   const page = read('frontend/src/components/calendar/ContentCalendarPage.tsx');
+  const grid = read('frontend/src/components/calendar/CalendarGrid.tsx');
   const selected = read('frontend/src/components/calendar/ScheduledVideoCard.tsx');
   const dialog = read('frontend/src/components/calendar/CalendarPostActionDialog.tsx');
 
@@ -70,11 +73,14 @@ test('Content Calendar opens platform posts and manages universal provider sched
   assert.match(selected, /Open on \{platformLabel\}/);
   assert.match(selected, /canManageSchedule/);
   assert.match(selected, /Remove scheduled post/);
-  assert.match(dialog, /scheduled post from \{platformLabel\}/);
+  assert.match(dialog, /provider-held publishing time/);
   assert.match(api, /rescheduleCalendarPost/);
   assert.match(api, /deleteCalendarPost/);
+  assert.match(api, /post\.source === 'inx'/);
+  assert.match(api, /\/api\/studio\/jobs\/\$\{encodeURIComponent\(post\.jobId\)\}\/schedule/);
   assert.match(api, /\/api\/social-publications\/\$\{encodeURIComponent\(post\.jobId\)\}\/schedule/);
-  assert.match(api, /\/api\/social-publications\/\$\{encodeURIComponent\(post\.jobId\)\}/);
+  assert.match(grid, /Previous month/);
+  assert.match(grid, /Next month/);
   assert.doesNotMatch(`${api}${selected}${dialog}`, /facebook\/posts|Open on Facebook|Delete from Facebook|Facebook requires/);
 });
 

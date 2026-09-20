@@ -1,0 +1,67 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const test = require('node:test');
+
+const root = path.join(__dirname, '..');
+const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
+
+test('Post for Me is the only new future-scheduling queue for web Posts and Bulk Scheduler', () => {
+  const publishing = read('src/services/postForMePublishingService.js');
+  const routes = read('src/routes/socialPublicationRoutes.js');
+  const bulkApi = read('frontend/src/lib/bulk-scheduler-api.ts');
+  const server = read('src/server.js');
+  const studio = read('src/controllers/studioController.js');
+
+  assert.match(publishing, /scheduled_at: bundle\.input\.scheduledAt \|\| null/);
+  assert.match(publishing, /postForMe\.apiRequest\('POST', '\/social-posts'/);
+  assert.match(bulkApi, /\/api\/social-connections\/publications/);
+  assert.match(bulkApi, /source: 'BULK_SCHEDULER'/);
+  assert.doesNotMatch(bulkApi, /\/api\/studio\/direct-posts/);
+  assert.match(studio, /Future scheduling uses the Post for Me publishing queue/);
+  assert.doesNotMatch(server, /startCloudPublishingQueue|startScheduledPublishingRuntime/);
+  assert.match(routes, /scheduled-media/);
+  assert.match(routes, /controller\.updateScheduled/);
+});
+
+test('scheduled Post for Me edits are restricted to draft or scheduled provider states', () => {
+  const mutations = require('../src/services/postForMePostMutationService');
+  assert.doesNotThrow(() => mutations.assertEditableProviderPost({ status: 'scheduled' }, { status: 'SCHEDULED' }));
+  assert.doesNotThrow(() => mutations.assertEditableProviderPost({ status: 'draft' }, { status: 'DRAFT' }));
+  assert.throws(
+    () => mutations.assertEditableProviderPost({ status: 'processing' }, { status: 'PROCESSING' }),
+    /already started processing/i
+  );
+  assert.throws(
+    () => mutations.assertEditableProviderPost({ status: 'processed' }, { status: 'PUBLISHED' }),
+    /already started processing/i
+  );
+});
+
+test('Post for Me future scheduling has no INX Social maximum horizon', () => {
+  const publishing = require('../src/services/postForMePublishingService');
+  const farFuture = new Date(Date.now() + 400 * 24 * 60 * 60 * 1000).toISOString();
+  assert.equal(publishing.validateScheduledAt(farFuture), farFuture);
+  assert.throws(
+    () => publishing.validateScheduledAt(new Date(Date.now() - 60_000).toISOString()),
+    /future/i
+  );
+});
+
+test('scheduled editor exposes provider-supported caption media timing and cancellation controls', () => {
+  const editor = read('frontend/src/components/posts/ScheduledPostEditorModal.tsx');
+  const postsApi = read('frontend/src/lib/posts-api.ts');
+  const bulkManager = read('frontend/src/components/bulk-scheduler/BulkScheduleManager.tsx');
+
+  assert.match(editor, /Caption/);
+  assert.match(editor, /Publishing date/);
+  assert.match(editor, /Publishing time/);
+  assert.match(editor, /Replace media/);
+  assert.match(editor, /Cancel schedule/);
+  assert.match(editor, /job\.status === 'SCHEDULED'/);
+  assert.doesNotMatch(editor, />Title</);
+  assert.match(postsApi, /updateScheduledPost/);
+  assert.match(postsApi, /replaceScheduledPostMedia/);
+  assert.match(postsApi, /cancelScheduledPost/);
+  assert.match(bulkManager, /ScheduledPostEditorModal/);
+});

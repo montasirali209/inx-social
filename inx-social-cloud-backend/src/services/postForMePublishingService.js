@@ -1,9 +1,10 @@
 const axios = require('axios');
 const prisma = require('../db/prisma');
 const postForMe = require('./postForMeService');
+const mediaLibrary = require('./mediaLibraryService');
 const { getLicenseStatus } = require('./licenseService');
 
-const MAX_DIRECT_UPLOAD_BYTES = 500 * 1024 * 1024;
+const MAX_DIRECT_UPLOAD_BYTES = 10 * 1024 * 1024 * 1024;
 const TERMINAL_STATUSES = new Set(['PUBLISHED', 'FAILED', 'CANCELLED']);
 
 function json(value, fallback = {}) {
@@ -22,6 +23,18 @@ function publicationId(value) {
 function providerAccountId(profile) {
   const metadata = json(profile.metadataJson, {});
   return String(metadata.postForMeAccountId || profile.externalProfileId || '');
+}
+
+function validateScheduledAt(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const scheduledAt = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(scheduledAt.getTime())) {
+    throw Object.assign(new Error('Choose a valid publishing date and time.'), { status: 400, publicMessage: 'Choose a valid publishing date and time.' });
+  }
+  if (scheduledAt.getTime() <= Date.now()) {
+    throw Object.assign(new Error('Choose a publishing time in the future.'), { status: 400, publicMessage: 'Choose a publishing time in the future.' });
+  }
+  return scheduledAt.toISOString();
 }
 
 async function resolveProfiles(userId, profileIds) {
@@ -102,6 +115,8 @@ async function findOrCreateContent(userId, input, profiles) {
 }
 
 async function createPublicationRows(userId, input) {
+  const scheduledAt = validateScheduledAt(input.scheduledAt);
+  input = { ...input, scheduledAt };
   await postForMe.syncConnections(userId);
   const requestedIds = input.profileIds || input.connectedPageIds || [];
   const { profiles, missing } = await resolveProfiles(userId, requestedIds);
@@ -191,16 +206,36 @@ async function uploadBuffer(data, mimeType) {
   return { url: signed.media_url };
 }
 
+async function uploadStream(stream, { mimeType, contentLength }) {
+  const size = Number(contentLength || 0);
+  if (!Number.isFinite(size) || size <= 0) {
+    throw Object.assign(new Error('The browser must send the media Content-Length.'), { status: 411, publicMessage: 'The browser must send the media Content-Length.' });
+  }
+  if (size > MAX_DIRECT_UPLOAD_BYTES) {
+    throw Object.assign(new Error('This media file exceeds the current 10 GB upload ceiling.'), { status: 413, publicMessage: 'This media file exceeds the current 10 GB upload ceiling.' });
+  }
+  const signed = await postForMe.apiRequest('POST', '/media/create-upload-url');
+  if (!signed?.upload_url || !signed?.media_url) throw new Error('Post for Me did not return a media upload URL.');
+  await axios.put(signed.upload_url, stream, {
+    headers: {
+      'Content-Type': String(mimeType || 'application/octet-stream').split(';')[0],
+      'Content-Length': size
+    },
+    timeout: 0,
+    maxBodyLength: Infinity,
+    maxContentLength: Infinity
+  });
+  return { url: signed.media_url };
+}
+
 async function uploadLibraryAssets(userId, assetIds) {
   const ids = [...new Set((assetIds || []).map(String).filter(Boolean))];
   if (!ids.length) return [];
-  const assets = await prisma.agentAsset.findMany({ where: { id: { in: ids }, userId, status: 'READY' } });
-  const byId = new Map(assets.map((asset) => [asset.id, asset]));
   const media = [];
   for (const id of ids) {
-    const asset = byId.get(id);
+    const asset = await mediaLibrary.findContent(userId, id);
     if (!asset) throw Object.assign(new Error('One of the selected Media Library assets is unavailable.'), { status: 404 });
-    media.push(await uploadBuffer(Buffer.from(asset.data), asset.mimeType));
+    media.push(await uploadBuffer(asset.data, asset.mimeType));
   }
   return media;
 }
@@ -329,6 +364,19 @@ async function attachMedia(userId, rawPublicationId, input) {
   return publicationToJob(fresh);
 }
 
+async function attachMediaStream(userId, rawPublicationId, input) {
+  const bundle = await bundleForPublication(userId, rawPublicationId);
+  if (bundle.publications.some((item) => item.externalPostId)) {
+    const fresh = await prisma.socialPublication.findUnique({ where: { id: bundle.publication.id }, include: { content: true, profile: true } });
+    return publicationToJob(fresh);
+  }
+  const providerMedia = [await uploadStream(input.stream, { mimeType: input.mimeType, contentLength: input.contentLength })];
+  await updatePublicationMedia(bundle.publications, providerMedia);
+  await submitBundle(bundle, providerMedia);
+  const fresh = await prisma.socialPublication.findUnique({ where: { id: bundle.publication.id }, include: { content: true, profile: true } });
+  return publicationToJob(fresh);
+}
+
 async function attachLibraryMedia(userId, rawPublicationId) {
   const bundle = await bundleForPublication(userId, rawPublicationId);
   if (bundle.publications.some((item) => item.externalPostId)) {
@@ -381,7 +429,11 @@ function publicationToJob(publication) {
       avatarUrl: publication.profile.avatarUrl
     } : null,
     platformUrl: result.platformUrl || null,
-    asset: null
+    asset: null,
+    contentId: publication.contentId,
+    providerPostId: publication.externalPostId || null,
+    providerStatus: meta.providerPostStatus || String(publication.status || '').toLowerCase() || null,
+    source: publication.content?.source || null
   };
 }
 
@@ -392,7 +444,7 @@ async function listPublications(userId, limit = 150) {
     where: { profileId: { in: profiles.map((profile) => profile.id) } },
     include: { content: true, profile: true },
     orderBy: { createdAt: 'desc' },
-    take: Math.min(500, Math.max(1, Number(limit) || 150))
+    take: Math.min(1000, Math.max(1, Number(limit) || 150))
   });
   return rows.map(publicationToJob);
 }
@@ -487,5 +539,8 @@ module.exports = {
   publicationToJob,
   handleWebhook,
   getFeed,
-  uploadBuffer
+  uploadBuffer,
+  uploadStream,
+  attachMediaStream,
+  validateScheduledAt
 };

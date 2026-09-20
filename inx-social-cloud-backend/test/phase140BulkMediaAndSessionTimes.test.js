@@ -14,8 +14,8 @@ test('Bulk Scheduler accepts mixed image and video batches through the governed 
   assert.match(panel, /Select media/);
   assert.match(panel, /image\/png,image\/jpeg,image\/webp,video\/mp4/);
   assert.match(page, /contentType: action\.item\.kind === 'image' \? 'IMAGE' : 'VIDEO'/);
-  assert.match(api, /\/api\/studio\/direct-posts/);
-  assert.match(api, /direct-posts\/\$\{encodeURIComponent\(jobId\)\}\/media/);
+  assert.match(api, /\/api\/social-connections\/publications/);
+  assert.match(api, /publications\/\$\{encodeURIComponent\(jobId\)\}\/media/);
   assert.match(results, /result\.mediaKind === 'image'/);
 });
 
@@ -32,18 +32,30 @@ test('selected-date scheduling owns its multiple daily times inside the current 
 });
 
 
-test('Bulk Scheduler preflights its 25-day window and exposes reviewable failed results', () => {
+test('Bulk Scheduler uses Post for Me long-range scheduling with editable provider-held posts', () => {
   const page = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
   const utilities = read('frontend/src/lib/bulk-scheduler-utils.ts');
+  const uploadPanel = read('frontend/src/components/bulk-scheduler/UploadBatchPanel.tsx');
   const panel = read('frontend/src/components/bulk-scheduler/BatchRunPanel.tsx');
   const results = read('frontend/src/components/bulk-scheduler/UploadResultsTable.tsx');
-  assert.match(utilities, /MAX_BULK_SCHEDULE_DAYS = 25/);
-  assert.match(utilities, /getBulkScheduleCapacity/);
-  assert.match(page, /only \$\{scheduleCapacity\} fit inside the current/);
+  const stats = read('frontend/src/components/bulk-scheduler/BulkSchedulerStats.tsx');
+  const manager = read('frontend/src/components/bulk-scheduler/BulkScheduleManager.tsx');
+  const api = read('frontend/src/lib/bulk-scheduler-api.ts');
+  assert.doesNotMatch(utilities, /MAX_BULK_SCHEDULE_DAYS|getBulkScheduleCapacity|25-day scheduling window/);
+  assert.match(uploadPanel, /Post for Me scheduling/);
+  assert.match(page, /BulkSchedulerStats/);
+  assert.match(page, /BulkScheduleManager/);
+  assert.match(stats, /Held by Post for Me/);
+  assert.match(manager, /ScheduledPostEditorModal/);
+  assert.match(manager, /Future posts are held by Post for Me/);
+  assert.match(api, /updateBulkScheduledPost/);
+  assert.match(api, /replaceBulkScheduledMedia/);
+  assert.match(api, /deleteBulkJob/);
   assert.match(panel, /Needs review/);
   assert.match(panel, /Why items need review/);
   assert.match(results, /Retry upload/);
   assert.match(results, /Needs review/);
   assert.match(results, /PAGE_SIZE = 12/);
   assert.doesNotMatch(results, /results\.slice\(0, 12\)/);
+  assert.doesNotMatch(api, /\/api\/studio\/direct-posts/);
 });
