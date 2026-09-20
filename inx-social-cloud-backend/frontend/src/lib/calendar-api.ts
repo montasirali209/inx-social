@@ -63,9 +63,9 @@ export function buildCalendarData(jobs: DashboardJob[], destinations: CalendarDe
   const posts = allPosts.filter(post => {
     const occurredAt = new Date(post.occurredAt).getTime()
     if (!Number.isFinite(occurredAt)) return false
-    if (post.status === 'published' || post.status === 'failed') return true
+    if (post.status === 'published' || post.status === 'failed' || post.status === 'needs_review') return true
     if (occurredAt < nowMs) return false
-    return post.status === 'scheduled' || post.status === 'needs_review'
+    return post.status === 'scheduled'
   }).sort((left, right) => left.occurredAt.localeCompare(right.occurredAt))
 
   const currentWeek = weekStart(now)
@@ -81,7 +81,7 @@ export function buildCalendarData(jobs: DashboardJob[], destinations: CalendarDe
   const publishedThisMonth = allPosts.filter(post => post.status === 'published' && post.date.startsWith(currentMonth)).length
   const publishedPreviousMonth = allPosts.filter(post => post.status === 'published' && post.date.startsWith(previousMonth)).length
   const drafts = allPosts.filter(post => post.status === 'draft').length
-  const needsReview = allPosts.filter(post => post.status === 'needs_review' || post.status === 'failed').length
+  const needsReview = posts.filter(post => post.status === 'needs_review').length
   const signed = (value: number) => `${value >= 0 ? '+' : ''}${value}`
 
   return {
