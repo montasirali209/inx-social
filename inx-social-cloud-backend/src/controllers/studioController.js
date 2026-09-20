@@ -980,6 +980,12 @@ async function createDraft(req, res, next) {
 async function createDirectPosts(req, res, next) {
   try {
     const input = directPostSchema.parse(req.body);
+    if (input.publishMode !== 'NOW' || input.scheduledAt) {
+      const error = new Error('Future scheduling uses the Post for Me publishing queue. Submit scheduled posts through the universal social publications endpoint.');
+      error.status = 409;
+      error.publicMessage = error.message;
+      throw error;
+    }
     const license = await requireStudioLicense(req.user.id);
     const pages = await resolvePages(req.user.id, input.connectedPageIds, true);
     const immediate = input.publishMode === 'NOW';
