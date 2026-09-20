@@ -59,3 +59,25 @@ test('Bulk Scheduler uses Post for Me long-range scheduling with editable provid
   assert.doesNotMatch(results, /results\.slice\(0, 12\)/);
   assert.doesNotMatch(api, /\/api\/studio\/direct-posts/);
 });
+
+
+test('Bulk Scheduler supports text-only batches in the same workflow', () => {
+  const page = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
+  const panel = read('frontend/src/components/bulk-scheduler/UploadBatchPanel.tsx');
+  const input = read('frontend/src/components/bulk-scheduler/CaptionInput.tsx');
+  const utilities = read('frontend/src/lib/bulk-scheduler-utils.ts');
+  const results = read('frontend/src/components/bulk-scheduler/UploadResultsTable.tsx');
+
+  assert.match(panel, /Media Posts/);
+  assert.match(panel, /Text Posts/);
+  assert.match(input, /One complete post per block/);
+  assert.match(input, />---</);
+  assert.match(utilities, /parseTextPosts/);
+  assert.match(utilities, /split\(\/\^\\s\*---\\s\*\$\/m\)/);
+  assert.match(page, /contentType: 'TEXT'/);
+  assert.match(page, /mediaCount: batchCount/);
+  assert.match(page, /bulk-text-/);
+  assert.match(page, /TEXT_POST_PLATFORMS/);
+  assert.match(results, /text post/);
+  assert.match(results, /FileText/);
+});
