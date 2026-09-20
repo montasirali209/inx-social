@@ -59,7 +59,7 @@ export function UploadResultsTable({
   }
 
 
-  if (!results.length) return <div className="grid min-h-36 place-items-center rounded-xl border border-dashed border-border-soft bg-black/10 text-center"><span><Film aria-hidden="true" className="mx-auto size-6 text-brand-cyan" /><strong className="mt-2 block text-sm">No upload results yet</strong><small className="mt-1 block text-text-soft">Completed and failed publishing actions will appear here live.</small></span></div>
+  if (!results.length) return <div className="grid min-h-36 place-items-center rounded-xl border border-dashed border-border-soft bg-black/10 text-center"><span><Film aria-hidden="true" className="mx-auto size-6 text-brand-cyan" /><strong className="mt-2 block text-sm">No batch results yet</strong><small className="mt-1 block text-text-soft">Completed and failed publishing actions will appear here live.</small></span></div>
 
   const filters: Array<{ id: ResultFilter; label: string; count: number }> = [
     { id: 'all', label: 'All', count: counts.all },
@@ -86,7 +86,7 @@ export function UploadResultsTable({
 
       <div className="hidden overflow-hidden rounded-xl border border-border-soft lg:block">
         <table className="w-full border-collapse text-left text-xs">
-          <thead className="bg-white/[0.035] text-[10px] uppercase tracking-[0.09em] text-text-soft"><tr><th className="px-3 py-2.5">Media</th><th className="px-3 py-2.5">Destination</th><th className="px-3 py-2.5">Status</th><th className="px-3 py-2.5">Result / Error</th><th className="px-3 py-2.5">Action</th></tr></thead>
+          <thead className="bg-white/[0.035] text-[10px] uppercase tracking-[0.09em] text-text-soft"><tr><th className="px-3 py-2.5">Content</th><th className="px-3 py-2.5">Destination</th><th className="px-3 py-2.5">Status</th><th className="px-3 py-2.5">Result / Error</th><th className="px-3 py-2.5">Action</th></tr></thead>
           <tbody className="divide-y divide-white/6">
             {visible.map((result) => {
               const canRetry = result.mediaKind !== 'text' && result.status === 'failed' && Boolean(result.jobId)
@@ -96,7 +96,7 @@ export function UploadResultsTable({
                   <td className="px-3 py-2.5"><span className="flex min-w-0 items-center gap-2">{result.mediaKind === 'image' ? <img alt="" className="size-10 rounded-md bg-black object-cover" src={result.thumbnailUrl} /> : result.mediaKind === 'video' ? <video aria-hidden="true" className="size-10 rounded-md bg-black object-cover" muted src={result.thumbnailUrl} /> : <span className="grid size-10 shrink-0 place-items-center rounded-md border border-brand-cyan/20 bg-brand-cyan/[.06] text-brand-cyan"><FileText className="size-4" /></span>}<span className="min-w-0"><strong className="block max-w-48 truncate">{result.fileName}</strong>{result.textPreview && <small className="block max-w-56 truncate text-[9px] text-text-muted">{result.textPreview}</small>}<small className="inline-flex items-center gap-1 text-[9px] capitalize text-text-soft">{result.mediaKind === 'image' ? <ImageIcon aria-hidden="true" className="size-3" /> : result.mediaKind === 'video' ? <Film aria-hidden="true" className="size-3" /> : <FileText aria-hidden="true" className="size-3" />}{result.mediaKind === 'text' ? 'text post' : result.mediaKind}{scheduledAt ? ` · ${scheduledAt}` : ''}</small></span></span></td>
                   <td className="px-3 py-2.5"><ResultDestinations destinations={destinations} ids={result.destinationIds} /></td>
                   <td className="px-3 py-2.5"><StatusBadge status={result.status} /></td>
-                  <td className="max-w-64 px-3 py-2.5 text-text-muted"><span className={`line-clamp-3 ${result.errorMessage ? 'text-brand-red' : ''}`}>{result.errorMessage || result.resultId || (result.status === 'uploading' ? 'Meta is processing this media.' : 'Awaiting upload')}</span></td>
+                  <td className="max-w-64 px-3 py-2.5 text-text-muted"><span className={`line-clamp-3 ${result.errorMessage ? 'text-brand-red' : ''}`}>{result.errorMessage || result.resultId || (result.status === 'uploading' ? (result.mediaKind === 'text' ? 'Provider is processing this post.' : 'Provider is processing this media.') : result.mediaKind === 'text' ? 'Awaiting publishing' : 'Awaiting upload')}</span></td>
                   <td className="px-3 py-2.5">
                     {canRetry ? (
                       <Button disabled={Boolean(retryingId)} onClick={() => void onRetry(result)} size="sm" type="button" variant="ghost">
@@ -114,7 +114,7 @@ export function UploadResultsTable({
 
       <div className="grid gap-2 lg:hidden">
         {visible.map((result) => {
-          const canRetry = result.status === 'failed' && Boolean(result.jobId)
+          const canRetry = result.mediaKind !== 'text' && result.status === 'failed' && Boolean(result.jobId)
           return (
             <article className="rounded-xl border border-border-soft bg-black/12 p-3" key={result.id}>
               <div className="flex items-start gap-3">{result.mediaKind === 'image' ? <img alt="" className="size-14 rounded-lg bg-black object-cover" src={result.thumbnailUrl} /> : result.mediaKind === 'video' ? <video aria-hidden="true" className="size-14 rounded-lg bg-black object-cover" muted src={result.thumbnailUrl} /> : <span className="grid size-14 shrink-0 place-items-center rounded-lg border border-brand-cyan/20 bg-brand-cyan/[.06] text-brand-cyan"><FileText className="size-5" /></span>}<div className="min-w-0 flex-1"><strong className="block truncate text-sm">{result.fileName}</strong>{result.textPreview && <p className="mt-1 line-clamp-2 text-xs leading-5 text-text-muted">{result.textPreview}</p>}<small className="capitalize text-text-soft">{result.mediaKind === 'text' ? 'text post' : result.mediaKind}{result.scheduledAt ? ` · ${formattedScheduledAt(result.scheduledAt)}` : ''}</small><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><ResultDestinations destinations={destinations} ids={result.destinationIds} /><StatusBadge status={result.status} /></div></div></div>
