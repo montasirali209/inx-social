@@ -97,10 +97,16 @@ async function remove(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function retry(req, res, next) {
+  try {
+    res.json({ job: await publishing.retryPublication(req.user.id, req.params.publicationId), retried: true });
+  } catch (error) { next(error); }
+}
+
 async function reschedule(req, res, next) {
   try {
     res.json(await mutations.reschedule(req.user.id, req.params.publicationId, req.body?.scheduledAt));
   } catch (error) { next(error); }
 }
 
-module.exports = { list, create, createCarousel, uploadMedia, libraryMedia, feed, remove, reschedule, updateScheduled, replaceScheduledMedia };
+module.exports = { list, create, createCarousel, uploadMedia, libraryMedia, feed, remove, reschedule, retry, updateScheduled, replaceScheduledMedia };
