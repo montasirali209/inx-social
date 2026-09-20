@@ -6,6 +6,9 @@ const names: Record<Platform, string> = {
   linkedin: 'LinkedIn',
   tiktok: 'TikTok',
   youtube: 'YouTube',
+  pinterest: 'Pinterest',
+  threads: 'Threads',
+  bluesky: 'Bluesky',
   x: 'X',
 }
 
