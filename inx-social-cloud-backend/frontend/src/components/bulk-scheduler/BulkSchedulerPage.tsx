@@ -453,31 +453,46 @@ export function BulkSchedulerPage() {
 
   const retryFailedUpload = async (result: UploadResult) => {
     if (running || retryingId || !result.jobId) return
-    const item = media.find((candidate) => candidate.id === result.mediaId)
-    if (!item) {
-      setResults((current) => current.map((candidate) => candidate.id === result.id ? { ...candidate, errorMessage: 'The original media is no longer available in this browser session.' } : candidate))
-      return
-    }
 
     setRetryingId(result.id)
     setResults((current) => current.map((candidate) => candidate.id === result.id ? { ...candidate, status: 'uploading', errorMessage: null } : candidate))
+    setProgress({ state: 'scheduling', percent: 15, current: 1, total: 1, completed: 0, failed: 0, message: `Retrying ${result.fileName}…` })
+
     try {
-      const uploaded = item.libraryAssetId
-        ? await publishBulkLibraryMedia(result.jobId)
-        : await uploadBulkMedia(result.jobId, item.file, { signal: new AbortController().signal, onProgress: () => {} })
-      setResults((current) => current.map((candidate) => candidate.id === result.id ? {
-        ...candidate,
-        status: backendStatusToUploadStatus(uploaded.job.status),
-        resultId: uploaded.job.metaPostId || uploaded.job.metaVideoId || candidate.resultId,
-        errorMessage: null,
-      } : candidate))
+      if (result.mediaKind === 'text') {
+        const response = await retryFailedScheduledPost(result.jobId)
+        setResults((current) => current.map((candidate) => candidate.id === result.id ? {
+          ...candidate,
+          status: backendStatusToUploadStatus(response.job.status),
+          resultId: response.job.providerPostId || response.job.metaPostId || candidate.resultId,
+          errorMessage: response.job.errorMessage || null,
+        } : candidate))
+      } else {
+        const item = media.find((candidate) => candidate.id === result.mediaId)
+        if (!item) throw new Error('The original media is no longer available in this browser session.')
+        const uploaded = item.libraryAssetId
+          ? await publishBulkLibraryMedia(result.jobId)
+          : await uploadBulkMedia(result.jobId, item.file, { signal: new AbortController().signal, onProgress: (loaded, total) => {
+            const percent = total > 0 ? Math.max(15, Math.min(90, Math.round((loaded / total) * 90))) : 40
+            setProgress({ state: 'uploading', percent, current: 1, total: 1, completed: 0, failed: 0, message: `Retrying ${result.fileName}…` })
+          } })
+        setResults((current) => current.map((candidate) => candidate.id === result.id ? {
+          ...candidate,
+          status: backendStatusToUploadStatus(uploaded.job.status),
+          resultId: uploaded.job.metaPostId || uploaded.job.metaVideoId || candidate.resultId,
+          errorMessage: null,
+        } : candidate))
+      }
+      setProgress({ state: 'completed', percent: 100, current: 1, total: 1, completed: 1, failed: 0, message: 'Retry completed successfully.' })
       await scheduler.refetch()
     } catch (error) {
+      const message = error instanceof Error ? error.message : 'Retry failed.'
       setResults((current) => current.map((candidate) => candidate.id === result.id ? {
         ...candidate,
         status: 'failed',
-        errorMessage: error instanceof Error ? error.message : 'Retry failed.',
+        errorMessage: message,
       } : candidate))
+      setProgress({ state: 'failed', percent: 100, current: 1, total: 1, completed: 0, failed: 1, message })
     } finally {
       setRetryingId(null)
     }
