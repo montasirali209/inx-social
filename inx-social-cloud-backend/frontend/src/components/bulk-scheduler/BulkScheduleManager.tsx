@@ -137,9 +137,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
             const presentation = statusPresentation(job)
             const Icon = presentation.icon
             const editable = job.status === 'SCHEDULED'
-            const retryable = job.status === 'FAILED'
-              && !job.providerPostId
-              && (!job.scheduledAt || new Date(job.scheduledAt).getTime() > Date.now())
+            const retryable = job.status === 'FAILED' && !job.providerPostId
             const review = job.status === 'FAILED'
             return <article className={`rounded-2xl border p-4 transition ${review ? 'border-brand-amber/20 bg-gradient-to-r from-brand-amber/[.045] to-bg/20' : 'border-border-soft bg-bg/25 hover:border-brand-cyan/20'}`} key={job.id}>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
