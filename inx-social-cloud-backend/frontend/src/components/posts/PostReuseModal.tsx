@@ -15,6 +15,7 @@ type Props = {
   loadingExternal?: boolean
   onClose: () => void
   onReuse: (job: DashboardJob) => void
+  timezone: string
 }
 
 const tabs: Array<{ id: PostLibraryView; label: string }> = [
@@ -41,7 +42,7 @@ function tabCount(jobs: DashboardJob[], view: PostLibraryView) {
   return jobs.filter((job) => matchesPostLibraryView(job, view)).length
 }
 
-export function PostReuseModal({ jobs, initialView, loadingExternal = false, onClose, onReuse }: Props) {
+export function PostReuseModal({ jobs, initialView, loadingExternal = false, onClose, onReuse, timezone }: Props) {
   const queryClient = useQueryClient()
   const [view, setView] = useState<PostLibraryView>(initialView)
   const [clearedIds, setClearedIds] = useState<Set<string>>(() => new Set())
@@ -114,7 +115,7 @@ export function PostReuseModal({ jobs, initialView, loadingExternal = false, onC
           queryClient.invalidateQueries({ queryKey: ['bulk-scheduler'] }),
           queryClient.invalidateQueries({ queryKey: ['content-calendar'] }),
         ])
-      }} onClose={() => setEditingScheduled(null)} timezone={Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'} />}
+      }} onClose={() => setEditingScheduled(null)} timezone={timezone} />}
     </div>,
     document.body,
   )
