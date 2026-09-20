@@ -28,9 +28,9 @@ export type SeoPage = {
 export const seoPages: Record<string, SeoPage> = {
   "social-media-scheduler": {
     slug: "social-media-scheduler",
-    title: "Social Media Scheduler for Multi-Platform Publishing | INXSocial",
+    title: "Social Media Scheduler for Multiple Platforms | INXSocial",
     metaDescription:
-      "Plan, create and schedule social media posts from one workspace. Use INXSocial for multi-platform publishing, content planning, analytics and AI-assisted creation.",
+      "Plan, create and schedule social media posts from one workspace with multi-platform publishing, a content calendar, analytics and AI-assisted creation.",
     eyebrow: "Social media scheduler",
     h1: "Schedule social media without rebuilding the same workflow for every platform.",
     lead:
@@ -232,9 +232,9 @@ export const seoPages: Record<string, SeoPage> = {
 
   "social-media-analytics": {
     slug: "social-media-analytics",
-    title: "Social Media Analytics Dashboard | INXSocial",
+    title: "Social Media Analytics & Reporting Dashboard | INXSocial",
     metaDescription:
-      "Track publishing activity, platform distribution and engagement from one social media analytics dashboard inside the INXSocial workspace.",
+      "Track publishing activity, engagement, platform distribution and content performance from one social media analytics and reporting dashboard.",
     eyebrow: "Social media analytics",
     h1: "Understand what happened after the post was published.",
     lead:
@@ -368,7 +368,7 @@ export const seoPages: Record<string, SeoPage> = {
 
   "ai-social-media-post-generator": {
     slug: "ai-social-media-post-generator",
-    title: "AI Social Media Post Generator | INXSocial",
+    title: "AI Social Media Post Generator & Scheduler | INXSocial",
     metaDescription:
       "Generate social media post ideas, captions and visual content with AI, then move the finished post directly into scheduling with INXSocial.",
     eyebrow: "AI post generator",
@@ -436,7 +436,7 @@ export const seoPages: Record<string, SeoPage> = {
 
   "ai-carousel-post-generator": {
     slug: "ai-carousel-post-generator",
-    title: "AI Carousel Post Generator | INXSocial",
+    title: "AI Social Media Carousel Generator | INXSocial",
     metaDescription:
       "Create coordinated social media carousel content with AI inside INXSocial, then review slides and move the finished carousel into your publishing workflow.",
     eyebrow: "AI carousel generator",
@@ -574,7 +574,7 @@ export const seoPages: Record<string, SeoPage> = {
     slug: "ai-ugc-ad-generator",
     title: "AI UGC Ad Generator for Social Campaigns | INXSocial",
     metaDescription:
-      "Create UGC-style social ad concepts and promotional assets with AI inside INXSocial, then keep the finished creative connected to your social publishing workflow.",
+      "Create UGC-style social ad concepts and promotional assets with AI in INXSocial, then move the finished creative into your publishing workflow.",
     eyebrow: "AI UGC ad generator",
     h1: "Develop creator-style promotional content inside your social publishing workspace.",
     lead:
@@ -642,7 +642,7 @@ export const seoPages: Record<string, SeoPage> = {
     slug: "pricing",
     title: "INXSocial Pricing | Social Media Scheduler Plans",
     metaDescription:
-      "Compare INXSocial plans for creators, businesses and agencies. All plans connect social publishing, scheduling, analytics and AI Content Studio in one workspace.",
+      "Compare INXSocial plans for creators, businesses and agencies, including connected accounts, scheduling, analytics and AI Content Studio credits.",
     eyebrow: "INXSocial pricing",
     h1: "Choose the publishing capacity and AI credits that fit your workflow.",
     lead:
