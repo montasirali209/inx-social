@@ -291,7 +291,7 @@ async function submitBundle(bundle, providerMedia = []) {
   if (platformConfigurations) body.platform_configurations = platformConfigurations;
   if (bundle.input.isDraft) body.isDraft = true;
 
-  const post = await postForMe.apiRequest('POST', '/social-posts', { data: body });
+  const post = await postForMe.apiRequest('POST', '/social-posts', { data: body, maxRetries: 5 });
   if (!post?.id) throw new Error('Post for Me did not return a post identifier.');
   const status = parentStatus(post, bundle.input.scheduledAt);
   const now = new Date();
@@ -588,6 +588,5 @@ module.exports = {
   uploadBuffer,
   uploadStream,
   attachMediaStream,
-  validateScheduledAt,
-  markBundleFailed
+  validateScheduledAt
 };
