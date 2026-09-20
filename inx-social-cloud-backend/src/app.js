@@ -5,6 +5,7 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const fs = require('fs');
 const path = require('path');
+const sharp = require('sharp');
 
 const authRoutes = require('./routes/authRoutes');
 const adminAuthRoutes = require('./routes/adminAuthRoutes');
@@ -36,6 +37,7 @@ const portalRoot = path.join(__dirname, '..', 'portal');
 const adminIndex = path.join(publicRoot, 'index.html');
 const landingPath = path.join(publicRoot, 'landing.html');
 const LANDING_DASHBOARD_ASSET_PATH = '/assets/landing-dashboard-20260919.webp';
+const SOCIAL_PREVIEW_ASSET_PATH = '/assets/inxsocial-social-preview.jpg';
 const landingDashboardPartPaths = Array.from({ length: 7 }, (_, index) =>
   path.join(publicRoot, 'assets', `landing-dashboard-20260919.part${String(index + 1).padStart(3, '0')}.b64`)
 );
@@ -57,6 +59,104 @@ const loadLandingDashboardAsset = () => {
   }
 };
 const landingDashboardAsset = loadLandingDashboardAsset();
+let socialPreviewAssetPromise = null;
+
+function escapeSvgText(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&apos;');
+}
+
+async function buildSocialPreviewAsset() {
+  if (!landingDashboardAsset) return null;
+  if (socialPreviewAssetPromise) return socialPreviewAssetPromise;
+
+  socialPreviewAssetPromise = (async () => {
+    const dashboard = await sharp(landingDashboardAsset)
+      .resize(620, 349, { fit: 'cover', position: 'centre' })
+      .jpeg({ quality: 88, chromaSubsampling: '4:4:4' })
+      .toBuffer();
+
+    const headline = ['Create. Schedule.', 'Analyse. Grow.'];
+    const description = [
+      'Manage social content, bulk scheduling, analytics',
+      'and AI creation from one connected workspace.'
+    ];
+
+    const overlay = Buffer.from(`<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#04131d"/>
+          <stop offset="0.52" stop-color="#082334"/>
+          <stop offset="1" stop-color="#041019"/>
+        </linearGradient>
+        <radialGradient id="glow" cx="0.82" cy="0.22" r="0.7">
+          <stop offset="0" stop-color="#22d3c5" stop-opacity="0.20"/>
+          <stop offset="1" stop-color="#22d3c5" stop-opacity="0"/>
+        </radialGradient>
+        <filter id="shadow" x="-20%" y="-20%" width="140%" height="160%">
+          <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000" flood-opacity="0.42"/>
+        </filter>
+      </defs>
+      <rect width="1200" height="630" rx="0" fill="url(#bg)"/>
+      <rect width="1200" height="630" fill="url(#glow)"/>
+      <circle cx="1050" cy="52" r="220" fill="#0ea5a4" opacity="0.06"/>
+      <circle cx="1180" cy="590" r="260" fill="#2563eb" opacity="0.05"/>
+
+      <g font-family="Arial, Helvetica, sans-serif">
+        <rect x="58" y="52" width="178" height="46" rx="13" fill="#e7f9ff"/>
+        <rect x="67" y="61" width="28" height="28" rx="8" fill="#062633"/>
+        <path d="M74 68h14v14H74z" fill="#19c8b2" opacity=".22"/>
+        <path d="M77 71h8v8h-8z" fill="#ffffff"/>
+        <text x="106" y="83" font-size="22" font-weight="700" fill="#0c3345">INXSocial</text>
+
+        <rect x="58" y="126" width="328" height="34" rx="17" fill="#0f3442" stroke="#1ec9b7" stroke-opacity=".35"/>
+        <text x="74" y="148" font-size="13" font-weight="700" fill="#77eadc" letter-spacing="1.2">ALL-IN-ONE SOCIAL MEDIA + AI</text>
+
+        <text x="58" y="225" font-size="53" font-weight="800" fill="#ffffff">${escapeSvgText(headline[0])}</text>
+        <text x="58" y="287" font-size="53" font-weight="800" fill="#ffffff">Analyse. <tspan fill="#2dd4bf">Grow.</tspan></text>
+
+        <text x="58" y="344" font-size="20" fill="#b8c9d4">${escapeSvgText(description[0])}</text>
+        <text x="58" y="375" font-size="20" fill="#b8c9d4">${escapeSvgText(description[1])}</text>
+
+        <rect x="58" y="418" width="186" height="52" rx="13" fill="#19bdaa"/>
+        <text x="91" y="451" font-size="18" font-weight="700" fill="#ffffff">Start free trial</text>
+        <text x="218" y="451" font-size="22" font-weight="700" fill="#ffffff">→</text>
+
+        <text x="58" y="515" font-size="15" fill="#90a7b4">✓ 7-day trial</text>
+        <text x="173" y="515" font-size="15" fill="#90a7b4">✓ 9 supported platforms</text>
+        <text x="365" y="515" font-size="15" fill="#90a7b4">✓ No card required</text>
+
+        <rect x="506" y="112" width="664" height="397" rx="24" fill="#071a27" stroke="#2dd4bf" stroke-opacity=".28" filter="url(#shadow)"/>
+        <rect x="522" y="128" width="632" height="365" rx="15" fill="#03111a" stroke="#ffffff" stroke-opacity=".07"/>
+
+        <rect x="515" y="83" width="170" height="42" rx="12" fill="#0a2c39" stroke="#2dd4bf" stroke-opacity=".38"/>
+        <text x="531" y="101" font-size="12" fill="#8aa8b5">Bulk Scheduler</text>
+        <text x="531" y="117" font-size="13" font-weight="700" fill="#ffffff">Campaign ready</text>
+
+        <rect x="955" y="480" width="186" height="44" rx="12" fill="#0a2c39" stroke="#2dd4bf" stroke-opacity=".38"/>
+        <text x="971" y="499" font-size="12" fill="#8aa8b5">AI Content Studio</text>
+        <text x="971" y="515" font-size="13" font-weight="700" fill="#ffffff">Create faster</text>
+
+        <text x="58" y="590" font-size="16" font-weight="700" fill="#d7e7ed">www.inxsocial.co.uk</text>
+      </g>
+    </svg>`);
+
+    return sharp(overlay)
+      .composite([{ input: dashboard, left: 528, top: 136 }])
+      .jpeg({ quality: 91, chromaSubsampling: '4:4:4', progressive: true })
+      .toBuffer();
+  })().catch((error) => {
+    console.warn('[landing] social preview asset unavailable', { error: error?.message });
+    socialPreviewAssetPromise = null;
+    return null;
+  });
+
+  return socialPreviewAssetPromise;
+}
 const CANONICAL_BROWSER_HOST = 'www.inxsocial.co.uk';
 const MIGRATION_BROWSER_HOSTS = new Set(['social.inaxx.co.uk', 'inxsocial.co.uk']);
 const ANALYTICS_SCRIPT_TAG = '<script src="/analytics-consent.js?v=20260916a" defer></script>';
@@ -341,6 +441,19 @@ app.get(LANDING_DASHBOARD_ASSET_PATH, (req, res, next) => {
   res.type('image/webp');
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
   return res.send(landingDashboardAsset);
+});
+
+app.get(SOCIAL_PREVIEW_ASSET_PATH, async (req, res, next) => {
+  try {
+    const asset = await buildSocialPreviewAsset();
+    if (!asset) return next();
+    res.type('image/jpeg');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    return res.send(asset);
+  } catch (error) {
+    console.warn('[landing] social preview response failed', { error: error?.message });
+    return next();
+  }
 });
 
 app.use('/admin.css', express.static(path.join(publicRoot, 'admin.css'), { setHeaders: res => res.setHeader('Content-Type', 'text/css') }));

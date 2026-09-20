@@ -27,9 +27,11 @@ test('homepage exposes complete canonical SEO metadata', () => {
   assert.equal(landing.includes('<title>Social Media Management Platform, Scheduler &amp; AI | INXSocial</title>'), true);
   assert.match(landing, /<link rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/">/);
   assert.match(landing, /<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">/);
-  assert.match(landing, /og:image:type" content="image\/webp"/);
+  assert.match(landing, /og:image:type" content="image\/jpeg"/);
   assert.match(landing, /og:image:width" content="1200"/);
-  assert.match(landing, /og:image:height" content="675"/);
+  assert.match(landing, /og:image:height" content="630"/);
+  assert.match(landing, /og:image" content="https:\/\/www\.inxsocial\.co\.uk\/assets\/inxsocial-social-preview\.jpg"/);
+  assert.match(landing, /twitter:image" content="https:\/\/www\.inxsocial\.co\.uk\/assets\/inxsocial-social-preview\.jpg"/);
   assert.match(landing, /rel="preload" as="image" href="\/assets\/landing-dashboard-20260919\.webp"/);
   assert.match(landing, /"SoftwareApplication"/);
   assert.doesNotMatch(landing, /"url":"https:\/\/www\.inxsocial\.co\.uk\/#pricing"/);
@@ -137,4 +139,20 @@ test('canonical SEO pages retain resilient 200 fallbacks and deep internal links
   assert.match(seoPage, /primaryImageOfPage/);
   assert.match(seoPage, /INTRO_HEADINGS/);
   assert.match(seoPage, /HERO_IMAGE_ALTS/);
+});
+
+
+test('homepage social card is a dedicated JPEG hero preview served with crawler-safe headers', () => {
+  const app = readBackend('src/app.js');
+  const layout = readRepo('landing-next/app/layout.tsx');
+  assert.match(app, /SOCIAL_PREVIEW_ASSET_PATH = '\/assets\/inxsocial-social-preview\.jpg'/);
+  assert.match(app, /buildSocialPreviewAsset/);
+  assert.match(app, /resize\(620, 349/);
+  assert.match(app, /res\.type\('image\/jpeg'\)/);
+  assert.match(app, /max-age=31536000, immutable/);
+  assert.match(layout, /summary_large_image/);
+  assert.match(layout, /https:\/\/www\.inxsocial\.co\.uk\/assets\/inxsocial-social-preview\.jpg/);
+  assert.match(layout, /width: 1200/);
+  assert.match(layout, /height: 630/);
+  assert.match(layout, /type: "image\/jpeg"/);
 });
