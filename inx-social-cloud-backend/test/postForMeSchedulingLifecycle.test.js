@@ -18,7 +18,7 @@ test('Post for Me is the only new future-scheduling queue for web Posts and Bulk
   assert.match(bulkApi, /\/api\/social-connections\/publications/);
   assert.match(bulkApi, /source: 'BULK_SCHEDULER'/);
   assert.doesNotMatch(bulkApi, /\/api\/studio\/direct-posts/);
-  assert.match(studio, /Future scheduling uses the Post for Me publishing queue/);
+  assert.match(studio, /Future scheduling uses the universal publishing queue/);
   assert.doesNotMatch(server, /startCloudPublishingQueue|startScheduledPublishingRuntime/);
   assert.match(routes, /scheduled-media/);
   assert.match(routes, /controller\.updateScheduled/);
@@ -76,7 +76,7 @@ test('provider submission failures persist into Needs Review instead of remainin
   assert.match(publishing, /lastError: message/);
   assert.match(publishing, /await markBundleFailed\(bundle, error\)/);
   assert.match(publishing, /staleUnsubmittedText/);
-  assert.match(publishing, /No Post for Me schedule was created for this legacy attempt/);
+  assert.match(publishing, /No provider schedule was created for this legacy attempt/);
   assert.match(stats, /job\.status === 'FAILED'/);
   assert.match(stats, /Needs Review/);
 });
