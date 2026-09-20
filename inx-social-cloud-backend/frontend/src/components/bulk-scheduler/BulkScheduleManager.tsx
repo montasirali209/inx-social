@@ -1,7 +1,6 @@
-import { AlertTriangle, CalendarClock, CheckCircle2, Clock3, PencilLine, RefreshCw, RotateCcw, X } from 'lucide-react'
+import { AlertTriangle, CalendarClock, CheckCircle2, Clock3, PencilLine, RotateCcw, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { retryFailedScheduledPost } from '../../lib/posts-api'
 import type { DashboardJob } from '../../types/dashboard'
 import { Button } from '../ui/Button'
 import { ScheduledPostEditorModal } from '../posts/ScheduledPostEditorModal'
@@ -40,7 +39,7 @@ function reviewTitle(job: DashboardJob) {
 
 function reviewMessage(job: DashboardJob) {
   if (job.errorMessage) return job.errorMessage
-  if (!job.providerPostId) return 'Post for Me did not confirm a schedule for this item. It is safe to retry while the publishing time is still in the future.'
+  if (!job.providerPostId) return 'publishing provider did not confirm a schedule for this item. It is safe to retry while the publishing time is still in the future.'
   return 'The provider reported a publishing problem. Review the post before taking further action.'
 }
 
@@ -52,19 +51,19 @@ function statusPresentation(job: DashboardJob) {
   return { label: 'Processing', icon: Clock3, badge: 'border-brand-purple/25 bg-brand-purple/8 text-brand-purple', iconTone: 'border-brand-purple/20 bg-brand-purple/8 text-brand-purple' }
 }
 
-export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onChanged }: {
+export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onChanged, onRetryJobs }: {
   jobs: DashboardJob[]
   initialView: BulkHistoryView
   timezone: string
   onClose: () => void
   onChanged: () => Promise<unknown> | void
+  onRetryJobs: (jobs: DashboardJob[]) => void
 }) {
   const [view, setView] = useState<BulkHistoryView>(initialView)
   const [editing, setEditing] = useState<DashboardJob | null>(null)
-  const [retryingId, setRetryingId] = useState<string | null>(null)
-  const [retryError, setRetryError] = useState<string | null>(null)
   const deduped = useMemo(() => uniqueJobs(jobs), [jobs])
   const visible = useMemo(() => deduped.filter(job => matches(job, view)), [deduped, view])
+  const retryableJobs = useMemo(() => deduped.filter(job => job.status === 'FAILED' && !job.providerPostId), [deduped])
   const counts = useMemo(() => ({
     all: deduped.length,
     scheduled: deduped.filter(job => job.status === 'SCHEDULED').length,
@@ -73,27 +72,13 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
   }), [deduped])
   const tabs: Array<{ id: BulkHistoryView; label: string; detail: string; icon: typeof CalendarClock }> = [
     { id: 'all', label: 'All jobs', detail: 'Complete batch history', icon: Clock3 },
-    { id: 'scheduled', label: 'Scheduled', detail: 'Held by Post for Me', icon: CalendarClock },
+    { id: 'scheduled', label: 'Scheduled', detail: 'Held by publishing provider', icon: CalendarClock },
     { id: 'published', label: 'Published', detail: 'Successfully completed', icon: CheckCircle2 },
     { id: 'needs_review', label: 'Needs Review', detail: 'Action required', icon: AlertTriangle },
   ]
 
-  const retry = async (job: DashboardJob) => {
-    if (retryingId) return
-    setRetryingId(job.id)
-    setRetryError(null)
-    try {
-      await retryFailedScheduledPost(job.id)
-      await onChanged()
-    } catch (error) {
-      setRetryError(error instanceof Error ? error.message : 'This post could not be retried.')
-    } finally {
-      setRetryingId(null)
-    }
-  }
-
   return createPortal(
-    <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-[#01070d]/88 p-3 backdrop-blur-md sm:p-5" onMouseDown={event => { if (event.currentTarget === event.target && !editing && !retryingId) onClose() }}>
+    <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-[#01070d]/88 p-3 backdrop-blur-md sm:p-5" onMouseDown={event => { if (event.currentTarget === event.target && !editing) onClose() }}>
       <section aria-modal="true" className="my-auto flex max-h-[min(900px,calc(100dvh-2rem))] w-full max-w-7xl flex-col overflow-hidden rounded-[22px] border border-brand-cyan/25 bg-panel shadow-[0_38px_150px_rgba(0,0,0,.74)]" role="dialog">
         <header className="border-b border-border-soft bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,.10),transparent_42%),linear-gradient(135deg,rgba(10,30,44,.98),rgba(6,18,29,.98))] p-5 sm:p-6">
           <div className="flex items-start gap-3">
@@ -102,7 +87,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
               <h2 className="text-lg font-semibold sm:text-xl">Bulk schedule manager</h2>
               <p className="mt-1 max-w-3xl text-xs leading-5 text-text-muted">Review provider-held schedules, completed posts and anything that needs attention. Failed submissions stay visible here until you retry or recreate them.</p>
             </div>
-            <button aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-lg border border-transparent text-text-muted transition hover:border-border-soft hover:bg-white/5 hover:text-white" disabled={Boolean(retryingId)} onClick={onClose} type="button"><X className="size-4" /></button>
+            <button aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-lg border border-transparent text-text-muted transition hover:border-border-soft hover:bg-white/5 hover:text-white" onClick={onClose} type="button"><X className="size-4" /></button>
           </div>
 
           <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -113,7 +98,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
                 aria-pressed={selected}
                 className={`group rounded-xl border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${selected ? attention ? 'border-brand-amber/45 bg-brand-amber/[.08]' : 'border-brand-cyan/40 bg-brand-cyan/[.07]' : 'border-border-soft bg-black/10 hover:border-brand-cyan/25 hover:bg-white/[.025]'}`}
                 key={id}
-                onClick={() => { setView(id); setRetryError(null) }}
+                onClick={() => setView(id)}
                 type="button"
               >
                 <span className="flex items-center gap-3">
@@ -127,10 +112,9 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
 
         {view === 'needs_review' && counts.needs_review > 0 && <div className="mx-5 mt-4 flex items-start gap-3 rounded-xl border border-brand-amber/25 bg-brand-amber/[.055] px-4 py-3 sm:mx-6">
           <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-amber/10 text-brand-amber"><AlertTriangle className="size-4" /></span>
-          <div className="min-w-0"><strong className="text-xs text-text-main">{counts.needs_review} post{counts.needs_review === 1 ? '' : 's'} need attention</strong><p className="mt-1 text-[10px] leading-5 text-text-muted">These posts were not confirmed as scheduled or published by the provider. A retry is safe when there is no Post for Me ID and the original scheduled time is still in the future.</p></div>
+          <div className="min-w-0 flex-1"><strong className="text-xs text-text-main">{counts.needs_review} post{counts.needs_review === 1 ? '' : 's'} need attention</strong><p className="mt-1 text-[10px] leading-5 text-text-muted">These posts were not confirmed as scheduled or published. Retryable items can be sent back through the main Batch Run so progress and any new errors stay visible.</p></div>
+          {retryableJobs.length > 1 && <Button className="shrink-0" onClick={() => onRetryJobs(retryableJobs)} size="sm" type="button" variant="primary"><RotateCcw className="size-3.5" />Retry All ({retryableJobs.length})</Button>}
         </div>}
-
-        {retryError && <div className="mx-5 mt-3 rounded-xl border border-brand-red/25 bg-brand-red/[.06] px-4 py-3 text-xs text-brand-red sm:mx-6">{retryError}</div>}
 
         <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
           {visible.length ? <div className="grid gap-3">{visible.map(job => {
@@ -166,7 +150,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
 
                 <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
                   {editable && <Button className="min-h-9 px-3 text-[10px]" onClick={() => setEditing(job)} size="sm" type="button" variant="primary"><PencilLine className="size-3.5" />Edit schedule</Button>}
-                  {retryable && <Button className="min-h-9 px-3 text-[10px]" disabled={Boolean(retryingId)} onClick={() => void retry(job)} size="sm" type="button" variant="primary">{retryingId === job.id ? <RefreshCw className="size-3.5 animate-spin" /> : <RotateCcw className="size-3.5" />}{retryingId === job.id ? 'Retrying…' : 'Retry now'}</Button>}
+                  {retryable && <Button className="min-h-9 px-3 text-[10px]" onClick={() => onRetryJobs([job])} size="sm" type="button" variant="primary"><RotateCcw className="size-3.5" />Retry now</Button>}
                 </div>
               </div>
             </article>
