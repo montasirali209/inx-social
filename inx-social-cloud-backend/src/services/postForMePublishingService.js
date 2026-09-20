@@ -506,7 +506,7 @@ function publicationToJob(publication) {
     localFileName: meta.originalFileName || null,
     scheduledAt: publication.scheduledAt?.toISOString() || null,
     completedAt: publication.publishedAt?.toISOString() || null,
-    errorMessage: publication.lastError || (staleUnsubmittedText ? 'This text post was prepared in INX Social but was not accepted by Post for Me. Review and retry it.' : null),
+    errorMessage: publication.lastError || (staleUnsubmittedText ? 'No Post for Me schedule was created for this legacy attempt. The original provider response was not stored. Retry the post to submit it again.' : null),
     mediaLibraryAssetId: meta.mediaLibraryAssetId || null,
     metaPostId: result.platformPostId || null,
     metaVideoId: null,
