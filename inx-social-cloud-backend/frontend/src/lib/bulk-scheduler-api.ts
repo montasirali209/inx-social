@@ -37,7 +37,7 @@ export async function fetchBulkSchedulerData(): Promise<BulkSchedulerData> {
   return {
     destinations: universalDestinations(connections),
     platforms: platformResult.platforms,
-    jobs: jobResult.jobs,
+    jobs: (jobResult.jobs || []).filter((job) => job.source === 'BULK_SCHEDULER'),
     settings: { approvalRequired: settings.approvalRequired, defaultScheduleTimes: settings.defaultScheduleTimes, timezone: settings.timezone },
   }
 }
