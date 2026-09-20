@@ -186,3 +186,11 @@ export function replaceScheduledPostMedia(jobId: string, file: File, onProgress:
 export function cancelScheduledPost(jobId: string) {
   return dismissPostJob(jobId)
 }
+
+
+export function retryFailedScheduledPost(jobId: string) {
+  return apiRequest<{ job: import('../types/dashboard').DashboardJob; retried: true }>(
+    `/api/social-connections/publications/${encodeURIComponent(jobId)}/retry`,
+    { method: 'POST' },
+  )
+}
