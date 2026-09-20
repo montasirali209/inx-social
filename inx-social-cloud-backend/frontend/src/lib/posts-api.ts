@@ -147,3 +147,42 @@ export function uploadDirectPostMedia(jobId: string, file: File, onProgress: (pe
     request.send(file)
   })
 }
+
+
+export function updateScheduledPost(jobId: string, input: { title?: string | null; caption?: string; scheduledAt?: string }) {
+  return apiRequest<{ ok: boolean; publicationId: string; providerPostId: string; providerStatus: string; scheduledAt: string; caption: string; title: string | null }>(
+    `/api/social-connections/publications/${encodeURIComponent(jobId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+  )
+}
+
+export function replaceScheduledPostMedia(jobId: string, file: File, onProgress: (percent: number) => void): Promise<{ ok: boolean; mediaReplaced: boolean }> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest()
+    request.open('PUT', `/api/social-connections/publications/${encodeURIComponent(jobId)}/scheduled-media`)
+    request.withCredentials = true
+    request.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+    request.setRequestHeader('X-File-Name', file.name)
+    const token = getStoredAuthToken()
+    if (token) request.setRequestHeader('Authorization', `Bearer ${token}`)
+    request.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) onProgress(Math.round((event.loaded / event.total) * 100))
+    })
+    request.addEventListener('load', () => {
+      let payload: unknown
+      try { payload = JSON.parse(request.responseText || '{}') } catch { payload = null }
+      if (request.status >= 200 && request.status < 300) return resolve(payload as { ok: boolean; mediaReplaced: boolean })
+      const message = payload && typeof payload === 'object' && 'error' in payload ? String(payload.error) : `Media replacement failed (HTTP ${request.status}).`
+      reject(new Error(message))
+    })
+    request.addEventListener('error', () => reject(new Error('The replacement media upload connection was interrupted.')))
+    request.send(file)
+  })
+}
+
+export function cancelScheduledPost(jobId: string) {
+  return dismissPostJob(jobId)
+}
