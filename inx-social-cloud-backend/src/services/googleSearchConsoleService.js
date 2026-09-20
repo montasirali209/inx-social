@@ -301,7 +301,7 @@ async function completeOAuth(query) {
     }
   });
 
-  return { connection, sites };
+  return { connection, sites, adminUserId: String(state.sub) };
 }
 
 async function status() {
