@@ -3,7 +3,7 @@ const { requireAuth } = require('../middleware/authMiddleware');
 const postForMeController = require('../controllers/postForMeController');
 const socialPublicationRoutes = require('./socialPublicationRoutes');
 
-// Post for Me owns every active social connection and publishing path.
+// The social publishing gateway owns every active social connection and publishing path.
 router.get('/post-for-me/callback', postForMeController.callback);
 router.post('/post-for-me/webhook', postForMeController.webhook);
 router.use('/publications', socialPublicationRoutes);
