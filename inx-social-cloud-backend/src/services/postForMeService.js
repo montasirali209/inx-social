@@ -68,7 +68,7 @@ function configured() {
 
 function requireConfigured() {
   if (!configured()) {
-    const message = 'Post for Me is not configured on the INXSocial backend.';
+    const message = 'The social publishing gateway is not configured on the INX Social backend.';
     throw Object.assign(new Error(message), {
       status: 503,
       publicMessage: message,
@@ -176,7 +176,7 @@ async function apiRequest(method, path, options = {}) {
         ? rawError.join(' · ')
         : typeof rawError === 'string'
           ? rawError
-          : raw?.message || (rawError && typeof rawError === 'object' ? rawError.message : null) || error.message || 'Post for Me request failed.';
+          : raw?.message || (rawError && typeof rawError === 'object' ? rawError.message : null) || error.message || 'Social publishing request failed.';
       throw Object.assign(new Error(String(message)), {
         status,
         publicMessage: String(message).slice(0, 500),
@@ -244,7 +244,7 @@ async function createAuthUrl(userId, requestedPlatform, input = {}) {
   if (redirectOverride) body.redirect_url_override = redirectOverride;
 
   const data = await apiRequest('POST', '/social-accounts/auth-url', { data: body });
-  if (!data?.url) throw Object.assign(new Error('Post for Me did not return an authorization URL.'), { status: 502 });
+  if (!data?.url) throw Object.assign(new Error('The social publishing gateway did not return an authorization URL.'), { status: 502 });
   return { authorizationUrl: data.url, platform, providerEngine: PROVIDER_ENGINE };
 }
 
@@ -285,9 +285,9 @@ function profileType(platform, rawPlatform) {
 }
 
 async function upsertProviderAccount(userId, account) {
-  if (!account?.id) throw new Error('Post for Me account is missing its identifier.');
+  if (!account?.id) throw new Error('The social publishing account is missing its identifier.');
   if (String(account.external_id || '') !== String(userId)) {
-    throw Object.assign(new Error('Post for Me returned an account outside this INXSocial workspace.'), { status: 403 });
+    throw Object.assign(new Error('The social publishing gateway returned an account outside this INX Social workspace.'), { status: 403 });
   }
 
   const rawPlatform = providerPlatform(account);
@@ -495,7 +495,7 @@ async function disconnect(userId, connectionId) {
   }
 
   const postForMeAccountId = String(metadata.postForMeAccountId || connection.externalAccountId || '');
-  if (!postForMeAccountId) throw Object.assign(new Error('The Post for Me account mapping is missing.'), { status: 409 });
+  if (!postForMeAccountId) throw Object.assign(new Error('The social publishing account mapping is missing.'), { status: 409 });
 
   try {
     await apiRequest('POST', `/social-accounts/${encodeURIComponent(postForMeAccountId)}/disconnect`);
@@ -540,7 +540,7 @@ async function ensureWebhook() {
     }
   }
 
-  if (!webhook?.secret) throw new Error('Post for Me webhook registration did not return a verification secret.');
+  if (!webhook?.secret) throw new Error('Social publishing webhook registration did not return a verification secret.');
   runtimeWebhookId = String(webhook.id || '');
   runtimeWebhookSecret = String(webhook.secret);
   return { id: runtimeWebhookId, url, eventTypes: [...WEBHOOK_EVENTS] };
