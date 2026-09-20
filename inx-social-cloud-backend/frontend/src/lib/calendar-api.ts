@@ -10,7 +10,8 @@ type JobsResponse = { jobs: DashboardJob[] }
 function calendarStatus(status: BackendJobStatus): CalendarPostStatus {
   if (status === 'PUBLISHED') return 'published'
   if (status === 'SCHEDULED' || status === 'PROCESSING' || status === 'QUEUED') return 'scheduled'
-  if (status === 'FAILED' || status === 'CANCELLED') return 'failed'
+  if (status === 'FAILED') return 'needs_review'
+  if (status === 'CANCELLED') return 'failed'
   if (status === 'AWAITING_UPLOAD' || status === 'READY') return 'needs_review'
   return 'draft'
 }
@@ -45,6 +46,7 @@ function jobPost(job: DashboardJob, timeZone: string, source: CalendarPost['sour
     jobId: job.id,
     providerPostId: job.providerPostId || job.metaPostId || null,
     platformUrl: job.platformUrl || null,
+    errorMessage: job.errorMessage || null,
   }
 }
 
@@ -124,6 +126,7 @@ function feedPost(entry: CalendarFeedEntry, item: PlatformAnalytics['content'][n
     jobId: null,
     providerPostId: item.id,
     platformUrl: item.permalinkUrl,
+    errorMessage: null,
   }
 }
 
