@@ -13,10 +13,10 @@ test('landing response applies SEO title, description and render-critical styles
   assert.equal(landing.includes('landing-redesign.css?v=20260919a'), true);
   assert.equal(landing.includes('landing.js?v=20260918d'), true);
   assert.equal(
-    landing.includes('<title>Social Media Scheduler &amp; AI Content Studio | INXSocial</title>'),
+    landing.includes('<title>Social Media Management Platform, Scheduler &amp; AI | INXSocial</title>'),
     true
   );
-  assert.match(landing, /Create, bulk schedule and analyse social media from one workspace/);
+  assert.match(landing, /Manage, create, bulk schedule and analyse social media in one workspace/);
   assert.match(landing, /inx-social-wordmark\.png/);
   assert.match(landing, /rel="preload" as="image" href="\/assets\/landing-dashboard-20260919\.webp"/);
   assert.match(app, /return injectAnalyticsConsent\(source\)/);

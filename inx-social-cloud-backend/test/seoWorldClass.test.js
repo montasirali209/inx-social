@@ -1,0 +1,103 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const backendRoot = path.join(__dirname, '..');
+const repoRoot = path.join(backendRoot, '..');
+const readBackend = relative => fs.readFileSync(path.join(backendRoot, relative), 'utf8');
+const readRepo = relative => fs.readFileSync(path.join(repoRoot, relative), 'utf8');
+
+test('homepage entity graph cleanly separates company, brand, website and software', () => {
+  const schema = JSON.parse(readRepo('landing-next/public/schema.json'));
+  const graph = schema['@graph'];
+  const organization = graph.find(item => item['@type'] === 'Organization');
+  const brand = graph.find(item => item['@type'] === 'Brand');
+  const website = graph.find(item => item['@type'] === 'WebSite');
+  const webpage = graph.find(item => item['@type'] === 'WebPage');
+  const software = graph.find(item => Array.isArray(item['@type']) && item['@type'].includes('SoftwareApplication'));
+  assert.equal(organization['@id'], 'https://inaxx.co.uk/#organization');
+  assert.equal(organization.name, 'INAXX LTD');
+  assert.equal(organization.logo, undefined);
+  assert.equal(brand['@id'], 'https://www.inxsocial.co.uk/#brand');
+  assert.match(brand.logo, /inx-social-logo\.png$/);
+  assert.equal(website.publisher['@id'], organization['@id']);
+  assert.equal(software.brand['@id'], brand['@id']);
+  assert.equal(software.publisher['@id'], organization['@id']);
+  assert.equal(webpage.about['@id'], software['@id']);
+  assert.equal(webpage.primaryImageOfPage.width, 1200);
+  assert.equal(webpage.primaryImageOfPage.height, 675);
+  assert.equal(webpage.dateModified, '2026-09-20');
+});
+
+test('homepage targets social media management intent with search-snippet-safe metadata', () => {
+  const landing = readBackend('public/landing.html');
+  const title = landing.match(/<title>(.*?)<\/title>/)?.[1] || '';
+  const description = landing.match(/<meta name="description" content="([^"]+)"/)?.[1] || '';
+  assert.equal(title, 'Social Media Management Platform, Scheduler &amp; AI | INXSocial');
+  assert.ok(title.replace(/&amp;/g, '&').length <= 60);
+  assert.ok(description.length >= 140 && description.length <= 160);
+  assert.match(description, /multi-platform publishing/i);
+  assert.match(description, /AI content creation/i);
+});
+
+test('feature SEO titles and descriptions are unique and bounded for SERP snippets', () => {
+  const source = readRepo('landing-next/lib/seo-pages.ts');
+  const matches = [...source.matchAll(/title:\s*"([^"]+)"[\s\S]{0,350}?metaDescription:\s*\n?\s*"([^"]+)"/g)];
+  assert.equal(matches.length, 10);
+  const titles = matches.map(match => match[1]);
+  const descriptions = matches.map(match => match[2]);
+  assert.equal(new Set(titles).size, titles.length);
+  assert.equal(new Set(descriptions).size, descriptions.length);
+  for (const title of titles) assert.ok(title.length >= 35 && title.length <= 65, `Title length out of range: ${title.length} — ${title}`);
+  for (const description of descriptions) assert.ok(description.length >= 120 && description.length <= 165, `Meta description length out of range: ${description.length} — ${description}`);
+});
+
+test('canonical acquisition pages stay indexable if the Next landing service is unavailable', () => {
+  const app = readBackend('src/app.js');
+  assert.match(app, /buildSeoFallbackDocuments/);
+  assert.match(app, /legacy-seo-fallback/);
+  assert.match(app, /canonical static fallback/);
+  assert.doesNotMatch(app, /res\.redirect\(302, SEO_MARKETING_ROUTES/);
+  assert.match(app, /res\.redirect\(308,/);
+});
+
+test('duplicate Railway host is noindex while canonical host handling remains explicit', () => {
+  const app = readBackend('src/app.js');
+  assert.match(app, /CANONICAL_BROWSER_HOST = 'www\.inxsocial\.co\.uk'/);
+  assert.match(app, /MIGRATION_BROWSER_HOSTS/);
+  assert.match(app, /host\.endsWith\('\.up\.railway\.app'\)/);
+  assert.match(app, /X-Robots-Tag', 'noindex, nofollow, noarchive'/);
+});
+
+test('homepage passes contextual authority into every live AI acquisition page', () => {
+  const landing = readBackend('public/landing.html');
+  for (const route of [
+    '/ai-social-media-post-generator',
+    '/ai-carousel-post-generator',
+    '/ai-video-post-generator',
+    '/ai-ugc-ad-generator'
+  ]) assert.equal(landing.includes(`class="ai-feature-link" href="${route}"`), true, route);
+});
+
+test('feature pages carry complete entities, breadcrumbs, image data and expanded headings', () => {
+  const page = readRepo('landing-next/app/seo/[slug]/page.tsx');
+  assert.match(page, /"@type": "Organization"/);
+  assert.match(page, /"@type": "Brand"/);
+  assert.match(page, /"@type": "WebSite"/);
+  assert.match(page, /"@type": \["SoftwareApplication", "WebApplication"\]/);
+  assert.match(page, /primaryImageOfPage/);
+  assert.match(page, /BreadcrumbList/);
+  assert.match(page, /FAQPage/);
+  assert.match(page, /INTRO_HEADINGS/);
+  assert.match(page, /HERO_IMAGE_ALTS/);
+  assert.doesNotMatch(page, /<h2>\{page\.h1\}<\/h2>/);
+});
+
+test('sitemap exposes only canonical acquisition URLs with current modification dates', () => {
+  const sitemap = readBackend('public/sitemap.xml');
+  assert.equal((sitemap.match(/<url>/g) || []).length, 11);
+  assert.equal((sitemap.match(/<lastmod>2026-09-20<\/lastmod>/g) || []).length, 11);
+  assert.doesNotMatch(sitemap, /\.html<\/loc>/);
+  assert.doesNotMatch(sitemap, /social\.inaxx\.co\.uk|up\.railway\.app/);
+});

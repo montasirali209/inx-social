@@ -10,7 +10,7 @@ test('public landing exposes consistent canonical search and social metadata', (
   const html = read('public/landing.html');
 
   assert.equal(
-    html.includes('<title>Social Media Scheduler &amp; AI Content Studio | INXSocial</title>'),
+    html.includes('<title>Social Media Management Platform, Scheduler &amp; AI | INXSocial</title>'),
     true
   );
   assert.match(html, /<link rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/">/);

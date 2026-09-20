@@ -24,14 +24,14 @@ const canonicalRoutes = [
 test('homepage exposes complete canonical SEO metadata', () => {
   const landing = readBackend('public/landing.html');
 
-  assert.match(landing, /<title>Social Media Scheduler &amp; AI Content Studio \| INXSocial<\/title>/);
+  assert.equal(landing.includes('<title>Social Media Management Platform, Scheduler &amp; AI | INXSocial</title>'), true);
   assert.match(landing, /<link rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/">/);
   assert.match(landing, /<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">/);
   assert.match(landing, /og:image:type" content="image\/webp"/);
   assert.match(landing, /og:image:width" content="1200"/);
   assert.match(landing, /og:image:height" content="675"/);
   assert.match(landing, /rel="preload" as="image" href="\/assets\/landing-dashboard-20260919\.webp"/);
-  assert.match(landing, /"@type":\["SoftwareApplication","WebApplication"\]/);
+  assert.match(landing, /"SoftwareApplication"/);
   assert.doesNotMatch(landing, /"url":"https:\/\/www\.inxsocial\.co\.uk\/#pricing"/);
 });
 
@@ -105,7 +105,36 @@ test('Next marketing layer has unique page content, metadata and duplicate-index
   assert.match(seoPage, /FAQPage/);
   assert.match(seoPage, /fetchPriority="high"/);
   assert.match(nextRobots, /Disallow: \//);
-  assert.match(layout, /Social Media Scheduler & AI Content Studio \| INXSocial/);
+  assert.equal(layout.includes('Social Media Management Platform, Scheduler & AI | INXSocial'), true);
   assert.match(layout, /landing-dashboard-20260919\.webp/);
   assert.doesNotMatch(layout, /inx-social-dashboard\.jpg/);
+});
+
+
+test('canonical SEO pages retain resilient 200 fallbacks and deep internal links', () => {
+  const app = readBackend('src/app.js');
+  const landing = readBackend('public/landing.html');
+  const seoPage = readRepo('landing-next/app/seo/[slug]/page.tsx');
+
+  assert.match(app, /buildSeoFallbackDocuments/);
+  assert.match(app, /legacy-seo-fallback/);
+  assert.doesNotMatch(app, /res\.redirect\(302, SEO_MARKETING_ROUTES/);
+  assert.match(app, /res\.redirect\(308,/);
+
+  for (const href of [
+    '/ai-social-media-post-generator',
+    '/ai-carousel-post-generator',
+    '/ai-video-post-generator',
+    '/ai-ugc-ad-generator'
+  ]) {
+    assert.equal(landing.includes(`href="${href}"`), true, `${href} should receive a contextual homepage link`);
+  }
+
+  for (const entity of ['Organization','Brand','WebSite','SoftwareApplication','BreadcrumbList','FAQPage']) {
+    assert.equal(seoPage.includes(`"@type": "${entity}"`) || seoPage.includes(`"@type": ["SoftwareApplication", "WebApplication"]`), true, `${entity} should be represented in SEO page schema`);
+  }
+
+  assert.match(seoPage, /primaryImageOfPage/);
+  assert.match(seoPage, /INTRO_HEADINGS/);
+  assert.match(seoPage, /HERO_IMAGE_ALTS/);
 });
