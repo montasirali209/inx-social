@@ -434,6 +434,52 @@ async function attachLibraryMedia(userId, rawPublicationId) {
   return publicationToJob(fresh);
 }
 
+async function retryPublication(userId, rawPublicationId) {
+  const bundle = await bundleForPublication(userId, rawPublicationId);
+  if (bundle.publications.some((item) => item.externalPostId)) {
+    throw Object.assign(new Error('This post already has a Post for Me schedule and cannot be retried as a new submission.'), {
+      status: 409,
+      publicMessage: 'This post already has a Post for Me schedule.'
+    });
+  }
+  if (!bundle.publications.some((item) => item.status === 'FAILED' || item.status === 'READY')) {
+    throw Object.assign(new Error('Only failed or incomplete provider submissions can be retried.'), {
+      status: 409,
+      publicMessage: 'Only failed or incomplete provider submissions can be retried.'
+    });
+  }
+
+  const scheduledAt = bundle.input.scheduledAt ? validateScheduledAt(bundle.input.scheduledAt) : null;
+  bundle.input = { ...bundle.input, scheduledAt };
+  const meta = json(bundle.publication.mediaJson, {});
+  const providerMedia = Array.isArray(meta.providerMedia) ? meta.providerMedia.filter((item) => item?.url) : [];
+  if (String(bundle.input.contentType || 'TEXT').toUpperCase() !== 'TEXT' && !providerMedia.length) {
+    throw Object.assign(new Error('The original media is no longer attached to this failed post. Recreate the media post from Bulk Scheduler.'), {
+      status: 409,
+      publicMessage: 'The original media is no longer attached to this failed post. Recreate the media post from Bulk Scheduler.'
+    });
+  }
+
+  await prisma.socialPublication.updateMany({
+    where: { id: { in: bundle.publications.map((publication) => publication.id) } },
+    data: { status: 'READY', lastError: null }
+  });
+  await prisma.socialContent.update({ where: { id: bundle.content.id }, data: { status: 'PROCESSING' } }).catch(() => {});
+
+  try {
+    await submitBundle(bundle, providerMedia);
+  } catch (error) {
+    await markBundleFailed(bundle, error);
+    throw error;
+  }
+
+  const fresh = await prisma.socialPublication.findUnique({
+    where: { id: bundle.publication.id },
+    include: { content: true, profile: true }
+  });
+  return publicationToJob(fresh);
+}
+
 function publicationToJob(publication) {
   const meta = json(publication.mediaJson, {});
   const result = json(publication.metricsJson, {});
@@ -588,5 +634,6 @@ module.exports = {
   uploadBuffer,
   uploadStream,
   attachMediaStream,
-  validateScheduledAt
+  validateScheduledAt,
+  retryPublication
 };
