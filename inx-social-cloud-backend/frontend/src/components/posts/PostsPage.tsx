@@ -415,7 +415,7 @@ export function PostsPage() {
               percent: filePercent,
               message: mode === 'now'
                 ? `Uploading ${publishingMedia!.fileName} for immediate publishing…`
-                : `Securing ${publishingMedia!.fileName} in the INX Social publishing queue…`,
+                : `Uploading ${publishingMedia!.fileName} to the Post for Me schedule…`,
             }))
           } catch {
             mediaFailures = 1
@@ -425,7 +425,7 @@ export function PostsPage() {
       const failed = response.failures.length + mediaFailures
       const successMessage = mode === 'now'
         ? `${response.jobs.length} destination${response.jobs.length === 1 ? '' : 's'} published successfully.`
-        : `Scheduled successfully. INX Social will hold this content securely and send it to the selected destination${response.jobs.length === 1 ? '' : 's'} when the publishing time arrives.`
+        : `Scheduled successfully with Post for Me. You can edit the caption, media or publishing time until the post begins processing.`
       setProgress({ state: failed ? 'failed' : 'completed', percent: 100, message: failed ? `${Math.max(0, response.jobs.length - failed)} destinations completed; ${failed} failed. Review Needs Review for details.` : successMessage })
       if (!failed) {
         window.localStorage.removeItem(composerSessionKey)
@@ -465,7 +465,7 @@ export function PostsPage() {
         <PostPreviewPanel caption={caption} media={media} selectedPage={null} />
       </div>
       {draftLibraryOpen && <DraftLibraryModal drafts={drafts} onClose={() => setDraftLibraryOpen(false)} onDelete={deleteDraft} onLoad={loadDraft} pages={[]} />}
-      {postLibraryView && <PostReuseModal initialView={postLibraryView} jobs={reusableJobs} loadingExternal={false} onClose={() => setPostLibraryView(null)} onReuse={reusePost} />}
+      {postLibraryView && <PostReuseModal initialView={postLibraryView} jobs={reusableJobs} loadingExternal={false} onClose={() => setPostLibraryView(null)} onReuse={reusePost} timezone={workspaceData.settings.timezone} />}
       <PublishConfirmationDialog
         busy={progress.state === 'preparing' || progress.state === 'uploading'}
         confirmLabel={mode === 'now' ? 'Publish now' : 'Confirm schedule'}
