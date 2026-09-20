@@ -5,7 +5,7 @@ import { ApiError } from '../../lib/api-client'
 import { createBulkMediaPost, fetchBulkSchedulerData, publishBulkLibraryMedia, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
 import { fetchMediaAssetFile, uploadMediaAsset } from '../../lib/media-library-api'
 import { buildPublishingTimes, parseCaptions } from '../../lib/bulk-scheduler-utils'
-import type { BatchProgress, BulkSchedulerData, Destination, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
+import type { BatchProgress, BulkSchedulerData, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
 import type { MediaAsset } from '../../types/media-library'
 import { backendStatusToUploadStatus } from '../../types/bulk-scheduler'
 import { BatchRunPanel } from './BatchRunPanel'
@@ -20,7 +20,7 @@ import { PublishConfirmationDialog } from '../ui/PublishConfirmationDialog'
 const idleProgress: BatchProgress = { state: 'idle', percent: 0, current: 0, total: 0, completed: 0, failed: 0, message: 'Select destinations and media, add captions, then choose a timing mode.' }
 
 const immediateSchedulerData: BulkSchedulerData = {
-  pages: [],
+  destinations: [],
   platforms: [],
   jobs: [],
   settings: { approvalRequired: false, defaultScheduleTimes: ['10:00'], timezone: 'Europe/London' },
@@ -29,19 +29,6 @@ const immediateSchedulerData: BulkSchedulerData = {
 function initialDate() {
   const date = new Date(Date.now() + 24 * 60 * 60_000)
   return date.toISOString().slice(0, 10)
-}
-
-function pageDestinations(pages: Awaited<ReturnType<typeof fetchBulkSchedulerData>>['pages']): Destination[] {
-  return pages.map((page) => ({
-    id: page.id,
-    name: page.facebookPageName,
-    handle: page.facebookPageUsername ? `@${page.facebookPageUsername.replace(/^@/, '')}` : null,
-    platform: 'facebook',
-    type: page.facebookCategory ? `Facebook Page · ${page.facebookCategory}` : 'Facebook Page',
-    avatarUrl: page.facebookPagePicture || null,
-    connected: page.status === 'ACTIVE',
-    disabledReason: page.status === 'ACTIVE' ? null : page.lastError || 'Reconnect required',
-  }))
 }
 
 function titleFromFile(file: File) {
@@ -91,7 +78,7 @@ export function BulkSchedulerPage() {
     refetchInterval: results.some((result) => result.status === 'uploading') ? 8_000 : 15_000,
   })
   const schedulerData = scheduler.data || immediateSchedulerData
-  const destinations = useMemo(() => pageDestinations(schedulerData.pages), [schedulerData.pages])
+  const destinations = schedulerData.destinations
   const captionBlocks = useMemo(() => parseCaptions(captions), [captions])
   const activeScheduleTimes = timingMode === 'saved_schedule' ? schedulerData.settings.defaultScheduleTimes : scheduleTimes
 
@@ -246,10 +233,23 @@ export function BulkSchedulerPage() {
       return
     }
 
-    const actions = publishingMedia.flatMap((item, mediaIndex) => destinationIds.map((destinationId) => ({ item, mediaIndex, destinationId })))
-    const initialResults = actions.map((action, index): UploadResult => ({ id: `${action.item.id}:${action.destinationId}:${index}`, mediaId: action.item.id, mediaIndex: action.mediaIndex, jobId: null, fileName: action.item.file.name, mediaKind: action.item.kind, thumbnailUrl: action.item.previewUrl, destinationIds: [action.destinationId], status: 'waiting', resultId: null, errorMessage: null, scheduledAt: publishingTimes[action.mediaIndex] }))
+    const actions = publishingMedia.map((item, mediaIndex) => ({ item, mediaIndex }))
+    const initialResults = actions.map((action, index): UploadResult => ({
+      id: `${action.item.id}:${index}`,
+      mediaId: action.item.id,
+      mediaIndex: action.mediaIndex,
+      jobId: null,
+      fileName: action.item.file.name,
+      mediaKind: action.item.kind,
+      thumbnailUrl: action.item.previewUrl,
+      destinationIds,
+      status: 'waiting',
+      resultId: null,
+      errorMessage: null,
+      scheduledAt: publishingTimes[action.mediaIndex],
+    }))
     setResults(initialResults)
-    setProgress({ state: 'preparing', percent: 1, current: 0, total: actions.length, completed: 0, failed: 0, message: 'Preparing protected publishing jobs…' })
+    setProgress({ state: 'preparing', percent: 1, current: 0, total: actions.length, completed: 0, failed: 0, message: 'Preparing Post for Me publishing records…' })
     let completed = 0
     let failed = 0
 
@@ -261,7 +261,7 @@ export function BulkSchedulerPage() {
       try {
         setProgress({ state: 'preparing', percent: (index / actions.length) * 100, current: index + 1, total: actions.length, completed, failed, message: `Preparing ${action.item.file.name}…` })
         const prepared = await createBulkMediaPost({
-          connectedPageIds: [action.destinationId],
+          connectedPageIds: destinationIds,
           clientRequestId: `bulk-${crypto.randomUUID()}`,
           title: titleFromFile(action.item.file),
           caption,
@@ -274,19 +274,45 @@ export function BulkSchedulerPage() {
           publishMode: timingMode === 'publish_now' ? 'NOW' : 'SCHEDULED',
         })
         const job = prepared.jobs[0]
-        if (!job) throw new Error(prepared.failures[0]?.error || 'The media publishing job could not be prepared.')
-        setResults((current) => current.map((result) => result.id === resultId ? { ...result, jobId: job.id, status: 'uploading' } : result))
-        const uploaded = action.item.libraryAssetId
-          ? await publishBulkLibraryMedia(job.id)
-          : await uploadBulkMedia(job.id, action.item.file, {
-              signal: controller.signal,
-              onProgress: (loaded, total) => {
-                const actionPart = total ? loaded / total : 0
-                setProgress({ state: timingMode === 'publish_now' ? 'uploading' : 'scheduling', percent: ((index + actionPart) / actions.length) * 100, current: index + 1, total: actions.length, completed, failed, message: `${timingMode === 'publish_now' ? 'Publishing' : 'Securing for the publishing queue'} ${action.item.file.name}…` })
-              },
-            })
+        if (!job) throw new Error(prepared.failures[0]?.error || 'Post for Me could not prepare this publishing record.')
+        setResults((current) => current.map((result) => result.id === resultId ? {
+          ...result,
+          jobId: job.id,
+          status: prepared.uploadRequired ? 'uploading' : backendStatusToUploadStatus(job.status),
+          errorMessage: prepared.failures.length ? prepared.failures.map((failure) => failure.error).join(' · ') : null,
+        } : result))
+
+        let finalJob = job
+        if (prepared.uploadRequired) {
+          const uploaded = action.item.libraryAssetId
+            ? await publishBulkLibraryMedia(job.id)
+            : await uploadBulkMedia(job.id, action.item.file, {
+                signal: controller.signal,
+                onProgress: (loaded, total) => {
+                  const actionPart = total ? loaded / total : 0
+                  setProgress({
+                    state: timingMode === 'publish_now' ? 'uploading' : 'scheduling',
+                    percent: ((index + actionPart) / actions.length) * 100,
+                    current: index + 1,
+                    total: actions.length,
+                    completed,
+                    failed,
+                    message: timingMode === 'publish_now'
+                      ? `Publishing ${action.item.file.name}…`
+                      : `Uploading ${action.item.file.name} to the Post for Me schedule…`,
+                  })
+                },
+              })
+          finalJob = uploaded.job
+        }
+
         completed += 1
-        setResults((current) => current.map((result) => result.id === resultId ? { ...result, status: backendStatusToUploadStatus(uploaded.job.status), resultId: uploaded.job.metaPostId || uploaded.job.metaVideoId || null, errorMessage: null } : result))
+        setResults((current) => current.map((result) => result.id === resultId ? {
+          ...result,
+          status: backendStatusToUploadStatus(finalJob.status),
+          resultId: finalJob.providerPostId || finalJob.metaPostId || finalJob.metaVideoId || null,
+          errorMessage: prepared.failures.length ? prepared.failures.map((failure) => failure.error).join(' · ') : null,
+        } : result))
       } catch (error) {
         const stopped = error instanceof DOMException && error.name === 'AbortError'
         if (stopped) {
@@ -300,9 +326,23 @@ export function BulkSchedulerPage() {
 
     const stopped = controller.signal.aborted
     if (stopped) setResults((current) => current.map((result) => result.status === 'waiting' ? { ...result, status: 'blocked', errorMessage: 'Not started because the batch was stopped.' } : result))
-    setProgress({ state: stopped ? 'stopped' : failed === actions.length ? 'failed' : 'completed', percent: stopped ? ((completed + failed) / actions.length) * 100 : 100, current: completed + failed, total: actions.length, completed, failed, message: stopped ? 'Upload stopped. Unstarted actions were blocked safely.' : failed ? `Batch finished with ${failed} failed action${failed === 1 ? '' : 's'}.` : timingMode === 'publish_now' ? 'Every file was accepted for publishing.' : 'Every file is secured in the INX Social queue and will be sent to the destination at its scheduled time.' })
+    setProgress({
+      state: stopped ? 'stopped' : failed === actions.length ? 'failed' : 'completed',
+      percent: stopped ? ((completed + failed) / actions.length) * 100 : 100,
+      current: completed + failed,
+      total: actions.length,
+      completed,
+      failed,
+      message: stopped
+        ? 'Upload stopped. Unstarted posts were blocked safely.'
+        : failed
+          ? `Batch finished with ${failed} failed post${failed === 1 ? '' : 's'}.`
+          : timingMode === 'publish_now'
+            ? 'Every media item was accepted for publishing.'
+            : 'Every future post is scheduled with Post for Me. You can edit its caption, media or publishing time until processing begins.',
+    })
     abortRef.current = null
-    scheduler.refetch()
+    await scheduler.refetch()
   }
 
   const retryFailedUpload = async (result: UploadResult) => {
