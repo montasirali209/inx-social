@@ -62,7 +62,7 @@ test('Phase 13.4 uses universal Post for Me publishing state without sample cale
   assert.doesNotMatch(`${api}${page}`, /\/api\/studio\/facebook\/scheduled-posts|Product Update|Customer Story|Industry Insight|May 12, 2025/);
 });
 
-test('Content Calendar opens platform posts and manages both local queue and provider schedules', () => {
+test('Content Calendar opens platform posts and manages Post for Me plus legacy direct schedules', () => {
   const api = read('frontend/src/lib/calendar-api.ts');
   const page = read('frontend/src/components/calendar/ContentCalendarPage.tsx');
   const grid = read('frontend/src/components/calendar/CalendarGrid.tsx');
@@ -73,7 +73,7 @@ test('Content Calendar opens platform posts and manages both local queue and pro
   assert.match(selected, /Open on \{platformLabel\}/);
   assert.match(selected, /canManageSchedule/);
   assert.match(selected, /Remove scheduled post/);
-  assert.match(dialog, /server-side queue/);
+  assert.match(dialog, /provider-held publishing time/);
   assert.match(api, /rescheduleCalendarPost/);
   assert.match(api, /deleteCalendarPost/);
   assert.match(api, /post\.source === 'inx'/);
