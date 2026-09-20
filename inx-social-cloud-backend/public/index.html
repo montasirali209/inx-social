@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=7">
+  <link rel="stylesheet" href="/admin.css?v=8">
   <link rel="stylesheet" href="/admin-security.css?v=1">
 </head>
 <body>
@@ -35,6 +35,7 @@
       <button class="nav active" data-page="overview"><span>◫</span>Overview</button>
       <button class="nav" data-page="users"><span>◎</span>Customers <i id="userAlertBadge" hidden>0</i></button>
       <button class="nav" data-page="aiAccess"><span>✦</span>AI &amp; Automation</button>
+      <button class="nav" data-page="searchConsole"><span>⌕</span>Search Console</button>
       <button class="nav" data-page="settings"><span>⚙</span>System Settings</button>
       <button class="nav" data-page="security"><span>⌾</span>Admin &amp; Security</button>
     </nav>
@@ -122,6 +123,79 @@
       </details>
     </section>
 
+    <section class="page hidden" id="searchConsolePage">
+      <div class="section-head gsc-heading">
+        <div><span class="kicker">Organic search intelligence</span><h2>Google Search Console</h2><p>Direct read-only Google connection for impressions, clicks, CTR, rankings, queries and landing-page opportunities.</p></div>
+        <span class="status-chip" id="gscStatusChip">Checking connection…</span>
+      </div>
+
+      <div class="gsc-connection-grid">
+        <article class="panel gsc-connection-card">
+          <header><div><span class="kicker">Google connection</span><h2>Search Console property</h2></div><span class="gsc-readonly">Read only</span></header>
+          <p class="muted" id="gscConnectionMessage">Checking Google Search Console configuration…</p>
+          <label>Property
+            <select id="gscPropertySelect" disabled><option value="">No property selected</option></select>
+          </label>
+          <div class="gsc-actions">
+            <button class="primary" id="gscConnectBtn" type="button">Connect Google Search Console</button>
+            <button class="secondary" id="gscDisconnectBtn" type="button" hidden>Disconnect</button>
+          </div>
+          <div class="gsc-callback"><span>OAuth callback</span><code id="gscCallbackUri">—</code></div>
+          <small class="muted">Only the Google Search Console read-only scope is requested. OAuth tokens are encrypted before database storage.</small>
+        </article>
+
+        <article class="panel gsc-sync-card">
+          <header><div><span class="kicker">Data window</span><h2>Performance period</h2></div></header>
+          <p class="muted">Search Console data can be delayed. The dashboard compares the selected period with the immediately preceding period.</p>
+          <label>Reporting window
+            <select id="gscPeriod">
+              <option value="7">Last 7 days</option>
+              <option value="28" selected>Last 28 days</option>
+              <option value="90">Last 90 days</option>
+            </select>
+          </label>
+          <button class="secondary full" id="gscRefreshBtn" type="button">↻ Refresh Search Console data</button>
+          <div class="gsc-sync-meta" id="gscSyncMeta">Connect a property to load live search performance.</div>
+        </article>
+      </div>
+
+      <div class="gsc-metrics" id="gscMetrics">
+        <article class="gsc-metric loading"><span>Clicks</span><b>—</b><small>Google Search</small></article>
+        <article class="gsc-metric loading"><span>Impressions</span><b>—</b><small>Google Search</small></article>
+        <article class="gsc-metric loading"><span>CTR</span><b>—</b><small>Click-through rate</small></article>
+        <article class="gsc-metric loading"><span>Average position</span><b>—</b><small>Lower is better</small></article>
+      </div>
+
+      <div class="gsc-dashboard-grid">
+        <article class="panel gsc-trend-panel">
+          <header><div><span class="kicker">Visibility trend</span><h2>Daily search impressions</h2></div><span id="gscRangeLabel" class="muted"></span></header>
+          <div class="gsc-chart" id="gscTrendChart"><div class="gsc-empty">Connect Search Console to load trend data.</div></div>
+        </article>
+
+        <article class="panel gsc-opportunity-panel">
+          <header><div><span class="kicker">SEO opportunities</span><h2>Queries within reach</h2></div></header>
+          <div id="gscOpportunities" class="gsc-opportunity-list"><div class="gsc-empty">No Search Console data loaded.</div></div>
+        </article>
+      </div>
+
+      <div class="gsc-dashboard-grid tables">
+        <article class="panel gsc-table-panel">
+          <header><div><span class="kicker">Search demand</span><h2>Top queries</h2></div></header>
+          <div class="gsc-table-wrap"><table class="gsc-table"><thead><tr><th>Query</th><th>Clicks</th><th>Impressions</th><th>CTR</th><th>Position</th></tr></thead><tbody id="gscQueriesTable"><tr><td colspan="5">No data loaded.</td></tr></tbody></table></div>
+        </article>
+
+        <article class="panel gsc-table-panel">
+          <header><div><span class="kicker">Landing performance</span><h2>Top pages</h2></div></header>
+          <div class="gsc-table-wrap"><table class="gsc-table"><thead><tr><th>Page</th><th>Clicks</th><th>Impressions</th><th>CTR</th><th>Position</th></tr></thead><tbody id="gscPagesTable"><tr><td colspan="5">No data loaded.</td></tr></tbody></table></div>
+        </article>
+      </div>
+
+      <div class="gsc-dashboard-grid compact">
+        <article class="panel"><header><div><span class="kicker">Audience geography</span><h2>Countries</h2></div></header><div id="gscCountries" class="gsc-breakdown"></div></article>
+        <article class="panel"><header><div><span class="kicker">Search device</span><h2>Devices</h2></div></header><div id="gscDevices" class="gsc-breakdown"></div></article>
+      </div>
+    </section>
+
     <section class="page hidden" id="settingsPage">
       <div class="section-head"><div><h2>System Settings</h2><p>Only approved non-secret configuration is exposed here. Arbitrary key/value editing has been removed.</p></div><span class="status-chip">Allowlisted</span></div>
       <div class="panel safe-settings-panel">
@@ -179,6 +253,6 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=7" defer></script>
+<script src="/admin.js?v=8" defer></script>
 </body>
 </html>
