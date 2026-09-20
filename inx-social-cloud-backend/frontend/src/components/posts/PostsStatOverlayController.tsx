@@ -225,7 +225,7 @@ export function PostsStatOverlayController() {
   return (
     <>
       {draftOpen && <DraftLibraryModal drafts={drafts} onClose={() => setDraftOpen(false)} onDelete={deleteDraft} onLoad={(draft) => void loadDraft(draft)} pages={workspace.data?.pages || []} />}
-      {postView && <PostReuseModal initialView={postView} jobs={workspace.data?.jobs || []} onClose={() => setPostView(null)} onReuse={reusePost} />}
+      {postView && <PostReuseModal initialView={postView} jobs={workspace.data?.jobs || []} onClose={() => setPostView(null)} onReuse={reusePost} timezone={workspace.data?.settings.timezone || 'Europe/London'} />}
     </>
   )
 }
