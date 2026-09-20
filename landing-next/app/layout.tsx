@@ -4,8 +4,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.inxsocial.co.uk"),
   applicationName: "INXSocial",
-  title: "Social Media Scheduler & AI Content Studio | INXSocial",
-  description: "Create, bulk schedule and analyse social media from one workspace. Plan content in a visual calendar and create images, carousels and short video with AI.",
+  title: "Social Media Management Platform, Scheduler & AI | INXSocial",
+  description: "Manage, create, bulk schedule and analyse social media in one workspace with a visual content calendar, multi-platform publishing and AI content creation.",
   authors: [{ name: "INAXX LTD", url: "https://inaxx.co.uk/" }],
   creator: "INAXX LTD",
   publisher: "INAXX LTD",
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_GB",
     siteName: "INXSocial",
-    title: "Social Media Scheduler & AI Content Studio | INXSocial",
+    title: "Social Media Management Platform, Scheduler & AI | INXSocial",
     description: "Create, schedule and analyse social content across connected accounts, with bulk scheduling, a visual calendar and AI-assisted creation in one workspace.",
     url: "https://www.inxsocial.co.uk/",
     images: [{
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Social Media Scheduler & AI Content Studio | INXSocial",
+    title: "Social Media Management Platform, Scheduler & AI | INXSocial",
     description: "Create, bulk schedule and analyse social content from one connected workspace.",
     images: ["/assets/landing-dashboard-20260919.webp"]
   }
