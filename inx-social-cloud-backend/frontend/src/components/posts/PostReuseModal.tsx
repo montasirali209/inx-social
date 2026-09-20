@@ -7,6 +7,7 @@ import { matchesPostLibraryView, requiresMediaReattachment, type PostLibraryView
 import type { DashboardJob } from '../../types/dashboard'
 import { Button } from '../ui/Button'
 import { PlatformIcon, PostsStatusBadge } from './PostPrimitives'
+import { ScheduledPostEditorModal } from './ScheduledPostEditorModal'
 
 type Props = {
   jobs: DashboardJob[]
@@ -46,6 +47,7 @@ export function PostReuseModal({ jobs, initialView, loadingExternal = false, onC
   const [clearedIds, setClearedIds] = useState<Set<string>>(() => new Set())
   const [clearing, setClearing] = useState(false)
   const [clearError, setClearError] = useState('')
+  const [editingScheduled, setEditingScheduled] = useState<DashboardJob | null>(null)
   const activeJobs = useMemo(() => jobs.filter((job) => !clearedIds.has(job.id)), [clearedIds, jobs])
   const visibleJobs = useMemo(() => activeJobs.filter((job) => matchesPostLibraryView(job, view)), [activeJobs, view])
   const reviewJobs = useMemo(() => activeJobs.filter((job) => matchesPostLibraryView(job, 'needs_review')), [activeJobs])
@@ -99,13 +101,20 @@ export function PostReuseModal({ jobs, initialView, loadingExternal = false, onC
             const external = job.id.startsWith('meta:')
             return <article className="group rounded-2xl border border-border-soft bg-bg/30 p-4 transition-colors hover:border-brand-cyan/35 hover:bg-brand-cyan/[0.035]" key={job.id}>
               <div className="flex items-start gap-3"><span className={`grid size-10 shrink-0 place-items-center rounded-xl border ${mediaRequired ? 'border-brand-purple/20 bg-brand-purple/8 text-brand-purple' : 'border-brand-cyan/20 bg-brand-cyan/8 text-brand-cyan'}`}>{mediaRequired ? <Image className="size-4" /> : <ClipboardList className="size-4" />}</span><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><strong className="block truncate text-sm">{job.title || job.caption || job.localFileName || 'Untitled post'}</strong><p className="mt-1 line-clamp-2 min-h-8 text-[11px] leading-4 text-text-muted">{job.caption || 'No reusable caption was retained for this record.'}</p></div><PostsStatusBadge status={status(job)} /></div></div></div>
-              <div className="mt-4 grid gap-2 rounded-xl border border-border-soft bg-panel-soft/45 p-3 text-[10px] text-text-muted sm:grid-cols-2"><span className="flex min-w-0 items-center gap-2"><CalendarClock className="size-3.5 shrink-0 text-brand-cyan" /><span className="truncate">{displayDate(job.scheduledAt || job.completedAt)}</span></span><span className="flex min-w-0 items-center gap-2"><PlatformIcon className="size-5 text-[8px]" platform="facebook" /><span className="truncate">{job.page?.facebookPageName || 'Disconnected Facebook Page'}</span></span><span className={`flex min-w-0 items-center gap-2 sm:col-span-2 ${mediaRequired ? 'text-brand-amber' : 'text-brand-green'}`}>{mediaRequired ? <AlertTriangle className="size-3.5 shrink-0" /> : <Check className="size-3.5 shrink-0" />}<span>{mediaRequired ? `${job.localFileName || 'Original media'} was streamed temporarily; select it again or choose a Media Library asset.` : 'Text and publishing settings can be restored immediately.'}</span></span></div>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><span className="text-[9px] text-text-soft">{external ? 'Discovered on Meta' : 'Created in INXSocial'} · {displayDate(job.createdAt)}</span><Button className="min-h-8 px-3 py-1.5 text-[10px]" onClick={() => onReuse(job)} type="button" variant="primary"><PencilLine className="size-3.5" />Reuse in composer</Button></div>
+              <div className="mt-4 grid gap-2 rounded-xl border border-border-soft bg-panel-soft/45 p-3 text-[10px] text-text-muted sm:grid-cols-2"><span className="flex min-w-0 items-center gap-2"><CalendarClock className="size-3.5 shrink-0 text-brand-cyan" /><span className="truncate">{displayDate(job.scheduledAt || job.completedAt)}</span></span><span className="flex min-w-0 items-center gap-2"><PlatformIcon className="size-5 text-[8px]" platform={job.destination?.platform || 'facebook'} /><span className="truncate">{job.destination?.name || job.page?.facebookPageName || 'Connected destination'}</span></span><span className={`flex min-w-0 items-center gap-2 sm:col-span-2 ${mediaRequired ? 'text-brand-amber' : 'text-brand-green'}`}>{mediaRequired ? <AlertTriangle className="size-3.5 shrink-0" /> : <Check className="size-3.5 shrink-0" />}<span>{mediaRequired ? `${job.localFileName || 'Original media'} was streamed temporarily; select it again or choose a Media Library asset.` : 'Text and publishing settings can be restored immediately.'}</span></span></div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><span className="text-[9px] text-text-soft">{external ? 'Discovered on Meta' : 'Created in INXSocial'} · {displayDate(job.createdAt)}</span><Button className="min-h-8 px-3 py-1.5 text-[10px]" onClick={() => job.status === 'SCHEDULED' ? setEditingScheduled(job) : onReuse(job)} type="button" variant="primary"><PencilLine className="size-3.5" />{job.status === 'SCHEDULED' ? 'Edit scheduled post' : 'Reuse in composer'}</Button></div>
             </article>
           })}</div> : <div className="grid min-h-72 place-items-center rounded-2xl border border-dashed border-border-soft bg-bg/20 p-8 text-center"><span><span className="mx-auto grid size-14 place-items-center rounded-2xl border border-brand-cyan/20 bg-brand-cyan/8 text-brand-cyan"><RotateCcw className="size-6" /></span><strong className="mt-4 block">No {tabs.find((tab) => tab.id === view)?.label.toLowerCase()} yet</strong><p className="mt-2 max-w-sm text-xs leading-5 text-text-muted">Publishing records will appear here as soon as you create, schedule or publish content with INXSocial.</p><Button className="mt-5" onClick={onClose} type="button" variant="primary">Return to composer</Button></span></div>}
         </div>
         <footer className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border-soft bg-bg/20 px-5 py-3 text-[10px] text-text-soft sm:px-6"><span>Reuse restores metadata only · persistent media stays in Media Library</span><button className="rounded-lg px-3 py-2 text-text-muted transition hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button">Close</button></footer>
       </section>
+      {editingScheduled && <ScheduledPostEditorModal job={editingScheduled} onChanged={async () => {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ['posts-workspace'] }),
+          queryClient.invalidateQueries({ queryKey: ['bulk-scheduler'] }),
+          queryClient.invalidateQueries({ queryKey: ['content-calendar'] }),
+        ])
+      }} onClose={() => setEditingScheduled(null)} timezone={Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'} />}
     </div>,
     document.body,
   )
