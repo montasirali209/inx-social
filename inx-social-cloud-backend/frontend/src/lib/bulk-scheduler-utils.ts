@@ -9,6 +9,15 @@ export function parseCaptions(value: string) {
   return lines.length > 1 ? lines : paragraphs
 }
 
+export function parseTextPosts(value: string) {
+  const normalized = value.replace(/\r\n?/g, '\n').trim()
+  if (!normalized) return []
+  return normalized
+    .split(/^\s*---\s*$/m)
+    .map((post) => post.trim())
+    .filter(Boolean)
+}
+
 export function zonedDateTimeToIso(date: string, time: string, timezone: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time)) throw new Error('Choose a valid date and time.')
   const [year, month, day] = date.split('-').map(Number)
