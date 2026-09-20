@@ -11,7 +11,7 @@ function matches(job: DashboardJob, view: BulkHistoryView) {
   if (view === 'all') return true
   if (view === 'scheduled') return job.status === 'SCHEDULED'
   if (view === 'published') return job.status === 'PUBLISHED'
-  return job.status === 'FAILED' || job.status === 'AWAITING_UPLOAD'
+  return job.status === 'FAILED'
 }
 
 function uniqueJobs(jobs: DashboardJob[]) {
@@ -47,7 +47,7 @@ function reviewMessage(job: DashboardJob) {
 function statusPresentation(job: DashboardJob) {
   if (job.status === 'PUBLISHED') return { label: 'Published', icon: CheckCircle2, badge: 'border-brand-green/25 bg-brand-green/8 text-brand-green', iconTone: 'border-brand-green/20 bg-brand-green/8 text-brand-green' }
   if (job.status === 'SCHEDULED') return { label: 'Scheduled', icon: CalendarClock, badge: 'border-brand-cyan/25 bg-brand-cyan/8 text-brand-cyan', iconTone: 'border-brand-cyan/20 bg-brand-cyan/8 text-brand-cyan' }
-  if (job.status === 'FAILED' || job.status === 'AWAITING_UPLOAD') return { label: 'Pending Review', icon: AlertTriangle, badge: 'border-brand-amber/30 bg-brand-amber/8 text-brand-amber', iconTone: 'border-brand-amber/25 bg-brand-amber/8 text-brand-amber' }
+  if (job.status === 'FAILED') return { label: 'Pending Review', icon: AlertTriangle, badge: 'border-brand-amber/30 bg-brand-amber/8 text-brand-amber', iconTone: 'border-brand-amber/25 bg-brand-amber/8 text-brand-amber' }
   if (job.status === 'CANCELLED') return { label: 'Cancelled', icon: X, badge: 'border-border-soft bg-white/[.025] text-text-muted', iconTone: 'border-border-soft bg-white/[.025] text-text-muted' }
   return { label: 'Processing', icon: Clock3, badge: 'border-brand-purple/25 bg-brand-purple/8 text-brand-purple', iconTone: 'border-brand-purple/20 bg-brand-purple/8 text-brand-purple' }
 }
@@ -69,7 +69,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
     all: deduped.length,
     scheduled: deduped.filter(job => job.status === 'SCHEDULED').length,
     published: deduped.filter(job => job.status === 'PUBLISHED').length,
-    needs_review: deduped.filter(job => job.status === 'FAILED' || job.status === 'AWAITING_UPLOAD').length,
+    needs_review: deduped.filter(job => job.status === 'FAILED').length,
   }), [deduped])
   const tabs: Array<{ id: BulkHistoryView; label: string; detail: string; icon: typeof CalendarClock }> = [
     { id: 'all', label: 'All jobs', detail: 'Complete batch history', icon: Clock3 },
@@ -140,7 +140,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
             const retryable = job.status === 'FAILED'
               && !job.providerPostId
               && (!job.scheduledAt || new Date(job.scheduledAt).getTime() > Date.now())
-            const review = job.status === 'FAILED' || job.status === 'AWAITING_UPLOAD'
+            const review = job.status === 'FAILED'
             return <article className={`rounded-2xl border p-4 transition ${review ? 'border-brand-amber/20 bg-gradient-to-r from-brand-amber/[.045] to-bg/20' : 'border-border-soft bg-bg/25 hover:border-brand-cyan/20'}`} key={job.id}>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
                 <span className={`grid size-10 shrink-0 place-items-center rounded-xl border ${presentation.iconTone}`}><Icon className={`size-4 ${presentation.label === 'Processing' ? 'animate-spin motion-reduce:animate-none' : ''}`} /></span>
