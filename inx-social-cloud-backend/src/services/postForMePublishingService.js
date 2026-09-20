@@ -1,6 +1,7 @@
 const axios = require('axios');
 const prisma = require('../db/prisma');
 const postForMe = require('./postForMeService');
+const mediaLibrary = require('./mediaLibraryService');
 const { getLicenseStatus } = require('./licenseService');
 
 const MAX_DIRECT_UPLOAD_BYTES = 10 * 1024 * 1024 * 1024;
@@ -230,13 +231,11 @@ async function uploadStream(stream, { mimeType, contentLength }) {
 async function uploadLibraryAssets(userId, assetIds) {
   const ids = [...new Set((assetIds || []).map(String).filter(Boolean))];
   if (!ids.length) return [];
-  const assets = await prisma.agentAsset.findMany({ where: { id: { in: ids }, userId, status: 'READY' } });
-  const byId = new Map(assets.map((asset) => [asset.id, asset]));
   const media = [];
   for (const id of ids) {
-    const asset = byId.get(id);
+    const asset = await mediaLibrary.findContent(userId, id);
     if (!asset) throw Object.assign(new Error('One of the selected Media Library assets is unavailable.'), { status: 404 });
-    media.push(await uploadBuffer(Buffer.from(asset.data), asset.mimeType));
+    media.push(await uploadBuffer(asset.data, asset.mimeType));
   }
   return media;
 }
@@ -433,7 +432,7 @@ function publicationToJob(publication) {
     asset: null,
     contentId: publication.contentId,
     providerPostId: publication.externalPostId || null,
-    providerStatus: meta.providerPostStatus || null
+    providerStatus: meta.providerPostStatus || String(publication.status || '').toLowerCase() || null
   };
 }
 
