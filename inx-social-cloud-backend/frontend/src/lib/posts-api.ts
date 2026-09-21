@@ -194,3 +194,15 @@ export function retryFailedScheduledPost(jobId: string) {
     { method: 'POST' },
   )
 }
+
+
+export function bulkEditScheduledPosts(entries: Array<{ publicationId: string; caption?: string; scheduledAt?: string }>) {
+  return apiRequest<{
+    ok: true
+    split: boolean
+    affected: Array<{ publicationId: string; providerPostId: string; caption: string; scheduledAt: string }>
+  }>('/api/social-connections/publications/bulk-edit', {
+    method: 'PATCH',
+    body: JSON.stringify({ entries }),
+  })
+}
