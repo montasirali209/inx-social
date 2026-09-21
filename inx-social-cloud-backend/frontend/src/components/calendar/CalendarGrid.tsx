@@ -23,11 +23,11 @@ export function CalendarGrid({ days, monthLabel, onSelectDate, onSelectPost, onT
         </div>
         <button className="min-h-9 rounded-lg border border-border-soft bg-black/15 px-3 text-xs font-semibold transition hover:border-brand-cyan/40 focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onToday} type="button">Today</button>
       </header>
-      <div className="grid grid-cols-7 border-b border-border-soft bg-black/12">{calendarWeekdays.map((day) => <span className="py-2 text-center text-[10px] font-semibold text-text-muted" key={day}>{day}</span>)}</div>
-      <div className="relative grid grid-cols-7 overflow-hidden">
+      <div className="scrollbar-thin overflow-x-auto"><div className="grid min-w-[700px] grid-cols-7 border-b border-border-soft bg-black/12 md:min-w-0">{calendarWeekdays.map((day) => <span className="py-2 text-center text-[10px] font-semibold text-text-muted" key={day}>{day}</span>)}</div>
+      <div className="relative grid min-w-[700px] grid-cols-7 overflow-hidden md:min-w-0">
         {days.map((day) => <CalendarDayCell day={day} key={day.date} onSelectDate={onSelectDate} onSelectPost={onSelectPost} />)}
         {!hasPosts && <div className="pointer-events-none absolute inset-x-0 top-1/2 flex -translate-y-1/2 justify-center"><span className="rounded-xl border border-border-soft bg-bg/90 px-5 py-3 text-center shadow-panel backdrop-blur"><CalendarDays aria-hidden="true" className="mx-auto size-5 text-brand-cyan" /><strong className="mt-2 block text-xs">No published or queued content found</strong><small className="mt-1 block text-[10px] text-text-muted">Published history and future scheduled items will appear here.</small></span></div>}
-      </div>
+      </div></div>
     </section>
   )
 }
