@@ -20,8 +20,10 @@ test('Dashboard compacts responsively without browser zoom manipulation', () => 
   const topbar = read('frontend/src/components/layout/Topbar.tsx');
 
   assert.match(dashboard, /xl:grid-cols-\[minmax/);
-  assert.match(dashboard, /overflow-x-auto/);
-  assert.match(shell, /sm:p-5 xl:p-6/);
-  assert.match(topbar, /min-h-\[78px\]/);
+  assert.match(dashboard, /grid grid-cols-2 items-stretch/);
+  assert.match(dashboard, /md:grid-cols-3/);
+  assert.match(shell, /p-2\.5 sm:p-4 lg:p-5 xl:p-6/);
+  assert.match(topbar, /min-h-\[64px\]/);
+  assert.match(topbar, /lg:min-h-\[78px\]/);
   assert.doesNotMatch(`${dashboard}${shell}`, /zoom\s*:|scale\(0\.|transform:\s*scale/);
 });

@@ -339,7 +339,7 @@ function HealthRing({ value }: { value: number }) {
 function StatCard({ icon, title, value, supporting, tone = 'neutral', visual }: { icon: ReactNode; title: string; value: string; supporting: string; tone?: TrendTone; visual: ReactNode }) {
   const supportTone = tone === 'positive' ? 'text-emerald-300' : tone === 'negative' ? 'text-amber-300' : 'text-text-muted'
   return (
-    <article className="group relative min-w-[210px] overflow-hidden rounded-xl border border-border-soft bg-[linear-gradient(145deg,rgba(9,27,41,.88),rgba(4,16,27,.95))] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,.025),0_10px_28px_rgba(0,0,0,.11)] transition-[transform,border-color,box-shadow,background-color] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:scale-[1.008] hover:border-brand-teal/30 hover:shadow-[0_18px_38px_rgba(0,0,0,.18),0_0_28px_rgba(20,184,166,.04),inset_0_1px_0_rgba(255,255,255,.035)] focus-within:border-brand-cyan/45 sm:min-w-0">
+    <article className="group relative min-w-0 overflow-hidden rounded-xl border border-border-soft bg-[linear-gradient(145deg,rgba(9,27,41,.88),rgba(4,16,27,.95))] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,.025),0_10px_28px_rgba(0,0,0,.11)] transition-[transform,border-color,box-shadow,background-color] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:scale-[1.008] hover:border-brand-teal/30 hover:shadow-[0_18px_38px_rgba(0,0,0,.18),0_0_28px_rgba(20,184,166,.04),inset_0_1px_0_rgba(255,255,255,.035)] focus-within:border-brand-cyan/45 sm:min-w-0">
       <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-10 size-24 rounded-full bg-brand-teal/[.035] blur-xl transition duration-500 group-hover:scale-125 group-hover:bg-brand-teal/[.07]" />
       <div className="relative flex items-start justify-between gap-3">
         <span className="grid size-8 place-items-center rounded-lg border border-brand-cyan/18 bg-gradient-to-br from-brand-cyan/10 to-brand-teal/4 text-brand-cyan transition duration-300 group-hover:-rotate-3 group-hover:scale-105 group-hover:border-brand-teal/32 group-hover:shadow-[0_0_20px_rgba(20,184,166,.08)]">{icon}</span>
@@ -382,7 +382,7 @@ function ConnectedAccountsStats({ total, addedThisMonth, activePlatforms, platfo
   const healthText = total ? (health === 100 ? 'All connections healthy' : `${health}% of connections healthy`) : 'Connect your first account'
 
   return (
-    <section className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 xl:grid-cols-4">
+    <section className="grid grid-cols-2 gap-2 pb-1 xl:grid-cols-4">
       <StatCard icon={<UsersRound className="size-4" />} supporting={addedThisMonth ? `+${addedThisMonth} this month` : 'No change this month'} title="Total Connected Accounts" tone={accountTone} value={String(total)} visual={<DataSparkline tone={accountTone} values={accountSeries} />} />
       <StatCard icon={<Sparkles className="size-4" />} supporting={activePlatforms ? `${activePlatforms} active platform${activePlatforms === 1 ? '' : 's'}` : 'Connect a platform to begin'} title="Active Platforms" tone={activePlatforms ? 'positive' : 'neutral'} value={`${activePlatforms} / ${platformTotal}`} visual={<ActivityBars active={activePlatforms} total={platformTotal} />} />
       <StatCard icon={<BarChart3 className="size-4" />} supporting={postText} title="Posts This Week" tone={postTone} value={String(postsThisWeek)} visual={<DataSparkline tone={postTone} values={postSeries} />} />

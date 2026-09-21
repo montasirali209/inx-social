@@ -101,9 +101,9 @@ function DestinationModal({ destinations, selectedIds, setSelectedIds, activePla
   }
 
   return createPortal(
-    <div className="posts-modal-backdrop fixed inset-0 z-[85] grid place-items-center overflow-y-auto bg-[#020914]/80 p-3 backdrop-blur-md sm:p-6" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
-      <section aria-labelledby="destination-modal-title" aria-modal="true" className="posts-modal-panel my-auto flex max-h-[min(860px,92vh)] w-full max-w-6xl flex-col overflow-hidden rounded-panel border border-brand-cyan/30 bg-panel shadow-[0_32px_130px_rgba(0,0,0,.68),0_0_75px_rgba(20,184,166,.12)]" role="dialog">
-        <header className="flex items-start justify-between gap-4 border-b border-border-soft bg-gradient-to-br from-brand-cyan/[0.1] via-panel to-panel p-5 sm:p-6">
+    <div className="posts-modal-backdrop fixed inset-0 z-[85] grid place-items-center overflow-y-auto bg-[#020914]/80 p-0 backdrop-blur-md sm:p-6" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
+      <section aria-labelledby="destination-modal-title" aria-modal="true" className="posts-modal-panel my-auto flex h-dvh w-full max-w-6xl flex-col overflow-hidden rounded-none sm:h-auto sm:max-h-[min(860px,92dvh)] sm:rounded-panel border border-brand-cyan/30 bg-panel shadow-[0_32px_130px_rgba(0,0,0,.68),0_0_75px_rgba(20,184,166,.12)]" role="dialog">
+        <header className="flex items-start justify-between gap-3 border-b border-border-soft bg-gradient-to-br from-brand-cyan/[0.1] via-panel to-panel p-4 sm:p-6">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[.18em] text-brand-cyan">Step 2 · Session selection</p>
             <h2 className="mt-1 text-xl font-semibold" id="destination-modal-title">Choose publishing destinations</h2>
@@ -111,7 +111,7 @@ function DestinationModal({ destinations, selectedIds, setSelectedIds, activePla
           </div>
           <button aria-label="Close destination selector" className="rounded-xl border border-border-soft bg-bg/45 p-2 text-text-muted transition hover:border-brand-cyan/35 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button"><X className="size-4" /></button>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-6">
           <div className="scrollbar-thin flex gap-2 overflow-x-auto pb-2" role="tablist">
             {[{ id: 'all' as const, label: 'All' }, ...platforms].map((item) => {
               const count = item.id === 'all' ? destinations.length : destinations.filter((destination) => destination.platform === item.id).length
@@ -119,7 +119,7 @@ function DestinationModal({ destinations, selectedIds, setSelectedIds, activePla
             })}
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
-            <label className="relative min-w-52 flex-1"><Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" /><input aria-label="Search publishing destinations" className="min-h-11 w-full rounded-xl border border-border-soft bg-bg/35 pl-9 pr-3 text-xs outline-none placeholder:text-text-soft focus:border-brand-cyan" onChange={(event) => setSearch(event.target.value)} placeholder="Search accounts or profiles…" value={search} /></label>
+            <label className="relative min-w-0 basis-full flex-1 sm:min-w-52 sm:basis-auto"><Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" /><input aria-label="Search publishing destinations" className="min-h-11 w-full rounded-xl border border-border-soft bg-bg/35 pl-9 pr-3 text-xs outline-none placeholder:text-text-soft focus:border-brand-cyan" onChange={(event) => setSearch(event.target.value)} placeholder="Search accounts or profiles…" value={search} /></label>
             <Button aria-label="Filter destinations" className="size-11 px-0" type="button" variant="ghost"><SlidersHorizontal className="size-4" /></Button>
             <Button className="text-[10px]" disabled={!visibleDestinations.some((destination) => destination.connected)} onClick={selectVisible} type="button">Select All Visible</Button>
             <Button className="text-[10px]" disabled={!selectedIds.length} onClick={() => setSelectedIds([])} type="button" variant="ghost">Clear all</Button>

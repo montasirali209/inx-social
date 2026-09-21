@@ -18,7 +18,7 @@ export function MediaStatCard({ label, value, detail, tone, icon }: { label: str
   const displayLabel = reviewCard ? 'Assets Needing Review' : label
   const displayDetail = reviewCard ? 'Media assets needing attention · click to view' : detail
   const content = <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl border border-current/20 bg-current/[0.07]"><Icon className="size-5" /></span><div className="min-w-0 flex-1"><p className="text-[11px] text-text-muted">{displayLabel}</p><strong className="mt-1 block text-2xl text-text-main">{value.toLocaleString()}</strong><p className="mt-1 text-[9px] text-current">{displayDetail}</p></div>{reviewCard ? <ChevronRight aria-hidden="true" className="mt-4 size-4 shrink-0 transition-transform group-hover:translate-x-1" /> : null}</div>
-  const className = `interactive-surface min-w-[210px] rounded-card border p-4 ${tones[tone]}`
+  const className = `interactive-surface min-w-0 rounded-card border p-4 ${tones[tone]}`
   if (reviewCard) {
     return <button aria-label={`View ${value} media assets needing review`} className={`${className} group w-full text-left focus-visible:outline-2 focus-visible:outline-brand-cyan`} onClick={() => window.dispatchEvent(new CustomEvent('inx-media-kpi-filter', { detail: { tab: 'needs_review' } }))} type="button">{content}</button>
   }
@@ -27,7 +27,7 @@ export function MediaStatCard({ label, value, detail, tone, icon }: { label: str
 
 
 export function MediaStatSkeleton({ index = 0 }: { index?: number }) {
-  return <div aria-hidden="true" className="min-w-[210px] rounded-card border border-border-soft bg-panel/70 p-4">
+  return <div aria-hidden="true" className="min-w-0 rounded-card border border-border-soft bg-panel/70 p-4">
     <div className="flex items-start gap-3">
       <span className="size-10 shrink-0 animate-pulse rounded-xl border border-white/[.06] bg-white/[.045] motion-reduce:animate-none" style={{ animationDelay: `${index * 80}ms` }} />
       <div className="min-w-0 flex-1">

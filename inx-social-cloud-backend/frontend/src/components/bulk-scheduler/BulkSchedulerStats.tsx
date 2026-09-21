@@ -18,9 +18,9 @@ export function BulkSchedulerStats({ jobs, onOpen }: { jobs: DashboardJob[]; onO
   ]
 
   return (
-    <section aria-label="Bulk publishing status" className="mt-4 flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 md:overflow-visible xl:grid-cols-5">
+    <section aria-label="Bulk publishing status" className="mt-4 grid grid-cols-2 gap-2 pb-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-5">
       {cards.map(({ label, value, detail, icon: Icon, tone, view }) => (
-        <button className="interactive-surface group min-w-[210px] rounded-card border p-4 text-left focus-visible:outline-2 focus-visible:outline-brand-cyan md:min-w-0" key={label} onClick={() => onOpen(view)} type="button">
+        <button className="interactive-surface group min-w-0 rounded-card border p-4 text-left focus-visible:outline-2 focus-visible:outline-brand-cyan md:min-w-0" key={label} onClick={() => onOpen(view)} type="button">
           <div className="flex items-start gap-3">
             <span className={`grid size-10 shrink-0 place-items-center rounded-xl border ${tone}`}><Icon className={`size-4.5 ${label === 'Processing' && value ? 'animate-spin motion-reduce:animate-none' : ''}`} /></span>
             <span className="min-w-0 flex-1"><small className="block text-[10px] text-text-muted">{label}</small><strong className="mt-0.5 block text-2xl">{value}</strong><small className="mt-1 block text-[9px] text-text-soft">{detail}</small></span>

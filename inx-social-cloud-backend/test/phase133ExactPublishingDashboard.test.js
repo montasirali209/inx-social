@@ -57,7 +57,7 @@ test('Phase 13.3 uses real responsive charts and accessible controls', () => {
   assert.match(dashboard, /md:grid-cols-3/);
   assert.match(dashboard, /xl:grid-cols-6/);
   assert.match(dashboard, /xl:grid-cols-3/);
-  assert.match(dashboard, /overflow-x-auto/);
+  assert.match(dashboard, /grid grid-cols-2 items-stretch/);
   assert.match(activity, /role="img"/);
   assert.match(activity, /<svg/);
   assert.match(activity, /Engagement/);

@@ -62,7 +62,7 @@ export function PostsStatCard({ label, value, detail, tone, onClick }: { label: 
   const displayValue = universalValues[label] ?? value
   const displayDetail = universalDetails[label] || detail
   return (
-    <button aria-label={`Open ${label}`} className="interactive-surface group min-w-[210px] flex-1 rounded-card border p-4 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan" onClick={open} type="button">
+    <button aria-label={`Open ${label}`} className="interactive-surface group min-w-0 flex-1 rounded-card border p-4 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan" onClick={open} type="button">
       <div className="flex items-start gap-3">
         <span className={`grid size-11 shrink-0 place-items-center rounded-xl border ${tones[tone]}`}><Icon aria-hidden="true" className="size-5" /></span>
         <div className="min-w-0 flex-1"><p className="text-xs text-text-muted">{label}</p><strong className="mt-0.5 block text-2xl tracking-tight">{displayValue}</strong><p className="mt-1 text-[10px] text-text-soft">{displayDetail}</p></div>

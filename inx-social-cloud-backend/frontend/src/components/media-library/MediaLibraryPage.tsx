@@ -490,7 +490,7 @@ export function MediaLibraryPage() {
           </button>
         </div>
       )}
-      <div className="scrollbar-thin flex gap-3 overflow-x-auto pb-2 md:grid md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 pb-2 sm:gap-3 md:grid-cols-2 xl:grid-cols-5">
         {initialLoading
           ? Array.from({ length: 5 }, (_, index) => <MediaStatSkeleton index={index} key={index} />)
           : stats.map((stat) => <MediaStatCard key={stat.label} {...stat} />)}

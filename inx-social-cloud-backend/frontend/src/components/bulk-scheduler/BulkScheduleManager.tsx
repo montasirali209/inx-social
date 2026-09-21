@@ -141,9 +141,9 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
   }
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-[#01070d]/88 p-3 backdrop-blur-md sm:p-5" onMouseDown={(event) => { if (event.currentTarget === event.target && !editing && !bulkEditing && !bulkCancelling) onClose() }}>
-      <section aria-modal="true" className="my-auto flex max-h-[min(900px,calc(100dvh-2rem))] w-full max-w-7xl flex-col overflow-hidden rounded-[22px] border border-brand-cyan/25 bg-panel shadow-[0_38px_150px_rgba(0,0,0,.74)]" role="dialog">
-        <header className="border-b border-border-soft bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,.10),transparent_42%),linear-gradient(135deg,rgba(10,30,44,.98),rgba(6,18,29,.98))] p-5 sm:p-6">
+    <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-[#01070d]/88 p-0 backdrop-blur-md sm:p-5" onMouseDown={(event) => { if (event.currentTarget === event.target && !editing && !bulkEditing && !bulkCancelling) onClose() }}>
+      <section aria-modal="true" className="my-auto flex h-dvh w-full max-w-7xl flex-col overflow-hidden rounded-none sm:h-auto sm:max-h-[min(900px,calc(100dvh-2rem))] sm:rounded-[22px] border border-brand-cyan/25 bg-panel shadow-[0_38px_150px_rgba(0,0,0,.74)]" role="dialog">
+        <header className="border-b border-border-soft bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,.10),transparent_42%),linear-gradient(135deg,rgba(10,30,44,.98),rgba(6,18,29,.98))] p-3 sm:p-6">
           <div className="flex items-start gap-3">
             <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan"><CalendarClock className="size-5" /></span>
             <div className="min-w-0 flex-1">
@@ -153,7 +153,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
             <button aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-lg border border-transparent text-text-muted transition hover:border-border-soft hover:bg-white/5 hover:text-white" onClick={onClose} type="button"><X className="size-4" /></button>
           </div>
 
-          <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-4 grid grid-cols-2 gap-2 xl:grid-cols-4">
             {tabs.map(({ id, label, detail, icon: Icon }) => {
               const selected = view === id
               const attention = id === 'needs_review' && counts[id] > 0
@@ -226,7 +226,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
           </div>
         </div>}
 
-        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
+        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-3 sm:p-6">
           {visible.length ? <div className="grid gap-3">{visible.map((job) => {
             const presentation = statusPresentation(job)
             const Icon = presentation.icon

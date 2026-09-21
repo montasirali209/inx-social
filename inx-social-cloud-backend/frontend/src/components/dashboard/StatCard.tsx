@@ -35,7 +35,7 @@ export function StatCard({ data, icon: Icon }: { data: StatCardData; icon: Lucid
     </>
   )
 
-  const classes = 'interactive-surface group relative min-h-[92px] min-w-[188px] overflow-hidden rounded-card border p-3 backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-brand-cyan/25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan md:min-w-0 motion-reduce:transform-none motion-reduce:transition-none'
+  const classes = 'interactive-surface group relative min-h-[92px] min-w-0 overflow-hidden rounded-card border p-3 backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-brand-cyan/25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan md:min-w-0 motion-reduce:transform-none motion-reduce:transition-none'
 
   return data.route
     ? <a className={classes} href={`/app${data.route}`}>{content}</a>

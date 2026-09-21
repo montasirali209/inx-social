@@ -41,14 +41,14 @@ function AppShellContent() {
   }, [])
 
   return (
-    <div className="min-h-dvh bg-bg text-text-main">
+    <div className="min-h-dvh max-w-full overflow-x-clip bg-bg text-text-main">
       <a className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-xl focus:bg-brand-blue focus:px-4 focus:py-2 focus:text-white" href="#main-content">
         Skip to content
       </a>
       <Sidebar overview={overview.data} />
-      <div className="md:pl-[88px] xl:pl-[264px]">
+      <div className="min-w-0 md:pl-[88px] xl:pl-[264px]">
         <Topbar overview={overview.data} />
-        <main className="workspace-frame min-w-0 p-3 sm:p-5 xl:p-6" id="main-content">
+        <main className="workspace-frame min-w-0 p-2.5 sm:p-4 lg:p-5 xl:p-6" id="main-content">
           <div aria-hidden={!bulkRoute} className={bulkRoute ? 'route-stage min-w-0' : 'hidden'} style={{ animationDuration: '160ms' }}><BulkSchedulerPage /></div>
           {!bulkRoute && <div className="route-stage min-w-0" key={location.pathname} style={{ animationDuration: '160ms' }}><Outlet /></div>}
         </main>

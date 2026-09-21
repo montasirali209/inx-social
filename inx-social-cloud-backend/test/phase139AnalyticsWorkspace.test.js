@@ -32,7 +32,8 @@ test('Analytics is a first-class responsive React workspace', () => {
   assert.match(selector, /setOpen\(false\)/);
   assert.match(selector, /analytics-source-picker-menu/);
   assert.match(selector, /transition-\[opacity,transform\]/);
-  assert.match(page, /sm:grid-cols-2 xl:grid-cols-6/);
+  assert.match(page, /grid grid-cols-2 gap-2/);
+  assert.match(page, /xl:grid-cols-6/);
   assert.match(page, /ExportReportButton/);
   assert.match(page, /AnalyticsScopeNotice/);
   assert.match(scopeNotice, /Current post performance/);
