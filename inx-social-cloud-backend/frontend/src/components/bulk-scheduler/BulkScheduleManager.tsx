@@ -127,7 +127,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
   const cancelSelected = async () => {
     if (!selectedJobs.length || bulkCancelling) return
     const count = selectedJobs.length
-    if (!window.confirm(`Cancel ${count} selected scheduled destination${count === 1 ? '' : 's'}? They will be removed from the publishing queue and will not go live. This cannot be undone.`)) return
+    if (!window.confirm(`Cancel schedule for ${count} selected destination${count === 1 ? '' : 's'}? They will be removed from the publishing queue and will not go live. This cannot be undone.`)) return
 
     setBulkCancelling(true)
     setBulkCancelError(null)
