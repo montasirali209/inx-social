@@ -254,7 +254,9 @@ async function optimiseSmartTiming(userId, input = {}) {
   const baselineTimes = parseBaselineTimes(input.baselineTimes);
   const timezone = safeTimezone(input.timezone);
   const history = await historySummary(userId, input.profileIds, timezone);
-  const fallback = fallbackTimes(baselineTimes);
+  const variedFallback = fallbackTimes(baselineTimes);
+  const fallback = validateAiTimes(variedFallback, baselineTimes)
+    || baselineTimes.map((date) => date.toISOString());
 
   try {
     const ai = await aiTimes(baselineTimes, timezone, history);
