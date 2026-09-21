@@ -111,31 +111,48 @@ test('customer-facing scheduling UI never exposes the underlying publishing prov
 });
 
 
-test('Bulk Scheduler can safely bulk edit future scheduled text posts with preview and Batch Run progress', () => {
+test('Bulk Scheduler bulk edits selected destinations with caption date and time controls', () => {
   const page = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
   const manager = read('frontend/src/components/bulk-scheduler/BulkScheduleManager.tsx');
   const modal = read('frontend/src/components/bulk-scheduler/BulkTextEditModal.tsx');
   const rules = read('frontend/src/lib/bulk-text-edit.ts');
+  const postsApi = read('frontend/src/lib/posts-api.ts');
   const mutation = read('src/services/postForMePostMutationService.js');
+  const routes = read('src/routes/socialPublicationRoutes.js');
 
-  assert.match(manager, /Bulk edit scheduled text/);
+  assert.match(manager, /Bulk edit scheduled posts/);
+  assert.match(manager, /All destinations/);
+  assert.match(manager, /Destination scope/);
   assert.match(manager, /Select all \(/);
   assert.match(manager, /Bulk Edit/);
-  assert.match(manager, /Filter scheduled posts by platform/);
-  assert.match(manager, /single-destination text posts/);
+  assert.doesNotMatch(manager, /Filter scheduled posts by platform/);
+  assert.doesNotMatch(manager, /single-destination text posts/);
   assert.match(manager, /onBulkEditJobs/);
+
   assert.match(modal, /X clean text preset/);
   assert.match(modal, /Remove hashtags/);
   assert.match(modal, /Maximum one emoji/);
   assert.match(modal, /Optional find and replace/);
-  assert.match(modal, /Publishing dates and destinations are not modified/);
-  assert.match(rules, /\(\^\|\[ \\t\]\+\)\#\[\^\\s\]\+/);
-  assert.match(rules, /removeHashtagTokens/);
-  assert.match(rules, /limitEmoji/);
+  assert.match(modal, /New start date/);
+  assert.match(modal, /Set time for selected posts/);
+  assert.match(modal, /Unselected destinations are not changed/);
+
+  assert.match(rules, /applyBulkScheduleEdit/);
+  assert.match(rules, /earliestLocalDate/);
+  assert.match(rules, /startDate/);
+  assert.match(rules, /time/);
+
+  assert.match(postsApi, /bulkEditScheduledPosts/);
+  assert.match(postsApi, /publications\/bulk-edit/);
   assert.match(page, /bulkEditScheduledJobs/);
-  assert.match(page, /updateScheduledPost\(job\.id, \{ caption: after \}\)/);
-  assert.match(page, /Updating scheduled text post/);
-  assert.match(page, /without changing publishing times/);
-  assert.match(page, /Original scheduled post was left unchanged/);
+  assert.match(page, /bulkEditScheduledPosts/);
+  assert.match(page, /Updating .* selected destination/);
+  assert.match(page, /destination schedule/);
+
+  assert.match(routes, /router\.patch\('\/bulk-edit'/);
+  assert.match(mutation, /async function bulkEdit/);
+  assert.match(mutation, /remainingRows/);
+  assert.match(mutation, /split:/);
+  assert.match(mutation, /restoreOriginalParent/);
   assert.match(mutation, /maxRetries: 5/);
 });
