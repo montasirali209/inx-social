@@ -6,7 +6,6 @@ import {
   applyBulkTextEdit,
   earliestLocalDate,
   EMPTY_BULK_TEXT_EDIT_RULES,
-  hasScheduleRuleChanges,
   hasTextRuleChanges,
   type BulkScheduledEditRules,
 } from '../../lib/bulk-text-edit'
