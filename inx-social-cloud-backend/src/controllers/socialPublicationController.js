@@ -59,7 +59,7 @@ async function bulkEditScheduled(req, res, next) {
 async function bulkCancelScheduled(req, res, next) {
   try {
     const result = await mutations.bulkCancel(req.user.id, req.body?.publicationIds || []);
-    res.status(result.failures.length ? (result.cancelled ? 207 : 409) : 200).json(result);
+    res.status(202).json(result);
   } catch (error) { next(error); }
 }
 
