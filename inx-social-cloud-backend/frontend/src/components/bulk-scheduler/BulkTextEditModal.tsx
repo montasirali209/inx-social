@@ -114,7 +114,7 @@ export function BulkTextEditModal({
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
                     <label>
                       <span className="mb-1.5 block text-[10px] font-semibold text-text-muted">New start date</span>
-                      <input className="min-h-10 w-full rounded-lg border border-border-soft bg-panel px-3 text-xs outline-none focus:border-brand-cyan/40" min={new Date().toISOString().slice(0, 10)} onChange={(event) => setRules((current) => ({ ...current, startDate: event.target.value }))} type="date" value={rules.startDate} />
+                      <input className="min-h-10 w-full rounded-lg border border-border-soft bg-panel px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setRules((current) => ({ ...current, startDate: event.target.value }))} type="date" value={rules.startDate} />
                     </label>
                     <label>
                       <span className="mb-1.5 block text-[10px] font-semibold text-text-muted">Set time for selected posts</span>
