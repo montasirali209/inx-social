@@ -25,8 +25,7 @@ test('Every React workspace route uses the locked universal topbar contract', ()
   assert.doesNotMatch(topbar, /Theme · Midnight|sr-only">Theme/);
   assert.match(topbar, /queryClient\.invalidateQueries\(\{ refetchType: 'active' \}\)/);
   assert.doesNotMatch(bulk, /<h1[^>]*>Bulk Scheduler/);
-  assert.match(hero, /Start New Bulk Schedule/);
-  assert.match(hero, /Manage Scheduled Posts/);
+  assert.doesNotMatch(hero, /Start New Bulk Schedule|Manage Scheduled Posts/);
   assert.match(hero, /Stop Scheduler/);
 });
 
