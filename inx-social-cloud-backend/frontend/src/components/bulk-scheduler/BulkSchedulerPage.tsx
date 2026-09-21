@@ -334,7 +334,9 @@ export function BulkSchedulerPage() {
             ? `Text batch finished with ${failed} failed post${failed === 1 ? '' : 's'}.`
             : timingMode === 'publish_now'
               ? `${completed} text post${completed === 1 ? '' : 's'} accepted for publishing.`
-              : `${completed} text post${completed === 1 ? '' : 's'} scheduled with publishing provider using your selected daily times.`,
+              : smartTimingSource
+                ? `${completed} text post${completed === 1 ? '' : 's'} scheduled with Smart Timing. Exact times are visible in Calendar.`
+                : `${completed} text post${completed === 1 ? '' : 's'} scheduled with publishing provider using your selected daily times.`,
       })
       abortRef.current = null
       await scheduler.refetch()
@@ -472,7 +474,9 @@ export function BulkSchedulerPage() {
           ? `Batch finished with ${failed} failed post${failed === 1 ? '' : 's'}.`
           : timingMode === 'publish_now'
             ? 'Every media item was accepted for publishing.'
-            : 'Every future post is scheduled with publishing provider. You can edit its caption, media or publishing time until processing begins.',
+            : smartTimingSource
+              ? 'Every future post is scheduled with Smart Timing. Exact chosen times are visible in Calendar and can still be edited until processing begins.'
+              : 'Every future post is scheduled with publishing provider. You can edit its caption, media or publishing time until processing begins.',
     })
     abortRef.current = null
     await scheduler.refetch()
