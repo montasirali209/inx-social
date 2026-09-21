@@ -1,6 +1,5 @@
-import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, CircleDot, Clock3, Filter, Layers3, List, Radio, Search, UploadCloud, UsersRound } from 'lucide-react'
+import { AlertTriangle, CalendarDays, ChevronLeft, ChevronRight, CircleDot, Clock3, Filter, Layers3, List, Radio, Search, UsersRound } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { platformOrder, platformPresentation } from '../../data/dashboardData'
 import { calendarRangeLabel } from '../../lib/calendar-utils'
 import type { CalendarDestination, CalendarPostStatus } from '../../types/calendar'
@@ -50,7 +49,6 @@ export function CalendarToolbar({ monthKey, destinations, platform, pageId, stat
         </div>
         <div className="flex min-h-10 rounded-xl border border-border-soft bg-panel/75 p-1"><button aria-pressed={view === 'calendar'} className={`inline-flex items-center gap-1.5 rounded-lg px-3 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-brand-cyan ${view === 'calendar' ? 'border border-brand-cyan/45 bg-brand-cyan/10 text-brand-cyan' : 'text-text-muted hover:text-white'}`} onClick={() => onView('calendar')} type="button"><CalendarDays className="size-3.5" /> Calendar</button><button aria-pressed={view === 'list'} className={`inline-flex items-center gap-1.5 rounded-lg px-3 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-brand-cyan ${view === 'list' ? 'border border-brand-cyan/45 bg-brand-cyan/10 text-brand-cyan' : 'text-text-muted hover:text-white'}`} onClick={() => onView('list')} type="button"><List className="size-3.5" /> List</button></div>
         <a className="inline-flex min-h-10 items-center rounded-xl bg-gradient-to-r from-brand-blue to-[#0f8f7f] px-4 text-xs font-bold text-white shadow-glow-blue transition hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/posts">+ Schedule Content</a>
-        <Link className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-border-soft bg-panel/75 px-3 text-xs font-semibold transition hover:border-brand-cyan/40 hover:bg-panel-hover focus-visible:outline-2 focus-visible:outline-brand-cyan" to="/bulk-scheduler"><UploadCloud aria-hidden="true" className="size-4" /> Import Batch</Link>
       </div>
     </section>
   )

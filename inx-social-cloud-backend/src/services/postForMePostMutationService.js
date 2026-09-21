@@ -1,6 +1,12 @@
 const prisma = require('../db/prisma');
 const postForMe = require('./postForMeService');
 
+const BULK_CANCELLATION_RUNTIME_INTERVAL_MS = 5000;
+const BULK_CANCELLATION_RUNTIME_BATCH_SIZE = 3;
+const BULK_CANCELLATION_STALE_MS = 10 * 60 * 1000;
+let bulkCancellationRuntimeTimer = null;
+let bulkCancellationRuntimeRunning = false;
+
 function localId(value) {
   const raw = String(value || '');
   return raw.startsWith('pfm:') ? raw.slice(4) : raw;
@@ -382,9 +388,13 @@ async function markCancelledRows(rows) {
   }
 }
 
-async function bulkCancel(userId, publicationIds = []) {
+function bulkCancellationIds(publicationIds = []) {
   const requested = Array.isArray(publicationIds) ? publicationIds.slice(0, 250) : [];
-  const ids = [...new Set(requested.map(localId).filter(Boolean))];
+  return [...new Set(requested.map(localId).filter(Boolean))];
+}
+
+async function executeBulkCancel(userId, publicationIds = []) {
+  const ids = bulkCancellationIds(publicationIds);
   if (!ids.length) {
     throw Object.assign(new Error('Choose at least one scheduled destination to cancel.'), {
       status: 400,
@@ -397,29 +407,34 @@ async function bulkCancel(userId, publicationIds = []) {
     include: { content: true, profile: true }
   });
 
-  if (selectedRows.length !== ids.length) {
-    throw Object.assign(new Error('One or more selected scheduled destinations were not found.'), { status: 404 });
-  }
+  const foundIds = new Set(selectedRows.map((row) => row.id));
+  const affected = selectedRows
+    .filter((row) => row.status === 'CANCELLED')
+    .map((row) => `pfm:${row.id}`);
+  const failures = ids
+    .filter((id) => !foundIds.has(id))
+    .map((id) => ({ publicationId: `pfm:${id}`, message: 'Scheduled destination was not found.' }));
 
+  const eligibleRows = [];
   for (const row of selectedRows) {
+    if (row.status === 'CANCELLED') continue;
     if (row.status !== 'SCHEDULED' || !row.externalPostId) {
-      throw Object.assign(new Error('One or more selected posts are no longer cancellable.'), {
-        status: 409,
-        publicMessage: 'One or more selected posts have already started processing or no longer have an active schedule.'
+      failures.push({
+        publicationId: `pfm:${row.id}`,
+        message: 'This post has already started processing or no longer has an active schedule.'
       });
+      continue;
     }
+    eligibleRows.push(row);
   }
 
   const groups = new Map();
-  for (const row of selectedRows) {
+  for (const row of eligibleRows) {
     const parentId = String(row.externalPostId);
     const group = groups.get(parentId) || [];
     group.push(row);
     groups.set(parentId, group);
   }
-
-  const affected = [];
-  const failures = [];
 
   for (const [parentId, groupRows] of groups.entries()) {
     let allRows = [];
@@ -434,7 +449,7 @@ async function bulkCancel(userId, publicationIds = []) {
       } catch (error) {
         if (Number(error.status || 0) !== 404) throw error;
 
-        // If the provider schedule is already gone, reconcile every local row tied to it.
+        // The provider schedule is already gone, so reconcile every local sibling tied to it.
         await markCancelledRows(allRows);
         affected.push(...allRows.map((row) => `pfm:${row.id}`));
         continue;
@@ -481,12 +496,144 @@ async function bulkCancel(userId, publicationIds = []) {
     }
   }
 
+  const uniqueAffected = [...new Set(affected)];
   return {
     ok: failures.length === 0,
-    cancelled: affected.length,
-    affected,
+    cancelled: uniqueAffected.length,
+    affected: uniqueAffected,
     failures
   };
+}
+
+async function bulkCancel(userId, publicationIds = []) {
+  const ids = bulkCancellationIds(publicationIds);
+  if (!ids.length) {
+    throw Object.assign(new Error('Choose at least one scheduled destination to cancel.'), {
+      status: 400,
+      publicMessage: 'Choose at least one scheduled destination to cancel.'
+    });
+  }
+
+  const selectedRows = await prisma.socialPublication.findMany({
+    where: { id: { in: ids }, profile: { userId } },
+    select: { id: true, status: true, externalPostId: true }
+  });
+
+  if (selectedRows.length !== ids.length) {
+    throw Object.assign(new Error('One or more selected scheduled destinations were not found.'), { status: 404 });
+  }
+
+  const unavailable = selectedRows.find((row) => row.status !== 'SCHEDULED' || !row.externalPostId);
+  if (unavailable) {
+    throw Object.assign(new Error('One or more selected posts are no longer cancellable.'), {
+      status: 409,
+      publicMessage: 'One or more selected posts have already started processing or no longer have an active schedule.'
+    });
+  }
+
+  const job = await prisma.bulkCancellationJob.create({
+    data: {
+      userId,
+      publicationIdsJson: JSON.stringify(ids),
+      requestedCount: ids.length,
+      status: 'QUEUED'
+    }
+  });
+
+  setImmediate(() => {
+    void runBulkCancellationSweep().catch((error) => {
+      console.error('[bulk-cancel] immediate background run failed', { jobId: job.id, error: error?.message || String(error) });
+    });
+  });
+
+  return {
+    accepted: true,
+    jobId: job.id,
+    requested: ids.length,
+    status: job.status
+  };
+}
+
+async function processBulkCancellationJob(job) {
+  const claim = await prisma.bulkCancellationJob.updateMany({
+    where: { id: job.id, status: 'QUEUED' },
+    data: { status: 'RUNNING', startedAt: new Date(), lastError: null }
+  });
+  if (!claim.count) return null;
+
+  let publicationIds = [];
+  try {
+    publicationIds = JSON.parse(job.publicationIdsJson || '[]');
+    if (!Array.isArray(publicationIds) || !publicationIds.length) throw new Error('Bulk cancellation job has no scheduled destinations.');
+
+    const result = await executeBulkCancel(job.userId, publicationIds);
+    const finalStatus = result.failures.length
+      ? (result.cancelled ? 'PARTIAL' : 'FAILED')
+      : 'COMPLETED';
+
+    await prisma.bulkCancellationJob.update({
+      where: { id: job.id },
+      data: {
+        status: finalStatus,
+        cancelledCount: result.cancelled,
+        failedCount: result.failures.length,
+        resultJson: JSON.stringify(result),
+        lastError: result.failures.length ? result.failures[0]?.message || 'Some schedules could not be cancelled.' : null,
+        completedAt: new Date()
+      }
+    });
+    return result;
+  } catch (error) {
+    await prisma.bulkCancellationJob.update({
+      where: { id: job.id },
+      data: {
+        status: 'FAILED',
+        failedCount: Math.max(job.requestedCount || 0, publicationIds.length || 0),
+        lastError: String(error?.publicMessage || error?.message || error || 'Bulk cancellation failed.').slice(0, 1000),
+        completedAt: new Date()
+      }
+    }).catch(() => {});
+    throw error;
+  }
+}
+
+async function runBulkCancellationSweep() {
+  if (bulkCancellationRuntimeRunning) return;
+  bulkCancellationRuntimeRunning = true;
+  try {
+    const staleBefore = new Date(Date.now() - BULK_CANCELLATION_STALE_MS);
+    await prisma.bulkCancellationJob.updateMany({
+      where: { status: 'RUNNING', updatedAt: { lt: staleBefore } },
+      data: { status: 'QUEUED', startedAt: null }
+    });
+
+    const jobs = await prisma.bulkCancellationJob.findMany({
+      where: { status: 'QUEUED' },
+      orderBy: { createdAt: 'asc' },
+      take: BULK_CANCELLATION_RUNTIME_BATCH_SIZE
+    });
+
+    for (const job of jobs) {
+      try {
+        await processBulkCancellationJob(job);
+      } catch (error) {
+        console.error('[bulk-cancel] background job failed', {
+          jobId: job.id,
+          userId: job.userId,
+          error: error?.message || String(error)
+        });
+      }
+    }
+  } finally {
+    bulkCancellationRuntimeRunning = false;
+  }
+}
+
+function startBulkCancellationRuntime() {
+  if (bulkCancellationRuntimeTimer) return;
+  setTimeout(() => { void runBulkCancellationSweep(); }, 1500).unref?.();
+  bulkCancellationRuntimeTimer = setInterval(() => { void runBulkCancellationSweep(); }, BULK_CANCELLATION_RUNTIME_INTERVAL_MS);
+  bulkCancellationRuntimeTimer.unref?.();
 }
 
 async function remove(userId, rawId) {
@@ -512,4 +659,4 @@ async function reschedule(userId, rawId, scheduledAt) {
   return update(userId, rawId, { scheduledAt });
 }
 
-module.exports = { remove, reschedule, update, bulkEdit, bulkCancel, assertEditableProviderPost };
+module.exports = { remove, reschedule, update, bulkEdit, bulkCancel, executeBulkCancel, runBulkCancellationSweep, startBulkCancellationRuntime, assertEditableProviderPost };

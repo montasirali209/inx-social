@@ -426,6 +426,25 @@ model SocialPublication {
   @@index([externalPostId])
 }
 
+model BulkCancellationJob {
+  id                 String    @id @default(cuid())
+  userId             String
+  publicationIdsJson String
+  status             String    @default("QUEUED")
+  requestedCount     Int       @default(0)
+  cancelledCount     Int       @default(0)
+  failedCount        Int       @default(0)
+  resultJson         String?
+  lastError          String?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+}
+
 model AnalyticsMetricSnapshot {
   id              String   @id @default(cuid())
   userId          String
