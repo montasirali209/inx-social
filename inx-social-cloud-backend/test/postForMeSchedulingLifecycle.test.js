@@ -108,3 +108,30 @@ test('failed provider submissions expose a safe retry endpoint and professional 
   assert.match(manager, /Provider submission incomplete/);
   assert.match(manager, /Retry now/);
 });
+
+
+test('destination-scoped Bulk Edit safely splits shared schedules and preserves unselected destinations', () => {
+  const mutation = read('src/services/postForMePostMutationService.js');
+  const publishing = read('src/services/postForMePublishingService.js');
+  const controller = read('src/controllers/socialPublicationController.js');
+  const routes = read('src/routes/socialPublicationRoutes.js');
+
+  assert.match(mutation, /async function bulkEdit/);
+  assert.match(mutation, /const remainingRows = allRows\.filter/);
+  assert.match(mutation, /postForMe\.apiRequest\('POST', '\/social-posts'/);
+  assert.match(mutation, /postForMe\.apiRequest\('PUT', `\/social-posts\/\$\{encodeURIComponent\(parentId\)\}`/);
+  assert.match(mutation, /restoreOriginalParent/);
+  assert.match(mutation, /externalPostId: String\(parentId\)/);
+  assert.match(mutation, /selected destinations from the same scheduled post/i);
+  assert.match(controller, /mutations\.bulkEdit/);
+  assert.match(routes, /router\.patch\('\/bulk-edit'/);
+  assert.match(publishing, /caption: publication\.platformCaption \|\| publication\.content\?\.caption/);
+});
+
+test('single scheduled edits and cancellation operate on the current provider schedule after a destination split', () => {
+  const mutation = read('src/services/postForMePostMutationService.js');
+  assert.match(mutation, /async function parentRows/);
+  assert.match(mutation, /where: \{ externalPostId: String\(parentId\), profile: \{ userId \} \}/);
+  assert.match(mutation, /const rows = await parentRows\(userId, publication\.externalPostId\)/);
+  assert.match(mutation, /const rows = parentId \? await parentRows\(userId, parentId\) : \[publication\]/);
+});
