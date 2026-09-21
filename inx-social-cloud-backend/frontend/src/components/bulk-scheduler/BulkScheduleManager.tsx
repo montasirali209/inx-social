@@ -68,6 +68,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
   const [bulkEditing, setBulkEditing] = useState(false)
   const [bulkCancelling, setBulkCancelling] = useState(false)
   const [bulkCancelError, setBulkCancelError] = useState<string | null>(null)
+  const [bulkCancelNotice, setBulkCancelNotice] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [destinationScope, setDestinationScope] = useState<Set<string>>(new Set())
 
@@ -130,9 +131,11 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
 
     setBulkCancelling(true)
     setBulkCancelError(null)
+    setBulkCancelNotice(null)
     try {
       await onBulkCancelJobs(selectedJobs)
       setSelectedIds(new Set())
+      setBulkCancelNotice(`Cancellation started for ${count} selected schedule${count === 1 ? '' : 's'}. You can close this window now. INX Social will continue cancelling them in the background; this may take a little time.`)
     } catch (error) {
       setBulkCancelError(error instanceof Error ? error.message : 'The selected schedules could not be cancelled.')
     } finally {
@@ -148,7 +151,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
             <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan"><CalendarClock className="size-5" /></span>
             <div className="min-w-0 flex-1">
               <h2 className="text-lg font-semibold sm:text-xl">Bulk schedule manager</h2>
-              <p className="mt-1 max-w-3xl text-xs leading-5 text-text-muted">Review future schedules, published posts, and anything that needs attention. Select scheduled destinations to bulk edit or cancel them safely.</p>
+              <p className="mt-1 max-w-3xl text-xs leading-5 text-text-muted">Review future schedules, published posts, and anything that needs attention. Select scheduled destinations to bulk edit or cancel their schedules safely.</p>
             </div>
             <button aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-lg border border-transparent text-text-muted transition hover:border-border-soft hover:bg-white/5 hover:text-white" onClick={onClose} type="button"><X className="size-4" /></button>
           </div>
@@ -198,7 +201,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex min-w-0 items-start gap-3">
                 <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-cyan/10 text-brand-cyan"><SquarePen className="size-4" /></span>
-                <div><strong className="text-xs text-text-main">Bulk edit scheduled posts</strong><p className="mt-1 text-[10px] leading-4 text-text-muted">Select one, several or all visible destination schedules. Bulk Edit changes them; Cancel Selected removes them from the publishing queue.</p></div>
+                <div><strong className="text-xs text-text-main">Bulk edit scheduled posts</strong><p className="mt-1 text-[10px] leading-4 text-text-muted">Select one, several or all visible destination schedules. Bulk Edit changes them; Cancel Schedule removes the selected schedules from the publishing queue.</p></div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {visibleSelectable.length > 0 && <Button onClick={() => setSelectedIds((current) => {
@@ -208,7 +211,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
                   return next
                 })} size="sm" type="button" variant="ghost"><CheckSquare2 className="size-3.5" />{allVisibleSelected ? 'Clear visible' : `Select all (${visibleSelectable.length})`}</Button>}
                 <Button disabled={!selectedJobs.length || bulkCancelling} onClick={() => setBulkEditing(true)} size="sm" type="button" variant="primary"><SquarePen className="size-3.5" />Bulk Edit{selectedJobs.length ? ` (${selectedJobs.length})` : ''}</Button>
-                <Button className="border-brand-red/25 text-brand-red hover:bg-brand-red/10 hover:text-brand-red" disabled={!selectedJobs.length || bulkCancelling} onClick={() => { void cancelSelected() }} size="sm" type="button" variant="ghost"><Trash2 className="size-3.5" />{bulkCancelling ? `Cancelling (${selectedJobs.length})…` : `Cancel Selected${selectedJobs.length ? ` (${selectedJobs.length})` : ''}`}</Button>
+                <Button className="border-brand-red/25 text-brand-red hover:bg-brand-red/10 hover:text-brand-red" disabled={!selectedJobs.length || bulkCancelling} onClick={() => { void cancelSelected() }} size="sm" type="button" variant="ghost"><Trash2 className="size-3.5" />{bulkCancelling ? 'Starting cancellation…' : `Cancel Schedule${selectedJobs.length ? ` (${selectedJobs.length})` : ''}`}</Button>
               </div>
             </div>
 
@@ -222,6 +225,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
             </div>}
 
             {bulkCancelError && <p className="rounded-lg border border-brand-red/20 bg-brand-red/7 px-3 py-2 text-[10px] text-brand-red">{bulkCancelError}</p>}
+            {bulkCancelNotice && <div className="flex items-start gap-2 rounded-lg border border-brand-green/20 bg-brand-green/[.055] px-3 py-2 text-[10px] leading-4 text-brand-green"><CheckCircle2 className="mt-0.5 size-3.5 shrink-0" /><span>{bulkCancelNotice}</span></div>}
             <p className="text-[9px] text-text-soft">{visibleSelectable.length} editable destination schedule{visibleSelectable.length === 1 ? '' : 's'} in the current scope.{selectedJobs.length ? ` ${selectedJobs.length} selected for Bulk Edit or cancellation.` : ''}</p>
           </div>
         </div>}
