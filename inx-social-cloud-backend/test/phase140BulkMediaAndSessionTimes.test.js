@@ -208,3 +208,35 @@ test('Bulk Scheduler cancels selected future destinations without deleting unsel
   assert.match(mutation, /status: 'CANCELLED'/);
   assert.match(mutation, /failures/);
 });
+
+
+test('mobile publishing surfaces avoid fixed KPI widths and use full-screen workflow modals', () => {
+  const bulkStats = read('frontend/src/components/bulk-scheduler/BulkSchedulerStats.tsx');
+  const bulkManager = read('frontend/src/components/bulk-scheduler/BulkScheduleManager.tsx');
+  const posts = read('frontend/src/components/posts/PostsPage.tsx');
+  const postPrimitives = read('frontend/src/components/posts/PostPrimitives.tsx');
+  const destinations = read('frontend/src/components/posts/DestinationSelector.tsx');
+  const media = read('frontend/src/components/media-library/MediaLibraryPage.tsx');
+  const mediaPrimitives = read('frontend/src/components/media-library/MediaPrimitives.tsx');
+  const analytics = read('frontend/src/components/analytics/AnalyticsPage.tsx');
+  const analyticsStat = read('frontend/src/components/analytics/AnalyticsStatCard.tsx');
+  const stockVideo = read('frontend/src/components/ai-content-studio/StockVideoCreator.tsx');
+
+  assert.match(bulkStats, /grid grid-cols-2/);
+  assert.doesNotMatch(bulkStats, /min-w-\[210px\]/);
+  assert.match(bulkManager, /h-dvh w-full/);
+  assert.match(bulkManager, /grid grid-cols-2 gap-2/);
+
+  assert.match(posts, /grid grid-cols-2 gap-2/);
+  assert.doesNotMatch(postPrimitives, /min-w-\[210px\]/);
+  assert.match(destinations, /h-dvh w-full/);
+  assert.match(destinations, /basis-full flex-1/);
+
+  assert.match(media, /grid grid-cols-2 gap-2/);
+  assert.doesNotMatch(mediaPrimitives, /min-w-\[210px\]/);
+  assert.match(analytics, /grid grid-cols-2 gap-2/);
+  assert.doesNotMatch(analyticsStat, /min-w-\[205px\]/);
+
+  assert.match(stockVideo, /h-dvh w-full/);
+  assert.match(stockVideo, /overflow-y-auto lg:grid-cols-\[54%_46%\] lg:overflow-hidden/);
+});
