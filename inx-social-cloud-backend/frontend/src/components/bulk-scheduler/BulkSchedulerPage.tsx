@@ -667,8 +667,9 @@ export function BulkSchedulerPage() {
         const message = error instanceof Error ? error.message : 'Scheduled text edit failed.'
         setResults((current) => current.map((result) => result.id === resultId ? {
           ...result,
+          jobId: null,
           status: 'failed',
-          errorMessage: `${message} Original scheduled post was left unchanged.`,
+          errorMessage: `${message} Original scheduled post was left unchanged. Reopen Scheduled → Bulk Edit to try this edit again.`,
         } : result))
       }
     }
