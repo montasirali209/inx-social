@@ -72,8 +72,20 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
     .filter(job => matches(job, view))
     .filter(job => platformFilter === 'all' || job.destination?.platform === platformFilter), [deduped, platformFilter, view])
   const retryableJobs = useMemo(() => deduped.filter(job => job.status === 'FAILED' && !job.providerPostId), [deduped])
-  const scheduledTextJobs = useMemo(() => deduped.filter(job => job.status === 'SCHEDULED' && job.contentType === 'TEXT' && Boolean(job.providerPostId)), [deduped])
-  const visibleEditableText = useMemo(() => visible.filter(job => job.status === 'SCHEDULED' && job.contentType === 'TEXT' && Boolean(job.providerPostId)), [visible])
+  const singleDestinationContentIds = useMemo(() => {
+    const counts = new Map<string, number>()
+    jobs.forEach((job) => {
+      const key = job.contentId || job.providerPostId || job.id
+      counts.set(key, (counts.get(key) || 0) + 1)
+    })
+    return new Set([...counts.entries()].filter(([, count]) => count === 1).map(([key]) => key))
+  }, [jobs])
+  const isBulkEditable = (job: DashboardJob) => {
+    const key = job.contentId || job.providerPostId || job.id
+    return job.status === 'SCHEDULED' && job.contentType === 'TEXT' && Boolean(job.providerPostId) && singleDestinationContentIds.has(key)
+  }
+  const scheduledTextJobs = useMemo(() => deduped.filter(isBulkEditable), [deduped, singleDestinationContentIds])
+  const visibleEditableText = useMemo(() => visible.filter(isBulkEditable), [visible, singleDestinationContentIds])
   const selectedJobs = useMemo(() => scheduledTextJobs.filter(job => selectedIds.has(job.id)), [scheduledTextJobs, selectedIds])
   const availablePlatforms = useMemo(() => [...new Set(scheduledTextJobs.map(job => job.destination?.platform).filter(Boolean))].sort() as Platform[], [scheduledTextJobs])
   const allVisibleSelected = visibleEditableText.length > 0 && visibleEditableText.every(job => selectedIds.has(job.id))
@@ -133,7 +145,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex min-w-0 items-start gap-3">
               <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-cyan/10 text-brand-cyan"><SquarePen className="size-4" /></span>
-              <div><strong className="text-xs text-text-main">Bulk edit scheduled text</strong><p className="mt-1 text-[10px] leading-4 text-text-muted">Select future text posts, preview cleanup rules, then update the existing schedules in place.</p></div>
+              <div><strong className="text-xs text-text-main">Bulk edit scheduled text</strong><p className="mt-1 text-[10px] leading-4 text-text-muted">Select future single-destination text posts, preview cleanup rules, then update the existing schedules in place. Shared multi-destination posts are excluded to prevent unintended cross-platform edits.</p></div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <select aria-label="Filter scheduled posts by platform" className="min-h-9 rounded-lg border border-border-soft bg-panel px-2.5 text-[10px] font-semibold text-text-main outline-none focus:border-brand-cyan/40" onChange={(event) => { setPlatformFilter(event.target.value as 'all' | Platform); setSelectedIds(new Set()) }} value={platformFilter}>
@@ -157,7 +169,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
             const presentation = statusPresentation(job)
             const Icon = presentation.icon
             const editable = job.status === 'SCHEDULED'
-            const bulkEditable = editable && job.contentType === 'TEXT' && Boolean(job.providerPostId)
+            const bulkEditable = isBulkEditable(job)
             const retryable = job.status === 'FAILED' && !job.providerPostId
             const review = job.status === 'FAILED'
             const selected = selectedIds.has(job.id)
