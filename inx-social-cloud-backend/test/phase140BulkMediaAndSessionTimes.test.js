@@ -183,11 +183,13 @@ test('Bulk Scheduler cancels selected future destinations without deleting unsel
   const controller = read('src/controllers/socialPublicationController.js');
   const routes = read('src/routes/socialPublicationRoutes.js');
 
-  assert.match(manager, /Cancel Selected/);
+  assert.match(manager, /Cancel Schedule/);
   assert.match(manager, /onBulkCancelJobs/);
   assert.match(manager, /window\.confirm/);
   assert.match(manager, /removed from the publishing queue and will not go live/);
   assert.match(manager, /bulkCancelling/);
+  assert.match(manager, /continue cancelling them in the background/);
+  assert.match(manager, /You can close this window now/);
   assert.match(manager, /Trash2/);
 
   assert.match(page, /bulkCancelScheduledJobs/);
@@ -198,8 +200,13 @@ test('Bulk Scheduler cancels selected future destinations without deleting unsel
   assert.match(postsApi, /publications\/bulk-cancel/);
   assert.match(routes, /router\.post\('\/bulk-cancel', controller\.bulkCancelScheduled\)/);
   assert.match(controller, /mutations\.bulkCancel/);
+  assert.match(controller, /res\.status\(202\)/);
 
   assert.match(mutation, /async function bulkCancel/);
+  assert.match(mutation, /prisma\.bulkCancellationJob\.create/);
+  assert.match(mutation, /async function executeBulkCancel/);
+  assert.match(mutation, /runBulkCancellationSweep/);
+  assert.match(mutation, /startBulkCancellationRuntime/);
   assert.match(mutation, /const remainingRows = allRows\.filter/);
   assert.match(mutation, /providerBody\(parent, remainingRows/);
   assert.match(mutation, /apiRequest\('PUT', `\/social-posts\/\$\{encodeURIComponent\(parentId\)\}`/);
@@ -207,6 +214,10 @@ test('Bulk Scheduler cancels selected future destinations without deleting unsel
   assert.match(mutation, /markCancelledRows\(groupRows\)/);
   assert.match(mutation, /status: 'CANCELLED'/);
   assert.match(mutation, /failures/);
+  const server = read('src/server.js');
+  assert.match(server, /startBulkCancellationRuntime/);
+  const schema = read('prisma/schema.prisma');
+  assert.match(schema, /model BulkCancellationJob/);
 });
 
 
