@@ -57,8 +57,8 @@ function DashboardSkeleton() {
   ] as const
   return (
     <div aria-label="Loading dashboard workspace" className="dashboard-canvas grid content-start gap-3" role="status">
-      <section className="flex items-start gap-3 overflow-hidden md:grid md:grid-cols-3 xl:grid-cols-6">
-        {stats.map(([emoji, label], index) => <div className="relative min-h-[92px] min-w-48 overflow-hidden rounded-card border border-border-soft bg-panel/70 p-3 md:min-w-0" key={label}>
+      <section className="grid grid-cols-2 items-stretch gap-2 sm:gap-3 md:grid-cols-3 xl:grid-cols-6">
+        {stats.map(([emoji, label], index) => <div className="relative min-h-[92px] min-w-0 overflow-hidden rounded-card border border-border-soft bg-panel/70 p-3" key={label}>
           <div className="flex items-center gap-3"><span className="grid size-10 place-items-center rounded-xl border border-white/[.07] bg-white/[.025] text-lg motion-safe:animate-bounce" style={{ animationDelay: `${index * 80}ms` }}>{emoji}</span><span><small className="block text-[10px] font-semibold text-text-muted">{label}</small><strong className="mt-1 block text-sm">Updating…</strong></span></div>
           <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-border-soft"><span className="block h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-brand-teal/60 to-brand-cyan motion-reduce:animate-none" /></div>
         </div>)}
@@ -220,7 +220,7 @@ export function DashboardPage() {
         </div>
       ) : null}
 
-      <section aria-label="Universal publishing overview" className="flex items-start gap-3 overflow-x-auto pb-1 md:grid md:grid-cols-3 md:overflow-visible xl:grid-cols-6">
+      <section aria-label="Universal publishing overview" className="grid grid-cols-2 items-stretch gap-2 pb-1 sm:gap-3 md:grid-cols-3 xl:grid-cols-6">
         {dashboardStats.map((stat, index) => <StatCard data={stat} icon={statIcons[index]} key={stat.label} />)}
       </section>
 
