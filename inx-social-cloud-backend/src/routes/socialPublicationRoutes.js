@@ -5,6 +5,7 @@ const controller = require('../controllers/socialPublicationController');
 router.use(requireAuth);
 router.get('/', controller.list);
 router.post('/', controller.create);
+router.post('/smart-timing', controller.optimiseSmartTiming);
 router.post('/carousel', controller.createCarousel);
 router.get('/feeds/:profileId', controller.feed);
 router.patch('/bulk-edit', controller.bulkEditScheduled);
