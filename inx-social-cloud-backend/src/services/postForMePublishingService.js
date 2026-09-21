@@ -502,7 +502,7 @@ function publicationToJob(publication) {
     publishMode: publication.scheduledAt ? 'SCHEDULED' : 'NOW',
     contentType: ['IMAGE', 'VIDEO'].includes(meta.contentType) ? meta.contentType : 'TEXT',
     title: publication.content?.title || null,
-    caption: publication.content?.caption || publication.platformCaption || null,
+    caption: publication.platformCaption || publication.content?.caption || null,
     localFileName: meta.originalFileName || null,
     scheduledAt: publication.scheduledAt?.toISOString() || null,
     completedAt: publication.publishedAt?.toISOString() || null,
