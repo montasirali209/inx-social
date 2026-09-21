@@ -7,11 +7,11 @@ import type { AnalyticsSourceAccount } from './analytics-api'
 
 type JobsResponse = { jobs: DashboardJob[] }
 
-function calendarStatus(status: BackendJobStatus): CalendarPostStatus {
+function calendarStatus(status: BackendJobStatus): CalendarPostStatus | null {
   if (status === 'PUBLISHED') return 'published'
   if (status === 'SCHEDULED' || status === 'PROCESSING' || status === 'QUEUED') return 'scheduled'
   if (status === 'FAILED') return 'needs_review'
-  if (status === 'CANCELLED') return 'failed'
+  if (status === 'CANCELLED') return null
   if (status === 'AWAITING_UPLOAD' || status === 'READY') return 'needs_review'
   return 'draft'
 }
@@ -26,7 +26,9 @@ function jobPlatform(job: DashboardJob): Platform {
   return job.destination?.platform || 'facebook'
 }
 
-function jobPost(job: DashboardJob, timeZone: string, source: CalendarPost['source'] = 'post_for_me'): CalendarPost {
+function jobPost(job: DashboardJob, timeZone: string, source: CalendarPost['source'] = 'post_for_me'): CalendarPost | null {
+  const status = calendarStatus(job.status)
+  if (!status) return null
   const occurredAt = jobDate(job)
   const destination = job.destination
   const page = job.page
@@ -39,7 +41,7 @@ function jobPost(job: DashboardJob, timeZone: string, source: CalendarPost['sour
     platform: jobPlatform(job),
     pageId: destination?.id || page?.id || null,
     pageName: destination?.name || destination?.username || page?.facebookPageName || page?.facebookPageUsername || 'Connected account',
-    status: calendarStatus(job.status),
+    status,
     thumbnailUrl: destination?.avatarUrl || page?.facebookPagePicture || null,
     engagementScore: null,
     source,
@@ -58,7 +60,10 @@ function weekStart(date: Date) {
 }
 
 export function buildCalendarData(jobs: DashboardJob[], destinations: CalendarDestination[], timeZone: string, now = new Date(), cloudJobs: DashboardJob[] = []): CalendarData {
-  const allPosts = [...jobs.map(job => jobPost(job, timeZone, 'post_for_me')), ...cloudJobs.map(job => jobPost(job, timeZone, 'inx'))]
+  const allPosts = [
+    ...jobs.map(job => jobPost(job, timeZone, 'post_for_me')),
+    ...cloudJobs.map(job => jobPost(job, timeZone, 'inx')),
+  ].filter((post): post is CalendarPost => Boolean(post))
   const nowMs = now.getTime()
   const posts = allPosts.filter(post => {
     const occurredAt = new Date(post.occurredAt).getTime()
