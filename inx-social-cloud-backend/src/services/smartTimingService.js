@@ -157,21 +157,20 @@ async function historySummary(userId, requestedProfileIds, timezone) {
 }
 
 function fallbackTimes(baselineTimes) {
-  const now = Date.now();
-  const minimumFuture = now + 2 * 60_000;
-  return baselineTimes.map((baseline, index) => {
+  const minimumFuture = Date.now() + 2 * 60_000;
+  const result = [];
+  let previous = 0;
+  for (const baseline of baselineTimes) {
     const jitter = crypto.randomInt(-FALLBACK_SHIFT_MINUTES, FALLBACK_SHIFT_MINUTES + 1);
-    let candidate = baseline.getTime() + jitter * 60_000;
-    const min = baseline.getTime() - MAX_SHIFT_MINUTES * 60_000;
+    const min = Math.max(baseline.getTime() - MAX_SHIFT_MINUTES * 60_000, minimumFuture);
     const max = baseline.getTime() + MAX_SHIFT_MINUTES * 60_000;
-    candidate = Math.max(min, Math.min(max, candidate));
-    candidate = Math.max(candidate, minimumFuture);
-    if (index > 0) {
-      const prior = baselineTimes[index - 1].getTime();
-      if (candidate <= prior) candidate = Math.min(max, prior + 5 * 60_000);
-    }
-    return new Date(candidate).toISOString();
-  });
+    let candidate = Math.max(min, Math.min(max, baseline.getTime() + jitter * 60_000));
+    if (previous && candidate <= previous) candidate = Math.min(max, previous + 60_000);
+    if (candidate <= previous || candidate > max) candidate = Math.max(min, baseline.getTime());
+    previous = candidate;
+    result.push(new Date(candidate).toISOString());
+  }
+  return result;
 }
 
 function parseJson(value) {
@@ -210,7 +209,7 @@ async function aiTimes(baselineTimes, timezone, history) {
   });
   const evidence = {
     timezone,
-    destinations: history.profiles.map((profile) => ({ platform: profile.platform, name: profile.displayName })),
+    destinations: history.profiles.map((profile) => ({ platform: profile.platform })),
     measuredPosts: history.postsMeasured,
     strongestHistoricalWindows: history.windows,
     baseline
@@ -279,7 +278,7 @@ async function optimiseSmartTiming(userId, input = {}) {
     times: fallback,
     source: 'fallback',
     reason: history.postsMeasured
-      ? 'Smart Timing used your existing performance data with safe timing variation because the AI timing service was unavailable.'
+      ? 'Smart Timing used safe timing variation because the AI timing service was temporarily unavailable.'
       : 'Smart Timing used safe timing variation while this account builds enough performance history.',
     historyPosts: history.postsMeasured,
     maxShiftMinutes: MAX_SHIFT_MINUTES
