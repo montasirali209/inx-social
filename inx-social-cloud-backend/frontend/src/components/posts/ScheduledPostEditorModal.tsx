@@ -37,13 +37,15 @@ export function ScheduledPostEditorModal({
   onChanged: () => Promise<unknown> | void
 }) {
   const recovery = job.status === 'FAILED' && !job.metaPostId
+  const [recoveryDefaultIso] = useState(() => new Date(Date.now() + 10 * 60_000).toISOString())
   const initial = useMemo(() => {
     const scheduled = job.scheduledAt ? new Date(job.scheduledAt) : null
-    const value = recovery && (!scheduled || scheduled.getTime() <= Date.now())
-      ? new Date(Date.now() + 10 * 60_000).toISOString()
+    const recoveryDefault = new Date(recoveryDefaultIso)
+    const value = recovery && (!scheduled || scheduled.getTime() <= recoveryDefault.getTime() - 10 * 60_000)
+      ? recoveryDefaultIso
       : job.scheduledAt
     return localParts(value, timezone)
-  }, [job.scheduledAt, recovery, timezone])
+  }, [job.scheduledAt, recovery, recoveryDefaultIso, timezone])
   const [caption, setCaption] = useState(job.caption || '')
   const [date, setDate] = useState(initial.date)
   const [time, setTime] = useState(initial.time)
