@@ -743,15 +743,7 @@ export function BulkSchedulerPage() {
 
     if (!publicationIds.length) throw new Error('Choose at least one active scheduled destination to cancel.')
 
-    const response = await bulkCancelScheduledPosts(publicationIds)
-    await scheduler.refetch()
-
-    if (response.failures.length) {
-      const reasons = [...new Set(response.failures.map((failure) => failure.message))].slice(0, 2).join(' · ')
-      throw new Error(`${response.cancelled} cancelled; ${response.failures.length} could not be cancelled.${reasons ? ` ${reasons}` : ''}`)
-    }
-
-    return response
+    return bulkCancelScheduledPosts(publicationIds)
   }
 
   const requestStart = () => {
