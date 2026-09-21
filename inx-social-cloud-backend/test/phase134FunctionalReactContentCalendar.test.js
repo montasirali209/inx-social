@@ -43,6 +43,8 @@ test('Phase 13.4 uses universal Post for Me publishing state without sample cale
   assert.match(api, /'inx'/);
   assert.match(api, /post\.status === 'published' \|\| post\.status === 'failed'/);
   assert.match(api, /status === 'FAILED'\) return 'needs_review'/);
+  assert.match(api, /status === 'CANCELLED'\) return null/);
+  assert.match(api, /filter\(\(post\): post is CalendarPost => Boolean\(post\)\)/);
   assert.match(page, /queryKey: \['content-calendar', 'publishing-queue', timezone\]/);
   assert.match(page, /refetchInterval: 30_000/);
   assert.match(page, /refetchIntervalInBackground: false/);
