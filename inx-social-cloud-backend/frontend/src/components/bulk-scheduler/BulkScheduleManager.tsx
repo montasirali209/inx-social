@@ -198,7 +198,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex min-w-0 items-start gap-3">
                 <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-cyan/10 text-brand-cyan"><SquarePen className="size-4" /></span>
-                <div><strong className="text-xs text-text-main">Manage scheduled posts</strong><p className="mt-1 text-[10px] leading-4 text-text-muted">Select one, several or all visible destination schedules. Bulk Edit changes them; Cancel Selected removes them from the publishing queue.</p></div>
+                <div><strong className="text-xs text-text-main">Bulk edit scheduled posts</strong><p className="mt-1 text-[10px] leading-4 text-text-muted">Select one, several or all visible destination schedules. Bulk Edit changes them; Cancel Selected removes them from the publishing queue.</p></div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {visibleSelectable.length > 0 && <Button onClick={() => setSelectedIds((current) => {
