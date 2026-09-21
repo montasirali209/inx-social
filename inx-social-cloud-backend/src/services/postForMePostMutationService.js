@@ -359,6 +359,136 @@ async function bulkEdit(userId, entries = []) {
   };
 }
 
+
+async function markCancelledRows(rows) {
+  const activeRows = rows.filter((row) => row.status !== 'CANCELLED');
+  if (!activeRows.length) return;
+
+  await prisma.socialPublication.updateMany({
+    where: { id: { in: activeRows.map((row) => row.id) } },
+    data: { status: 'CANCELLED', lastError: null }
+  });
+
+  for (const contentId of new Set(activeRows.map((row) => row.contentId))) {
+    const remaining = await prisma.socialPublication.count({
+      where: { contentId, status: { not: 'CANCELLED' } }
+    });
+    if (!remaining) {
+      await prisma.socialContent.update({
+        where: { id: contentId },
+        data: { status: 'CANCELLED' }
+      }).catch(() => {});
+    }
+  }
+}
+
+async function bulkCancel(userId, publicationIds = []) {
+  const requested = Array.isArray(publicationIds) ? publicationIds.slice(0, 250) : [];
+  const ids = [...new Set(requested.map(localId).filter(Boolean))];
+  if (!ids.length) {
+    throw Object.assign(new Error('Choose at least one scheduled destination to cancel.'), {
+      status: 400,
+      publicMessage: 'Choose at least one scheduled destination to cancel.'
+    });
+  }
+
+  const selectedRows = await prisma.socialPublication.findMany({
+    where: { id: { in: ids }, profile: { userId } },
+    include: { content: true, profile: true }
+  });
+
+  if (selectedRows.length !== ids.length) {
+    throw Object.assign(new Error('One or more selected scheduled destinations were not found.'), { status: 404 });
+  }
+
+  for (const row of selectedRows) {
+    if (row.status !== 'SCHEDULED' || !row.externalPostId) {
+      throw Object.assign(new Error('One or more selected posts are no longer cancellable.'), {
+        status: 409,
+        publicMessage: 'One or more selected posts have already started processing or no longer have an active schedule.'
+      });
+    }
+  }
+
+  const groups = new Map();
+  for (const row of selectedRows) {
+    const parentId = String(row.externalPostId);
+    const group = groups.get(parentId) || [];
+    group.push(row);
+    groups.set(parentId, group);
+  }
+
+  const affected = [];
+  const failures = [];
+
+  for (const [parentId, groupRows] of groups.entries()) {
+    let allRows = [];
+    try {
+      allRows = await parentRows(userId, parentId);
+      if (!allRows.length) throw Object.assign(new Error('Scheduled destinations could not be resolved.'), { status: 409 });
+
+      let parent = null;
+      try {
+        parent = await postForMe.apiRequest('GET', `/social-posts/${encodeURIComponent(parentId)}`);
+        assertEditableProviderPost(parent, groupRows[0]);
+      } catch (error) {
+        if (Number(error.status || 0) !== 404) throw error;
+
+        // If the provider schedule is already gone, reconcile every local row tied to it.
+        await markCancelledRows(allRows);
+        affected.push(...allRows.map((row) => `pfm:${row.id}`));
+        continue;
+      }
+
+      const selectedSet = new Set(groupRows.map((row) => row.id));
+      const remainingRows = allRows.filter((row) => row.status !== 'CANCELLED' && !selectedSet.has(row.id));
+
+      if (!remainingRows.length) {
+        try {
+          await postForMe.apiRequest('DELETE', `/social-posts/${encodeURIComponent(parentId)}`, { maxRetries: 3 });
+        } catch (error) {
+          if (Number(error.status || 0) !== 404) throw error;
+        }
+        await markCancelledRows(allRows);
+        affected.push(...allRows.map((row) => `pfm:${row.id}`));
+        continue;
+      }
+
+      const caption = String(parent.caption || remainingRows[0]?.platformCaption || remainingRows[0]?.content?.caption || '');
+      const scheduledAt = String(parent.scheduled_at || remainingRows[0]?.scheduledAt?.toISOString() || '');
+      const body = providerBody(parent, remainingRows, {
+        caption,
+        scheduledAt,
+        externalId: parent.external_id || `inx:${remainingRows[0]?.contentId}`
+      });
+
+      await postForMe.apiRequest('PUT', `/social-posts/${encodeURIComponent(parentId)}`, { data: body, maxRetries: 5 });
+
+      try {
+        await markCancelledRows(groupRows);
+      } catch (dbError) {
+        await restoreOriginalParent(parentId, parent, allRows).catch(() => {});
+        throw dbError;
+      }
+
+      affected.push(...groupRows.map((row) => `pfm:${row.id}`));
+    } catch (error) {
+      const message = error?.publicMessage || error?.message || 'Cancellation failed.';
+      failures.push(...groupRows.map((row) => ({
+        publicationId: `pfm:${row.id}`,
+        message
+      })));
+    }
+  }
+
+  return {
+    ok: failures.length === 0,
+    cancelled: affected.length,
+    affected,
+    failures
+  };
+}
+
 async function remove(userId, rawId) {
   const publication = await ownedPublication(userId, rawId);
   const parentId = publication.externalPostId;
@@ -374,14 +504,7 @@ async function remove(userId, rawId) {
     }
   }
 
-  await prisma.socialPublication.updateMany({
-    where: { id: { in: rows.map((item) => item.id) } },
-    data: { status: 'CANCELLED', lastError: null }
-  });
-  for (const contentId of new Set(rows.map((row) => row.contentId))) {
-    const remaining = await prisma.socialPublication.count({ where: { contentId, status: { not: 'CANCELLED' } } });
-    if (!remaining) await prisma.socialContent.update({ where: { id: contentId }, data: { status: 'CANCELLED' } }).catch(() => {});
-  }
+  await markCancelledRows(rows);
   return { ok: true, publicationId: `pfm:${publication.id}`, affected: rows.length };
 }
 
@@ -389,4 +512,4 @@ async function reschedule(userId, rawId, scheduledAt) {
   return update(userId, rawId, { scheduledAt });
 }
 
-module.exports = { remove, reschedule, update, bulkEdit, assertEditableProviderPost };
+module.exports = { remove, reschedule, update, bulkEdit, bulkCancel, assertEditableProviderPost };
