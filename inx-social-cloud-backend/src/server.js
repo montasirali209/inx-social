@@ -6,6 +6,7 @@ const { startMediaRetention } = require('./services/mediaRetentionService');
 const { startStockVideoRuntime } = require('./services/stockVideoStudioService');
 const { startRuntime: startPostForMeRuntime } = require('./services/postForMeService');
 const { startAnalyticsCacheRuntime } = require('./services/postForMeAnalyticsService');
+const { startBulkCancellationRuntime } = require('./services/postForMePostMutationService');
 const prisma = require('./db/prisma');
 const { runStorageDiagnostics } = require('./services/storageDiagnosticsService');
 const { startAgentAssetBucketBackfill } = require('./services/agentAssetBucketBackfillService');
@@ -49,6 +50,7 @@ const server = app.listen(env.port, () => {
   startStockVideoRuntime();
   startPostForMeRuntime();
   startAnalyticsCacheRuntime();
+  startBulkCancellationRuntime();
   void runStorageDiagnostics();
   startAgentAssetBucketBackfill();
   void verifyNextLandingUpstream();
