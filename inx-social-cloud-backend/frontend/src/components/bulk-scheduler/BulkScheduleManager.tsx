@@ -84,8 +84,8 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
     const key = job.contentId || job.providerPostId || job.id
     return job.status === 'SCHEDULED' && job.contentType === 'TEXT' && Boolean(job.providerPostId) && singleDestinationContentIds.has(key)
   }
-  const scheduledTextJobs = useMemo(() => deduped.filter(isBulkEditable), [deduped, singleDestinationContentIds])
-  const visibleEditableText = useMemo(() => visible.filter(isBulkEditable), [visible, singleDestinationContentIds])
+  const scheduledTextJobs = deduped.filter(isBulkEditable)
+  const visibleEditableText = visible.filter(isBulkEditable)
   const selectedJobs = useMemo(() => scheduledTextJobs.filter(job => selectedIds.has(job.id)), [scheduledTextJobs, selectedIds])
   const availablePlatforms = useMemo(() => [...new Set(scheduledTextJobs.map(job => job.destination?.platform).filter(Boolean))].sort() as Platform[], [scheduledTextJobs])
   const allVisibleSelected = visibleEditableText.length > 0 && visibleEditableText.every(job => selectedIds.has(job.id))
