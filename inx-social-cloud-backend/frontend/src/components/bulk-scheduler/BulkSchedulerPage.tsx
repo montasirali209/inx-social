@@ -501,7 +501,7 @@ export function BulkSchedulerPage() {
 
   const retryReviewJobs = async (jobs: DashboardJob[]) => {
     if (running || retryingId) return
-    const retryable = jobs.filter((job) => job.status === 'FAILED' && !job.providerPostId)
+    const retryable = jobs.filter((job) => job.status === 'FAILED' && !job.metaPostId)
     if (!retryable.length) return
 
     setHistoryView(null)
