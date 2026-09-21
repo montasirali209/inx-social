@@ -17,7 +17,7 @@ function StatContent({ stat, Icon }: { stat: CalendarStat; Icon: LucideIcon }) {
 }
 
 export function CalendarStatCard({ stat, icon: Icon, onClick }: { stat: CalendarStat; icon: LucideIcon; onClick?: () => void }) {
-  const className = `interactive-surface min-w-56 rounded-card border bg-gradient-to-br ${tones[stat.tone]} to-transparent p-4 sm:min-w-0`
+  const className = `interactive-surface min-w-0 rounded-card border bg-gradient-to-br ${tones[stat.tone]} to-transparent p-4 sm:min-w-0`
   if (!onClick) return <article className={className}><StatContent Icon={Icon} stat={stat} /></article>
 
   return <button
