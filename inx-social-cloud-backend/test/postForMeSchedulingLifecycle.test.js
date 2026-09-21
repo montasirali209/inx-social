@@ -135,3 +135,33 @@ test('single scheduled edits and cancellation operate on the current provider sc
   assert.match(mutation, /const rows = await parentRows\(userId, publication\.externalPostId\)/);
   assert.match(mutation, /const rows = parentId \? await parentRows\(userId, parentId\) : \[publication\]/);
 });
+
+
+test('platform-result failures preserve detailed reasons and support safe recovery without duplicating published content', () => {
+  const publishing = read('src/services/postForMePublishingService.js');
+  const provider = read('src/services/postForMeService.js');
+  const controller = read('src/controllers/socialPublicationController.js');
+  const manager = read('frontend/src/components/bulk-scheduler/BulkScheduleManager.tsx');
+  const editor = read('frontend/src/components/posts/ScheduledPostEditorModal.tsx');
+  const postsApi = read('frontend/src/lib/posts-api.ts');
+
+  assert.match(publishing, /usefulDetailStrings/);
+  assert.match(publishing, /humanizePlatformFailure/);
+  assert.match(publishing, /publicationError/);
+  assert.match(publishing, /resultError\(data, publication\.platform\)/);
+  assert.match(publishing, /async function retryFailedProviderResult/);
+  assert.match(publishing, /if \(result\.platformPostId\)/);
+  assert.match(publishing, /will not create a duplicate/);
+  assert.match(publishing, /social_accounts: \[accountId\]/);
+  assert.match(publishing, /retryHistory/);
+  assert.match(provider, /providerErrorMessage/);
+  assert.match(controller, /caption: req\.body\?\.caption/);
+  assert.match(controller, /scheduledAt: req\.body\?\.scheduledAt/);
+  assert.match(postsApi, /retryFailedScheduledPost\(jobId: string, input:/);
+  assert.match(manager, /Fix & retry/);
+  assert.match(manager, /Retry now/);
+  assert.match(manager, /!job\.metaPostId/);
+  assert.match(editor, /Fix & retry post/);
+  assert.match(editor, /Retry with changes/);
+  assert.match(editor, /Why it failed/);
+});
