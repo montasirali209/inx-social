@@ -109,3 +109,33 @@ test('customer-facing scheduling UI never exposes the underlying publishing prov
     assert.doesNotMatch(source, /Post for Me/i, `Provider branding leaked into ${path.relative(root, file)}`);
   }
 });
+
+
+test('Bulk Scheduler can safely bulk edit future scheduled text posts with preview and Batch Run progress', () => {
+  const page = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
+  const manager = read('frontend/src/components/bulk-scheduler/BulkScheduleManager.tsx');
+  const modal = read('frontend/src/components/bulk-scheduler/BulkTextEditModal.tsx');
+  const rules = read('frontend/src/lib/bulk-text-edit.ts');
+  const mutation = read('src/services/postForMePostMutationService.js');
+
+  assert.match(manager, /Bulk edit scheduled text/);
+  assert.match(manager, /Select all \(/);
+  assert.match(manager, /Bulk Edit/);
+  assert.match(manager, /Filter scheduled posts by platform/);
+  assert.match(manager, /single-destination text posts/);
+  assert.match(manager, /onBulkEditJobs/);
+  assert.match(modal, /X clean text preset/);
+  assert.match(modal, /Remove hashtags/);
+  assert.match(modal, /Maximum one emoji/);
+  assert.match(modal, /Optional find and replace/);
+  assert.match(modal, /Publishing dates and destinations are not modified/);
+  assert.match(rules, /example\.com\/\#pricing/);
+  assert.match(rules, /removeHashtagTokens/);
+  assert.match(rules, /limitEmoji/);
+  assert.match(page, /bulkEditScheduledJobs/);
+  assert.match(page, /updateScheduledPost\(job\.id, \{ caption: after \}\)/);
+  assert.match(page, /Updating scheduled text post/);
+  assert.match(page, /without changing publishing times/);
+  assert.match(page, /Original scheduled post was left unchanged/);
+  assert.match(mutation, /maxRetries: 5/);
+});
