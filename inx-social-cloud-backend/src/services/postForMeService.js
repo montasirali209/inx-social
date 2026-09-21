@@ -103,6 +103,27 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function providerErrorStrings(value, depth = 0, key = '') {
+  if (depth > 5 || value == null) return [];
+  if (typeof value === 'string') {
+    const text = value.trim();
+    if (!text) return [];
+    if ((text.startsWith('{') || text.startsWith('[')) && text.length < 20000) {
+      try { return providerErrorStrings(JSON.parse(text), depth + 1, key); } catch (_) { /* keep raw text */ }
+    }
+    return ['message', 'error', 'detail', 'details', 'description', 'reason', 'title', 'body'].includes(String(key).toLowerCase()) ? [text] : [];
+  }
+  if (Array.isArray(value)) return value.flatMap((item) => providerErrorStrings(item, depth + 1, key));
+  if (typeof value !== 'object') return [];
+  return Object.entries(value).flatMap(([childKey, child]) => providerErrorStrings(child, depth + 1, childKey));
+}
+
+function providerErrorMessage(raw, fallback) {
+  const candidates = providerErrorStrings(raw);
+  const generic = (value) => /request failed with (?:status )?code\s*\d+/i.test(String(value || '')) || /^bad request$/i.test(String(value || ''));
+  return candidates.find((value) => !generic(value)) || candidates[0] || fallback || 'Social publishing request failed.';
+}
+
 function pruneProviderReadTimestamps(now) {
   while (providerReadTimestamps.length && providerReadTimestamps[0] <= now - 60_000) {
     providerReadTimestamps.shift();
@@ -171,12 +192,7 @@ async function apiRequest(method, path, options = {}) {
         }
       }
 
-      const rawError = raw?.error;
-      const message = Array.isArray(rawError)
-        ? rawError.join(' · ')
-        : typeof rawError === 'string'
-          ? rawError
-          : raw?.message || (rawError && typeof rawError === 'object' ? rawError.message : null) || error.message || 'Social publishing request failed.';
+      const message = providerErrorMessage(raw, error.message);
       throw Object.assign(new Error(String(message)), {
         status,
         publicMessage: String(message).slice(0, 500),
