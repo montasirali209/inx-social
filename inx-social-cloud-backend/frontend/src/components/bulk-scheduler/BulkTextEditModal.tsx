@@ -59,8 +59,6 @@ export function BulkTextEditModal({
   const changed = preview.filter((item) => item.changed)
   const emptyTextPosts = preview.filter((item) => item.job.contentType === 'TEXT' && !item.afterText.trim())
   const samples = changed.slice(0, 5)
-  const scheduleChanging = hasScheduleRuleChanges(rules)
-  const textChanging = hasTextRuleChanges(rules)
 
   return createPortal(
     <div className="fixed inset-0 z-[140] grid place-items-center overflow-y-auto bg-[#01070d]/90 p-3 backdrop-blur-md sm:p-5" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
