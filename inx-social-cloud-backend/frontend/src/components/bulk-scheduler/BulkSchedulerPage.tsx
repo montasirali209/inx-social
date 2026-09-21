@@ -746,6 +746,7 @@ export function BulkSchedulerPage() {
     <div className="dashboard-canvas">
       {scheduler.isError && <section className="mb-4 flex flex-col gap-3 rounded-xl border border-brand-red/25 bg-brand-red/7 px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between"><span>{sessionRequired ? 'Your session must be refreshed before connected destinations can be loaded.' : 'Connected destinations could not refresh. The Bulk Scheduler interface remains available.'}</span>{sessionRequired ? <a className="inline-flex min-h-9 items-center justify-center rounded-lg border border-border-soft px-3 font-semibold" href="/portal/login.html?return=/app/">Sign in</a> : <button className="min-h-9 rounded-lg border border-border-soft px-3 font-semibold" onClick={() => scheduler.refetch()} type="button">Retry destinations</button>}</section>}
       <BulkSchedulerHero
+        onManage={() => setHistoryView('scheduled')}
         onOpen={() => destinationSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
         onStop={stopUpload}
         running={running}

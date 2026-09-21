@@ -159,6 +159,14 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
           </div>
         </header>
 
+        {view === 'all' && counts.scheduled > 0 && <div className="mx-5 mt-4 flex flex-col gap-3 rounded-xl border border-brand-cyan/18 bg-brand-cyan/[.035] px-4 py-3 sm:mx-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-cyan/10 text-brand-cyan"><SquarePen className="size-4" /></span>
+            <div><strong className="text-xs text-text-main">Need to change several scheduled posts?</strong><p className="mt-1 text-[10px] leading-4 text-text-muted">Open Scheduled to select one, several or all destination schedules and change caption, start date or publishing time in bulk.</p></div>
+          </div>
+          <Button className="shrink-0" onClick={() => setView('scheduled')} size="sm" type="button" variant="primary"><SquarePen className="size-3.5" />Bulk Edit Scheduled ({counts.scheduled})</Button>
+        </div>}
+
         {view === 'needs_review' && counts.needs_review > 0 && <div className="mx-5 mt-4 flex items-start gap-3 rounded-xl border border-brand-amber/25 bg-brand-amber/[.055] px-4 py-3 sm:mx-6">
           <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-amber/10 text-brand-amber"><AlertTriangle className="size-4" /></span>
           <div className="min-w-0 flex-1"><strong className="text-xs text-text-main">{counts.needs_review} post{counts.needs_review === 1 ? '' : 's'} need attention</strong><p className="mt-1 text-[10px] leading-5 text-text-muted">Retryable items can be sent back through the main Batch Run so progress and any new errors stay visible.</p></div>
