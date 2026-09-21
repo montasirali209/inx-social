@@ -47,7 +47,7 @@ test('Bulk Scheduler uses Post for Me long-range scheduling with editable provid
   assert.match(page, /BulkScheduleManager/);
   assert.match(stats, /Held for scheduled publishing/);
   assert.match(manager, /ScheduledPostEditorModal/);
-  assert.match(manager, /Review provider-held schedules/);
+  assert.match(manager, /Review future schedules/);
   assert.match(api, /updateBulkScheduledPost/);
   assert.match(api, /replaceBulkScheduledMedia/);
   assert.match(api, /deleteBulkJob/);
