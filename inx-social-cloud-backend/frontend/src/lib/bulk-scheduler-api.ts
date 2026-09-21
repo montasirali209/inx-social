@@ -42,7 +42,16 @@ export async function fetchBulkSchedulerData(): Promise<BulkSchedulerData> {
   }
 }
 
-export function createBulkMediaPost(input: CreateDirectPostInput) {
+export type SmartTimingResponse = { times: string[]; source: 'ai' | 'fallback'; reason: string; historyPosts: number; maxShiftMinutes: number }
+
+export function optimiseBulkScheduleTimes(input: { profileIds: string[]; baselineTimes: string[]; timezone: string }) {
+  return apiRequest<SmartTimingResponse>('/api/social-connections/publications/smart-timing', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export function createBulkMediaPost(input: CreateDirectPostInput & { smartTiming?: { enabled: boolean; baseScheduledAt: string | null; source: string | null } | null }) {
   return apiRequest<DirectPostResponse>('/api/social-connections/publications', {
     method: 'POST',
     body: JSON.stringify({
@@ -57,6 +66,7 @@ export function createBulkMediaPost(input: CreateDirectPostInput) {
       mediaLibraryAssetId: input.mediaLibraryAssetId,
       scheduledAt: input.scheduledAt,
       publishMode: input.publishMode,
+      smartTiming: input.smartTiming || null,
       source: 'BULK_SCHEDULER',
     }),
   })

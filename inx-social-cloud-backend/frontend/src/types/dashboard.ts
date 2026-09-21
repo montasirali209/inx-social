@@ -178,6 +178,7 @@ export type DashboardJob = {
   contentId?: string | null
   providerPostId?: string | null
   providerStatus?: string | null
+  smartTiming?: { enabled: boolean; baseScheduledAt?: string | null; source?: string | null } | null
   source?: string | null
   createdAt: string
   updatedAt: string

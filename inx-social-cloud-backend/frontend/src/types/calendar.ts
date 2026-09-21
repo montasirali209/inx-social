@@ -27,6 +27,7 @@ export type CalendarPost = {
   providerPostId: string | null
   platformUrl: string | null
   errorMessage?: string | null
+  smartTiming?: boolean
 }
 
 export type CalendarDay = {

@@ -49,6 +49,7 @@ function jobPost(job: DashboardJob, timeZone: string, source: CalendarPost['sour
     providerPostId: job.providerPostId || job.metaPostId || null,
     platformUrl: job.platformUrl || null,
     errorMessage: job.errorMessage || null,
+    smartTiming: Boolean(job.smartTiming?.enabled),
   }
 }
 
@@ -132,6 +133,7 @@ function feedPost(entry: CalendarFeedEntry, item: PlatformAnalytics['content'][n
     providerPostId: item.id,
     platformUrl: item.permalinkUrl,
     errorMessage: null,
+    smartTiming: false,
   }
 }
 
