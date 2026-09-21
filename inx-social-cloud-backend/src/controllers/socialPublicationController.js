@@ -1,5 +1,6 @@
 const publishing = require('../services/postForMePublishingService');
 const mutations = require('../services/postForMePostMutationService');
+const smartTiming = require('../services/smartTimingService');
 
 async function readBody(req, maxBytes = 500 * 1024 * 1024) {
   const chunks = [];
@@ -27,6 +28,12 @@ async function create(req, res, next) {
   try {
     const result = await publishing.createPublications(req.user.id, req.body || {});
     res.status(result.failures.length ? 207 : 201).json(result);
+  } catch (error) { next(error); }
+}
+
+async function optimiseSmartTiming(req, res, next) {
+  try {
+    res.json(await smartTiming.optimiseSmartTiming(req.user.id, req.body || {}));
   } catch (error) { next(error); }
 }
 
@@ -122,4 +129,4 @@ async function reschedule(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { list, create, createCarousel, uploadMedia, libraryMedia, feed, remove, reschedule, retry, updateScheduled, bulkEditScheduled, bulkCancelScheduled, replaceScheduledMedia };
+module.exports = { list, create, optimiseSmartTiming, createCarousel, uploadMedia, libraryMedia, feed, remove, reschedule, retry, updateScheduled, bulkEditScheduled, bulkCancelScheduled, replaceScheduledMedia };
