@@ -129,7 +129,7 @@ test('Bulk Scheduler can safely bulk edit future scheduled text posts with previ
   assert.match(modal, /Maximum one emoji/);
   assert.match(modal, /Optional find and replace/);
   assert.match(modal, /Publishing dates and destinations are not modified/);
-  assert.match(rules, /example\.com\/\#pricing/);
+  assert.match(rules, /\(\^\|\[ \\t\]\+\)\#\[\^\\s\]\+/);
   assert.match(rules, /removeHashtagTokens/);
   assert.match(rules, /limitEmoji/);
   assert.match(page, /bulkEditScheduledJobs/);
