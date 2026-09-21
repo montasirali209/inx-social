@@ -443,7 +443,7 @@ async function bundleForPublication(userId, rawPublicationId) {
     publications,
     profiles,
     input: {
-      caption: publication.content.caption || publication.platformCaption || '',
+      caption: publication.platformCaption || publication.content.caption || '',
       title: publication.content.title || null,
       contentType: inputMeta.contentType || 'TEXT',
       scheduledAt: publication.scheduledAt?.toISOString() || null,
@@ -511,37 +511,160 @@ async function attachLibraryMedia(userId, rawPublicationId) {
   return publicationToJob(fresh);
 }
 
-async function retryPublication(userId, rawPublicationId) {
-  const bundle = await bundleForPublication(userId, rawPublicationId);
-  if (bundle.publications.some((item) => item.externalPostId)) {
-    throw Object.assign(new Error('This post already has an active provider schedule and cannot be retried as a new submission.'), {
+async function retryFailedProviderResult(bundle, input = {}) {
+  const publication = bundle.publication;
+  if (publication.status !== 'FAILED') {
+    throw Object.assign(new Error('Only failed publishing results can be retried.'), {
       status: 409,
-      publicMessage: 'This post already has an active provider schedule.'
-    });
-  }
-  if (!bundle.publications.some((item) => item.status === 'FAILED' || item.status === 'READY')) {
-    throw Object.assign(new Error('Only failed or incomplete provider submissions can be retried.'), {
-      status: 409,
-      publicMessage: 'Only failed or incomplete provider submissions can be retried.'
+      publicMessage: 'Only failed publishing results can be retried.'
     });
   }
 
-  const scheduledAt = bundle.input.scheduledAt ? validateScheduledAt(bundle.input.scheduledAt) : null;
-  bundle.input = { ...bundle.input, scheduledAt };
+  const result = json(publication.metricsJson, {});
+  if (result.platformPostId) {
+    throw Object.assign(new Error('This post already has a platform post ID, so INX Social will not create a duplicate.'), {
+      status: 409,
+      publicMessage: 'This post may already exist on the social platform. Open the platform result before retrying to avoid a duplicate.'
+    });
+  }
+
+  const accountId = providerAccountId(publication.profile);
+  if (!accountId) {
+    throw Object.assign(new Error('The connected publishing account mapping is missing.'), {
+      status: 409,
+      publicMessage: 'Reconnect this social account before retrying the post.'
+    });
+  }
+
+  const meta = json(publication.mediaJson, {});
+  const contentType = String(meta.contentType || 'TEXT').toUpperCase();
+  const providerMedia = Array.isArray(meta.providerMedia) ? meta.providerMedia.filter((item) => item?.url) : [];
+  if (contentType !== 'TEXT' && !providerMedia.length) {
+    throw Object.assign(new Error('The original media is no longer attached to this failed post.'), {
+      status: 409,
+      publicMessage: 'The original media is no longer available. Recreate this media post before retrying.'
+    });
+  }
+
+  const caption = input.caption === undefined
+    ? String(publication.platformCaption || publication.content.caption || '')
+    : cleanText(input.caption, 5000);
+  const scheduledAt = input.scheduledAt ? validateScheduledAt(input.scheduledAt) : null;
+  const requestInput = {
+    caption,
+    title: publication.content.title || null,
+    contentType,
+    scheduledAt
+  };
+  const body = {
+    caption,
+    social_accounts: [accountId],
+    external_id: `inx:${publication.contentId}:retry:${publication.id}:${Date.now()}`,
+    scheduled_at: scheduledAt
+  };
+  if (providerMedia.length) body.media = providerMedia;
+  const platformConfigurations = buildPlatformConfigurations([publication.profile], requestInput);
+  if (platformConfigurations) body.platform_configurations = platformConfigurations;
+
+  let post;
+  try {
+    post = await postForMe.apiRequest('POST', '/social-posts', { data: body, maxRetries: 5 });
+  } catch (error) {
+    const message = humanizePlatformFailure(publication.platform, error?.publicMessage || error?.message, Number(error?.status || 0) || null);
+    await prisma.socialPublication.update({
+      where: { id: publication.id },
+      data: {
+        attemptCount: { increment: 1 },
+        lastAttemptAt: new Date(),
+        lastError: message
+      }
+    }).catch(() => {});
+    throw Object.assign(error, { publicMessage: message });
+  }
+
+  if (!post?.id) throw new Error('The social publishing gateway did not return a post identifier.');
+  const status = parentStatus(post, scheduledAt);
+  const previousFailures = Array.isArray(meta.retryHistory) ? meta.retryHistory.slice(-4) : [];
+  const retryHistory = [...previousFailures, {
+    providerPostId: publication.externalPostId || null,
+    error: publicationError(publication),
+    attemptedAt: new Date().toISOString()
+  }];
+
+  await prisma.socialPublication.update({
+    where: { id: publication.id },
+    data: {
+      externalPostId: String(post.id),
+      platformCaption: caption,
+      scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+      status,
+      attemptCount: { increment: 1 },
+      lastAttemptAt: new Date(),
+      lastError: null,
+      metricsJson: null,
+      mediaJson: JSON.stringify({
+        ...meta,
+        providerPostStatus: String(post.status || status).toLowerCase(),
+        retryHistory
+      })
+    }
+  });
+  await refreshContentStatus(publication.contentId);
+
+  const fresh = await prisma.socialPublication.findUnique({
+    where: { id: publication.id },
+    include: { content: true, profile: true }
+  });
+  return publicationToJob(fresh);
+}
+
+async function retryPublication(userId, rawPublicationId, input = {}) {
+  const bundle = await bundleForPublication(userId, rawPublicationId);
+
+  if (bundle.publication.externalPostId) {
+    return retryFailedProviderResult(bundle, input);
+  }
+
+  if (!bundle.publications.some((item) => item.status === 'FAILED' || item.status === 'READY')) {
+    throw Object.assign(new Error('Only failed or incomplete provider submissions can be retried.'), {
+      status: 409,
+      publicMessage: 'Only failed or incomplete publishing attempts can be retried.'
+    });
+  }
+
+  const requestedCaption = input.caption === undefined ? bundle.input.caption : cleanText(input.caption, 5000);
+  const priorSchedule = bundle.input.scheduledAt ? new Date(bundle.input.scheduledAt) : null;
+  const requestedSchedule = input.scheduledAt !== undefined
+    ? validateScheduledAt(input.scheduledAt)
+    : priorSchedule && priorSchedule.getTime() > Date.now()
+      ? priorSchedule.toISOString()
+      : null;
+  bundle.input = { ...bundle.input, caption: requestedCaption, scheduledAt: requestedSchedule };
+
   const meta = json(bundle.publication.mediaJson, {});
   const providerMedia = Array.isArray(meta.providerMedia) ? meta.providerMedia.filter((item) => item?.url) : [];
   if (String(bundle.input.contentType || 'TEXT').toUpperCase() !== 'TEXT' && !providerMedia.length) {
     throw Object.assign(new Error('The original media is no longer attached to this failed post. Recreate the media post from Bulk Scheduler.'), {
       status: 409,
-      publicMessage: 'The original media is no longer attached to this failed post. Recreate the media post from Bulk Scheduler.'
+      publicMessage: 'The original media is no longer available. Recreate this media post before retrying.'
     });
   }
 
-  await prisma.socialPublication.updateMany({
-    where: { id: { in: bundle.publications.map((publication) => publication.id) } },
-    data: { status: 'READY', lastError: null }
-  });
-  await prisma.socialContent.update({ where: { id: bundle.content.id }, data: { status: 'PROCESSING' } }).catch(() => {});
+  await prisma.$transaction([
+    prisma.socialPublication.updateMany({
+      where: { id: { in: bundle.publications.map((publication) => publication.id) } },
+      data: {
+        status: 'READY',
+        platformCaption: requestedCaption,
+        scheduledAt: requestedSchedule ? new Date(requestedSchedule) : null,
+        lastError: null
+      }
+    }),
+    prisma.socialContent.update({
+      where: { id: bundle.content.id },
+      data: { status: 'PROCESSING', caption: requestedCaption }
+    })
+  ]);
 
   try {
     await submitBundle(bundle, providerMedia);
