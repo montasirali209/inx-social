@@ -1,4 +1,4 @@
-import { FileText, HardDrive, Images, Play, RotateCcw, Type, UploadCloud } from 'lucide-react'
+import { FileText, HardDrive, Images, Play, RotateCcw, Sparkles, Type, UploadCloud } from 'lucide-react'
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import type { BulkContentMode, SelectedMedia, TimingMode } from '../../types/bulk-scheduler'
@@ -21,6 +21,7 @@ type Props = {
   selectedDestinations: number
   useFallback: boolean
   retainMedia: boolean
+  smartTiming: boolean
   canStart: boolean
   disabledReason: string
   running: boolean
@@ -34,6 +35,7 @@ type Props = {
   onScheduleTimeRemove: (value: string) => void
   onFallbackChange: (value: boolean) => void
   onRetainMediaChange: (value: boolean) => void
+  onSmartTimingChange: (value: boolean) => void
   onClear: () => void
   onStart: () => void
 }
@@ -81,9 +83,13 @@ export function UploadBatchPanel(props: Props) {
       </div>
 
       {needsDate && (
-        <div className="mt-3 rounded-xl border border-brand-cyan/20 bg-brand-cyan/[.045] px-3.5 py-3 text-xs leading-5 text-text-muted">
-          <strong className="text-text-main">Scheduled publishing:</strong>{' '}
-          Every post receives its own scheduled time from the start date and daily times above. INX Social keeps the schedule visible until publishing begins.
+        <div className="mt-3 space-y-3 rounded-xl border border-brand-cyan/20 bg-brand-cyan/[.045] px-3.5 py-3 text-xs leading-5 text-text-muted">
+          <div><strong className="text-text-main">Scheduled publishing:</strong>{' '}Every post receives its own scheduled time from the start date and daily times above. INX Social keeps the schedule visible until publishing begins.</div>
+          <label className={`flex items-start gap-3 rounded-xl border px-3 py-2.5 transition-colors ${props.smartTiming ? 'border-brand-purple/40 bg-brand-purple/[.08]' : 'border-border-soft bg-black/10'} ${props.running ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:border-brand-purple/30'}`}>
+            <input checked={props.smartTiming} className="mt-0.5 size-4 accent-brand-purple" disabled={props.running} onChange={(event) => props.onSmartTimingChange(event.target.checked)} type="checkbox" />
+            <Sparkles aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand-purple" />
+            <span><span className="block text-xs font-semibold text-text-main">Smart Timing</span><span className="mt-0.5 block text-[11px] leading-4 text-text-muted">AI analyses your selected accounts and existing performance, then safely adjusts each exact publishing time around the times you chose. The final time appears in Calendar.</span></span>
+          </label>
         </div>
       )}
 
