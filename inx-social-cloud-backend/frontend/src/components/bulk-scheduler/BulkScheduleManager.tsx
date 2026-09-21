@@ -1,10 +1,12 @@
-import { AlertTriangle, CalendarClock, CheckCircle2, Clock3, PencilLine, RotateCcw, X } from 'lucide-react'
+import { AlertTriangle, CalendarClock, CheckCircle2, CheckSquare2, Clock3, PencilLine, RotateCcw, SquarePen, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { DashboardJob } from '../../types/dashboard'
+import type { DashboardJob, Platform } from '../../types/dashboard'
+import type { BulkTextEditRules } from '../../lib/bulk-text-edit'
 import { Button } from '../ui/Button'
 import { ScheduledPostEditorModal } from '../posts/ScheduledPostEditorModal'
 import type { BulkHistoryView } from './BulkSchedulerStats'
+import { BulkTextEditModal } from './BulkTextEditModal'
 
 function matches(job: DashboardJob, view: BulkHistoryView) {
   if (view === 'all') return true
@@ -51,19 +53,42 @@ function statusPresentation(job: DashboardJob) {
   return { label: 'Processing', icon: Clock3, badge: 'border-brand-purple/25 bg-brand-purple/8 text-brand-purple', iconTone: 'border-brand-purple/20 bg-brand-purple/8 text-brand-purple' }
 }
 
-export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onChanged, onRetryJobs }: {
+export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onChanged, onRetryJobs, onBulkEditJobs }: {
   jobs: DashboardJob[]
   initialView: BulkHistoryView
   timezone: string
   onClose: () => void
   onChanged: () => Promise<unknown> | void
   onRetryJobs: (jobs: DashboardJob[]) => void
+  onBulkEditJobs: (jobs: DashboardJob[], rules: BulkTextEditRules) => void
 }) {
   const [view, setView] = useState<BulkHistoryView>(initialView)
   const [editing, setEditing] = useState<DashboardJob | null>(null)
+  const [bulkEditing, setBulkEditing] = useState(false)
+  const [platformFilter, setPlatformFilter] = useState<'all' | Platform>('all')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const deduped = useMemo(() => uniqueJobs(jobs), [jobs])
-  const visible = useMemo(() => deduped.filter(job => matches(job, view)), [deduped, view])
+  const visible = useMemo(() => deduped
+    .filter(job => matches(job, view))
+    .filter(job => platformFilter === 'all' || job.destination?.platform === platformFilter), [deduped, platformFilter, view])
   const retryableJobs = useMemo(() => deduped.filter(job => job.status === 'FAILED' && !job.providerPostId), [deduped])
+  const singleDestinationContentIds = useMemo(() => {
+    const counts = new Map<string, number>()
+    jobs.forEach((job) => {
+      const key = job.contentId || job.providerPostId || job.id
+      counts.set(key, (counts.get(key) || 0) + 1)
+    })
+    return new Set([...counts.entries()].filter(([, count]) => count === 1).map(([key]) => key))
+  }, [jobs])
+  const isBulkEditable = (job: DashboardJob) => {
+    const key = job.contentId || job.providerPostId || job.id
+    return job.status === 'SCHEDULED' && job.contentType === 'TEXT' && Boolean(job.providerPostId) && singleDestinationContentIds.has(key)
+  }
+  const scheduledTextJobs = deduped.filter(isBulkEditable)
+  const visibleEditableText = visible.filter(isBulkEditable)
+  const selectedJobs = useMemo(() => scheduledTextJobs.filter(job => selectedIds.has(job.id)), [scheduledTextJobs, selectedIds])
+  const availablePlatforms = useMemo(() => [...new Set(scheduledTextJobs.map(job => job.destination?.platform).filter(Boolean))].sort() as Platform[], [scheduledTextJobs])
+  const allVisibleSelected = visibleEditableText.length > 0 && visibleEditableText.every(job => selectedIds.has(job.id))
   const counts = useMemo(() => ({
     all: deduped.length,
     scheduled: deduped.filter(job => job.status === 'SCHEDULED').length,
@@ -98,7 +123,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
                 aria-pressed={selected}
                 className={`group rounded-xl border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${selected ? attention ? 'border-brand-amber/45 bg-brand-amber/[.08]' : 'border-brand-cyan/40 bg-brand-cyan/[.07]' : 'border-border-soft bg-black/10 hover:border-brand-cyan/25 hover:bg-white/[.025]'}`}
                 key={id}
-                onClick={() => setView(id)}
+                onClick={() => { setView(id); if (id !== 'scheduled') setSelectedIds(new Set()) }}
                 type="button"
               >
                 <span className="flex items-center gap-3">
@@ -116,15 +141,41 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
           {retryableJobs.length > 1 && <Button className="shrink-0" onClick={() => onRetryJobs(retryableJobs)} size="sm" type="button" variant="primary"><RotateCcw className="size-3.5" />Retry All ({retryableJobs.length})</Button>}
         </div>}
 
+        {view === 'scheduled' && <div className="mx-5 mt-4 rounded-xl border border-brand-cyan/18 bg-brand-cyan/[.035] p-3 sm:mx-6">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-cyan/10 text-brand-cyan"><SquarePen className="size-4" /></span>
+              <div><strong className="text-xs text-text-main">Bulk edit scheduled text</strong><p className="mt-1 text-[10px] leading-4 text-text-muted">Select future single-destination text posts, preview cleanup rules, then update the existing schedules in place. Shared multi-destination posts are excluded to prevent unintended cross-platform edits.</p></div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select aria-label="Filter scheduled posts by platform" className="min-h-9 rounded-lg border border-border-soft bg-panel px-2.5 text-[10px] font-semibold text-text-main outline-none focus:border-brand-cyan/40" onChange={(event) => { setPlatformFilter(event.target.value as 'all' | Platform); setSelectedIds(new Set()) }} value={platformFilter}>
+                <option value="all">All platforms</option>
+                {availablePlatforms.map(platform => <option key={platform} value={platform}>{platform === 'x' ? 'X' : platform.charAt(0).toUpperCase() + platform.slice(1)}</option>)}
+              </select>
+              {visibleEditableText.length > 0 && <Button onClick={() => setSelectedIds((current) => {
+                const next = new Set(current)
+                if (allVisibleSelected) visibleEditableText.forEach(job => next.delete(job.id))
+                else visibleEditableText.forEach(job => next.add(job.id))
+                return next
+              })} size="sm" type="button" variant="ghost"><CheckSquare2 className="size-3.5" />{allVisibleSelected ? 'Clear visible' : `Select all (${visibleEditableText.length})`}</Button>}
+              <Button disabled={!selectedJobs.length} onClick={() => setBulkEditing(true)} size="sm" type="button" variant="primary"><SquarePen className="size-3.5" />Bulk Edit{selectedJobs.length ? ` (${selectedJobs.length})` : ''}</Button>
+            </div>
+          </div>
+          {selectedJobs.length > 0 && <p className="mt-2 text-[9px] text-brand-cyan">{selectedJobs.length} scheduled text post{selectedJobs.length === 1 ? '' : 's'} selected. Media posts are intentionally excluded from this text editor.</p>}
+        </div>}
+
         <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">
           {visible.length ? <div className="grid gap-3">{visible.map(job => {
             const presentation = statusPresentation(job)
             const Icon = presentation.icon
             const editable = job.status === 'SCHEDULED'
+            const bulkEditable = isBulkEditable(job)
             const retryable = job.status === 'FAILED' && !job.providerPostId
             const review = job.status === 'FAILED'
-            return <article className={`rounded-2xl border p-4 transition ${review ? 'border-brand-amber/20 bg-gradient-to-r from-brand-amber/[.045] to-bg/20' : 'border-border-soft bg-bg/25 hover:border-brand-cyan/20'}`} key={job.id}>
+            const selected = selectedIds.has(job.id)
+            return <article className={`rounded-2xl border p-4 transition ${selected ? 'border-brand-cyan/35 bg-brand-cyan/[.055]' : review ? 'border-brand-amber/20 bg-gradient-to-r from-brand-amber/[.045] to-bg/20' : 'border-border-soft bg-bg/25 hover:border-brand-cyan/20'}`} key={job.id}>
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start">
+                {view === 'scheduled' && <span className="pt-2">{bulkEditable ? <input aria-label={`Select ${job.title || job.caption?.slice(0, 40) || 'scheduled text post'}`} checked={selected} className="size-4 accent-current" onChange={(event) => setSelectedIds((current) => { const next = new Set(current); if (event.target.checked) next.add(job.id); else next.delete(job.id); return next })} type="checkbox" /> : <span className="block size-4 rounded border border-border-soft opacity-30" />}</span>}
                 <span className={`grid size-10 shrink-0 place-items-center rounded-xl border ${presentation.iconTone}`}><Icon className={`size-4 ${presentation.label === 'Processing' ? 'animate-spin motion-reduce:animate-none' : ''}`} /></span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-start justify-between gap-2">
@@ -159,6 +210,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
       </section>
 
       {editing && <ScheduledPostEditorModal job={editing} onChanged={onChanged} onClose={() => setEditing(null)} timezone={timezone} />}
+      {bulkEditing && selectedJobs.length > 0 && <BulkTextEditModal jobs={selectedJobs} onApply={(selected, rules) => { setBulkEditing(false); onBulkEditJobs(selected, rules) }} onClose={() => setBulkEditing(false)} />}
     </div>,
     document.body,
   )

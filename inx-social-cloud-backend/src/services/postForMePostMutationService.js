@@ -94,7 +94,7 @@ async function update(userId, rawId, input = {}) {
     isDraft: false
   };
 
-  const updatedProvider = await postForMe.apiRequest('PUT', `/social-posts/${encodeURIComponent(publication.externalPostId)}`, { data: body });
+  const updatedProvider = await postForMe.apiRequest('PUT', `/social-posts/${encodeURIComponent(publication.externalPostId)}`, { data: body, maxRetries: 5 });
   const siblings = await prisma.socialPublication.findMany({
     where: { contentId: publication.contentId },
     select: { id: true, mediaJson: true }
