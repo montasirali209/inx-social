@@ -142,6 +142,11 @@ function mediaMetadata(input) {
     fileSizeBytes: input.fileSizeBytes == null ? null : Number(input.fileSizeBytes),
     mediaLibraryAssetId: input.mediaLibraryAssetId || null,
     mediaLibraryAssetIds: Array.isArray(input.mediaLibraryAssetIds) ? input.mediaLibraryAssetIds : null,
+    smartTiming: input.smartTiming?.enabled ? {
+      enabled: true,
+      baseScheduledAt: input.smartTiming.baseScheduledAt || null,
+      source: input.smartTiming.source || null
+    } : null,
     providerMedia: null,
     providerPostStatus: null
   };
@@ -725,6 +730,7 @@ function publicationToJob(publication) {
     contentId: publication.contentId,
     providerPostId: publication.externalPostId || null,
     providerStatus: meta.providerPostStatus || String(publication.status || '').toLowerCase() || null,
+    smartTiming: meta.smartTiming || null,
     source: publication.content?.source || null
   };
 }
