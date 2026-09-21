@@ -209,3 +209,16 @@ export function bulkEditScheduledPosts(entries: Array<{ publicationId: string; c
     body: JSON.stringify({ entries }),
   })
 }
+
+
+export function bulkCancelScheduledPosts(publicationIds: string[]) {
+  return apiRequest<{
+    ok: boolean
+    cancelled: number
+    affected: string[]
+    failures: Array<{ publicationId: string; message: string }>
+  }>('/api/social-connections/publications/bulk-cancel', {
+    method: 'POST',
+    body: JSON.stringify({ publicationIds }),
+  })
+}

@@ -56,6 +56,13 @@ async function bulkEditScheduled(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function bulkCancelScheduled(req, res, next) {
+  try {
+    const result = await mutations.bulkCancel(req.user.id, req.body?.publicationIds || []);
+    res.status(result.failures.length ? (result.cancelled ? 207 : 409) : 200).json(result);
+  } catch (error) { next(error); }
+}
+
 async function updateScheduled(req, res, next) {
   try {
     res.json(await mutations.update(req.user.id, req.params.publicationId, {
@@ -115,4 +122,4 @@ async function reschedule(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { list, create, createCarousel, uploadMedia, libraryMedia, feed, remove, reschedule, retry, updateScheduled, bulkEditScheduled, replaceScheduledMedia };
+module.exports = { list, create, createCarousel, uploadMedia, libraryMedia, feed, remove, reschedule, retry, updateScheduled, bulkEditScheduled, bulkCancelScheduled, replaceScheduledMedia };

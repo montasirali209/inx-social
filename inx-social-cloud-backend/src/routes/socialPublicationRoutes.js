@@ -8,6 +8,7 @@ router.post('/', controller.create);
 router.post('/carousel', controller.createCarousel);
 router.get('/feeds/:profileId', controller.feed);
 router.patch('/bulk-edit', controller.bulkEditScheduled);
+router.post('/bulk-cancel', controller.bulkCancelScheduled);
 router.post('/:publicationId/library-media', controller.libraryMedia);
 router.put('/:publicationId/media', controller.uploadMedia);
 router.put('/:publicationId/scheduled-media', controller.replaceScheduledMedia);

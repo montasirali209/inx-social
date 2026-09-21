@@ -173,3 +173,38 @@ test('Bulk Edit stays discoverable through KPI and manager controls without redu
   assert.match(manager, /Bulk edit scheduled posts/);
   assert.match(manager, /Select all \(/);
 });
+
+
+test('Bulk Scheduler cancels selected future destinations without deleting unselected sibling schedules', () => {
+  const page = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
+  const manager = read('frontend/src/components/bulk-scheduler/BulkScheduleManager.tsx');
+  const postsApi = read('frontend/src/lib/posts-api.ts');
+  const mutation = read('src/services/postForMePostMutationService.js');
+  const controller = read('src/controllers/socialPublicationController.js');
+  const routes = read('src/routes/socialPublicationRoutes.js');
+
+  assert.match(manager, /Cancel Selected/);
+  assert.match(manager, /onBulkCancelJobs/);
+  assert.match(manager, /window\.confirm/);
+  assert.match(manager, /removed from the publishing queue and will not go live/);
+  assert.match(manager, /bulkCancelling/);
+  assert.match(manager, /Trash2/);
+
+  assert.match(page, /bulkCancelScheduledJobs/);
+  assert.match(page, /bulkCancelScheduledPosts/);
+  assert.match(page, /onBulkCancelJobs=\{bulkCancelScheduledJobs\}/);
+
+  assert.match(postsApi, /bulkCancelScheduledPosts/);
+  assert.match(postsApi, /publications\/bulk-cancel/);
+  assert.match(routes, /router\.post\('\/bulk-cancel', controller\.bulkCancelScheduled\)/);
+  assert.match(controller, /mutations\.bulkCancel/);
+
+  assert.match(mutation, /async function bulkCancel/);
+  assert.match(mutation, /const remainingRows = allRows\.filter/);
+  assert.match(mutation, /providerBody\(parent, remainingRows/);
+  assert.match(mutation, /apiRequest\('PUT', `\/social-posts\/\$\{encodeURIComponent\(parentId\)\}`/);
+  assert.match(mutation, /apiRequest\('DELETE', `\/social-posts\/\$\{encodeURIComponent\(parentId\)\}`/);
+  assert.match(mutation, /markCancelledRows\(groupRows\)/);
+  assert.match(mutation, /status: 'CANCELLED'/);
+  assert.match(mutation, /failures/);
+});
