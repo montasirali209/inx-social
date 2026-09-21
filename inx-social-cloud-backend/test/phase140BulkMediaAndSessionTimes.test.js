@@ -156,3 +156,22 @@ test('Bulk Scheduler bulk edits selected destinations with caption date and time
   assert.match(mutation, /restoreOriginalParent/);
   assert.match(mutation, /maxRetries: 5/);
 });
+
+
+test('Bulk Edit is discoverable directly from the Bulk Scheduler entry points', () => {
+  const hero = read('frontend/src/components/bulk-scheduler/BulkSchedulerHero.tsx');
+  const stats = read('frontend/src/components/bulk-scheduler/BulkSchedulerStats.tsx');
+  const page = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
+  const manager = read('frontend/src/components/bulk-scheduler/BulkScheduleManager.tsx');
+
+  assert.match(hero, /Start New Bulk Schedule/);
+  assert.match(hero, /Manage Scheduled Posts/);
+  assert.match(hero, /onManage/);
+  assert.match(page, /onManage=\{\(\) => setHistoryView\('scheduled'\)\}/);
+  assert.match(stats, /Open to select and bulk edit/);
+  assert.match(manager, /Need to change several scheduled posts\?/);
+  assert.match(manager, /Bulk Edit Scheduled/);
+  assert.match(manager, /onClick=\{\(\) => setView\('scheduled'\)\}/);
+  assert.match(manager, /Bulk edit scheduled posts/);
+  assert.match(manager, /Select all \(/);
+});
