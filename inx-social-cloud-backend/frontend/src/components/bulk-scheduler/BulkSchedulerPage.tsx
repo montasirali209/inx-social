@@ -3,9 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ApiError } from '../../lib/api-client'
 import { createBulkMediaPost, fetchBulkSchedulerData, publishBulkLibraryMedia, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
-import { retryFailedScheduledPost } from '../../lib/posts-api'
+import { retryFailedScheduledPost, updateScheduledPost } from '../../lib/posts-api'
 import { fetchMediaAssetFile, uploadMediaAsset } from '../../lib/media-library-api'
 import { buildPublishingTimes, parseCaptions, parseTextPosts } from '../../lib/bulk-scheduler-utils'
+import { applyBulkTextEdit, type BulkTextEditRules } from '../../lib/bulk-text-edit'
 import type { BatchProgress, BulkContentMode, BulkSchedulerData, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
 import type { MediaAsset } from '../../types/media-library'
 import type { DashboardJob } from '../../types/dashboard'
@@ -593,6 +594,110 @@ export function BulkSchedulerPage() {
     await scheduler.refetch()
   }
 
+  const bulkEditScheduledJobs = async (jobs: DashboardJob[], rules: BulkTextEditRules) => {
+    if (running || retryingId) return
+    const prepared = jobs
+      .filter((job) => job.status === 'SCHEDULED' && job.contentType === 'TEXT' && Boolean(job.providerPostId))
+      .map((job) => ({ job, before: job.caption || '', after: applyBulkTextEdit(job.caption || '', rules) }))
+      .filter((item) => item.after && item.after !== item.before)
+
+    if (!prepared.length) return
+
+    setHistoryView(null)
+    const editResults: UploadResult[] = prepared.map(({ job, after }, index) => ({
+      id: `bulk-edit:${job.id}`,
+      mediaId: job.id,
+      mediaIndex: index,
+      jobId: job.id,
+      fileName: `Scheduled text post ${index + 1}`,
+      mediaKind: 'text',
+      thumbnailUrl: '',
+      textPreview: after.replace(/\s+/g, ' ').slice(0, 180),
+      destinationIds: job.destination?.id ? [job.destination.id] : [],
+      status: 'waiting',
+      resultId: job.providerPostId || null,
+      errorMessage: null,
+      scheduledAt: job.scheduledAt,
+    }))
+    setResults(editResults)
+    setProgress({
+      state: 'preparing',
+      percent: 0,
+      current: 0,
+      total: prepared.length,
+      completed: 0,
+      failed: 0,
+      message: `Preparing ${prepared.length} scheduled text edit${prepared.length === 1 ? '' : 's'}…`,
+    })
+
+    const controller = new AbortController()
+    abortRef.current = controller
+    window.requestAnimationFrame(() => batchRunSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+
+    let completed = 0
+    let failed = 0
+    for (let index = 0; index < prepared.length; index += 1) {
+      if (controller.signal.aborted) break
+      const { job, after } = prepared[index]
+      const resultId = editResults[index].id
+      setRetryingId(resultId)
+      setResults((current) => current.map((result) => result.id === resultId ? { ...result, status: 'uploading', errorMessage: null } : result))
+      setProgress({
+        state: 'scheduling',
+        percent: Math.round((index / prepared.length) * 100),
+        current: index + 1,
+        total: prepared.length,
+        completed,
+        failed,
+        message: `Updating scheduled text post ${index + 1} of ${prepared.length}…`,
+      })
+
+      try {
+        const updated = await updateScheduledPost(job.id, { caption: after })
+        completed += 1
+        setResults((current) => current.map((result) => result.id === resultId ? {
+          ...result,
+          status: 'scheduled',
+          resultId: updated.providerPostId || result.resultId,
+          errorMessage: null,
+          textPreview: updated.caption.replace(/\s+/g, ' ').slice(0, 180),
+        } : result))
+      } catch (error) {
+        failed += 1
+        const message = error instanceof Error ? error.message : 'Scheduled text edit failed.'
+        setResults((current) => current.map((result) => result.id === resultId ? {
+          ...result,
+          status: 'failed',
+          errorMessage: `${message} Original scheduled post was left unchanged.`,
+        } : result))
+      }
+    }
+
+    const stopped = controller.signal.aborted
+    if (stopped) {
+      setResults((current) => current.map((result) => result.status === 'waiting'
+        ? { ...result, status: 'blocked', errorMessage: 'Not edited because the bulk edit was stopped. Original scheduled post remains unchanged.' }
+        : result))
+    }
+
+    setProgress({
+      state: stopped ? 'stopped' : failed === prepared.length ? 'failed' : 'completed',
+      percent: stopped ? Math.round(((completed + failed) / prepared.length) * 100) : 100,
+      current: completed + failed,
+      total: prepared.length,
+      completed,
+      failed,
+      message: stopped
+        ? `Bulk edit stopped after ${completed + failed} of ${prepared.length} posts.`
+        : failed
+          ? `Bulk edit finished: ${completed} updated, ${failed} unchanged because their edits failed.`
+          : `Bulk edit complete. ${completed} scheduled text post${completed === 1 ? '' : 's'} updated without changing publishing times.`,
+    })
+    setRetryingId(null)
+    abortRef.current = null
+    await scheduler.refetch()
+  }
+
   const requestStart = () => {
     if (!canStart) return
     if (scheduler.data?.settings.approvalRequired) setConfirmationOpen(true)
@@ -615,7 +720,7 @@ export function BulkSchedulerPage() {
         <UploadBatchPanel canStart={canStart} captionCount={captionBlocks.length} captions={captions} contentMode={contentMode} disabledReason={disabledReason} media={media} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onContentModeChange={changeContentMode} onFallbackChange={setUseFallback} onMedia={selectMedia} onRetainMediaChange={setRetainMedia} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={requestStart} onTimingModeChange={setTimingMode} retainMedia={retainMedia} running={running} savedScheduleTimes={schedulerData.settings.defaultScheduleTimes} scheduleDate={scheduleDate} scheduleTimes={activeScheduleTimes} selectedDestinations={selectedIds.size} timezone={schedulerData.settings.timezone} timingMode={timingMode} useFallback={useFallback} />
         <div className="scroll-mt-24" ref={batchRunSection}><BatchRunPanel canStart={canStart} destinations={destinations} disabledReason={disabledReason} onRetry={retryFailedUpload} onStart={requestStart} onStop={stopUpload} progress={progress} results={results} retryingId={retryingId} running={running} /></div>
       </div>
-      {historyView && <BulkScheduleManager initialView={historyView} jobs={schedulerData.jobs} onChanged={() => scheduler.refetch()} onClose={() => setHistoryView(null)} onRetryJobs={(jobs) => { void retryReviewJobs(jobs) }} timezone={schedulerData.settings.timezone} />}
+      {historyView && <BulkScheduleManager initialView={historyView} jobs={schedulerData.jobs} onBulkEditJobs={(jobs, rules) => { void bulkEditScheduledJobs(jobs, rules) }} onChanged={() => scheduler.refetch()} onClose={() => setHistoryView(null)} onRetryJobs={(jobs) => { void retryReviewJobs(jobs) }} timezone={schedulerData.settings.timezone} />}
       <PublishConfirmationDialog busy={running} confirmLabel={timingMode === 'publish_now' ? 'Publish batch' : 'Schedule batch'} description={`You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} ${batchCount} ${contentMode === 'text' ? `text post${batchCount === 1 ? '' : 's'}` : `media file${batchCount === 1 ? '' : 's'}`} across ${selectedIds.size} destination${selectedIds.size === 1 ? '' : 's'}.`} onCancel={() => setConfirmationOpen(false)} onConfirm={() => { setConfirmationOpen(false); void runBatch() }} open={confirmationOpen} title="Confirm this bulk publishing action" />
     </div>
   )
