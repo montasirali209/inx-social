@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ApiError } from '../../lib/api-client'
-import { createBulkMediaPost, fetchBulkSchedulerData, publishBulkLibraryMedia, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
+import { createBulkMediaPost, fetchBulkSchedulerData, optimiseBulkScheduleTimes, publishBulkLibraryMedia, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
 import { bulkCancelScheduledPosts, bulkEditScheduledPosts, retryFailedScheduledPost } from '../../lib/posts-api'
 import { fetchMediaAssetFile, uploadMediaAsset } from '../../lib/media-library-api'
 import { buildPublishingTimes, parseCaptions, parseTextPosts } from '../../lib/bulk-scheduler-utils'
@@ -67,6 +67,7 @@ export function BulkSchedulerPage() {
   const [scheduleTimes, setScheduleTimes] = useState<string[]>(['10:00'])
   const [useFallback, setUseFallback] = useState(false)
   const [retainMedia, setRetainMedia] = useState(false)
+  const [smartTiming, setSmartTiming] = useState(false)
   const [progress, setProgress] = useState<BatchProgress>(idleProgress)
   const [results, setResults] = useState<UploadResult[]>([])
   const [confirmationOpen, setConfirmationOpen] = useState(false)
@@ -200,6 +201,7 @@ export function BulkSchedulerPage() {
     setScheduleTimes(['10:00'])
     setUseFallback(false)
     setRetainMedia(false)
+    setSmartTiming(false)
     setResults([])
     setConfirmationOpen(false)
     setRetryingId(null)
@@ -224,11 +226,33 @@ export function BulkSchedulerPage() {
     if (!canStart || !scheduler.data) return
     const destinationIds = [...selectedIds]
     let publishingTimes: Array<string | null>
+    let baselinePublishingTimes: Array<string | null>
+    let smartTimingSource: string | null = null
     try {
-      publishingTimes = buildPublishingTimes({ mode: timingMode as TimingMode, mediaCount: batchCount, date: scheduleDate, dailyTimes: activeScheduleTimes, timezone: schedulerData.settings.timezone })
+      baselinePublishingTimes = buildPublishingTimes({ mode: timingMode as TimingMode, mediaCount: batchCount, date: scheduleDate, dailyTimes: activeScheduleTimes, timezone: schedulerData.settings.timezone })
+      publishingTimes = [...baselinePublishingTimes]
     } catch (error) {
       setProgress({ ...idleProgress, state: 'failed', message: error instanceof Error ? error.message : 'The publishing schedule is invalid.' })
       return
+    }
+
+    if (smartTiming && timingMode !== 'publish_now') {
+      const baselineTimes = baselinePublishingTimes.filter((value): value is string => Boolean(value))
+      setProgress({ state: 'preparing', percent: 1, current: 0, total: batchCount, completed: 0, failed: 0, message: 'Smart Timing is analysing your account performance and selected posting windows…' })
+      try {
+        const optimised = await optimiseBulkScheduleTimes({
+          profileIds: destinationIds,
+          baselineTimes,
+          timezone: schedulerData.settings.timezone,
+        })
+        if (optimised.times.length === baselineTimes.length) {
+          publishingTimes = optimised.times
+          smartTimingSource = optimised.source
+        }
+      } catch (error) {
+        console.warn('Smart Timing could not optimise this batch; selected publishing times will be used.', error)
+        publishingTimes = [...baselinePublishingTimes]
+      }
     }
 
     const controller = new AbortController()
@@ -273,6 +297,7 @@ export function BulkSchedulerPage() {
             mediaLibraryAssetId: null,
             scheduledAt: publishingTimes[index],
             publishMode: timingMode === 'publish_now' ? 'NOW' : 'SCHEDULED',
+            smartTiming: smartTimingSource ? { enabled: true, baseScheduledAt: baselinePublishingTimes[index], source: smartTimingSource } : null,
           })
           const job = prepared.jobs[0]
           if (!job) throw new Error(prepared.failures[0]?.error || 'publishing provider could not create this text post.')
@@ -379,6 +404,7 @@ export function BulkSchedulerPage() {
           mediaLibraryAssetId: action.item.libraryAssetId || null,
           scheduledAt: publishingTimes[action.mediaIndex],
           publishMode: timingMode === 'publish_now' ? 'NOW' : 'SCHEDULED',
+          smartTiming: smartTimingSource ? { enabled: true, baseScheduledAt: baselinePublishingTimes[action.mediaIndex], source: smartTimingSource } : null,
         })
         const job = prepared.jobs[0]
         if (!job) throw new Error(prepared.failures[0]?.error || 'publishing provider could not prepare this publishing record.')
@@ -761,7 +787,7 @@ export function BulkSchedulerPage() {
       <BulkSchedulerStats jobs={schedulerData.jobs} onOpen={setHistoryView} />
       <div className="mt-4 scroll-mt-24" ref={destinationSection}><PublishingDestinationsPanel destinations={destinations} onSelectionChange={setSelectedIds} platforms={schedulerData.platforms} selectedIds={selectedIds} /></div>
       <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,.92fr)_minmax(0,1.08fr)]">
-        <UploadBatchPanel canStart={canStart} captionCount={captionBlocks.length} captions={captions} contentMode={contentMode} disabledReason={disabledReason} media={media} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onContentModeChange={changeContentMode} onFallbackChange={setUseFallback} onMedia={selectMedia} onRetainMediaChange={setRetainMedia} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={requestStart} onTimingModeChange={setTimingMode} retainMedia={retainMedia} running={running} savedScheduleTimes={schedulerData.settings.defaultScheduleTimes} scheduleDate={scheduleDate} scheduleTimes={activeScheduleTimes} selectedDestinations={selectedIds.size} timezone={schedulerData.settings.timezone} timingMode={timingMode} useFallback={useFallback} />
+        <UploadBatchPanel canStart={canStart} captionCount={captionBlocks.length} captions={captions} contentMode={contentMode} disabledReason={disabledReason} media={media} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onContentModeChange={changeContentMode} onFallbackChange={setUseFallback} onMedia={selectMedia} onRetainMediaChange={setRetainMedia} onSmartTimingChange={setSmartTiming} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={requestStart} onTimingModeChange={setTimingMode} retainMedia={retainMedia} smartTiming={smartTiming} running={running} savedScheduleTimes={schedulerData.settings.defaultScheduleTimes} scheduleDate={scheduleDate} scheduleTimes={activeScheduleTimes} selectedDestinations={selectedIds.size} timezone={schedulerData.settings.timezone} timingMode={timingMode} useFallback={useFallback} />
         <div className="scroll-mt-24" ref={batchRunSection}><BatchRunPanel canStart={canStart} destinations={destinations} disabledReason={disabledReason} onRetry={retryFailedUpload} onStart={requestStart} onStop={stopUpload} progress={progress} results={results} retryingId={retryingId} running={running} /></div>
       </div>
       {historyView && <BulkScheduleManager initialView={historyView} jobs={schedulerData.jobs} onBulkCancelJobs={bulkCancelScheduledJobs} onBulkEditJobs={(jobs, rules) => { void bulkEditScheduledJobs(jobs, rules) }} onChanged={() => scheduler.refetch()} onClose={() => setHistoryView(null)} onRetryJobs={(jobs) => { void retryReviewJobs(jobs) }} timezone={schedulerData.settings.timezone} />}
