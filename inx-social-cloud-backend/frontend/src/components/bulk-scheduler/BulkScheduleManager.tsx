@@ -94,7 +94,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
   const selectedJobs = useMemo(() => scheduledRows.filter((job) => selectedIds.has(job.id)), [scheduledRows, selectedIds])
   const visibleSelectable = view === 'scheduled' ? visible : []
   const allVisibleSelected = visibleSelectable.length > 0 && visibleSelectable.every((job) => selectedIds.has(job.id))
-  const retryableJobs = useMemo(() => deduped.filter((job) => job.status === 'FAILED' && !job.providerPostId), [deduped])
+  const retryableJobs = useMemo(() => deduped.filter((job) => job.status === 'FAILED' && !job.metaPostId), [deduped])
 
   const counts = useMemo(() => ({
     all: deduped.length,
@@ -169,7 +169,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
 
         {view === 'needs_review' && counts.needs_review > 0 && <div className="mx-5 mt-4 flex items-start gap-3 rounded-xl border border-brand-amber/25 bg-brand-amber/[.055] px-4 py-3 sm:mx-6">
           <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-amber/10 text-brand-amber"><AlertTriangle className="size-4" /></span>
-          <div className="min-w-0 flex-1"><strong className="text-xs text-text-main">{counts.needs_review} post{counts.needs_review === 1 ? '' : 's'} need attention</strong><p className="mt-1 text-[10px] leading-5 text-text-muted">Retryable items can be sent back through the main Batch Run so progress and any new errors stay visible.</p></div>
+          <div className="min-w-0 flex-1"><strong className="text-xs text-text-main">{counts.needs_review} post{counts.needs_review === 1 ? '' : 's'} need attention</strong><p className="mt-1 text-[10px] leading-5 text-text-muted">Use Fix & retry to correct the post first, or Retry now to submit the same content again. Progress and any new publishing reason stay visible in Batch Run.</p></div>
           {retryableJobs.length > 1 && <Button className="shrink-0" onClick={() => onRetryJobs(retryableJobs)} size="sm" type="button" variant="primary"><RotateCcw className="size-3.5" />Retry All ({retryableJobs.length})</Button>}
         </div>}
 
@@ -210,7 +210,8 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
             const Icon = presentation.icon
             const editable = job.status === 'SCHEDULED'
             const selectable = view === 'scheduled' && editable && Boolean(job.providerPostId)
-            const retryable = job.status === 'FAILED' && !job.providerPostId
+            const retryable = job.status === 'FAILED' && !job.metaPostId
+            const fixable = job.status === 'FAILED' && !job.metaPostId
             const review = job.status === 'FAILED'
             const selected = selectedIds.has(job.id)
             return <article className={`rounded-2xl border p-4 transition ${selected ? 'border-brand-cyan/35 bg-brand-cyan/[.055]' : review ? 'border-brand-amber/20 bg-gradient-to-r from-brand-amber/[.045] to-bg/20' : 'border-border-soft bg-bg/25 hover:border-brand-cyan/20'}`} key={job.id}>
@@ -240,7 +241,8 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
 
                 <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
                   {editable && <Button className="min-h-9 px-3 text-[10px]" onClick={() => setEditing(job)} size="sm" type="button" variant="primary"><PencilLine className="size-3.5" />Edit schedule</Button>}
-                  {retryable && <Button className="min-h-9 px-3 text-[10px]" onClick={() => onRetryJobs([job])} size="sm" type="button" variant="primary"><RotateCcw className="size-3.5" />Retry now</Button>}
+                  {fixable && <Button className="min-h-9 px-3 text-[10px]" onClick={() => setEditing(job)} size="sm" type="button" variant="primary"><PencilLine className="size-3.5" />Fix & retry</Button>}
+                  {retryable && <Button className="min-h-9 px-3 text-[10px]" onClick={() => onRetryJobs([job])} size="sm" type="button" variant="ghost"><RotateCcw className="size-3.5" />Retry now</Button>}
                 </div>
               </div>
             </article>

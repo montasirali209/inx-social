@@ -105,7 +105,7 @@ async function remove(req, res, next) {
 
 async function retry(req, res, next) {
   try {
-    res.json({ job: await publishing.retryPublication(req.user.id, req.params.publicationId), retried: true });
+    res.json({ job: await publishing.retryPublication(req.user.id, req.params.publicationId, { caption: req.body?.caption, scheduledAt: req.body?.scheduledAt }), retried: true });
   } catch (error) { next(error); }
 }
 

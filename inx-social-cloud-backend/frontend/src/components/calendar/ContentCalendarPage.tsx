@@ -7,10 +7,11 @@ import { deleteCalendarPost, fetchCalendarData, mergeCalendarFeedData, reschedul
 import { availableSlotsForDate, buildCalendarDays, formatMonth, monthKeyInTimezone, shiftMonth } from '../../lib/calendar-utils'
 import { zonedDateTimeToIso } from '../../lib/bulk-scheduler-utils'
 import { calculateBestPostTime } from '../../lib/posts-analytics'
+import { retryFailedScheduledPost } from '../../lib/posts-api'
 import { readSessionCache, writeSessionCache } from '../../lib/session-cache'
 import { useUiStore } from '../../store/ui-store'
 import type { CalendarPost, CalendarPostStatus } from '../../types/calendar'
-import type { Platform } from '../../types/dashboard'
+import type { DashboardJob, Platform } from '../../types/dashboard'
 import type { BestTimeInsight } from '../../types/posts'
 import { CalendarAgenda } from './CalendarAgenda'
 import { CalendarGrid } from './CalendarGrid'
@@ -18,6 +19,7 @@ import { CalendarStatCard } from './CalendarStatCard'
 import { CalendarToolbar, type CalendarView } from './CalendarToolbar'
 import { CalendarPostActionDialog } from './CalendarPostActionDialog'
 import { SelectedDatePanel } from './SelectedDatePanel'
+import { ScheduledPostEditorModal } from '../posts/ScheduledPostEditorModal'
 
 const statIcons = [CalendarCheck2, Send, FilePenLine, AlertTriangle, UsersRound]
 const calendarSourcesCacheKey = 'inx-social-cache:calendar-sources-v1'
@@ -76,6 +78,8 @@ export function ContentCalendarPage() {
   const [actionTime, setActionTime] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [reviewJob, setReviewJob] = useState<DashboardJob | null>(null)
+  const [reviewBusyId, setReviewBusyId] = useState<string | null>(null)
 
   const calendar = useQuery({
     queryKey: ['content-calendar', 'publishing-queue', timezone],
@@ -224,6 +228,29 @@ export function ContentCalendarPage() {
     setActionTime('')
     setActionError(null)
   }
+  const retryReviewPost = async (post: CalendarPost) => {
+    if (!post.jobId || reviewBusyId) return
+    setReviewBusyId(post.id)
+    setNotice(null)
+    try {
+      await retryFailedScheduledPost(post.jobId)
+      setNotice('Publishing retry started. The Calendar will update as soon as the platform reports the result.')
+      await calendar.refetch()
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'The failed post could not be retried.')
+    } finally {
+      setReviewBusyId(null)
+    }
+  }
+
+  const fixReviewPost = (post: CalendarPost) => {
+    const job = (calendarData?.jobs || []).find((item) => item.id === post.jobId) || null
+    if (!job) {
+      setNotice('The publishing record could not be loaded. Refresh the Calendar and try again.')
+      return
+    }
+    setReviewJob(job)
+  }
 
   if (calendar.isPending || (feedAccounts.length > 0 && accountFeed.isPending && !accountFeed.data)) return <CalendarSkeleton />
   if (calendar.isError) {
@@ -238,9 +265,10 @@ export function ContentCalendarPage() {
     {((calendarData?.syncWarnings.length || 0) > 0 || (accountFeed.data?.failures.length || 0) > 0) && <div className="mb-4 flex items-start gap-2 rounded-xl border border-brand-amber/20 bg-brand-amber/5 px-3 py-2 text-[10px] leading-4 text-text-muted"><AlertTriangle aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-brand-amber" /><span>Some connected-account history could not refresh. Available calendar content is still shown.</span></div>}
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
       {view === 'calendar' ? <CalendarGrid days={days} monthLabel={formatMonth(monthKey)} onNextMonth={() => chooseMonth(1)} onPreviousMonth={() => chooseMonth(-1)} onSelectDate={chooseDate} onSelectPost={openPost} onToday={chooseToday} /> : <CalendarAgenda onSelectDate={chooseDate} onSelectPost={openPost} posts={monthPosts} />}
-      <SelectedDatePanel bestTime={bestTime} bestTimeLoading={accountFeed.isFetching && !recommendationAnalytics} busyPostId={calendarAction.isPending ? action?.post.id || null : null} canSchedule={selectedDate >= todayKey} date={selectedDate} onDeletePost={openDelete} onOpenPost={openPost} onReschedulePost={openReschedule} onSelectTime={setSelectedTime} posts={selectedPosts} selectedTime={selectedTime} slots={slots} />
+      <SelectedDatePanel bestTime={bestTime} bestTimeLoading={accountFeed.isFetching && !recommendationAnalytics} busyPostId={reviewBusyId || (calendarAction.isPending ? action?.post.id || null : null)} canSchedule={selectedDate >= todayKey} date={selectedDate} onDeletePost={openDelete} onFixPost={fixReviewPost} onOpenPost={openPost} onReschedulePost={openReschedule} onRetryPost={(post) => { void retryReviewPost(post) }} onSelectTime={setSelectedTime} posts={selectedPosts} selectedTime={selectedTime} slots={slots} />
     </div>
     <CalendarPostActionDialog action={action?.type || 'reschedule'} busy={calendarAction.isPending} date={actionDate} error={actionError} onClose={() => { if (!calendarAction.isPending) setAction(null) }} onConfirm={() => calendarAction.mutate()} onDate={setActionDate} onTime={setActionTime} post={action?.post || null} time={actionTime} />
+    {reviewJob && <ScheduledPostEditorModal job={reviewJob} onChanged={async () => { await calendar.refetch() }} onClose={() => setReviewJob(null)} timezone={timezone} />}
     {notice && <div className="fixed bottom-5 right-5 z-[110] flex max-w-sm items-center gap-3 rounded-xl border border-brand-green/25 bg-[#071923] px-4 py-3 text-xs shadow-2xl"><CheckCircle2 className="size-4 shrink-0 text-brand-green" /><span>{notice}</span><button aria-label="Dismiss" className="ml-1 text-text-soft hover:text-white" onClick={() => setNotice(null)} type="button"><X className="size-3.5" /></button></div>}
   </div>
 }

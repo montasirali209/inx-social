@@ -15,6 +15,83 @@ function cleanText(value, max = 5000) {
   return String(value || '').trim().slice(0, max);
 }
 
+function platformLabel(value) {
+  const key = String(value || '').toLowerCase();
+  if (key === 'x') return 'X';
+  if (key === 'linkedin') return 'LinkedIn';
+  if (key === 'tiktok') return 'TikTok';
+  if (key === 'youtube') return 'YouTube';
+  if (key === 'instagram') return 'Instagram';
+  if (key === 'facebook') return 'Facebook';
+  if (key === 'pinterest') return 'Pinterest';
+  if (key === 'threads') return 'Threads';
+  if (key === 'bluesky') return 'Bluesky';
+  return 'The social platform';
+}
+
+function genericProviderError(value) {
+  const text = String(value || '').trim();
+  return !text || /request failed with (?:status )?code\s*\d+/i.test(text) || /^bad request$/i.test(text);
+}
+
+function usefulDetailStrings(value, depth = 0, key = '') {
+  if (depth > 5 || value == null) return [];
+  if (typeof value === 'string') {
+    const text = value.trim();
+    if (!text) return [];
+    if ((text.startsWith('{') || text.startsWith('[')) && text.length < 20_000) {
+      try { return usefulDetailStrings(JSON.parse(text), depth + 1, key); } catch (_) { /* keep string */ }
+    }
+    return ['message', 'error', 'detail', 'details', 'description', 'reason', 'title', 'body', 'response', 'data'].includes(String(key).toLowerCase())
+      ? [text]
+      : [];
+  }
+  if (Array.isArray(value)) return value.flatMap((item) => usefulDetailStrings(item, depth + 1, key));
+  if (typeof value !== 'object') return [];
+  return Object.entries(value).flatMap(([childKey, child]) => usefulDetailStrings(child, depth + 1, childKey));
+}
+
+function humanizePlatformFailure(platform, rawValue, fallbackStatus = null) {
+  const label = platformLabel(platform);
+  const raw = String(rawValue || '').replace(/\s+/g, ' ').trim();
+  const lower = raw.toLowerCase();
+
+  if (/duplicate|already been posted|same content/i.test(raw)) return `${label} rejected this post because the same or very similar content was already published recently. Change the wording before retrying.`;
+  if (/too long|character limit|maximum.*character|280 characters/i.test(raw)) return `${label} rejected this post because the caption exceeds the platform's text limit. Shorten the caption and retry.`;
+  if (/permission|unauthori[sz]ed|forbidden|scope|access token|oauth/i.test(raw)) return `${label} could not publish because the connected account no longer has the required publishing permission. Reconnect the account, then retry.`;
+  if (/media|image|video|aspect ratio|dimension|format|codec/i.test(raw)) return `${label} rejected the attached media. Review the media requirements or replace the media before retrying.`;
+  if (/rate limit|too many requests/i.test(raw)) return `${label} temporarily limited publishing requests. Retry the post after a short wait.`;
+  if (/spam|automated|policy|rules|safety/i.test(raw)) return `${label} rejected this post under its content or anti-spam rules. Review the wording before retrying.`;
+
+  if (raw && !genericProviderError(raw)) {
+    const cleaned = raw.replace(/^error[:\s-]*/i, '').slice(0, 700);
+    return `${label} rejected this post: ${cleaned}`;
+  }
+
+  if (fallbackStatus === 400 || /400/.test(raw)) {
+    return `${label} rejected this post, but did not return a specific customer-readable reason. Open Fix & retry to review the caption and publishing settings before trying again.`;
+  }
+  return `${label} could not publish this post. Open Fix & retry to review it and try again.`;
+}
+
+function resultError(data, platform = '') {
+  const detailCandidates = usefulDetailStrings(data?.details);
+  const platformCandidates = usefulDetailStrings(data?.platform_data);
+  const errorCandidates = usefulDetailStrings({ error: data?.error });
+  const all = [...detailCandidates, ...platformCandidates, ...errorCandidates];
+  const specific = all.find((value) => !genericProviderError(value)) || all[0] || data?.error || '';
+  const status = Number(data?.status || data?.status_code || data?.details?.status || 0) || null;
+  return humanizePlatformFailure(platform, specific, status);
+}
+
+function publicationError(publication) {
+  const result = json(publication.metricsJson, {});
+  const last = String(publication.lastError || '').trim();
+  if (!last && !result?.details) return null;
+  if (!genericProviderError(last) && last) return humanizePlatformFailure(publication.platform, last);
+  return resultError({ error: last, details: result?.details, platform_data: result?.platform_data }, publication.platform);
+}
+
 function publicationId(value) {
   const raw = String(value || '');
   return raw.startsWith('pfm:') ? raw.slice(4) : raw;
@@ -366,7 +443,7 @@ async function bundleForPublication(userId, rawPublicationId) {
     publications,
     profiles,
     input: {
-      caption: publication.content.caption || publication.platformCaption || '',
+      caption: publication.platformCaption || publication.content.caption || '',
       title: publication.content.title || null,
       contentType: inputMeta.contentType || 'TEXT',
       scheduledAt: publication.scheduledAt?.toISOString() || null,
@@ -434,37 +511,160 @@ async function attachLibraryMedia(userId, rawPublicationId) {
   return publicationToJob(fresh);
 }
 
-async function retryPublication(userId, rawPublicationId) {
-  const bundle = await bundleForPublication(userId, rawPublicationId);
-  if (bundle.publications.some((item) => item.externalPostId)) {
-    throw Object.assign(new Error('This post already has an active provider schedule and cannot be retried as a new submission.'), {
+async function retryFailedProviderResult(bundle, input = {}) {
+  const publication = bundle.publication;
+  if (publication.status !== 'FAILED') {
+    throw Object.assign(new Error('Only failed publishing results can be retried.'), {
       status: 409,
-      publicMessage: 'This post already has an active provider schedule.'
-    });
-  }
-  if (!bundle.publications.some((item) => item.status === 'FAILED' || item.status === 'READY')) {
-    throw Object.assign(new Error('Only failed or incomplete provider submissions can be retried.'), {
-      status: 409,
-      publicMessage: 'Only failed or incomplete provider submissions can be retried.'
+      publicMessage: 'Only failed publishing results can be retried.'
     });
   }
 
-  const scheduledAt = bundle.input.scheduledAt ? validateScheduledAt(bundle.input.scheduledAt) : null;
-  bundle.input = { ...bundle.input, scheduledAt };
+  const result = json(publication.metricsJson, {});
+  if (result.platformPostId) {
+    throw Object.assign(new Error('This post already has a platform post ID, so INX Social will not create a duplicate.'), {
+      status: 409,
+      publicMessage: 'This post may already exist on the social platform. Open the platform result before retrying to avoid a duplicate.'
+    });
+  }
+
+  const accountId = providerAccountId(publication.profile);
+  if (!accountId) {
+    throw Object.assign(new Error('The connected publishing account mapping is missing.'), {
+      status: 409,
+      publicMessage: 'Reconnect this social account before retrying the post.'
+    });
+  }
+
+  const meta = json(publication.mediaJson, {});
+  const contentType = String(meta.contentType || 'TEXT').toUpperCase();
+  const providerMedia = Array.isArray(meta.providerMedia) ? meta.providerMedia.filter((item) => item?.url) : [];
+  if (contentType !== 'TEXT' && !providerMedia.length) {
+    throw Object.assign(new Error('The original media is no longer attached to this failed post.'), {
+      status: 409,
+      publicMessage: 'The original media is no longer available. Recreate this media post before retrying.'
+    });
+  }
+
+  const caption = input.caption === undefined
+    ? String(publication.platformCaption || publication.content.caption || '')
+    : cleanText(input.caption, 5000);
+  const scheduledAt = input.scheduledAt ? validateScheduledAt(input.scheduledAt) : null;
+  const requestInput = {
+    caption,
+    title: publication.content.title || null,
+    contentType,
+    scheduledAt
+  };
+  const body = {
+    caption,
+    social_accounts: [accountId],
+    external_id: `inx:${publication.contentId}:retry:${publication.id}:${Date.now()}`,
+    scheduled_at: scheduledAt
+  };
+  if (providerMedia.length) body.media = providerMedia;
+  const platformConfigurations = buildPlatformConfigurations([publication.profile], requestInput);
+  if (platformConfigurations) body.platform_configurations = platformConfigurations;
+
+  let post;
+  try {
+    post = await postForMe.apiRequest('POST', '/social-posts', { data: body, maxRetries: 5 });
+  } catch (error) {
+    const message = humanizePlatformFailure(publication.platform, error?.publicMessage || error?.message, Number(error?.status || 0) || null);
+    await prisma.socialPublication.update({
+      where: { id: publication.id },
+      data: {
+        attemptCount: { increment: 1 },
+        lastAttemptAt: new Date(),
+        lastError: message
+      }
+    }).catch(() => {});
+    throw Object.assign(error, { publicMessage: message });
+  }
+
+  if (!post?.id) throw new Error('The social publishing gateway did not return a post identifier.');
+  const status = parentStatus(post, scheduledAt);
+  const previousFailures = Array.isArray(meta.retryHistory) ? meta.retryHistory.slice(-4) : [];
+  const retryHistory = [...previousFailures, {
+    providerPostId: publication.externalPostId || null,
+    error: publicationError(publication),
+    attemptedAt: new Date().toISOString()
+  }];
+
+  await prisma.socialPublication.update({
+    where: { id: publication.id },
+    data: {
+      externalPostId: String(post.id),
+      platformCaption: caption,
+      scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+      status,
+      attemptCount: { increment: 1 },
+      lastAttemptAt: new Date(),
+      lastError: null,
+      metricsJson: null,
+      mediaJson: JSON.stringify({
+        ...meta,
+        providerPostStatus: String(post.status || status).toLowerCase(),
+        retryHistory
+      })
+    }
+  });
+  await refreshContentStatus(publication.contentId);
+
+  const fresh = await prisma.socialPublication.findUnique({
+    where: { id: publication.id },
+    include: { content: true, profile: true }
+  });
+  return publicationToJob(fresh);
+}
+
+async function retryPublication(userId, rawPublicationId, input = {}) {
+  const bundle = await bundleForPublication(userId, rawPublicationId);
+
+  if (bundle.publication.externalPostId) {
+    return retryFailedProviderResult(bundle, input);
+  }
+
+  if (!bundle.publications.some((item) => item.status === 'FAILED' || item.status === 'READY')) {
+    throw Object.assign(new Error('Only failed or incomplete provider submissions can be retried.'), {
+      status: 409,
+      publicMessage: 'Only failed or incomplete publishing attempts can be retried.'
+    });
+  }
+
+  const requestedCaption = input.caption === undefined ? bundle.input.caption : cleanText(input.caption, 5000);
+  const priorSchedule = bundle.input.scheduledAt ? new Date(bundle.input.scheduledAt) : null;
+  const requestedSchedule = input.scheduledAt !== undefined
+    ? validateScheduledAt(input.scheduledAt)
+    : priorSchedule && priorSchedule.getTime() > Date.now()
+      ? priorSchedule.toISOString()
+      : null;
+  bundle.input = { ...bundle.input, caption: requestedCaption, scheduledAt: requestedSchedule };
+
   const meta = json(bundle.publication.mediaJson, {});
   const providerMedia = Array.isArray(meta.providerMedia) ? meta.providerMedia.filter((item) => item?.url) : [];
   if (String(bundle.input.contentType || 'TEXT').toUpperCase() !== 'TEXT' && !providerMedia.length) {
     throw Object.assign(new Error('The original media is no longer attached to this failed post. Recreate the media post from Bulk Scheduler.'), {
       status: 409,
-      publicMessage: 'The original media is no longer attached to this failed post. Recreate the media post from Bulk Scheduler.'
+      publicMessage: 'The original media is no longer available. Recreate this media post before retrying.'
     });
   }
 
-  await prisma.socialPublication.updateMany({
-    where: { id: { in: bundle.publications.map((publication) => publication.id) } },
-    data: { status: 'READY', lastError: null }
-  });
-  await prisma.socialContent.update({ where: { id: bundle.content.id }, data: { status: 'PROCESSING' } }).catch(() => {});
+  await prisma.$transaction([
+    prisma.socialPublication.updateMany({
+      where: { id: { in: bundle.publications.map((publication) => publication.id) } },
+      data: {
+        status: 'READY',
+        platformCaption: requestedCaption,
+        scheduledAt: requestedSchedule ? new Date(requestedSchedule) : null,
+        lastError: null
+      }
+    }),
+    prisma.socialContent.update({
+      where: { id: bundle.content.id },
+      data: { status: 'PROCESSING', caption: requestedCaption }
+    })
+  ]);
 
   try {
     await submitBundle(bundle, providerMedia);
@@ -506,7 +706,7 @@ function publicationToJob(publication) {
     localFileName: meta.originalFileName || null,
     scheduledAt: publication.scheduledAt?.toISOString() || null,
     completedAt: publication.publishedAt?.toISOString() || null,
-    errorMessage: publication.lastError || (staleUnsubmittedText ? 'No provider schedule was created for this legacy attempt. The original provider response was not stored. Retry the post to submit it again.' : null),
+    errorMessage: publicationError(publication) || (staleUnsubmittedText ? 'No provider schedule was created for this legacy attempt. Retry the post to submit it again.' : null),
     mediaLibraryAssetId: meta.mediaLibraryAssetId || null,
     metaPostId: result.platformPostId || null,
     metaVideoId: null,
@@ -554,12 +754,6 @@ async function refreshContentStatus(contentId) {
   await prisma.socialContent.update({ where: { id: contentId }, data: { status } }).catch(() => {});
 }
 
-function resultError(data) {
-  if (!data?.error) return null;
-  if (typeof data.error === 'string') return data.error.slice(0, 1000);
-  try { return JSON.stringify(data.error).slice(0, 1000); } catch (_) { return 'Publishing failed.'; }
-}
-
 async function handleWebhook(payload) {
   const eventType = String(payload?.event_type || '');
   const data = payload?.data || {};
@@ -585,7 +779,7 @@ async function handleWebhook(payload) {
       data: {
         status: data.success ? 'PUBLISHED' : 'FAILED',
         publishedAt: data.success ? new Date() : null,
-        lastError: data.success ? null : resultError(data),
+        lastError: data.success ? null : resultError(data, publication.platform),
         metricsJson: JSON.stringify(details),
         lastAttemptAt: new Date()
       }

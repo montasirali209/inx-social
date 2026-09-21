@@ -188,10 +188,13 @@ export function cancelScheduledPost(jobId: string) {
 }
 
 
-export function retryFailedScheduledPost(jobId: string) {
+export function retryFailedScheduledPost(jobId: string, input: { caption?: string; scheduledAt?: string } = {}) {
   return apiRequest<{ job: import('../types/dashboard').DashboardJob; retried: true }>(
     `/api/social-connections/publications/${encodeURIComponent(jobId)}/retry`,
-    { method: 'POST' },
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
   )
 }
 
