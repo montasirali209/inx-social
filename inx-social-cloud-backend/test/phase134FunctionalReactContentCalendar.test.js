@@ -149,3 +149,30 @@ test('Calendar Needs Review exposes plain-language recovery actions instead of a
   assert.match(panel, /onFixPost/);
   assert.match(panel, /onRetryPost/);
 });
+
+
+test('mobile workspace uses responsive shell, KPI grids and contained calendar scrolling', () => {
+  const shell = read('frontend/src/components/layout/AppShell.tsx');
+  const topbar = read('frontend/src/components/layout/Topbar.tsx');
+  const css = read('frontend/src/index.css');
+  const dashboard = read('frontend/src/components/dashboard/DashboardPage.tsx');
+  const stat = read('frontend/src/components/dashboard/StatCard.tsx');
+  const calendar = read('frontend/src/components/calendar/ContentCalendarPage.tsx');
+  const calendarStat = read('frontend/src/components/calendar/CalendarStatCard.tsx');
+  const calendarGrid = read('frontend/src/components/calendar/CalendarGrid.tsx');
+
+  assert.match(shell, /max-w-full overflow-x-clip/);
+  assert.match(shell, /workspace-frame min-w-0 p-2\.5 sm:p-4 lg:p-5 xl:p-6/);
+  assert.match(topbar, /min-h-\[64px\]/);
+  assert.match(topbar, /max-w-\[46vw\]/);
+  assert.match(css, /#root \{/);
+  assert.match(css, /overflow-x: clip/);
+
+  assert.match(dashboard, /grid grid-cols-2 items-stretch/);
+  assert.match(stat, /min-h-\[92px\] min-w-0/);
+  assert.match(calendar, /grid grid-cols-2 items-stretch/);
+  assert.match(calendarStat, /interactive-surface min-w-0/);
+  assert.match(calendarGrid, /overflow-x-auto/);
+  assert.match(calendarGrid, /min-w-\[700px\].*md:min-w-0/);
+  assert.match(calendar, /bottom-3 left-3 right-3/);
+});
