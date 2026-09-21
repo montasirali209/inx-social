@@ -1,4 +1,4 @@
-import { AlertTriangle, ImageIcon } from 'lucide-react'
+import { AlertTriangle, ImageIcon, Sparkles } from 'lucide-react'
 import type { CalendarPost } from '../../types/calendar'
 import type { VideoStatus } from '../../types/dashboard'
 import { PlatformIcon } from '../dashboard/PlatformIcon'
@@ -24,7 +24,7 @@ export function CalendarPostCard({ post, compact = false, onSelect }: { post: Ca
         ? <img alt="" className={`${compact ? 'size-7' : 'size-10'} shrink-0 rounded-md object-cover`} loading="lazy" src={post.thumbnailUrl} />
         : <span className={`${compact ? 'size-7' : 'size-10'} grid shrink-0 place-items-center rounded-md border ${review ? 'border-brand-amber/25 bg-brand-amber/8 text-brand-amber' : 'border-border-soft bg-panel-hover/55 text-text-soft'}`}>{review ? <AlertTriangle className={compact ? 'size-3.5' : 'size-4'} /> : <ImageIcon className={compact ? 'size-3.5' : 'size-4'} />}</span>}
       <span className="min-w-0 flex-1">
-        <time className="shrink-0 text-[9px] font-semibold text-text-muted" dateTime={post.occurredAt}>{post.time}</time>
+        <span className="flex items-center gap-1"><time className="shrink-0 text-[9px] font-semibold text-text-muted" dateTime={post.occurredAt}>{post.time}</time>{post.smartTiming && <span className="inline-flex items-center gap-0.5 text-[8px] font-semibold text-brand-purple" title="Smart Timing selected this exact publishing time"><Sparkles className="size-2.5" />Smart</span>}</span>
         <strong className={`block truncate font-medium text-text-main ${compact ? 'text-[10px]' : 'mt-1 text-xs'}`}>{post.title}</strong>
         {!compact && <small className="mt-1 block truncate text-[10px] text-text-soft">{post.pageName}</small>}
       </span>
