@@ -3,10 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { ApiError } from '../../lib/api-client'
 import { createBulkMediaPost, fetchBulkSchedulerData, publishBulkLibraryMedia, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
-import { retryFailedScheduledPost, updateScheduledPost } from '../../lib/posts-api'
+import { bulkEditScheduledPosts, retryFailedScheduledPost } from '../../lib/posts-api'
 import { fetchMediaAssetFile, uploadMediaAsset } from '../../lib/media-library-api'
 import { buildPublishingTimes, parseCaptions, parseTextPosts } from '../../lib/bulk-scheduler-utils'
-import { applyBulkTextEdit, type BulkTextEditRules } from '../../lib/bulk-text-edit'
+import { applyBulkScheduleEdit, applyBulkTextEdit, earliestLocalDate, hasTextRuleChanges, type BulkScheduledEditRules } from '../../lib/bulk-text-edit'
 import type { BatchProgress, BulkContentMode, BulkSchedulerData, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
 import type { MediaAsset } from '../../types/media-library'
 import type { DashboardJob } from '../../types/dashboard'
@@ -594,30 +594,52 @@ export function BulkSchedulerPage() {
     await scheduler.refetch()
   }
 
-  const bulkEditScheduledJobs = async (jobs: DashboardJob[], rules: BulkTextEditRules) => {
+  const bulkEditScheduledJobs = async (jobs: DashboardJob[], rules: BulkScheduledEditRules) => {
     if (running || retryingId) return
+
+    const timezone = schedulerData.settings.timezone
+    const baselineDate = earliestLocalDate(jobs.map((job) => job.scheduledAt), timezone)
     const prepared = jobs
-      .filter((job) => job.status === 'SCHEDULED' && job.contentType === 'TEXT' && Boolean(job.providerPostId))
-      .map((job) => ({ job, before: job.caption || '', after: applyBulkTextEdit(job.caption || '', rules) }))
-      .filter((item) => item.after && item.after !== item.before)
+      .filter((job) => job.status === 'SCHEDULED' && Boolean(job.providerPostId))
+      .map((job) => {
+        const beforeText = job.caption || ''
+        const afterText = hasTextRuleChanges(rules) ? applyBulkTextEdit(beforeText, rules) : beforeText
+        const afterSchedule = applyBulkScheduleEdit(job.scheduledAt, baselineDate, rules, timezone)
+        return {
+          job,
+          afterText,
+          afterSchedule,
+          textChanged: beforeText !== afterText,
+          scheduleChanged: job.scheduledAt !== afterSchedule,
+        }
+      })
+      .filter((item) => item.textChanged || item.scheduleChanged)
 
     if (!prepared.length) return
 
+    const grouped = new Map<string, typeof prepared>()
+    prepared.forEach((item) => {
+      const key = String(item.job.providerPostId)
+      const group = grouped.get(key) || []
+      group.push(item)
+      grouped.set(key, group)
+    })
+
     setHistoryView(null)
-    const editResults: UploadResult[] = prepared.map(({ job, after }, index) => ({
+    const editResults: UploadResult[] = prepared.map(({ job, afterText, afterSchedule }, index) => ({
       id: `bulk-edit:${job.id}`,
       mediaId: job.id,
       mediaIndex: index,
       jobId: job.id,
-      fileName: `Scheduled text post ${index + 1}`,
-      mediaKind: 'text',
+      fileName: job.localFileName || job.title || `Scheduled ${job.contentType.toLowerCase()} post ${index + 1}`,
+      mediaKind: job.contentType === 'IMAGE' ? 'image' : job.contentType === 'VIDEO' ? 'video' : 'text',
       thumbnailUrl: '',
-      textPreview: after.replace(/\s+/g, ' ').slice(0, 180),
+      textPreview: afterText.replace(/\s+/g, ' ').slice(0, 180) || null,
       destinationIds: job.destination?.id ? [job.destination.id] : [],
       status: 'waiting',
       resultId: job.providerPostId || null,
       errorMessage: null,
-      scheduledAt: job.scheduledAt,
+      scheduledAt: afterSchedule,
     }))
     setResults(editResults)
     setProgress({
@@ -627,7 +649,7 @@ export function BulkSchedulerPage() {
       total: prepared.length,
       completed: 0,
       failed: 0,
-      message: `Preparing ${prepared.length} scheduled text edit${prepared.length === 1 ? '' : 's'}…`,
+      message: `Preparing ${prepared.length} destination schedule edit${prepared.length === 1 ? '' : 's'}…`,
     })
 
     const controller = new AbortController()
@@ -636,40 +658,53 @@ export function BulkSchedulerPage() {
 
     let completed = 0
     let failed = 0
-    for (let index = 0; index < prepared.length; index += 1) {
+    const groups = [...grouped.values()]
+
+    for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
       if (controller.signal.aborted) break
-      const { job, after } = prepared[index]
-      const resultId = editResults[index].id
-      setRetryingId(resultId)
-      setResults((current) => current.map((result) => result.id === resultId ? { ...result, status: 'uploading', errorMessage: null } : result))
+      const group = groups[groupIndex]
+      const resultIds = new Set(group.map((item) => `bulk-edit:${item.job.id}`))
+      setRetryingId([...resultIds][0] || null)
+      setResults((current) => current.map((result) => resultIds.has(result.id) ? { ...result, status: 'uploading', errorMessage: null } : result))
       setProgress({
         state: 'scheduling',
-        percent: Math.round((index / prepared.length) * 100),
-        current: index + 1,
+        percent: Math.round(((completed + failed) / prepared.length) * 100),
+        current: Math.min(prepared.length, completed + failed + group.length),
         total: prepared.length,
         completed,
         failed,
-        message: `Updating scheduled text post ${index + 1} of ${prepared.length}…`,
+        message: `Updating ${group.length} selected destination${group.length === 1 ? '' : 's'} for scheduled post ${groupIndex + 1} of ${groups.length}…`,
       })
 
       try {
-        const updated = await updateScheduledPost(job.id, { caption: after })
-        completed += 1
-        setResults((current) => current.map((result) => result.id === resultId ? {
-          ...result,
-          status: 'scheduled',
-          resultId: updated.providerPostId || result.resultId,
-          errorMessage: null,
-          textPreview: updated.caption.replace(/\s+/g, ' ').slice(0, 180),
-        } : result))
+        const response = await bulkEditScheduledPosts(group.map((item) => ({
+          publicationId: item.job.id,
+          ...(item.textChanged ? { caption: item.afterText } : {}),
+          ...(item.scheduleChanged && item.afterSchedule ? { scheduledAt: item.afterSchedule } : {}),
+        })))
+        const affected = new Map(response.affected.map((item) => [item.publicationId, item]))
+        completed += group.length
+        setResults((current) => current.map((result) => {
+          if (!resultIds.has(result.id)) return result
+          const publicationId = result.id.replace(/^bulk-edit:/, '')
+          const updated = affected.get(publicationId)
+          return {
+            ...result,
+            status: 'scheduled',
+            resultId: updated?.providerPostId || result.resultId,
+            scheduledAt: updated?.scheduledAt || result.scheduledAt,
+            textPreview: (updated?.caption || result.textPreview || '').replace(/\s+/g, ' ').slice(0, 180) || null,
+            errorMessage: null,
+          }
+        }))
       } catch (error) {
-        failed += 1
-        const message = error instanceof Error ? error.message : 'Scheduled text edit failed.'
-        setResults((current) => current.map((result) => result.id === resultId ? {
+        failed += group.length
+        const message = error instanceof Error ? error.message : 'Scheduled Bulk Edit failed.'
+        setResults((current) => current.map((result) => resultIds.has(result.id) ? {
           ...result,
           jobId: null,
           status: 'failed',
-          errorMessage: `${message} Original scheduled post was left unchanged. Reopen Scheduled → Bulk Edit to try this edit again.`,
+          errorMessage: `${message} The affected destination schedule was left unchanged. Reopen Scheduled → Bulk Edit to try again.`,
         } : result))
       }
     }
@@ -677,7 +712,7 @@ export function BulkSchedulerPage() {
     const stopped = controller.signal.aborted
     if (stopped) {
       setResults((current) => current.map((result) => result.status === 'waiting'
-        ? { ...result, status: 'blocked', errorMessage: 'Not edited because the bulk edit was stopped. Original scheduled post remains unchanged.' }
+        ? { ...result, status: 'blocked', errorMessage: 'Not edited because Bulk Edit was stopped. The original destination schedule remains unchanged.' }
         : result))
     }
 
@@ -689,10 +724,10 @@ export function BulkSchedulerPage() {
       completed,
       failed,
       message: stopped
-        ? `Bulk edit stopped after ${completed + failed} of ${prepared.length} posts.`
+        ? `Bulk Edit stopped after ${completed + failed} of ${prepared.length} destination schedules.`
         : failed
-          ? `Bulk edit finished: ${completed} updated, ${failed} unchanged because their edits failed.`
-          : `Bulk edit complete. ${completed} scheduled text post${completed === 1 ? '' : 's'} updated without changing publishing times.`,
+          ? `Bulk Edit finished: ${completed} updated, ${failed} unchanged because their edits failed.`
+          : `Bulk Edit complete. ${completed} destination schedule${completed === 1 ? '' : 's'} updated successfully.`,
     })
     setRetryingId(null)
     abortRef.current = null
