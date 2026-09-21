@@ -25,7 +25,7 @@ test('Phase 13.4 makes Content Calendar a first-class responsive React route', (
   assert.match(toolbar, /label: 'Failed'/);
   assert.doesNotMatch(toolbar, /<select/);
   assert.match(toolbar, /Schedule Content/);
-  assert.match(toolbar, /Import Batch/);
+  assert.doesNotMatch(toolbar, /Import Batch|UploadCloud|to=\"\/bulk-scheduler\"/);
   assert.match(toolbar, /md:hidden/);
 });
 
