@@ -37,7 +37,7 @@ const portalRoot = path.join(__dirname, '..', 'portal');
 const adminIndex = path.join(publicRoot, 'index.html');
 const landingPath = path.join(publicRoot, 'landing.html');
 const LANDING_DASHBOARD_ASSET_PATH = '/assets/landing-dashboard-20260919.webp';
-const SOCIAL_PREVIEW_ASSET_PATH = '/assets/inxsocial-social-preview.jpg';
+const SOCIAL_PREVIEW_ASSET_PATH = '/assets/inxsocial-social-preview-v2.jpg';
 const landingDashboardPartPaths = Array.from({ length: 7 }, (_, index) =>
   path.join(publicRoot, 'assets', `landing-dashboard-20260919.part${String(index + 1).padStart(3, '0')}.b64`)
 );
