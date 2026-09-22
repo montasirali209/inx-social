@@ -41,8 +41,8 @@ export const metadata: Metadata = {
     description: "Create, schedule and analyse social content across connected accounts, with bulk scheduling, a visual calendar and AI-assisted creation in one workspace.",
     url: "https://www.inxsocial.co.uk/",
     images: [{
-      url: "https://www.inxsocial.co.uk/assets/inxsocial-social-preview.jpg",
-      secureUrl: "https://www.inxsocial.co.uk/assets/inxsocial-social-preview.jpg",
+      url: "https://www.inxsocial.co.uk/assets/inxsocial-social-preview-v2.jpg",
+      secureUrl: "https://www.inxsocial.co.uk/assets/inxsocial-social-preview-v2.jpg",
       width: 1200,
       height: 630,
       type: "image/jpeg",
@@ -54,7 +54,7 @@ export const metadata: Metadata = {
     title: "Social Media Management Platform, Scheduler & AI | INXSocial",
     description: "Create, bulk schedule and analyse social content from one connected workspace.",
     images: [{
-      url: "https://www.inxsocial.co.uk/assets/inxsocial-social-preview.jpg",
+      url: "https://www.inxsocial.co.uk/assets/inxsocial-social-preview-v2.jpg",
       alt: "INXSocial social media management platform homepage with dashboard preview"
     }]
   }
