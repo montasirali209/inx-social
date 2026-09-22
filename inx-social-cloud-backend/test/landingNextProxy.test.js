@@ -39,6 +39,6 @@ test('dashboard preview asset is served as a cacheable WebP and used by the land
   assert.match(appSource, /res\.type\('image\/webp'\)/);
   assert.match(appSource, /max-age=31536000, immutable/);
   assert.ok((landingSource.match(/\/assets\/landing-dashboard-20260919\.webp/g) || []).length >= 3);
-  assert.match(landingSource, /\/assets\/inxsocial-social-preview\.jpg/);
+  assert.match(landingSource, /\/assets\/inxsocial-social-preview-v2\.jpg/);
   assert.doesNotMatch(landingSource, /\/assets\/inx-social-dashboard\.jpg/);
 });
