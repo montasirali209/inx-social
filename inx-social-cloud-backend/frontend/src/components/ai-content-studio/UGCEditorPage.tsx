@@ -41,7 +41,7 @@ function AvatarThumb({ avatar }: { avatar: UGCAvatar }) {
       active = false
       if (createdUrl) URL.revokeObjectURL(createdUrl)
     }
-  }, [avatar.imageUrl])
+  }, [avatar])
   return <div className="size-10 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-brand-cyan/10">{url ? <img alt="" className="size-full object-cover" src={url} /> : <span className="grid size-full place-items-center text-xs font-bold text-brand-cyan">{avatar.name.slice(0,1)}</span>}</div>
 }
 
