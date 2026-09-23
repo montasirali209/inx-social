@@ -26,13 +26,13 @@ export function CaptionInput({ value, onChange, captionCount, mediaCount, useFal
         id="bulk-captions"
         onChange={(event) => onChange(event.target.value)}
         placeholder={textMode
-          ? 'Write or paste a complete text post here, including hashtags and links.\n\n---\n\nPut the next complete post here…'
+          ? 'Write or paste the first complete post here.\n\n\nLeave two empty lines, then start the next post…'
           : 'One caption per line or blank-line separated captions…'}
         value={value}
       />
       {textMode ? (
         <div className="mt-2 rounded-xl border border-brand-cyan/20 bg-brand-cyan/[.045] p-3 text-xs leading-5 text-text-muted">
-          <p className="flex items-start gap-2"><FileText aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand-cyan" /><span><strong className="text-text-main">One complete post per block.</strong> Put a line containing <code className="rounded bg-black/25 px-1.5 py-0.5 text-brand-cyan">---</code> between posts. Blank lines, paragraphs, hashtags, links and emojis inside a post are preserved.</span></p>
+          <p className="flex items-start gap-2"><FileText aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand-cyan" /><span><strong className="text-text-main">One complete post per block.</strong> Leave <strong className="text-text-main">two empty lines</strong> between posts. A single blank line stays inside the same post, so paragraphs, hashtags, links and emojis are preserved. Existing <code className="rounded bg-black/25 px-1.5 py-0.5 text-brand-cyan">---</code> or <code className="rounded bg-black/25 px-1.5 py-0.5 text-brand-cyan">--</code> separator lines still work.</span></p>
         </div>
       ) : (
         <>
