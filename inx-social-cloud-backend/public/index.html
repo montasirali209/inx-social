@@ -100,6 +100,24 @@
         </article>
       </div>
 
+      <section class="panel ugc-admin-analytics">
+        <header class="ugc-admin-head">
+          <div><span class="kicker">UGC product analytics</span><h2>UGC Studio funnel</h2><p>Operational product analytics only — no scripts, prompts or customer content are stored in this funnel.</p></div>
+          <label>Period<select id="ugcAnalyticsDays"><option value="7">7 days</option><option value="30" selected>30 days</option><option value="90">90 days</option></select></label>
+        </header>
+        <div class="ugc-admin-kpis" id="ugcAnalyticsKpis">
+          <article><span>Studio opens</span><b>—</b><small>Loading…</small></article>
+          <article><span>Started</span><b>—</b><small>Loading…</small></article>
+          <article><span>Completed</span><b>—</b><small>Loading…</small></article>
+          <article><span>Credits used</span><b>—</b><small>Loading…</small></article>
+          <article><span>Provider cost</span><b>—</b><small>Loading…</small></article>
+        </div>
+        <div class="ugc-admin-grid">
+          <article class="ugc-admin-funnel-card"><div class="ugc-admin-card-head"><div><span class="kicker">Conversion</span><h3>Creation funnel</h3></div><span id="ugcAnalyticsUpdated">—</span></div><div id="ugcAnalyticsFunnel" class="ugc-admin-funnel"></div></article>
+          <article class="ugc-admin-breakdown-card"><div class="ugc-admin-card-head"><div><span class="kicker">Usage mix</span><h3>What customers choose</h3></div></div><div id="ugcAnalyticsBreakdowns" class="ugc-admin-breakdowns"></div></article>
+        </div>
+      </section>
+
       <form class="panel policy-form social-agent-card" id="agentAccessForm">
         <div class="policy-hero"><span>◆</span><div><span class="kicker">Automation</span><h3>Social Agent policy</h3><p>The autonomous Social Agent is separate from AI Content Studio generation. Control who can run missions and how many missions each customer plan receives.</p></div></div>
         <label>Availability<select id="agentAvailability"><option value="ADMIN_ONLY">Admins only — development mode</option><option value="PAID_PLANS">Paid plans</option><option value="EVERYONE">All active subscribers</option><option value="DISABLED">Disabled for everyone</option></select></label>
