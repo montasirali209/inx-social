@@ -97,3 +97,33 @@ test('mixed campaign handoff preserves post order and routes text/media correctl
   assert.match(panel, /campaignImport/);
   assert.match(panel, /Schedule AI Campaign/);
 });
+
+
+test('AI Studio creator modals and campaign card use shared motion and centered campaign layout', () => {
+  const campaign = read('frontend/src/components/ai-content-studio/AiPostCampaignModal.tsx');
+  const page = read('frontend/src/components/ai-content-studio/AiContentStudioPage.tsx');
+  const image = read('frontend/src/components/ai-content-studio/ImagePostChatModalV4.tsx');
+  const carousel = read('frontend/src/components/ai-content-studio/CarouselChatModalV2.tsx');
+  const generation = read('frontend/src/components/ai-content-studio/GenerationModal.tsx');
+  const css = read('frontend/src/components/ai-content-studio/studio-controls.css');
+
+  assert.match(css, /@keyframes ai-studio-modal-enter/);
+  assert.match(css, /\.ai-studio-modal-enter/);
+  assert.match(css, /\.ai-campaign-3d-card/);
+
+  assert.match(image, /ai-studio-modal-enter/);
+  assert.match(carousel, /ai-studio-modal-enter/);
+  assert.match(generation, /ai-studio-modal-enter/);
+
+  assert.match(campaign, /grid place-items-center/);
+  assert.match(campaign, /sm:h-\[min\(94dvh,980px\)\]/);
+  assert.match(campaign, /Social platforms/);
+  assert.match(campaign, /overflow-x-auto/);
+  assert.match(campaign, /text-\[11px\].*Content mix|Content mix[\s\S]*text-\[11px\]/);
+  assert.match(campaign, /ai-campaign-3d-card/);
+
+  assert.match(page, /ai-campaign-3d-card group/);
+  assert.match(page, /Text posts/);
+  assert.match(page, /Image posts/);
+  assert.match(page, /Mixed campaigns/);
+});
