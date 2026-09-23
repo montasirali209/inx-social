@@ -18,6 +18,12 @@ const createSchema = z.object({
   }
 });
 
+const estimateSchema = z.object({
+  duration: z.number().int().refine(v => [15, 30, 60].includes(v), 'Choose 15, 30 or 60 seconds.'),
+  adCount: z.number().int().refine(v => [1, 5, 10, 15, 20].includes(v), 'Choose 1, 5, 10, 15 or 20 ads.'),
+  quality: z.enum(['STANDARD', 'PREMIUM']).default('STANDARD')
+});
+
 const brandSchema = z.object({
   url: z.string().trim().min(3).max(2000),
   refresh: z.boolean().optional().default(false)
@@ -46,7 +52,7 @@ async function overview(req, res, next) {
   try { res.json(await service.getOverview(req.user.id)); } catch (error) { next(error); }
 }
 async function estimate(req, res, next) {
-  try { res.json(await service.estimateCampaign(req.user.id, createSchema.parse(req.body || {}))); } catch (error) { next(error); }
+  try { res.json(await service.estimateCampaign(req.user.id, estimateSchema.parse(req.body || {}))); } catch (error) { next(error); }
 }
 async function analyzeBrand(req, res, next) {
   try { res.json({ brand: await service.analyzeBrand(req.user.id, brandSchema.parse(req.body || {})) }); } catch (error) { next(error); }
