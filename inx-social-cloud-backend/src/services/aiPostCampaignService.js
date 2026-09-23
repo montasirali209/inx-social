@@ -377,7 +377,7 @@ async function generatePostBatch(input, strategy, context, campaignMap, startSeq
 }
 
 async function generateCampaign(userId, input) {
-  await requireStudio(userId);
+  const access = await requireStudio(userId);
 
   const normalizedUrl = input.businessUrl ? normaliseBusinessUrl(input.businessUrl) : '';
   if (input.businessUrl && !normalizedUrl) throw publicError('Enter a public business or product website.', 400, 'AI_CAMPAIGN_URL_INVALID');
@@ -390,6 +390,15 @@ async function generateCampaign(userId, input) {
     businessUrl: normalizedUrl,
     imagePostCount: imageCountFor(input)
   };
+  const requiredImageCredits = normalizedInput.imagePostCount * postStudio.IMAGE_CREDITS;
+  if (requiredImageCredits > 0 && Number(access.creditsRemaining || 0) < requiredImageCredits) {
+    throw publicError(
+      `This campaign needs ${requiredImageCredits} AI credits to create ${normalizedInput.imagePostCount} image post${normalizedInput.imagePostCount === 1 ? '' : 's'}, but only ${Number(access.creditsRemaining || 0)} credits remain.`,
+      402,
+      'AI_CAMPAIGN_IMAGE_CREDITS_INSUFFICIENT'
+    );
+  }
+
   const strategy = await strategyFor(normalizedInput, context);
   const campaignMap = await planCampaign(normalizedInput, strategy, context);
 
@@ -411,13 +420,14 @@ async function generateCampaign(userId, input) {
       platformsJson: JSON.stringify(normalizedInput.platforms),
       postCount: normalizedInput.postCount,
       imagePostCount: normalizedInput.imagePostCount,
-      status: 'READY',
+      status: normalizedInput.imagePostCount ? 'GENERATING_IMAGES' : 'READY',
       analysisJson: JSON.stringify({
         ...strategy,
         campaignMap,
         sourceUrl: context?.url || null,
         sourceSummary: strategy.sourceSummary,
         sourceWarning: context?.error || null,
+        brandReferences: Array.isArray(context?.brandReferences) ? context.brandReferences : [],
         reasoningModel: postStudio.REASONING_MODEL
       }),
       posts: { create: posts }
@@ -425,7 +435,16 @@ async function generateCampaign(userId, input) {
     include: CAMPAIGN_INCLUDE
   });
 
-  return publicCampaign(campaign);
+  if (normalizedInput.imagePostCount) {
+    const brandReferences = Array.isArray(context?.brandReferences) ? context.brandReferences : [];
+    const failures = await renderCampaignImages(userId, campaign, brandReferences);
+    await prisma.aiPostCampaign.update({
+      where: { id: campaign.id },
+      data: { status: failures.length ? 'PARTIAL' : 'READY', updatedAt: new Date() }
+    });
+  }
+
+  return getCampaign(userId, campaign.id);
 }
 
 async function listCampaigns(userId, limit = 8) {
@@ -537,29 +556,29 @@ async function regeneratePost(userId, campaignId, postId) {
   return getCampaign(userId, campaign.id);
 }
 
-async function generatePostImage(userId, campaignId, postId) {
-  await requireStudio(userId);
-  const campaign = await ownedCampaign(userId, campaignId);
-  const post = campaign.posts.find(item => item.id === String(postId));
-  if (!post) throw publicError('Campaign post not found.', 404, 'AI_CAMPAIGN_POST_NOT_FOUND');
-  if (post.contentType !== 'IMAGE') throw publicError('This campaign post is a text-only post.', 409, 'AI_CAMPAIGN_TEXT_ONLY');
-
+async function renderCampaignPostImage(userId, campaign, post, brandReferences = []) {
   const asset = await postStudio.generateImagePost(userId, {
     prompt: post.imageBrief || post.title || post.caption,
     platform: parseJson(campaign.platformsJson, [])[0] || 'Instagram',
     aspectRatio: '4:5',
     referenceAssetIds: [],
+    referenceUrls: (Array.isArray(brandReferences) ? brandReferences : []).map(item => typeof item === 'string' ? item : item?.url).filter(Boolean).slice(0, 4),
     brief: {
       objective: post.title,
       audience: campaign.audience || '',
       platform: parseJson(campaign.platformsJson, [])[0] || 'Instagram',
       aspectRatio: '4:5',
       tone: 'Natural, clear and campaign-appropriate',
-      visualStyle: 'Premium social campaign creative',
+      visualStyle: 'Official-brand-grounded social campaign creative. Preserve the supplied website branding and product visuals instead of inventing replacements.',
       headline: post.hook || post.title,
       supportingCopy: '',
       cta: post.cta || '',
-      visualDirection: post.imageBrief || post.caption,
+      visualDirection: [
+        post.imageBrief || post.caption,
+        brandReferences?.length
+          ? 'Use the supplied official website references as visual truth for the logo, product UI, screenshots and brand presentation. Do not invent a substitute logo or fictional interface.'
+          : 'No verified logo reference is available. Do not invent a logo.'
+      ].join('\n\n'),
       caption: post.caption,
       hashtags: parseJson(post.hashtagsJson, []),
       altText: post.title
@@ -574,6 +593,47 @@ async function generatePostImage(userId, campaignId, postId) {
       status: 'READY'
     }
   });
+  return asset;
+}
+
+async function renderCampaignImages(userId, campaign, brandReferences = []) {
+  const pending = (campaign.posts || []).filter(post => post.contentType === 'IMAGE');
+  const failures = [];
+  let cursor = 0;
+  const workerCount = Math.min(3, pending.length);
+
+  async function worker() {
+    while (cursor < pending.length) {
+      const index = cursor;
+      cursor += 1;
+      const post = pending[index];
+      try {
+        await renderCampaignPostImage(userId, campaign, post, brandReferences);
+      } catch (error) {
+        failures.push({ postId: post.id, sequence: post.sequence, message: clean(error?.publicMessage || error?.message, 500) });
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return failures;
+}
+
+async function generatePostImage(userId, campaignId, postId) {
+  await requireStudio(userId);
+  const campaign = await ownedCampaign(userId, campaignId);
+  const post = campaign.posts.find(item => item.id === String(postId));
+  if (!post) throw publicError('Campaign post not found.', 404, 'AI_CAMPAIGN_POST_NOT_FOUND');
+  if (post.contentType !== 'IMAGE') throw publicError('This campaign post is a text-only post.', 409, 'AI_CAMPAIGN_TEXT_ONLY');
+
+  const analysis = parseJson(campaign.analysisJson, {});
+  await renderCampaignPostImage(userId, campaign, post, Array.isArray(analysis.brandReferences) ? analysis.brandReferences : []);
+
+  const refreshed = await ownedCampaign(userId, campaign.id);
+  const allImagesReady = refreshed.posts.filter(item => item.contentType === 'IMAGE').every(item => Boolean(item.mediaAssetId));
+  if (allImagesReady && refreshed.status !== 'READY') {
+    await prisma.aiPostCampaign.update({ where: { id: refreshed.id }, data: { status: 'READY', updatedAt: new Date() } });
+  }
   return getCampaign(userId, campaign.id);
 }
 
@@ -596,5 +656,7 @@ module.exports = {
   imageCountFor,
   captionLimit,
   campaignSkills,
-  normaliseCampaignMap
+  normaliseCampaignMap,
+  renderCampaignImages,
+  renderCampaignPostImage
 };
