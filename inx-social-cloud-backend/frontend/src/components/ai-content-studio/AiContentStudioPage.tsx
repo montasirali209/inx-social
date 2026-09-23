@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { CalendarRange, History, Megaphone, Send, Sparkles } from 'lucide-react'
+import { ArrowRight, CalendarRange, FileText, History, Image as ImageIcon, Layers3, Megaphone, Send, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
@@ -260,19 +260,38 @@ export function AiContentStudioPage() {
     </section>
 
     <section className="mt-4">
-      <Card className="relative overflow-hidden border-brand-cyan/20 p-0">
-        <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(circle_at_10%_10%,rgba(45,212,191,.12),transparent_35%),radial-gradient(circle_at_90%_90%,rgba(124,58,237,.10),transparent_34%)]" />
-        <div className="relative flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-          <div className="flex min-w-0 items-start gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan"><Megaphone className="size-5" /></span>
+      <Card className="ai-campaign-3d-card group relative overflow-hidden border-brand-cyan/25 bg-[radial-gradient(circle_at_82%_12%,rgba(45,212,191,.16),transparent_17rem),radial-gradient(circle_at_95%_85%,rgba(124,58,237,.13),transparent_19rem),linear-gradient(145deg,rgba(5,39,47,.96),rgba(7,21,39,.98))] p-0 transition duration-500 hover:border-brand-cyan/45">
+        <div aria-hidden="true" className="ai-campaign-glow-drift absolute -right-16 -top-24 size-72 rounded-full bg-brand-cyan/[.08] blur-3xl" />
+        <div aria-hidden="true" className="absolute inset-x-12 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+
+        <div className="relative grid min-h-[205px] gap-5 p-5 sm:p-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(260px,.55fr)] lg:items-center">
+          <div className="flex min-w-0 items-start gap-4">
+            <span className="ai-campaign-soft-float grid size-12 shrink-0 place-items-center rounded-2xl border border-brand-cyan/30 bg-brand-cyan/10 text-brand-cyan shadow-[0_16px_38px_rgba(45,212,191,.13)]"><Megaphone className="size-5" /></span>
             <div className="min-w-0">
-              <span className="text-[9px] font-bold uppercase tracking-[.15em] text-brand-cyan">AI Post Campaign</span>
-              <h2 className="mt-1 text-base font-semibold sm:text-lg">Turn one campaign idea into 10–30 review-ready posts.</h2>
-              <p className="mt-1 max-w-3xl text-[11px] leading-5 text-text-muted">Add your goal and optional website. INXSocial analyses the context, creates content pillars, writes the campaign, lets you edit or regenerate every post, then hands the approved batch to Bulk Scheduler.</p>
-              <div className="mt-2 flex flex-wrap gap-2 text-[9px] text-text-soft"><span className="inline-flex items-center gap-1"><Sparkles className="size-3" />Strategy + copy</span><span className="inline-flex items-center gap-1"><CalendarRange className="size-3" />Bulk Scheduler handoff</span><span>Optional AI images after review</span></div>
+              <span className="text-[9px] font-bold uppercase tracking-[.17em] text-brand-cyan">AI Post Campaign</span>
+              <h2 className="mt-2 text-lg font-semibold tracking-tight sm:text-xl">Turn one campaign idea into 10–30 smart social posts.</h2>
+              <p className="mt-2 max-w-3xl text-[11px] leading-5 text-text-muted">AI researches the brief, maps hooks and content pillars, then creates text-only, image-only or mixed campaigns ready for review and Bulk Scheduler.</p>
+              <div className="mt-4 flex flex-wrap gap-2 text-[9px] text-text-soft">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/15 px-2.5 py-1"><FileText className="size-3 text-brand-cyan" />Text posts</span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/15 px-2.5 py-1"><ImageIcon className="size-3 text-[#c4b5fd]" />Image posts</span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/15 px-2.5 py-1"><Layers3 className="size-3 text-brand-green" />Mixed campaigns</span>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/15 px-2.5 py-1"><CalendarRange className="size-3 text-brand-cyan" />Bulk Scheduler</span>
+              </div>
+              <Button className="mt-5 min-w-[150px] shadow-[0_12px_30px_rgba(45,212,191,.12)]" onClick={() => setCampaignOpen(true)} size="sm" variant="primary"><Sparkles className="size-3.5" />Create campaign <ArrowRight className="size-3.5 transition-transform duration-300 group-hover:translate-x-1" /></Button>
             </div>
           </div>
-          <Button className="shrink-0" onClick={() => setCampaignOpen(true)} size="sm" variant="primary"><Megaphone className="size-3.5" />Create campaign</Button>
+
+          <div aria-hidden="true" className="relative mx-auto hidden h-[150px] w-full max-w-[310px] sm:block">
+            <div className="absolute left-[14%] top-[28px] h-[100px] w-[145px] -rotate-[9deg] rounded-[20px] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,.045),rgba(6,24,38,.92))] shadow-[0_20px_50px_rgba(0,0,0,.28)] transition duration-500 group-hover:-translate-x-3 group-hover:-rotate-[13deg]">
+              <span className="absolute left-4 top-4 grid size-8 place-items-center rounded-xl border border-brand-cyan/20 bg-brand-cyan/8 text-brand-cyan"><FileText className="size-3.5" /></span>
+              <span className="absolute bottom-4 left-4 right-4 h-2 rounded-full bg-white/8"><span className="block h-full w-[62%] rounded-full bg-brand-cyan/45" /></span>
+            </div>
+            <div className="absolute right-[13%] top-[20px] h-[108px] w-[148px] rotate-[8deg] rounded-[20px] border border-brand-purple/20 bg-[linear-gradient(145deg,rgba(124,58,237,.13),rgba(6,20,34,.96))] shadow-[0_20px_55px_rgba(0,0,0,.32)] transition duration-500 group-hover:translate-x-3 group-hover:rotate-[12deg]">
+              <span className="absolute left-4 top-4 grid size-8 place-items-center rounded-xl border border-brand-purple/25 bg-brand-purple/10 text-[#c4b5fd]"><ImageIcon className="size-3.5" /></span>
+              <div className="absolute bottom-4 left-4 right-4 grid grid-cols-3 gap-1"><span className="h-8 rounded-lg bg-brand-purple/12" /><span className="h-8 rounded-lg bg-brand-cyan/10" /><span className="h-8 rounded-lg bg-white/[.04]" /></div>
+            </div>
+            <div className="ai-campaign-soft-float absolute left-1/2 top-1/2 grid size-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-[20px] border border-brand-cyan/30 bg-[linear-gradient(145deg,rgba(45,212,191,.17),rgba(5,25,39,.96))] text-brand-cyan shadow-[0_22px_65px_rgba(45,212,191,.16)]"><Sparkles className="size-5" /></div>
+          </div>
         </div>
       </Card>
     </section>

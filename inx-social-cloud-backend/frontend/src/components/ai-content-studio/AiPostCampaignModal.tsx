@@ -287,14 +287,14 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
   ]
 
   return createPortal(
-    <div className="fixed inset-0 z-[120] overflow-y-auto bg-[#01070d]/92 px-0 py-0 backdrop-blur-xl sm:px-5 sm:py-[2dvh]">
-      <section className="relative mx-auto min-h-dvh w-full max-w-[1540px] overflow-hidden bg-bg sm:min-h-0 sm:rounded-[30px] sm:border sm:border-brand-cyan/20 sm:shadow-[0_40px_120px_rgba(0,0,0,.55)]">
-        <div aria-hidden="true" className="pointer-events-none absolute -left-32 top-12 size-80 rounded-full bg-brand-cyan/[.08] blur-[90px]" />
-        <div aria-hidden="true" className="pointer-events-none absolute right-0 top-64 size-72 rounded-full bg-brand-purple/[.07] blur-[100px]" />
+    <div className="ai-studio-modal-backdrop fixed inset-0 z-[120] grid place-items-center overflow-hidden bg-[#01070d]/92 p-0 backdrop-blur-xl sm:p-5">
+      <section className="ai-studio-modal-enter relative h-dvh w-full max-w-[1540px] overflow-y-auto bg-bg sm:h-[min(94dvh,980px)] sm:rounded-[30px] sm:border sm:border-brand-cyan/20 sm:shadow-[0_40px_120px_rgba(0,0,0,.55)]">
+        <div aria-hidden="true" className="ai-campaign-glow-drift pointer-events-none absolute -left-32 top-12 size-80 rounded-full bg-brand-cyan/[.08] blur-[90px]" />
+        <div aria-hidden="true" className="ai-campaign-glow-drift pointer-events-none absolute right-0 top-64 size-72 rounded-full bg-brand-purple/[.07] blur-[100px] [animation-delay:-2.8s]" />
 
         <header className="relative flex items-start justify-between gap-3 border-b border-brand-cyan/15 bg-[radial-gradient(circle_at_0%_0%,rgba(45,212,191,.15),transparent_34%),linear-gradient(135deg,rgba(10,32,45,.98),rgba(5,18,29,.98))] p-4 sm:p-6">
           <div className="flex min-w-0 items-start gap-3">
-            <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-brand-cyan/30 bg-brand-cyan/10 text-brand-cyan shadow-[0_10px_28px_rgba(45,212,191,.12)]"><Megaphone className="size-5" /></span>
+            <span className="ai-campaign-soft-float grid size-11 shrink-0 place-items-center rounded-2xl border border-brand-cyan/30 bg-brand-cyan/10 text-brand-cyan shadow-[0_10px_28px_rgba(45,212,191,.12)]"><Megaphone className="size-5" /></span>
             <div className="min-w-0">
               <span className="text-[9px] font-bold uppercase tracking-[.18em] text-brand-cyan">AI Post Campaign</span>
               <h2 className="mt-1 text-lg font-semibold sm:text-xl">Build a campaign. Let AI handle the marketing mechanics.</h2>
@@ -318,38 +318,43 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                 />
               </label>
 
-              <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-                <label>
-                  <span className="text-[10px] font-semibold uppercase tracking-[.1em] text-text-soft">Business / product website <span className="normal-case tracking-normal text-text-soft">(optional)</span></span>
-                  <input
-                    className="mt-2 min-h-12 w-full rounded-2xl border border-border-soft bg-black/15 px-4 text-sm outline-none transition focus:border-brand-cyan/45"
-                    onBlur={(event) => setForm((current) => ({ ...current, businessUrl: normaliseWebsite(event.target.value) }))}
-                    onChange={(event) => setForm((current) => ({ ...current, businessUrl: event.target.value }))}
-                    placeholder="yourbusiness.com"
-                    type="text"
-                    value={form.businessUrl || ''}
-                  />
-                </label>
-                <div>
-                  <span className="text-[10px] font-semibold uppercase tracking-[.1em] text-text-soft">Primary platforms</span>
-                  <div className="mt-2 flex flex-wrap gap-2 md:max-w-[360px]">
-                    {PLATFORM_OPTIONS.map((platform) => {
-                      const active = form.platforms.includes(platform.value)
-                      return <button
-                        aria-label={`${active ? 'Remove' : 'Add'} ${platform.label}`}
-                        className={`group relative grid size-11 place-items-center rounded-2xl border transition duration-200 hover:-translate-y-1 hover:scale-105 ${active ? 'border-brand-cyan/45 bg-brand-cyan/10 shadow-[0_10px_24px_rgba(45,212,191,.10)]' : 'border-border-soft bg-black/10 hover:border-white/20'}`}
-                        key={platform.value}
-                        onClick={() => togglePlatform(platform.value)}
-                        title={platform.label}
-                        type="button"
-                      >
-                        <SocialPlatformIcon className="!size-7 transition group-hover:scale-110" platform={platform.key} />
-                        {active && <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-brand-cyan text-[8px] text-[#001014]"><Check className="size-2.5" /></span>}
-                      </button>
-                    })}
+              <div className="ai-campaign-3d-card rounded-[22px] border border-border-soft bg-[linear-gradient(145deg,rgba(8,31,44,.78),rgba(4,17,28,.78))] p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <span className="text-[10px] font-semibold uppercase tracking-[.1em] text-text-soft">Social platforms</span>
+                    <p className="mt-1 text-[11px] leading-5 text-text-muted">Choose where this campaign is intended to work. AI adapts hooks and length automatically.</p>
                   </div>
+                  <span className="text-[10px] font-semibold text-brand-cyan">{form.platforms.length} selected</span>
+                </div>
+                <div className="mt-3 flex gap-2 overflow-x-auto pb-1 sm:overflow-visible">
+                  {PLATFORM_OPTIONS.map((platform) => {
+                    const active = form.platforms.includes(platform.value)
+                    return <button
+                      aria-label={`${active ? 'Remove' : 'Add'} ${platform.label}`}
+                      className={`group relative grid size-12 shrink-0 place-items-center rounded-2xl border transition duration-300 hover:-translate-y-1 hover:scale-110 ${active ? 'border-brand-cyan/50 bg-brand-cyan/10 shadow-[0_12px_28px_rgba(45,212,191,.12)]' : 'border-border-soft bg-black/10 hover:border-white/25'}`}
+                      key={platform.value}
+                      onClick={() => togglePlatform(platform.value)}
+                      title={platform.label}
+                      type="button"
+                    >
+                      <SocialPlatformIcon className="!size-8 transition duration-300 group-hover:rotate-[4deg] group-hover:scale-110" platform={platform.key} />
+                      {active && <span className="absolute -right-1 -top-1 grid size-4 place-items-center rounded-full bg-brand-cyan text-[8px] text-[#001014]"><Check className="size-2.5" /></span>}
+                    </button>
+                  })}
                 </div>
               </div>
+
+              <label className="block">
+                <span className="text-[10px] font-semibold uppercase tracking-[.1em] text-text-soft">Business / product website <span className="normal-case tracking-normal text-text-soft">(optional)</span></span>
+                <input
+                  className="mt-2 min-h-12 w-full rounded-2xl border border-border-soft bg-black/15 px-4 text-sm outline-none transition focus:border-brand-cyan/45"
+                  onBlur={(event) => setForm((current) => ({ ...current, businessUrl: normaliseWebsite(event.target.value) }))}
+                  onChange={(event) => setForm((current) => ({ ...current, businessUrl: event.target.value }))}
+                  placeholder="yourbusiness.com"
+                  type="text"
+                  value={form.businessUrl || ''}
+                />
+              </label>
 
               <div>
                 <span className="text-[10px] font-semibold uppercase tracking-[.1em] text-text-soft">Campaign type</span>
@@ -362,13 +367,13 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                     const active = form.contentMode === option.mode
                     const Icon = option.icon
                     return <button
-                      className={`group relative overflow-hidden rounded-[22px] border p-4 text-left transition duration-300 hover:-translate-y-1 ${active ? 'border-brand-cyan/45 bg-[linear-gradient(145deg,rgba(45,212,191,.12),rgba(17,24,39,.6))] shadow-[0_18px_42px_rgba(0,0,0,.25)]' : 'border-border-soft bg-black/10 hover:border-white/20'}`}
+                      className={`ai-campaign-3d-card group relative overflow-hidden rounded-[22px] border p-4 text-left transition duration-300 hover:-translate-y-1 ${active ? 'border-brand-cyan/45 bg-[linear-gradient(145deg,rgba(45,212,191,.12),rgba(17,24,39,.6))] shadow-[0_18px_42px_rgba(0,0,0,.25)]' : 'border-border-soft bg-black/10 hover:border-white/20'}`}
                       key={option.mode}
                       onClick={() => chooseMode(option.mode)}
                       type="button"
                     >
                       <div aria-hidden="true" className={`absolute -right-8 -top-8 size-24 rounded-full blur-2xl transition ${active ? 'bg-brand-cyan/20' : 'bg-white/[.03]'}`} />
-                      <span className={`relative grid size-10 place-items-center rounded-2xl border ${active ? 'border-brand-cyan/30 bg-brand-cyan/10 text-brand-cyan' : 'border-border-soft text-text-muted'}`}><Icon className="size-4.5" /></span>
+                      <span className={`ai-campaign-soft-float relative grid size-10 place-items-center rounded-2xl border ${active ? 'border-brand-cyan/30 bg-brand-cyan/10 text-brand-cyan' : 'border-border-soft text-text-muted'}`}><Icon className="size-4.5" /></span>
                       <strong className="relative mt-3 block text-sm">{option.title}</strong>
                       <small className="relative mt-1 block text-[10px] leading-5 text-text-muted">{option.copy}</small>
                       {active && <span className="absolute right-3 top-3 grid size-5 place-items-center rounded-full bg-brand-cyan text-[#001014]"><Check className="size-3" /></span>}
@@ -378,17 +383,17 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
               </div>
 
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-                <div className="rounded-[22px] border border-border-soft bg-black/10 p-4">
+                <div className="ai-campaign-3d-card rounded-[22px] border border-border-soft bg-black/10 p-4">
                   <span className="text-[10px] font-semibold uppercase tracking-[.1em] text-text-soft">Number of posts</span>
                   <div className="mt-3 grid grid-cols-4 gap-2">
                     {POST_COUNTS.map((count) => <button className={`rounded-xl border px-2 py-3 text-xs font-semibold transition hover:-translate-y-0.5 ${form.postCount === count ? 'border-brand-cyan/45 bg-brand-cyan/10 text-brand-cyan' : 'border-border-soft text-text-muted hover:text-white'}`} key={count} onClick={() => choosePostCount(count)} type="button">{count}</button>)}
                   </div>
                 </div>
 
-                <div className="rounded-[22px] border border-border-soft bg-[linear-gradient(145deg,rgba(10,30,43,.72),rgba(5,18,29,.72))] p-4">
+                <div className="ai-campaign-3d-card rounded-[22px] border border-brand-cyan/15 bg-[radial-gradient(circle_at_90%_0%,rgba(45,212,191,.10),transparent_14rem),linear-gradient(145deg,rgba(10,30,43,.82),rgba(5,18,29,.82))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,.025)]">
                   <div className="flex items-center justify-between gap-4">
-                    <div><span className="text-[10px] font-semibold uppercase tracking-[.1em] text-text-soft">Content mix</span><p className="mt-1 text-[10px] text-text-muted">{form.contentMode === 'MIXED' ? 'Choose how much of the campaign should be visual.' : 'The split follows your selected campaign type.'}</p></div>
-                    <div className="text-right"><strong className="block text-sm text-brand-cyan">{imageCount} image</strong><small className="text-[9px] text-text-muted">{textCount} text</small></div>
+                    <div><span className="text-[11px] font-bold uppercase tracking-[.1em] text-text-soft">Content mix</span><p className="mt-1.5 text-[11px] leading-5 text-text-muted">{form.contentMode === 'MIXED' ? 'Choose how much of the campaign should be visual.' : 'The split follows your selected campaign type.'}</p></div>
+                    <div className="text-right"><strong className="block text-lg text-brand-cyan">{imageCount} image</strong><small className="text-[11px] font-medium text-text-muted">{textCount} text</small></div>
                   </div>
                   <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-black/30"><span className="bg-brand-cyan transition-all" style={{ width: `${(imageCount / form.postCount) * 100}%` }} /><span className="bg-white/15 transition-all" style={{ width: `${(textCount / form.postCount) * 100}%` }} /></div>
                   {form.contentMode === 'MIXED' && <div className="mt-4">
@@ -401,9 +406,9 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                       type="range"
                       value={imageCount}
                     />
-                    <div className="mt-2 flex justify-between text-[9px] text-text-soft"><span>More text</span><span>{imageCount} image + {textCount} text</span><span>More visual</span></div>
+                    <div className="mt-2 flex justify-between text-[10px] font-medium text-text-soft"><span>More text</span><span>{imageCount} image + {textCount} text</span><span>More visual</span></div>
                   </div>}
-                  {imageCount > 0 && <p className="mt-3 text-[9px] leading-4 text-text-soft">Images are <strong className="text-white/80">not generated automatically</strong>. Review first, then render only the images you want. Rendering all {imageCount} image posts would use up to <strong className="text-brand-cyan">{imageCount * 5} AI credits</strong>.</p>}
+                  {imageCount > 0 && <p className="mt-3 text-[10px] leading-5 text-text-soft">Images are <strong className="text-white/80">not generated automatically</strong>. Review first, then render only the images you want. Rendering all {imageCount} image posts would use up to <strong className="text-brand-cyan">{imageCount * 5} AI credits</strong>.</p>}
                 </div>
               </div>
 
@@ -430,7 +435,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                   const selected = selectedCampaign?.id === item.id
                   const firstVisual = item.posts.find((post) => post.mediaAsset?.thumbnailUrl || post.mediaAsset?.url)?.mediaAsset
                   const visualUrl = firstVisual?.thumbnailUrl || firstVisual?.url
-                  return <article className={`group relative overflow-hidden rounded-2xl border transition duration-300 hover:-translate-y-1 ${selected ? 'border-brand-cyan/40 bg-brand-cyan/[.06] shadow-[0_14px_36px_rgba(0,0,0,.2)]' : 'border-border-soft bg-bg/35 hover:border-white/20'}`} key={item.id}>
+                  return <article className={`ai-campaign-3d-card group relative overflow-hidden rounded-2xl border transition duration-300 hover:-translate-y-1 ${selected ? 'border-brand-cyan/40 bg-brand-cyan/[.06] shadow-[0_14px_36px_rgba(0,0,0,.2)]' : 'border-border-soft bg-bg/35 hover:border-white/20'}`} key={item.id}>
                     <button className="flex w-full gap-3 p-3 text-left" onClick={() => openCampaign(item)} type="button">
                       <div className="relative grid size-12 shrink-0 place-items-center overflow-hidden rounded-xl border border-border-soft bg-[linear-gradient(145deg,rgba(45,212,191,.12),rgba(124,58,237,.10))]">
                         {visualUrl ? <img alt="" className="size-full object-cover" src={visualUrl} /> : <>
