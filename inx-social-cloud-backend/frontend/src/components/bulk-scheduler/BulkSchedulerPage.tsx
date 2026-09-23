@@ -270,6 +270,8 @@ export function BulkSchedulerPage() {
     mediaRef.current = next
     setMedia(next)
     setMixedCampaign(null)
+    setWorkspaceMode('media')
+    window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
     setResults([])
     setRetainMedia(false)
     const rejected = files.length - valid.length
@@ -321,6 +323,8 @@ export function BulkSchedulerPage() {
     const blocks = (imported.captions || []).map((caption) => String(caption || '').trim()).filter(Boolean)
     if (!blocks.length) return
     setMixedCampaign(null)
+    setWorkspaceMode('text')
+    window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
     setContentMode('text')
     setCaptions(blocks.join('\n\n---\n\n'))
     setMedia([])
@@ -350,8 +354,8 @@ export function BulkSchedulerPage() {
     const assetsById = new Map((state?.mediaLibraryAssets || []).map((asset) => [asset.id, asset]))
     setProgress({ ...idleProgress, state: 'preparing', message: `Loading mixed AI campaign “${imported.title}”…` })
 
-    void Promise.all(imported.posts.map(async (post): Promise<ImportedMixedCampaignItem> => {
-      if (post.contentType === 'TEXT') return { id: post.id, contentType: 'TEXT', caption: post.caption, media: null }
+    void Promise.all(imported.posts.map(async (post, index): Promise<ImportedMixedCampaignItem> => {
+      if (post.contentType === 'TEXT') return { id: post.id, sequence: index + 1, title: `Post ${index + 1}`, contentType: 'TEXT', caption: post.caption, media: null }
       const asset = post.mediaAssetId ? assetsById.get(post.mediaAssetId) : null
       if (!asset) throw new Error(`Generated media is missing for one of the image posts in “${imported.title}”.`)
       const file = await fetchMediaAssetFile(asset)
@@ -359,6 +363,8 @@ export function BulkSchedulerPage() {
       if (!kind) throw new Error(`${asset.fileName} is not a supported image or video.`)
       return {
         id: post.id,
+        sequence: index + 1,
+        title: `Post ${index + 1}`,
         contentType: 'IMAGE',
         caption: post.caption,
         media: { id: asset.id, libraryAssetId: asset.id, file, kind, previewUrl: URL.createObjectURL(file) },
@@ -369,6 +375,8 @@ export function BulkSchedulerPage() {
       mediaRef.current = imageMedia
       setMedia(imageMedia)
       setMixedCampaign({ id: imported.id, title: imported.title, posts: items })
+      setWorkspaceMode('campaign')
+      window.localStorage.setItem(ACTIVE_AI_CAMPAIGN_KEY, imported.id)
       setContentMode('media')
       setCaptions('')
       setRetainMedia(true)
@@ -391,6 +399,8 @@ export function BulkSchedulerPage() {
     const fingerprint = selectedAssets.length ? `${selectedAssets.map((asset) => asset.id).join(':')}:${location.key}` : ''
     if (!fingerprint || importedLibrarySelection.current === fingerprint) return
     importedLibrarySelection.current = fingerprint
+    setWorkspaceMode('media')
+    window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
     setContentMode('media')
     if (state?.aiCampaignCaptions?.length) {
       setCaptions(state.aiCampaignCaptions.map((caption) => String(caption || '').trim()).filter(Boolean).join('\n\n---\n\n'))
@@ -420,6 +430,7 @@ export function BulkSchedulerPage() {
     mediaRef.current = []
     setMedia([])
     setMixedCampaign(null)
+    window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
     setCaptions('')
     setTimingMode('')
     setScheduleTimes(['10:00'])
