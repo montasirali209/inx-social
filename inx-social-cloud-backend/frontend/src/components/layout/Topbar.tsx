@@ -156,7 +156,16 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
     <header className="sticky top-0 z-20 min-h-[64px] sm:min-h-[72px] lg:min-h-[78px] border-b border-border-soft bg-bg/88 shadow-[0_12px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl" data-design-standard="universal-workspace-topbar">
       <div className="flex min-h-[64px] w-full min-w-0 items-center justify-between gap-1.5 px-2.5 sm:min-h-[72px] sm:gap-3 sm:px-5 lg:min-h-[78px] xl:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-3">
-          <Button aria-label="Open navigation" className="size-9 shrink-0 px-0 sm:size-10 lg:hidden" onClick={() => setOpen(true)} variant="ghost"><Menu aria-hidden="true" className="size-5" /></Button>
+          <button
+            aria-label="Open navigation"
+            className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl border border-brand-cyan/45 bg-panel-soft/90 text-text-main shadow-[0_8px_22px_rgba(0,0,0,0.22)] transition duration-200 hover:border-brand-cyan/70 hover:bg-panel-hover hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan active:scale-[0.97] lg:hidden"
+            data-mobile-menu-trigger="true"
+            onClick={() => setOpen(true)}
+            type="button"
+          >
+            <Menu aria-hidden="true" className="h-5 w-5 shrink-0" strokeWidth={2.4} />
+            <span className="sr-only">Open menu</span>
+          </button>
           {connectionsRoute ? (
             <label className="relative min-w-0 flex-1 sm:max-w-[26rem]">
               <span className="sr-only">Search anything in connected accounts</span>
