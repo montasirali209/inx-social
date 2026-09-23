@@ -47,8 +47,8 @@ function getHeroImage(slug: string) {
   if (AI_CONTENT_STUDIO_SLUGS.has(slug)) {
     return {
       src: "/assets/ai-content-studio-seo.webp",
-      width: 800,
-      height: 563,
+      width: 700,
+      height: 493,
       label: "Actual AI Content Studio workspace"
     };
   }
