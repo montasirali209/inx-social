@@ -438,6 +438,7 @@ model AiPostCampaign {
   contentMode    String   @default("TEXT")
   platformsJson  String   @default("[]")
   postCount      Int
+  imagePostCount Int      @default(0)
   status         String   @default("READY")
   analysisJson   String?
   createdAt      DateTime @default(now())
@@ -455,6 +456,7 @@ model AiPostCampaignPost {
   campaignId     String
   sequence       Int
   status         String   @default("READY")
+  contentType    String   @default("TEXT")
   title          String
   pillar         String?
   hook           String?

@@ -150,10 +150,16 @@ export function AiContentStudioPage() {
     }
   }
 
-  async function handoffCampaign(campaign: AIPostCampaign, mode: 'TEXT' | 'IMAGE') {
+  function campaignCaption(post: AIPostCampaign['posts'][number]) {
+    const hashtags = post.hashtags.map((tag) => `#${tag.replace(/^#/, '')}`).join(' ')
+    return [post.caption.trim(), hashtags].filter(Boolean).join('\n\n')
+  }
+
+  async function handoffCampaign(campaign: AIPostCampaign) {
     try {
-      const captions = campaign.posts.map((post) => post.caption)
-      if (mode === 'TEXT') {
+      const captions = campaign.posts.map(campaignCaption)
+
+      if (campaign.contentMode === 'TEXT') {
         setCampaignOpen(false)
         navigate('/bulk-scheduler', {
           state: {
@@ -169,18 +175,42 @@ export function AiContentStudioPage() {
         return
       }
 
-      const ids = campaign.posts.map((post) => post.mediaAssetId).filter((id): id is string => Boolean(id))
-      if (ids.length !== campaign.posts.length) throw new Error('Generate an image for every campaign post before sending the visual campaign.')
+      const imagePosts = campaign.posts.filter((post) => post.contentType === 'IMAGE')
+      const ids = imagePosts.map((post) => post.mediaAssetId).filter((id): id is string => Boolean(id))
+      if (ids.length !== imagePosts.length) throw new Error('Create the remaining campaign images before sending the full campaign to Bulk Scheduler.')
+
       const library = await fetchMediaLibrary()
-      const assets = ids.map((id) => library.assets.find((asset) => asset.id === id)).filter((asset): asset is NonNullable<typeof asset> => Boolean(asset))
+      const assets = ids
+        .map((id) => library.assets.find((asset) => asset.id === id))
+        .filter((asset): asset is NonNullable<typeof asset> => Boolean(asset))
       if (assets.length !== ids.length) throw new Error('One or more campaign images could not be found in Media Library.')
 
       setCampaignOpen(false)
+
+      if (campaign.contentMode === 'IMAGE') {
+        navigate('/bulk-scheduler', {
+          state: {
+            mediaLibraryAssets: assets,
+            aiCampaignCaptions: captions,
+            aiCampaignTitle: campaign.title,
+          },
+        })
+        return
+      }
+
       navigate('/bulk-scheduler', {
         state: {
           mediaLibraryAssets: assets,
-          aiCampaignCaptions: captions,
-          aiCampaignTitle: campaign.title,
+          aiMixedCampaign: {
+            id: campaign.id,
+            title: campaign.title,
+            posts: campaign.posts.map((post) => ({
+              id: post.id,
+              contentType: post.contentType,
+              caption: campaignCaption(post),
+              mediaAssetId: post.mediaAssetId || null,
+            })),
+          },
         },
       })
     } catch (error) {
@@ -255,7 +285,7 @@ export function AiContentStudioPage() {
       <CreditsCard topUpsSupported={false} />
     </section>
 
-    <AiPostCampaignModal onClose={() => setCampaignOpen(false)} onHandoff={(campaign, mode) => void handoffCampaign(campaign, mode)} onToast={setToast} open={campaignOpen} />
+    <AiPostCampaignModal onClose={() => setCampaignOpen(false)} onHandoff={(campaign) => void handoffCampaign(campaign)} onToast={setToast} open={campaignOpen} />
     <GenerationModalRouter access={access || immediateAiAccess} initialDraft={editingDraft} initialGenerationId={requestedGenerationId} initialVideoKind={requestedVideoKind} onClose={() => { setActiveType(null); setEditingDraft(null); if (requestedVideoKind || requestedGenerationId) setSearchParams({}, { replace: true }) }} onContinue={(draft) => void continueToPosts(draft)} onSaved={(draft) => void onDraftSaved(draft)} onToast={setToast} open={Boolean(activeType && access)} type={activeType} />
     <UpgradeToPlusModal onClose={() => setUpgradeOpen(false)} open={upgradeOpen} />
     <GenerationHistoryDrawer history={(historyQuery.data || []) as GenerationHistoryItem[]} onClose={() => setHistoryOpen(false)} open={historyOpen} />

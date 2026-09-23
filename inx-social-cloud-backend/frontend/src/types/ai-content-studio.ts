@@ -145,6 +145,7 @@ export type AIPostCampaignPost = {
   id: string
   sequence: number
   status: string
+  contentType: 'TEXT' | 'IMAGE'
   title: string
   pillar?: string | null
   hook?: string | null
@@ -164,10 +165,11 @@ export type AIPostCampaign = {
   businessUrl?: string | null
   goal: string
   audience?: string | null
-  tone?: string | null
-  contentMode: 'TEXT' | 'IMAGE'
+  contentMode: 'TEXT' | 'IMAGE' | 'MIXED'
   platforms: string[]
   postCount: number
+  imagePostCount: number
+  textPostCount: number
   status: string
   strategySummary?: string
   audienceSummary?: string
@@ -178,6 +180,8 @@ export type AIPostCampaign = {
   updatedAt: string
   counts: {
     total: number
+    textPosts: number
+    imagePosts: number
     withImages: number
     ready: number
   }
@@ -188,16 +192,16 @@ export type CreateAIPostCampaignInput = {
   businessUrl?: string
   goal: string
   audience?: string
-  tone?: string
-  contentMode: 'TEXT' | 'IMAGE'
+  contentMode: 'TEXT' | 'IMAGE' | 'MIXED'
   platforms: string[]
   postCount: number
+  imagePostCount?: number
 }
 
 export type AIPostCampaignHandoff = {
   id: string
   title: string
-  contentMode: 'TEXT' | 'IMAGE'
+  contentMode: 'TEXT' | 'IMAGE' | 'MIXED'
   captions: string[]
   mediaAssetIds: string[]
 }

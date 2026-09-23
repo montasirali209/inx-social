@@ -54,6 +54,19 @@ function mediaMimeType(file: File) {
   return 'application/octet-stream'
 }
 
+type ImportedMixedCampaignItem = {
+  id: string
+  contentType: 'TEXT' | 'IMAGE'
+  caption: string
+  media: SelectedMedia | null
+}
+
+type ImportedMixedCampaign = {
+  id: string
+  title: string
+  posts: ImportedMixedCampaignItem[]
+}
+
 export function BulkSchedulerPage() {
   const location = useLocation()
   const { registerStop, update: updateActivity } = useBulkSchedulerActivity()
@@ -73,9 +86,11 @@ export function BulkSchedulerPage() {
   const [confirmationOpen, setConfirmationOpen] = useState(false)
   const [retryingId, setRetryingId] = useState<string | null>(null)
   const [historyView, setHistoryView] = useState<BulkHistoryView | null>(null)
+  const [mixedCampaign, setMixedCampaign] = useState<ImportedMixedCampaign | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const importedLibrarySelection = useRef('')
   const importedCampaignSelection = useRef('')
+  const importedMixedCampaignSelection = useRef('')
   const destinationSection = useRef<HTMLDivElement>(null)
   const batchRunSection = useRef<HTMLDivElement>(null)
   const running = ['preparing', 'uploading', 'scheduling'].includes(progress.state)
@@ -91,7 +106,10 @@ export function BulkSchedulerPage() {
   const captionBlocks = useMemo(() => contentMode === 'text' ? parseTextPosts(captions) : parseCaptions(captions), [captions, contentMode])
   const selectedDestinations = destinations.filter((destination) => selectedIds.has(destination.id))
   const incompatibleTextDestinations = contentMode === 'text' ? selectedDestinations.filter((destination) => !TEXT_POST_PLATFORMS.has(destination.platform)) : []
-  const batchCount = contentMode === 'text' ? captionBlocks.length : media.length
+  const mixedTextPosts = mixedCampaign?.posts.filter((post) => post.contentType === 'TEXT') || []
+  const mixedImagePosts = mixedCampaign?.posts.filter((post) => post.contentType === 'IMAGE') || []
+  const mixedTextDestinations = selectedDestinations.filter((destination) => TEXT_POST_PLATFORMS.has(destination.platform))
+  const batchCount = mixedCampaign ? mixedCampaign.posts.length : contentMode === 'text' ? captionBlocks.length : media.length
   const activeScheduleTimes = timingMode === 'saved_schedule' ? schedulerData.settings.defaultScheduleTimes : scheduleTimes
 
   useEffect(() => {
@@ -153,21 +171,27 @@ export function BulkSchedulerPage() {
   const canUseFallback = contentMode === 'media' && captionBlocks.length > 0 && useFallback
   const disabledReason = !selectedIds.size
     ? 'Select at least one connected destination.'
-    : contentMode === 'text' && incompatibleTextDestinations.length
-      ? `Text-only posts are not supported by ${incompatibleTextDestinations.map((destination) => destination.name).join(', ')}. Deselect those destinations or switch to Media Posts.`
-      : contentMode === 'text' && !captionBlocks.length
-        ? 'Add at least one complete text post. Separate multiple posts with a line containing ---.'
-        : contentMode === 'media' && !media.length
-          ? 'Select one or more image or video files.'
-          : contentMode === 'media' && !captionBlocks.length
-            ? 'Add at least one caption.'
-            : contentMode === 'media' && captionBlocks.length < media.length && !canUseFallback
-              ? 'Add matching captions or confirm the fallback caption.'
-              : !timingMode
-                ? 'Choose a timing mode.'
-                : timingMode !== 'publish_now' && (!scheduleDate || !activeScheduleTimes.length)
-                  ? 'Choose a start date and add at least one publishing time.'
-                  : ''
+    : mixedCampaign && mixedTextPosts.length && !mixedTextDestinations.length
+      ? 'This mixed campaign contains text-only posts. Select at least one destination that supports text posts, such as Facebook, X, LinkedIn, Threads or Bluesky.'
+      : mixedCampaign && mixedImagePosts.some((post) => !post.media)
+        ? 'One or more mixed-campaign image posts are missing their generated media.'
+        : !timingMode
+          ? 'Choose a timing mode.'
+          : timingMode !== 'publish_now' && (!scheduleDate || !activeScheduleTimes.length)
+            ? 'Choose a start date and add at least one publishing time.'
+            : mixedCampaign
+              ? ''
+              : contentMode === 'text' && incompatibleTextDestinations.length
+                ? `Text-only posts are not supported by ${incompatibleTextDestinations.map((destination) => destination.name).join(', ')}. Deselect those destinations or switch to Media Posts.`
+                : contentMode === 'text' && !captionBlocks.length
+                  ? 'Add at least one complete text post. Separate multiple posts with a line containing ---.'
+                  : contentMode === 'media' && !media.length
+                    ? 'Select one or more image or video files.'
+                    : contentMode === 'media' && !captionBlocks.length
+                      ? 'Add at least one caption.'
+                      : contentMode === 'media' && captionBlocks.length < media.length && !canUseFallback
+                        ? 'Add matching captions or confirm the fallback caption.'
+                        : ''
   const canStart = !disabledReason && !running
 
   const selectMedia = (files: File[]) => {
@@ -180,6 +204,7 @@ export function BulkSchedulerPage() {
     const next = valid.map(({ file, kind }) => ({ id: crypto.randomUUID(), libraryAssetId: null, file, kind, previewUrl: URL.createObjectURL(file) }))
     mediaRef.current = next
     setMedia(next)
+    setMixedCampaign(null)
     setResults([])
     setRetainMedia(false)
     const rejected = files.length - valid.length
@@ -195,6 +220,7 @@ export function BulkSchedulerPage() {
     importedCampaignSelection.current = campaignFingerprint
     const blocks = (imported.captions || []).map((caption) => String(caption || '').trim()).filter(Boolean)
     if (!blocks.length) return
+    setMixedCampaign(null)
     setContentMode('text')
     setCaptions(blocks.join('\n\n---\n\n'))
     setMedia([])
@@ -207,7 +233,60 @@ export function BulkSchedulerPage() {
   }, [location.state, location.key])
 
   useEffect(() => {
-    const state = location.state as { mediaLibraryAssets?: MediaAsset[]; aiCampaignCaptions?: string[]; aiCampaignTitle?: string } | null
+    const state = location.state as {
+      mediaLibraryAssets?: MediaAsset[]
+      aiMixedCampaign?: {
+        id: string
+        title: string
+        posts: Array<{ id: string; contentType: 'TEXT' | 'IMAGE'; caption: string; mediaAssetId: string | null }>
+      }
+    } | null
+    const imported = state?.aiMixedCampaign
+    if (!imported?.id) return
+    const fingerprint = `${imported.id}:${location.key}`
+    if (importedMixedCampaignSelection.current === fingerprint) return
+    importedMixedCampaignSelection.current = fingerprint
+
+    const assetsById = new Map((state?.mediaLibraryAssets || []).map((asset) => [asset.id, asset]))
+    setProgress({ ...idleProgress, state: 'preparing', message: `Loading mixed AI campaign “${imported.title}”…` })
+
+    void Promise.all(imported.posts.map(async (post): Promise<ImportedMixedCampaignItem> => {
+      if (post.contentType === 'TEXT') return { id: post.id, contentType: 'TEXT', caption: post.caption, media: null }
+      const asset = post.mediaAssetId ? assetsById.get(post.mediaAssetId) : null
+      if (!asset) throw new Error(`Generated media is missing for one of the image posts in “${imported.title}”.`)
+      const file = await fetchMediaAssetFile(asset)
+      const kind = mediaKind(file)
+      if (!kind) throw new Error(`${asset.fileName} is not a supported image or video.`)
+      return {
+        id: post.id,
+        contentType: 'IMAGE',
+        caption: post.caption,
+        media: { id: asset.id, libraryAssetId: asset.id, file, kind, previewUrl: URL.createObjectURL(file) },
+      }
+    })).then((items) => {
+      mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+      const imageMedia = items.flatMap((item) => item.media ? [item.media] : [])
+      mediaRef.current = imageMedia
+      setMedia(imageMedia)
+      setMixedCampaign({ id: imported.id, title: imported.title, posts: items })
+      setContentMode('media')
+      setCaptions('')
+      setRetainMedia(true)
+      setUseFallback(false)
+      setResults([])
+      const textPosts = items.filter((item) => item.contentType === 'TEXT').length
+      const imagePosts = items.length - textPosts
+      setProgress({ ...idleProgress, state: 'completed', message: `${items.length}-post mixed AI campaign loaded: ${textPosts} text + ${imagePosts} image. Choose destinations and publishing times.` })
+    }).catch((error) => {
+      importedMixedCampaignSelection.current = ''
+      setMixedCampaign(null)
+      setProgress({ ...idleProgress, state: 'failed', message: error instanceof Error ? error.message : 'The mixed AI campaign could not be loaded.' })
+    })
+  }, [location.state, location.key])
+
+  useEffect(() => {
+    const state = location.state as { mediaLibraryAssets?: MediaAsset[]; aiCampaignCaptions?: string[]; aiCampaignTitle?: string; aiMixedCampaign?: unknown } | null
+    if (state?.aiMixedCampaign) return
     const selectedAssets = state?.mediaLibraryAssets || []
     const fingerprint = selectedAssets.length ? `${selectedAssets.map((asset) => asset.id).join(':')}:${location.key}` : ''
     if (!fingerprint || importedLibrarySelection.current === fingerprint) return
@@ -240,6 +319,7 @@ export function BulkSchedulerPage() {
     mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
     mediaRef.current = []
     setMedia([])
+    setMixedCampaign(null)
     setCaptions('')
     setTimingMode('')
     setScheduleTimes(['10:00'])
@@ -259,6 +339,7 @@ export function BulkSchedulerPage() {
 
   const changeContentMode = (value: BulkContentMode) => {
     if (running || value === contentMode) return
+    setMixedCampaign(null)
     setContentMode(value)
     setUseFallback(false)
     setRetainMedia(false)
@@ -301,6 +382,135 @@ export function BulkSchedulerPage() {
 
     const controller = new AbortController()
     abortRef.current = controller
+
+    if (mixedCampaign) {
+      const textDestinationIds = mixedTextDestinations.map((destination) => destination.id)
+      const initialResults: UploadResult[] = mixedCampaign.posts.map((post, index) => {
+        const targets = post.contentType === 'TEXT' ? textDestinationIds : destinationIds
+        return {
+          id: `mixed:${post.id}:${crypto.randomUUID()}`,
+          mediaId: post.media?.id || `text:${post.id}`,
+          mediaIndex: index,
+          jobId: null,
+          fileName: post.contentType === 'TEXT' ? `Text post ${index + 1}` : (post.media?.file.name || `Image post ${index + 1}`),
+          mediaKind: post.contentType === 'TEXT' ? 'text' : (post.media?.kind || 'image'),
+          thumbnailUrl: post.media?.previewUrl || '',
+          textPreview: post.caption.replace(/\s+/g, ' ').slice(0, 180),
+          destinationIds: targets,
+          status: 'waiting',
+          resultId: null,
+          errorMessage: null,
+          scheduledAt: publishingTimes[index],
+        }
+      })
+      setResults(initialResults)
+      setProgress({ state: 'preparing', percent: 1, current: 0, total: mixedCampaign.posts.length, completed: 0, failed: 0, message: 'Preparing mixed AI campaign in campaign order…' })
+
+      let completed = 0
+      let failed = 0
+
+      for (let index = 0; index < mixedCampaign.posts.length; index += 1) {
+        if (controller.signal.aborted) break
+        const post = mixedCampaign.posts[index]
+        const resultId = initialResults[index].id
+        const targets = post.contentType === 'TEXT' ? textDestinationIds : destinationIds
+
+        try {
+          setProgress({
+            state: timingMode === 'publish_now' ? 'preparing' : 'scheduling',
+            percent: (index / mixedCampaign.posts.length) * 100,
+            current: index + 1,
+            total: mixedCampaign.posts.length,
+            completed,
+            failed,
+            message: `${timingMode === 'publish_now' ? 'Publishing' : 'Scheduling'} ${post.contentType === 'TEXT' ? 'text' : 'image'} post ${index + 1} of ${mixedCampaign.posts.length}…`,
+          })
+
+          let finalJob
+          if (post.contentType === 'TEXT') {
+            const prepared = await createBulkMediaPost({
+              connectedPageIds: targets,
+              clientRequestId: `ai-mixed-text-${crypto.randomUUID()}`,
+              title: null,
+              caption: post.caption,
+              contentType: 'TEXT',
+              originalFileName: null,
+              mimeType: null,
+              fileSizeBytes: null,
+              mediaLibraryAssetId: null,
+              scheduledAt: publishingTimes[index],
+              publishMode: timingMode === 'publish_now' ? 'NOW' : 'SCHEDULED',
+              smartTiming: smartTimingSource ? { enabled: true, baseScheduledAt: baselinePublishingTimes[index], source: smartTimingSource } : null,
+            })
+            finalJob = prepared.jobs[0]
+            if (!finalJob) throw new Error(prepared.failures[0]?.error || 'The publishing provider could not create this text post.')
+          } else {
+            if (!post.media?.libraryAssetId) throw new Error('The generated campaign image is missing from Media Library.')
+            const prepared = await createBulkMediaPost({
+              connectedPageIds: targets,
+              clientRequestId: `ai-mixed-image-${crypto.randomUUID()}`,
+              title: titleFromFile(post.media.file),
+              caption: post.caption,
+              contentType: 'IMAGE',
+              originalFileName: post.media.file.name,
+              mimeType: mediaMimeType(post.media.file),
+              fileSizeBytes: post.media.file.size,
+              mediaLibraryAssetId: post.media.libraryAssetId,
+              scheduledAt: publishingTimes[index],
+              publishMode: timingMode === 'publish_now' ? 'NOW' : 'SCHEDULED',
+              smartTiming: smartTimingSource ? { enabled: true, baseScheduledAt: baselinePublishingTimes[index], source: smartTimingSource } : null,
+            })
+            finalJob = prepared.jobs[0]
+            if (!finalJob) throw new Error(prepared.failures[0]?.error || 'The publishing provider could not create this image post.')
+            if (prepared.uploadRequired) {
+              const uploaded = await publishBulkLibraryMedia(finalJob.id)
+              finalJob = uploaded.job
+            }
+          }
+
+          completed += 1
+          setResults((current) => current.map((result) => result.id === resultId ? {
+            ...result,
+            jobId: finalJob.id,
+            status: backendStatusToUploadStatus(finalJob.status),
+            resultId: finalJob.providerPostId || finalJob.metaPostId || finalJob.metaVideoId || null,
+            errorMessage: null,
+          } : result))
+        } catch (error) {
+          failed += 1
+          setResults((current) => current.map((result) => result.id === resultId ? {
+            ...result,
+            status: 'failed',
+            errorMessage: error instanceof Error ? error.message : 'Campaign post failed.',
+          } : result))
+        }
+      }
+
+      const stopped = controller.signal.aborted
+      if (stopped) {
+        setResults((current) => current.map((result) => result.status === 'waiting'
+          ? { ...result, status: 'blocked', errorMessage: 'Not started because the campaign run was stopped.' }
+          : result))
+      }
+      setProgress({
+        state: stopped ? 'stopped' : failed === mixedCampaign.posts.length ? 'failed' : 'completed',
+        percent: stopped ? ((completed + failed) / mixedCampaign.posts.length) * 100 : 100,
+        current: completed + failed,
+        total: mixedCampaign.posts.length,
+        completed,
+        failed,
+        message: stopped
+          ? 'Mixed campaign stopped safely.'
+          : failed
+            ? `Mixed campaign finished with ${failed} failed post${failed === 1 ? '' : 's'}.`
+            : timingMode === 'publish_now'
+              ? `${completed} campaign post${completed === 1 ? '' : 's'} accepted for publishing.`
+              : `${completed} campaign post${completed === 1 ? '' : 's'} scheduled in campaign order.`,
+      })
+      abortRef.current = null
+      await scheduler.refetch()
+      return
+    }
 
     if (contentMode === 'text') {
       const initialResults: UploadResult[] = captionBlocks.map((post, index) => ({
@@ -835,11 +1045,11 @@ export function BulkSchedulerPage() {
       <BulkSchedulerStats jobs={schedulerData.jobs} onOpen={setHistoryView} />
       <div className="mt-4 scroll-mt-24" ref={destinationSection}><PublishingDestinationsPanel destinations={destinations} onSelectionChange={setSelectedIds} platforms={schedulerData.platforms} selectedIds={selectedIds} /></div>
       <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,.92fr)_minmax(0,1.08fr)]">
-        <UploadBatchPanel canStart={canStart} captionCount={captionBlocks.length} captions={captions} contentMode={contentMode} disabledReason={disabledReason} media={media} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onContentModeChange={changeContentMode} onFallbackChange={setUseFallback} onMedia={selectMedia} onRetainMediaChange={setRetainMedia} onSmartTimingChange={setSmartTiming} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={requestStart} onTimingModeChange={setTimingMode} retainMedia={retainMedia} smartTiming={smartTiming} running={running} savedScheduleTimes={schedulerData.settings.defaultScheduleTimes} scheduleDate={scheduleDate} scheduleTimes={activeScheduleTimes} selectedDestinations={selectedIds.size} timezone={schedulerData.settings.timezone} timingMode={timingMode} useFallback={useFallback} />
+        <UploadBatchPanel campaignImport={mixedCampaign ? { title: mixedCampaign.title, textPosts: mixedTextPosts.length, imagePosts: mixedImagePosts.length, total: mixedCampaign.posts.length } : null} canStart={canStart} captionCount={mixedCampaign ? mixedCampaign.posts.length : captionBlocks.length} captions={captions} contentMode={contentMode} disabledReason={disabledReason} media={media} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onContentModeChange={changeContentMode} onFallbackChange={setUseFallback} onMedia={selectMedia} onRetainMediaChange={setRetainMedia} onSmartTimingChange={setSmartTiming} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={requestStart} onTimingModeChange={setTimingMode} retainMedia={retainMedia} smartTiming={smartTiming} running={running} savedScheduleTimes={schedulerData.settings.defaultScheduleTimes} scheduleDate={scheduleDate} scheduleTimes={activeScheduleTimes} selectedDestinations={selectedIds.size} timezone={schedulerData.settings.timezone} timingMode={timingMode} useFallback={useFallback} />
         <div className="scroll-mt-24" ref={batchRunSection}><BatchRunPanel canStart={canStart} destinations={destinations} disabledReason={disabledReason} onRetry={retryFailedUpload} onStart={requestStart} onStop={stopUpload} progress={progress} results={results} retryingId={retryingId} running={running} /></div>
       </div>
       {historyView && <BulkScheduleManager initialView={historyView} jobs={schedulerData.jobs} onBulkCancelJobs={bulkCancelScheduledJobs} onBulkEditJobs={(jobs, rules) => { void bulkEditScheduledJobs(jobs, rules) }} onChanged={() => scheduler.refetch()} onClose={() => setHistoryView(null)} onRetryJobs={(jobs) => { void retryReviewJobs(jobs) }} timezone={schedulerData.settings.timezone} />}
-      <PublishConfirmationDialog busy={running} confirmLabel={timingMode === 'publish_now' ? 'Publish batch' : 'Schedule batch'} description={`You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} ${batchCount} ${contentMode === 'text' ? `text post${batchCount === 1 ? '' : 's'}` : `media file${batchCount === 1 ? '' : 's'}`} across ${selectedIds.size} destination${selectedIds.size === 1 ? '' : 's'}.`} onCancel={() => setConfirmationOpen(false)} onConfirm={() => { setConfirmationOpen(false); void runBatch() }} open={confirmationOpen} title="Confirm this bulk publishing action" />
+      <PublishConfirmationDialog busy={running} confirmLabel={timingMode === 'publish_now' ? 'Publish batch' : 'Schedule batch'} description={mixedCampaign ? `You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} the ${mixedCampaign.posts.length}-post AI campaign “${mixedCampaign.title}” in campaign order. Image posts go to all selected compatible destinations; text posts go only to selected destinations that support text-only publishing.` : `You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} ${batchCount} ${contentMode === 'text' ? `text post${batchCount === 1 ? '' : 's'}` : `media file${batchCount === 1 ? '' : 's'}`} across ${selectedIds.size} destination${selectedIds.size === 1 ? '' : 's'}.`} onCancel={() => setConfirmationOpen(false)} onConfirm={() => { setConfirmationOpen(false); void runBatch() }} open={confirmationOpen} title="Confirm this bulk publishing action" />
     </div>
   )
 }
