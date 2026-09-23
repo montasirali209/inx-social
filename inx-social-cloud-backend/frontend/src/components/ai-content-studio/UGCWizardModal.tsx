@@ -336,7 +336,7 @@ export function UGCWizardModal({
   const progress = campaign.data?.ads.length ? Math.round(((readyAds + failedAds) / campaign.data.ads.length) * 100) : 0
   const insufficient = Boolean(estimate.data && remaining < estimate.data.credits)
 
-  return createPortal(<div className="ugc-wizard-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && currentKey !== 'finish') closeWizard() }}>
+  return createPortal(<div className="ugc-wizard-backdrop">
     <section aria-label="UGC Ad Studio" aria-modal="true" className="ugc-wizard-panel" role="dialog">
       <header className="ugc-wizard-header">
         <div>
