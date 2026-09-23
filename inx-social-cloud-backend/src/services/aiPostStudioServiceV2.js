@@ -114,6 +114,44 @@ function absoluteAssetUrl(baseUrl, value) {
   }
 }
 
+function rgbToHex(red, green, blue) {
+  const values = [red, green, blue].map(value => Math.max(0, Math.min(255, Number(value) || 0)));
+  return '#' + values.map(value => value.toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
+function extractBrandColors(source) {
+  const text = String(source || '');
+  const counts = new Map();
+  const push = (value, weight = 1) => {
+    const color = String(value || '').toUpperCase();
+    if (!/^#[0-9A-F]{6}$/.test(color)) return;
+    const red = parseInt(color.slice(1, 3), 16);
+    const green = parseInt(color.slice(3, 5), 16);
+    const blue = parseInt(color.slice(5, 7), 16);
+    const spread = Math.max(red, green, blue) - Math.min(red, green, blue);
+    const average = (red + green + blue) / 3;
+    if (average < 12 || average > 247 || (spread < 8 && (average < 35 || average > 225))) return;
+    counts.set(color, (counts.get(color) || 0) + weight);
+  };
+
+  const theme = metaValue(text, 'theme-color');
+  if (/^#[0-9a-f]{6}$/i.test(theme)) push(theme, 20);
+  if (/^#[0-9a-f]{3}$/i.test(theme)) push('#' + theme.slice(1).split('').map(char => char + char).join(''), 20);
+
+  for (const match of text.matchAll(/#([0-9a-f]{6})(?![0-9a-f])/gi)) push('#' + match[1], 1);
+  for (const match of text.matchAll(/#([0-9a-f]{3})(?![0-9a-f])/gi)) {
+    push('#' + match[1].split('').map(char => char + char).join(''), 1);
+  }
+  for (const match of text.matchAll(/rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/gi)) {
+    push(rgbToHex(match[1], match[2], match[3]), 1);
+  }
+
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([color]) => color);
+}
+
 function extractBrandReferences(source, baseUrl) {
   const refs = [];
   const push = (url, kind, label, score = 0) => {
@@ -122,38 +160,109 @@ function extractBrandReferences(source, baseUrl) {
     refs.push({ url: absolute, kind, label: cleanText(label, 180) || kind, score });
   };
 
-  push(metaValue(source, 'og:image'), 'hero', 'Open Graph image', 70);
-  push(metaValue(source, 'twitter:image'), 'hero', 'Social preview image', 66);
+  push(metaValue(source, 'og:image'), 'hero', 'Official social preview', 78);
+  push(metaValue(source, 'twitter:image'), 'hero', 'Official social preview', 74);
+
+  for (const match of String(source || '').matchAll(/"logo"\s*:\s*(?:"([^"]+)"|\{[^{}]*"url"\s*:\s*"([^"]+)")/gi)) {
+    push(match[1] || match[2], 'logo', 'Structured-data logo', 160);
+  }
 
   for (const tag of String(source || '').match(/<link\b[^>]*>/gi) || []) {
     const rel = attrValue(tag, 'rel').toLowerCase();
     const href = attrValue(tag, 'href');
     if (!href) continue;
-    if (/apple-touch-icon|icon/.test(rel)) push(href, 'logo', 'Official site icon', /apple-touch-icon/.test(rel) ? 85 : 70);
+    if (/apple-touch-icon|icon/.test(rel)) push(href, 'icon', 'Official site icon', /apple-touch-icon/.test(rel) ? 65 : 52);
   }
 
-  for (const tag of String(source || '').match(/<img\b[^>]*>/gi) || []) {
-    const src = attrValue(tag, 'src') || attrValue(tag, 'data-src') || attrValue(tag, 'data-lazy-src');
+  const imageTags = [
+    ...(String(source || '').match(/<img\b[^>]*>/gi) || []),
+    ...(String(source || '').match(/<source\b[^>]*>/gi) || [])
+  ];
+  for (const tag of imageTags) {
+    const srcset = attrValue(tag, 'srcset');
+    const srcsetUrl = srcset ? srcset.split(',').map(item => item.trim().split(/\s+/)[0]).filter(Boolean).pop() : '';
+    const src = attrValue(tag, 'src') || attrValue(tag, 'data-src') || attrValue(tag, 'data-lazy-src') || srcsetUrl;
     if (!src || /^data:/i.test(src)) continue;
     const alt = attrValue(tag, 'alt');
     const id = attrValue(tag, 'id');
     const className = attrValue(tag, 'class');
     const descriptor = [src, alt, id, className].join(' ').toLowerCase();
-    let score = 18;
+    let score = 24;
     let kind = 'product';
-    if (/logo|brandmark|wordmark/.test(descriptor)) { score += 90; kind = 'logo'; }
-    if (/dashboard|screenshot|product|app[-_ ]?ui|interface|mockup|platform/.test(descriptor)) { score += 72; kind = 'product'; }
-    if (/hero|feature|preview/.test(descriptor)) score += 38;
-    if (/avatar|emoji|badge|rating|star|flag|payment|partner|icon/.test(descriptor)) score -= 42;
-    if (/\.svg(?:\?|$)/i.test(src) && kind !== 'logo') score -= 24;
-    push(src, kind, alt || 'Official website visual', score);
+
+    if (/logo|brandmark|wordmark|site-logo|navbar-logo|header-logo/.test(descriptor)) {
+      score += 135;
+      kind = 'logo';
+    } else if (/dashboard|screenshot|product|app[-_ ]?ui|interface|mockup|platform|workspace|console|editor/.test(descriptor)) {
+      score += 105;
+      kind = 'product';
+    } else if (/hero|feature|preview|showcase/.test(descriptor)) {
+      score += 68;
+      kind = 'hero';
+    }
+
+    if (/avatar|emoji|badge|rating|star|flag|payment|partner|testimonial|author|icon/.test(descriptor)) score -= 55;
+    if (/\.svg(?:\?|$)/i.test(src) && kind !== 'logo') score -= 20;
+    push(src, kind, alt || (kind === 'logo' ? 'Official logo' : 'Official website visual'), score);
+  }
+
+  for (const match of String(source || '').matchAll(/background(?:-image)?\s*:[^;}{]*url\((['"]?)([^)'"]+)\1\)/gi)) {
+    push(match[2], 'hero', 'Official background visual', 48);
   }
 
   return refs
     .filter(item => item.score > 0)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 8)
+    .slice(0, 12)
     .map(({ score, ...item }) => item);
+}
+
+function buildBrandPack(context) {
+  if (!context || context.error) {
+    return {
+      sourceUrl: context?.url || null,
+      brandName: '',
+      colors: [],
+      references: [],
+      logo: null,
+      productVisuals: [],
+      heroVisuals: [],
+      confidence: 'low',
+      confidenceScore: 0,
+      lockLogo: false
+    };
+  }
+
+  const references = Array.isArray(context.brandReferences) ? context.brandReferences : [];
+  const logos = references.filter(item => item.kind === 'logo');
+  const productVisuals = references.filter(item => item.kind === 'product');
+  const heroVisuals = references.filter(item => item.kind === 'hero');
+  const icon = references.find(item => item.kind === 'icon') || null;
+  const logo = logos[0] || null;
+  const colors = Array.isArray(context.brandColors) ? context.brandColors.slice(0, 6) : [];
+
+  let confidenceScore = 0;
+  if (logo) confidenceScore += 45;
+  else if (icon) confidenceScore += 12;
+  if (productVisuals.length) confidenceScore += Math.min(30, productVisuals.length * 12);
+  if (heroVisuals.length) confidenceScore += 10;
+  if (colors.length >= 2) confidenceScore += 15;
+  if (context.siteName || context.title) confidenceScore += 5;
+  confidenceScore = Math.min(100, confidenceScore);
+
+  return {
+    sourceUrl: context.url || null,
+    brandName: cleanText(context.siteName || context.title || '', 160),
+    colors,
+    references,
+    logo,
+    icon,
+    productVisuals: productVisuals.slice(0, 4),
+    heroVisuals: heroVisuals.slice(0, 4),
+    confidence: confidenceScore >= 70 ? 'high' : confidenceScore >= 35 ? 'medium' : 'low',
+    confidenceScore,
+    lockLogo: Boolean(logo)
+  };
 }
 
 async function safePublicDns(url) {
@@ -198,6 +307,7 @@ async function fetchUrlContext(value) {
       const ogTitle = metaValue(source, 'og:title');
       const ogImage = metaValue(source, 'og:image');
       const brandReferences = extractBrandReferences(source, url);
+      const brandColors = extractBrandColors(source);
       const headings = [...source.matchAll(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi)]
         .map(match => htmlText(match[1]))
         .filter(Boolean)
@@ -209,6 +319,8 @@ async function fetchUrlContext(value) {
         siteName,
         ogImage: ogImage || null,
         brandReferences,
+        brandColors,
+        brandPack: buildBrandPack({ url, title: ogTitle || title, siteName, brandReferences, brandColors }),
         headings,
         text: htmlText(source).slice(0, 14000)
       };
@@ -220,12 +332,21 @@ async function fetchUrlContext(value) {
 }
 
 async function remoteReferenceAssets(urls) {
-  const unique = [...new Set((Array.isArray(urls) ? urls : []).map(item => typeof item === 'string' ? item : item?.url).map(String).filter(Boolean))].slice(0, MAX_REFERENCES);
-  const assets = [];
+  const candidates = [];
+  for (const item of Array.isArray(urls) ? urls : []) {
+    const url = normalizeUrl(typeof item === 'string' ? item : item?.url);
+    if (!url || candidates.some(candidate => candidate.url === url)) continue;
+    candidates.push({
+      url,
+      kind: cleanText(typeof item === 'string' ? 'reference' : item?.kind, 40) || 'reference',
+      label: cleanText(typeof item === 'string' ? '' : item?.label, 180) || 'Official website reference'
+    });
+    if (candidates.length >= MAX_REFERENCES) break;
+  }
 
-  for (const value of unique) {
-    let url = normalizeUrl(value);
-    if (!url) continue;
+  const assets = [];
+  for (const candidate of candidates) {
+    let url = candidate.url;
     try {
       for (let hop = 0; hop < 3; hop += 1) {
         if (!(await safePublicDns(url))) break;
@@ -270,17 +391,19 @@ async function remoteReferenceAssets(urls) {
 
         assets.push({
           id: 'web:' + crypto.createHash('sha1').update(url).digest('hex').slice(0, 12),
-          originalName: 'website-reference-' + assets.length + (outputMimeType === 'image/png' ? '.png' : ''),
+          originalName: candidate.kind + '-website-reference-' + assets.length + (outputMimeType === 'image/png' ? '.png' : ''),
           mimeType: outputMimeType,
           data,
           width: metadata.width || null,
           height: metadata.height || null,
-          sourceUrl: url
+          sourceUrl: url,
+          referenceKind: candidate.kind,
+          referenceLabel: candidate.label
         });
         break;
       }
     } catch (_) {
-      // Website visuals are best-effort references. Campaign generation must continue if one asset is unreadable.
+      // Website visual extraction is best-effort; campaign generation continues without unreadable assets.
     }
   }
 
@@ -603,6 +726,10 @@ function imagePrompt(input) {
     'If reference images are supplied, treat them as authoritative official brand/product references. Preserve recognizable product details, actual logo treatment, interface structure and brand identity.',
     'Never invent a replacement logo, fictional product UI, fake dashboard or alternate brand identity when an official website/reference shows the real one. If an official screenshot or product visual exists, use it as the visual truth rather than redesigning it from imagination.',
     'If no official logo reference is available, do not fabricate a logo. Use brand-neutral typography or a non-logo composition instead.',
+    input.brandLock?.brandName ? `Official brand: ${cleanText(input.brandLock.brandName, 160)}.` : '',
+    Array.isArray(input.brandLock?.colors) && input.brandLock.colors.length ? `Official extracted brand palette: ${input.brandLock.colors.join(', ')}. Use these colours as the primary visual system; do not replace them with a new palette.` : '',
+    input.brandLock?.lockLogo ? 'An official logo asset is available. Reserve a clean top-left brand-safe area because INXSocial will composite the exact official logo after generation. Do not draw, imitate or typeset a substitute logo anywhere else.' : 'No verified official logo asset is available. Do not invent one.',
+    input.brandLock?.useExactProductVisual ? 'An exact official product/dashboard visual will be composited after generation. Reserve a clean product showcase region on the right-hand side (roughly 42% of the canvas), with no important text or faces underneath it. Do not invent a competing dashboard/interface.' : '',
     'Do not invent unsupported prices, testimonials, statistics, awards, integrations or performance claims.'
   ].filter(Boolean);
   return parts.join('\n').slice(0, 12000);
@@ -658,6 +785,86 @@ async function openAIImage(prompt, refs, options = {}) {
     if ([500, 502, 503, 504].includes(status)) throw publicError('The image provider had a temporary problem. INXSocial will retry once automatically; if it still fails, try again shortly.', 'OPENAI_IMAGE_FAILED', status);
     throw publicError('The final image could not be rendered. Your reserved credits are returned if the render does not complete.', 'OPENAI_IMAGE_FAILED', status >= 400 ? status : 502);
   }
+}
+
+async function exactBrandOverlay(output, refs, brandLock = {}) {
+  if (!output?.data || !brandLock || typeof brandLock !== 'object') return output;
+
+  const metadata = await sharp(output.data).metadata().catch(() => ({}));
+  const width = Number(metadata.width || 0);
+  const height = Number(metadata.height || 0);
+  if (!width || !height) return output;
+
+  const composites = [];
+  const applied = { logo: false, productVisual: false };
+
+  const logoAsset = brandLock.lockLogo
+    ? refs.find(asset => asset.referenceKind === 'logo' && asset.data)
+    : null;
+
+  if (logoAsset) {
+    try {
+      const maxWidth = Math.round(width * 0.24);
+      const maxHeight = Math.round(height * 0.10);
+      const logo = await sharp(logoAsset.data, { animated: false })
+        .rotate()
+        .resize({ width: maxWidth, height: maxHeight, fit: 'inside', withoutEnlargement: true })
+        .png()
+        .toBuffer();
+      const logoMeta = await sharp(logo).metadata();
+      const pad = Math.max(18, Math.round(width * 0.018));
+      const cardWidth = Math.min(width - pad * 2, Number(logoMeta.width || maxWidth) + pad * 2);
+      const cardHeight = Math.min(height - pad * 2, Number(logoMeta.height || maxHeight) + pad * 2);
+      const background = Buffer.from(
+        `<svg width="${cardWidth}" height="${cardHeight}" xmlns="http://www.w3.org/2000/svg"><rect width="100%" height="100%" rx="${Math.max(14, Math.round(cardHeight * 0.22))}" fill="rgba(255,255,255,0.94)"/></svg>`
+      );
+      const left = Math.round(width * 0.045);
+      const top = Math.round(height * 0.04);
+      composites.push({ input: background, left, top });
+      composites.push({
+        input: logo,
+        left: left + Math.round((cardWidth - Number(logoMeta.width || 0)) / 2),
+        top: top + Math.round((cardHeight - Number(logoMeta.height || 0)) / 2)
+      });
+      applied.logo = true;
+    } catch (_) {
+      // Never fail a paid generation because an optional exact-logo overlay could not be prepared.
+    }
+  }
+
+  const productAsset = brandLock.useExactProductVisual
+    ? refs.find(asset => asset.referenceKind === 'product' && asset.data)
+    : null;
+
+  if (productAsset) {
+    try {
+      const maxWidth = Math.round(width * 0.43);
+      const maxHeight = Math.round(height * 0.48);
+      const product = await sharp(productAsset.data, { animated: false })
+        .rotate()
+        .resize({ width: maxWidth, height: maxHeight, fit: 'inside', withoutEnlargement: true })
+        .png()
+        .toBuffer();
+      const productMeta = await sharp(product).metadata();
+      const pad = Math.max(16, Math.round(width * 0.014));
+      const cardWidth = Number(productMeta.width || maxWidth) + pad * 2;
+      const cardHeight = Number(productMeta.height || maxHeight) + pad * 2;
+      const background = Buffer.from(
+        `<svg width="${cardWidth}" height="${cardHeight}" xmlns="http://www.w3.org/2000/svg"><rect x="1" y="1" width="${cardWidth - 2}" height="${cardHeight - 2}" rx="${Math.max(16, Math.round(cardHeight * 0.045))}" fill="rgba(255,255,255,0.98)" stroke="rgba(15,23,42,0.18)" stroke-width="2"/></svg>`
+      );
+      const left = Math.max(pad, width - cardWidth - Math.round(width * 0.045));
+      const top = Math.max(pad, Math.round(height * 0.30));
+      composites.push({ input: background, left, top });
+      composites.push({ input: product, left: left + pad, top: top + pad });
+      applied.productVisual = true;
+    } catch (_) {
+      // Reference is still supplied to the image model even if exact compositing is not possible.
+    }
+  }
+
+  if (!composites.length) return { ...output, brandLockApplied: applied };
+  const data = await sharp(output.data).composite(composites).png().toBuffer();
+  return { ...output, data, brandLockApplied: applied };
 }
 
 async function createGenerationRow(userId, input) {
@@ -726,14 +933,15 @@ async function generateImagePost(userId, input = {}) {
     await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"progress"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'GENERATING', 20);
     const uploadedRefs = await referenceAssets(userId, input.referenceAssetIds);
     const websiteRefs = await remoteReferenceAssets(input.referenceUrls);
-    const refs = [...uploadedRefs, ...websiteRefs].slice(0, MAX_REFERENCES);
+    const refs = [...websiteRefs, ...uploadedRefs].slice(0, MAX_REFERENCES);
     const prompt = imagePrompt(input);
-    const output = await openAIImage(prompt, refs, { aspectRatio: input.aspectRatio || input.brief?.aspectRatio || '4:5' });
+    const rendered = await openAIImage(prompt, refs, { aspectRatio: input.aspectRatio || input.brief?.aspectRatio || '4:5' });
+    const output = await exactBrandOverlay(rendered, refs, input.brandLock);
     const asset = await persistImage(userId, generationId, output, input, prompt);
     await credits.complete(userId, generationId, IMAGE_CREDITS);
     await prisma.$executeRawUnsafe(
       'UPDATE "AiGeneration" SET "status"=$2,"progress"=100,"model"=$3,"assetJson"=$4,"responseJson"=$5,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
-      generationId, 'COMPLETED', output.model, JSON.stringify(asset), JSON.stringify({ provider: 'openai', model: output.model, creditsUsed: IMAGE_CREDITS })
+      generationId, 'COMPLETED', output.model, JSON.stringify(asset), JSON.stringify({ provider: 'openai', model: output.model, creditsUsed: IMAGE_CREDITS, brandLockApplied: output.brandLockApplied || null })
     );
     return asset;
   } catch (caught) {
@@ -757,7 +965,10 @@ module.exports = {
   normalizeUrl,
   fetchUrlContext,
   extractBrandReferences,
+  extractBrandColors,
+  buildBrandPack,
   remoteReferenceAssets,
+  exactBrandOverlay,
   callChatModel,
   imagePrompt,
   sizeForRatio,
