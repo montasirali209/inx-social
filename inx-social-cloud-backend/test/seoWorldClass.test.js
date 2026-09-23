@@ -27,7 +27,7 @@ test('homepage entity graph cleanly separates company, brand, website and softwa
   assert.equal(webpage.about['@id'], software['@id']);
   assert.equal(webpage.primaryImageOfPage.width, 1200);
   assert.equal(webpage.primaryImageOfPage.height, 630);
-  assert.match(webpage.primaryImageOfPage.url, /inxsocial-social-preview-v2\.jpg$/);
+  assert.match(webpage.primaryImageOfPage.url, /inxsocial-social-preview-v3\.jpg$/);
   assert.equal(webpage.dateModified, '2026-09-20');
 });
 
