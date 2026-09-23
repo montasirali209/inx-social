@@ -80,7 +80,6 @@ const campaignSchema = z.object({
 });
 
 const campaignPostSchema = z.object({
-  title: z.string().max(180).optional(),
   pillar: z.string().max(180).optional(),
   hook: z.string().max(400).optional(),
   caption: z.string().max(7000).optional(),
