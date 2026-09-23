@@ -97,19 +97,39 @@ export function UGCEditorPage() {
     setCaptionsEnabledEdit(undefined)
   }
 
+  useEffect(() => {
+    if (adId) void trackUGCStudioEvent({ event: 'EDITOR_OPENED', stage: 'editor', adId })
+  }, [adId])
+
   const save = useMutation({
     mutationFn: () => updateUGCAd(adId, { script, caption, cta, avatarId, voice, voicePrompt, musicMode, captionsEnabled }),
-    onSuccess: (value) => { queryClient.setQueryData(['ugc-ad', adId], value); clearEdits(); setMessage('Changes saved. Regenerate only when the video itself needs to change.') },
+    onSuccess: (value) => {
+      queryClient.setQueryData(['ugc-ad', adId], value)
+      void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
+      void queryClient.invalidateQueries({ queryKey: ['media-library'] })
+      clearEdits()
+      setMessage('Changes saved. Regenerate only when the video itself needs to change.')
+    },
     onError: (value) => setMessage(value instanceof Error ? value.message : 'Changes could not be saved.'),
   })
   const regenerate = useMutation({
     mutationFn: () => regenerateUGCAd(adId),
-    onSuccess: (value) => { queryClient.setQueryData(['ugc-ad', adId], value); setMessage('Full ad regeneration queued. You can leave this page while it renders.') },
+    onSuccess: (value) => {
+      queryClient.setQueryData(['ugc-ad', adId], value)
+      void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
+      void queryClient.invalidateQueries({ queryKey: ['media-library'] })
+      setMessage('Full ad regeneration queued. You can leave this page while it renders.')
+    },
     onError: (value) => setMessage(value instanceof Error ? value.message : 'Regeneration could not start.'),
   })
   const sceneRegenerate = useMutation({
     mutationFn: (sceneId: string) => regenerateUGCScene(sceneId),
-    onSuccess: (value) => { queryClient.setQueryData(['ugc-ad', adId], value); setMessage('Only that scene was queued for regeneration; the rest of the ad is reused.') },
+    onSuccess: (value) => {
+      queryClient.setQueryData(['ugc-ad', adId], value)
+      void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
+      void queryClient.invalidateQueries({ queryKey: ['media-library'] })
+      setMessage('Only that scene was queued for regeneration; the rest of the ad is reused.')
+    },
     onError: (value) => setMessage(value instanceof Error ? value.message : 'Scene regeneration could not start.'),
   })
 
@@ -123,6 +143,13 @@ export function UGCEditorPage() {
 
   async function schedule() {
     if (!ad?.mediaAssetId || !asset) return
+    void trackUGCStudioEvent({
+      event: 'SCHEDULER_HANDOFF',
+      stage: 'editor',
+      campaignId: ad.campaignId,
+      adId: ad.id,
+      metadata: { readyCount: 1, variationCount: 1, quality: ad.quality, duration: ad.duration },
+    })
     navigate('/bulk-scheduler', {
       state: {
         mediaLibraryAssets: [asset],
