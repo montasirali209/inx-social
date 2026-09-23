@@ -39,7 +39,7 @@ test('homepage targets social media management intent with search-snippet-safe m
   assert.ok(title.replace(/&amp;/g, '&').length <= 60);
   assert.ok(description.length >= 140 && description.length <= 160);
   assert.match(description, /multi-platform publishing/i);
-  assert.match(description, /AI content creation/i);
+  assert.match(description, /AI campaigns/i);
 });
 
 test('feature SEO titles and descriptions are unique and bounded for SERP snippets', () => {
