@@ -33,8 +33,8 @@ function narratorVoice(value, avatar = null) {
   if (LEGACY_MALE_VOICES.has(voice)) return 'Callum';
   if (LEGACY_FEMALE_VOICES.has(voice)) return 'Pippa';
   const presentation = clean(avatar?.presentation, 40).toLowerCase();
-  if (presentation.includes('man') || presentation.includes('male')) return 'Callum';
-  if (presentation.includes('non-binary') || presentation.includes('nonbinary')) return 'Riley';
+  if (presentation === 'non-binary' || presentation === 'nonbinary') return 'Riley';
+  if (presentation === 'man' || presentation === 'male') return 'Callum';
   return 'Pippa';
 }
 
@@ -713,7 +713,7 @@ async function renderProviderScene(scene, ad, avatar, brandReference, narration,
     Object.assign(base, {
       model, resolution: '720p',
       inputs: { frameImages: [{ image: ref.dataUri, frame: 'first' }], ...(narration ? { audio: narration.audioURL } : {}) },
-      ...(narration ? {} : { speech: { text: clean(scene.script || ad.script, 6000), voice: clean(avatar.presentation, 40).toLowerCase().includes('man') ? 'Puck (Male)' : 'Aoede (Female)', language: clean(avatar.locale || 'en-GB', 20) } }),
+      ...(narration ? {} : { speech: { text: clean(scene.script || ad.script, 6000), voice: ['man','male'].includes(clean(avatar.presentation, 40).toLowerCase()) ? 'Puck (Male)' : 'Aoede (Female)', language: clean(avatar.locale || 'en-GB', 20) } }),
       settings: { promptUpsampling: true, safetyFilter: true, voicePrompt: clean(ad.voicePrompt || avatar.voicePrompt, 500) }
     });
   } else if (scene.route === 'KLING') {
