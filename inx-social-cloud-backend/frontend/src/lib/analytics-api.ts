@@ -105,11 +105,13 @@ export function mergeAnalyticsResults(results: PlatformAnalytics[], accounts: An
   const cacheStates = results.map(result => result.provider?.cacheState).filter(Boolean)
   const combinedCacheState = cacheStates.includes('refreshing')
     ? 'refreshing'
-    : cacheStates.includes('stale')
-      ? 'stale'
-      : cacheStates.includes('live')
-        ? 'live'
-        : cacheStates.length ? 'fresh' : undefined
+    : cacheStates.includes('partial')
+      ? 'partial'
+      : cacheStates.includes('stale')
+        ? 'stale'
+        : cacheStates.includes('live')
+          ? 'live'
+          : cacheStates.length ? 'fresh' : undefined
   const capability = (available: boolean, reason: string) => ({ state: available ? 'available' : 'no_data', available, reason, metaCode: null })
 
   return {
@@ -149,7 +151,15 @@ export function mergeAnalyticsResults(results: PlatformAnalytics[], accounts: An
     demographics: { instagram: null, facebookSnapshot: null },
     content,
     warnings: results.flatMap(result => result.warnings || []),
-    provider: { ...(first.provider || {}), cacheState: combinedCacheState },
+    provider: {
+      ...(first.provider || {}),
+      cacheState: combinedCacheState,
+      postsWithMetrics: results.reduce((sum, result) => sum + Number(result.provider?.postsWithMetrics || 0), 0),
+      feedPosts: results.reduce((sum, result) => sum + Number(result.provider?.feedPosts || result.content.length || 0), 0),
+      periodPosts: results.reduce((sum, result) => sum + Number(result.provider?.periodPosts || result.summary.posts || 0), 0),
+      metricsRequested: results.every(result => result.provider?.metricsRequested !== false),
+      metricSummary: results.flatMap(result => result.provider?.metricSummary || []),
+    },
     scope: { accountCount: accounts.length, platforms, label: platforms.length === 1 ? `${accounts.length} ${platforms[0]} accounts` : `${accounts.length} selected accounts` },
   } as PlatformAnalytics
 }
