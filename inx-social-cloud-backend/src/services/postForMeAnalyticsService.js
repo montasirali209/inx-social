@@ -63,7 +63,7 @@ function pinterestWindow(metrics) {
 }
 
 function feedPageSize(platform) {
-  // Post for Me caps Facebook feeds expanded with metrics at 10 items.
+  // The provider caps Facebook feeds expanded with metrics at 10 items.
   // Use provider-safe page sizes explicitly and paginate with the returned cursor.
   return String(platform || '').toLowerCase() === 'facebook' ? 10 : 50;
 }
