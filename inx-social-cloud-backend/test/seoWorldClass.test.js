@@ -122,13 +122,13 @@ test('all AI Content Studio SEO pages use one valid real workspace screenshot', 
   }
   assert.match(page, /const AI_CONTENT_STUDIO_SLUGS = new Set/);
   assert.match(page, /src: "\/assets\/ai-content-studio-seo\.webp"/);
-  assert.match(page, /width: 800/);
-  assert.match(page, /height: 563/);
+  assert.match(page, /width: 700/);
+  assert.match(page, /height: 493/);
   assert.match(page, /Actual AI Content Studio workspace/);
 
   for (const route of aiRoutes) {
     const fallback = readBackend(`public/${route}.html`);
-    assert.match(fallback, /<img src="\/assets\/ai-content-studio-seo\.webp" width="800" height="563"/);
+    assert.match(fallback, /<img src="\/assets\/ai-content-studio-seo\.webp" width="700" height="493"/);
   }
 
   const binaryPaths = [
