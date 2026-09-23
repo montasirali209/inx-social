@@ -16,7 +16,7 @@ import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import './ugc-studio.css'
 
-const voices = ['Aoede (Female)','Zephyr (Female)','Kore (Female)','Leda (Female)','Callirrhoe (Female)','Puck (Male)','Charon (Male)','Fenrir (Male)','Orus (Male)','Iapetus (Male)']
+const voices = ['Pippa','Sophie','Priya','Nadia','Serena','Olivia','Jessica','Chloe','Callum','James','Oliver','Arjun','Marcus','Ethan','Shaun','Graham']
 const deliveries = [
   ['Natural','Natural, warm, conversational social creator delivery.'],
   ['Energetic','Energetic and upbeat creator delivery with natural pacing; never sound like an announcer.'],
@@ -79,7 +79,7 @@ export function UGCEditorPage() {
   const caption = captionEdit ?? ad?.caption ?? ''
   const cta = ctaEdit ?? ad?.cta ?? ''
   const avatarId = avatarIdEdit !== undefined ? avatarIdEdit : (ad?.avatarId ?? null)
-  const baselineVoice = ad?.voice || 'Aoede (Female)'
+  const baselineVoice = ad?.voice || selectedAvatar?.voice || 'Pippa'
   const voice = voiceEdit ?? baselineVoice
   const baselineVoicePrompt = ad?.voicePrompt || deliveries[0][1]
   const voicePrompt = voicePromptEdit ?? baselineVoicePrompt
@@ -156,7 +156,12 @@ export function UGCEditorPage() {
 
       <div className="space-y-5">
         <Card className="ugc-depth-card p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl border border-brand-amber/25 bg-brand-amber/10 text-brand-amber"><UserRound className="size-4" /></span><div><span className="text-[9px] font-bold uppercase tracking-[.15em] text-brand-amber">Creator</span><h2 className="mt-1 text-base font-semibold">Avatar & voice</h2></div></div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2"><label className="text-[10px] font-semibold text-text-muted">Creator<select className="ugc-input mt-2 w-full" disabled={busy} onChange={(event) => setAvatarIdEdit(event.target.value || null)} value={avatarId || ''}><option value="">Auto / current</option>{avatars.map((avatar) => <option key={avatar.id} value={avatar.id}>{avatar.name} · {avatar.category}</option>)}</select></label><label className="text-[10px] font-semibold text-text-muted">Voice<select className="ugc-input mt-2 w-full" disabled={busy} onChange={(event) => setVoiceEdit(event.target.value)} value={voice}>{voices.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2"><label className="text-[10px] font-semibold text-text-muted">Creator<select className="ugc-input mt-2 w-full" disabled={busy} onChange={(event) => {
+      const nextId = event.target.value || null
+      setAvatarIdEdit(nextId)
+      const nextAvatar = avatars.find((item) => item.id === nextId)
+      if (nextAvatar?.voice) setVoiceEdit(nextAvatar.voice)
+    }} value={avatarId || ''}><option value="">Auto / current</option>{avatars.map((avatar) => <option key={avatar.id} value={avatar.id}>{avatar.name} · {avatar.category}</option>)}</select></label><label className="text-[10px] font-semibold text-text-muted">Voice<select className="ugc-input mt-2 w-full" disabled={busy} onChange={(event) => setVoiceEdit(event.target.value)} value={voice}>{voices.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div>
           {selectedAvatar && <div className="mt-3 flex items-center gap-3 rounded-2xl border border-white/8 bg-white/[.025] p-3"><AvatarThumb avatar={selectedAvatar} /><div><strong className="block text-xs">{selectedAvatar.name}</strong><span className="text-[9px] text-text-muted">{selectedAvatar.category} · {selectedAvatar.ageBand} · {selectedAvatar.locale}</span></div></div>}
           <div className="mt-4"><span className="text-[10px] font-semibold text-text-muted">Delivery</span><div className="mt-2 flex flex-wrap gap-2">{deliveries.map(([label,prompt]) => <button className={`rounded-xl border px-3 py-2 text-[10px] transition ${voicePrompt === prompt ? 'border-brand-cyan/40 bg-brand-cyan/10 text-brand-cyan' : 'border-white/10 bg-white/[.025] text-text-muted hover:text-white'}`} key={label} onClick={() => setVoicePromptEdit(prompt)} type="button">{label}</button>)}</div></div>
         </Card>
