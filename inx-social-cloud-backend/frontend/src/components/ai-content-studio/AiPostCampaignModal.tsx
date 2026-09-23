@@ -103,6 +103,8 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
   const [expandedPosts, setExpandedPosts] = useState<Set<string>>(new Set())
   const [editDraft, setEditDraft] = useState<Partial<AIPostCampaignPost>>({})
   const [imagePreview, setImagePreview] = useState<ImagePreview | null>(null)
+  const [campaignToDelete, setCampaignToDelete] = useState<AIPostCampaign | null>(null)
+  const [deletingCampaignId, setDeletingCampaignId] = useState<string | null>(null)
   const reviewRef = useRef<HTMLDivElement>(null)
   const [form, setForm] = useState<CreateAIPostCampaignInput>({
     businessUrl: '',
@@ -278,15 +280,24 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
     }
   }
 
-  async function removeCampaign(item: AIPostCampaign) {
-    if (!window.confirm(`Delete “${item.title}”? Generated Media Library images are not deleted.`)) return
+  function removeCampaign(item: AIPostCampaign) {
+    setCampaignToDelete(item)
+  }
+
+  async function confirmRemoveCampaign() {
+    if (!campaignToDelete || deletingCampaignId) return
+    const item = campaignToDelete
+    setDeletingCampaignId(item.id)
     try {
       await deleteAIPostCampaign(item.id)
       setRecent((current) => current.filter((candidate) => candidate.id !== item.id))
       if (selectedCampaign?.id === item.id) setSelectedCampaign(null)
+      setCampaignToDelete(null)
       onToast('AI campaign deleted.')
     } catch (error) {
       onToast(error instanceof Error ? error.message : 'The campaign could not be deleted.')
+    } finally {
+      setDeletingCampaignId(null)
     }
   }
 
@@ -543,7 +554,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                         <div className="mt-2 flex h-1 overflow-hidden rounded-full bg-black/30"><span className="bg-brand-cyan" style={{ width: `${(item.counts.imagePosts / Math.max(1, item.postCount)) * 100}%` }} /><span className="bg-white/15" style={{ width: `${(item.counts.textPosts / Math.max(1, item.postCount)) * 100}%` }} /></div>
                       </div>
                     </button>
-                    <button aria-label={`Delete ${item.title}`} className="absolute right-2 top-2 grid size-7 place-items-center rounded-lg text-text-soft opacity-60 transition hover:bg-brand-red/10 hover:text-brand-red group-hover:opacity-100" onClick={() => void removeCampaign(item)} type="button"><Trash2 className="size-3.5" /></button>
+                    <button aria-label={`Delete ${item.title}`} className="absolute right-2 top-2 grid size-7 place-items-center rounded-lg text-text-soft opacity-60 transition hover:bg-brand-red/10 hover:text-brand-red group-hover:opacity-100" onClick={() => removeCampaign(item)} type="button"><Trash2 className="size-3.5" /></button>
                   </article>
                 }) : <div className="rounded-2xl border border-dashed border-brand-cyan/15 bg-brand-cyan/[.025] p-6 text-center"><Sparkles className="mx-auto size-5 text-brand-cyan/60" /><strong className="mt-2 block text-[10px]">Campaign previews will live here</strong><p className="mt-1 text-[9px] leading-4 text-text-muted">Generate your first campaign, then reopen any saved campaign without leaving this window.</p></div>}
               </div>
@@ -603,6 +614,38 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
         </div>}
       </section>
       <CampaignImageLightbox onClose={() => setImagePreview(null)} preview={imagePreview} />
+      {campaignToDelete && <div
+        aria-label="Delete AI campaign"
+        aria-modal="true"
+        className="fixed inset-0 z-[280] grid place-items-center bg-[#01070d]/82 p-4 backdrop-blur-md"
+        role="dialog"
+      >
+        <div className="ai-studio-modal-enter relative w-full max-w-[470px] overflow-hidden rounded-[24px] border border-brand-red/25 bg-[radial-gradient(circle_at_0%_0%,rgba(239,68,68,.10),transparent_14rem),linear-gradient(145deg,rgba(8,26,38,.99),rgba(4,15,25,.99))] shadow-[0_32px_100px_rgba(0,0,0,.62)]">
+          <div className="flex items-start gap-4 p-5 sm:p-6">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-brand-red/25 bg-brand-red/[.08] text-brand-red"><Trash2 className="size-5" /></span>
+            <div className="min-w-0 flex-1">
+              <span className="text-[9px] font-bold uppercase tracking-[.14em] text-brand-red">Delete campaign</span>
+              <h3 className="mt-1 text-base font-semibold">Remove this AI campaign?</h3>
+              <p className="mt-2 text-[11px] leading-5 text-text-muted">This removes <strong className="font-semibold text-white/90">“{campaignToDelete.title}”</strong> from your saved campaign previews.</p>
+              <div className="mt-4 rounded-2xl border border-border-soft bg-black/15 p-3">
+                <p className="text-[10px] leading-5 text-text-muted"><strong className="text-white/85">Your generated Media Library images will stay available.</strong> Only the campaign record and its post workspace are deleted.</p>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col-reverse gap-2 border-t border-border-soft bg-black/10 p-4 sm:flex-row sm:justify-end">
+            <Button disabled={Boolean(deletingCampaignId)} onClick={() => setCampaignToDelete(null)} size="sm">Cancel</Button>
+            <Button
+              className="justify-center border-brand-red/30 bg-brand-red/[.12] text-brand-red hover:bg-brand-red/[.18]"
+              disabled={Boolean(deletingCampaignId)}
+              onClick={() => void confirmRemoveCampaign()}
+              size="sm"
+            >
+              {deletingCampaignId ? <LoaderCircle className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+              {deletingCampaignId ? 'Deleting…' : 'Delete campaign'}
+            </Button>
+          </div>
+        </div>
+      </div>}
     </div>,
     document.body,
   )
