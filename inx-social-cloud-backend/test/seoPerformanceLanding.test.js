@@ -16,7 +16,7 @@ test('landing response applies SEO title, description and render-critical styles
     landing.includes('<title>Social Media Management Platform, Scheduler &amp; AI | INXSocial</title>'),
     true
   );
-  assert.match(landing, /Manage, create, bulk schedule and analyse social media in one workspace/);
+  assert.match(landing, /Create, bulk schedule and analyse social media in one workspace with AI campaigns/);
   assert.match(landing, /inx-social-wordmark\.png/);
   assert.match(landing, /rel="preload" as="image" href="\/assets\/landing-dashboard-20260919\.webp"/);
   assert.match(app, /return injectAnalyticsConsent\(source\)/);
@@ -51,9 +51,10 @@ test('crawl controls expose canonical marketing pages while app surfaces remain 
   assert.match(robots, /Disallow: \/api\//);
   assert.match(app, /\['\/admin', '\/index\.html', '\/api', '\/portal', '\/studio', '\/app', '\/health', '\/oauth-callback\.html'\]/);
   assert.match(app, /X-Robots-Tag', 'noindex, nofollow, noarchive'/);
-  assert.equal((sitemap.match(/<url>/g) || []).length, 11);
+  assert.equal((sitemap.match(/<url>/g) || []).length, 12);
   assert.doesNotMatch(sitemap, /social-media-scheduler\.html|pricing\.html|free-social-media-tools\.html/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/social-media-scheduler/);
+  assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-campaign-generator/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/pricing/);
 });
 
@@ -69,6 +70,9 @@ test('landing retains canonical structured data and current AI capabilities', ()
   assert.match(landing, /Carousel Post/);
   assert.match(landing, /Short Video \/ Reel/);
   assert.match(landing, /UGC Ad Post/);
+  assert.match(landing, /AI Campaign/);
+  assert.match(landing, /Image-to-video/i);
+  assert.match(landing, /Smart Timing/);
   assert.match(landing, /Stock Video Creator/);
   assert.match(landing, /AI Video Clipping/);
   assert.match(landing, /coming soon/i);
@@ -86,6 +90,7 @@ test('GEO documentation points to the canonical website and supporting product p
   assert.match(llms, /Canonical website: https:\/\/www\.inxsocial\.co\.uk\//);
   assert.match(llms, /https:\/\/www\.inxsocial\.co\.uk\/social-media-scheduler/);
   assert.match(llms, /https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-tools/);
+  assert.match(llms, /https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-campaign-generator/);
   assert.match(llms, /https:\/\/www\.inxsocial\.co\.uk\/pricing/);
   assert.match(llms, /supporting pages on the same canonical INXSocial website/i);
 });
