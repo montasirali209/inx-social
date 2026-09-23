@@ -78,7 +78,6 @@ function publicPost(post) {
     sequence: post.sequence,
     status: post.status,
     contentType: post.contentType === 'IMAGE' ? 'IMAGE' : 'TEXT',
-    title: post.title,
     pillar: post.pillar,
     hook: post.hook,
     caption: post.caption,
@@ -170,6 +169,58 @@ function platformSkills(platforms) {
   return selected.map(platform => rules[platform]).filter(Boolean).join('\n');
 }
 
+function hashtagPolicy(platforms) {
+  const selected = (platforms || []).map(value => String(value).toLowerCase());
+  const limits = {
+    facebook: 2,
+    instagram: 5,
+    linkedin: 3,
+    x: 1,
+    threads: 1,
+    bluesky: 1,
+    pinterest: 5,
+    tiktok: 4,
+    youtube: 3
+  };
+  const max = selected.length
+    ? Math.max(0, Math.min(...selected.map(platform => limits[platform] ?? 2)))
+    : 2;
+
+  const guidance = {
+    facebook: 'Facebook: usually 0-2 hashtags; use only when genuinely useful.',
+    instagram: 'Instagram: use 3-5 highly relevant niche/topic hashtags; avoid generic hashtag stuffing.',
+    linkedin: 'LinkedIn: use 1-3 professional/topic hashtags when they improve discovery.',
+    x: 'X: use 0-1 hashtag; prefer none unless one precise tag adds context or discoverability.',
+    threads: 'Threads: use 0-1 hashtag; natural conversation matters more than tagging.',
+    bluesky: 'Bluesky: use 0-1 hashtag; only when directly tied to the subject.',
+    pinterest: 'Pinterest: use 2-5 descriptive topic/intent hashtags when useful.',
+    tiktok: 'TikTok: use 2-4 topic/category hashtags; avoid generic viral tags unless the post truly relates.',
+    youtube: 'YouTube: use 0-3 precise topic hashtags; avoid filler.'
+  };
+
+  return {
+    max,
+    instructions: [
+      'Hashtag skill: analyse the exact subject, audience intent and selected platforms for every individual post.',
+      'Only create hashtags that are directly relevant to that specific post topic, product/use case, audience or industry.',
+      'Never use generic filler tags such as #viral, #fyp, #trending, #success or #marketing unless the actual post is specifically about that subject.',
+      'Do not repeat the same hashtag set across the campaign. Vary hashtags only when the topic changes.',
+      'Zero hashtags is valid when the selected platforms or post style work better without them.',
+      ...selected.map(platform => guidance[platform]).filter(Boolean),
+      `Because one publishable caption is shared across the selected platforms, output at most ${max} hashtags for each post.`
+    ].join('\n')
+  };
+}
+
+function normalizeHashtags(value, platforms) {
+  const policy = hashtagPolicy(platforms);
+  return list(value, 12, 60)
+    .map(item => item.replace(/^#+/, '').replace(/\s+/g, ''))
+    .filter(Boolean)
+    .filter((item, index, values) => values.findIndex(candidate => candidate.toLowerCase() === item.toLowerCase()) === index)
+    .slice(0, policy.max);
+}
+
 function campaignSkills(input) {
   const maxChars = captionLimit(input.platforms);
   return [
@@ -184,8 +235,10 @@ function campaignSkills(input) {
     '8. CTA rotation: use no CTA when the idea is stronger without one; otherwise rotate question/reply, explore/learn, soft product discovery and direct conversion. Avoid “try it now” on every post.',
     '9. Media intelligence: image posts must earn the visual. Use them for strong visual metaphors, UI/product moments, comparison, checklist, before/after, workflow or bold visual hooks. Text posts should carry quick insight, conversation, opinion, relatable pain or concise education.',
     '10. Anti-repetition QA: vary sentence rhythm, opening structure, post length, CTA, pillar and emotional angle. Do not restate the same feature with different synonyms.',
-    '11. Reach/readability QA: the first line must earn attention, paragraphs must be scan-friendly, hashtags must be sparse and relevant, and unsupported viral/reach claims are forbidden.',
-    platformSkills(input.platforms)
+    '11. Reach/readability QA: the first line must earn attention, paragraphs must be scan-friendly, and unsupported viral/reach claims are forbidden.',
+    '12. Post structure: HOOK and BODY are separate fields. The caption/body must start after the hook and must never repeat or paraphrase the hook as its first sentence. Do not create a post title.',
+    platformSkills(input.platforms),
+    hashtagPolicy(input.platforms).instructions
   ].filter(Boolean).join('\n');
 }
 
@@ -311,25 +364,33 @@ async function planCampaign(input, strategy, context) {
 }
 
 function normalizeGeneratedPost(value, planItem, input) {
-  const hashtags = list(value?.hashtags, 5, 60)
-    .map(item => item.replace(/^#+/, '').replace(/\s+/g, ''))
-    .filter(Boolean)
-    .slice(0, input.platforms.map(value => String(value).toLowerCase()).includes('x') ? 1 : 3);
-  const maxCaption = captionLimit(input.platforms);
-  const caption = trimCaption(value?.caption, maxCaption);
+  const hook = clean(value?.hook, 180) || null;
+  let caption = trimCaption(value?.caption, captionLimit(input.platforms));
   if (!caption) throw new Error(`Generated campaign post ${planItem.sequence} had no caption.`);
+
+  if (hook) {
+    const normalizedHook = hook.replace(/\s+/g, ' ').trim().toLowerCase();
+    const normalizedCaption = caption.replace(/\s+/g, ' ').trim().toLowerCase();
+    if (normalizedCaption === normalizedHook) {
+      caption = '';
+    } else if (normalizedCaption.startsWith(normalizedHook)) {
+      caption = caption.slice(hook.length).replace(/^[\s\-–—:;,.!?]+/, '').trim();
+    }
+  }
+  if (!caption) caption = 'Continue the idea with a concise supporting point.';
+
   return {
     sequence: planItem.sequence,
     status: 'READY',
     contentType: planItem.contentType,
-    title: clean(value?.title || `Post ${planItem.sequence}`, 150),
+    title: '',
     pillar: clean(value?.pillar || planItem.pillar, 160) || null,
-    hook: clean(value?.hook, 180) || null,
+    hook,
     caption,
     cta: clean(value?.cta, 180) || null,
-    hashtagsJson: JSON.stringify(hashtags),
+    hashtagsJson: JSON.stringify(normalizeHashtags(value?.hashtags, input.platforms)),
     imageBrief: planItem.contentType === 'IMAGE'
-      ? (clean(value?.imageBrief, 2600) || `Create a polished, campaign-ready visual supporting: ${clean(value?.title || caption, 450)}`)
+      ? (clean(value?.imageBrief, 2600) || `Create a polished, campaign-ready visual supporting: ${clean(hook || caption, 450)}`)
       : null
   };
 }
@@ -345,10 +406,12 @@ async function generatePostBatch(input, strategy, context, campaignMap, startSeq
         'Write publishable organic posts from the supplied campaign map. Do not redesign the map.',
         campaignSkills(input),
         'Every caption must open strongly and get to the point. Do not write feature-list essays. Do not repeat the hook as a second identical sentence.',
-        'Keep hashtags sparse. The CTA may be empty. Never invent unsupported business claims.',
+        'The CTA may be empty. Never invent unsupported business claims.',
+        'HOOK is the public first line. CAPTION is the body that follows it. Never repeat the hook inside caption.',
+        'Do not create or return a post title.',
         'For IMAGE rows, provide a concrete visual brief with composition, focal idea and minimal on-image copy. For TEXT rows, imageBrief must be empty.',
         `Return exactly ${count} posts corresponding to sequences ${startSequence}-${endSequence}.`,
-        'Return JSON only: {"posts":[{"sequence":1,"title":"string","pillar":"string","hook":"string","caption":"string","cta":"string","hashtags":["string"],"imageBrief":"string"}]}.'
+        'Return JSON only: {"posts":[{"sequence":1,"pillar":"string","hook":"string","caption":"string","cta":"string","hashtags":["string"],"imageBrief":"string"}]}.'
       ].join('\n\n')
     },
     {
@@ -467,7 +530,6 @@ async function updatePost(userId, campaignId, postId, input) {
   if (!post) throw publicError('Campaign post not found.', 404, 'AI_CAMPAIGN_POST_NOT_FOUND');
 
   const data = {};
-  if (input.title !== undefined) data.title = clean(input.title, 150);
   if (input.pillar !== undefined) data.pillar = clean(input.pillar, 160) || null;
   if (input.hook !== undefined) data.hook = clean(input.hook, 180) || null;
   if (input.caption !== undefined) {
@@ -476,11 +538,11 @@ async function updatePost(userId, campaignId, postId, input) {
     data.caption = caption;
   }
   if (input.cta !== undefined) data.cta = clean(input.cta, 180) || null;
-  if (input.hashtags !== undefined) data.hashtagsJson = JSON.stringify(list(input.hashtags, 5, 60).map(item => item.replace(/^#+/, '').replace(/\s+/g, '')).filter(Boolean));
+  if (input.hashtags !== undefined) data.hashtagsJson = JSON.stringify(normalizeHashtags(input.hashtags, parseJson(campaign.platformsJson, [])));
   if (input.imageBrief !== undefined && post.contentType === 'IMAGE') data.imageBrief = clean(input.imageBrief, 2600) || null;
 
   if (Object.keys(data).length) {
-    if (post.contentType === 'IMAGE' && (data.caption !== undefined || data.imageBrief !== undefined || data.title !== undefined || data.hook !== undefined)) {
+    if (post.contentType === 'IMAGE' && (data.caption !== undefined || data.imageBrief !== undefined || data.hook !== undefined)) {
       data.mediaAssetId = null;
       data.mediaAssetJson = null;
     }
@@ -523,7 +585,8 @@ async function regeneratePost(userId, campaignId, postId) {
         campaignSkills(input),
         'Create a materially different replacement while preserving the assigned post type and campaign role.',
         'Do not invent unsupported business claims. Keep it concise.',
-        'Return JSON only: {"title":"string","pillar":"string","hook":"string","caption":"string","cta":"string","hashtags":["string"],"imageBrief":"string"}.'
+        'HOOK is the public first line. CAPTION is the body after the hook and must not repeat it. Do not create a post title.',
+        'Return JSON only: {"pillar":"string","hook":"string","caption":"string","cta":"string","hashtags":["string"],"imageBrief":"string"}.'
       ].join('\n\n')
     },
     {
@@ -541,7 +604,7 @@ async function regeneratePost(userId, campaignId, postId) {
   await prisma.aiPostCampaignPost.update({
     where: { id: post.id },
     data: {
-      title: normalized.title,
+      title: '',
       pillar: normalized.pillar,
       hook: normalized.hook,
       caption: normalized.caption,
@@ -558,19 +621,19 @@ async function regeneratePost(userId, campaignId, postId) {
 
 async function renderCampaignPostImage(userId, campaign, post, brandReferences = []) {
   const asset = await postStudio.generateImagePost(userId, {
-    prompt: post.imageBrief || post.title || post.caption,
+    prompt: post.imageBrief || post.hook || post.caption,
     platform: parseJson(campaign.platformsJson, [])[0] || 'Instagram',
     aspectRatio: '4:5',
     referenceAssetIds: [],
     referenceUrls: (Array.isArray(brandReferences) ? brandReferences : []).map(item => typeof item === 'string' ? item : item?.url).filter(Boolean).slice(0, 4),
     brief: {
-      objective: post.title,
+      objective: post.hook || post.pillar || 'Campaign post',
       audience: campaign.audience || '',
       platform: parseJson(campaign.platformsJson, [])[0] || 'Instagram',
       aspectRatio: '4:5',
       tone: 'Natural, clear and campaign-appropriate',
       visualStyle: 'Official-brand-grounded social campaign creative. Preserve the supplied website branding and product visuals instead of inventing replacements.',
-      headline: post.hook || post.title,
+      headline: post.hook || '',
       supportingCopy: '',
       cta: post.cta || '',
       visualDirection: [
@@ -581,7 +644,7 @@ async function renderCampaignPostImage(userId, campaign, post, brandReferences =
       ].join('\n\n'),
       caption: post.caption,
       hashtags: parseJson(post.hashtagsJson, []),
-      altText: post.title
+      altText: post.hook || post.pillar || 'Campaign image'
     }
   });
 
@@ -657,6 +720,8 @@ module.exports = {
   captionLimit,
   campaignSkills,
   normaliseCampaignMap,
+  hashtagPolicy,
+  normalizeHashtags,
   renderCampaignImages,
   renderCampaignPostImage
 };
