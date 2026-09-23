@@ -16,7 +16,8 @@ const {
   agentAccessPolicy,
   updateAgentAccessPolicy,
   agentLearning,
-  reviewAgentLearning
+  reviewAgentLearning,
+  ugcAnalyticsSummary
 } = require('../controllers/adminController');
 const adminSecurity = require('../controllers/adminSecurityController');
 const googleSearchConsole = require('../controllers/googleSearchConsoleController');
@@ -46,6 +47,7 @@ router.put('/ai-routing', updateAiRouting);
 router.get('/agent-access', agentAccessPolicy);
 router.put('/agent-access', updateAgentAccessPolicy);
 router.get('/agent-learning', agentLearning);
+router.get('/ugc-analytics', ugcAnalyticsSummary);
 router.patch('/agent-learning/:id', reviewAgentLearning);
 router.use('/security', adminSecurityRoutes);
 

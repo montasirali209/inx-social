@@ -104,3 +104,38 @@ test('UGC website analysis accepts a bare domain without requiring protocol or w
   assert.match(wizard, /yourbrand\.com/);
   assert.doesNotMatch(wizard, /placeholder=\{sourceType === 'PRODUCT' \? 'https:\/\/shop\.com\/product'/);
 });
+
+
+test('featured UGC library is female-forward while retaining mixed creator choice', () => {
+  const featuredNames = new Set([
+    'Maya','Sofia','Chloe','Aisha','Priya','Isla','Nadia','Ruby','Olivia','Jasmine','Ava','Camila','Elena','Keisha','Mei',
+    'Daniel','James','Arjun','Marcus','Alex'
+  ]);
+  const featured = avatarSeeds.filter((avatar) => featuredNames.has(avatar.name));
+  assert.equal(featured.length, 20);
+  assert.equal(featured.filter((avatar) => avatar.presentation === 'Woman').length, 15);
+  assert.equal(featured.filter((avatar) => avatar.presentation === 'Man').length, 5);
+});
+
+test('UGC realism skill protects creator continuity and physical product realism', () => {
+  const { ugcRealismSkill, FEATURED_REFERENCE_VERSION } = require('../src/services/ugcStudioService');
+  assert.ok(FEATURED_REFERENCE_VERSION >= 3);
+  assert.match(ugcRealismSkill('CREATOR','AVATAR_EXPLAINER','PREMIUM'), /natural blinking/i);
+  assert.match(ugcRealismSkill('CREATOR','AVATAR_EXPLAINER','PREMIUM'), /wardrobe/i);
+  assert.match(ugcRealismSkill('PRODUCT','PRODUCT_SHOWCASE','STANDARD'), /exact product geometry/i);
+  assert.match(ugcRealismSkill('PRODUCT','PRODUCT_SHOWCASE','STANDARD'), /physically plausible/i);
+  assert.match(ugcRealismSkill('CREATOR','AVATAR_EXPLAINER','STANDARD'), /Do not imitate or resemble a named celebrity/i);
+});
+
+test('UGC editor treats rendered-video finishing controls as regeneration-impacting', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.resolve(__dirname, '..');
+  const editor = fs.readFileSync(path.join(root, 'frontend/src/components/ai-content-studio/UGCEditorPage.tsx'), 'utf8');
+  const service = fs.readFileSync(path.join(root, 'src/services/ugcStudioService.js'), 'utf8');
+  assert.match(editor, /musicMode !== ad\.musicMode/);
+  assert.match(editor, /captionsEnabled !== ad\.captionsEnabled/);
+  assert.match(service, /syncReadyAssetMetadata/);
+  assert.match(service, /UPDATE "AgentAsset" SET "generationChoice"/);
+  assert.match(editor, /invalidateQueries\(\{ queryKey: \['media-library'\] \}\)/);
+});

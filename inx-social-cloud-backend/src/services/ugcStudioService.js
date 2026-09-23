@@ -13,6 +13,7 @@ const runware = require('./runwareService');
 const postStudio = require('./aiPostStudioService');
 const objectStorage = require('./mediaObjectStorageService');
 const mediaLibrary = require('./mediaLibraryService');
+const ugcAnalytics = require('./ugcStudioAnalyticsService');
 const { expiresAtFor } = require('./mediaRetentionService');
 
 const STANDARD_CREDITS = Object.freeze({ 15: 100, 20: 140, 30: 210 });
@@ -20,32 +21,33 @@ const PREMIUM_CREDITS = Object.freeze({ 15: 180, 20: 260, 30: 390 });
 const AVATAR_CREDITS = 5;
 const SYSTEM_AVATAR_COUNT = 52;
 const FEATURED_AVATAR_COUNT = 20;
+const FEATURED_REFERENCE_VERSION = 3;
 const STANDARD_MODEL = () => env.runware.ugcStandardModel || 'minimax:4@1';
 const PREMIUM_MODEL = () => env.runware.ugcPremiumModel || 'klingai:kling-video@3-standard';
 const LIPSYNC_MODEL = () => env.runware.ugcLipSyncModel || 'klingai:7@1';
 const TTS_MODEL = () => env.runware.ugcTtsModel || 'inworld:tts@2';
 
 const FEATURED_CREATORS = new Map(Object.entries({
-  Maya: 'bright lived-in apartment lounge with soft window light, real sofa and everyday decor',
-  Sofia: 'realistic vanity corner in a modern bedroom with soft daylight and subtle beauty products',
-  Aisha: 'calm contemporary wellness room with plants, warm daylight and natural home textures',
-  Priya: 'real home office with laptop, books, warm practical lighting and believable workday clutter',
-  Grace: 'sunlit family kitchen with real counters, utensils and soft depth of field',
-  Zara: 'modern creator desk setup with laptop, monitor, practical LED accent and daylight',
-  Megan: 'comfortable mature lifestyle living room with realistic furniture and warm window light',
-  Keisha: 'realistic beauty creator bedroom setup with mirror, cosmetics and soft window light',
-  Mei: 'minimal apartment beauty corner with daylight, natural materials and subtle personal objects',
-  Fatima: 'bright contemporary living room with modest elegant styling, plants and textured fabrics',
-  Daniel: 'real home-office desk setup with laptop, monitor and daylight, casual creator framing',
-  James: 'modern founder-style office corner with bookshelf, laptop and warm practical lighting',
-  Arjun: 'real tech creator workspace with laptop, phone, cables and natural daylight',
-  Marcus: 'home gym corner with realistic equipment, daylight and casual creator composition',
-  Kenji: 'minimal tech studio desk with monitor, keyboard, practical light and natural room depth',
-  Alex: 'SaaS creator home office with laptop, browser-like screen glow and everyday desk objects',
-  Ben: 'clean residential garage/workshop with car-detailing tools and realistic overhead light',
-  Yusuf: 'professional home office with warm wood, laptop, notebook and calm daylight',
-  Theo: 'travel creator apartment near a packed day bag, map and bright natural window light',
-  Michael: 'polished but believable small-business office with desk, shelves and natural window light'
+  Maya: 'bright lived-in apartment lounge, fitted sleeveless casual top with high-waisted jeans, soft window light, real sofa and everyday decor',
+  Sofia: 'realistic vanity corner in a modern bedroom, elegant sleeveless day dress, natural polished makeup, soft daylight and subtle beauty products',
+  Chloe: 'fashion-forward apartment bedroom, stylish fitted tank top layered with casual streetwear, natural creator lighting and everyday personal details',
+  Aisha: 'calm contemporary wellness room with plants, tasteful fitted athleisure layers, warm daylight and natural home textures',
+  Priya: 'real home office with laptop and books, modern sleeveless smart-casual blouse, warm practical lighting and believable workday clutter',
+  Isla: 'bright travel apartment or hotel room, fashionable summer dress, day bag nearby and lively natural window light',
+  Nadia: 'beauty creator bedroom with mirror and cosmetics, stylish sleeveless top, soft daylight and believable personal objects',
+  Ruby: 'real home-gym corner, fitted athletic tank and leggings, energetic but natural phone-camera framing and daylight',
+  Olivia: 'premium but lived-in apartment, elegant fitted sleeveless dress, understated jewellery and sophisticated natural window light',
+  Jasmine: 'fashion creator apartment, fitted contemporary top and skirt, polished street-style energy and authentic mobile-video lighting',
+  Ava: 'young adult beauty creator room, fashionable tank-style top, natural makeup, casual everyday decor and bright soft daylight',
+  Camila: 'warm lifestyle apartment, colourful fitted summer top and casual jeans, natural social-video framing and real room depth',
+  Elena: 'home fitness and wellness setting, athletic tank and leggings, realistic skin texture, daylight and practical workout objects',
+  Keisha: 'realistic beauty creator bedroom setup, elegant fitted sleeveless top, mirror and cosmetics with soft natural window light',
+  Mei: 'minimal apartment beauty corner, refined sleeveless casual outfit, daylight, natural materials and subtle personal objects',
+  Daniel: 'real home-office desk setup with laptop and monitor, fitted casual T-shirt, daylight and believable desk clutter',
+  James: 'modern founder-style office corner with bookshelf and laptop, smart-casual shirt, warm practical lighting',
+  Arjun: 'real tech creator workspace with laptop, phone and cables, modern fitted casual shirt and natural daylight',
+  Marcus: 'home gym corner with realistic equipment, athletic fitted top, daylight and casual creator composition',
+  Alex: 'SaaS creator home office with laptop, browser-like screen glow, simple fitted T-shirt and everyday desk objects'
 }));
 const LEGACY_FEMALE_VOICES = new Set(['Aoede (Female)','Zephyr (Female)','Kore (Female)','Leda (Female)','Callirrhoe (Female)']);
 const LEGACY_MALE_VOICES = new Set(['Puck (Male)','Charon (Male)','Fenrir (Male)','Orus (Male)','Iapetus (Male)']);
@@ -72,6 +74,28 @@ function narratorSpeed(text, duration) {
   if (!words || !duration) return 1;
   const estimatedAtNormalSpeed = words / 2.45;
   return Math.max(0.7, Math.min(1.3, Number((estimatedAtNormalSpeed / Number(duration)).toFixed(1))));
+}
+
+function ugcRealismSkill(kind = 'CREATOR', campaignType = 'AVATAR_EXPLAINER', quality = 'STANDARD') {
+  const creator = [
+    'REALISM SKILL: candid creator footage rather than a commercial render.',
+    'Use natural blinking, breathing, tiny posture shifts, imperfect but stable eye contact and restrained gestures.',
+    'Keep pores, fine skin texture and natural asymmetry; avoid waxy skin, beauty-filter smoothing, face warping, floating hair or changing facial proportions.',
+    'Hands must remain anatomically plausible and only enter frame when useful.',
+    'Keep wardrobe, room layout, light direction, camera height, focal length and colour temperature continuous between creator cuts.'
+  ];
+  const product = [
+    'REALISM SKILL: product footage must look physically filmed.',
+    'Preserve exact product geometry, packaging, colours and proportions from the supplied reference.',
+    'Keep contact shadows, grip, reflections, scale and hand interaction physically plausible; never create floating objects or substitute packaging.',
+    'Use ordinary consumer-camera depth, exposure and motion rather than glossy CGI perfection.'
+  ];
+  const shared = [
+    'Do not imitate or resemble a named celebrity or identifiable real person.',
+    quality === 'PREMIUM' ? 'Premium means stronger physical realism and controlled motion, not artificial cinematic gloss.' : 'Standard should still look like credible organic phone-shot social content.',
+    campaignType === 'PRODUCT_SHOWCASE' ? 'Cutaways should feel captured during the same real creator session.' : 'The creator remains the visual anchor for the whole ad.'
+  ];
+  return [...(String(kind).toUpperCase() === 'PRODUCT' ? product : creator), ...shared].join(' ');
 }
 
 function publicError(message, code = 'UGC_STUDIO_ERROR', status = 400) {
@@ -161,7 +185,7 @@ async function warmSystemAvatarReferences() {
   avatarWarmupRunning = true;
   try {
     const pending = await prisma.$queryRawUnsafe(
-      'SELECT * FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\' AND "featured"=true AND ("referenceStorageKey" IS NULL OR "referenceVersion" < 2) ORDER BY "name"'
+      'SELECT * FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\' AND "featured"=true AND ("referenceStorageKey" IS NULL OR "referenceVersion" < $1) ORDER BY "name"', FEATURED_REFERENCE_VERSION
     );
     if (!pending.length) return;
     console.log('[UGC AVATAR WARMUP]', 'Preparing ' + pending.length + ' reusable creator portraits.');
@@ -292,10 +316,10 @@ async function prepareVerticalBrandReference(brandRefs) {
 async function regenerateFeaturedAvatarReference(row) {
   const environment = clean(row.environment || FEATURED_CREATORS.get(row.name), 700);
   const enhancedPrompt = [
-    'Photorealistic candid smartphone portrait of a real social-media creator, not an AI avatar and not a studio headshot.',
+    'Photorealistic candid smartphone portrait of an adult social-media creator, not an AI avatar and not a studio headshot.',
     clean(row.prompt, 1400),
     environment ? 'Environment: ' + environment + '.' : '',
-    'Chest-up to waist-up framing, 9:16 portrait, natural asymmetry, realistic pores and skin texture, subtle imperfections, believable hands only if visible, natural eye reflections, ordinary clothing fabric, real room depth, authentic phone-camera exposure, no beauty-filter plastic skin, no CGI look, no text, no watermark.'
+    'Camera-friendly contemporary influencer styling that is attractive and brand-safe. Never copy or resemble a named celebrity or identifiable real person. Chest-up to waist-up framing, 9:16 portrait, natural asymmetry, realistic pores and skin texture, subtle imperfections, believable hands only if visible, natural eye reflections, real clothing fabric, real room depth, authentic phone-camera exposure, no beauty-filter plastic skin, no CGI look, no text, no watermark.'
   ].filter(Boolean).join(' ');
   const generated = await runware.generateImages([enhancedPrompt], { aspectRatio: '9:16', model: env.runware.imagePremiumModel });
   const remote = await download(generated.images[0].url, 14 * 1024 * 1024);
@@ -307,11 +331,11 @@ async function regenerateFeaturedAvatarReference(row) {
   const oldKey = row.referenceStorageKey;
   const oldProvider = row.referenceStorageProvider;
   await prisma.$executeRawUnsafe(
-    'UPDATE "UGCAvatar" SET "referenceStorageProvider"=$2,"referenceStorageKey"=$3,"referenceMimeType"=\'image/png\',"referenceVersion"=2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
-    row.id, stored.storageProvider, stored.storageKey
+    'UPDATE "UGCAvatar" SET "referenceStorageProvider"=$2,"referenceStorageKey"=$3,"referenceMimeType"=\'image/png\',"referenceVersion"=$4,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+    row.id, stored.storageProvider, stored.storageKey, FEATURED_REFERENCE_VERSION
   );
   if (oldKey && oldKey !== stored.storageKey) await objectStorage.deleteObject(oldKey, oldProvider || null).catch(() => {});
-  return { ...row, referenceStorageProvider: stored.storageProvider, referenceStorageKey: stored.storageKey, referenceMimeType: 'image/png', referenceVersion: 2, data: normalized, dataUri: 'data:image/png;base64,' + normalized.toString('base64') };
+  return { ...row, referenceStorageProvider: stored.storageProvider, referenceStorageKey: stored.storageKey, referenceMimeType: 'image/png', referenceVersion: FEATURED_REFERENCE_VERSION, data: normalized, dataUri: 'data:image/png;base64,' + normalized.toString('base64') };
 }
 
 async function ensureAvatarReference(userId, row) {
@@ -534,6 +558,7 @@ async function planCampaign(input, brand, avatars, resolvedType) {
         'One ad uses one creator identity and one narrator voice throughout.',
         'Keep creator face, age, hair, skin tone, wardrobe and environment stable across creator cuts.',
         'No generated subtitles, labels, watermarks, logos or readable overlay text inside frames; INXSocial adds captions later.',
+        'Apply the INXSocial realism skill: real consumer-camera exposure, natural human micro-movements, stable anatomy and identity, believable room continuity, physically plausible hands/products, and no glossy CGI or beauty-filter look.',
         'Write natural social-video dialogue, not corporate copy. Aim for about 34 words for 15 seconds, 46 words for 20 seconds and 68 words for 30 seconds.',
         'Return JSON only: {"title":"string","ads":[{"title":"string","angle":"string","hook":"string","script":"string","cta":"string","caption":"string","avatarIndex":0,"scenes":[{"kind":"CREATOR|PRODUCT|LIFESTYLE|CTA","prompt":"string","script":"string"}]}]}.'
       ].join('\n\n') },
@@ -649,6 +674,22 @@ async function createCampaign(userId, input) {
     await prisma.$executeRawUnsafe('UPDATE "UGCCampaign" SET "status"=\'FAILED\',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', campaignId).catch(() => {});
     throw error;
   }
+  await ugcAnalytics.track(userId, {
+    event: 'GENERATION_STARTED',
+    stage: 'generation',
+    campaignId,
+    metadata: {
+      sourceType,
+      campaignType: input.campaignType || 'AUTO',
+      resolvedType,
+      quality: input.quality,
+      duration: input.duration,
+      adCount: input.adCount,
+      creatorMode: input.creatorMode,
+      credits: totalCredits,
+      hasProductAssets: Boolean(productAssetIds.length)
+    }
+  });
   queueRuntimeTick();
   return getCampaign(userId, campaignId);
 }
@@ -955,6 +996,7 @@ async function renderProviderScene(scene, ad, avatar, productReference, narratio
   const positivePrompt = clean([
     clean(scene.prompt, 1200),
     'Authentic vertical 9:16 creator-native UGC. Realistic smartphone-camera exposure, real room depth, natural skin and fabric texture, grounded physics, subtle handheld stability, no plastic CGI appearance.',
+    ugcRealismSkill(scene.kind, parseJson(ad.planJson, {}).campaignType || 'AVATAR_EXPLAINER', ad.quality),
     scene.kind === 'CREATOR' ? creatorLock : productLock,
     scene.kind === 'PRODUCT'
       ? 'Frame the product clearly in a believable use context. Use realistic hands only when needed and keep interaction physically plausible.'
@@ -1116,7 +1158,12 @@ async function persistFinalAsset(ad, data, providerCost) {
   const record = await prisma.agentAsset.create({ data: {
     userId: ad.userId, kind: 'AI_VIDEO', source: 'AI_STUDIO', status: 'READY', originalName, mimeType: 'video/mp4',
     byteSize: data.length, checksum, prompt: clean(ad.angle + ' ' + ad.hook, 1500), customerPrompt: clean(ad.script, 1500),
-    generationChoice: json({ provider: 'runware', route: ad.route, quality: ad.quality, resolution: '720p', duration: ad.duration, providerCostUsd: providerCost, ugcAdId: ad.id }),
+    generationChoice: json({
+      provider: 'runware', route: ad.route, quality: ad.quality, resolution: '720p', duration: ad.duration,
+      providerCostUsd: providerCost, ugcAdId: ad.id, campaignId: ad.campaignId, avatarId: ad.avatarId,
+      voice: ad.voice || null, cta: ad.cta || null, caption: ad.caption || null,
+      musicMode: ad.musicMode, captionsEnabled: Boolean(ad.captionsEnabled)
+    }),
     tagsJson: json(['ai-generated','ai-content-studio','ugc-ad','ugc-studio']), data: stored.data, storageProvider: stored.storageProvider, storageKey: stored.storageKey,
     width: 720, height: 1280, durationSeconds: ad.duration, expiresAt: expiresAtFor('video/mp4')
   } });
@@ -1197,7 +1244,12 @@ async function renderAd(adId) {
 }
 
 async function refreshCampaignStatus(campaignId) {
-  const rows = await prisma.$queryRawUnsafe('SELECT "status", COUNT(*)::int AS "count" FROM "UGCAd" WHERE "campaignId"=$1 GROUP BY "status"', campaignId);
+  const [rows, campaigns] = await Promise.all([
+    prisma.$queryRawUnsafe('SELECT "status", COUNT(*)::int AS "count" FROM "UGCAd" WHERE "campaignId"=$1 GROUP BY "status"', campaignId),
+    prisma.$queryRawUnsafe('SELECT * FROM "UGCCampaign" WHERE "id"=$1 LIMIT 1', campaignId)
+  ]);
+  const campaign = campaigns[0];
+  const previousStatus = campaign?.status || '';
   const counts = Object.fromEntries(rows.map(row => [row.status, Number(row.count)]));
   const total = Object.values(counts).reduce((a,b)=>a+b,0);
   let status = 'RENDERING';
@@ -1206,6 +1258,22 @@ async function refreshCampaignStatus(campaignId) {
   else if ((counts.FAILED || 0) > 0 && ((counts.READY || 0) + (counts.FAILED || 0) === total)) status = 'PARTIAL';
   else if ((counts.QUEUED || 0) === total) status = 'QUEUED';
   await prisma.$executeRawUnsafe('UPDATE "UGCCampaign" SET "status"=$2,"completedAt"=CASE WHEN $2 IN (\'READY\',\'PARTIAL\',\'FAILED\') THEN CURRENT_TIMESTAMP ELSE NULL END,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', campaignId, status);
+  if (campaign?.userId && ['READY','PARTIAL','FAILED'].includes(status) && !['READY','PARTIAL','FAILED'].includes(previousStatus)) {
+    await ugcAnalytics.track(campaign.userId, {
+      event: status === 'FAILED' ? 'GENERATION_FAILED' : 'GENERATION_COMPLETED',
+      stage: 'generation',
+      campaignId,
+      metadata: {
+        status,
+        quality: campaign.quality,
+        duration: campaign.duration,
+        variationCount: total,
+        readyCount: counts.READY || 0,
+        failedCount: counts.FAILED || 0,
+        credits: campaign.totalCredits
+      }
+    });
+  }
 }
 
 let runtimeTimer = null;
@@ -1257,6 +1325,30 @@ async function deleteCampaign(userId, campaignId) {
   return true;
 }
 
+async function syncReadyAssetMetadata(userId, adId, input) {
+  const videoImpacting = input.avatarId !== undefined || input.script !== undefined || input.voice !== undefined || input.voicePrompt !== undefined || input.musicMode !== undefined || input.captionsEnabled !== undefined;
+  if (videoImpacting) return false;
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCAd" WHERE "id"=$1 AND "userId"=$2 LIMIT 1', adId, userId);
+  const ad = rows[0];
+  if (!ad?.mediaAssetId) return false;
+  const assets = await prisma.$queryRawUnsafe('SELECT "generationChoice" FROM "AgentAsset" WHERE "id"=$1 AND "userId"=$2 LIMIT 1', ad.mediaAssetId, userId);
+  if (!assets[0]) return false;
+  const generationChoice = {
+    ...parseJson(assets[0].generationChoice, {}),
+    ugcAdId: ad.id,
+    campaignId: ad.campaignId,
+    cta: ad.cta || null,
+    caption: ad.caption || null,
+    musicMode: ad.musicMode,
+    captionsEnabled: Boolean(ad.captionsEnabled)
+  };
+  await prisma.$executeRawUnsafe(
+    'UPDATE "AgentAsset" SET "generationChoice"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$2',
+    ad.mediaAssetId, userId, json(generationChoice)
+  );
+  return true;
+}
+
 async function updateAd(userId, adId, input) {
   const row = await getAdRow(userId, adId);
   if (['QUEUED','RENDERING'].includes(row.status)) throw publicError('Wait for the current render to finish before editing this ad.', 'UGC_AD_BUSY', 409);
@@ -1264,7 +1356,7 @@ async function updateAd(userId, adId, input) {
   const nextScript = input.script !== undefined ? clean(input.script,12000) : row.script;
   await prisma.$executeRawUnsafe(
     'UPDATE "UGCAd" SET "avatarId"=COALESCE($3,"avatarId"),"script"=$4,"voice"=COALESCE($5,"voice"),"voicePrompt"=COALESCE($6,"voicePrompt"),"musicMode"=COALESCE($7,"musicMode"),"captionsEnabled"=COALESCE($8,"captionsEnabled"),"cta"=COALESCE($9,"cta"),"caption"=COALESCE($10,"caption"),"status"=CASE WHEN $2 THEN \'EDITED\' ELSE "status" END,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
-    adId, Boolean(input.avatarId !== undefined || input.script !== undefined || input.voice !== undefined || input.voicePrompt !== undefined),
+    adId, Boolean(input.avatarId !== undefined || input.script !== undefined || input.voice !== undefined || input.voicePrompt !== undefined || input.musicMode !== undefined || input.captionsEnabled !== undefined),
     input.avatarId ?? null, nextScript, input.voice ?? null, input.voicePrompt ?? null, input.musicMode ?? null,
     input.captionsEnabled ?? null, input.cta ?? null, input.caption ?? null
   );
@@ -1274,6 +1366,8 @@ async function updateAd(userId, adId, input) {
     for (let i=0;i<scenes.length;i+=1) await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "script"=$2,"status"=\'EDITED\',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', scenes[i].id, parts[i]);
   }
   if (input.avatarId !== undefined) await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "avatarId"=$2,"status"=CASE WHEN "kind"=\'CREATOR\' THEN \'EDITED\' ELSE "status" END,"updatedAt"=CURRENT_TIMESTAMP WHERE "adId"=$1', adId, input.avatarId);
+  await syncReadyAssetMetadata(userId, adId, input);
+  await ugcAnalytics.track(userId, { event: 'EDITOR_SAVED', stage: 'editor', campaignId: row.campaignId, adId });
   return getAd(userId, adId);
 }
 
@@ -1283,6 +1377,7 @@ async function regenerateAd(userId, adId) {
   const generationId = await createGenerationRow(userId, adId, row.credits, { title: row.title, script: row.script, regeneration: true });
   await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "status"=\'QUEUED\',"providerTaskUuid"=NULL,"providerCostUsd"=NULL,"model"=NULL,"errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "adId"=$1', adId);
   await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "generationId"=$2,"status"=\'QUEUED\',"errorMessage"=NULL,"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', adId, generationId);
+  await ugcAnalytics.track(userId, { event: 'REGENERATION_STARTED', stage: 'editor', campaignId: row.campaignId, adId, metadata: { credits: row.credits, quality: row.quality, duration: row.duration } });
   queueRuntimeTick();
   return getAd(userId, adId);
 }
@@ -1296,13 +1391,14 @@ async function regenerateScene(userId, sceneId) {
   const generationId = await createGenerationRow(userId, scene.ownedAdId, sceneCredits, { sceneId, regeneration: true });
   await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "status"=\'QUEUED\',"providerTaskUuid"=NULL,"providerCostUsd"=NULL,"model"=NULL,"errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', sceneId);
   await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "generationId"=$2,"status"=\'QUEUED\',"errorMessage"=NULL,"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', scene.ownedAdId, generationId);
+  await ugcAnalytics.track(userId, { event: 'SCENE_REGENERATION_STARTED', stage: 'editor', adId: scene.ownedAdId, metadata: { credits: sceneCredits, duration: scene.duration } });
   queueRuntimeTick();
   return getAd(userId, scene.ownedAdId);
 }
 
 module.exports = {
-  STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, avatarSeeds,
-  creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations,
+  STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds,
+  creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
   narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
   getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, deleteCampaign, getAd, updateAd, regenerateAd, regenerateScene,
   generateCustomAvatar, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,

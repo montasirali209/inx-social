@@ -102,7 +102,10 @@ function renderAiOperations(data){
       ['Economy video',providers.runware?.models?.economyVideo],
       ['Video',providers.runware?.models?.video],
       ['Long video',providers.runware?.models?.longVideo],
-      ['UGC',providers.runware?.models?.ugc]
+      ['UGC Standard',providers.runware?.models?.ugcStandard],
+      ['UGC Premium',providers.runware?.models?.ugcPremium],
+      ['UGC lip sync',providers.runware?.models?.ugcLipSync],
+      ['UGC voice',providers.runware?.models?.ugcTts]
     ]],
     ['Stock Video Creator',providers.openMontage?.configured,providers.openMontage?.detail,[
       ['Pexels',providers.openMontage?.sources?.pexels?'Configured':'Not configured'],
@@ -118,9 +121,44 @@ function renderAiOperations(data){
   $('aiRoutingSummary').innerHTML='<div><b>Routing guardrail</b><span>Low-level model routing stays backend-managed. This screen exposes active configured model names without exposing API secrets.</span></div><div><b>Cost guardrail</b><span>AI generation uses the shared credit wallet and model-weighted video charging configured in the production backend.</span></div>';
 }
 
+function ugcBreakdown(title,values={}){
+  const entries=Object.entries(values).sort((a,b)=>Number(b[1])-Number(a[1]));
+  const total=entries.reduce((sum,[,value])=>sum+Number(value||0),0);
+  return `<section><b>${esc(title)}</b>${entries.length?entries.map(([label,value])=>`<div class="ugc-admin-breakdown-row"><span>${esc(String(label).replaceAll('_',' '))}</span><i><em style="width:${total?Math.max(4,Math.round(Number(value)*100/total)):0}%"></em></i><strong>${Number(value).toLocaleString()}</strong></div>`).join(''):'<small>No data yet.</small>'}</section>`;
+}
+function renderUgcAnalytics(data){
+  const analytics=data.analytics||{};
+  const totals=analytics.totals||{};
+  const kpis=[
+    ['Studio opens',totals.studioOpens||0,`${Number(totals.uniqueStudioUsers||0).toLocaleString()} unique users`],
+    ['Started',totals.campaignsStarted||0,'UGC generation starts'],
+    ['Completed',totals.campaignsCompleted||0,`${Number(totals.campaignsFailed||0).toLocaleString()} failed renders`],
+    ['Credits used',totals.creditsUsed||0,`${Number(totals.generationRows||0).toLocaleString()} generation records`],
+    ['Provider cost',`${Number(totals.providerCostUsd||0).toFixed(2)}`,'Recorded Runware cost']
+  ];
+  $('ugcAnalyticsKpis').innerHTML=kpis.map(([label,value,detail])=>`<article><span>${esc(label)}</span><b>${typeof value==='number'?Number(value).toLocaleString():esc(value)}</b><small>${esc(detail)}</small></article>`).join('');
+  const funnel=analytics.funnel||[];
+  const max=Math.max(1,...funnel.map(item=>Number(item.users||0)));
+  $('ugcAnalyticsFunnel').innerHTML=funnel.length?funnel.map(item=>`<div class="ugc-admin-funnel-row"><div><b>${esc(item.label)}</b><small>${Number(item.users||0).toLocaleString()} users · ${Number(item.events||0).toLocaleString()} events</small></div><div class="ugc-admin-funnel-track"><i style="width:${Math.max(item.users?5:0,Math.round(Number(item.users||0)*100/max))}%"></i></div><strong>${Number(item.fromStudio||0).toFixed(1)}%</strong></div>`).join(''):'<p class="muted">UGC funnel events will appear after customer activity.</p>';
+  const breakdowns=analytics.breakdowns||{};
+  $('ugcAnalyticsBreakdowns').innerHTML=[
+    ugcBreakdown('Quality',breakdowns.quality),
+    ugcBreakdown('Duration',breakdowns.duration),
+    ugcBreakdown('Ad style',breakdowns.campaignType),
+    ugcBreakdown('Source',breakdowns.sourceType)
+  ].join('');
+  $('ugcAnalyticsUpdated').textContent=analytics.generatedAt?`Updated ${relative(analytics.generatedAt)}`:'—';
+}
+
 async function loadAiAccess(){
-  const [studio,agent]=await Promise.all([api('/api/admin/ai-studio-policy'),api('/api/admin/agent-access')]);
+  const days=Number($('ugcAnalyticsDays')?.value||30);
+  const [studio,agent,ugc]=await Promise.all([
+    api('/api/admin/ai-studio-policy'),
+    api('/api/admin/agent-access'),
+    api(`/api/admin/ugc-analytics?days=${days}`)
+  ]);
   renderAiOperations(studio);
+  renderUgcAnalytics(ugc);
   const policy=agent.policy||{};
   $('agentAvailability').value=policy.availability==='PLUS_ONLY'?'PAID_PLANS':policy.availability;
   const limits=policy.planLimits||{};
@@ -130,6 +168,8 @@ async function loadAiAccess(){
   $('agentLimitBusiness').value=limits.BUSINESS??250;
   $('agentLimitAgency').value=limits.AGENCY??500;
 }
+
+$('ugcAnalyticsDays').addEventListener('change',()=>loadAiAccess().catch(error=>toast(error.message)));
 
 $('aiStudioPolicyForm').addEventListener('submit',async event=>{
   event.preventDefault();

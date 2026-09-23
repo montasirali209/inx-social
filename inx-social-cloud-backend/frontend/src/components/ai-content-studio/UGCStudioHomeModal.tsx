@@ -12,6 +12,7 @@ import {
   fetchUGCAvatarImage,
   fetchUGCSampleVideo,
   getUGCOverview,
+  trackUGCStudioEvent,
 } from '../../lib/ugc-studio-api'
 import type { MediaAsset } from '../../types/media-library'
 import type { UGCAvatar, UGCCampaign, UGCSampleVideo } from '../../types/ugc-studio'
@@ -100,6 +101,10 @@ export function UGCStudioHomeModal({
   })
 
   useEffect(() => {
+    if (open) void trackUGCStudioEvent({ event: 'STUDIO_OPENED', stage: 'home' })
+  }, [open])
+
+  useEffect(() => {
     if (!open) return
     const bodyOverflow = document.body.style.overflow
     const htmlOverflow = document.documentElement.style.overflow
@@ -141,12 +146,28 @@ export function UGCStudioHomeModal({
     return source.filter((campaign) => activeStatuses.has(campaign.status) || campaign.ads.some((ad) => activeStatuses.has(ad.status)))
   }, [overview.data?.campaigns, filter])
 
+  function startCreation(seed?: UGCCampaign) {
+    void trackUGCStudioEvent({
+      event: 'CREATE_STARTED',
+      stage: 'home',
+      campaignId: seed?.id || null,
+      metadata: seed ? { sourceType: seed.sourceType, campaignType: seed.campaignType, quality: seed.quality, duration: seed.duration, adCount: seed.adCount } : {},
+    })
+    onCreate(seed)
+  }
+
   function scheduleCampaign(campaign: UGCCampaign) {
     const ready = campaign.ads
       .filter((ad) => ad.status === 'READY' && ad.mediaAssetId)
       .map((ad) => ({ ad, asset: assetsById.get(ad.mediaAssetId!) }))
       .filter((item): item is { ad: typeof campaign.ads[number]; asset: MediaAsset } => Boolean(item.asset))
     if (!ready.length) { onToast('No finished UGC videos are available to schedule yet.'); return }
+    void trackUGCStudioEvent({
+      event: 'SCHEDULER_HANDOFF',
+      stage: 'home',
+      campaignId: campaign.id,
+      metadata: { readyCount: ready.length, variationCount: campaign.ads.length, quality: campaign.quality, duration: campaign.duration },
+    })
     onClose()
     navigate('/bulk-scheduler', {
       state: {
@@ -180,7 +201,7 @@ export function UGCStudioHomeModal({
             <span className="ugc-home-kicker"><Sparkles className="size-3.5" />CREATOR CAMPAIGNS</span>
             <h1>Turn an offer into believable social video.</h1>
             <p>Use a website, product photos or a short brief. INXSocial builds the creative direction, creator, script, scenes and final 720p UGC for you.</p>
-            <Button className="mt-5 min-h-11 px-5" onClick={() => onCreate()} variant="primary"><Plus className="size-4" />Create new UGC ad <ArrowRight className="size-4" /></Button>
+            <Button className="mt-5 min-h-11 px-5" onClick={() => startCreation()} variant="primary"><Plus className="size-4" />Create new UGC ad <ArrowRight className="size-4" /></Button>
           </div>
           <div aria-hidden="true" className="ugc-home-hero-stack">
             <div className="ugc-home-phone ugc-home-phone-a"><UsersRound className="size-8" /><span>Avatar</span></div>
@@ -222,12 +243,12 @@ export function UGCStudioHomeModal({
                   <div className="ugc-home-actions">
                     <Button disabled={!first || activeStatuses.has(first.status)} onClick={() => { onClose(); navigate(`/ai-content-studio/ugc/${first.id}/edit`) }} size="sm"><Pencil className="size-3.5" />Edit</Button>
                     <Button disabled={!campaign.ads.some((ad) => ad.status === 'READY')} onClick={() => scheduleCampaign(campaign)} size="sm" variant="primary"><CalendarRange className="size-3.5" />Schedule</Button>
-                    <button aria-label="Create similar campaign" className="ugc-home-icon-action" onClick={() => onCreate(campaign)} title="Create similar" type="button"><Copy className="size-3.5" /></button>
+                    <button aria-label="Create similar campaign" className="ugc-home-icon-action" onClick={() => startCreation(campaign)} title="Create similar" type="button"><Copy className="size-3.5" /></button>
                     <button aria-label="Delete campaign" className="ugc-home-icon-action danger" disabled={busy || remove.isPending} onClick={() => { if (window.confirm('Remove this UGC campaign from your studio?')) remove.mutate(campaign.id) }} title="Delete" type="button"><Trash2 className="size-3.5" /></button>
                   </div>
                 </div>
               </article>
-            })}</div> : <div className="ugc-home-empty"><Film className="size-7 text-text-soft" /><strong>No UGC campaigns yet.</strong><span>Create your first campaign and it will stay here while it renders.</span><Button onClick={() => onCreate()} size="sm" variant="primary"><Plus className="size-3.5" />Create UGC</Button></div>}
+            })}</div> : <div className="ugc-home-empty"><Film className="size-7 text-text-soft" /><strong>No UGC campaigns yet.</strong><span>Create your first campaign and it will stay here while it renders.</span><Button onClick={() => startCreation()} size="sm" variant="primary"><Plus className="size-3.5" />Create UGC</Button></div>}
         </section>
 
         <section className="mt-8">

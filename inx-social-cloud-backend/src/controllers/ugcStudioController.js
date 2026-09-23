@@ -1,6 +1,7 @@
 const { z } = require('zod');
 const express = require('express');
 const service = require('../services/ugcStudioService');
+const analytics = require('../services/ugcStudioAnalyticsService');
 
 const durations = [15, 20, 30];
 const counts = [1, 5, 10, 15, 20];
@@ -53,6 +54,14 @@ const editAdSchema = z.object({
   captionsEnabled: z.boolean().optional(),
   cta: z.string().trim().max(500).optional(),
   caption: z.string().trim().max(10000).optional()
+});
+
+const eventSchema = z.object({
+  event: z.string().trim().min(2).max(80),
+  stage: z.string().trim().max(80).optional().nullable(),
+  campaignId: z.string().trim().max(120).optional().nullable(),
+  adId: z.string().trim().max(120).optional().nullable(),
+  metadata: z.record(z.union([z.string(), z.number(), z.boolean(), z.null()])).optional().default({})
 });
 
 async function overview(req, res, next) {
@@ -171,12 +180,18 @@ async function uploadSample(req, res, next) {
 async function listMusic(req, res, next) {
   try { res.json({ tracks: await service.listMusicTracks() }); } catch (error) { next(error); }
 }
+async function trackEvent(req, res, next) {
+  try {
+    await analytics.track(req.user.id, eventSchema.parse(req.body || {}));
+    res.status(202).json({ ok: true });
+  } catch (error) { next(error); }
+}
 
 module.exports = {
   overview, estimate, analyzeBrand, createCampaign, listCampaigns, getCampaign, removeCampaign,
   getAd, updateAd, regenerateAd, regenerateScene,
   generateAvatar, uploadAvatar, avatarContent, removeAvatar,
-  uploadProduct, productContent, samples, sampleContent, uploadSample, listMusic,
+  uploadProduct, productContent, samples, sampleContent, uploadSample, listMusic, trackEvent,
   avatarUploadMiddleware: express.raw({ type: ['image/png','image/jpeg','image/webp'], limit: '12mb' }),
   productUploadMiddleware: express.raw({ type: ['image/png','image/jpeg','image/webp'], limit: '15mb' }),
   sampleUploadMiddleware: express.raw({ type: ['video/mp4','video/webm','video/quicktime'], limit: '200mb' })

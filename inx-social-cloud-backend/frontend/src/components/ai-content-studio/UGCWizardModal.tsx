@@ -18,6 +18,7 @@ import {
   getUGCOverview,
   uploadUGCAvatar,
   uploadUGCProductAsset,
+  trackUGCStudioEvent,
 } from '../../lib/ugc-studio-api'
 import type { MediaAsset } from '../../types/media-library'
 import type {
@@ -193,7 +194,12 @@ export function UGCWizardModal({
 
   const analyze = useMutation({
     mutationFn: () => analyzeUGCBrand(productUrl),
-    onSuccess: (value) => { setBrand(value); setError(''); moveTo(1); void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] }) },
+    onSuccess: (value) => {
+      setBrand(value)
+      setError('')
+      moveTo(1)
+      void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
+    },
     onError: (value) => setError(value instanceof Error ? value.message : 'We could not analyse that website.'),
   })
 
@@ -248,11 +254,20 @@ export function UGCWizardModal({
   async function continueSource() {
     setError('')
     if ((sourceType === 'WEBSITE' || sourceType === 'PRODUCT') && productUrl.trim()) {
+      void trackUGCStudioEvent({ event: 'SOURCE_COMPLETED', stage: 'source', metadata: { sourceType, hasProductAssets: Boolean(productAssets.length || seedProductIds.length) } })
       analyze.mutate()
       return
     }
-    if (sourceType === 'PRODUCT' && (productAssets.length || seedProductIds.length || description.trim().length >= 8)) { moveTo(1); return }
-    if (sourceType === 'BRIEF' && description.trim().length >= 12) { moveTo(1); return }
+    if (sourceType === 'PRODUCT' && (productAssets.length || seedProductIds.length || description.trim().length >= 8)) {
+      void trackUGCStudioEvent({ event: 'SOURCE_COMPLETED', stage: 'source', metadata: { sourceType, hasProductAssets: Boolean(productAssets.length || seedProductIds.length) } })
+      moveTo(1)
+      return
+    }
+    if (sourceType === 'BRIEF' && description.trim().length >= 12) {
+      void trackUGCStudioEvent({ event: 'SOURCE_COMPLETED', stage: 'source', metadata: { sourceType } })
+      moveTo(1)
+      return
+    }
     setError(sourceType === 'PRODUCT' ? 'Add a product URL, upload at least one product image, or describe the product.' : 'Add enough information for INXSocial to understand the offer.')
   }
 
@@ -321,7 +336,7 @@ export function UGCWizardModal({
               <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><BadgeCheck className="size-5" /></span><div><h2>Here's what INXSocial understands.</h2><p>Check the essentials. The generator uses this as the factual boundary for scripts and scenes.</p></div></div>
               {selectedBrand ? <div className="ugc-wizard-brand-card mt-7"><div className="flex items-start justify-between gap-4"><div><span className="ugc-wizard-mini-label">BRAND / OFFER</span><h3>{selectedBrand.productName || selectedBrand.name}</h3></div><BadgeCheck className="size-5 text-brand-cyan" /></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><div><span className="ugc-wizard-mini-label">COMPANY</span><strong>{selectedBrand.name}</strong></div><div><span className="ugc-wizard-mini-label">TYPE</span><strong>{selectedBrand.analysis?.offerType || 'Brand'}</strong></div></div><div className="mt-5"><span className="ugc-wizard-mini-label">WHAT IT DOES</span><p>{selectedBrand.summary}</p></div>{!!selectedBrand.audience.length && <div className="mt-5"><span className="ugc-wizard-mini-label">AUDIENCE</span><div className="mt-2 flex flex-wrap gap-2">{selectedBrand.audience.slice(0,6).map((item) => <span className="ugc-wizard-pill" key={item}>{item}</span>)}</div></div>}</div> :
                 <div className="ugc-wizard-brand-card mt-7"><span className="ugc-wizard-mini-label">YOUR BRIEF</span><textarea className="ugc-wizard-input mt-3 min-h-36 w-full resize-y" onChange={(event) => setDescription(event.target.value)} value={description} /></div>}
-              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(0)}><ArrowLeft className="size-4" />Back</Button><Button disabled={!selectedBrand && description.trim().length < 12 && !productAssetIds.length} onClick={() => moveTo(2)} variant="primary">Looks right <ArrowRight className="size-4" /></Button></div>
+              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(0)}><ArrowLeft className="size-4" />Back</Button><Button disabled={!selectedBrand && description.trim().length < 12 && !productAssetIds.length} onClick={() => { void trackUGCStudioEvent({ event: 'BRAND_ANALYZED', stage: 'brand', metadata: { sourceType } }); moveTo(2) }} variant="primary">Looks right <ArrowRight className="size-4" /></Button></div>
             </>}
 
             {currentKey === 'format' && <>
@@ -332,7 +347,7 @@ export function UGCWizardModal({
                 <button className={`ugc-format-card ${campaignType === 'PRODUCT_SHOWCASE' ? 'active' : ''}`} onClick={() => setCampaignType('PRODUCT_SHOWCASE')} type="button"><span className="ugc-format-icon"><PackageOpen className="size-5" /></span><strong>Product Showcase</strong><p>Creator-led opening plus real product cutaways, benefits and believable use-case shots.</p><span>Product-led</span></button>
               </div>
               {campaignType === 'PRODUCT_SHOWCASE' && !productAssetIds.length && !(selectedBrand?.brandReferences?.length) && <div className="mt-4 rounded-xl border border-brand-amber/25 bg-brand-amber/[.05] p-3 text-[10px] leading-4 text-brand-amber">Product Showcase needs a real product reference. Go back to Source and upload a product photo, or choose Avatar Explainer.</div>}
-              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(1)}><ArrowLeft className="size-4" />Back</Button><Button disabled={campaignType === 'PRODUCT_SHOWCASE' && !productAssetIds.length && !selectedBrand?.brandReferences?.length} onClick={() => moveTo(3)} variant="primary">Continue <ArrowRight className="size-4" /></Button></div>
+              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(1)}><ArrowLeft className="size-4" />Back</Button><Button disabled={campaignType === 'PRODUCT_SHOWCASE' && !productAssetIds.length && !selectedBrand?.brandReferences?.length} onClick={() => { void trackUGCStudioEvent({ event: 'FORMAT_SELECTED', stage: 'format', metadata: { campaignType } }); moveTo(3) }} variant="primary">Continue <ArrowRight className="size-4" /></Button></div>
             </>}
 
             {currentKey === 'avatar' && <>
@@ -343,13 +358,13 @@ export function UGCWizardModal({
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-3"><button className="ugc-wizard-text-button" onClick={() => setShowAllCreators((value) => !value)} type="button">{showAllCreators ? 'Show fewer creators' : `View all ${avatars.length} available creators`}</button><span className="text-[10px] text-text-soft">or</span><button className="ugc-wizard-text-button" onClick={() => setCustomCreatorOpen((value) => !value)} type="button"><ImagePlus className="size-3.5" />Create my own</button></div>
               {customCreatorOpen && <div className="ugc-wizard-custom-creator mt-5"><div><strong>Custom creator</strong><p>Upload your own portrait for free, or generate one for 5 credits. It stays in your creator library.</p></div><label className="ugc-wizard-upload"><Upload className="size-4" />Upload portrait<input accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => void uploadAvatar(event.target.files?.[0])} type="file" /></label><div className="ugc-wizard-or"><span />OR<span /></div><input className="ugc-wizard-input w-full" onChange={(event) => setAvatarName(event.target.value)} placeholder="Creator name" value={avatarName} /><textarea className="ugc-wizard-input mt-2 min-h-20 w-full resize-y" onChange={(event) => setAvatarPrompt(event.target.value)} placeholder="Describe the creator: age range, style, appearance and niche." value={avatarPrompt} /><Button className="mt-3" disabled={avatarName.trim().length < 2 || avatarPrompt.trim().length < 8 || generateAvatar.isPending} onClick={() => generateAvatar.mutate()}>{generateAvatar.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}Generate creator · 5 credits</Button></div>}
-              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(2)}><ArrowLeft className="size-4" />Back</Button><Button disabled={creatorMode === 'SELECTED' && !avatarId} onClick={() => moveTo(4)} variant="primary">Continue <ArrowRight className="size-4" /></Button></div>
+              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(2)}><ArrowLeft className="size-4" />Back</Button><Button disabled={creatorMode === 'SELECTED' && !avatarId} onClick={() => { void trackUGCStudioEvent({ event: 'CREATOR_SELECTED', stage: 'creator', metadata: { creatorMode, avatarScope: selectedAvatar?.scope || (creatorMode === 'AUTO' ? 'AUTO' : '') } }); moveTo(4) }} variant="primary">Continue <ArrowRight className="size-4" /></Button></div>
             </>}
 
             {currentKey === 'working' && <>
               <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><Search className="size-5" /></span><div><h2>Here's the creative direction.</h2><p>INXSocial turns the offer into creator-native hooks and scene logic automatically. You still don't need to write the script.</p></div></div>
               {!workingReady ? <div className="ugc-wizard-research mt-8"><div className="ugc-wizard-radar"><span /><Search className="size-6" /></div><strong>Building your UGC direction…</strong><p>Matching the offer, format, creator and audience.</p></div> : <div className="mt-7 grid gap-3 sm:grid-cols-2">{directions.map((direction,index) => <article className="ugc-wizard-direction" key={direction}><span>{String(index+1).padStart(2,'0')}</span><p>{direction}</p></article>)}</div>}
-              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(3)}><ArrowLeft className="size-4" />Back</Button><Button disabled={!workingReady} onClick={() => moveTo(5)} variant="primary">Use this direction <ArrowRight className="size-4" /></Button></div>
+              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(3)}><ArrowLeft className="size-4" />Back</Button><Button disabled={!workingReady} onClick={() => { void trackUGCStudioEvent({ event: 'DIRECTION_READY', stage: 'direction', metadata: { campaignType } }); moveTo(5) }} variant="primary">Use this direction <ArrowRight className="size-4" /></Button></div>
             </>}
 
             {currentKey === 'video' && <>
