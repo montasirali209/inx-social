@@ -54,6 +54,19 @@ function mediaMimeType(file: File) {
   return 'application/octet-stream'
 }
 
+type ImportedMixedCampaignItem = {
+  id: string
+  contentType: 'TEXT' | 'IMAGE'
+  caption: string
+  media: SelectedMedia | null
+}
+
+type ImportedMixedCampaign = {
+  id: string
+  title: string
+  posts: ImportedMixedCampaignItem[]
+}
+
 export function BulkSchedulerPage() {
   const location = useLocation()
   const { registerStop, update: updateActivity } = useBulkSchedulerActivity()
@@ -73,6 +86,7 @@ export function BulkSchedulerPage() {
   const [confirmationOpen, setConfirmationOpen] = useState(false)
   const [retryingId, setRetryingId] = useState<string | null>(null)
   const [historyView, setHistoryView] = useState<BulkHistoryView | null>(null)
+  const [mixedCampaign, setMixedCampaign] = useState<ImportedMixedCampaign | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const importedLibrarySelection = useRef('')
   const importedCampaignSelection = useRef('')
@@ -91,7 +105,10 @@ export function BulkSchedulerPage() {
   const captionBlocks = useMemo(() => contentMode === 'text' ? parseTextPosts(captions) : parseCaptions(captions), [captions, contentMode])
   const selectedDestinations = destinations.filter((destination) => selectedIds.has(destination.id))
   const incompatibleTextDestinations = contentMode === 'text' ? selectedDestinations.filter((destination) => !TEXT_POST_PLATFORMS.has(destination.platform)) : []
-  const batchCount = contentMode === 'text' ? captionBlocks.length : media.length
+  const mixedTextPosts = mixedCampaign?.posts.filter((post) => post.contentType === 'TEXT') || []
+  const mixedImagePosts = mixedCampaign?.posts.filter((post) => post.contentType === 'IMAGE') || []
+  const mixedTextDestinations = selectedDestinations.filter((destination) => TEXT_POST_PLATFORMS.has(destination.platform))
+  const batchCount = mixedCampaign ? mixedCampaign.posts.length : contentMode === 'text' ? captionBlocks.length : media.length
   const activeScheduleTimes = timingMode === 'saved_schedule' ? schedulerData.settings.defaultScheduleTimes : scheduleTimes
 
   useEffect(() => {
@@ -153,21 +170,27 @@ export function BulkSchedulerPage() {
   const canUseFallback = contentMode === 'media' && captionBlocks.length > 0 && useFallback
   const disabledReason = !selectedIds.size
     ? 'Select at least one connected destination.'
-    : contentMode === 'text' && incompatibleTextDestinations.length
-      ? `Text-only posts are not supported by ${incompatibleTextDestinations.map((destination) => destination.name).join(', ')}. Deselect those destinations or switch to Media Posts.`
-      : contentMode === 'text' && !captionBlocks.length
-        ? 'Add at least one complete text post. Separate multiple posts with a line containing ---.'
-        : contentMode === 'media' && !media.length
-          ? 'Select one or more image or video files.'
-          : contentMode === 'media' && !captionBlocks.length
-            ? 'Add at least one caption.'
-            : contentMode === 'media' && captionBlocks.length < media.length && !canUseFallback
-              ? 'Add matching captions or confirm the fallback caption.'
-              : !timingMode
-                ? 'Choose a timing mode.'
-                : timingMode !== 'publish_now' && (!scheduleDate || !activeScheduleTimes.length)
-                  ? 'Choose a start date and add at least one publishing time.'
-                  : ''
+    : mixedCampaign && mixedTextPosts.length && !mixedTextDestinations.length
+      ? 'This mixed campaign contains text-only posts. Select at least one destination that supports text posts, such as Facebook, X, LinkedIn, Threads or Bluesky.'
+      : mixedCampaign && mixedImagePosts.some((post) => !post.media)
+        ? 'One or more mixed-campaign image posts are missing their generated media.'
+        : !timingMode
+          ? 'Choose a timing mode.'
+          : timingMode !== 'publish_now' && (!scheduleDate || !activeScheduleTimes.length)
+            ? 'Choose a start date and add at least one publishing time.'
+            : mixedCampaign
+              ? ''
+              : contentMode === 'text' && incompatibleTextDestinations.length
+                ? `Text-only posts are not supported by ${incompatibleTextDestinations.map((destination) => destination.name).join(', ')}. Deselect those destinations or switch to Media Posts.`
+                : contentMode === 'text' && !captionBlocks.length
+                  ? 'Add at least one complete text post. Separate multiple posts with a line containing ---.'
+                  : contentMode === 'media' && !media.length
+                    ? 'Select one or more image or video files.'
+                    : contentMode === 'media' && !captionBlocks.length
+                      ? 'Add at least one caption.'
+                      : contentMode === 'media' && captionBlocks.length < media.length && !canUseFallback
+                        ? 'Add matching captions or confirm the fallback caption.'
+                        : ''
   const canStart = !disabledReason && !running
 
   const selectMedia = (files: File[]) => {
