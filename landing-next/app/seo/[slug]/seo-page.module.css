@@ -559,3 +559,25 @@
   .relatedCard{transition:none}
   .relatedCard:hover{transform:none}
 }
+
+
+/* SEO acquisition motion sync — mirrors the restrained motion language of the main Next landing. */
+@keyframes seoRiseIn{
+  from{opacity:0;transform:translateY(16px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@keyframes seoVisualIn{
+  from{opacity:0;transform:perspective(1200px) rotateY(-1.8deg) rotateX(.6deg) translateY(18px) scale(.985)}
+  to{opacity:1;transform:perspective(1200px) rotateY(-1.8deg) rotateX(.6deg) translateY(0) scale(1)}
+}
+@media(prefers-reduced-motion:no-preference){
+  .heroCopy{animation:seoRiseIn .58s cubic-bezier(.2,.8,.2,1) both}
+  .heroVisual{animation:seoVisualIn .7s cubic-bezier(.2,.8,.2,1) .08s both}
+  .featureCard,.workflowCard{transition:transform .28s ease,box-shadow .28s ease,border-color .28s ease}
+  .featureCard:hover,.workflowCard:hover{transform:translateY(-4px)}
+}
+@media(prefers-reduced-motion:reduce){
+  .heroCopy,.heroVisual{animation:none}
+  .featureCard,.workflowCard{transition:none}
+  .featureCard:hover,.workflowCard:hover{transform:none}
+}
