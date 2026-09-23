@@ -383,6 +383,135 @@ export function BulkSchedulerPage() {
     const controller = new AbortController()
     abortRef.current = controller
 
+    if (mixedCampaign) {
+      const textDestinationIds = mixedTextDestinations.map((destination) => destination.id)
+      const initialResults: UploadResult[] = mixedCampaign.posts.map((post, index) => {
+        const targets = post.contentType === 'TEXT' ? textDestinationIds : destinationIds
+        return {
+          id: `mixed:${post.id}:${crypto.randomUUID()}`,
+          mediaId: post.media?.id || `text:${post.id}`,
+          mediaIndex: index,
+          jobId: null,
+          fileName: post.contentType === 'TEXT' ? `Text post ${index + 1}` : (post.media?.file.name || `Image post ${index + 1}`),
+          mediaKind: post.contentType === 'TEXT' ? 'text' : (post.media?.kind || 'image'),
+          thumbnailUrl: post.media?.previewUrl || '',
+          textPreview: post.caption.replace(/\s+/g, ' ').slice(0, 180),
+          destinationIds: targets,
+          status: 'waiting',
+          resultId: null,
+          errorMessage: null,
+          scheduledAt: publishingTimes[index],
+        }
+      })
+      setResults(initialResults)
+      setProgress({ state: 'preparing', percent: 1, current: 0, total: mixedCampaign.posts.length, completed: 0, failed: 0, message: 'Preparing mixed AI campaign in campaign order…' })
+
+      let completed = 0
+      let failed = 0
+
+      for (let index = 0; index < mixedCampaign.posts.length; index += 1) {
+        if (controller.signal.aborted) break
+        const post = mixedCampaign.posts[index]
+        const resultId = initialResults[index].id
+        const targets = post.contentType === 'TEXT' ? textDestinationIds : destinationIds
+
+        try {
+          setProgress({
+            state: timingMode === 'publish_now' ? 'preparing' : 'scheduling',
+            percent: (index / mixedCampaign.posts.length) * 100,
+            current: index + 1,
+            total: mixedCampaign.posts.length,
+            completed,
+            failed,
+            message: `${timingMode === 'publish_now' ? 'Publishing' : 'Scheduling'} ${post.contentType === 'TEXT' ? 'text' : 'image'} post ${index + 1} of ${mixedCampaign.posts.length}…`,
+          })
+
+          let finalJob
+          if (post.contentType === 'TEXT') {
+            const prepared = await createBulkMediaPost({
+              connectedPageIds: targets,
+              clientRequestId: `ai-mixed-text-${crypto.randomUUID()}`,
+              title: null,
+              caption: post.caption,
+              contentType: 'TEXT',
+              originalFileName: null,
+              mimeType: null,
+              fileSizeBytes: null,
+              mediaLibraryAssetId: null,
+              scheduledAt: publishingTimes[index],
+              publishMode: timingMode === 'publish_now' ? 'NOW' : 'SCHEDULED',
+              smartTiming: smartTimingSource ? { enabled: true, baseScheduledAt: baselinePublishingTimes[index], source: smartTimingSource } : null,
+            })
+            finalJob = prepared.jobs[0]
+            if (!finalJob) throw new Error(prepared.failures[0]?.error || 'The publishing provider could not create this text post.')
+          } else {
+            if (!post.media?.libraryAssetId) throw new Error('The generated campaign image is missing from Media Library.')
+            const prepared = await createBulkMediaPost({
+              connectedPageIds: targets,
+              clientRequestId: `ai-mixed-image-${crypto.randomUUID()}`,
+              title: titleFromFile(post.media.file),
+              caption: post.caption,
+              contentType: 'IMAGE',
+              originalFileName: post.media.file.name,
+              mimeType: mediaMimeType(post.media.file),
+              fileSizeBytes: post.media.file.size,
+              mediaLibraryAssetId: post.media.libraryAssetId,
+              scheduledAt: publishingTimes[index],
+              publishMode: timingMode === 'publish_now' ? 'NOW' : 'SCHEDULED',
+              smartTiming: smartTimingSource ? { enabled: true, baseScheduledAt: baselinePublishingTimes[index], source: smartTimingSource } : null,
+            })
+            finalJob = prepared.jobs[0]
+            if (!finalJob) throw new Error(prepared.failures[0]?.error || 'The publishing provider could not create this image post.')
+            if (prepared.uploadRequired) {
+              const uploaded = await publishBulkLibraryMedia(finalJob.id)
+              finalJob = uploaded.job
+            }
+          }
+
+          completed += 1
+          setResults((current) => current.map((result) => result.id === resultId ? {
+            ...result,
+            jobId: finalJob.id,
+            status: backendStatusToUploadStatus(finalJob.status),
+            resultId: finalJob.providerPostId || finalJob.metaPostId || finalJob.metaVideoId || null,
+            errorMessage: null,
+          } : result))
+        } catch (error) {
+          failed += 1
+          setResults((current) => current.map((result) => result.id === resultId ? {
+            ...result,
+            status: 'failed',
+            errorMessage: error instanceof Error ? error.message : 'Campaign post failed.',
+          } : result))
+        }
+      }
+
+      const stopped = controller.signal.aborted
+      if (stopped) {
+        setResults((current) => current.map((result) => result.status === 'waiting'
+          ? { ...result, status: 'blocked', errorMessage: 'Not started because the campaign run was stopped.' }
+          : result))
+      }
+      setProgress({
+        state: stopped ? 'stopped' : failed === mixedCampaign.posts.length ? 'failed' : 'completed',
+        percent: stopped ? ((completed + failed) / mixedCampaign.posts.length) * 100 : 100,
+        current: completed + failed,
+        total: mixedCampaign.posts.length,
+        completed,
+        failed,
+        message: stopped
+          ? 'Mixed campaign stopped safely.'
+          : failed
+            ? `Mixed campaign finished with ${failed} failed post${failed === 1 ? '' : 's'}.`
+            : timingMode === 'publish_now'
+              ? `${completed} campaign post${completed === 1 ? '' : 's'} accepted for publishing.`
+              : `${completed} campaign post${completed === 1 ? '' : 's'} scheduled in campaign order.`,
+      })
+      abortRef.current = null
+      await scheduler.refetch()
+      return
+    }
+
     if (contentMode === 'text') {
       const initialResults: UploadResult[] = captionBlocks.map((post, index) => ({
         id: `text:${index}:${crypto.randomUUID()}`,
