@@ -345,7 +345,10 @@ async function aiStudioPolicyStatus(req, res, next) {
             economyVideo: env.runware?.videoEconomyModel || null,
             video: env.runware?.videoModel || null,
             longVideo: env.runware?.videoLongModel || null,
-            ugc: env.runware?.ugcModel || null
+            ugcStandard: env.runware?.ugcStandardModel || null,
+            ugcPremium: env.runware?.ugcPremiumModel || null,
+            ugcLipSync: env.runware?.ugcLipSyncModel || null,
+            ugcTts: env.runware?.ugcTtsModel || null
           }
         },
         openMontage: {
