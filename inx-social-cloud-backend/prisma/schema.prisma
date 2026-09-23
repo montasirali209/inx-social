@@ -43,6 +43,7 @@ model User {
   socialConnections       SocialConnection[]
   socialProfiles          SocialProfile[]
   socialContents          SocialContent[]
+  aiPostCampaigns         AiPostCampaign[]
 
   @@index([status])
   @@index([role])
@@ -424,6 +425,52 @@ model SocialPublication {
   @@index([profileId, scheduledAt])
   @@index([platform, status])
   @@index([externalPostId])
+}
+
+model AiPostCampaign {
+  id             String   @id @default(cuid())
+  userId         String
+  title          String
+  businessUrl    String?
+  goal           String
+  audience       String?
+  tone           String?
+  contentMode    String   @default("TEXT")
+  platformsJson  String   @default("[]")
+  postCount      Int
+  status         String   @default("READY")
+  analysisJson   String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts AiPostCampaignPost[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+}
+
+model AiPostCampaignPost {
+  id             String   @id @default(cuid())
+  campaignId     String
+  sequence       Int
+  status         String   @default("READY")
+  title          String
+  pillar         String?
+  hook           String?
+  caption        String
+  cta            String?
+  hashtagsJson   String   @default("[]")
+  imageBrief     String?
+  mediaAssetId   String?
+  mediaAssetJson String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  campaign AiPostCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, sequence])
+  @@index([campaignId, status])
 }
 
 model BulkCancellationJob {
