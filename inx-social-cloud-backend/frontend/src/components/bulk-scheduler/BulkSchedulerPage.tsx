@@ -234,8 +234,10 @@ export function BulkSchedulerPage() {
   }, [running])
 
   const canUseFallback = contentMode === 'media' && captionBlocks.length > 0 && useFallback
-  const disabledReason = !selectedIds.size
-    ? 'Select at least one connected destination.'
+  const disabledReason = workspaceMode === 'campaign' && !mixedCampaign
+    ? 'Choose a saved AI campaign first.'
+    : !selectedIds.size
+      ? 'Select at least one connected destination.'
     : mixedCampaign && mixedTextPosts.length && !mixedTextDestinations.length
       ? 'This mixed campaign contains text-only posts. Select at least one destination that supports text posts, such as Facebook, X, LinkedIn, Threads or Bluesky.'
       : mixedCampaign && mixedImagePosts.some((post) => !post.media)
