@@ -106,17 +106,43 @@ test('sitemap exposes only canonical acquisition URLs with current modification 
 });
 
 
-test('AI Content Studio SEO uses the real product workspace', () => {
+test('all AI Content Studio SEO pages use one valid real workspace screenshot', () => {
   const page = readRepo('landing-next/app/seo/[slug]/page.tsx');
-  const fallback = readBackend('public/ai-social-media-tools.html');
+  const aiRoutes = [
+    'ai-social-media-tools',
+    'ai-social-media-campaign-generator',
+    'ai-social-media-post-generator',
+    'ai-carousel-post-generator',
+    'ai-video-post-generator',
+    'ai-ugc-ad-generator'
+  ];
 
-  assert.match(page, /"ai-social-media-tools": \{[\s\S]*?src: "\/assets\/ai-content-studio-seo\.webp"/);
+  for (const route of aiRoutes) {
+    assert.match(page, new RegExp(`"${route}"`));
+  }
+  assert.match(page, /const AI_CONTENT_STUDIO_SLUGS = new Set/);
+  assert.match(page, /src: "\/assets\/ai-content-studio-seo\.webp"/);
+  assert.match(page, /width: 700/);
+  assert.match(page, /height: 493/);
   assert.match(page, /Actual AI Content Studio workspace/);
-  assert.match(page, /INXSocial AI Content Studio showing Image Post, Carousel Post, Short Video \/ Reel, UGC Ad Studio and AI Post Campaign workflows/);
-  assert.match(fallback, /<link rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-tools">/);
-  assert.match(fallback, /<img src="\/assets\/ai-content-studio-seo\.webp" width="1400" height="986"/);
-});
 
+  for (const route of aiRoutes) {
+    const fallback = readBackend(`public/${route}.html`);
+    assert.match(fallback, /<img src="\/assets\/ai-content-studio-seo\.webp" width="700" height="493"/);
+  }
+
+  const binaryPaths = [
+    path.join(repoRoot, 'landing-next/public/assets/ai-content-studio-seo.webp'),
+    path.join(backendRoot, 'public/assets/ai-content-studio-seo.webp')
+  ];
+  for (const binaryPath of binaryPaths) {
+    const asset = fs.readFileSync(binaryPath);
+    assert.ok(asset.length > 8000, 'AI Content Studio screenshot should be a non-trivial binary asset');
+    assert.equal(asset.subarray(0, 4).toString('ascii'), 'RIFF');
+    assert.equal(asset.subarray(8, 12).toString('ascii'), 'WEBP');
+    assert.equal(asset.readUInt32LE(4) + 8, asset.length, 'WebP RIFF container size must match the committed file length');
+  }
+});
 test('marketing headers use one wordmark scale and keep mobile actions right-aligned', () => {
   const seoCss = readRepo('landing-next/app/seo/[slug]/seo-page.module.css');
   const landingCss = readRepo('landing-next/styles/landing-redesign.css');

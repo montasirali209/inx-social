@@ -26,25 +26,34 @@ const HERO_IMAGE_ALTS: Record<string, string> = {
   "social-media-content-calendar": "INXSocial social media planning workspace with scheduling and content activity",
   "social-media-analytics": "INXSocial social media analytics dashboard showing publishing activity, engagement and platform distribution",
   "ai-social-media-tools": "INXSocial AI Content Studio showing Image Post, Carousel Post, Short Video / Reel, UGC Ad Studio and AI Post Campaign workflows",
-  "ai-social-media-campaign-generator": "INXSocial AI campaign workflow for strategy, branded post generation and bulk scheduling",
-  "ai-social-media-post-generator": "INXSocial social media creation and publishing dashboard",
-  "ai-carousel-post-generator": "INXSocial workspace for carousel creation, social publishing and scheduling",
-  "ai-video-post-generator": "INXSocial workspace for short-form social video creation, scheduling and publishing",
-  "ai-ugc-ad-generator": "INXSocial social content workspace for UGC-style creative and campaign publishing",
+  "ai-social-media-campaign-generator": "INXSocial AI Content Studio showing the AI Post Campaign workflow alongside image, carousel, video and UGC creation tools",
+  "ai-social-media-post-generator": "INXSocial AI Content Studio showing social post creation workflows for image, carousel, video, UGC and campaigns",
+  "ai-carousel-post-generator": "INXSocial AI Content Studio showing Carousel Post alongside image, video, UGC and campaign creation workflows",
+  "ai-video-post-generator": "INXSocial AI Content Studio showing Short Video / Reel alongside image, carousel, UGC and campaign creation workflows",
+  "ai-ugc-ad-generator": "INXSocial AI Content Studio showing UGC Ad Studio alongside image, carousel, video and campaign creation workflows",
   pricing: "INXSocial dashboard included across social media management plans"
 };
 
-const HERO_IMAGE_OVERRIDES: Record<string, { src: string; width: number; height: number; label: string }> = {
-  "ai-social-media-tools": {
-    src: "/assets/ai-content-studio-seo.webp",
-    width: 1400,
-    height: 986,
-    label: "Actual AI Content Studio workspace"
-  }
-};
+const AI_CONTENT_STUDIO_SLUGS = new Set([
+  "ai-social-media-tools",
+  "ai-social-media-campaign-generator",
+  "ai-social-media-post-generator",
+  "ai-carousel-post-generator",
+  "ai-video-post-generator",
+  "ai-ugc-ad-generator"
+]);
 
 function getHeroImage(slug: string) {
-  return HERO_IMAGE_OVERRIDES[slug] ?? {
+  if (AI_CONTENT_STUDIO_SLUGS.has(slug)) {
+    return {
+      src: "/assets/ai-content-studio-seo.webp",
+      width: 700,
+      height: 493,
+      label: "Actual AI Content Studio workspace"
+    };
+  }
+
+  return {
     src: "/assets/landing-dashboard-20260919.webp",
     width: 1200,
     height: 675,
