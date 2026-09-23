@@ -126,6 +126,16 @@ function json(value) { return JSON.stringify(value ?? null); }
 function id() { return crypto.randomUUID(); }
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 function toNumber(value) { return value == null ? 0 : Number(value); }
+async function runLimited(items, limit, worker) {
+  let cursor = 0;
+  const runners = Array.from({ length: Math.max(1, Math.min(Number(limit) || 1, items.length || 1)) }, async () => {
+    while (cursor < items.length) {
+      const index = cursor++;
+      await worker(items[index], index);
+    }
+  });
+  await Promise.all(runners);
+}
 
 const avatarSeeds = [
   ["Maya","Lifestyle","Woman","25–34","en-GB","Pippa","warm British lifestyle creator, natural brown hair, contemporary casual clothing"],
@@ -1265,6 +1275,17 @@ async function persistFinalAsset(ad, data, providerCost) {
   return mediaLibrary.publicAsset(record);
 }
 
+async function updateGenerationProgress(generationId, progress, stage, metadata = {}) {
+  if (!generationId) return;
+  const safeProgress = Math.max(0, Math.min(99, Math.round(Number(progress) || 0)));
+  await prisma.$executeRawUnsafe(
+    'UPDATE "AiGeneration" SET "status"=\'PROCESSING\',"progress"=GREATEST("progress",$2),"responseJson"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+    generationId,
+    safeProgress,
+    json({ stage, ...metadata })
+  ).catch(() => {});
+}
+
 async function renderAd(adId) {
   const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCAd" WHERE "id"=$1 LIMIT 1', adId);
   const ad = rows[0];
@@ -1285,54 +1306,94 @@ async function renderAd(adId) {
     try { productReference = await productAssetDataUri(ad.userId, campaignProductIds[0]); } catch (_) {}
   }
   if (!productReference) productReference = await prepareVerticalBrandReference(brandRefs);
+
   let providerCost = 0;
+  const sceneProgress = scenes.map(scene => scene.status === 'READY' && scene.videoStorageKey ? 100 : 0);
+  const updateSceneProgress = async (index, localProgress, stage) => {
+    sceneProgress[index] = Math.max(sceneProgress[index] || 0, Math.max(0, Math.min(100, Number(localProgress) || 0)));
+    const average = sceneProgress.reduce((sum, value) => sum + value, 0) / Math.max(1, sceneProgress.length);
+    const overall = Math.max(3, Math.min(88, 3 + Math.round(average * 0.85)));
+    const readyScenes = sceneProgress.filter(value => value >= 100).length;
+    await updateGenerationProgress(ad.generationId, overall, stage, {
+      sceneSequence: scenes[index]?.sequence || index + 1,
+      sceneTotal: scenes.length,
+      readyScenes
+    });
+    await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id).catch(() => {});
+  };
+
   try {
-    for (let index = 0; index < scenes.length; index += 1) {
-      const scene = scenes[index];
-      if (scene.status === 'READY' && scene.videoStorageKey) continue;
+    await updateGenerationProgress(ad.generationId, 2, 'PREPARING', { sceneTotal: scenes.length, readyScenes: sceneProgress.filter(value => value >= 100).length });
+
+    await runLimited(scenes, 2, async (scene, index) => {
+      if (scene.status === 'READY' && scene.videoStorageKey) return;
+
       await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "status"=\'RENDERING\',"errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', scene.id);
+      await updateSceneProgress(index, 4, 'VOICE');
       const narration = await generateSceneNarration(scene, ad, avatar);
       providerCost += Number(narration?.cost || 0);
+
+      await updateSceneProgress(index, 10, 'VIDEO');
       const result = await renderProviderScene(scene, ad, avatar, productReference, narration, async progress => {
-        const overall = Math.round(((index + progress / 100) / Math.max(1, scenes.length)) * 85);
-        await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'PROCESSING\',"progress"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.generationId, Math.max(5, overall)).catch(() => {});
+        await updateSceneProgress(index, 10 + Number(progress || 0) * 0.62, 'VIDEO');
       });
+
       let finalVideoURL = result.item.videoURL;
       providerCost += Number(result.item.cost || 0);
+
       if (scene.kind === 'CREATOR' && narration?.audioURL) {
+        await updateSceneProgress(index, 74, 'LIP_SYNC');
         const synced = await applyCreatorLipSync(result.item.videoURL, narration, async progress => {
-          const overall = Math.round(((index + 0.7 + (progress / 100) * 0.25) / Math.max(1, scenes.length)) * 85);
-          await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'PROCESSING\',"progress"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.generationId, Math.max(5, Math.min(88, overall))).catch(() => {});
+          await updateSceneProgress(index, 74 + Number(progress || 0) * 0.18, 'LIP_SYNC');
         });
         if (synced?.item?.videoURL) {
           finalVideoURL = synced.item.videoURL;
           providerCost += Number(synced.item.cost || 0);
         }
       }
+
+      await updateSceneProgress(index, 93, 'VIDEO');
       const remote = await download(finalVideoURL, 120 * 1024 * 1024);
       let sceneVideo = remote.data;
       if (scene.kind !== 'CREATOR' && narration?.audioURL) {
         const audio = await download(narration.audioURL, 18 * 1024 * 1024);
         sceneVideo = await lockNarrationAudio(sceneVideo, audio.data, scene.duration);
       }
+
       const stored = await objectStorage.persistBuffer({ userId: ad.userId, data: sceneVideo, mimeType: 'video/mp4', originalName: 'ugc-scene-' + scene.id + '.mp4', prefix: 'ugc-video' });
       await prisma.$executeRawUnsafe(
         'UPDATE "UGCScene" SET "status"=\'READY\',"providerTaskUuid"=$2,"providerCostUsd"=$3,"model"=$4,"videoStorageProvider"=$5,"videoStorageKey"=$6,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
         scene.id, result.taskUUID, Number(result.item.cost || 0) + Number(narration?.cost || 0), result.model, stored.storageProvider, stored.storageKey
       );
-    }
+      await updateSceneProgress(index, 100, 'SCENE_READY');
+    });
+
     const readyScenes = await prisma.$queryRawUnsafe('SELECT * FROM "UGCScene" WHERE "adId"=$1 ORDER BY "sequence"', adId);
-    await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "progress"=90,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.generationId);
+    await updateGenerationProgress(ad.generationId, 90, 'ASSEMBLING', { sceneTotal: readyScenes.length, readyScenes: readyScenes.length });
     const finalVideo = await assembleVideo(ad, readyScenes);
+    await updateGenerationProgress(ad.generationId, 97, 'SAVING', { sceneTotal: readyScenes.length, readyScenes: readyScenes.length });
     const asset = await persistFinalAsset(ad, finalVideo, providerCost);
+
     await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'READY\',"mediaAssetId"=$2,"errorMessage"=NULL,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id, asset.id);
     await credits.complete(ad.userId, ad.generationId, generationCredits);
-    await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'COMPLETED\',"progress"=100,"providerCostUsd"=$2,"assetJson"=$3,"responseJson"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.generationId, providerCost, json({ id: asset.id, type: 'video', mediaLibraryAssetId: asset.id, url: asset.fileUrl, thumbnailUrl: asset.thumbnailUrl, creditsUsed: generationCredits }), json({ ugcAdId: ad.id, providerCostUsd: providerCost, creditsUsed: generationCredits }));
+    await prisma.$executeRawUnsafe(
+      'UPDATE "AiGeneration" SET "status"=\'COMPLETED\',"progress"=100,"providerCostUsd"=$2,"assetJson"=$3,"responseJson"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+      ad.generationId,
+      providerCost,
+      json({ id: asset.id, type: 'video', mediaLibraryAssetId: asset.id, url: asset.fileUrl, thumbnailUrl: asset.thumbnailUrl, creditsUsed: generationCredits }),
+      json({ stage: 'READY', ugcAdId: ad.id, providerCostUsd: providerCost, creditsUsed: generationCredits, sceneTotal: readyScenes.length, readyScenes: readyScenes.length })
+    );
   } catch (error) {
     console.error('[UGC RENDER FAILED]', { adId, code: error?.code, error: clean(error?.message, 700) });
     await credits.refund(ad.userId, ad.generationId, error?.code || 'ugc_render_failed').catch(() => false);
     await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'FAILED\',"errorMessage"=$2,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id, clean(error?.publicMessage || error?.message || 'UGC rendering failed.', 700)).catch(() => {});
-    await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'FAILED\',"errorCode"=$2,"errorMessage"=$3,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.generationId, clean(error?.code || 'UGC_RENDER_FAILED',120), clean(error?.publicMessage || error?.message,700)).catch(() => {});
+    await prisma.$executeRawUnsafe(
+      'UPDATE "AiGeneration" SET "status"=\'FAILED\',"progress"=100,"responseJson"=$2,"errorCode"=$3,"errorMessage"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+      ad.generationId,
+      json({ stage: 'FAILED', sceneTotal: scenes.length, readyScenes: sceneProgress.filter(value => value >= 100).length }),
+      clean(error?.code || 'UGC_RENDER_FAILED',120),
+      clean(error?.publicMessage || error?.message,700)
+    ).catch(() => {});
   } finally {
     await refreshCampaignStatus(ad.campaignId).catch(() => {});
   }
@@ -1378,9 +1439,10 @@ function queueRuntimeTick() { requestedTick = true; if (!runtimeBusy) setTimeout
 
 async function claimNextAd() {
   return prisma.$transaction(async tx => {
-    const rows = await tx.$queryRawUnsafe('SELECT "id" FROM "UGCAd" WHERE "status"=\'QUEUED\' ORDER BY "createdAt" FOR UPDATE SKIP LOCKED LIMIT 1');
+    const rows = await tx.$queryRawUnsafe('SELECT "id","campaignId" FROM "UGCAd" WHERE "status"=\'QUEUED\' ORDER BY "createdAt" FOR UPDATE SKIP LOCKED LIMIT 1');
     if (!rows[0]) return null;
     await tx.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'RENDERING\',"errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', rows[0].id);
+    await tx.$executeRawUnsafe('UPDATE "UGCCampaign" SET "status"=\'RENDERING\',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "status" NOT IN (\'READY\',\'PARTIAL\',\'FAILED\')', rows[0].campaignId);
     return rows[0].id;
   });
 }
@@ -1389,13 +1451,8 @@ async function runtimeTick() {
   if (runtimeBusy) { requestedTick = true; return; }
   runtimeBusy = true; requestedTick = false;
   try {
-    const claimed = [];
-    for (let i=0; i<2; i+=1) {
-      const adId = await claimNextAd();
-      if (!adId) break;
-      claimed.push(adId);
-    }
-    await Promise.all(claimed.map(renderAd));
+    const adId = await claimNextAd();
+    if (adId) await renderAd(adId);
   } catch (error) {
     console.error('[UGC RUNTIME]', clean(error?.message, 700));
   } finally {
@@ -1499,5 +1556,5 @@ module.exports = {
   generateCustomAvatar, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,
   uploadProductAsset, getProductAssetContent,
   listSampleVideos, uploadSampleVideo, getSampleVideoContent,
-  listMusicTracks, startUGCStudioRuntime, ensureSystemAvatars
+  listMusicTracks, startUGCStudioRuntime, ensureSystemAvatars, generationStagePayload, updateGenerationProgress, runLimited
 };
