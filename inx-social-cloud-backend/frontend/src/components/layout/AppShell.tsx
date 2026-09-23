@@ -46,11 +46,11 @@ function AppShellContent() {
         Skip to content
       </a>
       <Sidebar overview={overview.data} />
-      <div className="min-w-0 md:pl-[88px] xl:pl-[264px]">
+      <div className="min-w-0 lg:pl-[88px] xl:pl-[264px]">
         <Topbar overview={overview.data} />
-        <main className="workspace-frame min-w-0 p-2.5 sm:p-4 lg:p-5 xl:p-6" id="main-content">
-          <div aria-hidden={!bulkRoute} className={bulkRoute ? 'route-stage min-w-0' : 'hidden'} style={{ animationDuration: '160ms' }}><BulkSchedulerPage /></div>
-          {!bulkRoute && <div className="route-stage min-w-0" key={location.pathname} style={{ animationDuration: '160ms' }}><Outlet /></div>}
+        <main className="workspace-frame min-w-0 overflow-x-hidden p-2.5 sm:p-4 lg:p-5 xl:p-6" id="main-content">
+          <div aria-hidden={!bulkRoute} className={bulkRoute ? 'route-stage mobile-route-safe min-w-0' : 'hidden'} style={{ animationDuration: '160ms' }}><BulkSchedulerPage /></div>
+          {!bulkRoute && <div className="route-stage mobile-route-safe min-w-0" key={location.pathname} style={{ animationDuration: '160ms' }}><Outlet /></div>}
         </main>
       </div>
       <BulkRunDock />
