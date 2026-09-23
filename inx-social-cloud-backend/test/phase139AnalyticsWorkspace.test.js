@@ -114,7 +114,7 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(page, /\(sources\.isLoading \|\| analytics\.isLoading\) && !view && <AnalyticsKpiSkeleton/);
   assert.match(page, /refetchInterval: 5 \* 60_000/);
   assert.match(page, /states\.includes\('refreshing'\)/);
-  assert.match(page, /return 8_000/);
+  assert.match(page, /return 3_000/);
   assert.match(page, /states\.includes\('partial'\)/);
   assert.match(page, /return 30_000/);
   assert.match(page, /states\.includes\('stale'\)/);
