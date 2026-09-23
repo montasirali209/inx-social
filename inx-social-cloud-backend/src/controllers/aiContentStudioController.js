@@ -69,10 +69,14 @@ const campaignSchema = z.object({
   businessUrl: z.string().trim().max(2000).optional().default(''),
   goal: z.string().trim().min(8).max(1600),
   audience: z.string().trim().max(600).optional().default(''),
-  tone: z.string().trim().max(120).optional().default('Clear, human and credible'),
-  contentMode: z.enum(['TEXT', 'IMAGE']).default('TEXT'),
-  platforms: z.array(z.string().trim().min(1).max(80)).min(1).max(8),
-  postCount: z.number().int().min(10).max(30)
+  contentMode: z.enum(['TEXT', 'IMAGE', 'MIXED']).default('TEXT'),
+  platforms: z.array(z.string().trim().min(1).max(80)).min(1).max(9),
+  postCount: z.number().int().min(10).max(30),
+  imagePostCount: z.number().int().min(0).max(30).optional().default(0)
+}).superRefine((value, context) => {
+  if (value.contentMode === 'MIXED' && (value.imagePostCount < 1 || value.imagePostCount >= value.postCount)) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['imagePostCount'], message: 'Mixed campaigns need at least one image post and one text post.' });
+  }
 });
 
 const campaignPostSchema = z.object({
