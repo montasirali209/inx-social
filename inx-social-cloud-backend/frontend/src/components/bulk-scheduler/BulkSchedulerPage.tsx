@@ -98,6 +98,8 @@ export function BulkSchedulerPage() {
   const importedLibrarySelection = useRef('')
   const importedCampaignSelection = useRef('')
   const importedMixedCampaignSelection = useRef('')
+  const importedPersistentCampaignSelection = useRef('')
+  const restoredCampaignSelection = useRef(false)
   const destinationSection = useRef<HTMLDivElement>(null)
   const batchRunSection = useRef<HTMLDivElement>(null)
   const running = ['preparing', 'uploading', 'scheduling'].includes(progress.state)
@@ -273,6 +275,41 @@ export function BulkSchedulerPage() {
     const rejected = files.length - valid.length
     setProgress(rejected ? { ...idleProgress, state: 'failed', message: `${rejected} unsupported, empty or oversized file${rejected === 1 ? ' was' : 's were'} not added. Images may be PNG, JPEG or WebP up to 15 MB; videos may be MP4, MOV or WebM.` } : idleProgress)
   }
+
+  useEffect(() => {
+    const state = location.state as { aiCampaignId?: string } | null
+    const campaignId = state?.aiCampaignId
+    if (!campaignId) return
+    const fingerprint = `${campaignId}:${location.key}`
+    if (importedPersistentCampaignSelection.current === fingerprint) return
+    importedPersistentCampaignSelection.current = fingerprint
+    setWorkspaceMode('campaign')
+    setProgress({ ...idleProgress, state: 'preparing', message: 'Loading saved AI campaign…' })
+
+    void getAIPostCampaign(campaignId)
+      .then((campaign) => loadSavedCampaign(campaign))
+      .catch((error) => {
+        importedPersistentCampaignSelection.current = ''
+        setProgress({ ...idleProgress, state: 'failed', message: error instanceof Error ? error.message : 'The AI campaign could not be loaded.' })
+      })
+  }, [location.state, location.key, loadSavedCampaign])
+
+  useEffect(() => {
+    if (restoredCampaignSelection.current || mixedCampaign || !campaignsQuery.data) return
+    restoredCampaignSelection.current = true
+    const campaignId = window.localStorage.getItem(ACTIVE_AI_CAMPAIGN_KEY)
+    if (!campaignId) return
+    const campaign = campaignsQuery.data.find((item) => item.id === campaignId)
+    if (!campaign) {
+      window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
+      return
+    }
+    setWorkspaceMode('campaign')
+    void loadSavedCampaign(campaign).catch((error) => {
+      window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
+      setProgress({ ...idleProgress, state: 'failed', message: error instanceof Error ? error.message : 'The saved AI campaign could not be restored.' })
+    })
+  }, [campaignsQuery.data, loadSavedCampaign, mixedCampaign])
 
   useEffect(() => {
     const state = location.state as { aiPostCampaign?: { id: string; title: string; contentMode: 'TEXT'; captions: string[] } } | null
