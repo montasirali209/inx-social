@@ -223,7 +223,8 @@ test('campaign posts have no user-facing title field and publish hook then body'
   const campaignPostType = types.match(/export type AIPostCampaignPost = \{[\s\S]*?\n\}/)?.[0] || '';
   assert.doesNotMatch(campaignPostType, /\btitle:/);
 
-  assert.match(modal, /post\.hook\?\.trim\(\), postBodyPreview\(post\)/);
+  assert.match(modal, /postBodyPreview\(post\)/);
+  assert.match(modal, /post\.hook && <p/);
   assert.match(bulk, /post\.hook\?\.trim\(\), post\.caption\.trim\(\), post\.cta\?\.trim\(\), tags/);
 });
 
