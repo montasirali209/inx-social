@@ -114,6 +114,14 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
     imagePostCount: 5,
   })
 
+  const imageCount = form.contentMode === 'TEXT'
+    ? 0
+    : form.contentMode === 'IMAGE'
+      ? form.postCount
+      : Math.max(1, Math.min(form.postCount - 1, Number(form.imagePostCount || Math.round(form.postCount / 2))))
+  const textCount = form.postCount - imageCount
+  const canCreate = form.goal.trim().length >= 8 && form.platforms.length > 0 && !creating
+
   useEffect(() => {
     if (!open) return
     void getAIPostCampaigns(10)
@@ -128,14 +136,6 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
     }, 3600)
     return () => window.clearInterval(timer)
   }, [creating, imageCount])
-
-  const imageCount = form.contentMode === 'TEXT'
-    ? 0
-    : form.contentMode === 'IMAGE'
-      ? form.postCount
-      : Math.max(1, Math.min(form.postCount - 1, Number(form.imagePostCount || Math.round(form.postCount / 2))))
-  const textCount = form.postCount - imageCount
-  const canCreate = form.goal.trim().length >= 8 && form.platforms.length > 0 && !creating
 
   const campaignImagePosts = selectedCampaign?.posts.filter((post) => post.contentType === 'IMAGE') || []
   const campaignTextPosts = selectedCampaign?.posts.filter((post) => post.contentType === 'TEXT') || []
