@@ -12,7 +12,7 @@ test('AI Campaign uses one visual builder with text, image and mixed modes', () 
   const types = read('frontend/src/types/ai-content-studio.ts');
 
   assert.match(page, /AiPostCampaignModal/);
-  assert.match(page, /aiMixedCampaign/);
+  assert.match(page, /aiCampaignId/);
 
   assert.match(modal, /Text Post Only/);
   assert.match(modal, /Image Post Only/);
@@ -75,15 +75,18 @@ test('campaign output is constrained for readability and platform fit', () => {
   assert.match(service, /do not write feature-list essays/i);
 });
 
-test('mixed campaign handoff preserves post order and routes text/media correctly', () => {
+test('AI campaign handoff is persistent and Bulk Scheduler can reopen saved mixed campaigns', () => {
   const page = read('frontend/src/components/ai-content-studio/AiContentStudioPage.tsx');
   const bulk = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
   const panel = read('frontend/src/components/bulk-scheduler/UploadBatchPanel.tsx');
 
-  assert.match(page, /aiMixedCampaign/);
-  assert.match(page, /contentType: post\.contentType/);
-  assert.match(page, /mediaLibraryAssets: assets/);
+  assert.match(page, /aiCampaignId: campaign\.id/);
+  assert.match(page, /navigate\('\/bulk-scheduler'/);
 
+  assert.match(bulk, /ACTIVE_AI_CAMPAIGN_KEY/);
+  assert.match(bulk, /getAIPostCampaigns/);
+  assert.match(bulk, /getAIPostCampaign/);
+  assert.match(bulk, /loadSavedCampaign/);
   assert.match(bulk, /ImportedMixedCampaignItem/);
   assert.match(bulk, /mixedCampaign/);
   assert.match(bulk, /mixedTextDestinations/);
@@ -91,11 +94,24 @@ test('mixed campaign handoff preserves post order and routes text/media correctl
   assert.match(bulk, /ai-mixed-text-/);
   assert.match(bulk, /ai-mixed-image-/);
   assert.match(bulk, /publishBulkLibraryMedia/);
-  assert.match(bulk, /in campaign order/);
+  assert.match(bulk, /localStorage\.setItem\(ACTIVE_AI_CAMPAIGN_KEY/);
 
-  assert.match(panel, /AI campaign batch/);
-  assert.match(panel, /campaignImport/);
+  assert.match(panel, /AI Campaign/);
+  assert.match(panel, /AI Campaign Library/);
+  assert.match(panel, /Choose a saved campaign/);
+  assert.match(panel, /Create AI Campaign/);
+  assert.match(panel, /campaignImport\.posts\.map/);
   assert.match(panel, /Schedule AI Campaign/);
+});
+
+test('campaign images open in a full-size preview', () => {
+  const modal = read('frontend/src/components/ai-content-studio/AiPostCampaignModal.tsx');
+
+  assert.match(modal, /imagePreview/);
+  assert.match(modal, /Open full image for post/);
+  assert.match(modal, /View full image/);
+  assert.match(modal, /Campaign image preview/);
+  assert.match(modal, /max-h-\[72dvh\]/);
 });
 
 
