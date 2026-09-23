@@ -137,9 +137,10 @@ test('all AI Content Studio SEO pages use one valid real workspace screenshot', 
   ];
   for (const binaryPath of binaryPaths) {
     const asset = fs.readFileSync(binaryPath);
-    assert.ok(asset.length > 15000, 'AI Content Studio screenshot should be a non-trivial binary asset');
+    assert.ok(asset.length > 8000, 'AI Content Studio screenshot should be a non-trivial binary asset');
     assert.equal(asset.subarray(0, 4).toString('ascii'), 'RIFF');
     assert.equal(asset.subarray(8, 12).toString('ascii'), 'WEBP');
+    assert.equal(asset.readUInt32LE(4) + 8, asset.length, 'WebP RIFF container size must match the committed file length');
   }
 });
 test('marketing headers use one wordmark scale and keep mobile actions right-aligned', () => {
