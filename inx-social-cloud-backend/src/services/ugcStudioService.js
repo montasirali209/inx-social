@@ -1279,7 +1279,7 @@ async function updateGenerationProgress(generationId, progress, stage, metadata 
   if (!generationId) return;
   const safeProgress = Math.max(0, Math.min(99, Math.round(Number(progress) || 0)));
   await prisma.$executeRawUnsafe(
-    'UPDATE "AiGeneration" SET "status"=\'PROCESSING\',"progress"=GREATEST("progress",$2),"responseJson"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+    'UPDATE "AiGeneration" SET "status"=\'PROCESSING\',"responseJson"=CASE WHEN $2 >= "progress" THEN $3 ELSE "responseJson" END,"progress"=GREATEST("progress",$2),"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
     generationId,
     safeProgress,
     json({ stage, ...metadata })
