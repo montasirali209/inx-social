@@ -186,3 +186,18 @@ test('UGC wizard and home workspace display live progress stages', () => {
   assert.match(home, /campaignProgress/);
   assert.match(home, /activeAd\?\.stageLabel/);
 });
+
+
+test('UGC runtime continuously recovers renders whose worker heartbeat is lost', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.resolve(__dirname, '..');
+  const service = fs.readFileSync(path.join(root, 'src/services/ugcStudioService.js'), 'utf8');
+  const { UGC_RENDER_STALE_MS } = require('../src/services/ugcStudioService');
+
+  assert.equal(UGC_RENDER_STALE_MS, 5 * 60 * 1000);
+  assert.match(service, /recoverStaleUGCRenders\(false\)/);
+  assert.match(service, /recoverStaleUGCRenders\(true\)/);
+  assert.match(service, /lost worker heartbeat/);
+  assert.match(service, /RETURNING "id"/);
+});

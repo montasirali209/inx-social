@@ -1435,7 +1435,23 @@ async function refreshCampaignStatus(campaignId) {
 let runtimeTimer = null;
 let runtimeBusy = false;
 let requestedTick = false;
+let lastRecoveryAt = 0;
+const UGC_RENDER_STALE_MS = 5 * 60 * 1000;
 function queueRuntimeTick() { requestedTick = true; if (!runtimeBusy) setTimeout(() => void runtimeTick(), 50).unref?.(); }
+
+async function recoverStaleUGCRenders(force = false) {
+  const now = Date.now();
+  if (!force && now - lastRecoveryAt < 60_000) return 0;
+  lastRecoveryAt = now;
+  const recovered = await prisma.$queryRawUnsafe(
+    'UPDATE "UGCAd" SET "status"=\'QUEUED\',"updatedAt"=CURRENT_TIMESTAMP WHERE "status"=\'RENDERING\' AND "updatedAt" < CURRENT_TIMESTAMP - ($1::int * INTERVAL \'1 millisecond\') RETURNING "id"',
+    UGC_RENDER_STALE_MS
+  );
+  if (recovered.length) {
+    console.warn('[UGC RECOVERY]', 'Re-queued ' + recovered.length + ' stale render' + (recovered.length === 1 ? '' : 's') + ' after lost worker heartbeat.');
+  }
+  return recovered.length;
+}
 
 async function claimNextAd() {
   return prisma.$transaction(async tx => {
@@ -1451,6 +1467,7 @@ async function runtimeTick() {
   if (runtimeBusy) { requestedTick = true; return; }
   runtimeBusy = true; requestedTick = false;
   try {
+    await recoverStaleUGCRenders(false);
     const adId = await claimNextAd();
     if (adId) await renderAd(adId);
   } catch (error) {
@@ -1466,7 +1483,9 @@ function startUGCStudioRuntime() {
   void ensureSystemAvatars()
     .then(() => warmSystemAvatarReferences())
     .catch(error => console.error('[UGC AVATAR SEED]', clean(error?.message, 700)));
-  void prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'QUEUED\',"updatedAt"=CURRENT_TIMESTAMP WHERE "status"=\'RENDERING\' AND "updatedAt" < CURRENT_TIMESTAMP - INTERVAL \'30 minutes\'').then(() => queueRuntimeTick()).catch(error => console.error('[UGC RECOVERY]', clean(error?.message, 700)));
+  void recoverStaleUGCRenders(true)
+    .then(() => queueRuntimeTick())
+    .catch(error => console.error('[UGC RECOVERY]', clean(error?.message, 700)));
   runtimeTimer = setInterval(() => void runtimeTick(), 5000);
   runtimeTimer.unref?.();
 }
@@ -1556,5 +1575,5 @@ module.exports = {
   generateCustomAvatar, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,
   uploadProductAsset, getProductAssetContent,
   listSampleVideos, uploadSampleVideo, getSampleVideoContent,
-  listMusicTracks, startUGCStudioRuntime, ensureSystemAvatars, generationStagePayload, updateGenerationProgress, runLimited
+  listMusicTracks, startUGCStudioRuntime, ensureSystemAvatars, generationStagePayload, updateGenerationProgress, runLimited, recoverStaleUGCRenders, UGC_RENDER_STALE_MS
 };
