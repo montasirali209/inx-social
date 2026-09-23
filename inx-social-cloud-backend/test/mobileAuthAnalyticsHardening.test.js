@@ -24,7 +24,7 @@ test('YouTube analytics uses Post for Me feed metrics without local OAuth token 
   assert.match(service, /subscribersGained/);
   assert.match(service, /subscribersLost/);
   assert.match(service, /social-account-feeds/);
-  assert.match(service, /params\.append\('expand', 'metrics'\)/);
+  assert.match(service, /params\.set\('expand', 'metrics'\)/);
   assert.doesNotMatch(controller, /ensureFreshYouTubeToken|forceRefreshYouTubeToken/);
 });
 
