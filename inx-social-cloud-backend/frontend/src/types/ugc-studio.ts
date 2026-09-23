@@ -99,6 +99,14 @@ export type UGCAd = {
   quality: UGCQuality
   credits: number
   generationId: string | null
+  generationStatus: string
+  progress: number
+  stage: string
+  stageLabel: string
+  stageDetail: string
+  readyScenes: number
+  sceneCount: number
+  progressUpdatedAt: string | null
   mediaAssetId: string | null
   musicMode: 'AUTO' | 'NONE'
   captionsEnabled: boolean

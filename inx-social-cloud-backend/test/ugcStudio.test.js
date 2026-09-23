@@ -93,14 +93,17 @@ test('UGC captions emit valid SRT timestamp rows', () => {
 });
 
 
-test('UGC website analysis accepts a bare domain without requiring protocol or www', () => {
+test('UGC website analysis accepts bare domains and tries both apex and www safely', () => {
   const fs = require('node:fs');
   const path = require('node:path');
   const root = path.resolve(__dirname, '..');
   const service = fs.readFileSync(path.join(root, 'src/services/ugcStudioService.js'), 'utf8');
   const wizard = fs.readFileSync(path.join(root, 'frontend/src/components/ai-content-studio/UGCWizardModal.tsx'), 'utf8');
+  const { brandUrlCandidates } = require('../src/services/ugcStudioService');
 
-  assert.match(service, /raw \? 'https:\/\/' \+ raw : ''/);
+  assert.deepEqual(brandUrlCandidates('inxsocial.co.uk'), ['https://inxsocial.co.uk/', 'https://www.inxsocial.co.uk/']);
+  assert.deepEqual(brandUrlCandidates('www.inxsocial.co.uk'), ['https://www.inxsocial.co.uk/', 'https://inxsocial.co.uk/']);
+  assert.match(service, /for \(const candidate of candidates\)/);
   assert.match(wizard, /yourbrand\.com/);
   assert.doesNotMatch(wizard, /placeholder=\{sourceType === 'PRODUCT' \? 'https:\/\/shop\.com\/product'/);
 });
@@ -138,4 +141,48 @@ test('UGC editor treats rendered-video finishing controls as regeneration-impact
   assert.match(service, /syncReadyAssetMetadata/);
   assert.match(service, /UPDATE "AgentAsset" SET "generationChoice"/);
   assert.match(editor, /invalidateQueries\(\{ queryKey: \['media-library'\] \}\)/);
+});
+
+
+test('UGC live progress exposes real generation stages instead of completion-only progress', () => {
+  const { generationStagePayload } = require('../src/services/ugcStudioService');
+  const rendering = generationStagePayload(
+    { status: 'RENDERING', updatedAt: new Date() },
+    [{ status: 'READY' }, { status: 'RENDERING' }, { status: 'QUEUED' }],
+    { status: 'PROCESSING', progress: 47, responseJson: JSON.stringify({ stage: 'LIP_SYNC', sceneSequence: 2, sceneTotal: 3 }), updatedAt: new Date() },
+  );
+  assert.equal(rendering.progress, 47);
+  assert.equal(rendering.stage, 'LIP_SYNC');
+  assert.equal(rendering.stageLabel, 'Lip-syncing creator');
+  assert.equal(rendering.readyScenes, 1);
+  assert.equal(rendering.sceneCount, 3);
+  assert.match(rendering.stageDetail, /scene 2 of 3/i);
+
+  const ready = generationStagePayload({ status: 'READY' }, [{ status: 'READY' }], { progress: 88, responseJson: '{}' });
+  assert.equal(ready.progress, 100);
+  assert.equal(ready.stage, 'READY');
+});
+
+test('UGC runtime renders two scenes concurrently while keeping one ad active globally', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.resolve(__dirname, '..');
+  const service = fs.readFileSync(path.join(root, 'src/services/ugcStudioService.js'), 'utf8');
+  assert.match(service, /await runLimited\(scenes, 2,/);
+  assert.match(service, /const adId = await claimNextAd\(\)/);
+  assert.doesNotMatch(service, /for \(let i=0; i<2; i\+=1\)[\s\S]{0,180}claimNextAd/);
+  assert.match(service, /UGCCampaign[\s\S]{0,180}RENDERING/);
+});
+
+test('UGC wizard and home workspace display live progress stages', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.resolve(__dirname, '..');
+  const wizard = fs.readFileSync(path.join(root, 'frontend/src/components/ai-content-studio/UGCWizardModal.tsx'), 'utf8');
+  const home = fs.readFileSync(path.join(root, 'frontend/src/components/ai-content-studio/UGCStudioHomeModal.tsx'), 'utf8');
+
+  assert.match(wizard, /activeAd\?\.stageLabel/);
+  assert.match(wizard, /ad\.progress/);
+  assert.match(home, /campaignProgress/);
+  assert.match(home, /activeAd\?\.stageLabel/);
 });

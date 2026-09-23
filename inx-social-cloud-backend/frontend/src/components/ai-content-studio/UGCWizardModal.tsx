@@ -296,9 +296,13 @@ export function UGCWizardModal({
     'Use specific verified benefits instead of generic marketing language.',
     'Finish with one simple next action and keep the delivery conversational.',
   ]
-  const readyAds = campaign.data?.ads.filter((ad) => ad.status === 'READY').length || 0
-  const failedAds = campaign.data?.ads.filter((ad) => ad.status === 'FAILED').length || 0
-  const progress = campaign.data?.ads.length ? Math.round(((readyAds + failedAds) / campaign.data.ads.length) * 100) : 0
+  const campaignAds = campaign.data?.ads || []
+  const readyAds = campaignAds.filter((ad) => ad.status === 'READY').length
+  const failedAds = campaignAds.filter((ad) => ad.status === 'FAILED').length
+  const progress = campaignAds.length ? Math.round(campaignAds.reduce((sum, ad) => sum + Number(ad.progress || 0), 0) / campaignAds.length) : 0
+  const activeAd = campaignAds.find((ad) => busyStatuses.has(ad.status))
+  const activeStage = activeAd?.stageLabel || (terminal.has(campaign.data?.status || '') ? 'Finished' : 'Starting render')
+  const activeDetail = activeAd?.stageDetail || (activeAd ? `${activeAd.progress}% complete` : '')
   const remaining = overview.data?.credits.remaining ?? 0
   const insufficient = Boolean(estimate.data && remaining < estimate.data.credits)
 
@@ -383,8 +387,12 @@ export function UGCWizardModal({
 
             {currentKey === 'finish' && <>
               <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><Sparkles className="size-5" /></span><div><h2>{terminal.has(campaign.data?.status || '') ? 'Your UGC campaign is ready.' : 'Your UGC campaign is rendering.'}</h2><p>{terminal.has(campaign.data?.status || '') ? 'Edit a finished ad or send the ready videos straight to the scheduler.' : 'Go back to UGC Studio whenever you want. The campaign keeps rendering in the background and will appear there automatically.'}</p></div></div>
-              <div className="ugc-wizard-generation mt-7"><div className="flex items-center justify-between gap-3"><div><strong>{campaign.data?.title || 'UGC campaign'}</strong><span>{readyAds} of {campaign.data?.ads.length || adCount} ready{failedAds ? ` · ${failedAds} failed` : ''}</span></div><span className="ugc-wizard-status">{campaign.data?.status?.replaceAll('_',' ') || 'STARTING'}</span></div><div className="ugc-wizard-generation-bar"><span style={{ width: `${Math.max(4,progress)}%` }} /></div></div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">{(campaign.data?.ads || []).map((ad) => <article className="ugc-wizard-output-card" key={ad.id}><div><span className="ugc-wizard-mini-label">VARIATION {ad.sequence}</span><strong>{ad.title}</strong><p>{ad.hook || ad.angle}</p></div><div className="flex items-center justify-between gap-2"><span className={`ugc-wizard-output-status ${ad.status.toLowerCase()}`}>{ad.status}</span><Button disabled={busyStatuses.has(ad.status)} onClick={() => { onClose(); navigate(`/ai-content-studio/ugc/${ad.id}/edit`) }} size="sm">Edit</Button></div></article>)}</div>
+              <div className="ugc-wizard-generation mt-7">
+                <div className="flex items-center justify-between gap-3"><div><strong>{campaign.data?.title || 'UGC campaign'}</strong><span>{readyAds} of {campaignAds.length || adCount} ready{failedAds ? ` · ${failedAds} failed` : ''}</span></div><span className="ugc-wizard-status">{progress}%</span></div>
+                {!terminal.has(campaign.data?.status || '') && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10px]"><strong className="text-brand-cyan">{activeStage}</strong><span className="text-text-muted">{activeDetail}</span></div>}
+                <div className="ugc-wizard-generation-bar"><span style={{ width: `${Math.max(4,progress)}%` }} /></div>
+              </div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">{campaignAds.map((ad) => <article className="ugc-wizard-output-card" key={ad.id}><div><span className="ugc-wizard-mini-label">VARIATION {ad.sequence}</span><strong>{ad.title}</strong><p>{ad.hook || ad.angle}</p>{busyStatuses.has(ad.status) && <p className="mt-2 text-[9px] text-brand-cyan">{ad.stageLabel} · {ad.progress}%{ad.stageDetail ? ` · ${ad.stageDetail}` : ''}</p>}</div><div className="flex items-center justify-between gap-2"><span className={`ugc-wizard-output-status ${ad.status.toLowerCase()}`}>{ad.status}</span><Button disabled={busyStatuses.has(ad.status)} onClick={() => { onClose(); navigate(`/ai-content-studio/ugc/${ad.id}/edit`) }} size="sm">Edit</Button></div></article>)}</div>
               <div className="ugc-wizard-footer"><Button onClick={onBackToHome}><ArrowLeft className="size-4" />Back to UGC Studio</Button><Button disabled={!campaign.data?.ads.some((ad) => ad.status === 'READY' && ad.mediaAssetId && assetsById.has(ad.mediaAssetId))} onClick={scheduleReady} variant="primary"><CalendarRange className="size-4" />Schedule ready ads</Button></div>
             </>}
           </div>
