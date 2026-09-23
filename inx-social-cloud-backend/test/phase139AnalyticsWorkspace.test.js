@@ -124,6 +124,9 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(page, /Connected\. Performance metrics are syncing\./);
   assert.match(page, /No zero-filled analytics/);
   assert.match(page, /Review connection/);
+  assert.match(page, /Connection active\. Content feed needs attention\./);
+  assert.match(page, /Reconnect Facebook/);
+  assert.match(page, /connectPostForMePlatform\('facebook'\)/);
   assert.match(page, /readSessionCache/);
   assert.match(page, /writeSessionCache/);
   assert.match(insights, /Content Efficiency/);

@@ -3,6 +3,7 @@ import { AlertTriangle, CalendarDays, CheckCircle2, Clock3, FileText, Radio, Ref
 import { useMemo, useState } from 'react'
 import { buildAnalyticsView } from '../../data/analyticsData'
 import { fetchAnalyticsForSource, fetchAnalyticsSources, mergeAnalyticsResults, type AnalyticsSourceAccount } from '../../lib/analytics-api'
+import { connectPostForMePlatform } from '../../lib/connections-api'
 import { readSessionCache, writeSessionCache } from '../../lib/session-cache'
 import type { AnalyticsTab } from '../../types/analytics'
 import type { Platform, PlatformAnalytics } from '../../types/dashboard'
@@ -98,6 +99,7 @@ export function AnalyticsPage() {
   const [days, setDays] = useState(30)
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('overview')
   const [manualRefreshing, setManualRefreshing] = useState(false)
+  const [reconnecting, setReconnecting] = useState(false)
 
   const sources = useQuery({
     queryKey: ['analytics-sources', 'post-for-me'],
@@ -194,6 +196,19 @@ export function AnalyticsPage() {
     }
   }
 
+  async function reconnectFacebookAnalytics() {
+    if (reconnecting) return
+    setReconnecting(true)
+    try {
+      await connectPostForMePlatform('facebook')
+      await sources.refetch()
+      const result = await loadAnalytics(true)
+      queryClient.setQueryData<LiveAnalyticsData>(analyticsQueryKey, result)
+    } finally {
+      setReconnecting(false)
+    }
+  }
+
   if (!sources.isLoading && !accounts.length) return <div className="grid min-h-[55vh] place-items-center rounded-panel border border-border-soft bg-panel/70 p-8 text-center"><span><AlertTriangle className="mx-auto size-9 text-brand-amber" /><h2 className="mt-4 text-lg font-semibold">Connect an account to unlock Analytics</h2><p className="mx-auto mt-2 max-w-md text-sm text-text-muted">Connect any supported social network to view live content performance and engagement metrics.</p><a className="mt-5 inline-flex min-h-10 items-center rounded-xl bg-brand-teal px-4 text-sm font-semibold text-white" href="/app/connected-accounts">Manage connected accounts</a></span></div>
 
   const selectorAccounts = accounts as unknown as AnalyticsAccount[]
@@ -207,7 +222,8 @@ export function AnalyticsPage() {
   const connectedFeedPosts = Number(view?.source.provider?.feedPosts ?? view?.source.content.length ?? 0)
   const periodPosts = Number(view?.source.provider?.periodPosts ?? view?.source.summary.posts ?? 0)
   const measuredPosts = Number(view?.source.provider?.postsWithMetrics || 0)
-  const reconnectHint = Boolean(singleSource?.platform === 'facebook' && connectedFeedPosts > 0 && measuredPosts === 0)
+  const feedAvailable = connectedFeedPosts > 0
+  const reconnectHint = Boolean(singleSource?.platform === 'facebook' && measuredPosts === 0)
 
   const syncLabel = analytics.isFetching || manualRefreshing
     ? `Checking latest · Last sync ${lastUpdated || 'Waiting'}`
@@ -243,19 +259,22 @@ export function AnalyticsPage() {
             <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-brand-amber/25 bg-brand-amber/10 text-brand-amber"><ShieldCheck className="size-5" /></span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-semibold tracking-tight text-text-main">Connected. Performance metrics are syncing.</h2>
+                <h2 className="text-base font-semibold tracking-tight text-text-main">{feedAvailable ? 'Connected. Performance metrics are syncing.' : 'Connection active. Content feed needs attention.'}</h2>
                 <span className="rounded-full border border-brand-amber/25 bg-brand-amber/8 px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-brand-amber">Metrics pending</span>
               </div>
               <p className="mt-2 max-w-3xl text-xs leading-5 text-text-muted">
-                INXSocial can read the connected content for {sourceName}, but the provider has not returned verified performance metrics for this connection yet. We now keep this state separate from real zero performance and retry it automatically.
+                {feedAvailable
+                  ? <>INXSocial can read the connected content for {sourceName}, but the provider has not returned verified performance metrics for this connection yet. We keep this state separate from real zero performance and retry it automatically.</>
+                  : <>The social account is connected, but its provider feed returned no posts to INXSocial. Without feed items there is nothing reliable to measure, so the dashboard now shows a recovery state instead of fake zero analytics.</>}
               </p>
-              {reconnectHint && <p className="mt-2 max-w-3xl text-[11px] leading-5 text-text-soft">If this Facebook connection was created before Analytics access was enabled, use <strong className="text-text-muted">Review connection</strong> and reconnect it once so Facebook can grant the current Insights permission.</p>}
+              {reconnectHint && <p className="mt-2 max-w-3xl text-[11px] leading-5 text-text-soft">{feedAvailable ? 'If this is an older Facebook connection, reconnect it once so Facebook can grant the current Insights permission.' : 'For Facebook, this commonly means the existing OAuth connection needs the current feed/Insights permission. Reconnect once, then INXSocial will immediately resync the feed and metrics.'}</p>}
             </div>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
             <button className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-brand-cyan/30 bg-brand-cyan/10 px-4 text-xs font-semibold text-brand-cyan transition hover:bg-brand-cyan/15 disabled:cursor-wait disabled:opacity-60" disabled={manualRefreshing || analytics.isFetching} onClick={() => void refreshAnalyticsNow()} type="button"><RefreshCw className={`size-4 ${manualRefreshing ? 'animate-spin motion-reduce:animate-none' : ''}`} />{manualRefreshing ? 'Refreshing…' : 'Refresh analytics'}</button>
+            {reconnectHint && <button className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-brand-amber/30 bg-brand-amber/8 px-4 text-xs font-semibold text-brand-amber transition hover:bg-brand-amber/12 disabled:cursor-wait disabled:opacity-60" disabled={reconnecting} onClick={() => void reconnectFacebookAnalytics()} type="button"><RefreshCw className={`size-4 ${reconnecting ? 'animate-spin motion-reduce:animate-none' : ''}`} />{reconnecting ? 'Reconnecting…' : 'Reconnect Facebook'}</button>}
             <a className="inline-flex min-h-10 items-center rounded-xl border border-border-soft bg-panel/60 px-4 text-xs font-semibold text-text-main transition hover:border-brand-cyan/25 hover:bg-panel-hover/70" href="/app/connected-accounts">Review connection</a>
-            {periodPosts === 0 && days < 90 && <button className="inline-flex min-h-10 items-center rounded-xl border border-border-soft px-4 text-xs font-semibold text-text-muted transition hover:border-brand-cyan/25 hover:text-white" onClick={() => setDays(90)} type="button">View 90 days</button>}
+            {feedAvailable && periodPosts === 0 && days < 90 && <button className="inline-flex min-h-10 items-center rounded-xl border border-border-soft px-4 text-xs font-semibold text-text-muted transition hover:border-brand-cyan/25 hover:text-white" onClick={() => setDays(90)} type="button">View 90 days</button>}
           </div>
         </div>
 
