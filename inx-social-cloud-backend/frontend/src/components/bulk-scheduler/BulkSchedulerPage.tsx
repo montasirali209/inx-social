@@ -22,7 +22,7 @@ import { UploadBatchPanel } from './UploadBatchPanel'
 import { useBulkSchedulerActivity } from './bulk-scheduler-activity-store'
 import { PublishConfirmationDialog } from '../ui/PublishConfirmationDialog'
 
-const idleProgress: BatchProgress = { state: 'idle', percent: 0, current: 0, total: 0, completed: 0, failed: 0, message: 'Select destinations, choose Media Posts or Text Posts, add content, then choose a timing mode.' }
+const idleProgress: BatchProgress = { state: 'idle', percent: 0, current: 0, total: 0, completed: 0, failed: 0, message: 'Select destinations, then choose Media Posts, Text Posts or AI Campaign and configure publishing.' }
 
 const TEXT_POST_PLATFORMS = new Set(['facebook', 'x', 'linkedin', 'threads', 'bluesky'])
 const ACTIVE_AI_CAMPAIGN_KEY = 'inx-social-bulk-ai-campaign-v1'
@@ -299,7 +299,8 @@ export function BulkSchedulerPage() {
   }, [location.state, location.key, loadSavedCampaign])
 
   useEffect(() => {
-    if (restoredCampaignSelection.current || mixedCampaign || !campaignsQuery.data) return
+    const routeCampaignId = (location.state as { aiCampaignId?: string } | null)?.aiCampaignId
+    if (routeCampaignId || restoredCampaignSelection.current || mixedCampaign || !campaignsQuery.data) return
     restoredCampaignSelection.current = true
     const campaignId = window.localStorage.getItem(ACTIVE_AI_CAMPAIGN_KEY)
     if (!campaignId) return
@@ -313,7 +314,7 @@ export function BulkSchedulerPage() {
       window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
       setProgress({ ...idleProgress, state: 'failed', message: error instanceof Error ? error.message : 'The saved AI campaign could not be restored.' })
     })
-  }, [campaignsQuery.data, loadSavedCampaign, mixedCampaign])
+  }, [campaignsQuery.data, loadSavedCampaign, location.state, mixedCampaign])
 
   useEffect(() => {
     const state = location.state as { aiPostCampaign?: { id: string; title: string; contentMode: 'TEXT'; captions: string[] } } | null
@@ -478,6 +479,10 @@ export function BulkSchedulerPage() {
     }
 
     setWorkspaceMode(value)
+    setUseFallback(false)
+    setRetainMedia(false)
+    setResults([])
+    setProgress(idleProgress)
     changeContentMode(value === 'text' ? 'text' : 'media')
   }
 
@@ -561,7 +566,7 @@ export function BulkSchedulerPage() {
         }
       })
       setResults(initialResults)
-      setProgress({ state: 'preparing', percent: 1, current: 0, total: mixedCampaign.posts.length, completed: 0, failed: 0, message: 'Preparing mixed AI campaign in campaign order…' })
+      setProgress({ state: 'preparing', percent: 1, current: 0, total: mixedCampaign.posts.length, completed: 0, failed: 0, message: 'Preparing AI campaign in campaign order…' })
 
       let completed = 0
       let failed = 0
