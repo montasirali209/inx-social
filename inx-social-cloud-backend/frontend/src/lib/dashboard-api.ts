@@ -49,6 +49,23 @@ function occurredAt(job: DashboardJob) {
   return job.completedAt || job.scheduledAt || job.updatedAt || job.createdAt
 }
 
+function hasVerifiedPublishedResult(job: DashboardJob) {
+  return Boolean(job.metaPostId || job.metaVideoId || job.platformUrl)
+}
+
+function dashboardJobStatus(job: DashboardJob, now = new Date()): BackendJobStatus {
+  if (hasVerifiedPublishedResult(job)) return 'PUBLISHED'
+  if (
+    (job.status === 'FAILED' || job.status === 'CANCELLED')
+    && job.providerPostId
+    && job.scheduledAt
+    && new Date(job.scheduledAt).getTime() > now.getTime()
+  ) {
+    return 'SCHEDULED'
+  }
+  return job.status
+}
+
 function contentMetrics(content: PlatformAnalytics['content'][number]): ContentMetrics {
   const interactions = content.insights?.totalInteractions ?? (content.reactions + content.comments + content.shares)
   return {
@@ -67,7 +84,7 @@ function socialPost(job: DashboardJob): SocialPost {
     excerpt: job.caption?.trim() || (job.errorMessage ? 'This post needs attention.' : 'Publishing details available in Posts.'),
     thumbnailUrl: job.destination?.avatarUrl || job.page?.facebookPagePicture || null,
     platforms: [jobPlatform(job)],
-    status: videoStatus(job.status),
+    status: videoStatus(dashboardJobStatus(job)),
     occurredAt: occurredAt(job),
     engagement: null,
     metrics: null,
@@ -113,10 +130,10 @@ export function buildActivitySeries(
     date.setDate(today.getDate() - (totalDays - index - 1))
     const key = localDayKey(date)
     const count = (status: BackendJobStatus, value: (job: DashboardJob) => string | null) => jobs.filter((job) => (
-      job.status === status && Boolean(value(job)) && localDayKey(value(job)!) === key
+      dashboardJobStatus(job, now) === status && Boolean(value(job)) && localDayKey(value(job)!) === key
     )).length
     const publishedJobs = jobs.filter((job) => {
-      if (job.status !== 'PUBLISHED') return false
+      if (dashboardJobStatus(job, now) !== 'PUBLISHED') return false
       const value = job.completedAt || job.updatedAt
       if (!value || localDayKey(value) !== key) return false
       const providerId = job.metaPostId || job.metaVideoId
@@ -158,9 +175,10 @@ export function buildDashboardView(
   const analytics = normaliseAnalytics(analyticsInput)
   const liveEngagement = analytics.reduce((sum, entry) => sum + entry.analytics.summary.totalInteractions, 0)
   const livePublished = analytics.reduce((sum, entry) => sum + entry.analytics.summary.posts, 0)
-  const scheduledCount = jobs.filter((job) => job.status === 'SCHEDULED').length
-  const draftQueuedCount = jobs.filter((job) => ['DRAFT', 'AWAITING_UPLOAD', 'READY', 'QUEUED', 'PROCESSING'].includes(job.status)).length
-  const failedCount = jobs.filter((job) => job.status === 'FAILED' || job.status === 'CANCELLED').length
+  const displayStatus = (job: DashboardJob) => dashboardJobStatus(job, now)
+  const scheduledCount = jobs.filter((job) => displayStatus(job) === 'SCHEDULED').length
+  const draftQueuedCount = jobs.filter((job) => ['DRAFT', 'AWAITING_UPLOAD', 'READY', 'QUEUED', 'PROCESSING'].includes(displayStatus(job))).length
+  const failedCount = jobs.filter((job) => displayStatus(job) === 'FAILED' || displayStatus(job) === 'CANCELLED').length
   const connectedCount = connectedAccountsCount ?? overview.pages.filter((page) => page.status !== 'REVOKED').length
   const periodDays = analytics.find((entry) => entry.analytics.period?.days)?.analytics.period?.days
   const livePeriod = periodDays ? `Last ${periodDays} days` : 'Live connected data'
@@ -168,7 +186,7 @@ export function buildDashboardView(
   const stats: StatCardData[] = [
     {
       label: 'Total Published',
-      value: analytics.length ? livePublished : jobs.filter(job => job.status === 'PUBLISHED').length,
+      value: analytics.length ? livePublished : jobs.filter(job => displayStatus(job) === 'PUBLISHED').length,
       detail: analytics.length ? `${livePeriod} · all platforms` : 'Across INXSocial publishing',
       tone: 'green',
     },
@@ -185,12 +203,12 @@ export function buildDashboardView(
     { label: 'Connected Accounts', value: connectedCount, detail: 'Across all active platforms', tone: 'blue', route: '/connected-accounts' },
   ]
 
-  const queue = jobs.filter((job) => queueStatuses.has(job.status)).slice(0, 8)
+  const queue = jobs.filter((job) => queueStatuses.has(displayStatus(job))).slice(0, 8)
   const upcoming = jobs
-    .filter((job) => job.status === 'SCHEDULED' && job.scheduledAt && new Date(job.scheduledAt) > now)
+    .filter((job) => displayStatus(job) === 'SCHEDULED' && job.scheduledAt && new Date(job.scheduledAt) > now)
     .sort((left, right) => new Date(left.scheduledAt!).getTime() - new Date(right.scheduledAt!).getTime())
     .slice(0, 5)
-  const activeTransfer = jobs.find((job) => job.status === 'PROCESSING' || job.uploadStatus === 'UPLOADING') ?? null
+  const activeTransfer = jobs.find((job) => displayStatus(job) === 'PROCESSING' || job.uploadStatus === 'UPLOADING') ?? null
 
   const sortedJobs = [...jobs].sort((left, right) => new Date(occurredAt(right)).getTime() - new Date(occurredAt(left)).getTime())
   const livePosts: SocialPost[] = analytics.flatMap((entry) => entry.analytics.content.map((post) => {
@@ -209,7 +227,8 @@ export function buildDashboardView(
     }
   }))
   livePosts.sort((left, right) => new Date(right.occurredAt).getTime() - new Date(left.occurredAt).getTime())
-  const recentPosts = livePosts.length ? livePosts.slice(0, 5) : sortedJobs.slice(0, 5).map(socialPost)
+  const recentPublishedJobs = sortedJobs.filter((job) => displayStatus(job) === 'PUBLISHED').slice(0, 5)
+  const recentPosts = livePosts.length ? livePosts.slice(0, 5) : recentPublishedJobs.map(socialPost)
 
   const platforms: Platform[] = ['facebook', 'instagram', 'linkedin', 'youtube', 'tiktok', 'pinterest', 'threads', 'bluesky', 'x']
   const platformMetrics: PlatformMetric[] = platforms.map((platform) => {
@@ -221,7 +240,7 @@ export function buildDashboardView(
         engagement: entries.reduce((sum, entry) => sum + entry.analytics.summary.totalInteractions, 0),
       }
     }
-    const fallbackPosts = jobs.filter((job) => job.status === 'PUBLISHED' && jobPlatform(job) === platform).length
+    const fallbackPosts = jobs.filter((job) => displayStatus(job) === 'PUBLISHED' && jobPlatform(job) === platform).length
     return { platform, posts: fallbackPosts, engagement: fallbackPosts ? 0 : null }
   })
 

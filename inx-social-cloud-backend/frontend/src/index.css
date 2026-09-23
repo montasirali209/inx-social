@@ -480,3 +480,70 @@
     overflow-x: clip;
   }
 }
+
+
+/* Universal route-level mobile containment. Every application menu is rendered inside
+   .mobile-route-safe so desktop-sized descendants cannot push the workspace wider than
+   the device viewport. Wide data surfaces retain their own horizontal scrollers. */
+.mobile-route-safe {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 1023px) {
+  .mobile-route-safe,
+  .mobile-route-safe > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .mobile-route-safe :where(section, article, form, fieldset) {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .mobile-route-safe :where(.grid, .flex) > * {
+    min-width: 0;
+  }
+
+  .mobile-route-safe :where(input, textarea, select) {
+    max-width: 100%;
+  }
+
+  .mobile-route-safe :where(img, video, canvas) {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .mobile-route-safe :where(.overflow-x-auto, .overflow-auto, .scrollbar-thin) {
+    max-width: 100%;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 767px) {
+  #main-content {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    padding-inline: 0.75rem;
+  }
+
+  .mobile-route-safe {
+    overflow-x: clip;
+  }
+
+  .mobile-route-safe :where(button, a) {
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-route-safe :where([role="dialog"]) {
+    max-width: 100vw;
+  }
+
+  .notification-pop {
+    max-width: calc(100vw - 1rem);
+  }
+}
