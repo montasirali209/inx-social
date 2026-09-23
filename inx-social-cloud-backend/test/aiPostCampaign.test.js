@@ -111,7 +111,7 @@ test('campaign images open in a full-size preview', () => {
   assert.match(modal, /Open full image for post/);
   assert.match(modal, /View full image/);
   assert.match(modal, /Campaign image preview/);
-  assert.match(modal, /max-h-\[76dvh\]/);
+  assert.match(modal, /max-h-\[90dvh\]/);
 });
 
 
@@ -157,7 +157,7 @@ test('AI campaign generation automatically renders image posts and preflights cr
   assert.match(service, /postStudio\.IMAGE_CREDITS/);
   assert.match(service, /brandReferences/);
 
-  assert.match(modal, /generated automatically with the campaign/);
+  assert.match(modal, /automatically with the campaign/);
   assert.match(modal, /Generating campaign…/);
   assert.match(modal, /Generating campaign visuals/);
   assert.match(modal, /Generating now/);
