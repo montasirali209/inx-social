@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, ArrowRight, BadgeCheck, Boxes, CalendarRange, Check, CirclePlay, Coins,
+  ArrowLeft, ArrowRight, BadgeCheck, Boxes, CalendarRange, Check, CirclePlay,
   Crown, FileText, Film, Globe2, ImagePlus, Images, LoaderCircle, PackageOpen, Search,
   Sparkles, Upload, UserRound, UsersRound, WandSparkles, X,
 } from 'lucide-react'
@@ -122,7 +122,7 @@ export function UGCWizardModal({
 
   const overview = useQuery({ queryKey: ['ugc-studio-overview'], queryFn: getUGCOverview, enabled: open, staleTime: 8_000 })
   const selectedBrand = brand || overview.data?.brands.find((item) => item.id === seedCampaign?.brandProfileId) || null
-  const productAssetIds = [...seedProductIds, ...productAssets.map((asset) => asset.id)]
+  const productAssetIds = useMemo(() => [...seedProductIds, ...productAssets.map((asset) => asset.id)], [seedProductIds, productAssets])
 
   const input = useMemo<CreateUGCCampaignInput>(() => ({
     brandProfileId: selectedBrand?.id || seedCampaign?.brandProfileId || null,
