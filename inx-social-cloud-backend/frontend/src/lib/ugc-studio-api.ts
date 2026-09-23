@@ -158,3 +158,17 @@ export function fetchUGCProductImage(asset: UGCProductAsset) {
 export function fetchUGCSampleVideo(sample: UGCSampleVideo) {
   return fetchProtectedBlob(sample.videoUrl)
 }
+
+
+export function trackUGCStudioEvent(input: {
+  event: string
+  stage?: string | null
+  campaignId?: string | null
+  adId?: string | null
+  metadata?: Record<string, string | number | boolean | null>
+}) {
+  return apiRequest<{ ok: boolean }>('/api/ai-content-studio/ugc/events', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  }).catch(() => ({ ok: false }))
+}
