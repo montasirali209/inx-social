@@ -109,7 +109,12 @@ function AdCard({ ad, asset, onEdit, onSchedule }: { ad: UGCAd; asset?: MediaAss
 export function UGCStudioPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const overview = useQuery({ queryKey: ['ugc-studio-overview'], queryFn: getUGCOverview, staleTime: 15_000 })
+  const overview = useQuery({
+    queryKey: ['ugc-studio-overview'],
+    queryFn: getUGCOverview,
+    staleTime: 15_000,
+    refetchInterval: (query) => query.state.data?.avatars.some((avatar) => avatar.scope === 'SYSTEM' && !avatar.referenceReady) ? 12_000 : false,
+  })
   const [productUrl, setProductUrl] = useState('')
   const [description, setDescription] = useState('')
   const [notes, setNotes] = useState('')
