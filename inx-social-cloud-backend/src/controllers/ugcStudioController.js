@@ -34,7 +34,7 @@ const generateAvatarSchema = z.object({
   name: z.string().trim().min(2).max(80),
   category: z.string().trim().max(80).optional().default('Custom'),
   locale: z.string().trim().max(20).optional().default('en-GB'),
-  voice: z.string().trim().max(100).optional().default('Aoede (Female)')
+  voice: z.string().trim().max(100).optional().default('Pippa')
 });
 
 const editAdSchema = z.object({
