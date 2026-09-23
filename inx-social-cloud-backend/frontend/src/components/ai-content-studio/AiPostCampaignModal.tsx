@@ -64,10 +64,6 @@ function postBodyPreview(post: AIPostCampaignPost) {
   return [post.caption.trim(), post.cta?.trim(), tags].filter(Boolean).join('\n\n')
 }
 
-function publishCaption(post: AIPostCampaignPost) {
-  return [post.hook?.trim(), postBodyPreview(post)].filter(Boolean).join('\n\n')
-}
-
 type Props = {
   open: boolean
   onClose: () => void
