@@ -69,9 +69,9 @@ function humanizePlatformFailure(platform, rawValue, fallbackStatus = null) {
   }
 
   if (fallbackStatus === 400 || /400/.test(raw)) {
-    return `${label} rejected this post, but did not return a specific customer-readable reason. Open Fix & retry to review the caption and publishing settings before trying again.`;
+    return `${label} rejected this post, but did not return a specific customer-readable reason. Review the post details and publishing settings before retrying.`;
   }
-  return `${label} could not publish this post. Open Fix & retry to review it and try again.`;
+  return `${label} could not publish this post. Review the post details before retrying.`;
 }
 
 function resultError(data, platform = '') {
@@ -85,6 +85,7 @@ function resultError(data, platform = '') {
 }
 
 function publicationError(publication) {
+  if (['PUBLISHED', 'SCHEDULED'].includes(String(publication.status || '').toUpperCase())) return null;
   const result = json(publication.metricsJson, {});
   const last = String(publication.lastError || '').trim();
   if (!last && !result?.details) return null;

@@ -165,3 +165,46 @@ test('platform-result failures preserve detailed reasons and support safe recove
   assert.match(editor, /Retry with changes/);
   assert.match(editor, /Why it failed/);
 });
+
+
+test('successful provider lifecycle states never surface failure copy and Batch Run keeps accepted schedules stable', () => {
+  const publishing = require('../src/services/postForMePublishingService');
+  const page = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
+  const panel = read('frontend/src/components/bulk-scheduler/BatchRunPanel.tsx');
+  const table = read('frontend/src/components/bulk-scheduler/UploadResultsTable.tsx');
+
+  const now = new Date();
+  const published = publishing.publicationToJob({
+    id: 'pub-1',
+    status: 'PUBLISHED',
+    scheduledAt: new Date(now.getTime() - 60_000),
+    publishedAt: now,
+    lastError: null,
+    metricsJson: JSON.stringify({ details: { message: 'provider diagnostic metadata' }, platformPostId: 'x-123' }),
+    mediaJson: JSON.stringify({ contentType: 'TEXT', providerPostStatus: 'processed' }),
+    createdAt: new Date(now.getTime() - 120_000),
+    updatedAt: now,
+    contentId: 'content-1',
+    platform: 'x',
+    platformCaption: 'hello',
+    externalPostId: 'sp-123',
+    content: { title: null, caption: 'hello', source: 'BULK_SCHEDULER' },
+    profile: { id: 'profile-1', platform: 'x', displayName: 'X', username: 'example', avatarUrl: null }
+  });
+  assert.equal(published.status, 'PUBLISHED');
+  assert.equal(published.errorMessage, null);
+
+  assert.match(page, /const alreadyAccepted = result\.status === 'scheduled' \|\| result\.status === 'published'/);
+  assert.match(page, /status: 'scheduled'/);
+  assert.match(page, /errorMessage: null/);
+  assert.doesNotMatch(panel, /label: 'Published'/);
+  assert.match(panel, /Actual publishing outcomes are tracked separately in Posts and Calendar/);
+  assert.doesNotMatch(table, /id: 'published'/);
+  assert.match(table, /result\.status === 'published' \? 'scheduled' : result\.status/);
+});
+
+test('generic provider errors do not reference a UI action that may not exist in Batch Run', () => {
+  const publishing = read('src/services/postForMePublishingService.js');
+  assert.doesNotMatch(publishing, /Open Fix & retry/);
+  assert.match(publishing, /Review the post details before retrying/);
+});
