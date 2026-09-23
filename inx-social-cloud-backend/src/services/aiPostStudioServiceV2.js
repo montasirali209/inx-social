@@ -250,13 +250,28 @@ async function remoteReferenceAssets(urls) {
 
         const mimeType = String(response.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
         if (!mimeType.startsWith('image/')) break;
-        const data = Buffer.from(response.data || []);
-        if (!data.length || data.length > 6 * 1024 * 1024) break;
-        const metadata = await sharp(data, { animated: false }).metadata().catch(() => ({}));
+        const rawData = Buffer.from(response.data || []);
+        if (!rawData.length || rawData.length > 6 * 1024 * 1024) break;
+
+        let data = rawData;
+        let outputMimeType = mimeType;
+        let metadata = await sharp(rawData, { animated: false }).metadata().catch(() => ({}));
+        try {
+          data = await sharp(rawData, { animated: false })
+            .rotate()
+            .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+            .png()
+            .toBuffer();
+          outputMimeType = 'image/png';
+          metadata = await sharp(data).metadata().catch(() => metadata);
+        } catch (_) {
+          if (!['image/png', 'image/jpeg', 'image/webp'].includes(mimeType)) break;
+        }
+
         assets.push({
           id: 'web:' + crypto.createHash('sha1').update(url).digest('hex').slice(0, 12),
-          originalName: new URL(url).pathname.split('/').filter(Boolean).pop() || 'website-reference',
-          mimeType,
+          originalName: 'website-reference-' + assets.length + (outputMimeType === 'image/png' ? '.png' : ''),
+          mimeType: outputMimeType,
           data,
           width: metadata.width || null,
           height: metadata.height || null,
