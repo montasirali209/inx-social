@@ -99,8 +99,8 @@ function metaValue(source, name) {
 function attrValue(tag, name) {
   const escaped = String(name).replace(/[.*+?^$()|[\]\\{}]/g, '\\$&');
   const source = String(tag || '');
-  const quoted = source.match(new RegExp('\\b' + escaped + '\\s*=\\s*["\\']([^"\\']+)["\\']', 'i'))?.[1];
-  const unquoted = source.match(new RegExp('\\b' + escaped + '\\s*=\\s*([^\\s>]+)', 'i'))?.[1];
+  const quoted = source.match(new RegExp("\\b" + escaped + "\\s*=\\s*[\\\"']([^\\\"']+)[\\\"']", "i"))?.[1];
+  const unquoted = source.match(new RegExp("\\b" + escaped + "\\s*=\\s*([^\\s>]+)", "i"))?.[1];
   return cleanText(quoted || unquoted, 2000);
 }
 
