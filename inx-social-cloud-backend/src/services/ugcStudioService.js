@@ -940,15 +940,15 @@ async function renderProviderScene(scene, ad, avatar, productReference, narratio
   const productLock = productReference
     ? 'PRODUCT LOCK: preserve the supplied product/reference exactly — packaging, shape, colours, proportions and visible branding. Do not substitute, redesign or hallucinate another product.'
     : '';
-  const positivePrompt = [
-    clean(scene.prompt, 1800),
+  const positivePrompt = clean([
+    clean(scene.prompt, 1200),
     'Authentic vertical 9:16 creator-native UGC. Realistic smartphone-camera exposure, real room depth, natural skin and fabric texture, grounded physics, subtle handheld stability, no plastic CGI appearance.',
     scene.kind === 'CREATOR' ? creatorLock : productLock,
     scene.kind === 'PRODUCT'
       ? 'Frame the product clearly in a believable use context. Use realistic hands only when needed and keep interaction physically plausible.'
       : 'The creator faces the camera naturally. Mouth motion should be suitable for later lip synchronization.',
     'No generated subtitles, captions, labels, watermarks, interface graphics or extra readable text inside the frame.'
-  ].filter(Boolean).join('\n\n');
+  ].filter(Boolean).join('\n\n'), 1950);
 
   let reference = null;
   if (scene.kind === 'CREATOR') {
