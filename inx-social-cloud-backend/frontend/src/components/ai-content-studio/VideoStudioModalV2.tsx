@@ -78,6 +78,21 @@ export function VideoStudioModal({ open, type, access, initialDraft, initialVide
 
   useEffect(() => {
     if (!open || (type !== 'short_video' && initialDraft?.contentType !== 'short_video')) return
+    const bodyOverflow = document.body.style.overflow
+    const htmlOverflow = document.documentElement.style.overflow
+    const bodyOverscroll = document.body.style.overscrollBehavior
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overscrollBehavior = 'none'
+    return () => {
+      document.body.style.overflow = bodyOverflow
+      document.documentElement.style.overflow = htmlOverflow
+      document.body.style.overscrollBehavior = bodyOverscroll
+    }
+  }, [open, type, initialDraft?.contentType])
+
+  useEffect(() => {
+    if (!open || (type !== 'short_video' && initialDraft?.contentType !== 'short_video')) return
     let active = true
     void getVideoModels().then((value) => { if (active) setModels(value) }).catch((caught) => { if (active) setError(caught instanceof Error ? caught.message : 'Video models could not be loaded.') })
     return () => { active = false }

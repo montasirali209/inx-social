@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { createPortal } from 'react-dom'
 import {
   ArrowLeft, ArrowRight, BadgeCheck, CalendarRange, Check, CirclePlay, Coins, Crown,
   Film, Globe2, ImagePlus, LoaderCircle, Search, Sparkles, Upload, UserRound,
@@ -191,6 +192,21 @@ export function UGCWizardModal({
       ]
 
   useEffect(() => {
+    if (!open) return
+    const bodyOverflow = document.body.style.overflow
+    const htmlOverflow = document.documentElement.style.overflow
+    const bodyOverscroll = document.body.style.overscrollBehavior
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overscrollBehavior = 'none'
+    return () => {
+      document.body.style.overflow = bodyOverflow
+      document.documentElement.style.overflow = htmlOverflow
+      document.body.style.overscrollBehavior = bodyOverscroll
+    }
+  }, [open])
+
+  useEffect(() => {
     if (steps[step]?.key !== 'working' || workingReady) return
     const timer = window.setTimeout(() => setWorkingReady(true), 1400)
     return () => window.clearTimeout(timer)
@@ -320,7 +336,7 @@ export function UGCWizardModal({
   const progress = campaign.data?.ads.length ? Math.round(((readyAds + failedAds) / campaign.data.ads.length) * 100) : 0
   const insufficient = Boolean(estimate.data && remaining < estimate.data.credits)
 
-  return <div className="ugc-wizard-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && currentKey !== 'finish') closeWizard() }}>
+  return createPortal(<div className="ugc-wizard-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && currentKey !== 'finish') closeWizard() }}>
     <section aria-label="UGC Ad Studio" aria-modal="true" className="ugc-wizard-panel" role="dialog">
       <header className="ugc-wizard-header">
         <div>
@@ -455,5 +471,5 @@ export function UGCWizardModal({
         </main>
       </div>
     </section>
-  </div>
+  </div>, document.body)
 }

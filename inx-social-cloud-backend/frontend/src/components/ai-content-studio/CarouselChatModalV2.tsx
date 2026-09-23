@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom'
-import { useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
 import { ArrowLeft, ArrowRight, Bot, FileText, Globe2, ImagePlus, Layers3, LoaderCircle, Paperclip, Save, Send, Sparkles, WandSparkles, X } from 'lucide-react'
 import type { AIDraft, AIContentType, AIPlanAccess, GeneratedAsset } from '../../types/ai-content-studio'
 import { saveAIDraft } from '../../lib/ai-content-studio-api'
@@ -100,6 +100,21 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
   onContinue: (draft: AIDraft) => void | Promise<void>
   onToast: (message: string) => void
 }) {
+  useEffect(() => {
+    if (!open || (type !== 'carousel_post' && initialDraft?.contentType !== 'carousel_post')) return
+    const bodyOverflow = document.body.style.overflow
+    const htmlOverflow = document.documentElement.style.overflow
+    const bodyOverscroll = document.body.style.overscrollBehavior
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overscrollBehavior = 'none'
+    return () => {
+      document.body.style.overflow = bodyOverflow
+      document.documentElement.style.overflow = htmlOverflow
+      document.body.style.overscrollBehavior = bodyOverscroll
+    }
+  }, [open, type, initialDraft?.contentType])
+
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const restored = (initialDraft?.asset as CarouselAssetWithState | null)?.studioState || null
