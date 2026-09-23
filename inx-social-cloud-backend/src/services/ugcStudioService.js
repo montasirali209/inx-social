@@ -316,10 +316,10 @@ async function prepareVerticalBrandReference(brandRefs) {
 async function regenerateFeaturedAvatarReference(row) {
   const environment = clean(row.environment || FEATURED_CREATORS.get(row.name), 700);
   const enhancedPrompt = [
-    'Photorealistic candid smartphone portrait of a real social-media creator, not an AI avatar and not a studio headshot.',
+    'Photorealistic candid smartphone portrait of an adult social-media creator, not an AI avatar and not a studio headshot.',
     clean(row.prompt, 1400),
     environment ? 'Environment: ' + environment + '.' : '',
-    'Chest-up to waist-up framing, 9:16 portrait, natural asymmetry, realistic pores and skin texture, subtle imperfections, believable hands only if visible, natural eye reflections, ordinary clothing fabric, real room depth, authentic phone-camera exposure, no beauty-filter plastic skin, no CGI look, no text, no watermark.'
+    'Camera-friendly contemporary influencer styling that is attractive and brand-safe. Never copy or resemble a named celebrity or identifiable real person. Chest-up to waist-up framing, 9:16 portrait, natural asymmetry, realistic pores and skin texture, subtle imperfections, believable hands only if visible, natural eye reflections, real clothing fabric, real room depth, authentic phone-camera exposure, no beauty-filter plastic skin, no CGI look, no text, no watermark.'
   ].filter(Boolean).join(' ');
   const generated = await runware.generateImages([enhancedPrompt], { aspectRatio: '9:16', model: env.runware.imagePremiumModel });
   const remote = await download(generated.images[0].url, 14 * 1024 * 1024);
@@ -331,11 +331,11 @@ async function regenerateFeaturedAvatarReference(row) {
   const oldKey = row.referenceStorageKey;
   const oldProvider = row.referenceStorageProvider;
   await prisma.$executeRawUnsafe(
-    'UPDATE "UGCAvatar" SET "referenceStorageProvider"=$2,"referenceStorageKey"=$3,"referenceMimeType"=\'image/png\',"referenceVersion"=2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
-    row.id, stored.storageProvider, stored.storageKey
+    'UPDATE "UGCAvatar" SET "referenceStorageProvider"=$2,"referenceStorageKey"=$3,"referenceMimeType"=\'image/png\',"referenceVersion"=$4,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+    row.id, stored.storageProvider, stored.storageKey, FEATURED_REFERENCE_VERSION
   );
   if (oldKey && oldKey !== stored.storageKey) await objectStorage.deleteObject(oldKey, oldProvider || null).catch(() => {});
-  return { ...row, referenceStorageProvider: stored.storageProvider, referenceStorageKey: stored.storageKey, referenceMimeType: 'image/png', referenceVersion: 2, data: normalized, dataUri: 'data:image/png;base64,' + normalized.toString('base64') };
+  return { ...row, referenceStorageProvider: stored.storageProvider, referenceStorageKey: stored.storageKey, referenceMimeType: 'image/png', referenceVersion: FEATURED_REFERENCE_VERSION, data: normalized, dataUri: 'data:image/png;base64,' + normalized.toString('base64') };
 }
 
 async function ensureAvatarReference(userId, row) {
