@@ -1,15 +1,17 @@
 import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { ApiError } from '../../lib/api-client'
 import { createBulkMediaPost, fetchBulkSchedulerData, optimiseBulkScheduleTimes, publishBulkLibraryMedia, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
 import { bulkCancelScheduledPosts, bulkEditScheduledPosts, retryFailedScheduledPost } from '../../lib/posts-api'
-import { fetchMediaAssetFile, uploadMediaAsset } from '../../lib/media-library-api'
+import { getAIPostCampaign, getAIPostCampaigns } from '../../lib/ai-content-studio-api'
+import { fetchMediaAssetFile, fetchMediaLibrary, uploadMediaAsset } from '../../lib/media-library-api'
 import { buildPublishingTimes, parseCaptions, parseTextPosts } from '../../lib/bulk-scheduler-utils'
 import { applyBulkScheduleEdit, applyBulkTextEdit, earliestLocalDate, hasTextRuleChanges, type BulkScheduledEditRules } from '../../lib/bulk-text-edit'
 import type { BatchProgress, BulkContentMode, BulkSchedulerData, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
 import type { MediaAsset } from '../../types/media-library'
 import type { DashboardJob } from '../../types/dashboard'
+import type { AIPostCampaign } from '../../types/ai-content-studio'
 import { backendStatusToUploadStatus } from '../../types/bulk-scheduler'
 import { BatchRunPanel } from './BatchRunPanel'
 import { BulkScheduleManager } from './BulkScheduleManager'
@@ -23,6 +25,7 @@ import { PublishConfirmationDialog } from '../ui/PublishConfirmationDialog'
 const idleProgress: BatchProgress = { state: 'idle', percent: 0, current: 0, total: 0, completed: 0, failed: 0, message: 'Select destinations, choose Media Posts or Text Posts, add content, then choose a timing mode.' }
 
 const TEXT_POST_PLATFORMS = new Set(['facebook', 'x', 'linkedin', 'threads', 'bluesky'])
+const ACTIVE_AI_CAMPAIGN_KEY = 'inx-social-bulk-ai-campaign-v1'
 
 const immediateSchedulerData: BulkSchedulerData = {
   destinations: [],
@@ -56,6 +59,8 @@ function mediaMimeType(file: File) {
 
 type ImportedMixedCampaignItem = {
   id: string
+  sequence: number
+  title: string
   contentType: 'TEXT' | 'IMAGE'
   caption: string
   media: SelectedMedia | null
@@ -69,9 +74,11 @@ type ImportedMixedCampaign = {
 
 export function BulkSchedulerPage() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { registerStop, update: updateActivity } = useBulkSchedulerActivity()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [contentMode, setContentMode] = useState<BulkContentMode>('media')
+  const [workspaceMode, setWorkspaceMode] = useState<'media' | 'text' | 'campaign'>('media')
   const [media, setMedia] = useState<SelectedMedia[]>([])
   const mediaRef = useRef<SelectedMedia[]>([])
   const [captions, setCaptions] = useState('')
