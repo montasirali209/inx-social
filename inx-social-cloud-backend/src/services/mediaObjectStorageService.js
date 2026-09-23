@@ -14,7 +14,9 @@ const PROVIDERS = {
 const R2_GENERATED_MEDIA_PREFIXES = new Set([
   'ai-studio',
   'ai-video',
-  'stock-video'
+  'stock-video',
+  'ugc-video',
+  'ugc-avatar'
 ]);
 
 function clean(value) {
