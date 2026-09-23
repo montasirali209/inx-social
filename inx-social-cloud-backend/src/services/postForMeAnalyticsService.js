@@ -652,9 +652,15 @@ function analyticsPayloadHasVerifiedMetrics(value) {
   );
 }
 
-function partialAnalyticsWarning(platform) {
+function partialAnalyticsWarning(platform, value = null) {
+  const feedPosts = Number(value?.provider?.feedPosts || 0);
+  if (feedPosts <= 0) {
+    return String(platform || '').toLowerCase() === 'facebook'
+      ? 'The Facebook account is connected, but its content feed returned no posts. Reconnect the account once to refresh the current feed and Insights permissions, then INXSocial will resync automatically.'
+      : 'The account is connected, but its provider feed returned no posts. INXSocial will retry automatically.';
+  }
   return String(platform || '').toLowerCase() === 'facebook'
-    ? 'Connected posts are available, but Facebook performance metrics are still pending. INXSocial will retry automatically. If this account was connected before Analytics was enabled, reconnect it once to grant Insights access.'
+    ? 'Connected Facebook posts are available, but performance metrics are still pending. INXSocial will retry automatically. Older connections may need a one-time reconnect to grant the current Insights permission.'
     : 'Connected posts are available, but performance metrics are still pending. INXSocial will retry automatically.';
 }
 
@@ -710,7 +716,7 @@ async function persistAnalyticsPayload(descriptor, value) {
   const syncedAt = Number.isFinite(fetchedAt.getTime()) ? fetchedAt : now;
   const verified = analyticsPayloadHasVerifiedMetrics(value);
   const syncStatus = verified ? 'READY' : 'PARTIAL';
-  const lastError = verified ? null : partialAnalyticsWarning(descriptor.platform);
+  const lastError = verified ? null : partialAnalyticsWarning(descriptor.platform, value);
   await prisma.analyticsSourceCache.upsert({
     where: cacheUniqueWhere(descriptor),
     create: {
@@ -784,7 +790,7 @@ function startAnalyticsRefresh(userId, platform, profileId, daysInput = 30, opti
       const verified = analyticsPayloadHasVerifiedMetrics(value);
 
       if (!verified && analyticsPayloadHasVerifiedMetrics(previous.value)) {
-        const warning = partialAnalyticsWarning(descriptor.platform);
+        const warning = partialAnalyticsWarning(descriptor.platform, value);
         await markAnalyticsRefreshPartial(descriptor, warning);
         console.warn('[analytics-cache] metric-empty refresh preserved last verified payload', {
           profileId: descriptor.profileId,
@@ -797,14 +803,14 @@ function startAnalyticsRefresh(userId, platform, profileId, daysInput = 30, opti
 
       await persistAnalyticsPayload(descriptor, value);
       if (!verified) {
-        console.warn('[analytics-cache] provider returned connected content without metrics', {
+        console.warn('[analytics-cache] provider analytics incomplete', {
           profileId: descriptor.profileId,
           platform: descriptor.platform,
           feedPosts: Number(value?.provider?.feedPosts || 0),
           periodPosts: Number(value?.provider?.periodPosts || 0)
         });
       }
-      return withCacheState(value, verified ? 'live' : 'partial', verified ? null : partialAnalyticsWarning(descriptor.platform));
+      return withCacheState(value, verified ? 'live' : 'partial', verified ? null : partialAnalyticsWarning(descriptor.platform, value));
     } catch (error) {
       await markAnalyticsRefreshFailed(descriptor, error).catch(() => {});
       throw error;
@@ -858,7 +864,7 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
 
     if (partial) {
       if (!retryCooldownActive) queueAnalyticsRefresh(userId, platform, profileId, descriptor.periodDays, options);
-      return withCacheState(value, 'partial', partialAnalyticsWarning(descriptor.platform));
+      return withCacheState(value, 'partial', partialAnalyticsWarning(descriptor.platform, value));
     }
 
     if (age > ANALYTICS_CACHE_TTL_MS) {
