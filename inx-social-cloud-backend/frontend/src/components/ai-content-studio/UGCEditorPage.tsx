@@ -79,7 +79,7 @@ export function UGCEditorPage() {
   const caption = captionEdit ?? ad?.caption ?? ''
   const cta = ctaEdit ?? ad?.cta ?? ''
   const avatarId = avatarIdEdit !== undefined ? avatarIdEdit : (ad?.avatarId ?? null)
-  const baselineVoice = ad?.voice || selectedAvatar?.voice || 'Pippa'
+  const baselineVoice = ad?.voice || 'Pippa'
   const voice = voiceEdit ?? baselineVoice
   const baselineVoicePrompt = ad?.voicePrompt || deliveries[0][1]
   const voicePrompt = voicePromptEdit ?? baselineVoicePrompt
