@@ -105,7 +105,7 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(provider, /reserveProviderReadSlot/);
   assert.match(provider, /CONNECTION_SYNC_TTL_MS/);
   assert.match(page, /mapWithConcurrency\(selectedAccounts, 2/);
-  assert.match(page, /fetchAnalyticsForSource\(account, days\)/);
+  assert.match(page, /fetchAnalyticsForSource\(account, days, 'full', force\)/);
   assert.match(page, /backgroundRefreshing/);
   assert.match(page, /data\?\.results\?\.some/);
   assert.match(page, /analytics\.data\?\.results\?\.some/);
