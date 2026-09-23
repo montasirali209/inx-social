@@ -566,8 +566,13 @@ async function createGenerationRow(userId, adId, amount, request) {
     'INSERT INTO "AiGeneration" ("id","userId","contentType","status","provider","prompt","requestJson","reservedCredits","createdAt","updatedAt") VALUES ($1,$2,\'ugc_ad\',\'PREPARING\',\'runware\',$3,$4,0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
     generationId, userId, clean(request.script || request.title || 'UGC ad', 1500), json({ ugcAdId: adId, ...request })
   );
-  await credits.reserve(userId, generationId, amount);
-  return generationId;
+  try {
+    await credits.reserve(userId, generationId, amount);
+    return generationId;
+  } catch (error) {
+    await prisma.$executeRawUnsafe('DELETE FROM "AiGeneration" WHERE "id"=$1 AND "userId"=$2', generationId, userId).catch(() => {});
+    throw error;
+  }
 }
 
 async function createCampaign(userId, input) {
@@ -732,8 +737,13 @@ async function createAvatarGeneration(userId, prompt) {
     'INSERT INTO "AiGeneration" ("id","userId","contentType","status","provider","prompt","requestJson","reservedCredits","createdAt","updatedAt") VALUES ($1,$2,\'ugc_avatar\',\'PREPARING\',\'runware\',$3,$4,0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
     generationId, userId, clean(prompt, 1500), json({ type: 'ugc_avatar' })
   );
-  await credits.reserve(userId, generationId, AVATAR_CREDITS);
-  return generationId;
+  try {
+    await credits.reserve(userId, generationId, AVATAR_CREDITS);
+    return generationId;
+  } catch (error) {
+    await prisma.$executeRawUnsafe('DELETE FROM "AiGeneration" WHERE "id"=$1 AND "userId"=$2', generationId, userId).catch(() => {});
+    throw error;
+  }
 }
 
 async function generateCustomAvatar(userId, input) {
