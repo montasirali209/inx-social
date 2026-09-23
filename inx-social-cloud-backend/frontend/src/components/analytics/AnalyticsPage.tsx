@@ -153,7 +153,7 @@ export function AnalyticsPage() {
     refetchInterval: (query) => {
       const data = query.state.data as LiveAnalyticsData | undefined
       const states = data?.results?.map(result => String(result.analytics?.provider?.cacheState || '')) || []
-      if (states.includes('refreshing')) return 8_000
+      if (states.includes('refreshing')) return 3_000
       if (states.includes('partial')) return 30_000
       if (states.includes('stale')) return 60_000
       return 5 * 60_000
@@ -284,7 +284,7 @@ export function AnalyticsPage() {
             { label: `In last ${days} days`, value: periodPosts, detail: 'Posts inside this report', icon: CalendarDays },
             { label: 'Measured posts', value: measuredPosts, detail: measuredPosts ? 'Metrics verified' : 'Awaiting provider metrics', icon: Radio },
             { label: 'Selected accounts', value: selectedAccounts.length, detail: selectedAccounts.length === 1 ? sourceName : 'Combined scope', icon: Clock3 },
-          ].map(({ label, value, detail, icon: Icon }) => <div className="rounded-xl border border-white/[.065] bg-white/[.025] p-3" key={label}><span className="flex items-center gap-2 text-[9px] uppercase tracking-[.1em] text-text-soft"><Icon className="size-3.5 text-brand-cyan" />{label}</span><strong className="mt-2 block text-xl text-text-main">{value.toLocaleString('en-GB')}</strong><small className="mt-1 block truncate text-[9px] text-text-soft">{detail}</small></div>)}
+          ].map(({ label, value, detail, icon: Icon }) => <div className="rounded-xl border border-white/10 bg-white/[.035] p-3" key={label}><span className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[.04em] text-text-muted"><Icon className="size-3.5 text-brand-cyan" />{label}</span><strong className="mt-2 block text-xl text-text-main">{value.toLocaleString('en-GB')}</strong><small className="mt-1 block truncate text-[11px] text-text-muted">{detail}</small></div>)}
         </div>
       </section>
 

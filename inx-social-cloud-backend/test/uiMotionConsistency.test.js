@@ -13,8 +13,8 @@ test('Analytics cards use restrained selection motion without cursor tilt or gla
 
   assert.doesNotMatch(primitives, /onPointerMove|onPointerLeave|--analytics-rx|--analytics-ry|--analytics-mx|--analytics-my/);
   assert.doesNotMatch(motion, /perspective\(|rotateX\(|rotateY\(|translateZ\(|translate3d\(|analytics-ambient-drift|var\(--analytics-m/);
-  assert.match(motion, /\.analytics-fluid-card:hover\s*\{[\s\S]*?transform:\s*scale\(1\.0035\)/);
-  assert.match(motion, /\.analytics-stat-card:hover\s*\{[\s\S]*?transform:\s*scale\(1\.01\)/);
+  assert.doesNotMatch(motion.split('@media (prefers-reduced-motion: reduce)')[0], /\.analytics-(?:fluid|stat)-card(?:\:hover)?\s*\{[^}]*transform:/);
+  assert.match(motion, /\.analytics-stat-card:hover\s*\{[^}]*border-color:/);
   assert.match(motion, /analytics-chart-tooltip[\s\S]*?left 70ms linear/);
   assert.doesNotMatch(selector, /hover:-translate-y|emerald-950|border-emerald-300|text-emerald-300/);
 });

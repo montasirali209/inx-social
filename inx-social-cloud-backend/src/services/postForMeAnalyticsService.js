@@ -864,7 +864,11 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
 
     if (partial) {
       if (!retryCooldownActive) queueAnalyticsRefresh(userId, platform, profileId, descriptor.periodDays, options);
-      return withCacheState(value, 'partial', partialAnalyticsWarning(descriptor.platform, value));
+      // A partial payload can be served while a refresh is already in flight. Tell
+      // the client to poll promptly so the verified result is visible as soon as
+      // that request finishes, rather than waiting for the partial retry interval.
+      const refreshing = analyticsInflight.has(descriptor.key);
+      return withCacheState(value, refreshing ? 'refreshing' : 'partial', partialAnalyticsWarning(descriptor.platform, value));
     }
 
     if (age > ANALYTICS_CACHE_TTL_MS) {
