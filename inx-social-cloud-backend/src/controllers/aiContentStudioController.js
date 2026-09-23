@@ -6,6 +6,7 @@ const creditService = require('../services/aiCreditService');
 const studioService = require('../services/aiContentStudioService');
 const postStudioService = require('../services/aiPostStudioService');
 const runware = require('../services/runwareService');
+const campaignService = require('../services/aiPostCampaignService');
 
 const contentType = z.enum(['image_post', 'carousel_post', 'short_video', 'ugc_ad']);
 const generationSchema = z.object({
@@ -62,6 +63,26 @@ const draftSchema = z.object({
   asset: z.record(z.unknown()).nullish(),
   mediaLibraryAsset: z.record(z.unknown()).nullish(),
   mediaLibraryAssets: z.array(z.record(z.unknown())).max(20).optional()
+});
+
+const campaignSchema = z.object({
+  businessUrl: z.string().trim().max(2000).optional().default(''),
+  goal: z.string().trim().min(8).max(1600),
+  audience: z.string().trim().max(600).optional().default(''),
+  tone: z.string().trim().max(120).optional().default('Clear, human and credible'),
+  contentMode: z.enum(['TEXT', 'IMAGE']).default('TEXT'),
+  platforms: z.array(z.string().trim().min(1).max(80)).min(1).max(8),
+  postCount: z.number().int().min(10).max(30)
+});
+
+const campaignPostSchema = z.object({
+  title: z.string().max(180).optional(),
+  pillar: z.string().max(180).optional(),
+  hook: z.string().max(400).optional(),
+  caption: z.string().max(7000).optional(),
+  cta: z.string().max(300).optional(),
+  hashtags: z.array(z.string().max(80)).max(10).optional(),
+  imageBrief: z.string().max(4000).optional()
 });
 
 const TRANSIENT_AI_STATUSES = new Set([500, 502, 503, 504]);
@@ -221,6 +242,54 @@ async function createTopupCheckout(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function createCampaign(req, res, next) {
+  try {
+    const input = campaignSchema.parse(req.body || {});
+    res.status(201).json({ campaign: await campaignService.generateCampaign(req.user.id, input) });
+  } catch (error) { next(error); }
+}
+
+async function listCampaigns(req, res, next) {
+  try {
+    const limit = z.coerce.number().int().min(1).max(20).default(8).parse(req.query.limit);
+    res.json({ campaigns: await campaignService.listCampaigns(req.user.id, limit) });
+  } catch (error) { next(error); }
+}
+
+async function getCampaign(req, res, next) {
+  try {
+    res.json({ campaign: await campaignService.getCampaign(req.user.id, req.params.campaignId) });
+  } catch (error) { next(error); }
+}
+
+async function updateCampaignPost(req, res, next) {
+  try {
+    const input = campaignPostSchema.parse(req.body || {});
+    res.json({ campaign: await campaignService.updatePost(req.user.id, req.params.campaignId, req.params.postId, input) });
+  } catch (error) { next(error); }
+}
+
+async function regenerateCampaignPost(req, res, next) {
+  try {
+    res.json({ campaign: await campaignService.regeneratePost(req.user.id, req.params.campaignId, req.params.postId) });
+  } catch (error) { next(error); }
+}
+
+async function generateCampaignPostImage(req, res, next) {
+  try {
+    res.json({ campaign: await withStudioRetry(
+      () => campaignService.generatePostImage(req.user.id, req.params.campaignId, req.params.postId),
+      'campaign image render'
+    ) });
+  } catch (error) { next(error); }
+}
+
+async function deleteCampaign(req, res, next) {
+  try {
+    res.json(await campaignService.removeCampaign(req.user.id, req.params.campaignId));
+  } catch (error) { next(error); }
+}
+
 async function creditWebhook(req, res) {
   let event;
   try {
@@ -253,5 +322,6 @@ module.exports = {
   generateShortVideo: generation('short_video'),
   generateUGCAd: generation('ugc_ad'),
   generationStatus, cancelGeneration, dismissGeneration, recentDrafts, saveDraft, deleteDraft, sendDraftToPosts,
-  generationHistory, brandKits, packs, createTopupCheckout, creditWebhook
+  generationHistory, brandKits, packs, createTopupCheckout, creditWebhook,
+  createCampaign, listCampaigns, getCampaign, updateCampaignPost, regenerateCampaignPost, generateCampaignPostImage, deleteCampaign
 };
