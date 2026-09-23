@@ -12,8 +12,19 @@ export function parseCaptions(value: string) {
 export function parseTextPosts(value: string) {
   const normalized = value.replace(/\r\n?/g, '\n').trim()
   if (!normalized) return []
+
+  // Prefer explicit separator lines for backwards compatibility. Accept common
+  // dash variants so mobile keyboards do not silently collapse the batch.
+  const explicitBlocks = normalized
+    .split(/^\s*[-–—]{2,}\s*$/m)
+    .map((post) => post.trim())
+    .filter(Boolean)
+  if (explicitBlocks.length > 1) return explicitBlocks
+
+  // Two completely empty lines separate posts. A single blank line remains
+  // inside the post, so paragraphs, links, hashtags and formatting are kept.
   return normalized
-    .split(/^\s*---\s*$/m)
+    .split(/\n[ \t]*\n[ \t]*\n+/)
     .map((post) => post.trim())
     .filter(Boolean)
 }

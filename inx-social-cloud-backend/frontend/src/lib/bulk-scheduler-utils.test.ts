@@ -9,16 +9,24 @@ describe('Bulk Scheduler session utilities', () => {
     ])
   })
 
-  it('parses complete multiline text posts only at explicit separator lines', () => {
-    expect(parseTextPosts('First paragraph\n\nSecond paragraph\n#tag\n\n---\n\nAnother post\nwith two lines\n\n---\nFinal post')).toEqual([
+  it('parses complete multiline text posts separated by two empty lines', () => {
+    expect(parseTextPosts('First paragraph\n\nSecond paragraph\n#tag\n\n\nAnother post\nwith two lines\n\n\nFinal post')).toEqual([
       'First paragraph\n\nSecond paragraph\n#tag',
       'Another post\nwith two lines',
       'Final post',
     ])
   })
 
-  it('treats blank lines inside a text post as content rather than separators', () => {
+  it('keeps a single blank line inside a text post', () => {
     expect(parseTextPosts('Line one\n\nLine two\n\n#hashtag')).toEqual(['Line one\n\nLine two\n\n#hashtag'])
+  })
+
+  it('keeps legacy dash separator lines compatible with mobile dash variants', () => {
+    expect(parseTextPosts('First post\n\n--\n\nSecond post\n\n—-\n\nThird post')).toEqual([
+      'First post',
+      'Second post',
+      'Third post',
+    ])
   })
 
   it('creates one immediate action time per video without scheduling', () => {
