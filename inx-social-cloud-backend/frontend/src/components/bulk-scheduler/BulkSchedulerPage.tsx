@@ -90,6 +90,7 @@ export function BulkSchedulerPage() {
   const abortRef = useRef<AbortController | null>(null)
   const importedLibrarySelection = useRef('')
   const importedCampaignSelection = useRef('')
+  const importedMixedCampaignSelection = useRef('')
   const destinationSection = useRef<HTMLDivElement>(null)
   const batchRunSection = useRef<HTMLDivElement>(null)
   const running = ['preparing', 'uploading', 'scheduling'].includes(progress.state)
@@ -203,6 +204,7 @@ export function BulkSchedulerPage() {
     const next = valid.map(({ file, kind }) => ({ id: crypto.randomUUID(), libraryAssetId: null, file, kind, previewUrl: URL.createObjectURL(file) }))
     mediaRef.current = next
     setMedia(next)
+    setMixedCampaign(null)
     setResults([])
     setRetainMedia(false)
     const rejected = files.length - valid.length
@@ -218,6 +220,7 @@ export function BulkSchedulerPage() {
     importedCampaignSelection.current = campaignFingerprint
     const blocks = (imported.captions || []).map((caption) => String(caption || '').trim()).filter(Boolean)
     if (!blocks.length) return
+    setMixedCampaign(null)
     setContentMode('text')
     setCaptions(blocks.join('\n\n---\n\n'))
     setMedia([])
@@ -230,7 +233,60 @@ export function BulkSchedulerPage() {
   }, [location.state, location.key])
 
   useEffect(() => {
-    const state = location.state as { mediaLibraryAssets?: MediaAsset[]; aiCampaignCaptions?: string[]; aiCampaignTitle?: string } | null
+    const state = location.state as {
+      mediaLibraryAssets?: MediaAsset[]
+      aiMixedCampaign?: {
+        id: string
+        title: string
+        posts: Array<{ id: string; contentType: 'TEXT' | 'IMAGE'; caption: string; mediaAssetId: string | null }>
+      }
+    } | null
+    const imported = state?.aiMixedCampaign
+    if (!imported?.id) return
+    const fingerprint = `${imported.id}:${location.key}`
+    if (importedMixedCampaignSelection.current === fingerprint) return
+    importedMixedCampaignSelection.current = fingerprint
+
+    const assetsById = new Map((state?.mediaLibraryAssets || []).map((asset) => [asset.id, asset]))
+    setProgress({ ...idleProgress, state: 'preparing', message: `Loading mixed AI campaign “${imported.title}”…` })
+
+    void Promise.all(imported.posts.map(async (post): Promise<ImportedMixedCampaignItem> => {
+      if (post.contentType === 'TEXT') return { id: post.id, contentType: 'TEXT', caption: post.caption, media: null }
+      const asset = post.mediaAssetId ? assetsById.get(post.mediaAssetId) : null
+      if (!asset) throw new Error(`Generated media is missing for one of the image posts in “${imported.title}”.`)
+      const file = await fetchMediaAssetFile(asset)
+      const kind = mediaKind(file)
+      if (!kind) throw new Error(`${asset.fileName} is not a supported image or video.`)
+      return {
+        id: post.id,
+        contentType: 'IMAGE',
+        caption: post.caption,
+        media: { id: asset.id, libraryAssetId: asset.id, file, kind, previewUrl: URL.createObjectURL(file) },
+      }
+    })).then((items) => {
+      mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+      const imageMedia = items.flatMap((item) => item.media ? [item.media] : [])
+      mediaRef.current = imageMedia
+      setMedia(imageMedia)
+      setMixedCampaign({ id: imported.id, title: imported.title, posts: items })
+      setContentMode('media')
+      setCaptions('')
+      setRetainMedia(true)
+      setUseFallback(false)
+      setResults([])
+      const textPosts = items.filter((item) => item.contentType === 'TEXT').length
+      const imagePosts = items.length - textPosts
+      setProgress({ ...idleProgress, state: 'completed', message: `${items.length}-post mixed AI campaign loaded: ${textPosts} text + ${imagePosts} image. Choose destinations and publishing times.` })
+    }).catch((error) => {
+      importedMixedCampaignSelection.current = ''
+      setMixedCampaign(null)
+      setProgress({ ...idleProgress, state: 'failed', message: error instanceof Error ? error.message : 'The mixed AI campaign could not be loaded.' })
+    })
+  }, [location.state, location.key])
+
+  useEffect(() => {
+    const state = location.state as { mediaLibraryAssets?: MediaAsset[]; aiCampaignCaptions?: string[]; aiCampaignTitle?: string; aiMixedCampaign?: unknown } | null
+    if (state?.aiMixedCampaign) return
     const selectedAssets = state?.mediaLibraryAssets || []
     const fingerprint = selectedAssets.length ? `${selectedAssets.map((asset) => asset.id).join(':')}:${location.key}` : ''
     if (!fingerprint || importedLibrarySelection.current === fingerprint) return
@@ -263,6 +319,7 @@ export function BulkSchedulerPage() {
     mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
     mediaRef.current = []
     setMedia([])
+    setMixedCampaign(null)
     setCaptions('')
     setTimingMode('')
     setScheduleTimes(['10:00'])
@@ -282,6 +339,7 @@ export function BulkSchedulerPage() {
 
   const changeContentMode = (value: BulkContentMode) => {
     if (running || value === contentMode) return
+    setMixedCampaign(null)
     setContentMode(value)
     setUseFallback(false)
     setRetainMedia(false)
