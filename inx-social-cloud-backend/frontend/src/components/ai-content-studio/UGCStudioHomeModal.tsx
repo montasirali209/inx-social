@@ -218,6 +218,7 @@ export function UGCStudioHomeModal({
                   <span className="ugc-home-meta">{campaign.resolvedType === 'PRODUCT_SHOWCASE' ? 'Product showcase' : 'Avatar explainer'} · {campaign.quality === 'PREMIUM' ? 'Premium' : 'Standard'} · {campaign.adCount} variation{campaign.adCount === 1 ? '' : 's'}</span>
                   <strong>{campaign.title}</strong>
                   <p>{first?.hook || first?.angle || 'Creator-native UGC campaign'}</p>
+                  {campaign.ads.length > 1 && <div className="ugc-home-variation-list">{campaign.ads.map((ad) => <div key={ad.id}><span>V{ad.sequence} · {statusLabel(ad.status)}</span><button disabled={activeStatuses.has(ad.status)} onClick={() => { onClose(); navigate(`/ai-content-studio/ugc/${ad.id}/edit`) }} type="button">Edit</button></div>)}</div>}
                   <div className="ugc-home-actions">
                     <Button disabled={!first || activeStatuses.has(first.status)} onClick={() => { onClose(); navigate(`/ai-content-studio/ugc/${first.id}/edit`) }} size="sm"><Pencil className="size-3.5" />Edit</Button>
                     <Button disabled={!campaign.ads.some((ad) => ad.status === 'READY')} onClick={() => scheduleCampaign(campaign)} size="sm" variant="primary"><CalendarRange className="size-3.5" />Schedule</Button>
