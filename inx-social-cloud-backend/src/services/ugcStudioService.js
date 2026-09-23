@@ -558,6 +558,7 @@ async function planCampaign(input, brand, avatars, resolvedType) {
         'One ad uses one creator identity and one narrator voice throughout.',
         'Keep creator face, age, hair, skin tone, wardrobe and environment stable across creator cuts.',
         'No generated subtitles, labels, watermarks, logos or readable overlay text inside frames; INXSocial adds captions later.',
+        'Apply the INXSocial realism skill: real consumer-camera exposure, natural human micro-movements, stable anatomy and identity, believable room continuity, physically plausible hands/products, and no glossy CGI or beauty-filter look.',
         'Write natural social-video dialogue, not corporate copy. Aim for about 34 words for 15 seconds, 46 words for 20 seconds and 68 words for 30 seconds.',
         'Return JSON only: {"title":"string","ads":[{"title":"string","angle":"string","hook":"string","script":"string","cta":"string","caption":"string","avatarIndex":0,"scenes":[{"kind":"CREATOR|PRODUCT|LIFESTYLE|CTA","prompt":"string","script":"string"}]}]}.'
       ].join('\n\n') },
@@ -995,6 +996,7 @@ async function renderProviderScene(scene, ad, avatar, productReference, narratio
   const positivePrompt = clean([
     clean(scene.prompt, 1200),
     'Authentic vertical 9:16 creator-native UGC. Realistic smartphone-camera exposure, real room depth, natural skin and fabric texture, grounded physics, subtle handheld stability, no plastic CGI appearance.',
+    ugcRealismSkill(scene.kind, parseJson(ad.planJson, {}).campaignType || 'AVATAR_EXPLAINER', ad.quality),
     scene.kind === 'CREATOR' ? creatorLock : productLock,
     scene.kind === 'PRODUCT'
       ? 'Frame the product clearly in a believable use context. Use realistic hands only when needed and keep interaction physically plausible.'
@@ -1156,7 +1158,12 @@ async function persistFinalAsset(ad, data, providerCost) {
   const record = await prisma.agentAsset.create({ data: {
     userId: ad.userId, kind: 'AI_VIDEO', source: 'AI_STUDIO', status: 'READY', originalName, mimeType: 'video/mp4',
     byteSize: data.length, checksum, prompt: clean(ad.angle + ' ' + ad.hook, 1500), customerPrompt: clean(ad.script, 1500),
-    generationChoice: json({ provider: 'runware', route: ad.route, quality: ad.quality, resolution: '720p', duration: ad.duration, providerCostUsd: providerCost, ugcAdId: ad.id }),
+    generationChoice: json({
+      provider: 'runware', route: ad.route, quality: ad.quality, resolution: '720p', duration: ad.duration,
+      providerCostUsd: providerCost, ugcAdId: ad.id, campaignId: ad.campaignId, avatarId: ad.avatarId,
+      voice: ad.voice || null, cta: ad.cta || null, caption: ad.caption || null,
+      musicMode: ad.musicMode, captionsEnabled: Boolean(ad.captionsEnabled)
+    }),
     tagsJson: json(['ai-generated','ai-content-studio','ugc-ad','ugc-studio']), data: stored.data, storageProvider: stored.storageProvider, storageKey: stored.storageKey,
     width: 720, height: 1280, durationSeconds: ad.duration, expiresAt: expiresAtFor('video/mp4')
   } });
@@ -1311,6 +1318,30 @@ async function deleteCampaign(userId, campaignId) {
   return true;
 }
 
+async function syncReadyAssetMetadata(userId, adId, input) {
+  const videoImpacting = input.avatarId !== undefined || input.script !== undefined || input.voice !== undefined || input.voicePrompt !== undefined;
+  if (videoImpacting) return false;
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCAd" WHERE "id"=$1 AND "userId"=$2 LIMIT 1', adId, userId);
+  const ad = rows[0];
+  if (!ad?.mediaAssetId) return false;
+  const assets = await prisma.$queryRawUnsafe('SELECT "generationChoice" FROM "AgentAsset" WHERE "id"=$1 AND "userId"=$2 LIMIT 1', ad.mediaAssetId, userId);
+  if (!assets[0]) return false;
+  const generationChoice = {
+    ...parseJson(assets[0].generationChoice, {}),
+    ugcAdId: ad.id,
+    campaignId: ad.campaignId,
+    cta: ad.cta || null,
+    caption: ad.caption || null,
+    musicMode: ad.musicMode,
+    captionsEnabled: Boolean(ad.captionsEnabled)
+  };
+  await prisma.$executeRawUnsafe(
+    'UPDATE "AgentAsset" SET "generationChoice"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$2',
+    ad.mediaAssetId, userId, json(generationChoice)
+  );
+  return true;
+}
+
 async function updateAd(userId, adId, input) {
   const row = await getAdRow(userId, adId);
   if (['QUEUED','RENDERING'].includes(row.status)) throw publicError('Wait for the current render to finish before editing this ad.', 'UGC_AD_BUSY', 409);
@@ -1359,8 +1390,8 @@ async function regenerateScene(userId, sceneId) {
 }
 
 module.exports = {
-  STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, avatarSeeds,
-  creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations,
+  STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds,
+  creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
   narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
   getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, deleteCampaign, getAd, updateAd, regenerateAd, regenerateScene,
   generateCustomAvatar, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,
