@@ -29,6 +29,9 @@ test('phones and tablets keep the navigation drawer instead of overlapping route
   assert.match(sidebar, /lg:translate-x-0/);
   assert.match(sidebar, /lg:hidden/);
   assert.match(topbar, /lg:hidden/);
+  assert.match(topbar, /data-mobile-menu-trigger="true"/);
+  assert.match(topbar, /border-brand-cyan\/45 bg-panel-soft\/90 text-text-main/);
+  assert.match(topbar, /<Menu aria-hidden="true" className="h-5 w-5 shrink-0" strokeWidth=\{2\.4\}/);
 });
 
 test('settings and billing keep local search controls until desktop topbar search is available', () => {
