@@ -106,6 +106,17 @@ test('sitemap exposes only canonical acquisition URLs with current modification 
 });
 
 
+test('AI Content Studio SEO uses the real product workspace', () => {
+  const page = readRepo('landing-next/app/seo/[slug]/page.tsx');
+  const fallback = readBackend('public/ai-social-media-tools.html');
+
+  assert.match(page, /"ai-social-media-tools": \{[\s\S]*?src: "\/assets\/ai-content-studio-seo\.webp"/);
+  assert.match(page, /Actual AI Content Studio workspace/);
+  assert.match(page, /INXSocial AI Content Studio showing Image Post, Carousel Post, Short Video \/ Reel, UGC Ad Studio and AI Post Campaign workflows/);
+  assert.match(fallback, /<link rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-tools">/);
+  assert.match(fallback, /<img src="\/assets\/ai-content-studio-seo\.webp" width="1400" height="986"/);
+});
+
 test('marketing headers use one wordmark scale and keep mobile actions right-aligned', () => {
   const seoCss = readRepo('landing-next/app/seo/[slug]/seo-page.module.css');
   const landingCss = readRepo('landing-next/styles/landing-redesign.css');
