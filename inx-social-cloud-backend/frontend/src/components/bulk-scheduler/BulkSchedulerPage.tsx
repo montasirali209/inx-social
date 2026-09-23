@@ -99,7 +99,25 @@ export function BulkSchedulerPage() {
       if (!result.jobId) return result
       const job = schedulerData.jobs.find((candidate) => candidate.id === result.jobId)
       if (!job) return result
-      return { ...result, status: backendStatusToUploadStatus(job.status), resultId: job.metaPostId || job.metaVideoId || result.resultId, errorMessage: job.errorMessage || result.errorMessage }
+
+      const alreadyAccepted = result.status === 'scheduled' || result.status === 'published'
+      if (alreadyAccepted) {
+        return {
+          ...result,
+          status: 'scheduled',
+          resultId: job.metaPostId || job.metaVideoId || result.resultId,
+          errorMessage: null,
+        }
+      }
+
+      const backendStatus = backendStatusToUploadStatus(job.status)
+      const acceptedNow = backendStatus === 'scheduled' || backendStatus === 'published'
+      return {
+        ...result,
+        status: acceptedNow ? 'scheduled' : backendStatus,
+        resultId: job.metaPostId || job.metaVideoId || result.resultId,
+        errorMessage: acceptedNow ? null : job.errorMessage || result.errorMessage,
+      }
     }))
   }, [schedulerData.jobs, results.length])
 
