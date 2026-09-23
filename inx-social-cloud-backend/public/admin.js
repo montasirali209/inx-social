@@ -102,7 +102,10 @@ function renderAiOperations(data){
       ['Economy video',providers.runware?.models?.economyVideo],
       ['Video',providers.runware?.models?.video],
       ['Long video',providers.runware?.models?.longVideo],
-      ['UGC',providers.runware?.models?.ugc]
+      ['UGC Standard',providers.runware?.models?.ugcStandard],
+      ['UGC Premium',providers.runware?.models?.ugcPremium],
+      ['UGC lip sync',providers.runware?.models?.ugcLipSync],
+      ['UGC voice',providers.runware?.models?.ugcTts]
     ]],
     ['Stock Video Creator',providers.openMontage?.configured,providers.openMontage?.detail,[
       ['Pexels',providers.openMontage?.sources?.pexels?'Configured':'Not configured'],
