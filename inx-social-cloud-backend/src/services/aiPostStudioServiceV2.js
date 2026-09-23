@@ -97,13 +97,11 @@ function metaValue(source, name) {
 }
 
 function attrValue(tag, name) {
-  const escaped = String(name).replace(/[.*+?^$()|[\]\\{}]/g, '\\async function safePublicDns(url) {
-');
-  return cleanText(
-    String(tag || '').match(new RegExp('\\b' + escaped + '\\s*=\\s*["\\']([^"\\']+)["\\']', 'i'))?.[1]
-      || String(tag || '').match(new RegExp('\\b' + escaped + '\\s*=\\s*([^\\s>]+)', 'i'))?.[1],
-    2000
-  );
+  const escaped = String(name).replace(/[.*+?^$()|[\]\\{}]/g, '\\$&');
+  const source = String(tag || '');
+  const quoted = source.match(new RegExp('\\b' + escaped + '\\s*=\\s*["\\']([^"\\']+)["\\']', 'i'))?.[1];
+  const unquoted = source.match(new RegExp('\\b' + escaped + '\\s*=\\s*([^\\s>]+)', 'i'))?.[1];
+  return cleanText(quoted || unquoted, 2000);
 }
 
 function absoluteAssetUrl(baseUrl, value) {
