@@ -103,6 +103,32 @@ async function ensureSystemAvatars() {
   }
 }
 
+let avatarWarmupRunning = false;
+async function warmSystemAvatarReferences() {
+  if (avatarWarmupRunning) return;
+  avatarWarmupRunning = true;
+  try {
+    const pending = await prisma.$queryRawUnsafe(
+      'SELECT * FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\' AND "referenceStorageKey" IS NULL ORDER BY "name"'
+    );
+    if (!pending.length) return;
+    console.log('[UGC AVATAR WARMUP]', 'Preparing ' + pending.length + ' reusable creator portraits.');
+    let completed = 0;
+    for (const avatar of pending) {
+      try {
+        await ensureAvatarReference('system-ugc', avatar);
+        completed += 1;
+      } catch (error) {
+        console.warn('[UGC AVATAR WARMUP ITEM]', avatar.slug || avatar.id, clean(error?.message, 400));
+      }
+      await sleep(1800);
+    }
+    console.log('[UGC AVATAR WARMUP]', 'Prepared ' + completed + ' of ' + pending.length + ' pending creator portraits.');
+  } finally {
+    avatarWarmupRunning = false;
+  }
+}
+
 function publicAvatar(row) {
   return {
     id: row.id, scope: row.scope, name: row.name, category: row.category,
@@ -841,7 +867,9 @@ async function runtimeTick() {
 
 function startUGCStudioRuntime() {
   if (runtimeTimer) return;
-  void ensureSystemAvatars().catch(error => console.error('[UGC AVATAR SEED]', clean(error?.message, 700)));
+  void ensureSystemAvatars()
+    .then(() => warmSystemAvatarReferences())
+    .catch(error => console.error('[UGC AVATAR SEED]', clean(error?.message, 700)));
   void prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'QUEUED\',"updatedAt"=CURRENT_TIMESTAMP WHERE "status"=\'RENDERING\' AND "updatedAt" < CURRENT_TIMESTAMP - INTERVAL \'30 minutes\'').then(() => queueRuntimeTick()).catch(error => console.error('[UGC RECOVERY]', clean(error?.message, 700)));
   runtimeTimer = setInterval(() => void runtimeTick(), 5000);
   runtimeTimer.unref?.();
