@@ -40,7 +40,7 @@ function AvatarPortrait({ avatar, className = '' }: { avatar: UGCAvatar; classNa
       active = false
       if (createdUrl) URL.revokeObjectURL(createdUrl)
     }
-  }, [avatar.imageUrl])
+  }, [avatar])
   if (url) return <img alt="" className={`size-full object-cover ${className}`} src={url} />
   const initials = avatar.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2)
   return <div className={`ugc-avatar-placeholder grid size-full place-items-center ${className}`}><span>{initials}</span></div>
