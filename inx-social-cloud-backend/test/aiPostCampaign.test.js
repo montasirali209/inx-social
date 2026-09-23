@@ -250,3 +250,54 @@ test('AI Campaign top bar stays fixed while the modal body scrolls', () => {
   assert.match(modal, /<header className="sticky top-0 z-50/);
   assert.match(modal, /backdrop-blur-xl/);
 });
+
+
+test('brand-grounded campaign engine builds a structured brand pack from website evidence', () => {
+  const studio = read('src/services/aiPostStudioServiceV2.js');
+  const campaign = read('src/services/aiPostCampaignService.js');
+
+  assert.match(studio, /function extractBrandColors/);
+  assert.match(studio, /function buildBrandPack/);
+  assert.match(studio, /Structured-data logo/);
+  assert.match(studio, /dashboard\|screenshot\|product\|app/);
+  assert.match(studio, /brandColors/);
+  assert.match(studio, /confidenceScore/);
+  assert.match(studio, /lockLogo: Boolean\(logo\)/);
+
+  assert.match(campaign, /const brandPack = postStudio\.buildBrandPack\(context\)/);
+  assert.match(campaign, /brandPack,/);
+  assert.match(campaign, /analysis\.brandPack/);
+});
+
+test('brand lock keeps official logo and selected product visuals exact after AI rendering', () => {
+  const studio = read('src/services/aiPostStudioServiceV2.js');
+  const campaign = read('src/services/aiPostCampaignService.js');
+
+  assert.match(studio, /async function exactBrandOverlay/);
+  assert.match(studio, /referenceKind === 'logo'/);
+  assert.match(studio, /referenceKind === 'product'/);
+  assert.match(studio, /INXSocial will composite the exact official logo after generation/);
+  assert.match(studio, /exact official product\/dashboard visual will be composited after generation/);
+  assert.match(studio, /const output = await exactBrandOverlay\(rendered, refs, input\.brandLock\)/);
+  assert.match(studio, /brandLockApplied/);
+
+  assert.match(campaign, /function exactProductVisualNeeded/);
+  assert.match(campaign, /function campaignBrandReferences/);
+  assert.match(campaign, /lockLogo: Boolean\(pack\.logo\)/);
+  assert.match(campaign, /useExactProductVisual/);
+  assert.match(campaign, /exact official product\/dashboard screenshot will be composited unchanged/);
+});
+
+test('brand lock preserves extracted palette and forbids invented branding', () => {
+  const studio = read('src/services/aiPostStudioServiceV2.js');
+  const campaign = read('src/services/aiPostCampaignService.js');
+
+  assert.match(studio, /Official extracted brand palette/);
+  assert.match(studio, /do not replace them with a new palette/);
+  assert.match(studio, /Never invent a replacement logo/);
+  assert.match(studio, /No verified official logo asset is available\. Do not invent one/);
+
+  assert.match(campaign, /Official extracted colour palette/);
+  assert.match(campaign, /do not replace them with imagined alternatives/);
+  assert.match(campaign, /No verified full logo asset is available\. Do not fabricate one/);
+});
