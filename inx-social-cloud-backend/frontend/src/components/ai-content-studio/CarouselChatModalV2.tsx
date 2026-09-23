@@ -347,8 +347,8 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
     : `Generate · ${cost} credits`
 
   return createPortal(
-    <div className="fixed inset-0 z-[100] grid place-items-center bg-[#01070d]/90 p-2 backdrop-blur-xl sm:p-5">
-      <div className="flex h-[min(900px,95vh)] w-full max-w-[1540px] flex-col overflow-hidden rounded-[30px] border border-brand-cyan/25 bg-[radial-gradient(circle_at_12%_15%,rgba(0,214,192,.09),transparent_28%),linear-gradient(145deg,#061824,#020b13)] shadow-[0_44px_160px_rgba(0,0,0,.72)]">
+    <div className="ai-studio-modal-backdrop fixed inset-0 z-[100] grid place-items-center bg-[#01070d]/90 p-2 backdrop-blur-xl sm:p-5">
+      <div className="ai-studio-modal-enter flex h-[min(900px,95vh)] w-full max-w-[1540px] flex-col overflow-hidden rounded-[30px] border border-brand-cyan/25 bg-[radial-gradient(circle_at_12%_15%,rgba(0,214,192,.09),transparent_28%),linear-gradient(145deg,#061824,#020b13)] shadow-[0_44px_160px_rgba(0,0,0,.72)]">
         <header className="flex min-h-16 items-center justify-between border-b border-border-soft px-4 sm:px-6">
           <div>
             <span className="text-[8px] font-bold uppercase tracking-[.18em] text-brand-cyan">Conversational Creator</span>
