@@ -589,6 +589,7 @@ function imagePrompt(input) {
     'Use strong visual hierarchy, professional typography, deliberate spacing, realistic product presentation and a clear focal point. The result should look like a finished campaign creative a professional social team would publish.',
     'If reference images are supplied, treat them as authoritative official brand/product references. Preserve recognizable product details, actual logo treatment, interface structure and brand identity.',
     'Never invent a replacement logo, fictional product UI, fake dashboard or alternate brand identity when an official website/reference shows the real one. If an official screenshot or product visual exists, use it as the visual truth rather than redesigning it from imagination.',
+    'If no official logo reference is available, do not fabricate a logo. Use brand-neutral typography or a non-logo composition instead.',
     'Do not invent unsupported prices, testimonials, statistics, awards, integrations or performance claims.'
   ].filter(Boolean);
   return parts.join('\n').slice(0, 12000);
