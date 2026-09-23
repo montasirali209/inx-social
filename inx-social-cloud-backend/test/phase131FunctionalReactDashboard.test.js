@@ -27,7 +27,7 @@ test('React dashboard is responsive, accessible and uses working navigation', ()
   const sidebar = read('frontend/src/components/layout/Sidebar.tsx');
   const dashboard = read('frontend/src/components/dashboard/DashboardPage.tsx');
   const studio = read('studio/app.js');
-  assert.match(shell, /md:pl-\[88px\].*xl:pl-\[264px\]/);
+  assert.match(shell, /lg:pl-\[88px\].*xl:pl-\[264px\]/));
   assert.match(sidebar, /Create New Post/);
   assert.match(sidebar, /AI Content Studio/);
   assert.doesNotMatch(sidebar, /\/studio\/\?view=/);
