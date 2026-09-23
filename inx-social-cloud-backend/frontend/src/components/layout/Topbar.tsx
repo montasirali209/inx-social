@@ -156,7 +156,7 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
     <header className="sticky top-0 z-20 min-h-[64px] sm:min-h-[72px] lg:min-h-[78px] border-b border-border-soft bg-bg/88 shadow-[0_12px_40px_rgba(0,0,0,0.12)] backdrop-blur-2xl" data-design-standard="universal-workspace-topbar">
       <div className="flex min-h-[64px] w-full min-w-0 items-center justify-between gap-1.5 px-2.5 sm:min-h-[72px] sm:gap-3 sm:px-5 lg:min-h-[78px] xl:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:gap-3">
-          <Button aria-label="Open navigation" className="size-9 shrink-0 px-0 sm:size-10 md:hidden" onClick={() => setOpen(true)} variant="ghost"><Menu aria-hidden="true" className="size-5" /></Button>
+          <Button aria-label="Open navigation" className="size-9 shrink-0 px-0 sm:size-10 lg:hidden" onClick={() => setOpen(true)} variant="ghost"><Menu aria-hidden="true" className="size-5" /></Button>
           {connectionsRoute ? (
             <label className="relative min-w-0 flex-1 sm:max-w-[26rem]">
               <span className="sr-only">Search anything in connected accounts</span>
@@ -178,7 +178,7 @@ export function Topbar({ overview }: { overview?: StudioOverview }) {
         </div>
 
         <div className="flex min-w-0 shrink-0 items-center gap-1 sm:gap-2 lg:gap-2.5">
-          {(settingsRoute || billingRoute) && <label className="relative hidden sm:block">
+          {(settingsRoute || billingRoute) && <label className="relative hidden lg:block">
             <span className="sr-only">{settingsRoute ? 'Search settings' : 'Search billing'}</span>
             <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
             <input className="min-h-10 w-[clamp(12rem,24vw,20rem)] rounded-xl border border-border-soft bg-panel/70 pl-10 pr-3 text-xs text-text-main placeholder:text-text-soft transition hover:border-brand-cyan/35 focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/15" onChange={(event) => settingsRoute ? setSettingsSearch(event.target.value) : setBillingSearch(event.target.value)} placeholder={settingsRoute ? 'Search settings…' : 'Search billing…'} type="search" value={settingsRoute ? settingsSearch : billingSearch} />
