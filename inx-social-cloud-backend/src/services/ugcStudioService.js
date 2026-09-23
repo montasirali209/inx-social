@@ -596,6 +596,10 @@ async function createCampaign(userId, input) {
   if (!available.length) throw publicError('No UGC creators are currently available.', 'UGC_CREATORS_UNAVAILABLE', 503);
 
   const resolvedType = resolveCampaignType(input, brand, productAssets);
+  const hasBrandVisualReference = Boolean(Array.isArray(brand?.brandReferences) && brand.brandReferences.length);
+  if (resolvedType === 'PRODUCT_SHOWCASE' && !productAssets.length && !hasBrandVisualReference) {
+    throw publicError('Product Showcase needs at least one real product image. Upload a product photo, use a product page with usable images, or choose Avatar Explainer.', 'UGC_PRODUCT_REFERENCE_REQUIRED', 422);
+  }
   const plan = await planCampaign({ ...input, productAssetIds }, brand, available, resolvedType);
   const campaignId = id();
   const perAd = creditsPerAd(input.duration, input.quality);
@@ -1285,9 +1289,12 @@ async function regenerateScene(userId, sceneId) {
 }
 
 module.exports = {
-  STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, avatarSeeds,
-  creditsPerAd, splitDurations, splitScriptByDurations, narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
-  getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getAd, updateAd, regenerateAd, regenerateScene,
-  generateCustomAvatar, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent, listMusicTracks,
-  startUGCStudioRuntime, ensureSystemAvatars
+  STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, avatarSeeds,
+  creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations,
+  narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
+  getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, deleteCampaign, getAd, updateAd, regenerateAd, regenerateScene,
+  generateCustomAvatar, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,
+  uploadProductAsset, getProductAssetContent,
+  listSampleVideos, uploadSampleVideo, getSampleVideoContent,
+  listMusicTracks, startUGCStudioRuntime, ensureSystemAvatars
 };
