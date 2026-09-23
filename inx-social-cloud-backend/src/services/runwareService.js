@@ -164,8 +164,17 @@ async function generateText(prompt, options = {}) {
 }
 
 async function generateImages(prompts, options = {}) {
-  const { width, height } = imageDimensions(options.aspectRatio);
   const model = normalizeModelId(options.model || env.runware.imageModel);
+  let { width, height } = imageDimensions(options.aspectRatio);
+  if (String(model) === 'google:4@3') {
+    const supported = {
+      '1:1': [1024, 1024],
+      '4:5': [928, 1152],
+      '9:16': [848, 1264],
+      '16:9': [1264, 848]
+    };
+    [width, height] = supported[options.aspectRatio] || supported['1:1'];
+  }
   const tasks = prompts.map(prompt => ({
     taskType: 'imageInference',
     taskUUID: crypto.randomUUID(),
