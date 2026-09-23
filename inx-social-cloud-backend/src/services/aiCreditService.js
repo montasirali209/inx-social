@@ -155,6 +155,7 @@ function configurationSnapshot() {
       agency: creditLimitForPlan('agency')
     },
     topupPacksConfigured: [250, 500, 1000, 2500].filter(amount => Boolean(topupPriceIds[String(amount)])),
+    topupPriceSuffixes: Object.fromEntries([250, 500, 1000, 2500].map(amount => [amount, String(topupPriceIds[String(amount)] || '').slice(-8)])),
     topupWebhookConfigured: Boolean(env.aiCredits?.stripeWebhookSecret)
   };
 }
