@@ -8,7 +8,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { fetchMediaLibrary } from '../../lib/media-library-api'
 import {
   fetchUGCAvatarImage, getUGCAd, getUGCOverview, regenerateUGCAd,
-  regenerateUGCScene, updateUGCAd,
+  regenerateUGCScene, updateUGCAd, trackUGCStudioEvent,
 } from '../../lib/ugc-studio-api'
 import type { MediaAsset } from '../../types/media-library'
 import type { UGCAvatar, UGCAd } from '../../types/ugc-studio'
