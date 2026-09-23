@@ -15,14 +15,38 @@ const objectStorage = require('./mediaObjectStorageService');
 const mediaLibrary = require('./mediaLibraryService');
 const { expiresAtFor } = require('./mediaRetentionService');
 
-const STANDARD_CREDITS = Object.freeze({ 15: 75, 30: 150, 60: 300 });
-const PREMIUM_CREDITS = Object.freeze({ 15: 250, 30: 500, 60: 1000 });
+const STANDARD_CREDITS = Object.freeze({ 15: 100, 20: 140, 30: 210 });
+const PREMIUM_CREDITS = Object.freeze({ 15: 180, 20: 260, 30: 390 });
 const AVATAR_CREDITS = 5;
 const SYSTEM_AVATAR_COUNT = 52;
-const PVIDEO2_MODEL = () => env.runware.ugcPVideoModel || 'prunaai:p-video@2';
-const AVATAR_MODEL = () => env.runware.ugcAvatarModel || 'prunaai:p-video@avatar';
-const PREMIUM_MODEL = () => env.runware.ugcPremiumModel || 'klingai:kling-video@o3-standard';
+const FEATURED_AVATAR_COUNT = 20;
+const STANDARD_MODEL = () => env.runware.ugcStandardModel || 'minimax:4@1';
+const PREMIUM_MODEL = () => env.runware.ugcPremiumModel || 'klingai:kling-video@3-standard';
+const LIPSYNC_MODEL = () => env.runware.ugcLipSyncModel || 'klingai:7@1';
 const TTS_MODEL = () => env.runware.ugcTtsModel || 'inworld:tts@2';
+
+const FEATURED_CREATORS = new Map(Object.entries({
+  Maya: 'bright lived-in apartment lounge with soft window light, real sofa and everyday decor',
+  Sofia: 'realistic vanity corner in a modern bedroom with soft daylight and subtle beauty products',
+  Aisha: 'calm contemporary wellness room with plants, warm daylight and natural home textures',
+  Priya: 'real home office with laptop, books, warm practical lighting and believable workday clutter',
+  Grace: 'sunlit family kitchen with real counters, utensils and soft depth of field',
+  Zara: 'modern creator desk setup with laptop, monitor, practical LED accent and daylight',
+  Megan: 'comfortable mature lifestyle living room with realistic furniture and warm window light',
+  Keisha: 'realistic beauty creator bedroom setup with mirror, cosmetics and soft window light',
+  Mei: 'minimal apartment beauty corner with daylight, natural materials and subtle personal objects',
+  Fatima: 'bright contemporary living room with modest elegant styling, plants and textured fabrics',
+  Daniel: 'real home-office desk setup with laptop, monitor and daylight, casual creator framing',
+  James: 'modern founder-style office corner with bookshelf, laptop and warm practical lighting',
+  Arjun: 'real tech creator workspace with laptop, phone, cables and natural daylight',
+  Marcus: 'home gym corner with realistic equipment, daylight and casual creator composition',
+  Kenji: 'minimal tech studio desk with monitor, keyboard, practical light and natural room depth',
+  Alex: 'SaaS creator home office with laptop, browser-like screen glow and everyday desk objects',
+  Ben: 'clean residential garage/workshop with car-detailing tools and realistic overhead light',
+  Yusuf: 'professional home office with warm wood, laptop, notebook and calm daylight',
+  Theo: 'travel creator apartment near a packed day bag, map and bright natural window light',
+  Michael: 'polished but believable small-business office with desk, shelves and natural window light'
+}));
 const LEGACY_FEMALE_VOICES = new Set(['Aoede (Female)','Zephyr (Female)','Kore (Female)','Leda (Female)','Callirrhoe (Female)']);
 const LEGACY_MALE_VOICES = new Set(['Puck (Male)','Charon (Male)','Fenrir (Male)','Orus (Male)','Iapetus (Male)']);
 const TTS_VOICES = new Set(['Pippa','Sophie','Priya','Nadia','Serena','Olivia','Jessica','Chloe','Callum','James','Oliver','Arjun','Marcus','Ethan','Shaun','Graham','Riley']);
@@ -121,11 +145,12 @@ const avatarSeeds = [
 
 async function ensureSystemAvatars() {
   for (const avatar of avatarSeeds) {
+    const environment = FEATURED_CREATORS.get(avatar.name) || null;
     await prisma.$executeRawUnsafe(
-      'INSERT INTO "UGCAvatar" ("id","scope","slug","name","category","presentation","ageBand","locale","voice","voicePrompt","prompt","status","createdAt","updatedAt") VALUES ($1,\'SYSTEM\',$2,$3,$4,$5,$6,$7,$8,$9,$10,\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT ("slug") DO UPDATE SET "name"=EXCLUDED."name","category"=EXCLUDED."category","presentation"=EXCLUDED."presentation","ageBand"=EXCLUDED."ageBand","locale"=EXCLUDED."locale","voice"=EXCLUDED."voice","prompt"=EXCLUDED."prompt","updatedAt"=CURRENT_TIMESTAMP',
+      'INSERT INTO "UGCAvatar" ("id","scope","slug","name","category","presentation","ageBand","locale","voice","voicePrompt","prompt","environment","featured","status","createdAt","updatedAt") VALUES ($1,\'SYSTEM\',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT ("slug") DO UPDATE SET "name"=EXCLUDED."name","category"=EXCLUDED."category","presentation"=EXCLUDED."presentation","ageBand"=EXCLUDED."ageBand","locale"=EXCLUDED."locale","voice"=EXCLUDED."voice","prompt"=EXCLUDED."prompt","environment"=EXCLUDED."environment","featured"=EXCLUDED."featured","updatedAt"=CURRENT_TIMESTAMP',
       id(), avatar.slug, avatar.name, avatar.category, avatar.presentation, avatar.ageBand, avatar.locale, avatar.voice,
       'Natural, conversational, believable UGC delivery. Avoid announcer cadence; speak like a real creator recommending something to a friend.',
-      avatar.prompt
+      avatar.prompt, environment, Boolean(environment)
     );
   }
 }
@@ -136,14 +161,14 @@ async function warmSystemAvatarReferences() {
   avatarWarmupRunning = true;
   try {
     const pending = await prisma.$queryRawUnsafe(
-      'SELECT * FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\' AND "referenceStorageKey" IS NULL ORDER BY "name"'
+      'SELECT * FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\' AND "featured"=true AND ("referenceStorageKey" IS NULL OR "referenceVersion" < 2) ORDER BY "name"'
     );
     if (!pending.length) return;
     console.log('[UGC AVATAR WARMUP]', 'Preparing ' + pending.length + ' reusable creator portraits.');
     let completed = 0;
     for (const avatar of pending) {
       try {
-        await ensureAvatarReference('system-ugc', avatar);
+        await regenerateFeaturedAvatarReference(avatar);
         completed += 1;
       } catch (error) {
         console.warn('[UGC AVATAR WARMUP ITEM]', avatar.slug || avatar.id, clean(error?.message, 400));
@@ -160,7 +185,9 @@ function publicAvatar(row) {
   return {
     id: row.id, scope: row.scope, name: row.name, category: row.category,
     presentation: row.presentation || '', ageBand: row.ageBand || '', locale: row.locale || 'en-GB',
-    voice: row.voice || '', voicePrompt: row.voicePrompt || '', referenceReady: Boolean(row.referenceStorageKey),
+    voice: row.voice || '', voicePrompt: row.voicePrompt || '', environment: row.environment || '',
+    featured: Boolean(row.featured), referenceVersion: Number(row.referenceVersion || 1),
+    referenceReady: Boolean(row.referenceStorageKey),
     imageUrl: row.referenceStorageKey ? '/api/ai-content-studio/ugc/avatars/' + encodeURIComponent(row.id) + '/content' : null,
     createdAt: row.createdAt
   };
@@ -241,14 +268,14 @@ async function prepareVerticalBrandReference(brandRefs) {
     const source = assets[0].data;
     const background = await sharp(source, { animated: false })
       .rotate()
-      .resize({ width: 704, height: 1280, fit: 'cover' })
+      .resize({ width: 720, height: 1280, fit: 'cover' })
       .blur(24)
       .modulate({ brightness: 0.68, saturation: 0.8 })
       .png()
       .toBuffer();
     const foreground = await sharp(source, { animated: false })
       .rotate()
-      .resize({ width: 640, height: 1160, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .resize({ width: 656, height: 1160, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();
     const vertical = await sharp(background)
@@ -262,6 +289,31 @@ async function prepareVerticalBrandReference(brandRefs) {
   }
 }
 
+async function regenerateFeaturedAvatarReference(row) {
+  const environment = clean(row.environment || FEATURED_CREATORS.get(row.name), 700);
+  const enhancedPrompt = [
+    'Photorealistic candid smartphone portrait of a real social-media creator, not an AI avatar and not a studio headshot.',
+    clean(row.prompt, 1400),
+    environment ? 'Environment: ' + environment + '.' : '',
+    'Chest-up to waist-up framing, 9:16 portrait, natural asymmetry, realistic pores and skin texture, subtle imperfections, believable hands only if visible, natural eye reflections, ordinary clothing fabric, real room depth, authentic phone-camera exposure, no beauty-filter plastic skin, no CGI look, no text, no watermark.'
+  ].filter(Boolean).join(' ');
+  const generated = await runware.generateImages([enhancedPrompt], { aspectRatio: '9:16', model: env.runware.imagePremiumModel });
+  const remote = await download(generated.images[0].url, 14 * 1024 * 1024);
+  const normalized = await sharp(remote.data).rotate().resize({ width: 720, height: 1280, fit: 'cover' }).png().toBuffer();
+  const stored = await objectStorage.persistBuffer({
+    userId: 'system-ugc', data: normalized, mimeType: 'image/png',
+    originalName: 'ugc-featured-' + row.id + '.png', prefix: 'ugc-avatar'
+  });
+  const oldKey = row.referenceStorageKey;
+  const oldProvider = row.referenceStorageProvider;
+  await prisma.$executeRawUnsafe(
+    'UPDATE "UGCAvatar" SET "referenceStorageProvider"=$2,"referenceStorageKey"=$3,"referenceMimeType"=\'image/png\',"referenceVersion"=2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+    row.id, stored.storageProvider, stored.storageKey
+  );
+  if (oldKey && oldKey !== stored.storageKey) await objectStorage.deleteObject(oldKey, oldProvider || null).catch(() => {});
+  return { ...row, referenceStorageProvider: stored.storageProvider, referenceStorageKey: stored.storageKey, referenceMimeType: 'image/png', referenceVersion: 2, data: normalized, dataUri: 'data:image/png;base64,' + normalized.toString('base64') };
+}
+
 async function ensureAvatarReference(userId, row) {
   if (row.referenceStorageKey) {
     const data = await objectStorage.getBuffer(row.referenceStorageKey, null, row.referenceStorageProvider || null);
@@ -269,7 +321,7 @@ async function ensureAvatarReference(userId, row) {
   }
   const generated = await runware.generateImages([row.prompt], { aspectRatio: '9:16', model: env.runware.imageModel });
   const remote = await download(generated.images[0].url, 12 * 1024 * 1024);
-  const normalized = await sharp(remote.data).rotate().resize({ width: 704, height: 1280, fit: 'cover' }).png().toBuffer();
+  const normalized = await sharp(remote.data).rotate().resize({ width: 720, height: 1280, fit: 'cover' }).png().toBuffer();
   const stored = await objectStorage.persistBuffer({
     userId: row.scope === 'SYSTEM' ? 'system-ugc' : userId,
     data: normalized, mimeType: 'image/png', originalName: 'ugc-avatar-' + row.id + '.png', prefix: 'ugc-avatar'
@@ -326,23 +378,17 @@ function creditsPerAd(duration, quality) {
   if (!amount) throw publicError('Choose a supported UGC duration.', 'UGC_DURATION_UNSUPPORTED', 422);
   return amount;
 }
+
 function estimateCampaign(_userId, input) {
   const perAd = creditsPerAd(input.duration, input.quality);
-  return Promise.resolve({ credits: perAd * input.adCount, perAd, adCount: input.adCount, duration: input.duration, quality: input.quality });
-}
-
-function splitDurations(total, max) {
-  const pieces = [];
-  let remaining = Number(total);
-  while (remaining > 0) {
-    if (remaining <= max) { pieces.push(remaining); break; }
-    const slots = Math.ceil(remaining / max);
-    const duration = Math.min(max, Math.max(3, Math.round(remaining / slots)));
-    pieces.push(duration);
-    remaining -= duration;
-  }
-  if (pieces.reduce((sum, value) => sum + value, 0) !== total) pieces[pieces.length - 1] += total - pieces.reduce((sum, value) => sum + value, 0);
-  return pieces;
+  return Promise.resolve({
+    credits: perAd * input.adCount,
+    perAd,
+    adCount: input.adCount,
+    duration: input.duration,
+    quality: input.quality,
+    campaignType: input.campaignType || 'AUTO'
+  });
 }
 
 function splitScriptByDurations(script, durations) {
@@ -359,96 +405,158 @@ function splitScriptByDurations(script, durations) {
   });
 }
 
-function fallbackPlan(input, brand, avatars) {
-  const product = Boolean(input.productUrl || brand?.websiteUrl || ['PRODUCT','SOFTWARE','MIXED'].includes(String(brand?.analysis?.offerType || '')));
-  const creator = avatars[0] || null;
+function visualDurations(duration, quality, campaignType) {
+  const total = Number(duration);
+  if (String(quality).toUpperCase() === 'STANDARD') {
+    if (total === 15) return [10, 6];
+    if (total === 20) return [10, 10];
+    return [10, 10, 10];
+  }
+  if (campaignType === 'PRODUCT_SHOWCASE') {
+    if (total === 15) return [8, 7];
+    if (total === 20) return [10, 10];
+    return [10, 10, 10];
+  }
+  if (total === 15) return [15];
+  if (total === 20) return [10, 10];
+  return [15, 15];
+}
+
+function resolveCampaignType(input, brand, productAssets = []) {
+  const requested = String(input.campaignType || 'AUTO').toUpperCase();
+  if (requested === 'AVATAR_EXPLAINER' || requested === 'PRODUCT_SHOWCASE') return requested;
+  if (productAssets.length) return 'PRODUCT_SHOWCASE';
+  const offerType = String(brand?.analysis?.offerType || '').toUpperCase();
+  if (['SOFTWARE','SERVICE','BRAND'].includes(offerType)) return 'AVATAR_EXPLAINER';
+  if (offerType === 'PRODUCT') return 'PRODUCT_SHOWCASE';
+  if (offerType === 'MIXED') return brand?.analysis?.productInteractionUseful === false ? 'AVATAR_EXPLAINER' : 'PRODUCT_SHOWCASE';
+  return 'AVATAR_EXPLAINER';
+}
+
+function sceneKinds(campaignType, count) {
+  if (campaignType === 'AVATAR_EXPLAINER') return Array.from({ length: count }, () => 'CREATOR');
+  if (count === 1) return ['PRODUCT'];
+  if (count === 2) return ['CREATOR','PRODUCT'];
+  return Array.from({ length: count }, (_, index) => index === 0 || index === count - 1 ? 'CREATOR' : 'PRODUCT');
+}
+
+function fallbackPlan(input, brand, avatars, resolvedType) {
+  const durations = visualDurations(input.duration, input.quality, resolvedType);
+  const kinds = sceneKinds(resolvedType, durations.length);
+  const offer = brand?.productName || brand?.name || input.productDescription || 'this product';
+  const baseSummary = brand?.summary || input.productDescription || 'It helps solve a practical everyday problem.';
   const ads = Array.from({ length: input.adCount }, (_, index) => {
-    const route = input.quality === 'PREMIUM' ? 'KLING' : product ? 'MIXED' : 'AVATAR';
-    const script = 'Here is a simple way to make ' + (brand?.productName || brand?.name || 'this') + ' part of your day. ' + (brand?.summary || input.productDescription || 'It is designed to solve a real everyday problem.') + ' Take a closer look and see whether it fits what you need.';
-    const durations = route === 'AVATAR' ? [input.duration] : splitDurations(input.duration, route === 'KLING' ? 15 : 20);
-    const scriptParts = splitScriptByDurations(script, durations);
+    const angles = ['Problem → solution','Personal discovery','Benefit-led recommendation','Quick demonstration','Why it is useful'];
+    const hook = resolvedType === 'AVATAR_EXPLAINER'
+      ? 'Here is the simple reason this is worth knowing about.'
+      : 'I did not expect this to be this useful until I tried it.';
+    const script = clean(hook + ' ' + offer + ' — ' + baseSummary + ' Take a closer look and see whether it fits what you need.', 12000);
+    const parts = splitScriptByDurations(script, durations);
     return {
-      title: 'UGC Ad ' + (index + 1), angle: ['Problem → solution','Product demonstration','Personal recommendation','Quick discovery','Benefit-led'][index % 5],
-      hook: 'I did not expect this to be this useful.', script, cta: 'Take a closer look.', caption: script,
-      route, avatarIndex: index % Math.max(1, avatars.length),
-      scenes: durations.map((duration, sceneIndex) => ({
-        duration,
-        kind: route === 'AVATAR' ? 'CREATOR' : (product && sceneIndex % 2 === 1 ? 'PRODUCT' : 'CREATOR'),
-        prompt: (sceneIndex === 0 ? 'Open with an immediate authentic creator hook. ' : '') + 'Natural vertical UGC scene, realistic smartphone camera, believable motion and lighting, preserve creator/product identity. Audio must be natural and synchronized.',
-        script: scriptParts[sceneIndex] || ''
+      title: 'UGC Ad ' + (index + 1),
+      angle: angles[index % angles.length],
+      hook,
+      script,
+      cta: 'Take a closer look.',
+      caption: script,
+      avatarIndex: index % Math.max(1, avatars.length),
+      scenes: durations.map((sceneDuration, sceneIndex) => ({
+        duration: sceneDuration,
+        kind: kinds[sceneIndex],
+        prompt: kinds[sceneIndex] === 'CREATOR'
+          ? 'A realistic creator speaks directly to camera in the same believable everyday environment, natural eye contact, subtle head and hand movement, stable identity and wardrobe.'
+          : 'A grounded product-focused UGC cutaway showing the real product clearly in a believable everyday use context, realistic hands and materials, no invented packaging.',
+        script: parts[sceneIndex] || ''
       }))
     };
   });
-  return { title: (brand?.name || 'UGC') + ' Campaign', ads };
+  return { title: (brand?.name || 'UGC') + ' Campaign', campaignType: resolvedType, ads };
 }
 
-function normalizePlan(parsed, input, brand, avatars) {
+function normalizePlan(parsed, input, brand, avatars, resolvedType) {
   const rawAds = Array.isArray(parsed?.ads) ? parsed.ads : [];
-  if (rawAds.length !== input.adCount) return fallbackPlan(input, brand, avatars);
+  if (rawAds.length !== input.adCount) return fallbackPlan(input, brand, avatars, resolvedType);
+  const durations = visualDurations(input.duration, input.quality, resolvedType);
+  const defaultKinds = sceneKinds(resolvedType, durations.length);
   const ads = rawAds.map((raw, index) => {
-    let route = input.quality === 'PREMIUM' ? 'KLING' : String(raw.route || '').toUpperCase();
-    if (!['PVIDEO2','AVATAR','MIXED'].includes(route)) route = brand?.analysis?.productInteractionUseful === false ? 'AVATAR' : 'MIXED';
-    const max = route === 'AVATAR' ? 60 : route === 'KLING' ? 15 : 20;
-    let scenes = Array.isArray(raw.scenes) ? raw.scenes : [];
-    const durationSum = scenes.reduce((sum, item) => sum + Math.max(0, Number(item?.duration || 0)), 0);
-    if (!scenes.length || durationSum !== input.duration || scenes.some(item => Number(item.duration) > max || Number(item.duration) < (route === 'KLING' ? 3 : 1))) {
-      const durations = route === 'AVATAR' ? [input.duration] : splitDurations(input.duration, max);
-      const parts = splitScriptByDurations(raw.script || '', durations);
-      scenes = durations.map((duration, i) => ({ duration, kind: route === 'AVATAR' ? 'CREATOR' : (i % 2 ? 'PRODUCT' : 'CREATOR'), prompt: raw.visualDirection || 'Authentic vertical UGC scene with realistic smartphone-camera motion.', script: parts[i] || '' }));
-    }
+    const script = clean(raw.script, 12000);
+    const parts = splitScriptByDurations(script, durations);
+    const rawScenes = Array.isArray(raw.scenes) ? raw.scenes : [];
     return {
       title: clean(raw.title || 'UGC Ad ' + (index + 1), 180),
       angle: clean(raw.angle || 'Creator recommendation', 240),
       hook: clean(raw.hook, 500),
-      script: clean(raw.script, 12000),
+      script,
       cta: clean(raw.cta, 500),
       caption: clean(raw.caption || raw.script, 10000),
-      route,
       avatarIndex: Math.abs(Number(raw.avatarIndex || index)) % Math.max(1, avatars.length),
-      scenes: scenes.map((scene, sceneIndex) => ({
-        duration: Number(scene.duration),
-        kind: ['CREATOR','PRODUCT','LIFESTYLE','CTA'].includes(String(scene.kind).toUpperCase()) ? String(scene.kind).toUpperCase() : 'CREATOR',
-        prompt: clean(scene.prompt || scene.visualDirection || 'Natural creator-style vertical UGC scene.', 5000),
-        script: clean(scene.script, 4000),
-        sequence: sceneIndex + 1
-      }))
+      scenes: durations.map((sceneDuration, sceneIndex) => {
+        const source = rawScenes[sceneIndex] || {};
+        const requestedKind = String(source.kind || defaultKinds[sceneIndex]).toUpperCase();
+        const kind = resolvedType === 'AVATAR_EXPLAINER'
+          ? 'CREATOR'
+          : (['CREATOR','PRODUCT','LIFESTYLE','CTA'].includes(requestedKind) ? requestedKind : defaultKinds[sceneIndex]);
+        return {
+          duration: sceneDuration,
+          kind,
+          prompt: clean(source.prompt || source.visualDirection || (kind === 'CREATOR'
+            ? 'Authentic creator speaking directly to camera in a believable real environment.'
+            : 'Authentic product-focused UGC cutaway in a believable real environment.'), 5000),
+          script: clean(source.script || parts[sceneIndex], 4000),
+          sequence: sceneIndex + 1
+        };
+      })
     };
   });
-  return { title: clean(parsed?.title || (brand?.name || 'UGC') + ' Campaign', 180), ads };
+  return { title: clean(parsed?.title || (brand?.name || 'UGC') + ' Campaign', 180), campaignType: resolvedType, ads };
 }
 
-async function planCampaign(input, brand, avatars) {
+async function planCampaign(input, brand, avatars, resolvedType) {
   const evidence = brand ? {
-    name: brand.name, productName: brand.productName, summary: brand.summary, audience: brand.audience,
-    verifiedClaims: brand.verifiedClaims, analysis: brand.analysis
+    name: brand.name,
+    productName: brand.productName,
+    summary: brand.summary,
+    audience: brand.audience,
+    verifiedClaims: brand.verifiedClaims,
+    analysis: brand.analysis
   } : { description: input.productDescription || '', url: input.productUrl || '' };
   try {
     const parsed = await postStudio.callChatModel(postStudio.REASONING_MODEL, [
       { role: 'system', content: [
         'You are the UGC campaign director inside INXSocial.',
-        'Create ready-to-render social UGC ads. The customer must not need to write scripts or build scenes.',
-        'Use only verified product/brand evidence. Never invent unsupported claims.',
-        'Every variation must be materially different in hook and angle.',
-        'STANDARD routing rules: use AVATAR for a continuous spokesperson/talking-head ad; use PVIDEO2 for product/showcase scenes; use MIXED when creator speech and product showcase both improve the ad.',
-        'PREMIUM always uses KLING internally.',
-        'Final output duration must be exactly the requested duration. PVIDEO2 scene max 20 seconds. KLING scene max 15 seconds. AVATAR may be one continuous scene up to 60 seconds.',
-        'Audio is always required. Scripts should sound like a real creator, not corporate ad copy.',
-        'Use one creator identity and one narrator voice for the entire ad. Never introduce a different person mid-ad unless the brief explicitly asks for multiple people.',
-        'STANDARD product UGC should use clean editorial cuts: CREATOR scenes keep the exact selected creator; PRODUCT scenes keep the exact product/reference. Do not ask a standard scene to invent a different creator or a different product.',
-        'Keep wardrobe, age, hair, face, skin tone, room style, lighting direction and camera treatment consistent across creator scenes.',
-        'Do not put generated captions, labels, logos or readable overlay text inside the video frames; INXSocial adds captions after rendering.',
-        'Write dialogue to naturally fill the requested duration: roughly 30–38 spoken words for 15 seconds, 65–75 for 30 seconds, and 130–150 for 60 seconds. Mixed/product ads may distribute that dialogue across scenes.',
-        'Return JSON only: {"title":"string","ads":[{"title":"string","angle":"string","hook":"string","script":"string","cta":"string","caption":"string","route":"PVIDEO2|AVATAR|MIXED|KLING","avatarIndex":0,"scenes":[{"duration":15,"kind":"CREATOR|PRODUCT|LIFESTYLE|CTA","prompt":"string","script":"string"}]}]}.'
+        'Create ready-to-render creator-native social ads. The customer should not need to write scripts or build scenes.',
+        'Use only supplied or verified product/brand evidence. Never invent prices, testimonials, statistics, certifications or features.',
+        'Every variation must use a materially different hook and marketing angle.',
+        'AVATAR_EXPLAINER means a realistic creator is the primary visual and explains the offer directly to camera. This is preferred for SaaS, websites, apps and services. Do not invent fake website screens.',
+        'PRODUCT_SHOWCASE means creator-led UGC mixed with real product/reference cutaways. Preserve the supplied product identity and packaging rather than inventing a replacement.',
+        'One ad uses one creator identity and one narrator voice throughout.',
+        'Keep creator face, age, hair, skin tone, wardrobe and environment stable across creator cuts.',
+        'No generated subtitles, labels, watermarks, logos or readable overlay text inside frames; INXSocial adds captions later.',
+        'Write natural social-video dialogue, not corporate copy. Aim for about 34 words for 15 seconds, 46 words for 20 seconds and 68 words for 30 seconds.',
+        'Return JSON only: {"title":"string","ads":[{"title":"string","angle":"string","hook":"string","script":"string","cta":"string","caption":"string","avatarIndex":0,"scenes":[{"kind":"CREATOR|PRODUCT|LIFESTYLE|CTA","prompt":"string","script":"string"}]}]}.'
       ].join('\n\n') },
       { role: 'user', content: JSON.stringify({
-        evidence, duration: input.duration, adCount: input.adCount, quality: input.quality,
-        notes: input.notes || '', availableCreators: avatars.map((avatar, index) => ({ index, name: avatar.name, category: avatar.category, presentation: avatar.presentation, ageBand: avatar.ageBand }))
+        evidence,
+        campaignType: resolvedType,
+        duration: input.duration,
+        adCount: input.adCount,
+        quality: input.quality,
+        productImageCount: Array.isArray(input.productAssetIds) ? input.productAssetIds.length : 0,
+        notes: input.notes || '',
+        availableCreators: avatars.map((avatar, index) => ({
+          index,
+          name: avatar.name,
+          category: avatar.category,
+          presentation: avatar.presentation,
+          ageBand: avatar.ageBand,
+          environment: avatar.environment || ''
+        }))
       }) }
     ], { reasoningEffort: 'high', temperature: 0.35, maxTokens: Math.max(3500, input.adCount * 900), timeoutMs: 180000 });
-    return normalizePlan(parsed, input, brand, avatars);
+    return normalizePlan(parsed, input, brand, avatars, resolvedType);
   } catch (error) {
     console.warn('[UGC PLAN FALLBACK]', clean(error?.message, 400));
-    return fallbackPlan(input, brand, avatars);
+    return fallbackPlan(input, brand, avatars, resolvedType);
   }
 }
 
@@ -477,16 +585,31 @@ async function createCampaign(userId, input) {
     brand = await analyzeBrand(userId, { url: input.productUrl, refresh: false });
   }
 
+  const productAssetIds = [...new Set((Array.isArray(input.productAssetIds) ? input.productAssetIds : []).filter(Boolean))].slice(0, 8);
+  const productAssets = [];
+  for (const assetId of productAssetIds) productAssets.push(await getProductAssetRow(userId, assetId));
+
   const allAvatars = await avatarRows(userId);
-  let available = allAvatars;
+  const featuredAvatars = allAvatars.filter(row => row.scope === 'USER' || row.featured);
+  let available = featuredAvatars.length ? featuredAvatars : allAvatars;
   if (input.creatorMode === 'SELECTED' && input.avatarId) available = [await getAvatarRow(userId, input.avatarId)];
-  const plan = await planCampaign(input, brand, available);
+  if (!available.length) throw publicError('No UGC creators are currently available.', 'UGC_CREATORS_UNAVAILABLE', 503);
+
+  const resolvedType = resolveCampaignType(input, brand, productAssets);
+  const hasBrandVisualReference = Boolean(Array.isArray(brand?.brandReferences) && brand.brandReferences.length);
+  if (resolvedType === 'PRODUCT_SHOWCASE' && !productAssets.length && !hasBrandVisualReference) {
+    throw publicError('Product Showcase needs at least one real product image. Upload a product photo, use a product page with usable images, or choose Avatar Explainer.', 'UGC_PRODUCT_REFERENCE_REQUIRED', 422);
+  }
+  const plan = await planCampaign({ ...input, productAssetIds }, brand, available, resolvedType);
   const campaignId = id();
   const perAd = creditsPerAd(input.duration, input.quality);
+  const sourceType = clean(input.sourceType || (productAssetIds.length ? 'PRODUCT' : input.productUrl ? 'WEBSITE' : 'BRIEF'), 30).toUpperCase();
+
   await prisma.$executeRawUnsafe(
-    'INSERT INTO "UGCCampaign" ("id","userId","brandProfileId","title","productUrl","productDescription","duration","adCount","quality","creatorMode","selectedAvatarId","status","totalCredits","notes","planJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,\'RESERVING\',$12,$13,$14,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+    'INSERT INTO "UGCCampaign" ("id","userId","brandProfileId","title","productUrl","productDescription","duration","adCount","quality","creatorMode","selectedAvatarId","campaignType","resolvedType","sourceType","productAssetIdsJson","status","totalCredits","notes","planJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,\'RESERVING\',$16,$17,$18,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
     campaignId, userId, brand?.id || input.brandProfileId || null, plan.title, brand?.websiteUrl || input.productUrl || null, clean(input.productDescription, 4000) || null,
-    input.duration, input.adCount, input.quality, input.creatorMode, input.avatarId || null, totalCredits, clean(input.notes, 1200) || null, json(plan)
+    input.duration, input.adCount, input.quality, input.creatorMode, input.avatarId || null, input.campaignType || 'AUTO', resolvedType, sourceType,
+    json(productAssetIds), totalCredits, clean(input.notes, 1200) || null, json(plan)
   );
 
   const reserved = [];
@@ -495,20 +618,21 @@ async function createCampaign(userId, input) {
       const planned = plan.ads[index];
       const avatar = available[planned.avatarIndex % available.length] || available[0] || null;
       const adId = id();
+      const route = input.quality === 'PREMIUM' ? 'KLING' : 'HAILUO';
       await prisma.$executeRawUnsafe(
         'INSERT INTO "UGCAd" ("id","campaignId","userId","sequence","status","title","angle","hook","script","cta","caption","avatarId","route","voice","voicePrompt","duration","quality","credits","musicMode","captionsEnabled","planJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,\'RESERVING\',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,\'AUTO\',true,$18,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
         adId, campaignId, userId, index + 1, planned.title, planned.angle || null, planned.hook || null, planned.script, planned.cta || null, planned.caption || null,
-        avatar?.id || null, planned.route, avatar?.voice || null, avatar?.voicePrompt || null, input.duration, input.quality, perAd, json(planned)
+        avatar?.id || null, route, avatar?.voice || null, avatar?.voicePrompt || null, input.duration, input.quality, perAd, json({ ...planned, campaignType: resolvedType })
       );
       for (let s = 0; s < planned.scenes.length; s += 1) {
         const scene = planned.scenes[s];
-        const sceneRoute = input.quality === 'PREMIUM' ? 'KLING' : planned.route === 'AVATAR' ? 'AVATAR' : scene.kind === 'CREATOR' ? (planned.route === 'MIXED' ? 'AVATAR' : 'PVIDEO2') : 'PVIDEO2';
         await prisma.$executeRawUnsafe(
           'INSERT INTO "UGCScene" ("id","adId","sequence","status","kind","route","duration","prompt","script","avatarId","productReferenceJson","createdAt","updatedAt") VALUES ($1,$2,$3,\'QUEUED\',$4,$5,$6,$7,$8,$9,$10,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
-          id(), adId, s + 1, scene.kind, sceneRoute, scene.duration, scene.prompt, scene.script || null, avatar?.id || null, json(brand?.brandReferences || [])
+          id(), adId, s + 1, scene.kind, route, scene.duration, scene.prompt, scene.script || null, avatar?.id || null,
+          json({ brandReferences: brand?.brandReferences || [], productAssetIds })
         );
       }
-      const generationId = await createGenerationRow(userId, adId, perAd, planned);
+      const generationId = await createGenerationRow(userId, adId, perAd, { ...planned, campaignType: resolvedType, quality: input.quality });
       reserved.push(generationId);
       await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "generationId"=$2,"status"=\'QUEUED\',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', adId, generationId);
     }
@@ -523,7 +647,7 @@ async function createCampaign(userId, input) {
 }
 
 async function ownedCampaign(userId, campaignId) {
-  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCCampaign" WHERE "id"=$1 AND "userId"=$2 LIMIT 1', campaignId, userId);
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCCampaign" WHERE "id"=$1 AND "userId"=$2 AND "deletedAt" IS NULL LIMIT 1', campaignId, userId);
   if (!rows[0]) throw publicError('UGC campaign not found.', 'UGC_CAMPAIGN_NOT_FOUND', 404);
   return rows[0];
 }
@@ -540,6 +664,8 @@ async function campaignPayload(userId, campaignRow) {
     id: campaignRow.id, title: campaignRow.title, brandProfileId: campaignRow.brandProfileId || null,
     productUrl: campaignRow.productUrl || '', productDescription: campaignRow.productDescription || '',
     duration: campaignRow.duration, adCount: campaignRow.adCount, quality: campaignRow.quality,
+    campaignType: campaignRow.campaignType || 'AUTO', resolvedType: campaignRow.resolvedType || campaignRow.campaignType || 'AVATAR_EXPLAINER',
+    sourceType: campaignRow.sourceType || 'WEBSITE', productAssetIds: parseJson(campaignRow.productAssetIdsJson, []),
     creatorMode: campaignRow.creatorMode, selectedAvatarId: campaignRow.selectedAvatarId || null,
     status: campaignRow.status, totalCredits: campaignRow.totalCredits, notes: campaignRow.notes || '',
     plan: parseJson(campaignRow.planJson, {}), ads: ads.map(row => publicAd(row, scenesByAd.get(row.id) || [], avatarMap.get(row.avatarId) || null)),
@@ -548,7 +674,7 @@ async function campaignPayload(userId, campaignRow) {
 }
 async function getCampaign(userId, campaignId) { return campaignPayload(userId, await ownedCampaign(userId, campaignId)); }
 async function listCampaigns(userId, limit = 12) {
-  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCCampaign" WHERE "userId"=$1 ORDER BY "updatedAt" DESC LIMIT $2', userId, Number(limit));
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCCampaign" WHERE "userId"=$1 AND "deletedAt" IS NULL ORDER BY "updatedAt" DESC LIMIT $2', userId, Number(limit));
   const output = [];
   for (const row of rows) output.push(await campaignPayload(userId, row));
   return output;
@@ -566,17 +692,37 @@ async function getAd(userId, adId) {
 }
 
 async function getOverview(userId) {
-  const [avatars, brands, campaigns, music, balance] = await Promise.all([
+  const [avatars, brands, campaigns, music, samples, balance] = await Promise.all([
     avatarRows(userId),
     prisma.$queryRawUnsafe('SELECT * FROM "UGCBrandProfile" WHERE "userId"=$1 ORDER BY "updatedAt" DESC LIMIT 20', userId),
-    listCampaigns(userId, 8),
+    listCampaigns(userId, 12),
     listMusicTracks(),
+    listSampleVideos(),
     credits.getBalance(userId)
   ]);
+  const publicAvatars = avatars.map(publicAvatar);
+  const allAds = campaigns.flatMap(campaign => campaign.ads);
   return {
-    avatars: avatars.map(publicAvatar), brands: brands.map(publicBrand), campaigns, music,
+    avatars: publicAvatars,
+    featuredAvatars: publicAvatars.filter(avatar => avatar.scope === 'USER' || avatar.featured).slice(0, FEATURED_AVATAR_COUNT + publicAvatars.filter(avatar => avatar.scope === 'USER').length),
+    brands: brands.map(publicBrand),
+    campaigns,
+    samples,
+    music,
+    stats: {
+      ready: allAds.filter(ad => ad.status === 'READY').length,
+      rendering: allAds.filter(ad => ['QUEUED','RENDERING','RESERVING'].includes(ad.status)).length,
+      failed: allAds.filter(ad => ad.status === 'FAILED').length
+    },
     credits: { remaining: balance.remaining, monthlyRemaining: balance.monthlyRemaining, topupRemaining: balance.topupRemaining },
-    options: { durations: [15,30,60], adCounts: [1,5,10,15,20], qualities: ['STANDARD','PREMIUM'], systemAvatarCount: avatars.filter(row => row.scope === 'SYSTEM').length }
+    options: {
+      durations: [15,20,30],
+      adCounts: [1,5,10,15,20],
+      qualities: ['STANDARD','PREMIUM'],
+      campaignTypes: ['AUTO','AVATAR_EXPLAINER','PRODUCT_SHOWCASE'],
+      systemAvatarCount: avatars.filter(row => row.scope === 'SYSTEM').length,
+      featuredAvatarCount: publicAvatars.filter(avatar => avatar.featured).length
+    }
   };
 }
 
@@ -597,7 +743,7 @@ async function generateCustomAvatar(userId, input) {
     const prompt = 'Ultra-realistic reusable UGC creator portrait. ' + clean(input.prompt, 1000) + '. Vertical 9:16, waist-up, natural smartphone-camera realism, realistic skin, natural lighting, simple background, no text, no logo, no watermark.';
     const generated = await runware.generateImages([prompt], { aspectRatio: '9:16', model: env.runware.imageModel });
     const remote = await download(generated.images[0].url, 12 * 1024 * 1024);
-    const data = await sharp(remote.data).rotate().resize({ width: 704, height: 1280, fit: 'cover' }).png().toBuffer();
+    const data = await sharp(remote.data).rotate().resize({ width: 720, height: 1280, fit: 'cover' }).png().toBuffer();
     const avatarId = id();
     const stored = await objectStorage.persistBuffer({ userId, data, mimeType: 'image/png', originalName: 'ugc-avatar-' + avatarId + '.png', prefix: 'ugc-avatar' });
     await prisma.$executeRawUnsafe(
@@ -617,7 +763,7 @@ async function generateCustomAvatar(userId, input) {
 async function uploadCustomAvatar(userId, input) {
   if (!['image/png','image/jpeg','image/webp'].includes(input.mimeType)) throw publicError('Upload a PNG, JPEG or WebP portrait.', 'UGC_AVATAR_TYPE', 415);
   if (!Buffer.isBuffer(input.data) || !input.data.length) throw publicError('Choose a portrait image.', 'UGC_AVATAR_EMPTY', 400);
-  const data = await sharp(input.data).rotate().resize({ width: 704, height: 1280, fit: 'cover' }).png().toBuffer();
+  const data = await sharp(input.data).rotate().resize({ width: 720, height: 1280, fit: 'cover' }).png().toBuffer();
   const avatarId = id();
   const stored = await objectStorage.persistBuffer({ userId, data, mimeType: 'image/png', originalName: 'ugc-avatar-' + avatarId + '.png', prefix: 'ugc-avatar' });
   await prisma.$executeRawUnsafe(
@@ -642,6 +788,102 @@ async function deleteCustomAvatar(userId, avatarId) {
 async function listMusicTracks() {
   const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCMusicTrack" WHERE "active"=true ORDER BY "sortOrder","name"');
   return rows.map(row => ({ id: row.id, name: row.name, category: row.category, durationSeconds: row.durationSeconds || null }));
+}
+
+function publicProductAsset(row) {
+  return {
+    id: row.id,
+    brandProfileId: row.brandProfileId || null,
+    originalName: row.originalName || 'Product image',
+    mimeType: row.mimeType,
+    status: row.status,
+    imageUrl: '/api/ai-content-studio/ugc/product-assets/' + encodeURIComponent(row.id) + '/content',
+    createdAt: row.createdAt
+  };
+}
+
+async function uploadProductAsset(userId, input) {
+  if (!['image/png','image/jpeg','image/webp'].includes(input.mimeType)) throw publicError('Upload a PNG, JPEG or WebP product image.', 'UGC_PRODUCT_TYPE', 415);
+  if (!Buffer.isBuffer(input.data) || !input.data.length) throw publicError('Choose a product image.', 'UGC_PRODUCT_EMPTY', 400);
+  const assetId = id();
+  const normalized = await sharp(input.data)
+    .rotate()
+    .resize({ width: 1440, height: 1440, fit: 'inside', withoutEnlargement: true })
+    .png()
+    .toBuffer();
+  const stored = await objectStorage.persistBuffer({
+    userId, data: normalized, mimeType: 'image/png',
+    originalName: 'ugc-product-' + assetId + '.png', prefix: 'ugc-product'
+  });
+  await prisma.$executeRawUnsafe(
+    'INSERT INTO "UGCProductAsset" ("id","userId","brandProfileId","originalName","mimeType","storageProvider","storageKey","status","createdAt","updatedAt") VALUES ($1,$2,$3,$4,\'image/png\',$5,$6,\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+    assetId, userId, input.brandProfileId || null, clean(input.name, 180) || 'Product image', stored.storageProvider, stored.storageKey
+  );
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCProductAsset" WHERE "id"=$1 LIMIT 1', assetId);
+  return publicProductAsset(rows[0]);
+}
+
+async function getProductAssetRow(userId, assetId) {
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCProductAsset" WHERE "id"=$1 AND "userId"=$2 AND "status"=\'READY\' LIMIT 1', assetId, userId);
+  if (!rows[0]) throw publicError('Product image not found.', 'UGC_PRODUCT_NOT_FOUND', 404);
+  return rows[0];
+}
+
+async function getProductAssetContent(userId, assetId) {
+  const row = await getProductAssetRow(userId, assetId);
+  const data = await objectStorage.getBuffer(row.storageKey, null, row.storageProvider || null);
+  return { data, mimeType: row.mimeType || 'image/png' };
+}
+
+async function productAssetDataUri(userId, assetId) {
+  const row = await getProductAssetRow(userId, assetId);
+  const data = await objectStorage.getBuffer(row.storageKey, null, row.storageProvider || null);
+  const normalized = await sharp(data).rotate().resize({ width: 720, height: 1280, fit: 'contain', background: { r: 12, g: 20, b: 28, alpha: 1 } }).png().toBuffer();
+  return 'data:image/png;base64,' + normalized.toString('base64');
+}
+
+function publicSampleVideo(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description || '',
+    campaignType: row.campaignType,
+    quality: row.quality,
+    duration: row.duration,
+    thumbnailUrl: row.thumbnailUrl || null,
+    videoUrl: '/api/ai-content-studio/ugc/samples/' + encodeURIComponent(row.id) + '/content'
+  };
+}
+
+async function listSampleVideos() {
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCSampleVideo" WHERE "active"=true ORDER BY "sortOrder","createdAt" DESC LIMIT 24');
+  return rows.map(publicSampleVideo);
+}
+
+async function uploadSampleVideo(user, input) {
+  if (String(user?.role || '').toUpperCase() !== 'ADMIN') throw publicError('Admin access is required to add UGC samples.', 'UGC_SAMPLE_ADMIN_REQUIRED', 403);
+  if (!['video/mp4','video/webm','video/quicktime'].includes(input.mimeType)) throw publicError('Upload an MP4, WebM or MOV sample.', 'UGC_SAMPLE_TYPE', 415);
+  if (!Buffer.isBuffer(input.data) || !input.data.length) throw publicError('Choose a sample video.', 'UGC_SAMPLE_EMPTY', 400);
+  const sampleId = id();
+  const stored = await objectStorage.persistBuffer({
+    userId: 'ugc-samples', data: input.data, mimeType: input.mimeType,
+    originalName: input.name || ('ugc-sample-' + sampleId + '.mp4'), prefix: 'ugc-sample'
+  });
+  await prisma.$executeRawUnsafe(
+    'INSERT INTO "UGCSampleVideo" ("id","title","description","campaignType","quality","duration","storageProvider","storageKey","mimeType","active","sortOrder","createdById","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,$10,$11,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+    sampleId, clean(input.title, 140) || 'UGC sample', clean(input.description, 600) || null,
+    input.campaignType || 'AVATAR_EXPLAINER', input.quality || 'STANDARD', Number(input.duration || 15),
+    stored.storageProvider, stored.storageKey, input.mimeType, Number(input.sortOrder || 0), user.id
+  );
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCSampleVideo" WHERE "id"=$1 LIMIT 1', sampleId);
+  return publicSampleVideo(rows[0]);
+}
+
+async function getSampleVideoContent(sampleId) {
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCSampleVideo" WHERE "id"=$1 AND "active"=true LIMIT 1', sampleId);
+  if (!rows[0]) throw publicError('UGC sample not found.', 'UGC_SAMPLE_NOT_FOUND', 404);
+  const data = await objectStorage.getBuffer(rows[0].storageKey, null, rows[0].storageProvider || null);
+  return { data, mimeType: rows[0].mimeType || 'video/mp4' };
 }
 
 async function pollTask(taskUUID, onProgress = () => {}) {
@@ -687,72 +929,82 @@ async function generateSceneNarration(scene, ad, avatar) {
   return { taskUUID, audioURL: item.audioURL, cost: Number(item.cost || 0), voice };
 }
 
-async function renderProviderScene(scene, ad, avatar, brandReference, narration, onProgress) {
+async function renderProviderScene(scene, ad, avatar, productReference, narration, onProgress) {
   const taskUUID = id();
-  let model;
   const creatorLock = avatar ? [
-    'CHARACTER LOCK: use the supplied creator portrait as the exact same person.',
+    'CHARACTER LOCK: use the supplied creator portrait as the exact same real person.',
     'Preserve face shape, skin tone, age, hairstyle, hair colour, wardrobe and recognizable identity.',
-    'Do not morph the face, change gender presentation, add a second person, or redesign the creator between cuts.'
+    'Keep the same believable room/environment and camera treatment. Never morph the face or introduce a second person.',
+    'Natural creator behavior only: subtle breathing, blinking, eye contact, small head movement and restrained hand gestures.'
   ].join(' ') : '';
-  const productLock = brandReference ? 'PRODUCT LOCK: preserve the supplied product/reference identity, packaging, colours and proportions. Do not substitute or redesign it.' : '';
-  const base = {
-    taskType: 'videoInference', taskUUID, deliveryMethod: 'async', includeCost: true, outputType: 'URL',
-    positivePrompt: [
-      clean(scene.prompt, 4500),
-      'Authentic vertical 9:16 creator-native UGC, 720p, realistic smartphone-camera texture, natural micro-movements and believable social-video pacing. Avoid glossy cinematic-commercial styling unless explicitly requested.',
-      scene.kind === 'CREATOR' ? creatorLock : productLock,
-      narration ? 'Use the supplied narration audio exactly. It is the only spoken voice. Do not create another voice, dialogue, music or lyrics.' : 'No spoken dialogue unless explicitly supplied as audio.',
-      'No generated subtitles, captions, labels, watermarks, logos or other readable overlay text inside the frame.'
-    ].filter(Boolean).join('\n\n')
-  };
-  if (scene.route === 'AVATAR') {
-    model = AVATAR_MODEL();
+  const productLock = productReference
+    ? 'PRODUCT LOCK: preserve the supplied product/reference exactly — packaging, shape, colours, proportions and visible branding. Do not substitute, redesign or hallucinate another product.'
+    : '';
+  const positivePrompt = clean([
+    clean(scene.prompt, 1200),
+    'Authentic vertical 9:16 creator-native UGC. Realistic smartphone-camera exposure, real room depth, natural skin and fabric texture, grounded physics, subtle handheld stability, no plastic CGI appearance.',
+    scene.kind === 'CREATOR' ? creatorLock : productLock,
+    scene.kind === 'PRODUCT'
+      ? 'Frame the product clearly in a believable use context. Use realistic hands only when needed and keep interaction physically plausible.'
+      : 'The creator faces the camera naturally. Mouth motion should be suitable for later lip synchronization.',
+    'No generated subtitles, captions, labels, watermarks, interface graphics or extra readable text inside the frame.'
+  ].filter(Boolean).join('\n\n'), 1950);
+
+  let reference = null;
+  if (scene.kind === 'CREATOR') {
     if (!avatar) throw publicError('This creator scene has no avatar.', 'UGC_AVATAR_REQUIRED', 422);
-    const ref = await ensureAvatarReference(ad.userId, avatar);
-    Object.assign(base, {
-      model, resolution: '720p',
-      inputs: { frameImages: [{ image: ref.dataUri, frame: 'first' }], ...(narration ? { audio: narration.audioURL } : {}) },
-      ...(narration ? {} : { speech: { text: clean(scene.script || ad.script, 6000), voice: ['man','male'].includes(clean(avatar.presentation, 40).toLowerCase()) ? 'Puck (Male)' : 'Aoede (Female)', language: clean(avatar.locale || 'en-GB', 20) } }),
-      settings: { promptUpsampling: true, safetyFilter: true, voicePrompt: clean(ad.voicePrompt || avatar.voicePrompt, 500) }
-    });
-  } else if (scene.route === 'KLING') {
-    model = PREMIUM_MODEL();
-    Object.assign(base, {
-      model, duration: Math.min(15, Number(scene.duration)), width: 720, height: 1280,
-      providerSettings: { klingai: { sound: narration ? false : true } }
-    });
-    const ref = scene.kind === 'CREATOR' && avatar ? await ensureAvatarReference(ad.userId, avatar) : null;
-    const reference = ref?.dataUri || brandReference || null;
-    if (reference) base.inputs = { referenceImages: [reference] };
+    reference = (await ensureAvatarReference(ad.userId, avatar)).dataUri;
   } else {
-    model = PVIDEO2_MODEL();
-    Object.assign(base, {
-      model, fps: 24,
-      settings: { promptUpsampling: true, draft: false },
-      ...(narration ? {} : { duration: Math.min(20, Number(scene.duration)) })
-    });
-    let reference = null;
-    if (scene.kind === 'CREATOR' && avatar) reference = (await ensureAvatarReference(ad.userId, avatar)).dataUri;
-    if (!reference) reference = brandReference || null;
-    const inputs = {};
-    if (narration) inputs.audio = narration.audioURL;
-    if (reference) {
-      base.resolution = '720p';
-      inputs.frameImages = [{ image: reference, frame: 'first' }];
-      base.inputs = inputs;
-    } else {
-      base.width = 704;
-      base.height = 1280;
-      if (Object.keys(inputs).length) base.inputs = inputs;
-    }
+    reference = productReference;
   }
+  if (!reference) throw publicError('This UGC scene needs a visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
+
+  const model = scene.route === 'KLING' ? PREMIUM_MODEL() : STANDARD_MODEL();
+  const base = {
+    taskType: 'videoInference',
+    taskUUID,
+    deliveryMethod: 'async',
+    includeCost: true,
+    outputType: 'URL',
+    outputFormat: 'MP4',
+    model,
+    positivePrompt,
+    duration: Number(scene.duration),
+    inputs: { frameImages: [{ image: reference, frame: 'first' }] }
+  };
+
+  if (scene.route === 'KLING') {
+    base.providerSettings = { klingai: { sound: narration ? false : scene.kind !== 'CREATOR' } };
+  } else {
+    base.fps = 25;
+    base.providerSettings = { minimax: { promptOptimizer: true } };
+  }
+
   onProgress(5);
   const initial = await runware.request([base], 60000);
   const first = initial.find(entry => entry.taskUUID === taskUUID) || initial[0];
   const item = first?.videoURL ? first : await pollTask(taskUUID, onProgress);
   onProgress(100);
   return { item, taskUUID, model };
+}
+
+async function applyCreatorLipSync(videoURL, narration, onProgress = () => {}) {
+  if (!videoURL || !narration?.audioURL) return null;
+  const taskUUID = id();
+  const initial = await runware.request([{
+    taskType: 'videoInference',
+    taskUUID,
+    deliveryMethod: 'async',
+    includeCost: true,
+    outputType: 'URL',
+    outputFormat: 'MP4',
+    model: LIPSYNC_MODEL(),
+    inputs: { video: videoURL, audio: narration.audioURL },
+    providerSettings: { klingai: { originalAudioVolume: 0, soundVolume: 1 } }
+  }], 60000);
+  const first = initial.find(entry => entry.taskUUID === taskUUID) || initial[0];
+  const item = first?.videoURL ? first : await pollTask(taskUUID, onProgress);
+  return { item, taskUUID, model: LIPSYNC_MODEL() };
 }
 
 function runFfmpeg(args, timeoutMs = 180000) {
@@ -873,7 +1125,12 @@ async function renderAd(adId) {
   }
   const generationRows = ad.generationId ? await prisma.$queryRawUnsafe('SELECT "reservedCredits" FROM "AiGeneration" WHERE "id"=$1 LIMIT 1', ad.generationId) : [];
   const generationCredits = Number(generationRows[0]?.reservedCredits || ad.credits || 0);
-  const brandReference = await prepareVerticalBrandReference(brandRefs);
+  const campaignProductIds = parseJson(campaign?.productAssetIdsJson, []);
+  let productReference = null;
+  if (campaignProductIds.length) {
+    try { productReference = await productAssetDataUri(ad.userId, campaignProductIds[0]); } catch (_) {}
+  }
+  if (!productReference) productReference = await prepareVerticalBrandReference(brandRefs);
   let providerCost = 0;
   try {
     for (let index = 0; index < scenes.length; index += 1) {
@@ -882,21 +1139,32 @@ async function renderAd(adId) {
       await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "status"=\'RENDERING\',"errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', scene.id);
       const narration = await generateSceneNarration(scene, ad, avatar);
       providerCost += Number(narration?.cost || 0);
-      const result = await renderProviderScene(scene, ad, avatar, brandReference, narration, async progress => {
+      const result = await renderProviderScene(scene, ad, avatar, productReference, narration, async progress => {
         const overall = Math.round(((index + progress / 100) / Math.max(1, scenes.length)) * 85);
         await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'PROCESSING\',"progress"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.generationId, Math.max(5, overall)).catch(() => {});
       });
-      const remote = await download(result.item.videoURL, 120 * 1024 * 1024);
+      let finalVideoURL = result.item.videoURL;
+      providerCost += Number(result.item.cost || 0);
+      if (scene.kind === 'CREATOR' && narration?.audioURL) {
+        const synced = await applyCreatorLipSync(result.item.videoURL, narration, async progress => {
+          const overall = Math.round(((index + 0.7 + (progress / 100) * 0.25) / Math.max(1, scenes.length)) * 85);
+          await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'PROCESSING\',"progress"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.generationId, Math.max(5, Math.min(88, overall))).catch(() => {});
+        });
+        if (synced?.item?.videoURL) {
+          finalVideoURL = synced.item.videoURL;
+          providerCost += Number(synced.item.cost || 0);
+        }
+      }
+      const remote = await download(finalVideoURL, 120 * 1024 * 1024);
       let sceneVideo = remote.data;
-      if (narration?.audioURL) {
+      if (scene.kind !== 'CREATOR' && narration?.audioURL) {
         const audio = await download(narration.audioURL, 18 * 1024 * 1024);
         sceneVideo = await lockNarrationAudio(sceneVideo, audio.data, scene.duration);
       }
       const stored = await objectStorage.persistBuffer({ userId: ad.userId, data: sceneVideo, mimeType: 'video/mp4', originalName: 'ugc-scene-' + scene.id + '.mp4', prefix: 'ugc-video' });
-      providerCost += Number(result.item.cost || 0);
       await prisma.$executeRawUnsafe(
         'UPDATE "UGCScene" SET "status"=\'READY\',"providerTaskUuid"=$2,"providerCostUsd"=$3,"model"=$4,"videoStorageProvider"=$5,"videoStorageKey"=$6,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
-        scene.id, result.taskUUID, Number(result.item.cost || 0), result.model, stored.storageProvider, stored.storageKey
+        scene.id, result.taskUUID, Number(result.item.cost || 0) + Number(narration?.cost || 0), result.model, stored.storageProvider, stored.storageKey
       );
     }
     const readyScenes = await prisma.$queryRawUnsafe('SELECT * FROM "UGCScene" WHERE "adId"=$1 ORDER BY "sequence"', adId);
@@ -971,6 +1239,12 @@ function startUGCStudioRuntime() {
   runtimeTimer.unref?.();
 }
 
+async function deleteCampaign(userId, campaignId) {
+  const row = await ownedCampaign(userId, campaignId);
+  await prisma.$executeRawUnsafe('UPDATE "UGCCampaign" SET "deletedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$2', row.id, userId);
+  return true;
+}
+
 async function updateAd(userId, adId, input) {
   const row = await getAdRow(userId, adId);
   if (['QUEUED','RENDERING'].includes(row.status)) throw publicError('Wait for the current render to finish before editing this ad.', 'UGC_AD_BUSY', 409);
@@ -1015,9 +1289,12 @@ async function regenerateScene(userId, sceneId) {
 }
 
 module.exports = {
-  STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, avatarSeeds,
-  creditsPerAd, splitDurations, splitScriptByDurations, narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
-  getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getAd, updateAd, regenerateAd, regenerateScene,
-  generateCustomAvatar, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent, listMusicTracks,
-  startUGCStudioRuntime, ensureSystemAvatars
+  STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, avatarSeeds,
+  creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations,
+  narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
+  getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, deleteCampaign, getAd, updateAd, regenerateAd, regenerateScene,
+  generateCustomAvatar, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,
+  uploadProductAsset, getProductAssetContent,
+  listSampleVideos, uploadSampleVideo, getSampleVideoContent,
+  listMusicTracks, startUGCStudioRuntime, ensureSystemAvatars
 };

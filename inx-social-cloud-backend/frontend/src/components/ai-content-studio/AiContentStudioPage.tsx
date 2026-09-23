@@ -13,6 +13,7 @@ import {
   sendDraftToPosts,
 } from '../../lib/ai-content-studio-api'
 import type { AIDraft, AIContentType, AIPostCampaign, AIPlanAccess, GenerationHistoryItem } from '../../types/ai-content-studio'
+import type { UGCCampaign } from '../../types/ugc-studio'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { Drawer } from '../billing/BillingPrimitives'
@@ -34,6 +35,7 @@ import {
 import { GenerationModalRouter } from './GenerationModalRouter'
 import { AiPostCampaignModal } from './AiPostCampaignModal'
 import { UGCWizardModal } from './UGCWizardModal'
+import { UGCStudioHomeModal } from './UGCStudioHomeModal'
 
 const immediateAiAccess: AIPlanAccess = {
   plan: 'trial',
@@ -53,6 +55,7 @@ export function AiContentStudioPage() {
   const requestedVideoKind = searchParams.get('videoStudio') === 'stock' ? 'stock' : searchParams.get('videoStudio') === 'generative' ? 'generative' : null
   const requestedGenerationId = searchParams.get('generation')
   const requestedCampaign = searchParams.get('campaign') === 'new'
+  const requestedUGC = searchParams.get('ugc') === '1'
   const [activeType, setActiveType] = useState<AIContentType | null>(() => requestedVideoKind ? 'short_video' : null)
   const [editingDraft, setEditingDraft] = useState<AIDraft | null>(null)
   const [upgradeOpen, setUpgradeOpen] = useState(false)
@@ -60,7 +63,9 @@ export function AiContentStudioPage() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [campaignOpen, setCampaignOpen] = useState(requestedCampaign)
+  const [ugcHomeOpen, setUgcHomeOpen] = useState(requestedUGC)
   const [ugcWizardOpen, setUgcWizardOpen] = useState(false)
+  const [ugcWizardSeed, setUgcWizardSeed] = useState<UGCCampaign | null>(null)
 
   const accessQuery = useQuery({
     queryKey: ['ai-studio-access'],
@@ -98,7 +103,7 @@ export function AiContentStudioPage() {
       return
     }
     if (type === 'ugc_ad') {
-      setUgcWizardOpen(true)
+      setUgcHomeOpen(true)
       return
     }
     setEditingDraft(null)
@@ -257,7 +262,20 @@ export function AiContentStudioPage() {
     </section>
 
     <AiPostCampaignModal onClose={() => setCampaignOpen(false)} onHandoff={(campaign) => void handoffCampaign(campaign)} onToast={setToast} open={campaignOpen} />
-    <UGCWizardModal onClose={() => setUgcWizardOpen(false)} onToast={setToast} open={ugcWizardOpen} />
+    <UGCStudioHomeModal
+      onClose={() => { setUgcHomeOpen(false); if (requestedUGC) setSearchParams({}, { replace: true }) }}
+      onCreate={(seed) => { setUgcWizardSeed(seed || null); setUgcHomeOpen(false); setUgcWizardOpen(true) }}
+      onToast={setToast}
+      open={ugcHomeOpen}
+    />
+    {ugcWizardOpen && <UGCWizardModal
+      key={ugcWizardSeed?.id || 'new-ugc'}
+      onBackToHome={() => { setUgcWizardOpen(false); setUgcWizardSeed(null); setUgcHomeOpen(true) }}
+      onClose={() => { setUgcWizardOpen(false); setUgcWizardSeed(null) }}
+      onToast={setToast}
+      open
+      seedCampaign={ugcWizardSeed}
+    />}
     <GenerationModalRouter access={access || immediateAiAccess} initialDraft={editingDraft} initialGenerationId={requestedGenerationId} initialVideoKind={requestedVideoKind} onClose={() => { setActiveType(null); setEditingDraft(null); if (requestedVideoKind || requestedGenerationId) setSearchParams({}, { replace: true }) }} onContinue={(draft) => void continueToPosts(draft)} onSaved={(draft) => void onDraftSaved(draft)} onToast={setToast} open={Boolean(activeType && access)} type={activeType} />
     <UpgradeToPlusModal onClose={() => setUpgradeOpen(false)} open={upgradeOpen} />
     <GenerationHistoryDrawer history={(historyQuery.data || []) as GenerationHistoryItem[]} onClose={() => setHistoryOpen(false)} open={historyOpen} />

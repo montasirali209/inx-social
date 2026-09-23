@@ -2,26 +2,33 @@ const { z } = require('zod');
 const express = require('express');
 const service = require('../services/ugcStudioService');
 
+const durations = [15, 20, 30];
+const counts = [1, 5, 10, 15, 20];
+
 const createSchema = z.object({
   brandProfileId: z.string().trim().max(120).optional().nullable(),
   productUrl: z.string().trim().max(2000).optional().default(''),
   productDescription: z.string().trim().max(4000).optional().default(''),
+  productAssetIds: z.array(z.string().trim().min(1).max(120)).max(8).optional().default([]),
+  sourceType: z.enum(['WEBSITE', 'PRODUCT', 'BRIEF']).optional().default('WEBSITE'),
+  campaignType: z.enum(['AUTO', 'AVATAR_EXPLAINER', 'PRODUCT_SHOWCASE']).optional().default('AUTO'),
   avatarId: z.string().trim().max(120).optional().nullable(),
   creatorMode: z.enum(['AUTO', 'SELECTED']).default('AUTO'),
-  duration: z.number().int().refine(v => [15, 30, 60].includes(v), 'Choose 15, 30 or 60 seconds.'),
-  adCount: z.number().int().refine(v => [1, 5, 10, 15, 20].includes(v), 'Choose 1, 5, 10, 15 or 20 ads.'),
+  duration: z.number().int().refine(v => durations.includes(v), 'Choose 15, 20 or 30 seconds.'),
+  adCount: z.number().int().refine(v => counts.includes(v), 'Choose 1, 5, 10, 15 or 20 ads.'),
   quality: z.enum(['STANDARD', 'PREMIUM']).default('STANDARD'),
   notes: z.string().trim().max(1200).optional().default('')
 }).superRefine((value, ctx) => {
-  if (!value.brandProfileId && !value.productUrl && !value.productDescription) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['productUrl'], message: 'Add a website, product or brand description.' });
+  if (!value.brandProfileId && !value.productUrl && !value.productDescription && !value.productAssetIds.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['productUrl'], message: 'Add a website, product image or short brand description.' });
   }
 });
 
 const estimateSchema = z.object({
-  duration: z.number().int().refine(v => [15, 30, 60].includes(v), 'Choose 15, 30 or 60 seconds.'),
-  adCount: z.number().int().refine(v => [1, 5, 10, 15, 20].includes(v), 'Choose 1, 5, 10, 15 or 20 ads.'),
-  quality: z.enum(['STANDARD', 'PREMIUM']).default('STANDARD')
+  duration: z.number().int().refine(v => durations.includes(v), 'Choose 15, 20 or 30 seconds.'),
+  adCount: z.number().int().refine(v => counts.includes(v), 'Choose 1, 5, 10, 15 or 20 ads.'),
+  quality: z.enum(['STANDARD', 'PREMIUM']).default('STANDARD'),
+  campaignType: z.enum(['AUTO', 'AVATAR_EXPLAINER', 'PRODUCT_SHOWCASE']).optional().default('AUTO')
 });
 
 const brandSchema = z.object({
@@ -69,6 +76,9 @@ async function listCampaigns(req, res, next) {
 async function getCampaign(req, res, next) {
   try { res.json({ campaign: await service.getCampaign(req.user.id, req.params.campaignId) }); } catch (error) { next(error); }
 }
+async function removeCampaign(req, res, next) {
+  try { await service.deleteCampaign(req.user.id, req.params.campaignId); res.json({ ok: true }); } catch (error) { next(error); }
+}
 async function getAd(req, res, next) {
   try { res.json({ ad: await service.getAd(req.user.id, req.params.adId) }); } catch (error) { next(error); }
 }
@@ -108,13 +118,66 @@ async function avatarContent(req, res, next) {
 async function removeAvatar(req, res, next) {
   try { await service.deleteCustomAvatar(req.user.id, req.params.avatarId); res.json({ ok: true }); } catch (error) { next(error); }
 }
+async function uploadProduct(req, res, next) {
+  try {
+    const encoded = String(req.headers['x-file-name'] || 'Product image');
+    let name = encoded;
+    try { name = decodeURIComponent(encoded); } catch (_) {}
+    const asset = await service.uploadProductAsset(req.user.id, {
+      name,
+      brandProfileId: String(req.headers['x-brand-profile-id'] || '').trim() || null,
+      mimeType: String(req.headers['content-type'] || 'application/octet-stream').split(';')[0],
+      data: Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '')
+    });
+    res.status(201).json({ asset });
+  } catch (error) { next(error); }
+}
+async function productContent(req, res, next) {
+  try {
+    const value = await service.getProductAssetContent(req.user.id, req.params.assetId);
+    res.setHeader('Content-Type', value.mimeType);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(value.data);
+  } catch (error) { next(error); }
+}
+async function samples(req, res, next) {
+  try { res.json({ samples: await service.listSampleVideos() }); } catch (error) { next(error); }
+}
+async function sampleContent(req, res, next) {
+  try {
+    const value = await service.getSampleVideoContent(req.params.sampleId);
+    res.setHeader('Content-Type', value.mimeType);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(value.data);
+  } catch (error) { next(error); }
+}
+async function uploadSample(req, res, next) {
+  try {
+    const title = String(req.headers['x-sample-title'] || 'UGC sample').slice(0, 140);
+    const sample = await service.uploadSampleVideo(req.user, {
+      title,
+      description: String(req.headers['x-sample-description'] || '').slice(0, 600),
+      campaignType: ['AVATAR_EXPLAINER','PRODUCT_SHOWCASE'].includes(String(req.headers['x-campaign-type'])) ? String(req.headers['x-campaign-type']) : 'AVATAR_EXPLAINER',
+      quality: String(req.headers['x-quality']).toUpperCase() === 'PREMIUM' ? 'PREMIUM' : 'STANDARD',
+      duration: [15,20,30].includes(Number(req.headers['x-duration'])) ? Number(req.headers['x-duration']) : 15,
+      sortOrder: Number(req.headers['x-sort-order'] || 0),
+      name: decodeURIComponent(String(req.headers['x-file-name'] || 'ugc-sample.mp4')),
+      mimeType: String(req.headers['content-type'] || 'video/mp4').split(';')[0],
+      data: Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '')
+    });
+    res.status(201).json({ sample });
+  } catch (error) { next(error); }
+}
 async function listMusic(req, res, next) {
   try { res.json({ tracks: await service.listMusicTracks() }); } catch (error) { next(error); }
 }
 
 module.exports = {
-  overview, estimate, analyzeBrand, createCampaign, listCampaigns, getCampaign,
+  overview, estimate, analyzeBrand, createCampaign, listCampaigns, getCampaign, removeCampaign,
   getAd, updateAd, regenerateAd, regenerateScene,
-  generateAvatar, uploadAvatar, avatarContent, removeAvatar, listMusic,
-  avatarUploadMiddleware: express.raw({ type: ['image/png','image/jpeg','image/webp'], limit: '12mb' })
+  generateAvatar, uploadAvatar, avatarContent, removeAvatar,
+  uploadProduct, productContent, samples, sampleContent, uploadSample, listMusic,
+  avatarUploadMiddleware: express.raw({ type: ['image/png','image/jpeg','image/webp'], limit: '12mb' }),
+  productUploadMiddleware: express.raw({ type: ['image/png','image/jpeg','image/webp'], limit: '15mb' }),
+  sampleUploadMiddleware: express.raw({ type: ['video/mp4','video/webm','video/quicktime'], limit: '200mb' })
 };
