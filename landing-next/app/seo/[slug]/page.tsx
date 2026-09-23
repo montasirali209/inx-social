@@ -25,7 +25,7 @@ const HERO_IMAGE_ALTS: Record<string, string> = {
   "bulk-social-media-scheduler": "INXSocial dashboard supporting bulk social media scheduling and publishing workflows",
   "social-media-content-calendar": "INXSocial social media planning workspace with scheduling and content activity",
   "social-media-analytics": "INXSocial social media analytics dashboard showing publishing activity, engagement and platform distribution",
-  "ai-social-media-tools": "INXSocial dashboard for AI-assisted social media creation, publishing and analytics",
+  "ai-social-media-tools": "INXSocial AI Content Studio showing Image Post, Carousel Post, Short Video / Reel, UGC Ad Studio and AI Post Campaign workflows",
   "ai-social-media-campaign-generator": "INXSocial AI campaign workflow for strategy, branded post generation and bulk scheduling",
   "ai-social-media-post-generator": "INXSocial social media creation and publishing dashboard",
   "ai-carousel-post-generator": "INXSocial workspace for carousel creation, social publishing and scheduling",
@@ -33,6 +33,24 @@ const HERO_IMAGE_ALTS: Record<string, string> = {
   "ai-ugc-ad-generator": "INXSocial social content workspace for UGC-style creative and campaign publishing",
   pricing: "INXSocial dashboard included across social media management plans"
 };
+
+const HERO_IMAGE_OVERRIDES: Record<string, { src: string; width: number; height: number; label: string }> = {
+  "ai-social-media-tools": {
+    src: "/assets/ai-content-studio-seo.webp",
+    width: 1400,
+    height: 986,
+    label: "Actual AI Content Studio workspace"
+  }
+};
+
+function getHeroImage(slug: string) {
+  return HERO_IMAGE_OVERRIDES[slug] ?? {
+    src: "/assets/landing-dashboard-20260919.webp",
+    width: 1200,
+    height: 675,
+    label: "Actual INXSocial workspace"
+  };
+}
 
 export function generateStaticParams() {
   return seoPageSlugs.map(slug => ({ slug }));
@@ -48,6 +66,7 @@ export async function generateMetadata({
   if (!page) return {};
 
   const canonical = `${SITE}/${page.slug}`;
+  const heroImage = getHeroImage(page.slug);
 
   return {
     title: page.title,
@@ -81,10 +100,10 @@ export async function generateMetadata({
       url: canonical,
       images: [
         {
-          url: "/assets/landing-dashboard-20260919.webp",
-          width: 1200,
-          height: 675,
-          alt: "INXSocial social media management dashboard"
+          url: heroImage.src,
+          width: heroImage.width,
+          height: heroImage.height,
+          alt: HERO_IMAGE_ALTS[page.slug] ?? "INXSocial social media management dashboard"
         }
       ]
     },
@@ -92,7 +111,7 @@ export async function generateMetadata({
       card: "summary_large_image",
       title: page.title,
       description: page.metaDescription,
-      images: ["/assets/landing-dashboard-20260919.webp"]
+      images: [heroImage.src]
     }
   };
 }
@@ -102,7 +121,8 @@ function buildSchema(slug: string) {
   if (!page) return null;
 
   const url = `${SITE}/${page.slug}`;
-  const image = `${SITE}/assets/landing-dashboard-20260919.webp`;
+  const heroImage = getHeroImage(page.slug);
+  const image = `${SITE}${heroImage.src}`;
 
   return {
     "@context": "https://schema.org",
@@ -160,8 +180,8 @@ function buildSchema(slug: string) {
           "@type": "ImageObject",
           contentUrl: image,
           url: image,
-          width: 1200,
-          height: 675
+          width: heroImage.width,
+          height: heroImage.height
         },
         breadcrumb: { "@id": `${url}#breadcrumb` }
       },
@@ -209,6 +229,7 @@ export default async function SeoMarketingPage({
   if (!page) notFound();
 
   const schema = buildSchema(slug);
+  const heroImage = getHeroImage(page.slug);
 
   return (
     <div className={styles.page}>
@@ -262,11 +283,11 @@ export default async function SeoMarketingPage({
             </div>
 
             <div className={styles.heroVisual}>
-              <div className={styles.visualLabel}>Actual INXSocial workspace</div>
+              <div className={styles.visualLabel}>{heroImage.label}</div>
               <img
-                src="/assets/landing-dashboard-20260919.webp"
-                width="1200"
-                height="675"
+                src={heroImage.src}
+                width={heroImage.width}
+                height={heroImage.height}
                 alt={HERO_IMAGE_ALTS[page.slug] ?? "INXSocial social media management dashboard"}
                 loading="eager"
                 fetchPriority="high"
