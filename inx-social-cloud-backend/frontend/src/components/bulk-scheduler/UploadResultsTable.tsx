@@ -57,7 +57,7 @@ export function UploadResultsTable({
   }
 
 
-  if (!results.length) return <div className="grid min-h-36 place-items-center rounded-xl border border-dashed border-border-soft bg-black/10 text-center"><span><Film aria-hidden="true" className="mx-auto size-6 text-brand-cyan" /><strong className="mt-2 block text-sm">No batch results yet</strong><small className="mt-1 block text-text-soft">Completed and failed publishing actions will appear here live.</small></span></div>
+  if (!results.length) return <div className="grid min-h-36 place-items-center rounded-xl border border-dashed border-border-soft bg-black/10 text-center"><span><Film aria-hidden="true" className="mx-auto size-6 text-brand-cyan" /><strong className="mt-2 block text-sm">No batch results yet</strong><small className="mt-1 block text-text-soft">Batch submission results will appear here as each item is accepted or needs attention.</small></span></div>
 
   const filters: Array<{ id: ResultFilter; label: string; count: number }> = [
     { id: 'all', label: 'All', count: counts.all },
