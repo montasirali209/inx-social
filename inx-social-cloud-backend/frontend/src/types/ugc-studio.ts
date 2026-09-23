@@ -1,8 +1,10 @@
 import type { MediaAsset } from './media-library'
 
 export type UGCQuality = 'STANDARD' | 'PREMIUM'
-export type UGCDuration = 15 | 30 | 60
+export type UGCDuration = 15 | 20 | 30
 export type UGCAdCount = 1 | 5 | 10 | 15 | 20
+export type UGCCampaignType = 'AUTO' | 'AVATAR_EXPLAINER' | 'PRODUCT_SHOWCASE'
+export type UGCSourceType = 'WEBSITE' | 'PRODUCT' | 'BRIEF'
 
 export type UGCAvatar = {
   id: string
@@ -14,9 +16,33 @@ export type UGCAvatar = {
   locale: string
   voice: string
   voicePrompt: string
+  environment: string
+  featured: boolean
+  referenceVersion: number
   referenceReady: boolean
   imageUrl: string | null
   createdAt?: string
+}
+
+export type UGCProductAsset = {
+  id: string
+  brandProfileId: string | null
+  originalName: string
+  mimeType: string
+  status: string
+  imageUrl: string
+  createdAt: string
+}
+
+export type UGCSampleVideo = {
+  id: string
+  title: string
+  description: string
+  campaignType: Exclude<UGCCampaignType, 'AUTO'>
+  quality: UGCQuality
+  duration: number
+  thumbnailUrl: string | null
+  videoUrl: string
 }
 
 export type UGCBrandProfile = {
@@ -27,7 +53,7 @@ export type UGCBrandProfile = {
   summary: string
   audience: string[]
   verifiedClaims: string[]
-  brandReferences: Array<string | { url?: string; type?: string }>
+  brandReferences: Array<string | { url?: string; type?: string; kind?: string }>
   analysis: {
     offerType?: string
     ugcDirections?: string[]
@@ -93,6 +119,10 @@ export type UGCCampaign = {
   duration: number
   adCount: number
   quality: UGCQuality
+  campaignType: UGCCampaignType
+  resolvedType: Exclude<UGCCampaignType, 'AUTO'>
+  sourceType: UGCSourceType
+  productAssetIds: string[]
   creatorMode: 'AUTO' | 'SELECTED'
   selectedAvatarId: string | null
   status: string
@@ -107,17 +137,30 @@ export type UGCCampaign = {
 
 export type UGCOverview = {
   avatars: UGCAvatar[]
+  featuredAvatars: UGCAvatar[]
   brands: UGCBrandProfile[]
   campaigns: UGCCampaign[]
+  samples: UGCSampleVideo[]
   music: Array<{ id: string; name: string; category: string; durationSeconds: number | null }>
+  stats: { ready: number; rendering: number; failed: number }
   credits: { remaining: number; monthlyRemaining: number; topupRemaining: number }
-  options: { durations: UGCDuration[]; adCounts: UGCAdCount[]; qualities: UGCQuality[]; systemAvatarCount: number }
+  options: {
+    durations: UGCDuration[]
+    adCounts: UGCAdCount[]
+    qualities: UGCQuality[]
+    campaignTypes: UGCCampaignType[]
+    systemAvatarCount: number
+    featuredAvatarCount: number
+  }
 }
 
 export type CreateUGCCampaignInput = {
   brandProfileId?: string | null
   productUrl?: string
   productDescription?: string
+  productAssetIds?: string[]
+  sourceType?: UGCSourceType
+  campaignType?: UGCCampaignType
   avatarId?: string | null
   creatorMode: 'AUTO' | 'SELECTED'
   duration: UGCDuration
@@ -132,6 +175,7 @@ export type UGCEstimate = {
   adCount: number
   duration: number
   quality: UGCQuality
+  campaignType?: UGCCampaignType
 }
 
 export type UGCEditorUpdate = {
