@@ -134,7 +134,7 @@ test('AI Studio creator modals and campaign card use shared motion and centered 
   assert.match(campaign, /grid place-items-center/);
   assert.match(campaign, /sm:h-\[min\(94dvh,980px\)\]/);
   assert.match(campaign, /Social platforms/);
-  assert.match(campaign, /overflow-x-auto/);
+  assert.match(campaign, /mt-3 flex flex-wrap gap-2/);
   assert.match(campaign, /text-\[11px\].*Content mix|Content mix[\s\S]*text-\[11px\]/);
   assert.match(campaign, /ai-campaign-3d-card/);
 
