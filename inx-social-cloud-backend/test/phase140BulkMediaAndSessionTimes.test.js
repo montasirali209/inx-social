@@ -77,9 +77,12 @@ test('Bulk Scheduler supports text-only batches in the same workflow', () => {
   assert.match(panel, /Media Posts/);
   assert.match(panel, /Text Posts/);
   assert.match(input, /One complete post per block/);
+  assert.match(input, /two empty lines/);
   assert.match(input, />---</);
+  assert.match(input, />--</);
   assert.match(utilities, /parseTextPosts/);
-  assert.match(utilities, /split\(\/\^\\s\*---\\s\*\$\/m\)/);
+  assert.match(utilities, /\[-–—\]\{2,\}/);
+  assert.match(utilities, /\\n\[ \\t\]\*\\n\[ \\t\]\*\\n\+/);
   assert.match(page, /contentType: 'TEXT'/);
   assert.match(page, /mediaCount: batchCount/);
   assert.match(page, /bulk-text-/);
