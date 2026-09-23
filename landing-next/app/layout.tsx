@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://www.inxsocial.co.uk"),
   applicationName: "INXSocial",
   title: "Social Media Management Platform, Scheduler & AI | INXSocial",
-  description: "Manage, create, bulk schedule and analyse social media in one workspace with a visual content calendar, multi-platform publishing and AI content creation.",
+  description: "Create, bulk schedule and analyse social media in one workspace with AI campaigns, UGC video, image-to-video, Smart Timing and multi-platform publishing.",
   authors: [{ name: "INAXX LTD", url: "https://inaxx.co.uk/" }],
   creator: "INAXX LTD",
   publisher: "INAXX LTD",
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
     locale: "en_GB",
     siteName: "INXSocial",
     title: "Social Media Management Platform, Scheduler & AI | INXSocial",
-    description: "Create, schedule and analyse social content across connected accounts, with bulk scheduling, a visual calendar and AI-assisted creation in one workspace.",
+    description: "Create campaigns, UGC video, image-to-video and social posts, then bulk schedule with Smart Timing and analyse performance from one INXSocial workspace.",
     url: "https://www.inxsocial.co.uk/",
     images: [{
       url: "https://www.inxsocial.co.uk/assets/inxsocial-social-preview-v3.jpg",
@@ -52,7 +52,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Social Media Management Platform, Scheduler & AI | INXSocial",
-    description: "Create, bulk schedule and analyse social content from one connected workspace.",
+    description: "Create AI campaigns and social content, bulk schedule with Smart Timing, and analyse results from one connected workspace.",
     images: [{
       url: "https://www.inxsocial.co.uk/assets/inxsocial-social-preview-v3.jpg",
       alt: "INXSocial social media management platform homepage with dashboard preview"

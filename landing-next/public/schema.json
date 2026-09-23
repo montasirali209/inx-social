@@ -30,7 +30,7 @@
       "@id": "https://www.inxsocial.co.uk/#webpage",
       "url": "https://www.inxsocial.co.uk/",
       "name": "Social Media Management Platform, Scheduler & AI | INXSocial",
-      "description": "Manage, create, bulk schedule and analyse social media in one workspace with a visual content calendar, multi-platform publishing and AI content creation.",
+      "description": "Create, bulk schedule and analyse social media in one workspace with AI campaigns, UGC video, image-to-video, Smart Timing and multi-platform publishing.",
       "isPartOf": {
         "@id": "https://www.inxsocial.co.uk/#website"
       },
@@ -45,7 +45,7 @@
         "height": 630
       },
       "inLanguage": "en-GB",
-      "dateModified": "2026-09-20"
+      "dateModified": "2026-09-23"
     },
     {
       "@type": [
@@ -58,20 +58,24 @@
       "applicationCategory": "BusinessApplication",
       "applicationSubCategory": "Social Media Management",
       "operatingSystem": "Web browser",
-      "description": "An all-in-one social media management platform for connected accounts, post creation, bulk scheduling, content calendars, analytics and AI-assisted image, carousel, UGC and video creation.",
+      "description": "An all-in-one social media management platform for connected accounts, post creation, AI campaign generation, bulk scheduling, Smart Timing, content calendars, analytics, UGC Studio and AI image, carousel and video creation.",
       "featureList": [
         "Nine supported social networks",
         "Post creation and preview",
         "Single-post scheduling",
         "Bulk social media scheduling",
+        "AI social media campaign generation",
+        "Brand-grounded text, image and mixed campaigns",
+        "AI Smart Timing for bulk schedules",
         "Visual content calendar",
         "Media library",
         "Social media analytics",
         "AI caption assistance",
         "AI image and carousel creation",
-        "AI short video and Reel creation",
+        "Text-to-video and image-to-video generation",
         "Stock Video Creator",
-        "AI-assisted UGC ad creation"
+        "UGC Studio with reusable AI creators",
+        "UGC product references, variations and editing"
       ],
       "brand": {
         "@id": "https://www.inxsocial.co.uk/#brand"
@@ -146,7 +150,15 @@
           "name": "What can I create with AI Content Studio?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "AI Content Studio supports Image Post, Carousel Post, Short Video or Reel, and UGC Ad Post workflows, with AI-generated and stock-video routes for video creation."
+            "text": "AI Content Studio supports AI Campaign, Image Post, Carousel Post, Short Video or Reel, and UGC Studio. Video can start from text or an image reference, while saved AI Campaigns can move directly into Bulk Scheduler."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Can INXSocial generate a complete social media campaign?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. AI Campaign can create 10, 15, 20 or 30-post text, image or mixed campaigns, use optional website grounding, and hand the saved campaign into Bulk Scheduler for final destination and timing choices."
           }
         }
       ]
