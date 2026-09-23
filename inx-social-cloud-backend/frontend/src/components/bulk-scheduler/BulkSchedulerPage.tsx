@@ -189,8 +189,9 @@ export function BulkSchedulerPage() {
   useEffect(() => {
     const state = location.state as { aiPostCampaign?: { id: string; title: string; contentMode: 'TEXT'; captions: string[] } } | null
     const imported = state?.aiPostCampaign
-    if (!imported?.id || importedCampaignSelection.current === imported.id) return
-    importedCampaignSelection.current = imported.id
+    const campaignFingerprint = imported?.id ? `${imported.id}:${location.key}` : ''
+    if (!campaignFingerprint || importedCampaignSelection.current === campaignFingerprint) return
+    importedCampaignSelection.current = campaignFingerprint
     const blocks = (imported.captions || []).map((caption) => String(caption || '').trim()).filter(Boolean)
     if (!blocks.length) return
     setContentMode('text')
@@ -207,7 +208,7 @@ export function BulkSchedulerPage() {
   useEffect(() => {
     const state = location.state as { mediaLibraryAssets?: MediaAsset[]; aiCampaignCaptions?: string[]; aiCampaignTitle?: string } | null
     const selectedAssets = state?.mediaLibraryAssets || []
-    const fingerprint = selectedAssets.map((asset) => asset.id).join(':')
+    const fingerprint = selectedAssets.length ? `${selectedAssets.map((asset) => asset.id).join(':')}:${location.key}` : ''
     if (!fingerprint || importedLibrarySelection.current === fingerprint) return
     importedLibrarySelection.current = fingerprint
     setContentMode('media')
