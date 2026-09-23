@@ -106,6 +106,18 @@ test('sitemap exposes only canonical acquisition URLs with current modification 
 });
 
 
+test('marketing headers use one wordmark scale and keep mobile actions right-aligned', () => {
+  const seoCss = readRepo('landing-next/app/seo/[slug]/seo-page.module.css');
+  const landingCss = readRepo('landing-next/styles/landing-redesign.css');
+  const fallbackCss = readBackend('public/seo-pages.css');
+
+  assert.match(seoCss, /\.brand img\{[\s\S]*?width:168px;[\s\S]*?height:56px;[\s\S]*?object-fit:cover/);
+  assert.match(seoCss, /@media\(max-width:680px\)[\s\S]*?\.brand img\{width:150px;height:52px;object-fit:cover/);
+  assert.match(landingCss, /@media\(max-width:860px\)[\s\S]*?\.nav-actions\{margin-left:auto\}/);
+  assert.match(fallbackCss, /\.seo-page \.brand img\{width:168px;height:56px;object-fit:cover/);
+  assert.match(fallbackCss, /@media\(max-width:760px\)\{\.seo-page \.brand img\{width:150px;height:52px/);
+});
+
 test('every canonical acquisition route has a static 200 fallback document', () => {
   for (const route of [
     'social-media-scheduler',
