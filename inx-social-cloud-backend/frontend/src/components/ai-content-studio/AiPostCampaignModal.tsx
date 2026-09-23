@@ -59,9 +59,9 @@ function formatLabel(mode: AIPostCampaign['contentMode']) {
   return 'Text only'
 }
 
-function publishCaption(post: AIPostCampaignPost) {
+function postBodyPreview(post: AIPostCampaignPost) {
   const tags = post.hashtags.map((tag) => `#${tag.replace(/^#/, '')}`).join(' ')
-  return [post.caption.trim(), tags].filter(Boolean).join('\n\n')
+  return [post.caption.trim(), post.cta?.trim(), tags].filter(Boolean).join('\n\n')
 }
 
 type Props = {
@@ -71,7 +71,7 @@ type Props = {
   onToast: (message: string) => void
 }
 
-type ImagePreview = { url: string; title: string; caption: string }
+type ImagePreview = { url: string; alt: string }
 
 function CampaignImageLightbox({ preview, onClose }: { preview: ImagePreview | null; onClose: () => void }) {
   if (!preview) return null
@@ -85,7 +85,7 @@ function CampaignImageLightbox({ preview, onClose }: { preview: ImagePreview | n
     >
       <div className="ai-studio-modal-enter relative max-h-[94dvh] max-w-[94vw]">
         <button aria-label="Close image preview" className="absolute -right-2 -top-2 z-10 grid size-10 place-items-center rounded-full border border-white/15 bg-black/75 text-white shadow-lg backdrop-blur transition hover:border-brand-cyan/40 hover:text-brand-cyan" onClick={onClose} type="button"><X className="size-4" /></button>
-        <img alt={preview.title} className="max-h-[90dvh] max-w-[92vw] rounded-2xl object-contain shadow-[0_28px_100px_rgba(0,0,0,.62)]" src={preview.url} />
+        <img alt={preview.alt} className="max-h-[90dvh] max-w-[92vw] rounded-2xl object-contain shadow-[0_28px_100px_rgba(0,0,0,.62)]" src={preview.url} />
       </div>
     </div>,
     document.body,
@@ -215,7 +215,6 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
   function beginEdit(post: AIPostCampaignPost) {
     setEditingPostId(post.id)
     setEditDraft({
-      title: post.title,
       pillar: post.pillar,
       hook: post.hook,
       caption: post.caption,
@@ -230,7 +229,6 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
     setBusyPostId(post.id)
     try {
       const updated = await updateAIPostCampaignPost(selectedCampaign.id, post.id, {
-        title: String(editDraft.title || ''),
         pillar: String(editDraft.pillar || ''),
         hook: String(editDraft.hook || ''),
         caption: String(editDraft.caption || ''),
@@ -314,18 +312,17 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
       </div>
 
       {editing ? <div className="space-y-3 p-4">
-        <input className="min-h-10 w-full rounded-xl border border-border-soft bg-black/15 px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, title: event.target.value }))} value={String(editDraft.title || '')} />
         <input className="min-h-10 w-full rounded-xl border border-border-soft bg-black/15 px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, hook: event.target.value }))} placeholder="Hook" value={String(editDraft.hook || '')} />
-        <textarea className="min-h-28 w-full rounded-xl border border-border-soft bg-black/15 px-3 py-2 text-xs leading-5 outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, caption: event.target.value }))} value={String(editDraft.caption || '')} />
-        <input className="min-h-10 w-full rounded-xl border border-border-soft bg-black/15 px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, hashtags: event.target.value.split(/[\s,]+/).map((tag) => tag.replace(/^#/, '')).filter(Boolean) }))} placeholder="hashtags" value={(Array.isArray(editDraft.hashtags) ? editDraft.hashtags : []).map((tag) => `#${tag}`).join(' ')} />
+        <textarea className="min-h-28 w-full rounded-xl border border-border-soft bg-black/15 px-3 py-2 text-xs leading-5 outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, caption: event.target.value }))} placeholder="Post body" value={String(editDraft.caption || '')} />
+        <input className="min-h-10 w-full rounded-xl border border-border-soft bg-black/15 px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, cta: event.target.value }))} placeholder="CTA (optional)" value={String(editDraft.cta || '')} />
+        <input className="min-h-10 w-full rounded-xl border border-border-soft bg-black/15 px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, hashtags: event.target.value.split(/[\s,]+/).map((tag) => tag.replace(/^#/, '')).filter(Boolean) }))} placeholder="Hashtags — AI keeps these platform-appropriate" value={(Array.isArray(editDraft.hashtags) ? editDraft.hashtags : []).map((tag) => `#${tag}`).join(' ')} />
         {post.contentType === 'IMAGE' && <textarea className="min-h-24 w-full rounded-xl border border-brand-purple/20 bg-black/15 px-3 py-2 text-xs leading-5 outline-none focus:border-brand-purple/40" onChange={(event) => setEditDraft((current) => ({ ...current, imageBrief: event.target.value }))} placeholder="Image creative direction" value={String(editDraft.imageBrief || '')} />}
         <div className="flex gap-2"><Button disabled={busy} onClick={() => void saveEdit(post)} size="sm" variant="primary">{busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}Save</Button><Button onClick={() => { setEditingPostId(null); setEditDraft({}) }} size="sm">Cancel</Button></div>
       </div> : <div className="grid min-w-0 sm:grid-cols-[1fr_auto]">
         <div className="min-w-0 p-4">
-          <h4 className="text-sm font-semibold">{post.title}</h4>
-          {post.hook && <p className="mt-2 text-[11px] font-semibold leading-5 text-white/90">{post.hook}</p>}
-          <p className={`mt-2 whitespace-pre-wrap text-[10px] leading-5 text-text-muted ${expanded ? '' : 'line-clamp-3'}`}>{publishCaption(post)}</p>
-          {publishCaption(post).length > 220 && <button className="mt-2 inline-flex items-center gap-1 text-[8px] font-semibold text-brand-cyan" onClick={() => togglePost(post.id)} type="button">{expanded ? <><ChevronUp className="size-3" />Show less</> : <><ChevronDown className="size-3" />Expand post</>}</button>}
+          {post.hook && <p className="text-[11px] font-semibold leading-5 text-white/90">{post.hook}</p>}
+          <p className={`mt-2 whitespace-pre-wrap text-[10px] leading-5 text-text-muted ${expanded ? '' : 'line-clamp-3'}`}>{postBodyPreview(post)}</p>
+          {postBodyPreview(post).length > 220 && <button className="mt-2 inline-flex items-center gap-1 text-[8px] font-semibold text-brand-cyan" onClick={() => togglePost(post.id)} type="button">{expanded ? <><ChevronUp className="size-3" />Show less</> : <><ChevronDown className="size-3" />Expand post</>}</button>}
           {post.contentType === 'IMAGE' && expanded && <div className="mt-3 rounded-xl border border-brand-purple/15 bg-brand-purple/[.035] p-3"><strong className="text-[8px] uppercase tracking-[.08em] text-[#c4b5fd]">Visual direction</strong><p className="mt-1 text-[9px] leading-4 text-text-muted">{post.imageBrief || 'AI will create a visual direction when this post is regenerated.'}</p></div>}
         </div>
         <div className="flex gap-2 border-t border-border-soft p-3 sm:w-40 sm:flex-col sm:border-l sm:border-t-0">
@@ -336,10 +333,10 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
             onClick={(event) => {
               event.preventDefault()
               event.stopPropagation()
-              setImagePreview({ url: post.mediaAsset?.url || mediaUrl, title: post.title, caption: publishCaption(post) })
+              setImagePreview({ url: post.mediaAsset?.url || mediaUrl, alt: post.hook || `Campaign image post ${post.sequence}` })
             }}
             type="button"
-          ><img alt={post.title} className="aspect-[4/5] w-16 object-cover transition duration-300 group-hover/image:scale-[1.035] sm:w-full" src={mediaUrl} /><span className="pointer-events-none absolute inset-x-2 bottom-2 rounded-lg bg-black/65 px-2 py-1 text-center text-[7px] font-semibold text-white opacity-0 backdrop-blur transition group-hover/image:opacity-100">View full image</span></button>}
+          ><img alt={post.hook || `Campaign image post ${post.sequence}`} className="aspect-[4/5] w-16 object-cover transition duration-300 group-hover/image:scale-[1.035] sm:w-full" src={mediaUrl} /><span className="pointer-events-none absolute inset-x-2 bottom-2 rounded-lg bg-black/65 px-2 py-1 text-center text-[7px] font-semibold text-white opacity-0 backdrop-blur transition group-hover/image:opacity-100">View full image</span></button>}
           <Button disabled={busy} onClick={() => beginEdit(post)} size="sm"><PencilLine className="size-3.5" />Edit</Button>
           <Button disabled={busy} onClick={() => void regenerate(post)} size="sm">{busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <RefreshCcw className="size-3.5" />}Regenerate</Button>
           {post.contentType === 'IMAGE' && <Button disabled={busy} onClick={() => void generateImage(post)} size="sm" variant={post.mediaAssetId ? 'ghost' : 'primary'}>{busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <ImageIcon className="size-3.5" />}{post.mediaAssetId ? 'Regenerate image' : 'Retry image generation'}</Button>}
@@ -371,7 +368,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
         <div aria-hidden="true" className="ai-campaign-glow-drift pointer-events-none absolute -left-32 top-12 size-80 rounded-full bg-brand-cyan/[.08] blur-[90px]" />
         <div aria-hidden="true" className="ai-campaign-glow-drift pointer-events-none absolute right-0 top-64 size-72 rounded-full bg-brand-purple/[.07] blur-[100px] [animation-delay:-2.8s]" />
 
-        <header className="relative flex items-start justify-between gap-3 border-b border-brand-cyan/15 bg-[radial-gradient(circle_at_0%_0%,rgba(45,212,191,.15),transparent_34%),linear-gradient(135deg,rgba(10,32,45,.98),rgba(5,18,29,.98))] p-4 sm:p-6">
+        <header className="sticky top-0 z-50 flex items-start justify-between gap-3 border-b border-brand-cyan/15 bg-[radial-gradient(circle_at_0%_0%,rgba(45,212,191,.15),transparent_34%),linear-gradient(135deg,rgba(10,32,45,.985),rgba(5,18,29,.985))] p-4 shadow-[0_14px_34px_rgba(0,0,0,.16)] backdrop-blur-xl sm:p-6">
           <div className="flex min-w-0 items-start gap-3">
             <span className="ai-campaign-soft-float grid size-11 shrink-0 place-items-center rounded-2xl border border-brand-cyan/30 bg-brand-cyan/10 text-brand-cyan shadow-[0_10px_28px_rgba(45,212,191,.12)]"><Megaphone className="size-5" /></span>
             <div className="min-w-0">

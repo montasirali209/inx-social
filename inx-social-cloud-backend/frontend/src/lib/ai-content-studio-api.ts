@@ -262,7 +262,6 @@ export function getAIPostCampaign(id: string) {
 }
 
 export function updateAIPostCampaignPost(campaignId: string, postId: string, input: {
-  title?: string
   pillar?: string
   hook?: string
   caption?: string

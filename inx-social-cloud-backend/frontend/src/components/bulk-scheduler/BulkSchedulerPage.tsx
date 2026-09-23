@@ -60,7 +60,6 @@ function mediaMimeType(file: File) {
 type ImportedMixedCampaignItem = {
   id: string
   sequence: number
-  title: string
   contentType: 'TEXT' | 'IMAGE'
   caption: string
   media: SelectedMedia | null
@@ -139,9 +138,9 @@ export function BulkSchedulerPage() {
 
     const items = await Promise.all(campaign.posts.map(async (post): Promise<ImportedMixedCampaignItem> => {
       const tags = post.hashtags.map((tag) => `#${tag.replace(/^#/, '')}`).join(' ')
-      const caption = [post.caption.trim(), tags].filter(Boolean).join('\n\n')
+      const caption = [post.hook?.trim(), post.caption.trim(), post.cta?.trim(), tags].filter(Boolean).join('\n\n')
       if (post.contentType === 'TEXT') {
-        return { id: post.id, sequence: post.sequence, title: post.title, contentType: 'TEXT', caption, media: null }
+        return { id: post.id, sequence: post.sequence, contentType: 'TEXT', caption, media: null }
       }
 
       const asset = post.mediaAssetId ? assetsById.get(post.mediaAssetId) : null
@@ -152,7 +151,6 @@ export function BulkSchedulerPage() {
       return {
         id: post.id,
         sequence: post.sequence,
-        title: post.title,
         contentType: 'IMAGE',
         caption,
         media: { id: asset.id, libraryAssetId: asset.id, file, kind, previewUrl: URL.createObjectURL(file) },
@@ -358,7 +356,7 @@ export function BulkSchedulerPage() {
     setProgress({ ...idleProgress, state: 'preparing', message: `Loading mixed AI campaign “${imported.title}”…` })
 
     void Promise.all(imported.posts.map(async (post, index): Promise<ImportedMixedCampaignItem> => {
-      if (post.contentType === 'TEXT') return { id: post.id, sequence: index + 1, title: `Post ${index + 1}`, contentType: 'TEXT', caption: post.caption, media: null }
+      if (post.contentType === 'TEXT') return { id: post.id, sequence: index + 1, contentType: 'TEXT', caption: post.caption, media: null }
       const asset = post.mediaAssetId ? assetsById.get(post.mediaAssetId) : null
       if (!asset) throw new Error(`Generated media is missing for one of the image posts in “${imported.title}”.`)
       const file = await fetchMediaAssetFile(asset)
@@ -367,7 +365,6 @@ export function BulkSchedulerPage() {
       return {
         id: post.id,
         sequence: index + 1,
-        title: `Post ${index + 1}`,
         contentType: 'IMAGE',
         caption: post.caption,
         media: { id: asset.id, libraryAssetId: asset.id, file, kind, previewUrl: URL.createObjectURL(file) },
@@ -1218,7 +1215,6 @@ export function BulkSchedulerPage() {
             posts: mixedCampaign.posts.map((post) => ({
               id: post.id,
               sequence: post.sequence,
-              title: post.title,
               contentType: post.contentType,
               caption: post.caption,
               thumbnailUrl: post.media?.previewUrl || '',
