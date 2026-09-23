@@ -108,6 +108,11 @@ export function BulkSchedulerPage() {
     queryFn: fetchBulkSchedulerData,
     refetchInterval: results.some((result) => result.status === 'uploading') ? 8_000 : 15_000,
   })
+  const campaignsQuery = useQuery({
+    queryKey: ['ai-post-campaigns', 'bulk-scheduler'],
+    queryFn: () => getAIPostCampaigns(20),
+    staleTime: 5_000,
+  })
   const schedulerData = scheduler.data || immediateSchedulerData
   const destinations = schedulerData.destinations
   const captionBlocks = useMemo(() => contentMode === 'text' ? parseTextPosts(captions) : parseCaptions(captions), [captions, contentMode])
@@ -118,6 +123,57 @@ export function BulkSchedulerPage() {
   const mixedTextDestinations = selectedDestinations.filter((destination) => TEXT_POST_PLATFORMS.has(destination.platform))
   const batchCount = mixedCampaign ? mixedCampaign.posts.length : contentMode === 'text' ? captionBlocks.length : media.length
   const activeScheduleTimes = timingMode === 'saved_schedule' ? schedulerData.settings.defaultScheduleTimes : scheduleTimes
+
+  const loadSavedCampaign = useCallback(async (campaign: AIPostCampaign) => {
+    const imagePosts = campaign.posts.filter((post) => post.contentType === 'IMAGE')
+    const missingImages = imagePosts.filter((post) => !post.mediaAssetId)
+    if (missingImages.length) {
+      throw new Error(`“${campaign.title}” still needs ${missingImages.length} generated image${missingImages.length === 1 ? '' : 's'} before it can be scheduled as a complete AI campaign.`)
+    }
+
+    setProgress({ ...idleProgress, state: 'preparing', message: `Loading AI campaign “${campaign.title}”…` })
+    const library = imagePosts.length ? await fetchMediaLibrary() : null
+    const assetsById = new Map((library?.assets || []).map((asset) => [asset.id, asset]))
+
+    const items = await Promise.all(campaign.posts.map(async (post): Promise<ImportedMixedCampaignItem> => {
+      const tags = post.hashtags.map((tag) => `#${tag.replace(/^#/, '')}`).join(' ')
+      const caption = [post.caption.trim(), tags].filter(Boolean).join('\n\n')
+      if (post.contentType === 'TEXT') {
+        return { id: post.id, sequence: post.sequence, title: post.title, contentType: 'TEXT', caption, media: null }
+      }
+
+      const asset = post.mediaAssetId ? assetsById.get(post.mediaAssetId) : null
+      if (!asset) throw new Error(`The generated image for post ${post.sequence} is no longer available in Media Library.`)
+      const file = await fetchMediaAssetFile(asset)
+      const kind = mediaKind(file)
+      if (!kind) throw new Error(`${asset.fileName} is not a supported image or video.`)
+      return {
+        id: post.id,
+        sequence: post.sequence,
+        title: post.title,
+        contentType: 'IMAGE',
+        caption,
+        media: { id: asset.id, libraryAssetId: asset.id, file, kind, previewUrl: URL.createObjectURL(file) },
+      }
+    }))
+
+    mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+    const imageMedia = items.flatMap((item) => item.media ? [item.media] : [])
+    mediaRef.current = imageMedia
+    setMedia(imageMedia)
+    setMixedCampaign({ id: campaign.id, title: campaign.title, posts: items })
+    setWorkspaceMode('campaign')
+    setContentMode('media')
+    setCaptions('')
+    setRetainMedia(true)
+    setUseFallback(false)
+    setResults([])
+    window.localStorage.setItem(ACTIVE_AI_CAMPAIGN_KEY, campaign.id)
+
+    const textPosts = items.filter((item) => item.contentType === 'TEXT').length
+    const imageCount = items.length - textPosts
+    setProgress({ ...idleProgress, state: 'completed', message: `${items.length}-post AI campaign loaded: ${textPosts} text + ${imageCount} image. Review the campaign preview, choose destinations and publishing times.` })
+  }, [])
 
   useEffect(() => {
     if (!schedulerData.jobs.length || !results.length) return
