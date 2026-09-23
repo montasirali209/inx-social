@@ -83,15 +83,9 @@ function CampaignImageLightbox({ preview, onClose }: { preview: ImagePreview | n
       onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}
       role="dialog"
     >
-      <div className="ai-studio-modal-enter relative flex max-h-[94dvh] w-full max-w-[980px] flex-col overflow-hidden rounded-[28px] border border-brand-cyan/25 bg-[linear-gradient(145deg,rgba(5,22,34,.995),rgba(2,12,22,.995))] shadow-[0_44px_160px_rgba(0,0,0,.78)]">
-        <div className="flex items-start justify-between gap-3 border-b border-border-soft px-4 py-3 sm:px-5">
-          <div className="min-w-0"><span className="text-[8px] font-bold uppercase tracking-[.16em] text-brand-cyan">Campaign image</span><h3 className="mt-1 truncate text-sm font-semibold">{preview.title}</h3></div>
-          <button aria-label="Close image preview" className="grid size-9 shrink-0 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:border-brand-cyan/30 hover:text-white" onClick={onClose} type="button"><X className="size-4" /></button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-black/20 p-3 sm:p-5">
-          <img alt={preview.title} className="mx-auto max-h-[76dvh] w-auto max-w-full rounded-2xl object-contain shadow-[0_24px_80px_rgba(0,0,0,.45)]" src={preview.url} />
-          <p className="mx-auto mt-4 max-w-3xl whitespace-pre-wrap text-[10px] leading-5 text-text-muted">{preview.caption}</p>
-        </div>
+      <div className="ai-studio-modal-enter relative max-h-[94dvh] max-w-[94vw]">
+        <button aria-label="Close image preview" className="absolute -right-2 -top-2 z-10 grid size-10 place-items-center rounded-full border border-white/15 bg-black/75 text-white shadow-lg backdrop-blur transition hover:border-brand-cyan/40 hover:text-brand-cyan" onClick={onClose} type="button"><X className="size-4" /></button>
+        <img alt={preview.title} className="max-h-[90dvh] max-w-[92vw] rounded-2xl object-contain shadow-[0_28px_100px_rgba(0,0,0,.62)]" src={preview.url} />
       </div>
     </div>,
     document.body,
@@ -130,10 +124,10 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
   useEffect(() => {
     if (!creating) return
     const timer = window.setInterval(() => {
-      setGenerationStep((current) => Math.min(5, current + 1))
+      setGenerationStep((current) => Math.min(imageCount > 0 ? 5 : 4, current + 1))
     }, 3600)
     return () => window.clearInterval(timer)
-  }, [creating])
+  }, [creating, imageCount])
 
   const imageCount = form.contentMode === 'TEXT'
     ? 0
@@ -356,12 +350,18 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
 
   if (!open) return null
 
-  const generationMessages = [
+  const generationMessages = imageCount > 0 ? [
     'Analysing website and campaign goal',
     'Understanding brand, product and audience',
     'Building campaign strategy and content map',
     'Writing platform-aware hooks and captions',
     'Generating campaign visuals',
+    'Quality-checking the final campaign',
+  ] : [
+    'Analysing website and campaign goal',
+    'Understanding brand, product and audience',
+    'Building campaign strategy and content map',
+    'Writing platform-aware hooks and captions',
     'Quality-checking the final campaign',
   ]
 
