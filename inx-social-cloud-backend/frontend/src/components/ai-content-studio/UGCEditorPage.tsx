@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, CalendarRange, Captions, Check, Clapperboard, Coins, LoaderCircle,
+  ArrowLeft, CalendarRange, Captions, Clapperboard, Coins, LoaderCircle,
   Music2, RefreshCcw, Save, Sparkles, UserRound, Volume2, WandSparkles,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
@@ -11,7 +11,7 @@ import {
   regenerateUGCScene, updateUGCAd,
 } from '../../lib/ugc-studio-api'
 import type { MediaAsset } from '../../types/media-library'
-import type { UGCAvatar, UGCAd, UGCEditorUpdate } from '../../types/ugc-studio'
+import type { UGCAvatar, UGCAd } from '../../types/ugc-studio'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import './ugc-studio.css'
