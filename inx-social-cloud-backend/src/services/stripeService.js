@@ -68,6 +68,21 @@ function planAvailability() {
   };
 }
 
+function configurationSnapshot() {
+  const prices = {
+    CREATOR: env.stripe.creatorPriceId,
+    PRO: env.stripe.proPriceId,
+    BUSINESS: env.stripe.businessPriceId,
+    AGENCY: env.stripe.agencyPriceId
+  };
+  return Object.fromEntries(Object.entries(prices).map(([plan, priceId]) => [plan, {
+    configured: Boolean(priceId),
+    priceSuffix: String(priceId || '').slice(-8),
+    aiCredits: DEFINITIONS[plan].aiCredits,
+    monthlyPriceGbp: DEFINITIONS[plan].price
+  }]));
+}
+
 module.exports = {
   PAID_PLANS,
   isConfigured,
@@ -76,5 +91,6 @@ module.exports = {
   priceIdForPlan,
   planForPriceId,
   planDefinition,
-  planAvailability
+  planAvailability,
+  configurationSnapshot
 };

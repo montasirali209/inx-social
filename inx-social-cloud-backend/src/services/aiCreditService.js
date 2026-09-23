@@ -126,6 +126,40 @@ function publicBalance(wallet) {
   };
 }
 
+function refundableReservationAmounts(generation, debit, wallet) {
+  const reservedMonthly = Math.max(0, Number(generation?.reservedMonthly || 0));
+  const reservedTopup = Math.max(0, Number(generation?.reservedTopup || 0));
+  const currentMonthly = Math.max(0, Number(wallet?.monthlyBalance || 0));
+  const monthlyLimit = Math.max(0, Number(wallet?.monthlyLimit || 0));
+  const periodStartMs = new Date(wallet?.periodStart || 0).getTime();
+  const debitCreatedMs = new Date(debit?.createdAt || generation?.createdAt || 0).getTime();
+  const sameBillingPeriod = Number.isFinite(periodStartMs) && Number.isFinite(debitCreatedMs) && debitCreatedMs >= periodStartMs;
+  const monthlyRoom = Math.max(0, monthlyLimit - currentMonthly);
+  const monthly = sameBillingPeriod ? Math.min(reservedMonthly, monthlyRoom) : 0;
+  return {
+    monthly,
+    topup: reservedTopup,
+    unrestoredMonthly: Math.max(0, reservedMonthly - monthly),
+    sameBillingPeriod
+  };
+}
+
+function configurationSnapshot() {
+  const topupPriceIds = env.aiCredits?.topupPriceIds || {};
+  return {
+    monthlyCredits: {
+      trial: creditLimitForPlan('trial'),
+      creator: creditLimitForPlan('creator'),
+      pro: creditLimitForPlan('pro'),
+      business: creditLimitForPlan('business'),
+      agency: creditLimitForPlan('agency')
+    },
+    topupPacksConfigured: [250, 500, 1000, 2500].filter(amount => Boolean(topupPriceIds[String(amount)])),
+    topupPriceSuffixes: Object.fromEntries([250, 500, 1000, 2500].map(amount => [amount, String(topupPriceIds[String(amount)] || '').slice(-8)])),
+    topupWebhookConfigured: Boolean(env.aiCredits?.stripeWebhookSecret)
+  };
+}
+
 async function getAccess(userId) {
   const entitlement = await getEntitlement(userId);
   const limit = creditLimitForPlan(entitlement.plan);
@@ -207,12 +241,24 @@ async function refund(userId, generationId, reason) {
     const wallets = await tx.$queryRawUnsafe('SELECT * FROM "AiCreditWallet" WHERE "userId"=$1 FOR UPDATE', userId);
     const wallet = wallets[0];
     if (!wallet) return false;
-    const monthly = Number(wallet.monthlyBalance || 0) + Number(generation.reservedMonthly || 0);
-    const topup = Number(wallet.topupBalance || 0) + Number(generation.reservedTopup || 0);
+    const debitRows = await tx.$queryRawUnsafe('SELECT "createdAt" FROM "AiCreditTransaction" WHERE "reference"=$1 LIMIT 1', `debit:${generationId}`);
+    const refundable = refundableReservationAmounts(generation, debitRows[0], wallet);
+    const monthly = Number(wallet.monthlyBalance || 0) + refundable.monthly;
+    const topup = Number(wallet.topupBalance || 0) + refundable.topup;
+    const amount = refundable.monthly + refundable.topup;
     await tx.$executeRawUnsafe('UPDATE "AiCreditWallet" SET "monthlyBalance"=$2,"topupBalance"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', wallet.id, monthly, topup);
     await tx.$executeRawUnsafe(
       'INSERT INTO "AiCreditTransaction" ("id","userId","walletId","generationId","type","bucket","amount","balanceMonthly","balanceTopup","reference","metadataJson") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)',
-      crypto.randomUUID(), userId, wallet.id, generationId, 'GENERATION_REFUND', 'MIXED', Number(generation.reservedCredits), monthly, topup, `refund:${generationId}`, JSON.stringify({ reason: String(reason || 'generation_failed').slice(0, 300) })
+      crypto.randomUUID(), userId, wallet.id, generationId, 'GENERATION_REFUND',
+      refundable.monthly && refundable.topup ? 'MIXED' : refundable.topup ? 'TOPUP' : 'MONTHLY',
+      amount, monthly, topup, `refund:${generationId}`,
+      JSON.stringify({
+        reason: String(reason || 'generation_failed').slice(0, 300),
+        restoredMonthly: refundable.monthly,
+        restoredTopup: refundable.topup,
+        expiredOrCappedMonthly: refundable.unrestoredMonthly,
+        sameBillingPeriod: refundable.sameBillingPeriod
+      })
     );
     return true;
   });
@@ -305,5 +351,7 @@ module.exports = {
   refund,
   complete,
   addTopup,
-  adminAdjustCredits
+  adminAdjustCredits,
+  refundableReservationAmounts,
+  configurationSnapshot
 };

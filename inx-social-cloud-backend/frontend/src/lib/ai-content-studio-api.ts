@@ -67,8 +67,8 @@ function fallbackCredits(request: GenerationRequest) {
     return slides <= 5 ? 10 : slides <= 8 ? 15 : 20
   }
   if (request.type === 'short_video') {
-    const duration = Math.max(5, Math.min(15, Number(request.options.duration || 5)))
-    return duration <= 5 ? 15 : duration <= 10 ? 25 : 35
+    const duration = Number(request.options.duration || 5)
+    return duration <= 5 ? 15 : 25
   }
   const duration = Math.max(5, Math.min(10, Number(request.options.duration || 10)))
   return duration <= 5 ? 25 : 40

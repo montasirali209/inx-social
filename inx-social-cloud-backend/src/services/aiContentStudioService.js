@@ -256,8 +256,13 @@ async function createGenerationRow(userId, request, estimatedCredits) {
     'INSERT INTO "AiGeneration" ("id","userId","contentType","status","provider","prompt","requestJson","reservedCredits","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
     id, userId, request.type, 'PREPARING', 'runware', request.prompt, JSON.stringify(request)
   );
-  await credits.reserve(userId, id, estimatedCredits);
-  return id;
+  try {
+    await credits.reserve(userId, id, estimatedCredits);
+    return id;
+  } catch (error) {
+    await prisma.$executeRawUnsafe('DELETE FROM "AiGeneration" WHERE "id"=$1 AND "userId"=$2', id, userId).catch(() => {});
+    throw error;
+  }
 }
 
 async function updateGeneration(id, userId, patch) {

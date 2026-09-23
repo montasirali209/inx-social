@@ -12,6 +12,8 @@ const { runStorageDiagnostics } = require('./services/storageDiagnosticsService'
 const { startAgentAssetBucketBackfill } = require('./services/agentAssetBucketBackfillService');
 const { runOneOffXTextSanitizer } = require('./services/oneOffXTextSanitizer');
 const { startUGCStudioRuntime } = require('./services/ugcStudioService');
+const aiCredits = require('./services/aiCreditService');
+const stripeService = require('./services/stripeService');
 
 async function verifyNextLandingUpstream() {
   if (!/^(?:1|true|yes|on)$/i.test(String(process.env.NEXT_LANDING_ENABLED || '').trim())) return;
@@ -53,6 +55,8 @@ const server = app.listen(env.port, () => {
   startAnalyticsCacheRuntime();
   startBulkCancellationRuntime();
   startUGCStudioRuntime();
+  console.info('[AI CREDIT CONFIG]', JSON.stringify(aiCredits.configurationSnapshot()));
+  console.info('[STRIPE PLAN CONFIG]', JSON.stringify(stripeService.configurationSnapshot()));
   void runStorageDiagnostics();
   startAgentAssetBucketBackfill();
   void verifyNextLandingUpstream();

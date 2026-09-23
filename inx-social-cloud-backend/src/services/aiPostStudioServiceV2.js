@@ -873,8 +873,13 @@ async function createGenerationRow(userId, input) {
     'INSERT INTO "AiGeneration" ("id","userId","contentType","status","provider","prompt","requestJson","reservedCredits","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
     id, userId, 'image_post', 'PREPARING', 'openai', cleanText(input.prompt, 1500), JSON.stringify(input)
   );
-  await credits.reserve(userId, id, IMAGE_CREDITS);
-  return id;
+  try {
+    await credits.reserve(userId, id, IMAGE_CREDITS);
+    return id;
+  } catch (error) {
+    await prisma.$executeRawUnsafe('DELETE FROM "AiGeneration" WHERE "id"=$1 AND "userId"=$2', id, userId).catch(() => {});
+    throw error;
+  }
 }
 
 async function persistImage(userId, generationId, output, input, prompt) {
