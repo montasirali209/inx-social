@@ -162,7 +162,7 @@ test('mobile workspace uses responsive shell, KPI grids and contained calendar s
   const calendarGrid = read('frontend/src/components/calendar/CalendarGrid.tsx');
 
   assert.match(shell, /max-w-full overflow-x-clip/);
-  assert.match(shell, /workspace-frame min-w-0 p-2\.5 sm:p-4 lg:p-5 xl:p-6/);
+  assert.match(shell, /workspace-frame min-w-0 overflow-x-hidden p-2\.5 sm:p-4 lg:p-5 xl:p-6/);
   assert.match(topbar, /min-h-\[64px\]/);
   assert.match(topbar, /max-w-\[46vw\]/);
   assert.match(css, /#root \{/);
