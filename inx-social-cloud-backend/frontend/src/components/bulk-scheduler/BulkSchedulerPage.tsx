@@ -75,6 +75,7 @@ export function BulkSchedulerPage() {
   const [historyView, setHistoryView] = useState<BulkHistoryView | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const importedLibrarySelection = useRef('')
+  const importedCampaignSelection = useRef('')
   const destinationSection = useRef<HTMLDivElement>(null)
   const batchRunSection = useRef<HTMLDivElement>(null)
   const running = ['preparing', 'uploading', 'scheduling'].includes(progress.state)
@@ -186,12 +187,37 @@ export function BulkSchedulerPage() {
   }
 
   useEffect(() => {
-    const selectedAssets = (location.state as { mediaLibraryAssets?: MediaAsset[] } | null)?.mediaLibraryAssets || []
-    const fingerprint = selectedAssets.map((asset) => asset.id).join(':')
+    const state = location.state as { aiPostCampaign?: { id: string; title: string; contentMode: 'TEXT'; captions: string[] } } | null
+    const imported = state?.aiPostCampaign
+    if (!imported?.id) return
+    const campaignFingerprint = `${imported.id}:${location.key}`
+    if (importedCampaignSelection.current === campaignFingerprint) return
+    importedCampaignSelection.current = campaignFingerprint
+    const blocks = (imported.captions || []).map((caption) => String(caption || '').trim()).filter(Boolean)
+    if (!blocks.length) return
+    setContentMode('text')
+    setCaptions(blocks.join('\n\n---\n\n'))
+    setMedia([])
+    mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+    mediaRef.current = []
+    setUseFallback(false)
+    setRetainMedia(false)
+    setResults([])
+    setProgress({ ...idleProgress, state: 'completed', message: `${blocks.length} AI campaign posts from “${imported.title}” are ready. Choose destinations and publishing times, then schedule the campaign.` })
+  }, [location.state, location.key])
+
+  useEffect(() => {
+    const state = location.state as { mediaLibraryAssets?: MediaAsset[]; aiCampaignCaptions?: string[]; aiCampaignTitle?: string } | null
+    const selectedAssets = state?.mediaLibraryAssets || []
+    const fingerprint = selectedAssets.length ? `${selectedAssets.map((asset) => asset.id).join(':')}:${location.key}` : ''
     if (!fingerprint || importedLibrarySelection.current === fingerprint) return
     importedLibrarySelection.current = fingerprint
     setContentMode('media')
-    setProgress({ ...idleProgress, state: 'preparing', message: `Loading ${selectedAssets.length} Media Library assets for separate bulk posts…` })
+    if (state?.aiCampaignCaptions?.length) {
+      setCaptions(state.aiCampaignCaptions.map((caption) => String(caption || '').trim()).filter(Boolean).join('\n\n---\n\n'))
+      setUseFallback(false)
+    }
+    setProgress({ ...idleProgress, state: 'preparing', message: state?.aiCampaignTitle ? `Loading ${selectedAssets.length} campaign images from “${state.aiCampaignTitle}”…` : `Loading ${selectedAssets.length} Media Library assets for separate bulk posts…` })
     void Promise.all(selectedAssets.map(async (asset): Promise<SelectedMedia> => {
       const file = await fetchMediaAssetFile(asset)
       const kind = mediaKind(file)
@@ -203,12 +229,12 @@ export function BulkSchedulerPage() {
       setMedia(items)
       setRetainMedia(true)
       setResults([])
-      setProgress({ ...idleProgress, state: 'completed', message: `${items.length} Media Library assets are ready as separate bulk posts. Add one caption per asset, or enable the fallback caption.` })
+      setProgress({ ...idleProgress, state: 'completed', message: state?.aiCampaignTitle ? `${items.length} AI campaign image posts are ready from “${state.aiCampaignTitle}”. Choose destinations and publishing times, then schedule the campaign.` : `${items.length} Media Library assets are ready as separate bulk posts. Add one caption per asset, or enable the fallback caption.` })
     }).catch((error) => {
       importedLibrarySelection.current = ''
       setProgress({ ...idleProgress, state: 'failed', message: error instanceof Error ? error.message : 'The selected Media Library assets could not be loaded.' })
     })
-  }, [location.state])
+  }, [location.state, location.key])
 
   const clearSession = () => {
     mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))

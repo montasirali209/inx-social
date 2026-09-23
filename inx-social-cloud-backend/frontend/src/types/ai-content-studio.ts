@@ -139,3 +139,65 @@ export type GenerationCostEstimate = {
 export type PostsHandoffState = {
   aiDraft: AIDraft
 }
+
+
+export type AIPostCampaignPost = {
+  id: string
+  sequence: number
+  status: string
+  title: string
+  pillar?: string | null
+  hook?: string | null
+  caption: string
+  cta?: string | null
+  hashtags: string[]
+  imageBrief?: string | null
+  mediaAssetId?: string | null
+  mediaAsset?: GeneratedAsset | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type AIPostCampaign = {
+  id: string
+  title: string
+  businessUrl?: string | null
+  goal: string
+  audience?: string | null
+  tone?: string | null
+  contentMode: 'TEXT' | 'IMAGE'
+  platforms: string[]
+  postCount: number
+  status: string
+  strategySummary?: string
+  audienceSummary?: string
+  contentPillars: string[]
+  sourceSummary?: string
+  sourceUrl?: string | null
+  createdAt: string
+  updatedAt: string
+  counts: {
+    total: number
+    withImages: number
+    ready: number
+  }
+  posts: AIPostCampaignPost[]
+}
+
+export type CreateAIPostCampaignInput = {
+  businessUrl?: string
+  goal: string
+  audience?: string
+  tone?: string
+  contentMode: 'TEXT' | 'IMAGE'
+  platforms: string[]
+  postCount: number
+}
+
+export type AIPostCampaignHandoff = {
+  id: string
+  title: string
+  contentMode: 'TEXT' | 'IMAGE'
+  captions: string[]
+  mediaAssetIds: string[]
+}

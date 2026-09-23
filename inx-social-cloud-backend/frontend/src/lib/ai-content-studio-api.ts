@@ -11,6 +11,8 @@ import type {
   GenerationJob,
   GenerationRequest,
   GenerationStatus,
+  AIPostCampaign,
+  CreateAIPostCampaignInput,
 } from '../types/ai-content-studio'
 
 const DRAFT_KEY = 'inx-social-ai-drafts-v1'
@@ -239,4 +241,55 @@ export async function getVideoProductions(limit = 12): Promise<GenerationHistory
 export function rememberGeneration(item: GenerationHistoryItem) {
   const history = readLocal<GenerationHistoryItem[]>(HISTORY_KEY, [])
   writeLocal(HISTORY_KEY, [item, ...history.filter((entry) => entry.id !== item.id)].slice(0, 50))
+}
+
+
+export function createAIPostCampaign(input: CreateAIPostCampaignInput) {
+  return apiRequest<{ campaign: AIPostCampaign }>('/api/ai-content-studio/campaigns', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  }).then((response) => response.campaign)
+}
+
+export function getAIPostCampaigns(limit = 8) {
+  return apiRequest<{ campaigns: AIPostCampaign[] }>(`/api/ai-content-studio/campaigns?limit=${Math.max(1, Math.min(20, limit))}`)
+    .then((response) => response.campaigns)
+}
+
+export function getAIPostCampaign(id: string) {
+  return apiRequest<{ campaign: AIPostCampaign }>(`/api/ai-content-studio/campaigns/${encodeURIComponent(id)}`)
+    .then((response) => response.campaign)
+}
+
+export function updateAIPostCampaignPost(campaignId: string, postId: string, input: {
+  title?: string
+  pillar?: string
+  hook?: string
+  caption?: string
+  cta?: string
+  hashtags?: string[]
+  imageBrief?: string
+}) {
+  return apiRequest<{ campaign: AIPostCampaign }>(
+    `/api/ai-content-studio/campaigns/${encodeURIComponent(campaignId)}/posts/${encodeURIComponent(postId)}`,
+    { method: 'PATCH', body: JSON.stringify(input) },
+  ).then((response) => response.campaign)
+}
+
+export function regenerateAIPostCampaignPost(campaignId: string, postId: string) {
+  return apiRequest<{ campaign: AIPostCampaign }>(
+    `/api/ai-content-studio/campaigns/${encodeURIComponent(campaignId)}/posts/${encodeURIComponent(postId)}/regenerate`,
+    { method: 'POST' },
+  ).then((response) => response.campaign)
+}
+
+export function generateAIPostCampaignImage(campaignId: string, postId: string) {
+  return apiRequest<{ campaign: AIPostCampaign }>(
+    `/api/ai-content-studio/campaigns/${encodeURIComponent(campaignId)}/posts/${encodeURIComponent(postId)}/generate-image`,
+    { method: 'POST' },
+  ).then((response) => response.campaign)
+}
+
+export function deleteAIPostCampaign(id: string) {
+  return apiRequest<{ ok: true }>(`/api/ai-content-studio/campaigns/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }

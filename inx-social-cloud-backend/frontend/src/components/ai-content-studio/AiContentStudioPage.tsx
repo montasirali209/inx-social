@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { History, Send } from 'lucide-react'
+import { CalendarRange, History, Megaphone, Send, Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
@@ -12,7 +12,7 @@ import {
   saveGeneratedAssets,
   sendDraftToPosts,
 } from '../../lib/ai-content-studio-api'
-import type { AIDraft, AIContentType, AIPlanAccess, GenerationHistoryItem } from '../../types/ai-content-studio'
+import type { AIDraft, AIContentType, AIPostCampaign, AIPlanAccess, GenerationHistoryItem } from '../../types/ai-content-studio'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { Drawer } from '../billing/BillingPrimitives'
@@ -32,6 +32,8 @@ import {
   UpgradeToPlusModal,
 } from './AIStudioPrimitives'
 import { GenerationModalRouter } from './GenerationModalRouter'
+import { AiPostCampaignModal } from './AiPostCampaignModal'
+import { fetchMediaLibrary } from '../../lib/media-library-api'
 
 const immediateAiAccess: AIPlanAccess = {
   plan: 'trial',
@@ -56,6 +58,7 @@ export function AiContentStudioPage() {
   const [draftsOpen, setDraftsOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [campaignOpen, setCampaignOpen] = useState(false)
 
   const accessQuery = useQuery({
     queryKey: ['ai-studio-access'],
@@ -147,6 +150,44 @@ export function AiContentStudioPage() {
     }
   }
 
+  async function handoffCampaign(campaign: AIPostCampaign, mode: 'TEXT' | 'IMAGE') {
+    try {
+      const captions = campaign.posts.map((post) => post.caption)
+      if (mode === 'TEXT') {
+        setCampaignOpen(false)
+        navigate('/bulk-scheduler', {
+          state: {
+            aiPostCampaign: {
+              id: campaign.id,
+              title: campaign.title,
+              contentMode: 'TEXT',
+              captions,
+              mediaAssetIds: [],
+            },
+          },
+        })
+        return
+      }
+
+      const ids = campaign.posts.map((post) => post.mediaAssetId).filter((id): id is string => Boolean(id))
+      if (ids.length !== campaign.posts.length) throw new Error('Generate an image for every campaign post before sending the visual campaign.')
+      const library = await fetchMediaLibrary()
+      const assets = ids.map((id) => library.assets.find((asset) => asset.id === id)).filter((asset): asset is NonNullable<typeof asset> => Boolean(asset))
+      if (assets.length !== ids.length) throw new Error('One or more campaign images could not be found in Media Library.')
+
+      setCampaignOpen(false)
+      navigate('/bulk-scheduler', {
+        state: {
+          mediaLibraryAssets: assets,
+          aiCampaignCaptions: captions,
+          aiCampaignTitle: campaign.title,
+        },
+      })
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'The campaign could not be prepared for Bulk Scheduler.')
+    }
+  }
+
   async function duplicateDraft(draft: AIDraft) {
     try {
       const copy = await duplicateAIDraft(draft)
@@ -188,6 +229,24 @@ export function AiContentStudioPage() {
       </div>
     </section>
 
+    <section className="mt-4">
+      <Card className="relative overflow-hidden border-brand-cyan/20 p-0">
+        <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(circle_at_10%_10%,rgba(45,212,191,.12),transparent_35%),radial-gradient(circle_at_90%_90%,rgba(124,58,237,.10),transparent_34%)]" />
+        <div className="relative flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <div className="flex min-w-0 items-start gap-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan"><Megaphone className="size-5" /></span>
+            <div className="min-w-0">
+              <span className="text-[9px] font-bold uppercase tracking-[.15em] text-brand-cyan">AI Post Campaign</span>
+              <h2 className="mt-1 text-base font-semibold sm:text-lg">Turn one campaign idea into 10–30 review-ready posts.</h2>
+              <p className="mt-1 max-w-3xl text-[11px] leading-5 text-text-muted">Add your goal and optional website. INXSocial analyses the context, creates content pillars, writes the campaign, lets you edit or regenerate every post, then hands the approved batch to Bulk Scheduler.</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-[9px] text-text-soft"><span className="inline-flex items-center gap-1"><Sparkles className="size-3" />Strategy + copy</span><span className="inline-flex items-center gap-1"><CalendarRange className="size-3" />Bulk Scheduler handoff</span><span>Optional AI images after review</span></div>
+            </div>
+          </div>
+          <Button className="shrink-0" onClick={() => setCampaignOpen(true)} size="sm" variant="primary"><Megaphone className="size-3.5" />Create campaign</Button>
+        </div>
+      </Card>
+    </section>
+
     <section className="mt-4 min-w-0">
       <RecentDrafts drafts={drafts} onDelete={(draft) => void removeDraft(draft)} onDuplicate={(draft) => void duplicateDraft(draft)} onOpen={openDraft} onSend={(draft) => void continueToPosts(draft)} onViewAll={() => setDraftsOpen(true)} />
     </section>
@@ -196,6 +255,7 @@ export function AiContentStudioPage() {
       <CreditsCard topUpsSupported={false} />
     </section>
 
+    <AiPostCampaignModal onClose={() => setCampaignOpen(false)} onHandoff={(campaign, mode) => void handoffCampaign(campaign, mode)} onToast={setToast} open={campaignOpen} />
     <GenerationModalRouter access={access || immediateAiAccess} initialDraft={editingDraft} initialGenerationId={requestedGenerationId} initialVideoKind={requestedVideoKind} onClose={() => { setActiveType(null); setEditingDraft(null); if (requestedVideoKind || requestedGenerationId) setSearchParams({}, { replace: true }) }} onContinue={(draft) => void continueToPosts(draft)} onSaved={(draft) => void onDraftSaved(draft)} onToast={setToast} open={Boolean(activeType && access)} type={activeType} />
     <UpgradeToPlusModal onClose={() => setUpgradeOpen(false)} open={upgradeOpen} />
     <GenerationHistoryDrawer history={(historyQuery.data || []) as GenerationHistoryItem[]} onClose={() => setHistoryOpen(false)} open={historyOpen} />
