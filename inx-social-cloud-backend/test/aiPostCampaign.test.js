@@ -315,3 +315,29 @@ test('campaign deletion uses an INX Social modal instead of browser confirm', ()
   assert.match(modal, /Delete campaign/);
   assert.match(modal, /Deleting…/);
 });
+
+
+test('AI campaign image rendering survives modal closure and server restart', () => {
+  const service = read('src/services/aiPostCampaignService.js');
+  const server = read('src/server.js');
+  const notifications = read('frontend/src/components/layout/NotificationCenter.tsx');
+
+  assert.match(service, /queueCampaignRender\(userId, campaign\.id\)/);
+  assert.match(service, /startAIPostCampaignRuntime/);
+  assert.match(service, /status: 'GENERATING_IMAGES'/);
+  assert.match(service, /!post\.mediaAssetId/);
+  assert.match(server, /startAIPostCampaignRuntime/);
+  assert.match(notifications, /AI campaign visuals are generating/);
+  assert.match(notifications, /AI campaign is ready/);
+});
+
+test('workspace notifications cover UGC background generation and completion', () => {
+  const notifications = read('frontend/src/components/layout/NotificationCenter.tsx');
+  const page = read('frontend/src/components/ai-content-studio/AiContentStudioPage.tsx');
+
+  assert.match(notifications, /getUGCCampaigns/);
+  assert.match(notifications, /UGC creation is running/);
+  assert.match(notifications, /UGC campaign is ready/);
+  assert.match(notifications, /animate-ping/);
+  assert.match(page, /Boolean\(searchParams\.get\('campaign'\)\)/);
+});
