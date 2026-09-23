@@ -713,6 +713,8 @@ async function renderAd(adId) {
     const brand = (await prisma.$queryRawUnsafe('SELECT * FROM "UGCBrandProfile" WHERE "id"=$1 LIMIT 1', campaign.brandProfileId))[0];
     brandRefs = parseJson(brand?.brandReferencesJson, []);
   }
+  const generationRows = ad.generationId ? await prisma.$queryRawUnsafe('SELECT "reservedCredits" FROM "AiGeneration" WHERE "id"=$1 LIMIT 1', ad.generationId) : [];
+  const generationCredits = Number(generationRows[0]?.reservedCredits || ad.credits || 0);
   let providerCost = 0;
   try {
     for (let index = 0; index < scenes.length; index += 1) {
@@ -736,8 +738,8 @@ async function renderAd(adId) {
     const finalVideo = await assembleVideo(ad, readyScenes);
     const asset = await persistFinalAsset(ad, finalVideo, providerCost);
     await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'READY\',"mediaAssetId"=$2,"errorMessage"=NULL,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id, asset.id);
-    await credits.complete(ad.userId, ad.generationId, ad.credits);
-    await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'COMPLETED\',"progress"=100,"providerCostUsd"=$2,"assetJson"=$3,"responseJson"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.generationId, providerCost, json({ id: asset.id, type: 'video', mediaLibraryAssetId: asset.id, url: asset.fileUrl, thumbnailUrl: asset.thumbnailUrl, creditsUsed: ad.credits }), json({ ugcAdId: ad.id, providerCostUsd: providerCost, creditsUsed: ad.credits }));
+    await credits.complete(ad.userId, ad.generationId, generationCredits);
+    await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'COMPLETED\',"progress"=100,"providerCostUsd"=$2,"assetJson"=$3,"responseJson"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.generationId, providerCost, json({ id: asset.id, type: 'video', mediaLibraryAssetId: asset.id, url: asset.fileUrl, thumbnailUrl: asset.thumbnailUrl, creditsUsed: generationCredits }), json({ ugcAdId: ad.id, providerCostUsd: providerCost, creditsUsed: generationCredits }));
   } catch (error) {
     console.error('[UGC RENDER FAILED]', { adId, code: error?.code, error: clean(error?.message, 700) });
     await credits.refund(ad.userId, ad.generationId, error?.code || 'ugc_render_failed').catch(() => false);
@@ -839,7 +841,7 @@ async function regenerateScene(userId, sceneId) {
   const sceneCredits = Math.max(1, Math.ceil(Number(scene.adCredits) * Number(scene.duration) / Number(scene.adDuration)));
   const generationId = await createGenerationRow(userId, scene.ownedAdId, sceneCredits, { sceneId, regeneration: true });
   await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "status"=\'QUEUED\',"providerTaskUuid"=NULL,"providerCostUsd"=NULL,"model"=NULL,"errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', sceneId);
-  await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "generationId"=$2,"credits"=$3,"status"=\'QUEUED\',"errorMessage"=NULL,"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', scene.ownedAdId, generationId, sceneCredits);
+  await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "generationId"=$2,"status"=\'QUEUED\',"errorMessage"=NULL,"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', scene.ownedAdId, generationId);
   queueRuntimeTick();
   return getAd(userId, scene.ownedAdId);
 }
