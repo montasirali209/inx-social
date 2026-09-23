@@ -10,6 +10,8 @@ import {
   loadMediaLibrary,
   loadPosts,
   loadSettings,
+  loadUGCEditor,
+  loadUGCStudio,
 } from './route-preload'
 
 export const router = createBrowserRouter(
@@ -24,6 +26,8 @@ export const router = createBrowserRouter(
         { path: 'posts', lazy: async () => ({ Component: (await loadPosts()).PostsPage }) },
         { path: 'media-library', lazy: async () => ({ Component: (await loadMediaLibrary()).MediaLibraryPage }) },
         { path: 'ai-content-studio', lazy: async () => ({ Component: (await loadAiContentStudio()).AiContentStudioPage }) },
+        { path: 'ai-content-studio/ugc', lazy: async () => ({ Component: (await loadUGCStudio()).UGCStudioPage }) },
+        { path: 'ai-content-studio/ugc/:adId/edit', lazy: async () => ({ Component: (await loadUGCEditor()).UGCEditorPage }) },
         { path: 'analytics', lazy: async () => ({ Component: (await loadAnalytics()).AnalyticsPage }) },
         { path: 'settings', lazy: async () => ({ Component: (await loadSettings()).SettingsPage }) },
         { path: 'connected-accounts', lazy: async () => ({ Component: (await loadConnectedAccounts()).ConnectedAccountsPage }) },
