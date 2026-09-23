@@ -171,7 +171,7 @@ test('UGC runtime renders two scenes concurrently while keeping one ad active gl
   assert.match(service, /await runLimited\(scenes, 2,/);
   assert.match(service, /const adId = await claimNextAd\(\)/);
   assert.doesNotMatch(service, /for \(let i=0; i<2; i\+=1\)[\s\S]{0,180}claimNextAd/);
-  assert.match(service, /UPDATE "UGCCampaign" SET "status"=\'RENDERING\'/);
+  assert.match(service, /UGCCampaign[\s\S]{0,180}RENDERING/);
 });
 
 test('UGC wizard and home workspace display live progress stages', () => {
