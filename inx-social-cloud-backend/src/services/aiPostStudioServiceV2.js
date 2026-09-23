@@ -622,6 +622,7 @@ module.exports = {
   generateImagePost,
   normalizeUrl,
   fetchUrlContext,
+  callChatModel,
   imagePrompt,
   sizeForRatio,
   sourceFingerprint,
