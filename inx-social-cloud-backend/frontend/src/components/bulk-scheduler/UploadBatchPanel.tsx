@@ -12,7 +12,6 @@ import { DailyTimeSelector } from './DailyTimeSelector'
 type CampaignPreviewPost = {
   id: string
   sequence: number
-  title: string
   contentType: 'TEXT' | 'IMAGE'
   caption: string
   thumbnailUrl: string
@@ -133,7 +132,7 @@ export function UploadBatchPanel(props: Props) {
         <div className="scrollbar-thin mt-3 flex gap-2 overflow-x-auto pb-2">
           {campaignImport.posts.map((post) => <article className="w-[180px] shrink-0 overflow-hidden rounded-xl border border-border-soft bg-bg/45" key={post.id}>
             {post.contentType === 'IMAGE' && post.thumbnailUrl ? <img alt="" className="h-24 w-full object-cover" src={post.thumbnailUrl} /> : <div className="grid h-16 place-items-center bg-[linear-gradient(145deg,rgba(45,212,191,.08),rgba(5,20,31,.7))]"><FileText className="size-5 text-brand-cyan" /></div>}
-            <div className="p-2.5"><div className="flex items-center gap-1.5"><span className="text-[9px] font-bold text-brand-cyan">{String(post.sequence).padStart(2, '0')}</span><span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[7px] font-semibold ${post.contentType === 'IMAGE' ? 'border-brand-purple/20 text-[#c4b5fd]' : 'border-brand-cyan/20 text-brand-cyan'}`}>{post.contentType === 'IMAGE' ? <ImageIcon className="size-2.5" /> : <FileText className="size-2.5" />}{post.contentType === 'IMAGE' ? 'Image' : 'Text'}</span></div><strong className="mt-1.5 block truncate text-[9px]">{post.title}</strong><p className="mt-1 line-clamp-2 text-[8px] leading-4 text-text-muted">{post.caption}</p></div>
+            <div className="p-2.5"><div className="flex items-center gap-1.5"><span className="text-[9px] font-bold text-brand-cyan">{String(post.sequence).padStart(2, '0')}</span><span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[7px] font-semibold ${post.contentType === 'IMAGE' ? 'border-brand-purple/20 text-[#c4b5fd]' : 'border-brand-cyan/20 text-brand-cyan'}`}>{post.contentType === 'IMAGE' ? <ImageIcon className="size-2.5" /> : <FileText className="size-2.5" />}{post.contentType === 'IMAGE' ? 'Image' : 'Text'}</span></div><p className="mt-1.5 line-clamp-3 text-[8px] leading-4 text-text-muted">{post.caption}</p></div>
           </article>)}
         </div>
       </div>}
