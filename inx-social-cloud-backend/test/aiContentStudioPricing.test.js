@@ -1,7 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { estimateGenerationCost, validateGenerationRequest, fallbackCopy } = require('../src/services/aiContentStudioService');
-const { customerPlan } = require('../src/services/aiCreditService');
+const { customerPlan, refundableReservationAmounts } = require('../src/services/aiCreditService');
+const { planDefinition } = require('../src/services/stripeService');
 const { normalizeModelId } = require('../src/services/runwareService');
 
 test('AI Content Studio keeps the launch credit schedule', () => {
@@ -73,4 +74,58 @@ test('legacy and current Stripe plan ids map to the new customer-facing plan lad
   assert.equal(customerPlan('BUSINESS', 'USER'), 'business');
   assert.equal(customerPlan('AGENCY', 'USER'), 'agency');
   assert.equal(customerPlan('TRIAL', 'ADMIN'), 'agency');
+});
+
+
+test('Stripe plan definitions and published AI allowances stay aligned', () => {
+  assert.equal(planDefinition('CREATOR').price, 18.99);
+  assert.equal(planDefinition('CREATOR').aiCredits, 150);
+  assert.equal(planDefinition('PRO').price, 34.99);
+  assert.equal(planDefinition('PRO').aiCredits, 500);
+  assert.equal(planDefinition('BUSINESS').price, 59.99);
+  assert.equal(planDefinition('BUSINESS').aiCredits, 1200);
+  assert.equal(planDefinition('AGENCY').price, 99.99);
+  assert.equal(planDefinition('AGENCY').aiCredits, 2500);
+});
+
+test('generation refunds never carry expired monthly credits into a new billing period', () => {
+  const wallet = {
+    monthlyBalance: 500,
+    monthlyLimit: 500,
+    topupBalance: 40,
+    periodStart: new Date('2026-09-01T00:00:00.000Z')
+  };
+  const generation = {
+    reservedMonthly: 100,
+    reservedTopup: 20,
+    createdAt: new Date('2026-08-31T22:00:00.000Z')
+  };
+  const debit = { createdAt: new Date('2026-08-31T22:00:00.000Z') };
+  assert.deepEqual(refundableReservationAmounts(generation, debit, wallet), {
+    monthly: 0,
+    topup: 20,
+    unrestoredMonthly: 100,
+    sameBillingPeriod: false
+  });
+});
+
+test('same-period refunds restore the original buckets without exceeding the monthly allowance', () => {
+  const wallet = {
+    monthlyBalance: 420,
+    monthlyLimit: 500,
+    topupBalance: 0,
+    periodStart: new Date('2026-09-01T00:00:00.000Z')
+  };
+  const generation = {
+    reservedMonthly: 100,
+    reservedTopup: 25,
+    createdAt: new Date('2026-09-10T12:00:00.000Z')
+  };
+  const debit = { createdAt: new Date('2026-09-10T12:00:00.000Z') };
+  assert.deepEqual(refundableReservationAmounts(generation, debit, wallet), {
+    monthly: 80,
+    topup: 25,
+    unrestoredMonthly: 20,
+    sameBillingPeriod: true
+  });
 });
