@@ -14,6 +14,7 @@ const canonicalRoutes = [
   'social-media-content-calendar',
   'social-media-analytics',
   'ai-social-media-tools',
+  'ai-social-media-campaign-generator',
   'ai-social-media-post-generator',
   'ai-carousel-post-generator',
   'ai-video-post-generator',
@@ -124,6 +125,7 @@ test('canonical SEO pages retain resilient 200 fallbacks and deep internal links
   assert.match(app, /res\.redirect\(308,/);
 
   for (const href of [
+    '/ai-social-media-campaign-generator',
     '/ai-social-media-post-generator',
     '/ai-carousel-post-generator',
     '/ai-video-post-generator',
