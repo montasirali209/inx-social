@@ -378,23 +378,17 @@ function creditsPerAd(duration, quality) {
   if (!amount) throw publicError('Choose a supported UGC duration.', 'UGC_DURATION_UNSUPPORTED', 422);
   return amount;
 }
+
 function estimateCampaign(_userId, input) {
   const perAd = creditsPerAd(input.duration, input.quality);
-  return Promise.resolve({ credits: perAd * input.adCount, perAd, adCount: input.adCount, duration: input.duration, quality: input.quality });
-}
-
-function splitDurations(total, max) {
-  const pieces = [];
-  let remaining = Number(total);
-  while (remaining > 0) {
-    if (remaining <= max) { pieces.push(remaining); break; }
-    const slots = Math.ceil(remaining / max);
-    const duration = Math.min(max, Math.max(3, Math.round(remaining / slots)));
-    pieces.push(duration);
-    remaining -= duration;
-  }
-  if (pieces.reduce((sum, value) => sum + value, 0) !== total) pieces[pieces.length - 1] += total - pieces.reduce((sum, value) => sum + value, 0);
-  return pieces;
+  return Promise.resolve({
+    credits: perAd * input.adCount,
+    perAd,
+    adCount: input.adCount,
+    duration: input.duration,
+    quality: input.quality,
+    campaignType: input.campaignType || 'AUTO'
+  });
 }
 
 function splitScriptByDurations(script, durations) {
@@ -411,96 +405,158 @@ function splitScriptByDurations(script, durations) {
   });
 }
 
-function fallbackPlan(input, brand, avatars) {
-  const product = Boolean(input.productUrl || brand?.websiteUrl || ['PRODUCT','SOFTWARE','MIXED'].includes(String(brand?.analysis?.offerType || '')));
-  const creator = avatars[0] || null;
+function visualDurations(duration, quality, campaignType) {
+  const total = Number(duration);
+  if (String(quality).toUpperCase() === 'STANDARD') {
+    if (total === 15) return [10, 6];
+    if (total === 20) return [10, 10];
+    return [10, 10, 10];
+  }
+  if (campaignType === 'PRODUCT_SHOWCASE') {
+    if (total === 15) return [8, 7];
+    if (total === 20) return [10, 10];
+    return [10, 10, 10];
+  }
+  if (total === 15) return [15];
+  if (total === 20) return [10, 10];
+  return [15, 15];
+}
+
+function resolveCampaignType(input, brand, productAssets = []) {
+  const requested = String(input.campaignType || 'AUTO').toUpperCase();
+  if (requested === 'AVATAR_EXPLAINER' || requested === 'PRODUCT_SHOWCASE') return requested;
+  if (productAssets.length) return 'PRODUCT_SHOWCASE';
+  const offerType = String(brand?.analysis?.offerType || '').toUpperCase();
+  if (['SOFTWARE','SERVICE','BRAND'].includes(offerType)) return 'AVATAR_EXPLAINER';
+  if (offerType === 'PRODUCT') return 'PRODUCT_SHOWCASE';
+  if (offerType === 'MIXED') return brand?.analysis?.productInteractionUseful === false ? 'AVATAR_EXPLAINER' : 'PRODUCT_SHOWCASE';
+  return 'AVATAR_EXPLAINER';
+}
+
+function sceneKinds(campaignType, count) {
+  if (campaignType === 'AVATAR_EXPLAINER') return Array.from({ length: count }, () => 'CREATOR');
+  if (count === 1) return ['PRODUCT'];
+  if (count === 2) return ['CREATOR','PRODUCT'];
+  return Array.from({ length: count }, (_, index) => index === 0 || index === count - 1 ? 'CREATOR' : 'PRODUCT');
+}
+
+function fallbackPlan(input, brand, avatars, resolvedType) {
+  const durations = visualDurations(input.duration, input.quality, resolvedType);
+  const kinds = sceneKinds(resolvedType, durations.length);
+  const offer = brand?.productName || brand?.name || input.productDescription || 'this product';
+  const baseSummary = brand?.summary || input.productDescription || 'It helps solve a practical everyday problem.';
   const ads = Array.from({ length: input.adCount }, (_, index) => {
-    const route = input.quality === 'PREMIUM' ? 'KLING' : product ? 'MIXED' : 'AVATAR';
-    const script = 'Here is a simple way to make ' + (brand?.productName || brand?.name || 'this') + ' part of your day. ' + (brand?.summary || input.productDescription || 'It is designed to solve a real everyday problem.') + ' Take a closer look and see whether it fits what you need.';
-    const durations = route === 'AVATAR' ? [input.duration] : splitDurations(input.duration, route === 'KLING' ? 15 : 20);
-    const scriptParts = splitScriptByDurations(script, durations);
+    const angles = ['Problem → solution','Personal discovery','Benefit-led recommendation','Quick demonstration','Why it is useful'];
+    const hook = resolvedType === 'AVATAR_EXPLAINER'
+      ? 'Here is the simple reason this is worth knowing about.'
+      : 'I did not expect this to be this useful until I tried it.';
+    const script = clean(hook + ' ' + offer + ' — ' + baseSummary + ' Take a closer look and see whether it fits what you need.', 12000);
+    const parts = splitScriptByDurations(script, durations);
     return {
-      title: 'UGC Ad ' + (index + 1), angle: ['Problem → solution','Product demonstration','Personal recommendation','Quick discovery','Benefit-led'][index % 5],
-      hook: 'I did not expect this to be this useful.', script, cta: 'Take a closer look.', caption: script,
-      route, avatarIndex: index % Math.max(1, avatars.length),
-      scenes: durations.map((duration, sceneIndex) => ({
-        duration,
-        kind: route === 'AVATAR' ? 'CREATOR' : (product && sceneIndex % 2 === 1 ? 'PRODUCT' : 'CREATOR'),
-        prompt: (sceneIndex === 0 ? 'Open with an immediate authentic creator hook. ' : '') + 'Natural vertical UGC scene, realistic smartphone camera, believable motion and lighting, preserve creator/product identity. Audio must be natural and synchronized.',
-        script: scriptParts[sceneIndex] || ''
+      title: 'UGC Ad ' + (index + 1),
+      angle: angles[index % angles.length],
+      hook,
+      script,
+      cta: 'Take a closer look.',
+      caption: script,
+      avatarIndex: index % Math.max(1, avatars.length),
+      scenes: durations.map((sceneDuration, sceneIndex) => ({
+        duration: sceneDuration,
+        kind: kinds[sceneIndex],
+        prompt: kinds[sceneIndex] === 'CREATOR'
+          ? 'A realistic creator speaks directly to camera in the same believable everyday environment, natural eye contact, subtle head and hand movement, stable identity and wardrobe.'
+          : 'A grounded product-focused UGC cutaway showing the real product clearly in a believable everyday use context, realistic hands and materials, no invented packaging.',
+        script: parts[sceneIndex] || ''
       }))
     };
   });
-  return { title: (brand?.name || 'UGC') + ' Campaign', ads };
+  return { title: (brand?.name || 'UGC') + ' Campaign', campaignType: resolvedType, ads };
 }
 
-function normalizePlan(parsed, input, brand, avatars) {
+function normalizePlan(parsed, input, brand, avatars, resolvedType) {
   const rawAds = Array.isArray(parsed?.ads) ? parsed.ads : [];
-  if (rawAds.length !== input.adCount) return fallbackPlan(input, brand, avatars);
+  if (rawAds.length !== input.adCount) return fallbackPlan(input, brand, avatars, resolvedType);
+  const durations = visualDurations(input.duration, input.quality, resolvedType);
+  const defaultKinds = sceneKinds(resolvedType, durations.length);
   const ads = rawAds.map((raw, index) => {
-    let route = input.quality === 'PREMIUM' ? 'KLING' : String(raw.route || '').toUpperCase();
-    if (!['PVIDEO2','AVATAR','MIXED'].includes(route)) route = brand?.analysis?.productInteractionUseful === false ? 'AVATAR' : 'MIXED';
-    const max = route === 'AVATAR' ? 60 : route === 'KLING' ? 15 : 20;
-    let scenes = Array.isArray(raw.scenes) ? raw.scenes : [];
-    const durationSum = scenes.reduce((sum, item) => sum + Math.max(0, Number(item?.duration || 0)), 0);
-    if (!scenes.length || durationSum !== input.duration || scenes.some(item => Number(item.duration) > max || Number(item.duration) < (route === 'KLING' ? 3 : 1))) {
-      const durations = route === 'AVATAR' ? [input.duration] : splitDurations(input.duration, max);
-      const parts = splitScriptByDurations(raw.script || '', durations);
-      scenes = durations.map((duration, i) => ({ duration, kind: route === 'AVATAR' ? 'CREATOR' : (i % 2 ? 'PRODUCT' : 'CREATOR'), prompt: raw.visualDirection || 'Authentic vertical UGC scene with realistic smartphone-camera motion.', script: parts[i] || '' }));
-    }
+    const script = clean(raw.script, 12000);
+    const parts = splitScriptByDurations(script, durations);
+    const rawScenes = Array.isArray(raw.scenes) ? raw.scenes : [];
     return {
       title: clean(raw.title || 'UGC Ad ' + (index + 1), 180),
       angle: clean(raw.angle || 'Creator recommendation', 240),
       hook: clean(raw.hook, 500),
-      script: clean(raw.script, 12000),
+      script,
       cta: clean(raw.cta, 500),
       caption: clean(raw.caption || raw.script, 10000),
-      route,
       avatarIndex: Math.abs(Number(raw.avatarIndex || index)) % Math.max(1, avatars.length),
-      scenes: scenes.map((scene, sceneIndex) => ({
-        duration: Number(scene.duration),
-        kind: ['CREATOR','PRODUCT','LIFESTYLE','CTA'].includes(String(scene.kind).toUpperCase()) ? String(scene.kind).toUpperCase() : 'CREATOR',
-        prompt: clean(scene.prompt || scene.visualDirection || 'Natural creator-style vertical UGC scene.', 5000),
-        script: clean(scene.script, 4000),
-        sequence: sceneIndex + 1
-      }))
+      scenes: durations.map((sceneDuration, sceneIndex) => {
+        const source = rawScenes[sceneIndex] || {};
+        const requestedKind = String(source.kind || defaultKinds[sceneIndex]).toUpperCase();
+        const kind = resolvedType === 'AVATAR_EXPLAINER'
+          ? 'CREATOR'
+          : (['CREATOR','PRODUCT','LIFESTYLE','CTA'].includes(requestedKind) ? requestedKind : defaultKinds[sceneIndex]);
+        return {
+          duration: sceneDuration,
+          kind,
+          prompt: clean(source.prompt || source.visualDirection || (kind === 'CREATOR'
+            ? 'Authentic creator speaking directly to camera in a believable real environment.'
+            : 'Authentic product-focused UGC cutaway in a believable real environment.'), 5000),
+          script: clean(source.script || parts[sceneIndex], 4000),
+          sequence: sceneIndex + 1
+        };
+      })
     };
   });
-  return { title: clean(parsed?.title || (brand?.name || 'UGC') + ' Campaign', 180), ads };
+  return { title: clean(parsed?.title || (brand?.name || 'UGC') + ' Campaign', 180), campaignType: resolvedType, ads };
 }
 
-async function planCampaign(input, brand, avatars) {
+async function planCampaign(input, brand, avatars, resolvedType) {
   const evidence = brand ? {
-    name: brand.name, productName: brand.productName, summary: brand.summary, audience: brand.audience,
-    verifiedClaims: brand.verifiedClaims, analysis: brand.analysis
+    name: brand.name,
+    productName: brand.productName,
+    summary: brand.summary,
+    audience: brand.audience,
+    verifiedClaims: brand.verifiedClaims,
+    analysis: brand.analysis
   } : { description: input.productDescription || '', url: input.productUrl || '' };
   try {
     const parsed = await postStudio.callChatModel(postStudio.REASONING_MODEL, [
       { role: 'system', content: [
         'You are the UGC campaign director inside INXSocial.',
-        'Create ready-to-render social UGC ads. The customer must not need to write scripts or build scenes.',
-        'Use only verified product/brand evidence. Never invent unsupported claims.',
-        'Every variation must be materially different in hook and angle.',
-        'STANDARD routing rules: use AVATAR for a continuous spokesperson/talking-head ad; use PVIDEO2 for product/showcase scenes; use MIXED when creator speech and product showcase both improve the ad.',
-        'PREMIUM always uses KLING internally.',
-        'Final output duration must be exactly the requested duration. PVIDEO2 scene max 20 seconds. KLING scene max 15 seconds. AVATAR may be one continuous scene up to 60 seconds.',
-        'Audio is always required. Scripts should sound like a real creator, not corporate ad copy.',
-        'Use one creator identity and one narrator voice for the entire ad. Never introduce a different person mid-ad unless the brief explicitly asks for multiple people.',
-        'STANDARD product UGC should use clean editorial cuts: CREATOR scenes keep the exact selected creator; PRODUCT scenes keep the exact product/reference. Do not ask a standard scene to invent a different creator or a different product.',
-        'Keep wardrobe, age, hair, face, skin tone, room style, lighting direction and camera treatment consistent across creator scenes.',
-        'Do not put generated captions, labels, logos or readable overlay text inside the video frames; INXSocial adds captions after rendering.',
-        'Write dialogue to naturally fill the requested duration: roughly 30–38 spoken words for 15 seconds, 65–75 for 30 seconds, and 130–150 for 60 seconds. Mixed/product ads may distribute that dialogue across scenes.',
-        'Return JSON only: {"title":"string","ads":[{"title":"string","angle":"string","hook":"string","script":"string","cta":"string","caption":"string","route":"PVIDEO2|AVATAR|MIXED|KLING","avatarIndex":0,"scenes":[{"duration":15,"kind":"CREATOR|PRODUCT|LIFESTYLE|CTA","prompt":"string","script":"string"}]}]}.'
+        'Create ready-to-render creator-native social ads. The customer should not need to write scripts or build scenes.',
+        'Use only supplied or verified product/brand evidence. Never invent prices, testimonials, statistics, certifications or features.',
+        'Every variation must use a materially different hook and marketing angle.',
+        'AVATAR_EXPLAINER means a realistic creator is the primary visual and explains the offer directly to camera. This is preferred for SaaS, websites, apps and services. Do not invent fake website screens.',
+        'PRODUCT_SHOWCASE means creator-led UGC mixed with real product/reference cutaways. Preserve the supplied product identity and packaging rather than inventing a replacement.',
+        'One ad uses one creator identity and one narrator voice throughout.',
+        'Keep creator face, age, hair, skin tone, wardrobe and environment stable across creator cuts.',
+        'No generated subtitles, labels, watermarks, logos or readable overlay text inside frames; INXSocial adds captions later.',
+        'Write natural social-video dialogue, not corporate copy. Aim for about 34 words for 15 seconds, 46 words for 20 seconds and 68 words for 30 seconds.',
+        'Return JSON only: {"title":"string","ads":[{"title":"string","angle":"string","hook":"string","script":"string","cta":"string","caption":"string","avatarIndex":0,"scenes":[{"kind":"CREATOR|PRODUCT|LIFESTYLE|CTA","prompt":"string","script":"string"}]}]}.'
       ].join('\n\n') },
       { role: 'user', content: JSON.stringify({
-        evidence, duration: input.duration, adCount: input.adCount, quality: input.quality,
-        notes: input.notes || '', availableCreators: avatars.map((avatar, index) => ({ index, name: avatar.name, category: avatar.category, presentation: avatar.presentation, ageBand: avatar.ageBand }))
+        evidence,
+        campaignType: resolvedType,
+        duration: input.duration,
+        adCount: input.adCount,
+        quality: input.quality,
+        productImageCount: Array.isArray(input.productAssetIds) ? input.productAssetIds.length : 0,
+        notes: input.notes || '',
+        availableCreators: avatars.map((avatar, index) => ({
+          index,
+          name: avatar.name,
+          category: avatar.category,
+          presentation: avatar.presentation,
+          ageBand: avatar.ageBand,
+          environment: avatar.environment || ''
+        }))
       }) }
     ], { reasoningEffort: 'high', temperature: 0.35, maxTokens: Math.max(3500, input.adCount * 900), timeoutMs: 180000 });
-    return normalizePlan(parsed, input, brand, avatars);
+    return normalizePlan(parsed, input, brand, avatars, resolvedType);
   } catch (error) {
     console.warn('[UGC PLAN FALLBACK]', clean(error?.message, 400));
-    return fallbackPlan(input, brand, avatars);
+    return fallbackPlan(input, brand, avatars, resolvedType);
   }
 }
 
