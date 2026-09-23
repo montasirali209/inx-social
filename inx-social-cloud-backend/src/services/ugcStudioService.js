@@ -15,14 +15,38 @@ const objectStorage = require('./mediaObjectStorageService');
 const mediaLibrary = require('./mediaLibraryService');
 const { expiresAtFor } = require('./mediaRetentionService');
 
-const STANDARD_CREDITS = Object.freeze({ 15: 75, 30: 150, 60: 300 });
-const PREMIUM_CREDITS = Object.freeze({ 15: 250, 30: 500, 60: 1000 });
+const STANDARD_CREDITS = Object.freeze({ 15: 100, 20: 140, 30: 210 });
+const PREMIUM_CREDITS = Object.freeze({ 15: 180, 20: 260, 30: 390 });
 const AVATAR_CREDITS = 5;
 const SYSTEM_AVATAR_COUNT = 52;
-const PVIDEO2_MODEL = () => env.runware.ugcPVideoModel || 'prunaai:p-video@2';
-const AVATAR_MODEL = () => env.runware.ugcAvatarModel || 'prunaai:p-video@avatar';
-const PREMIUM_MODEL = () => env.runware.ugcPremiumModel || 'klingai:kling-video@o3-standard';
+const FEATURED_AVATAR_COUNT = 20;
+const STANDARD_MODEL = () => env.runware.ugcStandardModel || 'minimax:4@1';
+const PREMIUM_MODEL = () => env.runware.ugcPremiumModel || 'klingai:kling-video@3-standard';
+const LIPSYNC_MODEL = () => env.runware.ugcLipSyncModel || 'klingai:7@1';
 const TTS_MODEL = () => env.runware.ugcTtsModel || 'inworld:tts@2';
+
+const FEATURED_CREATORS = new Map(Object.entries({
+  Maya: 'bright lived-in apartment lounge with soft window light, real sofa and everyday decor',
+  Sofia: 'realistic vanity corner in a modern bedroom with soft daylight and subtle beauty products',
+  Aisha: 'calm contemporary wellness room with plants, warm daylight and natural home textures',
+  Priya: 'real home office with laptop, books, warm practical lighting and believable workday clutter',
+  Grace: 'sunlit family kitchen with real counters, utensils and soft depth of field',
+  Zara: 'modern creator desk setup with laptop, monitor, practical LED accent and daylight',
+  Megan: 'comfortable mature lifestyle living room with realistic furniture and warm window light',
+  Keisha: 'realistic beauty creator bedroom setup with mirror, cosmetics and soft window light',
+  Mei: 'minimal apartment beauty corner with daylight, natural materials and subtle personal objects',
+  Fatima: 'bright contemporary living room with modest elegant styling, plants and textured fabrics',
+  Daniel: 'real home-office desk setup with laptop, monitor and daylight, casual creator framing',
+  James: 'modern founder-style office corner with bookshelf, laptop and warm practical lighting',
+  Arjun: 'real tech creator workspace with laptop, phone, cables and natural daylight',
+  Marcus: 'home gym corner with realistic equipment, daylight and casual creator composition',
+  Kenji: 'minimal tech studio desk with monitor, keyboard, practical light and natural room depth',
+  Alex: 'SaaS creator home office with laptop, browser-like screen glow and everyday desk objects',
+  Ben: 'clean residential garage/workshop with car-detailing tools and realistic overhead light',
+  Yusuf: 'professional home office with warm wood, laptop, notebook and calm daylight',
+  Theo: 'travel creator apartment near a packed day bag, map and bright natural window light',
+  Michael: 'polished but believable small-business office with desk, shelves and natural window light'
+}));
 const LEGACY_FEMALE_VOICES = new Set(['Aoede (Female)','Zephyr (Female)','Kore (Female)','Leda (Female)','Callirrhoe (Female)']);
 const LEGACY_MALE_VOICES = new Set(['Puck (Male)','Charon (Male)','Fenrir (Male)','Orus (Male)','Iapetus (Male)']);
 const TTS_VOICES = new Set(['Pippa','Sophie','Priya','Nadia','Serena','Olivia','Jessica','Chloe','Callum','James','Oliver','Arjun','Marcus','Ethan','Shaun','Graham','Riley']);
@@ -121,11 +145,12 @@ const avatarSeeds = [
 
 async function ensureSystemAvatars() {
   for (const avatar of avatarSeeds) {
+    const environment = FEATURED_CREATORS.get(avatar.name) || null;
     await prisma.$executeRawUnsafe(
-      'INSERT INTO "UGCAvatar" ("id","scope","slug","name","category","presentation","ageBand","locale","voice","voicePrompt","prompt","status","createdAt","updatedAt") VALUES ($1,\'SYSTEM\',$2,$3,$4,$5,$6,$7,$8,$9,$10,\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT ("slug") DO UPDATE SET "name"=EXCLUDED."name","category"=EXCLUDED."category","presentation"=EXCLUDED."presentation","ageBand"=EXCLUDED."ageBand","locale"=EXCLUDED."locale","voice"=EXCLUDED."voice","prompt"=EXCLUDED."prompt","updatedAt"=CURRENT_TIMESTAMP',
+      'INSERT INTO "UGCAvatar" ("id","scope","slug","name","category","presentation","ageBand","locale","voice","voicePrompt","prompt","environment","featured","status","createdAt","updatedAt") VALUES ($1,\'SYSTEM\',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT ("slug") DO UPDATE SET "name"=EXCLUDED."name","category"=EXCLUDED."category","presentation"=EXCLUDED."presentation","ageBand"=EXCLUDED."ageBand","locale"=EXCLUDED."locale","voice"=EXCLUDED."voice","prompt"=EXCLUDED."prompt","environment"=EXCLUDED."environment","featured"=EXCLUDED."featured","updatedAt"=CURRENT_TIMESTAMP',
       id(), avatar.slug, avatar.name, avatar.category, avatar.presentation, avatar.ageBand, avatar.locale, avatar.voice,
       'Natural, conversational, believable UGC delivery. Avoid announcer cadence; speak like a real creator recommending something to a friend.',
-      avatar.prompt
+      avatar.prompt, environment, Boolean(environment)
     );
   }
 }
@@ -136,14 +161,14 @@ async function warmSystemAvatarReferences() {
   avatarWarmupRunning = true;
   try {
     const pending = await prisma.$queryRawUnsafe(
-      'SELECT * FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\' AND "referenceStorageKey" IS NULL ORDER BY "name"'
+      'SELECT * FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\' AND "featured"=true AND ("referenceStorageKey" IS NULL OR "referenceVersion" < 2) ORDER BY "name"'
     );
     if (!pending.length) return;
     console.log('[UGC AVATAR WARMUP]', 'Preparing ' + pending.length + ' reusable creator portraits.');
     let completed = 0;
     for (const avatar of pending) {
       try {
-        await ensureAvatarReference('system-ugc', avatar);
+        await regenerateFeaturedAvatarReference(avatar);
         completed += 1;
       } catch (error) {
         console.warn('[UGC AVATAR WARMUP ITEM]', avatar.slug || avatar.id, clean(error?.message, 400));
@@ -160,7 +185,9 @@ function publicAvatar(row) {
   return {
     id: row.id, scope: row.scope, name: row.name, category: row.category,
     presentation: row.presentation || '', ageBand: row.ageBand || '', locale: row.locale || 'en-GB',
-    voice: row.voice || '', voicePrompt: row.voicePrompt || '', referenceReady: Boolean(row.referenceStorageKey),
+    voice: row.voice || '', voicePrompt: row.voicePrompt || '', environment: row.environment || '',
+    featured: Boolean(row.featured), referenceVersion: Number(row.referenceVersion || 1),
+    referenceReady: Boolean(row.referenceStorageKey),
     imageUrl: row.referenceStorageKey ? '/api/ai-content-studio/ugc/avatars/' + encodeURIComponent(row.id) + '/content' : null,
     createdAt: row.createdAt
   };
@@ -260,6 +287,31 @@ async function prepareVerticalBrandReference(brandRefs) {
     const source = assets[0];
     return 'data:' + (source.mimeType || 'image/png') + ';base64,' + source.data.toString('base64');
   }
+}
+
+async function regenerateFeaturedAvatarReference(row) {
+  const environment = clean(row.environment || FEATURED_CREATORS.get(row.name), 700);
+  const enhancedPrompt = [
+    'Photorealistic candid smartphone portrait of a real social-media creator, not an AI avatar and not a studio headshot.',
+    clean(row.prompt, 1400),
+    environment ? 'Environment: ' + environment + '.' : '',
+    'Chest-up to waist-up framing, 9:16 portrait, natural asymmetry, realistic pores and skin texture, subtle imperfections, believable hands only if visible, natural eye reflections, ordinary clothing fabric, real room depth, authentic phone-camera exposure, no beauty-filter plastic skin, no CGI look, no text, no watermark.'
+  ].filter(Boolean).join(' ');
+  const generated = await runware.generateImages([enhancedPrompt], { aspectRatio: '9:16', model: env.runware.imagePremiumModel });
+  const remote = await download(generated.images[0].url, 14 * 1024 * 1024);
+  const normalized = await sharp(remote.data).rotate().resize({ width: 720, height: 1280, fit: 'cover' }).png().toBuffer();
+  const stored = await objectStorage.persistBuffer({
+    userId: 'system-ugc', data: normalized, mimeType: 'image/png',
+    originalName: 'ugc-featured-' + row.id + '.png', prefix: 'ugc-avatar'
+  });
+  const oldKey = row.referenceStorageKey;
+  const oldProvider = row.referenceStorageProvider;
+  await prisma.$executeRawUnsafe(
+    'UPDATE "UGCAvatar" SET "referenceStorageProvider"=$2,"referenceStorageKey"=$3,"referenceMimeType"=\'image/png\',"referenceVersion"=2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+    row.id, stored.storageProvider, stored.storageKey
+  );
+  if (oldKey && oldKey !== stored.storageKey) await objectStorage.deleteObject(oldKey, oldProvider || null).catch(() => {});
+  return { ...row, referenceStorageProvider: stored.storageProvider, referenceStorageKey: stored.storageKey, referenceMimeType: 'image/png', referenceVersion: 2, data: normalized, dataUri: 'data:image/png;base64,' + normalized.toString('base64') };
 }
 
 async function ensureAvatarReference(userId, row) {
