@@ -3,7 +3,7 @@ import {
   ArrowLeft, CalendarRange, Captions, Clapperboard, Coins, LoaderCircle,
   Music2, RefreshCcw, Save, Sparkles, UserRound, Volume2, WandSparkles,
 } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { fetchMediaLibrary } from '../../lib/media-library-api'
 import {
@@ -29,9 +29,18 @@ function AvatarThumb({ avatar }: { avatar: UGCAvatar }) {
   const [url, setUrl] = useState<string | null>(null)
   useEffect(() => {
     let active = true
-    if (avatar.imageUrl) void fetchUGCAvatarImage(avatar).then((value) => { if (active) setUrl(value) })
-    return () => { active = false; if (url) URL.revokeObjectURL(url) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let createdUrl: string | null = null
+    if (!avatar.imageUrl) return undefined
+    void fetchUGCAvatarImage(avatar).then((value) => {
+      if (!value) return
+      if (!active) { URL.revokeObjectURL(value); return }
+      createdUrl = value
+      setUrl(value)
+    })
+    return () => {
+      active = false
+      if (createdUrl) URL.revokeObjectURL(createdUrl)
+    }
   }, [avatar.imageUrl])
   return <div className="size-10 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-brand-cyan/10">{url ? <img alt="" className="size-full object-cover" src={url} /> : <span className="grid size-full place-items-center text-xs font-bold text-brand-cyan">{avatar.name.slice(0,1)}</span>}</div>
 }
@@ -56,26 +65,41 @@ export function UGCEditorPage() {
   const ad = adQuery.data
   const asset = assetFor(ad, media.data?.assets || [])
 
-  const [script, setScript] = useState('')
-  const [caption, setCaption] = useState('')
-  const [cta, setCta] = useState('')
-  const [avatarId, setAvatarId] = useState<string | null>(null)
-  const [voice, setVoice] = useState('')
-  const [voicePrompt, setVoicePrompt] = useState('')
-  const [musicMode, setMusicMode] = useState<'AUTO' | 'NONE'>('AUTO')
-  const [captionsEnabled, setCaptionsEnabled] = useState(true)
+  const [scriptEdit, setScriptEdit] = useState<string>()
+  const [captionEdit, setCaptionEdit] = useState<string>()
+  const [ctaEdit, setCtaEdit] = useState<string>()
+  const [avatarIdEdit, setAvatarIdEdit] = useState<string | null | undefined>()
+  const [voiceEdit, setVoiceEdit] = useState<string>()
+  const [voicePromptEdit, setVoicePromptEdit] = useState<string>()
+  const [musicModeEdit, setMusicModeEdit] = useState<'AUTO' | 'NONE'>()
+  const [captionsEnabledEdit, setCaptionsEnabledEdit] = useState<boolean>()
   const [message, setMessage] = useState('')
 
-  useEffect(() => {
-    if (!ad) return
-    setScript(ad.script); setCaption(ad.caption); setCta(ad.cta); setAvatarId(ad.avatarId)
-    setVoice(ad.voice || 'Aoede (Female)'); setVoicePrompt(ad.voicePrompt || deliveries[0][1])
-    setMusicMode(ad.musicMode); setCaptionsEnabled(ad.captionsEnabled)
-  }, [ad?.id, ad?.updatedAt]) // eslint-disable-line react-hooks/exhaustive-deps
+  const script = scriptEdit ?? ad?.script ?? ''
+  const caption = captionEdit ?? ad?.caption ?? ''
+  const cta = ctaEdit ?? ad?.cta ?? ''
+  const avatarId = avatarIdEdit !== undefined ? avatarIdEdit : (ad?.avatarId ?? null)
+  const baselineVoice = ad?.voice || 'Aoede (Female)'
+  const voice = voiceEdit ?? baselineVoice
+  const baselineVoicePrompt = ad?.voicePrompt || deliveries[0][1]
+  const voicePrompt = voicePromptEdit ?? baselineVoicePrompt
+  const musicMode = musicModeEdit ?? ad?.musicMode ?? 'AUTO'
+  const captionsEnabled = captionsEnabledEdit ?? ad?.captionsEnabled ?? true
+
+  function clearEdits() {
+    setScriptEdit(undefined)
+    setCaptionEdit(undefined)
+    setCtaEdit(undefined)
+    setAvatarIdEdit(undefined)
+    setVoiceEdit(undefined)
+    setVoicePromptEdit(undefined)
+    setMusicModeEdit(undefined)
+    setCaptionsEnabledEdit(undefined)
+  }
 
   const save = useMutation({
     mutationFn: () => updateUGCAd(adId, { script, caption, cta, avatarId, voice, voicePrompt, musicMode, captionsEnabled }),
-    onSuccess: (value) => { queryClient.setQueryData(['ugc-ad', adId], value); setMessage('Changes saved. Regenerate only when the video itself needs to change.') },
+    onSuccess: (value) => { queryClient.setQueryData(['ugc-ad', adId], value); clearEdits(); setMessage('Changes saved. Regenerate only when the video itself needs to change.') },
     onError: (value) => setMessage(value instanceof Error ? value.message : 'Changes could not be saved.'),
   })
   const regenerate = useMutation({
@@ -93,7 +117,7 @@ export function UGCEditorPage() {
   const selectedAvatar = avatars.find((item) => item.id === avatarId) || ad?.avatar || null
   const busy = ['QUEUED','RENDERING','RESERVING'].includes(ad?.status || '')
   const fullCredits = ad?.credits || 0
-  const changedVideo = Boolean(ad && (script !== ad.script || avatarId !== ad.avatarId || voice !== ad.voice || voicePrompt !== ad.voicePrompt))
+  const changedVideo = Boolean(ad && (script !== ad.script || avatarId !== ad.avatarId || voice !== baselineVoice || voicePrompt !== baselineVoicePrompt))
   const changedPost = Boolean(ad && (caption !== ad.caption || cta !== ad.cta || musicMode !== ad.musicMode || captionsEnabled !== ad.captionsEnabled))
   const dirty = changedVideo || changedPost
 
@@ -132,16 +156,16 @@ export function UGCEditorPage() {
 
       <div className="space-y-5">
         <Card className="ugc-depth-card p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl border border-brand-amber/25 bg-brand-amber/10 text-brand-amber"><UserRound className="size-4" /></span><div><span className="text-[9px] font-bold uppercase tracking-[.15em] text-brand-amber">Creator</span><h2 className="mt-1 text-base font-semibold">Avatar & voice</h2></div></div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2"><label className="text-[10px] font-semibold text-text-muted">Creator<select className="ugc-input mt-2 w-full" disabled={busy} onChange={(event) => setAvatarId(event.target.value || null)} value={avatarId || ''}><option value="">Auto / current</option>{avatars.map((avatar) => <option key={avatar.id} value={avatar.id}>{avatar.name} · {avatar.category}</option>)}</select></label><label className="text-[10px] font-semibold text-text-muted">Voice<select className="ugc-input mt-2 w-full" disabled={busy} onChange={(event) => setVoice(event.target.value)} value={voice}>{voices.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2"><label className="text-[10px] font-semibold text-text-muted">Creator<select className="ugc-input mt-2 w-full" disabled={busy} onChange={(event) => setAvatarIdEdit(event.target.value || null)} value={avatarId || ''}><option value="">Auto / current</option>{avatars.map((avatar) => <option key={avatar.id} value={avatar.id}>{avatar.name} · {avatar.category}</option>)}</select></label><label className="text-[10px] font-semibold text-text-muted">Voice<select className="ugc-input mt-2 w-full" disabled={busy} onChange={(event) => setVoiceEdit(event.target.value)} value={voice}>{voices.map((item) => <option key={item} value={item}>{item}</option>)}</select></label></div>
           {selectedAvatar && <div className="mt-3 flex items-center gap-3 rounded-2xl border border-white/8 bg-white/[.025] p-3"><AvatarThumb avatar={selectedAvatar} /><div><strong className="block text-xs">{selectedAvatar.name}</strong><span className="text-[9px] text-text-muted">{selectedAvatar.category} · {selectedAvatar.ageBand} · {selectedAvatar.locale}</span></div></div>}
-          <div className="mt-4"><span className="text-[10px] font-semibold text-text-muted">Delivery</span><div className="mt-2 flex flex-wrap gap-2">{deliveries.map(([label,prompt]) => <button className={`rounded-xl border px-3 py-2 text-[10px] transition ${voicePrompt === prompt ? 'border-brand-cyan/40 bg-brand-cyan/10 text-brand-cyan' : 'border-white/10 bg-white/[.025] text-text-muted hover:text-white'}`} key={label} onClick={() => setVoicePrompt(prompt)} type="button">{label}</button>)}</div></div>
+          <div className="mt-4"><span className="text-[10px] font-semibold text-text-muted">Delivery</span><div className="mt-2 flex flex-wrap gap-2">{deliveries.map(([label,prompt]) => <button className={`rounded-xl border px-3 py-2 text-[10px] transition ${voicePrompt === prompt ? 'border-brand-cyan/40 bg-brand-cyan/10 text-brand-cyan' : 'border-white/10 bg-white/[.025] text-text-muted hover:text-white'}`} key={label} onClick={() => setVoicePromptEdit(prompt)} type="button">{label}</button>)}</div></div>
         </Card>
 
-        <Card className="ugc-depth-card p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl border border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan"><WandSparkles className="size-4" /></span><div><span className="text-[9px] font-bold uppercase tracking-[.15em] text-brand-cyan">Script</span><h2 className="mt-1 text-base font-semibold">What the creator says</h2></div></div><textarea className="ugc-input mt-4 min-h-44 w-full resize-y" disabled={busy} onChange={(event) => setScript(event.target.value)} value={script} /><div className="mt-2 flex items-center justify-between text-[9px] text-text-soft"><span>{script.trim().split(/\s+/).filter(Boolean).length} words</span>{changedVideo && <span className="text-brand-amber">Video-impacting change</span>}</div></Card>
+        <Card className="ugc-depth-card p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl border border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan"><WandSparkles className="size-4" /></span><div><span className="text-[9px] font-bold uppercase tracking-[.15em] text-brand-cyan">Script</span><h2 className="mt-1 text-base font-semibold">What the creator says</h2></div></div><textarea className="ugc-input mt-4 min-h-44 w-full resize-y" disabled={busy} onChange={(event) => setScriptEdit(event.target.value)} value={script} /><div className="mt-2 flex items-center justify-between text-[9px] text-text-soft"><span>{script.trim().split(/\s+/).filter(Boolean).length} words</span>{changedVideo && <span className="text-brand-amber">Video-impacting change</span>}</div></Card>
 
         <Card className="ugc-depth-card p-5 sm:p-6"><div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl border border-brand-purple/25 bg-brand-purple/10 text-[#c4b5fd]"><Volume2 className="size-4" /></span><div><span className="text-[9px] font-bold uppercase tracking-[.15em] text-[#c4b5fd]">Finishing</span><h2 className="mt-1 text-base font-semibold">Music, captions & publishing copy</h2></div></div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2"><button className={`rounded-2xl border p-4 text-left transition ${musicMode === 'AUTO' ? 'border-brand-cyan/35 bg-brand-cyan/[.06]' : 'border-white/10 bg-white/[.025]'}`} onClick={() => setMusicMode(musicMode === 'AUTO' ? 'NONE' : 'AUTO')} type="button"><Music2 className="size-4 text-brand-cyan" /><strong className="mt-2 block text-xs">Background music</strong><span className="mt-1 block text-[9px] text-text-muted">{musicMode === 'AUTO' ? 'Auto · enabled where appropriate' : 'Off'}</span></button><button className={`rounded-2xl border p-4 text-left transition ${captionsEnabled ? 'border-brand-cyan/35 bg-brand-cyan/[.06]' : 'border-white/10 bg-white/[.025]'}`} onClick={() => setCaptionsEnabled((value) => !value)} type="button"><Captions className="size-4 text-brand-cyan" /><strong className="mt-2 block text-xs">Captions</strong><span className="mt-1 block text-[9px] text-text-muted">{captionsEnabled ? 'Automatic captions on' : 'Captions off'}</span></button></div>
-          <label className="mt-4 block text-[10px] font-semibold text-text-muted">CTA<input className="ugc-input mt-2 w-full" onChange={(event) => setCta(event.target.value)} value={cta} /></label><label className="mt-4 block text-[10px] font-semibold text-text-muted">Post caption<textarea className="ugc-input mt-2 min-h-24 w-full resize-y" onChange={(event) => setCaption(event.target.value)} value={caption} /></label>
+          <div className="mt-4 grid gap-3 md:grid-cols-2"><button className={`rounded-2xl border p-4 text-left transition ${musicMode === 'AUTO' ? 'border-brand-cyan/35 bg-brand-cyan/[.06]' : 'border-white/10 bg-white/[.025]'}`} onClick={() => setMusicModeEdit(musicMode === 'AUTO' ? 'NONE' : 'AUTO')} type="button"><Music2 className="size-4 text-brand-cyan" /><strong className="mt-2 block text-xs">Background music</strong><span className="mt-1 block text-[9px] text-text-muted">{musicMode === 'AUTO' ? 'Auto · enabled where appropriate' : 'Off'}</span></button><button className={`rounded-2xl border p-4 text-left transition ${captionsEnabled ? 'border-brand-cyan/35 bg-brand-cyan/[.06]' : 'border-white/10 bg-white/[.025]'}`} onClick={() => setCaptionsEnabledEdit(!captionsEnabled)} type="button"><Captions className="size-4 text-brand-cyan" /><strong className="mt-2 block text-xs">Captions</strong><span className="mt-1 block text-[9px] text-text-muted">{captionsEnabled ? 'Automatic captions on' : 'Captions off'}</span></button></div>
+          <label className="mt-4 block text-[10px] font-semibold text-text-muted">CTA<input className="ugc-input mt-2 w-full" onChange={(event) => setCtaEdit(event.target.value)} value={cta} /></label><label className="mt-4 block text-[10px] font-semibold text-text-muted">Post caption<textarea className="ugc-input mt-2 min-h-24 w-full resize-y" onChange={(event) => setCaptionEdit(event.target.value)} value={caption} /></label>
         </Card>
 
         <Card className="ugc-depth-card p-5 sm:p-6"><div className="flex items-start justify-between gap-3"><div><span className="text-[9px] font-bold uppercase tracking-[.15em] text-brand-green">Storyboard</span><h2 className="mt-1 text-base font-semibold">Regenerate only the scene that needs work.</h2></div><Sparkles className="size-5 text-brand-green" /></div><div className="mt-4 space-y-3">{ad?.scenes.map((scene) => { const sceneCredits = Math.max(1, Math.ceil((ad.credits || 1) * scene.duration / ad.duration)); return <article className="ugc-scene-card rounded-2xl border border-white/9 bg-white/[.025] p-4" key={scene.id}><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-brand-cyan/20 bg-brand-cyan/[.06] px-2 py-1 text-[8px] font-bold text-brand-cyan">SCENE {scene.sequence}</span><span className="rounded-full border border-white/10 bg-black/15 px-2 py-1 text-[8px] text-text-muted">{scene.kind}</span><span className="text-[9px] text-text-soft">{scene.duration}s</span></div><p className="mt-2 text-[10px] leading-4 text-text-muted">{scene.script || scene.prompt}</p></div><Button disabled={busy || sceneRegenerate.isPending} onClick={() => sceneRegenerate.mutate(scene.id)} size="sm"><RefreshCcw className="size-3.5" />Regenerate · {sceneCredits} cr</Button></div></article> })}</div></Card>
