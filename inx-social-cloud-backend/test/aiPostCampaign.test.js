@@ -71,7 +71,7 @@ test('campaign output is constrained for readability and platform fit', () => {
   assert.match(service, /return 290/);
   assert.match(service, /trimCaption/);
   assert.match(service, /one clear idea per post/i);
-  assert.match(service, /hashtags must be sparse/i);
+  assert.match(service, /Hashtag skill:/i);
   assert.match(service, /do not write feature-list essays/i);
 });
 
@@ -200,4 +200,52 @@ test('campaign image preview is a dedicated body portal with reliable click targ
   assert.match(modal, /data-campaign-image-preview/);
   assert.match(modal, /event\.stopPropagation\(\)/);
   assert.match(modal, /cursor-zoom-in/);
+});
+
+
+test('campaign posts have no user-facing title field and publish hook then body', () => {
+  const service = read('src/services/aiPostCampaignService.js');
+  const controller = read('src/controllers/aiContentStudioController.js');
+  const modal = read('frontend/src/components/ai-content-studio/AiPostCampaignModal.tsx');
+  const types = read('frontend/src/types/ai-content-studio.ts');
+  const api = read('frontend/src/lib/ai-content-studio-api.ts');
+  const bulk = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
+  const panel = read('frontend/src/components/bulk-scheduler/UploadBatchPanel.tsx');
+
+  assert.match(service, /Do not create or return a post title/);
+  assert.match(service, /title: ''/);
+  assert.doesNotMatch(controller.match(/const campaignPostSchema[\s\S]*?\n\};/)?.[0] || '', /title:/);
+  assert.doesNotMatch(modal, /post\.title|editDraft\.title/);
+  assert.doesNotMatch(api.match(/export function updateAIPostCampaignPost[\s\S]*?\n\}/)?.[0] || '', /title\?:/);
+  assert.doesNotMatch(bulk, /post\.title/);
+  assert.doesNotMatch(panel, /post\.title/);
+
+  const campaignPostType = types.match(/export type AIPostCampaignPost = \{[\s\S]*?\n\}/)?.[0] || '';
+  assert.doesNotMatch(campaignPostType, /\btitle:/);
+
+  assert.match(modal, /post\.hook\?\.trim\(\), postBodyPreview\(post\)/);
+  assert.match(bulk, /post\.hook\?\.trim\(\), post\.caption\.trim\(\), post\.cta\?\.trim\(\), tags/);
+});
+
+test('hashtag skill adapts to selected platforms and post topic', () => {
+  const service = read('src/services/aiPostCampaignService.js');
+
+  assert.match(service, /function hashtagPolicy/);
+  assert.match(service, /Instagram: use 3-5 highly relevant niche\/topic hashtags/);
+  assert.match(service, /X: use 0-1 hashtag/);
+  assert.match(service, /LinkedIn: use 1-3 professional\/topic hashtags/);
+  assert.match(service, /Facebook: usually 0-2 hashtags/);
+  assert.match(service, /Zero hashtags is valid/);
+  assert.match(service, /directly relevant to that specific post topic/);
+  assert.match(service, /Never use generic filler tags/);
+  assert.match(service, /function normalizeHashtags/);
+  assert.match(service, /output at most \$\{max\} hashtags/);
+});
+
+test('AI Campaign top bar stays fixed while the modal body scrolls', () => {
+  const modal = read('frontend/src/components/ai-content-studio/AiPostCampaignModal.tsx');
+
+  assert.match(modal, /h-dvh w-full max-w-\[1540px\] overflow-x-hidden overflow-y-auto/);
+  assert.match(modal, /<header className="sticky top-0 z-50/);
+  assert.match(modal, /backdrop-blur-xl/);
 });
