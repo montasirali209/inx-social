@@ -100,7 +100,8 @@ describe('dashboard data mapping', () => {
     expect(data.queue).toHaveLength(5)
     expect(data.upcoming).toHaveLength(1)
     expect(data.activeTransfer?.status).toBe('PROCESSING')
-    expect(data.recentPosts).toHaveLength(5)
+    expect(data.recentPosts).toHaveLength(1)
+    expect(data.recentPosts[0]?.status).toBe('published')
     expect(data.platformMetrics.find((item) => item.platform === 'facebook')?.posts).toBe(1)
     expect(data.platformMetrics.find((item) => item.platform === 'instagram')?.posts).toBe(0)
   })
@@ -177,4 +178,23 @@ describe('dashboard data mapping', () => {
     expect(latest?.scheduled).toBe(1)
     expect(latest?.engagement).toBe(31)
   })
+
+  it('keeps failed attempts out of Recent Posts and trusts verified provider publication results', () => {
+    const now = new Date('2026-08-29T10:00:00.000Z')
+    const data = buildDashboardView(overview, [
+      job('FAILED', { updatedAt: '2026-08-29T09:58:00.000Z', errorMessage: 'stale provider error' }),
+      job('FAILED', {
+        updatedAt: '2026-08-29T09:57:00.000Z',
+        metaPostId: 'x-platform-post-123',
+        platformUrl: 'https://x.com/example/status/123',
+      }),
+      job('SCHEDULED', { scheduledAt: '2026-08-29T16:00:00.000Z' }),
+    ], now)
+
+    expect(data.recentPosts).toHaveLength(1)
+    expect(data.recentPosts[0]?.status).toBe('published')
+    expect(data.recentPosts[0]?.id).toContain('FAILED')
+    expect(data.stats.find((item) => item.label === 'Failed / Needs Review')?.value).toBe(1)
+  })
+
 })
