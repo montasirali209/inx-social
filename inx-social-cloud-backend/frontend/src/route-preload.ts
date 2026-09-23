@@ -3,6 +3,8 @@ export const loadCalendar = () => import('./components/calendar/ContentCalendarP
 export const loadPosts = () => import('./components/posts/PostsRoute')
 export const loadMediaLibrary = () => import('./components/media-library/MediaLibraryPage')
 export const loadAiContentStudio = () => import('./components/ai-content-studio/AiContentStudioPage')
+export const loadUGCStudio = () => import('./components/ai-content-studio/UGCStudioPage')
+export const loadUGCEditor = () => import('./components/ai-content-studio/UGCEditorPage')
 export const loadAnalytics = () => import('./components/analytics/AnalyticsPage')
 export const loadSettings = () => import('./components/settings/SettingsPage')
 export const loadConnectedAccounts = () => import('./components/connections/ConnectedAccountsPageV4')
@@ -14,6 +16,7 @@ const routeLoaders: Record<string, () => Promise<unknown>> = {
   '/posts': loadPosts,
   '/media-library': loadMediaLibrary,
   '/ai-content-studio': loadAiContentStudio,
+  '/ai-content-studio/ugc': loadUGCStudio,
   '/analytics': loadAnalytics,
   '/settings': loadSettings,
   '/connected-accounts': loadConnectedAccounts,
