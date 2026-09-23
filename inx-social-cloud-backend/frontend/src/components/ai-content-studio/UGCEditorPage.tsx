@@ -137,8 +137,8 @@ export function UGCEditorPage() {
   const selectedAvatar = avatars.find((item) => item.id === avatarId) || ad?.avatar || null
   const busy = ['QUEUED','RENDERING','RESERVING'].includes(ad?.status || '')
   const fullCredits = ad?.credits || 0
-  const changedVideo = Boolean(ad && (script !== ad.script || avatarId !== ad.avatarId || voice !== baselineVoice || voicePrompt !== baselineVoicePrompt))
-  const changedPost = Boolean(ad && (caption !== ad.caption || cta !== ad.cta || musicMode !== ad.musicMode || captionsEnabled !== ad.captionsEnabled))
+  const changedVideo = Boolean(ad && (script !== ad.script || avatarId !== ad.avatarId || voice !== baselineVoice || voicePrompt !== baselineVoicePrompt || musicMode !== ad.musicMode || captionsEnabled !== ad.captionsEnabled))
+  const changedPost = Boolean(ad && (caption !== ad.caption || cta !== ad.cta))
   const dirty = changedVideo || changedPost
 
   async function schedule() {
@@ -175,7 +175,7 @@ export function UGCEditorPage() {
 
         <Card className="ugc-depth-card p-4">
           <div className="flex items-center justify-between gap-3"><div><span className="text-[9px] font-bold uppercase tracking-[.15em] text-brand-cyan">Regeneration</span><h3 className="mt-1 text-sm font-semibold">Rebuild the full ad</h3></div><Coins className="size-5 text-brand-amber" /></div>
-          <p className="mt-2 text-[10px] leading-4 text-text-muted">Use this after changing the creator, voice or substantial script. Music/caption settings can be saved without a full AI-video regeneration.</p>
+          <p className="mt-2 text-[10px] leading-4 text-text-muted">Use this after changing the creator, voice or substantial script. Caption and CTA edits can be saved without rebuilding the video. Creator, voice, script, music or burned-in caption changes require regeneration.</p>
           <div className="mt-3 flex items-center justify-between rounded-xl border border-white/8 bg-black/15 p-3"><span className="text-[10px] text-text-muted">Full regeneration</span><strong className="text-sm">{fullCredits} credits</strong></div>
           <Button className="mt-3 w-full" disabled={busy || regenerate.isPending} onClick={() => regenerate.mutate()} variant="primary">{regenerate.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <RefreshCcw className="size-4" />}Regenerate full ad</Button>
         </Card>
