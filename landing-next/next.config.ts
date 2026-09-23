@@ -8,6 +8,7 @@ const seoRoutes = [
   "social-media-content-calendar",
   "social-media-analytics",
   "ai-social-media-tools",
+  "ai-social-media-campaign-generator",
   "ai-social-media-post-generator",
   "ai-carousel-post-generator",
   "ai-video-post-generator",
