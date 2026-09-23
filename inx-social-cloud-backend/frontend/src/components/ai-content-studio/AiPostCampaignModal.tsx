@@ -81,6 +81,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
   const [editingPostId, setEditingPostId] = useState<string | null>(null)
   const [expandedPosts, setExpandedPosts] = useState<Set<string>>(new Set())
   const [editDraft, setEditDraft] = useState<Partial<AIPostCampaignPost>>({})
+  const [imagePreview, setImagePreview] = useState<{ url: string; title: string; caption: string } | null>(null)
   const reviewRef = useRef<HTMLDivElement>(null)
   const [form, setForm] = useState<CreateAIPostCampaignInput>({
     businessUrl: '',
@@ -520,7 +521,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                       {post.contentType === 'IMAGE' && expanded && <div className="mt-3 rounded-xl border border-brand-purple/15 bg-brand-purple/[.035] p-3"><strong className="text-[8px] uppercase tracking-[.08em] text-[#c4b5fd]">Visual direction</strong><p className="mt-1 text-[9px] leading-4 text-text-muted">{post.imageBrief || 'AI will create a visual direction when this post is regenerated.'}</p></div>}
                     </div>
                     <div className="flex gap-2 border-t border-border-soft p-3 sm:w-40 sm:flex-col sm:border-l sm:border-t-0">
-                      {mediaUrl && <img alt="" className="aspect-[4/5] w-16 rounded-xl border border-border-soft object-cover sm:w-full" src={mediaUrl} />}
+                      {mediaUrl && <button aria-label={`Open full image for post ${post.sequence}`} className="group/image relative overflow-hidden rounded-xl border border-border-soft text-left transition hover:border-brand-cyan/40 hover:shadow-[0_12px_30px_rgba(45,212,191,.10)]" onClick={() => setImagePreview({ url: post.mediaAsset?.url || mediaUrl, title: post.title, caption: publishCaption(post) })} type="button"><img alt={post.title} className="aspect-[4/5] w-16 object-cover transition duration-300 group-hover/image:scale-[1.035] sm:w-full" src={mediaUrl} /><span className="absolute inset-x-2 bottom-2 rounded-lg bg-black/65 px-2 py-1 text-center text-[7px] font-semibold text-white opacity-0 backdrop-blur transition group-hover/image:opacity-100">View full image</span></button>}
                       <Button disabled={busy} onClick={() => beginEdit(post)} size="sm"><PencilLine className="size-3.5" />Edit</Button>
                       <Button disabled={busy} onClick={() => void regenerate(post)} size="sm">{busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <RefreshCcw className="size-3.5" />}Regenerate</Button>
                       {post.contentType === 'IMAGE' && <Button disabled={busy} onClick={() => void generateImage(post)} size="sm" variant={post.mediaAssetId ? 'ghost' : 'primary'}>{busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <ImageIcon className="size-3.5" />}{post.mediaAssetId ? 'Recreate image' : 'Create image'}</Button>}
@@ -537,6 +538,18 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
           </div>
         </div>}
       </section>
+      {imagePreview && <div aria-label="Campaign image preview" aria-modal="true" className="fixed inset-0 z-[160] grid place-items-center bg-[#01070d]/94 p-4 backdrop-blur-xl" onMouseDown={(event) => { if (event.currentTarget === event.target) setImagePreview(null) }} role="dialog">
+        <div className="ai-studio-modal-enter relative flex max-h-[94dvh] w-full max-w-[980px] flex-col overflow-hidden rounded-[28px] border border-brand-cyan/25 bg-[linear-gradient(145deg,rgba(5,22,34,.995),rgba(2,12,22,.995))] shadow-[0_44px_160px_rgba(0,0,0,.78)]">
+          <div className="flex items-start justify-between gap-3 border-b border-border-soft px-4 py-3 sm:px-5">
+            <div className="min-w-0"><span className="text-[8px] font-bold uppercase tracking-[.16em] text-brand-cyan">Campaign image</span><h3 className="mt-1 truncate text-sm font-semibold">{imagePreview.title}</h3></div>
+            <button aria-label="Close image preview" className="grid size-9 shrink-0 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:border-brand-cyan/30 hover:text-white" onClick={() => setImagePreview(null)} type="button"><X className="size-4" /></button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto bg-black/20 p-3 sm:p-5">
+            <img alt={imagePreview.title} className="mx-auto max-h-[72dvh] w-auto max-w-full rounded-2xl object-contain shadow-[0_24px_80px_rgba(0,0,0,.45)]" src={imagePreview.url} />
+            <p className="mx-auto mt-4 max-w-3xl whitespace-pre-wrap text-[10px] leading-5 text-text-muted">{imagePreview.caption}</p>
+          </div>
+        </div>
+      </div>}
     </div>,
     document.body,
   )
