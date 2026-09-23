@@ -450,12 +450,56 @@ export function BulkSchedulerPage() {
 
   const changeContentMode = (value: BulkContentMode) => {
     if (running || value === contentMode) return
-    setMixedCampaign(null)
     setContentMode(value)
     setUseFallback(false)
     setRetainMedia(false)
     setResults([])
     setProgress(idleProgress)
+  }
+
+  const changeWorkspaceMode = (value: 'media' | 'text' | 'campaign') => {
+    if (running || value === workspaceMode) return
+    if (value === 'campaign') {
+      setWorkspaceMode('campaign')
+      setResults([])
+      if (!mixedCampaign) setProgress(idleProgress)
+      return
+    }
+
+    if (mixedCampaign) {
+      mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+      mediaRef.current = []
+      setMedia([])
+      setMixedCampaign(null)
+      setCaptions('')
+      window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
+    }
+
+    setWorkspaceMode(value)
+    changeContentMode(value === 'text' ? 'text' : 'media')
+  }
+
+  const chooseSavedCampaign = (campaign: AIPostCampaign) => {
+    if (running) return
+    void loadSavedCampaign(campaign).catch((error) => {
+      setMixedCampaign(null)
+      window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
+      setProgress({ ...idleProgress, state: 'failed', message: error instanceof Error ? error.message : 'The AI campaign could not be loaded.' })
+    })
+  }
+
+  const clearCampaignSelection = () => {
+    if (running) return
+    mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+    mediaRef.current = []
+    setMedia([])
+    setMixedCampaign(null)
+    setCaptions('')
+    window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
+    setTimingMode('')
+    setResults([])
+    setProgress(idleProgress)
+    setWorkspaceMode('campaign')
   }
 
   const runBatch = async () => {
