@@ -96,6 +96,68 @@ function metaValue(source, name) {
   );
 }
 
+function attrValue(tag, name) {
+  const escaped = String(name).replace(/[.*+?^$()|[\]\\{}]/g, '\\async function safePublicDns(url) {
+');
+  return cleanText(
+    String(tag || '').match(new RegExp('\\b' + escaped + '\\s*=\\s*["\\']([^"\\']+)["\\']', 'i'))?.[1]
+      || String(tag || '').match(new RegExp('\\b' + escaped + '\\s*=\\s*([^\\s>]+)', 'i'))?.[1],
+    2000
+  );
+}
+
+function absoluteAssetUrl(baseUrl, value) {
+  try {
+    const resolved = normalizeUrl(new URL(String(value || '').trim(), baseUrl).toString());
+    if (!resolved) return null;
+    return resolved;
+  } catch (_) {
+    return null;
+  }
+}
+
+function extractBrandReferences(source, baseUrl) {
+  const refs = [];
+  const push = (url, kind, label, score = 0) => {
+    const absolute = absoluteAssetUrl(baseUrl, url);
+    if (!absolute || refs.some(item => item.url === absolute)) return;
+    refs.push({ url: absolute, kind, label: cleanText(label, 180) || kind, score });
+  };
+
+  push(metaValue(source, 'og:image'), 'hero', 'Open Graph image', 70);
+  push(metaValue(source, 'twitter:image'), 'hero', 'Social preview image', 66);
+
+  for (const tag of String(source || '').match(/<link\b[^>]*>/gi) || []) {
+    const rel = attrValue(tag, 'rel').toLowerCase();
+    const href = attrValue(tag, 'href');
+    if (!href) continue;
+    if (/apple-touch-icon|icon/.test(rel)) push(href, 'logo', 'Official site icon', /apple-touch-icon/.test(rel) ? 85 : 70);
+  }
+
+  for (const tag of String(source || '').match(/<img\b[^>]*>/gi) || []) {
+    const src = attrValue(tag, 'src') || attrValue(tag, 'data-src') || attrValue(tag, 'data-lazy-src');
+    if (!src || /^data:/i.test(src)) continue;
+    const alt = attrValue(tag, 'alt');
+    const id = attrValue(tag, 'id');
+    const className = attrValue(tag, 'class');
+    const descriptor = [src, alt, id, className].join(' ').toLowerCase();
+    let score = 18;
+    let kind = 'product';
+    if (/logo|brandmark|wordmark/.test(descriptor)) { score += 90; kind = 'logo'; }
+    if (/dashboard|screenshot|product|app[-_ ]?ui|interface|mockup|platform/.test(descriptor)) { score += 72; kind = 'product'; }
+    if (/hero|feature|preview/.test(descriptor)) score += 38;
+    if (/avatar|emoji|badge|rating|star|flag|payment|partner|icon/.test(descriptor)) score -= 42;
+    if (/\.svg(?:\?|$)/i.test(src) && kind !== 'logo') score -= 24;
+    push(src, kind, alt || 'Official website visual', score);
+  }
+
+  return refs
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 8)
+    .map(({ score, ...item }) => item);
+}
+
 async function safePublicDns(url) {
   try {
     const hostname = new URL(url).hostname;
@@ -137,6 +199,7 @@ async function fetchUrlContext(value) {
       const siteName = metaValue(source, 'og:site_name');
       const ogTitle = metaValue(source, 'og:title');
       const ogImage = metaValue(source, 'og:image');
+      const brandReferences = extractBrandReferences(source, url);
       const headings = [...source.matchAll(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi)]
         .map(match => htmlText(match[1]))
         .filter(Boolean)
@@ -147,6 +210,7 @@ async function fetchUrlContext(value) {
         description,
         siteName,
         ogImage: ogImage || null,
+        brandReferences,
         headings,
         text: htmlText(source).slice(0, 14000)
       };
@@ -155,6 +219,59 @@ async function fetchUrlContext(value) {
   } catch (caught) {
     return { url, error: `I could not read this page (${String(caught?.response?.status || 'connection error')}).` };
   }
+}
+
+async function remoteReferenceAssets(urls) {
+  const unique = [...new Set((Array.isArray(urls) ? urls : []).map(item => typeof item === 'string' ? item : item?.url).map(String).filter(Boolean))].slice(0, MAX_REFERENCES);
+  const assets = [];
+
+  for (const value of unique) {
+    let url = normalizeUrl(value);
+    if (!url) continue;
+    try {
+      for (let hop = 0; hop < 3; hop += 1) {
+        if (!(await safePublicDns(url))) break;
+        const response = await axios.get(url, {
+          responseType: 'arraybuffer',
+          timeout: 12000,
+          maxContentLength: 6 * 1024 * 1024,
+          maxBodyLength: 6 * 1024 * 1024,
+          maxRedirects: 0,
+          validateStatus: status => status >= 200 && status < 400,
+          headers: { 'User-Agent': 'INXSocial-AIPostStudio/2.0', Accept: 'image/*,*/*;q=0.1' }
+        });
+
+        if (response.status >= 300 && response.status < 400) {
+          const location = response.headers.location;
+          if (!location) break;
+          const next = normalizeUrl(new URL(location, url).toString());
+          if (!next) break;
+          url = next;
+          continue;
+        }
+
+        const mimeType = String(response.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+        if (!mimeType.startsWith('image/')) break;
+        const data = Buffer.from(response.data || []);
+        if (!data.length || data.length > 6 * 1024 * 1024) break;
+        const metadata = await sharp(data, { animated: false }).metadata().catch(() => ({}));
+        assets.push({
+          id: 'web:' + crypto.createHash('sha1').update(url).digest('hex').slice(0, 12),
+          originalName: new URL(url).pathname.split('/').filter(Boolean).pop() || 'website-reference',
+          mimeType,
+          data,
+          width: metadata.width || null,
+          height: metadata.height || null,
+          sourceUrl: url
+        });
+        break;
+      }
+    } catch (_) {
+      // Website visuals are best-effort references. Campaign generation must continue if one asset is unreadable.
+    }
+  }
+
+  return assets.slice(0, MAX_REFERENCES);
 }
 
 async function referenceAssets(userId, ids) {
@@ -470,7 +587,8 @@ function imagePrompt(input) {
     b.cta ? `CTA treatment: “${cleanText(b.cta, 120)}”.` : '',
     `Creative direction: ${cleanText(b.visualDirection, 5000) || cleanText(input.prompt, 1400)}.`,
     'Use strong visual hierarchy, professional typography, deliberate spacing, realistic product presentation and a clear focal point. The result should look like a finished campaign creative a professional social team would publish.',
-    'If reference images are supplied, treat them as authoritative brand/product references. Preserve recognizable product details and brand identity. Do not invent, redraw or misspell a supplied logo.',
+    'If reference images are supplied, treat them as authoritative official brand/product references. Preserve recognizable product details, actual logo treatment, interface structure and brand identity.',
+    'Never invent a replacement logo, fictional product UI, fake dashboard or alternate brand identity when an official website/reference shows the real one. If an official screenshot or product visual exists, use it as the visual truth rather than redesigning it from imagination.',
     'Do not invent unsupported prices, testimonials, statistics, awards, integrations or performance claims.'
   ].filter(Boolean);
   return parts.join('\n').slice(0, 12000);
@@ -592,7 +710,9 @@ async function generateImagePost(userId, input = {}) {
   const generationId = await createGenerationRow(userId, input);
   try {
     await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"progress"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'GENERATING', 20);
-    const refs = await referenceAssets(userId, input.referenceAssetIds);
+    const uploadedRefs = await referenceAssets(userId, input.referenceAssetIds);
+    const websiteRefs = await remoteReferenceAssets(input.referenceUrls);
+    const refs = [...uploadedRefs, ...websiteRefs].slice(0, MAX_REFERENCES);
     const prompt = imagePrompt(input);
     const output = await openAIImage(prompt, refs, { aspectRatio: input.aspectRatio || input.brief?.aspectRatio || '4:5' });
     const asset = await persistImage(userId, generationId, output, input, prompt);
@@ -622,6 +742,8 @@ module.exports = {
   generateImagePost,
   normalizeUrl,
   fetchUrlContext,
+  extractBrandReferences,
+  remoteReferenceAssets,
   callChatModel,
   imagePrompt,
   sizeForRatio,
