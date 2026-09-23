@@ -96,29 +96,29 @@ export function AnalyticsAccountSelector({ accounts, values, isLive, loading = f
     ? selectedAccounts.map(account => account.displayName).join(', ')
     : loading ? 'Preparing connected accounts…' : 'Choose an account'
 
-  return <section className="analytics-selector relative rounded-card border border-border-soft bg-[radial-gradient(circle_at_82%_-40%,rgba(22,196,181,.13),transparent_36%),linear-gradient(145deg,rgba(10,32,43,.9),rgba(5,21,31,.94))] p-3 shadow-[0_16px_38px_rgba(0,0,0,.2),inset_0_1px_0_rgba(255,255,255,.03)] sm:p-4">
+  return <section className="analytics-selector relative rounded-panel border border-border-soft bg-[radial-gradient(circle_at_82%_-40%,rgba(22,196,181,.10),transparent_34%),linear-gradient(145deg,rgba(8,28,39,.92),rgba(4,18,28,.96))] px-3 py-3 shadow-[0_14px_34px_rgba(0,0,0,.18),inset_0_1px_0_rgba(255,255,255,.025)] sm:px-4">
     <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-20 size-44 rounded-full bg-brand-cyan/[.06] blur-3xl" />
     <div className="relative flex flex-wrap items-center gap-3">
-      <span className="relative grid size-10 shrink-0 place-items-center rounded-xl border border-brand-teal/20 bg-brand-teal/10 text-brand-cyan"><ShieldCheck className="size-5" /><span className={`absolute -right-1 -top-1 size-2.5 rounded-full border-2 border-panel ${loading ? 'bg-text-soft' : isLive ? 'animate-pulse bg-brand-green motion-reduce:animate-none' : 'bg-brand-amber'}`} /></span>
+      <span className="relative grid size-9 shrink-0 place-items-center rounded-xl border border-brand-teal/20 bg-brand-teal/10 text-brand-cyan"><ShieldCheck className="size-4.5" /><span className={`absolute -right-1 -top-1 size-2.5 rounded-full border-2 border-panel ${loading ? 'bg-text-soft' : isLive ? 'animate-pulse bg-brand-green motion-reduce:animate-none' : 'animate-pulse bg-brand-amber motion-reduce:animate-none'}`} /></span>
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2"><h2 className="text-sm font-semibold">Analytics sources</h2><span className="rounded-full border border-brand-teal/15 bg-brand-teal/8 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[.14em] text-brand-cyan">{selectedAccounts.length}/{MAX_ANALYTICS_SOURCES} selected</span><span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${loading ? 'border-white/10 bg-white/[.03] text-text-muted' : 'border-brand-green/15 bg-brand-green/8 text-brand-green'}`}><span className={`size-1.5 rounded-full ${loading ? 'bg-text-soft' : 'animate-pulse bg-brand-green motion-reduce:animate-none'}`} />{loading ? 'Preparing' : 'Live'}</span></div>
-        <p className="mt-0.5 text-xs text-text-muted">Select 1–3 accounts for a clearer comparison. Use the platform buttons to filter the account list.</p>
+        <div className="flex flex-wrap items-center gap-2"><h2 className="text-sm font-semibold">Analytics scope</h2><span className="rounded-full border border-brand-teal/15 bg-brand-teal/8 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[.12em] text-brand-cyan">{selectedAccounts.length}/{MAX_ANALYTICS_SOURCES} selected</span><span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[9px] font-semibold ${loading ? 'border-white/10 bg-white/[.03] text-text-muted' : isLive ? 'border-brand-green/15 bg-brand-green/8 text-brand-green' : 'border-brand-amber/20 bg-brand-amber/8 text-brand-amber'}`}><span className={`size-1.5 rounded-full ${loading ? 'bg-text-soft' : isLive ? 'animate-pulse bg-brand-green motion-reduce:animate-none' : 'animate-pulse bg-brand-amber motion-reduce:animate-none'}`} />{loading ? 'Preparing' : isLive ? 'Live' : 'Syncing'}</span></div>
+        <p className="mt-0.5 hidden text-[11px] text-text-muted sm:block">Select 1–3 accounts for a clearer comparison. Use the platform buttons to filter the account list.</p>
       </div>
       <span className="hidden text-[10px] uppercase tracking-[.16em] text-text-soft lg:block">{accounts.length} account{accounts.length === 1 ? '' : 's'} · {platformCount} platform{platformCount === 1 ? '' : 's'}</span>
     </div>
 
-    <div className="relative mt-3 flex flex-wrap gap-1.5 border-t border-white/[.055] pt-3">
-      <button aria-pressed={platformFilter === 'all'} className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-3 text-[10px] font-semibold transition ${platformFilter === 'all' ? 'border-brand-cyan/40 bg-brand-cyan/12 text-brand-cyan shadow-[0_0_20px_rgba(34,211,238,.08)]' : 'border-white/10 bg-white/[.025] text-text-muted hover:border-brand-cyan/25 hover:text-white'}`} onClick={() => filter('all')} type="button"><Layers3 className="size-3.5" />All accounts</button>
+    <div className="relative mt-2 flex flex-wrap gap-1.5 border-t border-white/[.055] pt-2.5">
+      <button aria-pressed={platformFilter === 'all'} className={`inline-flex min-h-7 items-center gap-1.5 rounded-full border px-3 text-[10px] font-semibold transition ${platformFilter === 'all' ? 'border-brand-cyan/40 bg-brand-cyan/12 text-brand-cyan shadow-[0_0_20px_rgba(34,211,238,.08)]' : 'border-white/10 bg-white/[.025] text-text-muted hover:border-brand-cyan/25 hover:text-white'}`} onClick={() => filter('all')} type="button"><Layers3 className="size-3.5" />All accounts</button>
       {customerFacingPlatforms.map(platform => {
         const platformAccounts = accounts.filter(account => account.platform === platform)
         if (!platformAccounts.length) return null
         const active = platformFilter === platform
-        return <button aria-pressed={active} className={`inline-flex min-h-8 items-center gap-1.5 rounded-full border px-2.5 text-[10px] font-semibold transition ${active ? 'border-brand-teal/35 bg-brand-teal/10 text-white' : 'border-white/10 bg-white/[.025] text-text-muted hover:border-brand-teal/25 hover:text-white'}`} key={platform} onClick={() => filter(platform)} type="button"><SocialPlatformIcon className="size-4 rounded-md shadow-none" platform={platform} />{platformMeta[platform].label}<span className="text-text-soft">{platformAccounts.length}</span></button>
+        return <button aria-pressed={active} className={`inline-flex min-h-7 items-center gap-1.5 rounded-full border px-2.5 text-[10px] font-semibold transition ${active ? 'border-brand-teal/35 bg-brand-teal/10 text-white' : 'border-white/10 bg-white/[.025] text-text-muted hover:border-brand-teal/25 hover:text-white'}`} key={platform} onClick={() => filter(platform)} type="button"><SocialPlatformIcon className="size-4 rounded-md shadow-none" platform={platform} />{platformMeta[platform].label}<span className="text-text-soft">{platformAccounts.length}</span></button>
       })}
     </div>
 
-    <div className="relative mt-3" ref={dropdownRef}>
-      <div className="flex min-h-12 w-full items-center rounded-xl border border-white/[.08] bg-bg/45 transition duration-200 hover:border-brand-cyan/25 hover:bg-white/[.025] focus-within:border-brand-cyan/35">
+    <div className="relative mt-2" ref={dropdownRef}>
+      <div className="flex min-h-11 w-full items-center rounded-xl border border-white/[.08] bg-bg/45 transition duration-200 hover:border-brand-cyan/25 hover:bg-white/[.025] focus-within:border-brand-cyan/35">
         <button aria-expanded={open} aria-haspopup="listbox" className="min-w-0 flex-1 px-3 py-2 text-left focus-visible:outline-none disabled:cursor-wait disabled:opacity-80" disabled={loading} onClick={togglePicker} type="button">
           <span className="block text-[9px] uppercase tracking-[.14em] text-text-soft">Selected accounts</span>
           <strong className="mt-0.5 block truncate text-xs text-text-main">{selectedLabel}</strong>

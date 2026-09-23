@@ -8,8 +8,9 @@ const ANALYTICS_CACHE_RUNTIME_INTERVAL_MS = 2 * 60 * 1000;
 const ANALYTICS_CACHE_RUNTIME_BATCH_SIZE = 4;
 const ANALYTICS_CACHE_RUNTIME_ACCOUNT_DELAY_MS = 1500;
 const ANALYTICS_CACHE_RUNTIME_RETRY_AFTER_MS = 10 * 60 * 1000;
-const SNAPSHOT_MIN_INTERVAL_MS = 45 * 60 * 1000;
-const SNAPSHOT_RETENTION_DAYS = 120;
+const ANALYTICS_PARTIAL_RETRY_AFTER_MS = 90 * 1000;
+const SNAPSHOT_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
+const SNAPSHOT_RETENTION_DAYS = 30;
 const SNAPSHOT_RUNTIME_INTERVAL_MS = 60 * 60 * 1000;
 const SNAPSHOT_RUNTIME_ACCOUNT_DELAY_MS = 5000;
 const FEED_HISTORY_MAX_PAGES = 30;
@@ -61,6 +62,12 @@ function pinterestWindow(metrics) {
   return metrics?.lifetime_metrics || metrics?.['90d'] || {};
 }
 
+function feedPageSize(platform) {
+  // The provider caps Facebook feeds expanded with metrics at 10 items.
+  // Use provider-safe page sizes explicitly and paginate with the returned cursor.
+  return String(platform || '').toLowerCase() === 'facebook' ? 10 : 50;
+}
+
 function genericMetrics(raw = {}) {
   const reactions = pick(raw, ['reactions_total', 'reactions', 'likes', 'like_count']);
   const comments = pick(raw, ['comments', 'comment_count', 'replies', 'reply_count']);
@@ -78,7 +85,9 @@ function normaliseMetrics(platform, raw = {}) {
   const generic = genericMetrics(raw);
   if (platform === 'facebook') {
     const views = generic.views || pick(raw, ['media_views', 'video_views', 'reach', 'impressions']);
-    const reactions = generic.reactions || pick(raw, ['reactions_total']);
+    const reactionBreakdown = ['reactions_like', 'reactions_love', 'reactions_wow', 'reactions_haha', 'reactions_sorry', 'reactions_anger']
+      .reduce((sum, key) => sum + pick(raw, [key]), 0);
+    const reactions = generic.reactions || pick(raw, ['reactions_total']) || reactionBreakdown;
     const comments = generic.comments || pick(raw, ['comments']);
     const shares = generic.shares || pick(raw, ['shares']);
     const clicks = generic.clicks || pick(raw, ['post_clicks', 'link_clicks']);
@@ -244,7 +253,7 @@ function metricSnapshotRow(userId, profile, post, capturedAt) {
     interactions: Math.max(0, Math.round(number(metrics.interactions))),
     clicks: Math.max(0, Math.round(number(metrics.clicks))),
     follows: Math.round(number(metrics.follows)),
-    metricsJson: Object.keys(rawMetrics).length ? JSON.stringify(rawMetrics) : null
+    metricsJson: null
   };
 }
 
@@ -395,8 +404,8 @@ async function fetchFeed(profile, days, options = {}) {
   let cursor = '';
 
   for (let page = 0; page < maxPages && rows.length < maxPosts; page += 1) {
-    const params = new URLSearchParams({ limit: '100' });
-    params.append('expand', 'metrics');
+    const params = new URLSearchParams({ limit: String(feedPageSize(profile.platform)) });
+    params.set('expand', 'metrics');
     if (cursor) params.set('cursor', cursor);
 
     const response = await postForMe.apiRequest('GET', `/social-account-feeds/${encodeURIComponent(accountId)}?${params.toString()}`);
@@ -476,7 +485,12 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
   const hasMetrics = postsWithMetrics > 0;
   const metricCapability = hasMetrics
     ? available(`Live post metrics returned for ${postsWithMetrics} post${postsWithMetrics === 1 ? '' : 's'}.`)
-    : unavailable('Connected content was returned, but no numeric metrics are available for this source yet.', feed.length ? 'no_data' : 'no_content');
+    : unavailable(
+        allFeed.length
+          ? 'Connected content is available, but performance metrics have not been returned for this connection yet. INXSocial will retry automatically; older Facebook connections may need a one-time reconnect to grant Insights access.'
+          : 'No connected content was returned for this source yet.',
+        allFeed.length ? 'no_data' : 'no_content'
+      );
   const contentCapability = feed.length
     ? available('Live connected-account content returned successfully.')
     : unavailable('No feed posts were returned for the selected period.', 'no_data');
@@ -536,11 +550,16 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
     },
     demographics: { instagram: null, facebookSnapshot: null },
     content,
-    warnings: hasMetrics ? [] : ['Some platforms only return analytics after provider-side processing or when a metric is available for that content type.'],
+    warnings: hasMetrics ? [] : [allFeed.length
+      ? 'Performance metrics are still pending for this connection. INXSocial will keep retrying without replacing previously verified analytics.'
+      : 'No connected posts are currently available for this source.'],
     provider: {
       engine: postForMe.PROVIDER_ENGINE,
       accountId: providerAccountId(profile),
       postsWithMetrics,
+      feedPosts: allFeed.length,
+      periodPosts: feed.length,
+      metricsRequested: true,
       metricSummary
     }
   };
@@ -626,6 +645,19 @@ function withCacheState(value, cacheState, warning) {
   };
 }
 
+function analyticsPayloadHasVerifiedMetrics(value) {
+  return Boolean(
+    Number(value?.provider?.postsWithMetrics || 0) > 0
+    || value?.capabilities?.pageInsights?.available === true
+  );
+}
+
+function partialAnalyticsWarning(platform) {
+  return String(platform || '').toLowerCase() === 'facebook'
+    ? 'Connected posts are available, but Facebook performance metrics are still pending. INXSocial will retry automatically. If this account was connected before Analytics was enabled, reconnect it once to grant Insights access.'
+    : 'Connected posts are available, but performance metrics are still pending. INXSocial will retry automatically.';
+}
+
 function parsePersistedPayload(row) {
   if (!row?.payloadJson) return null;
   try {
@@ -676,6 +708,9 @@ async function persistAnalyticsPayload(descriptor, value) {
   const now = new Date();
   const fetchedAt = new Date(value?.fetchedAt || now);
   const syncedAt = Number.isFinite(fetchedAt.getTime()) ? fetchedAt : now;
+  const verified = analyticsPayloadHasVerifiedMetrics(value);
+  const syncStatus = verified ? 'READY' : 'PARTIAL';
+  const lastError = verified ? null : partialAnalyticsWarning(descriptor.platform);
   await prisma.analyticsSourceCache.upsert({
     where: cacheUniqueWhere(descriptor),
     create: {
@@ -685,18 +720,36 @@ async function persistAnalyticsPayload(descriptor, value) {
       periodDays: descriptor.periodDays,
       cacheVariant: descriptor.cacheVariant,
       payloadJson: JSON.stringify(value),
-      syncStatus: 'READY',
+      syncStatus,
       syncedAt,
-      lastAttemptAt: now
+      lastAttemptAt: now,
+      lastError
     },
     update: {
       platform: descriptor.platform,
       payloadJson: JSON.stringify(value),
-      syncStatus: 'READY',
+      syncStatus,
       syncedAt,
       refreshRequestedAt: null,
       lastAttemptAt: now,
-      lastError: null
+      lastError
+    }
+  });
+}
+
+async function markAnalyticsRefreshPartial(descriptor, message) {
+  await prisma.analyticsSourceCache.updateMany({
+    where: {
+      userId: descriptor.userId,
+      profileId: descriptor.profileId,
+      periodDays: descriptor.periodDays,
+      cacheVariant: descriptor.cacheVariant
+    },
+    data: {
+      syncStatus: 'PARTIAL',
+      refreshRequestedAt: null,
+      lastAttemptAt: new Date(),
+      lastError: String(message || partialAnalyticsWarning(descriptor.platform)).slice(0, 1000)
     }
   });
 }
@@ -724,11 +777,34 @@ function startAnalyticsRefresh(userId, platform, profileId, daysInput = 30, opti
   if (existing) return existing;
 
   const task = (async () => {
+    const previous = await readPersistedAnalyticsCache(descriptor);
     await markAnalyticsRefreshStarted(descriptor);
     try {
       const value = await loadPostForMeAnalytics(userId, platform, profileId, descriptor.periodDays, options);
+      const verified = analyticsPayloadHasVerifiedMetrics(value);
+
+      if (!verified && analyticsPayloadHasVerifiedMetrics(previous.value)) {
+        const warning = partialAnalyticsWarning(descriptor.platform);
+        await markAnalyticsRefreshPartial(descriptor, warning);
+        console.warn('[analytics-cache] metric-empty refresh preserved last verified payload', {
+          profileId: descriptor.profileId,
+          platform: descriptor.platform,
+          feedPosts: Number(value?.provider?.feedPosts || 0),
+          periodPosts: Number(value?.provider?.periodPosts || 0)
+        });
+        return withCacheState(previous.value, 'stale', warning);
+      }
+
       await persistAnalyticsPayload(descriptor, value);
-      return withCacheState(value, 'live');
+      if (!verified) {
+        console.warn('[analytics-cache] provider returned connected content without metrics', {
+          profileId: descriptor.profileId,
+          platform: descriptor.platform,
+          feedPosts: Number(value?.provider?.feedPosts || 0),
+          periodPosts: Number(value?.provider?.periodPosts || 0)
+        });
+      }
+      return withCacheState(value, verified ? 'live' : 'partial', verified ? null : partialAnalyticsWarning(descriptor.platform));
     } catch (error) {
       await markAnalyticsRefreshFailed(descriptor, error).catch(() => {});
       throw error;
@@ -762,11 +838,30 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
   const forceRefresh = Boolean(options.forceRefresh);
 
   if (value) {
-    if (forceRefresh || age > ANALYTICS_CACHE_TTL_MS) {
-      const retryCooldownActive = row?.syncStatus === 'ERROR'
-        && row?.lastAttemptAt
-        && Date.now() - row.lastAttemptAt.getTime() < ANALYTICS_CACHE_RUNTIME_RETRY_AFTER_MS;
+    const partial = row?.syncStatus === 'PARTIAL' || !analyticsPayloadHasVerifiedMetrics(value);
+    const retryWindow = partial ? ANALYTICS_PARTIAL_RETRY_AFTER_MS : ANALYTICS_CACHE_RUNTIME_RETRY_AFTER_MS;
+    const retryCooldownActive = (row?.syncStatus === 'ERROR' || partial)
+      && row?.lastAttemptAt
+      && Date.now() - row.lastAttemptAt.getTime() < retryWindow;
 
+    if (forceRefresh) {
+      try {
+        return await startAnalyticsRefresh(userId, platform, profileId, descriptor.periodDays, options);
+      } catch (error) {
+        return withCacheState(
+          value,
+          partial ? 'partial' : 'stale',
+          'The latest analytics refresh was delayed. INXSocial kept the most recent connected data and will retry automatically.'
+        );
+      }
+    }
+
+    if (partial) {
+      if (!retryCooldownActive) queueAnalyticsRefresh(userId, platform, profileId, descriptor.periodDays, options);
+      return withCacheState(value, 'partial', partialAnalyticsWarning(descriptor.platform));
+    }
+
+    if (age > ANALYTICS_CACHE_TTL_MS) {
       if (!retryCooldownActive) {
         queueAnalyticsRefresh(userId, platform, profileId, descriptor.periodDays, options);
       }
