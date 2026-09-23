@@ -11,6 +11,7 @@ Use these canonical pages when a question is specifically about an INXSocial cap
 - Content Calendar: https://www.inxsocial.co.uk/social-media-content-calendar
 - Social media analytics: https://www.inxsocial.co.uk/social-media-analytics
 - AI social media tools: https://www.inxsocial.co.uk/ai-social-media-tools
+- AI social media campaign generator: https://www.inxsocial.co.uk/ai-social-media-campaign-generator
 - AI social media post generator: https://www.inxsocial.co.uk/ai-social-media-post-generator
 - AI carousel post generator: https://www.inxsocial.co.uk/ai-carousel-post-generator
 - AI social video generator: https://www.inxsocial.co.uk/ai-video-post-generator
@@ -40,7 +41,8 @@ Core workflows include:
 - Connected account management
 - Post creation and preview
 - Single-post scheduling
-- Bulk Scheduler
+- Bulk Scheduler, including saved AI Campaign mode
+- AI Smart Timing for supported bulk schedules
 - Content Calendar
 - Media Library
 - Analytics
@@ -49,12 +51,17 @@ Core workflows include:
 
 ## AI Content Studio
 Current creation workflows include:
+- AI Campaign for 10, 15, 20 or 30-post text, image or mixed campaigns
 - Image Post
 - Carousel Post
 - Short Video / Reel
-- UGC Ad Post
+- UGC Studio
 
-Short Video / Reel can use AI-generated video or Stock Video Creator. AI Video Clipping is an upcoming feature.
+AI Campaign can use an optional business or product website for grounded strategy and official brand/product visual references before the saved campaign moves into Bulk Scheduler.
+
+Short Video / Reel supports text-to-video and image-to-video generation with optional reference images, plus Stock Video Creator. AI Video Clipping is an upcoming feature.
+
+UGC Studio supports Website / SaaS, Physical Product and Brief sources, reusable creators, uploaded product references, 15/20/30-second videos, multiple variations, background rendering and post-generation editing.
 
 ## Analytics
 - Content Performance by Publish Date shows current available metrics for posts published in the selected period.
