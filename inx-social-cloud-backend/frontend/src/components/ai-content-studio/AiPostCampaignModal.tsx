@@ -103,8 +103,8 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
   useEffect(() => {
     if (!creating) return
     const timer = window.setInterval(() => {
-      setGenerationStep((current) => Math.min(2, current + 1))
-    }, 4200)
+      setGenerationStep((current) => Math.min(5, current + 1))
+    }, 3600)
     return () => window.clearInterval(timer)
   }, [creating])
 
@@ -163,6 +163,9 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
 
   async function createCampaign() {
     if (!canCreate) return
+    setSelectedCampaign(null)
+    setEditingPostId(null)
+    setEditDraft({})
     setCreating(true)
     setGenerationStep(0)
     setInlineError(null)
@@ -178,9 +181,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
       })
       setForm((current) => ({ ...current, businessUrl: website }))
       setRecent((current) => [created, ...current.filter((item) => item.id !== created.id)].slice(0, 10))
-      setSelectedCampaign(created)
-      onToast(`${created.postCount}-post AI campaign created and ready for review.`)
-      window.requestAnimationFrame(() => reviewRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+      onToast(`${created.postCount}-post AI campaign created and ready in Preview.`)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'The AI campaign could not be created.'
       setInlineError(message)
@@ -282,14 +283,17 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
   if (!open) return null
 
   const generationMessages = [
-    'Analysing your goal and business context…',
-    'Building the campaign map, hooks and content mix…',
-    'Writing concise platform-aware posts and quality-checking repetition…',
+    'Analysing website and campaign goal',
+    'Understanding brand, product and audience',
+    'Building campaign strategy and content map',
+    'Writing platform-aware hooks and captions',
+    'Generating campaign visuals',
+    'Quality-checking the final campaign',
   ]
 
   return createPortal(
     <div className="ai-studio-modal-backdrop fixed inset-0 z-[120] grid place-items-center overflow-hidden bg-[#01070d]/92 p-0 backdrop-blur-xl sm:p-5">
-      <section className="ai-studio-modal-enter relative h-dvh w-full max-w-[1540px] overflow-y-auto bg-bg sm:h-[min(94dvh,980px)] sm:rounded-[30px] sm:border sm:border-brand-cyan/20 sm:shadow-[0_40px_120px_rgba(0,0,0,.55)]">
+      <section className="ai-studio-modal-enter relative h-dvh w-full max-w-[1540px] overflow-x-hidden overflow-y-auto bg-bg sm:h-[min(94dvh,980px)] sm:rounded-[30px] sm:border sm:border-brand-cyan/20 sm:shadow-[0_40px_120px_rgba(0,0,0,.55)]">
         <div aria-hidden="true" className="ai-campaign-glow-drift pointer-events-none absolute -left-32 top-12 size-80 rounded-full bg-brand-cyan/[.08] blur-[90px]" />
         <div aria-hidden="true" className="ai-campaign-glow-drift pointer-events-none absolute right-0 top-64 size-72 rounded-full bg-brand-purple/[.07] blur-[100px] [animation-delay:-2.8s]" />
 
@@ -305,7 +309,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
           <button aria-label="Close AI Post Campaign" className="grid size-9 shrink-0 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:-translate-y-0.5 hover:border-brand-cyan/30 hover:text-white" onClick={onClose} type="button"><X className="size-4" /></button>
         </header>
 
-        <div className="relative grid min-w-0 lg:grid-cols-[minmax(0,1fr)_330px]">
+        <div className="relative grid min-w-0 max-w-full overflow-x-hidden lg:grid-cols-[minmax(0,1fr)_330px]">
           <div className="min-w-0 p-4 sm:p-6 lg:p-7">
             <div className="mx-auto max-w-5xl space-y-5">
               <label className="block">
@@ -327,7 +331,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                   </div>
                   <span className="text-[10px] font-semibold text-brand-cyan">{form.platforms.length} selected</span>
                 </div>
-                <div className="mt-3 flex gap-2 overflow-x-auto pb-1 sm:overflow-visible">
+                <div className="mt-3 flex flex-wrap gap-2">
                   {PLATFORM_OPTIONS.map((platform) => {
                     const active = form.platforms.includes(platform.value)
                     return <button
@@ -423,15 +427,31 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
               </div>
 
               <Button className="min-h-13 w-full justify-center shadow-[0_14px_36px_rgba(45,212,191,.12)]" disabled={!canCreate} onClick={() => void createCampaign()} variant="primary">
-                {creating ? <><LoaderCircle className="size-4 animate-spin" />{generationMessages[generationStep]}</> : <><Sparkles className="size-4" />Generate AI campaign</>}
+                {creating ? <><LoaderCircle className="size-4 animate-spin" />Generating campaign…</> : <><Sparkles className="size-4" />Generate AI campaign</>}
               </Button>
             </div>
           </div>
 
           <aside className="min-w-0 border-t border-border-soft bg-black/[.08] p-4 sm:p-5 lg:border-l lg:border-t-0">
             <div className="sticky top-4">
-              <div className="flex items-center justify-between"><div><span className="text-[9px] font-bold uppercase tracking-[.14em] text-text-soft">Saved campaigns</span><h3 className="mt-1 text-sm font-semibold">Recent work</h3></div><CalendarRange className="size-4 text-brand-cyan" /></div>
+              <div className="flex items-center justify-between"><div><span className="text-[9px] font-bold uppercase tracking-[.14em] text-text-soft">Campaigns</span><h3 className="mt-1 text-sm font-semibold">Preview</h3></div><CalendarRange className="size-4 text-brand-cyan" /></div>
               <div className="mt-4 space-y-3">
+                {creating && <article className="overflow-hidden rounded-2xl border border-brand-cyan/35 bg-[radial-gradient(circle_at_90%_0%,rgba(45,212,191,.14),transparent_12rem),linear-gradient(145deg,rgba(8,33,45,.92),rgba(5,19,30,.95))] p-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
+                  <div className="flex items-start gap-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan"><LoaderCircle className="size-4 animate-spin" /></span>
+                    <div className="min-w-0 flex-1"><span className="text-[8px] font-bold uppercase tracking-[.13em] text-brand-cyan">Generating now</span><strong className="mt-1 block text-[11px]">Building your new AI campaign</strong><p className="mt-1 text-[9px] leading-4 text-text-muted">You can open another saved campaign while this continues.</p></div>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {generationMessages.map((message, index) => {
+                      const complete = index < generationStep
+                      const active = index === generationStep
+                      return <div className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-[8px] transition ${active ? 'bg-brand-cyan/[.07] text-white' : complete ? 'text-brand-green' : 'text-text-soft'}`} key={message}>
+                        <span className={`grid size-4 shrink-0 place-items-center rounded-full border ${active ? 'border-brand-cyan/40 text-brand-cyan' : complete ? 'border-brand-green/30 text-brand-green' : 'border-border-soft'}`}>{complete ? <Check className="size-2.5" /> : active ? <LoaderCircle className="size-2.5 animate-spin" /> : <span className="size-1 rounded-full bg-current opacity-50" />}</span>
+                        <span>{message}</span>
+                      </div>
+                    })}
+                  </div>
+                </article>}
                 {recent.length ? recent.map((item, index) => {
                   const selected = selectedCampaign?.id === item.id
                   const firstVisual = item.posts.find((post) => post.mediaAsset?.thumbnailUrl || post.mediaAsset?.url)?.mediaAsset
@@ -460,7 +480,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
           </aside>
         </div>
 
-        {selectedCampaign && <div className="relative scroll-mt-4 border-t border-brand-cyan/15 bg-[linear-gradient(180deg,rgba(7,25,37,.96),rgba(4,16,26,.98))] p-4 sm:p-6" ref={reviewRef}>
+        {selectedCampaign && <div className="relative min-w-0 max-w-full scroll-mt-4 overflow-x-hidden border-t border-brand-cyan/15 bg-[linear-gradient(180deg,rgba(7,25,37,.96),rgba(4,16,26,.98))] p-4 sm:p-6" ref={reviewRef}>
           <div className="mx-auto max-w-[1280px]">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div className="min-w-0">
