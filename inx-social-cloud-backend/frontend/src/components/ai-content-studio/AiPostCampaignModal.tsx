@@ -307,6 +307,53 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
     })
   }
 
+  function renderPostCard(post: AIPostCampaignPost) {
+    const editing = editingPostId === post.id
+    const busy = busyPostId === post.id
+    const expanded = expandedPosts.has(post.id)
+    const mediaUrl = post.mediaAsset?.thumbnailUrl || post.mediaAsset?.url
+
+    return <article className="group min-w-0 overflow-hidden rounded-[20px] border border-border-soft bg-[linear-gradient(145deg,rgba(14,37,52,.78),rgba(5,20,31,.9))] transition duration-300 hover:-translate-y-0.5 hover:border-white/20" key={post.id}>
+      <div className="flex items-center justify-between gap-3 border-b border-border-soft px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2"><span className="text-sm font-bold text-brand-cyan">{String(post.sequence).padStart(2, '0')}</span><span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[7px] font-bold uppercase tracking-[.08em] ${post.contentType === 'IMAGE' ? 'border-brand-purple/25 bg-brand-purple/[.06] text-[#c4b5fd]' : 'border-brand-cyan/20 bg-brand-cyan/[.05] text-brand-cyan'}`}>{post.contentType === 'IMAGE' ? <ImageIcon className="size-2.5" /> : <FileText className="size-2.5" />}{post.contentType === 'IMAGE' ? 'Image post' : 'Text post'}</span><span className="truncate text-[8px] text-text-soft">{post.pillar}</span></div>
+        {post.mediaAssetId && <span className="rounded-full border border-brand-green/20 bg-brand-green/[.06] px-2 py-1 text-[7px] text-brand-green">Visual ready</span>}
+      </div>
+
+      {editing ? <div className="space-y-3 p-4">
+        <input className="min-h-10 w-full rounded-xl border border-border-soft bg-black/15 px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, title: event.target.value }))} value={String(editDraft.title || '')} />
+        <input className="min-h-10 w-full rounded-xl border border-border-soft bg-black/15 px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, hook: event.target.value }))} placeholder="Hook" value={String(editDraft.hook || '')} />
+        <textarea className="min-h-28 w-full rounded-xl border border-border-soft bg-black/15 px-3 py-2 text-xs leading-5 outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, caption: event.target.value }))} value={String(editDraft.caption || '')} />
+        <input className="min-h-10 w-full rounded-xl border border-border-soft bg-black/15 px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, hashtags: event.target.value.split(/[\s,]+/).map((tag) => tag.replace(/^#/, '')).filter(Boolean) }))} placeholder="hashtags" value={(Array.isArray(editDraft.hashtags) ? editDraft.hashtags : []).map((tag) => `#${tag}`).join(' ')} />
+        {post.contentType === 'IMAGE' && <textarea className="min-h-24 w-full rounded-xl border border-brand-purple/20 bg-black/15 px-3 py-2 text-xs leading-5 outline-none focus:border-brand-purple/40" onChange={(event) => setEditDraft((current) => ({ ...current, imageBrief: event.target.value }))} placeholder="Image creative direction" value={String(editDraft.imageBrief || '')} />}
+        <div className="flex gap-2"><Button disabled={busy} onClick={() => void saveEdit(post)} size="sm" variant="primary">{busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}Save</Button><Button onClick={() => { setEditingPostId(null); setEditDraft({}) }} size="sm">Cancel</Button></div>
+      </div> : <div className="grid min-w-0 sm:grid-cols-[1fr_auto]">
+        <div className="min-w-0 p-4">
+          <h4 className="text-sm font-semibold">{post.title}</h4>
+          {post.hook && <p className="mt-2 text-[11px] font-semibold leading-5 text-white/90">{post.hook}</p>}
+          <p className={`mt-2 whitespace-pre-wrap text-[10px] leading-5 text-text-muted ${expanded ? '' : 'line-clamp-3'}`}>{publishCaption(post)}</p>
+          {publishCaption(post).length > 220 && <button className="mt-2 inline-flex items-center gap-1 text-[8px] font-semibold text-brand-cyan" onClick={() => togglePost(post.id)} type="button">{expanded ? <><ChevronUp className="size-3" />Show less</> : <><ChevronDown className="size-3" />Expand post</>}</button>}
+          {post.contentType === 'IMAGE' && expanded && <div className="mt-3 rounded-xl border border-brand-purple/15 bg-brand-purple/[.035] p-3"><strong className="text-[8px] uppercase tracking-[.08em] text-[#c4b5fd]">Visual direction</strong><p className="mt-1 text-[9px] leading-4 text-text-muted">{post.imageBrief || 'AI will create a visual direction when this post is regenerated.'}</p></div>}
+        </div>
+        <div className="flex gap-2 border-t border-border-soft p-3 sm:w-40 sm:flex-col sm:border-l sm:border-t-0">
+          {mediaUrl && <button
+            aria-label={`Open full image for post ${post.sequence}`}
+            className="group/image relative cursor-zoom-in overflow-hidden rounded-xl border border-border-soft text-left transition hover:border-brand-cyan/40 hover:shadow-[0_12px_30px_rgba(45,212,191,.10)]"
+            data-campaign-image-preview="true"
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              setImagePreview({ url: post.mediaAsset?.url || mediaUrl, title: post.title, caption: publishCaption(post) })
+            }}
+            type="button"
+          ><img alt={post.title} className="aspect-[4/5] w-16 object-cover transition duration-300 group-hover/image:scale-[1.035] sm:w-full" src={mediaUrl} /><span className="pointer-events-none absolute inset-x-2 bottom-2 rounded-lg bg-black/65 px-2 py-1 text-center text-[7px] font-semibold text-white opacity-0 backdrop-blur transition group-hover/image:opacity-100">View full image</span></button>}
+          <Button disabled={busy} onClick={() => beginEdit(post)} size="sm"><PencilLine className="size-3.5" />Edit</Button>
+          <Button disabled={busy} onClick={() => void regenerate(post)} size="sm">{busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <RefreshCcw className="size-3.5" />}Regenerate</Button>
+          {post.contentType === 'IMAGE' && <Button disabled={busy} onClick={() => void generateImage(post)} size="sm" variant={post.mediaAssetId ? 'ghost' : 'primary'}>{busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <ImageIcon className="size-3.5" />}{post.mediaAssetId ? 'Regenerate image' : 'Retry image generation'}</Button>}
+        </div>
+      </div>}
+    </article>
+  }
+
   if (!open) return null
 
   const generationMessages = [
@@ -540,42 +587,15 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
               </div>
             </section>
 
-            <div className="mt-4 grid gap-3 xl:grid-cols-2">
-              {selectedCampaign.posts.map((post) => {
-                const editing = editingPostId === post.id
-                const busy = busyPostId === post.id
-                const expanded = expandedPosts.has(post.id)
-                const mediaUrl = post.mediaAsset?.thumbnailUrl || post.mediaAsset?.url
-                return <article className="group overflow-hidden rounded-[20px] border border-border-soft bg-[linear-gradient(145deg,rgba(14,37,52,.78),rgba(5,20,31,.9))] transition duration-300 hover:-translate-y-0.5 hover:border-white/20" key={post.id}>
-                  <div className="flex items-center justify-between gap-3 border-b border-border-soft px-4 py-3">
-                    <div className="flex min-w-0 items-center gap-2"><span className="text-sm font-bold text-brand-cyan">{String(post.sequence).padStart(2, '0')}</span><span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[7px] font-bold uppercase tracking-[.08em] ${post.contentType === 'IMAGE' ? 'border-brand-purple/25 bg-brand-purple/[.06] text-[#c4b5fd]' : 'border-brand-cyan/20 bg-brand-cyan/[.05] text-brand-cyan'}`}>{post.contentType === 'IMAGE' ? <ImageIcon className="size-2.5" /> : <FileText className="size-2.5" />}{post.contentType === 'IMAGE' ? 'Image post' : 'Text post'}</span><span className="truncate text-[8px] text-text-soft">{post.pillar}</span></div>
-                    {post.mediaAssetId && <span className="rounded-full border border-brand-green/20 bg-brand-green/[.06] px-2 py-1 text-[7px] text-brand-green">Visual ready</span>}
-                  </div>
-
-                  {editing ? <div className="space-y-3 p-4">
-                    <input className="min-h-10 w-full rounded-xl border border-border-soft bg-black/15 px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, title: event.target.value }))} value={String(editDraft.title || '')} />
-                    <input className="min-h-10 w-full rounded-xl border border-border-soft bg-black/15 px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, hook: event.target.value }))} placeholder="Hook" value={String(editDraft.hook || '')} />
-                    <textarea className="min-h-28 w-full rounded-xl border border-border-soft bg-black/15 px-3 py-2 text-xs leading-5 outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, caption: event.target.value }))} value={String(editDraft.caption || '')} />
-                    <input className="min-h-10 w-full rounded-xl border border-border-soft bg-black/15 px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, hashtags: event.target.value.split(/[\s,]+/).map((tag) => tag.replace(/^#/, '')).filter(Boolean) }))} placeholder="hashtags" value={(Array.isArray(editDraft.hashtags) ? editDraft.hashtags : []).map((tag) => `#${tag}`).join(' ')} />
-                    {post.contentType === 'IMAGE' && <textarea className="min-h-24 w-full rounded-xl border border-brand-purple/20 bg-black/15 px-3 py-2 text-xs leading-5 outline-none focus:border-brand-purple/40" onChange={(event) => setEditDraft((current) => ({ ...current, imageBrief: event.target.value }))} placeholder="Image creative direction" value={String(editDraft.imageBrief || '')} />}
-                    <div className="flex gap-2"><Button disabled={busy} onClick={() => void saveEdit(post)} size="sm" variant="primary">{busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}Save</Button><Button onClick={() => { setEditingPostId(null); setEditDraft({}) }} size="sm">Cancel</Button></div>
-                  </div> : <div className="grid min-w-0 sm:grid-cols-[1fr_auto]">
-                    <div className="min-w-0 p-4">
-                      <h4 className="text-sm font-semibold">{post.title}</h4>
-                      {post.hook && <p className="mt-2 text-[11px] font-semibold leading-5 text-white/90">{post.hook}</p>}
-                      <p className={`mt-2 whitespace-pre-wrap text-[10px] leading-5 text-text-muted ${expanded ? '' : 'line-clamp-3'}`}>{publishCaption(post)}</p>
-                      {publishCaption(post).length > 220 && <button className="mt-2 inline-flex items-center gap-1 text-[8px] font-semibold text-brand-cyan" onClick={() => togglePost(post.id)} type="button">{expanded ? <><ChevronUp className="size-3" />Show less</> : <><ChevronDown className="size-3" />Expand post</>}</button>}
-                      {post.contentType === 'IMAGE' && expanded && <div className="mt-3 rounded-xl border border-brand-purple/15 bg-brand-purple/[.035] p-3"><strong className="text-[8px] uppercase tracking-[.08em] text-[#c4b5fd]">Visual direction</strong><p className="mt-1 text-[9px] leading-4 text-text-muted">{post.imageBrief || 'AI will create a visual direction when this post is regenerated.'}</p></div>}
-                    </div>
-                    <div className="flex gap-2 border-t border-border-soft p-3 sm:w-40 sm:flex-col sm:border-l sm:border-t-0">
-                      {mediaUrl && <button aria-label={`Open full image for post ${post.sequence}`} className="group/image relative overflow-hidden rounded-xl border border-border-soft text-left transition hover:border-brand-cyan/40 hover:shadow-[0_12px_30px_rgba(45,212,191,.10)]" onClick={() => setImagePreview({ url: post.mediaAsset?.url || mediaUrl, title: post.title, caption: publishCaption(post) })} type="button"><img alt={post.title} className="aspect-[4/5] w-16 object-cover transition duration-300 group-hover/image:scale-[1.035] sm:w-full" src={mediaUrl} /><span className="absolute inset-x-2 bottom-2 rounded-lg bg-black/65 px-2 py-1 text-center text-[7px] font-semibold text-white opacity-0 backdrop-blur transition group-hover/image:opacity-100">View full image</span></button>}
-                      <Button disabled={busy} onClick={() => beginEdit(post)} size="sm"><PencilLine className="size-3.5" />Edit</Button>
-                      <Button disabled={busy} onClick={() => void regenerate(post)} size="sm">{busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <RefreshCcw className="size-3.5" />}Regenerate</Button>
-                      {post.contentType === 'IMAGE' && <Button disabled={busy} onClick={() => void generateImage(post)} size="sm" variant={post.mediaAssetId ? 'ghost' : 'primary'}>{busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <ImageIcon className="size-3.5" />}{post.mediaAssetId ? 'Recreate image' : 'Create image'}</Button>}
-                    </div>
-                  </div>}
-                </article>
-              })}
+            <div className="mt-4 grid min-w-0 gap-4 xl:grid-cols-2">
+              <section className="min-w-0 space-y-3" aria-label="Text campaign posts">
+                <div className="flex items-center gap-2 px-1"><FileText className="size-3.5 text-brand-cyan" /><span className="text-[9px] font-bold uppercase tracking-[.12em] text-brand-cyan">Text posts</span><span className="text-[8px] text-text-soft">{campaignTextPosts.length}</span></div>
+                {campaignTextPosts.length ? campaignTextPosts.map((post) => renderPostCard(post)) : <div className="rounded-[20px] border border-dashed border-border-soft p-5 text-center text-[9px] text-text-muted">No text posts in this campaign.</div>}
+              </section>
+              <section className="min-w-0 space-y-3" aria-label="Image campaign posts">
+                <div className="flex items-center gap-2 px-1"><ImageIcon className="size-3.5 text-[#c4b5fd]" /><span className="text-[9px] font-bold uppercase tracking-[.12em] text-[#c4b5fd]">Image posts</span><span className="text-[8px] text-text-soft">{campaignImagePosts.length}</span></div>
+                {campaignImagePosts.length ? campaignImagePosts.map((post) => renderPostCard(post)) : <div className="rounded-[20px] border border-dashed border-border-soft p-5 text-center text-[9px] text-text-muted">No image posts in this campaign.</div>}
+              </section>
             </div>
 
             <div className="sticky bottom-3 z-10 mt-5 flex flex-col gap-3 rounded-[20px] border border-brand-cyan/20 bg-panel/95 p-3 shadow-[0_-18px_55px_rgba(0,0,0,.28)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
