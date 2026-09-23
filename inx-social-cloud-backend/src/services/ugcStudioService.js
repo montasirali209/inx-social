@@ -696,6 +696,102 @@ async function listMusicTracks() {
   return rows.map(row => ({ id: row.id, name: row.name, category: row.category, durationSeconds: row.durationSeconds || null }));
 }
 
+function publicProductAsset(row) {
+  return {
+    id: row.id,
+    brandProfileId: row.brandProfileId || null,
+    originalName: row.originalName || 'Product image',
+    mimeType: row.mimeType,
+    status: row.status,
+    imageUrl: '/api/ai-content-studio/ugc/product-assets/' + encodeURIComponent(row.id) + '/content',
+    createdAt: row.createdAt
+  };
+}
+
+async function uploadProductAsset(userId, input) {
+  if (!['image/png','image/jpeg','image/webp'].includes(input.mimeType)) throw publicError('Upload a PNG, JPEG or WebP product image.', 'UGC_PRODUCT_TYPE', 415);
+  if (!Buffer.isBuffer(input.data) || !input.data.length) throw publicError('Choose a product image.', 'UGC_PRODUCT_EMPTY', 400);
+  const assetId = id();
+  const normalized = await sharp(input.data)
+    .rotate()
+    .resize({ width: 1440, height: 1440, fit: 'inside', withoutEnlargement: true })
+    .png()
+    .toBuffer();
+  const stored = await objectStorage.persistBuffer({
+    userId, data: normalized, mimeType: 'image/png',
+    originalName: 'ugc-product-' + assetId + '.png', prefix: 'ugc-product'
+  });
+  await prisma.$executeRawUnsafe(
+    'INSERT INTO "UGCProductAsset" ("id","userId","brandProfileId","originalName","mimeType","storageProvider","storageKey","status","createdAt","updatedAt") VALUES ($1,$2,$3,$4,\'image/png\',$5,$6,\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+    assetId, userId, input.brandProfileId || null, clean(input.name, 180) || 'Product image', stored.storageProvider, stored.storageKey
+  );
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCProductAsset" WHERE "id"=$1 LIMIT 1', assetId);
+  return publicProductAsset(rows[0]);
+}
+
+async function getProductAssetRow(userId, assetId) {
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCProductAsset" WHERE "id"=$1 AND "userId"=$2 AND "status"=\'READY\' LIMIT 1', assetId, userId);
+  if (!rows[0]) throw publicError('Product image not found.', 'UGC_PRODUCT_NOT_FOUND', 404);
+  return rows[0];
+}
+
+async function getProductAssetContent(userId, assetId) {
+  const row = await getProductAssetRow(userId, assetId);
+  const data = await objectStorage.getBuffer(row.storageKey, null, row.storageProvider || null);
+  return { data, mimeType: row.mimeType || 'image/png' };
+}
+
+async function productAssetDataUri(userId, assetId) {
+  const row = await getProductAssetRow(userId, assetId);
+  const data = await objectStorage.getBuffer(row.storageKey, null, row.storageProvider || null);
+  const normalized = await sharp(data).rotate().resize({ width: 720, height: 1280, fit: 'contain', background: { r: 12, g: 20, b: 28, alpha: 1 } }).png().toBuffer();
+  return 'data:image/png;base64,' + normalized.toString('base64');
+}
+
+function publicSampleVideo(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description || '',
+    campaignType: row.campaignType,
+    quality: row.quality,
+    duration: row.duration,
+    thumbnailUrl: row.thumbnailUrl || null,
+    videoUrl: '/api/ai-content-studio/ugc/samples/' + encodeURIComponent(row.id) + '/content'
+  };
+}
+
+async function listSampleVideos() {
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCSampleVideo" WHERE "active"=true ORDER BY "sortOrder","createdAt" DESC LIMIT 24');
+  return rows.map(publicSampleVideo);
+}
+
+async function uploadSampleVideo(user, input) {
+  if (String(user?.role || '').toUpperCase() !== 'ADMIN') throw publicError('Admin access is required to add UGC samples.', 'UGC_SAMPLE_ADMIN_REQUIRED', 403);
+  if (!['video/mp4','video/webm','video/quicktime'].includes(input.mimeType)) throw publicError('Upload an MP4, WebM or MOV sample.', 'UGC_SAMPLE_TYPE', 415);
+  if (!Buffer.isBuffer(input.data) || !input.data.length) throw publicError('Choose a sample video.', 'UGC_SAMPLE_EMPTY', 400);
+  const sampleId = id();
+  const stored = await objectStorage.persistBuffer({
+    userId: 'ugc-samples', data: input.data, mimeType: input.mimeType,
+    originalName: input.name || ('ugc-sample-' + sampleId + '.mp4'), prefix: 'ugc-sample'
+  });
+  await prisma.$executeRawUnsafe(
+    'INSERT INTO "UGCSampleVideo" ("id","title","description","campaignType","quality","duration","storageProvider","storageKey","mimeType","active","sortOrder","createdById","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,$10,$11,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+    sampleId, clean(input.title, 140) || 'UGC sample', clean(input.description, 600) || null,
+    input.campaignType || 'AVATAR_EXPLAINER', input.quality || 'STANDARD', Number(input.duration || 15),
+    stored.storageProvider, stored.storageKey, input.mimeType, Number(input.sortOrder || 0), user.id
+  );
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCSampleVideo" WHERE "id"=$1 LIMIT 1', sampleId);
+  return publicSampleVideo(rows[0]);
+}
+
+async function getSampleVideoContent(sampleId) {
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCSampleVideo" WHERE "id"=$1 AND "active"=true LIMIT 1', sampleId);
+  if (!rows[0]) throw publicError('UGC sample not found.', 'UGC_SAMPLE_NOT_FOUND', 404);
+  const data = await objectStorage.getBuffer(rows[0].storageKey, null, rows[0].storageProvider || null);
+  return { data, mimeType: rows[0].mimeType || 'video/mp4' };
+}
+
 async function pollTask(taskUUID, onProgress = () => {}) {
   const started = Date.now();
   const timeout = Math.max(180000, Number(env.runware.videoTimeoutMs || 900000));
