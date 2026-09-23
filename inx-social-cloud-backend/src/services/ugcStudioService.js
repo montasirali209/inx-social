@@ -621,7 +621,7 @@ async function uploadCustomAvatar(userId, input) {
   const avatarId = id();
   const stored = await objectStorage.persistBuffer({ userId, data, mimeType: 'image/png', originalName: 'ugc-avatar-' + avatarId + '.png', prefix: 'ugc-avatar' });
   await prisma.$executeRawUnsafe(
-    'INSERT INTO "UGCAvatar" ("id","userId","scope","name","category","locale","voice","voicePrompt","prompt","referenceStorageProvider","referenceStorageKey","referenceMimeType","status","createdAt","updatedAt") VALUES ($1,$2,\'USER\',$3,\'Custom\',\'en-GB\',\'Aoede (Female)\',$4,$5,$6,$7,\'image/png\',\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+    'INSERT INTO "UGCAvatar" ("id","userId","scope","name","category","locale","voice","voicePrompt","prompt","referenceStorageProvider","referenceStorageKey","referenceMimeType","status","createdAt","updatedAt") VALUES ($1,$2,\'USER\',$3,\'Custom\',\'en-GB\',\'Pippa\',$4,$5,$6,$7,\'image/png\',\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
     avatarId, userId, clean(input.name.replace(/\.[^.]+$/, ''), 80) || 'Custom creator',
     'Natural, conversational UGC delivery matched to the creator and script.',
     'Customer-supplied creator reference. Preserve identity, clothing and recognizable appearance.', stored.storageProvider, stored.storageKey
