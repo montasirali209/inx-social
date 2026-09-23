@@ -28,11 +28,18 @@ function AvatarPortrait({ avatar, className = '' }: { avatar: UGCAvatar; classNa
   const [url, setUrl] = useState<string | null>(null)
   useEffect(() => {
     let active = true
-    if (!avatar.imageUrl) { setUrl(null); return }
-    void fetchUGCAvatarImage(avatar).then((value) => { if (active) setUrl(value) })
-    return () => { active = false; if (url) URL.revokeObjectURL(url) }
-    // imageUrl is the stable reference; avoid refetching on metadata-only changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let createdUrl: string | null = null
+    if (!avatar.imageUrl) return undefined
+    void fetchUGCAvatarImage(avatar).then((value) => {
+      if (!value) return
+      if (!active) { URL.revokeObjectURL(value); return }
+      createdUrl = value
+      setUrl(value)
+    })
+    return () => {
+      active = false
+      if (createdUrl) URL.revokeObjectURL(createdUrl)
+    }
   }, [avatar.imageUrl])
   if (url) return <img alt="" className={`size-full object-cover ${className}`} src={url} />
   const initials = avatar.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2)
