@@ -33,7 +33,6 @@ import {
 } from './AIStudioPrimitives'
 import { GenerationModalRouter } from './GenerationModalRouter'
 import { AiPostCampaignModal } from './AiPostCampaignModal'
-import { fetchMediaLibrary } from '../../lib/media-library-api'
 
 const immediateAiAccess: AIPlanAccess = {
   plan: 'trial',
@@ -52,6 +51,7 @@ export function AiContentStudioPage() {
   const queryClient = useQueryClient()
   const requestedVideoKind = searchParams.get('videoStudio') === 'stock' ? 'stock' : searchParams.get('videoStudio') === 'generative' ? 'generative' : null
   const requestedGenerationId = searchParams.get('generation')
+  const requestedCampaign = searchParams.get('campaign') === 'new'
   const [activeType, setActiveType] = useState<AIContentType | null>(() => requestedVideoKind ? 'short_video' : null)
   const [editingDraft, setEditingDraft] = useState<AIDraft | null>(null)
   const [upgradeOpen, setUpgradeOpen] = useState(false)
@@ -82,6 +82,15 @@ export function AiContentStudioPage() {
     const timer = window.setTimeout(() => setToast(null), 4200)
     return () => window.clearTimeout(timer)
   }, [toast])
+
+  useEffect(() => {
+    if (!requestedCampaign || !accessQuery.data) return
+    if (accessQuery.data.studioEnabled) setCampaignOpen(true)
+    else setUpgradeOpen(true)
+    const next = new URLSearchParams(searchParams)
+    next.delete('campaign')
+    setSearchParams(next, { replace: true })
+  }, [requestedCampaign, accessQuery.data, searchParams, setSearchParams])
 
   const access = accessQuery.data
   const drafts = draftsQuery.data || []
@@ -150,69 +159,15 @@ export function AiContentStudioPage() {
     }
   }
 
-  function campaignCaption(post: AIPostCampaign['posts'][number]) {
-    const hashtags = post.hashtags.map((tag) => `#${tag.replace(/^#/, '')}`).join(' ')
-    return [post.caption.trim(), hashtags].filter(Boolean).join('\n\n')
-  }
-
   async function handoffCampaign(campaign: AIPostCampaign) {
     try {
-      const captions = campaign.posts.map(campaignCaption)
-
-      if (campaign.contentMode === 'TEXT') {
-        setCampaignOpen(false)
-        navigate('/bulk-scheduler', {
-          state: {
-            aiPostCampaign: {
-              id: campaign.id,
-              title: campaign.title,
-              contentMode: 'TEXT',
-              captions,
-              mediaAssetIds: [],
-            },
-          },
-        })
-        return
-      }
-
       const imagePosts = campaign.posts.filter((post) => post.contentType === 'IMAGE')
-      const ids = imagePosts.map((post) => post.mediaAssetId).filter((id): id is string => Boolean(id))
-      if (ids.length !== imagePosts.length) throw new Error('Create the remaining campaign images before sending the full campaign to Bulk Scheduler.')
-
-      const library = await fetchMediaLibrary()
-      const assets = ids
-        .map((id) => library.assets.find((asset) => asset.id === id))
-        .filter((asset): asset is NonNullable<typeof asset> => Boolean(asset))
-      if (assets.length !== ids.length) throw new Error('One or more campaign images could not be found in Media Library.')
-
-      setCampaignOpen(false)
-
-      if (campaign.contentMode === 'IMAGE') {
-        navigate('/bulk-scheduler', {
-          state: {
-            mediaLibraryAssets: assets,
-            aiCampaignCaptions: captions,
-            aiCampaignTitle: campaign.title,
-          },
-        })
-        return
+      const missingImages = imagePosts.filter((post) => !post.mediaAssetId)
+      if (missingImages.length) {
+        throw new Error(`Create the remaining ${missingImages.length} campaign image${missingImages.length === 1 ? '' : 's'} before sending this campaign to Bulk Scheduler.`)
       }
-
-      navigate('/bulk-scheduler', {
-        state: {
-          mediaLibraryAssets: assets,
-          aiMixedCampaign: {
-            id: campaign.id,
-            title: campaign.title,
-            posts: campaign.posts.map((post) => ({
-              id: post.id,
-              contentType: post.contentType,
-              caption: campaignCaption(post),
-              mediaAssetId: post.mediaAssetId || null,
-            })),
-          },
-        },
-      })
+      setCampaignOpen(false)
+      navigate('/bulk-scheduler', { state: { aiCampaignId: campaign.id } })
     } catch (error) {
       setToast(error instanceof Error ? error.message : 'The campaign could not be prepared for Bulk Scheduler.')
     }
