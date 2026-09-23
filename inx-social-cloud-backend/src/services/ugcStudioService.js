@@ -585,16 +585,27 @@ async function createCampaign(userId, input) {
     brand = await analyzeBrand(userId, { url: input.productUrl, refresh: false });
   }
 
+  const productAssetIds = [...new Set((Array.isArray(input.productAssetIds) ? input.productAssetIds : []).filter(Boolean))].slice(0, 8);
+  const productAssets = [];
+  for (const assetId of productAssetIds) productAssets.push(await getProductAssetRow(userId, assetId));
+
   const allAvatars = await avatarRows(userId);
-  let available = allAvatars;
+  const featuredAvatars = allAvatars.filter(row => row.scope === 'USER' || row.featured);
+  let available = featuredAvatars.length ? featuredAvatars : allAvatars;
   if (input.creatorMode === 'SELECTED' && input.avatarId) available = [await getAvatarRow(userId, input.avatarId)];
-  const plan = await planCampaign(input, brand, available);
+  if (!available.length) throw publicError('No UGC creators are currently available.', 'UGC_CREATORS_UNAVAILABLE', 503);
+
+  const resolvedType = resolveCampaignType(input, brand, productAssets);
+  const plan = await planCampaign({ ...input, productAssetIds }, brand, available, resolvedType);
   const campaignId = id();
   const perAd = creditsPerAd(input.duration, input.quality);
+  const sourceType = clean(input.sourceType || (productAssetIds.length ? 'PRODUCT' : input.productUrl ? 'WEBSITE' : 'BRIEF'), 30).toUpperCase();
+
   await prisma.$executeRawUnsafe(
-    'INSERT INTO "UGCCampaign" ("id","userId","brandProfileId","title","productUrl","productDescription","duration","adCount","quality","creatorMode","selectedAvatarId","status","totalCredits","notes","planJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,\'RESERVING\',$12,$13,$14,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+    'INSERT INTO "UGCCampaign" ("id","userId","brandProfileId","title","productUrl","productDescription","duration","adCount","quality","creatorMode","selectedAvatarId","campaignType","resolvedType","sourceType","productAssetIdsJson","status","totalCredits","notes","planJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,\'RESERVING\',$16,$17,$18,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
     campaignId, userId, brand?.id || input.brandProfileId || null, plan.title, brand?.websiteUrl || input.productUrl || null, clean(input.productDescription, 4000) || null,
-    input.duration, input.adCount, input.quality, input.creatorMode, input.avatarId || null, totalCredits, clean(input.notes, 1200) || null, json(plan)
+    input.duration, input.adCount, input.quality, input.creatorMode, input.avatarId || null, input.campaignType || 'AUTO', resolvedType, sourceType,
+    json(productAssetIds), totalCredits, clean(input.notes, 1200) || null, json(plan)
   );
 
   const reserved = [];
@@ -603,20 +614,21 @@ async function createCampaign(userId, input) {
       const planned = plan.ads[index];
       const avatar = available[planned.avatarIndex % available.length] || available[0] || null;
       const adId = id();
+      const route = input.quality === 'PREMIUM' ? 'KLING' : 'HAILUO';
       await prisma.$executeRawUnsafe(
         'INSERT INTO "UGCAd" ("id","campaignId","userId","sequence","status","title","angle","hook","script","cta","caption","avatarId","route","voice","voicePrompt","duration","quality","credits","musicMode","captionsEnabled","planJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,\'RESERVING\',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,\'AUTO\',true,$18,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
         adId, campaignId, userId, index + 1, planned.title, planned.angle || null, planned.hook || null, planned.script, planned.cta || null, planned.caption || null,
-        avatar?.id || null, planned.route, avatar?.voice || null, avatar?.voicePrompt || null, input.duration, input.quality, perAd, json(planned)
+        avatar?.id || null, route, avatar?.voice || null, avatar?.voicePrompt || null, input.duration, input.quality, perAd, json({ ...planned, campaignType: resolvedType })
       );
       for (let s = 0; s < planned.scenes.length; s += 1) {
         const scene = planned.scenes[s];
-        const sceneRoute = input.quality === 'PREMIUM' ? 'KLING' : planned.route === 'AVATAR' ? 'AVATAR' : scene.kind === 'CREATOR' ? (planned.route === 'MIXED' ? 'AVATAR' : 'PVIDEO2') : 'PVIDEO2';
         await prisma.$executeRawUnsafe(
           'INSERT INTO "UGCScene" ("id","adId","sequence","status","kind","route","duration","prompt","script","avatarId","productReferenceJson","createdAt","updatedAt") VALUES ($1,$2,$3,\'QUEUED\',$4,$5,$6,$7,$8,$9,$10,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
-          id(), adId, s + 1, scene.kind, sceneRoute, scene.duration, scene.prompt, scene.script || null, avatar?.id || null, json(brand?.brandReferences || [])
+          id(), adId, s + 1, scene.kind, route, scene.duration, scene.prompt, scene.script || null, avatar?.id || null,
+          json({ brandReferences: brand?.brandReferences || [], productAssetIds })
         );
       }
-      const generationId = await createGenerationRow(userId, adId, perAd, planned);
+      const generationId = await createGenerationRow(userId, adId, perAd, { ...planned, campaignType: resolvedType, quality: input.quality });
       reserved.push(generationId);
       await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "generationId"=$2,"status"=\'QUEUED\',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', adId, generationId);
     }
@@ -631,7 +643,7 @@ async function createCampaign(userId, input) {
 }
 
 async function ownedCampaign(userId, campaignId) {
-  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCCampaign" WHERE "id"=$1 AND "userId"=$2 LIMIT 1', campaignId, userId);
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCCampaign" WHERE "id"=$1 AND "userId"=$2 AND "deletedAt" IS NULL LIMIT 1', campaignId, userId);
   if (!rows[0]) throw publicError('UGC campaign not found.', 'UGC_CAMPAIGN_NOT_FOUND', 404);
   return rows[0];
 }
@@ -648,6 +660,8 @@ async function campaignPayload(userId, campaignRow) {
     id: campaignRow.id, title: campaignRow.title, brandProfileId: campaignRow.brandProfileId || null,
     productUrl: campaignRow.productUrl || '', productDescription: campaignRow.productDescription || '',
     duration: campaignRow.duration, adCount: campaignRow.adCount, quality: campaignRow.quality,
+    campaignType: campaignRow.campaignType || 'AUTO', resolvedType: campaignRow.resolvedType || campaignRow.campaignType || 'AVATAR_EXPLAINER',
+    sourceType: campaignRow.sourceType || 'WEBSITE', productAssetIds: parseJson(campaignRow.productAssetIdsJson, []),
     creatorMode: campaignRow.creatorMode, selectedAvatarId: campaignRow.selectedAvatarId || null,
     status: campaignRow.status, totalCredits: campaignRow.totalCredits, notes: campaignRow.notes || '',
     plan: parseJson(campaignRow.planJson, {}), ads: ads.map(row => publicAd(row, scenesByAd.get(row.id) || [], avatarMap.get(row.avatarId) || null)),
@@ -656,7 +670,7 @@ async function campaignPayload(userId, campaignRow) {
 }
 async function getCampaign(userId, campaignId) { return campaignPayload(userId, await ownedCampaign(userId, campaignId)); }
 async function listCampaigns(userId, limit = 12) {
-  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCCampaign" WHERE "userId"=$1 ORDER BY "updatedAt" DESC LIMIT $2', userId, Number(limit));
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCCampaign" WHERE "userId"=$1 AND "deletedAt" IS NULL ORDER BY "updatedAt" DESC LIMIT $2', userId, Number(limit));
   const output = [];
   for (const row of rows) output.push(await campaignPayload(userId, row));
   return output;
@@ -674,17 +688,37 @@ async function getAd(userId, adId) {
 }
 
 async function getOverview(userId) {
-  const [avatars, brands, campaigns, music, balance] = await Promise.all([
+  const [avatars, brands, campaigns, music, samples, balance] = await Promise.all([
     avatarRows(userId),
     prisma.$queryRawUnsafe('SELECT * FROM "UGCBrandProfile" WHERE "userId"=$1 ORDER BY "updatedAt" DESC LIMIT 20', userId),
-    listCampaigns(userId, 8),
+    listCampaigns(userId, 12),
     listMusicTracks(),
+    listSampleVideos(),
     credits.getBalance(userId)
   ]);
+  const publicAvatars = avatars.map(publicAvatar);
+  const allAds = campaigns.flatMap(campaign => campaign.ads);
   return {
-    avatars: avatars.map(publicAvatar), brands: brands.map(publicBrand), campaigns, music,
+    avatars: publicAvatars,
+    featuredAvatars: publicAvatars.filter(avatar => avatar.scope === 'USER' || avatar.featured).slice(0, FEATURED_AVATAR_COUNT + publicAvatars.filter(avatar => avatar.scope === 'USER').length),
+    brands: brands.map(publicBrand),
+    campaigns,
+    samples,
+    music,
+    stats: {
+      ready: allAds.filter(ad => ad.status === 'READY').length,
+      rendering: allAds.filter(ad => ['QUEUED','RENDERING','RESERVING'].includes(ad.status)).length,
+      failed: allAds.filter(ad => ad.status === 'FAILED').length
+    },
     credits: { remaining: balance.remaining, monthlyRemaining: balance.monthlyRemaining, topupRemaining: balance.topupRemaining },
-    options: { durations: [15,30,60], adCounts: [1,5,10,15,20], qualities: ['STANDARD','PREMIUM'], systemAvatarCount: avatars.filter(row => row.scope === 'SYSTEM').length }
+    options: {
+      durations: [15,20,30],
+      adCounts: [1,5,10,15,20],
+      qualities: ['STANDARD','PREMIUM'],
+      campaignTypes: ['AUTO','AVATAR_EXPLAINER','PRODUCT_SHOWCASE'],
+      systemAvatarCount: avatars.filter(row => row.scope === 'SYSTEM').length,
+      featuredAvatarCount: publicAvatars.filter(avatar => avatar.featured).length
+    }
   };
 }
 
@@ -1173,6 +1207,12 @@ function startUGCStudioRuntime() {
   void prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'QUEUED\',"updatedAt"=CURRENT_TIMESTAMP WHERE "status"=\'RENDERING\' AND "updatedAt" < CURRENT_TIMESTAMP - INTERVAL \'30 minutes\'').then(() => queueRuntimeTick()).catch(error => console.error('[UGC RECOVERY]', clean(error?.message, 700)));
   runtimeTimer = setInterval(() => void runtimeTick(), 5000);
   runtimeTimer.unref?.();
+}
+
+async function deleteCampaign(userId, campaignId) {
+  const row = await ownedCampaign(userId, campaignId);
+  await prisma.$executeRawUnsafe('UPDATE "UGCCampaign" SET "deletedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$2', row.id, userId);
+  return true;
 }
 
 async function updateAd(userId, adId, input) {
