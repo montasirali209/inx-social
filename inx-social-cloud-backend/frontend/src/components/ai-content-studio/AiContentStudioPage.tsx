@@ -58,7 +58,7 @@ export function AiContentStudioPage() {
   const [draftsOpen, setDraftsOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
-  const [campaignOpen, setCampaignOpen] = useState(false)
+  const [campaignOpen, setCampaignOpen] = useState(requestedCampaign)
 
   const accessQuery = useQuery({
     queryKey: ['ai-studio-access'],
@@ -82,15 +82,6 @@ export function AiContentStudioPage() {
     const timer = window.setTimeout(() => setToast(null), 4200)
     return () => window.clearTimeout(timer)
   }, [toast])
-
-  useEffect(() => {
-    if (!requestedCampaign || !accessQuery.data) return
-    if (accessQuery.data.studioEnabled) setCampaignOpen(true)
-    else setUpgradeOpen(true)
-    const next = new URLSearchParams(searchParams)
-    next.delete('campaign')
-    setSearchParams(next, { replace: true })
-  }, [requestedCampaign, accessQuery.data, searchParams, setSearchParams])
 
   const access = accessQuery.data
   const drafts = draftsQuery.data || []
