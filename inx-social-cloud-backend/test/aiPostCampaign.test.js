@@ -301,3 +301,17 @@ test('brand lock preserves extracted palette and forbids invented branding', () 
   assert.match(campaign, /do not replace them with imagined alternatives/);
   assert.match(campaign, /No verified full logo asset is available\. Do not fabricate one/);
 });
+
+
+test('campaign deletion uses an INX Social modal instead of browser confirm', () => {
+  const modal = read('frontend/src/components/ai-content-studio/AiPostCampaignModal.tsx');
+
+  assert.doesNotMatch(modal, /window\.confirm/);
+  assert.match(modal, /campaignToDelete/);
+  assert.match(modal, /confirmRemoveCampaign/);
+  assert.match(modal, /aria-label="Delete AI campaign"/);
+  assert.match(modal, /Remove this AI campaign\?/);
+  assert.match(modal, /Your generated Media Library images will stay available/);
+  assert.match(modal, /Delete campaign/);
+  assert.match(modal, /Deleting…/);
+});
