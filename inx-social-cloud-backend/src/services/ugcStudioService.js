@@ -103,6 +103,25 @@ function publicError(message, code = 'UGC_STUDIO_ERROR', status = 400) {
 }
 function clean(value, max = 4000) { return String(value || '').replace(/\u0000/g, '').trim().slice(0, max); }
 function parseJson(value, fallback) { try { const out = JSON.parse(value || ''); return out ?? fallback; } catch (_) { return fallback; } }
+function brandUrlCandidates(value) {
+  const raw = clean(value, 2000);
+  if (!raw) return [];
+  const seeded = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : 'https://' + raw;
+  const normalized = postStudio.normalizeUrl(seeded);
+  if (!normalized) return [];
+  const output = [normalized];
+  try {
+    const parsed = new URL(normalized);
+    const alternate = new URL(normalized);
+    alternate.protocol = 'https:';
+    alternate.hostname = /^www\./i.test(parsed.hostname)
+      ? parsed.hostname.replace(/^www\./i, '')
+      : 'www.' + parsed.hostname;
+    const alt = postStudio.normalizeUrl(alternate.toString());
+    if (alt && !output.includes(alt)) output.push(alt);
+  } catch (_) {}
+  return output;
+}
 function json(value) { return JSON.stringify(value ?? null); }
 function id() { return crypto.randomUUID(); }
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
@@ -358,16 +377,25 @@ async function ensureAvatarReference(userId, row) {
 }
 
 async function analyzeBrand(userId, input) {
-  const raw = clean(input.url, 2000);
-  const candidate = raw && /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : raw ? 'https://' + raw : '';
-  const normalized = postStudio.normalizeUrl(candidate);
-  if (!normalized) throw publicError('Enter a public website or product page.', 'UGC_BRAND_URL_INVALID', 400);
+  const candidates = brandUrlCandidates(input.url);
+  if (!candidates.length) throw publicError('Enter a public website or product page.', 'UGC_BRAND_URL_INVALID', 400);
   if (!input.refresh) {
-    const cached = await prisma.$queryRawUnsafe('SELECT * FROM "UGCBrandProfile" WHERE "userId"=$1 AND "websiteUrl"=$2 ORDER BY "updatedAt" DESC LIMIT 1', userId, normalized);
+    const cached = await prisma.$queryRawUnsafe(
+      'SELECT * FROM "UGCBrandProfile" WHERE "userId"=$1 AND "websiteUrl" = ANY($2::text[]) ORDER BY "updatedAt" DESC LIMIT 1',
+      userId, candidates
+    );
     if (cached[0]) return publicBrand(cached[0]);
   }
-  const context = await postStudio.fetchUrlContext(normalized);
-  if (context.error && !context.text) throw publicError(context.error, 'UGC_BRAND_ANALYSIS_FAILED', 422);
+
+  let context = null;
+  let lastFailure = null;
+  for (const candidate of candidates) {
+    const result = await postStudio.fetchUrlContext(candidate);
+    if (!result.error || result.text) { context = result; break; }
+    lastFailure = result;
+  }
+  if (!context) throw publicError(lastFailure?.error || 'I could not read this page.', 'UGC_BRAND_ANALYSIS_FAILED', 422);
+  const normalized = context.url || candidates[0];
   const parsed = await postStudio.callChatModel(postStudio.REASONING_MODEL, [
     { role: 'system', content: [
       'You are the brand and product intelligence layer for INXSocial UGC Studio.',
@@ -1397,7 +1425,7 @@ async function regenerateScene(userId, sceneId) {
 }
 
 module.exports = {
-  STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds,
+  STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds, brandUrlCandidates,
   creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
   narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
   getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, deleteCampaign, getAd, updateAd, regenerateAd, regenerateScene,
