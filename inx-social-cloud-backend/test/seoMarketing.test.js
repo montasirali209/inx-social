@@ -30,8 +30,8 @@ test('homepage exposes complete canonical SEO metadata', () => {
   assert.match(landing, /og:image:type" content="image\/jpeg"/);
   assert.match(landing, /og:image:width" content="1200"/);
   assert.match(landing, /og:image:height" content="630"/);
-  assert.match(landing, /og:image" content="https:\/\/www\.inxsocial\.co\.uk\/assets\/inxsocial-social-preview-v2\.jpg"/);
-  assert.match(landing, /twitter:image" content="https:\/\/www\.inxsocial\.co\.uk\/assets\/inxsocial-social-preview-v2\.jpg"/);
+  assert.match(landing, /og:image" content="https:\/\/www\.inxsocial\.co\.uk\/assets\/inxsocial-social-preview-v3\.jpg"/);
+  assert.match(landing, /twitter:image" content="https:\/\/www\.inxsocial\.co\.uk\/assets\/inxsocial-social-preview-v3\.jpg"/);
   assert.match(landing, /rel="preload" as="image" href="\/assets\/landing-dashboard-20260919\.webp"/);
   assert.match(landing, /"SoftwareApplication"/);
   assert.doesNotMatch(landing, /"url":"https:\/\/www\.inxsocial\.co\.uk\/#pricing"/);
@@ -145,14 +145,23 @@ test('canonical SEO pages retain resilient 200 fallbacks and deep internal links
 test('homepage social card is a dedicated JPEG hero preview served with crawler-safe headers', () => {
   const app = readBackend('src/app.js');
   const layout = readRepo('landing-next/app/layout.tsx');
-  assert.match(app, /SOCIAL_PREVIEW_ASSET_PATH = '\/assets\/inxsocial-social-preview-v2\.jpg'/);
+  assert.match(app, /SOCIAL_PREVIEW_ASSET_PATH = '\/assets\/inxsocial-social-preview-v3\.jpg'/);
   assert.match(app, /buildSocialPreviewAsset/);
-  assert.match(app, /resize\(620, 349/);
+  assert.match(app, /resize\(720, 405/);
   assert.match(app, /res\.type\('image\/jpeg'\)/);
   assert.match(app, /max-age=31536000, immutable/);
   assert.match(layout, /summary_large_image/);
-  assert.match(layout, /https:\/\/www\.inxsocial\.co\.uk\/assets\/inxsocial-social-preview-v2\.jpg/);
+  assert.match(layout, /https:\/\/www\.inxsocial\.co\.uk\/assets\/inxsocial-social-preview-v3\.jpg/);
   assert.match(layout, /width: 1200/);
   assert.match(layout, /height: 630/);
   assert.match(layout, /type: "image\/jpeg"/);
+});
+
+
+test('homepage social preview is font-independent and uses raster brand/dashboard assets', () => {
+  const app = readBackend('src/app.js');
+  assert.match(app, /inx-social-wordmark\.png/);
+  assert.match(app, /resize\(720, 405/);
+  assert.doesNotMatch(app, /<text\s/);
+  assert.doesNotMatch(app, /font-family=/);
 });
