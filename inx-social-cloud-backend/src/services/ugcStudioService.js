@@ -77,7 +77,7 @@ const avatarSeeds = [
   ["Hannah","Education","Woman","25–34","en-GB","Serena","educational creator, clear friendly professional look, simple smart-casual wardrobe"],
   ["Layla","Ecommerce","Woman","25–34","en-GB","Priya","ecommerce creator, contemporary stylish appearance, energetic product-review presence"],
   ["Megan","Lifestyle","Woman","45–54","en-GB","Olivia","mature lifestyle creator, confident approachable appearance, elegant casual styling"],
-  ["Claire","Home","Woman","55–64","en-GB","Claire","mature home creator, warm trustworthy appearance, natural polished casual wardrobe"],
+  ["Claire","Home","Woman","55–64","en-GB","Pippa","mature home creator, warm trustworthy appearance, natural polished casual wardrobe"],
   ["Diana","Wellness","Woman","65+","en-GB","Sophie","senior wellness creator, warm trustworthy face, elegant everyday styling"],
   ["Jasmine","Fashion","Woman","25–34","en-US","Jessica","American fashion creator, polished street style, authentic mobile-video presence"],
   ["Ava","Beauty","Woman","18–24","en-US","Chloe","American beauty creator, youthful natural makeup, creator-native casual styling"],
