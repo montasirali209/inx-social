@@ -12,6 +12,7 @@ const { runStorageDiagnostics } = require('./services/storageDiagnosticsService'
 const { startAgentAssetBucketBackfill } = require('./services/agentAssetBucketBackfillService');
 const { runOneOffXTextSanitizer } = require('./services/oneOffXTextSanitizer');
 const { startUGCStudioRuntime } = require('./services/ugcStudioService');
+const { startAIPostCampaignRuntime } = require('./services/aiPostCampaignService');
 const aiCredits = require('./services/aiCreditService');
 const stripeService = require('./services/stripeService');
 
@@ -55,6 +56,7 @@ const server = app.listen(env.port, () => {
   startAnalyticsCacheRuntime();
   startBulkCancellationRuntime();
   startUGCStudioRuntime();
+  void startAIPostCampaignRuntime();
   console.info('[AI CREDIT CONFIG]', JSON.stringify(aiCredits.configurationSnapshot()));
   console.info('[STRIPE PLAN CONFIG]', JSON.stringify(stripeService.configurationSnapshot()));
   void runStorageDiagnostics();

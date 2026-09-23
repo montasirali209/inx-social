@@ -6,6 +6,9 @@ const CAMPAIGN_INCLUDE = {
   posts: { orderBy: { sequence: 'asc' } }
 };
 
+const activeCampaignRenders = new Set();
+let campaignRuntimeStarted = false;
+
 function publicError(message, status = 400, code = 'AI_CAMPAIGN_ERROR') {
   const error = new Error(message);
   error.status = status;
@@ -500,13 +503,7 @@ async function generateCampaign(userId, input) {
     include: CAMPAIGN_INCLUDE
   });
 
-  if (normalizedInput.imagePostCount) {
-    const failures = await renderCampaignImages(userId, campaign, brandPack);
-    await prisma.aiPostCampaign.update({
-      where: { id: campaign.id },
-      data: { status: failures.length ? 'PARTIAL' : 'READY', updatedAt: new Date() }
-    });
-  }
+  if (normalizedInput.imagePostCount) queueCampaignRender(userId, campaign.id);
 
   return getCampaign(userId, campaign.id);
 }
@@ -736,7 +733,7 @@ async function renderCampaignPostImage(userId, campaign, post, brandPack = {}) {
 }
 
 async function renderCampaignImages(userId, campaign, brandPack = {}) {
-  const pending = (campaign.posts || []).filter(post => post.contentType === 'IMAGE');
+  const pending = (campaign.posts || []).filter(post => post.contentType === 'IMAGE' && !post.mediaAssetId);
   const failures = [];
   let cursor = 0;
   const workerCount = Math.min(3, pending.length);
@@ -756,6 +753,63 @@ async function renderCampaignImages(userId, campaign, brandPack = {}) {
 
   await Promise.all(Array.from({ length: workerCount }, () => worker()));
   return failures;
+}
+
+async function processCampaignRender(userId, campaignId) {
+  const campaign = await prisma.aiPostCampaign.findFirst({
+    where: { id: campaignId, userId },
+    include: CAMPAIGN_INCLUDE
+  });
+  if (!campaign || campaign.status !== 'GENERATING_IMAGES') return;
+  const analysis = parseJson(campaign.analysisJson, {});
+  const brandPack = analysis.brandPack || (Array.isArray(analysis.brandReferences) ? analysis.brandReferences : []);
+  try {
+    const failures = await renderCampaignImages(userId, campaign, brandPack);
+    const refreshed = await prisma.aiPostCampaign.findUnique({ where: { id: campaignId }, include: CAMPAIGN_INCLUDE });
+    if (!refreshed) return;
+    const imagePosts = refreshed.posts.filter(post => post.contentType === 'IMAGE');
+    const ready = imagePosts.filter(post => Boolean(post.mediaAssetId)).length;
+    const status = ready === imagePosts.length ? 'READY' : failures.length ? 'PARTIAL' : 'GENERATING_IMAGES';
+    await prisma.aiPostCampaign.update({
+      where: { id: campaignId },
+      data: { status, updatedAt: new Date() }
+    });
+  } catch (error) {
+    console.error('[AI CAMPAIGN BACKGROUND]', campaignId, clean(error?.message, 600));
+    await prisma.aiPostCampaign.update({
+      where: { id: campaignId },
+      data: { status: 'PARTIAL', updatedAt: new Date() }
+    }).catch(() => {});
+  }
+}
+
+function queueCampaignRender(userId, campaignId) {
+  const key = String(campaignId);
+  if (activeCampaignRenders.has(key)) return;
+  activeCampaignRenders.add(key);
+  setImmediate(() => {
+    void processCampaignRender(userId, campaignId)
+      .catch(error => console.error('[AI CAMPAIGN QUEUE]', key, clean(error?.message, 600)))
+      .finally(() => activeCampaignRenders.delete(key));
+  });
+}
+
+async function startAIPostCampaignRuntime() {
+  if (campaignRuntimeStarted) return;
+  campaignRuntimeStarted = true;
+  try {
+    const pending = await prisma.aiPostCampaign.findMany({
+      where: { status: 'GENERATING_IMAGES' },
+      select: { id: true, userId: true },
+      orderBy: { updatedAt: 'asc' },
+      take: 100
+    });
+    pending.forEach(campaign => queueCampaignRender(campaign.userId, campaign.id));
+    if (pending.length) console.info('[AI CAMPAIGN RUNTIME]', 'Resumed ' + pending.length + ' background campaign render' + (pending.length === 1 ? '' : 's') + '.');
+  } catch (error) {
+    campaignRuntimeStarted = false;
+    console.error('[AI CAMPAIGN RUNTIME]', clean(error?.message, 600));
+  }
 }
 
 async function generatePostImage(userId, campaignId, postId) {
@@ -803,5 +857,8 @@ module.exports = {
   renderCampaignPostImage,
   normaliseCampaignBrandPack,
   exactProductVisualNeeded,
-  campaignBrandReferences
+  campaignBrandReferences,
+  queueCampaignRender,
+  processCampaignRender,
+  startAIPostCampaignRuntime
 };

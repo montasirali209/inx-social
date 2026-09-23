@@ -8,11 +8,15 @@ import {
   PlugZap,
   Clapperboard,
   Film,
+  Sparkles,
+  WandSparkles,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getVideoProductions } from '../../lib/ai-content-studio-api'
-import type { GenerationHistoryItem } from '../../types/ai-content-studio'
+import { getAIPostCampaigns, getVideoProductions } from '../../lib/ai-content-studio-api'
+import { getUGCCampaigns } from '../../lib/ugc-studio-api'
+import type { AIPostCampaign, GenerationHistoryItem } from '../../types/ai-content-studio'
+import type { UGCCampaign } from '../../types/ugc-studio'
 import type { StudioOverview } from '../../types/dashboard'
 
 type NotificationTone = 'danger' | 'warning' | 'info' | 'success'
@@ -56,7 +60,12 @@ function videoKind(item: GenerationHistoryItem) {
   return item.type === 'stock_video' || String(item.provider || '').toLowerCase().includes('openmontage') ? 'stock' : 'generative'
 }
 
-function workspaceNotifications(overview?: StudioOverview, videos: GenerationHistoryItem[] = []): WorkspaceNotification[] {
+function workspaceNotifications(
+  overview?: StudioOverview,
+  videos: GenerationHistoryItem[] = [],
+  ugcCampaigns: UGCCampaign[] = [],
+  aiCampaigns: AIPostCampaign[] = [],
+): WorkspaceNotification[] {
   const notices: WorkspaceNotification[] = []
   const activeWork = overview ? overview.summary.queued + overview.summary.processing : 0
   const reconnects = overview ? overview.pages.filter((page) => page.status !== 'ACTIVE').length : 0
@@ -87,6 +96,61 @@ function workspaceNotifications(overview?: StudioOverview, videos: GenerationHis
       count: 1,
       tone: 'success',
       icon: kind === 'stock' ? Clapperboard : Film,
+    })
+  })
+
+  const activeUgc = ugcCampaigns.filter((campaign) => ['RESERVING', 'QUEUED', 'RENDERING', 'PLANNING'].includes(campaign.status))
+  const readyUgc = ugcCampaigns.filter((campaign) => ['READY', 'PARTIAL'].includes(campaign.status)).slice(0, 2)
+  if (activeUgc.length) {
+    const ads = activeUgc.flatMap((campaign) => campaign.ads)
+    const ready = ads.filter((ad) => ad.status === 'READY').length
+    notices.push({
+      id: `ugc-rendering-${activeUgc.map((campaign) => campaign.id).sort().join('-')}`,
+      title: 'UGC creation is running',
+      description: `${activeUgc.length} campaign${activeUgc.length === 1 ? '' : 's'} rendering in the background · ${ready}/${ads.length} variation${ads.length === 1 ? '' : 's'} ready.`,
+      href: '/app/ai-content-studio?ugc=1',
+      count: activeUgc.length,
+      tone: 'info',
+      icon: Sparkles,
+    })
+  }
+  readyUgc.forEach((campaign) => {
+    const ready = campaign.ads.filter((ad) => ad.status === 'READY').length
+    notices.push({
+      id: `ugc-ready-${campaign.id}`,
+      title: campaign.status === 'PARTIAL' ? 'UGC campaign is partially ready' : 'UGC campaign is ready',
+      description: `${campaign.title} · ${ready}/${campaign.ads.length} finished video${campaign.ads.length === 1 ? '' : 's'} available to edit or schedule.`,
+      href: '/app/ai-content-studio?ugc=1',
+      count: Math.max(1, ready),
+      tone: campaign.status === 'PARTIAL' ? 'warning' : 'success',
+      icon: Sparkles,
+    })
+  })
+
+  const activeAiCampaigns = aiCampaigns.filter((campaign) => campaign.status === 'GENERATING_IMAGES')
+  const readyAiCampaigns = aiCampaigns.filter((campaign) => ['READY', 'PARTIAL'].includes(campaign.status)).slice(0, 2)
+  if (activeAiCampaigns.length) {
+    const total = activeAiCampaigns.reduce((sum, campaign) => sum + campaign.counts.imagePosts, 0)
+    const ready = activeAiCampaigns.reduce((sum, campaign) => sum + campaign.counts.withImages, 0)
+    notices.push({
+      id: `ai-campaign-rendering-${activeAiCampaigns.map((campaign) => campaign.id).sort().join('-')}`,
+      title: 'AI campaign visuals are generating',
+      description: `${ready}/${total} campaign image${total === 1 ? '' : 's'} ready. You can keep working while INXSocial finishes the rest.`,
+      href: '/app/ai-content-studio?campaign=recent',
+      count: activeAiCampaigns.length,
+      tone: 'info',
+      icon: WandSparkles,
+    })
+  }
+  readyAiCampaigns.forEach((campaign) => {
+    notices.push({
+      id: `ai-campaign-ready-${campaign.id}`,
+      title: campaign.status === 'PARTIAL' ? 'AI campaign needs a quick review' : 'AI campaign is ready',
+      description: `${campaign.title} · ${campaign.counts.ready}/${campaign.counts.total} posts prepared for review and scheduling.`,
+      href: '/app/ai-content-studio?campaign=recent',
+      count: 1,
+      tone: campaign.status === 'PARTIAL' ? 'warning' : 'success',
+      icon: WandSparkles,
     })
   })
 
@@ -145,13 +209,28 @@ export function NotificationCenter({ overview }: { overview?: StudioOverview }) 
     refetchInterval: (state) => state.state.data?.some((item) => ['preparing', 'generating', 'processing'].includes(item.status)) ? 5000 : 30_000,
     staleTime: 3000,
   })
-  const notices = useMemo(() => workspaceNotifications(overview, videosQuery.data || []), [overview, videosQuery.data])
+  const ugcQuery = useQuery({
+    queryKey: ['ugc-campaigns', 'notifications'],
+    queryFn: () => getUGCCampaigns(8),
+    refetchInterval: (state) => state.state.data?.some((campaign) => ['RESERVING', 'QUEUED', 'RENDERING', 'PLANNING'].includes(campaign.status)) ? 5000 : 30_000,
+    staleTime: 3000,
+  })
+  const aiCampaignQuery = useQuery({
+    queryKey: ['ai-post-campaigns', 'notifications'],
+    queryFn: () => getAIPostCampaigns(8),
+    refetchInterval: (state) => state.state.data?.some((campaign) => campaign.status === 'GENERATING_IMAGES') ? 5000 : 30_000,
+    staleTime: 3000,
+  })
+  const notices = useMemo(
+    () => workspaceNotifications(overview, videosQuery.data || [], ugcQuery.data || [], aiCampaignQuery.data || []),
+    [overview, videosQuery.data, ugcQuery.data, aiCampaignQuery.data],
+  )
   const [open, setOpen] = useState(false)
   const [readIds, setReadIds] = useState<string[]>(parseStoredReadIds)
   const readSet = useMemo(() => new Set(readIds), [readIds])
   const containerRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const notificationsReady = Boolean(overview) && !videosQuery.isLoading
+  const notificationsReady = Boolean(overview) && !videosQuery.isLoading && !ugcQuery.isLoading && !aiCampaignQuery.isLoading
   const unreadCount = notificationsReady ? notices.filter((notice) => !readSet.has(notice.id)).length : 0
 
   useEffect(() => {
@@ -228,14 +307,15 @@ export function NotificationCenter({ overview }: { overview?: StudioOverview }) 
           </header>
 
           <div className="max-h-[min(430px,65vh)] space-y-2 overflow-y-auto p-3 scrollbar-thin">
-            {!overview && videosQuery.isLoading ? (
+            {!overview && (videosQuery.isLoading || ugcQuery.isLoading || aiCampaignQuery.isLoading) ? (
               <div aria-label="Loading notifications" className="space-y-2" role="status">
                 {Array.from({ length: 3 }, (_, index) => <div className="h-[74px] animate-pulse rounded-xl bg-white/[.04] motion-reduce:animate-none" key={index} />)}
               </div>
             ) : notices.length ? notices.map((notice) => {
               const Icon = notice.icon
               return (
-                <a className="group flex items-start gap-3 rounded-xl border border-transparent p-2.5 transition duration-200 hover:border-brand-cyan/15 hover:bg-white/[.035] focus-visible:outline-2 focus-visible:outline-brand-cyan motion-reduce:transition-none" href={notice.href} key={notice.id} onClick={() => setOpen(false)}>
+                <a className="group relative flex items-start gap-3 rounded-xl border border-transparent p-2.5 transition duration-200 hover:-translate-y-0.5 hover:border-brand-cyan/15 hover:bg-white/[.035] focus-visible:outline-2 focus-visible:outline-brand-cyan motion-reduce:transform-none motion-reduce:transition-none" href={notice.href} key={notice.id} onClick={() => setOpen(false)}>
+                  {!readSet.has(notice.id) ? <span className="absolute right-2 top-2 flex size-2"><span className="absolute inline-flex size-full animate-ping rounded-full bg-brand-cyan opacity-50 motion-reduce:animate-none" /><span className="relative inline-flex size-2 rounded-full bg-brand-cyan" /></span> : null}
                   <span className={`grid size-10 shrink-0 place-items-center rounded-xl border ${toneStyles[notice.tone]}`}><Icon aria-hidden="true" className="size-[18px]" /></span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-start justify-between gap-3"><strong className="text-xs text-text-main">{notice.title}</strong><span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-text-muted">{notice.count}</span></span>

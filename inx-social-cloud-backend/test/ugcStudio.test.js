@@ -91,3 +91,16 @@ test('UGC captions emit valid SRT timestamp rows', () => {
   assert.match(srt, /00:00:00,000 --> 00:00:05,000/);
   assert.doesNotMatch(srt, /00:00:00,000\n--> /);
 });
+
+
+test('UGC website analysis accepts a bare domain without requiring protocol or www', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.resolve(__dirname, '..');
+  const service = fs.readFileSync(path.join(root, 'src/services/ugcStudioService.js'), 'utf8');
+  const wizard = fs.readFileSync(path.join(root, 'frontend/src/components/ai-content-studio/UGCWizardModal.tsx'), 'utf8');
+
+  assert.match(service, /raw \? 'https:\/\/' \+ raw : ''/);
+  assert.match(wizard, /yourbrand\.com/);
+  assert.doesNotMatch(wizard, /placeholder=\{sourceType === 'PRODUCT' \? 'https:\/\/shop\.com\/product'/);
+});

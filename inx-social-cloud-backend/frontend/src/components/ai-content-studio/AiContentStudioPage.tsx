@@ -54,7 +54,7 @@ export function AiContentStudioPage() {
   const queryClient = useQueryClient()
   const requestedVideoKind = searchParams.get('videoStudio') === 'stock' ? 'stock' : searchParams.get('videoStudio') === 'generative' ? 'generative' : null
   const requestedGenerationId = searchParams.get('generation')
-  const requestedCampaign = searchParams.get('campaign') === 'new'
+  const requestedCampaign = Boolean(searchParams.get('campaign'))
   const requestedUGC = searchParams.get('ugc') === '1'
   const [activeType, setActiveType] = useState<AIContentType | null>(() => requestedVideoKind ? 'short_video' : null)
   const [editingDraft, setEditingDraft] = useState<AIDraft | null>(null)
