@@ -21,7 +21,7 @@ test('AI Campaign uses one visual builder with text, image and mixed modes', () 
   assert.match(modal, /imagePostCount/);
   assert.match(modal, /SocialPlatformIcon/);
   assert.match(modal, /Campaign workspace/);
-  assert.match(modal, /Recent work/);
+  assert.match(modal, /Preview/);
   assert.match(modal, /scrollIntoView/);
   assert.doesNotMatch(modal, />Tone</);
 
@@ -111,7 +111,7 @@ test('campaign images open in a full-size preview', () => {
   assert.match(modal, /Open full image for post/);
   assert.match(modal, /View full image/);
   assert.match(modal, /Campaign image preview/);
-  assert.match(modal, /max-h-\[72dvh\]/);
+  assert.match(modal, /max-h-\[90dvh\]/);
 });
 
 
@@ -134,7 +134,7 @@ test('AI Studio creator modals and campaign card use shared motion and centered 
   assert.match(campaign, /grid place-items-center/);
   assert.match(campaign, /sm:h-\[min\(94dvh,980px\)\]/);
   assert.match(campaign, /Social platforms/);
-  assert.match(campaign, /overflow-x-auto/);
+  assert.match(campaign, /mt-3 flex flex-wrap gap-2/);
   assert.match(campaign, /text-\[11px\].*Content mix|Content mix[\s\S]*text-\[11px\]/);
   assert.match(campaign, /ai-campaign-3d-card/);
 
@@ -142,4 +142,62 @@ test('AI Studio creator modals and campaign card use shared motion and centered 
   assert.match(page, /Text posts/);
   assert.match(page, /Image posts/);
   assert.match(page, /Mixed campaigns/);
+});
+
+
+test('AI campaign generation automatically renders image posts and preflights credits', () => {
+  const service = read('src/services/aiPostCampaignService.js');
+  const modal = read('frontend/src/components/ai-content-studio/AiPostCampaignModal.tsx');
+
+  assert.match(service, /requiredImageCredits/);
+  assert.match(service, /AI_CAMPAIGN_IMAGE_CREDITS_INSUFFICIENT/);
+  assert.match(service, /GENERATING_IMAGES/);
+  assert.match(service, /renderCampaignImages/);
+  assert.match(service, /renderCampaignPostImage/);
+  assert.match(service, /postStudio\.IMAGE_CREDITS/);
+  assert.match(service, /brandReferences/);
+
+  assert.match(modal, /automatically with the campaign/);
+  assert.match(modal, /Generating campaign…/);
+  assert.match(modal, /Generating campaign visuals/);
+  assert.match(modal, /Generating now/);
+  assert.match(modal, /setSelectedCampaign\(null\)/);
+  assert.match(modal, /Retry image generation/);
+});
+
+test('campaign workspace prevents horizontal modal scrolling and separates text from image posts', () => {
+  const modal = read('frontend/src/components/ai-content-studio/AiPostCampaignModal.tsx');
+
+  assert.match(modal, /overflow-x-hidden overflow-y-auto/);
+  assert.match(modal, /Text campaign posts/);
+  assert.match(modal, /Image campaign posts/);
+  assert.match(modal, /campaignTextPosts\.map/);
+  assert.match(modal, /campaignImagePosts\.map/);
+  assert.doesNotMatch(modal, /mt-3 flex gap-2 overflow-x-auto/);
+});
+
+test('website analysis extracts official brand references for campaign image grounding', () => {
+  const studio = read('src/services/aiPostStudioServiceV2.js');
+  const service = read('src/services/aiPostCampaignService.js');
+
+  assert.match(studio, /extractBrandReferences/);
+  assert.match(studio, /remoteReferenceAssets/);
+  assert.match(studio, /brandReferences/);
+  assert.match(studio, /Never invent a replacement logo/);
+  assert.match(studio, /If no official logo reference is available, do not fabricate a logo/);
+  assert.match(studio, /referenceUrls/);
+
+  assert.match(service, /referenceUrls:/);
+  assert.match(service, /official website references as visual truth/);
+  assert.match(service, /brandReferences: Array\.isArray\(context\?\.brandReferences\)/);
+});
+
+test('campaign image preview is a dedicated body portal with reliable click target', () => {
+  const modal = read('frontend/src/components/ai-content-studio/AiPostCampaignModal.tsx');
+
+  assert.match(modal, /CampaignImageLightbox/);
+  assert.match(modal, /z-\[260\]/);
+  assert.match(modal, /data-campaign-image-preview/);
+  assert.match(modal, /event\.stopPropagation\(\)/);
+  assert.match(modal, /cursor-zoom-in/);
 });
