@@ -81,11 +81,9 @@ function Rail({
   furthest: number
   onStep: (step: number) => void
 }) {
-  let lastGroup = ''
   return <aside className="ugc-wizard-rail">
     {steps.map((step, index) => {
-      const groupChanged = step.group !== lastGroup
-      lastGroup = step.group
+      const groupChanged = index === 0 || steps[index - 1].group !== step.group
       const done = index < current
       const active = index === current
       const reachable = index <= furthest
@@ -193,31 +191,10 @@ export function UGCWizardModal({
       ]
 
   useEffect(() => {
-    if (!open) return
-    setStep(0)
-    setFurthest(0)
-    setProductUrl('')
-    setManualMode(false)
-    setDescription('')
-    setBrand(null)
-    setCreatorMode('AUTO')
-    setAvatarId(null)
-    setShowAllCreators(false)
-    setCustomCreatorOpen(false)
-    setWorkingReady(false)
-    setDuration(30)
-    setAdCount(5)
-    setQuality('STANDARD')
-    setCampaignId(null)
-    setError('')
-  }, [open])
-
-  useEffect(() => {
-    if (steps[step]?.key !== 'working') return
-    setWorkingReady(false)
+    if (steps[step]?.key !== 'working' || workingReady) return
     const timer = window.setTimeout(() => setWorkingReady(true), 1400)
     return () => window.clearTimeout(timer)
-  }, [step, brand?.id])
+  }, [step, brand?.id, workingReady])
 
   useEffect(() => {
     if (!campaign.data || !terminal.has(campaign.data.status)) return
@@ -263,8 +240,31 @@ export function UGCWizardModal({
 
   function moveTo(next: number) {
     const bounded = Math.max(0, Math.min(steps.length - 1, next))
+    if (bounded === 3 && step !== 3) setWorkingReady(false)
     setStep(bounded)
     setFurthest((current) => Math.max(current, bounded))
+  }
+
+  function closeWizard() {
+    setStep(0)
+    setFurthest(0)
+    setProductUrl('')
+    setManualMode(false)
+    setDescription('')
+    setBrand(null)
+    setCreatorMode('AUTO')
+    setAvatarId(null)
+    setShowAllCreators(false)
+    setCustomCreatorOpen(false)
+    setAvatarName('')
+    setAvatarPrompt('')
+    setWorkingReady(false)
+    setDuration(30)
+    setAdCount(5)
+    setQuality('STANDARD')
+    setCampaignId(null)
+    setError('')
+    onClose()
   }
 
   async function uploadAvatar(file: File | undefined) {
@@ -307,7 +307,7 @@ export function UGCWizardModal({
       onToast('Wait for at least one finished UGC ad before scheduling.')
       return
     }
-    onClose()
+    closeWizard()
     navigate('/bulk-scheduler', { state })
   }
 
@@ -320,14 +320,14 @@ export function UGCWizardModal({
   const progress = campaign.data?.ads.length ? Math.round(((readyAds + failedAds) / campaign.data.ads.length) * 100) : 0
   const insufficient = Boolean(estimate.data && remaining < estimate.data.credits)
 
-  return <div className="ugc-wizard-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && currentKey !== 'finish') onClose() }}>
+  return <div className="ugc-wizard-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && currentKey !== 'finish') closeWizard() }}>
     <section aria-label="UGC Ad Studio" aria-modal="true" className="ugc-wizard-panel" role="dialog">
       <header className="ugc-wizard-header">
         <div>
           <span className="ugc-wizard-eyebrow">UGC AD STUDIO</span>
           <span className="ugc-wizard-step-count">Step {step + 1} of {steps.length}</span>
         </div>
-        <button aria-label="Close UGC Studio" className="ugc-wizard-close" onClick={onClose} type="button"><X className="size-4" /></button>
+        <button aria-label="Close UGC Studio" className="ugc-wizard-close" onClick={closeWizard} type="button"><X className="size-4" /></button>
         <div className="ugc-wizard-progress"><span style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div>
       </header>
 
@@ -441,11 +441,11 @@ export function UGCWizardModal({
               </div>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                {(campaign.data?.ads || []).map((ad) => <article className="ugc-wizard-output-card" key={ad.id}><div><span className="ugc-wizard-mini-label">VARIATION {ad.sequence}</span><strong>{ad.title}</strong><p>{ad.hook || ad.angle}</p></div><div className="flex items-center justify-between gap-2"><span className={`ugc-wizard-output-status ${ad.status.toLowerCase()}`}>{ad.status}</span><Button disabled={['QUEUED','RENDERING','RESERVING'].includes(ad.status)} onClick={() => { onClose(); navigate(`/ai-content-studio/ugc/${ad.id}/edit`) }} size="sm">Edit</Button></div></article>)}
+                {(campaign.data?.ads || []).map((ad) => <article className="ugc-wizard-output-card" key={ad.id}><div><span className="ugc-wizard-mini-label">VARIATION {ad.sequence}</span><strong>{ad.title}</strong><p>{ad.hook || ad.angle}</p></div><div className="flex items-center justify-between gap-2"><span className={`ugc-wizard-output-status ${ad.status.toLowerCase()}`}>{ad.status}</span><Button disabled={['QUEUED','RENDERING','RESERVING'].includes(ad.status)} onClick={() => { closeWizard(); navigate(`/ai-content-studio/ugc/${ad.id}/edit`) }} size="sm">Edit</Button></div></article>)}
               </div>
 
               <div className="ugc-wizard-footer">
-                <Button onClick={onClose}>Close</Button>
+                <Button onClick={closeWizard}>Close</Button>
                 <Button disabled={!campaign.data?.ads.some((ad) => ad.status === 'READY' && ad.mediaAssetId && assetsById.has(ad.mediaAssetId))} onClick={scheduleReady} variant="primary"><CalendarRange className="size-4" />Schedule ready ads</Button>
               </div>
             </>}
