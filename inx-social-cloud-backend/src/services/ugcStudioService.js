@@ -1326,7 +1326,7 @@ async function deleteCampaign(userId, campaignId) {
 }
 
 async function syncReadyAssetMetadata(userId, adId, input) {
-  const videoImpacting = input.avatarId !== undefined || input.script !== undefined || input.voice !== undefined || input.voicePrompt !== undefined;
+  const videoImpacting = input.avatarId !== undefined || input.script !== undefined || input.voice !== undefined || input.voicePrompt !== undefined || input.musicMode !== undefined || input.captionsEnabled !== undefined;
   if (videoImpacting) return false;
   const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCAd" WHERE "id"=$1 AND "userId"=$2 LIMIT 1', adId, userId);
   const ad = rows[0];
@@ -1356,7 +1356,7 @@ async function updateAd(userId, adId, input) {
   const nextScript = input.script !== undefined ? clean(input.script,12000) : row.script;
   await prisma.$executeRawUnsafe(
     'UPDATE "UGCAd" SET "avatarId"=COALESCE($3,"avatarId"),"script"=$4,"voice"=COALESCE($5,"voice"),"voicePrompt"=COALESCE($6,"voicePrompt"),"musicMode"=COALESCE($7,"musicMode"),"captionsEnabled"=COALESCE($8,"captionsEnabled"),"cta"=COALESCE($9,"cta"),"caption"=COALESCE($10,"caption"),"status"=CASE WHEN $2 THEN \'EDITED\' ELSE "status" END,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
-    adId, Boolean(input.avatarId !== undefined || input.script !== undefined || input.voice !== undefined || input.voicePrompt !== undefined),
+    adId, Boolean(input.avatarId !== undefined || input.script !== undefined || input.voice !== undefined || input.voicePrompt !== undefined || input.musicMode !== undefined || input.captionsEnabled !== undefined),
     input.avatarId ?? null, nextScript, input.voice ?? null, input.voicePrompt ?? null, input.musicMode ?? null,
     input.captionsEnabled ?? null, input.cta ?? null, input.caption ?? null
   );
