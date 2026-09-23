@@ -1202,7 +1202,60 @@ export function BulkSchedulerPage() {
       <BulkSchedulerStats jobs={schedulerData.jobs} onOpen={setHistoryView} />
       <div className="mt-4 scroll-mt-24" ref={destinationSection}><PublishingDestinationsPanel destinations={destinations} onSelectionChange={setSelectedIds} platforms={schedulerData.platforms} selectedIds={selectedIds} /></div>
       <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,.92fr)_minmax(0,1.08fr)]">
-        <UploadBatchPanel campaignImport={mixedCampaign ? { title: mixedCampaign.title, textPosts: mixedTextPosts.length, imagePosts: mixedImagePosts.length, total: mixedCampaign.posts.length } : null} canStart={canStart} captionCount={mixedCampaign ? mixedCampaign.posts.length : captionBlocks.length} captions={captions} contentMode={contentMode} disabledReason={disabledReason} media={media} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onContentModeChange={changeContentMode} onFallbackChange={setUseFallback} onMedia={selectMedia} onRetainMediaChange={setRetainMedia} onSmartTimingChange={setSmartTiming} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={requestStart} onTimingModeChange={setTimingMode} retainMedia={retainMedia} smartTiming={smartTiming} running={running} savedScheduleTimes={schedulerData.settings.defaultScheduleTimes} scheduleDate={scheduleDate} scheduleTimes={activeScheduleTimes} selectedDestinations={selectedIds.size} timezone={schedulerData.settings.timezone} timingMode={timingMode} useFallback={useFallback} />
+        <UploadBatchPanel
+          campaignError={campaignsQuery.isError ? (campaignsQuery.error instanceof Error ? campaignsQuery.error.message : 'Saved AI campaigns could not be loaded.') : ''}
+          campaignImport={mixedCampaign ? {
+            id: mixedCampaign.id,
+            title: mixedCampaign.title,
+            textPosts: mixedTextPosts.length,
+            imagePosts: mixedImagePosts.length,
+            total: mixedCampaign.posts.length,
+            posts: mixedCampaign.posts.map((post) => ({
+              id: post.id,
+              sequence: post.sequence,
+              title: post.title,
+              contentType: post.contentType,
+              caption: post.caption,
+              thumbnailUrl: post.media?.previewUrl || '',
+            })),
+          } : null}
+          campaignLoading={campaignsQuery.isLoading}
+          campaigns={campaignsQuery.data || []}
+          canStart={canStart}
+          captionCount={mixedCampaign ? mixedCampaign.posts.length : captionBlocks.length}
+          captions={captions}
+          contentMode={contentMode}
+          disabledReason={disabledReason}
+          media={media}
+          onCampaignClear={clearCampaignSelection}
+          onCampaignSelect={chooseSavedCampaign}
+          onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }}
+          onCaptionsChange={setCaptions}
+          onClear={clearSession}
+          onContentModeChange={changeContentMode}
+          onCreateCampaign={() => navigate('/ai-content-studio?campaign=new')}
+          onFallbackChange={setUseFallback}
+          onMedia={selectMedia}
+          onRetainMediaChange={setRetainMedia}
+          onSmartTimingChange={setSmartTiming}
+          onScheduleDateChange={setScheduleDate}
+          onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())}
+          onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))}
+          onStart={requestStart}
+          onTimingModeChange={setTimingMode}
+          onWorkspaceModeChange={changeWorkspaceMode}
+          retainMedia={retainMedia}
+          smartTiming={smartTiming}
+          running={running}
+          savedScheduleTimes={schedulerData.settings.defaultScheduleTimes}
+          scheduleDate={scheduleDate}
+          scheduleTimes={activeScheduleTimes}
+          selectedDestinations={selectedIds.size}
+          timezone={schedulerData.settings.timezone}
+          timingMode={timingMode}
+          useFallback={useFallback}
+          workspaceMode={workspaceMode}
+        />
         <div className="scroll-mt-24" ref={batchRunSection}><BatchRunPanel canStart={canStart} destinations={destinations} disabledReason={disabledReason} onRetry={retryFailedUpload} onStart={requestStart} onStop={stopUpload} progress={progress} results={results} retryingId={retryingId} running={running} /></div>
       </div>
       {historyView && <BulkScheduleManager initialView={historyView} jobs={schedulerData.jobs} onBulkCancelJobs={bulkCancelScheduledJobs} onBulkEditJobs={(jobs, rules) => { void bulkEditScheduledJobs(jobs, rules) }} onChanged={() => scheduler.refetch()} onClose={() => setHistoryView(null)} onRetryJobs={(jobs) => { void retryReviewJobs(jobs) }} timezone={schedulerData.settings.timezone} />}
