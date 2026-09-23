@@ -146,7 +146,6 @@ export type AIPostCampaignPost = {
   sequence: number
   status: string
   contentType: 'TEXT' | 'IMAGE'
-  title: string
   pillar?: string | null
   hook?: string | null
   caption: string
