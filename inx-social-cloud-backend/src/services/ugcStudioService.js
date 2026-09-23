@@ -1233,32 +1233,23 @@ async function renderAd(adId) {
     await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'READY\',"mediaAssetId"=$2,"errorMessage"=NULL,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id, asset.id);
     await credits.complete(ad.userId, ad.generationId, generationCredits);
     await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'COMPLETED\',"progress"=100,"providerCostUsd"=$2,"assetJson"=$3,"responseJson"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.generationId, providerCost, json({ id: asset.id, type: 'video', mediaLibraryAssetId: asset.id, url: asset.fileUrl, thumbnailUrl: asset.thumbnailUrl, creditsUsed: generationCredits }), json({ ugcAdId: ad.id, providerCostUsd: providerCost, creditsUsed: generationCredits }));
-    await ugcAnalytics.track(ad.userId, {
-      event: 'GENERATION_COMPLETED',
-      stage: 'generation',
-      campaignId: ad.campaignId,
-      adId: ad.id,
-      metadata: { quality: ad.quality, duration: ad.duration, status: 'READY', credits: generationCredits }
-    });
   } catch (error) {
     console.error('[UGC RENDER FAILED]', { adId, code: error?.code, error: clean(error?.message, 700) });
     await credits.refund(ad.userId, ad.generationId, error?.code || 'ugc_render_failed').catch(() => false);
     await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'FAILED\',"errorMessage"=$2,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id, clean(error?.publicMessage || error?.message || 'UGC rendering failed.', 700)).catch(() => {});
     await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'FAILED\',"errorCode"=$2,"errorMessage"=$3,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.generationId, clean(error?.code || 'UGC_RENDER_FAILED',120), clean(error?.publicMessage || error?.message,700)).catch(() => {});
-    await ugcAnalytics.track(ad.userId, {
-      event: 'GENERATION_FAILED',
-      stage: 'generation',
-      campaignId: ad.campaignId,
-      adId: ad.id,
-      metadata: { quality: ad.quality, duration: ad.duration, status: clean(error?.code || 'FAILED', 80), credits: generationCredits }
-    });
   } finally {
     await refreshCampaignStatus(ad.campaignId).catch(() => {});
   }
 }
 
 async function refreshCampaignStatus(campaignId) {
-  const rows = await prisma.$queryRawUnsafe('SELECT "status", COUNT(*)::int AS "count" FROM "UGCAd" WHERE "campaignId"=$1 GROUP BY "status"', campaignId);
+  const [rows, campaigns] = await Promise.all([
+    prisma.$queryRawUnsafe('SELECT "status", COUNT(*)::int AS "count" FROM "UGCAd" WHERE "campaignId"=$1 GROUP BY "status"', campaignId),
+    prisma.$queryRawUnsafe('SELECT * FROM "UGCCampaign" WHERE "id"=$1 LIMIT 1', campaignId)
+  ]);
+  const campaign = campaigns[0];
+  const previousStatus = campaign?.status || '';
   const counts = Object.fromEntries(rows.map(row => [row.status, Number(row.count)]));
   const total = Object.values(counts).reduce((a,b)=>a+b,0);
   let status = 'RENDERING';
@@ -1267,6 +1258,22 @@ async function refreshCampaignStatus(campaignId) {
   else if ((counts.FAILED || 0) > 0 && ((counts.READY || 0) + (counts.FAILED || 0) === total)) status = 'PARTIAL';
   else if ((counts.QUEUED || 0) === total) status = 'QUEUED';
   await prisma.$executeRawUnsafe('UPDATE "UGCCampaign" SET "status"=$2,"completedAt"=CASE WHEN $2 IN (\'READY\',\'PARTIAL\',\'FAILED\') THEN CURRENT_TIMESTAMP ELSE NULL END,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', campaignId, status);
+  if (campaign?.userId && ['READY','PARTIAL','FAILED'].includes(status) && !['READY','PARTIAL','FAILED'].includes(previousStatus)) {
+    await ugcAnalytics.track(campaign.userId, {
+      event: status === 'FAILED' ? 'GENERATION_FAILED' : 'GENERATION_COMPLETED',
+      stage: 'generation',
+      campaignId,
+      metadata: {
+        status,
+        quality: campaign.quality,
+        duration: campaign.duration,
+        variationCount: total,
+        readyCount: counts.READY || 0,
+        failedCount: counts.FAILED || 0,
+        credits: campaign.totalCredits
+      }
+    });
+  }
 }
 
 let runtimeTimer = null;
