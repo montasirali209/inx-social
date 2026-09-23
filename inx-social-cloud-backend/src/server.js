@@ -13,6 +13,7 @@ const { startAgentAssetBucketBackfill } = require('./services/agentAssetBucketBa
 const { runOneOffXTextSanitizer } = require('./services/oneOffXTextSanitizer');
 const { startUGCStudioRuntime } = require('./services/ugcStudioService');
 const aiCredits = require('./services/aiCreditService');
+const stripeService = require('./services/stripeService');
 
 async function verifyNextLandingUpstream() {
   if (!/^(?:1|true|yes|on)$/i.test(String(process.env.NEXT_LANDING_ENABLED || '').trim())) return;
@@ -55,6 +56,7 @@ const server = app.listen(env.port, () => {
   startBulkCancellationRuntime();
   startUGCStudioRuntime();
   console.info('[AI CREDIT CONFIG]', JSON.stringify(aiCredits.configurationSnapshot()));
+  console.info('[STRIPE PLAN CONFIG]', JSON.stringify(stripeService.configurationSnapshot()));
   void runStorageDiagnostics();
   startAgentAssetBucketBackfill();
   void verifyNextLandingUpstream();
