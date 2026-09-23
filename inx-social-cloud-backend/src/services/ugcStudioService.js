@@ -268,14 +268,14 @@ async function prepareVerticalBrandReference(brandRefs) {
     const source = assets[0].data;
     const background = await sharp(source, { animated: false })
       .rotate()
-      .resize({ width: 704, height: 1280, fit: 'cover' })
+      .resize({ width: 720, height: 1280, fit: 'cover' })
       .blur(24)
       .modulate({ brightness: 0.68, saturation: 0.8 })
       .png()
       .toBuffer();
     const foreground = await sharp(source, { animated: false })
       .rotate()
-      .resize({ width: 640, height: 1160, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .resize({ width: 656, height: 1160, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
       .png()
       .toBuffer();
     const vertical = await sharp(background)
@@ -321,7 +321,7 @@ async function ensureAvatarReference(userId, row) {
   }
   const generated = await runware.generateImages([row.prompt], { aspectRatio: '9:16', model: env.runware.imageModel });
   const remote = await download(generated.images[0].url, 12 * 1024 * 1024);
-  const normalized = await sharp(remote.data).rotate().resize({ width: 704, height: 1280, fit: 'cover' }).png().toBuffer();
+  const normalized = await sharp(remote.data).rotate().resize({ width: 720, height: 1280, fit: 'cover' }).png().toBuffer();
   const stored = await objectStorage.persistBuffer({
     userId: row.scope === 'SYSTEM' ? 'system-ugc' : userId,
     data: normalized, mimeType: 'image/png', originalName: 'ugc-avatar-' + row.id + '.png', prefix: 'ugc-avatar'
@@ -739,7 +739,7 @@ async function generateCustomAvatar(userId, input) {
     const prompt = 'Ultra-realistic reusable UGC creator portrait. ' + clean(input.prompt, 1000) + '. Vertical 9:16, waist-up, natural smartphone-camera realism, realistic skin, natural lighting, simple background, no text, no logo, no watermark.';
     const generated = await runware.generateImages([prompt], { aspectRatio: '9:16', model: env.runware.imageModel });
     const remote = await download(generated.images[0].url, 12 * 1024 * 1024);
-    const data = await sharp(remote.data).rotate().resize({ width: 704, height: 1280, fit: 'cover' }).png().toBuffer();
+    const data = await sharp(remote.data).rotate().resize({ width: 720, height: 1280, fit: 'cover' }).png().toBuffer();
     const avatarId = id();
     const stored = await objectStorage.persistBuffer({ userId, data, mimeType: 'image/png', originalName: 'ugc-avatar-' + avatarId + '.png', prefix: 'ugc-avatar' });
     await prisma.$executeRawUnsafe(
@@ -759,7 +759,7 @@ async function generateCustomAvatar(userId, input) {
 async function uploadCustomAvatar(userId, input) {
   if (!['image/png','image/jpeg','image/webp'].includes(input.mimeType)) throw publicError('Upload a PNG, JPEG or WebP portrait.', 'UGC_AVATAR_TYPE', 415);
   if (!Buffer.isBuffer(input.data) || !input.data.length) throw publicError('Choose a portrait image.', 'UGC_AVATAR_EMPTY', 400);
-  const data = await sharp(input.data).rotate().resize({ width: 704, height: 1280, fit: 'cover' }).png().toBuffer();
+  const data = await sharp(input.data).rotate().resize({ width: 720, height: 1280, fit: 'cover' }).png().toBuffer();
   const avatarId = id();
   const stored = await objectStorage.persistBuffer({ userId, data, mimeType: 'image/png', originalName: 'ugc-avatar-' + avatarId + '.png', prefix: 'ugc-avatar' });
   await prisma.$executeRawUnsafe(
@@ -925,72 +925,82 @@ async function generateSceneNarration(scene, ad, avatar) {
   return { taskUUID, audioURL: item.audioURL, cost: Number(item.cost || 0), voice };
 }
 
-async function renderProviderScene(scene, ad, avatar, brandReference, narration, onProgress) {
+async function renderProviderScene(scene, ad, avatar, productReference, narration, onProgress) {
   const taskUUID = id();
-  let model;
   const creatorLock = avatar ? [
-    'CHARACTER LOCK: use the supplied creator portrait as the exact same person.',
+    'CHARACTER LOCK: use the supplied creator portrait as the exact same real person.',
     'Preserve face shape, skin tone, age, hairstyle, hair colour, wardrobe and recognizable identity.',
-    'Do not morph the face, change gender presentation, add a second person, or redesign the creator between cuts.'
+    'Keep the same believable room/environment and camera treatment. Never morph the face or introduce a second person.',
+    'Natural creator behavior only: subtle breathing, blinking, eye contact, small head movement and restrained hand gestures.'
   ].join(' ') : '';
-  const productLock = brandReference ? 'PRODUCT LOCK: preserve the supplied product/reference identity, packaging, colours and proportions. Do not substitute or redesign it.' : '';
-  const base = {
-    taskType: 'videoInference', taskUUID, deliveryMethod: 'async', includeCost: true, outputType: 'URL',
-    positivePrompt: [
-      clean(scene.prompt, 4500),
-      'Authentic vertical 9:16 creator-native UGC, 720p, realistic smartphone-camera texture, natural micro-movements and believable social-video pacing. Avoid glossy cinematic-commercial styling unless explicitly requested.',
-      scene.kind === 'CREATOR' ? creatorLock : productLock,
-      narration ? 'Use the supplied narration audio exactly. It is the only spoken voice. Do not create another voice, dialogue, music or lyrics.' : 'No spoken dialogue unless explicitly supplied as audio.',
-      'No generated subtitles, captions, labels, watermarks, logos or other readable overlay text inside the frame.'
-    ].filter(Boolean).join('\n\n')
-  };
-  if (scene.route === 'AVATAR') {
-    model = AVATAR_MODEL();
+  const productLock = productReference
+    ? 'PRODUCT LOCK: preserve the supplied product/reference exactly — packaging, shape, colours, proportions and visible branding. Do not substitute, redesign or hallucinate another product.'
+    : '';
+  const positivePrompt = [
+    clean(scene.prompt, 1800),
+    'Authentic vertical 9:16 creator-native UGC. Realistic smartphone-camera exposure, real room depth, natural skin and fabric texture, grounded physics, subtle handheld stability, no plastic CGI appearance.',
+    scene.kind === 'CREATOR' ? creatorLock : productLock,
+    scene.kind === 'PRODUCT'
+      ? 'Frame the product clearly in a believable use context. Use realistic hands only when needed and keep interaction physically plausible.'
+      : 'The creator faces the camera naturally. Mouth motion should be suitable for later lip synchronization.',
+    'No generated subtitles, captions, labels, watermarks, interface graphics or extra readable text inside the frame.'
+  ].filter(Boolean).join('\n\n');
+
+  let reference = null;
+  if (scene.kind === 'CREATOR') {
     if (!avatar) throw publicError('This creator scene has no avatar.', 'UGC_AVATAR_REQUIRED', 422);
-    const ref = await ensureAvatarReference(ad.userId, avatar);
-    Object.assign(base, {
-      model, resolution: '720p',
-      inputs: { frameImages: [{ image: ref.dataUri, frame: 'first' }], ...(narration ? { audio: narration.audioURL } : {}) },
-      ...(narration ? {} : { speech: { text: clean(scene.script || ad.script, 6000), voice: ['man','male'].includes(clean(avatar.presentation, 40).toLowerCase()) ? 'Puck (Male)' : 'Aoede (Female)', language: clean(avatar.locale || 'en-GB', 20) } }),
-      settings: { promptUpsampling: true, safetyFilter: true, voicePrompt: clean(ad.voicePrompt || avatar.voicePrompt, 500) }
-    });
-  } else if (scene.route === 'KLING') {
-    model = PREMIUM_MODEL();
-    Object.assign(base, {
-      model, duration: Math.min(15, Number(scene.duration)), width: 720, height: 1280,
-      providerSettings: { klingai: { sound: narration ? false : true } }
-    });
-    const ref = scene.kind === 'CREATOR' && avatar ? await ensureAvatarReference(ad.userId, avatar) : null;
-    const reference = ref?.dataUri || brandReference || null;
-    if (reference) base.inputs = { referenceImages: [reference] };
+    reference = (await ensureAvatarReference(ad.userId, avatar)).dataUri;
   } else {
-    model = PVIDEO2_MODEL();
-    Object.assign(base, {
-      model, fps: 24,
-      settings: { promptUpsampling: true, draft: false },
-      ...(narration ? {} : { duration: Math.min(20, Number(scene.duration)) })
-    });
-    let reference = null;
-    if (scene.kind === 'CREATOR' && avatar) reference = (await ensureAvatarReference(ad.userId, avatar)).dataUri;
-    if (!reference) reference = brandReference || null;
-    const inputs = {};
-    if (narration) inputs.audio = narration.audioURL;
-    if (reference) {
-      base.resolution = '720p';
-      inputs.frameImages = [{ image: reference, frame: 'first' }];
-      base.inputs = inputs;
-    } else {
-      base.width = 704;
-      base.height = 1280;
-      if (Object.keys(inputs).length) base.inputs = inputs;
-    }
+    reference = productReference;
   }
+  if (!reference) throw publicError('This UGC scene needs a visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
+
+  const model = scene.route === 'KLING' ? PREMIUM_MODEL() : STANDARD_MODEL();
+  const base = {
+    taskType: 'videoInference',
+    taskUUID,
+    deliveryMethod: 'async',
+    includeCost: true,
+    outputType: 'URL',
+    outputFormat: 'MP4',
+    model,
+    positivePrompt,
+    duration: Number(scene.duration),
+    inputs: { frameImages: [{ image: reference, frame: 'first' }] }
+  };
+
+  if (scene.route === 'KLING') {
+    base.providerSettings = { klingai: { sound: narration ? false : scene.kind !== 'CREATOR' } };
+  } else {
+    base.fps = 25;
+    base.providerSettings = { minimax: { promptOptimizer: true } };
+  }
+
   onProgress(5);
   const initial = await runware.request([base], 60000);
   const first = initial.find(entry => entry.taskUUID === taskUUID) || initial[0];
   const item = first?.videoURL ? first : await pollTask(taskUUID, onProgress);
   onProgress(100);
   return { item, taskUUID, model };
+}
+
+async function applyCreatorLipSync(videoURL, narration, onProgress = () => {}) {
+  if (!videoURL || !narration?.audioURL) return null;
+  const taskUUID = id();
+  const initial = await runware.request([{
+    taskType: 'videoInference',
+    taskUUID,
+    deliveryMethod: 'async',
+    includeCost: true,
+    outputType: 'URL',
+    outputFormat: 'MP4',
+    model: LIPSYNC_MODEL(),
+    inputs: { video: videoURL, audio: narration.audioURL },
+    providerSettings: { klingai: { originalAudioVolume: 0, soundVolume: 1 } }
+  }], 60000);
+  const first = initial.find(entry => entry.taskUUID === taskUUID) || initial[0];
+  const item = first?.videoURL ? first : await pollTask(taskUUID, onProgress);
+  return { item, taskUUID, model: LIPSYNC_MODEL() };
 }
 
 function runFfmpeg(args, timeoutMs = 180000) {
@@ -1111,7 +1121,12 @@ async function renderAd(adId) {
   }
   const generationRows = ad.generationId ? await prisma.$queryRawUnsafe('SELECT "reservedCredits" FROM "AiGeneration" WHERE "id"=$1 LIMIT 1', ad.generationId) : [];
   const generationCredits = Number(generationRows[0]?.reservedCredits || ad.credits || 0);
-  const brandReference = await prepareVerticalBrandReference(brandRefs);
+  const campaignProductIds = parseJson(campaign?.productAssetIdsJson, []);
+  let productReference = null;
+  if (campaignProductIds.length) {
+    try { productReference = await productAssetDataUri(ad.userId, campaignProductIds[0]); } catch (_) {}
+  }
+  if (!productReference) productReference = await prepareVerticalBrandReference(brandRefs);
   let providerCost = 0;
   try {
     for (let index = 0; index < scenes.length; index += 1) {
@@ -1120,21 +1135,32 @@ async function renderAd(adId) {
       await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "status"=\'RENDERING\',"errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', scene.id);
       const narration = await generateSceneNarration(scene, ad, avatar);
       providerCost += Number(narration?.cost || 0);
-      const result = await renderProviderScene(scene, ad, avatar, brandReference, narration, async progress => {
+      const result = await renderProviderScene(scene, ad, avatar, productReference, narration, async progress => {
         const overall = Math.round(((index + progress / 100) / Math.max(1, scenes.length)) * 85);
         await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'PROCESSING\',"progress"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.generationId, Math.max(5, overall)).catch(() => {});
       });
-      const remote = await download(result.item.videoURL, 120 * 1024 * 1024);
+      let finalVideoURL = result.item.videoURL;
+      providerCost += Number(result.item.cost || 0);
+      if (scene.kind === 'CREATOR' && narration?.audioURL) {
+        const synced = await applyCreatorLipSync(result.item.videoURL, narration, async progress => {
+          const overall = Math.round(((index + 0.7 + (progress / 100) * 0.25) / Math.max(1, scenes.length)) * 85);
+          await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'PROCESSING\',"progress"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.generationId, Math.max(5, Math.min(88, overall))).catch(() => {});
+        });
+        if (synced?.item?.videoURL) {
+          finalVideoURL = synced.item.videoURL;
+          providerCost += Number(synced.item.cost || 0);
+        }
+      }
+      const remote = await download(finalVideoURL, 120 * 1024 * 1024);
       let sceneVideo = remote.data;
-      if (narration?.audioURL) {
+      if (scene.kind !== 'CREATOR' && narration?.audioURL) {
         const audio = await download(narration.audioURL, 18 * 1024 * 1024);
         sceneVideo = await lockNarrationAudio(sceneVideo, audio.data, scene.duration);
       }
       const stored = await objectStorage.persistBuffer({ userId: ad.userId, data: sceneVideo, mimeType: 'video/mp4', originalName: 'ugc-scene-' + scene.id + '.mp4', prefix: 'ugc-video' });
-      providerCost += Number(result.item.cost || 0);
       await prisma.$executeRawUnsafe(
         'UPDATE "UGCScene" SET "status"=\'READY\',"providerTaskUuid"=$2,"providerCostUsd"=$3,"model"=$4,"videoStorageProvider"=$5,"videoStorageKey"=$6,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
-        scene.id, result.taskUUID, Number(result.item.cost || 0), result.model, stored.storageProvider, stored.storageKey
+        scene.id, result.taskUUID, Number(result.item.cost || 0) + Number(narration?.cost || 0), result.model, stored.storageProvider, stored.storageKey
       );
     }
     const readyScenes = await prisma.$queryRawUnsafe('SELECT * FROM "UGCScene" WHERE "adId"=$1 ORDER BY "sequence"', adId);
