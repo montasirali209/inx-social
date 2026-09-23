@@ -92,6 +92,7 @@ module.exports = {
     ugcPVideoModel: modelName(process.env.RUNWARE_UGC_PVIDEO_MODEL, 'prunaai:p-video@2'),
     ugcAvatarModel: modelName(process.env.RUNWARE_UGC_AVATAR_MODEL, 'prunaai:p-video@avatar'),
     ugcPremiumModel: modelName(process.env.RUNWARE_UGC_PREMIUM_MODEL, 'klingai:kling-video@o3-standard'),
+    ugcTtsModel: modelName(process.env.RUNWARE_UGC_TTS_MODEL, 'inworld:tts@2'),
     textModel: modelName(process.env.RUNWARE_TEXT_MODEL, 'openai:gpt@5.4-nano'),
     timeoutMs: Math.max(30000, Number(process.env.RUNWARE_TIMEOUT_MS || 360000)),
     imageTimeoutMs: Math.max(30000, Number(process.env.RUNWARE_IMAGE_TIMEOUT_MS || 180000)),

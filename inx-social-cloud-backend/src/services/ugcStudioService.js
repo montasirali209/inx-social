@@ -22,6 +22,33 @@ const SYSTEM_AVATAR_COUNT = 52;
 const PVIDEO2_MODEL = () => env.runware.ugcPVideoModel || 'prunaai:p-video@2';
 const AVATAR_MODEL = () => env.runware.ugcAvatarModel || 'prunaai:p-video@avatar';
 const PREMIUM_MODEL = () => env.runware.ugcPremiumModel || 'klingai:kling-video@o3-standard';
+const TTS_MODEL = () => env.runware.ugcTtsModel || 'inworld:tts@2';
+const LEGACY_FEMALE_VOICES = new Set(['Aoede (Female)','Zephyr (Female)','Kore (Female)','Leda (Female)','Callirrhoe (Female)']);
+const LEGACY_MALE_VOICES = new Set(['Puck (Male)','Charon (Male)','Fenrir (Male)','Orus (Male)','Iapetus (Male)']);
+const TTS_VOICES = new Set(['Pippa','Sophie','Priya','Nadia','Serena','Olivia','Jessica','Chloe','Callum','James','Oliver','Arjun','Marcus','Ethan','Shaun','Graham','Riley']);
+
+function narratorVoice(value, avatar = null) {
+  const voice = clean(value, 100);
+  if (TTS_VOICES.has(voice)) return voice;
+  if (LEGACY_MALE_VOICES.has(voice)) return 'Callum';
+  if (LEGACY_FEMALE_VOICES.has(voice)) return 'Pippa';
+  const presentation = clean(avatar?.presentation, 40).toLowerCase();
+  if (presentation === 'non-binary' || presentation === 'nonbinary') return 'Riley';
+  if (presentation === 'man' || presentation === 'male') return 'Callum';
+  return 'Pippa';
+}
+
+function narratorLanguage(locale) {
+  const language = clean(locale, 20).toLowerCase().split('-')[0];
+  return ['en','ja','zh','ko','ru','it','es','de','fr','ar','pl','nl','hi','he'].includes(language) ? language : 'en';
+}
+
+function narratorSpeed(text, duration) {
+  const words = clean(text, 6000).split(/\s+/).filter(Boolean).length;
+  if (!words || !duration) return 1;
+  const estimatedAtNormalSpeed = words / 2.45;
+  return Math.max(0.7, Math.min(1.3, Number((estimatedAtNormalSpeed / Number(duration)).toFixed(1))));
+}
 
 function publicError(message, code = 'UGC_STUDIO_ERROR', status = 400) {
   const error = new Error(message); error.code = code; error.status = status; error.publicMessage = message; return error;
@@ -34,58 +61,58 @@ function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 function toNumber(value) { return value == null ? 0 : Number(value); }
 
 const avatarSeeds = [
-  ['Maya','Lifestyle','Woman','25–34','en-GB','Aoede (Female)','warm British lifestyle creator, natural brown hair, contemporary casual clothing'],
-  ['Sofia','Beauty','Woman','25–34','en-GB','Aoede (Female)','polished beauty creator, dark hair, clean modern makeup, premium casual style'],
-  ['Chloe','Fashion','Woman','18–24','en-GB','Aoede (Female)','young fashion creator, expressive style, modern streetwear, natural social-video look'],
-  ['Amelia','Home','Woman','35–44','en-GB','Aoede (Female)','home and family creator, approachable, modern neutral wardrobe, warm interior setting'],
-  ['Aisha','Wellness','Woman','25–34','en-GB','Aoede (Female)','British wellness creator wearing modest contemporary fashion, calm confident presence'],
-  ['Priya','Business','Woman','25–34','en-GB','Aoede (Female)','British South Asian professional creator, smart-casual wardrobe, confident friendly delivery'],
-  ['Isla','Travel','Woman','25–34','en-GB','Aoede (Female)','travel creator, relaxed premium casual styling, lively friendly presence'],
-  ['Grace','Food','Woman','35–44','en-GB','Aoede (Female)','food and home creator, warm approachable appearance, natural kitchen-ready styling'],
-  ['Nadia','Beauty','Woman','25–34','en-GB','Aoede (Female)','beauty and lifestyle creator with modest elegant styling and expressive friendly face'],
-  ['Ruby','Fitness','Woman','18–24','en-GB','Aoede (Female)','fitness creator, athletic casual outfit, energetic authentic social-media presence'],
-  ['Olivia','Luxury','Woman','35–44','en-GB','Aoede (Female)','premium lifestyle creator, elegant understated wardrobe, sophisticated natural presence'],
-  ['Emily','Parenting','Woman','35–44','en-GB','Aoede (Female)','friendly parent creator, practical contemporary clothing, believable everyday appearance'],
-  ['Zara','Tech','Woman','25–34','en-GB','Aoede (Female)','tech creator, minimalist smart-casual styling, modern home-office presence'],
-  ['Hannah','Education','Woman','25–34','en-GB','Aoede (Female)','educational creator, clear friendly professional look, simple smart-casual wardrobe'],
-  ['Layla','Ecommerce','Woman','25–34','en-GB','Aoede (Female)','ecommerce creator, contemporary stylish appearance, energetic product-review presence'],
-  ['Megan','Lifestyle','Woman','45–54','en-GB','Aoede (Female)','mature lifestyle creator, confident approachable appearance, elegant casual styling'],
-  ['Claire','Home','Woman','55–64','en-GB','Aoede (Female)','mature home creator, warm trustworthy appearance, natural polished casual wardrobe'],
-  ['Diana','Wellness','Woman','65+','en-GB','Aoede (Female)','senior wellness creator, warm trustworthy face, elegant everyday styling'],
-  ['Jasmine','Fashion','Woman','25–34','en-US','Aoede (Female)','American fashion creator, polished street style, authentic mobile-video presence'],
-  ['Ava','Beauty','Woman','18–24','en-US','Aoede (Female)','American beauty creator, youthful natural makeup, creator-native casual styling'],
-  ['Camila','Lifestyle','Woman','25–34','en-US','Aoede (Female)','Latina lifestyle creator, vibrant approachable presence, modern casual wardrobe'],
-  ['Elena','Fitness','Woman','25–34','en-US','Aoede (Female)','fitness and wellness creator, athletic styling, confident natural presence'],
-  ['Rachel','Business','Woman','35–44','en-US','Aoede (Female)','American business creator, smart casual, credible founder-style presence'],
-  ['Monica','Home','Woman','45–54','en-US','Aoede (Female)','American home and lifestyle creator, warm mature presence, authentic everyday look'],
-  ['Keisha','Beauty','Woman','25–34','en-US','Aoede (Female)','Black American beauty creator, natural polished look, confident warm delivery'],
-  ['Jordan','Tech','Non-binary','25–34','en-US','Puck (Male)','modern tech creator, gender-neutral contemporary style, confident friendly presence'],
-  ['Daniel','Tech','Man','25–34','en-GB','Puck (Male)','British tech creator, modern smart-casual outfit, trustworthy approachable presence'],
-  ['James','Business','Man','35–44','en-GB','Puck (Male)','British business creator, founder-style smart casual wardrobe, calm confident appearance'],
-  ['Oliver','Lifestyle','Man','25–34','en-GB','Puck (Male)','British lifestyle creator, relaxed contemporary clothing, natural social-video presence'],
-  ['Noah','Fitness','Man','18–24','en-GB','Puck (Male)','young fitness creator, athletic styling, energetic authentic presence'],
-  ['Adam','Ecommerce','Man','25–34','en-GB','Puck (Male)','ecommerce product reviewer, casual modern styling, energetic credible presence'],
-  ['Yusuf','Business','Man','35–44','en-GB','Puck (Male)','British Muslim professional creator, polished smart-casual styling, calm trustworthy presence'],
-  ['Arjun','Tech','Man','25–34','en-GB','Puck (Male)','British South Asian tech creator, modern casual wardrobe, articulate friendly presence'],
-  ['Leo','Fashion','Man','25–34','en-GB','Puck (Male)','menswear creator, stylish contemporary outfit, confident creator-native look'],
-  ['George','Home','Man','45–54','en-GB','Puck (Male)','mature home and DIY creator, practical casual clothing, trustworthy approachable look'],
-  ['Peter','Finance','Man','55–64','en-GB','Puck (Male)','mature finance and business creator, polished understated styling, credible presence'],
-  ['Thomas','Lifestyle','Man','65+','en-GB','Puck (Male)','senior lifestyle creator, warm trustworthy appearance, classic casual wardrobe'],
-  ['Marcus','Fitness','Man','25–34','en-US','Puck (Male)','Black American fitness creator, athletic contemporary style, energetic natural presence'],
-  ['Ethan','Tech','Man','25–34','en-US','Puck (Male)','American tech creator, clean casual style, modern desk-setup presence'],
-  ['Carlos','Food','Man','35–44','en-US','Puck (Male)','Latino food creator, warm expressive face, casual kitchen-ready styling'],
-  ['Ryan','Gaming','Man','18–24','en-US','Puck (Male)','young gaming creator, modern streetwear, energetic authentic online presence'],
-  ['Michael','Business','Man','35–44','en-US','Puck (Male)','American founder-style creator, smart casual, polished credible appearance'],
-  ['David','Home','Man','45–54','en-US','Puck (Male)','American home and DIY creator, approachable mature look, practical casual styling'],
-  ['Kenji','Tech','Man','25–34','en-US','Puck (Male)','East Asian tech creator, minimalist contemporary styling, calm confident presence'],
-  ['Mei','Beauty','Woman','25–34','en-US','Aoede (Female)','East Asian beauty creator, refined natural makeup, modern creator-native styling'],
-  ['Fatima','Lifestyle','Woman','35–44','en-GB','Aoede (Female)','British modest-fashion lifestyle creator, elegant approachable styling, warm presence'],
-  ['Samira','Food','Woman','25–34','en-GB','Aoede (Female)','food and lifestyle creator, warm expressive presence, contemporary modest styling'],
-  ['Theo','Travel','Man','25–34','en-GB','Puck (Male)','travel and outdoor creator, relaxed contemporary wardrobe, adventurous natural presence'],
-  ['Ben','Automotive','Man','35–44','en-GB','Puck (Male)','automotive creator, clean casual outfit, credible enthusiast presence'],
-  ['Lily','Pets','Woman','25–34','en-GB','Aoede (Female)','pet and lifestyle creator, friendly playful presence, natural everyday styling'],
-  ['Alex','SaaS','Man','25–34','en-GB','Puck (Male)','SaaS and productivity creator, modern home-office style, confident conversational presence'],
-  ['Emma','SaaS','Woman','25–34','en-GB','Aoede (Female)','SaaS and productivity creator, polished modern office-casual style, clear friendly presence']
+  ["Maya","Lifestyle","Woman","25–34","en-GB","Pippa","warm British lifestyle creator, natural brown hair, contemporary casual clothing"],
+  ["Sofia","Beauty","Woman","25–34","en-GB","Sophie","polished beauty creator, dark hair, clean modern makeup, premium casual style"],
+  ["Chloe","Fashion","Woman","18–24","en-GB","Chloe","young fashion creator, expressive style, modern streetwear, natural social-video look"],
+  ["Amelia","Home","Woman","35–44","en-GB","Olivia","home and family creator, approachable, modern neutral wardrobe, warm interior setting"],
+  ["Aisha","Wellness","Woman","25–34","en-GB","Nadia","British wellness creator wearing modest contemporary fashion, calm confident presence"],
+  ["Priya","Business","Woman","25–34","en-GB","Priya","British South Asian professional creator, smart-casual wardrobe, confident friendly delivery"],
+  ["Isla","Travel","Woman","25–34","en-GB","Serena","travel creator, relaxed premium casual styling, lively friendly presence"],
+  ["Grace","Food","Woman","35–44","en-GB","Jessica","food and home creator, warm approachable appearance, natural kitchen-ready styling"],
+  ["Nadia","Beauty","Woman","25–34","en-GB","Nadia","beauty and lifestyle creator with modest elegant styling and expressive friendly face"],
+  ["Ruby","Fitness","Woman","18–24","en-GB","Chloe","fitness creator, athletic casual outfit, energetic authentic social-media presence"],
+  ["Olivia","Luxury","Woman","35–44","en-GB","Olivia","premium lifestyle creator, elegant understated wardrobe, sophisticated natural presence"],
+  ["Emily","Parenting","Woman","35–44","en-GB","Pippa","friendly parent creator, practical contemporary clothing, believable everyday appearance"],
+  ["Zara","Tech","Woman","25–34","en-GB","Sophie","tech creator, minimalist smart-casual styling, modern home-office presence"],
+  ["Hannah","Education","Woman","25–34","en-GB","Serena","educational creator, clear friendly professional look, simple smart-casual wardrobe"],
+  ["Layla","Ecommerce","Woman","25–34","en-GB","Priya","ecommerce creator, contemporary stylish appearance, energetic product-review presence"],
+  ["Megan","Lifestyle","Woman","45–54","en-GB","Olivia","mature lifestyle creator, confident approachable appearance, elegant casual styling"],
+  ["Claire","Home","Woman","55–64","en-GB","Claire","mature home creator, warm trustworthy appearance, natural polished casual wardrobe"],
+  ["Diana","Wellness","Woman","65+","en-GB","Sophie","senior wellness creator, warm trustworthy face, elegant everyday styling"],
+  ["Jasmine","Fashion","Woman","25–34","en-US","Jessica","American fashion creator, polished street style, authentic mobile-video presence"],
+  ["Ava","Beauty","Woman","18–24","en-US","Chloe","American beauty creator, youthful natural makeup, creator-native casual styling"],
+  ["Camila","Lifestyle","Woman","25–34","en-US","Serena","Latina lifestyle creator, vibrant approachable presence, modern casual wardrobe"],
+  ["Elena","Fitness","Woman","25–34","en-US","Nadia","fitness and wellness creator, athletic styling, confident natural presence"],
+  ["Rachel","Business","Woman","35–44","en-US","Olivia","American business creator, smart casual, credible founder-style presence"],
+  ["Monica","Home","Woman","45–54","en-US","Pippa","American home and lifestyle creator, warm mature presence, authentic everyday look"],
+  ["Keisha","Beauty","Woman","25–34","en-US","Nadia","Black American beauty creator, natural polished look, confident warm delivery"],
+  ["Jordan","Tech","Non-binary","25–34","en-US","Riley","modern tech creator, gender-neutral contemporary style, confident friendly presence"],
+  ["Daniel","Tech","Man","25–34","en-GB","Callum","British tech creator, modern smart-casual outfit, trustworthy approachable presence"],
+  ["James","Business","Man","35–44","en-GB","James","British business creator, founder-style smart casual wardrobe, calm confident appearance"],
+  ["Oliver","Lifestyle","Man","25–34","en-GB","Oliver","British lifestyle creator, relaxed contemporary clothing, natural social-video presence"],
+  ["Noah","Fitness","Man","18–24","en-GB","Ethan","young fitness creator, athletic styling, energetic authentic presence"],
+  ["Adam","Ecommerce","Man","25–34","en-GB","Shaun","ecommerce product reviewer, casual modern styling, energetic credible presence"],
+  ["Yusuf","Business","Man","35–44","en-GB","Graham","British Muslim professional creator, polished smart-casual styling, calm trustworthy presence"],
+  ["Arjun","Tech","Man","25–34","en-GB","Arjun","British South Asian tech creator, modern casual wardrobe, articulate friendly presence"],
+  ["Leo","Fashion","Man","25–34","en-GB","Oliver","menswear creator, stylish contemporary outfit, confident creator-native look"],
+  ["George","Home","Man","45–54","en-GB","Graham","mature home and DIY creator, practical casual clothing, trustworthy approachable look"],
+  ["Peter","Finance","Man","55–64","en-GB","James","mature finance and business creator, polished understated styling, credible presence"],
+  ["Thomas","Lifestyle","Man","65+","en-GB","Callum","senior lifestyle creator, warm trustworthy appearance, classic casual wardrobe"],
+  ["Marcus","Fitness","Man","25–34","en-US","Marcus","Black American fitness creator, athletic contemporary style, energetic natural presence"],
+  ["Ethan","Tech","Man","25–34","en-US","Ethan","American tech creator, clean casual style, modern desk-setup presence"],
+  ["Carlos","Food","Man","35–44","en-US","Marcus","Latino food creator, warm expressive face, casual kitchen-ready styling"],
+  ["Ryan","Gaming","Man","18–24","en-US","Ethan","young gaming creator, modern streetwear, energetic authentic online presence"],
+  ["Michael","Business","Man","35–44","en-US","James","American founder-style creator, smart casual, polished credible appearance"],
+  ["David","Home","Man","45–54","en-US","Graham","American home and DIY creator, approachable mature look, practical casual styling"],
+  ["Kenji","Tech","Man","25–34","en-US","Oliver","East Asian tech creator, minimalist contemporary styling, calm confident presence"],
+  ["Mei","Beauty","Woman","25–34","en-US","Sophie","East Asian beauty creator, refined natural makeup, modern creator-native styling"],
+  ["Fatima","Lifestyle","Woman","35–44","en-GB","Nadia","British modest-fashion lifestyle creator, elegant approachable styling, warm presence"],
+  ["Samira","Food","Woman","25–34","en-GB","Priya","food and lifestyle creator, warm expressive presence, contemporary modest styling"],
+  ["Theo","Travel","Man","25–34","en-GB","Callum","travel and outdoor creator, relaxed contemporary wardrobe, adventurous natural presence"],
+  ["Ben","Automotive","Man","35–44","en-GB","Shaun","automotive creator, clean casual outfit, credible enthusiast presence"],
+  ["Lily","Pets","Woman","25–34","en-GB","Pippa","pet and lifestyle creator, friendly playful presence, natural everyday styling"],
+  ["Alex","SaaS","Man","25–34","en-GB","Callum","SaaS and productivity creator, modern home-office style, confident conversational presence"],
+  ["Emma","SaaS","Woman","25–34","en-GB","Sophie","SaaS and productivity creator, polished modern office-casual style, clear friendly presence"]
 ].map((row, index) => ({
   slug: 'inx-' + String(index + 1).padStart(2, '0') + '-' + row[0].toLowerCase(),
   name: row[0], category: row[1], presentation: row[2], ageBand: row[3], locale: row[4], voice: row[5],
@@ -406,6 +433,10 @@ async function planCampaign(input, brand, avatars) {
         'PREMIUM always uses KLING internally.',
         'Final output duration must be exactly the requested duration. PVIDEO2 scene max 20 seconds. KLING scene max 15 seconds. AVATAR may be one continuous scene up to 60 seconds.',
         'Audio is always required. Scripts should sound like a real creator, not corporate ad copy.',
+        'Use one creator identity and one narrator voice for the entire ad. Never introduce a different person mid-ad unless the brief explicitly asks for multiple people.',
+        'STANDARD product UGC should use clean editorial cuts: CREATOR scenes keep the exact selected creator; PRODUCT scenes keep the exact product/reference. Do not ask a standard scene to invent a different creator or a different product.',
+        'Keep wardrobe, age, hair, face, skin tone, room style, lighting direction and camera treatment consistent across creator scenes.',
+        'Do not put generated captions, labels, logos or readable overlay text inside the video frames; INXSocial adds captions after rendering.',
         'Write dialogue to naturally fill the requested duration: roughly 30–38 spoken words for 15 seconds, 65–75 for 30 seconds, and 130–150 for 60 seconds. Mixed/product ads may distribute that dialogue across scenes.',
         'Return JSON only: {"title":"string","ads":[{"title":"string","angle":"string","hook":"string","script":"string","cta":"string","caption":"string","route":"PVIDEO2|AVATAR|MIXED|KLING","avatarIndex":0,"scenes":[{"duration":15,"kind":"CREATOR|PRODUCT|LIFESTYLE|CTA","prompt":"string","script":"string"}]}]}.'
       ].join('\n\n') },
@@ -590,7 +621,7 @@ async function uploadCustomAvatar(userId, input) {
   const avatarId = id();
   const stored = await objectStorage.persistBuffer({ userId, data, mimeType: 'image/png', originalName: 'ugc-avatar-' + avatarId + '.png', prefix: 'ugc-avatar' });
   await prisma.$executeRawUnsafe(
-    'INSERT INTO "UGCAvatar" ("id","userId","scope","name","category","locale","voice","voicePrompt","prompt","referenceStorageProvider","referenceStorageKey","referenceMimeType","status","createdAt","updatedAt") VALUES ($1,$2,\'USER\',$3,\'Custom\',\'en-GB\',\'Aoede (Female)\',$4,$5,$6,$7,\'image/png\',\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+    'INSERT INTO "UGCAvatar" ("id","userId","scope","name","category","locale","voice","voicePrompt","prompt","referenceStorageProvider","referenceStorageKey","referenceMimeType","status","createdAt","updatedAt") VALUES ($1,$2,\'USER\',$3,\'Custom\',\'en-GB\',\'Pippa\',$4,$5,$6,$7,\'image/png\',\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
     avatarId, userId, clean(input.name.replace(/\.[^.]+$/, ''), 80) || 'Custom creator',
     'Natural, conversational UGC delivery matched to the creator and script.',
     'Customer-supplied creator reference. Preserve identity, clothing and recognizable appearance.', stored.storageProvider, stored.storageKey
@@ -631,17 +662,49 @@ async function pollTask(taskUUID, onProgress = () => {}) {
   throw publicError('UGC rendering timed out. Reserved credits will be returned for the failed render.', 'UGC_PROVIDER_TIMEOUT', 504);
 }
 
-async function renderProviderScene(scene, ad, avatar, brandReference, onProgress) {
+async function generateSceneNarration(scene, ad, avatar) {
+  const text = clean(scene.script, 6000);
+  if (text.length < 2) return null;
+  const taskUUID = id();
+  const voice = narratorVoice(ad.voice || avatar?.voice, avatar);
+  const results = await runware.request([{
+    taskType: 'audioInference',
+    taskUUID,
+    model: TTS_MODEL(),
+    includeCost: true,
+    outputType: 'URL',
+    outputFormat: 'MP3',
+    speech: {
+      text,
+      voice,
+      language: narratorLanguage(avatar?.locale || 'en'),
+      speed: narratorSpeed(text, scene.duration)
+    },
+    settings: { textNormalization: true }
+  }], 60000);
+  const item = results.find(entry => entry.taskUUID === taskUUID) || results[0];
+  if (!item?.audioURL) throw publicError('The UGC narrator audio could not be generated.', 'UGC_TTS_FAILED', 502);
+  return { taskUUID, audioURL: item.audioURL, cost: Number(item.cost || 0), voice };
+}
+
+async function renderProviderScene(scene, ad, avatar, brandReference, narration, onProgress) {
   const taskUUID = id();
   let model;
+  const creatorLock = avatar ? [
+    'CHARACTER LOCK: use the supplied creator portrait as the exact same person.',
+    'Preserve face shape, skin tone, age, hairstyle, hair colour, wardrobe and recognizable identity.',
+    'Do not morph the face, change gender presentation, add a second person, or redesign the creator between cuts.'
+  ].join(' ') : '';
+  const productLock = brandReference ? 'PRODUCT LOCK: preserve the supplied product/reference identity, packaging, colours and proportions. Do not substitute or redesign it.' : '';
   const base = {
     taskType: 'videoInference', taskUUID, deliveryMethod: 'async', includeCost: true, outputType: 'URL',
     positivePrompt: [
       clean(scene.prompt, 4500),
-      'Vertical 9:16 social UGC. 720p. Natural smartphone-camera realism. Audio is required.',
-      ad.musicMode === 'NONE' ? 'No background music; keep natural spoken dialogue and appropriate ambient sound.' : 'Use subtle social-native background music only when it does not compete with speech.',
-      scene.script ? 'Dialogue/script intent: ' + clean(scene.script, 3000) : ''
-    ].join('\n\n')
+      'Authentic vertical 9:16 creator-native UGC, 720p, realistic smartphone-camera texture, natural micro-movements and believable social-video pacing. Avoid glossy cinematic-commercial styling unless explicitly requested.',
+      scene.kind === 'CREATOR' ? creatorLock : productLock,
+      narration ? 'Use the supplied narration audio exactly. It is the only spoken voice. Do not create another voice, dialogue, music or lyrics.' : 'No spoken dialogue unless explicitly supplied as audio.',
+      'No generated subtitles, captions, labels, watermarks, logos or other readable overlay text inside the frame.'
+    ].filter(Boolean).join('\n\n')
   };
   if (scene.route === 'AVATAR') {
     model = AVATAR_MODEL();
@@ -649,15 +712,15 @@ async function renderProviderScene(scene, ad, avatar, brandReference, onProgress
     const ref = await ensureAvatarReference(ad.userId, avatar);
     Object.assign(base, {
       model, resolution: '720p',
-      inputs: { frameImages: [ref.dataUri] },
-      speech: { text: clean(scene.script || ad.script, 6000), voice: clean(ad.voice || avatar.voice || 'Aoede (Female)', 100), language: clean(avatar.locale || 'en-GB', 20) },
+      inputs: { frameImages: [{ image: ref.dataUri, frame: 'first' }], ...(narration ? { audio: narration.audioURL } : {}) },
+      ...(narration ? {} : { speech: { text: clean(scene.script || ad.script, 6000), voice: ['man','male'].includes(clean(avatar.presentation, 40).toLowerCase()) ? 'Puck (Male)' : 'Aoede (Female)', language: clean(avatar.locale || 'en-GB', 20) } }),
       settings: { promptUpsampling: true, safetyFilter: true, voicePrompt: clean(ad.voicePrompt || avatar.voicePrompt, 500) }
     });
   } else if (scene.route === 'KLING') {
     model = PREMIUM_MODEL();
     Object.assign(base, {
       model, duration: Math.min(15, Number(scene.duration)), width: 720, height: 1280,
-      providerSettings: { klingai: { sound: true } }
+      providerSettings: { klingai: { sound: narration ? false : true } }
     });
     const ref = scene.kind === 'CREATOR' && avatar ? await ensureAvatarReference(ad.userId, avatar) : null;
     const reference = ref?.dataUri || brandReference || null;
@@ -665,18 +728,23 @@ async function renderProviderScene(scene, ad, avatar, brandReference, onProgress
   } else {
     model = PVIDEO2_MODEL();
     Object.assign(base, {
-      model, duration: Math.min(20, Number(scene.duration)), fps: 24,
-      settings: { audio: true, promptUpsampling: true, draft: false }
+      model, fps: 24,
+      settings: { promptUpsampling: true, draft: false },
+      ...(narration ? {} : { duration: Math.min(20, Number(scene.duration)) })
     });
     let reference = null;
     if (scene.kind === 'CREATOR' && avatar) reference = (await ensureAvatarReference(ad.userId, avatar)).dataUri;
     if (!reference) reference = brandReference || null;
+    const inputs = {};
+    if (narration) inputs.audio = narration.audioURL;
     if (reference) {
       base.resolution = '720p';
-      base.inputs = { frameImages: [reference] };
+      inputs.frameImages = [{ image: reference, frame: 'first' }];
+      base.inputs = inputs;
     } else {
       base.width = 704;
       base.height = 1280;
+      if (Object.keys(inputs).length) base.inputs = inputs;
     }
   }
   onProgress(5);
@@ -699,6 +767,27 @@ function runFfmpeg(args, timeoutMs = 180000) {
   });
 }
 
+async function lockNarrationAudio(videoData, audioData, duration) {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'inxsocial-ugc-audio-'));
+  try {
+    const videoPath = path.join(dir, 'video.mp4');
+    const audioPath = path.join(dir, 'voice.mp3');
+    const outputPath = path.join(dir, 'locked.mp4');
+    await fs.writeFile(videoPath, videoData);
+    await fs.writeFile(audioPath, audioData);
+    await runFfmpeg([
+      '-hide_banner','-loglevel','error','-y',
+      '-i',videoPath,'-i',audioPath,
+      '-map','0:v:0','-map','1:a:0',
+      '-c:v','copy','-c:a','aac','-ar','48000','-ac','2','-b:a','160k',
+      '-af','apad','-t',String(duration),'-movflags','+faststart',outputPath
+    ]);
+    return await fs.readFile(outputPath);
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
+  }
+}
+
 function srtTime(seconds) {
   const ms = Math.max(0, Math.round(seconds * 1000));
   const h = Math.floor(ms / 3600000), m = Math.floor(ms % 3600000 / 60000), s = Math.floor(ms % 60000 / 1000), milli = ms % 1000;
@@ -713,7 +802,7 @@ function captionsForScenes(scenes) {
     const duration = Number(scene.duration);
     const span = duration / Math.max(1, chunks.length);
     chunks.forEach((chunk, i) => {
-      rows.push(String(index++), srtTime(cursor + i*span), '--> ' + srtTime(cursor + Math.min(duration,(i+1)*span)), chunk, '');
+      rows.push(String(index++), srtTime(cursor + i*span) + ' --> ' + srtTime(cursor + Math.min(duration,(i+1)*span)), chunk, '');
     });
     cursor += duration;
   }
@@ -791,12 +880,19 @@ async function renderAd(adId) {
       const scene = scenes[index];
       if (scene.status === 'READY' && scene.videoStorageKey) continue;
       await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "status"=\'RENDERING\',"errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', scene.id);
-      const result = await renderProviderScene(scene, ad, avatar, brandReference, async progress => {
+      const narration = await generateSceneNarration(scene, ad, avatar);
+      providerCost += Number(narration?.cost || 0);
+      const result = await renderProviderScene(scene, ad, avatar, brandReference, narration, async progress => {
         const overall = Math.round(((index + progress / 100) / Math.max(1, scenes.length)) * 85);
         await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'PROCESSING\',"progress"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.generationId, Math.max(5, overall)).catch(() => {});
       });
       const remote = await download(result.item.videoURL, 120 * 1024 * 1024);
-      const stored = await objectStorage.persistBuffer({ userId: ad.userId, data: remote.data, mimeType: remote.mimeType || 'video/mp4', originalName: 'ugc-scene-' + scene.id + '.mp4', prefix: 'ugc-video' });
+      let sceneVideo = remote.data;
+      if (narration?.audioURL) {
+        const audio = await download(narration.audioURL, 18 * 1024 * 1024);
+        sceneVideo = await lockNarrationAudio(sceneVideo, audio.data, scene.duration);
+      }
+      const stored = await objectStorage.persistBuffer({ userId: ad.userId, data: sceneVideo, mimeType: 'video/mp4', originalName: 'ugc-scene-' + scene.id + '.mp4', prefix: 'ugc-video' });
       providerCost += Number(result.item.cost || 0);
       await prisma.$executeRawUnsafe(
         'UPDATE "UGCScene" SET "status"=\'READY\',"providerTaskUuid"=$2,"providerCostUsd"=$3,"model"=$4,"videoStorageProvider"=$5,"videoStorageKey"=$6,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
@@ -920,7 +1016,7 @@ async function regenerateScene(userId, sceneId) {
 
 module.exports = {
   STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, avatarSeeds,
-  creditsPerAd, splitDurations, splitScriptByDurations, estimateCampaign,
+  creditsPerAd, splitDurations, splitScriptByDurations, narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
   getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getAd, updateAd, regenerateAd, regenerateScene,
   generateCustomAvatar, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent, listMusicTracks,
   startUGCStudioRuntime, ensureSystemAvatars
