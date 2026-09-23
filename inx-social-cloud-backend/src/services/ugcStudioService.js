@@ -334,7 +334,9 @@ async function ensureAvatarReference(userId, row) {
 }
 
 async function analyzeBrand(userId, input) {
-  const normalized = postStudio.normalizeUrl(input.url);
+  const raw = clean(input.url, 2000);
+  const candidate = raw && /^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : raw ? 'https://' + raw : '';
+  const normalized = postStudio.normalizeUrl(candidate);
   if (!normalized) throw publicError('Enter a public website or product page.', 'UGC_BRAND_URL_INVALID', 400);
   if (!input.refresh) {
     const cached = await prisma.$queryRawUnsafe('SELECT * FROM "UGCBrandProfile" WHERE "userId"=$1 AND "websiteUrl"=$2 ORDER BY "updatedAt" DESC LIMIT 1', userId, normalized);
