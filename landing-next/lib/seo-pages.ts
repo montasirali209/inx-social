@@ -30,7 +30,7 @@ export const seoPages: Record<string, SeoPage> = {
     slug: "social-media-scheduler",
     title: "Social Media Scheduler for Multiple Platforms | INXSocial",
     metaDescription:
-      "Plan, create and schedule social media posts from one workspace with multi-platform publishing, a content calendar, analytics and AI-assisted creation.",
+      "Plan, create and schedule social media posts with multi-platform publishing, Smart Timing, content calendar, analytics and AI-assisted creation in INXSocial.",
     eyebrow: "Social media scheduler",
     h1: "Schedule social media without rebuilding the same workflow for every platform.",
     lead:
@@ -46,7 +46,7 @@ export const seoPages: Record<string, SeoPage> = {
       },
       {
         title: "Schedule with context",
-        body: "Use the content calendar and scheduled-post views to understand what is coming next before you add more posts to the queue."
+        body: "Use scheduled-post views and the content calendar to understand what is coming next, with optional Smart Timing available for supported Bulk Scheduler campaigns."
       },
       {
         title: "Create before you schedule",
@@ -72,7 +72,7 @@ export const seoPages: Record<string, SeoPage> = {
     details: [
       "INXSocial supports Facebook, Instagram, LinkedIn, TikTok, YouTube, Pinterest, Threads, Bluesky and X within the connected-account experience. Publishing, feed and analytics support varies by each network's API permissions and account type.",
       "The scheduler works alongside Bulk Scheduler, Content Calendar, Media Library, Analytics and AI Content Studio. That matters when the job is not just publishing one post, but keeping a whole content operation organised over days or weeks.",
-      "For teams managing higher volumes, Bulk Scheduler provides a separate campaign workflow for preparing many media items and timing rules together."
+      "For teams managing higher volumes, Bulk Scheduler can load saved AI Campaigns, prepare media and text batches, and optionally apply Smart Timing while keeping the exact chosen timestamps visible in Calendar."
     ],
     faq: [
       {
@@ -98,7 +98,7 @@ export const seoPages: Record<string, SeoPage> = {
     slug: "bulk-social-media-scheduler",
     title: "Bulk Social Media Scheduler for Campaigns | INXSocial",
     metaDescription:
-      "Prepare and schedule batches of social media content with INXSocial Bulk Scheduler. Organise media, destinations and timing rules in one campaign workflow.",
+      "Prepare and schedule batches with AI Campaign mode, Smart Timing, mixed text and image posts, destination controls and calendar visibility in INXSocial.",
     eyebrow: "Bulk scheduling",
     h1: "Schedule a complete content batch without opening a new post form every time.",
     lead:
@@ -113,8 +113,8 @@ export const seoPages: Record<string, SeoPage> = {
         body: "Start with multiple media items instead of creating a separate publishing form for every file."
       },
       {
-        title: "Timing rules",
-        body: "Build the schedule around your publishing cadence rather than manually calculating every individual slot."
+        title: "Smart Timing",
+        body: "Keep your chosen publishing cadence while optional Smart Timing analyses the batch and applies bounded minute-level variation, with the selected times visible in Calendar."
       },
       {
         title: "Status visibility",
@@ -129,7 +129,7 @@ export const seoPages: Record<string, SeoPage> = {
       },
       {
         title: "Define the plan",
-        body: "Choose destinations and timing rules that match the campaign rather than rebuilding the same choices for every asset."
+        body: "Choose destinations and timing rules, or load a saved AI Campaign with its text, image or mixed post sequence preserved for scheduling."
       },
       {
         title: "Review outcomes",
@@ -138,7 +138,7 @@ export const seoPages: Record<string, SeoPage> = {
     ],
     detailHeading: "Useful when content volume is the bottleneck",
     details: [
-      "Bulk scheduling is particularly useful for short-form video libraries, recurring campaign assets, creator content and planned social calendars where the media already exists before the publishing session begins.",
+      "Bulk scheduling can start from uploaded media, text posts or a saved AI Campaign. Mixed AI campaigns keep their original text/image sequence and compatible destination routing when they enter the scheduler.",
       "The rest of the INXSocial workspace remains available around the batch: Media Library keeps reusable assets organised, Content Calendar shows how the schedule lands across the month and Analytics helps you review performance after publishing.",
       "The product is designed to preserve clear failure and review states rather than treating a batch as successful simply because it was submitted."
     ],
@@ -300,70 +300,138 @@ export const seoPages: Record<string, SeoPage> = {
 
   "ai-social-media-tools": {
     slug: "ai-social-media-tools",
-    title: "AI Social Media Tools for Posts, Images & Video | INXSocial",
+    title: "AI Social Media Tools for Campaigns, Images & Video | INXSocial",
     metaDescription:
-      "Create social media copy, images, carousels, short video and UGC-style assets with AI tools built into the INXSocial publishing workflow.",
+      "Create social media copy, campaigns, images, carousels, UGC video and short-form video with AI tools built directly into the INXSocial publishing workflow.",
     eyebrow: "AI social media tools",
-    h1: "Create social content inside the same workspace that publishes it.",
+    h1: "Create campaigns and content inside the same workspace that publishes it.",
     lead:
-      "AI Content Studio connects content generation to the rest of INXSocial so generated media and copy can move into Posts, scheduling and your Media Library without a separate export-and-upload routine.",
+      "AI Content Studio connects campaign generation, image and carousel creation, UGC Studio and AI video to the rest of INXSocial so generated work can move into Posts, Media Library and Bulk Scheduler without a separate export routine.",
     intro: [
-      "AI content creation becomes much more useful when it is attached to an actual publishing workflow. A generated image or caption still creates extra work if you have to download it, rename it, upload it somewhere else and rebuild the post.",
-      "INXSocial AI Content Studio is designed to keep creation close to the publishing process, covering multiple social formats from one product."
+      "AI content creation becomes more useful when it is attached to an actual publishing workflow. A generated campaign, video or image still creates extra work if it has to be downloaded, renamed and rebuilt somewhere else.",
+      "INXSocial keeps creation close to publishing, with dedicated workflows for campaign planning, images, carousels, UGC video, text-to-video, image-to-video and stock-video production."
     ],
     highlights: [
       {
-        title: "Image posts",
-        body: "Create a visual and supporting publishing copy for a social post, then move the result into the wider INXSocial workflow."
+        title: "AI Campaign",
+        body: "Turn a campaign goal and optional website into a structured 10, 15, 20 or 30-post text, image or mixed campaign, then review it before Bulk Scheduler handoff."
       },
       {
-        title: "Carousels",
-        body: "Prepare coordinated multi-slide social content with slide-level creative structure."
+        title: "UGC Studio",
+        body: "Build creator-led UGC video campaigns from a website, SaaS product, physical product or brief using reusable creators, product references, variations and editing."
       },
       {
-        title: "Video workflows",
-        body: "Create short-form video or use stock-video workflows, then keep the resulting media available for publishing."
+        title: "Image, carousel and video",
+        body: "Generate image posts, coordinated carousels and short-form video, including text-to-video and image-to-video routes, while keeping the finished media inside INXSocial."
       }
     ],
     workflowHeading: "Generation connected to publishing",
     workflow: [
       {
-        title: "Choose the format",
-        body: "Start with Image Post, Carousel Post, Short Video / Reel or UGC Ad Post."
+        title: "Choose the workflow",
+        body: "Start with AI Campaign, Image Post, Carousel Post, Short Video / Reel or UGC Studio according to what you need to produce."
       },
       {
-        title: "Create and refine",
-        body: "Use the relevant AI-assisted workflow to develop the visual and copy rather than forcing every content type into one generic generator."
+        title: "Create and review",
+        body: "Use the specialised workflow for the format, review the generated output and keep brand, product and campaign details under your control."
       },
       {
-        title: "Move into Posts",
-        body: "Keep the result inside INXSocial so it can be reviewed, scheduled and published from the same product."
+        title: "Move into publishing",
+        body: "Continue into Posts or Bulk Scheduler, choose destinations and timing, and keep the resulting media available in the same workspace."
       }
     ],
-    detailHeading: "A content studio built around social formats",
+    detailHeading: "A content studio built around real social workflows",
     details: [
-      "AI Content Studio includes dedicated workflows for Image Post, Carousel Post, Short Video / Reel and UGC Ad Post. Stock Video Creator is available within the video workflow, while AI Video Clipping is presented as a coming-soon capability.",
-      "Generated media can remain part of the INXSocial Media Library instead of becoming another folder of disconnected downloads.",
-      "AI credits are included according to the selected INXSocial plan. Pricing and included credit volumes are shown on the public pricing page."
+      "AI Campaign can create text-only, image-only or mixed campaigns and can analyse an optional business or product website for grounded strategy and creative direction.",
+      "UGC Studio supports reusable creators, product-reference uploads, multiple variations, background rendering and a post-generation editor. Short Video / Reel supports both text-to-video and image-to-video alongside Stock Video Creator.",
+      "AI generation uses the shared plan-based credit system. The product calculates credit exposure before generation where the workflow can create multiple paid assets."
     ],
     faq: [
       {
         question: "What can AI Content Studio create?",
         answer:
-          "Current workflows cover Image Post, Carousel Post, Short Video / Reel and UGC Ad Post, with stock-video creation available inside the video workflow."
+          "Current workflows cover AI Campaign, Image Post, Carousel Post, Short Video / Reel and UGC Studio. Video can start from text or an image reference, and Stock Video Creator is also available."
       },
       {
-        question: "Can generated content be scheduled afterwards?",
+        question: "Can an AI campaign be scheduled as a batch?",
         answer:
-          "Yes. The purpose of AI Content Studio is to keep generated assets close to Posts and scheduling so the content can continue through the publishing workflow."
+          "Yes. Saved AI Campaigns can be loaded directly in Bulk Scheduler while preserving their text, image or mixed post sequence for final destination and timing choices."
       },
       {
         question: "Does AI Content Studio use credits?",
         answer:
-          "Yes. AI creation uses plan-based credits. Included credit amounts vary by subscription tier."
+          "Yes. AI creation uses the shared plan-based credit wallet. The exact cost depends on the generation workflow and selected configuration."
       }
     ],
-    related: ["ai-social-media-post-generator", "ai-carousel-post-generator", "ai-video-post-generator"]
+    related: ["ai-social-media-campaign-generator", "ai-video-post-generator", "ai-ugc-ad-generator"]
+  },
+
+  "ai-social-media-campaign-generator": {
+    slug: "ai-social-media-campaign-generator",
+    title: "AI Social Media Campaign Generator | INXSocial",
+    metaDescription:
+      "Generate complete social campaigns with strategy, text and image posts, website brand grounding, review, Bulk Scheduler handoff and Smart Timing in INXSocial.",
+    eyebrow: "AI social media campaign generator",
+    h1: "Generate a complete social campaign, review it, then schedule it as one workflow.",
+    lead:
+      "INXSocial AI Campaign turns a campaign goal and optional website into a structured 10, 15, 20 or 30-post campaign with text, image or mixed content and a direct handoff to Bulk Scheduler.",
+    intro: [
+      "A campaign generator should do more than produce a pile of unrelated captions. INXSocial first builds campaign strategy, content pillars and a post map so the sequence has a deliberate role before individual posts are written.",
+      "When a website is supplied, the workflow can use verified website evidence and visual references to ground campaign messaging and generated imagery in the real brand instead of inventing a replacement identity."
+    ],
+    highlights: [
+      {
+        title: "Strategy before posts",
+        body: "Generate campaign direction, content pillars, hook rotation and a structured post map before the individual text and image posts are produced."
+      },
+      {
+        title: "Brand-grounded image campaigns",
+        body: "Use verified website logos, product visuals, screenshots and brand colours as authoritative inputs. When a verified full logo exists, INXSocial can preserve the exact logo instead of asking the image model to redraw it."
+      },
+      {
+        title: "Campaign-to-schedule handoff",
+        body: "Save the campaign, review every post and generated image, then load the authoritative campaign directly into Bulk Scheduler for destination and timing decisions."
+      }
+    ],
+    workflowHeading: "From campaign brief to scheduled batch",
+    workflow: [
+      {
+        title: "Define the campaign",
+        body: "Choose the campaign goal, optional website, target platform context and a 10, 15, 20 or 30-post text, image or mixed campaign."
+      },
+      {
+        title: "Review the generated plan",
+        body: "Inspect the strategy, content pillars, hooks, captions, hashtags and generated visuals. Individual posts and images remain reviewable and regenerable."
+      },
+      {
+        title: "Schedule the campaign",
+        body: "Open the saved campaign in Bulk Scheduler, choose compatible destinations and timing, and optionally use Smart Timing for bounded variation around the selected schedule."
+      }
+    ],
+    detailHeading: "Built to preserve campaign continuity",
+    details: [
+      "Text-only, image-only and mixed campaigns remain saved in INXSocial so the campaign can be reopened, reviewed and handed to Bulk Scheduler again without rebuilding a temporary media bundle.",
+      "Website analysis can extract official visual references such as logos, hero images, product screenshots and relevant interface visuals through the existing safe public-asset retrieval path. Generated campaign images are instructed not to invent substitute logos or fictional product interfaces when verified references exist.",
+      "Image generation follows the shared AI credit system. Multi-image campaigns surface the required image-credit exposure before generation begins, and failed renders remain retryable."
+    ],
+    faq: [
+      {
+        question: "How many posts can an AI Campaign create?",
+        answer:
+          "The current AI Campaign workflow supports 10, 15, 20 or 30-post campaigns."
+      },
+      {
+        question: "Can AI Campaign create both text and image posts?",
+        answer:
+          "Yes. You can create text-only, image-only or mixed campaigns, and mixed campaigns preserve the original post order when they move into Bulk Scheduler."
+      },
+      {
+        question: "Can INXSocial use my website branding in campaign images?",
+        answer:
+          "Yes. When verified website references are available, INXSocial can use official logos, product visuals, screenshots and brand colours as grounded creative inputs rather than inventing replacements."
+      }
+    ],
+    related: ["bulk-social-media-scheduler", "ai-social-media-tools", "social-media-scheduler"]
   },
 
   "ai-social-media-post-generator": {
@@ -504,138 +572,138 @@ export const seoPages: Record<string, SeoPage> = {
 
   "ai-video-post-generator": {
     slug: "ai-video-post-generator",
-    title: "AI Social Media Video Generator | INXSocial",
+    title: "AI Social Media Video & Image-to-Video Generator | INXSocial",
     metaDescription:
-      "Create short-form social video and Reel content with AI or stock-video workflows inside INXSocial, then keep the result connected to scheduling and publishing.",
-    eyebrow: "AI social video",
-    h1: "Create short-form video without separating production from publishing.",
+      "Create short social videos from text or a reference image with AI model routing, image-to-video controls, background rendering and direct publishing in INXSocial.",
+    eyebrow: "AI social video generator",
+    h1: "Create short-form video from a prompt or reference image without leaving your social workflow.",
     lead:
-      "INXSocial combines AI video and stock-video creation paths with the rest of the social workflow so the finished asset can stay inside the product and continue toward scheduling.",
+      "INXSocial AI Video Studio supports text-to-video and image-to-video generation, automatic or manual model routing, configurable output controls and background rendering before the finished asset moves into Media Library and publishing.",
     intro: [
-      "Short-form social video often creates the most fragmented workflow: script in one tool, visuals in another, captions somewhere else and scheduling in a fourth product.",
-      "The INXSocial video workflow is designed to reduce those handoffs. Create the video asset, keep it in the Media Library and continue into publishing from the same workspace."
+      "Short-form video often becomes a fragmented workflow: the brief lives in one tool, references in another, the render somewhere else and publishing in a fourth product.",
+      "INXSocial keeps the generation path inside the same workspace. Start from text, a product image, screenshot or first-frame reference, generate in the background, then continue with the finished video without rebuilding the post elsewhere."
     ],
     highlights: [
       {
-        title: "AI video workflow",
-        body: "Use an AI-assisted path for short-form social video when generated visuals are the right creative approach."
+        title: "Text-to-video or image-to-video",
+        body: "Generate from a written brief alone or add a reference image, product shot, screenshot or first frame to anchor the visual direction."
       },
       {
-        title: "Stock Video Creator",
-        body: "Use a stock-footage workflow when a sourced-video approach better fits the content."
+        title: "Smart model routing",
+        body: "Use AI Recommended for quality-to-cost model selection, Fast for a lower-cost everyday route, or Manual when you want direct control over the available generation model."
       },
       {
-        title: "Publishing-ready handoff",
-        body: "Keep the finished video connected to Media Library, Posts and scheduling rather than exporting it into another system."
+        title: "Publishing-ready output",
+        body: "Choose supported duration, resolution, aspect ratio and audio options, let longer renders continue in the background, then keep the finished video inside Media Library and Posts."
       }
     ],
-    workflowHeading: "Choose the video route that fits the idea",
+    workflowHeading: "From brief to social-ready video",
     workflow: [
       {
-        title: "Plan the content",
-        body: "Define the subject, format and intended social destination before generation begins."
+        title: "Describe the video",
+        body: "Write the creative brief and optionally provide a product URL or reference image for stronger visual grounding."
       },
       {
-        title: "Create the video",
-        body: "Use the AI video or stock-video path available inside AI Content Studio."
+        title: "Choose or let AI route the model",
+        body: "Use AI Recommended, Fast or Manual mode, then configure the supported duration, resolution, aspect ratio, audio and draft options."
       },
       {
-        title: "Prepare the post",
-        body: "Review the finished media and continue into the social publishing workflow."
+        title: "Generate and publish",
+        body: "Rendering can continue in the background. Review the completed video and post package, save it to the media workflow or continue directly to Post / Schedule."
       }
     ],
-    detailHeading: "Video creation designed for social workflows",
+    detailHeading: "Video generation designed around social production",
     details: [
-      "The video experience focuses on short-form social outputs such as Reels and similar vertical content. Available dimensions and publishing support depend on the selected workflow and destination.",
-      "Stock Video Creator is part of the existing video workflow. AI Video Clipping is separately identified in the product as a coming-soon capability.",
-      "AI video usage is governed by the credit allowance attached to the selected INXSocial plan."
+      "The current generative video workflow exposes several video-generation routes behind a consistent INXSocial interface. Model availability, supported dimensions, duration and audio capability vary by route.",
+      "Reference-image generation is supported where the selected model permits it, giving users a practical image-to-video path for product shots, screenshots and first-frame creative.",
+      "Stock Video Creator remains available as a separate production path inside Short Video / Reel. AI Video Clipping is still presented as coming soon and is not described as generally available."
     ],
     faq: [
       {
-        question: "Does INXSocial offer AI-generated video?",
+        question: "Can I generate video from an image in INXSocial?",
         answer:
-          "AI Content Studio includes a short-form video workflow and also provides a stock-video creation path."
+          "Yes. The AI video workflow can accept an image, product shot, screenshot or first-frame reference and use it with supported image-reference video models."
       },
       {
-        question: "Can I keep generated videos in the Media Library?",
+        question: "Can INXSocial choose the video model automatically?",
         answer:
-          "Generated media is designed to remain available inside the INXSocial media workflow so it can be reused or moved into publishing."
+          "Yes. AI Recommended analyses the brief and whether a reference image is present, then selects a supported model based on quality-to-cost and production needs. Fast and Manual modes are also available."
       },
       {
-        question: "Is AI Video Clipping available now?",
+        question: "Can video generation continue if I close the window?",
         answer:
-          "The public product currently presents AI Video Clipping as coming soon."
+          "Yes. The current video workflow supports background generation and keeps progress available through the product while the render continues."
       }
     ],
-    related: ["ai-social-media-tools", "social-media-scheduler", "pricing"]
+    related: ["ai-social-media-tools", "ai-ugc-ad-generator", "social-media-scheduler"]
   },
 
   "ai-ugc-ad-generator": {
     slug: "ai-ugc-ad-generator",
-    title: "AI UGC Ad Generator for Social Campaigns | INXSocial",
+    title: "AI UGC Video Generator & Ad Creator | INXSocial",
     metaDescription:
-      "Create UGC-style social ad concepts and promotional assets with AI in INXSocial, then move the finished creative into your publishing workflow.",
-    eyebrow: "AI UGC ad generator",
-    h1: "Develop creator-style promotional content inside your social publishing workspace.",
+      "Create UGC video ads with AI creators, product references, brand-aware generation, multiple variations and editing inside the INXSocial publishing workflow.",
+    eyebrow: "AI UGC video generator",
+    h1: "Create complete UGC video ads with reusable AI creators and real product references.",
     lead:
-      "UGC Ad Post is a dedicated AI Content Studio workflow for building creator-style promotional content around a product, service or campaign brief.",
+      "INXSocial UGC Studio is a guided campaign workspace for creator-led video ads, covering source understanding, creative direction, creator selection, video generation, variations, editing and scheduling from one product.",
     intro: [
-      "UGC-style advertising is different from a standard brand graphic. It usually needs a stronger hook, a more direct product story and creative that feels native to the social feed.",
-      "INXSocial gives that format its own creation workflow, keeping the resulting media and publishing copy close to the rest of your campaign operations."
+      "UGC production needs more continuity than a one-shot video prompt. The creator should stay visually consistent, the product should remain recognisable and the narration, lip sync and scene progression should belong to the same ad.",
+      "UGC Studio is designed around that complete workflow. Start from a website or SaaS product, a physical product with uploaded references, or a campaign brief, then build and manage the resulting UGC campaign inside INXSocial."
     ],
     highlights: [
       {
-        title: "Creator-style format",
-        body: "Start from the product, service or campaign message and build content around a social-first promotional structure."
+        title: "Reusable creator library",
+        body: "Choose from the featured system creator library or reuse user-uploaded and user-generated creators. Creator identity is kept consistent across the generated ad."
       },
       {
-        title: "Creative + publishing copy",
-        body: "Develop the asset and supporting social copy together instead of handing the output between disconnected tools."
+        title: "Product and brand grounding",
+        body: "Physical-product flows can use uploaded product references, while website-led flows can use verified product and brand visuals before generation."
       },
       {
-        title: "Campaign continuity",
-        body: "Keep the result inside INXSocial so it can move into Posts, Media Library and scheduling."
+        title: "Variations + editor",
+        body: "Create 15, 20 or 30-second ads with multiple variations, Standard or Premium generation, then edit script, voice, delivery, music, captions, CTA and selected scenes."
       }
     ],
-    workflowHeading: "From promotional idea to publishable social asset",
+    workflowHeading: "A guided UGC campaign from source to finished ad",
     workflow: [
       {
-        title: "Define the offer",
-        body: "Describe the product, service or campaign point the creative needs to communicate."
+        title: "Define the source and brand",
+        body: "Start from Website / SaaS, Physical Product or Brief. Physical products can include up to eight real product references for the generation workflow."
       },
       {
-        title: "Build the UGC-style concept",
-        body: "Use the dedicated workflow to create a social-native promotional direction."
+        title: "Choose the creative direction",
+        body: "Select the ad style, creator, video length, number of variations and generation tier while keeping the credit requirement visible before rendering."
       },
       {
-        title: "Review and schedule",
-        body: "Refine the result before moving the finished content into publishing."
+        title: "Render, edit and schedule",
+        body: "Campaigns continue rendering in the background, remain available from the UGC Studio home, and can move through the editor before scheduling."
       }
     ],
-    detailHeading: "A dedicated format inside a broader content studio",
+    detailHeading: "UGC Studio is now a persistent campaign workspace",
     details: [
-      "UGC Ad Post sits alongside Image Post, Carousel Post and Short Video / Reel, giving promotional content a dedicated path without forcing every campaign into the same template.",
-      "The workflow is intended for AI-assisted creative development. Users should still review claims, product details and campaign compliance before publishing.",
-      "The final asset remains part of the INXSocial social workflow rather than a standalone advertising project."
+      "UGC Studio has a dedicated home for ready, rendering and failed campaigns, campaign variations, reusable creators and approved sample videos. Existing campaigns can be reopened, edited, scheduled, duplicated or deleted from that workspace.",
+      "Creator scenes reuse one stored creator reference and one narrator identity through the ad. Product Showcase prioritises uploaded product references and verified website visuals instead of inventing a replacement product.",
+      "Generation uses the shared AI credit system with visible Standard and Premium pricing by duration and variation count. Existing reserve, completion and refund accounting remains part of the credit workflow."
     ],
     faq: [
       {
-        question: "What is UGC-style content?",
+        question: "Can I use my own product images in a UGC ad?",
         answer:
-          "UGC-style content is promotional creative designed to feel closer to creator-native social content than a traditional polished brand advertisement."
+          "Yes. Physical-product campaigns can upload up to eight product references, and Product Showcase is designed to use real product visuals rather than inventing one."
       },
       {
-        question: "Can I edit the UGC-style result?",
+        question: "Can I create multiple UGC variations?",
         answer:
-          "Yes. AI-assisted outputs should be reviewed and refined before publication, especially for product claims and campaign details."
+          "Yes. The current workflow supports 1, 5, 10, 15 or 20 variations with 15, 20 or 30-second video lengths."
       },
       {
-        question: "Can I schedule the finished creative?",
+        question: "Can I edit a generated UGC video?",
         answer:
-          "Yes. The workflow is integrated with the wider INXSocial publishing system."
+          "Yes. Editor V1 supports changes to creator, script, voice and delivery, music, captions, CTA and selective scene or full regeneration before the content moves onward."
       }
     ],
-    related: ["ai-social-media-tools", "ai-video-post-generator", "social-media-scheduler"]
+    related: ["ai-social-media-campaign-generator", "ai-video-post-generator", "ai-social-media-tools"]
   },
 
   pricing: {
