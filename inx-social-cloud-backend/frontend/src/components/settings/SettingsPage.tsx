@@ -116,7 +116,7 @@ export function SettingsPage() {
   return (
     <div className="space-y-4 pb-8">
       {workspace.isError && <section className="flex flex-col gap-3 rounded-xl border border-brand-red/25 bg-brand-red/7 px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between"><span>Live account details could not refresh. Settings remain available; account-linked values may be temporarily unavailable.</span><Button onClick={() => void workspace.refetch()} size="sm" type="button">Retry account data</Button></section>}
-      <label className="relative block sm:hidden">
+      <label className="relative block lg:hidden">
         <span className="sr-only">Search settings</span>
         <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-muted" />
         <input className="min-h-11 w-full rounded-xl border border-border-soft bg-panel/70 pl-10 pr-3 text-sm text-text-main placeholder:text-text-soft focus:border-brand-teal focus:outline-none focus:ring-2 focus:ring-brand-teal/15" onChange={(event) => setSearch(event.target.value)} placeholder="Search settings…" type="search" value={search} />
