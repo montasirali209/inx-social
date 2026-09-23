@@ -71,6 +71,33 @@ type Props = {
   onToast: (message: string) => void
 }
 
+type ImagePreview = { url: string; title: string; caption: string }
+
+function CampaignImageLightbox({ preview, onClose }: { preview: ImagePreview | null; onClose: () => void }) {
+  if (!preview) return null
+  return createPortal(
+    <div
+      aria-label="Campaign image preview"
+      aria-modal="true"
+      className="ai-studio-modal-backdrop fixed inset-0 z-[260] grid place-items-center bg-[#01070d]/96 p-4 backdrop-blur-xl"
+      onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}
+      role="dialog"
+    >
+      <div className="ai-studio-modal-enter relative flex max-h-[94dvh] w-full max-w-[980px] flex-col overflow-hidden rounded-[28px] border border-brand-cyan/25 bg-[linear-gradient(145deg,rgba(5,22,34,.995),rgba(2,12,22,.995))] shadow-[0_44px_160px_rgba(0,0,0,.78)]">
+        <div className="flex items-start justify-between gap-3 border-b border-border-soft px-4 py-3 sm:px-5">
+          <div className="min-w-0"><span className="text-[8px] font-bold uppercase tracking-[.16em] text-brand-cyan">Campaign image</span><h3 className="mt-1 truncate text-sm font-semibold">{preview.title}</h3></div>
+          <button aria-label="Close image preview" className="grid size-9 shrink-0 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:border-brand-cyan/30 hover:text-white" onClick={onClose} type="button"><X className="size-4" /></button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-black/20 p-3 sm:p-5">
+          <img alt={preview.title} className="mx-auto max-h-[76dvh] w-auto max-w-full rounded-2xl object-contain shadow-[0_24px_80px_rgba(0,0,0,.45)]" src={preview.url} />
+          <p className="mx-auto mt-4 max-w-3xl whitespace-pre-wrap text-[10px] leading-5 text-text-muted">{preview.caption}</p>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props) {
   const [selectedCampaign, setSelectedCampaign] = useState<AIPostCampaign | null>(null)
   const [recent, setRecent] = useState<AIPostCampaign[]>([])
@@ -81,7 +108,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
   const [editingPostId, setEditingPostId] = useState<string | null>(null)
   const [expandedPosts, setExpandedPosts] = useState<Set<string>>(new Set())
   const [editDraft, setEditDraft] = useState<Partial<AIPostCampaignPost>>({})
-  const [imagePreview, setImagePreview] = useState<{ url: string; title: string; caption: string } | null>(null)
+  const [imagePreview, setImagePreview] = useState<ImagePreview | null>(null)
   const reviewRef = useRef<HTMLDivElement>(null)
   const [form, setForm] = useState<CreateAIPostCampaignInput>({
     businessUrl: '',
@@ -366,7 +393,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                 <div className="mt-2 grid gap-3 md:grid-cols-3">
                   {([
                     { mode: 'TEXT' as const, icon: FileText, title: 'Text Post Only', copy: 'Fast, concise posts built to work without a visual.' },
-                    { mode: 'IMAGE' as const, icon: ImageIcon, title: 'Image Post Only', copy: 'Every post gets an image concept. Render visuals only after review.' },
+                    { mode: 'IMAGE' as const, icon: ImageIcon, title: 'Image Post Only', copy: 'Every post is created with its finished campaign image automatically.' },
                     { mode: 'MIXED' as const, icon: Layers3, title: 'Mix Text + Image', copy: 'Blend quick text posts with high-impact visual posts in one campaign.' },
                   ]).map((option) => {
                     const active = form.contentMode === option.mode
@@ -413,7 +440,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                     />
                     <div className="mt-2 flex justify-between text-[10px] font-medium text-text-soft"><span>More text</span><span>{imageCount} image + {textCount} text</span><span>More visual</span></div>
                   </div>}
-                  {imageCount > 0 && <p className="mt-3 text-[10px] leading-5 text-text-soft">Images are <strong className="text-white/80">not generated automatically</strong>. Review first, then render only the images you want. Rendering all {imageCount} image posts would use up to <strong className="text-brand-cyan">{imageCount * 5} AI credits</strong>.</p>}
+                  {imageCount > 0 && <p className="mt-3 text-[10px] leading-5 text-text-soft">Image posts are generated <strong className="text-white/80">automatically with the campaign</strong>. At 5 credits per visual, this campaign uses <strong className="text-brand-cyan">{imageCount * 5} AI credits</strong> for its initial images. Regenerating an image later uses another 5 credits.</p>}
                 </div>
               </div>
 
@@ -558,18 +585,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
           </div>
         </div>}
       </section>
-      {imagePreview && <div aria-label="Campaign image preview" aria-modal="true" className="fixed inset-0 z-[160] grid place-items-center bg-[#01070d]/94 p-4 backdrop-blur-xl" onMouseDown={(event) => { if (event.currentTarget === event.target) setImagePreview(null) }} role="dialog">
-        <div className="ai-studio-modal-enter relative flex max-h-[94dvh] w-full max-w-[980px] flex-col overflow-hidden rounded-[28px] border border-brand-cyan/25 bg-[linear-gradient(145deg,rgba(5,22,34,.995),rgba(2,12,22,.995))] shadow-[0_44px_160px_rgba(0,0,0,.78)]">
-          <div className="flex items-start justify-between gap-3 border-b border-border-soft px-4 py-3 sm:px-5">
-            <div className="min-w-0"><span className="text-[8px] font-bold uppercase tracking-[.16em] text-brand-cyan">Campaign image</span><h3 className="mt-1 truncate text-sm font-semibold">{imagePreview.title}</h3></div>
-            <button aria-label="Close image preview" className="grid size-9 shrink-0 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:border-brand-cyan/30 hover:text-white" onClick={() => setImagePreview(null)} type="button"><X className="size-4" /></button>
-          </div>
-          <div className="min-h-0 flex-1 overflow-auto bg-black/20 p-3 sm:p-5">
-            <img alt={imagePreview.title} className="mx-auto max-h-[72dvh] w-auto max-w-full rounded-2xl object-contain shadow-[0_24px_80px_rgba(0,0,0,.45)]" src={imagePreview.url} />
-            <p className="mx-auto mt-4 max-w-3xl whitespace-pre-wrap text-[10px] leading-5 text-text-muted">{imagePreview.caption}</p>
-          </div>
-        </div>
-      </div>}
+      <CampaignImageLightbox onClose={() => setImagePreview(null)} preview={imagePreview} />
     </div>,
     document.body,
   )
