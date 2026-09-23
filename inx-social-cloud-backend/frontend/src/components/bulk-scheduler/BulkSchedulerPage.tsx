@@ -1,15 +1,17 @@
 import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { ApiError } from '../../lib/api-client'
 import { createBulkMediaPost, fetchBulkSchedulerData, optimiseBulkScheduleTimes, publishBulkLibraryMedia, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
 import { bulkCancelScheduledPosts, bulkEditScheduledPosts, retryFailedScheduledPost } from '../../lib/posts-api'
-import { fetchMediaAssetFile, uploadMediaAsset } from '../../lib/media-library-api'
+import { getAIPostCampaign, getAIPostCampaigns } from '../../lib/ai-content-studio-api'
+import { fetchMediaAssetFile, fetchMediaLibrary, uploadMediaAsset } from '../../lib/media-library-api'
 import { buildPublishingTimes, parseCaptions, parseTextPosts } from '../../lib/bulk-scheduler-utils'
 import { applyBulkScheduleEdit, applyBulkTextEdit, earliestLocalDate, hasTextRuleChanges, type BulkScheduledEditRules } from '../../lib/bulk-text-edit'
 import type { BatchProgress, BulkContentMode, BulkSchedulerData, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
 import type { MediaAsset } from '../../types/media-library'
 import type { DashboardJob } from '../../types/dashboard'
+import type { AIPostCampaign } from '../../types/ai-content-studio'
 import { backendStatusToUploadStatus } from '../../types/bulk-scheduler'
 import { BatchRunPanel } from './BatchRunPanel'
 import { BulkScheduleManager } from './BulkScheduleManager'
@@ -20,9 +22,10 @@ import { UploadBatchPanel } from './UploadBatchPanel'
 import { useBulkSchedulerActivity } from './bulk-scheduler-activity-store'
 import { PublishConfirmationDialog } from '../ui/PublishConfirmationDialog'
 
-const idleProgress: BatchProgress = { state: 'idle', percent: 0, current: 0, total: 0, completed: 0, failed: 0, message: 'Select destinations, choose Media Posts or Text Posts, add content, then choose a timing mode.' }
+const idleProgress: BatchProgress = { state: 'idle', percent: 0, current: 0, total: 0, completed: 0, failed: 0, message: 'Select destinations, then choose Media Posts, Text Posts or AI Campaign and configure publishing.' }
 
 const TEXT_POST_PLATFORMS = new Set(['facebook', 'x', 'linkedin', 'threads', 'bluesky'])
+const ACTIVE_AI_CAMPAIGN_KEY = 'inx-social-bulk-ai-campaign-v1'
 
 const immediateSchedulerData: BulkSchedulerData = {
   destinations: [],
@@ -56,6 +59,8 @@ function mediaMimeType(file: File) {
 
 type ImportedMixedCampaignItem = {
   id: string
+  sequence: number
+  title: string
   contentType: 'TEXT' | 'IMAGE'
   caption: string
   media: SelectedMedia | null
@@ -69,9 +74,11 @@ type ImportedMixedCampaign = {
 
 export function BulkSchedulerPage() {
   const location = useLocation()
+  const navigate = useNavigate()
   const { registerStop, update: updateActivity } = useBulkSchedulerActivity()
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [contentMode, setContentMode] = useState<BulkContentMode>('media')
+  const [workspaceMode, setWorkspaceMode] = useState<'media' | 'text' | 'campaign'>('media')
   const [media, setMedia] = useState<SelectedMedia[]>([])
   const mediaRef = useRef<SelectedMedia[]>([])
   const [captions, setCaptions] = useState('')
@@ -91,6 +98,8 @@ export function BulkSchedulerPage() {
   const importedLibrarySelection = useRef('')
   const importedCampaignSelection = useRef('')
   const importedMixedCampaignSelection = useRef('')
+  const importedPersistentCampaignSelection = useRef('')
+  const restoredCampaignSelection = useRef(false)
   const destinationSection = useRef<HTMLDivElement>(null)
   const batchRunSection = useRef<HTMLDivElement>(null)
   const running = ['preparing', 'uploading', 'scheduling'].includes(progress.state)
@@ -100,6 +109,11 @@ export function BulkSchedulerPage() {
     queryKey: ['bulk-scheduler'],
     queryFn: fetchBulkSchedulerData,
     refetchInterval: results.some((result) => result.status === 'uploading') ? 8_000 : 15_000,
+  })
+  const campaignsQuery = useQuery({
+    queryKey: ['ai-post-campaigns', 'bulk-scheduler'],
+    queryFn: () => getAIPostCampaigns(20),
+    staleTime: 5_000,
   })
   const schedulerData = scheduler.data || immediateSchedulerData
   const destinations = schedulerData.destinations
@@ -111,6 +125,57 @@ export function BulkSchedulerPage() {
   const mixedTextDestinations = selectedDestinations.filter((destination) => TEXT_POST_PLATFORMS.has(destination.platform))
   const batchCount = mixedCampaign ? mixedCampaign.posts.length : contentMode === 'text' ? captionBlocks.length : media.length
   const activeScheduleTimes = timingMode === 'saved_schedule' ? schedulerData.settings.defaultScheduleTimes : scheduleTimes
+
+  const loadSavedCampaign = useCallback(async (campaign: AIPostCampaign) => {
+    const imagePosts = campaign.posts.filter((post) => post.contentType === 'IMAGE')
+    const missingImages = imagePosts.filter((post) => !post.mediaAssetId)
+    if (missingImages.length) {
+      throw new Error(`“${campaign.title}” still needs ${missingImages.length} generated image${missingImages.length === 1 ? '' : 's'} before it can be scheduled as a complete AI campaign.`)
+    }
+
+    setProgress({ ...idleProgress, state: 'preparing', message: `Loading AI campaign “${campaign.title}”…` })
+    const library = imagePosts.length ? await fetchMediaLibrary() : null
+    const assetsById = new Map((library?.assets || []).map((asset) => [asset.id, asset]))
+
+    const items = await Promise.all(campaign.posts.map(async (post): Promise<ImportedMixedCampaignItem> => {
+      const tags = post.hashtags.map((tag) => `#${tag.replace(/^#/, '')}`).join(' ')
+      const caption = [post.caption.trim(), tags].filter(Boolean).join('\n\n')
+      if (post.contentType === 'TEXT') {
+        return { id: post.id, sequence: post.sequence, title: post.title, contentType: 'TEXT', caption, media: null }
+      }
+
+      const asset = post.mediaAssetId ? assetsById.get(post.mediaAssetId) : null
+      if (!asset) throw new Error(`The generated image for post ${post.sequence} is no longer available in Media Library.`)
+      const file = await fetchMediaAssetFile(asset)
+      const kind = mediaKind(file)
+      if (!kind) throw new Error(`${asset.fileName} is not a supported image or video.`)
+      return {
+        id: post.id,
+        sequence: post.sequence,
+        title: post.title,
+        contentType: 'IMAGE',
+        caption,
+        media: { id: asset.id, libraryAssetId: asset.id, file, kind, previewUrl: URL.createObjectURL(file) },
+      }
+    }))
+
+    mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+    const imageMedia = items.flatMap((item) => item.media ? [item.media] : [])
+    mediaRef.current = imageMedia
+    setMedia(imageMedia)
+    setMixedCampaign({ id: campaign.id, title: campaign.title, posts: items })
+    setWorkspaceMode('campaign')
+    setContentMode('media')
+    setCaptions('')
+    setRetainMedia(true)
+    setUseFallback(false)
+    setResults([])
+    window.localStorage.setItem(ACTIVE_AI_CAMPAIGN_KEY, campaign.id)
+
+    const textPosts = items.filter((item) => item.contentType === 'TEXT').length
+    const imageCount = items.length - textPosts
+    setProgress({ ...idleProgress, state: 'completed', message: `${items.length}-post AI campaign loaded: ${textPosts} text + ${imageCount} image. Review the campaign preview, choose destinations and publishing times.` })
+  }, [])
 
   useEffect(() => {
     if (!schedulerData.jobs.length || !results.length) return
@@ -169,8 +234,10 @@ export function BulkSchedulerPage() {
   }, [running])
 
   const canUseFallback = contentMode === 'media' && captionBlocks.length > 0 && useFallback
-  const disabledReason = !selectedIds.size
-    ? 'Select at least one connected destination.'
+  const disabledReason = workspaceMode === 'campaign' && !mixedCampaign
+    ? 'Choose a saved AI campaign first.'
+    : !selectedIds.size
+      ? 'Select at least one connected destination.'
     : mixedCampaign && mixedTextPosts.length && !mixedTextDestinations.length
       ? 'This mixed campaign contains text-only posts. Select at least one destination that supports text posts, such as Facebook, X, LinkedIn, Threads or Bluesky.'
       : mixedCampaign && mixedImagePosts.some((post) => !post.media)
@@ -205,11 +272,49 @@ export function BulkSchedulerPage() {
     mediaRef.current = next
     setMedia(next)
     setMixedCampaign(null)
+    setWorkspaceMode('media')
+    window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
     setResults([])
     setRetainMedia(false)
     const rejected = files.length - valid.length
     setProgress(rejected ? { ...idleProgress, state: 'failed', message: `${rejected} unsupported, empty or oversized file${rejected === 1 ? ' was' : 's were'} not added. Images may be PNG, JPEG or WebP up to 15 MB; videos may be MP4, MOV or WebM.` } : idleProgress)
   }
+
+  useEffect(() => {
+    const state = location.state as { aiCampaignId?: string } | null
+    const campaignId = state?.aiCampaignId
+    if (!campaignId) return
+    const fingerprint = `${campaignId}:${location.key}`
+    if (importedPersistentCampaignSelection.current === fingerprint) return
+    importedPersistentCampaignSelection.current = fingerprint
+    setWorkspaceMode('campaign')
+    setProgress({ ...idleProgress, state: 'preparing', message: 'Loading saved AI campaign…' })
+
+    void getAIPostCampaign(campaignId)
+      .then((campaign) => loadSavedCampaign(campaign))
+      .catch((error) => {
+        importedPersistentCampaignSelection.current = ''
+        setProgress({ ...idleProgress, state: 'failed', message: error instanceof Error ? error.message : 'The AI campaign could not be loaded.' })
+      })
+  }, [location.state, location.key, loadSavedCampaign])
+
+  useEffect(() => {
+    const routeCampaignId = (location.state as { aiCampaignId?: string } | null)?.aiCampaignId
+    if (routeCampaignId || restoredCampaignSelection.current || mixedCampaign || !campaignsQuery.data) return
+    restoredCampaignSelection.current = true
+    const campaignId = window.localStorage.getItem(ACTIVE_AI_CAMPAIGN_KEY)
+    if (!campaignId) return
+    const campaign = campaignsQuery.data.find((item) => item.id === campaignId)
+    if (!campaign) {
+      window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
+      return
+    }
+    setWorkspaceMode('campaign')
+    void loadSavedCampaign(campaign).catch((error) => {
+      window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
+      setProgress({ ...idleProgress, state: 'failed', message: error instanceof Error ? error.message : 'The saved AI campaign could not be restored.' })
+    })
+  }, [campaignsQuery.data, loadSavedCampaign, location.state, mixedCampaign])
 
   useEffect(() => {
     const state = location.state as { aiPostCampaign?: { id: string; title: string; contentMode: 'TEXT'; captions: string[] } } | null
@@ -221,6 +326,8 @@ export function BulkSchedulerPage() {
     const blocks = (imported.captions || []).map((caption) => String(caption || '').trim()).filter(Boolean)
     if (!blocks.length) return
     setMixedCampaign(null)
+    setWorkspaceMode('text')
+    window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
     setContentMode('text')
     setCaptions(blocks.join('\n\n---\n\n'))
     setMedia([])
@@ -250,8 +357,8 @@ export function BulkSchedulerPage() {
     const assetsById = new Map((state?.mediaLibraryAssets || []).map((asset) => [asset.id, asset]))
     setProgress({ ...idleProgress, state: 'preparing', message: `Loading mixed AI campaign “${imported.title}”…` })
 
-    void Promise.all(imported.posts.map(async (post): Promise<ImportedMixedCampaignItem> => {
-      if (post.contentType === 'TEXT') return { id: post.id, contentType: 'TEXT', caption: post.caption, media: null }
+    void Promise.all(imported.posts.map(async (post, index): Promise<ImportedMixedCampaignItem> => {
+      if (post.contentType === 'TEXT') return { id: post.id, sequence: index + 1, title: `Post ${index + 1}`, contentType: 'TEXT', caption: post.caption, media: null }
       const asset = post.mediaAssetId ? assetsById.get(post.mediaAssetId) : null
       if (!asset) throw new Error(`Generated media is missing for one of the image posts in “${imported.title}”.`)
       const file = await fetchMediaAssetFile(asset)
@@ -259,6 +366,8 @@ export function BulkSchedulerPage() {
       if (!kind) throw new Error(`${asset.fileName} is not a supported image or video.`)
       return {
         id: post.id,
+        sequence: index + 1,
+        title: `Post ${index + 1}`,
         contentType: 'IMAGE',
         caption: post.caption,
         media: { id: asset.id, libraryAssetId: asset.id, file, kind, previewUrl: URL.createObjectURL(file) },
@@ -269,6 +378,8 @@ export function BulkSchedulerPage() {
       mediaRef.current = imageMedia
       setMedia(imageMedia)
       setMixedCampaign({ id: imported.id, title: imported.title, posts: items })
+      setWorkspaceMode('campaign')
+      window.localStorage.setItem(ACTIVE_AI_CAMPAIGN_KEY, imported.id)
       setContentMode('media')
       setCaptions('')
       setRetainMedia(true)
@@ -291,6 +402,8 @@ export function BulkSchedulerPage() {
     const fingerprint = selectedAssets.length ? `${selectedAssets.map((asset) => asset.id).join(':')}:${location.key}` : ''
     if (!fingerprint || importedLibrarySelection.current === fingerprint) return
     importedLibrarySelection.current = fingerprint
+    setWorkspaceMode('media')
+    window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
     setContentMode('media')
     if (state?.aiCampaignCaptions?.length) {
       setCaptions(state.aiCampaignCaptions.map((caption) => String(caption || '').trim()).filter(Boolean).join('\n\n---\n\n'))
@@ -320,6 +433,7 @@ export function BulkSchedulerPage() {
     mediaRef.current = []
     setMedia([])
     setMixedCampaign(null)
+    window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
     setCaptions('')
     setTimingMode('')
     setScheduleTimes(['10:00'])
@@ -339,12 +453,60 @@ export function BulkSchedulerPage() {
 
   const changeContentMode = (value: BulkContentMode) => {
     if (running || value === contentMode) return
-    setMixedCampaign(null)
     setContentMode(value)
     setUseFallback(false)
     setRetainMedia(false)
     setResults([])
     setProgress(idleProgress)
+  }
+
+  const changeWorkspaceMode = (value: 'media' | 'text' | 'campaign') => {
+    if (running || value === workspaceMode) return
+    if (value === 'campaign') {
+      setWorkspaceMode('campaign')
+      setResults([])
+      if (!mixedCampaign) setProgress(idleProgress)
+      return
+    }
+
+    if (mixedCampaign) {
+      mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+      mediaRef.current = []
+      setMedia([])
+      setMixedCampaign(null)
+      setCaptions('')
+      window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
+    }
+
+    setWorkspaceMode(value)
+    setUseFallback(false)
+    setRetainMedia(false)
+    setResults([])
+    setProgress(idleProgress)
+    changeContentMode(value === 'text' ? 'text' : 'media')
+  }
+
+  const chooseSavedCampaign = (campaign: AIPostCampaign) => {
+    if (running) return
+    void loadSavedCampaign(campaign).catch((error) => {
+      setMixedCampaign(null)
+      window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
+      setProgress({ ...idleProgress, state: 'failed', message: error instanceof Error ? error.message : 'The AI campaign could not be loaded.' })
+    })
+  }
+
+  const clearCampaignSelection = () => {
+    if (running) return
+    mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
+    mediaRef.current = []
+    setMedia([])
+    setMixedCampaign(null)
+    setCaptions('')
+    window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
+    setTimingMode('')
+    setResults([])
+    setProgress(idleProgress)
+    setWorkspaceMode('campaign')
   }
 
   const runBatch = async () => {
@@ -404,7 +566,7 @@ export function BulkSchedulerPage() {
         }
       })
       setResults(initialResults)
-      setProgress({ state: 'preparing', percent: 1, current: 0, total: mixedCampaign.posts.length, completed: 0, failed: 0, message: 'Preparing mixed AI campaign in campaign order…' })
+      setProgress({ state: 'preparing', percent: 1, current: 0, total: mixedCampaign.posts.length, completed: 0, failed: 0, message: 'Preparing AI campaign in campaign order…' })
 
       let completed = 0
       let failed = 0
@@ -1045,7 +1207,60 @@ export function BulkSchedulerPage() {
       <BulkSchedulerStats jobs={schedulerData.jobs} onOpen={setHistoryView} />
       <div className="mt-4 scroll-mt-24" ref={destinationSection}><PublishingDestinationsPanel destinations={destinations} onSelectionChange={setSelectedIds} platforms={schedulerData.platforms} selectedIds={selectedIds} /></div>
       <div className="mt-4 grid items-start gap-4 xl:grid-cols-[minmax(0,.92fr)_minmax(0,1.08fr)]">
-        <UploadBatchPanel campaignImport={mixedCampaign ? { title: mixedCampaign.title, textPosts: mixedTextPosts.length, imagePosts: mixedImagePosts.length, total: mixedCampaign.posts.length } : null} canStart={canStart} captionCount={mixedCampaign ? mixedCampaign.posts.length : captionBlocks.length} captions={captions} contentMode={contentMode} disabledReason={disabledReason} media={media} onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }} onCaptionsChange={setCaptions} onClear={clearSession} onContentModeChange={changeContentMode} onFallbackChange={setUseFallback} onMedia={selectMedia} onRetainMediaChange={setRetainMedia} onSmartTimingChange={setSmartTiming} onScheduleDateChange={setScheduleDate} onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())} onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))} onStart={requestStart} onTimingModeChange={setTimingMode} retainMedia={retainMedia} smartTiming={smartTiming} running={running} savedScheduleTimes={schedulerData.settings.defaultScheduleTimes} scheduleDate={scheduleDate} scheduleTimes={activeScheduleTimes} selectedDestinations={selectedIds.size} timezone={schedulerData.settings.timezone} timingMode={timingMode} useFallback={useFallback} />
+        <UploadBatchPanel
+          campaignError={campaignsQuery.isError ? (campaignsQuery.error instanceof Error ? campaignsQuery.error.message : 'Saved AI campaigns could not be loaded.') : ''}
+          campaignImport={mixedCampaign ? {
+            id: mixedCampaign.id,
+            title: mixedCampaign.title,
+            textPosts: mixedTextPosts.length,
+            imagePosts: mixedImagePosts.length,
+            total: mixedCampaign.posts.length,
+            posts: mixedCampaign.posts.map((post) => ({
+              id: post.id,
+              sequence: post.sequence,
+              title: post.title,
+              contentType: post.contentType,
+              caption: post.caption,
+              thumbnailUrl: post.media?.previewUrl || '',
+            })),
+          } : null}
+          campaignLoading={campaignsQuery.isLoading}
+          campaigns={campaignsQuery.data || []}
+          canStart={canStart}
+          captionCount={mixedCampaign ? mixedCampaign.posts.length : captionBlocks.length}
+          captions={captions}
+          contentMode={contentMode}
+          disabledReason={disabledReason}
+          media={media}
+          onCampaignClear={clearCampaignSelection}
+          onCampaignSelect={chooseSavedCampaign}
+          onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }}
+          onCaptionsChange={setCaptions}
+          onClear={clearSession}
+          onContentModeChange={changeContentMode}
+          onCreateCampaign={() => navigate('/ai-content-studio?campaign=new')}
+          onFallbackChange={setUseFallback}
+          onMedia={selectMedia}
+          onRetainMediaChange={setRetainMedia}
+          onSmartTimingChange={setSmartTiming}
+          onScheduleDateChange={setScheduleDate}
+          onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())}
+          onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))}
+          onStart={requestStart}
+          onTimingModeChange={setTimingMode}
+          onWorkspaceModeChange={changeWorkspaceMode}
+          retainMedia={retainMedia}
+          smartTiming={smartTiming}
+          running={running}
+          savedScheduleTimes={schedulerData.settings.defaultScheduleTimes}
+          scheduleDate={scheduleDate}
+          scheduleTimes={activeScheduleTimes}
+          selectedDestinations={selectedIds.size}
+          timezone={schedulerData.settings.timezone}
+          timingMode={timingMode}
+          useFallback={useFallback}
+          workspaceMode={workspaceMode}
+        />
         <div className="scroll-mt-24" ref={batchRunSection}><BatchRunPanel canStart={canStart} destinations={destinations} disabledReason={disabledReason} onRetry={retryFailedUpload} onStart={requestStart} onStop={stopUpload} progress={progress} results={results} retryingId={retryingId} running={running} /></div>
       </div>
       {historyView && <BulkScheduleManager initialView={historyView} jobs={schedulerData.jobs} onBulkCancelJobs={bulkCancelScheduledJobs} onBulkEditJobs={(jobs, rules) => { void bulkEditScheduledJobs(jobs, rules) }} onChanged={() => scheduler.refetch()} onClose={() => setHistoryView(null)} onRetryJobs={(jobs) => { void retryReviewJobs(jobs) }} timezone={schedulerData.settings.timezone} />}
