@@ -203,7 +203,7 @@ export function BulkSchedulerPage() {
     setRetainMedia(false)
     setResults([])
     setProgress({ ...idleProgress, state: 'completed', message: `${blocks.length} AI campaign posts from “${imported.title}” are ready. Choose destinations and publishing times, then schedule the campaign.` })
-  }, [location.state])
+  }, [location.state, location.key])
 
   useEffect(() => {
     const state = location.state as { mediaLibraryAssets?: MediaAsset[]; aiCampaignCaptions?: string[]; aiCampaignTitle?: string } | null
@@ -233,7 +233,7 @@ export function BulkSchedulerPage() {
       importedLibrarySelection.current = ''
       setProgress({ ...idleProgress, state: 'failed', message: error instanceof Error ? error.message : 'The selected Media Library assets could not be loaded.' })
     })
-  }, [location.state])
+  }, [location.state, location.key])
 
   const clearSession = () => {
     mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
