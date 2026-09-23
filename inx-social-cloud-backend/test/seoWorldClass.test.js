@@ -28,7 +28,7 @@ test('homepage entity graph cleanly separates company, brand, website and softwa
   assert.equal(webpage.primaryImageOfPage.width, 1200);
   assert.equal(webpage.primaryImageOfPage.height, 630);
   assert.match(webpage.primaryImageOfPage.url, /inxsocial-social-preview-v3\.jpg$/);
-  assert.equal(webpage.dateModified, '2026-09-20');
+  assert.equal(webpage.dateModified, '2026-09-23');
 });
 
 test('homepage targets social media management intent with search-snippet-safe metadata', () => {
@@ -45,7 +45,7 @@ test('homepage targets social media management intent with search-snippet-safe m
 test('feature SEO titles and descriptions are unique and bounded for SERP snippets', () => {
   const source = readRepo('landing-next/lib/seo-pages.ts');
   const matches = [...source.matchAll(/title:\s*"([^"]+)"[\s\S]{0,350}?metaDescription:\s*\n?\s*"([^"]+)"/g)];
-  assert.equal(matches.length, 10);
+  assert.equal(matches.length, 11);
   const titles = matches.map(match => match[1]);
   const descriptions = matches.map(match => match[2]);
   assert.equal(new Set(titles).size, titles.length);
@@ -74,6 +74,7 @@ test('duplicate Railway host is noindex while canonical host handling remains ex
 test('homepage passes contextual authority into every live AI acquisition page', () => {
   const landing = readBackend('public/landing.html');
   for (const route of [
+    '/ai-social-media-campaign-generator',
     '/ai-social-media-post-generator',
     '/ai-carousel-post-generator',
     '/ai-video-post-generator',
@@ -97,8 +98,9 @@ test('feature pages carry complete entities, breadcrumbs, image data and expande
 
 test('sitemap exposes only canonical acquisition URLs with current modification dates', () => {
   const sitemap = readBackend('public/sitemap.xml');
-  assert.equal((sitemap.match(/<url>/g) || []).length, 11);
-  assert.equal((sitemap.match(/<lastmod>2026-09-20<\/lastmod>/g) || []).length, 11);
+  assert.equal((sitemap.match(/<url>/g) || []).length, 12);
+  assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-campaign-generator<\/loc>\s*<lastmod>2026-09-23<\/lastmod>/);
+  assert.ok((sitemap.match(/<lastmod>2026-09-23<\/lastmod>/g) || []).length >= 7);
   assert.doesNotMatch(sitemap, /\.html<\/loc>/);
   assert.doesNotMatch(sitemap, /social\.inaxx\.co\.uk|up\.railway\.app/);
 });
@@ -111,6 +113,7 @@ test('every canonical acquisition route has a static 200 fallback document', () 
     'social-media-content-calendar',
     'social-media-analytics',
     'ai-social-media-tools',
+    'ai-social-media-campaign-generator',
     'ai-social-media-post-generator',
     'ai-carousel-post-generator',
     'ai-video-post-generator',
