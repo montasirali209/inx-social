@@ -16,7 +16,9 @@ const R2_GENERATED_MEDIA_PREFIXES = new Set([
   'ai-video',
   'stock-video',
   'ugc-video',
-  'ugc-avatar'
+  'ugc-avatar',
+  'ugc-product',
+  'ugc-sample'
 ]);
 
 function clean(value) {
