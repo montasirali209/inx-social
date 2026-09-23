@@ -49,6 +49,7 @@ router.get('/ugc/samples', ugcController.samples);
 router.get('/ugc/samples/:sampleId/content', ugcController.sampleContent);
 router.post('/ugc/samples/upload', ugcController.sampleUploadMiddleware, ugcController.uploadSample);
 router.get('/ugc/music', ugcController.listMusic);
+router.post('/ugc/events', ugcController.trackEvent);
 router.get('/campaigns', controller.listCampaigns);
 router.post('/campaigns', controller.createCampaign);
 router.get('/campaigns/:campaignId', controller.getCampaign);
