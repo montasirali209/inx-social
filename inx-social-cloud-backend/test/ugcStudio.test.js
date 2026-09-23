@@ -9,7 +9,11 @@ const {
   avatarSeeds,
   creditsPerAd,
   splitDurations,
-  splitScriptByDurations
+  splitScriptByDurations,
+  narratorVoice,
+  narratorLanguage,
+  narratorSpeed,
+  captionsForScenes
 } = require('../src/services/ugcStudioService');
 
 test('UGC Studio launch pricing is deliberate and duration based', () => {
@@ -54,4 +58,22 @@ test('script distribution preserves all words across scene durations', () => {
   const parts = splitScriptByDurations(script, [10, 10, 10]);
   assert.equal(parts.join(' '), script);
   assert.equal(parts.length, 3);
+});
+
+
+test('UGC narrator locks legacy and presentation voices to one consistent TTS identity', () => {
+  assert.equal(narratorVoice('Puck (Male)', { presentation: 'Man' }), 'Callum');
+  assert.equal(narratorVoice('Aoede (Female)', { presentation: 'Woman' }), 'Pippa');
+  assert.equal(narratorVoice('', { presentation: 'Man' }), 'Callum');
+  assert.equal(narratorVoice('', { presentation: 'Woman' }), 'Pippa');
+  assert.equal(narratorVoice('Arjun', { presentation: 'Man' }), 'Arjun');
+  assert.equal(narratorLanguage('en-GB'), 'en');
+  assert.equal(narratorLanguage('es-ES'), 'es');
+  assert.ok(narratorSpeed('one two three four five six seven eight nine ten', 5) >= 0.7);
+});
+
+test('UGC captions emit valid SRT timestamp rows', () => {
+  const srt = captionsForScenes([{ duration: 5, script: 'one two three four five six' }]);
+  assert.match(srt, /00:00:00,000 --> 00:00:05,000/);
+  assert.doesNotMatch(srt, /00:00:00,000\n--> /);
 });
