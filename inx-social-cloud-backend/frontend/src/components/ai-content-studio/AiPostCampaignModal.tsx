@@ -48,7 +48,6 @@ type Props = {
 export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props) {
   const [campaign, setCampaign] = useState<AIPostCampaign | null>(null)
   const [recent, setRecent] = useState<AIPostCampaign[]>([])
-  const [loadingRecent, setLoadingRecent] = useState(false)
   const [creating, setCreating] = useState(false)
   const [busyPostId, setBusyPostId] = useState<string | null>(null)
   const [editingPostId, setEditingPostId] = useState<string | null>(null)
@@ -65,11 +64,9 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
 
   useEffect(() => {
     if (!open) return
-    setLoadingRecent(true)
     void getAIPostCampaigns(8)
       .then(setRecent)
       .catch(() => setRecent([]))
-      .finally(() => setLoadingRecent(false))
   }, [open])
 
   const imagesReady = campaign?.contentMode === 'IMAGE'
@@ -267,7 +264,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
             <aside className="border-t border-border-soft bg-black/10 p-4 sm:p-5 lg:overflow-y-auto lg:border-l lg:border-t-0">
               <div className="flex items-center justify-between"><div><span className="text-[9px] font-bold uppercase tracking-[.14em] text-text-soft">Saved campaigns</span><h3 className="mt-1 text-sm font-semibold">Recent work</h3></div><CalendarRange className="size-4 text-brand-cyan" /></div>
               <div className="mt-4 space-y-2">
-                {loadingRecent ? <div className="rounded-xl border border-border-soft p-4 text-[10px] text-text-muted">Loading campaigns…</div> : recent.length ? recent.map((item) => <article className="rounded-xl border border-border-soft bg-bg/30 p-3" key={item.id}><div className="flex items-start justify-between gap-2"><button className="min-w-0 flex-1 text-left" onClick={() => setCampaign(item)} type="button"><strong className="block truncate text-xs">{item.title}</strong><small className="mt-1 block text-[9px] text-text-muted">{item.postCount} posts · {item.contentMode === 'IMAGE' ? `${item.counts.withImages}/${item.postCount} images` : 'text campaign'}</small></button><button aria-label={`Delete ${item.title}`} className="grid size-7 shrink-0 place-items-center rounded-lg text-text-soft hover:bg-brand-red/10 hover:text-brand-red" onClick={() => void removeCampaign(item)} type="button"><Trash2 className="size-3.5" /></button></div></article>) : <div className="rounded-xl border border-dashed border-border-soft p-5 text-center text-[10px] text-text-muted">Your generated campaigns will appear here.</div>}
+                {recent.length ? recent.map((item) => <article className="rounded-xl border border-border-soft bg-bg/30 p-3" key={item.id}><div className="flex items-start justify-between gap-2"><button className="min-w-0 flex-1 text-left" onClick={() => setCampaign(item)} type="button"><strong className="block truncate text-xs">{item.title}</strong><small className="mt-1 block text-[9px] text-text-muted">{item.postCount} posts · {item.contentMode === 'IMAGE' ? `${item.counts.withImages}/${item.postCount} images` : 'text campaign'}</small></button><button aria-label={`Delete ${item.title}`} className="grid size-7 shrink-0 place-items-center rounded-lg text-text-soft hover:bg-brand-red/10 hover:text-brand-red" onClick={() => void removeCampaign(item)} type="button"><Trash2 className="size-3.5" /></button></div></article>) : <div className="rounded-xl border border-dashed border-border-soft p-5 text-center text-[10px] text-text-muted">Your generated campaigns will appear here.</div>}
               </div>
             </aside>
           </div>
