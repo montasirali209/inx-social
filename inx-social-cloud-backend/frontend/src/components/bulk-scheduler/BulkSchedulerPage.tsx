@@ -189,8 +189,9 @@ export function BulkSchedulerPage() {
   useEffect(() => {
     const state = location.state as { aiPostCampaign?: { id: string; title: string; contentMode: 'TEXT'; captions: string[] } } | null
     const imported = state?.aiPostCampaign
-    const campaignFingerprint = imported?.id ? `${imported.id}:${location.key}` : ''
-    if (!campaignFingerprint || importedCampaignSelection.current === campaignFingerprint) return
+    if (!imported?.id) return
+    const campaignFingerprint = `${imported.id}:${location.key}`
+    if (importedCampaignSelection.current === campaignFingerprint) return
     importedCampaignSelection.current = campaignFingerprint
     const blocks = (imported.captions || []).map((caption) => String(caption || '').trim()).filter(Boolean)
     if (!blocks.length) return
