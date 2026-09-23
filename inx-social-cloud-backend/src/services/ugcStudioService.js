@@ -253,7 +253,54 @@ function publicScene(row) {
   };
 }
 
-function publicAd(row, scenes = [], avatar = null) {
+function generationStagePayload(row, scenes = [], generation = null) {
+  const meta = parseJson(generation?.responseJson, {});
+  const readyScenes = scenes.filter(scene => scene.status === 'READY').length;
+  const sceneCount = scenes.length;
+  const terminal = ['READY','FAILED'].includes(row.status);
+  const progress = terminal ? 100 : Math.max(0, Math.min(99, Number(generation?.progress || 0)));
+  let stage = clean(meta.stage, 80);
+  if (!stage) {
+    if (row.status === 'QUEUED') stage = 'QUEUED';
+    else if (row.status === 'RENDERING' && readyScenes < sceneCount) stage = 'VIDEO';
+    else if (row.status === 'RENDERING') stage = 'ASSEMBLING';
+    else if (row.status === 'READY') stage = 'READY';
+    else if (row.status === 'FAILED') stage = 'FAILED';
+    else stage = row.status || 'STARTING';
+  }
+  const labels = {
+    QUEUED: 'Waiting in render queue',
+    PREPARING: 'Preparing creator, voice and scenes',
+    VOICE: 'Generating creator voice',
+    VIDEO: 'Rendering video scenes',
+    LIP_SYNC: 'Lip-syncing creator',
+    SCENE_READY: 'Scene rendered',
+    ASSEMBLING: 'Assembling final video',
+    CAPTIONS: 'Adding final captions',
+    SAVING: 'Saving to Media Library',
+    READY: 'Ready',
+    FAILED: 'Render failed'
+  };
+  const sceneSequence = Number(meta.sceneSequence || 0);
+  const sceneTotal = Number(meta.sceneTotal || sceneCount || 0);
+  const detail = sceneTotal
+    ? (readyScenes >= sceneTotal ? `${sceneTotal} of ${sceneTotal} scenes rendered` : `${readyScenes} of ${sceneTotal} scenes rendered`)
+    : '';
+  return {
+    generationStatus: generation?.status || row.status || '',
+    progress,
+    stage,
+    stageLabel: labels[stage] || String(stage).replaceAll('_',' ').toLowerCase().replace(/^./, value => value.toUpperCase()),
+    stageDetail: sceneSequence && sceneTotal && ['VOICE','VIDEO','LIP_SYNC'].includes(stage)
+      ? `Working on scene ${Math.min(sceneSequence, sceneTotal)} of ${sceneTotal} · ${detail}`
+      : detail,
+    readyScenes,
+    sceneCount,
+    progressUpdatedAt: generation?.updatedAt || row.updatedAt || null
+  };
+}
+
+function publicAd(row, scenes = [], avatar = null, generation = null) {
   return {
     id: row.id, campaignId: row.campaignId, sequence: row.sequence, status: row.status, title: row.title,
     angle: row.angle || '', hook: row.hook || '', script: row.script || '', cta: row.cta || '',
@@ -262,6 +309,7 @@ function publicAd(row, scenes = [], avatar = null) {
     quality: row.quality, credits: row.credits, generationId: row.generationId || null,
     mediaAssetId: row.mediaAssetId || null, musicMode: row.musicMode || 'AUTO',
     captionsEnabled: row.captionsEnabled !== false, plan: parseJson(row.planJson, {}), error: row.errorMessage || null,
+    ...generationStagePayload(row, scenes, generation),
     scenes: scenes.map(publicScene), createdAt: row.createdAt, updatedAt: row.updatedAt, completedAt: row.completedAt || null
   };
 }
@@ -732,10 +780,26 @@ async function campaignPayload(userId, campaignRow) {
   const ads = await prisma.$queryRawUnsafe('SELECT * FROM "UGCAd" WHERE "campaignId"=$1 ORDER BY "sequence"', campaignRow.id);
   const sceneRows = ads.length ? await prisma.$queryRawUnsafe('SELECT * FROM "UGCScene" WHERE "adId" = ANY($1::text[]) ORDER BY "adId","sequence"', ads.map(row => row.id)) : [];
   const avatarIds = [...new Set(ads.map(row => row.avatarId).filter(Boolean))];
-  const avatarData = avatarIds.length ? await prisma.$queryRawUnsafe('SELECT * FROM "UGCAvatar" WHERE "id" = ANY($1::text[])', avatarIds) : [];
+  const generationIds = [...new Set(ads.map(row => row.generationId).filter(Boolean))];
+  const [avatarData, generationData] = await Promise.all([
+    avatarIds.length ? prisma.$queryRawUnsafe('SELECT * FROM "UGCAvatar" WHERE "id" = ANY($1::text[])', avatarIds) : [],
+    generationIds.length ? prisma.$queryRawUnsafe('SELECT "id","status","progress","responseJson","updatedAt" FROM "AiGeneration" WHERE "id" = ANY($1::text[])', generationIds) : []
+  ]);
   const avatarMap = new Map(avatarData.map(row => [row.id, row]));
+  const generationMap = new Map(generationData.map(row => [row.id, row]));
   const scenesByAd = new Map();
   sceneRows.forEach(row => { if (!scenesByAd.has(row.adId)) scenesByAd.set(row.adId, []); scenesByAd.get(row.adId).push(row); });
+  const publicAds = ads.map(row => publicAd(
+    row,
+    scenesByAd.get(row.id) || [],
+    avatarMap.get(row.avatarId) || null,
+    generationMap.get(row.generationId) || null
+  ));
+  const effectiveStatus = publicAds.some(ad => ad.status === 'RENDERING')
+    ? 'RENDERING'
+    : publicAds.some(ad => ad.status === 'QUEUED') && !['READY','PARTIAL','FAILED'].includes(campaignRow.status)
+      ? 'QUEUED'
+      : campaignRow.status;
   return {
     id: campaignRow.id, title: campaignRow.title, brandProfileId: campaignRow.brandProfileId || null,
     productUrl: campaignRow.productUrl || '', productDescription: campaignRow.productDescription || '',
@@ -743,8 +807,8 @@ async function campaignPayload(userId, campaignRow) {
     campaignType: campaignRow.campaignType || 'AUTO', resolvedType: campaignRow.resolvedType || campaignRow.campaignType || 'AVATAR_EXPLAINER',
     sourceType: campaignRow.sourceType || 'WEBSITE', productAssetIds: parseJson(campaignRow.productAssetIdsJson, []),
     creatorMode: campaignRow.creatorMode, selectedAvatarId: campaignRow.selectedAvatarId || null,
-    status: campaignRow.status, totalCredits: campaignRow.totalCredits, notes: campaignRow.notes || '',
-    plan: parseJson(campaignRow.planJson, {}), ads: ads.map(row => publicAd(row, scenesByAd.get(row.id) || [], avatarMap.get(row.avatarId) || null)),
+    status: effectiveStatus, totalCredits: campaignRow.totalCredits, notes: campaignRow.notes || '',
+    plan: parseJson(campaignRow.planJson, {}), ads: publicAds,
     createdAt: campaignRow.createdAt, updatedAt: campaignRow.updatedAt, completedAt: campaignRow.completedAt || null
   };
 }
@@ -762,9 +826,12 @@ async function getAdRow(userId, adId) {
 }
 async function getAd(userId, adId) {
   const row = await getAdRow(userId, adId);
-  const scenes = await prisma.$queryRawUnsafe('SELECT * FROM "UGCScene" WHERE "adId"=$1 ORDER BY "sequence"', adId);
-  const avatar = row.avatarId ? await getAvatarRow(userId, row.avatarId) : null;
-  return publicAd(row, scenes, avatar);
+  const [scenes, avatar, generations] = await Promise.all([
+    prisma.$queryRawUnsafe('SELECT * FROM "UGCScene" WHERE "adId"=$1 ORDER BY "sequence"', adId),
+    row.avatarId ? getAvatarRow(userId, row.avatarId) : null,
+    row.generationId ? prisma.$queryRawUnsafe('SELECT "id","status","progress","responseJson","updatedAt" FROM "AiGeneration" WHERE "id"=$1 LIMIT 1', row.generationId) : []
+  ]);
+  return publicAd(row, scenes, avatar, generations[0] || null);
 }
 
 async function getOverview(userId) {
