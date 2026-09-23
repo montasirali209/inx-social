@@ -173,6 +173,42 @@ async function download(url, maxBytes = 30 * 1024 * 1024) {
   return { data: Buffer.from(response.data || []), mimeType: String(response.headers['content-type'] || 'application/octet-stream').split(';')[0] };
 }
 
+async function prepareVerticalBrandReference(brandRefs) {
+  const refs = Array.isArray(brandRefs) ? brandRefs : [];
+  if (!refs.length) return null;
+  const priority = { product: 0, hero: 1, logo: 2 };
+  const ordered = [...refs].sort((a, b) => {
+    const aKind = typeof a === 'object' && a ? String(a.kind || '') : '';
+    const bKind = typeof b === 'object' && b ? String(b.kind || '') : '';
+    return (priority[aKind] ?? 3) - (priority[bKind] ?? 3);
+  });
+  const assets = await postStudio.remoteReferenceAssets(ordered.slice(0, 4));
+  if (!assets.length) return null;
+  try {
+    const source = assets[0].data;
+    const background = await sharp(source, { animated: false })
+      .rotate()
+      .resize({ width: 704, height: 1280, fit: 'cover' })
+      .blur(24)
+      .modulate({ brightness: 0.68, saturation: 0.8 })
+      .png()
+      .toBuffer();
+    const foreground = await sharp(source, { animated: false })
+      .rotate()
+      .resize({ width: 640, height: 1160, fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toBuffer();
+    const vertical = await sharp(background)
+      .composite([{ input: foreground, left: 32, top: 60 }])
+      .png()
+      .toBuffer();
+    return 'data:image/png;base64,' + vertical.toString('base64');
+  } catch (_) {
+    const source = assets[0];
+    return 'data:' + (source.mimeType || 'image/png') + ';base64,' + source.data.toString('base64');
+  }
+}
+
 async function ensureAvatarReference(userId, row) {
   if (row.referenceStorageKey) {
     const data = await objectStorage.getBuffer(row.referenceStorageKey, null, row.referenceStorageProvider || null);
@@ -180,7 +216,7 @@ async function ensureAvatarReference(userId, row) {
   }
   const generated = await runware.generateImages([row.prompt], { aspectRatio: '9:16', model: env.runware.imageModel });
   const remote = await download(generated.images[0].url, 12 * 1024 * 1024);
-  const normalized = await sharp(remote.data).rotate().resize({ width: 768, height: 1344, fit: 'cover' }).png().toBuffer();
+  const normalized = await sharp(remote.data).rotate().resize({ width: 704, height: 1280, fit: 'cover' }).png().toBuffer();
   const stored = await objectStorage.persistBuffer({
     userId: row.scope === 'SYSTEM' ? 'system-ugc' : userId,
     data: normalized, mimeType: 'image/png', originalName: 'ugc-avatar-' + row.id + '.png', prefix: 'ugc-avatar'
@@ -344,6 +380,7 @@ async function planCampaign(input, brand, avatars) {
         'PREMIUM always uses KLING internally.',
         'Final output duration must be exactly the requested duration. PVIDEO2 scene max 20 seconds. KLING scene max 15 seconds. AVATAR may be one continuous scene up to 60 seconds.',
         'Audio is always required. Scripts should sound like a real creator, not corporate ad copy.',
+        'Write dialogue to naturally fill the requested duration: roughly 30–38 spoken words for 15 seconds, 65–75 for 30 seconds, and 130–150 for 60 seconds. Mixed/product ads may distribute that dialogue across scenes.',
         'Return JSON only: {"title":"string","ads":[{"title":"string","angle":"string","hook":"string","script":"string","cta":"string","caption":"string","route":"PVIDEO2|AVATAR|MIXED|KLING","avatarIndex":0,"scenes":[{"duration":15,"kind":"CREATOR|PRODUCT|LIFESTYLE|CTA","prompt":"string","script":"string"}]}]}.'
       ].join('\n\n') },
       { role: 'user', content: JSON.stringify({
@@ -503,7 +540,7 @@ async function generateCustomAvatar(userId, input) {
     const prompt = 'Ultra-realistic reusable UGC creator portrait. ' + clean(input.prompt, 1000) + '. Vertical 9:16, waist-up, natural smartphone-camera realism, realistic skin, natural lighting, simple background, no text, no logo, no watermark.';
     const generated = await runware.generateImages([prompt], { aspectRatio: '9:16', model: env.runware.imageModel });
     const remote = await download(generated.images[0].url, 12 * 1024 * 1024);
-    const data = await sharp(remote.data).rotate().resize({ width: 768, height: 1344, fit: 'cover' }).png().toBuffer();
+    const data = await sharp(remote.data).rotate().resize({ width: 704, height: 1280, fit: 'cover' }).png().toBuffer();
     const avatarId = id();
     const stored = await objectStorage.persistBuffer({ userId, data, mimeType: 'image/png', originalName: 'ugc-avatar-' + avatarId + '.png', prefix: 'ugc-avatar' });
     await prisma.$executeRawUnsafe(
@@ -523,7 +560,7 @@ async function generateCustomAvatar(userId, input) {
 async function uploadCustomAvatar(userId, input) {
   if (!['image/png','image/jpeg','image/webp'].includes(input.mimeType)) throw publicError('Upload a PNG, JPEG or WebP portrait.', 'UGC_AVATAR_TYPE', 415);
   if (!Buffer.isBuffer(input.data) || !input.data.length) throw publicError('Choose a portrait image.', 'UGC_AVATAR_EMPTY', 400);
-  const data = await sharp(input.data).rotate().resize({ width: 768, height: 1344, fit: 'cover' }).png().toBuffer();
+  const data = await sharp(input.data).rotate().resize({ width: 704, height: 1280, fit: 'cover' }).png().toBuffer();
   const avatarId = id();
   const stored = await objectStorage.persistBuffer({ userId, data, mimeType: 'image/png', originalName: 'ugc-avatar-' + avatarId + '.png', prefix: 'ugc-avatar' });
   await prisma.$executeRawUnsafe(
@@ -568,7 +605,7 @@ async function pollTask(taskUUID, onProgress = () => {}) {
   throw publicError('UGC rendering timed out. Reserved credits will be returned for the failed render.', 'UGC_PROVIDER_TIMEOUT', 504);
 }
 
-async function renderProviderScene(scene, ad, avatar, brandRefs, onProgress) {
+async function renderProviderScene(scene, ad, avatar, brandReference, onProgress) {
   const taskUUID = id();
   let model;
   const base = {
@@ -597,18 +634,24 @@ async function renderProviderScene(scene, ad, avatar, brandRefs, onProgress) {
       providerSettings: { klingai: { sound: true } }
     });
     const ref = scene.kind === 'CREATOR' && avatar ? await ensureAvatarReference(ad.userId, avatar) : null;
-    const reference = ref?.dataUri || brandRefs[0]?.url || brandRefs[0] || null;
+    const reference = ref?.dataUri || brandReference || null;
     if (reference) base.inputs = { referenceImages: [reference] };
   } else {
     model = PVIDEO2_MODEL();
     Object.assign(base, {
-      model, duration: Math.min(20, Number(scene.duration)), resolution: '720p', fps: 24,
+      model, duration: Math.min(20, Number(scene.duration)), fps: 24,
       settings: { audio: true, promptUpsampling: true, draft: false }
     });
     let reference = null;
     if (scene.kind === 'CREATOR' && avatar) reference = (await ensureAvatarReference(ad.userId, avatar)).dataUri;
-    if (!reference) reference = brandRefs[0]?.url || brandRefs[0] || null;
-    if (reference) base.inputs = { frameImages: [reference] };
+    if (!reference) reference = brandReference || null;
+    if (reference) {
+      base.resolution = '720p';
+      base.inputs = { frameImages: [reference] };
+    } else {
+      base.width = 704;
+      base.height = 1280;
+    }
   }
   onProgress(5);
   const initial = await runware.request([base], 60000);
@@ -715,13 +758,14 @@ async function renderAd(adId) {
   }
   const generationRows = ad.generationId ? await prisma.$queryRawUnsafe('SELECT "reservedCredits" FROM "AiGeneration" WHERE "id"=$1 LIMIT 1', ad.generationId) : [];
   const generationCredits = Number(generationRows[0]?.reservedCredits || ad.credits || 0);
+  const brandReference = await prepareVerticalBrandReference(brandRefs);
   let providerCost = 0;
   try {
     for (let index = 0; index < scenes.length; index += 1) {
       const scene = scenes[index];
       if (scene.status === 'READY' && scene.videoStorageKey) continue;
       await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "status"=\'RENDERING\',"errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', scene.id);
-      const result = await renderProviderScene(scene, ad, avatar, brandRefs, async progress => {
+      const result = await renderProviderScene(scene, ad, avatar, brandReference, async progress => {
         const overall = Math.round(((index + progress / 100) / Math.max(1, scenes.length)) * 85);
         await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=\'PROCESSING\',"progress"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.generationId, Math.max(5, overall)).catch(() => {});
       });
