@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, ArrowRight, BadgeCheck, Boxes, CalendarRange, Check, ChevronRight, CirclePlay,
-  Clapperboard, Coins, Crown, Film, Globe2, ImagePlus, LoaderCircle, Plus, RefreshCcw,
+  ArrowLeft, ArrowRight, BadgeCheck, CalendarRange, Check, ChevronRight, CirclePlay,
+  Clapperboard, Coins, Crown, Film, Globe2, ImagePlus, LoaderCircle, Plus,
   Sparkles, Upload, UserRound, UsersRound, WandSparkles, X,
 } from 'lucide-react'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
