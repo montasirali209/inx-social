@@ -447,6 +447,7 @@ async function generateCampaign(userId, input) {
 
   let context = null;
   if (normalizedUrl) context = await postStudio.fetchUrlContext(normalizedUrl);
+  const brandPack = postStudio.buildBrandPack(context);
 
   const normalizedInput = {
     ...input,
@@ -491,6 +492,7 @@ async function generateCampaign(userId, input) {
         sourceSummary: strategy.sourceSummary,
         sourceWarning: context?.error || null,
         brandReferences: Array.isArray(context?.brandReferences) ? context.brandReferences : [],
+        brandPack,
         reasoningModel: postStudio.REASONING_MODEL
       }),
       posts: { create: posts }
@@ -499,8 +501,7 @@ async function generateCampaign(userId, input) {
   });
 
   if (normalizedInput.imagePostCount) {
-    const brandReferences = Array.isArray(context?.brandReferences) ? context.brandReferences : [];
-    const failures = await renderCampaignImages(userId, campaign, brandReferences);
+    const failures = await renderCampaignImages(userId, campaign, brandPack);
     await prisma.aiPostCampaign.update({
       where: { id: campaign.id },
       data: { status: failures.length ? 'PARTIAL' : 'READY', updatedAt: new Date() }
@@ -619,29 +620,104 @@ async function regeneratePost(userId, campaignId, postId) {
   return getCampaign(userId, campaign.id);
 }
 
-async function renderCampaignPostImage(userId, campaign, post, brandReferences = []) {
+function normaliseCampaignBrandPack(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    return {
+      sourceUrl: value.sourceUrl || null,
+      brandName: clean(value.brandName, 160),
+      colors: list(value.colors, 6, 20),
+      references: Array.isArray(value.references) ? value.references : [],
+      logo: value.logo || null,
+      icon: value.icon || null,
+      productVisuals: Array.isArray(value.productVisuals) ? value.productVisuals : [],
+      heroVisuals: Array.isArray(value.heroVisuals) ? value.heroVisuals : [],
+      confidence: ['high', 'medium', 'low'].includes(value.confidence) ? value.confidence : 'low',
+      confidenceScore: Math.max(0, Math.min(100, Number(value.confidenceScore || 0))),
+      lockLogo: Boolean(value.lockLogo && value.logo)
+    };
+  }
+  const references = Array.isArray(value) ? value : [];
+  return {
+    sourceUrl: null,
+    brandName: '',
+    colors: [],
+    references,
+    logo: references.find(item => item?.kind === 'logo') || null,
+    icon: references.find(item => item?.kind === 'icon') || null,
+    productVisuals: references.filter(item => item?.kind === 'product'),
+    heroVisuals: references.filter(item => item?.kind === 'hero'),
+    confidence: references.some(item => item?.kind === 'logo') ? 'medium' : 'low',
+    confidenceScore: references.some(item => item?.kind === 'logo') ? 45 : 20,
+    lockLogo: references.some(item => item?.kind === 'logo')
+  };
+}
+
+function exactProductVisualNeeded(post, brandPack) {
+  if (!brandPack?.productVisuals?.length) return false;
+  const text = [post?.imageBrief, post?.hook, post?.caption, post?.pillar].map(value => clean(value, 1000)).join(' ').toLowerCase();
+  return /\b(dashboard|interface|product ui|product screen|screen shot|screenshot|app screen|workspace|platform ui|website|landing page|feature screen|software interface|app interface)\b/.test(text);
+}
+
+function campaignBrandReferences(brandPack, useExactProductVisual) {
+  const pack = normaliseCampaignBrandPack(brandPack);
+  const picked = [];
+  const push = item => {
+    if (!item?.url || picked.some(existing => existing.url === item.url)) return;
+    picked.push(item);
+  };
+  push(pack.logo);
+  if (useExactProductVisual) push(pack.productVisuals[0]);
+  pack.productVisuals.forEach(push);
+  pack.heroVisuals.forEach(push);
+  if (!pack.logo) push(pack.icon);
+  pack.references.forEach(push);
+  return picked.slice(0, 4);
+}
+
+async function renderCampaignPostImage(userId, campaign, post, brandPack = {}) {
+  const pack = normaliseCampaignBrandPack(brandPack);
+  const useExactProductVisual = exactProductVisualNeeded(post, pack);
+  const references = campaignBrandReferences(pack, useExactProductVisual);
   const asset = await postStudio.generateImagePost(userId, {
     prompt: post.imageBrief || post.hook || post.caption,
     platform: parseJson(campaign.platformsJson, [])[0] || 'Instagram',
     aspectRatio: '4:5',
     referenceAssetIds: [],
-    referenceUrls: (Array.isArray(brandReferences) ? brandReferences : []).map(item => typeof item === 'string' ? item : item?.url).filter(Boolean).slice(0, 4),
+    referenceUrls: references,
+    brandLock: {
+      brandName: pack.brandName,
+      colors: pack.colors,
+      confidence: pack.confidence,
+      confidenceScore: pack.confidenceScore,
+      lockLogo: Boolean(pack.logo),
+      logoUrl: pack.logo?.url || null,
+      useExactProductVisual,
+      productUrl: useExactProductVisual ? pack.productVisuals[0]?.url || null : null
+    },
     brief: {
       objective: post.hook || post.pillar || 'Campaign post',
       audience: campaign.audience || '',
       platform: parseJson(campaign.platformsJson, [])[0] || 'Instagram',
       aspectRatio: '4:5',
       tone: 'Natural, clear and campaign-appropriate',
-      visualStyle: 'Official-brand-grounded social campaign creative. Preserve the supplied website branding and product visuals instead of inventing replacements.',
+      visualStyle: 'Strict official-brand campaign creative. Follow the extracted website brand pack; do not reinterpret its identity.',
       headline: post.hook || '',
       supportingCopy: '',
       cta: post.cta || '',
       visualDirection: [
         post.imageBrief || post.caption,
-        brandReferences?.length
-          ? 'Use the supplied official website references as visual truth for the logo, product UI, screenshots and brand presentation. Do not invent a substitute logo or fictional interface.'
-          : 'No verified logo reference is available. Do not invent a logo.'
-      ].join('\n\n'),
+        pack.brandName ? `Official brand: ${pack.brandName}.` : '',
+        pack.colors.length ? `Official extracted colour palette: ${pack.colors.join(', ')}.` : '',
+        references.length
+          ? 'Use supplied official website references as visual truth. Keep the real product/dashboard structure and brand presentation; do not replace them with imagined alternatives.'
+          : 'No verified brand visual is available. Keep the creative brand-neutral and do not invent a logo.',
+        pack.logo
+          ? 'The exact official logo will be composited by INXSocial after generation. Leave a clean top-left logo-safe area and do not draw or typeset a logo yourself.'
+          : 'No verified full logo asset is available. Do not fabricate one.',
+        useExactProductVisual
+          ? 'The exact official product/dashboard screenshot will be composited unchanged on the right. Leave that area clean and do not draw a competing interface.'
+          : ''
+      ].filter(Boolean).join('\n\n'),
       caption: post.caption,
       hashtags: parseJson(post.hashtagsJson, []),
       altText: post.hook || post.pillar || 'Campaign image'
@@ -659,7 +735,7 @@ async function renderCampaignPostImage(userId, campaign, post, brandReferences =
   return asset;
 }
 
-async function renderCampaignImages(userId, campaign, brandReferences = []) {
+async function renderCampaignImages(userId, campaign, brandPack = {}) {
   const pending = (campaign.posts || []).filter(post => post.contentType === 'IMAGE');
   const failures = [];
   let cursor = 0;
@@ -671,7 +747,7 @@ async function renderCampaignImages(userId, campaign, brandReferences = []) {
       cursor += 1;
       const post = pending[index];
       try {
-        await renderCampaignPostImage(userId, campaign, post, brandReferences);
+        await renderCampaignPostImage(userId, campaign, post, brandPack);
       } catch (error) {
         failures.push({ postId: post.id, sequence: post.sequence, message: clean(error?.publicMessage || error?.message, 500) });
       }
@@ -690,7 +766,8 @@ async function generatePostImage(userId, campaignId, postId) {
   if (post.contentType !== 'IMAGE') throw publicError('This campaign post is a text-only post.', 409, 'AI_CAMPAIGN_TEXT_ONLY');
 
   const analysis = parseJson(campaign.analysisJson, {});
-  await renderCampaignPostImage(userId, campaign, post, Array.isArray(analysis.brandReferences) ? analysis.brandReferences : []);
+  const brandPack = analysis.brandPack || (Array.isArray(analysis.brandReferences) ? analysis.brandReferences : []);
+  await renderCampaignPostImage(userId, campaign, post, brandPack);
 
   const refreshed = await ownedCampaign(userId, campaign.id);
   const allImagesReady = refreshed.posts.filter(item => item.contentType === 'IMAGE').every(item => Boolean(item.mediaAssetId));
@@ -723,5 +800,8 @@ module.exports = {
   hashtagPolicy,
   normalizeHashtags,
   renderCampaignImages,
-  renderCampaignPostImage
+  renderCampaignPostImage,
+  normaliseCampaignBrandPack,
+  exactProductVisualNeeded,
+  campaignBrandReferences
 };
