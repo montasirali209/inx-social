@@ -11,6 +11,7 @@ const prisma = require('./db/prisma');
 const { runStorageDiagnostics } = require('./services/storageDiagnosticsService');
 const { startAgentAssetBucketBackfill } = require('./services/agentAssetBucketBackfillService');
 const { runOneOffXTextSanitizer } = require('./services/oneOffXTextSanitizer');
+const { startUGCStudioRuntime } = require('./services/ugcStudioService');
 
 async function verifyNextLandingUpstream() {
   if (!/^(?:1|true|yes|on)$/i.test(String(process.env.NEXT_LANDING_ENABLED || '').trim())) return;
@@ -51,6 +52,7 @@ const server = app.listen(env.port, () => {
   startPostForMeRuntime();
   startAnalyticsCacheRuntime();
   startBulkCancellationRuntime();
+  startUGCStudioRuntime();
   void runStorageDiagnostics();
   startAgentAssetBucketBackfill();
   void verifyNextLandingUpstream();
