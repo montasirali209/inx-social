@@ -21,32 +21,33 @@ const PREMIUM_CREDITS = Object.freeze({ 15: 180, 20: 260, 30: 390 });
 const AVATAR_CREDITS = 5;
 const SYSTEM_AVATAR_COUNT = 52;
 const FEATURED_AVATAR_COUNT = 20;
+const FEATURED_REFERENCE_VERSION = 3;
 const STANDARD_MODEL = () => env.runware.ugcStandardModel || 'minimax:4@1';
 const PREMIUM_MODEL = () => env.runware.ugcPremiumModel || 'klingai:kling-video@3-standard';
 const LIPSYNC_MODEL = () => env.runware.ugcLipSyncModel || 'klingai:7@1';
 const TTS_MODEL = () => env.runware.ugcTtsModel || 'inworld:tts@2';
 
 const FEATURED_CREATORS = new Map(Object.entries({
-  Maya: 'bright lived-in apartment lounge with soft window light, real sofa and everyday decor',
-  Sofia: 'realistic vanity corner in a modern bedroom with soft daylight and subtle beauty products',
-  Aisha: 'calm contemporary wellness room with plants, warm daylight and natural home textures',
-  Priya: 'real home office with laptop, books, warm practical lighting and believable workday clutter',
-  Grace: 'sunlit family kitchen with real counters, utensils and soft depth of field',
-  Zara: 'modern creator desk setup with laptop, monitor, practical LED accent and daylight',
-  Megan: 'comfortable mature lifestyle living room with realistic furniture and warm window light',
-  Keisha: 'realistic beauty creator bedroom setup with mirror, cosmetics and soft window light',
-  Mei: 'minimal apartment beauty corner with daylight, natural materials and subtle personal objects',
-  Fatima: 'bright contemporary living room with modest elegant styling, plants and textured fabrics',
-  Daniel: 'real home-office desk setup with laptop, monitor and daylight, casual creator framing',
-  James: 'modern founder-style office corner with bookshelf, laptop and warm practical lighting',
-  Arjun: 'real tech creator workspace with laptop, phone, cables and natural daylight',
-  Marcus: 'home gym corner with realistic equipment, daylight and casual creator composition',
-  Kenji: 'minimal tech studio desk with monitor, keyboard, practical light and natural room depth',
-  Alex: 'SaaS creator home office with laptop, browser-like screen glow and everyday desk objects',
-  Ben: 'clean residential garage/workshop with car-detailing tools and realistic overhead light',
-  Yusuf: 'professional home office with warm wood, laptop, notebook and calm daylight',
-  Theo: 'travel creator apartment near a packed day bag, map and bright natural window light',
-  Michael: 'polished but believable small-business office with desk, shelves and natural window light'
+  Maya: 'bright lived-in apartment lounge, fitted sleeveless casual top with high-waisted jeans, soft window light, real sofa and everyday decor',
+  Sofia: 'realistic vanity corner in a modern bedroom, elegant sleeveless day dress, natural polished makeup, soft daylight and subtle beauty products',
+  Chloe: 'fashion-forward apartment bedroom, stylish fitted tank top layered with casual streetwear, natural creator lighting and everyday personal details',
+  Aisha: 'calm contemporary wellness room with plants, tasteful fitted athleisure layers, warm daylight and natural home textures',
+  Priya: 'real home office with laptop and books, modern sleeveless smart-casual blouse, warm practical lighting and believable workday clutter',
+  Isla: 'bright travel apartment or hotel room, fashionable summer dress, day bag nearby and lively natural window light',
+  Nadia: 'beauty creator bedroom with mirror and cosmetics, stylish sleeveless top, soft daylight and believable personal objects',
+  Ruby: 'real home-gym corner, fitted athletic tank and leggings, energetic but natural phone-camera framing and daylight',
+  Olivia: 'premium but lived-in apartment, elegant fitted sleeveless dress, understated jewellery and sophisticated natural window light',
+  Jasmine: 'fashion creator apartment, fitted contemporary top and skirt, polished street-style energy and authentic mobile-video lighting',
+  Ava: 'young adult beauty creator room, fashionable tank-style top, natural makeup, casual everyday decor and bright soft daylight',
+  Camila: 'warm lifestyle apartment, colourful fitted summer top and casual jeans, natural social-video framing and real room depth',
+  Elena: 'home fitness and wellness setting, athletic tank and leggings, realistic skin texture, daylight and practical workout objects',
+  Keisha: 'realistic beauty creator bedroom setup, elegant fitted sleeveless top, mirror and cosmetics with soft natural window light',
+  Mei: 'minimal apartment beauty corner, refined sleeveless casual outfit, daylight, natural materials and subtle personal objects',
+  Daniel: 'real home-office desk setup with laptop and monitor, fitted casual T-shirt, daylight and believable desk clutter',
+  James: 'modern founder-style office corner with bookshelf and laptop, smart-casual shirt, warm practical lighting',
+  Arjun: 'real tech creator workspace with laptop, phone and cables, modern fitted casual shirt and natural daylight',
+  Marcus: 'home gym corner with realistic equipment, athletic fitted top, daylight and casual creator composition',
+  Alex: 'SaaS creator home office with laptop, browser-like screen glow, simple fitted T-shirt and everyday desk objects'
 }));
 const LEGACY_FEMALE_VOICES = new Set(['Aoede (Female)','Zephyr (Female)','Kore (Female)','Leda (Female)','Callirrhoe (Female)']);
 const LEGACY_MALE_VOICES = new Set(['Puck (Male)','Charon (Male)','Fenrir (Male)','Orus (Male)','Iapetus (Male)']);
@@ -73,6 +74,28 @@ function narratorSpeed(text, duration) {
   if (!words || !duration) return 1;
   const estimatedAtNormalSpeed = words / 2.45;
   return Math.max(0.7, Math.min(1.3, Number((estimatedAtNormalSpeed / Number(duration)).toFixed(1))));
+}
+
+function ugcRealismSkill(kind = 'CREATOR', campaignType = 'AVATAR_EXPLAINER', quality = 'STANDARD') {
+  const creator = [
+    'REALISM SKILL: candid creator footage rather than a commercial render.',
+    'Use natural blinking, breathing, tiny posture shifts, imperfect but stable eye contact and restrained gestures.',
+    'Keep pores, fine skin texture and natural asymmetry; avoid waxy skin, beauty-filter smoothing, face warping, floating hair or changing facial proportions.',
+    'Hands must remain anatomically plausible and only enter frame when useful.',
+    'Keep wardrobe, room layout, light direction, camera height, focal length and colour temperature continuous between creator cuts.'
+  ];
+  const product = [
+    'REALISM SKILL: product footage must look physically filmed.',
+    'Preserve exact product geometry, packaging, colours and proportions from the supplied reference.',
+    'Keep contact shadows, grip, reflections, scale and hand interaction physically plausible; never create floating objects or substitute packaging.',
+    'Use ordinary consumer-camera depth, exposure and motion rather than glossy CGI perfection.'
+  ];
+  const shared = [
+    'Do not imitate or resemble a named celebrity or identifiable real person.',
+    quality === 'PREMIUM' ? 'Premium means stronger physical realism and controlled motion, not artificial cinematic gloss.' : 'Standard should still look like credible organic phone-shot social content.',
+    campaignType === 'PRODUCT_SHOWCASE' ? 'Cutaways should feel captured during the same real creator session.' : 'The creator remains the visual anchor for the whole ad.'
+  ];
+  return [...(String(kind).toUpperCase() === 'PRODUCT' ? product : creator), ...shared].join(' ');
 }
 
 function publicError(message, code = 'UGC_STUDIO_ERROR', status = 400) {
@@ -162,7 +185,7 @@ async function warmSystemAvatarReferences() {
   avatarWarmupRunning = true;
   try {
     const pending = await prisma.$queryRawUnsafe(
-      'SELECT * FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\' AND "featured"=true AND ("referenceStorageKey" IS NULL OR "referenceVersion" < 2) ORDER BY "name"'
+      'SELECT * FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\' AND "featured"=true AND ("referenceStorageKey" IS NULL OR "referenceVersion" < $1) ORDER BY "name"', FEATURED_REFERENCE_VERSION
     );
     if (!pending.length) return;
     console.log('[UGC AVATAR WARMUP]', 'Preparing ' + pending.length + ' reusable creator portraits.');
