@@ -95,6 +95,10 @@ export function AiContentStudioPage() {
       setUpgradeOpen(true)
       return
     }
+    if (type === 'ugc_ad') {
+      navigate('/ai-content-studio/ugc')
+      return
+    }
     setEditingDraft(null)
     setActiveType(type)
   }
