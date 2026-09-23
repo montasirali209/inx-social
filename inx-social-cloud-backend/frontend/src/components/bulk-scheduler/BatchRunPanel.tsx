@@ -1,4 +1,4 @@
-import { Activity, CalendarClock, CircleAlert, LoaderCircle, Play, Send, Square, UploadCloud } from 'lucide-react'
+import { Activity, CalendarClock, CircleAlert, LoaderCircle, Play, Square, UploadCloud } from 'lucide-react'
 import type { BatchProgress, Destination, UploadResult } from '../../types/bulk-scheduler'
 import { Button } from '../ui/Button'
 import { UploadProgress } from './UploadProgress'
@@ -19,8 +19,7 @@ type Props = {
 
 export function BatchRunPanel({ progress, results, destinations, canStart, running, disabledReason, retryingId, onStart, onStop, onRetry }: Props) {
   const total = results.length || progress.total
-  const scheduled = results.filter((result) => result.status === 'scheduled').length
-  const published = results.filter((result) => result.status === 'published').length
+  const accepted = results.filter((result) => result.status === 'scheduled' || result.status === 'published').length
   const processing = results.filter((result) => result.status === 'uploading' || result.status === 'waiting').length
   const review = results.filter((result) => result.status === 'failed' || result.status === 'blocked').length
   const failureGroups = [...results.reduce((groups, result) => {
@@ -32,8 +31,7 @@ export function BatchRunPanel({ progress, results, destinations, canStart, runni
 
   const kpis = [
     { label: 'Total actions', value: total, icon: UploadCloud, tone: 'text-brand-cyan border-brand-cyan/20 bg-brand-cyan/[.045]' },
-    { label: 'Scheduled', value: scheduled, icon: CalendarClock, tone: 'text-brand-cyan border-brand-cyan/20 bg-brand-cyan/[.045]' },
-    { label: 'Published', value: published, icon: Send, tone: 'text-brand-green border-brand-green/20 bg-brand-green/[.045]' },
+    { label: 'Scheduled', value: accepted, icon: CalendarClock, tone: 'text-brand-green border-brand-green/20 bg-brand-green/[.045]' },
     { label: 'Processing', value: processing, icon: LoaderCircle, tone: 'text-brand-purple border-brand-purple/20 bg-brand-purple/[.045]' },
     { label: 'Needs review', value: review, icon: CircleAlert, tone: review ? 'text-brand-red border-brand-red/25 bg-brand-red/[.055]' : 'text-text-muted border-border-soft bg-white/[.025]' },
   ]
@@ -49,7 +47,7 @@ export function BatchRunPanel({ progress, results, destinations, canStart, runni
       <div className="mt-4"><UploadProgress progress={progress} /></div>
 
       {(results.length > 0 || progress.total > 0) && (
-        <div className="mt-4 grid grid-cols-2 gap-2 xl:grid-cols-5">
+        <div className="mt-4 grid grid-cols-2 gap-2 xl:grid-cols-4">
           {kpis.map(({ label, value, icon: Icon, tone }) => (
             <article className={`rounded-xl border px-3 py-3 ${tone}`} key={label}>
               <div className="flex items-center justify-between gap-2">
@@ -73,7 +71,7 @@ export function BatchRunPanel({ progress, results, destinations, canStart, runni
         </section>
       )}
 
-      <div className="mt-4"><div className="mb-2"><h3 className="text-sm font-semibold">Upload results</h3><p className="mt-0.5 text-xs text-text-muted">Review all scheduled, published, processing, failed and blocked actions. Failed uploads with an existing job can be retried without duplicating successful posts.</p></div><UploadResultsTable destinations={destinations} onRetry={onRetry} results={results} retryingId={retryingId} /></div>
+      <div className="mt-4"><div className="mb-2"><h3 className="text-sm font-semibold">Upload results</h3><p className="mt-0.5 text-xs text-text-muted">This table confirms whether each batch item was accepted and scheduled successfully. Actual publishing outcomes are tracked separately in Posts and Calendar.</p></div><UploadResultsTable destinations={destinations} onRetry={onRetry} results={results} retryingId={retryingId} /></div>
     </section>
   )
 }
