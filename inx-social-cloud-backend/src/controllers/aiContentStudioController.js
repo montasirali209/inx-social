@@ -233,6 +233,7 @@ async function createTopupCheckout(req, res, next) {
     }
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
+      payment_method_types: ['card'],
       customer: customerId,
       line_items: [{ price: pack.priceId, quantity: 1 }],
       success_url: `${env.portalUrl.replace(/\/$/, '')}/app/billing?credits=success`,
