@@ -216,13 +216,15 @@ test('UGC pacing prevents slow-motion creator direction and trims each scene bef
   const path = require('node:path');
   const root = path.resolve(__dirname, '..');
   const service = fs.readFileSync(path.join(root, 'src/services/ugcStudioService.js'), 'utf8');
+  const skills = fs.readFileSync(path.join(root, 'src/services/ugcSkillEngine.js'), 'utf8');
 
   assert.match(service, /Never use slow motion/);
   assert.match(service, /ordinary 1x speed/);
   assert.match(service, /spokenWindow/);
   assert.match(service, /const finalDurations = playbackDurations/);
   assert.match(service, /String\(finalDuration\)/);
-  assert.match(service, /finish cleanly before the requested ad duration/);
+  assert.match(skills, /SPEECH_FINISHES_BEFORE_CUT/);
+  assert.match(skills, /preventFinalWordCutoff: true/);
 });
 
 test('UGC editor route self-recovers stale chunks and generated videos use the custom player', () => {

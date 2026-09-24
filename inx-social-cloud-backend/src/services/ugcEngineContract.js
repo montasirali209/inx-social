@@ -107,6 +107,7 @@ function buildEngineProject({
       caption: clean(ad.caption || ad.script, 10000),
       actor: actorSnapshot(avatar),
       targetDuration,
+      skillDecisions: ad.skillDecisions && typeof ad.skillDecisions === 'object' ? ad.skillDecisions : {},
       scenes
     };
   });
@@ -153,9 +154,22 @@ function buildEngineProject({
       selectedAvatarId: input.avatarId || null,
       assignedActors: ads.map(ad => ({ adSequence: ad.sequence, actor: ad.actor }))
     },
+    skills: {
+      version: clean(plan.skillsVersion || 'ugc-skills-legacy', 80),
+      decisions: plan.skillDecisions && typeof plan.skillDecisions === 'object' ? plan.skillDecisions : {},
+      preflight: {
+        status: ads.some(ad => ad.skillDecisions?.preflight?.status === 'FAIL') ? 'FAIL' : 'PASS',
+        ads: ads.map(ad => ({
+          adSequence: ad.sequence,
+          status: ad.skillDecisions?.preflight?.status || 'NOT_RUN',
+          failedChecks: Array.isArray(ad.skillDecisions?.preflight?.failedChecks) ? ad.skillDecisions.preflight.failedChecks : []
+        }))
+      }
+    },
     productionPlan: {
       title: clean(plan.title, 180),
       campaignType: clean(resolvedType, 40).toUpperCase(),
+      skillsVersion: clean(plan.skillsVersion || 'ugc-skills-legacy', 80),
       targetDuration,
       variationCount: Number(input.adCount),
       ads
@@ -193,6 +207,7 @@ function buildEngineProject({
     contractVersion: project.contractVersion,
     brief: project.brief,
     actor: project.actor,
+    skills: project.skills,
     productionPlan: project.productionPlan,
     routeDecision: project.routeDecision,
     pricing: project.pricing
@@ -209,6 +224,7 @@ function validateEngineProject(project) {
   if (project?.contractVersion !== registry.CONTRACT_VERSION) errors.push('contract_version');
   if (!project?.campaignId) errors.push('campaign_id');
   if (!project?.userId) errors.push('user_id');
+  if (project?.skills?.preflight?.status === 'FAIL') errors.push('skills_preflight');
 
   const targetDuration = Number(project?.productionPlan?.targetDuration || 0);
   const ads = project?.productionPlan?.ads;
