@@ -115,6 +115,11 @@ function buildEngineProject({
     };
   });
 
+  const resolvedCreativeFormats = Array.isArray(plan.resolvedCreativeFormats) && plan.resolvedCreativeFormats.length
+    ? plan.resolvedCreativeFormats.map(item => clean(item, 60).toUpperCase()).filter(Boolean)
+    : [...new Set(ads.map(ad => clean(ad.creativeFormat, 60).toUpperCase()).filter(Boolean))];
+  if (!resolvedCreativeFormats.length) resolvedCreativeFormats.push('PROBLEM_SOLUTION');
+
   const routeEntries = ads.flatMap(ad => ad.scenes.map(scene => ({
     adSequence: ad.sequence,
     sceneSequence: scene.sequence,
@@ -149,7 +154,7 @@ function buildEngineProject({
       requestedCampaignType: clean(input.campaignType || 'AUTO', 40).toUpperCase(),
       resolvedCampaignType: clean(resolvedType, 40).toUpperCase(),
       requestedCreativeFormat: clean(plan.requestedCreativeFormat || input.creativeFormat || 'AUTO', 60).toUpperCase(),
-      resolvedCreativeFormats: Array.isArray(plan.resolvedCreativeFormats) ? plan.resolvedCreativeFormats.map(item => clean(item, 60).toUpperCase()).filter(Boolean) : [],
+      resolvedCreativeFormats: [...resolvedCreativeFormats],
       brandProfileId: brand?.id || input.brandProfileId || null,
       brandName: clean(brand?.name, 180),
       productName: clean(brand?.productName, 220),
@@ -184,7 +189,7 @@ function buildEngineProject({
       campaignType: clean(resolvedType, 40).toUpperCase(),
       creativeFormatVersion: clean(plan.creativeFormatVersion || creativeFormats.CREATIVE_FORMAT_VERSION, 80),
       requestedCreativeFormat: clean(plan.requestedCreativeFormat || input.creativeFormat || 'AUTO', 60).toUpperCase(),
-      resolvedCreativeFormats: Array.isArray(plan.resolvedCreativeFormats) ? plan.resolvedCreativeFormats.map(item => clean(item, 60).toUpperCase()).filter(Boolean) : [],
+      resolvedCreativeFormats: [...resolvedCreativeFormats],
       skillsVersion: clean(plan.skillsVersion || 'ugc-skills-legacy', 80),
       targetDuration,
       variationCount: Number(input.adCount),
