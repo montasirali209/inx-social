@@ -64,7 +64,7 @@ function standardPlan() {
 
 test('UGC engine registry preserves current customer tiers while hiding provider details from the UI layer', () => {
   assert.equal(registry.ENGINE_VERSION, 'ugc-engine-v1');
-  assert.equal(registry.CONTRACT_VERSION, '1.1');
+  assert.equal(registry.CONTRACT_VERSION, '1.2');
   assert.equal(registry.routeKeyForQuality('STANDARD'), 'HAILUO_STANDARD_V1');
   assert.equal(registry.routeKeyForQuality('PREMIUM'), 'KLING_PREMIUM_V1');
   assert.equal(registry.legacyDbRoute('STANDARD'), 'HAILUO');
@@ -98,7 +98,7 @@ test('standard UGC project maps the current Hailuo + TTS + lip-sync pipeline int
   });
 
   assert.equal(project.engineVersion, 'ugc-engine-v1');
-  assert.equal(project.contractVersion, '1.1');
+  assert.equal(project.contractVersion, '1.2');
   assert.equal(project.status, 'PLANNED');
   assert.equal(project.brief.targetDuration, 15);
   assert.equal(project.actor.assignedActors[0].actor.id, 'avatar-1');
