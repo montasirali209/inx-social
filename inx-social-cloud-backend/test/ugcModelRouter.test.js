@@ -87,6 +87,60 @@ test('Compatibility mode preserves the pre-Phase-3 premium route', () => {
   assert.equal(route.adapterKey, 'KLING_LEGACY');
 });
 
+test('Creator V2 compatibility can redirect a Premium creator to an allowed fallback route', () => {
+  const route = router.routeForScene({
+    quality: 'PREMIUM',
+    kind: 'CREATOR',
+    providerDuration: 10,
+    playbackDuration: 10,
+    hasActor: true,
+    hasProductReference: false,
+    hasNarration: true,
+    allowedRoutes: ['KLING_PREMIUM_V1'],
+    mode: 'adaptive'
+  });
+  assert.equal(route.routeKey, 'KLING_PREMIUM_V1');
+  assert.match(route.reason, /CREATOR_COMPATIBILITY_FALLBACK/);
+});
+
+test('Creator V2 compatibility blocks a Standard creator with no valid Standard route', () => {
+  assert.throws(
+    () => router.routeForScene({
+      quality: 'STANDARD',
+      kind: 'CREATOR',
+      providerDuration: 10,
+      playbackDuration: 10,
+      hasActor: true,
+      hasProductReference: false,
+      hasNarration: true,
+      allowedRoutes: ['OMNIHUMAN_CREATOR_V1'],
+      mode: 'adaptive'
+    }),
+    error => error?.code === 'UGC_ROUTER_CREATOR_INCOMPATIBLE'
+  );
+});
+
+test('Creator V2 route restrictions affect creator scenes without constraining product routing', () => {
+  const plan = router.routePlan({
+    input: { quality: 'PREMIUM' },
+    hasProductReference: true,
+    availableAvatars: [creator({ routeCompatibilityJson: JSON.stringify(['KLING_PREMIUM_V1']) })],
+    mode: 'adaptive',
+    plan: {
+      title: 'Compatibility-aware UGC',
+      ads: [{
+        avatarIndex: 0,
+        scenes: [
+          { kind: 'CREATOR', duration: 10, playbackDuration: 10, script: 'A creator line.' },
+          { kind: 'PRODUCT', duration: 10, playbackDuration: 10, script: 'A product line.' }
+        ]
+      }]
+    }
+  });
+  assert.equal(plan.ads[0].scenes[0].routeDecision.routeKey, 'KLING_PREMIUM_V1');
+  assert.equal(plan.ads[0].scenes[1].routeDecision.routeKey, 'SEEDANCE_DYNAMIC_V1');
+});
+
 test('Route plan selects models per scene rather than per whole ad', () => {
   const plan = router.routePlan({
     input: { quality: 'PREMIUM' },
