@@ -1764,14 +1764,18 @@ async function rerouteScenesForRegeneration(userId, adId, sceneIds = null) {
       (Array.isArray(referenceMeta.productAssetIds) && referenceMeta.productAssetIds.length) ||
       (Array.isArray(referenceMeta.brandReferences) && referenceMeta.brandReferences.length)
     );
+    const creatorLike = ['CREATOR','CTA'].includes(String(scene.kind || '').toUpperCase());
+    const actorId = creatorLike ? (scene.avatarId || ad.avatarId) : null;
+    const actor = actorId ? await getAvatarRow(userId, actorId) : null;
     const decision = ugcModelRouter.routeForScene({
       quality: ad.quality,
       kind: scene.kind,
       providerDuration: Number(scene.duration),
       playbackDuration: Number(finalDurations[index] || scene.duration),
-      hasActor: Boolean(scene.avatarId || ad.avatarId),
+      hasActor: Boolean(actorId),
       hasProductReference,
-      hasNarration: clean(scene.script, 5000).length >= 2
+      hasNarration: clean(scene.script, 5000).length >= 2,
+      allowedRoutes: actor ? ugcCreators.profileFromRow(actor).routeCompatibility : null
     });
     decisions.push({ sceneId: scene.id, sceneSequence: Number(scene.sequence), ...decision });
     updates.push({
