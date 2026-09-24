@@ -16,7 +16,7 @@ function clean(value, max = 4000) {
 }
 
 function routerMode() {
-  return String(env.runware?.ugcRouterMode || 'adaptive').toLowerCase() === 'compatibility' ? 'compatibility' : 'adaptive';
+  return String(env.runware?.ugcRouterMode || 'compatibility').toLowerCase() === 'adaptive' ? 'adaptive' : 'compatibility';
 }
 
 function isCreatorLike(kind) {
