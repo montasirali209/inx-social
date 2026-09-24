@@ -14,7 +14,7 @@ function sceneCredits(ad, scene) {
 function inspect({ ad = {}, scenes = [] } = {}) {
   const list = Array.isArray(scenes) ? scenes : [];
   const ready = list.filter(scene => scene.status === READY_SCENE && scene.videoStorageKey);
-  const retryScenes = list.filter(scene => RETRYABLE_SCENE.has(String(scene.status || '').toUpperCase()) || (scene.status === READY_SCENE && !scene.videoStorageKey));
+  const retryScenes = list.filter(scene => !(scene.status === READY_SCENE && scene.videoStorageKey));
   const missingStorage = list.filter(scene => scene.status === READY_SCENE && !scene.videoStorageKey);
   const busy = BUSY.has(String(ad.status || '').toUpperCase());
   const allScenesReady = list.length > 0 && ready.length === list.length;
