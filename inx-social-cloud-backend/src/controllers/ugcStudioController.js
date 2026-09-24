@@ -40,9 +40,13 @@ const brandSchema = z.object({
 const generateAvatarSchema = z.object({
   prompt: z.string().trim().min(8).max(1200),
   name: z.string().trim().min(2).max(80),
-  category: z.string().trim().max(80).optional().default('Custom'),
+  category: z.string().trim().max(80).optional().default('Lifestyle'),
+  presentation: z.string().trim().max(80).optional().default('Woman'),
+  ageBand: z.string().trim().max(80).optional().default('25–34'),
   locale: z.string().trim().max(20).optional().default('en-GB'),
-  voice: z.string().trim().max(100).optional().default('Pippa')
+  accent: z.string().trim().max(80).optional().default(''),
+  niches: z.array(z.string().trim().min(1).max(100)).max(8).optional().default([]),
+  voice: z.string().trim().max(100).optional().default('')
 });
 
 const editAdSchema = z.object({
@@ -111,8 +115,17 @@ async function uploadAvatar(req, res, next) {
     const encoded = String(req.headers['x-file-name'] || 'Custom avatar');
     let name = encoded;
     try { name = decodeURIComponent(encoded); } catch (_) {}
+    const decodeHeader = (key, fallback = '') => {
+      const raw = String(req.headers[key] || fallback);
+      try { return decodeURIComponent(raw); } catch (_) { return raw; }
+    };
     const avatar = await service.uploadCustomAvatar(req.user.id, {
       name,
+      category: decodeHeader('x-creator-category', 'Lifestyle'),
+      presentation: decodeHeader('x-creator-presentation', 'Woman'),
+      ageBand: decodeHeader('x-creator-age-band', '25–34'),
+      locale: decodeHeader('x-creator-locale', 'en-GB'),
+      accent: decodeHeader('x-creator-accent', ''),
       mimeType: String(req.headers['content-type'] || 'application/octet-stream').split(';')[0],
       data: Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '')
     });
