@@ -17,6 +17,8 @@ const ugcAnalytics = require('./ugcStudioAnalyticsService');
 const ugcEngine = require('./ugcEngineService');
 const ugcEngineRegistry = require('./ugcEngineRegistry');
 const ugcSkills = require('./ugcSkillEngine');
+const ugcModelRouter = require('./ugcModelRouter');
+const ugcProviderAdapters = require('./ugcProviderAdapters');
 const { expiresAtFor } = require('./mediaRetentionService');
 
 const STANDARD_CREDITS = Object.freeze({ 15: 100, 20: 140, 30: 210 });
@@ -702,7 +704,13 @@ async function createCampaign(userId, input) {
   if (resolvedType === 'PRODUCT_SHOWCASE' && !productAssets.length && !hasBrandVisualReference) {
     throw publicError('Product Showcase needs at least one real product image. Upload a product photo, use a product page with usable images, or choose Avatar Explainer.', 'UGC_PRODUCT_REFERENCE_REQUIRED', 422);
   }
-  const plan = await planCampaign({ ...input, productAssetIds }, brand, available, resolvedType);
+  const creativePlan = await planCampaign({ ...input, productAssetIds }, brand, available, resolvedType);
+  const plan = ugcModelRouter.routePlan({
+    input,
+    plan: creativePlan,
+    hasProductReference: Boolean(productAssets.length || hasBrandVisualReference),
+    availableAvatars: available
+  });
   const campaignId = id();
   const perAd = creditsPerAd(input.duration, input.quality);
   const sourceType = clean(input.sourceType || (productAssetIds.length ? 'PRODUCT' : input.productUrl ? 'WEBSITE' : 'BRIEF'), 30).toUpperCase();
@@ -743,8 +751,8 @@ async function createCampaign(userId, input) {
         const scene = planned.scenes[s];
         await prisma.$executeRawUnsafe(
           'INSERT INTO "UGCScene" ("id","adId","sequence","status","kind","route","duration","prompt","script","avatarId","productReferenceJson","createdAt","updatedAt") VALUES ($1,$2,$3,\'QUEUED\',$4,$5,$6,$7,$8,$9,$10,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
-          id(), adId, s + 1, scene.kind, route, scene.duration, scene.prompt, scene.script || null, avatar?.id || null,
-          json({ brandReferences: brand?.brandReferences || [], productAssetIds })
+          id(), adId, s + 1, scene.kind, scene.routeDecision?.routeKey || route, scene.duration, scene.prompt, scene.script || null, avatar?.id || null,
+          json({ brandReferences: brand?.brandReferences || [], productAssetIds, routeDecision: scene.routeDecision || null })
         );
       }
       const generationId = await createGenerationRow(userId, adId, perAd, { ...planned, campaignType: resolvedType, quality: input.quality });
@@ -1092,7 +1100,7 @@ async function generateSceneNarration(scene, ad, avatar, spokenDuration = scene.
 }
 
 async function renderProviderScene(scene, ad, avatar, productReference, narration, onProgress) {
-  const taskUUID = id();
+  const creatorLike = ugcProviderAdapters.isCreatorLike(scene.kind);
   const creatorLock = avatar ? [
     'CHARACTER LOCK: use the supplied creator portrait as the exact same real person.',
     'Preserve face shape, skin tone, age, hairstyle, hair colour, wardrobe and recognizable identity.',
@@ -1103,18 +1111,18 @@ async function renderProviderScene(scene, ad, avatar, productReference, narratio
     ? 'PRODUCT LOCK: preserve the supplied product/reference exactly — packaging, shape, colours, proportions and visible branding. Do not substitute, redesign or hallucinate another product.'
     : '';
   const positivePrompt = clean([
-    clean(scene.prompt, 1200),
+    clean(scene.prompt, 1800),
     'Authentic vertical 9:16 creator-native UGC. Realistic smartphone-camera exposure, real room depth, natural skin and fabric texture, grounded physics, subtle handheld stability, no plastic CGI appearance.',
-    ugcRealismSkill(scene.kind, parseJson(ad.planJson, {}).campaignType || 'AVATAR_EXPLAINER', ad.quality),
-    scene.kind === 'CREATOR' ? creatorLock : productLock,
-    scene.kind === 'PRODUCT'
+    ugcRealismSkill(creatorLike ? 'CREATOR' : scene.kind, parseJson(ad.planJson, {}).campaignType || 'AVATAR_EXPLAINER', ad.quality),
+    creatorLike ? creatorLock : productLock,
+    !creatorLike
       ? 'Frame the product clearly in a believable use context. Use realistic hands only when needed and keep interaction physically plausible.'
-      : 'The creator faces the camera naturally. Mouth motion should be suitable for later lip synchronization.',
+      : 'The creator faces the camera naturally and speaks with believable real-time facial and body motion.',
     'No generated subtitles, captions, labels, watermarks, interface graphics or extra readable text inside the frame.'
-  ].filter(Boolean).join('\n\n'), 1950);
+  ].filter(Boolean).join('\n\n'), 5000);
 
   let reference = null;
-  if (scene.kind === 'CREATOR') {
+  if (creatorLike) {
     if (!avatar) throw publicError('This creator scene has no avatar.', 'UGC_AVATAR_REQUIRED', 422);
     reference = (await ensureAvatarReference(ad.userId, avatar)).dataUri;
   } else {
@@ -1122,33 +1130,14 @@ async function renderProviderScene(scene, ad, avatar, productReference, narratio
   }
   if (!reference) throw publicError('This UGC scene needs a visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
 
-  const model = scene.route === 'KLING' ? PREMIUM_MODEL() : STANDARD_MODEL();
-  const base = {
-    taskType: 'videoInference',
-    taskUUID,
-    deliveryMethod: 'async',
-    includeCost: true,
-    outputType: 'URL',
-    outputFormat: 'MP4',
-    model,
-    positivePrompt,
-    duration: Number(scene.duration),
-    inputs: { frameImages: [{ image: reference, frame: 'first' }] }
-  };
-
-  if (scene.route === 'KLING') {
-    base.providerSettings = { klingai: { sound: narration ? false : scene.kind !== 'CREATOR' } };
-  } else {
-    base.fps = 25;
-    base.providerSettings = { minimax: { promptOptimizer: true } };
-  }
-
-  onProgress(5);
-  const initial = await runware.request([base], 60000);
-  const first = initial.find(entry => entry.taskUUID === taskUUID) || initial[0];
-  const item = first?.videoURL ? first : await pollTask(taskUUID, onProgress);
-  onProgress(100);
-  return { item, taskUUID, model };
+  return ugcProviderAdapters.renderScene(scene.route, {
+    kind: scene.kind,
+    providerDuration: Number(scene.duration),
+    playbackDuration: Number(scene.duration),
+    prompt: positivePrompt,
+    reference,
+    narration
+  }, onProgress);
 }
 
 async function applyCreatorLipSync(videoURL, narration, onProgress = () => {}) {
@@ -1355,23 +1344,25 @@ async function renderAd(adId) {
       });
 
       let finalVideoURL = result.item.videoURL;
+      let sceneProviderCost = Number(result.item.cost || 0) + Number(narration?.cost || 0);
       providerCost += Number(result.item.cost || 0);
 
-      if (scene.kind === 'CREATOR' && narration?.audioURL) {
+      if (result.postProcess === 'LIP_SYNC' && narration?.audioURL) {
         await updateSceneProgress(index, 74, 'LIP_SYNC');
         const synced = await applyCreatorLipSync(result.item.videoURL, narration, async progress => {
           await updateSceneProgress(index, 74 + Number(progress || 0) * 0.18, 'LIP_SYNC');
         });
         if (synced?.item?.videoURL) {
           finalVideoURL = synced.item.videoURL;
+          sceneProviderCost += Number(synced.item.cost || 0);
           providerCost += Number(synced.item.cost || 0);
         }
       }
 
-      await updateSceneProgress(index, 93, 'VIDEO');
+      await updateSceneProgress(index, 93, result.postProcess === 'LOCAL_MUX' ? 'VOICE' : 'VIDEO');
       const remote = await download(finalVideoURL, 120 * 1024 * 1024);
       let sceneVideo = remote.data;
-      if (scene.kind !== 'CREATOR' && narration?.audioURL) {
+      if (result.postProcess === 'LOCAL_MUX' && narration?.audioURL) {
         const audio = await download(narration.audioURL, 18 * 1024 * 1024);
         sceneVideo = await lockNarrationAudio(sceneVideo, audio.data, spokenDuration);
       }
@@ -1379,7 +1370,7 @@ async function renderAd(adId) {
       const stored = await objectStorage.persistBuffer({ userId: ad.userId, data: sceneVideo, mimeType: 'video/mp4', originalName: 'ugc-scene-' + scene.id + '.mp4', prefix: 'ugc-video' });
       await prisma.$executeRawUnsafe(
         'UPDATE "UGCScene" SET "status"=\'READY\',"providerTaskUuid"=$2,"providerCostUsd"=$3,"model"=$4,"videoStorageProvider"=$5,"videoStorageKey"=$6,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
-        scene.id, result.taskUUID, Number(result.item.cost || 0) + Number(narration?.cost || 0), result.model, stored.storageProvider, stored.storageKey
+        scene.id, result.taskUUID, sceneProviderCost, result.model, stored.storageProvider, stored.storageKey
       );
       await updateSceneProgress(index, 100, 'SCENE_READY');
     });
