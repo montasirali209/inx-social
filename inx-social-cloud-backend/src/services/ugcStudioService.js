@@ -577,7 +577,7 @@ async function analyzeBrand(userId, input) {
 }
 
 
-const UGC_AGENT_VERSION = 'ugc-agent-v1';
+const UGC_AGENT_VERSION = 'ugc-agent-v2';
 const UGC_AGENT_DURATIONS = new Set([15,20,30]);
 const UGC_AGENT_COUNTS = new Set([1,5,10,15,20]);
 const UGC_AGENT_TYPES = new Set(['AUTO','AVATAR_EXPLAINER','PRODUCT_SHOWCASE']);
@@ -709,40 +709,51 @@ async function ugcAgentReply(userId, input = {}) {
 
   const parsed = await postStudio.callChatModel(postStudio.REASONING_MODEL, [
     { role: 'system', content: [
-      'You are the UGC Agent inside INXSocial. Your only job is to turn a natural request into a safe, ready-to-generate UGC campaign using the existing INXSocial UGC engine.',
+      'You are the UGC Agent inside INXSocial. Behave like a capable conversational creative producer, not a form or decision tree. Your job is to understand what the customer means over multiple turns and turn it into a safe, ready-to-generate UGC campaign using the existing INXSocial UGC engine.',
       'Do not mention internal model/provider names. Do not pretend to render anything yourself.',
       'Use trusted brand evidence and uploaded product/reference images as factual sources. Never invent prices, product features, testimonials, statistics, certifications or results.',
+      'Read the WHOLE conversation before replying. Treat short answers as answers to the previous question and carry their meaning forward.',
+      'Never repeat the same generic intake question after the customer has already supplied useful intent. A category-level answer is progress, not failure.',
+      'Examples: if the customer says "website" or "website promotion", acknowledge that they want to promote a website and ask for the website URL or business name/purpose as the single next useful question. If they say "app", "service", "restaurant", "course" or another category, infer that category and ask only for the next missing detail.',
+      'If the customer says something ambiguous, briefly state what you understood and ask ONE specific clarifying question. Never reset the conversation back to "what are we advertising?" unless there is genuinely no usable intent in any prior turn.',
       'Infer sensible defaults instead of interrogating the customer. Ask at most ONE genuinely useful question at a time.',
-      'If the advertised product/offer is not identifiable from a URL, uploaded image or description, ask what they want to advertise.',
+      'Do not require duration, variation count, quality, creative format or creator choices before continuing; those have safe defaults and can be changed later.',
       'If a creator is selected, keep that creator selected unless the customer explicitly asks for Auto.',
       'Default to 20 seconds, 1 variation, Standard quality, Auto campaign type and Auto creative format when unspecified.',
       'If the user clearly requests a supported duration/count/tier/format, preserve it.',
-      'Return a concise conversational reply. When enough context exists, summarize what you understood rather than asking unnecessary setup questions.',
+      'Set readyToGenerate=true only when the actual thing being promoted is specific enough to script responsibly. A phrase such as "website promotion" establishes intent but is not yet enough to generate until the website/business/offer is identifiable.',
+      'Return a concise natural reply that directly responds to the latest message and shows continuity with earlier turns.',
       'Return JSON only with this shape:',
       '{"reply":"string","readyToGenerate":false,"needsMoreContext":true,"quickReplies":["string"],"plan":{"productUrl":"string","productDescription":"string","campaignType":"AUTO|AVATAR_EXPLAINER|PRODUCT_SHOWCASE","creativeFormat":"AUTO|PROBLEM_SOLUTION|PRODUCT_DEMO|TESTIMONIAL|UNBOXING|REACTION|BEFORE_AFTER|STORYTIME|SPOKESPERSON|PRODUCT_FOCUSED","duration":20,"adCount":1,"quality":"STANDARD|PREMIUM","notes":"string"}}'
     ].join('\n') },
     { role: 'user', content }
-  ], { reasoningEffort: 'low', temperature: 0.25, maxTokens: 1500, timeoutMs: 120000 });
+  ], { reasoningEffort: 'medium', temperature: 0.35, maxTokens: 1800, timeoutMs: 120000 });
 
   const plan = ugcAgentPlan(parsed?.plan || {}, input, brand, creator, productAssetIds, detectedUrl);
-  const hasProductContext = Boolean(plan.brandProfileId || plan.productUrl || plan.productAssetIds.length || clean(plan.productDescription, 4000).length >= 3);
-  const referencePending = hasProductContext && !referenceAnswered && !productAssetIds.length;
-  let reply = clean(parsed?.reply, 2200) || 'I have enough context to keep building your UGC ad.';
+  const hasProductContext = Boolean(
+    plan.brandProfileId ||
+    plan.productUrl ||
+    plan.productAssetIds.length ||
+    clean(plan.productDescription, 4000).length >= 8
+  );
+  const modelReady = parsed?.readyToGenerate === true && parsed?.needsMoreContext !== true;
+  const referencePending = Boolean(modelReady && hasProductContext && !referenceAnswered && !productAssetIds.length);
+  let reply = clean(parsed?.reply, 2200) || 'Tell me a little more about what you want this UGC ad to promote.';
   let quickReplies = (Array.isArray(parsed?.quickReplies) ? parsed.quickReplies : []).map(value => clean(value, 90)).filter(Boolean).slice(0, 4);
 
-  if (!hasProductContext) {
-    reply = 'What are we advertising? Paste a product or business URL, upload a product/reference image, or describe the offer in a sentence.';
-    quickReplies = ['I’ll paste a URL', 'I’ll upload a product image', 'I’ll describe the offer'];
-  } else if (referencePending) {
+  // The reasoning model owns discovery conversation. Deterministic code only
+  // interrupts once the plan is otherwise generation-ready and reference-image
+  // intent must be resolved before provider spend.
+  if (referencePending) {
     reply = foundReferences.length
       ? 'I found ' + foundReferences.length + ' usable visual reference' + (foundReferences.length === 1 ? '' : 's') + ' on the website. Do you also have a product or reference image you want me to use, or should I continue with the website references?'
-      : 'Do you have a product or reference image you want me to use? You can add one now, or tell me to continue without one.';
+      : 'The campaign direction is clear. Before I generate it, do you have a product or reference image you want me to use, or should I continue without one?';
     quickReplies = foundReferences.length
       ? ['Use the website references', 'I’ll upload a reference image', 'Continue without another image']
       : ['I’ll upload a reference image', 'Continue without one'];
   }
 
-  const readyToGenerate = Boolean(hasProductContext && !referencePending && parsed?.readyToGenerate !== false && parsed?.needsMoreContext !== true);
+  const readyToGenerate = Boolean(modelReady && hasProductContext && !referencePending);
   const estimate = readyToGenerate ? await estimateCampaign(userId, plan) : null;
   return {
     version: UGC_AGENT_VERSION,
