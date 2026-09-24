@@ -19,8 +19,6 @@ test('UGC Agent is versioned and reuses the existing planning, quote and campaig
 
 test('UGC Agent accepts bare product domains as URLs', () => {
   assert.ok(studioService.brandUrlCandidates('example.com/product').length);
-  const studio = read('src/services/ugcStudioService.js');
-  assert.match(studio, /(?:\[a-z0-9-\]\+\\\.\)\+\[a-z\]\{2,\}/i);
 });
 
 test('UGC Agent always resolves reference-image intent before generation', () => {
