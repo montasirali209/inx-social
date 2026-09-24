@@ -3,6 +3,7 @@ import type {
   CreateUGCCampaignInput,
   UGCAd,
   UGCAvatar,
+  UGCAvatarReference,
   UGCBrandProfile,
   UGCCampaign,
   UGCEditorUpdate,
