@@ -258,6 +258,21 @@ function publishedAtForPost(platform, post) {
   return new Date(milliseconds);
 }
 
+function belongsToXAccount(profile, post) {
+  const handle = String(profile.username || '').replace(/^@/, '').toLowerCase();
+  if (!/^[a-z0-9_]{1,15}$/.test(handle) || /^\s*RT\s+@/i.test(String(post.caption || ''))) return false;
+  try {
+    const url = new URL(String(post.platform_url || ''));
+    if (!['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'].includes(url.hostname.toLowerCase())) return false;
+    const match = url.pathname.match(/^\/([a-z0-9_]{1,15})\/status\/(\d{15,20})(?:\/|$)/i);
+    if (!match || match[1].toLowerCase() !== handle) return false;
+    const postId = String(post.platform_post_id || post.external_post_id || '');
+    return !postId || postId === match[2];
+  } catch (_) {
+    return false;
+  }
+}
+
 async function facebookPageFallback(userId, profile, days) {
   const metadata = postForMe.parseJson(profile.metadataJson, {});
   const pageId = String(metadata.providerUserId || '');
@@ -484,7 +499,13 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
   const days = safeDays(daysInput);
   const profile = await resolveProfile(userId, profileId, platform);
   const { since, until } = dateRange(days);
-  const allFeed = await fetchFeed(profile, days, options);
+  const providerFeed = await fetchFeed(profile, days, options);
+  // X's connected feed can contain reposts from unrelated authors. Treat the
+  // status URL as ownership evidence and discard everything else, including
+  // entries without a verifiable URL or connected handle.
+  const allFeed = profile.platform === 'x'
+    ? providerFeed.filter(post => belongsToXAccount(profile, post))
+    : providerFeed;
   if (profile.platform === 'facebook' && !allFeed.length) {
     try {
       const recovered = await facebookPageFallback(userId, profile, days);
@@ -625,6 +646,7 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       postsWithMetrics,
       feedPosts: allFeed.length,
       periodPosts: feed.length,
+      ownershipVerified: profile.platform === 'x' ? true : undefined,
       metricsRequested: true,
       metricSummary
     }
@@ -749,7 +771,10 @@ async function readPersistedAnalyticsCache(descriptor) {
   const row = await prisma.analyticsSourceCache.findUnique({
     where: cacheUniqueWhere(descriptor)
   });
-  return { row, value: parsePersistedPayload(row) };
+  const value = parsePersistedPayload(row);
+  // The previous X cache included other authors' reposts. Never return or
+  // preserve it while rebuilding account-owned analytics.
+  return { row, value: descriptor.platform === 'x' && value?.provider?.ownershipVerified !== true ? null : value };
 }
 
 async function markAnalyticsRefreshStarted(descriptor) {
@@ -1019,6 +1044,7 @@ function startAnalyticsCacheRuntime() {
 module.exports = {
   getPostForMeAnalytics,
   publishedAtForPost,
+  belongsToXAccount,
   normaliseMetrics,
   collectNumericMetrics,
   providerMetricSummary,
