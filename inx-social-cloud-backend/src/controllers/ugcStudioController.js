@@ -127,6 +127,37 @@ async function avatarContent(req, res, next) {
     res.send(value.data);
   } catch (error) { next(error); }
 }
+
+async function avatarReferences(req, res, next) {
+  try { res.json(await service.listAvatarReferences(req.user.id, req.params.avatarId)); } catch (error) { next(error); }
+}
+async function uploadAvatarReference(req, res, next) {
+  try {
+    const encoded = String(req.headers['x-reference-label'] || req.headers['x-file-name'] || 'Alternate reference');
+    let label = encoded;
+    try { label = decodeURIComponent(encoded); } catch (_) {}
+    const reference = await service.uploadAvatarReference(req.user.id, req.params.avatarId, {
+      label,
+      mimeType: String(req.headers['content-type'] || 'application/octet-stream').split(';')[0],
+      data: Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '')
+    });
+    res.status(201).json({ reference });
+  } catch (error) { next(error); }
+}
+async function avatarReferenceContent(req, res, next) {
+  try {
+    const value = await service.getAvatarReferenceContent(req.user.id, req.params.avatarId, req.params.referenceId);
+    res.setHeader('Content-Type', value.mimeType);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(value.data);
+  } catch (error) { next(error); }
+}
+async function removeAvatarReference(req, res, next) {
+  try {
+    await service.deleteAvatarReference(req.user.id, req.params.avatarId, req.params.referenceId);
+    res.json({ ok: true });
+  } catch (error) { next(error); }
+}
 async function removeAvatar(req, res, next) {
   try { await service.deleteCustomAvatar(req.user.id, req.params.avatarId); res.json({ ok: true }); } catch (error) { next(error); }
 }
@@ -193,7 +224,7 @@ async function trackEvent(req, res, next) {
 module.exports = {
   overview, estimate, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, removeCampaign,
   getAd, updateAd, regenerateAd, regenerateScene,
-  generateAvatar, uploadAvatar, avatarContent, removeAvatar,
+  generateAvatar, uploadAvatar, avatarContent, avatarReferences, uploadAvatarReference, avatarReferenceContent, removeAvatarReference, removeAvatar,
   uploadProduct, productContent, samples, sampleContent, uploadSample, listMusic, trackEvent,
   avatarUploadMiddleware: express.raw({ type: ['image/png','image/jpeg','image/webp'], limit: '12mb' }),
   productUploadMiddleware: express.raw({ type: ['image/png','image/jpeg','image/webp'], limit: '15mb' }),
