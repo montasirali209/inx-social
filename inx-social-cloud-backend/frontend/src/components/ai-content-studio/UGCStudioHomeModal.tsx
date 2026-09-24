@@ -338,7 +338,7 @@ export function UGCStudioHomeModal({
                         navigate(`/ai-content-studio/ugc/${first.id}/edit`)
                       })
                     }} size="sm"><Pencil className="size-3.5" />Edit</Button>
-                    <Button disabled={!readyCampaignIds.length} onClick={() => toggleCampaignReady(campaign)} size="sm" variant={allCampaignReadySelected ? 'primary' : 'default'}>{allCampaignReadySelected ? 'Selected' : campaign.ads.length === 1 ? 'Select video' : 'Select ready'}</Button>
+                    <Button disabled={!readyCampaignIds.length} onClick={() => toggleCampaignReady(campaign)} size="sm" variant={allCampaignReadySelected ? 'primary' : 'secondary'}>{allCampaignReadySelected ? 'Selected' : campaign.ads.length === 1 ? 'Select video' : 'Select ready'}</Button>
                     <button aria-label="Create similar campaign" className="ugc-home-icon-action" onClick={() => startCreation(campaign)} title="Create similar" type="button"><Copy className="size-3.5" /></button>
                     <button aria-label="Delete campaign" className="ugc-home-icon-action danger" disabled={busy || remove.isPending} onClick={() => { if (window.confirm('Remove this UGC campaign from your studio?')) remove.mutate(campaign.id) }} title="Delete" type="button"><Trash2 className="size-3.5" /></button>
                   </div>
