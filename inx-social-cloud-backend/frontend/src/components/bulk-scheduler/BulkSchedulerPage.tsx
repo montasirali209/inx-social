@@ -954,47 +954,139 @@ export function BulkSchedulerPage() {
   }
 
   const retryFailedUpload = async (result: UploadResult) => {
-    if (running || retryingId || !result.jobId) return
+    if (running || retryingId || (!result.jobId && !result.clientRequestId)) return
 
     setRetryingId(result.id)
-    setResults((current) => current.map((candidate) => candidate.id === result.id ? { ...candidate, status: 'uploading', errorMessage: null } : candidate))
-    setProgress({ state: 'scheduling', percent: 15, current: 1, total: 1, completed: 0, failed: 0, message: `Retrying ${result.fileName}…` })
+    setResults((current) => current.map((candidate) => candidate.id === result.id ? { ...candidate, status: 'checking', errorMessage: 'Checking the server before retrying…' } : candidate))
+    setProgress({ state: 'scheduling', percent: 10, current: 1, total: 1, completed: 0, failed: 0, message: `Checking ${result.fileName} before a safe retry…` })
 
     try {
-      if (result.mediaKind === 'text') {
-        const response = await retryFailedScheduledPost(result.jobId)
+      let job = result.jobId ? schedulerData.jobs.find((candidate) => candidate.id === result.jobId) : null
+
+      if (!job && result.clientRequestId) {
+        const refreshed = await scheduler.refetch()
+        job = refreshed.data?.jobs.find((candidate) => candidate.clientRequestId === result.clientRequestId) || null
+      }
+
+      if (job && ['SCHEDULED', 'PUBLISHED', 'PROCESSING'].includes(job.status)) {
+        const status = backendStatusToUploadStatus(job.status)
         setResults((current) => current.map((candidate) => candidate.id === result.id ? {
           ...candidate,
-          status: backendStatusToUploadStatus(response.job.status),
-          resultId: response.job.providerPostId || response.job.metaPostId || candidate.resultId,
-          errorMessage: response.job.errorMessage || null,
+          jobId: job!.id,
+          status,
+          resultId: job!.providerPostId || job!.metaPostId || job!.metaVideoId || candidate.resultId,
+          errorMessage: null,
         } : candidate))
+        setProgress({ state: 'completed', percent: 100, current: 1, total: 1, completed: 1, failed: 0, message: job.status === 'SCHEDULED' ? 'Server confirmed this post was already scheduled. No duplicate was created.' : 'Server confirmed this post is already being processed.' })
+        return
+      }
+
+      const caption = result.caption || captionBlocks[result.mediaIndex] || ''
+      let finalJob = job || null
+
+      if (!finalJob) {
+        if (!result.clientRequestId) throw new Error('This browser session no longer has the safe request reference for this post.')
+
+        if (result.mediaKind === 'text') {
+          const prepared = await createBulkMediaPost({
+            connectedPageIds: result.destinationIds,
+            clientRequestId: result.clientRequestId,
+            title: null,
+            caption,
+            contentType: 'TEXT',
+            originalFileName: null,
+            mimeType: null,
+            fileSizeBytes: null,
+            mediaLibraryAssetId: null,
+            scheduledAt: result.scheduledAt,
+            publishMode: result.scheduledAt ? 'SCHEDULED' : 'NOW',
+          })
+          finalJob = prepared.jobs[0] || null
+          if (!finalJob) throw new Error(prepared.failures[0]?.error || 'The post could not be recreated safely.')
+        } else {
+          const item = media.find((candidate) => candidate.id === result.mediaId)
+          if (!item) throw new Error('The original media is no longer available in this browser session.')
+          const prepared = await createBulkMediaPost({
+            connectedPageIds: result.destinationIds,
+            clientRequestId: result.clientRequestId,
+            title: titleFromFile(item.file),
+            caption,
+            contentType: item.kind === 'image' ? 'IMAGE' : 'VIDEO',
+            originalFileName: item.file.name,
+            mimeType: mediaMimeType(item.file),
+            fileSizeBytes: item.file.size,
+            mediaLibraryAssetId: item.libraryAssetId || null,
+            scheduledAt: result.scheduledAt,
+            publishMode: result.scheduledAt ? 'SCHEDULED' : 'NOW',
+          })
+          finalJob = prepared.jobs[0] || null
+          if (!finalJob) throw new Error(prepared.failures[0]?.error || 'The media post could not be recreated safely.')
+          if (prepared.uploadRequired) {
+            const uploaded = item.libraryAssetId
+              ? await publishBulkLibraryMedia(finalJob.id)
+              : await uploadBulkMedia(finalJob.id, item.file, {
+                  signal: new AbortController().signal,
+                  onProgress: (loaded, total) => {
+                    const percent = total > 0 ? Math.max(15, Math.min(90, Math.round((loaded / total) * 90))) : 40
+                    setProgress({ state: 'uploading', percent, current: 1, total: 1, completed: 0, failed: 0, message: `Safely retrying ${result.fileName}…` })
+                  },
+                })
+            finalJob = uploaded.job
+          }
+        }
+      } else if (result.mediaKind === 'text') {
+        const response = await retryFailedScheduledPost(finalJob.id, {
+          caption: caption || undefined,
+          scheduledAt: result.scheduledAt || undefined,
+        })
+        finalJob = response.job
+      } else if (finalJob.status === 'FAILED' && finalJob.providerPostId) {
+        const response = await retryFailedScheduledPost(finalJob.id, {
+          caption: caption || undefined,
+          scheduledAt: result.scheduledAt || undefined,
+        })
+        finalJob = response.job
       } else {
         const item = media.find((candidate) => candidate.id === result.mediaId)
         if (!item) throw new Error('The original media is no longer available in this browser session.')
         const uploaded = item.libraryAssetId
-          ? await publishBulkLibraryMedia(result.jobId)
-          : await uploadBulkMedia(result.jobId, item.file, { signal: new AbortController().signal, onProgress: (loaded, total) => {
-            const percent = total > 0 ? Math.max(15, Math.min(90, Math.round((loaded / total) * 90))) : 40
-            setProgress({ state: 'uploading', percent, current: 1, total: 1, completed: 0, failed: 0, message: `Retrying ${result.fileName}…` })
-          } })
-        setResults((current) => current.map((candidate) => candidate.id === result.id ? {
-          ...candidate,
-          status: backendStatusToUploadStatus(uploaded.job.status),
-          resultId: uploaded.job.metaPostId || uploaded.job.metaVideoId || candidate.resultId,
-          errorMessage: null,
-        } : candidate))
+          ? await publishBulkLibraryMedia(finalJob.id)
+          : await uploadBulkMedia(finalJob.id, item.file, {
+              signal: new AbortController().signal,
+              onProgress: (loaded, total) => {
+                const percent = total > 0 ? Math.max(15, Math.min(90, Math.round((loaded / total) * 90))) : 40
+                setProgress({ state: 'uploading', percent, current: 1, total: 1, completed: 0, failed: 0, message: `Retrying ${result.fileName}…` })
+              },
+            })
+        finalJob = uploaded.job
       }
-      setProgress({ state: 'completed', percent: 100, current: 1, total: 1, completed: 1, failed: 0, message: 'Retry completed successfully.' })
+
+      setResults((current) => current.map((candidate) => candidate.id === result.id ? {
+        ...candidate,
+        jobId: finalJob!.id,
+        status: backendStatusToUploadStatus(finalJob!.status),
+        resultId: finalJob!.providerPostId || finalJob!.metaPostId || finalJob!.metaVideoId || candidate.resultId,
+        errorMessage: finalJob!.errorMessage || null,
+      } : candidate))
+      setProgress({ state: 'completed', percent: 100, current: 1, total: 1, completed: 1, failed: 0, message: 'Safe retry completed. The server state has been reconciled.' })
       await scheduler.refetch()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Retry failed.'
+      const checking = isLikelyTransportFailure(error)
       setResults((current) => current.map((candidate) => candidate.id === result.id ? {
         ...candidate,
-        status: 'failed',
-        errorMessage: message,
+        status: checking ? 'checking' : 'failed',
+        errorMessage: checking ? 'The mobile connection paused again. INXSocial will keep checking the server before marking this post failed.' : message,
       } : candidate))
-      setProgress({ state: 'failed', percent: 100, current: 1, total: 1, completed: 0, failed: 1, message })
+      setProgress({
+        state: checking ? 'completed' : 'failed',
+        percent: 100,
+        current: 1,
+        total: 1,
+        completed: 0,
+        failed: checking ? 0 : 1,
+        message: checking ? 'Connection paused again. Server reconciliation will continue automatically.' : message,
+      })
     } finally {
       setRetryingId(null)
     }
