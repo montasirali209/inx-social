@@ -299,14 +299,14 @@ export function UGCWizardModal({
     const current = campaign.data
     if (!current) return
     const ready = current.ads
-      .filter((ad) => ad.status === 'READY' && ad.mediaAssetId)
+      .filter((ad) => ad.status === 'READY' && ad.mediaAssetId && ad.qualityControl?.publishable)
       .map((ad) => ({ ad, asset: assetsById.get(ad.mediaAssetId!) }))
       .filter((value): value is { ad: typeof current.ads[number]; asset: MediaAsset } => Boolean(value.asset))
     if (!ready.length) { onToast('Wait for at least one finished UGC ad before scheduling.'); return }
     onClose()
     navigate('/bulk-scheduler', { state: {
       mediaLibraryAssets: ready.map((value) => value.asset),
-      aiMixedCampaign: { id: current.id, title: current.title, posts: ready.map(({ ad }) => ({ id: ad.id, contentType: 'IMAGE' as const, caption: ad.caption || ad.script, mediaAssetId: ad.mediaAssetId! })) },
+      aiMixedCampaign: { id: current.id, title: current.title, posts: ready.map(({ ad }) => ({ id: ad.id, contentType: 'VIDEO' as const, caption: ad.caption || ad.script, mediaAssetId: ad.mediaAssetId! })) },
     } })
   }
 
@@ -513,7 +513,7 @@ export function UGCWizardModal({
                 <div className="ugc-wizard-generation-bar"><span style={{ width: `${Math.max(4,progress)}%` }} /></div>
               </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">{campaignAds.map((ad) => <article className="ugc-wizard-output-card" key={ad.id}><div><span className="ugc-wizard-mini-label">VARIATION {ad.sequence}</span><strong>{ad.title}</strong><p>{ad.hook || ad.angle}</p>{busyStatuses.has(ad.status) && <p className="mt-2 text-[9px] text-brand-cyan">{ad.stageLabel} · {ad.progress}%{ad.stageDetail ? ` · ${ad.stageDetail}` : ''}</p>}</div><div className="flex items-center justify-between gap-2"><span className={`ugc-wizard-output-status ${ad.status.toLowerCase()}`}>{ad.status}</span><Button disabled={busyStatuses.has(ad.status)} onClick={() => { onClose(); navigate(`/ai-content-studio/ugc/${ad.id}/edit`) }} size="sm">Edit</Button></div></article>)}</div>
-              <div className="ugc-wizard-footer"><Button onClick={onBackToHome}><ArrowLeft className="size-4" />Back to UGC Studio</Button><Button disabled={!campaign.data?.ads.some((ad) => ad.status === 'READY' && ad.mediaAssetId && assetsById.has(ad.mediaAssetId))} onClick={scheduleReady} variant="primary"><CalendarRange className="size-4" />Schedule ready ads</Button></div>
+              <div className="ugc-wizard-footer"><Button onClick={onBackToHome}><ArrowLeft className="size-4" />Back to UGC Studio</Button><Button disabled={!campaign.data?.ads.some((ad) => ad.qualityControl?.publishable && ad.mediaAssetId && assetsById.has(ad.mediaAssetId))} onClick={scheduleReady} variant="primary"><CalendarRange className="size-4" />Schedule ready ads</Button></div>
             </>}
           </div>
           {error && <div className="ugc-wizard-error"><X className="size-4 shrink-0" />{error}</div>}
