@@ -1428,7 +1428,15 @@ async function assembleVideo(ad, scenes) {
       const scene = scenes[sceneIndex];
       const finalDuration = finalDurations[sceneIndex];
       if (!scene.videoStorageKey) throw new Error('A rendered UGC scene is missing.');
-      const data = await objectStorage.getBuffer(scene.videoStorageKey, null, scene.videoStorageProvider || null);
+      let data;
+      try {
+        data = await objectStorage.getBuffer(scene.videoStorageKey, null, scene.videoStorageProvider || null);
+      } catch (storageError) {
+        storageError.code = storageError.code || 'UGC_SCENE_ASSET_MISSING';
+        storageError.sceneId = scene.id;
+        storageError.sceneSequence = Number(scene.sequence || sceneIndex + 1);
+        throw storageError;
+      }
       const inputPath = path.join(dir, 'scene-' + scene.sequence + '-input.mp4');
       const outputPath = path.join(dir, 'scene-' + scene.sequence + '.mp4');
       await fs.writeFile(inputPath, data);
@@ -1624,6 +1632,13 @@ async function renderAd(adId) {
     );
   } catch (error) {
     console.error('[UGC RENDER FAILED]', { adId, code: error?.code, error: clean(error?.message, 700) });
+    if (error?.sceneId) {
+      await prisma.$executeRawUnsafe(
+        'UPDATE "UGCScene" SET "status"=\'FAILED\',"errorMessage"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+        error.sceneId,
+        clean(error?.publicMessage || error?.message || 'UGC scene asset is unavailable.', 700)
+      ).catch(() => {});
+    }
     if (generationCredits > 0) await credits.refund(ad.userId, ad.generationId, error?.code || 'ugc_render_failed').catch(() => false);
     await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'FAILED\',"errorMessage"=$2,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id, clean(error?.publicMessage || error?.message || 'UGC rendering failed.', 700)).catch(() => {});
     const failureScenes = await prisma.$queryRawUnsafe('SELECT * FROM "UGCScene" WHERE "adId"=$1 ORDER BY "sequence"', ad.id).catch(() => []);
