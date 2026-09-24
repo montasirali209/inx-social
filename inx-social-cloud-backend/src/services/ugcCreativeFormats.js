@@ -153,7 +153,7 @@ function normalizeFormat(value) {
 
 function hasVerifiedTransformationEvidence(verifiedClaims = []) {
   return (Array.isArray(verifiedClaims) ? verifiedClaims : []).some(claim =>
-    /\b(before|after|improv|increase|reduce|decrease|faster|slower|result|transform|restore|remove|clear|save[sd]?\s+time)\b/i.test(clean(claim, 800))
+    /\b(before|after|improv(?:e|es|ed|ing|ement|ements)?|increas(?:e|es|ed|ing)|reduc(?:e|es|ed|ing|tion|tions)|decreas(?:e|es|ed|ing)|faster|slower|results?|transform(?:s|ed|ing|ation|ations)?|restor(?:e|es|ed|ing)|remov(?:e|es|ed|ing)|clear(?:s|ed|ing)?|sav(?:e|es|ed|ing)\s+time)\b/i.test(clean(claim, 800))
   );
 }
 
