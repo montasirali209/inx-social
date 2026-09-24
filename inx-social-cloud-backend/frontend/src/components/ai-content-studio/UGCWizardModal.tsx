@@ -119,6 +119,10 @@ export function UGCWizardModal({
   const [customCreatorOpen, setCustomCreatorOpen] = useState(false)
   const [avatarName, setAvatarName] = useState('')
   const [avatarPrompt, setAvatarPrompt] = useState('')
+  const [customCreatorCategory, setCustomCreatorCategory] = useState('Lifestyle')
+  const [customCreatorPresentation, setCustomCreatorPresentation] = useState('Woman')
+  const [customCreatorAgeBand, setCustomCreatorAgeBand] = useState('25–34')
+  const [customCreatorLocale, setCustomCreatorLocale] = useState('en-GB')
   const [workingReady, setWorkingReady] = useState(false)
   const [duration, setDuration] = useState<UGCDuration>((seedCampaign?.duration === 15 || seedCampaign?.duration === 20 || seedCampaign?.duration === 30) ? seedCampaign.duration : 30)
   const [adCount, setAdCount] = useState<UGCAdCount>(([1,5,10,15,20] as number[]).includes(seedCampaign?.adCount || 0) ? seedCampaign!.adCount as UGCAdCount : 5)
@@ -220,7 +224,14 @@ export function UGCWizardModal({
   })
 
   const generateAvatar = useMutation({
-    mutationFn: () => generateUGCAvatar({ name: avatarName, prompt: avatarPrompt }),
+    mutationFn: () => generateUGCAvatar({
+      name: avatarName,
+      prompt: avatarPrompt,
+      category: customCreatorCategory,
+      presentation: customCreatorPresentation,
+      ageBand: customCreatorAgeBand,
+      locale: customCreatorLocale,
+    }),
     onSuccess: (value) => {
       setCreatorMode('SELECTED'); setAvatarId(value.id); setCustomCreatorOpen(false); setAvatarName(''); setAvatarPrompt('')
       void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
@@ -238,7 +249,12 @@ export function UGCWizardModal({
   async function uploadAvatar(file: File | undefined) {
     if (!file) return
     try {
-      const value = await uploadUGCAvatar(file)
+      const value = await uploadUGCAvatar(file, {
+        category: customCreatorCategory,
+        presentation: customCreatorPresentation,
+        ageBand: customCreatorAgeBand,
+        locale: customCreatorLocale,
+      })
       setCreatorMode('SELECTED'); setAvatarId(value.id); setCustomCreatorOpen(false)
       await queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
     } catch (value) { setError(value instanceof Error ? value.message : 'Creator upload failed.') }
@@ -401,7 +417,20 @@ export function UGCWizardModal({
                 <span className="text-[10px] text-text-soft">or</span>
                 <button className="ugc-wizard-text-button" onClick={() => setCustomCreatorOpen((value) => !value)} type="button"><ImagePlus className="size-3.5" />Create my own</button>
               </div>
-              {customCreatorOpen && <div className="ugc-wizard-custom-creator mt-5"><div><strong>Custom creator</strong><p>Upload your own portrait for free, or generate one for 5 credits. It uses the same persistent Creator V2 profile and stays in your library.</p></div><label className="ugc-wizard-upload"><Upload className="size-4" />Upload portrait<input accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => void uploadAvatar(event.target.files?.[0])} type="file" /></label><div className="ugc-wizard-or"><span />OR<span /></div><input className="ugc-wizard-input w-full" onChange={(event) => setAvatarName(event.target.value)} placeholder="Creator name" value={avatarName} /><textarea className="ugc-wizard-input mt-2 min-h-20 w-full resize-y" onChange={(event) => setAvatarPrompt(event.target.value)} placeholder="Describe the adult creator: age range, style, appearance, niche and setting." value={avatarPrompt} /><Button className="mt-3" disabled={avatarName.trim().length < 2 || avatarPrompt.trim().length < 8 || generateAvatar.isPending} onClick={() => generateAvatar.mutate()}>{generateAvatar.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}Generate creator · 5 credits</Button></div>}
+              {customCreatorOpen && <div className="ugc-wizard-custom-creator mt-5">
+                <div><strong>Custom creator</strong><p>Upload your own portrait for free, or generate one for 5 credits. Both use the same persistent Creator V2 profile and stay in your library.</p></div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  <input aria-label="Custom creator niche" className="ugc-wizard-input" onChange={(event) => setCustomCreatorCategory(event.target.value)} placeholder="Niche, e.g. Beauty" value={customCreatorCategory} />
+                  <select aria-label="Custom creator presentation" className="ugc-wizard-input" onChange={(event) => setCustomCreatorPresentation(event.target.value)} value={customCreatorPresentation}><option>Woman</option><option>Man</option><option>Non-binary</option></select>
+                  <select aria-label="Custom creator adult age band" className="ugc-wizard-input" onChange={(event) => setCustomCreatorAgeBand(event.target.value)} value={customCreatorAgeBand}><option>18–24</option><option>25–34</option><option>35–44</option><option>45–54</option><option>55+</option></select>
+                  <input aria-label="Custom creator locale" className="ugc-wizard-input" onChange={(event) => setCustomCreatorLocale(event.target.value)} placeholder="Locale, e.g. en-GB" value={customCreatorLocale} />
+                </div>
+                <label className="ugc-wizard-upload mt-3"><Upload className="size-4" />Upload portrait with this profile<input accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => void uploadAvatar(event.target.files?.[0])} type="file" /></label>
+                <div className="ugc-wizard-or"><span />OR<span /></div>
+                <input className="ugc-wizard-input w-full" onChange={(event) => setAvatarName(event.target.value)} placeholder="Creator name" value={avatarName} />
+                <textarea className="ugc-wizard-input mt-2 min-h-20 w-full resize-y" onChange={(event) => setAvatarPrompt(event.target.value)} placeholder="Describe appearance, style and believable setting. Do not request a celebrity or real-person resemblance." value={avatarPrompt} />
+                <Button className="mt-3" disabled={avatarName.trim().length < 2 || avatarPrompt.trim().length < 8 || customCreatorCategory.trim().length < 2 || customCreatorLocale.trim().length < 2 || generateAvatar.isPending} onClick={() => generateAvatar.mutate()}>{generateAvatar.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}Generate creator · 5 credits</Button>
+              </div>}
               <div className="ugc-wizard-footer"><Button onClick={() => moveTo(2)}><ArrowLeft className="size-4" />Back</Button><Button disabled={creatorMode === 'SELECTED' && !avatarId} onClick={() => { void trackUGCStudioEvent({ event: 'CREATOR_SELECTED', stage: 'creator', metadata: { creatorMode, avatarScope: selectedAvatar?.scope || (creatorMode === 'AUTO' ? 'AUTO' : '') } }); moveTo(4) }} variant="primary">Continue <ArrowRight className="size-4" /></Button></div>
             </>}
 
