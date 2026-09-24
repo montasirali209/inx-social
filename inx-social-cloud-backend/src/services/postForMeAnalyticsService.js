@@ -449,6 +449,21 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
     return Number.isFinite(timestamp) && timestamp >= since.getTime() && timestamp <= until.getTime();
   });
 
+  if (allFeed.length && !feed.length) {
+    const dates = allFeed.map(item => item.posted_at && new Date(item.posted_at).getTime()).filter(value => Number.isFinite(value) && value > 0);
+    console.warn('[analytics-feed] no posts in reporting period', {
+      profileId: profile.id,
+      platform: profile.platform,
+      feedPosts: allFeed.length,
+      datedPosts: dates.length,
+      oldestPostDate: dates.length ? new Date(Math.min(...dates)).toISOString().slice(0, 10) : null,
+      newestPostDate: dates.length ? new Date(Math.max(...dates)).toISOString().slice(0, 10) : null,
+      postsWithProviderMetrics: allFeed.filter(item => item.metrics && typeof item.metrics === 'object' && Object.keys(item.metrics).length).length,
+      alternativeDateFields: ['created_at', 'published_at', 'timestamp', 'created_time'].filter(key => allFeed.some(item => item[key] != null)),
+      reportingDays: days
+    });
+  }
+
   const totals = { views: 0, reactions: 0, comments: 0, shares: 0, clicks: 0, follows: 0, interactions: 0 };
   let postsWithMetrics = 0;
   const content = feed.map((post) => {
