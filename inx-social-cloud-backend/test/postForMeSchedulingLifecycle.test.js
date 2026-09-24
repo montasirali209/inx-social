@@ -194,11 +194,12 @@ test('successful provider lifecycle states never surface failure copy and Batch 
   assert.equal(published.status, 'PUBLISHED');
   assert.equal(published.errorMessage, null);
 
-  assert.match(page, /const alreadyAccepted = result\.status === 'scheduled' \|\| result\.status === 'published'/);
-  assert.match(page, /status: 'scheduled'/);
-  assert.match(page, /errorMessage: null/);
+  assert.match(page, /candidate\.clientRequestId === result\.clientRequestId/);
+  assert.match(page, /const acceptedNow = backendStatus === 'scheduled' \|\| backendStatus === 'published'/);
+  assert.match(page, /status: acceptedNow \? 'scheduled' : backendStatus/);
+  assert.match(page, /errorMessage: acceptedNow \? null : job\.errorMessage \|\| result\.errorMessage/);
   assert.doesNotMatch(panel, /label: 'Published'/);
-  assert.match(panel, /Actual publishing outcomes are tracked separately in Posts and Calendar/);
+  assert.match(panel, /server-verified batch results/i);
   assert.doesNotMatch(table, /id: 'published'/);
   assert.match(table, /result\.status === 'published' \? 'scheduled' : result\.status/);
 });
