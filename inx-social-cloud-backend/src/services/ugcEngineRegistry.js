@@ -2,7 +2,7 @@ const env = require('../config/env');
 const adapters = require('./ugcProviderAdapters');
 
 const ENGINE_VERSION = 'ugc-engine-v1';
-const CONTRACT_VERSION = '1.2';
+const CONTRACT_VERSION = '1.3';
 
 const ROUTE_KEYS = Object.freeze({
   STANDARD: 'HAILUO_STANDARD_V1',
