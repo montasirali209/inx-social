@@ -23,6 +23,17 @@ function isCreatorLike(kind) {
   return adapters.isCreatorLike(kind);
 }
 
+function supportsDuration(cap, duration) {
+  const value = Number(duration || 0);
+  if (cap.adapterKey === adapters.ADAPTER_KEYS.OMNIHUMAN_15) return true;
+  if (!Number.isFinite(value) || value <= 0) return false;
+  if (Array.isArray(cap.supportedDurations) && !cap.supportedDurations.map(Number).includes(value)) return false;
+  if (typeof cap.supportedDurations === 'string' && cap.supportedDurations.startsWith('INTEGER_') && !Number.isInteger(value)) return false;
+  if (typeof cap.minDuration === 'number' && value < cap.minDuration) return false;
+  if (typeof cap.maxDuration === 'number' && value > cap.maxDuration) return false;
+  return true;
+}
+
 function routeForScene({
   quality,
   kind,
@@ -67,16 +78,10 @@ function routeForScene({
 
   const adapter = adapters.getAdapter(routeKey);
   const duration = Number(providerDuration || 0);
-  if (
-    adapter.adapterKey !== adapters.ADAPTER_KEYS.OMNIHUMAN_15 &&
-    ((typeof adapter.minDuration === 'number' && duration < adapter.minDuration) ||
-     (typeof adapter.maxDuration === 'number' && duration > adapter.maxDuration))
-  ) {
+  if (!supportsDuration(adapter, duration)) {
     const fallback = fallbacks.find(candidate => {
       try {
-        const cap = adapters.getAdapter(candidate);
-        return (typeof cap.minDuration !== 'number' || duration >= cap.minDuration) &&
-          (typeof cap.maxDuration !== 'number' || duration <= cap.maxDuration);
+        return supportsDuration(adapters.getAdapter(candidate), duration);
       } catch (_) {
         return false;
       }
@@ -118,6 +123,7 @@ function routeForScene({
       modes: [...selected.modes],
       minDuration: selected.minDuration,
       maxDuration: selected.maxDuration,
+      supportedDurations: Array.isArray(selected.supportedDurations) ? [...selected.supportedDurations] : selected.supportedDurations,
       maxReferenceImages: selected.maxReferenceImages,
       referenceMode: selected.referenceMode
     }
@@ -190,6 +196,7 @@ module.exports = {
   ROUTER_VERSION,
   ROUTE_KEYS,
   routerMode,
+  supportsDuration,
   routeForScene,
   routePlan,
   summarizeRoutes,
