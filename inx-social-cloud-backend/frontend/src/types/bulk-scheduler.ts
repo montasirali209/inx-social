@@ -30,7 +30,7 @@ export type TimingMode =
   | 'schedule_time'
   | 'saved_schedule'
 
-export type UploadStatus = 'waiting' | 'uploading' | 'published' | 'scheduled' | 'failed' | 'blocked'
+export type UploadStatus = 'waiting' | 'checking' | 'uploading' | 'published' | 'scheduled' | 'failed' | 'blocked'
 
 export type BulkContentMode = 'media' | 'text'
 
@@ -58,6 +58,8 @@ export type UploadResult = {
   resultId: string | null
   errorMessage: string | null
   scheduledAt: string | null
+  clientRequestId?: string | null
+  caption?: string | null
 }
 
 export type BatchProgress = {
