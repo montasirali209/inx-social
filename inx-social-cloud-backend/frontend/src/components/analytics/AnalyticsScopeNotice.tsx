@@ -39,7 +39,7 @@ export function AnalyticsScopeNotice({
         </span>
         <span className="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] px-3 py-2">
           <Layers3 className="size-3.5 shrink-0 text-brand-teal" />
-          <span><b className="block text-[9px] font-semibold text-text-main">Selected accounts</b><small className="block text-[8px] leading-4 text-text-soft">Compare up to 3 at once</small></span>
+          <span><b className="block text-[9px] font-semibold text-text-main">Selected account</b><small className="block text-[8px] leading-4 text-text-soft">This account only</small></span>
         </span>
         <span className="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] px-3 py-2">
           <Clock3 className="size-3.5 shrink-0 text-brand-amber" />
