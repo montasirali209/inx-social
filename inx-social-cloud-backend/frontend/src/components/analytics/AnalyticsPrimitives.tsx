@@ -33,3 +33,39 @@ export function AnalyticsKpiSkeleton() {
     </div>)}
   </div>
 }
+
+
+function LoadingPanel({ title, className = '', rows = 3 }: { title: string; className?: string; rows?: number }) {
+  return <AnalyticsCard className={`bg-panel/70 ${className}`}>
+    <AnalyticsCardHeader title={title} description="Latest account analytics are being synchronized." />
+    <div className="space-y-3 px-4 pb-5 sm:px-5">
+      {Array.from({ length: rows }, (_, index) => <div className="overflow-hidden rounded-lg border border-white/[.05] bg-white/[.02] p-3" key={index}>
+        <div className="h-2.5 w-2/5 animate-pulse rounded-full bg-white/[.08] motion-reduce:animate-none" />
+        <div className="mt-2 h-2 w-4/5 animate-pulse rounded-full bg-white/[.045] motion-reduce:animate-none" style={{ animationDelay: `${index * 100}ms` }} />
+      </div>)}
+    </div>
+  </AnalyticsCard>
+}
+
+export function AnalyticsWorkspaceSkeleton() {
+  return <div aria-label="Synchronizing Analytics workspace" className="analytics-data-transition space-y-4" role="status">
+    <AnalyticsKpiSkeleton />
+    <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,2.15fr)_minmax(280px,.62fr)]">
+      <AnalyticsCard className="min-h-[360px] bg-panel/70">
+        <AnalyticsCardHeader title="Content Performance by Publish Date" description="Latest post performance is being synchronized." />
+        <div className="relative mx-4 mb-5 h-[260px] overflow-hidden rounded-xl border border-white/[.05] bg-bg/25 sm:mx-5">
+          <div className="absolute inset-x-5 bottom-7 top-5 flex items-end gap-2">
+            {[18, 26, 21, 38, 31, 44, 35, 58, 49, 72, 60, 84, 52].map((height, index) => <span className="min-w-0 flex-1 animate-pulse rounded-t-sm bg-gradient-to-t from-brand-cyan/55 to-brand-blue/20 motion-reduce:animate-none" key={index} style={{ height: `${height}%`, animationDelay: `${index * 70}ms` }} />)}
+          </div>
+          <span className="absolute bottom-3 left-5 text-[9px] text-text-soft">Updating latest account performance…</span>
+        </div>
+      </AnalyticsCard>
+      <LoadingPanel className="min-h-[360px]" rows={4} title="Engagement by Platform" />
+    </div>
+    <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(260px,.75fr)_minmax(300px,.9fr)]">
+      <LoadingPanel title="Top Performing Posts" />
+      <LoadingPanel title="Content Efficiency" rows={2} />
+      <LoadingPanel title="Publishing Rhythm" rows={2} />
+    </div>
+  </div>
+}
