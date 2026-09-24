@@ -15,6 +15,7 @@ const { startUGCStudioRuntime } = require('./services/ugcStudioService');
 const { startAIPostCampaignRuntime } = require('./services/aiPostCampaignService');
 const aiCredits = require('./services/aiCreditService');
 const stripeService = require('./services/stripeService');
+const ugcEngine = require('./services/ugcEngineService');
 
 async function verifyNextLandingUpstream() {
   if (!/^(?:1|true|yes|on)$/i.test(String(process.env.NEXT_LANDING_ENABLED || '').trim())) return;
@@ -59,6 +60,7 @@ const server = app.listen(env.port, () => {
   void startAIPostCampaignRuntime();
   console.info('[AI CREDIT CONFIG]', JSON.stringify(aiCredits.configurationSnapshot()));
   console.info('[STRIPE PLAN CONFIG]', JSON.stringify(stripeService.configurationSnapshot()));
+  void ugcEngine.healthSnapshot().then(snapshot => console.info('[UGC ENGINE CONFIG]', JSON.stringify(snapshot)));
   void runStorageDiagnostics();
   startAgentAssetBucketBackfill();
   void verifyNextLandingUpstream();
