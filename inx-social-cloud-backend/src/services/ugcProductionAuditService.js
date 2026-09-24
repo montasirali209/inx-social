@@ -1,8 +1,9 @@
 const prisma = require('../db/prisma');
 const renderQuality = require('./ugcRenderQuality');
+const runtimePolicy = require('./ugcRuntimePolicy');
 
 const PRODUCTION_AUDIT_VERSION = 'ugc-production-audit-v1';
-const STALE_RENDER_MS = 5 * 60 * 1000;
+const STALE_RENDER_MS = runtimePolicy.STALE_RENDER_MS;
 
 function parseJson(value, fallback) {
   if (value && typeof value === 'object') return value;
@@ -321,11 +322,17 @@ async function auditCampaign(userId, campaignId, options = {}) {
   }
   const report = evaluateCampaignSnapshot(snapshot);
   if (options.persist !== false && snapshot.engine) {
+    const existingQc = parseJson(snapshot.engine.qcJson, {});
+    const nextQc = {
+      ...existingQc,
+      productionAuditVersion: PRODUCTION_AUDIT_VERSION,
+      productionAudit: report
+    };
     await prisma.$executeRawUnsafe(
       'UPDATE "UGCEngineProject" SET "qcJson"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "campaignId"=$1 AND "userId"=$2',
       campaignId,
       userId,
-      JSON.stringify(report)
+      JSON.stringify(nextQc)
     ).catch(() => {});
   }
   return report;
@@ -410,6 +417,7 @@ function snapshot() {
       'QUEUE_RECOVERY'
     ],
     staleRenderMs: STALE_RENDER_MS,
+    runtime: runtimePolicy.snapshot(),
     policy: {
       immutablePlanningFingerprint: true,
       terminalCampaignsRequireTerminalAds: true,
