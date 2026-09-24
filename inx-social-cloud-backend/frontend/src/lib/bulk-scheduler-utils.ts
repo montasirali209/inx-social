@@ -12,6 +12,12 @@ export function parseCaptions(value: string) {
     .filter(Boolean)
 }
 
+export function isLikelyTransportFailure(error: unknown) {
+  if (error instanceof DOMException && error.name === 'AbortError') return false
+  const message = error instanceof Error ? error.message : String(error || '')
+  return /load failed|failed to fetch|network(?:error| request failed)?|connection (?:was )?interrupted|internet connection|offline/i.test(message)
+}
+
 export function parseTextPosts(value: string) {
   const normalized = value.replace(/\r\n?/g, '\n').trim()
   if (!normalized) return []

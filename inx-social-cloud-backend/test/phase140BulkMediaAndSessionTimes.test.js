@@ -75,6 +75,33 @@ test('Bulk Scheduler uses Post for Me long-range scheduling with editable provid
 });
 
 
+test('Bulk Scheduler reconciles mobile response loss before marking a post failed or retrying it', () => {
+  const page = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
+  const results = read('frontend/src/components/bulk-scheduler/UploadResultsTable.tsx');
+  const panel = read('frontend/src/components/bulk-scheduler/BatchRunPanel.tsx');
+  const status = read('frontend/src/components/bulk-scheduler/StatusBadge.tsx');
+  const stats = read('frontend/src/components/bulk-scheduler/BulkSchedulerStats.tsx');
+  const utilities = read('frontend/src/lib/bulk-scheduler-utils.ts');
+  const publishing = read('src/services/postForMePublishingService.js');
+
+  assert.match(utilities, /isLikelyTransportFailure/);
+  assert.match(utilities, /load failed\|failed to fetch/);
+  assert.match(page, /candidate\.clientRequestId === result\.clientRequestId/);
+  assert.match(page, /document\.visibilityState === 'visible'/);
+  assert.match(page, /scheduler\.refetch\(\)/);
+  assert.match(page, /status: 'checking'/);
+  assert.match(page, /checking the server before allowing a duplicate retry/i);
+  assert.match(page, /Server confirmed this post was already scheduled\. No duplicate was created\./);
+  assert.match(page, /clientRequestId: initialResults\[index\]\.clientRequestId!/);
+  assert.match(results, /Check \/ retry safely/);
+  assert.match(results, /result\.status === 'checking'/);
+  assert.match(panel, /result\.status === 'checking'/);
+  assert.match(panel, /never shown as failed or retried as a duplicate/);
+  assert.match(status, /Checking server/);
+  assert.match(stats, /No server-confirmed failures/);
+  assert.match(publishing, /clientRequestId: publication\.idempotencyKey \|\| null/);
+});
+
 test('Bulk Scheduler supports text-only batches in the same workflow', () => {
   const page = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
   const panel = read('frontend/src/components/bulk-scheduler/UploadBatchPanel.tsx');

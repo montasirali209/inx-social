@@ -91,8 +91,8 @@ test('AI campaign handoff is persistent and Bulk Scheduler can reopen saved mixe
   assert.match(bulk, /mixedCampaign/);
   assert.match(bulk, /mixedTextDestinations/);
   assert.match(bulk, /TEXT_POST_PLATFORMS/);
-  assert.match(bulk, /ai-mixed-text-/);
-  assert.match(bulk, /ai-mixed-image-/);
+  assert.match(bulk, /ai-mixed-\$\{post\.contentType\.toLowerCase\(\)\}-/);
+  assert.match(bulk, /clientRequestId: initialResults\[index\]\.clientRequestId!/);
   assert.match(bulk, /publishBulkLibraryMedia/);
   assert.match(bulk, /localStorage\.setItem\(ACTIVE_AI_CAMPAIGN_KEY/);
 

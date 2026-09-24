@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { buildPublishingTimes, parseCaptions, parseTextPosts, zonedDateTimeToIso } from './bulk-scheduler-utils'
+import { buildPublishingTimes, isLikelyTransportFailure, parseCaptions, parseTextPosts, zonedDateTimeToIso } from './bulk-scheduler-utils'
 
 describe('Bulk Scheduler session utilities', () => {
   it('keeps multiline media caption copy together until two empty lines', () => {
@@ -38,6 +38,13 @@ describe('Bulk Scheduler session utilities', () => {
       'Second post',
       'Third post',
     ])
+  })
+
+  it('recognises mobile browser response-loss errors without treating user aborts as transport failures', () => {
+    expect(isLikelyTransportFailure(new TypeError('Load failed'))).toBe(true)
+    expect(isLikelyTransportFailure(new TypeError('Failed to fetch'))).toBe(true)
+    expect(isLikelyTransportFailure(new Error('Network request failed'))).toBe(true)
+    expect(isLikelyTransportFailure(new DOMException('Stopped', 'AbortError'))).toBe(false)
   })
 
   it('creates one immediate action time per video without scheduling', () => {

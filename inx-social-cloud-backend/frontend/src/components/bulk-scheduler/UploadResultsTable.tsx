@@ -17,7 +17,7 @@ function ResultDestinations({ ids, destinations }: { ids: string[]; destinations
 function matchesFilter(result: UploadResult, filter: ResultFilter) {
   if (filter === 'all') return true
   if (filter === 'scheduled') return result.status === 'scheduled' || result.status === 'published'
-  if (filter === 'processing') return result.status === 'uploading' || result.status === 'waiting'
+  if (filter === 'processing') return result.status === 'uploading' || result.status === 'waiting' || result.status === 'checking'
   return result.status === 'failed' || result.status === 'blocked'
 }
 
@@ -52,7 +52,7 @@ export function UploadResultsTable({
   const counts = {
     all: results.length,
     scheduled: results.filter((result) => result.status === 'scheduled' || result.status === 'published').length,
-    processing: results.filter((result) => result.status === 'uploading' || result.status === 'waiting').length,
+    processing: results.filter((result) => result.status === 'uploading' || result.status === 'waiting' || result.status === 'checking').length,
     review: results.filter((result) => result.status === 'failed' || result.status === 'blocked').length,
   }
 
@@ -86,7 +86,7 @@ export function UploadResultsTable({
           <thead className="bg-white/[0.035] text-[10px] uppercase tracking-[0.09em] text-text-soft"><tr><th className="px-3 py-2.5">Content</th><th className="px-3 py-2.5">Destination</th><th className="px-3 py-2.5">Status</th><th className="px-3 py-2.5">Result / Error</th><th className="px-3 py-2.5">Action</th></tr></thead>
           <tbody className="divide-y divide-white/6">
             {visible.map((result) => {
-              const canRetry = result.status === 'failed' && Boolean(result.jobId)
+              const canRetry = (result.status === 'failed' && Boolean(result.jobId || result.clientRequestId)) || (result.status === 'checking' && Boolean(result.clientRequestId))
               const scheduledAt = formattedScheduledAt(result.scheduledAt)
               const displayStatus = result.status === 'published' ? 'scheduled' : result.status
               const successful = displayStatus === 'scheduled'
@@ -95,12 +95,12 @@ export function UploadResultsTable({
                   <td className="px-3 py-2.5"><span className="flex min-w-0 items-center gap-2">{result.mediaKind === 'image' ? <img alt="" className="size-10 rounded-md bg-black object-cover" src={result.thumbnailUrl} /> : result.mediaKind === 'video' ? <video aria-hidden="true" className="size-10 rounded-md bg-black object-cover" muted src={result.thumbnailUrl} /> : <span className="grid size-10 shrink-0 place-items-center rounded-md border border-brand-cyan/20 bg-brand-cyan/[.06] text-brand-cyan"><FileText className="size-4" /></span>}<span className="min-w-0"><strong className="block max-w-48 truncate">{result.fileName}</strong>{result.textPreview && <small className="block max-w-56 truncate text-[9px] text-text-muted">{result.textPreview}</small>}<small className="inline-flex items-center gap-1 text-[9px] capitalize text-text-soft">{result.mediaKind === 'image' ? <ImageIcon aria-hidden="true" className="size-3" /> : result.mediaKind === 'video' ? <Film aria-hidden="true" className="size-3" /> : <FileText aria-hidden="true" className="size-3" />}{result.mediaKind === 'text' ? 'text post' : result.mediaKind}{scheduledAt ? ` · ${scheduledAt}` : ''}</small></span></span></td>
                   <td className="px-3 py-2.5"><ResultDestinations destinations={destinations} ids={result.destinationIds} /></td>
                   <td className="px-3 py-2.5"><StatusBadge status={displayStatus} /></td>
-                  <td className="max-w-64 px-3 py-2.5 text-text-muted"><span className={`line-clamp-3 ${!successful && result.errorMessage ? 'text-brand-red' : ''}`}>{successful ? (result.resultId || 'Accepted by the publishing provider.') : result.errorMessage || result.resultId || (result.status === 'uploading' ? (result.mediaKind === 'text' ? 'Provider is accepting this post.' : 'Provider is accepting this media.') : result.mediaKind === 'text' ? 'Awaiting provider acceptance' : 'Awaiting upload')}</span></td>
+                  <td className="max-w-64 px-3 py-2.5 text-text-muted"><span className={`line-clamp-3 ${result.status === 'checking' ? 'text-brand-cyan' : !successful && result.errorMessage ? 'text-brand-red' : ''}`}>{successful ? (result.resultId || 'Accepted by the publishing provider.') : result.errorMessage || result.resultId || (result.status === 'uploading' ? (result.mediaKind === 'text' ? 'Provider is accepting this post.' : 'Provider is accepting this media.') : result.mediaKind === 'text' ? 'Awaiting provider acceptance' : 'Awaiting upload')}</span></td>
                   <td className="px-3 py-2.5">
                     {canRetry ? (
                       <Button disabled={Boolean(retryingId)} onClick={() => void onRetry(result)} size="sm" type="button" variant="ghost">
                         <RefreshCw className={`size-3.5 ${retryingId === result.id ? 'animate-spin motion-reduce:animate-none' : ''}`} />
-                        {result.mediaKind === 'text' ? 'Retry post' : 'Retry upload'}
+                        {result.status === 'checking' ? 'Check / retry safely' : result.mediaKind === 'text' ? 'Retry post' : 'Retry upload'}
                       </Button>
                     ) : result.status === 'failed' ? <span className="text-[10px] text-text-soft">Adjust setup</span> : <span className="text-[10px] text-text-soft">—</span>}
                   </td>
@@ -113,14 +113,14 @@ export function UploadResultsTable({
 
       <div className="grid gap-2 lg:hidden">
         {visible.map((result) => {
-          const canRetry = result.status === 'failed' && Boolean(result.jobId)
+          const canRetry = (result.status === 'failed' && Boolean(result.jobId || result.clientRequestId)) || (result.status === 'checking' && Boolean(result.clientRequestId))
           const displayStatus = result.status === 'published' ? 'scheduled' : result.status
           const successful = displayStatus === 'scheduled'
           return (
             <article className="rounded-xl border border-border-soft bg-black/12 p-3" key={result.id}>
               <div className="flex items-start gap-3">{result.mediaKind === 'image' ? <img alt="" className="size-14 rounded-lg bg-black object-cover" src={result.thumbnailUrl} /> : result.mediaKind === 'video' ? <video aria-hidden="true" className="size-14 rounded-lg bg-black object-cover" muted src={result.thumbnailUrl} /> : <span className="grid size-14 shrink-0 place-items-center rounded-lg border border-brand-cyan/20 bg-brand-cyan/[.06] text-brand-cyan"><FileText className="size-5" /></span>}<div className="min-w-0 flex-1"><strong className="block truncate text-sm">{result.fileName}</strong>{result.textPreview && <p className="mt-1 line-clamp-2 text-xs leading-5 text-text-muted">{result.textPreview}</p>}<small className="capitalize text-text-soft">{result.mediaKind === 'text' ? 'text post' : result.mediaKind}{result.scheduledAt ? ` · ${formattedScheduledAt(result.scheduledAt)}` : ''}</small><div className="mt-2 flex flex-wrap items-center justify-between gap-2"><ResultDestinations destinations={destinations} ids={result.destinationIds} /><StatusBadge status={displayStatus} /></div></div></div>
-              {(result.errorMessage || result.resultId) && <p className={`mt-2 text-xs leading-5 ${!successful && result.errorMessage ? 'text-brand-red' : 'text-text-muted'}`}>{successful ? (result.resultId || 'Accepted by the publishing provider.') : result.errorMessage || result.resultId}</p>}
-              {canRetry && <Button className="mt-2" disabled={Boolean(retryingId)} onClick={() => void onRetry(result)} size="sm" type="button" variant="ghost"><RefreshCw className={`size-3.5 ${retryingId === result.id ? 'animate-spin motion-reduce:animate-none' : ''}`} />{result.mediaKind === 'text' ? 'Retry post' : 'Retry upload'}</Button>}
+              {(result.errorMessage || result.resultId) && <p className={`mt-2 text-xs leading-5 ${result.status === 'checking' ? 'text-brand-cyan' : !successful && result.errorMessage ? 'text-brand-red' : 'text-text-muted'}`}>{successful ? (result.resultId || 'Accepted by the publishing provider.') : result.errorMessage || result.resultId}</p>}
+              {canRetry && <Button className="mt-2" disabled={Boolean(retryingId)} onClick={() => void onRetry(result)} size="sm" type="button" variant="ghost"><RefreshCw className={`size-3.5 ${retryingId === result.id ? 'animate-spin motion-reduce:animate-none' : ''}`} />{result.status === 'checking' ? 'Check / retry safely' : result.mediaKind === 'text' ? 'Retry post' : 'Retry upload'}</Button>}
             </article>
           )
         })}

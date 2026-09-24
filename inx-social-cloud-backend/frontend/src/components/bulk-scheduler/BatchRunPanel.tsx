@@ -20,7 +20,7 @@ type Props = {
 export function BatchRunPanel({ progress, results, destinations, canStart, running, disabledReason, retryingId, onStart, onStop, onRetry }: Props) {
   const total = results.length || progress.total
   const accepted = results.filter((result) => result.status === 'scheduled' || result.status === 'published').length
-  const processing = results.filter((result) => result.status === 'uploading' || result.status === 'waiting').length
+  const processing = results.filter((result) => result.status === 'uploading' || result.status === 'waiting' || result.status === 'checking').length
   const review = results.filter((result) => result.status === 'failed' || result.status === 'blocked').length
   const failureGroups = [...results.reduce((groups, result) => {
     if (!['failed', 'blocked'].includes(result.status)) return groups
@@ -71,7 +71,7 @@ export function BatchRunPanel({ progress, results, destinations, canStart, runni
         </section>
       )}
 
-      <div className="mt-4"><div className="mb-2"><h3 className="text-sm font-semibold">Upload results</h3><p className="mt-0.5 text-xs text-text-muted">This table confirms whether each batch item was accepted and scheduled successfully. Actual publishing outcomes are tracked separately in Posts and Calendar.</p></div><UploadResultsTable destinations={destinations} onRetry={onRetry} results={results} retryingId={retryingId} /></div>
+      <div className="mt-4"><div className="mb-2"><h3 className="text-sm font-semibold">Upload results</h3><p className="mt-0.5 text-xs text-text-muted">This table confirms server-verified batch results. If a mobile connection pauses before the response arrives, INXSocial checks the server first so an accepted post is never shown as failed or retried as a duplicate.</p></div><UploadResultsTable destinations={destinations} onRetry={onRetry} results={results} retryingId={retryingId} /></div>
     </section>
   )
 }
