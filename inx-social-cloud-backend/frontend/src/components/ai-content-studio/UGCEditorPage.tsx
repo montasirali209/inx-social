@@ -14,6 +14,7 @@ import type { MediaAsset } from '../../types/media-library'
 import type { UGCAvatar, UGCAd } from '../../types/ugc-studio'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
+import { UGCVideoPlayer } from './UGCVideoPlayer'
 import './ugc-studio.css'
 
 const voices = ['Pippa','Sophie','Priya','Nadia','Serena','Olivia','Jessica','Chloe','Callum','James','Oliver','Arjun','Marcus','Ethan','Shaun','Graham']
@@ -167,7 +168,7 @@ export function UGCEditorPage() {
       <div className="space-y-5">
         <Card className="ugc-editor-preview overflow-hidden p-3">
           <div className="relative mx-auto aspect-[9/16] max-h-[68vh] overflow-hidden rounded-[22px] border border-white/10 bg-[radial-gradient(circle_at_50%_20%,rgba(45,212,191,.14),transparent_18rem),#020b13]">
-            {asset?.fileUrl ? <video className="size-full object-contain" controls playsInline src={asset.fileUrl} /> : <div className="absolute inset-0 grid place-items-center"><div className="text-center">{busy ? <LoaderCircle className="mx-auto size-9 animate-spin text-brand-cyan motion-reduce:animate-none" /> : <Clapperboard className="mx-auto size-9 text-text-soft" />}<span className="mt-3 block text-[10px] text-text-muted">{busy ? 'Rendering in the background…' : ad?.status === 'FAILED' ? ad.error || 'Render failed' : 'No final video yet'}</span></div></div>}
+            {asset?.fileUrl ? <UGCVideoPlayer className="size-full" src={asset.fileUrl} /> : <div className="absolute inset-0 grid place-items-center"><div className="text-center">{busy ? <LoaderCircle className="mx-auto size-9 animate-spin text-brand-cyan motion-reduce:animate-none" /> : <Clapperboard className="mx-auto size-9 text-text-soft" />}<span className="mt-3 block text-[10px] text-text-muted">{busy ? 'Rendering in the background…' : ad?.status === 'FAILED' ? ad.error || 'Render failed' : 'No final video yet'}</span></div></div>}
             <span className="absolute left-3 top-3 rounded-full border border-white/15 bg-black/55 px-2.5 py-1 text-[9px] font-bold backdrop-blur">{ad?.duration || 30}s · 720p</span>
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[9px] text-text-muted"><span className="rounded-xl border border-white/8 bg-white/[.025] p-2">{ad?.quality === 'PREMIUM' ? 'Premium' : 'Standard'}</span><span className="rounded-xl border border-white/8 bg-white/[.025] p-2">{ad?.scenes.length || 0} scene{ad?.scenes.length === 1 ? '' : 's'}</span><span className="rounded-xl border border-white/8 bg-white/[.025] p-2">{ad?.status || 'Loading'}</span></div>
