@@ -576,6 +576,8 @@ export function BulkSchedulerPage() {
           resultId: null,
           errorMessage: null,
           scheduledAt: publishingTimes[index],
+          clientRequestId: `ai-mixed-${post.contentType.toLowerCase()}-${crypto.randomUUID()}`,
+          caption: post.caption,
         }
       })
       setResults(initialResults)
@@ -583,6 +585,7 @@ export function BulkSchedulerPage() {
 
       let completed = 0
       let failed = 0
+      let checking = 0
 
       for (let index = 0; index < mixedCampaign.posts.length; index += 1) {
         if (controller.signal.aborted) break
@@ -605,7 +608,7 @@ export function BulkSchedulerPage() {
           if (post.contentType === 'TEXT') {
             const prepared = await createBulkMediaPost({
               connectedPageIds: targets,
-              clientRequestId: `ai-mixed-text-${crypto.randomUUID()}`,
+              clientRequestId: initialResults[index].clientRequestId!,
               title: null,
               caption: post.caption,
               contentType: 'TEXT',
@@ -623,7 +626,7 @@ export function BulkSchedulerPage() {
             if (!post.media?.libraryAssetId) throw new Error('The generated campaign image is missing from Media Library.')
             const prepared = await createBulkMediaPost({
               connectedPageIds: targets,
-              clientRequestId: `ai-mixed-image-${crypto.randomUUID()}`,
+              clientRequestId: initialResults[index].clientRequestId!,
               title: titleFromFile(post.media.file),
               caption: post.caption,
               contentType: 'IMAGE',
@@ -652,12 +655,21 @@ export function BulkSchedulerPage() {
             errorMessage: null,
           } : result))
         } catch (error) {
-          failed += 1
-          setResults((current) => current.map((result) => result.id === resultId ? {
-            ...result,
-            status: 'failed',
-            errorMessage: error instanceof Error ? error.message : 'Campaign post failed.',
-          } : result))
+          if (isLikelyTransportFailure(error)) {
+            checking += 1
+            setResults((current) => current.map((result) => result.id === resultId ? {
+              ...result,
+              status: 'checking',
+              errorMessage: 'The mobile connection paused before the browser received the result. INXSocial is checking the server before allowing a duplicate retry.',
+            } : result))
+          } else {
+            failed += 1
+            setResults((current) => current.map((result) => result.id === resultId ? {
+              ...result,
+              status: 'failed',
+              errorMessage: error instanceof Error ? error.message : 'Campaign post failed.',
+            } : result))
+          }
         }
       }
 
@@ -670,12 +682,14 @@ export function BulkSchedulerPage() {
       setProgress({
         state: stopped ? 'stopped' : failed === mixedCampaign.posts.length ? 'failed' : 'completed',
         percent: stopped ? ((completed + failed) / mixedCampaign.posts.length) * 100 : 100,
-        current: completed + failed,
+        current: completed + failed + checking,
         total: mixedCampaign.posts.length,
         completed,
         failed,
         message: stopped
           ? 'Mixed campaign stopped safely.'
+          : checking
+            ? `${checking} campaign post${checking === 1 ? '' : 's'} are being checked against the server after the mobile connection paused. Confirmed results will update automatically.`
           : failed
             ? `Mixed campaign finished with ${failed} failed post${failed === 1 ? '' : 's'}.`
             : timingMode === 'publish_now'
