@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const registry = require('./ugcEngineRegistry');
+const router = require('./ugcModelRouter');
 
 const QC_CHECKS = Object.freeze([
   'IDENTITY_CONSISTENCY',
@@ -77,12 +78,17 @@ function buildEngineProject({
     const providerDurations = (ad.scenes || []).map(scene => Number(scene.duration));
     const finalDurations = playbackDurations(targetDuration, providerDurations);
     const scenes = (ad.scenes || []).map((scene, sceneIndex) => {
-      const route = registry.describeSceneRoute({
-        quality: input.quality,
-        kind: scene.kind,
-        providerDuration: providerDurations[sceneIndex],
-        playbackDuration: finalDurations[sceneIndex]
-      });
+      const routeDecision = scene.routeDecision && typeof scene.routeDecision === 'object'
+        ? scene.routeDecision
+        : router.routeForScene({
+            quality: input.quality,
+            kind: scene.kind,
+            providerDuration: providerDurations[sceneIndex],
+            playbackDuration: finalDurations[sceneIndex],
+            hasActor: Boolean(avatar),
+            hasProductReference: Boolean(productAssetIds.length || (Array.isArray(brand?.brandReferences) && brand.brandReferences.length)),
+            hasNarration: clean(scene.script, 4000).length >= 2
+          });
       return {
         sequence: sceneIndex + 1,
         purpose: clean(scene.kind || 'CREATOR', 40).toUpperCase(),
@@ -93,7 +99,7 @@ function buildEngineProject({
         prompt: clean(scene.prompt, 5000),
         actorId: avatar?.id || null,
         productAssetIds: [...productAssetIds],
-        route
+        route: routeDecision
       };
     });
 
@@ -116,16 +122,23 @@ function buildEngineProject({
     adSequence: ad.sequence,
     sceneSequence: scene.sequence,
     kind: scene.kind,
+    routerVersion: scene.route.routerVersion || router.ROUTER_VERSION,
+    routerMode: scene.route.mode || router.routerMode(),
     routeKey: scene.route.routeKey,
+    adapterKey: scene.route.adapterKey || null,
     provider: scene.route.provider,
-    videoModel: scene.route.videoModel,
-    narratorModel: scene.route.narrator?.model || null,
-    lipSyncModel: scene.route.lipSync?.model || null,
+    videoModel: scene.route.model || scene.route.videoModel || null,
+    narratorModel: registry.modelIds().tts,
+    lipSyncModel: scene.route.nativeLipSync ? null : (scene.route.audioStrategy === 'TTS_THEN_LIP_SYNC' ? registry.modelIds().lipSync : null),
+    reason: scene.route.reason || null,
+    referenceRole: scene.route.referenceRole || null,
     audioStrategy: scene.route.audioStrategy,
+    nativeLipSync: Boolean(scene.route.nativeLipSync),
     resolution: scene.route.resolution,
     aspectRatio: scene.route.aspectRatio,
     providerDuration: scene.route.providerDuration,
-    playbackDuration: scene.route.playbackDuration
+    playbackDuration: scene.route.playbackDuration,
+    fallbacks: Array.isArray(scene.route.fallbacks) ? scene.route.fallbacks : []
   })));
 
   const project = {
@@ -174,8 +187,16 @@ function buildEngineProject({
       variationCount: Number(input.adCount),
       ads
     },
+    router: {
+      version: clean(plan.routerVersion || router.ROUTER_VERSION, 80),
+      mode: clean(plan.routerMode || router.routerMode(), 40),
+      summary: plan.routingSummary && typeof plan.routingSummary === 'object' ? plan.routingSummary : {},
+      snapshot: router.routerSnapshot()
+    },
     routeDecision: {
-      policy: 'LEGACY_COMPATIBILITY_V1',
+      policy: 'CAPABILITY_ROUTER_V1',
+      routerVersion: clean(plan.routerVersion || router.ROUTER_VERSION, 80),
+      routerMode: clean(plan.routerMode || router.routerMode(), 40),
       registry: registry.registrySnapshot(),
       scenes: routeEntries
     },
@@ -209,6 +230,7 @@ function buildEngineProject({
     actor: project.actor,
     skills: project.skills,
     productionPlan: project.productionPlan,
+    router: project.router,
     routeDecision: project.routeDecision,
     pricing: project.pricing
   });
@@ -225,6 +247,7 @@ function validateEngineProject(project) {
   if (!project?.campaignId) errors.push('campaign_id');
   if (!project?.userId) errors.push('user_id');
   if (project?.skills?.preflight?.status === 'FAIL') errors.push('skills_preflight');
+  if (!project?.router?.version) errors.push('router_version');
 
   const targetDuration = Number(project?.productionPlan?.targetDuration || 0);
   const ads = project?.productionPlan?.ads;
@@ -242,7 +265,7 @@ function validateEngineProject(project) {
         if (Number(scene.sequence) !== sceneIndex + 1) errors.push('scene_sequence_' + (adIndex + 1) + '_' + (sceneIndex + 1));
         if (!(Number(scene.providerDuration) > 0)) errors.push('provider_duration_' + (adIndex + 1) + '_' + (sceneIndex + 1));
         if (Number(scene.playbackDuration) > Number(scene.providerDuration)) errors.push('playback_exceeds_provider_' + (adIndex + 1) + '_' + (sceneIndex + 1));
-        if (!scene.route?.routeKey || !scene.route?.videoModel) errors.push('route_missing_' + (adIndex + 1) + '_' + (sceneIndex + 1));
+        if (!scene.route?.routeKey || !(scene.route?.model || scene.route?.videoModel)) errors.push('route_missing_' + (adIndex + 1) + '_' + (sceneIndex + 1));
       });
     });
   }

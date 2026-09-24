@@ -64,7 +64,7 @@ function standardPlan() {
 
 test('UGC engine registry preserves current customer tiers while hiding provider details from the UI layer', () => {
   assert.equal(registry.ENGINE_VERSION, 'ugc-engine-v1');
-  assert.equal(registry.CONTRACT_VERSION, '1.0');
+  assert.equal(registry.CONTRACT_VERSION, '1.1');
   assert.equal(registry.routeKeyForQuality('STANDARD'), 'HAILUO_STANDARD_V1');
   assert.equal(registry.routeKeyForQuality('PREMIUM'), 'KLING_PREMIUM_V1');
   assert.equal(registry.legacyDbRoute('STANDARD'), 'HAILUO');
@@ -98,13 +98,16 @@ test('standard UGC project maps the current Hailuo + TTS + lip-sync pipeline int
   });
 
   assert.equal(project.engineVersion, 'ugc-engine-v1');
-  assert.equal(project.contractVersion, '1.0');
+  assert.equal(project.contractVersion, '1.1');
   assert.equal(project.status, 'PLANNED');
   assert.equal(project.brief.targetDuration, 15);
   assert.equal(project.actor.assignedActors[0].actor.id, 'avatar-1');
   assert.deepEqual(project.productionPlan.ads[0].scenes.map(scene => scene.providerDuration), [10, 6]);
   assert.deepEqual(project.productionPlan.ads[0].scenes.map(scene => scene.playbackDuration), [10, 5]);
+  assert.equal(project.router.version, 'ugc-router-v1');
+  assert.equal(project.routeDecision.policy, 'CAPABILITY_ROUTER_V1');
   assert.equal(project.routeDecision.scenes[0].routeKey, 'HAILUO_STANDARD_V1');
+  assert.equal(project.routeDecision.scenes[0].adapterKey, 'HAILUO_23');
   assert.ok(project.routeDecision.scenes[0].narratorModel);
   assert.ok(project.routeDecision.scenes[0].lipSyncModel);
   assert.equal(project.pricing.retailCreditsPerAd, 100);

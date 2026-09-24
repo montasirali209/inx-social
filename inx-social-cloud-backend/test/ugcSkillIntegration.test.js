@@ -6,14 +6,16 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('Phase 2 routes campaign planning through the skills layer before any provider generation', () => {
+test('Phase 2 skills still run before Phase 3 routing and before any provider generation', () => {
   const studio = read('src/services/ugcStudioService.js');
   assert.match(studio, /const ugcSkills = require\('\.\/ugcSkillEngine'\)/);
   assert.match(studio, /return ugcSkills\.planCampaign/);
-  assert.match(studio, /const plan = await planCampaign/);
-  const planIndex = studio.indexOf('const plan = await planCampaign');
-  const campaignInsertIndex = studio.indexOf('INSERT INTO "UGCCampaign"', planIndex);
-  assert.ok(planIndex >= 0 && campaignInsertIndex > planIndex);
+  assert.match(studio, /const creativePlan = await planCampaign/);
+  assert.match(studio, /ugcModelRouter\.routePlan/);
+  const skillIndex = studio.indexOf('const creativePlan = await planCampaign');
+  const routeIndex = studio.indexOf('ugcModelRouter.routePlan', skillIndex);
+  const campaignInsertIndex = studio.indexOf('INSERT INTO "UGCCampaign"', routeIndex);
+  assert.ok(skillIndex >= 0 && routeIndex > skillIndex && campaignInsertIndex > routeIndex);
 });
 
 test('Phase 2 skill storage is additive to the Phase 1 engine table', () => {

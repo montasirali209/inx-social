@@ -345,8 +345,12 @@ async function aiStudioPolicyStatus(req, res, next) {
             economyVideo: env.runware?.videoEconomyModel || null,
             video: env.runware?.videoModel || null,
             longVideo: env.runware?.videoLongModel || null,
+            ugcRouterMode: env.runware?.ugcRouterMode || 'adaptive',
             ugcStandard: env.runware?.ugcStandardModel || null,
-            ugcPremium: env.runware?.ugcPremiumModel || null,
+            ugcPremiumCompatibility: env.runware?.ugcPremiumModel || null,
+            ugcOmniHuman: env.runware?.ugcOmniHumanModel || null,
+            ugcSeedance: env.runware?.ugcSeedanceModel || null,
+            ugcKlingOmni: env.runware?.ugcKlingOmniModel || null,
             ugcLipSync: env.runware?.ugcLipSyncModel || null,
             ugcTts: env.runware?.ugcTtsModel || null
           }
