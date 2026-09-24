@@ -262,7 +262,7 @@ function publicAvatar(row) {
     creatorVersion: row.creatorVersion || ugcCreators.CREATOR_PROFILE_VERSION,
     accent: profile.accent, languages: profile.languages, niches: profile.niches,
     environments: profile.environments, wardrobe: profile.wardrobe, gestures: profile.gestures,
-    routeCompatibility: profile.routeCompatibility, energy: profile.energy,
+    energy: profile.energy,
     featured: Boolean(row.featured), referenceVersion: Number(row.referenceVersion || 1),
     referenceReady: Boolean(row.referenceStorageKey), references: ugcCreators.referenceSummary(row),
     imageUrl: row.referenceStorageKey ? '/api/ai-content-studio/ugc/avatars/' + encodeURIComponent(row.id) + '/content' : null,
