@@ -971,8 +971,8 @@ async function generateCustomAvatar(userId, input) {
   await credits.getBalance(userId);
   const generationId = await createAvatarGeneration(userId, input.prompt);
   try {
-    const presentation = clean(input.presentation || 'Woman', 80);
-    const ageBand = clean(input.ageBand || '25–34', 80);
+    const presentation = clean(input.presentation || 'Unspecified', 80);
+    const ageBand = clean(input.ageBand || 'Adult', 80);
     const category = clean(input.category || 'Lifestyle', 80);
     const locale = clean(input.locale || 'en-GB', 20);
     const voice = clean(input.voice, 100) || narratorVoice('', { presentation });
@@ -1020,8 +1020,8 @@ async function uploadCustomAvatar(userId, input) {
   const avatarId = id();
   const stored = await objectStorage.persistBuffer({ userId, data, mimeType: 'image/png', originalName: 'ugc-avatar-' + avatarId + '.png', prefix: 'ugc-avatar' });
   const category = clean(input.category || 'Lifestyle', 80);
-  const presentation = clean(input.presentation || 'Woman', 80);
-  const ageBand = clean(input.ageBand || '25–34', 80);
+  const presentation = clean(input.presentation || 'Unspecified', 80);
+  const ageBand = clean(input.ageBand || 'Adult', 80);
   const locale = clean(input.locale || 'en-GB', 20);
   const voice = narratorVoice('', { presentation });
   const profile = ugcCreators.buildProfile({ category, presentation, ageBand, locale, accent: input.accent });
