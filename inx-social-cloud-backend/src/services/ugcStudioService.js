@@ -31,7 +31,8 @@ const STANDARD_CREDITS = Object.freeze({ 15: 100, 20: 140, 30: 210 });
 const PREMIUM_CREDITS = Object.freeze({ 15: 180, 20: 260, 30: 390 });
 const AVATAR_CREDITS = 5;
 const SYSTEM_AVATAR_COUNT = 52;
-const FEATURED_AVATAR_COUNT = 100;
+const FEATURED_AVATAR_COUNT = 20;
+const FEATURED_AVATAR_LIMIT = 100;
 const FEATURED_REFERENCE_VERSION = 3;
 const STANDARD_MODEL = () => ugcEngineRegistry.modelIds().standardVideo;
 const PREMIUM_MODEL = () => ugcEngineRegistry.modelIds().premiumVideo;
@@ -1156,7 +1157,7 @@ async function getOverview(userId) {
   const allAds = campaigns.flatMap(campaign => campaign.ads);
   return {
     avatars: publicAvatars,
-    featuredAvatars: publicAvatars.filter(avatar => avatar.scope === 'USER' || avatar.featured).slice(0, FEATURED_AVATAR_COUNT + publicAvatars.filter(avatar => avatar.scope === 'USER').length),
+    featuredAvatars: publicAvatars.filter(avatar => avatar.scope === 'USER' || avatar.featured).slice(0, FEATURED_AVATAR_LIMIT + publicAvatars.filter(avatar => avatar.scope === 'USER').length),
     brands: brands.map(publicBrand),
     campaigns,
     samples,
