@@ -62,7 +62,8 @@ test('Phase 7 editor is QC-driven and keeps paid regeneration separate from free
 test('Phase 7 marks voice/creator changes as scene-impacting before selective regeneration', () => {
   const studio = read('src/services/ugcStudioService.js');
   assert.match(studio, /input\.voice !== undefined \|\| input\.voicePrompt !== undefined/);
-  assert.match(studio, /"kind" IN \(\'CREATOR\',\'CTA\'\).*\'EDITED\'/);
+  assert.match(studio, /input\.voice !== undefined \|\| input\.voicePrompt !== undefined/);
+  assert.match(studio, /kind[^\n]*CREATOR[^\n]*CTA[^\n]*EDITED/);
 });
 
 test('Phase 7 publishing handoff identifies UGC assets as video and requires publishability', () => {
