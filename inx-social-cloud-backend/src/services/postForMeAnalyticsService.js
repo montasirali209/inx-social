@@ -1,5 +1,7 @@
 const prisma = require('../db/prisma');
 const postForMe = require('./postForMeService');
+const { getFacebookAnalytics } = require('./facebookAnalyticsService');
+const { decryptToken } = require('../utils/tokenCrypto');
 
 const ANALYTICS_CACHE_TTL_MS = 2 * 60 * 1000;
 const ANALYTICS_STALE_TTL_MS = 6 * 60 * 60 * 1000;
@@ -230,7 +232,8 @@ function incrementSeries(map, date, value) {
 }
 
 function postExternalId(profile, post) {
-  return String(post.platform_post_id || post.external_post_id || post.social_post_result_id || `${profile.id}:${post.posted_at || 'unknown'}`);
+  const urlId = profile.platform === 'x' ? String(post.platform_url || '').match(/\/status\/(\d{15,20})(?:[/?#]|$)/)?.[1] : null;
+  return String(post.platform_post_id || post.external_post_id || urlId || post.social_post_result_id || post.id || `${profile.id}:${post.posted_at || 'unknown'}`);
 }
 
 function utcDay(value) {
@@ -238,10 +241,48 @@ function utcDay(value) {
   return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : '';
 }
 
+function publishedAtForPost(platform, post) {
+  const supplied = post.posted_at || post.published_at || post.created_at || post.created_time;
+  if (supplied) {
+    const date = new Date(supplied);
+    if (Number.isFinite(date.getTime()) && date.getTime() > 0 && date.getTime() <= Date.now() + 86400000) return date;
+  }
+  if (platform !== 'x') return null;
+  // X status IDs contain their creation time. Decode as BigInt to retain all
+  // 64 bits; JavaScript Number silently rounds real status IDs.
+  const urlId = String(post.platform_url || '').match(/\/status\/(\d{15,20})(?:[/?#]|$)/)?.[1];
+  const id = String(post.platform_post_id || post.external_post_id || urlId || '');
+  if (!/^\d{15,20}$/.test(id) || (urlId && id !== urlId)) return null;
+  const milliseconds = Number((BigInt(id) >> 22n) + 1288834974657n);
+  if (milliseconds < Date.UTC(2010, 10, 4) || milliseconds > Date.now() + 86400000) return null;
+  return new Date(milliseconds);
+}
+
+async function facebookPageFallback(userId, profile, days) {
+  const metadata = postForMe.parseJson(profile.metadataJson, {});
+  const pageId = String(metadata.providerUserId || '');
+  if (!/^\d+$/.test(pageId)) return null;
+  const page = await prisma.connectedPage.findUnique({ where: { userId_facebookPageId: { userId, facebookPageId: pageId } } });
+  if (page?.status !== 'ACTIVE' || !page.encryptedAccessToken) return null;
+  const result = await getFacebookAnalytics({
+    pageId, accessToken: decryptToken(page.encryptedAccessToken),
+    graphVersion: process.env.FB_GRAPH_VERSION || process.env.GRAPH_VERSION || 'v25.0',
+    days, cacheScope: userId, postInsightLimit: 10
+  });
+  if (!result.capabilities?.pageInsights?.available && !result.capabilities?.postInsights?.available) return null;
+  return {
+    ...result,
+    page: { ...result.page, id: profile.id },
+    provider: { engine: 'meta_graph', accountId: providerAccountId(profile), feedPosts: result.content.length, periodPosts: result.content.length, postsWithMetrics: result.content.filter(item => item.insightsCapability?.available).length, metricsRequested: true, metricSummary: [] },
+    content: result.content.map(item => ({ ...item, platform: 'facebook' })),
+    warnings: [...result.warnings, 'Facebook metrics were recovered from the existing Page connection while the publishing provider feed is unavailable.']
+  };
+}
+
 function metricSnapshotRow(userId, profile, post, capturedAt) {
   const rawMetrics = post.metrics && typeof post.metrics === 'object' ? post.metrics : {};
   const metrics = normaliseMetrics(profile.platform, rawMetrics);
-  const publishedAt = post.posted_at ? new Date(post.posted_at) : null;
+  const publishedAt = publishedAtForPost(profile.platform, post);
   return {
     userId,
     profileId: profile.id,
@@ -421,7 +462,7 @@ async function fetchFeed(profile, days, options = {}) {
     if (!items.length || !response?.meta?.has_more || rows.length >= maxPosts) break;
 
     const timestamps = items
-      .map((item) => new Date(item.posted_at || 0).getTime())
+      .map((item) => publishedAtForPost(profile.platform, item)?.getTime())
       .filter((value) => Number.isFinite(value) && value > 0);
     const newest = timestamps.length ? Math.max(...timestamps) : null;
 
@@ -444,8 +485,16 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
   const profile = await resolveProfile(userId, profileId, platform);
   const { since, until } = dateRange(days);
   const allFeed = await fetchFeed(profile, days, options);
+  if (profile.platform === 'facebook' && !allFeed.length) {
+    try {
+      const recovered = await facebookPageFallback(userId, profile, days);
+      if (recovered) return recovered;
+    } catch (error) {
+      console.warn('[analytics-feed] existing Facebook Page recovery delayed', { profileId: profile.id, status: Number(error?.status || 0) || null });
+    }
+  }
   const feed = allFeed.filter((item) => {
-    const timestamp = new Date(item.posted_at || 0).getTime();
+    const timestamp = publishedAtForPost(profile.platform, item)?.getTime();
     return Number.isFinite(timestamp) && timestamp >= since.getTime() && timestamp <= until.getTime();
   });
 
@@ -459,6 +508,8 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       oldestPostDate: dates.length ? new Date(Math.min(...dates)).toISOString().slice(0, 10) : null,
       newestPostDate: dates.length ? new Date(Math.max(...dates)).toISOString().slice(0, 10) : null,
       postsWithProviderMetrics: allFeed.filter(item => item.metrics && typeof item.metrics === 'object' && Object.keys(item.metrics).length).length,
+      postsWithRecoverableDates: allFeed.filter(item => publishedAtForPost(profile.platform, item)).length,
+      postsWithPlatformIds: allFeed.filter(item => item.platform_post_id || item.external_post_id || item.platform_url).length,
       alternativeDateFields: ['created_at', 'published_at', 'timestamp', 'created_time'].filter(key => allFeed.some(item => item[key] != null)),
       reportingDays: days
     });
@@ -475,7 +526,7 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       id: postExternalId(profile, post),
       platform: profile.platform,
       message: String(post.caption || ''),
-      createdTime: post.posted_at || null,
+      createdTime: publishedAtForPost(profile.platform, post)?.toISOString() || null,
       permalinkUrl: post.platform_url || null,
       thumbnailUrl: mediaThumbnail(post.media),
       contentType: contentType(post),
@@ -967,6 +1018,7 @@ function startAnalyticsCacheRuntime() {
 
 module.exports = {
   getPostForMeAnalytics,
+  publishedAtForPost,
   normaliseMetrics,
   collectNumericMetrics,
   providerMetricSummary,
