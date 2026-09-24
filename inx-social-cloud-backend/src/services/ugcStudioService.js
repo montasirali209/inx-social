@@ -1130,7 +1130,8 @@ async function renderProviderScene(scene, ad, avatar, productReference, narratio
   }
   if (!reference) throw publicError('This UGC scene needs a visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
 
-  return ugcProviderAdapters.renderScene(scene.route, {
+  const routeMeta = parseJson(scene.productReferenceJson, {})?.routeDecision || { routeKey: scene.route, fallbacks: [] };
+  return ugcProviderAdapters.renderWithFallback(routeMeta, {
     kind: scene.kind,
     providerDuration: Number(scene.duration),
     playbackDuration: Number(scene.duration),
