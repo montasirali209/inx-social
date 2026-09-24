@@ -79,6 +79,19 @@ export function deleteUGCAvatar(id: string) {
   return apiRequest<{ ok: boolean }>(`/api/ai-content-studio/ugc/avatars/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
+export function getUGCAvatarReferences(id: string) {
+  return apiRequest<{ master: { id: string; role: string; label: string; qualityStatus: string; qualityScore: number; imageUrl: string | null }; alternates: UGCAvatarReference[] }>(
+    `/api/ai-content-studio/ugc/avatars/${encodeURIComponent(id)}/references`,
+  )
+}
+
+export function deleteUGCAvatarReference(avatarId: string, referenceId: string) {
+  return apiRequest<{ ok: boolean }>(
+    `/api/ai-content-studio/ugc/avatars/${encodeURIComponent(avatarId)}/references/${encodeURIComponent(referenceId)}`,
+    { method: 'DELETE' },
+  )
+}
+
 function uploadBinary<T>(
   url: string,
   file: File,
@@ -108,6 +121,15 @@ function uploadBinary<T>(
 
 export function uploadUGCAvatar(file: File): Promise<UGCAvatar> {
   return uploadBinary('/api/ai-content-studio/ugc/avatars/upload', file, {}, (payload) => payload.avatar as UGCAvatar | undefined)
+}
+
+export function uploadUGCAvatarReference(avatarId: string, file: File, label?: string): Promise<UGCAvatarReference> {
+  return uploadBinary(
+    `/api/ai-content-studio/ugc/avatars/${encodeURIComponent(avatarId)}/references/upload`,
+    file,
+    label ? { 'X-Reference-Label': encodeURIComponent(label) } : {},
+    (payload) => payload.reference as UGCAvatarReference | undefined,
+  )
 }
 
 export function uploadUGCProductAsset(file: File, brandProfileId?: string | null): Promise<UGCProductAsset> {
@@ -149,6 +171,10 @@ async function fetchProtectedBlob(url: string) {
 
 export function fetchUGCAvatarImage(avatar: UGCAvatar) {
   return avatar.imageUrl ? fetchProtectedBlob(avatar.imageUrl) : Promise.resolve(null)
+}
+
+export function fetchUGCAvatarReferenceImage(reference: UGCAvatarReference) {
+  return reference.imageUrl ? fetchProtectedBlob(reference.imageUrl) : Promise.resolve(null)
 }
 
 export function fetchUGCProductImage(asset: UGCProductAsset) {
