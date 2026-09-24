@@ -9,6 +9,7 @@ const licenseService = require('../services/licenseService');
 const aiCredits = require('../services/aiCreditService');
 const aiStudioPolicy = require('../services/aiStudioPolicyService');
 const ugcAnalytics = require('../services/ugcStudioAnalyticsService');
+const ugcProductionAudit = require('../services/ugcProductionAuditService');
 const env = require('../config/env');
 
 function safeUserSelect() {
@@ -449,6 +450,13 @@ async function ugcAnalyticsSummary(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function ugcOperationsSummary(req, res, next) {
+  try {
+    const limit = z.coerce.number().int().min(1).max(40).default(20).parse(req.query.limit);
+    res.json({ operations: await ugcProductionAudit.operationsSummary({ limit }) });
+  } catch (err) { next(err); }
+}
+
 async function reviewAgentLearning(req, res, next) {
   try {
     const approvalStatus = String(req.body?.approvalStatus || '').toUpperCase();
@@ -465,4 +473,4 @@ async function reviewAgentLearning(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { overview, users, userDetail, createUser, updateUserAccess, updateCommercialPlan, adjustUserCredits, settings, updateSetting, aiStudioPolicyStatus, updateAiStudioPolicy, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning, ugcAnalyticsSummary };
+module.exports = { overview, users, userDetail, createUser, updateUserAccess, updateCommercialPlan, adjustUserCredits, settings, updateSetting, aiStudioPolicyStatus, updateAiStudioPolicy, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning, ugcAnalyticsSummary, ugcOperationsSummary };
