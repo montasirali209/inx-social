@@ -70,6 +70,16 @@
 @media(max-width:520px){.gsc-metrics{grid-template-columns:1fr}.gsc-actions{flex-direction:column}.gsc-actions button{width:100%}.gsc-breakdown-row{grid-template-columns:1fr 55px}.gsc-mini-track{display:none}}
 
 
+
+/* Phase 8 UGC production operations */
+.ugc-ops-panel{max-width:none;margin-top:0}
+.ugc-ops-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin-top:16px}
+.ugc-ops-kpis article{min-width:0;border:1px solid var(--line);border-radius:14px;background:linear-gradient(145deg,rgba(7,27,40,.88),rgba(2,12,22,.75));padding:13px}
+.ugc-ops-kpis span,.ugc-ops-kpis small,.ugc-ops-kpis b{display:block}.ugc-ops-kpis span{color:#94a3b8;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.1em}.ugc-ops-kpis b{margin-top:6px;font-size:20px;color:#f8fafc}.ugc-ops-kpis small{margin-top:3px;color:var(--muted);font-size:7px;line-height:1.4}
+.ugc-ops-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.ugc-ops-card{border:1px solid var(--line);border-radius:15px;background:rgba(2,12,22,.38);padding:14px}
+.ugc-ops-list{display:grid;gap:7px;margin-top:12px}.ugc-ops-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid rgba(148,163,184,.1);border-radius:11px;background:rgba(148,163,184,.025);padding:10px}.ugc-ops-row b,.ugc-ops-row small{display:block}.ugc-ops-row b{font-size:9px}.ugc-ops-row small{margin-top:3px;color:var(--muted);font-size:7px;line-height:1.45}.ugc-ops-row strong{flex:0 0 auto;font-size:8px;color:#cbd5e1}.ugc-ops-row.ok{border-color:rgba(20,184,166,.2);background:rgba(20,184,166,.035)}.ugc-ops-row.ok strong{color:#5eead4}.ugc-ops-row.warning{border-color:rgba(245,158,11,.22);background:rgba(245,158,11,.04)}.ugc-ops-row.warning strong{color:#fbbf24}
+@media(max-width:1180px){.ugc-ops-kpis{grid-template-columns:repeat(3,1fr)}.ugc-ops-grid{grid-template-columns:1fr}}@media(max-width:700px){.ugc-ops-kpis{grid-template-columns:1fr 1fr}.ugc-ops-row{align-items:flex-start;flex-direction:column}}
+
 /* UGC Studio product funnel */
 .ugc-admin-analytics{max-width:none;margin-top:0}
 .ugc-admin-head,.ugc-admin-card-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
