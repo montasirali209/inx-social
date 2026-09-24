@@ -285,12 +285,16 @@ function creatorCastingSkill({ ads, avatars, creatorMode, selectedAvatarId, qual
   const used = new Map();
   const assignments = ads.map((ad, index) => {
     if (selected) {
+      const internalProfile = creators.profileFromRow(selected);
+      const requiredRoutes = creators.requiredRoutesForQuality(quality);
+      const routeCompatible = requiredRoutes.some(routeKey => internalProfile.routeCompatibility.includes(routeKey));
       return {
         adSequence: index + 1,
         avatarIndex: Math.max(0, avatars.indexOf(selected)),
         avatarId: selected.id,
         score: 999,
-        reason: ['USER_SELECTED'],
+        reason: routeCompatible ? ['USER_SELECTED', 'ROUTE_COMPATIBILITY'] : ['USER_SELECTED', 'ROUTE_INCOMPATIBLE'],
+        routeCompatible,
         creatorVersion: creators.CREATOR_PROFILE_VERSION,
         profile: creators.publicProfile(selected)
       };
@@ -326,6 +330,7 @@ function creatorCastingSkill({ ads, avatars, creatorMode, selectedAvatarId, qual
       avatarId: chosen.avatarId,
       score: chosen.score,
       reason: chosen.reasons,
+      routeCompatible: !chosen.reasons.includes('ROUTE_INCOMPATIBLE'),
       creatorVersion: creators.CREATOR_PROFILE_VERSION,
       profile: chosenAvatar ? creators.publicProfile(chosenAvatar) : null
     };
@@ -444,11 +449,13 @@ function adFinishingSkill({ duration, captionsEnabled = true, musicMode = 'AUTO'
   };
 }
 
-function qualityControlSkill({ resolvedType, timing, scenePlan, avatar, hasProductReference }) {
+function qualityControlSkill({ resolvedType, timing, scenePlan, avatar, hasProductReference, castingDecision = null }) {
+  const hasCreatorScene = scenePlan.scenes.some(scene => scene.kind === 'CREATOR');
   const checks = [
     { id: 'SCRIPT_COMPLETION', status: timing.finalWordCount <= timing.hardMax ? 'PASS' : 'FAIL', detail: { words: timing.finalWordCount, hardMax: timing.hardMax } },
     { id: 'DURATION_EXACTNESS', status: Math.abs(scenePlan.scenes.reduce((sum, scene) => sum + scene.playbackDuration, 0) - timing.targetDuration) < 0.001 ? 'PASS' : 'FAIL' },
-    { id: 'IDENTITY_CONSISTENCY', status: scenePlan.scenes.some(scene => scene.kind === 'CREATOR') && !avatar ? 'FAIL' : 'PASS' },
+    { id: 'IDENTITY_CONSISTENCY', status: hasCreatorScene && !avatar ? 'FAIL' : 'PASS' },
+    { id: 'CREATOR_ROUTE_COMPATIBILITY', status: hasCreatorScene && castingDecision?.routeCompatible === false ? 'FAIL' : 'PASS' },
     { id: 'PRODUCT_REFERENCE', status: resolvedType === 'PRODUCT_SHOWCASE' && scenePlan.scenes.some(scene => scene.kind === 'PRODUCT') && !hasProductReference ? 'FAIL' : 'PASS' }
   ];
   const failed = checks.filter(check => check.status === 'FAIL');
@@ -531,7 +538,7 @@ async function planCampaign({
     const motion = naturalMotionSkill({ energy: rawAd.creatorProfile?.energy });
     const camera = cameraStyleSkill({ campaignType: resolvedType, strategy: director.strategy });
     const finishing = adFinishingSkill({ duration: input.duration, captionsEnabled: true, musicMode: 'AUTO' });
-    const qc = qualityControlSkill({ resolvedType, timing, scenePlan, avatar, hasProductReference });
+    const qc = qualityControlSkill({ resolvedType, timing, scenePlan, avatar, hasProductReference, castingDecision: assignment });
     if (qc.status === 'FAIL') {
       const error = new Error('UGC skill preflight failed: ' + qc.failedChecks.join(', '));
       error.code = 'UGC_SKILL_PREFLIGHT_FAILED';
