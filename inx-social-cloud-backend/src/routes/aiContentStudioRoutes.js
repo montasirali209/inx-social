@@ -31,6 +31,7 @@ router.post('/generate/ugc-ad', controller.generateUGCAd);
 router.get('/ugc/overview', ugcController.overview);
 router.post('/ugc/estimate', ugcController.estimate);
 router.post('/ugc/brands/analyze', ugcController.analyzeBrand);
+router.post('/ugc/agent', ugcController.agentReply);
 router.get('/ugc/campaigns', ugcController.listCampaigns);
 router.post('/ugc/campaigns', ugcController.createCampaign);
 router.get('/ugc/campaigns/:campaignId', ugcController.getCampaign);
