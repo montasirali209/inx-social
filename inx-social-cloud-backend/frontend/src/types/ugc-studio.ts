@@ -274,6 +274,31 @@ export type CreateUGCCampaignInput = {
   notes?: string
 }
 
+export type UGCAgentMessage = {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export type UGCAgentReference = {
+  url: string
+  kind: string
+  label: string
+}
+
+export type UGCAgentResponse = {
+  version: string
+  reply: string
+  readyToGenerate: boolean
+  needsMoreContext: boolean
+  quickReplies: string[]
+  plan: CreateUGCCampaignInput
+  brand: UGCBrandProfile | null
+  foundReferences: UGCAgentReference[]
+  selectedCreator: UGCAvatar | null
+  referenceQuestionAsked: boolean
+  estimate: UGCEstimate | null
+}
+
 export type UGCEstimate = {
   version: string
   credits: number
