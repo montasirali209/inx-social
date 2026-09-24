@@ -732,7 +732,8 @@ function publicationToJob(publication) {
     providerPostId: publication.externalPostId || null,
     providerStatus: meta.providerPostStatus || String(publication.status || '').toLowerCase() || null,
     smartTiming: meta.smartTiming || null,
-    source: publication.content?.source || null
+    source: publication.content?.source || null,
+    clientRequestId: publication.idempotencyKey || null
   };
 }
 
