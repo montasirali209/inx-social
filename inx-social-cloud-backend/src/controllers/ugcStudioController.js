@@ -103,6 +103,9 @@ async function getAd(req, res, next) {
 async function updateAd(req, res, next) {
   try { res.json({ ad: await service.updateAd(req.user.id, req.params.adId, editAdSchema.parse(req.body || {})) }); } catch (error) { next(error); }
 }
+async function reassembleAd(req, res, next) {
+  try { res.status(202).json({ ad: await service.reassembleAd(req.user.id, req.params.adId) }); } catch (error) { next(error); }
+}
 async function regenerateAd(req, res, next) {
   try { res.status(202).json({ ad: await service.regenerateAd(req.user.id, req.params.adId) }); } catch (error) { next(error); }
 }
@@ -238,7 +241,7 @@ async function trackEvent(req, res, next) {
 
 module.exports = {
   overview, estimate, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, removeCampaign,
-  getAd, updateAd, regenerateAd, regenerateScene,
+  getAd, updateAd, reassembleAd, regenerateAd, regenerateScene,
   generateAvatar, uploadAvatar, avatarContent, avatarReferences, uploadAvatarReference, avatarReferenceContent, removeAvatarReference, removeAvatar,
   uploadProduct, productContent, samples, sampleContent, uploadSample, listMusic, trackEvent,
   avatarUploadMiddleware: express.raw({ type: ['image/png','image/jpeg','image/webp'], limit: '12mb' }),

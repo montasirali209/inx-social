@@ -38,6 +38,7 @@ router.get('/ugc/campaigns/:campaignId/engine', ugcController.getEngineProject);
 router.delete('/ugc/campaigns/:campaignId', ugcController.removeCampaign);
 router.get('/ugc/ads/:adId', ugcController.getAd);
 router.patch('/ugc/ads/:adId', ugcController.updateAd);
+router.post('/ugc/ads/:adId/reassemble', ugcController.reassembleAd);
 router.post('/ugc/ads/:adId/regenerate', ugcController.regenerateAd);
 router.post('/ugc/scenes/:sceneId/regenerate', ugcController.regenerateScene);
 router.post('/ugc/avatars/generate', ugcController.generateAvatar);

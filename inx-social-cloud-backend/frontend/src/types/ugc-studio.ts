@@ -147,6 +147,23 @@ export type UGCAd = {
   captionsEnabled: boolean
   plan: Record<string, unknown>
   error: string | null
+  qualityControl: {
+    version: string
+    status: 'READY' | 'PROCESSING' | 'ASSEMBLY_REQUIRED' | 'RECOVERY_REQUIRED' | 'BLOCKED'
+    publishable: boolean
+    editable: boolean
+    allScenesReady: boolean
+    readySceneCount: number
+    sceneCount: number
+    checks: Array<{ id: string; status: 'PASS' | 'FAIL' | 'PENDING'; detail?: Record<string, unknown> }>
+    recovery: {
+      action: 'WAIT' | 'RETRY_SCENES' | 'REASSEMBLE' | 'NONE' | 'BLOCKED'
+      label: string
+      sceneIds: string[]
+      scenes: Array<{ id: string; sequence: number; status: string; credits: number }>
+      reassemblyCredits: number
+    }
+  }
   scenes: UGCScene[]
   createdAt: string
   updatedAt: string
@@ -197,6 +214,19 @@ export type UGCOverview = {
     creativeFormatVersion: string
     creativeFormats: UGCCreativeFormatOption[]
     studioControlsVersion: string
+    renderQualityVersion: string
+    renderQuality: {
+      version: string
+      stages: string[]
+      recoveryActions: string[]
+      policies: {
+        failedSceneIsolated: boolean
+        completedScenesReused: boolean
+        reassemblyUsesExistingScenes: boolean
+        reassemblyCredits: number
+        publishRequiresReadyAsset: boolean
+      }
+    }
     studioControls: {
       version: string
       durations: Array<{ seconds: UGCDuration; label: string; description: string }>
@@ -309,6 +339,6 @@ export type UGCSchedulerState = {
   aiMixedCampaign: {
     id: string
     title: string
-    posts: Array<{ id: string; contentType: 'IMAGE'; caption: string; mediaAssetId: string }>
+    posts: Array<{ id: string; contentType: 'VIDEO'; caption: string; mediaAssetId: string }>
   }
 }
