@@ -17,7 +17,7 @@ test('Phase 7 render QC is versioned and exposed through UGC health/overview', (
 
 test('Phase 7 isolates an exact failed scene instead of leaving it rendering', () => {
   const studio = read('src/services/ugcStudioService.js');
-  assert.match(studio, /UPDATE "UGCScene" SET "status"=\'FAILED\'/);
+  assert.match(studio, /UPDATE "UGCScene"[^\n]*FAILED[^\n]*errorMessage/);
   assert.match(studio, /sceneError\.sceneId = scene\.id/);
   assert.match(studio, /failedSceneIds: failureQC\.recovery\.sceneIds/);
 });
