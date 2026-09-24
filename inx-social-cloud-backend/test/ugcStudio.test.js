@@ -10,6 +10,7 @@ const {
   avatarSeeds,
   creditsPerAd,
   visualDurations,
+  playbackDurations,
   resolveCampaignType,
   splitScriptByDurations,
   narratorVoice,
@@ -49,6 +50,12 @@ test('Standard Hailuo scene templates use only supported 6 or 10 second generati
   }
 });
 
+test('15-second Hailuo ads reserve provider-safe footage but only use 15 seconds of spoken playback', () => {
+  assert.deepEqual(playbackDurations(15, [10, 6]), [10, 5]);
+  assert.deepEqual(playbackDurations(20, [10, 10]), [10, 10]);
+  assert.deepEqual(playbackDurations(30, [10, 10, 10]), [10, 10, 10]);
+});
+
 test('Premium Kling scene templates never exceed 15 seconds', () => {
   for (const duration of [15,20,30]) {
     for (const campaignType of ['AVATAR_EXPLAINER','PRODUCT_SHOWCASE']) {
@@ -83,7 +90,8 @@ test('UGC narrator keeps a stable voice identity', () => {
   assert.equal(narratorVoice('Arjun', { presentation: 'Man' }), 'Arjun');
   assert.equal(narratorLanguage('en-GB'), 'en');
   assert.equal(narratorLanguage('es-ES'), 'es');
-  assert.ok(narratorSpeed('one two three four five six seven eight nine ten', 5) >= 0.7);
+  assert.ok(narratorSpeed('one two three four five six seven eight nine ten', 5) >= 1);
+  assert.equal(narratorSpeed('short natural line', 10), 1);
 });
 
 test('UGC captions emit valid SRT timestamp rows', () => {
@@ -200,4 +208,39 @@ test('UGC runtime continuously recovers renders whose worker heartbeat is lost',
   assert.match(service, /recoverStaleUGCRenders\(true\)/);
   assert.match(service, /lost worker heartbeat/);
   assert.match(service, /RETURNING "id"/);
+});
+
+
+test('UGC pacing prevents slow-motion creator direction and trims each scene before final assembly', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.resolve(__dirname, '..');
+  const service = fs.readFileSync(path.join(root, 'src/services/ugcStudioService.js'), 'utf8');
+
+  assert.match(service, /Never use slow motion/);
+  assert.match(service, /ordinary 1x speed/);
+  assert.match(service, /spokenWindow/);
+  assert.match(service, /const finalDurations = playbackDurations/);
+  assert.match(service, /String\(finalDuration\)/);
+  assert.match(service, /finish cleanly before the requested ad duration/);
+});
+
+test('UGC editor route self-recovers stale chunks and generated videos use the custom player', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.resolve(__dirname, '..');
+  const preload = fs.readFileSync(path.join(root, 'frontend/src/route-preload.ts'), 'utf8');
+  const router = fs.readFileSync(path.join(root, 'frontend/src/router.tsx'), 'utf8');
+  const home = fs.readFileSync(path.join(root, 'frontend/src/components/ai-content-studio/UGCStudioHomeModal.tsx'), 'utf8');
+  const editor = fs.readFileSync(path.join(root, 'frontend/src/components/ai-content-studio/UGCEditorPage.tsx'), 'utf8');
+  const player = fs.readFileSync(path.join(root, 'frontend/src/components/ai-content-studio/UGCVideoPlayer.tsx'), 'utf8');
+
+  assert.match(preload, /Failed to fetch dynamically imported module/);
+  assert.match(preload, /window\.location\.reload\(\)/);
+  assert.match(router, /errorElement: <AppRouteError/);
+  assert.match(home, /loadUGCEditor\(\)/);
+  assert.match(home, /UGCVideoLightbox/);
+  assert.match(editor, /UGCVideoPlayer/);
+  assert.match(player, /requestFullscreen/);
+  assert.doesNotMatch(player, /controls\s/);
 });
