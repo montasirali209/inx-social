@@ -30,7 +30,8 @@ const estimateSchema = z.object({
   duration: z.number().int().refine(v => durations.includes(v), 'Choose 15, 20 or 30 seconds.'),
   adCount: z.number().int().refine(v => counts.includes(v), 'Choose 1, 5, 10, 15 or 20 ads.'),
   quality: z.enum(['STANDARD', 'PREMIUM']).default('STANDARD'),
-  campaignType: z.enum(['AUTO', 'AVATAR_EXPLAINER', 'PRODUCT_SHOWCASE']).optional().default('AUTO')
+  campaignType: z.enum(['AUTO', 'AVATAR_EXPLAINER', 'PRODUCT_SHOWCASE']).optional().default('AUTO'),
+  creativeFormat: z.enum(['AUTO','PROBLEM_SOLUTION','PRODUCT_DEMO','TESTIMONIAL','UNBOXING','REACTION','BEFORE_AFTER','STORYTIME','SPOKESPERSON','PRODUCT_FOCUSED']).optional().default('AUTO')
 });
 
 const brandSchema = z.object({
