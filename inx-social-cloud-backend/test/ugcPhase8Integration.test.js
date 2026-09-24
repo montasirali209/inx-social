@@ -88,6 +88,21 @@ test('Phase 8 preserves all prior UGC architecture versions and pricing', () => 
   assert.match(quality, /RENDER_QUALITY_VERSION = 'ugc-render-qc-v1'/);
 });
 
+test('Phase 8 centralizes queue timing and concurrency without increasing production load', () => {
+  const runtime = read('src/services/ugcRuntimePolicy.js');
+  const studio = read('src/services/ugcStudioService.js');
+  const audit = read('src/services/ugcProductionAuditService.js');
+  assert.match(runtime, /UGC_RUNTIME_POLICY_VERSION = 'ugc-runtime-policy-v1'/);
+  assert.match(runtime, /AD_WORKERS_PER_PROCESS = 1/);
+  assert.match(runtime, /SCENE_CONCURRENCY = 2/);
+  assert.match(runtime, /QUEUE_POLL_MS = 5_000/);
+  assert.match(runtime, /STALE_RENDER_MS = 5 \* 60 \* 1000/);
+  assert.match(runtime, /POSTGRES_FOR_UPDATE_SKIP_LOCKED/);
+  assert.match(studio, /ugcRuntimePolicy\.SCENE_CONCURRENCY/);
+  assert.match(studio, /ugcRuntimePolicy\.QUEUE_POLL_MS/);
+  assert.match(audit, /runtime: runtimePolicy\.snapshot\(\)/);
+});
+
 test('Phase 8 remains additive and needs no database migration', () => {
   const audit = read('src/services/ugcProductionAuditService.js');
   assert.doesNotMatch(audit, /ALTER TABLE|CREATE TABLE|DROP TABLE/i);
