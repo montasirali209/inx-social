@@ -153,7 +153,7 @@ export function UGCWizardModal({
     adCount,
     quality,
     notes: seedCampaign?.notes || seedDraft?.notes || '',
-  }), [selectedBrand, seedCampaign?.brandProfileId, productUrl, description, productAssetIds, sourceType, campaignType, creativeFormat, creatorMode, avatarId, duration, adCount, quality])
+  }), [selectedBrand, seedCampaign?.brandProfileId, seedCampaign?.notes, seedDraft?.brandProfileId, seedDraft?.notes, productUrl, description, productAssetIds, sourceType, campaignType, creativeFormat, creatorMode, avatarId, duration, adCount, quality])
 
   const estimate = useQuery({
     queryKey: ['ugc-wizard-estimate', duration, adCount, quality, campaignType, creativeFormat],
