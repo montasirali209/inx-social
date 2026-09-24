@@ -716,11 +716,14 @@ export function BulkSchedulerPage() {
         resultId: null,
         errorMessage: null,
         scheduledAt: publishingTimes[index],
+        clientRequestId: `bulk-text-${crypto.randomUUID()}`,
+        caption: post,
       }))
       setResults(initialResults)
       setProgress({ state: 'preparing', percent: 1, current: 0, total: captionBlocks.length, completed: 0, failed: 0, message: 'Preparing text posts for publishing provider…' })
       let completed = 0
       let failed = 0
+      let checking = 0
 
       for (let index = 0; index < captionBlocks.length; index += 1) {
         if (controller.signal.aborted) break
@@ -730,7 +733,7 @@ export function BulkSchedulerPage() {
           setProgress({ state: timingMode === 'publish_now' ? 'preparing' : 'scheduling', percent: (index / captionBlocks.length) * 100, current: index + 1, total: captionBlocks.length, completed, failed, message: `${timingMode === 'publish_now' ? 'Publishing' : 'Scheduling'} text post ${index + 1} of ${captionBlocks.length}…` })
           const prepared = await createBulkMediaPost({
             connectedPageIds: destinationIds,
-            clientRequestId: `bulk-text-${crypto.randomUUID()}`,
+            clientRequestId: initialResults[index].clientRequestId!,
             title: null,
             caption: post,
             contentType: 'TEXT',
@@ -753,12 +756,21 @@ export function BulkSchedulerPage() {
             errorMessage: prepared.failures.length ? prepared.failures.map((failure) => failure.error).join(' · ') : null,
           } : result))
         } catch (error) {
-          failed += 1
-          setResults((current) => current.map((result) => result.id === resultId ? {
-            ...result,
-            status: 'failed',
-            errorMessage: error instanceof Error ? error.message : 'Text post failed.',
-          } : result))
+          if (isLikelyTransportFailure(error)) {
+            checking += 1
+            setResults((current) => current.map((result) => result.id === resultId ? {
+              ...result,
+              status: 'checking',
+              errorMessage: 'The mobile connection paused before the browser received the result. INXSocial is checking the server before allowing a duplicate retry.',
+            } : result))
+          } else {
+            failed += 1
+            setResults((current) => current.map((result) => result.id === resultId ? {
+              ...result,
+              status: 'failed',
+              errorMessage: error instanceof Error ? error.message : 'Text post failed.',
+            } : result))
+          }
         }
       }
 
@@ -767,12 +779,14 @@ export function BulkSchedulerPage() {
       setProgress({
         state: stopped ? 'stopped' : failed === captionBlocks.length ? 'failed' : 'completed',
         percent: stopped ? ((completed + failed) / captionBlocks.length) * 100 : 100,
-        current: completed + failed,
+        current: completed + failed + checking,
         total: captionBlocks.length,
         completed,
         failed,
         message: stopped
           ? 'Text batch stopped. Unstarted posts were blocked safely.'
+          : checking
+            ? `${checking} text post${checking === 1 ? '' : 's'} are being checked against the server after the mobile connection paused. Confirmed results will update automatically.`
           : failed
             ? `Text batch finished with ${failed} failed post${failed === 1 ? '' : 's'}.`
             : timingMode === 'publish_now'
