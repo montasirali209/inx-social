@@ -1,6 +1,7 @@
 const crypto = require('node:crypto');
 const registry = require('./ugcEngineRegistry');
 const router = require('./ugcModelRouter');
+const creators = require('./ugcCreatorEngine');
 
 const QC_CHECKS = Object.freeze([
   'IDENTITY_CONSISTENCY',
@@ -42,19 +43,7 @@ function fingerprint(value) {
 }
 
 function actorSnapshot(avatar) {
-  if (!avatar) return null;
-  return {
-    id: avatar.id || null,
-    scope: avatar.scope || null,
-    name: clean(avatar.name, 180),
-    category: clean(avatar.category, 100),
-    presentation: clean(avatar.presentation, 80),
-    ageBand: clean(avatar.ageBand, 80),
-    locale: clean(avatar.locale, 30),
-    voice: clean(avatar.voice, 100),
-    referenceVersion: Number(avatar.referenceVersion || 0),
-    environment: clean(avatar.environment, 600)
-  };
+  return avatar ? creators.actorSnapshot(avatar) : null;
 }
 
 function buildEngineProject({
@@ -163,6 +152,7 @@ function buildEngineProject({
       quality: clean(input.quality || 'STANDARD', 30).toUpperCase()
     },
     actor: {
+      version: creators.CREATOR_PROFILE_VERSION,
       mode: clean(input.creatorMode || 'AUTO', 30).toUpperCase(),
       selectedAvatarId: input.avatarId || null,
       assignedActors: ads.map(ad => ({ adSequence: ad.sequence, actor: ad.actor }))
