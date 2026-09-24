@@ -1,5 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom'
 import { AppShell } from './components/layout/AppShell'
+import { AppRouteError } from './components/layout/AppRouteError'
 import {
   loadAiContentStudio,
   loadAnalytics,
@@ -19,6 +20,7 @@ export const router = createBrowserRouter(
     {
       path: '/',
       element: <AppShell />,
+      errorElement: <AppRouteError />,
       children: [
         { index: true, lazy: async () => ({ Component: (await loadDashboard()).DashboardPage }) },
         { path: 'bulk-scheduler', element: null },

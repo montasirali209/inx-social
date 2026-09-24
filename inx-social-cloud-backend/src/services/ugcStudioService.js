@@ -72,14 +72,18 @@ function narratorLanguage(locale) {
 function narratorSpeed(text, duration) {
   const words = clean(text, 6000).split(/\s+/).filter(Boolean).length;
   if (!words || !duration) return 1;
+  // Never stretch short UGC dialogue into slow speech. Leave a small tail so
+  // the last word completes before the visual cut, and only speed up when the
+  // script genuinely needs it.
+  const spokenWindow = Math.max(1, Number(duration) - 0.45);
   const estimatedAtNormalSpeed = words / 2.45;
-  return Math.max(0.7, Math.min(1.3, Number((estimatedAtNormalSpeed / Number(duration)).toFixed(1))));
+  return Math.max(1, Math.min(1.3, Number((estimatedAtNormalSpeed / spokenWindow).toFixed(2))));
 }
 
 function ugcRealismSkill(kind = 'CREATOR', campaignType = 'AVATAR_EXPLAINER', quality = 'STANDARD') {
   const creator = [
     'REALISM SKILL: candid creator footage rather than a commercial render.',
-    'Use natural blinking, breathing, tiny posture shifts, imperfect but stable eye contact and restrained gestures.',
+    'Use natural blinking, breathing, normal real-time posture shifts, imperfect but stable eye contact and conversational head/hand gestures at ordinary 1x speed. Never use slow motion, dreamy time-stretching or unnaturally delayed movement.',
     'Keep pores, fine skin texture and natural asymmetry; avoid waxy skin, beauty-filter smoothing, face warping, floating hair or changing facial proportions.',
     'Hands must remain anatomically plausible and only enter frame when useful.',
     'Keep wardrobe, room layout, light direction, camera height, focal length and colour temperature continuous between creator cuts.'
@@ -520,6 +524,8 @@ function splitScriptByDurations(script, durations) {
 function visualDurations(duration, quality, campaignType) {
   const total = Number(duration);
   if (String(quality).toUpperCase() === 'STANDARD') {
+    // Hailuo 2.3 uses supported provider clip lengths. A 15-second ad needs a
+    // 10s + 6s render, but playbackDurations trims the second scene to 5s.
     if (total === 15) return [10, 6];
     if (total === 20) return [10, 10];
     return [10, 10, 10];
@@ -532,6 +538,15 @@ function visualDurations(duration, quality, campaignType) {
   if (total === 15) return [15];
   if (total === 20) return [10, 10];
   return [15, 15];
+}
+
+function playbackDurations(totalDuration, providerDurations) {
+  let remaining = Math.max(0, Number(totalDuration) || 0);
+  return providerDurations.map((duration) => {
+    const usable = Math.max(0, Math.min(Number(duration) || 0, remaining));
+    remaining = Math.max(0, remaining - usable);
+    return usable;
+  });
 }
 
 function resolveCampaignType(input, brand, productAssets = []) {
@@ -554,6 +569,7 @@ function sceneKinds(campaignType, count) {
 
 function fallbackPlan(input, brand, avatars, resolvedType) {
   const durations = visualDurations(input.duration, input.quality, resolvedType);
+  const spokenDurations = playbackDurations(input.duration, durations);
   const kinds = sceneKinds(resolvedType, durations.length);
   const offer = brand?.productName || brand?.name || input.productDescription || 'this product';
   const baseSummary = brand?.summary || input.productDescription || 'It helps solve a practical everyday problem.';
@@ -563,7 +579,7 @@ function fallbackPlan(input, brand, avatars, resolvedType) {
       ? 'Here is the simple reason this is worth knowing about.'
       : 'I did not expect this to be this useful until I tried it.';
     const script = clean(hook + ' ' + offer + ' — ' + baseSummary + ' Take a closer look and see whether it fits what you need.', 12000);
-    const parts = splitScriptByDurations(script, durations);
+    const parts = splitScriptByDurations(script, spokenDurations);
     return {
       title: 'UGC Ad ' + (index + 1),
       angle: angles[index % angles.length],
@@ -589,10 +605,11 @@ function normalizePlan(parsed, input, brand, avatars, resolvedType) {
   const rawAds = Array.isArray(parsed?.ads) ? parsed.ads : [];
   if (rawAds.length !== input.adCount) return fallbackPlan(input, brand, avatars, resolvedType);
   const durations = visualDurations(input.duration, input.quality, resolvedType);
+  const spokenDurations = playbackDurations(input.duration, durations);
   const defaultKinds = sceneKinds(resolvedType, durations.length);
   const ads = rawAds.map((raw, index) => {
     const script = clean(raw.script, 12000);
-    const parts = splitScriptByDurations(script, durations);
+    const parts = splitScriptByDurations(script, spokenDurations);
     const rawScenes = Array.isArray(raw.scenes) ? raw.scenes : [];
     return {
       title: clean(raw.title || 'UGC Ad ' + (index + 1), 180),
@@ -644,8 +661,9 @@ async function planCampaign(input, brand, avatars, resolvedType) {
         'One ad uses one creator identity and one narrator voice throughout.',
         'Keep creator face, age, hair, skin tone, wardrobe and environment stable across creator cuts.',
         'No generated subtitles, labels, watermarks, logos or readable overlay text inside frames; INXSocial adds captions later.',
-        'Apply the INXSocial realism skill: real consumer-camera exposure, natural human micro-movements, stable anatomy and identity, believable room continuity, physically plausible hands/products, and no glossy CGI or beauty-filter look.',
-        'Write natural social-video dialogue, not corporate copy. Aim for about 34 words for 15 seconds, 46 words for 20 seconds and 68 words for 30 seconds.',
+        'Apply the INXSocial realism skill: real consumer-camera exposure, natural human movement at normal 1x speed, stable anatomy and identity, believable room continuity, physically plausible hands/products, and no glossy CGI or beauty-filter look.',
+        'Write natural social-video dialogue, not corporate copy. Aim for about 32–34 words for 15 seconds, 42–46 words for 20 seconds and 62–66 words for 30 seconds.',
+        'The final spoken sentence and CTA must finish cleanly before the requested ad duration; leave roughly half a second of visual breathing room at the end instead of cutting a word or sentence.',
         'Return JSON only: {"title":"string","ads":[{"title":"string","angle":"string","hook":"string","script":"string","cta":"string","caption":"string","avatarIndex":0,"scenes":[{"kind":"CREATOR|PRODUCT|LIFESTYLE|CTA","prompt":"string","script":"string"}]}]}.'
       ].join('\n\n') },
       { role: 'user', content: JSON.stringify({
@@ -1062,7 +1080,7 @@ async function pollTask(taskUUID, onProgress = () => {}) {
   throw publicError('UGC rendering timed out. Reserved credits will be returned for the failed render.', 'UGC_PROVIDER_TIMEOUT', 504);
 }
 
-async function generateSceneNarration(scene, ad, avatar) {
+async function generateSceneNarration(scene, ad, avatar, spokenDuration = scene.duration) {
   const text = clean(scene.script, 6000);
   if (text.length < 2) return null;
   const taskUUID = id();
@@ -1078,7 +1096,7 @@ async function generateSceneNarration(scene, ad, avatar) {
       text,
       voice,
       language: narratorLanguage(avatar?.locale || 'en'),
-      speed: narratorSpeed(text, scene.duration)
+      speed: narratorSpeed(text, spokenDuration)
     },
     settings: { textNormalization: true }
   }], 60000);
@@ -1093,7 +1111,7 @@ async function renderProviderScene(scene, ad, avatar, productReference, narratio
     'CHARACTER LOCK: use the supplied creator portrait as the exact same real person.',
     'Preserve face shape, skin tone, age, hairstyle, hair colour, wardrobe and recognizable identity.',
     'Keep the same believable room/environment and camera treatment. Never morph the face or introduce a second person.',
-    'Natural creator behavior only: subtle breathing, blinking, eye contact, small head movement and restrained hand gestures.'
+    'Natural creator behavior at normal 1x speed: breathing, blinking, responsive eye contact, conversational head movement and ordinary hand gestures. No slow motion, no time-stretching and no frozen mannequin pacing.'
   ].join(' ') : '';
   const productLock = productReference
     ? 'PRODUCT LOCK: preserve the supplied product/reference exactly — packaging, shape, colours, proportions and visible branding. Do not substitute, redesign or hallucinate another product.'
@@ -1204,13 +1222,14 @@ function srtTime(seconds) {
   const h = Math.floor(ms / 3600000), m = Math.floor(ms % 3600000 / 60000), s = Math.floor(ms % 60000 / 1000), milli = ms % 1000;
   return [h,m,s].map(v => String(v).padStart(2,'0')).join(':') + ',' + String(milli).padStart(3,'0');
 }
-function captionsForScenes(scenes) {
+function captionsForScenes(scenes, durations = scenes.map(scene => Number(scene.duration))) {
   let cursor = 0, index = 1; const rows = [];
-  for (const scene of scenes) {
+  for (let sceneIndex = 0; sceneIndex < scenes.length; sceneIndex += 1) {
+    const scene = scenes[sceneIndex];
     const words = clean(scene.script, 5000).split(/\s+/).filter(Boolean);
     const chunks = [];
     for (let i=0; i<words.length; i+=6) chunks.push(words.slice(i,i+6).join(' '));
-    const duration = Number(scene.duration);
+    const duration = Number(durations[sceneIndex] ?? scene.duration);
     const span = duration / Math.max(1, chunks.length);
     chunks.forEach((chunk, i) => {
       rows.push(String(index++), srtTime(cursor + i*span) + ' --> ' + srtTime(cursor + Math.min(duration,(i+1)*span)), chunk, '');
@@ -1224,14 +1243,17 @@ async function assembleVideo(ad, scenes) {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'inxsocial-ugc-'));
   try {
     const normalized = [];
-    for (const scene of scenes) {
+    const finalDurations = playbackDurations(ad.duration, scenes.map(scene => Number(scene.duration)));
+    for (let sceneIndex = 0; sceneIndex < scenes.length; sceneIndex += 1) {
+      const scene = scenes[sceneIndex];
+      const finalDuration = finalDurations[sceneIndex];
       if (!scene.videoStorageKey) throw new Error('A rendered UGC scene is missing.');
       const data = await objectStorage.getBuffer(scene.videoStorageKey, null, scene.videoStorageProvider || null);
       const inputPath = path.join(dir, 'scene-' + scene.sequence + '-input.mp4');
       const outputPath = path.join(dir, 'scene-' + scene.sequence + '.mp4');
       await fs.writeFile(inputPath, data);
       const vf = 'scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2:black,fps=24,tpad=stop_mode=clone:stop_duration=65';
-      await runFfmpeg(['-hide_banner','-loglevel','error','-y','-i',inputPath,'-vf',vf,'-af','apad','-t',String(scene.duration),'-c:v','libx264','-preset','veryfast','-crf','20','-pix_fmt','yuv420p','-c:a','aac','-ar','48000','-ac','2','-b:a','128k','-movflags','+faststart',outputPath]);
+      await runFfmpeg(['-hide_banner','-loglevel','error','-y','-i',inputPath,'-vf',vf,'-af','apad','-t',String(finalDuration),'-c:v','libx264','-preset','veryfast','-crf','20','-pix_fmt','yuv420p','-c:a','aac','-ar','48000','-ac','2','-b:a','128k','-movflags','+faststart',outputPath]);
       normalized.push(outputPath);
     }
     const concatPath = path.join(dir, 'concat.txt');
@@ -1241,7 +1263,7 @@ async function assembleVideo(ad, scenes) {
     if (ad.captionsEnabled) {
       const srt = path.join(dir, 'captions.srt');
       const captioned = path.join(dir, 'captioned.mp4');
-      await fs.writeFile(srt, captionsForScenes(scenes));
+      await fs.writeFile(srt, captionsForScenes(scenes, finalDurations));
       const escaped = srt.replace(/\\/g,'/').replace(/:/g,'\\:').replace(/'/g,"\\'");
       try {
         await runFfmpeg(['-hide_banner','-loglevel','error','-y','-i',stitched,'-vf',"subtitles='" + escaped + "':force_style='FontName=Arial,FontSize=18,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=0,Alignment=2,MarginV=90'",'-c:v','libx264','-preset','veryfast','-crf','20','-c:a','copy','-movflags','+faststart',captioned]);
@@ -1309,6 +1331,7 @@ async function renderAd(adId) {
 
   let providerCost = 0;
   const sceneProgress = scenes.map(scene => scene.status === 'READY' && scene.videoStorageKey ? 100 : 0);
+  const spokenDurations = playbackDurations(ad.duration, scenes.map(scene => Number(scene.duration)));
   const updateSceneProgress = async (index, localProgress, stage) => {
     sceneProgress[index] = Math.max(sceneProgress[index] || 0, Math.max(0, Math.min(100, Number(localProgress) || 0)));
     const average = sceneProgress.reduce((sum, value) => sum + value, 0) / Math.max(1, sceneProgress.length);
@@ -1330,7 +1353,8 @@ async function renderAd(adId) {
 
       await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "status"=\'RENDERING\',"errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', scene.id);
       await updateSceneProgress(index, 4, 'VOICE');
-      const narration = await generateSceneNarration(scene, ad, avatar);
+      const spokenDuration = spokenDurations[index] || Number(scene.duration);
+      const narration = await generateSceneNarration(scene, ad, avatar, spokenDuration);
       providerCost += Number(narration?.cost || 0);
 
       await updateSceneProgress(index, 10, 'VIDEO');
@@ -1357,7 +1381,7 @@ async function renderAd(adId) {
       let sceneVideo = remote.data;
       if (scene.kind !== 'CREATOR' && narration?.audioURL) {
         const audio = await download(narration.audioURL, 18 * 1024 * 1024);
-        sceneVideo = await lockNarrationAudio(sceneVideo, audio.data, scene.duration);
+        sceneVideo = await lockNarrationAudio(sceneVideo, audio.data, spokenDuration);
       }
 
       const stored = await objectStorage.persistBuffer({ userId: ad.userId, data: sceneVideo, mimeType: 'video/mp4', originalName: 'ugc-scene-' + scene.id + '.mp4', prefix: 'ugc-video' });
@@ -1568,7 +1592,7 @@ async function regenerateScene(userId, sceneId) {
 }
 
 module.exports = {
-  STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds, brandUrlCandidates,
+  STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds, brandUrlCandidates, playbackDurations,
   creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
   narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
   getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, deleteCampaign, getAd, updateAd, regenerateAd, regenerateScene,

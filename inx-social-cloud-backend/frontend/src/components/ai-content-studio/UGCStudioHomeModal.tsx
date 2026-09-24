@@ -6,6 +6,7 @@ import {
 import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { loadUGCEditor } from '../../route-preload'
 import { fetchMediaLibrary } from '../../lib/media-library-api'
 import {
   deleteUGCCampaign,
@@ -17,6 +18,7 @@ import {
 import type { MediaAsset } from '../../types/media-library'
 import type { UGCAvatar, UGCCampaign, UGCSampleVideo } from '../../types/ugc-studio'
 import { Button } from '../ui/Button'
+import { UGCVideoLightbox } from './UGCVideoPlayer'
 import './ugc-studio-home.css'
 
 const activeStatuses = new Set(['RESERVING', 'QUEUED', 'RENDERING', 'PLANNING'])
@@ -84,6 +86,7 @@ export function UGCStudioHomeModal({
   const queryClient = useQueryClient()
   const previousReady = useRef<Set<string>>(new Set())
   const [filter, setFilter] = useState<'ALL' | 'READY' | 'RENDERING' | 'FAILED'>('ALL')
+  const [preview, setPreview] = useState<{ src: string; title: string } | null>(null)
 
   const overview = useQuery({
     queryKey: ['ugc-studio-overview'],
@@ -101,7 +104,12 @@ export function UGCStudioHomeModal({
   })
 
   useEffect(() => {
-    if (open) void trackUGCStudioEvent({ event: 'STUDIO_OPENED', stage: 'home' })
+    if (!open) return
+    void trackUGCStudioEvent({ event: 'STUDIO_OPENED', stage: 'home' })
+    // Warm the editor chunk while the UGC workspace is already open. This both
+    // removes the click-time delay and keeps the editor module in memory across
+    // a later deployment while this tab remains open.
+    void loadUGCEditor().catch(() => undefined)
   }, [open])
 
   useEffect(() => {
@@ -234,7 +242,16 @@ export function UGCStudioHomeModal({
                 : 0
               return <article className="ugc-home-campaign" key={campaign.id}>
                 <div className="ugc-home-campaign-preview">
-                  {asset?.fileUrl ? <video className="size-full object-cover" controls playsInline preload="metadata" src={asset.fileUrl} /> :
+                  {asset?.fileUrl ? <button
+                    aria-label={`Open ${campaign.title} video preview`}
+                    className="group absolute inset-0 cursor-zoom-in"
+                    onClick={() => setPreview({ src: asset.fileUrl!, title: campaign.title })}
+                    type="button"
+                  >
+                    <video className="size-full object-cover" muted playsInline preload="metadata" src={asset.fileUrl} />
+                    <span className="absolute inset-0 grid place-items-center bg-black/5 transition group-hover:bg-black/20"><span className="grid size-11 place-items-center rounded-full border border-white/20 bg-black/55 text-white shadow-xl backdrop-blur"><Play className="ml-0.5 size-5 fill-current" /></span></span>
+                    <span className="absolute bottom-2 right-2 rounded-lg border border-white/10 bg-black/55 px-2 py-1 text-[8px] font-semibold text-white/85 backdrop-blur">Open player</span>
+                  </button> :
                     <div className="absolute inset-0 grid place-items-center px-3"><div className="w-full text-center">{busy ? <LoaderCircle className="mx-auto size-7 animate-spin text-brand-cyan" /> : <Clapperboard className="mx-auto size-7 text-text-soft" />}<strong className="mt-2 block text-[9px] text-brand-cyan">{busy ? (activeAd?.stageLabel || 'Preparing render') : campaign.status}</strong><span className="mt-1 block text-[8px] text-text-muted">{busy ? `${campaignProgress}% complete${activeAd?.stageDetail ? ` · ${activeAd.stageDetail}` : ''}` : ''}</span>{busy && <div className="mx-auto mt-3 h-1.5 w-4/5 overflow-hidden rounded-full bg-white/[.07]"><span className="block h-full rounded-full bg-brand-cyan transition-[width] duration-500" style={{ width: `${Math.max(4,campaignProgress)}%` }} /></div>}</div></div>}
                   <span className="ugc-home-duration">{campaign.duration}s</span>
                   <span className={`ugc-home-status ${campaign.status.toLowerCase()}`}>{statusLabel(campaign.status)}</span>
@@ -244,9 +261,20 @@ export function UGCStudioHomeModal({
                   <strong>{campaign.title}</strong>
                   <p>{first?.hook || first?.angle || 'Creator-native UGC campaign'}</p>
                   {busy && activeAd && <div className="mt-3 rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.035] p-2.5"><div className="flex items-center justify-between gap-2 text-[8px]"><strong className="text-brand-cyan">{activeAd.stageLabel}</strong><span className="text-text-muted">{activeAd.progress}%</span></div><div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[.07]"><span className="block h-full rounded-full bg-brand-cyan transition-[width] duration-500" style={{ width: `${Math.max(4,activeAd.progress)}%` }} /></div>{activeAd.stageDetail && <span className="mt-1.5 block text-[8px] text-text-soft">{activeAd.stageDetail}</span>}</div>}
-                  {campaign.ads.length > 1 && <div className="ugc-home-variation-list">{campaign.ads.map((ad) => <div key={ad.id}><span>V{ad.sequence} · {activeStatuses.has(ad.status) ? `${ad.stageLabel} · ${ad.progress}%` : statusLabel(ad.status)}</span><button disabled={activeStatuses.has(ad.status)} onClick={() => { onClose(); navigate(`/ai-content-studio/ugc/${ad.id}/edit`) }} type="button">Edit</button></div>)}</div>}
+                  {campaign.ads.length > 1 && <div className="ugc-home-variation-list">{campaign.ads.map((ad) => <div key={ad.id}><span>V{ad.sequence} · {activeStatuses.has(ad.status) ? `${ad.stageLabel} · ${ad.progress}%` : statusLabel(ad.status)}</span><button disabled={activeStatuses.has(ad.status)} onClick={() => {
+                    void loadUGCEditor().then(() => {
+                      onClose()
+                      navigate(`/ai-content-studio/ugc/${ad.id}/edit`)
+                    })
+                  }} type="button">Edit</button></div>)}</div>}
                   <div className="ugc-home-actions">
-                    <Button disabled={!first || activeStatuses.has(first.status)} onClick={() => { onClose(); navigate(`/ai-content-studio/ugc/${first.id}/edit`) }} size="sm"><Pencil className="size-3.5" />Edit</Button>
+                    <Button disabled={!first || activeStatuses.has(first.status)} onClick={() => {
+                      if (!first) return
+                      void loadUGCEditor().then(() => {
+                        onClose()
+                        navigate(`/ai-content-studio/ugc/${first.id}/edit`)
+                      })
+                    }} size="sm"><Pencil className="size-3.5" />Edit</Button>
                     <Button disabled={!campaign.ads.some((ad) => ad.status === 'READY')} onClick={() => scheduleCampaign(campaign)} size="sm" variant="primary"><CalendarRange className="size-3.5" />Schedule</Button>
                     <button aria-label="Create similar campaign" className="ugc-home-icon-action" onClick={() => startCreation(campaign)} title="Create similar" type="button"><Copy className="size-3.5" /></button>
                     <button aria-label="Delete campaign" className="ugc-home-icon-action danger" disabled={busy || remove.isPending} onClick={() => { if (window.confirm('Remove this UGC campaign from your studio?')) remove.mutate(campaign.id) }} title="Delete" type="button"><Trash2 className="size-3.5" /></button>
@@ -268,5 +296,6 @@ export function UGCStudioHomeModal({
         </section>
       </div>
     </section>
+    <UGCVideoLightbox onClose={() => setPreview(null)} open={Boolean(preview)} src={preview?.src || null} title={preview?.title} />
   </div>, document.body)
 }
