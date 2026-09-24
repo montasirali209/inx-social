@@ -73,6 +73,11 @@ test('Phase 4 deterministic casting uses Creator V2 profile scoring and producti
   assert.match(skills, /routeCompatible/);
   assert.match(skills, /CREATOR_ROUTE_COMPATIBILITY/);
   assert.match(skills, /creatorVersion: creators\.CREATOR_PROFILE_VERSION/);
+  const router = read('src/services/ugcModelRouter.js');
+  assert.match(router, /allowedRoutes/);
+  assert.match(router, /UGC_ROUTER_CREATOR_INCOMPATIBLE/);
+  const studio = read('src/services/ugcStudioService.js');
+  assert.match(studio, /allowedRoutes: actor \? ugcCreators\.profileFromRow\(actor\)\.routeCompatibility : null/);
 });
 
 test('Phase 4 engine contract fingerprints Creator V2 actor snapshots under contract 1.2', () => {
