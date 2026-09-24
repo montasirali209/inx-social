@@ -219,7 +219,6 @@ export function UGCStudioHomeModal({
 
   if (!open) return null
   const data = overview.data
-  const featured = data?.featuredAvatars || []
 
   return createPortal(<div className="ugc-home-backdrop">
     <section aria-label="UGC Ad Studio" aria-modal="true" className="ugc-home-panel" role="dialog">
