@@ -168,22 +168,15 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
             playbackDurations,
             totalPlaybackSeconds: playbackDurations.reduce((sum, value) => sum + Number(value || 0), 0)
           },
-          availableCreatorMetadata: avatars.map((avatar, index) => {
-            const profile = creators.publicProfile(avatar);
-            return {
-              index,
-              category: clean(avatar.category, 100),
-              presentation: clean(avatar.presentation, 80),
-              ageBand: clean(avatar.ageBand, 80),
-              locale: clean(avatar.locale, 30),
-              accent: profile.accent,
-              niches: profile.niches,
-              environments: profile.environments,
-              wardrobe: profile.wardrobe,
-              gestures: profile.gestures,
-              routeCompatibility: profile.routeCompatibility
-            };
-          })
+          creatorLibrary: {
+            count: avatars.length,
+            categories: [...new Set(avatars.map(avatar => clean(avatar.category, 100)).filter(Boolean))],
+            presentations: [...new Set(avatars.map(avatar => clean(avatar.presentation, 80)).filter(Boolean))],
+            ageBands: [...new Set(avatars.map(avatar => clean(avatar.ageBand, 80)).filter(Boolean))],
+            locales: [...new Set(avatars.map(avatar => clean(avatar.locale, 30)).filter(Boolean))],
+            accents: [...new Set(avatars.map(avatar => creators.publicProfile(avatar).accent).filter(Boolean))],
+            niches: [...new Set(avatars.flatMap(avatar => creators.publicProfile(avatar).niches))].slice(0, 40)
+          }
         })
       }
     ], {
