@@ -96,7 +96,8 @@ test('Phase 4 Studio can search and filter the actual full creator library', () 
   assert.match(wizard, /creatorPresentation/);
   assert.match(wizard, /creatorAgeBand/);
   assert.match(wizard, /creatorLocale/);
-  assert.match(wizard, /View all \$\{allCreators\.length\} available creators/);
+  assert.match(wizard, /creatorPickerOpen/);
+  assert.match(wizard, /View all \$\{filteredCreators\.length\} creators/);
 });
 
 test('Phase 4 keeps provider/model routing capabilities internal to the creator engine', () => {
