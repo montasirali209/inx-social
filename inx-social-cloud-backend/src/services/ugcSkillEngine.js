@@ -372,23 +372,33 @@ function scenePlanningSkill({ resolvedType, providerDurations, playbackDurations
 }
 
 function creatorConsistencySkill({ avatar, campaignType }) {
+  const profile = avatar ? creators.publicProfile(avatar) : null;
   return {
     skill: 'CREATOR_CONSISTENCY',
     version: SKILLS_VERSION,
     actorId: avatar?.id || null,
     identityLock: 'EXACT_REFERENCE',
+    presentation: clean(avatar?.presentation || profile?.presentation, 80),
+    adultAgeBand: clean(avatar?.ageBand || profile?.ageBand, 80),
+    preferredEnvironments: profile?.environments?.slice(0, 3) || [],
+    wardrobeProfile: profile?.wardrobe?.slice(0, 3) || [],
+    gestureProfile: profile?.gestures?.slice(0, 3) || [],
     preserve: ['face_shape', 'skin_tone', 'age', 'hair', 'wardrobe', 'voice_identity'],
     environmentContinuity: campaignType === 'AVATAR_EXPLAINER' ? 'STRICT' : 'SESSION_MATCH',
+    wardrobeContinuity: 'PRESERVE_REFERENCE_WITHIN_AD',
     prohibit: ['identity_morph', 'second_person', 'wardrobe_drift', 'face_replacement', 'celebrity_resemblance']
   };
 }
 
 function voiceConsistencySkill({ avatar, timing }) {
+  const profile = avatar ? creators.publicProfile(avatar) : null;
   return {
     skill: 'VOICE_CONSISTENCY',
     version: SKILLS_VERSION,
     voice: clean(avatar?.voice, 100),
     locale: clean(avatar?.locale, 30) || 'en-GB',
+    accent: clean(profile?.accent, 80),
+    languages: profile?.languages?.slice(0, 4) || [],
     delivery: 'NATURAL_CONVERSATIONAL',
     minSpeedMultiplier: timing.minSpeechRateMultiplier,
     maxSpeedMultiplier: timing.maxSpeechRateMultiplier,
