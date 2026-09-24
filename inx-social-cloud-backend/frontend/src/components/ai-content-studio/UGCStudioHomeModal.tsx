@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowRight, CalendarRange, CheckCircle2, Clapperboard, Clock3, Coins, Copy, Film,
+  CalendarRange, Clapperboard, Clock3, Coins, Copy, Film,
   LoaderCircle, Pencil, Play, Plus, Sparkles, Trash2, UsersRound, X,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
