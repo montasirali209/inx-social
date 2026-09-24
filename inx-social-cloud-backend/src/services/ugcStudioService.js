@@ -1263,7 +1263,9 @@ async function persistFinalAsset(ad, data, providerCost) {
     generationChoice: json({
       provider: 'runware', route: ad.route, quality: ad.quality, resolution: '720p', duration: ad.duration,
       providerCostUsd: providerCost, ugcAdId: ad.id, campaignId: ad.campaignId, avatarId: ad.avatarId,
-      routerVersion: parseJson(ad.planJson, {}).routerVersion || null,
+      routerVersion: parseJson(ad.planJson, {}).routerVersion
+        || parseJson(ad.planJson, {}).scenes?.[0]?.routeDecision?.routerVersion
+        || null,
       sceneRoutes: Array.isArray(parseJson(ad.planJson, {}).scenes)
         ? parseJson(ad.planJson, {}).scenes.map(scene => scene.routeDecision?.routeKey || null).filter(Boolean)
         : [],
