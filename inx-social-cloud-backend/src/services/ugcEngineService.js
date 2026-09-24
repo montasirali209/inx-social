@@ -122,6 +122,48 @@ async function linkGeneration(userId, campaignId, adSequence, adId, generationId
   });
 }
 
+async function recordReroute(userId, campaignId, adSequence, adId, reroute = {}) {
+  return prisma.$transaction(async tx => {
+    const rows = await tx.$queryRawUnsafe(
+      'SELECT * FROM "UGCEngineProject" WHERE "campaignId"=$1 AND "userId"=$2 FOR UPDATE',
+      campaignId,
+      userId
+    );
+    const row = rows[0];
+    if (!row) return null;
+    const jobs = parseJson(row.renderJobsJson, []);
+    const sequence = Number(adSequence);
+    const index = jobs.findIndex(job => job.adId === adId || Number(job.adSequence) === sequence);
+    if (index < 0) return null;
+    const sceneRoutes = Array.isArray(reroute.sceneRoutes) ? reroute.sceneRoutes.map(item => ({
+      sceneSequence: Number(item.sceneSequence),
+      routeKey: clean(item.routeKey, 120),
+      adapterKey: clean(item.adapterKey, 120),
+      reason: clean(item.reason, 180)
+    })) : [];
+    const event = {
+      routerVersion: clean(reroute.routerVersion || router.ROUTER_VERSION, 80),
+      routerMode: clean(reroute.routerMode || router.routerMode(), 40),
+      scope: clean(reroute.scope || 'REGENERATION', 40),
+      sceneRoutes,
+      createdAt: new Date().toISOString()
+    };
+    const history = Array.isArray(jobs[index].reroutes) ? jobs[index].reroutes.slice(-9) : [];
+    jobs[index] = {
+      ...jobs[index],
+      latestReroute: event,
+      reroutes: [...history, event]
+    };
+    await tx.$executeRawUnsafe(
+      'UPDATE "UGCEngineProject" SET "renderJobsJson"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "campaignId"=$1 AND "userId"=$2',
+      campaignId,
+      userId,
+      json(jobs)
+    );
+    return event;
+  });
+}
+
 async function recordRenderStatus(userId, campaignId, adId, status, metadata = {}) {
   return prisma.$transaction(async tx => {
     const rows = await tx.$queryRawUnsafe(
@@ -169,6 +211,7 @@ module.exports = {
   getProject,
   updateStatus,
   linkGeneration,
+  recordReroute,
   recordRenderStatus,
   healthSnapshot
 };
