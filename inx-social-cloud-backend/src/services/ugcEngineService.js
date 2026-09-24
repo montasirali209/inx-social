@@ -4,6 +4,7 @@ const contract = require('./ugcEngineContract');
 const registry = require('./ugcEngineRegistry');
 const skills = require('./ugcSkillEngine');
 const router = require('./ugcModelRouter');
+const creators = require('./ugcCreatorEngine');
 
 const PROJECT_STATUSES = new Set(['PLANNED','RESERVING','QUEUED','RENDERING','READY','PARTIAL','FAILED','CANCELLED']);
 
@@ -198,6 +199,8 @@ async function healthSnapshot() {
     contractVersion: registry.CONTRACT_VERSION,
     skillsVersion: skills.SKILLS_VERSION,
     routerVersion: router.ROUTER_VERSION,
+    creatorVersion: creators.CREATOR_PROFILE_VERSION,
+    creators: creators.creatorSystemSnapshot(),
     router: router.routerSnapshot(),
     registry: registry.registrySnapshot(),
     statuses: [...PROJECT_STATUSES]
