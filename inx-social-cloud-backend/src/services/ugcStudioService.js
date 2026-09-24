@@ -24,6 +24,7 @@ const ugcCreativeFormats = require('./ugcCreativeFormats');
 const ugcStudioControls = require('./ugcStudioControls');
 const ugcRenderQuality = require('./ugcRenderQuality');
 const ugcProductionAudit = require('./ugcProductionAuditService');
+const ugcRuntimePolicy = require('./ugcRuntimePolicy');
 const { expiresAtFor } = require('./mediaRetentionService');
 
 const STANDARD_CREDITS = Object.freeze({ 15: 100, 20: 140, 30: 210 });
@@ -1554,7 +1555,7 @@ async function renderAd(adId) {
   try {
     await updateGenerationProgress(ad.generationId, 2, 'PREPARING', { sceneTotal: scenes.length, readyScenes: sceneProgress.filter(value => value >= 100).length });
 
-    await runLimited(scenes, 2, async (scene, index) => {
+    await runLimited(scenes, ugcRuntimePolicy.SCENE_CONCURRENCY, async (scene, index) => {
       if (scene.status === 'READY' && scene.videoStorageKey) return;
 
       try {
@@ -1709,7 +1710,7 @@ let runtimeTimer = null;
 let runtimeBusy = false;
 let requestedTick = false;
 let lastRecoveryAt = 0;
-const UGC_RENDER_STALE_MS = 5 * 60 * 1000;
+const UGC_RENDER_STALE_MS = ugcRuntimePolicy.STALE_RENDER_MS;
 function queueRuntimeTick() { requestedTick = true; if (!runtimeBusy) setTimeout(() => void runtimeTick(), 50).unref?.(); }
 
 async function recoverStaleUGCRenders(force = false) {
@@ -1759,7 +1760,7 @@ function startUGCStudioRuntime() {
   void recoverStaleUGCRenders(true)
     .then(() => queueRuntimeTick())
     .catch(error => console.error('[UGC RECOVERY]', clean(error?.message, 700)));
-  runtimeTimer = setInterval(() => void runtimeTick(), 5000);
+  runtimeTimer = setInterval(() => void runtimeTick(), ugcRuntimePolicy.QUEUE_POLL_MS);
   runtimeTimer.unref?.();
 }
 
