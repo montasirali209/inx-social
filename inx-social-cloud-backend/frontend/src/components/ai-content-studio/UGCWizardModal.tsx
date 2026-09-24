@@ -16,6 +16,7 @@ import {
   generateUGCAvatar,
   getUGCCampaign,
   getUGCOverview,
+  regenerateUGCAd,
   uploadUGCAvatar,
   uploadUGCProductAsset,
   trackUGCStudioEvent,
@@ -102,8 +103,9 @@ export function UGCWizardModal({
 }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [step, setStep] = useState(0)
-  const [furthest, setFurthest] = useState(0)
+  const initialStep = seedDraft?.brandProfileId ? 2 : 0
+  const [step, setStep] = useState(initialStep)
+  const [furthest, setFurthest] = useState(initialStep)
   const [sourceType, setSourceType] = useState<UGCSourceType>(seedCampaign?.sourceType || seedDraft?.sourceType || 'WEBSITE')
   const [productUrl, setProductUrl] = useState(seedCampaign?.productUrl || seedDraft?.productUrl || '')
   const [description, setDescription] = useState(seedCampaign?.productDescription || seedDraft?.productDescription || '')
@@ -114,6 +116,7 @@ export function UGCWizardModal({
   const [creativeFormat, setCreativeFormat] = useState<UGCCreativeFormat>(seedCampaign?.creativeFormat || seedDraft?.creativeFormat || 'AUTO')
   const [creatorMode, setCreatorMode] = useState<'AUTO' | 'SELECTED'>(seedCampaign?.creatorMode || seedDraft?.creatorMode || 'AUTO')
   const [avatarId, setAvatarId] = useState<string | null>(seedCampaign?.selectedAvatarId || seedDraft?.avatarId || null)
+  const [creatorPickerOpen, setCreatorPickerOpen] = useState(false)
   const [showAllCreators, setShowAllCreators] = useState(false)
   const [creatorSearch, setCreatorSearch] = useState('')
   const [creatorCategory, setCreatorCategory] = useState('ALL')
@@ -242,6 +245,17 @@ export function UGCWizardModal({
     onError: (value) => setError(value instanceof Error ? value.message : 'The UGC campaign could not be started.'),
   })
 
+  const retryAd = useMutation({
+    mutationFn: regenerateUGCAd,
+    onSuccess: async () => {
+      setError('')
+      await queryClient.invalidateQueries({ queryKey: ['ugc-campaign', campaignId] })
+      await queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
+      onToast('UGC variation queued again.')
+    },
+    onError: (value) => setError(value instanceof Error ? value.message : 'The UGC variation could not be retried.'),
+  })
+
   const generateAvatar = useMutation({
     mutationFn: () => generateUGCAvatar({
       name: avatarName,
@@ -252,7 +266,7 @@ export function UGCWizardModal({
       locale: customCreatorLocale,
     }),
     onSuccess: (value) => {
-      setCreatorMode('SELECTED'); setAvatarId(value.id); setCustomCreatorOpen(false); setAvatarName(''); setAvatarPrompt('')
+      setCreatorMode('SELECTED'); setAvatarId(value.id); setCustomCreatorOpen(false); setCreatorPickerOpen(false); setAvatarName(''); setAvatarPrompt('')
       void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
     },
     onError: (value) => setError(value instanceof Error ? value.message : 'The creator could not be generated.'),
@@ -274,7 +288,7 @@ export function UGCWizardModal({
         ageBand: customCreatorAgeBand,
         locale: customCreatorLocale,
       })
-      setCreatorMode('SELECTED'); setAvatarId(value.id); setCustomCreatorOpen(false)
+      setCreatorMode('SELECTED'); setAvatarId(value.id); setCustomCreatorOpen(false); setCreatorPickerOpen(false)
       await queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
     } catch (value) { setError(value instanceof Error ? value.message : 'Creator upload failed.') }
   }
@@ -359,7 +373,7 @@ export function UGCWizardModal({
     ].join(' ').toLowerCase()
     return haystack.includes(creatorNeedle)
   })
-  const visibleCreators = showAllCreators || creatorFilterActive ? filteredCreators : filteredCreators.slice(0, 7)
+  const visibleCreators = showAllCreators ? filteredCreators : filteredCreators.slice(0, 12)
   const directions = selectedBrand?.analysis?.ugcDirections?.length ? selectedBrand.analysis.ugcDirections.slice(0, 4) : [
     campaignType === 'PRODUCT_SHOWCASE' ? 'Open with a creator reaction or clear product problem in the first two seconds.' : 'Open with a natural creator-led hook in the first two seconds.',
     campaignType === 'PRODUCT_SHOWCASE' ? 'Use the real product reference in grounded cutaways and avoid invented packaging.' : 'Keep the creator and real environment visually consistent throughout.',
@@ -444,40 +458,23 @@ export function UGCWizardModal({
             </>}
 
             {currentKey === 'avatar' && <>
-              <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><UsersRound className="size-5" /></span><div><h2>Pick a creator.</h2><p>Use Auto for intelligent casting, choose from the full reusable creator library, or add your own persistent creator.</p></div></div>
-              <div className="mt-5 grid gap-2 lg:grid-cols-[minmax(220px,1.3fr)_repeat(4,minmax(0,1fr))]">
-                <label className="ugc-wizard-url-field"><Search className="size-4" /><input onChange={(event) => setCreatorSearch(event.target.value)} placeholder="Search name, niche, accent…" value={creatorSearch} /></label>
-                <select aria-label="Creator niche" className="ugc-wizard-input" onChange={(event) => setCreatorCategory(event.target.value)} value={creatorCategory}><option value="ALL">All niches</option>{creatorCategories.map((value) => <option key={value} value={value}>{value}</option>)}</select>
-                <select aria-label="Creator presentation" className="ugc-wizard-input" onChange={(event) => setCreatorPresentation(event.target.value)} value={creatorPresentation}><option value="ALL">All presentations</option>{creatorPresentations.map((value) => <option key={value} value={value}>{value}</option>)}</select>
-                <select aria-label="Creator age band" className="ugc-wizard-input" onChange={(event) => setCreatorAgeBand(event.target.value)} value={creatorAgeBand}><option value="ALL">All adult ages</option>{creatorAgeBands.map((value) => <option key={value} value={value}>{value}</option>)}</select>
-                <select aria-label="Creator locale" className="ugc-wizard-input" onChange={(event) => setCreatorLocale(event.target.value)} value={creatorLocale}><option value="ALL">All locales</option>{creatorLocales.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+              <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><UsersRound className="size-5" /></span><div><h2>Pick a creator.</h2><p>Keep automatic casting, or open the creator picker only when you want to browse the library.</p></div></div>
+              <div className="ugc-creator-selection-summary mt-7">
+                <button className={`ugc-creator-selection-option ${creatorMode === 'AUTO' ? 'selected' : ''}`} onClick={() => { setCreatorMode('AUTO'); setAvatarId(null) }} type="button">
+                  <span className="ugc-wizard-auto-avatar"><Sparkles className="size-6" /></span>
+                  <div><strong>Choose for me</strong><p>INXSocial casts a compatible creator for this offer and production route.</p></div>
+                  {creatorMode === 'AUTO' && <span className="ugc-wizard-selected-check"><Check className="size-3" /></span>}
+                </button>
+                <button className={`ugc-creator-selection-option ${creatorMode === 'SELECTED' ? 'selected' : ''}`} onClick={() => setCreatorPickerOpen(true)} type="button">
+                  <span className="ugc-creator-selected-placeholder"><UsersRound className="size-6" /></span>
+                  <div><strong>{creatorMode === 'SELECTED' ? selectedAvatar?.name || 'Selected creator' : 'Browse creators'}</strong><p>{creatorMode === 'SELECTED' && selectedAvatar ? `${selectedAvatar.category} · ${selectedAvatar.ageBand} · ${selectedAvatar.accent || selectedAvatar.locale}` : `${allCreators.length || '100+'} reusable creators available in a focused picker.`}</p></div>
+                  <ArrowRight className="size-4" />
+                </button>
               </div>
-              <div className="mt-6 grid gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                {!creatorFilterActive && <button className={`ugc-wizard-avatar-card auto ${creatorMode === 'AUTO' ? 'selected' : ''}`} onClick={() => { setCreatorMode('AUTO'); setAvatarId(null) }} type="button"><span className="ugc-wizard-auto-avatar"><Sparkles className="size-6" /></span><strong>Choose for me</strong><small>Matches niche, audience, creator profile and production route.</small>{creatorMode === 'AUTO' && <span className="ugc-wizard-selected-check"><Check className="size-3" /></span>}</button>}
-                {visibleCreators.map((avatar) => <button className={`ugc-wizard-avatar-card ${creatorMode === 'SELECTED' && avatar.id === avatarId ? 'selected' : ''}`} key={avatar.id} onClick={() => { setCreatorMode('SELECTED'); setAvatarId(avatar.id) }} type="button"><div className="ugc-wizard-avatar-image"><AvatarPortrait avatar={avatar} /></div><strong>{avatar.name}</strong><small>{avatar.category} · {avatar.ageBand}</small><small>{avatar.accent || avatar.locale}{avatar.scope === 'USER' ? ' · Saved' : ''}</small>{creatorMode === 'SELECTED' && avatar.id === avatarId && <span className="ugc-wizard-selected-check"><Check className="size-3" /></span>}</button>)}
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[.02] p-4">
+                <div><strong className="block text-[12px] text-text-primary">Creator library loads on demand</strong><p className="mt-1 text-[10px] leading-4 text-text-muted">Portraits are not loaded while you scroll through the campaign setup. Open the picker only when you need to compare creators.</p></div>
+                <Button onClick={() => setCreatorPickerOpen(true)} size="sm"><UsersRound className="size-3.5" />Browse creators</Button>
               </div>
-              {!visibleCreators.length && <div className="mt-4 rounded-xl border border-white/10 bg-white/[.025] p-4 text-[10px] text-text-muted">No creators match these filters. Clear a filter or search a broader niche.</div>}
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <button className="ugc-wizard-text-button" onClick={() => setShowAllCreators((value) => !value)} type="button">{showAllCreators ? 'Show featured creators' : `View all ${allCreators.length} available creators`}</button>
-                {creatorFilterActive && <button className="ugc-wizard-text-button" onClick={() => { setCreatorSearch(''); setCreatorCategory('ALL'); setCreatorPresentation('ALL'); setCreatorAgeBand('ALL'); setCreatorLocale('ALL') }} type="button">Clear filters</button>}
-                <span className="text-[10px] text-text-soft">{overview.data?.options.creatorProfileVersion || 'Creator V2'} · {allCreators.length} reusable profiles</span>
-                <span className="text-[10px] text-text-soft">or</span>
-                <button className="ugc-wizard-text-button" onClick={() => setCustomCreatorOpen((value) => !value)} type="button"><ImagePlus className="size-3.5" />Create my own</button>
-              </div>
-              {customCreatorOpen && <div className="ugc-wizard-custom-creator mt-5">
-                <div><strong>Custom creator</strong><p>Upload your own portrait for free, or generate one for 5 credits. Both use the same persistent Creator V2 profile and stay in your library.</p></div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                  <input aria-label="Custom creator niche" className="ugc-wizard-input" onChange={(event) => setCustomCreatorCategory(event.target.value)} placeholder="Niche, e.g. Beauty" value={customCreatorCategory} />
-                  <select aria-label="Custom creator presentation" className="ugc-wizard-input" onChange={(event) => setCustomCreatorPresentation(event.target.value)} value={customCreatorPresentation}><option>Woman</option><option>Man</option><option>Non-binary</option></select>
-                  <select aria-label="Custom creator adult age band" className="ugc-wizard-input" onChange={(event) => setCustomCreatorAgeBand(event.target.value)} value={customCreatorAgeBand}><option>18–24</option><option>25–34</option><option>35–44</option><option>45–54</option><option>55+</option></select>
-                  <input aria-label="Custom creator locale" className="ugc-wizard-input" onChange={(event) => setCustomCreatorLocale(event.target.value)} placeholder="Locale, e.g. en-GB" value={customCreatorLocale} />
-                </div>
-                <label className="ugc-wizard-upload mt-3"><Upload className="size-4" />Upload portrait with this profile<input accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => void uploadAvatar(event.target.files?.[0])} type="file" /></label>
-                <div className="ugc-wizard-or"><span />OR<span /></div>
-                <input className="ugc-wizard-input w-full" onChange={(event) => setAvatarName(event.target.value)} placeholder="Creator name" value={avatarName} />
-                <textarea className="ugc-wizard-input mt-2 min-h-20 w-full resize-y" onChange={(event) => setAvatarPrompt(event.target.value)} placeholder="Describe appearance, style and believable setting. Do not request a celebrity or real-person resemblance." value={avatarPrompt} />
-                <Button className="mt-3" disabled={avatarName.trim().length < 2 || avatarPrompt.trim().length < 8 || customCreatorCategory.trim().length < 2 || customCreatorLocale.trim().length < 2 || generateAvatar.isPending} onClick={() => generateAvatar.mutate()}>{generateAvatar.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}Generate creator · 5 credits</Button>
-              </div>}
               <div className="ugc-wizard-footer"><Button onClick={() => moveTo(2)}><ArrowLeft className="size-4" />Back</Button><Button disabled={creatorMode === 'SELECTED' && !avatarId} onClick={() => { void trackUGCStudioEvent({ event: 'CREATOR_SELECTED', stage: 'creator', metadata: { creatorMode, avatarScope: selectedAvatar?.scope || (creatorMode === 'AUTO' ? 'AUTO' : '') } }); moveTo(4) }} variant="primary">Continue <ArrowRight className="size-4" /></Button></div>
             </>}
 
@@ -522,14 +519,14 @@ export function UGCWizardModal({
             </>}
 
             {currentKey === 'finish' && <>
-              <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><Sparkles className="size-5" /></span><div><h2>{terminal.has(campaign.data?.status || '') ? 'Your UGC campaign is ready.' : 'Your UGC campaign is rendering.'}</h2><p>{terminal.has(campaign.data?.status || '') ? 'Your finished videos are being returned to UGC Studio.' : 'Generation keeps running safely in the background.'}</p></div></div>
+              <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><Sparkles className="size-5" /></span><div><h2>{failedAds === campaignAds.length && campaignAds.length ? 'This UGC campaign needs attention.' : failedAds ? 'Some UGC variations need attention.' : campaign.data?.status === 'READY' ? 'Your UGC campaign is ready.' : 'Your UGC campaign is rendering.'}</h2><p>{failedAds ? 'The failed variations can be retried. Ready videos remain available and generation errors are kept separate from successful output.' : campaign.data?.status === 'READY' ? 'Your finished videos are being returned to UGC Studio.' : 'Generation keeps running safely in the background.'}</p></div></div>
               {!terminal.has(campaign.data?.status || '') && <div className="mt-5 rounded-2xl border border-brand-cyan/20 bg-brand-cyan/[.055] p-4"><strong className="block text-sm text-white">You can leave this window at any time.</strong><p className="mt-1 text-[10px] leading-4 text-text-muted">Your UGC keeps rendering in the background. If you stay here, this window will close automatically and take you back to UGC Studio as soon as every video is finished and ready to publish.</p></div>}
               <div className="ugc-wizard-generation mt-7">
-                <div className="flex items-center justify-between gap-3"><div><strong>{campaign.data?.title || 'UGC campaign'}</strong><span>{readyAds} of {campaignAds.length || adCount} ready{failedAds ? ` · ${failedAds} failed` : ''}</span></div><span className="ugc-wizard-status">{progress}%</span></div>
+                <div className="flex items-center justify-between gap-3"><div><strong>{campaign.data?.title || 'UGC campaign'}</strong><span>{readyAds} of {campaignAds.length || adCount} ready{failedAds ? ` · ${failedAds} failed` : ''}</span></div><span className={`ugc-wizard-status ${failedAds ? 'failed' : ''}`}>{failedAds ? 'Needs retry' : `${progress}%`}</span></div>
                 {!terminal.has(campaign.data?.status || '') && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10px]"><strong className="text-brand-cyan">{activeStage}</strong><span className="text-text-muted">{activeDetail}</span></div>}
-                <div className="ugc-wizard-generation-bar"><span style={{ width: `${Math.max(4,progress)}%` }} /></div>
+                <div className={`ugc-wizard-generation-bar ${failedAds ? 'failed' : ''}`}><span style={{ width: `${Math.max(4,progress)}%` }} /></div>
               </div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">{campaignAds.map((ad) => <article className="ugc-wizard-output-card" key={ad.id}><div><span className="ugc-wizard-mini-label">VARIATION {ad.sequence}</span><strong>{ad.title}</strong><p>{ad.hook || ad.angle}</p>{busyStatuses.has(ad.status) && <p className="mt-2 text-[9px] text-brand-cyan">{ad.stageLabel} · {ad.progress}%{ad.stageDetail ? ` · ${ad.stageDetail}` : ''}</p>}</div><div className="flex items-center justify-between gap-2"><span className={`ugc-wizard-output-status ${ad.status.toLowerCase()}`}>{ad.status}</span><Button disabled={busyStatuses.has(ad.status)} onClick={() => { onClose(); navigate(`/ai-content-studio/ugc/${ad.id}/edit`) }} size="sm">Edit</Button></div></article>)}</div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">{campaignAds.map((ad) => <article className="ugc-wizard-output-card" key={ad.id}><div><span className="ugc-wizard-mini-label">VARIATION {ad.sequence}</span><strong>{ad.title}</strong><p>{ad.hook || ad.angle}</p>{busyStatuses.has(ad.status) && <p className="mt-2 text-[9px] text-brand-cyan">{ad.stageLabel} · {ad.progress}%{ad.stageDetail ? ` · ${ad.stageDetail}` : ''}</p>}{ad.status === 'FAILED' && ad.error && <p className="mt-2 text-[9px] leading-4 text-brand-red">{ad.error}</p>}</div><div className="flex items-center justify-between gap-2"><span className={`ugc-wizard-output-status ${ad.status.toLowerCase()}`}>{ad.status}</span><div className="flex items-center gap-2">{ad.status === 'FAILED' && <Button disabled={retryAd.isPending} onClick={() => retryAd.mutate(ad.id)} size="sm" variant="primary">{retryAd.isPending ? <LoaderCircle className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}Retry</Button>}<Button disabled={busyStatuses.has(ad.status)} onClick={() => { onClose(); navigate(`/ai-content-studio/ugc/${ad.id}/edit`) }} size="sm">Edit</Button></div></div></article>)}</div>
               <div className="ugc-wizard-footer"><Button onClick={onBackToHome}><ArrowLeft className="size-4" />Back to UGC Studio</Button><Button disabled={!campaign.data?.ads.some((ad) => ad.qualityControl?.publishable && ad.mediaAssetId && assetsById.has(ad.mediaAssetId))} onClick={scheduleReady} variant="primary"><CalendarRange className="size-4" />Schedule ready ads</Button></div>
             </>}
           </div>
@@ -537,5 +534,43 @@ export function UGCWizardModal({
         </main>
       </div>
     </section>
+    {creatorPickerOpen && <div className="ugc-creator-picker-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreatorPickerOpen(false) }} role="presentation">
+      <section aria-label="Choose a UGC creator" aria-modal="true" className="ugc-creator-picker" role="dialog">
+        <header className="ugc-creator-picker-header"><div><span className="ugc-wizard-mini-label">CREATOR LIBRARY</span><h3>Choose a creator</h3><p>{allCreators.length} reusable creator profiles. Portraits load only while this picker is open.</p></div><button aria-label="Close creator picker" className="ugc-wizard-close" onClick={() => setCreatorPickerOpen(false)} type="button"><X className="size-4" /></button></header>
+        <div className="ugc-creator-picker-body">
+          <div className="ugc-creator-picker-filters">
+            <label className="ugc-wizard-url-field"><Search className="size-4" /><input autoFocus onChange={(event) => setCreatorSearch(event.target.value)} placeholder="Search name, niche, accent…" value={creatorSearch} /></label>
+            <select aria-label="Creator niche" className="ugc-wizard-input" onChange={(event) => setCreatorCategory(event.target.value)} value={creatorCategory}><option value="ALL">All niches</option>{creatorCategories.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+            <select aria-label="Creator presentation" className="ugc-wizard-input" onChange={(event) => setCreatorPresentation(event.target.value)} value={creatorPresentation}><option value="ALL">All presentations</option>{creatorPresentations.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+            <select aria-label="Creator age band" className="ugc-wizard-input" onChange={(event) => setCreatorAgeBand(event.target.value)} value={creatorAgeBand}><option value="ALL">All adult ages</option>{creatorAgeBands.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+            <select aria-label="Creator locale" className="ugc-wizard-input" onChange={(event) => setCreatorLocale(event.target.value)} value={creatorLocale}><option value="ALL">All locales</option>{creatorLocales.map((value) => <option key={value} value={value}>{value}</option>)}</select>
+          </div>
+          <div className="ugc-creator-picker-grid">
+            <button className={`ugc-wizard-avatar-card auto ${creatorMode === 'AUTO' ? 'selected' : ''}`} onClick={() => { setCreatorMode('AUTO'); setAvatarId(null); setCreatorPickerOpen(false) }} type="button"><span className="ugc-wizard-auto-avatar"><Sparkles className="size-6" /></span><strong>Choose for me</strong><small>Automatic casting</small>{creatorMode === 'AUTO' && <span className="ugc-wizard-selected-check"><Check className="size-3" /></span>}</button>
+            {visibleCreators.map((avatar) => <button className={`ugc-wizard-avatar-card ${creatorMode === 'SELECTED' && avatar.id === avatarId ? 'selected' : ''}`} key={avatar.id} onClick={() => { setCreatorMode('SELECTED'); setAvatarId(avatar.id); setCreatorPickerOpen(false) }} type="button"><div className="ugc-wizard-avatar-image"><AvatarPortrait avatar={avatar} /></div><strong>{avatar.name}</strong><small>{avatar.category} · {avatar.ageBand}</small><small>{avatar.accent || avatar.locale}{avatar.scope === 'USER' ? ' · Saved' : ''}</small>{creatorMode === 'SELECTED' && avatar.id === avatarId && <span className="ugc-wizard-selected-check"><Check className="size-3" /></span>}</button>)}
+          </div>
+          {!visibleCreators.length && <div className="mt-4 rounded-xl border border-white/10 bg-white/[.025] p-4 text-[10px] text-text-muted">No creators match these filters. Clear a filter or search more broadly.</div>}
+          <div className="ugc-creator-picker-actions">
+            {filteredCreators.length > 12 && <button className="ugc-wizard-text-button" onClick={() => setShowAllCreators((value) => !value)} type="button">{showAllCreators ? 'Show fewer creators' : `View all ${filteredCreators.length} creators`}</button>}
+            {creatorFilterActive && <button className="ugc-wizard-text-button" onClick={() => { setCreatorSearch(''); setCreatorCategory('ALL'); setCreatorPresentation('ALL'); setCreatorAgeBand('ALL'); setCreatorLocale('ALL') }} type="button">Clear filters</button>}
+            <button className="ugc-wizard-text-button" onClick={() => setCustomCreatorOpen((value) => !value)} type="button"><ImagePlus className="size-3.5" />Create my own</button>
+          </div>
+          {customCreatorOpen && <div className="ugc-wizard-custom-creator mt-5">
+            <div><strong>Custom creator</strong><p>Upload your own portrait for free, or generate one for 5 credits. It stays in your reusable creator library.</p></div>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <input aria-label="Custom creator niche" className="ugc-wizard-input" onChange={(event) => setCustomCreatorCategory(event.target.value)} placeholder="Niche, e.g. Beauty" value={customCreatorCategory} />
+              <select aria-label="Custom creator presentation" className="ugc-wizard-input" onChange={(event) => setCustomCreatorPresentation(event.target.value)} value={customCreatorPresentation}><option>Woman</option><option>Man</option><option>Non-binary</option></select>
+              <select aria-label="Custom creator adult age band" className="ugc-wizard-input" onChange={(event) => setCustomCreatorAgeBand(event.target.value)} value={customCreatorAgeBand}><option>18–24</option><option>25–34</option><option>35–44</option><option>45–54</option><option>55+</option></select>
+              <input aria-label="Custom creator locale" className="ugc-wizard-input" onChange={(event) => setCustomCreatorLocale(event.target.value)} placeholder="Locale, e.g. en-GB" value={customCreatorLocale} />
+            </div>
+            <label className="ugc-wizard-upload mt-3"><Upload className="size-4" />Upload portrait with this profile<input accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => void uploadAvatar(event.target.files?.[0])} type="file" /></label>
+            <div className="ugc-wizard-or"><span />OR<span /></div>
+            <input className="ugc-wizard-input w-full" onChange={(event) => setAvatarName(event.target.value)} placeholder="Creator name" value={avatarName} />
+            <textarea className="ugc-wizard-input mt-2 min-h-20 w-full resize-y" onChange={(event) => setAvatarPrompt(event.target.value)} placeholder="Describe appearance, style and believable setting. Do not request a celebrity or real-person resemblance." value={avatarPrompt} />
+            <Button className="mt-3" disabled={avatarName.trim().length < 2 || avatarPrompt.trim().length < 8 || customCreatorCategory.trim().length < 2 || customCreatorLocale.trim().length < 2 || generateAvatar.isPending} onClick={() => generateAvatar.mutate()}>{generateAvatar.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}Generate creator · 5 credits</Button>
+          </div>}
+        </div>
+      </section>
+    </div>}
   </div>, document.body)
 }
