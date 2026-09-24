@@ -73,6 +73,7 @@ export function UGCAgentHero({
   const [thinking, setThinking] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [startedCampaignId, setStartedCampaignId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
 
@@ -129,24 +130,25 @@ export function UGCAgentHero({
   }
 
   async function generate() {
-    if (!result?.readyToGenerate || !result.estimate || generating) return
+    if (!result?.readyToGenerate || !result.estimate || generating || startedCampaignId) return
     if (!result.estimate.affordability.affordable) {
       onToast(`This setup needs ${result.estimate.credits} credits. Adjust the plan or add credits first.`)
       return
     }
     setGenerating(true)
     try {
-      const productAssetIds = [...new Set([...(result.plan.productAssetIds || []), ...assets.map((asset) => asset.id)])].slice(0, 8)
+      const productAssetIds = assets.map((asset) => asset.id).slice(0, 8)
       const campaign = await createUGCCampaign({
         ...result.plan,
         productAssetIds,
-        avatarId: selectedAvatarId || result.plan.avatarId || null,
-        creatorMode: selectedAvatarId ? 'SELECTED' : result.plan.creatorMode,
+        avatarId: selectedAvatarId || null,
+        creatorMode: selectedAvatarId ? 'SELECTED' : 'AUTO',
       })
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] }),
         queryClient.invalidateQueries({ queryKey: ['ai-studio-access'] }),
       ])
+      setStartedCampaignId(campaign.id)
       setMessages((current) => [...current, { role: 'assistant', content: 'Your UGC campaign is now rendering. You can keep working in the Studio while it finishes.' }])
       onCampaignCreated(campaign)
       onToast(campaign.adCount === 1 ? 'Your UGC ad is rendering.' : `${campaign.adCount} UGC ads are rendering.`)
@@ -237,8 +239,8 @@ export function UGCAgentHero({
         </div>
         <div className="ugc-agent-plan-actions">
           <button className="ugc-agent-adjust" onClick={() => onManualSetup(plan)} type="button">Adjust details</button>
-          <Button disabled={!result.estimate.affordability.affordable || generating} onClick={() => void generate()} variant="primary">
-            {generating ? <LoaderCircle className="size-4 animate-spin" /> : <SendHorizontal className="size-4" />}Generate
+          <Button disabled={!result.estimate.affordability.affordable || generating || Boolean(startedCampaignId)} onClick={() => void generate()} variant="primary">
+            {generating ? <LoaderCircle className="size-4 animate-spin" /> : startedCampaignId ? <CheckCircle2 className="size-4" /> : <SendHorizontal className="size-4" />}{startedCampaignId ? 'Rendering' : 'Generate'}
           </Button>
         </div>
       </div>}
