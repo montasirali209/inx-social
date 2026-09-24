@@ -1,0 +1,253 @@
+const crypto = require('node:crypto');
+const registry = require('./ugcEngineRegistry');
+
+const QC_CHECKS = Object.freeze([
+  'IDENTITY_CONSISTENCY',
+  'VOICE_CONSISTENCY',
+  'SCRIPT_COMPLETION',
+  'DURATION_EXACTNESS',
+  'PRODUCT_FIDELITY',
+  'ANATOMY_AND_HANDS',
+  'LIP_SYNC',
+  'AUDIO_LEVELS',
+  'CAPTION_TIMING'
+]);
+
+function clean(value, max = 4000) {
+  return String(value || '').replace(/\u0000/g, '').trim().slice(0, max);
+}
+
+function playbackDurations(totalDuration, providerDurations) {
+  let remaining = Math.max(0, Number(totalDuration) || 0);
+  return providerDurations.map(value => {
+    const providerDuration = Math.max(0, Number(value) || 0);
+    const usable = Math.max(0, Math.min(providerDuration, remaining));
+    remaining = Math.max(0, remaining - usable);
+    return usable;
+  });
+}
+
+function stable(value) {
+  if (Array.isArray(value)) return value.map(stable);
+  if (!value || typeof value !== 'object') return value;
+  return Object.keys(value).sort().reduce((out, key) => {
+    out[key] = stable(value[key]);
+    return out;
+  }, {});
+}
+
+function fingerprint(value) {
+  return crypto.createHash('sha256').update(JSON.stringify(stable(value))).digest('hex');
+}
+
+function actorSnapshot(avatar) {
+  if (!avatar) return null;
+  return {
+    id: avatar.id || null,
+    scope: avatar.scope || null,
+    name: clean(avatar.name, 180),
+    category: clean(avatar.category, 100),
+    presentation: clean(avatar.presentation, 80),
+    ageBand: clean(avatar.ageBand, 80),
+    locale: clean(avatar.locale, 30),
+    voice: clean(avatar.voice, 100),
+    referenceVersion: Number(avatar.referenceVersion || 0),
+    environment: clean(avatar.environment, 600)
+  };
+}
+
+function buildEngineProject({
+  userId,
+  campaignId,
+  input,
+  brand,
+  productAssetIds = [],
+  availableAvatars = [],
+  plan,
+  resolvedType,
+  perAdCredits,
+  totalCredits
+}) {
+  if (!campaignId || !userId) throw new Error('UGC engine project requires campaign and user identifiers.');
+  if (!plan || !Array.isArray(plan.ads) || !plan.ads.length) throw new Error('UGC engine project requires a production plan.');
+
+  const targetDuration = Number(input.duration);
+  const ads = plan.ads.map((ad, adIndex) => {
+    const avatar = availableAvatars[Number(ad.avatarIndex || adIndex) % Math.max(1, availableAvatars.length)] || availableAvatars[0] || null;
+    const providerDurations = (ad.scenes || []).map(scene => Number(scene.duration));
+    const finalDurations = playbackDurations(targetDuration, providerDurations);
+    const scenes = (ad.scenes || []).map((scene, sceneIndex) => {
+      const route = registry.describeSceneRoute({
+        quality: input.quality,
+        kind: scene.kind,
+        providerDuration: providerDurations[sceneIndex],
+        playbackDuration: finalDurations[sceneIndex]
+      });
+      return {
+        sequence: sceneIndex + 1,
+        purpose: clean(scene.kind || 'CREATOR', 40).toUpperCase(),
+        kind: clean(scene.kind || 'CREATOR', 40).toUpperCase(),
+        providerDuration: providerDurations[sceneIndex],
+        playbackDuration: finalDurations[sceneIndex],
+        script: clean(scene.script, 4000),
+        prompt: clean(scene.prompt, 5000),
+        actorId: avatar?.id || null,
+        productAssetIds: [...productAssetIds],
+        route
+      };
+    });
+
+    return {
+      sequence: adIndex + 1,
+      title: clean(ad.title, 180),
+      angle: clean(ad.angle, 240),
+      hook: clean(ad.hook, 500),
+      script: clean(ad.script, 12000),
+      cta: clean(ad.cta, 500),
+      caption: clean(ad.caption || ad.script, 10000),
+      actor: actorSnapshot(avatar),
+      targetDuration,
+      scenes
+    };
+  });
+
+  const routeEntries = ads.flatMap(ad => ad.scenes.map(scene => ({
+    adSequence: ad.sequence,
+    sceneSequence: scene.sequence,
+    kind: scene.kind,
+    routeKey: scene.route.routeKey,
+    provider: scene.route.provider,
+    videoModel: scene.route.videoModel,
+    narratorModel: scene.route.narrator?.model || null,
+    lipSyncModel: scene.route.lipSync?.model || null,
+    audioStrategy: scene.route.audioStrategy,
+    resolution: scene.route.resolution,
+    aspectRatio: scene.route.aspectRatio,
+    providerDuration: scene.route.providerDuration,
+    playbackDuration: scene.route.playbackDuration
+  })));
+
+  const project = {
+    engineVersion: registry.ENGINE_VERSION,
+    contractVersion: registry.CONTRACT_VERSION,
+    campaignId,
+    userId,
+    status: 'PLANNED',
+    brief: {
+      sourceType: clean(input.sourceType || (productAssetIds.length ? 'PRODUCT' : input.productUrl ? 'WEBSITE' : 'BRIEF'), 30).toUpperCase(),
+      requestedCampaignType: clean(input.campaignType || 'AUTO', 40).toUpperCase(),
+      resolvedCampaignType: clean(resolvedType, 40).toUpperCase(),
+      brandProfileId: brand?.id || input.brandProfileId || null,
+      brandName: clean(brand?.name, 180),
+      productName: clean(brand?.productName, 220),
+      productUrl: clean(brand?.websiteUrl || input.productUrl, 2000),
+      productDescription: clean(input.productDescription || brand?.summary, 4000),
+      notes: clean(input.notes, 1200),
+      productAssetIds: [...productAssetIds],
+      targetDuration,
+      variationCount: Number(input.adCount),
+      quality: clean(input.quality || 'STANDARD', 30).toUpperCase()
+    },
+    actor: {
+      mode: clean(input.creatorMode || 'AUTO', 30).toUpperCase(),
+      selectedAvatarId: input.avatarId || null,
+      assignedActors: ads.map(ad => ({ adSequence: ad.sequence, actor: ad.actor }))
+    },
+    productionPlan: {
+      title: clean(plan.title, 180),
+      campaignType: clean(resolvedType, 40).toUpperCase(),
+      targetDuration,
+      variationCount: Number(input.adCount),
+      ads
+    },
+    routeDecision: {
+      policy: 'LEGACY_COMPATIBILITY_V1',
+      registry: registry.registrySnapshot(),
+      scenes: routeEntries
+    },
+    pricing: {
+      currency: 'AI_CREDITS',
+      retailCreditsPerAd: Number(perAdCredits),
+      retailCreditsTotal: Number(totalCredits),
+      variationCount: Number(input.adCount),
+      targetDuration,
+      quality: clean(input.quality || 'STANDARD', 30).toUpperCase(),
+      pricingPolicy: 'UGC_FIXED_V1'
+    },
+    renderJobs: ads.map(ad => ({
+      adSequence: ad.sequence,
+      adId: null,
+      generationId: null,
+      status: 'PLANNED',
+      phases: ['RESERVE_CREDITS', 'TTS', 'VIDEO', 'LIP_SYNC_OR_MUX', 'ASSEMBLY', 'MEDIA_LIBRARY']
+    })),
+    qc: {
+      status: 'NOT_RUN',
+      requiredChecks: [...QC_CHECKS],
+      results: []
+    }
+  };
+
+  project.fingerprint = fingerprint({
+    engineVersion: project.engineVersion,
+    contractVersion: project.contractVersion,
+    brief: project.brief,
+    actor: project.actor,
+    productionPlan: project.productionPlan,
+    routeDecision: project.routeDecision,
+    pricing: project.pricing
+  });
+
+  validateEngineProject(project);
+  return project;
+}
+
+function validateEngineProject(project) {
+  const errors = [];
+  if (!project || typeof project !== 'object') errors.push('project_missing');
+  if (project?.engineVersion !== registry.ENGINE_VERSION) errors.push('engine_version');
+  if (project?.contractVersion !== registry.CONTRACT_VERSION) errors.push('contract_version');
+  if (!project?.campaignId) errors.push('campaign_id');
+  if (!project?.userId) errors.push('user_id');
+
+  const targetDuration = Number(project?.productionPlan?.targetDuration || 0);
+  const ads = project?.productionPlan?.ads;
+  if (!Array.isArray(ads) || !ads.length) errors.push('ads_missing');
+  if (Array.isArray(ads)) {
+    ads.forEach((ad, adIndex) => {
+      if (Number(ad.sequence) !== adIndex + 1) errors.push('ad_sequence_' + (adIndex + 1));
+      if (!Array.isArray(ad.scenes) || !ad.scenes.length) {
+        errors.push('scenes_missing_' + (adIndex + 1));
+        return;
+      }
+      const playback = ad.scenes.reduce((sum, scene) => sum + Number(scene.playbackDuration || 0), 0);
+      if (Math.abs(playback - targetDuration) > 0.001) errors.push('playback_duration_' + (adIndex + 1));
+      ad.scenes.forEach((scene, sceneIndex) => {
+        if (Number(scene.sequence) !== sceneIndex + 1) errors.push('scene_sequence_' + (adIndex + 1) + '_' + (sceneIndex + 1));
+        if (!(Number(scene.providerDuration) > 0)) errors.push('provider_duration_' + (adIndex + 1) + '_' + (sceneIndex + 1));
+        if (Number(scene.playbackDuration) > Number(scene.providerDuration)) errors.push('playback_exceeds_provider_' + (adIndex + 1) + '_' + (sceneIndex + 1));
+        if (!scene.route?.routeKey || !scene.route?.videoModel) errors.push('route_missing_' + (adIndex + 1) + '_' + (sceneIndex + 1));
+      });
+    });
+  }
+
+  const expectedTotal = Number(project?.pricing?.retailCreditsPerAd || 0) * Number(project?.pricing?.variationCount || 0);
+  if (expectedTotal !== Number(project?.pricing?.retailCreditsTotal || 0)) errors.push('pricing_total');
+
+  if (errors.length) {
+    const error = new Error('Invalid UGC engine project: ' + errors.join(', '));
+    error.code = 'UGC_ENGINE_CONTRACT_INVALID';
+    error.validationErrors = errors;
+    throw error;
+  }
+  return true;
+}
+
+module.exports = {
+  QC_CHECKS,
+  playbackDurations,
+  actorSnapshot,
+  buildEngineProject,
+  validateEngineProject,
+  fingerprint
+};
