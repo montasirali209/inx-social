@@ -208,7 +208,6 @@ function publicProfile(row = {}) {
     environments: profile.environments,
     wardrobe: profile.wardrobe,
     gestures: profile.gestures,
-    routeCompatibility: profile.routeCompatibility,
     energy: profile.energy
   };
 }
