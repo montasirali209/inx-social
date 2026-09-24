@@ -838,11 +838,14 @@ export function BulkSchedulerPage() {
       resultId: null,
       errorMessage: null,
       scheduledAt: publishingTimes[action.mediaIndex],
+      clientRequestId: `bulk-${crypto.randomUUID()}`,
+      caption: captionBlocks[action.mediaIndex] || captionBlocks.at(-1) || '',
     }))
     setResults(initialResults)
     setProgress({ state: 'preparing', percent: 1, current: 0, total: actions.length, completed: 0, failed: 0, message: 'Preparing publishing provider publishing records…' })
     let completed = 0
     let failed = 0
+    let checking = 0
 
     for (let index = 0; index < actions.length; index += 1) {
       const action = actions[index]
@@ -853,7 +856,7 @@ export function BulkSchedulerPage() {
         setProgress({ state: 'preparing', percent: (index / actions.length) * 100, current: index + 1, total: actions.length, completed, failed, message: `Preparing ${action.item.file.name}…` })
         const prepared = await createBulkMediaPost({
           connectedPageIds: destinationIds,
-          clientRequestId: `bulk-${crypto.randomUUID()}`,
+          clientRequestId: initialResults[index].clientRequestId!,
           title: titleFromFile(action.item.file),
           caption,
           contentType: action.item.kind === 'image' ? 'IMAGE' : 'VIDEO',
@@ -911,8 +914,17 @@ export function BulkSchedulerPage() {
           setResults((current) => current.map((result) => result.id === resultId ? { ...result, status: 'blocked', errorMessage: 'Stopped safely before the upload completed.' } : result))
           break
         }
-        failed += 1
-        setResults((current) => current.map((result) => result.id === resultId ? { ...result, status: 'failed', errorMessage: error instanceof Error ? error.message : 'Upload failed.' } : result))
+        if (isLikelyTransportFailure(error)) {
+          checking += 1
+          setResults((current) => current.map((result) => result.id === resultId ? {
+            ...result,
+            status: 'checking',
+            errorMessage: 'The mobile connection paused before the browser received the result. INXSocial is checking the server before allowing a duplicate retry.',
+          } : result))
+        } else {
+          failed += 1
+          setResults((current) => current.map((result) => result.id === resultId ? { ...result, status: 'failed', errorMessage: error instanceof Error ? error.message : 'Upload failed.' } : result))
+        }
       }
     }
 
@@ -921,12 +933,14 @@ export function BulkSchedulerPage() {
     setProgress({
       state: stopped ? 'stopped' : failed === actions.length ? 'failed' : 'completed',
       percent: stopped ? ((completed + failed) / actions.length) * 100 : 100,
-      current: completed + failed,
+      current: completed + failed + checking,
       total: actions.length,
       completed,
       failed,
       message: stopped
         ? 'Upload stopped. Unstarted posts were blocked safely.'
+        : checking
+          ? `${checking} post${checking === 1 ? '' : 's'} are being checked against the server after the mobile connection paused. Confirmed results will update automatically.`
         : failed
           ? `Batch finished with ${failed} failed post${failed === 1 ? '' : 's'}.`
           : timingMode === 'publish_now'
