@@ -460,7 +460,7 @@ async function regenerateFeaturedAvatarReference(row) {
   const oldKey = row.referenceStorageKey;
   const oldProvider = row.referenceStorageProvider;
   await prisma.$executeRawUnsafe(
-    'UPDATE "UGCAvatar" SET "referenceStorageProvider"=$2,"referenceStorageKey"=$3,"referenceMimeType"=\'image/png\',"referenceVersion"=$4,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+    'UPDATE "UGCAvatar" SET "referenceStorageProvider"=$2,"referenceStorageKey"=$3,"referenceMimeType"=\'image/png\',"referenceVersion"=$4,"referenceQualityStatus"=\'READY\',"referenceQualityScore"=100,"referenceReviewedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
     row.id, stored.storageProvider, stored.storageKey, FEATURED_REFERENCE_VERSION
   );
   if (oldKey && oldKey !== stored.storageKey) await objectStorage.deleteObject(oldKey, oldProvider || null).catch(() => {});
@@ -468,10 +468,16 @@ async function regenerateFeaturedAvatarReference(row) {
 }
 
 async function ensureAvatarReference(userId, row) {
-  if (row.referenceStorageKey) {
+  const qualityStatus = clean(row.referenceQualityStatus, 40).toUpperCase();
+  if (row.referenceStorageKey && qualityStatus !== 'WEAK') {
     const data = await objectStorage.getBuffer(row.referenceStorageKey, null, row.referenceStorageProvider || null);
     return { ...row, data, dataUri: 'data:' + (row.referenceMimeType || 'image/png') + ';base64,' + data.toString('base64') };
   }
+
+  if (row.referenceStorageKey && qualityStatus === 'WEAK' && row.scope === 'SYSTEM' && row.featured) {
+    return regenerateFeaturedAvatarReference(row);
+  }
+
   const generated = await runware.generateImages([row.prompt], { aspectRatio: '9:16', model: env.runware.imageModel });
   const remote = await download(generated.images[0].url, 12 * 1024 * 1024);
   const normalized = await sharp(remote.data).rotate().resize({ width: 720, height: 1280, fit: 'cover' }).png().toBuffer();
@@ -479,11 +485,23 @@ async function ensureAvatarReference(userId, row) {
     userId: row.scope === 'SYSTEM' ? 'system-ugc' : userId,
     data: normalized, mimeType: 'image/png', originalName: 'ugc-avatar-' + row.id + '.png', prefix: 'ugc-avatar'
   });
+  const oldKey = row.referenceStorageKey || null;
+  const oldProvider = row.referenceStorageProvider || null;
   await prisma.$executeRawUnsafe(
-    'UPDATE "UGCAvatar" SET "referenceStorageProvider"=$2,"referenceStorageKey"=$3,"referenceMimeType"=\'image/png\',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+    'UPDATE "UGCAvatar" SET "referenceStorageProvider"=$2,"referenceStorageKey"=$3,"referenceMimeType"=\'image/png\',"referenceQualityStatus"=\'READY\',"referenceQualityScore"=100,"referenceReviewedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
     row.id, stored.storageProvider, stored.storageKey
   );
-  return { ...row, referenceStorageProvider: stored.storageProvider, referenceStorageKey: stored.storageKey, referenceMimeType: 'image/png', data: normalized, dataUri: 'data:image/png;base64,' + normalized.toString('base64') };
+  if (oldKey && oldKey !== stored.storageKey) await objectStorage.deleteObject(oldKey, oldProvider).catch(() => {});
+  return {
+    ...row,
+    referenceStorageProvider: stored.storageProvider,
+    referenceStorageKey: stored.storageKey,
+    referenceMimeType: 'image/png',
+    referenceQualityStatus: 'READY',
+    referenceQualityScore: 100,
+    data: normalized,
+    dataUri: 'data:image/png;base64,' + normalized.toString('base64')
+  };
 }
 
 async function analyzeBrand(userId, input) {
@@ -953,20 +971,24 @@ async function generateCustomAvatar(userId, input) {
   await credits.getBalance(userId);
   const generationId = await createAvatarGeneration(userId, input.prompt);
   try {
-    const prompt = 'Ultra-realistic reusable UGC creator portrait. ' + clean(input.prompt, 1000) + '. Vertical 9:16, waist-up, natural smartphone-camera realism, realistic skin, natural lighting, simple background, no text, no logo, no watermark.';
+    const prompt = 'Ultra-realistic reusable UGC creator portrait. ' + clean(input.prompt, 1000) + '. Adult creator. Vertical 9:16, waist-up, natural smartphone-camera realism, realistic skin, natural lighting, simple background, no text, no logo, no watermark.';
     const generated = await runware.generateImages([prompt], { aspectRatio: '9:16', model: env.runware.imageModel });
     const remote = await download(generated.images[0].url, 12 * 1024 * 1024);
     const data = await sharp(remote.data).rotate().resize({ width: 720, height: 1280, fit: 'cover' }).png().toBuffer();
     const avatarId = id();
     const stored = await objectStorage.persistBuffer({ userId, data, mimeType: 'image/png', originalName: 'ugc-avatar-' + avatarId + '.png', prefix: 'ugc-avatar' });
+    const profile = ugcCreators.buildProfile({ category: input.category, locale: input.locale });
+    const storage = ugcCreators.storageFields(profile);
     await prisma.$executeRawUnsafe(
-      'INSERT INTO "UGCAvatar" ("id","userId","scope","name","category","locale","voice","voicePrompt","prompt","referenceStorageProvider","referenceStorageKey","referenceMimeType","status","createdAt","updatedAt") VALUES ($1,$2,\'USER\',$3,$4,$5,$6,$7,$8,$9,$10,\'image/png\',\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+      'INSERT INTO "UGCAvatar" ("id","userId","scope","name","category","locale","voice","voicePrompt","prompt","creatorVersion","accent","languagesJson","nichesJson","environmentTagsJson","wardrobeJson","gestureJson","routeCompatibilityJson","castingProfileJson","referenceStorageProvider","referenceStorageKey","referenceMimeType","referenceQualityStatus","referenceQualityScore","referenceReviewedAt","status","createdAt","updatedAt") VALUES ($1,$2,\'USER\',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,\'image/png\',\'READY\',100,CURRENT_TIMESTAMP,\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
       avatarId, userId, input.name, input.category, input.locale, input.voice,
-      'Natural, conversational UGC delivery matched to the creator and script.', prompt, stored.storageProvider, stored.storageKey
+      'Natural, conversational UGC delivery matched to the creator and script.', prompt,
+      storage.creatorVersion, storage.accent, storage.languagesJson, storage.nichesJson, storage.environmentTagsJson,
+      storage.wardrobeJson, storage.gestureJson, storage.routeCompatibilityJson, storage.castingProfileJson,
+      stored.storageProvider, stored.storageKey
     );
     await credits.complete(userId, generationId, AVATAR_CREDITS);
-    const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCAvatar" WHERE "id"=$1 LIMIT 1', avatarId);
-    return publicAvatar(rows[0]);
+    return publicAvatar(await getAvatarRow(userId, avatarId));
   } catch (error) {
     await credits.refund(userId, generationId, error.code || 'ugc_avatar_failed').catch(() => false);
     throw error;
@@ -979,14 +1001,18 @@ async function uploadCustomAvatar(userId, input) {
   const data = await sharp(input.data).rotate().resize({ width: 720, height: 1280, fit: 'cover' }).png().toBuffer();
   const avatarId = id();
   const stored = await objectStorage.persistBuffer({ userId, data, mimeType: 'image/png', originalName: 'ugc-avatar-' + avatarId + '.png', prefix: 'ugc-avatar' });
+  const profile = ugcCreators.buildProfile({ category: 'Custom', locale: 'en-GB' });
+  const storage = ugcCreators.storageFields(profile);
   await prisma.$executeRawUnsafe(
-    'INSERT INTO "UGCAvatar" ("id","userId","scope","name","category","locale","voice","voicePrompt","prompt","referenceStorageProvider","referenceStorageKey","referenceMimeType","status","createdAt","updatedAt") VALUES ($1,$2,\'USER\',$3,\'Custom\',\'en-GB\',\'Pippa\',$4,$5,$6,$7,\'image/png\',\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+    'INSERT INTO "UGCAvatar" ("id","userId","scope","name","category","locale","voice","voicePrompt","prompt","creatorVersion","accent","languagesJson","nichesJson","environmentTagsJson","wardrobeJson","gestureJson","routeCompatibilityJson","castingProfileJson","referenceStorageProvider","referenceStorageKey","referenceMimeType","referenceQualityStatus","referenceQualityScore","referenceReviewedAt","status","createdAt","updatedAt") VALUES ($1,$2,\'USER\',$3,\'Custom\',\'en-GB\',\'Pippa\',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,\'image/png\',\'READY\',100,CURRENT_TIMESTAMP,\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
     avatarId, userId, clean(input.name.replace(/\.[^.]+$/, ''), 80) || 'Custom creator',
     'Natural, conversational UGC delivery matched to the creator and script.',
-    'Customer-supplied creator reference. Preserve identity, clothing and recognizable appearance.', stored.storageProvider, stored.storageKey
+    'Customer-supplied creator reference. Preserve identity, clothing and recognizable appearance.',
+    storage.creatorVersion, storage.accent, storage.languagesJson, storage.nichesJson, storage.environmentTagsJson,
+    storage.wardrobeJson, storage.gestureJson, storage.routeCompatibilityJson, storage.castingProfileJson,
+    stored.storageProvider, stored.storageKey
   );
-  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCAvatar" WHERE "id"=$1 LIMIT 1', avatarId);
-  return publicAvatar(rows[0]);
+  return publicAvatar(await getAvatarRow(userId, avatarId));
 }
 
 async function deleteCustomAvatar(userId, avatarId) {
