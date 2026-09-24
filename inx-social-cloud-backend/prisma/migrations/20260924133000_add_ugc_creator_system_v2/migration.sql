@@ -8,7 +8,7 @@ ALTER TABLE "UGCAvatar"
   ADD COLUMN IF NOT EXISTS "gestureJson" TEXT NOT NULL DEFAULT '[]',
   ADD COLUMN IF NOT EXISTS "routeCompatibilityJson" TEXT NOT NULL DEFAULT '[]',
   ADD COLUMN IF NOT EXISTS "castingProfileJson" TEXT NOT NULL DEFAULT '{}',
-  ADD COLUMN IF NOT EXISTS "referenceQualityStatus" TEXT NOT NULL DEFAULT 'UNASSESSED',
+  ADD COLUMN IF NOT EXISTS "referenceQualityStatus" TEXT NOT NULL DEFAULT 'PENDING',
   ADD COLUMN IF NOT EXISTS "referenceQualityScore" INTEGER NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS "referenceReviewedAt" TIMESTAMP(3);
 
@@ -16,7 +16,7 @@ UPDATE "UGCAvatar"
 SET "referenceQualityStatus" = CASE WHEN "referenceStorageKey" IS NULL THEN 'PENDING' ELSE 'READY' END,
     "referenceQualityScore" = CASE WHEN "referenceStorageKey" IS NULL THEN 0 ELSE 100 END,
     "referenceReviewedAt" = CASE WHEN "referenceStorageKey" IS NULL THEN NULL ELSE CURRENT_TIMESTAMP END
-WHERE "referenceQualityStatus" = 'UNASSESSED';
+WHERE "referenceQualityStatus" = 'PENDING';
 
 CREATE TABLE IF NOT EXISTS "UGCAvatarReference" (
   "id" TEXT NOT NULL,
