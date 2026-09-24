@@ -70,6 +70,8 @@ test('Phase 4 deterministic casting uses Creator V2 profile scoring and producti
   assert.match(skills, /const creators = require\('\.\/ugcCreatorEngine'\)/);
   assert.match(skills, /creators\.scoreCreator/);
   assert.match(skills, /quality: input\.quality/);
+  assert.match(skills, /routeCompatible/);
+  assert.match(skills, /CREATOR_ROUTE_COMPATIBILITY/);
   assert.match(skills, /creatorVersion: creators\.CREATOR_PROFILE_VERSION/);
 });
 
