@@ -35,7 +35,12 @@ test('Phase 4 custom creators use the same Creator V2 storage schema and persist
   assert.match(generated, /"creatorVersion"/);
   assert.match(generated, /"referenceQualityStatus"/);
   assert.match(uploaded, /ugcCreators\.buildProfile/);
+  assert.match(uploaded, /"presentation"/);
+  assert.match(uploaded, /"ageBand"/);
   assert.match(uploaded, /"routeCompatibilityJson"/);
+  const controller = read('src/controllers/ugcStudioController.js');
+  assert.match(controller, /x-creator-presentation/);
+  assert.match(controller, /x-creator-age-band/);
 });
 
 test('Phase 4 master references are reused and weak references follow repair-once behavior', () => {
@@ -85,6 +90,19 @@ test('Phase 4 Studio can search and filter the actual full creator library', () 
   assert.match(wizard, /creatorAgeBand/);
   assert.match(wizard, /creatorLocale/);
   assert.match(wizard, /View all \$\{allCreators\.length\} available creators/);
+});
+
+test('Phase 4 keeps provider/model routing capabilities internal to the creator engine', () => {
+  const studio = read('src/services/ugcStudioService.js');
+  const creatorEngine = read('src/services/ugcCreatorEngine.js');
+  const publicStart = studio.indexOf('function publicAvatar(row)');
+  const publicEnd = studio.indexOf('function publicBrand', publicStart);
+  const publicBlock = studio.slice(publicStart, publicEnd);
+  assert.doesNotMatch(publicBlock, /routeCompatibility:/);
+  const publicProfileStart = creatorEngine.indexOf('function publicProfile');
+  const publicProfileEnd = creatorEngine.indexOf('function actorSnapshot', publicProfileStart);
+  assert.doesNotMatch(creatorEngine.slice(publicProfileStart, publicProfileEnd), /routeCompatibility:/);
+  assert.match(creatorEngine, /routeCompatibility: profile\.routeCompatibility/);
 });
 
 test('Phase 4 does not change UGC fixed retail credit tables or Phase 3 router policy', () => {
