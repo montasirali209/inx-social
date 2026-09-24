@@ -246,15 +246,30 @@ function scriptTimingSpec(duration) {
 function scriptTimingSkill({ script, duration, cta = '' }) {
   const spec = scriptTimingSpec(duration);
   const original = clean(script, 12000);
-  const normalized = trimScriptAtSentenceBoundary(original, spec.hardMax);
+  const normalizedCta = clean(cta, 500);
+  let normalized = trimScriptAtSentenceBoundary(original, spec.hardMax);
+
+  if (normalizedCta && !normalized.toLowerCase().includes(normalizedCta.toLowerCase())) {
+    const ctaWords = wordCount(normalizedCta);
+    const currentWords = wordCount(normalized);
+    if (currentWords + ctaWords <= spec.hardMax) {
+      normalized = clean(normalized + ' ' + normalizedCta, 12000);
+    } else if (ctaWords < spec.hardMax) {
+      const bodyBudget = Math.max(1, spec.hardMax - ctaWords);
+      normalized = clean(trimScriptAtSentenceBoundary(original, bodyBudget) + ' ' + normalizedCta, 12000);
+    }
+  }
+
+  const finalCount = wordCount(normalized);
   return {
     ...spec,
     originalWordCount: wordCount(original),
-    finalWordCount: wordCount(normalized),
-    withinTarget: wordCount(normalized) >= spec.targetMin && wordCount(normalized) <= spec.targetMax,
+    finalWordCount: finalCount,
+    withinTarget: finalCount >= spec.targetMin && finalCount <= spec.targetMax,
     wasTrimmed: normalized !== original,
     script: normalized,
-    cta: clean(cta, 500)
+    cta: normalizedCta,
+    spokenCtaIncluded: !normalizedCta || normalized.toLowerCase().includes(normalizedCta.toLowerCase())
   };
 }
 
