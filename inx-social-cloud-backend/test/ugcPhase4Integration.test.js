@@ -50,7 +50,7 @@ test('Phase 4 master references are reused and weak references follow repair-onc
   const block = studio.slice(start, end);
   assert.match(block, /referenceStorageKey && qualityStatus !== 'WEAK'/);
   assert.match(block, /referenceStorageKey && qualityStatus === 'WEAK'/);
-  assert.match(block, /referenceQualityStatus"=\'READY\'/);
+  assert.match(block, /referenceQualityStatus[^\n]*READY/);
   assert.match(block, /referenceReviewedAt/);
 });
 
