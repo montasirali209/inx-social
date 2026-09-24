@@ -506,6 +506,20 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
   const allFeed = profile.platform === 'x'
     ? providerFeed.filter(post => belongsToXAccount(profile, post))
     : providerFeed;
+  if (profile.platform === 'x' && providerFeed.length > allFeed.length) {
+    const handle = String(profile.username || '').replace(/^@/, '').toLowerCase();
+    console.warn('[analytics-feed] X posts excluded without account ownership', {
+      profileId: profile.id,
+      providerPosts: providerFeed.length,
+      ownedPosts: allFeed.length,
+      connectedHandlePresent: Boolean(handle),
+      postsWithStatusUrl: providerFeed.filter(post => /(?:x|twitter)\.com\/[^/]+\/status\/\d+/i.test(String(post.platform_url || ''))).length,
+      postsWithMatchingHandleUrl: providerFeed.filter(post => {
+        try { return new URL(String(post.platform_url || '')).pathname.split('/')[1]?.toLowerCase() === handle; } catch (_) { return false; }
+      }).length,
+      repostCaptions: providerFeed.filter(post => /^\s*RT\s+@/i.test(String(post.caption || ''))).length
+    });
+  }
   if (profile.platform === 'facebook' && !allFeed.length) {
     try {
       const recovered = await facebookPageFallback(userId, profile, days);
@@ -575,7 +589,9 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
     : unavailable(
         allFeed.length
           ? 'Connected content is available, but performance metrics have not been returned for this connection yet. INXSocial will retry automatically; older Facebook connections may need a one-time reconnect to grant Insights access.'
-          : 'No connected content was returned for this source yet.',
+          : profile.platform === 'x' && providerFeed.length
+            ? 'The X feed returned reposts or posts without evidence that they belong to this connected account. Those posts are excluded from analytics.'
+            : 'No connected content was returned for this source yet.',
         allFeed.length ? 'no_data' : 'no_content'
       );
   const contentCapability = feed.length
@@ -637,7 +653,9 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
     },
     demographics: { instagram: null, facebookSnapshot: null },
     content,
-    warnings: hasMetrics ? [] : [allFeed.length
+    warnings: hasMetrics ? [] : [profile.platform === 'x' && providerFeed.length && !allFeed.length
+      ? 'The provider feed returned posts that could not be verified as published by this connected X account. Reposts are not counted as your own performance.'
+      : allFeed.length
       ? 'Performance metrics are still pending for this connection. INXSocial will keep retrying without replacing previously verified analytics.'
       : 'No connected posts are currently available for this source.'],
     provider: {
@@ -645,6 +663,7 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       accountId: providerAccountId(profile),
       postsWithMetrics,
       feedPosts: allFeed.length,
+      unverifiedFeedPosts: profile.platform === 'x' ? providerFeed.length - allFeed.length : 0,
       periodPosts: feed.length,
       ownershipVerified: profile.platform === 'x' ? true : undefined,
       metricsRequested: true,
@@ -742,6 +761,9 @@ function analyticsPayloadHasVerifiedMetrics(value) {
 
 function partialAnalyticsWarning(platform, value = null) {
   const feedPosts = Number(value?.provider?.feedPosts || 0);
+  if (String(platform).toLowerCase() === 'x' && Number(value?.provider?.unverifiedFeedPosts || 0) > 0 && feedPosts === 0) {
+    return 'The X feed returned reposts or posts without proof they belong to this account. INXSocial excluded them from your analytics.';
+  }
   if (feedPosts <= 0) {
     return String(platform || '').toLowerCase() === 'facebook'
       ? 'The Facebook account is connected, but its content feed returned no posts. Reconnect the account once to refresh the current feed and Insights permissions, then INXSocial will resync automatically.'

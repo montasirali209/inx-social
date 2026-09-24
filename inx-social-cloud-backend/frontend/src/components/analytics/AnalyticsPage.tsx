@@ -228,6 +228,7 @@ export function AnalyticsPage() {
   const periodPosts = Number(view?.source.provider?.periodPosts ?? view?.source.summary.posts ?? 0)
   const measuredPosts = Number(view?.source.provider?.postsWithMetrics || 0)
   const feedAvailable = connectedFeedPosts > 0
+  const unverifiedXPosts = Boolean(singleSource?.platform === 'x' && Number(view?.source.provider?.unverifiedFeedPosts || 0) > 0 && !feedAvailable)
   const reconnectHint = Boolean(singleSource?.platform === 'facebook' && measuredPosts === 0)
 
   const syncLabel = analytics.isFetching || manualRefreshing
@@ -265,11 +266,13 @@ export function AnalyticsPage() {
             <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-brand-amber/25 bg-brand-amber/10 text-brand-amber"><ShieldCheck className="size-5" /></span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-semibold tracking-tight text-text-main">{feedAvailable ? 'Connected. Performance metrics are syncing.' : 'Connection active. Content feed needs attention.'}</h2>
+                <h2 className="text-base font-semibold tracking-tight text-text-main">{unverifiedXPosts ? 'X feed contains posts from other accounts.' : feedAvailable ? 'Connected. Performance metrics are syncing.' : 'Connection active. Content feed needs attention.'}</h2>
                 <span className="rounded-full border border-brand-amber/25 bg-brand-amber/8 px-2 py-1 text-[9px] font-semibold uppercase tracking-[.12em] text-brand-amber">Metrics pending</span>
               </div>
               <p className="mt-2 max-w-3xl text-xs leading-5 text-text-muted">
-                {feedAvailable
+                {unverifiedXPosts
+                  ? <>The provider returned reposts or posts without proof they were published by {singleSource?.displayName || 'this account'}. INXSocial has excluded their metrics from this account. We will show your own posts when the connected feed supplies verifiable account-owned content.</>
+                  : feedAvailable
                   ? <>INXSocial can read the connected content for {sourceName}, but the provider has not returned verified performance metrics for this connection yet. We keep this state separate from real zero performance and retry it automatically.</>
                   : <>The social account is connected, but its provider feed returned no posts to INXSocial. Without feed items there is nothing reliable to measure, so the dashboard now shows a recovery state instead of fake zero analytics.</>}
               </p>
@@ -294,7 +297,7 @@ export function AnalyticsPage() {
         </div>
       </section>
 
-      {periodPosts > 0 ? <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,.7fr)]"><ConnectedContentCard analytics={view.source} /><PublishingRhythmCard analytics={view.source} days={days} /></div> : <AnalyticsCard><AnalyticsCardHeader description="The account connection is active. Performance cards will appear only when verified metrics exist for the selected reporting window." title="No zero-filled analytics" /><div className="grid min-h-40 place-items-center px-6 pb-6 text-center"><span><CalendarDays className="mx-auto size-7 text-brand-cyan" /><strong className="mt-3 block text-sm">No posts inside the selected {days}-day window</strong><p className="mx-auto mt-2 max-w-lg text-xs leading-5 text-text-muted">Choose a wider reporting period or wait for new content. INXSocial no longer presents unavailable metrics as genuine zero performance.</p></span></div></AnalyticsCard>}
+      {periodPosts > 0 ? <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(320px,.7fr)]"><ConnectedContentCard analytics={view.source} /><PublishingRhythmCard analytics={view.source} days={days} /></div> : <AnalyticsCard><AnalyticsCardHeader description="The account connection is active. Performance cards will appear only when verified metrics exist for the selected reporting window." title="No zero-filled analytics" /><div className="grid min-h-40 place-items-center px-6 pb-6 text-center"><span><CalendarDays className="mx-auto size-7 text-brand-cyan" /><strong className="mt-3 block text-sm">{unverifiedXPosts ? 'No account-owned X posts could be verified' : `No posts inside the selected ${days}-day window`}</strong><p className="mx-auto mt-2 max-w-lg text-xs leading-5 text-text-muted">{unverifiedXPosts ? 'Other people’s posts and reposts are excluded from your analytics. Refresh after your connected X account publishes original content.' : 'Choose a wider reporting period or wait for new content. INXSocial no longer presents unavailable metrics as genuine zero performance.'}</p></span></div></AnalyticsCard>}
 
       <footer className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border-soft bg-panel/55 px-4 py-3 text-[10px] text-text-soft"><span>Connection health and content availability for {sourceName}.</span><span>Partial sources retry automatically · Last provider response {lastUpdated || 'Waiting'}</span></footer>
     </div>}
