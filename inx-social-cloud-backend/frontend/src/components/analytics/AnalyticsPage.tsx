@@ -132,7 +132,9 @@ export function AnalyticsPage() {
   async function loadAnalytics(force = false): Promise<LiveAnalyticsData> {
     const settled = await mapWithConcurrency(selectedAccounts, 2, async account => {
       try {
-        return { ok: true as const, account, analytics: await fetchAnalyticsForSource(account, days, 'full', force) }
+        const source = await fetchAnalyticsForSource(account, days, 'full', force)
+        if (account.platform === 'x' && source.provider?.ownershipVerified !== true) throw new Error('X post ownership is being verified. Please refresh shortly.')
+        return { ok: true as const, account, analytics: source }
       } catch (error) {
         return { ok: false as const, account, message: error instanceof Error ? error.message : 'Live analytics could not be loaded.' }
       }
@@ -161,7 +163,10 @@ export function AnalyticsPage() {
     refetchOnWindowFocus: false,
     retry: 0,
     staleTime: 2 * 60_000,
-    initialData: () => selectedScopeKey ? readSessionCache<LiveAnalyticsData>(analyticsWorkspaceCacheKey(selectedScopeKey, days)) : undefined,
+    initialData: () => {
+      const cached = selectedScopeKey ? readSessionCache<LiveAnalyticsData>(analyticsWorkspaceCacheKey(selectedScopeKey, days)) : undefined
+      return cached?.results.some(result => result.account.platform === 'x' && result.analytics.provider?.ownershipVerified !== true) ? undefined : cached
+    },
     initialDataUpdatedAt: 0,
     queryFn: () => loadAnalytics(false),
   })
@@ -252,6 +257,7 @@ export function AnalyticsPage() {
     {analytics.isError && !view && <div className="rounded-panel border border-brand-red/25 bg-brand-red/8 p-6"><h2 className="font-semibold">Analytics could not be loaded</h2><p className="mt-2 text-xs leading-5 text-text-muted">{analytics.error instanceof Error ? analytics.error.message : 'Reconnect this account or try again.'}</p><a className="mt-4 inline-flex min-h-10 items-center rounded-xl border border-border-soft px-4 text-xs" href="/app/connected-accounts">Review connected accounts</a></div>}
 
     {view && noVerifiedMetrics && <div className="analytics-data-transition space-y-4" key={`partial-${selectedScopeKey}-${days}`}>
+      {(analytics.isFetching || backgroundRefreshing || manualRefreshing) && <AnalyticsKpiSkeleton />}
       <section className="relative overflow-hidden rounded-panel border border-brand-amber/20 bg-[radial-gradient(circle_at_12%_0%,rgba(245,158,11,.10),transparent_28rem),linear-gradient(135deg,rgba(9,28,39,.97),rgba(4,18,28,.98))] p-5 shadow-panel sm:p-6">
         <div aria-hidden="true" className="pointer-events-none absolute -right-20 -top-20 size-56 rounded-full border border-brand-cyan/[.08] bg-brand-cyan/[.025]" />
         <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">

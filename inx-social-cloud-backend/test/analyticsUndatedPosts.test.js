@@ -1,12 +1,25 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { publishedAtForPost } = require('../src/services/postForMeAnalyticsService');
+const { publishedAtForPost, belongsToXAccount } = require('../src/services/postForMeAnalyticsService');
 
 test('recovers an exact X publishing date from an unrounded status ID', () => {
   const published = Date.UTC(2026, 8, 22, 11, 35);
   const id = String((BigInt(published) - 1288834974657n) << 22n);
   assert.equal(publishedAtForPost('x', { platform_post_id: id }).getTime(), published);
   assert.equal(publishedAtForPost('x', { platform_url: `https://x.com/account/status/${id}` }).getTime(), published);
+});
+
+test('X analytics accepts only the connected author and excludes reposts', () => {
+  const profile = { username: '@md_ali21993' };
+  const id = '2047000000000000000';
+  assert.equal(belongsToXAccount(profile, { platform_url: `https://x.com/md_ali21993/status/${id}`, platform_post_id: id, caption: 'My own post' }), true);
+  assert.equal(belongsToXAccount(profile, { platform_url: `https://twitter.com/MD_ALI21993/status/${id}`, caption: 'My own post' }), true);
+  assert.equal(belongsToXAccount(profile, { platform_url: `https://x.com/another_user/status/${id}`, caption: 'Someone else' }), false);
+  assert.equal(belongsToXAccount(profile, { platform_url: `https://x.com/md_ali21993/status/${id}`, caption: 'RT @another_user: borrowed post' }), false);
+  assert.equal(belongsToXAccount(profile, { platform_url: `https://x.com/md_ali21993/status/${id}`, platform_post_id: '2047000000000000001' }), false);
+  assert.equal(belongsToXAccount(profile, { platform_url: `https://untrusted.example/md_ali21993/status/${id}` }), false);
+  assert.equal(belongsToXAccount(profile, { caption: 'Post without ownership evidence' }), false);
+  assert.equal(belongsToXAccount({ username: null }, { platform_url: `https://x.com/md_ali21993/status/${id}` }), false);
 });
 
 test('provider dates take precedence and other platforms cannot infer a date from an ID', () => {
