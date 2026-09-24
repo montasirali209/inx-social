@@ -100,7 +100,7 @@ module.exports = {
     ugcTtsModel: modelName(process.env.RUNWARE_UGC_TTS_MODEL, 'inworld:tts@2'),
     ugcRouterMode: ['adaptive','compatibility'].includes(String(process.env.UGC_MODEL_ROUTER_MODE || 'compatibility').trim().toLowerCase())
       ? String(process.env.UGC_MODEL_ROUTER_MODE || 'compatibility').trim().toLowerCase()
-      : 'adaptive',
+      : 'compatibility',
     textModel: modelName(process.env.RUNWARE_TEXT_MODEL, 'openai:gpt@5.4-nano'),
     timeoutMs: Math.max(30000, Number(process.env.RUNWARE_TIMEOUT_MS || 360000)),
     imageTimeoutMs: Math.max(30000, Number(process.env.RUNWARE_IMAGE_TIMEOUT_MS || 180000)),
