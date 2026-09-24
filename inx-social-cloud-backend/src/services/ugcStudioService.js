@@ -140,6 +140,20 @@ function brandUrlCandidates(value) {
 function json(value) { return JSON.stringify(value ?? null); }
 function id() { return crypto.randomUUID(); }
 function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+async function retryLocalOperation(label, operation, attempts = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= Math.max(1, attempts); attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error;
+      if (attempt >= attempts) break;
+      console.warn('[UGC LOCAL RETRY]', label + ' attempt ' + attempt + '/' + attempts + ' failed; retrying without another provider generation.');
+      await sleep(350 * attempt);
+    }
+  }
+  throw lastError;
+}
 function toNumber(value) { return value == null ? 0 : Number(value); }
 async function runLimited(items, limit, worker) {
   let cursor = 0;
@@ -1606,14 +1620,30 @@ async function renderAd(adId) {
         }
 
         await updateSceneProgress(index, 93, result.postProcess === 'LOCAL_MUX' ? 'VOICE' : 'VIDEO');
-        const remote = await download(finalVideoURL, 120 * 1024 * 1024);
+        const remote = await retryLocalOperation(
+          'scene video download',
+          () => download(finalVideoURL, 120 * 1024 * 1024),
+          3
+        );
         let sceneVideo = remote.data;
         if (result.postProcess === 'LOCAL_MUX' && narration?.audioURL) {
-          const audio = await download(narration.audioURL, 18 * 1024 * 1024);
-          sceneVideo = await lockNarrationAudio(sceneVideo, audio.data, spokenDuration);
+          const audio = await retryLocalOperation(
+            'scene narration download',
+            () => download(narration.audioURL, 18 * 1024 * 1024),
+            3
+          );
+          sceneVideo = await retryLocalOperation(
+            'scene narration mux',
+            () => lockNarrationAudio(sceneVideo, audio.data, spokenDuration),
+            2
+          );
         }
 
-        const stored = await objectStorage.persistBuffer({ userId: ad.userId, data: sceneVideo, mimeType: 'video/mp4', originalName: 'ugc-scene-' + scene.id + '.mp4', prefix: 'ugc-video' });
+        const stored = await retryLocalOperation(
+          'scene media persistence',
+          () => objectStorage.persistBuffer({ userId: ad.userId, data: sceneVideo, mimeType: 'video/mp4', originalName: 'ugc-scene-' + scene.id + '.mp4', prefix: 'ugc-video' }),
+          3
+        );
         await prisma.$executeRawUnsafe(
           'UPDATE "UGCScene" SET "status"=\'READY\',"providerTaskUuid"=$2,"providerCostUsd"=$3,"model"=$4,"videoStorageProvider"=$5,"videoStorageKey"=$6,"errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
           scene.id, result.taskUUID, sceneProviderCost, result.model, stored.storageProvider, stored.storageKey
