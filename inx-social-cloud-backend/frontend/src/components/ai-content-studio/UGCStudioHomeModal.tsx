@@ -162,10 +162,7 @@ export function UGCStudioHomeModal({
       .filter((item): item is { campaign: UGCCampaign; ad: UGCCampaign['ads'][number]; asset: MediaAsset } => Boolean(item.asset))
   ), [assetsById, overview.data?.campaigns])
 
-  useEffect(() => {
-    const available = new Set(readyVideos.map((item) => item.ad.id))
-    setSelectedAdIds((current) => current.filter((id) => available.has(id)))
-  }, [readyVideos])
+  const selectedVideos = useMemo(() => readyVideos.filter((item) => selectedAdIds.includes(item.ad.id)), [readyVideos, selectedAdIds])
 
   function startCreation(seed?: UGCCampaign) {
     void trackUGCStudioEvent({
@@ -193,7 +190,7 @@ export function UGCStudioHomeModal({
   }
 
   function scheduleSelected() {
-    const selected = readyVideos.filter((item) => selectedAdIds.includes(item.ad.id))
+    const selected = selectedVideos
     if (!selected.length) { onToast('Select at least one finished UGC video first.'); return }
 
     void trackUGCStudioEvent({
@@ -281,10 +278,10 @@ export function UGCStudioHomeModal({
             </div>
           </div>
           <div className="ugc-home-selection-bar">
-            <div><strong>{selectedAdIds.length ? `${selectedAdIds.length} video${selectedAdIds.length === 1 ? '' : 's'} selected` : 'Select ready videos to publish'}</strong><span>{selectedAdIds.length === 1 ? 'Schedule Now opens the normal Post composer.' : selectedAdIds.length > 1 ? 'Schedule Now opens Bulk Scheduler with each video and its caption.' : 'Choose one video for a normal post, or multiple videos for bulk scheduling.'}</span></div>
+            <div><strong>{selectedVideos.length ? `${selectedVideos.length} video${selectedVideos.length === 1 ? '' : 's'} selected` : 'Select ready videos to publish'}</strong><span>{selectedVideos.length === 1 ? 'Schedule Now opens the normal Post composer.' : selectedVideos.length > 1 ? 'Schedule Now opens Bulk Scheduler with each video and its caption.' : 'Choose one video for a normal post, or multiple videos for bulk scheduling.'}</span></div>
             <div className="flex items-center gap-2">
-              {selectedAdIds.length > 0 && <button className="ugc-home-selection-clear" onClick={() => setSelectedAdIds([])} type="button">Clear</button>}
-              <Button disabled={!selectedAdIds.length} onClick={scheduleSelected} size="sm" variant="primary"><CalendarRange className="size-3.5" />Schedule Now{selectedAdIds.length ? ` (${selectedAdIds.length})` : ''}</Button>
+              {selectedVideos.length > 0 && <button className="ugc-home-selection-clear" onClick={() => setSelectedAdIds([])} type="button">Clear</button>}
+              <Button disabled={!selectedVideos.length} onClick={scheduleSelected} size="sm" variant="primary"><CalendarRange className="size-3.5" />Schedule Now{selectedVideos.length ? ` (${selectedVideos.length})` : ''}</Button>
             </div>
           </div>
 
