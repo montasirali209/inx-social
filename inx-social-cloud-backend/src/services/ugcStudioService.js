@@ -1564,15 +1564,100 @@ async function updateAd(userId, adId, input) {
   return getAd(userId, adId);
 }
 
+async function rerouteScenesForRegeneration(userId, adId, sceneIds = null) {
+  const ad = await getAdRow(userId, adId);
+  const scenes = await prisma.$queryRawUnsafe('SELECT * FROM "UGCScene" WHERE "adId"=$1 ORDER BY "sequence"', adId);
+  if (!scenes.length) throw publicError('This UGC ad has no renderable scenes.', 'UGC_SCENES_MISSING', 422);
+  const selected = sceneIds ? new Set(sceneIds.map(value => String(value))) : null;
+  const finalDurations = playbackDurations(ad.duration, scenes.map(scene => Number(scene.duration)));
+  const decisions = [];
+  const adPlan = parseJson(ad.planJson, {});
+  let plannedScenes = Array.isArray(adPlan.scenes)
+    ? adPlan.scenes.map(scene => ({ ...scene }))
+    : scenes.map(scene => ({
+        sequence: Number(scene.sequence),
+        kind: scene.kind,
+        duration: Number(scene.duration),
+        script: scene.script || '',
+        routeDecision: parseJson(scene.productReferenceJson, {}).routeDecision || null
+      }));
+
+  for (let index = 0; index < scenes.length; index += 1) {
+    const scene = scenes[index];
+    if (selected && !selected.has(String(scene.id))) continue;
+    const referenceMeta = parseJson(scene.productReferenceJson, {});
+    const hasProductReference = Boolean(
+      (Array.isArray(referenceMeta.productAssetIds) && referenceMeta.productAssetIds.length) ||
+      (Array.isArray(referenceMeta.brandReferences) && referenceMeta.brandReferences.length)
+    );
+    const decision = ugcModelRouter.routeForScene({
+      quality: ad.quality,
+      kind: scene.kind,
+      providerDuration: Number(scene.duration),
+      playbackDuration: Number(finalDurations[index] || scene.duration),
+      hasActor: Boolean(scene.avatarId || ad.avatarId),
+      hasProductReference,
+      hasNarration: clean(scene.script, 5000).length >= 2
+    });
+    decisions.push({ sceneId: scene.id, sceneSequence: Number(scene.sequence), ...decision });
+    await prisma.$executeRawUnsafe(
+      'UPDATE "UGCScene" SET "route"=$2,"productReferenceJson"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+      scene.id,
+      decision.routeKey,
+      json({ ...referenceMeta, routeDecision: decision })
+    );
+    const plannedIndex = plannedScenes.findIndex(item => Number(item.sequence) === Number(scene.sequence));
+    if (plannedIndex >= 0) plannedScenes[plannedIndex] = { ...plannedScenes[plannedIndex], routeDecision: decision };
+    else plannedScenes.push({
+      sequence: Number(scene.sequence),
+      kind: scene.kind,
+      duration: Number(scene.duration),
+      script: scene.script || '',
+      routeDecision: decision
+    });
+  }
+
+  if (!decisions.length) throw publicError('The requested UGC scene is unavailable for regeneration.', 'UGC_SCENE_NOT_FOUND', 404);
+  plannedScenes.sort((a, b) => Number(a.sequence || 0) - Number(b.sequence || 0));
+  const nextPlan = {
+    ...adPlan,
+    routerVersion: ugcModelRouter.ROUTER_VERSION,
+    routerMode: ugcModelRouter.routerMode(),
+    routingSummary: ugcModelRouter.summarizeRoutes([{ scenes: plannedScenes }]),
+    scenes: plannedScenes
+  };
+  await prisma.$executeRawUnsafe(
+    'UPDATE "UGCAd" SET "planJson"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$3',
+    adId,
+    json(nextPlan),
+    userId
+  );
+  return { ad, decisions, routerVersion: ugcModelRouter.ROUTER_VERSION, routerMode: ugcModelRouter.routerMode() };
+}
+
 async function regenerateAd(userId, adId) {
   const row = await getAdRow(userId, adId);
   if (['QUEUED','RENDERING'].includes(row.status)) throw publicError('This ad is already rendering.', 'UGC_AD_BUSY', 409);
-  const generationId = await createGenerationRow(userId, adId, row.credits, { title: row.title, script: row.script, regeneration: true });
+  const reroute = await rerouteScenesForRegeneration(userId, adId);
+  const generationId = await createGenerationRow(userId, adId, row.credits, {
+    title: row.title,
+    script: row.script,
+    regeneration: true,
+    routerVersion: reroute.routerVersion,
+    routerMode: reroute.routerMode,
+    sceneRoutes: reroute.decisions.map(item => ({ sceneSequence: item.sceneSequence, routeKey: item.routeKey, adapterKey: item.adapterKey }))
+  });
+  await ugcEngine.recordReroute(userId, row.campaignId, row.sequence, adId, {
+    routerVersion: reroute.routerVersion,
+    routerMode: reroute.routerMode,
+    scope: 'AD_REGENERATION',
+    sceneRoutes: reroute.decisions
+  }).catch(() => null);
   await ugcEngine.linkGeneration(userId, row.campaignId, row.sequence, adId, generationId).catch(() => null);
   await ugcEngine.updateStatus(userId, row.campaignId, 'QUEUED').catch(() => {});
   await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "status"=\'QUEUED\',"providerTaskUuid"=NULL,"providerCostUsd"=NULL,"model"=NULL,"errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "adId"=$1', adId);
   await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "generationId"=$2,"status"=\'QUEUED\',"errorMessage"=NULL,"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', adId, generationId);
-  await ugcAnalytics.track(userId, { event: 'REGENERATION_STARTED', stage: 'editor', campaignId: row.campaignId, adId, metadata: { credits: row.credits, quality: row.quality, duration: row.duration } });
+  await ugcAnalytics.track(userId, { event: 'REGENERATION_STARTED', stage: 'editor', campaignId: row.campaignId, adId, metadata: { credits: row.credits, quality: row.quality, duration: row.duration, routerVersion: reroute.routerVersion } });
   queueRuntimeTick();
   return getAd(userId, adId);
 }
@@ -1582,13 +1667,27 @@ async function regenerateScene(userId, sceneId) {
   const scene = rows[0];
   if (!scene) throw publicError('UGC scene not found.', 'UGC_SCENE_NOT_FOUND', 404);
   if (['QUEUED','RENDERING'].includes(scene.adStatus)) throw publicError('This ad is already rendering.', 'UGC_AD_BUSY', 409);
+  const reroute = await rerouteScenesForRegeneration(userId, scene.ownedAdId, [sceneId]);
+  const decision = reroute.decisions[0];
   const sceneCredits = Math.max(1, Math.ceil(Number(scene.adCredits) * Number(scene.duration) / Number(scene.adDuration)));
-  const generationId = await createGenerationRow(userId, scene.ownedAdId, sceneCredits, { sceneId, regeneration: true });
+  const generationId = await createGenerationRow(userId, scene.ownedAdId, sceneCredits, {
+    sceneId,
+    regeneration: true,
+    routerVersion: reroute.routerVersion,
+    routerMode: reroute.routerMode,
+    sceneRoutes: [{ sceneSequence: decision.sceneSequence, routeKey: decision.routeKey, adapterKey: decision.adapterKey }]
+  });
+  await ugcEngine.recordReroute(userId, scene.campaignId, scene.adSequence, scene.ownedAdId, {
+    routerVersion: reroute.routerVersion,
+    routerMode: reroute.routerMode,
+    scope: 'SCENE_REGENERATION',
+    sceneRoutes: reroute.decisions
+  }).catch(() => null);
   await ugcEngine.linkGeneration(userId, scene.campaignId, scene.adSequence, scene.ownedAdId, generationId).catch(() => null);
   await ugcEngine.updateStatus(userId, scene.campaignId, 'QUEUED').catch(() => {});
   await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "status"=\'QUEUED\',"providerTaskUuid"=NULL,"providerCostUsd"=NULL,"model"=NULL,"errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', sceneId);
   await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "generationId"=$2,"status"=\'QUEUED\',"errorMessage"=NULL,"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', scene.ownedAdId, generationId);
-  await ugcAnalytics.track(userId, { event: 'SCENE_REGENERATION_STARTED', stage: 'editor', adId: scene.ownedAdId, metadata: { credits: sceneCredits, duration: scene.duration } });
+  await ugcAnalytics.track(userId, { event: 'SCENE_REGENERATION_STARTED', stage: 'editor', adId: scene.ownedAdId, metadata: { credits: sceneCredits, duration: scene.duration, routerVersion: reroute.routerVersion } });
   queueRuntimeTick();
   return getAd(userId, scene.ownedAdId);
 }
@@ -1597,7 +1696,7 @@ module.exports = {
   STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds, brandUrlCandidates, playbackDurations,
   creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
   narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
-  getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, deleteCampaign, getAd, updateAd, regenerateAd, regenerateScene,
+  getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, deleteCampaign, getAd, updateAd, rerouteScenesForRegeneration, regenerateAd, regenerateScene,
   generateCustomAvatar, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,
   uploadProductAsset, getProductAssetContent,
   listSampleVideos, uploadSampleVideo, getSampleVideoContent,
