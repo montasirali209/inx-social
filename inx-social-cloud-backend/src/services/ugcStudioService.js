@@ -16,6 +16,7 @@ const mediaLibrary = require('./mediaLibraryService');
 const ugcAnalytics = require('./ugcStudioAnalyticsService');
 const ugcEngine = require('./ugcEngineService');
 const ugcEngineRegistry = require('./ugcEngineRegistry');
+const ugcSkills = require('./ugcSkillEngine');
 const { expiresAtFor } = require('./mediaRetentionService');
 
 const STANDARD_CREDITS = Object.freeze({ 15: 100, 20: 140, 30: 210 });
@@ -643,54 +644,17 @@ function normalizePlan(parsed, input, brand, avatars, resolvedType) {
 }
 
 async function planCampaign(input, brand, avatars, resolvedType) {
-  const evidence = brand ? {
-    name: brand.name,
-    productName: brand.productName,
-    summary: brand.summary,
-    audience: brand.audience,
-    verifiedClaims: brand.verifiedClaims,
-    analysis: brand.analysis
-  } : { description: input.productDescription || '', url: input.productUrl || '' };
-  try {
-    const parsed = await postStudio.callChatModel(postStudio.REASONING_MODEL, [
-      { role: 'system', content: [
-        'You are the UGC campaign director inside INXSocial.',
-        'Create ready-to-render creator-native social ads. The customer should not need to write scripts or build scenes.',
-        'Use only supplied or verified product/brand evidence. Never invent prices, testimonials, statistics, certifications or features.',
-        'Every variation must use a materially different hook and marketing angle.',
-        'AVATAR_EXPLAINER means a realistic creator is the primary visual and explains the offer directly to camera. This is preferred for SaaS, websites, apps and services. Do not invent fake website screens.',
-        'PRODUCT_SHOWCASE means creator-led UGC mixed with real product/reference cutaways. Preserve the supplied product identity and packaging rather than inventing a replacement.',
-        'One ad uses one creator identity and one narrator voice throughout.',
-        'Keep creator face, age, hair, skin tone, wardrobe and environment stable across creator cuts.',
-        'No generated subtitles, labels, watermarks, logos or readable overlay text inside frames; INXSocial adds captions later.',
-        'Apply the INXSocial realism skill: real consumer-camera exposure, natural human movement at normal 1x speed, stable anatomy and identity, believable room continuity, physically plausible hands/products, and no glossy CGI or beauty-filter look.',
-        'Write natural social-video dialogue, not corporate copy. Aim for about 32–34 words for 15 seconds, 42–46 words for 20 seconds and 62–66 words for 30 seconds.',
-        'The final spoken sentence and CTA must finish cleanly before the requested ad duration; leave roughly half a second of visual breathing room at the end instead of cutting a word or sentence.',
-        'Return JSON only: {"title":"string","ads":[{"title":"string","angle":"string","hook":"string","script":"string","cta":"string","caption":"string","avatarIndex":0,"scenes":[{"kind":"CREATOR|PRODUCT|LIFESTYLE|CTA","prompt":"string","script":"string"}]}]}.'
-      ].join('\n\n') },
-      { role: 'user', content: JSON.stringify({
-        evidence,
-        campaignType: resolvedType,
-        duration: input.duration,
-        adCount: input.adCount,
-        quality: input.quality,
-        productImageCount: Array.isArray(input.productAssetIds) ? input.productAssetIds.length : 0,
-        notes: input.notes || '',
-        availableCreators: avatars.map((avatar, index) => ({
-          index,
-          name: avatar.name,
-          category: avatar.category,
-          presentation: avatar.presentation,
-          ageBand: avatar.ageBand,
-          environment: avatar.environment || ''
-        }))
-      }) }
-    ], { reasoningEffort: 'high', temperature: 0.35, maxTokens: Math.max(3500, input.adCount * 900), timeoutMs: 180000 });
-    return normalizePlan(parsed, input, brand, avatars, resolvedType);
-  } catch (error) {
-    console.warn('[UGC PLAN FALLBACK]', clean(error?.message, 400));
-    return fallbackPlan(input, brand, avatars, resolvedType);
-  }
+  const providerDurations = visualDurations(input.duration, input.quality, resolvedType);
+  const finalDurations = playbackDurations(input.duration, providerDurations);
+  return ugcSkills.planCampaign({
+    input,
+    brand,
+    avatars,
+    resolvedType,
+    productAssetIds: Array.isArray(input.productAssetIds) ? input.productAssetIds : [],
+    providerDurations,
+    playbackDurations: finalDurations
+  });
 }
 
 async function createGenerationRow(userId, adId, amount, request) {
