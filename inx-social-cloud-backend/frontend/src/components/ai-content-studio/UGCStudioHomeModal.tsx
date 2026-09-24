@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  CalendarRange, Clapperboard, Clock3, Coins, Copy, Film,
-  LoaderCircle, Pencil, Play, Plus, Sparkles, Trash2, UsersRound, X,
+  ArrowRight, CalendarRange, Clapperboard, Clock3, Coins, Copy, Film,
+  LoaderCircle, Pencil, Play, Plus, Trash2, UsersRound, X,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -10,39 +10,18 @@ import { loadUGCEditor } from '../../route-preload'
 import { fetchMediaLibrary } from '../../lib/media-library-api'
 import {
   deleteUGCCampaign,
-  fetchUGCAvatarImage,
   fetchUGCSampleVideo,
   getUGCOverview,
   trackUGCStudioEvent,
 } from '../../lib/ugc-studio-api'
 import type { MediaAsset } from '../../types/media-library'
-import type { CreateUGCCampaignInput, UGCAvatar, UGCCampaign, UGCSampleVideo } from '../../types/ugc-studio'
+import type { CreateUGCCampaignInput, UGCCampaign, UGCSampleVideo } from '../../types/ugc-studio'
 import { Button } from '../ui/Button'
 import { UGCAgentHero } from './UGCAgentHero'
-import { UGCAgentModal } from './UGCAgentModal'
 import { UGCVideoLightbox } from './UGCVideoPlayer'
 import './ugc-studio-home.css'
 
 const activeStatuses = new Set(['RESERVING', 'QUEUED', 'RENDERING', 'PLANNING'])
-
-function ProtectedAvatar({ avatar }: { avatar: UGCAvatar }) {
-  const [url, setUrl] = useState<string | null>(null)
-  useEffect(() => {
-    let active = true
-    let created: string | null = null
-    if (!avatar.imageUrl) return undefined
-    void fetchUGCAvatarImage(avatar).then((value) => {
-      if (!value) return
-      if (!active) { URL.revokeObjectURL(value); return }
-      created = value
-      setUrl(value)
-    })
-    return () => { active = false; if (created) URL.revokeObjectURL(created) }
-  }, [avatar])
-  return url
-    ? <img alt="" className="size-full object-cover" src={url} />
-    : <div className="grid size-full place-items-center bg-[radial-gradient(circle_at_50%_25%,rgba(45,212,191,.16),transparent_6rem),#0a1d29] text-sm font-bold text-brand-cyan">{avatar.name.slice(0,1)}</div>
-}
 
 function SampleVideo({ sample }: { sample: UGCSampleVideo }) {
   const [url, setUrl] = useState<string | null>(null)
@@ -90,11 +69,6 @@ export function UGCStudioHomeModal({
   const [filter, setFilter] = useState<'ALL' | 'READY' | 'RENDERING' | 'FAILED'>('ALL')
   const [selectedAdIds, setSelectedAdIds] = useState<string[]>([])
   const [preview, setPreview] = useState<{ src: string; title: string } | null>(null)
-  const [agentCreator, setAgentCreator] = useState<UGCAvatar | null>(null)
-  const [creatorChoice, setCreatorChoice] = useState<UGCAvatar | null>(null)
-  const [agentOpen, setAgentOpen] = useState(false)
-  const [agentInitialPrompt, setAgentInitialPrompt] = useState('')
-  const [agentSessionKey, setAgentSessionKey] = useState(0)
 
   const overview = useQuery({
     queryKey: ['ugc-studio-overview'],
@@ -170,13 +144,6 @@ export function UGCStudioHomeModal({
   ), [assetsById, overview.data?.campaigns])
 
   const selectedVideos = useMemo(() => readyVideos.filter((item) => selectedAdIds.includes(item.ad.id)), [readyVideos, selectedAdIds])
-
-  function openAgent(initialPrompt = '') {
-    setAgentInitialPrompt(initialPrompt)
-    setAgentSessionKey((value) => value + 1)
-    setAgentOpen(true)
-    void trackUGCStudioEvent({ event: 'CREATE_STARTED', stage: 'agent', metadata: { entry: initialPrompt ? 'PROMPT' : 'OPEN' } })
-  }
 
   function startCreation(seed?: UGCCampaign) {
     void trackUGCStudioEvent({
@@ -266,11 +233,7 @@ export function UGCStudioHomeModal({
 
       <div className="ugc-home-body">
         <UGCAgentHero
-          featuredCreator={featured[0] || null}
-          onClearCreator={() => setAgentCreator(null)}
-          onManualSetup={(draft) => onCreate(undefined, draft)}
-          onOpenAgent={(prompt) => openAgent(prompt || '')}
-          selectedCreator={agentCreator}
+          onStart={(draft) => onCreate(undefined, draft)}
         />
 
         <section className="ugc-home-kpis" aria-label="UGC Studio overview">
@@ -285,10 +248,7 @@ export function UGCStudioHomeModal({
           <article className="ugc-home-kpi creators">
             <span className="ugc-home-kpi-icon"><UsersRound className="size-4" /></span>
             <div><strong>100+</strong><h3>Featured creators</h3><p>Creator styles ready for your next campaign.</p></div>
-            <div className="ugc-home-kpi-avatars" aria-hidden="true">
-              {featured.slice(0,3).map((avatar) => <span key={avatar.id}><ProtectedAvatar avatar={avatar} /></span>)}
-              <b>100+</b>
-            </div>
+            <div className="ugc-home-kpi-avatars" aria-hidden="true"><b>100+</b></div>
           </article>
         </section>
 
@@ -363,7 +323,7 @@ export function UGCStudioHomeModal({
                   </div>
                 </div>
               </article>
-            })}</div> : <div className="ugc-home-empty"><Film className="size-7 text-text-soft" /><strong>No UGC campaigns yet.</strong><span>Create your first campaign and it will stay here while it renders.</span><Button onClick={() => openAgent('')} size="sm" variant="primary"><Plus className="size-3.5" />Create UGC</Button></div>}
+            })}</div> : <div className="ugc-home-empty"><Film className="size-7 text-text-soft" /><strong>No UGC campaigns yet.</strong><span>Create your first campaign and it will stay here while it renders.</span><Button onClick={() => onCreate()} size="sm" variant="primary"><Plus className="size-3.5" />Create UGC</Button></div>}
         </section>
 
         <section className="mt-8">
@@ -372,44 +332,16 @@ export function UGCStudioHomeModal({
             <div className="ugc-home-demo-empty"><Play className="size-5 text-brand-cyan" /><div><strong>Demo library ready.</strong><p>Approved test renders uploaded to your UGC sample storage will appear here automatically.</p></div></div>}
         </section>
 
-        <section className="mt-8">
-          <div className="ugc-home-section-head"><div><span>CREATOR LIBRARY</span><h3>Realistic reusable creators</h3><p>Choose a creator to start an ad with them, or let the UGC Agent cast automatically.</p></div><span className="text-[9px] text-text-soft">100+ featured</span></div>
-          <div className="ugc-home-creators">{featured.slice(0, 100).map((avatar) => <button aria-label={`Create a UGC ad with ${avatar.name}`} className={`ugc-home-creator ${agentCreator?.id === avatar.id ? 'selected' : ''}`} key={avatar.id} onClick={() => setCreatorChoice(avatar)} type="button"><div className="aspect-[4/5] overflow-hidden rounded-[15px]"><ProtectedAvatar avatar={avatar} /></div><strong>{avatar.name}</strong><span>{avatar.category} · {avatar.ageBand}</span><em>{agentCreator?.id === avatar.id ? 'Selected' : 'Use creator'}</em></button>)}</div>
+        <section className="mt-8 ugc-home-creator-entry">
+          <div className="ugc-home-section-head"><div><span>CREATOR LIBRARY</span><h3>Choose a creator when you need one</h3><p>The creator library now loads only inside the Creator step, keeping UGC Studio fast and smooth.</p></div><span className="text-[9px] text-text-soft">100+ available</span></div>
+          <button className="ugc-home-creator-launch" onClick={() => onCreate(undefined, { creatorMode: 'AUTO' })} type="button">
+            <span className="ugc-home-kpi-icon"><UsersRound className="size-4" /></span>
+            <div><strong>Open creator selection</strong><span>Start a campaign, then browse creators in a focused picker without loading every portrait here.</span></div>
+            <ArrowRight className="size-4" />
+          </button>
         </section>
       </div>
     </section>
-    {creatorChoice && <div className="ugc-creator-choice-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setCreatorChoice(null) }} role="presentation">
-      <section aria-label={`Use ${creatorChoice.name} for a UGC ad`} aria-modal="true" className="ugc-creator-choice" role="dialog">
-        <button aria-label="Close creator selection" className="ugc-creator-choice-close" onClick={() => setCreatorChoice(null)} type="button"><X className="size-4" /></button>
-        <div className="ugc-creator-choice-image"><ProtectedAvatar avatar={creatorChoice} /></div>
-        <span className="ugc-home-eyebrow">FEATURED CREATOR</span>
-        <h3>Create an ad with {creatorChoice.name}?</h3>
-        <p>{creatorChoice.category} · {creatorChoice.ageBand} · {creatorChoice.locale}. The UGC Agent will keep this creator selected while it plans your ad.</p>
-        <div className="ugc-creator-choice-actions">
-          <Button onClick={() => setCreatorChoice(null)} size="sm" variant="secondary">Cancel</Button>
-          <Button onClick={() => {
-            const creator = creatorChoice
-            setAgentCreator(creator)
-            setCreatorChoice(null)
-            openAgent(`I want to create a UGC ad using ${creator.name} as the creator.`)
-          }} size="sm" variant="primary"><Sparkles className="size-3.5" />Create an ad with {creatorChoice.name}</Button>
-        </div>
-      </section>
-    </div>}
-    {agentOpen && <UGCAgentModal
-      avatars={featured}
-      initialPrompt={agentInitialPrompt}
-      key={agentSessionKey}
-      onCampaignCreated={() => {
-        void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
-        window.requestAnimationFrame(() => document.getElementById('ugc-workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-      }}
-      onClose={() => setAgentOpen(false)}
-      onCreatorChange={setAgentCreator}
-      onManualSetup={(draft) => { setAgentOpen(false); onCreate(undefined, draft) }}
-      onToast={onToast}
-      selectedCreator={agentCreator}
-    />}
     <UGCVideoLightbox onClose={() => setPreview(null)} open={Boolean(preview)} src={preview?.src || null} title={preview?.title} />
   </div>, document.body)
 }
