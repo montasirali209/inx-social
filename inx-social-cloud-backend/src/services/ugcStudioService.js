@@ -971,17 +971,35 @@ async function generateCustomAvatar(userId, input) {
   await credits.getBalance(userId);
   const generationId = await createAvatarGeneration(userId, input.prompt);
   try {
-    const prompt = 'Ultra-realistic reusable UGC creator portrait. ' + clean(input.prompt, 1000) + '. Adult creator. Vertical 9:16, waist-up, natural smartphone-camera realism, realistic skin, natural lighting, simple background, no text, no logo, no watermark.';
+    const presentation = clean(input.presentation || 'Woman', 80);
+    const ageBand = clean(input.ageBand || '25–34', 80);
+    const category = clean(input.category || 'Lifestyle', 80);
+    const locale = clean(input.locale || 'en-GB', 20);
+    const voice = clean(input.voice, 100) || narratorVoice('', { presentation });
+    const prompt = [
+      'Ultra-realistic reusable UGC creator portrait.',
+      'Adult ' + ageBand + ' ' + presentation + ' creator.',
+      category ? 'Niche: ' + category + '.' : '',
+      clean(input.prompt, 1000),
+      'Vertical 9:16, waist-up, natural smartphone-camera realism, realistic skin, natural lighting, simple believable background, no text, no logo, no watermark. Never resemble a named celebrity or identifiable real person.'
+    ].filter(Boolean).join(' ');
     const generated = await runware.generateImages([prompt], { aspectRatio: '9:16', model: env.runware.imageModel });
     const remote = await download(generated.images[0].url, 12 * 1024 * 1024);
     const data = await sharp(remote.data).rotate().resize({ width: 720, height: 1280, fit: 'cover' }).png().toBuffer();
     const avatarId = id();
     const stored = await objectStorage.persistBuffer({ userId, data, mimeType: 'image/png', originalName: 'ugc-avatar-' + avatarId + '.png', prefix: 'ugc-avatar' });
-    const profile = ugcCreators.buildProfile({ category: input.category, locale: input.locale });
+    const profile = ugcCreators.buildProfile({
+      category,
+      presentation,
+      ageBand,
+      locale,
+      accent: input.accent,
+      niches: input.niches
+    });
     const storage = ugcCreators.storageFields(profile);
     await prisma.$executeRawUnsafe(
-      'INSERT INTO "UGCAvatar" ("id","userId","scope","name","category","locale","voice","voicePrompt","prompt","creatorVersion","accent","languagesJson","nichesJson","environmentTagsJson","wardrobeJson","gestureJson","routeCompatibilityJson","castingProfileJson","referenceStorageProvider","referenceStorageKey","referenceMimeType","referenceQualityStatus","referenceQualityScore","referenceReviewedAt","status","createdAt","updatedAt") VALUES ($1,$2,\'USER\',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,\'image/png\',\'READY\',100,CURRENT_TIMESTAMP,\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
-      avatarId, userId, input.name, input.category, input.locale, input.voice,
+      'INSERT INTO "UGCAvatar" ("id","userId","scope","name","category","presentation","ageBand","locale","voice","voicePrompt","prompt","creatorVersion","accent","languagesJson","nichesJson","environmentTagsJson","wardrobeJson","gestureJson","routeCompatibilityJson","castingProfileJson","referenceStorageProvider","referenceStorageKey","referenceMimeType","referenceQualityStatus","referenceQualityScore","referenceReviewedAt","status","createdAt","updatedAt") VALUES ($1,$2,\'USER\',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,\'image/png\',\'READY\',100,CURRENT_TIMESTAMP,\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+      avatarId, userId, input.name, category, presentation, ageBand, locale, voice,
       'Natural, conversational UGC delivery matched to the creator and script.', prompt,
       storage.creatorVersion, storage.accent, storage.languagesJson, storage.nichesJson, storage.environmentTagsJson,
       storage.wardrobeJson, storage.gestureJson, storage.routeCompatibilityJson, storage.castingProfileJson,
@@ -1001,11 +1019,17 @@ async function uploadCustomAvatar(userId, input) {
   const data = await sharp(input.data).rotate().resize({ width: 720, height: 1280, fit: 'cover' }).png().toBuffer();
   const avatarId = id();
   const stored = await objectStorage.persistBuffer({ userId, data, mimeType: 'image/png', originalName: 'ugc-avatar-' + avatarId + '.png', prefix: 'ugc-avatar' });
-  const profile = ugcCreators.buildProfile({ category: 'Custom', locale: 'en-GB' });
+  const category = clean(input.category || 'Lifestyle', 80);
+  const presentation = clean(input.presentation || 'Woman', 80);
+  const ageBand = clean(input.ageBand || '25–34', 80);
+  const locale = clean(input.locale || 'en-GB', 20);
+  const voice = narratorVoice('', { presentation });
+  const profile = ugcCreators.buildProfile({ category, presentation, ageBand, locale, accent: input.accent });
   const storage = ugcCreators.storageFields(profile);
   await prisma.$executeRawUnsafe(
-    'INSERT INTO "UGCAvatar" ("id","userId","scope","name","category","locale","voice","voicePrompt","prompt","creatorVersion","accent","languagesJson","nichesJson","environmentTagsJson","wardrobeJson","gestureJson","routeCompatibilityJson","castingProfileJson","referenceStorageProvider","referenceStorageKey","referenceMimeType","referenceQualityStatus","referenceQualityScore","referenceReviewedAt","status","createdAt","updatedAt") VALUES ($1,$2,\'USER\',$3,\'Custom\',\'en-GB\',\'Pippa\',$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,\'image/png\',\'READY\',100,CURRENT_TIMESTAMP,\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+    'INSERT INTO "UGCAvatar" ("id","userId","scope","name","category","presentation","ageBand","locale","voice","voicePrompt","prompt","creatorVersion","accent","languagesJson","nichesJson","environmentTagsJson","wardrobeJson","gestureJson","routeCompatibilityJson","castingProfileJson","referenceStorageProvider","referenceStorageKey","referenceMimeType","referenceQualityStatus","referenceQualityScore","referenceReviewedAt","status","createdAt","updatedAt") VALUES ($1,$2,\'USER\',$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,\'image/png\',\'READY\',100,CURRENT_TIMESTAMP,\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
     avatarId, userId, clean(input.name.replace(/\.[^.]+$/, ''), 80) || 'Custom creator',
+    category, presentation, ageBand, locale, voice,
     'Natural, conversational UGC delivery matched to the creator and script.',
     'Customer-supplied creator reference. Preserve identity, clothing and recognizable appearance.',
     storage.creatorVersion, storage.accent, storage.languagesJson, storage.nichesJson, storage.environmentTagsJson,
