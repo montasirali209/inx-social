@@ -166,7 +166,7 @@ export function UGCStudioHomeModal({
 
   function scheduleCampaign(campaign: UGCCampaign) {
     const ready = campaign.ads
-      .filter((ad) => ad.status === 'READY' && ad.mediaAssetId)
+      .filter((ad) => ad.status === 'READY' && ad.mediaAssetId && ad.qualityControl?.publishable)
       .map((ad) => ({ ad, asset: assetsById.get(ad.mediaAssetId!) }))
       .filter((item): item is { ad: typeof campaign.ads[number]; asset: MediaAsset } => Boolean(item.asset))
     if (!ready.length) { onToast('No finished UGC videos are available to schedule yet.'); return }
@@ -183,7 +183,7 @@ export function UGCStudioHomeModal({
         aiMixedCampaign: {
           id: campaign.id,
           title: campaign.title,
-          posts: ready.map(({ ad }) => ({ id: ad.id, contentType: 'IMAGE' as const, caption: ad.caption || ad.script, mediaAssetId: ad.mediaAssetId! })),
+          posts: ready.map(({ ad }) => ({ id: ad.id, contentType: 'VIDEO' as const, caption: ad.caption || ad.script, mediaAssetId: ad.mediaAssetId! })),
         },
       },
     })
@@ -234,8 +234,9 @@ export function UGCStudioHomeModal({
           {overview.isLoading ? <div className="ugc-home-empty"><LoaderCircle className="size-7 animate-spin text-brand-cyan" /><span>Loading your UGC workspace…</span></div> :
             campaigns.length ? <div className="ugc-home-campaign-grid">{campaigns.map((campaign) => {
               const first = campaign.ads[0]
+              const previewAd = campaign.ads.find((ad) => ad.qualityControl?.publishable && ad.mediaAssetId) || first
               const activeAd = campaign.ads.find((ad) => activeStatuses.has(ad.status))
-              const asset = first?.mediaAssetId ? assetsById.get(first.mediaAssetId) : undefined
+              const asset = previewAd?.mediaAssetId ? assetsById.get(previewAd.mediaAssetId) : undefined
               const busy = activeStatuses.has(campaign.status) || Boolean(activeAd)
               const campaignProgress = campaign.ads.length
                 ? Math.round(campaign.ads.reduce((sum, ad) => sum + Number(ad.progress || 0), 0) / campaign.ads.length)
@@ -275,7 +276,7 @@ export function UGCStudioHomeModal({
                         navigate(`/ai-content-studio/ugc/${first.id}/edit`)
                       })
                     }} size="sm"><Pencil className="size-3.5" />Edit</Button>
-                    <Button disabled={!campaign.ads.some((ad) => ad.status === 'READY')} onClick={() => scheduleCampaign(campaign)} size="sm" variant="primary"><CalendarRange className="size-3.5" />Schedule</Button>
+                    <Button disabled={!campaign.ads.some((ad) => ad.qualityControl?.publishable && ad.mediaAssetId)} onClick={() => scheduleCampaign(campaign)} size="sm" variant="primary"><CalendarRange className="size-3.5" />Schedule</Button>
                     <button aria-label="Create similar campaign" className="ugc-home-icon-action" onClick={() => startCreation(campaign)} title="Create similar" type="button"><Copy className="size-3.5" /></button>
                     <button aria-label="Delete campaign" className="ugc-home-icon-action danger" disabled={busy || remove.isPending} onClick={() => { if (window.confirm('Remove this UGC campaign from your studio?')) remove.mutate(campaign.id) }} title="Delete" type="button"><Trash2 className="size-3.5" /></button>
                   </div>
