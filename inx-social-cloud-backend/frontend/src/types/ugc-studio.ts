@@ -196,6 +196,32 @@ export type UGCOverview = {
     campaignTypes: UGCCampaignType[]
     creativeFormatVersion: string
     creativeFormats: UGCCreativeFormatOption[]
+    studioControlsVersion: string
+    studioControls: {
+      version: string
+      durations: Array<{ seconds: UGCDuration; label: string; description: string }>
+      variationCounts: Array<{ count: UGCAdCount; label: string; description: string }>
+      qualityTiers: Array<{
+        key: UGCQuality
+        label: string
+        badge: string
+        description: string
+        bestFor: string[]
+        experience: string[]
+      }>
+      pricing: {
+        policy: string
+        matrix: Record<UGCQuality, Record<string, number>>
+        formatAffectsPrice: boolean
+        creatorSelectionAffectsPrice: boolean
+      }
+      rules: {
+        modelNamesVisibleToCustomer: boolean
+        quoteBeforeGeneration: boolean
+        explicitCreditConfirmation: boolean
+        generationRunsInBackground: boolean
+      }
+    }
     creatorProfileVersion: string
     systemAvatarCount: number
     featuredAvatarCount: number
@@ -219,12 +245,52 @@ export type CreateUGCCampaignInput = {
 }
 
 export type UGCEstimate = {
+  version: string
   credits: number
   perAd: number
   adCount: number
   duration: number
   quality: UGCQuality
-  campaignType?: UGCCampaignType
+  campaignType: UGCCampaignType
+  creativeFormat: UGCCreativeFormat
+  tier: {
+    key: UGCQuality
+    label: string
+    badge: string
+    description: string
+    bestFor: string[]
+    experience: string[]
+  }
+  durationOption: { seconds: number; label: string; description: string }
+  variationOption: { count: number; label: string; description: string }
+  affordability: {
+    affordable: boolean
+    balanceBefore: number
+    balanceAfter: number
+    shortfall: number
+    alternative: null | {
+      quality: UGCQuality
+      duration: UGCDuration
+      adCount: UGCAdCount
+      perAd: number
+      credits: number
+      label: string
+    }
+  }
+  pricing: {
+    policy: string
+    formatAffectsPrice: boolean
+    creatorSelectionAffectsPrice: boolean
+    matrix: Record<UGCQuality, Record<string, number>>
+  }
+  production: {
+    providerNamesHidden: boolean
+    routerManaged: boolean
+    output: string
+    resolution: string
+    backgroundRendering: boolean
+    recoverableJobs: boolean
+  }
 }
 
 export type UGCEditorUpdate = {

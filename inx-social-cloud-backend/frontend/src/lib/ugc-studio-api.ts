@@ -17,7 +17,7 @@ export function getUGCOverview() {
   return apiRequest<UGCOverview>('/api/ai-content-studio/ugc/overview')
 }
 
-export function estimateUGCCampaign(input: Pick<CreateUGCCampaignInput, 'duration' | 'adCount' | 'quality' | 'campaignType'>) {
+export function estimateUGCCampaign(input: Pick<CreateUGCCampaignInput, 'duration' | 'adCount' | 'quality' | 'campaignType' | 'creativeFormat'>) {
   return apiRequest<UGCEstimate>('/api/ai-content-studio/ugc/estimate', {
     method: 'POST',
     body: JSON.stringify(input),

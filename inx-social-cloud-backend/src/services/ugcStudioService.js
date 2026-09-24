@@ -21,6 +21,7 @@ const ugcModelRouter = require('./ugcModelRouter');
 const ugcProviderAdapters = require('./ugcProviderAdapters');
 const ugcCreators = require('./ugcCreatorEngine');
 const ugcCreativeFormats = require('./ugcCreativeFormats');
+const ugcStudioControls = require('./ugcStudioControls');
 const { expiresAtFor } = require('./mediaRetentionService');
 
 const STANDARD_CREDITS = Object.freeze({ 15: 100, 20: 140, 30: 210 });
@@ -562,15 +563,12 @@ function creditsPerAd(duration, quality) {
   return amount;
 }
 
-function estimateCampaign(_userId, input) {
-  const perAd = creditsPerAd(input.duration, input.quality);
-  return Promise.resolve({
-    credits: perAd * input.adCount,
-    perAd,
-    adCount: input.adCount,
-    duration: input.duration,
-    quality: input.quality,
-    campaignType: input.campaignType || 'AUTO'
+async function estimateCampaign(userId, input) {
+  const balance = await credits.getBalance(userId);
+  return ugcStudioControls.quote({
+    input,
+    balanceRemaining: balance.remaining,
+    pricing: { STANDARD: STANDARD_CREDITS, PREMIUM: PREMIUM_CREDITS }
   });
 }
 
@@ -737,6 +735,7 @@ async function createGenerationRow(userId, adId, amount, request) {
 }
 
 async function createCampaign(userId, input) {
+  ugcStudioControls.assertSelection(input, { STANDARD: STANDARD_CREDITS, PREMIUM: PREMIUM_CREDITS });
   const access = await credits.getAccess(userId);
   if (!access.studioEnabled) throw publicError('UGC Studio is unavailable for this account.', 'UGC_ACCESS_REQUIRED', 403);
   const totalCredits = creditsPerAd(input.duration, input.quality) * input.adCount;
@@ -960,6 +959,8 @@ async function getOverview(userId) {
       campaignTypes: ['AUTO','AVATAR_EXPLAINER','PRODUCT_SHOWCASE'],
       creativeFormatVersion: ugcCreativeFormats.CREATIVE_FORMAT_VERSION,
       creativeFormats: ugcCreativeFormats.publicCatalog(),
+      studioControlsVersion: ugcStudioControls.STUDIO_CONTROLS_VERSION,
+      studioControls: ugcStudioControls.snapshot({ STANDARD: STANDARD_CREDITS, PREMIUM: PREMIUM_CREDITS }),
       creatorProfileVersion: ugcCreators.CREATOR_PROFILE_VERSION,
       systemAvatarCount: avatars.filter(row => row.scope === 'SYSTEM').length,
       featuredAvatarCount: publicAvatars.filter(avatar => avatar.featured).length
