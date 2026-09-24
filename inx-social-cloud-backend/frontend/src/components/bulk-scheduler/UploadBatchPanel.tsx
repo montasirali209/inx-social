@@ -59,6 +59,7 @@ type Props = {
   onScheduleDateChange: (value: string) => void
   onScheduleTimeAdd: (value: string) => void
   onScheduleTimeRemove: (value: string) => void
+  onSaveScheduleTimes: () => Promise<void>
   onFallbackChange: (value: boolean) => void
   onRetainMediaChange: (value: boolean) => void
   onSmartTimingChange: (value: boolean) => void
@@ -144,7 +145,7 @@ export function UploadBatchPanel(props: Props) {
             <div className="grid gap-2 sm:grid-cols-[minmax(0,.72fr)_minmax(0,1.28fr)]">
               <label><span className="mb-1.5 block text-xs font-medium text-text-muted">Start date</span><input className="min-h-11 w-full rounded-xl border border-border-soft bg-bg/65 px-3 text-sm focus:border-brand-cyan focus:outline-none focus:ring-2 focus:ring-brand-cyan/20" disabled={props.running} onChange={(event) => props.onScheduleDateChange(event.target.value)} type="date" value={props.scheduleDate} /></label>
               {props.timingMode === 'schedule_time'
-                ? <DailyTimeSelector disabled={props.running} onAdd={props.onScheduleTimeAdd} onRemove={props.onScheduleTimeRemove} times={props.scheduleTimes} />
+                ? <DailyTimeSelector disabled={props.running} onAdd={props.onScheduleTimeAdd} onRemove={props.onScheduleTimeRemove} onSaveForFuture={props.onSaveScheduleTimes} savedTimes={props.savedScheduleTimes} times={props.scheduleTimes} />
                 : <div><span className="mb-1.5 block text-xs font-medium text-text-muted">Saved posting times</span><div className="flex min-h-11 flex-wrap items-center gap-1.5 rounded-xl border border-border-soft bg-bg/40 px-3 py-2">{props.savedScheduleTimes.map((time) => <span className="rounded-lg border border-brand-teal/20 bg-brand-teal/8 px-2.5 py-1 text-xs font-semibold text-brand-cyan" key={time}>{time}</span>)}</div><p className="mt-1.5 text-[10px] leading-4 text-text-soft">Account timezone: {props.timezone.replaceAll('_', ' ')} · <Link className="text-brand-cyan hover:underline" to="/settings">Change saved times</Link></p></div>}
             </div>
           ) : <div className="flex min-h-11 items-end text-xs leading-5 text-text-muted">{props.timingMode === 'publish_now' ? (campaignImport ? 'Each campaign post is routed to compatible selected destinations and sent in campaign order.' : textMode ? 'Each text post is sent securely for immediate publishing.' : 'Each image or video publishes after the provider accepts the upload.') : 'Choose when this batch should publish.'}</div>}
