@@ -736,6 +736,18 @@ async function createGenerationRow(userId, adId, amount, request) {
   }
 }
 
+async function createAssemblyGenerationRow(userId, adId, request = {}) {
+  const generationId = id();
+  await prisma.$executeRawUnsafe(
+    'INSERT INTO "AiGeneration" ("id","userId","contentType","status","provider","prompt","requestJson","reservedCredits","createdAt","updatedAt") VALUES ($1,$2,\'ugc_ad\',\'PREPARING\',\'local\',$3,$4,0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+    generationId,
+    userId,
+    clean(request.title || 'UGC final assembly', 1500),
+    json({ ugcAdId: adId, reassembly: true, renderQualityVersion: ugcRenderQuality.RENDER_QUALITY_VERSION, ...request })
+  );
+  return generationId;
+}
+
 async function createCampaign(userId, input) {
   ugcStudioControls.assertSelection(input, { STANDARD: STANDARD_CREDITS, PREMIUM: PREMIUM_CREDITS });
   const access = await credits.getAccess(userId);
@@ -1866,6 +1878,44 @@ async function rerouteScenesForRegeneration(userId, adId, sceneIds = null) {
   return { ad, decisions, routerVersion: ugcModelRouter.ROUTER_VERSION, routerMode: ugcModelRouter.routerMode() };
 }
 
+async function reassembleAd(userId, adId) {
+  const row = await getAdRow(userId, adId);
+  if (['QUEUED','RENDERING','RESERVING'].includes(row.status)) throw publicError('This ad is already rendering.', 'UGC_AD_BUSY', 409);
+  const scenes = await prisma.$queryRawUnsafe('SELECT * FROM "UGCScene" WHERE "adId"=$1 ORDER BY "sequence"', adId);
+  const report = ugcRenderQuality.inspect({ ad: row, scenes });
+  if (report.recovery.action !== 'REASSEMBLE') {
+    throw publicError(
+      report.recovery.action === 'RETRY_SCENES'
+        ? 'One or more scenes need regeneration before the final video can be rebuilt.'
+        : 'This ad does not need final reassembly.',
+      'UGC_REASSEMBLY_NOT_AVAILABLE',
+      409
+    );
+  }
+
+  const generationId = await createAssemblyGenerationRow(userId, adId, {
+    title: row.title,
+    sourceMediaAssetId: row.mediaAssetId || null,
+    sceneCount: scenes.length
+  });
+  await ugcEngine.linkGeneration(userId, row.campaignId, row.sequence, adId, generationId).catch(() => null);
+  await ugcEngine.updateStatus(userId, row.campaignId, 'QUEUED').catch(() => {});
+  await prisma.$executeRawUnsafe(
+    'UPDATE "UGCAd" SET "generationId"=$2,"status"=\'QUEUED\',"errorMessage"=NULL,"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+    adId,
+    generationId
+  );
+  await ugcAnalytics.track(userId, {
+    event: 'REASSEMBLY_STARTED',
+    stage: 'editor',
+    campaignId: row.campaignId,
+    adId,
+    metadata: { credits: 0, sceneCount: scenes.length, renderQualityVersion: ugcRenderQuality.RENDER_QUALITY_VERSION }
+  });
+  queueRuntimeTick();
+  return getAd(userId, adId);
+}
+
 async function regenerateAd(userId, adId) {
   const row = await getAdRow(userId, adId);
   if (['QUEUED','RENDERING'].includes(row.status)) throw publicError('This ad is already rendering.', 'UGC_AD_BUSY', 409);
@@ -1927,7 +1977,7 @@ module.exports = {
   STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds, brandUrlCandidates, playbackDurations,
   creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
   narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
-  getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, deleteCampaign, getAd, updateAd, rerouteScenesForRegeneration, regenerateAd, regenerateScene,
+  getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, deleteCampaign, getAd, updateAd, rerouteScenesForRegeneration, reassembleAd, regenerateAd, regenerateScene,
   generateCustomAvatar, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,
   listAvatarReferences, uploadAvatarReference, getAvatarReferenceContent, deleteAvatarReference,
   uploadProductAsset, getProductAssetContent,
