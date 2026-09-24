@@ -154,15 +154,44 @@ function renderUgcAnalytics(data){
   $('ugcAnalyticsUpdated').textContent=analytics.generatedAt?`Updated ${relative(analytics.generatedAt)}`:'—';
 }
 
+function renderUgcOperations(data){
+  const operations=data.operations||{};
+  const queue=operations.queue||{};
+  const economics=operations.economics30d||{};
+  const health=String(operations.health||'UNKNOWN').toUpperCase();
+  const chip=$('ugcOpsStatus');
+  chip.textContent=health.replaceAll('_',' ');
+  chip.className=`status-chip ${health==='HEALTHY'?'gsc-connected':health==='DEGRADED'?'gsc-error':''}`;
+  const kpis=[
+    ['Queued',queue.queued||0,'Waiting for the UGC worker'],
+    ['Rendering',queue.rendering||0,'Active UGC variations'],
+    ['Stale',queue.stale||0,`${Math.round(Number(operations.staleThresholdMs||0)/60000)} minute threshold`],
+    ['30d credits',economics.creditsUsed||0,`${Number(economics.reservedCredits||0).toLocaleString()} currently recorded reserved`],
+    ['30d provider cost',Number(economics.providerCostUsd||0).toFixed(2),`${Number(economics.generationRows||0).toLocaleString()} generation records`]
+  ];
+  $('ugcOpsKpis').innerHTML=kpis.map(([label,value,detail])=>`<article><span>${esc(label)}</span><b>${typeof value==='number'?Number(value).toLocaleString():esc(value)}</b><small>${esc(detail)}</small></article>`).join('');
+  const stale=queue.staleItems||[];
+  $('ugcOpsQueue').innerHTML=[
+    `<div class="ugc-ops-row"><div><b>Oldest active update</b><small>${queue.oldestActiveUpdatedAt?esc(fmtDate(queue.oldestActiveUpdatedAt)):'No active renders'}</small></div><strong>${Number(queue.queued||0)+Number(queue.rendering||0)} active</strong></div>`,
+    `<div class="ugc-ops-row"><div><b>Failed outputs visible</b><small>Recoverable failures remain explicit instead of disappearing from the queue.</small></div><strong>${Number(queue.failedVisible||0).toLocaleString()}</strong></div>`,
+    ...(stale.length?stale.map(item=>`<div class="ugc-ops-row warning"><div><b>Stale ${esc(item.status)}</b><small>${esc(item.campaignId)} · ${item.updatedAt?esc(relative(item.updatedAt)):'unknown age'}</small></div><strong>${esc(item.adId.slice(0,8))}</strong></div>`):[`<div class="ugc-ops-row ok"><div><b>No stale UGC work</b><small>Queue/recovery timing is inside the Phase 8 threshold.</small></div><strong>Healthy</strong></div>`])
+  ].join('');
+  const issues=operations.recentAuditIssues||[];
+  $('ugcOpsIssues').innerHTML=issues.length?issues.map(item=>`<div class="ugc-ops-row ${item.status==='FAIL'?'warning':''}"><div><b>${esc(item.status)} · ${esc(item.campaignStatus||'UNKNOWN')}</b><small>${esc(String(item.recommendedAction||'').replaceAll('_',' '))} · ${Number(item.summary?.publishableAds||0)}/${Number(item.summary?.variationCount||0)} publishable</small></div><strong>${esc(String(item.campaignId||'').slice(0,8))}</strong></div>`).join(''):`<div class="ugc-ops-row ok"><div><b>No recent invariant failures</b><small>Recent terminal campaigns agree across engine, render, credits, QC and Media Library state.</small></div><strong>Pass</strong></div>`;
+  $('ugcOpsUpdated').textContent=operations.generatedAt?`Updated ${relative(operations.generatedAt)}`:'—';
+}
+
 async function loadAiAccess(){
   const days=Number($('ugcAnalyticsDays')?.value||30);
-  const [studio,agent,ugc]=await Promise.all([
+  const [studio,agent,ugc,ugcOps]=await Promise.all([
     api('/api/admin/ai-studio-policy'),
     api('/api/admin/agent-access'),
-    api(`/api/admin/ugc-analytics?days=${days}`)
+    api(`/api/admin/ugc-analytics?days=${days}`),
+    api('/api/admin/ugc-operations?limit=20')
   ]);
   renderAiOperations(studio);
   renderUgcAnalytics(ugc);
+  renderUgcOperations(ugcOps);
   const policy=agent.policy||{};
   $('agentAvailability').value=policy.availability==='PLUS_ONLY'?'PAID_PLANS':policy.availability;
   const limits=policy.planLimits||{};

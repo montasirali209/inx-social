@@ -118,6 +118,24 @@
         </div>
       </section>
 
+      <section class="panel ugc-ops-panel">
+        <header class="ugc-admin-head">
+          <div><span class="kicker">Phase 8 production audit</span><h2>UGC generation operations</h2><p>Live operational checks across engine contracts, render jobs, scene state, credits, provider cost, Media Library output and publish readiness.</p></div>
+          <span class="status-chip" id="ugcOpsStatus">Loading…</span>
+        </header>
+        <div class="ugc-ops-kpis" id="ugcOpsKpis">
+          <article><span>Queue</span><b>—</b><small>Loading…</small></article>
+          <article><span>Rendering</span><b>—</b><small>Loading…</small></article>
+          <article><span>Stale</span><b>—</b><small>Loading…</small></article>
+          <article><span>30d credits</span><b>—</b><small>Loading…</small></article>
+          <article><span>30d provider cost</span><b>—</b><small>Loading…</small></article>
+        </div>
+        <div class="ugc-ops-grid">
+          <article class="ugc-ops-card"><div class="ugc-admin-card-head"><div><span class="kicker">Queue & recovery</span><h3>Current runtime health</h3></div><span id="ugcOpsUpdated">—</span></div><div id="ugcOpsQueue" class="ugc-ops-list"></div></article>
+          <article class="ugc-ops-card"><div class="ugc-admin-card-head"><div><span class="kicker">Consistency audit</span><h3>Recent campaigns needing attention</h3></div></div><div id="ugcOpsIssues" class="ugc-ops-list"></div></article>
+        </div>
+      </section>
+
       <form class="panel policy-form social-agent-card" id="agentAccessForm">
         <div class="policy-hero"><span>◆</span><div><span class="kicker">Automation</span><h3>Social Agent policy</h3><p>The autonomous Social Agent is separate from AI Content Studio generation. Control who can run missions and how many missions each customer plan receives.</p></div></div>
         <label>Availability<select id="agentAvailability"><option value="ADMIN_ONLY">Admins only — development mode</option><option value="PAID_PLANS">Paid plans</option><option value="EVERYONE">All active subscribers</option><option value="DISABLED">Disabled for everyone</option></select></label>

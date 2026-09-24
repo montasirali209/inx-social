@@ -16,6 +16,7 @@ const EVENTS = new Set([
   'EDITOR_SAVED',
   'REGENERATION_STARTED',
   'SCENE_REGENERATION_STARTED',
+  'REASSEMBLY_STARTED',
   'SCHEDULER_HANDOFF'
 ]);
 
@@ -28,7 +29,7 @@ function safeMetadata(value) {
   const allowed = [
     'sourceType', 'campaignType', 'resolvedType', 'quality', 'duration', 'adCount',
     'creatorMode', 'avatarScope', 'step', 'status', 'credits', 'variationCount',
-    'readyCount', 'failedCount', 'hasProductAssets'
+    'readyCount', 'failedCount', 'hasProductAssets', 'sceneCount', 'recoveryAction', 'renderQualityVersion'
   ];
   const output = {};
   for (const key of allowed) {

@@ -94,6 +94,9 @@ async function getCampaign(req, res, next) {
 async function getEngineProject(req, res, next) {
   try { res.json({ engine: await service.getEngineProject(req.user.id, req.params.campaignId) }); } catch (error) { next(error); }
 }
+async function getProductionAudit(req, res, next) {
+  try { res.json({ audit: await service.getProductionAudit(req.user.id, req.params.campaignId) }); } catch (error) { next(error); }
+}
 async function removeCampaign(req, res, next) {
   try { await service.deleteCampaign(req.user.id, req.params.campaignId); res.json({ ok: true }); } catch (error) { next(error); }
 }
@@ -240,7 +243,7 @@ async function trackEvent(req, res, next) {
 }
 
 module.exports = {
-  overview, estimate, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, removeCampaign,
+  overview, estimate, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, getProductionAudit, removeCampaign,
   getAd, updateAd, reassembleAd, regenerateAd, regenerateScene,
   generateAvatar, uploadAvatar, avatarContent, avatarReferences, uploadAvatarReference, avatarReferenceContent, removeAvatarReference, removeAvatar,
   uploadProduct, productContent, samples, sampleContent, uploadSample, listMusic, trackEvent,
