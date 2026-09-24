@@ -233,7 +233,8 @@ function actorSnapshot(row = {}) {
     voice: clean(row.voice, 100),
     referenceVersion: Number(row.referenceVersion || 0),
     referenceQualityStatus: clean(row.referenceQualityStatus || (row.referenceStorageKey ? 'READY' : 'PENDING'), 40),
-    referenceQualityScore: Number(row.referenceQualityScore || (row.referenceStorageKey ? 100 : 0))
+    referenceQualityScore: Number(row.referenceQualityScore || (row.referenceStorageKey ? 100 : 0)),
+    alternateReferenceCount: Math.max(0, Number(row.alternateReferenceCount || 0))
   };
 }
 
