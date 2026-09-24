@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, CalendarDays, Radio, RefreshCw } from 'lucide-react'
+import { AlertTriangle, CalendarDays, Radio } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { buildAnalyticsView } from '../../data/analyticsData'
 import { fetchAnalyticsForSource, fetchAnalyticsSources, type AnalyticsSourceAccount } from '../../lib/analytics-api'
