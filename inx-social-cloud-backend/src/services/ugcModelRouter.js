@@ -1,5 +1,6 @@
 const env = require('../config/env');
 const adapters = require('./ugcProviderAdapters');
+const creators = require('./ugcCreatorEngine');
 
 const ROUTER_VERSION = 'ugc-router-v1';
 
@@ -42,6 +43,7 @@ function routeForScene({
   hasActor,
   hasProductReference,
   hasNarration = true,
+  allowedRoutes = null,
   mode = routerMode()
 }) {
   const normalizedQuality = clean(quality || 'STANDARD', 30).toUpperCase();
@@ -76,10 +78,26 @@ function routeForScene({
     fallbacks = [ROUTE_KEYS.LEGACY_PREMIUM];
   }
 
-  const adapter = adapters.getAdapter(routeKey);
+  const allowed = Array.isArray(allowedRoutes) && allowedRoutes.length ? new Set(allowedRoutes) : null;
   const duration = Number(providerDuration || 0);
+  if (allowed && !allowed.has(routeKey)) {
+    const compatible = [routeKey, ...fallbacks].find(candidate => {
+      if (!allowed.has(candidate)) return false;
+      try { return supportsDuration(adapters.getAdapter(candidate), duration); } catch (_) { return false; }
+    });
+    if (!compatible) {
+      const error = new Error('No compatible UGC creator route is available for this scene.');
+      error.code = 'UGC_ROUTER_CREATOR_INCOMPATIBLE';
+      throw error;
+    }
+    routeKey = compatible;
+    reason += '_CREATOR_COMPATIBILITY_FALLBACK';
+  }
+
+  const adapter = adapters.getAdapter(routeKey);
   if (!supportsDuration(adapter, duration)) {
     const fallback = fallbacks.find(candidate => {
+      if (allowed && !allowed.has(candidate)) return false;
       try {
         return supportsDuration(adapters.getAdapter(candidate), duration);
       } catch (_) {
@@ -151,6 +169,7 @@ function routePlan({
           hasActor: Boolean(avatar),
           hasProductReference,
           hasNarration: clean(scene.script, 5000).length >= 2,
+          allowedRoutes: avatar && isCreatorLike(scene.kind) ? creators.profileFromRow(avatar).routeCompatibility : null,
           mode
         })
       }))
