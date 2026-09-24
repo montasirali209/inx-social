@@ -22,6 +22,7 @@ const ugcProviderAdapters = require('./ugcProviderAdapters');
 const ugcCreators = require('./ugcCreatorEngine');
 const ugcCreativeFormats = require('./ugcCreativeFormats');
 const ugcStudioControls = require('./ugcStudioControls');
+const ugcRenderQuality = require('./ugcRenderQuality');
 const { expiresAtFor } = require('./mediaRetentionService');
 
 const STANDARD_CREDITS = Object.freeze({ 15: 100, 20: 140, 30: 210 });
@@ -345,6 +346,7 @@ function publicAd(row, scenes = [], avatar = null, generation = null) {
     quality: row.quality, credits: row.credits, generationId: row.generationId || null,
     mediaAssetId: row.mediaAssetId || null, musicMode: row.musicMode || 'AUTO',
     captionsEnabled: row.captionsEnabled !== false, plan: parseJson(row.planJson, {}), error: row.errorMessage || null,
+    qualityControl: ugcRenderQuality.inspect({ ad: row, scenes }),
     ...generationStagePayload(row, scenes, generation),
     scenes: scenes.map(publicScene), createdAt: row.createdAt, updatedAt: row.updatedAt, completedAt: row.completedAt || null
   };
@@ -961,6 +963,8 @@ async function getOverview(userId) {
       creativeFormats: ugcCreativeFormats.publicCatalog(),
       studioControlsVersion: ugcStudioControls.STUDIO_CONTROLS_VERSION,
       studioControls: ugcStudioControls.snapshot({ STANDARD: STANDARD_CREDITS, PREMIUM: PREMIUM_CREDITS }),
+      renderQualityVersion: ugcRenderQuality.RENDER_QUALITY_VERSION,
+      renderQuality: ugcRenderQuality.snapshot(),
       creatorProfileVersion: ugcCreators.CREATOR_PROFILE_VERSION,
       systemAvatarCount: avatars.filter(row => row.scope === 'SYSTEM').length,
       featuredAvatarCount: publicAvatars.filter(avatar => avatar.featured).length
@@ -1497,7 +1501,7 @@ async function renderAd(adId) {
     brandRefs = parseJson(brand?.brandReferencesJson, []);
   }
   const generationRows = ad.generationId ? await prisma.$queryRawUnsafe('SELECT "reservedCredits" FROM "AiGeneration" WHERE "id"=$1 LIMIT 1', ad.generationId) : [];
-  const generationCredits = Number(generationRows[0]?.reservedCredits || ad.credits || 0);
+  const generationCredits = generationRows[0]?.reservedCredits != null ? Number(generationRows[0].reservedCredits) : Number(ad.credits || 0);
   const campaignProductIds = parseJson(campaign?.productAssetIdsJson, []);
   let productReference = null;
   if (campaignProductIds.length) {
@@ -1747,7 +1751,8 @@ async function updateAd(userId, adId, input) {
     const parts = splitScriptByDurations(nextScript, scenes.map(scene => Number(scene.duration)));
     for (let i=0;i<scenes.length;i+=1) await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "script"=$2,"status"=\'EDITED\',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', scenes[i].id, parts[i]);
   }
-  if (input.avatarId !== undefined) await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "avatarId"=$2,"status"=CASE WHEN "kind"=\'CREATOR\' THEN \'EDITED\' ELSE "status" END,"updatedAt"=CURRENT_TIMESTAMP WHERE "adId"=$1', adId, input.avatarId);
+  if (input.avatarId !== undefined) await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "avatarId"=$2,"status"=CASE WHEN "kind" IN (\'CREATOR\',\'CTA\') THEN \'EDITED\' ELSE "status" END,"updatedAt"=CURRENT_TIMESTAMP WHERE "adId"=$1', adId, input.avatarId);
+  if (input.voice !== undefined || input.voicePrompt !== undefined) await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "status"=CASE WHEN "kind" IN (\'CREATOR\',\'CTA\') THEN \'EDITED\' ELSE "status" END,"updatedAt"=CURRENT_TIMESTAMP WHERE "adId"=$1', adId);
   await syncReadyAssetMetadata(userId, adId, input);
   await ugcAnalytics.track(userId, { event: 'EDITOR_SAVED', stage: 'editor', campaignId: row.campaignId, adId });
   return getAd(userId, adId);
