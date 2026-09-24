@@ -40,9 +40,13 @@ const brandSchema = z.object({
 const generateAvatarSchema = z.object({
   prompt: z.string().trim().min(8).max(1200),
   name: z.string().trim().min(2).max(80),
-  category: z.string().trim().max(80).optional().default('Custom'),
+  category: z.string().trim().max(80).optional().default('Lifestyle'),
+  presentation: z.string().trim().max(80).optional().default('Unspecified'),
+  ageBand: z.string().trim().max(80).optional().default('Adult'),
   locale: z.string().trim().max(20).optional().default('en-GB'),
-  voice: z.string().trim().max(100).optional().default('Pippa')
+  accent: z.string().trim().max(80).optional().default(''),
+  niches: z.array(z.string().trim().min(1).max(100)).max(8).optional().default([]),
+  voice: z.string().trim().max(100).optional().default('')
 });
 
 const editAdSchema = z.object({
@@ -111,8 +115,17 @@ async function uploadAvatar(req, res, next) {
     const encoded = String(req.headers['x-file-name'] || 'Custom avatar');
     let name = encoded;
     try { name = decodeURIComponent(encoded); } catch (_) {}
+    const decodeHeader = (key, fallback = '') => {
+      const raw = String(req.headers[key] || fallback);
+      try { return decodeURIComponent(raw); } catch (_) { return raw; }
+    };
     const avatar = await service.uploadCustomAvatar(req.user.id, {
       name,
+      category: decodeHeader('x-creator-category', 'Lifestyle'),
+      presentation: decodeHeader('x-creator-presentation', 'Unspecified'),
+      ageBand: decodeHeader('x-creator-age-band', 'Adult'),
+      locale: decodeHeader('x-creator-locale', 'en-GB'),
+      accent: decodeHeader('x-creator-accent', ''),
       mimeType: String(req.headers['content-type'] || 'application/octet-stream').split(';')[0],
       data: Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '')
     });
@@ -125,6 +138,37 @@ async function avatarContent(req, res, next) {
     res.setHeader('Content-Type', value.mimeType);
     res.setHeader('Cache-Control', 'private, max-age=3600');
     res.send(value.data);
+  } catch (error) { next(error); }
+}
+
+async function avatarReferences(req, res, next) {
+  try { res.json(await service.listAvatarReferences(req.user.id, req.params.avatarId)); } catch (error) { next(error); }
+}
+async function uploadAvatarReference(req, res, next) {
+  try {
+    const encoded = String(req.headers['x-reference-label'] || req.headers['x-file-name'] || 'Alternate reference');
+    let label = encoded;
+    try { label = decodeURIComponent(encoded); } catch (_) {}
+    const reference = await service.uploadAvatarReference(req.user.id, req.params.avatarId, {
+      label,
+      mimeType: String(req.headers['content-type'] || 'application/octet-stream').split(';')[0],
+      data: Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '')
+    });
+    res.status(201).json({ reference });
+  } catch (error) { next(error); }
+}
+async function avatarReferenceContent(req, res, next) {
+  try {
+    const value = await service.getAvatarReferenceContent(req.user.id, req.params.avatarId, req.params.referenceId);
+    res.setHeader('Content-Type', value.mimeType);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(value.data);
+  } catch (error) { next(error); }
+}
+async function removeAvatarReference(req, res, next) {
+  try {
+    await service.deleteAvatarReference(req.user.id, req.params.avatarId, req.params.referenceId);
+    res.json({ ok: true });
   } catch (error) { next(error); }
 }
 async function removeAvatar(req, res, next) {
@@ -193,7 +237,7 @@ async function trackEvent(req, res, next) {
 module.exports = {
   overview, estimate, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, removeCampaign,
   getAd, updateAd, regenerateAd, regenerateScene,
-  generateAvatar, uploadAvatar, avatarContent, removeAvatar,
+  generateAvatar, uploadAvatar, avatarContent, avatarReferences, uploadAvatarReference, avatarReferenceContent, removeAvatarReference, removeAvatar,
   uploadProduct, productContent, samples, sampleContent, uploadSample, listMusic, trackEvent,
   avatarUploadMiddleware: express.raw({ type: ['image/png','image/jpeg','image/webp'], limit: '12mb' }),
   productUploadMiddleware: express.raw({ type: ['image/png','image/jpeg','image/webp'], limit: '15mb' }),

@@ -3,6 +3,7 @@ import type {
   CreateUGCCampaignInput,
   UGCAd,
   UGCAvatar,
+  UGCAvatarReference,
   UGCBrandProfile,
   UGCCampaign,
   UGCEditorUpdate,
@@ -68,7 +69,7 @@ export function regenerateUGCScene(id: string) {
   return apiRequest<{ ad: UGCAd }>(`/api/ai-content-studio/ugc/scenes/${encodeURIComponent(id)}/regenerate`, { method: 'POST' }).then((result) => result.ad)
 }
 
-export function generateUGCAvatar(input: { prompt: string; name: string; category?: string; locale?: string; voice?: string }) {
+export function generateUGCAvatar(input: { prompt: string; name: string; category?: string; presentation?: string; ageBand?: string; locale?: string; accent?: string; niches?: string[]; voice?: string }) {
   return apiRequest<{ avatar: UGCAvatar }>('/api/ai-content-studio/ugc/avatars/generate', {
     method: 'POST',
     body: JSON.stringify(input),
@@ -77,6 +78,19 @@ export function generateUGCAvatar(input: { prompt: string; name: string; categor
 
 export function deleteUGCAvatar(id: string) {
   return apiRequest<{ ok: boolean }>(`/api/ai-content-studio/ugc/avatars/${encodeURIComponent(id)}`, { method: 'DELETE' })
+}
+
+export function getUGCAvatarReferences(id: string) {
+  return apiRequest<{ master: { id: string; role: string; label: string; qualityStatus: string; qualityScore: number; imageUrl: string | null }; alternates: UGCAvatarReference[] }>(
+    `/api/ai-content-studio/ugc/avatars/${encodeURIComponent(id)}/references`,
+  )
+}
+
+export function deleteUGCAvatarReference(avatarId: string, referenceId: string) {
+  return apiRequest<{ ok: boolean }>(
+    `/api/ai-content-studio/ugc/avatars/${encodeURIComponent(avatarId)}/references/${encodeURIComponent(referenceId)}`,
+    { method: 'DELETE' },
+  )
 }
 
 function uploadBinary<T>(
@@ -106,8 +120,26 @@ function uploadBinary<T>(
   })
 }
 
-export function uploadUGCAvatar(file: File): Promise<UGCAvatar> {
-  return uploadBinary('/api/ai-content-studio/ugc/avatars/upload', file, {}, (payload) => payload.avatar as UGCAvatar | undefined)
+export function uploadUGCAvatar(
+  file: File,
+  metadata?: { category?: string; presentation?: string; ageBand?: string; locale?: string; accent?: string },
+): Promise<UGCAvatar> {
+  const headers: Record<string, string> = {}
+  if (metadata?.category) headers['X-Creator-Category'] = encodeURIComponent(metadata.category)
+  if (metadata?.presentation) headers['X-Creator-Presentation'] = encodeURIComponent(metadata.presentation)
+  if (metadata?.ageBand) headers['X-Creator-Age-Band'] = encodeURIComponent(metadata.ageBand)
+  if (metadata?.locale) headers['X-Creator-Locale'] = encodeURIComponent(metadata.locale)
+  if (metadata?.accent) headers['X-Creator-Accent'] = encodeURIComponent(metadata.accent)
+  return uploadBinary('/api/ai-content-studio/ugc/avatars/upload', file, headers, (payload) => payload.avatar as UGCAvatar | undefined)
+}
+
+export function uploadUGCAvatarReference(avatarId: string, file: File, label?: string): Promise<UGCAvatarReference> {
+  return uploadBinary(
+    `/api/ai-content-studio/ugc/avatars/${encodeURIComponent(avatarId)}/references/upload`,
+    file,
+    label ? { 'X-Reference-Label': encodeURIComponent(label) } : {},
+    (payload) => payload.reference as UGCAvatarReference | undefined,
+  )
 }
 
 export function uploadUGCProductAsset(file: File, brandProfileId?: string | null): Promise<UGCProductAsset> {
@@ -149,6 +181,10 @@ async function fetchProtectedBlob(url: string) {
 
 export function fetchUGCAvatarImage(avatar: UGCAvatar) {
   return avatar.imageUrl ? fetchProtectedBlob(avatar.imageUrl) : Promise.resolve(null)
+}
+
+export function fetchUGCAvatarReferenceImage(reference: UGCAvatarReference) {
+  return reference.imageUrl ? fetchProtectedBlob(reference.imageUrl) : Promise.resolve(null)
 }
 
 export function fetchUGCProductImage(asset: UGCProductAsset) {

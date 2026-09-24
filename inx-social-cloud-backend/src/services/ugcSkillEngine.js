@@ -1,4 +1,5 @@
 const postStudio = require('./aiPostStudioService');
+const creators = require('./ugcCreatorEngine');
 
 const SKILLS_VERSION = 'ugc-skills-v1';
 
@@ -148,7 +149,7 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
           'Use one creator identity and one voice per ad.',
           'creatorProfile is a casting preference, not a named person. Do not request resemblance to a celebrity or identifiable real person.',
           'For each scene, objective describes what the scene must communicate and visualDirection describes what should be filmed. Do not include model/provider names.',
-          'Return exactly this shape: {"campaignTitle":"string","strategy":{"format":"string","objective":"string","pacing":"CONVERSATIONAL|ENERGETIC|CALM","cameraStyle":"CREATOR_NATIVE|PRODUCT_DEMO|HYBRID","angleMix":["string"]},"ads":[{"title":"string","angle":"string","hook":"string","script":"string","cta":"string","caption":"string","creatorProfile":{"category":"string","presentation":"string","ageBand":"string","locale":"string","environment":"string","energy":"NATURAL|ENERGETIC|CALM"},"scenes":[{"kind":"CREATOR|PRODUCT|LIFESTYLE|CTA","objective":"string","visualDirection":"string"}]}]}'
+          'Return exactly this shape: {"campaignTitle":"string","strategy":{"format":"string","objective":"string","pacing":"CONVERSATIONAL|ENERGETIC|CALM","cameraStyle":"CREATOR_NATIVE|PRODUCT_DEMO|HYBRID","angleMix":["string"]},"ads":[{"title":"string","angle":"string","hook":"string","script":"string","cta":"string","caption":"string","creatorProfile":{"category":"string","presentation":"string","ageBand":"string","locale":"string","environment":"string","niches":["string"],"wardrobeStyle":"string","gestureStyle":"string","energy":"NATURAL|ENERGETIC|CALM"},"scenes":[{"kind":"CREATOR|PRODUCT|LIFESTYLE|CTA","objective":"string","visualDirection":"string"}]}]}'
         ].join('\n\n')
       },
       {
@@ -167,14 +168,15 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
             playbackDurations,
             totalPlaybackSeconds: playbackDurations.reduce((sum, value) => sum + Number(value || 0), 0)
           },
-          availableCreatorMetadata: avatars.map((avatar, index) => ({
-            index,
-            category: clean(avatar.category, 100),
-            presentation: clean(avatar.presentation, 80),
-            ageBand: clean(avatar.ageBand, 80),
-            locale: clean(avatar.locale, 30),
-            environment: clean(avatar.environment, 400)
-          }))
+          creatorLibrary: {
+            count: avatars.length,
+            categories: [...new Set(avatars.map(avatar => clean(avatar.category, 100)).filter(Boolean))],
+            presentations: [...new Set(avatars.map(avatar => clean(avatar.presentation, 80)).filter(Boolean))],
+            ageBands: [...new Set(avatars.map(avatar => clean(avatar.ageBand, 80)).filter(Boolean))],
+            locales: [...new Set(avatars.map(avatar => clean(avatar.locale, 30)).filter(Boolean))],
+            accents: [...new Set(avatars.map(avatar => creators.publicProfile(avatar).accent).filter(Boolean))],
+            niches: [...new Set(avatars.flatMap(avatar => creators.publicProfile(avatar).niches))].slice(0, 40)
+          }
         })
       }
     ], {
@@ -211,6 +213,9 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
           ageBand: clean(ad.creatorProfile?.ageBand, 80),
           locale: clean(ad.creatorProfile?.locale, 30),
           environment: clean(ad.creatorProfile?.environment, 400),
+          niches: Array.isArray(ad.creatorProfile?.niches) ? ad.creatorProfile.niches.map(item => clean(item, 100)).filter(Boolean).slice(0, 8) : [],
+          wardrobeStyle: clean(ad.creatorProfile?.wardrobeStyle, 160),
+          gestureStyle: clean(ad.creatorProfile?.gestureStyle, 160),
           energy: ['NATURAL', 'ENERGETIC', 'CALM'].includes(String(ad.creatorProfile?.energy).toUpperCase()) ? String(ad.creatorProfile.energy).toUpperCase() : 'NATURAL'
         },
         scenes: Array.isArray(ad.scenes) ? ad.scenes.map(scene => ({
@@ -273,35 +278,67 @@ function scriptTimingSkill({ script, duration, cta = '' }) {
   };
 }
 
-function creatorCastingSkill({ ads, avatars, creatorMode, selectedAvatarId }) {
+function creatorCastingSkill({ ads, avatars, creatorMode, selectedAvatarId, quality = 'STANDARD' }) {
   const selected = creatorMode === 'SELECTED' && selectedAvatarId
     ? avatars.find(avatar => avatar.id === selectedAvatarId)
     : null;
   const used = new Map();
   const assignments = ads.map((ad, index) => {
-    if (selected) return { adSequence: index + 1, avatarIndex: Math.max(0, avatars.indexOf(selected)), avatarId: selected.id, score: 999, reason: ['USER_SELECTED'] };
+    if (selected) {
+      const internalProfile = creators.profileFromRow(selected);
+      const requiredRoutes = creators.requiredRoutesForQuality(quality);
+      const routeCompatible = requiredRoutes.some(routeKey => internalProfile.routeCompatibility.includes(routeKey));
+      return {
+        adSequence: index + 1,
+        avatarIndex: Math.max(0, avatars.indexOf(selected)),
+        avatarId: selected.id,
+        score: 999,
+        reason: routeCompatible ? ['USER_SELECTED', 'ROUTE_COMPATIBILITY'] : ['USER_SELECTED', 'ROUTE_INCOMPATIBLE'],
+        routeCompatible,
+        creatorVersion: creators.CREATOR_PROFILE_VERSION,
+        profile: creators.publicProfile(selected)
+      };
+    }
     const desired = ad.creatorProfile || {};
     const scored = avatars.map((avatar, avatarIndex) => {
-      let score = 0;
-      const reasons = [];
-      if (desired.category && clean(avatar.category, 100).toLowerCase() === desired.category.toLowerCase()) { score += 7; reasons.push('CATEGORY'); }
-      if (desired.locale && clean(avatar.locale, 30).toLowerCase() === desired.locale.toLowerCase()) { score += 4; reasons.push('LOCALE'); }
-      else if (desired.locale && clean(avatar.locale, 30).slice(0,2).toLowerCase() === desired.locale.slice(0,2).toLowerCase()) { score += 2; reasons.push('LANGUAGE'); }
-      if (desired.presentation && clean(avatar.presentation, 80).toLowerCase() === desired.presentation.toLowerCase()) { score += 3; reasons.push('PRESENTATION'); }
-      if (desired.ageBand && clean(avatar.ageBand, 80).toLowerCase() === desired.ageBand.toLowerCase()) { score += 2; reasons.push('AGE_BAND'); }
-      const environmentOverlap = overlapScore(desired.environment, avatar.environment);
-      if (environmentOverlap) { score += Math.min(3, environmentOverlap); reasons.push('ENVIRONMENT'); }
-      const repetition = used.get(avatar.id) || 0;
-      score -= repetition * 5;
-      return { avatarIndex, avatarId: avatar.id, score, reasons };
+      const result = creators.scoreCreator(avatar, desired, {
+        quality,
+        repetition: used.get(avatar.id) || 0
+      });
+      return {
+        avatarIndex,
+        avatarId: avatar.id,
+        score: result.score,
+        reasons: result.reasons,
+        profile: result.profile
+      };
     }).sort((a, b) => b.score - a.score || a.avatarIndex - b.avatarIndex);
-    const chosen = scored[0] || { avatarIndex: index % Math.max(1, avatars.length), avatarId: avatars[index % Math.max(1, avatars.length)]?.id || null, score: 0, reasons: ['FALLBACK'] };
+
+    const fallbackIndex = index % Math.max(1, avatars.length);
+    const chosen = scored[0] || {
+      avatarIndex: fallbackIndex,
+      avatarId: avatars[fallbackIndex]?.id || null,
+      score: 0,
+      reasons: ['FALLBACK'],
+      profile: avatars[fallbackIndex] ? creators.profileFromRow(avatars[fallbackIndex]) : null
+    };
     if (chosen.avatarId) used.set(chosen.avatarId, (used.get(chosen.avatarId) || 0) + 1);
-    return { adSequence: index + 1, ...chosen, reason: chosen.reasons };
+    const chosenAvatar = avatars[chosen.avatarIndex] || null;
+    return {
+      adSequence: index + 1,
+      avatarIndex: chosen.avatarIndex,
+      avatarId: chosen.avatarId,
+      score: chosen.score,
+      reason: chosen.reasons,
+      routeCompatible: !chosen.reasons.includes('ROUTE_INCOMPATIBLE'),
+      creatorVersion: creators.CREATOR_PROFILE_VERSION,
+      profile: chosenAvatar ? creators.publicProfile(chosenAvatar) : null
+    };
   });
   return {
     skill: 'CREATOR_CASTING',
     version: SKILLS_VERSION,
+    creatorVersion: creators.CREATOR_PROFILE_VERSION,
     mode: selected ? 'USER_SELECTED' : 'AUTO',
     assignments
   };
@@ -335,23 +372,33 @@ function scenePlanningSkill({ resolvedType, providerDurations, playbackDurations
 }
 
 function creatorConsistencySkill({ avatar, campaignType }) {
+  const profile = avatar ? creators.publicProfile(avatar) : null;
   return {
     skill: 'CREATOR_CONSISTENCY',
     version: SKILLS_VERSION,
     actorId: avatar?.id || null,
     identityLock: 'EXACT_REFERENCE',
+    presentation: clean(avatar?.presentation || profile?.presentation, 80),
+    adultAgeBand: clean(avatar?.ageBand || profile?.ageBand, 80),
+    preferredEnvironments: profile?.environments?.slice(0, 3) || [],
+    wardrobeProfile: profile?.wardrobe?.slice(0, 3) || [],
+    gestureProfile: profile?.gestures?.slice(0, 3) || [],
     preserve: ['face_shape', 'skin_tone', 'age', 'hair', 'wardrobe', 'voice_identity'],
     environmentContinuity: campaignType === 'AVATAR_EXPLAINER' ? 'STRICT' : 'SESSION_MATCH',
+    wardrobeContinuity: 'PRESERVE_REFERENCE_WITHIN_AD',
     prohibit: ['identity_morph', 'second_person', 'wardrobe_drift', 'face_replacement', 'celebrity_resemblance']
   };
 }
 
 function voiceConsistencySkill({ avatar, timing }) {
+  const profile = avatar ? creators.publicProfile(avatar) : null;
   return {
     skill: 'VOICE_CONSISTENCY',
     version: SKILLS_VERSION,
     voice: clean(avatar?.voice, 100),
     locale: clean(avatar?.locale, 30) || 'en-GB',
+    accent: clean(profile?.accent, 80),
+    languages: profile?.languages?.slice(0, 4) || [],
     delivery: 'NATURAL_CONVERSATIONAL',
     minSpeedMultiplier: timing.minSpeechRateMultiplier,
     maxSpeedMultiplier: timing.maxSpeechRateMultiplier,
@@ -412,11 +459,13 @@ function adFinishingSkill({ duration, captionsEnabled = true, musicMode = 'AUTO'
   };
 }
 
-function qualityControlSkill({ resolvedType, timing, scenePlan, avatar, hasProductReference }) {
+function qualityControlSkill({ resolvedType, timing, scenePlan, avatar, hasProductReference, castingDecision = null }) {
+  const hasCreatorScene = scenePlan.scenes.some(scene => ['CREATOR','CTA'].includes(scene.kind));
   const checks = [
     { id: 'SCRIPT_COMPLETION', status: timing.finalWordCount <= timing.hardMax ? 'PASS' : 'FAIL', detail: { words: timing.finalWordCount, hardMax: timing.hardMax } },
     { id: 'DURATION_EXACTNESS', status: Math.abs(scenePlan.scenes.reduce((sum, scene) => sum + scene.playbackDuration, 0) - timing.targetDuration) < 0.001 ? 'PASS' : 'FAIL' },
-    { id: 'IDENTITY_CONSISTENCY', status: scenePlan.scenes.some(scene => scene.kind === 'CREATOR') && !avatar ? 'FAIL' : 'PASS' },
+    { id: 'IDENTITY_CONSISTENCY', status: hasCreatorScene && !avatar ? 'FAIL' : 'PASS' },
+    { id: 'CREATOR_ROUTE_COMPATIBILITY', status: hasCreatorScene && castingDecision?.routeCompatible === false ? 'FAIL' : 'PASS' },
     { id: 'PRODUCT_REFERENCE', status: resolvedType === 'PRODUCT_SHOWCASE' && scenePlan.scenes.some(scene => scene.kind === 'PRODUCT') && !hasProductReference ? 'FAIL' : 'PASS' }
   ];
   const failed = checks.filter(check => check.status === 'FAIL');
@@ -478,7 +527,8 @@ async function planCampaign({
     ads: director.ads,
     avatars,
     creatorMode: input.creatorMode,
-    selectedAvatarId: input.avatarId
+    selectedAvatarId: input.avatarId,
+    quality: input.quality
   });
   const hasProductReference = Boolean(productAssetIds.length || (Array.isArray(brand?.brandReferences) && brand.brandReferences.length));
 
@@ -498,7 +548,7 @@ async function planCampaign({
     const motion = naturalMotionSkill({ energy: rawAd.creatorProfile?.energy });
     const camera = cameraStyleSkill({ campaignType: resolvedType, strategy: director.strategy });
     const finishing = adFinishingSkill({ duration: input.duration, captionsEnabled: true, musicMode: 'AUTO' });
-    const qc = qualityControlSkill({ resolvedType, timing, scenePlan, avatar, hasProductReference });
+    const qc = qualityControlSkill({ resolvedType, timing, scenePlan, avatar, hasProductReference, castingDecision: assignment });
     if (qc.status === 'FAIL') {
       const error = new Error('UGC skill preflight failed: ' + qc.failedChecks.join(', '));
       error.code = 'UGC_SKILL_PREFLIGHT_FAILED';

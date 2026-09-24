@@ -17,11 +17,36 @@ export type UGCAvatar = {
   voice: string
   voicePrompt: string
   environment: string
+  creatorVersion: string
+  accent: string
+  languages: string[]
+  niches: string[]
+  environments: string[]
+  wardrobe: string[]
+  gestures: string[]
+  energy: string[]
   featured: boolean
   referenceVersion: number
   referenceReady: boolean
+  references: {
+    master: { ready: boolean; version: number; qualityStatus: string; qualityScore: number }
+    alternateCount: number
+    policy: string
+  }
   imageUrl: string | null
   createdAt?: string
+}
+
+export type UGCAvatarReference = {
+  id: string
+  avatarId: string
+  role: string
+  label: string
+  source: string
+  qualityStatus: string
+  qualityScore: number
+  imageUrl: string
+  createdAt: string
 }
 
 export type UGCProductAsset = {
@@ -157,6 +182,7 @@ export type UGCOverview = {
     adCounts: UGCAdCount[]
     qualities: UGCQuality[]
     campaignTypes: UGCCampaignType[]
+    creatorProfileVersion: string
     systemAvatarCount: number
     featuredAvatarCount: number
   }
