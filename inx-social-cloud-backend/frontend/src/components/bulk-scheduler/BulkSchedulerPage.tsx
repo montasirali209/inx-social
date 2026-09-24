@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ApiError } from '../../lib/api-client'
-import { createBulkMediaPost, fetchBulkSchedulerData, optimiseBulkScheduleTimes, publishBulkLibraryMedia, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
+import { createBulkMediaPost, fetchBulkSchedulerData, optimiseBulkScheduleTimes, publishBulkLibraryMedia, saveBulkScheduleTimes, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
 import { bulkCancelScheduledPosts, bulkEditScheduledPosts, retryFailedScheduledPost } from '../../lib/posts-api'
 import { getAIPostCampaign, getAIPostCampaigns } from '../../lib/ai-content-studio-api'
 import { fetchMediaAssetFile, fetchMediaLibrary, uploadMediaAsset } from '../../lib/media-library-api'
@@ -124,6 +124,15 @@ export function BulkSchedulerPage() {
   const mixedTextDestinations = selectedDestinations.filter((destination) => TEXT_POST_PLATFORMS.has(destination.platform))
   const batchCount = mixedCampaign ? mixedCampaign.posts.length : contentMode === 'text' ? captionBlocks.length : media.length
   const activeScheduleTimes = timingMode === 'saved_schedule' ? schedulerData.settings.defaultScheduleTimes : scheduleTimes
+
+  async function saveCurrentScheduleTimesForFuture() {
+    const merged = [...new Set([...schedulerData.settings.defaultScheduleTimes, ...scheduleTimes])].sort()
+    if (merged.length > 12) {
+      throw new Error(`Saving these times would create ${merged.length} reusable posting times. Keep the saved list to 12 or fewer.`)
+    }
+    await saveBulkScheduleTimes(merged)
+    await scheduler.refetch()
+  }
 
   const loadSavedCampaign = useCallback(async (campaign: AIPostCampaign) => {
     const imagePosts = campaign.posts.filter((post) => post.contentType === 'IMAGE')
@@ -1242,6 +1251,7 @@ export function BulkSchedulerPage() {
           onScheduleDateChange={setScheduleDate}
           onScheduleTimeAdd={(time) => setScheduleTimes((current) => [...new Set([...current, time])].sort())}
           onScheduleTimeRemove={(time) => setScheduleTimes((current) => current.filter((value) => value !== time))}
+          onSaveScheduleTimes={saveCurrentScheduleTimesForFuture}
           onStart={requestStart}
           onTimingModeChange={setTimingMode}
           onWorkspaceModeChange={changeWorkspaceMode}

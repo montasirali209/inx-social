@@ -3,10 +3,13 @@ import type { TimingMode } from '../types/bulk-scheduler'
 export function parseCaptions(value: string) {
   const normalized = value.replace(/\r\n?/g, '\n').trim()
   if (!normalized) return []
-  const paragraphs = normalized.split(/\n\s*\n+/).map((caption) => caption.trim()).filter(Boolean)
-  if (paragraphs.length > 1) return paragraphs
-  const lines = normalized.split('\n').map((caption) => caption.trim()).filter(Boolean)
-  return lines.length > 1 ? lines : paragraphs
+
+  // Captions are complete blocks. Two completely empty lines start the next
+  // caption; ordinary line breaks and a single blank line stay inside it.
+  return normalized
+    .split(/\n[ \t]*\n[ \t]*\n+/)
+    .map((caption) => caption.trim())
+    .filter(Boolean)
 }
 
 export function parseTextPosts(value: string) {

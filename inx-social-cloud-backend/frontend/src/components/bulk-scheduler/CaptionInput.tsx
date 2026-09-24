@@ -27,7 +27,7 @@ export function CaptionInput({ value, onChange, captionCount, mediaCount, useFal
         onChange={(event) => onChange(event.target.value)}
         placeholder={textMode
           ? 'Write or paste the first complete post here.\n\n\nLeave two empty lines, then start the next post…'
-          : 'One caption per line or blank-line separated captions…'}
+          : 'Write or paste the first complete caption here.\n\n\nLeave two empty lines, then start the next caption…'}
         value={value}
       />
       {textMode ? (
@@ -36,6 +36,9 @@ export function CaptionInput({ value, onChange, captionCount, mediaCount, useFal
         </div>
       ) : (
         <>
+          <div className="mt-2 rounded-xl border border-brand-cyan/20 bg-brand-cyan/[.045] p-3 text-xs leading-5 text-text-muted">
+            <p className="flex items-start gap-2"><FileText aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-brand-cyan" /><span><strong className="text-text-main">One complete caption per block.</strong> Leave <strong className="text-text-main">two empty lines</strong> between captions. Normal line breaks and a single blank line stay inside the same caption.</span></p>
+          </div>
           {short && (
             <div className="mt-2 rounded-xl border border-brand-amber/25 bg-brand-amber/8 p-3 text-xs text-brand-amber">
               <p className="flex items-start gap-2"><AlertTriangle aria-hidden="true" className="mt-0.5 size-4 shrink-0" /> {mediaCount - captionCount} file{mediaCount - captionCount === 1 ? '' : 's'} need a caption.</p>

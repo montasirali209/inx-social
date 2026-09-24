@@ -42,6 +42,18 @@ export async function fetchBulkSchedulerData(): Promise<BulkSchedulerData> {
   }
 }
 
+export async function saveBulkScheduleTimes(times: string[]) {
+  const values = [...new Set(times.filter((time) => /^\d{2}:\d{2}$/.test(time)))].sort()
+  if (!values.length) throw new Error('Add at least one publishing time before saving.')
+  if (values.length > 12) throw new Error('You can save up to 12 reusable posting times.')
+
+  const response = await apiRequest<{ settings: Partial<SettingsValues> }>('/api/studio/preferences', {
+    method: 'PUT',
+    body: JSON.stringify({ settings: { defaultScheduleTimes: values } }),
+  })
+  return normaliseSettings(response.settings).defaultScheduleTimes
+}
+
 export type SmartTimingResponse = { times: string[]; source: 'ai' | 'fallback'; reason: string; historyPosts: number; maxShiftMinutes: number }
 
 export function optimiseBulkScheduleTimes(input: { profileIds: string[]; baselineTimes: string[]; timezone: string }) {

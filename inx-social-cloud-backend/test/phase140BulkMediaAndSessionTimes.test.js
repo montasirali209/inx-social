@@ -23,10 +23,18 @@ test('selected-date scheduling owns its multiple daily times inside the current 
   const page = read('frontend/src/components/bulk-scheduler/BulkSchedulerPage.tsx');
   const selector = read('frontend/src/components/bulk-scheduler/DailyTimeSelector.tsx');
   const utilities = read('frontend/src/lib/bulk-scheduler-utils.ts');
+  const api = read('frontend/src/lib/bulk-scheduler-api.ts');
   const settings = read('src/renderer/index.html');
   assert.match(page, /useState<string\[]>\(\['10:00'\]\)/);
   assert.match(selector, /Daily publishing times/);
   assert.match(selector, /Files fill these times in order each day/);
+  assert.match(selector, /Save times for future/);
+  assert.match(selector, /Saved for future/);
+  assert.match(selector, /without removing existing saved times/);
+  assert.match(page, /saveCurrentScheduleTimesForFuture/);
+  assert.match(page, /defaultScheduleTimes, \.\.\.scheduleTimes/);
+  assert.match(api, /saveBulkScheduleTimes/);
+  assert.match(api, /defaultScheduleTimes: values/);
   assert.match(utilities, /input\.dailyTimes/);
   assert.doesNotMatch(settings, /id="settingSlots"/);
 });
@@ -77,7 +85,9 @@ test('Bulk Scheduler supports text-only batches in the same workflow', () => {
   assert.match(panel, /Media Posts/);
   assert.match(panel, /Text Posts/);
   assert.match(input, /One complete post per block/);
+  assert.match(input, /One complete caption per block/);
   assert.match(input, /two empty lines/);
+  assert.match(input, /Normal line breaks and a single blank line stay inside the same caption/);
   assert.match(input, />---</);
   assert.match(input, />--</);
   assert.match(utilities, /parseTextPosts/);

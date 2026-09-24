@@ -2,11 +2,22 @@ import { describe, expect, it, vi } from 'vitest'
 import { buildPublishingTimes, parseCaptions, parseTextPosts, zonedDateTimeToIso } from './bulk-scheduler-utils'
 
 describe('Bulk Scheduler session utilities', () => {
-  it('parses paragraph captions without splitting multiline copy', () => {
-    expect(parseCaptions('First line\ncontinues here\n\nSecond caption')).toEqual([
-      'First line\ncontinues here',
-      'Second caption',
+  it('keeps multiline media caption copy together until two empty lines', () => {
+    expect(parseCaptions('First line\ncontinues here\n\nStill the same caption')).toEqual([
+      'First line\ncontinues here\n\nStill the same caption',
     ])
+  })
+
+  it('separates media captions only after two completely empty lines', () => {
+    expect(parseCaptions('Caption one\nline two\n\nparagraph two\n\n\nCaption two\n\n\nCaption three')).toEqual([
+      'Caption one\nline two\n\nparagraph two',
+      'Caption two',
+      'Caption three',
+    ])
+  })
+
+  it('does not treat ordinary line breaks as separate media captions', () => {
+    expect(parseCaptions('Hh\nDds\nDds\nDds')).toEqual(['Hh\nDds\nDds\nDds'])
   })
 
   it('parses complete multiline text posts separated by two empty lines', () => {
