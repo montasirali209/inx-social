@@ -40,6 +40,13 @@ export function UGCVideoPlayer({
     }
   }, [src, autoPlay])
 
+  useEffect(() => () => {
+    const video = videoRef.current
+    if (!video) return
+    video.pause()
+    video.currentTime = 0
+  }, [])
+
   async function togglePlayback() {
     const video = videoRef.current
     if (!video) return
@@ -52,12 +59,17 @@ export function UGCVideoPlayer({
 
   async function enterFullscreen() {
     const shell = shellRef.current
-    if (!shell) return
+    const video = videoRef.current as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null
+    if (!shell || !video) return
     if (document.fullscreenElement) {
       await document.exitFullscreen().catch(() => undefined)
       return
     }
-    await shell.requestFullscreen?.().catch(() => undefined)
+    if (shell.requestFullscreen) {
+      await shell.requestFullscreen().catch(() => undefined)
+      return
+    }
+    video.webkitEnterFullscreen?.()
   }
 
   return <div
@@ -166,12 +178,22 @@ export function UGCVideoLightbox({
   if (!open || !src) return null
 
   return createPortal(
-    <div className="fixed inset-0 z-[140] grid place-items-center bg-[#01070d]/95 p-4 backdrop-blur-md" role="dialog" aria-modal="true" aria-label={title || 'UGC video preview'}>
-      <div className="relative flex h-full max-h-[92vh] w-full max-w-5xl items-center justify-center">
-        <button aria-label="Close video preview" className="absolute right-0 top-0 z-10 grid size-10 place-items-center rounded-xl border border-white/10 bg-black/60 text-white hover:bg-black/80" onClick={onClose} type="button">
+    <div
+      className="fixed inset-0 z-[360] grid h-[100dvh] w-screen place-items-center overflow-hidden bg-[#01070d]/95 px-3 backdrop-blur-md sm:px-4"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title || 'UGC video preview'}
+      style={{
+        paddingTop: 'max(12px, env(safe-area-inset-top))',
+        paddingBottom: 'max(12px, env(safe-area-inset-bottom))',
+      }}
+    >
+      <div className="relative flex h-full min-h-0 w-full max-w-5xl items-center justify-center">
+        <button aria-label="Close video preview" className="absolute right-0 top-0 z-20 grid size-11 place-items-center rounded-xl border border-white/15 bg-black/75 text-white shadow-lg backdrop-blur hover:bg-black/90" onClick={onClose} type="button">
           <X className="size-5" />
         </button>
-        <UGCVideoPlayer autoPlay className="aspect-[9/16] max-h-[90vh] w-auto max-w-full rounded-[24px] border border-white/10 shadow-2xl" src={src} />
+        <UGCVideoPlayer autoPlay className="aspect-[9/16] max-h-full w-auto max-w-full rounded-[20px] border border-white/10 shadow-2xl sm:rounded-[24px]" src={src} />
       </div>
     </div>,
     document.body,
