@@ -68,7 +68,7 @@ export function regenerateUGCScene(id: string) {
   return apiRequest<{ ad: UGCAd }>(`/api/ai-content-studio/ugc/scenes/${encodeURIComponent(id)}/regenerate`, { method: 'POST' }).then((result) => result.ad)
 }
 
-export function generateUGCAvatar(input: { prompt: string; name: string; category?: string; locale?: string; voice?: string }) {
+export function generateUGCAvatar(input: { prompt: string; name: string; category?: string; presentation?: string; ageBand?: string; locale?: string; accent?: string; niches?: string[]; voice?: string }) {
   return apiRequest<{ avatar: UGCAvatar }>('/api/ai-content-studio/ugc/avatars/generate', {
     method: 'POST',
     body: JSON.stringify(input),
@@ -119,8 +119,17 @@ function uploadBinary<T>(
   })
 }
 
-export function uploadUGCAvatar(file: File): Promise<UGCAvatar> {
-  return uploadBinary('/api/ai-content-studio/ugc/avatars/upload', file, {}, (payload) => payload.avatar as UGCAvatar | undefined)
+export function uploadUGCAvatar(
+  file: File,
+  metadata?: { category?: string; presentation?: string; ageBand?: string; locale?: string; accent?: string },
+): Promise<UGCAvatar> {
+  const headers: Record<string, string> = {}
+  if (metadata?.category) headers['X-Creator-Category'] = encodeURIComponent(metadata.category)
+  if (metadata?.presentation) headers['X-Creator-Presentation'] = encodeURIComponent(metadata.presentation)
+  if (metadata?.ageBand) headers['X-Creator-Age-Band'] = encodeURIComponent(metadata.ageBand)
+  if (metadata?.locale) headers['X-Creator-Locale'] = encodeURIComponent(metadata.locale)
+  if (metadata?.accent) headers['X-Creator-Accent'] = encodeURIComponent(metadata.accent)
+  return uploadBinary('/api/ai-content-studio/ugc/avatars/upload', file, headers, (payload) => payload.avatar as UGCAvatar | undefined)
 }
 
 export function uploadUGCAvatarReference(avatarId: string, file: File, label?: string): Promise<UGCAvatarReference> {
