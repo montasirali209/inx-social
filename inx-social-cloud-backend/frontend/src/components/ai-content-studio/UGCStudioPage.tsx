@@ -101,7 +101,7 @@ function AdCard({ ad, asset, onEdit, onSchedule }: { ad: UGCAd; asset?: MediaAss
       <span className={`absolute right-3 top-3 rounded-full border px-2.5 py-1 text-[9px] font-bold backdrop-blur ${ad.status === 'READY' ? 'border-brand-green/30 bg-brand-green/15 text-brand-green' : ad.status === 'FAILED' ? 'border-brand-red/30 bg-brand-red/15 text-brand-red' : 'border-brand-cyan/25 bg-black/55 text-brand-cyan'}`}>{ad.status}</span>
     </div>
     <div className="p-4"><span className="text-[9px] font-bold uppercase tracking-[.15em] text-brand-cyan">{ad.angle || `Variation ${ad.sequence}`}</span><h3 className="mt-1 line-clamp-1 text-sm font-semibold">{ad.title}</h3><p className="mt-2 line-clamp-2 text-[10px] leading-4 text-text-muted">{ad.hook || ad.script}</p>
-      <div className="mt-4 flex gap-2"><Button className="flex-1" disabled={processing} onClick={onEdit} size="sm"><WandSparkles className="size-3.5" />Edit</Button><Button className="flex-1" disabled={!asset || ad.status !== 'READY'} onClick={onSchedule} size="sm" variant="primary"><CalendarRange className="size-3.5" />Schedule</Button></div>
+      <div className="mt-4 flex gap-2"><Button className="flex-1" disabled={processing} onClick={onEdit} size="sm"><WandSparkles className="size-3.5" />Edit</Button><Button className="flex-1" disabled={!asset || !ad.qualityControl?.publishable} onClick={onSchedule} size="sm" variant="primary"><CalendarRange className="size-3.5" />Schedule</Button></div>
     </div>
   </article>
 }
@@ -203,14 +203,14 @@ export function UGCStudioPage() {
   }
 
   function schedulerState(ads: UGCAd[]) {
-    const selected = ads.filter((ad) => ad.status === 'READY' && ad.mediaAssetId).map((ad) => ({ ad, asset: assetsById.get(ad.mediaAssetId!) })).filter((value): value is { ad: UGCAd; asset: MediaAsset } => Boolean(value.asset))
+    const selected = ads.filter((ad) => ad.status === 'READY' && ad.mediaAssetId && ad.qualityControl?.publishable).map((ad) => ({ ad, asset: assetsById.get(ad.mediaAssetId!) })).filter((value): value is { ad: UGCAd; asset: MediaAsset } => Boolean(value.asset))
     if (!selected.length) { setError('Wait for at least one finished UGC ad before scheduling.'); return null }
     return {
       mediaLibraryAssets: selected.map((value) => value.asset),
       aiMixedCampaign: {
         id: campaign.data?.id || selected[0].ad.campaignId,
         title: campaign.data?.title || 'UGC Campaign',
-        posts: selected.map(({ ad }) => ({ id: ad.id, contentType: 'IMAGE' as const, caption: ad.caption || ad.script, mediaAssetId: ad.mediaAssetId! })),
+        posts: selected.map(({ ad }) => ({ id: ad.id, contentType: 'VIDEO' as const, caption: ad.caption || ad.script, mediaAssetId: ad.mediaAssetId! })),
       },
     }
   }
@@ -285,7 +285,7 @@ export function UGCStudioPage() {
 
     {error && <div className="mt-5 flex items-start gap-3 rounded-2xl border border-brand-red/30 bg-brand-red/[.06] p-4 text-xs text-brand-red"><X className="mt-0.5 size-4 shrink-0" />{error}</div>}
 
-    {currentCampaign && <section className="mt-6"><div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><span className="text-[9px] font-bold uppercase tracking-[.16em] text-brand-cyan">Campaign output</span><h2 className="mt-1 text-xl font-semibold">Your UGC ads</h2><p className="mt-1 text-[11px] text-text-muted">Ready ads can be scheduled immediately. Open Edit only when you want to change something.</p></div><Button disabled={!currentCampaign.ads.some((ad) => ad.status === 'READY' && assetsById.has(ad.mediaAssetId || ''))} onClick={() => scheduleAds(currentCampaign.ads)} variant="primary"><CalendarRange className="size-4" />Schedule all ready ads</Button></div><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">{currentCampaign.ads.map((ad) => <AdCard ad={ad} asset={ad.mediaAssetId ? assetsById.get(ad.mediaAssetId) : undefined} key={ad.id} onEdit={() => navigate(`/ai-content-studio/ugc/${ad.id}/edit`)} onSchedule={() => scheduleAds([ad])} />)}</div></section>}
+    {currentCampaign && <section className="mt-6"><div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><span className="text-[9px] font-bold uppercase tracking-[.16em] text-brand-cyan">Campaign output</span><h2 className="mt-1 text-xl font-semibold">Your UGC ads</h2><p className="mt-1 text-[11px] text-text-muted">Ready ads can be scheduled immediately. Open Edit only when you want to change something.</p></div><Button disabled={!currentCampaign.ads.some((ad) => ad.qualityControl?.publishable && ad.mediaAssetId && assetsById.has(ad.mediaAssetId))} onClick={() => scheduleAds(currentCampaign.ads)} variant="primary"><CalendarRange className="size-4" />Schedule all ready ads</Button></div><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">{currentCampaign.ads.map((ad) => <AdCard ad={ad} asset={ad.mediaAssetId ? assetsById.get(ad.mediaAssetId) : undefined} key={ad.id} onEdit={() => navigate(`/ai-content-studio/ugc/${ad.id}/edit`)} onSchedule={() => scheduleAds([ad])} />)}</div></section>}
 
     {!!overview.data?.campaigns.length && <section className="mt-7"><div className="mb-4 flex items-end justify-between"><div><span className="text-[9px] font-bold uppercase tracking-[.16em] text-text-soft">Workspace</span><h2 className="mt-1 text-lg font-semibold">Recent UGC campaigns</h2></div></div><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{overview.data.campaigns.slice(0,6).map((item) => <button className="ugc-depth-card group rounded-2xl border border-border-soft bg-white/[.025] p-4 text-left transition hover:border-brand-cyan/30" key={item.id} onClick={() => setActiveCampaignId(item.id)} type="button"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><strong className="block truncate text-sm">{item.title}</strong><span className="mt-1 block text-[9px] text-text-soft">{item.adCount} ads · {item.duration}s · {item.quality === 'PREMIUM' ? 'Premium' : 'Standard'}</span></div><span className="rounded-full border border-white/10 bg-black/15 px-2 py-1 text-[8px] font-bold text-text-muted">{item.status}</span></div><div className="mt-4 flex items-center justify-between text-[10px] text-text-muted"><span>{item.totalCredits.toLocaleString()} credits</span><span className="flex items-center gap-1 text-brand-cyan">Open <ArrowRight className="size-3 transition-transform group-hover:translate-x-1" /></span></div></button>)}</div></section>}
 
