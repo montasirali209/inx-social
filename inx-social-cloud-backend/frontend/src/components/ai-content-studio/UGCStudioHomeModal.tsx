@@ -19,6 +19,7 @@ import type { MediaAsset } from '../../types/media-library'
 import type { CreateUGCCampaignInput, UGCAvatar, UGCCampaign, UGCSampleVideo } from '../../types/ugc-studio'
 import { Button } from '../ui/Button'
 import { UGCAgentHero } from './UGCAgentHero'
+import { UGCAgentModal } from './UGCAgentModal'
 import { UGCVideoLightbox } from './UGCVideoPlayer'
 import './ugc-studio-home.css'
 
@@ -91,6 +92,9 @@ export function UGCStudioHomeModal({
   const [preview, setPreview] = useState<{ src: string; title: string } | null>(null)
   const [agentCreator, setAgentCreator] = useState<UGCAvatar | null>(null)
   const [creatorChoice, setCreatorChoice] = useState<UGCAvatar | null>(null)
+  const [agentOpen, setAgentOpen] = useState(false)
+  const [agentInitialPrompt, setAgentInitialPrompt] = useState('')
+  const [agentSessionKey, setAgentSessionKey] = useState(0)
 
   const overview = useQuery({
     queryKey: ['ugc-studio-overview'],
@@ -166,6 +170,13 @@ export function UGCStudioHomeModal({
   ), [assetsById, overview.data?.campaigns])
 
   const selectedVideos = useMemo(() => readyVideos.filter((item) => selectedAdIds.includes(item.ad.id)), [readyVideos, selectedAdIds])
+
+  function openAgent(initialPrompt = '') {
+    setAgentInitialPrompt(initialPrompt)
+    setAgentSessionKey((value) => value + 1)
+    setAgentOpen(true)
+    void trackUGCStudioEvent({ event: 'CREATE_STARTED', stage: 'agent', metadata: { entry: initialPrompt ? 'PROMPT' : 'OPEN' } })
+  }
 
   function startCreation(seed?: UGCCampaign) {
     void trackUGCStudioEvent({
@@ -256,13 +267,9 @@ export function UGCStudioHomeModal({
       <div className="ugc-home-body">
         <UGCAgentHero
           featuredCreator={featured[0] || null}
-          onCampaignCreated={() => {
-            void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
-            window.requestAnimationFrame(() => document.getElementById('ugc-workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-          }}
           onClearCreator={() => setAgentCreator(null)}
           onManualSetup={(draft) => onCreate(undefined, draft)}
-          onToast={onToast}
+          onOpenAgent={(prompt) => openAgent(prompt || '')}
           selectedCreator={agentCreator}
         />
 
@@ -356,7 +363,7 @@ export function UGCStudioHomeModal({
                   </div>
                 </div>
               </article>
-            })}</div> : <div className="ugc-home-empty"><Film className="size-7 text-text-soft" /><strong>No UGC campaigns yet.</strong><span>Create your first campaign and it will stay here while it renders.</span><Button onClick={() => startCreation()} size="sm" variant="primary"><Plus className="size-3.5" />Create UGC</Button></div>}
+            })}</div> : <div className="ugc-home-empty"><Film className="size-7 text-text-soft" /><strong>No UGC campaigns yet.</strong><span>Create your first campaign and it will stay here while it renders.</span><Button onClick={() => openAgent('')} size="sm" variant="primary"><Plus className="size-3.5" />Create UGC</Button></div>}
         </section>
 
         <section className="mt-8">
@@ -381,14 +388,28 @@ export function UGCStudioHomeModal({
         <div className="ugc-creator-choice-actions">
           <Button onClick={() => setCreatorChoice(null)} size="sm" variant="secondary">Cancel</Button>
           <Button onClick={() => {
-            setAgentCreator(creatorChoice)
+            const creator = creatorChoice
+            setAgentCreator(creator)
             setCreatorChoice(null)
-            onToast(`${creatorChoice.name} selected. Tell the UGC Agent what you want to create.`)
-            window.requestAnimationFrame(() => document.getElementById('ugc-agent-composer')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+            openAgent(`I want to create a UGC ad using ${creator.name} as the creator.`)
           }} size="sm" variant="primary"><Sparkles className="size-3.5" />Create an ad with {creatorChoice.name}</Button>
         </div>
       </section>
     </div>}
+    {agentOpen && <UGCAgentModal
+      avatars={featured}
+      initialPrompt={agentInitialPrompt}
+      key={agentSessionKey}
+      onCampaignCreated={() => {
+        void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
+        window.requestAnimationFrame(() => document.getElementById('ugc-workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+      }}
+      onClose={() => setAgentOpen(false)}
+      onCreatorChange={setAgentCreator}
+      onManualSetup={(draft) => { setAgentOpen(false); onCreate(undefined, draft) }}
+      onToast={onToast}
+      selectedCreator={agentCreator}
+    />}
     <UGCVideoLightbox onClose={() => setPreview(null)} open={Boolean(preview)} src={preview?.src || null} title={preview?.title} />
   </div>, document.body)
 }
