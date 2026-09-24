@@ -27,6 +27,9 @@ type PostsLocationState = {
   mediaLibraryAsset?: MediaAsset
   scheduleMode?: ScheduleMode
   aiDraft?: AIDraft
+  ugcCaption?: string
+  ugcTitle?: string
+  ugcCampaign?: string
 }
 
 type PostComposerSession = {
@@ -193,6 +196,10 @@ export function PostsPage() {
     const asset = state?.mediaLibraryAsset
     if (!asset || importedAssetId.current === asset.id || state?.aiDraft) return
     importedAssetId.current = asset.id
+    if (typeof state.ugcTitle === 'string') setTitle(state.ugcTitle)
+    if (typeof state.ugcCaption === 'string') setCaption(state.ugcCaption)
+    if (typeof state.ugcCampaign === 'string') setCampaign(state.ugcCampaign)
+    if (state.ugcCaption || state.ugcTitle || state.ugcCampaign) setLabels('UGC Studio')
     setProgress({ state: 'preparing', percent: 15, message: `Attaching ${asset.fileName} from your Media Library…` })
     void fetchMediaAssetFile(asset).then(file => {
       const url = URL.createObjectURL(file)
