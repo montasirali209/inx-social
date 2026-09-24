@@ -750,22 +750,21 @@ async function createCampaign(userId, input) {
     json(productAssetIds), totalCredits, clean(input.notes, 1200) || null, json(plan)
   );
 
-  await ugcEngine.createProject({
-    userId,
-    campaignId,
-    input: { ...input, sourceType },
-    brand,
-    productAssetIds,
-    availableAvatars: available,
-    plan,
-    resolvedType,
-    perAdCredits: perAd,
-    totalCredits
-  });
-  await ugcEngine.updateStatus(userId, campaignId, 'RESERVING');
-
   const reserved = [];
   try {
+    await ugcEngine.createProject({
+      userId,
+      campaignId,
+      input: { ...input, sourceType },
+      brand,
+      productAssetIds,
+      availableAvatars: available,
+      plan,
+      resolvedType,
+      perAdCredits: perAd,
+      totalCredits
+    });
+    await ugcEngine.updateStatus(userId, campaignId, 'RESERVING');
     for (let index = 0; index < plan.ads.length; index += 1) {
       const planned = plan.ads[index];
       const avatar = available[planned.avatarIndex % available.length] || available[0] || null;
