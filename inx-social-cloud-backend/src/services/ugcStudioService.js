@@ -1263,6 +1263,10 @@ async function persistFinalAsset(ad, data, providerCost) {
     generationChoice: json({
       provider: 'runware', route: ad.route, quality: ad.quality, resolution: '720p', duration: ad.duration,
       providerCostUsd: providerCost, ugcAdId: ad.id, campaignId: ad.campaignId, avatarId: ad.avatarId,
+      routerVersion: parseJson(ad.planJson, {}).routerVersion || null,
+      sceneRoutes: Array.isArray(parseJson(ad.planJson, {}).scenes)
+        ? parseJson(ad.planJson, {}).scenes.map(scene => scene.routeDecision?.routeKey || null).filter(Boolean)
+        : [],
       voice: ad.voice || null, cta: ad.cta || null, caption: ad.caption || null,
       musicMode: ad.musicMode, captionsEnabled: Boolean(ad.captionsEnabled)
     }),
