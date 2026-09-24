@@ -575,6 +575,186 @@ async function analyzeBrand(userId, input) {
   return publicBrand(rows[0]);
 }
 
+
+const UGC_AGENT_VERSION = 'ugc-agent-v1';
+const UGC_AGENT_DURATIONS = new Set([15,20,30]);
+const UGC_AGENT_COUNTS = new Set([1,5,10,15,20]);
+const UGC_AGENT_TYPES = new Set(['AUTO','AVATAR_EXPLAINER','PRODUCT_SHOWCASE']);
+const UGC_AGENT_FORMATS = new Set(['AUTO','PROBLEM_SOLUTION','PRODUCT_DEMO','TESTIMONIAL','UNBOXING','REACTION','BEFORE_AFTER','STORYTIME','SPOKESPERSON','PRODUCT_FOCUSED']);
+
+function ugcAgentMessages(value) {
+  return (Array.isArray(value) ? value : [])
+    .slice(-16)
+    .map(item => ({ role: item?.role === 'assistant' ? 'assistant' : 'user', content: clean(item?.content, 4000) }))
+    .filter(item => item.content);
+}
+function ugcAgentUrl(messages, currentPlan = {}) {
+  const candidates = [];
+  if (currentPlan?.productUrl) candidates.push(currentPlan.productUrl);
+  for (const message of messages) {
+    for (const match of String(message.content || '').matchAll(/https?:\/\/[^\s<>"']+|\bwww\.[^\s<>"']+/gi)) candidates.push(match[0].replace(/[),.;!?]+$/g, ''));
+  }
+  for (let index = candidates.length - 1; index >= 0; index -= 1) {
+    const normalized = brandUrlCandidates(candidates[index])[0];
+    if (normalized) return normalized;
+  }
+  return '';
+}
+function ugcAgentReferenceDecisionKnown(messages, productAssetIds) {
+  if (Array.isArray(productAssetIds) && productAssetIds.length) return true;
+  const text = messages.filter(item => item.role === 'user').map(item => item.content).join(' ').toLowerCase();
+  return /\b(continue without|without (?:an|a )?(?:image|reference)|no (?:reference|image|photo)|don'?t have (?:a )?(?:reference|image|photo)|do not have (?:a )?(?:reference|image|photo)|use (?:the )?(?:website|site) (?:images?|references?)|use (?:those|these) (?:images?|references?)|website references? (?:is|are) fine)\b/.test(text);
+}
+function ugcAgentPlan(raw, input, brand, creator, productAssetIds, detectedUrl) {
+  const current = input?.currentPlan && typeof input.currentPlan === 'object' ? input.currentPlan : {};
+  const pick = (value, allowed, fallback) => allowed.has(String(value || '').toUpperCase()) ? String(value).toUpperCase() : fallback;
+  const durationRaw = Number(raw?.duration ?? current.duration ?? 20);
+  const adCountRaw = Number(raw?.adCount ?? current.adCount ?? 1);
+  const quality = ['STANDARD','PREMIUM'].includes(String(raw?.quality || current.quality || '').toUpperCase())
+    ? String(raw?.quality || current.quality).toUpperCase()
+    : 'STANDARD';
+  const description = clean(raw?.productDescription || current.productDescription, 4000);
+  const productUrl = clean(brand?.websiteUrl || raw?.productUrl || current.productUrl || detectedUrl, 2000);
+  const sourceType = productAssetIds.length ? 'PRODUCT' : productUrl ? 'WEBSITE' : 'BRIEF';
+  return {
+    brandProfileId: brand?.id || clean(raw?.brandProfileId || current.brandProfileId, 120) || null,
+    productUrl,
+    productDescription: description,
+    productAssetIds,
+    sourceType,
+    campaignType: pick(raw?.campaignType || current.campaignType, UGC_AGENT_TYPES, 'AUTO'),
+    creativeFormat: pick(raw?.creativeFormat || current.creativeFormat, UGC_AGENT_FORMATS, 'AUTO'),
+    creatorMode: creator ? 'SELECTED' : 'AUTO',
+    avatarId: creator?.id || null,
+    duration: UGC_AGENT_DURATIONS.has(durationRaw) ? durationRaw : 20,
+    adCount: UGC_AGENT_COUNTS.has(adCountRaw) ? adCountRaw : 1,
+    quality,
+    notes: clean(raw?.notes || current.notes, 1200)
+  };
+}
+function ugcAgentFoundReferences(brand) {
+  return (Array.isArray(brand?.brandReferences) ? brand.brandReferences : [])
+    .map(item => typeof item === 'string'
+      ? { url: clean(item, 2000), kind: 'reference', label: 'Website reference' }
+      : { url: clean(item?.url, 2000), kind: clean(item?.kind || item?.type || 'reference', 40), label: clean(item?.label || 'Website reference', 180) })
+    .filter(item => item.url)
+    .slice(0, 6);
+}
+
+async function ugcAgentReply(userId, input = {}) {
+  const messages = ugcAgentMessages(input.messages);
+  if (!messages.length) throw publicError('Tell the UGC Agent what you want to create.', 'UGC_AGENT_MESSAGE_REQUIRED', 400);
+  const productAssetIds = [...new Set((Array.isArray(input.productAssetIds) ? input.productAssetIds : []).map(String).filter(Boolean))].slice(0, 8);
+  const detectedUrl = ugcAgentUrl(messages, input.currentPlan);
+  let brand = null;
+  let brandError = null;
+  if (detectedUrl) {
+    try { brand = await analyzeBrand(userId, { url: detectedUrl, refresh: false }); }
+    catch (error) { brandError = clean(error?.publicMessage || error?.message, 500); }
+  }
+
+  let creator = null;
+  if (input.selectedAvatarId) creator = await getAvatarRow(userId, clean(input.selectedAvatarId, 120));
+  const currentPlan = input?.currentPlan && typeof input.currentPlan === 'object' ? input.currentPlan : {};
+  const foundReferences = ugcAgentFoundReferences(brand);
+  const referenceAnswered = ugcAgentReferenceDecisionKnown(messages, productAssetIds);
+
+  const evidence = {
+    brand: brand ? {
+      id: brand.id,
+      name: brand.name,
+      productName: brand.productName,
+      summary: brand.summary,
+      audience: brand.audience,
+      verifiedClaims: brand.verifiedClaims,
+      analysis: brand.analysis,
+      websiteReferenceCount: foundReferences.length
+    } : null,
+    websiteError: brandError,
+    uploadedReferenceCount: productAssetIds.length,
+    selectedCreator: creator ? {
+      id: creator.id,
+      name: creator.name,
+      category: creator.category,
+      presentation: creator.presentation,
+      ageBand: creator.ageBand,
+      locale: creator.locale
+    } : null,
+    currentPlan
+  };
+
+  const content = [{
+    type: 'text',
+    text: [
+      'Conversation:',
+      messages.map(item => item.role.toUpperCase() + ': ' + item.content).join('\n'),
+      '',
+      'Trusted UGC context:',
+      JSON.stringify(evidence)
+    ].join('\n')
+  }];
+
+  for (const assetId of productAssetIds.slice(0, 2)) {
+    try {
+      const asset = await getProductAssetContent(userId, assetId);
+      const visual = await sharp(asset.data, { animated: false }).rotate().resize({ width: 1100, height: 1100, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toBuffer();
+      content.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + visual.toString('base64'), detail: 'high' } });
+      content.push({ type: 'text', text: 'The preceding image is a customer-supplied product/reference image. Treat visible product details as authoritative; do not invent unreadable claims.' });
+    } catch (_) {}
+  }
+
+  const parsed = await postStudio.callChatModel(postStudio.REASONING_MODEL, [
+    { role: 'system', content: [
+      'You are the UGC Agent inside INXSocial. Your only job is to turn a natural request into a safe, ready-to-generate UGC campaign using the existing INXSocial UGC engine.',
+      'Do not mention internal model/provider names. Do not pretend to render anything yourself.',
+      'Use trusted brand evidence and uploaded product/reference images as factual sources. Never invent prices, product features, testimonials, statistics, certifications or results.',
+      'Infer sensible defaults instead of interrogating the customer. Ask at most ONE genuinely useful question at a time.',
+      'If the advertised product/offer is not identifiable from a URL, uploaded image or description, ask what they want to advertise.',
+      'If a creator is selected, keep that creator selected unless the customer explicitly asks for Auto.',
+      'Default to 20 seconds, 1 variation, Standard quality, Auto campaign type and Auto creative format when unspecified.',
+      'If the user clearly requests a supported duration/count/tier/format, preserve it.',
+      'Return a concise conversational reply. When enough context exists, summarize what you understood rather than asking unnecessary setup questions.',
+      'Return JSON only with this shape:',
+      '{"reply":"string","readyToGenerate":false,"needsMoreContext":true,"quickReplies":["string"],"plan":{"productUrl":"string","productDescription":"string","campaignType":"AUTO|AVATAR_EXPLAINER|PRODUCT_SHOWCASE","creativeFormat":"AUTO|PROBLEM_SOLUTION|PRODUCT_DEMO|TESTIMONIAL|UNBOXING|REACTION|BEFORE_AFTER|STORYTIME|SPOKESPERSON|PRODUCT_FOCUSED","duration":20,"adCount":1,"quality":"STANDARD|PREMIUM","notes":"string"}}'
+    ].join('\n') },
+    { role: 'user', content }
+  ], { reasoningEffort: 'low', temperature: 0.25, maxTokens: 1500, timeoutMs: 120000 });
+
+  const plan = ugcAgentPlan(parsed?.plan || {}, input, brand, creator, productAssetIds, detectedUrl);
+  const hasProductContext = Boolean(plan.brandProfileId || plan.productUrl || plan.productAssetIds.length || clean(plan.productDescription, 4000).length >= 3);
+  const referencePending = hasProductContext && !referenceAnswered && !productAssetIds.length;
+  let reply = clean(parsed?.reply, 2200) || 'I have enough context to keep building your UGC ad.';
+  let quickReplies = (Array.isArray(parsed?.quickReplies) ? parsed.quickReplies : []).map(value => clean(value, 90)).filter(Boolean).slice(0, 4);
+
+  if (!hasProductContext) {
+    reply = 'What are we advertising? Paste a product or business URL, upload a product/reference image, or describe the offer in a sentence.';
+    quickReplies = ['I’ll paste a URL', 'I’ll upload a product image', 'I’ll describe the offer'];
+  } else if (referencePending) {
+    reply = foundReferences.length
+      ? 'I found ' + foundReferences.length + ' usable visual reference' + (foundReferences.length === 1 ? '' : 's') + ' on the website. Do you also have a product or reference image you want me to use, or should I continue with the website references?'
+      : 'Do you have a product or reference image you want me to use? You can add one now, or tell me to continue without one.';
+    quickReplies = foundReferences.length
+      ? ['Use the website references', 'I’ll upload a reference image', 'Continue without another image']
+      : ['I’ll upload a reference image', 'Continue without one'];
+  }
+
+  const readyToGenerate = Boolean(hasProductContext && !referencePending && parsed?.readyToGenerate !== false && parsed?.needsMoreContext !== true);
+  const estimate = readyToGenerate ? await estimateCampaign(userId, plan) : null;
+  return {
+    version: UGC_AGENT_VERSION,
+    reply,
+    readyToGenerate,
+    needsMoreContext: !readyToGenerate,
+    quickReplies,
+    plan,
+    brand,
+    foundReferences,
+    selectedCreator: creator ? publicAvatar(creator) : null,
+    referenceQuestionAsked: referencePending,
+    estimate
+  };
+}
+
 function creditsPerAd(duration, quality) {
   const table = String(quality || 'STANDARD').toUpperCase() === 'PREMIUM' ? PREMIUM_CREDITS : STANDARD_CREDITS;
   const amount = table[Number(duration)];
@@ -2096,6 +2276,7 @@ async function regenerateScene(userId, sceneId) {
 
 module.exports = {
   STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds, brandUrlCandidates, playbackDurations,
+  UGC_AGENT_VERSION, ugcAgentReply,
   creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
   narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
   getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, getProductionAudit, deleteCampaign, getAd, updateAd, rerouteScenesForRegeneration, reassembleAd, regenerateAd, regenerateScene,
