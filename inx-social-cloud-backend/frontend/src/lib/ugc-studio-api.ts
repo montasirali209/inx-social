@@ -2,6 +2,8 @@ import { apiRequest, getStoredAuthToken } from './api-client'
 import type {
   CreateUGCCampaignInput,
   UGCAd,
+  UGCAgentMessage,
+  UGCAgentResponse,
   UGCAvatar,
   UGCAvatarReference,
   UGCBrandProfile,
@@ -29,6 +31,18 @@ export function analyzeUGCBrand(url: string, refresh = false) {
     method: 'POST',
     body: JSON.stringify({ url, refresh }),
   }).then((result) => result.brand)
+}
+
+export function sendUGCAgentMessage(input: {
+  messages: UGCAgentMessage[]
+  productAssetIds?: string[]
+  selectedAvatarId?: string | null
+  currentPlan?: Partial<CreateUGCCampaignInput>
+}) {
+  return apiRequest<{ agent: UGCAgentResponse }>('/api/ai-content-studio/ugc/agent', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  }).then((result) => result.agent)
 }
 
 export function createUGCCampaign(input: CreateUGCCampaignInput) {

@@ -39,6 +39,16 @@ const brandSchema = z.object({
   refresh: z.boolean().optional().default(false)
 });
 
+const agentSchema = z.object({
+  messages: z.array(z.object({
+    role: z.enum(['user','assistant']),
+    content: z.string().trim().min(1).max(4000)
+  })).min(1).max(18),
+  productAssetIds: z.array(z.string().trim().min(1).max(120)).max(8).optional().default([]),
+  selectedAvatarId: z.string().trim().max(120).optional().nullable(),
+  currentPlan: z.record(z.unknown()).optional().default({})
+});
+
 const generateAvatarSchema = z.object({
   prompt: z.string().trim().min(8).max(1200),
   name: z.string().trim().min(2).max(80),
@@ -78,6 +88,9 @@ async function estimate(req, res, next) {
 }
 async function analyzeBrand(req, res, next) {
   try { res.json({ brand: await service.analyzeBrand(req.user.id, brandSchema.parse(req.body || {})) }); } catch (error) { next(error); }
+}
+async function agentReply(req, res, next) {
+  try { res.json({ agent: await service.ugcAgentReply(req.user.id, agentSchema.parse(req.body || {})) }); } catch (error) { next(error); }
 }
 async function createCampaign(req, res, next) {
   try { res.status(201).json({ campaign: await service.createCampaign(req.user.id, createSchema.parse(req.body || {})) }); } catch (error) { next(error); }
@@ -243,7 +256,7 @@ async function trackEvent(req, res, next) {
 }
 
 module.exports = {
-  overview, estimate, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, getProductionAudit, removeCampaign,
+  overview, estimate, analyzeBrand, agentReply, createCampaign, listCampaigns, getCampaign, getEngineProject, getProductionAudit, removeCampaign,
   getAd, updateAd, reassembleAd, regenerateAd, regenerateScene,
   generateAvatar, uploadAvatar, avatarContent, avatarReferences, uploadAvatarReference, avatarReferenceContent, removeAvatarReference, removeAvatar,
   uploadProduct, productContent, samples, sampleContent, uploadSample, listMusic, trackEvent,
