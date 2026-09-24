@@ -60,11 +60,12 @@ test('UGC home launcher routes directly into the wizard instead of a chat conver
   assert.doesNotMatch(home, /featured\.slice\(0, 100\)/);
 });
 
-test('creator portraits are deferred to the focused picker instead of the Studio home', () => {
+test('creator portraits are deferred to on-demand pickers instead of loading with Studio', () => {
   const home = read('frontend/src/components/ai-content-studio/UGCStudioHomeModal.tsx');
   const wizard = read('frontend/src/components/ai-content-studio/UGCWizardModal.tsx');
-  assert.doesNotMatch(home, /fetchUGCAvatarImage/);
-  assert.match(home, /Open creator selection/);
+  assert.match(home, /homeCreatorPickerOpen &&/);
+  assert.match(home, /visibleHomeCreators = homeCreatorExpanded \? homeCreators : homeCreators\.slice\(0, 24\)/);
+  assert.match(home, /Portraits load only after you open this picker/);
   assert.match(wizard, /creatorPickerOpen/);
   assert.match(wizard, /Portraits load only while this picker is open/);
   assert.match(wizard, /visibleCreators = showAllCreators \? filteredCreators : filteredCreators\.slice\(0, 12\)/);
@@ -103,4 +104,13 @@ test('UGC provider prompt is always valid for Runware videoInference', () => {
   assert.equal(adapters.providerPrompt('x'), 'Natural creator-led UGC scene.');
   assert.equal(adapters.providerPrompt('  valid prompt  '), 'valid prompt');
   assert.equal(adapters.providerPrompt('a'.repeat(2500)).length, 2000);
+});
+
+
+test('failed UGC finish state does not present 100 percent completion as success', () => {
+  const wizard = read('frontend/src/components/ai-content-studio/UGCWizardModal.tsx');
+  assert.match(wizard, /This UGC campaign needs attention/);
+  assert.match(wizard, /Needs retry/);
+  assert.match(wizard, /displayProgress = failedAds/);
+  assert.match(wizard, /regenerateUGCAd/);
 });
