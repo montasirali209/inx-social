@@ -7,6 +7,7 @@ const router = require('./ugcModelRouter');
 const creators = require('./ugcCreatorEngine');
 const creativeFormats = require('./ugcCreativeFormats');
 const studioControls = require('./ugcStudioControls');
+const renderQuality = require('./ugcRenderQuality');
 
 const PROJECT_STATUSES = new Set(['PLANNED','RESERVING','QUEUED','RENDERING','READY','PARTIAL','FAILED','CANCELLED']);
 
@@ -204,6 +205,8 @@ async function healthSnapshot() {
     creatorVersion: creators.CREATOR_PROFILE_VERSION,
     creativeFormatVersion: creativeFormats.CREATIVE_FORMAT_VERSION,
     studioControlsVersion: studioControls.STUDIO_CONTROLS_VERSION,
+    renderQualityVersion: renderQuality.RENDER_QUALITY_VERSION,
+    renderQuality: renderQuality.snapshot(),
     creators: creators.creatorSystemSnapshot(),
     creativeFormats: creativeFormats.formatSnapshot(),
     router: router.routerSnapshot(),
