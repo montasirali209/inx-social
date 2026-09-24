@@ -16,22 +16,18 @@ test('Analytics is a first-class responsive React workspace', () => {
   assert.match(sidebar, /label: 'Analytics'.*reactPath: '\/analytics'/);
   assert.match(page, /AnalyticsTabs/);
   assert.match(page, /AnalyticsAccountSelector/);
-  assert.match(selector, /Select 1–3 accounts for a clearer comparison/);
-  assert.match(selector, /MAX_ANALYTICS_SOURCES = 3/);
-  assert.match(selector, /platformFilter/);
-  assert.match(selector, /All accounts/);
-  assert.doesNotMatch(selector, /overflow-x-auto/);
-  assert.match(selector, /document\.addEventListener\('pointerdown', closeOnOutside\)/);
-  assert.match(selector, /draftValues/);
-  assert.match(selector, /draftValuesRef/);
-  assert.match(selector, /commitSelection/);
-  assert.match(selector, /if \(!dropdownRef\.current\?\.contains\(event\.target as Node\)\) commitSelection\(\)/);
-  assert.match(selector, />Select<\/button>/);
-  assert.match(selector, /toggleAccount[\s\S]*setDraftValues\(updated\)/);
-  assert.doesNotMatch(selector, /toggleAccount[\s\S]{0,500}onChange\(/);
-  assert.match(selector, /setOpen\(false\)/);
-  assert.match(selector, /analytics-source-picker-menu/);
-  assert.match(selector, /transition-\[opacity,transform\]/);
+  assert.match(selector, /1 account at a time/);
+  assert.match(selector, /Choose one connected account/);
+  assert.match(selector, /role="radiogroup"/);
+  assert.match(selector, /role="radio"/);
+  assert.match(selector, /SocialPlatformIcon/);
+  assert.match(selector, /onChange\(account\.analyticsKey\)/);
+  assert.match(selector, /account\.displayName/);
+  assert.doesNotMatch(selector, /MAX_ANALYTICS_SOURCES/);
+  assert.doesNotMatch(selector, /platformFilter/);
+  assert.doesNotMatch(selector, /All accounts/);
+  assert.doesNotMatch(selector, /Selected accounts/);
+  assert.doesNotMatch(selector, /analytics-source-picker-menu/);
   assert.match(page, /grid grid-cols-2 gap-2/);
   assert.match(page, /xl:grid-cols-6/);
   assert.match(page, /ExportReportButton/);
@@ -104,29 +100,30 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(provider, /PROVIDER_GET_MAX_PER_MINUTE/);
   assert.match(provider, /reserveProviderReadSlot/);
   assert.match(provider, /CONNECTION_SYNC_TTL_MS/);
-  assert.match(page, /mapWithConcurrency\(selectedAccounts, 2/);
-  assert.match(page, /fetchAnalyticsForSource\(account, days, 'full', force\)/);
+  assert.doesNotMatch(page, /mapWithConcurrency/);
+  assert.doesNotMatch(page, /mergeAnalyticsResults/);
+  assert.match(page, /fetchAnalyticsForSource\(selectedAccount, days, 'full', force\)/);
+  assert.match(page, /analyticsKey === selectedKey/);
   assert.match(page, /backgroundRefreshing/);
   assert.match(page, /data\?\.results\?\.some/);
   assert.match(page, /analytics\.data\?\.results\?\.some/);
   assert.match(page, /Refreshing in background/);
   assert.match(page, /Last sync ·/);
-  assert.match(page, /\(sources\.isLoading \|\| analytics\.isLoading\) && !view && <AnalyticsKpiSkeleton/);
+  assert.match(page, /\(!view \|\| noVerifiedMetrics\) && <AnalyticsWorkspaceSkeleton/);
   assert.match(page, /refetchInterval: 5 \* 60_000/);
   assert.match(page, /states\.includes\('refreshing'\)/);
-  assert.match(page, /return 3_000/);
+  assert.match(page, /return 2_000/);
   assert.match(page, /states\.includes\('partial'\)/);
-  assert.match(page, /return 30_000/);
   assert.match(page, /states\.includes\('stale'\)/);
   assert.match(page, /return 60_000/);
   assert.match(page, /refreshAnalyticsNow/);
-  assert.match(page, /fetchAnalyticsForSource\(account, days, 'full', force\)/);
-  assert.match(page, /Connected\. Performance metrics are syncing\./);
-  assert.match(page, /No zero-filled analytics/);
-  assert.match(page, /Review connection/);
-  assert.match(page, /Connection active\. Content feed needs attention\./);
-  assert.match(page, /Reconnect Facebook/);
-  assert.match(page, /connectPostForMePlatform\('facebook'\)/);
+
+
+
+
+
+
+
   assert.match(page, /readSessionCache/);
   assert.match(page, /writeSessionCache/);
   assert.match(insights, /Content Efficiency/);
@@ -142,8 +139,13 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(data, /Interactions divided by content views/);
   assert.doesNotMatch(data, /128\.4K|2\.45M|89\.3K/);
   assert.match(page, /Analytics are just starting/);
-  assert.match(page, /Performance metrics are syncing/);
-  assert.doesNotMatch(page, /analytics are partially available/);
+  assert.match(page, /AnalyticsTabs active=\{activeTab\}/);
+  assert.match(page, /selectedKey/);
+  assert.match(page, /inx-social-analytics-source-v5/);
+  assert.doesNotMatch(page, /No zero-filled analytics/);
+  assert.doesNotMatch(page, /X feed contains posts from other accounts/);
+
+
   assert.doesNotMatch(page, /Post for Me/i);
   assert.doesNotMatch(data, /Post for Me/i);
   assert.doesNotMatch(api, /Post for Me/i);
@@ -214,6 +216,8 @@ test('only live-data workspaces use page-level loading states', () => {
   assert.match(dashboard, /DashboardSkeleton/);
   assert.match(calendar, /CalendarSkeleton/);
   assert.match(analytics, /AnalyticsKpiSkeleton/);
+  assert.match(analytics, /AnalyticsWorkspaceSkeleton/);
+  assert.match(analytics, /Updating latest account performance/);
   assert.doesNotMatch(analytics, /Preparing your latest trend data|Bringing your analytics together|Engagement by Platform/);
 
   for (const page of [posts, media, bulk, studio, settings, connections, billing]) {
