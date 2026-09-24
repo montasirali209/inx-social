@@ -266,6 +266,46 @@ async function renderScene(routeKey, context, onProgress = () => {}) {
   };
 }
 
+function isTerminalProviderError(error) {
+  return ['CONTENT_BLOCKED','RUNWARE_AUTH_ERROR','RUNWARE_BALANCE_ERROR','RUNWARE_NOT_CONFIGURED'].includes(String(error?.code || '').toUpperCase());
+}
+
+async function renderWithFallback(routeDecision, context, onProgress = () => {}) {
+  const primary = clean(routeDecision?.routeKey || routeDecision || '', 120);
+  const fallbacks = Array.isArray(routeDecision?.fallbacks) ? routeDecision.fallbacks.map(value => clean(value, 120)).filter(Boolean) : [];
+  const candidates = [...new Set([primary, ...fallbacks].filter(Boolean))];
+  if (!candidates.length) throw adapterError('No UGC provider route was selected.', 'UGC_ROUTE_MISSING', 500);
+
+  const attempts = [];
+  let lastError = null;
+  for (let index = 0; index < candidates.length; index += 1) {
+    const routeKey = candidates[index];
+    try {
+      const result = await renderScene(routeKey, context, onProgress);
+      return {
+        ...result,
+        requestedRouteKey: primary,
+        fallbackUsed: index > 0,
+        attempts: [...attempts, { routeKey, status: 'READY', model: result.model }]
+      };
+    } catch (error) {
+      lastError = error;
+      attempts.push({
+        routeKey,
+        status: 'FAILED',
+        code: clean(error?.code || 'UGC_PROVIDER_FAILED', 120)
+      });
+      if (isTerminalProviderError(error)) throw error;
+    }
+  }
+
+  if (lastError) {
+    lastError.routeAttempts = attempts;
+    throw lastError;
+  }
+  throw adapterError('No compatible UGC provider route could complete the scene.', 'UGC_ROUTE_EXHAUSTED', 502);
+}
+
 function adapterSnapshot() {
   return {
     version: ADAPTERS_VERSION,
@@ -286,5 +326,7 @@ module.exports = {
   buildTask,
   postProcessFor,
   renderScene,
+  renderWithFallback,
+  isTerminalProviderError,
   adapterSnapshot
 };
