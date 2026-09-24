@@ -61,6 +61,10 @@ export function updateUGCAd(id: string, update: UGCEditorUpdate) {
   }).then((result) => result.ad)
 }
 
+export function reassembleUGCAd(id: string) {
+  return apiRequest<{ ad: UGCAd }>(`/api/ai-content-studio/ugc/ads/${encodeURIComponent(id)}/reassemble`, { method: 'POST' }).then((result) => result.ad)
+}
+
 export function regenerateUGCAd(id: string) {
   return apiRequest<{ ad: UGCAd }>(`/api/ai-content-studio/ugc/ads/${encodeURIComponent(id)}/regenerate`, { method: 'POST' }).then((result) => result.ad)
 }
