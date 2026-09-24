@@ -23,6 +23,7 @@ const ugcCreators = require('./ugcCreatorEngine');
 const ugcCreativeFormats = require('./ugcCreativeFormats');
 const ugcStudioControls = require('./ugcStudioControls');
 const ugcRenderQuality = require('./ugcRenderQuality');
+const ugcProductionAudit = require('./ugcProductionAuditService');
 const { expiresAtFor } = require('./mediaRetentionService');
 
 const STANDARD_CREDITS = Object.freeze({ 15: 100, 20: 140, 30: 210 });
@@ -921,6 +922,10 @@ async function getEngineProject(userId, campaignId) {
   await ownedCampaign(userId, campaignId);
   return ugcEngine.getProject(userId, campaignId);
 }
+async function getProductionAudit(userId, campaignId) {
+  await ownedCampaign(userId, campaignId);
+  return ugcProductionAudit.auditCampaign(userId, campaignId, { persist: true });
+}
 async function listCampaigns(userId, limit = 12) {
   const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCCampaign" WHERE "userId"=$1 AND "deletedAt" IS NULL ORDER BY "updatedAt" DESC LIMIT $2', userId, Number(limit));
   const output = [];
@@ -1693,6 +1698,11 @@ async function refreshCampaignStatus(campaignId) {
       }
     });
   }
+  if (campaign?.userId && ['READY','PARTIAL','FAILED'].includes(status)) {
+    await ugcProductionAudit.auditCampaign(campaign.userId, campaignId, { persist: true }).catch(error => {
+      console.warn('[UGC PHASE 8 AUDIT]', clean(error?.message, 500));
+    });
+  }
 }
 
 let runtimeTimer = null;
@@ -1992,7 +2002,7 @@ module.exports = {
   STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds, brandUrlCandidates, playbackDurations,
   creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
   narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
-  getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, deleteCampaign, getAd, updateAd, rerouteScenesForRegeneration, reassembleAd, regenerateAd, regenerateScene,
+  getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, getProductionAudit, deleteCampaign, getAd, updateAd, rerouteScenesForRegeneration, reassembleAd, regenerateAd, regenerateScene,
   generateCustomAvatar, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,
   listAvatarReferences, uploadAvatarReference, getAvatarReferenceContent, deleteAvatarReference,
   uploadProductAsset, getProductAssetContent,
