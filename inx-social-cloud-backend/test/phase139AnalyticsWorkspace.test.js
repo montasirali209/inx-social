@@ -35,7 +35,8 @@ test('Analytics is a first-class responsive React workspace', () => {
   assert.match(scopeNotice, /Current post performance/);
   assert.match(scopeNotice, />Live</);
   assert.match(scopeNotice, /Post metrics/);
-  assert.match(scopeNotice, /Selected accounts/);
+  assert.match(scopeNotice, /Selected account/);
+  assert.match(scopeNotice, /This account only/);
   assert.match(scopeNotice, /Last synced/);
   assert.match(scopeNotice, /Latest verified performance for published posts/);
 });
