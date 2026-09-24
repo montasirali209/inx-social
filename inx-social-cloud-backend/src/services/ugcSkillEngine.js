@@ -460,7 +460,7 @@ function adFinishingSkill({ duration, captionsEnabled = true, musicMode = 'AUTO'
 }
 
 function qualityControlSkill({ resolvedType, timing, scenePlan, avatar, hasProductReference, castingDecision = null }) {
-  const hasCreatorScene = scenePlan.scenes.some(scene => scene.kind === 'CREATOR');
+  const hasCreatorScene = scenePlan.scenes.some(scene => ['CREATOR','CTA'].includes(scene.kind));
   const checks = [
     { id: 'SCRIPT_COMPLETION', status: timing.finalWordCount <= timing.hardMax ? 'PASS' : 'FAIL', detail: { words: timing.finalWordCount, hardMax: timing.hardMax } },
     { id: 'DURATION_EXACTNESS', status: Math.abs(scenePlan.scenes.reduce((sum, scene) => sum + scene.playbackDuration, 0) - timing.targetDuration) < 0.001 ? 'PASS' : 'FAIL' },
