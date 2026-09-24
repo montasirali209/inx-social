@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const prisma = require('../db/prisma');
 const contract = require('./ugcEngineContract');
 const registry = require('./ugcEngineRegistry');
+const skills = require('./ugcSkillEngine');
 
 const PROJECT_STATUSES = new Set(['PLANNED','RESERVING','QUEUED','RENDERING','READY','PARTIAL','FAILED','CANCELLED']);
 
@@ -28,6 +29,9 @@ function publicProject(row) {
     fingerprint: row.fingerprint,
     brief: parseJson(row.briefJson, {}),
     actor: parseJson(row.actorJson, {}),
+    skillsVersion: row.skillsVersion || null,
+    skills: parseJson(row.skillsJson, {}),
+    preflight: parseJson(row.preflightJson, {}),
     productionPlan: parseJson(row.productionPlanJson, {}),
     routeDecision: parseJson(row.routeDecisionJson, {}),
     pricing: parseJson(row.pricingJson, {}),
@@ -42,16 +46,19 @@ async function createProject(input) {
   const project = contract.buildEngineProject(input);
   const projectId = crypto.randomUUID();
   await prisma.$executeRawUnsafe(
-    'INSERT INTO "UGCEngineProject" ("id","campaignId","userId","engineVersion","contractVersion","status","fingerprint","briefJson","actorJson","productionPlanJson","routeDecisionJson","pricingJson","renderJobsJson","qcJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT ("campaignId") DO UPDATE SET "engineVersion"=EXCLUDED."engineVersion","contractVersion"=EXCLUDED."contractVersion","status"=EXCLUDED."status","fingerprint"=EXCLUDED."fingerprint","briefJson"=EXCLUDED."briefJson","actorJson"=EXCLUDED."actorJson","productionPlanJson"=EXCLUDED."productionPlanJson","routeDecisionJson"=EXCLUDED."routeDecisionJson","pricingJson"=EXCLUDED."pricingJson","renderJobsJson"=EXCLUDED."renderJobsJson","qcJson"=EXCLUDED."qcJson","updatedAt"=CURRENT_TIMESTAMP',
+    'INSERT INTO "UGCEngineProject" ("id","campaignId","userId","engineVersion","contractVersion","skillsVersion","status","fingerprint","briefJson","actorJson","skillsJson","preflightJson","productionPlanJson","routeDecisionJson","pricingJson","renderJobsJson","qcJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT ("campaignId") DO UPDATE SET "engineVersion"=EXCLUDED."engineVersion","contractVersion"=EXCLUDED."contractVersion","skillsVersion"=EXCLUDED."skillsVersion","status"=EXCLUDED."status","fingerprint"=EXCLUDED."fingerprint","briefJson"=EXCLUDED."briefJson","actorJson"=EXCLUDED."actorJson","skillsJson"=EXCLUDED."skillsJson","preflightJson"=EXCLUDED."preflightJson","productionPlanJson"=EXCLUDED."productionPlanJson","routeDecisionJson"=EXCLUDED."routeDecisionJson","pricingJson"=EXCLUDED."pricingJson","renderJobsJson"=EXCLUDED."renderJobsJson","qcJson"=EXCLUDED."qcJson","updatedAt"=CURRENT_TIMESTAMP',
     projectId,
     project.campaignId,
     project.userId,
     project.engineVersion,
     project.contractVersion,
+    project.skills?.version || skills.SKILLS_VERSION,
     project.status,
     project.fingerprint,
     json(project.brief),
     json(project.actor),
+    json(project.skills?.decisions || {}),
+    json(project.skills?.preflight || {}),
     json(project.productionPlan),
     json(project.routeDecision),
     json(project.pricing),
@@ -142,6 +149,7 @@ async function healthSnapshot() {
   return {
     engineVersion: registry.ENGINE_VERSION,
     contractVersion: registry.CONTRACT_VERSION,
+    skillsVersion: skills.SKILLS_VERSION,
     registry: registry.registrySnapshot(),
     statuses: [...PROJECT_STATUSES]
   };
