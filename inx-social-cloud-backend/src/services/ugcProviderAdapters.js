@@ -167,6 +167,11 @@ function validateContext(cap, context) {
   }
 }
 
+function providerPrompt(prompt) {
+  const value = clean(prompt, 2000);
+  return value.length >= 2 ? value : 'Natural creator-led UGC scene.';
+}
+
 function commonTask(model, prompt) {
   return {
     taskType: 'videoInference',
@@ -176,7 +181,7 @@ function commonTask(model, prompt) {
     outputType: 'URL',
     outputFormat: 'MP4',
     model,
-    positivePrompt: clean(prompt, 10000)
+    positivePrompt: providerPrompt(prompt)
   };
 }
 
@@ -283,6 +288,7 @@ module.exports = {
   getAdapter,
   isCreatorLike,
   validateContext,
+  providerPrompt,
   buildTask,
   postProcessFor,
   renderScene,
