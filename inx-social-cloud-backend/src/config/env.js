@@ -93,8 +93,14 @@ module.exports = {
     ugcAvatarModel: modelName(process.env.RUNWARE_UGC_AVATAR_MODEL, 'prunaai:p-video@avatar'),
     ugcStandardModel: modelName(process.env.RUNWARE_UGC_STANDARD_MODEL, 'minimax:4@1'),
     ugcPremiumModel: modelName(process.env.RUNWARE_UGC_PREMIUM_MODEL, 'klingai:kling-video@3-standard'),
+    ugcOmniHumanModel: modelName(process.env.RUNWARE_UGC_OMNIHUMAN_MODEL, 'bytedance:5@2'),
+    ugcSeedanceModel: modelName(process.env.RUNWARE_UGC_SEEDANCE_MODEL, 'bytedance:seedance@2.5'),
+    ugcKlingOmniModel: modelName(process.env.RUNWARE_UGC_KLING_OMNI_MODEL, 'klingai:kling-video@o3-standard'),
     ugcLipSyncModel: modelName(process.env.RUNWARE_UGC_LIPSYNC_MODEL, 'klingai:7@1'),
     ugcTtsModel: modelName(process.env.RUNWARE_UGC_TTS_MODEL, 'inworld:tts@2'),
+    ugcRouterMode: ['adaptive','compatibility'].includes(String(process.env.UGC_MODEL_ROUTER_MODE || 'adaptive').trim().toLowerCase())
+      ? String(process.env.UGC_MODEL_ROUTER_MODE || 'adaptive').trim().toLowerCase()
+      : 'adaptive',
     textModel: modelName(process.env.RUNWARE_TEXT_MODEL, 'openai:gpt@5.4-nano'),
     timeoutMs: Math.max(30000, Number(process.env.RUNWARE_TIMEOUT_MS || 360000)),
     imageTimeoutMs: Math.max(30000, Number(process.env.RUNWARE_IMAGE_TIMEOUT_MS || 180000)),
