@@ -24,7 +24,6 @@ export type UGCAvatar = {
   environments: string[]
   wardrobe: string[]
   gestures: string[]
-  routeCompatibility: string[]
   energy: string[]
   featured: boolean
   referenceVersion: number
