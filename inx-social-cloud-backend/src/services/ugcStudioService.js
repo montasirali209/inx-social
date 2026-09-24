@@ -765,7 +765,15 @@ async function createCampaign(userId, input) {
   if (resolvedType === 'PRODUCT_SHOWCASE' && !productAssets.length && !hasBrandVisualReference) {
     throw publicError('Product Showcase needs at least one real product image. Upload a product photo, use a product page with usable images, or choose Avatar Explainer.', 'UGC_PRODUCT_REFERENCE_REQUIRED', 422);
   }
-  const creativePlan = await planCampaign({ ...input, productAssetIds }, brand, available, resolvedType);
+  let creativePlan;
+  try {
+    creativePlan = await planCampaign({ ...input, productAssetIds }, brand, available, resolvedType);
+  } catch (error) {
+    if (error?.code === 'UGC_CREATIVE_FORMAT_INCOMPATIBLE') {
+      throw publicError('That creative structure is not compatible with the selected production type or available evidence. Choose another structure or use Auto.', error.code, 422);
+    }
+    throw error;
+  }
   const plan = ugcModelRouter.routePlan({
     input,
     plan: creativePlan,
