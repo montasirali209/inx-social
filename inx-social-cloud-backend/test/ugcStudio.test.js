@@ -176,7 +176,10 @@ test('UGC runtime renders two scenes concurrently while keeping one ad active gl
   const path = require('node:path');
   const root = path.resolve(__dirname, '..');
   const service = fs.readFileSync(path.join(root, 'src/services/ugcStudioService.js'), 'utf8');
-  assert.match(service, /await runLimited\(scenes, 2,/);
+  const runtimePolicy = require('../src/services/ugcRuntimePolicy');
+  assert.equal(runtimePolicy.SCENE_CONCURRENCY, 2);
+  assert.equal(runtimePolicy.AD_WORKERS_PER_PROCESS, 1);
+  assert.match(service, /await runLimited\(scenes, ugcRuntimePolicy\.SCENE_CONCURRENCY,/);
   assert.match(service, /const adId = await claimNextAd\(\)/);
   assert.doesNotMatch(service, /for \(let i=0; i<2; i\+=1\)[\s\S]{0,180}claimNextAd/);
   assert.match(service, /UGCCampaign[\s\S]{0,180}RENDERING/);
