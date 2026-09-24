@@ -1571,6 +1571,7 @@ async function rerouteScenesForRegeneration(userId, adId, sceneIds = null) {
   const selected = sceneIds ? new Set(sceneIds.map(value => String(value))) : null;
   const finalDurations = playbackDurations(ad.duration, scenes.map(scene => Number(scene.duration)));
   const decisions = [];
+  const updates = [];
   const adPlan = parseJson(ad.planJson, {});
   let plannedScenes = Array.isArray(adPlan.scenes)
     ? adPlan.scenes.map(scene => ({ ...scene }))
@@ -1600,12 +1601,11 @@ async function rerouteScenesForRegeneration(userId, adId, sceneIds = null) {
       hasNarration: clean(scene.script, 5000).length >= 2
     });
     decisions.push({ sceneId: scene.id, sceneSequence: Number(scene.sequence), ...decision });
-    await prisma.$executeRawUnsafe(
-      'UPDATE "UGCScene" SET "route"=$2,"productReferenceJson"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
-      scene.id,
-      decision.routeKey,
-      json({ ...referenceMeta, routeDecision: decision })
-    );
+    updates.push({
+      sceneId: scene.id,
+      routeKey: decision.routeKey,
+      productReferenceJson: json({ ...referenceMeta, routeDecision: decision })
+    });
     const plannedIndex = plannedScenes.findIndex(item => Number(item.sequence) === Number(scene.sequence));
     if (plannedIndex >= 0) plannedScenes[plannedIndex] = { ...plannedScenes[plannedIndex], routeDecision: decision };
     else plannedScenes.push({
@@ -1626,12 +1626,24 @@ async function rerouteScenesForRegeneration(userId, adId, sceneIds = null) {
     routingSummary: ugcModelRouter.summarizeRoutes([{ scenes: plannedScenes }]),
     scenes: plannedScenes
   };
-  await prisma.$executeRawUnsafe(
-    'UPDATE "UGCAd" SET "planJson"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$3',
-    adId,
-    json(nextPlan),
-    userId
-  );
+
+  await prisma.$transaction(async tx => {
+    for (const update of updates) {
+      await tx.$executeRawUnsafe(
+        'UPDATE "UGCScene" SET "route"=$2,"productReferenceJson"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+        update.sceneId,
+        update.routeKey,
+        update.productReferenceJson
+      );
+    }
+    await tx.$executeRawUnsafe(
+      'UPDATE "UGCAd" SET "planJson"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$3',
+      adId,
+      json(nextPlan),
+      userId
+    );
+  });
+
   return { ad, decisions, routerVersion: ugcModelRouter.ROUTER_VERSION, routerMode: ugcModelRouter.routerMode() };
 }
 
