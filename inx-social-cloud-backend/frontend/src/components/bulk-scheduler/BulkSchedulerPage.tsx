@@ -6,7 +6,7 @@ import { createBulkMediaPost, fetchBulkSchedulerData, optimiseBulkScheduleTimes,
 import { bulkCancelScheduledPosts, bulkEditScheduledPosts, retryFailedScheduledPost } from '../../lib/posts-api'
 import { getAIPostCampaign, getAIPostCampaigns } from '../../lib/ai-content-studio-api'
 import { fetchMediaAssetFile, fetchMediaLibrary, uploadMediaAsset } from '../../lib/media-library-api'
-import { buildPublishingTimes, parseCaptions, parseTextPosts } from '../../lib/bulk-scheduler-utils'
+import { buildPublishingTimes, isLikelyTransportFailure, parseCaptions, parseTextPosts } from '../../lib/bulk-scheduler-utils'
 import { applyBulkScheduleEdit, applyBulkTextEdit, earliestLocalDate, hasTextRuleChanges, type BulkScheduledEditRules } from '../../lib/bulk-text-edit'
 import type { BatchProgress, BulkContentMode, BulkSchedulerData, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
 import type { MediaAsset } from '../../types/media-library'
@@ -107,7 +107,7 @@ export function BulkSchedulerPage() {
   const scheduler = useQuery({
     queryKey: ['bulk-scheduler'],
     queryFn: fetchBulkSchedulerData,
-    refetchInterval: results.some((result) => result.status === 'uploading') ? 8_000 : 15_000,
+    refetchInterval: results.some((result) => result.status === 'uploading' || result.status === 'checking') ? 5_000 : 15_000,
   })
   const campaignsQuery = useQuery({
     queryKey: ['ai-post-campaigns', 'bulk-scheduler'],
@@ -187,30 +187,37 @@ export function BulkSchedulerPage() {
   useEffect(() => {
     if (!schedulerData.jobs.length || !results.length) return
     setResults((current) => current.map((result) => {
-      if (!result.jobId) return result
-      const job = schedulerData.jobs.find((candidate) => candidate.id === result.jobId)
+      const job = schedulerData.jobs.find((candidate) =>
+        (result.jobId && candidate.id === result.jobId)
+        || (result.clientRequestId && candidate.clientRequestId === result.clientRequestId)
+      )
       if (!job) return result
-
-      const alreadyAccepted = result.status === 'scheduled' || result.status === 'published'
-      if (alreadyAccepted) {
-        return {
-          ...result,
-          status: 'scheduled',
-          resultId: job.metaPostId || job.metaVideoId || result.resultId,
-          errorMessage: null,
-        }
-      }
 
       const backendStatus = backendStatusToUploadStatus(job.status)
       const acceptedNow = backendStatus === 'scheduled' || backendStatus === 'published'
       return {
         ...result,
+        jobId: job.id,
         status: acceptedNow ? 'scheduled' : backendStatus,
-        resultId: job.metaPostId || job.metaVideoId || result.resultId,
+        resultId: job.providerPostId || job.metaPostId || job.metaVideoId || result.resultId,
         errorMessage: acceptedNow ? null : job.errorMessage || result.errorMessage,
       }
     }))
   }, [schedulerData.jobs, results.length])
+
+  useEffect(() => {
+    const reconcileWhenVisible = () => {
+      if (document.visibilityState === 'visible' && results.some((result) => result.status === 'checking')) {
+        void scheduler.refetch()
+      }
+    }
+    document.addEventListener('visibilitychange', reconcileWhenVisible)
+    window.addEventListener('focus', reconcileWhenVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', reconcileWhenVisible)
+      window.removeEventListener('focus', reconcileWhenVisible)
+    }
+  }, [results, scheduler])
 
   useEffect(() => () => {
     mediaRef.current.forEach((item) => URL.revokeObjectURL(item.previewUrl))
