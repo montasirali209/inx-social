@@ -860,6 +860,10 @@ async function campaignPayload(userId, campaignRow) {
   };
 }
 async function getCampaign(userId, campaignId) { return campaignPayload(userId, await ownedCampaign(userId, campaignId)); }
+async function getEngineProject(userId, campaignId) {
+  await ownedCampaign(userId, campaignId);
+  return ugcEngine.getProject(userId, campaignId);
+}
 async function listCampaigns(userId, limit = 12) {
   const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCCampaign" WHERE "userId"=$1 AND "deletedAt" IS NULL ORDER BY "updatedAt" DESC LIMIT $2', userId, Number(limit));
   const output = [];
@@ -1604,6 +1608,8 @@ async function regenerateAd(userId, adId) {
   const row = await getAdRow(userId, adId);
   if (['QUEUED','RENDERING'].includes(row.status)) throw publicError('This ad is already rendering.', 'UGC_AD_BUSY', 409);
   const generationId = await createGenerationRow(userId, adId, row.credits, { title: row.title, script: row.script, regeneration: true });
+  await ugcEngine.linkGeneration(userId, row.campaignId, row.sequence, adId, generationId).catch(() => null);
+  await ugcEngine.updateStatus(userId, row.campaignId, 'QUEUED').catch(() => {});
   await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "status"=\'QUEUED\',"providerTaskUuid"=NULL,"providerCostUsd"=NULL,"model"=NULL,"errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "adId"=$1', adId);
   await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "generationId"=$2,"status"=\'QUEUED\',"errorMessage"=NULL,"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', adId, generationId);
   await ugcAnalytics.track(userId, { event: 'REGENERATION_STARTED', stage: 'editor', campaignId: row.campaignId, adId, metadata: { credits: row.credits, quality: row.quality, duration: row.duration } });
@@ -1612,12 +1618,14 @@ async function regenerateAd(userId, adId) {
 }
 
 async function regenerateScene(userId, sceneId) {
-  const rows = await prisma.$queryRawUnsafe('SELECT s.*,a."userId",a."credits" AS "adCredits",a."duration" AS "adDuration",a."status" AS "adStatus",a."id" AS "ownedAdId" FROM "UGCScene" s JOIN "UGCAd" a ON a."id"=s."adId" WHERE s."id"=$1 AND a."userId"=$2 LIMIT 1', sceneId, userId);
+  const rows = await prisma.$queryRawUnsafe('SELECT s.*,a."userId",a."credits" AS "adCredits",a."duration" AS "adDuration",a."status" AS "adStatus",a."id" AS "ownedAdId",a."campaignId" AS "campaignId",a."sequence" AS "adSequence" FROM "UGCScene" s JOIN "UGCAd" a ON a."id"=s."adId" WHERE s."id"=$1 AND a."userId"=$2 LIMIT 1', sceneId, userId);
   const scene = rows[0];
   if (!scene) throw publicError('UGC scene not found.', 'UGC_SCENE_NOT_FOUND', 404);
   if (['QUEUED','RENDERING'].includes(scene.adStatus)) throw publicError('This ad is already rendering.', 'UGC_AD_BUSY', 409);
   const sceneCredits = Math.max(1, Math.ceil(Number(scene.adCredits) * Number(scene.duration) / Number(scene.adDuration)));
   const generationId = await createGenerationRow(userId, scene.ownedAdId, sceneCredits, { sceneId, regeneration: true });
+  await ugcEngine.linkGeneration(userId, scene.campaignId, scene.adSequence, scene.ownedAdId, generationId).catch(() => null);
+  await ugcEngine.updateStatus(userId, scene.campaignId, 'QUEUED').catch(() => {});
   await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "status"=\'QUEUED\',"providerTaskUuid"=NULL,"providerCostUsd"=NULL,"model"=NULL,"errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', sceneId);
   await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "generationId"=$2,"status"=\'QUEUED\',"errorMessage"=NULL,"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', scene.ownedAdId, generationId);
   await ugcAnalytics.track(userId, { event: 'SCENE_REGENERATION_STARTED', stage: 'editor', adId: scene.ownedAdId, metadata: { credits: sceneCredits, duration: scene.duration } });
@@ -1629,7 +1637,7 @@ module.exports = {
   STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds, brandUrlCandidates, playbackDurations,
   creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
   narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
-  getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, deleteCampaign, getAd, updateAd, regenerateAd, regenerateScene,
+  getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, deleteCampaign, getAd, updateAd, regenerateAd, regenerateScene,
   generateCustomAvatar, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,
   uploadProductAsset, getProductAssetContent,
   listSampleVideos, uploadSampleVideo, getSampleVideoContent,
