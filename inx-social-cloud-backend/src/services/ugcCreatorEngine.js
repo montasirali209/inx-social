@@ -82,8 +82,8 @@ function buildProfile(input = {}) {
   const explicitEnvironmentTags = uniq(input.environmentTags, 10);
   const profile = {
     version: CREATOR_PROFILE_VERSION,
-    presentation: clean(input.presentation, 80),
-    ageBand: clean(input.ageBand, 80),
+    presentation: clean(input.presentation || 'Unspecified', 80),
+    ageBand: clean(input.ageBand || 'Adult', 80),
     locale: locale.locale,
     languages: uniq(input.languages?.length ? input.languages : [locale.language], 8),
     accent: clean(input.accent || locale.accent, 80),
