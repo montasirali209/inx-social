@@ -77,7 +77,9 @@ test('Bulk Scheduler supports text-only batches in the same workflow', () => {
   assert.match(panel, /Media Posts/);
   assert.match(panel, /Text Posts/);
   assert.match(input, /One complete post per block/);
+  assert.match(input, /One complete caption per block/);
   assert.match(input, /two empty lines/);
+  assert.match(input, /Normal line breaks and a single blank line stay inside the same caption/);
   assert.match(input, />---</);
   assert.match(input, />--</);
   assert.match(utilities, /parseTextPosts/);
