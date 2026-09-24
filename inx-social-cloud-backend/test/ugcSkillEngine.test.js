@@ -93,6 +93,45 @@ test('automatic creator casting scores relevance and reduces unnecessary repetit
   assert.equal(cast.assignments[1].avatarId, 'daniel');
 });
 
+test('Creator V2 preflight rejects a creator that cannot serve the requested production tier', () => {
+  const limited = {
+    id: 'standard-only',
+    name: 'Standard Creator',
+    category: 'Lifestyle',
+    presentation: 'Woman',
+    ageBand: '25–34',
+    locale: 'en-GB',
+    voice: 'Pippa',
+    routeCompatibilityJson: JSON.stringify(['HAILUO_STANDARD_V1'])
+  };
+  const cast = creatorCastingSkill({
+    ads: [{ creatorProfile: { category: 'Lifestyle' } }],
+    avatars: [limited],
+    creatorMode: 'SELECTED',
+    selectedAvatarId: limited.id,
+    quality: 'PREMIUM'
+  });
+  assert.equal(cast.assignments[0].routeCompatible, false);
+
+  const timing = scriptTimingSkill({ script: 'A concise creator explanation that fits the requested ad duration.', duration: 15, cta: '' });
+  const scenePlan = scenePlanningSkill({
+    resolvedType: 'AVATAR_EXPLAINER',
+    providerDurations: [10, 6],
+    playbackDurations: [10, 5],
+    rawScenes: [{ kind: 'CREATOR' }, { kind: 'CREATOR' }]
+  });
+  const qc = qualityControlSkill({
+    resolvedType: 'AVATAR_EXPLAINER',
+    timing,
+    scenePlan,
+    avatar: limited,
+    hasProductReference: false,
+    castingDecision: cast.assignments[0]
+  });
+  assert.equal(qc.status, 'FAIL');
+  assert.ok(qc.failedChecks.includes('CREATOR_ROUTE_COMPATIBILITY'));
+});
+
 test('scene planning locks avatar explainers to creator scenes and preserves provider/playback durations', () => {
   const plan = scenePlanningSkill({
     resolvedType: 'AVATAR_EXPLAINER',
