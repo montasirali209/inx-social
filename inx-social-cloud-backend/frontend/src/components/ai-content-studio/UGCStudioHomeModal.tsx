@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowRight, CalendarRange, Clapperboard, Clock3, Coins, Copy, Film,
-  LoaderCircle, Pencil, Play, Plus, Trash2, UsersRound, X,
+  LoaderCircle, Pencil, Play, Plus, Sparkles, Trash2, UsersRound, X,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -10,18 +10,39 @@ import { loadUGCEditor } from '../../route-preload'
 import { fetchMediaLibrary } from '../../lib/media-library-api'
 import {
   deleteUGCCampaign,
+  fetchUGCAvatarImage,
   fetchUGCSampleVideo,
   getUGCOverview,
   trackUGCStudioEvent,
 } from '../../lib/ugc-studio-api'
 import type { MediaAsset } from '../../types/media-library'
-import type { CreateUGCCampaignInput, UGCCampaign, UGCSampleVideo } from '../../types/ugc-studio'
+import type { CreateUGCCampaignInput, UGCAvatar, UGCCampaign, UGCSampleVideo } from '../../types/ugc-studio'
 import { Button } from '../ui/Button'
 import { UGCAgentHero } from './UGCAgentHero'
 import { UGCVideoLightbox } from './UGCVideoPlayer'
 import './ugc-studio-home.css'
 
 const activeStatuses = new Set(['RESERVING', 'QUEUED', 'RENDERING', 'PLANNING'])
+
+function LazyCreatorPortrait({ avatar }: { avatar: UGCAvatar }) {
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    let active = true
+    let created: string | null = null
+    if (!avatar.imageUrl) return undefined
+    void fetchUGCAvatarImage(avatar).then((value) => {
+      if (!value) return
+      if (!active) { URL.revokeObjectURL(value); return }
+      created = value
+      setUrl(value)
+    })
+    return () => { active = false; if (created) URL.revokeObjectURL(created) }
+  }, [avatar])
+
+  return url
+    ? <img alt="" className="size-full object-cover" loading="lazy" src={url} />
+    : <div className="grid size-full place-items-center bg-[#0a1d29] text-sm font-bold text-brand-cyan">{avatar.name.slice(0, 1)}</div>
+}
 
 function SampleVideo({ sample }: { sample: UGCSampleVideo }) {
   const [url, setUrl] = useState<string | null>(null)
@@ -69,6 +90,8 @@ export function UGCStudioHomeModal({
   const [filter, setFilter] = useState<'ALL' | 'READY' | 'RENDERING' | 'FAILED'>('ALL')
   const [selectedAdIds, setSelectedAdIds] = useState<string[]>([])
   const [preview, setPreview] = useState<{ src: string; title: string } | null>(null)
+  const [homeCreatorPickerOpen, setHomeCreatorPickerOpen] = useState(false)
+  const [homeCreatorExpanded, setHomeCreatorExpanded] = useState(false)
 
   const overview = useQuery({
     queryKey: ['ugc-studio-overview'],
@@ -219,6 +242,8 @@ export function UGCStudioHomeModal({
 
   if (!open) return null
   const data = overview.data
+  const homeCreators = data?.avatars || []
+  const visibleHomeCreators = homeCreatorExpanded ? homeCreators : homeCreators.slice(0, 24)
 
   return createPortal(<div className="ugc-home-backdrop">
     <section aria-label="UGC Ad Studio" aria-modal="true" className="ugc-home-panel" role="dialog">
@@ -333,14 +358,33 @@ export function UGCStudioHomeModal({
 
         <section className="mt-8 ugc-home-creator-entry">
           <div className="ugc-home-section-head"><div><span>CREATOR LIBRARY</span><h3>Choose a creator when you need one</h3><p>The creator library now loads only inside the Creator step, keeping UGC Studio fast and smooth.</p></div><span className="text-[9px] text-text-soft">100+ available</span></div>
-          <button className="ugc-home-creator-launch" onClick={() => onCreate(undefined, { creatorMode: 'AUTO' })} type="button">
+          <button className="ugc-home-creator-launch" onClick={() => setHomeCreatorPickerOpen(true)} type="button">
             <span className="ugc-home-kpi-icon"><UsersRound className="size-4" /></span>
-            <div><strong>Open creator selection</strong><span>Start a campaign, then browse creators in a focused picker without loading every portrait here.</span></div>
+            <div><strong>Browse creators</strong><span>{homeCreators.length || '100+'} creator profiles available. Portraits load only after you open this picker.</span></div>
             <ArrowRight className="size-4" />
           </button>
         </section>
       </div>
     </section>
+    {homeCreatorPickerOpen && <div className="ugc-home-creator-picker-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setHomeCreatorPickerOpen(false) }} role="presentation">
+      <section aria-label="Choose a creator" aria-modal="true" className="ugc-home-creator-picker" role="dialog">
+        <header className="ugc-home-creator-picker-header">
+          <div><span className="ugc-home-eyebrow">CREATOR LIBRARY</span><h3>Choose a creator</h3><p>{homeCreators.length} reusable creators. Images load only inside this picker.</p></div>
+          <button aria-label="Close creator picker" className="ugc-home-close" onClick={() => setHomeCreatorPickerOpen(false)} type="button"><X className="size-4" /></button>
+        </header>
+        <div className="ugc-home-creator-picker-body">
+          <button className="ugc-home-creator-picker-auto" onClick={() => { setHomeCreatorPickerOpen(false); onCreate(undefined, { creatorMode: 'AUTO' }) }} type="button">
+            <span className="ugc-home-kpi-icon"><Sparkles className="size-4" /></span><div><strong>Choose for me</strong><span>Let INXSocial cast the creator automatically.</span></div><ArrowRight className="size-4" />
+          </button>
+          <div className="ugc-home-creator-picker-grid">
+            {visibleHomeCreators.map((avatar) => <button className="ugc-home-creator-tile" key={avatar.id} onClick={() => { setHomeCreatorPickerOpen(false); onCreate(undefined, { creatorMode: 'SELECTED', avatarId: avatar.id }) }} type="button">
+              <span><LazyCreatorPortrait avatar={avatar} /></span><strong>{avatar.name}</strong><small>{avatar.category} · {avatar.ageBand}</small>
+            </button>)}
+          </div>
+          {homeCreators.length > 24 && <div className="ugc-home-creator-picker-more"><button onClick={() => setHomeCreatorExpanded((value) => !value)} type="button">{homeCreatorExpanded ? 'Show fewer creators' : `View all ${homeCreators.length} creators`}</button></div>}
+        </div>
+      </section>
+    </div>}
     <UGCVideoLightbox onClose={() => setPreview(null)} open={Boolean(preview)} src={preview?.src || null} title={preview?.title} />
   </div>, document.body)
 }
