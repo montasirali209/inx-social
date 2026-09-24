@@ -593,7 +593,10 @@ function ugcAgentUrl(messages, currentPlan = {}) {
   const candidates = [];
   if (currentPlan?.productUrl) candidates.push(currentPlan.productUrl);
   for (const message of messages) {
-    for (const match of String(message.content || '').matchAll(/https?:\/\/[^\s<>"']+|\bwww\.[^\s<>"']+/gi)) candidates.push(match[0].replace(/[),.;!?]+$/g, ''));
+    for (const match of String(message.content || '').matchAll(/https?:\/\/[^\s<>"']+|\bwww\.[^\s<>"']+|\b(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s<>"']*)?/gi)) {
+      const value = match[0].replace(/[),.;!?]+$/g, '');
+      if (!value.includes('@')) candidates.push(value);
+    }
   }
   for (let index = candidates.length - 1; index >= 0; index -= 1) {
     const normalized = brandUrlCandidates(candidates[index])[0];
