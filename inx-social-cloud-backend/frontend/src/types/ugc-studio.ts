@@ -4,6 +4,16 @@ export type UGCQuality = 'STANDARD' | 'PREMIUM'
 export type UGCDuration = 15 | 20 | 30
 export type UGCAdCount = 1 | 5 | 10 | 15 | 20
 export type UGCCampaignType = 'AUTO' | 'AVATAR_EXPLAINER' | 'PRODUCT_SHOWCASE'
+export type UGCCreativeFormat = 'AUTO' | 'PROBLEM_SOLUTION' | 'PRODUCT_DEMO' | 'TESTIMONIAL' | 'UNBOXING' | 'REACTION' | 'BEFORE_AFTER' | 'STORYTIME' | 'SPOKESPERSON' | 'PRODUCT_FOCUSED'
+export type UGCCreativeFormatOption = {
+  key: UGCCreativeFormat
+  label: string
+  description: string
+  campaignTypes: Array<Exclude<UGCCampaignType, 'AUTO'>>
+  bestFor: string[]
+  requiresProductReference: boolean
+  requiresVerifiedTransformation: boolean
+}
 export type UGCSourceType = 'WEBSITE' | 'PRODUCT' | 'BRIEF'
 
 export type UGCAvatar = {
@@ -154,6 +164,8 @@ export type UGCCampaign = {
   quality: UGCQuality
   campaignType: UGCCampaignType
   resolvedType: Exclude<UGCCampaignType, 'AUTO'>
+  creativeFormat: UGCCreativeFormat
+  resolvedCreativeFormats: Exclude<UGCCreativeFormat, 'AUTO'>[]
   sourceType: UGCSourceType
   productAssetIds: string[]
   creatorMode: 'AUTO' | 'SELECTED'
@@ -182,6 +194,8 @@ export type UGCOverview = {
     adCounts: UGCAdCount[]
     qualities: UGCQuality[]
     campaignTypes: UGCCampaignType[]
+    creativeFormatVersion: string
+    creativeFormats: UGCCreativeFormatOption[]
     creatorProfileVersion: string
     systemAvatarCount: number
     featuredAvatarCount: number
@@ -195,6 +209,7 @@ export type CreateUGCCampaignInput = {
   productAssetIds?: string[]
   sourceType?: UGCSourceType
   campaignType?: UGCCampaignType
+  creativeFormat?: UGCCreativeFormat
   avatarId?: string | null
   creatorMode: 'AUTO' | 'SELECTED'
   duration: UGCDuration
