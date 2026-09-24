@@ -298,7 +298,7 @@ async function loadCampaignSnapshot(userId, campaignId) {
     prisma.$queryRawUnsafe('SELECT * FROM "UGCAd" WHERE "campaignId"=$1 AND "userId"=$2 ORDER BY "sequence"', campaignId, userId),
     prisma.$queryRawUnsafe('SELECT s.* FROM "UGCScene" s JOIN "UGCAd" a ON a."id"=s."adId" WHERE a."campaignId"=$1 AND a."userId"=$2 ORDER BY a."sequence",s."sequence"', campaignId, userId),
     prisma.$queryRawUnsafe('SELECT g.* FROM "AiGeneration" g JOIN "UGCAd" a ON a."generationId"=g."id" WHERE a."campaignId"=$1 AND a."userId"=$2 ORDER BY a."sequence"', campaignId, userId),
-    prisma.$queryRawUnsafe('SELECT m.* FROM "AgentAsset" m JOIN "UGCAd" a ON a."mediaAssetId"=m."id" WHERE a."campaignId"=$1 AND a."userId"=$2 ORDER BY a."sequence"', campaignId, userId),
+    prisma.$queryRawUnsafe('SELECT m."id",m."userId",m."kind",m."source",m."status",m."originalName",m."mimeType",m."byteSize",m."storageProvider",m."storageKey",m."width",m."height",m."durationSeconds",m."archivedAt",m."expiresAt",m."generationChoice" FROM "AgentAsset" m JOIN "UGCAd" a ON a."mediaAssetId"=m."id" WHERE a."campaignId"=$1 AND a."userId"=$2 ORDER BY a."sequence"', campaignId, userId),
     prisma.$queryRawUnsafe('SELECT t.* FROM "AiCreditTransaction" t JOIN "UGCAd" a ON a."generationId"=t."generationId" WHERE a."campaignId"=$1 AND a."userId"=$2 ORDER BY t."createdAt"', campaignId, userId)
   ]);
   return {
