@@ -31,7 +31,7 @@ const STANDARD_CREDITS = Object.freeze({ 15: 100, 20: 140, 30: 210 });
 const PREMIUM_CREDITS = Object.freeze({ 15: 180, 20: 260, 30: 390 });
 const AVATAR_CREDITS = 5;
 const SYSTEM_AVATAR_COUNT = 52;
-const FEATURED_AVATAR_COUNT = 20;
+const FEATURED_AVATAR_COUNT = 100;
 const FEATURED_REFERENCE_VERSION = 3;
 const STANDARD_MODEL = () => ugcEngineRegistry.modelIds().standardVideo;
 const PREMIUM_MODEL = () => ugcEngineRegistry.modelIds().premiumVideo;
