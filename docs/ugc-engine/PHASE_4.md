@@ -76,3 +76,17 @@ Phase 4 does not change:
 - editor regeneration
 - scheduler handoff
 - publishing
+
+
+## Acceptance audit
+
+Phase 4 is complete only when all of these invariants hold:
+
+- the existing 52 system creators are upgraded in place rather than replaced
+- system, generated and uploaded creators share the same Creator V2 metadata contract
+- healthy master references are reused and are not regenerated per campaign
+- alternate references are persistent creator-owned assets
+- automatic casting uses the full library, while the Studio keeps a compact featured default
+- user-facing creator payloads do not expose provider/model routing internals
+- Phase 3 routing, credit tables, Media Library, editor regeneration, background recovery and scheduler integration remain unchanged
+- the repository test/build gate passes on the final Phase 4 commit before merge
