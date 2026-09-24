@@ -154,8 +154,13 @@ test('consistency, motion, camera and fidelity skills return structured safeguar
   const finish = adFinishingSkill({ duration: 15, captionsEnabled: true, musicMode: 'AUTO' });
 
   assert.equal(identity.identityLock, 'EXACT_REFERENCE');
+  assert.ok(identity.preferredEnvironments.length > 0);
+  assert.ok(identity.wardrobeProfile.length > 0);
+  assert.ok(identity.gestureProfile.length > 0);
   assert.ok(identity.prohibit.includes('identity_morph'));
   assert.equal(voice.voice, 'Pippa');
+  assert.equal(voice.accent, 'British');
+  assert.ok(voice.languages.includes('English'));
   assert.ok(voice.prohibit.includes('voice_switch_between_scenes'));
   assert.equal(product.referencePolicy, 'EXACT_PRODUCT_REFERENCE');
   assert.ok(product.prohibit.includes('substitute_product'));
@@ -197,6 +202,9 @@ test('compiled scene prompt is the renderer boundary for structured skills', () 
   assert.match(prompt, /Creator talks directly to camera/i);
   assert.match(prompt, /REAL_TIME_1X/i);
   assert.match(prompt, /EXACT_REFERENCE/i);
+  assert.match(prompt, /preferredEnvironments/i);
+  assert.match(prompt, /wardrobeProfile/i);
+  assert.match(prompt, /gestureProfile/i);
   assert.match(prompt, /No generated subtitles/i);
 });
 
