@@ -21,20 +21,20 @@ import type {
 import { Button } from '../ui/Button'
 
 function CreatorVisual({ avatar }: { avatar: UGCAvatar | null }) {
-  const [url, setUrl] = useState<string | null>(null)
+  const [loaded, setLoaded] = useState<{ avatarId: string; url: string } | null>(null)
   useEffect(() => {
     let active = true
     let created: string | null = null
-    setUrl(null)
     if (!avatar?.imageUrl) return undefined
     void fetchUGCAvatarImage(avatar).then((value) => {
       if (!value) return
       if (!active) { URL.revokeObjectURL(value); return }
       created = value
-      setUrl(value)
+      setLoaded({ avatarId: avatar.id, url: value })
     })
     return () => { active = false; if (created) URL.revokeObjectURL(created) }
   }, [avatar])
+  const url = avatar && loaded?.avatarId === avatar.id ? loaded.url : null
   return url
     ? <img alt="" className="size-full object-cover" src={url} />
     : <div className="grid size-full place-items-center bg-[radial-gradient(circle_at_50%_25%,rgba(45,212,191,.22),transparent_70%),#081b28] text-brand-cyan"><UsersRound className="size-6" /></div>
