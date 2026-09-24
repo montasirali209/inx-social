@@ -34,6 +34,7 @@ router.post('/ugc/brands/analyze', ugcController.analyzeBrand);
 router.get('/ugc/campaigns', ugcController.listCampaigns);
 router.post('/ugc/campaigns', ugcController.createCampaign);
 router.get('/ugc/campaigns/:campaignId', ugcController.getCampaign);
+router.get('/ugc/campaigns/:campaignId/engine', ugcController.getEngineProject);
 router.delete('/ugc/campaigns/:campaignId', ugcController.removeCampaign);
 router.get('/ugc/ads/:adId', ugcController.getAd);
 router.patch('/ugc/ads/:adId', ugcController.updateAd);
