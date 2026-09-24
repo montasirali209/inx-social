@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { fetchMediaLibrary } from '../../lib/media-library-api'
 import {
-  fetchUGCAvatarImage, getUGCAd, getUGCOverview, regenerateUGCAd,
+  fetchUGCAvatarImage, getUGCAd, getUGCOverview, reassembleUGCAd, regenerateUGCAd,
   regenerateUGCScene, updateUGCAd, trackUGCStudioEvent,
 } from '../../lib/ugc-studio-api'
 import type { MediaAsset } from '../../types/media-library'
@@ -123,6 +123,16 @@ export function UGCEditorPage() {
     },
     onError: (value) => setMessage(value instanceof Error ? value.message : 'Regeneration could not start.'),
   })
+  const reassemble = useMutation({
+    mutationFn: () => reassembleUGCAd(adId),
+    onSuccess: (value) => {
+      queryClient.setQueryData(['ugc-ad', adId], value)
+      void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
+      void queryClient.invalidateQueries({ queryKey: ['media-library'] })
+      setMessage('Final assembly queued using the completed scenes. No generation credits were charged.')
+    },
+    onError: (value) => setMessage(value instanceof Error ? value.message : 'Final reassembly could not start.'),
+  })
   const sceneRegenerate = useMutation({
     mutationFn: (sceneId: string) => regenerateUGCScene(sceneId),
     onSuccess: (value) => {
@@ -137,13 +147,16 @@ export function UGCEditorPage() {
   const avatars = overview.data?.avatars || []
   const selectedAvatar = avatars.find((item) => item.id === avatarId) || ad?.avatar || null
   const busy = ['QUEUED','RENDERING','RESERVING'].includes(ad?.status || '')
+  const qualityControl = ad?.qualityControl
+  const needsReassembly = qualityControl?.recovery.action === 'REASSEMBLE'
+  const recoverySceneIds = new Set(qualityControl?.recovery.sceneIds || [])
   const fullCredits = ad?.credits || 0
   const changedVideo = Boolean(ad && (script !== ad.script || avatarId !== ad.avatarId || voice !== baselineVoice || voicePrompt !== baselineVoicePrompt || musicMode !== ad.musicMode || captionsEnabled !== ad.captionsEnabled))
   const changedPost = Boolean(ad && (caption !== ad.caption || cta !== ad.cta))
   const dirty = changedVideo || changedPost
 
   async function schedule() {
-    if (!ad?.mediaAssetId || !asset) return
+    if (!ad?.mediaAssetId || !asset || !ad.qualityControl?.publishable) return
     void trackUGCStudioEvent({
       event: 'SCHEDULER_HANDOFF',
       stage: 'editor',
@@ -154,13 +167,13 @@ export function UGCEditorPage() {
     navigate('/bulk-scheduler', {
       state: {
         mediaLibraryAssets: [asset],
-        aiMixedCampaign: { id: ad.campaignId, title: ad.title, posts: [{ id: ad.id, contentType: 'IMAGE', caption: ad.caption || ad.script, mediaAssetId: ad.mediaAssetId }] },
+        aiMixedCampaign: { id: ad.campaignId, title: ad.title, posts: [{ id: ad.id, contentType: 'VIDEO', caption: ad.caption || ad.script, mediaAssetId: ad.mediaAssetId }] },
       },
     })
   }
 
   return <div className="ugc-editor-shell">
-    <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><Link className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-text-muted hover:text-white" to="/ai-content-studio?ugc=1"><ArrowLeft className="size-3.5" />Back to UGC Studio</Link><h1 className="mt-2 text-2xl font-bold tracking-tight">{ad?.title || 'UGC Ad Editor'}</h1><p className="mt-1 text-[11px] text-text-muted">Change only what you need. Non-video edits do not require an expensive full regeneration.</p></div><div className="flex flex-wrap gap-2"><Button disabled={!dirty || save.isPending || busy} onClick={() => save.mutate()}><Save className="size-4" />Save changes</Button><Button disabled={!asset || ad?.status !== 'READY'} onClick={() => void schedule()} variant="primary"><CalendarRange className="size-4" />Schedule</Button></div></div>
+    <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><Link className="inline-flex items-center gap-1.5 text-[10px] font-semibold text-text-muted hover:text-white" to="/ai-content-studio?ugc=1"><ArrowLeft className="size-3.5" />Back to UGC Studio</Link><h1 className="mt-2 text-2xl font-bold tracking-tight">{ad?.title || 'UGC Ad Editor'}</h1><p className="mt-1 text-[11px] text-text-muted">Change only what you need. Non-video edits do not require an expensive full regeneration.</p></div><div className="flex flex-wrap gap-2"><Button disabled={!dirty || save.isPending || busy} onClick={() => save.mutate()}><Save className="size-4" />Save changes</Button><Button disabled={!asset || !ad?.qualityControl?.publishable} onClick={() => void schedule()} variant="primary"><CalendarRange className="size-4" />Schedule</Button></div></div>
 
     {message && <div className="mb-5 rounded-2xl border border-brand-cyan/20 bg-brand-cyan/[.045] p-3 text-[11px] text-text-muted">{message}</div>}
 
@@ -173,6 +186,13 @@ export function UGCEditorPage() {
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2 text-center text-[9px] text-text-muted"><span className="rounded-xl border border-white/8 bg-white/[.025] p-2">{ad?.quality === 'PREMIUM' ? 'Premium' : 'Standard'}</span><span className="rounded-xl border border-white/8 bg-white/[.025] p-2">{ad?.scenes.length || 0} scene{ad?.scenes.length === 1 ? '' : 's'}</span><span className="rounded-xl border border-white/8 bg-white/[.025] p-2">{ad?.status || 'Loading'}</span></div>
         </Card>
+
+        {qualityControl && <Card className="ugc-depth-card p-4">
+          <div className="flex items-start justify-between gap-3"><div><span className="text-[9px] font-bold uppercase tracking-[.15em] text-brand-green">Render QC</span><h3 className="mt-1 text-sm font-semibold">{qualityControl.publishable ? 'Ready for publishing' : qualityControl.recovery.label || 'Needs attention'}</h3></div><span className={`rounded-full border px-2 py-1 text-[8px] font-bold ${qualityControl.publishable ? 'border-brand-green/25 bg-brand-green/10 text-brand-green' : 'border-brand-amber/25 bg-brand-amber/10 text-brand-amber'}`}>{qualityControl.status.replaceAll('_',' ')}</span></div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-[9px] text-text-muted"><span className="rounded-xl border border-white/8 bg-black/15 p-2">{qualityControl.readySceneCount}/{qualityControl.sceneCount} scenes ready</span><span className="rounded-xl border border-white/8 bg-black/15 p-2">{qualityControl.publishable ? 'Media Library linked' : 'Publishing locked'}</span></div>
+          {needsReassembly && <><p className="mt-3 text-[10px] leading-4 text-text-muted">All scene renders are reusable. Only the final assembly/finishing step needs to run again.</p><Button className="mt-3 w-full" disabled={busy || reassemble.isPending} onClick={() => reassemble.mutate()}>{reassemble.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Clapperboard className="size-4" />}Reassemble final video · 0 credits</Button></>}
+          {qualityControl.recovery.action === 'RETRY_SCENES' && <p className="mt-3 text-[10px] leading-4 text-text-muted">Only the marked storyboard scene{qualityControl.recovery.sceneIds.length === 1 ? '' : 's'} need regeneration. Completed scenes will be reused.</p>}
+        </Card>}
 
         <Card className="ugc-depth-card p-4">
           <div className="flex items-center justify-between gap-3"><div><span className="text-[9px] font-bold uppercase tracking-[.15em] text-brand-cyan">Regeneration</span><h3 className="mt-1 text-sm font-semibold">Rebuild the full ad</h3></div><Coins className="size-5 text-brand-amber" /></div>
@@ -201,7 +221,7 @@ export function UGCEditorPage() {
           <label className="mt-4 block text-[10px] font-semibold text-text-muted">CTA<input className="ugc-input mt-2 w-full" onChange={(event) => setCtaEdit(event.target.value)} value={cta} /></label><label className="mt-4 block text-[10px] font-semibold text-text-muted">Post caption<textarea className="ugc-input mt-2 min-h-24 w-full resize-y" onChange={(event) => setCaptionEdit(event.target.value)} value={caption} /></label>
         </Card>
 
-        <Card className="ugc-depth-card p-5 sm:p-6"><div className="flex items-start justify-between gap-3"><div><span className="text-[9px] font-bold uppercase tracking-[.15em] text-brand-green">Storyboard</span><h2 className="mt-1 text-base font-semibold">Regenerate only the scene that needs work.</h2></div><Sparkles className="size-5 text-brand-green" /></div><div className="mt-4 space-y-3">{ad?.scenes.map((scene) => { const sceneCredits = Math.max(1, Math.ceil((ad.credits || 1) * scene.duration / ad.duration)); return <article className="ugc-scene-card rounded-2xl border border-white/9 bg-white/[.025] p-4" key={scene.id}><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-brand-cyan/20 bg-brand-cyan/[.06] px-2 py-1 text-[8px] font-bold text-brand-cyan">SCENE {scene.sequence}</span><span className="rounded-full border border-white/10 bg-black/15 px-2 py-1 text-[8px] text-text-muted">{scene.kind}</span><span className="text-[9px] text-text-soft">{scene.duration}s</span></div><p className="mt-2 text-[10px] leading-4 text-text-muted">{scene.script || scene.prompt}</p></div><Button disabled={busy || sceneRegenerate.isPending} onClick={() => sceneRegenerate.mutate(scene.id)} size="sm"><RefreshCcw className="size-3.5" />Regenerate · {sceneCredits} cr</Button></div></article> })}</div></Card>
+        <Card className="ugc-depth-card p-5 sm:p-6"><div className="flex items-start justify-between gap-3"><div><span className="text-[9px] font-bold uppercase tracking-[.15em] text-brand-green">Storyboard</span><h2 className="mt-1 text-base font-semibold">Regenerate only the scene that needs work.</h2></div><Sparkles className="size-5 text-brand-green" /></div><div className="mt-4 space-y-3">{ad?.scenes.map((scene) => { const sceneQC = qualityControl?.recovery.scenes.find((item) => item.id === scene.id); const sceneCredits = sceneQC?.credits || Math.max(1, Math.ceil((ad.credits || 1) * scene.duration / ad.duration)); const needsRetry = recoverySceneIds.has(scene.id); return <article className={`ugc-scene-card rounded-2xl border p-4 ${needsRetry ? 'border-brand-amber/30 bg-brand-amber/[.045]' : 'border-white/9 bg-white/[.025]'}`} key={scene.id}><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-brand-cyan/20 bg-brand-cyan/[.06] px-2 py-1 text-[8px] font-bold text-brand-cyan">SCENE {scene.sequence}</span><span className="rounded-full border border-white/10 bg-black/15 px-2 py-1 text-[8px] text-text-muted">{scene.kind}</span><span className="text-[9px] text-text-soft">{scene.duration}s</span>{needsRetry && <span className="rounded-full border border-brand-amber/25 bg-brand-amber/10 px-2 py-1 text-[8px] font-bold text-brand-amber">NEEDS RETRY</span>}</div><p className="mt-2 text-[10px] leading-4 text-text-muted">{scene.script || scene.prompt}</p>{scene.error && <p className="mt-2 text-[9px] text-brand-amber">{scene.error}</p>}</div><Button disabled={busy || sceneRegenerate.isPending} onClick={() => sceneRegenerate.mutate(scene.id)} size="sm"><RefreshCcw className="size-3.5" />{needsRetry ? 'Retry scene' : 'Regenerate'} · {sceneCredits} cr</Button></div></article> })}</div></Card>
       </div>
     </div>
   </div>
