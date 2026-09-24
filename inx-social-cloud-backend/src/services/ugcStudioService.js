@@ -20,6 +20,7 @@ const ugcSkills = require('./ugcSkillEngine');
 const ugcModelRouter = require('./ugcModelRouter');
 const ugcProviderAdapters = require('./ugcProviderAdapters');
 const ugcCreators = require('./ugcCreatorEngine');
+const ugcCreativeFormats = require('./ugcCreativeFormats');
 const { expiresAtFor } = require('./mediaRetentionService');
 
 const STANDARD_CREDITS = Object.freeze({ 15: 100, 20: 140, 30: 210 });
@@ -764,7 +765,15 @@ async function createCampaign(userId, input) {
   if (resolvedType === 'PRODUCT_SHOWCASE' && !productAssets.length && !hasBrandVisualReference) {
     throw publicError('Product Showcase needs at least one real product image. Upload a product photo, use a product page with usable images, or choose Avatar Explainer.', 'UGC_PRODUCT_REFERENCE_REQUIRED', 422);
   }
-  const creativePlan = await planCampaign({ ...input, productAssetIds }, brand, available, resolvedType);
+  let creativePlan;
+  try {
+    creativePlan = await planCampaign({ ...input, productAssetIds }, brand, available, resolvedType);
+  } catch (error) {
+    if (error?.code === 'UGC_CREATIVE_FORMAT_INCOMPATIBLE') {
+      throw publicError('That creative structure is not compatible with the selected production type or available evidence. Choose another structure or use Auto.', error.code, 422);
+    }
+    throw error;
+  }
   const plan = ugcModelRouter.routePlan({
     input,
     plan: creativePlan,
@@ -836,6 +845,8 @@ async function createCampaign(userId, input) {
       sourceType,
       campaignType: input.campaignType || 'AUTO',
       resolvedType,
+      creativeFormat: plan.requestedCreativeFormat || input.creativeFormat || 'AUTO',
+      resolvedCreativeFormats: Array.isArray(plan.resolvedCreativeFormats) ? plan.resolvedCreativeFormats.join(',') : '',
       quality: input.quality,
       duration: input.duration,
       adCount: input.adCount,
@@ -878,15 +889,17 @@ async function campaignPayload(userId, campaignRow) {
     : publicAds.some(ad => ad.status === 'QUEUED') && !['READY','PARTIAL','FAILED'].includes(campaignRow.status)
       ? 'QUEUED'
       : campaignRow.status;
+  const campaignPlan = parseJson(campaignRow.planJson, {});
   return {
     id: campaignRow.id, title: campaignRow.title, brandProfileId: campaignRow.brandProfileId || null,
     productUrl: campaignRow.productUrl || '', productDescription: campaignRow.productDescription || '',
     duration: campaignRow.duration, adCount: campaignRow.adCount, quality: campaignRow.quality,
     campaignType: campaignRow.campaignType || 'AUTO', resolvedType: campaignRow.resolvedType || campaignRow.campaignType || 'AVATAR_EXPLAINER',
+    creativeFormat: campaignPlan.requestedCreativeFormat || 'AUTO', resolvedCreativeFormats: Array.isArray(campaignPlan.resolvedCreativeFormats) ? campaignPlan.resolvedCreativeFormats : [],
     sourceType: campaignRow.sourceType || 'WEBSITE', productAssetIds: parseJson(campaignRow.productAssetIdsJson, []),
     creatorMode: campaignRow.creatorMode, selectedAvatarId: campaignRow.selectedAvatarId || null,
     status: effectiveStatus, totalCredits: campaignRow.totalCredits, notes: campaignRow.notes || '',
-    plan: parseJson(campaignRow.planJson, {}), ads: publicAds,
+    plan: campaignPlan, ads: publicAds,
     createdAt: campaignRow.createdAt, updatedAt: campaignRow.updatedAt, completedAt: campaignRow.completedAt || null
   };
 }
@@ -945,6 +958,8 @@ async function getOverview(userId) {
       adCounts: [1,5,10,15,20],
       qualities: ['STANDARD','PREMIUM'],
       campaignTypes: ['AUTO','AVATAR_EXPLAINER','PRODUCT_SHOWCASE'],
+      creativeFormatVersion: ugcCreativeFormats.CREATIVE_FORMAT_VERSION,
+      creativeFormats: ugcCreativeFormats.publicCatalog(),
       creatorProfileVersion: ugcCreators.CREATOR_PROFILE_VERSION,
       systemAvatarCount: avatars.filter(row => row.scope === 'SYSTEM').length,
       featuredAvatarCount: publicAvatars.filter(avatar => avatar.featured).length

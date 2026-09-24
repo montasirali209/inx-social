@@ -1,5 +1,6 @@
 const postStudio = require('./aiPostStudioService');
 const creators = require('./ugcCreatorEngine');
+const creativeFormats = require('./ugcCreativeFormats');
 
 const SKILLS_VERSION = 'ugc-skills-v1';
 
@@ -82,7 +83,7 @@ function brandUnderstandingSkill({ input, brand, productAssetIds = [], resolvedT
   };
 }
 
-function creativeDirectorSkillFallback({ input, brandSkill, resolvedType, variationCount }) {
+function creativeDirectorSkillFallback({ input, brandSkill, resolvedType, variationCount, formatPlan }) {
   const offer = brandSkill.productName || brandSkill.brandName || clean(input.productDescription, 500) || 'this product';
   const summary = brandSkill.summary || 'It helps solve a practical everyday problem.';
   const angles = ['Problem to solution', 'Personal discovery', 'Benefit-led recommendation', 'Quick demonstration', 'Why it is useful'];
@@ -92,21 +93,24 @@ function creativeDirectorSkillFallback({ input, brandSkill, resolvedType, variat
     campaignTitle: (brandSkill.brandName || 'UGC') + ' Campaign',
     strategy: {
       format: resolvedType,
+      formatVersion: creativeFormats.CREATIVE_FORMAT_VERSION,
+      formatMix: formatPlan?.formats || [],
       objective: resolvedType === 'PRODUCT_SHOWCASE' ? 'Show the product naturally and explain why it matters.' : 'Explain the offer naturally through a credible creator.',
       pacing: 'CONVERSATIONAL',
       cameraStyle: 'CREATOR_NATIVE',
       angleMix: angles.slice(0, Math.min(variationCount, angles.length))
     },
     ads: Array.from({ length: variationCount }, (_, index) => {
-      const angle = angles[index % angles.length];
-      const hook = resolvedType === 'PRODUCT_SHOWCASE'
-        ? 'I did not expect this to be this useful until I tried it.'
-        : 'Here is the simple reason this is worth knowing about.';
+      const formatDecision = formatPlan?.ads?.[index] || null;
+      const angle = formatDecision?.label || angles[index % angles.length];
+      const hook = creativeFormats.fallbackHook(formatDecision?.formatKey, offer);
       const script = clean(hook + ' ' + offer + ' — ' + summary + ' Take a closer look and see whether it fits what you need.', 12000);
       return {
         title: 'UGC Ad ' + (index + 1),
         angle,
         hook,
+        creativeFormat: formatDecision?.formatKey || 'PROBLEM_SOLUTION',
+        creativeGrammar: formatDecision?.grammar || null,
         script,
         cta: 'Take a closer look.',
         caption: script,
@@ -117,7 +121,7 @@ function creativeDirectorSkillFallback({ input, brandSkill, resolvedType, variat
   };
 }
 
-async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType, variationCount, providerDurations, playbackDurations }) {
+async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType, variationCount, providerDurations, playbackDurations, formatPlan }) {
   const timing = scriptTimingSpec(input.duration);
   const evidence = {
     brandName: brandSkill.brandName,
@@ -141,6 +145,8 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
           'Use only verified evidence supplied by the user or brand analysis. Never invent prices, testimonials, statistics, certifications, product claims or software features.',
           'The customer should not need to write a script or design scenes.',
           'Every requested variation must have a materially different hook and angle while remaining truthful.',
+          'Each ad receives a required creative format grammar in creativeFormatPlan. Follow its ordered beats, hook families, CTA mode and safety rules; do not substitute a different format.',
+          'Testimonial-style must not fabricate first-person use, customer history or results. Before/After may be used only when creativeFormatPlan confirms verified transformation evidence.',
           'AVATAR_EXPLAINER keeps a believable creator as the visual anchor and is preferred for SaaS, websites, apps and services. Never invent fake application screens.',
           'PRODUCT_SHOWCASE may combine creator footage with supplied product references. Never redesign packaging or substitute a different product.',
           'Write natural creator speech, not corporate copy. Do not use exaggerated hype or fake personal experience.',
@@ -163,6 +169,7 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
             quality: clean(input.quality || 'STANDARD', 30).toUpperCase(),
             notes: clean(input.notes, 1200)
           },
+          creativeFormatPlan: formatPlan,
           timing: {
             providerDurations,
             playbackDurations,
@@ -195,6 +202,8 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
       campaignTitle: clean(parsed.campaignTitle || (brandSkill.brandName || 'UGC') + ' Campaign', 180),
       strategy: {
         format: clean(parsed.strategy?.format || resolvedType, 60).toUpperCase(),
+        formatVersion: creativeFormats.CREATIVE_FORMAT_VERSION,
+        formatMix: formatPlan?.formats || [],
         objective: clean(parsed.strategy?.objective, 600),
         pacing: ['CONVERSATIONAL', 'ENERGETIC', 'CALM'].includes(String(parsed.strategy?.pacing).toUpperCase()) ? String(parsed.strategy.pacing).toUpperCase() : 'CONVERSATIONAL',
         cameraStyle: ['CREATOR_NATIVE', 'PRODUCT_DEMO', 'HYBRID'].includes(String(parsed.strategy?.cameraStyle).toUpperCase()) ? String(parsed.strategy.cameraStyle).toUpperCase() : (resolvedType === 'PRODUCT_SHOWCASE' ? 'HYBRID' : 'CREATOR_NATIVE'),
@@ -202,7 +211,9 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
       },
       ads: parsed.ads.map((ad, index) => ({
         title: clean(ad.title || 'UGC Ad ' + (index + 1), 180),
-        angle: clean(ad.angle || 'Creator recommendation', 240),
+        angle: clean(ad.angle || formatPlan?.ads?.[index]?.label || 'Creator recommendation', 240),
+        creativeFormat: formatPlan?.ads?.[index]?.formatKey || 'PROBLEM_SOLUTION',
+        creativeGrammar: formatPlan?.ads?.[index]?.grammar || null,
         hook: clean(ad.hook, 500),
         script: clean(ad.script, 12000),
         cta: clean(ad.cta, 500),
@@ -227,7 +238,7 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
     };
   } catch (error) {
     console.warn('[UGC SKILL FALLBACK]', 'Creative Director:', clean(error?.message, 400));
-    return creativeDirectorSkillFallback({ input, brandSkill, resolvedType, variationCount });
+    return creativeDirectorSkillFallback({ input, brandSkill, resolvedType, variationCount, formatPlan });
   }
 }
 
@@ -344,8 +355,11 @@ function creatorCastingSkill({ ads, avatars, creatorMode, selectedAvatarId, qual
   };
 }
 
-function scenePlanningSkill({ resolvedType, providerDurations, playbackDurations, rawScenes = [] }) {
+function scenePlanningSkill({ resolvedType, providerDurations, playbackDurations, rawScenes = [], formatDecision = null }) {
   const count = providerDurations.length;
+  const beatGroups = formatDecision?.grammar?.sceneBeats?.length === count
+    ? formatDecision.grammar.sceneBeats
+    : creativeFormats.distributeBeats(formatDecision?.grammar?.beats || ['HOOK','VALUE','CTA'], count);
   const defaultKinds = resolvedType === 'AVATAR_EXPLAINER'
     ? Array.from({ length: count }, () => 'CREATOR')
     : count === 1 ? ['PRODUCT'] : count === 2 ? ['CREATOR', 'PRODUCT'] : Array.from({ length: count }, (_, index) => index === 0 || index === count - 1 ? 'CREATOR' : 'PRODUCT');
@@ -356,6 +370,9 @@ function scenePlanningSkill({ resolvedType, providerDurations, playbackDurations
     return {
       sequence: index + 1,
       kind,
+      creativeFormat: formatDecision?.formatKey || null,
+      beats: beatGroups[index] || [],
+      formatRules: formatDecision?.grammar?.rules || [],
       objective: clean(raw.objective, 600) || (kind === 'CREATOR' ? 'Advance the spoken recommendation naturally.' : 'Show the product clearly and truthfully.'),
       visualDirection: clean(raw.visualDirection, 1800),
       providerDuration: Number(providerDuration),
@@ -366,6 +383,7 @@ function scenePlanningSkill({ resolvedType, providerDurations, playbackDurations
     skill: 'SCENE_PLANNING',
     version: SKILLS_VERSION,
     campaignType: resolvedType,
+    creativeFormat: formatDecision?.formatKey || null,
     sceneCount: scenes.length,
     scenes
   };
@@ -459,13 +477,14 @@ function adFinishingSkill({ duration, captionsEnabled = true, musicMode = 'AUTO'
   };
 }
 
-function qualityControlSkill({ resolvedType, timing, scenePlan, avatar, hasProductReference, castingDecision = null }) {
+function qualityControlSkill({ resolvedType, timing, scenePlan, avatar, hasProductReference, castingDecision = null, formatDecision = null }) {
   const hasCreatorScene = scenePlan.scenes.some(scene => ['CREATOR','CTA'].includes(scene.kind));
   const checks = [
     { id: 'SCRIPT_COMPLETION', status: timing.finalWordCount <= timing.hardMax ? 'PASS' : 'FAIL', detail: { words: timing.finalWordCount, hardMax: timing.hardMax } },
     { id: 'DURATION_EXACTNESS', status: Math.abs(scenePlan.scenes.reduce((sum, scene) => sum + scene.playbackDuration, 0) - timing.targetDuration) < 0.001 ? 'PASS' : 'FAIL' },
     { id: 'IDENTITY_CONSISTENCY', status: hasCreatorScene && !avatar ? 'FAIL' : 'PASS' },
     { id: 'CREATOR_ROUTE_COMPATIBILITY', status: hasCreatorScene && castingDecision?.routeCompatible === false ? 'FAIL' : 'PASS' },
+    { id: 'CREATIVE_FORMAT', status: formatDecision?.status === 'INVALID' ? 'FAIL' : 'PASS', detail: { format: formatDecision?.formatKey || null } },
     { id: 'PRODUCT_REFERENCE', status: resolvedType === 'PRODUCT_SHOWCASE' && scenePlan.scenes.some(scene => scene.kind === 'PRODUCT') && !hasProductReference ? 'FAIL' : 'PASS' }
   ];
   const failed = checks.filter(check => check.status === 'FAIL');
@@ -495,8 +514,10 @@ function compileScenePrompt({ scene, consistency, productFidelity, motion, camer
     ? 'Show the supplied product naturally in a believable everyday context.'
     : 'Creator speaks directly to camera in a believable everyday environment.');
   const relevant = scene.kind === 'PRODUCT' ? productFidelity : consistency;
+  const grammar = scene.creativeFormat ? 'Creative format: ' + scene.creativeFormat + '. Story beats in this scene: ' + (scene.beats || []).join(' -> ') + '. Format rules: ' + (scene.formatRules || []).join(', ') + '.' : '';
   return clean([
     base,
+    grammar,
     directiveText(relevant),
     directiveText(motion),
     directiveText(camera),
@@ -514,6 +535,15 @@ async function planCampaign({
   playbackDurations
 }) {
   const brandSkill = brandUnderstandingSkill({ input, brand, productAssetIds, resolvedType });
+  const hasProductReference = Boolean(productAssetIds.length || (Array.isArray(brand?.brandReferences) && brand.brandReferences.length));
+  const formatPlan = creativeFormats.planCreativeFormats({
+    requestedFormat: input.creativeFormat || 'AUTO',
+    resolvedType,
+    variationCount: Number(input.adCount),
+    sceneCount: providerDurations.length,
+    hasProductReference,
+    verifiedClaims: brandSkill.verifiedClaims
+  });
   const director = await creativeDirectorSkill({
     input,
     brandSkill,
@@ -521,7 +551,8 @@ async function planCampaign({
     resolvedType,
     variationCount: Number(input.adCount),
     providerDurations,
-    playbackDurations
+    playbackDurations,
+    formatPlan
   });
   const casting = creatorCastingSkill({
     ads: director.ads,
@@ -530,9 +561,8 @@ async function planCampaign({
     selectedAvatarId: input.avatarId,
     quality: input.quality
   });
-  const hasProductReference = Boolean(productAssetIds.length || (Array.isArray(brand?.brandReferences) && brand.brandReferences.length));
-
   const ads = director.ads.map((rawAd, index) => {
+    const formatDecision = formatPlan.ads[index] || formatPlan.ads[0];
     const timing = scriptTimingSkill({ script: rawAd.script, duration: input.duration, cta: rawAd.cta });
     const assignment = casting.assignments[index] || casting.assignments[0];
     const avatar = avatars[assignment?.avatarIndex ?? 0] || avatars[0] || null;
@@ -540,7 +570,8 @@ async function planCampaign({
       resolvedType,
       providerDurations,
       playbackDurations,
-      rawScenes: rawAd.scenes
+      rawScenes: rawAd.scenes,
+      formatDecision
     });
     const consistency = creatorConsistencySkill({ avatar, campaignType: resolvedType });
     const voice = voiceConsistencySkill({ avatar, timing });
@@ -548,7 +579,7 @@ async function planCampaign({
     const motion = naturalMotionSkill({ energy: rawAd.creatorProfile?.energy });
     const camera = cameraStyleSkill({ campaignType: resolvedType, strategy: director.strategy });
     const finishing = adFinishingSkill({ duration: input.duration, captionsEnabled: true, musicMode: 'AUTO' });
-    const qc = qualityControlSkill({ resolvedType, timing, scenePlan, avatar, hasProductReference, castingDecision: assignment });
+    const qc = qualityControlSkill({ resolvedType, timing, scenePlan, avatar, hasProductReference, castingDecision: assignment, formatDecision });
     if (qc.status === 'FAIL') {
       const error = new Error('UGC skill preflight failed: ' + qc.failedChecks.join(', '));
       error.code = 'UGC_SKILL_PREFLIGHT_FAILED';
@@ -564,8 +595,11 @@ async function planCampaign({
       script: timing.script,
       cta: rawAd.cta,
       caption: rawAd.caption || timing.script,
+      creativeFormat: formatDecision?.formatKey || rawAd.creativeFormat || 'PROBLEM_SOLUTION',
+      creativeGrammar: formatDecision?.grammar || rawAd.creativeGrammar || null,
       avatarIndex: assignment?.avatarIndex ?? (index % Math.max(1, avatars.length)),
       skillDecisions: {
+        creativeFormat: formatDecision,
         timing,
         creatorCasting: assignment,
         creatorConsistency: consistency,
@@ -581,6 +615,8 @@ async function planCampaign({
         duration: scene.providerDuration,
         playbackDuration: scene.playbackDuration,
         kind: scene.kind,
+        creativeFormat: scene.creativeFormat,
+        beats: scene.beats,
         objective: scene.objective,
         prompt: compileScenePrompt({ scene, consistency, productFidelity, motion, camera }),
         script: parts[sceneIndex] || ''
@@ -591,9 +627,13 @@ async function planCampaign({
   return {
     title: director.campaignTitle,
     campaignType: resolvedType,
+    requestedCreativeFormat: formatPlan.requested,
+    resolvedCreativeFormats: formatPlan.formats,
+    creativeFormatVersion: creativeFormats.CREATIVE_FORMAT_VERSION,
     skillsVersion: SKILLS_VERSION,
     skillDecisions: {
       brandUnderstanding: brandSkill,
+      creativeFormats: formatPlan,
       creativeDirector: director.strategy,
       creatorCasting: casting,
       scriptTiming: scriptTimingSpec(input.duration),

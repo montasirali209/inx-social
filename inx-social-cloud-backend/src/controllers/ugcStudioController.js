@@ -13,6 +13,7 @@ const createSchema = z.object({
   productAssetIds: z.array(z.string().trim().min(1).max(120)).max(8).optional().default([]),
   sourceType: z.enum(['WEBSITE', 'PRODUCT', 'BRIEF']).optional().default('WEBSITE'),
   campaignType: z.enum(['AUTO', 'AVATAR_EXPLAINER', 'PRODUCT_SHOWCASE']).optional().default('AUTO'),
+  creativeFormat: z.enum(['AUTO','PROBLEM_SOLUTION','PRODUCT_DEMO','TESTIMONIAL','UNBOXING','REACTION','BEFORE_AFTER','STORYTIME','SPOKESPERSON','PRODUCT_FOCUSED']).optional().default('AUTO'),
   avatarId: z.string().trim().max(120).optional().nullable(),
   creatorMode: z.enum(['AUTO', 'SELECTED']).default('AUTO'),
   duration: z.number().int().refine(v => durations.includes(v), 'Choose 15, 20 or 30 seconds.'),

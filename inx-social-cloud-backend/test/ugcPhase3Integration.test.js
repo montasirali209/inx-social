@@ -15,7 +15,7 @@ test('Phase 3 router storage is additive and versioned', () => {
 
 test('new UGC campaigns run skills, then router, then engine persistence before credit reservation', () => {
   const studio = read('src/services/ugcStudioService.js');
-  const skillIndex = studio.indexOf('const creativePlan = await planCampaign');
+  const skillIndex = studio.indexOf('creativePlan = await planCampaign');
   const routeIndex = studio.indexOf('ugcModelRouter.routePlan', skillIndex);
   const engineIndex = studio.indexOf('ugcEngine.createProject', routeIndex);
   const reserveIndex = studio.indexOf('createGenerationRow', engineIndex);

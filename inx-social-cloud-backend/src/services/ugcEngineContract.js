@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const registry = require('./ugcEngineRegistry');
 const router = require('./ugcModelRouter');
 const creators = require('./ugcCreatorEngine');
+const creativeFormats = require('./ugcCreativeFormats');
 
 const QC_CHECKS = Object.freeze([
   'IDENTITY_CONSISTENCY',
@@ -85,6 +86,8 @@ function buildEngineProject({
         sequence: sceneIndex + 1,
         purpose: clean(scene.kind || 'CREATOR', 40).toUpperCase(),
         kind: clean(scene.kind || 'CREATOR', 40).toUpperCase(),
+        creativeFormat: clean(scene.creativeFormat || ad.creativeFormat, 60).toUpperCase() || null,
+        beats: Array.isArray(scene.beats) ? scene.beats.map(item => clean(item, 80)).filter(Boolean) : [],
         providerDuration: providerDurations[sceneIndex],
         playbackDuration: finalDurations[sceneIndex],
         script: clean(scene.script, 4000),
@@ -103,12 +106,19 @@ function buildEngineProject({
       script: clean(ad.script, 12000),
       cta: clean(ad.cta, 500),
       caption: clean(ad.caption || ad.script, 10000),
+      creativeFormat: clean(ad.creativeFormat, 60).toUpperCase() || null,
+      creativeGrammar: ad.creativeGrammar && typeof ad.creativeGrammar === 'object' ? ad.creativeGrammar : null,
       actor: actorSnapshot(avatar),
       targetDuration,
       skillDecisions: ad.skillDecisions && typeof ad.skillDecisions === 'object' ? ad.skillDecisions : {},
       scenes
     };
   });
+
+  const resolvedCreativeFormats = Array.isArray(plan.resolvedCreativeFormats) && plan.resolvedCreativeFormats.length
+    ? plan.resolvedCreativeFormats.map(item => clean(item, 60).toUpperCase()).filter(Boolean)
+    : [...new Set(ads.map(ad => clean(ad.creativeFormat, 60).toUpperCase()).filter(Boolean))];
+  if (!resolvedCreativeFormats.length) resolvedCreativeFormats.push('PROBLEM_SOLUTION');
 
   const routeEntries = ads.flatMap(ad => ad.scenes.map(scene => ({
     adSequence: ad.sequence,
@@ -143,6 +153,8 @@ function buildEngineProject({
       sourceType: clean(input.sourceType || (productAssetIds.length ? 'PRODUCT' : input.productUrl ? 'WEBSITE' : 'BRIEF'), 30).toUpperCase(),
       requestedCampaignType: clean(input.campaignType || 'AUTO', 40).toUpperCase(),
       resolvedCampaignType: clean(resolvedType, 40).toUpperCase(),
+      requestedCreativeFormat: clean(plan.requestedCreativeFormat || input.creativeFormat || 'AUTO', 60).toUpperCase(),
+      resolvedCreativeFormats: [...resolvedCreativeFormats],
       brandProfileId: brand?.id || input.brandProfileId || null,
       brandName: clean(brand?.name, 180),
       productName: clean(brand?.productName, 220),
@@ -175,6 +187,9 @@ function buildEngineProject({
     productionPlan: {
       title: clean(plan.title, 180),
       campaignType: clean(resolvedType, 40).toUpperCase(),
+      creativeFormatVersion: clean(plan.creativeFormatVersion || creativeFormats.CREATIVE_FORMAT_VERSION, 80),
+      requestedCreativeFormat: clean(plan.requestedCreativeFormat || input.creativeFormat || 'AUTO', 60).toUpperCase(),
+      resolvedCreativeFormats: [...resolvedCreativeFormats],
       skillsVersion: clean(plan.skillsVersion || 'ugc-skills-legacy', 80),
       targetDuration,
       variationCount: Number(input.adCount),
@@ -241,6 +256,8 @@ function validateEngineProject(project) {
   if (!project?.userId) errors.push('user_id');
   if (project?.skills?.preflight?.status === 'FAIL') errors.push('skills_preflight');
   if (!project?.router?.version) errors.push('router_version');
+  if (project?.productionPlan?.creativeFormatVersion !== creativeFormats.CREATIVE_FORMAT_VERSION) errors.push('creative_format_version');
+  if (!Array.isArray(project?.productionPlan?.resolvedCreativeFormats) || !project.productionPlan.resolvedCreativeFormats.length) errors.push('creative_formats_missing');
 
   const targetDuration = Number(project?.productionPlan?.targetDuration || 0);
   const ads = project?.productionPlan?.ads;

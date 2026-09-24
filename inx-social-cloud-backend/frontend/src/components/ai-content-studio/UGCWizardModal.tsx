@@ -23,7 +23,7 @@ import {
 import type { MediaAsset } from '../../types/media-library'
 import type {
   CreateUGCCampaignInput, UGCAdCount, UGCAvatar, UGCBrandProfile, UGCCampaign,
-  UGCCampaignType, UGCDuration, UGCProductAsset, UGCQuality, UGCSourceType,
+  UGCCampaignType, UGCCreativeFormat, UGCDuration, UGCProductAsset, UGCQuality, UGCSourceType,
 } from '../../types/ugc-studio'
 import { Button } from '../ui/Button'
 import './ugc-wizard.css'
@@ -108,6 +108,7 @@ export function UGCWizardModal({
   const [productAssets, setProductAssets] = useState<UGCProductAsset[]>([])
   const [seedProductIds] = useState<string[]>(seedCampaign?.productAssetIds || [])
   const [campaignType, setCampaignType] = useState<UGCCampaignType>(seedCampaign?.campaignType || 'AUTO')
+  const [creativeFormat, setCreativeFormat] = useState<UGCCreativeFormat>(seedCampaign?.creativeFormat || 'AUTO')
   const [creatorMode, setCreatorMode] = useState<'AUTO' | 'SELECTED'>(seedCampaign?.creatorMode || 'AUTO')
   const [avatarId, setAvatarId] = useState<string | null>(seedCampaign?.selectedAvatarId || null)
   const [showAllCreators, setShowAllCreators] = useState(false)
@@ -141,13 +142,14 @@ export function UGCWizardModal({
     productAssetIds,
     sourceType,
     campaignType,
+    creativeFormat,
     creatorMode,
     avatarId: creatorMode === 'SELECTED' ? avatarId : null,
     duration,
     adCount,
     quality,
     notes: '',
-  }), [selectedBrand, seedCampaign?.brandProfileId, productUrl, description, productAssetIds, sourceType, campaignType, creatorMode, avatarId, duration, adCount, quality])
+  }), [selectedBrand, seedCampaign?.brandProfileId, productUrl, description, productAssetIds, sourceType, campaignType, creativeFormat, creatorMode, avatarId, duration, adCount, quality])
 
   const estimate = useQuery({
     queryKey: ['ugc-wizard-estimate', duration, adCount, quality, campaignType],
@@ -316,6 +318,15 @@ export function UGCWizardModal({
   const creatorPresentations = [...new Set(allCreators.map((avatar) => avatar.presentation).filter(Boolean))].sort()
   const creatorAgeBands = [...new Set(allCreators.map((avatar) => avatar.ageBand).filter(Boolean))].sort()
   const creatorLocales = [...new Set(allCreators.map((avatar) => avatar.locale).filter(Boolean))].sort()
+  const creativeFormatOptions = overview.data?.options.creativeFormats || []
+  const hasProductReference = Boolean(productAssetIds.length || selectedBrand?.brandReferences?.length)
+  const hasVerifiedTransformation = Boolean(selectedBrand?.verifiedClaims?.some((claim) => /\b(before|after|improv(?:e|es|ed|ing|ement|ements)?|increas(?:e|es|ed|ing)|reduc(?:e|es|ed|ing|tion|tions)|decreas(?:e|es|ed|ing)|faster|slower|results?|transform(?:s|ed|ing|ation|ations)?|restor(?:e|es|ed|ing)|remov(?:e|es|ed|ing)|clear(?:s|ed|ing)?|sav(?:e|es|ed|ing)\s+time)\b/i.test(claim)))
+  const selectedCreativeFormat = creativeFormatOptions.find((option) => option.key === creativeFormat) || null
+  const creativeFormatBlocked = Boolean(selectedCreativeFormat && creativeFormat !== 'AUTO' && (
+    (campaignType !== 'AUTO' && !selectedCreativeFormat.campaignTypes.includes(campaignType)) ||
+    (selectedCreativeFormat.requiresProductReference && !hasProductReference) ||
+    (selectedCreativeFormat.requiresVerifiedTransformation && !hasVerifiedTransformation)
+  ))
   const creatorFilterActive = Boolean(creatorSearch.trim() || creatorCategory !== 'ALL' || creatorPresentation !== 'ALL' || creatorAgeBand !== 'ALL' || creatorLocale !== 'ALL')
   const creatorPool = showAllCreators || creatorFilterActive ? allCreators : featuredCreators
   const creatorNeedle = creatorSearch.trim().toLowerCase()
@@ -388,12 +399,26 @@ export function UGCWizardModal({
             {currentKey === 'format' && <>
               <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><Boxes className="size-5" /></span><div><h2>How should the UGC feel?</h2><p>Choose the content style, or leave it on Auto and let the offer decide. This changes the scene plan — not the quality tier.</p></div></div>
               <div className="ugc-format-grid mt-7">
-                <button className={`ugc-format-card ${campaignType === 'AUTO' ? 'active' : ''}`} onClick={() => setCampaignType('AUTO')} type="button"><span className="ugc-format-icon"><Sparkles className="size-5" /></span><strong>Choose for me</strong><p>Website/SaaS usually becomes a creator explainer. Physical products usually become a product showcase.</p><span>Recommended</span></button>
+                <button className={`ugc-format-card ${campaignType === 'AUTO' ? 'active' : ''}`} onClick={() => setCampaignType('AUTO')} type="button"><span className="ugc-format-icon"><Sparkles className="size-5" /></span><strong>Choose production for me</strong><p>Website/SaaS usually becomes a creator explainer. Physical products usually become a product showcase.</p><span>Recommended</span></button>
                 <button className={`ugc-format-card ${campaignType === 'AVATAR_EXPLAINER' ? 'active' : ''}`} onClick={() => setCampaignType('AVATAR_EXPLAINER')} type="button"><span className="ugc-format-icon"><UserRound className="size-5" /></span><strong>Avatar Explainer</strong><p>A realistic creator talks directly to camera and explains the offer. Ideal for SaaS, services and websites.</p><span>Creator-led</span></button>
                 <button className={`ugc-format-card ${campaignType === 'PRODUCT_SHOWCASE' ? 'active' : ''}`} onClick={() => setCampaignType('PRODUCT_SHOWCASE')} type="button"><span className="ugc-format-icon"><PackageOpen className="size-5" /></span><strong>Product Showcase</strong><p>Creator-led opening plus real product cutaways, benefits and believable use-case shots.</p><span>Product-led</span></button>
               </div>
-              {campaignType === 'PRODUCT_SHOWCASE' && !productAssetIds.length && !(selectedBrand?.brandReferences?.length) && <div className="mt-4 rounded-xl border border-brand-amber/25 bg-brand-amber/[.05] p-3 text-[10px] leading-4 text-brand-amber">Product Showcase needs a real product reference. Go back to Source and upload a product photo, or choose Avatar Explainer.</div>}
-              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(1)}><ArrowLeft className="size-4" />Back</Button><Button disabled={campaignType === 'PRODUCT_SHOWCASE' && !productAssetIds.length && !selectedBrand?.brandReferences?.length} onClick={() => { void trackUGCStudioEvent({ event: 'FORMAT_SELECTED', stage: 'format', metadata: { campaignType } }); moveTo(3) }} variant="primary">Continue <ArrowRight className="size-4" /></Button></div>
+              <div className="mt-7">
+                <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><WandSparkles className="size-5" /></span><div><h3>Creative structure</h3><p>Choose the story grammar, or let INXSocial mix compatible formats across your ad variations.</p></div></div>
+                <div className="ugc-format-grid mt-4">
+                  {creativeFormatOptions.map((option) => {
+                    const incompatibleType = campaignType !== 'AUTO' && !option.campaignTypes.includes(campaignType)
+                    const missingProduct = option.requiresProductReference && !hasProductReference
+                    const missingTransformation = option.requiresVerifiedTransformation && !hasVerifiedTransformation
+                    const blocked = option.key !== 'AUTO' && (incompatibleType || missingProduct || missingTransformation)
+                    const reason = incompatibleType ? 'Needs a different production type' : missingProduct ? 'Needs a real product reference' : missingTransformation ? 'Needs verified before/after evidence' : option.key === 'AUTO' ? 'Recommended' : option.bestFor.slice(0, 2).join(' · ')
+                    return <button aria-disabled={blocked} className={`ugc-format-card ${creativeFormat === option.key ? 'active' : ''} ${blocked ? 'opacity-45' : ''}`} key={option.key} onClick={() => { if (!blocked) setCreativeFormat(option.key) }} type="button"><span className="ugc-format-icon">{option.key === 'AUTO' ? <Sparkles className="size-5" /> : <Film className="size-5" />}</span><strong>{option.label}</strong><p>{option.description}</p><span>{reason}</span></button>
+                  })}
+                </div>
+              </div>
+              {campaignType === 'PRODUCT_SHOWCASE' && !hasProductReference && <div className="mt-4 rounded-xl border border-brand-amber/25 bg-brand-amber/[.05] p-3 text-[10px] leading-4 text-brand-amber">Product Showcase needs a real product reference. Go back to Source and upload a product photo, or choose Avatar Explainer.</div>}
+              {creativeFormatBlocked && <div className="mt-4 rounded-xl border border-brand-amber/25 bg-brand-amber/[.05] p-3 text-[10px] leading-4 text-brand-amber">The selected creative structure is not compatible with the current evidence or production type. Choose another structure or use Auto.</div>}
+              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(1)}><ArrowLeft className="size-4" />Back</Button><Button disabled={(campaignType === 'PRODUCT_SHOWCASE' && !hasProductReference) || creativeFormatBlocked} onClick={() => { void trackUGCStudioEvent({ event: 'FORMAT_SELECTED', stage: 'format', metadata: { campaignType, creativeFormat } }); moveTo(3) }} variant="primary">Continue <ArrowRight className="size-4" /></Button></div>
             </>}
 
             {currentKey === 'avatar' && <>
