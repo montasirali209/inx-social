@@ -185,6 +185,10 @@ export function UGCAgentHero({
           <span>{message.content}</span>
         </div>)}
         {thinking && <div className="ugc-agent-message assistant"><LoaderCircle className="size-3.5 animate-spin" /><span>Understanding your request…</span></div>}
+        {result?.brand && <div className="ugc-agent-source-summary">
+          <div><span>Product understood</span><strong>{result.brand.productName || result.brand.name}</strong></div>
+          {result.brand.verifiedClaims?.length ? <p>{result.brand.verifiedClaims.slice(0,3).join(' · ')}</p> : result.brand.summary ? <p>{result.brand.summary}</p> : null}
+        </div>}
         {result?.foundReferences?.length ? <div className="ugc-agent-found">
           <span>Website references found</span>
           <div>{result.foundReferences.slice(0,4).map((reference, index) => <figure key={reference.url + index}>
@@ -238,7 +242,12 @@ export function UGCAgentHero({
           <span>{result.estimate.affordability.affordable ? `${result.estimate.affordability.balanceAfter} left after generation` : `${result.estimate.affordability.shortfall} credits short`}</span>
         </div>
         <div className="ugc-agent-plan-actions">
-          <button className="ugc-agent-adjust" onClick={() => onManualSetup(plan)} type="button">Adjust details</button>
+          <button className="ugc-agent-adjust" onClick={() => onManualSetup({
+            ...plan,
+            productAssetIds: assets.map((asset) => asset.id),
+            avatarId: selectedAvatarId || null,
+            creatorMode: selectedAvatarId ? 'SELECTED' : 'AUTO',
+          })} type="button">Adjust details</button>
           <Button disabled={!result.estimate.affordability.affordable || generating || Boolean(startedCampaignId)} onClick={() => void generate()} variant="primary">
             {generating ? <LoaderCircle className="size-4 animate-spin" /> : startedCampaignId ? <CheckCircle2 className="size-4" /> : <SendHorizontal className="size-4" />}{startedCampaignId ? 'Rendering' : 'Generate'}
           </Button>
