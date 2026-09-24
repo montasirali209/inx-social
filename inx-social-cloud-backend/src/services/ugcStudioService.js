@@ -1015,13 +1015,93 @@ async function uploadCustomAvatar(userId, input) {
   return publicAvatar(await getAvatarRow(userId, avatarId));
 }
 
+function publicAvatarReference(row) {
+  return {
+    id: row.id,
+    avatarId: row.avatarId,
+    role: row.role || 'ALTERNATE',
+    label: row.label || '',
+    source: row.source || 'UPLOAD',
+    qualityStatus: row.qualityStatus || 'READY',
+    qualityScore: Number(row.qualityScore || 0),
+    imageUrl: '/api/ai-content-studio/ugc/avatars/' + encodeURIComponent(row.avatarId) + '/references/' + encodeURIComponent(row.id) + '/content',
+    createdAt: row.createdAt
+  };
+}
+
+async function listAvatarReferences(userId, avatarId) {
+  const avatar = await getAvatarRow(userId, avatarId);
+  const rows = await prisma.$queryRawUnsafe(
+    'SELECT * FROM "UGCAvatarReference" WHERE "avatarId"=$1 AND "active"=true ORDER BY "sortOrder","createdAt"',
+    avatarId
+  );
+  return {
+    master: {
+      id: 'master',
+      role: 'MASTER',
+      label: 'Master identity reference',
+      qualityStatus: avatar.referenceQualityStatus || (avatar.referenceStorageKey ? 'READY' : 'PENDING'),
+      qualityScore: Number(avatar.referenceQualityScore || (avatar.referenceStorageKey ? 100 : 0)),
+      imageUrl: avatar.referenceStorageKey ? '/api/ai-content-studio/ugc/avatars/' + encodeURIComponent(avatar.id) + '/content' : null
+    },
+    alternates: rows.map(publicAvatarReference)
+  };
+}
+
+async function uploadAvatarReference(userId, avatarId, input) {
+  const avatar = await getAvatarRow(userId, avatarId);
+  if (avatar.scope !== 'USER' || avatar.userId !== userId) throw publicError('Alternate references can only be added to your saved creators.', 'UGC_AVATAR_REFERENCE_FORBIDDEN', 403);
+  if (!['image/png','image/jpeg','image/webp'].includes(input.mimeType)) throw publicError('Upload a PNG, JPEG or WebP creator reference.', 'UGC_AVATAR_REFERENCE_TYPE', 415);
+  if (!Buffer.isBuffer(input.data) || !input.data.length) throw publicError('Choose a creator reference image.', 'UGC_AVATAR_REFERENCE_EMPTY', 400);
+  const normalized = await sharp(input.data).rotate().resize({ width: 720, height: 1280, fit: 'cover' }).png().toBuffer();
+  const referenceId = id();
+  const stored = await objectStorage.persistBuffer({
+    userId,
+    data: normalized,
+    mimeType: 'image/png',
+    originalName: 'ugc-avatar-reference-' + referenceId + '.png',
+    prefix: 'ugc-avatar'
+  });
+  await prisma.$executeRawUnsafe(
+    'INSERT INTO "UGCAvatarReference" ("id","avatarId","role","label","storageProvider","storageKey","mimeType","source","qualityStatus","qualityScore","active","sortOrder","createdAt","updatedAt") VALUES ($1,$2,\'ALTERNATE\',$3,$4,$5,\'image/png\',\'UPLOAD\',\'READY\',100,true,$6,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+    referenceId, avatarId, clean(input.label, 120) || 'Alternate reference', stored.storageProvider, stored.storageKey, Number(input.sortOrder || 0)
+  );
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCAvatarReference" WHERE "id"=$1 LIMIT 1', referenceId);
+  return publicAvatarReference(rows[0]);
+}
+
+async function getAvatarReferenceContent(userId, avatarId, referenceId) {
+  await getAvatarRow(userId, avatarId);
+  const rows = await prisma.$queryRawUnsafe(
+    'SELECT * FROM "UGCAvatarReference" WHERE "id"=$1 AND "avatarId"=$2 AND "active"=true LIMIT 1',
+    referenceId, avatarId
+  );
+  if (!rows[0]) throw publicError('Creator reference not found.', 'UGC_AVATAR_REFERENCE_NOT_FOUND', 404);
+  const data = await objectStorage.getBuffer(rows[0].storageKey, null, rows[0].storageProvider || null);
+  return { data, mimeType: rows[0].mimeType || 'image/png' };
+}
+
+async function deleteAvatarReference(userId, avatarId, referenceId) {
+  const avatar = await getAvatarRow(userId, avatarId);
+  if (avatar.scope !== 'USER' || avatar.userId !== userId) throw publicError('Only your saved creator references can be removed.', 'UGC_AVATAR_REFERENCE_FORBIDDEN', 403);
+  const rows = await prisma.$queryRawUnsafe(
+    'SELECT * FROM "UGCAvatarReference" WHERE "id"=$1 AND "avatarId"=$2 LIMIT 1',
+    referenceId, avatarId
+  );
+  if (!rows[0]) throw publicError('Creator reference not found.', 'UGC_AVATAR_REFERENCE_NOT_FOUND', 404);
+  await prisma.$executeRawUnsafe('DELETE FROM "UGCAvatarReference" WHERE "id"=$1 AND "avatarId"=$2', referenceId, avatarId);
+  await objectStorage.deleteObject(rows[0].storageKey, rows[0].storageProvider || null).catch(() => {});
+}
+
 async function deleteCustomAvatar(userId, avatarId) {
   const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCAvatar" WHERE "id"=$1 AND "userId"=$2 AND "scope"=\'USER\' LIMIT 1', avatarId, userId);
   if (!rows[0]) throw publicError('Custom creator not found.', 'UGC_AVATAR_NOT_FOUND', 404);
   const used = await prisma.$queryRawUnsafe('SELECT COUNT(*)::int AS "count" FROM "UGCAd" WHERE "avatarId"=$1', avatarId);
   if (Number(used[0]?.count || 0) > 0) throw publicError('This creator is used by an existing UGC ad and cannot be deleted.', 'UGC_AVATAR_IN_USE', 409);
+  const alternates = await prisma.$queryRawUnsafe('SELECT "storageProvider","storageKey" FROM "UGCAvatarReference" WHERE "avatarId"=$1', avatarId);
   await prisma.$executeRawUnsafe('DELETE FROM "UGCAvatar" WHERE "id"=$1 AND "userId"=$2', avatarId, userId);
   if (rows[0].referenceStorageKey) await objectStorage.deleteObject(rows[0].referenceStorageKey, rows[0].referenceStorageProvider || null).catch(() => {});
+  await Promise.all(alternates.map(reference => objectStorage.deleteObject(reference.storageKey, reference.storageProvider || null).catch(() => {})));
 }
 
 async function listMusicTracks() {
@@ -1779,6 +1859,7 @@ module.exports = {
   narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
   getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, deleteCampaign, getAd, updateAd, rerouteScenesForRegeneration, regenerateAd, regenerateScene,
   generateCustomAvatar, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,
+  listAvatarReferences, uploadAvatarReference, getAvatarReferenceContent, deleteAvatarReference,
   uploadProductAsset, getProductAssetContent,
   listSampleVideos, uploadSampleVideo, getSampleVideoContent,
   listMusicTracks, startUGCStudioRuntime, ensureSystemAvatars, generationStagePayload, updateGenerationProgress, runLimited, recoverStaleUGCRenders, UGC_RENDER_STALE_MS
