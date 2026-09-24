@@ -108,7 +108,7 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(page, /backgroundRefreshing/);
   assert.match(page, /data\?\.results\?\.some/);
   assert.match(page, /analytics\.data\?\.results\?\.some/);
-  assert.match(page, /Refreshing in background/);
+  assert.match(page, /Updating \$\{sourceName\}/);
   assert.match(page, /Last sync ·/);
   assert.match(page, /\(!view \|\| noVerifiedMetrics\) && <AnalyticsWorkspaceSkeleton/);
   assert.match(page, /refetchInterval: 5 \* 60_000/);
@@ -219,7 +219,8 @@ test('only live-data workspaces use page-level loading states', () => {
   assert.match(analytics, /AnalyticsKpiSkeleton/);
   assert.match(analytics, /AnalyticsWorkspaceSkeleton/);
   assert.match(analytics, /Updating latest account performance/);
-  assert.doesNotMatch(analytics, /Preparing your latest trend data|Bringing your analytics together|Engagement by Platform/);
+  assert.doesNotMatch(analytics, /Preparing your latest trend data|Bringing your analytics together/);
+  assert.match(analytics, /Engagement by Platform/);
 
   for (const page of [posts, media, bulk, studio, settings, connections, billing]) {
     assert.doesNotMatch(page, /WorkspaceLoadingState/);
