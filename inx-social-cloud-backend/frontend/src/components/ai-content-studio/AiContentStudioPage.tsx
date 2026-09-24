@@ -13,7 +13,7 @@ import {
   sendDraftToPosts,
 } from '../../lib/ai-content-studio-api'
 import type { AIDraft, AIContentType, AIPostCampaign, AIPlanAccess, GenerationHistoryItem } from '../../types/ai-content-studio'
-import type { UGCCampaign } from '../../types/ugc-studio'
+import type { CreateUGCCampaignInput, UGCCampaign } from '../../types/ugc-studio'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { Drawer } from '../billing/BillingPrimitives'
@@ -66,6 +66,7 @@ export function AiContentStudioPage() {
   const [ugcHomeOpen, setUgcHomeOpen] = useState(requestedUGC)
   const [ugcWizardOpen, setUgcWizardOpen] = useState(false)
   const [ugcWizardSeed, setUgcWizardSeed] = useState<UGCCampaign | null>(null)
+  const [ugcWizardDraft, setUgcWizardDraft] = useState<Partial<CreateUGCCampaignInput> | null>(null)
 
   const accessQuery = useQuery({
     queryKey: ['ai-studio-access'],
@@ -264,17 +265,23 @@ export function AiContentStudioPage() {
     <AiPostCampaignModal onClose={() => setCampaignOpen(false)} onHandoff={(campaign) => void handoffCampaign(campaign)} onToast={setToast} open={campaignOpen} />
     <UGCStudioHomeModal
       onClose={() => { setUgcHomeOpen(false); if (requestedUGC) setSearchParams({}, { replace: true }) }}
-      onCreate={(seed) => { setUgcWizardSeed(seed || null); setUgcHomeOpen(false); setUgcWizardOpen(true) }}
+      onCreate={(seed, draft) => {
+        setUgcWizardSeed(seed || null)
+        setUgcWizardDraft(draft || null)
+        setUgcHomeOpen(false)
+        setUgcWizardOpen(true)
+      }}
       onToast={setToast}
       open={ugcHomeOpen}
     />
     {ugcWizardOpen && <UGCWizardModal
       key={ugcWizardSeed?.id || 'new-ugc'}
-      onBackToHome={() => { setUgcWizardOpen(false); setUgcWizardSeed(null); setUgcHomeOpen(true) }}
-      onClose={() => { setUgcWizardOpen(false); setUgcWizardSeed(null) }}
+      onBackToHome={() => { setUgcWizardOpen(false); setUgcWizardSeed(null); setUgcWizardDraft(null); setUgcHomeOpen(true) }}
+      onClose={() => { setUgcWizardOpen(false); setUgcWizardSeed(null); setUgcWizardDraft(null) }}
       onToast={setToast}
       open
       seedCampaign={ugcWizardSeed}
+      seedDraft={ugcWizardDraft}
     />}
     <GenerationModalRouter access={access || immediateAiAccess} initialDraft={editingDraft} initialGenerationId={requestedGenerationId} initialVideoKind={requestedVideoKind} onClose={() => { setActiveType(null); setEditingDraft(null); if (requestedVideoKind || requestedGenerationId) setSearchParams({}, { replace: true }) }} onContinue={(draft) => void continueToPosts(draft)} onSaved={(draft) => void onDraftSaved(draft)} onToast={setToast} open={Boolean(activeType && access)} type={activeType} />
     <UpgradeToPlusModal onClose={() => setUpgradeOpen(false)} open={upgradeOpen} />
