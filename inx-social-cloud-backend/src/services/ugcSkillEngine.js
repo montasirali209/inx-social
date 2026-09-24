@@ -83,6 +83,14 @@ function brandUnderstandingSkill({ input, brand, productAssetIds = [], resolvedT
   };
 }
 
+function socialPostCaption({ caption = '', hook = '', cta = '', script = '' } = {}) {
+  const provided = clean(caption, 900);
+  const spoken = clean(script, 12000);
+  if (provided && (!spoken || provided.toLowerCase() !== spoken.toLowerCase())) return provided;
+  const concise = clean([hook, cta].map(value => clean(value, 350)).filter(Boolean).join(' '), 900);
+  return concise || clean(spoken, 900);
+}
+
 function creativeDirectorSkillFallback({ input, brandSkill, resolvedType, variationCount, formatPlan }) {
   const offer = brandSkill.productName || brandSkill.brandName || clean(input.productDescription, 500) || 'this product';
   const summary = brandSkill.summary || 'It helps solve a practical everyday problem.';
@@ -113,7 +121,7 @@ function creativeDirectorSkillFallback({ input, brandSkill, resolvedType, variat
         creativeGrammar: formatDecision?.grammar || null,
         script,
         cta: 'Take a closer look.',
-        caption: script,
+        caption: socialPostCaption({ hook, cta: 'Take a closer look.', script }),
         creatorProfile: { category: '', presentation: '', ageBand: '', locale: '', environment: '', energy: 'NATURAL' },
         scenes: []
       };
@@ -150,6 +158,7 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
           'AVATAR_EXPLAINER keeps a believable creator as the visual anchor and is preferred for SaaS, websites, apps and services. Never invent fake application screens.',
           'PRODUCT_SHOWCASE may combine creator footage with supplied product references. Never redesign packaging or substitute a different product.',
           'Write natural creator speech, not corporate copy. Do not use exaggerated hype or fake personal experience.',
+          'caption is the social-post caption that accompanies the finished video. Keep it separate from the spoken script: concise, natural, platform-neutral, no hashtag stuffing, and never copy the full narration verbatim. Use only verified claims.',
           `For ${Number(input.duration)} seconds, target ${timing.targetMin}-${timing.targetMax} spoken words and never exceed ${timing.hardMax} words.`,
           'The final sentence and CTA must finish before the requested duration, leaving a short visual tail.',
           'Use one creator identity and one voice per ad.',
@@ -217,7 +226,7 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
         hook: clean(ad.hook, 500),
         script: clean(ad.script, 12000),
         cta: clean(ad.cta, 500),
-        caption: clean(ad.caption || ad.script, 10000),
+        caption: socialPostCaption({ caption: ad.caption, hook: ad.hook, cta: ad.cta, script: ad.script }),
         creatorProfile: {
           category: clean(ad.creatorProfile?.category, 100),
           presentation: clean(ad.creatorProfile?.presentation, 80),
@@ -594,7 +603,7 @@ async function planCampaign({
       hook: rawAd.hook,
       script: timing.script,
       cta: rawAd.cta,
-      caption: rawAd.caption || timing.script,
+      caption: socialPostCaption({ caption: rawAd.caption, hook: rawAd.hook, cta: rawAd.cta, script: timing.script }),
       creativeFormat: formatDecision?.formatKey || rawAd.creativeFormat || 'PROBLEM_SOLUTION',
       creativeGrammar: formatDecision?.grammar || rawAd.creativeGrammar || null,
       avatarIndex: assignment?.avatarIndex ?? (index % Math.max(1, avatars.length)),
@@ -684,5 +693,6 @@ module.exports = {
   qualityControlSkill,
   compileScenePrompt,
   splitScriptByWeightedDuration,
+  socialPostCaption,
   planCampaign
 };

@@ -5,7 +5,7 @@ import {
   Sparkles, Upload, UserRound, UsersRound, WandSparkles, X,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchMediaLibrary } from '../../lib/media-library-api'
 import {
@@ -130,6 +130,7 @@ export function UGCWizardModal({
   const [adCount, setAdCount] = useState<UGCAdCount>(([1,5,10,15,20] as number[]).includes(seedCampaign?.adCount || 0) ? seedCampaign!.adCount as UGCAdCount : 5)
   const [quality, setQuality] = useState<UGCQuality>(seedCampaign?.quality || 'STANDARD')
   const [campaignId, setCampaignId] = useState<string | null>(null)
+  const autoReturnedToStudio = useRef(false)
   const [error, setError] = useState('')
 
   const overview = useQuery({ queryKey: ['ugc-studio-overview'], queryFn: getUGCOverview, enabled: open, staleTime: 8_000 })
@@ -203,6 +204,19 @@ export function UGCWizardModal({
     void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
     void queryClient.invalidateQueries({ queryKey: ['ai-studio-access'] })
   }, [campaign.data, queryClient])
+
+  useEffect(() => {
+    if (!open || steps[step]?.key !== 'finish' || autoReturnedToStudio.current) return
+    const value = campaign.data
+    if (!value || value.status !== 'READY' || !value.ads.length) return
+    const allPublishable = value.ads.every((ad) => Boolean(ad.mediaAssetId && ad.qualityControl?.publishable))
+    if (!allPublishable) return
+    autoReturnedToStudio.current = true
+    void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
+    void queryClient.invalidateQueries({ queryKey: ['media-library'] })
+    onToast(value.ads.length === 1 ? 'Your UGC video is ready.' : `${value.ads.length} UGC videos are ready.`)
+    onBackToHome()
+  }, [campaign.data, onBackToHome, onToast, open, queryClient, step])
 
   const analyze = useMutation({
     mutationFn: () => analyzeUGCBrand(productUrl),
@@ -506,7 +520,8 @@ export function UGCWizardModal({
             </>}
 
             {currentKey === 'finish' && <>
-              <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><Sparkles className="size-5" /></span><div><h2>{terminal.has(campaign.data?.status || '') ? 'Your UGC campaign is ready.' : 'Your UGC campaign is rendering.'}</h2><p>{terminal.has(campaign.data?.status || '') ? 'Edit a finished ad or send the ready videos straight to the scheduler.' : 'Go back to UGC Studio whenever you want. The campaign keeps rendering in the background and will appear there automatically.'}</p></div></div>
+              <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><Sparkles className="size-5" /></span><div><h2>{terminal.has(campaign.data?.status || '') ? 'Your UGC campaign is ready.' : 'Your UGC campaign is rendering.'}</h2><p>{terminal.has(campaign.data?.status || '') ? 'Your finished videos are being returned to UGC Studio.' : 'Generation keeps running safely in the background.'}</p></div></div>
+              {!terminal.has(campaign.data?.status || '') && <div className="mt-5 rounded-2xl border border-brand-cyan/20 bg-brand-cyan/[.055] p-4"><strong className="block text-sm text-white">You can leave this window at any time.</strong><p className="mt-1 text-[10px] leading-4 text-text-muted">Your UGC keeps rendering in the background. If you stay here, this window will close automatically and take you back to UGC Studio as soon as every video is finished and ready to publish.</p></div>}
               <div className="ugc-wizard-generation mt-7">
                 <div className="flex items-center justify-between gap-3"><div><strong>{campaign.data?.title || 'UGC campaign'}</strong><span>{readyAds} of {campaignAds.length || adCount} ready{failedAds ? ` · ${failedAds} failed` : ''}</span></div><span className="ugc-wizard-status">{progress}%</span></div>
                 {!terminal.has(campaign.data?.status || '') && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10px]"><strong className="text-brand-cyan">{activeStage}</strong><span className="text-text-muted">{activeDetail}</span></div>}

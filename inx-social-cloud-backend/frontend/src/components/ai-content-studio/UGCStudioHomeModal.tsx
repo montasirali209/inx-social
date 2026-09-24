@@ -86,6 +86,7 @@ export function UGCStudioHomeModal({
   const queryClient = useQueryClient()
   const previousReady = useRef<Set<string>>(new Set())
   const [filter, setFilter] = useState<'ALL' | 'READY' | 'RENDERING' | 'FAILED'>('ALL')
+  const [selectedAdIds, setSelectedAdIds] = useState<string[]>([])
   const [preview, setPreview] = useState<{ src: string; title: string } | null>(null)
 
   const overview = useQuery({
@@ -154,6 +155,15 @@ export function UGCStudioHomeModal({
     return source.filter((campaign) => activeStatuses.has(campaign.status) || campaign.ads.some((ad) => activeStatuses.has(ad.status)))
   }, [overview.data?.campaigns, filter])
 
+  const readyVideos = useMemo(() => (overview.data?.campaigns || []).flatMap((campaign) =>
+    campaign.ads
+      .filter((ad) => ad.status === 'READY' && ad.mediaAssetId && ad.qualityControl?.publishable)
+      .map((ad) => ({ campaign, ad, asset: assetsById.get(ad.mediaAssetId!) }))
+      .filter((item): item is { campaign: UGCCampaign; ad: UGCCampaign['ads'][number]; asset: MediaAsset } => Boolean(item.asset))
+  ), [assetsById, overview.data?.campaigns])
+
+  const selectedVideos = useMemo(() => readyVideos.filter((item) => selectedAdIds.includes(item.ad.id)), [readyVideos, selectedAdIds])
+
   function startCreation(seed?: UGCCampaign) {
     void trackUGCStudioEvent({
       event: 'CREATE_STARTED',
@@ -164,26 +174,63 @@ export function UGCStudioHomeModal({
     onCreate(seed)
   }
 
-  function scheduleCampaign(campaign: UGCCampaign) {
-    const ready = campaign.ads
-      .filter((ad) => ad.status === 'READY' && ad.mediaAssetId && ad.qualityControl?.publishable)
-      .map((ad) => ({ ad, asset: assetsById.get(ad.mediaAssetId!) }))
-      .filter((item): item is { ad: typeof campaign.ads[number]; asset: MediaAsset } => Boolean(item.asset))
-    if (!ready.length) { onToast('No finished UGC videos are available to schedule yet.'); return }
+  function toggleVideo(adId: string) {
+    setSelectedAdIds((current) => current.includes(adId) ? current.filter((id) => id !== adId) : [...current, adId])
+  }
+
+  function toggleCampaignReady(campaign: UGCCampaign) {
+    const ids = readyVideos.filter((item) => item.campaign.id === campaign.id).map((item) => item.ad.id)
+    if (!ids.length) return
+    setSelectedAdIds((current) => {
+      const currentSet = new Set(current)
+      const allSelected = ids.every((id) => currentSet.has(id))
+      ids.forEach((id) => allSelected ? currentSet.delete(id) : currentSet.add(id))
+      return [...currentSet]
+    })
+  }
+
+  function scheduleSelected() {
+    const selected = selectedVideos
+    if (!selected.length) { onToast('Select at least one finished UGC video first.'); return }
+
     void trackUGCStudioEvent({
       event: 'SCHEDULER_HANDOFF',
       stage: 'home',
-      campaignId: campaign.id,
-      metadata: { readyCount: ready.length, variationCount: campaign.ads.length, quality: campaign.quality, duration: campaign.duration },
+      campaignId: selected.length === 1 ? selected[0].campaign.id : null,
+      metadata: {
+        readyCount: selected.length,
+        variationCount: selected.length,
+        selectionMode: selected.length === 1 ? 'SINGLE_POST' : 'BULK',
+      },
     })
+
     onClose()
+    if (selected.length === 1) {
+      const item = selected[0]
+      navigate('/posts', {
+        state: {
+          standardComposer: true,
+          mediaLibraryAsset: item.asset,
+          ugcCaption: item.ad.caption || item.ad.script,
+          ugcTitle: item.ad.title,
+          ugcCampaign: item.campaign.title,
+        },
+      })
+      return
+    }
+
     navigate('/bulk-scheduler', {
       state: {
-        mediaLibraryAssets: ready.map((item) => item.asset),
+        mediaLibraryAssets: selected.map((item) => item.asset),
         aiMixedCampaign: {
-          id: campaign.id,
-          title: campaign.title,
-          posts: ready.map(({ ad }) => ({ id: ad.id, contentType: 'VIDEO' as const, caption: ad.caption || ad.script, mediaAssetId: ad.mediaAssetId! })),
+          id: 'ugc-selection-' + Date.now(),
+          title: selected.length + ' selected UGC videos',
+          posts: selected.map(({ ad }) => ({
+            id: ad.id,
+            contentType: 'VIDEO' as const,
+            caption: ad.caption || ad.script,
+            mediaAssetId: ad.mediaAssetId!,
+          })),
         },
       },
     })
@@ -230,6 +277,13 @@ export function UGCStudioHomeModal({
               {(['ALL','READY','RENDERING','FAILED'] as const).map((value) => <button className={filter === value ? 'active' : ''} key={value} onClick={() => setFilter(value)} type="button">{value === 'ALL' ? 'All' : value === 'RENDERING' ? 'Rendering' : value[0] + value.slice(1).toLowerCase()}</button>)}
             </div>
           </div>
+          <div className="ugc-home-selection-bar">
+            <div><strong>{selectedVideos.length ? `${selectedVideos.length} video${selectedVideos.length === 1 ? '' : 's'} selected` : 'Select ready videos to publish'}</strong><span>{selectedVideos.length === 1 ? 'Schedule Now opens the normal Post composer.' : selectedVideos.length > 1 ? 'Schedule Now opens Bulk Scheduler with each video and its caption.' : 'Choose one video for a normal post, or multiple videos for bulk scheduling.'}</span></div>
+            <div className="flex items-center gap-2">
+              {selectedVideos.length > 0 && <button className="ugc-home-selection-clear" onClick={() => setSelectedAdIds([])} type="button">Clear</button>}
+              <Button disabled={!selectedVideos.length} onClick={scheduleSelected} size="sm" variant="primary"><CalendarRange className="size-3.5" />Schedule Now{selectedVideos.length ? ` (${selectedVideos.length})` : ''}</Button>
+            </div>
+          </div>
 
           {overview.isLoading ? <div className="ugc-home-empty"><LoaderCircle className="size-7 animate-spin text-brand-cyan" /><span>Loading your UGC workspace…</span></div> :
             campaigns.length ? <div className="ugc-home-campaign-grid">{campaigns.map((campaign) => {
@@ -241,7 +295,9 @@ export function UGCStudioHomeModal({
               const campaignProgress = campaign.ads.length
                 ? Math.round(campaign.ads.reduce((sum, ad) => sum + Number(ad.progress || 0), 0) / campaign.ads.length)
                 : 0
-              return <article className="ugc-home-campaign" key={campaign.id}>
+              const readyCampaignIds = readyVideos.filter((item) => item.campaign.id === campaign.id).map((item) => item.ad.id)
+              const allCampaignReadySelected = Boolean(readyCampaignIds.length) && readyCampaignIds.every((id) => selectedAdIds.includes(id))
+              return <article className={`ugc-home-campaign ${readyCampaignIds.some((id) => selectedAdIds.includes(id)) ? 'selected' : ''}`} key={campaign.id}>
                 <div className="ugc-home-campaign-preview">
                   {asset?.fileUrl ? <button
                     aria-label={`Open ${campaign.title} video preview`}
@@ -258,16 +314,19 @@ export function UGCStudioHomeModal({
                   <span className={`ugc-home-status ${campaign.status.toLowerCase()}`}>{statusLabel(campaign.status)}</span>
                 </div>
                 <div className="ugc-home-campaign-copy">
-                  <span className="ugc-home-meta">{campaign.resolvedType === 'PRODUCT_SHOWCASE' ? 'Product showcase' : 'Avatar explainer'} · {campaign.quality === 'PREMIUM' ? 'Premium' : 'Standard'} · {campaign.adCount} variation{campaign.adCount === 1 ? '' : 's'}</span>
+                  <div className="flex items-start justify-between gap-2"><span className="ugc-home-meta">{campaign.resolvedType === 'PRODUCT_SHOWCASE' ? 'Product showcase' : 'Avatar explainer'} · {campaign.quality === 'PREMIUM' ? 'Premium' : 'Standard'} · {campaign.adCount} variation{campaign.adCount === 1 ? '' : 's'}</span>{readyCampaignIds.length > 0 && <label className="ugc-home-select-control"><input checked={allCampaignReadySelected} onChange={() => toggleCampaignReady(campaign)} type="checkbox" /><span>{campaign.ads.length === 1 ? 'Select' : 'Select ready'}</span></label>}</div>
                   <strong>{campaign.title}</strong>
                   <p>{first?.hook || first?.angle || 'Creator-native UGC campaign'}</p>
                   {busy && activeAd && <div className="mt-3 rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.035] p-2.5"><div className="flex items-center justify-between gap-2 text-[8px]"><strong className="text-brand-cyan">{activeAd.stageLabel}</strong><span className="text-text-muted">{activeAd.progress}%</span></div><div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[.07]"><span className="block h-full rounded-full bg-brand-cyan transition-[width] duration-500" style={{ width: `${Math.max(4,activeAd.progress)}%` }} /></div>{activeAd.stageDetail && <span className="mt-1.5 block text-[8px] text-text-soft">{activeAd.stageDetail}</span>}</div>}
-                  {campaign.ads.length > 1 && <div className="ugc-home-variation-list">{campaign.ads.map((ad) => <div key={ad.id}><span>V{ad.sequence} · {activeStatuses.has(ad.status) ? `${ad.stageLabel} · ${ad.progress}%` : statusLabel(ad.status)}</span><button disabled={activeStatuses.has(ad.status)} onClick={() => {
-                    void loadUGCEditor().then(() => {
-                      onClose()
-                      navigate(`/ai-content-studio/ugc/${ad.id}/edit`)
-                    })
-                  }} type="button">Edit</button></div>)}</div>}
+                  {campaign.ads.length > 1 && <div className="ugc-home-variation-list">{campaign.ads.map((ad) => {
+                    const selectable = Boolean(ad.status === 'READY' && ad.mediaAssetId && ad.qualityControl?.publishable && assetsById.has(ad.mediaAssetId))
+                    return <div className={selectedAdIds.includes(ad.id) ? 'selected' : ''} key={ad.id}><label className="ugc-home-variation-select"><input checked={selectedAdIds.includes(ad.id)} disabled={!selectable} onChange={() => selectable && toggleVideo(ad.id)} type="checkbox" /><span>V{ad.sequence} · {activeStatuses.has(ad.status) ? `${ad.stageLabel} · ${ad.progress}%` : statusLabel(ad.status)}</span></label><button disabled={activeStatuses.has(ad.status)} onClick={() => {
+                      void loadUGCEditor().then(() => {
+                        onClose()
+                        navigate(`/ai-content-studio/ugc/${ad.id}/edit`)
+                      })
+                    }} type="button">Edit</button></div>
+                  })}</div>}
                   <div className="ugc-home-actions">
                     <Button disabled={!first || activeStatuses.has(first.status)} onClick={() => {
                       if (!first) return
@@ -276,7 +335,7 @@ export function UGCStudioHomeModal({
                         navigate(`/ai-content-studio/ugc/${first.id}/edit`)
                       })
                     }} size="sm"><Pencil className="size-3.5" />Edit</Button>
-                    <Button disabled={!campaign.ads.some((ad) => ad.qualityControl?.publishable && ad.mediaAssetId)} onClick={() => scheduleCampaign(campaign)} size="sm" variant="primary"><CalendarRange className="size-3.5" />Schedule</Button>
+                    <Button disabled={!readyCampaignIds.length} onClick={() => toggleCampaignReady(campaign)} size="sm" variant={allCampaignReadySelected ? 'primary' : 'secondary'}>{allCampaignReadySelected ? 'Selected' : campaign.ads.length === 1 ? 'Select video' : 'Select ready'}</Button>
                     <button aria-label="Create similar campaign" className="ugc-home-icon-action" onClick={() => startCreation(campaign)} title="Create similar" type="button"><Copy className="size-3.5" /></button>
                     <button aria-label="Delete campaign" className="ugc-home-icon-action danger" disabled={busy || remove.isPending} onClick={() => { if (window.confirm('Remove this UGC campaign from your studio?')) remove.mutate(campaign.id) }} title="Delete" type="button"><Trash2 className="size-3.5" /></button>
                   </div>
