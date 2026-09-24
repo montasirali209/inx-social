@@ -102,8 +102,12 @@ function renderAiOperations(data){
       ['Economy video',providers.runware?.models?.economyVideo],
       ['Video',providers.runware?.models?.video],
       ['Long video',providers.runware?.models?.longVideo],
+      ['UGC router',providers.runware?.models?.ugcRouterMode],
       ['UGC Standard',providers.runware?.models?.ugcStandard],
-      ['UGC Premium',providers.runware?.models?.ugcPremium],
+      ['UGC Premium creator',providers.runware?.models?.ugcOmniHuman],
+      ['UGC Premium dynamic',providers.runware?.models?.ugcSeedance],
+      ['UGC dynamic fallback',providers.runware?.models?.ugcKlingOmni],
+      ['UGC compatibility premium',providers.runware?.models?.ugcPremiumCompatibility],
       ['UGC lip sync',providers.runware?.models?.ugcLipSync],
       ['UGC voice',providers.runware?.models?.ugcTts]
     ]],
