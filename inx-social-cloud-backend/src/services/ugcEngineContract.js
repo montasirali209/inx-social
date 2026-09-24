@@ -76,7 +76,10 @@ function buildEngineProject({
             playbackDuration: finalDurations[sceneIndex],
             hasActor: Boolean(avatar),
             hasProductReference: Boolean(productAssetIds.length || (Array.isArray(brand?.brandReferences) && brand.brandReferences.length)),
-            hasNarration: clean(scene.script, 4000).length >= 2
+            hasNarration: clean(scene.script, 4000).length >= 2,
+            allowedRoutes: avatar && ['CREATOR','CTA'].includes(clean(scene.kind || 'CREATOR', 40).toUpperCase())
+              ? creators.profileFromRow(avatar).routeCompatibility
+              : null
           });
       return {
         sequence: sceneIndex + 1,
