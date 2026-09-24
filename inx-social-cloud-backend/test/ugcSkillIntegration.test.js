@@ -10,9 +10,9 @@ test('Phase 2 skills still run before Phase 3 routing and before any provider ge
   const studio = read('src/services/ugcStudioService.js');
   assert.match(studio, /const ugcSkills = require\('\.\/ugcSkillEngine'\)/);
   assert.match(studio, /return ugcSkills\.planCampaign/);
-  assert.match(studio, /const creativePlan = await planCampaign/);
+  assert.match(studio, /creativePlan = await planCampaign/);
   assert.match(studio, /ugcModelRouter\.routePlan/);
-  const skillIndex = studio.indexOf('const creativePlan = await planCampaign');
+  const skillIndex = studio.indexOf('creativePlan = await planCampaign');
   const routeIndex = studio.indexOf('ugcModelRouter.routePlan', skillIndex);
   const campaignInsertIndex = studio.indexOf('INSERT INTO "UGCCampaign"', routeIndex);
   assert.ok(skillIndex >= 0 && routeIndex > skillIndex && campaignInsertIndex > routeIndex);
