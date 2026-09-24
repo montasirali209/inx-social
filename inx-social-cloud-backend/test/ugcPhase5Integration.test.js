@@ -22,7 +22,7 @@ test('Phase 5 validates creative format before the Creative Director and before 
   assert.ok(formatIndex >= 0 && directorIndex > formatIndex);
 
   const studio = read('src/services/ugcStudioService.js');
-  const planIndex = studio.indexOf('const creativePlan = await planCampaign');
+  const planIndex = studio.indexOf('creativePlan = await planCampaign');
   const routeIndex = studio.indexOf('ugcModelRouter.routePlan', planIndex);
   const reserveIndex = studio.indexOf('createGenerationRow', routeIndex);
   assert.ok(planIndex >= 0 && routeIndex > planIndex && reserveIndex > routeIndex);
