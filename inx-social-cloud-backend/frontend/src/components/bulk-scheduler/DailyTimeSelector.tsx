@@ -1,11 +1,13 @@
-import { Clock3, Plus, X } from 'lucide-react'
-import { useState } from 'react'
+import { BookmarkPlus, Check, Clock3, Plus, X } from 'lucide-react'
+import { useMemo, useState } from 'react'
 
 type Props = {
   times: string[]
   disabled: boolean
   onAdd: (time: string) => void
   onRemove: (time: string) => void
+  savedTimes: string[]
+  onSaveForFuture: () => Promise<void>
 }
 
 function displayTime(time: string) {
@@ -13,8 +15,25 @@ function displayTime(time: string) {
   return new Intl.DateTimeFormat('en-GB', { hour: 'numeric', minute: '2-digit' }).format(new Date(2026, 0, 1, hours, minutes))
 }
 
-export function DailyTimeSelector({ times, disabled, onAdd, onRemove }: Props) {
+export function DailyTimeSelector({ times, disabled, onAdd, onRemove, savedTimes, onSaveForFuture }: Props) {
   const [draft, setDraft] = useState('14:00')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const allSaved = useMemo(() => times.length > 0 && times.every((time) => savedTimes.includes(time)), [savedTimes, times])
+
+  async function saveForFuture() {
+    if (disabled || saving || allSaved || !times.length) return
+    setSaving(true)
+    setSaveError('')
+    try {
+      await onSaveForFuture()
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'These posting times could not be saved.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <fieldset className="min-w-0">
       <legend className="mb-1.5 text-xs font-medium text-text-muted">Daily publishing times</legend>
@@ -35,7 +54,20 @@ export function DailyTimeSelector({ times, disabled, onAdd, onRemove }: Props) {
         ))}
         {!times.length && <span className="self-center text-[11px] text-brand-amber">Add at least one time.</span>}
       </div>
-      <p className="mt-1 text-[10px] leading-4 text-text-soft">Files fill these times in order each day, then continue on the next day.</p>
+      <div className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-[10px] leading-4 text-text-soft">Files fill these times in order each day, then continue on the next day.</p>
+        <button
+          className={`inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border px-3 text-[10px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan disabled:cursor-not-allowed disabled:opacity-55 ${allSaved ? 'border-brand-green/20 bg-brand-green/[.06] text-brand-green' : 'border-brand-cyan/25 bg-brand-cyan/[.06] text-brand-cyan hover:bg-brand-cyan/10'}`}
+          disabled={disabled || saving || allSaved || !times.length}
+          onClick={() => void saveForFuture()}
+          type="button"
+        >
+          {allSaved ? <Check aria-hidden="true" className="size-3.5" /> : <BookmarkPlus aria-hidden="true" className="size-3.5" />}
+          {saving ? 'Saving…' : allSaved ? 'Saved for future' : 'Save times for future'}
+        </button>
+      </div>
+      <p className="mt-1 text-[9px] leading-4 text-text-soft">Saving adds these custom times to your reusable Scheduler times without removing existing saved times.</p>
+      {saveError && <p className="mt-1 text-[10px] leading-4 text-brand-red">{saveError}</p>}
     </fieldset>
   )
 }
