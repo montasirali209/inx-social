@@ -51,6 +51,16 @@ test('UGC local finishing recovery is bounded and never launches another provide
   assert.match(studio, /UPDATE "UGCAd" SET "status"=\\'QUEUED\\'/);
 });
 
+test('Post-provider download, mux and storage get bounded local retries without regenerating video', () => {
+  const studio = read('src/services/ugcStudioService.js');
+  assert.match(studio, /async function retryLocalOperation/);
+  assert.match(studio, /'scene video download'/);
+  assert.match(studio, /'scene narration download'/);
+  assert.match(studio, /'scene narration mux'/);
+  assert.match(studio, /'scene media persistence'/);
+  assert.match(studio, /retrying without another provider generation/);
+});
+
 test('UGC paid provider costs are persisted before downstream local finishing can fail', () => {
   const studio = read('src/services/ugcStudioService.js');
   assert.match(studio, /async function addGenerationProviderCost/);
