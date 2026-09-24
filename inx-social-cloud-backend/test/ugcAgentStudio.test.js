@@ -48,35 +48,26 @@ test('UGC Agent endpoint remains authenticated through the existing Studio route
   assert.match(api, /sendUGCAgentMessage/);
 });
 
-test('UGC home is a launcher and does not embed the conversation anymore', () => {
+test('UGC home launcher routes directly into the wizard instead of a chat conversation', () => {
   const hero = read('frontend/src/components/ai-content-studio/UGCAgentHero.tsx');
-  assert.match(hero, /onOpenAgent/);
-  assert.match(hero, /What do you want to create\?/);
-  assert.match(hero, /Customize everything manually/);
-  assert.doesNotMatch(hero, /sendUGCAgentMessage/);
-  assert.doesNotMatch(hero, /createUGCCampaign/);
-  assert.doesNotMatch(hero, /ugc-agent-thread/);
-});
-
-test('dedicated UGC Agent modal owns chat, references, creator selection and Generate', () => {
-  const modal = read('frontend/src/components/ai-content-studio/UGCAgentModal.tsx');
-  assert.match(modal, /Message the UGC Agent/);
-  assert.match(modal, /sendUGCAgentMessage/);
-  assert.match(modal, /uploadUGCProductAsset/);
-  assert.match(modal, /creatorPickerOpen/);
-  assert.match(modal, /Customize manually/);
-  assert.match(modal, /createUGCCampaign/);
-  assert.match(modal, /result\.estimate\.credits/);
-});
-
-test('home input and creator cards both open the same UGC Agent modal', () => {
   const home = read('frontend/src/components/ai-content-studio/UGCStudioHomeModal.tsx');
-  assert.match(home, /const \[agentOpen, setAgentOpen\]/);
-  assert.match(home, /function openAgent/);
-  assert.match(home, /<UGCAgentModal/);
-  assert.match(home, /onOpenAgent=\{\(prompt\) => openAgent/);
-  assert.match(home, /I want to create a UGC ad using/);
-  assert.match(home, /featured\.slice\(0, 100\)/);
+  assert.match(hero, /What do you want to create\?/);
+  assert.match(hero, /draftFromPrompt/);
+  assert.match(hero, /Customize everything manually/);
+  assert.match(home, /onStart=\{\(draft\) => onCreate\(undefined, draft\)\}/);
+  assert.doesNotMatch(home, /<UGCAgentModal/);
+  assert.doesNotMatch(home, /agentOpen/);
+  assert.doesNotMatch(home, /featured\.slice\(0, 100\)/);
+});
+
+test('creator portraits are deferred to the focused picker instead of the Studio home', () => {
+  const home = read('frontend/src/components/ai-content-studio/UGCStudioHomeModal.tsx');
+  const wizard = read('frontend/src/components/ai-content-studio/UGCWizardModal.tsx');
+  assert.doesNotMatch(home, /fetchUGCAvatarImage/);
+  assert.match(home, /Open creator selection/);
+  assert.match(wizard, /creatorPickerOpen/);
+  assert.match(wizard, /Portraits load only while this picker is open/);
+  assert.match(wizard, /visibleCreators = showAllCreators \? filteredCreators : filteredCreators\.slice\(0, 12\)/);
 });
 
 test('advanced UGC setup remains available as the manual customization route', () => {
@@ -87,21 +78,29 @@ test('advanced UGC setup remains available as the manual customization route', (
   assert.match(wizard, /seedDraft\?: Partial<CreateUGCCampaignInput>/);
 });
 
-test('Studio opening is visibly animated without animated blur and main scrolling avoids nested capture', () => {
+test('Studio opening is lightweight and scrolling is contained inside the modal', () => {
   const css = read('frontend/src/components/ai-content-studio/ugc-studio-home.css');
-  assert.match(css, /animation:ugc-home-panel-in \.28s/);
-  assert.match(css, /translate3d\(0,16px,0\) scale\(\.985\)/);
-  assert.doesNotMatch(css, /@keyframes ugc-home-panel-in[^\n]*filter:blur/);
-  assert.doesNotMatch(css, /@keyframes ugc-home-backdrop-in[^\n]*backdrop-filter/);
-  assert.match(css, /\.ugc-home-body\{[^\n]*overscroll-behavior-y:auto/);
+  assert.match(css, /animation:ugc-home-panel-in-fast \.22s/);
+  assert.match(css, /translate3d\(0,8px,0\) scale\(\.994\)/);
+  assert.match(css, /\.ugc-home-body\{[^\n]*overscroll-behavior-y:contain/);
   assert.match(css, /-webkit-overflow-scrolling:touch/);
+  assert.match(css, /content-visibility:auto/);
 });
 
 test('creator capacity remains ready for 100 uploaded featured creators without changing the seeded set', () => {
   const home = read('frontend/src/components/ai-content-studio/UGCStudioHomeModal.tsx');
   const studio = read('src/services/ugcStudioService.js');
   assert.match(home, />100\+<\/strong>/);
-  assert.match(home, /100\+ featured/);
+  assert.match(home, /100\+ available/);
   assert.match(studio, /FEATURED_AVATAR_LIMIT = 100/);
   assert.match(studio, /FEATURED_AVATAR_COUNT = 20/);
+});
+
+
+test('UGC provider prompt is always valid for Runware videoInference', () => {
+  const adapters = require('../src/services/ugcProviderAdapters');
+  assert.equal(adapters.providerPrompt(''), 'Natural creator-led UGC scene.');
+  assert.equal(adapters.providerPrompt('x'), 'Natural creator-led UGC scene.');
+  assert.equal(adapters.providerPrompt('  valid prompt  '), 'valid prompt');
+  assert.equal(adapters.providerPrompt('a'.repeat(2500)).length, 2000);
 });
