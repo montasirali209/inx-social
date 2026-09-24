@@ -14,6 +14,8 @@ const postStudio = require('./aiPostStudioService');
 const objectStorage = require('./mediaObjectStorageService');
 const mediaLibrary = require('./mediaLibraryService');
 const ugcAnalytics = require('./ugcStudioAnalyticsService');
+const ugcEngine = require('./ugcEngineService');
+const ugcEngineRegistry = require('./ugcEngineRegistry');
 const { expiresAtFor } = require('./mediaRetentionService');
 
 const STANDARD_CREDITS = Object.freeze({ 15: 100, 20: 140, 30: 210 });
@@ -22,10 +24,10 @@ const AVATAR_CREDITS = 5;
 const SYSTEM_AVATAR_COUNT = 52;
 const FEATURED_AVATAR_COUNT = 20;
 const FEATURED_REFERENCE_VERSION = 3;
-const STANDARD_MODEL = () => env.runware.ugcStandardModel || 'minimax:4@1';
-const PREMIUM_MODEL = () => env.runware.ugcPremiumModel || 'klingai:kling-video@3-standard';
-const LIPSYNC_MODEL = () => env.runware.ugcLipSyncModel || 'klingai:7@1';
-const TTS_MODEL = () => env.runware.ugcTtsModel || 'inworld:tts@2';
+const STANDARD_MODEL = () => ugcEngineRegistry.modelIds().standardVideo;
+const PREMIUM_MODEL = () => ugcEngineRegistry.modelIds().premiumVideo;
+const LIPSYNC_MODEL = () => ugcEngineRegistry.modelIds().lipSync;
+const TTS_MODEL = () => ugcEngineRegistry.modelIds().tts;
 
 const FEATURED_CREATORS = new Map(Object.entries({
   Maya: 'bright lived-in apartment lounge, fitted sleeveless casual top with high-waisted jeans, soft window light, real sofa and everyday decor',
@@ -748,13 +750,27 @@ async function createCampaign(userId, input) {
     json(productAssetIds), totalCredits, clean(input.notes, 1200) || null, json(plan)
   );
 
+  await ugcEngine.createProject({
+    userId,
+    campaignId,
+    input: { ...input, sourceType },
+    brand,
+    productAssetIds,
+    availableAvatars: available,
+    plan,
+    resolvedType,
+    perAdCredits: perAd,
+    totalCredits
+  });
+  await ugcEngine.updateStatus(userId, campaignId, 'RESERVING');
+
   const reserved = [];
   try {
     for (let index = 0; index < plan.ads.length; index += 1) {
       const planned = plan.ads[index];
       const avatar = available[planned.avatarIndex % available.length] || available[0] || null;
       const adId = id();
-      const route = input.quality === 'PREMIUM' ? 'KLING' : 'HAILUO';
+      const route = ugcEngineRegistry.legacyDbRoute(input.quality);
       await prisma.$executeRawUnsafe(
         'INSERT INTO "UGCAd" ("id","campaignId","userId","sequence","status","title","angle","hook","script","cta","caption","avatarId","route","voice","voicePrompt","duration","quality","credits","musicMode","captionsEnabled","planJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,\'RESERVING\',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,\'AUTO\',true,$18,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
         adId, campaignId, userId, index + 1, planned.title, planned.angle || null, planned.hook || null, planned.script, planned.cta || null, planned.caption || null,
@@ -770,12 +786,15 @@ async function createCampaign(userId, input) {
       }
       const generationId = await createGenerationRow(userId, adId, perAd, { ...planned, campaignType: resolvedType, quality: input.quality });
       reserved.push(generationId);
+      await ugcEngine.linkGeneration(userId, campaignId, index + 1, adId, generationId);
       await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "generationId"=$2,"status"=\'QUEUED\',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', adId, generationId);
     }
     await prisma.$executeRawUnsafe('UPDATE "UGCCampaign" SET "status"=\'QUEUED\',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', campaignId);
+    await ugcEngine.updateStatus(userId, campaignId, 'QUEUED');
   } catch (error) {
     await Promise.all(reserved.map(generationId => credits.refund(userId, generationId, 'ugc_campaign_reservation_failed').catch(() => false)));
     await prisma.$executeRawUnsafe('UPDATE "UGCCampaign" SET "status"=\'FAILED\',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', campaignId).catch(() => {});
+    await ugcEngine.updateStatus(userId, campaignId, 'FAILED').catch(() => {});
     throw error;
   }
   await ugcAnalytics.track(userId, {
@@ -1315,6 +1334,12 @@ async function renderAd(adId) {
   const scenes = await prisma.$queryRawUnsafe('SELECT * FROM "UGCScene" WHERE "adId"=$1 ORDER BY "sequence"', adId);
   const avatar = ad.avatarId ? (await prisma.$queryRawUnsafe('SELECT * FROM "UGCAvatar" WHERE "id"=$1 LIMIT 1', ad.avatarId))[0] : null;
   const campaign = (await prisma.$queryRawUnsafe('SELECT * FROM "UGCCampaign" WHERE "id"=$1 LIMIT 1', ad.campaignId))[0];
+  await ugcEngine.recordRenderStatus(ad.userId, ad.campaignId, ad.id, 'RENDERING', {
+    route: ad.route,
+    quality: ad.quality,
+    duration: ad.duration
+  }).catch(() => null);
+  await ugcEngine.updateStatus(ad.userId, ad.campaignId, 'RENDERING').catch(() => {});
   let brandRefs = [];
   if (campaign?.brandProfileId) {
     const brand = (await prisma.$queryRawUnsafe('SELECT * FROM "UGCBrandProfile" WHERE "id"=$1 LIMIT 1', campaign.brandProfileId))[0];
@@ -1399,6 +1424,11 @@ async function renderAd(adId) {
     const asset = await persistFinalAsset(ad, finalVideo, providerCost);
 
     await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'READY\',"mediaAssetId"=$2,"errorMessage"=NULL,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id, asset.id);
+    await ugcEngine.recordRenderStatus(ad.userId, ad.campaignId, ad.id, 'READY', {
+      mediaAssetId: asset.id,
+      providerCostUsd: providerCost,
+      creditsUsed: generationCredits
+    }).catch(() => null);
     await credits.complete(ad.userId, ad.generationId, generationCredits);
     await prisma.$executeRawUnsafe(
       'UPDATE "AiGeneration" SET "status"=\'COMPLETED\',"progress"=100,"providerCostUsd"=$2,"assetJson"=$3,"responseJson"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
@@ -1411,6 +1441,9 @@ async function renderAd(adId) {
     console.error('[UGC RENDER FAILED]', { adId, code: error?.code, error: clean(error?.message, 700) });
     await credits.refund(ad.userId, ad.generationId, error?.code || 'ugc_render_failed').catch(() => false);
     await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'FAILED\',"errorMessage"=$2,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id, clean(error?.publicMessage || error?.message || 'UGC rendering failed.', 700)).catch(() => {});
+    await ugcEngine.recordRenderStatus(ad.userId, ad.campaignId, ad.id, 'FAILED', {
+      errorCode: clean(error?.code || 'UGC_RENDER_FAILED', 120)
+    }).catch(() => null);
     await prisma.$executeRawUnsafe(
       'UPDATE "AiGeneration" SET "status"=\'FAILED\',"progress"=100,"responseJson"=$2,"errorCode"=$3,"errorMessage"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
       ad.generationId,
@@ -1438,6 +1471,7 @@ async function refreshCampaignStatus(campaignId) {
   else if ((counts.FAILED || 0) > 0 && ((counts.READY || 0) + (counts.FAILED || 0) === total)) status = 'PARTIAL';
   else if ((counts.QUEUED || 0) === total) status = 'QUEUED';
   await prisma.$executeRawUnsafe('UPDATE "UGCCampaign" SET "status"=$2,"completedAt"=CASE WHEN $2 IN (\'READY\',\'PARTIAL\',\'FAILED\') THEN CURRENT_TIMESTAMP ELSE NULL END,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', campaignId, status);
+  if (campaign?.userId) await ugcEngine.updateStatus(campaign.userId, campaignId, status).catch(() => {});
   if (campaign?.userId && ['READY','PARTIAL','FAILED'].includes(status) && !['READY','PARTIAL','FAILED'].includes(previousStatus)) {
     await ugcAnalytics.track(campaign.userId, {
       event: status === 'FAILED' ? 'GENERATION_FAILED' : 'GENERATION_COMPLETED',
