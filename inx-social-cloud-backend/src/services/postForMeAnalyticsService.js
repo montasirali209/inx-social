@@ -274,25 +274,83 @@ function belongsToXAccount(profile, post) {
   }
 }
 
+function normalizedAccountLabel(value) {
+  return String(value || '').trim().replace(/^@/, '').replace(/\s+/g, ' ').toLowerCase();
+}
+
 async function facebookPageFallback(userId, profile, days) {
   const metadata = postForMe.parseJson(profile.metadataJson, {});
-  const pageId = String(metadata.providerUserId || '');
-  if (!/^\d+$/.test(pageId)) return null;
-  const page = await prisma.connectedPage.findUnique({ where: { userId_facebookPageId: { userId, facebookPageId: pageId } } });
-  if (page?.status !== 'ACTIVE' || !page.encryptedAccessToken) return null;
-  const result = await getFacebookAnalytics({
-    pageId, accessToken: decryptToken(page.encryptedAccessToken),
-    graphVersion: process.env.FB_GRAPH_VERSION || process.env.GRAPH_VERSION || 'v25.0',
-    days, cacheScope: userId, postInsightLimit: 10
+  const providerUserId = String(metadata.providerUserId || '');
+  const profileUsername = normalizedAccountLabel(profile.username);
+  const profileName = normalizedAccountLabel(profile.displayName);
+  const candidates = [];
+  const seen = new Set();
+
+  if (/^\d+$/.test(providerUserId)) {
+    const direct = await prisma.connectedPage.findUnique({ where: { userId_facebookPageId: { userId, facebookPageId: providerUserId } } });
+    if (direct?.status === 'ACTIVE' && direct.encryptedAccessToken) {
+      candidates.push(direct);
+      seen.add(direct.id);
+    }
+  }
+
+  const legacyPages = await prisma.connectedPage.findMany({
+    where: { userId, status: 'ACTIVE', encryptedAccessToken: { not: null } },
+    orderBy: { updatedAt: 'desc' }
   });
-  if (!result.capabilities?.pageInsights?.available && !result.capabilities?.postInsights?.available) return null;
-  return {
-    ...result,
-    page: { ...result.page, id: profile.id },
-    provider: { engine: 'meta_graph', accountId: providerAccountId(profile), feedPosts: result.content.length, periodPosts: result.content.length, postsWithMetrics: result.content.filter(item => item.insightsCapability?.available).length, metricsRequested: true, metricSummary: [] },
-    content: result.content.map(item => ({ ...item, platform: 'facebook' })),
-    warnings: [...result.warnings, 'Facebook metrics were recovered from the existing Page connection while the publishing provider feed is unavailable.']
-  };
+  const matched = legacyPages.filter((page) => {
+    const username = normalizedAccountLabel(page.facebookPageUsername);
+    const name = normalizedAccountLabel(page.facebookPageName);
+    return Boolean(
+      (profileUsername && username && profileUsername === username)
+      || (profileName && name && profileName === name)
+    );
+  });
+  for (const page of matched) {
+    if (!seen.has(page.id)) {
+      candidates.push(page);
+      seen.add(page.id);
+    }
+  }
+
+  for (const page of candidates) {
+    try {
+      const result = await getFacebookAnalytics({
+        pageId: page.facebookPageId,
+        accessToken: decryptToken(page.encryptedAccessToken),
+        graphVersion: process.env.FB_GRAPH_VERSION || process.env.GRAPH_VERSION || 'v25.0',
+        days,
+        cacheScope: userId,
+        postInsightLimit: 10
+      });
+      if (!result.capabilities?.pageInsights?.available && !result.capabilities?.postInsights?.available) continue;
+      const content = Array.isArray(result.content) ? result.content : [];
+      return {
+        ...result,
+        page: { ...result.page, id: profile.id },
+        provider: {
+          engine: 'meta_graph_fallback',
+          accountId: providerAccountId(profile),
+          feedPosts: content.length,
+          periodPosts: content.length,
+          postsWithMetrics: content.filter(item => item.insightsCapability?.available).length,
+          metricsRequested: true,
+          sourceState: 'ready',
+          repairRequired: false,
+          metricSummary: []
+        },
+        content: content.map(item => ({ ...item, platform: 'facebook' })),
+        warnings: [...(result.warnings || []), 'Facebook analytics were recovered from the existing verified Page connection while the publishing-provider feed was unavailable.']
+      };
+    } catch (error) {
+      console.warn('[analytics-feed] Facebook Page fallback candidate delayed', {
+        profileId: profile.id,
+        pageId: page.id,
+        status: Number(error?.status || error?.response?.status || 0) || null
+      });
+    }
+  }
+  return null;
 }
 
 async function instagramNativeFallback(userId, profile, days) {
@@ -727,8 +785,14 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       periodPosts: feed.length,
       ownershipVerified: profile.platform === 'x' ? true : undefined,
       metricsRequested: true,
-      sourceState: hasMetrics ? 'ready' : allFeed.length ? 'metrics_pending' : 'feed_empty',
-      repairRequired: !allFeed.length && ['instagram', 'facebook'].includes(profile.platform),
+      sourceState: profile.platform === 'x' && providerFeed.length > 0 && !allFeed.length
+        ? 'ownership_mismatch'
+        : hasMetrics
+          ? 'ready'
+          : allFeed.length
+            ? 'metrics_pending'
+            : 'feed_empty',
+      repairRequired: !allFeed.length && ['instagram', 'facebook', 'x'].includes(profile.platform),
       metricSummary
     }
   };
@@ -824,7 +888,7 @@ function analyticsPayloadHasVerifiedMetrics(value) {
 function partialAnalyticsWarning(platform, value = null) {
   const feedPosts = Number(value?.provider?.feedPosts || 0);
   if (String(platform).toLowerCase() === 'x' && Number(value?.provider?.unverifiedFeedPosts || 0) > 0 && feedPosts === 0) {
-    return 'The X feed returned reposts or posts without proof they belong to this account. INXSocial excluded them from your analytics.';
+    return 'The X provider feed returned posts that could not be verified as belonging to this connected X account. Refresh X analytics access once to repair the account/feed mapping; INXSocial will not count other authors\' posts.';
   }
   if (feedPosts <= 0) {
     const key = String(platform || '').toLowerCase();
