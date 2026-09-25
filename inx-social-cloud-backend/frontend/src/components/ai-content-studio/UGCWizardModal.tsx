@@ -68,6 +68,22 @@ function AvatarPortrait({ avatar }: { avatar: UGCAvatar }) {
   return <div className="ugc-wizard-avatar-placeholder grid size-full place-items-center text-sm font-bold">{avatar.name.slice(0, 1)}</div>
 }
 
+function GeneratedReferenceImage({ reference, className = 'size-full object-cover' }: { reference: UGCGeneratedReference; className?: string }) {
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    let active = true
+    let created: string | null = null
+    void fetchUGCGeneratedReferenceImage(reference).then((value) => {
+      if (!value) return
+      if (!active) { URL.revokeObjectURL(value); return }
+      created = value
+      setUrl(value)
+    })
+    return () => { active = false; if (created) URL.revokeObjectURL(created) }
+  }, [reference])
+  return url ? <img alt={reference.name} className={className} loading="lazy" src={url} /> : <div className="grid size-full place-items-center bg-white/[.03]"><LoaderCircle className="size-5 animate-spin text-brand-cyan" /></div>
+}
+
 function Rail({ current, furthest, onStep }: { current: number; furthest: number; onStep: (step: number) => void }) {
   return <aside className="ugc-wizard-rail">
     {steps.map((step, index) => {
@@ -406,15 +422,6 @@ export function UGCWizardModal({
   const creatorPresentations = [...new Set(allCreators.map((avatar) => avatar.presentation).filter(Boolean))].sort()
   const creatorAgeBands = [...new Set(allCreators.map((avatar) => avatar.ageBand).filter(Boolean))].sort()
   const creatorLocales = [...new Set(allCreators.map((avatar) => avatar.locale).filter(Boolean))].sort()
-  const creativeFormatOptions = overview.data?.options.creativeFormats || []
-  const hasProductReference = Boolean(productAssetIds.length || selectedBrand?.brandReferences?.length)
-  const hasVerifiedTransformation = Boolean(selectedBrand?.verifiedClaims?.some((claim) => /\b(before|after|improv(?:e|es|ed|ing|ement|ements)?|increas(?:e|es|ed|ing)|reduc(?:e|es|ed|ing|tion|tions)|decreas(?:e|es|ed|ing)|faster|slower|results?|transform(?:s|ed|ing|ation|ations)?|restor(?:e|es|ed|ing)|remov(?:e|es|ed|ing)|clear(?:s|ed|ing)?|sav(?:e|es|ed|ing)\s+time)\b/i.test(claim)))
-  const selectedCreativeFormat = creativeFormatOptions.find((option) => option.key === creativeFormat) || null
-  const creativeFormatBlocked = Boolean(selectedCreativeFormat && creativeFormat !== 'AUTO' && (
-    (campaignType !== 'AUTO' && !selectedCreativeFormat.campaignTypes.includes(campaignType)) ||
-    (selectedCreativeFormat.requiresProductReference && !hasProductReference) ||
-    (selectedCreativeFormat.requiresVerifiedTransformation && !hasVerifiedTransformation)
-  ))
   const creatorFilterActive = Boolean(creatorSearch.trim() || creatorCategory !== 'ALL' || creatorPresentation !== 'ALL' || creatorAgeBand !== 'ALL' || creatorLocale !== 'ALL')
   const creatorPool = showAllCreators || creatorFilterActive ? allCreators : featuredCreators
   const creatorNeedle = creatorSearch.trim().toLowerCase()
@@ -450,8 +457,8 @@ export function UGCWizardModal({
   return createPortal(<div className="ugc-wizard-backdrop">
     <section aria-label="Create UGC ad" aria-modal="true" className="ugc-wizard-panel" role="dialog">
       <header className="ugc-wizard-header">
-        <div><button className="ugc-wizard-back-home" onClick={onBackToHome} type="button"><ArrowLeft className="size-3.5" />UGC Studio</button><span className="ugc-wizard-step-count">Step {step + 1} of {steps.length}</span></div>
-        <button aria-label="Close UGC Studio" className="ugc-wizard-close" onClick={onClose} type="button"><X className="size-4" /></button>
+        <div><button className="ugc-wizard-back-home" onClick={backHomeWithDraft} type="button"><ArrowLeft className="size-3.5" />UGC Studio</button><span className="ugc-wizard-step-count">Step {step + 1} of {steps.length}</span></div>
+        <button aria-label="Close UGC Studio" className="ugc-wizard-close" onClick={closeWithDraft} type="button"><X className="size-4" /></button>
         <div className="ugc-wizard-progress"><span style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div>
       </header>
 
@@ -474,7 +481,7 @@ export function UGCWizardModal({
               {(sourceType === 'BRIEF' || sourceType === 'PRODUCT') && <div className="mt-5"><span className="ugc-wizard-mini-label">{sourceType === 'BRIEF' ? 'TELL US ABOUT THE OFFER' : 'OPTIONAL PRODUCT NOTES'}</span><textarea className="ugc-wizard-input mt-2 min-h-28 w-full resize-y" onChange={(event) => setDescription(event.target.value)} placeholder="What is it, who is it for, and what does it help with?" value={description} /></div>}
 
               {analyze.isPending && <div className="ugc-wizard-analyzing mt-6"><div className="ugc-wizard-scan"><span /><Search className="size-7" /></div><div><strong>Understanding your offer…</strong><p className="mt-1 text-[9px] text-text-muted">Reading the site, finding verified benefits and preparing the campaign script.</p></div></div>}
-              <div className="ugc-wizard-footer"><Button onClick={onBackToHome}><ArrowLeft className="size-4" />Studio</Button><Button disabled={analyze.isPending} onClick={() => void continueSource()} variant="primary">{analyze.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}{sourceType === 'WEBSITE' || productUrl.trim() ? 'Analyze & continue' : 'Continue'} <ArrowRight className="size-4" /></Button></div>
+              <div className="ugc-wizard-footer"><Button onClick={backHomeWithDraft}><ArrowLeft className="size-4" />Studio</Button><Button disabled={analyze.isPending} onClick={() => void continueSource()} variant="primary">{analyze.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}{sourceType === 'WEBSITE' || productUrl.trim() ? 'Analyze & continue' : 'Continue'} <ArrowRight className="size-4" /></Button></div>
             </>}
 
             {currentKey === 'brand' && <>
