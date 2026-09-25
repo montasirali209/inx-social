@@ -23,7 +23,7 @@ test('Phase 4 upgrades all 52 existing identities in place and auto casting uses
   assert.match(studio, /const SYSTEM_AVATAR_COUNT = 52/);
   assert.match(studio, /ugcCreators\.buildProfile/);
   assert.match(studio, /creatorVersion/);
-  assert.match(studio, /let available = allAvatars/);
+  assert.match(studio, /let available = input\.creatorMode === 'NONE' \? \[\] : allAvatars/);
   assert.doesNotMatch(studio, /let available = featuredAvatars\.length \? featuredAvatars : allAvatars/);
 });
 
