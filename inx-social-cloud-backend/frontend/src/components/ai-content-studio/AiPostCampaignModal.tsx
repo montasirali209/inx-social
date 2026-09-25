@@ -472,7 +472,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
                 <div className="ai-campaign-3d-card rounded-[22px] border border-border-soft bg-black/10 p-4">
                   <span className="text-[10px] font-semibold uppercase tracking-[.1em] text-text-soft">Number of posts</span>
-                  <div className="mt-3 grid grid-cols-4 gap-2">
+                  <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                     {POST_COUNTS.map((count) => <button className={`rounded-xl border px-2 py-3 text-xs font-semibold transition hover:-translate-y-0.5 ${form.postCount === count ? 'border-brand-cyan/45 bg-brand-cyan/10 text-brand-cyan' : 'border-border-soft text-text-muted hover:text-white'}`} key={count} onClick={() => choosePostCount(count)} type="button">{count}</button>)}
                   </div>
                 </div>
@@ -575,7 +575,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                   {PLATFORM_OPTIONS.filter((option) => selectedCampaign.platforms.includes(option.value)).map((option) => <SocialPlatformIcon className="!size-6" key={option.value} platform={option.key} />)}
                 </div>
               </div>
-              <div className="grid min-w-[260px] grid-cols-3 gap-2">
+              <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:w-auto sm:min-w-[260px] sm:grid-cols-3">
                 <div className="rounded-xl border border-border-soft bg-black/15 p-3"><span className="text-[8px] uppercase tracking-[.08em] text-text-soft">Posts</span><strong className="mt-1 block text-lg">{selectedCampaign.postCount}</strong></div>
                 <div className="rounded-xl border border-border-soft bg-black/15 p-3"><span className="text-[8px] uppercase tracking-[.08em] text-text-soft">Images</span><strong className="mt-1 block text-lg">{imagesReady}/{campaignImagePosts.length}</strong></div>
                 <div className="rounded-xl border border-border-soft bg-black/15 p-3"><span className="text-[8px] uppercase tracking-[.08em] text-text-soft">Ready</span><strong className="mt-1 block text-lg">{allRequiredImagesReady ? 'Yes' : 'Review'}</strong></div>
