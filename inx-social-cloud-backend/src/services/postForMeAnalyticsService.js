@@ -268,8 +268,8 @@ function belongsToXAccount(profile, post) {
   const platformAccountId = String(post.platform_account_id || post.account_id || '').trim();
   const nativePostId = xNativePostId(post);
 
-  // Post for Me currently emits X feed URLs as /user/status/:id rather than
-  // using the connected handle. Its feed payload does, however, carry the
+  // The publishing provider currently emits X feed URLs as /user/status/:id
+  // rather than using the connected handle. The feed payload does carry the
   // platform account id taken from the exact connected X account. Treat that
   // exact provider-user-id match + a real native X status id as ownership
   // evidence, while still excluding native retweets.
