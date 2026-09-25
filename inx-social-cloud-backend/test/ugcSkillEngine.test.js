@@ -78,6 +78,26 @@ test('creator casting honours a user-selected creator', () => {
   assert.deepEqual(cast.assignments.map(x => x.avatarId), ['daniel','daniel']);
 });
 
+test('no-creator mode keeps product-only campaigns free of creator scenes', () => {
+  const cast = creatorCastingSkill({
+    ads: [{ creatorProfile: {} }],
+    avatars: [],
+    creatorMode: 'NONE',
+    selectedAvatarId: null
+  });
+  assert.equal(cast.mode, 'NONE');
+  assert.equal(cast.assignments[0].avatarId, null);
+
+  const plan = scenePlanningSkill({
+    resolvedType: 'PRODUCT_SHOWCASE',
+    providerDurations: [10, 10],
+    playbackDurations: [10, 10],
+    rawScenes: [{ kind: 'CREATOR' }, { kind: 'CTA' }],
+    noCreator: true
+  });
+  assert.deepEqual(plan.scenes.map(scene => scene.kind), ['PRODUCT', 'PRODUCT']);
+});
+
 test('automatic creator casting scores relevance and reduces unnecessary repetition', () => {
   const list = creators();
   const cast = creatorCastingSkill({
