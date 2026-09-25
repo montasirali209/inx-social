@@ -103,14 +103,11 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
   useEffect(() => {
     if (!open || (type !== 'carousel_post' && initialDraft?.contentType !== 'carousel_post')) return
     const bodyOverflow = document.body.style.overflow
-    const htmlOverflow = document.documentElement.style.overflow
     const bodyOverscroll = document.body.style.overscrollBehavior
     document.body.style.overflow = 'hidden'
-    document.documentElement.style.overflow = 'hidden'
     document.body.style.overscrollBehavior = 'none'
     return () => {
       document.body.style.overflow = bodyOverflow
-      document.documentElement.style.overflow = htmlOverflow
       document.body.style.overscrollBehavior = bodyOverscroll
     }
   }, [open, type, initialDraft?.contentType])

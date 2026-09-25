@@ -1299,6 +1299,43 @@ async function classifyGeneratedReference(prompt) {
   }
 }
 
+function adultSafeReferencePrompt(prompt, classification) {
+  let value = clean(prompt, 1500);
+  if (classification?.kind !== 'AVATAR') return value;
+  value = value
+    .replace(/\byoung\s+girl\b/gi, 'young adult woman')
+    .replace(/\byoung\s+boy\b/gi, 'young adult man')
+    .replace(/\bgirl\b/gi, 'adult woman')
+    .replace(/\bboy\b/gi, 'adult man')
+    .replace(/\bteen(?:ager)?\b/gi, 'young adult');
+  return clean([
+    value,
+    'Every depicted person must be clearly an adult aged 21 or older. Do not depict minors or youthful ambiguity.'
+  ].join(' '), 1500);
+}
+
+async function rewriteReferencePromptForProvider(prompt, classification) {
+  try {
+    const parsed = await postStudio.callChatModel(postStudio.REASONING_MODEL, [
+      {
+        role: 'system',
+        content: [
+          'Rewrite a benign UGC image request for an image-generation API without changing the creative intent.',
+          'For people, make it explicit that every depicted person is an adult aged 21 or older.',
+          'Remove ambiguous youth wording such as girl, boy or teen by replacing it with adult woman, adult man or young adult as appropriate.',
+          'Do not weaken or evade safety rules. If the request asks for minors, sexual content, nudity, graphic violence, illegal wrongdoing, or an identifiable public figure, return JSON only: {"blocked":true,"prompt":""}.',
+          'Otherwise return JSON only: {"blocked":false,"prompt":"rewritten prompt"}.'
+        ].join('\n')
+      },
+      { role: 'user', content: clean(prompt, 1500) }
+    ], { reasoningEffort: 'low', temperature: 0.1, maxTokens: 500, timeoutMs: 60000 });
+    if (parsed?.blocked) return null;
+    return adultSafeReferencePrompt(clean(parsed?.prompt, 1500) || prompt, classification);
+  } catch (_) {
+    return adultSafeReferencePrompt(prompt, classification);
+  }
+}
+
 async function generateReferenceAsset(userId, input) {
   const prompt = clean(input.prompt, 1500);
   if (prompt.length < 4) throw publicError('Describe the avatar or product you want to create.', 'UGC_REFERENCE_PROMPT_REQUIRED', 400);
@@ -1306,12 +1343,20 @@ async function generateReferenceAsset(userId, input) {
   const generationId = await createReferenceGeneration(userId, prompt);
   try {
     const classification = await classifyGeneratedReference(prompt);
-    const rendered = await postStudio.generateReferenceImage([
-      prompt,
-      classification.kind === 'AVATAR'
-        ? 'Photorealistic adult UGC creator reference, vertical 9:16, natural smartphone-camera realism, clear face, believable lighting, no text, no watermark.'
-        : 'Photorealistic product reference image, clean believable presentation, accurate geometry and materials, no unrelated text, no watermark.'
-    ].join('\n'), { aspectRatio: classification.kind === 'AVATAR' ? '9:16' : '1:1' });
+    const generationPrompt = adultSafeReferencePrompt(prompt, classification);
+    const suffix = classification.kind === 'AVATAR'
+      ? 'Photorealistic adult UGC creator reference, vertical 9:16, natural smartphone-camera realism, clear face, believable lighting, no text, no watermark.'
+      : 'Photorealistic product reference image, clean believable presentation, accurate geometry and materials, no unrelated text, no watermark.';
+    let rendered;
+    try {
+      rendered = await postStudio.generateReferenceImage([generationPrompt, suffix].join('\n'), { aspectRatio: classification.kind === 'AVATAR' ? '9:16' : '1:1' });
+    } catch (error) {
+      if (error?.code !== 'OPENAI_IMAGE_SAFETY') throw error;
+      const rewritten = await rewriteReferencePromptForProvider(prompt, classification);
+      if (!rewritten) throw error;
+      console.warn('[UGC REFERENCE SAFETY RETRY]', 'Retrying an ordinary reference prompt with explicit adult-safe wording.');
+      rendered = await postStudio.generateReferenceImage([rewritten, suffix].join('\n'), { aspectRatio: classification.kind === 'AVATAR' ? '9:16' : '1:1' });
+    }
 
     let result;
     if (classification.kind === 'AVATAR') {
@@ -2496,7 +2541,7 @@ module.exports = {
   STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds, brandUrlCandidates, playbackDurations,
   UGC_AGENT_VERSION, ugcAgentReply,
   creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
-  narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
+  narratorVoice, narratorLanguage, narratorSpeed, adultSafeReferencePrompt, captionsForScenes, estimateCampaign,
   getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, getProductionAudit, deleteCampaign, getAd, updateAd, rerouteScenesForRegeneration, reassembleAd, regenerateAd, regenerateScene,
   generateCustomAvatar, generateReferenceAsset, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,
   listAvatarReferences, uploadAvatarReference, getAvatarReferenceContent, deleteAvatarReference,

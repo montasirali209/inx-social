@@ -79,14 +79,11 @@ export function VideoStudioModal({ open, type, access, initialDraft, initialVide
   useEffect(() => {
     if (!open || (type !== 'short_video' && initialDraft?.contentType !== 'short_video')) return
     const bodyOverflow = document.body.style.overflow
-    const htmlOverflow = document.documentElement.style.overflow
     const bodyOverscroll = document.body.style.overscrollBehavior
     document.body.style.overflow = 'hidden'
-    document.documentElement.style.overflow = 'hidden'
     document.body.style.overscrollBehavior = 'none'
     return () => {
       document.body.style.overflow = bodyOverflow
-      document.documentElement.style.overflow = htmlOverflow
       document.body.style.overscrollBehavior = bodyOverscroll
     }
   }, [open, type, initialDraft?.contentType])
@@ -252,7 +249,7 @@ export function VideoStudioModal({ open, type, access, initialDraft, initialVide
   const aspectOptions = (selected?.aspects || []).map((value) => ({ value, label: value, meta: value === '9:16' ? 'Reels / TikTok / Shorts' : value === '16:9' ? 'Landscape video' : 'Square social', icon: <Film className="size-3.5" /> }))
   const audioOptions = [{ value: 'on', label: 'Native audio on', meta: 'Generate sound when the model supports it' }, { value: 'off', label: 'Silent video', meta: 'Visual-only generation' }]
 
-  return createPortal(<div className="fixed inset-0 z-[100] grid place-items-center bg-[#01070d]/92 p-2 backdrop-blur-xl sm:p-5"><div className="flex h-[min(920px,95vh)] w-full max-w-[1540px] flex-col overflow-hidden rounded-[30px] border border-brand-cyan/25 bg-[radial-gradient(circle_at_12%_12%,rgba(0,214,192,.09),transparent_27%),linear-gradient(145deg,#061824,#020b13)] shadow-[0_44px_160px_rgba(0,0,0,.74)]">
+  return createPortal(<div className="ai-studio-modal-backdrop fixed inset-0 z-[100] grid place-items-center bg-[#01070d]/94 p-2 sm:p-5"><div className="ai-studio-modal-enter flex h-[min(920px,95vh)] w-full max-w-[1540px] flex-col overflow-hidden rounded-[30px] border border-brand-cyan/25 bg-[radial-gradient(circle_at_12%_12%,rgba(0,214,192,.07),transparent_27%),linear-gradient(145deg,#061824,#020b13)] shadow-[0_28px_90px_rgba(0,0,0,.58)]">
     <header className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-border-soft px-4 sm:px-6"><div><span className="text-[8px] font-bold uppercase tracking-[.18em] text-brand-cyan">Generative Video</span><h2 className="mt-1 text-base font-bold">AI Video Studio <span className="font-medium text-text-soft">· Reel / Video</span></h2></div><div className="flex items-center gap-2"><button className="rounded-xl border border-border-soft px-3 py-2 text-[9px] font-semibold text-text-muted transition hover:border-brand-cyan/30 hover:text-white" onClick={() => setStudioKind('choose')}><ArrowLeft className="mr-1.5 inline size-3.5"/>Video types</button><span className="rounded-full border border-amber-400/25 bg-amber-400/[.06] px-3 py-1 text-[9px] font-bold text-amber-300">{credits} credits</span><button className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:-translate-y-0.5 hover:border-brand-cyan/30 hover:text-white" onClick={onClose}><X className="size-4"/></button></div></header>
     <div className="grid min-h-0 flex-1 lg:grid-cols-[54%_46%]">
       <section className="min-h-0 overflow-y-auto border-r border-border-soft p-4 sm:p-5">

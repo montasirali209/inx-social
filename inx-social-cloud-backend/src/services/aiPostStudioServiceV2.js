@@ -735,6 +735,10 @@ function imagePrompt(input) {
   return parts.join('\n').slice(0, 12000);
 }
 
+function imageSafetyRejected(detail) {
+  return /safety|content[ -]?policy|moderation|unsafe|sensitive|blocked by.*safety|rejected.*safety/i.test(String(detail || ''));
+}
+
 async function openAIImage(prompt, refs, options = {}) {
   const base = String(env.openaiImage.baseUrl).replace(/\/$/, '');
   const model = env.openaiImage.model || 'gpt-image-2';
@@ -781,6 +785,7 @@ async function openAIImage(prompt, refs, options = {}) {
     console.error('[AI POST STUDIO IMAGE]', { status, model, detail, references: refs.length, size });
     if (status === 401 || status === 403) throw publicError('Final image rendering is temporarily unavailable.', 'OPENAI_IMAGE_AUTH', 503);
     if (status === 429) throw publicError('Image rendering is busy right now. Please retry in a moment.', 'OPENAI_IMAGE_RATE_LIMIT', 429);
+    if (imageSafetyRejected(detail)) throw publicError('The image provider blocked this wording for safety. INXSocial will retry ordinary adult creator prompts once with clearer age-safe wording; genuinely restricted requests remain blocked.', 'OPENAI_IMAGE_SAFETY', 400);
     if (status === 400 || status === 422) throw publicError('The final creative could not be rendered with the current brief or references. Refine the concept or remove an incompatible reference and try again.', 'OPENAI_IMAGE_INPUT', 400);
     if ([500, 502, 503, 504].includes(status)) throw publicError('The image provider had a temporary problem. INXSocial will retry once automatically; if it still fails, try again shortly.', 'OPENAI_IMAGE_FAILED', status);
     throw publicError('The final image could not be rendered. Your reserved credits are returned if the render does not complete.', 'OPENAI_IMAGE_FAILED', status >= 400 ? status : 502);
@@ -991,6 +996,7 @@ module.exports = {
   callChatModel,
   imagePrompt,
   sizeForRatio,
+  imageSafetyRejected,
   sourceFingerprint,
   normaliseSourceAnalysis
 };

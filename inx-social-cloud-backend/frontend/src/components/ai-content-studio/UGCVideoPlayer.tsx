@@ -1,4 +1,4 @@
-import { Maximize2, Pause, Play, Volume2, VolumeX, X } from 'lucide-react'
+import { LoaderCircle, Maximize2, Pause, Play, Volume2, VolumeX, X } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useEffect, useRef, useState } from 'react'
 
@@ -27,6 +27,8 @@ export function UGCVideoPlayer({
   const [duration, setDuration] = useState(0)
   const [current, setCurrent] = useState(0)
   const [muted, setMuted] = useState(false)
+  const [buffering, setBuffering] = useState(false)
+  const lowPowerControls = typeof navigator !== 'undefined' && (navigator.hardwareConcurrency || 8) <= 4
 
   useEffect(() => {
     const video = videoRef.current
@@ -34,6 +36,7 @@ export function UGCVideoPlayer({
     setCurrent(0)
     setDuration(0)
     setPlaying(false)
+    setBuffering(false)
     video.load()
     if (autoPlay) {
       void video.play().catch(() => setPlaying(false))
@@ -87,27 +90,33 @@ export function UGCVideoPlayer({
     <video
       className={`size-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
       onClick={() => void togglePlayback()}
+      controls={lowPowerControls}
+      onCanPlay={() => setBuffering(false)}
       onEnded={() => setPlaying(false)}
       onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || 0)}
       onPause={() => setPlaying(false)}
-      onPlay={() => setPlaying(true)}
+      onPlay={() => { setPlaying(true); setBuffering(false) }}
+      onPlaying={() => setBuffering(false)}
+      onStalled={() => setBuffering(true)}
       onTimeUpdate={(event) => setCurrent(event.currentTarget.currentTime || 0)}
+      onWaiting={() => setBuffering(true)}
       playsInline
-      preload="metadata"
+      preload={autoPlay ? 'auto' : 'metadata'}
       ref={videoRef}
       src={src}
     />
 
-    {!playing && <button
+    {buffering && <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/10"><span className="grid size-12 place-items-center rounded-full border border-white/15 bg-black/70 text-white"><LoaderCircle className="size-5 animate-spin" /></span></div>}
+    {!lowPowerControls && !playing && !buffering && <button
       aria-label="Play video"
-      className="absolute left-1/2 top-1/2 grid size-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-black/60 text-white shadow-xl backdrop-blur transition hover:scale-105 hover:bg-black/75"
+      className="absolute left-1/2 top-1/2 grid size-14 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-black/70 text-white shadow-lg transition hover:scale-105 hover:bg-black/80"
       onClick={() => void togglePlayback()}
       type="button"
     >
       <Play className="ml-0.5 size-6 fill-current" />
     </button>}
 
-    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-3 pb-3 pt-10 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+    {!lowPowerControls && <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/45 to-transparent px-3 pb-3 pt-10 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
       <input
         aria-label="Video progress"
         className="h-1.5 w-full cursor-pointer accent-[#2dd4bf]"
@@ -146,7 +155,7 @@ export function UGCVideoPlayer({
           </button>
         </div>
       </div>
-    </div>
+    </div>}
   </div>
 }
 
@@ -179,7 +188,7 @@ export function UGCVideoLightbox({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[360] grid h-[100dvh] w-screen place-items-center overflow-hidden bg-[#01070d]/95 px-3 backdrop-blur-md sm:px-4"
+      className="fixed inset-0 z-[360] grid h-[100dvh] w-screen place-items-center overflow-hidden bg-[#01070d]/96 px-3 sm:px-4"
       onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
       role="dialog"
       aria-modal="true"
@@ -190,7 +199,7 @@ export function UGCVideoLightbox({
       }}
     >
       <div className="relative flex h-full min-h-0 w-full max-w-5xl items-center justify-center">
-        <button aria-label="Close video preview" className="absolute right-0 top-0 z-20 grid size-11 place-items-center rounded-xl border border-white/15 bg-black/75 text-white shadow-lg backdrop-blur hover:bg-black/90" onClick={onClose} type="button">
+        <button aria-label="Close video preview" className="absolute right-0 top-0 z-20 grid size-11 place-items-center rounded-xl border border-white/15 bg-black/80 text-white shadow-lg hover:bg-black/95" onClick={onClose} type="button">
           <X className="size-5" />
         </button>
         <UGCVideoPlayer autoPlay className="aspect-[9/16] max-h-full w-auto max-w-full rounded-[20px] border border-white/10 shadow-2xl sm:rounded-[24px]" src={src} />
