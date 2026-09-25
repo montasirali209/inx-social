@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { ArticleCard } from "./components/ArticleCard";
 import { IntegrationPending } from "./components/IntegrationPending";
-import { BLOG_REVALIDATE_SECONDS, getBlogClient } from "./lib/blog-client";
+import { getBlogClient } from "./lib/blog-client";
 import type { BlogArticleSummary } from "./types";
 
-export const revalidate = BLOG_REVALIDATE_SECONDS;
+export const revalidate = 86400;
 
 const PAGE_SIZE = 12;
 
