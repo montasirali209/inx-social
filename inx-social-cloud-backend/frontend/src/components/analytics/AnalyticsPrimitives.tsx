@@ -22,50 +22,50 @@ const loadingStats = [
   ['⚡', 'Content insights'],
 ] as const
 
-export function AnalyticsKpiSkeleton() {
-  return <div aria-label="Loading Analytics metrics" className="scrollbar-thin flex gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 xl:grid-cols-6" role="status">
+export function AnalyticsKpiSkeleton({ active = true }: { active?: boolean }) {
+  return <div aria-label={active ? 'Loading Analytics metrics' : 'Analytics metrics waiting for account data'} className="scrollbar-thin flex gap-3 overflow-x-auto pb-1 sm:grid sm:grid-cols-2 xl:grid-cols-6" role="status">
     {loadingStats.map(([emoji, label], index) => <div className="relative min-w-[205px] min-h-28 overflow-hidden rounded-card border border-border-soft bg-panel/70 p-3" key={label}>
       <div aria-hidden="true" className="absolute -right-5 -top-5 size-16 rounded-full bg-brand-cyan/[.05] blur-2xl" />
-      <div className="relative flex items-center gap-2"><span className="grid size-8 place-items-center rounded-lg border border-white/[.07] bg-white/[.025] text-base motion-safe:animate-bounce" style={{ animationDelay: `${index * 90}ms` }}>{emoji}</span><span className="text-[10px] font-semibold text-text-muted">{label}</span></div>
-      <strong className="relative mt-3 block text-sm text-text-main">Updating…</strong>
-      <div className="relative mt-3 h-1.5 overflow-hidden rounded-full bg-border-soft"><span className="block h-full w-2/3 animate-pulse rounded-full bg-gradient-to-r from-brand-teal/60 to-brand-cyan motion-reduce:animate-none" /></div>
-      <small className="relative mt-2 block text-[9px] text-text-soft">Fetching latest metrics</small>
+      <div className="relative flex items-center gap-2"><span className={`grid size-8 place-items-center rounded-lg border border-white/[.07] bg-white/[.025] text-base ${active ? 'motion-safe:animate-bounce' : ''}`} style={{ animationDelay: `${index * 90}ms` }}>{emoji}</span><span className="text-[10px] font-semibold text-text-muted">{label}</span></div>
+      <strong className="relative mt-3 block text-sm text-text-main">{active ? 'Updating…' : '—'}</strong>
+      <div className="relative mt-3 h-1.5 overflow-hidden rounded-full bg-border-soft"><span className={`block h-full w-2/3 rounded-full bg-gradient-to-r from-brand-teal/60 to-brand-cyan ${active ? 'animate-pulse motion-reduce:animate-none' : 'opacity-30'}`} /></div>
+      <small className="relative mt-2 block text-[9px] text-text-soft">{active ? 'Fetching latest metrics' : 'Waiting for verified account data'}</small>
     </div>)}
   </div>
 }
 
 
-function LoadingPanel({ title, className = '', rows = 3 }: { title: string; className?: string; rows?: number }) {
+function LoadingPanel({ title, className = '', rows = 3, active = true }: { title: string; className?: string; rows?: number; active?: boolean }) {
   return <AnalyticsCard className={`bg-panel/70 ${className}`}>
-    <AnalyticsCardHeader title={title} description="Latest account analytics are being synchronized." />
+    <AnalyticsCardHeader title={title} description={active ? 'Latest account analytics are being synchronized.' : 'This section will populate when verified account analytics are available.'} />
     <div className="space-y-3 px-4 pb-5 sm:px-5">
       {Array.from({ length: rows }, (_, index) => <div className="overflow-hidden rounded-lg border border-white/[.05] bg-white/[.02] p-3" key={index}>
-        <div className="h-2.5 w-2/5 animate-pulse rounded-full bg-white/[.08] motion-reduce:animate-none" />
-        <div className="mt-2 h-2 w-4/5 animate-pulse rounded-full bg-white/[.045] motion-reduce:animate-none" style={{ animationDelay: `${index * 100}ms` }} />
+        <div className={`h-2.5 w-2/5 rounded-full bg-white/[.08] ${active ? 'animate-pulse motion-reduce:animate-none' : ''}`} />
+        <div className={`mt-2 h-2 w-4/5 rounded-full bg-white/[.045] ${active ? 'animate-pulse motion-reduce:animate-none' : ''}`} style={{ animationDelay: `${index * 100}ms` }} />
       </div>)}
     </div>
   </AnalyticsCard>
 }
 
-export function AnalyticsWorkspaceSkeleton() {
-  return <div aria-label="Synchronizing Analytics workspace" className="analytics-data-transition space-y-4" role="status">
-    <AnalyticsKpiSkeleton />
+export function AnalyticsWorkspaceSkeleton({ active = true }: { active?: boolean }) {
+  return <div aria-label={active ? 'Synchronizing Analytics workspace' : 'Analytics workspace waiting for verified account data'} className="analytics-data-transition space-y-4" role="status">
+    <AnalyticsKpiSkeleton active={active} />
     <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,2.15fr)_minmax(280px,.62fr)]">
       <AnalyticsCard className="min-h-[360px] bg-panel/70">
-        <AnalyticsCardHeader title="Content Performance by Publish Date" description="Latest post performance is being synchronized." />
+        <AnalyticsCardHeader title="Content Performance by Publish Date" description={active ? 'Latest post performance is being synchronized.' : 'Verified post performance will appear here after analytics access is restored.'} />
         <div className="relative mx-4 mb-5 h-[260px] overflow-hidden rounded-xl border border-white/[.05] bg-bg/25 sm:mx-5">
           <div className="absolute inset-x-5 bottom-7 top-5 flex items-end gap-2">
-            {[18, 26, 21, 38, 31, 44, 35, 58, 49, 72, 60, 84, 52].map((height, index) => <span className="min-w-0 flex-1 animate-pulse rounded-t-sm bg-gradient-to-t from-brand-cyan/55 to-brand-blue/20 motion-reduce:animate-none" key={index} style={{ height: `${height}%`, animationDelay: `${index * 70}ms` }} />)}
+            {[18, 26, 21, 38, 31, 44, 35, 58, 49, 72, 60, 84, 52].map((height, index) => <span className={`min-w-0 flex-1 rounded-t-sm bg-gradient-to-t from-brand-cyan/55 to-brand-blue/20 ${active ? 'animate-pulse motion-reduce:animate-none' : 'opacity-25'}`} key={index} style={{ height: `${height}%`, animationDelay: `${index * 70}ms` }} />)}
           </div>
-          <span className="absolute bottom-3 left-5 text-[9px] text-text-soft">Updating latest account performance…</span>
+          <span className="absolute bottom-3 left-5 text-[9px] text-text-soft">{active ? 'Updating latest account performance…' : 'Waiting for verified account performance'}</span>
         </div>
       </AnalyticsCard>
-      <LoadingPanel className="min-h-[360px]" rows={4} title="Engagement by Platform" />
+      <LoadingPanel active={active} className="min-h-[360px]" rows={4} title="Engagement by Platform" />
     </div>
     <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(260px,.75fr)_minmax(300px,.9fr)]">
-      <LoadingPanel title="Top Performing Posts" />
-      <LoadingPanel title="Content Efficiency" rows={2} />
-      <LoadingPanel title="Publishing Rhythm" rows={2} />
+      <LoadingPanel active={active} title="Top Performing Posts" />
+      <LoadingPanel active={active} title="Content Efficiency" rows={2} />
+      <LoadingPanel active={active} title="Publishing Rhythm" rows={2} />
     </div>
   </div>
 }
