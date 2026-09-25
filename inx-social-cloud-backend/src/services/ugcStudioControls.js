@@ -1,6 +1,6 @@
 const STUDIO_CONTROLS_VERSION = 'ugc-studio-controls-v1';
 
-const SUPPORTED_DURATIONS = Object.freeze([15, 20, 30]);
+const SUPPORTED_DURATIONS = Object.freeze([20, 30, 45, 60]);
 const SUPPORTED_COUNTS = Object.freeze([1, 5, 10, 15, 20]);
 const SUPPORTED_QUALITIES = Object.freeze(['STANDARD', 'PREMIUM']);
 
@@ -34,9 +34,10 @@ const QUALITY_TIERS = Object.freeze({
 });
 
 const DURATION_OPTIONS = Object.freeze({
-  15: Object.freeze({ seconds: 15, label: 'Quick', description: 'Fast hook and one clear message.' }),
-  20: Object.freeze({ seconds: 20, label: 'Balanced', description: 'More room for proof while keeping a tight social pace.' }),
-  30: Object.freeze({ seconds: 30, label: 'Full ad', description: 'Best when the story needs several beats or demonstrations.' })
+  20: Object.freeze({ seconds: 20, label: 'Balanced', description: 'Fast creator-native UGC with a hook, useful value and a clean close.' }),
+  30: Object.freeze({ seconds: 30, label: 'Full ad', description: 'More room for product value while keeping a social-first pace.' }),
+  45: Object.freeze({ seconds: 45, label: 'Extended', description: 'Longer UGC for richer explanation without losing momentum.' }),
+  60: Object.freeze({ seconds: 60, label: 'Long-form', description: 'A full creator-led pitch with room for more detail and proof.' })
 });
 
 const VARIATION_OPTIONS = Object.freeze({
