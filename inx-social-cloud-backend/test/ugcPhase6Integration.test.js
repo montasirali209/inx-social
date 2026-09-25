@@ -74,8 +74,8 @@ test('Phase 6 does not change fixed UGC pricing, router or Creator V2', () => {
   const studio = read('src/services/ugcStudioService.js');
   const router = read('src/services/ugcModelRouter.js');
   const creators = read('src/services/ugcCreatorEngine.js');
-  assert.match(studio, /STANDARD_CREDITS = Object\.freeze\(\{ 15: 100, 20: 140, 30: 210 \}\)/);
-  assert.match(studio, /PREMIUM_CREDITS = Object\.freeze\(\{ 15: 180, 20: 260, 30: 390 \}\)/);
+  assert.match(studio, /STANDARD_CREDITS = Object\.freeze\(\{ 20: 140, 30: 210, 45: 315, 60: 420 \}\)/);
+  assert.match(studio, /PREMIUM_CREDITS = Object\.freeze\(\{ 20: 260, 30: 390, 45: 585, 60: 780 \}\)/);
   assert.match(router, /ROUTER_VERSION = 'ugc-router-v1'/);
   assert.match(creators, /CREATOR_PROFILE_VERSION = 'ugc-creators-v2'/);
 });

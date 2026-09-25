@@ -7,13 +7,13 @@ const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 const router = require('../src/services/ugcModelRouter');
 
-test('Phase 3.1 rejects unsupported discrete Hailuo durations at the router boundary', () => {
+test('Phase 3.1 rejects H3 Max Standard durations outside the supported range', () => {
   assert.throws(
     () => router.routeForScene({
       quality: 'STANDARD',
       kind: 'CREATOR',
-      providerDuration: 8,
-      playbackDuration: 8,
+      providerDuration: 4,
+      playbackDuration: 4,
       hasActor: true,
       hasProductReference: false,
       hasNarration: true,
@@ -23,8 +23,8 @@ test('Phase 3.1 rejects unsupported discrete Hailuo durations at the router boun
   );
 });
 
-test('Phase 3.1 preserves supported Standard Hailuo durations', () => {
-  for (const duration of [6, 10]) {
+test('Phase 3.1 preserves supported H3 Max Standard durations', () => {
+  for (const duration of [5, 10, 15]) {
     const route = router.routeForScene({
       quality: 'STANDARD',
       kind: 'CREATOR',
@@ -35,8 +35,8 @@ test('Phase 3.1 preserves supported Standard Hailuo durations', () => {
       hasNarration: true,
       mode: 'adaptive'
     });
-    assert.equal(route.routeKey, 'HAILUO_STANDARD_V1');
-    assert.deepEqual(route.capability.supportedDurations, [6, 10]);
+    assert.equal(route.routeKey, 'H3_MAX_STANDARD_V1');
+    assert.equal(route.capability.supportedDurations, 'INTEGER_5_15');
   }
 });
 

@@ -5,6 +5,7 @@ const runware = require('./runwareService');
 const ADAPTERS_VERSION = 'ugc-adapters-v1';
 
 const ADAPTER_KEYS = Object.freeze({
+  H3_MAX: 'H3_MAX',
   HAILUO_23: 'HAILUO_23',
   KLING_LEGACY: 'KLING_LEGACY',
   OMNIHUMAN_15: 'OMNIHUMAN_15',
@@ -13,6 +14,8 @@ const ADAPTER_KEYS = Object.freeze({
 });
 
 const ROUTE_ALIASES = new Map([
+  ['H3_MAX', ADAPTER_KEYS.H3_MAX],
+  ['H3_MAX_STANDARD_V1', ADAPTER_KEYS.H3_MAX],
   ['HAILUO', ADAPTER_KEYS.HAILUO_23],
   ['HAILUO_STANDARD_V1', ADAPTER_KEYS.HAILUO_23],
   ['KLING', ADAPTER_KEYS.KLING_LEGACY],
@@ -36,7 +39,8 @@ function adapterError(message, code = 'UGC_ADAPTER_ERROR', status = 422) {
 
 function modelIds() {
   return {
-    hailuo23: env.runware.ugcStandardModel || 'minimax:4@1',
+    h3Max: env.runware.ugcStandardModel || 'minimax:h3@max',
+    hailuo23: 'minimax:4@1',
     klingLegacy: env.runware.ugcPremiumModel || 'klingai:kling-video@3-standard',
     omniHuman15: env.runware.ugcOmniHumanModel || 'bytedance:5@2',
     seedance25: env.runware.ugcSeedanceModel || 'bytedance:seedance@2.5',
@@ -49,6 +53,22 @@ function modelIds() {
 function capabilities() {
   const ids = modelIds();
   return {
+    [ADAPTER_KEYS.H3_MAX]: {
+      adapterKey: ADAPTER_KEYS.H3_MAX,
+      provider: 'runware',
+      model: ids.h3Max,
+      modes: ['TEXT_TO_VIDEO','REFERENCE_TO_VIDEO'],
+      sceneKinds: ['CREATOR','PRODUCT','LIFESTYLE','CTA'],
+      minDuration: 5,
+      maxDuration: 15,
+      supportedDurations: 'INTEGER_5_15',
+      maxReferenceImages: 9,
+      referenceMode: 'REFERENCE_IMAGES',
+      audioMode: 'NATIVE_SYNC_AUDIO',
+      nativeLipSync: true,
+      resolution: '768p',
+      aspectRatio: '9:16'
+    },
     [ADAPTER_KEYS.HAILUO_23]: {
       adapterKey: ADAPTER_KEYS.HAILUO_23,
       provider: 'runware',
@@ -161,18 +181,19 @@ function validateContext(cap, context) {
   if (typeof cap.maxDuration === 'number' && duration > cap.maxDuration && cap.adapterKey !== ADAPTER_KEYS.OMNIHUMAN_15) {
     throw adapterError('The selected UGC route cannot render a scene this long.', 'UGC_ROUTE_DURATION_UNSUPPORTED', 422);
   }
-  if (!context.reference) throw adapterError('This UGC route requires a visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
+  const references = Array.isArray(context.references) ? context.references.filter(Boolean) : (context.reference ? [context.reference] : []);
+  if (!references.length) throw adapterError('This UGC route requires a visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
   if (cap.adapterKey === ADAPTER_KEYS.OMNIHUMAN_15 && !context.narration?.audioURL) {
     throw adapterError('Professional creator rendering requires narrator audio.', 'UGC_NARRATION_REQUIRED', 422);
   }
 }
 
-function providerPrompt(prompt) {
-  const value = clean(prompt, 2000);
+function providerPrompt(prompt, max = 2000) {
+  const value = clean(prompt, Math.max(2, Number(max || 2000)));
   return value.length >= 2 ? value : 'Natural creator-led UGC scene.';
 }
 
-function commonTask(model, prompt) {
+function commonTask(model, prompt, maxPrompt = 2000) {
   return {
     taskType: 'videoInference',
     taskUUID: crypto.randomUUID(),
@@ -181,13 +202,22 @@ function commonTask(model, prompt) {
     outputType: 'URL',
     outputFormat: 'MP4',
     model,
-    positivePrompt: providerPrompt(prompt)
+    positivePrompt: providerPrompt(prompt, maxPrompt)
   };
 }
 
 function buildTask(cap, context) {
-  const task = commonTask(cap.model, context.prompt);
+  const task = commonTask(cap.model, context.prompt, cap.adapterKey === ADAPTER_KEYS.H3_MAX ? 7000 : 2000);
   const duration = Number(context.providerDuration);
+  if (cap.adapterKey === ADAPTER_KEYS.H3_MAX) {
+    const references = (Array.isArray(context.references) ? context.references : [context.reference]).filter(Boolean).slice(0, 9);
+    task.duration = duration;
+    task.width = 768;
+    task.height = 1344;
+    task.inputs = { referenceImages: references };
+    task.settings = { promptExpansion: 'quality' };
+    return task;
+  }
   if (cap.adapterKey === ADAPTER_KEYS.HAILUO_23) {
     task.duration = duration;
     task.fps = 25;
@@ -209,7 +239,7 @@ function buildTask(cap, context) {
     task.duration = duration;
     task.width = 720;
     task.height = 1280;
-    task.inputs = { referenceImages: [context.reference] };
+    task.inputs = { referenceImages: (Array.isArray(context.references) ? context.references : [context.reference]).filter(Boolean).slice(0, cap.maxReferenceImages) };
     task.settings = { audio: false };
     return task;
   }
@@ -246,7 +276,7 @@ async function pollTask(taskUUID, onProgress = () => {}) {
 }
 
 function postProcessFor(cap, context) {
-  if (cap.adapterKey === ADAPTER_KEYS.OMNIHUMAN_15) return 'NONE';
+  if ([ADAPTER_KEYS.H3_MAX, ADAPTER_KEYS.OMNIHUMAN_15].includes(cap.adapterKey)) return 'NONE';
   if (!context.narration?.audioURL) return 'NONE';
   return isCreatorLike(context.kind) ? 'LIP_SYNC' : 'LOCAL_MUX';
 }

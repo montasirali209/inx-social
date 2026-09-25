@@ -19,17 +19,19 @@ const {
   captionsForScenes
 } = require('../src/services/ugcStudioService');
 
-test('UGC v2 pricing supports 15, 20 and 30 second Standard and Premium ads', () => {
-  assert.deepEqual(STANDARD_CREDITS, { 15: 100, 20: 140, 30: 210 });
-  assert.deepEqual(PREMIUM_CREDITS, { 15: 180, 20: 260, 30: 390 });
+test('UGC pricing supports 20, 30, 45 and 60 second Standard and Premium ads', () => {
+  assert.deepEqual(STANDARD_CREDITS, { 20: 140, 30: 210, 45: 315, 60: 420 });
+  assert.deepEqual(PREMIUM_CREDITS, { 20: 260, 30: 390, 45: 585, 60: 780 });
   assert.equal(AVATAR_CREDITS, 5);
-  assert.equal(creditsPerAd(15, 'STANDARD'), 100);
   assert.equal(creditsPerAd(20, 'STANDARD'), 140);
   assert.equal(creditsPerAd(30, 'STANDARD'), 210);
-  assert.equal(creditsPerAd(15, 'PREMIUM'), 180);
+  assert.equal(creditsPerAd(45, 'STANDARD'), 315);
+  assert.equal(creditsPerAd(60, 'STANDARD'), 420);
   assert.equal(creditsPerAd(20, 'PREMIUM'), 260);
   assert.equal(creditsPerAd(30, 'PREMIUM'), 390);
-  assert.throws(() => creditsPerAd(60, 'STANDARD'));
+  assert.equal(creditsPerAd(45, 'PREMIUM'), 585);
+  assert.equal(creditsPerAd(60, 'PREMIUM'), 780);
+  assert.throws(() => creditsPerAd(15, 'STANDARD'));
 });
 
 test('creator library retains 52 system seeds and launches with 20 featured creators', () => {
@@ -39,30 +41,34 @@ test('creator library retains 52 system seeds and launches with 20 featured crea
   assert.equal(new Set(avatarSeeds.map((avatar) => avatar.slug)).size, avatarSeeds.length);
 });
 
-test('Standard Hailuo scene templates use only supported 6 or 10 second generations', () => {
-  assert.deepEqual(visualDurations(15, 'STANDARD', 'AVATAR_EXPLAINER'), [10, 6]);
+test('Standard H3 Max scene templates stay within the 5 to 15 second provider window', () => {
   assert.deepEqual(visualDurations(20, 'STANDARD', 'PRODUCT_SHOWCASE'), [10, 10]);
   assert.deepEqual(visualDurations(30, 'STANDARD', 'AVATAR_EXPLAINER'), [10, 10, 10]);
-  for (const duration of [15,20,30]) {
+  assert.deepEqual(visualDurations(45, 'STANDARD', 'PRODUCT_SHOWCASE'), [15, 15, 15]);
+  assert.deepEqual(visualDurations(60, 'STANDARD', 'AVATAR_EXPLAINER'), [15, 15, 15, 15]);
+  for (const duration of [20,30,45,60]) {
     const clips = visualDurations(duration, 'STANDARD', 'PRODUCT_SHOWCASE');
-    assert.ok(clips.every((value) => value === 6 || value === 10));
-    assert.ok(clips.reduce((sum, value) => sum + value, 0) >= duration);
+    assert.ok(clips.every((value) => value >= 5 && value <= 15));
+    assert.equal(clips.reduce((sum, value) => sum + value, 0), duration);
   }
 });
 
-test('15-second Hailuo ads reserve provider-safe footage but only use 15 seconds of spoken playback', () => {
-  assert.deepEqual(playbackDurations(15, [10, 6]), [10, 5]);
+test('Standard H3 Max playback uses the full requested duration', () => {
   assert.deepEqual(playbackDurations(20, [10, 10]), [10, 10]);
   assert.deepEqual(playbackDurations(30, [10, 10, 10]), [10, 10, 10]);
+  assert.deepEqual(playbackDurations(45, [15, 15, 15]), [15, 15, 15]);
+  assert.deepEqual(playbackDurations(60, [15, 15, 15, 15]), [15, 15, 15, 15]);
 });
 
-test('Premium Kling scene templates never exceed 15 seconds', () => {
-  for (const duration of [15,20,30]) {
-    for (const campaignType of ['AVATAR_EXPLAINER','PRODUCT_SHOWCASE']) {
-      const clips = visualDurations(duration, 'PREMIUM', campaignType);
-      assert.ok(clips.every((value) => value >= 3 && value <= 15));
-      assert.equal(clips.reduce((sum, value) => sum + value, 0), duration);
-    }
+test('Premium scene templates stay within each routed model capability', () => {
+  for (const duration of [20,30,45,60]) {
+    const creatorClips = visualDurations(duration, 'PREMIUM', 'AVATAR_EXPLAINER');
+    assert.equal(creatorClips.reduce((sum, value) => sum + value, 0), duration);
+    assert.ok(creatorClips.every((value) => value >= 1 && value <= 60));
+
+    const productClips = visualDurations(duration, 'PREMIUM', 'PRODUCT_SHOWCASE');
+    assert.equal(productClips.reduce((sum, value) => sum + value, 0), duration);
+    assert.ok(productClips.every((value) => value >= 4 && value <= 30));
   }
 });
 

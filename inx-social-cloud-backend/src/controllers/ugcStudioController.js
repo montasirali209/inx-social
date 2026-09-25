@@ -3,7 +3,7 @@ const express = require('express');
 const service = require('../services/ugcStudioService');
 const analytics = require('../services/ugcStudioAnalyticsService');
 
-const durations = [15, 20, 30];
+const durations = [20, 30, 45, 60];
 const counts = [1, 5, 10, 15, 20];
 
 const createSchema = z.object({
@@ -16,7 +16,7 @@ const createSchema = z.object({
   creativeFormat: z.enum(['AUTO','PROBLEM_SOLUTION','PRODUCT_DEMO','TESTIMONIAL','UNBOXING','REACTION','BEFORE_AFTER','STORYTIME','SPOKESPERSON','PRODUCT_FOCUSED']).optional().default('AUTO'),
   avatarId: z.string().trim().max(120).optional().nullable(),
   creatorMode: z.enum(['AUTO', 'SELECTED']).default('AUTO'),
-  duration: z.number().int().refine(v => durations.includes(v), 'Choose 15, 20 or 30 seconds.'),
+  duration: z.number().int().refine(v => durations.includes(v), 'Choose 20, 30, 45 or 60 seconds.'),
   adCount: z.number().int().refine(v => counts.includes(v), 'Choose 1, 5, 10, 15 or 20 ads.'),
   quality: z.enum(['STANDARD', 'PREMIUM']).default('STANDARD'),
   notes: z.string().trim().max(1200).optional().default('')
@@ -27,7 +27,7 @@ const createSchema = z.object({
 });
 
 const estimateSchema = z.object({
-  duration: z.number().int().refine(v => durations.includes(v), 'Choose 15, 20 or 30 seconds.'),
+  duration: z.number().int().refine(v => durations.includes(v), 'Choose 20, 30, 45 or 60 seconds.'),
   adCount: z.number().int().refine(v => counts.includes(v), 'Choose 1, 5, 10, 15 or 20 ads.'),
   quality: z.enum(['STANDARD', 'PREMIUM']).default('STANDARD'),
   campaignType: z.enum(['AUTO', 'AVATAR_EXPLAINER', 'PRODUCT_SHOWCASE']).optional().default('AUTO'),
@@ -236,7 +236,7 @@ async function uploadSample(req, res, next) {
       description: String(req.headers['x-sample-description'] || '').slice(0, 600),
       campaignType: ['AVATAR_EXPLAINER','PRODUCT_SHOWCASE'].includes(String(req.headers['x-campaign-type'])) ? String(req.headers['x-campaign-type']) : 'AVATAR_EXPLAINER',
       quality: String(req.headers['x-quality']).toUpperCase() === 'PREMIUM' ? 'PREMIUM' : 'STANDARD',
-      duration: [15,20,30].includes(Number(req.headers['x-duration'])) ? Number(req.headers['x-duration']) : 15,
+      duration: [20,30,45,60].includes(Number(req.headers['x-duration'])) ? Number(req.headers['x-duration']) : 20,
       sortOrder: Number(req.headers['x-sort-order'] || 0),
       name: decodeURIComponent(String(req.headers['x-file-name'] || 'ugc-sample.mp4')),
       mimeType: String(req.headers['content-type'] || 'video/mp4').split(';')[0],

@@ -1,11 +1,10 @@
-const env = require('../config/env');
 const adapters = require('./ugcProviderAdapters');
 const creators = require('./ugcCreatorEngine');
 
 const ROUTER_VERSION = 'ugc-router-v1';
 
 const ROUTE_KEYS = Object.freeze({
-  STANDARD: 'HAILUO_STANDARD_V1',
+  STANDARD: 'H3_MAX_STANDARD_V1',
   LEGACY_PREMIUM: 'KLING_PREMIUM_V1',
   PROFESSIONAL_CREATOR: 'OMNIHUMAN_CREATOR_V1',
   PREMIUM_DYNAMIC: 'SEEDANCE_DYNAMIC_V1',
@@ -17,7 +16,9 @@ function clean(value, max = 4000) {
 }
 
 function routerMode() {
-  return String(env.runware?.ugcRouterMode || 'adaptive').toLowerCase() === 'compatibility' ? 'compatibility' : 'adaptive';
+  // New generation always uses the capability router. Legacy provider adapters
+  // remain available only to finish or inspect already-persisted historical jobs.
+  return 'adaptive';
 }
 
 function isCreatorLike(kind) {
@@ -52,30 +53,27 @@ function routeForScene({
   let reason;
   let fallbacks = [];
 
-  if (mode === 'compatibility') {
-    routeKey = normalizedQuality === 'PREMIUM' ? ROUTE_KEYS.LEGACY_PREMIUM : ROUTE_KEYS.STANDARD;
-    reason = 'COMPATIBILITY_MODE';
-  } else if (normalizedQuality !== 'PREMIUM') {
+  if (normalizedQuality !== 'PREMIUM') {
     routeKey = ROUTE_KEYS.STANDARD;
     reason = 'STANDARD_COST_EFFICIENT_ROUTE';
   } else if (isCreatorLike(normalizedKind)) {
     if (hasActor && hasNarration) {
       routeKey = ROUTE_KEYS.PROFESSIONAL_CREATOR;
       reason = 'PREMIUM_AUDIO_DRIVEN_CREATOR';
-      fallbacks = [ROUTE_KEYS.DYNAMIC_FALLBACK, ROUTE_KEYS.LEGACY_PREMIUM];
+      fallbacks = [ROUTE_KEYS.STANDARD];
     } else {
-      routeKey = ROUTE_KEYS.DYNAMIC_FALLBACK;
+      routeKey = ROUTE_KEYS.STANDARD;
       reason = 'CREATOR_INPUT_FALLBACK';
-      fallbacks = [ROUTE_KEYS.LEGACY_PREMIUM];
+      fallbacks = [];
     }
   } else if (['PRODUCT','LIFESTYLE'].includes(normalizedKind) && hasProductReference) {
     routeKey = ROUTE_KEYS.PREMIUM_DYNAMIC;
     reason = 'PREMIUM_REFERENCE_GUIDED_PRODUCT';
-    fallbacks = [ROUTE_KEYS.DYNAMIC_FALLBACK, ROUTE_KEYS.LEGACY_PREMIUM];
+    fallbacks = [ROUTE_KEYS.STANDARD];
   } else {
-    routeKey = ROUTE_KEYS.DYNAMIC_FALLBACK;
-    reason = 'GENERAL_PREMIUM_DYNAMIC';
-    fallbacks = [ROUTE_KEYS.LEGACY_PREMIUM];
+    routeKey = ROUTE_KEYS.STANDARD;
+    reason = 'GENERAL_PREMIUM_STANDARD_FALLBACK';
+    fallbacks = [];
   }
 
   const allowed = Array.isArray(allowedRoutes) && allowedRoutes.length ? new Set(allowedRoutes) : null;
@@ -115,13 +113,15 @@ function routeForScene({
 
   const selected = adapters.getAdapter(routeKey);
   const referenceRole = isCreatorLike(normalizedKind) ? 'ACTOR' : 'PRODUCT';
-  const audioStrategy = selected.adapterKey === adapters.ADAPTER_KEYS.OMNIHUMAN_15
-    ? 'AUDIO_DRIVEN_NATIVE'
-    : isCreatorLike(normalizedKind) ? 'TTS_THEN_LIP_SYNC' : 'TTS_THEN_LOCAL_MUX';
+  const audioStrategy = selected.adapterKey === adapters.ADAPTER_KEYS.H3_MAX
+    ? 'NATIVE_SYNC_AUDIO'
+    : selected.adapterKey === adapters.ADAPTER_KEYS.OMNIHUMAN_15
+      ? 'AUDIO_DRIVEN_NATIVE'
+      : isCreatorLike(normalizedKind) ? 'TTS_THEN_LIP_SYNC' : 'TTS_THEN_LOCAL_MUX';
 
   return {
     routerVersion: ROUTER_VERSION,
-    mode,
+    mode: 'adaptive',
     routeKey,
     adapterKey: selected.adapterKey,
     provider: selected.provider,
@@ -170,7 +170,7 @@ function routePlan({
           hasProductReference,
           hasNarration: clean(scene.script, 5000).length >= 2,
           allowedRoutes: avatar && isCreatorLike(scene.kind) ? creators.profileFromRow(avatar).routeCompatibility : null,
-          mode
+          mode: routerMode()
         })
       }))
     };
@@ -179,7 +179,7 @@ function routePlan({
   return {
     ...plan,
     routerVersion: ROUTER_VERSION,
-    routerMode: mode,
+    routerMode: routerMode(),
     routingSummary: summarizeRoutes(routedAds),
     ads: routedAds
   };

@@ -83,8 +83,8 @@ test('Phase 7 preserves pricing, router, Creator V2, Phase 5 grammar and Phase 6
   const creators = read('src/services/ugcCreatorEngine.js');
   const formats = read('src/services/ugcCreativeFormats.js');
   const controls = read('src/services/ugcStudioControls.js');
-  assert.match(studio, /STANDARD_CREDITS = Object\.freeze\(\{ 15: 100, 20: 140, 30: 210 \}\)/);
-  assert.match(studio, /PREMIUM_CREDITS = Object\.freeze\(\{ 15: 180, 20: 260, 30: 390 \}\)/);
+  assert.match(studio, /STANDARD_CREDITS = Object\.freeze\(\{ 20: 140, 30: 210, 45: 315, 60: 420 \}\)/);
+  assert.match(studio, /PREMIUM_CREDITS = Object\.freeze\(\{ 20: 260, 30: 390, 45: 585, 60: 780 \}\)/);
   assert.match(router, /ROUTER_VERSION = 'ugc-router-v1'/);
   assert.match(creators, /CREATOR_PROFILE_VERSION = 'ugc-creators-v2'/);
   assert.match(formats, /CREATIVE_FORMAT_VERSION = 'ugc-formats-v1'/);

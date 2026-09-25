@@ -30,8 +30,8 @@ function creators() {
 
 test('Phase 2 skills are versioned and script timing budgets are explicit', () => {
   assert.equal(SKILLS_VERSION, 'ugc-skills-v1');
-  assert.deepEqual(Object.keys(SCRIPT_BUDGETS).map(Number), [15,20,30]);
-  assert.equal(scriptTimingSpec(15).hardMax, 36);
+  assert.deepEqual(Object.keys(SCRIPT_BUDGETS).map(Number), [20,30,45,60]);
+  assert.equal(scriptTimingSpec(20).hardMax, 52);
   assert.equal(scriptTimingSpec(30).closingRule, 'SPEECH_FINISHES_BEFORE_CUT');
 });
 
@@ -58,8 +58,8 @@ test('brand understanding skill stores only evidence-grounded creative inputs', 
 
 test('script timing prevents overlong speech and preserves the CTA inside the hard budget', () => {
   const long = Array.from({ length: 60 }, (_, i) => 'word' + i).join(' ') + '.';
-  const timed = scriptTimingSkill({ script: long, duration: 15, cta: 'Try it today.' });
-  assert.ok(timed.finalWordCount <= 36);
+  const timed = scriptTimingSkill({ script: long, duration: 20, cta: 'Try it today.' });
+  assert.ok(timed.finalWordCount <= 52);
   assert.equal(timed.spokenCtaIncluded, true);
   assert.match(timed.script, /Try it today\./i);
   assert.equal(timed.minSpeechRateMultiplier, 1);
@@ -102,7 +102,7 @@ test('Creator V2 preflight rejects a creator that cannot serve the requested pro
     ageBand: '25–34',
     locale: 'en-GB',
     voice: 'Pippa',
-    routeCompatibilityJson: JSON.stringify(['HAILUO_STANDARD_V1'])
+    routeCompatibilityJson: JSON.stringify(['SEEDANCE_DYNAMIC_V1'])
   };
   const cast = creatorCastingSkill({
     ads: [{ creatorProfile: { category: 'Lifestyle' } }],
@@ -113,11 +113,11 @@ test('Creator V2 preflight rejects a creator that cannot serve the requested pro
   });
   assert.equal(cast.assignments[0].routeCompatible, false);
 
-  const timing = scriptTimingSkill({ script: 'A concise creator explanation that fits the requested ad duration.', duration: 15, cta: '' });
+  const timing = scriptTimingSkill({ script: 'A concise creator explanation that fits the requested ad duration.', duration: 20, cta: '' });
   const scenePlan = scenePlanningSkill({
     resolvedType: 'AVATAR_EXPLAINER',
-    providerDurations: [10, 6],
-    playbackDurations: [10, 5],
+    providerDurations: [10, 10],
+    playbackDurations: [10, 10],
     rawScenes: [{ kind: 'CREATOR' }, { kind: 'CREATOR' }]
   });
   const qc = qualityControlSkill({
@@ -135,23 +135,23 @@ test('Creator V2 preflight rejects a creator that cannot serve the requested pro
 test('scene planning locks avatar explainers to creator scenes and preserves provider/playback durations', () => {
   const plan = scenePlanningSkill({
     resolvedType: 'AVATAR_EXPLAINER',
-    providerDurations: [10, 6],
-    playbackDurations: [10, 5],
+    providerDurations: [10, 10],
+    playbackDurations: [10, 10],
     rawScenes: [{ kind: 'PRODUCT', objective: 'wrong kind' }, { kind: 'CTA', objective: 'finish' }]
   });
   assert.deepEqual(plan.scenes.map(x => x.kind), ['CREATOR','CREATOR']);
-  assert.deepEqual(plan.scenes.map(x => x.providerDuration), [10,6]);
-  assert.deepEqual(plan.scenes.map(x => x.playbackDuration), [10,5]);
+  assert.deepEqual(plan.scenes.map(x => x.providerDuration), [10,10]);
+  assert.deepEqual(plan.scenes.map(x => x.playbackDuration), [10,10]);
 });
 
 test('consistency, motion, camera and fidelity skills return structured safeguards', () => {
   const avatar = creators()[0];
   const identity = creatorConsistencySkill({ avatar, campaignType: 'AVATAR_EXPLAINER' });
-  const voice = voiceConsistencySkill({ avatar, timing: scriptTimingSpec(15) });
+  const voice = voiceConsistencySkill({ avatar, timing: scriptTimingSpec(20) });
   const product = productFidelitySkill({ hasProductReference: true });
   const motion = naturalMotionSkill({ energy: 'ENERGETIC' });
   const camera = cameraStyleSkill({ campaignType: 'PRODUCT_SHOWCASE', strategy: { cameraStyle: 'HYBRID' } });
-  const finish = adFinishingSkill({ duration: 15, captionsEnabled: true, musicMode: 'AUTO' });
+  const finish = adFinishingSkill({ duration: 20, captionsEnabled: true, musicMode: 'AUTO' });
 
   assert.equal(identity.identityLock, 'EXACT_REFERENCE');
   assert.ok(identity.preferredEnvironments.length > 0);
@@ -167,16 +167,16 @@ test('consistency, motion, camera and fidelity skills return structured safeguar
   assert.equal(motion.temporalSpeed, 'REAL_TIME_1X');
   assert.ok(motion.prohibit.includes('slow_motion'));
   assert.equal(camera.captureLook, 'SMARTPHONE_REALISM');
-  assert.equal(finish.exactDurationSeconds, 15);
+  assert.equal(finish.exactDurationSeconds, 20);
   assert.equal(finish.audio.preventFinalWordCutoff, true);
 });
 
 test('quality-control preflight blocks missing product references before provider spend', () => {
-  const timing = scriptTimingSkill({ script: 'This is a concise product recommendation with a clean ending.', duration: 15, cta: '' });
+  const timing = scriptTimingSkill({ script: 'This is a concise product recommendation with a clean ending.', duration: 20, cta: '' });
   const scenePlan = scenePlanningSkill({
     resolvedType: 'PRODUCT_SHOWCASE',
-    providerDurations: [10, 6],
-    playbackDurations: [10, 5],
+    providerDurations: [10, 10],
+    playbackDurations: [10, 10],
     rawScenes: [{ kind: 'CREATOR' }, { kind: 'PRODUCT' }]
   });
   const qc = qualityControlSkill({
@@ -190,22 +190,19 @@ test('quality-control preflight blocks missing product references before provide
   assert.ok(qc.failedChecks.includes('PRODUCT_REFERENCE'));
 });
 
-test('compiled scene prompt is the renderer boundary for structured skills', () => {
+test('compiled scene prompt stays minimal and leaves visual direction to the video model', () => {
   const avatar = creators()[0];
   const prompt = compileScenePrompt({
-    scene: { kind: 'CREATOR', objective: 'Explain the benefit', visualDirection: 'Creator talks directly to camera.' },
+    scene: { kind: 'CREATOR', objective: 'Explain the benefit', visualDirection: 'This old storyboard direction must be ignored.' },
     consistency: creatorConsistencySkill({ avatar, campaignType: 'AVATAR_EXPLAINER' }),
-    productFidelity: productFidelitySkill({ hasProductReference: false }),
-    motion: naturalMotionSkill({ energy: 'NATURAL' }),
-    camera: cameraStyleSkill({ campaignType: 'AVATAR_EXPLAINER', strategy: {} })
+    productFidelity: productFidelitySkill({ hasProductReference: false })
   });
-  assert.match(prompt, /Creator talks directly to camera/i);
-  assert.match(prompt, /REAL_TIME_1X/i);
+  assert.match(prompt, /Explain the benefit/i);
   assert.match(prompt, /EXACT_REFERENCE/i);
-  assert.match(prompt, /preferredEnvironments/i);
-  assert.match(prompt, /wardrobeProfile/i);
-  assert.match(prompt, /gestureProfile/i);
-  assert.match(prompt, /No generated subtitles/i);
+  assert.match(prompt, /Let the video model choose framing, actions and transitions/i);
+  assert.match(prompt, /Do not invent unsupported/i);
+  assert.doesNotMatch(prompt, /old storyboard direction/i);
+  assert.doesNotMatch(prompt, /REAL_TIME_1X/i);
 });
 
 test('weighted script splitting preserves every word', () => {

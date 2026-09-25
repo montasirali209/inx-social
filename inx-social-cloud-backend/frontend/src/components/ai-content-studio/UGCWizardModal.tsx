@@ -29,20 +29,19 @@ import type {
 import { Button } from '../ui/Button'
 import './ugc-wizard.css'
 
-type WizardStep = 'source' | 'brand' | 'format' | 'avatar' | 'working' | 'video' | 'review' | 'finish'
+type WizardStep = 'source' | 'brand' | 'format' | 'avatar' | 'video' | 'review' | 'finish'
 
 const steps: Array<{ key: WizardStep; group: string; label: string }> = [
   { key: 'source', group: 'YOUR BRAND', label: 'Source' },
   { key: 'brand', group: 'YOUR BRAND', label: 'Brand' },
   { key: 'format', group: 'YOUR CONTENT', label: 'Ad style' },
   { key: 'avatar', group: 'YOUR CONTENT', label: 'Creator' },
-  { key: 'working', group: 'YOUR CONTENT', label: "What's working" },
   { key: 'video', group: 'GO LIVE', label: 'Production' },
   { key: 'review', group: 'GO LIVE', label: 'Review & credits' },
   { key: 'finish', group: 'GO LIVE', label: 'Finish' },
 ]
 
-const durations: UGCDuration[] = [15, 20, 30]
+const durations: UGCDuration[] = [20, 30, 45, 60]
 const adCounts: UGCAdCount[] = [1, 5, 10, 15, 20]
 const terminal = new Set(['READY', 'PARTIAL', 'FAILED'])
 const busyStatuses = new Set(['QUEUED', 'RENDERING', 'RESERVING', 'PLANNING'])
@@ -130,8 +129,7 @@ export function UGCWizardModal({
   const [customCreatorPresentation, setCustomCreatorPresentation] = useState('Woman')
   const [customCreatorAgeBand, setCustomCreatorAgeBand] = useState('25–34')
   const [customCreatorLocale, setCustomCreatorLocale] = useState('en-GB')
-  const [workingReady, setWorkingReady] = useState(false)
-  const [duration, setDuration] = useState<UGCDuration>((seedCampaign?.duration === 15 || seedCampaign?.duration === 20 || seedCampaign?.duration === 30) ? seedCampaign.duration : (seedDraft?.duration === 15 || seedDraft?.duration === 20 || seedDraft?.duration === 30) ? seedDraft.duration : 30)
+  const [duration, setDuration] = useState<UGCDuration>(([20,30,45,60] as number[]).includes(seedCampaign?.duration || 0) ? seedCampaign!.duration as UGCDuration : ([20,30,45,60] as number[]).includes(seedDraft?.duration || 0) ? seedDraft!.duration as UGCDuration : 20)
   const [adCount, setAdCount] = useState<UGCAdCount>(([1,5,10,15,20] as number[]).includes(seedCampaign?.adCount || 0) ? seedCampaign!.adCount as UGCAdCount : ([1,5,10,15,20] as number[]).includes(seedDraft?.adCount || 0) ? seedDraft!.adCount as UGCAdCount : 5)
   const [quality, setQuality] = useState<UGCQuality>(seedCampaign?.quality || seedDraft?.quality || 'STANDARD')
   const [campaignId, setCampaignId] = useState<string | null>(null)
@@ -161,7 +159,7 @@ export function UGCWizardModal({
   const estimate = useQuery({
     queryKey: ['ugc-wizard-estimate', duration, adCount, quality, campaignType, creativeFormat],
     queryFn: () => estimateUGCCampaign({ duration, adCount, quality, campaignType, creativeFormat }),
-    enabled: open && step >= 5,
+    enabled: open && step >= 4,
     staleTime: 60_000,
   })
 
@@ -199,12 +197,6 @@ export function UGCWizardModal({
   }, [open])
 
   useEffect(() => {
-    if (steps[step]?.key !== 'working' || workingReady) return
-    const timer = window.setTimeout(() => setWorkingReady(true), 1200)
-    return () => window.clearTimeout(timer)
-  }, [step, selectedBrand?.id, workingReady])
-
-  useEffect(() => {
     if (!campaign.data || !terminal.has(campaign.data.status)) return
     void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
     void queryClient.invalidateQueries({ queryKey: ['ai-studio-access'] })
@@ -239,7 +231,7 @@ export function UGCWizardModal({
     onSuccess: (value) => {
       setCampaignId(value.id)
       setError('')
-      moveTo(7)
+      moveTo(6)
       void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
     },
     onError: (value) => setError(value instanceof Error ? value.message : 'The UGC campaign could not be started.'),
@@ -274,7 +266,6 @@ export function UGCWizardModal({
 
   function moveTo(next: number) {
     const bounded = Math.max(0, Math.min(steps.length - 1, next))
-    if (bounded === 4 && step !== 4) setWorkingReady(false)
     setStep(bounded)
     setFurthest((current) => Math.max(current, bounded))
   }
@@ -374,12 +365,6 @@ export function UGCWizardModal({
     return haystack.includes(creatorNeedle)
   })
   const visibleCreators = showAllCreators ? filteredCreators : filteredCreators.slice(0, 12)
-  const directions = selectedBrand?.analysis?.ugcDirections?.length ? selectedBrand.analysis.ugcDirections.slice(0, 4) : [
-    campaignType === 'PRODUCT_SHOWCASE' ? 'Open with a creator reaction or clear product problem in the first two seconds.' : 'Open with a natural creator-led hook in the first two seconds.',
-    campaignType === 'PRODUCT_SHOWCASE' ? 'Use the real product reference in grounded cutaways and avoid invented packaging.' : 'Keep the creator and real environment visually consistent throughout.',
-    'Use specific verified benefits instead of generic marketing language.',
-    'Finish with one simple next action and keep the delivery conversational.',
-  ]
   const campaignAds = campaign.data?.ads || []
   const readyAds = campaignAds.filter((ad) => ad.status === 'READY').length
   const failedAds = campaignAds.filter((ad) => ad.status === 'FAILED').length
@@ -422,12 +407,12 @@ export function UGCWizardModal({
 
               {(sourceType === 'BRIEF' || sourceType === 'PRODUCT') && <div className="mt-5"><span className="ugc-wizard-mini-label">{sourceType === 'BRIEF' ? 'TELL US ABOUT THE OFFER' : 'OPTIONAL PRODUCT NOTES'}</span><textarea className="ugc-wizard-input mt-2 min-h-28 w-full resize-y" onChange={(event) => setDescription(event.target.value)} placeholder="What is it, who is it for, and what does it help with?" value={description} /></div>}
 
-              {analyze.isPending && <div className="ugc-wizard-analyzing mt-6"><div className="ugc-wizard-scan"><span /><Search className="size-7" /></div><div><strong>Understanding your offer…</strong><p className="mt-1 text-[9px] text-text-muted">Reading the site, finding verified benefits and preparing creator directions.</p></div></div>}
+              {analyze.isPending && <div className="ugc-wizard-analyzing mt-6"><div className="ugc-wizard-scan"><span /><Search className="size-7" /></div><div><strong>Understanding your offer…</strong><p className="mt-1 text-[9px] text-text-muted">Reading the site, finding verified benefits and preparing the campaign script.</p></div></div>}
               <div className="ugc-wizard-footer"><Button onClick={onBackToHome}><ArrowLeft className="size-4" />Studio</Button><Button disabled={analyze.isPending} onClick={() => void continueSource()} variant="primary">{analyze.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}{sourceType === 'WEBSITE' || productUrl.trim() ? 'Analyze & continue' : 'Continue'} <ArrowRight className="size-4" /></Button></div>
             </>}
 
             {currentKey === 'brand' && <>
-              <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><BadgeCheck className="size-5" /></span><div><h2>Here's what INXSocial understands.</h2><p>Check the essentials. The generator uses this as the factual boundary for scripts and scenes.</p></div></div>
+              <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><BadgeCheck className="size-5" /></span><div><h2>Here's what INXSocial understands.</h2><p>Check the essentials. The generator uses this as the factual boundary for the script and visual references.</p></div></div>
               {selectedBrand ? <div className="ugc-wizard-brand-card mt-7"><div className="flex items-start justify-between gap-4"><div><span className="ugc-wizard-mini-label">BRAND / OFFER</span><h3>{selectedBrand.productName || selectedBrand.name}</h3></div><BadgeCheck className="size-5 text-brand-cyan" /></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><div><span className="ugc-wizard-mini-label">COMPANY</span><strong>{selectedBrand.name}</strong></div><div><span className="ugc-wizard-mini-label">TYPE</span><strong>{selectedBrand.analysis?.offerType || 'Brand'}</strong></div></div><div className="mt-5"><span className="ugc-wizard-mini-label">WHAT IT DOES</span><p>{selectedBrand.summary}</p></div>{!!selectedBrand.audience.length && <div className="mt-5"><span className="ugc-wizard-mini-label">AUDIENCE</span><div className="mt-2 flex flex-wrap gap-2">{selectedBrand.audience.slice(0,6).map((item) => <span className="ugc-wizard-pill" key={item}>{item}</span>)}</div></div>}</div> :
                 <div className="ugc-wizard-brand-card mt-7"><span className="ugc-wizard-mini-label">YOUR BRIEF</span><textarea className="ugc-wizard-input mt-3 min-h-36 w-full resize-y" onChange={(event) => setDescription(event.target.value)} value={description} /></div>}
               <div className="ugc-wizard-footer"><Button onClick={() => moveTo(0)}><ArrowLeft className="size-4" />Back</Button><Button disabled={!selectedBrand && description.trim().length < 12 && !productAssetIds.length} onClick={() => { void trackUGCStudioEvent({ event: 'BRAND_ANALYZED', stage: 'brand', metadata: { sourceType } }); moveTo(2) }} variant="primary">Looks right <ArrowRight className="size-4" /></Button></div>
@@ -479,24 +464,18 @@ export function UGCWizardModal({
               <div className="ugc-wizard-footer"><Button onClick={() => moveTo(2)}><ArrowLeft className="size-4" />Back</Button><Button disabled={creatorMode === 'SELECTED' && !avatarId} onClick={() => { void trackUGCStudioEvent({ event: 'CREATOR_SELECTED', stage: 'creator', metadata: { creatorMode, avatarScope: selectedAvatar?.scope || (creatorMode === 'AUTO' ? 'AUTO' : '') } }); moveTo(4) }} variant="primary">Continue <ArrowRight className="size-4" /></Button></div>
             </>}
 
-            {currentKey === 'working' && <>
-              <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><Search className="size-5" /></span><div><h2>Here's the creative direction.</h2><p>INXSocial turns the offer into creator-native hooks and scene logic automatically. You still don't need to write the script.</p></div></div>
-              {!workingReady ? <div className="ugc-wizard-research mt-8"><div className="ugc-wizard-radar"><span /><Search className="size-6" /></div><strong>Building your UGC direction…</strong><p>Matching the offer, format, creator and audience.</p></div> : <div className="mt-7 grid gap-3 sm:grid-cols-2">{directions.map((direction,index) => <article className="ugc-wizard-direction" key={direction}><span>{String(index+1).padStart(2,'0')}</span><p>{direction}</p></article>)}</div>}
-              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(3)}><ArrowLeft className="size-4" />Back</Button><Button disabled={!workingReady} onClick={() => { void trackUGCStudioEvent({ event: 'DIRECTION_READY', stage: 'direction', metadata: { campaignType } }); moveTo(5) }} variant="primary">Use this direction <ArrowRight className="size-4" /></Button></div>
-            </>}
-
             {currentKey === 'video' && <>
               <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><CirclePlay className="size-5" /></span><div><h2>Choose the production setup.</h2><p>Set length, number of variations and production quality. INXSocial keeps provider/model routing automatic and hidden.</p></div></div>
               <div className="mt-7 grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
                 <div className="ugc-wizard-phone-preview"><div className="ugc-wizard-phone-screen"><span className="ugc-wizard-preview-avatar">{selectedAvatar ? <AvatarPortrait avatar={selectedAvatar} /> : <UserRound className="size-8" />}</span><CirclePlay className="size-8 text-brand-cyan" /><strong>{duration}s UGC</strong><small>{selectedTier?.label || quality} · {campaignType === 'PRODUCT_SHOWCASE' ? 'Product showcase' : campaignType === 'AVATAR_EXPLAINER' ? 'Avatar explainer' : 'Auto production'}</small></div></div>
                 <div className="space-y-5">
-                  <div><span className="ugc-wizard-mini-label">VIDEO LENGTH</span><div className="mt-2 grid grid-cols-3 gap-2">{durations.map((value) => { const option = studioControls?.durations.find((item) => item.seconds === value); return <StepChoice current={duration} key={value} onClick={setDuration} value={value}><strong>{value}s</strong><small>{option?.label || (value === 15 ? 'Quick' : value === 20 ? 'Balanced' : 'Full ad')}</small></StepChoice> })}</div>{selectedDurationOption?.description && <p className="mt-2 text-[10px] text-text-muted">{selectedDurationOption.description}</p>}</div>
+                  <div><span className="ugc-wizard-mini-label">VIDEO LENGTH</span><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{durations.map((value) => { const option = studioControls?.durations.find((item) => item.seconds === value); return <StepChoice current={duration} key={value} onClick={setDuration} value={value}><strong>{value}s</strong><small>{option?.label || (value === 20 ? 'Balanced' : value === 30 ? 'Full ad' : value === 45 ? 'Extended' : 'Long-form')}</small></StepChoice> })}</div>{selectedDurationOption?.description && <p className="mt-2 text-[10px] text-text-muted">{selectedDurationOption.description}</p>}</div>
                   <div><span className="ugc-wizard-mini-label">VARIATIONS</span><div className="mt-2 grid grid-cols-5 gap-2">{adCounts.map((value) => <StepChoice current={adCount} key={value} onClick={setAdCount} value={value}><strong>{value}</strong></StepChoice>)}</div>{selectedVariationOption?.description && <p className="mt-2 text-[10px] text-text-muted">{selectedVariationOption.description}</p>}</div>
                   <div><span className="ugc-wizard-mini-label">QUALITY</span><div className="mt-2 grid grid-cols-2 gap-2">{(qualityTiers.length ? qualityTiers : [{ key: 'STANDARD' as const, label: 'Standard', badge: 'Efficient', description: 'Natural social UGC', bestFor: [], experience: [] }, { key: 'PREMIUM' as const, label: 'Premium', badge: 'Advanced', description: 'Higher-control production', bestFor: [], experience: [] }]).map((tier) => <StepChoice current={quality} key={tier.key} onClick={setQuality} value={tier.key}>{tier.key === 'PREMIUM' ? <Crown className="mx-auto mb-1 size-4 text-[#c4b5fd]" /> : <Film className="mx-auto mb-1 size-4 text-brand-cyan" />}<strong>{tier.label}</strong><small>{tier.badge}</small></StepChoice>)}</div>{selectedTier && <div className="mt-2 rounded-xl border border-white/10 bg-white/[.025] p-3"><p className="text-[10px] leading-4 text-text-muted">{selectedTier.description}</p><div className="mt-2 flex flex-wrap gap-1.5">{selectedTier.bestFor.slice(0,3).map((item) => <span className="ugc-wizard-pill" key={item}>{item}</span>)}</div></div>}</div>
                   <div className={`ugc-credit-summary ${insufficient ? 'insufficient' : ''}`}><div><span>Live quote</span><strong>{estimate.isFetching ? '…' : estimate.data?.credits.toLocaleString() || '—'} credits</strong></div><div><span>{estimate.data?.perAd?.toLocaleString() || '—'} per ad · {remaining.toLocaleString()} available</span>{insufficient && <em>{estimate.data ? `${estimate.data.affordability.shortfall.toLocaleString()} credits short` : 'Choose a smaller setup.'}</em>}</div></div>
                 </div>
               </div>
-              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(4)}><ArrowLeft className="size-4" />Back</Button><Button disabled={!estimate.data || estimate.isFetching} onClick={() => { void trackUGCStudioEvent({ event: 'PRODUCTION_CONFIGURED', stage: 'production', metadata: { quality, duration, adCount, credits: estimate.data?.credits || 0 } }); moveTo(6) }} variant="primary">Review campaign <ArrowRight className="size-4" /></Button></div>
+              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(3)}><ArrowLeft className="size-4" />Back</Button><Button disabled={!estimate.data || estimate.isFetching} onClick={() => { void trackUGCStudioEvent({ event: 'PRODUCTION_CONFIGURED', stage: 'production', metadata: { quality, duration, adCount, credits: estimate.data?.credits || 0 } }); moveTo(5) }} variant="primary">Review campaign <ArrowRight className="size-4" /></Button></div>
             </>}
 
             {currentKey === 'review' && <>
@@ -516,7 +495,7 @@ export function UGCWizardModal({
               </div>
               <div className="mt-4 rounded-xl border border-white/10 bg-white/[.025] p-4 text-[10px] leading-4 text-text-muted"><strong className="text-text-primary">Pricing is fixed for this selection.</strong> Creative structure and creator choice do not change the quoted price. Provider/model routing stays automatic and is never exposed as a customer control.</div>
               {insufficient && estimate.data?.affordability.alternative && <div className="mt-4 rounded-xl border border-brand-amber/25 bg-brand-amber/[.05] p-4"><span className="ugc-wizard-mini-label">AFFORDABLE OPTION</span><div className="mt-2 flex flex-wrap items-center justify-between gap-3"><div><strong>{estimate.data.affordability.alternative.label}</strong><p className="mt-1 text-[10px] text-text-muted">{estimate.data.affordability.alternative.credits.toLocaleString()} credits total</p></div><Button onClick={() => { const alt = estimate.data?.affordability.alternative; if (!alt) return; setQuality(alt.quality); setDuration(alt.duration); setAdCount(alt.adCount); void trackUGCStudioEvent({ event: 'AFFORDABLE_SETUP_APPLIED', stage: 'review', metadata: { quality: alt.quality, duration: alt.duration, adCount: alt.adCount, credits: alt.credits } }); }} size="sm">Use this setup</Button></div></div>}
-              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(5)}><ArrowLeft className="size-4" />Change setup</Button><Button disabled={create.isPending || insufficient || !estimate.data || estimate.isFetching} onClick={() => { void trackUGCStudioEvent({ event: 'GENERATION_CONFIRMED', stage: 'review', metadata: { quality, duration, adCount, credits: estimate.data?.credits || 0 } }); create.mutate() }} variant="primary">{create.isPending ? <><LoaderCircle className="size-4 animate-spin" />Starting campaign…</> : <><WandSparkles className="size-4" />Confirm & generate {adCount}</>}</Button></div>
+              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(4)}><ArrowLeft className="size-4" />Change setup</Button><Button disabled={create.isPending || insufficient || !estimate.data || estimate.isFetching} onClick={() => { void trackUGCStudioEvent({ event: 'GENERATION_CONFIRMED', stage: 'review', metadata: { quality, duration, adCount, credits: estimate.data?.credits || 0 } }); create.mutate() }} variant="primary">{create.isPending ? <><LoaderCircle className="size-4 animate-spin" />Starting campaign…</> : <><WandSparkles className="size-4" />Confirm & generate {adCount}</>}</Button></div>
             </>}
 
             {currentKey === 'finish' && <>

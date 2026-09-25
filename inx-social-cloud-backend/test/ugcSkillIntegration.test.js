@@ -40,9 +40,9 @@ test('engine snapshots persist skills, preflight and keep them inside the immuta
 test('Phase 2 does not change the customer credit tables or production route registry', () => {
   const studio = require('../src/services/ugcStudioService');
   const registry = require('../src/services/ugcEngineRegistry');
-  assert.deepEqual(studio.STANDARD_CREDITS, { 15: 100, 20: 140, 30: 210 });
-  assert.deepEqual(studio.PREMIUM_CREDITS, { 15: 180, 20: 260, 30: 390 });
-  assert.equal(registry.routeKeyForQuality('STANDARD'), 'HAILUO_STANDARD_V1');
+  assert.deepEqual(studio.STANDARD_CREDITS, { 20: 140, 30: 210, 45: 315, 60: 420 });
+  assert.deepEqual(studio.PREMIUM_CREDITS, { 20: 260, 30: 390, 45: 585, 60: 780 });
+  assert.equal(registry.routeKeyForQuality('STANDARD'), 'H3_MAX_STANDARD_V1');
   assert.equal(registry.routeKeyForQuality('PREMIUM'), 'KLING_PREMIUM_V1');
 });
 

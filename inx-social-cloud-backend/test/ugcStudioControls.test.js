@@ -4,8 +4,8 @@ const assert = require('node:assert/strict');
 const controls = require('../src/services/ugcStudioControls');
 
 const pricing = {
-  STANDARD: { 15: 100, 20: 140, 30: 210 },
-  PREMIUM: { 15: 180, 20: 260, 30: 390 }
+  STANDARD: { 20: 140, 30: 210, 45: 315, 60: 420 },
+  PREMIUM: { 20: 260, 30: 390, 45: 585, 60: 780 }
 };
 
 test('Phase 6 Studio controls are versioned and customer-facing', () => {
@@ -53,19 +53,19 @@ test('Phase 6 selection validation rejects unsupported controls before quoting',
     error => error.code === 'UGC_DURATION_UNSUPPORTED'
   );
   assert.throws(
-    () => controls.quote({ input: { duration: 15, adCount: 2, quality: 'STANDARD' }, balanceRemaining: 500, pricing }),
+    () => controls.quote({ input: { duration: 20, adCount: 2, quality: 'STANDARD' }, balanceRemaining: 500, pricing }),
     error => error.code === 'UGC_AD_COUNT_UNSUPPORTED'
   );
   assert.throws(
-    () => controls.quote({ input: { duration: 15, adCount: 1, quality: 'ULTRA' }, balanceRemaining: 500, pricing }),
+    () => controls.quote({ input: { duration: 20, adCount: 1, quality: 'ULTRA' }, balanceRemaining: 500, pricing }),
     error => error.code === 'UGC_QUALITY_UNSUPPORTED'
   );
 });
 
 test('Phase 6 exposes descriptive duration and variation guidance', () => {
   const snapshot = controls.snapshot(pricing);
-  assert.deepEqual(snapshot.durations.map(item => item.seconds), [15, 20, 30]);
+  assert.deepEqual(snapshot.durations.map(item => item.seconds), [20, 30, 45, 60]);
   assert.deepEqual(snapshot.variationCounts.map(item => item.count), [1, 5, 10, 15, 20]);
-  assert.match(snapshot.durations.find(item => item.seconds === 20).description, /proof/i);
+  assert.match(snapshot.durations.find(item => item.seconds === 20).description, /hook|close|UGC/i);
   assert.match(snapshot.variationCounts.find(item => item.count === 5).description, /hooks|structures/i);
 });

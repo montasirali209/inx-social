@@ -8,7 +8,7 @@ function creator(overrides = {}) {
   return { id: 'avatar-1', name: 'Maya', category: 'Lifestyle', presentation: 'Woman', ageBand: '25–34', locale: 'en-GB', voice: 'Pippa', environment: 'real apartment', ...overrides };
 }
 
-test('Phase 3 router keeps Standard on Hailuo', () => {
+test('Standard UGC routes to H3 Max with native synchronized audio', () => {
   const route = router.routeForScene({
     quality: 'STANDARD',
     kind: 'CREATOR',
@@ -19,9 +19,9 @@ test('Phase 3 router keeps Standard on Hailuo', () => {
     hasNarration: true,
     mode: 'adaptive'
   });
-  assert.equal(route.routeKey, 'HAILUO_STANDARD_V1');
-  assert.equal(route.adapterKey, 'HAILUO_23');
-  assert.equal(route.audioStrategy, 'TTS_THEN_LIP_SYNC');
+  assert.equal(route.routeKey, 'H3_MAX_STANDARD_V1');
+  assert.equal(route.adapterKey, 'H3_MAX');
+  assert.equal(route.audioStrategy, 'NATIVE_SYNC_AUDIO');
 });
 
 test('Premium creator scenes route to OmniHuman 1.5', () => {
@@ -68,11 +68,11 @@ test('Premium creator without audio input falls back before provider spend', () 
     hasNarration: false,
     mode: 'adaptive'
   });
-  assert.equal(route.routeKey, 'KLING_OMNI_DYNAMIC_V1');
-  assert.equal(route.adapterKey, 'KLING_OMNI_30');
+  assert.equal(route.routeKey, 'H3_MAX_STANDARD_V1');
+  assert.equal(route.adapterKey, 'H3_MAX');
 });
 
-test('Compatibility mode preserves the pre-Phase-3 premium route', () => {
+test('legacy compatibility mode cannot override the new capability router', () => {
   const route = router.routeForScene({
     quality: 'PREMIUM',
     kind: 'CREATOR',
@@ -83,8 +83,9 @@ test('Compatibility mode preserves the pre-Phase-3 premium route', () => {
     hasNarration: true,
     mode: 'compatibility'
   });
-  assert.equal(route.routeKey, 'KLING_PREMIUM_V1');
-  assert.equal(route.adapterKey, 'KLING_LEGACY');
+  assert.equal(route.routeKey, 'OMNIHUMAN_CREATOR_V1');
+  assert.equal(route.adapterKey, 'OMNIHUMAN_15');
+  assert.equal(route.mode, 'adaptive');
 });
 
 test('Creator V2 compatibility can redirect a Premium creator to an allowed fallback route', () => {
@@ -96,10 +97,10 @@ test('Creator V2 compatibility can redirect a Premium creator to an allowed fall
     hasActor: true,
     hasProductReference: false,
     hasNarration: true,
-    allowedRoutes: ['KLING_PREMIUM_V1'],
+    allowedRoutes: ['H3_MAX_STANDARD_V1'],
     mode: 'adaptive'
   });
-  assert.equal(route.routeKey, 'KLING_PREMIUM_V1');
+  assert.equal(route.routeKey, 'H3_MAX_STANDARD_V1');
   assert.match(route.reason, /CREATOR_COMPATIBILITY_FALLBACK/);
 });
 
@@ -124,7 +125,7 @@ test('Creator V2 route restrictions affect creator scenes without constraining p
   const plan = router.routePlan({
     input: { quality: 'PREMIUM' },
     hasProductReference: true,
-    availableAvatars: [creator({ routeCompatibilityJson: JSON.stringify(['KLING_PREMIUM_V1']) })],
+    availableAvatars: [creator({ routeCompatibilityJson: JSON.stringify(['H3_MAX_STANDARD_V1']) })],
     mode: 'adaptive',
     plan: {
       title: 'Compatibility-aware UGC',
@@ -137,7 +138,7 @@ test('Creator V2 route restrictions affect creator scenes without constraining p
       }]
     }
   });
-  assert.equal(plan.ads[0].scenes[0].routeDecision.routeKey, 'KLING_PREMIUM_V1');
+  assert.equal(plan.ads[0].scenes[0].routeDecision.routeKey, 'H3_MAX_STANDARD_V1');
   assert.equal(plan.ads[0].scenes[1].routeDecision.routeKey, 'SEEDANCE_DYNAMIC_V1');
 });
 
@@ -198,17 +199,21 @@ test('Seedance adapter uses reference-guided 720p vertical generation', () => {
   assert.equal(adapters.postProcessFor(cap, { kind: 'PRODUCT', narration: { audioURL: 'x' } }), 'LOCAL_MUX');
 });
 
-test('Hailuo adapter keeps provider-safe first-frame generation', () => {
-  const cap = adapters.getAdapter('HAILUO_STANDARD_V1');
+test('H3 Max adapter sends multi-reference vertical video with native audio', () => {
+  const cap = adapters.getAdapter('H3_MAX_STANDARD_V1');
   const task = adapters.buildTask(cap, {
     kind: 'CREATOR',
     providerDuration: 10,
     prompt: 'Creator speaks naturally.',
     reference: 'data:image/png;base64,actor',
-    narration: { audioURL: 'https://example.com/voice.mp3' }
+    references: ['data:image/png;base64,actor', 'data:image/png;base64,product'],
+    narration: null
   });
-  assert.equal(task.model, 'minimax:4@1');
-  assert.deepEqual(task.inputs.frameImages, [{ image: 'data:image/png;base64,actor', frame: 'first' }]);
-  assert.deepEqual(task.providerSettings, { minimax: { promptOptimizer: true } });
-  assert.equal(adapters.postProcessFor(cap, { kind: 'CREATOR', narration: { audioURL: 'x' } }), 'LIP_SYNC');
+  assert.equal(task.model, 'minimax:h3@max');
+  assert.deepEqual(task.inputs.referenceImages, ['data:image/png;base64,actor', 'data:image/png;base64,product']);
+  assert.equal(task.width, 768);
+  assert.equal(task.height, 1344);
+  assert.equal(task.duration, 10);
+  assert.deepEqual(task.settings, { promptExpansion: 'quality' });
+  assert.equal(adapters.postProcessFor(cap, { kind: 'CREATOR', narration: null }), 'NONE');
 });

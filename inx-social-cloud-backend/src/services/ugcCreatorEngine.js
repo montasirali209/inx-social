@@ -1,10 +1,8 @@
 const CREATOR_PROFILE_VERSION = 'ugc-creators-v2';
 
 const CREATOR_ROUTE_KEYS = Object.freeze({
-  STANDARD: 'HAILUO_STANDARD_V1',
-  LEGACY_PREMIUM: 'KLING_PREMIUM_V1',
-  PREMIUM_CREATOR: 'OMNIHUMAN_CREATOR_V1',
-  PREMIUM_FALLBACK: 'KLING_OMNI_DYNAMIC_V1'
+  STANDARD: 'H3_MAX_STANDARD_V1',
+  PREMIUM_CREATOR: 'OMNIHUMAN_CREATOR_V1'
 });
 
 const ALL_CREATOR_ROUTES = Object.freeze(Object.values(CREATOR_ROUTE_KEYS));
@@ -116,7 +114,7 @@ function profileFromRow(row = {}) {
     environmentTags: parseJson(row.environmentTagsJson, casting.environments || []),
     wardrobe: parseJson(row.wardrobeJson, casting.wardrobe || []),
     gestures: parseJson(row.gestureJson, casting.gestures || []),
-    routeCompatibility: parseJson(row.routeCompatibilityJson, casting.routeCompatibility || []),
+    routeCompatibility: parseJson(row.routeCompatibilityJson, casting.routeCompatibility || []).map(routeKey => routeKey === 'HAILUO_STANDARD_V1' ? CREATOR_ROUTE_KEYS.STANDARD : routeKey),
     energy: casting.energy || []
   });
 }
@@ -137,7 +135,7 @@ function storageFields(profile) {
 
 function requiredRoutesForQuality(quality) {
   return clean(quality, 30).toUpperCase() === 'PREMIUM'
-    ? [CREATOR_ROUTE_KEYS.PREMIUM_CREATOR, CREATOR_ROUTE_KEYS.PREMIUM_FALLBACK, CREATOR_ROUTE_KEYS.LEGACY_PREMIUM]
+    ? [CREATOR_ROUTE_KEYS.PREMIUM_CREATOR, CREATOR_ROUTE_KEYS.STANDARD]
     : [CREATOR_ROUTE_KEYS.STANDARD];
 }
 

@@ -34,7 +34,7 @@ function standardInput(overrides = {}) {
     productDescription: 'A productivity platform.',
     creatorMode: 'AUTO',
     avatarId: null,
-    duration: 15,
+    duration: 20,
     adCount: 1,
     quality: 'STANDARD',
     notes: '',
@@ -55,8 +55,8 @@ function standardPlan() {
       caption: 'One workspace for the week.',
       avatarIndex: 0,
       scenes: [
-        { duration: 10, kind: 'CREATOR', prompt: 'Creator speaks in a real home office.', script: 'Still juggling tools? This brings the workflow together.' },
-        { duration: 6, kind: 'CREATOR', prompt: 'Same creator continues naturally.', script: 'Plan, create and publish with less switching.' }
+        { duration: 10, kind: 'CREATOR', prompt: 'Explain the opening value.', script: 'Still juggling tools? This brings the workflow together.' },
+        { duration: 10, kind: 'CREATOR', prompt: 'Land the value and close.', script: 'Plan, create and publish with less switching.' }
       ]
     }]
   };
@@ -65,9 +65,9 @@ function standardPlan() {
 test('UGC engine registry preserves current customer tiers while hiding provider details from the UI layer', () => {
   assert.equal(registry.ENGINE_VERSION, 'ugc-engine-v1');
   assert.equal(registry.CONTRACT_VERSION, '1.3');
-  assert.equal(registry.routeKeyForQuality('STANDARD'), 'HAILUO_STANDARD_V1');
+  assert.equal(registry.routeKeyForQuality('STANDARD'), 'H3_MAX_STANDARD_V1');
   assert.equal(registry.routeKeyForQuality('PREMIUM'), 'KLING_PREMIUM_V1');
-  assert.equal(registry.legacyDbRoute('STANDARD'), 'HAILUO');
+  assert.equal(registry.legacyDbRoute('STANDARD'), 'H3_MAX');
   assert.equal(registry.legacyDbRoute('PREMIUM'), 'KLING');
 
   const ids = registry.modelIds();
@@ -77,7 +77,7 @@ test('UGC engine registry preserves current customer tiers while hiding provider
   assert.ok(ids.lipSync);
 });
 
-test('standard UGC project maps the current Hailuo + TTS + lip-sync pipeline into a versioned contract', () => {
+test('standard UGC project maps H3 Max native audio into a versioned contract', () => {
   const project = buildEngineProject({
     userId: 'user-1',
     campaignId: 'campaign-1',
@@ -93,43 +93,44 @@ test('standard UGC project maps the current Hailuo + TTS + lip-sync pipeline int
     availableAvatars: [sampleAvatar()],
     plan: standardPlan(),
     resolvedType: 'AVATAR_EXPLAINER',
-    perAdCredits: 100,
-    totalCredits: 100
+    perAdCredits: 140,
+    totalCredits: 140
   });
 
   assert.equal(project.engineVersion, 'ugc-engine-v1');
   assert.equal(project.contractVersion, '1.3');
   assert.equal(project.status, 'PLANNED');
-  assert.equal(project.brief.targetDuration, 15);
+  assert.equal(project.brief.targetDuration, 20);
   assert.equal(project.actor.assignedActors[0].actor.id, 'avatar-1');
-  assert.deepEqual(project.productionPlan.ads[0].scenes.map(scene => scene.providerDuration), [10, 6]);
-  assert.deepEqual(project.productionPlan.ads[0].scenes.map(scene => scene.playbackDuration), [10, 5]);
+  assert.deepEqual(project.productionPlan.ads[0].scenes.map(scene => scene.providerDuration), [10, 10]);
+  assert.deepEqual(project.productionPlan.ads[0].scenes.map(scene => scene.playbackDuration), [10, 10]);
   assert.equal(project.router.version, 'ugc-router-v1');
   assert.equal(project.routeDecision.policy, 'CAPABILITY_ROUTER_V1');
-  assert.equal(project.routeDecision.scenes[0].routeKey, 'HAILUO_STANDARD_V1');
-  assert.equal(project.routeDecision.scenes[0].adapterKey, 'HAILUO_23');
-  assert.ok(project.routeDecision.scenes[0].narratorModel);
-  assert.ok(project.routeDecision.scenes[0].lipSyncModel);
-  assert.equal(project.pricing.retailCreditsPerAd, 100);
-  assert.equal(project.pricing.retailCreditsTotal, 100);
+  assert.equal(project.routeDecision.scenes[0].routeKey, 'H3_MAX_STANDARD_V1');
+  assert.equal(project.routeDecision.scenes[0].adapterKey, 'H3_MAX');
+  assert.equal(project.routeDecision.scenes[0].narratorModel, null);
+  assert.equal(project.routeDecision.scenes[0].lipSyncModel, null);
+  assert.equal(project.routeDecision.scenes[0].audioStrategy, 'NATIVE_SYNC_AUDIO');
+  assert.equal(project.pricing.retailCreditsPerAd, 140);
+  assert.equal(project.pricing.retailCreditsTotal, 140);
   assert.equal(project.renderJobs[0].status, 'PLANNED');
   assert.ok(project.fingerprint.length === 64);
   assert.deepEqual(project.qc.requiredChecks, QC_CHECKS);
   assert.equal(validateEngineProject(project), true);
 });
 
-test('product scenes do not request creator lip sync but retain narration and exact route metadata', () => {
+test('Standard product scenes use the same H3 Max native-audio route', () => {
   const route = registry.describeSceneRoute({
     quality: 'STANDARD',
     kind: 'PRODUCT',
     providerDuration: 10,
     playbackDuration: 10
   });
-  assert.equal(route.routeKey, 'HAILUO_STANDARD_V1');
-  assert.equal(route.audioStrategy, 'TTS_THEN_LOCAL_MUX');
+  assert.equal(route.routeKey, 'H3_MAX_STANDARD_V1');
+  assert.equal(route.audioStrategy, 'NATIVE_SYNC_AUDIO');
   assert.equal(route.lipSync, null);
-  assert.ok(route.narrator.model);
-  assert.equal(route.resolution, '720p');
+  assert.equal(route.narrator.strategy, 'NATIVE_SYNC_AUDIO');
+  assert.equal(route.resolution, '768p');
   assert.equal(route.aspectRatio, '9:16');
 });
 
@@ -156,8 +157,8 @@ test('contract validation rejects duration and pricing drift before a campaign c
     availableAvatars: [sampleAvatar()],
     plan: standardPlan(),
     resolvedType: 'AVATAR_EXPLAINER',
-    perAdCredits: 100,
-    totalCredits: 100
+    perAdCredits: 140,
+    totalCredits: 140
   });
 
   const brokenDuration = JSON.parse(JSON.stringify(project));
@@ -165,7 +166,7 @@ test('contract validation rejects duration and pricing drift before a campaign c
   assert.throws(() => validateEngineProject(brokenDuration), /playback_duration_1/);
 
   const brokenPricing = JSON.parse(JSON.stringify(project));
-  brokenPricing.pricing.retailCreditsTotal = 99;
+  brokenPricing.pricing.retailCreditsTotal = 139;
   assert.throws(() => validateEngineProject(brokenPricing), /pricing_total/);
 });
 
@@ -179,14 +180,13 @@ test('contract fingerprints are deterministic for the same production plan', () 
     availableAvatars: [sampleAvatar()],
     plan: standardPlan(),
     resolvedType: 'AVATAR_EXPLAINER',
-    perAdCredits: 100,
-    totalCredits: 100
+    perAdCredits: 140,
+    totalCredits: 140
   };
   assert.equal(buildEngineProject(args).fingerprint, buildEngineProject(args).fingerprint);
 });
 
 test('playback duration helper never exceeds provider footage or requested final duration', () => {
-  assert.deepEqual(playbackDurations(15, [10, 6]), [10, 5]);
   assert.deepEqual(playbackDurations(20, [10, 10]), [10, 10]);
-  assert.deepEqual(playbackDurations(30, [15, 15]), [15, 15]);
+  assert.deepEqual(playbackDurations(60, [15, 15, 15, 15]), [15, 15, 15, 15]);
 });
