@@ -1314,6 +1314,28 @@ function adultSafeReferencePrompt(prompt, classification) {
   ].join(' '), 1500);
 }
 
+async function rewriteReferencePromptForProvider(prompt, classification) {
+  try {
+    const parsed = await postStudio.callChatModel(postStudio.REASONING_MODEL, [
+      {
+        role: 'system',
+        content: [
+          'Rewrite a benign UGC image request for an image-generation API without changing the creative intent.',
+          'For people, make it explicit that every depicted person is an adult aged 21 or older.',
+          'Remove ambiguous youth wording such as girl, boy or teen by replacing it with adult woman, adult man or young adult as appropriate.',
+          'Do not weaken or evade safety rules. If the request asks for minors, sexual content, nudity, graphic violence, illegal wrongdoing, or an identifiable public figure, return JSON only: {"blocked":true,"prompt":""}.',
+          'Otherwise return JSON only: {"blocked":false,"prompt":"rewritten prompt"}.'
+        ].join('\n')
+      },
+      { role: 'user', content: clean(prompt, 1500) }
+    ], { reasoningEffort: 'low', temperature: 0.1, maxTokens: 500, timeoutMs: 60000 });
+    if (parsed?.blocked) return null;
+    return adultSafeReferencePrompt(clean(parsed?.prompt, 1500) || prompt, classification);
+  } catch (_) {
+    return adultSafeReferencePrompt(prompt, classification);
+  }
+}
+
 async function generateReferenceAsset(userId, input) {
   const prompt = clean(input.prompt, 1500);
   if (prompt.length < 4) throw publicError('Describe the avatar or product you want to create.', 'UGC_REFERENCE_PROMPT_REQUIRED', 400);
@@ -1322,12 +1344,19 @@ async function generateReferenceAsset(userId, input) {
   try {
     const classification = await classifyGeneratedReference(prompt);
     const generationPrompt = adultSafeReferencePrompt(prompt, classification);
-    const rendered = await postStudio.generateReferenceImage([
-      generationPrompt,
-      classification.kind === 'AVATAR'
-        ? 'Photorealistic adult UGC creator reference, vertical 9:16, natural smartphone-camera realism, clear face, believable lighting, no text, no watermark.'
-        : 'Photorealistic product reference image, clean believable presentation, accurate geometry and materials, no unrelated text, no watermark.'
-    ].join('\n'), { aspectRatio: classification.kind === 'AVATAR' ? '9:16' : '1:1' });
+    const suffix = classification.kind === 'AVATAR'
+      ? 'Photorealistic adult UGC creator reference, vertical 9:16, natural smartphone-camera realism, clear face, believable lighting, no text, no watermark.'
+      : 'Photorealistic product reference image, clean believable presentation, accurate geometry and materials, no unrelated text, no watermark.';
+    let rendered;
+    try {
+      rendered = await postStudio.generateReferenceImage([generationPrompt, suffix].join('\n'), { aspectRatio: classification.kind === 'AVATAR' ? '9:16' : '1:1' });
+    } catch (error) {
+      if (error?.code !== 'OPENAI_IMAGE_SAFETY') throw error;
+      const rewritten = await rewriteReferencePromptForProvider(prompt, classification);
+      if (!rewritten) throw error;
+      console.warn('[UGC REFERENCE SAFETY RETRY]', 'Retrying an ordinary reference prompt with explicit adult-safe wording.');
+      rendered = await postStudio.generateReferenceImage([rewritten, suffix].join('\n'), { aspectRatio: classification.kind === 'AVATAR' ? '9:16' : '1:1' });
+    }
 
     let result;
     if (classification.kind === 'AVATAR') {
