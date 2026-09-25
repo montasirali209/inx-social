@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArticleCard } from "../../components/ArticleCard";
 import { IntegrationPending } from "../../components/IntegrationPending";
-import { BLOG_REVALIDATE_SECONDS, getBlogClient, getSiteUrl } from "../../lib/blog-client";
+import { getBlogClient, getSiteUrl } from "../../lib/blog-client";
 import type { BlogArticleSummary } from "../../types";
 
-export const revalidate = BLOG_REVALIDATE_SECONDS;
+export const revalidate = 86400;
 
 function labelFromSlug(slug: string) {
   return decodeURIComponent(slug)
