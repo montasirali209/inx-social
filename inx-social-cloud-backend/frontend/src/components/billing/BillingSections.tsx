@@ -7,10 +7,47 @@ const money = (amount: number, currency = 'GBP') => new Intl.NumberFormat('en-GB
 const date = (value?: string | null) => value ? new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value)) : 'Not scheduled'
 
 export function CurrentPlanCard({ overview, onUpgrade, onManage }: { overview: BillingOverview; onUpgrade: () => void; onManage: () => void }) {
-  const plan = getPlan(overview.subscription.planId)
-  const admin = Boolean(overview.subscription.administrator)
-  const paidPrice = overview.subscription.billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice
-  return <Card className="h-full overflow-hidden p-5 sm:p-6"><div className="grid h-full gap-6 lg:grid-cols-[1fr_1fr]"><div><div className="flex items-start gap-4"><span className="grid size-14 shrink-0 place-items-center rounded-2xl border border-brand-teal/30 bg-brand-teal/12 text-brand-cyan shadow-glow-cyan"><Crown aria-hidden="true" className="size-7" /></span><div><p className="text-xs text-text-muted">{admin ? 'Current Access' : 'Current Plan'}</p><div className="mt-1 flex flex-wrap items-center gap-2"><h2 className="text-2xl font-bold">{admin ? 'Administrator Access' : plan.name}</h2><StatusBadge status={overview.subscription.status} /></div><p className="mt-1 text-sm text-text-muted">{admin ? 'Operational access · not a paid customer subscription' : overview.subscription.manualOverride ? `Manual ${plan.name} override` : plan.eyebrow}</p></div></div><div className="mt-6">{admin ? <><strong className="text-2xl">INXSocial Admin</strong><p className="mt-1 text-xs text-text-muted">Agency-equivalent AI allowance with administrator privileges.</p></> : <><strong className="text-2xl">{plan.id === 'trial' ? '£0' : overview.subscription.legacyLifetime ? 'Legacy access' : overview.subscription.manualOverride ? 'Manual access' : money(paidPrice || 0)}</strong>{plan.id !== 'trial' && !overview.subscription.legacyLifetime && !overview.subscription.manualOverride && <span className="text-sm text-text-muted"> / {overview.subscription.billingCycle === 'yearly' ? 'year' : 'month'}</span>}<p className="mt-1 text-xs text-text-muted">{overview.subscription.manualOverride ? `Override ${overview.subscription.overrideExpiresAt ? `ends ${date(overview.subscription.overrideExpiresAt)}` : 'has no expiry'}` : plan.id === 'trial' ? `Trial ends ${date(overview.subscription.trialEndsAt)}` : overview.subscription.legacyLifetime ? 'No renewal required' : `${overview.subscription.cancelAtPeriodEnd ? 'Ends' : 'Renews'} ${date(overview.subscription.renewalDate)}`}</p></>}</div>{!admin && <div className="mt-5 grid gap-2 sm:flex">{plan.id !== 'agency' && <Button onClick={onUpgrade} tone="primary"><ArrowRight className="size-4" />View Plans</Button>}<Button disabled={!overview.subscription.canManage} onClick={onManage}>{overview.subscription.canManage ? 'Manage Subscription' : overview.subscription.manualOverride ? 'Managed by administrator' : 'No paid subscription yet'}</Button></div>}</div><div className="grid content-center gap-3 border-t border-border-soft pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">{admin ? <><Availability available>Administrator access across the INXSocial workspace</Availability><Availability available>Unlimited administrator connection testing</Availability><Availability available>Full Analytics and publishing controls</Availability><Availability available>Full AI Content Studio access</Availability><Availability available>2,500 operational AI credits per period</Availability><Availability available>Customer billing remains separate</Availability></> : plan.highlights.map((item) => <Availability available key={item}>{item}</Availability>)}</div></div></Card>
+  const { subscription } = overview
+  const plan = getPlan(subscription.planId)
+  const admin = Boolean(subscription.administrator)
+  const paidPrice = subscription.billingCycle === 'yearly' ? plan.yearlyPrice : plan.monthlyPrice
+  const complimentary = Boolean(subscription.manualOverride)
+  const displayStatus = subscription.status === 'manual' ? (plan.id === 'trial' ? 'trialing' : 'active') : subscription.status
+  const price = plan.id === 'trial' ? '£0' : subscription.legacyLifetime ? 'Legacy access' : complimentary ? 'Included access' : money(paidPrice || 0)
+  const expiry = complimentary
+    ? subscription.overrideExpiresAt ? `Access ends ${date(subscription.overrideExpiresAt)}` : 'No renewal required'
+    : plan.id === 'trial' ? `Trial ends ${date(subscription.trialEndsAt)}`
+      : subscription.legacyLifetime ? 'No renewal required'
+        : `${subscription.cancelAtPeriodEnd ? 'Ends' : 'Renews'} ${date(subscription.renewalDate)}`
+
+  return <Card className="h-full overflow-hidden p-5 sm:p-6">
+    <div className="grid h-full gap-6 lg:grid-cols-[1fr_1fr]">
+      <div>
+        <div className="flex items-start gap-4">
+          <span className="grid size-14 shrink-0 place-items-center rounded-2xl border border-brand-teal/30 bg-brand-teal/12 text-brand-cyan shadow-glow-cyan"><Crown aria-hidden="true" className="size-7" /></span>
+          <div>
+            <p className="text-xs text-text-muted">{admin ? 'Current Access' : 'Current Plan'}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2"><h2 className="text-2xl font-bold">{admin ? 'Administrator Access' : plan.name}</h2><StatusBadge status={displayStatus} /></div>
+            <p className="mt-1 text-sm text-text-muted">{admin ? 'Operational access · not a paid customer subscription' : plan.eyebrow}</p>
+          </div>
+        </div>
+        <div className="mt-6">
+          {admin ? <><strong className="text-2xl">INXSocial Admin</strong><p className="mt-1 text-xs text-text-muted">Agency-equivalent AI allowance with administrator privileges.</p></> : <>
+            <strong className="text-2xl">{price}</strong>
+            {plan.id !== 'trial' && !subscription.legacyLifetime && !complimentary && <span className="text-sm text-text-muted"> / {subscription.billingCycle === 'yearly' ? 'year' : 'month'}</span>}
+            <p className="mt-1 text-xs text-text-muted">{expiry}</p>
+          </>}
+        </div>
+        {!admin && <div className="mt-5 grid gap-2 sm:flex">
+          {plan.id !== 'agency' && <Button onClick={onUpgrade} tone="primary"><ArrowRight className="size-4" />View Plans</Button>}
+          <Button disabled={!subscription.canManage} onClick={onManage}>{subscription.canManage ? 'Manage Subscription' : 'No paid subscription yet'}</Button>
+        </div>}
+      </div>
+      <div className="grid content-center gap-3 border-t border-border-soft pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+        {admin ? <><Availability available>Administrator access across the INXSocial workspace</Availability><Availability available>Unlimited administrator connection testing</Availability><Availability available>Full Analytics and publishing controls</Availability><Availability available>Full AI Content Studio access</Availability><Availability available>2,500 operational AI credits per period</Availability><Availability available>Customer billing remains separate</Availability></> : plan.highlights.map((item) => <Availability available key={item}>{item}</Availability>)}
+      </div>
+    </div>
+  </Card>
 }
 
 export function UsageCard({ overview, onView }: { overview: BillingOverview; onView: () => void }) {
