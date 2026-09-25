@@ -1,7 +1,7 @@
 import {
   ArrowRight, Box, Clapperboard, Globe2, PackageOpen, Paperclip, Play, Sparkles, UsersRound,
 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { fetchUGCAvatarImage } from '../../lib/ugc-studio-api'
 import type { CreateUGCCampaignInput, UGCAvatar } from '../../types/ugc-studio'
 
@@ -79,7 +79,7 @@ function CreatorVisual({ avatar }: { avatar?: UGCAvatar | null }) {
     : <div className="ugc-agent-real-fallback"><UsersRound className="size-7 text-brand-cyan" /></div>
 }
 
-function VideoStill({ src, fallback }: { src?: string | null; fallback: React.ReactNode }) {
+function VideoStill({ src, fallback }: { src?: string | null; fallback: ReactNode }) {
   if (!src) return <div className="ugc-agent-real-fallback">{fallback}</div>
   return <video
     aria-hidden="true"
