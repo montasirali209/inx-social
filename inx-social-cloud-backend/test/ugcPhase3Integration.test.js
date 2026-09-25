@@ -44,13 +44,14 @@ test('existing pre-Phase-3 scene route aliases remain renderable', () => {
   assert.equal(adapters.normalizeRouteKey('HAILUO'), 'HAILUO_23');
   assert.equal(adapters.normalizeRouteKey('KLING'), 'KLING_LEGACY');
   assert.equal(adapters.normalizeRouteKey('HAILUO_STANDARD_V1'), 'HAILUO_23');
+  assert.equal(adapters.normalizeRouteKey('H3_MAX_STANDARD_V1'), 'H3_MAX');
   assert.equal(adapters.normalizeRouteKey('KLING_PREMIUM_V1'), 'KLING_LEGACY');
 });
 
 test('Phase 3 leaves Standard and Premium credit tables unchanged', () => {
   const studio = require('../src/services/ugcStudioService');
-  assert.deepEqual(studio.STANDARD_CREDITS, { 15: 100, 20: 140, 30: 210 });
-  assert.deepEqual(studio.PREMIUM_CREDITS, { 15: 180, 20: 260, 30: 390 });
+  assert.deepEqual(studio.STANDARD_CREDITS, { 20: 140, 30: 210, 45: 315, 60: 420 });
+  assert.deepEqual(studio.PREMIUM_CREDITS, { 20: 260, 30: 390, 45: 585, 60: 780 });
 });
 
 test('provider names remain hidden from customer-facing UGC UI', () => {
