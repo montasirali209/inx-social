@@ -15,7 +15,7 @@ test('Phase 4 creator profiles are versioned and retain persistent production co
   assert.equal(profile.accent, 'British');
   assert.ok(profile.niches.includes('SaaS'));
   assert.ok(profile.environments.some(value => /home office/i.test(value)));
-  assert.ok(profile.routeCompatibility.includes('HAILUO_STANDARD_V1'));
+  assert.ok(profile.routeCompatibility.includes('H3_MAX_STANDARD_V1'));
   assert.ok(profile.routeCompatibility.includes('OMNIHUMAN_CREATOR_V1'));
   assert.equal(profile.referencePolicy.regeneration, 'REPAIR_ONCE_NOT_PER_CAMPAIGN');
 });
@@ -38,7 +38,7 @@ test('Creator V2 scoring prefers niche relevance and compatible routes', () => {
 });
 
 test('Creator V2 quality route requirements keep Standard and Premium model families explicit', () => {
-  assert.deepEqual(creators.requiredRoutesForQuality('STANDARD'), ['HAILUO_STANDARD_V1']);
+  assert.deepEqual(creators.requiredRoutesForQuality('STANDARD'), ['H3_MAX_STANDARD_V1']);
   assert.deepEqual(creators.requiredRoutesForQuality('PREMIUM'), [
     'OMNIHUMAN_CREATOR_V1',
     'KLING_OMNI_DYNAMIC_V1',
