@@ -258,7 +258,7 @@ function Toast({ toast, onClose }: { toast: ToastState; onClose: () => void }) {
       ? 'border-brand-red/35 bg-[#2a1015] text-rose-50'
       : 'border-brand-cyan/35 bg-[#062330] text-cyan-50'
   return (
-    <div className={`fixed bottom-4 right-4 z-[70] flex max-w-sm items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-2xl ${tone}`} role="status">
+    <div className={`fixed bottom-3 left-3 right-3 z-[70] flex max-w-none items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-2xl sm:bottom-4 sm:left-auto sm:right-4 sm:max-w-sm ${tone}`} role="status">
       {toast.tone === 'success' ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-brand-green" /> : toast.tone === 'error' ? <CircleAlert className="mt-0.5 size-4 shrink-0 text-brand-red" /> : <Activity className="mt-0.5 size-4 shrink-0 text-brand-cyan" />}
       <span className="leading-5">{toast.message}</span>
       <button aria-label="Dismiss notification" className="ml-auto text-current/60 hover:text-current" onClick={onClose} type="button"><X className="size-4" /></button>
