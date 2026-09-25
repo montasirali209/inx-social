@@ -8,7 +8,7 @@ function creator(overrides = {}) {
   return { id: 'avatar-1', name: 'Maya', category: 'Lifestyle', presentation: 'Woman', ageBand: '25–34', locale: 'en-GB', voice: 'Pippa', environment: 'real apartment', ...overrides };
 }
 
-test('Phase 3 router keeps Standard on Hailuo', () => {
+test('Standard UGC routes to H3 Max with native synchronized audio', () => {
   const route = router.routeForScene({
     quality: 'STANDARD',
     kind: 'CREATOR',
@@ -19,9 +19,9 @@ test('Phase 3 router keeps Standard on Hailuo', () => {
     hasNarration: true,
     mode: 'adaptive'
   });
-  assert.equal(route.routeKey, 'HAILUO_STANDARD_V1');
-  assert.equal(route.adapterKey, 'HAILUO_23');
-  assert.equal(route.audioStrategy, 'TTS_THEN_LIP_SYNC');
+  assert.equal(route.routeKey, 'H3_MAX_STANDARD_V1');
+  assert.equal(route.adapterKey, 'H3_MAX');
+  assert.equal(route.audioStrategy, 'NATIVE_SYNC_AUDIO');
 });
 
 test('Premium creator scenes route to OmniHuman 1.5', () => {
@@ -198,17 +198,21 @@ test('Seedance adapter uses reference-guided 720p vertical generation', () => {
   assert.equal(adapters.postProcessFor(cap, { kind: 'PRODUCT', narration: { audioURL: 'x' } }), 'LOCAL_MUX');
 });
 
-test('Hailuo adapter keeps provider-safe first-frame generation', () => {
-  const cap = adapters.getAdapter('HAILUO_STANDARD_V1');
+test('H3 Max adapter sends multi-reference vertical video with native audio', () => {
+  const cap = adapters.getAdapter('H3_MAX_STANDARD_V1');
   const task = adapters.buildTask(cap, {
     kind: 'CREATOR',
     providerDuration: 10,
     prompt: 'Creator speaks naturally.',
     reference: 'data:image/png;base64,actor',
-    narration: { audioURL: 'https://example.com/voice.mp3' }
+    references: ['data:image/png;base64,actor', 'data:image/png;base64,product'],
+    narration: null
   });
-  assert.equal(task.model, 'minimax:4@1');
-  assert.deepEqual(task.inputs.frameImages, [{ image: 'data:image/png;base64,actor', frame: 'first' }]);
-  assert.deepEqual(task.providerSettings, { minimax: { promptOptimizer: true } });
-  assert.equal(adapters.postProcessFor(cap, { kind: 'CREATOR', narration: { audioURL: 'x' } }), 'LIP_SYNC');
+  assert.equal(task.model, 'minimax:h3@max');
+  assert.deepEqual(task.inputs.referenceImages, ['data:image/png;base64,actor', 'data:image/png;base64,product']);
+  assert.equal(task.width, 768);
+  assert.equal(task.height, 1344);
+  assert.equal(task.duration, 10);
+  assert.deepEqual(task.settings, { promptExpansion: 'quality' });
+  assert.equal(adapters.postProcessFor(cap, { kind: 'CREATOR', narration: null }), 'NONE');
 });
