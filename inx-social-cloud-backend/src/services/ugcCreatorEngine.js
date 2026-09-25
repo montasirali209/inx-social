@@ -1,7 +1,7 @@
 const CREATOR_PROFILE_VERSION = 'ugc-creators-v2';
 
 const CREATOR_ROUTE_KEYS = Object.freeze({
-  STANDARD: 'HAILUO_STANDARD_V1',
+  STANDARD: 'H3_MAX_STANDARD_V1',
   LEGACY_PREMIUM: 'KLING_PREMIUM_V1',
   PREMIUM_CREATOR: 'OMNIHUMAN_CREATOR_V1',
   PREMIUM_FALLBACK: 'KLING_OMNI_DYNAMIC_V1'
@@ -116,7 +116,7 @@ function profileFromRow(row = {}) {
     environmentTags: parseJson(row.environmentTagsJson, casting.environments || []),
     wardrobe: parseJson(row.wardrobeJson, casting.wardrobe || []),
     gestures: parseJson(row.gestureJson, casting.gestures || []),
-    routeCompatibility: parseJson(row.routeCompatibilityJson, casting.routeCompatibility || []),
+    routeCompatibility: parseJson(row.routeCompatibilityJson, casting.routeCompatibility || []).map(routeKey => routeKey === 'HAILUO_STANDARD_V1' ? CREATOR_ROUTE_KEYS.STANDARD : routeKey),
     energy: casting.energy || []
   });
 }
