@@ -22,6 +22,32 @@ test('X analytics accepts only the connected author and excludes reposts', () =>
   assert.equal(belongsToXAccount({ username: null }, { platform_url: `https://x.com/md_ali21993/status/${id}` }), false);
 });
 
+test('X analytics can verify the exact provider account even when the provider URL uses a placeholder handle', () => {
+  const id = '2047000000000000000';
+  const profile = {
+    username: '@md_ali21993',
+    metadataJson: JSON.stringify({ providerUserId: '123456789' })
+  };
+  assert.equal(belongsToXAccount(profile, {
+    platform_account_id: '123456789',
+    platform_post_id: id,
+    platform_url: `https://twitter.com/user/status/${id}`,
+    caption: 'My connected account post'
+  }), true);
+  assert.equal(belongsToXAccount(profile, {
+    platform_account_id: '987654321',
+    platform_post_id: id,
+    platform_url: `https://twitter.com/user/status/${id}`,
+    caption: 'Different account'
+  }), false);
+  assert.equal(belongsToXAccount(profile, {
+    platform_account_id: '123456789',
+    platform_post_id: id,
+    platform_url: `https://twitter.com/user/status/${id}`,
+    caption: 'RT @someone_else: their post'
+  }), false);
+});
+
 test('provider dates take precedence and other platforms cannot infer a date from an ID', () => {
   const published = Date.UTC(2026, 8, 22);
   const id = String((BigInt(published) - 1288834974657n) << 22n);
