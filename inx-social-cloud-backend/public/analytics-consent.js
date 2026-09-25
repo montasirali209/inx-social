@@ -75,14 +75,23 @@
       #inxsocial-analytics-consent{position:fixed;left:18px;right:18px;bottom:18px;z-index:2147483000;max-width:900px;margin:auto;padding:18px 20px;border:1px solid rgba(148,163,184,.28);border-radius:18px;background:rgba(5,14,26,.97);color:#e8f2ff;box-shadow:0 18px 60px rgba(0,0,0,.38);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;display:flex;gap:20px;align-items:center;justify-content:space-between}
       #inxsocial-analytics-consent strong{display:block;font-size:15px;margin-bottom:4px}#inxsocial-analytics-consent p{margin:0;color:#aebfd2;font-size:13px;line-height:1.55;max-width:620px}#inxsocial-analytics-consent a{color:#72e6d4;text-decoration:none}
       #inxsocial-analytics-consent .actions{display:flex;gap:9px;flex:0 0 auto}#inxsocial-analytics-consent button,#inxsocial-cookie-settings{font:inherit;cursor:pointer;border-radius:11px;border:1px solid rgba(148,163,184,.32);padding:10px 13px;background:#0b1a2c;color:#e8f2ff;font-weight:700}#inxsocial-analytics-consent button.accept{background:#5eead4;color:#05201d;border-color:#5eead4}
-      #inxsocial-cookie-settings{position:fixed;right:14px;bottom:14px;z-index:2147482999;padding:7px 10px;font-size:11px;background:rgba(5,14,26,.88);color:#bdcad8;box-shadow:0 6px 24px rgba(0,0,0,.18)}
-      @media(max-width:680px){#inxsocial-analytics-consent{left:10px;right:10px;bottom:10px;align-items:stretch;flex-direction:column;padding:16px}#inxsocial-analytics-consent .actions{display:grid;grid-template-columns:1fr 1fr}#inxsocial-analytics-consent button{width:100%}}
+      #inxsocial-cookie-settings{position:fixed;right:14px;bottom:14px;z-index:90;padding:7px 10px;font-size:11px;background:rgba(5,14,26,.88);color:#bdcad8;box-shadow:0 6px 24px rgba(0,0,0,.18)}
+      @media(max-width:680px){#inxsocial-analytics-consent{left:10px;right:10px;bottom:max(10px,env(safe-area-inset-bottom));max-height:calc(100dvh - 20px);overflow-y:auto;align-items:stretch;flex-direction:column;padding:16px}#inxsocial-analytics-consent .actions{display:grid;grid-template-columns:1fr 1fr}#inxsocial-analytics-consent button{width:100%}#inxsocial-cookie-settings{right:10px;bottom:max(10px,env(safe-area-inset-bottom));max-width:calc(100vw - 20px)}}
     `;
     document.head.appendChild(style);
   }
 
+  function isWorkspaceRoute() {
+    return location.pathname === '/app' || location.pathname.startsWith('/app/');
+  }
+
   function renderSettingsButton() {
-    if (document.getElementById('inxsocial-cookie-settings')) return;
+    const existing = document.getElementById('inxsocial-cookie-settings');
+    if (isWorkspaceRoute()) {
+      existing?.remove();
+      return;
+    }
+    if (existing) return;
     const button = document.createElement('button');
     button.id = 'inxsocial-cookie-settings';
     button.type = 'button';
@@ -125,11 +134,16 @@
       renderBanner();
     }
 
+    const syncRouteUi = () => {
+      trackPageView();
+      const choice = readChoice();
+      if (choice === 'accepted' || choice === 'rejected') renderSettingsButton();
+    };
     const pushState = history.pushState.bind(history);
     const replaceState = history.replaceState.bind(history);
-    history.pushState = (...args) => { pushState(...args); queueMicrotask(trackPageView); };
-    history.replaceState = (...args) => { replaceState(...args); queueMicrotask(trackPageView); };
-    addEventListener('popstate', () => queueMicrotask(trackPageView));
+    history.pushState = (...args) => { pushState(...args); queueMicrotask(syncRouteUi); };
+    history.replaceState = (...args) => { replaceState(...args); queueMicrotask(syncRouteUi); };
+    addEventListener('popstate', () => queueMicrotask(syncRouteUi));
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialise, { once: true });

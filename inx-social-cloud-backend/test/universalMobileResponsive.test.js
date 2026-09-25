@@ -43,3 +43,25 @@ test('settings and billing keep local search controls until desktop topbar searc
   assert.match(settings, /relative block lg:hidden/);
   assert.match(billing, /grid gap-2 lg:hidden/);
 });
+
+
+test('all major workspace surfaces and portalled popups have narrow-screen containment', () => {
+  const mobile = read('mobile-responsive.css');
+  const campaign = read('components/ai-content-studio/AiPostCampaignModal.tsx');
+  const carousel = read('components/ai-content-studio/CarouselChatModalV2.tsx');
+  const ugc = read('components/ai-content-studio/UGCWizardModal.tsx');
+  const media = read('components/media-library/MediaLibraryPage.tsx');
+  const connections = read('components/connections/ConnectedAccountsPageV4.tsx');
+
+  assert.match(mobile, /Universal phone\/tablet hardening v2/);
+  assert.match(mobile, /\.posts-modal-panel,/);
+  assert.match(mobile, /\.ai-studio-modal-enter/);
+  assert.match(mobile, /max-width: 100vw !important/);
+  assert.match(mobile, /env\(safe-area-inset-bottom\)/);
+  assert.match(campaign, /grid-cols-2 gap-2 sm:grid-cols-4/);
+  assert.match(campaign, /grid w-full min-w-0 grid-cols-1 gap-2 sm:w-auto sm:min-w-\[260px\] sm:grid-cols-3/);
+  assert.match(carousel, /grid-cols-3 gap-2 sm:grid-cols-5/);
+  assert.match(ugc, /grid-cols-3 gap-2 sm:grid-cols-5/);
+  assert.match(media, /fixed left-3 right-3 top-20/);
+  assert.match(connections, /fixed bottom-3 left-3 right-3/);
+});

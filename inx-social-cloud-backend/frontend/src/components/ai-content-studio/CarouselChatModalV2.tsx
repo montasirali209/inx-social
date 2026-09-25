@@ -504,7 +504,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
                     <span className="text-[9px] text-text-muted">Slide {activeSlide + 1} of {slideAssets.length}</span>
                     <Button size="sm" disabled={activeSlide >= slideAssets.length - 1} onClick={() => setActiveSlide((value) => Math.min(slideAssets.length - 1, value + 1))}>Next<ArrowRight className="size-3.5" /></Button>
                   </div>
-                  <div className="mt-3 grid grid-cols-5 gap-2">
+                  <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
                     {slideAssets.slice(0, 10).map((slide, index) => (
                       <button key={slide.id || `${index}`} type="button" onClick={() => setActiveSlide(index)} className={`overflow-hidden rounded-xl border transition-all hover:-translate-y-0.5 ${activeSlide === index ? 'border-brand-cyan/60 shadow-[0_8px_24px_rgba(0,214,192,.12)]' : 'border-border-soft'}`}>
                         <img src={slide.thumbnailUrl || slide.url} alt="" className="aspect-square w-full object-cover" />
