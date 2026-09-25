@@ -91,7 +91,7 @@ module.exports = {
     ugcModel: modelName(process.env.RUNWARE_UGC_MODEL, 'prunaai:p-video@0'),
     ugcPVideoModel: modelName(process.env.RUNWARE_UGC_PVIDEO_MODEL, 'prunaai:p-video@2'),
     ugcAvatarModel: modelName(process.env.RUNWARE_UGC_AVATAR_MODEL, 'prunaai:p-video@avatar'),
-    ugcStandardModel: modelName(process.env.RUNWARE_UGC_STANDARD_MODEL, 'minimax:4@1'),
+    ugcStandardModel: modelName(process.env.RUNWARE_UGC_STANDARD_MODEL, 'minimax:h3@max'),
     ugcPremiumModel: modelName(process.env.RUNWARE_UGC_PREMIUM_MODEL, 'klingai:kling-video@3-standard'),
     ugcOmniHumanModel: modelName(process.env.RUNWARE_UGC_OMNIHUMAN_MODEL, 'bytedance:5@2'),
     ugcSeedanceModel: modelName(process.env.RUNWARE_UGC_SEEDANCE_MODEL, 'bytedance:seedance@2.5'),
