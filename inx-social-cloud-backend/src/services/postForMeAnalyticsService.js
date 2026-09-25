@@ -11,7 +11,7 @@ const ANALYTICS_CACHE_RUNTIME_INTERVAL_MS = 2 * 60 * 1000;
 const ANALYTICS_CACHE_RUNTIME_BATCH_SIZE = 4;
 const ANALYTICS_CACHE_RUNTIME_ACCOUNT_DELAY_MS = 1500;
 const ANALYTICS_CACHE_RUNTIME_RETRY_AFTER_MS = 10 * 60 * 1000;
-const ANALYTICS_PARTIAL_RETRY_AFTER_MS = 15 * 1000;
+const ANALYTICS_PARTIAL_RETRY_AFTER_MS = 5 * 1000;
 const SNAPSHOT_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const SNAPSHOT_RETENTION_DAYS = 30;
 const SNAPSHOT_RUNTIME_INTERVAL_MS = 60 * 60 * 1000;
@@ -274,19 +274,65 @@ function belongsToXAccount(profile, post) {
   }
 }
 
-async function knownPublishedXPostIds(profileId) {
+function xNativePostId(post) {
+  const urlId = String(post?.platform_url || '').match(/\/(?:status)\/(\d{15,20})(?:[/?#]|$)/)?.[1] || '';
+  return String(post?.platform_post_id || post?.external_post_id || urlId || '').trim();
+}
+
+async function knownPublishedXEvidence(profileId) {
   const rows = await prisma.socialPublication.findMany({
     where: {
       profileId,
       platform: 'x',
       status: 'PUBLISHED',
-      externalPostId: { not: null }
+      metricsJson: { not: null }
     },
-    select: { externalPostId: true },
+    select: {
+      metricsJson: true,
+      platformCaption: true,
+      publishedAt: true,
+      scheduledAt: true
+    },
     orderBy: { publishedAt: 'desc' },
     take: 1000
   });
-  return new Set(rows.map((row) => String(row.externalPostId || '')).filter(Boolean));
+
+  const nativePostIds = new Set();
+  const captionTimes = new Map();
+  for (const row of rows) {
+    const result = postForMe.parseJson(row.metricsJson, {});
+    const platformPostId = String(result.platformPostId || '').trim();
+    const platformUrlId = String(result.platformUrl || '').match(/\/(?:status)\/(\d{15,20})(?:[/?#]|$)/)?.[1] || '';
+    if (/^\d{15,20}$/.test(platformPostId)) nativePostIds.add(platformPostId);
+    if (/^\d{15,20}$/.test(platformUrlId)) nativePostIds.add(platformUrlId);
+
+    const caption = String(row.platformCaption || '').trim().replace(/\s+/g, ' ');
+    const time = row.publishedAt || row.scheduledAt;
+    if (caption && time) {
+      const key = caption.toLowerCase();
+      const list = captionTimes.get(key) || [];
+      list.push(time.getTime());
+      captionTimes.set(key, list);
+    }
+  }
+  return { nativePostIds, captionTimes };
+}
+
+function matchesKnownXPublication(post, evidence) {
+  const nativeId = xNativePostId(post);
+  if (nativeId && evidence.nativePostIds.has(nativeId)) return true;
+
+  const caption = String(post?.caption || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  if (!caption || /^rt\s+@/i.test(caption)) return false;
+  const knownTimes = evidence.captionTimes.get(caption);
+  if (!knownTimes?.length) return false;
+
+  const published = publishedAtForPost('x', post);
+  if (!published) return false;
+  const timestamp = published.getTime();
+  // Caption/time recovery is intentionally strict and only accepts an exact
+  // caption on the exact INXSocial profile within a narrow publish window.
+  return knownTimes.some((known) => Math.abs(known - timestamp) <= 15 * 60 * 1000);
 }
 
 function normalizedAccountLabel(value) {
@@ -633,13 +679,11 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
   // trust those rows solely because they came from the connected feed. Accept
   // either a status URL that names the connected handle or a platform post ID
   // that INXSocial has a persisted PUBLISHED record for on this exact profile.
-  const knownXPostIds = profile.platform === 'x' ? await knownPublishedXPostIds(profile.id) : new Set();
+  const knownXEvidence = profile.platform === 'x'
+    ? await knownPublishedXEvidence(profile.id)
+    : { nativePostIds: new Set(), captionTimes: new Map() };
   const allFeed = profile.platform === 'x'
-    ? providerFeed.filter((post) => {
-        if (belongsToXAccount(profile, post)) return true;
-        const postId = postExternalId(profile, post);
-        return Boolean(postId && knownXPostIds.has(postId));
-      })
+    ? providerFeed.filter((post) => belongsToXAccount(profile, post) || matchesKnownXPublication(post, knownXEvidence))
     : providerFeed;
   if (profile.platform === 'x' && providerFeed.length > allFeed.length) {
     const handle = String(profile.username || '').replace(/^@/, '').toLowerCase();
@@ -647,8 +691,8 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       profileId: profile.id,
       providerPosts: providerFeed.length,
       ownedPosts: allFeed.length,
-      knownPublishedPosts: knownXPostIds.size,
-      knownPublishedMatches: providerFeed.filter((post) => knownXPostIds.has(postExternalId(profile, post))).length,
+      knownPublishedPosts: knownXEvidence.nativePostIds.size,
+      knownPublishedMatches: providerFeed.filter((post) => matchesKnownXPublication(post, knownXEvidence)).length,
       connectedHandlePresent: Boolean(handle),
       postsWithStatusUrl: providerFeed.filter(post => /(?:x|twitter)\.com\/[^/]+\/status\/\d+/i.test(String(post.platform_url || ''))).length,
       postsWithMatchingHandleUrl: providerFeed.filter(post => {
@@ -815,7 +859,14 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
           : allFeed.length
             ? 'metrics_pending'
             : 'feed_empty',
-      repairRequired: !allFeed.length && ['instagram', 'facebook', 'x'].includes(profile.platform),
+      // An empty feed is not proof that OAuth is broken. Meta feeds can populate
+      // asynchronously after a successful connection. Never ask the user to
+      // reconnect unless the provider explicitly returns an authorization error.
+      repairRequired: false,
+      retryable: !(profile.platform === 'x' && providerFeed.length > 0 && !allFeed.length),
+      integrityState: profile.platform === 'x'
+        ? (allFeed.length ? 'owned_only' : providerFeed.length ? 'foreign_rows_blocked' : 'empty')
+        : 'not_applicable',
       metricSummary
     }
   };
@@ -1126,11 +1177,10 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
     }
 
     if (partial) {
-      const repairRequired = value?.provider?.repairRequired === true;
-      if (!repairRequired && !retryCooldownActive) queueAnalyticsRefresh(userId, platform, profileId, descriptor.periodDays, options);
-      // Empty provider feeds are not a slow refresh. They require a connection
-      // repair/re-authorization, so do not hammer the provider or keep the UI
-      // pretending that an ordinary sync is still running.
+      const retryable = value?.provider?.retryable !== false;
+      if (retryable && !retryCooldownActive) queueAnalyticsRefresh(userId, platform, profileId, descriptor.periodDays, options);
+      // Only report refreshing when a real provider request is in flight.
+      // X ownership mismatches are quarantined and never loop in the background.
       const refreshing = analyticsInflight.has(descriptor.key);
       return withCacheState(value, refreshing ? 'refreshing' : 'partial', partialAnalyticsWarning(descriptor.platform, value));
     }
@@ -1181,7 +1231,7 @@ async function runAnalyticsCacheRefreshSweep() {
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index];
       const persisted = parsePersistedPayload(row);
-      if (persisted?.provider?.repairRequired === true) continue;
+      if (persisted?.provider?.retryable === false) continue;
       const options = row.cacheVariant === 'summary'
         ? { cacheVariant: 'summary', feedMaxPages: 1, feedMaxPosts: 100 }
         : { cacheVariant: row.cacheVariant || 'full' };
