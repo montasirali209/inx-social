@@ -18,6 +18,9 @@ const seoRoutes = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  images: {
+    remotePatterns: [{ protocol: "https", hostname: "*" }],
+  },
   compress: true,
   async redirects() {
     return [
