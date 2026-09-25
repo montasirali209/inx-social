@@ -3,10 +3,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { IntegrationPending } from "../components/IntegrationPending";
-import { BLOG_REVALIDATE_SECONDS, getBlogClient, getSiteUrl, slugify } from "../lib/blog-client";
+import { getBlogClient, getSiteUrl, slugify } from "../lib/blog-client";
 import type { BlogArticle } from "../types";
 
-export const revalidate = BLOG_REVALIDATE_SECONDS;
+export const revalidate = 86400;
 
 function asSchema(value: unknown): string | null {
   if (!value) return null;
