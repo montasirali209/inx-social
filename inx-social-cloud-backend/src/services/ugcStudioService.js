@@ -1625,7 +1625,8 @@ async function renderProviderScene(scene, ad, avatar, productReferences, narrati
     'Keep the same believable room/environment and camera treatment. Never morph the face or introduce a second person.',
     'Natural creator behavior at normal 1x speed: breathing, blinking, responsive eye contact, conversational head movement and ordinary hand gestures. No slow motion, no time-stretching and no frozen mannequin pacing.'
   ].join(' ') : '';
-  const productReference = references.find((_, index) => !avatar || index > 0) || references[0] || null;
+  const productOnlyReferences = avatar ? references.slice(1) : references.slice();
+  const productReference = productOnlyReferences[0] || references[0] || null;
   const productLock = productReference
     ? 'PRODUCT LOCK: preserve the supplied product/reference exactly — packaging, shape, colours, proportions and visible branding. Do not substitute, redesign or hallucinate another product.'
     : '';
@@ -1649,7 +1650,7 @@ async function renderProviderScene(scene, ad, avatar, productReferences, narrati
     playbackDuration: Number(scene.duration),
     prompt: positivePrompt,
     reference,
-    references: [reference],
+    references: creatorLike ? [reference] : (productOnlyReferences.length ? productOnlyReferences : [reference]),
     narration
   }, onProgress);
 }
