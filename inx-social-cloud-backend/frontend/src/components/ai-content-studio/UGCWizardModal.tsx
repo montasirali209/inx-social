@@ -5,7 +5,7 @@ import {
   Sparkles, UserRound, UsersRound, WandSparkles, X,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchMediaLibrary } from '../../lib/media-library-api'
 import { deleteAIDraft, saveAIDraft } from '../../lib/ai-content-studio-api'
@@ -211,14 +211,6 @@ export function UGCWizardModal({
   }, [open])
 
   useEffect(() => {
-    if (!open || campaignId) return
-    const meaningful = step > 0 || Boolean(productUrl.trim() || description.trim() || referencePrompt.trim() || productAssetIds.length || avatarId || generatedReferences.length)
-    if (!meaningful) return
-    const timer = window.setTimeout(() => { void persistDraft().catch(() => undefined) }, 700)
-    return () => window.clearTimeout(timer)
-  }, [open, campaignId, step, productUrl, description, referencePrompt, productAssetIds, avatarId, generatedReferences, selectedGeneratedProductIds, creatorMode, duration, adCount, quality, selectedBrand?.id])
-
-  useEffect(() => {
     if (!campaign.data || !terminal.has(campaign.data.status)) return
     void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
     void queryClient.invalidateQueries({ queryKey: ['ai-studio-access'] })
@@ -277,7 +269,7 @@ export function UGCWizardModal({
     setFurthest((current) => Math.max(current, bounded))
   }
 
-  async function persistDraft() {
+  const persistDraft = useCallback(async () => {
     if (campaignId) return
     const meaningful = step > 0 || Boolean(productUrl.trim() || description.trim() || referencePrompt.trim() || productAssetIds.length || avatarId || generatedReferences.length)
     if (!meaningful) return
@@ -314,8 +306,20 @@ export function UGCWizardModal({
       } as never,
     })
     void queryClient.invalidateQueries({ queryKey: ['ugc-drafts'] })
-  }
+  }, [
+    campaignId, step, productUrl, description, referencePrompt, productAssetIds, avatarId,
+    generatedReferences, selectedGeneratedProductIds, sourceType, selectedBrand?.id,
+    seedCampaign?.brandProfileId, seedDraft?.brandProfileId, creatorMode, duration, adCount,
+    quality, campaignType, creativeFormat, seedProductIds, productAssets, queryClient,
+  ])
 
+  useEffect(() => {
+    if (!open || campaignId) return
+    const meaningful = step > 0 || Boolean(productUrl.trim() || description.trim() || referencePrompt.trim() || productAssetIds.length || avatarId || generatedReferences.length)
+    if (!meaningful) return
+    const timer = window.setTimeout(() => { void persistDraft().catch(() => undefined) }, 700)
+    return () => window.clearTimeout(timer)
+  }, [open, campaignId, step, productUrl, description, referencePrompt, productAssetIds, avatarId, generatedReferences, selectedGeneratedProductIds, creatorMode, duration, adCount, quality, selectedBrand?.id, persistDraft])
   function closeWithDraft() {
     void persistDraft().catch(() => undefined)
     onClose()
