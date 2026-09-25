@@ -66,6 +66,16 @@ test('Video Studio keeps the model decision simple with AI Recommended, Fast and
   assert.match(routes, /\/generate\/video-studio/);
 });
 
+test('Video Studio asks for explicit confirmation before high-credit generations', () => {
+  const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV2.tsx');
+  assert.match(video, /HIGH_COST_CONFIRMATION_CREDITS = 100/);
+  assert.match(video, /Confirm high-credit video generation/);
+  assert.match(video, /Balance after reservation/);
+  assert.match(video, /window\.confirm\(details\)/);
+  assert.match(video, /reserved credits are returned automatically/);
+  assert.match(video, /onClick=\{\(\) => void requestGeneration\(\)\}/);
+});
+
 test('Video Studio uses P-Video-2 as the economical 720p route with conservative credit estimates', () => {
   const service = read('src/services/videoStudioService.js');
   const environment = read('src/config/env.js');

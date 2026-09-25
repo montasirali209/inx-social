@@ -11,7 +11,7 @@ const objectStorage = require('./mediaObjectStorageService');
 const CONTENT_TYPES = new Set(['image_post', 'carousel_post', 'short_video', 'ugc_ad']);
 const IMAGE_ASPECTS = new Set(['1:1', '4:5', '9:16', '16:9']);
 const VIDEO_ASPECTS = new Set(['9:16', '4:5', '1:1', '16:9']);
-const STANDARD_VIDEO_DURATIONS = new Set([5, 10]);
+const DEDICATED_STUDIO_TYPES = new Set(['short_video', 'ugc_ad']);
 
 function error(message, status = 400, code = 'AI_STUDIO_ERROR') {
   const value = new Error(message);
@@ -30,20 +30,34 @@ function estimateGenerationCost(request) {
   const type = request?.type;
   const options = request?.options || {};
   if (!CONTENT_TYPES.has(type)) throw error('Choose a supported AI Content Studio format.');
+  if (DEDICATED_STUDIO_TYPES.has(type)) {
+    throw error(
+      type === 'short_video'
+        ? 'Short video pricing is handled by the current AI Video Studio.'
+        : 'UGC pricing is handled by the current UGC Studio.',
+      410,
+      'AI_STUDIO_LEGACY_PRICING_RETIRED'
+    );
+  }
   if (type === 'image_post') return 5 * Math.max(1, Math.min(4, intOption(options.variants, 1)));
   if (type === 'carousel_post') {
     const slides = Math.max(3, Math.min(10, intOption(options.slides, 5)));
     return slides <= 5 ? 10 : slides <= 8 ? 15 : 20;
   }
-  const duration = intOption(options.duration, type === 'ugc_ad' ? 10 : 5);
-  if (!STANDARD_VIDEO_DURATIONS.has(duration)) throw error('Standard AI Studio video generation currently supports 5 or 10 seconds.', 422, 'AI_STUDIO_DURATION_UNSUPPORTED');
-  if (type === 'short_video') return duration === 5 ? 15 : 25;
-  // UGC uses a more expensive video route than the economical short-video path.
-  return duration === 5 ? 25 : 40;
+  throw error('Choose a supported AI Content Studio format.');
 }
 
 function validateGenerationRequest(request) {
   if (!CONTENT_TYPES.has(request?.type)) throw error('Choose a supported AI Content Studio format.');
+  if (DEDICATED_STUDIO_TYPES.has(request.type)) {
+    throw error(
+      request.type === 'short_video'
+        ? 'Use the current AI Video Studio for video generation.'
+        : 'Use the current UGC Studio for UGC generation.',
+      410,
+      'AI_STUDIO_LEGACY_GENERATOR_RETIRED'
+    );
+  }
   const prompt = String(request.prompt || '').trim();
   if (!prompt) throw error('Add a clear generation prompt.');
   if (prompt.length > 1500) throw error('Keep the generation brief under 1,500 characters.');
@@ -61,16 +75,6 @@ function validateGenerationRequest(request) {
   if (request.type === 'carousel_post') {
     const slides = intOption(options.slides, 5);
     if (slides < 3 || slides > 10) throw error('Carousel Post supports between 3 and 10 slides.', 422, 'AI_STUDIO_SLIDES_UNSUPPORTED');
-  }
-
-  if (['short_video', 'ugc_ad'].includes(request.type)) {
-    const duration = intOption(options.duration, request.type === 'ugc_ad' ? 10 : 5);
-    if (!STANDARD_VIDEO_DURATIONS.has(duration)) throw error('Standard AI Studio video generation currently supports 5 or 10 seconds.', 422, 'AI_STUDIO_DURATION_UNSUPPORTED');
-  }
-
-  if (request.type === 'ugc_ad') {
-    if (!String(options.productName || '').trim()) throw error('Add the product or service name before generating.', 422, 'AI_STUDIO_PRODUCT_NAME_REQUIRED');
-    if (!String(options.productDescription || '').trim()) throw error('Describe what you are promoting before generating.', 422, 'AI_STUDIO_PRODUCT_DESCRIPTION_REQUIRED');
   }
 
   const needsSource = options.visualSource === 'Uploaded media' || options.visualSource === 'Media Library assets' || options.mediaSource === 'Upload product media' || options.mediaSource === 'Select from Media Library';

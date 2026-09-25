@@ -66,12 +66,9 @@ function fallbackCredits(request: GenerationRequest) {
     const slides = Math.max(3, Math.min(10, Number(request.options.slides || 4)))
     return slides <= 5 ? 10 : slides <= 8 ? 15 : 20
   }
-  if (request.type === 'short_video') {
-    const duration = Number(request.options.duration || 5)
-    return duration <= 5 ? 15 : 25
-  }
-  const duration = Math.max(5, Math.min(10, Number(request.options.duration || 10)))
-  return duration <= 5 ? 25 : 40
+  throw new Error(request.type === 'short_video'
+    ? 'Short video pricing is handled by AI Video Studio.'
+    : 'UGC pricing is handled by UGC Studio.')
 }
 
 export async function estimateGenerationCost(request: GenerationRequest): Promise<GenerationCostEstimate> {
