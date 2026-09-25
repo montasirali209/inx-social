@@ -163,6 +163,7 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
           'Every script must have a complete ending: land the value, then finish with one natural, explicit CTA. Never end mid-thought, on a conjunction, or with an unfinished sentence.',
           'caption is the social-post caption that accompanies the finished video. Keep it separate from the spoken script: concise, natural, platform-neutral, no hashtag stuffing, and never copy the full narration verbatim. Use only verified claims.',
           `For ${Number(input.duration)} seconds, target ${timing.targetMin}-${timing.targetMax} spoken words and never exceed ${timing.hardMax} words.`,
+          `The renderer will use ${providerDurations.length} technical video clip${providerDurations.length === 1 ? '' : 's'}. Write at least ${providerDurations.length} compact complete sentence${providerDurations.length === 1 ? '' : 's'} so the spoken script can split only at sentence boundaries; never rely on a sentence continuing across clips.`,
           'The final sentence and CTA must finish before the requested duration, leaving a short visual tail.',
           'Use one creator identity and one voice per ad.',
           'creatorProfile is a casting preference, not a named person. Do not request resemblance to a celebrity or identifiable real person.',
@@ -580,6 +581,11 @@ async function planCampaign({
     const offerName = brandSkill.productName || brandSkill.brandName || 'this offer';
     const effectiveCta = clean(rawAd.cta, 500) || ('Learn more about ' + offerName + '.');
     const timing = scriptTimingSkill({ script: rawAd.script, duration: input.duration, cta: effectiveCta });
+    if (providerDurations.length > 1 && sentenceChunks(timing.script).length < providerDurations.length) {
+      const error = new Error('UGC script needs more complete sentences for the selected duration.');
+      error.code = 'UGC_SCRIPT_SEGMENTATION_FAILED';
+      throw error;
+    }
     const assignment = casting.assignments[index] || casting.assignments[0];
     const avatar = avatars[assignment?.avatarIndex ?? 0] || avatars[0] || null;
     const scenePlan = scenePlanningSkill({
