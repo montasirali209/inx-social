@@ -281,14 +281,21 @@ async function listProviderAccounts(userId) {
   return rows;
 }
 
-function connectionMetadata(account) {
-  return {
+function connectionMetadata(account, existing = {}, options = {}) {
+  const rawPlatform = providerPlatform(account);
+  const platform = publicPlatform(rawPlatform);
+  const metadata = {
+    ...existing,
     providerEngine: PROVIDER_ENGINE,
     postForMeAccountId: String(account.id),
-    providerPlatform: providerPlatform(account),
+    providerPlatform: rawPlatform,
     providerUserId: account.user_id ? String(account.user_id) : null,
     externalId: account.external_id ? String(account.external_id) : null
   };
+  if (options.oauthPlatform && options.oauthPlatform === platform) {
+    metadata.lastOAuthSuccessAt = options.oauthCompletedAt || new Date().toISOString();
+  }
+  return metadata;
 }
 
 function profileType(platform, rawPlatform) {
@@ -300,7 +307,7 @@ function profileType(platform, rawPlatform) {
   return 'PROFILE';
 }
 
-async function upsertProviderAccount(userId, account) {
+async function upsertProviderAccount(userId, account, options = {}) {
   if (!account?.id) throw new Error('The social publishing account is missing its identifier.');
   if (String(account.external_id || '') !== String(userId)) {
     throw Object.assign(new Error('The social publishing gateway returned an account outside this INX Social workspace.'), { status: 403 });
@@ -312,11 +319,11 @@ async function upsertProviderAccount(userId, account) {
   const username = account.username ? String(account.username) : null;
   const displayName = username || `${PLATFORM_LABELS[platform]} account`;
   const active = String(account.status || '').toLowerCase() === 'connected';
-  const metadata = connectionMetadata(account);
 
   const existingConnection = await prisma.socialConnection.findUnique({
     where: { userId_platform_externalAccountId: { userId, platform, externalAccountId } }
   });
+  const metadata = connectionMetadata(account, parseJson(existingConnection?.metadataJson, {}), options);
   if (!existingConnection) {
     const license = await getLicenseStatus(userId);
     const limit = license.limits?.pages;
@@ -407,12 +414,12 @@ async function upsertProviderAccount(userId, account) {
   return prisma.socialConnection.findUnique({ where: { id: connection.id }, include: { profiles: true } });
 }
 
-async function performConnectionSync(userId) {
+async function performConnectionSync(userId, options = {}) {
   const accounts = await listProviderAccounts(userId);
   const seen = new Set();
   for (const account of accounts) {
     seen.add(String(account.id));
-    await upsertProviderAccount(userId, account);
+    await upsertProviderAccount(userId, account, options);
   }
 
   const existing = await prisma.socialConnection.findMany({
@@ -443,7 +450,7 @@ async function syncConnections(userId, options = {}) {
   }
   if (current?.promise) return current.promise;
 
-  const promise = performConnectionSync(userId);
+  const promise = performConnectionSync(userId, options);
   connectionSyncState.set(key, { ...(current || {}), promise });
   try {
     const accounts = await promise;
