@@ -22,6 +22,19 @@ test('Post for Me connection popup waits for the verified OAuth result before re
   assert.doesNotMatch(api, /force_authentication/);
 });
 
+test('Analytics refresh sync records successful OAuth without changing publishing access', () => {
+  const api = read('frontend/src/lib/connections-api.ts');
+  const controller = read('src/controllers/postForMeController.js');
+  const service = read('src/services/postForMeService.js');
+  assert.match(api, /syncPostForMeConnections\(oauthPlatform\?: SocialPlatform\)/);
+  assert.match(api, /JSON\.stringify\(oauthPlatform \? \{ oauthPlatform \} : \{\}\)/);
+  assert.match(controller, /oauthPlatform/);
+  assert.match(controller, /oauthCompletedAt/);
+  assert.match(service, /lastOAuthSuccessAt/);
+  assert.match(service, /connectionMetadata\(account, parseJson\(existingConnection\?\.metadataJson, \{\}\), options\)/);
+  assert.match(service, /performConnectionSync\(userId, options\)/);
+});
+
 test('Connected Accounts keeps provider diagnostics out of the customer UI', () => {
   const page = read('frontend/src/components/connections/ConnectedAccountsPageV4.tsx');
   assert.match(page, /Connected destinations/);
