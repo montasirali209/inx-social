@@ -1,7 +1,7 @@
 import type { MediaAsset } from './media-library'
 
 export type UGCQuality = 'STANDARD' | 'PREMIUM'
-export type UGCDuration = 15 | 20 | 30
+export type UGCDuration = 20 | 30 | 45 | 60
 export type UGCAdCount = 1 | 5 | 10 | 15 | 20
 export type UGCCampaignType = 'AUTO' | 'AVATAR_EXPLAINER' | 'PRODUCT_SHOWCASE'
 export type UGCCreativeFormat = 'AUTO' | 'PROBLEM_SOLUTION' | 'PRODUCT_DEMO' | 'TESTIMONIAL' | 'UNBOXING' | 'REACTION' | 'BEFORE_AFTER' | 'STORYTIME' | 'SPOKESPERSON' | 'PRODUCT_FOCUSED'
