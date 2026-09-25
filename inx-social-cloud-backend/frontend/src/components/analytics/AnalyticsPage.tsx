@@ -3,7 +3,6 @@ import { AlertTriangle, CalendarDays, Radio } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { buildAnalyticsView } from '../../data/analyticsData'
 import { fetchAnalyticsForSource, fetchAnalyticsSources, type AnalyticsSourceAccount } from '../../lib/analytics-api'
-import { connectPostForMePlatform, syncPostForMeConnections } from '../../lib/connections-api'
 import { readSessionCache, writeSessionCache } from '../../lib/session-cache'
 import type { AnalyticsTab } from '../../types/analytics'
 import type { Platform, PlatformAnalytics } from '../../types/dashboard'
@@ -56,8 +55,7 @@ export function AnalyticsPage() {
   const [days, setDays] = useState(30)
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('overview')
   const [manualRefreshing, setManualRefreshing] = useState(false)
-  const [repairingAccess, setRepairingAccess] = useState(false)
-  const [repairError, setRepairError] = useState('')
+  const [resolvedSelectionToken, setResolvedSelectionToken] = useState('')
   const forcedSelections = useRef(new Set<string>())
 
   const sources = useQuery({
@@ -110,14 +108,26 @@ export function AnalyticsPage() {
     staleTime: 2 * 60_000,
     initialData: () => {
       const cached = selectedScopeKey ? readSessionCache<LiveAnalyticsData>(analyticsWorkspaceCacheKey(selectedScopeKey, days)) : undefined
-      return cached?.results.some(result => result.account.analyticsKey !== selectedScopeKey) ? undefined : cached
+      if (!cached || cached.results.some(result => result.account.analyticsKey !== selectedScopeKey)) return undefined
+      return {
+        ...cached,
+        analytics: { ...cached.analytics, provider: { ...(cached.analytics.provider || {}), repairRequired: false } },
+        results: cached.results.map(result => ({
+          ...result,
+          analytics: { ...result.analytics, provider: { ...(result.analytics.provider || {}), repairRequired: false } },
+        })),
+      }
     },
     initialDataUpdatedAt: 0,
-    queryFn: () => {
+    queryFn: async () => {
       const selection = `${selectedScopeKey}:${days}`
       const force = !forcedSelections.current.has(selection)
       forcedSelections.current.add(selection)
-      return loadAnalytics(force)
+      try {
+        return await loadAnalytics(force)
+      } finally {
+        setResolvedSelectionToken(selection)
+      }
     },
   })
 
@@ -130,10 +140,16 @@ export function AnalyticsPage() {
 
   function changeSelection(key: string) {
     if (key === selectedScopeKey) return
+    setResolvedSelectionToken('')
     setSelectedKey(key)
-    setRepairError('')
     window.localStorage.setItem(selectionKey, key)
     setActiveTab('overview')
+  }
+
+  function changeDays(nextDays: number) {
+    if (nextDays === days) return
+    setResolvedSelectionToken('')
+    setDays(nextDays)
   }
 
   async function refreshAnalyticsNow() {
@@ -144,24 +160,6 @@ export function AnalyticsPage() {
       queryClient.setQueryData<LiveAnalyticsData>(analyticsQueryKey, result)
     } finally {
       setManualRefreshing(false)
-    }
-  }
-
-  async function repairAnalyticsAccess() {
-    if (!selectedAccount || repairingAccess) return
-    setRepairingAccess(true)
-    setRepairError('')
-    try {
-      await connectPostForMePlatform(selectedAccount.platform)
-      await syncPostForMeConnections()
-      await sources.refetch()
-      const result = await loadAnalytics(true)
-      queryClient.setQueryData<LiveAnalyticsData>(analyticsQueryKey, result)
-      forcedSelections.current.add(`${selectedScopeKey}:${days}`)
-    } catch (error) {
-      setRepairError(error instanceof Error ? error.message : 'Analytics access could not be refreshed.')
-    } finally {
-      setRepairingAccess(false)
     }
   }
 
@@ -176,34 +174,41 @@ export function AnalyticsPage() {
   const lastUpdated = view ? new Intl.DateTimeFormat('en-GB', { timeStyle: 'medium' }).format(new Date(view.source.fetchedAt)) : ''
   const providerMetricSources = analytics.data?.results || []
   const backgroundRefreshing = Boolean(analytics.data?.results?.some(result => result.analytics?.provider?.cacheState === 'refreshing'))
-  const providerRepairRequired = Boolean(view?.source.provider?.repairRequired)
   const providerSourceState = view?.source.provider?.sourceState
-  const selectedIsSyncing = !view || manualRefreshing
-  const quietRefresh = Boolean(view && !manualRefreshing && (analytics.isFetching || backgroundRefreshing))
-  const repairTitle = providerSourceState === 'ownership_mismatch'
-    ? 'The X analytics feed does not match this connected account.'
-    : 'The connected account returned no analytics feed.'
-  const repairDetail = providerSourceState === 'ownership_mismatch'
-    ? 'INXSocial rejected unrelated X posts instead of showing another account’s data. Refresh X analytics access once to repair the account/feed mapping.'
-    : 'This is not a slow sync. Refresh analytics access once to re-authorize the feed permission; publishing access and existing scheduled posts are preserved.'
+  const selectionToken = `${selectedScopeKey}:${days}`
+  const selectedIsSyncing = !view || manualRefreshing || (Boolean(selectedScopeKey) && resolvedSelectionToken !== selectionToken)
+  const quietRefresh = Boolean(view && !selectedIsSyncing && (analytics.isFetching || backgroundRefreshing))
+  const providerIssue = !selectedIsSyncing && providerSourceState === 'ownership_mismatch'
+    ? {
+        title: 'X returned a feed that could not be verified for this account.',
+        detail: 'INXSocial excluded those posts instead of showing another account’s analytics. The connection remains active and the provider will be checked again automatically.',
+      }
+    : !selectedIsSyncing && providerSourceState === 'feed_empty'
+      ? {
+          title: `${sourceName} returned no analytics posts on the latest provider fetch.`,
+          detail: 'The account is still connected. INXSocial will check the provider again automatically; you do not need to reconnect the account again.',
+        }
+      : null
 
-  const syncLabel = providerRepairRequired && !selectedIsSyncing
-    ? `Analytics access needs refresh · Last check ${lastUpdated || 'just now'}`
-    : selectedIsSyncing
-      ? `Updating ${sourceName} · ${lastUpdated ? `Last sync ${lastUpdated}` : 'Fetching latest metrics'}`
-      : partialMetrics
-        ? `Metrics pending · Last check ${lastUpdated || 'just now'}`
-        : quietRefresh
-          ? `Last sync · ${lastUpdated || 'Checking latest'}`
-          : `Last sync · ${lastUpdated || 'Waiting'}`
+  const syncLabel = selectedIsSyncing
+    ? `Updating ${sourceName} · Fetching latest metrics`
+    : providerSourceState === 'ownership_mismatch'
+      ? `Provider feed mismatch · Last check ${lastUpdated || 'just now'}`
+      : providerSourceState === 'feed_empty'
+        ? `No feed returned · Last check ${lastUpdated || 'just now'}`
+        : partialMetrics
+          ? `Metrics pending · Last check ${lastUpdated || 'just now'}`
+          : quietRefresh
+            ? `Last sync · ${lastUpdated || 'Checking latest'}`
+            : `Last sync · ${lastUpdated || 'Waiting'}`
 
   return <div className="analytics-fluid-canvas dashboard-canvas space-y-4 pb-8">
     <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
-      <AnalyticsAccountSelector accounts={selectorAccounts} isLive={Boolean(view) && !analytics.isError && !partialMetrics} isPending={partialMetrics && !providerRepairRequired} loading={sources.isLoading} needsRepair={providerRepairRequired && !selectedIsSyncing} onChange={changeSelection} value={selectedScopeKey || null} />
+      <AnalyticsAccountSelector accounts={selectorAccounts} isLive={Boolean(view) && !analytics.isError && !partialMetrics && !selectedIsSyncing} isPending={partialMetrics && !selectedIsSyncing} loading={sources.isLoading} onChange={changeSelection} value={selectedScopeKey || null} />
       <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
-        <label className="rounded-xl border border-border-soft bg-panel/70 px-3 py-2"><span className="block text-[9px] uppercase tracking-wider text-text-soft">Analytics period</span><select className="mt-1 min-h-7 w-full min-w-0 bg-transparent text-xs font-semibold outline-none sm:min-w-40" onChange={(event) => setDays(Number(event.target.value))} value={days}><option value={7}>Last 7 Days</option><option value={30}>Last 30 Days</option><option value={90}>Last 90 Days</option></select></label>
+        <label className="rounded-xl border border-border-soft bg-panel/70 px-3 py-2"><span className="block text-[9px] uppercase tracking-wider text-text-soft">Analytics period</span><select className="mt-1 min-h-7 w-full min-w-0 bg-transparent text-xs font-semibold outline-none sm:min-w-40" onChange={(event) => changeDays(Number(event.target.value))} value={days}><option value={7}>Last 7 Days</option><option value={30}>Last 30 Days</option><option value={90}>Last 90 Days</option></select></label>
         {view && !noVerifiedMetrics && <ExportReportButton view={view} />}
-        <div className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-[10px] ${providerRepairRequired && !selectedIsSyncing ? 'border-brand-amber/25 bg-brand-amber/[.06] text-brand-amber' : selectedIsSyncing ? 'border-brand-cyan/20 bg-brand-cyan/[.06] text-brand-cyan' : partialMetrics ? 'border-brand-amber/20 bg-brand-amber/[.05] text-brand-amber' : 'border-brand-green/15 bg-brand-green/[.055] text-brand-green'}`}><Radio className={`size-3.5 ${selectedIsSyncing ? 'animate-pulse motion-reduce:animate-none' : ''}`} /><span>{syncLabel}</span></div>
+        <div className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-[10px] ${selectedIsSyncing ? 'border-brand-cyan/20 bg-brand-cyan/[.06] text-brand-cyan' : partialMetrics ? 'border-brand-amber/20 bg-brand-amber/[.05] text-brand-amber' : 'border-brand-green/15 bg-brand-green/[.055] text-brand-green'}`}><Radio className={`size-3.5 ${selectedIsSyncing ? 'animate-pulse motion-reduce:animate-none' : ''}`} /><span>{syncLabel}</span></div>
       </div>
     </div>
 
@@ -212,9 +217,9 @@ export function AnalyticsPage() {
 
     {analytics.data?.failures.length ? <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber">Some live metrics could not refresh for {analytics.data.failures.map(failure => failure.account.displayName).join(', ')}. INXSocial has kept the other verified sources and will retry automatically.</div> : null}
     {analytics.isError && <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber"><strong>Analytics sync is taking longer than expected.</strong> The workspace will stay in its normal layout and retry automatically. <button className="ml-2 font-semibold text-brand-cyan underline underline-offset-2" onClick={() => void refreshAnalyticsNow()} type="button">Retry now</button></div>}
-    {providerRepairRequired && !selectedIsSyncing && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-amber/25 bg-brand-amber/[.07] px-4 py-3 text-[11px] text-brand-amber">
-      <span className="min-w-0"><strong className="block text-text-main">{repairTitle}</strong><span className="mt-0.5 block text-text-muted">{repairDetail}</span>{repairError && <span className="mt-1 block text-brand-red">{repairError}</span>}</span>
-      <button className="inline-flex min-h-9 items-center rounded-xl border border-brand-amber/30 bg-brand-amber/10 px-3 font-semibold text-brand-amber transition hover:bg-brand-amber/15 disabled:cursor-wait disabled:opacity-60" disabled={repairingAccess} onClick={() => void repairAnalyticsAccess()} type="button">{repairingAccess ? 'Refreshing access…' : `Refresh ${platformNames[selectedAccount!.platform as Platform]} analytics access`}</button>
+    {providerIssue && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-amber/20 bg-brand-amber/[.055] px-4 py-3 text-[11px]">
+      <span className="min-w-0"><strong className="block text-text-main">{providerIssue.title}</strong><span className="mt-0.5 block text-text-muted">{providerIssue.detail}</span></span>
+      <button className="inline-flex min-h-9 items-center rounded-xl border border-border-soft bg-white/[.025] px-3 font-semibold text-brand-cyan transition hover:bg-white/[.05] disabled:cursor-wait disabled:opacity-60" disabled={manualRefreshing} onClick={() => void refreshAnalyticsNow()} type="button">{manualRefreshing ? 'Checking…' : 'Check again'}</button>
     </div>}
 
     {(!view || noVerifiedMetrics) && <AnalyticsWorkspaceSkeleton active={selectedIsSyncing} />}
