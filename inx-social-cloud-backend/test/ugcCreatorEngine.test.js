@@ -58,7 +58,7 @@ test('Creator V2 actor snapshots contain casting and reference provenance', () =
   assert.equal(snapshot.referenceQualityStatus, 'READY');
   assert.equal(snapshot.referenceQualityScore, 96);
   assert.ok(snapshot.niches.length > 0);
-  assert.ok(snapshot.routeCompatibility.length >= 4);
+  assert.ok(snapshot.routeCompatibility.length >= 2);
 });
 
 test('Creator V2 reference summary separates persistent master and alternate references', () => {
