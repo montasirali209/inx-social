@@ -985,13 +985,14 @@ async function createCampaign(userId, input) {
   if (!available.length) throw publicError('No UGC creators are currently available.', 'UGC_CREATORS_UNAVAILABLE', 503);
 
   const resolvedType = resolveCampaignType(input, brand, productAssets);
+  const productVisualEvidence = productAssets.length ? await analyzeProductVisuals(userId, productAssets) : null;
   const hasBrandVisualReference = Boolean(Array.isArray(brand?.brandReferences) && brand.brandReferences.length);
   if (resolvedType === 'PRODUCT_SHOWCASE' && !productAssets.length && !hasBrandVisualReference) {
     throw publicError('Product Showcase needs at least one real product image. Upload a product photo, use a product page with usable images, or choose Avatar Explainer.', 'UGC_PRODUCT_REFERENCE_REQUIRED', 422);
   }
   let creativePlan;
   try {
-    creativePlan = await planCampaign({ ...input, productAssetIds }, brand, available, resolvedType);
+    creativePlan = await planCampaign({ ...input, productAssetIds, productVisualEvidence }, brand, available, resolvedType);
   } catch (error) {
     if (error?.code === 'UGC_CREATIVE_FORMAT_INCOMPATIBLE') {
       throw publicError('That creative structure is not compatible with the selected production type or available evidence. Choose another structure or use Auto.', error.code, 422);
@@ -1425,6 +1426,48 @@ async function getProductAssetContent(userId, assetId) {
   return { data, mimeType: row.mimeType || 'image/png' };
 }
 
+async function analyzeProductVisuals(userId, productAssets = []) {
+  const rows = Array.isArray(productAssets) ? productAssets.slice(0, 6) : [];
+  if (!rows.length) return null;
+  try {
+    const content = [{
+      type: 'text',
+      text: [
+        'Analyze these customer-supplied product reference images for a UGC script.',
+        'Report only details genuinely visible in the images. Do not infer hidden specifications, performance, price, ownership history, ingredients, certifications or benefits that cannot be seen.',
+        'If several images show the same product from different angles, treat them as one product.',
+        'Return JSON only: {"productName":"string","summary":"string","visibleFacts":["string"],"visibleText":["string"]}.',
+        'Keep productName blank unless the brand/model/name is clearly visible or unambiguous.'
+      ].join('\n')
+    }];
+    for (const row of rows) {
+      const data = await objectStorage.getBuffer(row.storageKey, null, row.storageProvider || null);
+      const visual = await sharp(data, { animated: false })
+        .rotate()
+        .resize({ width: 1000, height: 1000, fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 82, mozjpeg: true })
+        .toBuffer();
+      content.push({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + visual.toString('base64'), detail: 'high' } });
+    }
+    const parsed = await postStudio.callChatModel(postStudio.REASONING_MODEL, [
+      {
+        role: 'system',
+        content: 'You are the product visual-evidence reader for INXSocial UGC Studio. Return factual JSON only. Visual observations may guide the script, but never invent non-visible product claims.'
+      },
+      { role: 'user', content }
+    ], { reasoningEffort: 'medium', temperature: 0.1, maxTokens: 1200, timeoutMs: 120000 });
+    return {
+      productName: clean(parsed?.productName, 220),
+      summary: clean(parsed?.summary, 1400),
+      visibleFacts: Array.isArray(parsed?.visibleFacts) ? parsed.visibleFacts.map(item => clean(item, 300)).filter(Boolean).slice(0, 16) : [],
+      visibleText: Array.isArray(parsed?.visibleText) ? parsed.visibleText.map(item => clean(item, 220)).filter(Boolean).slice(0, 12) : []
+    };
+  } catch (error) {
+    console.warn('[UGC PRODUCT VISUAL ANALYSIS]', clean(error?.message, 400));
+    return null;
+  }
+}
+
 async function productAssetDataUri(userId, assetId) {
   const row = await getProductAssetRow(userId, assetId);
   const data = await objectStorage.getBuffer(row.storageKey, null, row.storageProvider || null);
@@ -1465,7 +1508,7 @@ async function uploadSampleVideo(user, input) {
   await prisma.$executeRawUnsafe(
     'INSERT INTO "UGCSampleVideo" ("id","title","description","campaignType","quality","duration","storageProvider","storageKey","mimeType","active","sortOrder","createdById","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true,$10,$11,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
     sampleId, clean(input.title, 140) || 'UGC sample', clean(input.description, 600) || null,
-    input.campaignType || 'AVATAR_EXPLAINER', input.quality || 'STANDARD', Number(input.duration || 15),
+    input.campaignType || 'AVATAR_EXPLAINER', input.quality || 'STANDARD', Number(input.duration || 20),
     stored.storageProvider, stored.storageKey, input.mimeType, Number(input.sortOrder || 0), user.id
   );
   const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCSampleVideo" WHERE "id"=$1 LIMIT 1', sampleId);
