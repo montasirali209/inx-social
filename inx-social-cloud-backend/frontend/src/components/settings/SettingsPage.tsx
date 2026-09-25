@@ -106,6 +106,15 @@ export function SettingsPage() {
     showNotice({ tone: 'success', message: 'Unsaved changes discarded.' })
   }
 
+  function openCookiePreferences() {
+    const consentWindow = window as Window & { inxCookieSettings?: () => void }
+    if (typeof consentWindow.inxCookieSettings === 'function') {
+      consentWindow.inxCookieSettings()
+      return
+    }
+    window.location.assign('/privacy.html')
+  }
+
   async function cardAction(card: SettingsCardData) {
     if (card.id === 'connected_accounts') return navigate('/connected-accounts')
     if (card.id === 'billing') return navigate('/billing')
@@ -140,11 +149,11 @@ export function SettingsPage() {
 
       <section className="flex flex-col gap-3 rounded-2xl border border-border-soft bg-[linear-gradient(135deg,rgba(15,36,52,.72),rgba(7,24,38,.82))] p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl border border-brand-teal/20 bg-brand-teal/8 text-brand-teal"><LockKeyhole aria-hidden="true" className="size-5" /></span><div><strong>Your settings are private and only visible to you.</strong><p className="mt-1 text-xs text-text-muted">Changes are applied only after you choose Save changes. Connected account credentials are never shown here.</p></div></div>
-        <div className="flex flex-wrap gap-3 text-xs"><a className="text-brand-cyan hover:underline focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/privacy.html">Privacy policy</a><a className="text-brand-cyan hover:underline focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/data-deletion.html">Data deletion</a></div>
+        <div className="flex flex-wrap items-center gap-3 text-xs"><button className="text-brand-cyan hover:underline focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={openCookiePreferences} type="button">Cookie preferences</button><a className="text-brand-cyan hover:underline focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/privacy.html">Privacy policy</a><a className="text-brand-cyan hover:underline focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/data-deletion.html">Data deletion</a></div>
       </section>
 
       <span className="sr-only" aria-live="polite">{sync.latestSync ? `Connections last synced ${new Date(sync.latestSync).toLocaleString()}.` : ''}</span>
-      {notice && <div aria-live="polite" className={`fixed bottom-5 right-5 z-50 flex max-w-sm items-center gap-3 rounded-xl border px-4 py-3 text-sm shadow-2xl backdrop-blur-xl ${notice.tone === 'success' ? 'border-brand-teal/35 bg-[#08251f]/95 text-white' : 'border-brand-red/35 bg-[#30131b]/95 text-white'}`}><span className={`grid size-6 place-items-center rounded-full ${notice.tone === 'success' ? 'bg-brand-teal' : 'bg-brand-red'}`}><Check aria-hidden="true" className="size-4" /></span>{notice.message}</div>}
+      {notice && <div aria-live="polite" className={`fixed bottom-3 left-3 right-3 z-50 flex max-w-none items-center gap-3 rounded-xl border px-4 py-3 text-sm shadow-2xl backdrop-blur-xl sm:bottom-5 sm:left-auto sm:right-5 sm:max-w-sm ${notice.tone === 'success' ? 'border-brand-teal/35 bg-[#08251f]/95 text-white' : 'border-brand-red/35 bg-[#30131b]/95 text-white'}`}><span className={`grid size-6 place-items-center rounded-full ${notice.tone === 'success' ? 'bg-brand-teal' : 'bg-brand-red'}`}><Check aria-hidden="true" className="size-4" /></span>{notice.message}</div>}
     </div>
   )
 }
