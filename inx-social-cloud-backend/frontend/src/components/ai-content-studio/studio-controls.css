@@ -50,13 +50,11 @@ select[class*="border-border-soft"] option {
 @keyframes ai-studio-modal-enter {
   from {
     opacity: 0;
-    transform: translateY(24px) scale(.965) rotateX(2.5deg);
-    filter: blur(3px);
+    transform: translate3d(0, 18px, 0) scale(.975);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1) rotateX(0);
-    filter: blur(0);
+    transform: translate3d(0, 0, 0) scale(1);
   }
 }
 
@@ -114,4 +112,33 @@ select[class*="border-border-soft"] option {
   .ai-campaign-3d-card:hover {
     transform: none;
   }
+}
+
+
+/* Shared AI Content Studio modal performance contract.
+   Transform + opacity only on entry; no full-screen backdrop blur while scrolling/video decoding. */
+.ai-studio-modal-backdrop{
+  background:rgba(1,7,13,.94)!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  animation-duration:.18s!important;
+  overscroll-behavior:none;
+}
+.ai-studio-modal-enter{
+  animation-duration:.24s!important;
+  animation-timing-function:cubic-bezier(.16,1,.3,1)!important;
+  will-change:auto!important;
+  backface-visibility:hidden;
+  transform:translateZ(0);
+}
+.ai-studio-modal-backdrop [class*="overflow-y-auto"]{
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+  -webkit-overflow-scrolling:touch;
+}
+@media (max-width:760px),(prefers-reduced-motion:reduce){
+  .ai-studio-modal-enter{animation-duration:.16s!important}
+}
+@media (prefers-reduced-motion:reduce){
+  .ai-studio-modal-backdrop,.ai-studio-modal-enter{animation:none!important}
 }
