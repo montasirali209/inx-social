@@ -74,7 +74,7 @@ export function UGCStudioHomeModal({
   const [selectedAdIds, setSelectedAdIds] = useState<string[]>([])
   const [preview, setPreview] = useState<{ src: string; title: string } | null>(null)
   const bodyRef = useRef<HTMLDivElement | null>(null)
-  const workspaceRef = useRef<HTMLElement | null>(null)
+  const campaignListRef = useRef<HTMLDivElement | null>(null)
   const [workspaceColumns, setWorkspaceColumns] = useState(3)
   const [workspaceOffset, setWorkspaceOffset] = useState(0)
 
@@ -174,7 +174,7 @@ export function UGCStudioHomeModal({
     const update = () => {
       const width = body.clientWidth
       setWorkspaceColumns(width < 760 ? 1 : width < 1180 ? 2 : 3)
-      setWorkspaceOffset(workspaceRef.current?.offsetTop || 0)
+      setWorkspaceOffset(campaignListRef.current?.offsetTop || 0)
     }
     update()
     const observer = new ResizeObserver(update)
@@ -395,7 +395,7 @@ export function UGCStudioHomeModal({
           </article>
         </section>
 
-        <section className="mt-7" id="ugc-workspace" ref={workspaceRef}>
+        <section className="mt-7" id="ugc-workspace">
           <div className="ugc-home-section-head">
             <div><span>YOUR WORKSPACE</span><h3>Your UGC videos</h3><p>Generation continues here even after you leave the creation wizard.</p></div>
             <div className="ugc-home-filter">
@@ -411,7 +411,7 @@ export function UGCStudioHomeModal({
           </div>
 
           {overview.isLoading ? <div className="ugc-home-empty"><LoaderCircle className="size-7 animate-spin text-brand-cyan" /><span>Loading your UGC workspace…</span></div> :
-            campaigns.length ? <div className="ugc-home-campaign-virtual" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
+            campaigns.length ? <div className="ugc-home-campaign-virtual" ref={campaignListRef} style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
               {rowVirtualizer.getVirtualItems().map((virtualRow) => <div
                 className="ugc-home-campaign-row"
                 data-index={virtualRow.index}
