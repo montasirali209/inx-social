@@ -10,6 +10,7 @@ const aiCredits = require('../services/aiCreditService');
 const aiStudioPolicy = require('../services/aiStudioPolicyService');
 const ugcAnalytics = require('../services/ugcStudioAnalyticsService');
 const ugcProductionAudit = require('../services/ugcProductionAuditService');
+const ugcStudio = require('../services/ugcStudioService');
 const env = require('../config/env');
 
 function safeUserSelect() {
@@ -443,6 +444,66 @@ async function agentLearning(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function ugcAvatars(req, res, next) {
+  try {
+    const avatars = await ugcStudio.listSystemAvatars();
+    res.json({
+      avatars,
+      summary: {
+        total: avatars.length,
+        adminUploaded: avatars.filter(avatar => avatar.managedByAdmin).length,
+        women: avatars.filter(avatar => avatar.presentation === 'Woman').length,
+        men: avatars.filter(avatar => avatar.presentation === 'Man').length
+      }
+    });
+  } catch (err) { next(err); }
+}
+
+async function uploadUgcAvatar(req, res, next) {
+  try {
+    const decodeHeader = (name, fallback = '') => {
+      const raw = String(req.headers[name] || fallback);
+      try { return decodeURIComponent(raw); } catch (_) { return raw; }
+    };
+    const avatar = await ugcStudio.uploadSystemAvatar(req.user.id, {
+      data: Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || ''),
+      mimeType: String(req.headers['content-type'] || 'application/octet-stream').split(';')[0],
+      name: decodeHeader('x-creator-name'),
+      presentation: decodeHeader('x-creator-presentation', 'Unspecified'),
+      category: decodeHeader('x-creator-category', 'Lifestyle'),
+      ageBand: decodeHeader('x-creator-age-band', 'Adult'),
+      locale: decodeHeader('x-creator-locale', 'en-GB'),
+      accent: decodeHeader('x-creator-accent'),
+      featured: /^(?:1|true|yes|on)$/i.test(String(req.headers['x-creator-featured'] || ''))
+    });
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'ADMIN_UGC_AVATAR_UPLOAD',
+        entity: 'UGCAvatar',
+        entityId: avatar.id,
+        metadata: JSON.stringify({
+          name: avatar.name,
+          presentation: avatar.presentation,
+          category: avatar.category,
+          voice: avatar.voice,
+          source: 'ADMIN_UPLOAD'
+        })
+      }
+    }).catch(() => {});
+    res.status(201).json({ avatar });
+  } catch (err) { next(err); }
+}
+
+async function ugcAvatarContent(req, res, next) {
+  try {
+    const value = await ugcStudio.getSystemAvatarContent(req.params.avatarId);
+    res.setHeader('Content-Type', value.mimeType);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.send(value.data);
+  } catch (err) { next(err); }
+}
+
 async function ugcAnalyticsSummary(req, res, next) {
   try {
     const days = z.coerce.number().int().min(1).max(180).default(30).parse(req.query.days);
@@ -473,4 +534,4 @@ async function reviewAgentLearning(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { overview, users, userDetail, createUser, updateUserAccess, updateCommercialPlan, adjustUserCredits, settings, updateSetting, aiStudioPolicyStatus, updateAiStudioPolicy, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning, ugcAnalyticsSummary, ugcOperationsSummary };
+module.exports = { overview, users, userDetail, createUser, updateUserAccess, updateCommercialPlan, adjustUserCredits, settings, updateSetting, aiStudioPolicyStatus, updateAiStudioPolicy, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning, ugcAvatars, uploadUgcAvatar, ugcAvatarContent, ugcAnalyticsSummary, ugcOperationsSummary };
