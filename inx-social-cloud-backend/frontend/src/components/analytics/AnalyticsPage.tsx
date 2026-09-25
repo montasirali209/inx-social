@@ -3,7 +3,6 @@ import { AlertTriangle, CalendarDays, Radio } from 'lucide-react'
 import { useMemo, useRef, useState } from 'react'
 import { buildAnalyticsView } from '../../data/analyticsData'
 import { fetchAnalyticsForSource, fetchAnalyticsSources, type AnalyticsSourceAccount } from '../../lib/analytics-api'
-import { connectPostForMePlatform, syncPostForMeConnections } from '../../lib/connections-api'
 import { readSessionCache, writeSessionCache } from '../../lib/session-cache'
 import type { AnalyticsTab } from '../../types/analytics'
 import type { Platform, PlatformAnalytics } from '../../types/dashboard'
@@ -26,7 +25,7 @@ const legacySelectionKey = 'inx-social-analytics-sources-v4'
 const analyticsSourcesCacheKey = 'inx-social-cache:analytics-sources-v1'
 
 function analyticsWorkspaceCacheKey(scope: string, days: number) {
-  return `inx-social-cache:analytics:${encodeURIComponent(scope)}:${days}`
+  return `inx-social-cache:analytics-v2:${encodeURIComponent(scope)}:${days}`
 }
 
 function savedSelection() {
@@ -56,8 +55,6 @@ export function AnalyticsPage() {
   const [days, setDays] = useState(30)
   const [activeTab, setActiveTab] = useState<AnalyticsTab>('overview')
   const [manualRefreshing, setManualRefreshing] = useState(false)
-  const [repairingAccess, setRepairingAccess] = useState(false)
-  const [repairError, setRepairError] = useState('')
   const forcedSelections = useRef(new Set<string>())
 
   const sources = useQuery({
@@ -99,9 +96,9 @@ export function AnalyticsPage() {
     refetchInterval: (query) => {
       const data = query.state.data as LiveAnalyticsData | undefined
       const states = data?.results?.map(result => String(result.analytics?.provider?.cacheState || '')) || []
-      if (data?.analytics?.provider?.repairRequired) return false
+      if (data?.analytics?.provider?.retryable === false) return false
       if (states.includes('refreshing')) return 2_000
-      if (states.includes('partial')) return 15_000
+      if (states.includes('partial')) return 5_000
       if (states.includes('stale')) return 60_000
       return 5 * 60_000
     },
@@ -131,7 +128,6 @@ export function AnalyticsPage() {
   function changeSelection(key: string) {
     if (key === selectedScopeKey) return
     setSelectedKey(key)
-    setRepairError('')
     window.localStorage.setItem(selectionKey, key)
     setActiveTab('overview')
   }
@@ -147,25 +143,6 @@ export function AnalyticsPage() {
     }
   }
 
-  async function repairAnalyticsAccess() {
-    if (!selectedAccount || repairingAccess) return
-    setRepairingAccess(true)
-    setRepairError('')
-    try {
-      await connectPostForMePlatform(selectedAccount.platform)
-      await syncPostForMeConnections()
-      await sources.refetch()
-      const result = await loadAnalytics(true)
-      queryClient.setQueryData<LiveAnalyticsData>(analyticsQueryKey, result)
-      forcedSelections.current.add(`${selectedScopeKey}:${days}`)
-    } catch (error) {
-      setRepairError(error instanceof Error ? error.message : 'Analytics access could not be refreshed.')
-    } finally {
-      setRepairingAccess(false)
-    }
-  }
-
-
   if (!sources.isLoading && !accounts.length) return <div className="grid min-h-[55vh] place-items-center rounded-panel border border-border-soft bg-panel/70 p-8 text-center"><span><AlertTriangle className="mx-auto size-9 text-brand-amber" /><h2 className="mt-4 text-lg font-semibold">Connect an account to unlock Analytics</h2><p className="mx-auto mt-2 max-w-md text-sm text-text-muted">Connect any supported social network to view live content performance and engagement metrics.</p><a className="mt-5 inline-flex min-h-10 items-center rounded-xl bg-brand-teal px-4 text-sm font-semibold text-white" href="/app/connected-accounts">Manage connected accounts</a></span></div>
 
   const selectorAccounts = accounts as unknown as AnalyticsAccount[]
@@ -176,19 +153,14 @@ export function AnalyticsPage() {
   const lastUpdated = view ? new Intl.DateTimeFormat('en-GB', { timeStyle: 'medium' }).format(new Date(view.source.fetchedAt)) : ''
   const providerMetricSources = analytics.data?.results || []
   const backgroundRefreshing = Boolean(analytics.data?.results?.some(result => result.analytics?.provider?.cacheState === 'refreshing'))
-  const providerRepairRequired = Boolean(view?.source.provider?.repairRequired)
   const providerSourceState = view?.source.provider?.sourceState
-  const selectedIsSyncing = !view || manualRefreshing
-  const quietRefresh = Boolean(view && !manualRefreshing && (analytics.isFetching || backgroundRefreshing))
-  const repairTitle = providerSourceState === 'ownership_mismatch'
-    ? 'The X analytics feed does not match this connected account.'
-    : 'The connected account returned no analytics feed.'
-  const repairDetail = providerSourceState === 'ownership_mismatch'
-    ? 'INXSocial rejected unrelated X posts instead of showing another account’s data. Refresh X analytics access once to repair the account/feed mapping.'
-    : 'This is not a slow sync. Refresh analytics access once to re-authorize the feed permission; publishing access and existing scheduled posts are preserved.'
+  const providerRetryable = view?.source.provider?.retryable !== false
+  const xIntegrityBlocked = providerSourceState === 'ownership_mismatch'
+  const selectedIsSyncing = !view || manualRefreshing || Boolean(noVerifiedMetrics && providerRetryable && (analytics.isFetching || backgroundRefreshing))
+  const quietRefresh = Boolean(view && !noVerifiedMetrics && !manualRefreshing && (analytics.isFetching || backgroundRefreshing))
 
-  const syncLabel = providerRepairRequired && !selectedIsSyncing
-    ? `Analytics access needs refresh · Last check ${lastUpdated || 'just now'}`
+  const syncLabel = xIntegrityBlocked
+    ? `X provider feed quarantined · Last check ${lastUpdated || 'just now'}`
     : selectedIsSyncing
       ? `Updating ${sourceName} · ${lastUpdated ? `Last sync ${lastUpdated}` : 'Fetching latest metrics'}`
       : partialMetrics
@@ -199,11 +171,11 @@ export function AnalyticsPage() {
 
   return <div className="analytics-fluid-canvas dashboard-canvas space-y-4 pb-8">
     <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto]">
-      <AnalyticsAccountSelector accounts={selectorAccounts} isLive={Boolean(view) && !analytics.isError && !partialMetrics} isPending={partialMetrics && !providerRepairRequired} loading={sources.isLoading} needsRepair={providerRepairRequired && !selectedIsSyncing} onChange={changeSelection} value={selectedScopeKey || null} />
+      <AnalyticsAccountSelector accounts={selectorAccounts} isLive={Boolean(view) && !analytics.isError && !partialMetrics} isPending={partialMetrics && !xIntegrityBlocked} loading={sources.isLoading} needsRepair={xIntegrityBlocked} onChange={changeSelection} value={selectedScopeKey || null} />
       <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
         <label className="rounded-xl border border-border-soft bg-panel/70 px-3 py-2"><span className="block text-[9px] uppercase tracking-wider text-text-soft">Analytics period</span><select className="mt-1 min-h-7 w-full min-w-0 bg-transparent text-xs font-semibold outline-none sm:min-w-40" onChange={(event) => setDays(Number(event.target.value))} value={days}><option value={7}>Last 7 Days</option><option value={30}>Last 30 Days</option><option value={90}>Last 90 Days</option></select></label>
         {view && !noVerifiedMetrics && <ExportReportButton view={view} />}
-        <div className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-[10px] ${providerRepairRequired && !selectedIsSyncing ? 'border-brand-amber/25 bg-brand-amber/[.06] text-brand-amber' : selectedIsSyncing ? 'border-brand-cyan/20 bg-brand-cyan/[.06] text-brand-cyan' : partialMetrics ? 'border-brand-amber/20 bg-brand-amber/[.05] text-brand-amber' : 'border-brand-green/15 bg-brand-green/[.055] text-brand-green'}`}><Radio className={`size-3.5 ${selectedIsSyncing ? 'animate-pulse motion-reduce:animate-none' : ''}`} /><span>{syncLabel}</span></div>
+        <div className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-[10px] ${xIntegrityBlocked ? 'border-brand-amber/25 bg-brand-amber/[.06] text-brand-amber' : selectedIsSyncing ? 'border-brand-cyan/20 bg-brand-cyan/[.06] text-brand-cyan' : partialMetrics ? 'border-brand-amber/20 bg-brand-amber/[.05] text-brand-amber' : 'border-brand-green/15 bg-brand-green/[.055] text-brand-green'}`}><Radio className={`size-3.5 ${selectedIsSyncing ? 'animate-pulse motion-reduce:animate-none' : ''}`} /><span>{syncLabel}</span></div>
       </div>
     </div>
 
@@ -212,9 +184,9 @@ export function AnalyticsPage() {
 
     {analytics.data?.failures.length ? <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber">Some live metrics could not refresh for {analytics.data.failures.map(failure => failure.account.displayName).join(', ')}. INXSocial has kept the other verified sources and will retry automatically.</div> : null}
     {analytics.isError && <div className="rounded-xl border border-brand-amber/20 bg-brand-amber/8 px-4 py-3 text-[11px] text-brand-amber"><strong>Analytics sync is taking longer than expected.</strong> The workspace will stay in its normal layout and retry automatically. <button className="ml-2 font-semibold text-brand-cyan underline underline-offset-2" onClick={() => void refreshAnalyticsNow()} type="button">Retry now</button></div>}
-    {providerRepairRequired && !selectedIsSyncing && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-amber/25 bg-brand-amber/[.07] px-4 py-3 text-[11px] text-brand-amber">
-      <span className="min-w-0"><strong className="block text-text-main">{repairTitle}</strong><span className="mt-0.5 block text-text-muted">{repairDetail}</span>{repairError && <span className="mt-1 block text-brand-red">{repairError}</span>}</span>
-      <button className="inline-flex min-h-9 items-center rounded-xl border border-brand-amber/30 bg-brand-amber/10 px-3 font-semibold text-brand-amber transition hover:bg-brand-amber/15 disabled:cursor-wait disabled:opacity-60" disabled={repairingAccess} onClick={() => void repairAnalyticsAccess()} type="button">{repairingAccess ? 'Refreshing access…' : `Refresh ${platformNames[selectedAccount!.platform as Platform]} analytics access`}</button>
+    {xIntegrityBlocked && !selectedIsSyncing && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-amber/25 bg-brand-amber/[.07] px-4 py-3 text-[11px] text-brand-amber">
+      <span className="min-w-0"><strong className="block text-text-main">INXSocial blocked unrelated X feed data.</strong><span className="mt-0.5 block text-text-muted">The provider returned timeline rows that could not be proven to belong to {sourceName}. They are quarantined and will never be included in this account’s analytics.</span></span>
+      <button className="inline-flex min-h-9 items-center rounded-xl border border-brand-cyan/25 bg-brand-cyan/[.06] px-3 font-semibold text-brand-cyan transition hover:bg-brand-cyan/10 disabled:cursor-wait disabled:opacity-60" disabled={manualRefreshing} onClick={() => void refreshAnalyticsNow()} type="button">{manualRefreshing ? 'Checking…' : 'Check X analytics again'}</button>
     </div>}
 
     {(!view || noVerifiedMetrics) && <AnalyticsWorkspaceSkeleton active={selectedIsSyncing} />}
