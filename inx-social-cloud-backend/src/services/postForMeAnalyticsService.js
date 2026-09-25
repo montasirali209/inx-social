@@ -1093,6 +1093,8 @@ async function runAnalyticsCacheRefreshSweep() {
 
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index];
+      const persisted = parsePersistedPayload(row);
+      if (persisted?.provider?.repairRequired === true) continue;
       const options = row.cacheVariant === 'summary'
         ? { cacheVariant: 'summary', feedMaxPages: 1, feedMaxPosts: 100 }
         : { cacheVariant: row.cacheVariant || 'full' };
