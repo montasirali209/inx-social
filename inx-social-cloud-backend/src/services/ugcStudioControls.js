@@ -13,8 +13,8 @@ const QUALITY_TIERS = Object.freeze({
     bestFor: ['Testing hooks and formats', 'Organic-style ads', 'Efficient multi-variation campaigns'],
     experience: [
       'Natural vertical social-video output',
-      'Creator and product continuity safeguards',
-      'Structured scene planning and captions',
+      'Multi-reference creator and product consistency',
+      'Native synchronized speech with final captions',
       'Background rendering with recovery'
     ]
   }),
@@ -161,7 +161,7 @@ function quote({ input, balanceRemaining = 0, pricing = {} }) {
       providerNamesHidden: true,
       routerManaged: true,
       output: 'Vertical social video',
-      resolution: '720p',
+      resolution: selection.quality === 'STANDARD' ? '768p' : 'Adaptive',
       backgroundRendering: true,
       recoverableJobs: true
     }
