@@ -473,7 +473,7 @@ export function MediaLibraryPage() {
       {message && (
         <div
           aria-live="polite"
-          className={`fixed right-4 top-24 z-[80] flex max-w-sm items-center gap-2 rounded-xl border px-4 py-3 text-xs shadow-panel backdrop-blur-xl ${message.tone === "success" ? "border-brand-green/30 bg-[#09251f]/95 text-brand-green" : "border-brand-red/30 bg-[#2a1018]/95 text-brand-red"}`}
+          className={`fixed left-3 right-3 top-20 z-[80] flex max-w-none items-center gap-2 rounded-xl border px-4 py-3 text-xs shadow-panel backdrop-blur-xl sm:left-auto sm:right-4 sm:top-24 sm:max-w-sm ${message.tone === "success" ? "border-brand-green/30 bg-[#09251f]/95 text-brand-green" : "border-brand-red/30 bg-[#2a1018]/95 text-brand-red"}`}
         >
           {message.tone === "success" ? (
             <CheckCircle2 className="size-4" />
