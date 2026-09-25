@@ -1660,7 +1660,7 @@ async function generateSceneNarration(scene, ad, avatar, spokenDuration = scene.
 }
 
 function h3CreatorVoiceDescription(avatar) {
-  if (!avatar) return 'Use a natural adult creator voice that matches the visible person.';
+  if (!avatar) return 'Use one natural energetic adult voiceover. Do not add a visible presenter or spokesperson.';
   const presentation = clean(avatar.presentation, 80) || 'adult';
   const accent = clean(ugcCreators.publicProfile(avatar).accent || avatar.locale, 80);
   return 'Use one consistent ' + presentation.toLowerCase() + ' adult creator voice' + (accent ? ' with a natural ' + accent + ' delivery' : '') + '.';
@@ -1671,10 +1671,12 @@ function h3NativePrompt(scene, ad, avatar, referenceCount) {
   const format = clean(scene.creativeFormat || plan.creativeFormat || plan.requestedCreativeFormat || 'UGC', 80).replaceAll('_', ' ');
   const spoken = clean(scene.script, 5000);
   const referenceInstruction = referenceCount > 1
-    ? 'Use Image 1 as the selected creator. Images 2 through ' + referenceCount + ' are product or brand references; treat them as authoritative views of the same advertised offer where applicable. Keep Image 1 identity and all referenced product details consistent.'
+    ? avatar
+      ? 'Use Image 1 as the selected creator. Images 2 through ' + referenceCount + ' are product or brand references; treat them as authoritative views of the same advertised offer where applicable. Keep Image 1 identity and all referenced product details consistent.'
+      : 'Images 1 through ' + referenceCount + ' are authoritative product or brand references. Preserve the same advertised product, colour, geometry, packaging and visible branding across the video. Do not introduce a presenter.'
     : avatar
       ? 'Use Image 1 as the selected creator and preserve that exact identity.'
-      : 'Use Image 1 as the authoritative product reference.';
+      : 'Use Image 1 as the authoritative product reference. This is a product-only ad; do not introduce a presenter.';
   const sound = spoken
     ? 'Sound: ' + h3CreatorVoiceDescription(avatar) + ' The creator says exactly, "' + spoken.replace(/"/g, "'") + '". Keep the speech energetic, natural and synchronized to the mouth. Finish the final sentence before the clip ends. Use only subtle believable room ambience underneath.'
     : 'Sound: subtle believable room ambience only.';
@@ -1682,7 +1684,9 @@ function h3NativePrompt(scene, ad, avatar, referenceCount) {
     'Create a fast-paced vertical creator-native UGC ad segment.',
     referenceInstruction,
     'UGC format: ' + format + '. Let the model choose natural framing, actions, motion and transitions that fit the script and references.',
-    'Keep the advertised product and creator visually consistent. Do not invent a different product, vehicle colour, interface, logo, readable text, extra person, feature or claim that is not supported by the references or script.',
+    avatar
+      ? 'Keep the advertised product and creator visually consistent. Do not invent a different product, vehicle colour, interface, logo, readable text, extra person, feature or claim that is not supported by the references or script.'
+      : 'Keep the advertised product visually consistent. Do not invent a presenter, different product, vehicle colour, interface, logo, readable text, feature or claim that is not supported by the references or script.',
     'Authentic social-video realism. No subtitles, captions, watermarks or generated overlay text.',
     sound
   ].filter(Boolean).join('\n\n'), 7000);
