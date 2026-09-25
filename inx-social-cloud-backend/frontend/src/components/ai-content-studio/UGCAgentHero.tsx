@@ -64,7 +64,7 @@ function CreatorVisual({ avatar }: { avatar?: UGCAvatar | null }) {
   useEffect(() => {
     let active = true
     let created: string | null = null
-    if (!avatar?.imageUrl) { setUrl(null); return undefined }
+    if (!avatar?.imageUrl) return undefined
     void fetchUGCAvatarImage(avatar).then((value) => {
       if (!value) return
       if (!active) { URL.revokeObjectURL(value); return }
@@ -81,7 +81,6 @@ function CreatorVisual({ avatar }: { avatar?: UGCAvatar | null }) {
 
 function OfferVisual({ src, fallbackVideo }: { src?: string | null; fallbackVideo?: string | null }) {
   const [failed, setFailed] = useState(false)
-  useEffect(() => { setFailed(false) }, [src])
   if (src && !failed) return <img alt="" className="ugc-agent-real-media" onError={() => setFailed(true)} src={src} />
   return <VideoStill fallback={<Box className="size-7" />} src={fallbackVideo} />
 }
@@ -171,11 +170,11 @@ export function UGCAgentHero({
 
     <div aria-hidden="true" className="ugc-agent-visual-flow">
       <div className="ugc-agent-visual-card creator">
-        <div className="ugc-agent-visual-image"><CreatorVisual avatar={creator} /></div>
+        <div className="ugc-agent-visual-image"><CreatorVisual avatar={creator} key={creator?.id || 'creator-fallback'} /></div>
         <UsersRound className="size-4" /><span>Creator</span>
       </div>
       <div className="ugc-agent-visual-card product">
-        <div className="ugc-agent-product-orb"><OfferVisual fallbackVideo={ugcVideoUrl} src={offerImageUrl} /></div>
+        <div className="ugc-agent-product-orb"><OfferVisual fallbackVideo={ugcVideoUrl} key={offerImageUrl || 'offer-fallback'} src={offerImageUrl} /></div>
         <Globe2 className="size-4" /><span>Offer</span>
       </div>
       <div className="ugc-agent-visual-card output">
