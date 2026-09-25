@@ -226,6 +226,106 @@ const avatarSeeds = [
   prompt: 'Ultra-realistic UGC creator portrait of a ' + row[6] + '. Vertical 9:16, waist-up, realistic skin texture, natural daylight, smartphone-camera realism, uncluttered neutral background, no text, no logo, no watermark.'
 }));
 
+const ADMIN_CREATOR_NAMES = Object.freeze({
+  Woman: ['Maya','Sofia','Chloe','Amara','Nina','Elena','Grace','Jade','Olivia','Priya','Zara','Naomi','Isla','Leah','Aisha','Mila','Layla','Freya','Ivy','Lena'],
+  Man: ['Liam','Noah','Ethan','Leo','Adam','Daniel','Ryan','Omar','Jack','Theo','Lucas','Samir','Benji','Kai','Mason','Hugo','Aiden','Finn','Eli','Reece'],
+  'Non-binary': ['Riley','Jordan','Casey','Morgan','Taylor','Avery','Cameron','Rowan','Jamie','Quinn','Skyler','Reese'],
+  Unspecified: ['Creator One','Creator Two','Creator Three','Creator Four','Creator Five','Creator Six']
+});
+
+function normalizeAdminPresentation(value) {
+  const input = clean(value, 40).toLowerCase();
+  if (['woman','female'].includes(input)) return 'Woman';
+  if (['man','male'].includes(input)) return 'Man';
+  if (['non-binary','nonbinary'].includes(input)) return 'Non-binary';
+  return 'Unspecified';
+}
+
+async function nextSystemAvatarName(presentation, preferredName = '') {
+  const preferred = clean(preferredName, 80);
+  if (preferred) {
+    const exists = await prisma.$queryRawUnsafe('SELECT 1 FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\' AND LOWER("name")=LOWER($1) LIMIT 1', preferred);
+    if (!exists.length) return preferred;
+  }
+  const rows = await prisma.$queryRawUnsafe('SELECT "name" FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\'');
+  const used = new Set(rows.map(row => String(row.name || '').toLowerCase()));
+  const pool = ADMIN_CREATOR_NAMES[presentation] || ADMIN_CREATOR_NAMES.Unspecified;
+  for (const candidate of pool) if (!used.has(candidate.toLowerCase())) return candidate;
+  const base = presentation === 'Woman' ? 'Female Creator' : presentation === 'Man' ? 'Male Creator' : presentation === 'Non-binary' ? 'Creator' : 'UGC Creator';
+  let number = 1;
+  while (used.has((base + ' ' + number).toLowerCase())) number += 1;
+  return base + ' ' + number;
+}
+
+async function listSystemAvatars() {
+  await ensureSystemAvatars();
+  const rows = await prisma.$queryRawUnsafe(
+    'SELECT a.*,(SELECT COUNT(*)::int FROM "UGCAvatarReference" r WHERE r."avatarId"=a."id" AND r."active"=true) AS "alternateReferenceCount" FROM "UGCAvatar" a WHERE a."scope"=\'SYSTEM\' AND a."status"=\'READY\' ORDER BY a."featured" DESC, a."createdAt" DESC, a."category", a."name"'
+  );
+  const output = [];
+  for (const row of rows) {
+    const prepared = await ensureCreatorProfileRow(row);
+    output.push({
+      ...publicAvatar(prepared),
+      managedByAdmin: String(prepared.slug || '').startsWith('admin-ugc-'),
+      imageUrl: prepared.referenceStorageKey ? '/api/admin/ugc-avatars/' + encodeURIComponent(prepared.id) + '/content' : null
+    });
+  }
+  return output;
+}
+
+async function uploadSystemAvatar(adminUserId, input) {
+  if (!['image/png','image/jpeg','image/webp'].includes(input.mimeType)) throw publicError('Upload PNG, JPEG or WebP creator images.', 'UGC_ADMIN_AVATAR_TYPE', 415);
+  if (!Buffer.isBuffer(input.data) || !input.data.length) throw publicError('Choose at least one creator image.', 'UGC_ADMIN_AVATAR_EMPTY', 400);
+  const presentation = normalizeAdminPresentation(input.presentation);
+  const category = clean(input.category || 'Lifestyle', 80) || 'Lifestyle';
+  const ageBand = clean(input.ageBand || 'Adult', 80) || 'Adult';
+  const locale = clean(input.locale || 'en-GB', 20) || 'en-GB';
+  const accent = clean(input.accent, 80);
+  const name = await nextSystemAvatarName(presentation, input.name);
+  const avatarId = id();
+  const slug = 'admin-ugc-' + avatarId;
+  const data = await sharp(input.data).rotate().resize({ width: 720, height: 1280, fit: 'cover' }).png().toBuffer();
+  const stored = await objectStorage.persistBuffer({
+    userId: 'system-ugc',
+    data,
+    mimeType: 'image/png',
+    originalName: 'ugc-system-avatar-' + avatarId + '.png',
+    prefix: 'ugc-avatar'
+  });
+  const voice = narratorVoice('', { presentation });
+  const profile = ugcCreators.buildProfile({ category, presentation, ageBand, locale, accent });
+  const storage = ugcCreators.storageFields(profile);
+  const voicePrompt = 'Natural, conversational UGC delivery matched to this ' + (presentation === 'Woman' ? 'female' : presentation === 'Man' ? 'male' : 'adult') + ' creator. Keep voice identity consistent with the selected creator.';
+  try {
+    await prisma.$executeRawUnsafe(
+      'INSERT INTO "UGCAvatar" ("id","userId","scope","slug","name","category","presentation","ageBand","locale","voice","voicePrompt","prompt","featured","creatorVersion","accent","languagesJson","nichesJson","environmentTagsJson","wardrobeJson","gestureJson","routeCompatibilityJson","castingProfileJson","referenceStorageProvider","referenceStorageKey","referenceMimeType","referenceQualityStatus","referenceQualityScore","referenceReviewedAt","status","createdAt","updatedAt") VALUES ($1,NULL,\'SYSTEM\',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,\'image/png\',\'READY\',100,CURRENT_TIMESTAMP,\'READY\',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+      avatarId, slug, name, category, presentation, ageBand, locale, voice, voicePrompt,
+      'Administrator-supplied reusable UGC creator reference. Preserve this exact creator identity and presentation across generation.',
+      Boolean(input.featured), storage.creatorVersion, storage.accent, storage.languagesJson, storage.nichesJson,
+      storage.environmentTagsJson, storage.wardrobeJson, storage.gestureJson, storage.routeCompatibilityJson, storage.castingProfileJson,
+      stored.storageProvider, stored.storageKey
+    );
+  } catch (error) {
+    await objectStorage.deleteObject(stored.storageKey, stored.storageProvider || null).catch(() => {});
+    throw error;
+  }
+  const rows = await prisma.$queryRawUnsafe(
+    'SELECT a.*,(SELECT COUNT(*)::int FROM "UGCAvatarReference" r WHERE r."avatarId"=a."id" AND r."active"=true) AS "alternateReferenceCount" FROM "UGCAvatar" a WHERE a."id"=$1 AND a."scope"=\'SYSTEM\' LIMIT 1',
+    avatarId
+  );
+  const avatar = publicAvatar(await ensureCreatorProfileRow(rows[0]));
+  return { ...avatar, managedByAdmin: true, imageUrl: '/api/admin/ugc-avatars/' + encodeURIComponent(avatarId) + '/content', uploadedById: adminUserId };
+}
+
+async function getSystemAvatarContent(avatarId) {
+  const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCAvatar" WHERE "id"=$1 AND "scope"=\'SYSTEM\' AND "status"=\'READY\' LIMIT 1', avatarId);
+  const row = rows[0];
+  if (!row || !row.referenceStorageKey) throw publicError('Creator image not found.', 'UGC_ADMIN_AVATAR_NOT_FOUND', 404);
+  const data = await objectStorage.getBuffer(row.referenceStorageKey, null, row.referenceStorageProvider || null);
+  return { data, mimeType: row.referenceMimeType || 'image/png' };
+}
+
 async function ensureSystemAvatars() {
   for (const avatar of avatarSeeds) {
     const environment = FEATURED_CREATORS.get(avatar.name) || null;
@@ -398,7 +498,7 @@ async function ensureCreatorProfileRow(row) {
 async function avatarRows(userId) {
   await ensureSystemAvatars();
   const rows = await prisma.$queryRawUnsafe(
-    'SELECT a.*,(SELECT COUNT(*)::int FROM "UGCAvatarReference" r WHERE r."avatarId"=a."id" AND r."active"=true) AS "alternateReferenceCount" FROM "UGCAvatar" a WHERE a."scope"=\'SYSTEM\' OR (a."scope"=\'USER\' AND a."userId"=$1) ORDER BY CASE WHEN a."scope"=\'SYSTEM\' THEN 0 ELSE 1 END, a."category", a."name"',
+    'SELECT a.*,(SELECT COUNT(*)::int FROM "UGCAvatarReference" r WHERE r."avatarId"=a."id" AND r."active"=true) AS "alternateReferenceCount" FROM "UGCAvatar" a WHERE a."status"=\'READY\' AND (a."scope"=\'SYSTEM\' OR (a."scope"=\'USER\' AND a."userId"=$1)) ORDER BY CASE WHEN a."scope"=\'SYSTEM\' THEN 0 ELSE 1 END, a."category", a."name"',
     userId
   );
   const output = [];
@@ -2544,6 +2644,7 @@ module.exports = {
   narratorVoice, narratorLanguage, narratorSpeed, adultSafeReferencePrompt, captionsForScenes, estimateCampaign,
   getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, getProductionAudit, deleteCampaign, getAd, updateAd, rerouteScenesForRegeneration, reassembleAd, regenerateAd, regenerateScene,
   generateCustomAvatar, generateReferenceAsset, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,
+  listSystemAvatars, uploadSystemAvatar, getSystemAvatarContent,
   listAvatarReferences, uploadAvatarReference, getAvatarReferenceContent, deleteAvatarReference,
   uploadProductAsset, getProductAssetContent,
   listSampleVideos, uploadSampleVideo, getSampleVideoContent,
