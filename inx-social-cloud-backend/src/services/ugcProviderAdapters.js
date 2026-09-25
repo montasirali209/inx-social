@@ -239,7 +239,7 @@ function buildTask(cap, context) {
     task.duration = duration;
     task.width = 720;
     task.height = 1280;
-    task.inputs = { referenceImages: [context.reference] };
+    task.inputs = { referenceImages: (Array.isArray(context.references) ? context.references : [context.reference]).filter(Boolean).slice(0, cap.maxReferenceImages) };
     task.settings = { audio: false };
     return task;
   }
