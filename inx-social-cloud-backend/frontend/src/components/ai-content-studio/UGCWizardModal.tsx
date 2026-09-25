@@ -196,6 +196,14 @@ export function UGCWizardModal({
   }, [open])
 
   useEffect(() => {
+    if (!open || campaignId) return
+    const meaningful = step > 0 || Boolean(productUrl.trim() || description.trim() || referencePrompt.trim() || productAssetIds.length || avatarId || generatedReferences.length)
+    if (!meaningful) return
+    const timer = window.setTimeout(() => { void persistDraft().catch(() => undefined) }, 700)
+    return () => window.clearTimeout(timer)
+  }, [open, campaignId, step, productUrl, description, referencePrompt, productAssetIds, avatarId, generatedReferences, selectedGeneratedProductIds, creatorMode, duration, adCount, quality, selectedBrand?.id])
+
+  useEffect(() => {
     if (!campaign.data || !terminal.has(campaign.data.status)) return
     void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
     void queryClient.invalidateQueries({ queryKey: ['ai-studio-access'] })
@@ -230,7 +238,8 @@ export function UGCWizardModal({
     onSuccess: (value) => {
       setCampaignId(value.id)
       setError('')
-      moveTo(6)
+      void deleteAIDraft(draftId.current).catch(() => undefined)
+      void queryClient.invalidateQueries({ queryKey: ['ugc-drafts'] })
       void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
     },
     onError: (value) => setError(value instanceof Error ? value.message : 'The UGC campaign could not be started.'),
@@ -247,20 +256,17 @@ export function UGCWizardModal({
     onError: (value) => setError(value instanceof Error ? value.message : 'The UGC variation could not be retried.'),
   })
 
-  const generateAvatar = useMutation({
-    mutationFn: () => generateUGCAvatar({
-      name: avatarName,
-      prompt: avatarPrompt,
-      category: customCreatorCategory,
-      presentation: customCreatorPresentation,
-      ageBand: customCreatorAgeBand,
-      locale: customCreatorLocale,
-    }),
-    onSuccess: (value) => {
-      setCreatorMode('SELECTED'); setAvatarId(value.id); setCustomCreatorOpen(false); setCreatorPickerOpen(false); setAvatarName(''); setAvatarPrompt('')
-      void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
+  const generateReference = useMutation({
+    mutationFn: () => generateUGCReference({ prompt: referencePrompt, brandProfileId: selectedBrand?.id || null }),
+    onSuccess: async ({ generated }) => {
+      setGeneratedReferences((current) => [...current, generated])
+      setReferencePrompt('')
+      setError('')
+      await queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
+      await queryClient.invalidateQueries({ queryKey: ['ai-studio-access'] })
+      onToast(generated.kind === 'AVATAR' ? 'Avatar created. Select it below when you want to use it.' : 'Product image created. Select it below when you want to use it.')
     },
-    onError: (value) => setError(value instanceof Error ? value.message : 'The creator could not be generated.'),
+    onError: (value) => setError(value instanceof Error ? value.message : 'The image could not be generated.'),
   })
 
   function moveTo(next: number) {
@@ -269,18 +275,52 @@ export function UGCWizardModal({
     setFurthest((current) => Math.max(current, bounded))
   }
 
-  async function uploadAvatar(file: File | undefined) {
-    if (!file) return
-    try {
-      const value = await uploadUGCAvatar(file, {
-        category: customCreatorCategory,
-        presentation: customCreatorPresentation,
-        ageBand: customCreatorAgeBand,
-        locale: customCreatorLocale,
-      })
-      setCreatorMode('SELECTED'); setAvatarId(value.id); setCustomCreatorOpen(false); setCreatorPickerOpen(false)
-      await queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
-    } catch (value) { setError(value instanceof Error ? value.message : 'Creator upload failed.') }
+  async function persistDraft() {
+    if (campaignId) return
+    const meaningful = step > 0 || Boolean(productUrl.trim() || description.trim() || referencePrompt.trim() || productAssetIds.length || avatarId || generatedReferences.length)
+    if (!meaningful) return
+    const title = (selectedBrand?.productName || selectedBrand?.name || description.trim() || 'UGC draft').slice(0, 120)
+    await saveAIDraft({
+      id: draftId.current,
+      contentType: 'ugc_ad',
+      title,
+      thumbnailUrl: generatedReferences[0]?.imageUrl || undefined,
+      updatedAt: new Date().toISOString(),
+      status: 'draft',
+      prompt: description.trim() || productUrl.trim() || referencePrompt.trim(),
+      asset: {
+        kind: 'ugc_wizard',
+        version: 1,
+        draftId: draftId.current,
+        wizardStep: step,
+        sourceType,
+        productUrl,
+        productDescription: description,
+        productAssetIds,
+        brandProfileId: selectedBrand?.id || seedCampaign?.brandProfileId || seedDraft?.brandProfileId || null,
+        creatorMode,
+        avatarId: creatorMode === 'SELECTED' ? avatarId : null,
+        duration,
+        adCount,
+        quality,
+        campaignType,
+        creativeFormat,
+        referencePrompt,
+        generatedReferences,
+        selectedGeneratedProductIds,
+      } as never,
+    })
+    void queryClient.invalidateQueries({ queryKey: ['ugc-drafts'] })
+  }
+
+  function closeWithDraft() {
+    void persistDraft().catch(() => undefined)
+    onClose()
+  }
+
+  function backHomeWithDraft() {
+    void persistDraft().catch(() => undefined)
+    onBackToHome()
   }
 
   async function uploadProducts(files: FileList | null) {
@@ -313,6 +353,33 @@ export function UGCWizardModal({
       return
     }
     setError(sourceType === 'PRODUCT' ? 'Add a product URL, upload at least one product image, or describe the product.' : 'Add enough information for INXSocial to understand the offer.')
+  }
+
+  function selectGeneratedReference(reference: UGCGeneratedReference) {
+    setError('')
+    if (reference.kind === 'AVATAR' && reference.avatarId) {
+      setCreatorMode('SELECTED')
+      setAvatarId(reference.avatarId)
+      return
+    }
+    if (reference.kind === 'PRODUCT' && reference.productAssetId) {
+      setSelectedGeneratedProductIds((current) => current.includes(reference.productAssetId!)
+        ? current.filter((id) => id !== reference.productAssetId)
+        : [...current, reference.productAssetId!].slice(0, 8))
+    }
+  }
+
+  function continueCreator() {
+    if (creatorMode === 'SELECTED' && !avatarId) {
+      setError('Choose a creator before continuing.')
+      return
+    }
+    if (creatorMode === 'NONE' && !productAssetIds.length && !selectedBrand?.brandReferences?.length) {
+      setError('No creator needs a product reference. Generate a product image below or go back and add a product photo.')
+      return
+    }
+    void trackUGCStudioEvent({ event: 'CREATOR_SELECTED', stage: 'creator', metadata: { creatorMode, avatarScope: selectedAvatar?.scope || creatorMode } })
+    moveTo(3)
   }
 
   function scheduleReady() {
