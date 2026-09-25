@@ -661,19 +661,37 @@ async function planCampaign({
 function splitScriptByWeightedDuration(script, durations) {
   const text = clean(script, 12000);
   if (!text) return durations.map(() => '');
+  if (durations.length <= 1) return [text];
+
+  const tokens = words(text);
+  const weightedWordSplit = () => {
+    let cursor = 0;
+    return durations.map((duration, index) => {
+      const remainingWords = tokens.length - cursor;
+      const remainingDuration = durations.slice(index).reduce((sum, value) => sum + Number(value || 0), 0);
+      const take = index === durations.length - 1
+        ? remainingWords
+        : Math.max(1, Math.round(remainingWords * Number(duration || 0) / Math.max(1, remainingDuration)));
+      const part = tokens.slice(cursor, cursor + take).join(' ');
+      cursor += take;
+      return part;
+    });
+  };
+
   const sentences = sentenceChunks(text);
-  if (durations.length <= 1 || sentences.length <= 1) return durations.map((_, index) => index === 0 ? text : '');
+  if (sentences.length < durations.length) return weightedWordSplit();
 
   const totalDuration = Math.max(1, durations.reduce((sum, value) => sum + Number(value || 0), 0));
-  const totalWords = Math.max(1, wordCount(text));
+  const totalWords = Math.max(1, tokens.length);
   const targets = durations.map(value => Math.max(1, totalWords * Number(value || 0) / totalDuration));
   const groups = Array.from({ length: durations.length }, () => []);
   let groupIndex = 0;
   let groupWords = 0;
 
-  for (const sentence of sentences) {
+  for (let sentenceIndex = 0; sentenceIndex < sentences.length; sentenceIndex += 1) {
+    const sentence = sentences[sentenceIndex];
     const count = wordCount(sentence);
-    const remainingSentences = sentences.length - sentences.indexOf(sentence);
+    const remainingSentences = sentences.length - sentenceIndex;
     const remainingGroups = durations.length - groupIndex;
     if (
       groupIndex < durations.length - 1 &&
@@ -688,7 +706,8 @@ function splitScriptByWeightedDuration(script, durations) {
     groupWords += count;
   }
 
-  return groups.map(group => group.join(' ').trim());
+  const output = groups.map(group => group.join(' ').trim());
+  return output.every(Boolean) ? output : weightedWordSplit();
 }
 module.exports = {
   SKILLS_VERSION,
