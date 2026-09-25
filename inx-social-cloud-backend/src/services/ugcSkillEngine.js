@@ -62,18 +62,24 @@ function brandUnderstandingSkill({ input, brand, productAssetIds = [], resolvedT
   const offerType = clean(brand?.analysis?.offerType || (resolvedType === 'PRODUCT_SHOWCASE' ? 'PRODUCT' : 'BRAND'), 40).toUpperCase();
   const verifiedClaims = Array.isArray(brand?.verifiedClaims) ? brand.verifiedClaims.map(item => clean(item, 500)).filter(Boolean).slice(0, 20) : [];
   const audience = Array.isArray(brand?.audience) ? brand.audience.map(item => clean(item, 300)).filter(Boolean).slice(0, 10) : [];
-  const directions = Array.isArray(brand?.analysis?.ugcDirections) ? brand.analysis.ugcDirections.map(item => clean(item, 500)).filter(Boolean).slice(0, 12) : [];
+  const visual = input?.productVisualEvidence && typeof input.productVisualEvidence === 'object' ? input.productVisualEvidence : null;
+  const visualFacts = Array.isArray(visual?.visibleFacts) ? visual.visibleFacts.map(item => clean(item, 300)).filter(Boolean).slice(0, 16) : [];
+  const visibleText = Array.isArray(visual?.visibleText) ? visual.visibleText.map(item => clean(item, 220)).filter(Boolean).slice(0, 12) : [];
   return {
     skill: 'BRAND_UNDERSTANDING',
     version: SKILLS_VERSION,
     sourceType,
     offerType,
     brandName: clean(brand?.name, 180),
-    productName: clean(brand?.productName, 220),
-    summary: clean(brand?.summary || input.productDescription, 2200),
+    productName: clean(brand?.productName || visual?.productName, 220),
+    summary: clean(brand?.summary || input.productDescription || visual?.summary, 2200),
     audience,
     verifiedClaims,
-    creativeDirections: directions,
+    productVisualEvidence: visual ? {
+      summary: clean(visual.summary, 1400),
+      visibleFacts,
+      visibleText
+    } : null,
     productAssetCount: productAssetIds.length,
     productInteractionUseful: brand?.analysis?.productInteractionUseful !== false,
     evidencePolicy: {
@@ -140,7 +146,8 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
     verifiedClaims: brandSkill.verifiedClaims,
     offerType: brandSkill.offerType,
     productAssetCount: brandSkill.productAssetCount,
-    productInteractionUseful: brandSkill.productInteractionUseful
+    productInteractionUseful: brandSkill.productInteractionUseful,
+    productVisualEvidence: brandSkill.productVisualEvidence
   };
 
   try {
@@ -151,6 +158,7 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
           'You are the structured UGC Creative Director skill inside INXSocial.',
           'Return JSON only. Do not return markdown, commentary or prose outside the JSON object.',
           'Use only verified evidence supplied by the user or brand analysis. Never invent prices, testimonials, statistics, certifications, product claims or software features.',
+          'Customer-supplied product visual evidence may be used only for facts visibly present in the supplied images. Never turn a visible shape, colour or label into an unsupported performance or specification claim.',
           'Your primary job is to write the spoken UGC script. The video-generation model will direct the visual performance.',
           'Do not storyboard camera moves, props, devices, interfaces or shot-by-shot actions. Keep scene guidance minimal and let the video model interpret the script and references.',
           'Every requested variation must have a materially different hook and angle while remaining truthful.',
