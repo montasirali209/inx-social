@@ -1,13 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowRight, CalendarRange, Clapperboard, Clock3, Coins, Copy, Film,
+  ArrowRight, CalendarRange, Clapperboard, Clock3, Coins, Copy, Download, Film,
   LoaderCircle, Pencil, Play, Plus, Trash2, UsersRound, X,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { loadUGCEditor } from '../../route-preload'
-import { fetchMediaLibrary } from '../../lib/media-library-api'
+import { downloadMediaAsset, fetchMediaLibrary } from '../../lib/media-library-api'
 import { deleteAIDraft, getRecentAIDrafts } from '../../lib/ai-content-studio-api'
 import {
   deleteUGCCampaign,
@@ -104,12 +104,12 @@ export function UGCStudioHomeModal({
   useEffect(() => {
     if (!open) return
     const bodyOverflow = document.body.style.overflow
-    const htmlOverflow = document.documentElement.style.overflow
+    const bodyOverscroll = document.body.style.overscrollBehavior
     document.body.style.overflow = 'hidden'
-    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overscrollBehavior = 'none'
     return () => {
       document.body.style.overflow = bodyOverflow
-      document.documentElement.style.overflow = htmlOverflow
+      document.body.style.overscrollBehavior = bodyOverscroll
     }
   }, [open])
 
@@ -322,9 +322,9 @@ export function UGCStudioHomeModal({
                     onClick={() => setPreview({ src: asset.fileUrl!, title: campaign.title })}
                     type="button"
                   >
-                    <video className="size-full object-cover" muted playsInline preload="none" src={asset.fileUrl} />
-                    <span className="absolute inset-0 grid place-items-center bg-black/5 transition group-hover:bg-black/20"><span className="grid size-11 place-items-center rounded-full border border-white/20 bg-black/55 text-white shadow-xl backdrop-blur"><Play className="ml-0.5 size-5 fill-current" /></span></span>
-                    <span className="absolute bottom-2 right-2 rounded-lg border border-white/10 bg-black/55 px-2 py-1 text-[8px] font-semibold text-white/85 backdrop-blur">Open player</span>
+                    {asset.thumbnailUrl ? <img alt="" className="size-full object-cover" loading="lazy" src={asset.thumbnailUrl} /> : <span className="absolute inset-0 bg-[radial-gradient(circle_at_50%_28%,rgba(45,212,191,.16),transparent_9rem),#06131d]" />}
+                    <span className="absolute inset-0 grid place-items-center bg-black/10 transition group-hover:bg-black/20"><span className="grid size-11 place-items-center rounded-full border border-white/20 bg-black/70 text-white shadow-lg"><Play className="ml-0.5 size-5 fill-current" /></span></span>
+                    <span className="absolute bottom-2 right-2 rounded-lg border border-white/10 bg-black/70 px-2 py-1 text-[8px] font-semibold text-white/85">Open player</span>
                   </button> :
                     <div className="absolute inset-0 grid place-items-center px-3"><div className="w-full text-center">{busy ? <LoaderCircle className="mx-auto size-7 animate-spin text-brand-cyan" /> : <Clapperboard className="mx-auto size-7 text-text-soft" />}<strong className="mt-2 block text-[9px] text-brand-cyan">{busy ? (activeAd?.stageLabel || 'Preparing render') : campaign.status}</strong><span className="mt-1 block text-[8px] text-text-muted">{busy ? `${campaignProgress}% complete${activeAd?.stageDetail ? ` · ${activeAd.stageDetail}` : ''}` : ''}</span>{busy && <div className="mx-auto mt-3 h-1.5 w-4/5 overflow-hidden rounded-full bg-white/[.07]"><span className="block h-full rounded-full bg-brand-cyan transition-[width] duration-500" style={{ width: `${Math.max(4,campaignProgress)}%` }} /></div>}</div></div>}
                   <span className="ugc-home-duration">{campaign.duration}s</span>
@@ -337,12 +337,13 @@ export function UGCStudioHomeModal({
                   {busy && activeAd && <div className="mt-3 rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.035] p-2.5"><div className="flex items-center justify-between gap-2 text-[8px]"><strong className="text-brand-cyan">{activeAd.stageLabel}</strong><span className="text-text-muted">{activeAd.progress}%</span></div><div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[.07]"><span className="block h-full rounded-full bg-brand-cyan transition-[width] duration-500" style={{ width: `${Math.max(4,activeAd.progress)}%` }} /></div>{activeAd.stageDetail && <span className="mt-1.5 block text-[8px] text-text-soft">{activeAd.stageDetail}</span>}</div>}
                   {campaign.ads.length > 1 && <div className="ugc-home-variation-list">{campaign.ads.map((ad) => {
                     const selectable = Boolean(ad.status === 'READY' && ad.mediaAssetId && ad.qualityControl?.publishable && assetsById.has(ad.mediaAssetId))
-                    return <div className={selectedAdIds.includes(ad.id) ? 'selected' : ''} key={ad.id}><label className="ugc-home-variation-select"><input checked={selectedAdIds.includes(ad.id)} disabled={!selectable} onChange={() => selectable && toggleVideo(ad.id)} type="checkbox" /><span>V{ad.sequence} · {activeStatuses.has(ad.status) ? `${ad.stageLabel} · ${ad.progress}%` : statusLabel(ad.status)}</span></label><button disabled={activeStatuses.has(ad.status)} onClick={() => {
+                    const variationAsset = ad.mediaAssetId ? assetsById.get(ad.mediaAssetId) : undefined
+                    return <div className={selectedAdIds.includes(ad.id) ? 'selected' : ''} key={ad.id}><label className="ugc-home-variation-select"><input checked={selectedAdIds.includes(ad.id)} disabled={!selectable} onChange={() => selectable && toggleVideo(ad.id)} type="checkbox" /><span>V{ad.sequence} · {activeStatuses.has(ad.status) ? `${ad.stageLabel} · ${ad.progress}%` : statusLabel(ad.status)}</span></label><span className="ugc-home-variation-actions">{variationAsset && ad.status === 'READY' && <button aria-label={`Download variation ${ad.sequence}`} onClick={() => void downloadMediaAsset(variationAsset).catch((error) => onToast(error instanceof Error ? error.message : 'Download failed.'))} title="Download" type="button"><Download className="size-3" /></button>}<button disabled={activeStatuses.has(ad.status)} onClick={() => {
                       void loadUGCEditor().then(() => {
                         onClose()
                         navigate(`/ai-content-studio/ugc/${ad.id}/edit`)
                       })
-                    }} type="button">Edit</button></div>
+                    }} type="button">Edit</button></span></div>
                   })}</div>}
                   <div className="ugc-home-actions">
                     <Button disabled={!first || activeStatuses.has(first.status)} onClick={() => {
@@ -353,6 +354,7 @@ export function UGCStudioHomeModal({
                       })
                     }} size="sm"><Pencil className="size-3.5" />Edit</Button>
                     <Button disabled={!readyCampaignIds.length} onClick={() => toggleCampaignReady(campaign)} size="sm" variant={allCampaignReadySelected ? 'primary' : 'secondary'}>{allCampaignReadySelected ? 'Selected' : campaign.ads.length === 1 ? 'Select video' : 'Select ready'}</Button>
+                    {asset && previewAd?.status === 'READY' && <button aria-label="Download video" className="ugc-home-icon-action" onClick={() => void downloadMediaAsset(asset).catch((error) => onToast(error instanceof Error ? error.message : 'Download failed.'))} title="Download" type="button"><Download className="size-3.5" /></button>}
                     <button aria-label="Create similar campaign" className="ugc-home-icon-action" onClick={() => startCreation(campaign)} title="Create similar" type="button"><Copy className="size-3.5" /></button>
                     <button aria-label="Delete campaign" className="ugc-home-icon-action danger" disabled={busy || remove.isPending} onClick={() => { if (window.confirm('Remove this UGC campaign from your studio?')) remove.mutate(campaign.id) }} title="Delete" type="button"><Trash2 className="size-3.5" /></button>
                   </div>
