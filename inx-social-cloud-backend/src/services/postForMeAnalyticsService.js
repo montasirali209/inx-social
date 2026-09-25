@@ -1,6 +1,7 @@
 const prisma = require('../db/prisma');
 const postForMe = require('./postForMeService');
 const { getFacebookAnalytics } = require('./facebookAnalyticsService');
+const { getInstagramAnalytics } = require('./socialAnalyticsService');
 const { decryptToken } = require('../utils/tokenCrypto');
 
 const ANALYTICS_CACHE_TTL_MS = 2 * 60 * 1000;
@@ -10,7 +11,7 @@ const ANALYTICS_CACHE_RUNTIME_INTERVAL_MS = 2 * 60 * 1000;
 const ANALYTICS_CACHE_RUNTIME_BATCH_SIZE = 4;
 const ANALYTICS_CACHE_RUNTIME_ACCOUNT_DELAY_MS = 1500;
 const ANALYTICS_CACHE_RUNTIME_RETRY_AFTER_MS = 10 * 60 * 1000;
-const ANALYTICS_PARTIAL_RETRY_AFTER_MS = 90 * 1000;
+const ANALYTICS_PARTIAL_RETRY_AFTER_MS = 15 * 1000;
 const SNAPSHOT_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const SNAPSHOT_RETENTION_DAYS = 30;
 const SNAPSHOT_RUNTIME_INTERVAL_MS = 60 * 60 * 1000;
@@ -294,6 +295,61 @@ async function facebookPageFallback(userId, profile, days) {
   };
 }
 
+async function instagramNativeFallback(userId, profile, days) {
+  const username = String(profile.username || '').replace(/^@/, '').trim().toLowerCase();
+  if (!username) return null;
+
+  const candidates = await prisma.socialProfile.findMany({
+    where: {
+      userId,
+      platform: 'instagram',
+      status: 'ACTIVE',
+      id: { not: profile.id },
+      connection: { is: { status: 'ACTIVE', encryptedAccessToken: { not: null } } }
+    },
+    include: { connection: true },
+    orderBy: { updatedAt: 'desc' },
+    take: 10
+  });
+
+  const legacy = candidates.find((candidate) => {
+    const candidateUsername = String(candidate.username || '').replace(/^@/, '').trim().toLowerCase();
+    const metadata = postForMe.parseJson(candidate.connection?.metadataJson, {});
+    return candidateUsername === username && metadata.providerEngine !== postForMe.PROVIDER_ENGINE;
+  });
+  if (!legacy) return null;
+
+  try {
+    const result = await getInstagramAnalytics(userId, legacy.id, days);
+    const content = Array.isArray(result.content) ? result.content : [];
+    if (!content.length && result.capabilities?.pageInsights?.available !== true) return null;
+    return {
+      ...result,
+      page: { ...result.page, id: profile.id },
+      provider: {
+        engine: 'instagram_graph_fallback',
+        accountId: providerAccountId(profile),
+        feedPosts: content.length,
+        periodPosts: content.length,
+        postsWithMetrics: content.length,
+        metricsRequested: true,
+        sourceState: 'ready',
+        repairRequired: false,
+        metricSummary: []
+      },
+      content: content.map((item) => ({ ...item, platform: 'instagram' })),
+      warnings: [...(result.warnings || []), 'Instagram analytics were recovered from the existing native Instagram connection because the publishing provider feed returned no posts.']
+    };
+  } catch (error) {
+    console.warn('[analytics-feed] native Instagram fallback unavailable', {
+      profileId: profile.id,
+      status: Number(error?.status || error?.response?.status || 0) || null,
+      error: error?.message || String(error)
+    });
+    return null;
+  }
+}
+
 function metricSnapshotRow(userId, profile, post, capturedAt) {
   const rawMetrics = post.metrics && typeof post.metrics === 'object' ? post.metrics : {};
   const metrics = normaliseMetrics(profile.platform, rawMetrics);
@@ -528,6 +584,10 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       console.warn('[analytics-feed] existing Facebook Page recovery delayed', { profileId: profile.id, status: Number(error?.status || 0) || null });
     }
   }
+  if (profile.platform === 'instagram' && !allFeed.length) {
+    const recovered = await instagramNativeFallback(userId, profile, days);
+    if (recovered) return recovered;
+  }
   const feed = allFeed.filter((item) => {
     const timestamp = publishedAtForPost(profile.platform, item)?.getTime();
     return Number.isFinite(timestamp) && timestamp >= since.getTime() && timestamp <= until.getTime();
@@ -667,6 +727,8 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       periodPosts: feed.length,
       ownershipVerified: profile.platform === 'x' ? true : undefined,
       metricsRequested: true,
+      sourceState: hasMetrics ? 'ready' : allFeed.length ? 'metrics_pending' : 'feed_empty',
+      repairRequired: !allFeed.length && ['instagram', 'facebook'].includes(profile.platform),
       metricSummary
     }
   };
@@ -765,9 +827,10 @@ function partialAnalyticsWarning(platform, value = null) {
     return 'The X feed returned reposts or posts without proof they belong to this account. INXSocial excluded them from your analytics.';
   }
   if (feedPosts <= 0) {
-    return String(platform || '').toLowerCase() === 'facebook'
-      ? 'The Facebook account is connected, but its content feed returned no posts. Reconnect the account once to refresh the current feed and Insights permissions, then INXSocial will resync automatically.'
-      : 'The account is connected, but its provider feed returned no posts. INXSocial will retry automatically.';
+    const key = String(platform || '').toLowerCase();
+    if (key === 'instagram') return 'Instagram is connected, but the provider returned an empty feed. Refresh analytics access once so the feed permission and historical media can be re-authorized.';
+    if (key === 'facebook') return 'Facebook is connected, but its content feed returned no posts. Refresh analytics access once so feed and Insights permissions can be re-authorized.';
+    return 'The account is connected, but its provider feed returned no posts.';
   }
   return String(platform || '').toLowerCase() === 'facebook'
     ? 'Connected Facebook posts are available, but performance metrics are still pending. INXSocial will retry automatically. Older connections may need a one-time reconnect to grant the current Insights permission.'
@@ -976,10 +1039,11 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
     }
 
     if (partial) {
-      if (!retryCooldownActive) queueAnalyticsRefresh(userId, platform, profileId, descriptor.periodDays, options);
-      // A partial payload can be served while a refresh is already in flight. Tell
-      // the client to poll promptly so the verified result is visible as soon as
-      // that request finishes, rather than waiting for the partial retry interval.
+      const repairRequired = value?.provider?.repairRequired === true;
+      if (!repairRequired && !retryCooldownActive) queueAnalyticsRefresh(userId, platform, profileId, descriptor.periodDays, options);
+      // Empty provider feeds are not a slow refresh. They require a connection
+      // repair/re-authorization, so do not hammer the provider or keep the UI
+      // pretending that an ordinary sync is still running.
       const refreshing = analyticsInflight.has(descriptor.key);
       return withCacheState(value, refreshing ? 'refreshing' : 'partial', partialAnalyticsWarning(descriptor.platform, value));
     }
