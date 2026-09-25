@@ -491,8 +491,14 @@ function adFinishingSkill({ duration, captionsEnabled = true, musicMode = 'AUTO'
 
 function qualityControlSkill({ resolvedType, timing, scenePlan, avatar, hasProductReference, castingDecision = null, formatDecision = null }) {
   const hasCreatorScene = scenePlan.scenes.some(scene => ['CREATOR','CTA'].includes(scene.kind));
+  const minimumUsefulWords = Math.max(12, Math.floor(Number(timing.targetMin || 0) * 0.8));
+  const cleanEnding = /[.!?]["')\]]?$/.test(clean(timing.script, 12000));
   const checks = [
-    { id: 'SCRIPT_COMPLETION', status: timing.finalWordCount <= timing.hardMax ? 'PASS' : 'FAIL', detail: { words: timing.finalWordCount, hardMax: timing.hardMax } },
+    {
+      id: 'SCRIPT_COMPLETION',
+      status: timing.finalWordCount >= minimumUsefulWords && timing.finalWordCount <= timing.hardMax && timing.spokenCtaIncluded && cleanEnding ? 'PASS' : 'FAIL',
+      detail: { words: timing.finalWordCount, minimumUsefulWords, hardMax: timing.hardMax, spokenCtaIncluded: timing.spokenCtaIncluded, cleanEnding }
+    },
     { id: 'DURATION_EXACTNESS', status: Math.abs(scenePlan.scenes.reduce((sum, scene) => sum + scene.playbackDuration, 0) - timing.targetDuration) < 0.001 ? 'PASS' : 'FAIL' },
     { id: 'IDENTITY_CONSISTENCY', status: hasCreatorScene && !avatar ? 'FAIL' : 'PASS' },
     { id: 'CREATOR_ROUTE_COMPATIBILITY', status: hasCreatorScene && castingDecision?.routeCompatible === false ? 'FAIL' : 'PASS' },
@@ -571,7 +577,9 @@ async function planCampaign({
   });
   const ads = director.ads.map((rawAd, index) => {
     const formatDecision = formatPlan.ads[index] || formatPlan.ads[0];
-    const timing = scriptTimingSkill({ script: rawAd.script, duration: input.duration, cta: rawAd.cta });
+    const offerName = brandSkill.productName || brandSkill.brandName || 'this offer';
+    const effectiveCta = clean(rawAd.cta, 500) || ('Learn more about ' + offerName + '.');
+    const timing = scriptTimingSkill({ script: rawAd.script, duration: input.duration, cta: effectiveCta });
     const assignment = casting.assignments[index] || casting.assignments[0];
     const avatar = avatars[assignment?.avatarIndex ?? 0] || avatars[0] || null;
     const scenePlan = scenePlanningSkill({
@@ -601,8 +609,8 @@ async function planCampaign({
       angle: rawAd.angle || 'Creator recommendation',
       hook: rawAd.hook,
       script: timing.script,
-      cta: rawAd.cta,
-      caption: socialPostCaption({ caption: rawAd.caption, hook: rawAd.hook, cta: rawAd.cta, script: timing.script }),
+      cta: effectiveCta,
+      caption: socialPostCaption({ caption: rawAd.caption, hook: rawAd.hook, cta: effectiveCta, script: timing.script }),
       creativeFormat: formatDecision?.formatKey || rawAd.creativeFormat || 'PROBLEM_SOLUTION',
       creativeGrammar: formatDecision?.grammar || rawAd.creativeGrammar || null,
       avatarIndex: assignment?.avatarIndex ?? (index % Math.max(1, avatars.length)),
