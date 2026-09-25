@@ -1,8 +1,9 @@
 import {
   ArrowRight, Box, Clapperboard, Globe2, PackageOpen, Paperclip, Play, Sparkles, UsersRound,
 } from 'lucide-react'
-import { useState } from 'react'
-import type { CreateUGCCampaignInput } from '../../types/ugc-studio'
+import { useEffect, useState, type ReactNode } from 'react'
+import { fetchUGCAvatarImage } from '../../lib/ugc-studio-api'
+import type { CreateUGCCampaignInput, UGCAvatar } from '../../types/ugc-studio'
 
 function asWebsite(value: string) {
   const trimmed = value.trim()
@@ -58,10 +59,58 @@ function draftFromPrompt(value: string): Partial<CreateUGCCampaignInput> {
   }
 }
 
+function CreatorVisual({ avatar }: { avatar?: UGCAvatar | null }) {
+  const [url, setUrl] = useState<string | null>(null)
+  useEffect(() => {
+    let active = true
+    let created: string | null = null
+    if (!avatar?.imageUrl) return undefined
+    void fetchUGCAvatarImage(avatar).then((value) => {
+      if (!value) return
+      if (!active) { URL.revokeObjectURL(value); return }
+      created = value
+      setUrl(value)
+    })
+    return () => { active = false; if (created) URL.revokeObjectURL(created) }
+  }, [avatar])
+
+  return url
+    ? <img alt="" className="ugc-agent-real-media" src={url} />
+    : <div className="ugc-agent-real-fallback"><UsersRound className="size-7 text-brand-cyan" /></div>
+}
+
+function OfferVisual({ src, fallbackVideo }: { src?: string | null; fallbackVideo?: string | null }) {
+  const [failed, setFailed] = useState(false)
+  if (src && !failed) return <img alt="" className="ugc-agent-real-media" onError={() => setFailed(true)} src={src} />
+  return <VideoStill fallback={<Box className="size-7" />} src={fallbackVideo} />
+}
+
+function VideoStill({ src, fallback }: { src?: string | null; fallback: ReactNode }) {
+  if (!src) return <div className="ugc-agent-real-fallback">{fallback}</div>
+  return <video
+    aria-hidden="true"
+    className="ugc-agent-real-media"
+    muted
+    onLoadedMetadata={(event) => {
+      const video = event.currentTarget
+      if (video.duration > 0.08) video.currentTime = 0.05
+    }}
+    playsInline
+    preload="metadata"
+    src={src}
+  />
+}
+
 export function UGCAgentHero({
   onStart,
+  creator,
+  offerImageUrl,
+  ugcVideoUrl,
 }: {
   onStart: (draft?: Partial<CreateUGCCampaignInput>) => void
+  creator?: UGCAvatar | null
+  offerImageUrl?: string | null
+  ugcVideoUrl?: string | null
 }) {
   const [input, setInput] = useState('')
   const examples = [
@@ -121,15 +170,15 @@ export function UGCAgentHero({
 
     <div aria-hidden="true" className="ugc-agent-visual-flow">
       <div className="ugc-agent-visual-card creator">
-        <div className="ugc-agent-visual-image grid place-items-center"><UsersRound className="size-7 text-brand-cyan" /></div>
+        <div className="ugc-agent-visual-image"><CreatorVisual avatar={creator} key={creator?.id || 'creator-fallback'} /></div>
         <UsersRound className="size-4" /><span>Creator</span>
       </div>
       <div className="ugc-agent-visual-card product">
-        <div className="ugc-agent-product-orb"><Box className="size-7" /></div>
+        <div className="ugc-agent-product-orb"><OfferVisual fallbackVideo={ugcVideoUrl} key={offerImageUrl || 'offer-fallback'} src={offerImageUrl} /></div>
         <Globe2 className="size-4" /><span>Offer</span>
       </div>
       <div className="ugc-agent-visual-card output">
-        <div className="ugc-agent-output-frame grid place-items-center"><Clapperboard className="size-8 text-brand-cyan" /><span><Play className="size-5 fill-current" /></span></div>
+        <div className="ugc-agent-output-frame"><VideoStill fallback={<><Clapperboard className="size-8 text-brand-cyan" /><span><Play className="size-5 fill-current" /></span></>} src={ugcVideoUrl} /></div>
         <PackageOpen className="size-4" /><span>UGC Ad</span>
       </div>
     </div>

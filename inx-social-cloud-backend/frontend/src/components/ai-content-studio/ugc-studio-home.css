@@ -226,3 +226,23 @@
   .ugc-agent-visual-flow:after,.ugc-agent-visual-card,.ugc-home-kpi{animation:none!important}
   .ugc-agent-visual-card{transform:none!important}
 }
+
+
+/* TanStack Virtual workspace rows + real media previews. */
+.ugc-home-campaign-virtual{position:relative;width:100%;margin-top:14px}
+.ugc-home-campaign-row{position:absolute;top:0;left:0;display:grid;width:100%;gap:13px;align-items:stretch;contain:layout paint}
+.ugc-home-campaign-row>.ugc-home-campaign{min-width:0;height:100%}
+.ugc-home-live-preview{position:absolute;inset:0;overflow:hidden;background:#06131d}
+.ugc-home-live-preview video{width:100%;height:100%;display:block;object-fit:cover;opacity:.16;transition:opacity .16s ease}
+.ugc-home-live-preview video.ready{opacity:1}
+.ugc-home-live-preview-loading{position:absolute;inset:0;display:grid;place-items:center;background:radial-gradient(circle at 50% 30%,rgba(45,212,191,.12),transparent 8rem),#06131d}
+.ugc-agent-real-media{display:block;width:100%;height:100%;object-fit:cover}
+.ugc-agent-real-fallback{display:grid;width:100%;height:100%;place-items:center}
+.ugc-agent-visual-image,.ugc-agent-product-orb,.ugc-agent-output-frame{background:#06131d!important}
+.ugc-agent-product-orb{overflow:hidden;padding:0!important}
+.ugc-agent-output-frame video{pointer-events:none}
+.ugc-agent-visual-image img{object-position:center 24%}
+.ugc-agent-product-orb img{object-position:center}
+@media(max-width:760px){
+  .ugc-home-campaign-row{gap:11px}
+}
