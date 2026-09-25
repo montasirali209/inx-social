@@ -11,7 +11,8 @@ test('Post for Me connection popup waits for the verified OAuth result before re
   const controller = read('src/controllers/postForMeController.js');
   assert.match(api, /\/api\/social-connections\/post-for-me\/\$\{platform\}\/start/);
   assert.match(api, /sameInxSocialOrigin/);
-  assert.match(api, /replace\(\/\^www\\\.\//, ''\)/);
+  assert.match(api, /hostname/);
+  assert.match(api, /sameInxSocialOrigin\(event\.origin\)/);
   assert.match(api, /confirmClosed/);
   assert.match(api, /2500/);
   assert.match(api, /if \(popup\.closed\) confirmClosed\(\)/);
