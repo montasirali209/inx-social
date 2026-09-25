@@ -68,8 +68,8 @@ test('Premium creator without audio input falls back before provider spend', () 
     hasNarration: false,
     mode: 'adaptive'
   });
-  assert.equal(route.routeKey, 'KLING_OMNI_DYNAMIC_V1');
-  assert.equal(route.adapterKey, 'KLING_OMNI_30');
+  assert.equal(route.routeKey, 'H3_MAX_STANDARD_V1');
+  assert.equal(route.adapterKey, 'H3_MAX');
 });
 
 test('Compatibility mode preserves the pre-Phase-3 premium route', () => {
@@ -96,10 +96,10 @@ test('Creator V2 compatibility can redirect a Premium creator to an allowed fall
     hasActor: true,
     hasProductReference: false,
     hasNarration: true,
-    allowedRoutes: ['KLING_PREMIUM_V1'],
+    allowedRoutes: ['H3_MAX_STANDARD_V1'],
     mode: 'adaptive'
   });
-  assert.equal(route.routeKey, 'KLING_PREMIUM_V1');
+  assert.equal(route.routeKey, 'H3_MAX_STANDARD_V1');
   assert.match(route.reason, /CREATOR_COMPATIBILITY_FALLBACK/);
 });
 
@@ -124,7 +124,7 @@ test('Creator V2 route restrictions affect creator scenes without constraining p
   const plan = router.routePlan({
     input: { quality: 'PREMIUM' },
     hasProductReference: true,
-    availableAvatars: [creator({ routeCompatibilityJson: JSON.stringify(['KLING_PREMIUM_V1']) })],
+    availableAvatars: [creator({ routeCompatibilityJson: JSON.stringify(['H3_MAX_STANDARD_V1']) })],
     mode: 'adaptive',
     plan: {
       title: 'Compatibility-aware UGC',
@@ -137,7 +137,7 @@ test('Creator V2 route restrictions affect creator scenes without constraining p
       }]
     }
   });
-  assert.equal(plan.ads[0].scenes[0].routeDecision.routeKey, 'KLING_PREMIUM_V1');
+  assert.equal(plan.ads[0].scenes[0].routeDecision.routeKey, 'H3_MAX_STANDARD_V1');
   assert.equal(plan.ads[0].scenes[1].routeDecision.routeKey, 'SEEDANCE_DYNAMIC_V1');
 });
 
