@@ -31,18 +31,18 @@ test('admin Control Centre can bulk upload reusable UGC creators with voice-safe
 
   assert.match(service, /normalizeAdminPresentation/);
   assert.match(service, /narratorVoice\('', \{ presentation \}\)/);
-  assert.match(service, /'Callum'/);
-  assert.match(service, /'Pippa'/);
-  assert.match(service, /'Riley'/);
-  assert.match(service, /'SYSTEM'/);
+  assert.match(service, /return 'Callum'/);
+  assert.match(service, /return 'Pippa'/);
+  assert.match(service, /return 'Riley'/);
+  assert.match(service, /scope[^\n]+SYSTEM/);
 });
 
 test('admin-uploaded system creators flow into the same UGC Browse creators library used by customers', () => {
   const service = read('src/services/ugcStudioService.js');
   const wizard = read('frontend/src/components/ai-content-studio/UGCWizardModal.tsx');
 
-  assert.match(service, /a\."scope"='SYSTEM'/);
-  assert.match(service, /a\."status"='READY'/);
+  assert.match(service, /a\."scope"[^\n]+SYSTEM/);
+  assert.match(service, /a\."status"[^\n]+READY/);
   assert.match(service, /avatars: publicAvatars/);
   assert.match(wizard, /const allCreators = overview\.data\?\.avatars \|\| \[\]/);
   assert.match(wizard, /Browse creators/);
