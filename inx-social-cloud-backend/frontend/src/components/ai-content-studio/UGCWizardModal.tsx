@@ -8,33 +8,33 @@ import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { fetchMediaLibrary } from '../../lib/media-library-api'
+import { deleteAIDraft, saveAIDraft } from '../../lib/ai-content-studio-api'
 import {
   analyzeUGCBrand,
   createUGCCampaign,
   estimateUGCCampaign,
   fetchUGCAvatarImage,
-  generateUGCAvatar,
+  fetchUGCGeneratedReferenceImage,
+  generateUGCReference,
   getUGCCampaign,
   getUGCOverview,
   regenerateUGCAd,
-  uploadUGCAvatar,
   uploadUGCProductAsset,
   trackUGCStudioEvent,
 } from '../../lib/ugc-studio-api'
 import type { MediaAsset } from '../../types/media-library'
 import type {
   CreateUGCCampaignInput, UGCAdCount, UGCAvatar, UGCBrandProfile, UGCCampaign,
-  UGCCampaignType, UGCCreativeFormat, UGCDuration, UGCProductAsset, UGCQuality, UGCSourceType,
+  UGCCampaignType, UGCCreativeFormat, UGCDuration, UGCGeneratedReference, UGCProductAsset, UGCQuality, UGCSourceType, UGCWizardDraftSeed,
 } from '../../types/ugc-studio'
 import { Button } from '../ui/Button'
 import './ugc-wizard.css'
 
-type WizardStep = 'source' | 'brand' | 'format' | 'avatar' | 'video' | 'review' | 'finish'
+type WizardStep = 'source' | 'brand' | 'avatar' | 'video' | 'review' | 'finish'
 
 const steps: Array<{ key: WizardStep; group: string; label: string }> = [
   { key: 'source', group: 'YOUR BRAND', label: 'Source' },
   { key: 'brand', group: 'YOUR BRAND', label: 'Brand' },
-  { key: 'format', group: 'YOUR CONTENT', label: 'Ad style' },
   { key: 'avatar', group: 'YOUR CONTENT', label: 'Creator' },
   { key: 'video', group: 'GO LIVE', label: 'Production' },
   { key: 'review', group: 'GO LIVE', label: 'Review & credits' },
@@ -95,14 +95,14 @@ export function UGCWizardModal({
 }: {
   open: boolean
   seedCampaign?: UGCCampaign | null
-  seedDraft?: Partial<CreateUGCCampaignInput> | null
+  seedDraft?: UGCWizardDraftSeed | null
   onClose: () => void
   onBackToHome: () => void
   onToast: (message: string) => void
 }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const initialStep = seedDraft?.brandProfileId ? 2 : 0
+  const initialStep = Math.max(0, Math.min(steps.length - 1, Number.isInteger(seedDraft?.wizardStep) ? Number(seedDraft?.wizardStep) : seedDraft?.brandProfileId ? 2 : 0))
   const [step, setStep] = useState(initialStep)
   const [furthest, setFurthest] = useState(initialStep)
   const [sourceType, setSourceType] = useState<UGCSourceType>(seedCampaign?.sourceType || seedDraft?.sourceType || 'WEBSITE')
@@ -111,10 +111,13 @@ export function UGCWizardModal({
   const [brand, setBrand] = useState<UGCBrandProfile | null>(null)
   const [productAssets, setProductAssets] = useState<UGCProductAsset[]>([])
   const [seedProductIds] = useState<string[]>(seedCampaign?.productAssetIds || seedDraft?.productAssetIds || [])
-  const [campaignType, setCampaignType] = useState<UGCCampaignType>(seedCampaign?.campaignType || seedDraft?.campaignType || 'AUTO')
-  const [creativeFormat, setCreativeFormat] = useState<UGCCreativeFormat>(seedCampaign?.creativeFormat || seedDraft?.creativeFormat || 'AUTO')
-  const [creatorMode, setCreatorMode] = useState<'AUTO' | 'SELECTED'>(seedCampaign?.creatorMode || seedDraft?.creatorMode || 'AUTO')
+  const [creatorMode, setCreatorMode] = useState<'AUTO' | 'SELECTED' | 'NONE'>(seedCampaign?.creatorMode || seedDraft?.creatorMode || 'AUTO')
   const [avatarId, setAvatarId] = useState<string | null>(seedCampaign?.selectedAvatarId || seedDraft?.avatarId || null)
+  const [referencePrompt, setReferencePrompt] = useState(seedDraft?.referencePrompt || '')
+  const [generatedReferences, setGeneratedReferences] = useState<UGCGeneratedReference[]>(seedDraft?.generatedReferences || [])
+  const [selectedGeneratedProductIds, setSelectedGeneratedProductIds] = useState<string[]>(seedDraft?.selectedGeneratedProductIds || [])
+  const [referencePreview, setReferencePreview] = useState<UGCGeneratedReference | null>(null)
+  const draftId = useRef(seedDraft?.draftId || ('ugc-draft-' + crypto.randomUUID()))
   const [creatorPickerOpen, setCreatorPickerOpen] = useState(false)
   const [showAllCreators, setShowAllCreators] = useState(false)
   const [creatorSearch, setCreatorSearch] = useState('')
@@ -122,13 +125,6 @@ export function UGCWizardModal({
   const [creatorPresentation, setCreatorPresentation] = useState('ALL')
   const [creatorAgeBand, setCreatorAgeBand] = useState('ALL')
   const [creatorLocale, setCreatorLocale] = useState('ALL')
-  const [customCreatorOpen, setCustomCreatorOpen] = useState(false)
-  const [avatarName, setAvatarName] = useState('')
-  const [avatarPrompt, setAvatarPrompt] = useState('')
-  const [customCreatorCategory, setCustomCreatorCategory] = useState('Lifestyle')
-  const [customCreatorPresentation, setCustomCreatorPresentation] = useState('Woman')
-  const [customCreatorAgeBand, setCustomCreatorAgeBand] = useState('25–34')
-  const [customCreatorLocale, setCustomCreatorLocale] = useState('en-GB')
   const [duration, setDuration] = useState<UGCDuration>(([20,30,45,60] as number[]).includes(seedCampaign?.duration || 0) ? seedCampaign!.duration as UGCDuration : ([20,30,45,60] as number[]).includes(seedDraft?.duration || 0) ? seedDraft!.duration as UGCDuration : 20)
   const [adCount, setAdCount] = useState<UGCAdCount>(([1,5,10,15,20] as number[]).includes(seedCampaign?.adCount || 0) ? seedCampaign!.adCount as UGCAdCount : ([1,5,10,15,20] as number[]).includes(seedDraft?.adCount || 0) ? seedDraft!.adCount as UGCAdCount : 5)
   const [quality, setQuality] = useState<UGCQuality>(seedCampaign?.quality || seedDraft?.quality || 'STANDARD')
@@ -138,7 +134,10 @@ export function UGCWizardModal({
 
   const overview = useQuery({ queryKey: ['ugc-studio-overview'], queryFn: getUGCOverview, enabled: open, staleTime: 8_000 })
   const selectedBrand = brand || overview.data?.brands.find((item) => item.id === (seedCampaign?.brandProfileId || seedDraft?.brandProfileId)) || null
-  const productAssetIds = useMemo(() => [...seedProductIds, ...productAssets.map((asset) => asset.id)], [seedProductIds, productAssets])
+  const productAssetIds = useMemo(() => [...new Set([...seedProductIds, ...productAssets.map((asset) => asset.id), ...selectedGeneratedProductIds])].slice(0, 8), [seedProductIds, productAssets, selectedGeneratedProductIds])
+
+  const campaignType: UGCCampaignType = creatorMode === 'NONE' ? 'PRODUCT_SHOWCASE' : 'AUTO'
+  const creativeFormat: UGCCreativeFormat = 'AUTO'
 
   const input = useMemo<CreateUGCCampaignInput>(() => ({
     brandProfileId: selectedBrand?.id || seedCampaign?.brandProfileId || seedDraft?.brandProfileId || null,
@@ -159,7 +158,7 @@ export function UGCWizardModal({
   const estimate = useQuery({
     queryKey: ['ugc-wizard-estimate', duration, adCount, quality, campaignType, creativeFormat],
     queryFn: () => estimateUGCCampaign({ duration, adCount, quality, campaignType, creativeFormat }),
-    enabled: open && step >= 4,
+    enabled: open && step >= 3,
     staleTime: 60_000,
   })
 
