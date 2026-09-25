@@ -145,7 +145,6 @@ export function UGCWizardModal({
   const [adCount, setAdCount] = useState<UGCAdCount>(([1,5,10,15,20] as number[]).includes(seedCampaign?.adCount || 0) ? seedCampaign!.adCount as UGCAdCount : ([1,5,10,15,20] as number[]).includes(seedDraft?.adCount || 0) ? seedDraft!.adCount as UGCAdCount : 5)
   const [quality, setQuality] = useState<UGCQuality>(seedCampaign?.quality || seedDraft?.quality || 'STANDARD')
   const [campaignId, setCampaignId] = useState<string | null>(null)
-  const autoReturnedToStudio = useRef(false)
   const [error, setError] = useState('')
 
   const overview = useQuery({ queryKey: ['ugc-studio-overview'], queryFn: getUGCOverview, enabled: open, staleTime: 8_000 })
@@ -224,19 +223,6 @@ export function UGCWizardModal({
     void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
     void queryClient.invalidateQueries({ queryKey: ['ai-studio-access'] })
   }, [campaign.data, queryClient])
-
-  useEffect(() => {
-    if (!open || steps[step]?.key !== 'finish' || autoReturnedToStudio.current) return
-    const value = campaign.data
-    if (!value || value.status !== 'READY' || !value.ads.length) return
-    const allPublishable = value.ads.every((ad) => Boolean(ad.mediaAssetId && ad.qualityControl?.publishable))
-    if (!allPublishable) return
-    autoReturnedToStudio.current = true
-    void queryClient.invalidateQueries({ queryKey: ['ugc-studio-overview'] })
-    void queryClient.invalidateQueries({ queryKey: ['media-library'] })
-    onToast(value.ads.length === 1 ? 'Your UGC video is ready.' : `${value.ads.length} UGC videos are ready.`)
-    onBackToHome()
-  }, [campaign.data, onBackToHome, onToast, open, queryClient, step])
 
   const analyze = useMutation({
     mutationFn: () => analyzeUGCBrand(productUrl),
