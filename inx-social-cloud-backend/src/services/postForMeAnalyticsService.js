@@ -260,8 +260,25 @@ function publishedAtForPost(platform, post) {
 }
 
 function belongsToXAccount(profile, post) {
+  const caption = String(post.caption || '');
+  if (/^\s*RT\s+@/i.test(caption)) return false;
+
+  const metadata = postForMe.parseJson(profile.metadataJson, {});
+  const providerUserId = String(metadata.providerUserId || '').trim();
+  const platformAccountId = String(post.platform_account_id || post.account_id || '').trim();
+  const nativePostId = xNativePostId(post);
+
+  // The publishing provider currently emits X feed URLs as /user/status/:id
+  // rather than using the connected handle. The feed payload does carry the
+  // platform account id taken from the exact connected X account. Treat that
+  // exact provider-user-id match + a real native X status id as ownership
+  // evidence, while still excluding native retweets.
+  if (providerUserId && platformAccountId && providerUserId === platformAccountId && /^\d{15,20}$/.test(nativePostId)) {
+    return true;
+  }
+
   const handle = String(profile.username || '').replace(/^@/, '').toLowerCase();
-  if (!/^[a-z0-9_]{1,15}$/.test(handle) || /^\s*RT\s+@/i.test(String(post.caption || ''))) return false;
+  if (!/^[a-z0-9_]{1,15}$/.test(handle)) return false;
   try {
     const url = new URL(String(post.platform_url || ''));
     if (!['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com'].includes(url.hostname.toLowerCase())) return false;
@@ -693,6 +710,10 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       ownedPosts: allFeed.length,
       knownPublishedPosts: knownXEvidence.nativePostIds.size,
       knownPublishedMatches: providerFeed.filter((post) => matchesKnownXPublication(post, knownXEvidence)).length,
+      providerAccountMatches: providerFeed.filter((post) => {
+        const meta = postForMe.parseJson(profile.metadataJson, {});
+        return Boolean(meta.providerUserId && String(post.platform_account_id || post.account_id || '') === String(meta.providerUserId));
+      }).length,
       connectedHandlePresent: Boolean(handle),
       postsWithStatusUrl: providerFeed.filter(post => /(?:x|twitter)\.com\/[^/]+\/status\/\d+/i.test(String(post.platform_url || ''))).length,
       postsWithMatchingHandleUrl: providerFeed.filter(post => {

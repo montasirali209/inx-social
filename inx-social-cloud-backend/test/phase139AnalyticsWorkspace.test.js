@@ -101,6 +101,9 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(service, /matchesKnownXPublication/);
   assert.match(service, /prisma\.socialPublication\.findMany/);
   assert.match(service, /knownPublishedMatches/);
+  assert.match(service, /platform_account_id/);
+  assert.match(service, /providerUserId/);
+  assert.match(service, /providerAccountMatches/);
   assert.match(service, /repairRequired: false/);
   assert.match(service, /retryable: !\(profile\.platform === 'x'/);
   assert.match(service, /integrityState:/);
