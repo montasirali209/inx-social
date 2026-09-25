@@ -126,7 +126,7 @@ export function UGCWizardModal({
   const [description, setDescription] = useState(seedCampaign?.productDescription || seedDraft?.productDescription || '')
   const [brand, setBrand] = useState<UGCBrandProfile | null>(null)
   const [productAssets, setProductAssets] = useState<UGCProductAsset[]>([])
-  const [seedProductIds] = useState<string[]>(seedCampaign?.productAssetIds || seedDraft?.productAssetIds || [])
+  const [seedProductIds] = useState<string[]>(seedCampaign?.productAssetIds || seedDraft?.baseProductAssetIds || seedDraft?.productAssetIds || [])
   const [creatorMode, setCreatorMode] = useState<'AUTO' | 'SELECTED' | 'NONE'>(seedCampaign?.creatorMode || seedDraft?.creatorMode || 'AUTO')
   const [avatarId, setAvatarId] = useState<string | null>(seedCampaign?.selectedAvatarId || seedDraft?.avatarId || null)
   const [referencePrompt, setReferencePrompt] = useState(seedDraft?.referencePrompt || '')
@@ -299,6 +299,7 @@ export function UGCWizardModal({
         productUrl,
         productDescription: description,
         productAssetIds,
+        baseProductAssetIds: [...new Set([...seedProductIds, ...productAssets.map((asset) => asset.id)])],
         brandProfileId: selectedBrand?.id || seedCampaign?.brandProfileId || seedDraft?.brandProfileId || null,
         creatorMode,
         avatarId: creatorMode === 'SELECTED' ? avatarId : null,
