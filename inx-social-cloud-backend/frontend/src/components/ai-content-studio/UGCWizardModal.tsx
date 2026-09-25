@@ -1,13 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, ArrowRight, BadgeCheck, CalendarRange, Check, CirclePlay,
+  ArrowLeft, ArrowRight, BadgeCheck, CalendarRange, Check, CirclePlay, Download,
   Crown, FileText, Film, Globe2, Images, LoaderCircle, PackageOpen, Search,
   Sparkles, UserRound, UsersRound, WandSparkles, X,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchMediaLibrary } from '../../lib/media-library-api'
+import { downloadMediaAsset, fetchMediaLibrary } from '../../lib/media-library-api'
 import { deleteAIDraft, saveAIDraft } from '../../lib/ai-content-studio-api'
 import {
   analyzeUGCBrand,
@@ -28,6 +28,7 @@ import type {
   UGCCampaignType, UGCCreativeFormat, UGCDuration, UGCGeneratedReference, UGCProductAsset, UGCQuality, UGCSourceType, UGCWizardDraftSeed,
 } from '../../types/ugc-studio'
 import { Button } from '../ui/Button'
+import { UGCVideoLightbox } from './UGCVideoPlayer'
 import './ugc-wizard.css'
 
 type WizardStep = 'source' | 'brand' | 'avatar' | 'video' | 'review' | 'finish'
@@ -133,6 +134,7 @@ export function UGCWizardModal({
   const [generatedReferences, setGeneratedReferences] = useState<UGCGeneratedReference[]>(seedDraft?.generatedReferences || [])
   const [selectedGeneratedProductIds, setSelectedGeneratedProductIds] = useState<string[]>(seedDraft?.selectedGeneratedProductIds || [])
   const [referencePreview, setReferencePreview] = useState<UGCGeneratedReference | null>(null)
+  const [finishPreview, setFinishPreview] = useState<{ src: string; title: string } | null>(null)
   const draftId = useRef(seedDraft?.draftId || ('ugc-draft-' + crypto.randomUUID()))
   const [creatorPickerOpen, setCreatorPickerOpen] = useState(false)
   const [showAllCreators, setShowAllCreators] = useState(false)
@@ -198,14 +200,11 @@ export function UGCWizardModal({
   useEffect(() => {
     if (!open) return
     const bodyOverflow = document.body.style.overflow
-    const htmlOverflow = document.documentElement.style.overflow
     const bodyOverscroll = document.body.style.overscrollBehavior
     document.body.style.overflow = 'hidden'
-    document.documentElement.style.overflow = 'hidden'
     document.body.style.overscrollBehavior = 'none'
     return () => {
       document.body.style.overflow = bodyOverflow
-      document.documentElement.style.overflow = htmlOverflow
       document.body.style.overscrollBehavior = bodyOverscroll
     }
   }, [open])
@@ -387,6 +386,21 @@ export function UGCWizardModal({
     }
     void trackUGCStudioEvent({ event: 'CREATOR_SELECTED', stage: 'creator', metadata: { creatorMode, avatarScope: selectedAvatar?.scope || creatorMode } })
     moveTo(3)
+  }
+
+  function firstReadyAsset() {
+    const current = campaign.data
+    if (!current) return null
+    const readyAd = current.ads.find((ad) => ad.status === 'READY' && ad.mediaAssetId && ad.qualityControl?.publishable && assetsById.has(ad.mediaAssetId))
+    if (!readyAd?.mediaAssetId) return null
+    const asset = assetsById.get(readyAd.mediaAssetId)
+    return asset ? { ad: readyAd, asset } : null
+  }
+
+  function viewReadyAd() {
+    const ready = firstReadyAsset()
+    if (!ready) { onToast('Your finished ad will be available here as soon as rendering completes.'); return }
+    setFinishPreview({ src: ready.asset.fileUrl, title: ready.ad.title || campaign.data?.title || 'UGC ad' })
   }
 
   function scheduleReady() {
@@ -572,8 +586,8 @@ export function UGCWizardModal({
                 {!terminal.has(campaign.data?.status || '') && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10px]"><strong className="text-brand-cyan">{activeStage}</strong><span className="text-text-muted">{activeDetail}</span></div>}
                 <div className={`ugc-wizard-generation-bar ${failedAds ? 'failed' : ''}`}><span style={{ width: `${failedAds ? displayProgress : Math.max(4, displayProgress)}%` }} /></div>
               </div>
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">{campaignAds.map((ad) => <article className="ugc-wizard-output-card" key={ad.id}><div><span className="ugc-wizard-mini-label">VARIATION {ad.sequence}</span><strong>{ad.title}</strong><p>{ad.hook || ad.angle}</p>{busyStatuses.has(ad.status) && <p className="mt-2 text-[9px] text-brand-cyan">{ad.stageLabel} · {ad.progress}%{ad.stageDetail ? ` · ${ad.stageDetail}` : ''}</p>}{ad.status === 'FAILED' && ad.error && <p className="mt-2 text-[9px] leading-4 text-brand-red">{ad.error}</p>}</div><div className="flex items-center justify-between gap-2"><span className={`ugc-wizard-output-status ${ad.status.toLowerCase()}`}>{ad.status}</span><div className="flex items-center gap-2">{ad.status === 'FAILED' && <Button disabled={retryAd.isPending} onClick={() => retryAd.mutate(ad.id)} size="sm" variant="primary">{retryAd.isPending ? <LoaderCircle className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}Retry</Button>}<Button disabled={busyStatuses.has(ad.status)} onClick={() => { onClose(); navigate(`/ai-content-studio/ugc/${ad.id}/edit`) }} size="sm">Edit</Button></div></div></article>)}</div>
-              <div className="ugc-wizard-footer"><Button onClick={backHomeWithDraft}><ArrowLeft className="size-4" />Back to UGC Studio</Button><Button disabled={!campaign.data?.ads.some((ad) => ad.qualityControl?.publishable && ad.mediaAssetId && assetsById.has(ad.mediaAssetId))} onClick={scheduleReady} variant="primary"><CalendarRange className="size-4" />Schedule ready ads</Button></div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-2">{campaignAds.map((ad) => <article className="ugc-wizard-output-card" key={ad.id}><div><span className="ugc-wizard-mini-label">VARIATION {ad.sequence}</span><strong>{ad.title}</strong><p>{ad.hook || ad.angle}</p>{busyStatuses.has(ad.status) && <p className="mt-2 text-[9px] text-brand-cyan">{ad.stageLabel} · {ad.progress}%{ad.stageDetail ? ` · ${ad.stageDetail}` : ''}</p>}{ad.status === 'FAILED' && ad.error && <p className="mt-2 text-[9px] leading-4 text-brand-red">{ad.error}</p>}</div><div className="flex items-center justify-between gap-2"><span className={`ugc-wizard-output-status ${ad.status.toLowerCase()}`}>{ad.status}</span><div className="flex items-center gap-2">{ad.status === 'FAILED' && <Button disabled={retryAd.isPending} onClick={() => retryAd.mutate(ad.id)} size="sm" variant="primary">{retryAd.isPending ? <LoaderCircle className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}Retry</Button>}{ad.status === 'READY' && ad.mediaAssetId && assetsById.has(ad.mediaAssetId) && <><Button onClick={() => setFinishPreview({ src: assetsById.get(ad.mediaAssetId!)!.fileUrl, title: ad.title })} size="sm"><CirclePlay className="size-3.5" />View</Button><button aria-label={`Download variation ${ad.sequence}`} className="ugc-wizard-output-download" onClick={() => void downloadMediaAsset(assetsById.get(ad.mediaAssetId!)!).catch((error) => onToast(error instanceof Error ? error.message : 'Download failed.'))} title="Download" type="button"><Download className="size-3.5" /></button></>}<Button disabled={busyStatuses.has(ad.status)} onClick={() => { onClose(); navigate(`/ai-content-studio/ugc/${ad.id}/edit`) }} size="sm">Edit</Button></div></div></article>)}</div>
+              <div className="ugc-wizard-footer"><Button onClick={backHomeWithDraft}><ArrowLeft className="size-4" />Back to UGC Studio</Button><div className="flex flex-wrap items-center justify-end gap-2"><Button disabled={!firstReadyAsset()} onClick={viewReadyAd}><CirclePlay className="size-4" />View your ad</Button><Button disabled={!campaign.data?.ads.some((ad) => ad.qualityControl?.publishable && ad.mediaAssetId && assetsById.has(ad.mediaAssetId))} onClick={scheduleReady} variant="primary"><CalendarRange className="size-4" />Schedule ready ads</Button></div></div>
             </>}
           </div>
           {error && <div className="ugc-wizard-error"><X className="size-4 shrink-0" />{error}</div>}
@@ -610,5 +624,6 @@ export function UGCWizardModal({
         <div className="ugc-reference-lightbox-copy"><strong>{referencePreview.name}</strong><span>{referencePreview.kind === 'AVATAR' ? 'Avatar reference' : 'Product reference'}</span></div>
       </section>
     </div>}
+    {finishPreview && <UGCVideoLightbox onClose={() => setFinishPreview(null)} open src={finishPreview.src} title={finishPreview.title} />}
   </div>, document.body)
 }
