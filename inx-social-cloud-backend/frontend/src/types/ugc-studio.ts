@@ -290,6 +290,7 @@ export type UGCWizardDraftSeed = Partial<CreateUGCCampaignInput> & {
   referencePrompt?: string
   generatedReferences?: UGCGeneratedReference[]
   selectedGeneratedProductIds?: string[]
+  baseProductAssetIds?: string[]
 }
 
 export type UGCAgentMessage = {
