@@ -43,6 +43,7 @@ router.patch('/ugc/ads/:adId', ugcController.updateAd);
 router.post('/ugc/ads/:adId/reassemble', ugcController.reassembleAd);
 router.post('/ugc/ads/:adId/regenerate', ugcController.regenerateAd);
 router.post('/ugc/scenes/:sceneId/regenerate', ugcController.regenerateScene);
+router.post('/ugc/references/generate', ugcController.generateReference);
 router.post('/ugc/avatars/generate', ugcController.generateAvatar);
 router.post('/ugc/avatars/upload', ugcController.avatarUploadMiddleware, ugcController.uploadAvatar);
 router.get('/ugc/avatars/:avatarId/references', ugcController.avatarReferences);
