@@ -491,50 +491,50 @@ export function UGCWizardModal({
               <div className="ugc-wizard-footer"><Button onClick={() => moveTo(0)}><ArrowLeft className="size-4" />Back</Button><Button disabled={!selectedBrand && description.trim().length < 12 && !productAssetIds.length} onClick={() => { void trackUGCStudioEvent({ event: 'BRAND_ANALYZED', stage: 'brand', metadata: { sourceType } }); moveTo(2) }} variant="primary">Looks right <ArrowRight className="size-4" /></Button></div>
             </>}
 
-            {currentKey === 'format' && <>
-              <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><Boxes className="size-5" /></span><div><h2>How should the UGC feel?</h2><p>Choose the content style, or leave it on Auto and let the offer decide. This changes the scene plan — not the quality tier.</p></div></div>
-              <div className="ugc-format-grid mt-7">
-                <button className={`ugc-format-card ${campaignType === 'AUTO' ? 'active' : ''}`} onClick={() => setCampaignType('AUTO')} type="button"><span className="ugc-format-icon"><Sparkles className="size-5" /></span><strong>Choose production for me</strong><p>Website/SaaS usually becomes a creator explainer. Physical products usually become a product showcase.</p><span>Recommended</span></button>
-                <button className={`ugc-format-card ${campaignType === 'AVATAR_EXPLAINER' ? 'active' : ''}`} onClick={() => setCampaignType('AVATAR_EXPLAINER')} type="button"><span className="ugc-format-icon"><UserRound className="size-5" /></span><strong>Avatar Explainer</strong><p>A realistic creator talks directly to camera and explains the offer. Ideal for SaaS, services and websites.</p><span>Creator-led</span></button>
-                <button className={`ugc-format-card ${campaignType === 'PRODUCT_SHOWCASE' ? 'active' : ''}`} onClick={() => setCampaignType('PRODUCT_SHOWCASE')} type="button"><span className="ugc-format-icon"><PackageOpen className="size-5" /></span><strong>Product Showcase</strong><p>Creator-led opening plus real product cutaways, benefits and believable use-case shots.</p><span>Product-led</span></button>
-              </div>
-              <div className="mt-7">
-                <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><WandSparkles className="size-5" /></span><div><h3>Creative structure</h3><p>Choose the story grammar, or let INXSocial mix compatible formats across your ad variations.</p></div></div>
-                <div className="ugc-format-grid mt-4">
-                  {creativeFormatOptions.map((option) => {
-                    const incompatibleType = campaignType !== 'AUTO' && !option.campaignTypes.includes(campaignType)
-                    const missingProduct = option.requiresProductReference && !hasProductReference
-                    const missingTransformation = option.requiresVerifiedTransformation && !hasVerifiedTransformation
-                    const blocked = option.key !== 'AUTO' && (incompatibleType || missingProduct || missingTransformation)
-                    const reason = incompatibleType ? 'Needs a different production type' : missingProduct ? 'Needs a real product reference' : missingTransformation ? 'Needs verified before/after evidence' : option.key === 'AUTO' ? 'Recommended' : option.bestFor.slice(0, 2).join(' · ')
-                    return <button aria-disabled={blocked} className={`ugc-format-card ${creativeFormat === option.key ? 'active' : ''} ${blocked ? 'opacity-45' : ''}`} key={option.key} onClick={() => { if (!blocked) setCreativeFormat(option.key) }} type="button"><span className="ugc-format-icon">{option.key === 'AUTO' ? <Sparkles className="size-5" /> : <Film className="size-5" />}</span><strong>{option.label}</strong><p>{option.description}</p><span>{reason}</span></button>
-                  })}
-                </div>
-              </div>
-              {campaignType === 'PRODUCT_SHOWCASE' && !hasProductReference && <div className="mt-4 rounded-xl border border-brand-amber/25 bg-brand-amber/[.05] p-3 text-[10px] leading-4 text-brand-amber">Product Showcase needs a real product reference. Go back to Source and upload a product photo, or choose Avatar Explainer.</div>}
-              {creativeFormatBlocked && <div className="mt-4 rounded-xl border border-brand-amber/25 bg-brand-amber/[.05] p-3 text-[10px] leading-4 text-brand-amber">The selected creative structure is not compatible with the current evidence or production type. Choose another structure or use Auto.</div>}
-              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(1)}><ArrowLeft className="size-4" />Back</Button><Button disabled={(campaignType === 'PRODUCT_SHOWCASE' && !hasProductReference) || creativeFormatBlocked} onClick={() => { void trackUGCStudioEvent({ event: 'FORMAT_SELECTED', stage: 'format', metadata: { campaignType, creativeFormat } }); moveTo(3) }} variant="primary">Continue <ArrowRight className="size-4" /></Button></div>
-            </>}
-
             {currentKey === 'avatar' && <>
-              <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><UsersRound className="size-5" /></span><div><h2>Pick a creator.</h2><p>Keep automatic casting, or open the creator picker only when you want to browse the library.</p></div></div>
+              <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><UsersRound className="size-5" /></span><div><h2>Pick a creator.</h2><p>Choose automatic casting, browse the creator library, or use no creator for a product-only ad.</p></div></div>
               <div className="ugc-creator-selection-summary mt-7">
-                <button className={`ugc-creator-selection-option ${creatorMode === 'AUTO' ? 'selected' : ''}`} onClick={() => { setCreatorMode('AUTO'); setAvatarId(null) }} type="button">
+                <button className={`ugc-creator-selection-option ${creatorMode === 'AUTO' ? 'selected' : ''}`} onClick={() => { setCreatorMode('AUTO'); setAvatarId(null); setError('') }} type="button">
                   <span className="ugc-wizard-auto-avatar"><Sparkles className="size-6" /></span>
-                  <div><strong>Choose for me</strong><p>INXSocial casts a compatible creator for this offer and production route.</p></div>
+                  <div><strong>Choose for me</strong><p>INXSocial chooses a compatible creator automatically.</p></div>
                   {creatorMode === 'AUTO' && <span className="ugc-wizard-selected-check"><Check className="size-3" /></span>}
                 </button>
                 <button className={`ugc-creator-selection-option ${creatorMode === 'SELECTED' ? 'selected' : ''}`} onClick={() => setCreatorPickerOpen(true)} type="button">
                   <span className="ugc-creator-selected-placeholder"><UsersRound className="size-6" /></span>
-                  <div><strong>{creatorMode === 'SELECTED' ? selectedAvatar?.name || 'Selected creator' : 'Browse creators'}</strong><p>{creatorMode === 'SELECTED' && selectedAvatar ? `${selectedAvatar.category} · ${selectedAvatar.ageBand} · ${selectedAvatar.accent || selectedAvatar.locale}` : `${allCreators.length || '100+'} reusable creators available in a focused picker.`}</p></div>
+                  <div><strong>{creatorMode === 'SELECTED' ? selectedAvatar?.name || 'Selected creator' : 'Browse creators'}</strong><p>{creatorMode === 'SELECTED' && selectedAvatar ? `${selectedAvatar.category} · ${selectedAvatar.ageBand} · ${selectedAvatar.accent || selectedAvatar.locale}` : `${allCreators.length || '100+'} reusable creators available.`}</p></div>
                   <ArrowRight className="size-4" />
                 </button>
+                <button className={`ugc-creator-selection-option ${creatorMode === 'NONE' ? 'selected' : ''}`} onClick={() => { setCreatorMode('NONE'); setAvatarId(null); setError('') }} type="button">
+                  <span className="ugc-creator-selected-placeholder"><PackageOpen className="size-6" /></span>
+                  <div><strong>No creator</strong><p>Use the selected product references for a product-only UGC ad.</p></div>
+                  {creatorMode === 'NONE' && <span className="ugc-wizard-selected-check"><Check className="size-3" /></span>}
+                </button>
               </div>
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[.02] p-4">
-                <div><strong className="block text-[12px] text-text-primary">Creator library loads on demand</strong><p className="mt-1 text-[10px] leading-4 text-text-muted">Portraits are not loaded while you scroll through the campaign setup. Open the picker only when you need to compare creators.</p></div>
-                <Button onClick={() => setCreatorPickerOpen(true)} size="sm"><UsersRound className="size-3.5" />Browse creators</Button>
-              </div>
-              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(2)}><ArrowLeft className="size-4" />Back</Button><Button disabled={creatorMode === 'SELECTED' && !avatarId} onClick={() => { void trackUGCStudioEvent({ event: 'CREATOR_SELECTED', stage: 'creator', metadata: { creatorMode, avatarScope: selectedAvatar?.scope || (creatorMode === 'AUTO' ? 'AUTO' : '') } }); moveTo(4) }} variant="primary">Continue <ArrowRight className="size-4" /></Button></div>
+
+              <section className="ugc-reference-builder mt-7">
+                <div className="ugc-reference-builder-head"><div><span className="ugc-wizard-mini-label">CREATE AVATAR OR PRODUCT</span><h3>Create an image reference</h3><p>Describe exactly what you want. INXSocial uses OpenAI image generation and keeps every result in this draft.</p></div></div>
+                <div className="ugc-reference-command mt-3">
+                  <textarea aria-label="Create avatar or product prompt" onChange={(event) => { setReferencePrompt(event.target.value); setError('') }} placeholder="Example: Create a confident female fitness creator in a bright home gym — or create a premium lime-green energy drink can on a clean background." value={referencePrompt} />
+                  <Button disabled={referencePrompt.trim().length < 4 || generateReference.isPending} onClick={() => generateReference.mutate()} variant="primary">{generateReference.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}Generate · 5 credits</Button>
+                </div>
+
+                {!!generatedReferences.length && <div className="ugc-generated-references mt-5">
+                  <div className="flex items-center justify-between gap-3"><div><span className="ugc-wizard-mini-label">GENERATED IN THIS DRAFT</span><p className="mt-1 text-[10px] text-text-muted">Open any image to inspect it. Select the avatar or product references you want to use.</p></div><span className="text-[9px] text-text-soft">{generatedReferences.length} image{generatedReferences.length === 1 ? '' : 's'}</span></div>
+                  <div className="ugc-generated-reference-grid mt-3">
+                    {generatedReferences.map((reference) => {
+                      const selected = reference.kind === 'AVATAR'
+                        ? creatorMode === 'SELECTED' && reference.avatarId === avatarId
+                        : Boolean(reference.productAssetId && selectedGeneratedProductIds.includes(reference.productAssetId))
+                      return <article className={`ugc-generated-reference-card ${selected ? 'selected' : ''}`} key={reference.id}>
+                        <button className="ugc-generated-reference-image" onClick={() => setReferencePreview(reference)} type="button"><GeneratedReferenceImage reference={reference} /><span>Open</span></button>
+                        <div className="ugc-generated-reference-copy"><div><strong>{reference.name}</strong><small>{reference.kind === 'AVATAR' ? 'Avatar' : 'Product'}</small></div><button className={selected ? 'selected' : ''} onClick={() => selectGeneratedReference(reference)} type="button">{selected ? <><Check className="size-3" />Selected</> : 'Select'}</button></div>
+                      </article>
+                    })}
+                  </div>
+                </div>}
+              </section>
+
+              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(1)}><ArrowLeft className="size-4" />Back</Button><Button onClick={continueCreator} variant="primary">Continue <ArrowRight className="size-4" /></Button></div>
             </>}
 
             {currentKey === 'video' && <>
@@ -548,7 +548,7 @@ export function UGCWizardModal({
                   <div className={`ugc-credit-summary ${insufficient ? 'insufficient' : ''}`}><div><span>Live quote</span><strong>{estimate.isFetching ? '…' : estimate.data?.credits.toLocaleString() || '—'} credits</strong></div><div><span>{estimate.data?.perAd?.toLocaleString() || '—'} per ad · {remaining.toLocaleString()} available</span>{insufficient && <em>{estimate.data ? `${estimate.data.affordability.shortfall.toLocaleString()} credits short` : 'Choose a smaller setup.'}</em>}</div></div>
                 </div>
               </div>
-              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(3)}><ArrowLeft className="size-4" />Back</Button><Button disabled={!estimate.data || estimate.isFetching} onClick={() => { void trackUGCStudioEvent({ event: 'PRODUCTION_CONFIGURED', stage: 'production', metadata: { quality, duration, adCount, credits: estimate.data?.credits || 0 } }); moveTo(5) }} variant="primary">Review campaign <ArrowRight className="size-4" /></Button></div>
+              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(2)}><ArrowLeft className="size-4" />Back</Button><Button disabled={!estimate.data || estimate.isFetching} onClick={() => { void trackUGCStudioEvent({ event: 'PRODUCTION_CONFIGURED', stage: 'production', metadata: { quality, duration, adCount, credits: estimate.data?.credits || 0 } }); moveTo(4) }} variant="primary">Review campaign <ArrowRight className="size-4" /></Button></div>
             </>}
 
             {currentKey === 'review' && <>
@@ -556,8 +556,8 @@ export function UGCWizardModal({
               <div className="ugc-wizard-brand-card mt-7">
                 <div className="flex items-start justify-between gap-4"><div><span className="ugc-wizard-mini-label">CAMPAIGN</span><h3>{selectedBrand?.productName || selectedBrand?.name || description.trim() || 'UGC campaign'}</h3></div><BadgeCheck className="size-5 text-brand-cyan" /></div>
                 <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <div><span className="ugc-wizard-mini-label">PRODUCTION</span><strong>{campaignType === 'PRODUCT_SHOWCASE' ? 'Product Showcase' : campaignType === 'AVATAR_EXPLAINER' ? 'Avatar Explainer' : 'Auto-selected production'}</strong><p className="mt-1 text-[10px] text-text-muted">{selectedCreativeFormat?.label || (creativeFormat === 'AUTO' ? 'Auto creative mix' : creativeFormat.replaceAll('_',' '))}</p></div>
-                  <div><span className="ugc-wizard-mini-label">CREATOR</span><strong>{creatorMode === 'SELECTED' ? selectedAvatar?.name || 'Selected creator' : 'Auto casting'}</strong><p className="mt-1 text-[10px] text-text-muted">{overview.data?.options.creatorProfileVersion || 'Creator V2'} identity and consistency rules</p></div>
+                  <div><span className="ugc-wizard-mini-label">REFERENCES</span><strong>{creatorMode === 'NONE' ? 'Product only' : creatorMode === 'SELECTED' ? 'Selected creator + product references' : 'Automatic creator + product references'}</strong><p className="mt-1 text-[10px] text-text-muted">{productAssetIds.length} product reference{productAssetIds.length === 1 ? '' : 's'} selected</p></div>
+                  <div><span className="ugc-wizard-mini-label">CREATOR</span><strong>{creatorMode === 'NONE' ? 'No creator' : creatorMode === 'SELECTED' ? selectedAvatar?.name || 'Selected creator' : 'Choose for me'}</strong><p className="mt-1 text-[10px] text-text-muted">{creatorMode === 'NONE' ? 'Product-only generation' : 'Creator identity stays locked to the selected profile.'}</p></div>
                   <div><span className="ugc-wizard-mini-label">OUTPUT</span><strong>{adCount} × {duration}s vertical ad{adCount === 1 ? '' : 's'}</strong><p className="mt-1 text-[10px] text-text-muted">{selectedVariationOption?.label || 'Campaign'} · background rendering with recovery</p></div>
                   <div><span className="ugc-wizard-mini-label">QUALITY</span><strong>{selectedTier?.label || quality}</strong><p className="mt-1 text-[10px] text-text-muted">{selectedTier?.description || 'Production quality selected.'}</p></div>
                 </div>
@@ -566,12 +566,14 @@ export function UGCWizardModal({
                 <div><span>Total to reserve</span><strong>{estimate.isFetching ? '…' : estimate.data?.credits.toLocaleString() || '—'} credits</strong></div>
                 <div><span>{estimate.data?.perAd.toLocaleString() || '—'} per ad · {remaining.toLocaleString()} available</span>{estimate.data?.affordability.affordable && <em>{estimate.data.affordability.balanceAfter.toLocaleString()} credits remain after reservation.</em>}{insufficient && <em>{estimate.data?.affordability.shortfall.toLocaleString()} more credits needed.</em>}</div>
               </div>
-              <div className="mt-4 rounded-xl border border-white/10 bg-white/[.025] p-4 text-[10px] leading-4 text-text-muted"><strong className="text-text-primary">Pricing is fixed for this selection.</strong> Creative structure and creator choice do not change the quoted price. Provider/model routing stays automatic and is never exposed as a customer control.</div>
+              <div className="mt-4 rounded-xl border border-white/10 bg-white/[.025] p-4 text-[10px] leading-4 text-text-muted"><strong className="text-text-primary">Pricing is fixed for this selection.</strong> Reference choice does not change the quoted price. Provider/model routing stays automatic and is never exposed as a customer control.</div>
               {insufficient && estimate.data?.affordability.alternative && <div className="mt-4 rounded-xl border border-brand-amber/25 bg-brand-amber/[.05] p-4"><span className="ugc-wizard-mini-label">AFFORDABLE OPTION</span><div className="mt-2 flex flex-wrap items-center justify-between gap-3"><div><strong>{estimate.data.affordability.alternative.label}</strong><p className="mt-1 text-[10px] text-text-muted">{estimate.data.affordability.alternative.credits.toLocaleString()} credits total</p></div><Button onClick={() => { const alt = estimate.data?.affordability.alternative; if (!alt) return; setQuality(alt.quality); setDuration(alt.duration); setAdCount(alt.adCount); void trackUGCStudioEvent({ event: 'AFFORDABLE_SETUP_APPLIED', stage: 'review', metadata: { quality: alt.quality, duration: alt.duration, adCount: alt.adCount, credits: alt.credits } }); }} size="sm">Use this setup</Button></div></div>}
-              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(4)}><ArrowLeft className="size-4" />Change setup</Button><Button disabled={create.isPending || insufficient || !estimate.data || estimate.isFetching} onClick={() => { void trackUGCStudioEvent({ event: 'GENERATION_CONFIRMED', stage: 'review', metadata: { quality, duration, adCount, credits: estimate.data?.credits || 0 } }); create.mutate() }} variant="primary">{create.isPending ? <><LoaderCircle className="size-4 animate-spin" />Starting campaign…</> : <><WandSparkles className="size-4" />Confirm & generate {adCount}</>}</Button></div>
+              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(3)}><ArrowLeft className="size-4" />Change setup</Button><Button disabled={create.isPending || insufficient || !estimate.data || estimate.isFetching} onClick={() => { void trackUGCStudioEvent({ event: 'GENERATION_CONFIRMED', stage: 'review', metadata: { quality, duration, adCount, credits: estimate.data?.credits || 0 } }); setError(''); moveTo(5); create.mutate() }} variant="primary"><WandSparkles className="size-4" />Confirm & generate {adCount}</Button></div>
             </>}
 
             {currentKey === 'finish' && <>
+              {!campaignId && create.isPending && <div className="ugc-wizard-preparing"><LoaderCircle className="size-7 animate-spin text-brand-cyan" /><div><strong>Preparing your campaign…</strong><p>Your script and references are being prepared. Video processing will appear here as soon as the campaign is queued.</p></div></div>}
+              {!campaignId && create.isError && <div className="ugc-wizard-preparing failed"><X className="size-6 text-brand-red" /><div><strong>Campaign could not start.</strong><p>{error || 'Review the setup and try again.'}</p><Button className="mt-3" onClick={() => moveTo(4)} size="sm">Back to review</Button></div></div>}
               <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><Sparkles className="size-5" /></span><div><h2>{failedAds === campaignAds.length && campaignAds.length ? 'This UGC campaign needs attention.' : failedAds ? 'Some UGC variations need attention.' : campaign.data?.status === 'READY' ? 'Your UGC campaign is ready.' : 'Your UGC campaign is rendering.'}</h2><p>{failedAds ? 'The failed variations can be retried. Ready videos remain available and generation errors are kept separate from successful output.' : campaign.data?.status === 'READY' ? 'Your finished videos are being returned to UGC Studio.' : 'Generation keeps running safely in the background.'}</p></div></div>
               {!terminal.has(campaign.data?.status || '') && <div className="mt-5 rounded-2xl border border-brand-cyan/20 bg-brand-cyan/[.055] p-4"><strong className="block text-sm text-white">You can leave this window at any time.</strong><p className="mt-1 text-[10px] leading-4 text-text-muted">Your UGC keeps rendering in the background. If you stay here, this window will close automatically and take you back to UGC Studio as soon as every video is finished and ready to publish.</p></div>}
               <div className="ugc-wizard-generation mt-7">
@@ -580,7 +582,7 @@ export function UGCWizardModal({
                 <div className={`ugc-wizard-generation-bar ${failedAds ? 'failed' : ''}`}><span style={{ width: `${failedAds ? displayProgress : Math.max(4, displayProgress)}%` }} /></div>
               </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">{campaignAds.map((ad) => <article className="ugc-wizard-output-card" key={ad.id}><div><span className="ugc-wizard-mini-label">VARIATION {ad.sequence}</span><strong>{ad.title}</strong><p>{ad.hook || ad.angle}</p>{busyStatuses.has(ad.status) && <p className="mt-2 text-[9px] text-brand-cyan">{ad.stageLabel} · {ad.progress}%{ad.stageDetail ? ` · ${ad.stageDetail}` : ''}</p>}{ad.status === 'FAILED' && ad.error && <p className="mt-2 text-[9px] leading-4 text-brand-red">{ad.error}</p>}</div><div className="flex items-center justify-between gap-2"><span className={`ugc-wizard-output-status ${ad.status.toLowerCase()}`}>{ad.status}</span><div className="flex items-center gap-2">{ad.status === 'FAILED' && <Button disabled={retryAd.isPending} onClick={() => retryAd.mutate(ad.id)} size="sm" variant="primary">{retryAd.isPending ? <LoaderCircle className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}Retry</Button>}<Button disabled={busyStatuses.has(ad.status)} onClick={() => { onClose(); navigate(`/ai-content-studio/ugc/${ad.id}/edit`) }} size="sm">Edit</Button></div></div></article>)}</div>
-              <div className="ugc-wizard-footer"><Button onClick={onBackToHome}><ArrowLeft className="size-4" />Back to UGC Studio</Button><Button disabled={!campaign.data?.ads.some((ad) => ad.qualityControl?.publishable && ad.mediaAssetId && assetsById.has(ad.mediaAssetId))} onClick={scheduleReady} variant="primary"><CalendarRange className="size-4" />Schedule ready ads</Button></div>
+              <div className="ugc-wizard-footer"><Button onClick={backHomeWithDraft}><ArrowLeft className="size-4" />Back to UGC Studio</Button><Button disabled={!campaign.data?.ads.some((ad) => ad.qualityControl?.publishable && ad.mediaAssetId && assetsById.has(ad.mediaAssetId))} onClick={scheduleReady} variant="primary"><CalendarRange className="size-4" />Schedule ready ads</Button></div>
             </>}
           </div>
           {error && <div className="ugc-wizard-error"><X className="size-4 shrink-0" />{error}</div>}
