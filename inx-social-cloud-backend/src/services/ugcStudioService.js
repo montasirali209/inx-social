@@ -1689,6 +1689,8 @@ async function assembleVideo(ad, scenes) {
   try {
     const normalized = [];
     const finalDurations = playbackDurations(ad.duration, scenes.map(scene => Number(scene.duration)));
+    const targetWidth = String(ad.quality || 'STANDARD').toUpperCase() === 'STANDARD' ? 768 : 720;
+    const targetHeight = String(ad.quality || 'STANDARD').toUpperCase() === 'STANDARD' ? 1344 : 1280;
     for (let sceneIndex = 0; sceneIndex < scenes.length; sceneIndex += 1) {
       const scene = scenes[sceneIndex];
       const finalDuration = finalDurations[sceneIndex];
@@ -1705,7 +1707,7 @@ async function assembleVideo(ad, scenes) {
       const inputPath = path.join(dir, 'scene-' + scene.sequence + '-input.mp4');
       const outputPath = path.join(dir, 'scene-' + scene.sequence + '.mp4');
       await fs.writeFile(inputPath, data);
-      const vf = 'scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2:black,fps=24,tpad=stop_mode=clone:stop_duration=65';
+      const vf = `scale=${targetWidth}:${targetHeight}:force_original_aspect_ratio=decrease,pad=${targetWidth}:${targetHeight}:(ow-iw)/2:(oh-ih)/2:black,fps=24,tpad=stop_mode=clone:stop_duration=65`;
       await runFfmpeg(['-hide_banner','-loglevel','error','-y','-i',inputPath,'-vf',vf,'-af','apad','-t',String(finalDuration),'-c:v','libx264','-preset','veryfast','-crf','20','-pix_fmt','yuv420p','-c:a','aac','-ar','48000','-ac','2','-b:a','128k','-movflags','+faststart',outputPath]);
       normalized.push(outputPath);
     }
@@ -1739,7 +1741,7 @@ async function persistFinalAsset(ad, data, providerCost, qualityControl = null) 
     userId: ad.userId, kind: 'AI_VIDEO', source: 'AI_STUDIO', status: 'READY', originalName, mimeType: 'video/mp4',
     byteSize: data.length, checksum, prompt: clean(ad.angle + ' ' + ad.hook, 1500), customerPrompt: clean(ad.script, 1500),
     generationChoice: json({
-      provider: 'runware', route: ad.route, quality: ad.quality, resolution: '720p', duration: ad.duration,
+      provider: 'runware', route: ad.route, quality: ad.quality, resolution: String(ad.quality || 'STANDARD').toUpperCase() === 'STANDARD' ? '768p' : '720p', duration: ad.duration,
       providerCostUsd: providerCost, ugcAdId: ad.id, campaignId: ad.campaignId, avatarId: ad.avatarId,
       routerVersion: parseJson(ad.planJson, {}).routerVersion
         || parseJson(ad.planJson, {}).scenes?.[0]?.routeDecision?.routerVersion
@@ -1752,7 +1754,7 @@ async function persistFinalAsset(ad, data, providerCost, qualityControl = null) 
       renderQualityVersion: ugcRenderQuality.RENDER_QUALITY_VERSION, qualityControl
     }),
     tagsJson: json(['ai-generated','ai-content-studio','ugc-ad','ugc-studio']), data: stored.data, storageProvider: stored.storageProvider, storageKey: stored.storageKey,
-    width: 720, height: 1280, durationSeconds: ad.duration, expiresAt: expiresAtFor('video/mp4')
+    width: String(ad.quality || 'STANDARD').toUpperCase() === 'STANDARD' ? 768 : 720, height: String(ad.quality || 'STANDARD').toUpperCase() === 'STANDARD' ? 1344 : 1280, durationSeconds: ad.duration, expiresAt: expiresAtFor('video/mp4')
   } });
   return mediaLibrary.publicAsset(record);
 }
