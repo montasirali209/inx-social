@@ -137,7 +137,7 @@ function storageFields(profile) {
 
 function requiredRoutesForQuality(quality) {
   return clean(quality, 30).toUpperCase() === 'PREMIUM'
-    ? [CREATOR_ROUTE_KEYS.PREMIUM_CREATOR, CREATOR_ROUTE_KEYS.PREMIUM_FALLBACK, CREATOR_ROUTE_KEYS.LEGACY_PREMIUM]
+    ? [CREATOR_ROUTE_KEYS.PREMIUM_CREATOR, CREATOR_ROUTE_KEYS.STANDARD]
     : [CREATOR_ROUTE_KEYS.STANDARD];
 }
 
