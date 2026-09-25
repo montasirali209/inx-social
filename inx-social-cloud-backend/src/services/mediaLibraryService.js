@@ -79,14 +79,18 @@ function publicAsset(asset) {
   const usedIn = [...campaignUsage, ...scheduledUsage].filter((item, index, items) => items.findIndex(candidate => candidate.id === item.id) === index);
   const access = contentAccess(asset);
   const contentUrl = `/api/studio/media-library/assets/${encodeURIComponent(asset.id)}/content?access=${encodeURIComponent(access)}`;
+  const isVideo = String(asset.mimeType || '').startsWith('video/');
   return {
     id: asset.id,
     fileName: asset.originalName || `${generated ? 'AI generated' : 'Media'} asset`,
-    type: String(asset.mimeType || '').startsWith('video/') ? 'video' : String(asset.mimeType || '') === 'image/gif' ? 'gif' : 'image',
+    type: isVideo ? 'video' : String(asset.mimeType || '') === 'image/gif' ? 'gif' : 'image',
     source: generated ? 'ai_generated' : asset.source === 'LIBRARY_UPLOAD' || asset.source === 'UPLOAD' ? 'uploaded' : 'imported',
     collection: generated ? 'ai_generated' : asset.source === 'UPLOAD' ? 'brand_assets' : asset.source === 'LIBRARY_UPLOAD' ? 'uploaded_media' : 'imported',
     status: asset.archivedAt ? 'archived' : asset.status === 'REJECTED' ? 'needs_review' : usedIn.some(post => post.status === 'PUBLISHED') ? 'published' : usedIn.some(post => post.status === 'SCHEDULED') ? 'scheduled' : usedIn.length ? 'used' : 'unused',
-    thumbnailUrl: contentUrl,
+    // A video file is not a valid <img> thumbnail. Returning the MP4 URL as
+    // thumbnailUrl produced broken-image icons in UGC Studio. Until a real
+    // poster image exists, let video-aware clients render the first frame.
+    thumbnailUrl: isVideo ? '' : contentUrl,
     fileUrl: contentUrl,
     width: asset.width || null,
     height: asset.height || null,
