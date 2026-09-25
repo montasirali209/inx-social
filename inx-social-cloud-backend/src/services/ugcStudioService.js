@@ -1428,8 +1428,11 @@ async function getProductAssetContent(userId, assetId) {
 async function productAssetDataUri(userId, assetId) {
   const row = await getProductAssetRow(userId, assetId);
   const data = await objectStorage.getBuffer(row.storageKey, null, row.storageProvider || null);
-  const normalized = await sharp(data).rotate().resize({ width: 720, height: 1280, fit: 'contain', background: { r: 12, g: 20, b: 28, alpha: 1 } }).png().toBuffer();
-  return 'data:image/png;base64,' + normalized.toString('base64');
+  // H3 Max accepts up to nine references with a 64 MB aggregate input cap.
+  // Normalise uploaded references to compact, high-quality JPEGs so a full
+  // avatar + eight-product-reference request stays comfortably below the cap.
+  const normalized = await sharp(data).rotate().resize({ width: 768, height: 1344, fit: 'contain', background: { r: 12, g: 20, b: 28 } }).jpeg({ quality: 88, mozjpeg: true }).toBuffer();
+  return 'data:image/jpeg;base64,' + normalized.toString('base64');
 }
 
 function publicSampleVideo(row) {
@@ -1530,22 +1533,23 @@ function h3NativePrompt(scene, ad, avatar, referenceCount) {
   const plan = parseJson(ad.planJson, {});
   const format = clean(scene.creativeFormat || plan.creativeFormat || plan.requestedCreativeFormat || 'UGC', 80).replaceAll('_', ' ');
   const spoken = clean(scene.script, 5000);
+  const referenceInstruction = referenceCount > 1
+    ? 'Use Image 1 as the selected creator. Images 2 through ' + referenceCount + ' are product or brand references; treat them as authoritative views of the same advertised offer where applicable. Keep Image 1 identity and all referenced product details consistent.'
+    : avatar
+      ? 'Use Image 1 as the selected creator and preserve that exact identity.'
+      : 'Use Image 1 as the authoritative product reference.';
+  const sound = spoken
+    ? 'Sound: ' + h3CreatorVoiceDescription(avatar) + ' The creator says exactly, "' + spoken.replace(/"/g, "'") + '". Keep the speech energetic, natural and synchronized to the mouth. Finish the final sentence before the clip ends. Use only subtle believable room ambience underneath.'
+    : 'Sound: subtle believable room ambience only.';
   return clean([
-    'Create this as a fast-paced vertical creator-native UGC ad segment.',
-    referenceCount > 1
-      ? 'The first reference image is the selected creator. The remaining reference images are the exact product or brand references. Preserve the creator identity and referenced product appearance consistently.'
-      : avatar
-        ? 'Use the supplied reference as the selected creator and preserve the same identity throughout.'
-        : 'Use the supplied product reference faithfully.',
-    'UGC format: ' + format + '. Let the video model choose natural framing, actions, motion and transitions appropriate to that format.',
-    'Do not invent a different product, vehicle colour, interface, logo, readable text, extra person, feature or claim that is not supported by the supplied references or script.',
-    h3CreatorVoiceDescription(avatar),
-    spoken ? 'Spoken dialogue exactly: “' + spoken + '”' : 'No spoken dialogue.',
-    spoken ? 'Deliver the dialogue naturally and energetically with synchronized native speech, and complete the final sentence cleanly before the clip ends.' : '',
-    'Authentic social-video realism. No subtitles, captions, watermarks or generated overlay text.'
+    'Create a fast-paced vertical creator-native UGC ad segment.',
+    referenceInstruction,
+    'UGC format: ' + format + '. Let the model choose natural framing, actions, motion and transitions that fit the script and references.',
+    'Keep the advertised product and creator visually consistent. Do not invent a different product, vehicle colour, interface, logo, readable text, extra person, feature or claim that is not supported by the references or script.',
+    'Authentic social-video realism. No subtitles, captions, watermarks or generated overlay text.',
+    sound
   ].filter(Boolean).join('\n\n'), 7000);
 }
-
 async function renderProviderScene(scene, ad, avatar, productReferences, narration, onProgress) {
   const cap = ugcProviderAdapters.getAdapter(scene.route);
   const references = [];
