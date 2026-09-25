@@ -26,7 +26,6 @@ const activeStatuses = new Set(['RESERVING', 'QUEUED', 'RENDERING', 'PLANNING'])
 
 function CampaignPreviewMedia({ asset }: { asset: MediaAsset }) {
   const [ready, setReady] = useState(false)
-  useEffect(() => { setReady(false) }, [asset.fileUrl])
   return <div className="ugc-home-live-preview" aria-hidden="true">
     <video
       className={ready ? 'ready' : ''}
@@ -186,6 +185,9 @@ export function UGCStudioHomeModal({
     }
   }, [open, ugcDrafts.length, overview.isLoading])
 
+  // TanStack Virtual intentionally exposes scheduler functions that React Compiler
+  // cannot safely memoize. The virtualizer owns that state, so skip this compiler lint.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const rowVirtualizer = useVirtualizer({
     count: campaignRows.length,
     getScrollElement: () => bodyRef.current,
@@ -304,7 +306,7 @@ export function UGCStudioHomeModal({
                     onClick={() => setPreview({ src: asset.fileUrl!, title: campaign.title })}
                     type="button"
                   >
-                    <CampaignPreviewMedia asset={asset} />
+                    <CampaignPreviewMedia asset={asset} key={asset.id} />
                     <span className="absolute inset-0 grid place-items-center bg-black/10 transition group-hover:bg-black/20"><span className="grid size-11 place-items-center rounded-full border border-white/20 bg-black/70 text-white shadow-lg"><Play className="ml-0.5 size-5 fill-current" /></span></span>
                     <span className="absolute bottom-2 right-2 rounded-lg border border-white/10 bg-black/70 px-2 py-1 text-[8px] font-semibold text-white/85">Open player</span>
                   </button> :
