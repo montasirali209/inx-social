@@ -274,6 +274,21 @@ function belongsToXAccount(profile, post) {
   }
 }
 
+async function knownPublishedXPostIds(profileId) {
+  const rows = await prisma.socialPublication.findMany({
+    where: {
+      profileId,
+      platform: 'x',
+      status: 'PUBLISHED',
+      externalPostId: { not: null }
+    },
+    select: { externalPostId: true },
+    orderBy: { publishedAt: 'desc' },
+    take: 1000
+  });
+  return new Set(rows.map((row) => String(row.externalPostId || '')).filter(Boolean));
+}
+
 function normalizedAccountLabel(value) {
   return String(value || '').trim().replace(/^@/, '').replace(/\s+/g, ' ').toLowerCase();
 }
@@ -614,11 +629,17 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
   const profile = await resolveProfile(userId, profileId, platform);
   const { since, until } = dateRange(days);
   const providerFeed = await fetchFeed(profile, days, options);
-  // X's connected feed can contain reposts from unrelated authors. Treat the
-  // status URL as ownership evidence and discard everything else, including
-  // entries without a verifiable URL or connected handle.
+  // X feeds have occasionally returned home-timeline/repost content. Never
+  // trust those rows solely because they came from the connected feed. Accept
+  // either a status URL that names the connected handle or a platform post ID
+  // that INXSocial has a persisted PUBLISHED record for on this exact profile.
+  const knownXPostIds = profile.platform === 'x' ? await knownPublishedXPostIds(profile.id) : new Set();
   const allFeed = profile.platform === 'x'
-    ? providerFeed.filter(post => belongsToXAccount(profile, post))
+    ? providerFeed.filter((post) => {
+        if (belongsToXAccount(profile, post)) return true;
+        const postId = postExternalId(profile, post);
+        return Boolean(postId && knownXPostIds.has(postId));
+      })
     : providerFeed;
   if (profile.platform === 'x' && providerFeed.length > allFeed.length) {
     const handle = String(profile.username || '').replace(/^@/, '').toLowerCase();
@@ -626,6 +647,8 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
       profileId: profile.id,
       providerPosts: providerFeed.length,
       ownedPosts: allFeed.length,
+      knownPublishedPosts: knownXPostIds.size,
+      knownPublishedMatches: providerFeed.filter((post) => knownXPostIds.has(postExternalId(profile, post))).length,
       connectedHandlePresent: Boolean(handle),
       postsWithStatusUrl: providerFeed.filter(post => /(?:x|twitter)\.com\/[^/]+\/status\/\d+/i.test(String(post.platform_url || ''))).length,
       postsWithMatchingHandleUrl: providerFeed.filter(post => {
