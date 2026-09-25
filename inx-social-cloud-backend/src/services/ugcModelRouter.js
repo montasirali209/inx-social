@@ -62,20 +62,20 @@ function routeForScene({
     if (hasActor && hasNarration) {
       routeKey = ROUTE_KEYS.PROFESSIONAL_CREATOR;
       reason = 'PREMIUM_AUDIO_DRIVEN_CREATOR';
-      fallbacks = [ROUTE_KEYS.DYNAMIC_FALLBACK, ROUTE_KEYS.LEGACY_PREMIUM];
+      fallbacks = [ROUTE_KEYS.STANDARD];
     } else {
-      routeKey = ROUTE_KEYS.DYNAMIC_FALLBACK;
+      routeKey = ROUTE_KEYS.STANDARD;
       reason = 'CREATOR_INPUT_FALLBACK';
-      fallbacks = [ROUTE_KEYS.LEGACY_PREMIUM];
+      fallbacks = [];
     }
   } else if (['PRODUCT','LIFESTYLE'].includes(normalizedKind) && hasProductReference) {
     routeKey = ROUTE_KEYS.PREMIUM_DYNAMIC;
     reason = 'PREMIUM_REFERENCE_GUIDED_PRODUCT';
-    fallbacks = [ROUTE_KEYS.DYNAMIC_FALLBACK, ROUTE_KEYS.LEGACY_PREMIUM];
+    fallbacks = [ROUTE_KEYS.STANDARD];
   } else {
-    routeKey = ROUTE_KEYS.DYNAMIC_FALLBACK;
-    reason = 'GENERAL_PREMIUM_DYNAMIC';
-    fallbacks = [ROUTE_KEYS.LEGACY_PREMIUM];
+    routeKey = ROUTE_KEYS.STANDARD;
+    reason = 'GENERAL_PREMIUM_STANDARD_FALLBACK';
+    fallbacks = [];
   }
 
   const allowed = Array.isArray(allowedRoutes) && allowedRoutes.length ? new Set(allowedRoutes) : null;
