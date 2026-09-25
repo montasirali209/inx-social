@@ -311,6 +311,15 @@ function scriptTimingSkill({ script, duration, cta = '' }) {
 }
 
 function creatorCastingSkill({ ads, avatars, creatorMode, selectedAvatarId, quality = 'STANDARD' }) {
+  if (creatorMode === 'NONE') {
+    return {
+      skill: 'CREATOR_CASTING',
+      version: SKILLS_VERSION,
+      creatorVersion: creators.CREATOR_PROFILE_VERSION,
+      mode: 'NONE',
+      assignments: ads.map((_, index) => ({ adSequence: index + 1, avatarIndex: null, avatarId: null, score: 0, reason: ['PRODUCT_ONLY'], routeCompatible: true, creatorVersion: creators.CREATOR_PROFILE_VERSION, profile: null }))
+    };
+  }
   const selected = creatorMode === 'SELECTED' && selectedAvatarId
     ? avatars.find(avatar => avatar.id === selectedAvatarId)
     : null;
@@ -376,18 +385,20 @@ function creatorCastingSkill({ ads, avatars, creatorMode, selectedAvatarId, qual
   };
 }
 
-function scenePlanningSkill({ resolvedType, providerDurations, playbackDurations, rawScenes = [], formatDecision = null }) {
+function scenePlanningSkill({ resolvedType, providerDurations, playbackDurations, rawScenes = [], formatDecision = null, noCreator = false }) {
   const count = providerDurations.length;
   const beatGroups = formatDecision?.grammar?.sceneBeats?.length === count
     ? formatDecision.grammar.sceneBeats
     : creativeFormats.distributeBeats(formatDecision?.grammar?.beats || ['HOOK','VALUE','CTA'], count);
-  const defaultKinds = resolvedType === 'AVATAR_EXPLAINER'
-    ? Array.from({ length: count }, () => 'CREATOR')
-    : count === 1 ? ['PRODUCT'] : count === 2 ? ['CREATOR', 'PRODUCT'] : Array.from({ length: count }, (_, index) => index === 0 || index === count - 1 ? 'CREATOR' : 'PRODUCT');
+  const defaultKinds = noCreator
+    ? Array.from({ length: count }, () => 'PRODUCT')
+    : resolvedType === 'AVATAR_EXPLAINER'
+      ? Array.from({ length: count }, () => 'CREATOR')
+      : count === 1 ? ['PRODUCT'] : count === 2 ? ['CREATOR', 'PRODUCT'] : Array.from({ length: count }, (_, index) => index === 0 || index === count - 1 ? 'CREATOR' : 'PRODUCT');
   const scenes = providerDurations.map((providerDuration, index) => {
     const raw = rawScenes[index] || {};
     const requested = ALLOWED_KINDS.has(String(raw.kind).toUpperCase()) ? String(raw.kind).toUpperCase() : defaultKinds[index];
-    const kind = resolvedType === 'AVATAR_EXPLAINER' ? 'CREATOR' : requested;
+    const kind = noCreator ? 'PRODUCT' : resolvedType === 'AVATAR_EXPLAINER' ? 'CREATOR' : requested;
     return {
       sequence: index + 1,
       kind,
@@ -595,13 +606,14 @@ async function planCampaign({
       throw error;
     }
     const assignment = casting.assignments[index] || casting.assignments[0];
-    const avatar = avatars[assignment?.avatarIndex ?? 0] || avatars[0] || null;
+    const avatar = assignment?.avatarIndex == null ? null : (avatars[assignment.avatarIndex] || avatars[0] || null);
     const scenePlan = scenePlanningSkill({
       resolvedType,
       providerDurations,
       playbackDurations,
       rawScenes: rawAd.scenes,
-      formatDecision
+      formatDecision,
+      noCreator: input.creatorMode === 'NONE'
     });
     const consistency = creatorConsistencySkill({ avatar, campaignType: resolvedType });
     const voice = voiceConsistencySkill({ avatar, timing });
