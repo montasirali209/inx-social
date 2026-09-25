@@ -58,7 +58,7 @@ function describeSceneRoute({ quality, kind, providerDuration, playbackDuration 
       strategy: 'POST_VIDEO_LIP_SYNC'
     } : null,
     audioStrategy: routeKey === ROUTE_KEYS.STANDARD ? 'NATIVE_SYNC_AUDIO' : creator ? 'TTS_THEN_LIP_SYNC' : 'TTS_THEN_LOCAL_MUX',
-    resolution: '720p',
+    resolution: routeKey === ROUTE_KEYS.STANDARD ? '768p' : '720p',
     aspectRatio: '9:16',
     providerDuration: Number(providerDuration || 0),
     playbackDuration: Number(playbackDuration || providerDuration || 0)
@@ -79,7 +79,7 @@ function registrySnapshot() {
         narratorModel: null,
         lipSyncModel: null,
         audioStrategy: 'NATIVE_SYNC_AUDIO',
-        resolution: '720p',
+        resolution: '768p',
         aspectRatio: '9:16',
         status: 'ACTIVE'
       },
