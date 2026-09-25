@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=8">
+  <link rel="stylesheet" href="/admin.css?v=9">
   <link rel="stylesheet" href="/admin-security.css?v=1">
 </head>
 <body>
@@ -99,6 +99,47 @@
           <div class="credit-topup-status" id="aiCreditTopupStatus"></div>
         </article>
       </div>
+
+      <section class="panel ugc-avatar-admin">
+        <header class="ugc-admin-head">
+          <div><span class="kicker">UGC creator library</span><h2>Reusable creator avatars</h2><p>Upload pre-made creator portraits once and make them available to every customer inside UGC Studio → Browse creators. Presentation is stored with the creator so default voice casting stays gender-aligned.</p></div>
+          <div class="ugc-avatar-summary" id="ugcAvatarSummary"><span>Loading library…</span></div>
+        </header>
+
+        <div class="ugc-avatar-admin-grid">
+          <form id="ugcAvatarUploadForm" class="ugc-avatar-upload-card">
+            <div class="ugc-admin-card-head"><div><span class="kicker">Add creators</span><h3>Bulk upload avatar images</h3></div><span class="status-chip">System library</span></div>
+            <p class="muted">Choose the correct presentation for the batch, then upload up to 25 PNG, JPEG or WebP portraits. INXSocial assigns friendly names automatically and stores the correct default voice profile.</p>
+
+            <label class="ugc-avatar-file-drop">
+              <input id="ugcAvatarFiles" type="file" accept="image/png,image/jpeg,image/webp" multiple required>
+              <span>＋ Choose creator images</span>
+              <small id="ugcAvatarFileLabel">No images selected</small>
+            </label>
+
+            <div class="ugc-avatar-form-grid">
+              <label>Presentation<select id="ugcAvatarPresentation"><option value="Woman">Woman / female</option><option value="Man">Man / male</option><option value="Non-binary">Non-binary</option><option value="Unspecified">Unspecified</option></select></label>
+              <label>Category<select id="ugcAvatarCategory"><option>Lifestyle</option><option>Beauty</option><option>Fashion</option><option>Fitness</option><option>Wellness</option><option>Business</option><option>Tech</option><option>SaaS</option><option>Ecommerce</option><option>Home</option><option>Food</option><option>Travel</option><option>Automotive</option><option>Finance</option><option>Education</option><option>Parenting</option><option>Pets</option><option>Luxury</option></select></label>
+              <label>Age band<select id="ugcAvatarAgeBand"><option>25–34</option><option>18–24</option><option>35–44</option><option>45–54</option><option>55+</option><option>Adult</option></select></label>
+              <label>Locale<select id="ugcAvatarLocale"><option value="en-GB">English · UK</option><option value="en-US">English · US</option><option value="en-AU">English · Australia</option><option value="en-CA">English · Canada</option><option value="es-ES">Spanish</option><option value="fr-FR">French</option><option value="de-DE">German</option><option value="hi-IN">Hindi</option></select></label>
+              <label class="ugc-avatar-accent">Accent override <small>Optional</small><input id="ugcAvatarAccent" maxlength="80" placeholder="e.g. British, American"></label>
+              <label class="policy-switch ugc-avatar-featured"><input id="ugcAvatarFeatured" type="checkbox"><span><b>Featured creator</b><small>Prioritise this creator in featured surfaces.</small></span></label>
+            </div>
+
+            <div class="ugc-avatar-upload-footer">
+              <div><b id="ugcAvatarUploadStatus">Ready to upload.</b><small>Files are normalised to reusable 9:16 creator references.</small></div>
+              <button class="primary" id="ugcAvatarUploadBtn" type="submit">Upload creators</button>
+            </div>
+            <div class="ugc-avatar-progress" id="ugcAvatarProgress" hidden><i></i></div>
+          </form>
+
+          <article class="ugc-avatar-library-card">
+            <div class="ugc-admin-card-head"><div><span class="kicker">Live picker source</span><h3>Creators visible in UGC Studio</h3></div><button class="secondary" id="refreshUgcAvatarsBtn" type="button">↻ Refresh</button></div>
+            <p class="muted">Every active system creator below is returned by the same creator library endpoint used by the customer-facing Browse creators picker.</p>
+            <div id="ugcAvatarLibrary" class="ugc-avatar-library"><div class="ugc-avatar-library-empty">Loading creators…</div></div>
+          </article>
+        </div>
+      </section>
 
       <section class="panel ugc-admin-analytics">
         <header class="ugc-admin-head">
@@ -289,6 +330,6 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=8" defer></script>
+<script src="/admin.js?v=9" defer></script>
 </body>
 </html>
