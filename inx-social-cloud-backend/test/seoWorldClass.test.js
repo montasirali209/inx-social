@@ -98,11 +98,12 @@ test('feature pages carry complete entities, breadcrumbs, image data and expande
 
 test('sitemap exposes canonical acquisition URLs with modification dates for changed pages', () => {
   const sitemap = readBackend('public/sitemap.xml');
-  assert.equal((sitemap.match(/<url>/g) || []).length, 12);
+  assert.equal((sitemap.match(/<url>/g) || []).length, 13);
   assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/<\/loc>\s*<lastmod>2026-09-25<\/lastmod>/);
   assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/pricing<\/loc>\s*<lastmod>2026-09-25<\/lastmod>/);
   assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-campaign-generator<\/loc>\s*<lastmod>2026-09-23<\/lastmod>/);
-  assert.equal((sitemap.match(/<lastmod>2026-09-25<\/lastmod>/g) || []).length, 2);
+  assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/blog<\/loc>\s*<lastmod>2026-09-25<\/lastmod>/);
+  assert.equal((sitemap.match(/<lastmod>2026-09-25<\/lastmod>/g) || []).length, 3);
   assert.doesNotMatch(sitemap, /\.html<\/loc>/);
   assert.doesNotMatch(sitemap, /social\.inaxx\.co\.uk|up\.railway\.app/);
 });
