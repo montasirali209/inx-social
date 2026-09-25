@@ -12,6 +12,8 @@ const ANALYTICS_CACHE_RUNTIME_BATCH_SIZE = 4;
 const ANALYTICS_CACHE_RUNTIME_ACCOUNT_DELAY_MS = 1500;
 const ANALYTICS_CACHE_RUNTIME_RETRY_AFTER_MS = 10 * 60 * 1000;
 const ANALYTICS_PARTIAL_RETRY_AFTER_MS = 15 * 1000;
+const ANALYTICS_EMPTY_FEED_RETRY_AFTER_MS = 60 * 1000;
+const ANALYTICS_FORCE_EMPTY_RETRY_DELAYS_MS = [900, 1400, 1900];
 const SNAPSHOT_MIN_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const SNAPSHOT_RETENTION_DAYS = 30;
 const SNAPSHOT_RUNTIME_INTERVAL_MS = 60 * 60 * 1000;
@@ -815,7 +817,10 @@ async function loadPostForMeAnalytics(userId, platform, profileId, daysInput = 3
           : allFeed.length
             ? 'metrics_pending'
             : 'feed_empty',
-      repairRequired: !allFeed.length && ['instagram', 'facebook', 'x'].includes(profile.platform),
+      // An empty feed is not proof that OAuth permissions are missing. The
+      // provider can return an empty feed temporarily after selection or
+      // reconnection, so never force users back through OAuth on that signal.
+      repairRequired: false,
       metricSummary
     }
   };
@@ -911,13 +916,13 @@ function analyticsPayloadHasVerifiedMetrics(value) {
 function partialAnalyticsWarning(platform, value = null) {
   const feedPosts = Number(value?.provider?.feedPosts || 0);
   if (String(platform).toLowerCase() === 'x' && Number(value?.provider?.unverifiedFeedPosts || 0) > 0 && feedPosts === 0) {
-    return 'The X provider feed returned posts that could not be verified as belonging to this connected X account. Refresh X analytics access once to repair the account/feed mapping; INXSocial will not count other authors\' posts.';
+    return 'The X provider feed returned posts that could not be verified as belonging to this connected X account. INXSocial excluded them rather than showing another account\'s analytics.';
   }
   if (feedPosts <= 0) {
     const key = String(platform || '').toLowerCase();
-    if (key === 'instagram') return 'Instagram is connected, but the provider returned an empty feed. Refresh analytics access once so the feed permission and historical media can be re-authorized.';
-    if (key === 'facebook') return 'Facebook is connected, but its content feed returned no posts. Refresh analytics access once so feed and Insights permissions can be re-authorized.';
-    return 'The account is connected, but its provider feed returned no posts.';
+    if (key === 'instagram') return 'Instagram is connected, but this provider fetch returned no posts. INXSocial will retry without asking you to reconnect again.';
+    if (key === 'facebook') return 'Facebook is connected, but this provider fetch returned no posts. INXSocial will retry without asking you to reconnect again.';
+    return 'The account is connected, but this provider fetch returned no posts.';
   }
   return String(platform || '').toLowerCase() === 'facebook'
     ? 'Connected Facebook posts are available, but performance metrics are still pending. INXSocial will retry automatically. Older connections may need a one-time reconnect to grant the current Insights permission.'
@@ -1049,7 +1054,20 @@ function startAnalyticsRefresh(userId, platform, profileId, daysInput = 30, opti
     const previous = await readPersistedAnalyticsCache(descriptor);
     await markAnalyticsRefreshStarted(descriptor);
     try {
-      const value = await loadPostForMeAnalytics(userId, platform, profileId, descriptor.periodDays, options);
+      let value = await loadPostForMeAnalytics(userId, platform, profileId, descriptor.periodDays, options);
+
+      // A selected account should get a short provider warm-up window before an
+      // empty feed is treated as a settled result. This keeps the UI loading
+      // for a few seconds while Facebook/Instagram finish populating the feed,
+      // instead of flashing a false connection error.
+      if (options.forceRefresh && ['facebook', 'instagram'].includes(String(platform).toLowerCase())) {
+        for (const delayMs of ANALYTICS_FORCE_EMPTY_RETRY_DELAYS_MS) {
+          if (value?.provider?.sourceState !== 'feed_empty') break;
+          await new Promise((resolve) => setTimeout(resolve, delayMs));
+          value = await loadPostForMeAnalytics(userId, platform, profileId, descriptor.periodDays, options);
+        }
+      }
+
       const verified = analyticsPayloadHasVerifiedMetrics(value);
 
       if (!verified && analyticsPayloadHasVerifiedMetrics(previous.value)) {
@@ -1108,7 +1126,12 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
 
   if (value) {
     const partial = row?.syncStatus === 'PARTIAL' || !analyticsPayloadHasVerifiedMetrics(value);
-    const retryWindow = partial ? ANALYTICS_PARTIAL_RETRY_AFTER_MS : ANALYTICS_CACHE_RUNTIME_RETRY_AFTER_MS;
+    const sourceState = String(value?.provider?.sourceState || '');
+    const retryWindow = partial
+      ? ['feed_empty', 'ownership_mismatch'].includes(sourceState)
+        ? ANALYTICS_EMPTY_FEED_RETRY_AFTER_MS
+        : ANALYTICS_PARTIAL_RETRY_AFTER_MS
+      : ANALYTICS_CACHE_RUNTIME_RETRY_AFTER_MS;
     const retryCooldownActive = (row?.syncStatus === 'ERROR' || partial)
       && row?.lastAttemptAt
       && Date.now() - row.lastAttemptAt.getTime() < retryWindow;
@@ -1126,11 +1149,7 @@ async function getPostForMeAnalytics(userId, platform, profileId, daysInput = 30
     }
 
     if (partial) {
-      const repairRequired = value?.provider?.repairRequired === true;
-      if (!repairRequired && !retryCooldownActive) queueAnalyticsRefresh(userId, platform, profileId, descriptor.periodDays, options);
-      // Empty provider feeds are not a slow refresh. They require a connection
-      // repair/re-authorization, so do not hammer the provider or keep the UI
-      // pretending that an ordinary sync is still running.
+      if (!retryCooldownActive) queueAnalyticsRefresh(userId, platform, profileId, descriptor.periodDays, options);
       const refreshing = analyticsInflight.has(descriptor.key);
       return withCacheState(value, refreshing ? 'refreshing' : 'partial', partialAnalyticsWarning(descriptor.platform, value));
     }
@@ -1181,7 +1200,6 @@ async function runAnalyticsCacheRefreshSweep() {
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index];
       const persisted = parsePersistedPayload(row);
-      if (persisted?.provider?.repairRequired === true) continue;
       const options = row.cacheVariant === 'summary'
         ? { cacheVariant: 'summary', feedMaxPages: 1, feedMaxPosts: 100 }
         : { cacheVariant: row.cacheVariant || 'full' };
