@@ -1,4 +1,4 @@
-const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,timer:null};
+const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,ugcAvatars:[],timer:null};
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const initials=value=>String(value||'IN').trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
@@ -181,17 +181,131 @@ function renderUgcOperations(data){
   $('ugcOpsUpdated').textContent=operations.generatedAt?`Updated ${relative(operations.generatedAt)}`:'—';
 }
 
+function renderUgcAvatarLibrary(data){
+  const avatars=data.avatars||[];
+  const summary=data.summary||{};
+  state.ugcAvatars=avatars;
+  $('ugcAvatarSummary').innerHTML=`<b>${Number(summary.total||avatars.length).toLocaleString()}</b><span>system creators</span><small>${Number(summary.adminUploaded||0).toLocaleString()} admin uploaded · ${Number(summary.women||0).toLocaleString()} women · ${Number(summary.men||0).toLocaleString()} men</small>`;
+  $('ugcAvatarLibrary').innerHTML=avatars.length?avatars.map(avatar=>`<article class="ugc-avatar-card">
+    <div class="ugc-avatar-photo">
+      ${avatar.imageUrl?`<img data-ugc-avatar-image loading="lazy" src="${esc(avatar.imageUrl)}" alt="">`:''}
+      <div class="ugc-avatar-photo-fallback" ${avatar.imageUrl?'hidden':''}>${esc(initials(avatar.name))}</div>
+      <span class="ugc-avatar-source ${avatar.managedByAdmin?'admin':''}">${avatar.managedByAdmin?'Admin upload':'Built in'}</span>
+    </div>
+    <div class="ugc-avatar-card-body">
+      <div><b>${esc(avatar.name)}</b><span>${esc(avatar.presentation||'Unspecified')} · ${esc(avatar.ageBand||'Adult')}</span></div>
+      <small>${esc(avatar.category||'Lifestyle')} · ${esc(avatar.locale||'en-GB')}</small>
+      <div class="ugc-avatar-voice"><span>Voice</span><strong>${esc(avatar.voice||'Automatic')}</strong></div>
+      ${avatar.accent?`<small>Accent: ${esc(avatar.accent)}</small>`:''}
+    </div>
+  </article>`).join(''):'<div class="ugc-avatar-library-empty">No active UGC creators found.</div>';
+  document.querySelectorAll('[data-ugc-avatar-image]').forEach(image=>image.addEventListener('error',()=>{
+    image.hidden=true;
+    const fallback=image.nextElementSibling;
+    if(fallback)fallback.hidden=false;
+  }));
+}
+
+async function loadUgcAvatars(){
+  const data=await api('/api/admin/ugc-avatars');
+  renderUgcAvatarLibrary(data);
+  return data;
+}
+
+function ugcAvatarMime(file){
+  if(['image/png','image/jpeg','image/webp'].includes(file.type))return file.type;
+  const name=String(file.name||'').toLowerCase();
+  if(name.endsWith('.png'))return'image/png';
+  if(name.endsWith('.webp'))return'image/webp';
+  if(name.endsWith('.jpg')||name.endsWith('.jpeg'))return'image/jpeg';
+  return'application/octet-stream';
+}
+
+async function uploadAdminUgcAvatar(file,meta){
+  const headers={
+    'Content-Type':ugcAvatarMime(file),
+    'X-File-Name':encodeURIComponent(file.name||'creator'),
+    'X-Creator-Presentation':encodeURIComponent(meta.presentation),
+    'X-Creator-Category':encodeURIComponent(meta.category),
+    'X-Creator-Age-Band':encodeURIComponent(meta.ageBand),
+    'X-Creator-Locale':encodeURIComponent(meta.locale),
+    'X-Creator-Accent':encodeURIComponent(meta.accent||''),
+    'X-Creator-Featured':meta.featured?'true':'false'
+  };
+  const response=await fetch('/api/admin/ugc-avatars/upload',{method:'POST',credentials:'same-origin',headers,body:file});
+  const data=await response.json().catch(()=>({}));
+  if(response.status===401){clearSession();throw new Error(data.error||'Your administrator session has ended.')}
+  if(!response.ok)throw new Error(data.error||`Upload failed: ${response.status}`);
+  return data.avatar;
+}
+
+$('ugcAvatarFiles').addEventListener('change',()=>{
+  const files=[...$('ugcAvatarFiles').files];
+  $('ugcAvatarFileLabel').textContent=files.length?`${files.length} image${files.length===1?'':'s'} selected`:'No images selected';
+});
+
+$('refreshUgcAvatarsBtn').addEventListener('click',()=>loadUgcAvatars().then(()=>toast('UGC creator library refreshed')).catch(error=>toast(error.message)));
+
+$('ugcAvatarUploadForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  const files=[...$('ugcAvatarFiles').files];
+  if(!files.length){toast('Choose at least one creator image.');return}
+  if(files.length>25){toast('Upload up to 25 creator images in one batch.');return}
+  const invalid=files.find(file=>!['image/png','image/jpeg','image/webp'].includes(ugcAvatarMime(file))||file.size>12*1024*1024);
+  if(invalid){toast(`${invalid.name} must be PNG, JPEG or WebP and 12 MB or smaller.`);return}
+  const meta={
+    presentation:$('ugcAvatarPresentation').value,
+    category:$('ugcAvatarCategory').value,
+    ageBand:$('ugcAvatarAgeBand').value,
+    locale:$('ugcAvatarLocale').value,
+    accent:$('ugcAvatarAccent').value.trim(),
+    featured:$('ugcAvatarFeatured').checked
+  };
+  const button=$('ugcAvatarUploadBtn');
+  const progress=$('ugcAvatarProgress');
+  const bar=progress.querySelector('i');
+  button.disabled=true;
+  progress.hidden=false;
+  bar.style.width='0%';
+  let completed=0;
+  const failures=[];
+  try{
+    for(const file of files){
+      $('ugcAvatarUploadStatus').textContent=`Uploading ${completed+1} of ${files.length}: ${file.name}`;
+      try{await uploadAdminUgcAvatar(file,meta)}
+      catch(error){failures.push(`${file.name}: ${error.message}`)}
+      completed+=1;
+      bar.style.width=`${Math.round(completed*100/files.length)}%`;
+    }
+    await loadUgcAvatars();
+    $('ugcAvatarFiles').value='';
+    $('ugcAvatarFileLabel').textContent='No images selected';
+    if(failures.length){
+      $('ugcAvatarUploadStatus').textContent=`${files.length-failures.length} uploaded · ${failures.length} failed.`;
+      toast(failures[0]);
+    }else{
+      $('ugcAvatarUploadStatus').textContent=`${files.length} creator${files.length===1?'':'s'} uploaded and live in UGC Studio.`;
+      toast('UGC creators added to the customer picker');
+    }
+  }finally{
+    button.disabled=false;
+    window.setTimeout(()=>{progress.hidden=true;bar.style.width='0%'},900);
+  }
+});
+
 async function loadAiAccess(){
   const days=Number($('ugcAnalyticsDays')?.value||30);
-  const [studio,agent,ugc,ugcOps]=await Promise.all([
+  const [studio,agent,ugc,ugcOps,ugcAvatars]=await Promise.all([
     api('/api/admin/ai-studio-policy'),
     api('/api/admin/agent-access'),
     api(`/api/admin/ugc-analytics?days=${days}`),
-    api('/api/admin/ugc-operations?limit=20')
+    api('/api/admin/ugc-operations?limit=20'),
+    api('/api/admin/ugc-avatars')
   ]);
   renderAiOperations(studio);
   renderUgcAnalytics(ugc);
   renderUgcOperations(ugcOps);
+  renderUgcAvatarLibrary(ugcAvatars);
   const policy=agent.policy||{};
   $('agentAvailability').value=policy.availability==='PLUS_ONLY'?'PAID_PLANS':policy.availability;
   const limits=policy.planLimits||{};
