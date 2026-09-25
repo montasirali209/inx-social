@@ -5,9 +5,10 @@ const creativeFormats = require('./ugcCreativeFormats');
 const SKILLS_VERSION = 'ugc-skills-v1';
 
 const SCRIPT_BUDGETS = Object.freeze({
-  15: Object.freeze({ targetMin: 28, targetMax: 34, hardMax: 36, reserveSeconds: 0.45 }),
-  20: Object.freeze({ targetMin: 38, targetMax: 46, hardMax: 49, reserveSeconds: 0.45 }),
-  30: Object.freeze({ targetMin: 58, targetMax: 66, hardMax: 70, reserveSeconds: 0.55 })
+  20: Object.freeze({ targetMin: 40, targetMax: 48, hardMax: 52, reserveSeconds: 0.75 }),
+  30: Object.freeze({ targetMin: 60, targetMax: 72, hardMax: 76, reserveSeconds: 0.85 }),
+  45: Object.freeze({ targetMin: 90, targetMax: 106, hardMax: 112, reserveSeconds: 1.0 }),
+  60: Object.freeze({ targetMin: 118, targetMax: 140, hardMax: 148, reserveSeconds: 1.1 })
 });
 
 const ALLOWED_KINDS = new Set(['CREATOR', 'PRODUCT', 'LIFESTYLE', 'CTA']);
@@ -104,7 +105,7 @@ function creativeDirectorSkillFallback({ input, brandSkill, resolvedType, variat
       formatVersion: creativeFormats.CREATIVE_FORMAT_VERSION,
       formatMix: formatPlan?.formats || [],
       objective: resolvedType === 'PRODUCT_SHOWCASE' ? 'Show the product naturally and explain why it matters.' : 'Explain the offer naturally through a credible creator.',
-      pacing: 'CONVERSATIONAL',
+      pacing: 'ENERGETIC',
       cameraStyle: 'CREATOR_NATIVE',
       angleMix: angles.slice(0, Math.min(variationCount, angles.length))
     },
@@ -112,7 +113,7 @@ function creativeDirectorSkillFallback({ input, brandSkill, resolvedType, variat
       const formatDecision = formatPlan?.ads?.[index] || null;
       const angle = formatDecision?.label || angles[index % angles.length];
       const hook = creativeFormats.fallbackHook(formatDecision?.formatKey, offer);
-      const script = clean(hook + ' ' + offer + ' — ' + summary + ' Take a closer look and see whether it fits what you need.', 12000);
+      const script = clean(hook + ' ' + offer + ' — ' + summary + ' If that sounds useful, take a closer look at ' + offer + ' today.', 12000);
       return {
         title: 'UGC Ad ' + (index + 1),
         angle,
@@ -122,7 +123,7 @@ function creativeDirectorSkillFallback({ input, brandSkill, resolvedType, variat
         script,
         cta: 'Take a closer look.',
         caption: socialPostCaption({ hook, cta: 'Take a closer look.', script }),
-        creatorProfile: { category: '', presentation: '', ageBand: '', locale: '', environment: '', energy: 'NATURAL' },
+        creatorProfile: { category: '', presentation: '', ageBand: '', locale: '', environment: '', energy: 'ENERGETIC' },
         scenes: []
       };
     })
@@ -139,8 +140,7 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
     verifiedClaims: brandSkill.verifiedClaims,
     offerType: brandSkill.offerType,
     productAssetCount: brandSkill.productAssetCount,
-    productInteractionUseful: brandSkill.productInteractionUseful,
-    creativeDirections: brandSkill.creativeDirections
+    productInteractionUseful: brandSkill.productInteractionUseful
   };
 
   try {
@@ -151,19 +151,22 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
           'You are the structured UGC Creative Director skill inside INXSocial.',
           'Return JSON only. Do not return markdown, commentary or prose outside the JSON object.',
           'Use only verified evidence supplied by the user or brand analysis. Never invent prices, testimonials, statistics, certifications, product claims or software features.',
-          'The customer should not need to write a script or design scenes.',
+          'Your primary job is to write the spoken UGC script. The video-generation model will direct the visual performance.',
+          'Do not storyboard camera moves, props, devices, interfaces or shot-by-shot actions. Keep scene guidance minimal and let the video model interpret the script and references.',
           'Every requested variation must have a materially different hook and angle while remaining truthful.',
+          'Default to fast social-ad pacing: start immediately, remove filler, keep sentences compact and make every line advance the ad.',
           'Each ad receives a required creative format grammar in creativeFormatPlan. Follow its ordered beats, hook families, CTA mode and safety rules; do not substitute a different format.',
           'Testimonial-style must not fabricate first-person use, customer history or results. Before/After may be used only when creativeFormatPlan confirms verified transformation evidence.',
           'AVATAR_EXPLAINER keeps a believable creator as the visual anchor and is preferred for SaaS, websites, apps and services. Never invent fake application screens.',
           'PRODUCT_SHOWCASE may combine creator footage with supplied product references. Never redesign packaging or substitute a different product.',
           'Write natural creator speech, not corporate copy. Do not use exaggerated hype or fake personal experience.',
+          'Every script must have a complete ending: land the value, then finish with one natural, explicit CTA. Never end mid-thought, on a conjunction, or with an unfinished sentence.',
           'caption is the social-post caption that accompanies the finished video. Keep it separate from the spoken script: concise, natural, platform-neutral, no hashtag stuffing, and never copy the full narration verbatim. Use only verified claims.',
           `For ${Number(input.duration)} seconds, target ${timing.targetMin}-${timing.targetMax} spoken words and never exceed ${timing.hardMax} words.`,
           'The final sentence and CTA must finish before the requested duration, leaving a short visual tail.',
           'Use one creator identity and one voice per ad.',
           'creatorProfile is a casting preference, not a named person. Do not request resemblance to a celebrity or identifiable real person.',
-          'For each scene, objective describes what the scene must communicate and visualDirection describes what should be filmed. Do not include model/provider names.',
+          'For each technical segment, objective should only describe what that part of the spoken message must communicate. visualDirection must stay short and generic; do not invent a storyboard. Do not include model/provider names.',
           'Return exactly this shape: {"campaignTitle":"string","strategy":{"format":"string","objective":"string","pacing":"CONVERSATIONAL|ENERGETIC|CALM","cameraStyle":"CREATOR_NATIVE|PRODUCT_DEMO|HYBRID","angleMix":["string"]},"ads":[{"title":"string","angle":"string","hook":"string","script":"string","cta":"string","caption":"string","creatorProfile":{"category":"string","presentation":"string","ageBand":"string","locale":"string","environment":"string","niches":["string"],"wardrobeStyle":"string","gestureStyle":"string","energy":"NATURAL|ENERGETIC|CALM"},"scenes":[{"kind":"CREATOR|PRODUCT|LIFESTYLE|CTA","objective":"string","visualDirection":"string"}]}]}'
         ].join('\n\n')
       },
@@ -214,7 +217,7 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
         formatVersion: creativeFormats.CREATIVE_FORMAT_VERSION,
         formatMix: formatPlan?.formats || [],
         objective: clean(parsed.strategy?.objective, 600),
-        pacing: ['CONVERSATIONAL', 'ENERGETIC', 'CALM'].includes(String(parsed.strategy?.pacing).toUpperCase()) ? String(parsed.strategy.pacing).toUpperCase() : 'CONVERSATIONAL',
+        pacing: ['CONVERSATIONAL', 'ENERGETIC', 'CALM'].includes(String(parsed.strategy?.pacing).toUpperCase()) ? String(parsed.strategy.pacing).toUpperCase() : 'ENERGETIC',
         cameraStyle: ['CREATOR_NATIVE', 'PRODUCT_DEMO', 'HYBRID'].includes(String(parsed.strategy?.cameraStyle).toUpperCase()) ? String(parsed.strategy.cameraStyle).toUpperCase() : (resolvedType === 'PRODUCT_SHOWCASE' ? 'HYBRID' : 'CREATOR_NATIVE'),
         angleMix: Array.isArray(parsed.strategy?.angleMix) ? parsed.strategy.angleMix.map(item => clean(item, 180)).filter(Boolean).slice(0, variationCount) : []
       },
@@ -253,7 +256,7 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
 
 function scriptTimingSpec(duration) {
   const seconds = Number(duration);
-  const budget = SCRIPT_BUDGETS[seconds] || SCRIPT_BUDGETS[15];
+  const budget = SCRIPT_BUDGETS[seconds] || SCRIPT_BUDGETS[20];
   return {
     skill: 'SCRIPT_TIMING',
     version: SKILLS_VERSION,
@@ -474,7 +477,7 @@ function adFinishingSkill({ duration, captionsEnabled = true, musicMode = 'AUTO'
     skill: 'AD_FINISHING',
     version: SKILLS_VERSION,
     exactDurationSeconds: Number(duration),
-    speechTailSeconds: (SCRIPT_BUDGETS[Number(duration)] || SCRIPT_BUDGETS[15]).reserveSeconds,
+    speechTailSeconds: (SCRIPT_BUDGETS[Number(duration)] || SCRIPT_BUDGETS[20]).reserveSeconds,
     captions: captionsEnabled ? 'BURNED_IN_AFTER_ASSEMBLY' : 'OFF',
     music: clean(musicMode || 'AUTO', 20).toUpperCase(),
     audio: {
@@ -518,22 +521,18 @@ function directiveText(value) {
   return entries.join('. ');
 }
 
-function compileScenePrompt({ scene, consistency, productFidelity, motion, camera }) {
-  const base = clean(scene.visualDirection || scene.objective, 1800) || (scene.kind === 'PRODUCT'
-    ? 'Show the supplied product naturally in a believable everyday context.'
-    : 'Creator speaks directly to camera in a believable everyday environment.');
-  const relevant = scene.kind === 'PRODUCT' ? productFidelity : consistency;
-  const grammar = scene.creativeFormat ? 'Creative format: ' + scene.creativeFormat + '. Story beats in this scene: ' + (scene.beats || []).join(' -> ') + '. Format rules: ' + (scene.formatRules || []).join(', ') + '.' : '';
+function compileScenePrompt({ scene, consistency, productFidelity }) {
+  const referenceRule = scene.kind === 'PRODUCT'
+    ? directiveText(productFidelity)
+    : directiveText(consistency);
   return clean([
-    base,
-    grammar,
-    directiveText(relevant),
-    directiveText(motion),
-    directiveText(camera),
-    'No generated subtitles, watermarks, labels or extra readable overlay text.'
-  ].filter(Boolean).join('\n\n'), 5000);
+    clean(scene.objective, 700) || 'Create a natural creator-native UGC segment that supports the spoken message.',
+    scene.creativeFormat ? 'UGC format: ' + scene.creativeFormat.replaceAll('_', ' ') + '.' : '',
+    referenceRule,
+    'Keep motion natural and real-time. Let the video model choose framing, actions and transitions.',
+    'Do not invent unsupported products, interfaces, people, claims, subtitles, watermarks or readable overlay text.'
+  ].filter(Boolean).join('\n\n'), 2200);
 }
-
 async function planCampaign({
   input,
   brand,
@@ -660,21 +659,37 @@ async function planCampaign({
 }
 
 function splitScriptByWeightedDuration(script, durations) {
-  const tokens = words(script);
-  if (!tokens.length) return durations.map(() => '');
-  let cursor = 0;
-  return durations.map((duration, index) => {
-    const remainingWords = tokens.length - cursor;
-    const remainingDuration = durations.slice(index).reduce((sum, value) => sum + Number(value || 0), 0);
-    const take = index === durations.length - 1
-      ? remainingWords
-      : Math.max(1, Math.round(remainingWords * Number(duration || 0) / Math.max(1, remainingDuration)));
-    const part = tokens.slice(cursor, cursor + take).join(' ');
-    cursor += take;
-    return part;
-  });
-}
+  const text = clean(script, 12000);
+  if (!text) return durations.map(() => '');
+  const sentences = sentenceChunks(text);
+  if (durations.length <= 1 || sentences.length <= 1) return durations.map((_, index) => index === 0 ? text : '');
 
+  const totalDuration = Math.max(1, durations.reduce((sum, value) => sum + Number(value || 0), 0));
+  const totalWords = Math.max(1, wordCount(text));
+  const targets = durations.map(value => Math.max(1, totalWords * Number(value || 0) / totalDuration));
+  const groups = Array.from({ length: durations.length }, () => []);
+  let groupIndex = 0;
+  let groupWords = 0;
+
+  for (const sentence of sentences) {
+    const count = wordCount(sentence);
+    const remainingSentences = sentences.length - sentences.indexOf(sentence);
+    const remainingGroups = durations.length - groupIndex;
+    if (
+      groupIndex < durations.length - 1 &&
+      groups[groupIndex].length &&
+      groupWords + count > targets[groupIndex] &&
+      remainingSentences >= remainingGroups
+    ) {
+      groupIndex += 1;
+      groupWords = 0;
+    }
+    groups[groupIndex].push(sentence);
+    groupWords += count;
+  }
+
+  return groups.map(group => group.join(' ').trim());
+}
 module.exports = {
   SKILLS_VERSION,
   SCRIPT_BUDGETS,
