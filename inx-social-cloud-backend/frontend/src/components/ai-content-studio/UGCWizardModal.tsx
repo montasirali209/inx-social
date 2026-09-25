@@ -310,7 +310,7 @@ export function UGCWizardModal({
     campaignId, step, productUrl, description, referencePrompt, productAssetIds, avatarId,
     generatedReferences, selectedGeneratedProductIds, sourceType, selectedBrand?.id,
     seedCampaign?.brandProfileId, seedDraft?.brandProfileId, creatorMode, duration, adCount,
-    quality, campaignType, creativeFormat, seedProductIds, productAssets, queryClient,
+    quality, campaignType, creativeFormat, seedProductIds, productAssets, queryClient, selectedBrand?.name, selectedBrand?.productName,
   ])
 
   useEffect(() => {
