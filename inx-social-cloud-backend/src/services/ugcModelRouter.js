@@ -5,7 +5,7 @@ const creators = require('./ugcCreatorEngine');
 const ROUTER_VERSION = 'ugc-router-v1';
 
 const ROUTE_KEYS = Object.freeze({
-  STANDARD: 'HAILUO_STANDARD_V1',
+  STANDARD: 'H3_MAX_STANDARD_V1',
   LEGACY_PREMIUM: 'KLING_PREMIUM_V1',
   PROFESSIONAL_CREATOR: 'OMNIHUMAN_CREATOR_V1',
   PREMIUM_DYNAMIC: 'SEEDANCE_DYNAMIC_V1',
@@ -115,9 +115,11 @@ function routeForScene({
 
   const selected = adapters.getAdapter(routeKey);
   const referenceRole = isCreatorLike(normalizedKind) ? 'ACTOR' : 'PRODUCT';
-  const audioStrategy = selected.adapterKey === adapters.ADAPTER_KEYS.OMNIHUMAN_15
-    ? 'AUDIO_DRIVEN_NATIVE'
-    : isCreatorLike(normalizedKind) ? 'TTS_THEN_LIP_SYNC' : 'TTS_THEN_LOCAL_MUX';
+  const audioStrategy = selected.adapterKey === adapters.ADAPTER_KEYS.H3_MAX
+    ? 'NATIVE_SYNC_AUDIO'
+    : selected.adapterKey === adapters.ADAPTER_KEYS.OMNIHUMAN_15
+      ? 'AUDIO_DRIVEN_NATIVE'
+      : isCreatorLike(normalizedKind) ? 'TTS_THEN_LIP_SYNC' : 'TTS_THEN_LOCAL_MUX';
 
   return {
     routerVersion: ROUTER_VERSION,
