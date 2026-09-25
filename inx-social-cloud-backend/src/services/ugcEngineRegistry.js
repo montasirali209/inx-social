@@ -5,7 +5,7 @@ const ENGINE_VERSION = 'ugc-engine-v1';
 const CONTRACT_VERSION = '1.3';
 
 const ROUTE_KEYS = Object.freeze({
-  STANDARD: 'HAILUO_STANDARD_V1',
+  STANDARD: 'H3_MAX_STANDARD_V1',
   PREMIUM: 'KLING_PREMIUM_V1',
   PROFESSIONAL_CREATOR: 'OMNIHUMAN_CREATOR_V1',
   PREMIUM_DYNAMIC: 'SEEDANCE_DYNAMIC_V1',
@@ -14,7 +14,7 @@ const ROUTE_KEYS = Object.freeze({
 
 function modelIds() {
   return {
-    standardVideo: env.runware.ugcStandardModel || 'minimax:4@1',
+    standardVideo: env.runware.ugcStandardModel || 'minimax:h3@max',
     premiumVideo: env.runware.ugcPremiumModel || 'klingai:kling-video@3-standard',
     omniHumanVideo: env.runware.ugcOmniHumanModel || 'bytedance:5@2',
     seedanceVideo: env.runware.ugcSeedanceModel || 'bytedance:seedance@2.5',
@@ -29,7 +29,7 @@ function routeKeyForQuality(quality) {
 }
 
 function legacyDbRoute(quality) {
-  return routeKeyForQuality(quality) === ROUTE_KEYS.PREMIUM ? 'KLING' : 'HAILUO';
+  return routeKeyForQuality(quality) === ROUTE_KEYS.PREMIUM ? 'KLING' : 'H3_MAX';
 }
 
 function describeSceneRoute({ quality, kind, providerDuration, playbackDuration }) {
@@ -48,12 +48,12 @@ function describeSceneRoute({ quality, kind, providerDuration, playbackDuration 
       model: ids.tts,
       strategy: 'EXTERNAL_TTS'
     },
-    lipSync: creator ? {
+    lipSync: routeKey === ROUTE_KEYS.STANDARD ? null : creator ? {
       provider: 'runware',
       model: ids.lipSync,
       strategy: 'POST_VIDEO_LIP_SYNC'
     } : null,
-    audioStrategy: creator ? 'TTS_THEN_LIP_SYNC' : 'TTS_THEN_LOCAL_MUX',
+    audioStrategy: routeKey === ROUTE_KEYS.STANDARD ? 'NATIVE_SYNC_AUDIO' : creator ? 'TTS_THEN_LIP_SYNC' : 'TTS_THEN_LOCAL_MUX',
     resolution: '720p',
     aspectRatio: '9:16',
     providerDuration: Number(providerDuration || 0),
@@ -69,7 +69,7 @@ function registrySnapshot() {
     routes: {
       [ROUTE_KEYS.STANDARD]: {
         userTier: 'STANDARD',
-        legacyDbRoute: 'HAILUO',
+        legacyDbRoute: 'H3_MAX',
         provider: 'runware',
         videoModel: ids.standardVideo,
         narratorModel: ids.tts,
