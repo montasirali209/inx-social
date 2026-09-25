@@ -8,11 +8,12 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
 test('Phase 0 freezes the current UGC pricing and duration surface', () => {
   const service = require('../src/services/ugcStudioService');
-  assert.deepEqual(service.STANDARD_CREDITS, { 15: 100, 20: 140, 30: 210 });
-  assert.deepEqual(service.PREMIUM_CREDITS, { 15: 180, 20: 260, 30: 390 });
+  assert.deepEqual(service.STANDARD_CREDITS, { 20: 140, 30: 210, 45: 315, 60: 420 });
+  assert.deepEqual(service.PREMIUM_CREDITS, { 20: 260, 30: 390, 45: 585, 60: 780 });
   assert.equal(service.AVATAR_CREDITS, 5);
-  assert.deepEqual(service.visualDurations(15, 'STANDARD', 'AVATAR_EXPLAINER'), [10, 6]);
-  assert.deepEqual(service.playbackDurations(15, [10, 6]), [10, 5]);
+  assert.deepEqual(service.visualDurations(20, 'STANDARD', 'AVATAR_EXPLAINER'), [10, 10]);
+  assert.deepEqual(service.visualDurations(60, 'STANDARD', 'AVATAR_EXPLAINER'), [15, 15, 15, 15]);
+  assert.deepEqual(service.playbackDurations(20, [10, 10]), [10, 10]);
 });
 
 test('Phase 0 preserves reserve-complete-refund credit accounting around UGC generation', () => {
@@ -64,7 +65,7 @@ test('new campaigns create engine snapshots while the renderer still uses legacy
   assert.match(service, /ugcEngine\.linkGeneration/);
   assert.match(service, /ugcEngineRegistry\.legacyDbRoute/);
   assert.match(engine, /UGCEngineProject/);
-  assert.match(registry, /HAILUO_STANDARD_V1/);
+  assert.match(registry, /H3_MAX_STANDARD_V1/);
   assert.match(registry, /KLING_PREMIUM_V1/);
 });
 
