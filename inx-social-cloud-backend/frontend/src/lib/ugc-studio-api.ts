@@ -171,7 +171,7 @@ export function uploadUGCProductAsset(file: File, brandProfileId?: string | null
 
 export function uploadUGCSampleVideo(
   file: File,
-  input: { title: string; description?: string; campaignType: 'AVATAR_EXPLAINER' | 'PRODUCT_SHOWCASE'; quality: 'STANDARD' | 'PREMIUM'; duration: 15 | 20 | 30; sortOrder?: number },
+  input: { title: string; description?: string; campaignType: 'AVATAR_EXPLAINER' | 'PRODUCT_SHOWCASE'; quality: 'STANDARD' | 'PREMIUM'; duration: 20 | 30 | 45 | 60; sortOrder?: number },
 ): Promise<UGCSampleVideo> {
   return uploadBinary(
     '/api/ai-content-studio/ugc/samples/upload',
