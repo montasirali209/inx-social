@@ -43,7 +43,11 @@ function describeSceneRoute({ quality, kind, providerDuration, playbackDuration 
     legacyDbRoute: legacyDbRoute(quality),
     provider: 'runware',
     videoModel: routeKey === ROUTE_KEYS.PREMIUM ? ids.premiumVideo : ids.standardVideo,
-    narrator: {
+    narrator: routeKey === ROUTE_KEYS.STANDARD ? {
+      provider: 'runware',
+      model: ids.standardVideo,
+      strategy: 'NATIVE_SYNC_AUDIO'
+    } : {
       provider: 'runware',
       model: ids.tts,
       strategy: 'EXTERNAL_TTS'
@@ -72,8 +76,9 @@ function registrySnapshot() {
         legacyDbRoute: 'H3_MAX',
         provider: 'runware',
         videoModel: ids.standardVideo,
-        narratorModel: ids.tts,
-        lipSyncModel: ids.lipSync,
+        narratorModel: null,
+        lipSyncModel: null,
+        audioStrategy: 'NATIVE_SYNC_AUDIO',
         resolution: '720p',
         aspectRatio: '9:16',
         status: 'ACTIVE'
