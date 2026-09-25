@@ -102,7 +102,7 @@ test('Creator V2 preflight rejects a creator that cannot serve the requested pro
     ageBand: '25–34',
     locale: 'en-GB',
     voice: 'Pippa',
-    routeCompatibilityJson: JSON.stringify(['H3_MAX_STANDARD_V1'])
+    routeCompatibilityJson: JSON.stringify(['SEEDANCE_DYNAMIC_V1'])
   };
   const cast = creatorCastingSkill({
     ads: [{ creatorProfile: { category: 'Lifestyle' } }],
