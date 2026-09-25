@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, ArrowRight, BadgeCheck, Boxes, CalendarRange, Check, CirclePlay,
-  Crown, FileText, Film, Globe2, ImagePlus, Images, LoaderCircle, PackageOpen, Search,
-  Sparkles, Upload, UserRound, UsersRound, WandSparkles, X,
+  ArrowLeft, ArrowRight, BadgeCheck, CalendarRange, Check, CirclePlay,
+  Crown, FileText, Film, Globe2, Images, LoaderCircle, PackageOpen, Search,
+  Sparkles, UserRound, UsersRound, WandSparkles, X,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
