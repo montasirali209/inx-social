@@ -130,8 +130,8 @@ function buildEngineProject({
     adapterKey: scene.route.adapterKey || null,
     provider: scene.route.provider,
     videoModel: scene.route.model || scene.route.videoModel || null,
-    narratorModel: registry.modelIds().tts,
-    lipSyncModel: scene.route.nativeLipSync ? null : (scene.route.audioStrategy === 'TTS_THEN_LIP_SYNC' ? registry.modelIds().lipSync : null),
+    narratorModel: scene.route.audioStrategy === 'NATIVE_SYNC_AUDIO' ? null : registry.modelIds().tts,
+    lipSyncModel: scene.route.audioStrategy === 'NATIVE_SYNC_AUDIO' || scene.route.nativeLipSync ? null : (scene.route.audioStrategy === 'TTS_THEN_LIP_SYNC' ? registry.modelIds().lipSync : null),
     reason: scene.route.reason || null,
     referenceRole: scene.route.referenceRole || null,
     audioStrategy: scene.route.audioStrategy,
@@ -222,7 +222,9 @@ function buildEngineProject({
       adId: null,
       generationId: null,
       status: 'PLANNED',
-      phases: ['RESERVE_CREDITS', 'TTS', 'VIDEO', 'LIP_SYNC_OR_MUX', 'ASSEMBLY', 'MEDIA_LIBRARY']
+      phases: input.quality === 'STANDARD'
+        ? ['RESERVE_CREDITS', 'VIDEO_WITH_NATIVE_AUDIO', 'ASSEMBLY', 'MEDIA_LIBRARY']
+        : ['RESERVE_CREDITS', 'TTS', 'VIDEO', 'LIP_SYNC_OR_MUX', 'ASSEMBLY', 'MEDIA_LIBRARY']
     })),
     qc: {
       status: 'NOT_RUN',
