@@ -17,7 +17,9 @@ function clean(value, max = 4000) {
 }
 
 function routerMode() {
-  return String(env.runware?.ugcRouterMode || 'adaptive').toLowerCase() === 'compatibility' ? 'compatibility' : 'adaptive';
+  // New generation always uses the capability router. Legacy provider adapters
+  // remain available only to finish or inspect already-persisted historical jobs.
+  return 'adaptive';
 }
 
 function isCreatorLike(kind) {
@@ -52,10 +54,7 @@ function routeForScene({
   let reason;
   let fallbacks = [];
 
-  if (mode === 'compatibility') {
-    routeKey = normalizedQuality === 'PREMIUM' ? ROUTE_KEYS.LEGACY_PREMIUM : ROUTE_KEYS.STANDARD;
-    reason = 'COMPATIBILITY_MODE';
-  } else if (normalizedQuality !== 'PREMIUM') {
+  if (normalizedQuality !== 'PREMIUM') {
     routeKey = ROUTE_KEYS.STANDARD;
     reason = 'STANDARD_COST_EFFICIENT_ROUTE';
   } else if (isCreatorLike(normalizedKind)) {
@@ -123,7 +122,7 @@ function routeForScene({
 
   return {
     routerVersion: ROUTER_VERSION,
-    mode,
+    mode: 'adaptive',
     routeKey,
     adapterKey: selected.adapterKey,
     provider: selected.provider,
