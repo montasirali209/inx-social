@@ -158,9 +158,7 @@ export function UGCStudioHomeModal({
 
   const campaignRows = useMemo(() => {
     const rows: UGCCampaign[][] = []
-    for (let index = 0; index < campaigns.length; index += workspaceColumns) {
-      rows.push(campaigns.slice(index, index + workspaceColumns))
-    }
+    for (let index = 0; index < campaigns.length; index += workspaceColumns) rows.push(campaigns.slice(index, index + workspaceColumns))
     return rows
   }, [campaigns, workspaceColumns])
 
@@ -321,51 +319,6 @@ export function UGCStudioHomeModal({
                   {busy && activeAd && <div className="mt-3 rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.035] p-2.5"><div className="flex items-center justify-between gap-2 text-[8px]"><strong className="text-brand-cyan">{activeAd.stageLabel}</strong><span className="text-text-muted">{activeAd.progress}%</span></div><div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[.07]"><span className="block h-full rounded-full bg-brand-cyan transition-[width] duration-500" style={{ width: `${Math.max(4,activeAd.progress)}%` }} /></div>{activeAd.stageDetail && <span className="mt-1.5 block text-[8px] text-text-soft">{activeAd.stageDetail}</span>}</div>}
                   {campaign.ads.length > 1 && <div className="ugc-home-variation-list">{campaign.ads.map((ad) => {
                     const selectable = Boolean(ad.status === 'READY' && ad.mediaAssetId && ad.qualityControl?.publishable && assetsById.has(ad.mediaAssetId))
-                    const variationAsset = ad.mediaAssetId ? assetcampaigns.length ? <div className="ugc-home-campaign-virtual" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
-              {rowVirtualizer.getVirtualItems().map((virtualRow) => <div
-                className="ugc-home-campaign-row"
-                data-index={virtualRow.index}
-                key={virtualRow.key}
-                ref={rowVirtualizer.measureElement}
-                style={{
-                  gridTemplateColumns: `repeat(${workspaceColumns}, minmax(0, 1fr))`,
-                  transform: `translateY(${virtualRow.start - workspaceOffset}px)`,
-                }}
-              >{campaignRows[virtualRow.index]?.map(renderCampaignCard)}</div>)}
-            </div> : <div className="ugc-home-empty">((campaign) => {
-              const first = campaign.ads[0]
-              const previewAd = campaign.ads.find((ad) => ad.qualityControl?.publishable && ad.mediaAssetId) || first
-              const activeAd = campaign.ads.find((ad) => activeStatuses.has(ad.status))
-              const asset = previewAd?.mediaAssetId ? assetsById.get(previewAd.mediaAssetId) : undefined
-              const busy = activeStatuses.has(campaign.status) || Boolean(activeAd)
-              const campaignProgress = campaign.ads.length
-                ? Math.round(campaign.ads.reduce((sum, ad) => sum + Number(ad.progress || 0), 0) / campaign.ads.length)
-                : 0
-              const readyCampaignIds = readyVideos.filter((item) => item.campaign.id === campaign.id).map((item) => item.ad.id)
-              const allCampaignReadySelected = Boolean(readyCampaignIds.length) && readyCampaignIds.every((id) => selectedAdIds.includes(id))
-              return <article className={`ugc-home-campaign ${readyCampaignIds.some((id) => selectedAdIds.includes(id)) ? 'selected' : ''}`} key={campaign.id}>
-                <div className="ugc-home-campaign-preview">
-                  {asset?.fileUrl ? <button
-                    aria-label={`Open ${campaign.title} video preview`}
-                    className="group absolute inset-0 cursor-zoom-in"
-                    onClick={() => setPreview({ src: asset.fileUrl!, title: campaign.title })}
-                    type="button"
-                  >
-                    {asset.thumbnailUrl ? <img alt="" className="size-full object-cover" loading="lazy" src={asset.thumbnailUrl} /> : <span className="absolute inset-0 bg-[radial-gradient(circle_at_50%_28%,rgba(45,212,191,.16),transparent_9rem),#06131d]" />}
-                    <span className="absolute inset-0 grid place-items-center bg-black/10 transition group-hover:bg-black/20"><span className="grid size-11 place-items-center rounded-full border border-white/20 bg-black/70 text-white shadow-lg"><Play className="ml-0.5 size-5 fill-current" /></span></span>
-                    <span className="absolute bottom-2 right-2 rounded-lg border border-white/10 bg-black/70 px-2 py-1 text-[8px] font-semibold text-white/85">Open player</span>
-                  </button> :
-                    <div className="absolute inset-0 grid place-items-center px-3"><div className="w-full text-center">{busy ? <LoaderCircle className="mx-auto size-7 animate-spin text-brand-cyan" /> : <Clapperboard className="mx-auto size-7 text-text-soft" />}<strong className="mt-2 block text-[9px] text-brand-cyan">{busy ? (activeAd?.stageLabel || 'Preparing render') : campaign.status}</strong><span className="mt-1 block text-[8px] text-text-muted">{busy ? `${campaignProgress}% complete${activeAd?.stageDetail ? ` · ${activeAd.stageDetail}` : ''}` : ''}</span>{busy && <div className="mx-auto mt-3 h-1.5 w-4/5 overflow-hidden rounded-full bg-white/[.07]"><span className="block h-full rounded-full bg-brand-cyan transition-[width] duration-500" style={{ width: `${Math.max(4,campaignProgress)}%` }} /></div>}</div></div>}
-                  <span className="ugc-home-duration">{campaign.duration}s</span>
-                  <span className={`ugc-home-status ${campaign.status.toLowerCase()}`}>{statusLabel(campaign.status)}</span>
-                </div>
-                <div className="ugc-home-campaign-copy">
-                  <div className="flex items-start justify-between gap-2"><span className="ugc-home-meta">{campaign.resolvedType === 'PRODUCT_SHOWCASE' ? 'Product showcase' : 'Avatar explainer'} · {campaign.quality === 'PREMIUM' ? 'Premium' : 'Standard'} · {campaign.adCount} variation{campaign.adCount === 1 ? '' : 's'}</span>{readyCampaignIds.length > 0 && <label className="ugc-home-select-control"><input checked={allCampaignReadySelected} onChange={() => toggleCampaignReady(campaign)} type="checkbox" /><span>{campaign.ads.length === 1 ? 'Select' : 'Select ready'}</span></label>}</div>
-                  <strong>{campaign.title}</strong>
-                  <p>{first?.hook || first?.angle || 'Creator-native UGC campaign'}</p>
-                  {busy && activeAd && <div className="mt-3 rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.035] p-2.5"><div className="flex items-center justify-between gap-2 text-[8px]"><strong className="text-brand-cyan">{activeAd.stageLabel}</strong><span className="text-text-muted">{activeAd.progress}%</span></div><div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[.07]"><span className="block h-full rounded-full bg-brand-cyan transition-[width] duration-500" style={{ width: `${Math.max(4,activeAd.progress)}%` }} /></div>{activeAd.stageDetail && <span className="mt-1.5 block text-[8px] text-text-soft">{activeAd.stageDetail}</span>}</div>}
-                  {campaign.ads.length > 1 && <div className="ugc-home-variation-list">{campaign.ads.map((ad) => {
-                    const selectable = Boolean(ad.status === 'READY' && ad.mediaAssetId && ad.qualityControl?.publishable && assetsById.has(ad.mediaAssetId))
                     const variationAsset = ad.mediaAssetId ? assetsById.get(ad.mediaAssetId) : undefined
                     return <div className={selectedAdIds.includes(ad.id) ? 'selected' : ''} key={ad.id}><label className="ugc-home-variation-select"><input checked={selectedAdIds.includes(ad.id)} disabled={!selectable} onChange={() => selectable && toggleVideo(ad.id)} type="checkbox" /><span>V{ad.sequence} · {activeStatuses.has(ad.status) ? `${ad.stageLabel} · ${ad.progress}%` : statusLabel(ad.status)}</span></label><span className="ugc-home-variation-actions">{variationAsset && ad.status === 'READY' && <button aria-label={`Download variation ${ad.sequence}`} onClick={() => void downloadMediaAsset(variationAsset).catch((error) => onToast(error instanceof Error ? error.message : 'Download failed.'))} title="Download" type="button"><Download className="size-3" /></button>}<button disabled={activeStatuses.has(ad.status)} onClick={() => {
                       void loadUGCEditor().then(() => {
@@ -389,7 +342,87 @@ export function UGCStudioHomeModal({
                   </div>
                 </div>
               </article>
-            })}</div> : <div className="ugc-home-empty"><Film className="size-7 text-text-soft" /><strong>No UGC campaigns yet.</strong><span>Create your first campaign and it will stay here while it renders.</span><Button onClick={() => onCreate()} size="sm" variant="primary"><Plus className="size-3.5" />Create UGC</Button></div>}
+            
+  }
+
+  const data = overview.data
+  if (!open) return null
+
+  return createPortal(<div className="ugc-home-backdrop">
+    <section aria-label="UGC Ad Studio" aria-modal="true" className="ugc-home-panel" role="dialog">
+      <header className="ugc-home-header">
+        <div><span className="ugc-home-eyebrow">UGC AD STUDIO</span><h2>Your creator ads, in one place.</h2><p>Create, monitor, edit and schedule UGC without leaving INXSocial.</p></div>
+        <div className="flex items-center gap-2">
+          <span className="hidden rounded-xl border border-brand-amber/20 bg-brand-amber/[.06] px-3 py-2 text-[10px] text-brand-amber sm:inline-flex"><Coins className="mr-1.5 size-3.5" />{data?.credits.remaining?.toLocaleString() ?? '—'} credits</span>
+          <button aria-label="Close UGC Studio" className="ugc-home-close" onClick={onClose} type="button"><X className="size-4" /></button>
+        </div>
+      </header>
+
+      <div className="ugc-home-body" ref={bodyRef}>
+        <UGCAgentHero
+          creator={data?.featuredAvatars?.[0] || data?.avatars?.[0] || null}
+          offerImageUrl={firstBrandReferenceUrl(data?.brands || [])}
+          onStart={(draft) => onCreate(undefined, draft)}
+          ugcVideoUrl={readyVideos[0]?.asset.fileUrl || null}
+        />
+
+        {!!ugcDrafts.length && <section className="ugc-home-drafts" aria-label="UGC drafts">
+          <div className="ugc-home-section-head"><div><span>DRAFTS</span><h3>Continue where you left off</h3><p>Your unfinished UGC setup is saved automatically.</p></div></div>
+          <div className="ugc-home-draft-grid">
+            {ugcDrafts.map((draft) => {
+              const asset = (draft.asset || {}) as unknown as UGCWizardDraftSeed
+              return <article className="ugc-home-draft-card" key={draft.id}>
+                <div><span className="ugc-home-meta">Draft · Step {(asset.wizardStep ?? 0) + 1}</span><strong>{draft.title}</strong><p>{draft.prompt || 'UGC campaign setup'}</p></div>
+                <div className="ugc-home-draft-actions"><Button onClick={() => resumeDraft(draft)} size="sm" variant="primary">Resume <ArrowRight className="size-3.5" /></Button><button aria-label="Delete draft" className="ugc-home-icon-action danger" disabled={removeDraft.isPending} onClick={() => removeDraft.mutate(draft.id)} type="button"><Trash2 className="size-3.5" /></button></div>
+              </article>
+            })}
+          </div>
+        </section>}
+
+        <section className="ugc-home-kpis" aria-label="UGC Studio overview">
+          <article className="ugc-home-kpi ready">
+            <span className="ugc-home-kpi-icon"><Play className="size-4 fill-current" /></span>
+            <div><strong>{data?.stats.ready ?? 0}</strong><h3>Ready videos</h3><p>Your completed UGC ads are ready to view, edit or schedule.</p></div>
+          </article>
+          <article className="ugc-home-kpi rendering">
+            <span className="ugc-home-kpi-icon"><Clock3 className="size-4" /></span>
+            <div><strong>{data?.stats.rendering ?? 0}</strong><h3>Rendering now</h3><p>Your videos are being generated. We’ll notify you when they’re ready.</p></div>
+          </article>
+          <article className="ugc-home-kpi creators">
+            <span className="ugc-home-kpi-icon"><UsersRound className="size-4" /></span>
+            <div><strong>100+</strong><h3>Featured creators</h3><p>Creator styles ready for your next campaign.</p></div>
+            <div className="ugc-home-kpi-avatars" aria-hidden="true"><b>100+</b></div>
+          </article>
+        </section>
+
+        <section className="mt-7" id="ugc-workspace" ref={workspaceRef}>
+          <div className="ugc-home-section-head">
+            <div><span>YOUR WORKSPACE</span><h3>Your UGC videos</h3><p>Generation continues here even after you leave the creation wizard.</p></div>
+            <div className="ugc-home-filter">
+              {(['ALL','READY','RENDERING','FAILED'] as const).map((value) => <button className={filter === value ? 'active' : ''} key={value} onClick={() => setFilter(value)} type="button">{value === 'ALL' ? 'All' : value === 'RENDERING' ? 'Rendering' : value[0] + value.slice(1).toLowerCase()}</button>)}
+            </div>
+          </div>
+          <div className="ugc-home-selection-bar">
+            <div><strong>{selectedVideos.length ? `${selectedVideos.length} video${selectedVideos.length === 1 ? '' : 's'} selected` : 'Select ready videos to publish'}</strong><span>{selectedVideos.length === 1 ? 'Schedule Now opens the normal Post composer.' : selectedVideos.length > 1 ? 'Schedule Now opens Bulk Scheduler with each video and its caption.' : 'Choose one video for a normal post, or multiple videos for bulk scheduling.'}</span></div>
+            <div className="flex items-center gap-2">
+              {selectedVideos.length > 0 && <button className="ugc-home-selection-clear" onClick={() => setSelectedAdIds([])} type="button">Clear</button>}
+              <Button disabled={!selectedVideos.length} onClick={scheduleSelected} size="sm" variant="primary"><CalendarRange className="size-3.5" />Schedule Now{selectedVideos.length ? ` (${selectedVideos.length})` : ''}</Button>
+            </div>
+          </div>
+
+          {overview.isLoading ? <div className="ugc-home-empty"><LoaderCircle className="size-7 animate-spin text-brand-cyan" /><span>Loading your UGC workspace…</span></div> :
+            campaigns.length ? <div className="ugc-home-campaign-virtual" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => <div
+                className="ugc-home-campaign-row"
+                data-index={virtualRow.index}
+                key={virtualRow.key}
+                ref={rowVirtualizer.measureElement}
+                style={{
+                  gridTemplateColumns: `repeat(${workspaceColumns}, minmax(0, 1fr))`,
+                  transform: `translateY(${virtualRow.start - workspaceOffset}px)`,
+                }}
+              >{campaignRows[virtualRow.index]?.map(renderCampaignCard)}</div>)}
+            </div> : <div className="ugc-home-empty"><Film className="size-7 text-text-soft" /><strong>No UGC campaigns yet.</strong><span>Create your first campaign and it will stay here while it renders.</span><Button onClick={() => onCreate()} size="sm" variant="primary"><Plus className="size-3.5" />Create UGC</Button></div>}
         </section>
 
 
