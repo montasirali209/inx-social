@@ -21,6 +21,8 @@ test('every landing pricing tier names the complete AI creation suite', () => {
   for (const relative of ['public/landing.html', '../landing-next/public/landing-body.html']) {
     const source = read(relative);
     assert.equal((source.match(/class="plan-ai-suite"/g) || []).length, 5);
+    assert.equal((source.match(/class="plan-ai-features"/g) || []).length, 5);
+    assert.equal((source.match(/class="plan-credit-row"/g) || []).length, 5);
     assert.match(source, /Every plan includes the complete publishing workflow and the same AI creation suite/);
     for (const label of requiredAiLabels) {
       assert.equal((source.match(new RegExp(label.replace(/[.*+?^$\{\}()|[\]\\]/g, '\\$&'), 'g')) || []).length >= 5, true, `${label} should be listed for every plan in ${relative}`);
@@ -30,6 +32,7 @@ test('every landing pricing tier names the complete AI creation suite', () => {
     assert.match(source, /500 shared AI credits \/ month/);
     assert.match(source, /1,200 shared AI credits \/ month/);
     assert.match(source, /2,500 shared AI credits \/ month/);
+    assert.equal((source.match(/Extra credit packs in Billing &amp; Plans when available/g) || []).length, 4);
   }
 });
 
@@ -46,7 +49,7 @@ test('landing pricing CSS includes a compact AI-suite treatment in both landing 
   for (const relative of ['public/landing-redesign.css', '../landing-next/styles/landing-redesign.css']) {
     const source = read(relative);
     assert.match(source, /\.plan-card \.plan-ai-suite/);
-    assert.match(source, /\.plan-card \.plan-ai-suite strong/);
-    assert.match(source, /\.plan-card \.plan-ai-suite span/);
+    assert.match(source, /\.plan-card \.plan-ai-features>li/);
+    assert.match(source, /\.plan-card \.plan-credit-row/);
   }
 });

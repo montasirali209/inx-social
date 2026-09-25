@@ -250,7 +250,7 @@ export default async function SeoMarketingPage({
       <header className={styles.header}>
         <div className={styles.shell}>
           <Link className={styles.brand} href="/" aria-label="INXSocial home">
-            <img src="/assets/inx-social-wordmark.png" alt="INXSocial" width="166" height="42" />
+            <img src="/assets/inx-social-wordmark-small.webp" alt="INXSocial" width="166" height="42" />
           </Link>
           <nav className={styles.nav} aria-label="Marketing navigation">
             <Link href="/social-media-scheduler">Scheduler</Link>
@@ -434,7 +434,7 @@ export default async function SeoMarketingPage({
       <footer className={styles.footer}>
         <div className={`${styles.shell} ${styles.footerGrid}`}>
           <div>
-            <img src="/assets/inx-social-wordmark.png" alt="INXSocial" width="166" height="42" />
+            <img src="/assets/inx-social-wordmark-small.webp" alt="INXSocial" width="166" height="42" />
             <p>Create. Schedule. Analyse. Grow.</p>
           </div>
           <div>

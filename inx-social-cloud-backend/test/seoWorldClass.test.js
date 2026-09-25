@@ -28,7 +28,7 @@ test('homepage entity graph cleanly separates company, brand, website and softwa
   assert.equal(webpage.primaryImageOfPage.width, 1200);
   assert.equal(webpage.primaryImageOfPage.height, 630);
   assert.match(webpage.primaryImageOfPage.url, /inxsocial-social-preview-v3\.jpg$/);
-  assert.equal(webpage.dateModified, '2026-09-23');
+  assert.equal(webpage.dateModified, '2026-09-25');
 });
 
 test('homepage targets social media management intent with search-snippet-safe metadata', () => {
@@ -96,11 +96,13 @@ test('feature pages carry complete entities, breadcrumbs, image data and expande
   assert.doesNotMatch(page, /<h2>\{page\.h1\}<\/h2>/);
 });
 
-test('sitemap exposes only canonical acquisition URLs with current modification dates', () => {
+test('sitemap exposes canonical acquisition URLs with modification dates for changed pages', () => {
   const sitemap = readBackend('public/sitemap.xml');
   assert.equal((sitemap.match(/<url>/g) || []).length, 12);
+  assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/<\/loc>\s*<lastmod>2026-09-25<\/lastmod>/);
+  assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/pricing<\/loc>\s*<lastmod>2026-09-25<\/lastmod>/);
   assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-campaign-generator<\/loc>\s*<lastmod>2026-09-23<\/lastmod>/);
-  assert.ok((sitemap.match(/<lastmod>2026-09-23<\/lastmod>/g) || []).length >= 7);
+  assert.equal((sitemap.match(/<lastmod>2026-09-25<\/lastmod>/g) || []).length, 2);
   assert.doesNotMatch(sitemap, /\.html<\/loc>/);
   assert.doesNotMatch(sitemap, /social\.inaxx\.co\.uk|up\.railway\.app/);
 });
