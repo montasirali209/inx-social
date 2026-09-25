@@ -57,15 +57,15 @@ test('Phase 5 format decisions are fingerprinted in engine contract 1.3', () => 
   assert.match(contract, /productionPlan: project\.productionPlan/);
 });
 
-test('Phase 5 Studio exposes creative structure separately from production type', () => {
+test('Phase 5 creative formats remain internal while the customer UI stays script/reference-first', () => {
   const types = read('frontend/src/types/ugc-studio.ts');
   const wizard = read('frontend/src/components/ai-content-studio/UGCWizardModal.tsx');
   const controller = read('src/controllers/ugcStudioController.js');
   assert.match(types, /UGCCreativeFormat/);
-  assert.match(wizard, /const \[creativeFormat, setCreativeFormat\]/);
-  assert.match(wizard, /Creative structure/);
-  assert.match(wizard, /creativeFormatOptions/);
   assert.match(controller, /creativeFormat: z\.enum/);
+  assert.match(wizard, /const creativeFormat: UGCCreativeFormat = 'AUTO'/);
+  assert.doesNotMatch(wizard, /Creative structure/);
+  assert.doesNotMatch(wizard, /How should the UGC feel/);
 });
 
 test('Phase 5 Auto can mix formats while explicit format stays locked', () => {

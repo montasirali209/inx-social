@@ -928,6 +928,19 @@ async function persistImage(userId, generationId, output, input, prompt) {
   };
 }
 
+async function generateReferenceImage(prompt, options = {}) {
+  assertConfigured();
+  const brief = cleanText(prompt, 1500);
+  if (brief.length < 2) throw publicError('Describe the image you want to create.', 'OPENAI_IMAGE_PROMPT_REQUIRED', 400);
+  const rendered = await openAIImage(brief, [], { aspectRatio: options.aspectRatio || '9:16' });
+  return {
+    data: rendered.data,
+    model: rendered.model,
+    size: rendered.size,
+    mimeType: 'image/png'
+  };
+}
+
 async function generateImagePost(userId, input = {}) {
   assertConfigured();
   const promptSeed = cleanText(input.prompt, 1500);
@@ -967,6 +980,7 @@ module.exports = {
   isConfigured,
   assistantReply,
   generateImagePost,
+  generateReferenceImage,
   normalizeUrl,
   fetchUrlContext,
   extractBrandReferences,

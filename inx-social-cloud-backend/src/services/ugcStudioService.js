@@ -418,9 +418,8 @@ async function getAvatarRow(userId, avatarId) {
 
 async function getAvatarContent(userId, avatarId) {
   const row = await getAvatarRow(userId, avatarId);
-  if (!row.referenceStorageKey) throw publicError('This creator portrait will be prepared automatically when it is first used.', 'UGC_AVATAR_NOT_MATERIALIZED', 404);
-  const data = await objectStorage.getBuffer(row.referenceStorageKey, null, row.referenceStorageProvider || null);
-  return { data, mimeType: row.referenceMimeType || 'image/png' };
+  const prepared = await ensureAvatarReference(userId, row);
+  return { data: prepared.data, mimeType: prepared.referenceMimeType || 'image/png' };
 }
 
 async function download(url, maxBytes = 30 * 1024 * 1024) {
@@ -492,8 +491,14 @@ async function regenerateFeaturedAvatarReference(row) {
 async function ensureAvatarReference(userId, row) {
   const qualityStatus = clean(row.referenceQualityStatus, 40).toUpperCase();
   if (row.referenceStorageKey && qualityStatus !== 'WEAK') {
-    const data = await objectStorage.getBuffer(row.referenceStorageKey, null, row.referenceStorageProvider || null);
-    return { ...row, data, dataUri: 'data:' + (row.referenceMimeType || 'image/png') + ';base64,' + data.toString('base64') };
+    try {
+      const data = await objectStorage.getBuffer(row.referenceStorageKey, null, row.referenceStorageProvider || null);
+      return { ...row, data, dataUri: 'data:' + (row.referenceMimeType || 'image/png') + ';base64,' + data.toString('base64') };
+    } catch (error) {
+      const status = Number(error?.response?.status || error?.status || 0);
+      if (status !== 404 && !/not.?found|no.?such.?key|404/i.test(String(error?.message || ''))) throw error;
+      console.warn('[UGC AVATAR REFERENCE REPAIR]', row.id, 'Stored portrait is missing; regenerating before provider spend.');
+    }
   }
 
   if (row.referenceStorageKey && qualityStatus === 'WEAK' && row.scope === 'SYSTEM' && row.featured) {
@@ -828,6 +833,7 @@ function playbackDurations(totalDuration, providerDurations) {
 }
 
 function resolveCampaignType(input, brand, productAssets = []) {
+  if (String(input.creatorMode || '').toUpperCase() === 'NONE') return 'PRODUCT_SHOWCASE';
   const requested = String(input.campaignType || 'AUTO').toUpperCase();
   if (requested === 'AVATAR_EXPLAINER' || requested === 'PRODUCT_SHOWCASE') return requested;
   if (productAssets.length) return 'PRODUCT_SHOWCASE';
@@ -980,15 +986,17 @@ async function createCampaign(userId, input) {
   for (const assetId of productAssetIds) productAssets.push(await getProductAssetRow(userId, assetId));
 
   const allAvatars = await avatarRows(userId);
-  let available = allAvatars;
+  let available = input.creatorMode === 'NONE' ? [] : allAvatars;
   if (input.creatorMode === 'SELECTED' && input.avatarId) available = [await getAvatarRow(userId, input.avatarId)];
-  if (!available.length) throw publicError('No UGC creators are currently available.', 'UGC_CREATORS_UNAVAILABLE', 503);
+  if (input.creatorMode !== 'NONE' && !available.length) throw publicError('No UGC creators are currently available.', 'UGC_CREATORS_UNAVAILABLE', 503);
 
   const resolvedType = resolveCampaignType(input, brand, productAssets);
   const productVisualEvidence = productAssets.length ? await analyzeProductVisuals(userId, productAssets) : null;
   const hasBrandVisualReference = Boolean(Array.isArray(brand?.brandReferences) && brand.brandReferences.length);
   if (resolvedType === 'PRODUCT_SHOWCASE' && !productAssets.length && !hasBrandVisualReference) {
-    throw publicError('Product Showcase needs at least one real product image. Upload a product photo, use a product page with usable images, or choose Avatar Explainer.', 'UGC_PRODUCT_REFERENCE_REQUIRED', 422);
+    throw publicError(input.creatorMode === 'NONE'
+      ? 'No creator requires a product reference. Use the product photo from Source or generate a product image in the Creator step.'
+      : 'Product Showcase needs at least one real product image. Upload a product photo, use a product page with usable images, or use a creator-led ad.', 'UGC_PRODUCT_REFERENCE_REQUIRED', 422);
   }
   let creativePlan;
   try {
@@ -1033,7 +1041,7 @@ async function createCampaign(userId, input) {
     await ugcEngine.updateStatus(userId, campaignId, 'RESERVING');
     for (let index = 0; index < plan.ads.length; index += 1) {
       const planned = plan.ads[index];
-      const avatar = available[planned.avatarIndex % available.length] || available[0] || null;
+      const avatar = available.length ? (available[planned.avatarIndex % available.length] || available[0] || null) : null;
       const adId = id();
       const route = ugcEngineRegistry.legacyDbRoute(input.quality);
       await prisma.$executeRawUnsafe(
@@ -1257,6 +1265,92 @@ async function generateCustomAvatar(userId, input) {
     return publicAvatar(await getAvatarRow(userId, avatarId));
   } catch (error) {
     await credits.refund(userId, generationId, error.code || 'ugc_avatar_failed').catch(() => false);
+    throw error;
+  }
+}
+
+async function createReferenceGeneration(userId, prompt) {
+  const generationId = id();
+  await prisma.$executeRawUnsafe(
+    'INSERT INTO "AiGeneration" ("id","userId","contentType","status","provider","prompt","requestJson","reservedCredits","createdAt","updatedAt") VALUES ($1,$2,\'ugc_reference\',\'PREPARING\',\'openai\',$3,$4,0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+    generationId, userId, clean(prompt, 1500), json({ type: 'ugc_reference' })
+  );
+  try {
+    await credits.reserve(userId, generationId, AVATAR_CREDITS);
+    return generationId;
+  } catch (error) {
+    await prisma.$executeRawUnsafe('DELETE FROM "AiGeneration" WHERE "id"=$1 AND "userId"=$2', generationId, userId).catch(() => {});
+    throw error;
+  }
+}
+
+async function classifyGeneratedReference(prompt) {
+  const fallbackAvatar = /\b(avatar|creator|woman|female|man|male|person|influencer|spokesperson|model|girl|guy)\b/i.test(prompt);
+  try {
+    const parsed = await postStudio.callChatModel(postStudio.REASONING_MODEL, [
+      { role: 'system', content: 'Classify an image-generation request for UGC Studio. Return JSON only: {"kind":"AVATAR|PRODUCT","presentation":"Woman|Man|Non-binary|Unspecified","name":"short display name"}. Use AVATAR only when the user is asking to create a person/creator. Everything else is PRODUCT.' },
+      { role: 'user', content: clean(prompt, 1500) }
+    ], { reasoningEffort: 'low', temperature: 0.1, maxTokens: 160, timeoutMs: 60000 });
+    const kind = String(parsed?.kind || '').toUpperCase() === 'AVATAR' ? 'AVATAR' : 'PRODUCT';
+    const presentation = ['Woman','Man','Non-binary'].includes(String(parsed?.presentation || '')) ? String(parsed.presentation) : 'Unspecified';
+    return { kind, presentation, name: clean(parsed?.name, 80) || (kind === 'AVATAR' ? 'AI creator' : 'AI product') };
+  } catch (_) {
+    return { kind: fallbackAvatar ? 'AVATAR' : 'PRODUCT', presentation: /\b(woman|female|girl)\b/i.test(prompt) ? 'Woman' : /\b(man|male|guy)\b/i.test(prompt) ? 'Man' : 'Unspecified', name: fallbackAvatar ? 'AI creator' : 'AI product' };
+  }
+}
+
+async function generateReferenceAsset(userId, input) {
+  const prompt = clean(input.prompt, 1500);
+  if (prompt.length < 4) throw publicError('Describe the avatar or product you want to create.', 'UGC_REFERENCE_PROMPT_REQUIRED', 400);
+  await credits.getBalance(userId);
+  const generationId = await createReferenceGeneration(userId, prompt);
+  try {
+    const classification = await classifyGeneratedReference(prompt);
+    const rendered = await postStudio.generateReferenceImage([
+      prompt,
+      classification.kind === 'AVATAR'
+        ? 'Photorealistic adult UGC creator reference, vertical 9:16, natural smartphone-camera realism, clear face, believable lighting, no text, no watermark.'
+        : 'Photorealistic product reference image, clean believable presentation, accurate geometry and materials, no unrelated text, no watermark.'
+    ].join('\n'), { aspectRatio: classification.kind === 'AVATAR' ? '9:16' : '1:1' });
+
+    let result;
+    if (classification.kind === 'AVATAR') {
+      const avatar = await uploadCustomAvatar(userId, {
+        name: classification.name + '-' + generationId.slice(0, 4),
+        category: 'Lifestyle',
+        presentation: classification.presentation,
+        ageBand: 'Adult',
+        locale: 'en-GB',
+        accent: '',
+        mimeType: rendered.mimeType || 'image/png',
+        data: rendered.data
+      });
+      await prisma.$executeRawUnsafe('UPDATE "UGCAvatar" SET "prompt"=$2,"voice"=$3,"voicePrompt"=$4,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+        avatar.id, prompt, narratorVoice('', { presentation: classification.presentation }),
+        'Natural creator voice matching the visible ' + clean(classification.presentation || 'adult', 40).toLowerCase() + ' presenter.');
+      result = { kind: 'AVATAR', avatar: publicAvatar(await getAvatarRow(userId, avatar.id)), product: null };
+    } else {
+      const product = await uploadProductAsset(userId, {
+        name: classification.name,
+        brandProfileId: input.brandProfileId || null,
+        mimeType: rendered.mimeType || 'image/png',
+        data: rendered.data
+      });
+      result = { kind: 'PRODUCT', avatar: null, product };
+    }
+
+    await credits.complete(userId, generationId, AVATAR_CREDITS);
+    await prisma.$executeRawUnsafe(
+      'UPDATE "AiGeneration" SET "status"=\'COMPLETED\',"progress"=100,"model"=$3,"responseJson"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$2',
+      generationId, userId, rendered.model || null, json({ kind: result.kind, avatarId: result.avatar?.id || null, productAssetId: result.product?.id || null })
+    );
+    return { ...result, generationId, creditsUsed: AVATAR_CREDITS, prompt };
+  } catch (error) {
+    await credits.refund(userId, generationId, error.code || 'ugc_reference_failed').catch(() => false);
+    await prisma.$executeRawUnsafe(
+      'UPDATE "AiGeneration" SET "status"=\'FAILED\',"errorCode"=$3,"errorMessage"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$2',
+      generationId, userId, clean(error?.code || 'UGC_REFERENCE_FAILED', 120), clean(error?.publicMessage || error?.message || 'Reference generation failed.', 1000)
+    ).catch(() => {});
     throw error;
   }
 }
@@ -1566,7 +1660,7 @@ async function generateSceneNarration(scene, ad, avatar, spokenDuration = scene.
 }
 
 function h3CreatorVoiceDescription(avatar) {
-  if (!avatar) return 'Use a natural adult creator voice that matches the visible person.';
+  if (!avatar) return 'Use one natural energetic adult voiceover. Do not add a visible presenter or spokesperson.';
   const presentation = clean(avatar.presentation, 80) || 'adult';
   const accent = clean(ugcCreators.publicProfile(avatar).accent || avatar.locale, 80);
   return 'Use one consistent ' + presentation.toLowerCase() + ' adult creator voice' + (accent ? ' with a natural ' + accent + ' delivery' : '') + '.';
@@ -1577,10 +1671,12 @@ function h3NativePrompt(scene, ad, avatar, referenceCount) {
   const format = clean(scene.creativeFormat || plan.creativeFormat || plan.requestedCreativeFormat || 'UGC', 80).replaceAll('_', ' ');
   const spoken = clean(scene.script, 5000);
   const referenceInstruction = referenceCount > 1
-    ? 'Use Image 1 as the selected creator. Images 2 through ' + referenceCount + ' are product or brand references; treat them as authoritative views of the same advertised offer where applicable. Keep Image 1 identity and all referenced product details consistent.'
+    ? avatar
+      ? 'Use Image 1 as the selected creator. Images 2 through ' + referenceCount + ' are product or brand references; treat them as authoritative views of the same advertised offer where applicable. Keep Image 1 identity and all referenced product details consistent.'
+      : 'Images 1 through ' + referenceCount + ' are authoritative product or brand references. Preserve the same advertised product, colour, geometry, packaging and visible branding across the video. Do not introduce a presenter.'
     : avatar
       ? 'Use Image 1 as the selected creator and preserve that exact identity.'
-      : 'Use Image 1 as the authoritative product reference.';
+      : 'Use Image 1 as the authoritative product reference. This is a product-only ad; do not introduce a presenter.';
   const sound = spoken
     ? 'Sound: ' + h3CreatorVoiceDescription(avatar) + ' The creator says exactly, "' + spoken.replace(/"/g, "'") + '". Keep the speech energetic, natural and synchronized to the mouth. Finish the final sentence before the clip ends. Use only subtle believable room ambience underneath.'
     : 'Sound: subtle believable room ambience only.';
@@ -1588,7 +1684,9 @@ function h3NativePrompt(scene, ad, avatar, referenceCount) {
     'Create a fast-paced vertical creator-native UGC ad segment.',
     referenceInstruction,
     'UGC format: ' + format + '. Let the model choose natural framing, actions, motion and transitions that fit the script and references.',
-    'Keep the advertised product and creator visually consistent. Do not invent a different product, vehicle colour, interface, logo, readable text, extra person, feature or claim that is not supported by the references or script.',
+    avatar
+      ? 'Keep the advertised product and creator visually consistent. Do not invent a different product, vehicle colour, interface, logo, readable text, extra person, feature or claim that is not supported by the references or script.'
+      : 'Keep the advertised product visually consistent. Do not invent a presenter, different product, vehicle colour, interface, logo, readable text, feature or claim that is not supported by the references or script.',
     'Authentic social-video realism. No subtitles, captions, watermarks or generated overlay text.',
     sound
   ].filter(Boolean).join('\n\n'), 7000);
@@ -2400,7 +2498,7 @@ module.exports = {
   creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
   narratorVoice, narratorLanguage, narratorSpeed, captionsForScenes, estimateCampaign,
   getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, getProductionAudit, deleteCampaign, getAd, updateAd, rerouteScenesForRegeneration, reassembleAd, regenerateAd, regenerateScene,
-  generateCustomAvatar, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,
+  generateCustomAvatar, generateReferenceAsset, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,
   listAvatarReferences, uploadAvatarReference, getAvatarReferenceContent, deleteAvatarReference,
   uploadProductAsset, getProductAssetContent,
   listSampleVideos, uploadSampleVideo, getSampleVideoContent,

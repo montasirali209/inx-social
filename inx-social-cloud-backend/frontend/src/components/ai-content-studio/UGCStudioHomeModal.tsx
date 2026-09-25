@@ -1,48 +1,28 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowRight, CalendarRange, Clapperboard, Clock3, Coins, Copy, Film,
-  LoaderCircle, Pencil, Play, Plus, Sparkles, Trash2, UsersRound, X,
+  LoaderCircle, Pencil, Play, Plus, Trash2, UsersRound, X,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { loadUGCEditor } from '../../route-preload'
 import { fetchMediaLibrary } from '../../lib/media-library-api'
+import { deleteAIDraft, getRecentAIDrafts } from '../../lib/ai-content-studio-api'
 import {
   deleteUGCCampaign,
-  fetchUGCAvatarImage,
   fetchUGCSampleVideo,
   getUGCOverview,
   trackUGCStudioEvent,
 } from '../../lib/ugc-studio-api'
 import type { MediaAsset } from '../../types/media-library'
-import type { CreateUGCCampaignInput, UGCAvatar, UGCCampaign, UGCSampleVideo } from '../../types/ugc-studio'
+import type { UGCCampaign, UGCSampleVideo, UGCWizardDraftSeed } from '../../types/ugc-studio'
 import { Button } from '../ui/Button'
 import { UGCAgentHero } from './UGCAgentHero'
 import { UGCVideoLightbox } from './UGCVideoPlayer'
 import './ugc-studio-home.css'
 
 const activeStatuses = new Set(['RESERVING', 'QUEUED', 'RENDERING', 'PLANNING'])
-
-function LazyCreatorPortrait({ avatar }: { avatar: UGCAvatar }) {
-  const [url, setUrl] = useState<string | null>(null)
-  useEffect(() => {
-    let active = true
-    let created: string | null = null
-    if (!avatar.imageUrl) return undefined
-    void fetchUGCAvatarImage(avatar).then((value) => {
-      if (!value) return
-      if (!active) { URL.revokeObjectURL(value); return }
-      created = value
-      setUrl(value)
-    })
-    return () => { active = false; if (created) URL.revokeObjectURL(created) }
-  }, [avatar])
-
-  return url
-    ? <img alt="" className="size-full object-cover" loading="lazy" src={url} />
-    : <div className="grid size-full place-items-center bg-[#0a1d29] text-sm font-bold text-brand-cyan">{avatar.name.slice(0, 1)}</div>
-}
 
 function SampleVideo({ sample }: { sample: UGCSampleVideo }) {
   const [url, setUrl] = useState<string | null>(null)
@@ -81,7 +61,7 @@ export function UGCStudioHomeModal({
 }: {
   open: boolean
   onClose: () => void
-  onCreate: (seed?: UGCCampaign, draft?: Partial<CreateUGCCampaignInput>) => void
+  onCreate: (seed?: UGCCampaign, draft?: UGCWizardDraftSeed) => void
   onToast: (message: string) => void
 }) {
   const navigate = useNavigate()
@@ -90,8 +70,6 @@ export function UGCStudioHomeModal({
   const [filter, setFilter] = useState<'ALL' | 'READY' | 'RENDERING' | 'FAILED'>('ALL')
   const [selectedAdIds, setSelectedAdIds] = useState<string[]>([])
   const [preview, setPreview] = useState<{ src: string; title: string } | null>(null)
-  const [homeCreatorPickerOpen, setHomeCreatorPickerOpen] = useState(false)
-  const [homeCreatorExpanded, setHomeCreatorExpanded] = useState(false)
 
   const overview = useQuery({
     queryKey: ['ugc-studio-overview'],
@@ -106,6 +84,12 @@ export function UGCStudioHomeModal({
     enabled: open,
     staleTime: 4_000,
     refetchInterval: overview.data?.campaigns.some((campaign) => activeStatuses.has(campaign.status)) ? 5000 : false,
+  })
+  const drafts = useQuery({
+    queryKey: ['ugc-drafts'],
+    queryFn: getRecentAIDrafts,
+    enabled: open,
+    staleTime: 2_000,
   })
 
   useEffect(() => {
@@ -150,6 +134,12 @@ export function UGCStudioHomeModal({
     onError: (error) => onToast(error instanceof Error ? error.message : 'Campaign could not be removed.'),
   })
 
+  const removeDraft = useMutation({
+    mutationFn: deleteAIDraft,
+    onSuccess: async () => { await queryClient.invalidateQueries({ queryKey: ['ugc-drafts'] }) },
+    onError: (error) => onToast(error instanceof Error ? error.message : 'Draft could not be removed.'),
+  })
+
   const assetsById = useMemo(() => new Map((media.data?.assets || []).map((asset) => [asset.id, asset])), [media.data])
   const campaigns = useMemo(() => {
     const source = overview.data?.campaigns || []
@@ -158,6 +148,16 @@ export function UGCStudioHomeModal({
     if (filter === 'FAILED') return source.filter((campaign) => campaign.status === 'FAILED' || campaign.ads.some((ad) => ad.status === 'FAILED'))
     return source.filter((campaign) => activeStatuses.has(campaign.status) || campaign.ads.some((ad) => activeStatuses.has(ad.status)))
   }, [overview.data?.campaigns, filter])
+
+  const ugcDrafts = useMemo(() => (drafts.data || []).filter((draft) => {
+    const asset = draft.asset as unknown as { kind?: string } | null
+    return draft.contentType === 'ugc_ad' && asset?.kind === 'ugc_wizard'
+  }), [drafts.data])
+
+  function resumeDraft(draft: (typeof ugcDrafts)[number]) {
+    const asset = (draft.asset || {}) as unknown as UGCWizardDraftSeed
+    onCreate(undefined, { ...asset, draftId: draft.id })
+  }
 
   const readyVideos = useMemo(() => (overview.data?.campaigns || []).flatMap((campaign) =>
     campaign.ads
@@ -242,8 +242,6 @@ export function UGCStudioHomeModal({
 
   if (!open) return null
   const data = overview.data
-  const homeCreators = data?.avatars || []
-  const visibleHomeCreators = homeCreatorExpanded ? homeCreators : homeCreators.slice(0, 24)
 
   return createPortal(<div className="ugc-home-backdrop">
     <section aria-label="UGC Ad Studio" aria-modal="true" className="ugc-home-panel" role="dialog">
@@ -259,6 +257,19 @@ export function UGCStudioHomeModal({
         <UGCAgentHero
           onStart={(draft) => onCreate(undefined, draft)}
         />
+
+        {!!ugcDrafts.length && <section className="ugc-home-drafts" aria-label="UGC drafts">
+          <div className="ugc-home-section-head"><div><span>DRAFTS</span><h3>Continue where you left off</h3><p>Your unfinished UGC setup is saved automatically.</p></div></div>
+          <div className="ugc-home-draft-grid">
+            {ugcDrafts.map((draft) => {
+              const asset = (draft.asset || {}) as unknown as UGCWizardDraftSeed
+              return <article className="ugc-home-draft-card" key={draft.id}>
+                <div><span className="ugc-home-meta">Draft · Step {(asset.wizardStep ?? 0) + 1}</span><strong>{draft.title}</strong><p>{draft.prompt || 'UGC campaign setup'}</p></div>
+                <div className="ugc-home-draft-actions"><Button onClick={() => resumeDraft(draft)} size="sm" variant="primary">Resume <ArrowRight className="size-3.5" /></Button><button aria-label="Delete draft" className="ugc-home-icon-action danger" disabled={removeDraft.isPending} onClick={() => removeDraft.mutate(draft.id)} type="button"><Trash2 className="size-3.5" /></button></div>
+              </article>
+            })}
+          </div>
+        </section>}
 
         <section className="ugc-home-kpis" aria-label="UGC Studio overview">
           <article className="ugc-home-kpi ready">
@@ -311,7 +322,7 @@ export function UGCStudioHomeModal({
                     onClick={() => setPreview({ src: asset.fileUrl!, title: campaign.title })}
                     type="button"
                   >
-                    <video className="size-full object-cover" muted playsInline preload="metadata" src={asset.fileUrl} />
+                    <video className="size-full object-cover" muted playsInline preload="none" src={asset.fileUrl} />
                     <span className="absolute inset-0 grid place-items-center bg-black/5 transition group-hover:bg-black/20"><span className="grid size-11 place-items-center rounded-full border border-white/20 bg-black/55 text-white shadow-xl backdrop-blur"><Play className="ml-0.5 size-5 fill-current" /></span></span>
                     <span className="absolute bottom-2 right-2 rounded-lg border border-white/10 bg-black/55 px-2 py-1 text-[8px] font-semibold text-white/85 backdrop-blur">Open player</span>
                   </button> :
@@ -356,35 +367,9 @@ export function UGCStudioHomeModal({
             <div className="ugc-home-demo-empty"><Play className="size-5 text-brand-cyan" /><div><strong>Demo library ready.</strong><p>Approved test renders uploaded to your UGC sample storage will appear here automatically.</p></div></div>}
         </section>
 
-        <section className="mt-8 ugc-home-creator-entry">
-          <div className="ugc-home-section-head"><div><span>CREATOR LIBRARY</span><h3>Choose a creator when you need one</h3><p>The creator library now loads only inside the Creator step, keeping UGC Studio fast and smooth.</p></div><span className="text-[9px] text-text-soft">100+ available</span></div>
-          <button className="ugc-home-creator-launch" onClick={() => setHomeCreatorPickerOpen(true)} type="button">
-            <span className="ugc-home-kpi-icon"><UsersRound className="size-4" /></span>
-            <div><strong>Browse creators</strong><span>{homeCreators.length || '100+'} creator profiles available. Portraits load only after you open this picker.</span></div>
-            <ArrowRight className="size-4" />
-          </button>
-        </section>
+
       </div>
     </section>
-    {homeCreatorPickerOpen && <div className="ugc-home-creator-picker-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setHomeCreatorPickerOpen(false) }} role="presentation">
-      <section aria-label="Choose a creator" aria-modal="true" className="ugc-home-creator-picker" role="dialog">
-        <header className="ugc-home-creator-picker-header">
-          <div><span className="ugc-home-eyebrow">CREATOR LIBRARY</span><h3>Choose a creator</h3><p>{homeCreators.length} reusable creators. Images load only inside this picker.</p></div>
-          <button aria-label="Close creator picker" className="ugc-home-close" onClick={() => setHomeCreatorPickerOpen(false)} type="button"><X className="size-4" /></button>
-        </header>
-        <div className="ugc-home-creator-picker-body">
-          <button className="ugc-home-creator-picker-auto" onClick={() => { setHomeCreatorPickerOpen(false); onCreate(undefined, { creatorMode: 'AUTO' }) }} type="button">
-            <span className="ugc-home-kpi-icon"><Sparkles className="size-4" /></span><div><strong>Choose for me</strong><span>Let INXSocial cast the creator automatically.</span></div><ArrowRight className="size-4" />
-          </button>
-          <div className="ugc-home-creator-picker-grid">
-            {visibleHomeCreators.map((avatar) => <button className="ugc-home-creator-tile" key={avatar.id} onClick={() => { setHomeCreatorPickerOpen(false); onCreate(undefined, { creatorMode: 'SELECTED', avatarId: avatar.id }) }} type="button">
-              <span><LazyCreatorPortrait avatar={avatar} /></span><strong>{avatar.name}</strong><small>{avatar.category} · {avatar.ageBand}</small>
-            </button>)}
-          </div>
-          {homeCreators.length > 24 && <div className="ugc-home-creator-picker-more"><button onClick={() => setHomeCreatorExpanded((value) => !value)} type="button">{homeCreatorExpanded ? 'Show fewer creators' : `View all ${homeCreators.length} creators`}</button></div>}
-        </div>
-      </section>
-    </div>}
     <UGCVideoLightbox onClose={() => setPreview(null)} open={Boolean(preview)} src={preview?.src || null} title={preview?.title} />
   </div>, document.body)
 }

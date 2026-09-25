@@ -185,7 +185,7 @@ export type UGCCampaign = {
   resolvedCreativeFormats: Exclude<UGCCreativeFormat, 'AUTO'>[]
   sourceType: UGCSourceType
   productAssetIds: string[]
-  creatorMode: 'AUTO' | 'SELECTED'
+  creatorMode: 'AUTO' | 'SELECTED' | 'NONE'
   selectedAvatarId: string | null
   status: string
   totalCredits: number
@@ -267,11 +267,30 @@ export type CreateUGCCampaignInput = {
   campaignType?: UGCCampaignType
   creativeFormat?: UGCCreativeFormat
   avatarId?: string | null
-  creatorMode: 'AUTO' | 'SELECTED'
+  creatorMode: 'AUTO' | 'SELECTED' | 'NONE'
   duration: UGCDuration
   adCount: UGCAdCount
   quality: UGCQuality
   notes?: string
+}
+
+export type UGCGeneratedReference = {
+  kind: 'AVATAR' | 'PRODUCT'
+  id: string
+  name: string
+  imageUrl: string
+  prompt: string
+  avatarId?: string | null
+  productAssetId?: string | null
+}
+
+export type UGCWizardDraftSeed = Partial<CreateUGCCampaignInput> & {
+  draftId?: string
+  wizardStep?: number
+  referencePrompt?: string
+  generatedReferences?: UGCGeneratedReference[]
+  selectedGeneratedProductIds?: string[]
+  baseProductAssetIds?: string[]
 }
 
 export type UGCAgentMessage = {

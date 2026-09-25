@@ -6,14 +6,13 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('completed publishable UGC campaign returns immediately from Finish to UGC Studio', () => {
+test('completed publishable UGC campaign stays on Finish until the user leaves', () => {
   const wizard = read('frontend/src/components/ai-content-studio/UGCWizardModal.tsx');
-  assert.match(wizard, /autoReturnedToStudio/);
-  assert.match(wizard, /value\.status !== 'READY'/);
-  assert.match(wizard, /value\.ads\.every\(\(ad\) => Boolean\(ad\.mediaAssetId && ad\.qualityControl\?\.publishable\)\)/);
-  assert.match(wizard, /onBackToHome\(\)/);
+  assert.doesNotMatch(wizard, /autoReturnedToStudio/);
+  assert.match(wizard, /Your UGC campaign is ready/);
   assert.match(wizard, /You can leave this window at any time/);
-  assert.match(wizard, /close automatically and take you back to UGC Studio/);
+  assert.doesNotMatch(wizard, /close automatically and take you back to UGC Studio/);
+  assert.match(wizard, /Back to UGC Studio/);
 });
 
 test('UGC Studio supports selecting individual publishable videos across campaigns', () => {

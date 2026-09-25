@@ -15,7 +15,7 @@ const createSchema = z.object({
   campaignType: z.enum(['AUTO', 'AVATAR_EXPLAINER', 'PRODUCT_SHOWCASE']).optional().default('AUTO'),
   creativeFormat: z.enum(['AUTO','PROBLEM_SOLUTION','PRODUCT_DEMO','TESTIMONIAL','UNBOXING','REACTION','BEFORE_AFTER','STORYTIME','SPOKESPERSON','PRODUCT_FOCUSED']).optional().default('AUTO'),
   avatarId: z.string().trim().max(120).optional().nullable(),
-  creatorMode: z.enum(['AUTO', 'SELECTED']).default('AUTO'),
+  creatorMode: z.enum(['AUTO', 'SELECTED', 'NONE']).default('AUTO'),
   duration: z.number().int().refine(v => durations.includes(v), 'Choose 20, 30, 45 or 60 seconds.'),
   adCount: z.number().int().refine(v => counts.includes(v), 'Choose 1, 5, 10, 15 or 20 ads.'),
   quality: z.enum(['STANDARD', 'PREMIUM']).default('STANDARD'),
@@ -47,6 +47,11 @@ const agentSchema = z.object({
   productAssetIds: z.array(z.string().trim().min(1).max(120)).max(8).optional().default([]),
   selectedAvatarId: z.string().trim().max(120).optional().nullable(),
   currentPlan: z.record(z.unknown()).optional().default({})
+});
+
+const generateReferenceSchema = z.object({
+  prompt: z.string().trim().min(4).max(1500),
+  brandProfileId: z.string().trim().max(120).optional().nullable()
 });
 
 const generateAvatarSchema = z.object({
@@ -130,6 +135,9 @@ async function regenerateScene(req, res, next) {
 }
 async function generateAvatar(req, res, next) {
   try { res.status(201).json({ avatar: await service.generateCustomAvatar(req.user.id, generateAvatarSchema.parse(req.body || {})) }); } catch (error) { next(error); }
+}
+async function generateReference(req, res, next) {
+  try { res.status(201).json({ reference: await service.generateReferenceAsset(req.user.id, generateReferenceSchema.parse(req.body || {})) }); } catch (error) { next(error); }
 }
 async function uploadAvatar(req, res, next) {
   try {
@@ -258,7 +266,7 @@ async function trackEvent(req, res, next) {
 module.exports = {
   overview, estimate, analyzeBrand, agentReply, createCampaign, listCampaigns, getCampaign, getEngineProject, getProductionAudit, removeCampaign,
   getAd, updateAd, reassembleAd, regenerateAd, regenerateScene,
-  generateAvatar, uploadAvatar, avatarContent, avatarReferences, uploadAvatarReference, avatarReferenceContent, removeAvatarReference, removeAvatar,
+  generateAvatar, generateReference, uploadAvatar, avatarContent, avatarReferences, uploadAvatarReference, avatarReferenceContent, removeAvatarReference, removeAvatar,
   uploadProduct, productContent, samples, sampleContent, uploadSample, listMusic, trackEvent,
   avatarUploadMiddleware: express.raw({ type: ['image/png','image/jpeg','image/webp'], limit: '12mb' }),
   productUploadMiddleware: express.raw({ type: ['image/png','image/jpeg','image/webp'], limit: '15mb' }),

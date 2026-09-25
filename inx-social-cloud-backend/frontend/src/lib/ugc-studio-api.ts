@@ -12,6 +12,7 @@ import type {
   UGCEstimate,
   UGCOverview,
   UGCProductAsset,
+  UGCGeneratedReference,
   UGCSampleVideo,
 } from '../types/ugc-studio'
 
@@ -85,6 +86,33 @@ export function regenerateUGCAd(id: string) {
 
 export function regenerateUGCScene(id: string) {
   return apiRequest<{ ad: UGCAd }>(`/api/ai-content-studio/ugc/scenes/${encodeURIComponent(id)}/regenerate`, { method: 'POST' }).then((result) => result.ad)
+}
+
+export function generateUGCReference(input: { prompt: string; brandProfileId?: string | null }) {
+  return apiRequest<{ reference: {
+    kind: 'AVATAR' | 'PRODUCT'
+    prompt: string
+    avatar: UGCAvatar | null
+    product: UGCProductAsset | null
+    creditsUsed: number
+  } }>('/api/ai-content-studio/ugc/references/generate', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  }).then((result) => {
+    const value = result.reference
+    const avatar = value.avatar
+    const product = value.product
+    const generated: UGCGeneratedReference = {
+      kind: value.kind,
+      id: avatar?.id || product?.id || crypto.randomUUID(),
+      name: avatar?.name || product?.originalName || (value.kind === 'AVATAR' ? 'AI creator' : 'AI product'),
+      imageUrl: avatar?.imageUrl || product?.imageUrl || '',
+      prompt: value.prompt,
+      avatarId: avatar?.id || null,
+      productAssetId: product?.id || null,
+    }
+    return { generated, avatar, product, creditsUsed: value.creditsUsed }
+  })
 }
 
 export function generateUGCAvatar(input: { prompt: string; name: string; category?: string; presentation?: string; ageBand?: string; locale?: string; accent?: string; niches?: string[]; voice?: string }) {
@@ -207,6 +235,10 @@ export function fetchUGCAvatarReferenceImage(reference: UGCAvatarReference) {
 
 export function fetchUGCProductImage(asset: UGCProductAsset) {
   return fetchProtectedBlob(asset.imageUrl)
+}
+
+export function fetchUGCGeneratedReferenceImage(reference: UGCGeneratedReference) {
+  return reference.imageUrl ? fetchProtectedBlob(reference.imageUrl) : Promise.resolve(null)
 }
 
 export function fetchUGCSampleVideo(sample: UGCSampleVideo) {

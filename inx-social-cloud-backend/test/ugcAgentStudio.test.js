@@ -60,12 +60,11 @@ test('UGC home launcher routes directly into the wizard instead of a chat conver
   assert.doesNotMatch(home, /featured\.slice\(0, 100\)/);
 });
 
-test('creator portraits are deferred to on-demand pickers instead of loading with Studio', () => {
+test('creator portraits load only inside the Creator step picker', () => {
   const home = read('frontend/src/components/ai-content-studio/UGCStudioHomeModal.tsx');
   const wizard = read('frontend/src/components/ai-content-studio/UGCWizardModal.tsx');
-  assert.match(home, /homeCreatorPickerOpen &&/);
-  assert.match(home, /visibleHomeCreators = homeCreatorExpanded \? homeCreators : homeCreators\.slice\(0, 24\)/);
-  assert.match(home, /Portraits load only after you open this picker/);
+  assert.doesNotMatch(home, /homeCreatorPickerOpen/);
+  assert.doesNotMatch(home, /LazyCreatorPortrait/);
   assert.match(wizard, /creatorPickerOpen/);
   assert.match(wizard, /Portraits load only while this picker is open/);
   assert.match(wizard, /visibleCreators = showAllCreators \? filteredCreators : filteredCreators\.slice\(0, 12\)/);
@@ -76,7 +75,7 @@ test('advanced UGC setup remains available as the manual customization route', (
   const wizard = read('frontend/src/components/ai-content-studio/UGCWizardModal.tsx');
   assert.match(page, /ugcWizardDraft/);
   assert.match(page, /seedDraft=\{ugcWizardDraft\}/);
-  assert.match(wizard, /seedDraft\?: Partial<CreateUGCCampaignInput>/);
+  assert.match(wizard, /seedDraft\?: UGCWizardDraftSeed/);
 });
 
 test('Studio opening is lightweight and scrolling is contained inside the modal', () => {
@@ -92,7 +91,6 @@ test('creator capacity remains ready for 100 uploaded featured creators without 
   const home = read('frontend/src/components/ai-content-studio/UGCStudioHomeModal.tsx');
   const studio = read('src/services/ugcStudioService.js');
   assert.match(home, />100\+<\/strong>/);
-  assert.match(home, /100\+ available/);
   assert.match(studio, /FEATURED_AVATAR_LIMIT = 100/);
   assert.match(studio, /FEATURED_AVATAR_COUNT = 20/);
 });
@@ -113,4 +111,31 @@ test('failed UGC finish state does not present 100 percent completion as success
   assert.match(wizard, /Needs retry/);
   assert.match(wizard, /displayProgress = failedAds/);
   assert.match(wizard, /regenerateUGCAd/);
+});
+
+
+test('UGC Creator step is reference-first and resumable', () => {
+  const wizard = read('frontend/src/components/ai-content-studio/UGCWizardModal.tsx');
+  const home = read('frontend/src/components/ai-content-studio/UGCStudioHomeModal.tsx');
+  const routes = read('src/routes/aiContentStudioRoutes.js');
+  const service = read('src/services/ugcStudioService.js');
+  assert.doesNotMatch(wizard, /key: 'format'/);
+  assert.doesNotMatch(wizard, /How should the UGC feel/);
+  assert.match(wizard, /Choose for me/);
+  assert.match(wizard, /Browse creators/);
+  assert.match(wizard, /No creator/);
+  assert.match(wizard, /CREATE AVATAR OR PRODUCT/);
+  assert.match(wizard, /generateUGCReference/);
+  assert.match(wizard, /generatedReferences/);
+  assert.match(wizard, /saveAIDraft/);
+  assert.match(home, /Continue where you left off/);
+  assert.match(routes, /\/ugc\/references\/generate/);
+  assert.match(service, /postStudio\.generateReferenceImage/);
+});
+
+test('missing stored creator portraits self-heal before video provider generation', () => {
+  const service = read('src/services/ugcStudioService.js');
+  assert.match(service, /UGC AVATAR REFERENCE REPAIR/);
+  assert.match(service, /Stored portrait is missing; regenerating before provider spend/);
+  assert.match(service, /async function getAvatarContent[\s\S]{0,700}ensureAvatarReference/);
 });
