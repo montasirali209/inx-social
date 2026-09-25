@@ -1,4 +1,3 @@
-const env = require('../config/env');
 const adapters = require('./ugcProviderAdapters');
 const creators = require('./ugcCreatorEngine');
 
@@ -171,7 +170,7 @@ function routePlan({
           hasProductReference,
           hasNarration: clean(scene.script, 5000).length >= 2,
           allowedRoutes: avatar && isCreatorLike(scene.kind) ? creators.profileFromRow(avatar).routeCompatibility : null,
-          mode
+          mode: routerMode()
         })
       }))
     };
@@ -180,7 +179,7 @@ function routePlan({
   return {
     ...plan,
     routerVersion: ROUTER_VERSION,
-    routerMode: mode,
+    routerMode: routerMode(),
     routingSummary: summarizeRoutes(routedAds),
     ads: routedAds
   };
