@@ -27,8 +27,8 @@ const ugcProductionAudit = require('./ugcProductionAuditService');
 const ugcRuntimePolicy = require('./ugcRuntimePolicy');
 const { expiresAtFor } = require('./mediaRetentionService');
 
-const STANDARD_CREDITS = Object.freeze({ 15: 100, 20: 140, 30: 210 });
-const PREMIUM_CREDITS = Object.freeze({ 15: 180, 20: 260, 30: 390 });
+const STANDARD_CREDITS = Object.freeze({ 20: 140, 30: 210, 45: 315, 60: 420 });
+const PREMIUM_CREDITS = Object.freeze({ 20: 260, 30: 390, 45: 585, 60: 780 });
 const AVATAR_CREDITS = 5;
 const SYSTEM_AVATAR_COUNT = 52;
 const FEATURED_AVATAR_COUNT = 20;
@@ -578,7 +578,7 @@ async function analyzeBrand(userId, input) {
 
 
 const UGC_AGENT_VERSION = 'ugc-agent-v2';
-const UGC_AGENT_DURATIONS = new Set([15,20,30]);
+const UGC_AGENT_DURATIONS = new Set([20,30,45,60]);
 const UGC_AGENT_COUNTS = new Set([1,5,10,15,20]);
 const UGC_AGENT_TYPES = new Set(['AUTO','AVATAR_EXPLAINER','PRODUCT_SHOWCASE']);
 const UGC_AGENT_FORMATS = new Set(['AUTO','PROBLEM_SOLUTION','PRODUCT_DEMO','TESTIMONIAL','UNBOXING','REACTION','BEFORE_AFTER','STORYTIME','SPOKESPERSON','PRODUCT_FOCUSED']);
@@ -803,22 +803,21 @@ function splitScriptByDurations(script, durations) {
 function visualDurations(duration, quality, campaignType) {
   const total = Number(duration);
   if (String(quality).toUpperCase() === 'STANDARD') {
-    // Hailuo 2.3 uses supported provider clip lengths. A 15-second ad needs a
-    // 10s + 6s render, but playbackDurations trims the second scene to 5s.
-    if (total === 15) return [10, 6];
+    // H3 Max supports 5–15 second clips. These are technical render segments
+    // only; the model owns the creative direction inside each segment.
     if (total === 20) return [10, 10];
-    return [10, 10, 10];
+    if (total === 30) return [10, 10, 10];
+    if (total === 45) return [15, 15, 15];
+    if (total === 60) return [15, 15, 15, 15];
   }
   if (campaignType === 'PRODUCT_SHOWCASE') {
-    if (total === 15) return [8, 7];
-    if (total === 20) return [10, 10];
-    return [10, 10, 10];
+    if (total <= 30) return [total];
+    if (total === 45) return [15, 15, 15];
+    if (total === 60) return [30, 30];
   }
-  if (total === 15) return [15];
-  if (total === 20) return [10, 10];
-  return [15, 15];
+  if (total <= 60) return [total];
+  return [15, 15, 15, 15];
 }
-
 function playbackDurations(totalDuration, providerDurations) {
   let remaining = Math.max(0, Number(totalDuration) || 0);
   return providerDurations.map((duration) => {
@@ -1183,7 +1182,7 @@ async function getOverview(userId) {
     },
     credits: { remaining: balance.remaining, monthlyRemaining: balance.monthlyRemaining, topupRemaining: balance.topupRemaining },
     options: {
-      durations: [15,20,30],
+      durations: [20,30,45,60],
       adCounts: [1,5,10,15,20],
       qualities: ['STANDARD','PREMIUM'],
       campaignTypes: ['AUTO','AVATAR_EXPLAINER','PRODUCT_SHOWCASE'],
@@ -1499,7 +1498,7 @@ async function generateSceneNarration(scene, ad, avatar, spokenDuration = scene.
   const text = clean(scene.script, 6000);
   if (text.length < 2) return null;
   const taskUUID = id();
-  const voice = narratorVoice(ad.voice || avatar?.voice, avatar);
+  const voice = narratorVoice(avatar?.voice || ad.voice, avatar);
   const results = await runware.request([{
     taskType: 'audioInference',
     taskUUID,
@@ -1520,7 +1519,58 @@ async function generateSceneNarration(scene, ad, avatar, spokenDuration = scene.
   return { taskUUID, audioURL: item.audioURL, cost: Number(item.cost || 0), voice };
 }
 
-async function renderProviderScene(scene, ad, avatar, productReference, narration, onProgress) {
+function h3CreatorVoiceDescription(avatar) {
+  if (!avatar) return 'Use a natural adult creator voice that matches the visible person.';
+  const presentation = clean(avatar.presentation, 80) || 'adult';
+  const accent = clean(ugcCreators.publicProfile(avatar).accent || avatar.locale, 80);
+  return 'Use one consistent ' + presentation.toLowerCase() + ' adult creator voice' + (accent ? ' with a natural ' + accent + ' delivery' : '') + '.';
+}
+
+function h3NativePrompt(scene, ad, avatar, referenceCount) {
+  const plan = parseJson(ad.planJson, {});
+  const format = clean(scene.creativeFormat || plan.creativeFormat || plan.requestedCreativeFormat || 'UGC', 80).replaceAll('_', ' ');
+  const spoken = clean(scene.script, 5000);
+  return clean([
+    'Create this as a fast-paced vertical creator-native UGC ad segment.',
+    referenceCount > 1
+      ? 'The first reference image is the selected creator. The remaining reference images are the exact product or brand references. Preserve the creator identity and referenced product appearance consistently.'
+      : avatar
+        ? 'Use the supplied reference as the selected creator and preserve the same identity throughout.'
+        : 'Use the supplied product reference faithfully.',
+    'UGC format: ' + format + '. Let the video model choose natural framing, actions, motion and transitions appropriate to that format.',
+    'Do not invent a different product, vehicle colour, interface, logo, readable text, extra person, feature or claim that is not supported by the supplied references or script.',
+    h3CreatorVoiceDescription(avatar),
+    spoken ? 'Spoken dialogue exactly: “' + spoken + '”' : 'No spoken dialogue.',
+    spoken ? 'Deliver the dialogue naturally and energetically with synchronized native speech, and complete the final sentence cleanly before the clip ends.' : '',
+    'Authentic social-video realism. No subtitles, captions, watermarks or generated overlay text.'
+  ].filter(Boolean).join('\n\n'), 7000);
+}
+
+async function renderProviderScene(scene, ad, avatar, productReferences, narration, onProgress) {
+  const cap = ugcProviderAdapters.getAdapter(scene.route);
+  const references = [];
+  if (avatar) {
+    const creatorReference = await ensureAvatarReference(ad.userId, avatar);
+    references.push(creatorReference.dataUri);
+  }
+  for (const reference of Array.isArray(productReferences) ? productReferences : []) {
+    if (reference && references.length < 9) references.push(reference);
+  }
+
+  if (cap.adapterKey === ugcProviderAdapters.ADAPTER_KEYS.H3_MAX) {
+    if (!references.length) throw publicError('This UGC scene needs at least one visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
+    const prompt = h3NativePrompt(scene, ad, avatar, references.length);
+    return ugcProviderAdapters.renderScene(scene.route, {
+      kind: scene.kind,
+      providerDuration: Number(scene.duration),
+      playbackDuration: Number(scene.duration),
+      prompt,
+      reference: references[0],
+      references,
+      narration: null
+    }, onProgress);
+  }
+
   const creatorLike = ugcProviderAdapters.isCreatorLike(scene.kind);
   const creatorLock = avatar ? [
     'CHARACTER LOCK: use the supplied creator portrait as the exact same real person.',
@@ -1528,6 +1578,7 @@ async function renderProviderScene(scene, ad, avatar, productReference, narratio
     'Keep the same believable room/environment and camera treatment. Never morph the face or introduce a second person.',
     'Natural creator behavior at normal 1x speed: breathing, blinking, responsive eye contact, conversational head movement and ordinary hand gestures. No slow motion, no time-stretching and no frozen mannequin pacing.'
   ].join(' ') : '';
+  const productReference = references.find((_, index) => !avatar || index > 0) || references[0] || null;
   const productLock = productReference
     ? 'PRODUCT LOCK: preserve the supplied product/reference exactly — packaging, shape, colours, proportions and visible branding. Do not substitute, redesign or hallucinate another product.'
     : '';
@@ -1542,13 +1593,7 @@ async function renderProviderScene(scene, ad, avatar, productReference, narratio
     'No generated subtitles, captions, labels, watermarks, interface graphics or extra readable text inside the frame.'
   ].filter(Boolean).join('\n\n'), 5000);
 
-  let reference = null;
-  if (creatorLike) {
-    if (!avatar) throw publicError('This creator scene has no avatar.', 'UGC_AVATAR_REQUIRED', 422);
-    reference = (await ensureAvatarReference(ad.userId, avatar)).dataUri;
-  } else {
-    reference = productReference;
-  }
+  const reference = creatorLike ? references[0] : productReference;
   if (!reference) throw publicError('This UGC scene needs a visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
 
   return ugcProviderAdapters.renderScene(scene.route, {
@@ -1557,10 +1602,10 @@ async function renderProviderScene(scene, ad, avatar, productReference, narratio
     playbackDuration: Number(scene.duration),
     prompt: positivePrompt,
     reference,
+    references: [reference],
     narration
   }, onProgress);
 }
-
 async function applyCreatorLipSync(videoURL, narration, onProgress = () => {}) {
   if (!videoURL || !narration?.audioURL) return null;
   const taskUUID = id();
@@ -1752,11 +1797,19 @@ async function renderAd(adId) {
   const generationRequest = parseJson(generationRows[0]?.requestJson, {});
   const localFinishRecoveryAttempts = Math.max(0, Number(generationRequest.localFinishRecoveryAttempts || 0));
   const campaignProductIds = parseJson(campaign?.productAssetIdsJson, []);
-  let productReference = null;
-  if (campaignProductIds.length) {
-    try { productReference = await productAssetDataUri(ad.userId, campaignProductIds[0]); } catch (_) {}
+  const productReferences = [];
+  for (const assetId of campaignProductIds.slice(0, 8)) {
+    try {
+      const reference = await productAssetDataUri(ad.userId, assetId);
+      if (reference) productReferences.push(reference);
+    } catch (_) {}
   }
-  if (!productReference) productReference = await prepareVerticalBrandReference(brandRefs);
+  if (productReferences.length < 8 && brandRefs.length) {
+    try {
+      const brandReference = await prepareVerticalBrandReference(brandRefs);
+      if (brandReference) productReferences.push(brandReference);
+    } catch (_) {}
+  }
 
   let providerCost = Math.max(0, Number(generationRows[0]?.providerCostUsd || 0));
   const sceneProgress = scenes.map(scene => scene.status === 'READY' && scene.videoStorageKey ? 100 : 0);
@@ -1782,15 +1835,17 @@ async function renderAd(adId) {
 
       try {
         await prisma.$executeRawUnsafe('UPDATE "UGCScene" SET "status"=\'RENDERING\',"errorMessage"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', scene.id);
-        await updateSceneProgress(index, 4, 'VOICE');
+        const sceneAdapter = ugcProviderAdapters.getAdapter(scene.route);
+        const nativePromptAudio = sceneAdapter.audioMode === 'NATIVE_SYNC_AUDIO';
+        await updateSceneProgress(index, 4, nativePromptAudio ? 'VIDEO' : 'VOICE');
         const spokenDuration = spokenDurations[index] || Number(scene.duration);
-        const narration = await generateSceneNarration(scene, ad, avatar, spokenDuration);
+        const narration = nativePromptAudio ? null : await generateSceneNarration(scene, ad, avatar, spokenDuration);
         const narrationCost = Number(narration?.cost || 0);
         providerCost += narrationCost;
         await addGenerationProviderCost(ad.generationId, narrationCost);
 
         await updateSceneProgress(index, 10, 'VIDEO');
-        const result = await renderProviderScene(scene, ad, avatar, productReference, narration, async progress => {
+        const result = await renderProviderScene(scene, ad, avatar, productReferences, narration, async progress => {
           await updateSceneProgress(index, 10 + Number(progress || 0) * 0.62, 'VIDEO');
         });
 
