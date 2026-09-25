@@ -16,13 +16,14 @@ test('AI Content Studio keeps the launch credit schedule', () => {
   assert.equal(estimateGenerationCost({ type: 'carousel_post', options: { slides: 9 } }), 20);
   assert.equal(estimateGenerationCost({ type: 'carousel_post', options: { slides: 10 } }), 20);
 
-  assert.equal(estimateGenerationCost({ type: 'short_video', options: { duration: 5 } }), 15);
-  assert.equal(estimateGenerationCost({ type: 'short_video', options: { duration: 10 } }), 25);
-  assert.throws(() => estimateGenerationCost({ type: 'short_video', options: { duration: 15 } }), /5 or 10 seconds/);
-
-  assert.equal(estimateGenerationCost({ type: 'ugc_ad', options: { duration: 5 } }), 25);
-  assert.equal(estimateGenerationCost({ type: 'ugc_ad', options: { duration: 10 } }), 40);
-  assert.throws(() => estimateGenerationCost({ type: 'ugc_ad', options: { duration: 15 } }), /5 or 10 seconds/);
+  assert.throws(
+    () => estimateGenerationCost({ type: 'short_video', options: { duration: 5 } }),
+    error => error.code === 'AI_STUDIO_LEGACY_PRICING_RETIRED' && /AI Video Studio/.test(error.message)
+  );
+  assert.throws(
+    () => estimateGenerationCost({ type: 'ugc_ad', options: { duration: 20 } }),
+    error => error.code === 'AI_STUDIO_LEGACY_PRICING_RETIRED' && /UGC Studio/.test(error.message)
+  );
 });
 
 test('Studio validates core requests before spending provider money', () => {
@@ -38,15 +39,15 @@ test('Studio validates core requests before spending provider money', () => {
     type: 'short_video',
     prompt: 'Create a product reveal.',
     aspectRatio: '9:16',
-    options: { duration: 15 }
-  }), /5 or 10 seconds/);
+    options: { duration: 10 }
+  }), error => error.code === 'AI_STUDIO_LEGACY_GENERATOR_RETIRED' && /AI Video Studio/.test(error.message));
 
   assert.throws(() => validateGenerationRequest({
     type: 'ugc_ad',
     prompt: 'INXSocial: promote the scheduler',
     aspectRatio: '9:16',
-    options: { duration: 10, productName: '', productDescription: '' }
-  }), /product or service name/);
+    options: { duration: 20 }
+  }), error => error.code === 'AI_STUDIO_LEGACY_GENERATOR_RETIRED' && /UGC Studio/.test(error.message));
 });
 
 test('copy fallback preserves media generation inputs when helper AI is unavailable', () => {
