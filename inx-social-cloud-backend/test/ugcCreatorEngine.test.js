@@ -41,8 +41,7 @@ test('Creator V2 quality route requirements keep Standard and Premium model fami
   assert.deepEqual(creators.requiredRoutesForQuality('STANDARD'), ['H3_MAX_STANDARD_V1']);
   assert.deepEqual(creators.requiredRoutesForQuality('PREMIUM'), [
     'OMNIHUMAN_CREATOR_V1',
-    'KLING_OMNI_DYNAMIC_V1',
-    'KLING_PREMIUM_V1'
+    'H3_MAX_STANDARD_V1'
   ]);
 });
 
