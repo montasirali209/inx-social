@@ -601,30 +601,22 @@ export function UGCWizardModal({
             <select aria-label="Creator locale" className="ugc-wizard-input" onChange={(event) => setCreatorLocale(event.target.value)} value={creatorLocale}><option value="ALL">All locales</option>{creatorLocales.map((value) => <option key={value} value={value}>{value}</option>)}</select>
           </div>
           <div className="ugc-creator-picker-grid">
-            <button className={`ugc-wizard-avatar-card auto ${creatorMode === 'AUTO' ? 'selected' : ''}`} onClick={() => { setCreatorMode('AUTO'); setAvatarId(null); setCreatorPickerOpen(false) }} type="button"><span className="ugc-wizard-auto-avatar"><Sparkles className="size-6" /></span><strong>Choose for me</strong><small>Automatic casting</small>{creatorMode === 'AUTO' && <span className="ugc-wizard-selected-check"><Check className="size-3" /></span>}</button>
             {visibleCreators.map((avatar) => <button className={`ugc-wizard-avatar-card ${creatorMode === 'SELECTED' && avatar.id === avatarId ? 'selected' : ''}`} key={avatar.id} onClick={() => { setCreatorMode('SELECTED'); setAvatarId(avatar.id); setCreatorPickerOpen(false) }} type="button"><div className="ugc-wizard-avatar-image"><AvatarPortrait avatar={avatar} /></div><strong>{avatar.name}</strong><small>{avatar.category} · {avatar.ageBand}</small><small>{avatar.accent || avatar.locale}{avatar.scope === 'USER' ? ' · Saved' : ''}</small>{creatorMode === 'SELECTED' && avatar.id === avatarId && <span className="ugc-wizard-selected-check"><Check className="size-3" /></span>}</button>)}
           </div>
           {!visibleCreators.length && <div className="mt-4 rounded-xl border border-white/10 bg-white/[.025] p-4 text-[10px] text-text-muted">No creators match these filters. Clear a filter or search more broadly.</div>}
           <div className="ugc-creator-picker-actions">
             {filteredCreators.length > 12 && <button className="ugc-wizard-text-button" onClick={() => setShowAllCreators((value) => !value)} type="button">{showAllCreators ? 'Show fewer creators' : `View all ${filteredCreators.length} creators`}</button>}
             {creatorFilterActive && <button className="ugc-wizard-text-button" onClick={() => { setCreatorSearch(''); setCreatorCategory('ALL'); setCreatorPresentation('ALL'); setCreatorAgeBand('ALL'); setCreatorLocale('ALL') }} type="button">Clear filters</button>}
-            <button className="ugc-wizard-text-button" onClick={() => setCustomCreatorOpen((value) => !value)} type="button"><ImagePlus className="size-3.5" />Create my own</button>
           </div>
-          {customCreatorOpen && <div className="ugc-wizard-custom-creator mt-5">
-            <div><strong>Custom creator</strong><p>Upload your own portrait for free, or generate one for 5 credits. It stays in your reusable creator library.</p></div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <input aria-label="Custom creator niche" className="ugc-wizard-input" onChange={(event) => setCustomCreatorCategory(event.target.value)} placeholder="Niche, e.g. Beauty" value={customCreatorCategory} />
-              <select aria-label="Custom creator presentation" className="ugc-wizard-input" onChange={(event) => setCustomCreatorPresentation(event.target.value)} value={customCreatorPresentation}><option>Woman</option><option>Man</option><option>Non-binary</option></select>
-              <select aria-label="Custom creator adult age band" className="ugc-wizard-input" onChange={(event) => setCustomCreatorAgeBand(event.target.value)} value={customCreatorAgeBand}><option>18–24</option><option>25–34</option><option>35–44</option><option>45–54</option><option>55+</option></select>
-              <input aria-label="Custom creator locale" className="ugc-wizard-input" onChange={(event) => setCustomCreatorLocale(event.target.value)} placeholder="Locale, e.g. en-GB" value={customCreatorLocale} />
-            </div>
-            <label className="ugc-wizard-upload mt-3"><Upload className="size-4" />Upload portrait with this profile<input accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(event) => void uploadAvatar(event.target.files?.[0])} type="file" /></label>
-            <div className="ugc-wizard-or"><span />OR<span /></div>
-            <input className="ugc-wizard-input w-full" onChange={(event) => setAvatarName(event.target.value)} placeholder="Creator name" value={avatarName} />
-            <textarea className="ugc-wizard-input mt-2 min-h-20 w-full resize-y" onChange={(event) => setAvatarPrompt(event.target.value)} placeholder="Describe appearance, style and believable setting. Do not request a celebrity or real-person resemblance." value={avatarPrompt} />
-            <Button className="mt-3" disabled={avatarName.trim().length < 2 || avatarPrompt.trim().length < 8 || customCreatorCategory.trim().length < 2 || customCreatorLocale.trim().length < 2 || generateAvatar.isPending} onClick={() => generateAvatar.mutate()}>{generateAvatar.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}Generate creator · 5 credits</Button>
-          </div>}
+
         </div>
+      </section>
+    </div>}
+    {referencePreview && <div className="ugc-reference-lightbox-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setReferencePreview(null) }} role="presentation">
+      <section aria-label="Generated reference preview" aria-modal="true" className="ugc-reference-lightbox" role="dialog">
+        <button aria-label="Close image preview" className="ugc-wizard-close" onClick={() => setReferencePreview(null)} type="button"><X className="size-4" /></button>
+        <div className="ugc-reference-lightbox-image"><GeneratedReferenceImage className="size-full object-contain" reference={referencePreview} /></div>
+        <div className="ugc-reference-lightbox-copy"><strong>{referencePreview.name}</strong><span>{referencePreview.kind === 'AVATAR' ? 'Avatar reference' : 'Product reference'}</span></div>
       </section>
     </div>}
   </div>, document.body)
