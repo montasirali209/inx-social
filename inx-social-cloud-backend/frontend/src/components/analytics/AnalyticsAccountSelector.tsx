@@ -29,7 +29,7 @@ export function AnalyticsAccountSelector({ accounts, value, isLive, loading = fa
           <span className="rounded-full border border-brand-teal/15 bg-brand-teal/8 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[.12em] text-brand-cyan">1 account at a time</span>
           <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[9px] font-semibold ${loading ? 'border-white/10 bg-white/[.03] text-text-muted' : isLive ? 'border-brand-green/15 bg-brand-green/8 text-brand-green' : 'border-brand-amber/20 bg-brand-amber/8 text-brand-amber'}`}>
             <Radio className={`size-3 ${!loading && !isLive && !needsRepair && !isPending ? 'animate-pulse motion-reduce:animate-none' : ''}`} />
-            {loading ? 'Preparing' : isLive ? 'Live' : needsRepair ? 'Access refresh needed' : isPending ? 'Metrics pending' : 'Syncing'}
+            {loading ? 'Preparing' : isLive ? 'Live' : needsRepair ? 'Provider feed blocked' : isPending ? 'Metrics pending' : 'Syncing'}
           </span>
         </div>
         <p className="mt-0.5 hidden text-[11px] text-text-muted sm:block">Choose one connected account. Analytics below always belongs to that exact account.</p>
