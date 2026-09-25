@@ -40,8 +40,9 @@ test('UGC customer funnel captures home, wizard and editor milestones', () => {
   assert.match(home, /SCHEDULER_HANDOFF/);
   assert.match(wizard, /SOURCE_COMPLETED/);
   assert.match(wizard, /BRAND_ANALYZED/);
-  assert.match(wizard, /FORMAT_SELECTED/);
   assert.match(wizard, /CREATOR_SELECTED/);
+  assert.match(wizard, /PRODUCTION_CONFIGURED/);
+  assert.match(wizard, /GENERATION_CONFIRMED/);
   assert.match(editor, /EDITOR_OPENED/);
   assert.match(backend, /GENERATION_STARTED/);
   assert.match(backend, /GENERATION_COMPLETED/);
