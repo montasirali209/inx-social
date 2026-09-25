@@ -37,7 +37,13 @@ async function start(req, res, next) {
 
 async function sync(req, res, next) {
   try {
-    await postForMe.syncConnections(req.user.id, { force: true });
+    const requestedPlatform = String(req.body?.oauthPlatform || '').toLowerCase();
+    const oauthPlatform = requestedPlatform ? platformSchema.parse(requestedPlatform) : null;
+    await postForMe.syncConnections(req.user.id, {
+      force: true,
+      oauthPlatform,
+      oauthCompletedAt: oauthPlatform ? new Date().toISOString() : null
+    });
     res.json({ ok: true, connections: await postForMe.listConnections(req.user.id) });
   } catch (error) { next(error); }
 }
