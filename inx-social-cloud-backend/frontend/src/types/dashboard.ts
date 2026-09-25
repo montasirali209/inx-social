@@ -139,7 +139,7 @@ export type PlatformAnalytics = {
   content: AnalyticsContent[]
   warnings?: string[]
   cache?: { hit: boolean; expiresAt: string }
-  provider?: { engine?: string; accountId?: string; postsWithMetrics?: number; feedPosts?: number; unverifiedFeedPosts?: number; periodPosts?: number; ownershipVerified?: boolean; metricsRequested?: boolean; sourceState?: 'ready' | 'metrics_pending' | 'feed_empty'; repairRequired?: boolean; metricSummary?: ProviderMetricSummary[]; cacheState?: 'fresh' | 'live' | 'stale' | 'refreshing' | 'partial' }
+  provider?: { engine?: string; accountId?: string; postsWithMetrics?: number; feedPosts?: number; unverifiedFeedPosts?: number; periodPosts?: number; ownershipVerified?: boolean; metricsRequested?: boolean; sourceState?: 'ready' | 'metrics_pending' | 'feed_empty' | 'ownership_mismatch'; repairRequired?: boolean; metricSummary?: ProviderMetricSummary[]; cacheState?: 'fresh' | 'live' | 'stale' | 'refreshing' | 'partial' }
 }
 export type FacebookAnalytics = PlatformAnalytics & { platform: 'facebook' }
 export type DashboardAnalyticsEntry = { accountId: string; platform: Platform; sourceName: string; analytics: PlatformAnalytics }

@@ -35,14 +35,25 @@ function popupPosition(width = 620, height = 760) {
 function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => boolean, storageKey: string) {
   return new Promise<OAuthMessage>((resolve, reject) => {
     let settled = false
-    let providerNavigationStarted = false
     let returnedFocusCheck = 0
+    let closedGraceCheck = 0
+    const sameInxSocialOrigin = (origin: string) => {
+      try {
+        const incoming = new URL(origin)
+        const current = new URL(window.location.origin)
+        const host = (value: string) => value.toLowerCase().replace(/^www\./, '')
+        return incoming.protocol === current.protocol && host(incoming.hostname) === host(current.hostname)
+      } catch {
+        return false
+      }
+    }
     const cleanup = () => {
       window.removeEventListener('message', receive)
       window.removeEventListener('storage', receiveStored)
       window.removeEventListener('focus', checkAfterReturn)
       document.removeEventListener('visibilitychange', receiveVisibility)
       window.clearTimeout(returnedFocusCheck)
+      window.clearTimeout(closedGraceCheck)
       window.clearInterval(closedCheck)
       window.clearTimeout(timeout)
       window.localStorage.removeItem(storageKey)
@@ -65,20 +76,24 @@ function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => bo
       } catch { return false }
     }
     const receive = (event: MessageEvent<OAuthMessage>) => {
-      if (event.origin === window.location.origin && matcher(event.data || {})) finish(event.data)
+      if (sameInxSocialOrigin(event.origin) && matcher(event.data || {})) finish(event.data)
     }
     const receiveStored = (event: StorageEvent) => {
       if (event.key === storageKey) consume(event.newValue)
+    }
+    const confirmClosed = () => {
+      if (settled || closedGraceCheck) return
+      closedGraceCheck = window.setTimeout(() => {
+        closedGraceCheck = 0
+        if (settled || consume(window.localStorage.getItem(storageKey))) return
+        if (popup.closed) finish({ ok: false, error: 'Connection cancelled.' })
+      }, 2500)
     }
     const checkAfterReturn = () => {
       window.clearTimeout(returnedFocusCheck)
       returnedFocusCheck = window.setTimeout(() => {
         if (settled || consume(window.localStorage.getItem(storageKey))) return
-        if (popup.closed) {
-          finish({ ok: false, error: 'Connection cancelled.' })
-          return
-        }
-        if (providerNavigationStarted) finish({ ok: false, error: 'Connection cancelled.' })
+        if (popup.closed) confirmClosed()
       }, 650)
     }
     const receiveVisibility = () => {
@@ -90,8 +105,7 @@ function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => bo
     document.addEventListener('visibilitychange', receiveVisibility)
     const closedCheck = window.setInterval(() => {
       if (settled || consume(window.localStorage.getItem(storageKey))) return
-      try { void popup.location.href } catch { providerNavigationStarted = true }
-      if (popup.closed) finish({ ok: false, error: 'Connection cancelled.' })
+      if (popup.closed) confirmClosed()
     }, 400)
     const timeout = window.setTimeout(() => finish({ ok: false, error: 'The connection timed out. Please try again.' }), 5 * 60 * 1000)
   })

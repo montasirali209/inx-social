@@ -94,7 +94,14 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(service, /instagramNativeFallback/);
   assert.match(service, /getInstagramAnalytics/);
   assert.match(service, /repairRequired/);
-  assert.match(service, /sourceState: hasMetrics \? 'ready' : allFeed\.length \? 'metrics_pending' : 'feed_empty'/);
+  assert.match(service, /'ownership_mismatch'/);
+  assert.match(service, /knownPublishedXPostIds/);
+  assert.match(service, /prisma\.socialPublication\.findMany/);
+  assert.match(service, /knownPublishedMatches/);
+  assert.match(service, /\['instagram', 'facebook', 'x'\]\.includes\(profile\.platform\)/);
+  assert.match(service, /facebookPageFallback/);
+  assert.match(service, /facebookPageUsername/);
+  assert.match(service, /meta_graph_fallback/);
   assert.match(service, /persisted\?\.provider\?\.repairRequired === true/);
   assert.match(service, /'refreshing'/);
   assert.match(service, /'partial'/);
@@ -111,6 +118,10 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(page, /fetchAnalyticsForSource\(selectedAccount, days, 'full', force\)/);
   assert.match(page, /analyticsKey === selectedKey/);
   assert.match(page, /backgroundRefreshing/);
+  assert.match(page, /quietRefresh/);
+  assert.match(page, /const selectedIsSyncing = !view \|\| manualRefreshing/);
+  assert.match(page, /providerSourceState === 'ownership_mismatch'/);
+  assert.match(page, /The X analytics feed does not match this connected account/);
   assert.match(page, /data\?\.results\?\.some/);
   assert.match(page, /analytics\.data\?\.results\?\.some/);
   assert.match(page, /Updating \$\{sourceName\}/);
@@ -129,6 +140,7 @@ test('Analytics uses live Post for Me platform data and derives transparent metr
   assert.match(page, /syncPostForMeConnections\(\)/);
   assert.match(page, /Refresh \$\{platformNames\[selectedAccount!\.platform as Platform\]\} analytics access/);
   assert.match(page, /AnalyticsWorkspaceSkeleton active=\{selectedIsSyncing\}/);
+  assert.match(page, /isPending=\{partialMetrics && !providerRepairRequired\}/);
   assert.match(page, /states\.includes\('stale'\)/);
   assert.match(page, /return 60_000/);
   assert.match(page, /refreshAnalyticsNow/);
