@@ -143,8 +143,11 @@ export function syncInstagram() {
   return apiRequest('/api/social-connections/post-for-me/sync', { method: 'POST', body: '{}' })
 }
 
-export function syncPostForMeConnections() {
-  return apiRequest('/api/social-connections/post-for-me/sync', { method: 'POST', body: '{}' })
+export function syncPostForMeConnections(oauthPlatform?: SocialPlatform) {
+  return apiRequest('/api/social-connections/post-for-me/sync', {
+    method: 'POST',
+    body: JSON.stringify(oauthPlatform ? { oauthPlatform } : {}),
+  })
 }
 
 export function disconnectSocialConnection(connectionId: string) {
