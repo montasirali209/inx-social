@@ -17,7 +17,7 @@ test('landing response applies SEO title, description and render-critical styles
     true
   );
   assert.match(landing, /Create, bulk schedule and analyse social media in one workspace with AI campaigns/);
-  assert.match(landing, /inx-social-wordmark\.png/);
+  assert.match(landing, /inx-social-wordmark-small\.webp/);
   assert.match(landing, /rel="preload" as="image" href="\/assets\/landing-dashboard-20260919\.webp"/);
   assert.match(app, /return injectAnalyticsConsent\(source\)/);
   assert.match(app, /Cache-Control', 'public, max-age=0, must-revalidate/);
