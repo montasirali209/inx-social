@@ -51,11 +51,13 @@ test('crawl controls expose canonical marketing pages while app surfaces remain 
   assert.match(robots, /Disallow: \/api\//);
   assert.match(app, /\['\/admin', '\/index\.html', '\/api', '\/portal', '\/studio', '\/app', '\/health', '\/oauth-callback\.html'\]/);
   assert.match(app, /X-Robots-Tag', 'noindex, nofollow, noarchive'/);
-  assert.equal((sitemap.match(/<url>/g) || []).length, 12);
+  assert.equal((sitemap.match(/<url>/g) || []).length, 13);
   assert.doesNotMatch(sitemap, /social-media-scheduler\.html|pricing\.html|free-social-media-tools\.html/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/social-media-scheduler/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-campaign-generator/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/pricing/);
+  assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/blog/);
+  assert.match(robots, /https:\/\/www\.inxsocial\.co\.uk\/blog\/sitemap\.xml/);
 });
 
 test('landing retains canonical structured data and current AI capabilities', () => {

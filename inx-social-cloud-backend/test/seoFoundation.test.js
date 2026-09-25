@@ -74,11 +74,13 @@ test('robots and sitemap expose the canonical public marketing page cluster', ()
   assert.match(robots, /Disallow: \/admin/);
   assert.match(robots, /Disallow: \/api\//);
   assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/sitemap\.xml/);
-  assert.equal((sitemap.match(/<url>/g) || []).length, 12);
+  assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/blog\/sitemap\.xml/);
+  assert.equal((sitemap.match(/<url>/g) || []).length, 13);
   assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/<\/loc>/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/social-media-scheduler/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-campaign-generator/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/pricing/);
+  assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/blog/);
 
   for (const route of retiredMarketingRoutes) {
     assert.equal(sitemap.includes(route), false, `${route} must not appear in the canonical sitemap`);

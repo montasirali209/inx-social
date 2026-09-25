@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "babylovegrowth-next-js-blog": "^0.2.2",
+    "babylovegrowth-next-js-blog": "^0.2.4",
     "lenis": "1.3.11",
     "next": "16.3.5",
     "react": "19.2.0",

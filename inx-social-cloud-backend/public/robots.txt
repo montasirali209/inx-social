@@ -4,3 +4,4 @@ Disallow: /admin
 Disallow: /api/
 
 Sitemap: https://www.inxsocial.co.uk/sitemap.xml
+Sitemap: https://www.inxsocial.co.uk/blog/sitemap.xml

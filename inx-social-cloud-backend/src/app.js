@@ -380,6 +380,42 @@ app.use('/_next', async (req, res, next) => {
   return res.send(payload);
 });
 
+app.use('/blog', async (req, res, next) => {
+  if (!['GET', 'HEAD'].includes(req.method) || !isNextLandingEnabled()) return next();
+
+  const upstream = await fetchNextLanding(req.originalUrl, {
+    method: req.method,
+    accept: req.headers.accept
+  });
+  if (!upstream) return next();
+
+  try {
+    for (const header of ['content-type', 'cache-control', 'etag', 'last-modified']) {
+      const value = upstream.headers.get(header);
+      if (value) res.setHeader(header, value);
+    }
+
+    res.setHeader('X-INX-Landing', 'next-blog');
+    res.status(upstream.status);
+    if (req.method === 'HEAD') return res.end();
+
+    const contentType = String(upstream.headers.get('content-type') || '').toLowerCase();
+    if (contentType.includes('text/html')) {
+      const source = await upstream.text();
+      return res.type('html').send(injectAnalyticsConsent(source));
+    }
+
+    const payload = Buffer.from(await upstream.arrayBuffer());
+    return res.send(payload);
+  } catch (error) {
+    console.warn('[blog-proxy] failed to relay Next.js blog response', {
+      path: req.originalUrl,
+      error: error?.message
+    });
+    return next(error);
+  }
+});
+
 app.get([...SEO_MARKETING_ROUTES.keys()], async (req, res) => {
   const cleanPath = req.path.length > 1 ? req.path.replace(/\/+$/, '') : req.path;
 
