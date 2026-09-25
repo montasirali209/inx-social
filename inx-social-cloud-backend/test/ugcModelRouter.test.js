@@ -72,7 +72,7 @@ test('Premium creator without audio input falls back before provider spend', () 
   assert.equal(route.adapterKey, 'H3_MAX');
 });
 
-test('Compatibility mode preserves the pre-Phase-3 premium route', () => {
+test('legacy compatibility mode cannot override the new capability router', () => {
   const route = router.routeForScene({
     quality: 'PREMIUM',
     kind: 'CREATOR',
@@ -83,8 +83,9 @@ test('Compatibility mode preserves the pre-Phase-3 premium route', () => {
     hasNarration: true,
     mode: 'compatibility'
   });
-  assert.equal(route.routeKey, 'KLING_PREMIUM_V1');
-  assert.equal(route.adapterKey, 'KLING_LEGACY');
+  assert.equal(route.routeKey, 'OMNIHUMAN_CREATOR_V1');
+  assert.equal(route.adapterKey, 'OMNIHUMAN_15');
+  assert.equal(route.mode, 'adaptive');
 });
 
 test('Creator V2 compatibility can redirect a Premium creator to an allowed fallback route', () => {
