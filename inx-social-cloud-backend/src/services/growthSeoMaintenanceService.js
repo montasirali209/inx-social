@@ -73,9 +73,11 @@ function firstMatch(html, patterns) {
 }
 
 function attr(tag, name) {
-  const quoted = new RegExp("\\b" + name + "\\s*=\\s*[\\"']([^\\"']*)[\\"']", "i");
-  const bare = new RegExp("\\b" + name + "\\s*=\\s*([^\\s>]+)", "i");
-  const match = String(tag || '').match(quoted) || String(tag || '').match(bare);
+  const doubleQuoted = new RegExp('\\b' + name + '\\s*=\\s*"([^"]*)"', 'i');
+  const singleQuoted = new RegExp("\\b" + name + "\\s*=\\s*'([^']*)'", 'i');
+  const bare = new RegExp('\\b' + name + '\\s*=\\s*([^\\s>]+)', 'i');
+  const text = String(tag || '');
+  const match = text.match(doubleQuoted) || text.match(singleQuoted) || text.match(bare);
   return decodeHtml((match && match[1]) || '');
 }
 
