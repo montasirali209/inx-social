@@ -463,20 +463,26 @@ async function performance(days = 28) {
   previousStart.setUTCDate(previousEnd.getUTCDate() - (periodDays - 1));
   const previous = { startDate: isoDate(previousStart), endDate: isoDate(previousEnd) };
 
-  const [summaryRows, previousRows, dailyRows, queryRows, pageRows, countryRows, deviceRows] = await Promise.all([
+  const [summaryRows, previousRows, dailyRows, queryRows, pageRows, countryRows, deviceRows, queryPageRows] = await Promise.all([
     querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, [], 1),
     querySearchAnalytics(connection.selectedSiteUrl, previous.startDate, previous.endDate, [], 1),
     querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['date'], Math.min(500, periodDays + 5)),
     querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['query'], 100),
     querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['page'], 100),
     querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['country'], 30),
-    querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['device'], 10)
+    querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['device'], 10),
+    querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['query', 'page'], 500)
   ]);
 
   const summary = metricRow(summaryRows[0]);
   const previousSummary = metricRow(previousRows[0]);
   const topQueries = mapDimensionRows(queryRows, 'query');
   const topPages = mapDimensionRows(pageRows, 'page');
+  const queryPages = queryPageRows.map(row => ({
+    query: String(row.keys?.[0] || ''),
+    page: String(row.keys?.[1] || ''),
+    ...metricRow(row)
+  }));
 
   const opportunities = topQueries
     .filter(row => row.impressions >= 10 && row.position >= 4 && row.position <= 30 && row.ctr < 0.08)
@@ -508,6 +514,7 @@ async function performance(days = 28) {
     daily: mapDimensionRows(dailyRows, 'date'),
     topQueries,
     topPages,
+    queryPages,
     countries: mapDimensionRows(countryRows, 'country'),
     devices: mapDimensionRows(deviceRows, 'device'),
     opportunities
