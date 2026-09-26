@@ -236,13 +236,20 @@ function normalizeSites(payload) {
     .filter(item => item.siteUrl);
 }
 
-function preferredSite(sites) {
+function inxSocialSite(sites = []) {
   const exactDomain = sites.find(item => item.siteUrl.toLowerCase() === 'sc-domain:inxsocial.co.uk');
   if (exactDomain) return exactDomain.siteUrl;
   const exactWww = sites.find(item => item.siteUrl.toLowerCase() === 'https://www.inxsocial.co.uk/');
   if (exactWww) return exactWww.siteUrl;
-  const brandSite = sites.find(item => item.siteUrl.toLowerCase().includes('inxsocial.co.uk'));
-  return brandSite?.siteUrl || sites[0]?.siteUrl || null;
+  const brandSite = sites.find(item => {
+    const value = item.siteUrl.toLowerCase();
+    return value.includes('inxsocial.co.uk') && !value.includes('inxsocial.co.uk.');
+  });
+  return brandSite?.siteUrl || null;
+}
+
+function preferredSite(sites) {
+  return inxSocialSite(sites) || sites[0]?.siteUrl || null;
 }
 
 async function listSites(connection = null) {
@@ -449,10 +456,10 @@ function mapDimensionRows(rows, dimension) {
   }));
 }
 
-async function performance(days = 28) {
+async function performanceForSite(days = 28, siteUrl = '') {
   const periodDays = [7, 28, 90].includes(Number(days)) ? Number(days) : 28;
-  const connection = await prisma.searchConsoleConnection.findUnique({ where: { id: CONNECTION_ID } });
-  if (!connection?.selectedSiteUrl) {
+  const requestedSiteUrl = String(siteUrl || '').trim();
+  if (!requestedSiteUrl) {
     throw publicError('Connect Search Console and choose a property before loading performance.', 409, 'GSC_PROPERTY_REQUIRED');
   }
 
@@ -464,15 +471,15 @@ async function performance(days = 28) {
   const previous = { startDate: isoDate(previousStart), endDate: isoDate(previousEnd) };
 
   const [summaryRows, previousRows, dailyRows, queryRows, pageRows, countryRows, deviceRows, queryPageRows, previousPageRows] = await Promise.all([
-    querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, [], 1),
-    querySearchAnalytics(connection.selectedSiteUrl, previous.startDate, previous.endDate, [], 1),
-    querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['date'], Math.min(500, periodDays + 5)),
-    querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['query'], 100),
-    querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['page'], 100),
-    querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['country'], 30),
-    querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['device'], 10),
-    querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['query', 'page'], 500),
-    querySearchAnalytics(connection.selectedSiteUrl, previous.startDate, previous.endDate, ['page'], 100)
+    querySearchAnalytics(requestedSiteUrl, current.startDate, current.endDate, [], 1),
+    querySearchAnalytics(requestedSiteUrl, previous.startDate, previous.endDate, [], 1),
+    querySearchAnalytics(requestedSiteUrl, current.startDate, current.endDate, ['date'], Math.min(500, periodDays + 5)),
+    querySearchAnalytics(requestedSiteUrl, current.startDate, current.endDate, ['query'], 100),
+    querySearchAnalytics(requestedSiteUrl, current.startDate, current.endDate, ['page'], 100),
+    querySearchAnalytics(requestedSiteUrl, current.startDate, current.endDate, ['country'], 30),
+    querySearchAnalytics(requestedSiteUrl, current.startDate, current.endDate, ['device'], 10),
+    querySearchAnalytics(requestedSiteUrl, current.startDate, current.endDate, ['query', 'page'], 500),
+    querySearchAnalytics(requestedSiteUrl, previous.startDate, previous.endDate, ['page'], 100)
   ]);
 
   const summary = metricRow(summaryRows[0]);
@@ -500,7 +507,7 @@ async function performance(days = 28) {
   });
 
   return {
-    siteUrl: connection.selectedSiteUrl,
+    siteUrl: requestedSiteUrl,
     periodDays,
     range: { startDate: current.startDate, endDate: current.endDate },
     previousRange: previous,
@@ -521,6 +528,50 @@ async function performance(days = 28) {
     devices: mapDimensionRows(deviceRows, 'device'),
     opportunities
   };
+}
+
+async function performance(days = 28) {
+  const connection = await prisma.searchConsoleConnection.findUnique({ where: { id: CONNECTION_ID } });
+  if (!connection?.selectedSiteUrl) {
+    throw publicError('Connect Search Console and choose a property before loading performance.', 409, 'GSC_PROPERTY_REQUIRED');
+  }
+  return performanceForSite(days, connection.selectedSiteUrl);
+}
+
+async function growthSiteUrl() {
+  const connection = await prisma.searchConsoleConnection.findUnique({ where: { id: CONNECTION_ID } });
+  if (!connection) throw publicError('Google Search Console is not connected.', 409, 'GSC_NOT_CONNECTED');
+
+  let sites = [];
+  try {
+    sites = await listSites(connection);
+    await prisma.searchConsoleConnection.update({
+      where: { id: CONNECTION_ID },
+      data: {
+        availableSitesJson: JSON.stringify(sites),
+        lastSyncedAt: new Date(),
+        status: 'ACTIVE',
+        lastError: null
+      }
+    });
+  } catch (error) {
+    try { sites = JSON.parse(connection.availableSitesJson || '[]'); } catch (_) { sites = []; }
+    if (!sites.length) throw error;
+  }
+
+  const siteUrl = inxSocialSite(sites);
+  if (!siteUrl) {
+    throw publicError(
+      'The connected Google account does not expose an INXSocial Search Console property. Connect or grant access to sc-domain:inxsocial.co.uk before Growth Autopilot uses Search Console.',
+      409,
+      'GSC_INXSOCIAL_PROPERTY_REQUIRED'
+    );
+  }
+  return siteUrl;
+}
+
+async function growthPerformance(days = 28) {
+  return performanceForSite(days, await growthSiteUrl());
 }
 
 async function disconnect() {
@@ -550,6 +601,9 @@ module.exports = {
   status,
   selectSite,
   performance,
+  growthPerformance,
+  growthSiteUrl,
+  inxSocialSite,
   disconnect,
   settings,
   googleRequest,
