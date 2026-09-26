@@ -21,6 +21,8 @@ const {
   ugcAvatars,
   uploadUgcAvatar,
   ugcAvatarContent,
+  downloadUgcAvatars,
+  deleteUgcAvatars,
   ugcAnalyticsSummary,
   ugcOperationsSummary
 } = require('../controllers/adminController');
@@ -77,6 +79,8 @@ router.put('/agent-access', updateAgentAccessPolicy);
 router.get('/agent-learning', agentLearning);
 router.get('/ugc-avatars', ugcAvatars);
 router.get('/ugc-avatars/:avatarId/content', ugcAvatarContent);
+router.post('/ugc-avatars/download', downloadUgcAvatars);
+router.post('/ugc-avatars/delete', deleteUgcAvatars);
 router.post('/ugc-avatars/upload', express.raw({ type: ['image/png','image/jpeg','image/webp'], limit: '12mb' }), uploadUgcAvatar);
 router.get('/ugc-analytics', ugcAnalyticsSummary);
 router.get('/ugc-operations', ugcOperationsSummary);
