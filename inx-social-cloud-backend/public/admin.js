@@ -42,6 +42,7 @@ $('refreshOverviewBtn').addEventListener('click',()=>loadOverview().catch(error=
 function growthDashboardNum(value){return Number(value||0).toLocaleString('en-GB')}
 function growthDashboardMoney(value){return '£'+Number(value||0).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2})}
 function growthDashboardPercent(value){return Number(value||0).toLocaleString('en-GB',{maximumFractionDigits:1})+'%'}
+function growthDashboardUntil(value){if(!value)return'—';const seconds=Math.floor((new Date(value).getTime()-Date.now())/1000);if(seconds<=0)return'Due now';if(seconds<3600)return'In '+Math.max(1,Math.floor(seconds/60))+'m';if(seconds<86400)return'In '+Math.floor(seconds/3600)+'h';return'In '+Math.floor(seconds/86400)+'d'}
 function growthDashboardDateLabel(value){
   const text=String(value||'');
   if(/^\d{8}$/.test(text))return text.slice(6,8)+'/'+text.slice(4,6);
@@ -112,7 +113,7 @@ function renderGrowthDashboard(data){
     ['Publishing',runtime.lastPublishedAt,runtime.nextPublishAt],
     ['Technical SEO',seo.generatedAt,null]
   ];
-  $('growthDashboardAutopilot').innerHTML=apRows.map(row=>'<div><span>'+esc(row[0])+'</span><b>'+(row[1]?esc(relative(row[1])):'Waiting')+'</b><small>'+(row[2]?'Next '+esc(relative(row[2]).replace(' ago','')):row[0]==='Technical SEO'?'Score '+esc(String(seo.score??'—')):'—')+'</small></div>').join('');
+  $('growthDashboardAutopilot').innerHTML=apRows.map(row=>'<div><span>'+esc(row[0])+'</span><b>'+(row[1]?esc(relative(row[1])):'Waiting')+'</b><small>'+(row[2]?esc(growthDashboardUntil(row[2])):row[0]==='Technical SEO'?'Score '+esc(String(seo.score??'—')):'—')+'</small></div>').join('');
   if(runtime.lastError)$('growthDashboardAutopilot').innerHTML+='<div class="warn"><span>Last error</span><b>'+esc(runtime.lastError)+'</b><small>Autopilot will retry automatically.</small></div>';
 
   const outreach=data.outreach||{},authority=data.authority||{},authorityStats=authority.stats||{};
