@@ -32,11 +32,11 @@ function popupPosition(width = 620, height = 760) {
   }
 }
 
-function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => boolean, storageKey: string) {
+function waitForOAuthPopup(popup: Window, platform: SocialPlatform, existingConnectionIds: string[], matcher: (message: OAuthMessage) => boolean, storageKey: string) {
   return new Promise<OAuthMessage>((resolve, reject) => {
     let settled = false
-    let returnedFocusCheck = 0
-    let closedGraceCheck = 0
+    let polling = false
+    const knownConnections = new Set(existingConnectionIds)
     const sameInxSocialOrigin = (origin: string) => {
       try {
         const incoming = new URL(origin)
@@ -50,11 +50,8 @@ function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => bo
     const cleanup = () => {
       window.removeEventListener('message', receive)
       window.removeEventListener('storage', receiveStored)
-      window.removeEventListener('focus', checkAfterReturn)
-      document.removeEventListener('visibilitychange', receiveVisibility)
-      window.clearTimeout(returnedFocusCheck)
-      window.clearTimeout(closedGraceCheck)
-      window.clearInterval(closedCheck)
+      window.removeEventListener('focus', pollForConnection)
+      window.clearInterval(pollInterval)
       window.clearTimeout(timeout)
       window.localStorage.removeItem(storageKey)
     }
@@ -81,33 +78,27 @@ function waitForOAuthPopup(popup: Window, matcher: (message: OAuthMessage) => bo
     const receiveStored = (event: StorageEvent) => {
       if (event.key === storageKey) consume(event.newValue)
     }
-    const confirmClosed = () => {
-      if (settled || closedGraceCheck) return
-      closedGraceCheck = window.setTimeout(() => {
-        closedGraceCheck = 0
-        if (settled || consume(window.localStorage.getItem(storageKey))) return
-        if (popup.closed) finish({ ok: false, error: 'Connection cancelled.' })
-      }, 2500)
-    }
-    const checkAfterReturn = () => {
-      window.clearTimeout(returnedFocusCheck)
-      returnedFocusCheck = window.setTimeout(() => {
-        if (settled || consume(window.localStorage.getItem(storageKey))) return
-        if (popup.closed) confirmClosed()
-      }, 650)
-    }
-    const receiveVisibility = () => {
-      if (document.visibilityState === 'visible') checkAfterReturn()
+    const pollForConnection = async () => {
+      if (settled || polling || consume(window.localStorage.getItem(storageKey))) return
+      polling = true
+      try {
+        // Cross-origin OAuth pages can make popup.closed report true while X is still open.
+        // A provider-backed sync confirms success even when the redirect cannot message us.
+        const result = await apiRequest<{ connections: SocialConnectionSummary[] }>('/api/social-connections/post-for-me/sync', { method: 'POST', body: '{}' })
+        if (!settled && result.connections.some(connection => connection.platform === platform && connection.status === 'ACTIVE' && !knownConnections.has(connection.id))) {
+          finish({ type: 'inx-social-oauth-result', ok: true, platform })
+        }
+      } catch {
+        // The provider may still be authorizing. Keep the popup active until its callback or timeout.
+      } finally {
+        polling = false
+      }
     }
     window.addEventListener('message', receive)
     window.addEventListener('storage', receiveStored)
-    window.addEventListener('focus', checkAfterReturn)
-    document.addEventListener('visibilitychange', receiveVisibility)
-    const closedCheck = window.setInterval(() => {
-      if (settled || consume(window.localStorage.getItem(storageKey))) return
-      if (popup.closed) confirmClosed()
-    }, 400)
-    const timeout = window.setTimeout(() => finish({ ok: false, error: 'The connection timed out. Please try again.' }), 5 * 60 * 1000)
+    window.addEventListener('focus', pollForConnection)
+    const pollInterval = window.setInterval(pollForConnection, 12_000)
+    const timeout = window.setTimeout(() => finish({ ok: false, error: 'We could not confirm this connection. Check Connected Accounts, then try again if it is missing.' }), 5 * 60 * 1000)
   })
 }
 
@@ -115,7 +106,7 @@ export async function connectPostForMePlatform(platform: ConnectablePlatformInpu
   if (platform === 'google_business') throw new Error('Google Business is not enabled by the current social connection gateway.')
   const storageKey = 'inx-social-oauth-result'
   window.localStorage.removeItem(storageKey)
-  const start = await apiRequest<{ authorizationUrl: string }>(`/api/social-connections/post-for-me/${platform}/start`, {
+  const start = await apiRequest<{ authorizationUrl: string; existingConnectionIds: string[] }>(`/api/social-connections/post-for-me/${platform}/start`, {
     method: 'POST',
     body: JSON.stringify(input),
   })
@@ -123,7 +114,7 @@ export async function connectPostForMePlatform(platform: ConnectablePlatformInpu
   const popup = window.open(start.authorizationUrl, `inxSocialConnect-${platform}-${window.crypto.randomUUID()}`, `popup=yes,width=${position.width},height=${position.height},left=${position.left},top=${position.top},resizable=yes,scrollbars=yes`)
   if (!popup) throw new Error('The connection popup was blocked. Allow popups for INXSocial and try again.')
   popup.focus()
-  return waitForOAuthPopup(popup, (message) => message.type === 'inx-social-oauth-result' && (!message.platform || message.platform === platform), storageKey)
+  return waitForOAuthPopup(popup, platform, start.existingConnectionIds || [], (message) => message.type === 'inx-social-oauth-result' && (!message.platform || message.platform === platform), storageKey)
 }
 
 // Compatibility wrappers used by existing screens while the migration is rolled out.

@@ -6,16 +6,17 @@ const test = require('node:test');
 const root = path.join(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('Post for Me connection popup waits for the verified OAuth result before reporting cancellation', () => {
+test('Post for Me connection never mistakes an OAuth isolation boundary for cancellation', () => {
   const api = read('frontend/src/lib/connections-api.ts');
   const controller = read('src/controllers/postForMeController.js');
   assert.match(api, /\/api\/social-connections\/post-for-me\/\$\{platform\}\/start/);
   assert.match(api, /sameInxSocialOrigin/);
   assert.match(api, /hostname/);
   assert.match(api, /sameInxSocialOrigin\(event\.origin\)/);
-  assert.match(api, /confirmClosed/);
-  assert.match(api, /2500/);
-  assert.match(api, /if \(popup\.closed\) confirmClosed\(\)/);
+  assert.doesNotMatch(api, /if \(popup\.closed\)/);
+  assert.match(api, /post-for-me\/sync/);
+  assert.match(api, /knownConnections\.has\(connection\.id\)/);
+  assert.match(controller, /existingConnectionIds/);
   assert.doesNotMatch(api, /providerNavigationStarted/);
   assert.match(controller, /postMessage\(payload,'\*'\)/);
   assert.match(controller, /isSuccess/);

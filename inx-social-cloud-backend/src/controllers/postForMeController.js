@@ -31,7 +31,11 @@ async function start(req, res, next) {
   try {
     const platform = platformSchema.parse(String(req.params.platform || '').toLowerCase());
     const input = startSchema.parse(req.body || {});
-    res.json(await postForMe.createAuthUrl(req.user.id, platform, input));
+    await postForMe.syncConnections(req.user.id, { force: true });
+    const existingConnectionIds = (await postForMe.listConnections(req.user.id))
+      .filter(connection => connection.platform === platform)
+      .map(connection => connection.id);
+    res.json({ ...(await postForMe.createAuthUrl(req.user.id, platform, input)), existingConnectionIds });
   } catch (error) { next(error); }
 }
 
