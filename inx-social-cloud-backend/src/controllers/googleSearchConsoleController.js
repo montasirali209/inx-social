@@ -61,7 +61,7 @@ async function oauthCallback(req, res) {
     return res.redirect(303, adminReturnUrl({ gsc: 'connected' }));
   } catch (error) {
     const message = String(error.publicMessage || error.message || 'Google Search Console connection failed.').slice(0, 280);
-    const returnToGrowth = String(req.query?.state || '').includes('growthIntelligence');
+    const returnToGrowth = searchConsole.oauthReturnTarget(req.query?.state) === 'growthIntelligence';
     return res.redirect(303, adminReturnUrl(returnToGrowth ? { google: 'growth-error', message } : { gsc: 'error', message }));
   }
 }
