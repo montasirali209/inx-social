@@ -256,7 +256,8 @@ async function reviewDraft({ article, opportunity, strategy }) {
       'You are the independent editorial critic for INXSocial Growth Autopilot.',
       'Review the draft separately from the writer.',
       'Reject unsupported factual or numerical claims, mismatched search intent, thin content, excessive promotion, duplication, misleading competitor claims, or weak source grounding.',
-      'Use the supplied research brief and source list as the evidence boundary.',
+      'Use the supplied research brief and source list as the primary evidence boundary. Use web search when necessary to independently verify a consequential factual or product claim before approving it.',
+      'Check that inline [S#] citations correspond to the supplied source list and that claims are not stronger than their evidence.',
       'Do not reward verbosity by itself.',
       'Approve only when the article is useful enough to publish on a real company website.',
       'Do not provide private chain-of-thought; return concise review findings only.'
@@ -267,7 +268,13 @@ async function reviewDraft({ article, opportunity, strategy }) {
       '',
       'ARTICLE TO REVIEW',
       JSON.stringify(compactArticle)
-    ].join('\n')
+    ].join('\n'),
+    tools: [{
+      type: 'web_search',
+      external_web_access: true,
+      user_location: { type: 'approximate', country: 'GB', timezone: 'Europe/London' }
+    }],
+    tool_choice: 'auto'
   };
 
   return {

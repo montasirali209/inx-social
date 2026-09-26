@@ -201,6 +201,41 @@ function normalizeSources(values) {
   return result;
 }
 
+function sourceMatchKey(value) {
+  try {
+    const url = new URL(String(value || ''));
+    const pathname = url.pathname.replace(/\/+$/, '') || '/';
+    return (url.origin + pathname).toLowerCase();
+  } catch (_) {
+    return '';
+  }
+}
+
+function bindResearchEvidence(brief, sources) {
+  const byKey = new Map();
+  for (const source of sources || []) {
+    const key = sourceMatchKey(source.url);
+    if (key) byKey.set(key, source);
+  }
+
+  const facts = (Array.isArray(brief?.facts) ? brief.facts : []).map(item => {
+    const source = byKey.get(sourceMatchKey(item?.source_url));
+    if (!source) return null;
+    return {
+      claim: normalizeSpace(item.claim).slice(0, 900),
+      support: normalizeSpace(item.support).slice(0, 1200),
+      source_ref: source.id,
+      source_url: source.url
+    };
+  }).filter(item => item?.claim && item?.support && item?.source_ref);
+
+  return {
+    ...brief,
+    facts,
+    evidenceSourceRefs: [...new Set(facts.map(item => item.source_ref))]
+  };
+}
+
 function escapeHtml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
@@ -393,10 +428,11 @@ function researchSchema() {
         items: {
           type: 'object',
           additionalProperties: false,
-          required: ['claim', 'support'],
+          required: ['claim', 'support', 'source_url'],
           properties: {
             claim: { type: 'string' },
-            support: { type: 'string' }
+            support: { type: 'string' },
+            source_url: { type: 'string' }
           }
         }
       },
@@ -516,6 +552,7 @@ async function researchTopic(input) {
       'Use reputable independent sources where they add context. Avoid scraped listicles, thin affiliate roundups, anonymous SEO pages and sources that merely repeat another source.',
       'For comparison topics, separate verified product facts from editorial judgement and identify the criteria a buyer should use.',
       'Look for practical caveats, limitations, trade-offs, current terminology and questions a serious buyer or operator would ask.',
+      'Every item in facts must include source_url copied from a web result you actually opened or used. Never invent a source URL.',
       'Do not copy competitor wording and do not make unsupported numerical claims.',
       'Return JSON only in the requested schema.'
     ].join(' '),
@@ -548,7 +585,15 @@ async function researchTopic(input) {
   );
 
   if (!sources.length) throw publicError('Content research returned no verifiable web sources.', 502, 'CONTENT_RESEARCH_EMPTY');
-  return { brief: parsed, sources, model: env.webResearch.model };
+  const brief = bindResearchEvidence(parsed, sources);
+  if (brief.facts.length < 3) {
+    throw publicError(
+      'Content research did not bind enough factual claims to verified web sources.',
+      502,
+      'CONTENT_RESEARCH_EVIDENCE_WEAK'
+    );
+  }
+  return { brief, sources, model: env.webResearch.model };
 }
 
 async function writeArticle(input, research) {
@@ -561,6 +606,7 @@ async function writeArticle(input, research) {
     instructions: [
       'You are the senior editorial writer for INXSocial. Write like a specialist publication, not a generic SEO content generator.',
       'Create an original, useful article from the research brief and verified source pack. The reader should leave with a clear answer, decision framework and practical next step.',
+      'Treat research_brief.facts as the evidence ledger: each fact has a source_ref already bound to a verified source. Prefer those facts for externally verifiable claims and cite the bound source_ref.',
       'Use British English and an expert but plain-spoken tone.',
       'Answer the primary question early. quick_answer should be a direct 45-90 word answer suitable for a human reader and a search snippet.',
       'key_takeaways must contain 3-6 specific, non-repetitive takeaways.',
@@ -658,7 +704,7 @@ function articleSchemaObjects(article) {
     mainEntityOfPage: canonical,
     datePublished: article.published_at || undefined,
     dateModified: article.updated_at || article.created_at,
-    author: { '@type': 'Organization', name: 'INXSocial Editorial', url: SITE_URL + '/about' },
+    author: { '@type': 'Organization', name: 'INXSocial Editorial', url: SITE_URL },
     publisher: { '@type': 'Organization', name: 'INXSocial', url: SITE_URL },
     image: article.featured_image_url ? [absoluteSiteAsset(versionedContentImageUrl(article))] : undefined,
     keywords: (article.keywords || []).join(', '),

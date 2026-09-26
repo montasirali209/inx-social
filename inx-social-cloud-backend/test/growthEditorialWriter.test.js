@@ -67,3 +67,29 @@ test('article structured data exposes BlogPosting, citations and word count', ()
   assert.match(service, /citation: normalizeSources/);
   assert.match(service, /inLanguage: 'en-GB'/);
 });
+
+
+test('research facts are bound to verified web-search sources before writing', () => {
+  const service = read('src/services/growthContentService.js');
+
+  assert.match(service, /source_url/);
+  assert.match(service, /bindResearchEvidence/);
+  assert.match(service, /source_ref/);
+  assert.match(service, /CONTENT_RESEARCH_EVIDENCE_WEAK/);
+  assert.match(service, /facts\.length < 3/);
+});
+
+test('independent critic may verify consequential claims with live web search', () => {
+  const strategist = read('src/services/growthStrategyService.js');
+
+  assert.match(strategist, /independently verify a consequential factual or product claim/);
+  assert.match(strategist, /type: 'web_search'/);
+  assert.match(strategist, /tool_choice: 'auto'/);
+});
+
+test('BlogPosting author URL resolves to the canonical site instead of a nonexistent profile page', () => {
+  const service = read('src/services/growthContentService.js');
+
+  assert.match(service, /name: 'INXSocial Editorial', url: SITE_URL/);
+  assert.doesNotMatch(service, /SITE_URL \+ '\/about'/);
+});
