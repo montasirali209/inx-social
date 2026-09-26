@@ -141,7 +141,7 @@
 
 /* Phase 1 Growth Intelligence */
 .growth-heading{align-items:flex-end}.growth-heading>div{max-width:880px}
-.growth-provider-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.growth-provider-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:14px}
 .growth-provider-card{min-width:0;border:1px solid var(--line);border-radius:15px;background:linear-gradient(145deg,rgba(9,29,42,.9),rgba(3,15,24,.96));padding:14px}
 .growth-provider-card span,.growth-provider-card b,.growth-provider-card small{display:block}.growth-provider-card span{color:var(--muted);font-size:8px;font-weight:850;text-transform:uppercase;letter-spacing:.1em}.growth-provider-card b{margin-top:7px;font-size:15px}.growth-provider-card small{margin-top:5px;color:var(--muted);font-size:8px;line-height:1.45}.growth-provider-card.ok{border-color:rgba(20,184,166,.24)}.growth-provider-card.ok b{color:#5eead4}.growth-provider-card.warn{border-color:rgba(245,158,11,.22)}.growth-provider-card.warn b{color:#fbbf24}.growth-provider-card.loading{opacity:.7}
 .growth-main-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,.65fr);gap:14px}.growth-audit-panel header,.growth-prompt-panel header,.growth-action-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.growth-audit-panel h2,.growth-prompt-panel h2,.growth-action-head h2{margin:4px 0 0}.growth-audit-panel>p,.growth-prompt-panel>p,.growth-action-head p{font-size:10px}
@@ -155,3 +155,30 @@
 .growth-reddit-list{display:grid;gap:8px;margin-top:14px}.growth-reddit-row{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.018)}.growth-reddit-row b,.growth-reddit-row small{display:block}.growth-reddit-row b{font-size:10px}.growth-reddit-row small{margin-top:3px;color:#c4b5fd;font-size:7px}.growth-reddit-row p{margin:6px 0 0;color:var(--muted);font-size:8px;line-height:1.5}.growth-reddit-row a{flex:0 0 auto;border:1px solid rgba(34,211,238,.18);border-radius:9px;padding:7px 9px;color:#67e8f9;font-size:8px;text-decoration:none}.growth-empty{display:grid;min-height:72px;place-items:center;color:var(--muted);font-size:9px;text-align:center}
 @media(max-width:1180px){.growth-provider-grid{grid-template-columns:repeat(2,1fr)}.growth-main-grid{grid-template-columns:1fr}}
 @media(max-width:700px){.growth-provider-grid,.growth-visibility-kpis,.growth-crawler-grid{grid-template-columns:1fr}.growth-score-row{grid-template-columns:1fr}.growth-action-head,.growth-audit-panel header,.growth-prompt-panel header{align-items:flex-start;flex-direction:column}.growth-actions{width:100%;align-items:stretch;flex-direction:column}.growth-actions label{width:100%}.growth-action-head button,.growth-audit-panel header button{width:100%}.growth-reddit-row,.growth-result{align-items:flex-start;flex-direction:column}.growth-reddit-row a{width:100%;text-align:center}}
+
+
+/* Phase 1B website analytics + provider comparison */
+.growth-analytics-panel{margin-top:14px}
+.growth-analytics-controls{display:grid;grid-template-columns:minmax(210px,1fr) 150px auto auto;gap:9px;align-items:end;margin-top:14px}
+.growth-analytics-controls label{margin:0;font-size:8px}
+.growth-ga-message{margin-top:10px;padding:10px 12px;border:1px solid rgba(34,211,238,.13);border-radius:11px;background:rgba(34,211,238,.025);color:var(--muted);font-size:8px;line-height:1.5}
+.growth-subhead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:18px}.growth-subhead.historical{padding-top:16px;border-top:1px solid rgba(148,163,184,.09)}
+.growth-subhead h3{margin:4px 0 0;font-size:15px}.growth-subhead>span{color:var(--muted);font-size:8px}
+.growth-analytics-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;margin-top:10px}
+#growthRealtimeKpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+.growth-analytics-kpis article{min-width:0;border:1px solid var(--line);border-radius:13px;background:linear-gradient(145deg,rgba(7,27,40,.84),rgba(2,12,22,.72));padding:12px}
+.growth-analytics-kpis span,.growth-analytics-kpis b,.growth-analytics-kpis small{display:block}.growth-analytics-kpis span{color:var(--muted);font-size:7px;font-weight:850;text-transform:uppercase;letter-spacing:.1em}.growth-analytics-kpis b{margin-top:6px;font-size:21px}.growth-analytics-kpis small{margin-top:4px;color:var(--muted);font-size:7px}
+.growth-analytics-live-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:10px}
+.growth-analytics-history-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}
+.growth-mini-panel{min-width:0;border:1px solid var(--line);border-radius:14px;background:rgba(2,12,22,.35);padding:13px}.growth-pages-panel{margin-top:9px}
+.growth-mini-head{display:flex;align-items:center;justify-content:space-between;gap:10px}.growth-mini-head b{font-size:9px}.growth-mini-head small{color:var(--muted);font-size:7px}
+.growth-breakdown-list,.growth-funnel-list{display:grid;gap:7px;margin-top:10px}
+.growth-breakdown-row,.growth-funnel-row{display:grid;grid-template-columns:minmax(90px,.75fr) minmax(70px,1fr) 48px;gap:8px;align-items:center}
+.growth-breakdown-row b,.growth-breakdown-row small,.growth-funnel-row b,.growth-funnel-row small{display:block}.growth-breakdown-row b,.growth-funnel-row b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:8px}.growth-breakdown-row small,.growth-funnel-row small{margin-top:2px;color:var(--muted);font-size:7px}.growth-breakdown-row strong,.growth-funnel-row strong{text-align:right;font-size:8px}
+.growth-mini-track{height:6px;overflow:hidden;border-radius:999px;background:rgba(148,163,184,.09)}.growth-mini-track i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#14b8a6,#67e8f9)}
+.growth-visibility-provider-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:14px}
+.growth-visibility-provider-card{border:1px solid var(--line);border-radius:12px;background:rgba(2,12,22,.36);padding:11px;color:var(--text);text-align:left}.growth-visibility-provider-card:hover,.growth-visibility-provider-card.active{border-color:rgba(34,211,238,.32);background:rgba(20,184,166,.055)}
+.growth-visibility-provider-card span,.growth-visibility-provider-card b,.growth-visibility-provider-card small{display:block}.growth-visibility-provider-card span{color:var(--muted);font-size:7px;font-weight:850;text-transform:uppercase;letter-spacing:.09em}.growth-visibility-provider-card b{margin-top:5px;font-size:20px;color:#5eead4}.growth-visibility-provider-card small{margin-top:3px;color:var(--muted);font-size:7px;line-height:1.4}
+@media(max-width:1280px){.growth-provider-grid{grid-template-columns:repeat(3,1fr)}.growth-analytics-controls{grid-template-columns:1fr 1fr}.growth-analytics-controls button{width:100%}}
+@media(max-width:900px){.growth-analytics-kpis,#growthRealtimeKpis{grid-template-columns:repeat(2,1fr)}.growth-analytics-live-grid,.growth-analytics-history-grid{grid-template-columns:1fr}}
+@media(max-width:700px){.growth-analytics-controls,.growth-visibility-provider-summary{grid-template-columns:1fr}.growth-analytics-kpis,#growthRealtimeKpis{grid-template-columns:1fr}.growth-breakdown-row,.growth-funnel-row{grid-template-columns:1fr 44px}.growth-mini-track{display:none}}
