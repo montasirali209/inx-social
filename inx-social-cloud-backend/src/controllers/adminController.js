@@ -1,6 +1,5 @@
 const prisma = require('../db/prisma');
 const crypto = require('crypto');
-const zlib = require('zlib');
 const { z } = require('zod');
 const { hashPassword } = require('../utils/auth');
 const aiModelRouting = require('../services/aiModelRoutingService');
