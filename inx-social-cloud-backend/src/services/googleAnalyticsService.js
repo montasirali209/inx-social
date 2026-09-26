@@ -299,7 +299,7 @@ async function performance(days = 28) {
   const previousStart = `${periodDays * 2 - 1}daysAgo`;
   const previousEnd = `${periodDays}daysAgo`;
 
-  const [summaryPayload, previousPayload, dailyPayload, pagePayload, channelPayload, eventPayload] = await Promise.all([
+  const [summaryPayload, previousPayload, dailyPayload, pagePayload, channelPayload, eventPayload, previousPagePayload, acquisitionPayload] = await Promise.all([
     dataRequest(propertyId, 'runReport', summaryRequest(currentStart, 'today')),
     dataRequest(propertyId, 'runReport', summaryRequest(previousStart, previousEnd)),
     dataRequest(propertyId, 'runReport', {
@@ -312,14 +312,14 @@ async function performance(days = 28) {
     dataRequest(propertyId, 'runReport', {
       dateRanges: [{ startDate: currentStart, endDate: 'today' }],
       dimensions: [{ name: 'landingPagePlusQueryString' }],
-      metrics: [{ name: 'sessions' }, { name: 'activeUsers' }, { name: 'screenPageViews' }, { name: 'keyEvents' }],
+      metrics: [{ name: 'sessions' }, { name: 'activeUsers' }, { name: 'screenPageViews' }, { name: 'keyEvents' }, { name: 'totalRevenue' }],
       limit: 20,
       orderBys: [{ metric: { metricName: 'sessions' }, desc: true }]
     }),
     dataRequest(propertyId, 'runReport', {
       dateRanges: [{ startDate: currentStart, endDate: 'today' }],
       dimensions: [{ name: 'sessionDefaultChannelGroup' }],
-      metrics: [{ name: 'sessions' }, { name: 'activeUsers' }, { name: 'keyEvents' }],
+      metrics: [{ name: 'sessions' }, { name: 'activeUsers' }, { name: 'keyEvents' }, { name: 'totalRevenue' }],
       limit: 20,
       orderBys: [{ metric: { metricName: 'sessions' }, desc: true }]
     }),
@@ -329,6 +329,20 @@ async function performance(days = 28) {
       metrics: [{ name: 'eventCount' }],
       limit: 100,
       orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }]
+    }),
+    dataRequest(propertyId, 'runReport', {
+      dateRanges: [{ startDate: previousStart, endDate: previousEnd }],
+      dimensions: [{ name: 'landingPagePlusQueryString' }],
+      metrics: [{ name: 'sessions' }, { name: 'activeUsers' }, { name: 'screenPageViews' }, { name: 'keyEvents' }, { name: 'totalRevenue' }],
+      limit: 50,
+      orderBys: [{ metric: { metricName: 'sessions' }, desc: true }]
+    }),
+    dataRequest(propertyId, 'runReport', {
+      dateRanges: [{ startDate: currentStart, endDate: 'today' }],
+      dimensions: [{ name: 'sessionSource' }, { name: 'sessionMedium' }],
+      metrics: [{ name: 'sessions' }, { name: 'activeUsers' }, { name: 'keyEvents' }, { name: 'totalRevenue' }],
+      limit: 50,
+      orderBys: [{ metric: { metricName: 'sessions' }, desc: true }]
     })
   ]);
 
@@ -351,7 +365,9 @@ async function performance(days = 28) {
     },
     daily: mapRows(dailyPayload),
     landingPages: mapRows(pagePayload),
+    previousLandingPages: mapRows(previousPagePayload),
     channels: mapRows(channelPayload),
+    acquisitionSources: mapRows(acquisitionPayload),
     events,
     funnel: {
       signUp: Number(eventCounts.sign_up || 0),
