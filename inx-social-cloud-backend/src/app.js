@@ -25,6 +25,7 @@ const agentRoutes = require('./routes/agentRoutes');
 const socialPlatformRoutes = require('./routes/socialPlatformRoutes');
 const socialConnectionRoutes = require('./routes/socialConnectionRoutes');
 const socialPublicationRoutes = require('./routes/socialPublicationRoutes');
+const growthContentPublicRoutes = require('./routes/growthContentPublicRoutes');
 const packageInfo = require('../package.json');
 const env = require('./config/env');
 
@@ -358,6 +359,7 @@ app.post('/api/ai-content-studio/credits/webhook', express.raw({ type: 'applicat
 
 app.use(express.json({ limit: '2mb' }));
 app.use('/api/releases', releaseRoutes);
+app.use('/api/growth-content', growthContentPublicRoutes);
 
 app.use('/_next', async (req, res, next) => {
   if (!['GET', 'HEAD'].includes(req.method) || !isNextLandingEnabled()) return next();
