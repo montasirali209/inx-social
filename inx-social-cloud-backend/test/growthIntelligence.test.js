@@ -16,16 +16,16 @@ test('Growth Intelligence admin routes are protected and exposed', () => {
   assert.match(routes, /growth-intelligence\/reddit-opportunities', requireSuperAdmin/);
 });
 
-test('Growth Intelligence UI exposes audit, visibility and Reddit discovery without auto-posting', () => {
+test('Growth Intelligence UI exposes audit and AI visibility without Reddit automation', () => {
   const html = read('public/index.html');
   const js = read('public/admin.js');
   assert.match(html, /data-page="growthIntelligence"/);
   assert.match(html, /Crawler & indexability audit/);
   assert.match(html, /AI search visibility probes/);
-  assert.match(html, /Reddit opportunities/);
+  assert.doesNotMatch(html, /Reddit opportunities/);
   assert.match(js, /\/api\/admin\/growth-intelligence\/site-audit/);
   assert.match(js, /\/api\/admin\/growth-intelligence\/openai-visibility/);
-  assert.match(js, /\/api\/admin\/growth-intelligence\/reddit-opportunities/);
+  assert.doesNotMatch(js, /\/api\/admin\/growth-intelligence\/reddit-opportunities/);
   assert.doesNotMatch(js, /reddit\.com\/api\/submit|api\/v1\/me|oauth\.reddit/);
 });
 
