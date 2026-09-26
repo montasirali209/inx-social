@@ -30,6 +30,12 @@ test('admin Control Centre can bulk upload reusable UGC creators with voice-safe
   assert.match(controller, /ADMIN_UGC_AVATAR_UPLOAD/);
 
   assert.match(service, /normalizeAdminPresentation/);
+  assert.match(service, /ADMIN_CREATOR_FIRST_NAMES/);
+  assert.match(service, /ADMIN_CREATOR_SURNAMES/);
+  assert.match(service, /shuffledCreatorCandidates/);
+  assert.match(service, /repairGenericSystemAvatarNames/);
+  assert.match(service, /genericSystemAvatarName/);
+  assert.match(service, /Assigned friendly names to/);
   assert.match(service, /narratorVoice\('', \{ presentation \}\)/);
   assert.match(service, /return 'Callum'/);
   assert.match(service, /return 'Pippa'/);
@@ -46,4 +52,12 @@ test('admin-uploaded system creators flow into the same UGC Browse creators libr
   assert.match(service, /avatars: publicAvatars/);
   assert.match(wizard, /const allCreators = overview\.data\?\.avatars \|\| \[\]/);
   assert.match(wizard, /Browse creators/);
+});
+
+
+test('future admin uploads never fall back to numbered Female Creator or Male Creator labels', () => {
+  const service = read('src/services/ugcStudioService.js');
+  assert.doesNotMatch(service, /Female Creator' : presentation === 'Man' \? 'Male Creator/);
+  assert.match(service, /return fallbackFirst \+ ' ' \+ suffix/);
+  assert.match(service, /crypto\.randomInt/);
 });
