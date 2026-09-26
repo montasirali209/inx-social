@@ -217,7 +217,6 @@ async function build(days = 28) {
       search: null,
       analytics: null,
       ai: [],
-      reddit: [],
       existingPage: null,
       action: {
         type: 'TECHNICAL_FIX',
@@ -246,7 +245,6 @@ async function build(days = 28) {
       },
       analytics: null,
       ai,
-      reddit: [],
       existingPage: queryPage?.page || null,
       action: actionFor({
         query: row.query,
@@ -286,7 +284,6 @@ async function build(days = 28) {
       search: null,
       analytics: null,
       ai: item.providers,
-      reddit: [],
       existingPage: null,
       action: {
         type: 'BUILD_AUTHORITY_CONTENT',
