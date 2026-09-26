@@ -2,6 +2,7 @@ const axios = require('axios');
 const prisma = require('../db/prisma');
 const env = require('../config/env');
 const webResearch = require('./webResearchService');
+const externalVisibility = require('./externalVisibilityService');
 
 const SITE_ORIGIN = 'https://www.inxsocial.co.uk';
 const AUDIT_SETTING_KEY = 'growth_intelligence_site_audit_v1';
@@ -50,6 +51,7 @@ async function writeSetting(key, value, description) {
 }
 
 function providerStatus() {
+  const external = externalVisibility.providerStatus();
   return {
     openai: {
       label: 'OpenAI web-search probe',
@@ -57,18 +59,8 @@ function providerStatus() {
       model: env.webResearch?.model || null,
       note: 'API web-search probe; it is not a guaranteed reproduction of consumer ChatGPT results.'
     },
-    perplexity: {
-      label: 'Perplexity',
-      configured: Boolean(process.env.PERPLEXITY_API_KEY),
-      model: String(process.env.PERPLEXITY_VISIBILITY_PRESET || 'fast').trim(),
-      note: 'Ready when PERPLEXITY_API_KEY is configured.'
-    },
-    claude: {
-      label: 'Claude',
-      configured: Boolean(process.env.ANTHROPIC_API_KEY),
-      model: String(process.env.ANTHROPIC_VISIBILITY_MODEL || 'claude-sonnet-5').trim(),
-      note: 'Ready when ANTHROPIC_API_KEY is configured.'
-    },
+    perplexity: external.perplexity,
+    claude: external.claude,
     reddit: {
       label: 'Reddit opportunity discovery',
       configured: Boolean(env.webResearch?.apiKey && env.webResearch?.baseUrl && env.webResearch?.model),
@@ -377,14 +369,15 @@ async function discoverRedditOpportunities() {
 }
 
 async function overview() {
-  const [audit, openaiVisibility, reddit, gscConnection] = await Promise.all([
+  const [audit, openaiVisibility, reddit, gscConnection, externalLatest] = await Promise.all([
     readSetting(AUDIT_SETTING_KEY),
     readSetting(OPENAI_SETTING_KEY),
     readSetting(REDDIT_SETTING_KEY),
     prisma.searchConsoleConnection.findUnique({
       where: { id: 'primary' },
       select: { status: true, selectedSiteUrl: true, lastSyncedAt: true, lastError: true }
-    })
+    }),
+    externalVisibility.latest()
   ]);
   return {
     generatedAt: new Date().toISOString(),
@@ -397,7 +390,7 @@ async function overview() {
       lastError: gscConnection?.lastError || null
     },
     prompts: DEFAULT_PROMPTS,
-    latest: { audit, openaiVisibility, reddit }
+    latest: { audit, openaiVisibility, ...externalLatest, reddit }
   };
 }
 
