@@ -33,6 +33,7 @@ const growthContent = require('../controllers/growthContentController');
 const growthAutopilot = require('../controllers/growthAutopilotController');
 const growthSeoMaintenance = require('../controllers/growthSeoMaintenanceController');
 const growthAuthority = require('../controllers/growthAuthorityController');
+const growthOptimization = require('../controllers/growthOptimizationController');
 const adminSecurityRoutes = require('./adminSecurityRoutes');
 
 router.get('/search-console/oauth/callback', googleSearchConsole.oauthCallback);
@@ -69,6 +70,9 @@ router.post('/growth-seo-maintenance/run-now', requireSuperAdmin, growthSeoMaint
 router.get('/growth-authority/status', growthAuthority.status);
 router.post('/growth-authority/run-now', requireSuperAdmin, growthAuthority.runNow);
 router.post('/growth-authority/prospects/:id/action', requireSuperAdmin, growthAuthority.prospectAction);
+router.get('/growth-optimization/status', growthOptimization.status);
+router.post('/growth-optimization/run-now', requireSuperAdmin, growthOptimization.runNow);
+router.post('/growth-optimization/actions/:id', requireSuperAdmin, growthOptimization.action);
 router.post('/search-console/oauth/start', requireSuperAdmin, googleSearchConsole.startOAuth);
 router.post('/search-console/site', requireSuperAdmin, googleSearchConsole.selectSite);
 router.get('/search-console/performance', googleSearchConsole.performance);
