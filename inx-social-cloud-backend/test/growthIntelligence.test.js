@@ -11,6 +11,8 @@ test('Growth Intelligence admin routes are protected and exposed', () => {
   assert.match(routes, /growth-intelligence\/overview/);
   assert.match(routes, /growth-intelligence\/site-audit', requireSuperAdmin/);
   assert.match(routes, /growth-intelligence\/openai-visibility', requireSuperAdmin/);
+  assert.match(routes, /growth-intelligence\/provider-visibility', requireSuperAdmin/);
+  assert.match(routes, /growth-intelligence\/analytics\/property', requireSuperAdmin/);
   assert.match(routes, /growth-intelligence\/reddit-opportunities', requireSuperAdmin/);
 });
 
@@ -19,7 +21,7 @@ test('Growth Intelligence UI exposes audit, visibility and Reddit discovery with
   const js = read('public/admin.js');
   assert.match(html, /data-page="growthIntelligence"/);
   assert.match(html, /Crawler & indexability audit/);
-  assert.match(html, /OpenAI web-search probe/);
+  assert.match(html, /AI search visibility probes/);
   assert.match(html, /Reddit opportunities/);
   assert.match(js, /\/api\/admin\/growth-intelligence\/site-audit/);
   assert.match(js, /\/api\/admin\/growth-intelligence\/openai-visibility/);
