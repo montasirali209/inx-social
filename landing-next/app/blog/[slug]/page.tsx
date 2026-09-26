@@ -116,6 +116,7 @@ export default async function BlogArticlePage({
   const takeaways = Array.isArray(article.key_takeaways) ? article.key_takeaways : [];
   const comparison = Array.isArray(article.comparison) ? article.comparison : [];
   const quickAnswer = article.quick_answer || article.excerpt || article.meta_description || null;
+  const sourceById = new Map(sources.map((source, index) => [String(source.id || `S${index + 1}`).toUpperCase(), source]));
 
   return (
     <main className="inx-blog-main">
@@ -200,6 +201,7 @@ export default async function BlogArticlePage({
                     <th>Best for</th>
                     <th>Strength</th>
                     <th>Consideration</th>
+                    <th>Sources</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -209,6 +211,17 @@ export default async function BlogArticlePage({
                       <td>{row.best_for}</td>
                       <td>{row.strength}</td>
                       <td>{row.consideration}</td>
+                      <td className="inx-blog-comparison-sources">
+                        {(row.source_refs || []).map((ref) => {
+                          const source = sourceById.get(String(ref).toUpperCase());
+                          if (!source) return null;
+                          return (
+                            <a key={ref} href={source.url} target="_blank" rel="noopener noreferrer">
+                              [{String(ref).replace(/^S/i, "")}]
+                            </a>
+                          );
+                        })}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
