@@ -457,6 +457,7 @@ export default async function SeoMarketingPage({
             <Link href="/pricing">Pricing</Link>
             <a href="https://inaxx.co.uk/">INAXX LTD</a>
             <a href="/privacy.html">Privacy</a>
+            <a href="/privacy.html#cookie-settings">Cookie settings</a>
             <a href="/terms.html">Terms</a>
           </div>
         </div>

@@ -142,7 +142,7 @@ async function buildSocialPreviewAsset() {
 }
 const CANONICAL_BROWSER_HOST = 'www.inxsocial.co.uk';
 const MIGRATION_BROWSER_HOSTS = new Set(['social.inaxx.co.uk', 'inxsocial.co.uk']);
-const ANALYTICS_SCRIPT_TAG = '<script src="/analytics-consent.js?v=20260916a" defer></script>';
+const ANALYTICS_SCRIPT_TAG = '<script src="/analytics-consent.js?v=20260926a" defer></script>';
 const TRACKED_PUBLIC_HTML = [
   '/privacy.html',
   '/terms.html',
