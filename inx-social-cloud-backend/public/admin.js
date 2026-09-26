@@ -886,6 +886,13 @@ $('growthGaManualSaveBtn').addEventListener('click',()=>void saveManualGrowthGaP
 $('growthGaPeriod').addEventListener('change',()=>void loadGrowthAnalyticsPerformance());
 $('growthGaRefreshBtn').addEventListener('click',()=>void refreshGrowthAnalytics());
 $('discoverRedditBtn').addEventListener('click',()=>void discoverGrowthReddit());
+document.querySelector('.growth-advanced-details')?.addEventListener('toggle',event=>{
+  if(event.currentTarget.open&&state.growthAnalytics?.status?.selectedProperty){
+    void Promise.all([loadGrowthAnalyticsRealtime(true),loadGrowthAnalyticsPerformance()]).then(()=>startGrowthRealtimePolling()).catch(()=>{});
+  }else if(!event.currentTarget.open){
+    clearInterval(state.growthRealtimeTimer);state.growthRealtimeTimer=null;
+  }
+});
 
 
 function contentStatusBadge(status){
