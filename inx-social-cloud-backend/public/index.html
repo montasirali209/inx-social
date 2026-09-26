@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=15">
+  <link rel="stylesheet" href="/admin.css?v=16">
   <link rel="stylesheet" href="/admin-security.css?v=1">
 </head>
 <body>
@@ -356,6 +356,22 @@
         </div>
       </section>
 
+      <section class="panel growth-authority-panel">
+        <header class="growth-authority-head">
+          <div><span class="kicker">Phase 4 · Authority + communities + backlinks</span><h2>Authority + Community Autopilot</h2><p>Runs every 6 hours. It discovers and validates community discussions, mentions, backlink/resource opportunities, publications, directories, partners and AI-citation sources, then prepares transparent replies or outreach for review.</p></div>
+          <div class="growth-authority-actions"><span class="status-chip" id="growthAuthorityStatus">Waiting for first run</span><button class="secondary" id="growthAuthorityRunBtn" type="button">Run authority scan now</button></div>
+        </header>
+        <div class="growth-authority-kpis" id="growthAuthorityKpis">
+          <article><span>Open prospects</span><b>—</b><small>Qualified external opportunities</small></article>
+          <article><span>Communities</span><b>—</b><small>Reddit, Quora and discussions</small></article>
+          <article><span>Drafts ready</span><b>—</b><small>Useful replies or outreach</small></article>
+          <article><span>Authority won</span><b>—</b><small>Links, mentions and AI citations</small></article>
+        </div>
+        <div class="growth-authority-meta"><span id="growthAuthorityUpdated">No authority scan yet.</span><span id="growthAuthorityProvider">Discovery and drafting status will appear here.</span></div>
+        <div class="growth-authority-queue" id="growthAuthorityQueue"><div class="growth-empty">Phase 4 will populate this queue automatically.</div></div>
+        <div class="growth-authority-guardrail">Community posts are never auto-submitted without a compliant configured posting connector. Email outreach is capped, requires approval, and can send only one follow-up.</div>
+      </section>
+
       <details class="growth-advanced-details">
         <summary><span><b>Advanced diagnostics &amp; manual controls</b><small>Normally you do not need to use anything below. Autopilot runs these tasks for you.</small></span><span aria-hidden="true">⌄</span></summary>
         <div class="growth-advanced-body">
@@ -641,6 +657,6 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=14" defer></script>
+<script src="/admin.js?v=15" defer></script>
 </body>
 </html>
