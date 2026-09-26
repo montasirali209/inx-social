@@ -5,10 +5,10 @@ let stripeClient;
 
 const PAID_PLANS = Object.freeze(['CREATOR', 'PRO', 'BUSINESS', 'AGENCY']);
 const DEFINITIONS = Object.freeze({
-  CREATOR: { id: 'CREATOR', name: 'Creator', price: 18.99, pages: 5, aiCredits: 150, support: 'standard' },
-  PRO: { id: 'PRO', name: 'Pro', price: 34.99, pages: 12, aiCredits: 500, support: 'priority' },
-  BUSINESS: { id: 'BUSINESS', name: 'Business', price: 59.99, pages: 25, aiCredits: 1200, support: 'priority' },
-  AGENCY: { id: 'AGENCY', name: 'Agency', price: 99.99, pages: 50, aiCredits: 2500, support: 'priority_plus' }
+  CREATOR: { id: 'CREATOR', name: 'Creator', price: 18.99, pages: 5, aiCredits: 300, support: 'standard' },
+  PRO: { id: 'PRO', name: 'Pro', price: 34.99, pages: 12, aiCredits: 900, support: 'priority' },
+  BUSINESS: { id: 'BUSINESS', name: 'Business', price: 59.99, pages: 25, aiCredits: 2000, support: 'priority' },
+  AGENCY: { id: 'AGENCY', name: 'Agency', price: 99.99, pages: 50, aiCredits: 4000, support: 'priority_plus' }
 });
 
 function isConfigured() {
