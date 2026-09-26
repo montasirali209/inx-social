@@ -643,7 +643,7 @@ function renderGrowthAuthority(data){
   $('growthAuthorityProvider').textContent='Live research '+(provider.liveResearch?'ready':'not configured')+' · Sol drafting '+(provider.writer?'ready':'not configured')+' · Approved email '+(provider.email?'ready':'not configured')+' · Community posting approval-gated';
   $('growthAuthorityKpis').innerHTML=[
     ['Open prospects',Number(stats.total||0),Number(stats.backlinkProspects||0)+' backlink/resource opportunities'],
-    ['Communities',Number(stats.communities||0),'Reddit, Quora and relevant discussions'],
+    ['Communities',Number(stats.communities||0),'Quora and relevant discussions'],
     ['Drafts ready',Number(stats.outreachDrafts||0),Number(stats.approved||0)+' approved'],
     ['Authority won',won,Number(stats.acquiredLinks||0)+' links · '+Number(stats.mentions||0)+' mentions · '+Number(stats.aiCitations||0)+' AI citations']
   ].map(item=>'<article><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b><small>'+esc(item[2])+'</small></article>').join('');
@@ -652,7 +652,7 @@ function renderGrowthAuthority(data){
     const draft=item.draft?.communityReply||item.draft?.outreachBody||'Draft will be generated after validation.';
     const status=String(item.status||'QUALIFIED');
     const canApprove=status==='QUALIFIED'&&Boolean(item.draft?.communityReply||item.draft?.outreachBody);
-    const isCommunity=['REDDIT','QUORA','COMMUNITY'].includes(item.type);
+    const isCommunity=['QUORA','COMMUNITY'].includes(item.type);
     const actions=[
       canApprove?'<button class="primary" type="button" onclick="growthAuthorityProspectAction(\''+esc(item.id)+'\',\'approve\')">Approve</button>':'',
       status==='APPROVED'&&isCommunity?'<button class="secondary" type="button" onclick="growthAuthorityProspectAction(\''+esc(item.id)+'\',\'posted\')">Mark posted</button>':'',
@@ -845,7 +845,6 @@ function renderGrowthProviders(data){
   $('growthProviderGrid').innerHTML=cards.join('');
   const ready=[Boolean(gsc.connected),Boolean(ga.analyticsScopeGranted&&ga.selectedProperty),Boolean(providers.openai?.configured),Boolean(providers.perplexity?.configured),Boolean(providers.claude?.configured)].filter(Boolean).length;
   if(!state.growthAutopilot){$('growthStatusChip').textContent=`${ready}/5 signals ready`;$('growthStatusChip').className=`status-chip ${ready>=3?'gsc-connected':''}`;}
-  $('discoverRedditBtn').disabled=!providers.reddit?.configured||state.user?.role!=='SUPER_ADMIN';
   $('runGrowthAuditBtn').disabled=state.user?.role!=='SUPER_ADMIN';
   updateVisibilityControls();
 }
@@ -884,8 +883,7 @@ function renderGrowthOpportunities(data){
     const citations=ai.filter(signal=>signal.cited).length;
     const search=item.search?`<span>GSC: ${formatNumber(item.search.impressions)} impressions · pos ${Number(item.search.position||0).toFixed(1)} · ${growthPercent(item.search.ctr)} CTR</span>`:'';
     const page=item.existingPage?`<a href="${esc(item.existingPage)}" target="_blank" rel="noopener">Existing page ↗</a>`:'';
-    const reddit=item.reddit?.length?`<span>${item.reddit.length} matching Reddit discussion${item.reddit.length===1?'':'s'}</span>`:'';
-    return `<article class="growth-opportunity-card ${growthOpportunityPriority(item.score)}"><div class="growth-opportunity-score"><b>${Number(item.score||0)}</b><span>score</span></div><div class="growth-opportunity-body"><div class="growth-opportunity-title"><div><span class="growth-opportunity-type">${esc(String(item.intent||item.type||'opportunity').replaceAll('_',' '))}</span><h3>${esc(item.topic)}</h3></div><strong>${esc(item.action?.label||'Review')}</strong></div><div class="growth-opportunity-evidence">${search}<span>AI: ${mentions}/${ai.length||0} mention · ${citations}/${ai.length||0} cite</span>${reddit}${page}</div><p>${esc(item.action?.rationale||'Review the available evidence and choose the next growth action.')}</p></div></article>`;
+    return `<article class="growth-opportunity-card ${growthOpportunityPriority(item.score)}"><div class="growth-opportunity-score"><b>${Number(item.score||0)}</b><span>score</span></div><div class="growth-opportunity-body"><div class="growth-opportunity-title"><div><span class="growth-opportunity-type">${esc(String(item.intent||item.type||'opportunity').replaceAll('_',' '))}</span><h3>${esc(item.topic)}</h3></div><strong>${esc(item.action?.label||'Review')}</strong></div><div class="growth-opportunity-evidence">${search}<span>AI: ${mentions}/${ai.length||0} mention · ${citations}/${ai.length||0} cite</span>${page}</div><p>${esc(item.action?.rationale||'Review the available evidence and choose the next growth action.')}</p></div></article>`;
   }).join('')||'<div class="growth-empty">No opportunity map has been built yet.</div>';
 }
 async function loadGrowthOpportunityStatus(){
@@ -956,10 +954,6 @@ function renderSelectedGrowthVisibility(){
   renderGrowthVisibility(scan);
   renderGrowthVisibilitySummary();
   updateVisibilityControls();
-}
-function renderGrowthReddit(data){
-  const threads=data?.threads||[];
-  $('growthRedditList').innerHTML=threads.length?threads.map(item=>`<article class="growth-reddit-row"><div><b>${esc(item.title)}</b><small>${esc(item.subreddit||'Reddit')} · relevance ${Number(item.relevance||0)}%</small><p>${esc(item.reason||'')}</p></div><a href="${esc(item.url)}" target="_blank" rel="noopener">Open thread ↗</a></article>`).join(''):'<div class="growth-empty">No matching public Reddit discussions were returned in the latest scan.</div>';
 }
 function renderGaStatus(data){
   state.growthAnalytics=state.growthAnalytics||{};
@@ -1061,7 +1055,6 @@ function renderGrowthIntelligence(data){
   renderGrowthPrompts(data.prompts);
   renderGrowthAudit(data.latest?.audit||null);
   renderSelectedGrowthVisibility();
-  renderGrowthReddit(data.latest?.reddit||null);
 }
 async function loadGrowthIntelligence(){
   try{
@@ -1142,10 +1135,6 @@ async function refreshGrowthAnalytics(){
     toast('Google Analytics refreshed');
   }catch(error){toast(error.message)}finally{button.textContent='↻ Refresh analytics';button.disabled=!state.growthAnalytics?.status?.selectedProperty}
 }
-async function discoverGrowthReddit(){
-  const button=$('discoverRedditBtn');button.disabled=true;button.textContent='Searching…';
-  try{renderGrowthReddit(await api('/api/admin/growth-intelligence/reddit-opportunities',{method:'POST',body:'{}'}));toast('Reddit opportunities refreshed')}catch(error){toast(error.message)}finally{button.textContent='Find Reddit opportunities';button.disabled=!state.growthIntelligence?.providers?.reddit?.configured||state.user?.role!=='SUPER_ADMIN'}
-}
 $('growthAutopilotToggleBtn').addEventListener('click',()=>void toggleGrowthAutopilot());
 $('growthAutopilotRunBtn').addEventListener('click',()=>void runGrowthAutopilotNow());
 $('growthSeoRunBtn').addEventListener('click',()=>void runGrowthSeoMaintenanceNow());
@@ -1160,7 +1149,6 @@ $('growthGaProperty').addEventListener('change',event=>void chooseGrowthGaProper
 $('growthGaManualSaveBtn').addEventListener('click',()=>void saveManualGrowthGaProperty());
 $('growthGaPeriod').addEventListener('change',()=>void loadGrowthAnalyticsPerformance());
 $('growthGaRefreshBtn').addEventListener('click',()=>void refreshGrowthAnalytics());
-$('discoverRedditBtn').addEventListener('click',()=>void discoverGrowthReddit());
 document.querySelector('.growth-advanced-details')?.addEventListener('toggle',event=>{
   if(event.currentTarget.open&&state.growthAnalytics?.status?.selectedProperty){
     void Promise.all([loadGrowthAnalyticsRealtime(true),loadGrowthAnalyticsPerformance()]).then(()=>startGrowthRealtimePolling()).catch(()=>{});

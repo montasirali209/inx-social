@@ -6,7 +6,6 @@ const OPPORTUNITY_SETTING_KEY = 'growth_intelligence_opportunities_v1';
 const OPENAI_SETTING_KEY = 'growth_intelligence_openai_visibility_v1';
 const PERPLEXITY_SETTING_KEY = 'growth_intelligence_perplexity_visibility_v1';
 const CLAUDE_SETTING_KEY = 'growth_intelligence_claude_visibility_v1';
-const REDDIT_SETTING_KEY = 'growth_intelligence_reddit_opportunities_v1';
 const AUDIT_SETTING_KEY = 'growth_intelligence_site_audit_v1';
 
 const STOPWORDS = new Set([
@@ -97,21 +96,13 @@ function visibilityEvidence(topic, scans) {
   return providers;
 }
 
-function redditEvidence(topic, reddit) {
-  return (reddit?.threads || [])
-    .map(thread => ({ ...thread, match: similarity(topic, [thread.title, thread.reason].filter(Boolean).join(' ')) }))
-    .filter(thread => thread.match >= 0.15)
-    .sort((a, b) => (b.relevance || 0) - (a.relevance || 0))
-    .slice(0, 5);
-}
-
 function queryPageFor(query, gsc) {
   return (gsc?.queryPages || [])
     .filter(row => String(row.query || '').toLowerCase() === String(query || '').toLowerCase())
     .sort((a, b) => Number(b.impressions || 0) - Number(a.impressions || 0))[0] || null;
 }
 
-function actionFor({ query, position, page, aiEvidence, redditMatches }) {
+function actionFor({ query, position, page, aiEvidence }) {
   const intent = classifyIntent(query);
   const aiGap = aiEvidence.length && aiEvidence.every(item => !item.mentioned && !item.cited);
   if (page && position >= 4 && position <= 20) {
@@ -135,13 +126,6 @@ function actionFor({ query, position, page, aiEvidence, redditMatches }) {
       rationale: 'AI-search probes do not currently mention or cite INXSocial for the closest buyer-intent prompt.'
     };
   }
-  if (redditMatches.length) {
-    return {
-      type: 'COMMUNITY_ENGAGEMENT',
-      label: 'Support with community engagement',
-      rationale: 'Relevant public Reddit discussions exist and can reinforce the topic through genuinely useful manual participation.'
-    };
-  }
   return {
     type: intent === 'informational' ? 'CREATE_GUIDE' : 'STRENGTHEN_TOPIC',
     label: intent === 'informational' ? 'Create or improve guide' : 'Strengthen topic coverage',
@@ -149,7 +133,7 @@ function actionFor({ query, position, page, aiEvidence, redditMatches }) {
   };
 }
 
-function scoreSearchOpportunity(row, aiEvidence, redditMatches) {
+function scoreSearchOpportunity(row, aiEvidence) {
   const impressions = Number(row.impressions || 0);
   const ctr = Number(row.ctr || 0);
   const position = Number(row.position || 0);
@@ -159,9 +143,8 @@ function scoreSearchOpportunity(row, aiEvidence, redditMatches) {
   const aiGap = aiEvidence.length
     ? Math.min(15, aiEvidence.filter(item => !item.mentioned).length * 4 + aiEvidence.filter(item => !item.cited).length * 2)
     : 0;
-  const redditSignal = redditMatches.length ? Math.min(10, Math.max(...redditMatches.map(item => Number(item.relevance || 0))) / 10) : 0;
   const commercial = commercialIntent(row.query) ? 8 : 0;
-  return Math.round(cap(demand + rankingGap + ctrGap + aiGap + redditSignal + commercial));
+  return Math.round(cap(demand + rankingGap + ctrGap + aiGap + commercial));
 }
 
 function aggregateVisibility(scans) {
@@ -204,11 +187,10 @@ async function build(days = 28) {
   const periodDays = [7, 28, 90].includes(Number(days)) ? Number(days) : 28;
   const warnings = [];
 
-  const [openai, perplexity, claude, reddit, audit] = await Promise.all([
+  const [openai, perplexity, claude, audit] = await Promise.all([
     readSetting(OPENAI_SETTING_KEY),
     readSetting(PERPLEXITY_SETTING_KEY),
     readSetting(CLAUDE_SETTING_KEY),
-    readSetting(REDDIT_SETTING_KEY),
     readSetting(AUDIT_SETTING_KEY)
   ]);
 
@@ -235,7 +217,6 @@ async function build(days = 28) {
       search: null,
       analytics: null,
       ai: [],
-      reddit: [],
       existingPage: null,
       action: {
         type: 'TECHNICAL_FIX',
@@ -248,9 +229,8 @@ async function build(days = 28) {
   for (const row of (gsc?.topQueries || []).slice(0, 40)) {
     if (Number(row.impressions || 0) < 3) continue;
     const ai = visibilityEvidence(row.query, scans);
-    const redditMatches = redditEvidence(row.query, reddit);
     const queryPage = queryPageFor(row.query, gsc);
-    const score = scoreSearchOpportunity(row, ai, redditMatches);
+    const score = scoreSearchOpportunity(row, ai);
     opportunities.push({
       id: 'search:' + Buffer.from(String(row.query)).toString('base64url').slice(0, 60),
       type: 'search',
@@ -265,14 +245,12 @@ async function build(days = 28) {
       },
       analytics: null,
       ai,
-      reddit: redditMatches,
       existingPage: queryPage?.page || null,
       action: actionFor({
         query: row.query,
         position: Number(row.position || 0),
         page: queryPage?.page || null,
-        aiEvidence: ai,
-        redditMatches
+        aiEvidence: ai
       })
     });
   }
@@ -306,7 +284,6 @@ async function build(days = 28) {
       search: null,
       analytics: null,
       ai: item.providers,
-      reddit: redditEvidence(item.prompt, reddit),
       existingPage: null,
       action: {
         type: 'BUILD_AUTHORITY_CONTENT',
@@ -328,7 +305,7 @@ async function build(days = 28) {
     medium: sorted.filter(item => item.score >= 50 && item.score < 70).length,
     searchBacked: sorted.filter(item => item.search).length,
     aiVisibilityGaps: sorted.filter(item => item.type === 'ai_visibility' || item.ai?.some(signal => !signal.mentioned)).length,
-    communitySupported: sorted.filter(item => item.reddit?.length).length
+    communitySupported: 0
   };
 
   const payload = {
@@ -341,7 +318,6 @@ async function build(days = 28) {
       openai: Boolean(openai),
       perplexity: Boolean(perplexity),
       claude: Boolean(claude),
-      reddit: Boolean(reddit),
       technicalAudit: Boolean(audit)
     },
     analyticsSummary: ga4 ? {

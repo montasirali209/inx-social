@@ -263,7 +263,6 @@ async function runIntelligence(config) {
     openai: false,
     perplexity: false,
     claude: false,
-    reddit: false,
     seoMaintenance: false,
     opportunities: 0,
     warnings: []
@@ -302,16 +301,6 @@ async function runIntelligence(config) {
     }
   }
 
-  if (providers.reddit?.configured) {
-    try {
-      const reddit = await growthIntelligence.discoverRedditOpportunities();
-      summary.reddit = true;
-      summary.redditOpportunities = reddit.threads?.length || 0;
-    } catch (error) {
-      summary.warnings.push('Reddit discovery: ' + String(error.publicMessage || error.message || 'failed'));
-    }
-  }
-
   try {
     const seo = await seoMaintenance.run({ maxPages: 120 });
     summary.seoMaintenance = true;
@@ -341,7 +330,7 @@ async function runIntelligence(config) {
 
   await recordEvent(
     'INTELLIGENCE_REFRESHED',
-    'Growth signals refreshed automatically: crawler audit, Phase 3 technical SEO maintenance, internal linking, available AI visibility providers, Reddit discovery and opportunity scoring.',
+    'Growth signals refreshed automatically: crawler audit, Phase 3 technical SEO maintenance, internal linking, available AI visibility providers and opportunity scoring.',
     summary,
     summary.warnings.length ? 'warning' : 'success'
   );
