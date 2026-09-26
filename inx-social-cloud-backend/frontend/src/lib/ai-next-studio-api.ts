@@ -49,6 +49,22 @@ export type VideoCatalog = {
     pricingSynced: number
     schemaResolved: number
   }
+  health?: {
+    status: 'HEALTHY' | 'DEGRADED'
+    fresh: boolean
+    source: string
+    syncedAt: string | null
+    pricingAgeMinutes: number | null
+    pricingMaxAgeHours: number
+    creditCostBuffer: number
+    maxGenerationCredits: number
+    costDriftTolerance: number
+    blockedModels: number
+    generationReady: number
+    pricingSynced: number
+    total: number
+    reasons: string[]
+  }
   models: VideoModelOption[]
 }
 
