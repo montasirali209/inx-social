@@ -177,7 +177,7 @@ async function loadSlow() {
   ] = await Promise.allSettled([
     googleAnalytics.performance(7),
     attribution.summary(30),
-    googleSearchConsole.performance(28),
+    googleSearchConsole.growthPerformance(28),
     autopilot.status(),
     seo.status(),
     authority.status(),
@@ -231,6 +231,7 @@ async function loadSlow() {
     sources: (monthAttribution?.sources || []).slice(0, 10),
     search: search ? {
       generatedAt: search.generatedAt,
+      siteUrl: search.siteUrl,
       summary: search.summary,
       comparison: search.comparison,
       topQueries: (search.topQueries || []).slice(0, 10),

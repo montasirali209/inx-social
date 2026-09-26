@@ -38,7 +38,7 @@ test('Opportunity Intelligence combines search, AI, analytics and technical sign
   const html = read('public/index.html');
   const client = read('public/admin.js');
 
-  assert.match(service, /searchConsole\.performance/);
+  assert.match(service, /searchConsole\.growthPerformance/);
   assert.match(service, /googleAnalytics\.performance/);
   assert.match(service, /OPENAI_SETTING_KEY/);
   assert.match(service, /PERPLEXITY_SETTING_KEY/);
@@ -60,4 +60,16 @@ test('Opportunity engine keeps direct query-to-page evidence from Search Console
   assert.match(gsc, /queryPages/);
   assert.match(service, /queryPageFor/);
   assert.match(service, /existingPage/);
+});
+
+
+test('Growth opportunity and optimisation engines cannot consume another product GSC property',()=>{
+  const gsc=read('src/services/googleSearchConsoleService.js');
+  const opportunity=read('src/services/growthOpportunityService.js');
+  const optimisation=read('src/services/growthOptimizationService.js');
+  assert.match(gsc,/sc-domain:inxsocial\.co\.uk/);
+  assert.match(gsc,/growthPerformance/);
+  assert.match(opportunity,/searchConsole\.growthPerformance\(periodDays\)/);
+  assert.match(optimisation,/gsc\.growthPerformance\(28\)/);
+  assert.doesNotMatch(opportunity,/searchConsole\.performance\(periodDays\)/);
 });

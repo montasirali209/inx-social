@@ -399,7 +399,7 @@ async function run(options = {}) {
 
   let gscData = null;
   let gaData = null;
-  try { gscData = await gsc.performance(28); } catch (error) { warnings.push('Search Console: ' + String(error.publicMessage || error.message || error)); }
+  try { gscData = await gsc.growthPerformance(28); } catch (error) { warnings.push('Search Console: ' + String(error.publicMessage || error.message || error)); }
   try { gaData = await ga4.performance(28); } catch (error) { warnings.push('GA4: ' + String(error.publicMessage || error.message || error)); }
 
   let actions = [

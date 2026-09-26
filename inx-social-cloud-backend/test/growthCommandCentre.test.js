@@ -13,7 +13,7 @@ test('Growth Command Centre aggregates realtime, daily, revenue, SEO and autopil
   assert.match(service,/googleAnalytics\.performance\(7\)/);
   assert.match(service,/attribution\.summary\(1\)/);
   assert.match(service,/attribution\.summary\(30\)/);
-  assert.match(service,/googleSearchConsole\.performance\(28\)/);
+  assert.match(service,/googleSearchConsole\.growthPerformance\(28\)/);
   assert.match(service,/autopilot\.status\(\)/);
   assert.match(service,/seo\.status\(\)/);
   assert.match(service,/authority\.status\(\)/);
@@ -67,4 +67,17 @@ test('Dashboard can be bookmarked directly on mobile',()=>{
   const js=read('public/admin.js');
   assert.match(js,/location\.pathname\+location\.search\+'#growthDashboard'/);
   assert.match(js,/history\.replaceState/);
+});
+
+
+test('Growth Command Centre Search Console data is hard-scoped to INXSocial',()=>{
+  const gsc=read('src/services/googleSearchConsoleService.js');
+  const service=read('src/services/growthDashboardService.js');
+  const js=read('public/admin.js');
+  assert.match(gsc,/function inxSocialSite/);
+  assert.match(gsc,/GSC_INXSOCIAL_PROPERTY_REQUIRED/);
+  assert.match(gsc,/async function growthPerformance/);
+  assert.match(service,/googleSearchConsole\.growthPerformance\(28\)/);
+  assert.match(service,/siteUrl: search\.siteUrl/);
+  assert.match(js,/INXSocial GSC/);
 });
