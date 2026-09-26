@@ -46,7 +46,7 @@ function sanitizeAcquisition(input = {}) {
 }
 
 function sourceLabel(acquisition) {
-  if (!acquisition) return 'direct';
+  if (!acquisition) return 'unattributed';
   if (acquisition.utmSource) {
     return acquisition.utmMedium
       ? acquisition.utmSource + ' / ' + acquisition.utmMedium
