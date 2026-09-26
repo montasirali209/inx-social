@@ -6,6 +6,7 @@ const externalVisibility = require('./externalVisibilityService');
 const growthOpportunities = require('./growthOpportunityService');
 const growthContent = require('./growthContentService');
 const growthStrategy = require('./growthStrategyService');
+const seoMaintenance = require('./growthSeoMaintenanceService');
 
 const CONFIG_KEY = 'growth_autopilot_config_v1';
 const STATE_KEY = 'growth_autopilot_state_v1';
@@ -248,6 +249,7 @@ async function runIntelligence(config) {
     perplexity: false,
     claude: false,
     reddit: false,
+    seoMaintenance: false,
     opportunities: 0,
     warnings: []
   };
@@ -295,6 +297,18 @@ async function runIntelligence(config) {
     }
   }
 
+  try {
+    const seo = await seoMaintenance.run({ maxPages: 120 });
+    summary.seoMaintenance = true;
+    summary.seoScore = seo.score;
+    summary.seoPagesCrawled = seo.pagesCrawled;
+    summary.seoIssues = seo.summary?.totalIssues || 0;
+    summary.seoAutoFixed = seo.summary?.autoFixed || 0;
+    summary.internalArticleLinks = seo.summary?.internalArticleLinks || 0;
+  } catch (error) {
+    summary.warnings.push('Phase 3 SEO maintenance: ' + String(error.publicMessage || error.message || 'failed'));
+  }
+
   const opportunityMap = await growthOpportunities.build(config.opportunityWindowDays);
   summary.opportunities = opportunityMap.summary?.total || 0;
   summary.criticalOpportunities = opportunityMap.summary?.critical || 0;
@@ -312,7 +326,7 @@ async function runIntelligence(config) {
 
   await recordEvent(
     'INTELLIGENCE_REFRESHED',
-    'Growth signals refreshed automatically: crawler audit, available AI visibility providers, Reddit discovery and opportunity scoring.',
+    'Growth signals refreshed automatically: crawler audit, Phase 3 technical SEO maintenance, internal linking, available AI visibility providers, Reddit discovery and opportunity scoring.',
     summary,
     summary.warnings.length ? 'warning' : 'success'
   );
@@ -677,11 +691,12 @@ async function runCycle(options = {}) {
 }
 
 async function status() {
-  const [config, state, contentOverview, opportunityMap] = await Promise.all([
+  const [config, state, contentOverview, opportunityMap, seoStatus] = await Promise.all([
     getConfig(),
     getState(),
     growthContent.overview().catch(() => null),
-    growthOpportunities.latest().catch(() => null)
+    growthOpportunities.latest().catch(() => null),
+    seoMaintenance.status().catch(() => null)
   ]);
 
   return {
@@ -693,6 +708,7 @@ async function status() {
       engine: contentOverview.engine,
       latestArticles: (contentOverview.articles || []).slice(0, 5)
     } : null,
+    seoMaintenance: seoStatus,
     opportunities: opportunityMap ? {
       summary: opportunityMap.summary,
       generatedAt: opportunityMap.generatedAt,
