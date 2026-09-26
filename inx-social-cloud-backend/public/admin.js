@@ -1,4 +1,4 @@
-const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,growthAnalytics:null,growthOpportunities:null,growthRealtimeTimer:null,contentEngine:null,selectedContentArticle:null,ugcAvatars:[],timer:null};
+const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,growthAnalytics:null,growthOpportunities:null,growthAutopilot:null,growthRealtimeTimer:null,growthAutopilotTimer:null,contentEngine:null,selectedContentArticle:null,ugcAvatars:[],timer:null};
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const initials=value=>String(value||'IN').trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
@@ -7,12 +7,12 @@ const relative=value=>{if(!value)return'—';const seconds=Math.max(0,Math.floor
 const planOf=user=>user.effectivePlan||user.commercialAccess?.effectivePlan||user.subscriptions?.[0]?.plan||'TRIAL';
 const badge=value=>`<span class="badge ${esc(value)}">${esc(String(value).replaceAll('_',' '))}</span>`;
 function toast(message){const element=$('toast');element.textContent=message;element.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>element.classList.remove('show'),4000)}
-function clearSession(){clearInterval(state.timer);clearInterval(state.growthRealtimeTimer);state.growthRealtimeTimer=null;state.user=null;state.users=[];state.administrators=[];$('notificationPanel')?.classList.add('hidden');setLoggedIn(false)}
+function clearSession(){clearInterval(state.timer);clearInterval(state.growthRealtimeTimer);clearInterval(state.growthAutopilotTimer);state.growthRealtimeTimer=null;state.growthAutopilotTimer=null;state.user=null;state.users=[];state.administrators=[];$('notificationPanel')?.classList.add('hidden');setLoggedIn(false)}
 async function signOut(){try{await fetch('/api/admin-auth/logout',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'}})}catch{}finally{clearSession()}}
 async function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};const response=await fetch(path,{...options,headers,credentials:'same-origin'});const data=await response.json().catch(()=>({}));if(response.status===401){clearSession();throw new Error(data.error||'Your administrator session has ended.')}if(!response.ok)throw new Error(data.error||`Request failed: ${response.status}`);return data}
 function setLoggedIn(on){$('loginView').classList.toggle('hidden',on);$('dashboardView').classList.toggle('hidden',!on);if(on){const name=state.user?.name||'INXSocial Admin';$('adminName').textContent=name;$('adminEmail').textContent=`${state.user?.email||''}${state.user?.role?` · ${state.user.role.replace('_',' ')}`:''}`;$('adminInitials').textContent=initials(name)}}
-const pageMeta={overview:['Overview','Monitor new customers and service activity.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI & Automation','Manage AI Studio policy, Social Agent allowances and generation infrastructure.'],searchConsole:['Search Console','Monitor Google Search visibility, queries, landing pages and SEO opportunities.'],growthIntelligence:['Growth Intelligence','Track crawler access, AI-search visibility and community opportunities.'],contentEngine:['Content Engine','Research, review and publish self-hosted SEO content from Growth Intelligence opportunities.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
-async function openPage(page){if(page!=='growthIntelligence'){clearInterval(state.growthRealtimeTimer);state.growthRealtimeTimer=null;}document.querySelectorAll('.nav').forEach(button=>button.classList.toggle('active',button.dataset.page===page));document.querySelectorAll('.page').forEach(section=>section.classList.toggle('hidden',section.id!==`${page}Page`));$('pageTitle').textContent=pageMeta[page][0];$('pageSubtitle').textContent=pageMeta[page][1];if(page==='overview')await loadOverview();if(page==='users')await loadUsers();if(page==='aiAccess')await loadAiAccess();if(page==='searchConsole')await loadSearchConsole();if(page==='growthIntelligence')await loadGrowthIntelligence();if(page==='contentEngine')await loadContentEngine();if(page==='settings')await loadSettings();if(page==='security')await loadSecurity()}
+const pageMeta={overview:['Overview','Monitor new customers and service activity.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI & Automation','Manage AI Studio policy, Social Agent allowances and generation infrastructure.'],searchConsole:['Search Console','Monitor Google Search visibility, queries, landing pages and SEO opportunities.'],growthIntelligence:['Growth Autopilot','Monitor the automatic growth system. Advanced diagnostics are available only when needed.'],contentEngine:['Content Engine','Research, review and publish self-hosted SEO content from Growth Intelligence opportunities.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
+async function openPage(page){if(page!=='growthIntelligence'){clearInterval(state.growthRealtimeTimer);clearInterval(state.growthAutopilotTimer);state.growthRealtimeTimer=null;state.growthAutopilotTimer=null;}document.querySelectorAll('.nav').forEach(button=>button.classList.toggle('active',button.dataset.page===page));document.querySelectorAll('.page').forEach(section=>section.classList.toggle('hidden',section.id!==`${page}Page`));$('pageTitle').textContent=pageMeta[page][0];$('pageSubtitle').textContent=pageMeta[page][1];if(page==='overview')await loadOverview();if(page==='users')await loadUsers();if(page==='aiAccess')await loadAiAccess();if(page==='searchConsole')await loadSearchConsole();if(page==='growthIntelligence')await loadGrowthIntelligence();if(page==='contentEngine')await loadContentEngine();if(page==='settings')await loadSettings();if(page==='security')await loadSecurity()}
 document.querySelectorAll('.nav').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.page)));
 document.querySelectorAll('[data-open-page]').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.openPage)));
 $('loginForm').addEventListener('submit',async event=>{event.preventDefault();$('loginError').textContent='';try{const data=await api('/api/admin-auth/login',{method:'POST',body:JSON.stringify({email:$('email').value.trim(),password:$('password').value})});state.user=data.user;setLoggedIn(true);$('password').value='';await postAuthLanding();state.timer=setInterval(()=>loadOverview(true).catch(()=>{}),15000)}catch(error){$('loginError').textContent=error.message}});
@@ -472,6 +472,90 @@ $('gscPeriod').addEventListener('change',()=>loadGscPerformance().catch(error=>t
 $('gscRefreshBtn').addEventListener('click',()=>loadSearchConsole().catch(error=>toast(error.message)));
 
 
+
+function growthTimeUntil(value){
+  if(!value)return'—';
+  const ms=new Date(value).getTime()-Date.now();
+  if(!Number.isFinite(ms))return'—';
+  if(ms<=0)return'Due now';
+  const minutes=Math.ceil(ms/60000);
+  if(minutes<60)return minutes+'m';
+  const hours=Math.ceil(minutes/60);
+  if(hours<48)return hours+'h';
+  return Math.ceil(hours/24)+'d';
+}
+function renderGrowthAutopilot(data){
+  state.growthAutopilot=data;
+  const config=data.config||{};
+  const runtime=data.state||{};
+  const enabled=config.enabled!==false;
+  const published=Number(data.content?.counts?.PUBLISHED||0);
+  const running=Boolean(runtime.running);
+  $('growthStatusChip').textContent=running?'AUTOPILOT RUNNING':enabled?'AUTOPILOT ON':'AUTOPILOT PAUSED';
+  $('growthStatusChip').className='status-chip '+(enabled?'gsc-connected':'gsc-error');
+  $('growthAutopilotHeadline').textContent=running?'Growth cycle running now':enabled?'Everything is running automatically':'Autopilot is paused';
+  $('growthAutopilotSummary').textContent=enabled
+    ?'No routine action is required. INXSocial refreshes intelligence every '+Number(config.intelligenceEveryHours||24)+' hours and targets one high-quality blog publication every '+Number(config.publishEveryHours||48)+' hours.'
+    :'Automatic intelligence refresh and publishing are paused until you resume them.';
+  $('growthAutopilotToggleBtn').textContent=enabled?'Pause autopilot':'Resume autopilot';
+  $('growthAutopilotToggleBtn').className=enabled?'secondary':'primary';
+  $('growthAutopilotToggleBtn').disabled=state.user?.role!=='SUPER_ADMIN';
+  $('growthAutopilotRunBtn').disabled=state.user?.role!=='SUPER_ADMIN'||running;
+  $('growthAutopilotRunBtn').textContent=running?'Running…':'Run now';
+
+  const lastQuality=runtime.lastPublishedArticle?.qualityScore;
+  $('growthAutopilotKpis').innerHTML=[
+    ['Publishing','Every '+Number(config.publishEveryHours||48)+'h',config.autoPublish===false?'Auto publish disabled':'Automatic blog publishing'],
+    ['Next article',enabled?growthTimeUntil(runtime.nextPublishAt):'Paused',runtime.nextPublishAt?fmtDate(runtime.nextPublishAt):'Waiting for schedule'],
+    ['Intelligence',enabled?growthTimeUntil(runtime.nextIntelligenceAt):'Paused','Search, AI, crawler + Reddit refresh'],
+    ['Published',published,lastQuality!=null?'Latest quality '+Number(lastQuality)+'/100':'Self-hosted articles']
+  ].map(item=>'<article><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b><small>'+esc(item[2])+'</small></article>').join('');
+
+  $('growthAutopilotUpdated').textContent='Updated '+relative(data.generatedAt);
+  const last=runtime.lastPublishedArticle;
+  const top=data.opportunities?.top?.[0];
+  if(running){
+    $('growthAutopilotLatest').innerHTML='<div class="growth-autopilot-current running"><span class="growth-autopilot-pulse"></span><div><b>Autopilot is working</b><small>Refreshing signals, choosing an opportunity, or producing the next article.</small></div></div>';
+  }else if(last){
+    $('growthAutopilotLatest').innerHTML='<div class="growth-autopilot-current"><div><span class="kicker">Latest publication</span><b>'+esc(last.title)+'</b><small>Quality '+Number(last.qualityScore||0)+'/100 · published '+esc(relative(last.publishedAt))+'</small></div><a href="'+esc(last.url)+'" target="_blank" rel="noopener">Open article ↗</a></div>'+(top?'<div class="growth-autopilot-next"><span>Next opportunity</span><b>'+esc(top.topic)+'</b><small>Score '+Number(top.score||0)+' · '+esc(top.action||'Growth opportunity')+'</small></div>':'');
+  }else if(top){
+    $('growthAutopilotLatest').innerHTML='<div class="growth-autopilot-next"><span>Next opportunity</span><b>'+esc(top.topic)+'</b><small>Score '+Number(top.score||0)+' · '+esc(top.action||'Growth opportunity')+'</small></div>';
+  }else{
+    $('growthAutopilotLatest').innerHTML='<div class="growth-empty">Autopilot will create the first opportunity map automatically.</div>';
+  }
+
+  const events=(runtime.recentEvents||[]).slice(0,8);
+  $('growthAutopilotActivity').innerHTML=events.length?events.map(event=>'<div class="growth-autopilot-event '+esc(event.level||'info')+'"><span></span><div><b>'+esc(event.message)+'</b><small>'+esc(relative(event.at))+'</small></div></div>').join(''):'<div class="growth-empty">No activity recorded yet.</div>';
+}
+async function loadGrowthAutopilotStatus(silent=false){
+  try{
+    const data=await api('/api/admin/growth-autopilot/status');
+    renderGrowthAutopilot(data);
+    return data;
+  }catch(error){if(!silent)toast(error.message);return null}
+}
+function startGrowthAutopilotPolling(){
+  clearInterval(state.growthAutopilotTimer);
+  state.growthAutopilotTimer=setInterval(()=>{
+    if(!$('growthIntelligencePage').classList.contains('hidden'))loadGrowthAutopilotStatus(true).catch(()=>{});
+  },30000);
+}
+async function toggleGrowthAutopilot(){
+  const enabled=state.growthAutopilot?.config?.enabled!==false;
+  const button=$('growthAutopilotToggleBtn');button.disabled=true;
+  try{
+    renderGrowthAutopilot(await api('/api/admin/growth-autopilot/config',{method:'PATCH',body:JSON.stringify({enabled:!enabled})}));
+    toast(!enabled?'Growth Autopilot resumed':'Growth Autopilot paused');
+  }catch(error){toast(error.message)}finally{button.disabled=state.user?.role!=='SUPER_ADMIN'}
+}
+async function runGrowthAutopilotNow(){
+  const button=$('growthAutopilotRunBtn');button.disabled=true;button.textContent='Starting…';
+  try{
+    await api('/api/admin/growth-autopilot/run-now',{method:'POST',body:'{}'});
+    toast('Growth Autopilot cycle started');
+    setTimeout(()=>loadGrowthAutopilotStatus(true).catch(()=>{}),1500);
+  }catch(error){toast(error.message);button.disabled=false;button.textContent='Run now'}
+}
 function growthProviderCard(label,configured,note){
   return `<article class="growth-provider-card ${configured?'ok':'warn'}"><span>${esc(label)}</span><b>${configured?'Ready':'Not configured'}</b><small>${esc(note||'')}</small></article>`;
 }
@@ -488,8 +572,7 @@ function renderGrowthProviders(data){
   ];
   $('growthProviderGrid').innerHTML=cards.join('');
   const ready=[Boolean(gsc.connected),Boolean(ga.analyticsScopeGranted&&ga.selectedProperty),Boolean(providers.openai?.configured),Boolean(providers.perplexity?.configured),Boolean(providers.claude?.configured)].filter(Boolean).length;
-  $('growthStatusChip').textContent=`${ready}/5 signals ready`;
-  $('growthStatusChip').className=`status-chip ${ready>=3?'gsc-connected':''}`;
+  if(!state.growthAutopilot){$('growthStatusChip').textContent=`${ready}/5 signals ready`;$('growthStatusChip').className=`status-chip ${ready>=3?'gsc-connected':''}`;}
   $('discoverRedditBtn').disabled=!providers.reddit?.configured||state.user?.role!=='SUPER_ADMIN';
   $('runGrowthAuditBtn').disabled=state.user?.role!=='SUPER_ADMIN';
   updateVisibilityControls();
@@ -710,16 +793,19 @@ function renderGrowthIntelligence(data){
 }
 async function loadGrowthIntelligence(){
   try{
-    const [overview,gaStatus,opportunityStatus]=await Promise.all([
+    const [overview,gaStatus,opportunityStatus,autopilotStatus]=await Promise.all([
       api('/api/admin/growth-intelligence/overview'),
       api('/api/admin/growth-intelligence/analytics/status'),
-      api('/api/admin/growth-intelligence/opportunities')
+      api('/api/admin/growth-intelligence/opportunities'),
+      api('/api/admin/growth-autopilot/status')
     ]);
     state.growthAnalytics={status:gaStatus};
     renderGrowthIntelligence(overview);
     renderGaStatus(gaStatus);
     renderGrowthOpportunities(opportunityStatus.latest||null);
-    if(gaStatus.selectedProperty){
+    renderGrowthAutopilot(autopilotStatus);
+    startGrowthAutopilotPolling();
+    if(gaStatus.selectedProperty&&document.querySelector('.growth-advanced-details')?.open){
       await Promise.all([loadGrowthAnalyticsRealtime(),loadGrowthAnalyticsPerformance()]);
       startGrowthRealtimePolling();
     }
@@ -788,6 +874,8 @@ async function discoverGrowthReddit(){
   const button=$('discoverRedditBtn');button.disabled=true;button.textContent='Searching…';
   try{renderGrowthReddit(await api('/api/admin/growth-intelligence/reddit-opportunities',{method:'POST',body:'{}'}));toast('Reddit opportunities refreshed')}catch(error){toast(error.message)}finally{button.textContent='Find Reddit opportunities';button.disabled=!state.growthIntelligence?.providers?.reddit?.configured||state.user?.role!=='SUPER_ADMIN'}
 }
+$('growthAutopilotToggleBtn').addEventListener('click',()=>void toggleGrowthAutopilot());
+$('growthAutopilotRunBtn').addEventListener('click',()=>void runGrowthAutopilotNow());
 $('runGrowthAuditBtn').addEventListener('click',()=>void runGrowthAudit());
 $('buildGrowthOpportunitiesBtn').addEventListener('click',()=>void buildGrowthOpportunities());
 $('runVisibilityBtn').addEventListener('click',()=>void runGrowthVisibility());
@@ -810,15 +898,17 @@ function contentQualityClass(score){
 }
 function renderContentEngineProviders(data){
   const engine=data.engine||{};
+  const autopilot=state.growthAutopilot?.config||{};
+  const autoEnabled=autopilot.enabled!==false;
   const cards=[
     ['Research & writing',Boolean(engine.aiConfigured),engine.aiConfigured?(engine.model||'OpenAI web research'):'OpenAI web research is not configured'],
     ['Featured images',Boolean(engine.imageConfigured),engine.imageConfigured?'Runware + object storage ready':'Image generation or object storage needs attention'],
-    ['Publishing',engine.publishingMode==='MANUAL_APPROVAL','Human approval required before every publish'],
+    ['Publishing',autoEnabled,autoEnabled?'Autopilot publishes after the quality gate':'Autopilot is paused'],
     ['Blog source',engine.source==='INXSOCIAL_SELF_HOSTED','INXSocial self-hosted · BabyLoveGrowth not required']
   ];
   $('contentEngineProviderGrid').innerHTML=cards.map(item=>'<article class="content-engine-provider '+(item[1]?'ok':'warn')+'"><span>'+esc(item[0])+'</span><b>'+(item[1]?'Ready':'Attention')+'</b><small>'+esc(item[2])+'</small></article>').join('');
-  $('contentEngineStatus').textContent=engine.aiConfigured?'Self-hosted engine ready':'AI setup required';
-  $('contentEngineStatus').className='status-chip '+(engine.aiConfigured?'gsc-connected':'gsc-error');
+  $('contentEngineStatus').textContent=engine.aiConfigured&&autoEnabled?'Autopilot publishing ON':engine.aiConfigured?'Autopilot paused':'AI setup required';
+  $('contentEngineStatus').className='status-chip '+(engine.aiConfigured&&autoEnabled?'gsc-connected':'gsc-error');
 }
 function renderContentEngineKpis(data){
   const counts=data.counts||{};
@@ -862,7 +952,7 @@ function renderContentEngine(data){
   $('contentDraftProgress').textContent=!superAdmin?'Super Admin access is required to generate content.':data.engine?.aiConfigured?'Generation researches live sources first, then creates a reviewable draft.':'OpenAI web research must be configured before drafts can be generated.';
 }
 async function loadContentEngine(){
-  try{renderContentEngine(await api('/api/admin/content-engine/overview'))}catch(error){toast(error.message)}
+  try{const [contentData,autopilotData]=await Promise.all([api('/api/admin/content-engine/overview'),api('/api/admin/growth-autopilot/status')]);state.growthAutopilot=autopilotData;renderContentEngine(contentData)}catch(error){toast(error.message)}
 }
 async function generateContentDraft(event){
   event.preventDefault();
