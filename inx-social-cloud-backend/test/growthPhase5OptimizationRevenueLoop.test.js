@@ -8,6 +8,7 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
 test('Phase 5 is the final persisted optimisation and revenue feedback loop', () => {
   const service = read('src/services/growthOptimizationService.js');
+  const attribution = read('src/services/growthAttributionService.js');
   assert.match(service, /growth_optimization_state_v1/);
   assert.match(service, /REFRESH_CONTENT/);
   assert.match(service, /OPTIMIZE_CTR_META/);
@@ -16,7 +17,8 @@ test('Phase 5 is the final persisted optimisation and revenue feedback loop', ()
   assert.match(service, /REINFORCE_AI_VISIBILITY/);
   assert.match(service, /REPURPOSE_SOCIAL/);
   assert.match(service, /SCALE_WINNING_SOURCE/);
-  assert.match(service, /projectedMrrGbp/);
+  assert.match(attribution, /projectedMrrGbp/);
+  assert.match(service, /revenue: attributionSummary\?\.revenue/);
 });
 
 test('Phase 5 records consented signup to trial to paid attribution', () => {
