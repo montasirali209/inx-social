@@ -39,37 +39,58 @@ test('Carousel can be refined after generation without replacing the current ver
   assert.match(carousel, /hashtags: brief\.hashtags/);
 });
 
-test('Video Studio keeps the model decision simple with AI Recommended, Fast and Manual routes', () => {
+test('Video Studio Phase 2 uses one professional workspace with AI Recommended or Choose Model', () => {
   const router = read('frontend/src/components/ai-content-studio/GenerationModalRouter.tsx');
-  const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV2.tsx');
+  const alias = read('frontend/src/components/ai-content-studio/VideoStudioModal.tsx');
+  const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV3.tsx');
+  const picker = read('frontend/src/components/ai-content-studio/VideoModelPicker.tsx');
   const service = read('src/services/videoStudioService.js');
   const registry = read('src/services/videoModelRegistryService.js');
   const routes = read('src/routes/aiContentStudioRoutes.js');
   assert.match(router, /VideoStudioModal/);
+  assert.match(alias, /VideoStudioModalV3/);
   assert.match(video, /AI Recommended/);
-  assert.match(video, /title="Fast"/);
-  assert.match(video, /Manual model/);
+  assert.match(video, /Choose Model/);
+  assert.doesNotMatch(video, /title="Fast"/);
+  assert.doesNotMatch(video, /Manual model/);
+  assert.match(video, /getVideoCatalog/);
+  assert.match(video, /VideoModelPicker/);
+  assert.match(video, /supportedUiModes/);
   assert.match(video, /recommendVideoModel/);
   assert.match(video, /estimateVideoCredits/);
-  assert.match(video, /Generate video · \{credits\} credits/);
+  assert.match(video, /Live generation cost/);
   assert.match(video, /StudioSelect/);
-  assert.match(registry, /name: 'P-Video-2'/);
-  assert.match(registry, /name: 'MiniMax H3 Fast'/);
-  assert.match(registry, /name: 'Kling VIDEO 3\.0'/);
-  assert.match(registry, /name: 'Wan 3\.0'/);
-  assert.match(registry, /name: 'LTX-2\.5 Pro'/);
-  assert.match(registry, /name: 'Runway Gen-4\.5'/);
-  assert.match(registry, /name: 'Seedance 2\.5'/);
-  assert.match(service, /async function recommendModel/);
-  assert.match(service, /function estimateCredits/);
+  assert.match(picker, /Best Value/);
+  assert.match(picker, /Popular/);
+  assert.match(picker, /Specialists/);
+  assert.match(picker, /All Models/);
+  assert.match(registry, /baselineCredits/);
+  assert.match(service, /videoModels\.publicCatalog\(\{ all: true \}\)/);
   assert.match(routes, /\/video\/recommend/);
   assert.match(routes, /\/video\/estimate/);
   assert.match(routes, /\/video\/catalog/);
   assert.match(routes, /\/generate\/video-studio/);
 });
 
+
+test('Video Studio Phase 2 hides unsupported controls and exposes contextual reference modes', () => {
+  const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV3.tsx');
+  const adapters = read('src/services/videoProviderAdapters.js');
+  assert.match(video, /selected\.audioSupported && <StudioSelect label="Audio"/);
+  assert.match(video, /selected\.draftSupported && <button/);
+  assert.match(video, /fpsOptions\.length > 0 && fps !== undefined/);
+  assert.doesNotMatch(video, /disabled=\{!selected\.audioSupported\}/);
+  assert.match(video, /generationMode === 'IMAGE_TO_VIDEO'/);
+  assert.match(video, /generationMode === 'REFERENCE_TO_VIDEO'/);
+  assert.match(video, /firstFrameMediaLibraryAssetId/);
+  assert.match(video, /lastFrameMediaLibraryAssetId/);
+  assert.match(video, /referenceMediaLibraryAssetIds/);
+  assert.match(adapters, /AI_VIDEO_MODE_UNSUPPORTED/);
+  assert.match(adapters, /AI_VIDEO_REFERENCE_REQUIRED/);
+});
+
 test('Video Studio asks for explicit confirmation before high-credit generations', () => {
-  const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV2.tsx');
+  const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV3.tsx');
   assert.match(video, /HIGH_COST_CONFIRMATION_CREDITS = 100/);
   assert.match(video, /Confirm high-credit video generation/);
   assert.match(video, /Balance after reservation/);
@@ -107,7 +128,7 @@ test('Wan Video Studio uses the provider adapter and preserves safe provider dia
 });
 
 test('Short Video opens an animated creator choice and both video routes use persistent background jobs', () => {
-  const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV2.tsx');
+  const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV3.tsx');
   const stock = read('frontend/src/components/ai-content-studio/StockVideoCreator.tsx');
   const rail = read('frontend/src/components/ai-content-studio/VideoProductionRail.tsx');
   const notifications = read('frontend/src/components/layout/NotificationCenter.tsx');
@@ -132,11 +153,11 @@ test('Short Video opens an animated creator choice and both video routes use per
 });
 
 test('AI video completion polling survives temporary rate limits and avoids cached status', () => {
-  const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV2.tsx');
+  const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV3.tsx');
   const api = read('frontend/src/lib/ai-content-studio-api.ts');
   const app = read('src/app.js');
   assert.match(video, /caught\.status === 429 \? 5000/);
-  assert.match(video, /Keep polling with a bounded backoff/);
+  assert.match(video, /Math\.min\(15000, 2000 \+ retryCount \* 1500\)/);
   assert.match(api, /cache: 'no-store'/);
   assert.match(app, /skip: req => \['GET', 'HEAD', 'OPTIONS'\]\.includes\(req\.method\)/);
 });

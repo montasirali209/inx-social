@@ -35,7 +35,27 @@ function supportedOrUnknown(values, value) {
   return !Array.isArray(values) || values.length === 0 || values.map(String).includes(String(value));
 }
 
-function validateSelection(profile, input = {}, references = []) {
+function profileModes(profile) {
+  const modes = new Set(Array.isArray(profile?.modes) ? profile.modes : []);
+  if (!modes.size) modes.add('TEXT_TO_VIDEO');
+  if (profile?.imageReferenceSupported) modes.add('IMAGE_TO_VIDEO');
+  if (profile?.referenceImagesSupported) modes.add('REFERENCE_TO_VIDEO');
+  return [...modes];
+}
+
+function resolveMode(profile, input = {}, references = []) {
+  const modes = profileModes(profile);
+  const requested = clean(input.mode, 40);
+  const inferred = references.length
+    ? (profile.referenceImagesSupported && references.length > 1 ? 'REFERENCE_TO_VIDEO' : 'IMAGE_TO_VIDEO')
+    : 'TEXT_TO_VIDEO';
+  const mode = requested || inferred;
+  const supported = modes.includes(mode) || (mode === 'REFERENCE_TO_VIDEO' && profile.referenceImagesSupported);
+  if (!supported) throw adapterError('The selected generation mode is not supported by this video model.', 'AI_VIDEO_MODE_UNSUPPORTED');
+  return mode;
+}
+
+function validateSelection(profile, input = {}, references = [], options = {}) {
   if (!profile?.generationReady) throw adapterError('This Runware video model has been discovered but is not yet marked generation-ready.', 'AI_VIDEO_MODEL_NOT_READY');
   const duration = Math.floor(Number(input.duration || profile.durations?.[0] || profile.availableDurations?.[0] || 5));
   const resolution = clean(input.resolution || profile.resolutions?.[0] || profile.availableResolutions?.[0] || '720p', 32);
@@ -43,6 +63,7 @@ function validateSelection(profile, input = {}, references = []) {
   const fps = input.fps === undefined || input.fps === null ? null : Math.floor(Number(input.fps));
   const allowedDurations = profile.durations?.length ? profile.durations : profile.availableDurations;
   const allowedResolutions = profile.resolutions?.length ? profile.resolutions : profile.availableResolutions;
+  const mode = resolveMode(profile, input, references);
   if (!Number.isFinite(duration) || duration <= 0 || duration > 120) throw adapterError('Choose a valid video duration.', 'AI_VIDEO_DURATION_UNSUPPORTED');
   if (!supportedOrUnknown(allowedDurations, duration)) throw adapterError('Choose a duration supported by the selected video model.', 'AI_VIDEO_DURATION_UNSUPPORTED');
   if (!supportedOrUnknown(allowedResolutions, resolution)) throw adapterError('Choose a resolution supported by the selected video model.', 'AI_VIDEO_RESOLUTION_UNSUPPORTED');
@@ -50,7 +71,10 @@ function validateSelection(profile, input = {}, references = []) {
   if (fps !== null && !supportedOrUnknown(profile.fps?.length ? profile.fps : profile.availableFps, fps)) throw adapterError('Choose a frame rate supported by the selected video model.', 'AI_VIDEO_FPS_UNSUPPORTED');
   if (references.length && !profile.imageReferenceSupported) throw adapterError('The selected model does not accept an image reference.', 'AI_VIDEO_REFERENCE_UNSUPPORTED');
   if (references.length > 1 && !(profile.referenceImagesSupported || profile.lastFrameSupported)) throw adapterError('The selected model does not support multiple image references.', 'AI_VIDEO_REFERENCE_COUNT_UNSUPPORTED');
-  return { duration, resolution, aspect, fps };
+  if (options.requireReferences !== false && ['IMAGE_TO_VIDEO', 'REFERENCE_TO_VIDEO'].includes(mode) && !references.length) {
+    throw adapterError('Add an image reference for the selected generation mode.', 'AI_VIDEO_REFERENCE_REQUIRED');
+  }
+  return { duration, resolution, aspect, fps, mode };
 }
 
 function referenceData(references) {
@@ -135,7 +159,7 @@ function buildGenericTask(profile, input, references, taskUUID, selection) {
 }
 
 function buildTask(profile, input = {}, references = [], taskUUID = crypto.randomUUID()) {
-  const selection = validateSelection(profile, input, references);
+  const selection = validateSelection(profile, input, references, { requireReferences: true });
   const task = profile.adapterKey
     ? buildLegacyTask(profile, input, references, taskUUID, selection)
     : buildGenericTask(profile, input, references, taskUUID, selection);
@@ -144,6 +168,8 @@ function buildTask(profile, input = {}, references = [], taskUUID = crypto.rando
 
 module.exports = {
   defaultDimensions,
+  profileModes,
+  resolveMode,
   validateSelection,
   buildTask
 };

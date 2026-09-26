@@ -2,29 +2,63 @@ import { apiRequest } from './api-client'
 import type { GeneratedAsset, GenerationCostEstimate } from '../types/ai-content-studio'
 import type { PostStudioBrief, PostStudioSourceAnalysis } from './ai-post-studio-api'
 
-export type VideoResolution = '480p' | '720p' | '1080p'
-export type VideoAspectRatio = '9:16' | '16:9' | '1:1'
+export type VideoResolution = string
+export type VideoAspectRatio = '9:16' | '16:9' | '1:1' | '4:5'
+export type VideoGenerationMode = 'TEXT_TO_VIDEO' | 'IMAGE_TO_VIDEO' | 'REFERENCE_TO_VIDEO' | 'VIDEO_TO_VIDEO' | 'AUDIO_TO_VIDEO'
 
 export type VideoModelOption = {
   id: string
+  routeId?: string
+  air?: string
   name: string
-  badge: string
-  speed: 'fast' | 'balanced' | 'quality' | 'premium'
+  creator?: string | null
+  badge?: string | null
+  speed?: 'fast' | 'balanced' | 'quality' | 'premium' | null
   description: string
+  coverImage?: string | null
+  modes: VideoGenerationMode[]
   resolutions: VideoResolution[]
+  availableResolutions?: VideoResolution[]
   durations: number[]
+  availableDurations?: number[]
+  fps?: number[]
+  availableFps?: number[]
   aspects: VideoAspectRatio[]
   draftSupported: boolean
   audioSupported: boolean
   imageReferenceSupported: boolean
+  firstFrameSupported?: boolean
+  lastFrameSupported?: boolean
+  referenceImagesSupported?: boolean
+  compatibility?: string
+  generationReady?: boolean
+  pricingStatus?: string
+  baselineCredits?: number | null
   tags: string[]
+}
+
+export type VideoCatalog = {
+  version: string
+  source: string
+  syncedAt: string
+  stats: {
+    total: number
+    compatibility: number
+    discovered: number
+    generationReady: number
+    pricingSynced: number
+    schemaResolved: number
+  }
+  models: VideoModelOption[]
 }
 
 export type VideoStudioSelection = {
   modelRoute: string
+  mode?: VideoGenerationMode
   duration: number
   resolution: VideoResolution
   aspectRatio: VideoAspectRatio
+  fps?: number
   draft: boolean
   audio: boolean
 }
@@ -74,6 +108,10 @@ export async function getVideoModels() {
   return response.models
 }
 
+export function getVideoCatalog() {
+  return apiRequest<VideoCatalog>('/api/ai-content-studio/video/catalog', { cache: 'no-store' })
+}
+
 export function recommendVideoModel(input: { prompt: string; hasReference: boolean; aspectRatio: VideoAspectRatio }) {
   return apiRequest<VideoModelRecommendation>('/api/ai-content-studio/video/recommend', {
     method: 'POST', body: JSON.stringify(input),
@@ -89,6 +127,9 @@ export function estimateVideoCredits(selection: VideoStudioSelection) {
 export function generateStudioVideo(input: VideoStudioSelection & {
   prompt: string
   sourceMediaLibraryAssetId?: string | null
+  firstFrameMediaLibraryAssetId?: string | null
+  lastFrameMediaLibraryAssetId?: string | null
+  referenceMediaLibraryAssetIds?: string[]
   caption?: string
   hashtags?: string[]
   script?: string

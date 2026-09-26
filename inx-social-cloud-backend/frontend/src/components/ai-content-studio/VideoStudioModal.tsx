@@ -1,1 +1,1 @@
-export { VideoStudioModal } from './VideoStudioModalV2'
+export { VideoStudioModal } from './VideoStudioModalV3'

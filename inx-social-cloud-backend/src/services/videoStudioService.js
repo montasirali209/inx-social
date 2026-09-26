@@ -85,7 +85,7 @@ async function modelConfig(route) {
 
 async function estimateCredits(input = {}) {
   const profile = await modelConfig(input.modelRoute);
-  videoAdapters.validateSelection(profile, input, []);
+  videoAdapters.validateSelection(profile, input, [], { requireReferences: false });
   return videoModels.estimateCredits(profile, input);
 }
 
@@ -108,13 +108,34 @@ async function fallbackRecommendation(input = {}) {
 async function recommendModel(input = {}) {
   const prompt = clean(input.prompt, 1500);
   if (prompt.length < 2) throw publicError('Describe the video first so AI can recommend the right model.', 'AI_VIDEO_RECOMMEND_PROMPT', 422);
-  const candidates = catalog().map(item => ({ id: item.id, name: item.name, badge: item.badge, description: item.description, durations: item.durations, resolutions: item.resolutions, aspects: item.aspects, audio: item.audioSupported, reference: item.imageReferenceSupported, tags: item.tags }));
+  const universal = await videoModels.publicCatalog({ all: true });
+  const candidates = universal.models
+    .filter(item => item.generationReady && (
+      Boolean(input.hasReference)
+        ? (item.modes?.includes('TEXT_TO_VIDEO') || item.modes?.includes('IMAGE_TO_VIDEO') || item.referenceImagesSupported || item.imageReferenceSupported)
+        : item.modes?.includes('TEXT_TO_VIDEO')
+    ))
+    .map(item => ({
+      id: item.id,
+      name: item.name,
+      creator: item.creator,
+      description: item.description,
+      modes: item.modes,
+      durations: item.durations,
+      resolutions: item.resolutions,
+      aspects: item.aspects,
+      audio: item.audioSupported,
+      reference: item.imageReferenceSupported,
+      references: item.referenceImagesSupported,
+      baselineCredits: item.baselineCredits,
+      tags: item.tags
+    }));
   if (!env.openaiImage?.apiKey || !env.openaiImage?.baseUrl) return fallbackRecommendation(input);
   try {
     const response = await axios.post(`${String(env.openaiImage.baseUrl).replace(/\/$/, '')}/chat/completions`, {
       model: CHAT_MODEL,
       messages: [
-        { role: 'system', content: 'You are the private INXSocial video routing engine. Choose one model from the supplied catalog for the user brief. Optimise quality-to-cost, not maximum quality by default. Prefer P-Video-2 for ordinary high-quality social clips, H3 Fast for cheap reference-heavy iteration, Kling for synchronized audio/people, LTX-2.5 Pro for polished product/commercial reference work, Runway for cinematic realism, Wan for high-quality hero visuals, and Seedance only when long-form or complex premium direction justifies its cost. Return JSON only.' },
+        { role: 'system', content: 'You are the private INXSocial video routing engine. Choose exactly one model from the supplied live Runware catalogue. Optimise quality-to-cost for the actual brief, required reference mode, duration, resolution and audio needs. Do not prefer premium models unless the brief benefits from them. Do not choose a model that cannot work with the supplied reference state. Return JSON only with modelRoute, reason, duration, resolution, aspectRatio, audio and draft.' },
         { role: 'user', content: JSON.stringify({ prompt, hasReference: Boolean(input.hasReference), aspectRatio: input.aspectRatio || '9:16', candidates }) }
       ],
       reasoning_effort: 'none', temperature: 0.2, response_format: { type: 'json_object' }, max_completion_tokens: 450
@@ -277,7 +298,7 @@ async function generateVideo(userId, input = {}) {
   if (!runware.isConfigured()) throw publicError('Video generation is temporarily unavailable.', 'AI_VIDEO_NOT_CONFIGURED', 503);
   if (clean(input.prompt, 1500).length < 2) throw publicError('Describe the video you want to create.');
   const profile = await modelConfig(input.modelRoute);
-  const selection = videoAdapters.validateSelection(profile, input, []);
+  const selection = videoAdapters.validateSelection(profile, input, [], { requireReferences: false });
   const normalized = {
     ...input,
     duration: selection.duration,
