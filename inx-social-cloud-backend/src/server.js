@@ -13,6 +13,7 @@ const { startAgentAssetBucketBackfill } = require('./services/agentAssetBucketBa
 const { runOneOffXTextSanitizer } = require('./services/oneOffXTextSanitizer');
 const { startUGCStudioRuntime } = require('./services/ugcStudioService');
 const { startAIPostCampaignRuntime } = require('./services/aiPostCampaignService');
+const videoModelRegistry = require('./services/videoModelRegistryService');
 const aiCredits = require('./services/aiCreditService');
 const stripeService = require('./services/stripeService');
 const ugcEngine = require('./services/ugcEngineService');
@@ -59,6 +60,9 @@ const server = app.listen(env.port, () => {
   startBulkCancellationRuntime();
   startUGCStudioRuntime();
   void startAIPostCampaignRuntime();
+  void videoModelRegistry.startRuntime()
+    .then(snapshot => console.info('[VIDEO MODEL REGISTRY STARTUP]', JSON.stringify(snapshot)))
+    .catch(error => console.warn('[VIDEO MODEL REGISTRY STARTUP] failed', { error: error?.message || String(error) }));
   console.info('[AI CREDIT CONFIG]', JSON.stringify(aiCredits.configurationSnapshot()));
   console.info('[STRIPE PLAN CONFIG]', JSON.stringify(stripeService.configurationSnapshot()));
   void ugcEngine.healthSnapshot().then(snapshot => console.info('[UGC ENGINE CONFIG]', JSON.stringify(snapshot)));
