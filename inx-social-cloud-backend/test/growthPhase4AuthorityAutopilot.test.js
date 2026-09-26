@@ -89,3 +89,10 @@ test('Sol auto-approval rejects uncertain or unsafe B2B outreach before sending'
   assert.match(service,/toneSafe===true/);
   assert.match(service,/identityAndOptOutPresent===true/);
 });
+
+
+test('AI-approved outreach does not send a blind automatic follow-up without inbound reply suppression',()=>{
+  const service=read('src/services/growthAuthorityService.js');
+  assert.match(service,/x\.status==='AI_APPROVED'\?null:new Date\(Date\.now\(\)\+5\*24\*60\*60\*1000\)/);
+  assert.match(service,/Automatic follow-up is disabled until inbound reply suppression is connected/);
+});
