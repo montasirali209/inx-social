@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=9">
+  <link rel="stylesheet" href="/admin.css?v=10">
   <link rel="stylesheet" href="/admin-security.css?v=1">
 </head>
 <body>
@@ -36,6 +36,7 @@
       <button class="nav" data-page="users"><span>◎</span>Customers <i id="userAlertBadge" hidden>0</i></button>
       <button class="nav" data-page="aiAccess"><span>✦</span>AI &amp; Automation</button>
       <button class="nav" data-page="searchConsole"><span>⌕</span>Search Console</button>
+      <button class="nav" data-page="growthIntelligence"><span>◈</span>Growth Intelligence</button>
       <button class="nav" data-page="settings"><span>⚙</span>System Settings</button>
       <button class="nav" data-page="security"><span>⌾</span>Admin &amp; Security</button>
     </nav>
@@ -271,6 +272,61 @@
         <article class="panel"><header><div><span class="kicker">Audience geography</span><h2>Countries</h2></div></header><div id="gscCountries" class="gsc-breakdown"></div></article>
         <article class="panel"><header><div><span class="kicker">Search device</span><h2>Devices</h2></div></header><div id="gscDevices" class="gsc-breakdown"></div></article>
       </div>
+    </section>
+
+    <section class="page hidden" id="growthIntelligencePage">
+      <div class="section-head growth-heading">
+        <div><span class="kicker">Phase 1 · discovery & visibility</span><h2>Growth Intelligence</h2><p>One operational view for crawler access, AI-search visibility, Search Console readiness and public Reddit opportunities. No automated community posting.</p></div>
+        <span class="status-chip" id="growthStatusChip">Loading…</span>
+      </div>
+
+      <div class="growth-provider-grid" id="growthProviderGrid" aria-live="polite">
+        <article class="growth-provider-card loading"><span>Search Console</span><b>Loading…</b><small>Checking connection</small></article>
+        <article class="growth-provider-card loading"><span>OpenAI web search</span><b>Loading…</b><small>Checking probe configuration</small></article>
+        <article class="growth-provider-card loading"><span>Perplexity</span><b>Loading…</b><small>Checking API configuration</small></article>
+        <article class="growth-provider-card loading"><span>Claude</span><b>Loading…</b><small>Checking API configuration</small></article>
+      </div>
+
+      <div class="growth-main-grid">
+        <article class="panel growth-audit-panel">
+          <header><div><span class="kicker">Technical discovery</span><h2>Crawler & indexability audit</h2></div><button class="primary" id="runGrowthAuditBtn" type="button">Run site audit</button></header>
+          <p class="muted">Checks the live canonical site, robots.txt, main and blog sitemaps, key acquisition pages, and whole-site crawler blocks.</p>
+          <div class="growth-score-row">
+            <div class="growth-score"><b id="growthAuditScore">—</b><span>Site discovery score</span></div>
+            <div class="growth-audit-meta" id="growthAuditMeta">No audit has been run yet.</div>
+          </div>
+          <div class="growth-crawler-grid" id="growthCrawlerGrid"><div class="growth-empty">Run the audit to inspect crawler access.</div></div>
+          <div class="growth-check-list" id="growthCheckList"></div>
+        </article>
+
+        <article class="panel growth-prompt-panel">
+          <header><div><span class="kicker">Buyer-intent benchmark</span><h2>Prompt library</h2></div><span class="gsc-readonly">12 seed prompts</span></header>
+          <p class="muted">These prompts define the first visibility benchmark. They are neutral buyer questions, not prompts designed to force INXSocial into an answer.</p>
+          <div class="growth-prompt-list" id="growthPromptList"><div class="growth-empty">Loading prompts…</div></div>
+        </article>
+      </div>
+
+      <section class="panel growth-visibility-panel">
+        <header class="growth-action-head">
+          <div><span class="kicker">AI visibility baseline</span><h2>OpenAI web-search probe</h2><p>Runs independent live-web buyer queries and records whether INXSocial is mentioned or cited, which competitors appear, and the cited sources.</p></div>
+          <div class="growth-actions"><label>Prompts<select id="growthOpenAiLimit"><option value="3">3 prompts</option><option value="5" selected>5 prompts</option></select></label><button class="primary" id="runOpenAiVisibilityBtn" type="button">Run visibility scan</button></div>
+        </header>
+        <div class="growth-disclaimer">This is an OpenAI API web-search probe. It is useful as a repeatable benchmark, but it is not an exact reproduction or ranking of the consumer ChatGPT product.</div>
+        <div class="growth-visibility-kpis" id="growthVisibilityKpis">
+          <article><span>Mention rate</span><b>—</b><small>No scan yet</small></article>
+          <article><span>Citation rate</span><b>—</b><small>No scan yet</small></article>
+          <article><span>Successful prompts</span><b>—</b><small>No scan yet</small></article>
+        </div>
+        <div class="growth-results" id="growthVisibilityResults"><div class="growth-empty">Run a scan to create the first AI visibility baseline.</div></div>
+      </section>
+
+      <section class="panel growth-reddit-panel">
+        <header class="growth-action-head">
+          <div><span class="kicker">Community discovery</span><h2>Reddit opportunities</h2><p>Find public discussions where a genuinely useful response may be relevant to INXSocial. Replies remain manual and should never be spammed or auto-posted.</p></div>
+          <button class="secondary" id="discoverRedditBtn" type="button">Find Reddit opportunities</button>
+        </header>
+        <div class="growth-reddit-list" id="growthRedditList"><div class="growth-empty">No opportunity scan has been run yet.</div></div>
+      </section>
     </section>
 
     <section class="page hidden" id="settingsPage">

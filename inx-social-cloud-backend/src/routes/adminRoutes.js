@@ -26,6 +26,7 @@ const {
 } = require('../controllers/adminController');
 const adminSecurity = require('../controllers/adminSecurityController');
 const googleSearchConsole = require('../controllers/googleSearchConsoleController');
+const growthIntelligence = require('../controllers/growthIntelligenceController');
 const adminSecurityRoutes = require('./adminSecurityRoutes');
 
 router.get('/search-console/oauth/callback', googleSearchConsole.oauthCallback);
@@ -33,6 +34,10 @@ router.get('/search-console/oauth/callback', googleSearchConsole.oauthCallback);
 router.use(requireAuth, requireAdmin);
 router.get('/overview', overview);
 router.get('/search-console/status', googleSearchConsole.status);
+router.get('/growth-intelligence/overview', growthIntelligence.overview);
+router.post('/growth-intelligence/site-audit', requireSuperAdmin, growthIntelligence.runSiteAudit);
+router.post('/growth-intelligence/openai-visibility', requireSuperAdmin, growthIntelligence.runOpenAIVisibility);
+router.post('/growth-intelligence/reddit-opportunities', requireSuperAdmin, growthIntelligence.discoverReddit);
 router.post('/search-console/oauth/start', requireSuperAdmin, googleSearchConsole.startOAuth);
 router.post('/search-console/site', requireSuperAdmin, googleSearchConsole.selectSite);
 router.get('/search-console/performance', googleSearchConsole.performance);

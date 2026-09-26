@@ -1,4 +1,4 @@
-const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,ugcAvatars:[],timer:null};
+const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,ugcAvatars:[],timer:null};
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const initials=value=>String(value||'IN').trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
@@ -11,8 +11,8 @@ function clearSession(){clearInterval(state.timer);state.user=null;state.users=[
 async function signOut(){try{await fetch('/api/admin-auth/logout',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'}})}catch{}finally{clearSession()}}
 async function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};const response=await fetch(path,{...options,headers,credentials:'same-origin'});const data=await response.json().catch(()=>({}));if(response.status===401){clearSession();throw new Error(data.error||'Your administrator session has ended.')}if(!response.ok)throw new Error(data.error||`Request failed: ${response.status}`);return data}
 function setLoggedIn(on){$('loginView').classList.toggle('hidden',on);$('dashboardView').classList.toggle('hidden',!on);if(on){const name=state.user?.name||'INXSocial Admin';$('adminName').textContent=name;$('adminEmail').textContent=`${state.user?.email||''}${state.user?.role?` · ${state.user.role.replace('_',' ')}`:''}`;$('adminInitials').textContent=initials(name)}}
-const pageMeta={overview:['Overview','Monitor new customers and service activity.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI & Automation','Manage AI Studio policy, Social Agent allowances and generation infrastructure.'],searchConsole:['Search Console','Monitor Google Search visibility, queries, landing pages and SEO opportunities.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
-async function openPage(page){document.querySelectorAll('.nav').forEach(button=>button.classList.toggle('active',button.dataset.page===page));document.querySelectorAll('.page').forEach(section=>section.classList.toggle('hidden',section.id!==`${page}Page`));$('pageTitle').textContent=pageMeta[page][0];$('pageSubtitle').textContent=pageMeta[page][1];if(page==='overview')await loadOverview();if(page==='users')await loadUsers();if(page==='aiAccess')await loadAiAccess();if(page==='searchConsole')await loadSearchConsole();if(page==='settings')await loadSettings();if(page==='security')await loadSecurity()}
+const pageMeta={overview:['Overview','Monitor new customers and service activity.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI & Automation','Manage AI Studio policy, Social Agent allowances and generation infrastructure.'],searchConsole:['Search Console','Monitor Google Search visibility, queries, landing pages and SEO opportunities.'],growthIntelligence:['Growth Intelligence','Track crawler access, AI-search visibility and community opportunities.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
+async function openPage(page){document.querySelectorAll('.nav').forEach(button=>button.classList.toggle('active',button.dataset.page===page));document.querySelectorAll('.page').forEach(section=>section.classList.toggle('hidden',section.id!==`${page}Page`));$('pageTitle').textContent=pageMeta[page][0];$('pageSubtitle').textContent=pageMeta[page][1];if(page==='overview')await loadOverview();if(page==='users')await loadUsers();if(page==='aiAccess')await loadAiAccess();if(page==='searchConsole')await loadSearchConsole();if(page==='growthIntelligence')await loadGrowthIntelligence();if(page==='settings')await loadSettings();if(page==='security')await loadSecurity()}
 document.querySelectorAll('.nav').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.page)));
 document.querySelectorAll('[data-open-page]').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.openPage)));
 $('loginForm').addEventListener('submit',async event=>{event.preventDefault();$('loginError').textContent='';try{const data=await api('/api/admin-auth/login',{method:'POST',body:JSON.stringify({email:$('email').value.trim(),password:$('password').value})});state.user=data.user;setLoggedIn(true);$('password').value='';await postAuthLanding();state.timer=setInterval(()=>loadOverview(true).catch(()=>{}),15000)}catch(error){$('loginError').textContent=error.message}});
@@ -470,6 +470,88 @@ $('gscPropertySelect').addEventListener('change',async event=>{
 });
 $('gscPeriod').addEventListener('change',()=>loadGscPerformance().catch(error=>toast(error.message)));
 $('gscRefreshBtn').addEventListener('click',()=>loadSearchConsole().catch(error=>toast(error.message)));
+
+
+function growthProviderCard(label,configured,note){
+  return `<article class="growth-provider-card ${configured?'ok':'warn'}"><span>${esc(label)}</span><b>${configured?'Ready':'Not configured'}</b><small>${esc(note||'')}</small></article>`;
+}
+function renderGrowthProviders(data){
+  const providers=data.providers||{};
+  const gsc=data.searchConsole||{};
+  const cards=[
+    growthProviderCard('Search Console',Boolean(gsc.connected),gsc.connected?(gsc.siteUrl||'Connected property'):'Connect from Search Console'),
+    growthProviderCard(providers.openai?.label||'OpenAI web-search probe',Boolean(providers.openai?.configured),providers.openai?.configured?(providers.openai?.model||'Configured'):providers.openai?.note),
+    growthProviderCard(providers.perplexity?.label||'Perplexity',Boolean(providers.perplexity?.configured),providers.perplexity?.configured?(providers.perplexity?.model||'Configured'):providers.perplexity?.note),
+    growthProviderCard(providers.claude?.label||'Claude',Boolean(providers.claude?.configured),providers.claude?.configured?(providers.claude?.model||'Configured'):providers.claude?.note)
+  ];
+  $('growthProviderGrid').innerHTML=cards.join('');
+  const ready=[Boolean(gsc.connected),Boolean(providers.openai?.configured),Boolean(providers.perplexity?.configured),Boolean(providers.claude?.configured)].filter(Boolean).length;
+  $('growthStatusChip').textContent=`${ready}/4 signals ready`;
+  $('growthStatusChip').className=`status-chip ${ready>=2?'gsc-connected':''}`;
+  $('runOpenAiVisibilityBtn').disabled=!providers.openai?.configured||state.user?.role!=='SUPER_ADMIN';
+  $('discoverRedditBtn').disabled=!providers.reddit?.configured||state.user?.role!=='SUPER_ADMIN';
+  $('runGrowthAuditBtn').disabled=state.user?.role!=='SUPER_ADMIN';
+}
+function renderGrowthPrompts(prompts){
+  $('growthPromptList').innerHTML=(prompts||[]).map((prompt,index)=>`<div class="growth-prompt-row"><span>${String(index+1).padStart(2,'0')}</span><p>${esc(prompt)}</p></div>`).join('')||'<div class="growth-empty">No seed prompts configured.</div>';
+}
+function renderGrowthAudit(audit){
+  if(!audit){$('growthAuditScore').textContent='—';$('growthAuditMeta').textContent='No audit has been run yet.';$('growthCrawlerGrid').innerHTML='<div class="growth-empty">Run the audit to inspect crawler access.</div>';$('growthCheckList').innerHTML='';return}
+  $('growthAuditScore').textContent=`${Number(audit.score||0)}%`;
+  $('growthAuditMeta').textContent=`Live audit · ${audit.origin||''} · ${fmtDate(audit.generatedAt)}`;
+  $('growthCrawlerGrid').innerHTML=(audit.crawlers||[]).map(item=>`<div class="growth-crawler ${item.allowed?'ok':'blocked'}"><div><b>${esc(item.label)}</b><small>${esc(item.userAgent)}</small></div><strong>${item.allowed?'Allowed':'Blocked'}</strong></div>`).join('')||'<div class="growth-empty">No crawler results.</div>';
+  $('growthCheckList').innerHTML=(audit.checks||[]).map(item=>`<div class="growth-check ${item.ok?'ok':'warn'}"><span>${item.ok?'✓':'!'}</span><div><b>${esc(item.label)}</b><small>${esc(item.detail)}</small></div></div>`).join('');
+}
+function growthPercent(value){return `${(Number(value||0)*100).toFixed(0)}%`}
+function renderGrowthVisibility(scan){
+  if(!scan){$('growthVisibilityKpis').innerHTML='<article><span>Mention rate</span><b>—</b><small>No scan yet</small></article><article><span>Citation rate</span><b>—</b><small>No scan yet</small></article><article><span>Successful prompts</span><b>—</b><small>No scan yet</small></article>';$('growthVisibilityResults').innerHTML='<div class="growth-empty">Run a scan to create the first AI visibility baseline.</div>';return}
+  $('growthVisibilityKpis').innerHTML=[
+    ['Mention rate',growthPercent(scan.mentionRate),'INXSocial named in answer'],
+    ['Citation rate',growthPercent(scan.citationRate),'inxsocial.co.uk cited'],
+    ['Successful prompts',`${Number(scan.successfulPrompts||0)}/${Number(scan.promptsRun||0)}`,'Completed live-web probes']
+  ].map(([label,value,note])=>`<article><span>${label}</span><b>${value}</b><small>${note}</small></article>`).join('');
+  $('growthVisibilityResults').innerHTML=(scan.results||[]).map(item=>{
+    if(!item.ok)return `<article class="growth-result error"><div><b>${esc(item.prompt)}</b><small>${esc(item.error||'Probe failed')}</small></div><span>Failed</span></article>`;
+    const competitor=(item.competitors||[]).slice(0,4).join(', ');
+    const sources=(item.sources||[]).slice(0,3).map(source=>`<a href="${esc(source.url)}" target="_blank" rel="noopener">${esc(source.title||source.url)}</a>`).join('');
+    return `<article class="growth-result ${item.inxSocialMentioned?'hit':'miss'}"><div><b>${esc(item.prompt)}</b><small>${esc(item.answerSummary||'No summary returned.')}</small>${competitor?`<em>Competitors: ${esc(competitor)}</em>`:''}${sources?`<div class="growth-source-links">${sources}</div>`:''}</div><span>${item.inxSocialMentioned?(item.inxSocialCited?'Mention + cite':'Mentioned'):'Not mentioned'}</span></article>`;
+  }).join('')||'<div class="growth-empty">No visibility results.</div>';
+}
+function renderGrowthReddit(data){
+  const threads=data?.threads||[];
+  $('growthRedditList').innerHTML=threads.length?threads.map(item=>`<article class="growth-reddit-row"><div><b>${esc(item.title)}</b><small>${esc(item.subreddit||'Reddit')} · relevance ${Number(item.relevance||0)}%</small><p>${esc(item.reason||'')}</p></div><a href="${esc(item.url)}" target="_blank" rel="noopener">Open thread ↗</a></article>`).join(''):'<div class="growth-empty">No matching public Reddit discussions were returned in the latest scan.</div>';
+}
+function renderGrowthIntelligence(data){
+  state.growthIntelligence=data;
+  renderGrowthProviders(data);
+  renderGrowthPrompts(data.prompts);
+  renderGrowthAudit(data.latest?.audit||null);
+  renderGrowthVisibility(data.latest?.openaiVisibility||null);
+  renderGrowthReddit(data.latest?.reddit||null);
+}
+async function loadGrowthIntelligence(){
+  try{
+    renderGrowthIntelligence(await api('/api/admin/growth-intelligence/overview'));
+  }catch(error){toast(error.message)}
+}
+async function runGrowthAudit(){
+  const button=$('runGrowthAuditBtn');button.disabled=true;button.textContent='Auditing…';
+  try{renderGrowthAudit(await api('/api/admin/growth-intelligence/site-audit',{method:'POST',body:'{}'}));toast('Growth site audit completed')}catch(error){toast(error.message)}finally{button.textContent='Run site audit';button.disabled=state.user?.role!=='SUPER_ADMIN'}
+}
+async function runOpenAiVisibility(){
+  const button=$('runOpenAiVisibilityBtn');button.disabled=true;button.textContent='Scanning…';
+  try{
+    const data=await api('/api/admin/growth-intelligence/openai-visibility',{method:'POST',body:JSON.stringify({limit:Number($('growthOpenAiLimit').value||5)})});
+    renderGrowthVisibility(data);toast('AI visibility baseline updated');
+  }catch(error){toast(error.message)}finally{button.textContent='Run visibility scan';button.disabled=!state.growthIntelligence?.providers?.openai?.configured||state.user?.role!=='SUPER_ADMIN'}
+}
+async function discoverGrowthReddit(){
+  const button=$('discoverRedditBtn');button.disabled=true;button.textContent='Searching…';
+  try{renderGrowthReddit(await api('/api/admin/growth-intelligence/reddit-opportunities',{method:'POST',body:'{}'}));toast('Reddit opportunities refreshed')}catch(error){toast(error.message)}finally{button.textContent='Find Reddit opportunities';button.disabled=!state.growthIntelligence?.providers?.reddit?.configured||state.user?.role!=='SUPER_ADMIN'}
+}
+$('runGrowthAuditBtn').addEventListener('click',()=>void runGrowthAudit());
+$('runOpenAiVisibilityBtn').addEventListener('click',()=>void runOpenAiVisibility());
+$('discoverRedditBtn').addEventListener('click',()=>void discoverGrowthReddit());
 
 async function postAuthLanding(){
   const params=new URLSearchParams(window.location.search);
