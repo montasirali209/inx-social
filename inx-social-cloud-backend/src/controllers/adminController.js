@@ -1,5 +1,6 @@
 const prisma = require('../db/prisma');
 const crypto = require('crypto');
+const zlib = require('zlib');
 const { z } = require('zod');
 const { hashPassword } = require('../utils/auth');
 const aiModelRouting = require('../services/aiModelRoutingService');
@@ -12,6 +13,93 @@ const ugcAnalytics = require('../services/ugcStudioAnalyticsService');
 const ugcProductionAudit = require('../services/ugcProductionAuditService');
 const ugcStudio = require('../services/ugcStudioService');
 const env = require('../config/env');
+
+const ugcAvatarSelectionSchema = z.object({
+  ids: z.array(z.string().trim().min(1).max(120)).min(1).max(200)
+});
+
+const CRC32_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let index = 0; index < 256; index += 1) {
+    let value = index;
+    for (let bit = 0; bit < 8; bit += 1) value = (value & 1) ? (0xEDB88320 ^ (value >>> 1)) : (value >>> 1);
+    table[index] = value >>> 0;
+  }
+  return table;
+})();
+
+function crc32(buffer) {
+  let crc = 0xFFFFFFFF;
+  for (const byte of buffer) crc = CRC32_TABLE[(crc ^ byte) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+function dosTimestamp(date = new Date()) {
+  const year = Math.max(1980, date.getFullYear());
+  const time = ((date.getHours() & 31) << 11) | ((date.getMinutes() & 63) << 5) | ((Math.floor(date.getSeconds() / 2)) & 31);
+  const day = Math.max(1, date.getDate());
+  const stamp = (((year - 1980) & 127) << 9) | (((date.getMonth() + 1) & 15) << 5) | (day & 31);
+  return { time, date: stamp };
+}
+
+function zipBuffers(entries) {
+  const locals = [];
+  const centrals = [];
+  let offset = 0;
+  const stamp = dosTimestamp();
+  for (const entry of entries) {
+    const name = Buffer.from(String(entry.name || 'file.bin').replace(/[\\/]+/g, '-'), 'utf8');
+    const data = Buffer.isBuffer(entry.data) ? entry.data : Buffer.from(entry.data || '');
+    const checksum = crc32(data);
+
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034B50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt16LE(stamp.time, 10);
+    local.writeUInt16LE(stamp.date, 12);
+    local.writeUInt32LE(checksum, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(0, 28);
+    locals.push(local, name, data);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014B50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0, 8);
+    central.writeUInt16LE(0, 10);
+    central.writeUInt16LE(stamp.time, 12);
+    central.writeUInt16LE(stamp.date, 14);
+    central.writeUInt32LE(checksum, 16);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt16LE(0, 30);
+    central.writeUInt16LE(0, 32);
+    central.writeUInt16LE(0, 34);
+    central.writeUInt16LE(0, 36);
+    central.writeUInt32LE(0, 38);
+    central.writeUInt32LE(offset, 42);
+    centrals.push(central, name);
+    offset += local.length + name.length + data.length;
+  }
+
+  const centralSize = centrals.reduce((sum, item) => sum + item.length, 0);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054B50, 0);
+  end.writeUInt16LE(0, 4);
+  end.writeUInt16LE(0, 6);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralSize, 12);
+  end.writeUInt32LE(offset, 16);
+  end.writeUInt16LE(0, 20);
+  return Buffer.concat([...locals, ...centrals, end]);
+}
 
 function safeUserSelect() {
   return {
@@ -504,6 +592,55 @@ async function ugcAvatarContent(req, res, next) {
   } catch (err) { next(err); }
 }
 
+async function downloadUgcAvatars(req, res, next) {
+  try {
+    const { ids } = ugcAvatarSelectionSchema.parse(req.body || {});
+    const result = await ugcStudio.systemAvatarFiles(ids);
+    const entries = result.files.map(file => ({ name: file.name, data: file.data }));
+    if (result.missing.length) {
+      entries.push({
+        name: 'missing-creators.txt',
+        data: Buffer.from([
+          'The following selected creators did not have a stored portrait available for download:',
+          ...result.missing.map(item => '- ' + item.name + ' (' + item.id + ')')
+        ].join('\n'), 'utf8')
+      });
+    }
+    if (!result.files.length) return res.status(422).json({ error: 'None of the selected creators currently has a stored portrait to download.' });
+    const archive = zipBuffers(entries);
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', 'attachment; filename="inx-ugc-creators-' + date + '.zip"');
+    res.setHeader('Content-Length', String(archive.length));
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(archive);
+  } catch (err) { next(err); }
+}
+
+async function deleteUgcAvatars(req, res, next) {
+  try {
+    const { ids } = ugcAvatarSelectionSchema.parse(req.body || {});
+    const avatars = await ugcStudio.disableSystemAvatars(ids);
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'ADMIN_UGC_AVATAR_BULK_DELETE',
+        entity: 'UGCAvatar',
+        entityId: avatars.length === 1 ? avatars[0].id : null,
+        metadata: JSON.stringify({ selected: ids.length, removed: avatars.length, avatars })
+      }
+    }).catch(() => {});
+    res.json({
+      ok: true,
+      removed: avatars.length,
+      avatars,
+      message: avatars.length
+        ? avatars.length + ' creator' + (avatars.length === 1 ? '' : 's') + ' removed from the UGC Studio picker.'
+        : 'No active creators were removed.'
+    });
+  } catch (err) { next(err); }
+}
+
 async function ugcAnalyticsSummary(req, res, next) {
   try {
     const days = z.coerce.number().int().min(1).max(180).default(30).parse(req.query.days);
@@ -534,4 +671,4 @@ async function reviewAgentLearning(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { overview, users, userDetail, createUser, updateUserAccess, updateCommercialPlan, adjustUserCredits, settings, updateSetting, aiStudioPolicyStatus, updateAiStudioPolicy, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning, ugcAvatars, uploadUgcAvatar, ugcAvatarContent, ugcAnalyticsSummary, ugcOperationsSummary };
+module.exports = { overview, users, userDetail, createUser, updateUserAccess, updateCommercialPlan, adjustUserCredits, settings, updateSetting, aiStudioPolicyStatus, updateAiStudioPolicy, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning, ugcAvatars, uploadUgcAvatar, ugcAvatarContent, downloadUgcAvatars, deleteUgcAvatars, ugcAnalyticsSummary, ugcOperationsSummary };
