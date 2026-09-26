@@ -713,7 +713,7 @@ function renderGrowthOptimization(data){
     const mode=String(item.mode||'REVIEW');
     const proposal=item.proposal||{};
     const proposalCopy=proposal.summary||proposal.refreshBrief||proposal.croHypothesis||(proposal.socialPosts||[]).join('\n\n')||'Measured recommendation ready; detailed proposal will appear when Sol enrichment is available.';
-    const canApprove=status==='PROPOSED'&&mode!=='PHASE3_AUTOPILOT';
+    const canApprove=status==='PROPOSED'&&mode!=='PHASE3_AUTOPILOT'&&mode!=='DRAFT_ONLY';
     const canApply=(status==='APPROVED'&&mode==='APPLY_ON_APPROVAL')||(status==='PROPOSED'&&mode==='PHASE3_AUTOPILOT');
     const canReady=status==='PROPOSED'&&mode==='DRAFT_ONLY';
     const canDone=['APPROVED','READY_TO_PUBLISH'].includes(status);
