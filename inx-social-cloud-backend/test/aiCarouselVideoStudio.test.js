@@ -43,6 +43,7 @@ test('Video Studio keeps the model decision simple with AI Recommended, Fast and
   const router = read('frontend/src/components/ai-content-studio/GenerationModalRouter.tsx');
   const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV2.tsx');
   const service = read('src/services/videoStudioService.js');
+  const registry = read('src/services/videoModelRegistryService.js');
   const routes = read('src/routes/aiContentStudioRoutes.js');
   assert.match(router, /VideoStudioModal/);
   assert.match(video, /AI Recommended/);
@@ -52,17 +53,18 @@ test('Video Studio keeps the model decision simple with AI Recommended, Fast and
   assert.match(video, /estimateVideoCredits/);
   assert.match(video, /Generate video · \{credits\} credits/);
   assert.match(video, /StudioSelect/);
-  assert.match(service, /name: 'P-Video-2'/);
-  assert.match(service, /name: 'MiniMax H3 Fast'/);
-  assert.match(service, /name: 'Kling VIDEO 3\.0'/);
-  assert.match(service, /name: 'Wan 3\.0'/);
-  assert.match(service, /name: 'LTX-2\.5 Pro'/);
-  assert.match(service, /name: 'Runway Gen-4\.5'/);
-  assert.match(service, /name: 'Seedance 2\.5'/);
+  assert.match(registry, /name: 'P-Video-2'/);
+  assert.match(registry, /name: 'MiniMax H3 Fast'/);
+  assert.match(registry, /name: 'Kling VIDEO 3\.0'/);
+  assert.match(registry, /name: 'Wan 3\.0'/);
+  assert.match(registry, /name: 'LTX-2\.5 Pro'/);
+  assert.match(registry, /name: 'Runway Gen-4\.5'/);
+  assert.match(registry, /name: 'Seedance 2\.5'/);
   assert.match(service, /async function recommendModel/);
   assert.match(service, /function estimateCredits/);
   assert.match(routes, /\/video\/recommend/);
   assert.match(routes, /\/video\/estimate/);
+  assert.match(routes, /\/video\/catalog/);
   assert.match(routes, /\/generate\/video-studio/);
 });
 
@@ -76,25 +78,27 @@ test('Video Studio asks for explicit confirmation before high-credit generations
   assert.match(video, /onClick=\{\(\) => void requestGeneration\(\)\}/);
 });
 
-test('Video Studio uses P-Video-2 as the economical 720p route with conservative credit estimates', () => {
-  const service = read('src/services/videoStudioService.js');
+test('Video Studio keeps P-Video-2 as the economical compatibility route while pricing comes from the registry', () => {
+  const registry = read('src/services/videoModelRegistryService.js');
+  const adapters = read('src/services/videoProviderAdapters.js');
   const environment = read('src/config/env.js');
   const example = read('.env.example');
   assert.match(environment, /videoEconomyModel: modelName\(process\.env\.RUNWARE_VIDEO_ECONOMY_MODEL, 'prunaai:p-video@2'\)/);
   assert.match(example, /RUNWARE_VIDEO_ECONOMY_MODEL=prunaai:p-video@2/);
-  assert.match(service, /env\.runware\.videoEconomyModel \|\| 'prunaai:p-video@2'/);
-  assert.match(service, /rates: \{ '720p': 0\.026 \}, draftRates: \{ '720p': 0\.016 \}/);
-  assert.match(service, /pVideo2 = \{ '16:9': \[1280, 704\], '9:16': \[704, 1280\], '1:1': \[960, 960\] \}/);
-  assert.match(service, /positivePrompt: clean\(input\.prompt, profile\.id === 'pvideo' \? 2048/);
-  assert.match(service, /task\.fps = 24/);
-  assert.match(service, /task\.settings = \{ audio, draft: Boolean\(input\.draft\), promptUpsampling: true \}/);
+  assert.match(registry, /env\.runware\.videoEconomyModel \|\| 'prunaai:p-video@2'/);
+  assert.match(registry, /rates: \{ '720p': 0\.025 \}, draftRates: \{ '720p': 0\.015 \}/);
+  assert.match(adapters, /'720p': \{ '16:9': \[1280, 704\], '9:16': \[704, 1280\]/);
+  assert.match(adapters, /profile\.id === 'pvideo' \? 2048/);
+  assert.match(adapters, /task\.fps = selection\.fps \|\| 24/);
+  assert.match(adapters, /task\.settings = \{ audio, draft: Boolean\(input\.draft\), promptUpsampling: true \}/);
 });
 
-test('Wan Video Studio sends current schema fields and preserves safe provider diagnostics', () => {
+test('Wan Video Studio uses the provider adapter and preserves safe provider diagnostics', () => {
   const service = read('src/services/videoStudioService.js');
+  const adapters = read('src/services/videoProviderAdapters.js');
   const runware = read('src/services/runwareService.js');
-  assert.doesNotMatch(service, /promptExtend/);
-  assert.match(service, /Wan 3\.0 produces native audio from the prompt/);
+  assert.doesNotMatch(adapters, /promptExtend/);
+  assert.match(adapters, /profile\.id === 'wan30' && !audio/);
   assert.match(service, /\[AI VIDEO GENERATION FAILED\]/);
   assert.match(runware, /\[RUNWARE REQUEST REJECTED\]/);
   assert.match(runware, /!\['positivePrompt', 'messages', 'inputs'\]\.includes\(key\)/);
