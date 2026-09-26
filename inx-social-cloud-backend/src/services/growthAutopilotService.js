@@ -5,6 +5,8 @@ const growthIntelligence = require('./growthIntelligenceService');
 const externalVisibility = require('./externalVisibilityService');
 const growthOpportunities = require('./growthOpportunityService');
 const growthContent = require('./growthContentService');
+const growthStrategy = require('./growthStrategyService');
+const seoMaintenance = require('./growthSeoMaintenanceService');
 
 const CONFIG_KEY = 'growth_autopilot_config_v1';
 const STATE_KEY = 'growth_autopilot_state_v1';
@@ -15,7 +17,8 @@ const LEASE_MS = 45 * 60 * 1000;
 const DEFAULT_CONFIG = Object.freeze({
   enabled: true,
   intelligenceEveryHours: 24,
-  publishEveryHours: 48,
+  configVersion: 2,
+  publishEveryHours: 24,
   opportunityWindowDays: 28,
   visibilityPromptCount: 5,
   minQualityScore: 75,
@@ -27,6 +30,8 @@ const DEFAULT_CONFIG = Object.freeze({
 
 let timer = null;
 let initialTimer = null;
+let legacyImportTimer = null;
+let seoStartupTimer = null;
 
 function nowIso() {
   return new Date().toISOString();
@@ -56,7 +61,8 @@ function normalizeConfig(value = {}) {
   return {
     enabled: value.enabled !== false,
     intelligenceEveryHours: clampNumber(value.intelligenceEveryHours, 24, 6, 168),
-    publishEveryHours: clampNumber(value.publishEveryHours, 48, 24, 336),
+    configVersion: Math.max(2, Number(value.configVersion || 0)),
+    publishEveryHours: clampNumber(value.publishEveryHours, 24, 24, 336),
     opportunityWindowDays: [7, 28, 90].includes(Number(value.opportunityWindowDays)) ? Number(value.opportunityWindowDays) : 28,
     visibilityPromptCount: clampNumber(value.visibilityPromptCount, 5, 1, 5),
     minQualityScore: clampNumber(value.minQualityScore, 75, 65, 95),
@@ -82,6 +88,7 @@ function initialState() {
     lastPublishedArticle: null,
     lastOpportunity: null,
     lastIntelligenceSummary: null,
+    lastStrategy: null,
     recentEvents: [{
       at: now,
       type: 'AUTOPILOT_READY',
@@ -92,7 +99,14 @@ function initialState() {
 }
 
 async function ensureSettings() {
-  const config = normalizeConfig(safeJson((await prisma.appSetting.findUnique({ where: { key: CONFIG_KEY } }))?.value, DEFAULT_CONFIG));
+  const configRow = await prisma.appSetting.findUnique({ where: { key: CONFIG_KEY } });
+  const rawConfig = safeJson(configRow?.value, null);
+  const needsV2Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 2;
+  const config = normalizeConfig({
+    ...(rawConfig || DEFAULT_CONFIG),
+    ...(needsV2Migration ? { configVersion: 2, publishEveryHours: 24 } : {})
+  });
+
   await prisma.appSetting.upsert({
     where: { key: CONFIG_KEY },
     create: {
@@ -112,6 +126,22 @@ async function ensureSettings() {
         value: JSON.stringify(state),
         description: 'INXSocial Growth Autopilot runtime state and activity.'
       }
+    });
+  } else if (needsV2Migration) {
+    const state = { ...initialState(), ...(safeJson(existingState.value, {}) || {}) };
+    state.running = false;
+    state.leaseUntil = null;
+    state.nextIntelligenceAt = nowIso();
+    state.nextPublishAt = nowIso();
+    state.recentEvents = [{
+      at: nowIso(),
+      type: 'AUTOPILOT_UPGRADED',
+      level: 'success',
+      message: 'Growth Autopilot upgraded to the AI Strategist workflow and a 24-hour publishing target.'
+    }, ...(state.recentEvents || [])].slice(0, 40);
+    await prisma.appSetting.update({
+      where: { key: STATE_KEY },
+      data: { value: JSON.stringify(state) }
     });
   }
 }
@@ -220,6 +250,7 @@ async function runIntelligence(config) {
     perplexity: false,
     claude: false,
     reddit: false,
+    seoMaintenance: false,
     opportunities: 0,
     warnings: []
   };
@@ -267,6 +298,18 @@ async function runIntelligence(config) {
     }
   }
 
+  try {
+    const seo = await seoMaintenance.run({ maxPages: 120 });
+    summary.seoMaintenance = true;
+    summary.seoScore = seo.score;
+    summary.seoPagesCrawled = seo.pagesCrawled;
+    summary.seoIssues = seo.summary?.totalIssues || 0;
+    summary.seoAutoFixed = seo.summary?.autoFixed || 0;
+    summary.internalArticleLinks = seo.summary?.internalArticleLinks || 0;
+  } catch (error) {
+    summary.warnings.push('Phase 3 SEO maintenance: ' + String(error.publicMessage || error.message || 'failed'));
+  }
+
   const opportunityMap = await growthOpportunities.build(config.opportunityWindowDays);
   summary.opportunities = opportunityMap.summary?.total || 0;
   summary.criticalOpportunities = opportunityMap.summary?.critical || 0;
@@ -284,7 +327,7 @@ async function runIntelligence(config) {
 
   await recordEvent(
     'INTELLIGENCE_REFRESHED',
-    'Growth signals refreshed automatically: crawler audit, available AI visibility providers, Reddit discovery and opportunity scoring.',
+    'Growth signals refreshed automatically: crawler audit, Phase 3 technical SEO maintenance, internal linking, available AI visibility providers, Reddit discovery and opportunity scoring.',
     summary,
     summary.warnings.length ? 'warning' : 'success'
   );
@@ -358,18 +401,18 @@ async function archiveLowQuality(article, threshold, attempt) {
   );
 }
 
-async function produceAndPublish(opportunity, config) {
+async function produceAndPublish(opportunity, config, strategy = null) {
   let lastArticle = null;
 
   for (let attempt = 1; attempt <= config.maxDraftAttempts; attempt += 1) {
     const draftInput = opportunity.id ? {
       opportunityId: opportunity.id,
-      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.'
+      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.' + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
     } : {
       topic: opportunity.topic,
       intent: opportunity.intent || 'commercial',
       action: opportunity.action?.label || 'Build authority content',
-      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.'
+      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.' + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
     };
 
     const draft = await growthContent.createDraft(draftInput);
@@ -391,6 +434,40 @@ async function produceAndPublish(opportunity, config) {
     );
 
     if (score < config.minQualityScore) {
+      await archiveLowQuality(draft, config.minQualityScore, attempt);
+      continue;
+    }
+
+    let critic = null;
+    try {
+      critic = await growthStrategy.reviewDraft({ article: draft, opportunity, strategy });
+      await recordEvent(
+        'AI_CRITIC_REVIEWED',
+        critic.approve
+          ? 'Independent AI critic approved the draft for the publishing pipeline.'
+          : 'Independent AI critic rejected the draft before publishing.',
+        {
+          articleId: draft.id,
+          criticScore: critic.score,
+          searchIntentMatch: critic.searchIntentMatch,
+          factualRisk: critic.factualRisk,
+          duplicationRisk: critic.duplicationRisk,
+          summary: critic.summary
+        },
+        critic.approve ? 'success' : 'warning'
+      );
+    } catch (error) {
+      await recordEvent(
+        'AI_CRITIC_UNAVAILABLE',
+        'The independent AI critic could not return a valid review, so the article was not published.',
+        { articleId: draft.id, error: String(error.message || error).slice(0, 400) },
+        'warning'
+      );
+      await archiveLowQuality(draft, config.minQualityScore, attempt);
+      continue;
+    }
+
+    if (!critic.approve || Number(critic.score || 0) < config.minQualityScore || critic.factualRisk === 'high' || critic.duplicationRisk === 'high') {
       await archiveLowQuality(draft, config.minQualityScore, attempt);
       continue;
     }
@@ -503,8 +580,76 @@ async function runCycle(options = {}) {
 
     let publishedArticle = null;
     if (publishDue) {
-      const opportunity = await chooseOpportunity(opportunityMap);
-      if (!opportunity) {
+      const articles = await growthContent.listArticles();
+      let strategy = null;
+      let opportunity = null;
+
+      try {
+        strategy = await growthStrategy.plan({ opportunityMap, articles });
+        await mutateState(current => {
+          current.lastStrategy = strategy;
+          return current;
+        });
+        await recordEvent(
+          'AI_STRATEGY_DECIDED',
+          'AI Strategist selected the next growth action: ' + strategy.action + '.',
+          {
+            action: strategy.action,
+            topic: strategy.topic,
+            confidence: strategy.confidence,
+            selectedOpportunityId: strategy.selectedOpportunityId,
+            rationale: strategy.rationale
+          },
+          strategy.action === 'CREATE_ARTICLE' ? 'success' : 'info'
+        );
+
+        if (strategy.action === 'CREATE_ARTICLE' && strategy.publishRecommended) {
+          opportunity = (opportunityMap?.opportunities || []).find(item => item.id === strategy.selectedOpportunityId) || null;
+          if (!opportunity && strategy.topic) {
+            opportunity = {
+              id: null,
+              topic: strategy.topic,
+              score: 60,
+              type: 'ai_strategy',
+              intent: 'commercial',
+              action: {
+                type: 'BUILD_AUTHORITY_CONTENT',
+                label: 'AI Strategist article',
+                rationale: strategy.rationale
+              }
+            };
+          }
+        } else {
+          const nextReview = addHours(nowIso(), config.publishEveryHours);
+          await mutateState(current => {
+            current.nextPublishAt = nextReview;
+            return current;
+          });
+          await recordEvent(
+            'STRATEGIC_ACTION_QUEUED',
+            'AI Strategist decided that creating a new article is not the best action right now. Autopilot will re-evaluate on the next cycle.',
+            {
+              action: strategy.action,
+              topic: strategy.topic,
+              rationale: strategy.rationale,
+              nextReviewAt: nextReview
+            },
+            'info'
+          );
+        }
+      } catch (error) {
+        await recordEvent(
+          'AI_STRATEGIST_FALLBACK',
+          'AI Strategist was unavailable, so Autopilot used the deterministic opportunity fallback instead of stopping.',
+          { error: String(error.message || error).slice(0, 400) },
+          'warning'
+        );
+        opportunity = growthStrategy.fallbackOpportunity(opportunityMap, articles) || await chooseOpportunity(opportunityMap);
+      }
+
+      if (opportunity) {
+        publishedArticle = await produceAndPublish(opportunity, config, strategy);
+      } else if (!strategy || (strategy.action === 'CREATE_ARTICLE' && strategy.publishRecommended)) {
         const nextRetry = addHours(nowIso(), config.retryHours);
         await mutateState(current => {
           current.nextPublishAt = nextRetry;
@@ -516,8 +661,6 @@ async function runCycle(options = {}) {
           { nextRetryAt: nextRetry },
           'warning'
         );
-      } else {
-        publishedArticle = await produceAndPublish(opportunity, config);
       }
     }
 
@@ -549,11 +692,12 @@ async function runCycle(options = {}) {
 }
 
 async function status() {
-  const [config, state, contentOverview, opportunityMap] = await Promise.all([
+  const [config, state, contentOverview, opportunityMap, seoStatus] = await Promise.all([
     getConfig(),
     getState(),
     growthContent.overview().catch(() => null),
-    growthOpportunities.latest().catch(() => null)
+    growthOpportunities.latest().catch(() => null),
+    seoMaintenance.status().catch(() => null)
   ]);
 
   return {
@@ -565,6 +709,7 @@ async function status() {
       engine: contentOverview.engine,
       latestArticles: (contentOverview.articles || []).slice(0, 5)
     } : null,
+    seoMaintenance: seoStatus,
     opportunities: opportunityMap ? {
       summary: opportunityMap.summary,
       generatedAt: opportunityMap.generatedAt,
@@ -603,12 +748,63 @@ async function updateConfig(patch = {}) {
   return status();
 }
 
+
+async function ensurePhase3MaintenanceFresh(reason = 'startup') {
+  try {
+    const current = await seoMaintenance.status();
+    const generatedAt = current?.generatedAt ? new Date(current.generatedAt).getTime() : 0;
+    const fresh = Number.isFinite(generatedAt) && generatedAt > 0 && (Date.now() - generatedAt) < 20 * 60 * 1000;
+    if (fresh) return current;
+
+    const result = await seoMaintenance.run({ maxPages: 120 });
+    console.info('[growth-autopilot] Phase 3 SEO maintenance refreshed', {
+      trigger: reason,
+      score: result.score,
+      pagesCrawled: result.pagesCrawled,
+      issues: result.summary?.totalIssues || 0,
+      internalArticleLinks: result.summary?.internalArticleLinks || 0
+    });
+    return result;
+  } catch (error) {
+    console.warn('[growth-autopilot] Phase 3 startup maintenance failed without blocking runtime', {
+      trigger: reason,
+      error: error?.message || String(error)
+    });
+    return null;
+  }
+}
+
+async function syncLegacyBlog(reason = 'scheduled') {
+  try {
+    const legacy = await growthContent.importLegacyBabyLoveArticles();
+    if (!legacy.skipped || legacy.reason !== 'missing_key') {
+      console.info('[growth-autopilot] legacy blog sync checked', {
+        trigger: reason,
+        imported: legacy.imported || 0,
+        discovered: legacy.discovered || 0,
+        skipped: Boolean(legacy.skipped),
+        reason: legacy.reason || null
+      });
+    }
+    return legacy;
+  } catch (error) {
+    console.warn('[growth-autopilot] legacy blog sync failed without blocking autopilot', {
+      trigger: reason,
+      status: error?.response?.status || null,
+      error: error?.message || String(error)
+    });
+    return null;
+  }
+}
+
 function startGrowthAutopilot() {
   if (timer || initialTimer) return;
-  void ensureSettings().then(() => {
+  void ensureSettings().then(async () => {
+    void syncLegacyBlog('startup');
     console.info('[growth-autopilot] runtime ready', {
       pollMinutes: POLL_MS / 60000,
-      defaultPublishHours: DEFAULT_CONFIG.publishEveryHours
+      defaultPublishHours: DEFAULT_CONFIG.publishEveryHours,
+      strategyModelReady: growthStrategy.ready()
     });
   }).catch(error => {
     console.error('[growth-autopilot] initialization failed', { error: error?.message || String(error) });
@@ -620,17 +816,32 @@ function startGrowthAutopilot() {
   }, FIRST_RUN_DELAY_MS);
   initialTimer.unref?.();
 
+  seoStartupTimer = setTimeout(() => {
+    seoStartupTimer = null;
+    void ensurePhase3MaintenanceFresh('startup-safety-net');
+  }, 2 * 60 * 1000);
+  seoStartupTimer.unref?.();
+
   timer = setInterval(() => {
     void runCycle().catch(error => console.error('[growth-autopilot] scheduled cycle failed', { error: error?.message }));
   }, POLL_MS);
   timer.unref?.();
+
+  legacyImportTimer = setInterval(() => {
+    void syncLegacyBlog('hourly-retry');
+  }, 60 * 60 * 1000);
+  legacyImportTimer.unref?.();
 }
 
 function stopGrowthAutopilot() {
   if (initialTimer) clearTimeout(initialTimer);
   if (timer) clearInterval(timer);
+  if (legacyImportTimer) clearInterval(legacyImportTimer);
+  if (seoStartupTimer) clearTimeout(seoStartupTimer);
   initialTimer = null;
   timer = null;
+  legacyImportTimer = null;
+  seoStartupTimer = null;
 }
 
 module.exports = {

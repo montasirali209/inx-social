@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { slugify } from "../lib/blog-client";
 import type { BlogArticleSummary } from "../types";
@@ -23,11 +22,10 @@ export function ArticleCard({ article }: { article: BlogArticleSummary }) {
     <article className="inx-blog-card">
       {article.featured_image_url ? (
         <Link className="inx-blog-card-image" href={`/blog/${article.slug}`} aria-label={article.title}>
-          <Image
+          <img
             src={article.featured_image_url}
             alt=""
-            fill
-            sizes="(max-width: 760px) 100vw, (max-width: 1100px) 50vw, 390px"
+            loading="lazy"
           />
         </Link>
       ) : (

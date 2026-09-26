@@ -159,5 +159,13 @@ module.exports = {
     searchDepth: String(process.env.WEB_RESEARCH_SEARCH_DEPTH || 'basic').toLowerCase() === 'advanced' ? 'advanced' : 'basic',
     country: String(process.env.WEB_RESEARCH_COUNTRY || 'GB').trim().toUpperCase().slice(0, 2),
     language: String(process.env.WEB_RESEARCH_LANGUAGE || 'en').trim().toLowerCase().slice(0, 12)
+  },
+  contentWriter: {
+    baseUrl: String(process.env.OPENAI_CONTENT_WRITER_BASE_URL || process.env.WEB_RESEARCH_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, ''),
+    apiKey: process.env.OPENAI_CONTENT_WRITER_API_KEY || process.env.WEB_RESEARCH_API_KEY || process.env.OPENAI_API_KEY || '',
+    model: modelName(process.env.OPENAI_CONTENT_WRITER_MODEL, 'gpt-5.6-sol'),
+    reasoningEffort: ['none', 'low', 'medium', 'high', 'xhigh', 'max'].includes(String(process.env.OPENAI_CONTENT_WRITER_REASONING || 'high').trim().toLowerCase())
+      ? String(process.env.OPENAI_CONTENT_WRITER_REASONING || 'high').trim().toLowerCase()
+      : 'high'
   }
 };

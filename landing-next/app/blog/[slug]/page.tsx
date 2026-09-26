@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { IntegrationPending } from "../components/IntegrationPending";
@@ -114,6 +113,10 @@ export default async function BlogArticlePage({
   const sources = Array.isArray(article.sources) ? article.sources : [];
   const internalLinks = Array.isArray(article.internalLinks) ? article.internalLinks : [];
   const faq = Array.isArray(article.faq) ? article.faq : [];
+  const takeaways = Array.isArray(article.key_takeaways) ? article.key_takeaways : [];
+  const comparison = Array.isArray(article.comparison) ? article.comparison : [];
+  const quickAnswer = article.quick_answer || article.excerpt || article.meta_description || null;
+  const sourceById = new Map(sources.map((source, index) => [String(source.id || `S${index + 1}`).toUpperCase(), source]));
 
   return (
     <main className="inx-blog-main">
@@ -136,6 +139,15 @@ export default async function BlogArticlePage({
           {(article.excerpt || article.meta_description) && (
             <p>{article.excerpt || article.meta_description}</p>
           )}
+          {article.editorial && (
+            <div className="inx-blog-editorial-meta">
+              <span>INXSocial Editorial</span>
+              <span aria-hidden="true">•</span>
+              <span>{article.editorial.sourceCount} verified source{article.editorial.sourceCount === 1 ? "" : "s"}</span>
+              <span aria-hidden="true">•</span>
+              <span>AI-assisted, independently reviewed</span>
+            </div>
+          )}
           {tags.length > 0 && (
             <div className="inx-blog-tags inx-blog-article-tags">
               {tags.slice(0, 6).map((tag) => (
@@ -149,14 +161,73 @@ export default async function BlogArticlePage({
 
         {article.featured_image_url && (
           <div className="inx-blog-article-image">
-            <Image
+            <img
               src={article.featured_image_url}
               alt={article.title}
-              fill
-              priority
-              sizes="(max-width: 900px) 100vw, 920px"
+              loading="eager"
+              fetchPriority="high"
             />
           </div>
+        )}
+
+        {(quickAnswer || takeaways.length > 0) && (
+          <section className="inx-blog-answer-box" aria-label="Article summary">
+            {quickAnswer && (
+              <div className="inx-blog-quick-answer">
+                <span className="inx-blog-kicker">Quick answer</span>
+                <p>{quickAnswer}</p>
+              </div>
+            )}
+            {takeaways.length > 0 && (
+              <div className="inx-blog-takeaways">
+                <h2>Key takeaways</h2>
+                <ul>
+                  {takeaways.map((item) => <li key={item}>{item}</li>)}
+                </ul>
+              </div>
+            )}
+          </section>
+        )}
+
+        {comparison.length >= 2 && (
+          <section className="inx-blog-comparison">
+            <span className="inx-blog-kicker">At a glance</span>
+            <h2>Comparison overview</h2>
+            <div className="inx-blog-table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Option</th>
+                    <th>Best for</th>
+                    <th>Strength</th>
+                    <th>Consideration</th>
+                    <th>Sources</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {comparison.map((row) => (
+                    <tr key={row.name}>
+                      <th scope="row">{row.name}</th>
+                      <td>{row.best_for}</td>
+                      <td>{row.strength}</td>
+                      <td>{row.consideration}</td>
+                      <td className="inx-blog-comparison-sources">
+                        {(row.source_refs || []).map((ref) => {
+                          const source = sourceById.get(String(ref).toUpperCase());
+                          if (!source) return null;
+                          return (
+                            <a key={ref} href={source.url} target="_blank" rel="noopener noreferrer">
+                              [{String(ref).replace(/^S/i, "")}]
+                            </a>
+                          );
+                        })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         )}
 
         <div
@@ -165,12 +236,17 @@ export default async function BlogArticlePage({
         />
 
         {internalLinks.length > 0 && (
-          <aside className="inx-blog-related" aria-label="Related INXSocial tools">
-            <span className="inx-blog-kicker">Related INXSocial tools</span>
-            <div>
+          <aside className="inx-blog-related" aria-label="Recommended INXSocial tools">
+            <span className="inx-blog-kicker">Recommended</span>
+            <h2>Useful INXSocial tools for the next step</h2>
+            <div className="inx-blog-recommendation-grid">
               {internalLinks.map((link) => (
-                <Link key={link.url} href={link.url}>
-                  {link.label} <span aria-hidden="true">→</span>
+                <Link key={link.url} href={link.url} className="inx-blog-recommendation-card">
+                  <span>
+                    <strong>{link.label}</strong>
+                    {link.description && <small>{link.description}</small>}
+                  </span>
+                  <b aria-hidden="true">→</b>
                 </Link>
               ))}
             </div>
@@ -197,10 +273,11 @@ export default async function BlogArticlePage({
             <span className="inx-blog-kicker">Research sources</span>
             <h2>Sources used for this guide</h2>
             <ol>
-              {sources.map((source) => (
-                <li key={source.url}>
+              {sources.map((source, index) => (
+                <li key={source.url} id={`source-${String(source.id || `S${index + 1}`).toLowerCase()}`}>
                   <a href={source.url} target="_blank" rel="noopener noreferrer">
-                    {source.title || source.url}
+                    <strong>{source.title || source.domain || source.url}</strong>
+                    {source.domain && <small>{source.domain}</small>}
                   </a>
                 </li>
               ))}

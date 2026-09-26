@@ -360,6 +360,7 @@ app.post('/api/ai-content-studio/credits/webhook', express.raw({ type: 'applicat
 
 app.use(express.json({ limit: '2mb' }));
 app.use('/api/releases', releaseRoutes);
+app.get('/content-media/:id/:version', growthContentPublicController.media);
 app.get('/content-media/:id', growthContentPublicController.media);
 app.use('/api/growth-content', growthContentPublicRoutes);
 

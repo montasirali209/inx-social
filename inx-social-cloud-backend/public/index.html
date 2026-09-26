@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=14">
+  <link rel="stylesheet" href="/admin.css?v=15">
   <link rel="stylesheet" href="/admin-security.css?v=1">
 </head>
 <body>
@@ -299,7 +299,7 @@
         </header>
 
         <div class="growth-autopilot-kpis" id="growthAutopilotKpis">
-          <article><span>Publishing</span><b>Every 48h</b><small>Automatic article publishing</small></article>
+          <article><span>Publishing</span><b>Every 24h</b><small>Automatic article publishing target</small></article>
           <article><span>Next article</span><b>—</b><small>Calculating schedule</small></article>
           <article><span>Intelligence</span><b>Daily</b><small>Automatic growth refresh</small></article>
           <article><span>Published</span><b>—</b><small>Self-hosted articles</small></article>
@@ -308,13 +308,13 @@
         <div class="growth-autopilot-flow" aria-label="Automatic growth workflow">
           <div><span>1</span><b>Discover</b><small>Search + AI + Reddit</small></div>
           <i>→</i>
-          <div><span>2</span><b>Prioritise</b><small>Opportunity score</small></div>
+          <div><span>2</span><b>AI Strategist</b><small>Evidence-based action decision</small></div>
           <i>→</i>
           <div><span>3</span><b>Research</b><small>Current web evidence</small></div>
           <i>→</i>
           <div><span>4</span><b>Write</b><small>Original article</small></div>
           <i>→</i>
-          <div><span>5</span><b>Quality gate</b><small>Minimum score enforced</small></div>
+          <div><span>5</span><b>AI critic + quality gate</b><small>Independent review before publish</small></div>
           <i>→</i>
           <div><span>6</span><b>Publish</b><small>INXSocial /blog</small></div>
           <i>→</i>
@@ -329,6 +329,29 @@
           <article class="growth-autopilot-activity">
             <div class="growth-mini-head"><b>Recent autopilot activity</b><small>Automatic</small></div>
             <div id="growthAutopilotActivity"><div class="growth-empty">No activity loaded yet.</div></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel growth-seo-maintenance">
+        <header class="growth-seo-maintenance-head">
+          <div><span class="kicker">Phase 3 · Technical SEO + internal linking</span><h2>SEO Maintenance Autopilot</h2><p>Runs automatically with the daily Growth Autopilot cycle. It crawls the live site, checks metadata, canonicals, schema, sitemaps, redirects, broken links and orphan pages, then rebuilds the blog's article-to-article internal-link graph.</p></div>
+          <div class="growth-seo-maintenance-actions"><span class="status-chip" id="growthSeoStatus">Waiting for first audit</span><button class="secondary" id="growthSeoRunBtn" type="button">Run maintenance now</button></div>
+        </header>
+        <div class="growth-seo-kpis" id="growthSeoKpis">
+          <article><span>Technical score</span><b>—</b><small>Waiting for live crawl</small></article>
+          <article><span>Pages checked</span><b>—</b><small>Canonical site</small></article>
+          <article><span>Auto repairs</span><b>—</b><small>Safe fixes</small></article>
+          <article><span>Internal links</span><b>—</b><small>Article-to-article graph</small></article>
+        </div>
+        <div class="growth-seo-grid">
+          <article class="growth-seo-card">
+            <div class="growth-mini-head"><b>Current technical issues</b><small id="growthSeoUpdated">No audit yet</small></div>
+            <div id="growthSeoIssues"><div class="growth-empty">Phase 3 will populate this automatically.</div></div>
+          </article>
+          <article class="growth-seo-card">
+            <div class="growth-mini-head"><b>Automatic repairs</b><small>Low-risk only</small></div>
+            <div id="growthSeoRepairs"><div class="growth-empty">No repairs recorded yet.</div></div>
           </article>
         </div>
       </section>
@@ -485,7 +508,7 @@
         <article><span>Archived</span><b>—</b><small>Removed from workflow</small></article>
       </div>
 
-      <div class="content-autopilot-banner"><b>Autopilot is the default</b><span>New articles are selected, researched, quality-checked and published automatically every other day. Manual creation below is optional.</span></div>
+      <div class="content-autopilot-banner"><b>Autopilot is the default</b><span>New articles are selected, researched, independently reviewed and targeted for automatic publishing every 24 hours when the evidence supports a new article. Manual creation below is optional.</span></div>
 
       <details class="content-manual-details">
         <summary><span><b>Manual override / create an article yourself</b><small>Optional — open only when you want to intervene.</small></span><span aria-hidden="true">⌄</span></summary>
@@ -618,6 +641,6 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=13" defer></script>
+<script src="/admin.js?v=14" defer></script>
 </body>
 </html>

@@ -41,7 +41,7 @@ test('Content Engine creates evidence-backed SEO content with quality controls',
   assert.match(service, /qualityReview/);
   assert.match(service, /meta_description/);
   assert.match(service, /FAQPage/);
-  assert.match(service, /Article'/);
+  assert.match(service, /BlogPosting'/);
   assert.match(service, /relatedInternalLinks/);
   assert.match(service, /sourceCount/);
   assert.match(service, /wordCount/);
@@ -53,7 +53,7 @@ test('Published blog reads self-hosted content and renders evidence sections', (
 
   assert.match(articlePage, /Research sources/);
   assert.match(articlePage, /Frequently asked questions/);
-  assert.match(articlePage, /Related INXSocial tools/);
+  assert.match(articlePage, /Recommended INXSocial tools|Useful INXSocial tools for the next step/);
   assert.match(articlePage, /article\.sources/);
   assert.match(articlePage, /article\.internalLinks/);
   assert.match(sitemap, /getSitemapEntries/);
