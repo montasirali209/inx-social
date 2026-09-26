@@ -570,21 +570,26 @@ function renderGaStatus(data){
   state.growthAnalytics.status=data;
   const superAdmin=state.user?.role==='SUPER_ADMIN';
   const ready=Boolean(data.analyticsScopeGranted&&data.selectedProperty);
-  $('growthGaStatus').textContent=!data.oauthConfigured?'OAuth setup required':ready?'Connected':data.reconnectRequired?'Reconnect required':'Property required';
-  $('growthGaStatus').className=`status-chip ${ready?'gsc-connected':data.lastError?'gsc-error':''}`;
+  $('growthGaStatus').textContent=!data.oauthConfigured?'OAuth setup required':ready?'Connected':data.reconnectRequired?'Analytics permission required':'Property required';
+  $('growthGaStatus').className=\`status-chip \${ready?'gsc-connected':data.lastError?'gsc-error':''}\`;
   const select=$('growthGaProperty');
-  const properties=data.properties||[];
-  select.innerHTML=properties.length?properties.map(item=>`<option value="${esc(item.propertyId)}" ${data.selectedProperty?.propertyId===item.propertyId?'selected':''}>${esc(item.displayName)} · ${esc(item.propertyId)}</option>`).join(''):'<option value="">No GA4 property available</option>';
-  select.disabled=!superAdmin||!data.analyticsScopeGranted||!properties.length;
+  const properties=[...(data.properties||[])];
+  if(data.selectedProperty&&!properties.some(item=>item.propertyId===data.selectedProperty.propertyId))properties.unshift(data.selectedProperty);
+  select.innerHTML=properties.length?properties.map(item=>\`<option value="\${esc(item.propertyId)}" \${data.selectedProperty?.propertyId===item.propertyId?'selected':''}>\${esc(item.displayName||'GA4')} · \${esc(item.propertyId)}</option>\`).join(''):'<option value="">No GA4 property discovered</option>';
+  select.disabled=!superAdmin||!data.analyticsScopeGranted||!properties.length||!data.adminApiAvailable;
   $('growthGaReconnectBtn').hidden=!superAdmin;
   $('growthGaReconnectBtn').disabled=!data.oauthConfigured||!superAdmin;
   $('growthGaRefreshBtn').disabled=!ready;
+  const manualVisible=Boolean(superAdmin&&data.analyticsScopeGranted&&data.manualPropertyAllowed&&(!data.adminApiAvailable||!(data.properties||[]).length));
+  $('growthGaManual').hidden=!manualVisible;
+  if(data.selectedProperty)$('growthGaManualPropertyId').value=data.selectedProperty.propertyId||'';
   if(!data.oauthConfigured)$('growthGaMessage').textContent='Google OAuth credentials are not configured.';
-  else if(data.reconnectRequired)$('growthGaMessage').textContent='Reconnect Google once to add the Analytics read-only permission. Search Console access stays read-only.';
+  else if(data.reconnectRequired)$('growthGaMessage').textContent='Search Console is already connected, but Analytics needs one additional read-only permission. Click Connect Analytics access; after approval you will return to Growth Intelligence.';
+  else if(data.apiEnablementRequired)$('growthGaMessage').textContent='Google access is connected, but the Google Analytics Admin API is disabled for the Google Cloud project. Enable that API, or enter the numeric GA4 Property ID below. Search Console property and GA4 property are separate.';
   else if(data.lastError)$('growthGaMessage').textContent=data.lastError;
-  else if(ready)$('growthGaMessage').textContent=`Reading GA4 property ${data.selectedProperty.displayName||''} (${data.selectedProperty.propertyId}). Realtime refresh runs every 30 seconds while this page is open.`;
-  else if(data.analyticsScopeGranted)$('growthGaMessage').textContent='Choose the GA4 property that belongs to INXSocial.';
-  else $('growthGaMessage').textContent='Connect Google to enable GA4 reporting.';
+  else if(ready)$('growthGaMessage').textContent=\`Reading GA4 property \${data.selectedProperty.displayName||''} (\${data.selectedProperty.propertyId}). Realtime refresh runs every 30 seconds while this page is open.\`;
+  else if(data.analyticsScopeGranted)$('growthGaMessage').textContent='Choose the GA4 property that belongs to INXSocial. If automatic discovery is unavailable, use the numeric Property ID below.';
+  else $('growthGaMessage').textContent='Connect Google Analytics read access to enable GA4 reporting.';
   renderGrowthProviders(state.growthIntelligence||{});
 }
 function renderGrowthBreakdown(target,rows,key,metric){
