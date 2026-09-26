@@ -178,9 +178,12 @@ function health(snapshot) {
   const ageMs = pricingAgeMs(snapshot);
   const fresh = isFresh(snapshot);
   const blocked = Object.values(state.blocks);
+  const models = Array.isArray(snapshot?.models) ? snapshot.models : [];
   const pricingSynced = Number(snapshot?.stats?.pricingSynced || 0);
   const total = Number(snapshot?.stats?.total || 0);
-  const generationReady = Number(snapshot?.stats?.generationReady || 0);
+  const generationReady = models.length
+    ? models.filter(model => model?.generationReady && !isBlocked(model)).length
+    : Number(snapshot?.stats?.generationReady || 0);
   const reasons = [];
   if (!fresh) reasons.push('PRICING_STALE');
   if (blocked.length) reasons.push('PROVIDER_COST_DRIFT');
