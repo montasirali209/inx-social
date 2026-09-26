@@ -391,12 +391,12 @@ async function produceAndPublish(opportunity, config, strategy = null) {
   for (let attempt = 1; attempt <= config.maxDraftAttempts; attempt += 1) {
     const draftInput = opportunity.id ? {
       opportunityId: opportunity.id,
-      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.' + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '') + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
+      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.' + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
     } : {
       topic: opportunity.topic,
       intent: opportunity.intent || 'commercial',
       action: opportunity.action?.label || 'Build authority content',
-      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.'
+      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.' + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
     };
 
     const draft = await growthContent.createDraft(draftInput);
