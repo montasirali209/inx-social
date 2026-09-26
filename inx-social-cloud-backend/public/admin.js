@@ -100,7 +100,7 @@ function renderGrowthDashboard(data){
     ['Position',Number(searchSummary.position||0).toFixed(1)]
   ].map(item=>'<div><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b></div>').join('');
   $('growthDashboardQueries').innerHTML=(search.topQueries||[]).slice(0,6).map(row=>'<div class="growth-command-list-row"><div><b>'+esc(row.query||'Query')+'</b><small>'+growthDashboardNum(row.impressions)+' impressions · '+growthDashboardPercent(Number(row.ctr||0)*100)+' CTR</small></div><strong>#'+Number(row.position||0).toFixed(1)+'</strong></div>').join('')||'<div class="growth-empty">Search Console data is not available yet.</div>';
-  $('growthDashboardSearchFreshness').textContent=search.generatedAt?'Updated '+relative(search.generatedAt):'Latest GSC data';
+  $('growthDashboardSearchFreshness').textContent=search.generatedAt?((search.siteUrl||'INXSocial')+' · updated '+relative(search.generatedAt)):'INXSocial GSC · latest available data';
 
   const ap=data.autopilot||{},runtime=ap.state||{},config=ap.config||{},seo=data.seo||{},opt=data.optimization||{};
   const enabled=config.enabled!==false;
