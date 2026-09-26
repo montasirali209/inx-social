@@ -264,6 +264,60 @@ async function refund(userId, generationId, reason) {
   });
 }
 
+async function settle(userId, generationId, creditsUsed, metadata = {}) {
+  return prisma.$transaction(async tx => {
+    const generations = await tx.$queryRawUnsafe('SELECT * FROM "AiGeneration" WHERE "id"=$1 AND "userId"=$2 FOR UPDATE', generationId, userId);
+    const generation = generations[0];
+    if (!generation) throw accessError('AI generation reservation is unavailable.', 'AI_GENERATION_RESERVATION_MISSING', 404);
+
+    const reserved = Math.max(0, Number(generation.reservedCredits || 0));
+    if (Number(generation.creditsUsed || 0) > 0) return Number(generation.creditsUsed || 0);
+    const amount = Math.max(0, Math.min(reserved, Math.floor(Number(creditsUsed || 0))));
+    const reservedMonthly = Math.max(0, Number(generation.reservedMonthly || 0));
+    const reservedTopup = Math.max(0, Number(generation.reservedTopup || 0));
+    const usedMonthly = Math.min(reservedMonthly, amount);
+    const usedTopup = Math.min(reservedTopup, Math.max(0, amount - usedMonthly));
+    const unusedMonthly = Math.max(0, reservedMonthly - usedMonthly);
+    const unusedTopup = Math.max(0, reservedTopup - usedTopup);
+
+    const wallets = await tx.$queryRawUnsafe('SELECT * FROM "AiCreditWallet" WHERE "userId"=$1 FOR UPDATE', userId);
+    const wallet = wallets[0];
+    if (!wallet) throw accessError('AI credit wallet is unavailable.', 'AI_CREDIT_WALLET_MISSING', 503);
+    const debitRows = await tx.$queryRawUnsafe('SELECT "createdAt" FROM "AiCreditTransaction" WHERE "reference"=$1 LIMIT 1', `debit:${generationId}`);
+    const refundable = refundableReservationAmounts(
+      { ...generation, reservedMonthly: unusedMonthly, reservedTopup: unusedTopup },
+      debitRows[0],
+      wallet
+    );
+
+    const nextMonthly = Number(wallet.monthlyBalance || 0) + refundable.monthly;
+    const nextTopup = Number(wallet.topupBalance || 0) + refundable.topup;
+    const refundAmount = refundable.monthly + refundable.topup;
+
+    if (refundAmount > 0) {
+      await tx.$executeRawUnsafe('UPDATE "AiCreditWallet" SET "monthlyBalance"=$2,"topupBalance"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', wallet.id, nextMonthly, nextTopup);
+      await tx.$executeRawUnsafe(
+        'INSERT INTO "AiCreditTransaction" ("id","userId","walletId","generationId","type","bucket","amount","balanceMonthly","balanceTopup","reference","metadataJson") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT ("reference") DO NOTHING',
+        crypto.randomUUID(), userId, wallet.id, generationId, 'GENERATION_SETTLEMENT_REFUND',
+        refundable.monthly && refundable.topup ? 'MIXED' : refundable.topup ? 'TOPUP' : 'MONTHLY',
+        refundAmount, nextMonthly, nextTopup, `settlement:${generationId}`,
+        JSON.stringify({
+          reservedCredits: reserved,
+          creditsUsed: amount,
+          restoredMonthly: refundable.monthly,
+          restoredTopup: refundable.topup,
+          expiredOrCappedMonthly: refundable.unrestoredMonthly,
+          sameBillingPeriod: refundable.sameBillingPeriod,
+          ...metadata
+        })
+      );
+    }
+
+    await tx.$executeRawUnsafe('UPDATE "AiGeneration" SET "creditsUsed"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$2', generationId, userId, amount);
+    return amount;
+  });
+}
+
 async function complete(userId, generationId, creditsUsed) {
   const amount = Math.max(0, Math.floor(Number(creditsUsed || 0)));
   await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "creditsUsed"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$2', generationId, userId, amount);
@@ -349,6 +403,7 @@ module.exports = {
   ensureWallet,
   reserve,
   refund,
+  settle,
   complete,
   addTopup,
   adminAdjustCredits,
