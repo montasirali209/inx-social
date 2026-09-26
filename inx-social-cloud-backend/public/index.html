@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=13">
+  <link rel="stylesheet" href="/admin.css?v=14">
   <link rel="stylesheet" href="/admin-security.css?v=1">
 </head>
 <body>
@@ -36,7 +36,7 @@
       <button class="nav" data-page="users"><span>◎</span>Customers <i id="userAlertBadge" hidden>0</i></button>
       <button class="nav" data-page="aiAccess"><span>✦</span>AI &amp; Automation</button>
       <button class="nav" data-page="searchConsole"><span>⌕</span>Search Console</button>
-      <button class="nav" data-page="growthIntelligence"><span>◈</span>Growth Intelligence</button>
+      <button class="nav" data-page="growthIntelligence"><span>◈</span>Growth Autopilot</button>
       <button class="nav" data-page="contentEngine"><span>✎</span>Content Engine</button>
       <button class="nav" data-page="settings"><span>⚙</span>System Settings</button>
       <button class="nav" data-page="security"><span>⌾</span>Admin &amp; Security</button>
@@ -277,9 +277,57 @@
 
     <section class="page hidden" id="growthIntelligencePage">
       <div class="section-head growth-heading">
-        <div><span class="kicker">Phase 1 · discovery & visibility</span><h2>Growth Intelligence</h2><p>One operational view for crawler access, AI-search visibility, Search Console readiness and public Reddit opportunities. No automated community posting.</p></div>
+        <div><span class="kicker">Always-on growth system</span><h2>Growth Autopilot</h2><p>INXSocial continuously refreshes growth intelligence, selects the strongest content opportunity, researches it, quality-checks it and publishes to the blog automatically.</p></div>
         <span class="status-chip" id="growthStatusChip">Loading…</span>
       </div>
+
+      <section class="panel growth-autopilot-dashboard">
+        <header class="growth-autopilot-head">
+          <div><span class="kicker">Autopilot status</span><h2 id="growthAutopilotHeadline">Starting…</h2><p id="growthAutopilotSummary">Checking the automatic growth runtime.</p></div>
+          <div class="growth-autopilot-controls">
+            <button class="secondary" id="growthAutopilotToggleBtn" type="button">Pause autopilot</button>
+            <button class="primary" id="growthAutopilotRunBtn" type="button">Run now</button>
+          </div>
+        </header>
+
+        <div class="growth-autopilot-kpis" id="growthAutopilotKpis">
+          <article><span>Publishing</span><b>Every 48h</b><small>Automatic article publishing</small></article>
+          <article><span>Next article</span><b>—</b><small>Calculating schedule</small></article>
+          <article><span>Intelligence</span><b>Daily</b><small>Automatic growth refresh</small></article>
+          <article><span>Published</span><b>—</b><small>Self-hosted articles</small></article>
+        </div>
+
+        <div class="growth-autopilot-flow" aria-label="Automatic growth workflow">
+          <div><span>1</span><b>Discover</b><small>Search + AI + Reddit</small></div>
+          <i>→</i>
+          <div><span>2</span><b>Prioritise</b><small>Opportunity score</small></div>
+          <i>→</i>
+          <div><span>3</span><b>Research</b><small>Current web evidence</small></div>
+          <i>→</i>
+          <div><span>4</span><b>Write</b><small>Original article</small></div>
+          <i>→</i>
+          <div><span>5</span><b>Quality gate</b><small>Minimum score enforced</small></div>
+          <i>→</i>
+          <div><span>6</span><b>Publish</b><small>INXSocial /blog</small></div>
+          <i>→</i>
+          <div><span>7</span><b>Measure</b><small>GSC + GA4 feedback</small></div>
+        </div>
+
+        <div class="growth-autopilot-lower">
+          <article class="growth-autopilot-now">
+            <div class="growth-mini-head"><b>Latest / next action</b><small id="growthAutopilotUpdated">—</small></div>
+            <div id="growthAutopilotLatest"><div class="growth-empty">Waiting for runtime status…</div></div>
+          </article>
+          <article class="growth-autopilot-activity">
+            <div class="growth-mini-head"><b>Recent autopilot activity</b><small>Automatic</small></div>
+            <div id="growthAutopilotActivity"><div class="growth-empty">No activity loaded yet.</div></div>
+          </article>
+        </div>
+      </section>
+
+      <details class="growth-advanced-details">
+        <summary><span><b>Advanced diagnostics &amp; manual controls</b><small>Normally you do not need to use anything below. Autopilot runs these tasks for you.</small></span><span aria-hidden="true">⌄</span></summary>
+        <div class="growth-advanced-body">
 
       <div class="growth-provider-grid" id="growthProviderGrid" aria-live="polite">
         <article class="growth-provider-card loading"><span>Search Console</span><b>Loading…</b><small>Checking connection</small></article>
@@ -400,16 +448,18 @@
 
       <section class="panel growth-reddit-panel">
         <header class="growth-action-head">
-          <div><span class="kicker">Community discovery</span><h2>Reddit opportunities</h2><p>Find public discussions where a genuinely useful response may be relevant to INXSocial. Replies remain manual and should never be spammed or auto-posted.</p></div>
-          <button class="secondary" id="discoverRedditBtn" type="button">Find Reddit opportunities</button>
+          <div><span class="kicker">Community discovery</span><h2>Reddit opportunities</h2><p>Autopilot monitors relevant public discussions as an authority signal. Replies remain manual so INXSocial does not spam communities.</p></div>
+          <button class="secondary" id="discoverRedditBtn" type="button">Refresh Reddit opportunities</button>
         </header>
         <div class="growth-reddit-list" id="growthRedditList"><div class="growth-empty">No opportunity scan has been run yet.</div></div>
       </section>
+        </div>
+      </details>
     </section>
 
     <section class="page hidden" id="contentEnginePage">
       <div class="section-head content-engine-heading">
-        <div><span class="kicker">Phase 2</span><h2>Content Engine</h2><p>Turn Growth Intelligence opportunities into researched, reviewable and publishable INXSocial articles without relying on BabyLoveGrowth.</p></div>
+        <div><span class="kicker">Autopilot content history</span><h2>Content Engine</h2><p>Autopilot creates and publishes articles automatically. Use this page mainly to review published history or make an occasional manual override.</p></div>
         <div class="content-engine-head-actions"><span class="status-chip" id="contentEngineStatus">Loading…</span><button class="secondary" id="refreshContentEngineBtn" type="button">↻ Refresh</button></div>
       </div>
 
@@ -427,10 +477,15 @@
         <article><span>Archived</span><b>—</b><small>Removed from workflow</small></article>
       </div>
 
+      <div class="content-autopilot-banner"><b>Autopilot is the default</b><span>New articles are selected, researched, quality-checked and published automatically every other day. Manual creation below is optional.</span></div>
+
+      <details class="content-manual-details">
+        <summary><span><b>Manual override / create an article yourself</b><small>Optional — open only when you want to intervene.</small></span><span aria-hidden="true">⌄</span></summary>
+        <div class="content-manual-body">
       <div class="content-engine-grid">
         <form class="panel content-draft-builder" id="contentDraftForm">
-          <header><div><span class="kicker">Opportunity → draft</span><h2>Research and create</h2></div><span class="gsc-readonly">Manual publish only</span></header>
-          <p class="muted">The engine researches current web evidence first, then writes an original draft. Nothing is published until a Super Admin reviews and approves it.</p>
+          <header><div><span class="kicker">Opportunity → draft</span><h2>Research and create</h2></div><span class="gsc-readonly">Manual override</span></header>
+          <p class="muted">Use this only when you want to create a one-off article yourself. The normal publishing workflow is handled automatically by Growth Autopilot.</p>
           <label>Growth Intelligence opportunity<select id="contentOpportunity"><option value="">Manual topic instead</option></select></label>
           <label>Manual topic <small>Optional when an opportunity is selected</small><input id="contentManualTopic" maxlength="280" placeholder="e.g. Best Buffer alternatives for small businesses"></label>
           <label>Editor note <small>Optional</small><textarea id="contentEditorNote" maxlength="1000" rows="4" placeholder="Angle, audience, exclusions or points to emphasise"></textarea></label>
@@ -445,12 +500,14 @@
             <div><span>1</span><p><b>Research</b><small>Current web evidence and buyer intent.</small></p></div>
             <div><span>2</span><p><b>Draft</b><small>Original long-form article + metadata + FAQ.</small></p></div>
             <div><span>3</span><p><b>Review</b><small>Word count, sources, structure, internal links and SEO metadata.</small></p></div>
-            <div><span>4</span><p><b>Approve</b><small>Human approval is required before publishing.</small></p></div>
-            <div><span>5</span><p><b>Publish</b><small>Appears on INXSocial blog and sitemap.</small></p></div>
-            <div><span>6</span><p><b>Measure</b><small>Phase 1 Search Console + GA4 measures the result.</small></p></div>
+            <div><span>4</span><p><b>Quality gate</b><small>Autopilot only approves content that clears the publishing threshold.</small></p></div>
+            <div><span>5</span><p><b>Publish</b><small>Autopilot publishes the approved article to the INXSocial blog and sitemap.</small></p></div>
+            <div><span>6</span><p><b>Measure</b><small>Search Console + GA4 feed performance back into the next automatic cycle.</small></p></div>
           </div>
         </article>
       </div>
+        </div>
+      </details>
 
       <section class="panel content-library-panel">
         <header class="content-library-head"><div><span class="kicker">Editorial queue</span><h2>Content library</h2><p>Drafts, approvals and published articles from the self-hosted Content Engine.</p></div><div class="content-library-filters"><label>Status<select id="contentStatusFilter"><option value="">All statuses</option><option value="DRAFT">Draft</option><option value="APPROVED">Approved</option><option value="PUBLISHED">Published</option><option value="ARCHIVED">Archived</option></select></label></div></header>
@@ -553,6 +610,6 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=12" defer></script>
+<script src="/admin.js?v=13" defer></script>
 </body>
 </html>

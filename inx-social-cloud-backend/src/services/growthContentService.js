@@ -794,7 +794,7 @@ async function overview() {
     imageConfigured: runware.isConfigured() && objectStorage.isConfigured(),
     model: env.webResearch?.model || null,
     source: 'INXSOCIAL_SELF_HOSTED',
-    publishingMode: 'MANUAL_APPROVAL',
+    publishingMode: 'AUTOPILOT_QUALITY_GATE',
     babyLoveGrowthRequired: false
   };
   await upsertSetting(ENGINE_SETTING_KEY, { ...engine, checkedAt: nowIso() }, 'Growth Content Engine operational status.');
