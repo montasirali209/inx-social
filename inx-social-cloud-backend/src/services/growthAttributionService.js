@@ -165,7 +165,7 @@ function sourceBucket(map, source) {
 
 async function summary(days = 28, options = {}) {
   const database = options.prisma || prisma;
-  const periodDays = Math.max(7, Math.min(365, Number(days || 28)));
+  const periodDays = Math.max(1, Math.min(365, Number(days || 28)));
   const since = daysAgo(periodDays);
 
   const [events, users, subscriptions] = await Promise.all([
