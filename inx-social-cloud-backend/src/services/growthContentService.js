@@ -850,6 +850,53 @@ async function publicSitemapEntries() {
   }));
 }
 
+
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function retryAfterMs(error, attempt) {
+  const raw = error?.response?.headers?.['retry-after'];
+  if (raw) {
+    const seconds = Number(raw);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.min(120000, Math.max(1000, seconds * 1000));
+    const date = new Date(raw);
+    if (!Number.isNaN(date.getTime())) return Math.min(120000, Math.max(1000, date.getTime() - Date.now()));
+  }
+  const fallback = [5000, 15000, 30000, 60000][Math.max(0, Math.min(3, attempt - 1))];
+  return fallback;
+}
+
+async function babyLoveGet(path, options = {}) {
+  const apiKey = String(process.env.BABYLOVEGROWTH_BLOG_API_KEY || '').trim();
+  if (!apiKey) throw Object.assign(new Error('BabyLoveGrowth API key is not configured.'), { code: 'BABYLOVE_KEY_MISSING' });
+
+  let lastError = null;
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    try {
+      return await axios.get(BABYLOVE_API_BASE + path, {
+        params: options.params || undefined,
+        headers: { 'X-API-Key': apiKey, 'Content-Type': 'application/json' },
+        timeout: 30000
+      });
+    } catch (error) {
+      lastError = error;
+      const status = Number(error?.response?.status || 0);
+      const retryable = status === 429 || status >= 500 || status === 0;
+      if (!retryable || attempt >= 4) throw error;
+      const delayMs = retryAfterMs(error, attempt);
+      console.warn('[growth-content] BabyLoveGrowth import request will retry', {
+        path,
+        status: status || null,
+        attempt,
+        delayMs
+      });
+      await wait(delayMs);
+    }
+  }
+  throw lastError || new Error('BabyLoveGrowth import request failed.');
+}
+
 async function importLegacyBabyLoveArticles(options = {}) {
   const apiKey = String(process.env.BABYLOVEGROWTH_BLOG_API_KEY || '').trim();
   if (!apiKey) return { configured: false, imported: 0, skipped: true, reason: 'missing_key' };
@@ -860,18 +907,13 @@ async function importLegacyBabyLoveArticles(options = {}) {
     return { configured: true, imported: Number(previous.imported || 0), skipped: true, reason: 'recently_synced' };
   }
 
-  const headers = { 'X-API-Key': apiKey, 'Content-Type': 'application/json' };
   let offset = 0;
   const limit = 50;
   let imported = 0;
   let discovered = 0;
 
   while (offset < 500) {
-    const response = await axios.get(BABYLOVE_API_BASE + '/articles', {
-      params: { limit, offset },
-      headers,
-      timeout: 30000
-    });
+    const response = await babyLoveGet('/articles', { params: { limit, offset } });
     const batch = Array.isArray(response.data) ? response.data : [];
     if (!batch.length) break;
     discovered += batch.length;
@@ -879,10 +921,8 @@ async function importLegacyBabyLoveArticles(options = {}) {
     for (const summary of batch) {
       const legacyId = summary?.id;
       if (legacyId == null) continue;
-      const detailResponse = await axios.get(BABYLOVE_API_BASE + '/articles/' + encodeURIComponent(String(legacyId)), {
-        headers,
-        timeout: 30000
-      });
+      await wait(1200);
+      const detailResponse = await babyLoveGet('/articles/' + encodeURIComponent(String(legacyId)));
       const detail = detailResponse.data || {};
       const slug = slugify(detail.slug || summary.slug || detail.title || summary.title || ('legacy-' + legacyId));
       const id = 'blg-' + String(legacyId);
@@ -1017,6 +1057,8 @@ module.exports = {
   publicArticleBySlug,
   publicSitemapEntries,
   importLegacyBabyLoveArticles,
+  babyLoveGet,
+  retryAfterMs,
   parseStructuredJson,
   structuredResponse,
   versionedContentImageUrl
