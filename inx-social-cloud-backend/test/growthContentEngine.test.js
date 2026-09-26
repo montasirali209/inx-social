@@ -53,7 +53,7 @@ test('Published blog reads self-hosted content and renders evidence sections', (
 
   assert.match(articlePage, /Research sources/);
   assert.match(articlePage, /Frequently asked questions/);
-  assert.match(articlePage, /Related INXSocial tools/);
+  assert.match(articlePage, /Recommended INXSocial tools|Useful INXSocial tools for the next step/);
   assert.match(articlePage, /article\.sources/);
   assert.match(articlePage, /article\.internalLinks/);
   assert.match(sitemap, /getSitemapEntries/);
