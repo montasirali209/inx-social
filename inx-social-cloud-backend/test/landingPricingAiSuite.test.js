@@ -42,6 +42,10 @@ test('dedicated pricing page describes the same AI suite and trial access', () =
     assert.match(source, new RegExp(label.replace(/[.*+?^$\{\}()|[\]\\]/g, '\\$&')));
   }
   assert.match(source, /20 shared AI credits during the trial/);
+  assert.match(source, /300 shared AI credits each month/);
+  assert.match(source, /900 shared AI credits each month/);
+  assert.match(source, /2,000 shared AI credits each month/);
+  assert.match(source, /4,000 shared AI credits each month/);
   assert.match(source, /complete AI creation suite/i);
 });
 
