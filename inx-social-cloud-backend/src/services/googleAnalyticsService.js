@@ -292,7 +292,7 @@ function summaryRequest(startDate, endDate) {
 }
 
 async function performance(days = 28) {
-  const periodDays = [7, 28, 90].includes(Number(days)) ? Number(days) : 28;
+  const periodDays = [1, 7, 28, 90].includes(Number(days)) ? Number(days) : 28;
   const property = await selectedProperty();
   const propertyId = property.propertyId;
   const currentStart = `${periodDays - 1}daysAgo`;
