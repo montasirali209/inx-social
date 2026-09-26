@@ -76,7 +76,7 @@ test('Admin Content Engine exposes opportunity-to-draft editorial workflow', () 
 
   assert.match(html, /data-page="contentEngine"/);
   assert.match(html, /Opportunity → draft/);
-  assert.match(html, /Manual publish only/);
+  assert.match(html, /Manual override/);
   assert.match(html, /Content library/);
   assert.match(js, /loadContentEngine/);
   assert.match(js, /generateContentDraft/);
