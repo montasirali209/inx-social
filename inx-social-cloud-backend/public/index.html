@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=11">
+  <link rel="stylesheet" href="/admin.css?v=12">
   <link rel="stylesheet" href="/admin-security.css?v=1">
 </head>
 <body>
@@ -307,6 +307,25 @@
         </article>
       </div>
 
+      <section class="panel growth-opportunity-panel">
+        <header class="growth-action-head">
+          <div><span class="kicker">Decision layer</span><h2>Opportunity Intelligence</h2><p>Combines Search Console demand, AI visibility gaps, Reddit evidence, technical issues and GA4 context into one prioritised action list.</p></div>
+          <div class="growth-actions"><label>Window<select id="growthOpportunityPeriod"><option value="7">7 days</option><option value="28" selected>28 days</option><option value="90">90 days</option></select></label><button class="primary" id="buildGrowthOpportunitiesBtn" type="button">Build opportunity map</button></div>
+        </header>
+        <div class="growth-opportunity-summary" id="growthOpportunitySummary">
+          <article><span>Total opportunities</span><b>—</b><small>No map built yet</small></article>
+          <article><span>Critical</span><b>—</b><small>Score 85+</small></article>
+          <article><span>AI visibility gaps</span><b>—</b><small>Missing mentions/citations</small></article>
+          <article><span>Search-backed</span><b>—</b><small>Real GSC demand</small></article>
+        </div>
+        <div class="growth-opportunity-warning" id="growthOpportunityWarnings" hidden></div>
+        <div class="growth-opportunity-insights">
+          <article class="growth-mini-panel"><div class="growth-mini-head"><b>Competitors appearing in AI answers</b><small>Across scanned providers</small></div><div id="growthCompetitorLeaderboard" class="growth-breakdown-list"><div class="growth-empty">No visibility evidence yet.</div></div></article>
+          <article class="growth-mini-panel"><div class="growth-mini-head"><b>Domains cited by AI</b><small>Source authority signals</small></div><div id="growthSourceLeaderboard" class="growth-breakdown-list"><div class="growth-empty">No citation evidence yet.</div></div></article>
+        </div>
+        <div class="growth-opportunity-list" id="growthOpportunityList"><div class="growth-empty">Build the opportunity map after collecting some Search Console or AI visibility data.</div></div>
+      </section>
+
       <section class="panel growth-analytics-panel">
         <header class="growth-action-head">
           <div><span class="kicker">Website performance</span><h2>Google Analytics 4</h2><p>Live visitor activity plus recent traffic, landing pages, acquisition channels and the signup → checkout → purchase funnel from the same GA4 property already receiving INXSocial events.</p></div>
@@ -315,10 +334,15 @@
         <div class="growth-analytics-controls">
           <label>GA4 property<select id="growthGaProperty" disabled><option value="">No property selected</option></select></label>
           <label>Reporting window<select id="growthGaPeriod"><option value="7">7 days</option><option value="28" selected>28 days</option><option value="90">90 days</option></select></label>
-          <button class="secondary" id="growthGaReconnectBtn" type="button">Connect / Reconnect Google</button>
+          <button class="secondary" id="growthGaReconnectBtn" type="button">Connect Analytics access</button>
           <button class="primary" id="growthGaRefreshBtn" type="button">↻ Refresh analytics</button>
         </div>
         <div class="growth-ga-message" id="growthGaMessage">Checking Google Analytics connection…</div>
+        <div class="growth-ga-manual" id="growthGaManual" hidden>
+          <div><b>Use GA4 Property ID manually</b><small>The GA4 Property ID is the numeric ID from Google Analytics Admin. It is not the measurement ID that starts with G-.</small></div>
+          <label>Numeric Property ID<input id="growthGaManualPropertyId" inputmode="numeric" placeholder="123456789" autocomplete="off"></label>
+          <button class="secondary" id="growthGaManualSaveBtn" type="button">Use this property</button>
+        </div>
 
         <div class="growth-subhead"><div><span class="kicker">Realtime · last 30 minutes</span><h3>Visitors right now</h3></div><span id="growthGaRealtimeUpdated">—</span></div>
         <div class="growth-analytics-kpis" id="growthRealtimeKpis">
@@ -439,6 +463,6 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=10" defer></script>
+<script src="/admin.js?v=11" defer></script>
 </body>
 </html>
