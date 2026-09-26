@@ -31,6 +31,7 @@ const DEFAULT_CONFIG = Object.freeze({
 let timer = null;
 let initialTimer = null;
 let legacyImportTimer = null;
+let seoStartupTimer = null;
 
 function nowIso() {
   return new Date().toISOString();
@@ -748,6 +749,31 @@ async function updateConfig(patch = {}) {
 }
 
 
+async function ensurePhase3MaintenanceFresh(reason = 'startup') {
+  try {
+    const current = await seoMaintenance.status();
+    const generatedAt = current?.generatedAt ? new Date(current.generatedAt).getTime() : 0;
+    const fresh = Number.isFinite(generatedAt) && generatedAt > 0 && (Date.now() - generatedAt) < 20 * 60 * 1000;
+    if (fresh) return current;
+
+    const result = await seoMaintenance.run({ maxPages: 120 });
+    console.info('[growth-autopilot] Phase 3 SEO maintenance refreshed', {
+      trigger: reason,
+      score: result.score,
+      pagesCrawled: result.pagesCrawled,
+      issues: result.summary?.totalIssues || 0,
+      internalArticleLinks: result.summary?.internalArticleLinks || 0
+    });
+    return result;
+  } catch (error) {
+    console.warn('[growth-autopilot] Phase 3 startup maintenance failed without blocking runtime', {
+      trigger: reason,
+      error: error?.message || String(error)
+    });
+    return null;
+  }
+}
+
 async function syncLegacyBlog(reason = 'scheduled') {
   try {
     const legacy = await growthContent.importLegacyBabyLoveArticles();
@@ -790,6 +816,12 @@ function startGrowthAutopilot() {
   }, FIRST_RUN_DELAY_MS);
   initialTimer.unref?.();
 
+  seoStartupTimer = setTimeout(() => {
+    seoStartupTimer = null;
+    void ensurePhase3MaintenanceFresh('startup-safety-net');
+  }, 2 * 60 * 1000);
+  seoStartupTimer.unref?.();
+
   timer = setInterval(() => {
     void runCycle().catch(error => console.error('[growth-autopilot] scheduled cycle failed', { error: error?.message }));
   }, POLL_MS);
@@ -805,9 +837,11 @@ function stopGrowthAutopilot() {
   if (initialTimer) clearTimeout(initialTimer);
   if (timer) clearInterval(timer);
   if (legacyImportTimer) clearInterval(legacyImportTimer);
+  if (seoStartupTimer) clearTimeout(seoStartupTimer);
   initialTimer = null;
   timer = null;
   legacyImportTimer = null;
+  seoStartupTimer = null;
 }
 
 module.exports = {
