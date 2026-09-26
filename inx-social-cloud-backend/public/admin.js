@@ -664,13 +664,15 @@ function renderGrowthIntelligence(data){
 }
 async function loadGrowthIntelligence(){
   try{
-    const [overview,gaStatus]=await Promise.all([
+    const [overview,gaStatus,opportunityStatus]=await Promise.all([
       api('/api/admin/growth-intelligence/overview'),
-      api('/api/admin/growth-intelligence/analytics/status')
+      api('/api/admin/growth-intelligence/analytics/status'),
+      api('/api/admin/growth-intelligence/opportunities')
     ]);
     state.growthAnalytics={status:gaStatus};
     renderGrowthIntelligence(overview);
     renderGaStatus(gaStatus);
+    renderGrowthOpportunities(opportunityStatus.latest||null);
     if(gaStatus.selectedProperty){
       await Promise.all([loadGrowthAnalyticsRealtime(),loadGrowthAnalyticsPerformance()]);
       startGrowthRealtimePolling();
@@ -737,6 +739,14 @@ $('discoverRedditBtn').addEventListener('click',()=>void discoverGrowthReddit())
 
 async function postAuthLanding(){
   const params=new URLSearchParams(window.location.search);
+  const google=params.get('google');
+  if(google){
+    await openPage('growthIntelligence');
+    if(google==='growth-connected')toast('Google Analytics read access connected');
+    if(google==='growth-error')toast(params.get('message')||'Google Analytics connection failed');
+    history.replaceState({},'',window.location.pathname);
+    return;
+  }
   const gsc=params.get('gsc');
   if(gsc){
     await openPage('searchConsole');
