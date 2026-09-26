@@ -484,8 +484,8 @@
         <div class="content-manual-body">
       <div class="content-engine-grid">
         <form class="panel content-draft-builder" id="contentDraftForm">
-          <header><div><span class="kicker">Opportunity → draft</span><h2>Research and create</h2></div><span class="gsc-readonly">Manual publish only</span></header>
-          <p class="muted">The engine researches current web evidence first, then writes an original draft. Nothing is published until a Super Admin reviews and approves it.</p>
+          <header><div><span class="kicker">Opportunity → draft</span><h2>Research and create</h2></div><span class="gsc-readonly">Manual override</span></header>
+          <p class="muted">Use this only when you want to create a one-off article yourself. The normal publishing workflow is handled automatically by Growth Autopilot.</p>
           <label>Growth Intelligence opportunity<select id="contentOpportunity"><option value="">Manual topic instead</option></select></label>
           <label>Manual topic <small>Optional when an opportunity is selected</small><input id="contentManualTopic" maxlength="280" placeholder="e.g. Best Buffer alternatives for small businesses"></label>
           <label>Editor note <small>Optional</small><textarea id="contentEditorNote" maxlength="1000" rows="4" placeholder="Angle, audience, exclusions or points to emphasise"></textarea></label>
@@ -500,9 +500,9 @@
             <div><span>1</span><p><b>Research</b><small>Current web evidence and buyer intent.</small></p></div>
             <div><span>2</span><p><b>Draft</b><small>Original long-form article + metadata + FAQ.</small></p></div>
             <div><span>3</span><p><b>Review</b><small>Word count, sources, structure, internal links and SEO metadata.</small></p></div>
-            <div><span>4</span><p><b>Approve</b><small>Human approval is required before publishing.</small></p></div>
-            <div><span>5</span><p><b>Publish</b><small>Appears on INXSocial blog and sitemap.</small></p></div>
-            <div><span>6</span><p><b>Measure</b><small>Phase 1 Search Console + GA4 measures the result.</small></p></div>
+            <div><span>4</span><p><b>Quality gate</b><small>Autopilot only approves content that clears the publishing threshold.</small></p></div>
+            <div><span>5</span><p><b>Publish</b><small>Autopilot publishes the approved article to the INXSocial blog and sitemap.</small></p></div>
+            <div><span>6</span><p><b>Measure</b><small>Search Console + GA4 feed performance back into the next automatic cycle.</small></p></div>
           </div>
         </article>
       </div>
