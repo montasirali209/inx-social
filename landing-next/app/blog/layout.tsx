@@ -47,6 +47,7 @@ export default function BlogLayout({ children }: Readonly<{ children: React.Reac
             <Link href="/">Home</Link>
             <Link href="/blog">Blog</Link>
             <Link href="/privacy.html">Privacy</Link>
+            <Link href="/privacy.html#cookie-settings">Cookie settings</Link>
             <Link href="/terms.html">Terms</Link>
           </div>
         </div>
