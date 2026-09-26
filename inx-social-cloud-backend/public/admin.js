@@ -504,6 +504,47 @@ function renderGrowthAudit(audit){
   $('growthCrawlerGrid').innerHTML=(audit.crawlers||[]).map(item=>`<div class="growth-crawler ${item.allowed?'ok':'blocked'}"><div><b>${esc(item.label)}</b><small>${esc(item.userAgent)}</small></div><strong>${item.allowed?'Allowed':'Blocked'}</strong></div>`).join('')||'<div class="growth-empty">No crawler results.</div>';
   $('growthCheckList').innerHTML=(audit.checks||[]).map(item=>`<div class="growth-check ${item.ok?'ok':'warn'}"><span>${item.ok?'✓':'!'}</span><div><b>${esc(item.label)}</b><small>${esc(item.detail)}</small></div></div>`).join('');
 }
+function growthOpportunityPriority(score){const value=Number(score||0);return value>=85?'critical':value>=70?'high':value>=50?'medium':'low'}
+function renderGrowthOpportunities(data){
+  state.growthOpportunities=data||null;
+  const summary=data?.summary||{};
+  $('growthOpportunitySummary').innerHTML=[
+    ['Total opportunities',summary.total??'—','Prioritised actions'],
+    ['Critical',summary.critical??'—','Score 85+'],
+    ['AI visibility gaps',summary.aiVisibilityGaps??'—','Missing mentions/citations'],
+    ['Search-backed',summary.searchBacked??'—','Real Search Console demand']
+  ].map(([label,value,note])=>\`<article><span>\${label}</span><b>\${value}</b><small>\${note}</small></article>\`).join('');
+  const warnings=data?.warnings||[];
+  $('growthOpportunityWarnings').hidden=!warnings.length;
+  $('growthOpportunityWarnings').innerHTML=warnings.map(item=>\`<div><b>\${esc(item.source)}</b><span>\${esc(item.message)}</span></div>\`).join('');
+  const competitors=data?.competitors||[];
+  const competitorMax=Math.max(...competitors.map(item=>Number(item.mentions||0)),1);
+  $('growthCompetitorLeaderboard').innerHTML=competitors.length?competitors.slice(0,10).map(item=>\`<div class="growth-breakdown-row"><div><b>\${esc(item.name)}</b><small>\${esc((item.providers||[]).join(', ')||'AI provider')}</small></div><div class="growth-mini-track"><i style="width:\${Math.max(4,Number(item.mentions||0)*100/competitorMax)}%"></i></div><strong>\${Number(item.mentions||0)}</strong></div>\`).join(''):'<div class="growth-empty">Run AI visibility scans to build competitor evidence.</div>';
+  const sources=data?.sourceDomains||[];
+  const sourceMax=Math.max(...sources.map(item=>Number(item.citations||0)),1);
+  $('growthSourceLeaderboard').innerHTML=sources.length?sources.slice(0,10).map(item=>\`<div class="growth-breakdown-row"><div><b>\${esc(item.domain)}</b><small>\${esc((item.providers||[]).join(', ')||'AI provider')}</small></div><div class="growth-mini-track"><i style="width:\${Math.max(4,Number(item.citations||0)*100/sourceMax)}%"></i></div><strong>\${Number(item.citations||0)}</strong></div>\`).join(''):'<div class="growth-empty">Run AI visibility scans to build citation-source evidence.</div>';
+  $('growthOpportunityList').innerHTML=(data?.opportunities||[]).map(item=>{
+    const ai=item.ai||[];
+    const mentions=ai.filter(signal=>signal.mentioned).length;
+    const citations=ai.filter(signal=>signal.cited).length;
+    const search=item.search?\`<span>GSC: \${formatNumber(item.search.impressions)} impressions · pos \${Number(item.search.position||0).toFixed(1)} · \${growthPercent(item.search.ctr)} CTR</span>\`:'';
+    const page=item.existingPage?\`<a href="\${esc(item.existingPage)}" target="_blank" rel="noopener">Existing page ↗</a>\`:'';
+    const reddit=item.reddit?.length?\`<span>\${item.reddit.length} matching Reddit discussion\${item.reddit.length===1?'':'s'}</span>\`:'';
+    return \`<article class="growth-opportunity-card \${growthOpportunityPriority(item.score)}"><div class="growth-opportunity-score"><b>\${Number(item.score||0)}</b><span>score</span></div><div class="growth-opportunity-body"><div class="growth-opportunity-title"><div><span class="growth-opportunity-type">\${esc(String(item.intent||item.type||'opportunity').replaceAll('_',' '))}</span><h3>\${esc(item.topic)}</h3></div><strong>\${esc(item.action?.label||'Review')}</strong></div><div class="growth-opportunity-evidence">\${search}<span>AI: \${mentions}/\${ai.length||0} mention · \${citations}/\${ai.length||0} cite</span>\${reddit}\${page}</div><p>\${esc(item.action?.rationale||'Review the available evidence and choose the next growth action.')}</p></div></article>\`;
+  }).join('')||'<div class="growth-empty">No opportunity map has been built yet.</div>';
+}
+async function loadGrowthOpportunityStatus(){
+  const data=await api('/api/admin/growth-intelligence/opportunities');
+  renderGrowthOpportunities(data.latest||null);
+}
+async function buildGrowthOpportunities(){
+  const button=$('buildGrowthOpportunitiesBtn');button.disabled=true;button.textContent='Building…';
+  try{
+    const data=await api('/api/admin/growth-intelligence/opportunities/build',{method:'POST',body:JSON.stringify({days:Number($('growthOpportunityPeriod').value||28)})});
+    renderGrowthOpportunities(data);
+    toast('Growth opportunity map updated');
+  }catch(error){toast(error.message)}finally{button.textContent='Build opportunity map';button.disabled=state.user?.role!=='SUPER_ADMIN'}
+}
 function growthPercent(value){return `${(Number(value||0)*100).toFixed(0)}%`}
 function growthDelta(value){const number=Number(value||0);const sign=number>0?'+':'';return `${sign}${number.toFixed(1)}%`}
 function growthMoney(value){return Number(value||0).toLocaleString(undefined,{style:'currency',currency:'GBP',maximumFractionDigits:2})}
