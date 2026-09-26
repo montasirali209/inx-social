@@ -640,11 +640,11 @@ function renderGrowthAuthority(data){
   $('growthAuthorityStatus').textContent=authority.generatedAt?'ACTIVE':'WAITING';
   $('growthAuthorityStatus').className='status-chip '+(authority.generatedAt?'gsc-connected':'');
   $('growthAuthorityUpdated').textContent=authority.generatedAt?'Updated '+relative(authority.generatedAt):'No authority scan yet.';
-  $('growthAuthorityProvider').textContent='Live research '+(provider.liveResearch?'ready':'not configured')+' · Sol drafting '+(provider.writer?'ready':'not configured')+' · Approved email '+(provider.email?'ready':'not configured')+' · Community posting approval-gated';
+  $('growthAuthorityProvider').textContent='Live research '+(provider.liveResearch?'ready':'not configured')+' · Sol draft + final review '+(provider.writer?'ready':'not configured')+' · Auto email '+(provider.email?'ready':'not configured')+' · Community posting approval-gated';
   $('growthAuthorityKpis').innerHTML=[
     ['Open prospects',Number(stats.total||0),Number(stats.backlinkProspects||0)+' backlink/resource opportunities'],
     ['Communities',Number(stats.communities||0),'Quora and relevant discussions'],
-    ['Drafts ready',Number(stats.outreachDrafts||0),Number(stats.approved||0)+' approved'],
+    ['Drafts ready',Number(stats.outreachDrafts||0),Number(stats.aiApproved||0)+' AI-approved'],
     ['Authority won',won,Number(stats.acquiredLinks||0)+' links · '+Number(stats.mentions||0)+' mentions · '+Number(stats.aiCitations||0)+' AI citations']
   ].map(item=>'<article><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b><small>'+esc(item[2])+'</small></article>').join('');
 
@@ -658,7 +658,8 @@ function renderGrowthAuthority(data){
       status==='APPROVED'&&isCommunity?'<button class="secondary" type="button" onclick="growthAuthorityProspectAction(\''+esc(item.id)+'\',\'posted\')">Mark posted</button>':'',
       status!=='DISMISSED'&&!['LINK_ACQUIRED','MENTION_ACQUIRED','AI_CITED'].includes(status)?'<button class="secondary" type="button" onclick="growthAuthorityProspectAction(\''+esc(item.id)+'\',\'dismiss\')">Dismiss</button>':''
     ].filter(Boolean).join('');
-    return '<article class="growth-authority-row"><div class="growth-authority-score"><b>'+Number(item.score||0)+'</b><span>fit</span></div><div class="growth-authority-copy"><div class="growth-authority-tags"><span>'+esc(growthAuthorityTypeLabel(item.type))+'</span><em>'+esc(status.replaceAll('_',' '))+'</em></div><a href="'+esc(item.url)+'" target="_blank" rel="noopener">'+esc(item.title||item.domain||'Authority opportunity')+' ↗</a><p>'+esc(item.reason||'')+'</p><details><summary>Prepared '+(isCommunity?'reply':'outreach')+'</summary><div>'+esc(draft)+'</div></details></div><div class="growth-authority-row-actions">'+actions+'</div></article>';
+    const aiReview=item.aiReview?.decision?'<small>Sol review: '+esc(item.aiReview.decision)+' · '+esc(item.aiReview.reason||'')+'</small>':'';
+    return '<article class="growth-authority-row"><div class="growth-authority-score"><b>'+Number(item.score||0)+'</b><span>fit</span></div><div class="growth-authority-copy"><div class="growth-authority-tags"><span>'+esc(growthAuthorityTypeLabel(item.type))+'</span><em>'+esc(status.replaceAll('_',' '))+'</em></div><a href="'+esc(item.url)+'" target="_blank" rel="noopener">'+esc(item.title||item.domain||'Authority opportunity')+' ↗</a><p>'+esc(item.reason||'')+'</p>'+aiReview+'<details><summary>Prepared '+(isCommunity?'reply':'outreach')+'</summary><div>'+esc(draft)+'</div></details></div><div class="growth-authority-row-actions">'+actions+'</div></article>';
   }).join(''):'<div class="growth-empty">No qualified authority prospects yet. The six-hour autopilot will keep looking.</div>';
   $('growthAuthorityRunBtn').disabled=state.user?.role!=='SUPER_ADMIN';
 }

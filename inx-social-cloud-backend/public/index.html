@@ -360,7 +360,7 @@
 
       <section class="panel growth-authority-panel">
         <header class="growth-authority-head">
-          <div><span class="kicker">Phase 4 · Authority + communities + backlinks</span><h2>Authority + Community Autopilot</h2><p>Runs every 6 hours. It discovers and validates community discussions, mentions, backlink/resource opportunities, publications, directories, partners and AI-citation sources, then prepares transparent replies or outreach for review.</p></div>
+          <div><span class="kicker">Phase 4 · Authority + communities + backlinks</span><h2>Authority + Community Autopilot</h2><p>Runs every 6 hours. It discovers and validates community discussions, mentions, backlink/resource opportunities, publications, directories, partners and AI-citation sources, then prepares outreach and passes eligible business emails through an independent GPT-5.6 Sol review before automatic sending.</p></div>
           <div class="growth-authority-actions"><span class="status-chip" id="growthAuthorityStatus">Waiting for first run</span><button class="secondary" id="growthAuthorityRunBtn" type="button">Run authority scan now</button></div>
         </header>
         <div class="growth-authority-kpis" id="growthAuthorityKpis">
@@ -371,7 +371,7 @@
         </div>
         <div class="growth-authority-meta"><span id="growthAuthorityUpdated">No authority scan yet.</span><span id="growthAuthorityProvider">Discovery and drafting status will appear here.</span></div>
         <div class="growth-authority-queue" id="growthAuthorityQueue"><div class="growth-empty">Phase 4 will populate this queue automatically.</div></div>
-        <div class="growth-authority-guardrail">Community posts are never auto-submitted without a compliant configured posting connector. Email outreach is capped, requires approval, and can send only one follow-up.</div>
+        <div class="growth-authority-guardrail">Community posts are never auto-submitted without a compliant configured posting connector. Email outreach is capped and only auto-sends when an independent GPT-5.6 Sol review passes the lead, contact evidence, message accuracy, tone and B2B compliance checks.</div>
       </section>
 
       <section class="panel growth-optimization-panel">
@@ -671,6 +671,6 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=17" defer></script>
+<script src="/admin.js?v=18" defer></script>
 </body>
 </html>

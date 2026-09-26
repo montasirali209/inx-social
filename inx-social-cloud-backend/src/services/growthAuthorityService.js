@@ -38,7 +38,8 @@ function summarize(items=[]){
     communities:items.filter(x=>['QUORA','COMMUNITY'].includes(x.type)&&x.status!=='DISMISSED').length,
     backlinkProspects:items.filter(x=>['RESOURCE_PAGE','COMPARISON','BROKEN_LINK','DIRECTORY','PARTNER','PUBLICATION','COMPETITOR_BACKLINK','AI_CITATION_SOURCE'].includes(x.type)&&x.status!=='DISMISSED').length,
     outreachDrafts:items.filter(x=>x.draft?.communityReply||x.draft?.outreachBody).length,
-    approved:items.filter(x=>x.status==='APPROVED').length,
+    approved:items.filter(x=>['APPROVED','AI_APPROVED'].includes(x.status)).length,
+    aiApproved:items.filter(x=>x.status==='AI_APPROVED').length,
     sent:items.filter(x=>['SENT','FOLLOWED_UP'].includes(x.status)).length,
     posted:items.filter(x=>x.status==='POSTED').length,
     acquiredLinks:items.filter(x=>x.status==='LINK_ACQUIRED').length,
@@ -94,7 +95,7 @@ function normalizeCandidate(x){
     id:idFor(type,url),title:String(x?.title||domainOf(url)).replace(/\s+/g,' ').trim().slice(0,240),url,domain:domainOf(url),type,
     score:Math.round(clamp(x?.score,50,0,100)),reason:String(x?.reason||'').replace(/\s+/g,' ').trim().slice(0,700),relevantPage,
     contact:{kind,value,sourceUrl:safeUrl(x?.contactSourceUrl)},communityRulesNote:String(x?.communityRulesNote||'').replace(/\s+/g,' ').trim().slice(0,500),
-    validation:null,draft:null,status:'QUALIFIED',discoveredAt:nowIso(),lastSeenAt:nowIso(),approvedAt:null,executedAt:null,nextFollowUpAt:null,
+    validation:null,draft:null,aiReview:null,status:'QUALIFIED',discoveredAt:nowIso(),lastSeenAt:nowIso(),approvedAt:null,executedAt:null,nextFollowUpAt:null,
     outcomeNote:null,metrics:{votes:0,replies:0,clicks:0,mentions:0},publishedUrl:null
   };
 }
@@ -136,7 +137,7 @@ async function validateProspect(item,http=axios){
   try{
     const r=await http.get(item.url,{timeout:9000,maxRedirects:5,maxContentLength:300000,headers:{'User-Agent':'INXSocial-AuthorityResearch/1.0'},validateStatus:()=>true});
     const body=typeof r.data==='string'?r.data.slice(0,250000):'';
-    return {checkedAt:nowIso(),status:r.status,reachable:r.status>=200&&r.status<400,archived:['QUORA','COMMUNITY'].includes(item.type)&&/\b(archived|locked|comments are locked|thread is locked)\b/i.test(body),duplicateEngagement:['APPROVED','SENT','FOLLOWED_UP','POSTED'].includes(item.status)};
+    return {checkedAt:nowIso(),status:r.status,reachable:r.status>=200&&r.status<400,archived:['QUORA','COMMUNITY'].includes(item.type)&&/\b(archived|locked|comments are locked|thread is locked)\b/i.test(body),duplicateEngagement:['APPROVED','AI_APPROVED','SENT','FOLLOWED_UP','POSTED'].includes(item.status)};
   }catch(e){return {checkedAt:nowIso(),status:0,reachable:false,archived:false,duplicateEngagement:false,note:String(e.message||e).slice(0,240)};}
 }
 
@@ -156,7 +157,7 @@ async function draftForProspects(items,http=axios){
     instructions:[
       'Draft transparent authority engagement for INXSocial. Never fabricate experience, metrics, endorsements, relationships, discounts or product capabilities.',
       'Community replies must answer the person first, be useful without mentioning INXSocial, avoid marketing language, and include no link unless necessary. If INXSocial is mentioned, transparently disclose the affiliation. If rules discourage self-promotion, write a purely helpful reply with no product mention.',
-      'Outreach email must be short, page-specific, respectful and non-manipulative with one optional ask. Do not imply an existing relationship, use fake urgency or request paid links. Also write one brief follow-up usable once after five days.',
+      'Outreach email must be short, page-specific, respectful and non-manipulative with one optional ask. Do not imply an existing relationship, use fake urgency or request paid links. Clearly identify INXSocial/INAXX LTD and include a simple opt-out line telling the recipient they can reply if they do not want further contact. Also write one brief follow-up usable once after five days.',
       'Return empty outreach fields for community-only prospects and empty communityReply for outreach-only prospects.'
     ].join(' '),
     input:JSON.stringify(candidates.map(x=>({id:x.id,title:x.title,url:x.url,type:x.type,reason:x.reason,relevantPage:x.relevantPage,communityRulesNote:x.communityRulesNote,contact:x.contact}))),
@@ -172,6 +173,83 @@ async function draftForProspects(items,http=axios){
   }));
 }
 
+function reviewSchema(ids){
+  return {type:'object',additionalProperties:false,required:['reviews'],properties:{reviews:{type:'array',maxItems:ids.length,items:{
+    type:'object',additionalProperties:false,required:['id','decision','corporateSubscriber','contactPubliclyVerified','relevantBusinessFit','factualClaimsSafe','toneSafe','identityAndOptOutPresent','reason'],
+    properties:{
+      id:{type:'string',enum:ids},
+      decision:{type:'string',enum:['PASS','REJECT']},
+      corporateSubscriber:{type:'string',enum:['YES','NO','UNCERTAIN']},
+      contactPubliclyVerified:{type:'boolean'},
+      relevantBusinessFit:{type:'boolean'},
+      factualClaimsSafe:{type:'boolean'},
+      toneSafe:{type:'boolean'},
+      identityAndOptOutPresent:{type:'boolean'},
+      reason:{type:'string'}
+    }
+  }}}};
+}
+
+async function reviewOutreachForAutoSend(items,http=axios){
+  const candidates=items.filter(x=>
+    x.score>=75
+    && x.status==='QUALIFIED'
+    && x.contact?.kind==='EMAIL'
+    && x.contact?.value
+    && x.contact?.sourceUrl
+    && x.validation?.reachable===true
+    && x.draft?.outreachSubject
+    && x.draft?.outreachBody
+    && !['QUORA','COMMUNITY'].includes(x.type)
+  ).slice(0,6);
+  if(!candidates.length||!providerStatus().writer)return [];
+  const ids=candidates.map(x=>x.id);
+  const request={
+    model:env.contentWriter.model,
+    instructions:[
+      'Act as an independent final outbound-email reviewer for INXSocial. This is a separate gate after drafting.',
+      'Return PASS only when the evidence supports a genuinely relevant B2B authority/outreach message to a clearly corporate subscriber such as a limited company or LLP. If the recipient could be a sole trader, individual subscriber, personal consumer or the business type is uncertain, return REJECT.',
+      'The recipient email must be explicitly supported by the supplied public contact source. Reject guessed, inferred, scraped-looking or unrelated addresses.',
+      'Reject unsupported claims, fake familiarity, manipulative urgency, misleading comparisons, paid-link requests, excessive promotion, irrelevant outreach, or anything that could reasonably be considered spam.',
+      'The email must clearly identify INXSocial/INAXX LTD and offer a simple way to opt out by replying. Reject if that is missing.',
+      'A PASS requires every boolean check to be true and corporateSubscriber to be YES. When uncertain, REJECT. Do not rewrite the email and do not provide hidden reasoning; return only the structured verdict.'
+    ].join(' '),
+    input:JSON.stringify(candidates.map(x=>({
+      id:x.id,title:x.title,url:x.url,domain:x.domain,type:x.type,score:x.score,reason:x.reason,relevantPage:x.relevantPage,
+      contact:x.contact,validation:x.validation,
+      draft:{subject:x.draft.outreachSubject,body:x.draft.outreachBody}
+    }))),
+    text:{format:{type:'json_schema',name:'inx_authority_email_final_review',strict:true,schema:reviewSchema(ids)}}
+  };
+  if(/^gpt-5(?:\.|-)/i.test(env.contentWriter.model)) request.reasoning={effort:'high'};
+  const response=await http.post(env.contentWriter.baseUrl.replace(/\/$/,'')+'/responses',request,{timeout:120000,headers:{Authorization:'Bearer '+env.contentWriter.apiKey,'Content-Type':'application/json'}});
+  const parsed=safeJson(webResearch.extractResponseText(response.data),{reviews:[]});
+  return (parsed.reviews||[]).filter(x=>ids.includes(x.id)).map(x=>{
+    const pass=x.decision==='PASS'
+      && x.corporateSubscriber==='YES'
+      && x.contactPubliclyVerified===true
+      && x.relevantBusinessFit===true
+      && x.factualClaimsSafe===true
+      && x.toneSafe===true
+      && x.identityAndOptOutPresent===true;
+    return {
+      id:x.id,
+      decision:pass?'PASS':'REJECT',
+      corporateSubscriber:String(x.corporateSubscriber||'UNCERTAIN'),
+      checks:{
+        contactPubliclyVerified:Boolean(x.contactPubliclyVerified),
+        relevantBusinessFit:Boolean(x.relevantBusinessFit),
+        factualClaimsSafe:Boolean(x.factualClaimsSafe),
+        toneSafe:Boolean(x.toneSafe),
+        identityAndOptOutPresent:Boolean(x.identityAndOptOutPresent)
+      },
+      reason:String(x.reason||'').trim().slice(0,900),
+      reviewedAt:nowIso(),
+      reviewerModel:env.contentWriter.model
+    };
+  });
+}
+
 async function executeApprovedEmails(items,enabled){
   if(!enabled)return {items,sent:0,followedUp:0};
   let sent=0,followedUp=0; const out=[];
@@ -182,9 +260,9 @@ async function executeApprovedEmails(items,enabled){
         await emailService.sendAuthorityOutreach({to:x.contact.value,subject:'Re: '+String(x.draft.outreachSubject||'INXSocial').slice(0,170),body:x.draft.followUpBody});
         followedUp++;out.push({...x,status:'FOLLOWED_UP',executedAt:nowIso(),nextFollowUpAt:null,outcomeNote:'One approved follow-up was sent automatically after five days.'});continue;
       }
-      if(x.status==='APPROVED'&&x.contact?.kind==='EMAIL'&&x.contact?.value&&x.draft?.outreachSubject&&x.draft?.outreachBody&&emailService.isConfigured()){
+      if(['APPROVED','AI_APPROVED'].includes(x.status)&&x.contact?.kind==='EMAIL'&&x.contact?.value&&x.draft?.outreachSubject&&x.draft?.outreachBody&&emailService.isConfigured()){
         await emailService.sendAuthorityOutreach({to:x.contact.value,subject:x.draft.outreachSubject,body:x.draft.outreachBody});
-        sent++;out.push({...x,status:'SENT',executedAt:nowIso(),nextFollowUpAt:new Date(Date.now()+5*24*60*60*1000).toISOString(),outcomeNote:'Approved outreach sent through the configured INXSocial email provider.'});continue;
+        sent++;out.push({...x,status:'SENT',executedAt:nowIso(),nextFollowUpAt:new Date(Date.now()+5*24*60*60*1000).toISOString(),outcomeNote:x.aiReview?.decision==='PASS'?'GPT-5.6 Sol reviewed and approved this outreach before automatic delivery.':'Approved outreach sent through the configured INXSocial email provider.'});continue;
       }
     }catch(e){out.push({...x,outcomeNote:'Approved outreach send failed: '+String(e.message||e).slice(0,300)});continue;}
     out.push(x);
@@ -204,9 +282,17 @@ async function run(options={}){
     const i=prospects.findIndex(x=>x.id===target.id); if(i>=0) prospects[i]={...prospects[i],validation:await validateProspect(prospects[i],options.http||axios)};
   }
   try{const drafts=await draftForProspects(prospects,options.http||axios),map=new Map(drafts.map(x=>[x.id,x]));prospects=prospects.map(x=>map.has(x.id)?{...x,draft:map.get(x.id)}:x);}catch(e){warnings.push('Drafting: '+String(e.message||e).slice(0,500));}
+  try{
+    const reviews=await reviewOutreachForAutoSend(prospects,options.http||axios),map=new Map(reviews.map(x=>[x.id,x]));
+    prospects=prospects.map(x=>{
+      const review=map.get(x.id); if(!review)return x;
+      if(review.decision==='PASS')return {...x,aiReview:review,status:'AI_APPROVED',approvedAt:review.reviewedAt,outcomeNote:'Independent GPT-5.6 Sol review approved this outreach for automatic sending.'};
+      return {...x,aiReview:review,outcomeNote:'Automatic outreach withheld by GPT-5.6 Sol review: '+review.reason};
+    });
+  }catch(e){warnings.push('AI email review: '+String(e.message||e).slice(0,500));}
   const execution=await executeApprovedEmails(prospects,options.autoEmail===true); prospects=execution.items;
   const saved=await writeState({...state,generatedAt:nowIso(),lastRunStartedAt:nowIso(),lastRunFinishedAt:nowIso(),lastError:null,warnings,prospects});
-  await audit('GROWTH_PHASE4_AUTHORITY_CYCLE',{discovered:found.length,total:saved.stats.total,drafts:saved.stats.outreachDrafts,emailsSent:execution.sent,followUpsSent:execution.followedUp,warnings:warnings.length});
+  await audit('GROWTH_PHASE4_AUTHORITY_CYCLE',{discovered:found.length,total:saved.stats.total,drafts:saved.stats.outreachDrafts,aiApproved:saved.stats.aiApproved,emailsSent:execution.sent,followUpsSent:execution.followedUp,warnings:warnings.length});
   return saved;
 }
 
@@ -231,4 +317,4 @@ async function updateProspect(id,action,input={}){
   return saved;
 }
 
-module.exports={STATE_KEY,TYPES,providerStatus,status:readState,run,updateProspect,discoverProspects,validateProspect,draftForProspects,mergeProspects,normalizeCandidate,summarize};
+module.exports={STATE_KEY,TYPES,providerStatus,status:readState,run,updateProspect,discoverProspects,validateProspect,draftForProspects,reviewOutreachForAutoSend,mergeProspects,normalizeCandidate,summarize};
