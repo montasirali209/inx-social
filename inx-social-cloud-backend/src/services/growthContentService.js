@@ -13,6 +13,7 @@ const objectStorage = require('./mediaObjectStorageService');
 const ARTICLE_PREFIX = 'growth_content_article_v2:';
 const SLUG_PREFIX = 'growth_content_slug_v2:';
 const ENGINE_SETTING_KEY = 'growth_content_engine_v2';
+const SEO_LINK_GRAPH_KEY = 'growth_seo_internal_link_graph_v1';
 const LEGACY_IMPORT_SETTING_KEY = 'growth_content_legacy_babylove_import_v1';
 const BABYLOVE_API_BASE = 'https://api.babylovegrowth.ai/api/integrations/v1';
 const SITE_URL = 'https://www.inxsocial.co.uk';
@@ -744,7 +745,27 @@ function articleSchemaObjects(article) {
   return { jsonLd, faqJsonLd };
 }
 
-function publicArticle(article) {
+function mergePublicInternalLinks(article, dynamicLinks = []) {
+  const base = relatedInternalLinks(article.title, article.keywords);
+  const combined = [...dynamicLinks, ...base];
+  const seen = new Set();
+  return combined
+    .map(link => ({
+      label: normalizeSpace(link?.label).slice(0, 140),
+      url: safeInternalPath(link?.url),
+      description: normalizeSpace(link?.description || '').slice(0, 260),
+      kind: normalizeSpace(link?.kind || 'product').slice(0, 40)
+    }))
+    .filter(link => link.label && link.url && link.url !== '/blog/' + article.slug)
+    .filter(link => {
+      if (seen.has(link.url)) return false;
+      seen.add(link.url);
+      return true;
+    })
+    .slice(0, 7);
+}
+
+function publicArticle(article, dynamicLinks = []) {
   const schemas = articleSchemaObjects(article);
   return {
     id: article.id,
@@ -764,7 +785,7 @@ function publicArticle(article) {
     key_takeaways: Array.isArray(article.key_takeaways) ? article.key_takeaways : [],
     comparison: Array.isArray(article.comparison) ? article.comparison : [],
     sources: normalizeSources(article.sources),
-    internalLinks: relatedInternalLinks(article.title, article.keywords),
+    internalLinks: mergePublicInternalLinks(article, dynamicLinks),
     faq: article.faq || [],
     editorial: Number(article.generation?.editorialVersion || 0) >= 3 ? {
       method: 'AI-assisted editorial workflow with live web research and an independent AI quality review',
@@ -1037,7 +1058,10 @@ async function publicArticles(options = {}) {
 
 async function publicArticleBySlug(slug) {
   const article = await getArticleBySlug(slug, { publishedOnly: true });
-  return article ? publicArticle(article) : null;
+  if (!article) return null;
+  const graph = await readSetting(SEO_LINK_GRAPH_KEY).catch(() => null);
+  const dynamicLinks = Array.isArray(graph?.graph?.[article.id]) ? graph.graph[article.id] : [];
+  return publicArticle(article, dynamicLinks);
 }
 
 async function publicSitemapEntries() {
@@ -1238,6 +1262,7 @@ module.exports = {
   STATUS,
   ARTICLE_PREFIX,
   ENGINE_SETTING_KEY,
+  SEO_LINK_GRAPH_KEY,
   slugify,
   markdownToSafeHtml,
   qualityReview,
@@ -1256,6 +1281,7 @@ module.exports = {
   publicArticles,
   publicArticleBySlug,
   publicSitemapEntries,
+  mergePublicInternalLinks,
   importLegacyBabyLoveArticles,
   babyLoveGet,
   retryAfterMs,
