@@ -15,6 +15,9 @@ export type BlogArticleSummary = {
 export type BlogArticle = BlogArticleSummary & {
   content_html?: string | null;
   content_markdown?: string | null;
+  sources?: Array<{ title: string; url: string }> | null;
+  internalLinks?: Array<{ label: string; url: string }> | null;
+  faq?: Array<{ question: string; answer: string }> | null;
   jsonLd?: unknown;
   faqJsonLd?: unknown;
 };
