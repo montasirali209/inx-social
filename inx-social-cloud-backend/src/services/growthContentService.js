@@ -389,7 +389,7 @@ async function responsesRequest(payload) {
 }
 
 async function structuredResponse(payload, schemaName, errorCode) {
-  let lastRaw = null;
+  const raws = [];
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     const request = {
       ...payload,
@@ -397,13 +397,12 @@ async function structuredResponse(payload, schemaName, errorCode) {
     };
     if (attempt > 1) {
       request.instructions = String(request.instructions || '') + ' This is a retry because the previous response could not be parsed. Return one complete JSON object only, with no markdown fences, commentary or trailing text.';
-      if (request.tool_choice === 'required') request.tool_choice = 'auto';
     }
 
     const raw = await responsesRequest(request);
-    lastRaw = raw;
+    raws.push(raw);
     const parsed = parseStructuredJson(webResearch.extractResponseText(raw));
-    if (parsed && typeof parsed === 'object') return { parsed, raw, attempt };
+    if (parsed && typeof parsed === 'object') return { parsed, raw, raws, attempt };
 
     console.warn('[growth-content] structured response parse failed', {
       schemaName,
@@ -456,7 +455,7 @@ async function researchTopic(input) {
   const result = await structuredResponse(request, 'inx_content_research', 'CONTENT_RESEARCH_INVALID');
   const raw = result.raw;
   const parsed = result.parsed;
-  const sources = webResearch.extractResponseSources(raw)
+  const sources = result.raws.flatMap(item => webResearch.extractResponseSources(item))
     .map(source => ({
       title: normalizeSpace(source.title || source.url).slice(0, 240),
       url: safeExternalUrl(source.url)
