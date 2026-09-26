@@ -1,6 +1,8 @@
 const { z } = require('zod');
 const prisma = require('../db/prisma');
 const growth = require('../services/growthIntelligenceService');
+const externalVisibility = require('../services/externalVisibilityService');
+const googleAnalytics = require('../services/googleAnalyticsService');
 
 async function writeAudit(userId, action, metadata = null) {
   if (!userId) return;
@@ -61,6 +63,75 @@ async function runOpenAIVisibility(req, res, next) {
   }
 }
 
+
+async function runExternalVisibility(req, res, next) {
+  try {
+    const input = z.object({
+      provider: z.enum(['perplexity', 'claude']),
+      limit: z.coerce.number().int().min(1).max(5).default(5)
+    }).parse(req.body || {});
+    const result = await externalVisibility.runScan(input.provider, growth.DEFAULT_PROMPTS, input.limit);
+    await writeAudit(req.user.id, 'ADMIN_GROWTH_EXTERNAL_VISIBILITY_RUN', {
+      provider: input.provider,
+      promptsRun: result.promptsRun,
+      successfulPrompts: result.successfulPrompts,
+      mentionRate: result.mentionRate,
+      citationRate: result.citationRate
+    });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function analyticsStatus(req, res, next) {
+  try {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(await googleAnalytics.status());
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function selectAnalyticsProperty(req, res, next) {
+  try {
+    const input = z.object({
+      propertyId: z.string().trim().regex(/^\d+$/)
+    }).parse(req.body || {});
+    const selectedProperty = await googleAnalytics.selectProperty(input.propertyId);
+    await writeAudit(req.user.id, 'ADMIN_GROWTH_GA4_PROPERTY_SELECTED', {
+      propertyId: selectedProperty.propertyId,
+      displayName: selectedProperty.displayName
+    });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ ok: true, selectedProperty });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function analyticsRealtime(req, res, next) {
+  try {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(await googleAnalytics.realtime());
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function analyticsPerformance(req, res, next) {
+  try {
+    const input = z.object({
+      days: z.coerce.number().int().refine(value => [7, 28, 90].includes(value)).default(28)
+    }).parse(req.query || {});
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(await googleAnalytics.performance(input.days));
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function discoverReddit(req, res, next) {
   try {
     const result = await growth.discoverRedditOpportunities();
@@ -78,5 +149,10 @@ module.exports = {
   overview,
   runSiteAudit,
   runOpenAIVisibility,
+  runExternalVisibility,
+  analyticsStatus,
+  selectAnalyticsProperty,
+  analyticsRealtime,
+  analyticsPerformance,
   discoverReddit
 };
