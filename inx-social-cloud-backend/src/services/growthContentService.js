@@ -497,19 +497,25 @@ function openAiReady() {
   return Boolean(env.webResearch?.apiKey && env.webResearch?.baseUrl && env.webResearch?.model);
 }
 
-async function responsesRequest(payload) {
-  if (!openAiReady()) throw publicError('OpenAI web research is not configured for the Content Engine.', 503, 'CONTENT_AI_NOT_CONFIGURED');
-  const response = await axios.post(env.webResearch.baseUrl + '/responses', payload, {
+function contentWriterReady() {
+  return Boolean(env.contentWriter?.apiKey && env.contentWriter?.baseUrl && env.contentWriter?.model);
+}
+
+async function responsesRequest(payload, client = env.webResearch) {
+  if (!client?.apiKey || !client?.baseUrl || !payload?.model) {
+    throw publicError('OpenAI is not configured for the requested Content Engine stage.', 503, 'CONTENT_AI_NOT_CONFIGURED');
+  }
+  const response = await axios.post(client.baseUrl + '/responses', payload, {
     timeout: Math.max(60000, Number(env.webResearch.timeoutMs || 120000)),
     headers: {
-      Authorization: 'Bearer ' + env.webResearch.apiKey,
+      Authorization: 'Bearer ' + client.apiKey,
       'Content-Type': 'application/json'
     }
   });
   return response.data;
 }
 
-async function structuredResponse(payload, schemaName, errorCode) {
+async function structuredResponse(payload, schemaName, errorCode, client = env.webResearch) {
   const raws = [];
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     const request = {
@@ -520,7 +526,7 @@ async function structuredResponse(payload, schemaName, errorCode) {
       request.instructions = String(request.instructions || '') + ' This is a retry because the previous response could not be parsed. Return one complete JSON object only, with no markdown fences, commentary or trailing text.';
     }
 
-    const raw = await responsesRequest(request);
+    const raw = await responsesRequest(request, client);
     raws.push(raw);
     const parsed = parseStructuredJson(webResearch.extractResponseText(raw));
     if (parsed && typeof parsed === 'object') return { parsed, raw, raws, attempt };
@@ -597,12 +603,15 @@ async function researchTopic(input) {
 }
 
 async function writeArticle(input, research) {
+  if (!contentWriterReady()) {
+    throw publicError('GPT-5.6 Sol article writer is not configured.', 503, 'CONTENT_WRITER_NOT_CONFIGURED');
+  }
   const sourceList = research.sources.map(source => source.id + '. ' + source.title + ' [' + source.domain + '] — ' + source.url).join('\n');
   const internalLinks = relatedInternalLinks(input.topic, []);
   const linkList = internalLinks.map(link => link.label + ': ' + SITE_URL + link.url).join('\n');
 
   const request = {
-    model: env.webResearch.model,
+    model: env.contentWriter.model,
     instructions: [
       'You are the senior editorial writer for INXSocial. Write like a specialist publication, not a generic SEO content generator.',
       'Create an original, useful article from the research brief and verified source pack. The reader should leave with a clear answer, decision framework and practical next step.',
@@ -638,9 +647,16 @@ async function writeArticle(input, research) {
     text: { format: { type: 'json_schema', name: 'inx_content_article', strict: true, schema: articleSchema() } },
     max_output_tokens: 7000
   };
-  if (/^gpt-5(?:\.|-)/i.test(env.webResearch.model)) request.reasoning = { effort: 'low' };
+  if (/^gpt-5(?:\.|-)/i.test(env.contentWriter.model)) {
+    request.reasoning = { effort: env.contentWriter.reasoningEffort || 'high' };
+  }
 
-  const result = await structuredResponse(request, 'inx_content_article', 'CONTENT_DRAFT_INVALID');
+  const result = await structuredResponse(
+    request,
+    'inx_content_article',
+    'CONTENT_DRAFT_INVALID',
+    env.contentWriter
+  );
   return result.parsed;
 }
 
@@ -855,7 +871,8 @@ async function createDraft(input) {
     research_brief: research.brief,
     generation: {
       researchModel: research.model,
-      writerModel: env.webResearch.model,
+      writerModel: env.contentWriter.model,
+      writerReasoningEffort: env.contentWriter.reasoningEffort || 'high',
       editorialVersion: 3,
       generatedAt: createdAt
     },

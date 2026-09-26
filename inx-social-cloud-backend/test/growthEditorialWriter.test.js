@@ -93,3 +93,27 @@ test('BlogPosting author URL resolves to the canonical site instead of a nonexis
   assert.match(service, /name: 'INXSocial Editorial', url: SITE_URL/);
   assert.doesNotMatch(service, /SITE_URL \+ '\/about'/);
 });
+
+
+test('final article writing uses GPT-5.6 Sol independently from the research model', () => {
+  const envConfig = read('src/config/env.js');
+  const service = read('src/services/growthContentService.js');
+
+  assert.match(envConfig, /OPENAI_CONTENT_WRITER_MODEL/);
+  assert.match(envConfig, /'gpt-5\.6-sol'/);
+  assert.match(envConfig, /OPENAI_CONTENT_WRITER_REASONING/);
+  assert.match(service, /model: env\.contentWriter\.model/);
+  assert.match(service, /env\.contentWriter\.reasoningEffort \|\| 'high'/);
+  assert.match(service, /writerModel: env\.contentWriter\.model/);
+  assert.match(service, /writerReasoningEffort: env\.contentWriter\.reasoningEffort/);
+});
+
+test('research remains on the dedicated web research model', () => {
+  const service = read('src/services/growthContentService.js');
+  const researchStart = service.indexOf('async function researchTopic');
+  const writerStart = service.indexOf('async function writeArticle');
+  const researchSection = service.slice(researchStart, writerStart);
+
+  assert.match(researchSection, /model: env\.webResearch\.model/);
+  assert.doesNotMatch(researchSection, /model: env\.contentWriter\.model/);
+});
