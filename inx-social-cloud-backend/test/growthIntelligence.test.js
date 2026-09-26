@@ -18,7 +18,7 @@ test('Growth Intelligence UI exposes audit, visibility and Reddit discovery with
   const html = read('public/index.html');
   const js = read('public/admin.js');
   assert.match(html, /data-page="growthIntelligence"/);
-  assert.match(html, /Crawler &amp; indexability audit/);
+  assert.match(html, /Crawler & indexability audit/);
   assert.match(html, /OpenAI web-search probe/);
   assert.match(html, /Reddit opportunities/);
   assert.match(js, /\/api\/admin\/growth-intelligence\/site-audit/);
