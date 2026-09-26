@@ -293,4 +293,8 @@ async function generateVideo(userId, input = {}) {
   return { id: generationId, status: 'preparing', progress: 0 };
 }
 
-module.exports = { catalog, internalProfiles, estimateCredits, recommendModel, generateVideo };
+async function universalCatalog(options = {}) {
+  return videoModels.publicCatalog({ all: true, refresh: Boolean(options.refresh) });
+}
+
+module.exports = { catalog, internalProfiles, universalCatalog, estimateCredits, recommendModel, generateVideo };
