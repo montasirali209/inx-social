@@ -450,6 +450,18 @@ async function resolveModel(route) {
   return profile;
 }
 
+function baselineCredits(model) {
+  const durations = model.durations?.length ? model.durations : model.availableDurations || [];
+  const resolutions = model.resolutions?.length ? model.resolutions : model.availableResolutions || [];
+  const duration = durations.includes(5) ? 5 : durations[0] || 5;
+  const resolution = resolutions.includes('720p') ? '720p' : resolutions[0] || '720p';
+  try {
+    return estimateCredits(model, { duration, resolution, draft: false, audio: Boolean(model.audioSupported) });
+  } catch (_) {
+    return null;
+  }
+}
+
 function publicModel(model) {
   return {
     id: model.id,
@@ -478,6 +490,7 @@ function publicModel(model) {
     compatibility: model.compatibility || 'DISCOVERED',
     generationReady: Boolean(model.generationReady),
     pricingStatus: model.pricingStatus || model.pricing?.status || 'UNAVAILABLE',
+    baselineCredits: baselineCredits(model),
     tags: model.tags || []
   };
 }
