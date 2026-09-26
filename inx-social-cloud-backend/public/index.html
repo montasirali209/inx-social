@@ -138,6 +138,14 @@
           <article class="ugc-avatar-library-card">
             <div class="ugc-admin-card-head"><div><span class="kicker">Live picker source</span><h3>Creators visible in UGC Studio</h3></div><button class="secondary" id="refreshUgcAvatarsBtn" type="button">↻ Refresh</button></div>
             <p class="muted">Every active system creator below is returned by the same creator library endpoint used by the customer-facing Browse creators picker.</p>
+            <div class="ugc-avatar-selection-bar" id="ugcAvatarSelectionBar">
+              <label class="ugc-avatar-select-all"><input id="ugcAvatarSelectAll" type="checkbox"><span><b id="ugcAvatarSelectedCount">0 selected</b><small>Select creators for bulk actions</small></span></label>
+              <div class="ugc-avatar-selection-actions">
+                <button class="secondary" id="ugcAvatarDownloadSelectedBtn" type="button" disabled>⇩ Download selected</button>
+                <button class="danger" id="ugcAvatarDeleteSelectedBtn" type="button" disabled>Delete selected</button>
+              </div>
+            </div>
+            <div class="ugc-avatar-selection-note">Deleting removes creators from the customer Browse creators picker. Existing campaigns that already reference a creator remain intact.</div>
             <div id="ugcAvatarLibrary" class="ugc-avatar-library"><div class="ugc-avatar-library-empty">Loading creators…</div></div>
           </article>
         </div>
