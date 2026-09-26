@@ -296,7 +296,6 @@ async function snapshot(options = {}) {
   }
   const [fast, slow] = await Promise.all([loadFast(), loadSlow()]);
   return {
-    generatedAt: nowIso(),
     refreshSeconds: 30,
     freshness: {
       realtime: fast.generatedAt,
@@ -305,6 +304,7 @@ async function snapshot(options = {}) {
     },
     ...fast,
     ...slow,
+    generatedAt: nowIso(),
     warnings: [...new Set([...(fast.warnings || []), ...(slow.warnings || [])])]
   };
 }
