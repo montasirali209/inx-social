@@ -1,4 +1,4 @@
-const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,growthAnalytics:null,growthRealtimeTimer:null,ugcAvatars:[],timer:null};
+const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,growthAnalytics:null,growthOpportunities:null,growthRealtimeTimer:null,ugcAvatars:[],timer:null};
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const initials=value=>String(value||'IN').trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
@@ -447,7 +447,7 @@ async function loadSearchConsole(){
 }
 $('gscConnectBtn').addEventListener('click',async()=>{
   try{
-    const data=await api('/api/admin/search-console/oauth/start',{method:'POST',body:'{}'});
+    const data=await api('/api/admin/search-console/oauth/start',{method:'POST',body:JSON.stringify({returnTo:'growthIntelligence'})});
     window.location.assign(data.authorizationUrl);
   }catch(error){toast(error.message)}
 });
