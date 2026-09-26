@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=10">
+  <link rel="stylesheet" href="/admin.css?v=11">
   <link rel="stylesheet" href="/admin-security.css?v=1">
 </head>
 <body>
@@ -282,6 +282,7 @@
 
       <div class="growth-provider-grid" id="growthProviderGrid" aria-live="polite">
         <article class="growth-provider-card loading"><span>Search Console</span><b>Loading…</b><small>Checking connection</small></article>
+        <article class="growth-provider-card loading"><span>Google Analytics</span><b>Loading…</b><small>Checking GA4 read access</small></article>
         <article class="growth-provider-card loading"><span>OpenAI web search</span><b>Loading…</b><small>Checking probe configuration</small></article>
         <article class="growth-provider-card loading"><span>Perplexity</span><b>Loading…</b><small>Checking API configuration</small></article>
         <article class="growth-provider-card loading"><span>Claude</span><b>Loading…</b><small>Checking API configuration</small></article>
@@ -306,12 +307,64 @@
         </article>
       </div>
 
+      <section class="panel growth-analytics-panel">
+        <header class="growth-action-head">
+          <div><span class="kicker">Website performance</span><h2>Google Analytics 4</h2><p>Live visitor activity plus recent traffic, landing pages, acquisition channels and the signup → checkout → purchase funnel from the same GA4 property already receiving INXSocial events.</p></div>
+          <span class="status-chip" id="growthGaStatus">Checking…</span>
+        </header>
+        <div class="growth-analytics-controls">
+          <label>GA4 property<select id="growthGaProperty" disabled><option value="">No property selected</option></select></label>
+          <label>Reporting window<select id="growthGaPeriod"><option value="7">7 days</option><option value="28" selected>28 days</option><option value="90">90 days</option></select></label>
+          <button class="secondary" id="growthGaReconnectBtn" type="button">Connect / Reconnect Google</button>
+          <button class="primary" id="growthGaRefreshBtn" type="button">↻ Refresh analytics</button>
+        </div>
+        <div class="growth-ga-message" id="growthGaMessage">Checking Google Analytics connection…</div>
+
+        <div class="growth-subhead"><div><span class="kicker">Realtime · last 30 minutes</span><h3>Visitors right now</h3></div><span id="growthGaRealtimeUpdated">—</span></div>
+        <div class="growth-analytics-kpis" id="growthRealtimeKpis">
+          <article><span>Active users</span><b>—</b><small>Realtime</small></article>
+          <article><span>Page views</span><b>—</b><small>Realtime</small></article>
+          <article><span>Events</span><b>—</b><small>Realtime</small></article>
+          <article><span>Key events</span><b>—</b><small>Realtime</small></article>
+        </div>
+
+        <div class="growth-analytics-live-grid">
+          <article class="growth-mini-panel"><div class="growth-mini-head"><b>Active pages</b><small>Realtime</small></div><div id="growthLivePages" class="growth-breakdown-list"><div class="growth-empty">No live data loaded.</div></div></article>
+          <article class="growth-mini-panel"><div class="growth-mini-head"><b>Countries</b><small>Realtime</small></div><div id="growthLiveCountries" class="growth-breakdown-list"><div class="growth-empty">No live data loaded.</div></div></article>
+          <article class="growth-mini-panel"><div class="growth-mini-head"><b>Devices</b><small>Realtime</small></div><div id="growthLiveDevices" class="growth-breakdown-list"><div class="growth-empty">No live data loaded.</div></div></article>
+        </div>
+
+        <div class="growth-subhead historical"><div><span class="kicker">Historical</span><h3 id="growthGaPeriodLabel">Last 28 days</h3></div><span id="growthGaHistoricalUpdated">—</span></div>
+        <div class="growth-analytics-kpis" id="growthAnalyticsKpis">
+          <article><span>Active users</span><b>—</b><small>No data loaded</small></article>
+          <article><span>Sessions</span><b>—</b><small>No data loaded</small></article>
+          <article><span>Page views</span><b>—</b><small>No data loaded</small></article>
+          <article><span>Key events</span><b>—</b><small>No data loaded</small></article>
+          <article><span>Revenue</span><b>—</b><small>No data loaded</small></article>
+        </div>
+
+        <div class="growth-analytics-history-grid">
+          <article class="growth-mini-panel"><div class="growth-mini-head"><b>Acquisition channels</b><small>Sessions</small></div><div id="growthAnalyticsChannels" class="growth-breakdown-list"><div class="growth-empty">No historical data loaded.</div></div></article>
+          <article class="growth-mini-panel"><div class="growth-mini-head"><b>Conversion funnel</b><small>Tracked events</small></div><div id="growthAnalyticsFunnel" class="growth-funnel-list"><div class="growth-empty">No funnel data loaded.</div></div></article>
+        </div>
+
+        <article class="growth-mini-panel growth-pages-panel">
+          <div class="growth-mini-head"><b>Top landing pages</b><small>Sessions · users · key events</small></div>
+          <div class="gsc-table-wrap"><table class="gsc-table"><thead><tr><th>Landing page</th><th>Sessions</th><th>Users</th><th>Views</th><th>Key events</th></tr></thead><tbody id="growthAnalyticsPages"><tr><td colspan="5">No historical data loaded.</td></tr></tbody></table></div>
+        </article>
+      </section>
+
       <section class="panel growth-visibility-panel">
         <header class="growth-action-head">
-          <div><span class="kicker">AI visibility baseline</span><h2>OpenAI web-search probe</h2><p>Runs independent live-web buyer queries and records whether INXSocial is mentioned or cited, which competitors appear, and the cited sources.</p></div>
-          <div class="growth-actions"><label>Prompts<select id="growthOpenAiLimit"><option value="3">3 prompts</option><option value="5" selected>5 prompts</option></select></label><button class="primary" id="runOpenAiVisibilityBtn" type="button">Run visibility scan</button></div>
+          <div><span class="kicker">AI visibility baseline</span><h2>AI search visibility probes</h2><p>Run the same neutral buyer-intent prompts against OpenAI web search, Perplexity Sonar or Claude web search and record INXSocial mentions, citations, competitors and source URLs.</p></div>
+          <div class="growth-actions">
+            <label>Provider<select id="growthVisibilityProvider"><option value="openai">OpenAI web search</option><option value="perplexity">Perplexity Sonar</option><option value="claude">Claude web search</option></select></label>
+            <label>Prompts<select id="growthVisibilityLimit"><option value="3">3 prompts</option><option value="5" selected>5 prompts</option></select></label>
+            <button class="primary" id="runVisibilityBtn" type="button">Run visibility scan</button>
+          </div>
         </header>
-        <div class="growth-disclaimer">This is an OpenAI API web-search probe. It is useful as a repeatable benchmark, but it is not an exact reproduction or ranking of the consumer ChatGPT product.</div>
+        <div class="growth-visibility-provider-summary" id="growthProviderVisibilitySummary"></div>
+        <div class="growth-disclaimer" id="growthVisibilityDisclaimer">Choose a provider to view its latest benchmark. API probes are repeatable measurements, not guaranteed reproductions of consumer-product answers.</div>
         <div class="growth-visibility-kpis" id="growthVisibilityKpis">
           <article><span>Mention rate</span><b>—</b><small>No scan yet</small></article>
           <article><span>Citation rate</span><b>—</b><small>No scan yet</small></article>
@@ -386,6 +439,6 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=9" defer></script>
+<script src="/admin.js?v=10" defer></script>
 </body>
 </html>
