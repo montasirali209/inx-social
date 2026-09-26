@@ -20,7 +20,17 @@ function safeJson(value, fallback = null) {
 
 async function readSelectedProperty() {
   const setting = await prisma.appSetting.findUnique({ where: { key: PROPERTY_SETTING_KEY } });
-  return setting ? safeJson(setting.value, null) : null;
+  const stored = setting ? safeJson(setting.value, null) : null;
+  if (stored?.propertyId) return stored;
+  const envPropertyId = String(process.env.GA4_PROPERTY_ID || '').replace(/^properties\//, '').trim();
+  if (/^\d+$/.test(envPropertyId)) {
+    return {
+      propertyId: envPropertyId,
+      displayName: String(process.env.GA4_PROPERTY_NAME || 'INXSocial GA4').trim(),
+      account: 'Environment configuration'
+    };
+  }
+  return null;
 }
 
 async function writeSelectedProperty(property) {
@@ -103,6 +113,7 @@ async function listProperties(current = null) {
 async function status() {
   const current = await connection();
   const oauthConfigured = google.settings().configured;
+  const selectedBeforeDiscovery = await readSelectedProperty();
   if (!current) {
     return {
       oauthConfigured,
@@ -110,7 +121,9 @@ async function status() {
       analyticsScopeGranted: false,
       reconnectRequired: false,
       properties: [],
-      selectedProperty: null,
+      selectedProperty: selectedBeforeDiscovery,
+      adminApiAvailable: false,
+      manualPropertyAllowed: true,
       lastError: null
     };
   }
@@ -123,18 +136,16 @@ async function status() {
       analyticsScopeGranted: false,
       reconnectRequired: true,
       properties: [],
-      selectedProperty: await readSelectedProperty(),
+      selectedProperty: selectedBeforeDiscovery,
+      adminApiAvailable: false,
+      manualPropertyAllowed: true,
       lastError: 'Analytics read-only permission has not been granted yet.'
     };
   }
 
   try {
     const properties = await listProperties(current);
-    let selectedProperty = await readSelectedProperty();
-    if (selectedProperty && !properties.some(item => item.propertyId === selectedProperty.propertyId)) {
-      selectedProperty = null;
-      await writeSelectedProperty(null);
-    }
+    let selectedProperty = selectedBeforeDiscovery;
     if (!selectedProperty && properties.length === 1) {
       selectedProperty = await writeSelectedProperty(properties[0]);
     }
@@ -145,24 +156,42 @@ async function status() {
       reconnectRequired: false,
       properties,
       selectedProperty,
+      adminApiAvailable: true,
+      manualPropertyAllowed: true,
       lastError: null
     };
   } catch (error) {
+    const message = String(error.publicMessage || error.message || 'Google Analytics could not be loaded.').slice(0, 900);
     return {
       oauthConfigured,
       connected: true,
       analyticsScopeGranted: true,
       reconnectRequired: false,
       properties: [],
-      selectedProperty: await readSelectedProperty(),
-      lastError: String(error.publicMessage || error.message || 'Google Analytics could not be loaded.').slice(0, 500)
+      selectedProperty: selectedBeforeDiscovery,
+      adminApiAvailable: false,
+      manualPropertyAllowed: true,
+      apiEnablementRequired: /analyticsadmin\.googleapis\.com|has not been used|is disabled/i.test(message),
+      lastError: message
     };
   }
 }
 
-async function selectProperty(propertyId) {
+async function selectProperty(propertyId, options = {}) {
   const requested = String(propertyId || '').replace(/^properties\//, '').trim();
-  if (!/^\d+$/.test(requested)) throw publicError('Choose a valid GA4 property.', 400, 'GA4_PROPERTY_INVALID');
+  if (!/^\d+$/.test(requested)) throw publicError('Choose a valid numeric GA4 property ID.', 400, 'GA4_PROPERTY_INVALID');
+
+  const activeConnection = await connection();
+  requireAnalyticsScope(activeConnection);
+
+  if (options.manual) {
+    return writeSelectedProperty({
+      propertyId: requested,
+      displayName: String(options.displayName || 'INXSocial GA4').trim().slice(0, 140),
+      account: 'Manual property ID'
+    });
+  }
+
   const properties = await listProperties();
   const selected = properties.find(item => item.propertyId === requested);
   if (!selected) throw publicError('The connected Google account cannot access that GA4 property.', 403, 'GA4_PROPERTY_FORBIDDEN');

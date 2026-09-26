@@ -37,7 +37,8 @@ async function status(req, res, next) {
 
 async function startOAuth(req, res, next) {
   try {
-    const payload = searchConsole.authorization(req.user.id);
+    const input = z.object({ returnTo: z.enum(['searchConsole', 'growthIntelligence']).optional() }).parse(req.body || {});
+    const payload = searchConsole.authorization(req.user.id, { returnTo: input.returnTo });
     await writeAudit(req.user.id, 'ADMIN_GSC_OAUTH_STARTED', {
       redirectUri: payload.redirectUri,
       scope: payload.scope
@@ -56,10 +57,12 @@ async function oauthCallback(req, res) {
       selectedSiteUrl: result.connection?.selectedSiteUrl || null,
       properties: result.sites?.length || 0
     });
+    if (result.returnTo === 'growthIntelligence') return res.redirect(303, adminReturnUrl({ google: 'growth-connected' }));
     return res.redirect(303, adminReturnUrl({ gsc: 'connected' }));
   } catch (error) {
     const message = String(error.publicMessage || error.message || 'Google Search Console connection failed.').slice(0, 280);
-    return res.redirect(303, adminReturnUrl({ gsc: 'error', message }));
+    const returnToGrowth = searchConsole.oauthReturnTarget(req.query?.state) === 'growthIntelligence';
+    return res.redirect(303, adminReturnUrl(returnToGrowth ? { google: 'growth-error', message } : { gsc: 'error', message }));
   }
 }
 

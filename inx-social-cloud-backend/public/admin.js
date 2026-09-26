@@ -1,4 +1,4 @@
-const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,growthAnalytics:null,growthRealtimeTimer:null,ugcAvatars:[],timer:null};
+const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,growthAnalytics:null,growthOpportunities:null,growthRealtimeTimer:null,ugcAvatars:[],timer:null};
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const initials=value=>String(value||'IN').trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
@@ -447,7 +447,7 @@ async function loadSearchConsole(){
 }
 $('gscConnectBtn').addEventListener('click',async()=>{
   try{
-    const data=await api('/api/admin/search-console/oauth/start',{method:'POST',body:'{}'});
+    const data=await api('/api/admin/search-console/oauth/start',{method:'POST',body:JSON.stringify({returnTo:'searchConsole'})});
     window.location.assign(data.authorizationUrl);
   }catch(error){toast(error.message)}
 });
@@ -503,6 +503,47 @@ function renderGrowthAudit(audit){
   $('growthAuditMeta').textContent=`Live audit · ${audit.origin||''} · ${fmtDate(audit.generatedAt)}`;
   $('growthCrawlerGrid').innerHTML=(audit.crawlers||[]).map(item=>`<div class="growth-crawler ${item.allowed?'ok':'blocked'}"><div><b>${esc(item.label)}</b><small>${esc(item.userAgent)}</small></div><strong>${item.allowed?'Allowed':'Blocked'}</strong></div>`).join('')||'<div class="growth-empty">No crawler results.</div>';
   $('growthCheckList').innerHTML=(audit.checks||[]).map(item=>`<div class="growth-check ${item.ok?'ok':'warn'}"><span>${item.ok?'✓':'!'}</span><div><b>${esc(item.label)}</b><small>${esc(item.detail)}</small></div></div>`).join('');
+}
+function growthOpportunityPriority(score){const value=Number(score||0);return value>=85?'critical':value>=70?'high':value>=50?'medium':'low'}
+function renderGrowthOpportunities(data){
+  state.growthOpportunities=data||null;
+  const summary=data?.summary||{};
+  $('growthOpportunitySummary').innerHTML=[
+    ['Total opportunities',summary.total??'—','Prioritised actions'],
+    ['Critical',summary.critical??'—','Score 85+'],
+    ['AI visibility gaps',summary.aiVisibilityGaps??'—','Missing mentions/citations'],
+    ['Search-backed',summary.searchBacked??'—','Real Search Console demand']
+  ].map(([label,value,note])=>`<article><span>${label}</span><b>${value}</b><small>${note}</small></article>`).join('');
+  const warnings=data?.warnings||[];
+  $('growthOpportunityWarnings').hidden=!warnings.length;
+  $('growthOpportunityWarnings').innerHTML=warnings.map(item=>`<div><b>${esc(item.source)}</b><span>${esc(item.message)}</span></div>`).join('');
+  const competitors=data?.competitors||[];
+  const competitorMax=Math.max(...competitors.map(item=>Number(item.mentions||0)),1);
+  $('growthCompetitorLeaderboard').innerHTML=competitors.length?competitors.slice(0,10).map(item=>`<div class="growth-breakdown-row"><div><b>${esc(item.name)}</b><small>${esc((item.providers||[]).join(', ')||'AI provider')}</small></div><div class="growth-mini-track"><i style="width:${Math.max(4,Number(item.mentions||0)*100/competitorMax)}%"></i></div><strong>${Number(item.mentions||0)}</strong></div>`).join(''):'<div class="growth-empty">Run AI visibility scans to build competitor evidence.</div>';
+  const sources=data?.sourceDomains||[];
+  const sourceMax=Math.max(...sources.map(item=>Number(item.citations||0)),1);
+  $('growthSourceLeaderboard').innerHTML=sources.length?sources.slice(0,10).map(item=>`<div class="growth-breakdown-row"><div><b>${esc(item.domain)}</b><small>${esc((item.providers||[]).join(', ')||'AI provider')}</small></div><div class="growth-mini-track"><i style="width:${Math.max(4,Number(item.citations||0)*100/sourceMax)}%"></i></div><strong>${Number(item.citations||0)}</strong></div>`).join(''):'<div class="growth-empty">Run AI visibility scans to build citation-source evidence.</div>';
+  $('growthOpportunityList').innerHTML=(data?.opportunities||[]).map(item=>{
+    const ai=item.ai||[];
+    const mentions=ai.filter(signal=>signal.mentioned).length;
+    const citations=ai.filter(signal=>signal.cited).length;
+    const search=item.search?`<span>GSC: ${formatNumber(item.search.impressions)} impressions · pos ${Number(item.search.position||0).toFixed(1)} · ${growthPercent(item.search.ctr)} CTR</span>`:'';
+    const page=item.existingPage?`<a href="${esc(item.existingPage)}" target="_blank" rel="noopener">Existing page ↗</a>`:'';
+    const reddit=item.reddit?.length?`<span>${item.reddit.length} matching Reddit discussion${item.reddit.length===1?'':'s'}</span>`:'';
+    return `<article class="growth-opportunity-card ${growthOpportunityPriority(item.score)}"><div class="growth-opportunity-score"><b>${Number(item.score||0)}</b><span>score</span></div><div class="growth-opportunity-body"><div class="growth-opportunity-title"><div><span class="growth-opportunity-type">${esc(String(item.intent||item.type||'opportunity').replaceAll('_',' '))}</span><h3>${esc(item.topic)}</h3></div><strong>${esc(item.action?.label||'Review')}</strong></div><div class="growth-opportunity-evidence">${search}<span>AI: ${mentions}/${ai.length||0} mention · ${citations}/${ai.length||0} cite</span>${reddit}${page}</div><p>${esc(item.action?.rationale||'Review the available evidence and choose the next growth action.')}</p></div></article>`;
+  }).join('')||'<div class="growth-empty">No opportunity map has been built yet.</div>';
+}
+async function loadGrowthOpportunityStatus(){
+  const data=await api('/api/admin/growth-intelligence/opportunities');
+  renderGrowthOpportunities(data.latest||null);
+}
+async function buildGrowthOpportunities(){
+  const button=$('buildGrowthOpportunitiesBtn');button.disabled=true;button.textContent='Building…';
+  try{
+    const data=await api('/api/admin/growth-intelligence/opportunities/build',{method:'POST',body:JSON.stringify({days:Number($('growthOpportunityPeriod').value||28)})});
+    renderGrowthOpportunities(data);
+    toast('Growth opportunity map updated');
+  }catch(error){toast(error.message)}finally{button.textContent='Build opportunity map';button.disabled=state.user?.role!=='SUPER_ADMIN'}
 }
 function growthPercent(value){return `${(Number(value||0)*100).toFixed(0)}%`}
 function growthDelta(value){const number=Number(value||0);const sign=number>0?'+':'';return `${sign}${number.toFixed(1)}%`}
@@ -570,21 +611,26 @@ function renderGaStatus(data){
   state.growthAnalytics.status=data;
   const superAdmin=state.user?.role==='SUPER_ADMIN';
   const ready=Boolean(data.analyticsScopeGranted&&data.selectedProperty);
-  $('growthGaStatus').textContent=!data.oauthConfigured?'OAuth setup required':ready?'Connected':data.reconnectRequired?'Reconnect required':'Property required';
+  $('growthGaStatus').textContent=!data.oauthConfigured?'OAuth setup required':ready?'Connected':data.reconnectRequired?'Analytics permission required':'Property required';
   $('growthGaStatus').className=`status-chip ${ready?'gsc-connected':data.lastError?'gsc-error':''}`;
   const select=$('growthGaProperty');
-  const properties=data.properties||[];
-  select.innerHTML=properties.length?properties.map(item=>`<option value="${esc(item.propertyId)}" ${data.selectedProperty?.propertyId===item.propertyId?'selected':''}>${esc(item.displayName)} · ${esc(item.propertyId)}</option>`).join(''):'<option value="">No GA4 property available</option>';
-  select.disabled=!superAdmin||!data.analyticsScopeGranted||!properties.length;
+  const properties=[...(data.properties||[])];
+  if(data.selectedProperty&&!properties.some(item=>item.propertyId===data.selectedProperty.propertyId))properties.unshift(data.selectedProperty);
+  select.innerHTML=properties.length?properties.map(item=>`<option value="${esc(item.propertyId)}" ${data.selectedProperty?.propertyId===item.propertyId?'selected':''}>${esc(item.displayName||'GA4')} · ${esc(item.propertyId)}</option>`).join(''):'<option value="">No GA4 property discovered</option>';
+  select.disabled=!superAdmin||!data.analyticsScopeGranted||!properties.length||!data.adminApiAvailable;
   $('growthGaReconnectBtn').hidden=!superAdmin;
   $('growthGaReconnectBtn').disabled=!data.oauthConfigured||!superAdmin;
   $('growthGaRefreshBtn').disabled=!ready;
+  const manualVisible=Boolean(superAdmin&&data.analyticsScopeGranted&&data.manualPropertyAllowed&&(!data.adminApiAvailable||!(data.properties||[]).length));
+  $('growthGaManual').hidden=!manualVisible;
+  if(data.selectedProperty)$('growthGaManualPropertyId').value=data.selectedProperty.propertyId||'';
   if(!data.oauthConfigured)$('growthGaMessage').textContent='Google OAuth credentials are not configured.';
-  else if(data.reconnectRequired)$('growthGaMessage').textContent='Reconnect Google once to add the Analytics read-only permission. Search Console access stays read-only.';
+  else if(data.reconnectRequired)$('growthGaMessage').textContent='Search Console is already connected, but Analytics needs one additional read-only permission. Click Connect Analytics access; after approval you will return to Growth Intelligence.';
+  else if(data.apiEnablementRequired)$('growthGaMessage').textContent='Google access is connected, but the Google Analytics Admin API is disabled for the Google Cloud project. Enable that API, or enter the numeric GA4 Property ID below. Search Console property and GA4 property are separate.';
   else if(data.lastError)$('growthGaMessage').textContent=data.lastError;
   else if(ready)$('growthGaMessage').textContent=`Reading GA4 property ${data.selectedProperty.displayName||''} (${data.selectedProperty.propertyId}). Realtime refresh runs every 30 seconds while this page is open.`;
-  else if(data.analyticsScopeGranted)$('growthGaMessage').textContent='Choose the GA4 property that belongs to INXSocial.';
-  else $('growthGaMessage').textContent='Connect Google to enable GA4 reporting.';
+  else if(data.analyticsScopeGranted)$('growthGaMessage').textContent='Choose the GA4 property that belongs to INXSocial. If automatic discovery is unavailable, use the numeric Property ID below.';
+  else $('growthGaMessage').textContent='Connect Google Analytics read access to enable GA4 reporting.';
   renderGrowthProviders(state.growthIntelligence||{});
 }
 function renderGrowthBreakdown(target,rows,key,metric){
@@ -664,13 +710,15 @@ function renderGrowthIntelligence(data){
 }
 async function loadGrowthIntelligence(){
   try{
-    const [overview,gaStatus]=await Promise.all([
+    const [overview,gaStatus,opportunityStatus]=await Promise.all([
       api('/api/admin/growth-intelligence/overview'),
-      api('/api/admin/growth-intelligence/analytics/status')
+      api('/api/admin/growth-intelligence/analytics/status'),
+      api('/api/admin/growth-intelligence/opportunities')
     ]);
     state.growthAnalytics={status:gaStatus};
     renderGrowthIntelligence(overview);
     renderGaStatus(gaStatus);
+    renderGrowthOpportunities(opportunityStatus.latest||null);
     if(gaStatus.selectedProperty){
       await Promise.all([loadGrowthAnalyticsRealtime(),loadGrowthAnalyticsPerformance()]);
       startGrowthRealtimePolling();
@@ -698,7 +746,7 @@ async function runGrowthVisibility(){
 }
 async function reconnectGrowthGoogle(){
   try{
-    const data=await api('/api/admin/search-console/oauth/start',{method:'POST',body:'{}'});
+    const data=await api('/api/admin/search-console/oauth/start',{method:'POST',body:JSON.stringify({returnTo:'growthIntelligence'})});
     window.location.assign(data.authorizationUrl);
   }catch(error){toast(error.message)}
 }
@@ -714,6 +762,20 @@ async function chooseGrowthGaProperty(event){
     }
   }catch(error){toast(error.message)}
 }
+async function saveManualGrowthGaProperty(){
+  const propertyId=$('growthGaManualPropertyId').value.trim();
+  if(!/^\d+$/.test(propertyId)){toast('Enter the numeric GA4 Property ID, not the G- measurement ID.');return}
+  const button=$('growthGaManualSaveBtn');button.disabled=true;button.textContent='Saving…';
+  try{
+    await api('/api/admin/growth-intelligence/analytics/property',{method:'POST',body:JSON.stringify({propertyId,manual:true,displayName:'INXSocial GA4'})});
+    const status=await loadGrowthAnalyticsStatus();
+    toast('GA4 property ID saved');
+    if(status.selectedProperty){
+      await Promise.all([loadGrowthAnalyticsRealtime(),loadGrowthAnalyticsPerformance()]);
+      startGrowthRealtimePolling();
+    }
+  }catch(error){toast(error.message)}finally{button.textContent='Use this property';button.disabled=false}
+}
 async function refreshGrowthAnalytics(){
   const button=$('growthGaRefreshBtn');button.disabled=true;button.textContent='Refreshing…';
   try{
@@ -727,16 +789,26 @@ async function discoverGrowthReddit(){
   try{renderGrowthReddit(await api('/api/admin/growth-intelligence/reddit-opportunities',{method:'POST',body:'{}'}));toast('Reddit opportunities refreshed')}catch(error){toast(error.message)}finally{button.textContent='Find Reddit opportunities';button.disabled=!state.growthIntelligence?.providers?.reddit?.configured||state.user?.role!=='SUPER_ADMIN'}
 }
 $('runGrowthAuditBtn').addEventListener('click',()=>void runGrowthAudit());
+$('buildGrowthOpportunitiesBtn').addEventListener('click',()=>void buildGrowthOpportunities());
 $('runVisibilityBtn').addEventListener('click',()=>void runGrowthVisibility());
 $('growthVisibilityProvider').addEventListener('change',renderSelectedGrowthVisibility);
 $('growthGaReconnectBtn').addEventListener('click',()=>void reconnectGrowthGoogle());
 $('growthGaProperty').addEventListener('change',event=>void chooseGrowthGaProperty(event));
+$('growthGaManualSaveBtn').addEventListener('click',()=>void saveManualGrowthGaProperty());
 $('growthGaPeriod').addEventListener('change',()=>void loadGrowthAnalyticsPerformance());
 $('growthGaRefreshBtn').addEventListener('click',()=>void refreshGrowthAnalytics());
 $('discoverRedditBtn').addEventListener('click',()=>void discoverGrowthReddit());
 
 async function postAuthLanding(){
   const params=new URLSearchParams(window.location.search);
+  const google=params.get('google');
+  if(google){
+    await openPage('growthIntelligence');
+    if(google==='growth-connected')toast('Google Analytics read access connected');
+    if(google==='growth-error')toast(params.get('message')||'Google Analytics connection failed');
+    history.replaceState({},'',window.location.pathname);
+    return;
+  }
   const gsc=params.get('gsc');
   if(gsc){
     await openPage('searchConsole');
