@@ -261,8 +261,22 @@ export function VideoStudioModal({
       const ready = catalog.models.filter((model) => model.generationReady && supportedUiModes(model).length > 0)
       setModels(ready)
       setCatalogLabel([catalog.source === 'runware-live' ? 'Live catalogue' : 'Cached catalogue', catalog.syncedAt ? new Date(catalog.syncedAt).toLocaleString() : ''].filter(Boolean).join(' · '))
-      const initial = ready.find((model) => model.id === modelRoute) || ready.find((model) => model.id === 'pvideo') || ready[0]
-      if (initial) applyModel(initial)
+      const initial = ready.find((model) => model.id === 'pvideo') || ready[0]
+      if (initial) {
+        const durations = durationsFor(initial)
+        const resolutions = resolutionsFor(initial)
+        const aspects = initial.aspects || []
+        const modelFps = fpsFor(initial)
+        const modes = supportedUiModes(initial)
+        setModelRoute(initial.id)
+        setDuration(durations.includes(5) ? 5 : durations[0] || 5)
+        setResolution(resolutions.includes('720p') ? '720p' : resolutions[0] || '720p')
+        setAspectRatio((aspects.includes('9:16') ? '9:16' : aspects[0] || '9:16') as VideoAspectRatio)
+        setGenerationMode(modes.includes('TEXT_TO_VIDEO') ? 'TEXT_TO_VIDEO' : modes[0] || 'TEXT_TO_VIDEO')
+        setFps(modelFps[0])
+        setAudio(Boolean(initial.audioSupported))
+        setDraft(false)
+      }
       if (!ready.length) setError('No generation-ready video models are available right now.')
     }).catch((caught) => {
       if (active) setError(caught instanceof Error ? caught.message : 'Video model catalogue could not be loaded.')
