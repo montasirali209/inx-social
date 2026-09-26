@@ -73,7 +73,7 @@ function firstMatch(html, patterns) {
 }
 
 function attr(tag, name) {
-  const pattern = new RegExp('\\b' + name + '\\s*=\\s*(?:"([^"]*)"|\\'([^\\']*)\\'|([^\\s>]+))', 'i');
+  const pattern = new RegExp("\\b" + name + "\\s*=\\s*(?:\\"([^\\"]*)\\"|'([^']*)'|([^\\s>]+))", 'i');
   const match = String(tag || '').match(pattern);
   return decodeHtml((match && (match[1] || match[2] || match[3])) || '');
 }
