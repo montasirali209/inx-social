@@ -935,6 +935,85 @@ async function updateArticle(id, input) {
   return saveArticle(next, previousSlug);
 }
 
+async function optimizePublishedMetadata(id, input = {}) {
+  const article = await getArticleById(id);
+  if (article.status !== STATUS.PUBLISHED) {
+    throw publicError('Only a published article can be optimised in place.', 409, 'CONTENT_PUBLISHED_REQUIRED');
+  }
+
+  const next = {
+    ...article,
+    title: input.title == null ? article.title : normalizeSpace(input.title).slice(0, 180),
+    meta_description: input.meta_description == null ? article.meta_description : normalizeSpace(input.meta_description).slice(0, 300),
+    generation: {
+      ...(article.generation || {}),
+      optimizationVersion: 1,
+      optimizedAt: nowIso(),
+      optimizationReason: normalizeSpace(input.reason || 'Measured CTR optimisation').slice(0, 500)
+    }
+  };
+  const quality = qualityReview(next);
+  if (quality.score < 65) {
+    throw publicError('The proposed metadata would reduce the article below the publishing quality threshold.', 409, 'CONTENT_OPTIMIZATION_QUALITY_LOW');
+  }
+  return saveArticle({ ...next, quality });
+}
+
+async function refreshPublishedArticle(id, notes = '') {
+  const article = await getArticleById(id);
+  if (article.status !== STATUS.PUBLISHED) {
+    throw publicError('Only a published article can be refreshed in place.', 409, 'CONTENT_PUBLISHED_REQUIRED');
+  }
+
+  const context = {
+    topic: article.title,
+    intent: article.intent || 'informational',
+    action: 'Refresh an existing published article because measured search or conversion evidence indicates decay or an opportunity to improve it.',
+    existingPage: SITE_URL + '/blog/' + article.slug,
+    notes: [
+      'Preserve the page search intent and URL. Refresh stale information rather than creating a duplicate page.',
+      'Keep useful existing concepts when still accurate. Strengthen the answer with current verified sources and practical detail.',
+      normalizeSpace(notes || '')
+    ].filter(Boolean).join(' ')
+  };
+
+  const research = await researchTopic(context);
+  const draft = await writeArticle(context, research);
+  const candidate = {
+    ...article,
+    title: normalizeSpace(draft.title || article.title).slice(0, 180),
+    excerpt: normalizeSpace(draft.excerpt || article.excerpt).slice(0, 500),
+    meta_description: normalizeSpace(draft.meta_description || article.meta_description).slice(0, 300),
+    keywords: uniqueStrings(draft.keywords?.length ? draft.keywords : article.keywords, 8, 80),
+    quick_answer: normalizeSpace(draft.quick_answer || article.quick_answer || article.excerpt).slice(0, 900),
+    key_takeaways: uniqueStrings(draft.key_takeaways, 6, 260),
+    content_markdown: String(draft.content_markdown || article.content_markdown || '').trim(),
+    comparison: Array.isArray(draft.comparison) ? draft.comparison : article.comparison,
+    faq: Array.isArray(draft.faq) ? draft.faq : article.faq,
+    sources: research.sources,
+    internalLinks: relatedInternalLinks(article.title, draft.keywords || article.keywords),
+    featured_image_prompt: normalizeSpace(draft.featured_image_prompt || article.featured_image_prompt).slice(0, 1200),
+    research_brief: research.brief,
+    generation: {
+      ...(article.generation || {}),
+      researchModel: research.model,
+      writerModel: env.contentWriter.model,
+      writerReasoningEffort: env.contentWriter.reasoningEffort || 'high',
+      editorialVersion: 3,
+      optimizationVersion: 1,
+      refreshedAt: nowIso()
+    },
+    status: STATUS.PUBLISHED,
+    published_at: article.published_at || nowIso(),
+    archived_at: null
+  };
+  const quality = qualityReview(candidate);
+  if (quality.score < 75) {
+    throw publicError('The refreshed article did not meet the Phase 5 quality threshold, so the live page was left unchanged.', 409, 'CONTENT_REFRESH_QUALITY_LOW');
+  }
+  return saveArticle({ ...candidate, quality });
+}
+
 async function approveArticle(id) {
   const article = await getArticleById(id);
   const reviewed = { ...article, quality: qualityReview(article) };
@@ -1272,6 +1351,8 @@ module.exports = {
   getArticleBySlug,
   createDraft,
   updateArticle,
+  optimizePublishedMetadata,
+  refreshPublishedArticle,
   approveArticle,
   publishArticle,
   unpublishArticle,

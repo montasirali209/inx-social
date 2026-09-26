@@ -20,6 +20,7 @@ async function updateConfig(req, res, next) {
       publishEveryHours: z.coerce.number().min(24).max(336).optional(),
       authorityEveryHours: z.coerce.number().min(6).max(48).optional(),
       authorityAutoEmail: z.boolean().optional(),
+      optimizationEveryHours: z.coerce.number().min(12).max(168).optional(),
       opportunityWindowDays: z.coerce.number().refine(value => [7, 28, 90].includes(value)).optional(),
       visibilityPromptCount: z.coerce.number().int().min(1).max(5).optional(),
       minQualityScore: z.coerce.number().int().min(65).max(95).optional(),

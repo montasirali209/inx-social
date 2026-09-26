@@ -683,6 +683,76 @@ async function growthAuthorityProspectAction(id,action){
   }catch(error){toast(error.message)}
 }
 
+
+function growthOptimizationLabel(value){
+  return String(value||'Action').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
+}
+function growthMoney(value){
+  return '£'+Number(value||0).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function renderGrowthOptimization(data){
+  const optimization=data||{};
+  const stats=optimization.stats||{};
+  const funnel=optimization.funnel||{};
+  const revenue=optimization.revenue||{};
+  const provider=optimization.provider||{};
+  const actions=(optimization.actions||[]).filter(item=>!['SUPERSEDED','DISMISSED','DONE'].includes(String(item.status||''))).slice(0,12);
+  $('growthOptimizationStatus').textContent=optimization.generatedAt?'ACTIVE':'WAITING';
+  $('growthOptimizationStatus').className='status-chip '+(optimization.generatedAt?'gsc-connected':'');
+  $('growthOptimizationUpdated').textContent=optimization.generatedAt?'Updated '+relative(optimization.generatedAt):'No optimisation run yet.';
+  $('growthOptimizationProvider').textContent='GSC '+(provider.searchConsole?'ready':'waiting')+' · GA4 '+(provider.ga4?'ready':'waiting')+' · Revenue attribution '+(provider.attribution?'ready':'waiting')+' · Sol '+(provider.sol?'ready':'waiting');
+  $('growthOptimizationKpis').innerHTML=[
+    ['Attributed funnel',Number(funnel.attributedSignups||0)+' → '+Number(funnel.attributedTrials||0)+' → '+Number(funnel.attributedPurchases||0),'Sign-ups → trials → paid checkout'],
+    ['Paid customers',Number(revenue.activePaidCustomers||0),'Active Stripe plan records'],
+    ['Projected MRR',growthMoney(revenue.projectedMrrGbp||0),'Plan-value projection, not cash accounting'],
+    ['High priority',Number(stats.highPriority||0),Number(stats.totalActions||0)+' measured action'+(Number(stats.totalActions||0)===1?'':'s')]
+  ].map(item=>'<article><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b><small>'+esc(item[2])+'</small></article>').join('');
+
+  $('growthOptimizationQueue').innerHTML=actions.length?actions.map(item=>{
+    const status=String(item.status||'PROPOSED');
+    const mode=String(item.mode||'REVIEW');
+    const proposal=item.proposal||{};
+    const proposalCopy=proposal.summary||proposal.refreshBrief||proposal.croHypothesis||(proposal.socialPosts||[]).join('\n\n')||'Measured recommendation ready; detailed proposal will appear when Sol enrichment is available.';
+    const canApprove=status==='PROPOSED'&&mode!=='PHASE3_AUTOPILOT'&&mode!=='DRAFT_ONLY';
+    const canApply=(status==='APPROVED'&&mode==='APPLY_ON_APPROVAL')||(status==='PROPOSED'&&mode==='PHASE3_AUTOPILOT');
+    const canReady=status==='PROPOSED'&&mode==='DRAFT_ONLY';
+    const canDone=['APPROVED','READY_TO_PUBLISH'].includes(status);
+    const actionsHtml=[
+      canApprove?'<button class="primary" type="button" onclick="growthOptimizationAction(\''+esc(item.id)+'\',\'approve\')">Approve</button>':'',
+      canReady?'<button class="primary" type="button" onclick="growthOptimizationAction(\''+esc(item.id)+'\',\'approve\')">Approve drafts</button>':'',
+      canApply?'<button class="primary" type="button" onclick="growthOptimizationAction(\''+esc(item.id)+'\',\'apply\')">Apply</button>':'',
+      canDone?'<button class="secondary" type="button" onclick="growthOptimizationAction(\''+esc(item.id)+'\',\'done\')">Mark done</button>':'',
+      status!=='DISMISSED'?'<button class="secondary" type="button" onclick="growthOptimizationAction(\''+esc(item.id)+'\',\'dismiss\')">Dismiss</button>':''
+    ].filter(Boolean).join('');
+    const evidence=(item.evidence||[]).slice(0,4).map(entry=>'<span>'+esc(entry)+'</span>').join('');
+    return '<article class="growth-optimization-row"><div class="growth-optimization-score"><b>'+Number(item.score||0)+'</b><span>impact</span></div><div class="growth-optimization-copy"><div class="growth-optimization-tags"><span>'+esc(growthOptimizationLabel(item.type))+'</span><em>'+esc(status.replaceAll('_',' '))+'</em><i>'+esc(String(item.risk||'low').toLowerCase())+' risk</i></div><b>'+esc(item.title||'Optimisation action')+'</b><p>'+esc(item.reason||'')+'</p><div class="growth-optimization-evidence">'+evidence+'</div><details><summary>Prepared optimisation</summary><div>'+esc(proposalCopy)+'</div></details></div><div class="growth-optimization-row-actions">'+actionsHtml+'</div></article>';
+  }).join(''):'<div class="growth-empty">No active optimisation actions. The daily final loop will keep measuring search, conversions and revenue.</div>';
+
+  const sources=(optimization.sources||[]).slice(0,8);
+  $('growthOptimizationSources').innerHTML=sources.length?sources.map(row=>'<div class="growth-optimization-source"><div><b>'+esc(row.source||'direct')+'</b><small>'+Number(row.signups||0)+' sign-ups · '+Number(row.trials||0)+' trials · '+Number(row.purchases||0)+' paid</small></div><strong>'+growthMoney(row.revenue||0)+'</strong></div>').join(''):'<div class="growth-empty">First-touch source attribution starts with consented new visitors and becomes stronger as they progress from signup to trial and purchase.</div>';
+  $('growthOptimizationRunBtn').disabled=state.user?.role!=='SUPER_ADMIN';
+}
+async function runGrowthOptimizationNow(){
+  const button=$('growthOptimizationRunBtn');button.disabled=true;button.textContent='Measuring…';
+  try{
+    const data=await api('/api/admin/growth-optimization/run-now',{method:'POST',body:'{}'});
+    renderGrowthOptimization(data);
+    toast('Final Phase 5 optimisation loop completed');
+    await loadGrowthAutopilotStatus(true);
+  }catch(error){toast(error.message)}
+  finally{button.textContent='Run final loop now';button.disabled=state.user?.role!=='SUPER_ADMIN'}
+}
+async function growthOptimizationAction(id,action){
+  try{
+    const data=await api('/api/admin/growth-optimization/actions/'+encodeURIComponent(id),{method:'POST',body:JSON.stringify({action})});
+    renderGrowthOptimization(data);
+    if(action==='apply')toast('Approved optimisation applied');
+    else if(action==='approve')toast('Optimisation approved');
+    else toast('Optimisation action updated');
+    await loadGrowthAutopilotStatus(true);
+  }catch(error){toast(error.message)}
+}
+
 function renderGrowthAutopilot(data){
   state.growthAutopilot=data;
   const config=data.config||{};
@@ -727,6 +797,7 @@ function renderGrowthAutopilot(data){
   $('growthAutopilotActivity').innerHTML=events.length?events.map(event=>'<div class="growth-autopilot-event '+esc(event.level||'info')+'"><span></span><div><b>'+esc(event.message)+'</b><small>'+esc(relative(event.at))+'</small></div></div>').join(''):'<div class="growth-empty">No activity recorded yet.</div>';
   renderGrowthSeoMaintenance(data.seoMaintenance||null);
   renderGrowthAuthority(data.authority||null);
+  renderGrowthOptimization(data.optimization||null);
 }
 async function loadGrowthAutopilotStatus(silent=false){
   try{
@@ -1079,6 +1150,7 @@ $('growthAutopilotToggleBtn').addEventListener('click',()=>void toggleGrowthAuto
 $('growthAutopilotRunBtn').addEventListener('click',()=>void runGrowthAutopilotNow());
 $('growthSeoRunBtn').addEventListener('click',()=>void runGrowthSeoMaintenanceNow());
 $('growthAuthorityRunBtn').addEventListener('click',()=>void runGrowthAuthorityNow());
+$('growthOptimizationRunBtn').addEventListener('click',()=>void runGrowthOptimizationNow());
 $('runGrowthAuditBtn').addEventListener('click',()=>void runGrowthAudit());
 $('buildGrowthOpportunitiesBtn').addEventListener('click',()=>void buildGrowthOpportunities());
 $('runVisibilityBtn').addEventListener('click',()=>void runGrowthVisibility());

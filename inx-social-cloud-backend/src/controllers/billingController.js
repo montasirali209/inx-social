@@ -3,6 +3,7 @@ const prisma = require('../db/prisma');
 const env = require('../config/env');
 const stripeService = require('../services/stripeService');
 const emailService = require('../services/emailService');
+const growthAttribution = require('../services/growthAttributionService');
 const { getLicenseStatus } = require('../services/licenseService');
 
 const ACTIVE_STRIPE_STATUSES = new Set(['active', 'trialing']);
@@ -242,6 +243,8 @@ async function checkoutSessionStatus(req, res, next) {
       plan: session.metadata?.plan || local?.plan || null,
       subscriptionStatus: local?.status || null,
       activated: Boolean(local && local.provider === 'stripe' && ['ACTIVE', 'TRIALING'].includes(String(local.status).toUpperCase())),
+      amountTotal: Number(session.amount_total || 0) / 100,
+      currency: String(session.currency || 'gbp').toUpperCase(),
       currentPeriodEnd: local?.currentPeriodEnd || null
     });
   } catch (error) { next(error); }
@@ -389,6 +392,13 @@ async function webhook(req, res) {
         const stripe = stripeService.getStripe();
         const subscription = await stripe.subscriptions.retrieve(session.subscription);
         const result = await processSubscriptionObject(subscription);
+        await growthAttribution.recordPurchase(result.user.id, {
+          transactionId: session.id,
+          subscriptionId: subscription.id,
+          plan: result.plan,
+          amount: Number(session.amount_total || 0) / 100,
+          currency: String(session.currency || 'gbp').toUpperCase()
+        }).catch(error => console.warn('[GROWTH ATTRIBUTION PURCHASE]', error.message));
         await emailService.sendSubscriptionActivated(result.user, result.plan).catch(error => console.error('[SUBSCRIPTION EMAIL]', error.message));
       }
     }
