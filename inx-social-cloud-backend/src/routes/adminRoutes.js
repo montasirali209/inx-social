@@ -42,6 +42,8 @@ router.get('/growth-intelligence/analytics/status', growthIntelligence.analytics
 router.post('/growth-intelligence/analytics/property', requireSuperAdmin, growthIntelligence.selectAnalyticsProperty);
 router.get('/growth-intelligence/analytics/realtime', growthIntelligence.analyticsRealtime);
 router.get('/growth-intelligence/analytics/performance', growthIntelligence.analyticsPerformance);
+router.get('/growth-intelligence/opportunities', growthIntelligence.opportunityStatus);
+router.post('/growth-intelligence/opportunities/build', requireSuperAdmin, growthIntelligence.buildOpportunities);
 router.post('/growth-intelligence/reddit-opportunities', requireSuperAdmin, growthIntelligence.discoverReddit);
 router.post('/search-console/oauth/start', requireSuperAdmin, googleSearchConsole.startOAuth);
 router.post('/search-console/site', requireSuperAdmin, googleSearchConsole.selectSite);
