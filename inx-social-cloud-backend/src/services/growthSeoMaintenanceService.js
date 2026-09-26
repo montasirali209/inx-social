@@ -152,7 +152,7 @@ function schemaStats(html) {
   return { schemaBlocks: scripts.length, invalidSchemaBlocks: invalid };
 }
 
-function inspectHtml(url, html, status, redirectHops, contentType) {
+function inspectHtml(url, html, status, redirectHops, contentType, xRobotsTag) {
   const title = firstMatch(html, [/<title[^>]*>([\s\S]*?)<\/title>/i]);
   const description = firstMatch(html, [
     /<meta\b[^>]*name\s*=\s*["']description["'][^>]*content\s*=\s*["']([^"']*)["'][^>]*>/i,
@@ -186,7 +186,8 @@ function inspectHtml(url, html, status, redirectHops, contentType) {
     canonical: canonical || '',
     canonicalPath: canonicalPath(canonical),
     robots,
-    noindex: /\bnoindex\b/i.test(robots),
+    xRobotsTag: String(xRobotsTag || ''),
+    noindex: /\bnoindex\b/i.test(robots) || /\bnoindex\b/i.test(String(xRobotsTag || '')),
     h1Count: h1Matches.length,
     h1: h1Matches[0] ? stripTags(h1Matches[0][1]).slice(0, 240) : '',
     headings,
@@ -227,6 +228,7 @@ async function fetchManual(url) {
         status,
         redirectHops,
         contentType: String(response.headers['content-type'] || ''),
+        xRobotsTag: String(response.headers['x-robots-tag'] || ''),
         body
       };
     } catch (error) {
@@ -236,12 +238,13 @@ async function fetchManual(url) {
         status: 0,
         redirectHops,
         contentType: '',
+        xRobotsTag: '',
         body: '',
         error: String(error.message || 'Request failed').slice(0, 300)
       };
     }
   }
-  return { requestedUrl: url, finalUrl: current, status: 0, redirectHops, contentType: '', body: '', error: 'Too many redirects' };
+  return { requestedUrl: url, finalUrl: current, status: 0, redirectHops, contentType: '', xRobotsTag: '', body: '', error: 'Too many redirects' };
 }
 
 async function fetchText(path, accept) {
@@ -417,12 +420,16 @@ async function crawlSite(options) {
   const blogSitemap = results[1];
   const robots = results[2];
 
-  const sitemapDiscovered = sitemapUrls(mainSitemap.body)
-    .concat(sitemapUrls(blogSitemap.body))
-    .concat(STATIC_SEEDS.map(function(path) { return new URL(path, SITE_ORIGIN).toString(); }));
-  const sitemapUrlsUnique = Array.from(new Set(sitemapDiscovered.map(normalizeUrl).filter(Boolean)));
+  const sitemapUrlsUnique = Array.from(new Set(
+    sitemapUrls(mainSitemap.body)
+      .concat(sitemapUrls(blogSitemap.body))
+      .map(normalizeUrl)
+      .filter(Boolean)
+  ));
   const sitemapSet = new Set(sitemapUrlsUnique);
-  const queue = sitemapUrlsUnique.slice();
+  const queue = Array.from(new Set(
+    sitemapUrlsUnique.concat(STATIC_SEEDS.map(function(path) { return normalizeUrl(new URL(path, SITE_ORIGIN).toString()); }))
+  )).filter(Boolean);
   const queued = new Set(queue);
   const pages = [];
   const errors = [];
@@ -436,7 +443,7 @@ async function crawlSite(options) {
       const contentType = result.contentType || '';
       const isHtml = /text\/html|application\/xhtml/i.test(contentType) || /^\s*<!doctype html|^\s*<html/i.test(result.body);
       const page = isHtml
-        ? inspectHtml(url, result.body, result.status, result.redirectHops, contentType)
+        ? inspectHtml(url, result.body, result.status, result.redirectHops, contentType, result.xRobotsTag)
         : {
             url,
             path: canonicalPath(url),
@@ -448,7 +455,8 @@ async function crawlSite(options) {
             canonical: '',
             canonicalPath: '',
             robots: '',
-            noindex: false,
+            xRobotsTag: result.xRobotsTag || '',
+            noindex: /\bnoindex\b/i.test(String(result.xRobotsTag || '')),
             h1Count: 0,
             h1: '',
             headings: [],
