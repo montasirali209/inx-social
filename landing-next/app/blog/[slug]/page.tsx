@@ -6,7 +6,7 @@ import { IntegrationPending } from "../components/IntegrationPending";
 import { getBlogClient, getSiteUrl, slugify } from "../lib/blog-client";
 import type { BlogArticle } from "../types";
 
-export const revalidate = 86400;
+export const revalidate = 300;
 
 function asSchema(value: unknown): string | null {
   if (!value) return null;
