@@ -72,6 +72,23 @@ test('Video Studio Phase 2 uses one professional workspace with AI Recommended o
   assert.match(routes, /\/generate\/video-studio/);
 });
 
+
+test('Video Studio Phase 2 hides unsupported controls and exposes contextual reference modes', () => {
+  const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV3.tsx');
+  const adapters = read('src/services/videoProviderAdapters.js');
+  assert.match(video, /selected\.audioSupported && <StudioSelect label="Audio"/);
+  assert.match(video, /selected\.draftSupported && <button/);
+  assert.match(video, /fpsOptions\.length > 0 && fps !== undefined/);
+  assert.doesNotMatch(video, /disabled=\{!selected\.audioSupported\}/);
+  assert.match(video, /generationMode === 'IMAGE_TO_VIDEO'/);
+  assert.match(video, /generationMode === 'REFERENCE_TO_VIDEO'/);
+  assert.match(video, /firstFrameMediaLibraryAssetId/);
+  assert.match(video, /lastFrameMediaLibraryAssetId/);
+  assert.match(video, /referenceMediaLibraryAssetIds/);
+  assert.match(adapters, /AI_VIDEO_MODE_UNSUPPORTED/);
+  assert.match(adapters, /AI_VIDEO_REFERENCE_REQUIRED/);
+});
+
 test('Video Studio asks for explicit confirmation before high-credit generations', () => {
   const video = read('frontend/src/components/ai-content-studio/VideoStudioModalV3.tsx');
   assert.match(video, /HIGH_COST_CONFIRMATION_CREDITS = 100/);
