@@ -4,6 +4,7 @@ const env = require('../config/env');
 const { hashPassword, comparePassword, signToken } = require('../utils/auth');
 const { createToken, hashToken } = require('../utils/secureTokens');
 const emailService = require('../services/emailService');
+const growthAttribution = require('../services/growthAttributionService');
 
 const registerSchema = z.object({
   name: z.string().min(2).max(100),
@@ -11,7 +12,16 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   marketingOptIn: z.boolean().optional().default(false),
-  acceptedTerms: z.literal(true)
+  acceptedTerms: z.literal(true),
+  acquisition: z.object({
+    landingPath: z.string().max(500).optional(),
+    referrerHost: z.string().max(180).optional(),
+    utmSource: z.string().max(100).optional(),
+    utmMedium: z.string().max(100).optional(),
+    utmCampaign: z.string().max(140).optional(),
+    utmContent: z.string().max(140).optional(),
+    utmTerm: z.string().max(140).optional()
+  }).optional()
 });
 
 const loginSchema = z.object({
@@ -86,6 +96,9 @@ async function register(req, res, next) {
         }
       });
 
+      await growthAttribution.recordSignup(user, input.acquisition).catch(error => {
+        console.warn('[GROWTH ATTRIBUTION SIGNUP]', error.message);
+      });
       const verification = await issueVerification(user);
       return res.status(200).json(
         verificationResponse(user, verification, { accountReused: true })
@@ -104,6 +117,9 @@ async function register(req, res, next) {
       }
     });
 
+    await growthAttribution.recordSignup(user, input.acquisition).catch(error => {
+      console.warn('[GROWTH ATTRIBUTION SIGNUP]', error.message);
+    });
     const verification = await issueVerification(user);
     return res.status(verification.emailSent ? 201 : 202).json(
       verificationResponse(user, verification)
@@ -160,6 +176,10 @@ async function verifyEmail(req, res, next) {
       }
 
       return updatedUser;
+    });
+
+    await growthAttribution.recordTrial(user.id).catch(error => {
+      console.warn('[GROWTH ATTRIBUTION TRIAL]', error.message);
     });
 
     try {
