@@ -73,9 +73,10 @@ function firstMatch(html, patterns) {
 }
 
 function attr(tag, name) {
-  const pattern = new RegExp("\\b" + name + "\\s*=\\s*(?:\\"([^\\"]*)\\"|'([^']*)'|([^\\s>]+))", 'i');
-  const match = String(tag || '').match(pattern);
-  return decodeHtml((match && (match[1] || match[2] || match[3])) || '');
+  const quoted = new RegExp("\\b" + name + "\\s*=\\s*[\\"']([^\\"']*)[\\"']", "i");
+  const bare = new RegExp("\\b" + name + "\\s*=\\s*([^\\s>]+)", "i");
+  const match = String(tag || '').match(quoted) || String(tag || '').match(bare);
+  return decodeHtml((match && match[1]) || '');
 }
 
 function canonicalPath(value) {
