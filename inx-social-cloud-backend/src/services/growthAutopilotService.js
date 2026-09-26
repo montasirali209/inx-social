@@ -8,6 +8,7 @@ const growthContent = require('./growthContentService');
 const growthStrategy = require('./growthStrategyService');
 const seoMaintenance = require('./growthSeoMaintenanceService');
 const authority = require('./growthAuthorityService');
+const optimization = require('./growthOptimizationService');
 
 const CONFIG_KEY = 'growth_autopilot_config_v1';
 const STATE_KEY = 'growth_autopilot_state_v1';
@@ -18,10 +19,11 @@ const LEASE_MS = 45 * 60 * 1000;
 const DEFAULT_CONFIG = Object.freeze({
   enabled: true,
   intelligenceEveryHours: 24,
-  configVersion: 3,
+  configVersion: 4,
   publishEveryHours: 24,
   authorityEveryHours: 6,
   authorityAutoEmail: true,
+  optimizationEveryHours: 24,
   opportunityWindowDays: 28,
   visibilityPromptCount: 5,
   minQualityScore: 75,
@@ -64,10 +66,11 @@ function normalizeConfig(value = {}) {
   return {
     enabled: value.enabled !== false,
     intelligenceEveryHours: clampNumber(value.intelligenceEveryHours, 24, 6, 168),
-    configVersion: Math.max(3, Number(value.configVersion || 0)),
+    configVersion: Math.max(4, Number(value.configVersion || 0)),
     publishEveryHours: clampNumber(value.publishEveryHours, 24, 24, 336),
     authorityEveryHours: clampNumber(value.authorityEveryHours, 6, 6, 48),
     authorityAutoEmail: value.authorityAutoEmail === true,
+    optimizationEveryHours: clampNumber(value.optimizationEveryHours, 24, 12, 168),
     opportunityWindowDays: [7, 28, 90].includes(Number(value.opportunityWindowDays)) ? Number(value.opportunityWindowDays) : 28,
     visibilityPromptCount: clampNumber(value.visibilityPromptCount, 5, 1, 5),
     minQualityScore: clampNumber(value.minQualityScore, 75, 65, 95),
@@ -87,9 +90,11 @@ function initialState() {
     lastCycleFinishedAt: null,
     lastIntelligenceAt: null,
     lastAuthorityAt: null,
+    lastOptimizationAt: null,
     lastPublishedAt: null,
     nextIntelligenceAt: now,
     nextAuthorityAt: now,
+    nextOptimizationAt: now,
     nextPublishAt: now,
     lastError: null,
     lastPublishedArticle: null,
@@ -108,10 +113,10 @@ function initialState() {
 async function ensureSettings() {
   const configRow = await prisma.appSetting.findUnique({ where: { key: CONFIG_KEY } });
   const rawConfig = safeJson(configRow?.value, null);
-  const needsV3Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 3;
+  const needsV4Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 4;
   const config = normalizeConfig({
     ...(rawConfig || DEFAULT_CONFIG),
-    ...(needsV3Migration ? { configVersion: 3, publishEveryHours: 24, authorityEveryHours: 6, authorityAutoEmail: true } : {})
+    ...(needsV4Migration ? { configVersion: 4, publishEveryHours: 24, authorityEveryHours: 6, authorityAutoEmail: true, optimizationEveryHours: 24 } : {})
   });
 
   await prisma.appSetting.upsert({
@@ -134,18 +139,19 @@ async function ensureSettings() {
         description: 'INXSocial Growth Autopilot runtime state and activity.'
       }
     });
-  } else if (needsV3Migration) {
+  } else if (needsV4Migration) {
     const state = { ...initialState(), ...(safeJson(existingState.value, {}) || {}) };
     state.running = false;
     state.leaseUntil = null;
     state.nextIntelligenceAt = nowIso();
     state.nextAuthorityAt = nowIso();
+    state.nextOptimizationAt = nowIso();
     state.nextPublishAt = nowIso();
     state.recentEvents = [{
       at: nowIso(),
       type: 'AUTOPILOT_UPGRADED',
       level: 'success',
-      message: 'Growth Autopilot upgraded with Phase 4 Authority + Community Autopilot on a six-hour discovery cycle.'
+      message: 'Growth Autopilot upgraded with final Phase 5 continuous optimisation and revenue feedback.'
     }, ...(state.recentEvents || [])].slice(0, 40);
     await prisma.appSetting.update({
       where: { key: STATE_KEY },
@@ -567,8 +573,9 @@ async function runCycle(options = {}) {
   const state = await getState();
   const intelligenceDue = options.force || isDue(state.nextIntelligenceAt);
   const authorityDue = options.force || isDue(state.nextAuthorityAt);
+  const optimizationDue = options.force || isDue(state.nextOptimizationAt);
   const publishDue = options.force || isDue(state.nextPublishAt);
-  if (!intelligenceDue && !authorityDue && !publishDue) return { skipped: true, reason: 'not_due' };
+  if (!intelligenceDue && !authorityDue && !optimizationDue && !publishDue) return { skipped: true, reason: 'not_due' };
 
   const claimed = await claimLease();
   if (!claimed) return { skipped: true, reason: 'already_running' };
@@ -577,7 +584,7 @@ async function runCycle(options = {}) {
     await recordEvent(
       'CYCLE_STARTED',
       options.force ? 'Growth Autopilot cycle started manually.' : 'Scheduled Growth Autopilot cycle started.',
-      { intelligenceDue, authorityDue, publishDue },
+      { intelligenceDue, authorityDue, optimizationDue, publishDue },
       'info'
     );
 
@@ -619,6 +626,42 @@ async function runCycle(options = {}) {
           'AUTHORITY_REFRESH_FAILED',
           'Phase 4 authority refresh failed and will retry automatically.',
           { error: String(error.message || error).slice(0, 400), retryAt: authorityRetryAt },
+          'warning'
+        );
+      }
+    }
+
+    if (optimizationDue) {
+      try {
+        const optimizationState = await optimization.run({ days: 28 });
+        const completed = nowIso();
+        await mutateState(current => {
+          current.lastOptimizationAt = completed;
+          current.nextOptimizationAt = addHours(completed, config.optimizationEveryHours);
+          return current;
+        });
+        await recordEvent(
+          'OPTIMIZATION_REFRESHED',
+          'Final Phase 5 measured search, conversion and revenue performance and rebuilt the optimisation queue.',
+          {
+            actions: optimizationState.stats?.totalActions || 0,
+            highPriority: optimizationState.stats?.highPriority || 0,
+            paidCustomers: optimizationState.revenue?.activePaidCustomers || 0,
+            projectedMrrGbp: optimizationState.revenue?.projectedMrrGbp || 0,
+            nextOptimizationAt: addHours(completed, config.optimizationEveryHours)
+          },
+          optimizationState.warnings?.length ? 'warning' : 'success'
+        );
+      } catch (error) {
+        const optimizationRetryAt = addHours(nowIso(), config.retryHours);
+        await mutateState(current => {
+          current.nextOptimizationAt = optimizationRetryAt;
+          return current;
+        });
+        await recordEvent(
+          'OPTIMIZATION_REFRESH_FAILED',
+          'Phase 5 optimisation refresh failed and will retry automatically.',
+          { error: String(error.message || error).slice(0, 400), retryAt: optimizationRetryAt },
           'warning'
         );
       }
@@ -726,6 +769,7 @@ async function runCycle(options = {}) {
     await mutateState(current => {
       current.nextIntelligenceAt = isDue(current.nextIntelligenceAt) ? retryAt : current.nextIntelligenceAt;
       current.nextAuthorityAt = isDue(current.nextAuthorityAt) ? retryAt : current.nextAuthorityAt;
+      current.nextOptimizationAt = isDue(current.nextOptimizationAt) ? retryAt : current.nextOptimizationAt;
       current.nextPublishAt = isDue(current.nextPublishAt) ? retryAt : current.nextPublishAt;
       current.lastError = { at: nowIso(), message };
       return current;
@@ -739,13 +783,14 @@ async function runCycle(options = {}) {
 }
 
 async function status() {
-  const [config, state, contentOverview, opportunityMap, seoStatus, authorityStatus] = await Promise.all([
+  const [config, state, contentOverview, opportunityMap, seoStatus, authorityStatus, optimizationStatus] = await Promise.all([
     getConfig(),
     getState(),
     growthContent.overview().catch(() => null),
     growthOpportunities.latest().catch(() => null),
     seoMaintenance.status().catch(() => null),
-    authority.status().catch(() => null)
+    authority.status().catch(() => null),
+    optimization.status().catch(() => null)
   ]);
 
   return {
@@ -759,6 +804,7 @@ async function status() {
     } : null,
     seoMaintenance: seoStatus,
     authority: authorityStatus,
+    optimization: optimizationStatus,
     opportunities: opportunityMap ? {
       summary: opportunityMap.summary,
       generatedAt: opportunityMap.generatedAt,
@@ -791,6 +837,7 @@ async function updateConfig(patch = {}) {
     await mutateState(state => {
       if (!state.nextIntelligenceAt) state.nextIntelligenceAt = nowIso();
       if (!state.nextAuthorityAt) state.nextAuthorityAt = nowIso();
+      if (!state.nextOptimizationAt) state.nextOptimizationAt = nowIso();
       if (!state.nextPublishAt) state.nextPublishAt = nowIso();
       return state;
     });
