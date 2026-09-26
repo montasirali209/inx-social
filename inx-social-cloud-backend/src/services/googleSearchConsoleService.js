@@ -463,7 +463,7 @@ async function performance(days = 28) {
   previousStart.setUTCDate(previousEnd.getUTCDate() - (periodDays - 1));
   const previous = { startDate: isoDate(previousStart), endDate: isoDate(previousEnd) };
 
-  const [summaryRows, previousRows, dailyRows, queryRows, pageRows, countryRows, deviceRows, queryPageRows] = await Promise.all([
+  const [summaryRows, previousRows, dailyRows, queryRows, pageRows, countryRows, deviceRows, queryPageRows, previousPageRows] = await Promise.all([
     querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, [], 1),
     querySearchAnalytics(connection.selectedSiteUrl, previous.startDate, previous.endDate, [], 1),
     querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['date'], Math.min(500, periodDays + 5)),
@@ -471,7 +471,8 @@ async function performance(days = 28) {
     querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['page'], 100),
     querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['country'], 30),
     querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['device'], 10),
-    querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['query', 'page'], 500)
+    querySearchAnalytics(connection.selectedSiteUrl, current.startDate, current.endDate, ['query', 'page'], 500),
+    querySearchAnalytics(connection.selectedSiteUrl, previous.startDate, previous.endDate, ['page'], 100)
   ]);
 
   const summary = metricRow(summaryRows[0]);
@@ -514,6 +515,7 @@ async function performance(days = 28) {
     daily: mapDimensionRows(dailyRows, 'date'),
     topQueries,
     topPages,
+    previousTopPages: mapDimensionRows(previousPageRows, 'page'),
     queryPages,
     countries: mapDimensionRows(countryRows, 'country'),
     devices: mapDimensionRows(deviceRows, 'device'),
