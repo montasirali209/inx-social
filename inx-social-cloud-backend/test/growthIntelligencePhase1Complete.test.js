@@ -32,7 +32,7 @@ test('GA4 can use a manual numeric property ID when Admin API discovery is unava
   assert.match(html, /It is not the measurement ID that starts with G-/);
 });
 
-test('Opportunity Intelligence combines search, AI, Reddit, analytics and technical signals', () => {
+test('Opportunity Intelligence combines search, AI, analytics and technical signals without Reddit', () => {
   const service = read('src/services/growthOpportunityService.js');
   const routes = read('src/routes/adminRoutes.js');
   const html = read('public/index.html');
@@ -43,7 +43,7 @@ test('Opportunity Intelligence combines search, AI, Reddit, analytics and techni
   assert.match(service, /OPENAI_SETTING_KEY/);
   assert.match(service, /PERPLEXITY_SETTING_KEY/);
   assert.match(service, /CLAUDE_SETTING_KEY/);
-  assert.match(service, /REDDIT_SETTING_KEY/);
+  assert.doesNotMatch(service, /REDDIT_SETTING_KEY/);
   assert.match(service, /TECHNICAL_FIX/);
   assert.match(service, /IMPROVE_EXISTING_PAGE/);
   assert.match(service, /CREATE_COMMERCIAL_PAGE/);
