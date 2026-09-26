@@ -6,6 +6,8 @@ const { encryptToken, decryptToken } = require('../utils/tokenCrypto');
 
 const CONNECTION_ID = 'primary';
 const SEARCH_CONSOLE_SCOPE = 'https://www.googleapis.com/auth/webmasters.readonly';
+const ANALYTICS_READONLY_SCOPE = 'https://www.googleapis.com/auth/analytics.readonly';
+const GOOGLE_OAUTH_SCOPES = [SEARCH_CONSOLE_SCOPE, ANALYTICS_READONLY_SCOPE];
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const SEARCH_CONSOLE_BASE_URL = 'https://www.googleapis.com/webmasters/v3';
@@ -64,7 +66,7 @@ function authorization(adminUserId) {
   url.searchParams.set('client_id', clientId);
   url.searchParams.set('redirect_uri', callbackUrl());
   url.searchParams.set('response_type', 'code');
-  url.searchParams.set('scope', SEARCH_CONSOLE_SCOPE);
+  url.searchParams.set('scope', GOOGLE_OAUTH_SCOPES.join(' '));
   url.searchParams.set('access_type', 'offline');
   url.searchParams.set('include_granted_scopes', 'true');
   url.searchParams.set('prompt', 'consent');
@@ -179,7 +181,7 @@ async function accessToken(connection = null, forceRefresh = false) {
   return refreshAccessToken(current);
 }
 
-async function googleRequest({ method = 'GET', url, data = null, connection = null }) {
+async function googleRequest({ method = 'GET', url, data = null, connection = null, serviceLabel = 'Google Search Console' }) {
   const current = connection || await prisma.searchConsoleConnection.findUnique({ where: { id: CONNECTION_ID } });
   if (!current) throw publicError('Google Search Console is not connected.', 409, 'GSC_NOT_CONNECTED');
 
@@ -206,8 +208,8 @@ async function googleRequest({ method = 'GET', url, data = null, connection = nu
     const status = error.response?.status === 403 ? 403 : 502;
     throw publicError(
       status === 403
-        ? `Google Search Console denied the request: ${detail}. Confirm the Search Console API is enabled and this Google account can access the property.`
-        : `Google Search Console request failed: ${detail}`,
+        ? `${serviceLabel} denied the request: ${detail}. Confirm the required Google API is enabled and this Google account can access the selected property.`
+        : `${serviceLabel} request failed: ${detail}`,
       status,
       status === 403 ? 'GSC_API_FORBIDDEN' : 'GSC_API_FAILED'
     );
@@ -265,7 +267,7 @@ async function completeOAuth(query) {
       encryptedAccessToken: encryptToken(token.access_token),
       encryptedRefreshToken: refreshToken,
       tokenExpiresAt: tokenExpiry(token.expires_in),
-      scopesJson: JSON.stringify(grantedScopes.length ? grantedScopes : [SEARCH_CONSOLE_SCOPE]),
+      scopesJson: JSON.stringify(grantedScopes.length ? grantedScopes : GOOGLE_OAUTH_SCOPES),
       status: 'ACTIVE',
       connectedAt: new Date(),
       lastSyncedAt: new Date(),
@@ -276,7 +278,7 @@ async function completeOAuth(query) {
       encryptedAccessToken: encryptToken(token.access_token),
       encryptedRefreshToken: refreshToken,
       tokenExpiresAt: tokenExpiry(token.expires_in),
-      scopesJson: JSON.stringify(grantedScopes.length ? grantedScopes : [SEARCH_CONSOLE_SCOPE]),
+      scopesJson: JSON.stringify(grantedScopes.length ? grantedScopes : GOOGLE_OAUTH_SCOPES),
       status: 'ACTIVE',
       connectedAt: new Date(),
       lastSyncedAt: new Date(),
@@ -314,6 +316,8 @@ async function status() {
       status: configured ? 'NOT_CONNECTED' : 'NOT_CONFIGURED',
       callbackUrl: callbackUrl(),
       scope: SEARCH_CONSOLE_SCOPE,
+      scopes: GOOGLE_OAUTH_SCOPES,
+      analyticsScopeGranted: false,
       selectedSiteUrl: null,
       sites: []
     };
@@ -343,12 +347,16 @@ async function status() {
     try { sites = JSON.parse(connection.availableSitesJson || '[]'); } catch (_) { sites = []; }
   }
 
+  const grantedScopes = (() => { try { return JSON.parse(connection.scopesJson || '[]'); } catch (_) { return []; } })();
   return {
     configured,
     connected: Boolean(connection.encryptedAccessToken || connection.encryptedRefreshToken),
     status: lastError ? 'ERROR' : connection.status,
     callbackUrl: callbackUrl(),
     scope: SEARCH_CONSOLE_SCOPE,
+    scopes: GOOGLE_OAUTH_SCOPES,
+    grantedScopes,
+    analyticsScopeGranted: grantedScopes.includes(ANALYTICS_READONLY_SCOPE),
     selectedSiteUrl,
     sites,
     connectedAt: connection.connectedAt,
@@ -514,6 +522,8 @@ async function disconnect() {
 module.exports = {
   CONNECTION_ID,
   SEARCH_CONSOLE_SCOPE,
+  ANALYTICS_READONLY_SCOPE,
+  GOOGLE_OAUTH_SCOPES,
   authorization,
   callbackUrl,
   completeOAuth,
@@ -521,5 +531,7 @@ module.exports = {
   selectSite,
   performance,
   disconnect,
-  settings
+  settings,
+  googleRequest,
+  accessToken
 };
