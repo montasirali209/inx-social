@@ -770,6 +770,7 @@ async function runGrowthSeoMaintenanceNow(){
   finally{button.textContent='Run maintenance now';button.disabled=state.user?.role!=='SUPER_ADMIN'}
 }
 
+function growthAuthorityLegacyReddit(item){const url=String(item?.url||'').toLowerCase();const domain=String(item?.domain||'').toLowerCase();return String(item?.type||'').toUpperCase()==='REDDIT'||domain==='reddit.com'||domain.endsWith('.reddit.com')||url.includes('://reddit.com/')||url.includes('://www.reddit.com/')||url.includes('.reddit.com/');}
 function growthAuthorityTypeLabel(value){
   return String(value||'Opportunity').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
 }
@@ -777,7 +778,7 @@ function renderGrowthAuthority(data){
   const authority=data||{};
   const stats=authority.stats||{};
   const provider=authority.provider||{};
-  const prospects=(authority.prospects||[]).filter(item=>item.status!=='DISMISSED').slice(0,12);
+  const prospects=(authority.prospects||[]).filter(item=>item.status!=='DISMISSED'&&!growthAuthorityLegacyReddit(item)).slice(0,12);
   const won=Number(stats.acquiredLinks||0)+Number(stats.mentions||0)+Number(stats.aiCitations||0);
   $('growthAuthorityStatus').textContent=authority.generatedAt?'ACTIVE':'WAITING';
   $('growthAuthorityStatus').className='status-chip '+(authority.generatedAt?'gsc-connected':'');
