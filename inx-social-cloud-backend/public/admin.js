@@ -628,6 +628,61 @@ async function runGrowthSeoMaintenanceNow(){
   finally{button.textContent='Run maintenance now';button.disabled=state.user?.role!=='SUPER_ADMIN'}
 }
 
+function growthAuthorityTypeLabel(value){
+  return String(value||'Opportunity').replaceAll('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
+}
+function renderGrowthAuthority(data){
+  const authority=data||{};
+  const stats=authority.stats||{};
+  const provider=authority.provider||{};
+  const prospects=(authority.prospects||[]).filter(item=>item.status!=='DISMISSED').slice(0,12);
+  const won=Number(stats.acquiredLinks||0)+Number(stats.mentions||0)+Number(stats.aiCitations||0);
+  $('growthAuthorityStatus').textContent=authority.generatedAt?'ACTIVE':'WAITING';
+  $('growthAuthorityStatus').className='status-chip '+(authority.generatedAt?'gsc-connected':'');
+  $('growthAuthorityUpdated').textContent=authority.generatedAt?'Updated '+relative(authority.generatedAt):'No authority scan yet.';
+  $('growthAuthorityProvider').textContent='Live research '+(provider.liveResearch?'ready':'not configured')+' · Sol drafting '+(provider.writer?'ready':'not configured')+' · Approved email '+(provider.email?'ready':'not configured')+' · Community posting approval-gated';
+  $('growthAuthorityKpis').innerHTML=[
+    ['Open prospects',Number(stats.total||0),Number(stats.backlinkProspects||0)+' backlink/resource opportunities'],
+    ['Communities',Number(stats.communities||0),'Reddit, Quora and relevant discussions'],
+    ['Drafts ready',Number(stats.outreachDrafts||0),Number(stats.approved||0)+' approved'],
+    ['Authority won',won,Number(stats.acquiredLinks||0)+' links · '+Number(stats.mentions||0)+' mentions · '+Number(stats.aiCitations||0)+' AI citations']
+  ].map(item=>'<article><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b><small>'+esc(item[2])+'</small></article>').join('');
+
+  $('growthAuthorityQueue').innerHTML=prospects.length?prospects.map(item=>{
+    const draft=item.draft?.communityReply||item.draft?.outreachBody||'Draft will be generated after validation.';
+    const status=String(item.status||'QUALIFIED');
+    const canApprove=status==='QUALIFIED'&&Boolean(item.draft?.communityReply||item.draft?.outreachBody);
+    const isCommunity=['REDDIT','QUORA','COMMUNITY'].includes(item.type);
+    const actions=[
+      canApprove?'<button class="primary" type="button" onclick="growthAuthorityProspectAction(\''+esc(item.id)+'\',\'approve\')">Approve</button>':'',
+      status==='APPROVED'&&isCommunity?'<button class="secondary" type="button" onclick="growthAuthorityProspectAction(\''+esc(item.id)+'\',\'posted\')">Mark posted</button>':'',
+      status!=='DISMISSED'&&!['LINK_ACQUIRED','MENTION_ACQUIRED','AI_CITED'].includes(status)?'<button class="secondary" type="button" onclick="growthAuthorityProspectAction(\''+esc(item.id)+'\',\'dismiss\')">Dismiss</button>':''
+    ].filter(Boolean).join('');
+    return '<article class="growth-authority-row"><div class="growth-authority-score"><b>'+Number(item.score||0)+'</b><span>fit</span></div><div class="growth-authority-copy"><div class="growth-authority-tags"><span>'+esc(growthAuthorityTypeLabel(item.type))+'</span><em>'+esc(status.replaceAll('_',' '))+'</em></div><a href="'+esc(item.url)+'" target="_blank" rel="noopener">'+esc(item.title||item.domain||'Authority opportunity')+' ↗</a><p>'+esc(item.reason||'')+'</p><details><summary>Prepared '+(isCommunity?'reply':'outreach')+'</summary><div>'+esc(draft)+'</div></details></div><div class="growth-authority-row-actions">'+actions+'</div></article>';
+  }).join(''):'<div class="growth-empty">No qualified authority prospects yet. The six-hour autopilot will keep looking.</div>';
+  $('growthAuthorityRunBtn').disabled=state.user?.role!=='SUPER_ADMIN';
+}
+async function runGrowthAuthorityNow(){
+  const button=$('growthAuthorityRunBtn');button.disabled=true;button.textContent='Scanning…';
+  try{
+    const data=await api('/api/admin/growth-authority/run-now',{method:'POST',body:'{}'});
+    renderGrowthAuthority(data);
+    toast('Phase 4 authority scan completed');
+    await loadGrowthAutopilotStatus(true);
+  }catch(error){toast(error.message)}
+  finally{button.textContent='Run authority scan now';button.disabled=state.user?.role!=='SUPER_ADMIN'}
+}
+async function growthAuthorityProspectAction(id,action){
+  try{
+    const body={action};
+    if(action==='posted') body.note='Community reply posted after manual rule check.';
+    const data=await api('/api/admin/growth-authority/prospects/'+encodeURIComponent(id)+'/action',{method:'POST',body:JSON.stringify(body)});
+    renderGrowthAuthority(data);
+    if(action==='approve') toast('Authority opportunity approved. Eligible email outreach will execute automatically on the scheduled cycle.');
+    else toast('Authority opportunity updated');
+  }catch(error){toast(error.message)}
+}
+
 function renderGrowthAutopilot(data){
   state.growthAutopilot=data;
   const config=data.config||{};
@@ -639,7 +694,7 @@ function renderGrowthAutopilot(data){
   $('growthStatusChip').className='status-chip '+(enabled?'gsc-connected':'gsc-error');
   $('growthAutopilotHeadline').textContent=running?'Growth cycle running now':enabled?'Everything is running automatically':'Autopilot is paused';
   $('growthAutopilotSummary').textContent=enabled
-    ?'No routine action is required. INXSocial refreshes intelligence every '+Number(config.intelligenceEveryHours||24)+' hours and targets one high-quality blog publication every '+Number(config.publishEveryHours||48)+' hours.'
+    ?'No routine action is required. INXSocial refreshes intelligence every '+Number(config.intelligenceEveryHours||24)+' hours, scans authority opportunities every '+Number(config.authorityEveryHours||6)+' hours, and targets one high-quality blog publication every '+Number(config.publishEveryHours||48)+' hours.'
     :'Automatic intelligence refresh and publishing are paused until you resume them.';
   $('growthAutopilotToggleBtn').textContent=enabled?'Pause autopilot':'Resume autopilot';
   $('growthAutopilotToggleBtn').className=enabled?'secondary':'primary';
@@ -651,7 +706,7 @@ function renderGrowthAutopilot(data){
   $('growthAutopilotKpis').innerHTML=[
     ['Publishing','Every '+Number(config.publishEveryHours||48)+'h',config.autoPublish===false?'Auto publish disabled':'Automatic blog publishing'],
     ['Next article',enabled?growthTimeUntil(runtime.nextPublishAt):'Paused',runtime.nextPublishAt?fmtDate(runtime.nextPublishAt):'Waiting for schedule'],
-    ['Intelligence',enabled?growthTimeUntil(runtime.nextIntelligenceAt):'Paused','Search, AI, crawler + Reddit refresh'],
+    ['Authority',enabled?growthTimeUntil(runtime.nextAuthorityAt):'Paused','Communities, backlinks, mentions + outreach'],
     ['Published',published,lastQuality!=null?'Latest quality '+Number(lastQuality)+'/100':'Self-hosted articles']
   ].map(item=>'<article><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b><small>'+esc(item[2])+'</small></article>').join('');
 
@@ -671,6 +726,7 @@ function renderGrowthAutopilot(data){
   const events=(runtime.recentEvents||[]).slice(0,8);
   $('growthAutopilotActivity').innerHTML=events.length?events.map(event=>'<div class="growth-autopilot-event '+esc(event.level||'info')+'"><span></span><div><b>'+esc(event.message)+'</b><small>'+esc(relative(event.at))+'</small></div></div>').join(''):'<div class="growth-empty">No activity recorded yet.</div>';
   renderGrowthSeoMaintenance(data.seoMaintenance||null);
+  renderGrowthAuthority(data.authority||null);
 }
 async function loadGrowthAutopilotStatus(silent=false){
   try{
@@ -1022,6 +1078,7 @@ async function discoverGrowthReddit(){
 $('growthAutopilotToggleBtn').addEventListener('click',()=>void toggleGrowthAutopilot());
 $('growthAutopilotRunBtn').addEventListener('click',()=>void runGrowthAutopilotNow());
 $('growthSeoRunBtn').addEventListener('click',()=>void runGrowthSeoMaintenanceNow());
+$('growthAuthorityRunBtn').addEventListener('click',()=>void runGrowthAuthorityNow());
 $('runGrowthAuditBtn').addEventListener('click',()=>void runGrowthAudit());
 $('buildGrowthOpportunitiesBtn').addEventListener('click',()=>void buildGrowthOpportunities());
 $('runVisibilityBtn').addEventListener('click',()=>void runGrowthVisibility());
