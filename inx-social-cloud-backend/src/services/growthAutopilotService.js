@@ -7,6 +7,7 @@ const growthOpportunities = require('./growthOpportunityService');
 const growthContent = require('./growthContentService');
 const growthStrategy = require('./growthStrategyService');
 const seoMaintenance = require('./growthSeoMaintenanceService');
+const authority = require('./growthAuthorityService');
 
 const CONFIG_KEY = 'growth_autopilot_config_v1';
 const STATE_KEY = 'growth_autopilot_state_v1';
@@ -17,8 +18,10 @@ const LEASE_MS = 45 * 60 * 1000;
 const DEFAULT_CONFIG = Object.freeze({
   enabled: true,
   intelligenceEveryHours: 24,
-  configVersion: 2,
+  configVersion: 3,
   publishEveryHours: 24,
+  authorityEveryHours: 6,
+  authorityAutoEmail: false,
   opportunityWindowDays: 28,
   visibilityPromptCount: 5,
   minQualityScore: 75,
@@ -61,8 +64,10 @@ function normalizeConfig(value = {}) {
   return {
     enabled: value.enabled !== false,
     intelligenceEveryHours: clampNumber(value.intelligenceEveryHours, 24, 6, 168),
-    configVersion: Math.max(2, Number(value.configVersion || 0)),
+    configVersion: Math.max(3, Number(value.configVersion || 0)),
     publishEveryHours: clampNumber(value.publishEveryHours, 24, 24, 336),
+    authorityEveryHours: clampNumber(value.authorityEveryHours, 6, 6, 48),
+    authorityAutoEmail: value.authorityAutoEmail === true,
     opportunityWindowDays: [7, 28, 90].includes(Number(value.opportunityWindowDays)) ? Number(value.opportunityWindowDays) : 28,
     visibilityPromptCount: clampNumber(value.visibilityPromptCount, 5, 1, 5),
     minQualityScore: clampNumber(value.minQualityScore, 75, 65, 95),
@@ -81,8 +86,10 @@ function initialState() {
     lastCycleStartedAt: null,
     lastCycleFinishedAt: null,
     lastIntelligenceAt: null,
+    lastAuthorityAt: null,
     lastPublishedAt: null,
     nextIntelligenceAt: now,
+    nextAuthorityAt: now,
     nextPublishAt: now,
     lastError: null,
     lastPublishedArticle: null,
@@ -101,10 +108,10 @@ function initialState() {
 async function ensureSettings() {
   const configRow = await prisma.appSetting.findUnique({ where: { key: CONFIG_KEY } });
   const rawConfig = safeJson(configRow?.value, null);
-  const needsV2Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 2;
+  const needsV3Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 3;
   const config = normalizeConfig({
     ...(rawConfig || DEFAULT_CONFIG),
-    ...(needsV2Migration ? { configVersion: 2, publishEveryHours: 24 } : {})
+    ...(needsV3Migration ? { configVersion: 3, publishEveryHours: 24, authorityEveryHours: 6, authorityAutoEmail: false } : {})
   });
 
   await prisma.appSetting.upsert({
@@ -127,17 +134,18 @@ async function ensureSettings() {
         description: 'INXSocial Growth Autopilot runtime state and activity.'
       }
     });
-  } else if (needsV2Migration) {
+  } else if (needsV3Migration) {
     const state = { ...initialState(), ...(safeJson(existingState.value, {}) || {}) };
     state.running = false;
     state.leaseUntil = null;
     state.nextIntelligenceAt = nowIso();
+    state.nextAuthorityAt = nowIso();
     state.nextPublishAt = nowIso();
     state.recentEvents = [{
       at: nowIso(),
       type: 'AUTOPILOT_UPGRADED',
       level: 'success',
-      message: 'Growth Autopilot upgraded to the AI Strategist workflow and a 24-hour publishing target.'
+      message: 'Growth Autopilot upgraded with Phase 4 Authority + Community Autopilot on a six-hour discovery cycle.'
     }, ...(state.recentEvents || [])].slice(0, 40);
     await prisma.appSetting.update({
       where: { key: STATE_KEY },
@@ -558,8 +566,9 @@ async function runCycle(options = {}) {
 
   const state = await getState();
   const intelligenceDue = options.force || isDue(state.nextIntelligenceAt);
+  const authorityDue = options.force || isDue(state.nextAuthorityAt);
   const publishDue = options.force || isDue(state.nextPublishAt);
-  if (!intelligenceDue && !publishDue) return { skipped: true, reason: 'not_due' };
+  if (!intelligenceDue && !authorityDue && !publishDue) return { skipped: true, reason: 'not_due' };
 
   const claimed = await claimLease();
   if (!claimed) return { skipped: true, reason: 'already_running' };
@@ -568,7 +577,7 @@ async function runCycle(options = {}) {
     await recordEvent(
       'CYCLE_STARTED',
       options.force ? 'Growth Autopilot cycle started manually.' : 'Scheduled Growth Autopilot cycle started.',
-      { intelligenceDue, publishDue },
+      { intelligenceDue, authorityDue, publishDue },
       'info'
     );
 
@@ -576,6 +585,43 @@ async function runCycle(options = {}) {
     if (intelligenceDue || publishDue || !opportunityMap) {
       const intelligence = await runIntelligence(config);
       opportunityMap = intelligence.opportunityMap;
+    }
+
+
+    if (authorityDue) {
+      try {
+        const authorityState = await authority.run({ autoEmail: config.authorityAutoEmail });
+        const completed = nowIso();
+        await mutateState(current => {
+          current.lastAuthorityAt = completed;
+          current.nextAuthorityAt = addHours(completed, config.authorityEveryHours);
+          return current;
+        });
+        await recordEvent(
+          'AUTHORITY_REFRESHED',
+          'Phase 4 refreshed community, backlink, mention and outreach opportunities.',
+          {
+            prospects: authorityState.stats?.total || 0,
+            communities: authorityState.stats?.communities || 0,
+            backlinkProspects: authorityState.stats?.backlinkProspects || 0,
+            drafts: authorityState.stats?.outreachDrafts || 0,
+            nextAuthorityAt: addHours(completed, config.authorityEveryHours)
+          },
+          authorityState.warnings?.length ? 'warning' : 'success'
+        );
+      } catch (error) {
+        const authorityRetryAt = addHours(nowIso(), config.retryHours);
+        await mutateState(current => {
+          current.nextAuthorityAt = authorityRetryAt;
+          return current;
+        });
+        await recordEvent(
+          'AUTHORITY_REFRESH_FAILED',
+          'Phase 4 authority refresh failed and will retry automatically.',
+          { error: String(error.message || error).slice(0, 400), retryAt: authorityRetryAt },
+          'warning'
+        );
+      }
     }
 
     let publishedArticle = null;
@@ -679,6 +725,7 @@ async function runCycle(options = {}) {
     const retryAt = addHours(nowIso(), config.retryHours);
     await mutateState(current => {
       current.nextIntelligenceAt = isDue(current.nextIntelligenceAt) ? retryAt : current.nextIntelligenceAt;
+      current.nextAuthorityAt = isDue(current.nextAuthorityAt) ? retryAt : current.nextAuthorityAt;
       current.nextPublishAt = isDue(current.nextPublishAt) ? retryAt : current.nextPublishAt;
       current.lastError = { at: nowIso(), message };
       return current;
@@ -692,12 +739,13 @@ async function runCycle(options = {}) {
 }
 
 async function status() {
-  const [config, state, contentOverview, opportunityMap, seoStatus] = await Promise.all([
+  const [config, state, contentOverview, opportunityMap, seoStatus, authorityStatus] = await Promise.all([
     getConfig(),
     getState(),
     growthContent.overview().catch(() => null),
     growthOpportunities.latest().catch(() => null),
-    seoMaintenance.status().catch(() => null)
+    seoMaintenance.status().catch(() => null),
+    authority.status().catch(() => null)
   ]);
 
   return {
@@ -710,6 +758,7 @@ async function status() {
       latestArticles: (contentOverview.articles || []).slice(0, 5)
     } : null,
     seoMaintenance: seoStatus,
+    authority: authorityStatus,
     opportunities: opportunityMap ? {
       summary: opportunityMap.summary,
       generatedAt: opportunityMap.generatedAt,
@@ -741,6 +790,7 @@ async function updateConfig(patch = {}) {
   if (next.enabled) {
     await mutateState(state => {
       if (!state.nextIntelligenceAt) state.nextIntelligenceAt = nowIso();
+      if (!state.nextAuthorityAt) state.nextAuthorityAt = nowIso();
       if (!state.nextPublishAt) state.nextPublishAt = nowIso();
       return state;
     });
