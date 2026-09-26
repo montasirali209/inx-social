@@ -266,9 +266,9 @@ async function performance(days = 28) {
   const periodDays = [7, 28, 90].includes(Number(days)) ? Number(days) : 28;
   const property = await selectedProperty();
   const propertyId = property.propertyId;
-  const currentStart = `${periodDays}daysAgo`;
-  const previousStart = `${periodDays * 2}daysAgo`;
-  const previousEnd = `${periodDays + 1}daysAgo`;
+  const currentStart = `${periodDays - 1}daysAgo`;
+  const previousStart = `${periodDays * 2 - 1}daysAgo`;
+  const previousEnd = `${periodDays}daysAgo`;
 
   const [summaryPayload, previousPayload, dailyPayload, pagePayload, channelPayload, eventPayload] = await Promise.all([
     dataRequest(propertyId, 'runReport', summaryRequest(currentStart, 'today')),
