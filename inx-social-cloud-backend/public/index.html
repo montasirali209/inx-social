@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=17">
+  <link rel="stylesheet" href="/admin.css?v=18">
   <link rel="stylesheet" href="/admin-security.css?v=1">
 </head>
 <body>
@@ -33,6 +33,7 @@
     <div class="brand"><img src="/assets/inx-social-wordmark.png" alt="INXSocial"><span>Control Centre</span></div>
     <nav aria-label="Administration">
       <button class="nav active" data-page="overview"><span>◫</span>Overview</button>
+      <button class="nav" data-page="growthDashboard"><span>◉</span>Growth Dashboard</button>
       <button class="nav" data-page="users"><span>◎</span>Customers <i id="userAlertBadge" hidden>0</i></button>
       <button class="nav" data-page="aiAccess"><span>✦</span>AI &amp; Automation</button>
       <button class="nav" data-page="searchConsole"><span>⌕</span>Search Console</button>
@@ -61,6 +62,79 @@
         <article class="panel"><header><div><span class="kicker">New accounts</span><h2>Recent registrations</h2></div><button class="text-button" data-open-page="users">Manage customers →</button></header><div class="activity-list" id="recentUsers"></div></article>
         <article class="panel"><header><div><span class="kicker">Attention</span><h2>Operations health</h2></div></header><div class="health-list" id="healthList"></div></article>
       </div>
+    </section>
+
+    <section class="page hidden growth-command-page" id="growthDashboardPage">
+      <section class="growth-command-hero">
+        <div>
+          <span class="kicker">24/7 owner view</span>
+          <h2>Growth Command Centre</h2>
+          <p>One live view of traffic, CTA activity, registrations, trials, paid conversion, revenue, search visibility, outreach and every Growth Autopilot phase.</p>
+        </div>
+        <div class="growth-command-hero-actions">
+          <span class="status-chip gsc-connected" id="growthDashboardLiveStatus">LIVE</span>
+          <button class="secondary" id="growthDashboardRefreshBtn" type="button">↻ Refresh</button>
+        </div>
+      </section>
+
+      <div class="growth-command-primary" id="growthDashboardPrimary">
+        <article><span>Live visitors</span><b>—</b><small>GA4 realtime · last 30 min</small></article>
+        <article><span>Visitors today</span><b>—</b><small>Unique active users</small></article>
+        <article><span>Signups today</span><b>—</b><small>First-party registrations</small></article>
+        <article><span>Trials today</span><b>—</b><small>Verified trial starts</small></article>
+        <article><span>Paid today</span><b>—</b><small>Checkout conversions</small></article>
+        <article><span>Revenue today</span><b>—</b><small>Attributed checkout revenue</small></article>
+      </div>
+
+      <section class="panel growth-command-funnel-panel">
+        <header class="growth-command-section-head">
+          <div><span class="kicker">Today</span><h2>Visitor → customer funnel</h2><p id="growthDashboardFreshness">Loading live business data…</p></div>
+          <span class="growth-command-refresh-note">Auto-refresh · 30s</span>
+        </header>
+        <div class="growth-command-funnel" id="growthDashboardFunnel"></div>
+      </section>
+
+      <div class="growth-command-grid">
+        <section class="panel growth-command-card">
+          <header class="growth-command-section-head"><div><span class="kicker">Traffic</span><h2>Last 7 days</h2></div><span id="growthDashboardWeekTrend">—</span></header>
+          <div class="growth-command-bars" id="growthDashboardDaily"></div>
+        </section>
+
+        <section class="panel growth-command-card">
+          <header class="growth-command-section-head"><div><span class="kicker">Revenue</span><h2>Commercial pulse</h2></div></header>
+          <div class="growth-command-mini-kpis" id="growthDashboardRevenue"></div>
+          <div class="growth-command-list" id="growthDashboardSources"></div>
+        </section>
+
+        <section class="panel growth-command-card">
+          <header class="growth-command-section-head"><div><span class="kicker">Search</span><h2>SEO visibility</h2></div><span id="growthDashboardSearchFreshness">Latest GSC data</span></header>
+          <div class="growth-command-mini-kpis" id="growthDashboardSearch"></div>
+          <div class="growth-command-list" id="growthDashboardQueries"></div>
+        </section>
+
+        <section class="panel growth-command-card">
+          <header class="growth-command-section-head"><div><span class="kicker">Autopilot</span><h2>Phase 1–5 status</h2></div><span id="growthDashboardAutopilotChip" class="status-chip">Loading…</span></header>
+          <div class="growth-command-autopilot" id="growthDashboardAutopilot"></div>
+        </section>
+
+        <section class="panel growth-command-card">
+          <header class="growth-command-section-head"><div><span class="kicker">Authority</span><h2>Lead outreach</h2></div></header>
+          <div class="growth-command-mini-kpis" id="growthDashboardOutreach"></div>
+          <div class="growth-command-list" id="growthDashboardAuthority"></div>
+        </section>
+
+        <section class="panel growth-command-card">
+          <header class="growth-command-section-head"><div><span class="kicker">Conversion</span><h2>Best landing pages</h2></div></header>
+          <div class="growth-command-list" id="growthDashboardPages"></div>
+        </section>
+      </div>
+
+      <section class="panel growth-command-activity-panel">
+        <header class="growth-command-section-head"><div><span class="kicker">Automation feed</span><h2>What's happening now</h2></div><span id="growthDashboardUpdated">—</span></header>
+        <div class="growth-command-activity" id="growthDashboardActivity"><div class="growth-empty">Loading activity…</div></div>
+      </section>
+
+      <div class="growth-command-warning" id="growthDashboardWarnings" hidden></div>
     </section>
 
     <section class="page hidden" id="usersPage">
@@ -671,6 +745,6 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=18" defer></script>
+<script src="/admin.js?v=19" defer></script>
 </body>
 </html>

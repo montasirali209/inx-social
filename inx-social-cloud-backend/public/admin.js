@@ -1,4 +1,4 @@
-const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,growthAnalytics:null,growthOpportunities:null,growthAutopilot:null,growthRealtimeTimer:null,growthAutopilotTimer:null,contentEngine:null,selectedContentArticle:null,ugcAvatars:[],ugcAvatarSelection:new Set(),timer:null};
+const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,growthAnalytics:null,growthOpportunities:null,growthAutopilot:null,growthRealtimeTimer:null,growthAutopilotTimer:null,growthDashboard:null,growthDashboardTimer:null,contentEngine:null,selectedContentArticle:null,ugcAvatars:[],ugcAvatarSelection:new Set(),timer:null};
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const initials=value=>String(value||'IN').trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
@@ -7,12 +7,29 @@ const relative=value=>{if(!value)return'—';const seconds=Math.max(0,Math.floor
 const planOf=user=>user.effectivePlan||user.commercialAccess?.effectivePlan||user.subscriptions?.[0]?.plan||'TRIAL';
 const badge=value=>`<span class="badge ${esc(value)}">${esc(String(value).replaceAll('_',' '))}</span>`;
 function toast(message){const element=$('toast');element.textContent=message;element.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>element.classList.remove('show'),4000)}
-function clearSession(){clearInterval(state.timer);clearInterval(state.growthRealtimeTimer);clearInterval(state.growthAutopilotTimer);state.growthRealtimeTimer=null;state.growthAutopilotTimer=null;state.user=null;state.users=[];state.administrators=[];state.ugcAvatarSelection=new Set();$('notificationPanel')?.classList.add('hidden');setLoggedIn(false)}
+function clearSession(){clearInterval(state.timer);clearInterval(state.growthRealtimeTimer);clearInterval(state.growthAutopilotTimer);clearInterval(state.growthDashboardTimer);state.growthRealtimeTimer=null;state.growthAutopilotTimer=null;state.growthDashboardTimer=null;state.user=null;state.users=[];state.administrators=[];state.ugcAvatarSelection=new Set();$('notificationPanel')?.classList.add('hidden');setLoggedIn(false)}
 async function signOut(){try{await fetch('/api/admin-auth/logout',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'}})}catch{}finally{clearSession()}}
 async function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};const response=await fetch(path,{...options,headers,credentials:'same-origin'});const data=await response.json().catch(()=>({}));if(response.status===401){clearSession();throw new Error(data.error||'Your administrator session has ended.')}if(!response.ok)throw new Error(data.error||`Request failed: ${response.status}`);return data}
 function setLoggedIn(on){$('loginView').classList.toggle('hidden',on);$('dashboardView').classList.toggle('hidden',!on);if(on){const name=state.user?.name||'INXSocial Admin';$('adminName').textContent=name;$('adminEmail').textContent=`${state.user?.email||''}${state.user?.role?` · ${state.user.role.replace('_',' ')}`:''}`;$('adminInitials').textContent=initials(name)}}
-const pageMeta={overview:['Overview','Monitor new customers and service activity.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI & Automation','Manage AI Studio policy, Social Agent allowances and generation infrastructure.'],searchConsole:['Search Console','Monitor Google Search visibility, queries, landing pages and SEO opportunities.'],growthIntelligence:['Growth Autopilot','Monitor the automatic growth system. Advanced diagnostics are available only when needed.'],contentEngine:['Content Engine','Research, review and publish self-hosted SEO content from Growth Intelligence opportunities.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
-async function openPage(page){if(page!=='growthIntelligence'){clearInterval(state.growthRealtimeTimer);clearInterval(state.growthAutopilotTimer);state.growthRealtimeTimer=null;state.growthAutopilotTimer=null;}document.querySelectorAll('.nav').forEach(button=>button.classList.toggle('active',button.dataset.page===page));document.querySelectorAll('.page').forEach(section=>section.classList.toggle('hidden',section.id!==`${page}Page`));$('pageTitle').textContent=pageMeta[page][0];$('pageSubtitle').textContent=pageMeta[page][1];if(page==='overview')await loadOverview();if(page==='users')await loadUsers();if(page==='aiAccess')await loadAiAccess();if(page==='searchConsole')await loadSearchConsole();if(page==='growthIntelligence')await loadGrowthIntelligence();if(page==='contentEngine')await loadContentEngine();if(page==='settings')await loadSettings();if(page==='security')await loadSecurity()}
+const pageMeta={overview:['Overview','Monitor new customers and service activity.'],growthDashboard:['Growth Dashboard','Live traffic, conversion, revenue, SEO, outreach and Growth Autopilot activity in one mobile-ready view.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI & Automation','Manage AI Studio policy, Social Agent allowances and generation infrastructure.'],searchConsole:['Search Console','Monitor Google Search visibility, queries, landing pages and SEO opportunities.'],growthIntelligence:['Growth Autopilot','Monitor the automatic growth system. Advanced diagnostics are available only when needed.'],contentEngine:['Content Engine','Research, review and publish self-hosted SEO content from Growth Intelligence opportunities.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
+async function openPage(page){
+  if(page!=='growthIntelligence'){clearInterval(state.growthRealtimeTimer);clearInterval(state.growthAutopilotTimer);state.growthRealtimeTimer=null;state.growthAutopilotTimer=null;}
+  if(page!=='growthDashboard'){clearInterval(state.growthDashboardTimer);state.growthDashboardTimer=null;}
+  document.querySelectorAll('.nav').forEach(button=>button.classList.toggle('active',button.dataset.page===page));
+  document.querySelectorAll('.page').forEach(section=>section.classList.toggle('hidden',section.id!==`${page}Page`));
+  $('pageTitle').textContent=pageMeta[page][0];$('pageSubtitle').textContent=pageMeta[page][1];
+  if(page==='overview')await loadOverview();
+  if(page==='growthDashboard')await loadGrowthDashboard();
+  if(page==='users')await loadUsers();
+  if(page==='aiAccess')await loadAiAccess();
+  if(page==='searchConsole')await loadSearchConsole();
+  if(page==='growthIntelligence')await loadGrowthIntelligence();
+  if(page==='contentEngine')await loadContentEngine();
+  if(page==='settings')await loadSettings();
+  if(page==='security')await loadSecurity();
+  if(page==='growthDashboard')history.replaceState({},'',location.pathname+location.search+'#growthDashboard');
+  else if(location.hash==='#growthDashboard')history.replaceState({},'',location.pathname+location.search);
+}
 document.querySelectorAll('.nav').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.page)));
 document.querySelectorAll('[data-open-page]').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.openPage)));
 $('loginForm').addEventListener('submit',async event=>{event.preventDefault();$('loginError').textContent='';try{const data=await api('/api/admin-auth/login',{method:'POST',body:JSON.stringify({email:$('email').value.trim(),password:$('password').value})});state.user=data.user;setLoggedIn(true);$('password').value='';await postAuthLanding();state.timer=setInterval(()=>loadOverview(true).catch(()=>{}),15000)}catch(error){$('loginError').textContent=error.message}});
@@ -21,6 +38,131 @@ $('logoutBtn').addEventListener('click',()=>void signOut());
 function renderRecent(users){const html=users.map(user=>`<div class="activity-item"><span class="avatar">${esc(initials(user.name||user.email))}</span><div><b>${esc(user.name||'New customer')}</b><small>${esc(user.email)} · ${esc(planOf(user))} · ${user.emailVerifiedAt?'Verified':'Verification pending'}</small></div><time>${relative(user.createdAt)}</time></div>`).join('');$('recentUsers').innerHTML=html||'<p>No customer registrations yet.</p>';$('notificationList').innerHTML=html||'<p>No recent registrations.</p>'}
 async function loadOverview(silent=false){const {overview}=await api('/api/admin/overview');state.recentUsers=overview.recentUsers||[];const items=[['Customers',overview.users],['Joined today',overview.joinedToday,true],['Active subscriptions',overview.activeSubscriptions],['Active connections',overview.connectedPages],['Trial accounts',overview.trials],['Unverified',overview.unverifiedUsers,true],['Publishing jobs',overview.scheduleJobs],['Failed jobs',overview.failedJobs,true]];$('statsGrid').innerHTML=items.map(([label,value,attention])=>`<div class="stat ${attention&&value?'attention':''}"><b>${value}</b><span>${label}</span></div>`).join('');renderRecent(state.recentUsers);$('healthList').innerHTML=`<div class="health-item ${overview.failedJobs?'warn':''}"><div><b>Publishing failures</b><small>Jobs currently requiring review</small></div><strong>${overview.failedJobs}</strong></div><div class="health-item ${overview.suspendedUsers?'warn':''}"><div><b>Suspended accounts</b><small>Customer access currently blocked</small></div><strong>${overview.suspendedUsers}</strong></div><div class="health-item ${overview.unverifiedUsers?'warn':''}"><div><b>Pending verification</b><small>Registrations not activated</small></div><strong>${overview.unverifiedUsers}</strong></div>`;const count=overview.joinedToday||0;['notificationCount','userAlertBadge'].forEach(id=>{$(id).textContent=count;$(id).hidden=!count});if(!silent&&count)toast(`${count} customer${count===1?'':'s'} joined today`)}
 $('refreshOverviewBtn').addEventListener('click',()=>loadOverview().catch(error=>toast(error.message)));
+
+function growthDashboardNum(value){return Number(value||0).toLocaleString('en-GB')}
+function growthDashboardMoney(value){return '£'+Number(value||0).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2})}
+function growthDashboardPercent(value){return Number(value||0).toLocaleString('en-GB',{maximumFractionDigits:1})+'%'}
+function growthDashboardUntil(value){if(!value)return'—';const seconds=Math.floor((new Date(value).getTime()-Date.now())/1000);if(seconds<=0)return'Due now';if(seconds<3600)return'In '+Math.max(1,Math.floor(seconds/60))+'m';if(seconds<86400)return'In '+Math.floor(seconds/3600)+'h';return'In '+Math.floor(seconds/86400)+'d'}
+function growthDashboardDateLabel(value){
+  const text=String(value||'');
+  if(/^\d{8}$/.test(text))return text.slice(6,8)+'/'+text.slice(4,6);
+  return text||'—';
+}
+function renderGrowthDashboard(data){
+  state.growthDashboard=data;
+  const live=data.live||{},today=data.today||{},week=data.week||{},revenue=data.revenue||{},rates=today.rates||{};
+  const primary=[
+    ['Live visitors',growthDashboardNum(live.activeUsers),'GA4 realtime · last '+Number(live.windowMinutes||30)+' min'],
+    ['Visitors today',growthDashboardNum(today.activeUsers),growthDashboardNum(today.sessions)+' sessions'],
+    ['Signups today',growthDashboardNum(today.registrations),growthDashboardPercent(rates.visitorToSignupPercent)+' visitor → signup'],
+    ['Trials today',growthDashboardNum(today.trials),growthDashboardPercent(rates.signupToTrialPercent)+' signup → trial'],
+    ['Paid today',growthDashboardNum(today.purchases),growthDashboardPercent(rates.trialToPaidPercent)+' trial → paid'],
+    ['Revenue today',growthDashboardMoney(today.attributedRevenueGbp),growthDashboardPercent(rates.visitorToPaidPercent)+' visitor → paid']
+  ];
+  $('growthDashboardPrimary').innerHTML=primary.map(item=>'<article><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b><small>'+esc(item[2])+'</small></article>').join('');
+
+  const funnel=[
+    ['Sessions',today.sessions,100],
+    ['CTA / checkout',today.ctaClicks,rates.visitorToCtaPercent],
+    ['Signups',today.registrations,rates.visitorToSignupPercent],
+    ['Trials',today.trials,rates.signupToTrialPercent],
+    ['Paid',today.purchases,rates.trialToPaidPercent]
+  ];
+  const max=Math.max(1,...funnel.map(item=>Number(item[1]||0)));
+  $('growthDashboardFunnel').innerHTML=funnel.map((item,index)=>{
+    const width=Math.max(item[1]?5:0,Number(item[1]||0)*100/max);
+    const rateLabel=index===0?'Traffic baseline':growthDashboardPercent(item[2]);
+    return '<div class="growth-command-funnel-step"><div><b>'+esc(item[0])+'</b><small>'+growthDashboardNum(item[1])+' · '+esc(rateLabel)+'</small></div><div class="growth-command-track"><i style="width:'+width+'%"></i></div><strong>'+growthDashboardNum(item[1])+'</strong></div>';
+  }).join('');
+  $('growthDashboardFreshness').textContent='Realtime '+relative(data.freshness?.realtime)+' · business '+relative(data.freshness?.business);
+
+  const daily=(week.daily||[]).slice(-7);
+  const dailyMax=Math.max(1,...daily.map(row=>Number(row.sessions||0)));
+  $('growthDashboardDaily').innerHTML=daily.length?daily.map(row=>{
+    const height=Math.max(5,Number(row.sessions||0)*100/dailyMax);
+    return '<div class="growth-command-bar"><div><i style="height:'+height+'%"></i></div><b>'+growthDashboardNum(row.sessions)+'</b><small>'+esc(growthDashboardDateLabel(row.date))+'</small></div>';
+  }).join(''):'<div class="growth-empty">No GA4 daily traffic data yet.</div>';
+  const sessionChange=Number(week.comparison?.sessionsPercent||0);
+  $('growthDashboardWeekTrend').textContent=(sessionChange>=0?'+':'')+sessionChange.toFixed(1)+'% sessions';
+
+  $('growthDashboardRevenue').innerHTML=[
+    ['Active paid',growthDashboardNum(revenue.activePaidCustomers)],
+    ['Projected MRR',growthDashboardMoney(revenue.projectedMrrGbp)],
+    ['30d attributed',growthDashboardMoney(revenue.attributedRevenueGbp)]
+  ].map(item=>'<div><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b></div>').join('');
+  $('growthDashboardSources').innerHTML=(data.sources||[]).slice(0,6).map(row=>'<div class="growth-command-list-row"><div><b>'+esc(row.source||'unattributed')+'</b><small>'+growthDashboardNum(row.signups)+' signup · '+growthDashboardNum(row.trials)+' trial · '+growthDashboardNum(row.purchases)+' paid</small></div><strong>'+growthDashboardMoney(row.revenue)+'</strong></div>').join('')||'<div class="growth-empty">Attribution will populate as new visitors convert.</div>';
+
+  const search=data.search||{},searchSummary=search.summary||{};
+  $('growthDashboardSearch').innerHTML=[
+    ['Clicks',growthDashboardNum(searchSummary.clicks)],
+    ['Impressions',growthDashboardNum(searchSummary.impressions)],
+    ['CTR',growthDashboardPercent(Number(searchSummary.ctr||0)*100)],
+    ['Position',Number(searchSummary.position||0).toFixed(1)]
+  ].map(item=>'<div><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b></div>').join('');
+  $('growthDashboardQueries').innerHTML=(search.topQueries||[]).slice(0,6).map(row=>'<div class="growth-command-list-row"><div><b>'+esc(row.query||'Query')+'</b><small>'+growthDashboardNum(row.impressions)+' impressions · '+growthDashboardPercent(Number(row.ctr||0)*100)+' CTR</small></div><strong>#'+Number(row.position||0).toFixed(1)+'</strong></div>').join('')||'<div class="growth-empty">Search Console data is not available yet.</div>';
+  $('growthDashboardSearchFreshness').textContent=search.generatedAt?'Updated '+relative(search.generatedAt):'Latest GSC data';
+
+  const ap=data.autopilot||{},runtime=ap.state||{},config=ap.config||{},seo=data.seo||{},opt=data.optimization||{};
+  const enabled=config.enabled!==false;
+  $('growthDashboardAutopilotChip').textContent=runtime.running?'RUNNING':enabled?'ON':'PAUSED';
+  $('growthDashboardAutopilotChip').className='status-chip '+(enabled?'gsc-connected':'');
+  const apRows=[
+    ['Intelligence',runtime.lastIntelligenceAt,runtime.nextIntelligenceAt],
+    ['Authority',runtime.lastAuthorityAt,runtime.nextAuthorityAt],
+    ['Optimisation',runtime.lastOptimizationAt,runtime.nextOptimizationAt],
+    ['Publishing',runtime.lastPublishedAt,runtime.nextPublishAt],
+    ['Technical SEO',seo.generatedAt,null]
+  ];
+  $('growthDashboardAutopilot').innerHTML=apRows.map(row=>'<div><span>'+esc(row[0])+'</span><b>'+(row[1]?esc(relative(row[1])):'Waiting')+'</b><small>'+(row[2]?esc(growthDashboardUntil(row[2])):row[0]==='Technical SEO'?'Score '+esc(String(seo.score??'—')):'—')+'</small></div>').join('');
+  if(runtime.lastError)$('growthDashboardAutopilot').innerHTML+='<div class="warn"><span>Last error</span><b>'+esc(runtime.lastError)+'</b><small>Autopilot will retry automatically.</small></div>';
+
+  const outreach=data.outreach||{},authority=data.authority||{},authorityStats=authority.stats||{};
+  $('growthDashboardOutreach').innerHTML=[
+    ['Sent · 30d',growthDashboardNum(outreach.sent30d)],
+    ['AI approved',growthDashboardNum(outreach.aiApprovedOpen)],
+    ['Open leads',growthDashboardNum(outreach.opportunitiesOpen)],
+    ['Authority won',growthDashboardNum(Number(authorityStats.acquiredLinks||0)+Number(authorityStats.mentions||0)+Number(authorityStats.aiCitations||0))]
+  ].map(item=>'<div><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b></div>').join('');
+  $('growthDashboardAuthority').innerHTML=[
+    ['Backlink prospects',authorityStats.backlinkProspects||0],
+    ['Outreach drafts',authorityStats.outreachDrafts||0],
+    ['Emails sent',authorityStats.sent||0],
+    ['Failed email · 30d',outreach.failed30d||0]
+  ].map(item=>'<div class="growth-command-list-row"><div><b>'+esc(item[0])+'</b></div><strong>'+growthDashboardNum(item[1])+'</strong></div>').join('');
+
+  $('growthDashboardPages').innerHTML=(week.landingPages||[]).slice(0,7).map(row=>{
+    const sessions=Number(row.sessions||0),keyEvents=Number(row.keyEvents||0);
+    const conversion=sessions?keyEvents*100/sessions:0;
+    return '<div class="growth-command-list-row"><div><b>'+esc(row.landingPagePlusQueryString||'(not set)')+'</b><small>'+growthDashboardNum(sessions)+' sessions · '+growthDashboardPercent(conversion)+' key-event rate</small></div><strong>'+growthDashboardMoney(row.totalRevenue||0)+'</strong></div>';
+  }).join('')||'<div class="growth-empty">No landing-page performance yet.</div>';
+
+  $('growthDashboardActivity').innerHTML=(data.activity||[]).slice(0,20).map(item=>'<div class="growth-command-activity-row '+esc(item.level||'info')+'"><i></i><div><b>'+esc(item.title||item.type)+'</b><small>'+esc(item.source||'System')+' · '+esc(relative(item.at))+'</small></div><time>'+esc(fmtDate(item.at))+'</time></div>').join('')||'<div class="growth-empty">No recent automation activity.</div>';
+  $('growthDashboardUpdated').textContent='Updated '+relative(data.generatedAt);
+  const warnings=data.warnings||[];
+  $('growthDashboardWarnings').hidden=!warnings.length;
+  $('growthDashboardWarnings').innerHTML=warnings.length?'<b>Partial data</b>'+warnings.map(item=>'<span>'+esc(item)+'</span>').join(''):'';
+}
+async function loadGrowthDashboard(silent=false,force=false){
+  try{
+    const data=await api('/api/admin/growth-dashboard'+(force?'?force=true':''));
+    renderGrowthDashboard(data);
+    clearInterval(state.growthDashboardTimer);
+    state.growthDashboardTimer=setInterval(()=>{
+      if(!$('growthDashboardPage').classList.contains('hidden'))loadGrowthDashboard(true,false).catch(()=>{});
+    },30000);
+    return data;
+  }catch(error){
+    if(!silent)toast(error.message);
+    $('growthDashboardLiveStatus').textContent='PARTIAL';
+    $('growthDashboardLiveStatus').className='status-chip';
+    return null;
+  }
+}
+$('growthDashboardRefreshBtn').addEventListener('click',async()=>{
+  const button=$('growthDashboardRefreshBtn');button.disabled=true;button.textContent='Refreshing…';
+  try{await loadGrowthDashboard(false,true);toast('Growth dashboard refreshed')}finally{button.disabled=false;button.textContent='↻ Refresh'}
+});
+
 
 function filteredUsers(){const filter=$('userFilter').value;return state.users.filter(user=>!filter||user.status===filter)}
 function renderUsers(){const users=filteredUsers();$('usersTable').innerHTML=users.map(user=>`<tr><td><b>${esc(user.name||'No name')}</b><small>${esc(user.email)}</small></td><td>${badge(user.emailVerifiedAt?'VERIFIED':'PENDING_VERIFICATION')} ${badge(user.status)}</td><td>${badge(planOf(user))}<small>${user.manualPlanOverride?'Administrator override active':user.trialEndsAt?`Ends ${fmtDate(user.trialEndsAt)}`:'Billing policy'}</small></td><td>${badge(user.aiStudioAccess||'DEFAULT')}<small>${user.aiStudioAccess==='DEFAULT'?'Global Social Agent policy':'Social Agent override'}</small></td><td>${fmtDate(user.createdAt)}</td><td>${user.connectedPages?.length||0} pages · ${user.devices?.length||0} devices</td><td><button class="secondary" data-manage-user="${esc(user.id)}">Manage</button></td></tr>`).join('')||'<tr><td colspan="7">No customers match this filter.</td></tr>';document.querySelectorAll('[data-manage-user]').forEach(button=>button.addEventListener('click',()=>void openUser(button.dataset.manageUser)))}
@@ -1352,6 +1494,10 @@ async function postAuthLanding(){
     if(gsc==='connected')toast('Google Search Console connected');
     if(gsc==='error')toast(params.get('message')||'Google Search Console connection failed');
     history.replaceState({},'',window.location.pathname);
+    return;
+  }
+  if(window.location.hash==='#growthDashboard'){
+    await openPage('growthDashboard');
     return;
   }
   await loadOverview();
