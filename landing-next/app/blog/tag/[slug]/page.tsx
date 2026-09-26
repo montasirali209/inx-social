@@ -5,7 +5,7 @@ import { IntegrationPending } from "../../components/IntegrationPending";
 import { getBlogClient, getSiteUrl } from "../../lib/blog-client";
 import type { BlogArticleSummary } from "../../types";
 
-export const revalidate = 86400;
+export const revalidate = 300;
 
 function labelFromSlug(slug: string) {
   return decodeURIComponent(slug)
