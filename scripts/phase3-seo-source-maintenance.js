@@ -48,12 +48,27 @@ function expectedRobots() {
   ].join('\n');
 }
 
-function expectedSitemap(slugs) {
+function existingLastmods(source) {
+  const map = new Map();
+  for (const match of String(source || '').matchAll(/<url>\s*<loc>https:\/\/www\.inxsocial\.co\.uk([^<]*)<\/loc>\s*<lastmod>(\d{4}-\d{2}-\d{2})<\/lastmod>\s*<\/url>/g)) {
+    map.set(match[1] || '/', match[2]);
+  }
+  return map;
+}
+
+function expectedSitemap(slugs, currentSource) {
   const urls = ['/', ...slugs.map(slug => '/' + slug), '/blog'];
+  const lastmods = existingLastmods(currentSource);
+  const today = new Date().toISOString().slice(0, 10);
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    ...urls.map(url => '  <url><loc>https://www.inxsocial.co.uk' + url + '</loc></url>'),
+    ...urls.map(url => [
+      '  <url>',
+      '    <loc>https://www.inxsocial.co.uk' + url + '</loc>',
+      '    <lastmod>' + (lastmods.get(url) || today) + '</lastmod>',
+      '  </url>'
+    ].join('\n')),
     '</urlset>',
     ''
   ].join('\n');
@@ -87,7 +102,7 @@ function main() {
   const slugs = extractSeoSlugs(seoSource);
   const structuralIssues = auditSeoDefinitions(seoSource, slugs);
   const robots = expectedRobots();
-  const sitemap = expectedSitemap(slugs);
+  const sitemap = expectedSitemap(slugs, read(files.backendSitemap));
 
   const changed = [];
   if (writeIfChanged(files.backendRobots, robots)) changed.push(path.relative(root, files.backendRobots));
