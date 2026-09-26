@@ -495,6 +495,9 @@ async function updateAction(id, action, note = '') {
   } else if (action === 'done') {
     item.status = 'DONE';
   } else if (action === 'apply') {
+    if ([ACTION_TYPES.OPTIMIZE_CTR_META, ACTION_TYPES.REFRESH_CONTENT].includes(item.type) && item.status !== 'APPROVED') {
+      throw Object.assign(new Error('Approve this live-content optimisation before applying it.'), { status: 409 });
+    }
     if (item.type === ACTION_TYPES.OPTIMIZE_CTR_META && item.articleId) {
       if (!item.proposal?.suggestedTitle || !item.proposal?.suggestedMeta) {
         throw Object.assign(new Error('No Sol metadata proposal is available for this action yet.'), { status: 409 });
