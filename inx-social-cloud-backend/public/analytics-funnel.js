@@ -5,10 +5,52 @@
   const nativeFetch = window.fetch.bind(window);
   const CONSENT_KEY = 'inxsocial_analytics_consent_v1';
   const TOKEN_KEYS = ['inx-social-cloud-token', 'inxToken'];
+  const ACQUISITION_KEY = 'inxsocial_first_touch_v1';
 
   function hasAnalyticsConsent() {
     try { return localStorage.getItem(CONSENT_KEY) === 'accepted'; } catch { return false; }
   }
+
+  function cleanAcquisitionValue(value, max = 140) {
+    return String(value || '').trim().slice(0, max);
+  }
+
+  function captureAcquisition() {
+    if (!hasAnalyticsConsent()) return null;
+    try {
+      const existing = JSON.parse(localStorage.getItem(ACQUISITION_KEY) || 'null');
+      if (existing && typeof existing === 'object') return existing;
+    } catch {}
+
+    const query = new URLSearchParams(location.search);
+    let referrerHost = '';
+    try { referrerHost = document.referrer ? new URL(document.referrer).hostname : ''; } catch {}
+    if (referrerHost === location.hostname) referrerHost = '';
+
+    const snapshot = {
+      landingPath: cleanAcquisitionValue(location.pathname + location.search, 500),
+      referrerHost: cleanAcquisitionValue(referrerHost, 180),
+      utmSource: cleanAcquisitionValue(query.get('utm_source'), 100),
+      utmMedium: cleanAcquisitionValue(query.get('utm_medium'), 100),
+      utmCampaign: cleanAcquisitionValue(query.get('utm_campaign'), 140),
+      utmContent: cleanAcquisitionValue(query.get('utm_content'), 140),
+      utmTerm: cleanAcquisitionValue(query.get('utm_term'), 140)
+    };
+    try { localStorage.setItem(ACQUISITION_KEY, JSON.stringify(snapshot)); } catch {}
+    return snapshot;
+  }
+
+  function acquisitionSnapshot() {
+    if (!hasAnalyticsConsent()) return null;
+    try {
+      return JSON.parse(localStorage.getItem(ACQUISITION_KEY) || 'null') || captureAcquisition();
+    } catch {
+      return captureAcquisition();
+    }
+  }
+
+  window.inxAcquisitionSnapshot = acquisitionSnapshot;
+  captureAcquisition();
 
   function storedAuthToken() {
     try {
@@ -117,9 +159,12 @@
         return;
       }
       const plan = String(data?.plan || '').toUpperCase();
+      const amount = Number(data?.amountTotal || 0);
+      const currency = String(data?.currency || 'GBP').toUpperCase();
       trackOnce(`inxsocial_ga_purchase_${sessionId}`, 'purchase', {
         transaction_id: sessionId,
-        ...(plan ? { plan } : {})
+        ...(plan ? { plan } : {}),
+        ...(Number.isFinite(amount) && amount > 0 ? { value: amount, currency } : {})
       });
     } catch {
       if (attempt < 8) setTimeout(() => void verifyPurchaseReturn(attempt + 1), 1500);
