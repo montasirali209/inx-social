@@ -177,7 +177,7 @@ async function loadSlow() {
   ] = await Promise.allSettled([
     googleAnalytics.performance(7),
     attribution.summary(30),
-    googleSearchConsole.performance(28),
+    googleSearchConsole.growthPerformance(28),
     autopilot.status(),
     seo.status(),
     authority.status(),
