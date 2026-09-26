@@ -13,6 +13,8 @@ const objectStorage = require('./mediaObjectStorageService');
 const ARTICLE_PREFIX = 'growth_content_article_v2:';
 const SLUG_PREFIX = 'growth_content_slug_v2:';
 const ENGINE_SETTING_KEY = 'growth_content_engine_v2';
+const LEGACY_IMPORT_SETTING_KEY = 'growth_content_legacy_babylove_import_v1';
+const BABYLOVE_API_BASE = 'https://api.babylovegrowth.ai/api/integrations/v1';
 const SITE_URL = 'https://www.inxsocial.co.uk';
 
 const STATUS = Object.freeze({
@@ -33,6 +35,52 @@ function publicError(message, status = 400, code = null) {
 function safeJson(value, fallback = null) {
   if (!value) return fallback;
   try { return JSON.parse(value); } catch (_) { return fallback; }
+}
+
+function parseStructuredJson(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const unfenced = raw.replace(/^\`\`\`(?:json)?\s*/i, '').replace(/\s*\`\`\`$/i, '').trim();
+  try { return JSON.parse(unfenced); } catch (_) {}
+  const start = unfenced.indexOf('{');
+  const end = unfenced.lastIndexOf('}');
+  if (start >= 0 && end > start) {
+    try { return JSON.parse(unfenced.slice(start, end + 1)); } catch (_) {}
+  }
+  return null;
+}
+
+function responseDiagnostics(raw) {
+  return {
+    status: raw?.status || null,
+    incompleteReason: raw?.incomplete_details?.reason || null,
+    outputTypes: (Array.isArray(raw?.output) ? raw.output : []).map(item => item?.type).filter(Boolean)
+  };
+}
+
+function sanitizeImportedHtml(value) {
+  return String(value || '')
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, '')
+    .replace(/<object\b[^>]*>[\s\S]*?<\/object>/gi, '')
+    .replace(/<embed\b[^>]*>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, '')
+    .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '');
+}
+
+function versionedContentImageUrl(article) {
+  const value = String(article?.featured_image_url || '');
+  if (!value.startsWith('/content-media/')) return value || null;
+  const clean = value.split('?')[0];
+  const stamp = new Date(article?.featured_image_storage?.generatedAt || article?.updated_at || Date.now()).getTime();
+  return clean + '/' + (Number.isFinite(stamp) ? stamp : Date.now());
+}
+
+function absoluteSiteAsset(value) {
+  const url = String(value || '').trim();
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  return SITE_URL + (url.startsWith('/') ? url : '/' + url);
 }
 
 function nowIso() {
@@ -340,6 +388,36 @@ async function responsesRequest(payload) {
   return response.data;
 }
 
+async function structuredResponse(payload, schemaName, errorCode) {
+  const raws = [];
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const request = {
+      ...payload,
+      max_output_tokens: attempt === 1 ? Number(payload.max_output_tokens || 4000) : Math.max(Number(payload.max_output_tokens || 4000) + 2000, 5500)
+    };
+    if (attempt > 1) {
+      request.instructions = String(request.instructions || '') + ' This is a retry because the previous response could not be parsed. Return one complete JSON object only, with no markdown fences, commentary or trailing text.';
+    }
+
+    const raw = await responsesRequest(request);
+    raws.push(raw);
+    const parsed = parseStructuredJson(webResearch.extractResponseText(raw));
+    if (parsed && typeof parsed === 'object') return { parsed, raw, raws, attempt };
+
+    console.warn('[growth-content] structured response parse failed', {
+      schemaName,
+      attempt,
+      ...responseDiagnostics(raw)
+    });
+  }
+
+  throw publicError(
+    'Content AI returned an invalid structured result after an automatic retry.',
+    502,
+    errorCode
+  );
+}
+
 async function researchTopic(input) {
   const topic = normalizeSpace(input.topic);
   const currentPage = safeExternalUrl(input.existingPage) || safeInternalPath(input.existingPage);
@@ -374,10 +452,10 @@ async function researchTopic(input) {
   };
   if (/^gpt-5(?:\.|-)/i.test(env.webResearch.model)) request.reasoning = { effort: 'low' };
 
-  const raw = await responsesRequest(request);
-  const parsed = safeJson(webResearch.extractResponseText(raw), null);
-  if (!parsed) throw publicError('Content research returned an invalid result.', 502, 'CONTENT_RESEARCH_INVALID');
-  const sources = webResearch.extractResponseSources(raw)
+  const result = await structuredResponse(request, 'inx_content_research', 'CONTENT_RESEARCH_INVALID');
+  const raw = result.raw;
+  const parsed = result.parsed;
+  const sources = result.raws.flatMap(item => webResearch.extractResponseSources(item))
     .map(source => ({
       title: normalizeSpace(source.title || source.url).slice(0, 240),
       url: safeExternalUrl(source.url)
@@ -430,10 +508,8 @@ async function writeArticle(input, research) {
   };
   if (/^gpt-5(?:\.|-)/i.test(env.webResearch.model)) request.reasoning = { effort: 'low' };
 
-  const raw = await responsesRequest(request);
-  const parsed = safeJson(webResearch.extractResponseText(raw), null);
-  if (!parsed) throw publicError('Article generation returned an invalid result.', 502, 'CONTENT_DRAFT_INVALID');
-  return parsed;
+  const result = await structuredResponse(request, 'inx_content_article', 'CONTENT_DRAFT_INVALID');
+  return result.parsed;
 }
 
 function qualityReview(article) {
@@ -479,7 +555,7 @@ function articleSchemaObjects(article) {
     dateModified: article.updated_at || article.created_at,
     author: { '@type': 'Organization', name: 'INXSocial', url: SITE_URL },
     publisher: { '@type': 'Organization', name: 'INXSocial', url: SITE_URL },
-    image: article.featured_image_url ? [SITE_URL + article.featured_image_url] : undefined,
+    image: article.featured_image_url ? [absoluteSiteAsset(versionedContentImageUrl(article))] : undefined,
     keywords: (article.keywords || []).join(', ')
   };
 
@@ -504,7 +580,7 @@ function publicArticle(article) {
     title: article.title,
     excerpt: article.excerpt,
     meta_description: article.meta_description,
-    featured_image_url: article.featured_image_url || null,
+    featured_image_url: versionedContentImageUrl(article),
     keywords: article.keywords || [],
     language: 'en-GB',
     published_at: article.published_at || null,
@@ -515,8 +591,8 @@ function publicArticle(article) {
     sources: article.sources || [],
     internalLinks: article.internalLinks || [],
     faq: article.faq || [],
-    jsonLd: schemas.jsonLd,
-    faqJsonLd: schemas.faqJsonLd
+    jsonLd: article.imported_json_ld || schemas.jsonLd,
+    faqJsonLd: article.imported_faq_json_ld || schemas.faqJsonLd
   };
 }
 
@@ -524,7 +600,9 @@ async function saveArticle(article, previousSlug = null) {
   const prepared = {
     ...article,
     updated_at: nowIso(),
-    content_html: markdownToSafeHtml(article.content_markdown),
+    content_html: article.content_source === 'BABYLOVEGROWTH_IMPORTED' && article.content_html
+      ? sanitizeImportedHtml(article.content_html)
+      : markdownToSafeHtml(article.content_markdown),
     keywords: uniqueStrings(article.keywords, 8, 80),
     faq: (Array.isArray(article.faq) ? article.faq : []).slice(0, 6).map(item => ({
       question: normalizeSpace(item.question).slice(0, 220),
@@ -706,7 +784,7 @@ async function generateFeaturedImage(id) {
   const previousStorage = article.featured_image_storage || null;
   const saved = await saveArticle({
     ...article,
-    featured_image_url: '/content-media/' + encodeURIComponent(article.id) + '?v=' + encodeURIComponent(generatedAt),
+    featured_image_url: '/content-media/' + encodeURIComponent(article.id) + '/' + Date.parse(generatedAt),
     featured_image_storage: {
       provider: stored.storageProvider,
       key: stored.storageKey,
@@ -770,6 +848,102 @@ async function publicSitemapEntries() {
     updated_at: article.updated_at,
     created_at: article.created_at
   }));
+}
+
+async function importLegacyBabyLoveArticles(options = {}) {
+  const apiKey = String(process.env.BABYLOVEGROWTH_BLOG_API_KEY || '').trim();
+  if (!apiKey) return { configured: false, imported: 0, skipped: true, reason: 'missing_key' };
+
+  const previous = await readSetting(LEGACY_IMPORT_SETTING_KEY);
+  const maxAgeMs = 12 * 60 * 60 * 1000;
+  if (!options.force && previous?.completedAt && Date.now() - new Date(previous.completedAt).getTime() < maxAgeMs) {
+    return { configured: true, imported: Number(previous.imported || 0), skipped: true, reason: 'recently_synced' };
+  }
+
+  const headers = { 'X-API-Key': apiKey, 'Content-Type': 'application/json' };
+  let offset = 0;
+  const limit = 50;
+  let imported = 0;
+  let discovered = 0;
+
+  while (offset < 500) {
+    const response = await axios.get(BABYLOVE_API_BASE + '/articles', {
+      params: { limit, offset },
+      headers,
+      timeout: 30000
+    });
+    const batch = Array.isArray(response.data) ? response.data : [];
+    if (!batch.length) break;
+    discovered += batch.length;
+
+    for (const summary of batch) {
+      const legacyId = summary?.id;
+      if (legacyId == null) continue;
+      const detailResponse = await axios.get(BABYLOVE_API_BASE + '/articles/' + encodeURIComponent(String(legacyId)), {
+        headers,
+        timeout: 30000
+      });
+      const detail = detailResponse.data || {};
+      const slug = slugify(detail.slug || summary.slug || detail.title || summary.title || ('legacy-' + legacyId));
+      const id = 'blg-' + String(legacyId);
+      const existing = await getArticleBySlug(slug, { publishedOnly: false }).catch(() => null);
+      if (existing && existing.content_source !== 'BABYLOVEGROWTH_IMPORTED') continue;
+
+      const createdAt = detail.created_at || summary.created_at || nowIso();
+      const article = {
+        id,
+        slug,
+        status: STATUS.PUBLISHED,
+        content_source: 'BABYLOVEGROWTH_IMPORTED',
+        title: normalizeSpace(detail.title || summary.title || slug).slice(0, 180),
+        excerpt: normalizeSpace(detail.excerpt || summary.excerpt || detail.meta_description || summary.meta_description || '').slice(0, 500),
+        meta_description: normalizeSpace(detail.meta_description || summary.meta_description || '').slice(0, 300),
+        keywords: uniqueStrings(detail.keywords || summary.keywords || [detail.seedKeyword || summary.seedKeyword].filter(Boolean), 8, 80),
+        content_markdown: String(detail.content_markdown || '').trim(),
+        content_html: sanitizeImportedHtml(detail.content_html || ''),
+        faq: [],
+        sources: [],
+        internalLinks: [],
+        featured_image_prompt: '',
+        featured_image_url: safeExternalUrl(detail.hero_image_url || summary.hero_image_url) || null,
+        featured_image_storage: null,
+        imported_json_ld: detail.jsonLd || null,
+        imported_faq_json_ld: detail.faqJsonLd || null,
+        research_brief: null,
+        generation: {
+          importedFrom: 'BabyLoveGrowth',
+          legacyId: String(legacyId),
+          importedAt: nowIso()
+        },
+        created_at: createdAt,
+        updated_at: detail.updated_at || createdAt,
+        approved_at: createdAt,
+        published_at: detail.published_at || createdAt,
+        archived_at: null
+      };
+
+      await saveArticle(article, existing?.slug || null);
+      imported += 1;
+    }
+
+    if (batch.length < limit) break;
+    offset += limit;
+  }
+
+  const result = {
+    completedAt: nowIso(),
+    imported,
+    discovered,
+    source: 'BabyLoveGrowth API',
+    selfHosted: true
+  };
+  await upsertSetting(
+    LEGACY_IMPORT_SETTING_KEY,
+    result,
+    'One-time/periodic migration status for legacy BabyLoveGrowth articles copied into INXSocial storage.'
+  );
+  console.info('[growth-content] legacy BabyLoveGrowth articles synced into self-hosted storage', result);
+  return { configured: true, ...result, skipped: false };
 }
 
 async function overview() {
@@ -841,5 +1015,9 @@ module.exports = {
   imageBuffer,
   publicArticles,
   publicArticleBySlug,
-  publicSitemapEntries
+  publicSitemapEntries,
+  importLegacyBabyLoveArticles,
+  parseStructuredJson,
+  structuredResponse,
+  versionedContentImageUrl
 };

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { IntegrationPending } from "../components/IntegrationPending";
@@ -149,12 +148,11 @@ export default async function BlogArticlePage({
 
         {article.featured_image_url && (
           <div className="inx-blog-article-image">
-            <Image
+            <img
               src={article.featured_image_url}
               alt={article.title}
-              fill
-              priority
-              sizes="(max-width: 900px) 100vw, 920px"
+              loading="eager"
+              fetchPriority="high"
             />
           </div>
         )}

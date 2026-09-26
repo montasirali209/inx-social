@@ -6,12 +6,12 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('Growth Autopilot is enabled by default with daily intelligence and 48-hour publishing', () => {
+test('Growth Autopilot is enabled by default with daily intelligence and 24-hour publishing', () => {
   const service = read('src/services/growthAutopilotService.js');
 
   assert.match(service, /enabled: true/);
   assert.match(service, /intelligenceEveryHours: 24/);
-  assert.match(service, /publishEveryHours: 48/);
+  assert.match(service, /publishEveryHours: 24/);
   assert.match(service, /minQualityScore: 75/);
   assert.match(service, /autoGenerateImage: true/);
   assert.match(service, /autoPublish: true/);
@@ -29,6 +29,8 @@ test('Growth Autopilot automatically chains intelligence, opportunity selection,
   assert.match(service, /growthContent\.generateFeaturedImage/);
   assert.match(service, /growthContent\.approveArticle/);
   assert.match(service, /growthContent\.publishArticle/);
+  assert.match(service, /growthStrategy\.plan/);
+  assert.match(service, /growthStrategy\.reviewDraft/);
   assert.match(service, /nextPublishAt = addHours\(publishedAt, config\.publishEveryHours\)/);
 });
 
