@@ -21,7 +21,7 @@ const DEFAULT_CONFIG = Object.freeze({
   configVersion: 3,
   publishEveryHours: 24,
   authorityEveryHours: 6,
-  authorityAutoEmail: false,
+  authorityAutoEmail: true,
   opportunityWindowDays: 28,
   visibilityPromptCount: 5,
   minQualityScore: 75,
@@ -111,7 +111,7 @@ async function ensureSettings() {
   const needsV3Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 3;
   const config = normalizeConfig({
     ...(rawConfig || DEFAULT_CONFIG),
-    ...(needsV3Migration ? { configVersion: 3, publishEveryHours: 24, authorityEveryHours: 6, authorityAutoEmail: false } : {})
+    ...(needsV3Migration ? { configVersion: 3, publishEveryHours: 24, authorityEveryHours: 6, authorityAutoEmail: true } : {})
   });
 
   await prisma.appSetting.upsert({
