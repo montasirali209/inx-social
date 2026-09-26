@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=16">
+  <link rel="stylesheet" href="/admin.css?v=17">
   <link rel="stylesheet" href="/admin-security.css?v=1">
 </head>
 <body>
@@ -372,6 +372,25 @@
         <div class="growth-authority-guardrail">Community posts are never auto-submitted without a compliant configured posting connector. Email outreach is capped, requires approval, and can send only one follow-up.</div>
       </section>
 
+      <section class="panel growth-optimization-panel">
+        <header class="growth-optimization-head">
+          <div><span class="kicker">Phase 5 · Final growth loop</span><h2>Optimisation + Revenue Loop</h2><p>Closes the loop from search and AI discovery to registrations, trials and paid customers. It measures GSC, GA4 and Stripe-backed outcomes, detects decay, weak CTR, cannibalisation and conversion friction, then prioritises refresh, CRO, authority and distribution work by business impact.</p></div>
+          <div class="growth-optimization-actions"><span class="status-chip" id="growthOptimizationStatus">Waiting for first run</span><button class="secondary" id="growthOptimizationRunBtn" type="button">Run final loop now</button></div>
+        </header>
+        <div class="growth-optimization-kpis" id="growthOptimizationKpis">
+          <article><span>Attributed funnel</span><b>—</b><small>Signup → trial → paid</small></article>
+          <article><span>Paid customers</span><b>—</b><small>Active Stripe plans</small></article>
+          <article><span>Projected MRR</span><b>—</b><small>Active local paid plans</small></article>
+          <article><span>High priority</span><b>—</b><small>Measured actions to execute</small></article>
+        </div>
+        <div class="growth-optimization-meta"><span id="growthOptimizationUpdated">No optimisation run yet.</span><span id="growthOptimizationProvider">GSC, GA4, attribution and revenue status will appear here.</span></div>
+        <div class="growth-optimization-grid">
+          <article class="growth-optimization-card"><div class="growth-mini-head"><b>Revenue-weighted action queue</b><small>Highest impact first</small></div><div id="growthOptimizationQueue"><div class="growth-empty">Phase 5 will build the final optimisation queue automatically.</div></div></article>
+          <article class="growth-optimization-card"><div class="growth-mini-head"><b>Acquisition → revenue</b><small>First-touch attribution</small></div><div id="growthOptimizationSources"><div class="growth-empty">Attribution will populate as new visitors consent and convert.</div></div></article>
+        </div>
+        <div class="growth-optimization-guardrail">Safe technical/internal-link work can run through the existing Phase 3 engine. Published article refreshes and CTR metadata changes require approval before applying. URL consolidation, redirects, pricing, product claims and major conversion changes remain review-gated so the autopilot cannot silently damage a working funnel.</div>
+      </section>
+
       <details class="growth-advanced-details">
         <summary><span><b>Advanced diagnostics &amp; manual controls</b><small>Normally you do not need to use anything below. Autopilot runs these tasks for you.</small></span><span aria-hidden="true">⌄</span></summary>
         <div class="growth-advanced-body">
@@ -657,6 +676,6 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=15" defer></script>
+<script src="/admin.js?v=16" defer></script>
 </body>
 </html>
