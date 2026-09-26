@@ -513,24 +513,24 @@ function renderGrowthOpportunities(data){
     ['Critical',summary.critical??'—','Score 85+'],
     ['AI visibility gaps',summary.aiVisibilityGaps??'—','Missing mentions/citations'],
     ['Search-backed',summary.searchBacked??'—','Real Search Console demand']
-  ].map(([label,value,note])=>\`<article><span>\${label}</span><b>\${value}</b><small>\${note}</small></article>\`).join('');
+  ].map(([label,value,note])=>`<article><span>${label}</span><b>${value}</b><small>${note}</small></article>`).join('');
   const warnings=data?.warnings||[];
   $('growthOpportunityWarnings').hidden=!warnings.length;
-  $('growthOpportunityWarnings').innerHTML=warnings.map(item=>\`<div><b>\${esc(item.source)}</b><span>\${esc(item.message)}</span></div>\`).join('');
+  $('growthOpportunityWarnings').innerHTML=warnings.map(item=>`<div><b>${esc(item.source)}</b><span>${esc(item.message)}</span></div>`).join('');
   const competitors=data?.competitors||[];
   const competitorMax=Math.max(...competitors.map(item=>Number(item.mentions||0)),1);
-  $('growthCompetitorLeaderboard').innerHTML=competitors.length?competitors.slice(0,10).map(item=>\`<div class="growth-breakdown-row"><div><b>\${esc(item.name)}</b><small>\${esc((item.providers||[]).join(', ')||'AI provider')}</small></div><div class="growth-mini-track"><i style="width:\${Math.max(4,Number(item.mentions||0)*100/competitorMax)}%"></i></div><strong>\${Number(item.mentions||0)}</strong></div>\`).join(''):'<div class="growth-empty">Run AI visibility scans to build competitor evidence.</div>';
+  $('growthCompetitorLeaderboard').innerHTML=competitors.length?competitors.slice(0,10).map(item=>`<div class="growth-breakdown-row"><div><b>${esc(item.name)}</b><small>${esc((item.providers||[]).join(', ')||'AI provider')}</small></div><div class="growth-mini-track"><i style="width:${Math.max(4,Number(item.mentions||0)*100/competitorMax)}%"></i></div><strong>${Number(item.mentions||0)}</strong></div>`).join(''):'<div class="growth-empty">Run AI visibility scans to build competitor evidence.</div>';
   const sources=data?.sourceDomains||[];
   const sourceMax=Math.max(...sources.map(item=>Number(item.citations||0)),1);
-  $('growthSourceLeaderboard').innerHTML=sources.length?sources.slice(0,10).map(item=>\`<div class="growth-breakdown-row"><div><b>\${esc(item.domain)}</b><small>\${esc((item.providers||[]).join(', ')||'AI provider')}</small></div><div class="growth-mini-track"><i style="width:\${Math.max(4,Number(item.citations||0)*100/sourceMax)}%"></i></div><strong>\${Number(item.citations||0)}</strong></div>\`).join(''):'<div class="growth-empty">Run AI visibility scans to build citation-source evidence.</div>';
+  $('growthSourceLeaderboard').innerHTML=sources.length?sources.slice(0,10).map(item=>`<div class="growth-breakdown-row"><div><b>${esc(item.domain)}</b><small>${esc((item.providers||[]).join(', ')||'AI provider')}</small></div><div class="growth-mini-track"><i style="width:${Math.max(4,Number(item.citations||0)*100/sourceMax)}%"></i></div><strong>${Number(item.citations||0)}</strong></div>`).join(''):'<div class="growth-empty">Run AI visibility scans to build citation-source evidence.</div>';
   $('growthOpportunityList').innerHTML=(data?.opportunities||[]).map(item=>{
     const ai=item.ai||[];
     const mentions=ai.filter(signal=>signal.mentioned).length;
     const citations=ai.filter(signal=>signal.cited).length;
-    const search=item.search?\`<span>GSC: \${formatNumber(item.search.impressions)} impressions · pos \${Number(item.search.position||0).toFixed(1)} · \${growthPercent(item.search.ctr)} CTR</span>\`:'';
-    const page=item.existingPage?\`<a href="\${esc(item.existingPage)}" target="_blank" rel="noopener">Existing page ↗</a>\`:'';
-    const reddit=item.reddit?.length?\`<span>\${item.reddit.length} matching Reddit discussion\${item.reddit.length===1?'':'s'}</span>\`:'';
-    return \`<article class="growth-opportunity-card \${growthOpportunityPriority(item.score)}"><div class="growth-opportunity-score"><b>\${Number(item.score||0)}</b><span>score</span></div><div class="growth-opportunity-body"><div class="growth-opportunity-title"><div><span class="growth-opportunity-type">\${esc(String(item.intent||item.type||'opportunity').replaceAll('_',' '))}</span><h3>\${esc(item.topic)}</h3></div><strong>\${esc(item.action?.label||'Review')}</strong></div><div class="growth-opportunity-evidence">\${search}<span>AI: \${mentions}/\${ai.length||0} mention · \${citations}/\${ai.length||0} cite</span>\${reddit}\${page}</div><p>\${esc(item.action?.rationale||'Review the available evidence and choose the next growth action.')}</p></div></article>\`;
+    const search=item.search?`<span>GSC: ${formatNumber(item.search.impressions)} impressions · pos ${Number(item.search.position||0).toFixed(1)} · ${growthPercent(item.search.ctr)} CTR</span>`:'';
+    const page=item.existingPage?`<a href="${esc(item.existingPage)}" target="_blank" rel="noopener">Existing page ↗</a>`:'';
+    const reddit=item.reddit?.length?`<span>${item.reddit.length} matching Reddit discussion${item.reddit.length===1?'':'s'}</span>`:'';
+    return `<article class="growth-opportunity-card ${growthOpportunityPriority(item.score)}"><div class="growth-opportunity-score"><b>${Number(item.score||0)}</b><span>score</span></div><div class="growth-opportunity-body"><div class="growth-opportunity-title"><div><span class="growth-opportunity-type">${esc(String(item.intent||item.type||'opportunity').replaceAll('_',' '))}</span><h3>${esc(item.topic)}</h3></div><strong>${esc(item.action?.label||'Review')}</strong></div><div class="growth-opportunity-evidence">${search}<span>AI: ${mentions}/${ai.length||0} mention · ${citations}/${ai.length||0} cite</span>${reddit}${page}</div><p>${esc(item.action?.rationale||'Review the available evidence and choose the next growth action.')}</p></div></article>`;
   }).join('')||'<div class="growth-empty">No opportunity map has been built yet.</div>';
 }
 async function loadGrowthOpportunityStatus(){
@@ -612,11 +612,11 @@ function renderGaStatus(data){
   const superAdmin=state.user?.role==='SUPER_ADMIN';
   const ready=Boolean(data.analyticsScopeGranted&&data.selectedProperty);
   $('growthGaStatus').textContent=!data.oauthConfigured?'OAuth setup required':ready?'Connected':data.reconnectRequired?'Analytics permission required':'Property required';
-  $('growthGaStatus').className=\`status-chip \${ready?'gsc-connected':data.lastError?'gsc-error':''}\`;
+  $('growthGaStatus').className=`status-chip ${ready?'gsc-connected':data.lastError?'gsc-error':''}`;
   const select=$('growthGaProperty');
   const properties=[...(data.properties||[])];
   if(data.selectedProperty&&!properties.some(item=>item.propertyId===data.selectedProperty.propertyId))properties.unshift(data.selectedProperty);
-  select.innerHTML=properties.length?properties.map(item=>\`<option value="\${esc(item.propertyId)}" \${data.selectedProperty?.propertyId===item.propertyId?'selected':''}>\${esc(item.displayName||'GA4')} · \${esc(item.propertyId)}</option>\`).join(''):'<option value="">No GA4 property discovered</option>';
+  select.innerHTML=properties.length?properties.map(item=>`<option value="${esc(item.propertyId)}" ${data.selectedProperty?.propertyId===item.propertyId?'selected':''}>${esc(item.displayName||'GA4')} · ${esc(item.propertyId)}</option>`).join(''):'<option value="">No GA4 property discovered</option>';
   select.disabled=!superAdmin||!data.analyticsScopeGranted||!properties.length||!data.adminApiAvailable;
   $('growthGaReconnectBtn').hidden=!superAdmin;
   $('growthGaReconnectBtn').disabled=!data.oauthConfigured||!superAdmin;
@@ -628,7 +628,7 @@ function renderGaStatus(data){
   else if(data.reconnectRequired)$('growthGaMessage').textContent='Search Console is already connected, but Analytics needs one additional read-only permission. Click Connect Analytics access; after approval you will return to Growth Intelligence.';
   else if(data.apiEnablementRequired)$('growthGaMessage').textContent='Google access is connected, but the Google Analytics Admin API is disabled for the Google Cloud project. Enable that API, or enter the numeric GA4 Property ID below. Search Console property and GA4 property are separate.';
   else if(data.lastError)$('growthGaMessage').textContent=data.lastError;
-  else if(ready)$('growthGaMessage').textContent=\`Reading GA4 property \${data.selectedProperty.displayName||''} (\${data.selectedProperty.propertyId}). Realtime refresh runs every 30 seconds while this page is open.\`;
+  else if(ready)$('growthGaMessage').textContent=`Reading GA4 property ${data.selectedProperty.displayName||''} (${data.selectedProperty.propertyId}). Realtime refresh runs every 30 seconds while this page is open.`;
   else if(data.analyticsScopeGranted)$('growthGaMessage').textContent='Choose the GA4 property that belongs to INXSocial. If automatic discovery is unavailable, use the numeric Property ID below.';
   else $('growthGaMessage').textContent='Connect Google Analytics read access to enable GA4 reporting.';
   renderGrowthProviders(state.growthIntelligence||{});
