@@ -366,6 +366,32 @@ async function sendAccessRestricted(user) {
   });
 }
 
+function escapeAuthorityHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+async function sendAuthorityOutreach({ to, subject, body }) {
+  const cleanTo = String(to || '').trim();
+  const cleanSubject = String(subject || '').trim().slice(0, 180);
+  const cleanBody = String(body || '').trim().slice(0, 5000);
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleanTo)) throw new Error('A valid authority outreach recipient is required.');
+  if (!cleanSubject || !cleanBody) throw new Error('Authority outreach subject and body are required.');
+  const htmlBody = '<p>' + escapeAuthorityHtml(cleanBody).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+  return send({
+    userId: null,
+    to: cleanTo,
+    type: 'AUTHORITY_OUTREACH',
+    subject: cleanSubject,
+    html: frame(cleanSubject, htmlBody),
+    text: cleanBody
+  });
+}
+
 async function sendTestEmail(to, userId = null) {
   return send({
     userId,
@@ -395,5 +421,6 @@ module.exports = {
   sendCancellationScheduled,
   sendSubscriptionEnded,
   sendAccessRestricted,
+  sendAuthorityOutreach,
   sendTestEmail
 };
