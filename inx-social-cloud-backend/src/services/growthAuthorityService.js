@@ -262,7 +262,7 @@ async function executeApprovedEmails(items,enabled){
       }
       if(['APPROVED','AI_APPROVED'].includes(x.status)&&x.contact?.kind==='EMAIL'&&x.contact?.value&&x.draft?.outreachSubject&&x.draft?.outreachBody&&emailService.isConfigured()){
         await emailService.sendAuthorityOutreach({to:x.contact.value,subject:x.draft.outreachSubject,body:x.draft.outreachBody});
-        sent++;out.push({...x,status:'SENT',executedAt:nowIso(),nextFollowUpAt:new Date(Date.now()+5*24*60*60*1000).toISOString(),outcomeNote:x.aiReview?.decision==='PASS'?'GPT-5.6 Sol reviewed and approved this outreach before automatic delivery.':'Approved outreach sent through the configured INXSocial email provider.'});continue;
+        sent++;out.push({...x,status:'SENT',executedAt:nowIso(),nextFollowUpAt:x.status==='AI_APPROVED'?null:new Date(Date.now()+5*24*60*60*1000).toISOString(),outcomeNote:x.aiReview?.decision==='PASS'?'GPT-5.6 Sol reviewed and approved this outreach before automatic delivery. Automatic follow-up is disabled until inbound reply suppression is connected.':'Approved outreach sent through the configured INXSocial email provider.'});continue;
       }
     }catch(e){out.push({...x,outcomeNote:'Approved outreach send failed: '+String(e.message||e).slice(0,300)});continue;}
     out.push(x);
