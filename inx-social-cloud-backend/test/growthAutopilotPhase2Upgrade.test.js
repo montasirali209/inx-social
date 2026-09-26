@@ -41,12 +41,12 @@ test('Content research retries malformed structured output automatically', () =>
   assert.match(service, /CONTENT_DRAFT_INVALID/);
 });
 
-test('24-hour publishing migration forces the upgraded schedule and clears the old lease', () => {
+test('versioned Growth Autopilot migration preserves the 24-hour publishing schedule and clears the old lease', () => {
   const service = read('src/services/growthAutopilotService.js');
 
-  assert.match(service, /configVersion: 2/);
+  assert.match(service, /configVersion: 3/);
   assert.match(service, /publishEveryHours: 24/);
-  assert.match(service, /needsV2Migration/);
+  assert.match(service, /needsV3Migration/);
   assert.match(service, /state\.running = false/);
   assert.match(service, /state\.nextPublishAt = nowIso\(\)/);
 });
