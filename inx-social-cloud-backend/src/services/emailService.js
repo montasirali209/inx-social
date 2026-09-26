@@ -378,9 +378,16 @@ function escapeAuthorityHtml(value) {
 async function sendAuthorityOutreach({ to, subject, body }) {
   const cleanTo = String(to || '').trim();
   const cleanSubject = String(subject || '').trim().slice(0, 180);
-  const cleanBody = String(body || '').trim().slice(0, 5000);
+  let cleanBody = String(body || '').trim().slice(0, 5000);
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(cleanTo)) throw new Error('A valid authority outreach recipient is required.');
   if (!cleanSubject || !cleanBody) throw new Error('Authority outreach subject and body are required.');
+  if (!/INAXX\s+LTD/i.test(cleanBody)) {
+    cleanBody += '\n\nINXSocial is provided by INAXX LTD.';
+  }
+  if (!/(opt[- ]?out|unsubscribe|no thanks|rather not hear|do not want further contact)/i.test(cleanBody)) {
+    cleanBody += '\nIf this is not relevant, reply “no thanks” and we will not contact you again.';
+  }
+  cleanBody = cleanBody.slice(0, 5000);
   const htmlBody = '<p>' + escapeAuthorityHtml(cleanBody).replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
   return send({
     userId: null,
