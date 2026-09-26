@@ -142,7 +142,8 @@ form.addEventListener('submit',async e=>{
         email,
         password,
         acceptedTerms:true,
-        marketingOptIn:marketingInput.checked
+        marketingOptIn:marketingInput.checked,
+        acquisition:typeof window.inxAcquisitionSnapshot==='function'?(window.inxAcquisitionSnapshot()||undefined):undefined
       })
     });
     const data=await response.json().catch(()=>({}));
