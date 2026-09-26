@@ -47,3 +47,30 @@ test('admin-uploaded system creators flow into the same UGC Browse creators libr
   assert.match(wizard, /const allCreators = overview\.data\?\.avatars \|\| \[\]/);
   assert.match(wizard, /Browse creators/);
 });
+
+
+test('admin creator library supports bulk selection, ZIP download and safe removal from Browse creators', () => {
+  const html = read('public/index.html');
+  const admin = read('public/admin.js');
+  const routes = read('src/routes/adminRoutes.js');
+  const controller = read('src/controllers/adminController.js');
+  const bulkService = read('src/services/ugcAdminAvatarBulkService.js');
+
+  assert.match(html, /ugcAvatarSelectAll/);
+  assert.match(html, /Download selected/);
+  assert.match(html, /Delete selected/);
+  assert.match(html, /Existing campaigns that already reference a creator remain intact/);
+
+  assert.match(admin, /ugcAvatarSelection:new Set\(\)/);
+  assert.match(admin, /data-ugc-avatar-select/);
+  assert.match(admin, /\/api\/admin\/ugc-avatars\/download/);
+  assert.match(admin, /\/api\/admin\/ugc-avatars\/delete/);
+  assert.match(admin, /URL\.createObjectURL\(blob\)/);
+
+  assert.match(routes, /router\.post\('\/ugc-avatars\/download'/);
+  assert.match(routes, /router\.post\('\/ugc-avatars\/delete'/);
+  assert.match(controller, /Content-Type', 'application\/zip/);
+  assert.match(controller, /ADMIN_UGC_AVATAR_BULK_DELETE/);
+  assert.match(bulkService, /SET "status"='DISABLED',"featured"=false/);
+  assert.match(bulkService, /"scope"='SYSTEM' AND "status"='READY'/);
+});
