@@ -103,7 +103,7 @@ async function updateEmailLog(id, data) {
   }
 }
 
-async function send({ userId, to, type, subject, html, text }) {
+async function send({ userId, to, type, subject, html, text, from, replyTo }) {
   const log = await createEmailLog({ userId, to, type, subject });
   const client = getClient();
 
@@ -119,12 +119,12 @@ async function send({ userId, to, type, subject, html, text }) {
 
   try {
     const result = await client.emails.send({
-      from: getEmailFrom(),
+      from: String(from || getEmailFrom()).trim(),
       to: [to],
       subject,
       html,
       text: text || subject,
-      replyTo: getReplyTo()
+      replyTo: String(replyTo || getReplyTo()).trim()
     });
 
     if (result.error) {
@@ -388,7 +388,9 @@ async function sendAuthorityOutreach({ to, subject, body }) {
     type: 'AUTHORITY_OUTREACH',
     subject: cleanSubject,
     html: frame(cleanSubject, htmlBody),
-    text: cleanBody
+    text: cleanBody,
+    from: String(process.env.AUTHORITY_EMAIL_FROM || getEmailFrom()).trim(),
+    replyTo: String(process.env.AUTHORITY_EMAIL_REPLY_TO || 'contact@inaxx.co.uk').trim()
   });
 }
 
