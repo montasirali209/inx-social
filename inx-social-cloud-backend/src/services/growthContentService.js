@@ -704,11 +704,11 @@ function publicArticle(article) {
     sources: normalizeSources(article.sources),
     internalLinks: relatedInternalLinks(article.title, article.keywords),
     faq: article.faq || [],
-    editorial: article.content_source === 'BABYLOVEGROWTH_IMPORTED' ? null : {
+    editorial: Number(article.generation?.editorialVersion || 0) >= 3 ? {
       method: 'AI-assisted editorial workflow with live web research and an independent AI quality review',
       sourceCount: normalizeSources(article.sources).length,
       updatedAt: article.updated_at || article.created_at
-    },
+    } : null,
     jsonLd: article.imported_json_ld || schemas.jsonLd,
     faqJsonLd: article.imported_faq_json_ld || schemas.faqJsonLd
   };
