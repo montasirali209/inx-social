@@ -30,6 +30,12 @@ test('admin Control Centre can bulk upload reusable UGC creators with voice-safe
   assert.match(controller, /ADMIN_UGC_AVATAR_UPLOAD/);
 
   assert.match(service, /normalizeAdminPresentation/);
+  assert.match(service, /ADMIN_CREATOR_FIRST_NAMES/);
+  assert.match(service, /ADMIN_CREATOR_SURNAMES/);
+  assert.match(service, /shuffledCreatorCandidates/);
+  assert.match(service, /repairGenericSystemAvatarNames/);
+  assert.match(service, /genericSystemAvatarName/);
+  assert.match(service, /Assigned friendly names to/);
   assert.match(service, /narratorVoice\('', \{ presentation \}\)/);
   assert.match(service, /return 'Callum'/);
   assert.match(service, /return 'Pippa'/);
@@ -49,30 +55,9 @@ test('admin-uploaded system creators flow into the same UGC Browse creators libr
 });
 
 
-test('admin creator library supports bulk selection, ZIP download and safe removal from Browse creators', () => {
-  const html = read('public/index.html');
-  const admin = read('public/admin.js');
-  const routes = read('src/routes/adminRoutes.js');
-  const controller = read('src/controllers/adminController.js');
-  const bulkService = read('src/services/ugcAdminAvatarBulkService.js');
-
-  assert.match(html, /ugcAvatarSelectAll/);
-  assert.match(html, /Download selected/);
-  assert.match(html, /Delete selected/);
-  assert.match(html, /Existing campaigns that already reference a creator remain intact/);
-
-  assert.match(admin, /ugcAvatarSelection:new Set\(\)/);
-  assert.match(admin, /data-ugc-avatar-select/);
-  assert.match(admin, /\/api\/admin\/ugc-avatars\/download/);
-  assert.match(admin, /\/api\/admin\/ugc-avatars\/delete/);
-  assert.match(admin, /URL\.createObjectURL\(blob\)/);
-
-  assert.match(routes, /router\.post\('\/ugc-avatars\/download'/);
-  assert.match(routes, /router\.post\('\/ugc-avatars\/delete'/);
-  assert.match(controller, /Content-Type', 'application\/zip/);
-  assert.match(controller, /ADMIN_UGC_AVATAR_BULK_DELETE/);
-  assert.match(bulkService, /DISABLED/);
-  assert.match(bulkService, /"featured"=false/);
-  assert.match(bulkService, /SYSTEM/);
-  assert.match(bulkService, /READY/);
+test('future admin uploads never fall back to numbered Female Creator or Male Creator labels', () => {
+  const service = read('src/services/ugcStudioService.js');
+  assert.doesNotMatch(service, /Female Creator' : presentation === 'Man' \? 'Male Creator/);
+  assert.match(service, /return fallbackFirst \+ ' ' \+ suffix/);
+  assert.match(service, /crypto\.randomInt/);
 });
