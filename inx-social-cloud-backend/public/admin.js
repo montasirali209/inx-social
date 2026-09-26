@@ -1,4 +1,4 @@
-const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,ugcAvatars:[],timer:null};
+const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,growthAnalytics:null,growthRealtimeTimer:null,ugcAvatars:[],timer:null};
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const initials=value=>String(value||'IN').trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
@@ -7,12 +7,12 @@ const relative=value=>{if(!value)return'—';const seconds=Math.max(0,Math.floor
 const planOf=user=>user.effectivePlan||user.commercialAccess?.effectivePlan||user.subscriptions?.[0]?.plan||'TRIAL';
 const badge=value=>`<span class="badge ${esc(value)}">${esc(String(value).replaceAll('_',' '))}</span>`;
 function toast(message){const element=$('toast');element.textContent=message;element.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>element.classList.remove('show'),4000)}
-function clearSession(){clearInterval(state.timer);state.user=null;state.users=[];state.administrators=[];$('notificationPanel')?.classList.add('hidden');setLoggedIn(false)}
+function clearSession(){clearInterval(state.timer);clearInterval(state.growthRealtimeTimer);state.growthRealtimeTimer=null;state.user=null;state.users=[];state.administrators=[];$('notificationPanel')?.classList.add('hidden');setLoggedIn(false)}
 async function signOut(){try{await fetch('/api/admin-auth/logout',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'}})}catch{}finally{clearSession()}}
 async function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};const response=await fetch(path,{...options,headers,credentials:'same-origin'});const data=await response.json().catch(()=>({}));if(response.status===401){clearSession();throw new Error(data.error||'Your administrator session has ended.')}if(!response.ok)throw new Error(data.error||`Request failed: ${response.status}`);return data}
 function setLoggedIn(on){$('loginView').classList.toggle('hidden',on);$('dashboardView').classList.toggle('hidden',!on);if(on){const name=state.user?.name||'INXSocial Admin';$('adminName').textContent=name;$('adminEmail').textContent=`${state.user?.email||''}${state.user?.role?` · ${state.user.role.replace('_',' ')}`:''}`;$('adminInitials').textContent=initials(name)}}
 const pageMeta={overview:['Overview','Monitor new customers and service activity.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI & Automation','Manage AI Studio policy, Social Agent allowances and generation infrastructure.'],searchConsole:['Search Console','Monitor Google Search visibility, queries, landing pages and SEO opportunities.'],growthIntelligence:['Growth Intelligence','Track crawler access, AI-search visibility and community opportunities.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
-async function openPage(page){document.querySelectorAll('.nav').forEach(button=>button.classList.toggle('active',button.dataset.page===page));document.querySelectorAll('.page').forEach(section=>section.classList.toggle('hidden',section.id!==`${page}Page`));$('pageTitle').textContent=pageMeta[page][0];$('pageSubtitle').textContent=pageMeta[page][1];if(page==='overview')await loadOverview();if(page==='users')await loadUsers();if(page==='aiAccess')await loadAiAccess();if(page==='searchConsole')await loadSearchConsole();if(page==='growthIntelligence')await loadGrowthIntelligence();if(page==='settings')await loadSettings();if(page==='security')await loadSecurity()}
+async function openPage(page){if(page!=='growthIntelligence'){clearInterval(state.growthRealtimeTimer);state.growthRealtimeTimer=null;}document.querySelectorAll('.nav').forEach(button=>button.classList.toggle('active',button.dataset.page===page));document.querySelectorAll('.page').forEach(section=>section.classList.toggle('hidden',section.id!==`${page}Page`));$('pageTitle').textContent=pageMeta[page][0];$('pageSubtitle').textContent=pageMeta[page][1];if(page==='overview')await loadOverview();if(page==='users')await loadUsers();if(page==='aiAccess')await loadAiAccess();if(page==='searchConsole')await loadSearchConsole();if(page==='growthIntelligence')await loadGrowthIntelligence();if(page==='settings')await loadSettings();if(page==='security')await loadSecurity()}
 document.querySelectorAll('.nav').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.page)));
 document.querySelectorAll('[data-open-page]').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.openPage)));
 $('loginForm').addEventListener('submit',async event=>{event.preventDefault();$('loginError').textContent='';try{const data=await api('/api/admin-auth/login',{method:'POST',body:JSON.stringify({email:$('email').value.trim(),password:$('password').value})});state.user=data.user;setLoggedIn(true);$('password').value='';await postAuthLanding();state.timer=setInterval(()=>loadOverview(true).catch(()=>{}),15000)}catch(error){$('loginError').textContent=error.message}});
@@ -478,19 +478,21 @@ function growthProviderCard(label,configured,note){
 function renderGrowthProviders(data){
   const providers=data.providers||{};
   const gsc=data.searchConsole||{};
+  const ga=state.growthAnalytics?.status||{};
   const cards=[
     growthProviderCard('Search Console',Boolean(gsc.connected),gsc.connected?(gsc.siteUrl||'Connected property'):'Connect from Search Console'),
+    growthProviderCard('Google Analytics',Boolean(ga.analyticsScopeGranted&&ga.selectedProperty),ga.selectedProperty?(`${ga.selectedProperty.displayName||'GA4'} · ${ga.selectedProperty.propertyId}`):(ga.reconnectRequired?'Reconnect Google to grant Analytics read access':'Choose a GA4 property')),
     growthProviderCard(providers.openai?.label||'OpenAI web-search probe',Boolean(providers.openai?.configured),providers.openai?.configured?(providers.openai?.model||'Configured'):providers.openai?.note),
     growthProviderCard(providers.perplexity?.label||'Perplexity',Boolean(providers.perplexity?.configured),providers.perplexity?.configured?(providers.perplexity?.model||'Configured'):providers.perplexity?.note),
     growthProviderCard(providers.claude?.label||'Claude',Boolean(providers.claude?.configured),providers.claude?.configured?(providers.claude?.model||'Configured'):providers.claude?.note)
   ];
   $('growthProviderGrid').innerHTML=cards.join('');
-  const ready=[Boolean(gsc.connected),Boolean(providers.openai?.configured),Boolean(providers.perplexity?.configured),Boolean(providers.claude?.configured)].filter(Boolean).length;
-  $('growthStatusChip').textContent=`${ready}/4 signals ready`;
-  $('growthStatusChip').className=`status-chip ${ready>=2?'gsc-connected':''}`;
-  $('runOpenAiVisibilityBtn').disabled=!providers.openai?.configured||state.user?.role!=='SUPER_ADMIN';
+  const ready=[Boolean(gsc.connected),Boolean(ga.analyticsScopeGranted&&ga.selectedProperty),Boolean(providers.openai?.configured),Boolean(providers.perplexity?.configured),Boolean(providers.claude?.configured)].filter(Boolean).length;
+  $('growthStatusChip').textContent=`${ready}/5 signals ready`;
+  $('growthStatusChip').className=`status-chip ${ready>=3?'gsc-connected':''}`;
   $('discoverRedditBtn').disabled=!providers.reddit?.configured||state.user?.role!=='SUPER_ADMIN';
   $('runGrowthAuditBtn').disabled=state.user?.role!=='SUPER_ADMIN';
+  updateVisibilityControls();
 }
 function renderGrowthPrompts(prompts){
   $('growthPromptList').innerHTML=(prompts||[]).map((prompt,index)=>`<div class="growth-prompt-row"><span>${String(index+1).padStart(2,'0')}</span><p>${esc(prompt)}</p></div>`).join('')||'<div class="growth-empty">No seed prompts configured.</div>';
@@ -503,8 +505,32 @@ function renderGrowthAudit(audit){
   $('growthCheckList').innerHTML=(audit.checks||[]).map(item=>`<div class="growth-check ${item.ok?'ok':'warn'}"><span>${item.ok?'✓':'!'}</span><div><b>${esc(item.label)}</b><small>${esc(item.detail)}</small></div></div>`).join('');
 }
 function growthPercent(value){return `${(Number(value||0)*100).toFixed(0)}%`}
+function growthDelta(value){const number=Number(value||0);const sign=number>0?'+':'';return `${sign}${number.toFixed(1)}%`}
+function growthMoney(value){return Number(value||0).toLocaleString(undefined,{style:'currency',currency:'GBP',maximumFractionDigits:2})}
+function visibilityScanFor(provider){
+  const latest=state.growthIntelligence?.latest||{};
+  if(provider==='perplexity')return latest.perplexityVisibility||null;
+  if(provider==='claude')return latest.claudeVisibility||null;
+  return latest.openaiVisibility||null;
+}
+function renderGrowthVisibilitySummary(){
+  const providers=['openai','perplexity','claude'];
+  const labels={openai:'OpenAI',perplexity:'Perplexity',claude:'Claude'};
+  $('growthProviderVisibilitySummary').innerHTML=providers.map(provider=>{
+    const scan=visibilityScanFor(provider);
+    return `<button type="button" class="growth-visibility-provider-card ${$('growthVisibilityProvider').value===provider?'active':''}" data-growth-provider="${provider}"><span>${labels[provider]}</span><b>${scan?growthPercent(scan.mentionRate):'—'}</b><small>${scan?`${growthPercent(scan.citationRate)} cited · ${Number(scan.successfulPrompts||0)}/${Number(scan.promptsRun||0)} prompts`:'No scan yet'}</small></button>`;
+  }).join('');
+  document.querySelectorAll('[data-growth-provider]').forEach(button=>button.addEventListener('click',()=>{
+    $('growthVisibilityProvider').value=button.dataset.growthProvider;
+    renderSelectedGrowthVisibility();
+  }));
+}
 function renderGrowthVisibility(scan){
-  if(!scan){$('growthVisibilityKpis').innerHTML='<article><span>Mention rate</span><b>—</b><small>No scan yet</small></article><article><span>Citation rate</span><b>—</b><small>No scan yet</small></article><article><span>Successful prompts</span><b>—</b><small>No scan yet</small></article>';$('growthVisibilityResults').innerHTML='<div class="growth-empty">Run a scan to create the first AI visibility baseline.</div>';return}
+  if(!scan){
+    $('growthVisibilityKpis').innerHTML='<article><span>Mention rate</span><b>—</b><small>No scan yet</small></article><article><span>Citation rate</span><b>—</b><small>No scan yet</small></article><article><span>Successful prompts</span><b>—</b><small>No scan yet</small></article>';
+    $('growthVisibilityResults').innerHTML='<div class="growth-empty">Run a scan to create the first AI visibility baseline.</div>';
+    return;
+  }
   $('growthVisibilityKpis').innerHTML=[
     ['Mention rate',growthPercent(scan.mentionRate),'INXSocial named in answer'],
     ['Citation rate',growthPercent(scan.citationRate),'inxsocial.co.uk cited'],
@@ -513,44 +539,200 @@ function renderGrowthVisibility(scan){
   $('growthVisibilityResults').innerHTML=(scan.results||[]).map(item=>{
     if(!item.ok)return `<article class="growth-result error"><div><b>${esc(item.prompt)}</b><small>${esc(item.error||'Probe failed')}</small></div><span>Failed</span></article>`;
     const competitor=(item.competitors||[]).slice(0,4).join(', ');
-    const sources=(item.sources||[]).slice(0,3).map(source=>`<a href="${esc(source.url)}" target="_blank" rel="noopener">${esc(source.title||source.url)}</a>`).join('');
+    const sources=(item.sources||[]).slice(0,4).map(source=>`<a href="${esc(source.url)}" target="_blank" rel="noopener">${esc(source.title||source.url)}</a>`).join('');
     return `<article class="growth-result ${item.inxSocialMentioned?'hit':'miss'}"><div><b>${esc(item.prompt)}</b><small>${esc(item.answerSummary||'No summary returned.')}</small>${competitor?`<em>Competitors: ${esc(competitor)}</em>`:''}${sources?`<div class="growth-source-links">${sources}</div>`:''}</div><span>${item.inxSocialMentioned?(item.inxSocialCited?'Mention + cite':'Mentioned'):'Not mentioned'}</span></article>`;
   }).join('')||'<div class="growth-empty">No visibility results.</div>';
+}
+function updateVisibilityControls(){
+  const provider=$('growthVisibilityProvider')?.value||'openai';
+  const configured=Boolean(state.growthIntelligence?.providers?.[provider]?.configured);
+  if($('runVisibilityBtn'))$('runVisibilityBtn').disabled=!configured||state.user?.role!=='SUPER_ADMIN';
+}
+function renderSelectedGrowthVisibility(){
+  const provider=$('growthVisibilityProvider').value;
+  const scan=visibilityScanFor(provider);
+  const fallback={
+    openai:'OpenAI API web-search benchmark; not an exact reproduction or ranking of the consumer ChatGPT product.',
+    perplexity:'Direct Perplexity Sonar benchmark; consumer answers can vary by time, query and product context.',
+    claude:'Direct Claude API benchmark using Anthropic web search; consumer claude.ai answers can vary.'
+  };
+  $('growthVisibilityDisclaimer').textContent=scan?.disclaimer||fallback[provider];
+  renderGrowthVisibility(scan);
+  renderGrowthVisibilitySummary();
+  updateVisibilityControls();
 }
 function renderGrowthReddit(data){
   const threads=data?.threads||[];
   $('growthRedditList').innerHTML=threads.length?threads.map(item=>`<article class="growth-reddit-row"><div><b>${esc(item.title)}</b><small>${esc(item.subreddit||'Reddit')} · relevance ${Number(item.relevance||0)}%</small><p>${esc(item.reason||'')}</p></div><a href="${esc(item.url)}" target="_blank" rel="noopener">Open thread ↗</a></article>`).join(''):'<div class="growth-empty">No matching public Reddit discussions were returned in the latest scan.</div>';
+}
+function renderGaStatus(data){
+  state.growthAnalytics=state.growthAnalytics||{};
+  state.growthAnalytics.status=data;
+  const superAdmin=state.user?.role==='SUPER_ADMIN';
+  const ready=Boolean(data.analyticsScopeGranted&&data.selectedProperty);
+  $('growthGaStatus').textContent=!data.oauthConfigured?'OAuth setup required':ready?'Connected':data.reconnectRequired?'Reconnect required':'Property required';
+  $('growthGaStatus').className=`status-chip ${ready?'gsc-connected':data.lastError?'gsc-error':''}`;
+  const select=$('growthGaProperty');
+  const properties=data.properties||[];
+  select.innerHTML=properties.length?properties.map(item=>`<option value="${esc(item.propertyId)}" ${data.selectedProperty?.propertyId===item.propertyId?'selected':''}>${esc(item.displayName)} · ${esc(item.propertyId)}</option>`).join(''):'<option value="">No GA4 property available</option>';
+  select.disabled=!superAdmin||!data.analyticsScopeGranted||!properties.length;
+  $('growthGaReconnectBtn').hidden=!superAdmin;
+  $('growthGaReconnectBtn').disabled=!data.oauthConfigured||!superAdmin;
+  $('growthGaRefreshBtn').disabled=!ready;
+  if(!data.oauthConfigured)$('growthGaMessage').textContent='Google OAuth credentials are not configured.';
+  else if(data.reconnectRequired)$('growthGaMessage').textContent='Reconnect Google once to add the Analytics read-only permission. Search Console access stays read-only.';
+  else if(data.lastError)$('growthGaMessage').textContent=data.lastError;
+  else if(ready)$('growthGaMessage').textContent=`Reading GA4 property ${data.selectedProperty.displayName||''} (${data.selectedProperty.propertyId}). Realtime refresh runs every 30 seconds while this page is open.`;
+  else if(data.analyticsScopeGranted)$('growthGaMessage').textContent='Choose the GA4 property that belongs to INXSocial.';
+  else $('growthGaMessage').textContent='Connect Google to enable GA4 reporting.';
+  renderGrowthProviders(state.growthIntelligence||{});
+}
+function renderGrowthBreakdown(target,rows,key,metric){
+  const data=(rows||[]).slice(0,10);
+  if(!data.length){$(target).innerHTML='<div class="growth-empty">No data.</div>';return}
+  const max=Math.max(...data.map(row=>Number(row[metric]||0)),1);
+  $(target).innerHTML=data.map(row=>`<div class="growth-breakdown-row"><div><b>${esc(row[key]||'Unknown')}</b><small>${formatNumber(row[metric]||0)}</small></div><div class="growth-mini-track"><i style="width:${Math.max(3,Number(row[metric]||0)*100/max)}%"></i></div><strong>${formatNumber(row[metric]||0)}</strong></div>`).join('');
+}
+function renderGrowthRealtime(data){
+  state.growthAnalytics=state.growthAnalytics||{};
+  state.growthAnalytics.realtime=data;
+  const s=data.summary||{};
+  $('growthRealtimeKpis').innerHTML=[
+    ['Active users',formatNumber(s.activeUsers),'last 30 minutes'],
+    ['Page views',formatNumber(s.screenPageViews),'last 30 minutes'],
+    ['Events',formatNumber(s.eventCount),'last 30 minutes'],
+    ['Key events',formatNumber(s.keyEvents),'last 30 minutes']
+  ].map(([label,value,note])=>`<article><span>${label}</span><b>${value}</b><small>${note}</small></article>`).join('');
+  $('growthGaRealtimeUpdated').textContent=`Updated ${relative(data.generatedAt)}`;
+  renderGrowthBreakdown('growthLivePages',data.pages,'unifiedScreenName','activeUsers');
+  renderGrowthBreakdown('growthLiveCountries',data.countries,'country','activeUsers');
+  renderGrowthBreakdown('growthLiveDevices',data.devices,'deviceCategory','activeUsers');
+}
+function renderGrowthPerformance(data){
+  state.growthAnalytics=state.growthAnalytics||{};
+  state.growthAnalytics.performance=data;
+  const s=data.summary||{},c=data.comparison||{};
+  $('growthGaPeriodLabel').textContent=`Last ${Number(data.periodDays||28)} days`;
+  $('growthGaHistoricalUpdated').textContent=`Updated ${relative(data.generatedAt)}`;
+  $('growthAnalyticsKpis').innerHTML=[
+    ['Active users',formatNumber(s.activeUsers),growthDelta(c.activeUsersPercent)],
+    ['Sessions',formatNumber(s.sessions),growthDelta(c.sessionsPercent)],
+    ['Page views',formatNumber(s.screenPageViews),growthDelta(c.viewsPercent)],
+    ['Key events',formatNumber(s.keyEvents),growthDelta(c.keyEventsPercent)],
+    ['Revenue',growthMoney(s.totalRevenue),growthDelta(c.revenuePercent)]
+  ].map(([label,value,delta])=>`<article><span>${label}</span><b>${value}</b><small>${delta} vs previous period</small></article>`).join('');
+  renderGrowthBreakdown('growthAnalyticsChannels',data.channels,'sessionDefaultChannelGroup','sessions');
+  const funnel=data.funnel||{};
+  const steps=[
+    ['Sign up',funnel.signUp||0],
+    ['Begin checkout',funnel.beginCheckout||0],
+    ['Purchase',funnel.purchase||0],
+    ['AI generation requested',funnel.aiGenerationRequested||0]
+  ];
+  const max=Math.max(...steps.map(([,value])=>Number(value||0)),1);
+  $('growthAnalyticsFunnel').innerHTML=steps.map(([label,value])=>`<div class="growth-funnel-row"><div><b>${esc(label)}</b><small>${formatNumber(value)} events</small></div><div class="growth-mini-track"><i style="width:${Math.max(value?4:0,Number(value||0)*100/max)}%"></i></div><strong>${formatNumber(value)}</strong></div>`).join('');
+  $('growthAnalyticsPages').innerHTML=(data.landingPages||[]).slice(0,20).map(row=>`<tr><td><b>${esc(row.landingPagePlusQueryString||'(not set)')}</b></td><td>${formatNumber(row.sessions)}</td><td>${formatNumber(row.activeUsers)}</td><td>${formatNumber(row.screenPageViews)}</td><td>${formatNumber(row.keyEvents)}</td></tr>`).join('')||'<tr><td colspan="5">No landing-page data for this period.</td></tr>';
+}
+async function loadGrowthAnalyticsStatus(){
+  const data=await api('/api/admin/growth-intelligence/analytics/status');
+  renderGaStatus(data);
+  return data;
+}
+async function loadGrowthAnalyticsRealtime(silent=false){
+  if(!state.growthAnalytics?.status?.selectedProperty)return;
+  try{renderGrowthRealtime(await api('/api/admin/growth-intelligence/analytics/realtime'))}catch(error){if(!silent){$('growthGaMessage').textContent=error.message;toast(error.message)}}
+}
+async function loadGrowthAnalyticsPerformance(){
+  if(!state.growthAnalytics?.status?.selectedProperty)return;
+  try{renderGrowthPerformance(await api(`/api/admin/growth-intelligence/analytics/performance?days=${encodeURIComponent($('growthGaPeriod').value)}`))}catch(error){$('growthGaMessage').textContent=error.message;toast(error.message)}
+}
+function startGrowthRealtimePolling(){
+  clearInterval(state.growthRealtimeTimer);
+  state.growthRealtimeTimer=null;
+  if(!state.growthAnalytics?.status?.selectedProperty)return;
+  state.growthRealtimeTimer=setInterval(()=>{
+    if(!$('growthIntelligencePage').classList.contains('hidden'))loadGrowthAnalyticsRealtime(true).catch(()=>{});
+  },30000);
 }
 function renderGrowthIntelligence(data){
   state.growthIntelligence=data;
   renderGrowthProviders(data);
   renderGrowthPrompts(data.prompts);
   renderGrowthAudit(data.latest?.audit||null);
-  renderGrowthVisibility(data.latest?.openaiVisibility||null);
+  renderSelectedGrowthVisibility();
   renderGrowthReddit(data.latest?.reddit||null);
 }
 async function loadGrowthIntelligence(){
   try{
-    renderGrowthIntelligence(await api('/api/admin/growth-intelligence/overview'));
+    const [overview,gaStatus]=await Promise.all([
+      api('/api/admin/growth-intelligence/overview'),
+      api('/api/admin/growth-intelligence/analytics/status')
+    ]);
+    state.growthAnalytics={status:gaStatus};
+    renderGrowthIntelligence(overview);
+    renderGaStatus(gaStatus);
+    if(gaStatus.selectedProperty){
+      await Promise.all([loadGrowthAnalyticsRealtime(),loadGrowthAnalyticsPerformance()]);
+      startGrowthRealtimePolling();
+    }
   }catch(error){toast(error.message)}
 }
 async function runGrowthAudit(){
   const button=$('runGrowthAuditBtn');button.disabled=true;button.textContent='Auditing…';
   try{renderGrowthAudit(await api('/api/admin/growth-intelligence/site-audit',{method:'POST',body:'{}'}));toast('Growth site audit completed')}catch(error){toast(error.message)}finally{button.textContent='Run site audit';button.disabled=state.user?.role!=='SUPER_ADMIN'}
 }
-async function runOpenAiVisibility(){
-  const button=$('runOpenAiVisibilityBtn');button.disabled=true;button.textContent='Scanning…';
+async function runGrowthVisibility(){
+  const provider=$('growthVisibilityProvider').value;
+  const button=$('runVisibilityBtn');button.disabled=true;button.textContent='Scanning…';
   try{
-    const data=await api('/api/admin/growth-intelligence/openai-visibility',{method:'POST',body:JSON.stringify({limit:Number($('growthOpenAiLimit').value||5)})});
-    renderGrowthVisibility(data);toast('AI visibility baseline updated');
-  }catch(error){toast(error.message)}finally{button.textContent='Run visibility scan';button.disabled=!state.growthIntelligence?.providers?.openai?.configured||state.user?.role!=='SUPER_ADMIN'}
+    const limit=Number($('growthVisibilityLimit').value||5);
+    const data=provider==='openai'
+      ? await api('/api/admin/growth-intelligence/openai-visibility',{method:'POST',body:JSON.stringify({limit})})
+      : await api('/api/admin/growth-intelligence/provider-visibility',{method:'POST',body:JSON.stringify({provider,limit})});
+    if(provider==='openai')state.growthIntelligence.latest.openaiVisibility=data;
+    if(provider==='perplexity')state.growthIntelligence.latest.perplexityVisibility=data;
+    if(provider==='claude')state.growthIntelligence.latest.claudeVisibility=data;
+    renderSelectedGrowthVisibility();
+    toast(`${provider==='openai'?'OpenAI':provider==='perplexity'?'Perplexity':'Claude'} visibility baseline updated`);
+  }catch(error){toast(error.message)}finally{button.textContent='Run visibility scan';updateVisibilityControls()}
+}
+async function reconnectGrowthGoogle(){
+  try{
+    const data=await api('/api/admin/search-console/oauth/start',{method:'POST',body:'{}'});
+    window.location.assign(data.authorizationUrl);
+  }catch(error){toast(error.message)}
+}
+async function chooseGrowthGaProperty(event){
+  if(!event.target.value)return;
+  try{
+    await api('/api/admin/growth-intelligence/analytics/property',{method:'POST',body:JSON.stringify({propertyId:event.target.value})});
+    toast('Google Analytics property updated');
+    const status=await loadGrowthAnalyticsStatus();
+    if(status.selectedProperty){
+      await Promise.all([loadGrowthAnalyticsRealtime(),loadGrowthAnalyticsPerformance()]);
+      startGrowthRealtimePolling();
+    }
+  }catch(error){toast(error.message)}
+}
+async function refreshGrowthAnalytics(){
+  const button=$('growthGaRefreshBtn');button.disabled=true;button.textContent='Refreshing…';
+  try{
+    const status=await loadGrowthAnalyticsStatus();
+    if(status.selectedProperty)await Promise.all([loadGrowthAnalyticsRealtime(),loadGrowthAnalyticsPerformance()]);
+    toast('Google Analytics refreshed');
+  }catch(error){toast(error.message)}finally{button.textContent='↻ Refresh analytics';button.disabled=!state.growthAnalytics?.status?.selectedProperty}
 }
 async function discoverGrowthReddit(){
   const button=$('discoverRedditBtn');button.disabled=true;button.textContent='Searching…';
   try{renderGrowthReddit(await api('/api/admin/growth-intelligence/reddit-opportunities',{method:'POST',body:'{}'}));toast('Reddit opportunities refreshed')}catch(error){toast(error.message)}finally{button.textContent='Find Reddit opportunities';button.disabled=!state.growthIntelligence?.providers?.reddit?.configured||state.user?.role!=='SUPER_ADMIN'}
 }
 $('runGrowthAuditBtn').addEventListener('click',()=>void runGrowthAudit());
-$('runOpenAiVisibilityBtn').addEventListener('click',()=>void runOpenAiVisibility());
+$('runVisibilityBtn').addEventListener('click',()=>void runGrowthVisibility());
+$('growthVisibilityProvider').addEventListener('change',renderSelectedGrowthVisibility);
+$('growthGaReconnectBtn').addEventListener('click',()=>void reconnectGrowthGoogle());
+$('growthGaProperty').addEventListener('change',event=>void chooseGrowthGaProperty(event));
+$('growthGaPeriod').addEventListener('change',()=>void loadGrowthAnalyticsPerformance());
+$('growthGaRefreshBtn').addEventListener('click',()=>void refreshGrowthAnalytics());
 $('discoverRedditBtn').addEventListener('click',()=>void discoverGrowthReddit());
 
 async function postAuthLanding(){
