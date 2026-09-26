@@ -81,3 +81,14 @@ test('scheduled safe source maintenance is constrained to robots and sitemap fil
   assert.match(script, /expectedSitemap/);
   assert.doesNotMatch(workflow, /git push origin deployment\/railway-postgres/);
 });
+
+
+test('Phase 3 gets a non-blocking startup safety-net crawl if the daily intelligence state is stale', () => {
+  const autopilot = read('src/services/growthAutopilotService.js');
+
+  assert.match(autopilot, /ensurePhase3MaintenanceFresh/);
+  assert.match(autopilot, /startup-safety-net/);
+  assert.match(autopilot, /20 \* 60 \* 1000/);
+  assert.match(autopilot, /seoStartupTimer/);
+  assert.match(autopilot, /clearTimeout\(seoStartupTimer\)/);
+});
