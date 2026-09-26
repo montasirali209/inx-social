@@ -146,6 +146,61 @@ function safeInternalPath(value) {
   return /^\/(?:[a-z0-9][a-z0-9/_-]*|)$/.test(clean) ? clean : '';
 }
 
+function sourceDomain(value) {
+  try {
+    return new URL(String(value || '')).hostname.replace(/^www\./i, '').toLowerCase();
+  } catch (_) {
+    return '';
+  }
+}
+
+function humanizePathSegment(value) {
+  const clean = decodeURIComponent(String(value || ''))
+    .replace(/\.[a-z0-9]{2,6}$/i, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return clean ? clean.replace(/\b\w/g, char => char.toUpperCase()) : '';
+}
+
+function professionalSourceTitle(source) {
+  const url = safeExternalUrl(source?.url);
+  if (!url) return '';
+  const supplied = normalizeSpace(source?.title || '');
+  const generic = !supplied
+    || /^(?:research\s+source|source|web\s+source|search\s+result|untitled)$/i.test(supplied)
+    || supplied === url;
+  if (!generic) return supplied.slice(0, 240);
+
+  try {
+    const parsed = new URL(url);
+    const segment = parsed.pathname.split('/').filter(Boolean).pop();
+    const page = humanizePathSegment(segment);
+    const domain = parsed.hostname.replace(/^www\./i, '');
+    return (page ? page + ' — ' : '') + domain;
+  } catch (_) {
+    return url.slice(0, 240);
+  }
+}
+
+function normalizeSources(values) {
+  const seen = new Set();
+  const result = [];
+  for (const source of Array.isArray(values) ? values : []) {
+    const url = safeExternalUrl(source?.url);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    result.push({
+      id: 'S' + (result.length + 1),
+      title: professionalSourceTitle({ ...source, url }),
+      url,
+      domain: sourceDomain(url)
+    });
+    if (result.length >= 12) break;
+  }
+  return result;
+}
+
 function escapeHtml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
@@ -155,13 +210,21 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-function inlineMarkdown(value) {
+function inlineMarkdown(value, sources = []) {
   let text = escapeHtml(value);
   text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  const sourceMap = new Map((sources || []).map(source => [String(source.id || '').toUpperCase(), source]));
+  text = text.replace(/\[(S\d{1,2})\]/gi, (match, id) => {
+    const source = sourceMap.get(String(id).toUpperCase());
+    if (!source) return match;
+    const label = escapeHtml(String(source.id || id).replace(/^S/i, ''));
+    const href = escapeHtml(source.url);
+    return '<sup class="inx-inline-citation"><a href="' + href + '" target="_blank" rel="noopener noreferrer" aria-label="Source ' + label + '">[' + label + ']</a></sup>';
+  });
   return text;
 }
 
-function markdownToSafeHtml(markdown) {
+function markdownToSafeHtml(markdown, sources = []) {
   const lines = String(markdown || '').replace(/\r/g, '').split('\n');
   const html = [];
   let paragraph = [];
@@ -169,7 +232,7 @@ function markdownToSafeHtml(markdown) {
 
   const flushParagraph = () => {
     if (!paragraph.length) return;
-    html.push('<p>' + inlineMarkdown(paragraph.join(' ')) + '</p>');
+    html.push('<p>' + inlineMarkdown(paragraph.join(' '), sources) + '</p>');
     paragraph = [];
   };
   const closeList = () => {
@@ -195,7 +258,7 @@ function markdownToSafeHtml(markdown) {
       closeList();
       const tag = h2 ? 'h2' : 'h3';
       const value = h2 ? h2[1] : h3[1];
-      html.push('<' + tag + '>' + inlineMarkdown(value) + '</' + tag + '>');
+      html.push('<' + tag + '>' + inlineMarkdown(value, sources) + '</' + tag + '>');
       continue;
     }
 
@@ -207,7 +270,7 @@ function markdownToSafeHtml(markdown) {
         listType = nextType;
         html.push(nextType === 'ol' ? '<ol>' : '<ul>');
       }
-      html.push('<li>' + inlineMarkdown((ol || ul)[1]) + '</li>');
+      html.push('<li>' + inlineMarkdown((ol || ul)[1], sources) + '</li>');
       continue;
     }
 
@@ -223,33 +286,33 @@ function markdownToSafeHtml(markdown) {
 function relatedInternalLinks(topic, keywords = []) {
   const haystack = [topic, ...keywords].join(' ').toLowerCase();
   const catalog = [
-    { test: /bulk|batch/, label: 'Bulk social media scheduler', url: '/bulk-social-media-scheduler' },
-    { test: /calendar|planning|planner/, label: 'Social media content calendar', url: '/social-media-content-calendar' },
-    { test: /analytic|measure|report|performance/, label: 'Social media analytics', url: '/social-media-analytics' },
-    { test: /campaign/, label: 'AI social media campaign generator', url: '/ai-social-media-campaign-generator' },
-    { test: /carousel/, label: 'AI carousel post generator', url: '/ai-carousel-post-generator' },
-    { test: /video|reel/, label: 'AI video post generator', url: '/ai-video-post-generator' },
-    { test: /ugc|creator ad|advert/, label: 'AI UGC ad generator', url: '/ai-ugc-ad-generator' },
-    { test: /caption|post|copy/, label: 'AI social media post generator', url: '/ai-social-media-post-generator' },
-    { test: /schedule|scheduler|buffer|hootsuite|later|publish/, label: 'Social media scheduler', url: '/social-media-scheduler' },
-    { test: /ai|automation|content/, label: 'AI social media tools', url: '/ai-social-media-tools' },
-    { test: /price|pricing|cost|plan/, label: 'INXSocial pricing', url: '/pricing' }
+    { test: /bulk|batch/, label: 'Bulk social media scheduler for campaigns', url: '/bulk-social-media-scheduler', description: 'Plan and schedule larger campaign batches from one workflow.' },
+    { test: /calendar|planning|planner/, label: 'Social media content calendar & planner', url: '/social-media-content-calendar', description: 'Turn ideas into a structured publishing calendar across channels.' },
+    { test: /analytic|measure|report|performance/, label: 'Social media analytics', url: '/social-media-analytics', description: 'Measure publishing performance and identify what to improve next.' },
+    { test: /campaign/, label: 'AI social media campaign generator', url: '/ai-social-media-campaign-generator', description: 'Build coordinated campaign concepts, copy and media ideas faster.' },
+    { test: /carousel/, label: 'AI carousel post generator', url: '/ai-carousel-post-generator', description: 'Create structured multi-slide social posts for educational or promotional content.' },
+    { test: /video|reel/, label: 'AI video post generator', url: '/ai-video-post-generator', description: 'Generate short-form video concepts and assets for social campaigns.' },
+    { test: /ugc|creator ad|advert/, label: 'AI UGC ad generator', url: '/ai-ugc-ad-generator', description: 'Produce creator-style ad concepts and UGC workflows for paid social.' },
+    { test: /caption|post|copy/, label: 'AI social media post generator', url: '/ai-social-media-post-generator', description: 'Draft platform-ready post copy while keeping the publishing workflow connected.' },
+    { test: /schedule|scheduler|buffer|hootsuite|later|publish/, label: 'AI social media post generator & scheduler', url: '/social-media-scheduler', description: 'Create, organise and schedule social content from a single workspace.' },
+    { test: /ai|automation|content/, label: 'AI social media tools', url: '/ai-social-media-tools', description: 'Explore INXSocial tools for AI-assisted content creation and publishing.' },
+    { test: /price|pricing|cost|plan/, label: 'INXSocial pricing', url: '/pricing', description: 'Compare available plans and the features included in each tier.' }
   ];
 
   const selected = [];
   for (const item of catalog) {
     if (!item.test.test(haystack)) continue;
-    selected.push({ label: item.label, url: item.url });
+    selected.push({ label: item.label, url: item.url, description: item.description });
     if (selected.length >= 4) break;
   }
   const fallback = [
-    { label: 'AI social media tools', url: '/ai-social-media-tools' },
-    { label: 'Social media scheduler', url: '/social-media-scheduler' },
-    { label: 'INXSocial pricing', url: '/pricing' }
+    { label: 'AI social media tools', url: '/ai-social-media-tools', description: 'Explore AI-assisted content creation and publishing tools.' },
+    { label: 'AI social media post generator & scheduler', url: '/social-media-scheduler', description: 'Create, organise and schedule content from one workflow.' },
+    { label: 'INXSocial pricing', url: '/pricing', description: 'Compare plans and included features.' }
   ];
   for (const item of fallback) {
     if (!selected.some(existing => existing.url === item.url)) selected.push(item);
-    if (selected.length >= 3) break;
+    if (selected.length >= 4) break;
   }
   return selected.slice(0, 4);
 }
@@ -316,16 +379,17 @@ function researchSchema() {
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['searchIntent', 'audience', 'summary', 'questions', 'facts', 'outline', 'contentAngles'],
+    required: ['searchIntent', 'audience', 'primaryQuestion', 'summary', 'questions', 'facts', 'outline', 'contentAngles', 'decisionCriteria', 'entities'],
     properties: {
       searchIntent: { type: 'string' },
       audience: { type: 'string' },
+      primaryQuestion: { type: 'string' },
       summary: { type: 'string' },
-      questions: { type: 'array', minItems: 3, maxItems: 8, items: { type: 'string' } },
+      questions: { type: 'array', minItems: 3, maxItems: 10, items: { type: 'string' } },
       facts: {
         type: 'array',
-        minItems: 3,
-        maxItems: 14,
+        minItems: 4,
+        maxItems: 16,
         items: {
           type: 'object',
           additionalProperties: false,
@@ -336,8 +400,10 @@ function researchSchema() {
           }
         }
       },
-      outline: { type: 'array', minItems: 4, maxItems: 10, items: { type: 'string' } },
-      contentAngles: { type: 'array', minItems: 2, maxItems: 6, items: { type: 'string' } }
+      outline: { type: 'array', minItems: 5, maxItems: 12, items: { type: 'string' } },
+      contentAngles: { type: 'array', minItems: 2, maxItems: 6, items: { type: 'string' } },
+      decisionCriteria: { type: 'array', minItems: 2, maxItems: 8, items: { type: 'string' } },
+      entities: { type: 'array', minItems: 2, maxItems: 16, items: { type: 'string' } }
     }
   };
 }
@@ -346,13 +412,32 @@ function articleSchema() {
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['title', 'excerpt', 'meta_description', 'keywords', 'content_markdown', 'faq', 'featured_image_prompt'],
+    required: ['title', 'excerpt', 'meta_description', 'keywords', 'quick_answer', 'key_takeaways', 'content_markdown', 'comparison', 'faq', 'featured_image_prompt'],
     properties: {
       title: { type: 'string' },
       excerpt: { type: 'string' },
       meta_description: { type: 'string' },
       keywords: { type: 'array', minItems: 3, maxItems: 8, items: { type: 'string' } },
+      quick_answer: { type: 'string' },
+      key_takeaways: { type: 'array', minItems: 3, maxItems: 6, items: { type: 'string' } },
       content_markdown: { type: 'string' },
+      comparison: {
+        type: 'array',
+        minItems: 0,
+        maxItems: 8,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['name', 'best_for', 'strength', 'consideration', 'source_refs'],
+          properties: {
+            name: { type: 'string' },
+            best_for: { type: 'string' },
+            strength: { type: 'string' },
+            consideration: { type: 'string' },
+            source_refs: { type: 'array', minItems: 0, maxItems: 3, items: { type: 'string' } }
+          }
+        }
+      },
       faq: {
         type: 'array',
         minItems: 2,
@@ -424,11 +509,14 @@ async function researchTopic(input) {
   const request = {
     model: env.webResearch.model,
     instructions: [
-      'You are the research layer for INXSocial Content Engine.',
-      'Use current web search and build an evidence brief for a high-quality, original article.',
-      'Prefer primary documentation, reputable industry sources and current official product pages.',
+      'You are the senior research desk for INXSocial.',
+      'Use current web search to build an evidence brief for a people-first, original article that would be useful even if search engines did not exist.',
+      'Start with the search intent and the reader decision or task, then research the evidence needed to answer it completely.',
+      'Prefer primary sources: official documentation, standards, regulator or government pages, and official product pages for claims about those products.',
+      'Use reputable independent sources where they add context. Avoid scraped listicles, thin affiliate roundups, anonymous SEO pages and sources that merely repeat another source.',
+      'For comparison topics, separate verified product facts from editorial judgement and identify the criteria a buyer should use.',
+      'Look for practical caveats, limitations, trade-offs, current terminology and questions a serious buyer or operator would ask.',
       'Do not copy competitor wording and do not make unsupported numerical claims.',
-      'Research the user intent, practical questions, current terminology and factual evidence.',
       'Return JSON only in the requested schema.'
     ].join(' '),
     input: [
@@ -455,37 +543,35 @@ async function researchTopic(input) {
   const result = await structuredResponse(request, 'inx_content_research', 'CONTENT_RESEARCH_INVALID');
   const raw = result.raw;
   const parsed = result.parsed;
-  const sources = result.raws.flatMap(item => webResearch.extractResponseSources(item))
-    .map(source => ({
-      title: normalizeSpace(source.title || source.url).slice(0, 240),
-      url: safeExternalUrl(source.url)
-    }))
-    .filter(source => source.url)
-    .filter((source, index, all) => all.findIndex(item => item.url === source.url) === index)
-    .slice(0, 12);
+  const sources = normalizeSources(
+    result.raws.flatMap(item => webResearch.extractResponseSources(item))
+  );
 
   if (!sources.length) throw publicError('Content research returned no verifiable web sources.', 502, 'CONTENT_RESEARCH_EMPTY');
   return { brief: parsed, sources, model: env.webResearch.model };
 }
 
 async function writeArticle(input, research) {
-  const sourceList = research.sources.map((source, index) => (index + 1) + '. ' + source.title + ' — ' + source.url).join('\n');
+  const sourceList = research.sources.map(source => source.id + '. ' + source.title + ' [' + source.domain + '] — ' + source.url).join('\n');
   const internalLinks = relatedInternalLinks(input.topic, []);
   const linkList = internalLinks.map(link => link.label + ': ' + SITE_URL + link.url).join('\n');
 
   const request = {
     model: env.webResearch.model,
     instructions: [
-      'You are the senior editorial writer for INXSocial.',
-      'Write an original, genuinely useful article based on the supplied research brief.',
-      'Use British English.',
-      'Do not invent statistics, testimonials, customer results, prices or product capabilities.',
-      'Do not copy competitor wording.',
-      'The body must be 1100-2200 words, skimmable, specific and practical.',
-      'Use Markdown with ## and ### headings, short paragraphs, bullet lists and numbered steps where useful.',
-      'Do not add a Sources heading; the application adds verified sources separately.',
-      'Do not put raw URLs or Markdown links inside the body; the application handles related links separately.',
-      'Avoid generic AI filler and exaggerated marketing language.',
+      'You are the senior editorial writer for INXSocial. Write like a specialist publication, not a generic SEO content generator.',
+      'Create an original, useful article from the research brief and verified source pack. The reader should leave with a clear answer, decision framework and practical next step.',
+      'Use British English and an expert but plain-spoken tone.',
+      'Answer the primary question early. quick_answer should be a direct 45-90 word answer suitable for a human reader and a search snippet.',
+      'key_takeaways must contain 3-6 specific, non-repetitive takeaways.',
+      'Use the source IDs exactly as [S1], [S2] and so on after factual claims that depend on external evidence. Do not cite common-sense advice. Never invent a source ID.',
+      'For comparison or best-tool queries, explain selection criteria and trade-offs. Populate comparison only when it genuinely helps; every product-specific comparison row should include relevant source_refs.',
+      'Use Markdown with ## and ### headings, short paragraphs, bullet lists and numbered steps where useful. Write as much as the topic needs, typically 1300-2400 words, but never pad to a word count.',
+      'Include concrete examples, caveats, what to check before choosing, and a practical recommendation framework when relevant.',
+      'Do not invent statistics, testimonials, customer results, prices, product capabilities or integrations. Do not copy competitor wording.',
+      'Do not add a Sources heading; the application renders a verified source section separately.',
+      'Do not put raw URLs or Markdown links inside the body. Internal recommendations are rendered separately.',
+      'Avoid generic AI filler, keyword stuffing, exaggerated marketing language, repetitive conclusions and claims that INXSocial is best without evidence.',
       'Return JSON only in the requested schema.'
     ].join(' '),
     input: [
@@ -518,28 +604,47 @@ function qualityReview(article) {
   const metaLength = normalizeSpace(article.meta_description).length;
   const words = wordCount(article.content_markdown);
   const h2s = headingCount(article.content_markdown);
-  const sourceCount = Array.isArray(article.sources) ? article.sources.length : 0;
+  const sources = normalizeSources(article.sources);
+  const sourceCount = sources.length;
+  const namedSourceCount = sources.filter(source => source.title && !/^research\s+source$/i.test(source.title)).length;
+  const citationCount = (String(article.content_markdown || '').match(/\[S\d{1,2}\]/gi) || []).length;
   const keywordCount = Array.isArray(article.keywords) ? article.keywords.length : 0;
   const faqCount = Array.isArray(article.faq) ? article.faq.length : 0;
   const internalLinkCount = Array.isArray(article.internalLinks) ? article.internalLinks.length : 0;
+  const quickAnswerLength = normalizeSpace(article.quick_answer).length;
+  const takeawayCount = Array.isArray(article.key_takeaways) ? article.key_takeaways.length : 0;
 
   let score = 0;
-  if (titleLength >= 30 && titleLength <= 68) score += 10; else issues.push('Title should be roughly 30–68 characters.');
-  if (metaLength >= 110 && metaLength <= 165) score += 10; else issues.push('Meta description should be roughly 110–165 characters.');
-  if (normalizeSpace(article.excerpt).length >= 80) score += 5; else issues.push('Excerpt is too short.');
-  if (words >= 1200) score += 20; else if (words >= 900) score += 14; else issues.push('Article needs more substantive body content.');
-  if (sourceCount >= 4) score += 15; else if (sourceCount >= 2) score += 9; else issues.push('Article needs more verified sources.');
-  if (keywordCount >= 3 && keywordCount <= 8) score += 5; else issues.push('Use 3–8 focused keywords.');
-  if (faqCount >= 3) score += 10; else if (faqCount >= 2) score += 7; else issues.push('Add at least two useful FAQs.');
-  if (internalLinkCount >= 3) score += 10; else if (internalLinkCount >= 2) score += 7; else issues.push('Add more relevant internal links.');
-  if (h2s >= 4) score += 10; else if (h2s >= 3) score += 7; else issues.push('Article structure needs more useful sections.');
-  if (!/game[- ]changer|revolutioni[sz]e your|fast-paced digital landscape/i.test(article.content_markdown || '')) score += 5;
+  if (titleLength >= 30 && titleLength <= 68) score += 8; else issues.push('Title should be roughly 30–68 characters and describe the page clearly.');
+  if (metaLength >= 110 && metaLength <= 165) score += 8; else issues.push('Meta description should be roughly 110–165 characters.');
+  if (normalizeSpace(article.excerpt).length >= 80) score += 4; else issues.push('Excerpt is too short.');
+  if (quickAnswerLength >= 80 && quickAnswerLength <= 650) score += 7; else issues.push('Add a concise direct answer near the top of the article.');
+  if (takeawayCount >= 3) score += 5; else issues.push('Add at least three useful key takeaways.');
+  if (words >= 1200) score += 14; else if (words >= 900) score += 9; else issues.push('Article needs more substantive body content.');
+  if (sourceCount >= 5) score += 10; else if (sourceCount >= 3) score += 7; else issues.push('Article needs at least three verifiable sources.');
+  if (sourceCount && namedSourceCount === sourceCount) score += 6; else issues.push('Every source needs a meaningful title or publisher label.');
+  if (citationCount >= 5) score += 14; else if (citationCount >= 3) score += 9; else issues.push('Important factual claims need inline source citations.');
+  if (keywordCount >= 3 && keywordCount <= 8) score += 4; else issues.push('Use 3–8 focused keywords.');
+  if (faqCount >= 3) score += 7; else if (faqCount >= 2) score += 5; else issues.push('Add at least two useful FAQs.');
+  if (internalLinkCount >= 3) score += 6; else if (internalLinkCount >= 2) score += 4; else issues.push('Add more relevant internal recommendations.');
+  if (h2s >= 4) score += 5; else if (h2s >= 3) score += 3; else issues.push('Article structure needs more useful sections.');
+  if (!/game[- ]changer|revolutioni[sz]e your|fast-paced digital landscape|in today'?s digital age/i.test(article.content_markdown || '')) score += 2;
   else issues.push('Remove generic AI-marketing filler.');
 
   return {
     score: Math.min(100, score),
     issues,
-    metrics: { words, h2s, sourceCount, keywordCount, faqCount, internalLinkCount }
+    metrics: {
+      words,
+      h2s,
+      sourceCount,
+      namedSourceCount,
+      citationCount,
+      keywordCount,
+      faqCount,
+      internalLinkCount,
+      takeawayCount
+    }
   };
 }
 
@@ -547,16 +652,21 @@ function articleSchemaObjects(article) {
   const canonical = SITE_URL + '/blog/' + article.slug;
   const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'Article',
+    '@type': 'BlogPosting',
     headline: article.title,
     description: article.meta_description || article.excerpt,
     mainEntityOfPage: canonical,
     datePublished: article.published_at || undefined,
     dateModified: article.updated_at || article.created_at,
-    author: { '@type': 'Organization', name: 'INXSocial', url: SITE_URL },
+    author: { '@type': 'Organization', name: 'INXSocial Editorial', url: SITE_URL + '/about' },
     publisher: { '@type': 'Organization', name: 'INXSocial', url: SITE_URL },
     image: article.featured_image_url ? [absoluteSiteAsset(versionedContentImageUrl(article))] : undefined,
-    keywords: (article.keywords || []).join(', ')
+    keywords: (article.keywords || []).join(', '),
+    inLanguage: 'en-GB',
+    isAccessibleForFree: true,
+    wordCount: wordCount(article.content_markdown),
+    about: (article.keywords || []).slice(0, 8),
+    citation: normalizeSources(article.sources).map(source => source.url)
   };
 
   const faqJsonLd = article.faq?.length ? {
@@ -588,35 +698,58 @@ function publicArticle(article) {
     updated_at: article.updated_at,
     content_markdown: article.content_markdown,
     content_html: article.content_html,
-    sources: article.sources || [],
-    internalLinks: article.internalLinks || [],
+    quick_answer: article.quick_answer || article.excerpt || null,
+    key_takeaways: Array.isArray(article.key_takeaways) ? article.key_takeaways : [],
+    comparison: Array.isArray(article.comparison) ? article.comparison : [],
+    sources: normalizeSources(article.sources),
+    internalLinks: relatedInternalLinks(article.title, article.keywords),
     faq: article.faq || [],
+    editorial: Number(article.generation?.editorialVersion || 0) >= 3 ? {
+      method: 'AI-assisted editorial workflow with live web research and an independent AI quality review',
+      sourceCount: normalizeSources(article.sources).length,
+      updatedAt: article.updated_at || article.created_at
+    } : null,
     jsonLd: article.imported_json_ld || schemas.jsonLd,
     faqJsonLd: article.imported_faq_json_ld || schemas.faqJsonLd
   };
 }
 
 async function saveArticle(article, previousSlug = null) {
+  const sources = normalizeSources(article.sources);
+  const internalLinks = (Array.isArray(article.internalLinks) ? article.internalLinks : [])
+    .map(link => ({
+      label: normalizeSpace(link.label).slice(0, 120),
+      url: safeInternalPath(link.url),
+      description: normalizeSpace(link.description || '').slice(0, 260)
+    }))
+    .filter(link => link.label && link.url)
+    .slice(0, 6);
+  const keyTakeaways = uniqueStrings(article.key_takeaways, 6, 260);
+  const comparison = (Array.isArray(article.comparison) ? article.comparison : []).slice(0, 8).map(item => ({
+    name: normalizeSpace(item.name).slice(0, 120),
+    best_for: normalizeSpace(item.best_for).slice(0, 220),
+    strength: normalizeSpace(item.strength).slice(0, 320),
+    consideration: normalizeSpace(item.consideration).slice(0, 320),
+    source_refs: uniqueStrings(item.source_refs, 3, 8).filter(ref => /^S\d{1,2}$/i.test(ref))
+  })).filter(item => item.name);
+
   const prepared = {
     ...article,
     updated_at: nowIso(),
-    content_html: article.content_source === 'BABYLOVEGROWTH_IMPORTED' && article.content_html
-      ? sanitizeImportedHtml(article.content_html)
-      : markdownToSafeHtml(article.content_markdown),
     keywords: uniqueStrings(article.keywords, 8, 80),
+    quick_answer: normalizeSpace(article.quick_answer || article.excerpt || '').slice(0, 900),
+    key_takeaways: keyTakeaways,
+    comparison,
     faq: (Array.isArray(article.faq) ? article.faq : []).slice(0, 6).map(item => ({
       question: normalizeSpace(item.question).slice(0, 220),
       answer: normalizeSpace(item.answer).slice(0, 900)
     })).filter(item => item.question && item.answer),
-    sources: (Array.isArray(article.sources) ? article.sources : []).slice(0, 12).map(source => ({
-      title: normalizeSpace(source.title || source.url).slice(0, 240),
-      url: safeExternalUrl(source.url)
-    })).filter(source => source.url),
-    internalLinks: (Array.isArray(article.internalLinks) ? article.internalLinks : [])
-      .map(link => ({ label: normalizeSpace(link.label).slice(0, 100), url: safeInternalPath(link.url) }))
-      .filter(link => link.label && link.url)
-      .slice(0, 6)
+    sources,
+    internalLinks
   };
+  prepared.content_html = article.content_source === 'BABYLOVEGROWTH_IMPORTED' && article.content_html
+    ? sanitizeImportedHtml(article.content_html)
+    : markdownToSafeHtml(article.content_markdown, sources);
   prepared.quality = qualityReview(prepared);
 
   await upsertSetting(articleKey(prepared.id), prepared, 'INXSocial self-hosted Growth Content Engine article.');
@@ -662,8 +795,11 @@ async function createDraft(input) {
     excerpt: normalizeSpace(draft.excerpt).slice(0, 500),
     meta_description: normalizeSpace(draft.meta_description).slice(0, 300),
     keywords: uniqueStrings(draft.keywords, 8, 80),
+    quick_answer: normalizeSpace(draft.quick_answer).slice(0, 900),
+    key_takeaways: uniqueStrings(draft.key_takeaways, 6, 260),
     content_markdown: String(draft.content_markdown || '').trim(),
     content_html: '',
+    comparison: Array.isArray(draft.comparison) ? draft.comparison : [],
     faq: Array.isArray(draft.faq) ? draft.faq : [],
     sources: research.sources,
     internalLinks: relatedInternalLinks(topic, draft.keywords),
@@ -674,6 +810,7 @@ async function createDraft(input) {
     generation: {
       researchModel: research.model,
       writerModel: env.webResearch.model,
+      editorialVersion: 3,
       generatedAt: createdAt
     },
     created_at: createdAt,
