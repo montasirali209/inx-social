@@ -507,6 +507,7 @@ async function performanceForSite(days = 28, siteUrl = '') {
   });
 
   return {
+    generatedAt: new Date().toISOString(),
     siteUrl: requestedSiteUrl,
     periodDays,
     range: { startDate: current.startDate, endDate: current.endDate },
