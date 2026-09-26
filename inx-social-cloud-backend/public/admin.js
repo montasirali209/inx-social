@@ -746,7 +746,7 @@ async function runGrowthVisibility(){
 }
 async function reconnectGrowthGoogle(){
   try{
-    const data=await api('/api/admin/search-console/oauth/start',{method:'POST',body:'{}'});
+    const data=await api('/api/admin/search-console/oauth/start',{method:'POST',body:JSON.stringify({returnTo:'growthIntelligence'})});
     window.location.assign(data.authorizationUrl);
   }catch(error){toast(error.message)}
 }
@@ -762,6 +762,20 @@ async function chooseGrowthGaProperty(event){
     }
   }catch(error){toast(error.message)}
 }
+async function saveManualGrowthGaProperty(){
+  const propertyId=$('growthGaManualPropertyId').value.trim();
+  if(!/^\d+$/.test(propertyId)){toast('Enter the numeric GA4 Property ID, not the G- measurement ID.');return}
+  const button=$('growthGaManualSaveBtn');button.disabled=true;button.textContent='Saving…';
+  try{
+    await api('/api/admin/growth-intelligence/analytics/property',{method:'POST',body:JSON.stringify({propertyId,manual:true,displayName:'INXSocial GA4'})});
+    const status=await loadGrowthAnalyticsStatus();
+    toast('GA4 property ID saved');
+    if(status.selectedProperty){
+      await Promise.all([loadGrowthAnalyticsRealtime(),loadGrowthAnalyticsPerformance()]);
+      startGrowthRealtimePolling();
+    }
+  }catch(error){toast(error.message)}finally{button.textContent='Use this property';button.disabled=false}
+}
 async function refreshGrowthAnalytics(){
   const button=$('growthGaRefreshBtn');button.disabled=true;button.textContent='Refreshing…';
   try{
@@ -775,10 +789,12 @@ async function discoverGrowthReddit(){
   try{renderGrowthReddit(await api('/api/admin/growth-intelligence/reddit-opportunities',{method:'POST',body:'{}'}));toast('Reddit opportunities refreshed')}catch(error){toast(error.message)}finally{button.textContent='Find Reddit opportunities';button.disabled=!state.growthIntelligence?.providers?.reddit?.configured||state.user?.role!=='SUPER_ADMIN'}
 }
 $('runGrowthAuditBtn').addEventListener('click',()=>void runGrowthAudit());
+$('buildGrowthOpportunitiesBtn').addEventListener('click',()=>void buildGrowthOpportunities());
 $('runVisibilityBtn').addEventListener('click',()=>void runGrowthVisibility());
 $('growthVisibilityProvider').addEventListener('change',renderSelectedGrowthVisibility);
 $('growthGaReconnectBtn').addEventListener('click',()=>void reconnectGrowthGoogle());
 $('growthGaProperty').addEventListener('change',event=>void chooseGrowthGaProperty(event));
+$('growthGaManualSaveBtn').addEventListener('click',()=>void saveManualGrowthGaProperty());
 $('growthGaPeriod').addEventListener('change',()=>void loadGrowthAnalyticsPerformance());
 $('growthGaRefreshBtn').addEventListener('click',()=>void refreshGrowthAnalytics());
 $('discoverRedditBtn').addEventListener('click',()=>void discoverGrowthReddit());
