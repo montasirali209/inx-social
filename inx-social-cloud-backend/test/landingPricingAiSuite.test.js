@@ -28,10 +28,10 @@ test('every landing pricing tier names the complete AI creation suite', () => {
       assert.equal((source.match(new RegExp(label.replace(/[.*+?^$\{\}()|[\]\\]/g, '\\$&'), 'g')) || []).length >= 5, true, `${label} should be listed for every plan in ${relative}`);
     }
     assert.match(source, /20 shared AI credits for the 7-day trial/);
-    assert.match(source, /150 shared AI credits \/ month/);
-    assert.match(source, /500 shared AI credits \/ month/);
-    assert.match(source, /1,200 shared AI credits \/ month/);
-    assert.match(source, /2,500 shared AI credits \/ month/);
+    assert.match(source, /300 shared AI credits \/ month/);
+    assert.match(source, /900 shared AI credits \/ month/);
+    assert.match(source, /2,000 shared AI credits \/ month/);
+    assert.match(source, /4,000 shared AI credits \/ month/);
     assert.equal((source.match(/Extra credit packs in Billing &amp; Plans when available/g) || []).length, 4);
   }
 });
