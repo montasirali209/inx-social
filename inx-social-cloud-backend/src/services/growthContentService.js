@@ -76,6 +76,13 @@ function versionedContentImageUrl(article) {
   return clean + '/' + (Number.isFinite(stamp) ? stamp : Date.now());
 }
 
+function absoluteSiteAsset(value) {
+  const url = String(value || '').trim();
+  if (!url) return null;
+  if (/^https?:\/\//i.test(url)) return url;
+  return SITE_URL + (url.startsWith('/') ? url : '/' + url);
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -549,7 +556,7 @@ function articleSchemaObjects(article) {
     dateModified: article.updated_at || article.created_at,
     author: { '@type': 'Organization', name: 'INXSocial', url: SITE_URL },
     publisher: { '@type': 'Organization', name: 'INXSocial', url: SITE_URL },
-    image: article.featured_image_url ? [SITE_URL + article.featured_image_url] : undefined,
+    image: article.featured_image_url ? [absoluteSiteAsset(versionedContentImageUrl(article))] : undefined,
     keywords: (article.keywords || []).join(', ')
   };
 
