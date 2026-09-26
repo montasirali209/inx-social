@@ -75,7 +75,7 @@ function authorization(adminUserId) {
   return {
     authorizationUrl: url.toString(),
     redirectUri: callbackUrl(),
-    scope: SEARCH_CONSOLE_SCOPE
+    scope: GOOGLE_OAUTH_SCOPES.join(' ')
   };
 }
 
