@@ -15,10 +15,10 @@ describe('billing plans', () => {
     expect(getPlan('trial').features).toContain('ai_caption_writing')
     expect(getPlan('trial').features).toContain('ai_content_studio')
     expect(getPlan('trial').monthlyAiCredits).toBe(20)
-    expect(getPlan('creator').monthlyAiCredits).toBe(150)
-    expect(getPlan('pro').monthlyAiCredits).toBe(500)
-    expect(getPlan('business').monthlyAiCredits).toBe(1200)
-    expect(getPlan('agency').monthlyAiCredits).toBe(2500)
+    expect(getPlan('creator').monthlyAiCredits).toBe(300)
+    expect(getPlan('pro').monthlyAiCredits).toBe(900)
+    expect(getPlan('business').monthlyAiCredits).toBe(2000)
+    expect(getPlan('agency').monthlyAiCredits).toBe(4000)
   })
 
   it('reserves priority support for higher paid tiers', () => {

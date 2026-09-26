@@ -80,13 +80,13 @@ test('legacy and current Stripe plan ids map to the new customer-facing plan lad
 
 test('Stripe plan definitions and published AI allowances stay aligned', () => {
   assert.equal(planDefinition('CREATOR').price, 18.99);
-  assert.equal(planDefinition('CREATOR').aiCredits, 150);
+  assert.equal(planDefinition('CREATOR').aiCredits, 300);
   assert.equal(planDefinition('PRO').price, 34.99);
-  assert.equal(planDefinition('PRO').aiCredits, 500);
+  assert.equal(planDefinition('PRO').aiCredits, 900);
   assert.equal(planDefinition('BUSINESS').price, 59.99);
-  assert.equal(planDefinition('BUSINESS').aiCredits, 1200);
+  assert.equal(planDefinition('BUSINESS').aiCredits, 2000);
   assert.equal(planDefinition('AGENCY').price, 99.99);
-  assert.equal(planDefinition('AGENCY').aiCredits, 2500);
+  assert.equal(planDefinition('AGENCY').aiCredits, 4000);
 });
 
 test('generation refunds never carry expired monthly credits into a new billing period', () => {

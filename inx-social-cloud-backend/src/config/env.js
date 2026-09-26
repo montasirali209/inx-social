@@ -51,13 +51,13 @@ module.exports = {
   aiCredits: {
     monthlyByPlan: {
       TRIAL: Math.max(1, Math.min(100000, Number(process.env.AI_TRIAL_CREDITS || 20))),
-      CREATOR: Math.max(1, Math.min(100000, Number(process.env.AI_CREATOR_MONTHLY_CREDITS || 150))),
-      PRO: Math.max(1, Math.min(100000, Number(process.env.AI_PRO_MONTHLY_CREDITS || 500))),
-      BUSINESS: Math.max(1, Math.min(100000, Number(process.env.AI_BUSINESS_MONTHLY_CREDITS || 1200))),
-      AGENCY: Math.max(1, Math.min(100000, Number(process.env.AI_AGENCY_MONTHLY_CREDITS || 2500))),
-      STARTER: Math.max(1, Math.min(100000, Number(process.env.AI_CREATOR_MONTHLY_CREDITS || 150))),
-      PLUS: Math.max(1, Math.min(100000, Number(process.env.AI_PRO_MONTHLY_CREDITS || 500))),
-      LIFETIME: Math.max(1, Math.min(100000, Number(process.env.AI_PRO_MONTHLY_CREDITS || 500)))
+      CREATOR: Math.max(300, Math.min(100000, Number(process.env.AI_CREATOR_MONTHLY_CREDITS || 300))),
+      PRO: Math.max(900, Math.min(100000, Number(process.env.AI_PRO_MONTHLY_CREDITS || 900))),
+      BUSINESS: Math.max(2000, Math.min(100000, Number(process.env.AI_BUSINESS_MONTHLY_CREDITS || 2000))),
+      AGENCY: Math.max(4000, Math.min(100000, Number(process.env.AI_AGENCY_MONTHLY_CREDITS || 4000))),
+      STARTER: Math.max(300, Math.min(100000, Number(process.env.AI_CREATOR_MONTHLY_CREDITS || 300))),
+      PLUS: Math.max(900, Math.min(100000, Number(process.env.AI_PRO_MONTHLY_CREDITS || 900))),
+      LIFETIME: Math.max(900, Math.min(100000, Number(process.env.AI_PRO_MONTHLY_CREDITS || 900)))
     },
     stripeWebhookSecret: process.env.STRIPE_AI_CREDITS_WEBHOOK_SECRET || '',
     topupPriceIds: {
@@ -66,6 +66,12 @@ module.exports = {
       '1000': process.env.STRIPE_AI_CREDITS_1000_PRICE_ID || '',
       '2500': process.env.STRIPE_AI_CREDITS_2500_PRICE_ID || ''
     }
+  },
+  videoCommercial: {
+    creditCostBuffer: Math.max(1.15, Math.min(3, Number(process.env.AI_VIDEO_CREDIT_COST_BUFFER || 1.15))),
+    maxGenerationCredits: Math.max(100, Math.min(20000, Number(process.env.AI_VIDEO_MAX_GENERATION_CREDITS || 4000))),
+    pricingMaxAgeHours: Math.max(1, Math.min(168, Number(process.env.AI_VIDEO_PRICING_MAX_AGE_HOURS || 24))),
+    costDriftTolerance: Math.max(1.01, Math.min(2, Number(process.env.AI_VIDEO_COST_DRIFT_TOLERANCE || 1.10)))
   },
   stockVideo: {
     monthlyLimit: Math.max(1, Math.min(100, Number(process.env.STOCK_VIDEO_MONTHLY_LIMIT || 30))),

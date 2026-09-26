@@ -260,7 +260,10 @@ export function VideoStudioModal({
       if (!active) return
       const ready = catalog.models.filter((model) => model.generationReady && supportedUiModes(model).length > 0)
       setModels(ready)
-      setCatalogLabel([catalog.source === 'runware-live' ? 'Live catalogue' : 'Cached catalogue', catalog.syncedAt ? new Date(catalog.syncedAt).toLocaleString() : ''].filter(Boolean).join(' · '))
+      setCatalogLabel([
+        catalog.health?.status === 'DEGRADED' ? 'Catalogue protection active' : catalog.source === 'runware-live' ? 'Live catalogue' : 'Cached catalogue',
+        catalog.syncedAt ? new Date(catalog.syncedAt).toLocaleString() : ''
+      ].filter(Boolean).join(' · '))
       const initial = ready.find((model) => model.id === 'pvideo') || ready[0]
       if (initial) {
         const durations = durationsFor(initial)

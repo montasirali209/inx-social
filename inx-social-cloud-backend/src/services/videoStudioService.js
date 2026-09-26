@@ -80,7 +80,7 @@ function internalProfiles() {
 }
 
 async function modelConfig(route) {
-  return videoModels.resolveModel(clean(route, 180) || 'pvideo');
+  return videoModels.resolveModelForGeneration(clean(route, 180) || 'pvideo');
 }
 
 async function estimateCredits(input = {}) {
@@ -267,7 +267,15 @@ async function runVideoGeneration(userId, generationId, input, amount, profile, 
       progress => { void prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"progress"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'PROCESSING', Math.max(5, Math.min(95, progress))).catch(() => {}); }
     );
     const providerCostUsd = Math.max(0, Number(output.item.cost || 0));
-    const actualCredits = providerCostUsd > 0 ? Math.min(amount, videoModels.creditsFromUsd(providerCostUsd)) : amount;
+    const providerRequiredCredits = providerCostUsd > 0 ? videoModels.creditsFromUsd(providerCostUsd) : amount;
+    await videoModels.recordActualCost({
+      model: profile,
+      selection: { ...input, duration, resolution, aspectRatio: aspect },
+      providerCostUsd,
+      reservedCredits: amount,
+      requiredCredits: providerRequiredCredits
+    });
+    const actualCredits = Math.min(amount, providerRequiredCredits);
     const asset = await persistVideo(userId, generationId, output, input, actualCredits);
     await credits.settle(userId, generationId, actualCredits, {
       provider: 'runware',
@@ -278,7 +286,7 @@ async function runVideoGeneration(userId, generationId, input, amount, profile, 
     await prisma.$executeRawUnsafe(
       'UPDATE "AiGeneration" SET "status"=$2,"progress"=100,"model"=$3,"providerCostUsd"=$4,"taskUuid"=$5,"assetJson"=$6,"responseJson"=$7,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
       generationId, 'COMPLETED', output.model, providerCostUsd, output.taskUUID, JSON.stringify(asset),
-      JSON.stringify({ route: output.route, duration, resolution, reservedCredits: amount, creditsUsed: actualCredits, providerCostUsd, pricingVersion: videoModels.REGISTRY_VERSION })
+      JSON.stringify({ route: output.route, duration, resolution, reservedCredits: amount, creditsUsed: actualCredits, providerRequiredCredits, providerCostUsd, pricingVersion: videoModels.REGISTRY_VERSION })
     );
   } catch (caught) {
     console.error('[AI VIDEO GENERATION FAILED]', JSON.stringify({
@@ -318,4 +326,8 @@ async function universalCatalog(options = {}) {
   return videoModels.publicCatalog({ all: true, refresh: Boolean(options.refresh) });
 }
 
-module.exports = { catalog, internalProfiles, universalCatalog, estimateCredits, recommendModel, generateVideo };
+async function videoHealth() {
+  return videoModels.commercialHealth();
+}
+
+module.exports = { catalog, internalProfiles, universalCatalog, videoHealth, estimateCredits, recommendModel, generateVideo };

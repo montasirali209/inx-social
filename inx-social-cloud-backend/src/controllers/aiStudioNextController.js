@@ -83,6 +83,10 @@ async function videoCatalog(req, res, next) {
   try { res.json(await videoStudio.universalCatalog()); } catch (error) { next(error); }
 }
 
+async function videoHealth(req, res, next) {
+  try { res.json(await videoStudio.videoHealth()); } catch (error) { next(error); }
+}
+
 async function videoRecommend(req, res, next) {
   try { res.json(await videoStudio.recommendModel(videoRecommendationSchema.parse(req.body || {}))); } catch (error) { next(error); }
 }
@@ -106,4 +110,4 @@ async function generateStockVideo(req, res, next) {
   try { res.status(202).json(await stockVideoStudio.createJob(req.user.id, stockVideoGenerationSchema.parse(req.body || {}))); } catch (error) { next(error); }
 }
 
-module.exports = { generateCarousel, videoModels, videoCatalog, videoRecommend, videoEstimate, generateVideo, stockVideoAccess, generateStockVideo };
+module.exports = { generateCarousel, videoModels, videoCatalog, videoHealth, videoRecommend, videoEstimate, generateVideo, stockVideoAccess, generateStockVideo };
