@@ -96,3 +96,16 @@ test('AI-approved outreach does not send a blind automatic follow-up without inb
   assert.match(service,/x\.status==='AI_APPROVED'\?null:new Date\(Date\.now\(\)\+5\*24\*60\*60\*1000\)/);
   assert.match(service,/Automatic follow-up is disabled until inbound reply suppression is connected/);
 });
+
+
+test('Legacy Reddit authority prospects are purged from persisted state and UI',()=>{
+  const service=read('src/services/growthAuthorityService.js');
+  const js=read('public/admin.js');
+  assert.match(service,/legacyRedditProspect/);
+  assert.match(service,/sanitizeProspects/);
+  assert.match(service,/stats:summarize\(prospects\)/);
+  assert.match(service,/sanitizeProspects\(state\.prospects\)/);
+  assert.match(service,/sanitizeProspects\(oldItems\)/);
+  assert.match(js,/growthAuthorityLegacyReddit/);
+  assert.match(js,/!growthAuthorityLegacyReddit\(item\)/);
+});
