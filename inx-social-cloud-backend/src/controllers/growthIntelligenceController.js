@@ -3,6 +3,7 @@ const prisma = require('../db/prisma');
 const growth = require('../services/growthIntelligenceService');
 const externalVisibility = require('../services/externalVisibilityService');
 const googleAnalytics = require('../services/googleAnalyticsService');
+const opportunities = require('../services/growthOpportunityService');
 
 async function writeAudit(userId, action, metadata = null) {
   if (!userId) return;
@@ -137,6 +138,35 @@ async function analyticsPerformance(req, res, next) {
   }
 }
 
+async function opportunityStatus(req, res, next) {
+  try {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ latest: await opportunities.latest() });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function buildOpportunities(req, res, next) {
+  try {
+    const input = z.object({
+      days: z.coerce.number().int().refine(value => [7, 28, 90].includes(value)).default(28)
+    }).parse(req.body || {});
+    const result = await opportunities.build(input.days);
+    await writeAudit(req.user.id, 'ADMIN_GROWTH_OPPORTUNITIES_BUILT', {
+      days: result.periodDays,
+      total: result.summary?.total || 0,
+      critical: result.summary?.critical || 0,
+      high: result.summary?.high || 0,
+      warnings: result.warnings?.length || 0
+    });
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json(result);
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function discoverReddit(req, res, next) {
   try {
     const result = await growth.discoverRedditOpportunities();
@@ -159,5 +189,7 @@ module.exports = {
   selectAnalyticsProperty,
   analyticsRealtime,
   analyticsPerformance,
+  opportunityStatus,
+  buildOpportunities,
   discoverReddit
 };
