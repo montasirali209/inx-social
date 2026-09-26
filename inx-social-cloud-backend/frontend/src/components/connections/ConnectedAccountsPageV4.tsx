@@ -23,7 +23,8 @@ import {
   UsersRound,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { customerFacingPlatforms, platformMeta, type Platform } from '../../data/connectedAccountsData'
 import { relativeSyncTime } from '../../data/settingsData'
 import {
@@ -445,21 +446,99 @@ function RefreshConnectionButton({ refreshing, disabled, onRefresh }: { refreshi
 
 function ConnectionActionsMenu({ account, onView, onRefresh, onReconnect, onPermissions, onDisconnect }: { account: AccountModel; onView: () => void; onRefresh: () => void; onReconnect: () => void; onPermissions: () => void; onDisconnect: () => void }) {
   const connected = account.status !== 'not_connected'
-  return (
-    <details className="group relative z-10 open:z-[90]">
-      <summary aria-label={`More actions for ${account.accountName}`} className="grid size-9 cursor-pointer list-none place-items-center rounded-lg border border-border-soft bg-bg/35 text-text-muted transition hover:border-brand-cyan/30 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan">
-        <MoreHorizontal className="size-4" />
-      </summary>
-      <div className="absolute right-0 z-[100] mt-2 w-48 rounded-xl border border-border-soft bg-[#071925] p-1.5 text-xs shadow-[0_24px_70px_rgba(0,0,0,.55)]">
-        <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-white/5 hover:text-white" onClick={onView} type="button"><Eye className="size-3.5" />View account</button>
-        {connected && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-white/5 hover:text-white" onClick={onRefresh} type="button"><RefreshCw className="size-3.5" />Sync now</button>}
-        {connected && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-white/5 hover:text-white" onClick={onReconnect} type="button"><Link2 className="size-3.5" />Reconnect</button>}
-        {connected && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-white/5 hover:text-white" onClick={onPermissions} type="button"><ShieldCheck className="size-3.5" />View permissions</button>}
-        <a className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-text-muted hover:bg-white/5 hover:text-white" href={platformHome(account.platform)} rel="noreferrer" target="_blank"><ExternalLink className="size-3.5" />Open on platform</a>
-        {connected && <><div className="my-1 border-t border-border-soft" /><button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-rose-300 hover:bg-brand-red/10 hover:text-rose-200" onClick={onDisconnect} type="button"><Trash2 className="size-3.5" />Disconnect</button></>}
-      </div>
-    </details>
-  )
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+  const [open, setOpen] = useState(false)
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
+
+  useEffect(() => {
+    if (!open) {
+      setPosition(null)
+      return
+    }
+
+    const updatePosition = () => {
+      const trigger = triggerRef.current
+      const menu = menuRef.current
+      if (!trigger || !menu) return
+      const triggerRect = trigger.getBoundingClientRect()
+      const menuRect = menu.getBoundingClientRect()
+      const gutter = 8
+      const left = Math.min(
+        window.innerWidth - menuRect.width - gutter,
+        Math.max(gutter, triggerRect.right - menuRect.width),
+      )
+      const roomBelow = window.innerHeight - triggerRect.bottom
+      const top = roomBelow >= menuRect.height + gutter
+        ? triggerRect.bottom + gutter
+        : Math.max(gutter, triggerRect.top - menuRect.height - gutter)
+      setPosition({ top, left })
+    }
+
+    const frame = window.requestAnimationFrame(updatePosition)
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false)
+        triggerRef.current?.focus()
+      }
+    }
+
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.cancelAnimationFrame(frame)
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [open])
+
+  const closeAnd = (action: () => void) => {
+    setOpen(false)
+    action()
+  }
+
+  return <>
+    <button
+      aria-expanded={open}
+      aria-haspopup="menu"
+      aria-label={`More actions for ${account.accountName}`}
+      className="grid size-9 place-items-center rounded-lg border border-border-soft bg-bg/35 text-text-muted transition hover:border-brand-cyan/30 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan"
+      onClick={() => setOpen((value) => !value)}
+      ref={triggerRef}
+      type="button"
+    >
+      <MoreHorizontal className="size-4" />
+    </button>
+    {open && createPortal(
+      <div
+        className="fixed z-[500] w-52 rounded-xl border border-border-soft bg-[#071925] p-1.5 text-xs shadow-[0_24px_70px_rgba(0,0,0,.62)]"
+        ref={menuRef}
+        role="menu"
+        style={{
+          left: position?.left ?? 0,
+          top: position?.top ?? 0,
+          visibility: position ? 'visible' : 'hidden',
+        }}
+      >
+        <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-white/5 hover:text-white" onClick={() => closeAnd(onView)} role="menuitem" type="button"><Eye className="size-3.5" />View account</button>
+        {connected && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-white/5 hover:text-white" onClick={() => closeAnd(onRefresh)} role="menuitem" type="button"><RefreshCw className="size-3.5" />Sync now</button>}
+        {connected && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-white/5 hover:text-white" onClick={() => closeAnd(onReconnect)} role="menuitem" type="button"><Link2 className="size-3.5" />Reconnect</button>}
+        {connected && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-white/5 hover:text-white" onClick={() => closeAnd(onPermissions)} role="menuitem" type="button"><ShieldCheck className="size-3.5" />View permissions</button>}
+        <a className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-text-muted hover:bg-white/5 hover:text-white" href={platformHome(account.platform)} onClick={() => setOpen(false)} rel="noreferrer" role="menuitem" target="_blank"><ExternalLink className="size-3.5" />Open on platform</a>
+        {connected && <><div className="my-1 border-t border-border-soft" /><button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-rose-300 hover:bg-brand-red/10 hover:text-rose-200" onClick={() => closeAnd(onDisconnect)} role="menuitem" type="button"><Trash2 className="size-3.5" />Disconnect</button></>}
+      </div>,
+      document.body,
+    )}
+  </>
 }
 
 function PlatformCard({ account, refreshing, onView, onRefresh, onReconnect, onDisconnect, onConnect }: { account: AccountModel; refreshing: boolean; onView: () => void; onRefresh: () => void; onReconnect: () => void; onDisconnect: () => void; onConnect: () => void }) {
