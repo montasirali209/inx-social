@@ -196,7 +196,7 @@ async function build(days = 28) {
 
   let gsc = null;
   let ga4 = null;
-  try { gsc = await searchConsole.performance(periodDays); } catch (error) {
+  try { gsc = await searchConsole.growthPerformance(periodDays); } catch (error) {
     warnings.push({ source: 'searchConsole', message: String(error.publicMessage || error.message || 'Search Console unavailable').slice(0, 400) });
   }
   try { ga4 = await googleAnalytics.performance(periodDays); } catch (error) {
