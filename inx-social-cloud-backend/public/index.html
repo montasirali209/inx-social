@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=14">
+  <link rel="stylesheet" href="/admin.css?v=15">
   <link rel="stylesheet" href="/admin-security.css?v=1">
 </head>
 <body>
@@ -333,6 +333,29 @@
         </div>
       </section>
 
+      <section class="panel growth-seo-maintenance">
+        <header class="growth-seo-maintenance-head">
+          <div><span class="kicker">Phase 3 · Technical SEO + internal linking</span><h2>SEO Maintenance Autopilot</h2><p>Runs automatically with the daily Growth Autopilot cycle. It crawls the live site, checks metadata, canonicals, schema, sitemaps, redirects, broken links and orphan pages, then rebuilds the blog's article-to-article internal-link graph.</p></div>
+          <div class="growth-seo-maintenance-actions"><span class="status-chip" id="growthSeoStatus">Waiting for first audit</span><button class="secondary" id="growthSeoRunBtn" type="button">Run maintenance now</button></div>
+        </header>
+        <div class="growth-seo-kpis" id="growthSeoKpis">
+          <article><span>Technical score</span><b>—</b><small>Waiting for live crawl</small></article>
+          <article><span>Pages checked</span><b>—</b><small>Canonical site</small></article>
+          <article><span>Auto repairs</span><b>—</b><small>Safe fixes</small></article>
+          <article><span>Internal links</span><b>—</b><small>Article-to-article graph</small></article>
+        </div>
+        <div class="growth-seo-grid">
+          <article class="growth-seo-card">
+            <div class="growth-mini-head"><b>Current technical issues</b><small id="growthSeoUpdated">No audit yet</small></div>
+            <div id="growthSeoIssues"><div class="growth-empty">Phase 3 will populate this automatically.</div></div>
+          </article>
+          <article class="growth-seo-card">
+            <div class="growth-mini-head"><b>Automatic repairs</b><small>Low-risk only</small></div>
+            <div id="growthSeoRepairs"><div class="growth-empty">No repairs recorded yet.</div></div>
+          </article>
+        </div>
+      </section>
+
       <details class="growth-advanced-details">
         <summary><span><b>Advanced diagnostics &amp; manual controls</b><small>Normally you do not need to use anything below. Autopilot runs these tasks for you.</small></span><span aria-hidden="true">⌄</span></summary>
         <div class="growth-advanced-body">
@@ -618,6 +641,6 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=13" defer></script>
+<script src="/admin.js?v=14" defer></script>
 </body>
 </html>

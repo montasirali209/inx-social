@@ -593,6 +593,41 @@ function growthTimeUntil(value){
   if(hours<48)return hours+'h';
   return Math.ceil(hours/24)+'d';
 }
+function renderGrowthSeoMaintenance(data){
+  const seo=data||{};
+  const summary=seo.summary||{};
+  const score=seo.score;
+  const severe=Number(summary.critical||0)+Number(summary.high||0);
+  const statusText=score==null?'WAITING':severe?'ATTENTION':'HEALTHY';
+  $('growthSeoStatus').textContent=statusText;
+  $('growthSeoStatus').className='status-chip '+(score!=null&&!severe?'gsc-connected':severe?'gsc-error':'');
+  $('growthSeoUpdated').textContent=seo.generatedAt?'Updated '+relative(seo.generatedAt):'No audit yet';
+  $('growthSeoKpis').innerHTML=[
+    ['Technical score',score==null?'—':Number(score)+'%',severe?severe+' critical/high issue'+(severe===1?'':'s'):'No critical/high issues'],
+    ['Pages checked',Number(seo.pagesCrawled||0),Number(seo.sitemapUrls||0)+' sitemap URLs'],
+    ['Auto repairs',Number(summary.autoFixed||0),Number(summary.pendingReview||0)+' issue'+(Number(summary.pendingReview||0)===1?'':'s')+' still open'],
+    ['Internal links',Number(summary.internalArticleLinks||0),Number(summary.internalLinkedArticles||0)+' linked article'+(Number(summary.internalLinkedArticles||0)===1?'':'s')]
+  ].map(item=>'<article><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b><small>'+esc(item[2])+'</small></article>').join('');
+
+  const issues=(seo.issues||[]).slice(0,10);
+  $('growthSeoIssues').innerHTML=issues.length?issues.map(item=>'<div class="growth-seo-issue '+esc(item.severity||'low')+'"><span></span><div><b>'+esc(String(item.code||'SEO issue').replaceAll('_',' '))+'</b><small>'+esc(item.page||'Site-wide')+' · '+esc(item.detail||'Review required')+'</small></div><em>'+esc(item.severity||'low')+'</em></div>').join(''):'<div class="growth-seo-pass">✓ No open technical SEO issues in the latest audit.</div>';
+
+  const repairs=(seo.autoRepairs||[]).slice(0,8);
+  $('growthSeoRepairs').innerHTML=repairs.length?repairs.map(item=>'<div class="growth-seo-repair"><span>✓</span><div><b>'+esc(String(item.code||'Repair').replaceAll('_',' '))+'</b><small>'+esc(item.detail||'Applied automatically')+'</small></div></div>').join(''):'<div class="growth-empty">No automatic repairs recorded yet.</div>';
+  $('growthSeoRunBtn').disabled=state.user?.role!=='SUPER_ADMIN';
+}
+
+async function runGrowthSeoMaintenanceNow(){
+  const button=$('growthSeoRunBtn');button.disabled=true;button.textContent='Running crawl…';
+  try{
+    const data=await api('/api/admin/growth-seo-maintenance/run-now',{method:'POST',body:'{}'});
+    renderGrowthSeoMaintenance(data);
+    toast('Phase 3 SEO maintenance completed');
+    await loadGrowthAutopilotStatus(true);
+  }catch(error){toast(error.message)}
+  finally{button.textContent='Run maintenance now';button.disabled=state.user?.role!=='SUPER_ADMIN'}
+}
+
 function renderGrowthAutopilot(data){
   state.growthAutopilot=data;
   const config=data.config||{};
@@ -635,6 +670,7 @@ function renderGrowthAutopilot(data){
 
   const events=(runtime.recentEvents||[]).slice(0,8);
   $('growthAutopilotActivity').innerHTML=events.length?events.map(event=>'<div class="growth-autopilot-event '+esc(event.level||'info')+'"><span></span><div><b>'+esc(event.message)+'</b><small>'+esc(relative(event.at))+'</small></div></div>').join(''):'<div class="growth-empty">No activity recorded yet.</div>';
+  renderGrowthSeoMaintenance(data.seoMaintenance||null);
 }
 async function loadGrowthAutopilotStatus(silent=false){
   try{
@@ -985,6 +1021,7 @@ async function discoverGrowthReddit(){
 }
 $('growthAutopilotToggleBtn').addEventListener('click',()=>void toggleGrowthAutopilot());
 $('growthAutopilotRunBtn').addEventListener('click',()=>void runGrowthAutopilotNow());
+$('growthSeoRunBtn').addEventListener('click',()=>void runGrowthSeoMaintenanceNow());
 $('runGrowthAuditBtn').addEventListener('click',()=>void runGrowthAudit());
 $('buildGrowthOpportunitiesBtn').addEventListener('click',()=>void buildGrowthOpportunities());
 $('runVisibilityBtn').addEventListener('click',()=>void runGrowthVisibility());
