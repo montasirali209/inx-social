@@ -91,6 +91,15 @@ function verifyState(value) {
   }
 }
 
+function oauthReturnTarget(stateValue) {
+  try {
+    const payload = verifyState(stateValue);
+    return payload.returnTo === 'growthIntelligence' ? 'growthIntelligence' : 'searchConsole';
+  } catch (_) {
+    return 'searchConsole';
+  }
+}
+
 function splitScopes(value) {
   return String(value || '')
     .split(/[\s,]+/)
@@ -535,5 +544,6 @@ module.exports = {
   disconnect,
   settings,
   googleRequest,
-  accessToken
+  accessToken,
+  oauthReturnTarget
 };
