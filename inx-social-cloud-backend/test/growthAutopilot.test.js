@@ -22,7 +22,7 @@ test('Growth Autopilot automatically chains intelligence, opportunity selection,
 
   assert.match(service, /runSiteAudit/);
   assert.match(service, /runOpenAIVisibilityScan/);
-  assert.match(service, /discoverRedditOpportunities/);
+  assert.doesNotMatch(service, /discoverRedditOpportunities/);
   assert.match(service, /growthOpportunities\.build/);
   assert.match(service, /growthContent\.createDraft/);
   assert.match(service, /config\.minQualityScore/);
@@ -76,11 +76,11 @@ test('Autopilot admin mutations stay Super Admin protected', () => {
   assert.match(routes, /growth-autopilot\/run-now', requireSuperAdmin/);
 });
 
-test('Reddit remains discovery-only while the rest of the growth cycle is automatic', () => {
+test('Reddit is excluded from the automatic growth cycle', () => {
   const intelligence = read('src/services/growthIntelligenceService.js');
   const autopilot = read('src/services/growthAutopilotService.js');
 
-  assert.match(autopilot, /discoverRedditOpportunities/);
+  assert.doesNotMatch(autopilot, /discoverRedditOpportunities/);
   assert.match(intelligence, /Do not draft or post replies/);
   assert.doesNotMatch(autopilot, /reddit\.com\/api\/submit|oauth\.reddit|api\/v1\/me/);
 });
