@@ -1,4 +1,4 @@
-import { FileText, HardDrive, Image as ImageIcon, Images, Megaphone, Play, Plus, RotateCcw, Sparkles, Type, UploadCloud } from 'lucide-react'
+import { ArrowDown, ArrowUp, FileText, HardDrive, Image as ImageIcon, Images, Megaphone, Play, Plus, RotateCcw, Sparkles, Trash2, Type, UploadCloud, Video } from 'lucide-react'
 import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import type { AIPostCampaign } from '../../types/ai-content-studio'
@@ -12,14 +12,16 @@ import { DailyTimeSelector } from './DailyTimeSelector'
 type CampaignPreviewPost = {
   id: string
   sequence: number
-  contentType: 'TEXT' | 'IMAGE'
+  contentType: 'TEXT' | 'IMAGE' | 'VIDEO'
   caption: string
   thumbnailUrl: string
+  fileName: string
 }
 
 type CampaignImport = {
   id: string
   title: string
+  source: 'ai' | 'manual'
   textPosts: number
   imagePosts: number
   total: number
@@ -50,6 +52,13 @@ type Props = {
   onWorkspaceModeChange: (value: 'media' | 'text' | 'campaign') => void
   onCampaignSelect: (campaign: AIPostCampaign) => void
   onCampaignClear: () => void
+  onManualCampaignStart: () => void
+  onManualCampaignTitleChange: (title: string) => void
+  onManualTextAdd: () => void
+  onManualMediaAdd: (files: File[]) => void
+  onManualPostEdit: (id: string, caption: string) => void
+  onManualPostRemove: (id: string) => void
+  onManualPostMove: (id: string, direction: -1 | 1) => void
   onCreateCampaign: () => void
   onContentModeChange: (value: BulkContentMode) => void
   onMedia: (files: File[]) => void
@@ -77,6 +86,7 @@ function campaignModeLabel(mode: AIPostCampaign['contentMode']) {
 export function UploadBatchPanel(props: Props) {
   const mediaInput = useRef<HTMLInputElement>(null)
   const captionInput = useRef<HTMLInputElement>(null)
+  const campaignMediaInput = useRef<HTMLInputElement>(null)
   const needsDate = props.timingMode === 'schedule_time' || props.timingMode === 'saved_schedule'
   const textMode = props.contentMode === 'text'
   const campaignMode = props.workspaceMode === 'campaign'
@@ -89,8 +99,8 @@ export function UploadBatchPanel(props: Props) {
         <div className="flex items-start gap-3">
           <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-brand-cyan/25 bg-brand-cyan/8 text-brand-cyan">{campaignMode ? <Megaphone aria-hidden="true" className="size-5" /> : <UploadCloud aria-hidden="true" className="size-5" />}</span>
           <div>
-            <h2 className="text-base font-semibold" id="upload-batch-title">{campaignMode ? 'AI campaign batch' : 'Bulk content batch'}</h2>
-            <p className="mt-0.5 text-xs leading-5 text-text-muted">{campaignMode ? campaignImport ? `“${campaignImport.title}” is loaded in campaign order. Review the sequence below, then choose destinations and timing.` : 'Create or choose a saved AI campaign for text-only, image-only or mixed text + image publishing.' : textMode ? 'Paste complete text posts, then choose how they should publish.' : 'Add local images or videos and captions, then choose how they should publish.'}</p>
+            <h2 className="text-base font-semibold" id="upload-batch-title">{campaignMode ? 'Campaign batch' : 'Bulk content batch'}</h2>
+            <p className="mt-0.5 text-xs leading-5 text-text-muted">{campaignMode ? campaignImport ? `“${campaignImport.title}” is loaded in campaign order. Review the sequence below, then choose destinations and timing.` : 'Build a campaign from your own text and media, or use a saved AI campaign.' : textMode ? 'Paste complete text posts, then choose how they should publish.' : 'Add local images or videos and captions, then choose how they should publish.'}</p>
           </div>
         </div>
         {!campaignMode && <div className="flex flex-wrap gap-2">
@@ -104,14 +114,16 @@ export function UploadBatchPanel(props: Props) {
       <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-border-soft bg-black/10 p-1">
         <button className={`flex min-h-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition ${props.workspaceMode === 'media' ? 'bg-brand-cyan/12 text-brand-cyan shadow-inner' : 'text-text-muted hover:bg-white/[.03] hover:text-white'}`} disabled={props.running} onClick={() => props.onWorkspaceModeChange('media')} type="button"><Images className="size-4" />Media Posts</button>
         <button className={`flex min-h-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition ${props.workspaceMode === 'text' ? 'bg-brand-cyan/12 text-brand-cyan shadow-inner' : 'text-text-muted hover:bg-white/[.03] hover:text-white'}`} disabled={props.running} onClick={() => props.onWorkspaceModeChange('text')} type="button"><Type className="size-4" />Text Posts</button>
-        <button className={`flex min-h-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition ${campaignMode ? 'bg-brand-purple/12 text-[#c4b5fd] shadow-inner' : 'text-text-muted hover:bg-white/[.03] hover:text-white'}`} disabled={props.running} onClick={() => props.onWorkspaceModeChange('campaign')} type="button"><Megaphone className="size-4" />AI Campaign</button>
+        <button className={`flex min-h-10 items-center justify-center gap-2 rounded-lg text-xs font-semibold transition ${campaignMode ? 'bg-brand-purple/12 text-[#c4b5fd] shadow-inner' : 'text-text-muted hover:bg-white/[.03] hover:text-white'}`} disabled={props.running} onClick={() => props.onWorkspaceModeChange('campaign')} type="button"><Megaphone className="size-4" />Campaign</button>
       </div>
 
       {campaignMode && !campaignImport && <div className="mt-4 rounded-2xl border border-brand-purple/20 bg-[radial-gradient(circle_at_95%_0%,rgba(124,58,237,.10),transparent_16rem),linear-gradient(145deg,rgba(15,27,49,.78),rgba(5,18,29,.72))] p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div><span className="text-[9px] font-bold uppercase tracking-[.13em] text-[#c4b5fd]">AI Campaign Library</span><h3 className="mt-1 text-sm font-semibold">Choose a saved campaign</h3><p className="mt-1 text-[10px] leading-5 text-text-muted">Mixed text + media batches are created through AI Post Campaign so every post keeps its intended order, caption and media type.</p></div>
-          <Button onClick={props.onCreateCampaign} size="sm" variant="primary"><Plus className="size-3.5" />Create AI Campaign</Button>
+          <div><span className="text-[9px] font-bold uppercase tracking-[.13em] text-[#c4b5fd]">Choose how to build</span><h3 className="mt-1 text-sm font-semibold">Your campaign, your sequence</h3><p className="mt-1 text-[10px] leading-5 text-text-muted">Combine your own text, images and videos in any order, or create and load a saved AI campaign.</p></div>
+          <div className="flex flex-wrap gap-2"><Button disabled={props.running} onClick={props.onManualCampaignStart} size="sm" variant="primary"><Plus className="size-3.5" />Build manually</Button><Button disabled={props.running} onClick={props.onCreateCampaign} size="sm" variant="ghost"><Sparkles className="size-3.5" />Create with AI</Button></div>
         </div>
+
+        <h4 className="mt-5 text-[10px] font-semibold uppercase tracking-wider text-text-muted">Saved AI campaigns</h4>
 
         {props.campaignLoading ? <div className="mt-4 rounded-xl border border-border-soft bg-black/10 p-4 text-[10px] text-text-muted">Loading saved campaigns…</div> : props.campaignError ? <div className="mt-4 rounded-xl border border-brand-red/20 bg-brand-red/[.05] p-4 text-[10px] text-brand-red">{props.campaignError}</div> : props.campaigns.length ? <div className="mt-4 grid gap-2 sm:grid-cols-2">
           {props.campaigns.map((campaign) => {
@@ -125,7 +137,24 @@ export function UploadBatchPanel(props: Props) {
         </div> : <div className="mt-4 rounded-xl border border-dashed border-border-soft p-5 text-center"><Megaphone className="mx-auto size-5 text-brand-cyan" /><strong className="mt-2 block text-[11px]">No AI campaigns yet</strong><p className="mt-1 text-[9px] text-text-muted">Create one in AI Content Studio, generate any required images, then it will appear here automatically.</p></div>}
       </div>}
 
-      {campaignMode && campaignImport && <div className="mt-4 rounded-2xl border border-brand-cyan/20 bg-brand-cyan/[.025] p-3.5">
+      {campaignMode && campaignImport?.source === 'manual' && <div className="mt-4 rounded-2xl border border-brand-cyan/20 bg-brand-cyan/[.025] p-3.5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <label className="min-w-[12rem] flex-1 text-xs font-semibold">Campaign name<input className="mt-1.5 min-h-10 w-full rounded-lg border border-border-soft bg-bg/65 px-3 text-sm focus:border-brand-cyan focus:outline-none" disabled={props.running} maxLength={200} onChange={(event) => props.onManualCampaignTitleChange(event.target.value)} value={campaignImport.title} /></label>
+          <div className="flex flex-wrap gap-2"><Button disabled={props.running} onClick={props.onManualTextAdd} size="sm" variant="ghost"><FileText className="size-3.5" />Add text post</Button><Button disabled={props.running} onClick={() => campaignMediaInput.current?.click()} size="sm" variant="ghost"><Images className="size-3.5" />Add images or videos</Button><input accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/x-m4v,video/webm,.avi,.mkv" className="sr-only" multiple onChange={(event) => { props.onManualMediaAdd(Array.from(event.target.files || [])); event.target.value = '' }} ref={campaignMediaInput} type="file" /></div>
+        </div>
+        <p className="mt-2 text-[10px] text-text-muted">Add posts in any order, write a caption for each one, and use the arrows to arrange the final publishing sequence. Files stay in this browser session until you publish or schedule.</p>
+        {campaignImport.posts.length ? <ol className="mt-4 space-y-2">{campaignImport.posts.map((post, index) => <li className="flex gap-3 rounded-xl border border-border-soft bg-bg/45 p-3" key={post.id}>
+          <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand-cyan/10 text-brand-cyan">{post.contentType === 'TEXT' ? <FileText className="size-5" /> : post.contentType === 'VIDEO' ? <Video className="size-5" /> : <ImageIcon className="size-5" />}</div>
+          <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="text-xs font-bold text-brand-cyan">{String(index + 1).padStart(2, '0')}</span><span className="text-xs font-semibold">{post.contentType === 'TEXT' ? 'Text post' : `${post.contentType === 'VIDEO' ? 'Video' : 'Image'} post`}</span>{post.fileName && <span className="max-w-full truncate text-[10px] text-text-muted">{post.fileName}</span>}</div>
+            {post.contentType === 'IMAGE' && post.thumbnailUrl && <img alt="" className="mt-2 h-24 max-w-full rounded-lg object-cover" src={post.thumbnailUrl} />}
+            <label className="mt-2 block text-[10px] text-text-muted">Post text<textarea className="mt-1 min-h-20 w-full resize-y rounded-lg border border-border-soft bg-bg/65 p-2.5 text-xs text-text-main focus:border-brand-cyan focus:outline-none" disabled={props.running} onChange={(event) => props.onManualPostEdit(post.id, event.target.value)} placeholder={post.contentType === 'TEXT' ? 'Write or paste your text post…' : 'Write the caption for this media post…'} value={post.caption} /></label>
+          </div>
+          <div className="flex shrink-0 flex-col gap-1"><button aria-label={`Move post ${index + 1} up`} className="rounded-lg border border-border-soft p-2 text-text-muted hover:text-brand-cyan disabled:opacity-30" disabled={props.running || index === 0} onClick={() => props.onManualPostMove(post.id, -1)} type="button"><ArrowUp className="size-3.5" /></button><button aria-label={`Move post ${index + 1} down`} className="rounded-lg border border-border-soft p-2 text-text-muted hover:text-brand-cyan disabled:opacity-30" disabled={props.running || index === campaignImport.posts.length - 1} onClick={() => props.onManualPostMove(post.id, 1)} type="button"><ArrowDown className="size-3.5" /></button><button aria-label={`Remove post ${index + 1}`} className="rounded-lg border border-border-soft p-2 text-text-muted hover:text-brand-red disabled:opacity-30" disabled={props.running} onClick={() => props.onManualPostRemove(post.id)} type="button"><Trash2 className="size-3.5" /></button></div>
+        </li>)}</ol> : <div className="mt-4 rounded-xl border border-dashed border-border-soft p-5 text-center text-xs text-text-muted">Start with a text post or add your media files.</div>}
+        <Button className="mt-3" disabled={props.running} onClick={props.onCampaignClear} size="sm" variant="ghost">Choose another campaign</Button>
+      </div>}
+
+      {campaignMode && campaignImport?.source === 'ai' && <div className="mt-4 rounded-2xl border border-brand-cyan/20 bg-brand-cyan/[.025] p-3.5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div><span className="text-[9px] font-bold uppercase tracking-[.1em] text-brand-cyan">Campaign loaded</span><strong className="mt-1 block text-sm">{campaignImport.title}</strong><span className="mt-1 block text-[9px] text-text-muted">{campaignImport.total} posts · {campaignImport.textPosts} text · {campaignImport.imagePosts} image</span></div>
           <Button disabled={props.running} onClick={props.onCampaignClear} size="sm" variant="ghost">Choose another campaign</Button>
@@ -165,7 +194,7 @@ export function UploadBatchPanel(props: Props) {
         {campaignImport ? <div className="mt-4 grid grid-cols-3 gap-2 rounded-xl border border-brand-cyan/20 bg-brand-cyan/[.035] p-3">
           <div><span className="text-[9px] uppercase tracking-[.08em] text-text-soft">Campaign</span><strong className="mt-1 block text-sm">{campaignImport.total} posts</strong></div>
           <div><span className="text-[9px] uppercase tracking-[.08em] text-text-soft">Text</span><strong className="mt-1 block text-sm">{campaignImport.textPosts}</strong></div>
-          <div><span className="text-[9px] uppercase tracking-[.08em] text-text-soft">Image</span><strong className="mt-1 block text-sm text-brand-cyan">{campaignImport.imagePosts}</strong></div>
+          <div><span className="text-[9px] uppercase tracking-[.08em] text-text-soft">Media</span><strong className="mt-1 block text-sm text-brand-cyan">{campaignImport.imagePosts}</strong></div>
         </div> : <>
           <div className="mt-4"><CaptionInput captionCount={props.captionCount} contentMode={props.contentMode} mediaCount={props.media.length} onChange={props.onCaptionsChange} onFallbackChange={props.onFallbackChange} useFallback={props.useFallback} value={props.captions} /></div>
           <div className="mt-4"><SessionSummary captionCount={props.captionCount} contentMode={props.contentMode} media={props.media} scheduleTimes={props.scheduleTimes} selectedDestinations={props.selectedDestinations} timingMode={props.timingMode} /></div>
@@ -179,7 +208,7 @@ export function UploadBatchPanel(props: Props) {
 
         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <Button className="sm:w-auto" disabled={props.running || (!campaignImport && !props.media.length && !props.captions)} onClick={props.onClear} type="button" variant="ghost"><RotateCcw aria-hidden="true" className="size-4" /> Clear session</Button>
-          <Button className="flex-1" disabled={!props.canStart || props.running} onClick={props.onStart} type="button" variant="primary"><Play aria-hidden="true" className="size-4 fill-current" /> {campaignImport ? 'Schedule AI Campaign' : textMode ? 'Start Text Batch' : 'Start Upload'}</Button>
+          <Button className="flex-1" disabled={!props.canStart || props.running} onClick={props.onStart} type="button" variant="primary"><Play aria-hidden="true" className="size-4 fill-current" /> {campaignImport ? props.timingMode === 'publish_now' ? 'Publish Campaign' : 'Schedule Campaign' : textMode ? 'Start Text Batch' : 'Start Upload'}</Button>
         </div>
         {!props.canStart && <p className="mt-2 text-center text-xs text-text-soft">{props.disabledReason}</p>}
       </>}

@@ -91,17 +91,19 @@ test('AI campaign handoff is persistent and Bulk Scheduler can reopen saved mixe
   assert.match(bulk, /mixedCampaign/);
   assert.match(bulk, /mixedTextDestinations/);
   assert.match(bulk, /TEXT_POST_PLATFORMS/);
-  assert.match(bulk, /ai-mixed-\$\{post\.contentType\.toLowerCase\(\)\}-/);
+  assert.match(bulk, /campaign-\$\{post\.contentType\.toLowerCase\(\)\}-/);
   assert.match(bulk, /clientRequestId: initialResults\[index\]\.clientRequestId!/);
   assert.match(bulk, /publishBulkLibraryMedia/);
   assert.match(bulk, /localStorage\.setItem\(ACTIVE_AI_CAMPAIGN_KEY/);
 
-  assert.match(panel, /AI Campaign/);
-  assert.match(panel, /AI Campaign Library/);
-  assert.match(panel, /Choose a saved campaign/);
-  assert.match(panel, /Create AI Campaign/);
+  assert.match(panel, />Campaign<\/button>/);
+  assert.match(panel, /Saved AI campaigns/);
+  assert.match(panel, /Build manually/);
+  assert.match(panel, /Create with AI/);
   assert.match(panel, /campaignImport\.posts\.map/);
-  assert.match(panel, /Schedule AI Campaign/);
+  assert.match(panel, /Schedule Campaign/);
+  assert.match(bulk, /onManualPostMove=\{moveManualCampaignPost\}/);
+  assert.match(bulk, /uploadBulkMedia\(finalJob\.id, post\.media\.file/);
 });
 
 test('campaign images open in a full-size preview', () => {
