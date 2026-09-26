@@ -53,12 +53,14 @@ function callbackUrl() {
   return `${origin}/api/admin/search-console/oauth/callback`;
 }
 
-function authorization(adminUserId) {
+function authorization(adminUserId, options = {}) {
   if (!adminUserId) throw publicError('Administrator session is required.', 401);
+  const returnTo = options.returnTo === 'growthIntelligence' ? 'growthIntelligence' : 'searchConsole';
   const { clientId } = requireSettings();
   const state = jwt.sign({
     sub: String(adminUserId),
     purpose: 'google-search-console-admin-oauth',
+    returnTo,
     nonce: crypto.randomBytes(18).toString('base64url')
   }, stateSecret(), { expiresIn: '10m', issuer: 'inx-social' });
 
@@ -303,7 +305,7 @@ async function completeOAuth(query) {
     }
   });
 
-  return { connection, sites, adminUserId: String(state.sub) };
+  return { connection, sites, adminUserId: String(state.sub), returnTo: state.returnTo === 'growthIntelligence' ? 'growthIntelligence' : 'searchConsole' };
 }
 
 async function status() {
