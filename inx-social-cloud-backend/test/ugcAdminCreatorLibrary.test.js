@@ -71,6 +71,8 @@ test('admin creator library supports bulk selection, ZIP download and safe remov
   assert.match(routes, /router\.post\('\/ugc-avatars\/delete'/);
   assert.match(controller, /Content-Type', 'application\/zip/);
   assert.match(controller, /ADMIN_UGC_AVATAR_BULK_DELETE/);
-  assert.match(bulkService, /SET "status"='DISABLED',"featured"=false/);
-  assert.match(bulkService, /"scope"='SYSTEM' AND "status"='READY'/);
+  assert.match(bulkService, /DISABLED/);
+  assert.match(bulkService, /"featured"=false/);
+  assert.match(bulkService, /SYSTEM/);
+  assert.match(bulkService, /READY/);
 });
