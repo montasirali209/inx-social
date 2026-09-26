@@ -97,9 +97,14 @@ async function analyticsStatus(req, res, next) {
 async function selectAnalyticsProperty(req, res, next) {
   try {
     const input = z.object({
-      propertyId: z.string().trim().regex(/^\d+$/)
+      propertyId: z.string().trim().regex(/^\d+$/),
+      manual: z.boolean().optional().default(false),
+      displayName: z.string().trim().max(140).optional()
     }).parse(req.body || {});
-    const selectedProperty = await googleAnalytics.selectProperty(input.propertyId);
+    const selectedProperty = await googleAnalytics.selectProperty(input.propertyId, {
+      manual: input.manual,
+      displayName: input.displayName
+    });
     await writeAudit(req.user.id, 'ADMIN_GROWTH_GA4_PROPERTY_SELECTED', {
       propertyId: selectedProperty.propertyId,
       displayName: selectedProperty.displayName
