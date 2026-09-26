@@ -452,10 +452,7 @@ function ConnectionActionsMenu({ account, onView, onRefresh, onReconnect, onPerm
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
 
   useEffect(() => {
-    if (!open) {
-      setPosition(null)
-      return
-    }
+    if (!open) return
 
     const updatePosition = () => {
       const trigger = triggerRef.current
@@ -512,7 +509,10 @@ function ConnectionActionsMenu({ account, onView, onRefresh, onReconnect, onPerm
       aria-haspopup="menu"
       aria-label={`More actions for ${account.accountName}`}
       className="grid size-9 place-items-center rounded-lg border border-border-soft bg-bg/35 text-text-muted transition hover:border-brand-cyan/30 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan"
-      onClick={() => setOpen((value) => !value)}
+      onClick={() => {
+        setPosition(null)
+        setOpen((value) => !value)
+      }}
       ref={triggerRef}
       type="button"
     >
