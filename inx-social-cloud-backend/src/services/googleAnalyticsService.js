@@ -181,6 +181,9 @@ async function selectProperty(propertyId, options = {}) {
   const requested = String(propertyId || '').replace(/^properties\//, '').trim();
   if (!/^\d+$/.test(requested)) throw publicError('Choose a valid numeric GA4 property ID.', 400, 'GA4_PROPERTY_INVALID');
 
+  const activeConnection = await connection();
+  requireAnalyticsScope(activeConnection);
+
   if (options.manual) {
     return writeSelectedProperty({
       propertyId: requested,
