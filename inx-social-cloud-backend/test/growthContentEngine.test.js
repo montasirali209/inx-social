@@ -41,7 +41,7 @@ test('Content Engine creates evidence-backed SEO content with quality controls',
   assert.match(service, /qualityReview/);
   assert.match(service, /meta_description/);
   assert.match(service, /FAQPage/);
-  assert.match(service, /Article'/);
+  assert.match(service, /BlogPosting'/);
   assert.match(service, /relatedInternalLinks/);
   assert.match(service, /sourceCount/);
   assert.match(service, /wordCount/);
