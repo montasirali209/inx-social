@@ -28,6 +28,7 @@ const adminSecurity = require('../controllers/adminSecurityController');
 const googleSearchConsole = require('../controllers/googleSearchConsoleController');
 const growthIntelligence = require('../controllers/growthIntelligenceController');
 const growthContent = require('../controllers/growthContentController');
+const growthAutopilot = require('../controllers/growthAutopilotController');
 const adminSecurityRoutes = require('./adminSecurityRoutes');
 
 router.get('/search-console/oauth/callback', googleSearchConsole.oauthCallback);
@@ -56,6 +57,9 @@ router.post('/content-engine/articles/:id/publish', requireSuperAdmin, growthCon
 router.post('/content-engine/articles/:id/unpublish', requireSuperAdmin, growthContent.unpublish);
 router.post('/content-engine/articles/:id/archive', requireSuperAdmin, growthContent.archive);
 router.post('/content-engine/articles/:id/featured-image', requireSuperAdmin, growthContent.featuredImage);
+router.get('/growth-autopilot/status', growthAutopilot.status);
+router.patch('/growth-autopilot/config', requireSuperAdmin, growthAutopilot.updateConfig);
+router.post('/growth-autopilot/run-now', requireSuperAdmin, growthAutopilot.runNow);
 router.post('/search-console/oauth/start', requireSuperAdmin, googleSearchConsole.startOAuth);
 router.post('/search-console/site', requireSuperAdmin, googleSearchConsole.selectSite);
 router.get('/search-console/performance', googleSearchConsole.performance);
