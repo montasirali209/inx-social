@@ -19,6 +19,8 @@ const safeUrl = v => { try { const u=new URL(String(v||'').trim()); return ['htt
 const domainOf = v => { try { return new URL(String(v||'')).hostname.toLowerCase().replace(/^www\./,''); } catch(_){ return ''; } };
 const own = v => domainOf(v)==='inxsocial.co.uk' || domainOf(v).endsWith('.inxsocial.co.uk');
 const excluded = v => domainOf(v)==='reddit.com' || domainOf(v).endsWith('.reddit.com');
+const legacyRedditProspect = x => String(x?.type||'').toUpperCase()==='REDDIT' || excluded(x?.url) || domainOf(x?.domain)==='reddit.com' || String(x?.domain||'').toLowerCase()==='reddit.com' || String(x?.domain||'').toLowerCase().endsWith('.reddit.com');
+const sanitizeProspects = items => (Array.isArray(items)?items:[]).filter(x=>x&&!legacyRedditProspect(x));
 const idFor = (type,url) => crypto.createHash('sha256').update(type+'|'+url.toLowerCase().replace(/\/$/,'')).digest('hex').slice(0,20);
 
 function providerStatus(){
@@ -56,11 +58,13 @@ function blankState(){
 async function readState(){
   const row=await prisma.appSetting.findUnique({where:{key:STATE_KEY}});
   const saved=safeJson(row?.value,null);
-  return saved?{...blankState(),...saved,provider:providerStatus(),prospects:Array.isArray(saved.prospects)?saved.prospects:[],stats:{...summarize([]),...(saved.stats||{})}}:blankState();
+  if(!saved)return blankState();
+  const prospects=sanitizeProspects(saved.prospects);
+  return {...blankState(),...saved,provider:providerStatus(),prospects,stats:summarize(prospects)};
 }
 
 async function writeState(state){
-  const value={...blankState(),...state,provider:providerStatus(),prospects:(state.prospects||[]).slice(0,250)};
+  const value={...blankState(),...state,provider:providerStatus(),prospects:sanitizeProspects(state.prospects).slice(0,250)};
   value.stats=summarize(value.prospects);
   await prisma.appSetting.upsert({
     where:{key:STATE_KEY},
@@ -101,12 +105,12 @@ function normalizeCandidate(x){
 }
 
 function mergeProspects(oldItems,newItems){
-  const map=new Map((oldItems||[]).map(x=>[x.id,x]));
-  for(const item of newItems||[]){
+  const map=new Map(sanitizeProspects(oldItems).map(x=>[x.id,x]));
+  for(const item of sanitizeProspects(newItems)){
     const old=map.get(item.id);
     map.set(item.id,old?{...item,...old,score:Math.max(old.score||0,item.score||0),reason:item.reason||old.reason,lastSeenAt:nowIso(),contact:old.contact?.value?old.contact:item.contact}:item);
   }
-  return [...map.values()].sort((a,b)=>(TERMINAL.has(a.status)?1:0)-(TERMINAL.has(b.status)?1:0)||(b.score||0)-(a.score||0)).slice(0,250);
+  return sanitizeProspects([...map.values()]).sort((a,b)=>(TERMINAL.has(a.status)?1:0)-(TERMINAL.has(b.status)?1:0)||(b.score||0)-(a.score||0)).slice(0,250);
 }
 
 async function discoverProspects(http=axios){
@@ -317,4 +321,4 @@ async function updateProspect(id,action,input={}){
   return saved;
 }
 
-module.exports={STATE_KEY,TYPES,providerStatus,status:readState,run,updateProspect,discoverProspects,validateProspect,draftForProspects,reviewOutreachForAutoSend,mergeProspects,normalizeCandidate,summarize};
+module.exports={STATE_KEY,TYPES,providerStatus,status:readState,run,updateProspect,discoverProspects,validateProspect,draftForProspects,reviewOutreachForAutoSend,mergeProspects,normalizeCandidate,summarize,sanitizeProspects,legacyRedditProspect};
