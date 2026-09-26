@@ -226,12 +226,37 @@ const avatarSeeds = [
   prompt: 'Ultra-realistic UGC creator portrait of a ' + row[6] + '. Vertical 9:16, waist-up, realistic skin texture, natural daylight, smartphone-camera realism, uncluttered neutral background, no text, no logo, no watermark.'
 }));
 
-const ADMIN_CREATOR_NAMES = Object.freeze({
-  Woman: ['Maya','Sofia','Chloe','Amara','Nina','Elena','Grace','Jade','Olivia','Priya','Zara','Naomi','Isla','Leah','Aisha','Mila','Layla','Freya','Ivy','Lena'],
-  Man: ['Liam','Noah','Ethan','Leo','Adam','Daniel','Ryan','Omar','Jack','Theo','Lucas','Samir','Benji','Kai','Mason','Hugo','Aiden','Finn','Eli','Reece'],
-  'Non-binary': ['Riley','Jordan','Casey','Morgan','Taylor','Avery','Cameron','Rowan','Jamie','Quinn','Skyler','Reese'],
-  Unspecified: ['Creator One','Creator Two','Creator Three','Creator Four','Creator Five','Creator Six']
+const ADMIN_CREATOR_FIRST_NAMES = Object.freeze({
+  Woman: ['Maya','Sofia','Chloe','Amara','Nina','Elena','Grace','Jade','Olivia','Priya','Zara','Naomi','Isla','Leah','Aisha','Mila','Layla','Freya','Ivy','Lena','Camila','Nadia','Ruby','Keisha','Mei','Ava','Jasmine','Hana','Sienna','Talia','Rina','Mina','Farah','Lila','Anika','Tessa','Sara','Eva','Amina','Mara'],
+  Man: ['Liam','Noah','Ethan','Leo','Adam','Daniel','Ryan','Omar','Jack','Theo','Lucas','Samir','Benji','Kai','Mason','Hugo','Aiden','Finn','Eli','Reece','James','Arjun','Marcus','Alex','Callum','Oliver','Shaun','Graham','Ravi','Milan','Jonah','Dylan','Evan','Amir','Isaac','Nathan','Roman','Zayn','Max','Nico'],
+  'Non-binary': ['Riley','Jordan','Casey','Morgan','Taylor','Avery','Cameron','Rowan','Jamie','Quinn','Skyler','Reese','Robin','Sage','Emery','River','Ari','Blair','Dakota','Hayden'],
+  Unspecified: ['Alex','Avery','Casey','Cameron','Jamie','Jordan','Morgan','Quinn','Riley','Robin','Rowan','Sage']
 });
+
+const ADMIN_CREATOR_SURNAMES = Object.freeze([
+  'Bennett','Carter','Morgan','Reed','Parker','Hayes','Brooks','Cole','Turner','Blake',
+  'Patel','Shah','Khan','Ahmed','Ali','Rahman','Singh','Kapoor','Mehta','Das',
+  'Chen','Lin','Wong','Tan','Kim','Park','Lee','Nguyen','Tran','Sato',
+  'Garcia','Lopez','Rivera','Santos','Diaz','Silva','Costa','Martinez','Moreno','Rossi',
+  'Miller','Wilson','Taylor','Evans','Lewis','Clark','Young','Hall','Scott','Green'
+]);
+
+function genericSystemAvatarName(value) {
+  return /^(?:(?:female|male|woman|man|ugc|system|ai)\s+)?creator(?:\s+\d+)?$/i.test(clean(value, 100));
+}
+
+function shuffledCreatorCandidates(presentation) {
+  const firstNames = ADMIN_CREATOR_FIRST_NAMES[presentation] || ADMIN_CREATOR_FIRST_NAMES.Unspecified;
+  const candidates = [];
+  for (const firstName of firstNames) {
+    for (const surname of ADMIN_CREATOR_SURNAMES) candidates.push(firstName + ' ' + surname);
+  }
+  for (let index = candidates.length - 1; index > 0; index -= 1) {
+    const swap = crypto.randomInt(0, index + 1);
+    [candidates[index], candidates[swap]] = [candidates[swap], candidates[index]];
+  }
+  return candidates;
+}
 
 function normalizeAdminPresentation(value) {
   const input = clean(value, 40).toLowerCase();
@@ -241,20 +266,43 @@ function normalizeAdminPresentation(value) {
   return 'Unspecified';
 }
 
-async function nextSystemAvatarName(presentation, preferredName = '') {
+async function nextSystemAvatarName(presentation, preferredName = '', usedNames = null) {
   const preferred = clean(preferredName, 80);
-  if (preferred) {
-    const exists = await prisma.$queryRawUnsafe('SELECT 1 FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\' AND LOWER("name")=LOWER($1) LIMIT 1', preferred);
-    if (!exists.length) return preferred;
+  const used = usedNames || new Set(
+    (await prisma.$queryRawUnsafe('SELECT "name" FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\''))
+      .map(row => String(row.name || '').toLowerCase())
+  );
+  if (preferred && !genericSystemAvatarName(preferred) && !used.has(preferred.toLowerCase())) return preferred;
+  for (const candidate of shuffledCreatorCandidates(presentation)) {
+    if (!used.has(candidate.toLowerCase())) return candidate;
   }
-  const rows = await prisma.$queryRawUnsafe('SELECT "name" FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\'');
-  const used = new Set(rows.map(row => String(row.name || '').toLowerCase()));
-  const pool = ADMIN_CREATOR_NAMES[presentation] || ADMIN_CREATOR_NAMES.Unspecified;
-  for (const candidate of pool) if (!used.has(candidate.toLowerCase())) return candidate;
-  const base = presentation === 'Woman' ? 'Female Creator' : presentation === 'Man' ? 'Male Creator' : presentation === 'Non-binary' ? 'Creator' : 'UGC Creator';
-  let number = 1;
-  while (used.has((base + ' ' + number).toLowerCase())) number += 1;
-  return base + ' ' + number;
+  // The first-name × surname pools provide thousands of combinations. This is
+  // only a last-resort safety net and still presents as a normal human name.
+  const fallbackFirst = (ADMIN_CREATOR_FIRST_NAMES[presentation] || ADMIN_CREATOR_FIRST_NAMES.Unspecified)[0] || 'Alex';
+  let suffix = crypto.randomInt(100, 1000);
+  while (used.has((fallbackFirst + ' ' + suffix).toLowerCase())) suffix = crypto.randomInt(100, 1000);
+  return fallbackFirst + ' ' + suffix;
+}
+
+async function repairGenericSystemAvatarNames() {
+  const rows = await prisma.$queryRawUnsafe(
+    'SELECT "id","name","presentation" FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\' AND "status"=\'READY\' ORDER BY "createdAt","id"'
+  );
+  const used = new Set(rows.filter(row => !genericSystemAvatarName(row.name)).map(row => String(row.name || '').toLowerCase()));
+  let renamed = 0;
+  for (const row of rows) {
+    if (!genericSystemAvatarName(row.name)) continue;
+    const presentation = normalizeAdminPresentation(row.presentation);
+    const nextName = await nextSystemAvatarName(presentation, '', used);
+    used.add(nextName.toLowerCase());
+    await prisma.$executeRawUnsafe(
+      'UPDATE "UGCAvatar" SET "name"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "scope"=\'SYSTEM\'',
+      row.id, nextName
+    );
+    renamed += 1;
+  }
+  if (renamed) console.log('[UGC AVATAR NAMES]', 'Assigned friendly names to ' + renamed + ' existing system creators.');
+  return renamed;
 }
 
 async function listSystemAvatars() {
@@ -345,6 +393,7 @@ async function ensureSystemAvatars() {
       storage.environmentTagsJson, storage.wardrobeJson, storage.gestureJson, storage.routeCompatibilityJson, storage.castingProfileJson
     );
   }
+  await repairGenericSystemAvatarNames();
 }
 
 let avatarWarmupRunning = false;
