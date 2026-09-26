@@ -447,7 +447,7 @@ async function loadSearchConsole(){
 }
 $('gscConnectBtn').addEventListener('click',async()=>{
   try{
-    const data=await api('/api/admin/search-console/oauth/start',{method:'POST',body:JSON.stringify({returnTo:'growthIntelligence'})});
+    const data=await api('/api/admin/search-console/oauth/start',{method:'POST',body:JSON.stringify({returnTo:'searchConsole'})});
     window.location.assign(data.authorizationUrl);
   }catch(error){toast(error.message)}
 });
