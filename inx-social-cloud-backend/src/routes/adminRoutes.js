@@ -34,6 +34,7 @@ const growthAutopilot = require('../controllers/growthAutopilotController');
 const growthSeoMaintenance = require('../controllers/growthSeoMaintenanceController');
 const growthAuthority = require('../controllers/growthAuthorityController');
 const growthOptimization = require('../controllers/growthOptimizationController');
+const growthDashboard = require('../controllers/growthDashboardController');
 const adminSecurityRoutes = require('./adminSecurityRoutes');
 
 router.get('/search-console/oauth/callback', googleSearchConsole.oauthCallback);
@@ -41,6 +42,7 @@ router.get('/search-console/oauth/callback', googleSearchConsole.oauthCallback);
 router.use(requireAuth, requireAdmin);
 router.get('/overview', overview);
 router.get('/search-console/status', googleSearchConsole.status);
+router.get('/growth-dashboard', growthDashboard.snapshot);
 router.get('/growth-intelligence/overview', growthIntelligence.overview);
 router.post('/growth-intelligence/site-audit', requireSuperAdmin, growthIntelligence.runSiteAudit);
 router.post('/growth-intelligence/openai-visibility', requireSuperAdmin, growthIntelligence.runOpenAIVisibility);
