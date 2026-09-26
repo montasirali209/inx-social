@@ -111,10 +111,9 @@ async function recommendModel(input = {}) {
   const universal = await videoModels.publicCatalog({ all: true });
   const candidates = universal.models
     .filter(item => item.generationReady && (
-      item.modes?.includes('TEXT_TO_VIDEO') ||
-      item.modes?.includes('IMAGE_TO_VIDEO') ||
-      item.referenceImagesSupported ||
-      item.imageReferenceSupported
+      Boolean(input.hasReference)
+        ? (item.modes?.includes('TEXT_TO_VIDEO') || item.modes?.includes('IMAGE_TO_VIDEO') || item.referenceImagesSupported || item.imageReferenceSupported)
+        : item.modes?.includes('TEXT_TO_VIDEO')
     ))
     .map(item => ({
       id: item.id,
