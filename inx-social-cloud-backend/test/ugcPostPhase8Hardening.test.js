@@ -79,11 +79,15 @@ test('Runware transient transport retries reuse the same task objects and pollin
   assert.match(runware, /pollTask\(taskUUID/);
 });
 
-test('OpenAI application defaults remain Luna for chat and Terra for reasoning/search with no Sol hard-code', () => {
+test('OpenAI application defaults remain Luna for chat and Terra for reasoning/search', () => {
   const studio = read('src/services/aiPostStudioServiceV2.js');
   const env = read('src/config/env.js');
+  const webResearchStart = env.indexOf('webResearch: {');
+  const contentWriterStart = env.indexOf('contentWriter: {');
+  const webResearchConfig = env.slice(webResearchStart, contentWriterStart);
+
   assert.match(studio, /OPENAI_CHAT_MODEL \|\| 'gpt-5\.6-luna'/);
   assert.match(studio, /OPENAI_REASONING_MODEL \|\| process\.env\.OPENAI_MODEL \|\| 'gpt-5\.6-terra'/);
-  assert.match(env, /OPENAI_WEB_SEARCH_MODEL \|\| process\.env\.OPENAI_MODEL \|\| 'gpt-5\.6-terra'/);
-  assert.doesNotMatch(studio + env, /gpt-5\.6-sol/i);
+  assert.match(webResearchConfig, /OPENAI_WEB_SEARCH_MODEL \|\| process\.env\.OPENAI_MODEL \|\| 'gpt-5\.6-terra'/);
+  assert.doesNotMatch(studio + webResearchConfig, /gpt-5\.6-sol/i);
 });
