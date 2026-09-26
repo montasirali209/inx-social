@@ -8,7 +8,7 @@ const webResearch = require('./webResearchService');
 const emailService = require('./emailService');
 
 const STATE_KEY = 'growth_authority_autopilot_state_v1';
-const TYPES = ['REDDIT','QUORA','COMMUNITY','RESOURCE_PAGE','COMPARISON','BROKEN_LINK','DIRECTORY','PARTNER','JOURNALIST_REQUEST','PUBLICATION','UNLINKED_MENTION','COMPETITOR_BACKLINK','AI_CITATION_SOURCE'];
+const TYPES = ['QUORA','COMMUNITY','RESOURCE_PAGE','COMPARISON','BROKEN_LINK','DIRECTORY','PARTNER','JOURNALIST_REQUEST','PUBLICATION','UNLINKED_MENTION','COMPETITOR_BACKLINK','AI_CITATION_SOURCE'];
 const TERMINAL = new Set(['DISMISSED','LINK_ACQUIRED','MENTION_ACQUIRED','AI_CITED']);
 const AUTO_EMAIL_LIMIT = 2;
 
@@ -18,6 +18,7 @@ const clamp = (v,f,min,max) => Number.isFinite(Number(v)) ? Math.max(min,Math.mi
 const safeUrl = v => { try { const u=new URL(String(v||'').trim()); return ['http:','https:'].includes(u.protocol)?u.toString():''; } catch(_){ return ''; } };
 const domainOf = v => { try { return new URL(String(v||'')).hostname.toLowerCase().replace(/^www\./,''); } catch(_){ return ''; } };
 const own = v => domainOf(v)==='inxsocial.co.uk' || domainOf(v).endsWith('.inxsocial.co.uk');
+const excluded = v => domainOf(v)==='reddit.com' || domainOf(v).endsWith('.reddit.com');
 const idFor = (type,url) => crypto.createHash('sha256').update(type+'|'+url.toLowerCase().replace(/\/$/,'')).digest('hex').slice(0,20);
 
 function providerStatus(){
@@ -27,14 +28,14 @@ function providerStatus(){
     writerModel:env.contentWriter?.model||null,
     email:emailService.isConfigured(),
     communityPosting:false,
-    note:'Community posting remains approval-gated because no compliant Reddit/Quora publishing connector is configured.'
+    note:'Community posting remains approval-gated because no compliant community publishing connector is configured.'
   };
 }
 
 function summarize(items=[]){
   return {
     total:items.filter(x=>!TERMINAL.has(x.status)).length,
-    communities:items.filter(x=>['REDDIT','QUORA','COMMUNITY'].includes(x.type)&&x.status!=='DISMISSED').length,
+    communities:items.filter(x=>['QUORA','COMMUNITY'].includes(x.type)&&x.status!=='DISMISSED').length,
     backlinkProspects:items.filter(x=>['RESOURCE_PAGE','COMPARISON','BROKEN_LINK','DIRECTORY','PARTNER','PUBLICATION','COMPETITOR_BACKLINK','AI_CITATION_SOURCE'].includes(x.type)&&x.status!=='DISMISSED').length,
     outreachDrafts:items.filter(x=>x.draft?.communityReply||x.draft?.outreachBody).length,
     approved:items.filter(x=>x.status==='APPROVED').length,
@@ -82,7 +83,7 @@ function discoverySchema(){
 
 function normalizeCandidate(x){
   const url=safeUrl(x?.url); const type=TYPES.includes(String(x?.type||'').toUpperCase())?String(x.type).toUpperCase():'COMMUNITY';
-  if(!url||own(url))return null;
+  if(!url||own(url)||excluded(url))return null;
   let relevantPage=safeUrl(x?.relevantPage); if(!relevantPage||!own(relevantPage)) relevantPage='https://www.inxsocial.co.uk';
   let kind=['EMAIL','URL','NONE'].includes(String(x?.contactKind||'').toUpperCase())?String(x.contactKind).toUpperCase():'NONE';
   let value=String(x?.contactValue||'').trim().slice(0,320);
@@ -114,7 +115,8 @@ async function discoverProspects(http=axios){
     instructions:'Use live web search. Return only verifiable current public opportunities. Never invent URLs, contact details, community rules, mentions, or backlink claims. Prefer legitimate relevance over volume.',
     input:[
       'Find current authority opportunities for INXSocial, an AI social media management, scheduling, campaign-generation and UGC-ad platform.',
-      'Cover recent Reddit/Quora/community questions, competitor backlink sources, resource/comparison pages, unlinked INXSocial mentions, broken-link replacements, directories, partners, journalist requests, relevant publications, and sites repeatedly cited by AI/search answers for social-media-management topics.',
+      'Cover recent Quora and other non-Reddit community questions, competitor backlink sources, resource/comparison pages, unlinked INXSocial mentions, broken-link replacements, directories, partners, journalist requests, relevant publications, and sites repeatedly cited by AI/search answers for social-media-management topics.',
+      'Exclude reddit.com entirely. Do not return Reddit threads, Reddit profiles, Reddit communities or Reddit-derived opportunities.',
       'For communities prefer active problem-solving/buyer-intent threads and note obvious promotion/link rules. For outreach only return an email when current public evidence explicitly shows it; otherwise use a contact page URL or NONE.',
       'relevantPage must be an existing https://www.inxsocial.co.uk URL. Score 0-100 for realistic usefulness and authority value.'
     ].join(' '),
@@ -134,7 +136,7 @@ async function validateProspect(item,http=axios){
   try{
     const r=await http.get(item.url,{timeout:9000,maxRedirects:5,maxContentLength:300000,headers:{'User-Agent':'INXSocial-AuthorityResearch/1.0'},validateStatus:()=>true});
     const body=typeof r.data==='string'?r.data.slice(0,250000):'';
-    return {checkedAt:nowIso(),status:r.status,reachable:r.status>=200&&r.status<400,archived:['REDDIT','QUORA','COMMUNITY'].includes(item.type)&&/\b(archived|locked|comments are locked|thread is locked)\b/i.test(body),duplicateEngagement:['APPROVED','SENT','FOLLOWED_UP','POSTED'].includes(item.status)};
+    return {checkedAt:nowIso(),status:r.status,reachable:r.status>=200&&r.status<400,archived:['QUORA','COMMUNITY'].includes(item.type)&&/\b(archived|locked|comments are locked|thread is locked)\b/i.test(body),duplicateEngagement:['APPROVED','SENT','FOLLOWED_UP','POSTED'].includes(item.status)};
   }catch(e){return {checkedAt:nowIso(),status:0,reachable:false,archived:false,duplicateEngagement:false,note:String(e.message||e).slice(0,240)};}
 }
 
