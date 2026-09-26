@@ -156,8 +156,7 @@ function compactOpportunity(item) {
       mentioned: Boolean(signal.mentioned),
       cited: Boolean(signal.cited),
       competitors: (signal.competitors || []).slice(0, 5)
-    })),
-    redditMatches: Array.isArray(item.reddit) ? item.reddit.length : 0
+    }))
   };
 }
 
@@ -181,7 +180,7 @@ async function plan({ opportunityMap, articles }) {
     instructions: [
       'You are the strategic decision layer for INXSocial Growth Autopilot.',
       'Choose the single most useful next action from measured evidence, not from novelty or a timer.',
-      'The backend has already collected Search Console demand, GA4 context, AI-search visibility, Reddit evidence, technical checks and existing content.',
+      'The backend has already collected Search Console demand, GA4 context, AI-search visibility, authority signals, technical checks and existing content.',
       'Avoid keyword cannibalisation and duplicate articles.',
       'Prefer improving an existing page when it already ranks and matches intent.',
       'Choose CREATE_ARTICLE only when a distinct article is genuinely justified.',
