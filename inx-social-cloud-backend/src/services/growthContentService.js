@@ -146,6 +146,61 @@ function safeInternalPath(value) {
   return /^\/(?:[a-z0-9][a-z0-9/_-]*|)$/.test(clean) ? clean : '';
 }
 
+function sourceDomain(value) {
+  try {
+    return new URL(String(value || '')).hostname.replace(/^www\./i, '').toLowerCase();
+  } catch (_) {
+    return '';
+  }
+}
+
+function humanizePathSegment(value) {
+  const clean = decodeURIComponent(String(value || ''))
+    .replace(/\.[a-z0-9]{2,6}$/i, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return clean ? clean.replace(/\b\w/g, char => char.toUpperCase()) : '';
+}
+
+function professionalSourceTitle(source) {
+  const url = safeExternalUrl(source?.url);
+  if (!url) return '';
+  const supplied = normalizeSpace(source?.title || '');
+  const generic = !supplied
+    || /^(?:research\s+source|source|web\s+source|search\s+result|untitled)$/i.test(supplied)
+    || supplied === url;
+  if (!generic) return supplied.slice(0, 240);
+
+  try {
+    const parsed = new URL(url);
+    const segment = parsed.pathname.split('/').filter(Boolean).pop();
+    const page = humanizePathSegment(segment);
+    const domain = parsed.hostname.replace(/^www\./i, '');
+    return (page ? page + ' — ' : '') + domain;
+  } catch (_) {
+    return url.slice(0, 240);
+  }
+}
+
+function normalizeSources(values) {
+  const seen = new Set();
+  const result = [];
+  for (const source of Array.isArray(values) ? values : []) {
+    const url = safeExternalUrl(source?.url);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    result.push({
+      id: 'S' + (result.length + 1),
+      title: professionalSourceTitle({ ...source, url }),
+      url,
+      domain: sourceDomain(url)
+    });
+    if (result.length >= 12) break;
+  }
+  return result;
+}
+
 function escapeHtml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
@@ -155,13 +210,21 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-function inlineMarkdown(value) {
+function inlineMarkdown(value, sources = []) {
   let text = escapeHtml(value);
   text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  const sourceMap = new Map((sources || []).map(source => [String(source.id || '').toUpperCase(), source]));
+  text = text.replace(/\[(S\d{1,2})\]/gi, (match, id) => {
+    const source = sourceMap.get(String(id).toUpperCase());
+    if (!source) return match;
+    const label = escapeHtml(String(source.id || id).replace(/^S/i, ''));
+    const href = escapeHtml(source.url);
+    return '<sup class="inx-inline-citation"><a href="' + href + '" target="_blank" rel="noopener noreferrer" aria-label="Source ' + label + '">[' + label + ']</a></sup>';
+  });
   return text;
 }
 
-function markdownToSafeHtml(markdown) {
+function markdownToSafeHtml(markdown, sources = []) {
   const lines = String(markdown || '').replace(/\r/g, '').split('\n');
   const html = [];
   let paragraph = [];
@@ -169,7 +232,7 @@ function markdownToSafeHtml(markdown) {
 
   const flushParagraph = () => {
     if (!paragraph.length) return;
-    html.push('<p>' + inlineMarkdown(paragraph.join(' ')) + '</p>');
+    html.push('<p>' + inlineMarkdown(paragraph.join(' '), sources) + '</p>');
     paragraph = [];
   };
   const closeList = () => {
@@ -195,7 +258,7 @@ function markdownToSafeHtml(markdown) {
       closeList();
       const tag = h2 ? 'h2' : 'h3';
       const value = h2 ? h2[1] : h3[1];
-      html.push('<' + tag + '>' + inlineMarkdown(value) + '</' + tag + '>');
+      html.push('<' + tag + '>' + inlineMarkdown(value, sources) + '</' + tag + '>');
       continue;
     }
 
@@ -207,7 +270,7 @@ function markdownToSafeHtml(markdown) {
         listType = nextType;
         html.push(nextType === 'ol' ? '<ol>' : '<ul>');
       }
-      html.push('<li>' + inlineMarkdown((ol || ul)[1]) + '</li>');
+      html.push('<li>' + inlineMarkdown((ol || ul)[1], sources) + '</li>');
       continue;
     }
 
@@ -223,33 +286,33 @@ function markdownToSafeHtml(markdown) {
 function relatedInternalLinks(topic, keywords = []) {
   const haystack = [topic, ...keywords].join(' ').toLowerCase();
   const catalog = [
-    { test: /bulk|batch/, label: 'Bulk social media scheduler', url: '/bulk-social-media-scheduler' },
-    { test: /calendar|planning|planner/, label: 'Social media content calendar', url: '/social-media-content-calendar' },
-    { test: /analytic|measure|report|performance/, label: 'Social media analytics', url: '/social-media-analytics' },
-    { test: /campaign/, label: 'AI social media campaign generator', url: '/ai-social-media-campaign-generator' },
-    { test: /carousel/, label: 'AI carousel post generator', url: '/ai-carousel-post-generator' },
-    { test: /video|reel/, label: 'AI video post generator', url: '/ai-video-post-generator' },
-    { test: /ugc|creator ad|advert/, label: 'AI UGC ad generator', url: '/ai-ugc-ad-generator' },
-    { test: /caption|post|copy/, label: 'AI social media post generator', url: '/ai-social-media-post-generator' },
-    { test: /schedule|scheduler|buffer|hootsuite|later|publish/, label: 'Social media scheduler', url: '/social-media-scheduler' },
-    { test: /ai|automation|content/, label: 'AI social media tools', url: '/ai-social-media-tools' },
-    { test: /price|pricing|cost|plan/, label: 'INXSocial pricing', url: '/pricing' }
+    { test: /bulk|batch/, label: 'Bulk social media scheduler for campaigns', url: '/bulk-social-media-scheduler', description: 'Plan and schedule larger campaign batches from one workflow.' },
+    { test: /calendar|planning|planner/, label: 'Social media content calendar & planner', url: '/social-media-content-calendar', description: 'Turn ideas into a structured publishing calendar across channels.' },
+    { test: /analytic|measure|report|performance/, label: 'Social media analytics', url: '/social-media-analytics', description: 'Measure publishing performance and identify what to improve next.' },
+    { test: /campaign/, label: 'AI social media campaign generator', url: '/ai-social-media-campaign-generator', description: 'Build coordinated campaign concepts, copy and media ideas faster.' },
+    { test: /carousel/, label: 'AI carousel post generator', url: '/ai-carousel-post-generator', description: 'Create structured multi-slide social posts for educational or promotional content.' },
+    { test: /video|reel/, label: 'AI video post generator', url: '/ai-video-post-generator', description: 'Generate short-form video concepts and assets for social campaigns.' },
+    { test: /ugc|creator ad|advert/, label: 'AI UGC ad generator', url: '/ai-ugc-ad-generator', description: 'Produce creator-style ad concepts and UGC workflows for paid social.' },
+    { test: /caption|post|copy/, label: 'AI social media post generator', url: '/ai-social-media-post-generator', description: 'Draft platform-ready post copy while keeping the publishing workflow connected.' },
+    { test: /schedule|scheduler|buffer|hootsuite|later|publish/, label: 'AI social media post generator & scheduler', url: '/social-media-scheduler', description: 'Create, organise and schedule social content from a single workspace.' },
+    { test: /ai|automation|content/, label: 'AI social media tools', url: '/ai-social-media-tools', description: 'Explore INXSocial tools for AI-assisted content creation and publishing.' },
+    { test: /price|pricing|cost|plan/, label: 'INXSocial pricing', url: '/pricing', description: 'Compare available plans and the features included in each tier.' }
   ];
 
   const selected = [];
   for (const item of catalog) {
     if (!item.test.test(haystack)) continue;
-    selected.push({ label: item.label, url: item.url });
+    selected.push({ label: item.label, url: item.url, description: item.description });
     if (selected.length >= 4) break;
   }
   const fallback = [
-    { label: 'AI social media tools', url: '/ai-social-media-tools' },
-    { label: 'Social media scheduler', url: '/social-media-scheduler' },
-    { label: 'INXSocial pricing', url: '/pricing' }
+    { label: 'AI social media tools', url: '/ai-social-media-tools', description: 'Explore AI-assisted content creation and publishing tools.' },
+    { label: 'AI social media post generator & scheduler', url: '/social-media-scheduler', description: 'Create, organise and schedule content from one workflow.' },
+    { label: 'INXSocial pricing', url: '/pricing', description: 'Compare plans and included features.' }
   ];
   for (const item of fallback) {
     if (!selected.some(existing => existing.url === item.url)) selected.push(item);
-    if (selected.length >= 3) break;
+    if (selected.length >= 4) break;
   }
   return selected.slice(0, 4);
 }
