@@ -1,4 +1,4 @@
-const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,growthAnalytics:null,growthOpportunities:null,growthRealtimeTimer:null,contentEngine:null,selectedContentArticle:null,ugcAvatars:[],timer:null};
+const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,growthAnalytics:null,growthOpportunities:null,growthRealtimeTimer:null,contentEngine:null,selectedContentArticle:null,ugcAvatars:[],ugcAvatarSelection:new Set(),timer:null};
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const initials=value=>String(value||'IN').trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
@@ -7,7 +7,7 @@ const relative=value=>{if(!value)return'—';const seconds=Math.max(0,Math.floor
 const planOf=user=>user.effectivePlan||user.commercialAccess?.effectivePlan||user.subscriptions?.[0]?.plan||'TRIAL';
 const badge=value=>`<span class="badge ${esc(value)}">${esc(String(value).replaceAll('_',' '))}</span>`;
 function toast(message){const element=$('toast');element.textContent=message;element.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>element.classList.remove('show'),4000)}
-function clearSession(){clearInterval(state.timer);clearInterval(state.growthRealtimeTimer);state.growthRealtimeTimer=null;state.user=null;state.users=[];state.administrators=[];$('notificationPanel')?.classList.add('hidden');setLoggedIn(false)}
+function clearSession(){clearInterval(state.timer);clearInterval(state.growthRealtimeTimer);state.growthRealtimeTimer=null;state.user=null;state.users=[];state.administrators=[];state.ugcAvatarSelection=new Set();$('notificationPanel')?.classList.add('hidden');setLoggedIn(false)}
 async function signOut(){try{await fetch('/api/admin-auth/logout',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'}})}catch{}finally{clearSession()}}
 async function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};const response=await fetch(path,{...options,headers,credentials:'same-origin'});const data=await response.json().catch(()=>({}));if(response.status===401){clearSession();throw new Error(data.error||'Your administrator session has ended.')}if(!response.ok)throw new Error(data.error||`Request failed: ${response.status}`);return data}
 function setLoggedIn(on){$('loginView').classList.toggle('hidden',on);$('dashboardView').classList.toggle('hidden',!on);if(on){const name=state.user?.name||'INXSocial Admin';$('adminName').textContent=name;$('adminEmail').textContent=`${state.user?.email||''}${state.user?.role?` · ${state.user.role.replace('_',' ')}`:''}`;$('adminInitials').textContent=initials(name)}}
@@ -181,29 +181,64 @@ function renderUgcOperations(data){
   $('ugcOpsUpdated').textContent=operations.generatedAt?`Updated ${relative(operations.generatedAt)}`:'—';
 }
 
+function updateUgcAvatarSelectionUi(){
+  const selected=state.ugcAvatarSelection||new Set();
+  const activeIds=new Set((state.ugcAvatars||[]).map(avatar=>avatar.id));
+  [...selected].forEach(id=>{if(!activeIds.has(id))selected.delete(id)});
+  const count=selected.size;
+  const total=state.ugcAvatars.length;
+  $('ugcAvatarSelectedCount').textContent=`${count} selected`;
+  $('ugcAvatarDownloadSelectedBtn').disabled=!count;
+  $('ugcAvatarDeleteSelectedBtn').disabled=!count;
+  $('ugcAvatarSelectAll').checked=Boolean(total&&count===total);
+  $('ugcAvatarSelectAll').indeterminate=Boolean(count&&count<total);
+}
+
 function renderUgcAvatarLibrary(data){
   const avatars=data.avatars||[];
   const summary=data.summary||{};
   state.ugcAvatars=avatars;
+  if(!(state.ugcAvatarSelection instanceof Set))state.ugcAvatarSelection=new Set();
+  const liveIds=new Set(avatars.map(avatar=>avatar.id));
+  [...state.ugcAvatarSelection].forEach(id=>{if(!liveIds.has(id))state.ugcAvatarSelection.delete(id)});
   $('ugcAvatarSummary').innerHTML=`<b>${Number(summary.total||avatars.length).toLocaleString()}</b><span>system creators</span><small>${Number(summary.adminUploaded||0).toLocaleString()} admin uploaded · ${Number(summary.women||0).toLocaleString()} women · ${Number(summary.men||0).toLocaleString()} men</small>`;
-  $('ugcAvatarLibrary').innerHTML=avatars.length?avatars.map(avatar=>`<article class="ugc-avatar-card">
-    <div class="ugc-avatar-photo">
-      ${avatar.imageUrl?`<img data-ugc-avatar-image loading="lazy" src="${esc(avatar.imageUrl)}" alt="">`:''}
-      <div class="ugc-avatar-photo-fallback" ${avatar.imageUrl?'hidden':''}>${esc(initials(avatar.name))}</div>
-      <span class="ugc-avatar-source ${avatar.managedByAdmin?'admin':''}">${avatar.managedByAdmin?'Admin upload':'Built in'}</span>
-    </div>
-    <div class="ugc-avatar-card-body">
-      <div><b>${esc(avatar.name)}</b><span>${esc(avatar.presentation||'Unspecified')} · ${esc(avatar.ageBand||'Adult')}</span></div>
-      <small>${esc(avatar.category||'Lifestyle')} · ${esc(avatar.locale||'en-GB')}</small>
-      <div class="ugc-avatar-voice"><span>Voice</span><strong>${esc(avatar.voice||'Automatic')}</strong></div>
-      ${avatar.accent?`<small>Accent: ${esc(avatar.accent)}</small>`:''}
-    </div>
-  </article>`).join(''):'<div class="ugc-avatar-library-empty">No active UGC creators found.</div>';
+  $('ugcAvatarLibrary').innerHTML=avatars.length?avatars.map(avatar=>{
+    const selected=state.ugcAvatarSelection.has(avatar.id);
+    return `<article class="ugc-avatar-card ${selected?'selected':''}" data-ugc-avatar-card="${esc(avatar.id)}">
+      <label class="ugc-avatar-card-select" title="Select ${esc(avatar.name)}"><input data-ugc-avatar-select="${esc(avatar.id)}" type="checkbox" ${selected?'checked':''}><span>✓</span></label>
+      <div class="ugc-avatar-photo">
+        ${avatar.imageUrl?`<img data-ugc-avatar-image loading="lazy" src="${esc(avatar.imageUrl)}" alt="">`:''}
+        <div class="ugc-avatar-photo-fallback" ${avatar.imageUrl?'hidden':''}>${esc(initials(avatar.name))}</div>
+        <span class="ugc-avatar-source ${avatar.managedByAdmin?'admin':''}">${avatar.managedByAdmin?'Admin upload':'Built in'}</span>
+      </div>
+      <div class="ugc-avatar-card-body">
+        <div><b>${esc(avatar.name)}</b><span>${esc(avatar.presentation||'Unspecified')} · ${esc(avatar.ageBand||'Adult')}</span></div>
+        <small>${esc(avatar.category||'Lifestyle')} · ${esc(avatar.locale||'en-GB')}</small>
+        <div class="ugc-avatar-voice"><span>Voice</span><strong>${esc(avatar.voice||'Automatic')}</strong></div>
+        ${avatar.accent?`<small>Accent: ${esc(avatar.accent)}</small>`:''}
+      </div>
+    </article>`
+  }).join(''):'<div class="ugc-avatar-library-empty">No active UGC creators found.</div>';
+
   document.querySelectorAll('[data-ugc-avatar-image]').forEach(image=>image.addEventListener('error',()=>{
     image.hidden=true;
     const fallback=image.nextElementSibling;
     if(fallback)fallback.hidden=false;
   }));
+  document.querySelectorAll('[data-ugc-avatar-select]').forEach(input=>input.addEventListener('change',()=>{
+    const id=input.dataset.ugcAvatarSelect;
+    if(input.checked)state.ugcAvatarSelection.add(id);else state.ugcAvatarSelection.delete(id);
+    input.closest('.ugc-avatar-card')?.classList.toggle('selected',input.checked);
+    updateUgcAvatarSelectionUi();
+  }));
+  document.querySelectorAll('[data-ugc-avatar-card]').forEach(card=>card.addEventListener('click',event=>{
+    if(event.target.closest('input,button,label,a'))return;
+    const input=card.querySelector('[data-ugc-avatar-select]');
+    if(!input)return;
+    input.checked=!input.checked;
+    input.dispatchEvent(new Event('change',{bubbles:true}));
+  }));
+  updateUgcAvatarSelectionUi();
 }
 
 async function loadUgcAvatars(){
@@ -211,6 +246,86 @@ async function loadUgcAvatars(){
   renderUgcAvatarLibrary(data);
   return data;
 }
+
+async function downloadSelectedUgcAvatars(){
+  const ids=[...state.ugcAvatarSelection];
+  if(!ids.length)return;
+  const button=$('ugcAvatarDownloadSelectedBtn');
+  const original=button.textContent;
+  button.disabled=true;
+  button.textContent='Preparing download…';
+  try{
+    const response=await fetch('/api/admin/ugc-avatars/download',{
+      method:'POST',
+      credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ids})
+    });
+    if(response.status===401){clearSession();throw new Error('Your administrator session has ended.')}
+    if(!response.ok){
+      const data=await response.json().catch(()=>({}));
+      throw new Error(data.error||`Download failed: ${response.status}`);
+    }
+    const blob=await response.blob();
+    const disposition=response.headers.get('content-disposition')||'';
+    const match=disposition.match(/filename="?([^"]+)"?/i);
+    const name=match?.[1]||'inx-ugc-creators.zip';
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=url;
+    link.download=name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(()=>URL.revokeObjectURL(url),1500);
+    toast(`Downloading ${ids.length} selected creator${ids.length===1?'':'s'}`);
+  }finally{
+    button.textContent=original;
+    updateUgcAvatarSelectionUi();
+  }
+}
+
+async function deleteSelectedUgcAvatars(){
+  const ids=[...state.ugcAvatarSelection];
+  if(!ids.length)return;
+  const names=state.ugcAvatars.filter(avatar=>state.ugcAvatarSelection.has(avatar.id)).map(avatar=>avatar.name);
+  const preview=names.slice(0,5).join(', ')+(names.length>5?` and ${names.length-5} more`:'');
+  const confirmed=window.confirm(
+    `Remove ${ids.length} creator${ids.length===1?'':'s'} from UGC Studio?\n\n`+
+    `${preview}\n\n`+
+    'They will disappear from Browse creators for customers. Existing campaigns that already reference these creators will remain intact.'
+  );
+  if(!confirmed)return;
+  const button=$('ugcAvatarDeleteSelectedBtn');
+  const original=button.textContent;
+  button.disabled=true;
+  button.textContent='Removing…';
+  try{
+    const result=await api('/api/admin/ugc-avatars/delete',{method:'POST',body:JSON.stringify({ids})});
+    state.ugcAvatarSelection.clear();
+    await loadUgcAvatars();
+    toast(result.message||`${Number(result.removed||0)} creators removed`);
+  }finally{
+    button.textContent=original;
+    updateUgcAvatarSelectionUi();
+  }
+}
+
+$('ugcAvatarSelectAll').addEventListener('change',event=>{
+  if(event.currentTarget.checked)state.ugcAvatars.forEach(avatar=>state.ugcAvatarSelection.add(avatar.id));
+  else state.ugcAvatarSelection.clear();
+  renderUgcAvatarLibrary({
+    avatars:state.ugcAvatars,
+    summary:{
+      total:state.ugcAvatars.length,
+      adminUploaded:state.ugcAvatars.filter(avatar=>avatar.managedByAdmin).length,
+      women:state.ugcAvatars.filter(avatar=>avatar.presentation==='Woman').length,
+      men:state.ugcAvatars.filter(avatar=>avatar.presentation==='Man').length
+    }
+  });
+});
+$('ugcAvatarDownloadSelectedBtn').addEventListener('click',()=>downloadSelectedUgcAvatars().catch(error=>toast(error.message)));
+$('ugcAvatarDeleteSelectedBtn').addEventListener('click',()=>deleteSelectedUgcAvatars().catch(error=>toast(error.message)));
 
 function ugcAvatarMime(file){
   if(['image/png','image/jpeg','image/webp'].includes(file.type))return file.type;
