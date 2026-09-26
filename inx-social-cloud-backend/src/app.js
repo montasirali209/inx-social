@@ -26,6 +26,7 @@ const socialPlatformRoutes = require('./routes/socialPlatformRoutes');
 const socialConnectionRoutes = require('./routes/socialConnectionRoutes');
 const socialPublicationRoutes = require('./routes/socialPublicationRoutes');
 const growthContentPublicRoutes = require('./routes/growthContentPublicRoutes');
+const growthContentPublicController = require('./controllers/growthContentPublicController');
 const packageInfo = require('../package.json');
 const env = require('./config/env');
 
@@ -359,6 +360,7 @@ app.post('/api/ai-content-studio/credits/webhook', express.raw({ type: 'applicat
 
 app.use(express.json({ limit: '2mb' }));
 app.use('/api/releases', releaseRoutes);
+app.get('/content-media/:id', growthContentPublicController.media);
 app.use('/api/growth-content', growthContentPublicRoutes);
 
 app.use('/_next', async (req, res, next) => {
