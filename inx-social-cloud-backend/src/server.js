@@ -16,6 +16,7 @@ const { startAIPostCampaignRuntime } = require('./services/aiPostCampaignService
 const aiCredits = require('./services/aiCreditService');
 const stripeService = require('./services/stripeService');
 const ugcEngine = require('./services/ugcEngineService');
+const { startGrowthAutopilot, stopGrowthAutopilot } = require('./services/growthAutopilotService');
 
 async function verifyNextLandingUpstream() {
   if (!/^(?:1|true|yes|on)$/i.test(String(process.env.NEXT_LANDING_ENABLED || '').trim())) return;
@@ -64,6 +65,7 @@ const server = app.listen(env.port, () => {
   void runStorageDiagnostics();
   startAgentAssetBucketBackfill();
   void verifyNextLandingUpstream();
+  startGrowthAutopilot();
   setTimeout(() => {
     void runOneOffXTextSanitizer().catch((error) => console.error('[one-off-x-cleanup] failed', { error: error?.message || String(error) }));
   }, 3000).unref?.();
@@ -72,6 +74,7 @@ const server = app.listen(env.port, () => {
 let shuttingDown = false;
 async function shutdown(signal) {
   if (shuttingDown) return;
+  stopGrowthAutopilot();
   shuttingDown = true;
   console.info(`[shutdown] ${signal} received; draining HTTP connections`);
   const forced = setTimeout(async () => {
