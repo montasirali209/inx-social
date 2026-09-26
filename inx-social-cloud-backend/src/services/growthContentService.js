@@ -611,6 +611,7 @@ async function createDraft(input) {
 async function updateArticle(id, input) {
   const article = await getArticleById(id);
   if (article.status === STATUS.ARCHIVED) throw publicError('Archived content cannot be edited.', 409, 'CONTENT_ARCHIVED');
+  if (article.status === STATUS.PUBLISHED) throw publicError('Unpublish the article before editing it.', 409, 'CONTENT_UNPUBLISH_REQUIRED');
 
   const previousSlug = article.slug;
   let slug = article.slug;
@@ -678,6 +679,7 @@ async function archiveArticle(id) {
 
 async function generateFeaturedImage(id) {
   const article = await getArticleById(id);
+  if (article.status === STATUS.PUBLISHED) throw publicError('Unpublish the article before changing its featured image.', 409, 'CONTENT_UNPUBLISH_REQUIRED');
   if (!runware.isConfigured()) throw publicError('Runware image generation is not configured.', 503, 'CONTENT_IMAGE_NOT_CONFIGURED');
   if (!article.featured_image_prompt) throw publicError('This article has no featured-image prompt.', 409, 'CONTENT_IMAGE_PROMPT_REQUIRED');
 
@@ -701,9 +703,10 @@ async function generateFeaturedImage(id) {
     prefix: 'growth-content'
   });
   const generatedAt = nowIso();
-  return saveArticle({
+  const previousStorage = article.featured_image_storage || null;
+  const saved = await saveArticle({
     ...article,
-    featured_image_url: '/api/growth-content/media/' + encodeURIComponent(article.id) + '?v=' + encodeURIComponent(generatedAt),
+    featured_image_url: '/content-media/' + encodeURIComponent(article.id) + '?v=' + encodeURIComponent(generatedAt),
     featured_image_storage: {
       provider: stored.storageProvider,
       key: stored.storageKey,
@@ -713,6 +716,10 @@ async function generateFeaturedImage(id) {
       providerCostUsd: Number(generated.cost || image.cost || 0)
     }
   });
+  if (previousStorage?.key && previousStorage.key !== stored.storageKey) {
+    await objectStorage.deleteObject(previousStorage.key, previousStorage.provider || null).catch(() => {});
+  }
+  return saved;
 }
 
 async function imageBuffer(id) {
