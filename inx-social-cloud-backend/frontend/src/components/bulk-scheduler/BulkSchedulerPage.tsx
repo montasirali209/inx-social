@@ -7,6 +7,7 @@ import { bulkCancelScheduledPosts, bulkEditScheduledPosts, retryFailedScheduledP
 import { getAIPostCampaign, getAIPostCampaigns } from '../../lib/ai-content-studio-api'
 import { fetchMediaAssetFile, fetchMediaLibrary, uploadMediaAsset } from '../../lib/media-library-api'
 import { buildPublishingTimes, isLikelyTransportFailure, parseCaptions, parseTextPosts } from '../../lib/bulk-scheduler-utils'
+import { orderCampaignPosts, type CampaignOrderMode } from '../../lib/campaign-order'
 import { applyBulkScheduleEdit, applyBulkTextEdit, earliestLocalDate, hasTextRuleChanges, type BulkScheduledEditRules } from '../../lib/bulk-text-edit'
 import type { BatchProgress, BulkContentMode, BulkSchedulerData, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
 import type { MediaAsset } from '../../types/media-library'
@@ -98,6 +99,7 @@ export function BulkSchedulerPage() {
   const [retryingId, setRetryingId] = useState<string | null>(null)
   const [historyView, setHistoryView] = useState<BulkHistoryView | null>(null)
   const [mixedCampaign, setMixedCampaign] = useState<ImportedMixedCampaign | null>(null)
+  const [campaignOrderMode, setCampaignOrderMode] = useState<CampaignOrderMode>('custom')
   const abortRef = useRef<AbortController | null>(null)
   const importedLibrarySelection = useRef('')
   const importedCampaignSelection = useRef('')
@@ -126,6 +128,7 @@ export function BulkSchedulerPage() {
   const incompatibleTextDestinations = contentMode === 'text' ? selectedDestinations.filter((destination) => !TEXT_POST_PLATFORMS.has(destination.platform)) : []
   const mixedTextPosts = mixedCampaign?.posts.filter((post) => post.contentType === 'TEXT') || []
   const mixedMediaPosts = mixedCampaign?.posts.filter((post) => post.contentType !== 'TEXT') || []
+  const orderedCampaignPosts = useMemo(() => mixedCampaign ? orderCampaignPosts(mixedCampaign.posts, mixedCampaign.source === 'manual' ? campaignOrderMode : 'custom') : [], [mixedCampaign, campaignOrderMode])
   const mixedTextDestinations = selectedDestinations.filter((destination) => TEXT_POST_PLATFORMS.has(destination.platform))
   const batchCount = mixedCampaign ? mixedCampaign.posts.length : contentMode === 'text' ? captionBlocks.length : media.length
   const activeScheduleTimes = timingMode === 'saved_schedule' ? schedulerData.settings.defaultScheduleTimes : scheduleTimes
@@ -176,6 +179,7 @@ export function BulkSchedulerPage() {
     mediaRef.current = imageMedia
     setMedia(imageMedia)
     setMixedCampaign({ id: campaign.id, title: campaign.title, source: 'ai', posts: items })
+    setCampaignOrderMode('custom')
     setWorkspaceMode('campaign')
     setContentMode('media')
     setCaptions('')
@@ -400,6 +404,7 @@ export function BulkSchedulerPage() {
       mediaRef.current = imageMedia
       setMedia(imageMedia)
       setMixedCampaign({ id: imported.id, title: imported.title, source: 'ai', posts: items })
+      setCampaignOrderMode('custom')
       setWorkspaceMode('campaign')
       window.localStorage.setItem(ACTIVE_AI_CAMPAIGN_KEY, imported.id)
       setContentMode('media')
@@ -455,6 +460,7 @@ export function BulkSchedulerPage() {
     mediaRef.current = []
     setMedia([])
     setMixedCampaign(null)
+    setCampaignOrderMode('custom')
     window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
     setCaptions('')
     setTimingMode('')
@@ -523,6 +529,7 @@ export function BulkSchedulerPage() {
     mediaRef.current = []
     setMedia([])
     setMixedCampaign(null)
+    setCampaignOrderMode('custom')
     setCaptions('')
     window.localStorage.removeItem(ACTIVE_AI_CAMPAIGN_KEY)
     setTimingMode('')
@@ -538,11 +545,12 @@ export function BulkSchedulerPage() {
     setRetainMedia(false)
   }
 
-  const addManualTextPost = () => {
+  const addManualTextPosts = (captions: string[]) => {
     if (running) return
     setMixedCampaign((current) => current?.source === 'manual' ? {
-      ...current, posts: sequenceCampaign([...current.posts, { id: crypto.randomUUID(), sequence: 0, contentType: 'TEXT', caption: '', media: null }]),
+      ...current, posts: sequenceCampaign([...current.posts, ...captions.map((caption): ImportedMixedCampaignItem => ({ id: crypto.randomUUID(), sequence: 0, contentType: 'TEXT', caption, media: null }))]),
     } : current)
+    setResults([])
   }
 
   const addManualMedia = (files: File[]) => {
@@ -630,7 +638,7 @@ export function BulkSchedulerPage() {
 
     if (mixedCampaign) {
       const textDestinationIds = mixedTextDestinations.map((destination) => destination.id)
-      const initialResults: UploadResult[] = mixedCampaign.posts.map((post, index) => {
+      const initialResults: UploadResult[] = orderedCampaignPosts.map((post, index) => {
         const targets = post.contentType === 'TEXT' ? textDestinationIds : destinationIds
         return {
           id: `mixed:${post.id}:${crypto.randomUUID()}`,
@@ -659,7 +667,7 @@ export function BulkSchedulerPage() {
 
       for (let index = 0; index < mixedCampaign.posts.length; index += 1) {
         if (controller.signal.aborted) break
-        const post = mixedCampaign.posts[index]
+        const post = orderedCampaignPosts[index]
         const resultId = initialResults[index].id
         const targets = post.contentType === 'TEXT' ? textDestinationIds : destinationIds
 
@@ -1438,9 +1446,10 @@ export function BulkSchedulerPage() {
             imagePosts: mixedMediaPosts.length,
             source: mixedCampaign.source,
             total: mixedCampaign.posts.length,
-            posts: mixedCampaign.posts.map((post) => ({
+            orderMode: campaignOrderMode,
+            posts: orderedCampaignPosts.map((post, index) => ({
               id: post.id,
-              sequence: post.sequence,
+              sequence: index + 1,
               contentType: post.contentType,
               caption: post.caption,
               thumbnailUrl: post.media?.previewUrl || '',
@@ -1458,7 +1467,8 @@ export function BulkSchedulerPage() {
           onCampaignClear={clearCampaignSelection}
           onManualCampaignStart={startManualCampaign}
           onManualCampaignTitleChange={(title) => setMixedCampaign((current) => current?.source === 'manual' ? { ...current, title } : current)}
-          onManualTextAdd={addManualTextPost}
+          onManualTextAdd={addManualTextPosts}
+          onManualOrderModeChange={(mode) => { setCampaignOrderMode(mode); setResults([]) }}
           onManualMediaAdd={addManualMedia}
           onManualPostEdit={editManualCampaignPost}
           onManualPostRemove={removeManualCampaignPost}
@@ -1495,7 +1505,7 @@ export function BulkSchedulerPage() {
         <div className="scroll-mt-24" ref={batchRunSection}><BatchRunPanel canStart={canStart} destinations={destinations} disabledReason={disabledReason} onRetry={retryFailedUpload} onStart={requestStart} onStop={stopUpload} progress={progress} results={results} retryingId={retryingId} running={running} /></div>
       </div>
       {historyView && <BulkScheduleManager initialView={historyView} jobs={schedulerData.jobs} onBulkCancelJobs={bulkCancelScheduledJobs} onBulkEditJobs={(jobs, rules) => { void bulkEditScheduledJobs(jobs, rules) }} onChanged={() => scheduler.refetch()} onClose={() => setHistoryView(null)} onRetryJobs={(jobs) => { void retryReviewJobs(jobs) }} timezone={schedulerData.settings.timezone} />}
-      <PublishConfirmationDialog busy={running} confirmLabel={timingMode === 'publish_now' ? 'Publish batch' : 'Schedule batch'} description={mixedCampaign ? `You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} the ${mixedCampaign.posts.length}-post campaign “${mixedCampaign.title}” in campaign order. Media posts go to selected compatible destinations; text posts go only to destinations that support text-only publishing.` : `You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} ${batchCount} ${contentMode === 'text' ? `text post${batchCount === 1 ? '' : 's'}` : `media file${batchCount === 1 ? '' : 's'}`} across ${selectedIds.size} destination${selectedIds.size === 1 ? '' : 's'}.`} onCancel={() => setConfirmationOpen(false)} onConfirm={() => { setConfirmationOpen(false); void runBatch() }} open={confirmationOpen} title="Confirm this bulk publishing action" />
+      <PublishConfirmationDialog busy={running} confirmLabel={timingMode === 'publish_now' ? 'Publish batch' : 'Schedule batch'} description={mixedCampaign ? `You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} the ${mixedCampaign.posts.length}-post campaign “${mixedCampaign.title}” ${mixedCampaign.source === 'manual' && campaignOrderMode !== 'custom' ? 'with alternating text and media posts' : 'in the sequence shown'}. Media posts go to selected compatible destinations; text posts go only to destinations that support text-only publishing.` : `You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} ${batchCount} ${contentMode === 'text' ? `text post${batchCount === 1 ? '' : 's'}` : `media file${batchCount === 1 ? '' : 's'}`} across ${selectedIds.size} destination${selectedIds.size === 1 ? '' : 's'}.`} onCancel={() => setConfirmationOpen(false)} onConfirm={() => { setConfirmationOpen(false); void runBatch() }} open={confirmationOpen} title="Confirm this bulk publishing action" />
     </div>
   )
 }
