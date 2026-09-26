@@ -15,9 +15,23 @@ export type BlogArticleSummary = {
 export type BlogArticle = BlogArticleSummary & {
   content_html?: string | null;
   content_markdown?: string | null;
-  sources?: Array<{ title: string; url: string }> | null;
-  internalLinks?: Array<{ label: string; url: string }> | null;
+  quick_answer?: string | null;
+  key_takeaways?: string[] | null;
+  comparison?: Array<{
+    name: string;
+    best_for: string;
+    strength: string;
+    consideration: string;
+    source_refs?: string[] | null;
+  }> | null;
+  sources?: Array<{ id?: string; title: string; url: string; domain?: string | null }> | null;
+  internalLinks?: Array<{ label: string; url: string; description?: string | null }> | null;
   faq?: Array<{ question: string; answer: string }> | null;
+  editorial?: {
+    method: string;
+    sourceCount: number;
+    updatedAt?: string | null;
+  } | null;
   jsonLd?: unknown;
   faqJsonLd?: unknown;
 };
