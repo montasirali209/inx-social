@@ -78,3 +78,17 @@ test('Connected Accounts only surfaces live gateway networks and real KPI activi
   assert.match(page, /DataSparkline/);
   assert.match(page, /ConnectNewAccountSection[\s\S]*ConnectedPlatformsSection/);
 });
+
+
+test('Connected Accounts action menu is portalled so it cannot be clipped by account cards or panels', () => {
+  const page = read('frontend/src/components/connections/ConnectedAccountsPageV4.tsx');
+  assert.match(page, /createPortal/);
+  assert.match(page, /z-\[500\]/);
+  assert.match(page, /role="menu"/);
+  assert.match(page, /roomBelow >= menuRect\.height/);
+  assert.match(page, /window\.addEventListener\('scroll', updatePosition, true\)/);
+  assert.match(page, /View permissions/);
+  assert.match(page, /Open on platform/);
+  assert.match(page, /Disconnect/);
+  assert.doesNotMatch(page, /<details className="group relative z-10 open:z-\[90\]">/);
+});
