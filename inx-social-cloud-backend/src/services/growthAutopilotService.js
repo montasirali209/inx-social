@@ -29,6 +29,7 @@ const DEFAULT_CONFIG = Object.freeze({
 
 let timer = null;
 let initialTimer = null;
+let legacyImportTimer = null;
 
 function nowIso() {
   return new Date().toISOString();
@@ -730,24 +731,34 @@ async function updateConfig(patch = {}) {
   return status();
 }
 
+
+async function syncLegacyBlog(reason = 'scheduled') {
+  try {
+    const legacy = await growthContent.importLegacyBabyLoveArticles();
+    if (!legacy.skipped || legacy.reason !== 'missing_key') {
+      console.info('[growth-autopilot] legacy blog sync checked', {
+        trigger: reason,
+        imported: legacy.imported || 0,
+        discovered: legacy.discovered || 0,
+        skipped: Boolean(legacy.skipped),
+        reason: legacy.reason || null
+      });
+    }
+    return legacy;
+  } catch (error) {
+    console.warn('[growth-autopilot] legacy blog sync failed without blocking autopilot', {
+      trigger: reason,
+      status: error?.response?.status || null,
+      error: error?.message || String(error)
+    });
+    return null;
+  }
+}
+
 function startGrowthAutopilot() {
   if (timer || initialTimer) return;
   void ensureSettings().then(async () => {
-    try {
-      const legacy = await growthContent.importLegacyBabyLoveArticles();
-      if (!legacy.skipped || legacy.reason !== 'missing_key') {
-        console.info('[growth-autopilot] legacy blog sync checked', {
-          imported: legacy.imported || 0,
-          discovered: legacy.discovered || 0,
-          skipped: Boolean(legacy.skipped),
-          reason: legacy.reason || null
-        });
-      }
-    } catch (error) {
-      console.warn('[growth-autopilot] legacy blog sync failed without blocking autopilot', {
-        error: error?.message || String(error)
-      });
-    }
+    void syncLegacyBlog('startup');
     console.info('[growth-autopilot] runtime ready', {
       pollMinutes: POLL_MS / 60000,
       defaultPublishHours: DEFAULT_CONFIG.publishEveryHours,
@@ -767,13 +778,20 @@ function startGrowthAutopilot() {
     void runCycle().catch(error => console.error('[growth-autopilot] scheduled cycle failed', { error: error?.message }));
   }, POLL_MS);
   timer.unref?.();
+
+  legacyImportTimer = setInterval(() => {
+    void syncLegacyBlog('hourly-retry');
+  }, 60 * 60 * 1000);
+  legacyImportTimer.unref?.();
 }
 
 function stopGrowthAutopilot() {
   if (initialTimer) clearTimeout(initialTimer);
   if (timer) clearInterval(timer);
+  if (legacyImportTimer) clearInterval(legacyImportTimer);
   initialTimer = null;
   timer = null;
+  legacyImportTimer = null;
 }
 
 module.exports = {
