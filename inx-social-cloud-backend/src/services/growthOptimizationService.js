@@ -9,6 +9,7 @@ const growthContent = require('./growthContentService');
 const seoMaintenance = require('./growthSeoMaintenanceService');
 const authority = require('./growthAuthorityService');
 const attribution = require('./growthAttributionService');
+const stripeService = require('./stripeService');
 
 const STATE_KEY = 'growth_optimization_state_v1';
 const ACTION_TYPES = Object.freeze({
@@ -440,7 +441,7 @@ async function run(options = {}) {
       ga4: Boolean(gaData),
       attribution: Boolean(attributionSummary),
       sol: Boolean(env.contentWriter?.apiKey),
-      stripeRevenue: true
+      stripeRevenue: stripeService.isConfigured()
     },
     stats,
     funnel: attributionSummary?.funnel || null,
@@ -468,7 +469,7 @@ async function status() {
   return (await readState()) || {
     generatedAt: null,
     periodDays: 28,
-    provider: { searchConsole: false, ga4: false, attribution: true, sol: Boolean(env.contentWriter?.apiKey), stripeRevenue: true },
+    provider: { searchConsole: false, ga4: false, attribution: true, sol: Boolean(env.contentWriter?.apiKey), stripeRevenue: stripeService.isConfigured() },
     stats: { totalActions: 0, highPriority: 0, reviewRequired: 0, contentRefreshes: 0, ctrOpportunities: 0, cannibalisation: 0, croOpportunities: 0, repurposeOpportunities: 0 },
     funnel: null,
     revenue: null,
