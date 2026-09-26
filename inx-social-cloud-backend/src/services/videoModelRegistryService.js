@@ -1,6 +1,7 @@
 const axios = require('axios');
 const prisma = require('../db/prisma');
 const env = require('../config/env');
+const commercialGuard = require('./videoCommercialGuardService');
 
 const REGISTRY_VERSION = 'video-model-registry-v1';
 const SETTING_KEY = 'ai_video_model_catalog_v1';
@@ -8,7 +9,7 @@ const CONTENT_BASE_URL = 'https://content.runware.ai';
 const SCHEMAS_BASE_URL = 'https://schemas.runware.ai';
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 12_000;
-const CREDIT_COST_BUFFER = 1.15;
+const CREDIT_COST_BUFFER = Math.max(1.15, Number(env.videoCommercial?.creditCostBuffer || 1.15));
 const NON_NATIVE_STATUSES = new Set(['openai-compatible']);
 
 let memorySnapshot = null;
@@ -247,7 +248,7 @@ function estimateCredits(profile, selection = {}) {
     error.publicMessage = 'Current pricing is unavailable for this video model. Choose another model and try again.';
     throw error;
   }
-  return creditsFromUsd(cost);
+  return commercialGuard.assertEstimate(creditsFromUsd(cost));
 }
 
 function mergeLegacyWithLive(legacy, live) {
@@ -420,9 +421,12 @@ async function refreshCatalog() {
     const hydrated = hydratedRaw.filter(item => item && !item.error && item.air);
     if (!hydrated.length) throw new Error('Runware video catalogue metadata could not be hydrated.');
     const next = buildSnapshot(hydrated, 'runware-live');
+    await commercialGuard.reconcileAfterRefresh(next, estimateCredits);
     await storeSnapshot(next);
     memorySnapshot = next;
-    console.info('[VIDEO MODEL REGISTRY]', JSON.stringify({ version: next.version, source: next.source, ...next.stats }));
+    const commercialHealth = commercialGuard.health(next);
+    console.info('[VIDEO MODEL REGISTRY]', JSON.stringify({ version: next.version, source: next.source, ...next.stats, commercialHealth }));
+    if (commercialHealth.status !== 'HEALTHY') console.warn('[VIDEO MODEL HEALTH]', JSON.stringify(commercialHealth));
     return next;
   })().catch(error => {
     console.warn('[VIDEO MODEL REGISTRY] refresh failed; retaining last-known-good catalogue', clean(error?.message, 700));
@@ -447,6 +451,23 @@ async function resolveModel(route) {
     const error = new Error('Choose a supported video model.');
     error.code = 'AI_VIDEO_MODEL_UNSUPPORTED'; error.status = 422; error.publicMessage = error.message; throw error;
   }
+  return profile;
+}
+
+async function resolveModelForGeneration(route) {
+  const requested = clean(route, 180) || 'pvideo';
+  const current = await snapshot();
+  commercialGuard.assertFreshSnapshot(current);
+  const profile = current.models.find(model => model.id === requested || model.routeId === requested || model.air === requested || model.model === requested);
+  if (!profile) {
+    const error = new Error('Choose a supported video model.');
+    error.code = 'AI_VIDEO_MODEL_UNSUPPORTED'; error.status = 422; error.publicMessage = error.message; throw error;
+  }
+  if (!profile.generationReady || profile.pricingStatus !== 'SYNCED') {
+    const error = new Error('This video model is temporarily unavailable while its provider configuration is being verified.');
+    error.code = 'AI_VIDEO_MODEL_NOT_READY'; error.status = 503; error.publicMessage = error.message; throw error;
+  }
+  commercialGuard.assertModelAllowed(profile);
   return profile;
 }
 
@@ -488,7 +509,7 @@ function publicModel(model) {
     lastFrameSupported: Boolean(model.lastFrameSupported),
     referenceImagesSupported: Boolean(model.referenceImagesSupported || model.referenceMode === 'reference'),
     compatibility: model.compatibility || 'DISCOVERED',
-    generationReady: Boolean(model.generationReady),
+    generationReady: Boolean(model.generationReady && (model.pricingStatus || model.pricing?.status) === 'SYNCED' && !commercialGuard.isBlocked(model)),
     pricingStatus: model.pricingStatus || model.pricing?.status || 'UNAVAILABLE',
     baselineCredits: baselineCredits(model),
     tags: model.tags || []
@@ -499,7 +520,14 @@ async function publicCatalog({ all = false, refresh = false } = {}) {
   const current = await snapshot({ refresh });
   const legacyIds = new Set(legacyProfiles().map(model => model.id));
   const models = all ? current.models : current.models.filter(model => legacyIds.has(model.id));
-  return { version: current.version, source: current.source, syncedAt: current.syncedAt, stats: current.stats, models: models.map(publicModel) };
+  return {
+    version: current.version,
+    source: current.source,
+    syncedAt: current.syncedAt,
+    stats: current.stats,
+    health: commercialGuard.health(current),
+    models: models.map(publicModel)
+  };
 }
 
 function validateRepresentativeModels(snapshotValue) {
@@ -522,13 +550,27 @@ function validateRepresentativeModels(snapshotValue) {
 }
 
 async function startRuntime() {
+  await commercialGuard.start();
   if (!memorySnapshot) memorySnapshot = await loadStoredSnapshot() || fallbackSnapshot();
   void refreshCatalog();
   if (!runtimeTimer) {
     runtimeTimer = setInterval(() => { void refreshCatalog(); }, REFRESH_INTERVAL_MS);
     runtimeTimer.unref?.();
   }
-  return { ...memorySnapshot.stats, validation: validateRepresentativeModels(memorySnapshot) };
+  return {
+    ...memorySnapshot.stats,
+    validation: validateRepresentativeModels(memorySnapshot),
+    commercialHealth: commercialGuard.health(memorySnapshot)
+  };
+}
+
+async function recordActualCost(input) {
+  return commercialGuard.recordActualCost(input);
+}
+
+async function commercialHealth() {
+  const current = await snapshot();
+  return commercialGuard.health(current);
 }
 
 module.exports = {
@@ -544,7 +586,10 @@ module.exports = {
   snapshot,
   refreshCatalog,
   resolveModel,
+  resolveModelForGeneration,
   publicCatalog,
+  recordActualCost,
+  commercialHealth,
   validateRepresentativeModels,
   startRuntime
 };
