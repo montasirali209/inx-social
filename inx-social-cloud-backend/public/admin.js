@@ -1,4 +1,4 @@
-const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,growthAnalytics:null,growthOpportunities:null,growthRealtimeTimer:null,ugcAvatars:[],timer:null};
+const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,growthAnalytics:null,growthOpportunities:null,growthRealtimeTimer:null,contentEngine:null,selectedContentArticle:null,ugcAvatars:[],timer:null};
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const initials=value=>String(value||'IN').trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
@@ -11,8 +11,8 @@ function clearSession(){clearInterval(state.timer);clearInterval(state.growthRea
 async function signOut(){try{await fetch('/api/admin-auth/logout',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'}})}catch{}finally{clearSession()}}
 async function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};const response=await fetch(path,{...options,headers,credentials:'same-origin'});const data=await response.json().catch(()=>({}));if(response.status===401){clearSession();throw new Error(data.error||'Your administrator session has ended.')}if(!response.ok)throw new Error(data.error||`Request failed: ${response.status}`);return data}
 function setLoggedIn(on){$('loginView').classList.toggle('hidden',on);$('dashboardView').classList.toggle('hidden',!on);if(on){const name=state.user?.name||'INXSocial Admin';$('adminName').textContent=name;$('adminEmail').textContent=`${state.user?.email||''}${state.user?.role?` · ${state.user.role.replace('_',' ')}`:''}`;$('adminInitials').textContent=initials(name)}}
-const pageMeta={overview:['Overview','Monitor new customers and service activity.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI & Automation','Manage AI Studio policy, Social Agent allowances and generation infrastructure.'],searchConsole:['Search Console','Monitor Google Search visibility, queries, landing pages and SEO opportunities.'],growthIntelligence:['Growth Intelligence','Track crawler access, AI-search visibility and community opportunities.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
-async function openPage(page){if(page!=='growthIntelligence'){clearInterval(state.growthRealtimeTimer);state.growthRealtimeTimer=null;}document.querySelectorAll('.nav').forEach(button=>button.classList.toggle('active',button.dataset.page===page));document.querySelectorAll('.page').forEach(section=>section.classList.toggle('hidden',section.id!==`${page}Page`));$('pageTitle').textContent=pageMeta[page][0];$('pageSubtitle').textContent=pageMeta[page][1];if(page==='overview')await loadOverview();if(page==='users')await loadUsers();if(page==='aiAccess')await loadAiAccess();if(page==='searchConsole')await loadSearchConsole();if(page==='growthIntelligence')await loadGrowthIntelligence();if(page==='settings')await loadSettings();if(page==='security')await loadSecurity()}
+const pageMeta={overview:['Overview','Monitor new customers and service activity.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI & Automation','Manage AI Studio policy, Social Agent allowances and generation infrastructure.'],searchConsole:['Search Console','Monitor Google Search visibility, queries, landing pages and SEO opportunities.'],growthIntelligence:['Growth Intelligence','Track crawler access, AI-search visibility and community opportunities.'],contentEngine:['Content Engine','Research, review and publish self-hosted SEO content from Growth Intelligence opportunities.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
+async function openPage(page){if(page!=='growthIntelligence'){clearInterval(state.growthRealtimeTimer);state.growthRealtimeTimer=null;}document.querySelectorAll('.nav').forEach(button=>button.classList.toggle('active',button.dataset.page===page));document.querySelectorAll('.page').forEach(section=>section.classList.toggle('hidden',section.id!==`${page}Page`));$('pageTitle').textContent=pageMeta[page][0];$('pageSubtitle').textContent=pageMeta[page][1];if(page==='overview')await loadOverview();if(page==='users')await loadUsers();if(page==='aiAccess')await loadAiAccess();if(page==='searchConsole')await loadSearchConsole();if(page==='growthIntelligence')await loadGrowthIntelligence();if(page==='contentEngine')await loadContentEngine();if(page==='settings')await loadSettings();if(page==='security')await loadSecurity()}
 document.querySelectorAll('.nav').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.page)));
 document.querySelectorAll('[data-open-page]').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.openPage)));
 $('loginForm').addEventListener('submit',async event=>{event.preventDefault();$('loginError').textContent='';try{const data=await api('/api/admin-auth/login',{method:'POST',body:JSON.stringify({email:$('email').value.trim(),password:$('password').value})});state.user=data.user;setLoggedIn(true);$('password').value='';await postAuthLanding();state.timer=setInterval(()=>loadOverview(true).catch(()=>{}),15000)}catch(error){$('loginError').textContent=error.message}});
@@ -798,6 +798,182 @@ $('growthGaManualSaveBtn').addEventListener('click',()=>void saveManualGrowthGaP
 $('growthGaPeriod').addEventListener('change',()=>void loadGrowthAnalyticsPerformance());
 $('growthGaRefreshBtn').addEventListener('click',()=>void refreshGrowthAnalytics());
 $('discoverRedditBtn').addEventListener('click',()=>void discoverGrowthReddit());
+
+
+function contentStatusBadge(status){
+  const value=String(status||'DRAFT').toUpperCase();
+  return '<span class="content-status '+esc(value.toLowerCase())+'">'+esc(value)+'</span>';
+}
+function contentQualityClass(score){
+  const value=Number(score||0);
+  return value>=80?'strong':value>=65?'pass':'warn';
+}
+function renderContentEngineProviders(data){
+  const engine=data.engine||{};
+  const cards=[
+    ['Research & writing',Boolean(engine.aiConfigured),engine.aiConfigured?(engine.model||'OpenAI web research'):'OpenAI web research is not configured'],
+    ['Featured images',Boolean(engine.imageConfigured),engine.imageConfigured?'Runware + object storage ready':'Image generation or object storage needs attention'],
+    ['Publishing',engine.publishingMode==='MANUAL_APPROVAL','Human approval required before every publish'],
+    ['Blog source',engine.source==='INXSOCIAL_SELF_HOSTED','INXSocial self-hosted · BabyLoveGrowth not required']
+  ];
+  $('contentEngineProviderGrid').innerHTML=cards.map(item=>'<article class="content-engine-provider '+(item[1]?'ok':'warn')+'"><span>'+esc(item[0])+'</span><b>'+(item[1]?'Ready':'Attention')+'</b><small>'+esc(item[2])+'</small></article>').join('');
+  $('contentEngineStatus').textContent=engine.aiConfigured?'Self-hosted engine ready':'AI setup required';
+  $('contentEngineStatus').className='status-chip '+(engine.aiConfigured?'gsc-connected':'gsc-error');
+}
+function renderContentEngineKpis(data){
+  const counts=data.counts||{};
+  const rows=[
+    ['Drafts',counts.DRAFT||0,'Awaiting review'],
+    ['Approved',counts.APPROVED||0,'Ready to publish'],
+    ['Published',counts.PUBLISHED||0,'Live on /blog'],
+    ['Archived',counts.ARCHIVED||0,'Removed from workflow']
+  ];
+  $('contentEngineKpis').innerHTML=rows.map(item=>'<article><span>'+esc(item[0])+'</span><b>'+Number(item[1]).toLocaleString()+'</b><small>'+esc(item[2])+'</small></article>').join('');
+}
+function renderContentOpportunityOptions(data){
+  const select=$('contentOpportunity');
+  const current=select.value;
+  const options=data.opportunityOptions||[];
+  select.innerHTML='<option value="">Manual topic instead</option>'+options.map(item=>'<option value="'+esc(item.id)+'">Score '+Number(item.score||0)+' · '+esc(item.topic)+' · '+esc(item.action||item.intent||'review')+'</option>').join('');
+  if(options.some(item=>item.id===current))select.value=current;
+}
+function filteredContentArticles(){
+  const status=$('contentStatusFilter')?.value||'';
+  const articles=state.contentEngine?.articles||[];
+  return status?articles.filter(item=>item.status===status):articles;
+}
+function renderContentArticleList(){
+  const articles=filteredContentArticles();
+  $('contentArticleList').innerHTML=articles.length?articles.map(article=>{
+    const quality=article.quality||{};
+    const live=article.status==='PUBLISHED'?'<a href="/blog/'+encodeURIComponent(article.slug)+'" target="_blank" rel="noopener">Live ↗</a>':'';
+    return '<article class="content-article-row" data-content-id="'+esc(article.id)+'"><div class="content-article-score '+contentQualityClass(quality.score)+'"><b>'+Number(quality.score||0)+'</b><span>quality</span></div><div class="content-article-copy"><div><span class="content-article-status-line">'+contentStatusBadge(article.status)+(article.opportunity_score!=null?'<em>Opportunity '+Number(article.opportunity_score)+'</em>':'')+'</span><h3>'+esc(article.title||'Untitled draft')+'</h3><p>'+esc(article.excerpt||'No excerpt yet.')+'</p><small>'+Number(quality.metrics?.words||0).toLocaleString()+' words · '+Number(quality.metrics?.sourceCount||0)+' sources · updated '+esc(relative(article.updated_at))+'</small></div></div><div class="content-article-actions">'+live+'<button class="secondary compact" type="button" data-open-content="'+esc(article.id)+'">Review</button></div></article>';
+  }).join(''):'<div class="growth-empty">No content items match this status.</div>';
+  document.querySelectorAll('[data-open-content]').forEach(button=>button.addEventListener('click',()=>void openContentArticle(button.dataset.openContent)));
+}
+function renderContentEngine(data){
+  state.contentEngine=data;
+  renderContentEngineProviders(data);
+  renderContentEngineKpis(data);
+  renderContentOpportunityOptions(data);
+  renderContentArticleList();
+  const superAdmin=state.user?.role==='SUPER_ADMIN';
+  $('generateContentDraftBtn').disabled=!superAdmin||!data.engine?.aiConfigured;
+  $('contentDraftProgress').textContent=!superAdmin?'Super Admin access is required to generate content.':data.engine?.aiConfigured?'Generation researches live sources first, then creates a reviewable draft.':'OpenAI web research must be configured before drafts can be generated.';
+}
+async function loadContentEngine(){
+  try{renderContentEngine(await api('/api/admin/content-engine/overview'))}catch(error){toast(error.message)}
+}
+async function generateContentDraft(event){
+  event.preventDefault();
+  const opportunityId=$('contentOpportunity').value;
+  const topic=$('contentManualTopic').value.trim();
+  if(!opportunityId&&!topic){toast('Choose a Growth Intelligence opportunity or enter a manual topic.');return}
+  const button=$('generateContentDraftBtn');
+  button.disabled=true;button.textContent='Researching & writing…';
+  $('contentDraftProgress').textContent='Stage 1: researching current web evidence. Stage 2: writing the structured article. Keep this page open until the draft returns.';
+  try{
+    const payload=await api('/api/admin/content-engine/drafts',{method:'POST',body:JSON.stringify({opportunityId:opportunityId||undefined,topic:topic||undefined,notes:$('contentEditorNote').value.trim()||undefined})});
+    $('contentManualTopic').value='';$('contentEditorNote').value='';
+    toast('Content draft created for review');
+    await loadContentEngine();
+    await openContentArticle(payload.article.id);
+  }catch(error){toast(error.message)}
+  finally{
+    button.textContent='Research & generate draft';
+    button.disabled=state.user?.role!=='SUPER_ADMIN'||!state.contentEngine?.engine?.aiConfigured;
+    $('contentDraftProgress').textContent='Generation researches live sources first, then creates a reviewable draft.';
+  }
+}
+function renderContentEditor(article){
+  state.selectedContentArticle=article;
+  const quality=article.quality||{};
+  $('contentEditorHeading').textContent=article.title||'Review article';
+  $('contentEditorMeta').textContent=(article.status||'DRAFT')+' · '+Number(quality.metrics?.words||0).toLocaleString()+' words · '+Number(quality.metrics?.sourceCount||0)+' sources · updated '+fmtDate(article.updated_at);
+  $('contentEditorQuality').className='content-quality-badge '+contentQualityClass(quality.score);
+  $('contentEditorQuality').innerHTML='<b>'+Number(quality.score||0)+'</b><span>quality</span>';
+  $('contentEditorTitle').value=article.title||'';
+  $('contentEditorSlug').value=article.slug||'';
+  $('contentEditorExcerpt').value=article.excerpt||'';
+  $('contentEditorMetaDescription').value=article.meta_description||'';
+  $('contentEditorKeywords').value=(article.keywords||[]).join(', ');
+  $('contentEditorImagePrompt').value=article.featured_image_prompt||'';
+  $('contentEditorBody').value=article.content_markdown||'';
+  $('contentEditorIssues').innerHTML=(quality.issues||[]).length?(quality.issues||[]).map(issue=>'<div class="content-review-issue">! '+esc(issue)+'</div>').join(''):'<div class="content-review-pass">✓ Structural quality checks passed.</div>';
+  $('contentEditorSources').innerHTML=(article.sources||[]).length?(article.sources||[]).map(source=>'<a href="'+esc(source.url)+'" target="_blank" rel="noopener">'+esc(source.title||source.url)+'</a>').join(''):'<span class="muted">No verified sources stored.</span>';
+  $('contentEditorFaq').innerHTML=(article.faq||[]).length?(article.faq||[]).map(item=>'<details><summary>'+esc(item.question)+'</summary><p>'+esc(item.answer)+'</p></details>').join(''):'<span class="muted">No FAQ stored.</span>';
+  const superAdmin=state.user?.role==='SUPER_ADMIN';
+  const archived=article.status==='ARCHIVED';
+  ['contentEditorTitle','contentEditorSlug','contentEditorExcerpt','contentEditorMetaDescription','contentEditorKeywords','contentEditorImagePrompt','contentEditorBody','contentSaveBtn'].forEach(id=>{$(id).disabled=!superAdmin||archived});
+  $('contentApproveBtn').hidden=article.status!=='DRAFT';
+  $('contentApproveBtn').disabled=!superAdmin||Number(quality.score||0)<65;
+  $('contentPublishBtn').hidden=article.status!=='APPROVED';
+  $('contentPublishBtn').disabled=!superAdmin;
+  $('contentUnpublishBtn').hidden=article.status!=='PUBLISHED';
+  $('contentUnpublishBtn').disabled=!superAdmin;
+  $('contentArchiveBtn').hidden=archived;
+  $('contentArchiveBtn').disabled=!superAdmin;
+  $('contentGenerateImageBtn').disabled=!superAdmin||archived||!state.contentEngine?.engine?.imageConfigured;
+  $('contentGenerateImageBtn').textContent=article.featured_image_url?'Regenerate featured image':'Generate featured image';
+  $('contentLiveLink').hidden=article.status!=='PUBLISHED';
+  $('contentLiveLink').href=article.status==='PUBLISHED'?'/blog/'+encodeURIComponent(article.slug):'#';
+}
+async function openContentArticle(id){
+  try{
+    const data=await api('/api/admin/content-engine/articles/'+encodeURIComponent(id));
+    renderContentEditor(data.article);
+    $('contentArticleDialog').showModal();
+  }catch(error){toast(error.message)}
+}
+async function saveContentArticle(event){
+  event.preventDefault();
+  const article=state.selectedContentArticle;if(!article)return;
+  const keywords=$('contentEditorKeywords').value.split(',').map(value=>value.trim()).filter(Boolean).slice(0,8);
+  const button=$('contentSaveBtn');button.disabled=true;button.textContent='Saving…';
+  try{
+    const data=await api('/api/admin/content-engine/articles/'+encodeURIComponent(article.id),{method:'PATCH',body:JSON.stringify({
+      title:$('contentEditorTitle').value.trim(),
+      slug:$('contentEditorSlug').value.trim(),
+      excerpt:$('contentEditorExcerpt').value.trim(),
+      meta_description:$('contentEditorMetaDescription').value.trim(),
+      keywords,
+      featured_image_prompt:$('contentEditorImagePrompt').value.trim(),
+      content_markdown:$('contentEditorBody').value.trim()
+    })});
+    renderContentEditor(data.article);toast('Content draft saved');await loadContentEngine();
+  }catch(error){toast(error.message)}
+  finally{button.textContent='Save draft';button.disabled=false}
+}
+async function runContentArticleAction(action,label){
+  const article=state.selectedContentArticle;if(!article)return;
+  const id=encodeURIComponent(article.id);
+  try{
+    const data=await api('/api/admin/content-engine/articles/'+id+'/'+action,{method:'POST',body:'{}'});
+    renderContentEditor(data.article);
+    toast(label);
+    await loadContentEngine();
+  }catch(error){toast(error.message)}
+}
+async function generateContentImage(){
+  const article=state.selectedContentArticle;if(!article)return;
+  const button=$('contentGenerateImageBtn');button.disabled=true;button.textContent='Generating image…';
+  try{
+    const data=await api('/api/admin/content-engine/articles/'+encodeURIComponent(article.id)+'/featured-image',{method:'POST',body:'{}'});
+    renderContentEditor(data.article);toast('Featured image generated and stored');await loadContentEngine();
+  }catch(error){toast(error.message)}
+  finally{button.textContent=state.selectedContentArticle?.featured_image_url?'Regenerate featured image':'Generate featured image';button.disabled=!state.contentEngine?.engine?.imageConfigured}
+}
+function closeContentEditor(){$('contentArticleDialog').close();state.selectedContentArticle=null}
+$('contentDraftForm').addEventListener('submit',event=>void generateContentDraft(event));
+$('refreshContentEngineBtn').addEventListener('click',()=>void loadContentEngine());
+$('contentStatusFilter').addEventListener('change',renderContentArticleList);
+$('contentArticleForm').addEventListener('submit',event=>void saveContentArticle(event));
+document.querySelectorAll('[data-close-content-editor]').forEach(button=>button.addEventListener('click',closeContentEditor));
+$('contentGenerateImageBtn').addEventListener('click',()=>void generateContentImage());
+$('contentApproveBtn').addEventListener('click',()=>void runContentArticleAction('approve','Article approved'));
+$('contentPublishBtn').addEventListener('click',()=>void runContentArticleAction('publish','Article published to INXSocial blog'));
+$('contentUnpublishBtn').addEventListener('click',()=>void runContentArticleAction('unpublish','Article unpublished'));
+$('contentArchiveBtn').addEventListener('click',()=>void runContentArticleAction('archive','Article archived'));
 
 async function postAuthLanding(){
   const params=new URLSearchParams(window.location.search);

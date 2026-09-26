@@ -27,6 +27,7 @@ const {
 const adminSecurity = require('../controllers/adminSecurityController');
 const googleSearchConsole = require('../controllers/googleSearchConsoleController');
 const growthIntelligence = require('../controllers/growthIntelligenceController');
+const growthContent = require('../controllers/growthContentController');
 const adminSecurityRoutes = require('./adminSecurityRoutes');
 
 router.get('/search-console/oauth/callback', googleSearchConsole.oauthCallback);
@@ -45,6 +46,16 @@ router.get('/growth-intelligence/analytics/performance', growthIntelligence.anal
 router.get('/growth-intelligence/opportunities', growthIntelligence.opportunityStatus);
 router.post('/growth-intelligence/opportunities/build', requireSuperAdmin, growthIntelligence.buildOpportunities);
 router.post('/growth-intelligence/reddit-opportunities', requireSuperAdmin, growthIntelligence.discoverReddit);
+router.get('/content-engine/overview', growthContent.overview);
+router.get('/content-engine/articles', growthContent.list);
+router.get('/content-engine/articles/:id', growthContent.detail);
+router.post('/content-engine/drafts', requireSuperAdmin, growthContent.createDraft);
+router.patch('/content-engine/articles/:id', requireSuperAdmin, growthContent.update);
+router.post('/content-engine/articles/:id/approve', requireSuperAdmin, growthContent.approve);
+router.post('/content-engine/articles/:id/publish', requireSuperAdmin, growthContent.publish);
+router.post('/content-engine/articles/:id/unpublish', requireSuperAdmin, growthContent.unpublish);
+router.post('/content-engine/articles/:id/archive', requireSuperAdmin, growthContent.archive);
+router.post('/content-engine/articles/:id/featured-image', requireSuperAdmin, growthContent.featuredImage);
 router.post('/search-console/oauth/start', requireSuperAdmin, googleSearchConsole.startOAuth);
 router.post('/search-console/site', requireSuperAdmin, googleSearchConsole.selectSite);
 router.get('/search-console/performance', googleSearchConsole.performance);

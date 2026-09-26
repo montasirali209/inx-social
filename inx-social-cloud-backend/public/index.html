@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=12">
+  <link rel="stylesheet" href="/admin.css?v=13">
   <link rel="stylesheet" href="/admin-security.css?v=1">
 </head>
 <body>
@@ -37,6 +37,7 @@
       <button class="nav" data-page="aiAccess"><span>✦</span>AI &amp; Automation</button>
       <button class="nav" data-page="searchConsole"><span>⌕</span>Search Console</button>
       <button class="nav" data-page="growthIntelligence"><span>◈</span>Growth Intelligence</button>
+      <button class="nav" data-page="contentEngine"><span>✎</span>Content Engine</button>
       <button class="nav" data-page="settings"><span>⚙</span>System Settings</button>
       <button class="nav" data-page="security"><span>⌾</span>Admin &amp; Security</button>
     </nav>
@@ -406,6 +407,57 @@
       </section>
     </section>
 
+    <section class="page hidden" id="contentEnginePage">
+      <div class="section-head content-engine-heading">
+        <div><span class="kicker">Phase 2</span><h2>Content Engine</h2><p>Turn Growth Intelligence opportunities into researched, reviewable and publishable INXSocial articles without relying on BabyLoveGrowth.</p></div>
+        <div class="content-engine-head-actions"><span class="status-chip" id="contentEngineStatus">Loading…</span><button class="secondary" id="refreshContentEngineBtn" type="button">↻ Refresh</button></div>
+      </div>
+
+      <div class="content-engine-provider-grid" id="contentEngineProviderGrid">
+        <article class="content-engine-provider loading"><span>Research &amp; writing</span><b>Loading…</b><small>Checking live web research</small></article>
+        <article class="content-engine-provider loading"><span>Featured images</span><b>Loading…</b><small>Checking image + object storage</small></article>
+        <article class="content-engine-provider loading"><span>Publishing</span><b>Loading…</b><small>Checking approval workflow</small></article>
+        <article class="content-engine-provider loading"><span>Blog source</span><b>Loading…</b><small>Checking self-hosted reader</small></article>
+      </div>
+
+      <div class="content-engine-kpis" id="contentEngineKpis">
+        <article><span>Drafts</span><b>—</b><small>Awaiting review</small></article>
+        <article><span>Approved</span><b>—</b><small>Ready to publish</small></article>
+        <article><span>Published</span><b>—</b><small>Live on /blog</small></article>
+        <article><span>Archived</span><b>—</b><small>Removed from workflow</small></article>
+      </div>
+
+      <div class="content-engine-grid">
+        <form class="panel content-draft-builder" id="contentDraftForm">
+          <header><div><span class="kicker">Opportunity → draft</span><h2>Research and create</h2></div><span class="gsc-readonly">Manual publish only</span></header>
+          <p class="muted">The engine researches current web evidence first, then writes an original draft. Nothing is published until a Super Admin reviews and approves it.</p>
+          <label>Growth Intelligence opportunity<select id="contentOpportunity"><option value="">Manual topic instead</option></select></label>
+          <label>Manual topic <small>Optional when an opportunity is selected</small><input id="contentManualTopic" maxlength="280" placeholder="e.g. Best Buffer alternatives for small businesses"></label>
+          <label>Editor note <small>Optional</small><textarea id="contentEditorNote" maxlength="1000" rows="4" placeholder="Angle, audience, exclusions or points to emphasise"></textarea></label>
+          <div class="content-engine-guardrail"><b>Research guardrail</b><span>Uses live sources, blocks automatic publishing, avoids invented statistics and keeps source links with every draft.</span></div>
+          <button class="primary full" id="generateContentDraftBtn" type="submit">Research &amp; generate draft</button>
+          <small class="content-engine-progress" id="contentDraftProgress">Generation can take around a minute because research and writing run as separate stages.</small>
+        </form>
+
+        <article class="panel content-workflow-card">
+          <header><div><span class="kicker">Editorial workflow</span><h2>Quality gates</h2></div></header>
+          <div class="content-workflow-steps">
+            <div><span>1</span><p><b>Research</b><small>Current web evidence and buyer intent.</small></p></div>
+            <div><span>2</span><p><b>Draft</b><small>Original long-form article + metadata + FAQ.</small></p></div>
+            <div><span>3</span><p><b>Review</b><small>Word count, sources, structure, internal links and SEO metadata.</small></p></div>
+            <div><span>4</span><p><b>Approve</b><small>Human approval is required before publishing.</small></p></div>
+            <div><span>5</span><p><b>Publish</b><small>Appears on INXSocial blog and sitemap.</small></p></div>
+            <div><span>6</span><p><b>Measure</b><small>Phase 1 Search Console + GA4 measures the result.</small></p></div>
+          </div>
+        </article>
+      </div>
+
+      <section class="panel content-library-panel">
+        <header class="content-library-head"><div><span class="kicker">Editorial queue</span><h2>Content library</h2><p>Drafts, approvals and published articles from the self-hosted Content Engine.</p></div><div class="content-library-filters"><label>Status<select id="contentStatusFilter"><option value="">All statuses</option><option value="DRAFT">Draft</option><option value="APPROVED">Approved</option><option value="PUBLISHED">Published</option><option value="ARCHIVED">Archived</option></select></label></div></header>
+        <div class="content-article-list" id="contentArticleList"><div class="growth-empty">Loading content library…</div></div>
+      </section>
+    </section>
+
     <section class="page hidden" id="settingsPage">
       <div class="section-head"><div><h2>System Settings</h2><p>Only approved non-secret configuration is exposed here. Arbitrary key/value editing has been removed.</p></div><span class="status-chip">Allowlisted</span></div>
       <div class="panel safe-settings-panel">
@@ -453,6 +505,44 @@
   </main>
 </section>
 
+<dialog id="contentArticleDialog">
+  <form class="modal content-editor-modal" id="contentArticleForm">
+    <button class="close" type="button" data-close-content-editor aria-label="Close">×</button>
+    <div class="content-editor-top">
+      <div><span class="kicker">Phase 2 editorial review</span><h2 id="contentEditorHeading">Review article</h2><p class="muted" id="contentEditorMeta">Loading article…</p></div>
+      <div class="content-quality-badge" id="contentEditorQuality"><b>—</b><span>quality</span></div>
+    </div>
+    <div class="content-editor-grid">
+      <label>Title<input id="contentEditorTitle" maxlength="180" required></label>
+      <label>Slug<input id="contentEditorSlug" maxlength="100" required></label>
+      <label class="wide">Excerpt<textarea id="contentEditorExcerpt" maxlength="500" rows="3"></textarea></label>
+      <label class="wide">Meta description<textarea id="contentEditorMetaDescription" maxlength="300" rows="3"></textarea></label>
+      <label class="wide">Keywords <small>Comma separated</small><input id="contentEditorKeywords" maxlength="600"></label>
+      <label class="wide">Featured-image prompt<textarea id="contentEditorImagePrompt" maxlength="1200" rows="3"></textarea></label>
+      <label class="wide">Article body <small>Markdown: ## headings, ### subheadings, bullets and numbered lists</small><textarea id="contentEditorBody" class="content-body-editor" maxlength="50000" rows="22"></textarea></label>
+    </div>
+    <div class="content-editor-evidence">
+      <article><span class="kicker">Review issues</span><div id="contentEditorIssues"></div></article>
+      <article><span class="kicker">Verified sources</span><div id="contentEditorSources"></div></article>
+      <article><span class="kicker">FAQ</span><div id="contentEditorFaq"></div></article>
+    </div>
+    <footer class="content-editor-footer">
+      <div class="content-editor-secondary">
+        <button class="secondary" id="contentGenerateImageBtn" type="button">Generate featured image</button>
+        <a class="secondary content-live-link" id="contentLiveLink" href="#" target="_blank" rel="noopener" hidden>Open live article ↗</a>
+      </div>
+      <div class="content-editor-primary">
+        <button class="secondary" type="button" data-close-content-editor>Close</button>
+        <button class="secondary" id="contentArchiveBtn" type="button">Archive</button>
+        <button class="secondary" id="contentUnpublishBtn" type="button" hidden>Unpublish</button>
+        <button class="secondary" id="contentApproveBtn" type="button">Approve</button>
+        <button class="primary" id="contentSaveBtn" type="submit">Save draft</button>
+        <button class="primary" id="contentPublishBtn" type="button" hidden>Publish</button>
+      </div>
+    </footer>
+  </form>
+</dialog>
+
 <dialog id="userDialog"><form method="dialog" class="modal"><button class="close" value="cancel" aria-label="Close">×</button><span class="kicker">Customer access</span><h2 id="modalTitle">Manage customer</h2><div id="modalBody"></div><footer><button value="cancel" class="secondary">Close</button><button id="saveAccessBtn" type="button" class="primary">Save changes</button></footer></form></dialog>
 
 <dialog id="createUserDialog"><form class="modal" id="createUserForm"><button class="close" type="button" data-close-create aria-label="Close">×</button><span class="kicker">Direct provisioning</span><h2>Create verified customer</h2><p class="muted">The customer account is ready immediately. A secure temporary password is displayed once after creation.</p><div class="form-grid"><label>Full name<input id="createName" required minlength="2"></label><label>Email address<input id="createEmail" type="email" required></label><label>Plan<select id="createPlan"><option value="TRIAL">Trial</option><option value="CREATOR">Creator — manual access</option><option value="PRO">Pro — manual access</option><option value="BUSINESS">Business — manual access</option><option value="AGENCY">Agency — manual access</option></select></label><label id="trialDaysLabel">Trial length (days)<input id="createTrialDays" type="number" min="1" max="365" value="7"></label></div><footer><button type="button" class="secondary" data-close-create>Cancel</button><button type="submit" class="primary">Create customer</button></footer></form></dialog>
@@ -463,6 +553,6 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=11" defer></script>
+<script src="/admin.js?v=12" defer></script>
 </body>
 </html>

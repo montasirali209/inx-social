@@ -4,7 +4,7 @@ import { IntegrationPending } from "./components/IntegrationPending";
 import { getBlogClient } from "./lib/blog-client";
 import type { BlogArticleSummary } from "./types";
 
-export const revalidate = 86400;
+export const revalidate = 300;
 
 const PAGE_SIZE = 12;
 
@@ -52,14 +52,14 @@ export default async function BlogIndex({
         ) : loadError ? (
           <IntegrationPending
             title="Blog connection needs attention"
-            message="The blog integration is installed, but the article service could not be reached. Check the server-side BabyLoveGrowth API key and redeploy."
+            message="The self-hosted INXSocial article service could not be reached. Check the backend Content Engine status and redeploy."
           />
         ) : articles.length === 0 ? (
           <section className="inx-blog-status">
             <span className="inx-blog-status-dot" aria-hidden="true" />
             <div>
               <h2>No published articles yet</h2>
-              <p>Published BabyLoveGrowth articles will appear here automatically.</p>
+              <p>Articles approved and published from the INXSocial Content Engine will appear here automatically.</p>
             </div>
           </section>
         ) : (

@@ -6,7 +6,7 @@ import { IntegrationPending } from "../components/IntegrationPending";
 import { getBlogClient, getSiteUrl, slugify } from "../lib/blog-client";
 import type { BlogArticle } from "../types";
 
-export const revalidate = 86400;
+export const revalidate = 300;
 
 function asSchema(value: unknown): string | null {
   if (!value) return null;
@@ -111,6 +111,9 @@ export default async function BlogArticlePage({
     (value): value is string => Boolean(value),
   );
   const tags = Array.isArray(article.keywords) ? article.keywords : [];
+  const sources = Array.isArray(article.sources) ? article.sources : [];
+  const internalLinks = Array.isArray(article.internalLinks) ? article.internalLinks : [];
+  const faq = Array.isArray(article.faq) ? article.faq : [];
 
   return (
     <main className="inx-blog-main">
@@ -148,7 +151,7 @@ export default async function BlogArticlePage({
           <div className="inx-blog-article-image">
             <Image
               src={article.featured_image_url}
-              alt=""
+              alt={article.title}
               fill
               priority
               sizes="(max-width: 900px) 100vw, 920px"
@@ -160,6 +163,50 @@ export default async function BlogArticlePage({
           className="inx-blog-content"
           dangerouslySetInnerHTML={{ __html: article.content_html || "" }}
         />
+
+        {internalLinks.length > 0 && (
+          <aside className="inx-blog-related" aria-label="Related INXSocial tools">
+            <span className="inx-blog-kicker">Related INXSocial tools</span>
+            <div>
+              {internalLinks.map((link) => (
+                <Link key={link.url} href={link.url}>
+                  {link.label} <span aria-hidden="true">→</span>
+                </Link>
+              ))}
+            </div>
+          </aside>
+        )}
+
+        {faq.length > 0 && (
+          <section className="inx-blog-faq">
+            <span className="inx-blog-kicker">Frequently asked questions</span>
+            <h2>Questions about {article.title}</h2>
+            <div className="inx-blog-faq-list">
+              {faq.map((item) => (
+                <details key={item.question}>
+                  <summary>{item.question}</summary>
+                  <p>{item.answer}</p>
+                </details>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {sources.length > 0 && (
+          <section className="inx-blog-sources">
+            <span className="inx-blog-kicker">Research sources</span>
+            <h2>Sources used for this guide</h2>
+            <ol>
+              {sources.map((source) => (
+                <li key={source.url}>
+                  <a href={source.url} target="_blank" rel="noopener noreferrer">
+                    {source.title || source.url}
+                  </a>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
       </article>
     </main>
   );
