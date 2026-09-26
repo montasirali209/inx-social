@@ -10,11 +10,12 @@ const SCHEMAS_BASE_URL = 'https://schemas.runware.ai';
 const REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const REQUEST_TIMEOUT_MS = 12_000;
 const CREDIT_COST_BUFFER = Math.max(1.15, Number(env.videoCommercial?.creditCostBuffer || 1.15));
-const NON_NATIVE_STATUSES = new Set(['openai-compatible']);
+const NON_NATIVE_STATUSES = new Set(['openai-compatible', 'deprecated', 'retired', 'disabled', 'unavailable', 'archived']);
 
 let memorySnapshot = null;
 let refreshPromise = null;
 let runtimeTimer = null;
+let healthTimer = null;
 
 function clean(value, max = 4000) {
   return String(value || '').replace(/\u0000/g, '').trim().slice(0, max);
@@ -520,13 +521,18 @@ async function publicCatalog({ all = false, refresh = false } = {}) {
   const current = await snapshot({ refresh });
   const legacyIds = new Set(legacyProfiles().map(model => model.id));
   const models = all ? current.models : current.models.filter(model => legacyIds.has(model.id));
+  const publicModels = models.map(publicModel);
+  const health = commercialGuard.health(current);
   return {
     version: current.version,
     source: current.source,
     syncedAt: current.syncedAt,
-    stats: current.stats,
-    health: commercialGuard.health(current),
-    models: models.map(publicModel)
+    stats: {
+      ...current.stats,
+      generationReady: all ? publicModels.filter(model => model.generationReady).length : current.stats.generationReady
+    },
+    health,
+    models: publicModels
   };
 }
 
@@ -556,6 +562,13 @@ async function startRuntime() {
   if (!runtimeTimer) {
     runtimeTimer = setInterval(() => { void refreshCatalog(); }, REFRESH_INTERVAL_MS);
     runtimeTimer.unref?.();
+  }
+  if (!healthTimer) {
+    healthTimer = setInterval(() => {
+      const health = commercialGuard.health(memorySnapshot || fallbackSnapshot());
+      if (health.status !== 'HEALTHY') console.warn('[VIDEO MODEL HEALTH]', JSON.stringify(health));
+    }, 30 * 60 * 1000);
+    healthTimer.unref?.();
   }
   return {
     ...memorySnapshot.stats,
