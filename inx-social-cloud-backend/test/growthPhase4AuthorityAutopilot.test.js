@@ -20,12 +20,19 @@ test('Phase 4 validates and drafts transparent non-spam engagement',()=>{
   assert.match(service,/env\.contentWriter\.model/);
 });
 
-test('Phase 4 outreach is approval gated and rate limited',()=>{
+test('Phase 4 outreach uses an independent Sol review gate and remains rate limited',()=>{
   const service=read('src/services/growthAuthorityService.js');
   const email=read('src/services/emailService.js');
-  assert.match(service,/x\.status==='APPROVED'/); assert.match(service,/AUTO_EMAIL_LIMIT = 2/);
+  assert.match(service,/reviewOutreachForAutoSend/);
+  assert.match(service,/inx_authority_email_final_review/);
+  assert.match(service,/corporateSubscriber==='YES'/);
+  assert.match(service,/AI_APPROVED/);
+  assert.match(service,/\['APPROVED','AI_APPROVED'\]\.includes\(x\.status\)/);
+  assert.match(service,/AUTO_EMAIL_LIMIT = 2/);
   assert.match(service,/5\*24\*60\*60\*1000/); assert.match(service,/status:'FOLLOWED_UP'/);
   assert.match(email,/sendAuthorityOutreach/);
+  assert.match(email,/INXSocial is provided by INAXX LTD/);
+  assert.match(email,/reply “no thanks”/);
   assert.doesNotMatch(service,/oauth\.reddit|reddit\.com\/api\/submit|api\/v1\/me/);
 });
 
@@ -68,4 +75,17 @@ test('Reddit is excluded from automatic Growth Autopilot decisions',()=>{
   assert.doesNotMatch(strategy,/Reddit evidence/);
   assert.doesNotMatch(html,/id="discoverRedditBtn"/);
   assert.doesNotMatch(js,/discoverGrowthReddit/);
+});
+
+
+test('Sol auto-approval rejects uncertain or unsafe B2B outreach before sending',()=>{
+  const service=read('src/services/growthAuthorityService.js');
+  assert.match(service,/sole trader/);
+  assert.match(service,/personal consumer/);
+  assert.match(service,/When uncertain, REJECT/);
+  assert.match(service,/contactPubliclyVerified===true/);
+  assert.match(service,/relevantBusinessFit===true/);
+  assert.match(service,/factualClaimsSafe===true/);
+  assert.match(service,/toneSafe===true/);
+  assert.match(service,/identityAndOptOutPresent===true/);
 });
