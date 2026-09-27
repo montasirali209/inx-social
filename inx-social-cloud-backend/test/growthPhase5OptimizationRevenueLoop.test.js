@@ -74,7 +74,7 @@ test('Phase 5 remains governed for high-risk conversion and consolidation work',
 
 test('Phase 5 runs automatically every 24 hours inside Growth Autopilot', () => {
   const autopilot = read('src/services/growthAutopilotService.js');
-  assert.match(autopilot, /configVersion: 5/);
+  assert.match(autopilot, /configVersion: 6/);
   assert.match(autopilot, /optimizationEveryHours: 24/);
   assert.match(autopilot, /optimizationDue/);
   assert.match(autopilot, /optimization\.run/);
