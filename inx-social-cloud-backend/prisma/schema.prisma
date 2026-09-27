@@ -738,8 +738,9 @@ model UiDesignProject {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  references UiDesignReference[]
-  analyses   UiDesignAnalysis[]
+  references  UiDesignReference[]
+  analyses    UiDesignAnalysis[]
+  generations UiDesignGeneration[]
 
   @@index([status, updatedAt])
   @@index([createdAt])
@@ -782,9 +783,39 @@ model UiDesignAnalysis {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  project UiDesignProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project     UiDesignProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  generations UiDesignGeneration[]
 
   @@index([projectId, createdAt])
+  @@index([status, createdAt])
+  @@index([sourceFingerprint])
+}
+
+model UiDesignGeneration {
+  id                String   @id @default(cuid())
+  projectId         String
+  sourceAnalysisId  String
+  status            String   @default("RUNNING")
+  version           String   @default("ui-codegen-v1")
+  model             String?
+  framework         String
+  styling           String
+  outputType        String
+  sourceFingerprint String
+  generationJson    String?
+  validationJson    String?
+  errorMessage      String?
+  createdByUserId   String?
+  startedAt         DateTime @default(now())
+  completedAt       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  project        UiDesignProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sourceAnalysis UiDesignAnalysis @relation(fields: [sourceAnalysisId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([sourceAnalysisId])
   @@index([status, createdAt])
   @@index([sourceFingerprint])
 }
