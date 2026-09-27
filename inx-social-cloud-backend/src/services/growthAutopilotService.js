@@ -874,22 +874,35 @@ async function updateConfig(patch = {}) {
 
 async function ensurePhase3MaintenanceFresh(reason = 'startup') {
   try {
-    const current = await seoMaintenance.status();
-    const generatedAt = current?.generatedAt ? new Date(current.generatedAt).getTime() : 0;
-    const fresh = Number.isFinite(generatedAt) && generatedAt > 0 && (Date.now() - generatedAt) < 20 * 60 * 1000;
-    if (fresh) return current;
+    const site = await growthSites.ensureDefaultSite();
+    // Always take one fresh crawl after a backend deployment so website changes
+    // become visible to the semantic brain even when the 24-hour strategy cycle
+    // is not due. siteIntelligence.refresh reuses the stored AI profile when the
+    // crawl fingerprint has not materially changed, avoiding unnecessary model cost.
+    const result = await seoMaintenance.run({ origin: site.origin, maxPages: 120 });
+    const intelligence = await siteIntelligence.refresh({ site, crawl: result });
 
-    const result = await seoMaintenance.run({ maxPages: 120 });
-    console.info('[growth-autopilot] Phase 3 SEO maintenance refreshed', {
+    console.info('[growth-autopilot] SEO + site intelligence refreshed', {
       trigger: reason,
+      siteId: site.id,
+      origin: site.origin,
       score: result.score,
       pagesCrawled: result.pagesCrawled,
       issues: result.summary?.totalIssues || 0,
-      internalArticleLinks: result.summary?.internalArticleLinks || 0
+      internalArticleLinks: result.summary?.internalArticleLinks || 0,
+      profileReused: Boolean(intelligence.reused),
+      profileConfidence: intelligence.profile?.confidence || 0,
+      changes: {
+        added: intelligence.changes?.added?.length || 0,
+        removed: intelligence.changes?.removed?.length || 0,
+        changed: intelligence.changes?.changed?.length || 0
+      },
+      visibilityPrompts: intelligence.profile?.visibilityPrompts?.length || 0,
+      competitors: intelligence.profile?.competitorCandidates?.length || 0
     });
-    return result;
+    return { seo: result, intelligence };
   } catch (error) {
-    console.warn('[growth-autopilot] Phase 3 startup maintenance failed without blocking runtime', {
+    console.warn('[growth-autopilot] startup SEO/site-intelligence refresh failed without blocking runtime', {
       trigger: reason,
       error: error?.message || String(error)
     });
