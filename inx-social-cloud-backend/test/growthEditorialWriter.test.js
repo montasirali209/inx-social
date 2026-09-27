@@ -81,8 +81,9 @@ test('research facts are bound to verified web-search sources before writing', (
 
 test('independent critic may verify consequential claims with live web search', () => {
   const strategist = read('src/services/growthStrategyService.js');
+  const skills = read('src/services/growthSeoSkillRegistry.js');
 
-  assert.match(strategist, /independently verify a consequential factual or product claim/);
+  assert.match(skills, /independently verify a consequential factual, product, competitor, legal or current-market claim/i);
   assert.match(strategist, /type: 'web_search'/);
   assert.match(strategist, /tool_choice: 'auto'/);
 });
@@ -90,7 +91,8 @@ test('independent critic may verify consequential claims with live web search', 
 test('BlogPosting author URL resolves to the canonical site instead of a nonexistent profile page', () => {
   const service = read('src/services/growthContentService.js');
 
-  assert.match(service, /name: 'INXSocial Editorial', url: SITE_URL/);
+  assert.match(service, /name: brandName \+ ' Editorial', url: siteUrl/);
+  assert.match(service, /publisher: \{ '@type': 'Organization', name: brandName, url: siteUrl \}/);
   assert.doesNotMatch(service, /SITE_URL \+ '\/about'/);
 });
 
