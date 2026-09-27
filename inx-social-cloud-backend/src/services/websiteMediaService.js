@@ -369,13 +369,23 @@ async function publicMetadata(key) {
   };
 }
 
-async function content(key) {
+async function content(key, versionId = '') {
   const definition = definitionFor(key);
   const asset = await prisma.websiteMediaAsset.findUnique({
     where: { key: definition.key },
     include: { currentVersion: true }
   });
-  const version = asset?.currentVersion;
+  if (!asset) throw publicError('Website image is not configured yet.', 404, 'WEBSITE_MEDIA_NOT_CONFIGURED');
+
+  let version = asset.currentVersion;
+  const requestedVersionId = String(versionId || '').trim();
+  if (requestedVersionId) {
+    version = await prisma.websiteMediaVersion.findFirst({
+      where: { id: requestedVersionId, assetId: asset.id }
+    });
+    if (!version) throw publicError('Website image version was not found.', 404, 'WEBSITE_MEDIA_VERSION_NOT_FOUND');
+  }
+
   if (!version) throw publicError('Website image is not configured yet.', 404, 'WEBSITE_MEDIA_NOT_CONFIGURED');
   const data = await objectStorage.getBuffer(version.storageKey, null, version.storageProvider);
   return {
@@ -384,7 +394,7 @@ async function content(key) {
     byteSize: Number(version.byteSize || data.length),
     etag: `"${version.sha256}"`,
     versionId: version.id,
-    updatedAt: asset.updatedAt
+    updatedAt: requestedVersionId ? version.createdAt : asset.updatedAt
   };
 }
 

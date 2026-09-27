@@ -40,6 +40,7 @@
       <button class="nav" data-page="searchConsole"><span>⌕</span>Search Console</button>
       <button class="nav" data-page="growthIntelligence"><span>◈</span>Growth Autopilot</button>
       <button class="nav" data-page="contentEngine"><span>✎</span>Content Engine</button>
+      <button class="nav" data-page="websiteMedia"><span>▣</span>Website Media</button>
       <button class="nav" data-page="settings"><span>⚙</span>System Settings</button>
       <button class="nav" data-page="security"><span>⌾</span>Admin &amp; Security</button>
     </nav>
@@ -673,6 +674,36 @@
       </section>
     </section>
 
+    <section class="page hidden website-media-page" id="websiteMediaPage">
+      <div class="section-head website-media-heading">
+        <div>
+          <span class="kicker">Marketing asset control</span>
+          <h2>Website Media</h2>
+          <p>Manage the original high-resolution screenshots used by the INXSocial landing and SEO experience. Replacements are versioned and preserved in Cloudflare R2.</p>
+        </div>
+        <div class="website-media-head-actions">
+          <span class="status-chip" id="websiteMediaStorageStatus">R2 originals</span>
+          <button class="secondary" id="refreshWebsiteMediaBtn" type="button">↻ Refresh</button>
+        </div>
+      </div>
+
+      <div class="website-media-notice">
+        <div><b>Original quality is preserved</b><span>Uploads are stored untouched. The manager checks dimensions and warns when an image is too small for its placement instead of silently upscaling it.</span></div>
+        <small id="websiteMediaPermission">Image replacement requires Super Admin.</small>
+      </div>
+
+      <div class="website-media-summary" id="websiteMediaSummary">
+        <article><span>Managed slots</span><b>—</b><small>Landing + SEO placements</small></article>
+        <article><span>Configured</span><b>—</b><small>Slots with an uploaded image</small></article>
+        <article><span>Versions</span><b>—</b><small>Restorable originals</small></article>
+        <article><span>Storage</span><b>R2</b><small>Original files retained</small></article>
+      </div>
+
+      <div class="website-media-groups" id="websiteMediaGroups">
+        <div class="growth-empty">Loading website media…</div>
+      </div>
+    </section>
+
     <section class="page hidden" id="settingsPage">
       <div class="section-head"><div><h2>System Settings</h2><p>Only approved non-secret configuration is exposed here. Arbitrary key/value editing has been removed.</p></div><span class="status-chip">Allowlisted</span></div>
       <div class="panel safe-settings-panel">
@@ -766,8 +797,47 @@
 
 <dialog id="inviteAdminDialog"><form class="modal" id="inviteAdminForm"><button class="close" type="button" data-close-admin-invite aria-label="Close">×</button><span class="kicker">Privileged access</span><h2>Invite administrator</h2><p class="muted">A dedicated ADMIN account is created and a short-lived password setup link is emailed. Promote to Super Admin only after creation if required.</p><div class="form-grid"><label>Administrator name<input id="inviteAdminName" required minlength="2"></label><label>Email address<input id="inviteAdminEmail" type="email" required></label></div><footer><button type="button" class="secondary" data-close-admin-invite>Cancel</button><button type="submit" class="primary">Create &amp; send setup link</button></footer></form></dialog>
 
+<dialog id="websiteMediaDialog">
+  <form class="modal website-media-modal" id="websiteMediaForm">
+    <button class="close" type="button" id="closeWebsiteMediaDialog" aria-label="Close">×</button>
+    <span class="kicker">Website Media</span>
+    <h2 id="websiteMediaDialogTitle">Replace image</h2>
+    <p class="muted" id="websiteMediaDialogUse">Choose a high-resolution source image.</p>
+
+    <div class="website-media-modal-preview" id="websiteMediaModalPreview">
+      <div class="website-media-empty-preview"><span>▣</span><b>No image uploaded yet</b></div>
+    </div>
+
+    <div class="website-media-modal-meta" id="websiteMediaModalMeta"></div>
+
+    <label class="website-media-upload-drop" id="websiteMediaUploadDrop">
+      <input id="websiteMediaFile" type="file" accept="image/png,image/jpeg,image/webp,image/avif">
+      <span>Choose replacement image</span>
+      <small>PNG, JPEG, WebP or AVIF · up to 25 MB · original file is preserved</small>
+    </label>
+    <div class="website-media-file-choice" id="websiteMediaFileChoice" hidden></div>
+
+    <label>Alt text
+      <textarea id="websiteMediaAltText" rows="3" maxlength="500" placeholder="Describe the interface shown in this image"></textarea>
+    </label>
+
+    <div class="website-media-upload-warning" id="websiteMediaUploadWarning" hidden></div>
+
+    <section class="website-media-history">
+      <div class="website-media-history-head"><div><span class="kicker">Version history</span><h3>Previous originals</h3></div><small>Restore without re-uploading</small></div>
+      <div id="websiteMediaVersionList" class="website-media-version-list"></div>
+    </section>
+
+    <footer class="website-media-modal-footer">
+      <button type="button" class="secondary" id="cancelWebsiteMediaBtn">Cancel</button>
+      <button type="button" class="secondary" id="saveWebsiteMediaAltBtn">Save alt text</button>
+      <button type="submit" class="primary" id="uploadWebsiteMediaBtn">Upload & replace</button>
+    </footer>
+  </form>
+</dialog>
+
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=22" defer></script>
+<script src="/admin.js?v=23" defer></script>
 </body>
 </html>
