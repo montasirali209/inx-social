@@ -16,6 +16,7 @@ export type VideoModelOption = {
   speed?: 'fast' | 'balanced' | 'quality' | 'premium' | null
   description: string
   coverImage?: string | null
+  releasedAt?: string | null
   modes: VideoGenerationMode[]
   resolutions: VideoResolution[]
   availableResolutions?: VideoResolution[]
