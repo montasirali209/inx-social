@@ -460,6 +460,17 @@ async function restore(key, versionId) {
   return serializeAsset(updated, definition);
 }
 
+async function useFallback(key) {
+  const definition = definitionFor(key);
+  const asset = await ensureSlot(key);
+  const updated = await prisma.websiteMediaAsset.update({
+    where: { id: asset.id },
+    data: { currentVersionId: null },
+    include: { currentVersion: true, _count: { select: { versions: true } } }
+  });
+  return serializeAsset(updated, definition);
+}
+
 async function configuredSource(key) {
   const definition = definitionFor(key);
   const asset = await prisma.websiteMediaAsset.findUnique({
@@ -593,6 +604,7 @@ module.exports = {
   upload,
   updateMetadata,
   restore,
+  useFallback,
   resolveEffectiveSource,
   publicMetadata,
   content
