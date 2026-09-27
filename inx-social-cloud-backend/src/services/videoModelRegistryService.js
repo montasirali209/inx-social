@@ -495,6 +495,7 @@ function publicModel(model) {
     speed: model.speed || null,
     description: model.description || model.headline || '',
     coverImage: model.coverImage || null,
+    releasedAt: model.releasedAt || null,
     modes: model.modes || [],
     resolutions: model.resolutions || [],
     availableResolutions: model.availableResolutions || model.resolutions || [],
@@ -533,6 +534,56 @@ async function publicCatalog({ all = false, refresh = false } = {}) {
     },
     health,
     models: publicModels
+  };
+}
+
+
+async function publicShowcase({ limit = 12, refresh = false } = {}) {
+  const current = await snapshot({ refresh });
+  const models = current.models
+    .map(publicModel)
+    .filter(model => model.generationReady)
+    .sort((a, b) => {
+      const releasedA = Date.parse(a.releasedAt || '') || 0;
+      const releasedB = Date.parse(b.releasedAt || '') || 0;
+      if (releasedA !== releasedB) return releasedB - releasedA;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+
+  const safeLimit = Math.max(1, Math.min(50, Number(limit) || 12));
+  const creators = [...new Set(models.map(model => model.creator).filter(Boolean))];
+  const modeCounts = {
+    textToVideo: models.filter(model => model.modes.includes('TEXT_TO_VIDEO')).length,
+    imageToVideo: models.filter(model => model.modes.includes('IMAGE_TO_VIDEO')).length,
+    referenceToVideo: models.filter(model => model.modes.includes('REFERENCE_TO_VIDEO') || model.referenceImagesSupported).length,
+    nativeAudio: models.filter(model => model.audioSupported).length
+  };
+
+  return {
+    version: current.version,
+    source: current.source,
+    syncedAt: current.syncedAt,
+    generationReady: models.length,
+    catalogueTotal: Number(current.stats?.total || 0),
+    creatorCount: creators.length,
+    modeCounts,
+    latest: models.slice(0, safeLimit).map(model => ({
+      name: model.name,
+      creator: model.creator,
+      description: model.description,
+      coverImage: model.coverImage,
+      releasedAt: model.releasedAt,
+      modes: model.modes,
+      resolutions: model.resolutions,
+      durations: model.durations,
+      audioSupported: model.audioSupported,
+      draftSupported: model.draftSupported,
+      firstFrameSupported: model.firstFrameSupported,
+      lastFrameSupported: model.lastFrameSupported,
+      referenceImagesSupported: model.referenceImagesSupported,
+      baselineCredits: model.baselineCredits,
+      tags: model.tags
+    }))
   };
 }
 
@@ -601,6 +652,7 @@ module.exports = {
   resolveModel,
   resolveModelForGeneration,
   publicCatalog,
+  publicShowcase,
   recordActualCost,
   commercialHealth,
   validateRepresentativeModels,
