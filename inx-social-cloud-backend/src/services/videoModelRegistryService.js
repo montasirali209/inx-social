@@ -539,7 +539,8 @@ async function publicCatalog({ all = false, refresh = false } = {}) {
 
 
 async function publicShowcase({ limit = 12, refresh = false } = {}) {
-  const current = await snapshot({ refresh });
+  let current = await snapshot({ refresh });
+  if (current.source === 'compatibility-fallback') current = await refreshCatalog();
   const models = current.models
     .map(publicModel)
     .filter(model => model.generationReady)
