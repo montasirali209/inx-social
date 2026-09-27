@@ -225,6 +225,11 @@ const avatarSeeds = [
   name: row[0], category: row[1], presentation: row[2], ageBand: row[3], locale: row[4], voice: row[5],
   prompt: 'Ultra-realistic UGC creator portrait of a ' + row[6] + '. Vertical 9:16, waist-up, realistic skin texture, natural daylight, smartphone-camera realism, uncluttered neutral background, no text, no logo, no watermark.'
 }));
+const seededAvatarSlugs = new Set(avatarSeeds.map(avatar => avatar.slug));
+
+function isSeededSystemAvatar(row) {
+  return row?.scope === 'SYSTEM' && seededAvatarSlugs.has(row.slug);
+}
 
 const ADMIN_CREATOR_FIRST_NAMES = Object.freeze({
   Woman: ['Maya','Sofia','Chloe','Amara','Nina','Elena','Grace','Jade','Olivia','Priya','Zara','Naomi','Isla','Leah','Aisha','Mila','Layla','Freya','Ivy','Lena','Camila','Nadia','Ruby','Keisha','Mei','Ava','Jasmine','Hana','Sienna','Talia','Rina','Mina','Farah','Lila','Anika','Tessa','Sara','Eva','Amina','Mara'],
@@ -401,9 +406,9 @@ async function warmSystemAvatarReferences() {
   if (avatarWarmupRunning) return;
   avatarWarmupRunning = true;
   try {
-    const pending = await prisma.$queryRawUnsafe(
-      'SELECT * FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\' AND "featured"=true AND ("referenceStorageKey" IS NULL OR "referenceVersion" < $1) ORDER BY "name"', FEATURED_REFERENCE_VERSION
-    );
+    const pending = (await prisma.$queryRawUnsafe(
+      'SELECT * FROM "UGCAvatar" WHERE "scope"=\'SYSTEM\' AND "slug" LIKE \'inx-%\' AND "featured"=true AND ("referenceStorageKey" IS NULL OR "referenceVersion" < $1) ORDER BY "name"', FEATURED_REFERENCE_VERSION
+    )).filter(isSeededSystemAvatar);
     if (!pending.length) return;
     console.log('[UGC AVATAR WARMUP]', 'Preparing ' + pending.length + ' reusable creator portraits.');
     let completed = 0;
@@ -613,6 +618,9 @@ async function prepareVerticalBrandReference(brandRefs) {
 }
 
 async function regenerateFeaturedAvatarReference(row) {
+  // Uploaded system creators have an irreplaceable owner-supplied portrait.
+  // A reference-version bump must never turn that portrait into an AI image.
+  if (!isSeededSystemAvatar(row)) throw publicError('Uploaded creator portraits cannot be regenerated.', 'UGC_UPLOADED_CREATOR_PROTECTED', 409);
   const environment = clean(row.environment || FEATURED_CREATORS.get(row.name), 700);
   const enhancedPrompt = [
     'Photorealistic candid smartphone portrait of an adult social-media creator, not an AI avatar and not a studio headshot.',
@@ -648,6 +656,12 @@ async function ensureAvatarReference(userId, row) {
       if (status !== 404 && !/not.?found|no.?such.?key|404/i.test(String(error?.message || ''))) throw error;
       console.warn('[UGC AVATAR REFERENCE REPAIR]', row.id, 'Stored portrait is missing; regenerating before provider spend.');
     }
+  }
+
+  // Missing/weak uploaded portraits need the original file restored, not a
+  // new likeness generated from the generic upload prompt.
+  if (row.scope === 'SYSTEM' && !isSeededSystemAvatar(row)) {
+    throw publicError('The uploaded creator image is unavailable. Restore the original image to use this creator.', 'UGC_UPLOADED_CREATOR_IMAGE_UNAVAILABLE', 409);
   }
 
   if (row.referenceStorageKey && qualityStatus === 'WEAK' && row.scope === 'SYSTEM' && row.featured) {
