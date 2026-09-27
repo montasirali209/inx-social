@@ -4,8 +4,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.inxsocial.co.uk"),
   applicationName: "INXSocial",
-  title: "AI Content Creation, Video Studio & Social Publishing | INXSocial",
-  description: "Create AI video with a live multi-model Video Studio, generate campaigns, UGC, images and carousels, then schedule, publish and analyse social content in one INXSocial workspace.",
+  title: "AI Content, Video Studio & Social Publishing | INXSocial",
+  description: "Create AI video with a multi-model Video Studio, campaigns, UGC, images and carousels, then schedule, publish and analyse social content in INXSocial.",
   authors: [{ name: "INAXX LTD", url: "https://inaxx.co.uk/" }],
   creator: "INAXX LTD",
   publisher: "INAXX LTD",
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_GB",
     siteName: "INXSocial",
-    title: "AI Content Creation, Video Studio & Social Publishing | INXSocial",
+    title: "AI Content, Video Studio & Social Publishing | INXSocial",
     description: "Create AI video across a live multi-model catalogue, generate campaigns, UGC, images and carousels, then schedule, publish and analyse from one INXSocial workspace.",
     url: "https://www.inxsocial.co.uk/",
     images: [{
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "AI Content Creation, Video Studio & Social Publishing | INXSocial",
+    title: "AI Content, Video Studio & Social Publishing | INXSocial",
     description: "Create AI video, campaigns, UGC, images and carousels, then schedule, publish and analyse social content from one connected workspace.",
     images: [{
       url: "https://www.inxsocial.co.uk/assets/inxsocial-social-preview-v3.jpg",
