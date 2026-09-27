@@ -1841,10 +1841,12 @@ function renderWebsiteMediaEditor(slot){
   $('websiteMediaUploadWarning').hidden=true;
 
   document.querySelectorAll('.website-media-restore').forEach(button=>button.addEventListener('click',()=>void restoreWebsiteMediaVersion(button.dataset.mediaKey,button.dataset.versionId)));
-  $('websiteMediaDialog').showModal();
+  if(!$('websiteMediaDialog').open)$('websiteMediaDialog').showModal();
 }
 
 async function openWebsiteMediaEditor(key){
+  if(state.websiteMediaObjectUrl){URL.revokeObjectURL(state.websiteMediaObjectUrl);state.websiteMediaObjectUrl=null}
+  $('websiteMediaFile').value='';
   const data=await api('/api/admin/website-media/'+encodeURIComponent(key));
   renderWebsiteMediaEditor(data.slot);
 }
