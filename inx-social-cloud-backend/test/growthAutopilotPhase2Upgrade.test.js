@@ -8,22 +8,26 @@ const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
 test('Phase 2 upgrade adds an AI strategist before content execution', () => {
   const strategist = read('src/services/growthStrategyService.js');
+  const skills = read('src/services/growthSeoSkillRegistry.js');
   const autopilot = read('src/services/growthAutopilotService.js');
 
   assert.match(strategist, /CREATE_ARTICLE/);
   assert.match(strategist, /IMPROVE_EXISTING_PAGE/);
   assert.match(strategist, /CREATE_LANDING_PAGE/);
   assert.match(strategist, /MONITOR/);
-  assert.match(strategist, /Avoid keyword cannibalisation/);
+  assert.match(strategist, /seoSkills\.strategyInstructions/);
+  assert.match(skills, /Avoid keyword cannibalisation/);
   assert.match(autopilot, /AI_STRATEGY_DECIDED/);
   assert.match(autopilot, /STRATEGIC_ACTION_QUEUED/);
 });
 
 test('Independent AI critic must approve the draft before publishing', () => {
   const strategist = read('src/services/growthStrategyService.js');
+  const skills = read('src/services/growthSeoSkillRegistry.js');
   const autopilot = read('src/services/growthAutopilotService.js');
 
-  assert.match(strategist, /independent editorial critic/i);
+  assert.match(strategist, /seoSkills\.criticInstructions/);
+  assert.match(skills, /Independently review proposed content before publication/i);
   assert.match(strategist, /factualRisk/);
   assert.match(strategist, /duplicationRisk/);
   assert.match(autopilot, /AI_CRITIC_REVIEWED/);
