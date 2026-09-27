@@ -110,9 +110,14 @@ function opportunityId(siteId, topic) {
 
 function sourceAllowed(url, allowed) {
   try {
-    const normalized = new URL(url).toString();
+    const candidate = new URL(url);
+    const candidateKey = candidate.hostname.replace(/^www\./, '').toLowerCase() + candidate.pathname.replace(/\/$/, '');
     return allowed.some(value => {
-      try { return new URL(value).toString() === normalized; } catch (_) { return false; }
+      try {
+        const source = new URL(value);
+        const sourceKey = source.hostname.replace(/^www\./, '').toLowerCase() + source.pathname.replace(/\/$/, '');
+        return sourceKey === candidateKey;
+      } catch (_) { return false; }
     });
   } catch (_) {
     return false;
