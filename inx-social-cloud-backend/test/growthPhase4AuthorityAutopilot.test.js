@@ -29,7 +29,6 @@ test('Phase 4 outreach uses an independent Sol review gate and remains rate limi
   assert.match(service,/AI_APPROVED/);
   assert.match(service,/\['APPROVED','AI_APPROVED'\]\.includes\(x\.status\)/);
   assert.match(service,/AUTO_EMAIL_LIMIT = 2/);
-  assert.match(service,/5\*24\*60\*60\*1000/); assert.match(service,/status:'FOLLOWED_UP'/);
   assert.match(email,/sendAuthorityOutreach/);
   assert.match(email,/INXSocial is provided by INAXX LTD/);
   assert.match(email,/reply “no thanks”/);
@@ -91,10 +90,27 @@ test('Sol auto-approval rejects uncertain or unsafe B2B outreach before sending'
 });
 
 
-test('AI-approved outreach does not send a blind automatic follow-up without inbound reply suppression',()=>{
+test('Authority outreach never schedules a blind automatic follow-up without inbound reply suppression',()=>{
   const service=read('src/services/growthAuthorityService.js');
-  assert.match(service,/x\.status==='AI_APPROVED'\?null:new Date\(Date\.now\(\)\+5\*24\*60\*60\*1000\)/);
-  assert.match(service,/Automatic follow-up is disabled until inbound reply suppression is connected/);
+  assert.match(service,/Follow-ups stay disabled until inbound reply suppression is connected/);
+  assert.match(service,/nextFollowUpAt:null/);
+  assert.doesNotMatch(service,/new Date\(Date\.now\(\)\+5\*24\*60\*60\*1000\)/);
+});
+
+test('Manual approval immediately sends eligible email prospects and persists delivery outcome',()=>{
+  const service=read('src/services/growthAuthorityService.js');
+  const updateStart=service.indexOf("async function updateProspect");
+  const updateEnd=service.indexOf("module.exports",updateStart);
+  const update=service.slice(updateStart,updateEnd);
+  assert.match(update,/if\(action==='approve'\)/);
+  assert.match(update,/!\['QUORA','COMMUNITY'\]\.includes\(x\.type\)/);
+  assert.match(update,/await emailService\.sendAuthorityOutreach/);
+  assert.match(update,/x\.status='SENT'/);
+  assert.match(update,/recipient:x\.contact\.value/);
+  assert.match(update,/sentAt/);
+  assert.match(update,/x\.status='APPROVED'/);
+  assert.match(update,/Approved outreach send failed/);
+  assert.match(update,/nextFollowUpAt=null/);
 });
 
 
