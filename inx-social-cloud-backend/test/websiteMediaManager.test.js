@@ -72,7 +72,7 @@ test('Website Media upload inspection preserves source bytes and reports quality
 
   const definition = service.definitionFor('landing.hero.dashboard');
   const warnings = service.qualityWarnings(definition, metadata);
-  assert.ok(warnings.some(item => item.includes('2200px')));
+  assert.ok(warnings.some(item => item.includes('2400px')));
 });
 
 test('Website Media is explicitly routed to Cloudflare R2', () => {
