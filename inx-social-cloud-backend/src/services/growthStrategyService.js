@@ -18,7 +18,7 @@ const ACTIONS = Object.freeze([
 ]);
 
 function ready() {
-  return Boolean(env.webResearch?.apiKey && env.webResearch?.baseUrl && env.webResearch?.model);
+  return Boolean(env.contentWriter?.apiKey && env.contentWriter?.baseUrl && env.contentWriter?.model);
 }
 
 function parseJsonObject(value) {
@@ -50,12 +50,14 @@ async function requestStructured(payload, name, schema) {
     if (attempt > 1) {
       request.instructions = String(request.instructions || '') + ' Retry: return exactly one complete JSON object matching the schema, without markdown fences or commentary.';
     }
-    if (/^gpt-5(?:\.|-)/i.test(env.webResearch.model)) request.reasoning = { effort: attempt === 1 ? 'medium' : 'low' };
+    if (/^gpt-5(?:\.|-)/i.test(String(request.model || ''))) {
+      request.reasoning = { effort: attempt === 1 ? (env.contentWriter.reasoningEffort || 'high') : 'medium' };
+    }
 
-    const response = await axios.post(env.webResearch.baseUrl + '/responses', request, {
+    const response = await axios.post(env.contentWriter.baseUrl + '/responses', request, {
       timeout: Math.max(60000, Number(env.webResearch.timeoutMs || 120000)),
       headers: {
-        Authorization: 'Bearer ' + env.webResearch.apiKey,
+        Authorization: 'Bearer ' + env.contentWriter.apiKey,
         'Content-Type': 'application/json'
       }
     });
@@ -201,7 +203,7 @@ async function plan({ opportunityMap, articles, siteProfile = null }) {
     }));
 
   const payload = {
-    model: env.webResearch.model,
+    model: env.contentWriter.model,
     instructions: seoSkills.strategyInstructions(),
     input: [
       'Current date: ' + new Date().toISOString().slice(0, 10),
@@ -242,7 +244,7 @@ async function plan({ opportunityMap, articles, siteProfile = null }) {
 
   return {
     ...decision,
-    model: env.webResearch.model,
+    model: env.contentWriter.model,
     decidedAt: new Date().toISOString()
   };
 }
@@ -277,7 +279,7 @@ async function reviewDraft({ article, opportunity, strategy, siteProfile = null 
   };
 
   const payload = {
-    model: env.webResearch.model,
+    model: env.contentWriter.model,
     instructions: seoSkills.criticInstructions(),
     input: [
       'CONTEXT',
@@ -300,7 +302,7 @@ async function reviewDraft({ article, opportunity, strategy, siteProfile = null 
     ...review,
     approve: disposition === 'APPROVE' && review.approve !== false,
     disposition,
-    model: env.webResearch.model,
+    model: env.contentWriter.model,
     reviewedAt: new Date().toISOString()
   };
 }
