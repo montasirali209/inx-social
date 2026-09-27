@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/admin.css?v=20">
   <link rel="stylesheet" href="/admin-security.css?v=2">
   <link rel="stylesheet" href="/admin-light.css?v=2">
+  <link rel="stylesheet" href="/ui-studio.css?v=1">
 </head>
 <body>
 <section class="login-shell" id="loginView">
@@ -41,6 +42,7 @@
       <button class="nav" data-page="growthIntelligence"><span>◈</span>Growth Autopilot</button>
       <button class="nav" data-page="contentEngine"><span>✎</span>Content Engine</button>
       <button class="nav" data-page="websiteMedia"><span>▣</span>Website Media</button>
+      <button class="nav" data-page="uiStudio"><span>▤</span>UI Studio</button>
       <button class="nav" data-page="settings"><span>⚙</span>System Settings</button>
       <button class="nav" data-page="security"><span>⌾</span>Admin &amp; Security</button>
     </nav>
@@ -704,6 +706,99 @@
       </div>
     </section>
 
+    <section class="page hidden ui-studio-page" id="uiStudioPage">
+      <div class="section-head ui-studio-heading">
+        <div>
+          <span class="kicker">Screenshot → responsive UI</span>
+          <h2>UI Studio</h2>
+          <p>Store high-resolution interface references before analysis and code generation. Phase 1 preserves each original in Cloudflare R2.</p>
+        </div>
+        <div class="ui-studio-head-actions">
+          <span class="status-chip" id="uiStudioPermission">Checking access…</span>
+          <button class="secondary" id="refreshUiStudioBtn" type="button">↻ Refresh</button>
+          <button class="primary" id="newUiStudioProjectBtn" type="button">＋ New project</button>
+        </div>
+      </div>
+
+      <div class="ui-studio-intro">
+        <div>
+          <b>Original pixels stay intact</b>
+          <span>UI Studio stores the uploaded source without resizing or recompressing it. Desktop, tablet and mobile references remain separate immutable uploads.</span>
+        </div>
+        <small>Phase 1 · project portal + reference storage</small>
+      </div>
+
+      <div class="ui-studio-summary" id="uiStudioSummary">
+        <article><span>Projects</span><b>—</b><small>Saved reconstruction workspaces</small></article>
+        <article><span>References</span><b>—</b><small>Immutable original uploads</small></article>
+        <article><span>Desktop sources</span><b>—</b><small>Projects with desktop reference</small></article>
+        <article><span>Storage</span><b>R2</b><small>Original bytes preserved</small></article>
+      </div>
+
+      <div id="uiStudioProjectsArea">
+        <div class="ui-studio-project-grid" id="uiStudioProjectGrid">
+          <div class="ui-studio-empty"><b>Loading UI Studio…</b></div>
+        </div>
+      </div>
+
+      <div class="ui-studio-workspace" id="uiStudioWorkspace" hidden>
+        <section class="ui-studio-workspace-main">
+          <div class="ui-studio-project-toolbar">
+            <div>
+              <span class="kicker">Reference workspace</span>
+              <h2 id="uiStudioProjectName">UI project</h2>
+              <p id="uiStudioProjectMeta"></p>
+            </div>
+            <button class="secondary ui-studio-back" id="uiStudioBackBtn" type="button">← All projects</button>
+          </div>
+
+          <div class="ui-studio-viewport-tabs">
+            <button class="ui-studio-viewport active" data-ui-viewport="DESKTOP" type="button">Desktop</button>
+            <button class="ui-studio-viewport" data-ui-viewport="TABLET" type="button">Tablet</button>
+            <button class="ui-studio-viewport" data-ui-viewport="MOBILE" type="button">Mobile</button>
+          </div>
+
+          <div class="ui-studio-viewer-toolbar">
+            <div class="ui-studio-viewer-meta" id="uiStudioViewerMeta"></div>
+            <div class="ui-studio-zoom">
+              <button data-ui-zoom="fit" type="button">Fit</button>
+              <button data-ui-zoom="100" type="button">100%</button>
+              <button data-ui-zoom="150" type="button">150%</button>
+              <button data-ui-zoom="200" type="button">200%</button>
+              <a class="secondary" id="uiStudioOpenOriginal" target="_blank" rel="noopener" hidden>Open original ↗</a>
+            </div>
+          </div>
+
+          <div class="ui-studio-viewer fit" id="uiStudioViewer">
+            <div class="ui-studio-viewer-frame" id="uiStudioViewerFrame"></div>
+          </div>
+
+          <div class="ui-studio-upload">
+            <label class="ui-studio-upload-pick">
+              <input id="uiStudioFile" type="file" accept="image/png,image/jpeg,image/webp,image/avif">
+              <span>＋</span>
+              <span class="ui-studio-upload-copy" id="uiStudioUploadCopy"><b>Choose UI image</b><small>Original quality retained</small></span>
+            </label>
+            <button class="primary" id="uiStudioUploadBtn" type="button" disabled>Upload original</button>
+          </div>
+          <div class="ui-studio-upload-note" id="uiStudioUploadNote"></div>
+        </section>
+
+        <aside class="ui-studio-workspace-side">
+          <section class="ui-studio-side-section">
+            <span class="kicker">Project</span>
+            <h3>Build target</h3>
+            <div class="ui-studio-project-facts" id="uiStudioProjectFacts"></div>
+          </section>
+          <section class="ui-studio-side-section">
+            <span class="kicker">Upload history</span>
+            <h3>Immutable originals</h3>
+            <div class="ui-studio-history" id="uiStudioReferenceHistory"></div>
+          </section>
+        </aside>
+      </div>
+    </section>
+
     <section class="page hidden" id="settingsPage">
       <div class="section-head"><div><h2>System Settings</h2><p>Only approved non-secret configuration is exposed here. Arbitrary key/value editing has been removed.</p></div><span class="status-chip">Allowlisted</span></div>
       <div class="panel safe-settings-panel">
@@ -836,8 +931,28 @@
   </form>
 </dialog>
 
+<dialog id="uiStudioCreateDialog">
+  <form class="modal ui-studio-create-modal" id="uiStudioCreateForm">
+    <button class="close" type="button" id="uiStudioCreateClose" aria-label="Close">×</button>
+    <span class="kicker">UI Studio</span>
+    <h2>Create reconstruction project</h2>
+    <p class="muted">Set the intended output now. Reference images stay independent from later analysis and code-generation versions.</p>
+    <div class="ui-studio-create-grid">
+      <label class="wide">Project name<input id="uiStudioProjectNameInput" required minlength="2" maxlength="120" placeholder="UGC landing showcase"></label>
+      <label>Framework<select id="uiStudioFramework"><option value="REACT_TYPESCRIPT">React + TypeScript</option><option value="NEXTJS">Next.js</option><option value="HTML_CSS">HTML + CSS</option></select></label>
+      <label>Styling<select id="uiStudioStyling"><option value="TAILWIND">Tailwind</option><option value="CSS_MODULES">CSS Modules</option><option value="PLAIN_CSS">Plain CSS</option></select></label>
+      <label>Output<select id="uiStudioOutputType"><option value="SECTION">Reusable section</option><option value="FULL_PAGE">Full page</option></select></label>
+    </div>
+    <footer>
+      <button type="button" class="secondary" id="uiStudioCreateCancel">Cancel</button>
+      <button type="submit" class="primary" id="uiStudioCreateSubmit">Create project</button>
+    </footer>
+  </form>
+</dialog>
+
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=23" defer></script>
+<script src="/ui-studio.js?v=1" defer></script>
+<script src="/admin.js?v=24" defer></script>
 </body>
 </html>
