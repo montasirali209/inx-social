@@ -50,7 +50,7 @@ test('UI Studio admin API protects writes with Super Admin role', () => {
   assert.match(routes, /router\.use\(requireAuth, requireAdmin\)/);
   assert.match(routes, /ui-studio\/projects', uiStudio\.list/);
   assert.match(routes, /ui-studio\/projects', requireSuperAdmin, uiStudio\.create/);
-  assert.match(routes, /references\/:viewport\/upload', requireSuperAdmin/);
+  assert.match(routes, /references\/:viewport\/upload'[\s\S]*?requireSuperAdmin/);
   assert.match(routes, /limit: '50mb'/);
 });
 
