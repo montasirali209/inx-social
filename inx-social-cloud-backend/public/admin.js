@@ -908,7 +908,7 @@ function renderGrowthAutopilot(data){
   $('growthStatusChip').className='status-chip '+(enabled?'gsc-connected':'gsc-error');
   $('growthAutopilotHeadline').textContent=running?'Growth cycle running now':enabled?'Everything is running automatically':'Autopilot is paused';
   $('growthAutopilotSummary').textContent=enabled
-    ?'No routine action is required. The site is re-evaluated automatically, authority opportunities are scanned every '+Number(config.authorityEveryHours||6)+' hours, and the strategist makes one content decision each morning at '+esc(config.dailyPublishTimeLocal||'07:30')+' '+esc(config.publishTimeZone||'Europe/London')+'. An article is published only when evidence supports one.'
+    ?'No routine action is required. The strategist makes the main content decision each morning at '+esc(config.dailyPublishTimeLocal||'07:30')+' '+esc(config.publishTimeZone||'Europe/London')+', while the editorial radar researches fresh and adjacent opportunities every '+Number(config.editorialRadarEveryHours||6)+' hours. A high-confidence fresh opportunity can trigger an extra review, but publishing still requires the normal strategy and quality gates.'
     :'Automatic intelligence refresh and publishing are paused until you resume them.';
   $('growthAutopilotToggleBtn').textContent=enabled?'Pause autopilot':'Resume autopilot';
   $('growthAutopilotToggleBtn').className=enabled?'secondary':'primary';
@@ -920,7 +920,7 @@ function renderGrowthAutopilot(data){
   $('growthAutopilotKpis').innerHTML=[
     ['Publishing',(config.dailyPublishTimeLocal||'07:30')+' UK daily',config.autoPublish===false?'Auto publish disabled':'Evidence-gated morning article decision'],
     ['Next article',enabled?growthTimeUntil(runtime.nextPublishAt):'Paused',runtime.nextPublishAt?fmtDate(runtime.nextPublishAt):'Waiting for schedule'],
-    ['Authority',enabled?growthTimeUntil(runtime.nextAuthorityAt):'Paused','Communities, backlinks, mentions + outreach'],
+    ['Editorial radar',enabled?growthTimeUntil(runtime.nextEditorialRadarAt):'Paused',(data.editorialRadar?.summary?.hot||0)+' hot · '+(data.editorialRadar?.summary?.total||0)+' researched'],
     ['Published',published,lastQuality!=null?'Latest quality '+Number(lastQuality)+'/100':'Self-hosted articles']
   ].map(item=>'<article><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b><small>'+esc(item[2])+'</small></article>').join('');
 
@@ -928,7 +928,7 @@ function renderGrowthAutopilot(data){
   const last=runtime.lastPublishedArticle;
   const top=data.opportunities?.top?.[0];
   if(running){
-    $('growthAutopilotLatest').innerHTML='<div class="growth-autopilot-current running"><span class="growth-autopilot-pulse"></span><div><b>Autopilot is working</b><small>Refreshing signals, choosing an opportunity, or producing the next article.</small></div></div>';
+    $('growthAutopilotLatest').innerHTML='<div class="growth-autopilot-current running"><span class="growth-autopilot-pulse"></span><div><b>Autopilot is working</b><small>Refreshing signals, researching live opportunities, choosing an action, or producing content.</small></div></div>';
   }else if(last){
     $('growthAutopilotLatest').innerHTML='<div class="growth-autopilot-current"><div><span class="kicker">Latest publication</span><b>'+esc(last.title)+'</b><small>Quality '+Number(last.qualityScore||0)+'/100 · published '+esc(relative(last.publishedAt))+'</small></div><a href="'+esc(last.url)+'" target="_blank" rel="noopener">Open article ↗</a></div>'+(top?'<div class="growth-autopilot-next"><span>Next opportunity</span><b>'+esc(top.topic)+'</b><small>Score '+Number(top.score||0)+' · '+esc(top.action||'Growth opportunity')+'</small></div>':'');
   }else if(top){
