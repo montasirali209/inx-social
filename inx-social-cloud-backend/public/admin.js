@@ -1,4 +1,4 @@
-const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,growthAnalytics:null,growthOpportunities:null,growthAutopilot:null,growthRealtimeTimer:null,growthAutopilotTimer:null,growthDashboard:null,growthDashboardTimer:null,contentEngine:null,selectedContentArticle:null,ugcAvatars:[],ugcAvatarSelection:new Set(),timer:null};
+const state={user:null,users:[],selectedUser:null,recentUsers:[],administrators:[],searchConsole:null,growthIntelligence:null,growthAnalytics:null,growthOpportunities:null,growthAutopilot:null,growthRealtimeTimer:null,growthAutopilotTimer:null,growthDashboard:null,growthDashboardTimer:null,contentEngine:null,selectedContentArticle:null,ugcAvatars:[],ugcAvatarSelection:new Set(),websiteMedia:[],websiteMediaSelectedKey:null,websiteMediaObjectUrl:null,timer:null};
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
 const initials=value=>String(value||'IN').trim().split(/\s+/).slice(0,2).map(part=>part[0]).join('').toUpperCase();
@@ -11,7 +11,7 @@ function clearSession(){clearInterval(state.timer);clearInterval(state.growthRea
 async function signOut(){try{await fetch('/api/admin-auth/logout',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'}})}catch{}finally{clearSession()}}
 async function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};const response=await fetch(path,{...options,headers,credentials:'same-origin'});const data=await response.json().catch(()=>({}));if(response.status===401){clearSession();throw new Error(data.error||'Your administrator session has ended.')}if(!response.ok)throw new Error(data.error||`Request failed: ${response.status}`);return data}
 function setLoggedIn(on){$('loginView').classList.toggle('hidden',on);$('dashboardView').classList.toggle('hidden',!on);if(on){const name=state.user?.name||'INXSocial Admin';$('adminName').textContent=name;$('adminEmail').textContent=`${state.user?.email||''}${state.user?.role?` · ${state.user.role.replace('_',' ')}`:''}`;$('adminInitials').textContent=initials(name)}}
-const pageMeta={overview:['Overview','Monitor new customers and service activity.'],growthDashboard:['Growth Dashboard','Live traffic, conversion, revenue, SEO, outreach and Growth Autopilot activity in one mobile-ready view.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI & Automation','Manage AI Studio policy, Social Agent allowances and generation infrastructure.'],searchConsole:['Search Console','Monitor Google Search visibility, queries, landing pages and SEO opportunities.'],growthIntelligence:['Growth Autopilot','Monitor the automatic growth system. Advanced diagnostics are available only when needed.'],contentEngine:['Content Engine','Research, review and publish self-hosted SEO content from Growth Intelligence opportunities.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
+const pageMeta={overview:['Overview','Monitor new customers and service activity.'],growthDashboard:['Growth Dashboard','Live traffic, conversion, revenue, SEO, outreach and Growth Autopilot activity in one mobile-ready view.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI & Automation','Manage AI Studio policy, Social Agent allowances and generation infrastructure.'],searchConsole:['Search Console','Monitor Google Search visibility, queries, landing pages and SEO opportunities.'],growthIntelligence:['Growth Autopilot','Monitor the automatic growth system. Advanced diagnostics are available only when needed.'],contentEngine:['Content Engine','Research, review and publish self-hosted SEO content from Growth Intelligence opportunities.'],websiteMedia:['Website Media','Upload, replace and restore high-resolution landing and SEO images without a code deployment.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
 async function openPage(page){
   if(page!=='growthIntelligence'){clearInterval(state.growthRealtimeTimer);clearInterval(state.growthAutopilotTimer);state.growthRealtimeTimer=null;state.growthAutopilotTimer=null;}
   if(page!=='growthDashboard'){clearInterval(state.growthDashboardTimer);state.growthDashboardTimer=null;}
@@ -25,10 +25,12 @@ async function openPage(page){
   if(page==='searchConsole')await loadSearchConsole();
   if(page==='growthIntelligence')await loadGrowthIntelligence();
   if(page==='contentEngine')await loadContentEngine();
+  if(page==='websiteMedia')await loadWebsiteMedia();
   if(page==='settings')await loadSettings();
   if(page==='security')await loadSecurity();
   if(page==='growthDashboard')history.replaceState({},'',location.pathname+location.search+'#growthDashboard');
-  else if(location.hash==='#growthDashboard')history.replaceState({},'',location.pathname+location.search);
+  else if(page==='websiteMedia')history.replaceState({},'',location.pathname+location.search+'#websiteMedia');
+  else if(location.hash==='#growthDashboard'||location.hash==='#websiteMedia')history.replaceState({},'',location.pathname+location.search);
 }
 document.querySelectorAll('.nav').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.page)));
 document.querySelectorAll('[data-open-page]').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.openPage)));
@@ -1711,6 +1713,257 @@ $('contentPublishBtn').addEventListener('click',()=>void runContentArticleAction
 $('contentUnpublishBtn').addEventListener('click',()=>void runContentArticleAction('unpublish','Article unpublished'));
 $('contentArchiveBtn').addEventListener('click',()=>void runContentArticleAction('archive','Article archived'));
 
+
+function websiteMediaBytes(value){
+  const bytes=Number(value||0);
+  if(bytes<1024)return bytes+' B';
+  if(bytes<1024*1024)return(bytes/1024).toFixed(bytes<10240?1:0)+' KB';
+  return(bytes/(1024*1024)).toFixed(1)+' MB';
+}
+
+function websiteMediaIsSuper(){
+  return state.user?.role==='SUPER_ADMIN';
+}
+
+function websiteMediaCurrent(slot){
+  return slot?.currentVersion||null;
+}
+
+function websiteMediaCard(slot){
+  const version=websiteMediaCurrent(slot);
+  const configured=Boolean(slot?.hasImage&&version);
+  const used=(slot.usedOn||[]).join(' · ');
+  const requirements=[slot.recommendedMinWidth?slot.recommendedMinWidth+'px min width':'',slot.recommendedMinHeight?slot.recommendedMinHeight+'px min height':''].filter(Boolean).join(' · ');
+  const image=configured
+    ? '<img src="'+esc(slot.publicUrl)+'" alt="'+esc(slot.altText||slot.label)+'" loading="lazy">'
+    : '<div class="website-media-card-empty"><span>▣</span><b>No image uploaded</b><small>Current site asset remains unchanged until Phase 3 wiring.</small></div>';
+  const status=configured?'<span class="website-media-status configured">Configured</span>':'<span class="website-media-status">Awaiting upload</span>';
+  return '<article class="website-media-card" data-media-key="'+esc(slot.key)+'">'+
+    '<div class="website-media-card-preview">'+image+status+'</div>'+
+    '<div class="website-media-card-body">'+
+      '<div class="website-media-card-title"><div><span class="kicker">'+esc(slot.section)+'</span><h3>'+esc(slot.label)+'</h3></div><button class="secondary website-media-manage" type="button" data-media-manage="'+esc(slot.key)+'">'+(configured?'Manage':'Upload')+'</button></div>'+
+      '<p>'+esc(used||'Website placement')+'</p>'+
+      '<div class="website-media-facts">'+
+        '<span><b>Recommended</b>'+esc(requirements||'High-resolution original')+'</span>'+
+        '<span><b>Current</b>'+(configured?esc(version.width+' × '+version.height+' · '+websiteMediaBytes(version.byteSize)):'Not configured')+'</span>'+
+        '<span><b>Versions</b>'+Number(slot.versionCount||0).toLocaleString('en-GB')+'</span>'+
+      '</div>'+
+      (configured?'<div class="website-media-card-foot"><span>'+esc(version.originalName)+'</span><small>Updated '+esc(relative(slot.updatedAt))+'</small></div>':'')+
+    '</div>'+
+  '</article>';
+}
+
+function renderWebsiteMedia(slots,storage){
+  state.websiteMedia=slots||[];
+  const configured=state.websiteMedia.filter(slot=>slot.hasImage).length;
+  const versions=state.websiteMedia.reduce((sum,slot)=>sum+Number(slot.versionCount||0),0);
+  $('websiteMediaSummary').innerHTML=[
+    ['Managed slots',state.websiteMedia.length,'Landing + SEO placements'],
+    ['Configured',configured,configured===state.websiteMedia.length?'Every slot has an original':'Upload only the images you want to manage'],
+    ['Versions',versions,'Restorable originals'],
+    ['Storage',storage?.provider==='CLOUDFLARE_R2'?'R2':'Unavailable',storage?.originalsPreserved?'Original files retained':'Check storage configuration']
+  ].map(item=>'<article><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b><small>'+esc(item[2])+'</small></article>').join('');
+
+  $('websiteMediaStorageStatus').textContent=storage?.provider==='CLOUDFLARE_R2'?'R2 ORIGINALS':'STORAGE CHECK';
+  $('websiteMediaStorageStatus').className='status-chip '+(storage?.provider==='CLOUDFLARE_R2'?'gsc-connected':'');
+  $('websiteMediaPermission').textContent=websiteMediaIsSuper()?'You can replace and restore website images.':'Viewing only · image changes require Super Admin.';
+
+  const groups=new Map();
+  state.websiteMedia.forEach(slot=>{
+    if(!groups.has(slot.section))groups.set(slot.section,[]);
+    groups.get(slot.section).push(slot);
+  });
+  $('websiteMediaGroups').innerHTML=[...groups.entries()].map(([section,items])=>
+    '<section class="website-media-group"><div class="website-media-group-head"><div><span class="kicker">'+esc(section)+'</span><h2>'+esc(section==='Landing Page'?'Landing page images':'SEO & search images')+'</h2></div><span>'+items.length+' managed slot'+(items.length===1?'':'s')+'</span></div><div class="website-media-grid">'+items.map(websiteMediaCard).join('')+'</div></section>'
+  ).join('')||'<div class="growth-empty">No website image slots are configured.</div>';
+
+  document.querySelectorAll('[data-media-manage]').forEach(button=>button.addEventListener('click',()=>void openWebsiteMediaEditor(button.dataset.mediaManage)));
+}
+
+async function loadWebsiteMedia(){
+  const data=await api('/api/admin/website-media');
+  renderWebsiteMedia(data.slots||[],data.storage||{});
+}
+
+function closeWebsiteMediaEditor(){
+  if(state.websiteMediaObjectUrl){
+    URL.revokeObjectURL(state.websiteMediaObjectUrl);
+    state.websiteMediaObjectUrl=null;
+  }
+  state.websiteMediaSelectedKey=null;
+  $('websiteMediaForm').reset();
+  $('websiteMediaFileChoice').hidden=true;
+  $('websiteMediaUploadWarning').hidden=true;
+  $('websiteMediaDialog').close();
+}
+
+function websiteMediaVersionRow(version,currentVersionId,key){
+  const current=version.id===currentVersionId;
+  return '<div class="website-media-version '+(current?'current':'')+'">'+
+    '<a class="website-media-version-thumb" href="'+esc(version.contentUrl||('#'))+'" target="_blank" rel="noopener"><img src="'+esc(version.contentUrl||'')+'" alt="" loading="lazy"></a>'+
+    '<div><b>'+esc(version.originalName)+'</b><small>'+esc(version.width+' × '+version.height+' · '+websiteMediaBytes(version.byteSize))+'</small><small>'+esc(fmtDate(version.createdAt))+(current?' · Current':'')+'</small></div>'+
+    '<div class="website-media-version-actions">'+
+      '<a class="text-button" href="'+esc(version.contentUrl||'#')+'" target="_blank" rel="noopener">View</a>'+
+      (!current&&websiteMediaIsSuper()?'<button class="text-button website-media-restore" type="button" data-media-key="'+esc(key)+'" data-version-id="'+esc(version.id)+'">Restore</button>':'')+
+    '</div>'+
+  '</div>';
+}
+
+function renderWebsiteMediaEditor(slot){
+  const version=slot.currentVersion;
+  state.websiteMediaSelectedKey=slot.key;
+  $('websiteMediaDialogTitle').textContent=slot.label;
+  $('websiteMediaDialogUse').textContent=(slot.usedOn||[]).length?'Used on: '+slot.usedOn.join(' · '):'Website image placement';
+  $('websiteMediaAltText').value=slot.altText||'';
+
+  $('websiteMediaModalPreview').innerHTML=version
+    ? '<img src="'+esc(slot.publicUrl)+'" alt="'+esc(slot.altText||slot.label)+'">'
+    : '<div class="website-media-empty-preview"><span>▣</span><b>No managed image yet</b><small>Upload the original high-resolution source.</small></div>';
+
+  $('websiteMediaModalMeta').innerHTML=[
+    ['Recommended',[(slot.recommendedMinWidth||'—')+'px width',(slot.recommendedMinHeight||'—')+'px height'].join(' · ')],
+    ['Current',version?version.width+' × '+version.height:'Not configured'],
+    ['File',version?version.mimeType.replace('image/','').toUpperCase()+' · '+websiteMediaBytes(version.byteSize):'—'],
+    ['Versions',String(slot.versionCount||0)]
+  ].map(item=>'<span><b>'+esc(item[0])+'</b>'+esc(item[1])+'</span>').join('');
+
+  $('websiteMediaVersionList').innerHTML=(slot.versions||[]).length
+    ? slot.versions.map(item=>websiteMediaVersionRow(item,version?.id,slot.key)).join('')
+    : '<div class="website-media-history-empty">No previous versions yet.</div>';
+
+  const canEdit=websiteMediaIsSuper();
+  $('websiteMediaFile').disabled=!canEdit;
+  $('websiteMediaAltText').disabled=!canEdit;
+  $('saveWebsiteMediaAltBtn').disabled=!canEdit;
+  $('uploadWebsiteMediaBtn').disabled=!canEdit;
+  $('uploadWebsiteMediaBtn').textContent=version?'Upload & replace':'Upload image';
+  $('websiteMediaFileChoice').hidden=true;
+  $('websiteMediaUploadWarning').hidden=true;
+
+  document.querySelectorAll('.website-media-restore').forEach(button=>button.addEventListener('click',()=>void restoreWebsiteMediaVersion(button.dataset.mediaKey,button.dataset.versionId)));
+  $('websiteMediaDialog').showModal();
+}
+
+async function openWebsiteMediaEditor(key){
+  const data=await api('/api/admin/website-media/'+encodeURIComponent(key));
+  renderWebsiteMediaEditor(data.slot);
+}
+
+async function websiteMediaReadDimensions(file){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file);
+    const image=new Image();
+    image.onload=()=>{const result={width:image.naturalWidth,height:image.naturalHeight,url};resolve(result)};
+    image.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('This image could not be previewed.'))};
+    image.src=url;
+  });
+}
+
+$('websiteMediaFile').addEventListener('change',async()=>{
+  const file=$('websiteMediaFile').files?.[0];
+  $('websiteMediaFileChoice').hidden=true;
+  $('websiteMediaUploadWarning').hidden=true;
+  if(state.websiteMediaObjectUrl){URL.revokeObjectURL(state.websiteMediaObjectUrl);state.websiteMediaObjectUrl=null}
+  if(!file)return;
+  if(!['image/png','image/jpeg','image/webp','image/avif'].includes(file.type)||file.size>25*1024*1024){
+    $('websiteMediaUploadWarning').hidden=false;
+    $('websiteMediaUploadWarning').textContent='Choose a PNG, JPEG, WebP or AVIF image no larger than 25 MB.';
+    $('websiteMediaFile').value='';
+    return;
+  }
+  try{
+    const dimensions=await websiteMediaReadDimensions(file);
+    state.websiteMediaObjectUrl=dimensions.url;
+    const slot=state.websiteMedia.find(item=>item.key===state.websiteMediaSelectedKey);
+    const warnings=[];
+    if(slot?.recommendedMinWidth&&dimensions.width<slot.recommendedMinWidth)warnings.push('Recommended width is '+slot.recommendedMinWidth+'px or more.');
+    if(slot?.recommendedMinHeight&&dimensions.height<slot.recommendedMinHeight)warnings.push('Recommended height is '+slot.recommendedMinHeight+'px or more.');
+    $('websiteMediaModalPreview').innerHTML='<img src="'+esc(dimensions.url)+'" alt="Selected website media preview">';
+    $('websiteMediaFileChoice').hidden=false;
+    $('websiteMediaFileChoice').innerHTML='<b>'+esc(file.name)+'</b><span>'+esc(dimensions.width+' × '+dimensions.height+' · '+websiteMediaBytes(file.size))+'</span>';
+    if(warnings.length){
+      $('websiteMediaUploadWarning').hidden=false;
+      $('websiteMediaUploadWarning').innerHTML='<b>Quality warning</b><span>'+esc(warnings.join(' '))+'</span><small>You can still upload it, but a larger original will look sharper on high-resolution screens.</small>';
+    }
+  }catch(error){
+    $('websiteMediaUploadWarning').hidden=false;
+    $('websiteMediaUploadWarning').textContent=error.message;
+  }
+});
+
+async function uploadWebsiteMedia(event){
+  event.preventDefault();
+  const key=state.websiteMediaSelectedKey;
+  const file=$('websiteMediaFile').files?.[0];
+  if(!key||!file){toast('Choose an image to upload.');return}
+  const button=$('uploadWebsiteMediaBtn');
+  button.disabled=true;
+  button.textContent='Uploading original…';
+  try{
+    const response=await fetch('/api/admin/website-media/'+encodeURIComponent(key)+'/upload',{
+      method:'POST',
+      credentials:'same-origin',
+      headers:{
+        'Content-Type':file.type,
+        'X-File-Name':encodeURIComponent(file.name),
+        'X-Alt-Text':encodeURIComponent($('websiteMediaAltText').value.trim())
+      },
+      body:file
+    });
+    const data=await response.json().catch(()=>({}));
+    if(response.status===401){clearSession();throw new Error(data.error||'Your administrator session has ended.')}
+    if(!response.ok)throw new Error(data.error||'Website image upload failed.');
+    if(data.warnings?.length)toast('Image replaced. '+data.warnings[0]);
+    else toast('Website image uploaded at original quality.');
+    await loadWebsiteMedia();
+    await openWebsiteMediaEditor(key);
+  }finally{
+    button.disabled=!websiteMediaIsSuper();
+    button.textContent='Upload & replace';
+  }
+}
+
+async function saveWebsiteMediaAlt(){
+  const key=state.websiteMediaSelectedKey;
+  if(!key)return;
+  const button=$('saveWebsiteMediaAltBtn');
+  button.disabled=true;
+  try{
+    await api('/api/admin/website-media/'+encodeURIComponent(key),{
+      method:'PATCH',
+      body:JSON.stringify({altText:$('websiteMediaAltText').value.trim()})
+    });
+    toast('Alt text saved.');
+    await loadWebsiteMedia();
+    await openWebsiteMediaEditor(key);
+  }catch(error){toast(error.message)}
+  finally{button.disabled=!websiteMediaIsSuper()}
+}
+
+async function restoreWebsiteMediaVersion(key,versionId){
+  if(!websiteMediaIsSuper())return;
+  const button=document.querySelector('[data-version-id="'+CSS.escape(versionId)+'"]');
+  if(button){button.disabled=true;button.textContent='Restoring…'}
+  try{
+    await api('/api/admin/website-media/'+encodeURIComponent(key)+'/restore/'+encodeURIComponent(versionId),{method:'POST'});
+    toast('Previous website image restored.');
+    await loadWebsiteMedia();
+    await openWebsiteMediaEditor(key);
+  }catch(error){toast(error.message)}
+  finally{if(button){button.disabled=false;button.textContent='Restore'}}
+}
+
+$('websiteMediaForm').addEventListener('submit',event=>void uploadWebsiteMedia(event).catch(error=>toast(error.message)));
+$('saveWebsiteMediaAltBtn').addEventListener('click',()=>void saveWebsiteMediaAlt());
+$('closeWebsiteMediaDialog').addEventListener('click',closeWebsiteMediaEditor);
+$('cancelWebsiteMediaBtn').addEventListener('click',closeWebsiteMediaEditor);
+$('websiteMediaDialog').addEventListener('click',event=>{if(event.target===$('websiteMediaDialog'))closeWebsiteMediaEditor()});
+$('refreshWebsiteMediaBtn').addEventListener('click',async()=>{
+  const button=$('refreshWebsiteMediaBtn');button.disabled=true;button.textContent='Refreshing…';
+  try{await loadWebsiteMedia();toast('Website Media refreshed')}catch(error){toast(error.message)}
+  finally{button.disabled=false;button.textContent='↻ Refresh'}
+});
+
 async function postAuthLanding(){
   const params=new URLSearchParams(window.location.search);
   const google=params.get('google');
@@ -1731,6 +1984,10 @@ async function postAuthLanding(){
   }
   if(window.location.hash==='#growthDashboard'){
     await openPage('growthDashboard');
+    return;
+  }
+  if(window.location.hash==='#websiteMedia'){
+    await openPage('websiteMedia');
     return;
   }
   await loadOverview();
