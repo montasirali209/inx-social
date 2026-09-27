@@ -50,20 +50,7 @@ function sourceMentionsSite(sources, origin) {
 }
 
 function escapeRegex(value) {
-  return String(value || '').replace(/[.*+?^$\{\}()|[\]\\]/g, '\\function sourceMentionsInxSocial(sources) {
-  return (sources || []).some(item => {
-    try {
-      return /(?:^|\.)inxsocial\.co\.uk$/i.test(new URL(item.url).hostname);
-    } catch (_) {
-      return false;
-    }
-  });
-}
-
-function competitorMentions(text) {
-  const haystack = String(text || '').toLowerCase();
-  return KNOWN_COMPETITORS.filter(name => haystack.includes(name.toLowerCase())).slice(0, 8);
-}');
+  return String(value || '').replace(/[.*+?^$\{\}()|[\]\\]/g, '\\$&');
 }
 
 function brandMentioned(text, brandName) {
