@@ -66,6 +66,13 @@
 .inx-blog-content table{display:block;overflow-x:auto;width:100%;margin:24px 0;border-collapse:collapse}
 .inx-blog-content th,.inx-blog-content td{padding:12px 14px;border:1px solid #dce9eb;text-align:left}
 .inx-blog-content th{background:#f0f6f7}
+.inx-blog-inline-promo{margin:46px 0;padding:34px 28px;border:1px solid #dce9eb;border-radius:24px;background:linear-gradient(145deg,#eaf8f5,#fff 70%);box-shadow:0 18px 40px rgba(15,49,55,.08);text-align:center}
+.inx-blog-inline-promo-label{display:inline-block;padding:6px 14px;border-radius:999px;background:#0b3440;color:#fff;font-size:11px;font-weight:850;letter-spacing:.12em;text-transform:uppercase}
+.inx-blog-content .inx-blog-inline-promo h2{margin:18px auto 10px;max-width:540px;font-size:clamp(25px,4vw,34px);line-height:1.16}
+.inx-blog-content .inx-blog-inline-promo p{margin:0 auto 22px;max-width:540px;color:#526d77;font-size:15px;line-height:1.7}
+.inx-blog-content .inx-blog-inline-promo-link{display:inline-flex;min-height:45px;align-items:center;justify-content:center;gap:8px;padding:10px 20px;border-radius:11px;background:#0b3440;color:#fff;font-size:14px;font-weight:800;text-decoration:none}
+.inx-blog-content .inx-blog-inline-promo-link:hover{background:#0b8f82;color:#fff}
+@media(max-width:680px){.inx-blog-inline-promo{margin:36px 0;padding:30px 19px;border-radius:18px}}
 .inx-blog-footer{border-top:1px solid #dce9eb;background:#fff}
 .inx-blog-footer-inner{width:min(1160px,calc(100vw - 40px));margin-inline:auto;padding:38px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:30px}
 .inx-blog-footer strong{font-size:17px}

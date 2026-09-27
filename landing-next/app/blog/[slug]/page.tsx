@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { IntegrationPending } from "../components/IntegrationPending";
 import { getBlogClient, getSiteUrl, slugify } from "../lib/blog-client";
+import { splitArticleForPromo } from "../lib/inline-promo";
 import type { BlogArticle } from "../types";
 
 export const revalidate = 300;
@@ -117,6 +118,8 @@ export default async function BlogArticlePage({
   const comparison = Array.isArray(article.comparison) ? article.comparison : [];
   const quickAnswer = article.quick_answer || article.excerpt || article.meta_description || null;
   const sourceById = new Map(sources.map((source, index) => [String(source.id || `S${index + 1}`).toUpperCase(), source]));
+  const articleHtml = article.content_html || "";
+  const promoSplit = splitArticleForPromo(articleHtml);
 
   return (
     <main className="inx-blog-main">
@@ -230,10 +233,20 @@ export default async function BlogArticlePage({
           </section>
         )}
 
-        <div
-          className="inx-blog-content"
-          dangerouslySetInnerHTML={{ __html: article.content_html || "" }}
-        />
+        {promoSplit ? (
+          <div className="inx-blog-content">
+            <div dangerouslySetInnerHTML={{ __html: promoSplit.before }} />
+            <aside className="inx-blog-inline-promo" aria-label="Explore INXSocial">
+              <span className="inx-blog-inline-promo-label">INXSocial</span>
+              <h2>Plan, publish, and learn in one place</h2>
+              <p>Turn useful ideas into scheduled posts and review how they perform across your connected accounts.</p>
+              <Link href="/" className="inx-blog-inline-promo-link">Explore INXSocial <span aria-hidden="true">→</span></Link>
+            </aside>
+            <div dangerouslySetInnerHTML={{ __html: promoSplit.after }} />
+          </div>
+        ) : (
+          <div className="inx-blog-content" dangerouslySetInnerHTML={{ __html: articleHtml }} />
+        )}
 
         {internalLinks.length > 0 && (
           <aside className="inx-blog-related" aria-label="Recommended INXSocial tools">
