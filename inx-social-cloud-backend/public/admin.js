@@ -756,18 +756,17 @@ function renderGrowthSeoMaintenance(data){
 
   const repairs=(seo.autoRepairs||[]).slice(0,8);
   $('growthSeoRepairs').innerHTML=repairs.length?repairs.map(item=>'<div class="growth-seo-repair"><span>✓</span><div><b>'+esc(String(item.code||'Repair').replaceAll('_',' '))+'</b><small>'+esc(item.detail||'Applied automatically')+'</small></div></div>').join(''):'<div class="growth-empty">No automatic repairs recorded yet.</div>';
-  $('growthSeoRunBtn').disabled=state.user?.role!=='SUPER_ADMIN';
 }
 
 async function runGrowthSeoMaintenanceNow(){
-  const button=$('growthSeoRunBtn');button.disabled=true;button.textContent='Running crawl…';
+  const button=$('growthSeoRunBtn');if(button){button.disabled=true;button.textContent='Running crawl…';}
   try{
     const data=await api('/api/admin/growth-seo-maintenance/run-now',{method:'POST',body:'{}'});
     renderGrowthSeoMaintenance(data);
     toast('Phase 3 SEO maintenance completed');
     await loadGrowthAutopilotStatus(true);
   }catch(error){toast(error.message)}
-  finally{button.textContent='Run maintenance now';button.disabled=state.user?.role!=='SUPER_ADMIN'}
+  finally{if(button){button.textContent='Run maintenance now';button.disabled=state.user?.role!=='SUPER_ADMIN'}}
 }
 
 function growthAuthorityLegacyReddit(item){const url=String(item?.url||'').toLowerCase();const domain=String(item?.domain||'').toLowerCase();return String(item?.type||'').toUpperCase()==='REDDIT'||domain==='reddit.com'||domain.endsWith('.reddit.com')||url.includes('://reddit.com/')||url.includes('://www.reddit.com/')||url.includes('.reddit.com/');}
@@ -804,17 +803,16 @@ function renderGrowthAuthority(data){
     const aiReview=item.aiReview?.decision?'<small>Sol review: '+esc(item.aiReview.decision)+' · '+esc(item.aiReview.reason||'')+'</small>':'';
     return '<article class="growth-authority-row"><div class="growth-authority-score"><b>'+Number(item.score||0)+'</b><span>fit</span></div><div class="growth-authority-copy"><div class="growth-authority-tags"><span>'+esc(growthAuthorityTypeLabel(item.type))+'</span><em>'+esc(status.replaceAll('_',' '))+'</em></div><a href="'+esc(item.url)+'" target="_blank" rel="noopener">'+esc(item.title||item.domain||'Authority opportunity')+' ↗</a><p>'+esc(item.reason||'')+'</p>'+aiReview+'<details><summary>Prepared '+(isCommunity?'reply':'outreach')+'</summary><div>'+esc(draft)+'</div></details></div><div class="growth-authority-row-actions">'+actions+'</div></article>';
   }).join(''):'<div class="growth-empty">No qualified authority prospects yet. The six-hour autopilot will keep looking.</div>';
-  $('growthAuthorityRunBtn').disabled=state.user?.role!=='SUPER_ADMIN';
 }
 async function runGrowthAuthorityNow(){
-  const button=$('growthAuthorityRunBtn');button.disabled=true;button.textContent='Scanning…';
+  const button=$('growthAuthorityRunBtn');if(button){button.disabled=true;button.textContent='Scanning…';}
   try{
     const data=await api('/api/admin/growth-authority/run-now',{method:'POST',body:'{}'});
     renderGrowthAuthority(data);
     toast('Phase 4 authority scan completed');
     await loadGrowthAutopilotStatus(true);
   }catch(error){toast(error.message)}
-  finally{button.textContent='Run authority scan now';button.disabled=state.user?.role!=='SUPER_ADMIN'}
+  finally{if(button){button.textContent='Run authority scan now';button.disabled=state.user?.role!=='SUPER_ADMIN'}}
 }
 async function growthAuthorityProspectAction(id,action){
   try{
@@ -874,17 +872,16 @@ function renderGrowthOptimization(data){
 
   const sources=(optimization.sources||[]).slice(0,8);
   $('growthOptimizationSources').innerHTML=sources.length?sources.map(row=>'<div class="growth-optimization-source"><div><b>'+esc(row.source||'direct')+'</b><small>'+Number(row.signups||0)+' sign-ups · '+Number(row.trials||0)+' trials · '+Number(row.purchases||0)+' paid</small></div><strong>'+growthMoney(row.revenue||0)+'</strong></div>').join(''):'<div class="growth-empty">First-touch source attribution starts with consented new visitors and becomes stronger as they progress from signup to trial and purchase.</div>';
-  $('growthOptimizationRunBtn').disabled=state.user?.role!=='SUPER_ADMIN';
 }
 async function runGrowthOptimizationNow(){
-  const button=$('growthOptimizationRunBtn');button.disabled=true;button.textContent='Measuring…';
+  const button=$('growthOptimizationRunBtn');if(button){button.disabled=true;button.textContent='Measuring…';}
   try{
     const data=await api('/api/admin/growth-optimization/run-now',{method:'POST',body:'{}'});
     renderGrowthOptimization(data);
     toast('Final Phase 5 optimisation loop completed');
     await loadGrowthAutopilotStatus(true);
   }catch(error){toast(error.message)}
-  finally{button.textContent='Run final loop now';button.disabled=state.user?.role!=='SUPER_ADMIN'}
+  finally{if(button){button.textContent='Run final loop now';button.disabled=state.user?.role!=='SUPER_ADMIN'}}
 }
 async function growthOptimizationAction(id,action){
   try{
@@ -895,6 +892,188 @@ async function growthOptimizationAction(id,action){
     else toast('Optimisation action updated');
     await loadGrowthAutopilotStatus(true);
   }catch(error){toast(error.message)}
+}
+
+
+function growthEditorialEventTime(event){
+  const value=event?.at?new Date(event.at).getTime():0;
+  return Number.isFinite(value)?value:0;
+}
+function growthEditorialLatest(events,types){
+  const wanted=new Set(types);
+  return (events||[]).find(event=>wanted.has(String(event.type||'')))||null;
+}
+function growthEditorialCandidateList(data,currentTitle=''){
+  const seen=new Set();
+  const combined=[
+    ...((data?.editorialRadar?.top)||[]).map(item=>({...item,source:'Editorial radar'})),
+    ...((data?.opportunities?.top)||[]).map(item=>({...item,source:'Opportunity map'}))
+  ];
+  return combined.filter(item=>{
+    const topic=String(item?.topic||'').trim();
+    if(!topic||topic===currentTitle)return false;
+    const key=topic.toLowerCase();
+    if(seen.has(key))return false;
+    seen.add(key);
+    return true;
+  }).slice(0,3);
+}
+function renderGrowthEditorialBoard(data){
+  const runtime=data?.state||{};
+  const config=data?.config||{};
+  const allEvents=Array.isArray(runtime.recentEvents)?runtime.recentEvents:[];
+  const editorialTypes=new Set([
+    'AI_STRATEGY_DECIDED','DRAFT_GENERATED','EDITORIAL_REVISION_REQUESTED','ARTICLE_REVISED',
+    'EDITORIAL_REVIEW_PASSED','EDITORIAL_TOPIC_UNSUITABLE','EDITORIAL_DRAFT_DEFERRED',
+    'ARTICLE_APPROVED','ARTICLE_PUBLISHED','EDITORIAL_NEXT_TOPIC_SELECTED','EDITORIAL_PIPELINE_DEFERRED'
+  ]);
+  const editorialEvents=allEvents.filter(event=>editorialTypes.has(String(event.type||'')));
+  const cycleStart=runtime.lastCycleStartedAt?new Date(runtime.lastCycleStartedAt).getTime():0;
+  const latestArticleEvent=editorialEvents.find(event=>event?.metadata?.articleId)||null;
+  const articleEventIsCurrent=Boolean(latestArticleEvent&&(!runtime.running||growthEditorialEventTime(latestArticleEvent)>=cycleStart));
+  const articleId=articleEventIsCurrent?latestArticleEvent.metadata.articleId:null;
+  const articleEvents=articleId?editorialEvents.filter(event=>event?.metadata?.articleId===articleId):[];
+  const typeSet=new Set(articleEvents.map(event=>String(event.type||'')));
+  const latestReview=growthEditorialLatest(articleEvents,['EDITORIAL_REVISION_REQUESTED','EDITORIAL_REVIEW_PASSED','EDITORIAL_TOPIC_UNSUITABLE']);
+  const latestRevision=growthEditorialLatest(articleEvents,['ARTICLE_REVISED']);
+  const latestPublished=growthEditorialLatest(articleEvents,['ARTICLE_PUBLISHED']);
+  const latestDeferred=growthEditorialLatest(articleEvents,['EDITORIAL_DRAFT_DEFERRED']);
+  const latestArticleMeta=(articleEvents[0]?.metadata)||{};
+  const lastPublished=runtime.lastPublishedArticle||null;
+  const strategy=runtime.lastStrategy||null;
+  const enabled=config.enabled!==false;
+  const running=Boolean(runtime.running);
+
+  let status='Waiting for next run';
+  let statusClass='';
+  if(!enabled){status='Paused';statusClass='gsc-error'}
+  else if(running&&!articleId){status='Choosing topic';statusClass='gsc-connected'}
+  else if(typeSet.has('EDITORIAL_TOPIC_UNSUITABLE')){status='Switching topic';statusClass='gsc-error'}
+  else if(typeSet.has('EDITORIAL_REVISION_REQUESTED')&&!typeSet.has('ARTICLE_REVISED')){status='Sol revising';statusClass='gsc-connected'}
+  else if(typeSet.has('ARTICLE_REVISED')&&!typeSet.has('EDITORIAL_REVIEW_PASSED')){status='Final review';statusClass='gsc-connected'}
+  else if(typeSet.has('EDITORIAL_REVIEW_PASSED')&&!typeSet.has('ARTICLE_PUBLISHED')){status='Ready to publish';statusClass='gsc-connected'}
+  else if(typeSet.has('DRAFT_GENERATED')&&!latestReview){status='Senior editor reviewing';statusClass='gsc-connected'}
+  else if(running){status='Article in production';statusClass='gsc-connected'}
+  else if(latestPublished||lastPublished){status='Published';statusClass='gsc-connected'}
+  $('growthEditorialStatus').textContent=status;
+  $('growthEditorialStatus').className='status-chip '+statusClass;
+
+  const stageDefs=[
+    ['Topic','Sol strategist'],
+    ['Research','Live evidence'],
+    ['Draft','Sol writer'],
+    ['Senior editor','Actionable review'],
+    ['Repair','Exact fixes'],
+    ['Final check','90+ standard'],
+    ['Publish','INXSocial blog']
+  ];
+  const states=stageDefs.map(()=>({state:'waiting',note:null}));
+  if(running&&!articleId){
+    states[0]={state:'active',note:'Choosing the strongest relevant topic'};
+  }else if(articleId){
+    states[0].state='done';states[1].state='done';states[2].state='done';
+    if(typeSet.has('EDITORIAL_TOPIC_UNSUITABLE')){
+      states[3]={state:'blocked',note:'Topic-level problem found'};
+    }else if(latestReview){
+      states[3].state='done';
+      if(String(latestReview.type)==='EDITORIAL_REVISION_REQUESTED'){
+        if(latestRevision){
+          states[4].state='done';
+          if(typeSet.has('EDITORIAL_REVIEW_PASSED')) states[5].state='done';
+          else states[5]={state:'active',note:'Re-checking repaired article'};
+        }else{
+          states[4]={state:'active',note:'Applying editor fixes'};
+        }
+      }else if(String(latestReview.type)==='EDITORIAL_REVIEW_PASSED'){
+        states[4]={state:'skipped',note:'No repair needed'};
+        states[5].state='done';
+      }
+    }else{
+      states[3]={state:'active',note:'Reviewing search intent, evidence and quality'};
+    }
+    if(typeSet.has('ARTICLE_REVISED')&&typeSet.has('EDITORIAL_REVIEW_PASSED')){
+      states[4].state='done';states[5].state='done';
+    }
+    if(typeSet.has('ARTICLE_PUBLISHED')) states[6].state='done';
+    else if(typeSet.has('ARTICLE_APPROVED')||typeSet.has('EDITORIAL_REVIEW_PASSED')) states[6]={state:'active',note:config.autoPublish===false?'Approved · auto-publish off':'Publishing'};
+    if(latestDeferred&&!latestPublished){
+      const firstWaiting=states.findIndex(item=>item.state==='waiting'||item.state==='active');
+      if(firstWaiting>=0) states[firstWaiting]={state:'blocked',note:'Deferred this cycle'};
+    }
+  }else if(lastPublished){
+    states.forEach((item,index)=>{item.state=index===4?'skipped':'done'});
+  }
+
+  $('growthEditorialPipeline').innerHTML=stageDefs.map((def,index)=>{
+    const stage=states[index];
+    const icon=stage.state==='done'?'✓':stage.state==='blocked'?'!':String(index+1);
+    const note=stage.note||def[1];
+    return '<div class="growth-editorial-stage '+esc(stage.state)+'"><span>'+esc(icon)+'</span><div><b>'+esc(def[0])+'</b><small>'+esc(note)+'</small></div></div>';
+  }).join('');
+
+  const passNumber=Number(latestArticleMeta.pass||latestRevision?.metadata?.pass||0);
+  $('growthEditorialPass').textContent=articleId?(passNumber?'Editorial pass '+passNumber:'In production'):(running?'Planning':'Automatic');
+  let currentTitle='';
+  if(articleId){
+    currentTitle=String(latestArticleMeta.title||latestArticleEvent?.metadata?.title||strategy?.topic||'Article in production');
+    const backendScore=latestReview?.metadata?.backendQualityScore??latestArticleMeta.qualityScore??latestRevision?.metadata?.qualityScore;
+    const criticScore=latestReview?.metadata?.criticScore;
+    const scoreBits=[
+      backendScore!=null?'Backend '+Number(backendScore)+'/100':'',
+      criticScore!=null?'Editor '+Number(criticScore)+'/100':'',
+      passNumber?'Pass '+passNumber:''
+    ].filter(Boolean);
+    const currentMessage=articleEvents[0]?.message||'Sol is progressing this article through the editorial pipeline.';
+    $('growthEditorialCurrent').innerHTML=
+      '<div class="growth-editorial-current-title"><span>GPT-5.6 Sol</span><b>'+esc(currentTitle)+'</b><small>'+esc(currentMessage)+'</small></div>'+
+      '<div class="growth-editorial-scoreline">'+
+        (scoreBits.length?scoreBits.map(bit=>'<span>'+esc(bit)+'</span>').join(''):'<span>Quality score pending</span>')+
+        '<strong>Target 90+</strong>'+
+      '</div>';
+  }else if(running){
+    currentTitle=String(strategy?.topic||'');
+    $('growthEditorialCurrent').innerHTML='<div class="growth-editorial-planning"><span class="growth-autopilot-pulse"></span><div><b>'+(currentTitle?esc(currentTitle):'Sol is selecting the next article')+'</b><small>Comparing search demand, audience fit, existing content and current editorial opportunities before research begins.</small></div></div>';
+  }else if(lastPublished){
+    currentTitle=String(lastPublished.title||'');
+    $('growthEditorialCurrent').innerHTML='<div class="growth-editorial-current-title published"><span>Latest publication</span><b>'+esc(currentTitle)+'</b><small>Published '+esc(relative(lastPublished.publishedAt))+' · quality '+Number(lastPublished.qualityScore||0)+'/100</small></div><a class="growth-editorial-open" href="'+esc(lastPublished.url||'#')+'" target="_blank" rel="noopener">Open article ↗</a>';
+  }else{
+    $('growthEditorialCurrent').innerHTML='<div class="growth-empty">The next article will appear here when the strategist starts a production cycle.</div>';
+  }
+
+  if(latestReview){
+    const meta=latestReview.metadata||{};
+    const fixes=Array.isArray(meta.requiredFixes)?meta.requiredFixes:[];
+    const issues=Array.isArray(meta.issues)?meta.issues:[];
+    const summary=meta.summary||latestReview.message||'Editorial review completed.';
+    const decision=String(meta.disposition||latestReview.type==='EDITORIAL_REVIEW_PASSED'?'APPROVE':latestReview.type==='EDITORIAL_TOPIC_UNSUITABLE'?'SWITCH TOPIC':'REVISE').replaceAll('_',' ');
+    $('growthEditorialFeedback').innerHTML=
+      '<div class="growth-editorial-review-head"><span>'+esc(decision)+'</span><div>'+
+        (meta.criticScore!=null?'<b>'+Number(meta.criticScore)+'/100</b>':'<b>Reviewed</b>')+
+        '<small>'+(meta.searchIntentMatch!=null?'Intent '+Number(meta.searchIntentMatch)+'/100 · ':'')+'fact risk '+esc(meta.factualRisk||'n/a')+' · duplication '+esc(meta.duplicationRisk||'n/a')+'</small></div></div>'+
+      '<p class="growth-editorial-review-summary">'+esc(summary)+'</p>'+
+      (fixes.length?'<div class="growth-editorial-fixes"><b>Required fixes</b>'+fixes.slice(0,5).map(item=>'<div><span>↳</span><small>'+esc(item)+'</small></div>').join('')+'</div>':
+        issues.length?'<div class="growth-editorial-fixes"><b>Review notes</b>'+issues.slice(0,5).map(item=>'<div><span>↳</span><small>'+esc(item)+'</small></div>').join('')+'</div>':
+        '<div class="growth-editorial-pass-note">✓ No corrective edits required by the latest review.</div>');
+  }else if(running){
+    $('growthEditorialFeedback').innerHTML='<div class="growth-editorial-waiting-review"><span>Editor pending</span><b>Feedback appears here after the first draft.</b><small>The editor returns exact corrections; it does not discard a viable article for fixable issues.</small></div>';
+  }else if(lastPublished){
+    $('growthEditorialFeedback').innerHTML='<div class="growth-editorial-pass-note">✓ Latest article cleared the publication standard at '+Number(lastPublished.qualityScore||0)+'/100.</div>';
+  }else{
+    $('growthEditorialFeedback').innerHTML='<div class="growth-empty">No editorial feedback yet.</div>';
+  }
+
+  const candidates=growthEditorialCandidateList(data,currentTitle);
+  $('growthEditorialQueue').innerHTML=candidates.length?candidates.map((item,index)=>{
+    const hot=Boolean(item.hot||item?.radar?.hot);
+    const score=Number(item.score||0);
+    const detail=[
+      item.source,
+      hot?'hot opportunity':'',
+      item.freshness?String(item.freshness).replaceAll('_',' '):'',
+      score?'score '+score:''
+    ].filter(Boolean).join(' · ');
+    return '<div class="growth-editorial-queue-row"><span>'+String(index+1).padStart(2,'0')+'</span><div><b>'+esc(item.topic)+'</b><small>'+esc(detail||'Qualified editorial opportunity')+'</small></div>'+(hot?'<em>HOT</em>':'')+'</div>';
+  }).join(''):'<div class="growth-empty">The editorial radar is building the next qualified topic set.</div>';
 }
 
 function renderGrowthAutopilot(data){
@@ -908,7 +1087,7 @@ function renderGrowthAutopilot(data){
   $('growthStatusChip').className='status-chip '+(enabled?'gsc-connected':'gsc-error');
   $('growthAutopilotHeadline').textContent=running?'Growth cycle running now':enabled?'Everything is running automatically':'Autopilot is paused';
   $('growthAutopilotSummary').textContent=enabled
-    ?'No routine action is required. The strategist makes the main content decision each morning at '+esc(config.dailyPublishTimeLocal||'07:30')+' '+esc(config.publishTimeZone||'Europe/London')+', while the editorial radar researches fresh and adjacent opportunities every '+Number(config.editorialRadarEveryHours||6)+' hours. A high-confidence fresh opportunity can trigger an extra review, but publishing still requires the normal strategy and quality gates.'
+    ?'No routine action is required. GPT-5.6 Sol selects the strongest relevant topic, writes to a 90+ target, receives senior-editor feedback and repairs the same article when needed before publication.'
     :'Automatic intelligence refresh and publishing are paused until you resume them.';
   $('growthAutopilotToggleBtn').textContent=enabled?'Pause autopilot':'Resume autopilot';
   $('growthAutopilotToggleBtn').className=enabled?'secondary':'primary';
@@ -939,6 +1118,7 @@ function renderGrowthAutopilot(data){
 
   const events=(runtime.recentEvents||[]).slice(0,8);
   $('growthAutopilotActivity').innerHTML=events.length?events.map(event=>'<div class="growth-autopilot-event '+esc(event.level||'info')+'"><span></span><div><b>'+esc(event.message)+'</b><small>'+esc(relative(event.at))+'</small></div></div>').join(''):'<div class="growth-empty">No activity recorded yet.</div>';
+  renderGrowthEditorialBoard(data);
   renderGrowthSeoMaintenance(data.seoMaintenance||null);
   renderGrowthAuthority(data.authority||null);
   renderGrowthOptimization(data.optimization||null);
@@ -1281,9 +1461,6 @@ async function refreshGrowthAnalytics(){
 }
 $('growthAutopilotToggleBtn').addEventListener('click',()=>void toggleGrowthAutopilot());
 $('growthAutopilotRunBtn').addEventListener('click',()=>void runGrowthAutopilotNow());
-$('growthSeoRunBtn').addEventListener('click',()=>void runGrowthSeoMaintenanceNow());
-$('growthAuthorityRunBtn').addEventListener('click',()=>void runGrowthAuthorityNow());
-$('growthOptimizationRunBtn').addEventListener('click',()=>void runGrowthOptimizationNow());
 $('runGrowthAuditBtn').addEventListener('click',()=>void runGrowthAudit());
 $('buildGrowthOpportunitiesBtn').addEventListener('click',()=>void buildGrowthOpportunities());
 $('runVisibilityBtn').addEventListener('click',()=>void runGrowthVisibility());
