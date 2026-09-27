@@ -796,9 +796,9 @@ function renderGrowthAuthority(data){
     const canApprove=status==='QUALIFIED'&&Boolean(item.draft?.communityReply||item.draft?.outreachBody);
     const isCommunity=['QUORA','COMMUNITY'].includes(item.type);
     const actions=[
-      canApprove?'<button class="primary" type="button" onclick="growthAuthorityProspectAction(\''+esc(item.id)+'\',\'approve\')">Approve</button>':'',
-      status==='APPROVED'&&isCommunity?'<button class="secondary" type="button" onclick="growthAuthorityProspectAction(\''+esc(item.id)+'\',\'posted\')">Mark posted</button>':'',
-      status!=='DISMISSED'&&!['LINK_ACQUIRED','MENTION_ACQUIRED','AI_CITED'].includes(status)?'<button class="secondary" type="button" onclick="growthAuthorityProspectAction(\''+esc(item.id)+'\',\'dismiss\')">Dismiss</button>':''
+      canApprove?'<button class="primary" type="button" data-growth-authority-id="'+esc(item.id)+'" data-growth-authority-action="approve">Approve</button>':'',
+      status==='APPROVED'&&isCommunity?'<button class="secondary" type="button" data-growth-authority-id="'+esc(item.id)+'" data-growth-authority-action="posted">Mark posted</button>':'',
+      status!=='DISMISSED'&&!['LINK_ACQUIRED','MENTION_ACQUIRED','AI_CITED'].includes(status)?'<button class="secondary" type="button" data-growth-authority-id="'+esc(item.id)+'" data-growth-authority-action="dismiss">Dismiss</button>':''
     ].filter(Boolean).join('');
     const aiReview=item.aiReview?.decision?'<small>Sol review: '+esc(item.aiReview.decision)+' · '+esc(item.aiReview.reason||'')+'</small>':'';
     return '<article class="growth-authority-row"><div class="growth-authority-score"><b>'+Number(item.score||0)+'</b><span>fit</span></div><div class="growth-authority-copy"><div class="growth-authority-tags"><span>'+esc(growthAuthorityTypeLabel(item.type))+'</span><em>'+esc(status.replaceAll('_',' '))+'</em></div><a href="'+esc(item.url)+'" target="_blank" rel="noopener">'+esc(item.title||item.domain||'Authority opportunity')+' ↗</a><p>'+esc(item.reason||'')+'</p>'+aiReview+'<details><summary>Prepared '+(isCommunity?'reply':'outreach')+'</summary><div>'+esc(draft)+'</div></details></div><div class="growth-authority-row-actions">'+actions+'</div></article>';
@@ -860,11 +860,11 @@ function renderGrowthOptimization(data){
     const canReady=status==='PROPOSED'&&mode==='DRAFT_ONLY';
     const canDone=['APPROVED','READY_TO_PUBLISH'].includes(status);
     const actionsHtml=[
-      canApprove?'<button class="primary" type="button" onclick="growthOptimizationAction(\''+esc(item.id)+'\',\'approve\')">Approve</button>':'',
-      canReady?'<button class="primary" type="button" onclick="growthOptimizationAction(\''+esc(item.id)+'\',\'approve\')">Approve drafts</button>':'',
-      canApply?'<button class="primary" type="button" onclick="growthOptimizationAction(\''+esc(item.id)+'\',\'apply\')">Apply</button>':'',
-      canDone?'<button class="secondary" type="button" onclick="growthOptimizationAction(\''+esc(item.id)+'\',\'done\')">Mark done</button>':'',
-      status!=='DISMISSED'?'<button class="secondary" type="button" onclick="growthOptimizationAction(\''+esc(item.id)+'\',\'dismiss\')">Dismiss</button>':''
+      canApprove?'<button class="primary" type="button" data-growth-optimization-id="'+esc(item.id)+'" data-growth-optimization-action="approve">Approve</button>':'',
+      canReady?'<button class="primary" type="button" data-growth-optimization-id="'+esc(item.id)+'" data-growth-optimization-action="approve">Approve drafts</button>':'',
+      canApply?'<button class="primary" type="button" data-growth-optimization-id="'+esc(item.id)+'" data-growth-optimization-action="apply">Apply</button>':'',
+      canDone?'<button class="secondary" type="button" data-growth-optimization-id="'+esc(item.id)+'" data-growth-optimization-action="done">Mark done</button>':'',
+      status!=='DISMISSED'?'<button class="secondary" type="button" data-growth-optimization-id="'+esc(item.id)+'" data-growth-optimization-action="dismiss">Dismiss</button>':''
     ].filter(Boolean).join('');
     const evidence=(item.evidence||[]).slice(0,4).map(entry=>'<span>'+esc(entry)+'</span>').join('');
     return '<article class="growth-optimization-row"><div class="growth-optimization-score"><b>'+Number(item.score||0)+'</b><span>impact</span></div><div class="growth-optimization-copy"><div class="growth-optimization-tags"><span>'+esc(growthOptimizationLabel(item.type))+'</span><em>'+esc(status.replaceAll('_',' '))+'</em><i>'+esc(String(item.risk||'low').toLowerCase())+' risk</i></div><b>'+esc(item.title||'Optimisation action')+'</b><p>'+esc(item.reason||'')+'</p><div class="growth-optimization-evidence">'+evidence+'</div><details><summary>Prepared optimisation</summary><div>'+esc(proposalCopy)+'</div></details></div><div class="growth-optimization-row-actions">'+actionsHtml+'</div></article>';
@@ -1474,6 +1474,35 @@ async function refreshGrowthAnalytics(){
     toast('Google Analytics refreshed');
   }catch(error){toast(error.message)}finally{button.textContent='↻ Refresh analytics';button.disabled=!state.growthAnalytics?.status?.selectedProperty}
 }
+$('growthAuthorityQueue').addEventListener('click',event=>{
+  const button=event.target.closest('button[data-growth-authority-action]');
+  if(!button)return;
+  event.preventDefault();
+  const id=button.dataset.growthAuthorityId;
+  const action=button.dataset.growthAuthorityAction;
+  if(!id||!action)return;
+  const original=button.textContent;
+  button.disabled=true;
+  button.textContent=action==='approve'?'Approving…':action==='dismiss'?'Dismissing…':'Saving…';
+  void growthAuthorityProspectAction(id,action).finally(()=>{
+    if(button.isConnected){button.disabled=false;button.textContent=original}
+  });
+});
+$('growthOptimizationQueue').addEventListener('click',event=>{
+  const button=event.target.closest('button[data-growth-optimization-action]');
+  if(!button)return;
+  event.preventDefault();
+  const id=button.dataset.growthOptimizationId;
+  const action=button.dataset.growthOptimizationAction;
+  if(!id||!action)return;
+  const original=button.textContent;
+  button.disabled=true;
+  button.textContent=action==='approve'?'Approving…':action==='apply'?'Applying…':action==='dismiss'?'Dismissing…':'Saving…';
+  void growthOptimizationAction(id,action).finally(()=>{
+    if(button.isConnected){button.disabled=false;button.textContent=original}
+  });
+});
+
 $('growthAutopilotToggleBtn').addEventListener('click',()=>void toggleGrowthAutopilot());
 $('growthAutopilotRunBtn').addEventListener('click',()=>void runGrowthAutopilotNow());
 $('runGrowthAuditBtn').addEventListener('click',()=>void runGrowthAudit());
