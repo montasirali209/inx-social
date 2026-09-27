@@ -17,7 +17,7 @@ test('Growth Autopilot is enabled by default with daily intelligence and a fixed
   assert.match(service, /dailyPublishTimeLocal: '07:30'/);
   assert.match(service, /publishTimeZone: 'Europe\/London'/);
   assert.match(service, /dailyPublishDue/);
-  assert.match(service, /minQualityScore: 75/);
+  assert.match(service, /minQualityScore: 90/);
   assert.match(service, /autoGenerateImage: true/);
   assert.match(service, /autoPublish: true/);
 });
@@ -54,13 +54,20 @@ test('Autopilot runtime starts with the production backend and uses a persisted 
   assert.match(service, /leaseUntil/);
 });
 
-test('Autopilot rejects low-quality drafts instead of publishing them', () => {
+test('Autopilot repairs weak drafts before changing topic and requires 90+ publication quality', () => {
   const service = read('src/services/growthAutopilotService.js');
+  const content = read('src/services/growthContentService.js');
 
-  assert.match(service, /if \(score < config\.minQualityScore\)/);
-  assert.match(service, /archiveLowQuality/);
-  assert.match(service, /DRAFT_REJECTED/);
-  assert.match(service, /maxDraftAttempts/);
+  assert.match(service, /minQualityScore: 90/);
+  assert.match(service, /maxDraftAttempts: 3/);
+  assert.match(service, /growthContent\.reviseDraft/);
+  assert.match(service, /EDITORIAL_REVISION_REQUESTED/);
+  assert.match(service, /ARTICLE_REVISED/);
+  assert.match(service, /EDITORIAL_NEXT_TOPIC_SELECTED/);
+  assert.match(service, /editorialCandidateQueue/);
+  assert.match(service, /backendScore >= config\.minQualityScore/);
+  assert.match(service, /critic\.score \|\| 0\) >= config\.minQualityScore/);
+  assert.match(content, /Target a final backend quality score of at least 90\/100/);
 });
 
 test('Growth admin defaults to an autopilot dashboard and hides manual tools under advanced details', () => {
