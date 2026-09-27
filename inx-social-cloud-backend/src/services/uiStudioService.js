@@ -92,7 +92,8 @@ function serializeProject(project, { fullAnalysis = false, fullGeneration = fals
     }),
     latestGeneration: uiStudioCodegen.serializeGeneration(latestGenerationRow, {
       full: fullGeneration,
-      currentFingerprint
+      currentFingerprint,
+      currentAnalysisId: latestAnalysisRow?.id || null
     })
   };
 }
@@ -192,7 +193,8 @@ async function projectDetail(projectId) {
     })),
     generations: (project.generations || []).map(generation => uiStudioCodegen.serializeGeneration(generation, {
       full: false,
-      currentFingerprint
+      currentFingerprint,
+      currentAnalysisId: project.analyses?.[0]?.id || null
     }))
   };
 }
