@@ -70,13 +70,14 @@ test('Dashboard can be bookmarked directly on mobile',()=>{
 });
 
 
-test('Growth Command Centre Search Console data is hard-scoped to INXSocial',()=>{
+test('Growth Command Centre Search Console data resolves from the active managed site',()=>{
   const gsc=read('src/services/googleSearchConsoleService.js');
   const service=read('src/services/growthDashboardService.js');
   const js=read('public/admin.js');
-  assert.match(gsc,/function inxSocialSite/);
-  assert.match(gsc,/GSC_INXSOCIAL_PROPERTY_REQUIRED/);
+  assert.match(gsc,/function siteForOrigin/);
+  assert.match(gsc,/GSC_GROWTH_SITE_PROPERTY_REQUIRED/);
   assert.match(gsc,/async function growthPerformance/);
+  assert.match(gsc,/growthSites\.getSite/);
   assert.match(service,/googleSearchConsole\.growthPerformance\(28\)/);
   assert.match(service,/siteUrl: search\.siteUrl/);
   assert.match(js,/INXSocial GSC/);

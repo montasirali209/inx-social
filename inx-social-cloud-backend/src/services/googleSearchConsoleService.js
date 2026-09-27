@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const axios = require('axios');
+const growthSites = require('./growthSiteService');
 const jwt = require('jsonwebtoken');
 const prisma = require('../db/prisma');
 const { encryptToken, decryptToken } = require('../utils/tokenCrypto');
@@ -236,16 +237,30 @@ function normalizeSites(payload) {
     .filter(item => item.siteUrl);
 }
 
-function inxSocialSite(sites = []) {
-  const exactDomain = sites.find(item => item.siteUrl.toLowerCase() === 'sc-domain:inxsocial.co.uk');
+function siteForOrigin(sites = [], origin = growthSites.DEFAULT_ORIGIN) {
+  let hostname = '';
+  let normalizedOrigin = '';
+  try {
+    normalizedOrigin = growthSites.normaliseOrigin(origin);
+    hostname = new URL(normalizedOrigin).hostname.replace(/^www\./, '').toLowerCase();
+  } catch (_) {
+    return null;
+  }
+  const exactDomain = sites.find(item => item.siteUrl.toLowerCase() === 'sc-domain:' + hostname);
   if (exactDomain) return exactDomain.siteUrl;
-  const exactWww = sites.find(item => item.siteUrl.toLowerCase() === 'https://www.inxsocial.co.uk/');
-  if (exactWww) return exactWww.siteUrl;
-  const brandSite = sites.find(item => {
-    const value = item.siteUrl.toLowerCase();
-    return value.includes('inxsocial.co.uk') && !value.includes('inxsocial.co.uk.');
+  const exactUrl = sites.find(item => {
+    try {
+      const value = String(item.siteUrl || '');
+      if (!/^https?:/i.test(value)) return false;
+      const candidate = new URL(value);
+      return candidate.hostname.replace(/^www\./, '').toLowerCase() === hostname;
+    } catch (_) { return false; }
   });
-  return brandSite?.siteUrl || null;
+  return exactUrl?.siteUrl || null;
+}
+
+function inxSocialSite(sites = []) {
+  return siteForOrigin(sites, growthSites.DEFAULT_ORIGIN);
 }
 
 function preferredSite(sites) {
@@ -539,7 +554,7 @@ async function performance(days = 28) {
   return performanceForSite(days, connection.selectedSiteUrl);
 }
 
-async function growthSiteUrl() {
+async function growthSiteUrl(siteId = null) {
   const connection = await prisma.searchConsoleConnection.findUnique({ where: { id: CONNECTION_ID } });
   if (!connection) throw publicError('Google Search Console is not connected.', 409, 'GSC_NOT_CONNECTED');
 
@@ -560,19 +575,21 @@ async function growthSiteUrl() {
     if (!sites.length) throw error;
   }
 
-  const siteUrl = inxSocialSite(sites);
+  const growthSite = await growthSites.getSite(siteId);
+  const siteUrl = siteForOrigin(sites, growthSite?.origin || growthSites.DEFAULT_ORIGIN);
   if (!siteUrl) {
+    const hostname = growthSite?.hostname || new URL(growthSites.DEFAULT_ORIGIN).hostname;
     throw publicError(
-      'The connected Google account does not expose an INXSocial Search Console property. Connect or grant access to sc-domain:inxsocial.co.uk before Growth Autopilot uses Search Console.',
+      'The connected Google account does not expose a Search Console property for ' + hostname + '. Grant access to that property before Growth Autopilot uses Search Console for this site.',
       409,
-      'GSC_INXSOCIAL_PROPERTY_REQUIRED'
+      'GSC_GROWTH_SITE_PROPERTY_REQUIRED'
     );
   }
   return siteUrl;
 }
 
-async function growthPerformance(days = 28) {
-  return performanceForSite(days, await growthSiteUrl());
+async function growthPerformance(days = 28, siteId = null) {
+  return performanceForSite(days, await growthSiteUrl(siteId));
 }
 
 async function disconnect() {
@@ -605,6 +622,7 @@ module.exports = {
   growthPerformance,
   growthSiteUrl,
   inxSocialSite,
+  siteForOrigin,
   disconnect,
   settings,
   googleRequest,

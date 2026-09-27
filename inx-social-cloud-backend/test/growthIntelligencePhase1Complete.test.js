@@ -63,11 +63,12 @@ test('Opportunity engine keeps direct query-to-page evidence from Search Console
 });
 
 
-test('Growth opportunity and optimisation engines cannot consume another product GSC property',()=>{
+test('Growth opportunity and optimisation engines use the managed-site Search Console property',()=>{
   const gsc=read('src/services/googleSearchConsoleService.js');
   const opportunity=read('src/services/growthOpportunityService.js');
   const optimisation=read('src/services/growthOptimizationService.js');
-  assert.match(gsc,/sc-domain:inxsocial\.co\.uk/);
+  assert.match(gsc,/siteForOrigin/);
+  assert.match(gsc,/growthSites\.getSite/);
   assert.match(gsc,/growthPerformance/);
   assert.match(opportunity,/searchConsole\.growthPerformance\(periodDays\)/);
   assert.match(optimisation,/gsc\.growthPerformance\(28\)/);

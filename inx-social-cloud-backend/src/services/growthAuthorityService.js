@@ -6,6 +6,9 @@ const prisma = require('../db/prisma');
 const env = require('../config/env');
 const webResearch = require('./webResearchService');
 const emailService = require('./emailService');
+const growthSites = require('./growthSiteService');
+const siteIntelligence = require('./growthSiteIntelligenceService');
+const seoSkills = require('./growthSeoSkillRegistry');
 
 const STATE_KEY = 'growth_authority_autopilot_state_v1';
 const TYPES = ['QUORA','COMMUNITY','RESOURCE_PAGE','COMPARISON','BROKEN_LINK','DIRECTORY','PARTNER','JOURNALIST_REQUEST','PUBLICATION','UNLINKED_MENTION','COMPETITOR_BACKLINK','AI_CITATION_SOURCE'];
@@ -17,7 +20,11 @@ const safeJson = (v,f=null) => { try { return v ? JSON.parse(v) : f; } catch (_)
 const clamp = (v,f,min,max) => Number.isFinite(Number(v)) ? Math.max(min,Math.min(max,Number(v))) : f;
 const safeUrl = v => { try { const u=new URL(String(v||'').trim()); return ['http:','https:'].includes(u.protocol)?u.toString():''; } catch(_){ return ''; } };
 const domainOf = v => { try { return new URL(String(v||'')).hostname.toLowerCase().replace(/^www\./,''); } catch(_){ return ''; } };
-const own = v => domainOf(v)==='inxsocial.co.uk' || domainOf(v).endsWith('.inxsocial.co.uk');
+const own = (v,origin=growthSites.DEFAULT_ORIGIN) => {
+  const host=domainOf(origin);
+  const candidate=domainOf(v);
+  return Boolean(host&&candidate&&(candidate===host||candidate.endsWith('.'+host)));
+};
 const excluded = v => domainOf(v)==='reddit.com' || domainOf(v).endsWith('.reddit.com');
 const legacyRedditProspect = x => String(x?.type||'').toUpperCase()==='REDDIT' || excluded(x?.url) || domainOf(x?.domain)==='reddit.com' || String(x?.domain||'').toLowerCase()==='reddit.com' || String(x?.domain||'').toLowerCase().endsWith('.reddit.com');
 const sanitizeProspects = items => (Array.isArray(items)?items:[]).filter(x=>x&&!legacyRedditProspect(x));
@@ -68,8 +75,8 @@ async function writeState(state){
   value.stats=summarize(value.prospects);
   await prisma.appSetting.upsert({
     where:{key:STATE_KEY},
-    create:{key:STATE_KEY,value:JSON.stringify(value),description:'INXSocial Phase 4 Authority + Community Autopilot state.'},
-    update:{value:JSON.stringify(value),description:'INXSocial Phase 4 Authority + Community Autopilot state.'}
+    create:{key:STATE_KEY,value:JSON.stringify(value),description:'Authority + Community Autopilot state for the active Growth site.'},
+    update:{value:JSON.stringify(value),description:'Authority + Community Autopilot state for the active Growth site.'}
   });
   return value;
 }
@@ -86,10 +93,10 @@ function discoverySchema(){
   }}}};
 }
 
-function normalizeCandidate(x){
+function normalizeCandidate(x,origin=growthSites.DEFAULT_ORIGIN){
   const url=safeUrl(x?.url); const type=TYPES.includes(String(x?.type||'').toUpperCase())?String(x.type).toUpperCase():'COMMUNITY';
-  if(!url||own(url)||excluded(url))return null;
-  let relevantPage=safeUrl(x?.relevantPage); if(!relevantPage||!own(relevantPage)) relevantPage='https://www.inxsocial.co.uk';
+  if(!url||own(url,origin)||excluded(url))return null;
+  let relevantPage=safeUrl(x?.relevantPage); if(!relevantPage||!own(relevantPage,origin)) relevantPage=growthSites.normaliseOrigin(origin);
   let kind=['EMAIL','URL','NONE'].includes(String(x?.contactKind||'').toUpperCase())?String(x.contactKind).toUpperCase():'NONE';
   let value=String(x?.contactValue||'').trim().slice(0,320);
   if(kind==='URL') value=safeUrl(value);
@@ -114,16 +121,21 @@ function mergeProspects(oldItems,newItems){
 }
 
 async function discoverProspects(http=axios){
-  if(!providerStatus().liveResearch) throw new Error('Live web research is not configured for Phase 4 authority discovery.');
+  if(!providerStatus().liveResearch) throw new Error('Live web research is not configured for authority discovery.');
+  const intelligence=await siteIntelligence.latest().catch(()=>null);
+  const site=intelligence?.site||await growthSites.getSite();
+  const profile=intelligence?.profile||null;
+  const brandName=profile?.brandName||site?.hostname||'the monitored brand';
   const request={
     model:env.webResearch.model,
-    instructions:'Use live web search. Return only verifiable current public opportunities. Never invent URLs, contact details, community rules, mentions, or backlink claims. Prefer legitimate relevance over volume.',
+    instructions:seoSkills.expertOperatingInstructions()+' Use live web search. Return only verifiable current public authority opportunities. Never invent URLs, contact details, community rules, mentions, or backlink claims. Prefer legitimate relevance over volume.',
     input:[
-      'Find current authority opportunities for INXSocial, an AI social media management, scheduling, campaign-generation and UGC-ad platform.',
-      'Cover recent Quora and other non-Reddit community questions, competitor backlink sources, resource/comparison pages, unlinked INXSocial mentions, broken-link replacements, directories, partners, journalist requests, relevant publications, and sites repeatedly cited by AI/search answers for social-media-management topics.',
+      'Find current authority opportunities for '+brandName+'.',
+      'DISCOVERED SITE PROFILE: '+JSON.stringify(profile),
+      'Cover relevant community questions, competitor backlink sources, resource/comparison pages, unlinked brand mentions, broken-link replacements, directories, partners, journalist requests, relevant publications, and sites repeatedly cited by search/AI answers for the discovered topic space.',
       'Exclude reddit.com entirely. Do not return Reddit threads, Reddit profiles, Reddit communities or Reddit-derived opportunities.',
       'For communities prefer active problem-solving/buyer-intent threads and note obvious promotion/link rules. For outreach only return an email when current public evidence explicitly shows it; otherwise use a contact page URL or NONE.',
-      'relevantPage must be an existing https://www.inxsocial.co.uk URL. Score 0-100 for realistic usefulness and authority value.'
+      'relevantPage must be an existing URL on '+site.origin+'. Score 0-100 for realistic usefulness and authority value.'
     ].join(' '),
     tools:[{type:'web_search',external_web_access:true,user_location:{type:'approximate',country:env.webResearch.country||'GB',timezone:'Europe/London'}}],
     tool_choice:'required',include:['web_search_call.action.sources'],
@@ -134,12 +146,12 @@ async function discoverProspects(http=axios){
   const parsed=safeJson(webResearch.extractResponseText(response.data),{prospects:[]});
   const sources=webResearch.extractResponseSources(response.data).map(x=>safeUrl(x.url)).filter(Boolean);
   const sourceDomains=new Set(sources.map(domainOf));
-  return (parsed.prospects||[]).map(normalizeCandidate).filter(Boolean).filter(x=>sources.includes(x.url)||sourceDomains.has(x.domain)).slice(0,18);
+  return (parsed.prospects||[]).map(x=>normalizeCandidate(x,site.origin)).filter(Boolean).filter(x=>sources.includes(x.url)||sourceDomains.has(x.domain)).slice(0,18);
 }
 
 async function validateProspect(item,http=axios){
   try{
-    const r=await http.get(item.url,{timeout:9000,maxRedirects:5,maxContentLength:300000,headers:{'User-Agent':'INXSocial-AuthorityResearch/1.0'},validateStatus:()=>true});
+    const r=await http.get(item.url,{timeout:9000,maxRedirects:5,maxContentLength:300000,headers:{'User-Agent':'Growth-AuthorityResearch/1.0'},validateStatus:()=>true});
     const body=typeof r.data==='string'?r.data.slice(0,250000):'';
     return {checkedAt:nowIso(),status:r.status,reachable:r.status>=200&&r.status<400,archived:['QUORA','COMMUNITY'].includes(item.type)&&/\b(archived|locked|comments are locked|thread is locked)\b/i.test(body),duplicateEngagement:['APPROVED','AI_APPROVED','SENT','FOLLOWED_UP','POSTED'].includes(item.status)};
   }catch(e){return {checkedAt:nowIso(),status:0,reachable:false,archived:false,duplicateEngagement:false,note:String(e.message||e).slice(0,240)};}
@@ -153,15 +165,20 @@ function draftSchema(ids){
 }
 
 async function draftForProspects(items,http=axios){
+  const intelligence=await siteIntelligence.latest().catch(()=>null);
+  const profile=intelligence?.profile||null;
+  const brandName=profile?.brandName||intelligence?.site?.hostname||'the monitored brand';
   const candidates=items.filter(x=>x.score>=65&&x.status==='QUALIFIED'&&!x.draft&&x.validation?.reachable!==false&&!x.validation?.archived).slice(0,6);
   if(!candidates.length||!providerStatus().writer)return [];
   const ids=candidates.map(x=>x.id);
   const request={
     model:env.contentWriter.model,
     instructions:[
-      'Draft transparent authority engagement for INXSocial. Never fabricate experience, metrics, endorsements, relationships, discounts or product capabilities.',
-      'Community replies must answer the person first, be useful without mentioning INXSocial, avoid marketing language, and include no link unless necessary. If INXSocial is mentioned, transparently disclose the affiliation. If rules discourage self-promotion, write a purely helpful reply with no product mention.',
-      'Outreach email must be short, page-specific, respectful and non-manipulative with one optional ask. Do not imply an existing relationship, use fake urgency or request paid links. Clearly identify INXSocial/INAXX LTD and include a simple opt-out line telling the recipient they can reply if they do not want further contact. Also write one brief follow-up usable once after five days.',
+      seoSkills.expertOperatingInstructions(),
+      'Draft transparent authority engagement for '+brandName+'. Never fabricate experience, metrics, endorsements, relationships, discounts or product capabilities.',
+      'Community replies must answer the person first, be useful without mentioning the monitored brand, avoid marketing language, and include no link unless necessary. If the brand is mentioned, transparently disclose the affiliation. If rules discourage self-promotion, write a purely helpful reply with no product mention.',
+      'Outreach email must be short, page-specific, respectful and non-manipulative with one optional ask. Do not imply an existing relationship, use fake urgency or request paid links. Clearly identify the monitored brand; only use a legal company name if it is present in the supplied site profile/evidence. Include a simple opt-out line. Also write one brief follow-up usable once after five days.',
+      'DISCOVERED SITE PROFILE: '+JSON.stringify(profile),
       'Return empty outreach fields for community-only prospects and empty communityReply for outreach-only prospects.'
     ].join(' '),
     input:JSON.stringify(candidates.map(x=>({id:x.id,title:x.title,url:x.url,type:x.type,reason:x.reason,relevantPage:x.relevantPage,communityRulesNote:x.communityRulesNote,contact:x.contact}))),
@@ -211,11 +228,11 @@ async function reviewOutreachForAutoSend(items,http=axios){
   const request={
     model:env.contentWriter.model,
     instructions:[
-      'Act as an independent final outbound-email reviewer for INXSocial. This is a separate gate after drafting.',
+      'Act as an independent final outbound-email reviewer for '+brandName+'. This is a separate gate after drafting.',
       'Return PASS only when the evidence supports a genuinely relevant B2B authority/outreach message to a clearly corporate subscriber such as a limited company or LLP. If the recipient could be a sole trader, individual subscriber, personal consumer or the business type is uncertain, return REJECT.',
       'The recipient email must be explicitly supported by the supplied public contact source. Reject guessed, inferred, scraped-looking or unrelated addresses.',
       'Reject unsupported claims, fake familiarity, manipulative urgency, misleading comparisons, paid-link requests, excessive promotion, irrelevant outreach, or anything that could reasonably be considered spam.',
-      'The email must clearly identify INXSocial/INAXX LTD and offer a simple way to opt out by replying. Reject if that is missing.',
+      'The email must clearly identify the monitored brand and offer a simple way to opt out by replying. Reject if that is missing. Reject any legal identity not supported by the site profile or supplied evidence.',
       'A PASS requires every boolean check to be true and corporateSubscriber to be YES. When uncertain, REJECT. Do not rewrite the email and do not provide hidden reasoning; return only the structured verdict.'
     ].join(' '),
     input:JSON.stringify(candidates.map(x=>({
@@ -256,17 +273,19 @@ async function reviewOutreachForAutoSend(items,http=axios){
 
 async function executeApprovedEmails(items,enabled){
   if(!enabled)return {items,sent:0,followedUp:0};
+  const intelligence=await siteIntelligence.latest().catch(()=>null);
+  const brandName=intelligence?.profile?.brandName||intelligence?.site?.hostname||'Growth outreach';
   let sent=0,followedUp=0; const out=[];
   for(const x of items){
     if(sent+followedUp>=AUTO_EMAIL_LIMIT){out.push(x);continue;}
     try{
       if(x.status==='SENT'&&x.nextFollowUpAt&&new Date(x.nextFollowUpAt).getTime()<=Date.now()&&x.contact?.kind==='EMAIL'&&x.draft?.followUpBody&&emailService.isConfigured()){
-        await emailService.sendAuthorityOutreach({to:x.contact.value,subject:'Re: '+String(x.draft.outreachSubject||'INXSocial').slice(0,170),body:x.draft.followUpBody});
+        await emailService.sendAuthorityOutreach({to:x.contact.value,subject:'Re: '+String(x.draft.outreachSubject||brandName).slice(0,170),body:x.draft.followUpBody});
         followedUp++;out.push({...x,status:'FOLLOWED_UP',executedAt:nowIso(),nextFollowUpAt:null,outcomeNote:'One approved follow-up was sent automatically after five days.'});continue;
       }
       if(['APPROVED','AI_APPROVED'].includes(x.status)&&x.contact?.kind==='EMAIL'&&x.contact?.value&&x.draft?.outreachSubject&&x.draft?.outreachBody&&emailService.isConfigured()){
         await emailService.sendAuthorityOutreach({to:x.contact.value,subject:x.draft.outreachSubject,body:x.draft.outreachBody});
-        sent++;out.push({...x,status:'SENT',executedAt:nowIso(),nextFollowUpAt:x.status==='AI_APPROVED'?null:new Date(Date.now()+5*24*60*60*1000).toISOString(),outcomeNote:x.aiReview?.decision==='PASS'?'GPT-5.6 Sol reviewed and approved this outreach before automatic delivery. Automatic follow-up is disabled until inbound reply suppression is connected.':'Approved outreach sent through the configured INXSocial email provider.'});continue;
+        sent++;out.push({...x,status:'SENT',executedAt:nowIso(),nextFollowUpAt:x.status==='AI_APPROVED'?null:new Date(Date.now()+5*24*60*60*1000).toISOString(),outcomeNote:x.aiReview?.decision==='PASS'?'GPT-5.6 Sol reviewed and approved this outreach before automatic delivery. Automatic follow-up is disabled until inbound reply suppression is connected.':'Approved outreach sent through the configured email provider.'});continue;
       }
     }catch(e){out.push({...x,outcomeNote:'Approved outreach send failed: '+String(e.message||e).slice(0,300)});continue;}
     out.push(x);

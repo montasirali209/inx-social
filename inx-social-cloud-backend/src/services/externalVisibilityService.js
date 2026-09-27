@@ -1,13 +1,9 @@
 const axios = require('axios');
 const prisma = require('../db/prisma');
+const growthSites = require('./growthSiteService');
 
 const PERPLEXITY_SETTING_KEY = 'growth_intelligence_perplexity_visibility_v1';
 const CLAUDE_SETTING_KEY = 'growth_intelligence_claude_visibility_v1';
-
-const KNOWN_COMPETITORS = [
-  'Buffer', 'Hootsuite', 'Later', 'Sprout Social', 'Metricool', 'SocialBee',
-  'Publer', 'Vista Social', 'Planable', 'Agorapulse', 'Loomly', 'Sendible'
-];
 
 function providerStatus() {
   return {
@@ -36,19 +32,42 @@ function sourceItem(url, title) {
   }
 }
 
-function sourceMentionsInxSocial(sources) {
+function siteHostname(origin) {
+  try { return new URL(growthSites.normaliseOrigin(origin)).hostname.replace(/^www\./, '').toLowerCase(); } catch (_) { return ''; }
+}
+
+function sourceMentionsSite(sources, origin) {
+  const hostname = siteHostname(origin);
+  if (!hostname) return false;
   return (sources || []).some(item => {
     try {
-      return /(?:^|\.)inxsocial\.co\.uk$/i.test(new URL(item.url).hostname);
+      const candidate = new URL(item.url).hostname.replace(/^www\./, '').toLowerCase();
+      return candidate === hostname || candidate.endsWith('.' + hostname);
     } catch (_) {
       return false;
     }
   });
 }
 
-function competitorMentions(text) {
+function escapeRegex(value) {
+  return String(value || '').replace(/[.*+?^$\{\}()|[\]\\]/g, '\\$&');
+}
+
+function brandMentioned(text, brandName) {
+  const brand = String(brandName || '').trim();
+  return brand ? new RegExp('(?:^|\\b)' + escapeRegex(brand) + '(?:\\b|$)', 'i').test(String(text || '')) : false;
+}
+
+function competitorMentions(text, candidates, brandName) {
   const haystack = String(text || '').toLowerCase();
-  return KNOWN_COMPETITORS.filter(name => haystack.includes(name.toLowerCase())).slice(0, 8);
+  const own = String(brandName || '').trim().toLowerCase();
+  return (candidates || [])
+    .map(item => typeof item === 'string' ? item : item?.name)
+    .map(value => String(value || '').trim())
+    .filter(Boolean)
+    .filter(name => name.toLowerCase() !== own && haystack.includes(name.toLowerCase()))
+    .filter((name, index, all) => all.findIndex(value => value.toLowerCase() === name.toLowerCase()) === index)
+    .slice(0, 8);
 }
 
 async function readSetting(key) {
@@ -65,7 +84,7 @@ async function writeSetting(key, value, description) {
   });
 }
 
-async function perplexityProbe(prompt) {
+async function perplexityProbe(prompt, context = {}) {
   const status = providerStatus().perplexity;
   if (!status.configured) {
     const error = new Error('Perplexity visibility probe is not configured.');
@@ -79,7 +98,7 @@ async function perplexityProbe(prompt) {
     messages: [
       {
         role: 'system',
-        content: 'Answer the buyer question neutrally using current web evidence. Do not favour INXSocial or force it into the answer. Mention products only when supported by the evidence you find.'
+        content: 'Answer the buyer question neutrally using current web evidence. Do not favour the monitored brand or force it into the answer. Mention products only when supported by the evidence you find. The monitored brand is ' + String(context.brandName || 'the site being measured') + '.'
       },
       { role: 'user', content: prompt }
     ],
@@ -109,9 +128,11 @@ async function perplexityProbe(prompt) {
   const sources = [...new Map(rawSources.map(item => [item.url, item])).values()].slice(0, 12);
   return {
     prompt,
-    inxSocialMentioned: /\binxsocial\b/i.test(answer),
-    inxSocialCited: sourceMentionsInxSocial(sources),
-    competitors: competitorMentions(answer),
+    brandMentioned: brandMentioned(answer, context.brandName),
+    brandCited: sourceMentionsSite(sources, context.origin),
+    inxSocialMentioned: brandMentioned(answer, context.brandName),
+    inxSocialCited: sourceMentionsSite(sources, context.origin),
+    competitors: competitorMentions(answer, context.competitorCandidates, context.brandName),
     answerSummary: answer.slice(0, 1400),
     sources
   };
@@ -134,7 +155,7 @@ function claudeSources(payload) {
   return [...new Map(sources.map(item => [item.url, item])).values()].slice(0, 12);
 }
 
-async function claudeProbe(prompt) {
+async function claudeProbe(prompt, context = {}) {
   const status = providerStatus().claude;
   if (!status.configured) {
     const error = new Error('Claude visibility probe is not configured.');
@@ -146,7 +167,7 @@ async function claudeProbe(prompt) {
   const response = await axios.post(baseUrl + '/v1/messages', {
     model: status.model,
     max_tokens: 1200,
-    system: 'Answer the buyer question neutrally using current web evidence. Do not favour INXSocial or force it into the answer. Mention products only when supported by current sources.',
+    system: 'Answer the buyer question neutrally using current web evidence. Do not favour the monitored brand or force it into the answer. Mention products only when supported by current sources. The monitored brand is ' + String(context.brandName || 'the site being measured') + '.',
     messages: [{ role: 'user', content: prompt }],
     tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }]
   }, {
@@ -167,15 +188,17 @@ async function claudeProbe(prompt) {
 
   return {
     prompt,
-    inxSocialMentioned: /\binxsocial\b/i.test(answer),
-    inxSocialCited: sourceMentionsInxSocial(sources),
-    competitors: competitorMentions(answer),
+    brandMentioned: brandMentioned(answer, context.brandName),
+    brandCited: sourceMentionsSite(sources, context.origin),
+    inxSocialMentioned: brandMentioned(answer, context.brandName),
+    inxSocialCited: sourceMentionsSite(sources, context.origin),
+    competitors: competitorMentions(answer, context.competitorCandidates, context.brandName),
     answerSummary: answer.slice(0, 1400),
     sources
   };
 }
 
-async function runScan(provider, prompts, limit) {
+async function runScan(provider, prompts, limit, context = {}) {
   const normalized = String(provider || '').trim().toLowerCase();
   if (!['perplexity', 'claude'].includes(normalized)) {
     const error = new Error('Unsupported visibility provider.');
@@ -189,7 +212,7 @@ async function runScan(provider, prompts, limit) {
 
   for (const prompt of (prompts || []).slice(0, count)) {
     try {
-      results.push({ ...(await probe(prompt)), ok: true });
+      results.push({ ...(await probe(prompt, context)), ok: true });
     } catch (error) {
       results.push({
         prompt,
@@ -211,8 +234,8 @@ async function runScan(provider, prompts, limit) {
     generatedAt: new Date().toISOString(),
     promptsRun: results.length,
     successfulPrompts: successful.length,
-    mentionRate: successful.length ? successful.filter(item => item.inxSocialMentioned).length / successful.length : 0,
-    citationRate: successful.length ? successful.filter(item => item.inxSocialCited).length / successful.length : 0,
+    mentionRate: successful.length ? successful.filter(item => item.brandMentioned ?? item.inxSocialMentioned).length / successful.length : 0,
+    citationRate: successful.length ? successful.filter(item => item.brandCited ?? item.inxSocialCited).length / successful.length : 0,
     disclaimer: normalized === 'perplexity'
       ? 'This is a direct Perplexity Sonar API benchmark. It is not a guaranteed reproduction of every Perplexity consumer-product answer.'
       : 'This is a direct Claude API benchmark using Anthropic web search. It is not a guaranteed reproduction of every claude.ai consumer-product answer.',
@@ -222,7 +245,7 @@ async function runScan(provider, prompts, limit) {
   await writeSetting(
     normalized === 'perplexity' ? PERPLEXITY_SETTING_KEY : CLAUDE_SETTING_KEY,
     payload,
-    'Latest ' + normalized + ' visibility probe results for INXSocial.'
+    'Latest ' + normalized + ' visibility probe results for the active Growth site.'
   );
   return payload;
 }
@@ -241,5 +264,8 @@ module.exports = {
   providerStatus,
   runScan,
   latest,
-  claudeSources
+  claudeSources,
+  sourceMentionsSite,
+  brandMentioned,
+  competitorMentions
 };

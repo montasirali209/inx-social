@@ -1,6 +1,7 @@
 const prisma = require('../db/prisma');
 const searchConsole = require('./googleSearchConsoleService');
 const googleAnalytics = require('./googleAnalyticsService');
+const siteIntelligence = require('./growthSiteIntelligenceService');
 
 const OPPORTUNITY_SETTING_KEY = 'growth_intelligence_opportunities_v1';
 const OPENAI_SETTING_KEY = 'growth_intelligence_openai_visibility_v1';
@@ -10,7 +11,7 @@ const AUDIT_SETTING_KEY = 'growth_intelligence_site_audit_v1';
 
 const STOPWORDS = new Set([
   'the','a','an','and','or','for','to','of','in','on','with','is','are','what','which','how','best','good',
-  'can','that','this','from','my','your','their','social','media','tool','tools','ai'
+  'can','that','this','from','my','your','their'
 ]);
 
 function safeJson(value, fallback = null) {
@@ -29,11 +30,11 @@ async function writeSetting(value) {
     create: {
       key: OPPORTUNITY_SETTING_KEY,
       value: JSON.stringify(value),
-      description: 'Latest combined Growth Intelligence opportunities for INXSocial.'
+      description: 'Latest combined Growth Intelligence opportunities for the active site.'
     },
     update: {
       value: JSON.stringify(value),
-      description: 'Latest combined Growth Intelligence opportunities for INXSocial.'
+      description: 'Latest combined Growth Intelligence opportunities for the active site.'
     }
   });
 }
@@ -58,12 +59,12 @@ function similarity(a, b) {
 }
 
 function commercialIntent(query) {
-  return /\b(best|alternative|alternatives|vs|versus|compare|comparison|pricing|price|software|platform|scheduler|management|agency|small business|buy|trial)\b/i.test(query);
+  return /\b(best|alternative|alternatives|vs|versus|compare|comparison|pricing|price|cost|software|platform|service|services|provider|solution|solutions|agency|consultant|buy|trial|demo|review|reviews)\b/i.test(query);
 }
 
 function classifyIntent(query) {
   if (/\b(pricing|price|cost|trial|buy)\b/i.test(query)) return 'transactional';
-  if (/\b(best|alternative|alternatives|vs|versus|compare|comparison|software|platform|scheduler|management)\b/i.test(query)) return 'commercial';
+  if (/\b(best|alternative|alternatives|vs|versus|compare|comparison|software|platform|service|services|provider|solution|solutions|agency|consultant|review|reviews)\b/i.test(query)) return 'commercial';
   return 'informational';
 }
 
@@ -87,8 +88,8 @@ function visibilityEvidence(topic, scans) {
     providers.push({
       provider,
       prompt: best.prompt,
-      mentioned: Boolean(best.inxSocialMentioned),
-      cited: Boolean(best.inxSocialCited),
+      mentioned: Boolean(best.brandMentioned ?? best.inxSocialMentioned),
+      cited: Boolean(best.brandCited ?? best.inxSocialCited),
       competitors: Array.isArray(best.competitors) ? best.competitors : [],
       sources: Array.isArray(best.sources) ? best.sources : []
     });
@@ -102,28 +103,28 @@ function queryPageFor(query, gsc) {
     .sort((a, b) => Number(b.impressions || 0) - Number(a.impressions || 0))[0] || null;
 }
 
-function actionFor({ query, position, page, aiEvidence }) {
+function actionFor({ query, position, page, aiEvidence, brandName = 'the site' }) {
   const intent = classifyIntent(query);
   const aiGap = aiEvidence.length && aiEvidence.every(item => !item.mentioned && !item.cited);
   if (page && position >= 4 && position <= 20) {
     return {
       type: 'IMPROVE_EXISTING_PAGE',
       label: 'Improve existing page',
-      rationale: 'The query already has an indexed INXSocial page and is close enough to page one that improving relevance, CTR and authority is more efficient than creating a duplicate page.'
+      rationale: 'The query already has an indexed page for ' + brandName + ' and is close enough to page one that improving relevance, CTR and authority is more efficient than creating a duplicate page.'
     };
   }
   if (commercialIntent(query) && (!page || position > 20)) {
     return {
       type: 'CREATE_COMMERCIAL_PAGE',
       label: 'Create commercial landing page',
-      rationale: 'The query has buyer intent but INXSocial does not yet have a strong ranking page for it.'
+      rationale: 'The query has buyer intent but ' + brandName + ' does not yet have a strong ranking page for it.'
     };
   }
   if (aiGap) {
     return {
       type: 'BUILD_AUTHORITY_CONTENT',
       label: 'Build authority content',
-      rationale: 'AI-search probes do not currently mention or cite INXSocial for the closest buyer-intent prompt.'
+      rationale: 'AI-search probes do not currently mention or cite ' + brandName + ' for the closest buyer-intent prompt.'
     };
   }
   return {
@@ -186,6 +187,8 @@ function aggregateVisibility(scans) {
 async function build(days = 28) {
   const periodDays = [7, 28, 90].includes(Number(days)) ? Number(days) : 28;
   const warnings = [];
+  const intelligence = await siteIntelligence.latest().catch(() => null);
+  const brandName = intelligence?.profile?.brandName || intelligence?.site?.hostname || 'the site';
 
   const [openai, perplexity, claude, audit] = await Promise.all([
     readSetting(OPENAI_SETTING_KEY),
@@ -250,7 +253,8 @@ async function build(days = 28) {
         query: row.query,
         position: Number(row.position || 0),
         page: queryPage?.page || null,
-        aiEvidence: ai
+        aiEvidence: ai,
+        brandName
       })
     });
   }
@@ -262,8 +266,8 @@ async function build(days = 28) {
       const item = promptMap.get(result.prompt) || { prompt: result.prompt, providers: [] };
       item.providers.push({
         provider,
-        mentioned: Boolean(result.inxSocialMentioned),
-        cited: Boolean(result.inxSocialCited),
+        mentioned: Boolean(result.brandMentioned ?? result.inxSocialMentioned),
+        cited: Boolean(result.brandCited ?? result.inxSocialCited),
         competitors: result.competitors || [],
         sources: result.sources || []
       });
@@ -288,7 +292,7 @@ async function build(days = 28) {
       action: {
         type: 'BUILD_AUTHORITY_CONTENT',
         label: 'Build AI-search authority',
-        rationale: 'INXSocial was neither mentioned nor cited by the providers scanned for this buyer-intent question.'
+        rationale: brandName + ' was neither mentioned nor cited by the providers scanned for this buyer-intent question.'
       }
     });
   }
