@@ -551,24 +551,6 @@ async function chooseOpportunity(opportunityMap) {
     return opportunity;
   }
 
-  const fallbackPrompts = await growthIntelligence.dynamicPrompts();
-  for (const prompt of fallbackPrompts) {
-    const nearDuplicate = activeArticles.some(article => growthOpportunities.similarity(prompt, article.title) >= 0.55);
-    if (!nearDuplicate) {
-      return {
-        id: null,
-        topic: prompt,
-        score: 60,
-        type: 'autopilot_fallback',
-        intent: 'commercial',
-        action: {
-          type: 'BUILD_AUTHORITY_CONTENT',
-          label: 'Build AI-search authority',
-          rationale: 'Autopilot fallback buyer-intent topic.'
-        }
-      };
-    }
-  }
   return null;
 }
 
