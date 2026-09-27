@@ -344,8 +344,11 @@ async function refresh(options = {}) {
 async function latest(siteId = null) {
   const site = await growthSites.getSite(siteId);
   if (!site) return null;
-  const payload = await readSetting(profileKey(site.id));
-  return payload ? { site, ...payload } : null;
+  const [payload, snapshot] = await Promise.all([
+    readSetting(profileKey(site.id)),
+    readSetting(snapshotKey(site.id))
+  ]);
+  return payload ? { site, ...payload, snapshot: snapshot || null } : null;
 }
 
 async function visibilityPrompts(siteId = null) {
