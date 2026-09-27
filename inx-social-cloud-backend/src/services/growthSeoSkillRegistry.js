@@ -168,6 +168,20 @@ function strategyInstructions() {
   ].join('\n');
 }
 
+function writerInstructions() {
+  return [
+    expertOperatingInstructions(),
+    'CONTENT PRODUCTION TASK:',
+    'Write for the reader and the real search/answer intent first. Search visibility is a consequence of usefulness, evidence, structure and topical fit.',
+    'Use the supplied research evidence and discovered site profile as factual boundaries. Never upgrade a hypothesis into a product claim.',
+    'Answer the primary question early, then provide the depth, trade-offs, examples, caveats and decision criteria needed to complete the user task.',
+    'For comparison content, define transparent selection criteria and separate verified facts from editorial judgement.',
+    'Create citation-worthy passages: clear definitions, concise factual explanations, well-scoped claims and source-backed details that can stand alone in search or AI answers.',
+    'Avoid generic introductions, keyword stuffing, manufactured certainty, filler conclusions and repetitive restatement.',
+    'Do not create doorway-style variants or content whose only purpose is to target a near-duplicate phrase.'
+  ].join('\n');
+}
+
 function criticInstructions() {
   return [
     expertOperatingInstructions(),
@@ -185,5 +199,6 @@ module.exports = {
   expertOperatingInstructions,
   siteAnalysisInstructions,
   strategyInstructions,
+  writerInstructions,
   criticInstructions
 };
