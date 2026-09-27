@@ -2,6 +2,7 @@
 
 const prisma = require('../db/prisma');
 const uiStudio = require('../services/uiStudioService');
+const uiStudioAnalysis = require('../services/uiStudioAnalysisService');
 
 function decodeHeader(req, name, fallback = '') {
   const raw = String(req.headers[name] || fallback);
@@ -35,6 +36,10 @@ async function list(req, res, next) {
         provider: 'CLOUDFLARE_R2',
         originalsPreserved: true,
         maxUploadBytes: uiStudio.MAX_UPLOAD_BYTES
+      },
+      analysis: {
+        configured: uiStudioAnalysis.ready(),
+        version: uiStudioAnalysis.ANALYSIS_VERSION
       }
     });
   } catch (error) { next(error); }
@@ -65,6 +70,10 @@ async function detail(req, res, next) {
         provider: 'CLOUDFLARE_R2',
         originalsPreserved: true,
         maxUploadBytes: uiStudio.MAX_UPLOAD_BYTES
+      },
+      analysis: {
+        configured: uiStudioAnalysis.ready(),
+        version: uiStudioAnalysis.ANALYSIS_VERSION
       }
     });
   } catch (error) { next(error); }
@@ -90,6 +99,25 @@ async function upload(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function analyse(req, res, next) {
+  try {
+    const startedAt = Date.now();
+    const result = await uiStudioAnalysis.analyseProject(req.params.projectId, req.user.id);
+    await audit(req, 'ADMIN_UI_STUDIO_ANALYSE', req.params.projectId, {
+      analysisId: result.analysis.id,
+      model: result.analysis.model,
+      confidence: result.analysis.confidence,
+      viewportCount: result.analysis.viewportCount,
+      imageCount: result.imageCount,
+      durationMs: Date.now() - startedAt
+    });
+    res.status(201).json({
+      analysis: result.analysis,
+      project: await uiStudio.projectDetail(req.params.projectId)
+    });
+  } catch (error) { next(error); }
+}
+
 async function content(req, res, next) {
   try {
     const result = await uiStudio.referenceContent(req.params.referenceId);
@@ -105,4 +133,4 @@ async function content(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { list, create, detail, upload, content };
+module.exports = { list, create, detail, upload, analyse, content };

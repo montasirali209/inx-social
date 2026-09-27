@@ -739,6 +739,7 @@ model UiDesignProject {
   updatedAt       DateTime @updatedAt
 
   references UiDesignReference[]
+  analyses   UiDesignAnalysis[]
 
   @@index([status, updatedAt])
   @@index([createdAt])
@@ -763,6 +764,29 @@ model UiDesignReference {
 
   @@index([projectId, viewport, createdAt])
   @@index([createdAt])
+}
+
+model UiDesignAnalysis {
+  id                   String   @id @default(cuid())
+  projectId            String
+  status               String   @default("RUNNING")
+  version              String   @default("ui-analysis-v1")
+  model                String?
+  sourceFingerprint    String
+  sourceReferencesJson String
+  analysisJson         String?
+  errorMessage         String?
+  createdByUserId      String?
+  startedAt            DateTime @default(now())
+  completedAt          DateTime?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  project UiDesignProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([status, createdAt])
+  @@index([sourceFingerprint])
 }
 
 model AuditLog {
