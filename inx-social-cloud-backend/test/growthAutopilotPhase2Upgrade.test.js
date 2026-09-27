@@ -21,18 +21,20 @@ test('Phase 2 upgrade adds an AI strategist before content execution', () => {
   assert.match(autopilot, /STRATEGIC_ACTION_QUEUED/);
 });
 
-test('Independent AI critic must approve the draft before publishing', () => {
+test('Senior editorial review repairs fixable drafts and only switches fundamentally bad topics', () => {
   const strategist = read('src/services/growthStrategyService.js');
   const skills = read('src/services/growthSeoSkillRegistry.js');
   const autopilot = read('src/services/growthAutopilotService.js');
 
   assert.match(strategist, /seoSkills\.criticInstructions/);
-  assert.match(skills, /Independently review proposed content before publication/i);
-  assert.match(strategist, /factualRisk/);
-  assert.match(strategist, /duplicationRisk/);
-  assert.match(autopilot, /AI_CRITIC_REVIEWED/);
-  assert.match(autopilot, /critic\.factualRisk === 'high'/);
-  assert.match(autopilot, /critic\.duplicationRisk === 'high'/);
+  assert.match(skills, /senior editor after the writer/i);
+  assert.match(strategist, /APPROVE/);
+  assert.match(strategist, /REVISE/);
+  assert.match(strategist, /SWITCH_TOPIC/);
+  assert.match(strategist, /requiredFixes/);
+  assert.match(autopilot, /EDITORIAL_REVISION_REQUESTED/);
+  assert.match(autopilot, /EDITORIAL_TOPIC_UNSUITABLE/);
+  assert.match(autopilot, /growthContent\.reviseDraft/);
 });
 
 test('Content research retries malformed structured output automatically', () => {
@@ -48,11 +50,14 @@ test('Content research retries malformed structured output automatically', () =>
 test('versioned Growth Autopilot migration moves publishing to the fixed UK morning schedule and clears the old lease', () => {
   const service = read('src/services/growthAutopilotService.js');
 
-  assert.match(service, /configVersion: 6/);
+  assert.match(service, /configVersion: 7/);
   assert.match(service, /dailyPublishTimeLocal: '07:30'/);
   assert.match(service, /publishTimeZone: 'Europe\/London'/);
   assert.match(service, /needsV5Migration/);
   assert.match(service, /needsV6Migration/);
+  assert.match(service, /needsV7Migration/);
+  assert.match(service, /minQualityScore: 90/);
+  assert.match(service, /maxDraftAttempts: 3/);
   assert.match(service, /editorialRadarEveryHours: 6/);
   assert.match(service, /state\.running = false/);
   assert.match(service, /state\.nextPublishAt = nextDailyPublishIso\(new Date\(\), config\)/);
