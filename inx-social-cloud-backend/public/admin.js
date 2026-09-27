@@ -944,17 +944,19 @@ function renderGrowthEditorialBoard(data){
   const enabled=config.enabled!==false;
   const running=Boolean(runtime.running);
 
+  const latestArticleType=String(articleEvents[0]?.type||'');
   let status='Waiting for next run';
   let statusClass='';
   if(!enabled){status='Paused';statusClass='gsc-error'}
   else if(running&&!articleId){status='Choosing topic';statusClass='gsc-connected'}
-  else if(typeSet.has('EDITORIAL_TOPIC_UNSUITABLE')){status='Switching topic';statusClass='gsc-error'}
-  else if(typeSet.has('EDITORIAL_REVISION_REQUESTED')&&!typeSet.has('ARTICLE_REVISED')){status='Sol revising';statusClass='gsc-connected'}
-  else if(typeSet.has('ARTICLE_REVISED')&&!typeSet.has('EDITORIAL_REVIEW_PASSED')){status='Final review';statusClass='gsc-connected'}
-  else if(typeSet.has('EDITORIAL_REVIEW_PASSED')&&!typeSet.has('ARTICLE_PUBLISHED')){status='Ready to publish';statusClass='gsc-connected'}
-  else if(typeSet.has('DRAFT_GENERATED')&&!latestReview){status='Senior editor reviewing';statusClass='gsc-connected'}
+  else if(latestArticleType==='EDITORIAL_TOPIC_UNSUITABLE'){status='Switching topic';statusClass='gsc-error'}
+  else if(latestArticleType==='EDITORIAL_DRAFT_DEFERRED'){status='Trying next topic';statusClass='gsc-error'}
+  else if(latestArticleType==='EDITORIAL_REVISION_REQUESTED'){status='Sol revising';statusClass='gsc-connected'}
+  else if(latestArticleType==='ARTICLE_REVISED'){status='Final review';statusClass='gsc-connected'}
+  else if(latestArticleType==='DRAFT_GENERATED'){status='Senior editor reviewing';statusClass='gsc-connected'}
+  else if(latestArticleType==='EDITORIAL_REVIEW_PASSED'||latestArticleType==='ARTICLE_APPROVED'){status='Ready to publish';statusClass='gsc-connected'}
+  else if(latestArticleType==='ARTICLE_PUBLISHED'||latestPublished||(!running&&lastPublished)){status='Published';statusClass='gsc-connected'}
   else if(running){status='Article in production';statusClass='gsc-connected'}
-  else if(latestPublished||lastPublished){status='Published';statusClass='gsc-connected'}
   $('growthEditorialStatus').textContent=status;
   $('growthEditorialStatus').className='status-chip '+statusClass;
 
@@ -975,28 +977,35 @@ function renderGrowthEditorialBoard(data){
     if(typeSet.has('EDITORIAL_TOPIC_UNSUITABLE')){
       states[3]={state:'blocked',note:'Topic-level problem found'};
     }else if(latestReview){
+      const reviewType=String(latestReview.type||'');
+      const reviewAt=growthEditorialEventTime(latestReview);
+      const revisionAfterReview=Boolean(latestRevision&&growthEditorialEventTime(latestRevision)>reviewAt);
       states[3].state='done';
-      if(String(latestReview.type)==='EDITORIAL_REVISION_REQUESTED'){
-        if(latestRevision){
+      if(reviewType==='EDITORIAL_REVISION_REQUESTED'){
+        if(revisionAfterReview){
           states[4].state='done';
-          if(typeSet.has('EDITORIAL_REVIEW_PASSED')) states[5].state='done';
-          else states[5]={state:'active',note:'Re-checking repaired article'};
+          states[5]={state:'active',note:'Re-checking repaired article'};
         }else{
           states[4]={state:'active',note:'Applying editor fixes'};
         }
-      }else if(String(latestReview.type)==='EDITORIAL_REVIEW_PASSED'){
-        states[4]={state:'skipped',note:'No repair needed'};
+      }else if(reviewType==='EDITORIAL_REVIEW_PASSED'){
+        if(latestRevision){
+          states[4].state='done';
+        }else{
+          states[4]={state:'skipped',note:'No repair needed'};
+        }
         states[5].state='done';
       }
     }else{
       states[3]={state:'active',note:'Reviewing search intent, evidence and quality'};
     }
-    if(typeSet.has('ARTICLE_REVISED')&&typeSet.has('EDITORIAL_REVIEW_PASSED')){
-      states[4].state='done';states[5].state='done';
+    if(latestArticleType==='ARTICLE_REVISED'){
+      states[4].state='done';
+      states[5]={state:'active',note:'Re-checking repaired article'};
     }
     if(typeSet.has('ARTICLE_PUBLISHED')) states[6].state='done';
-    else if(typeSet.has('ARTICLE_APPROVED')||typeSet.has('EDITORIAL_REVIEW_PASSED')) states[6]={state:'active',note:config.autoPublish===false?'Approved · auto-publish off':'Publishing'};
-    if(latestDeferred&&!latestPublished){
+    else if(typeSet.has('ARTICLE_APPROVED')||latestArticleType==='EDITORIAL_REVIEW_PASSED') states[6]={state:'active',note:config.autoPublish===false?'Approved · auto-publish off':'Publishing'};
+    if(latestDeferred&&!latestPublished&&growthEditorialEventTime(latestDeferred)>=growthEditorialEventTime(articleEvents[0])){
       const firstWaiting=states.findIndex(item=>item.state==='waiting'||item.state==='active');
       if(firstWaiting>=0) states[firstWaiting]={state:'blocked',note:'Deferred this cycle'};
     }
