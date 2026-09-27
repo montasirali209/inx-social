@@ -12,7 +12,7 @@ async function metadata(req, res, next) {
 
 async function content(req, res, next) {
   try {
-    const value = await websiteMedia.content(req.params.key);
+    const value = await websiteMedia.content(req.params.key, req.query.v);
     if (String(req.headers['if-none-match'] || '') === value.etag) {
       res.status(304).end();
       return;
