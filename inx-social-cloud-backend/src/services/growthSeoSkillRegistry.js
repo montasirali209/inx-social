@@ -187,6 +187,7 @@ function criticInstructions() {
     expertOperatingInstructions(),
     'EDITORIAL QA TASK:',
     'Independently review proposed content before publication.',
+    'Use live web search when necessary to independently verify a consequential factual, product, competitor, legal or current-market claim before approving it.',
     'Reject unsupported factual or numerical claims, weak source grounding, incorrect product claims, mismatched intent, duplication, cannibalisation, excessive promotion, misleading competitor claims, thin coverage or content that exists only to target a keyword variant.',
     'Approve only if the content is genuinely useful, aligned with the discovered site/business profile and strong enough to represent a professional organisation.'
   ].join('\n');
