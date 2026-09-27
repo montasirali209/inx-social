@@ -103,7 +103,7 @@ function slugify(value) {
     .replace(/&/g, ' and ')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .slice(0, 90) || 'inxsocial-guide';
+    .slice(0, 90) || 'growth-guide';
 }
 
 function tagSlug(value) {
@@ -757,7 +757,9 @@ function qualityReview(article) {
 }
 
 function articleSchemaObjects(article) {
-  const canonical = SITE_URL + '/blog/' + article.slug;
+  const siteUrl = String(article.site?.origin || SITE_URL).replace(/\/+$/, '');
+  const brandName = String(article.site?.brandName || 'Publisher').trim();
+  const canonical = siteUrl + '/blog/' + article.slug;
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'BlogPosting',
@@ -766,8 +768,8 @@ function articleSchemaObjects(article) {
     mainEntityOfPage: canonical,
     datePublished: article.published_at || undefined,
     dateModified: article.updated_at || article.created_at,
-    author: { '@type': 'Organization', name: 'INXSocial Editorial', url: SITE_URL },
-    publisher: { '@type': 'Organization', name: 'INXSocial', url: SITE_URL },
+    author: { '@type': 'Organization', name: brandName + ' Editorial', url: siteUrl },
+    publisher: { '@type': 'Organization', name: brandName, url: siteUrl },
     image: article.featured_image_url ? [absoluteSiteAsset(versionedContentImageUrl(article))] : undefined,
     keywords: (article.keywords || []).join(', '),
     inLanguage: 'en-GB',
@@ -880,7 +882,7 @@ async function saveArticle(article, previousSlug = null) {
     : markdownToSafeHtml(article.content_markdown, sources);
   prepared.quality = qualityReview(prepared);
 
-  await upsertSetting(articleKey(prepared.id), prepared, 'INXSocial self-hosted Growth Content Engine article.');
+  await upsertSetting(articleKey(prepared.id), prepared, 'Self-hosted Growth Content Engine article.');
   await upsertSetting(slugKey(prepared.slug), { id: prepared.id }, 'Growth Content Engine article slug alias.');
   if (previousSlug && previousSlug !== prepared.slug) await deleteSetting(slugKey(previousSlug));
   return prepared;
@@ -907,12 +909,18 @@ async function createDraft(input) {
 
   const research = await researchTopic(context);
   const draft = await writeArticle(context, research);
+  const intelligence = await siteIntelligence.latest().catch(() => null);
   const id = crypto.randomUUID();
   const slug = await ensureUniqueSlug(draft.title || topic);
   const createdAt = nowIso();
   const article = {
     id,
     slug,
+    site: {
+      id: intelligence?.site?.id || null,
+      origin: intelligence?.site?.origin || SITE_URL,
+      brandName: intelligence?.profile?.brandName || intelligence?.site?.hostname || 'Publisher'
+    },
     status: STATUS.DRAFT,
     opportunity_id: opportunity?.id || null,
     opportunity_score: opportunity?.score || null,
@@ -1107,7 +1115,7 @@ async function generateFeaturedImage(id) {
   if (!article.featured_image_prompt) throw publicError('This article has no featured-image prompt.', 409, 'CONTENT_IMAGE_PROMPT_REQUIRED');
 
   const generated = await runware.generateImages([
-    article.featured_image_prompt + ' Editorial SaaS illustration, clean professional composition, no text, no logos, no fake UI labels, suitable for an INXSocial blog hero.'
+    article.featured_image_prompt + ' Editorial illustration, clean professional composition, no text, no logos, no fake UI labels, suitable for the ' + String(article.site?.brandName || 'site') + ' blog hero.'
   ], { aspectRatio: '16:9' });
   const image = generated.images?.[0];
   if (!image?.url) throw publicError('Image provider returned no usable image.', 502, 'CONTENT_IMAGE_EMPTY');
