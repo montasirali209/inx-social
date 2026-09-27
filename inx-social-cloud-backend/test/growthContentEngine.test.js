@@ -47,6 +47,18 @@ test('Content Engine creates evidence-backed SEO content with quality controls',
   assert.match(service, /wordCount/);
 });
 
+test('Content Engine can revise the same draft from senior-editor feedback', () => {
+  const service = read('src/services/growthContentService.js');
+  const skills = read('src/services/growthSeoSkillRegistry.js');
+
+  assert.match(service, /async function reviseDraft/);
+  assert.match(service, /PREVIOUS DRAFT TO REVISE/);
+  assert.match(service, /Required fixes:/);
+  assert.match(service, /previousArticle: article/);
+  assert.match(service, /revisionNumber/);
+  assert.match(skills, /Target a backend editorial quality score of at least 90\/100/);
+});
+
 test('Published blog reads self-hosted content and renders evidence sections', () => {
   const articlePage = read('../landing-next/app/blog/[slug]/page.tsx');
   const sitemap = read('../landing-next/app/blog/sitemap.xml/route.ts');
