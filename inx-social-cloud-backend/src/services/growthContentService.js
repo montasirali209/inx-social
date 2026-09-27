@@ -1018,7 +1018,6 @@ async function reviseDraft(id, feedback = {}, options = {}) {
       };
 
   if (!research.sources.length) {
-    research.brief = (await researchTopic(context)).brief;
     const refreshed = await researchTopic(context);
     research.brief = refreshed.brief;
     research.sources = refreshed.sources;
