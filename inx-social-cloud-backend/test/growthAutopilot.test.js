@@ -117,7 +117,7 @@ test('Growth admin actions are CSP-safe and the admin UI uses the readable light
   const app = read('src/app.js');
   const light = read('public/admin-light.css');
 
-  assert.match(html, /admin-light\.css\?v=1/);
+  assert.match(html, /admin-light\.css\?v=2/);
   assert.match(js, /data-growth-authority-action="approve"/);
   assert.match(js, /data-growth-optimization-action="approve"/);
   assert.match(js, /growthAuthorityQueue'\)\.addEventListener\('click'/);
