@@ -15,7 +15,7 @@ const INTRO_HEADINGS: Record<string, string> = {
   "ai-social-media-campaign-generator": "A campaign generator should preserve strategy, brand context and the path into scheduling.",
   "ai-social-media-post-generator": "AI post generation is more valuable when the result is already publishing-ready.",
   "ai-carousel-post-generator": "Strong carousel creation starts with sequence, not isolated slides.",
-  "ai-video-post-generator": "Short-form video production should stay connected to the social workflow.",
+  "ai-video-post-generator": "A multi-model AI Video Studio should make new models useful without forcing you to rebuild the rest of your workflow.",
   "ai-ugc-ad-generator": "UGC-style creative needs a social-first workflow around the product story.",
   pricing: "Compare INXSocial plans by connected accounts, AI credits and operating scale."
 };
@@ -29,7 +29,7 @@ const HERO_IMAGE_ALTS: Record<string, string> = {
   "ai-social-media-campaign-generator": "INXSocial AI Content Studio showing the AI Post Campaign workflow alongside image, carousel, video and UGC creation tools",
   "ai-social-media-post-generator": "INXSocial AI Content Studio showing social post creation workflows for image, carousel, video, UGC and campaigns",
   "ai-carousel-post-generator": "INXSocial AI Content Studio showing Carousel Post alongside image, video, UGC and campaign creation workflows",
-  "ai-video-post-generator": "INXSocial AI Content Studio showing Short Video / Reel alongside image, carousel, UGC and campaign creation workflows",
+  "ai-video-post-generator": "INXSocial AI Video Studio with multi-model video generation alongside image, carousel, UGC and campaign creation workflows",
   "ai-ugc-ad-generator": "INXSocial AI Content Studio showing UGC Ad Studio alongside image, carousel, video and campaign creation workflows",
   pricing: "INXSocial dashboard included across social media management plans"
 };
@@ -163,9 +163,9 @@ function buildSchema(slug: string) {
         name: "INXSocial",
         url: `${SITE}/`,
         applicationCategory: "BusinessApplication",
-        applicationSubCategory: "Social Media Management",
+        applicationSubCategory: "AI content creation and social publishing",
         operatingSystem: "Web browser",
-        description: "Social media management software for content creation, scheduling, bulk publishing, content calendars, analytics and AI-assisted social content production.",
+        description: "AI content creation and social publishing software with a multi-model AI Video Studio, campaigns, UGC creation, scheduling, bulk publishing, analytics and connected social accounts.",
         brand: { "@id": `${SITE}/#brand` },
         publisher: { "@id": "https://inaxx.co.uk/#organization" },
         offers: [
@@ -256,6 +256,7 @@ export default async function SeoMarketingPage({
             <Link href="/social-media-scheduler">Scheduler</Link>
             <Link href="/bulk-social-media-scheduler">Bulk Scheduler</Link>
             <Link href="/ai-social-media-tools">AI Studio</Link>
+            <Link href="/ai-video-models">AI Models</Link>
             <Link href="/pricing">Pricing</Link>
           </nav>
           <div className={styles.headerActions}>
@@ -449,7 +450,8 @@ export default async function SeoMarketingPage({
             <Link href="/ai-social-media-tools">AI social media tools</Link>
             <Link href="/ai-social-media-post-generator">AI post generator</Link>
             <Link href="/ai-carousel-post-generator">AI carousel generator</Link>
-            <Link href="/ai-video-post-generator">AI video generator</Link>
+            <Link href="/ai-video-post-generator">AI Video Studio</Link>
+            <Link href="/ai-video-models">AI video models</Link>
             <Link href="/ai-ugc-ad-generator">AI UGC ads</Link>
           </div>
           <div>
