@@ -27,6 +27,8 @@ test('Senior editorial review repairs fixable drafts and only switches fundament
   const autopilot = read('src/services/growthAutopilotService.js');
 
   assert.match(strategist, /seoSkills\.criticInstructions/);
+  assert.match(strategist, /model: env\.contentWriter\.model/);
+  assert.match(strategist, /env\.contentWriter\.baseUrl/);
   assert.match(skills, /senior editor after the writer/i);
   assert.match(strategist, /APPROVE/);
   assert.match(strategist, /REVISE/);
