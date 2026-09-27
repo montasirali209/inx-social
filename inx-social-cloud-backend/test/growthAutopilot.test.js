@@ -131,6 +131,24 @@ test('Growth admin actions are CSP-safe and the admin UI uses the readable light
   assert.match(light, /font-size:14px!important/);
 });
 
+test('Growth diagnostics explain recommendations and Phase 5 execution semantics', () => {
+  const html = read('public/index.html');
+  const js = read('public/admin.js');
+  const light = read('public/admin-light.css');
+
+  assert.match(html, /admin-light\.css\?v=2/);
+  assert.match(html, /admin\.js\?v=22/);
+  assert.match(js, /Suggested action ·/);
+  assert.match(js, /Approve plan/);
+  assert.match(js, /Approve change/);
+  assert.match(js, /Run safe fix/);
+  assert.match(js, /Approval records your decision only; it does not change the live site/);
+  assert.match(js, /nothing changes live until Apply change is pressed/);
+  assert.match(light, /growth-optimization-action-hint/);
+  assert.match(light, /\.brand img,\.login-brand img\{filter:none!important/);
+  assert.doesNotMatch(light, /\.brand img,\.login-brand img\{filter:brightness\(0\)/);
+});
+
 test('Autopilot admin mutations stay Super Admin protected', () => {
   const routes = read('src/routes/adminRoutes.js');
 
