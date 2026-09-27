@@ -10,6 +10,9 @@ const seoMaintenance = require('./growthSeoMaintenanceService');
 const authority = require('./growthAuthorityService');
 const attribution = require('./growthAttributionService');
 const stripeService = require('./stripeService');
+const growthSites = require('./growthSiteService');
+const siteIntelligence = require('./growthSiteIntelligenceService');
+const seoSkills = require('./growthSeoSkillRegistry');
 
 const STATE_KEY = 'growth_optimization_state_v1';
 const ACTION_TYPES = Object.freeze({
@@ -36,7 +39,7 @@ function cleanPath(value) {
   const raw = String(value || '').trim();
   if (!raw) return '/';
   try {
-    const url = new URL(raw, 'https://www.inxsocial.co.uk');
+    const url = new URL(raw, growthSites.DEFAULT_ORIGIN);
     return url.pathname || '/';
   } catch (_) {
     return raw.startsWith('/') ? raw.split('?')[0] : '/';
@@ -104,7 +107,7 @@ function detectCannibalisation(gscData, previous) {
       score: Math.min(92, 52 + Math.log10(impressions + 1) * 12 + distinct.length * 5),
       risk: 'HIGH',
       mode: 'REVIEW',
-      reason: 'Multiple INXSocial URLs are receiving impressions for the same query. Consolidation, canonical or intent separation should be reviewed before changing URLs.',
+      reason: 'Multiple site URLs are receiving impressions for the same query. Consolidation, canonical or intent separation should be reviewed before changing URLs.',
       evidence: meaningful.slice(0, 5).map(row => cleanPath(row.page) + ': ' + Number(row.impressions || 0) + ' impressions, ' + pct(row.ctr) + '% CTR'),
       metrics: { query, pages: distinct, impressions }
     }, previous));
@@ -325,20 +328,24 @@ function proposalSchema() {
 async function enrichWithSol(actions) {
   const candidates = actions.slice(0, 8);
   if (!candidates.length || !env.contentWriter?.apiKey) return actions;
+  const intelligence = await siteIntelligence.latest().catch(() => null);
+  const profile = intelligence?.profile || null;
+  const brandName = profile?.brandName || intelligence?.site?.hostname || 'the monitored website';
   try {
     const result = await growthContent.structuredResponse({
       model: env.contentWriter.model,
       instructions: [
-        'You are the optimisation editor for INXSocial Phase 5.',
-        'Use only the measured evidence supplied. Do not invent traffic, revenue, rankings, customer results, product capabilities or competitor facts.',
-        'For OPTIMIZE_CTR_META, propose a truthful title (30-68 chars) and meta description (110-165 chars) aligned to the query.',
+        seoSkills.expertOperatingInstructions(),
+        'Act as the continuous optimisation editor for ' + brandName + '.',
+        'Use only the measured evidence supplied and the discovered site profile. Do not invent traffic, revenue, rankings, customer results, product capabilities or competitor facts.',
+        'For OPTIMIZE_CTR_META, propose a truthful title (30-68 chars) and meta description (110-165 chars) aligned to the query and page intent.',
         'For REFRESH_CONTENT, write a concise research/update brief rather than a replacement article.',
         'For IMPROVE_CRO, state one falsifiable page hypothesis; do not make unsupported promises.',
         'For REPURPOSE_SOCIAL, prepare useful platform-neutral social copy based on the winning page; no fake urgency or fabricated results.',
         'For high-risk consolidation or source-scaling actions, describe the safe next decision rather than pretending a change was made.',
         'Return JSON only.'
       ].join(' '),
-      input: JSON.stringify(candidates.map(item => ({
+      input: JSON.stringify({ siteProfile: profile, actions: candidates.map(item => ({
         id: item.id,
         type: item.type,
         target: item.target,
@@ -346,7 +353,7 @@ async function enrichWithSol(actions) {
         reason: item.reason,
         evidence: item.evidence,
         metrics: item.metrics
-      }))),
+      })) }),
       text: { format: { type: 'json_schema', name: 'inx_growth_phase5_proposals', strict: true, schema: proposalSchema() } },
       max_output_tokens: 3500,
       ...(/^gpt-5(?:\.|-)/i.test(env.contentWriter.model) ? { reasoning: { effort: env.contentWriter.reasoningEffort || 'high' } } : {})
