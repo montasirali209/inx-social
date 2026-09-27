@@ -273,24 +273,35 @@ async function reviewOutreachForAutoSend(items,http=axios){
 
 async function executeApprovedEmails(items,enabled){
   if(!enabled)return {items,sent:0,followedUp:0};
-  const intelligence=await siteIntelligence.latest().catch(()=>null);
-  const brandName=intelligence?.profile?.brandName||intelligence?.site?.hostname||'Growth outreach';
-  let sent=0,followedUp=0; const out=[];
+  let sent=0; const out=[];
   for(const x of items){
-    if(sent+followedUp>=AUTO_EMAIL_LIMIT){out.push(x);continue;}
+    // Follow-ups stay disabled until inbound reply suppression is connected.
+    if(x.status==='SENT'&&x.nextFollowUpAt){
+      out.push({...x,nextFollowUpAt:null,outcomeNote:x.outcomeNote||'Automatic follow-up is disabled until inbound reply suppression is connected.'});
+      continue;
+    }
+    if(sent>=AUTO_EMAIL_LIMIT){out.push(x);continue;}
     try{
-      if(x.status==='SENT'&&x.nextFollowUpAt&&new Date(x.nextFollowUpAt).getTime()<=Date.now()&&x.contact?.kind==='EMAIL'&&x.draft?.followUpBody&&emailService.isConfigured()){
-        await emailService.sendAuthorityOutreach({to:x.contact.value,subject:'Re: '+String(x.draft.outreachSubject||brandName).slice(0,170),body:x.draft.followUpBody});
-        followedUp++;out.push({...x,status:'FOLLOWED_UP',executedAt:nowIso(),nextFollowUpAt:null,outcomeNote:'One approved follow-up was sent automatically after five days.'});continue;
-      }
       if(['APPROVED','AI_APPROVED'].includes(x.status)&&x.contact?.kind==='EMAIL'&&x.contact?.value&&x.draft?.outreachSubject&&x.draft?.outreachBody&&emailService.isConfigured()){
+        const sentAt=nowIso();
         await emailService.sendAuthorityOutreach({to:x.contact.value,subject:x.draft.outreachSubject,body:x.draft.outreachBody});
-        sent++;out.push({...x,status:'SENT',executedAt:nowIso(),nextFollowUpAt:x.status==='AI_APPROVED'?null:new Date(Date.now()+5*24*60*60*1000).toISOString(),outcomeNote:x.aiReview?.decision==='PASS'?'GPT-5.6 Sol reviewed and approved this outreach before automatic delivery. Automatic follow-up is disabled until inbound reply suppression is connected.':'Approved outreach sent through the configured email provider.'});continue;
+        sent++;
+        out.push({
+          ...x,
+          status:'SENT',
+          executedAt:sentAt,
+          nextFollowUpAt:null,
+          delivery:{channel:'EMAIL',recipient:x.contact.value,sentAt},
+          outcomeNote:x.aiReview?.decision==='PASS'
+            ?'GPT-5.6 Sol reviewed and approved this outreach before automatic delivery. Automatic follow-up is disabled until inbound reply suppression is connected.'
+            :'Approved outreach sent through the configured email provider. Automatic follow-up is disabled until inbound reply suppression is connected.'
+        });
+        continue;
       }
-    }catch(e){out.push({...x,outcomeNote:'Approved outreach send failed: '+String(e.message||e).slice(0,300)});continue;}
+    }catch(e){out.push({...x,nextFollowUpAt:null,outcomeNote:'Approved outreach send failed: '+String(e.message||e).slice(0,300)});continue;}
     out.push(x);
   }
-  return {items:out,sent,followedUp};
+  return {items:out,sent,followedUp:0};
 }
 
 async function audit(action,meta){
@@ -324,10 +335,42 @@ async function updateProspect(id,action,input={}){
   const state=await readState(),i=state.prospects.findIndex(x=>x.id===id);
   if(i<0)throw Object.assign(new Error('Authority prospect not found.'),{status:404});
   let x={...state.prospects[i]},at=nowIso();
-  if(action==='approve'){if(!x.draft?.communityReply&&!x.draft?.outreachBody)throw Object.assign(new Error('This prospect has no reviewed draft to approve.'),{status:409});x.status='APPROVED';x.approvedAt=at;}
+  if(action==='approve'){
+    if(!x.draft?.communityReply&&!x.draft?.outreachBody)throw Object.assign(new Error('This prospect has no reviewed draft to approve.'),{status:409});
+    x.status='APPROVED';
+    x.approvedAt=at;
+    x.nextFollowUpAt=null;
+
+    const emailProspect=!['QUORA','COMMUNITY'].includes(x.type)
+      && x.contact?.kind==='EMAIL'
+      && x.contact?.value
+      && x.draft?.outreachSubject
+      && x.draft?.outreachBody;
+
+    if(emailProspect){
+      try{
+        if(!emailService.isConfigured())throw new Error('The configured email provider is not available.');
+        const sentAt=nowIso();
+        await emailService.sendAuthorityOutreach({
+          to:x.contact.value,
+          subject:x.draft.outreachSubject,
+          body:x.draft.outreachBody
+        });
+        x.status='SENT';
+        x.executedAt=sentAt;
+        x.delivery={channel:'EMAIL',recipient:x.contact.value,sentAt};
+        x.outcomeNote='Approved outreach sent immediately through the configured email provider. Automatic follow-up is disabled until inbound reply suppression is connected.';
+      }catch(e){
+        x.status='APPROVED';
+        x.executedAt=null;
+        x.delivery=null;
+        x.outcomeNote='Approved outreach send failed: '+String(e.message||e).slice(0,300);
+      }
+    }
+  }
   else if(action==='dismiss')x.status='DISMISSED';
   else if(action==='posted'){x.status='POSTED';x.executedAt=at;x.publishedUrl=safeUrl(input.publishedUrl)||x.url;}
-  else if(action==='sent'){x.status='SENT';x.executedAt=at;}
+  else if(action==='sent'){x.status='SENT';x.executedAt=at;x.nextFollowUpAt=null;}
   else if(action==='link_acquired'){x.status='LINK_ACQUIRED';x.publishedUrl=safeUrl(input.publishedUrl)||x.url;}
   else if(action==='mention_acquired'){x.status='MENTION_ACQUIRED';x.publishedUrl=safeUrl(input.publishedUrl)||x.url;}
   else if(action==='ai_cited'){x.status='AI_CITED';x.publishedUrl=safeUrl(input.publishedUrl)||x.url;}
@@ -336,7 +379,14 @@ async function updateProspect(id,action,input={}){
   if(input.metrics)x.metrics={votes:metricValue(input.metrics.votes),replies:metricValue(input.metrics.replies),clicks:metricValue(input.metrics.clicks),mentions:metricValue(input.metrics.mentions)};
   if(input.note)x.outcomeNote=String(input.note).slice(0,700);
   state.prospects[i]=x; const saved=await writeState({...state,generatedAt:at});
-  await audit('GROWTH_PHASE4_PROSPECT_'+action.toUpperCase(),{prospectId:id,type:x.type,domain:x.domain,status:x.status});
+  await audit('GROWTH_PHASE4_PROSPECT_'+action.toUpperCase(),{
+    prospectId:id,
+    type:x.type,
+    domain:x.domain,
+    status:x.status,
+    recipient:x.delivery?.recipient||null,
+    sentAt:x.delivery?.sentAt||null
+  });
   return saved;
 }
 
