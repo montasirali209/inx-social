@@ -239,6 +239,8 @@ function initialState() {
     lastOpportunity: null,
     lastIntelligenceSummary: null,
     lastEditorialRadarSummary: null,
+    lastHotTrendOpportunityId: null,
+    lastHotTrendEvaluatedAt: null,
     lastStrategy: null,
     recentEvents: [{
       at: now,
@@ -747,8 +749,9 @@ async function runCycle(options = {}) {
   const intelligenceDue = options.force || isDue(state.nextIntelligenceAt);
   const authorityDue = options.force || isDue(state.nextAuthorityAt);
   const optimizationDue = options.force || isDue(state.nextOptimizationAt);
+  const radarDue = options.force || isDue(state.nextEditorialRadarAt);
   const publishDue = options.force || dailyPublishDue(state, config);
-  if (!intelligenceDue && !authorityDue && !optimizationDue && !publishDue) return { skipped: true, reason: 'not_due' };
+  if (!intelligenceDue && !authorityDue && !optimizationDue && !radarDue && !publishDue) return { skipped: true, reason: 'not_due' };
 
   const claimed = await claimLease();
   if (!claimed) return { skipped: true, reason: 'already_running' };
@@ -757,7 +760,7 @@ async function runCycle(options = {}) {
     await recordEvent(
       'CYCLE_STARTED',
       options.force ? 'Growth Autopilot cycle started manually.' : 'Scheduled Growth Autopilot cycle started.',
-      { intelligenceDue, authorityDue, optimizationDue, publishDue },
+      { intelligenceDue, authorityDue, optimizationDue, radarDue, publishDue },
       'info'
     );
 
@@ -767,6 +770,54 @@ async function runCycle(options = {}) {
       opportunityMap = intelligence.opportunityMap;
     }
 
+
+    let radarState = await editorialRadar.latest().catch(() => null);
+    if (radarDue) {
+      try {
+        let intelligence = await siteIntelligence.latest().catch(() => null);
+        if (!intelligence?.profile) {
+          const refreshed = await runIntelligence(config);
+          opportunityMap = refreshed.opportunityMap;
+          intelligence = refreshed.siteContext ? {
+            site: refreshed.siteContext.site,
+            profile: refreshed.siteContext.profile,
+            changes: refreshed.siteContext.changes,
+            snapshot: refreshed.siteContext.snapshot
+          } : await siteIntelligence.latest().catch(() => null);
+        }
+        const articles = await growthContent.listArticles();
+        radarState = await editorialRadar.refresh({ intelligence, existingArticles: articles });
+        const completed = nowIso();
+        await mutateState(current => {
+          current.lastEditorialRadarAt = completed;
+          current.nextEditorialRadarAt = addHours(completed, config.editorialRadarEveryHours);
+          current.lastEditorialRadarSummary = radarState.summary || null;
+          return current;
+        });
+        opportunityMap = await growthOpportunities.build(config.opportunityWindowDays);
+        await recordEvent(
+          'EDITORIAL_RADAR_REFRESHED',
+          'Editorial radar proactively researched direct, adjacent, audience-interest and timely trend opportunities.',
+          {
+            ...(radarState.summary || {}),
+            nextEditorialRadarAt: addHours(completed, config.editorialRadarEveryHours)
+          },
+          radarState.summary?.hot ? 'success' : 'info'
+        );
+      } catch (error) {
+        const retryAt = addHours(nowIso(), config.retryHours);
+        await mutateState(current => {
+          current.nextEditorialRadarAt = retryAt;
+          return current;
+        });
+        await recordEvent(
+          'EDITORIAL_RADAR_FAILED',
+          'Editorial opportunity radar failed and will retry automatically.',
+          { error: String(error.publicMessage || error.message || error).slice(0, 500), retryAt },
+          'warning'
+        );
+      }
+    }
 
     if (authorityDue) {
       try {
@@ -840,11 +891,48 @@ async function runCycle(options = {}) {
       }
     }
 
+    const decisionState = await getState();
+    const hotCandidate = editorialRadar.hottest(radarState);
+    const articlesForDecision = await growthContent.listArticles();
+    const publishedToday = await publishedCountToday(config, articlesForDecision);
+    const morningDecisionMade = decisionState.lastPublishDecisionDateLocal === localDateKey(new Date(), config.publishTimeZone);
+    const hotTrendDue = Boolean(
+      !options.force &&
+      !publishDue &&
+      config.hotTrendAutoEvaluate &&
+      hotCandidate &&
+      morningDecisionMade &&
+      hotCandidate.id !== decisionState.lastHotTrendOpportunityId &&
+      publishedToday < config.maxArticlesPerLocalDay
+    );
+    const contentDecisionDue = publishDue || hotTrendDue;
+    const decisionMode = options.force ? 'manual' : hotTrendDue ? 'hot' : 'daily';
+
     let publishedArticle = null;
-    if (publishDue) {
-      const articles = await growthContent.listArticles();
+    if (contentDecisionDue) {
+      const articles = articlesForDecision;
       let strategy = null;
       let opportunity = null;
+
+      if (hotTrendDue) {
+        await mutateState(current => {
+          current.lastHotTrendOpportunityId = hotCandidate.id;
+          current.lastHotTrendEvaluatedAt = nowIso();
+          return current;
+        });
+        await recordEvent(
+          'HOT_TREND_EVALUATION_STARTED',
+          'A high-confidence fresh editorial opportunity triggered an extra strategy evaluation outside the normal morning window.',
+          {
+            opportunityId: hotCandidate.id,
+            topic: hotCandidate.topic,
+            score: hotCandidate.score,
+            freshness: hotCandidate.freshness,
+            publishedToday
+          },
+          'info'
+        );
+      }
 
       try {
         strategy = await growthStrategy.plan({ opportunityMap, articles, siteProfile: opportunityMap?.siteProfile || null });
@@ -882,15 +970,19 @@ async function runCycle(options = {}) {
             };
           }
         } else {
-          let nextReview = null;
-          await mutateState(current => {
-            markDailyPublishDecision(current, config, new Date());
-            nextReview = current.nextPublishAt;
-            return current;
-          });
+          let nextReview = decisionState.nextPublishAt || null;
+          if (decisionMode !== 'hot') {
+            await mutateState(current => {
+              markDailyPublishDecision(current, config, new Date());
+              nextReview = current.nextPublishAt;
+              return current;
+            });
+          }
           await recordEvent(
             'STRATEGIC_ACTION_QUEUED',
-            'AI Strategist decided that creating a new article is not the best action right now. Autopilot will re-evaluate on the next cycle.',
+            decisionMode === 'hot'
+              ? 'AI Strategist reviewed the fresh opportunity and decided it does not justify an additional article.'
+              : 'AI Strategist decided that creating a new article is not the best action right now. Autopilot will re-evaluate on the next scheduled decision.',
             {
               action: strategy.action,
               topic: strategy.topic,
@@ -911,17 +1003,21 @@ async function runCycle(options = {}) {
       }
 
       if (opportunity) {
-        publishedArticle = await produceAndPublish(opportunity, config, strategy);
+        publishedArticle = await produceAndPublish(opportunity, config, strategy, decisionMode);
       } else if (!strategy || (strategy.action === 'CREATE_ARTICLE' && strategy.publishRecommended)) {
-        const nextRetry = addHours(nowIso(), config.retryHours);
-        await mutateState(current => {
-          current.nextPublishAt = nextRetry;
-          return current;
-        });
+        const nextRetry = decisionMode === 'hot' ? null : addHours(nowIso(), config.retryHours);
+        if (nextRetry) {
+          await mutateState(current => {
+            current.nextPublishAt = nextRetry;
+            return current;
+          });
+        }
         await recordEvent(
           'NO_CONTENT_OPPORTUNITY',
-          'Autopilot found no sufficiently distinct content opportunity. It will retry automatically.',
-          { nextRetryAt: nextRetry },
+          decisionMode === 'hot'
+            ? 'The fresh opportunity did not produce a sufficiently distinct publishable article. The normal editorial schedule remains unchanged.'
+            : 'Autopilot found no sufficiently distinct content opportunity. It will retry automatically.',
+          nextRetry ? { nextRetryAt: nextRetry } : { opportunityId: hotCandidate?.id || null },
           'warning'
         );
       }
@@ -936,7 +1032,7 @@ async function runCycle(options = {}) {
       'success'
     );
 
-    return { skipped: false, publishedArticle };
+    return { skipped: false, publishedArticle, radar: radarState?.summary || null, hotTrendEvaluated: hotTrendDue };
   } catch (error) {
     const message = String(error.publicMessage || error.message || 'Growth Autopilot cycle failed').slice(0, 800);
     const retryAt = addHours(nowIso(), config.retryHours);
@@ -944,6 +1040,7 @@ async function runCycle(options = {}) {
       current.nextIntelligenceAt = isDue(current.nextIntelligenceAt) ? retryAt : current.nextIntelligenceAt;
       current.nextAuthorityAt = isDue(current.nextAuthorityAt) ? retryAt : current.nextAuthorityAt;
       current.nextOptimizationAt = isDue(current.nextOptimizationAt) ? retryAt : current.nextOptimizationAt;
+      current.nextEditorialRadarAt = isDue(current.nextEditorialRadarAt) ? retryAt : current.nextEditorialRadarAt;
       current.nextPublishAt = isDue(current.nextPublishAt) ? retryAt : current.nextPublishAt;
       current.lastError = { at: nowIso(), message };
       return current;
