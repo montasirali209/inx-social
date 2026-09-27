@@ -967,6 +967,9 @@ async function status() {
 async function updateConfig(patch = {}) {
   const current = await getConfig();
   const next = normalizeConfig({ ...current, ...patch });
+  const scheduleChanged =
+    current.dailyPublishTimeLocal !== next.dailyPublishTimeLocal
+    || current.publishTimeZone !== next.publishTimeZone;
   await prisma.appSetting.update({
     where: { key: CONFIG_KEY },
     data: { value: JSON.stringify(next) }
@@ -984,7 +987,13 @@ async function updateConfig(patch = {}) {
       if (!state.nextIntelligenceAt) state.nextIntelligenceAt = nowIso();
       if (!state.nextAuthorityAt) state.nextAuthorityAt = nowIso();
       if (!state.nextOptimizationAt) state.nextOptimizationAt = nowIso();
-      if (!state.nextPublishAt) state.nextPublishAt = nextDailyPublishIso(new Date(), next);
+      if (scheduleChanged) {
+        const now = new Date();
+        const alreadyDecidedToday = state.lastPublishDecisionDateLocal === localDateKey(now, next.publishTimeZone);
+        state.nextPublishAt = nextDailyPublishIso(now, next, alreadyDecidedToday);
+      } else if (!state.nextPublishAt) {
+        state.nextPublishAt = nextDailyPublishIso(new Date(), next);
+      }
       return state;
     });
   }
@@ -1044,10 +1053,12 @@ function startGrowthAutopilot() {
   if (timer || initialTimer) return;
   void ensureSettings().then(async () => {
     void syncLegacyBlog('startup');
+    const config = await getConfig();
     console.info('[growth-autopilot] runtime ready', {
       pollMinutes: POLL_MS / 60000,
-      dailyPublishTimeLocal: DEFAULT_CONFIG.dailyPublishTimeLocal,
-      publishTimeZone: DEFAULT_CONFIG.publishTimeZone,
+      dailyPublishTimeLocal: config.dailyPublishTimeLocal,
+      publishTimeZone: config.publishTimeZone,
+      nextPublishAt: (await getState()).nextPublishAt,
       strategyModelReady: growthStrategy.ready()
     });
   }).catch(error => {
