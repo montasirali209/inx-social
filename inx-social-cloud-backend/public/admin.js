@@ -1734,21 +1734,24 @@ function websiteMediaCard(slot){
   const configured=Boolean(slot?.hasImage&&version);
   const used=(slot.usedOn||[]).join(' · ');
   const requirements=[slot.recommendedMinWidth?slot.recommendedMinWidth+'px min width':'',slot.recommendedMinHeight?slot.recommendedMinHeight+'px min height':''].filter(Boolean).join(' · ');
-  const image=configured
-    ? '<img src="'+esc(slot.publicUrl)+'" alt="'+esc(slot.altText||slot.label)+'" loading="lazy">'
-    : '<div class="website-media-card-empty"><span>▣</span><b>No image uploaded</b><small>Current site asset remains unchanged until Phase 3 wiring.</small></div>';
-  const status=configured?'<span class="website-media-status configured">Configured</span>':'<span class="website-media-status">Awaiting upload</span>';
+  const previewUrl=configured?slot.publicUrl:slot.liveUrl;
+  const image=previewUrl
+    ? '<img src="'+esc(previewUrl)+'" alt="'+esc(slot.altText||slot.label)+'" loading="lazy">'
+    : '<div class="website-media-card-empty"><span>▣</span><b>No image available</b></div>';
+  const status=configured
+    ? '<span class="website-media-status configured">Custom image</span>'
+    : '<span class="website-media-status">Using default</span>';
   return '<article class="website-media-card" data-media-key="'+esc(slot.key)+'">'+
     '<div class="website-media-card-preview">'+image+status+'</div>'+
     '<div class="website-media-card-body">'+
-      '<div class="website-media-card-title"><div><span class="kicker">'+esc(slot.section)+'</span><h3>'+esc(slot.label)+'</h3></div><button class="secondary website-media-manage" type="button" data-media-manage="'+esc(slot.key)+'">'+(configured?'Manage':'Upload')+'</button></div>'+
+      '<div class="website-media-card-title"><div><span class="kicker">'+esc(slot.section)+'</span><h3>'+esc(slot.label)+'</h3></div><button class="secondary website-media-manage" type="button" data-media-manage="'+esc(slot.key)+'">Manage</button></div>'+
       '<p>'+esc(used||'Website placement')+'</p>'+
       '<div class="website-media-facts">'+
         '<span><b>Recommended</b>'+esc(requirements||'High-resolution original')+'</span>'+
-        '<span><b>Current</b>'+(configured?esc(version.width+' × '+version.height+' · '+websiteMediaBytes(version.byteSize)):'Not configured')+'</span>'+
+        '<span><b>Current</b>'+(configured?esc(version.width+' × '+version.height+' · '+websiteMediaBytes(version.byteSize)):esc(slot.fallbackKey?'Category default':'Built-in fallback'))+'</span>'+
         '<span><b>Versions</b>'+Number(slot.versionCount||0).toLocaleString('en-GB')+'</span>'+
       '</div>'+
-      (configured?'<div class="website-media-card-foot"><span>'+esc(version.originalName)+'</span><small>Updated '+esc(relative(slot.updatedAt))+'</small></div>':'')+
+      '<div class="website-media-card-foot"><span>'+esc(configured?version.originalName:(slot.fallbackKey?'Inherited from '+slot.fallbackKey:'Built-in site image'))+'</span><small>'+(configured?'Updated '+esc(relative(slot.updatedAt)):'Live fallback')+'</small></div>'+
     '</div>'+
   '</article>';
 }
@@ -1774,7 +1777,7 @@ function renderWebsiteMedia(slots,storage){
     groups.get(slot.section).push(slot);
   });
   $('websiteMediaGroups').innerHTML=[...groups.entries()].map(([section,items])=>
-    '<section class="website-media-group"><div class="website-media-group-head"><div><span class="kicker">'+esc(section)+'</span><h2>'+esc(section==='Landing Page'?'Landing page images':'SEO & search images')+'</h2></div><span>'+items.length+' managed slot'+(items.length===1?'':'s')+'</span></div><div class="website-media-grid">'+items.map(websiteMediaCard).join('')+'</div></section>'
+    '<section class="website-media-group"><div class="website-media-group-head"><div><span class="kicker">'+esc(section)+'</span><h2>'+esc(section==='Landing Page'?'Landing page images':section==='SEO Page Overrides'?'Page-specific SEO overrides':'SEO & search defaults')+'</h2></div><span>'+items.length+' managed slot'+(items.length===1?'':'s')+'</span></div><div class="website-media-grid">'+items.map(websiteMediaCard).join('')+'</div></section>'
   ).join('')||'<div class="growth-empty">No website image slots are configured.</div>';
 
   document.querySelectorAll('[data-media-manage]').forEach(button=>button.addEventListener('click',()=>void openWebsiteMediaEditor(button.dataset.mediaManage)));
@@ -1786,10 +1789,8 @@ async function loadWebsiteMedia(){
 }
 
 function closeWebsiteMediaEditor(){
-  if(state.websiteMediaObjectUrl){
-    URL.revokeObjectURL(state.websiteMediaObjectUrl);
-    state.websiteMediaObjectUrl=null;
-  }
+  if(state.websiteMediaObjectUrl?.startsWith('blob:'))URL.revokeObjectURL(state.websiteMediaObjectUrl);
+  state.websiteMediaObjectUrl=null;
   state.websiteMediaSelectedKey=null;
   $('websiteMediaForm').reset();
   $('websiteMediaFileChoice').hidden=true;
@@ -1816,14 +1817,15 @@ function renderWebsiteMediaEditor(slot){
   $('websiteMediaDialogUse').textContent=(slot.usedOn||[]).length?'Used on: '+slot.usedOn.join(' · '):'Website image placement';
   $('websiteMediaAltText').value=slot.altText||'';
 
-  $('websiteMediaModalPreview').innerHTML=version
-    ? '<img src="'+esc(slot.publicUrl)+'" alt="'+esc(slot.altText||slot.label)+'">'
-    : '<div class="website-media-empty-preview"><span>▣</span><b>No managed image yet</b><small>Upload the original high-resolution source.</small></div>';
+  const effectivePreview=version?slot.publicUrl:slot.liveUrl;
+  $('websiteMediaModalPreview').innerHTML=effectivePreview
+    ? '<img src="'+esc(effectivePreview)+'" alt="'+esc(slot.altText||slot.label)+'">'
+    : '<div class="website-media-empty-preview"><span>▣</span><b>No image available</b></div>';
 
   $('websiteMediaModalMeta').innerHTML=[
     ['Recommended',[(slot.recommendedMinWidth||'—')+'px width',(slot.recommendedMinHeight||'—')+'px height'].join(' · ')],
-    ['Current',version?version.width+' × '+version.height:'Not configured'],
-    ['File',version?version.mimeType.replace('image/','').toUpperCase()+' · '+websiteMediaBytes(version.byteSize):'—'],
+    ['Current',version?version.width+' × '+version.height:(slot.fallbackKey?'Category default':'Built-in fallback')],
+    ['File',version?version.mimeType.replace('image/','').toUpperCase()+' · '+websiteMediaBytes(version.byteSize):'Fallback'],
     ['Versions',String(slot.versionCount||0)]
   ].map(item=>'<span><b>'+esc(item[0])+'</b>'+esc(item[1])+'</span>').join('');
 
@@ -1836,7 +1838,10 @@ function renderWebsiteMediaEditor(slot){
   $('websiteMediaAltText').disabled=!canEdit;
   $('saveWebsiteMediaAltBtn').disabled=!canEdit;
   $('uploadWebsiteMediaBtn').disabled=!canEdit;
-  $('uploadWebsiteMediaBtn').textContent=version?'Upload & replace':'Upload image';
+  $('uploadWebsiteMediaBtn').textContent=version?'Upload & replace':'Upload custom image';
+  $('websiteMediaUseFallbackBtn').hidden=!version;
+  $('websiteMediaUseFallbackBtn').disabled=!canEdit;
+  $('websiteMediaUseFallbackBtn').textContent=slot.fallbackKey?'Use category default':'Use built-in image';
   $('websiteMediaFileChoice').hidden=true;
   $('websiteMediaUploadWarning').hidden=true;
 
@@ -1885,6 +1890,11 @@ $('websiteMediaFile').addEventListener('change',async()=>{
     const warnings=[];
     if(slot?.recommendedMinWidth&&dimensions.width<slot.recommendedMinWidth)warnings.push('Recommended width is '+slot.recommendedMinWidth+'px or more.');
     if(slot?.recommendedMinHeight&&dimensions.height<slot.recommendedMinHeight)warnings.push('Recommended height is '+slot.recommendedMinHeight+'px or more.');
+    if(slot?.recommendedMinWidth&&slot?.recommendedMinHeight){
+      const expected=slot.recommendedMinWidth/slot.recommendedMinHeight;
+      const actual=dimensions.width/dimensions.height;
+      if(Math.abs(actual-expected)/expected>0.04)warnings.push('This image has a different aspect ratio from the placement and may create extra whitespace or cropping.');
+    }
     $('websiteMediaModalPreview').innerHTML='<img src="'+esc(dimensions.url)+'" alt="Selected website media preview">';
     $('websiteMediaFileChoice').hidden=false;
     $('websiteMediaFileChoice').innerHTML='<b>'+esc(file.name)+'</b><span>'+esc(dimensions.width+' × '+dimensions.height+' · '+websiteMediaBytes(file.size))+'</span>';
@@ -1960,8 +1970,25 @@ async function restoreWebsiteMediaVersion(key,versionId){
   finally{if(button){button.disabled=false;button.textContent='Restore'}}
 }
 
+async function useWebsiteMediaFallback(){
+  const key=state.websiteMediaSelectedKey;
+  if(!key||!websiteMediaIsSuper())return;
+  const slot=state.websiteMedia.find(item=>item.key===key);
+  const label=slot?.fallbackKey?'category default image':'built-in site image';
+  if(!window.confirm('Use the '+label+' for this placement? Your uploaded versions will stay in history and can be restored later.'))return;
+  const button=$('websiteMediaUseFallbackBtn');
+  button.disabled=true;button.textContent='Switching…';
+  try{
+    await api('/api/admin/website-media/'+encodeURIComponent(key)+'/use-fallback',{method:'POST'});
+    toast('Website placement switched to its fallback image.');
+    await loadWebsiteMedia();
+    await openWebsiteMediaEditor(key);
+  }catch(error){toast(error.message)}
+}
+
 $('websiteMediaForm').addEventListener('submit',event=>void uploadWebsiteMedia(event).catch(error=>toast(error.message)));
 $('saveWebsiteMediaAltBtn').addEventListener('click',()=>void saveWebsiteMediaAlt());
+$('websiteMediaUseFallbackBtn').addEventListener('click',()=>void useWebsiteMediaFallback());
 $('closeWebsiteMediaDialog').addEventListener('click',closeWebsiteMediaEditor);
 $('cancelWebsiteMediaBtn').addEventListener('click',closeWebsiteMediaEditor);
 $('websiteMediaDialog').addEventListener('click',event=>{if(event.target===$('websiteMediaDialog'))closeWebsiteMediaEditor()});
