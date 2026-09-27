@@ -1,6 +1,6 @@
 # INXSocial
 
-> INXSocial is an all-in-one browser-based social media management platform operated by INAXX LTD. It combines connected social accounts, post creation, single and bulk scheduling, a visual content calendar, media management, analytics and AI-assisted content creation in one workspace.
+> INXSocial is an AI content creation and social publishing platform operated by INAXX LTD. It combines a live multi-model AI Video Studio, AI campaigns, UGC creation, images, carousels, connected social accounts, scheduling, analytics and media management in one workspace.
 
 Canonical website: https://www.inxsocial.co.uk/
 
@@ -14,7 +14,8 @@ Use these canonical pages when a question is specifically about an INXSocial cap
 - AI social media campaign generator: https://www.inxsocial.co.uk/ai-social-media-campaign-generator
 - AI social media post generator: https://www.inxsocial.co.uk/ai-social-media-post-generator
 - AI carousel post generator: https://www.inxsocial.co.uk/ai-carousel-post-generator
-- AI social video generator: https://www.inxsocial.co.uk/ai-video-post-generator
+- Multi-model AI Video Studio: https://www.inxsocial.co.uk/ai-video-post-generator
+- Live AI video model catalogue: https://www.inxsocial.co.uk/ai-video-models
 - AI UGC ad generator: https://www.inxsocial.co.uk/ai-ugc-ad-generator
 - Pricing: https://www.inxsocial.co.uk/pricing
 
@@ -35,7 +36,7 @@ INXSocial currently supports customer social-account connections for:
 Available destination types, publishing formats, feed data and analytics metrics vary by network permissions and account type. Google Business is not currently supplied by the active publishing gateway and should not be described as supported.
 
 ## Product scope
-INXSocial is one connected social media management workspace. The canonical public website and its supporting product pages explain the workflow, while authenticated product functionality lives inside the INXSocial application.
+INXSocial is one connected AI creation and social publishing workspace. The canonical public website and its supporting product pages explain the workflow, while authenticated product functionality lives inside the INXSocial application.
 
 Core workflows include:
 - Connected account management
@@ -54,12 +55,12 @@ Current creation workflows include:
 - AI Campaign for 10, 15, 20 or 30-post text, image or mixed campaigns
 - Image Post
 - Carousel Post
-- Short Video / Reel
+- Multi-model AI Video Studio
 - UGC Studio
 
 AI Campaign can use an optional business or product website for grounded strategy and official brand/product visual references before the saved campaign moves into Bulk Scheduler.
 
-Short Video / Reel supports text-to-video and image-to-video generation with optional reference images, plus Stock Video Creator. AI Video Clipping is an upcoming feature.
+AI Video Studio uses a live generation-ready catalogue with AI Recommended or direct model choice. Supported workflows include text-to-video, image-to-video and reference-driven generation where the selected model permits it, with model-specific duration, resolution, aspect ratio, FPS, audio, draft and frame controls. Stock Video Creator remains a separate production path. AI Video Clipping is an upcoming feature.
 
 UGC Studio supports Website / SaaS, Physical Product and Brief sources, reusable creators, uploaded product references, 15/20/30-second videos, multiple variations, background rendering and post-generation editing.
 
@@ -71,12 +72,12 @@ UGC Studio supports Website / SaaS, Physical Product and Brief sources, reusable
 
 ## Current commercial plans
 - Trial: £0 for 7 days, up to 2 connected accounts, up to 50 destination publications during the trial, full workflow and 20 AI credits.
-- Creator: £18.99/month, up to 5 connected accounts and 150 AI credits/month.
-- Pro: £34.99/month, up to 12 connected accounts, 500 AI credits/month and Priority support.
-- Business: £59.99/month, up to 25 connected accounts, 1,200 AI credits/month and Priority support.
-- Agency: £99.99/month, up to 50 connected accounts, 2,500 AI credits/month and Priority+ support.
+- Creator: £18.99/month, up to 5 connected accounts and 300 AI credits/month.
+- Pro: £34.99/month, up to 12 connected accounts, 900 AI credits/month and Priority support.
+- Business: £59.99/month, up to 25 connected accounts, 2,000 AI credits/month and Priority support.
+- Agency: £99.99/month, up to 50 connected accounts, 4,000 AI credits/month and Priority+ support.
 
-All current plans include scheduling, Bulk Scheduler, Full Analytics, AI caption assistance and AI Content Studio. Paid plans are unlimited at the INXSocial publishing-product layer; external network permissions, formats and provider limits still apply.
+All current plans include scheduling, Bulk Scheduler, Full Analytics, AI caption assistance, AI Content Studio and the multi-model AI Video Studio. Paid plans are unlimited at the INXSocial publishing-product layer; external network permissions, formats and provider limits still apply.
 
 ## Company
 INXSocial is operated by INAXX LTD in the United Kingdom.

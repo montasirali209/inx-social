@@ -4,8 +4,8 @@ import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.inxsocial.co.uk"),
   applicationName: "INXSocial",
-  title: "Social Media Management Platform, Scheduler & AI | INXSocial",
-  description: "Create, bulk schedule and analyse social media in one workspace with AI campaigns, UGC video, image-to-video, Smart Timing and multi-platform publishing.",
+  title: "AI Content, Video Studio & Social Publishing | INXSocial",
+  description: "Create AI video with a multi-model Video Studio, campaigns, UGC, images and carousels, then schedule, publish and analyse social content in INXSocial.",
   authors: [{ name: "INAXX LTD", url: "https://inaxx.co.uk/" }],
   creator: "INAXX LTD",
   publisher: "INAXX LTD",
@@ -37,8 +37,8 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_GB",
     siteName: "INXSocial",
-    title: "Social Media Management Platform, Scheduler & AI | INXSocial",
-    description: "Create campaigns, UGC video, image-to-video and social posts, then bulk schedule with Smart Timing and analyse performance from one INXSocial workspace.",
+    title: "AI Content, Video Studio & Social Publishing | INXSocial",
+    description: "Create AI video across a live multi-model catalogue, generate campaigns, UGC, images and carousels, then schedule, publish and analyse from one INXSocial workspace.",
     url: "https://www.inxsocial.co.uk/",
     images: [{
       url: "https://www.inxsocial.co.uk/assets/inxsocial-social-preview-v3.jpg",
@@ -46,16 +46,16 @@ export const metadata: Metadata = {
       width: 1200,
       height: 630,
       type: "image/jpeg",
-      alt: "INXSocial social media management platform homepage with dashboard preview"
+      alt: "INXSocial AI content creation, multi-model Video Studio and social publishing platform"
     }]
   },
   twitter: {
     card: "summary_large_image",
-    title: "Social Media Management Platform, Scheduler & AI | INXSocial",
-    description: "Create AI campaigns and social content, bulk schedule with Smart Timing, and analyse results from one connected workspace.",
+    title: "AI Content, Video Studio & Social Publishing | INXSocial",
+    description: "Create AI video, campaigns, UGC, images and carousels, then schedule, publish and analyse social content from one connected workspace.",
     images: [{
       url: "https://www.inxsocial.co.uk/assets/inxsocial-social-preview-v3.jpg",
-      alt: "INXSocial social media management platform homepage with dashboard preview"
+      alt: "INXSocial AI content creation, multi-model Video Studio and social publishing platform"
     }]
   }
 };

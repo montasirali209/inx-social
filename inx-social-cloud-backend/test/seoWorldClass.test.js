@@ -28,18 +28,19 @@ test('homepage entity graph cleanly separates company, brand, website and softwa
   assert.equal(webpage.primaryImageOfPage.width, 1200);
   assert.equal(webpage.primaryImageOfPage.height, 630);
   assert.match(webpage.primaryImageOfPage.url, /inxsocial-social-preview-v3\.jpg$/);
-  assert.equal(webpage.dateModified, '2026-09-25');
+  assert.equal(webpage.dateModified, '2026-09-27');
 });
 
-test('homepage targets social media management intent with search-snippet-safe metadata', () => {
+test('homepage targets AI creation plus social publishing intent with search-snippet-safe metadata', () => {
   const landing = readBackend('public/landing.html');
   const title = landing.match(/<title>(.*?)<\/title>/)?.[1] || '';
   const description = landing.match(/<meta name="description" content="([^"]+)"/)?.[1] || '';
-  assert.equal(title, 'Social Media Management Platform, Scheduler &amp; AI | INXSocial');
+  assert.equal(title, 'AI Content, Video Studio &amp; Social Publishing | INXSocial');
   assert.ok(title.replace(/&amp;/g, '&').length <= 60);
   assert.ok(description.length >= 140 && description.length <= 160);
-  assert.match(description, /multi-platform publishing/i);
-  assert.match(description, /AI campaigns/i);
+  assert.match(description, /multi-model Video Studio/i);
+  assert.match(description, /campaigns/i);
+  assert.match(description, /schedule, publish and analyse/i);
 });
 
 test('feature SEO titles and descriptions are unique and bounded for SERP snippets', () => {
@@ -80,6 +81,7 @@ test('homepage passes contextual authority into every live AI acquisition page',
     '/ai-video-post-generator',
     '/ai-ugc-ad-generator'
   ]) assert.equal(landing.includes(`class="ai-feature-link" href="${route}"`), true, route);
+  assert.equal(landing.includes('href="/ai-video-models"'), true, '/ai-video-models');
 });
 
 test('feature pages carry complete entities, breadcrumbs, image data and expanded headings', () => {
@@ -98,12 +100,13 @@ test('feature pages carry complete entities, breadcrumbs, image data and expande
 
 test('sitemap exposes canonical acquisition URLs with modification dates for changed pages', () => {
   const sitemap = readBackend('public/sitemap.xml');
-  assert.equal((sitemap.match(/<url>/g) || []).length, 13);
-  assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/<\/loc>\s*<lastmod>2026-09-25<\/lastmod>/);
-  assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/pricing<\/loc>\s*<lastmod>2026-09-25<\/lastmod>/);
+  assert.equal((sitemap.match(/<url>/g) || []).length, 14);
+  assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/<\/loc>\s*<lastmod>2026-09-27<\/lastmod>/);
+  assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/pricing<\/loc>\s*<lastmod>2026-09-27<\/lastmod>/);
   assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-campaign-generator<\/loc>\s*<lastmod>2026-09-23<\/lastmod>/);
   assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/blog<\/loc>\s*<lastmod>2026-09-25<\/lastmod>/);
-  assert.equal((sitemap.match(/<lastmod>2026-09-25<\/lastmod>/g) || []).length, 3);
+  assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/ai-video-models<\/loc>\s*<lastmod>2026-09-27<\/lastmod>/);
+  assert.equal((sitemap.match(/<lastmod>2026-09-27<\/lastmod>/g) || []).length, 5);
   assert.doesNotMatch(sitemap, /\.html<\/loc>/);
   assert.doesNotMatch(sitemap, /social\.inaxx\.co\.uk|up\.railway\.app/);
 });
@@ -169,6 +172,7 @@ test('every canonical acquisition route has a static 200 fallback document', () 
     'ai-social-media-post-generator',
     'ai-carousel-post-generator',
     'ai-video-post-generator',
+    'ai-video-models',
     'ai-ugc-ad-generator',
     'pricing'
   ]) {

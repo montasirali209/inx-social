@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
-import { BadgeDollarSign, Check, Film, Search, Shapes, Sparkles, X, Zap } from 'lucide-react'
+import { BadgeDollarSign, Check, Clock3, Film, Search, Shapes, Sparkles, X, Zap } from 'lucide-react'
 import type { VideoModelOption } from '../../lib/ai-next-studio-api'
 
-type Category = 'best' | 'popular' | 'specialists' | 'all'
+type Category = 'latest' | 'best' | 'popular' | 'specialists' | 'all'
 
 const POPULAR_HINTS = /p-video|kling|wan|runway|seedance|minimax|hailuo|ltx|veo|sora/i
 
@@ -20,7 +20,23 @@ function scoreBestValue(model: VideoModelOption) {
   return budget + credits
 }
 
+function releaseTime(model: VideoModelOption) {
+  const value = Date.parse(model.releasedAt || '')
+  return Number.isFinite(value) ? value : 0
+}
+
+function isRecentModel(model: VideoModelOption) {
+  const released = releaseTime(model)
+  if (!released) return false
+  const age = Date.now() - released
+  return age >= 0 && age <= 60 * 24 * 60 * 60 * 1000
+}
+
 function categoryModels(models: VideoModelOption[], category: Category) {
+  if (category === 'latest') {
+    const dated = models.filter((model) => releaseTime(model) > 0).sort((a, b) => releaseTime(b) - releaseTime(a))
+    return (dated.length ? dated : models).slice(0, 18)
+  }
   if (category === 'best') {
     return [...models]
       .filter((model) => typeof model.baselineCredits === 'number' || /best value|budget|fast|economy/i.test(`${model.badge || ''} ${(model.tags || []).join(' ')}`))
@@ -45,6 +61,7 @@ function categoryModels(models: VideoModelOption[], category: Category) {
 }
 
 function categoryIcon(category: Category) {
+  if (category === 'latest') return <Clock3 className="size-3.5" />
   if (category === 'best') return <BadgeDollarSign className="size-3.5" />
   if (category === 'popular') return <Sparkles className="size-3.5" />
   if (category === 'specialists') return <Shapes className="size-3.5" />
@@ -64,7 +81,7 @@ export function VideoModelPicker({
   onSelect: (model: VideoModelOption) => void
   onClose: () => void
 }) {
-  const [category, setCategory] = useState<Category>('best')
+  const [category, setCategory] = useState<Category>('latest')
   const [search, setSearch] = useState('')
 
   const visible = useMemo(() => {
@@ -79,6 +96,7 @@ export function VideoModelPicker({
   if (!open) return null
 
   const categories: Array<{ key: Category; label: string }> = [
+    { key: 'latest', label: 'Latest' },
     { key: 'best', label: 'Best Value' },
     { key: 'popular', label: 'Popular' },
     { key: 'specialists', label: 'Specialists' },
@@ -128,6 +146,7 @@ export function VideoModelPicker({
               <div className="flex items-start justify-between gap-3">
                 <span className={`grid size-9 shrink-0 place-items-center rounded-xl border ${active ? 'border-brand-cyan/30 bg-brand-cyan/10 text-brand-cyan' : 'border-white/8 bg-white/[.035] text-text-muted'}`}>{model.speed === 'fast' ? <Zap className="size-4" /> : <Film className="size-4" />}</span>
                 <div className="flex items-center gap-2">
+                  {isRecentModel(model) && <span className="rounded-full border border-brand-cyan/25 bg-brand-cyan/[.07] px-2 py-1 text-[7px] font-semibold uppercase tracking-[.08em] text-brand-cyan">New</span>}
                   {typeof model.baselineCredits === 'number' && <span className="rounded-full border border-amber-300/20 bg-amber-300/[.05] px-2 py-1 text-[7px] font-semibold text-amber-200">from {model.baselineCredits} cr</span>}
                   {active && <span className="grid size-6 place-items-center rounded-full bg-brand-green/15 text-brand-green"><Check className="size-3.5" /></span>}
                 </div>

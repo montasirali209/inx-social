@@ -37,7 +37,7 @@ test('public landing has canonical metadata, social previews and structured soft
 
   assert.ok(software);
   assert.equal(software.url, 'https://www.inxsocial.co.uk/');
-  assert.equal(software.applicationSubCategory, 'Social Media Management');
+  assert.equal(software.applicationSubCategory, 'AI content creation and social publishing');
   assert.ok(Array.isArray(software.offers) && software.offers.length > 0);
   assert.ok(software.offers.every(offer => offer.priceCurrency === 'GBP'));
   assert.ok(software.offers.every(offer => offer.url === 'https://www.inxsocial.co.uk/pricing'));
@@ -75,10 +75,11 @@ test('robots and sitemap expose the canonical public marketing page cluster', ()
   assert.match(robots, /Disallow: \/api\//);
   assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/sitemap\.xml/);
   assert.match(robots, /Sitemap: https:\/\/www\.inxsocial\.co\.uk\/blog\/sitemap\.xml/);
-  assert.equal((sitemap.match(/<url>/g) || []).length, 13);
+  assert.equal((sitemap.match(/<url>/g) || []).length, 14);
   assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/<\/loc>/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/social-media-scheduler/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-campaign-generator/);
+  assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/ai-video-models/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/pricing/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/blog/);
 

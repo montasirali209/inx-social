@@ -13,10 +13,10 @@ test('landing response applies SEO title, description and render-critical styles
   assert.equal(landing.includes('landing-redesign.css?v=20260919a'), true);
   assert.equal(landing.includes('landing.js?v=20260918d'), true);
   assert.equal(
-    landing.includes('<title>Social Media Management Platform, Scheduler &amp; AI | INXSocial</title>'),
+    landing.includes('<title>AI Content, Video Studio &amp; Social Publishing | INXSocial</title>'),
     true
   );
-  assert.match(landing, /Create, bulk schedule and analyse social media in one workspace with AI campaigns/);
+  assert.match(landing, /Create AI video with a multi-model Video Studio/);
   assert.match(landing, /inx-social-wordmark-small\.webp/);
   assert.match(landing, /rel="preload" as="image" href="\/assets\/landing-dashboard-20260919\.webp"/);
   assert.match(app, /return injectAnalyticsConsent\(source\)/);
@@ -51,10 +51,11 @@ test('crawl controls expose canonical marketing pages while app surfaces remain 
   assert.match(robots, /Disallow: \/api\//);
   assert.match(app, /\['\/admin', '\/index\.html', '\/api', '\/portal', '\/studio', '\/app', '\/health', '\/oauth-callback\.html'\]/);
   assert.match(app, /X-Robots-Tag', 'noindex, nofollow, noarchive'/);
-  assert.equal((sitemap.match(/<url>/g) || []).length, 13);
+  assert.equal((sitemap.match(/<url>/g) || []).length, 14);
   assert.doesNotMatch(sitemap, /social-media-scheduler\.html|pricing\.html|free-social-media-tools\.html/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/social-media-scheduler/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-campaign-generator/);
+  assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/ai-video-models/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/pricing/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/blog/);
   assert.match(robots, /https:\/\/www\.inxsocial\.co\.uk\/blog\/sitemap\.xml/);
@@ -70,13 +71,13 @@ test('landing retains canonical structured data and current AI capabilities', ()
   assert.match(landing, /max-image-preview:large/);
   assert.match(landing, /Image Post/);
   assert.match(landing, /Carousel Post/);
-  assert.match(landing, /Short Video \/ Reel/);
+  assert.match(landing, /AI Video Studio/);
   assert.match(landing, /UGC Ad Post/);
   assert.match(landing, /AI Campaign/);
   assert.match(landing, /Image-to-video/i);
   assert.match(landing, /Smart Timing/);
   assert.match(landing, /Stock Video Creator/);
-  assert.match(landing, /AI Video Clipping/);
+  assert.match(landing, /Video Clipping/);
   assert.match(landing, /coming soon/i);
 });
 
@@ -95,4 +96,7 @@ test('GEO documentation points to the canonical website and supporting product p
   assert.match(llms, /https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-campaign-generator/);
   assert.match(llms, /https:\/\/www\.inxsocial\.co\.uk\/pricing/);
   assert.match(llms, /supporting pages on the same canonical INXSocial website/i);
+  assert.match(llms, /Live AI video model catalogue: https:\/\/www\.inxsocial\.co\.uk\/ai-video-models/);
+  assert.match(llms, /Creator: £18\.99\/month, up to 5 connected accounts and 300 AI credits\/month/);
+  assert.match(llms, /Agency: £99\.99\/month, up to 50 connected accounts, 4,000 AI credits\/month/);
 });

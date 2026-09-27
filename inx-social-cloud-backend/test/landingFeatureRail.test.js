@@ -32,16 +32,16 @@ test('landing is capability-first and uses the verified dashboard preview', () =
   assert.match(css, /\.plan-featured::before/);
 });
 
-test('AI Content Studio is a premium static five-feature marketing section', () => {
+test('AI Content Studio is a premium five-feature marketing section with the multi-model Video Studio', () => {
   const landing = read('public/landing.html');
   const css = read('public/landing-redesign.css');
 
   assert.equal((landing.match(/class="ai-feature-card/g) || []).length, 5);
-  for (const feature of ['Image Post','Carousel Post','Short Video / Reel','UGC Ad Post','Video Clipping']) {
+  for (const feature of ['Image Post','Carousel Post','AI Video Studio','UGC Ad Post','Video Clipping']) {
     assert.equal(landing.includes(feature), true, `${feature} should appear in AI Content Studio`);
   }
   assert.equal(landing.includes('Stock Video Creator'), true);
-  assert.equal(landing.includes('AI Video Clipping'), true);
+  assert.equal(landing.includes('Video Clipping'), true);
   assert.match(landing, /coming soon/i);
   assert.match(css, /\.ai-feature-grid/);
   assert.match(css, /\.ai-feature-wide/);

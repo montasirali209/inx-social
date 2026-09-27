@@ -29,6 +29,7 @@ const growthContentPublicRoutes = require('./routes/growthContentPublicRoutes');
 const growthContentPublicController = require('./controllers/growthContentPublicController');
 const packageInfo = require('../package.json');
 const env = require('./config/env');
+const videoModelRegistry = require('./services/videoModelRegistryService');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -161,6 +162,7 @@ const SEO_MARKETING_ROUTES = new Map([
   ['/ai-social-media-post-generator', '/#ai'],
   ['/ai-carousel-post-generator', '/#ai'],
   ['/ai-video-post-generator', '/#ai'],
+  ['/ai-video-models', '/#ai'],
   ['/ai-ugc-ad-generator', '/#ai'],
   ['/pricing', '/#pricing']
 ]);
@@ -179,6 +181,7 @@ const LEGACY_MARKETING_REDIRECTS = {
   '/social-media-caption-generator.html': '/ai-social-media-post-generator',
   '/30-day-social-media-content-planner.html': '/social-media-content-calendar',
   '/ai-video-post-generator.html': '/ai-video-post-generator',
+  '/ai-video-models.html': '/ai-video-models',
   '/ai-carousel-post-generator.html': '/ai-carousel-post-generator',
   '/ai-ugc-ad-generator.html': '/ai-ugc-ad-generator'
 };
@@ -363,6 +366,17 @@ app.use('/api/releases', releaseRoutes);
 app.get('/content-media/:id/:version', growthContentPublicController.media);
 app.get('/content-media/:id', growthContentPublicController.media);
 app.use('/api/growth-content', growthContentPublicRoutes);
+
+app.get('/api/public/video-models', async (req, res, next) => {
+  try {
+    const requestedLimit = Number(req.query.limit || 12);
+    const payload = await videoModelRegistry.publicShowcase({ limit: requestedLimit });
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=1800');
+    res.json(payload);
+  } catch (error) {
+    next(error);
+  }
+});
 
 app.use('/_next', async (req, res, next) => {
   if (!['GET', 'HEAD'].includes(req.method) || !isNextLandingEnabled()) return next();

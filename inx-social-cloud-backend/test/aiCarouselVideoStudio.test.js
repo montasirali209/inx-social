@@ -60,6 +60,9 @@ test('Video Studio Phase 2 uses one professional workspace with AI Recommended o
   assert.match(video, /estimateVideoCredits/);
   assert.match(video, /Live generation cost/);
   assert.match(video, /StudioSelect/);
+  assert.match(picker, /Latest/);
+  assert.match(picker, /releasedAt/);
+  assert.match(picker, /isRecentModel/);
   assert.match(picker, /Best Value/);
   assert.match(picker, /Popular/);
   assert.match(picker, /Specialists/);

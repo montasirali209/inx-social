@@ -12,6 +12,7 @@ const retiredAiRoutes = [
   '/ai-social-media-post-generator.html',
   '/generate-and-schedule-social-media-posts.html',
   '/ai-video-post-generator.html',
+  '/ai-video-models.html',
   '/ai-carousel-post-generator.html',
   '/ai-ugc-ad-generator.html'
 ];
@@ -28,6 +29,7 @@ test('legacy AI acquisition URLs permanently redirect into canonical clean featu
   assert.match(app, /'\/ai-social-media-post-generator\.html': '\/ai-social-media-post-generator'/);
   assert.match(app, /'\/generate-and-schedule-social-media-posts\.html': '\/social-media-scheduler'/);
   assert.match(app, /'\/ai-video-post-generator\.html': '\/ai-video-post-generator'/);
+  assert.match(app, /'\/ai-video-models\.html': '\/ai-video-models'/);
   assert.match(app, /'\/ai-carousel-post-generator\.html': '\/ai-carousel-post-generator'/);
   assert.match(app, /'\/ai-ugc-ad-generator\.html': '\/ai-ugc-ad-generator'/);
   assert.match(app, /res\.redirect\(301,/);
@@ -43,9 +45,11 @@ test('canonical sitemap and llms documentation advertise clean AI URLs, not reti
   }
 
   assert.match(llms, /AI Content Studio/);
-  assert.match(llms, /Short Video \/ Reel/);
+  assert.match(llms, /Multi-model AI Video Studio/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-tools/);
   assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-campaign-generator/);
+  assert.match(sitemap, /https:\/\/www\.inxsocial\.co\.uk\/ai-video-models/);
   assert.match(llms, /https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-tools/);
   assert.match(llms, /https:\/\/www\.inxsocial\.co\.uk\/ai-social-media-campaign-generator/);
+  assert.match(llms, /https:\/\/www\.inxsocial\.co\.uk\/ai-video-models/);
 });
