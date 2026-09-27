@@ -580,7 +580,7 @@ export const seoPages: Record<string, SeoPage> = {
     lead:
       "INXSocial AI Video Studio brings a live generation-ready model catalogue into one workspace, with AI Recommended or Choose Model, text-to-video, image-to-video, supported reference workflows and model-specific controls before the finished asset moves into Media Library and publishing.",
     intro: [
-      "AI video production often becomes a fragmented workflow: model discovery happens in one place, the brief and references in another, rendering somewhere else and publishing in a fourth product."
+      "AI video production often becomes a fragmented workflow: model discovery happens in one place, the brief and references in another, rendering somewhere else and publishing in a fourth product.",
       "INXSocial keeps the generation path inside the same workspace. Start from text, a product image, screenshot or first-frame reference, generate in the background, then continue with the finished video without rebuilding the post elsewhere."
     ],
     highlights: [
@@ -614,8 +614,8 @@ export const seoPages: Record<string, SeoPage> = {
     ],
     detailHeading: "Video generation designed around social production",
     details: [
-      "The current Video Studio reads from a synchronized provider catalogue and exposes generation-ready models behind one consistent INXSocial interface. Availability, generation modes, duration, resolution, FPS, audio and reference capability vary by model."
-      "Reference-driven generation is exposed only where the selected model supports it, including first-frame, last-frame and multi-reference controls when those capabilities are available."
+      "The current Video Studio reads from a synchronized provider catalogue and exposes generation-ready models behind one consistent INXSocial interface. Availability, generation modes, duration, resolution, FPS, audio and reference capability vary by model.",
+      "Reference-driven generation is exposed only where the selected model supports it, including first-frame, last-frame and multi-reference controls when those capabilities are available.",
       "Stock Video Creator remains available as a separate production path. Video Studio also calculates live credit estimates from synchronized provider pricing and keeps longer generations available through background job tracking."
     ],
     faq: [
@@ -708,13 +708,13 @@ export const seoPages: Record<string, SeoPage> = {
 
   pricing: {
     slug: "pricing",
-    title: "INXSocial Pricing | Social Media Scheduler Plans",
+    title: "INXSocial Pricing | AI Video Studio, Content Creation & Publishing Plans",
     metaDescription:
-      "Compare INXSocial plans for creators, businesses and agencies, including connected accounts, scheduling, analytics and AI Content Studio credits.",
+      "Compare INXSocial plans with AI Content Studio, multi-model AI Video Studio, UGC, campaigns, scheduling, analytics and 300 to 4,000 monthly AI credits.",
     eyebrow: "INXSocial pricing",
-    h1: "Choose the publishing capacity and AI credits that fit your workflow.",
+    h1: "Choose the AI creation and publishing capacity that fits your workflow.",
     lead:
-      "INXSocial plans scale by connected-account capacity and monthly AI credits while keeping the core publishing workflow in one product.",
+      "Every paid INXSocial plan includes AI Content Studio and the multi-model AI Video Studio alongside scheduling, publishing and analytics. Plans scale by connected-account capacity and monthly AI credits.",
     intro: [
       "The right plan depends on how many social accounts you need to connect, how much AI-assisted content you expect to create and the volume of publishing your workflow requires.",
       "All prices shown below are the current public monthly prices in GBP. Billing details and checkout are handled through Stripe."
@@ -750,7 +750,7 @@ export const seoPages: Record<string, SeoPage> = {
     ],
     detailHeading: "What the paid plans are built around",
     details: [
-      "Creator, Pro, Business and Agency all include unlimited posts and scheduling together with Analytics, AI Content Studio and the multi-model AI Video Studio."
+      "Creator, Pro, Business and Agency all include unlimited posts and scheduling together with Analytics, AI Content Studio and the multi-model AI Video Studio.",
       "The main published differences are connected-account capacity, AI credit allowance and support level.",
       "AI generation consumes credits according to the content workflow and provider cost. The product interface shows the user's available credit balance."
     ],
