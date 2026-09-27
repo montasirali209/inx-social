@@ -29,8 +29,8 @@
       "@type": "WebPage",
       "@id": "https://www.inxsocial.co.uk/#webpage",
       "url": "https://www.inxsocial.co.uk/",
-      "name": "Social Media Management Platform, Scheduler & AI | INXSocial",
-      "description": "Create, bulk schedule and analyse social media in one workspace with AI campaigns, UGC video, image-to-video, Smart Timing and multi-platform publishing.",
+      "name": "AI Content Creation, Video Studio & Social Publishing | INXSocial",
+      "description": "Create AI video with a live multi-model Video Studio, generate campaigns, UGC, images and carousels, then schedule, publish and analyse social content in one workspace.",
       "isPartOf": {
         "@id": "https://www.inxsocial.co.uk/#website"
       },
@@ -45,7 +45,7 @@
         "height": 630
       },
       "inLanguage": "en-GB",
-      "dateModified": "2026-09-25"
+      "dateModified": "2026-09-27"
     },
     {
       "@type": [
@@ -56,9 +56,9 @@
       "name": "INXSocial",
       "url": "https://www.inxsocial.co.uk/",
       "applicationCategory": "BusinessApplication",
-      "applicationSubCategory": "Social Media Management",
+      "applicationSubCategory": "AI content creation and social publishing",
       "operatingSystem": "Web browser",
-      "description": "An all-in-one social media management platform for connected accounts, post creation, AI campaign generation, bulk scheduling, Smart Timing, content calendars, analytics, UGC Studio and AI image, carousel and video creation.",
+      "description": "An AI content creation and social publishing platform with a live multi-model AI Video Studio, AI campaigns, UGC creation, image and carousel generation, scheduling, analytics and connected social accounts.",
       "featureList": [
         "Nine supported social networks",
         "Post creation and preview",
@@ -72,7 +72,10 @@
         "Social media analytics",
         "AI caption assistance",
         "AI image and carousel creation",
-        "Text-to-video and image-to-video generation",
+        "Live multi-model AI Video Studio",
+        "AI Recommended or direct video model selection",
+        "Text-to-video, image-to-video and supported reference-driven generation",
+        "Model-specific duration, resolution, aspect ratio, FPS and audio controls",
         "Stock Video Creator",
         "UGC Studio with reusable AI creators",
         "UGC product references, variations and editing"
@@ -150,7 +153,7 @@
           "name": "What can I create with AI Content Studio?",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "AI Content Studio supports AI Campaign, Image Post, Carousel Post, Short Video or Reel, and UGC Studio. Video can start from text or an image reference, while saved AI Campaigns can move directly into Bulk Scheduler."
+            "text": "AI Content Studio supports AI Campaign, Image Post, Carousel Post, UGC Studio and a multi-model AI Video Studio. Video can start from text, images or supported references, with AI Recommended or direct model choice, then move into Media Library and publishing."
           }
         },
         {
