@@ -300,16 +300,16 @@ export const seoPages: Record<string, SeoPage> = {
 
   "ai-social-media-tools": {
     slug: "ai-social-media-tools",
-    title: "AI Social Media Tools for Campaigns, Images & Video | INXSocial",
+    title: "AI Content Creation, Video Studio & Social Media Tools | INXSocial",
     metaDescription:
-      "Create social media copy, campaigns, images, carousels, UGC video and short-form video with AI tools built directly into the INXSocial publishing workflow.",
+      "Create AI video across a live multi-model Video Studio, plus campaigns, UGC, images and carousels, then publish and schedule from the same INXSocial workspace.",
     eyebrow: "AI social media tools",
     h1: "Create campaigns and content inside the same workspace that publishes it.",
     lead:
-      "AI Content Studio connects campaign generation, image and carousel creation, UGC Studio and AI video to the rest of INXSocial so generated work can move into Posts, Media Library and Bulk Scheduler without a separate export routine.",
+      "AI Content Studio connects campaign generation, image and carousel creation, UGC Studio and a live multi-model AI Video Studio to the rest of INXSocial so generated work can move into Media Library, Posts and Bulk Scheduler without a separate export routine.",
     intro: [
       "AI content creation becomes more useful when it is attached to an actual publishing workflow. A generated campaign, video or image still creates extra work if it has to be downloaded, renamed and rebuilt somewhere else.",
-      "INXSocial keeps creation close to publishing, with dedicated workflows for campaign planning, images, carousels, UGC video, text-to-video, image-to-video and stock-video production."
+      "INXSocial keeps creation close to publishing, with dedicated workflows for campaign planning, images, carousels, UGC video and a multi-model Video Studio covering text-to-video, image-to-video and supported reference-driven generation."
     ],
     highlights: [
       {
@@ -322,14 +322,14 @@ export const seoPages: Record<string, SeoPage> = {
       },
       {
         title: "Image, carousel and video",
-        body: "Generate image posts, coordinated carousels and short-form video, including text-to-video and image-to-video routes, while keeping the finished media inside INXSocial."
+        body: "Generate image posts and coordinated carousels, then use AI Recommended or direct model choice in Video Studio for text-to-video, image-to-video and supported reference-driven generation."
       }
     ],
     workflowHeading: "Generation connected to publishing",
     workflow: [
       {
         title: "Choose the workflow",
-        body: "Start with AI Campaign, Image Post, Carousel Post, Short Video / Reel or UGC Studio according to what you need to produce."
+        body: "Start with AI Campaign, Image Post, Carousel Post, AI Video Studio or UGC Studio according to what you need to produce."
       },
       {
         title: "Create and review",
@@ -343,14 +343,14 @@ export const seoPages: Record<string, SeoPage> = {
     detailHeading: "A content studio built around real social workflows",
     details: [
       "AI Campaign can create text-only, image-only or mixed campaigns and can analyse an optional business or product website for grounded strategy and creative direction.",
-      "UGC Studio supports reusable creators, product-reference uploads, multiple variations, background rendering and a post-generation editor. Short Video / Reel supports both text-to-video and image-to-video alongside Stock Video Creator.",
+      "UGC Studio supports reusable creators, product-reference uploads, multiple variations, background rendering and a post-generation editor. AI Video Studio uses the live generation-ready catalogue with AI Recommended or direct model choice, while Stock Video Creator remains available as a separate production path.",
       "AI generation uses the shared plan-based credit system. The product calculates credit exposure before generation where the workflow can create multiple paid assets."
     ],
     faq: [
       {
         question: "What can AI Content Studio create?",
         answer:
-          "Current workflows cover AI Campaign, Image Post, Carousel Post, Short Video / Reel and UGC Studio. Video can start from text or an image reference, and Stock Video Creator is also available."
+          "Current workflows cover AI Campaign, Image Post, Carousel Post, AI Video Studio and UGC Studio. Video Studio supports a live multi-model catalogue with text-to-video, image-to-video and supported reference workflows, plus Stock Video Creator."
       },
       {
         question: "Can an AI campaign be scheduled as a batch?",
@@ -572,15 +572,15 @@ export const seoPages: Record<string, SeoPage> = {
 
   "ai-video-post-generator": {
     slug: "ai-video-post-generator",
-    title: "AI Social Media Video & Image-to-Video Generator | INXSocial",
+    title: "AI Video Studio with Multi-Model Text & Image to Video | INXSocial",
     metaDescription:
-      "Create short social videos from text or a reference image with AI model routing, image-to-video controls, background rendering and direct publishing in INXSocial.",
-    eyebrow: "AI social video generator",
-    h1: "Create short-form video from a prompt or reference image without leaving your social workflow.",
+      "Create AI video with a live multi-model catalogue, AI Recommended or direct model choice, text-to-video, image-to-video, supported references and publishing in INXSocial.",
+    eyebrow: "Multi-model AI Video Studio",
+    h1: "Create with a live multi-model AI Video Studio without leaving your publishing workflow.",
     lead:
-      "INXSocial AI Video Studio supports text-to-video and image-to-video generation, automatic or manual model routing, configurable output controls and background rendering before the finished asset moves into Media Library and publishing.",
+      "INXSocial AI Video Studio brings a live generation-ready model catalogue into one workspace, with AI Recommended or Choose Model, text-to-video, image-to-video, supported reference workflows and model-specific controls before the finished asset moves into Media Library and publishing.",
     intro: [
-      "Short-form video often becomes a fragmented workflow: the brief lives in one tool, references in another, the render somewhere else and publishing in a fourth product.",
+      "AI video production often becomes a fragmented workflow: model discovery happens in one place, the brief and references in another, rendering somewhere else and publishing in a fourth product."
       "INXSocial keeps the generation path inside the same workspace. Start from text, a product image, screenshot or first-frame reference, generate in the background, then continue with the finished video without rebuilding the post elsewhere."
     ],
     highlights: [
@@ -589,12 +589,12 @@ export const seoPages: Record<string, SeoPage> = {
         body: "Generate from a written brief alone or add a reference image, product shot, screenshot or first frame to anchor the visual direction."
       },
       {
-        title: "Smart model routing",
-        body: "Use AI Recommended for quality-to-cost model selection, Fast for a lower-cost everyday route, or Manual when you want direct control over the available generation model."
+        title: "AI Recommended or Choose Model",
+        body: "Let AI Recommended select a suitable generation-ready model for the brief and reference state, or browse the live catalogue and choose the model yourself."
       },
       {
         title: "Publishing-ready output",
-        body: "Choose supported duration, resolution, aspect ratio and audio options, let longer renders continue in the background, then keep the finished video inside Media Library and Posts."
+        body: "Use only the controls supported by the selected model, including duration, resolution, aspect ratio, FPS, audio, draft and reference options where available, then keep the finished video inside Media Library and Posts."
       }
     ],
     workflowHeading: "From brief to social-ready video",
@@ -604,8 +604,8 @@ export const seoPages: Record<string, SeoPage> = {
         body: "Write the creative brief and optionally provide a product URL or reference image for stronger visual grounding."
       },
       {
-        title: "Choose or let AI route the model",
-        body: "Use AI Recommended, Fast or Manual mode, then configure the supported duration, resolution, aspect ratio, audio and draft options."
+        title: "Choose or let AI recommend the model",
+        body: "Use AI Recommended or Choose Model, then configure only the duration, resolution, aspect ratio, FPS, audio, draft and reference controls supported by that model."
       },
       {
         title: "Generate and publish",
@@ -614,9 +614,9 @@ export const seoPages: Record<string, SeoPage> = {
     ],
     detailHeading: "Video generation designed around social production",
     details: [
-      "The current generative video workflow exposes several video-generation routes behind a consistent INXSocial interface. Model availability, supported dimensions, duration and audio capability vary by route.",
-      "Reference-image generation is supported where the selected model permits it, giving users a practical image-to-video path for product shots, screenshots and first-frame creative.",
-      "Stock Video Creator remains available as a separate production path inside Short Video / Reel. AI Video Clipping is still presented as coming soon and is not described as generally available."
+      "The current Video Studio reads from a synchronized provider catalogue and exposes generation-ready models behind one consistent INXSocial interface. Availability, generation modes, duration, resolution, FPS, audio and reference capability vary by model."
+      "Reference-driven generation is exposed only where the selected model supports it, including first-frame, last-frame and multi-reference controls when those capabilities are available."
+      "Stock Video Creator remains available as a separate production path. Video Studio also calculates live credit estimates from synchronized provider pricing and keeps longer generations available through background job tracking."
     ],
     faq: [
       {
@@ -627,7 +627,7 @@ export const seoPages: Record<string, SeoPage> = {
       {
         question: "Can INXSocial choose the video model automatically?",
         answer:
-          "Yes. AI Recommended analyses the brief and whether a reference image is present, then selects a supported model based on quality-to-cost and production needs. Fast and Manual modes are also available."
+          "Yes. AI Recommended analyses the brief and reference state, then selects a suitable generation-ready model based on quality-to-cost and production needs. You can also use Choose Model to browse the catalogue directly."
       },
       {
         question: "Can video generation continue if I close the window?",
@@ -722,15 +722,15 @@ export const seoPages: Record<string, SeoPage> = {
     highlights: [
       {
         title: "Creator — £18.99/month",
-        body: "For individual creators: up to 5 connected accounts, unlimited posts and scheduling, Analytics, AI captions, full AI Content Studio and 150 AI credits per month."
+        body: "For individual creators: up to 5 connected accounts, unlimited posts and scheduling, Analytics, full AI Content Studio and Video Studio, and 300 shared AI credits per month."
       },
       {
         title: "Pro — £34.99/month",
-        body: "For growing businesses: up to 12 connected accounts, unlimited posts and scheduling, full Analytics and AI Content Studio, 500 AI credits and priority support."
+        body: "For growing businesses: up to 12 connected accounts, unlimited posts and scheduling, full Analytics, AI Content Studio and Video Studio, 900 shared AI credits and priority support."
       },
       {
         title: "Business & Agency",
-        body: "Business is £59.99/month for up to 25 connected accounts and 1,200 AI credits. Agency is £99.99/month for up to 50 connected accounts and 2,500 AI credits."
+        body: "Business is £59.99/month for up to 25 connected accounts and 2,000 AI credits. Agency is £99.99/month for up to 50 connected accounts and 2,900 AI credits."
       }
     ],
     workflowHeading: "Start before you commit",
@@ -750,7 +750,7 @@ export const seoPages: Record<string, SeoPage> = {
     ],
     detailHeading: "What the paid plans are built around",
     details: [
-      "Creator, Pro, Business and Agency all include unlimited posts and scheduling together with Analytics, AI captions and full AI Content Studio access.",
+      "Creator, Pro, Business and Agency all include unlimited posts and scheduling together with Analytics, AI Content Studio and the multi-model AI Video Studio."
       "The main published differences are connected-account capacity, AI credit allowance and support level.",
       "AI generation consumes credits according to the content workflow and provider cost. The product interface shows the user's available credit balance."
     ],
