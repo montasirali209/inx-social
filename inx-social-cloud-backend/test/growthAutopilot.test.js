@@ -111,6 +111,26 @@ test('Growth Autopilot UI shows the live editorial pipeline and removes separate
   assert.match(css, /\.growth-editorial-stage\.active/);
 });
 
+test('Growth admin actions are CSP-safe and the admin UI uses the readable light theme', () => {
+  const html = read('public/index.html');
+  const js = read('public/admin.js');
+  const app = read('src/app.js');
+  const light = read('public/admin-light.css');
+
+  assert.match(html, /admin-light\.css\?v=1/);
+  assert.match(js, /data-growth-authority-action="approve"/);
+  assert.match(js, /data-growth-optimization-action="approve"/);
+  assert.match(js, /growthAuthorityQueue'\)\.addEventListener\('click'/);
+  assert.match(js, /growthOptimizationQueue'\)\.addEventListener\('click'/);
+  assert.doesNotMatch(js, /onclick="growthAuthorityProspectAction/);
+  assert.doesNotMatch(js, /onclick="growthOptimizationAction/);
+  assert.match(app, /app\.get\('\/admin-light\.css'/);
+  assert.match(app, /Cache-Control', 'no-store'/);
+  assert.match(light, /color-scheme:light/);
+  assert.match(light, /background:#fff!important/);
+  assert.match(light, /font-size:14px!important/);
+});
+
 test('Autopilot admin mutations stay Super Admin protected', () => {
   const routes = read('src/routes/adminRoutes.js');
 

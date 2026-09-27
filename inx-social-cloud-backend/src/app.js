@@ -496,8 +496,18 @@ app.get(SOCIAL_PREVIEW_ASSET_PATH, async (req, res, next) => {
   }
 });
 
-app.use('/admin.css', express.static(path.join(publicRoot, 'admin.css'), { setHeaders: res => res.setHeader('Content-Type', 'text/css') }));
-app.use('/admin.js', express.static(path.join(publicRoot, 'admin.js'), { setHeaders: res => res.setHeader('Content-Type', 'application/javascript') }));
+const sendAdminAsset = (fileName, contentType) => (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+  res.type(contentType);
+  return res.sendFile(path.join(publicRoot, fileName), error => {
+    if (error) next(error);
+  });
+};
+app.get('/admin.css', sendAdminAsset('admin.css', 'text/css'));
+app.get('/admin-security.css', sendAdminAsset('admin-security.css', 'text/css'));
+app.get('/admin-light.css', sendAdminAsset('admin-light.css', 'text/css'));
+app.get('/admin.js', sendAdminAsset('admin.js', 'application/javascript'));
 app.get(Object.keys(LEGACY_MARKETING_REDIRECTS), (req, res) => {
   res.redirect(301, LEGACY_MARKETING_REDIRECTS[req.path] || '/');
 });
