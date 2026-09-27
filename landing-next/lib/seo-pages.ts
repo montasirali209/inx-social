@@ -574,7 +574,7 @@ export const seoPages: Record<string, SeoPage> = {
     slug: "ai-video-post-generator",
     title: "Multi-Model AI Video Studio & Generator | INXSocial",
     metaDescription:
-      "Create AI video with a live multi-model catalogue, AI Recommended or direct model choice, text-to-video, image-to-video, supported references and publishing in INXSocial.",
+      "Create AI video with a live multi-model catalogue, AI Recommended or direct model choice, text-to-video, image-to-video and publishing in INXSocial.",
     eyebrow: "Multi-model AI Video Studio",
     h1: "Create with a live multi-model AI Video Studio without leaving your publishing workflow.",
     lead:
