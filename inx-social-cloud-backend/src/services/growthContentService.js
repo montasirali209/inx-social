@@ -624,7 +624,7 @@ async function writeArticle(input, research) {
   const request = {
     model: env.contentWriter.model,
     instructions: [
-      seoSkills.criticInstructions(),
+      seoSkills.writerInstructions(),
       'Act as the senior editorial writer for ' + brandName + '. Write like a specialist publication, not a generic SEO content generator.',
       'Create an original, useful article from the research brief and verified source pack. The reader should leave with a clear answer, decision framework and practical next step.',
       'Treat research_brief.facts as the evidence ledger: each fact has a source_ref already bound to a verified source. Prefer those facts for externally verifiable claims and cite the bound source_ref.',
