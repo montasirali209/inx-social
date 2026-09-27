@@ -1045,7 +1045,7 @@ function renderGrowthEditorialBoard(data){
     const fixes=Array.isArray(meta.requiredFixes)?meta.requiredFixes:[];
     const issues=Array.isArray(meta.issues)?meta.issues:[];
     const summary=meta.summary||latestReview.message||'Editorial review completed.';
-    const decision=String(meta.disposition||latestReview.type==='EDITORIAL_REVIEW_PASSED'?'APPROVE':latestReview.type==='EDITORIAL_TOPIC_UNSUITABLE'?'SWITCH TOPIC':'REVISE').replaceAll('_',' ');
+    const decision=String(meta.disposition||(latestReview.type==='EDITORIAL_REVIEW_PASSED'?'APPROVE':latestReview.type==='EDITORIAL_TOPIC_UNSUITABLE'?'SWITCH TOPIC':'REVISE')).replaceAll('_',' ');
     $('growthEditorialFeedback').innerHTML=
       '<div class="growth-editorial-review-head"><span>'+esc(decision)+'</span><div>'+
         (meta.criticScore!=null?'<b>'+Number(meta.criticScore)+'/100</b>':'<b>Reviewed</b>')+
