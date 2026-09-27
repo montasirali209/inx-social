@@ -727,6 +727,44 @@ model WebsiteMediaVersion {
   @@index([createdAt])
 }
 
+model UiDesignProject {
+  id              String   @id @default(cuid())
+  name            String
+  framework       String   @default("REACT_TYPESCRIPT")
+  styling         String   @default("TAILWIND")
+  outputType      String   @default("SECTION")
+  status          String   @default("ACTIVE")
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  references UiDesignReference[]
+
+  @@index([status, updatedAt])
+  @@index([createdAt])
+}
+
+model UiDesignReference {
+  id               String   @id @default(cuid())
+  projectId        String
+  viewport         String
+  storageProvider  String
+  storageKey       String   @unique
+  originalName     String
+  mimeType         String
+  byteSize         BigInt
+  width            Int
+  height           Int
+  sha256           String
+  uploadedByUserId String?
+  createdAt        DateTime @default(now())
+
+  project UiDesignProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, viewport, createdAt])
+  @@index([createdAt])
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
   userId    String?

@@ -36,12 +36,23 @@ const growthAuthority = require('../controllers/growthAuthorityController');
 const growthOptimization = require('../controllers/growthOptimizationController');
 const growthDashboard = require('../controllers/growthDashboardController');
 const websiteMedia = require('../controllers/websiteMediaAdminController');
+const uiStudio = require('../controllers/uiStudioController');
 const adminSecurityRoutes = require('./adminSecurityRoutes');
 
 router.get('/search-console/oauth/callback', googleSearchConsole.oauthCallback);
 
 router.use(requireAuth, requireAdmin);
 router.get('/overview', overview);
+router.get('/ui-studio/projects', uiStudio.list);
+router.post('/ui-studio/projects', requireSuperAdmin, uiStudio.create);
+router.get('/ui-studio/projects/:projectId', uiStudio.detail);
+router.post(
+  '/ui-studio/projects/:projectId/references/:viewport/upload',
+  requireSuperAdmin,
+  express.raw({ type: ['image/png','image/jpeg','image/webp','image/avif'], limit: '50mb' }),
+  uiStudio.upload
+);
+router.get('/ui-studio/references/:referenceId/content', uiStudio.content);
 router.get('/website-media', websiteMedia.list);
 router.get('/website-media/:key', websiteMedia.detail);
 router.post('/website-media/:key/upload', requireSuperAdmin, express.raw({ type: ['image/png','image/jpeg','image/webp','image/avif'], limit: '25mb' }), websiteMedia.upload);

@@ -190,7 +190,7 @@ const isAdminHost = req => Boolean(env.adminHost && String(req.hostname || '').t
 const secureAdminDocument = res => {
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
   res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+  res.setHeader('Content-Security-Policy', "default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
 };
 
 const injectAnalyticsConsent = source => {
@@ -509,6 +509,8 @@ const sendAdminAsset = (fileName, contentType) => (req, res, next) => {
 app.get('/admin.css', sendAdminAsset('admin.css', 'text/css'));
 app.get('/admin-security.css', sendAdminAsset('admin-security.css', 'text/css'));
 app.get('/admin-light.css', sendAdminAsset('admin-light.css', 'text/css'));
+app.get('/ui-studio.css', sendAdminAsset('ui-studio.css', 'text/css'));
+app.get('/ui-studio.js', sendAdminAsset('ui-studio.js', 'application/javascript'));
 app.get('/admin.js', sendAdminAsset('admin.js', 'application/javascript'));
 app.get(Object.keys(LEGACY_MARKETING_REDIRECTS), (req, res) => {
   res.redirect(301, LEGACY_MARKETING_REDIRECTS[req.path] || '/');

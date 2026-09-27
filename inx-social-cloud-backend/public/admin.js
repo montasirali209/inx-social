@@ -11,7 +11,7 @@ function clearSession(){clearInterval(state.timer);clearInterval(state.growthRea
 async function signOut(){try{await fetch('/api/admin-auth/logout',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'}})}catch{}finally{clearSession()}}
 async function api(path,options={}){const headers={'Content-Type':'application/json',...(options.headers||{})};const response=await fetch(path,{...options,headers,credentials:'same-origin'});const data=await response.json().catch(()=>({}));if(response.status===401){clearSession();throw new Error(data.error||'Your administrator session has ended.')}if(!response.ok)throw new Error(data.error||`Request failed: ${response.status}`);return data}
 function setLoggedIn(on){$('loginView').classList.toggle('hidden',on);$('dashboardView').classList.toggle('hidden',!on);if(on){const name=state.user?.name||'INXSocial Admin';$('adminName').textContent=name;$('adminEmail').textContent=`${state.user?.email||''}${state.user?.role?` · ${state.user.role.replace('_',' ')}`:''}`;$('adminInitials').textContent=initials(name)}}
-const pageMeta={overview:['Overview','Monitor new customers and service activity.'],growthDashboard:['Growth Dashboard','Live traffic, conversion, revenue, SEO, outreach and Growth Autopilot activity in one mobile-ready view.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI & Automation','Manage AI Studio policy, Social Agent allowances and generation infrastructure.'],searchConsole:['Search Console','Monitor Google Search visibility, queries, landing pages and SEO opportunities.'],growthIntelligence:['Growth Autopilot','Monitor the automatic growth system. Advanced diagnostics are available only when needed.'],contentEngine:['Content Engine','Research, review and publish self-hosted SEO content from Growth Intelligence opportunities.'],websiteMedia:['Website Media','Upload, replace and restore high-resolution landing and SEO images without a code deployment.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
+const pageMeta={overview:['Overview','Monitor new customers and service activity.'],growthDashboard:['Growth Dashboard','Live traffic, conversion, revenue, SEO, outreach and Growth Autopilot activity in one mobile-ready view.'],users:['Customers','Provision customer accounts and control live entitlements.'],aiAccess:['AI & Automation','Manage AI Studio policy, Social Agent allowances and generation infrastructure.'],searchConsole:['Search Console','Monitor Google Search visibility, queries, landing pages and SEO opportunities.'],growthIntelligence:['Growth Autopilot','Monitor the automatic growth system. Advanced diagnostics are available only when needed.'],contentEngine:['Content Engine','Research, review and publish self-hosted SEO content from Growth Intelligence opportunities.'],websiteMedia:['Website Media','Upload, replace and restore high-resolution landing and SEO images without a code deployment.'],uiStudio:['UI Studio','Upload and inspect full-resolution UI references before design analysis and code generation.'],settings:['System Settings','Review and update allowlisted live configuration.'],security:['Admin & Security','Manage administrator access, credentials and audit activity.']};
 async function openPage(page){
   if(page!=='growthIntelligence'){clearInterval(state.growthRealtimeTimer);clearInterval(state.growthAutopilotTimer);state.growthRealtimeTimer=null;state.growthAutopilotTimer=null;}
   if(page!=='growthDashboard'){clearInterval(state.growthDashboardTimer);state.growthDashboardTimer=null;}
@@ -26,11 +26,13 @@ async function openPage(page){
   if(page==='growthIntelligence')await loadGrowthIntelligence();
   if(page==='contentEngine')await loadContentEngine();
   if(page==='websiteMedia')await loadWebsiteMedia();
+  if(page==='uiStudio')await window.loadUiStudio?.();
   if(page==='settings')await loadSettings();
   if(page==='security')await loadSecurity();
   if(page==='growthDashboard')history.replaceState({},'',location.pathname+location.search+'#growthDashboard');
   else if(page==='websiteMedia')history.replaceState({},'',location.pathname+location.search+'#websiteMedia');
-  else if(location.hash==='#growthDashboard'||location.hash==='#websiteMedia')history.replaceState({},'',location.pathname+location.search);
+  else if(page==='uiStudio')history.replaceState({},'',location.pathname+location.search+'#uiStudio');
+  else if(location.hash==='#growthDashboard'||location.hash==='#websiteMedia'||location.hash==='#uiStudio')history.replaceState({},'',location.pathname+location.search);
 }
 document.querySelectorAll('.nav').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.page)));
 document.querySelectorAll('[data-open-page]').forEach(button=>button.addEventListener('click',()=>void openPage(button.dataset.openPage)));
@@ -1995,6 +1997,10 @@ async function postAuthLanding(){
   }
   if(window.location.hash==='#websiteMedia'){
     await openPage('websiteMedia');
+    return;
+  }
+  if(window.location.hash==='#uiStudio'){
+    await openPage('uiStudio');
     return;
   }
   await loadOverview();

@@ -21,7 +21,8 @@ const R2_GENERATED_MEDIA_PREFIXES = new Set([
   'ugc-product',
   'ugc-sample',
   'growth-content',
-  'website-media'
+  'website-media',
+  'ui-studio'
 ]);
 
 function clean(value) {
