@@ -46,7 +46,6 @@ export const metadata: Metadata = {
       secureUrl: websiteMediaAbsoluteUrl(WEBSITE_MEDIA.landingSocialPreview),
       width: 1200,
       height: 630,
-      type: "image/jpeg",
       alt: "INXSocial AI content creation, multi-model Video Studio and social publishing platform"
     }]
   },
