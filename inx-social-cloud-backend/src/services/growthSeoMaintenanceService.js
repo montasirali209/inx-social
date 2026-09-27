@@ -184,7 +184,7 @@ function inspectHtml(url, html, status, redirectHops, contentType, xRobotsTag) {
     title,
     description,
     canonical: canonical || '',
-    canonicalPath: canonicalPath(canonical),
+    canonicalPath: canonicalPath(canonical, origin),
     robots,
     xRobotsTag: String(xRobotsTag || ''),
     noindex: /\bnoindex\b/i.test(robots) || /\bnoindex\b/i.test(String(xRobotsTag || '')),
