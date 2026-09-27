@@ -68,6 +68,7 @@ export async function getVideoModelShowcase(limit = 12): Promise<VideoModelShowc
   try {
     const response = await fetch(`${origin}/api/public/video-models?limit=${Math.max(1, Math.min(100, limit))}`, {
       next: { revalidate: 300 },
+      signal: AbortSignal.timeout(2500),
       headers: { "user-agent": "INXSocial-Landing-Model-Showcase/1.0" }
     });
     if (!response.ok) return FALLBACK;
