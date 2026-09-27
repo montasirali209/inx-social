@@ -21,8 +21,10 @@ const LEASE_MS = 45 * 60 * 1000;
 const DEFAULT_CONFIG = Object.freeze({
   enabled: true,
   intelligenceEveryHours: 24,
-  configVersion: 4,
+  configVersion: 5,
   publishEveryHours: 24,
+  dailyPublishTimeLocal: '07:30',
+  publishTimeZone: 'Europe/London',
   authorityEveryHours: 6,
   authorityAutoEmail: true,
   optimizationEveryHours: 24,
@@ -53,6 +55,115 @@ function addHours(base, hours) {
   return new Date(new Date(base).getTime() + Number(hours) * 60 * 60 * 1000).toISOString();
 }
 
+function normalizeTimeOfDay(value, fallback = '07:30') {
+  const text = String(value || '').trim();
+  return /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(text) ? text : fallback;
+}
+
+function normalizeTimeZone(value, fallback = 'Europe/London') {
+  const text = String(value || '').trim() || fallback;
+  try {
+    new Intl.DateTimeFormat('en-GB', { timeZone: text }).format(new Date());
+    return text;
+  } catch (_) {
+    return fallback;
+  }
+}
+
+function zonedParts(date, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(date);
+  const out = {};
+  for (const part of parts) {
+    if (part.type !== 'literal') out[part.type] = Number(part.value);
+  }
+  return out;
+}
+
+function localDateKey(date, timeZone) {
+  const p = zonedParts(date, timeZone);
+  return String(p.year).padStart(4, '0') + '-' + String(p.month).padStart(2, '0') + '-' + String(p.day).padStart(2, '0');
+}
+
+function localMinutes(date, timeZone) {
+  const p = zonedParts(date, timeZone);
+  return Number(p.hour || 0) * 60 + Number(p.minute || 0);
+}
+
+function addCalendarDays(year, month, day, days) {
+  const shifted = new Date(Date.UTC(year, month - 1, day + days));
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate()
+  };
+}
+
+function zonedLocalToUtcIso(parts, timeZone) {
+  const desiredPseudoUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, 0, 0);
+  let guess = desiredPseudoUtc;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const observed = zonedParts(new Date(guess), timeZone);
+    const observedPseudoUtc = Date.UTC(
+      observed.year,
+      observed.month - 1,
+      observed.day,
+      observed.hour,
+      observed.minute,
+      observed.second || 0,
+      0
+    );
+    const delta = desiredPseudoUtc - observedPseudoUtc;
+    if (Math.abs(delta) < 1000) break;
+    guess += delta;
+  }
+  return new Date(guess).toISOString();
+}
+
+function scheduledPublishIsoForLocalDate(year, month, day, config) {
+  const [hour, minute] = normalizeTimeOfDay(config.dailyPublishTimeLocal).split(':').map(Number);
+  const timeZone = normalizeTimeZone(config.publishTimeZone);
+  return zonedLocalToUtcIso({ year, month, day, hour, minute }, timeZone);
+}
+
+function nextDailyPublishIso(reference, config, alwaysNextDay = false) {
+  const date = reference instanceof Date ? reference : new Date(reference || Date.now());
+  const timeZone = normalizeTimeZone(config.publishTimeZone);
+  const p = zonedParts(date, timeZone);
+  const [hour, minute] = normalizeTimeOfDay(config.dailyPublishTimeLocal).split(':').map(Number);
+  const targetMinutes = hour * 60 + minute;
+  const currentMinutes = Number(p.hour || 0) * 60 + Number(p.minute || 0);
+  const daysToAdd = alwaysNextDay || currentMinutes >= targetMinutes ? 1 : 0;
+  const target = addCalendarDays(p.year, p.month, p.day, daysToAdd);
+  return scheduledPublishIsoForLocalDate(target.year, target.month, target.day, config);
+}
+
+function dailyPublishDue(state, config, reference = new Date()) {
+  const timeZone = normalizeTimeZone(config.publishTimeZone);
+  const localDay = localDateKey(reference, timeZone);
+  if (state.lastPublishDecisionDateLocal === localDay) return false;
+
+  const [hour, minute] = normalizeTimeOfDay(config.dailyPublishTimeLocal).split(':').map(Number);
+  if (localMinutes(reference, timeZone) < hour * 60 + minute) return false;
+
+  return !state.nextPublishAt || isDue(state.nextPublishAt);
+}
+
+function markDailyPublishDecision(state, config, reference = new Date()) {
+  const timeZone = normalizeTimeZone(config.publishTimeZone);
+  state.lastPublishDecisionDateLocal = localDateKey(reference, timeZone);
+  state.nextPublishAt = nextDailyPublishIso(reference, config, true);
+  return state;
+}
+
 function isDue(value) {
   if (!value) return true;
   const date = new Date(value);
@@ -68,8 +179,10 @@ function normalizeConfig(value = {}) {
   return {
     enabled: value.enabled !== false,
     intelligenceEveryHours: clampNumber(value.intelligenceEveryHours, 24, 6, 168),
-    configVersion: Math.max(4, Number(value.configVersion || 0)),
+    configVersion: Math.max(5, Number(value.configVersion || 0)),
     publishEveryHours: clampNumber(value.publishEveryHours, 24, 24, 336),
+    dailyPublishTimeLocal: normalizeTimeOfDay(value.dailyPublishTimeLocal, '07:30'),
+    publishTimeZone: normalizeTimeZone(value.publishTimeZone, 'Europe/London'),
     authorityEveryHours: clampNumber(value.authorityEveryHours, 6, 6, 48),
     authorityAutoEmail: value.authorityAutoEmail === true,
     optimizationEveryHours: clampNumber(value.optimizationEveryHours, 24, 12, 168),
@@ -94,6 +207,7 @@ function initialState() {
     lastAuthorityAt: null,
     lastOptimizationAt: null,
     lastPublishedAt: null,
+    lastPublishDecisionDateLocal: null,
     nextIntelligenceAt: now,
     nextAuthorityAt: now,
     nextOptimizationAt: now,
@@ -116,9 +230,11 @@ async function ensureSettings() {
   const configRow = await prisma.appSetting.findUnique({ where: { key: CONFIG_KEY } });
   const rawConfig = safeJson(configRow?.value, null);
   const needsV4Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 4;
+  const needsV5Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 5;
   const config = normalizeConfig({
     ...(rawConfig || DEFAULT_CONFIG),
-    ...(needsV4Migration ? { configVersion: 4, publishEveryHours: 24, authorityEveryHours: 6, authorityAutoEmail: true, optimizationEveryHours: 24 } : {})
+    ...(needsV4Migration ? { authorityEveryHours: 6, authorityAutoEmail: true, optimizationEveryHours: 24 } : {}),
+    ...(needsV5Migration ? { configVersion: 5, dailyPublishTimeLocal: '07:30', publishTimeZone: 'Europe/London' } : {})
   });
 
   await prisma.appSetting.upsert({
@@ -141,19 +257,22 @@ async function ensureSettings() {
         description: 'INXSocial Growth Autopilot runtime state and activity.'
       }
     });
-  } else if (needsV4Migration) {
+  } else if (needsV4Migration || needsV5Migration) {
     const state = { ...initialState(), ...(safeJson(existingState.value, {}) || {}) };
     state.running = false;
     state.leaseUntil = null;
     state.nextIntelligenceAt = nowIso();
     state.nextAuthorityAt = nowIso();
     state.nextOptimizationAt = nowIso();
-    state.nextPublishAt = nowIso();
+    state.lastPublishDecisionDateLocal = null;
+    state.nextPublishAt = nextDailyPublishIso(new Date(), config);
     state.recentEvents = [{
       at: nowIso(),
       type: 'AUTOPILOT_UPGRADED',
       level: 'success',
-      message: 'Growth Autopilot upgraded with final Phase 5 continuous optimisation and revenue feedback.'
+      message: needsV5Migration
+        ? 'Growth Autopilot upgraded to a fixed daily UK morning content-decision window.'
+        : 'Growth Autopilot upgraded with final Phase 5 continuous optimisation and revenue feedback.'
     }, ...(state.recentEvents || [])].slice(0, 40);
     await prisma.appSetting.update({
       where: { key: STATE_KEY },
@@ -539,7 +658,7 @@ async function produceAndPublish(opportunity, config, strategy = null) {
       const publishedAt = article.published_at || nowIso();
       await mutateState(state => {
         state.lastPublishedAt = publishedAt;
-        state.nextPublishAt = addHours(publishedAt, config.publishEveryHours);
+        markDailyPublishDecision(state, config, new Date(publishedAt));
         state.lastPublishedArticle = {
           id: article.id,
           slug: article.slug,
@@ -573,7 +692,7 @@ async function produceAndPublish(opportunity, config, strategy = null) {
     }
 
     await mutateState(state => {
-      state.nextPublishAt = addHours(nowIso(), config.publishEveryHours);
+      markDailyPublishDecision(state, config, new Date());
       return state;
     });
     await recordEvent(
@@ -600,7 +719,7 @@ async function runCycle(options = {}) {
   const intelligenceDue = options.force || isDue(state.nextIntelligenceAt);
   const authorityDue = options.force || isDue(state.nextAuthorityAt);
   const optimizationDue = options.force || isDue(state.nextOptimizationAt);
-  const publishDue = options.force || isDue(state.nextPublishAt);
+  const publishDue = options.force || dailyPublishDue(state, config);
   if (!intelligenceDue && !authorityDue && !optimizationDue && !publishDue) return { skipped: true, reason: 'not_due' };
 
   const claimed = await claimLease();
@@ -735,9 +854,10 @@ async function runCycle(options = {}) {
             };
           }
         } else {
-          const nextReview = addHours(nowIso(), config.publishEveryHours);
+          let nextReview = null;
           await mutateState(current => {
-            current.nextPublishAt = nextReview;
+            markDailyPublishDecision(current, config, new Date());
+            nextReview = current.nextPublishAt;
             return current;
           });
           await recordEvent(
@@ -864,7 +984,7 @@ async function updateConfig(patch = {}) {
       if (!state.nextIntelligenceAt) state.nextIntelligenceAt = nowIso();
       if (!state.nextAuthorityAt) state.nextAuthorityAt = nowIso();
       if (!state.nextOptimizationAt) state.nextOptimizationAt = nowIso();
-      if (!state.nextPublishAt) state.nextPublishAt = nowIso();
+      if (!state.nextPublishAt) state.nextPublishAt = nextDailyPublishIso(new Date(), next);
       return state;
     });
   }
@@ -926,7 +1046,8 @@ function startGrowthAutopilot() {
     void syncLegacyBlog('startup');
     console.info('[growth-autopilot] runtime ready', {
       pollMinutes: POLL_MS / 60000,
-      defaultPublishHours: DEFAULT_CONFIG.publishEveryHours,
+      dailyPublishTimeLocal: DEFAULT_CONFIG.dailyPublishTimeLocal,
+      publishTimeZone: DEFAULT_CONFIG.publishTimeZone,
       strategyModelReady: growthStrategy.ready()
     });
   }).catch(error => {
@@ -979,5 +1100,11 @@ module.exports = {
   startGrowthAutopilot,
   stopGrowthAutopilot,
   chooseOpportunity,
-  contentEligibleOpportunity
+  contentEligibleOpportunity,
+  normalizeTimeOfDay,
+  normalizeTimeZone,
+  localDateKey,
+  nextDailyPublishIso,
+  dailyPublishDue,
+  markDailyPublishDecision
 };
