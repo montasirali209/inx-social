@@ -36,6 +36,13 @@ test('Growth site registry creates stable independent site identities', () => {
   assert.match(sites.settingKey('profile', a), new RegExp('^profile:' + a + '$'));
 });
 
+test('site intelligence avoids a top-level SEO-maintenance circular dependency', () => {
+  const source = read('src/services/growthSiteIntelligenceService.js');
+  assert.doesNotMatch(source, /^const seoMaintenance = require\('\.\/growthSeoMaintenanceService'\);/m);
+  assert.match(source, /const seoMaintenance = require\('\.\/growthSeoMaintenanceService'\);/);
+  assert.match(source, /Lazy import prevents a circular startup chain/);
+});
+
 test('semantic snapshot diff detects new, removed and materially changed pages', () => {
   const site = { id: 'site-a', origin: 'https://example.com', hostname: 'example.com' };
   const first = siteIntelligence.snapshotFromCrawl(site, {
