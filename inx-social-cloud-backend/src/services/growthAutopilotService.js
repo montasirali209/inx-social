@@ -9,6 +9,8 @@ const growthStrategy = require('./growthStrategyService');
 const seoMaintenance = require('./growthSeoMaintenanceService');
 const authority = require('./growthAuthorityService');
 const optimization = require('./growthOptimizationService');
+const growthSites = require('./growthSiteService');
+const siteIntelligence = require('./growthSiteIntelligenceService');
 
 const CONFIG_KEY = 'growth_autopilot_config_v1';
 const STATE_KEY = 'growth_autopilot_state_v1';
@@ -260,6 +262,7 @@ async function releaseLease() {
 async function runIntelligence(config) {
   const summary = {
     siteAudit: false,
+    siteIntelligence: false,
     openai: false,
     perplexity: false,
     claude: false,
@@ -268,8 +271,36 @@ async function runIntelligence(config) {
     warnings: []
   };
 
+  let siteContext = null;
+  let seo = null;
   try {
-    const audit = await growthIntelligence.runSiteAudit();
+    const site = await growthSites.ensureDefaultSite();
+    seo = await seoMaintenance.run({ origin: site.origin, maxPages: 120 });
+    summary.seoMaintenance = true;
+    summary.seoScore = seo.score;
+    summary.seoPagesCrawled = seo.pagesCrawled;
+    summary.seoIssues = seo.summary?.totalIssues || 0;
+    summary.seoAutoFixed = seo.summary?.autoFixed || 0;
+    summary.internalArticleLinks = seo.summary?.internalArticleLinks || 0;
+
+    siteContext = await siteIntelligence.refresh({ site, crawl: seo });
+    summary.siteIntelligence = true;
+    summary.siteId = site.id;
+    summary.siteOrigin = site.origin;
+    summary.siteProfileConfidence = siteContext.profile?.confidence || 0;
+    summary.siteChanges = {
+      added: siteContext.changes?.added?.length || 0,
+      removed: siteContext.changes?.removed?.length || 0,
+      changed: siteContext.changes?.changed?.length || 0
+    };
+    summary.visibilityPrompts = siteContext.profile?.visibilityPrompts?.length || 0;
+    summary.discoveredCompetitors = siteContext.profile?.competitorCandidates?.length || 0;
+  } catch (error) {
+    summary.warnings.push('Site intelligence: ' + String(error.publicMessage || error.message || 'failed'));
+  }
+
+  try {
+    const audit = await growthIntelligence.runSiteAudit(siteContext?.site || null);
     summary.siteAudit = true;
     summary.siteScore = audit.score;
   } catch (error) {
@@ -277,10 +308,21 @@ async function runIntelligence(config) {
   }
 
   const providers = growthIntelligence.providerStatus();
+  const profile = siteContext?.profile || null;
+  const prompts = (profile?.visibilityPrompts?.length ? profile.visibilityPrompts : await growthIntelligence.dynamicPrompts(siteContext?.site?.id))
+    .slice(0, Math.max(1, config.visibilityPromptCount));
+  const visibilityContext = {
+    site: siteContext?.site || null,
+    profile,
+    brandName: profile?.brandName || siteContext?.site?.hostname || 'the monitored brand',
+    origin: siteContext?.site?.origin || growthSites.DEFAULT_ORIGIN,
+    competitorCandidates: profile?.competitorCandidates || [],
+    prompts
+  };
 
   if (providers.openai?.configured) {
     try {
-      const result = await growthIntelligence.runOpenAIVisibilityScan(config.visibilityPromptCount);
+      const result = await growthIntelligence.runOpenAIVisibilityScan(config.visibilityPromptCount, visibilityContext);
       summary.openai = true;
       summary.openaiMentionRate = result.mentionRate;
       summary.openaiCitationRate = result.citationRate;
@@ -292,25 +334,13 @@ async function runIntelligence(config) {
   for (const provider of ['perplexity', 'claude']) {
     if (!providers[provider]?.configured) continue;
     try {
-      const result = await externalVisibility.runScan(provider, growthIntelligence.DEFAULT_PROMPTS, config.visibilityPromptCount);
+      const result = await externalVisibility.runScan(provider, prompts, config.visibilityPromptCount, visibilityContext);
       summary[provider] = true;
       summary[provider + 'MentionRate'] = result.mentionRate;
       summary[provider + 'CitationRate'] = result.citationRate;
     } catch (error) {
       summary.warnings.push(provider + ' visibility: ' + String(error.publicMessage || error.message || 'failed'));
     }
-  }
-
-  try {
-    const seo = await seoMaintenance.run({ maxPages: 120 });
-    summary.seoMaintenance = true;
-    summary.seoScore = seo.score;
-    summary.seoPagesCrawled = seo.pagesCrawled;
-    summary.seoIssues = seo.summary?.totalIssues || 0;
-    summary.seoAutoFixed = seo.summary?.autoFixed || 0;
-    summary.internalArticleLinks = seo.summary?.internalArticleLinks || 0;
-  } catch (error) {
-    summary.warnings.push('Phase 3 SEO maintenance: ' + String(error.publicMessage || error.message || 'failed'));
   }
 
   const opportunityMap = await growthOpportunities.build(config.opportunityWindowDays);
@@ -324,18 +354,25 @@ async function runIntelligence(config) {
     state.lastIntelligenceAt = completed;
     state.nextIntelligenceAt = addHours(completed, config.intelligenceEveryHours);
     state.lastIntelligenceSummary = summary;
+    state.lastSiteProfile = profile ? {
+      siteId: siteContext?.site?.id || null,
+      brandName: profile.brandName || null,
+      primaryCategory: profile.primaryCategory || null,
+      confidence: profile.confidence || 0,
+      generatedAt: new Date().toISOString()
+    } : null;
     state.lastError = null;
     return state;
   });
 
   await recordEvent(
     'INTELLIGENCE_REFRESHED',
-    'Growth signals refreshed automatically: crawler audit, Phase 3 technical SEO maintenance, internal linking, available AI visibility providers and opportunity scoring.',
+    'Growth signals refreshed automatically: live-site discovery, semantic change detection, technical SEO, AI visibility, first-party performance and opportunity scoring.',
     summary,
     summary.warnings.length ? 'warning' : 'success'
   );
 
-  return { opportunityMap, summary };
+  return { opportunityMap, summary, siteContext };
 }
 
 function contentEligibleOpportunity(opportunity) {
@@ -365,7 +402,7 @@ async function chooseOpportunity(opportunityMap) {
     return opportunity;
   }
 
-  const fallbackPrompts = growthIntelligence.DEFAULT_PROMPTS;
+  const fallbackPrompts = await growthIntelligence.dynamicPrompts();
   for (const prompt of fallbackPrompts) {
     const nearDuplicate = activeArticles.some(article => growthOpportunities.similarity(prompt, article.title) >= 0.55);
     if (!nearDuplicate) {
@@ -443,7 +480,7 @@ async function produceAndPublish(opportunity, config, strategy = null) {
 
     let critic = null;
     try {
-      critic = await growthStrategy.reviewDraft({ article: draft, opportunity, strategy });
+      critic = await growthStrategy.reviewDraft({ article: draft, opportunity, strategy, siteProfile: strategy?.siteProfile || null });
       await recordEvent(
         'AI_CRITIC_REVIEWED',
         critic.approve
@@ -663,7 +700,7 @@ async function runCycle(options = {}) {
       let opportunity = null;
 
       try {
-        strategy = await growthStrategy.plan({ opportunityMap, articles });
+        strategy = await growthStrategy.plan({ opportunityMap, articles, siteProfile: opportunityMap?.siteProfile || null });
         await mutateState(current => {
           current.lastStrategy = strategy;
           return current;
