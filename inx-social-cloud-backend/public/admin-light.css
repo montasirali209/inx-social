@@ -370,6 +370,17 @@ dialog::backdrop{background:rgba(15,23,42,.32)!important}
   color:#92400e!important;
   font-size:12px!important
 }
+.growth-optimization-action-hint{
+  margin-top:9px;
+  border:1px solid #bae6fd;
+  border-radius:9px;
+  background:#f0f9ff!important;
+  padding:8px 10px;
+  color:#075985!important;
+  font-size:12px!important;
+  font-weight:650;
+  line-height:1.45
+}
 .growth-command-track{background:#e2e8f0!important}
 .growth-command-bar>div{background:#f8fafc!important}
 .growth-command-autopilot>div{background:#f8fafc!important}
