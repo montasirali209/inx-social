@@ -34,7 +34,7 @@ test('homepage server-renders live model count and latest model cards', () => {
   assert.match(body, /AI creation \+ multi-model Video Studio \+ social publishing/);
   assert.match(helper, /One studio\. \$\{escapeHtml\(label\)\} generation-ready AI video models/);
   assert.match(helper, /Math\.floor\(safe \/ 10\) \* 10/);
-  assert.match(layout, /AI Content Creation, Video Studio & Social Publishing/);
+  assert.match(layout, /AI Content, Video Studio & Social Publishing/);
   assert.doesNotMatch(body, /70\+ generation-ready models/);
 });
 
@@ -61,7 +61,7 @@ test('SEO copy positions INXSocial as AI creation plus publishing and uses curre
   const schema = read('../landing-next/public/schema.json');
   const pricing = read('public/pricing.html');
 
-  assert.match(seo, /AI Video Studio with Multi-Model Text & Image to Video/);
+  assert.match(seo, /Multi-Model AI Video Studio & Generator/);
   assert.match(seo, /AI content creation and social publishing|multi-model AI Video Studio/);
   assert.match(seo, /Creator includes 300 monthly AI credits, Pro 900, Business 2,000 and Agency 4,000/);
   assert.doesNotMatch(seo, /Fast or Manual|150 monthly AI credits|Business 1,200|Agency 2,500/);
