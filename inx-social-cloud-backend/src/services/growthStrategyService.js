@@ -153,6 +153,22 @@ function compactOpportunity(item) {
     recommendedAction: item.action?.type || null,
     recommendedActionLabel: item.action?.label || null,
     search: item.search || null,
+    radar: item.radar ? {
+      category: item.radar.category,
+      headlineAngle: item.radar.headlineAngle,
+      whyNow: item.radar.whyNow,
+      audienceConnection: item.radar.audienceConnection,
+      businessBridge: item.radar.businessBridge,
+      demandEvidence: item.radar.demandEvidence,
+      freshness: item.radar.freshness,
+      audienceOverlap: item.radar.audienceOverlap,
+      bridgeStrength: item.radar.bridgeStrength,
+      informationGain: item.radar.informationGain,
+      geoCitationPotential: item.radar.geoCitationPotential,
+      authorityRisk: item.radar.authorityRisk,
+      hot: Boolean(item.radar.hot),
+      sourceUrls: (item.radar.sourceUrls || []).slice(0, 6)
+    } : null,
     ai: (item.ai || []).map(signal => ({
       provider: signal.provider,
       mentioned: Boolean(signal.mentioned),
