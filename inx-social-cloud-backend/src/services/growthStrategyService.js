@@ -4,6 +4,8 @@ const axios = require('axios');
 const env = require('../config/env');
 const webResearch = require('./webResearchService');
 const growthOpportunities = require('./growthOpportunityService');
+const siteIntelligence = require('./growthSiteIntelligenceService');
+const seoSkills = require('./growthSeoSkillRegistry');
 
 const ACTIONS = Object.freeze([
   'CREATE_ARTICLE',
@@ -160,7 +162,12 @@ function compactOpportunity(item) {
   };
 }
 
-async function plan({ opportunityMap, articles }) {
+async function plan({ opportunityMap, articles, siteProfile = null }) {
+  const intelligence = siteProfile ? null : await siteIntelligence.latest().catch(() => null);
+  const profile = siteProfile || intelligence?.profile || null;
+  const site = intelligence?.site || null;
+  const brandName = profile?.brandName || site?.label || site?.hostname || 'the monitored website';
+
   const opportunities = (opportunityMap?.opportunities || []).slice(0, 10).map(compactOpportunity);
   const existingArticles = (articles || [])
     .filter(article => article.status !== 'ARCHIVED')
@@ -177,20 +184,13 @@ async function plan({ opportunityMap, articles }) {
 
   const payload = {
     model: env.webResearch.model,
-    instructions: [
-      'You are the strategic decision layer for INXSocial Growth Autopilot.',
-      'Choose the single most useful next action from measured evidence, not from novelty or a timer.',
-      'The backend has already collected Search Console demand, GA4 context, AI-search visibility, authority signals, technical checks and existing content.',
-      'Avoid keyword cannibalisation and duplicate articles.',
-      'Prefer improving an existing page when it already ranks and matches intent.',
-      'Choose CREATE_ARTICLE only when a distinct article is genuinely justified.',
-      'Choose MONITOR when evidence is weak or no new page should be created.',
-      'Do not invent traffic, conversion, competitor or product facts.',
-      'Do not provide hidden chain-of-thought. Give only a concise decision rationale and explicit evidence bullets.'
-    ].join(' '),
+    instructions: seoSkills.strategyInstructions(),
     input: [
       'Current date: ' + new Date().toISOString().slice(0, 10),
-      'Goal: grow qualified organic and AI-search discovery for INXSocial without publishing low-value content.',
+      'Goal: grow qualified organic, answer-engine and AI-search discovery for ' + brandName + ' without publishing low-value content.',
+      '',
+      'DISCOVERED SITE PROFILE',
+      JSON.stringify(profile),
       '',
       'OPPORTUNITY MAP',
       JSON.stringify({
@@ -202,7 +202,7 @@ async function plan({ opportunityMap, articles }) {
         opportunities
       }),
       '',
-      'EXISTING INXSOCIAL ARTICLES',
+      'EXISTING SITE ARTICLES',
       JSON.stringify(existingArticles)
     ].join('\n')
   };
@@ -224,7 +224,7 @@ async function plan({ opportunityMap, articles }) {
   };
 }
 
-async function reviewDraft({ article, opportunity, strategy }) {
+async function reviewDraft({ article, opportunity, strategy, siteProfile = null }) {
   const compactArticle = {
     id: article.id,
     title: article.title,
@@ -239,7 +239,11 @@ async function reviewDraft({ article, opportunity, strategy }) {
     backendQuality: article.quality || null
   };
 
+  const intelligence = siteProfile ? null : await siteIntelligence.latest().catch(() => null);
+  const profile = siteProfile || intelligence?.profile || null;
+
   const context = {
+    siteProfile: profile,
     opportunity: opportunity ? compactOpportunity(opportunity) : null,
     strategy: strategy ? {
       action: strategy.action,
@@ -251,16 +255,7 @@ async function reviewDraft({ article, opportunity, strategy }) {
 
   const payload = {
     model: env.webResearch.model,
-    instructions: [
-      'You are the independent editorial critic for INXSocial Growth Autopilot.',
-      'Review the draft separately from the writer.',
-      'Reject unsupported factual or numerical claims, mismatched search intent, thin content, excessive promotion, duplication, misleading competitor claims, or weak source grounding.',
-      'Use the supplied research brief and source list as the primary evidence boundary. Use web search when necessary to independently verify a consequential factual or product claim before approving it.',
-      'Check that inline [S#] citations correspond to the supplied source list and that claims are not stronger than their evidence.',
-      'Do not reward verbosity by itself.',
-      'Approve only when the article is useful enough to publish on a real company website.',
-      'Do not provide private chain-of-thought; return concise review findings only.'
-    ].join(' '),
+    instructions: seoSkills.criticInstructions(),
     input: [
       'CONTEXT',
       JSON.stringify(context),
