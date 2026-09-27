@@ -20,7 +20,7 @@ test('SEO/GEO brain hardcodes professional skills rather than product facts', ()
     assert.ok(skills.SKILLS.some(skill => skill.key === key), key);
   }
   const prompt = skills.expertOperatingInstructions();
-  assert.match(prompt, /Business facts are not/);
+  assert.match(prompt, /business facts are not/i);
   assert.match(prompt, /Discover the business/);
   assert.match(prompt, /keyword cannibalisation/i);
   assert.match(prompt, /AI-search visibility/i);
