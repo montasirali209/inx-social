@@ -30,6 +30,11 @@ const nextConfig: NextConfig = {
         permanent: true
       })),
       {
+        source: "/ai-video-models.html",
+        destination: "/ai-video-models",
+        permanent: true
+      },
+      {
         source: "/generate-and-schedule-social-media-posts.html",
         destination: "/social-media-scheduler",
         permanent: true
