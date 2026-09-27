@@ -47,6 +47,8 @@ router.get('/ui-studio/projects', uiStudio.list);
 router.post('/ui-studio/projects', requireSuperAdmin, uiStudio.create);
 router.get('/ui-studio/projects/:projectId', uiStudio.detail);
 router.post('/ui-studio/projects/:projectId/analyse', requireSuperAdmin, uiStudio.analyse);
+router.post('/ui-studio/projects/:projectId/generate', requireSuperAdmin, uiStudio.generate);
+router.get('/ui-studio/generations/:generationId', uiStudio.generation);
 router.post(
   '/ui-studio/projects/:projectId/references/:viewport/upload',
   requireSuperAdmin,

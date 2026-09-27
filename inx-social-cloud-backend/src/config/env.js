@@ -182,5 +182,14 @@ module.exports = {
       ? String(process.env.OPENAI_UI_STUDIO_REASONING || 'high').trim().toLowerCase()
       : 'high',
     timeoutMs: Math.max(60000, Math.min(300000, Number(process.env.OPENAI_UI_STUDIO_TIMEOUT_MS || 240000)))
+  },
+  uiStudioCodegen: {
+    baseUrl: String(process.env.OPENAI_UI_STUDIO_CODEGEN_BASE_URL || process.env.OPENAI_UI_STUDIO_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, ''),
+    apiKey: process.env.OPENAI_UI_STUDIO_CODEGEN_API_KEY || process.env.OPENAI_UI_STUDIO_API_KEY || process.env.OPENAI_API_KEY || '',
+    model: modelName(process.env.OPENAI_UI_STUDIO_CODEGEN_MODEL, process.env.OPENAI_UI_STUDIO_MODEL || 'gpt-5.6-sol'),
+    reasoningEffort: ['low', 'medium', 'high'].includes(String(process.env.OPENAI_UI_STUDIO_CODEGEN_REASONING || 'high').trim().toLowerCase())
+      ? String(process.env.OPENAI_UI_STUDIO_CODEGEN_REASONING || 'high').trim().toLowerCase()
+      : 'high',
+    timeoutMs: Math.max(60000, Math.min(360000, Number(process.env.OPENAI_UI_STUDIO_CODEGEN_TIMEOUT_MS || 300000)))
   }
 };

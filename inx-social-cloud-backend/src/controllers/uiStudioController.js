@@ -3,6 +3,7 @@
 const prisma = require('../db/prisma');
 const uiStudio = require('../services/uiStudioService');
 const uiStudioAnalysis = require('../services/uiStudioAnalysisService');
+const uiStudioCodegen = require('../services/uiStudioCodegenService');
 
 function decodeHeader(req, name, fallback = '') {
   const raw = String(req.headers[name] || fallback);
@@ -40,6 +41,10 @@ async function list(req, res, next) {
       analysis: {
         configured: uiStudioAnalysis.ready(),
         version: uiStudioAnalysis.ANALYSIS_VERSION
+      },
+      codegen: {
+        configured: uiStudioCodegen.ready(),
+        version: uiStudioCodegen.GENERATION_VERSION
       }
     });
   } catch (error) { next(error); }
@@ -74,6 +79,10 @@ async function detail(req, res, next) {
       analysis: {
         configured: uiStudioAnalysis.ready(),
         version: uiStudioAnalysis.ANALYSIS_VERSION
+      },
+      codegen: {
+        configured: uiStudioCodegen.ready(),
+        version: uiStudioCodegen.GENERATION_VERSION
       }
     });
   } catch (error) { next(error); }
@@ -118,6 +127,36 @@ async function analyse(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function generate(req, res, next) {
+  try {
+    const startedAt = Date.now();
+    const result = await uiStudioCodegen.generateProject(req.params.projectId, req.user.id);
+    await audit(req, 'ADMIN_UI_STUDIO_CODE_GENERATE', req.params.projectId, {
+      generationId: result.generation.id,
+      sourceAnalysisId: result.generation.sourceAnalysisId,
+      model: result.generation.model,
+      framework: result.generation.framework,
+      styling: result.generation.styling,
+      outputType: result.generation.outputType,
+      fileCount: result.generation.fileCount,
+      validationPassed: result.generation.validation?.passed || 0,
+      validationTotal: result.generation.validation?.total || 0,
+      imageCount: result.imageCount,
+      durationMs: Date.now() - startedAt
+    });
+    res.status(201).json({
+      generation: result.generation,
+      project: await uiStudio.projectDetail(req.params.projectId)
+    });
+  } catch (error) { next(error); }
+}
+
+async function generation(req, res, next) {
+  try {
+    res.json({ generation: await uiStudioCodegen.generationDetail(req.params.generationId) });
+  } catch (error) { next(error); }
+}
+
 async function content(req, res, next) {
   try {
     const result = await uiStudio.referenceContent(req.params.referenceId);
@@ -133,4 +172,4 @@ async function content(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { list, create, detail, upload, analyse, content };
+module.exports = { list, create, detail, upload, analyse, generate, generation, content };
