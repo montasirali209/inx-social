@@ -150,7 +150,7 @@ function normalizeCandidate(site, raw, allowedSources) {
   };
   item.score = weightedScore(item);
   item.hot = (
-    item.score >= 84 &&
+    item.score >= 82 &&
     item.freshness >= 72 &&
     item.demandEvidence >= 65 &&
     item.audienceOverlap >= 60 &&
