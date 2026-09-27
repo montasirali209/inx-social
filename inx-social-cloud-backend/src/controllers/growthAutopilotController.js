@@ -18,6 +18,8 @@ async function updateConfig(req, res, next) {
       enabled: z.boolean().optional(),
       intelligenceEveryHours: z.coerce.number().min(6).max(168).optional(),
       publishEveryHours: z.coerce.number().min(24).max(336).optional(),
+      dailyPublishTimeLocal: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).optional(),
+      publishTimeZone: z.string().min(1).max(80).optional(),
       authorityEveryHours: z.coerce.number().min(6).max(48).optional(),
       authorityAutoEmail: z.boolean().optional(),
       optimizationEveryHours: z.coerce.number().min(12).max(168).optional(),
