@@ -93,3 +93,58 @@ test('Website Media public delivery is cacheable and uses content hashes as ETag
   assert.match(controller, /stale-while-revalidate=86400/);
   assert.match(controller, /X-Content-Type-Options/);
 });
+
+
+test('Website Media has a dedicated admin navigation surface and editor', () => {
+  const html = read('public/index.html');
+  const js = read('public/admin.js');
+  const css = read('public/admin.css');
+
+  assert.match(html, /data-page="websiteMedia"/);
+  assert.match(html, /id="websiteMediaPage"/);
+  assert.match(html, /id="websiteMediaDialog"/);
+  assert.match(html, /id="websiteMediaFile"/);
+  assert.match(html, /id="websiteMediaVersionList"/);
+  assert.match(js, /async function loadWebsiteMedia/);
+  assert.match(js, /async function openWebsiteMediaEditor/);
+  assert.match(js, /async function uploadWebsiteMedia/);
+  assert.match(js, /async function restoreWebsiteMediaVersion/);
+  assert.match(js, /#websiteMedia/);
+  assert.match(css, /\.website-media-grid/);
+  assert.match(css, /\.website-media-modal/);
+});
+
+test('Website Media editor preserves original uploads and warns about undersized sources', () => {
+  const html = read('public/index.html');
+  const js = read('public/admin.js');
+
+  assert.match(html, /original file is preserved/i);
+  assert.match(html, /PNG, JPEG, WebP or AVIF/);
+  assert.match(js, /file\.size>25\*1024\*1024/);
+  assert.match(js, /recommendedMinWidth/);
+  assert.match(js, /recommendedMinHeight/);
+  assert.match(js, /Quality warning/);
+  assert.match(js, /readAsDataURL/);
+  assert.doesNotMatch(js, /canvas\.toDataURL|toBlob\(/);
+});
+
+test('Historical Website Media versions can be previewed without restoring them first', () => {
+  const service = read('src/services/websiteMediaService.js');
+  const controller = read('src/controllers/websiteMediaPublicController.js');
+
+  assert.match(service, /async function content\(key, versionId = ''\)/);
+  assert.match(service, /assetId: asset\.id/);
+  assert.match(controller, /websiteMedia\.content\(req\.params\.key, req\.query\.v\)/);
+});
+
+test('Website Media admin work remains isolated from UGC implementation', () => {
+  const html = read('public/index.html');
+  const js = read('public/admin.js');
+  const service = read('src/services/websiteMediaService.js');
+
+  const mediaSections = [html.match(/<section class="page hidden website-media-page"[\s\S]*?<section class="page hidden" id="settingsPage">/)?.[0] || '', service];
+  for (const source of mediaSections) {
+    assert.doesNotMatch(source, /ugcModelRouter|ugcProviderAdapters|ugcEngineRegistry/);
+  }
+  assert.match(js, /websiteMediaSelectedKey/);
+});
