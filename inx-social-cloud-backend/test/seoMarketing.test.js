@@ -25,7 +25,7 @@ const canonicalRoutes = [
 test('homepage exposes complete canonical SEO metadata', () => {
   const landing = readBackend('public/landing.html');
 
-  assert.equal(landing.includes('<title>Social Media Management Platform, Scheduler &amp; AI | INXSocial</title>'), true);
+  assert.equal(landing.includes('<title>AI Content, Video Studio &amp; Social Publishing | INXSocial</title>'), true);
   assert.match(landing, /<link rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/">/);
   assert.match(landing, /<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">/);
   assert.match(landing, /og:image:type" content="image\/jpeg"/);
@@ -57,6 +57,7 @@ test('production sitemap contains canonical routes and no legacy html URLs', () 
   const sitemap = readBackend('public/sitemap.xml');
 
   assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/<\/loc>/);
+  assert.match(sitemap, /<loc>https:\/\/www\.inxsocial\.co\.uk\/ai-video-models<\/loc>/);
   for (const route of canonicalRoutes) {
     assert.equal(
       sitemap.includes('<loc>https://www.inxsocial.co.uk/' + route + '</loc>'),
@@ -89,6 +90,7 @@ test('production gateway serves canonical SEO routes through Next and permanentl
   assert.match(app, /'\/bulk-social-media-scheduler\.html': '\/bulk-social-media-scheduler'/);
   assert.match(app, /'\/pricing\.html': '\/pricing'/);
   assert.match(app, /'\/ai-ugc-ad-generator\.html': '\/ai-ugc-ad-generator'/);
+  assert.match(app, /'\/ai-video-models\.html': '\/ai-video-models'/);
 });
 
 test('Next marketing layer has unique page content, metadata and duplicate-index protection', () => {
@@ -108,7 +110,7 @@ test('Next marketing layer has unique page content, metadata and duplicate-index
   assert.match(seoPage, /FAQPage/);
   assert.match(seoPage, /fetchPriority="high"/);
   assert.match(nextRobots, /Disallow: \//);
-  assert.equal(layout.includes('Social Media Management Platform, Scheduler & AI | INXSocial'), true);
+  assert.equal(layout.includes('AI Content, Video Studio & Social Publishing | INXSocial'), true);
   assert.match(layout, /landing-dashboard-20260919\.webp/);
   assert.doesNotMatch(layout, /inx-social-dashboard\.jpg/);
 });
