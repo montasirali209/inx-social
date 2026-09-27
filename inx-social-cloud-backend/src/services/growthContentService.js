@@ -322,38 +322,70 @@ function markdownToSafeHtml(markdown, sources = []) {
   return html.join('\n');
 }
 
-function relatedInternalLinks(topic, keywords = []) {
-  const haystack = [topic, ...keywords].join(' ').toLowerCase();
-  const catalog = [
-    { test: /bulk|batch/, label: 'Bulk social media scheduler for campaigns', url: '/bulk-social-media-scheduler', description: 'Plan and schedule larger campaign batches from one workflow.' },
-    { test: /calendar|planning|planner/, label: 'Social media content calendar & planner', url: '/social-media-content-calendar', description: 'Turn ideas into a structured publishing calendar across channels.' },
-    { test: /analytic|measure|report|performance/, label: 'Social media analytics', url: '/social-media-analytics', description: 'Measure publishing performance and identify what to improve next.' },
-    { test: /campaign/, label: 'AI social media campaign generator', url: '/ai-social-media-campaign-generator', description: 'Build coordinated campaign concepts, copy and media ideas faster.' },
-    { test: /carousel/, label: 'AI carousel post generator', url: '/ai-carousel-post-generator', description: 'Create structured multi-slide social posts for educational or promotional content.' },
-    { test: /video|reel/, label: 'AI video post generator', url: '/ai-video-post-generator', description: 'Generate short-form video concepts and assets for social campaigns.' },
-    { test: /ugc|creator ad|advert/, label: 'AI UGC ad generator', url: '/ai-ugc-ad-generator', description: 'Produce creator-style ad concepts and UGC workflows for paid social.' },
-    { test: /caption|post|copy/, label: 'AI social media post generator', url: '/ai-social-media-post-generator', description: 'Draft platform-ready post copy while keeping the publishing workflow connected.' },
-    { test: /schedule|scheduler|buffer|hootsuite|later|publish/, label: 'AI social media post generator & scheduler', url: '/social-media-scheduler', description: 'Create, organise and schedule social content from a single workspace.' },
-    { test: /ai|automation|content/, label: 'AI social media tools', url: '/ai-social-media-tools', description: 'Explore INXSocial tools for AI-assisted content creation and publishing.' },
-    { test: /price|pricing|cost|plan/, label: 'INXSocial pricing', url: '/pricing', description: 'Compare available plans and the features included in each tier.' }
-  ];
+function linkTokens(value) {
+  return [...new Set(String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/[\s-]+/)
+    .map(part => part.trim())
+    .filter(part => part.length > 2 && !['the','and','for','with','from','your','this','that','into','about'].includes(part))
+  )];
+}
 
-  const selected = [];
-  for (const item of catalog) {
-    if (!item.test.test(haystack)) continue;
-    selected.push({ label: item.label, url: item.url, description: item.description });
-    if (selected.length >= 4) break;
-  }
-  const fallback = [
-    { label: 'AI social media tools', url: '/ai-social-media-tools', description: 'Explore AI-assisted content creation and publishing tools.' },
-    { label: 'AI social media post generator & scheduler', url: '/social-media-scheduler', description: 'Create, organise and schedule content from one workflow.' },
-    { label: 'INXSocial pricing', url: '/pricing', description: 'Compare plans and included features.' }
-  ];
-  for (const item of fallback) {
-    if (!selected.some(existing => existing.url === item.url)) selected.push(item);
-    if (selected.length >= 4) break;
-  }
-  return selected.slice(0, 4);
+function relatedInternalLinks(topic, keywords = [], catalog = []) {
+  const query = new Set(linkTokens([topic, ...keywords].join(' ')));
+  return (catalog || [])
+    .filter(item => item?.url && item?.label)
+    .map(item => {
+      const tokens = linkTokens([item.label, item.description, item.text].join(' '));
+      const overlap = tokens.filter(token => query.has(token)).length;
+      const commercialBoost = /pricing|product|service|feature|solution|compare|alternative|demo|trial/i.test(String(item.url || '')) ? 0.35 : 0;
+      return { ...item, score: overlap + commercialBoost };
+    })
+    .filter(item => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .filter((item, index, all) => all.findIndex(other => other.url === item.url) === index)
+    .slice(0, 4)
+    .map(item => ({
+      label: normalizeSpace(item.label).slice(0, 140),
+      url: safeInternalPath(item.url),
+      description: normalizeSpace(item.description || '').slice(0, 260)
+    }))
+    .filter(item => item.label && item.url);
+}
+
+async function discoveredInternalLinks(topic, keywords = []) {
+  const intelligence = await siteIntelligence.latest().catch(() => null);
+  const pages = intelligence?.snapshot?.pages || [];
+  const catalog = pages
+    .filter(page => page.path && page.path !== '/' && Number(page.status || 200) === 200)
+    .map(page => ({
+      label: page.h1 || page.title || page.path,
+      url: page.path,
+      description: page.description || '',
+      text: [page.title, page.h1, ...(page.headings || []).map(item => item.text)].filter(Boolean).join(' ')
+    }));
+  const matched = relatedInternalLinks(topic, keywords, catalog);
+  if (matched.length >= 2) return matched;
+
+  const fallback = pages
+    .filter(page => page.path && page.path !== '/' && Number(page.status || 200) === 200)
+    .sort((a, b) => {
+      const aCommercial = /pricing|product|service|feature|solution|demo|trial/i.test(a.path) ? 1 : 0;
+      const bCommercial = /pricing|product|service|feature|solution|demo|trial/i.test(b.path) ? 1 : 0;
+      return bCommercial - aCommercial;
+    })
+    .slice(0, 4)
+    .map(page => ({
+      label: normalizeSpace(page.h1 || page.title || page.path).slice(0, 140),
+      url: safeInternalPath(page.path),
+      description: normalizeSpace(page.description || '').slice(0, 260)
+    }))
+    .filter(item => item.label && item.url);
+
+  return [...matched, ...fallback]
+    .filter((item, index, all) => all.findIndex(other => other.url === item.url) === index)
+    .slice(0, 4);
 }
 
 function articleKey(id) {
@@ -618,7 +650,7 @@ async function writeArticle(input, research) {
   const profile = intelligence?.profile || null;
   const brandName = profile?.brandName || intelligence?.site?.hostname || 'the monitored website';
   const sourceList = research.sources.map(source => source.id + '. ' + source.title + ' [' + source.domain + '] — ' + source.url).join('\n');
-  const internalLinks = relatedInternalLinks(input.topic, []);
+  const internalLinks = await discoveredInternalLinks(input.topic, []);
   const linkList = internalLinks.map(link => link.label + ': ' + SITE_URL + link.url).join('\n');
 
   const request = {
@@ -759,7 +791,7 @@ function articleSchemaObjects(article) {
 }
 
 function mergePublicInternalLinks(article, dynamicLinks = []) {
-  const base = relatedInternalLinks(article.title, article.keywords);
+  const base = Array.isArray(article.internalLinks) ? article.internalLinks : [];
   const combined = [...dynamicLinks, ...base];
   const seen = new Set();
   return combined
@@ -898,7 +930,7 @@ async function createDraft(input) {
     comparison: Array.isArray(draft.comparison) ? draft.comparison : [],
     faq: Array.isArray(draft.faq) ? draft.faq : [],
     sources: research.sources,
-    internalLinks: relatedInternalLinks(topic, draft.keywords),
+    internalLinks: await discoveredInternalLinks(topic, draft.keywords),
     featured_image_prompt: normalizeSpace(draft.featured_image_prompt).slice(0, 1200),
     featured_image_url: null,
     featured_image_storage: null,
@@ -1004,7 +1036,7 @@ async function refreshPublishedArticle(id, notes = '') {
     comparison: Array.isArray(draft.comparison) ? draft.comparison : article.comparison,
     faq: Array.isArray(draft.faq) ? draft.faq : article.faq,
     sources: research.sources,
-    internalLinks: relatedInternalLinks(article.title, draft.keywords || article.keywords),
+    internalLinks: await discoveredInternalLinks(article.title, draft.keywords || article.keywords),
     featured_image_prompt: normalizeSpace(draft.featured_image_prompt || article.featured_image_prompt).slice(0, 1200),
     research_brief: research.brief,
     generation: {
