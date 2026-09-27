@@ -596,12 +596,12 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
   for (let attempt = 1; attempt <= config.maxDraftAttempts; attempt += 1) {
     const draftInput = opportunity.id ? {
       opportunityId: opportunity.id,
-      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.' + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
+      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.' + (opportunity.radar ? ' Editorial radar evidence: ' + JSON.stringify(opportunity.radar) : '') + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
     } : {
       topic: opportunity.topic,
       intent: opportunity.intent || 'commercial',
       action: opportunity.action?.label || 'Build authority content',
-      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.' + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
+      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.' + (opportunity.radar ? ' Editorial radar evidence: ' + JSON.stringify(opportunity.radar) : '') + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
     };
 
     const draft = await growthContent.createDraft(draftInput);
@@ -1054,11 +1054,12 @@ async function runCycle(options = {}) {
 }
 
 async function status() {
-  const [config, state, contentOverview, opportunityMap, seoStatus, authorityStatus, optimizationStatus] = await Promise.all([
+  const [config, state, contentOverview, opportunityMap, radarStatus, seoStatus, authorityStatus, optimizationStatus] = await Promise.all([
     getConfig(),
     getState(),
     growthContent.overview().catch(() => null),
     growthOpportunities.latest().catch(() => null),
+    editorialRadar.latest().catch(() => null),
     seoMaintenance.status().catch(() => null),
     authority.status().catch(() => null),
     optimization.status().catch(() => null)
@@ -1072,6 +1073,18 @@ async function status() {
       counts: contentOverview.counts,
       engine: contentOverview.engine,
       latestArticles: (contentOverview.articles || []).slice(0, 5)
+    } : null,
+    editorialRadar: radarStatus ? {
+      generatedAt: radarStatus.generatedAt,
+      summary: radarStatus.summary,
+      top: (radarStatus.candidates || []).slice(0, 6).map(item => ({
+        id: item.id,
+        topic: item.topic,
+        category: item.category,
+        score: item.score,
+        freshness: item.freshness,
+        hot: Boolean(item.hot)
+      }))
     } : null,
     seoMaintenance: seoStatus,
     authority: authorityStatus,
@@ -1112,6 +1125,7 @@ async function updateConfig(patch = {}) {
       if (!state.nextIntelligenceAt) state.nextIntelligenceAt = nowIso();
       if (!state.nextAuthorityAt) state.nextAuthorityAt = nowIso();
       if (!state.nextOptimizationAt) state.nextOptimizationAt = nowIso();
+      if (!state.nextEditorialRadarAt) state.nextEditorialRadarAt = nowIso();
       if (scheduleChanged) {
         const now = new Date();
         const alreadyDecidedToday = state.lastPublishDecisionDateLocal === localDateKey(now, next.publishTimeZone);
