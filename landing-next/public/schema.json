@@ -29,8 +29,8 @@
       "@type": "WebPage",
       "@id": "https://www.inxsocial.co.uk/#webpage",
       "url": "https://www.inxsocial.co.uk/",
-      "name": "AI Content Creation, Video Studio & Social Publishing | INXSocial",
-      "description": "Create AI video with a live multi-model Video Studio, generate campaigns, UGC, images and carousels, then schedule, publish and analyse social content in one workspace.",
+      "name": "AI Content, Video Studio & Social Publishing | INXSocial",
+      "description": "Create AI video with a multi-model Video Studio, campaigns, UGC, images and carousels, then schedule, publish and analyse social content in INXSocial.",
       "isPartOf": {
         "@id": "https://www.inxsocial.co.uk/#website"
       },
