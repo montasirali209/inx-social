@@ -107,6 +107,16 @@ test('Growth pipeline consumes discovered profile and reusable skills instead of
   assert.doesNotMatch(visibility, /KNOWN_COMPETITORS/);
 });
 
+test('backend startup performs a fresh crawl and semantic profile refresh without forcing AI work when unchanged', () => {
+  const autopilot = read('src/services/growthAutopilotService.js');
+  const intelligence = read('src/services/growthSiteIntelligenceService.js');
+
+  assert.match(autopilot, /seoMaintenance\.run\(\{ origin: site\.origin, maxPages: 120 \}\)/);
+  assert.match(autopilot, /siteIntelligence\.refresh\(\{ site, crawl: result \}\)/);
+  assert.match(autopilot, /profileReused/);
+  assert.match(intelligence, /if \(!changes\.material && previousProfile && options\.force !== true\)/);
+});
+
 test('UGC ad campaign system is outside the generic Growth brain refactor', () => {
   for (const file of [
     'src/services/growthSeoSkillRegistry.js',
