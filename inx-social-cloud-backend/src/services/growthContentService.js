@@ -9,6 +9,9 @@ const webResearch = require('./webResearchService');
 const growthOpportunities = require('./growthOpportunityService');
 const runware = require('./runwareService');
 const objectStorage = require('./mediaObjectStorageService');
+const siteIntelligence = require('./growthSiteIntelligenceService');
+const seoSkills = require('./growthSeoSkillRegistry');
+const growthSites = require('./growthSiteService');
 
 const ARTICLE_PREFIX = 'growth_content_article_v2:';
 const SLUG_PREFIX = 'growth_content_slug_v2:';
@@ -16,7 +19,7 @@ const ENGINE_SETTING_KEY = 'growth_content_engine_v2';
 const SEO_LINK_GRAPH_KEY = 'growth_seo_internal_link_graph_v1';
 const LEGACY_IMPORT_SETTING_KEY = 'growth_content_legacy_babylove_import_v1';
 const BABYLOVE_API_BASE = 'https://api.babylovegrowth.ai/api/integrations/v1';
-const SITE_URL = 'https://www.inxsocial.co.uk';
+const SITE_URL = growthSites.DEFAULT_ORIGIN;
 
 const STATUS = Object.freeze({
   DRAFT: 'DRAFT',
@@ -549,10 +552,14 @@ async function structuredResponse(payload, schemaName, errorCode, client = env.w
 async function researchTopic(input) {
   const topic = normalizeSpace(input.topic);
   const currentPage = safeExternalUrl(input.existingPage) || safeInternalPath(input.existingPage);
+  const intelligence = await siteIntelligence.latest().catch(() => null);
+  const profile = intelligence?.profile || null;
+  const brandName = profile?.brandName || intelligence?.site?.hostname || 'the monitored website';
   const request = {
     model: env.webResearch.model,
     instructions: [
-      'You are the senior research desk for INXSocial.',
+      seoSkills.expertOperatingInstructions(),
+      'Act as the research desk for ' + brandName + '.',
       'Use current web search to build an evidence brief for a people-first, original article that would be useful even if search engines did not exist.',
       'Start with the search intent and the reader decision or task, then research the evidence needed to answer it completely.',
       'Prefer primary sources: official documentation, standards, regulator or government pages, and official product pages for claims about those products.',
@@ -567,10 +574,10 @@ async function researchTopic(input) {
       'Topic: ' + topic,
       'Intent: ' + normalizeSpace(input.intent || 'commercial/informational'),
       'Recommended action: ' + normalizeSpace(input.action || ''),
-      'Existing INXSocial page: ' + (currentPage || 'none'),
-      'Research market: United Kingdom, English language.',
-      'INXSocial is a social-media workflow product for creating, scheduling, analysing and managing social content.',
-      'Do not invent pricing, customer counts, performance claims, integrations or capabilities.'
+      'Existing site page: ' + (currentPage || 'none'),
+      'Research market: ' + String((profile?.markets || [env.webResearch?.country || 'GB']).join(', ')) + '.',
+      'DISCOVERED SITE PROFILE: ' + JSON.stringify(profile),
+      'Do not invent pricing, customer counts, performance claims, integrations or capabilities. Website/product facts must agree with the discovered site profile or current first-party pages.'
     ].join('\n'),
     tools: [{
       type: 'web_search',
@@ -607,6 +614,9 @@ async function writeArticle(input, research) {
   if (!contentWriterReady()) {
     throw publicError('GPT-5.6 Sol article writer is not configured.', 503, 'CONTENT_WRITER_NOT_CONFIGURED');
   }
+  const intelligence = await siteIntelligence.latest().catch(() => null);
+  const profile = intelligence?.profile || null;
+  const brandName = profile?.brandName || intelligence?.site?.hostname || 'the monitored website';
   const sourceList = research.sources.map(source => source.id + '. ' + source.title + ' [' + source.domain + '] — ' + source.url).join('\n');
   const internalLinks = relatedInternalLinks(input.topic, []);
   const linkList = internalLinks.map(link => link.label + ': ' + SITE_URL + link.url).join('\n');
@@ -614,20 +624,20 @@ async function writeArticle(input, research) {
   const request = {
     model: env.contentWriter.model,
     instructions: [
-      'You are the senior editorial writer for INXSocial. Write like a specialist publication, not a generic SEO content generator.',
+      seoSkills.criticInstructions(),
+      'Act as the senior editorial writer for ' + brandName + '. Write like a specialist publication, not a generic SEO content generator.',
       'Create an original, useful article from the research brief and verified source pack. The reader should leave with a clear answer, decision framework and practical next step.',
       'Treat research_brief.facts as the evidence ledger: each fact has a source_ref already bound to a verified source. Prefer those facts for externally verifiable claims and cite the bound source_ref.',
-      'Use British English and an expert but plain-spoken tone.',
+      'Use British English and an expert but plain-spoken tone unless the discovered site evidence clearly requires another language or market style.',
       'Answer the primary question early. quick_answer should be a direct 45-90 word answer suitable for a human reader and a search snippet.',
       'key_takeaways must contain 3-6 specific, non-repetitive takeaways.',
-      'Use the source IDs exactly as [S1], [S2] and so on after factual claims that depend on external evidence. Do not cite common-sense advice. Never invent a source ID.',
+      'Use the source IDs exactly as [S1], [S2] and so on after factual claims that depend on external evidence. Never invent a source ID.',
       'For comparison or best-tool queries, explain selection criteria and trade-offs. Populate comparison only when it genuinely helps; every product-specific comparison row should include relevant source_refs.',
       'Use Markdown with ## and ### headings, short paragraphs, bullet lists and numbered steps where useful. Write as much as the topic needs, typically 1300-2400 words, but never pad to a word count.',
-      'Include concrete examples, caveats, what to check before choosing, and a practical recommendation framework when relevant.',
       'Do not invent statistics, testimonials, customer results, prices, product capabilities or integrations. Do not copy competitor wording.',
       'Do not add a Sources heading; the application renders a verified source section separately.',
       'Do not put raw URLs or Markdown links inside the body. Internal recommendations are rendered separately.',
-      'Avoid generic AI filler, keyword stuffing, exaggerated marketing language, repetitive conclusions and claims that INXSocial is best without evidence.',
+      'Avoid generic AI filler, keyword stuffing, exaggerated marketing language, repetitive conclusions and unsupported claims that the monitored brand is best.',
       'Return JSON only in the requested schema.'
     ].join(' '),
     input: [
@@ -636,13 +646,16 @@ async function writeArticle(input, research) {
       'Recommended action: ' + normalizeSpace(input.action || ''),
       'Optional editor note: ' + normalizeSpace(input.notes || ''),
       '',
+      'DISCOVERED SITE PROFILE',
+      JSON.stringify(profile),
+      '',
       'RESEARCH BRIEF',
       JSON.stringify(research.brief),
       '',
       'VERIFIED SOURCES',
       sourceList,
       '',
-      'INXSOCIAL INTERNAL LINKS AVAILABLE',
+      'SITE INTERNAL LINKS AVAILABLE',
       linkList
     ].join('\n'),
     text: { format: { type: 'json_schema', name: 'inx_content_article', strict: true, schema: articleSchema() } },
