@@ -61,3 +61,11 @@ test('future admin uploads never fall back to numbered Female Creator or Male Cr
   assert.match(service, /return fallbackFirst \+ ' ' \+ suffix/);
   assert.match(service, /crypto\.randomInt/);
 });
+
+test('admin-uploaded portraits are excluded from startup warmup and missing-image regeneration', () => {
+  const service = read('src/services/ugcStudioService.js');
+  assert.match(service, /const seededAvatarSlugs = new Set\(avatarSeeds\.map\(avatar => avatar\.slug\)\)/);
+  assert.match(service, /\)\)\.filter\(isSeededSystemAvatar\)/);
+  assert.match(service, /if \(!isSeededSystemAvatar\(row\)\) throw publicError\('Uploaded creator portraits cannot be regenerated\.'/);
+  assert.match(service, /if \(row\.scope === 'SYSTEM' && !isSeededSystemAvatar\(row\)\) \{\s+throw publicError\('The uploaded creator image is unavailable\./);
+});
