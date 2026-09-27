@@ -66,7 +66,7 @@ export function modeLabel(mode: string) {
 export async function getVideoModelShowcase(limit = 12): Promise<VideoModelShowcase> {
   const origin = String(process.env.INXSOCIAL_API_ORIGIN || "https://social.inaxx.co.uk").replace(/\/+$/, "");
   try {
-    const response = await fetch(`${origin}/api/public/video-models?limit=${Math.max(1, Math.min(50, limit))}`, {
+    const response = await fetch(`${origin}/api/public/video-models?limit=${Math.max(1, Math.min(100, limit))}`, {
       next: { revalidate: 300 },
       headers: { "user-agent": "INXSocial-Landing-Model-Showcase/1.0" }
     });
