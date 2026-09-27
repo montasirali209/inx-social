@@ -10,8 +10,8 @@ const requiredAiLabels = [
   'AI Campaign',
   'Image Post',
   'Carousel Post',
-  'AI Video / Reels',
-  'Image-to-video',
+  'Multi-model AI Video Studio',
+  'Text-to-video &amp; image-to-video',
   'Stock Video Creator',
   'UGC Ad Studio',
   'AI captions, rewrites, hashtags, CTA &amp; alt text',
@@ -23,7 +23,7 @@ test('every landing pricing tier names the complete AI creation suite', () => {
     assert.equal((source.match(/class="plan-ai-suite"/g) || []).length, 5);
     assert.equal((source.match(/class="plan-ai-features"/g) || []).length, 5);
     assert.equal((source.match(/class="plan-credit-row"/g) || []).length, 5);
-    assert.match(source, /Every plan includes the complete publishing workflow and the same AI creation suite/);
+    assert.match(source, /Every plan includes the complete publishing workflow, AI Content Studio and the multi-model AI Video Studio/);
     for (const label of requiredAiLabels) {
       assert.equal((source.match(new RegExp(label.replace(/[.*+?^$\{\}()|[\]\\]/g, '\\$&'), 'g')) || []).length >= 5, true, `${label} should be listed for every plan in ${relative}`);
     }
@@ -38,7 +38,7 @@ test('every landing pricing tier names the complete AI creation suite', () => {
 
 test('dedicated pricing page describes the same AI suite and trial access', () => {
   const source = read('public/pricing.html');
-  for (const label of ['AI Campaign', 'Image Post', 'Carousel Post', 'AI Video/Reels', 'image-to-video', 'Stock Video Creator', 'UGC Ad Studio']) {
+  for (const label of ['AI Campaign', 'Image Post', 'Carousel Post', 'Multi-model AI Video Studio', 'image-to-video', 'Stock Video Creator', 'UGC Ad Studio']) {
     assert.match(source, new RegExp(label.replace(/[.*+?^$\{\}()|[\]\\]/g, '\\$&')));
   }
   assert.match(source, /20 shared AI credits during the trial/);
