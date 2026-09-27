@@ -18,7 +18,7 @@ const ACTIONS = Object.freeze([
 ]);
 
 function ready() {
-  return Boolean(env.webResearch?.apiKey && env.webResearch?.baseUrl && env.webResearch?.model);
+  return Boolean(env.contentWriter?.apiKey && env.contentWriter?.baseUrl && env.contentWriter?.model);
 }
 
 function parseJsonObject(value) {
@@ -50,12 +50,14 @@ async function requestStructured(payload, name, schema) {
     if (attempt > 1) {
       request.instructions = String(request.instructions || '') + ' Retry: return exactly one complete JSON object matching the schema, without markdown fences or commentary.';
     }
-    if (/^gpt-5(?:\.|-)/i.test(env.webResearch.model)) request.reasoning = { effort: attempt === 1 ? 'medium' : 'low' };
+    if (/^gpt-5(?:\.|-)/i.test(String(request.model || ''))) {
+      request.reasoning = { effort: attempt === 1 ? (env.contentWriter.reasoningEffort || 'high') : 'medium' };
+    }
 
-    const response = await axios.post(env.webResearch.baseUrl + '/responses', request, {
+    const response = await axios.post(env.contentWriter.baseUrl + '/responses', request, {
       timeout: Math.max(60000, Number(env.webResearch.timeoutMs || 120000)),
       headers: {
-        Authorization: 'Bearer ' + env.webResearch.apiKey,
+        Authorization: 'Bearer ' + env.contentWriter.apiKey,
         'Content-Type': 'application/json'
       }
     });
@@ -127,7 +129,8 @@ function criticSchema() {
       'duplicationRisk',
       'summary',
       'issues',
-      'requiredFixes'
+      'requiredFixes',
+      'disposition'
     ],
     properties: {
       approve: { type: 'boolean' },
@@ -137,7 +140,8 @@ function criticSchema() {
       duplicationRisk: { type: 'string', enum: ['low', 'medium', 'high'] },
       summary: { type: 'string' },
       issues: { type: 'array', maxItems: 10, items: { type: 'string' } },
-      requiredFixes: { type: 'array', maxItems: 10, items: { type: 'string' } }
+      requiredFixes: { type: 'array', maxItems: 10, items: { type: 'string' } },
+      disposition: { type: 'string', enum: ['APPROVE', 'REVISE', 'SWITCH_TOPIC'] }
     }
   };
 }
@@ -184,7 +188,7 @@ async function plan({ opportunityMap, articles, siteProfile = null }) {
   const site = intelligence?.site || null;
   const brandName = profile?.brandName || site?.label || site?.hostname || 'the monitored website';
 
-  const opportunities = (opportunityMap?.opportunities || []).slice(0, 10).map(compactOpportunity);
+  const opportunities = (opportunityMap?.opportunities || []).slice(0, 30).map(compactOpportunity);
   const existingArticles = (articles || [])
     .filter(article => article.status !== 'ARCHIVED')
     .slice(0, 25)
@@ -199,11 +203,11 @@ async function plan({ opportunityMap, articles, siteProfile = null }) {
     }));
 
   const payload = {
-    model: env.webResearch.model,
+    model: env.contentWriter.model,
     instructions: seoSkills.strategyInstructions(),
     input: [
       'Current date: ' + new Date().toISOString().slice(0, 10),
-      'Goal: grow qualified organic, answer-engine and AI-search discovery for ' + brandName + ' without publishing low-value content.',
+      'Goal: grow qualified organic, answer-engine and AI-search discovery for ' + brandName + ' by selecting the strongest useful editorial action, without publishing low-value content.',
       '',
       'DISCOVERED SITE PROFILE',
       JSON.stringify(profile),
@@ -217,6 +221,11 @@ async function plan({ opportunityMap, articles, siteProfile = null }) {
         sourceDomains: (opportunityMap?.sourceDomains || []).slice(0, 12),
         opportunities
       }),
+      '',
+      'EDITORIAL SELECTION RULES',
+      'Think like a senior SEO editorial strategist managing a large long-term topic universe. Do not treat the current top opportunity as the only possible article.',
+      'Use the discovered business profile, audience needs, product capabilities, live opportunity evidence and existing content to choose a distinct high-value topic/angle.',
+      'If the supplied opportunity backlog does not contain the best article, you may propose a new strongly relevant topic in topic with selectedOpportunityId=null, provided it clearly fits the discovered business and does not duplicate existing content.',
       '',
       'EXISTING SITE ARTICLES',
       JSON.stringify(existingArticles)
@@ -235,7 +244,7 @@ async function plan({ opportunityMap, articles, siteProfile = null }) {
 
   return {
     ...decision,
-    model: env.webResearch.model,
+    model: env.contentWriter.model,
     decidedAt: new Date().toISOString()
   };
 }
@@ -270,7 +279,7 @@ async function reviewDraft({ article, opportunity, strategy, siteProfile = null 
   };
 
   const payload = {
-    model: env.webResearch.model,
+    model: env.contentWriter.model,
     instructions: seoSkills.criticInstructions(),
     input: [
       'CONTEXT',
@@ -287,9 +296,13 @@ async function reviewDraft({ article, opportunity, strategy, siteProfile = null 
     tool_choice: 'auto'
   };
 
+  const review = await requestStructured(payload, 'inx_content_critic', criticSchema());
+  const disposition = review.disposition || (review.approve ? 'APPROVE' : 'REVISE');
   return {
-    ...(await requestStructured(payload, 'inx_content_critic', criticSchema())),
-    model: env.webResearch.model,
+    ...review,
+    approve: disposition === 'APPROVE' && review.approve !== false,
+    disposition,
+    model: env.contentWriter.model,
     reviewedAt: new Date().toISOString()
   };
 }

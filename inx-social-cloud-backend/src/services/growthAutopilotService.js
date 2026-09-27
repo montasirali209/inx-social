@@ -22,7 +22,7 @@ const LEASE_MS = 45 * 60 * 1000;
 const DEFAULT_CONFIG = Object.freeze({
   enabled: true,
   intelligenceEveryHours: 24,
-  configVersion: 6,
+  configVersion: 7,
   publishEveryHours: 24,
   editorialRadarEveryHours: 6,
   hotTrendAutoEvaluate: true,
@@ -34,8 +34,8 @@ const DEFAULT_CONFIG = Object.freeze({
   optimizationEveryHours: 24,
   opportunityWindowDays: 28,
   visibilityPromptCount: 5,
-  minQualityScore: 75,
-  maxDraftAttempts: 2,
+  minQualityScore: 90,
+  maxDraftAttempts: 3,
   autoGenerateImage: true,
   autoPublish: true,
   retryHours: 6
@@ -196,7 +196,7 @@ function normalizeConfig(value = {}) {
   return {
     enabled: value.enabled !== false,
     intelligenceEveryHours: clampNumber(value.intelligenceEveryHours, 24, 6, 168),
-    configVersion: Math.max(6, Number(value.configVersion || 0)),
+    configVersion: Math.max(7, Number(value.configVersion || 0)),
     publishEveryHours: clampNumber(value.publishEveryHours, 24, 24, 336),
     editorialRadarEveryHours: clampNumber(value.editorialRadarEveryHours, 6, 3, 24),
     hotTrendAutoEvaluate: value.hotTrendAutoEvaluate !== false,
@@ -208,8 +208,8 @@ function normalizeConfig(value = {}) {
     optimizationEveryHours: clampNumber(value.optimizationEveryHours, 24, 12, 168),
     opportunityWindowDays: [7, 28, 90].includes(Number(value.opportunityWindowDays)) ? Number(value.opportunityWindowDays) : 28,
     visibilityPromptCount: clampNumber(value.visibilityPromptCount, 5, 1, 5),
-    minQualityScore: clampNumber(value.minQualityScore, 75, 65, 95),
-    maxDraftAttempts: clampNumber(value.maxDraftAttempts, 2, 1, 3),
+    minQualityScore: clampNumber(value.minQualityScore, 90, 65, 95),
+    maxDraftAttempts: clampNumber(value.maxDraftAttempts, 3, 1, 3),
     autoGenerateImage: value.autoGenerateImage !== false,
     autoPublish: value.autoPublish !== false,
     retryHours: clampNumber(value.retryHours, 6, 1, 24)
@@ -257,11 +257,13 @@ async function ensureSettings() {
   const needsV4Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 4;
   const needsV5Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 5;
   const needsV6Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 6;
+  const needsV7Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 7;
   const config = normalizeConfig({
     ...(rawConfig || DEFAULT_CONFIG),
     ...(needsV4Migration ? { authorityEveryHours: 6, authorityAutoEmail: true, optimizationEveryHours: 24 } : {}),
     ...(needsV5Migration ? { dailyPublishTimeLocal: '07:30', publishTimeZone: 'Europe/London' } : {}),
-    ...(needsV6Migration ? { configVersion: 6, editorialRadarEveryHours: 6, hotTrendAutoEvaluate: true, maxArticlesPerLocalDay: 2 } : {})
+    ...(needsV6Migration ? { configVersion: 6, editorialRadarEveryHours: 6, hotTrendAutoEvaluate: true, maxArticlesPerLocalDay: 2 } : {}),
+    ...(needsV7Migration ? { configVersion: 7, minQualityScore: 90, maxDraftAttempts: 3 } : {})
   });
 
   await prisma.appSetting.upsert({
@@ -284,7 +286,7 @@ async function ensureSettings() {
         description: 'INXSocial Growth Autopilot runtime state and activity.'
       }
     });
-  } else if (needsV4Migration || needsV5Migration || needsV6Migration) {
+  } else if (needsV4Migration || needsV5Migration || needsV6Migration || needsV7Migration) {
     const state = { ...initialState(), ...(safeJson(existingState.value, {}) || {}) };
     state.running = false;
     state.leaseUntil = null;
@@ -298,9 +300,11 @@ async function ensureSettings() {
       at: nowIso(),
       type: 'AUTOPILOT_UPGRADED',
       level: 'success',
-      message: needsV6Migration
-        ? 'Growth Autopilot upgraded with proactive editorial/trend opportunity radar.'
-        : needsV5Migration
+      message: needsV7Migration
+        ? 'Growth Autopilot upgraded to a 90+ senior-editorial repair workflow.'
+        : needsV6Migration
+          ? 'Growth Autopilot upgraded with proactive editorial/trend opportunity radar.'
+          : needsV5Migration
           ? 'Growth Autopilot upgraded to a fixed daily UK morning content-decision window.'
           : 'Growth Autopilot upgraded with final Phase 5 continuous optimisation and revenue feedback.'
     }, ...(state.recentEvents || [])].slice(0, 40);
@@ -554,173 +558,257 @@ async function chooseOpportunity(opportunityMap) {
   return null;
 }
 
-async function archiveLowQuality(article, threshold, attempt) {
+async function archiveEditorialDraft(article, reason, metadata = {}) {
   try {
     await growthContent.archiveArticle(article.id);
   } catch (_) {}
   await recordEvent(
-    'DRAFT_REJECTED',
-    'Autopilot rejected a generated draft because it did not meet the publishing quality threshold.',
+    'EDITORIAL_DRAFT_DEFERRED',
+    reason,
     {
       articleId: article.id,
       title: article.title,
-      score: article.quality?.score || 0,
-      threshold,
-      attempt
+      qualityScore: article.quality?.score || 0,
+      ...(metadata || {})
     },
     'warning'
   );
 }
 
+function editorialCandidateQueue(opportunityMap, articles, preferred = null, limit = 3) {
+  const active = (articles || []).filter(article => article.status !== growthContent.STATUS.ARCHIVED);
+  const queue = [];
+
+  const add = candidate => {
+    if (!candidate || !contentEligibleOpportunity(candidate)) return;
+    if (queue.some(item =>
+      (candidate.id && item.id === candidate.id)
+      || growthOpportunities.similarity(candidate.topic, item.topic) >= 0.72
+    )) return;
+    const duplicatesExisting = active.some(article =>
+      (candidate.id && article.opportunity_id === candidate.id)
+      || growthOpportunities.similarity(candidate.topic, article.title) >= 0.58
+      || growthOpportunities.similarity(candidate.topic, article.research_brief?.summary || '') >= 0.64
+    );
+    if (duplicatesExisting) return;
+    queue.push(candidate);
+  };
+
+  add(preferred);
+  [...(opportunityMap?.opportunities || [])]
+    .filter(contentEligibleOpportunity)
+    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
+    .forEach(add);
+
+  return queue.slice(0, Math.max(1, limit));
+}
+
+function criticRequiresFreshResearch(critic, backendIssues = []) {
+  if (critic?.factualRisk === 'high') return true;
+  return [...(critic?.requiredFixes || []), ...(critic?.issues || []), ...(backendIssues || [])]
+    .some(item => /source|citation|evidence|fact|claim|verify|current|outdated|accuracy/i.test(String(item || '')));
+}
+
 async function produceAndPublish(opportunity, config, strategy = null, decisionMode = 'daily') {
-  let lastArticle = null;
+  const draftInput = opportunity.id ? {
+    opportunityId: opportunity.id,
+    notes: 'Autopilot publication. Produce a senior-editorial, evidence-led article that is useful without promotional filler. Target at least 90/100 backend editorial quality on the first pass. The article must stand on its own for readers and AI search systems.' + (opportunity.radar ? ' Editorial radar evidence: ' + JSON.stringify(opportunity.radar) : '') + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
+  } : {
+    topic: opportunity.topic,
+    intent: opportunity.intent || 'commercial',
+    action: opportunity.action?.label || 'Build authority content',
+    notes: 'Autopilot publication. Produce a senior-editorial, evidence-led article that is useful without promotional filler. Target at least 90/100 backend editorial quality on the first pass. The article must stand on its own for readers and AI search systems.' + (opportunity.radar ? ' Editorial radar evidence: ' + JSON.stringify(opportunity.radar) : '') + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
+  };
 
-  for (let attempt = 1; attempt <= config.maxDraftAttempts; attempt += 1) {
-    const draftInput = opportunity.id ? {
+  let article = await growthContent.createDraft(draftInput);
+
+  await recordEvent(
+    'DRAFT_GENERATED',
+    'Senior SEO writer researched the selected topic and produced the first publication draft.',
+    {
+      articleId: article.id,
+      title: article.title,
+      qualityScore: Number(article.quality?.score || 0),
+      qualityTarget: config.minQualityScore,
       opportunityId: opportunity.id,
-      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.' + (opportunity.radar ? ' Editorial radar evidence: ' + JSON.stringify(opportunity.radar) : '') + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
-    } : {
-      topic: opportunity.topic,
-      intent: opportunity.intent || 'commercial',
-      action: opportunity.action?.label || 'Build authority content',
-      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.' + (opportunity.radar ? ' Editorial radar evidence: ' + JSON.stringify(opportunity.radar) : '') + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
-    };
+      opportunityScore: opportunity.score,
+      pass: 1
+    },
+    'info'
+  );
 
-    const draft = await growthContent.createDraft(draftInput);
-    lastArticle = draft;
-    const score = Number(draft.quality?.score || 0);
+  for (let pass = 1; pass <= config.maxDraftAttempts; pass += 1) {
+    const backendScore = Number(article.quality?.score || 0);
+    let critic = null;
+
+    try {
+      critic = await growthStrategy.reviewDraft({ article, opportunity, strategy, siteProfile: strategy?.siteProfile || null });
+    } catch (error) {
+      await archiveEditorialDraft(
+        article,
+        'Editorial review was unavailable, so the draft was held back and the system will try another qualified topic.',
+        { pass, error: String(error.message || error).slice(0, 400) }
+      );
+      return null;
+    }
+
+    const disposition = critic.disposition || (critic.approve ? 'APPROVE' : 'REVISE');
+    const publishReady = disposition === 'APPROVE'
+      && critic.approve
+      && backendScore >= config.minQualityScore
+      && Number(critic.score || 0) >= config.minQualityScore
+      && critic.factualRisk !== 'high'
+      && critic.duplicationRisk !== 'high';
 
     await recordEvent(
-      'DRAFT_GENERATED',
-      'Autopilot researched current sources and generated a new article draft.',
+      publishReady ? 'EDITORIAL_REVIEW_PASSED' : disposition === 'SWITCH_TOPIC' ? 'EDITORIAL_TOPIC_UNSUITABLE' : 'EDITORIAL_REVISION_REQUESTED',
+      publishReady
+        ? 'Senior editorial review confirmed the article is publication-ready.'
+        : disposition === 'SWITCH_TOPIC'
+          ? 'Senior editor found a fundamental topic-level issue, so Autopilot will move to another qualified topic.'
+          : 'Senior editor requested targeted improvements; Sol will revise the same article using the review feedback.',
       {
-        articleId: draft.id,
-        title: draft.title,
-        qualityScore: score,
-        opportunityId: opportunity.id,
-        opportunityScore: opportunity.score,
-        attempt
+        articleId: article.id,
+        title: article.title,
+        pass,
+        backendQualityScore: backendScore,
+        criticScore: critic.score,
+        qualityTarget: config.minQualityScore,
+        searchIntentMatch: critic.searchIntentMatch,
+        factualRisk: critic.factualRisk,
+        duplicationRisk: critic.duplicationRisk,
+        disposition,
+        summary: critic.summary,
+        issues: critic.issues || [],
+        requiredFixes: critic.requiredFixes || []
       },
-      'info'
+      publishReady ? 'success' : 'warning'
     );
 
-    if (score < config.minQualityScore) {
-      await archiveLowQuality(draft, config.minQualityScore, attempt);
-      continue;
-    }
+    if (publishReady) {
+      if (config.autoGenerateImage) {
+        try {
+          article = await growthContent.generateFeaturedImage(article.id);
+          await recordEvent(
+            'IMAGE_GENERATED',
+            'Autopilot generated and stored the article featured image.',
+            { articleId: article.id, title: article.title },
+            'success'
+          );
+        } catch (error) {
+          await recordEvent(
+            'IMAGE_SKIPPED',
+            'Article passed editorial review but featured-image generation was unavailable; publishing continues without blocking the article.',
+            { articleId: article.id, error: String(error.publicMessage || error.message || 'Image generation failed').slice(0, 400) },
+            'warning'
+          );
+        }
+      }
 
-    let critic = null;
-    try {
-      critic = await growthStrategy.reviewDraft({ article: draft, opportunity, strategy, siteProfile: strategy?.siteProfile || null });
-      await recordEvent(
-        'AI_CRITIC_REVIEWED',
-        critic.approve
-          ? 'Independent AI critic approved the draft for the publishing pipeline.'
-          : 'Independent AI critic rejected the draft before publishing.',
-        {
-          articleId: draft.id,
-          criticScore: critic.score,
-          searchIntentMatch: critic.searchIntentMatch,
-          factualRisk: critic.factualRisk,
-          duplicationRisk: critic.duplicationRisk,
-          summary: critic.summary
-        },
-        critic.approve ? 'success' : 'warning'
-      );
-    } catch (error) {
-      await recordEvent(
-        'AI_CRITIC_UNAVAILABLE',
-        'The independent AI critic could not return a valid review, so the article was not published.',
-        { articleId: draft.id, error: String(error.message || error).slice(0, 400) },
-        'warning'
-      );
-      await archiveLowQuality(draft, config.minQualityScore, attempt);
-      continue;
-    }
+      article = await growthContent.approveArticle(article.id);
 
-    if (!critic.approve || Number(critic.score || 0) < config.minQualityScore || critic.factualRisk === 'high' || critic.duplicationRisk === 'high') {
-      await archiveLowQuality(draft, config.minQualityScore, attempt);
-      continue;
-    }
-
-    let article = draft;
-    if (config.autoGenerateImage) {
-      try {
-        article = await growthContent.generateFeaturedImage(article.id);
+      if (config.autoPublish) {
+        article = await growthContent.publishArticle(article.id);
+        const publishedAt = article.published_at || nowIso();
+        await mutateState(state => {
+          state.lastPublishedAt = publishedAt;
+          if (decisionMode !== 'hot') markDailyPublishDecision(state, config, new Date(publishedAt));
+          state.lastPublishedArticle = {
+            id: article.id,
+            slug: article.slug,
+            title: article.title,
+            url: '/blog/' + article.slug,
+            qualityScore: article.quality?.score || 0,
+            publishedAt
+          };
+          state.lastOpportunity = {
+            id: opportunity.id,
+            topic: opportunity.topic,
+            score: opportunity.score,
+            action: opportunity.action?.label || null
+          };
+          state.lastError = null;
+          return state;
+        });
         await recordEvent(
-          'IMAGE_GENERATED',
-          'Autopilot generated and stored the article featured image.',
-          { articleId: article.id, title: article.title },
+          'ARTICLE_PUBLISHED',
+          'Autopilot published a researched, senior-editor-reviewed article to the INXSocial blog.',
+          {
+            articleId: article.id,
+            title: article.title,
+            slug: article.slug,
+            qualityScore: article.quality?.score || 0,
+            criticScore: critic.score,
+            opportunityScore: opportunity.score
+          },
           'success'
         );
-      } catch (error) {
-        await recordEvent(
-          'IMAGE_SKIPPED',
-          'Article passed quality checks but featured-image generation was unavailable; publishing continues without blocking the article.',
-          { articleId: article.id, error: String(error.publicMessage || error.message || 'Image generation failed').slice(0, 400) },
-          'warning'
-        );
+        return article;
       }
-    }
 
-    article = await growthContent.approveArticle(article.id);
-
-    if (config.autoPublish) {
-      article = await growthContent.publishArticle(article.id);
-      const publishedAt = article.published_at || nowIso();
       await mutateState(state => {
-        state.lastPublishedAt = publishedAt;
-        if (decisionMode !== 'hot') markDailyPublishDecision(state, config, new Date(publishedAt));
-        state.lastPublishedArticle = {
-          id: article.id,
-          slug: article.slug,
-          title: article.title,
-          url: '/blog/' + article.slug,
-          qualityScore: article.quality?.score || 0,
-          publishedAt
-        };
-        state.lastOpportunity = {
-          id: opportunity.id,
-          topic: opportunity.topic,
-          score: opportunity.score,
-          action: opportunity.action?.label || null
-        };
-        state.lastError = null;
+        if (decisionMode !== 'hot') markDailyPublishDecision(state, config, new Date());
         return state;
       });
       await recordEvent(
-        'ARTICLE_PUBLISHED',
-        'Autopilot published a researched article to the INXSocial blog.',
-        {
-          articleId: article.id,
-          title: article.title,
-          slug: article.slug,
-          qualityScore: article.quality?.score || 0,
-          opportunityScore: opportunity.score
-        },
+        'ARTICLE_APPROVED',
+        'Autopilot produced and approved a 90+ editorial article. Automatic publishing is disabled, so it remains approved.',
+        { articleId: article.id, title: article.title, qualityScore: article.quality?.score || 0, criticScore: critic.score },
         'success'
       );
       return article;
     }
 
-    await mutateState(state => {
-      if (decisionMode !== 'hot') markDailyPublishDecision(state, config, new Date());
-      return state;
+    if (disposition === 'SWITCH_TOPIC' || critic.duplicationRisk === 'high') {
+      await archiveEditorialDraft(
+        article,
+        'This topic/angle was deferred because the senior editor identified a fundamental duplication, cannibalisation or topic-fit problem.',
+        {
+          pass,
+          disposition,
+          criticScore: critic.score,
+          summary: critic.summary,
+          requiredFixes: critic.requiredFixes || []
+        }
+      );
+      return null;
+    }
+
+    if (pass >= config.maxDraftAttempts) {
+      await archiveEditorialDraft(
+        article,
+        'The article did not reach the 90+ publication standard after targeted editorial revisions, so Autopilot will try another qualified topic instead of publishing weak content.',
+        {
+          pass,
+          criticScore: critic.score,
+          summary: critic.summary,
+          requiredFixes: critic.requiredFixes || []
+        }
+      );
+      return null;
+    }
+
+    article = await growthContent.reviseDraft(article.id, critic, {
+      backendIssues: article.quality?.issues || [],
+      refreshResearch: criticRequiresFreshResearch(critic, article.quality?.issues || [])
     });
+
     await recordEvent(
-      'ARTICLE_APPROVED',
-      'Autopilot produced and approved an article. Automatic publishing is disabled, so it remains approved.',
-      { articleId: article.id, title: article.title, qualityScore: article.quality?.score || 0 },
-      'success'
+      'ARTICLE_REVISED',
+      'Sol revised the existing article using the senior editor’s exact fixes.',
+      {
+        articleId: article.id,
+        title: article.title,
+        pass: pass + 1,
+        qualityScore: Number(article.quality?.score || 0),
+        qualityTarget: config.minQualityScore,
+        fixesApplied: critic.requiredFixes || []
+      },
+      'info'
     );
-    return article;
   }
 
-  throw new Error(
-    lastArticle
-      ? 'Generated drafts did not meet the autopilot quality threshold.'
-      : 'Autopilot could not generate an article.'
-  );
+  return null;
 }
 
 async function runCycle(options = {}) {
@@ -985,7 +1073,38 @@ async function runCycle(options = {}) {
       }
 
       if (opportunity) {
-        publishedArticle = await produceAndPublish(opportunity, config, strategy, decisionMode);
+        const candidates = editorialCandidateQueue(opportunityMap, articles, opportunity, 3);
+        for (let topicIndex = 0; topicIndex < candidates.length && !publishedArticle; topicIndex += 1) {
+          const candidate = candidates[topicIndex];
+          if (topicIndex > 0) {
+            await recordEvent(
+              'EDITORIAL_NEXT_TOPIC_SELECTED',
+              'The previous article could not reach publication standard, so the strategist moved to the next qualified topic.',
+              {
+                previousTopic: candidates[topicIndex - 1]?.topic || null,
+                nextTopic: candidate.topic,
+                nextOpportunityId: candidate.id || null,
+                nextOpportunityScore: candidate.score || null
+              },
+              'info'
+            );
+          }
+          publishedArticle = await produceAndPublish(candidate, config, strategy, decisionMode);
+        }
+
+        if (!publishedArticle && decisionMode !== 'hot') {
+          const nextRetry = addHours(nowIso(), config.retryHours);
+          await mutateState(current => {
+            current.nextPublishAt = nextRetry;
+            return current;
+          });
+          await recordEvent(
+            'EDITORIAL_PIPELINE_DEFERRED',
+            'Autopilot exhausted the strongest qualified topics in this cycle without a 90+ publishable article. It will refresh evidence and try again automatically.',
+            { attemptedTopics: candidates.map(item => item.topic), nextRetryAt: nextRetry },
+            'warning'
+          );
+        }
       } else if (!strategy || (strategy.action === 'CREATE_ARTICLE' && strategy.publishRecommended)) {
         const nextRetry = decisionMode === 'hot' ? null : addHours(nowIso(), config.retryHours);
         if (nextRetry) {

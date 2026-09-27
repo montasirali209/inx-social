@@ -607,6 +607,7 @@ async function researchTopic(input) {
       'Intent: ' + normalizeSpace(input.intent || 'commercial/informational'),
       'Recommended action: ' + normalizeSpace(input.action || ''),
       'Existing site page: ' + (currentPage || 'none'),
+      'Research focus / editor feedback: ' + normalizeSpace(input.notes || ''),
       'Research market: ' + String((profile?.markets || [env.webResearch?.country || 'GB']).join(', ')) + '.',
       'DISCOVERED SITE PROFILE: ' + JSON.stringify(profile),
       'Do not invent pricing, customer counts, performance claims, integrations or capabilities. Website/product facts must agree with the discovered site profile or current first-party pages.'
@@ -677,6 +678,22 @@ async function writeArticle(input, research) {
       'Intent: ' + normalizeSpace(input.intent || ''),
       'Recommended action: ' + normalizeSpace(input.action || ''),
       'Optional editor note: ' + normalizeSpace(input.notes || ''),
+      ...(input.previousArticle ? [
+        '',
+        'PREVIOUS DRAFT TO REVISE',
+        JSON.stringify({
+          title: input.previousArticle.title,
+          excerpt: input.previousArticle.excerpt,
+          meta_description: input.previousArticle.meta_description,
+          keywords: input.previousArticle.keywords || [],
+          quick_answer: input.previousArticle.quick_answer || '',
+          key_takeaways: input.previousArticle.key_takeaways || [],
+          content_markdown: String(input.previousArticle.content_markdown || '').slice(0, 30000),
+          comparison: input.previousArticle.comparison || [],
+          faq: input.previousArticle.faq || [],
+          previousQuality: input.previousArticle.quality || null
+        })
+      ] : []),
       '',
       'DISCOVERED SITE PROFILE',
       JSON.stringify(profile),
@@ -958,6 +975,91 @@ async function createDraft(input) {
   };
 
   return saveArticle(article);
+}
+
+async function reviseDraft(id, feedback = {}, options = {}) {
+  const article = await getArticleById(id);
+  if (article.status !== STATUS.DRAFT) {
+    throw publicError('Only a draft article can be revised by the editorial optimisation loop.', 409, 'CONTENT_DRAFT_REQUIRED');
+  }
+
+  const requiredFixes = uniqueStrings(feedback.requiredFixes || [], 10, 500);
+  const issues = uniqueStrings(feedback.issues || [], 10, 500);
+  const backendIssues = uniqueStrings(options.backendIssues || article.quality?.issues || [], 12, 500);
+  const editorNote = [
+    'This is an editorial revision, not a new unrelated draft.',
+    'Preserve the useful parts of the existing article while fixing every actionable issue.',
+    feedback.summary ? 'Senior editor summary: ' + normalizeSpace(feedback.summary) : '',
+    requiredFixes.length ? 'Required fixes: ' + requiredFixes.join(' | ') : '',
+    issues.length ? 'Review issues: ' + issues.join(' | ') : '',
+    backendIssues.length ? 'Backend quality issues: ' + backendIssues.join(' | ') : '',
+    'Target a final backend quality score of at least 90/100 without padding, keyword stuffing or unsupported claims.'
+  ].filter(Boolean).join(' ');
+
+  const context = {
+    topic: article.title,
+    intent: article.intent || 'informational',
+    action: article.recommended_action || 'Improve the article until it is publication-ready.',
+    existingPage: '',
+    notes: editorNote,
+    previousArticle: article
+  };
+
+  const needsFreshResearch = options.refreshResearch === true
+    || feedback.factualRisk === 'high'
+    || requiredFixes.concat(issues).some(item => /source|citation|evidence|fact|claim|current|verify/i.test(item));
+
+  const research = needsFreshResearch
+    ? await researchTopic(context)
+    : {
+        brief: article.research_brief || {},
+        sources: normalizeSources(article.sources || []),
+        model: article.generation?.researchModel || env.webResearch.model
+      };
+
+  if (!research.sources.length) {
+    const refreshed = await researchTopic(context);
+    research.brief = refreshed.brief;
+    research.sources = refreshed.sources;
+    research.model = refreshed.model;
+  }
+
+  const revised = await writeArticle(context, research);
+  const previousSlug = article.slug;
+  const nextSlug = slugify(revised.title || article.title) === article.slug
+    ? article.slug
+    : await ensureUniqueSlug(revised.title || article.title, article.id);
+  const revisionNumber = Number(article.generation?.revisionNumber || 0) + 1;
+
+  return saveArticle({
+    ...article,
+    slug: nextSlug,
+    title: normalizeSpace(revised.title).slice(0, 180),
+    excerpt: normalizeSpace(revised.excerpt).slice(0, 500),
+    meta_description: normalizeSpace(revised.meta_description).slice(0, 300),
+    keywords: uniqueStrings(revised.keywords, 8, 80),
+    quick_answer: normalizeSpace(revised.quick_answer).slice(0, 900),
+    key_takeaways: uniqueStrings(revised.key_takeaways, 6, 260),
+    content_markdown: String(revised.content_markdown || '').trim(),
+    content_html: '',
+    comparison: Array.isArray(revised.comparison) ? revised.comparison : [],
+    faq: Array.isArray(revised.faq) ? revised.faq : [],
+    sources: research.sources,
+    internalLinks: await discoveredInternalLinks(revised.title || article.title, revised.keywords),
+    featured_image_prompt: normalizeSpace(revised.featured_image_prompt).slice(0, 1200),
+    research_brief: research.brief,
+    generation: {
+      ...(article.generation || {}),
+      researchModel: research.model,
+      writerModel: env.contentWriter.model,
+      writerReasoningEffort: env.contentWriter.reasoningEffort || 'high',
+      editorialVersion: 4,
+      revisionNumber,
+      revisedAt: nowIso(),
+      lastEditorSummary: normalizeSpace(feedback.summary || '').slice(0, 1200),
+      lastRequiredFixes: requiredFixes
+    }
+  }, previousSlug);
 }
 
 async function updateArticle(id, input) {
@@ -1403,6 +1505,7 @@ module.exports = {
   getArticleById,
   getArticleBySlug,
   createDraft,
+  reviseDraft,
   updateArticle,
   optimizePublishedMetadata,
   refreshPublishedArticle,
