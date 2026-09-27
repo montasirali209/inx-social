@@ -859,15 +859,26 @@ function renderGrowthOptimization(data){
     const canApply=(status==='APPROVED'&&mode==='APPLY_ON_APPROVAL')||(status==='PROPOSED'&&mode==='PHASE3_AUTOPILOT');
     const canReady=status==='PROPOSED'&&mode==='DRAFT_ONLY';
     const canDone=['APPROVED','READY_TO_PUBLISH'].includes(status);
+    const approveLabel=mode==='APPLY_ON_APPROVAL'?'Approve change':'Approve plan';
+    const applyLabel=mode==='PHASE3_AUTOPILOT'?'Run safe fix':'Apply change';
+    const actionHint=mode==='REVIEW'
+      ?'Approval records your decision only; it does not change the live site.'
+      :mode==='APPLY_ON_APPROVAL'
+        ?(status==='APPROVED'?'Approved. Apply change will update the live article.':'Approval is required first; nothing changes live until Apply change is pressed.')
+        :mode==='PHASE3_AUTOPILOT'
+          ?'Run safe fix executes the governed Phase 3 technical/internal-link maintenance.'
+          :mode==='DRAFT_ONLY'
+            ?'Approval marks the prepared drafts ready for a separate publishing/distribution step.'
+            :'';
     const actionsHtml=[
-      canApprove?'<button class="primary" type="button" data-growth-optimization-id="'+esc(item.id)+'" data-growth-optimization-action="approve">Approve</button>':'',
+      canApprove?'<button class="primary" type="button" data-growth-optimization-id="'+esc(item.id)+'" data-growth-optimization-action="approve">'+esc(approveLabel)+'</button>':'',
       canReady?'<button class="primary" type="button" data-growth-optimization-id="'+esc(item.id)+'" data-growth-optimization-action="approve">Approve drafts</button>':'',
-      canApply?'<button class="primary" type="button" data-growth-optimization-id="'+esc(item.id)+'" data-growth-optimization-action="apply">Apply</button>':'',
+      canApply?'<button class="primary" type="button" data-growth-optimization-id="'+esc(item.id)+'" data-growth-optimization-action="apply">'+esc(applyLabel)+'</button>':'',
       canDone?'<button class="secondary" type="button" data-growth-optimization-id="'+esc(item.id)+'" data-growth-optimization-action="done">Mark done</button>':'',
       status!=='DISMISSED'?'<button class="secondary" type="button" data-growth-optimization-id="'+esc(item.id)+'" data-growth-optimization-action="dismiss">Dismiss</button>':''
     ].filter(Boolean).join('');
     const evidence=(item.evidence||[]).slice(0,4).map(entry=>'<span>'+esc(entry)+'</span>').join('');
-    return '<article class="growth-optimization-row"><div class="growth-optimization-score"><b>'+Number(item.score||0)+'</b><span>impact</span></div><div class="growth-optimization-copy"><div class="growth-optimization-tags"><span>'+esc(growthOptimizationLabel(item.type))+'</span><em>'+esc(status.replaceAll('_',' '))+'</em><i>'+esc(String(item.risk||'low').toLowerCase())+' risk</i></div><b>'+esc(item.title||'Optimisation action')+'</b><p>'+esc(item.reason||'')+'</p><div class="growth-optimization-evidence">'+evidence+'</div><details><summary>Prepared optimisation</summary><div>'+esc(proposalCopy)+'</div></details></div><div class="growth-optimization-row-actions">'+actionsHtml+'</div></article>';
+    return '<article class="growth-optimization-row"><div class="growth-optimization-score"><b>'+Number(item.score||0)+'</b><span>impact</span></div><div class="growth-optimization-copy"><div class="growth-optimization-tags"><span>'+esc(growthOptimizationLabel(item.type))+'</span><em>'+esc(status.replaceAll('_',' '))+'</em><i>'+esc(String(item.risk||'low').toLowerCase())+' risk</i></div><b>'+esc(item.title||'Optimisation action')+'</b><p>'+esc(item.reason||'')+'</p><div class="growth-optimization-evidence">'+evidence+'</div>'+(actionHint?'<div class="growth-optimization-action-hint">'+esc(actionHint)+'</div>':'')+'<details><summary>Prepared optimisation</summary><div>'+esc(proposalCopy)+'</div></details></div><div class="growth-optimization-row-actions">'+actionsHtml+'</div></article>';
   }).join(''):'<div class="growth-empty">No active optimisation actions. The daily final loop will keep measuring search, conversions and revenue.</div>';
 
   const sources=(optimization.sources||[]).slice(0,8);
@@ -1222,7 +1233,7 @@ function renderGrowthOpportunities(data){
     const citations=ai.filter(signal=>signal.cited).length;
     const search=item.search?`<span>GSC: ${formatNumber(item.search.impressions)} impressions · pos ${Number(item.search.position||0).toFixed(1)} · ${growthPercent(item.search.ctr)} CTR</span>`:'';
     const page=item.existingPage?`<a href="${esc(item.existingPage)}" target="_blank" rel="noopener">Existing page ↗</a>`:'';
-    return `<article class="growth-opportunity-card ${growthOpportunityPriority(item.score)}"><div class="growth-opportunity-score"><b>${Number(item.score||0)}</b><span>score</span></div><div class="growth-opportunity-body"><div class="growth-opportunity-title"><div><span class="growth-opportunity-type">${esc(String(item.intent||item.type||'opportunity').replaceAll('_',' '))}</span><h3>${esc(item.topic)}</h3></div><strong>${esc(item.action?.label||'Review')}</strong></div><div class="growth-opportunity-evidence">${search}<span>AI: ${mentions}/${ai.length||0} mention · ${citations}/${ai.length||0} cite</span>${page}</div><p>${esc(item.action?.rationale||'Review the available evidence and choose the next growth action.')}</p></div></article>`;
+    return `<article class="growth-opportunity-card ${growthOpportunityPriority(item.score)}"><div class="growth-opportunity-score"><b>${Number(item.score||0)}</b><span>score</span></div><div class="growth-opportunity-body"><div class="growth-opportunity-title"><div><span class="growth-opportunity-type">${esc(String(item.intent||item.type||'opportunity').replaceAll('_',' '))}</span><h3>${esc(item.topic)}</h3></div><strong>Suggested action · ${esc(item.action?.label||'Review')}</strong></div><div class="growth-opportunity-evidence">${search}<span>AI: ${mentions}/${ai.length||0} mention · ${citations}/${ai.length||0} cite</span>${page}</div><p>${esc(item.action?.rationale||'Review the available evidence and choose the next growth action.')}</p></div></article>`;
   }).join('')||'<div class="growth-empty">No opportunity map has been built yet.</div>';
 }
 async function loadGrowthOpportunityStatus(){

@@ -32,7 +32,7 @@ body{
   border-right:1px solid var(--line)!important;
   box-shadow:8px 0 28px rgba(15,23,42,.035)
 }
-.brand img,.login-brand img{filter:brightness(0) saturate(100%)}
+.brand img,.login-brand img{filter:none!important;opacity:1!important}
 .brand span{color:#64748b!important}
 .sidebar-security{
   background:#f8fafc!important;
@@ -369,6 +369,17 @@ dialog::backdrop{background:rgba(15,23,42,.32)!important}
   border-color:#fde68a!important;
   color:#92400e!important;
   font-size:12px!important
+}
+.growth-optimization-action-hint{
+  margin-top:9px;
+  border:1px solid #bae6fd;
+  border-radius:9px;
+  background:#f0f9ff!important;
+  padding:8px 10px;
+  color:#075985!important;
+  font-size:12px!important;
+  font-weight:650;
+  line-height:1.45
 }
 .growth-command-track{background:#e2e8f0!important}
 .growth-command-bar>div{background:#f8fafc!important}
