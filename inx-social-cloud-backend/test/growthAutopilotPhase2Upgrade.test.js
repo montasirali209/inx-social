@@ -48,10 +48,12 @@ test('Content research retries malformed structured output automatically', () =>
 test('versioned Growth Autopilot migration moves publishing to the fixed UK morning schedule and clears the old lease', () => {
   const service = read('src/services/growthAutopilotService.js');
 
-  assert.match(service, /configVersion: 5/);
+  assert.match(service, /configVersion: 6/);
   assert.match(service, /dailyPublishTimeLocal: '07:30'/);
   assert.match(service, /publishTimeZone: 'Europe\/London'/);
   assert.match(service, /needsV5Migration/);
+  assert.match(service, /needsV6Migration/);
+  assert.match(service, /editorialRadarEveryHours: 6/);
   assert.match(service, /state\.running = false/);
   assert.match(service, /state\.nextPublishAt = nextDailyPublishIso\(new Date\(\), config\)/);
 });
