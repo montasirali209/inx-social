@@ -26,6 +26,7 @@ const socialPlatformRoutes = require('./routes/socialPlatformRoutes');
 const socialConnectionRoutes = require('./routes/socialConnectionRoutes');
 const socialPublicationRoutes = require('./routes/socialPublicationRoutes');
 const growthContentPublicRoutes = require('./routes/growthContentPublicRoutes');
+const websiteMediaPublicRoutes = require('./routes/websiteMediaPublicRoutes');
 const growthContentPublicController = require('./controllers/growthContentPublicController');
 const packageInfo = require('../package.json');
 const env = require('./config/env');
@@ -366,6 +367,7 @@ app.use('/api/releases', releaseRoutes);
 app.get('/content-media/:id/:version', growthContentPublicController.media);
 app.get('/content-media/:id', growthContentPublicController.media);
 app.use('/api/growth-content', growthContentPublicRoutes);
+app.use('/api/website-media', websiteMediaPublicRoutes);
 
 app.get('/api/public/video-models', async (req, res, next) => {
   try {
