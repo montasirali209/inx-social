@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=18">
+  <link rel="stylesheet" href="/admin.css?v=19">
   <link rel="stylesheet" href="/admin-security.css?v=1">
 </head>
 <body>
@@ -379,23 +379,45 @@
           <article><span>Published</span><b>—</b><small>Self-hosted articles</small></article>
         </div>
 
-        <div class="growth-autopilot-flow" aria-label="Automatic growth workflow">
-          <div><span>1</span><b>Discover</b><small>Search + AI signals</small></div>
-          <i>→</i>
-          <div><span>2</span><b>AI Strategist</b><small>Evidence-based action decision</small></div>
-          <i>→</i>
-          <div><span>3</span><b>Research</b><small>Current web evidence</small></div>
-          <i>→</i>
-          <div><span>4</span><b>Write</b><small>Original article</small></div>
-          <i>→</i>
-          <div><span>5</span><b>AI critic + quality gate</b><small>Independent review before publish</small></div>
-          <i>→</i>
-          <div><span>6</span><b>Publish</b><small>INXSocial /blog</small></div>
-          <i>→</i>
-          <div><span>7</span><b>Measure</b><small>GSC + GA4 + revenue</small></div>
-          <i>→</i>
-          <div><span>8</span><b>Optimise</b><small>Learn + improve winners</small></div>
-        </div>
+        <section class="growth-editorial-board" aria-label="Article production pipeline">
+          <header class="growth-editorial-head">
+            <div>
+              <span class="kicker">Article production</span>
+              <h3>Sol editorial pipeline</h3>
+              <p>One article stays in the pipeline while Sol researches, writes, receives senior-editor feedback and repairs the same draft until it reaches the 90+ publication standard. A topic is changed only for a genuine topic-level problem.</p>
+            </div>
+            <div class="growth-editorial-head-status">
+              <span class="status-chip" id="growthEditorialStatus">Waiting…</span>
+              <span class="growth-editorial-target">90+ required</span>
+            </div>
+          </header>
+
+          <div class="growth-editorial-pipeline" id="growthEditorialPipeline">
+            <div class="growth-editorial-stage waiting"><span>1</span><div><b>Topic</b><small>Waiting for strategist</small></div></div>
+            <div class="growth-editorial-stage waiting"><span>2</span><div><b>Research</b><small>Live evidence</small></div></div>
+            <div class="growth-editorial-stage waiting"><span>3</span><div><b>Draft</b><small>Sol writer</small></div></div>
+            <div class="growth-editorial-stage waiting"><span>4</span><div><b>Senior editor</b><small>Quality review</small></div></div>
+            <div class="growth-editorial-stage waiting"><span>5</span><div><b>Repair</b><small>Exact fixes</small></div></div>
+            <div class="growth-editorial-stage waiting"><span>6</span><div><b>Final check</b><small>90+ gate</small></div></div>
+            <div class="growth-editorial-stage waiting"><span>7</span><div><b>Publish</b><small>INXSocial blog</small></div></div>
+          </div>
+
+          <div class="growth-editorial-grid">
+            <article class="growth-editorial-card">
+              <div class="growth-mini-head"><b>Article in production</b><small id="growthEditorialPass">Waiting</small></div>
+              <div id="growthEditorialCurrent"><div class="growth-empty">The next article will appear here when the strategist starts a production cycle.</div></div>
+            </article>
+            <article class="growth-editorial-card">
+              <div class="growth-mini-head"><b>Senior editor feedback</b><small>Actionable, not binary</small></div>
+              <div id="growthEditorialFeedback"><div class="growth-empty">No editorial feedback yet.</div></div>
+            </article>
+          </div>
+
+          <div class="growth-editorial-queue-wrap">
+            <div class="growth-mini-head"><b>Next qualified topics</b><small>Sol can choose beyond this shortlist</small></div>
+            <div class="growth-editorial-queue" id="growthEditorialQueue"><div class="growth-empty">Waiting for the opportunity map.</div></div>
+          </div>
+        </section>
 
         <div class="growth-autopilot-lower">
           <article class="growth-autopilot-now">
@@ -412,7 +434,7 @@
       <section class="panel growth-seo-maintenance">
         <header class="growth-seo-maintenance-head">
           <div><span class="kicker">Phase 3 · Technical SEO + internal linking</span><h2>SEO Maintenance Autopilot</h2><p>Runs automatically with the daily Growth Autopilot cycle. It crawls the live site, checks metadata, canonicals, schema, sitemaps, redirects, broken links and orphan pages, then rebuilds the blog's article-to-article internal-link graph.</p></div>
-          <div class="growth-seo-maintenance-actions"><span class="status-chip" id="growthSeoStatus">Waiting for first audit</span><button class="secondary" id="growthSeoRunBtn" type="button">Run maintenance now</button></div>
+          <div class="growth-seo-maintenance-actions"><span class="status-chip" id="growthSeoStatus">Waiting for first audit</span><span class="growth-auto-mode">Automatic</span></div>
         </header>
         <div class="growth-seo-kpis" id="growthSeoKpis">
           <article><span>Technical score</span><b>—</b><small>Waiting for live crawl</small></article>
@@ -435,7 +457,7 @@
       <section class="panel growth-authority-panel">
         <header class="growth-authority-head">
           <div><span class="kicker">Phase 4 · Authority + communities + backlinks</span><h2>Authority + Community Autopilot</h2><p>Runs every 6 hours. It discovers and validates community discussions, mentions, backlink/resource opportunities, publications, directories, partners and AI-citation sources, then prepares outreach and passes eligible business emails through an independent GPT-5.6 Sol review before automatic sending.</p></div>
-          <div class="growth-authority-actions"><span class="status-chip" id="growthAuthorityStatus">Waiting for first run</span><button class="secondary" id="growthAuthorityRunBtn" type="button">Run authority scan now</button></div>
+          <div class="growth-authority-actions"><span class="status-chip" id="growthAuthorityStatus">Waiting for first run</span><span class="growth-auto-mode">Automatic · every 6h</span></div>
         </header>
         <div class="growth-authority-kpis" id="growthAuthorityKpis">
           <article><span>Open prospects</span><b>—</b><small>Qualified external opportunities</small></article>
@@ -451,7 +473,7 @@
       <section class="panel growth-optimization-panel">
         <header class="growth-optimization-head">
           <div><span class="kicker">Phase 5 · Final growth loop</span><h2>Optimisation + Revenue Loop</h2><p>Closes the loop from search and AI discovery to registrations, trials and paid customers. It measures GSC, GA4 and Stripe-backed outcomes, detects decay, weak CTR, cannibalisation and conversion friction, then prioritises refresh, CRO, authority and distribution work by business impact.</p></div>
-          <div class="growth-optimization-actions"><span class="status-chip" id="growthOptimizationStatus">Waiting for first run</span><button class="secondary" id="growthOptimizationRunBtn" type="button">Run final loop now</button></div>
+          <div class="growth-optimization-actions"><span class="status-chip" id="growthOptimizationStatus">Waiting for first run</span><span class="growth-auto-mode">Automatic</span></div>
         </header>
         <div class="growth-optimization-kpis" id="growthOptimizationKpis">
           <article><span>Attributed funnel</span><b>—</b><small>Signup → trial → paid</small></article>
@@ -745,6 +767,6 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/admin.js?v=19" defer></script>
+<script src="/admin.js?v=20" defer></script>
 </body>
 </html>
