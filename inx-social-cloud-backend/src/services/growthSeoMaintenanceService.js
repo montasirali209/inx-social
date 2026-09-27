@@ -5,28 +5,16 @@ const prisma = require('../db/prisma');
 const growthContent = require('./growthContentService');
 const growthOpportunities = require('./growthOpportunityService');
 
-const SITE_ORIGIN = 'https://www.inxsocial.co.uk';
+const growthSites = require('./growthSiteService');
+
+const SITE_ORIGIN = growthSites.DEFAULT_ORIGIN;
 const STATE_KEY = 'growth_seo_maintenance_state_v1';
 const LINK_GRAPH_KEY = 'growth_seo_internal_link_graph_v1';
 const DEFAULT_MAX_PAGES = 120;
 const CRAWL_CONCURRENCY = 4;
 const REQUEST_TIMEOUT_MS = 12000;
 
-const STATIC_SEEDS = [
-  '/',
-  '/blog',
-  '/social-media-scheduler',
-  '/bulk-social-media-scheduler',
-  '/social-media-content-calendar',
-  '/social-media-analytics',
-  '/ai-social-media-tools',
-  '/ai-social-media-campaign-generator',
-  '/ai-social-media-post-generator',
-  '/ai-carousel-post-generator',
-  '/ai-video-post-generator',
-  '/ai-ugc-ad-generator',
-  '/pricing'
-];
+const STATIC_SEEDS = ['/'];
 
 function nowIso() {
   return new Date().toISOString();
@@ -81,10 +69,11 @@ function attr(tag, name) {
   return decodeHtml((match && match[1]) || '');
 }
 
-function canonicalPath(value) {
+function canonicalPath(value, origin = SITE_ORIGIN) {
   try {
-    const url = new URL(String(value || ''), SITE_ORIGIN);
-    if (url.origin !== SITE_ORIGIN) return '';
+    const siteOrigin = growthSites.normaliseOrigin(origin);
+    const url = new URL(String(value || ''), siteOrigin);
+    if (url.origin !== siteOrigin) return '';
     let path = url.pathname || '/';
     if (path !== '/') path = path.replace(/\/+$/, '');
     return path || '/';
@@ -101,11 +90,12 @@ function isCrawlablePath(path) {
   return true;
 }
 
-function normalizeUrl(value) {
+function normalizeUrl(value, origin = SITE_ORIGIN) {
   try {
-    const url = new URL(String(value || ''), SITE_ORIGIN);
+    const siteOrigin = growthSites.normaliseOrigin(origin);
+    const url = new URL(String(value || ''), siteOrigin);
     url.hash = '';
-    if (url.origin !== SITE_ORIGIN) return '';
+    if (url.origin !== siteOrigin) return '';
     if (!isCrawlablePath(url.pathname)) return '';
     url.search = '';
     if (url.pathname !== '/') url.pathname = url.pathname.replace(/\/+$/, '');
@@ -115,21 +105,21 @@ function normalizeUrl(value) {
   }
 }
 
-function sitemapUrls(xml) {
+function sitemapUrls(xml, origin = SITE_ORIGIN) {
   const urls = [];
   for (const match of String(xml || '').matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)) {
-    const url = normalizeUrl(decodeHtml(match[1]));
+    const url = normalizeUrl(decodeHtml(match[1]), origin);
     if (url && !urls.includes(url)) urls.push(url);
   }
   return urls;
 }
 
-function pageLinks(html) {
+function pageLinks(html, origin = SITE_ORIGIN) {
   const links = [];
   for (const match of String(html || '').matchAll(/<a\b[^>]*\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*>/gi)) {
     const raw = decodeHtml(match[1] || match[2] || match[3] || '');
     if (!raw || raw.startsWith('#') || /^(?:mailto|tel|javascript):/i.test(raw)) continue;
-    const url = normalizeUrl(raw);
+    const url = normalizeUrl(raw, origin);
     if (url && !links.includes(url)) links.push(url);
   }
   return links;
@@ -175,8 +165,15 @@ function inspectHtml(url, html, status, redirectHops, contentType, xRobotsTag) {
   });
   const images = imageStats(html);
   const schema = schemaStats(html);
-  const links = pageLinks(html);
-  const path = canonicalPath(url);
+  const origin = new URL(url).origin;
+  const links = pageLinks(html, origin);
+  const path = canonicalPath(url, origin);
+  const textSample = stripTags(
+    String(html || '')
+      .replace(/<script\b[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style\b[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<noscript\b[\s\S]*?<\/noscript>/gi, ' ')
+  ).slice(0, 6000);
 
   return {
     url,
@@ -199,7 +196,8 @@ function inspectHtml(url, html, status, redirectHops, contentType, xRobotsTag) {
     missingAlt: images.missingAlt,
     emptyAlt: images.emptyAlt,
     schemaBlocks: schema.schemaBlocks,
-    invalidSchemaBlocks: schema.invalidSchemaBlocks
+    invalidSchemaBlocks: schema.invalidSchemaBlocks,
+    textSample
   };
 }
 
@@ -250,8 +248,8 @@ async function fetchManual(url) {
   return { requestedUrl: url, finalUrl: current, status: 0, redirectHops, contentType: '', xRobotsTag: '', body: '', error: 'Too many redirects' };
 }
 
-async function fetchText(path, accept) {
-  const url = new URL(path, SITE_ORIGIN).toString();
+async function fetchText(path, accept, origin = SITE_ORIGIN) {
+  const url = new URL(path, growthSites.normaliseOrigin(origin)).toString();
   try {
     const response = await axios.get(url, {
       timeout: REQUEST_TIMEOUT_MS,
@@ -331,7 +329,7 @@ function internalLinkIssues(pages, sitemapSet) {
   for (const page of pages) {
     for (const link of page.links || []) {
       const target = pageByUrl.get(link);
-      const targetPath = canonicalPath(link);
+      const targetPath = canonicalPath(link, new URL(page.url).origin);
       if (targetPath && pathSet.has(targetPath)) inbound.set(targetPath, Number(inbound.get(targetPath) || 0) + 1);
       if (target && (!target.status || target.status >= 400)) {
         issues.push(issue('BROKEN_INTERNAL_LINK', 'high', page.path, page.path + ' links to ' + (targetPath || link) + ', which returned HTTP ' + (target.status || 'error') + '.'));
@@ -413,25 +411,26 @@ async function rebuildInternalLinkGraph() {
 
 async function crawlSite(options) {
   const settings = options || {};
+  const origin = growthSites.normaliseOrigin(settings.origin || SITE_ORIGIN);
   const maxPages = Math.max(20, Math.min(200, Number(settings.maxPages || DEFAULT_MAX_PAGES)));
   const results = await Promise.all([
-    fetchText('/sitemap.xml'),
-    fetchText('/blog/sitemap.xml'),
-    fetchText('/robots.txt', 'text/plain,*/*')
+    fetchText('/sitemap.xml', null, origin),
+    fetchText('/blog/sitemap.xml', null, origin),
+    fetchText('/robots.txt', 'text/plain,*/*', origin)
   ]);
   const mainSitemap = results[0];
   const blogSitemap = results[1];
   const robots = results[2];
 
   const sitemapUrlsUnique = Array.from(new Set(
-    sitemapUrls(mainSitemap.body)
-      .concat(sitemapUrls(blogSitemap.body))
-      .map(normalizeUrl)
+    sitemapUrls(mainSitemap.body, origin)
+      .concat(sitemapUrls(blogSitemap.body, origin))
+      .map(value => normalizeUrl(value, origin))
       .filter(Boolean)
   ));
   const sitemapSet = new Set(sitemapUrlsUnique);
   const queue = Array.from(new Set(
-    sitemapUrlsUnique.concat(STATIC_SEEDS.map(function(path) { return normalizeUrl(new URL(path, SITE_ORIGIN).toString()); }))
+    sitemapUrlsUnique.concat((Array.isArray(settings.seeds) && settings.seeds.length ? settings.seeds : STATIC_SEEDS).map(function(path) { return normalizeUrl(new URL(path, origin).toString(), origin); }))
   )).filter(Boolean);
   const queued = new Set(queue);
   const pages = [];
@@ -489,6 +488,7 @@ async function crawlSite(options) {
   return {
     pages: pages.slice(0, maxPages),
     sitemapSet,
+    origin,
     sitemap: {
       mainStatus: mainSitemap.status,
       blogStatus: blogSitemap.status,
@@ -502,7 +502,8 @@ async function crawlSite(options) {
 
 async function run(options) {
   const startedAt = nowIso();
-  const crawl = await crawlSite(options);
+  const settings = options || {};
+  const crawl = await crawlSite(settings);
   const linkGraph = await rebuildInternalLinkGraph();
   const issues = [];
 
@@ -534,6 +535,7 @@ async function run(options) {
 
   const state = {
     phase: 3,
+    origin: crawl.origin,
     generatedAt: nowIso(),
     startedAt,
     score: scoreIssues(openIssues),
@@ -568,6 +570,10 @@ async function run(options) {
         path: page.path,
         status: page.status,
         title: page.title,
+        description: page.description,
+        h1: page.h1,
+        headings: page.headings.slice(0, 20),
+        textSample: page.textSample,
         canonicalPath: page.canonicalPath,
         h1Count: page.h1Count,
         internalLinks: page.links.length,
