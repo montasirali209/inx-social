@@ -375,7 +375,7 @@ async function requestGeneration(project, analysis, references) {
   throw error('The responsive-code model returned an incomplete structured result.', 502, 'UI_STUDIO_CODEGEN_PARSE_ERROR');
 }
 
-function serializeGeneration(row, { full = false, currentFingerprint = null } = {}) {
+function serializeGeneration(row, { full = false, currentFingerprint = null, currentAnalysisId = null } = {}) {
   if (!row) return null;
   const result = safeParse(row.generationJson, null);
   const validation = safeParse(row.validationJson, null);
@@ -399,7 +399,10 @@ function serializeGeneration(row, { full = false, currentFingerprint = null } = 
     completedAt: row.completedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    stale: Boolean(currentFingerprint && row.sourceFingerprint !== currentFingerprint)
+    stale: Boolean(
+      (currentFingerprint && row.sourceFingerprint !== currentFingerprint)
+      || (currentAnalysisId && row.sourceAnalysisId !== currentAnalysisId)
+    )
   };
   if (full) base.result = result;
   return base;
@@ -476,13 +479,17 @@ async function generationDetail(generationId) {
     where: { id: String(generationId || '').trim() },
     include: {
       project: {
-        include: { references: { orderBy: { createdAt: 'desc' }, take: 100 } }
+        include: {
+          references: { orderBy: { createdAt: 'desc' }, take: 100 },
+          analyses: { orderBy: { createdAt: 'desc' }, take: 1 }
+        }
       }
     }
   });
   if (!row) throw error('UI Studio generation was not found.', 404, 'UI_STUDIO_GENERATION_NOT_FOUND');
   const fingerprint = uiStudioAnalysis.fingerprintReferences(row.project.references || []);
-  return serializeGeneration(row, { full: true, currentFingerprint: fingerprint });
+  const currentAnalysisId = row.project.analyses?.[0]?.id || null;
+  return serializeGeneration(row, { full: true, currentFingerprint: fingerprint, currentAnalysisId });
 }
 
 module.exports = {
