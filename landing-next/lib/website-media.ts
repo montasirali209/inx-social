@@ -3,7 +3,6 @@ export const SITE_ORIGIN = "https://www.inxsocial.co.uk";
 export const WEBSITE_MEDIA = {
   landingHeroDashboard: "landing.hero.dashboard",
   landingDashboardShowcase: "landing.dashboard.showcase",
-  landingAiStudioPreview: "landing.ai-studio.preview",
   landingSocialPreview: "landing.social.preview",
   seoDefaultDashboard: "seo.default.dashboard",
   seoDefaultAiStudio: "seo.default.ai-studio",
