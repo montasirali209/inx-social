@@ -550,7 +550,7 @@ async function publicShowcase({ limit = 12, refresh = false } = {}) {
       return String(a.name || '').localeCompare(String(b.name || ''));
     });
 
-  const safeLimit = Math.max(1, Math.min(50, Number(limit) || 12));
+  const safeLimit = Math.max(1, Math.min(100, Number(limit) || 12));
   const creators = [...new Set(models.map(model => model.creator).filter(Boolean))];
   const modeCounts = {
     textToVideo: models.filter(model => model.modes.includes('TEXT_TO_VIDEO')).length,
