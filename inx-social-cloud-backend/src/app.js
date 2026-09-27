@@ -168,6 +168,21 @@ const SEO_MARKETING_ROUTES = new Map([
   ['/pricing', '/#pricing']
 ]);
 
+const SEO_WEBSITE_MEDIA_KEYS = new Map([
+  ['/social-media-scheduler', 'seo.social-media-scheduler.hero'],
+  ['/bulk-social-media-scheduler', 'seo.bulk-social-media-scheduler.hero'],
+  ['/social-media-content-calendar', 'seo.social-media-content-calendar.hero'],
+  ['/social-media-analytics', 'seo.social-media-analytics.hero'],
+  ['/ai-social-media-tools', 'seo.ai-social-media-tools.hero'],
+  ['/ai-social-media-campaign-generator', 'seo.ai-social-media-campaign-generator.hero'],
+  ['/ai-social-media-post-generator', 'seo.ai-social-media-post-generator.hero'],
+  ['/ai-carousel-post-generator', 'seo.ai-carousel-post-generator.hero'],
+  ['/ai-video-post-generator', 'seo.ai-video.hero'],
+  ['/ai-video-models', 'seo.ai-video.hero'],
+  ['/ai-ugc-ad-generator', 'seo.ai-ugc-ad-generator.hero'],
+  ['/pricing', 'seo.pricing.hero']
+]);
+
 const LEGACY_MARKETING_REDIRECTS = {
   '/social-media-scheduler.html': '/social-media-scheduler',
   '/bulk-social-media-scheduler.html': '/bulk-social-media-scheduler',
@@ -209,9 +224,20 @@ const buildSeoFallbackDocuments = () => {
       const canonicalUrl = `https://www.inxsocial.co.uk${routePath}`;
       const legacyUrl = `${canonicalUrl}.html`;
 
+      const mediaKey = SEO_WEBSITE_MEDIA_KEYS.get(routePath);
+      const mediaPath = mediaKey
+        ? `/api/website-media/${encodeURIComponent(mediaKey)}/content`
+        : LANDING_DASHBOARD_ASSET_PATH;
+      const mediaAbsoluteUrl = `https://www.inxsocial.co.uk${mediaPath}`;
+
       source = source
         .split(legacyUrl).join(canonicalUrl)
-        .split('/assets/inx-social-dashboard.jpg').join(LANDING_DASHBOARD_ASSET_PATH);
+        .split('https://www.inxsocial.co.uk/assets/inx-social-dashboard.jpg').join(mediaAbsoluteUrl)
+        .split('https://www.inxsocial.co.uk/assets/landing-dashboard-20260919.webp').join(mediaAbsoluteUrl)
+        .split('https://www.inxsocial.co.uk/assets/ai-content-studio-seo.webp').join(mediaAbsoluteUrl)
+        .split('/assets/inx-social-dashboard.jpg').join(mediaPath)
+        .split('/assets/landing-dashboard-20260919.webp').join(mediaPath)
+        .split('/assets/ai-content-studio-seo.webp').join(mediaPath);
 
       for (const [legacyPath, cleanPath] of Object.entries(LEGACY_MARKETING_REDIRECTS)) {
         source = source
