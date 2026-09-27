@@ -5,7 +5,6 @@ const axios = require('axios');
 const prisma = require('../db/prisma');
 const env = require('../config/env');
 const webResearch = require('./webResearchService');
-const seoMaintenance = require('./growthSeoMaintenanceService');
 const growthSites = require('./growthSiteService');
 const skills = require('./growthSeoSkillRegistry');
 
@@ -279,7 +278,13 @@ async function refresh(options = {}) {
 
   const previousSnapshot = await readSetting(snapshotKey(site.id));
   const previousProfile = await readSetting(profileKey(site.id));
-  const crawl = options.crawl || await seoMaintenance.crawlSite({ origin: site.origin, maxPages: options.maxPages || 120 });
+  let crawl = options.crawl || null;
+  if (!crawl) {
+    // Lazy import prevents a circular startup chain:
+    // site intelligence -> SEO maintenance -> content/opportunity -> site intelligence.
+    const seoMaintenance = require('./growthSeoMaintenanceService');
+    crawl = await seoMaintenance.crawlSite({ origin: site.origin, maxPages: options.maxPages || 120 });
+  }
   const snapshot = snapshotFromCrawl(site, crawl);
   const changes = diffSnapshots(previousSnapshot, snapshot);
 

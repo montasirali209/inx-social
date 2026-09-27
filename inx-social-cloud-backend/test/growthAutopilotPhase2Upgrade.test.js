@@ -45,14 +45,15 @@ test('Content research retries malformed structured output automatically', () =>
   assert.match(service, /CONTENT_DRAFT_INVALID/);
 });
 
-test('versioned Growth Autopilot migration preserves the 24-hour publishing schedule and clears the old lease', () => {
+test('versioned Growth Autopilot migration moves publishing to the fixed UK morning schedule and clears the old lease', () => {
   const service = read('src/services/growthAutopilotService.js');
 
-  assert.match(service, /configVersion: 4/);
-  assert.match(service, /publishEveryHours: 24/);
-  assert.match(service, /needsV4Migration/);
+  assert.match(service, /configVersion: 5/);
+  assert.match(service, /dailyPublishTimeLocal: '07:30'/);
+  assert.match(service, /publishTimeZone: 'Europe\/London'/);
+  assert.match(service, /needsV5Migration/);
   assert.match(service, /state\.running = false/);
-  assert.match(service, /state\.nextPublishAt = nowIso\(\)/);
+  assert.match(service, /state\.nextPublishAt = nextDailyPublishIso\(new Date\(\), config\)/);
 });
 
 test('Legacy BabyLoveGrowth articles are copied into INXSocial storage instead of remaining a live dependency', () => {
