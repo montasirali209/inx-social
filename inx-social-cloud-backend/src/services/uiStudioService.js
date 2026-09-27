@@ -5,6 +5,7 @@ const path = require('node:path');
 const sharp = require('sharp');
 const prisma = require('../db/prisma');
 const objectStorage = require('./mediaObjectStorageService');
+const uiStudioAnalysis = require('./uiStudioAnalysisService');
 
 const STORAGE_PREFIX = 'ui-studio';
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
@@ -61,12 +62,14 @@ function serializeReference(reference) {
   };
 }
 
-function serializeProject(project) {
+function serializeProject(project, { fullAnalysis = false } = {}) {
   const references = (project.references || []).map(serializeReference);
   const latestReferences = {};
   for (const reference of references) {
     if (!latestReferences[reference.viewport]) latestReferences[reference.viewport] = reference;
   }
+  const currentFingerprint = uiStudioAnalysis.fingerprintReferences(project.references || []);
+  const latestAnalysisRow = (project.analyses || [])[0] || null;
   return {
     id: project.id,
     name: project.name,
@@ -78,7 +81,12 @@ function serializeProject(project) {
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
     referenceCount: Number(project._count?.references ?? references.length),
-    latestReferences
+    analysisCount: Number(project._count?.analyses ?? (project.analyses || []).length),
+    latestReferences,
+    latestAnalysis: uiStudioAnalysis.serializeAnalysis(latestAnalysisRow, {
+      full: fullAnalysis,
+      currentFingerprint
+    })
   };
 }
 
@@ -123,7 +131,8 @@ async function listProjects() {
     orderBy: { updatedAt: 'desc' },
     include: {
       references: { orderBy: { createdAt: 'desc' }, take: 12 },
-      _count: { select: { references: true } }
+      analyses: { orderBy: { createdAt: 'desc' }, take: 1 },
+      _count: { select: { references: true, analyses: true } }
     }
   });
   return projects.map(serializeProject);
@@ -145,7 +154,8 @@ async function createProject(input = {}) {
     },
     include: {
       references: true,
-      _count: { select: { references: true } }
+      analyses: true,
+      _count: { select: { references: true, analyses: true } }
     }
   });
   return serializeProject(project);
@@ -157,13 +167,18 @@ async function projectDetail(projectId) {
     where: { id },
     include: {
       references: { orderBy: { createdAt: 'desc' }, take: 100 },
-      _count: { select: { references: true } }
+      analyses: { orderBy: { createdAt: 'desc' }, take: 12 },
+      _count: { select: { references: true, analyses: true } }
     }
   });
   if (!project) throw publicError('UI Studio project was not found.', 404, 'UI_STUDIO_PROJECT_NOT_FOUND');
   return {
-    ...serializeProject(project),
-    references: project.references.map(serializeReference)
+    ...serializeProject(project, { fullAnalysis: true }),
+    references: project.references.map(serializeReference),
+    analyses: (project.analyses || []).map((analysis, index) => uiStudioAnalysis.serializeAnalysis(analysis, {
+      full: index === 0,
+      currentFingerprint: uiStudioAnalysis.fingerprintReferences(project.references || [])
+    }))
   };
 }
 
