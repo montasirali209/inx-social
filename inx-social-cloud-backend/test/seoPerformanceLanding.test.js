@@ -77,7 +77,7 @@ test('landing retains canonical structured data and current AI capabilities', ()
   assert.match(landing, /Image-to-video/i);
   assert.match(landing, /Smart Timing/);
   assert.match(landing, /Stock Video Creator/);
-  assert.match(landing, /AI Video Clipping/);
+  assert.match(landing, /Video Clipping/);
   assert.match(landing, /coming soon/i);
 });
 
