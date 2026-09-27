@@ -2,6 +2,7 @@ const prisma = require('../db/prisma');
 const searchConsole = require('./googleSearchConsoleService');
 const googleAnalytics = require('./googleAnalyticsService');
 const siteIntelligence = require('./growthSiteIntelligenceService');
+const editorialRadar = require('./growthEditorialRadarService');
 
 const OPPORTUNITY_SETTING_KEY = 'growth_intelligence_opportunities_v1';
 const OPENAI_SETTING_KEY = 'growth_intelligence_openai_visibility_v1';
@@ -190,11 +191,12 @@ async function build(days = 28) {
   const intelligence = await siteIntelligence.latest().catch(() => null);
   const brandName = intelligence?.profile?.brandName || intelligence?.site?.hostname || 'the site';
 
-  const [openai, perplexity, claude, audit] = await Promise.all([
+  const [openai, perplexity, claude, audit, radar] = await Promise.all([
     readSetting(OPENAI_SETTING_KEY),
     readSetting(PERPLEXITY_SETTING_KEY),
     readSetting(CLAUDE_SETTING_KEY),
-    readSetting(AUDIT_SETTING_KEY)
+    readSetting(AUDIT_SETTING_KEY),
+    editorialRadar.latest(intelligence?.site?.id || null).catch(() => null)
   ]);
 
   let gsc = null;
@@ -259,6 +261,50 @@ async function build(days = 28) {
     });
   }
 
+  for (const item of radar?.candidates || []) {
+    const duplicate = opportunities.some(opp => similarity(opp.topic, item.topic) >= 0.5);
+    if (duplicate) continue;
+
+    opportunities.push({
+      id: item.id,
+      type: 'editorial_radar',
+      topic: item.topic,
+      intent: item.intent || 'informational',
+      score: Number(item.score || 0),
+      search: null,
+      analytics: null,
+      ai: [],
+      existingPage: null,
+      radar: {
+        category: item.category,
+        headlineAngle: item.headlineAngle,
+        whyNow: item.whyNow,
+        audienceConnection: item.audienceConnection,
+        businessBridge: item.businessBridge,
+        demandEvidence: item.demandEvidence,
+        freshness: item.freshness,
+        audienceOverlap: item.audienceOverlap,
+        bridgeStrength: item.bridgeStrength,
+        rankingFeasibility: item.rankingFeasibility,
+        informationGain: item.informationGain,
+        geoCitationPotential: item.geoCitationPotential,
+        authorityRisk: item.authorityRisk,
+        hot: Boolean(item.hot),
+        keywords: item.keywords || [],
+        sourceUrls: item.sourceUrls || []
+      },
+      action: {
+        type: 'BUILD_AUTHORITY_CONTENT',
+        label: item.hot ? 'Publish timely authority content' : 'Build audience authority',
+        rationale: [
+          item.whyNow,
+          item.audienceConnection,
+          item.businessBridge
+        ].filter(Boolean).join(' ')
+      }
+    });
+  }
+
   const promptMap = new Map();
   for (const [provider, scan] of Object.entries(scans)) {
     for (const result of scan?.results || []) {
@@ -309,7 +355,9 @@ async function build(days = 28) {
     medium: sorted.filter(item => item.score >= 50 && item.score < 70).length,
     searchBacked: sorted.filter(item => item.search).length,
     aiVisibilityGaps: sorted.filter(item => item.type === 'ai_visibility' || item.ai?.some(signal => !signal.mentioned)).length,
-    communitySupported: 0
+    communitySupported: 0,
+    editorialRadar: sorted.filter(item => item.type === 'editorial_radar').length,
+    hotEditorial: sorted.filter(item => item.type === 'editorial_radar' && item.radar?.hot).length
   };
 
   const payload = {
@@ -322,7 +370,8 @@ async function build(days = 28) {
       openai: Boolean(openai),
       perplexity: Boolean(perplexity),
       claude: Boolean(claude),
-      technicalAudit: Boolean(audit)
+      technicalAudit: Boolean(audit),
+      editorialRadar: Boolean(radar)
     },
     analyticsSummary: ga4 ? {
       activeUsers: Number(ga4.summary?.activeUsers || 0),
@@ -330,6 +379,7 @@ async function build(days = 28) {
       keyEvents: Number(ga4.summary?.keyEvents || 0),
       revenue: Number(ga4.summary?.totalRevenue || 0)
     } : null,
+    editorialRadarSummary: radar?.summary || null,
     competitors: visibility.competitors,
     sourceDomains: visibility.sourceDomains,
     warnings,

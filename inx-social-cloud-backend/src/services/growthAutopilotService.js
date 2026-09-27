@@ -11,6 +11,7 @@ const authority = require('./growthAuthorityService');
 const optimization = require('./growthOptimizationService');
 const growthSites = require('./growthSiteService');
 const siteIntelligence = require('./growthSiteIntelligenceService');
+const editorialRadar = require('./growthEditorialRadarService');
 
 const CONFIG_KEY = 'growth_autopilot_config_v1';
 const STATE_KEY = 'growth_autopilot_state_v1';
@@ -21,8 +22,11 @@ const LEASE_MS = 45 * 60 * 1000;
 const DEFAULT_CONFIG = Object.freeze({
   enabled: true,
   intelligenceEveryHours: 24,
-  configVersion: 5,
+  configVersion: 6,
   publishEveryHours: 24,
+  editorialRadarEveryHours: 6,
+  hotTrendAutoEvaluate: true,
+  maxArticlesPerLocalDay: 2,
   dailyPublishTimeLocal: '07:30',
   publishTimeZone: 'Europe/London',
   authorityEveryHours: 6,
@@ -170,6 +174,19 @@ function isDue(value) {
   return Number.isNaN(date.getTime()) || date.getTime() <= Date.now();
 }
 
+function publishedLocalDay(article, timeZone) {
+  const value = article?.published_at || article?.publishedAt || null;
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : localDateKey(date, timeZone);
+}
+
+async function publishedCountToday(config, articles = null, reference = new Date()) {
+  const list = Array.isArray(articles) ? articles : await growthContent.listArticles();
+  const today = localDateKey(reference, config.publishTimeZone);
+  return list.filter(article => String(article.status || '').toUpperCase() === 'PUBLISHED' && publishedLocalDay(article, config.publishTimeZone) === today).length;
+}
+
 function clampNumber(value, fallback, min, max) {
   const number = Number(value);
   return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
@@ -179,8 +196,11 @@ function normalizeConfig(value = {}) {
   return {
     enabled: value.enabled !== false,
     intelligenceEveryHours: clampNumber(value.intelligenceEveryHours, 24, 6, 168),
-    configVersion: Math.max(5, Number(value.configVersion || 0)),
+    configVersion: Math.max(6, Number(value.configVersion || 0)),
     publishEveryHours: clampNumber(value.publishEveryHours, 24, 24, 336),
+    editorialRadarEveryHours: clampNumber(value.editorialRadarEveryHours, 6, 3, 24),
+    hotTrendAutoEvaluate: value.hotTrendAutoEvaluate !== false,
+    maxArticlesPerLocalDay: clampNumber(value.maxArticlesPerLocalDay, 2, 1, 3),
     dailyPublishTimeLocal: normalizeTimeOfDay(value.dailyPublishTimeLocal, '07:30'),
     publishTimeZone: normalizeTimeZone(value.publishTimeZone, 'Europe/London'),
     authorityEveryHours: clampNumber(value.authorityEveryHours, 6, 6, 48),
@@ -206,16 +226,21 @@ function initialState() {
     lastIntelligenceAt: null,
     lastAuthorityAt: null,
     lastOptimizationAt: null,
+    lastEditorialRadarAt: null,
     lastPublishedAt: null,
     lastPublishDecisionDateLocal: null,
     nextIntelligenceAt: now,
     nextAuthorityAt: now,
     nextOptimizationAt: now,
+    nextEditorialRadarAt: now,
     nextPublishAt: now,
     lastError: null,
     lastPublishedArticle: null,
     lastOpportunity: null,
     lastIntelligenceSummary: null,
+    lastEditorialRadarSummary: null,
+    lastHotTrendOpportunityId: null,
+    lastHotTrendEvaluatedAt: null,
     lastStrategy: null,
     recentEvents: [{
       at: now,
@@ -231,10 +256,12 @@ async function ensureSettings() {
   const rawConfig = safeJson(configRow?.value, null);
   const needsV4Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 4;
   const needsV5Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 5;
+  const needsV6Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 6;
   const config = normalizeConfig({
     ...(rawConfig || DEFAULT_CONFIG),
     ...(needsV4Migration ? { authorityEveryHours: 6, authorityAutoEmail: true, optimizationEveryHours: 24 } : {}),
-    ...(needsV5Migration ? { configVersion: 5, dailyPublishTimeLocal: '07:30', publishTimeZone: 'Europe/London' } : {})
+    ...(needsV5Migration ? { dailyPublishTimeLocal: '07:30', publishTimeZone: 'Europe/London' } : {}),
+    ...(needsV6Migration ? { configVersion: 6, editorialRadarEveryHours: 6, hotTrendAutoEvaluate: true, maxArticlesPerLocalDay: 2 } : {})
   });
 
   await prisma.appSetting.upsert({
@@ -257,22 +284,25 @@ async function ensureSettings() {
         description: 'INXSocial Growth Autopilot runtime state and activity.'
       }
     });
-  } else if (needsV4Migration || needsV5Migration) {
+  } else if (needsV4Migration || needsV5Migration || needsV6Migration) {
     const state = { ...initialState(), ...(safeJson(existingState.value, {}) || {}) };
     state.running = false;
     state.leaseUntil = null;
     state.nextIntelligenceAt = nowIso();
     state.nextAuthorityAt = nowIso();
     state.nextOptimizationAt = nowIso();
+    state.nextEditorialRadarAt = nowIso();
     state.lastPublishDecisionDateLocal = null;
     state.nextPublishAt = nextDailyPublishIso(new Date(), config);
     state.recentEvents = [{
       at: nowIso(),
       type: 'AUTOPILOT_UPGRADED',
       level: 'success',
-      message: needsV5Migration
-        ? 'Growth Autopilot upgraded to a fixed daily UK morning content-decision window.'
-        : 'Growth Autopilot upgraded with final Phase 5 continuous optimisation and revenue feedback.'
+      message: needsV6Migration
+        ? 'Growth Autopilot upgraded with proactive editorial/trend opportunity radar.'
+        : needsV5Migration
+          ? 'Growth Autopilot upgraded to a fixed daily UK morning content-decision window.'
+          : 'Growth Autopilot upgraded with final Phase 5 continuous optimisation and revenue feedback.'
     }, ...(state.recentEvents || [])].slice(0, 40);
     await prisma.appSetting.update({
       where: { key: STATE_KEY },
@@ -521,24 +551,6 @@ async function chooseOpportunity(opportunityMap) {
     return opportunity;
   }
 
-  const fallbackPrompts = await growthIntelligence.dynamicPrompts();
-  for (const prompt of fallbackPrompts) {
-    const nearDuplicate = activeArticles.some(article => growthOpportunities.similarity(prompt, article.title) >= 0.55);
-    if (!nearDuplicate) {
-      return {
-        id: null,
-        topic: prompt,
-        score: 60,
-        type: 'autopilot_fallback',
-        intent: 'commercial',
-        action: {
-          type: 'BUILD_AUTHORITY_CONTENT',
-          label: 'Build AI-search authority',
-          rationale: 'Autopilot fallback buyer-intent topic.'
-        }
-      };
-    }
-  }
   return null;
 }
 
@@ -560,18 +572,18 @@ async function archiveLowQuality(article, threshold, attempt) {
   );
 }
 
-async function produceAndPublish(opportunity, config, strategy = null) {
+async function produceAndPublish(opportunity, config, strategy = null, decisionMode = 'daily') {
   let lastArticle = null;
 
   for (let attempt = 1; attempt <= config.maxDraftAttempts; attempt += 1) {
     const draftInput = opportunity.id ? {
       opportunityId: opportunity.id,
-      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.' + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
+      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.' + (opportunity.radar ? ' Editorial radar evidence: ' + JSON.stringify(opportunity.radar) : '') + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
     } : {
       topic: opportunity.topic,
       intent: opportunity.intent || 'commercial',
       action: opportunity.action?.label || 'Build authority content',
-      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.' + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
+      notes: 'Autopilot publication. Produce a substantive, evidence-led article that is useful without relying on promotional filler. The article must stand on its own for readers and AI search systems.' + (opportunity.radar ? ' Editorial radar evidence: ' + JSON.stringify(opportunity.radar) : '') + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
     };
 
     const draft = await growthContent.createDraft(draftInput);
@@ -658,7 +670,7 @@ async function produceAndPublish(opportunity, config, strategy = null) {
       const publishedAt = article.published_at || nowIso();
       await mutateState(state => {
         state.lastPublishedAt = publishedAt;
-        markDailyPublishDecision(state, config, new Date(publishedAt));
+        if (decisionMode !== 'hot') markDailyPublishDecision(state, config, new Date(publishedAt));
         state.lastPublishedArticle = {
           id: article.id,
           slug: article.slug,
@@ -692,7 +704,7 @@ async function produceAndPublish(opportunity, config, strategy = null) {
     }
 
     await mutateState(state => {
-      markDailyPublishDecision(state, config, new Date());
+      if (decisionMode !== 'hot') markDailyPublishDecision(state, config, new Date());
       return state;
     });
     await recordEvent(
@@ -719,8 +731,9 @@ async function runCycle(options = {}) {
   const intelligenceDue = options.force || isDue(state.nextIntelligenceAt);
   const authorityDue = options.force || isDue(state.nextAuthorityAt);
   const optimizationDue = options.force || isDue(state.nextOptimizationAt);
+  const radarDue = options.force || isDue(state.nextEditorialRadarAt);
   const publishDue = options.force || dailyPublishDue(state, config);
-  if (!intelligenceDue && !authorityDue && !optimizationDue && !publishDue) return { skipped: true, reason: 'not_due' };
+  if (!intelligenceDue && !authorityDue && !optimizationDue && !radarDue && !publishDue) return { skipped: true, reason: 'not_due' };
 
   const claimed = await claimLease();
   if (!claimed) return { skipped: true, reason: 'already_running' };
@@ -729,7 +742,7 @@ async function runCycle(options = {}) {
     await recordEvent(
       'CYCLE_STARTED',
       options.force ? 'Growth Autopilot cycle started manually.' : 'Scheduled Growth Autopilot cycle started.',
-      { intelligenceDue, authorityDue, optimizationDue, publishDue },
+      { intelligenceDue, authorityDue, optimizationDue, radarDue, publishDue },
       'info'
     );
 
@@ -739,6 +752,54 @@ async function runCycle(options = {}) {
       opportunityMap = intelligence.opportunityMap;
     }
 
+
+    let radarState = await editorialRadar.latest().catch(() => null);
+    if (radarDue) {
+      try {
+        let intelligence = await siteIntelligence.latest().catch(() => null);
+        if (!intelligence?.profile) {
+          const refreshed = await runIntelligence(config);
+          opportunityMap = refreshed.opportunityMap;
+          intelligence = refreshed.siteContext ? {
+            site: refreshed.siteContext.site,
+            profile: refreshed.siteContext.profile,
+            changes: refreshed.siteContext.changes,
+            snapshot: refreshed.siteContext.snapshot
+          } : await siteIntelligence.latest().catch(() => null);
+        }
+        const articles = await growthContent.listArticles();
+        radarState = await editorialRadar.refresh({ intelligence, existingArticles: articles });
+        const completed = nowIso();
+        await mutateState(current => {
+          current.lastEditorialRadarAt = completed;
+          current.nextEditorialRadarAt = addHours(completed, config.editorialRadarEveryHours);
+          current.lastEditorialRadarSummary = radarState.summary || null;
+          return current;
+        });
+        opportunityMap = await growthOpportunities.build(config.opportunityWindowDays);
+        await recordEvent(
+          'EDITORIAL_RADAR_REFRESHED',
+          'Editorial radar proactively researched direct, adjacent, audience-interest and timely trend opportunities.',
+          {
+            ...(radarState.summary || {}),
+            nextEditorialRadarAt: addHours(completed, config.editorialRadarEveryHours)
+          },
+          radarState.summary?.hot ? 'success' : 'info'
+        );
+      } catch (error) {
+        const retryAt = addHours(nowIso(), config.retryHours);
+        await mutateState(current => {
+          current.nextEditorialRadarAt = retryAt;
+          return current;
+        });
+        await recordEvent(
+          'EDITORIAL_RADAR_FAILED',
+          'Editorial opportunity radar failed and will retry automatically.',
+          { error: String(error.publicMessage || error.message || error).slice(0, 500), retryAt },
+          'warning'
+        );
+      }
+    }
 
     if (authorityDue) {
       try {
@@ -812,11 +873,48 @@ async function runCycle(options = {}) {
       }
     }
 
+    const decisionState = await getState();
+    const hotCandidate = editorialRadar.hottest(radarState);
+    const articlesForDecision = await growthContent.listArticles();
+    const publishedToday = await publishedCountToday(config, articlesForDecision);
+    const morningDecisionMade = decisionState.lastPublishDecisionDateLocal === localDateKey(new Date(), config.publishTimeZone);
+    const hotTrendDue = Boolean(
+      !options.force &&
+      !publishDue &&
+      config.hotTrendAutoEvaluate &&
+      hotCandidate &&
+      morningDecisionMade &&
+      hotCandidate.id !== decisionState.lastHotTrendOpportunityId &&
+      publishedToday < config.maxArticlesPerLocalDay
+    );
+    const contentDecisionDue = publishDue || hotTrendDue;
+    const decisionMode = options.force ? 'manual' : hotTrendDue ? 'hot' : 'daily';
+
     let publishedArticle = null;
-    if (publishDue) {
-      const articles = await growthContent.listArticles();
+    if (contentDecisionDue) {
+      const articles = articlesForDecision;
       let strategy = null;
       let opportunity = null;
+
+      if (hotTrendDue) {
+        await mutateState(current => {
+          current.lastHotTrendOpportunityId = hotCandidate.id;
+          current.lastHotTrendEvaluatedAt = nowIso();
+          return current;
+        });
+        await recordEvent(
+          'HOT_TREND_EVALUATION_STARTED',
+          'A high-confidence fresh editorial opportunity triggered an extra strategy evaluation outside the normal morning window.',
+          {
+            opportunityId: hotCandidate.id,
+            topic: hotCandidate.topic,
+            score: hotCandidate.score,
+            freshness: hotCandidate.freshness,
+            publishedToday
+          },
+          'info'
+        );
+      }
 
       try {
         strategy = await growthStrategy.plan({ opportunityMap, articles, siteProfile: opportunityMap?.siteProfile || null });
@@ -854,15 +952,19 @@ async function runCycle(options = {}) {
             };
           }
         } else {
-          let nextReview = null;
-          await mutateState(current => {
-            markDailyPublishDecision(current, config, new Date());
-            nextReview = current.nextPublishAt;
-            return current;
-          });
+          let nextReview = decisionState.nextPublishAt || null;
+          if (decisionMode !== 'hot') {
+            await mutateState(current => {
+              markDailyPublishDecision(current, config, new Date());
+              nextReview = current.nextPublishAt;
+              return current;
+            });
+          }
           await recordEvent(
             'STRATEGIC_ACTION_QUEUED',
-            'AI Strategist decided that creating a new article is not the best action right now. Autopilot will re-evaluate on the next cycle.',
+            decisionMode === 'hot'
+              ? 'AI Strategist reviewed the fresh opportunity and decided it does not justify an additional article.'
+              : 'AI Strategist decided that creating a new article is not the best action right now. Autopilot will re-evaluate on the next scheduled decision.',
             {
               action: strategy.action,
               topic: strategy.topic,
@@ -883,17 +985,21 @@ async function runCycle(options = {}) {
       }
 
       if (opportunity) {
-        publishedArticle = await produceAndPublish(opportunity, config, strategy);
+        publishedArticle = await produceAndPublish(opportunity, config, strategy, decisionMode);
       } else if (!strategy || (strategy.action === 'CREATE_ARTICLE' && strategy.publishRecommended)) {
-        const nextRetry = addHours(nowIso(), config.retryHours);
-        await mutateState(current => {
-          current.nextPublishAt = nextRetry;
-          return current;
-        });
+        const nextRetry = decisionMode === 'hot' ? null : addHours(nowIso(), config.retryHours);
+        if (nextRetry) {
+          await mutateState(current => {
+            current.nextPublishAt = nextRetry;
+            return current;
+          });
+        }
         await recordEvent(
           'NO_CONTENT_OPPORTUNITY',
-          'Autopilot found no sufficiently distinct content opportunity. It will retry automatically.',
-          { nextRetryAt: nextRetry },
+          decisionMode === 'hot'
+            ? 'The fresh opportunity did not produce a sufficiently distinct publishable article. The normal editorial schedule remains unchanged.'
+            : 'Autopilot found no sufficiently distinct content opportunity. It will retry automatically.',
+          nextRetry ? { nextRetryAt: nextRetry } : { opportunityId: hotCandidate?.id || null },
           'warning'
         );
       }
@@ -908,7 +1014,7 @@ async function runCycle(options = {}) {
       'success'
     );
 
-    return { skipped: false, publishedArticle };
+    return { skipped: false, publishedArticle, radar: radarState?.summary || null, hotTrendEvaluated: hotTrendDue };
   } catch (error) {
     const message = String(error.publicMessage || error.message || 'Growth Autopilot cycle failed').slice(0, 800);
     const retryAt = addHours(nowIso(), config.retryHours);
@@ -916,6 +1022,7 @@ async function runCycle(options = {}) {
       current.nextIntelligenceAt = isDue(current.nextIntelligenceAt) ? retryAt : current.nextIntelligenceAt;
       current.nextAuthorityAt = isDue(current.nextAuthorityAt) ? retryAt : current.nextAuthorityAt;
       current.nextOptimizationAt = isDue(current.nextOptimizationAt) ? retryAt : current.nextOptimizationAt;
+      current.nextEditorialRadarAt = isDue(current.nextEditorialRadarAt) ? retryAt : current.nextEditorialRadarAt;
       current.nextPublishAt = isDue(current.nextPublishAt) ? retryAt : current.nextPublishAt;
       current.lastError = { at: nowIso(), message };
       return current;
@@ -929,11 +1036,12 @@ async function runCycle(options = {}) {
 }
 
 async function status() {
-  const [config, state, contentOverview, opportunityMap, seoStatus, authorityStatus, optimizationStatus] = await Promise.all([
+  const [config, state, contentOverview, opportunityMap, radarStatus, seoStatus, authorityStatus, optimizationStatus] = await Promise.all([
     getConfig(),
     getState(),
     growthContent.overview().catch(() => null),
     growthOpportunities.latest().catch(() => null),
+    editorialRadar.latest().catch(() => null),
     seoMaintenance.status().catch(() => null),
     authority.status().catch(() => null),
     optimization.status().catch(() => null)
@@ -947,6 +1055,18 @@ async function status() {
       counts: contentOverview.counts,
       engine: contentOverview.engine,
       latestArticles: (contentOverview.articles || []).slice(0, 5)
+    } : null,
+    editorialRadar: radarStatus ? {
+      generatedAt: radarStatus.generatedAt,
+      summary: radarStatus.summary,
+      top: (radarStatus.candidates || []).slice(0, 6).map(item => ({
+        id: item.id,
+        topic: item.topic,
+        category: item.category,
+        score: item.score,
+        freshness: item.freshness,
+        hot: Boolean(item.hot)
+      }))
     } : null,
     seoMaintenance: seoStatus,
     authority: authorityStatus,
@@ -987,6 +1107,7 @@ async function updateConfig(patch = {}) {
       if (!state.nextIntelligenceAt) state.nextIntelligenceAt = nowIso();
       if (!state.nextAuthorityAt) state.nextAuthorityAt = nowIso();
       if (!state.nextOptimizationAt) state.nextOptimizationAt = nowIso();
+      if (!state.nextEditorialRadarAt) state.nextEditorialRadarAt = nowIso();
       if (scheduleChanged) {
         const now = new Date();
         const alreadyDecidedToday = state.lastPublishDecisionDateLocal === localDateKey(now, next.publishTimeZone);

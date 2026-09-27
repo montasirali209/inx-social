@@ -58,6 +58,9 @@ const SKILLS = Object.freeze([
     principles: [
       'Create new content only when there is a distinct user need, search intent or authority gap that is not already served by an existing page.',
       'Build topic coverage around real products, services, problems, workflows, comparisons, implementation questions and decision criteria discovered from the site and market.',
+      'Do not wait passively for Search Console to surface topics after demand already exists. Proactively research emerging questions, adjacent audience interests, industry developments and timely stories that have a credible connection to the site audience or business.',
+      'A topic does not need to be a direct product keyword. Product-adjacent, audience-interest and timely trend-bridge content can be valuable when the audience connection is real and the article provides standalone useful information.',
+      'Do not force a promotional bridge to an unrelated trend. Topical expansion must be justified by audience overlap, problem/entity connection, information gain or a credible path into the site expertise.',
       'Prefer evidence-led, useful content with original first-party information, examples, data or product knowledge over generic summaries.',
       'Refresh decaying content when evidence shows declining rankings, outdated facts, weak CTR, stale comparisons or missing new capabilities.'
     ]
@@ -161,10 +164,11 @@ function strategyInstructions() {
   return [
     expertOperatingInstructions(),
     'STRATEGY TASK:',
-    'Choose the single highest-value next action from measured evidence and the discovered site profile.',
-    'Technical discovery failures outrank editorial work. Existing ranking pages generally outrank duplicate new pages. Strong commercial intent and a genuine coverage gap may justify a landing page. Distinct informational demand may justify a guide.',
+    'Choose the single highest-value next action from measured evidence, the discovered site profile and the proactive editorial opportunity backlog.',
+    'Do not interpret absence of an existing GSC query as absence of demand. Consider current web-search evidence, freshness, adjacent audience demand and credible trend bridges discovered by the editorial radar.',
+    'Technical discovery failures outrank editorial work. Existing ranking pages generally outrank duplicate new pages. Strong commercial intent and a genuine coverage gap may justify a landing page. Distinct informational demand may justify a guide or timely article.',
     'Consider SEO, AEO and GEO together: classic ranking opportunity, AI citation opportunity, entity clarity, internal authority, conversion intent and evidence quality.',
-    'A new article is not the default. MONITOR is valid when evidence is weak or an earlier change needs time to mature.'
+    'A new article is not an automatic quota, but the system should actively maintain enough researched opportunities that strong content can be published frequently when justified. MONITOR is valid only when current opportunities are genuinely weaker than waiting or improving something else.'
   ].join('\n');
 }
 

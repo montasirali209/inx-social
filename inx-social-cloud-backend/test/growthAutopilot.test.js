@@ -11,6 +11,9 @@ test('Growth Autopilot is enabled by default with daily intelligence and a fixed
 
   assert.match(service, /enabled: true/);
   assert.match(service, /intelligenceEveryHours: 24/);
+  assert.match(service, /editorialRadarEveryHours: 6/);
+  assert.match(service, /hotTrendAutoEvaluate: true/);
+  assert.match(service, /maxArticlesPerLocalDay: 2/);
   assert.match(service, /dailyPublishTimeLocal: '07:30'/);
   assert.match(service, /publishTimeZone: 'Europe\/London'/);
   assert.match(service, /dailyPublishDue/);
@@ -35,6 +38,9 @@ test('Growth Autopilot automatically chains intelligence, opportunity selection,
   assert.match(service, /growthStrategy\.reviewDraft/);
   assert.match(service, /markDailyPublishDecision\(state, config, new Date\(publishedAt\)\)/);
   assert.match(service, /const publishDue = options\.force \|\| dailyPublishDue\(state, config\)/);
+  assert.match(service, /editorialRadar\.refresh/);
+  assert.match(service, /HOT_TREND_EVALUATION_STARTED/);
+  assert.match(service, /publishedCountToday/);
 });
 
 test('Autopilot runtime starts with the production backend and uses a persisted lease', () => {
@@ -66,6 +72,8 @@ test('Growth admin defaults to an autopilot dashboard and hides manual tools und
   assert.match(html, /Advanced diagnostics &amp; manual controls/);
   assert.match(html, /Normally you do not need to use anything below/);
   assert.match(html, /Autopilot is the default/);
+  assert.match(html, /Editorial radar/);
+  assert.match(html, /Every 6h/);
   assert.match(js, /loadGrowthAutopilotStatus/);
   assert.match(js, /toggleGrowthAutopilot/);
   assert.match(js, /runGrowthAutopilotNow/);
