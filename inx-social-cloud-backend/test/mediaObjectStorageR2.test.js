@@ -70,7 +70,7 @@ test('Railway remains the operational media provider when R2 is not configured',
   }
 });
 
-test('R2 is used only for high-volume customer generation outputs', () => {
+test('R2 is used for generated outputs and durable website-media originals', () => {
   const fixture = loadWithEnv({ ...railway, ...r2 });
   try {
     assert.deepEqual(fixture.service.providerStatus(), {
@@ -80,7 +80,7 @@ test('R2 is used only for high-volume customer generation outputs', () => {
       railwayConfigured: true
     });
 
-    for (const prefix of ['ai-studio', 'ai-video', 'stock-video']) {
+    for (const prefix of ['ai-studio', 'ai-video', 'stock-video', 'website-media']) {
       assert.equal(fixture.service.providerForPrefix(prefix), 'CLOUDFLARE_R2');
     }
 
@@ -98,6 +98,7 @@ test('R2 alone cannot silently take over operational Railway media storage', () 
     assert.equal(fixture.service.providerForPrefix('ai-studio'), 'CLOUDFLARE_R2');
     assert.equal(fixture.service.providerForPrefix('ai-video'), 'CLOUDFLARE_R2');
     assert.equal(fixture.service.providerForPrefix('stock-video'), 'CLOUDFLARE_R2');
+    assert.equal(fixture.service.providerForPrefix('website-media'), 'CLOUDFLARE_R2');
     assert.equal(fixture.service.providerForPrefix('media-library'), null);
     assert.equal(fixture.service.providerForPrefix('agent-assets'), null);
   } finally {
