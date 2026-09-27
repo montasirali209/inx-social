@@ -11,6 +11,7 @@ const authority = require('./growthAuthorityService');
 const optimization = require('./growthOptimizationService');
 const growthSites = require('./growthSiteService');
 const siteIntelligence = require('./growthSiteIntelligenceService');
+const editorialRadar = require('./growthEditorialRadarService');
 
 const CONFIG_KEY = 'growth_autopilot_config_v1';
 const STATE_KEY = 'growth_autopilot_state_v1';
@@ -21,8 +22,11 @@ const LEASE_MS = 45 * 60 * 1000;
 const DEFAULT_CONFIG = Object.freeze({
   enabled: true,
   intelligenceEveryHours: 24,
-  configVersion: 5,
+  configVersion: 6,
   publishEveryHours: 24,
+  editorialRadarEveryHours: 6,
+  hotTrendAutoEvaluate: true,
+  maxArticlesPerLocalDay: 2,
   dailyPublishTimeLocal: '07:30',
   publishTimeZone: 'Europe/London',
   authorityEveryHours: 6,
@@ -170,6 +174,19 @@ function isDue(value) {
   return Number.isNaN(date.getTime()) || date.getTime() <= Date.now();
 }
 
+function publishedLocalDay(article, timeZone) {
+  const value = article?.published_at || article?.publishedAt || null;
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : localDateKey(date, timeZone);
+}
+
+async function publishedCountToday(config, articles = null, reference = new Date()) {
+  const list = Array.isArray(articles) ? articles : await growthContent.listArticles();
+  const today = localDateKey(reference, config.publishTimeZone);
+  return list.filter(article => String(article.status || '').toUpperCase() === 'PUBLISHED' && publishedLocalDay(article, config.publishTimeZone) === today).length;
+}
+
 function clampNumber(value, fallback, min, max) {
   const number = Number(value);
   return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
@@ -179,8 +196,11 @@ function normalizeConfig(value = {}) {
   return {
     enabled: value.enabled !== false,
     intelligenceEveryHours: clampNumber(value.intelligenceEveryHours, 24, 6, 168),
-    configVersion: Math.max(5, Number(value.configVersion || 0)),
+    configVersion: Math.max(6, Number(value.configVersion || 0)),
     publishEveryHours: clampNumber(value.publishEveryHours, 24, 24, 336),
+    editorialRadarEveryHours: clampNumber(value.editorialRadarEveryHours, 6, 3, 24),
+    hotTrendAutoEvaluate: value.hotTrendAutoEvaluate !== false,
+    maxArticlesPerLocalDay: clampNumber(value.maxArticlesPerLocalDay, 2, 1, 3),
     dailyPublishTimeLocal: normalizeTimeOfDay(value.dailyPublishTimeLocal, '07:30'),
     publishTimeZone: normalizeTimeZone(value.publishTimeZone, 'Europe/London'),
     authorityEveryHours: clampNumber(value.authorityEveryHours, 6, 6, 48),
@@ -206,16 +226,19 @@ function initialState() {
     lastIntelligenceAt: null,
     lastAuthorityAt: null,
     lastOptimizationAt: null,
+    lastEditorialRadarAt: null,
     lastPublishedAt: null,
     lastPublishDecisionDateLocal: null,
     nextIntelligenceAt: now,
     nextAuthorityAt: now,
     nextOptimizationAt: now,
+    nextEditorialRadarAt: now,
     nextPublishAt: now,
     lastError: null,
     lastPublishedArticle: null,
     lastOpportunity: null,
     lastIntelligenceSummary: null,
+    lastEditorialRadarSummary: null,
     lastStrategy: null,
     recentEvents: [{
       at: now,
@@ -231,10 +254,12 @@ async function ensureSettings() {
   const rawConfig = safeJson(configRow?.value, null);
   const needsV4Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 4;
   const needsV5Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 5;
+  const needsV6Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 6;
   const config = normalizeConfig({
     ...(rawConfig || DEFAULT_CONFIG),
     ...(needsV4Migration ? { authorityEveryHours: 6, authorityAutoEmail: true, optimizationEveryHours: 24 } : {}),
-    ...(needsV5Migration ? { configVersion: 5, dailyPublishTimeLocal: '07:30', publishTimeZone: 'Europe/London' } : {})
+    ...(needsV5Migration ? { dailyPublishTimeLocal: '07:30', publishTimeZone: 'Europe/London' } : {}),
+    ...(needsV6Migration ? { configVersion: 6, editorialRadarEveryHours: 6, hotTrendAutoEvaluate: true, maxArticlesPerLocalDay: 2 } : {})
   });
 
   await prisma.appSetting.upsert({
@@ -257,22 +282,25 @@ async function ensureSettings() {
         description: 'INXSocial Growth Autopilot runtime state and activity.'
       }
     });
-  } else if (needsV4Migration || needsV5Migration) {
+  } else if (needsV4Migration || needsV5Migration || needsV6Migration) {
     const state = { ...initialState(), ...(safeJson(existingState.value, {}) || {}) };
     state.running = false;
     state.leaseUntil = null;
     state.nextIntelligenceAt = nowIso();
     state.nextAuthorityAt = nowIso();
     state.nextOptimizationAt = nowIso();
+    state.nextEditorialRadarAt = nowIso();
     state.lastPublishDecisionDateLocal = null;
     state.nextPublishAt = nextDailyPublishIso(new Date(), config);
     state.recentEvents = [{
       at: nowIso(),
       type: 'AUTOPILOT_UPGRADED',
       level: 'success',
-      message: needsV5Migration
-        ? 'Growth Autopilot upgraded to a fixed daily UK morning content-decision window.'
-        : 'Growth Autopilot upgraded with final Phase 5 continuous optimisation and revenue feedback.'
+      message: needsV6Migration
+        ? 'Growth Autopilot upgraded with proactive editorial/trend opportunity radar.'
+        : needsV5Migration
+          ? 'Growth Autopilot upgraded to a fixed daily UK morning content-decision window.'
+          : 'Growth Autopilot upgraded with final Phase 5 continuous optimisation and revenue feedback.'
     }, ...(state.recentEvents || [])].slice(0, 40);
     await prisma.appSetting.update({
       where: { key: STATE_KEY },
@@ -560,7 +588,7 @@ async function archiveLowQuality(article, threshold, attempt) {
   );
 }
 
-async function produceAndPublish(opportunity, config, strategy = null) {
+async function produceAndPublish(opportunity, config, strategy = null, decisionMode = 'daily') {
   let lastArticle = null;
 
   for (let attempt = 1; attempt <= config.maxDraftAttempts; attempt += 1) {
@@ -658,7 +686,7 @@ async function produceAndPublish(opportunity, config, strategy = null) {
       const publishedAt = article.published_at || nowIso();
       await mutateState(state => {
         state.lastPublishedAt = publishedAt;
-        markDailyPublishDecision(state, config, new Date(publishedAt));
+        if (decisionMode !== 'hot') markDailyPublishDecision(state, config, new Date(publishedAt));
         state.lastPublishedArticle = {
           id: article.id,
           slug: article.slug,
@@ -692,7 +720,7 @@ async function produceAndPublish(opportunity, config, strategy = null) {
     }
 
     await mutateState(state => {
-      markDailyPublishDecision(state, config, new Date());
+      if (decisionMode !== 'hot') markDailyPublishDecision(state, config, new Date());
       return state;
     });
     await recordEvent(
