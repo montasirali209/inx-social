@@ -273,17 +273,19 @@ async function reviewOutreachForAutoSend(items,http=axios){
 
 async function executeApprovedEmails(items,enabled){
   if(!enabled)return {items,sent:0,followedUp:0};
+  const intelligence=await siteIntelligence.latest().catch(()=>null);
+  const brandName=intelligence?.profile?.brandName||intelligence?.site?.hostname||'Growth outreach';
   let sent=0,followedUp=0; const out=[];
   for(const x of items){
     if(sent+followedUp>=AUTO_EMAIL_LIMIT){out.push(x);continue;}
     try{
       if(x.status==='SENT'&&x.nextFollowUpAt&&new Date(x.nextFollowUpAt).getTime()<=Date.now()&&x.contact?.kind==='EMAIL'&&x.draft?.followUpBody&&emailService.isConfigured()){
-        await emailService.sendAuthorityOutreach({to:x.contact.value,subject:'Re: '+String(x.draft.outreachSubject||'INXSocial').slice(0,170),body:x.draft.followUpBody});
+        await emailService.sendAuthorityOutreach({to:x.contact.value,subject:'Re: '+String(x.draft.outreachSubject||brandName).slice(0,170),body:x.draft.followUpBody});
         followedUp++;out.push({...x,status:'FOLLOWED_UP',executedAt:nowIso(),nextFollowUpAt:null,outcomeNote:'One approved follow-up was sent automatically after five days.'});continue;
       }
       if(['APPROVED','AI_APPROVED'].includes(x.status)&&x.contact?.kind==='EMAIL'&&x.contact?.value&&x.draft?.outreachSubject&&x.draft?.outreachBody&&emailService.isConfigured()){
         await emailService.sendAuthorityOutreach({to:x.contact.value,subject:x.draft.outreachSubject,body:x.draft.outreachBody});
-        sent++;out.push({...x,status:'SENT',executedAt:nowIso(),nextFollowUpAt:x.status==='AI_APPROVED'?null:new Date(Date.now()+5*24*60*60*1000).toISOString(),outcomeNote:x.aiReview?.decision==='PASS'?'GPT-5.6 Sol reviewed and approved this outreach before automatic delivery. Automatic follow-up is disabled until inbound reply suppression is connected.':'Approved outreach sent through the configured INXSocial email provider.'});continue;
+        sent++;out.push({...x,status:'SENT',executedAt:nowIso(),nextFollowUpAt:x.status==='AI_APPROVED'?null:new Date(Date.now()+5*24*60*60*1000).toISOString(),outcomeNote:x.aiReview?.decision==='PASS'?'GPT-5.6 Sol reviewed and approved this outreach before automatic delivery. Automatic follow-up is disabled until inbound reply suppression is connected.':'Approved outreach sent through the configured email provider.'});continue;
       }
     }catch(e){out.push({...x,outcomeNote:'Approved outreach send failed: '+String(e.message||e).slice(0,300)});continue;}
     out.push(x);
