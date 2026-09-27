@@ -687,6 +687,46 @@ model AppSetting {
   updatedAt   DateTime @updatedAt
 }
 
+model WebsiteMediaAsset {
+  id                    String                @id @default(cuid())
+  key                   String                @unique
+  label                 String
+  section               String
+  altText               String?
+  recommendedMinWidth   Int?
+  recommendedMinHeight  Int?
+  currentVersionId      String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  currentVersion WebsiteMediaVersion?  @relation("WebsiteMediaCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  versions       WebsiteMediaVersion[] @relation("WebsiteMediaVersions")
+
+  @@index([section])
+  @@index([updatedAt])
+}
+
+model WebsiteMediaVersion {
+  id               String             @id @default(cuid())
+  assetId          String
+  storageProvider  String
+  storageKey       String             @unique
+  originalName     String
+  mimeType         String
+  byteSize         BigInt
+  width            Int
+  height           Int
+  sha256           String
+  uploadedByUserId String?
+  createdAt        DateTime           @default(now())
+
+  asset      WebsiteMediaAsset   @relation("WebsiteMediaVersions", fields: [assetId], references: [id], onDelete: Cascade)
+  currentFor WebsiteMediaAsset[] @relation("WebsiteMediaCurrentVersion")
+
+  @@index([assetId, createdAt])
+  @@index([createdAt])
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
   userId    String?

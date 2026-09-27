@@ -9,8 +9,9 @@ const PROVIDERS = {
   RAILWAY_S3: 'RAILWAY_S3'
 };
 
-// R2 is intentionally reserved for high-volume customer generation outputs.
-// Everything operational stays on Railway object storage.
+// R2 is intentionally reserved for high-volume customer generation outputs
+// plus durable public website-media originals. Other operational media stays
+// on Railway object storage.
 const R2_GENERATED_MEDIA_PREFIXES = new Set([
   'ai-studio',
   'ai-video',
@@ -19,7 +20,8 @@ const R2_GENERATED_MEDIA_PREFIXES = new Set([
   'ugc-avatar',
   'ugc-product',
   'ugc-sample',
-  'growth-content'
+  'growth-content',
+  'website-media'
 ]);
 
 function clean(value) {
