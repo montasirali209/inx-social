@@ -86,6 +86,31 @@ test('Growth admin defaults to an autopilot dashboard and hides manual tools und
   assert.match(js, /runGrowthAutopilotNow/);
 });
 
+test('Growth Autopilot UI shows the live editorial pipeline and removes separate phase run buttons', () => {
+  const html = read('public/index.html');
+  const js = read('public/admin.js');
+  const css = read('public/admin.css');
+
+  assert.match(html, /Sol editorial pipeline/);
+  assert.match(html, /id="growthEditorialPipeline"/);
+  assert.match(html, /id="growthEditorialCurrent"/);
+  assert.match(html, /id="growthEditorialFeedback"/);
+  assert.match(html, /id="growthEditorialQueue"/);
+  assert.match(html, /90\+ required/);
+  assert.doesNotMatch(html, /id="growthSeoRunBtn"/);
+  assert.doesNotMatch(html, /id="growthAuthorityRunBtn"/);
+  assert.doesNotMatch(html, /id="growthOptimizationRunBtn"/);
+  assert.doesNotMatch(js, /growthSeoRunBtn'\)\.addEventListener/);
+  assert.doesNotMatch(js, /growthAuthorityRunBtn'\)\.addEventListener/);
+  assert.doesNotMatch(js, /growthOptimizationRunBtn'\)\.addEventListener/);
+  assert.match(js, /function renderGrowthEditorialBoard/);
+  assert.match(js, /EDITORIAL_REVISION_REQUESTED/);
+  assert.match(js, /ARTICLE_REVISED/);
+  assert.match(js, /EDITORIAL_REVIEW_PASSED/);
+  assert.match(css, /\.growth-editorial-board/);
+  assert.match(css, /\.growth-editorial-stage\.active/);
+});
+
 test('Autopilot admin mutations stay Super Admin protected', () => {
   const routes = read('src/routes/adminRoutes.js');
 
