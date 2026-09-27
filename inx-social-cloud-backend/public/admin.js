@@ -1845,7 +1845,7 @@ function renderWebsiteMediaEditor(slot){
 }
 
 async function openWebsiteMediaEditor(key){
-  if(state.websiteMediaObjectUrl){URL.revokeObjectURL(state.websiteMediaObjectUrl);state.websiteMediaObjectUrl=null}
+  if(state.websiteMediaObjectUrl?.startsWith('blob:'))URL.revokeObjectURL(state.websiteMediaObjectUrl);state.websiteMediaObjectUrl=null
   $('websiteMediaFile').value='';
   const data=await api('/api/admin/website-media/'+encodeURIComponent(key));
   renderWebsiteMediaEditor(data.slot);
@@ -1853,11 +1853,16 @@ async function openWebsiteMediaEditor(key){
 
 async function websiteMediaReadDimensions(file){
   return new Promise((resolve,reject)=>{
-    const url=URL.createObjectURL(file);
-    const image=new Image();
-    image.onload=()=>{const result={width:image.naturalWidth,height:image.naturalHeight,url};resolve(result)};
-    image.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('This image could not be previewed.'))};
-    image.src=url;
+    const reader=new FileReader();
+    reader.onerror=()=>reject(new Error('This image could not be previewed.'));
+    reader.onload=()=>{
+      const url=String(reader.result||'');
+      const image=new Image();
+      image.onload=()=>resolve({width:image.naturalWidth,height:image.naturalHeight,url});
+      image.onerror=()=>reject(new Error('This image could not be previewed.'));
+      image.src=url;
+    };
+    reader.readAsDataURL(file);
   });
 }
 
@@ -1865,7 +1870,7 @@ $('websiteMediaFile').addEventListener('change',async()=>{
   const file=$('websiteMediaFile').files?.[0];
   $('websiteMediaFileChoice').hidden=true;
   $('websiteMediaUploadWarning').hidden=true;
-  if(state.websiteMediaObjectUrl){URL.revokeObjectURL(state.websiteMediaObjectUrl);state.websiteMediaObjectUrl=null}
+  if(state.websiteMediaObjectUrl?.startsWith('blob:'))URL.revokeObjectURL(state.websiteMediaObjectUrl);state.websiteMediaObjectUrl=null
   if(!file)return;
   if(!['image/png','image/jpeg','image/webp','image/avif'].includes(file.type)||file.size>25*1024*1024){
     $('websiteMediaUploadWarning').hidden=false;
