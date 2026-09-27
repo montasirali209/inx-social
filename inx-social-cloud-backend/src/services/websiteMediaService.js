@@ -23,6 +23,7 @@ const SLOT_DEFINITIONS = Object.freeze([
     altText: 'INXSocial dashboard preview',
     recommendedMinWidth: 2200,
     recommendedMinHeight: 1200,
+    fallbackUrl: '/assets/landing-dashboard-20260919.webp',
     usedOn: ['Homepage hero']
   },
   {
@@ -32,6 +33,7 @@ const SLOT_DEFINITIONS = Object.freeze([
     altText: 'INXSocial dashboard product preview',
     recommendedMinWidth: 1800,
     recommendedMinHeight: 1000,
+    fallbackUrl: '/assets/landing-dashboard-20260919.webp',
     usedOn: ['Homepage dashboard showcase']
   },
   {
@@ -41,6 +43,7 @@ const SLOT_DEFINITIONS = Object.freeze([
     altText: 'INXSocial AI Content Studio preview',
     recommendedMinWidth: 1800,
     recommendedMinHeight: 1000,
+    fallbackUrl: '/assets/ai-content-studio-seo.webp',
     usedOn: ['Homepage AI Content Studio section']
   },
   {
@@ -50,7 +53,8 @@ const SLOT_DEFINITIONS = Object.freeze([
     altText: 'INXSocial social media management and AI content platform',
     recommendedMinWidth: 1200,
     recommendedMinHeight: 630,
-    usedOn: ['Open Graph preview', 'X / Twitter card']
+    fallbackUrl: '/assets/inxsocial-social-preview-v3.jpg',
+    usedOn: ['Homepage Open Graph preview', 'Homepage X / Twitter card']
   },
   {
     key: 'seo.default.dashboard',
@@ -59,7 +63,8 @@ const SLOT_DEFINITIONS = Object.freeze([
     altText: 'INXSocial social media management dashboard',
     recommendedMinWidth: 1800,
     recommendedMinHeight: 1000,
-    usedOn: ['Scheduler SEO pages', 'Analytics SEO pages', 'Pricing SEO page']
+    fallbackUrl: '/assets/landing-dashboard-20260919.webp',
+    usedOn: ['Default for scheduler, calendar, analytics and pricing SEO pages']
   },
   {
     key: 'seo.default.ai-studio',
@@ -68,18 +73,120 @@ const SLOT_DEFINITIONS = Object.freeze([
     altText: 'INXSocial AI Content Studio',
     recommendedMinWidth: 1800,
     recommendedMinHeight: 1000,
-    usedOn: ['AI tools SEO pages']
+    fallbackUrl: '/assets/ai-content-studio-seo.webp',
+    usedOn: ['Default for AI tools SEO pages']
+  },
+  {
+    key: 'seo.social-media-scheduler.hero',
+    label: 'Social Media Scheduler SEO Hero',
+    section: 'SEO Page Overrides',
+    altText: 'INXSocial social media scheduler dashboard',
+    recommendedMinWidth: 1800,
+    recommendedMinHeight: 1000,
+    fallbackKey: 'seo.default.dashboard',
+    usedOn: ['/social-media-scheduler']
+  },
+  {
+    key: 'seo.bulk-social-media-scheduler.hero',
+    label: 'Bulk Scheduler SEO Hero',
+    section: 'SEO Page Overrides',
+    altText: 'INXSocial bulk social media scheduler',
+    recommendedMinWidth: 1800,
+    recommendedMinHeight: 1000,
+    fallbackKey: 'seo.default.dashboard',
+    usedOn: ['/bulk-social-media-scheduler']
+  },
+  {
+    key: 'seo.social-media-content-calendar.hero',
+    label: 'Content Calendar SEO Hero',
+    section: 'SEO Page Overrides',
+    altText: 'INXSocial social media content calendar',
+    recommendedMinWidth: 1800,
+    recommendedMinHeight: 1000,
+    fallbackKey: 'seo.default.dashboard',
+    usedOn: ['/social-media-content-calendar']
+  },
+  {
+    key: 'seo.social-media-analytics.hero',
+    label: 'Analytics SEO Hero',
+    section: 'SEO Page Overrides',
+    altText: 'INXSocial social media analytics dashboard',
+    recommendedMinWidth: 1800,
+    recommendedMinHeight: 1000,
+    fallbackKey: 'seo.default.dashboard',
+    usedOn: ['/social-media-analytics']
+  },
+  {
+    key: 'seo.pricing.hero',
+    label: 'Pricing SEO Hero',
+    section: 'SEO Page Overrides',
+    altText: 'INXSocial social media management dashboard',
+    recommendedMinWidth: 1800,
+    recommendedMinHeight: 1000,
+    fallbackKey: 'seo.default.dashboard',
+    usedOn: ['/pricing']
+  },
+  {
+    key: 'seo.ai-social-media-tools.hero',
+    label: 'AI Social Media Tools SEO Hero',
+    section: 'SEO Page Overrides',
+    altText: 'INXSocial AI Content Studio',
+    recommendedMinWidth: 1800,
+    recommendedMinHeight: 1000,
+    fallbackKey: 'seo.default.ai-studio',
+    usedOn: ['/ai-social-media-tools']
+  },
+  {
+    key: 'seo.ai-social-media-campaign-generator.hero',
+    label: 'AI Campaign Generator SEO Hero',
+    section: 'SEO Page Overrides',
+    altText: 'INXSocial AI Campaign generator',
+    recommendedMinWidth: 1800,
+    recommendedMinHeight: 1000,
+    fallbackKey: 'seo.default.ai-studio',
+    usedOn: ['/ai-social-media-campaign-generator']
+  },
+  {
+    key: 'seo.ai-social-media-post-generator.hero',
+    label: 'AI Post Generator SEO Hero',
+    section: 'SEO Page Overrides',
+    altText: 'INXSocial AI social media post generator',
+    recommendedMinWidth: 1800,
+    recommendedMinHeight: 1000,
+    fallbackKey: 'seo.default.ai-studio',
+    usedOn: ['/ai-social-media-post-generator']
+  },
+  {
+    key: 'seo.ai-carousel-post-generator.hero',
+    label: 'AI Carousel SEO Hero',
+    section: 'SEO Page Overrides',
+    altText: 'INXSocial AI carousel post generator',
+    recommendedMinWidth: 1800,
+    recommendedMinHeight: 1000,
+    fallbackKey: 'seo.default.ai-studio',
+    usedOn: ['/ai-carousel-post-generator']
   },
   {
     key: 'seo.ai-video.hero',
     label: 'AI Video SEO Hero',
-    section: 'SEO Media',
+    section: 'SEO Page Overrides',
     altText: 'INXSocial AI Video Studio',
     recommendedMinWidth: 1800,
     recommendedMinHeight: 1000,
-    usedOn: ['AI Video Generator SEO page']
+    fallbackKey: 'seo.default.ai-studio',
+    usedOn: ['/ai-video-post-generator', '/ai-video-models']
+  },
+  {
+    key: 'seo.ai-ugc-ad-generator.hero',
+    label: 'UGC Ad Generator SEO Hero',
+    section: 'SEO Page Overrides',
+    altText: 'INXSocial UGC Ad Studio',
+    recommendedMinWidth: 1800,
+    recommendedMinHeight: 1000,
+    fallbackKey: 'seo.default.ai-studio',
+    usedOn: ['/ai-ugc-ad-generator']
   }
-]);
+])
 
 function publicError(message, status = 400, code = 'WEBSITE_MEDIA_ERROR') {
   const error = new Error(message);
@@ -129,10 +236,14 @@ function serializeAsset(asset, definition, options = {}) {
     recommendedMinWidth: asset.recommendedMinWidth,
     recommendedMinHeight: asset.recommendedMinHeight,
     usedOn: definition?.usedOn || [],
+    fallbackKey: definition?.fallbackKey || null,
+    fallbackUrl: definition?.fallbackUrl || null,
+    fallbackActive: !current,
     hasImage: Boolean(current),
     currentVersion: current,
     versionCount: Number(asset._count?.versions || options.versionCount || 0),
     publicUrl: current ? publicUrl(asset.key, current.id) : null,
+    liveUrl: publicUrl(asset.key),
     updatedAt: asset.updatedAt
   };
 }
@@ -349,52 +460,122 @@ async function restore(key, versionId) {
   return serializeAsset(updated, definition);
 }
 
-async function publicMetadata(key) {
+async function configuredSource(key) {
   const definition = definitionFor(key);
   const asset = await prisma.websiteMediaAsset.findUnique({
     where: { key: definition.key },
     include: { currentVersion: true }
   });
-  if (!asset?.currentVersion) throw publicError('Website image is not configured yet.', 404, 'WEBSITE_MEDIA_NOT_CONFIGURED');
+  if (!asset?.currentVersion) return null;
+  return { definition, asset, version: asset.currentVersion };
+}
+
+async function resolveEffectiveSource(key, seen = new Set()) {
+  const definition = definitionFor(key);
+  if (seen.has(definition.key)) {
+    throw publicError('Website media fallback cycle detected.', 500, 'WEBSITE_MEDIA_FALLBACK_CYCLE');
+  }
+  seen.add(definition.key);
+
+  const configured = await configuredSource(definition.key);
+  if (configured) {
+    return { ...configured, requestedKey: key, inherited: definition.key !== key };
+  }
+
+  if (definition.fallbackKey) {
+    const resolved = await resolveEffectiveSource(definition.fallbackKey, seen);
+    return { ...resolved, requestedKey: key, inherited: true };
+  }
+
+  if (definition.fallbackUrl) {
+    return {
+      requestedKey: key,
+      definition,
+      fallbackUrl: definition.fallbackUrl,
+      inherited: definition.key !== key
+    };
+  }
+
+  throw publicError('Website image is not configured yet.', 404, 'WEBSITE_MEDIA_NOT_CONFIGURED');
+}
+
+async function publicMetadata(key) {
+  const definition = definitionFor(key);
+  const source = await resolveEffectiveSource(definition.key);
+  if (source.version) {
+    return {
+      key: definition.key,
+      effectiveKey: source.definition.key,
+      inherited: Boolean(source.inherited),
+      fallback: false,
+      altText: source.asset.altText || definition.altText || source.definition.altText || '',
+      width: source.version.width,
+      height: source.version.height,
+      mimeType: source.version.mimeType,
+      byteSize: Number(source.version.byteSize || 0),
+      versionId: source.version.id,
+      updatedAt: source.asset.updatedAt,
+      contentUrl: publicUrl(definition.key)
+    };
+  }
   return {
-    key: asset.key,
-    altText: asset.altText || definition.altText || '',
-    width: asset.currentVersion.width,
-    height: asset.currentVersion.height,
-    mimeType: asset.currentVersion.mimeType,
-    byteSize: Number(asset.currentVersion.byteSize || 0),
-    versionId: asset.currentVersion.id,
-    updatedAt: asset.updatedAt,
-    contentUrl: publicUrl(asset.key, asset.currentVersion.id)
+    key: definition.key,
+    effectiveKey: source.definition.key,
+    inherited: Boolean(source.inherited),
+    fallback: true,
+    altText: definition.altText || source.definition.altText || '',
+    width: definition.recommendedMinWidth || null,
+    height: definition.recommendedMinHeight || null,
+    mimeType: null,
+    byteSize: null,
+    versionId: null,
+    updatedAt: null,
+    contentUrl: publicUrl(definition.key),
+    fallbackUrl: source.fallbackUrl
   };
 }
 
 async function content(key, versionId = '') {
   const definition = definitionFor(key);
-  const asset = await prisma.websiteMediaAsset.findUnique({
-    where: { key: definition.key },
-    include: { currentVersion: true }
-  });
-  if (!asset) throw publicError('Website image is not configured yet.', 404, 'WEBSITE_MEDIA_NOT_CONFIGURED');
-
-  let version = asset.currentVersion;
   const requestedVersionId = String(versionId || '').trim();
+
   if (requestedVersionId) {
-    version = await prisma.websiteMediaVersion.findFirst({
+    const asset = await prisma.websiteMediaAsset.findUnique({ where: { key: definition.key } });
+    if (!asset) throw publicError('Website image version was not found.', 404, 'WEBSITE_MEDIA_VERSION_NOT_FOUND');
+    const version = await prisma.websiteMediaVersion.findFirst({
       where: { id: requestedVersionId, assetId: asset.id }
     });
     if (!version) throw publicError('Website image version was not found.', 404, 'WEBSITE_MEDIA_VERSION_NOT_FOUND');
+    const data = await objectStorage.getBuffer(version.storageKey, null, version.storageProvider);
+    return {
+      data,
+      mimeType: version.mimeType,
+      byteSize: Number(version.byteSize || data.length),
+      etag: `"${version.sha256}"`,
+      versionId: version.id,
+      updatedAt: version.createdAt,
+      inherited: false
+    };
   }
 
-  if (!version) throw publicError('Website image is not configured yet.', 404, 'WEBSITE_MEDIA_NOT_CONFIGURED');
-  const data = await objectStorage.getBuffer(version.storageKey, null, version.storageProvider);
+  const source = await resolveEffectiveSource(definition.key);
+  if (source.fallbackUrl) {
+    return {
+      redirectUrl: source.fallbackUrl,
+      inherited: Boolean(source.inherited)
+    };
+  }
+
+  const data = await objectStorage.getBuffer(source.version.storageKey, null, source.version.storageProvider);
   return {
     data,
-    mimeType: version.mimeType,
-    byteSize: Number(version.byteSize || data.length),
-    etag: `"${version.sha256}"`,
-    versionId: version.id,
-    updatedAt: requestedVersionId ? version.createdAt : asset.updatedAt
+    mimeType: source.version.mimeType,
+    byteSize: Number(source.version.byteSize || data.length),
+    etag: `"${source.version.sha256}"`,
+    versionId: source.version.id,
+    updatedAt: source.asset.updatedAt,
+    inherited: Boolean(source.inherited),
+    effectiveKey: source.definition.key
   };
 }
 
@@ -412,6 +593,7 @@ module.exports = {
   upload,
   updateMetadata,
   restore,
+  resolveEffectiveSource,
   publicMetadata,
   content
 };
