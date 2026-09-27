@@ -300,7 +300,7 @@ export const seoPages: Record<string, SeoPage> = {
 
   "ai-social-media-tools": {
     slug: "ai-social-media-tools",
-    title: "AI Content Creation, Video Studio & Social Media Tools | INXSocial",
+    title: "AI Content & Video Studio for Social Media | INXSocial",
     metaDescription:
       "Create AI video across a live multi-model Video Studio, plus campaigns, UGC, images and carousels, then publish and schedule from the same INXSocial workspace.",
     eyebrow: "AI social media tools",
@@ -572,7 +572,7 @@ export const seoPages: Record<string, SeoPage> = {
 
   "ai-video-post-generator": {
     slug: "ai-video-post-generator",
-    title: "AI Video Studio with Multi-Model Text & Image to Video | INXSocial",
+    title: "Multi-Model AI Video Studio & Generator | INXSocial",
     metaDescription:
       "Create AI video with a live multi-model catalogue, AI Recommended or direct model choice, text-to-video, image-to-video, supported references and publishing in INXSocial.",
     eyebrow: "Multi-model AI Video Studio",
@@ -708,7 +708,7 @@ export const seoPages: Record<string, SeoPage> = {
 
   pricing: {
     slug: "pricing",
-    title: "INXSocial Pricing | AI Video Studio, Content Creation & Publishing Plans",
+    title: "INXSocial Pricing | AI Video Studio & Publishing Plans",
     metaDescription:
       "Compare INXSocial plans with AI Content Studio, multi-model AI Video Studio, UGC, campaigns, scheduling, analytics and 300 to 4,000 monthly AI credits.",
     eyebrow: "INXSocial pricing",
