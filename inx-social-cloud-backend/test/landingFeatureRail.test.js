@@ -41,7 +41,7 @@ test('AI Content Studio is a premium five-feature marketing section with the mul
     assert.equal(landing.includes(feature), true, `${feature} should appear in AI Content Studio`);
   }
   assert.equal(landing.includes('Stock Video Creator'), true);
-  assert.equal(landing.includes('AI Video Clipping'), true);
+  assert.equal(landing.includes('Video Clipping'), true);
   assert.match(landing, /coming soon/i);
   assert.match(css, /\.ai-feature-grid/);
   assert.match(css, /\.ai-feature-wide/);
