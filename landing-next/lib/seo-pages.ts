@@ -730,7 +730,7 @@ export const seoPages: Record<string, SeoPage> = {
       },
       {
         title: "Business & Agency",
-        body: "Business is £59.99/month for up to 25 connected accounts and 2,000 AI credits. Agency is £99.99/month for up to 50 connected accounts and 2,900 AI credits."
+        body: "Business is £59.99/month for up to 25 connected accounts and 2,000 shared AI credits. Agency is £99.99/month for up to 50 connected accounts and 4,000 shared AI credits."
       }
     ],
     workflowHeading: "Start before you commit",
@@ -768,7 +768,7 @@ export const seoPages: Record<string, SeoPage> = {
       {
         question: "How are AI credits included?",
         answer:
-          "Creator includes 150 monthly AI credits, Pro 500, Business 1,200 and Agency 2,500 according to the current public pricing."
+          "Creator includes 300 monthly AI credits, Pro 900, Business 2,000 and Agency 4,000 according to the current public pricing."
       }
     ],
     related: ["social-media-scheduler", "ai-social-media-tools", "bulk-social-media-scheduler"]
