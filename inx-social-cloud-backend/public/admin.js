@@ -908,7 +908,7 @@ function renderGrowthAutopilot(data){
   $('growthStatusChip').className='status-chip '+(enabled?'gsc-connected':'gsc-error');
   $('growthAutopilotHeadline').textContent=running?'Growth cycle running now':enabled?'Everything is running automatically':'Autopilot is paused';
   $('growthAutopilotSummary').textContent=enabled
-    ?'No routine action is required. INXSocial refreshes intelligence every '+Number(config.intelligenceEveryHours||24)+' hours, scans authority opportunities every '+Number(config.authorityEveryHours||6)+' hours, and targets one high-quality blog publication every '+Number(config.publishEveryHours||48)+' hours.'
+    ?'No routine action is required. The site is re-evaluated automatically, authority opportunities are scanned every '+Number(config.authorityEveryHours||6)+' hours, and the strategist makes one content decision each morning at '+esc(config.dailyPublishTimeLocal||'07:30')+' '+esc(config.publishTimeZone||'Europe/London')+'. An article is published only when evidence supports one.'
     :'Automatic intelligence refresh and publishing are paused until you resume them.';
   $('growthAutopilotToggleBtn').textContent=enabled?'Pause autopilot':'Resume autopilot';
   $('growthAutopilotToggleBtn').className=enabled?'secondary':'primary';
@@ -918,7 +918,7 @@ function renderGrowthAutopilot(data){
 
   const lastQuality=runtime.lastPublishedArticle?.qualityScore;
   $('growthAutopilotKpis').innerHTML=[
-    ['Publishing','Every '+Number(config.publishEveryHours||48)+'h',config.autoPublish===false?'Auto publish disabled':'Automatic blog publishing'],
+    ['Publishing',(config.dailyPublishTimeLocal||'07:30')+' UK daily',config.autoPublish===false?'Auto publish disabled':'Evidence-gated morning article decision'],
     ['Next article',enabled?growthTimeUntil(runtime.nextPublishAt):'Paused',runtime.nextPublishAt?fmtDate(runtime.nextPublishAt):'Waiting for schedule'],
     ['Authority',enabled?growthTimeUntil(runtime.nextAuthorityAt):'Paused','Communities, backlinks, mentions + outreach'],
     ['Published',published,lastQuality!=null?'Latest quality '+Number(lastQuality)+'/100':'Self-hosted articles']
