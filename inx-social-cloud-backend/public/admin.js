@@ -1003,8 +1003,14 @@ function renderGrowthEditorialBoard(data){
       states[4].state='done';
       states[5]={state:'active',note:'Re-checking repaired article'};
     }
-    if(typeSet.has('ARTICLE_PUBLISHED')) states[6].state='done';
-    else if(typeSet.has('ARTICLE_APPROVED')||latestArticleType==='EDITORIAL_REVIEW_PASSED') states[6]={state:'active',note:config.autoPublish===false?'Approved · auto-publish off':'Publishing'};
+    if(typeSet.has('ARTICLE_PUBLISHED')){
+      states.forEach(item=>{item.state='done';item.note=null});
+      if(!typeSet.has('ARTICLE_REVISED')) states[4]={state:'skipped',note:'No repair recorded'};
+    }else if(typeSet.has('ARTICLE_APPROVED')||latestArticleType==='EDITORIAL_REVIEW_PASSED'){
+      states[3].state='done';
+      states[5].state='done';
+      states[6]={state:'active',note:config.autoPublish===false?'Approved · auto-publish off':'Publishing'};
+    }
     if(latestDeferred&&!latestPublished&&growthEditorialEventTime(latestDeferred)>=growthEditorialEventTime(articleEvents[0])){
       const firstWaiting=states.findIndex(item=>item.state==='waiting'||item.state==='active');
       if(firstWaiting>=0) states[firstWaiting]={state:'blocked',note:'Deferred this cycle'};
