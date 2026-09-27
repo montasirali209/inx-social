@@ -37,16 +37,6 @@ const SLOT_DEFINITIONS = Object.freeze([
     usedOn: ['Homepage dashboard showcase']
   },
   {
-    key: 'landing.ai-studio.preview',
-    label: 'AI Content Studio Preview',
-    section: 'Landing Page',
-    altText: 'INXSocial AI Content Studio preview',
-    recommendedMinWidth: 1400,
-    recommendedMinHeight: 986,
-    fallbackUrl: '/assets/ai-content-studio-seo.webp',
-    usedOn: ['Homepage AI Content Studio section']
-  },
-  {
     key: 'landing.social.preview',
     label: 'Social Share Preview',
     section: 'Landing Page',
