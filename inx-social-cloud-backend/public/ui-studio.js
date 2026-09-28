@@ -1870,6 +1870,7 @@
   async function handleFile(file) {
     clearLocalPreview();
     state.overlay = false;
+    state.pipelineError = null;
     if (!file) { renderWorkspace(); return; }
     if (!['image/png','image/jpeg','image/webp','image/avif'].includes(file.type) || file.size > 50 * 1024 * 1024) {
       notify('Choose a PNG, JPEG, WebP or AVIF image no larger than 50 MB.');
@@ -1881,23 +1882,37 @@
       state.selectedFile = file;
       state.selectedDimensions = dimensions;
       state.localObjectUrl = dimensions.url;
+      state.viewport = inferReferenceViewport(dimensions);
       state.zoom = 'fit';
       renderWorkspace();
+      await uploadReference({ autoPipeline: true });
     } catch (error) {
+      state.pipelineBusy = false;
+      state.pipelineStep = null;
+      state.pipelineError = error.message;
       notify(error.message);
       renderWorkspace();
     }
   }
 
-  async function uploadReference() {
-    if (!state.canEdit || !state.project || !state.selectedFile) return;
+  async function uploadReference(options = {}) {
+    if (!state.canEdit || !state.project || !state.selectedFile) return null;
     const button = $('uiStudioUploadBtn');
     const file = state.selectedFile;
-    button.disabled = true;
-    button.textContent = 'Uploading original…';
+    const viewport = inferReferenceViewport(state.selectedDimensions);
+    state.viewport = viewport;
+    state.pipelineBusy = true;
+    state.pipelineStep = 'UPLOADING';
+    state.pipelineError = null;
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Uploading…';
+    }
+    renderWorkspace();
+
     try {
       const response = await fetch(
-        '/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/references/' + encodeURIComponent(state.viewport) + '/upload',
+        '/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/references/' + encodeURIComponent(viewport) + '/upload',
         {
           method: 'POST',
           credentials: 'same-origin',
@@ -1910,7 +1925,7 @@
       );
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'UI reference upload failed.');
-      notify('Original UI reference stored in R2 without recompression.');
+
       clearLocalPreview();
       state.overlay = false;
       state.visualRender = null;
@@ -1918,46 +1933,89 @@
       state.phase5Batch = null;
       await Promise.all([refreshProject(), loadProjects()]);
       await loadPhase5().catch(() => {});
+
+      if (options.autoPipeline !== false) {
+        await runAutomaticPipeline({ fromUpload: true });
+      } else {
+        state.pipelineBusy = false;
+        state.pipelineStep = null;
+        renderWorkspace();
+      }
+      return data.reference || null;
     } catch (error) {
+      state.pipelineBusy = false;
+      state.pipelineStep = null;
+      state.pipelineError = error.message;
       notify(error.message);
+      renderWorkspace();
+      return null;
     } finally {
-      button.textContent = 'Upload original';
-      button.disabled = !state.canEdit || !state.selectedFile;
+      if (button) {
+        button.textContent = 'Upload';
+        button.disabled = !state.canEdit || !state.selectedFile;
+      }
     }
   }
 
-  async function analyseProject() {
-    if (!state.project || !state.canEdit || state.analysing) return;
+  async function analyseProject(options = {}) {
+    if (!state.project || !state.canEdit) return null;
+    if (state.analysing && !options.followExisting) return null;
     state.analysing = true;
+    state.pipelineStep = 'ANALYSING';
+    state.pipelineError = null;
     state.overlay = false;
-    renderAnalysisPanel();
+    state.workflowStage = 'UNDERSTAND';
+    renderWorkspace();
+
     try {
       const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/analyse', {
         method: 'POST',
         body: JSON.stringify({})
       });
       state.project = data.project;
+
+      if (data.alreadyRunning || data.analysis?.status === 'RUNNING') {
+        await pollProjectUntil(
+          project => project.latestAnalysis?.status !== 'RUNNING',
+          {
+            timeoutMessage: 'Design analysis is still running. Reopen the project and UI Studio will continue following it.'
+          }
+        );
+      }
+
+      if (!analysisIsCurrent()) {
+        const message = state.project?.latestAnalysis?.errorMessage || 'Design analysis did not complete successfully.';
+        throw new Error(message);
+      }
+
       state.overlay = true;
       state.visualRender = null;
       state.phase5Config = null;
       state.phase5Batch = null;
-      notify('Design analysis complete. Region overlay is ready.');
-      await loadProjects();
+      await loadProjects().catch(() => {});
       await loadPhase5().catch(() => {});
       renderWorkspace();
+      return state.project.latestAnalysis;
     } catch (error) {
-      notify(error.message);
+      state.pipelineError = error.message;
+      if (!options.quiet) notify(error.message);
       await refreshProject().catch(() => {});
+      return null;
     } finally {
       state.analysing = false;
       renderWorkspace();
     }
   }
 
-  async function generateResponsiveUi(previewOnly = false) {
-    if (!state.project || !state.canEdit || state.generating) return null;
+  async function generateResponsiveUi(previewOnly = false, options = {}) {
+    if (!state.project || !state.canEdit) return null;
+    if (state.generating && !options.followExisting) return null;
     state.generating = true;
+    state.pipelineStep = 'PREPARING_PREVIEW';
+    state.pipelineError = null;
+    state.workflowStage = 'PREVIEW';
     renderWorkspace();
+
     try {
       const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/generate', {
         method: 'POST',
@@ -1968,15 +2026,30 @@
       state.visualRender = null;
       state.phase5Config = null;
       state.phase5Batch = null;
-      state.selectedGeneratedFile = data.generation?.result?.entryFile || data.generation?.result?.files?.[0]?.path || null;
-      notify(previewOnly
-        ? 'Internal preview build created. Production code remains hidden until approval.'
-        : 'Internal preview build refreshed.');
+
+      if (data.alreadyRunning || data.generation?.status === 'RUNNING') {
+        await pollProjectUntil(
+          project => project.latestGeneration?.status !== 'RUNNING',
+          {
+            timeoutMessage: 'Responsive preview preparation is still running. Reopen the project and UI Studio will continue following it.'
+          }
+        );
+      }
+
+      if (!previewBuildIsCurrent()) {
+        const message = state.project?.latestGeneration?.errorMessage || 'Responsive preview preparation did not complete successfully.';
+        throw new Error(message);
+      }
+
+      await loadLatestGeneration().catch(() => {});
+      state.selectedGeneratedFile = state.generationDetail?.result?.entryFile || state.generationDetail?.result?.files?.[0]?.path || null;
       await loadProjects().catch(() => {});
       await loadPhase5().catch(() => {});
-      return data.generation || null;
+      renderWorkspace();
+      return state.project.latestGeneration || state.generationDetail;
     } catch (error) {
-      notify(error.message);
+      state.pipelineError = error.message;
+      if (!options.quiet) notify(error.message);
       await refreshProject().catch(() => {});
       await loadLatestGeneration().catch(() => {});
       return null;
@@ -1984,6 +2057,52 @@
       state.generating = false;
       renderWorkspace();
     }
+  }
+
+  async function runAutomaticPipeline(options = {}) {
+    if (!state.project || !state.canEdit || Number(state.project.referenceCount || 0) === 0) return false;
+    if (state.pipelineBusy && !options.fromUpload && !options.resume) return false;
+    state.pipelineBusy = true;
+    state.pipelineError = null;
+
+    try {
+      if (!analysisIsCurrent()) {
+        state.workflowStage = 'UNDERSTAND';
+        renderWorkspace();
+        const analysis = await analyseProject({ quiet: true, followExisting: true });
+        if (!analysis) throw new Error(state.pipelineError || 'Design analysis could not be completed.');
+      }
+
+      if (!previewBuildIsCurrent()) {
+        state.workflowStage = 'PREVIEW';
+        renderWorkspace();
+        const generation = await generateResponsiveUi(true, { quiet: true, followExisting: true });
+        if (!generation) throw new Error(state.pipelineError || 'Responsive preview could not be prepared.');
+      }
+
+      state.pipelineStep = null;
+      state.pipelineBusy = false;
+      state.pipelineError = null;
+      state.workflowStage = 'PREVIEW';
+      state.viewport = 'DESKTOP';
+      renderWorkspace();
+      if (options.fromUpload) notify('Design analysed and responsive preview ready.');
+      return true;
+    } catch (error) {
+      state.pipelineBusy = false;
+      state.pipelineStep = null;
+      state.pipelineError = error.message;
+      notify(error.message);
+      renderWorkspace();
+      return false;
+    }
+  }
+
+  function resumeAutomaticPipeline() {
+    if (!state.project || !state.canEdit || Number(state.project.referenceCount || 0) === 0) return;
+    if (previewBuildIsCurrent()) return;
+    if (state.project.acceptedGenerationId || state.project.productionGenerationId) return;
+    void runAutomaticPipeline({ resume: true });
   }
 
   async function createProject(event) {
