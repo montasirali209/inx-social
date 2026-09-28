@@ -47,6 +47,26 @@ test('Content Engine creates evidence-backed SEO content with quality controls',
   assert.match(service, /wordCount/);
 });
 
+test('editorial conversion skill accepts only a relevant verified page and real section', () => {
+  const skills = require('../src/services/growthSeoSkillRegistry');
+  const { approvedEditorialPromo } = require('../src/services/growthContentService');
+  const markdown = '## Answer\nHelpful context.\n## Next steps\nMore detail.\n';
+  const links = [{ url: '/seo/bulk-social-media-scheduler' }];
+  const promo = {
+    enabled: true, title: 'Schedule the posts', description: 'Prepare a batch of posts.',
+    label: 'Explore scheduler', url: links[0].url, before_heading: 'Next steps'
+  };
+  assert.ok(skills.SKILLS.some(skill => skill.key === 'EDITORIAL_CONVERSION'));
+  assert.deepEqual(approvedEditorialPromo(promo, markdown, links), {
+    title: promo.title, description: promo.description, label: promo.label,
+    url: promo.url, before_heading: promo.before_heading
+  });
+  assert.equal(approvedEditorialPromo({ ...promo, url: '/unverified-page' }, markdown, links), null);
+  assert.equal(approvedEditorialPromo({ ...promo, before_heading: 'Missing heading' }, markdown, links), null);
+  assert.equal(approvedEditorialPromo({ ...promo, before_heading: 'Answer' }, markdown, links), null);
+  assert.equal(approvedEditorialPromo({ ...promo, enabled: false }, markdown, links), null);
+});
+
 test('Content Engine can revise the same draft from senior-editor feedback', () => {
   const service = read('src/services/growthContentService.js');
   const skills = read('src/services/growthSeoSkillRegistry.js');

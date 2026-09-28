@@ -15,6 +15,13 @@ export type BlogArticleSummary = {
 export type BlogArticle = BlogArticleSummary & {
   content_html?: string | null;
   content_markdown?: string | null;
+  editorial_promo?: {
+    title: string;
+    description: string;
+    label: string;
+    url: string;
+    before_heading: string;
+  } | null;
   quick_answer?: string | null;
   key_takeaways?: string[] | null;
   comparison?: Array<{

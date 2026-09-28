@@ -14,7 +14,7 @@ const seoMaintenance = require('../src/services/growthSeoMaintenanceService');
 const gsc = require('../src/services/googleSearchConsoleService');
 
 test('SEO/GEO brain hardcodes professional skills rather than product facts', () => {
-  assert.equal(skills.VERSION, 'seo-geo-expert-skills-v1');
+  assert.equal(skills.VERSION, 'seo-geo-expert-skills-v2');
   assert.ok(skills.SKILLS.length >= 10);
   for (const key of ['DISCOVERY','TECHNICAL','INFORMATION_ARCHITECTURE','SEARCH_INTENT','ON_PAGE','CONTENT_STRATEGY','COMPETITIVE_RESEARCH','AEO_GEO','AUTHORITY','MEASUREMENT','EXPERIMENTATION','GOVERNANCE']) {
     assert.ok(skills.SKILLS.some(skill => skill.key === key), key);

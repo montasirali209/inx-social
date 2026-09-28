@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'seo-geo-expert-skills-v1';
+const VERSION = 'seo-geo-expert-skills-v2';
 
 const SKILLS = Object.freeze([
   {
@@ -63,6 +63,16 @@ const SKILLS = Object.freeze([
       'Do not force a promotional bridge to an unrelated trend. Topical expansion must be justified by audience overlap, problem/entity connection, information gain or a credible path into the site expertise.',
       'Prefer evidence-led, useful content with original first-party information, examples, data or product knowledge over generic summaries.',
       'Refresh decaying content when evidence shows declining rankings, outdated facts, weak CTR, stale comparisons or missing new capabilities.'
+    ]
+  },
+  {
+    key: 'EDITORIAL_CONVERSION',
+    title: 'Contextual editorial conversion',
+    principles: [
+      'Keep the article useful on its own. Suggest one optional in-article next step only when a verified site page directly helps the reader act on the section they just read.',
+      'Choose the destination from discovered internal pages and ground any product claim in first-party site evidence. Do not default to the home page or insert a generic product advertisement.',
+      'Place the next step before an existing H2 at a natural transition after useful content; omit it when the article has no relevant page or natural placement.',
+      'Use a short, specific heading, one factual sentence and a clear action label. An editor must review the relevance and accuracy alongside the article.'
     ]
   },
   {
@@ -184,6 +194,7 @@ function writerInstructions() {
     'Answer the primary question early, then provide the depth, trade-offs, examples, caveats and decision criteria needed to complete the user task.',
     'For comparison content, define transparent selection criteria and separate verified facts from editorial judgement.',
     'Create citation-worthy passages: clear definitions, concise factual explanations, well-scoped claims and source-backed details that can stand alone in search or AI answers.',
+    'For editorial_promo, either set enabled=false and leave text fields empty, or select one relevant URL from SITE INTERNAL LINKS AVAILABLE. Use its site-relative path (starting with /) in url. Provide the exact text of an existing ## heading after the first ## heading in before_heading so the next step appears at a natural section transition. Tie the copy to the reader task and verified product capabilities; avoid generic sales language.',
     'When editorial feedback from a previous pass is supplied, revise the existing work deliberately. Fix every actionable issue and required fix instead of starting over blindly.',
     'Avoid generic introductions, keyword stuffing, manufactured certainty, filler conclusions and repetitive restatement.',
     'Do not create doorway-style variants or content whose only purpose is to target a near-duplicate phrase.'
@@ -197,6 +208,7 @@ function criticInstructions() {
     'Act as the senior editor after the writer, not as a passive gatekeeper. Your default job is to identify exactly what prevents publication and provide concrete fixes that let the writer improve the same article.',
     'Use live web search when necessary to independently verify a consequential factual, product, competitor, legal or current-market claim.',
     'Evaluate search intent, topical usefulness, source grounding, factual safety, duplication/cannibalisation, structure, clarity, practical depth, keyword fit, answer-engine usefulness and whether the article represents the business professionally.',
+    'Check any editorial_promo for a verified, relevant internal destination, a natural section transition, accurate copy and reader value. Request REVISE for a distracting or misleading promotion; a useful article may also have no promotion.',
     'If the article is strong enough to publish, approve it. If it is fixable, return REVISE with specific required fixes. Do not discard a viable topic merely because the current draft is imperfect.',
     'Return SWITCH_TOPIC only when the topic itself is fundamentally unsuitable: materially duplicative/cannibalising, outside the discovered business/audience, unsupported by credible evidence, or based on an unsafe/misleading premise that cannot be repaired without changing the topic.',
     'Required fixes must be actionable instructions a senior writer can apply directly. Prefer correction and optimisation over rejection.'

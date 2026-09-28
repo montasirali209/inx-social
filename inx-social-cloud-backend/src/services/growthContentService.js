@@ -150,6 +150,20 @@ function safeInternalPath(value) {
   return /^\/(?:[a-z0-9][a-z0-9/_-]*|)$/.test(clean) ? clean : '';
 }
 
+function approvedEditorialPromo(promo, markdown, links) {
+  if (!promo?.enabled) return null;
+  const url = safeInternalPath(promo.url);
+  const beforeHeading = normalizeSpace(promo.before_heading);
+  const headings = [...String(markdown || '').matchAll(/^##\s+(.+)$/gm)].map(match => normalizeSpace(match[1]));
+  if (!url || !Array.isArray(links) || !links.some(link => link.url === url)
+    || headings.length < 2 || !headings.slice(1).includes(beforeHeading)) return null;
+  const title = normalizeSpace(promo.title).slice(0, 100);
+  const description = normalizeSpace(promo.description).slice(0, 240);
+  const label = normalizeSpace(promo.label).slice(0, 55);
+  if (!title || !description || !label) return null;
+  return { title, description, label, url, before_heading: beforeHeading };
+}
+
 function sourceDomain(value) {
   try {
     return new URL(String(value || '')).hostname.replace(/^www\./i, '').toLowerCase();
@@ -484,7 +498,7 @@ function articleSchema() {
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['title', 'excerpt', 'meta_description', 'keywords', 'quick_answer', 'key_takeaways', 'content_markdown', 'comparison', 'faq', 'featured_image_prompt'],
+    required: ['title', 'excerpt', 'meta_description', 'keywords', 'quick_answer', 'key_takeaways', 'content_markdown', 'comparison', 'faq', 'featured_image_prompt', 'editorial_promo'],
     properties: {
       title: { type: 'string' },
       excerpt: { type: 'string' },
@@ -493,6 +507,19 @@ function articleSchema() {
       quick_answer: { type: 'string' },
       key_takeaways: { type: 'array', minItems: 3, maxItems: 6, items: { type: 'string' } },
       content_markdown: { type: 'string' },
+      editorial_promo: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['enabled', 'title', 'description', 'label', 'url', 'before_heading'],
+        properties: {
+          enabled: { type: 'boolean' },
+          title: { type: 'string' },
+          description: { type: 'string' },
+          label: { type: 'string' },
+          url: { type: 'string' },
+          before_heading: { type: 'string' }
+        }
+      },
       comparison: {
         type: 'array',
         minItems: 0,
@@ -689,6 +716,7 @@ async function writeArticle(input, research) {
           quick_answer: input.previousArticle.quick_answer || '',
           key_takeaways: input.previousArticle.key_takeaways || [],
           content_markdown: String(input.previousArticle.content_markdown || '').slice(0, 30000),
+          editorial_promo: input.previousArticle.editorial_promo || null,
           comparison: input.previousArticle.comparison || [],
           faq: input.previousArticle.faq || [],
           previousQuality: input.previousArticle.quality || null
@@ -705,7 +733,7 @@ async function writeArticle(input, research) {
       sourceList,
       '',
       'SITE INTERNAL LINKS AVAILABLE',
-      linkList
+      linkList || 'No verified relevant site pages: set editorial_promo.enabled=false.'
     ].join('\n'),
     text: { format: { type: 'json_schema', name: 'inx_content_article', strict: true, schema: articleSchema() } },
     max_output_tokens: 7000
@@ -845,6 +873,7 @@ function publicArticle(article, dynamicLinks = []) {
     updated_at: article.updated_at,
     content_markdown: article.content_markdown,
     content_html: article.content_html,
+    editorial_promo: article.editorial_promo || null,
     quick_answer: article.quick_answer || article.excerpt || null,
     key_takeaways: Array.isArray(article.key_takeaways) ? article.key_takeaways : [],
     comparison: Array.isArray(article.comparison) ? article.comparison : [],
@@ -897,6 +926,9 @@ async function saveArticle(article, previousSlug = null) {
   prepared.content_html = article.content_source === 'BABYLOVEGROWTH_IMPORTED' && article.content_html
     ? sanitizeImportedHtml(article.content_html)
     : markdownToSafeHtml(article.content_markdown, sources);
+  prepared.editorial_promo = article.content_source === 'BABYLOVEGROWTH_IMPORTED'
+    ? null
+    : approvedEditorialPromo(article.editorial_promo, prepared.content_markdown, internalLinks);
   prepared.quality = qualityReview(prepared);
 
   await upsertSetting(articleKey(prepared.id), prepared, 'Self-hosted Growth Content Engine article.');
@@ -951,11 +983,12 @@ async function createDraft(input) {
     quick_answer: normalizeSpace(draft.quick_answer).slice(0, 900),
     key_takeaways: uniqueStrings(draft.key_takeaways, 6, 260),
     content_markdown: String(draft.content_markdown || '').trim(),
+    editorial_promo: draft.editorial_promo,
     content_html: '',
     comparison: Array.isArray(draft.comparison) ? draft.comparison : [],
     faq: Array.isArray(draft.faq) ? draft.faq : [],
     sources: research.sources,
-    internalLinks: await discoveredInternalLinks(topic, draft.keywords),
+    internalLinks: await discoveredInternalLinks(topic, []),
     featured_image_prompt: normalizeSpace(draft.featured_image_prompt).slice(0, 1200),
     featured_image_url: null,
     featured_image_storage: null,
@@ -1041,11 +1074,12 @@ async function reviseDraft(id, feedback = {}, options = {}) {
     quick_answer: normalizeSpace(revised.quick_answer).slice(0, 900),
     key_takeaways: uniqueStrings(revised.key_takeaways, 6, 260),
     content_markdown: String(revised.content_markdown || '').trim(),
+    editorial_promo: revised.editorial_promo,
     content_html: '',
     comparison: Array.isArray(revised.comparison) ? revised.comparison : [],
     faq: Array.isArray(revised.faq) ? revised.faq : [],
     sources: research.sources,
-    internalLinks: await discoveredInternalLinks(revised.title || article.title, revised.keywords),
+    internalLinks: await discoveredInternalLinks(article.title, []),
     featured_image_prompt: normalizeSpace(revised.featured_image_prompt).slice(0, 1200),
     research_brief: research.brief,
     generation: {
@@ -1079,6 +1113,7 @@ async function updateArticle(id, input) {
     meta_description: input.meta_description == null ? article.meta_description : normalizeSpace(input.meta_description).slice(0, 300),
     keywords: input.keywords == null ? article.keywords : uniqueStrings(input.keywords, 8, 80),
     content_markdown: input.content_markdown == null ? article.content_markdown : String(input.content_markdown).trim(),
+    editorial_promo: input.content_markdown == null ? article.editorial_promo : null,
     faq: input.faq == null ? article.faq : input.faq,
     featured_image_prompt: input.featured_image_prompt == null ? article.featured_image_prompt : normalizeSpace(input.featured_image_prompt).slice(0, 1200)
   };
@@ -1143,6 +1178,8 @@ async function refreshPublishedArticle(id, notes = '') {
     quick_answer: normalizeSpace(draft.quick_answer || article.quick_answer || article.excerpt).slice(0, 900),
     key_takeaways: uniqueStrings(draft.key_takeaways, 6, 260),
     content_markdown: String(draft.content_markdown || article.content_markdown || '').trim(),
+    // Published refreshes do not pass the independent draft editor; hold the promotion.
+    editorial_promo: null,
     comparison: Array.isArray(draft.comparison) ? draft.comparison : article.comparison,
     faq: Array.isArray(draft.faq) ? draft.faq : article.faq,
     sources: research.sources,
@@ -1499,6 +1536,7 @@ module.exports = {
   SEO_LINK_GRAPH_KEY,
   slugify,
   markdownToSafeHtml,
+  approvedEditorialPromo,
   qualityReview,
   overview,
   listArticles,
