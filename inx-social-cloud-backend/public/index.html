@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/admin.css?v=20">
   <link rel="stylesheet" href="/admin-security.css?v=2">
   <link rel="stylesheet" href="/admin-light.css?v=2">
-  <link rel="stylesheet" href="/ui-studio.css?v=5">
+  <link rel="stylesheet" href="/ui-studio.css?v=6">
 </head>
 <body>
 <section class="login-shell" id="loginView">
@@ -862,6 +862,50 @@
               </div>
             </details>
           </section>
+
+          <section class="ui-studio-phase6-panel">
+            <div class="ui-studio-phase6-head">
+              <div>
+                <span class="kicker">Phase 6</span>
+                <h3>Delivery layer</h3>
+                <p class="muted">Package the accepted Phase 5 design, map it into a repository when needed, enforce the regression gate, then move through PR → human approval → deployment. UI Studio never silently overwrites the live site.</p>
+              </div>
+              <div class="ui-studio-phase6-actions">
+                <span class="status-chip" id="uiStudioPhase6Status">Waiting</span>
+              </div>
+            </div>
+
+            <div class="ui-studio-phase6-gate" id="uiStudioPhase6Gate"></div>
+
+            <div class="ui-studio-phase6-config">
+              <label>Delivery mode
+                <select id="uiStudioPhase6Mode">
+                  <option value="EXPORT_ONLY">Export ZIP only</option>
+                  <option value="REPOSITORY">Repository pull request</option>
+                </select>
+              </label>
+              <label>Repository
+                <input id="uiStudioPhase6Repository" placeholder="owner/repository" autocomplete="off">
+              </label>
+              <label>Base branch
+                <input id="uiStudioPhase6BaseBranch" placeholder="deployment/railway-postgres" autocomplete="off">
+              </label>
+              <label>Target directory
+                <input id="uiStudioPhase6TargetDir" placeholder="Optional repository folder" autocomplete="off">
+              </label>
+            </div>
+
+            <div class="ui-studio-phase6-toolbar">
+              <button class="primary" id="uiStudioPhase6CreateBtn" type="button">Create delivery package</button>
+              <a class="secondary" id="uiStudioPhase6DownloadBtn" href="#" hidden>Download ZIP</a>
+              <button class="secondary" id="uiStudioPhase6PrBtn" type="button" disabled>Create PR</button>
+              <button class="secondary" id="uiStudioPhase6ApproveBtn" type="button" disabled>Approve delivery</button>
+              <button class="primary" id="uiStudioPhase6DeployBtn" type="button" disabled>Deploy approved PR</button>
+            </div>
+
+            <p class="ui-studio-phase6-policy" id="uiStudioPhase6Policy">Human approval is mandatory before deployment.</p>
+            <div class="ui-studio-phase6-deliveries" id="uiStudioPhase6Deliveries"></div>
+          </section>
         </section>
 
         <aside class="ui-studio-workspace-side">
@@ -1042,7 +1086,7 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/ui-studio.js?v=5" defer></script>
+<script src="/ui-studio.js?v=6" defer></script>
 <script src="/admin.js?v=24" defer></script>
 </body>
 </html>
