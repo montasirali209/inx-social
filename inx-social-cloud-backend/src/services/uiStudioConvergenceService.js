@@ -19,7 +19,7 @@ const MAX_RENDER_PIXELS = 16_000_000;
 const COMPARE_MAX_DIMENSION = 1600;
 const VIEWPORT_ORDER = ['DESKTOP','TABLET','MOBILE'];
 const ASSET_KINDS = new Set(['IMAGE','VIDEO','ICON','LOGO','POSTER','AVATAR','OTHER']);
-const MEDIA_MASK_RE = /\b(video|image|photo|avatar|logo|media|carousel|thumbnail|poster|creator|product shot|screenshot)\b/i;
+const MEDIA_MASK_RE = /\b(video|avatar|carousel|animation|animated|dynamic media|live media)\b/i;
 
 function publicError(message, status = 400, code = 'UI_STUDIO_CONVERGENCE_ERROR') {
   const error = new Error(message);
@@ -117,15 +117,21 @@ function autoMasksFromAnalysis(analysisRow, viewport) {
     })
     .map((component, index) => {
       const bounds = component.boundsPct || {};
+      const x = clamp(bounds.x || 0, 0, 100);
+      const y = clamp(bounds.y || 0, 0, 100);
+      const width = clamp(bounds.width || 0, 0, 100);
+      const height = clamp(bounds.height || 0, 0, 100);
+      const insetX = Math.min(0.6, width * 0.025);
+      const insetY = Math.min(0.6, height * 0.025);
       return {
         id: 'auto-' + viewport.toLowerCase() + '-' + String(component.id || index),
         source: 'AUTO',
         viewport,
         label: component.label || component.type || 'Dynamic media',
-        xPct: clamp(bounds.x || 0, 0, 100),
-        yPct: clamp(bounds.y || 0, 0, 100),
-        widthPct: clamp(bounds.width || 0, 0, 100),
-        heightPct: clamp(bounds.height || 0, 0, 100),
+        xPct: clamp(x + insetX, 0, 100),
+        yPct: clamp(y + insetY, 0, 100),
+        widthPct: clamp(width - insetX * 2, 0, 100),
+        heightPct: clamp(height - insetY * 2, 0, 100),
         enabled: true
       };
     })
@@ -626,14 +632,30 @@ async function renderWithChromium(html, width, height) {
     });
     await page.setContent(context.html, { waitUntil: 'load', timeout: 30000 });
     await page.addStyleTag({ content: '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}html{scroll-behavior:auto!important}' });
+    await page.waitForFunction(() => {
+      const root = document.querySelector('#root');
+      return !root || root.childElementCount > 0 || document.body.children.length > 1;
+    }, { timeout: 10000 }).catch(() => {});
     await page.evaluate(async () => {
       if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch (_) {} }
+      const media = [...document.images, ...document.querySelectorAll('video')];
+      await Promise.race([
+        Promise.all(media.map(element => new Promise(resolve => {
+          if (element instanceof HTMLImageElement && element.complete) return resolve();
+          if (element instanceof HTMLVideoElement && element.readyState >= 2) return resolve();
+          const done = () => resolve();
+          element.addEventListener('load', done, { once: true });
+          element.addEventListener('loadeddata', done, { once: true });
+          element.addEventListener('error', done, { once: true });
+        }))),
+        new Promise(resolve => setTimeout(resolve, 2200))
+      ]);
       for (const video of document.querySelectorAll('video')) {
         try { video.pause(); video.currentTime = 0; } catch (_) {}
       }
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     });
-    await new Promise(resolve => setTimeout(resolve, 250));
+    await new Promise(resolve => setTimeout(resolve, 180));
     const data = await page.screenshot({
       type: 'png',
       fullPage: false,
