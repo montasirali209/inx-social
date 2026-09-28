@@ -24,6 +24,9 @@
     workflowStage: null,
     sideTab: 'INSPECTOR',
     finalizingCode: false,
+    pipelineBusy: false,
+    pipelineStep: null,
+    pipelineError: null,
     analysing: false,
     generating: false,
     visualRunning: false,
@@ -62,10 +65,15 @@
     MATERIAL_UI:'Material UI', CHAKRA_UI:'Chakra UI', UNO_CSS:'UnoCSS', VANILLA_EXTRACT:'vanilla-extract'
   };
   const WORKFLOW_STAGES = ['DESIGN','UNDERSTAND','PREVIEW','MATCH','APPROVE','GENERATE','DELIVER'];
+  const RESPONSIVE_PREVIEW_SIZES = {
+    DESKTOP: { width: 1440, height: 900, label: 'Desktop' },
+    TABLET: { width: 834, height: 1112, label: 'Tablet' },
+    MOBILE: { width: 390, height: 844, label: 'Mobile' }
+  };
   const STAGE_COPY = {
-    DESIGN: ['Design','Add your reference design','Upload the original Desktop, Tablet or Mobile design you want UI Studio to reconstruct.'],
-    UNDERSTAND: ['Understand','Review what UI Studio sees','Analyse layout, typography, colours, components and responsive behaviour before reconstruction.'],
-    PREVIEW: ['Preview','Inspect the reconstruction','Build a private internal preview. Implementation code stays hidden until you approve the visual result.'],
+    DESIGN: ['Design','Choose your reference design','Select one design image. Upload, analysis and responsive preview preparation start automatically.'],
+    UNDERSTAND: ['Analyse','Analysing your design','UI Studio is extracting layout, typography, colours, components and responsive behaviour.'],
+    PREVIEW: ['Preview','Responsive reconstruction','Inspect the same generated interface at Desktop, Tablet and Mobile sizes. No additional uploads are required.'],
     MATCH: ['Match & Refine','Compare and improve the match','Render every available viewport, compare it with the original and automatically retain the strongest version.'],
     APPROVE: ['Approve','Lock the visual version','Approve the best responsive match before any production code is exposed for delivery.'],
     GENERATE: ['Generate','Prepare production code','Expose the validated implementation only after visual approval.'],
@@ -109,6 +117,43 @@
 
   function latest(project, viewport) {
     return project?.latestReferences?.[viewport] || null;
+  }
+
+  function inferReferenceViewport(dimensions) {
+    const width = Number(dimensions?.width || 0);
+    const height = Number(dimensions?.height || 0);
+    if (!width || !height) return 'DESKTOP';
+    if (width > height || width >= 1000) return 'DESKTOP';
+    if (width >= 600) return 'TABLET';
+    return 'MOBILE';
+  }
+
+  function primaryReference(project = state.project) {
+    if (!project) return null;
+    return latest(project, 'DESKTOP') || latest(project, 'TABLET') || latest(project, 'MOBILE') || (project.references || [])[0] || null;
+  }
+
+  const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+  async function pollProjectUntil(predicate, options = {}) {
+    const timeoutMs = Number(options.timeoutMs || 12 * 60 * 1000);
+    const intervalMs = Number(options.intervalMs || 1800);
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id));
+      state.project = data.project;
+      state.canEdit = Boolean(data.canEdit);
+      state.analysisConfig = data.analysis || state.analysisConfig;
+      state.codegenConfig = data.codegen || state.codegenConfig;
+      state.visualConfig = data.visual || state.visualConfig;
+      state.phase5Capability = data.phase5 || state.phase5Capability;
+      state.phase6Capability = data.phase6 || state.phase6Capability;
+      state.agentConfig = data.agent || state.agentConfig;
+      renderWorkspace();
+      if (predicate(state.project)) return state.project;
+      await sleep(intervalMs);
+    }
+    throw new Error(options.timeoutMessage || 'UI Studio processing took too long. You can reopen the project and it will resume from the current state.');
   }
 
   function currentViewportAnalysis() {
