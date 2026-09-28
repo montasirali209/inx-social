@@ -8,6 +8,14 @@ ALTER TABLE "UiDesignProject"
   ADD COLUMN "productionGenerationId" TEXT,
   ADD COLUMN "productionGeneratedAt" TIMESTAMP(3);
 
+-- Backfill existing projects so their current preview stack is also their
+-- initial production/export target.
+UPDATE "UiDesignProject"
+SET
+  "frameworkTargetsJson" = '["' || "framework" || '"]',
+  "stylingTargetsJson" = '["' || "styling" || '"]'
+WHERE "frameworkTargetsJson" = '[]' OR "stylingTargetsJson" = '[]';
+
 CREATE TABLE "UiDesignAgentMessage" (
   "id" TEXT NOT NULL,
   "projectId" TEXT NOT NULL,
