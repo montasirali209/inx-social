@@ -475,7 +475,17 @@ async function generateProject(projectId, createdByUserId = null) {
     where: { projectId: id, status: 'RUNNING' },
     orderBy: { startedAt: 'desc' }
   });
-  if (running) throw error('Responsive code generation is already running for this project.', 409, 'UI_STUDIO_CODEGEN_ALREADY_RUNNING');
+  if (running) {
+    return {
+      generation: serializeGeneration(running, {
+        full: false,
+        currentFingerprint: fingerprint,
+        currentAnalysisId: analysis.id
+      }),
+      imageCount: 0,
+      alreadyRunning: true
+    };
+  }
 
   const row = await prisma.uiDesignGeneration.create({
     data: {
