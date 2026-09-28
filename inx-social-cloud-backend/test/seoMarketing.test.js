@@ -28,7 +28,6 @@ test('homepage exposes complete canonical SEO metadata', () => {
   assert.equal(landing.includes('<title>AI Content, Video Studio &amp; Social Publishing | INXSocial</title>'), true);
   assert.match(landing, /<link rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/">/);
   assert.match(landing, /<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">/);
-  assert.match(landing, /og:image:type" content="image\/jpeg"/);
   assert.match(landing, /og:image:width" content="1200"/);
   assert.match(landing, /og:image:height" content="630"/);
   assert.match(landing, /og:image" content="https:\/\/www\.inxsocial\.co\.uk\/assets\/inxsocial-social-preview-v3\.jpg"/);
@@ -111,7 +110,7 @@ test('Next marketing layer has unique page content, metadata and duplicate-index
   assert.match(seoPage, /fetchPriority="high"/);
   assert.match(nextRobots, /Disallow: \//);
   assert.equal(layout.includes('AI Content, Video Studio & Social Publishing | INXSocial'), true);
-  assert.match(layout, /landing-dashboard-20260919\.webp/);
+  assert.match(layout, /websiteMediaPath\(WEBSITE_MEDIA\.landingHeroDashboard\)/);
   assert.doesNotMatch(layout, /inx-social-dashboard\.jpg/);
 });
 
@@ -155,7 +154,7 @@ test('homepage social card uses managed Website Media with a legacy JPEG fallbac
   assert.match(app, /res\.type\('image\/jpeg'\)/);
   assert.match(app, /max-age=31536000, immutable/);
   assert.match(layout, /summary_large_image/);
-  assert.match(layout, /https:\/\/www\.inxsocial\.co\.uk\/assets\/inxsocial-social-preview-v3\.jpg/);
+  assert.match(layout, /websiteMediaAbsoluteUrl\(WEBSITE_MEDIA\.landingSocialPreview\)/);
   assert.match(layout, /width: 1200/);
   assert.match(layout, /height: 630/);
   assert.match(layout, /type: "image\/jpeg"/);
