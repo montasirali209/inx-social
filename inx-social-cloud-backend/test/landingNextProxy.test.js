@@ -32,13 +32,14 @@ test('production startup verifies the private Next landing path without blocking
 });
 
 
-test('dashboard preview asset is served as a cacheable WebP and used by the landing', () => {
+test('dashboard fallback asset remains cacheable while the landing uses managed media endpoints', () => {
   assert.match(appSource, /LANDING_DASHBOARD_ASSET_PATH = '\/assets\/landing-dashboard-20260919\.webp'/);
   assert.match(appSource, /Array\.from\(\{ length: 7 \}/);
   assert.match(appSource, /decoded\.toString\('ascii', 8, 12\) === 'WEBP'/);
   assert.match(appSource, /res\.type\('image\/webp'\)/);
   assert.match(appSource, /max-age=31536000, immutable/);
-  assert.ok((landingSource.match(/\/assets\/landing-dashboard-20260919\.webp/g) || []).length >= 3);
-  assert.match(landingSource, /\/assets\/inxsocial-social-preview-v3\.jpg/);
+  assert.match(landingSource, /\/api\/website-media\/landing\.hero\.dashboard\/content/);
+  assert.match(landingSource, /\/api\/website-media\/landing\.dashboard\.showcase\/content/);
+  assert.match(landingSource, /\/api\/website-media\/landing\.social\.preview\/content/);
   assert.doesNotMatch(landingSource, /\/assets\/inx-social-dashboard\.jpg/);
 });
