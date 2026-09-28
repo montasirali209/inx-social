@@ -47,7 +47,7 @@
     canvasFrame: null,
     canvasReady: false,
     canvasSelected: null,
-    canvasEditScope: 'VIEWPORT',
+    canvasEditScope: 'ALL',
     canvasEdits: { DESKTOP: {}, TABLET: {}, MOBILE: {} },
     canvasApplying: false
   };
@@ -604,8 +604,33 @@
     return state.canvasEdits[viewport];
   }
 
-  function pendingCanvasEdits() {
+  function allStoredCanvasEdits() {
     return Object.values(state.canvasEdits || {}).flatMap(group => Object.values(group || {}));
+  }
+
+  function globalCanvasEdit(nodePath) {
+    return allStoredCanvasEdits().find(edit => edit.nodePath === nodePath && edit.styleScope === 'ALL') || null;
+  }
+
+  function pendingCanvasEdits() {
+    const all = allStoredCanvasEdits();
+    const globals = [];
+    const seenGlobals = new Set();
+    for (const edit of all) {
+      if (edit.styleScope !== 'ALL') continue;
+      const key = edit.nodePath;
+      if (seenGlobals.has(key)) continue;
+      seenGlobals.add(key);
+      globals.push(edit);
+    }
+    const locals = all.filter(edit => edit.styleScope !== 'ALL');
+    return [...globals, ...locals];
+  }
+
+  function canvasEditsForViewport(viewport = state.viewport) {
+    const globals = pendingCanvasEdits().filter(edit => edit.styleScope === 'ALL');
+    const locals = Object.values(canvasViewportEdits(viewport)).filter(edit => edit.styleScope !== 'ALL');
+    return [...globals, ...locals];
   }
 
   function canvasEditCount() {
@@ -702,15 +727,13 @@
   function canvasPatchForSelected() {
     const selected = state.canvasSelected;
     if (!selected?.nodePath) return null;
-    return canvasViewportEdits()[selected.nodePath] || null;
+    return canvasViewportEdits()[selected.nodePath] || globalCanvasEdit(selected.nodePath) || null;
   }
 
-  function recordCanvasEdit(element, changes = {}, { send = true } = {}) {
-    if (!element?.nodePath) return;
-    const edits = canvasViewportEdits();
-    const existing = edits[element.nodePath] || {
+  function createCanvasEdit(element, scope) {
+    return {
       viewport: state.viewport,
-      styleScope: state.canvasEditScope,
+      styleScope: scope,
       nodeId: element.nodeId || element.nodePath,
       nodePath: element.nodePath,
       tagName: element.tagName || '',
@@ -720,11 +743,39 @@
       beforeStyles: { ...(element.styles || {}) },
       styles: {}
     };
-    existing.styleScope = state.canvasEditScope;
+  }
+
+  function recordCanvasEdit(element, changes = {}, { send = true } = {}) {
+    if (!element?.nodePath) return;
+    const scope = state.canvasEditScope === 'VIEWPORT' ? 'VIEWPORT' : 'ALL';
+    const currentEdits = canvasViewportEdits();
+    let existing;
+
+    if (scope === 'ALL') {
+      existing = globalCanvasEdit(element.nodePath);
+      if (!existing) {
+        const current = currentEdits[element.nodePath];
+        if (current && current.styleScope !== 'ALL') {
+          current.styleScope = 'ALL';
+          existing = current;
+        } else {
+          existing = createCanvasEdit(element, 'ALL');
+          currentEdits[element.nodePath] = existing;
+        }
+      }
+      existing.styleScope = 'ALL';
+    } else {
+      existing = currentEdits[element.nodePath];
+      if (!existing || existing.styleScope === 'ALL') {
+        existing = createCanvasEdit(element, 'VIEWPORT');
+        currentEdits[element.nodePath] = existing;
+      }
+      existing.styleScope = 'VIEWPORT';
+    }
+
     if (Object.prototype.hasOwnProperty.call(changes, 'text')) existing.text = changes.text;
     if (Object.prototype.hasOwnProperty.call(changes, 'href')) existing.href = changes.href;
     if (changes.styles) existing.styles = { ...(existing.styles || {}), ...changes.styles };
-    edits[element.nodePath] = existing;
 
     if (send) {
       postCanvasMessage({
@@ -774,9 +825,9 @@
       (isLink
         ? '<label class="ui-studio-canvas-field"><span>Link</span><input id="uiStudioCanvasHref" value="' + esc(hrefValue || '') + '"></label>'
         : '') +
-      '<label class="ui-studio-canvas-field"><span>Style scope</span><select id="uiStudioCanvasScope">' +
+      '<label class="ui-studio-canvas-field"><span>Apply changes to</span><select id="uiStudioCanvasScope">' +
+        '<option value="ALL"' + (state.canvasEditScope === 'ALL' ? ' selected' : '') + '>All responsive sizes (default)</option>' +
         '<option value="VIEWPORT"' + (state.canvasEditScope === 'VIEWPORT' ? ' selected' : '') + '>This viewport only</option>' +
-        '<option value="ALL"' + (state.canvasEditScope === 'ALL' ? ' selected' : '') + '>All responsive sizes</option>' +
       '</select></label>' +
       '<div class="ui-studio-canvas-field-grid">' +
         canvasStyleField('fontSize', 'Font size', currentStyles.fontSize) +
@@ -794,9 +845,7 @@
       '</div>';
 
     $('uiStudioCanvasScope')?.addEventListener('change', event => {
-      state.canvasEditScope = event.target.value === 'ALL' ? 'ALL' : 'VIEWPORT';
-      const current = canvasPatchForSelected();
-      if (current) current.styleScope = state.canvasEditScope;
+      state.canvasEditScope = event.target.value === 'VIEWPORT' ? 'VIEWPORT' : 'ALL';
     });
     $('uiStudioCanvasText')?.addEventListener('input', event => {
       recordCanvasEdit(selected, { text: event.target.value });
@@ -810,9 +859,25 @@
       });
     });
     $('uiStudioCanvasResetElement')?.addEventListener('click', () => {
-      const edits = canvasViewportEdits();
-      delete edits[selected.nodePath];
+      const patch = canvasPatchForSelected();
+      if (patch?.styleScope === 'ALL') {
+        for (const viewport of Object.keys(state.canvasEdits || {})) {
+          const group = canvasViewportEdits(viewport);
+          if (group[selected.nodePath]?.styleScope === 'ALL') delete group[selected.nodePath];
+        }
+      } else {
+        delete canvasViewportEdits()[selected.nodePath];
+      }
       postCanvasMessage({ type: 'ui-studio-editor-reset', nodePath: selected.nodePath });
+      const remaining = canvasEditsForViewport().filter(edit => edit.nodePath === selected.nodePath).map(edit => ({
+        nodePath: edit.nodePath,
+        changes: {
+          ...(Object.prototype.hasOwnProperty.call(edit, 'text') ? { text: edit.text } : {}),
+          ...(Object.prototype.hasOwnProperty.call(edit, 'href') ? { href: edit.href } : {}),
+          styles: edit.styles || {}
+        }
+      }));
+      if (remaining.length) postCanvasMessage({ type: 'ui-studio-editor-batch', edits: remaining });
       renderCanvasProperties();
       renderCanvasCommitBar();
     });
@@ -909,7 +974,7 @@
   }
 
   function discardCanvasEdits() {
-    const current = Object.values(canvasViewportEdits());
+    const current = canvasEditsForViewport();
     for (const edit of current) {
       postCanvasMessage({ type: 'ui-studio-editor-reset', nodePath: edit.nodePath });
     }
@@ -960,7 +1025,7 @@
     if (data.type === 'ui-studio-editor-ready') {
       state.canvasReady = true;
       postCanvasMessage({ type: 'ui-studio-editor-mode', mode: state.canvasMode });
-      const edits = Object.values(canvasViewportEdits()).map(edit => ({
+      const edits = canvasEditsForViewport().map(edit => ({
         nodePath: edit.nodePath,
         changes: {
           ...(Object.prototype.hasOwnProperty.call(edit, 'text') ? { text: edit.text } : {}),
@@ -973,7 +1038,7 @@
     }
     if (data.type === 'ui-studio-editor-selected' && data.element) {
       state.canvasSelected = data.element;
-      state.canvasEditScope = canvasViewportEdits()[data.element.nodePath]?.styleScope || 'VIEWPORT';
+      state.canvasEditScope = (canvasViewportEdits()[data.element.nodePath] || globalCanvasEdit(data.element.nodePath))?.styleScope || 'ALL';
       renderCanvasProperties();
       return;
     }
@@ -2017,9 +2082,10 @@
           : 'Retry preview';
       next.disabled = next.disabled || state.pipelineBusy || state.generating || (!previewBuildIsCurrent() && !state.pipelineError);
     } else if (stage === 'MATCH') {
-      next.hidden = false;
-      next.textContent = state.project.bestGenerationId ? 'Review best match →' : (state.phase5Running ? 'Comparing…' : '◎ Compare uploaded reference');
-      next.disabled = next.disabled || state.phase5Running;
+      const hasBestMatch = Boolean(state.project.bestGenerationId);
+      next.hidden = !hasBestMatch;
+      next.textContent = 'Review best match →';
+      next.disabled = next.disabled || !hasBestMatch || state.phase5Running;
     } else if (stage === 'APPROVE') {
       next.hidden = false;
       const currentApproval = Boolean(state.project.bestGenerationId && state.project.acceptedGenerationId === state.project.bestGenerationId);
@@ -2220,7 +2286,7 @@
     state.canvasMode = 'PAN';
     state.canvasZoom = 1;
     state.canvasFitPending = true;
-    state.canvasEditScope = 'VIEWPORT';
+    state.canvasEditScope = 'ALL';
     state.canvasEdits = { DESKTOP: {}, TABLET: {}, MOBILE: {} };
     state.canvasApplying = false;
     state.viewport = primaryReference(data.project)?.viewport || 'DESKTOP';
