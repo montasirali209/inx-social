@@ -867,6 +867,8 @@ async function acceptGeneration(projectId, generationId) {
     data: {
       acceptedGenerationId: generation.id,
       acceptedAt: new Date(),
+      productionGenerationId: null,
+      productionGeneratedAt: null,
       status: 'ACCEPTED'
     }
   });
