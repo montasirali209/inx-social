@@ -737,32 +737,33 @@ function serializeRender(row, { full = true } = {}) {
 async function enqueueRenderBatch(project, generation, references, options = {}) {
   const batchId = options.batchId || crypto.randomUUID();
   const autoRepair = options.autoRepair !== false;
-  const rows = [];
-  for (const reference of references) {
+  const data = references.map(reference => {
     const size = fitViewport(reference.width, reference.height);
-    const row = await prisma.uiDesignRender.create({
-      data: {
-        projectId: project.id,
-        generationId: generation.id,
-        referenceId: reference.id,
-        parentRenderId: options.parentRenderId || null,
-        batchId,
-        viewport: reference.viewport,
-        status: 'QUEUED',
-        version: CONVERGENCE_VERSION,
-        width: size.width,
-        height: size.height,
-        sourceWidth: reference.width,
-        sourceHeight: reference.height,
-        sourceScale: size.scale,
-        repairDepth: generation.repairDepth || 0,
-        autoRepair,
-        createdByUserId: options.createdByUserId ? String(options.createdByUserId) : null
-      }
-    });
-    rows.push(row);
-  }
-  await prisma.uiDesignProject.update({ where: { id: project.id }, data: { status: 'CONVERGENCE_QUEUED' } });
+    return {
+      id: crypto.randomUUID(),
+      projectId: project.id,
+      generationId: generation.id,
+      referenceId: reference.id,
+      parentRenderId: options.parentRenderId || null,
+      batchId,
+      viewport: reference.viewport,
+      status: 'QUEUED',
+      version: CONVERGENCE_VERSION,
+      width: size.width,
+      height: size.height,
+      sourceWidth: reference.width,
+      sourceHeight: reference.height,
+      sourceScale: size.scale,
+      repairDepth: generation.repairDepth || 0,
+      autoRepair,
+      createdByUserId: options.createdByUserId ? String(options.createdByUserId) : null
+    };
+  });
+  await prisma.$transaction([
+    prisma.uiDesignRender.createMany({ data }),
+    prisma.uiDesignProject.update({ where: { id: project.id }, data: { status: 'CONVERGENCE_QUEUED' } })
+  ]);
+  const rows = await prisma.uiDesignRender.findMany({ where: { batchId }, orderBy: { createdAt: 'asc' } });
   return { batchId, renders: rows.map(row => serializeRender(row, { full: false })) };
 }
 
@@ -836,11 +837,20 @@ async function acceptGeneration(projectId, generationId) {
 
 async function recoverStaleJobs() {
   const now = new Date();
+  const maxAttempts = Number(env.uiStudioConvergence?.maxAttempts || 3);
+  const terminal = await prisma.uiDesignRender.findMany({
+    where: {
+      status: { in: ['CLAIMED','BUILDING','RENDERING','COMPARING'] },
+      leaseExpiresAt: { lt: now },
+      attempts: { gte: maxAttempts }
+    },
+    select: { batchId: true }
+  });
   await prisma.uiDesignRender.updateMany({
     where: {
       status: { in: ['CLAIMED','BUILDING','RENDERING','COMPARING'] },
       leaseExpiresAt: { lt: now },
-      attempts: { lt: Number(env.uiStudioConvergence?.maxAttempts || 3) }
+      attempts: { lt: maxAttempts }
     },
     data: {
       status: 'QUEUED',
@@ -854,7 +864,7 @@ async function recoverStaleJobs() {
     where: {
       status: { in: ['CLAIMED','BUILDING','RENDERING','COMPARING'] },
       leaseExpiresAt: { lt: now },
-      attempts: { gte: Number(env.uiStudioConvergence?.maxAttempts || 3) }
+      attempts: { gte: maxAttempts }
     },
     data: {
       status: 'FAILED',
@@ -864,6 +874,9 @@ async function recoverStaleJobs() {
       errorMessage: 'Render worker retry limit reached.'
     }
   });
+  for (const batchId of [...new Set(terminal.map(item => item.batchId).filter(Boolean))]) {
+    await finalizeBatch(batchId).catch(() => {});
+  }
 }
 
 async function claimNextRender(workerId) {
