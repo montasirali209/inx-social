@@ -62,6 +62,17 @@ interval.unref();
 void convergence.recoverStaleJobs().catch(error => {
   console.error('[ui-studio-worker] stale-job recovery failed', { error: error?.message });
 });
+void convergence.cleanupExpiredArtifacts().then(result => {
+  if (result.cleaned) console.log('[ui-studio-worker] expired artifacts cleaned', result);
+}).catch(error => {
+  console.error('[ui-studio-worker] artifact cleanup failed', { error: error?.message });
+});
+const cleanupInterval = setInterval(() => {
+  void convergence.cleanupExpiredArtifacts().catch(error => {
+    console.error('[ui-studio-worker] artifact cleanup failed', { error: error?.message });
+  });
+}, 6 * 60 * 60 * 1000);
+cleanupInterval.unref();
 void tick();
 
 function shutdown(signal) {
@@ -69,6 +80,7 @@ function shutdown(signal) {
   shuttingDown = true;
   console.log('[ui-studio-worker] shutting down', { signal });
   clearInterval(interval);
+  clearInterval(cleanupInterval);
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 10000).unref();
 }
