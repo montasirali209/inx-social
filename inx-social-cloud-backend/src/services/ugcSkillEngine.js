@@ -59,6 +59,7 @@ function overlapScore(left, right) {
 
 function brandUnderstandingSkill({ input, brand, productAssetIds = [], resolvedType }) {
   const sourceType = clean(input.sourceType || (productAssetIds.length ? 'PRODUCT' : input.productUrl ? 'WEBSITE' : 'BRIEF'), 30).toUpperCase();
+  const customPromptMode = sourceType === 'BRIEF';
   const offerType = clean(brand?.analysis?.offerType || (resolvedType === 'PRODUCT_SHOWCASE' ? 'PRODUCT' : 'BRAND'), 40).toUpperCase();
   const verifiedClaims = Array.isArray(brand?.verifiedClaims) ? brand.verifiedClaims.map(item => clean(item, 500)).filter(Boolean).slice(0, 20) : [];
   const audience = Array.isArray(brand?.audience) ? brand.audience.map(item => clean(item, 300)).filter(Boolean).slice(0, 10) : [];
@@ -72,7 +73,7 @@ function brandUnderstandingSkill({ input, brand, productAssetIds = [], resolvedT
     offerType,
     brandName: clean(brand?.name, 180),
     productName: clean(brand?.productName || visual?.productName, 220),
-    summary: clean(brand?.summary || input.productDescription || visual?.summary, 2200),
+    summary: clean(brand?.summary || (customPromptMode ? visual?.summary : input.productDescription) || visual?.summary, 2200),
     audience,
     verifiedClaims,
     productVisualEvidence: visual ? {
@@ -137,6 +138,8 @@ function creativeDirectorSkillFallback({ input, brandSkill, resolvedType, variat
 }
 
 async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType, variationCount, providerDurations, playbackDurations, formatPlan }) {
+  const customPromptMode = clean(input.sourceType, 30).toUpperCase() === 'BRIEF';
+  const customPrompt = customPromptMode ? clean(input.productDescription, 4000) : '';
   const timing = scriptTimingSpec(input.duration);
   const segmentBudgets = playbackDurations.map(seconds => Math.floor(Math.max(0, Number(seconds) - 0.75) * 2.3));
   const evidence = {
@@ -161,6 +164,7 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
           'Use only verified evidence supplied by the user or brand analysis. Never invent prices, testimonials, statistics, certifications, product claims or software features.',
           'Customer-supplied product visual evidence may be used only for facts visibly present in the supplied images. Never turn a visible shape, colour or label into an unsupported performance or specification claim.',
           'Your primary job is to write the spoken UGC script. The video-generation model will direct the visual performance.',
+          customPromptMode ? 'CUSTOM PROMPT MODE: requested.customPrompt is the customer\'s primary creative instruction. Follow it ahead of generic ad-writing defaults. Preserve its requested concept, language, dialogue structure, humour, tone, sequencing, performance direction and CTA intent. Do not rewrite it into a generic UGC template. URL and image analysis are supporting factual evidence only and must not replace or dilute the custom prompt.' : '',
           'Do not storyboard camera moves, props, devices, interfaces or shot-by-shot actions. Keep scene guidance minimal and let the video model interpret the script and references.',
           'Every requested variation must have a materially different hook and angle while remaining truthful.',
           'Default to fast social-ad pacing: start immediately, remove filler, keep sentences compact and make every line advance the ad.',
@@ -173,7 +177,7 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
           'caption is the social-post caption that accompanies the finished video. Keep it separate from the spoken script: concise, natural, platform-neutral, no hashtag stuffing, and never copy the full narration verbatim. Use only verified claims.',
           `For ${Number(input.duration)} seconds, target ${timing.targetMin}-${timing.targetMax} spoken words and never exceed ${timing.hardMax} words.`,
           `Write each clip as complete, natural speech. For the ${providerDurations.length} clips in order, keep the spoken words close to ${segmentBudgets.join(', ')} respectively, and never give one clip the unused words from another. Leave a short visual tail in every clip.`,
-          'If the user specifies a spoken language, accent or delivery in notes, follow that instruction ahead of the creator library default. Write the spoken script in the requested language. If none is specified, use the selected creator voice and locale.',
+          'If the user specifies a spoken language, accent or delivery in the custom prompt or notes, follow that instruction ahead of the creator library default. Write the spoken script in the requested language or languages. If none is specified, use the selected creator voice and locale.',
           `The renderer will use ${providerDurations.length} technical video clip${providerDurations.length === 1 ? '' : 's'}. Write at least ${providerDurations.length} compact complete sentence${providerDurations.length === 1 ? '' : 's'} so the spoken script can split only at sentence boundaries; never rely on a sentence continuing across clips.`,
           'The final sentence and CTA must finish before the requested duration, leaving a short visual tail.',
           'Use one creator identity and one voice per ad.',
@@ -191,7 +195,8 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
             duration: Number(input.duration),
             variationCount,
             quality: clean(input.quality || 'STANDARD', 30).toUpperCase(),
-            notes: clean(input.notes, 1200)
+            notes: clean(input.notes, 1200),
+            customPrompt
           },
           creativeFormatPlan: formatPlan,
           timing: {
@@ -263,6 +268,7 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
     };
   } catch (error) {
     console.warn('[UGC SKILL FALLBACK]', 'Creative Director:', clean(error?.message, 400));
+    if (customPromptMode && customPrompt) throw error;
     return creativeDirectorSkillFallback({ input, brandSkill, resolvedType, variationCount, formatPlan });
   }
 }
