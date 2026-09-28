@@ -505,6 +505,8 @@ async function analyseProject(projectId, createdByUserId = null) {
         status: 'ANALYZED',
         bestGenerationId: null,
         acceptedGenerationId: null,
+        productionGenerationId: null,
+        productionGeneratedAt: null,
         bestAggregateScore: null,
         acceptedAt: null
       }
