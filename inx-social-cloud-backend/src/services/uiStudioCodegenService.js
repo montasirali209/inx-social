@@ -85,7 +85,7 @@ function generationSchema() {
           additionalProperties: false,
           required: ['name','kind','purpose','recommendedAspectRatio','implementation'],
           properties: {
-            name: { type: 'string', pattern: '^[A-Za-z_$][A-Za-z0-9_$]*(?:\\.(?:[A-Za-z_$][A-Za-z0-9_$]*|[0-9]+))*
+            name: { type: 'string', pattern: '^[A-Za-z_][A-Za-z0-9_]*(?:\\.(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+))*$' },
             kind: { type: 'string', enum: ['IMAGE','VIDEO','ICON','LOGO','BACKGROUND','OTHER'] },
             purpose: { type: 'string' },
             recommendedAspectRatio: { type: 'string' },
