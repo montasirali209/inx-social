@@ -13,7 +13,9 @@ test('Growth Autopilot is enabled by default with daily intelligence and a fixed
   assert.match(service, /intelligenceEveryHours: 24/);
   assert.match(service, /editorialRadarEveryHours: 6/);
   assert.match(service, /hotTrendAutoEvaluate: true/);
+  assert.match(service, /dailyArticleTarget: 1/);
   assert.match(service, /maxArticlesPerLocalDay: 2/);
+  assert.match(service, /editorialRetryHours: 2/);
   assert.match(service, /dailyPublishTimeLocal: '07:30'/);
   assert.match(service, /publishTimeZone: 'Europe\/London'/);
   assert.match(service, /dailyPublishDue/);
@@ -41,6 +43,22 @@ test('Growth Autopilot automatically chains intelligence, opportunity selection,
   assert.match(service, /editorialRadar\.refresh/);
   assert.match(service, /HOT_TREND_EVALUATION_STARTED/);
   assert.match(service, /publishedCountToday/);
+});
+
+test('Daily editorial lane cannot be consumed by a non-article strategy decision', () => {
+  const service = read('src/services/growthAutopilotService.js');
+  const strategy = read('src/services/growthStrategyService.js');
+
+  assert.match(service, /growthStrategy\.planDailyArticle/);
+  assert.match(service, /minOpportunityScore: 70/);
+  assert.match(service, /DAILY_ARTICLE_SELECTION_RETRY/);
+  assert.match(service, /config\.editorialRetryHours/);
+  assert.match(service, /DAILY_ARTICLE_TARGET_ALREADY_MET/);
+  assert.match(strategy, /DAILY ARTICLE LANE/);
+  assert.match(strategy, /action=CREATE_ARTICLE and publishRecommended=true/);
+  assert.match(strategy, /LIVE_TREND_DISCOVERY/);
+  assert.match(strategy, /type: 'web_search'/);
+  assert.match(strategy, /Do not copy, closely paraphrase, or spin another publisher article/);
 });
 
 test('Autopilot runtime starts with the production backend and uses a persisted lease', () => {
