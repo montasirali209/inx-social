@@ -125,3 +125,27 @@ test('Workspace v2 changes remain isolated from UGC runtime implementation', () 
     assert.doesNotMatch(source, /ugcStudioService|ugcModelRouter|ugcProviderAdapters|ugcEngineRegistry/);
   }
 });
+
+
+test('Create Project modal resets global checkbox sizing and cannot overflow horizontally', () => {
+  const css = read('public/ui-studio.css');
+  assert.match(css, /#uiStudioCreateDialog\{[\s\S]*width:min\(900px,calc\(100vw - 32px\)\)/);
+  assert.match(css, /overflow:hidden/);
+  assert.match(css, /input\[type="checkbox"\][\s\S]*width:17px!important/);
+  assert.match(css, /input\[type="checkbox"\][\s\S]*min-height:17px!important/);
+  assert.match(css, /grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
+});
+
+test('Workspace polish adds native-feeling stage, dock and empty-canvas motion', () => {
+  const css = read('public/ui-studio.css');
+  const js = read('public/ui-studio.js');
+  const html = read('public/index.html');
+  assert.match(css, /UI Studio polish pass/);
+  assert.match(css, /\.ui-studio-empty-artboard/);
+  assert.match(css, /\.ui-studio-workflow/);
+  assert.match(js, /function animateUiStudioElement/);
+  assert.match(js, /function animateStageSurface/);
+  assert.match(js, /ui-studio-empty-orb/);
+  assert.match(html, /ui-studio\.css\?v=8/);
+  assert.match(html, /ui-studio\.js\?v=8/);
+});
