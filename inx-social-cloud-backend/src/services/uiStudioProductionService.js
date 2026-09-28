@@ -31,6 +31,9 @@ async function finalizeProductionCode(projectId) {
   if (!project.acceptedGenerationId) {
     throw publicError('Approve the best visual match before generating production code.', 409, 'UI_STUDIO_PRODUCTION_APPROVAL_REQUIRED');
   }
+  if (project.bestGenerationId && project.acceptedGenerationId !== project.bestGenerationId) {
+    throw publicError('A newer best visual match is ready. Approve it before generating production code.', 409, 'UI_STUDIO_PRODUCTION_CURRENT_BEST_REQUIRED');
+  }
 
   const generation = await prisma.uiDesignGeneration.findFirst({
     where: { id: project.acceptedGenerationId, projectId: project.id }
