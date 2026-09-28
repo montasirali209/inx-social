@@ -155,6 +155,7 @@ function generationSummary(row) {
 }
 
 async function phase5Status(projectId) {
+  const normalizedProjectId = String(projectId || '').trim();
   const project = await prisma.uiDesignProject.findUnique({
     where: { id: normalizedProjectId },
     include: {
@@ -782,7 +783,7 @@ async function startRenderBatch(projectId, input = {}, createdByUserId = null) {
   }
 
   const project = await prisma.uiDesignProject.findUnique({
-    where: { id: String(projectId || '').trim() },
+    where: { id: normalizedProjectId },
     include: {
       references: { orderBy: { createdAt: 'desc' }, take: 100 },
       analyses: { orderBy: { createdAt: 'desc' }, take: 1 },
