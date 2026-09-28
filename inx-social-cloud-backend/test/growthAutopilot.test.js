@@ -15,7 +15,7 @@ test('Growth Autopilot is enabled by default with daily intelligence and a fixed
   assert.match(service, /hotTrendAutoEvaluate: true/);
   assert.match(service, /dailyArticleTarget: 1/);
   assert.match(service, /maxArticlesPerLocalDay: 2/);
-  assert.match(service, /editorialRetryHours: 2/);
+  assert.match(service, /editorialRetryMinutes: 10/);
   assert.match(service, /dailyPublishTimeLocal: '07:30'/);
   assert.match(service, /publishTimeZone: 'Europe\/London'/);
   assert.match(service, /dailyPublishDue/);
@@ -85,6 +85,56 @@ test('Due daily publishing is prioritized ahead of authority and optimisation wo
   assert.match(service, /\[growth-autopilot:event\]/);
   assert.match(service, /type: event\.type/);
   assert.match(service, /metadata: event\.metadata/);
+});
+
+
+test('Daily publishing stays on the critical path and quality repairs retry immediately', () => {
+  const service = read('src/services/growthAutopilotService.js');
+  const content = read('src/services/growthContentService.js');
+
+  assert.match(service, /if \(!opportunityMap \|\| \(intelligenceDue && !publishDue\)\)/);
+  assert.match(service, /if \(radarDue && !publishDue\)/);
+  assert.match(service, /reviewDraftWithImmediateRetry/);
+  assert.match(service, /EDITORIAL_REPAIR_STARTED/);
+  assert.match(service, /EDITORIAL_REPAIR_RETRY/);
+  assert.match(service, /suppressFreshResearch: true/);
+  assert.match(service, /editorialCandidateQueue\([\s\S]*?5\s*\)/);
+  assert.match(service, /addMinutes\(nowIso\(\), config\.editorialRetryMinutes\)/);
+  assert.match(content, /maxEvidenceAttempts/);
+  assert.match(content, /existing verified source pack/);
+  assert.match(content, /researchFallbackUsed/);
+  assert.match(content, /options\.suppressFreshResearch === true/);
+});
+
+test('Interrupted Autopilot drafts resume before a new daily topic is created', () => {
+  const service = read('src/services/growthAutopilotService.js');
+
+  assert.match(service, /EDITORIAL_DRAFT_RECOVERY_SELECTED/);
+  assert.match(service, /EDITORIAL_DRAFT_RESUMED/);
+  assert.match(service, /RESUMING_DRAFT/);
+  assert.match(service, /produceAndPublish\(opportunity, config, strategy, decisionMode, recoverableDraft\)/);
+  assert.match(service, /configVersion: 10/);
+  assert.match(service, /needsV10Migration/);
+  assert.match(service, /editorialRetryMinutes: 10/);
+});
+
+test('Growth Dashboard exposes published SEO content and live article previews', () => {
+  const service = read('src/services/growthDashboardService.js');
+  const html = read('public/index.html');
+  const js = read('public/admin.js');
+  const css = read('public/admin.css');
+
+  assert.match(service, /averageQuality/);
+  assert.match(service, /featuredImageUrl/);
+  assert.match(service, /url: '\/blog\/' \+ article\.slug/);
+  assert.match(html, /id="growthDashboardContentLatest"/);
+  assert.match(html, /id="growthDashboardContent"/);
+  assert.match(html, /id="growthArticlePreviewDialog"/);
+  assert.match(js, /openGrowthArticlePreview/);
+  assert.match(js, /data-growth-preview/);
+  assert.match(js, /editorialRuntime/);
+  assert.match(css, /\.growth-command-content-panel/);
+  assert.match(css, /\.growth-article-preview-dialog/);
 });
 
 test('Autopilot repairs weak drafts before changing topic and requires 90+ publication quality', () => {
