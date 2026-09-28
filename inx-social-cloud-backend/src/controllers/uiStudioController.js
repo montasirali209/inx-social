@@ -6,6 +6,7 @@ const uiStudioAnalysis = require('../services/uiStudioAnalysisService');
 const uiStudioCodegen = require('../services/uiStudioCodegenService');
 const uiStudioVisual = require('../services/uiStudioVisualService');
 const uiStudioConvergence = require('../services/uiStudioConvergenceService');
+const uiStudioDelivery = require('../services/uiStudioDeliveryService');
 
 function decodeHeader(req, name, fallback = '') {
   const raw = String(req.headers[name] || fallback);
@@ -52,7 +53,8 @@ async function list(req, res, next) {
       phase5: {
         version: uiStudioConvergence.CONVERGENCE_VERSION,
         rendererConfigured: uiStudioConvergence.rendererConfigured()
-      }
+      },
+      phase6: uiStudioDelivery.capabilityStatus()
     });
   } catch (error) { next(error); }
 }
@@ -95,7 +97,8 @@ async function detail(req, res, next) {
       phase5: {
         version: uiStudioConvergence.CONVERGENCE_VERSION,
         rendererConfigured: uiStudioConvergence.rendererConfigured()
-      }
+      },
+      phase6: uiStudioDelivery.capabilityStatus()
     });
   } catch (error) { next(error); }
 }
@@ -357,6 +360,76 @@ async function acceptGeneration(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function phase6Status(req, res, next) {
+  try {
+    res.json({ phase6: await uiStudioDelivery.phase6Status(req.params.projectId) });
+  } catch (error) { next(error); }
+}
+
+async function createDelivery(req, res, next) {
+  try {
+    const result = await uiStudioDelivery.createDelivery(req.params.projectId, req.body || {}, req.user.id);
+    await audit(req, 'ADMIN_UI_STUDIO_DELIVERY_CREATE', req.params.projectId, {
+      deliveryId: result.delivery.id,
+      generationId: result.delivery.generationId,
+      targetMode: result.delivery.targetMode,
+      repository: result.delivery.repository,
+      baseBranch: result.delivery.baseBranch,
+      targetDirectory: result.delivery.targetDirectory,
+      fileCount: result.fileCount
+    });
+    res.status(201).json({ ...result, phase6: await uiStudioDelivery.phase6Status(req.params.projectId) });
+  } catch (error) { next(error); }
+}
+
+async function deliveryExport(req, res, next) {
+  try {
+    const result = await uiStudioDelivery.deliveryExport(req.params.projectId, req.params.deliveryId);
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Length', String(result.data.length));
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(result.fileName)}`);
+    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (result.sha256) res.setHeader('ETag', `"${result.sha256}"`);
+    res.send(result.data);
+  } catch (error) { next(error); }
+}
+
+async function createDeliveryPullRequest(req, res, next) {
+  try {
+    const delivery = await uiStudioDelivery.createPullRequest(req.params.projectId, req.params.deliveryId);
+    await audit(req, 'ADMIN_UI_STUDIO_DELIVERY_PR_CREATE', req.params.projectId, {
+      deliveryId: delivery.id,
+      pullRequestNumber: delivery.pullRequestNumber,
+      pullRequestUrl: delivery.pullRequestUrl
+    });
+    res.json({ delivery, phase6: await uiStudioDelivery.phase6Status(req.params.projectId) });
+  } catch (error) { next(error); }
+}
+
+async function approveDelivery(req, res, next) {
+  try {
+    const delivery = await uiStudioDelivery.approveDelivery(req.params.projectId, req.params.deliveryId, req.user.id);
+    await audit(req, 'ADMIN_UI_STUDIO_DELIVERY_APPROVE', req.params.projectId, {
+      deliveryId: delivery.id,
+      pullRequestNumber: delivery.pullRequestNumber
+    });
+    res.json({ delivery, phase6: await uiStudioDelivery.phase6Status(req.params.projectId) });
+  } catch (error) { next(error); }
+}
+
+async function deployDelivery(req, res, next) {
+  try {
+    const delivery = await uiStudioDelivery.deployDelivery(req.params.projectId, req.params.deliveryId);
+    await audit(req, 'ADMIN_UI_STUDIO_DELIVERY_DEPLOY_TRIGGER', req.params.projectId, {
+      deliveryId: delivery.id,
+      pullRequestNumber: delivery.pullRequestNumber,
+      mergeSha: delivery.mergeSha
+    });
+    res.json({ delivery, phase6: await uiStudioDelivery.phase6Status(req.params.projectId) });
+  } catch (error) { next(error); }
+}
+
 async function content(req, res, next) {
   try {
     const result = await uiStudio.referenceContent(req.params.referenceId);
@@ -376,5 +449,7 @@ module.exports = {
   list, create, detail, upload, analyse, generate, generation,
   prepareRender, renderDetail, renderPreview, renderAsset, captureRender, repairRender,
   phase5Status, startConvergence, convergenceBatch, uploadAssetBinding, deleteAssetBinding,
-  createIgnoreMask, deleteIgnoreMask, acceptGeneration, content
+  createIgnoreMask, deleteIgnoreMask, acceptGeneration,
+  phase6Status, createDelivery, deliveryExport, createDeliveryPullRequest, approveDelivery, deployDelivery,
+  content
 };
