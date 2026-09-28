@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=20">
+  <link rel="stylesheet" href="/admin.css?v=21">
   <link rel="stylesheet" href="/admin-security.css?v=2">
   <link rel="stylesheet" href="/admin-light.css?v=2">
   <link rel="stylesheet" href="/ui-studio.css?v=7">
@@ -132,6 +132,22 @@
           <div class="growth-command-list" id="growthDashboardPages"></div>
         </section>
       </div>
+
+      <section class="panel growth-command-content-panel">
+        <header class="growth-command-section-head">
+          <div>
+            <span class="kicker">SEO content</span>
+            <h2>Published articles</h2>
+            <p>See what Growth Autopilot has actually published, the current quality level, and preview the live article without leaving the dashboard.</p>
+          </div>
+          <button class="secondary" id="growthDashboardContentViewAll" type="button">Open Content Engine</button>
+        </header>
+        <div class="growth-command-content-kpis" id="growthDashboardContentStats"></div>
+        <div class="growth-command-content-latest" id="growthDashboardContentLatest">
+          <div class="growth-empty">Loading published content…</div>
+        </div>
+        <div class="growth-command-content-list" id="growthDashboardContent"></div>
+      </section>
 
       <section class="panel growth-command-activity-panel">
         <header class="growth-command-section-head"><div><span class="kicker">Automation feed</span><h2>What's happening now</h2></div><span id="growthDashboardUpdated">—</span></header>
@@ -1021,6 +1037,22 @@
   </main>
 </section>
 
+<dialog id="growthArticlePreviewDialog" class="growth-article-preview-dialog">
+  <div class="growth-article-preview-modal">
+    <header>
+      <div>
+        <span class="kicker">Live SEO article</span>
+        <h2 id="growthArticlePreviewTitle">Article preview</h2>
+      </div>
+      <div class="growth-article-preview-actions">
+        <a class="secondary" id="growthArticlePreviewOpen" href="#" target="_blank" rel="noopener">Open live ↗</a>
+        <button class="close" id="growthArticlePreviewClose" type="button" aria-label="Close preview">×</button>
+      </div>
+    </header>
+    <iframe id="growthArticlePreviewFrame" title="Live published article preview" loading="lazy"></iframe>
+  </div>
+</dialog>
+
 <dialog id="contentArticleDialog">
   <form class="modal content-editor-modal" id="contentArticleForm">
     <button class="close" type="button" data-close-content-editor aria-label="Close">×</button>
@@ -1194,6 +1226,6 @@
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
 <script src="/ui-studio.js?v=7" defer></script>
-<script src="/admin.js?v=24" defer></script>
+<script src="/admin.js?v=25" defer></script>
 </body>
 </html>

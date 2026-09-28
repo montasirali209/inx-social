@@ -24,7 +24,7 @@ const PROCESS_LEASE_OWNER = randomUUID();
 const DEFAULT_CONFIG = Object.freeze({
   enabled: true,
   intelligenceEveryHours: 24,
-  configVersion: 9,
+  configVersion: 10,
   publishEveryHours: 24,
   editorialRadarEveryHours: 6,
   hotTrendAutoEvaluate: true,
@@ -41,7 +41,7 @@ const DEFAULT_CONFIG = Object.freeze({
   maxDraftAttempts: 3,
   autoGenerateImage: true,
   autoPublish: true,
-  editorialRetryHours: 2,
+  editorialRetryMinutes: 10,
   retryHours: 6
 });
 
@@ -61,6 +61,10 @@ function safeJson(value, fallback = null) {
 
 function addHours(base, hours) {
   return new Date(new Date(base).getTime() + Number(hours) * 60 * 60 * 1000).toISOString();
+}
+
+function addMinutes(base, minutes) {
+  return new Date(new Date(base).getTime() + Number(minutes) * 60 * 1000).toISOString();
 }
 
 function normalizeTimeOfDay(value, fallback = '07:30') {
@@ -200,7 +204,7 @@ function normalizeConfig(value = {}) {
   return {
     enabled: value.enabled !== false,
     intelligenceEveryHours: clampNumber(value.intelligenceEveryHours, 24, 6, 168),
-    configVersion: Math.max(9, Number(value.configVersion || 0)),
+    configVersion: Math.max(10, Number(value.configVersion || 0)),
     publishEveryHours: clampNumber(value.publishEveryHours, 24, 24, 336),
     editorialRadarEveryHours: clampNumber(value.editorialRadarEveryHours, 6, 3, 24),
     hotTrendAutoEvaluate: value.hotTrendAutoEvaluate !== false,
@@ -217,7 +221,7 @@ function normalizeConfig(value = {}) {
     maxDraftAttempts: clampNumber(value.maxDraftAttempts, 3, 1, 3),
     autoGenerateImage: value.autoGenerateImage !== false,
     autoPublish: value.autoPublish !== false,
-    editorialRetryHours: clampNumber(value.editorialRetryHours, 2, 1, 6),
+    editorialRetryMinutes: clampNumber(value.editorialRetryMinutes, 10, 5, 30),
     retryHours: clampNumber(value.retryHours, 6, 1, 24)
   };
 }
@@ -238,6 +242,15 @@ function initialState() {
     lastPublishDecisionDateLocal: null,
     lastDailyArticleAttemptAt: null,
     lastDailyArticleAttemptStatus: null,
+    editorialRuntime: {
+      status: 'IDLE',
+      articleId: null,
+      title: null,
+      pass: null,
+      retryAt: null,
+      updatedAt: now,
+      message: 'Waiting for the next editorial run.'
+    },
     nextIntelligenceAt: now,
     nextAuthorityAt: now,
     nextOptimizationAt: now,
@@ -269,14 +282,16 @@ async function ensureSettings() {
   const needsV7Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 7;
   const needsV8Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 8;
   const needsV9Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 9;
+  const needsV10Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 10;
   const config = normalizeConfig({
     ...(rawConfig || DEFAULT_CONFIG),
     ...(needsV4Migration ? { authorityEveryHours: 6, authorityAutoEmail: true, optimizationEveryHours: 24 } : {}),
     ...(needsV5Migration ? { dailyPublishTimeLocal: '07:30', publishTimeZone: 'Europe/London' } : {}),
     ...(needsV6Migration ? { configVersion: 6, editorialRadarEveryHours: 6, hotTrendAutoEvaluate: true, maxArticlesPerLocalDay: 2 } : {}),
     ...(needsV7Migration ? { configVersion: 7, minQualityScore: 90, maxDraftAttempts: 3 } : {}),
-    ...(needsV8Migration ? { configVersion: 8, dailyArticleTarget: 1, editorialRetryHours: 2 } : {}),
-    ...(needsV9Migration ? { configVersion: 9 } : {})
+    ...(needsV8Migration ? { configVersion: 8, dailyArticleTarget: 1 } : {}),
+    ...(needsV9Migration ? { configVersion: 9 } : {}),
+    ...(needsV10Migration ? { configVersion: 10, editorialRetryMinutes: 10 } : {})
   });
 
   await prisma.appSetting.upsert({
@@ -299,7 +314,7 @@ async function ensureSettings() {
         description: 'INXSocial Growth Autopilot runtime state and activity.'
       }
     });
-  } else if (needsV4Migration || needsV5Migration || needsV6Migration || needsV7Migration || needsV8Migration || needsV9Migration) {
+  } else if (needsV4Migration || needsV5Migration || needsV6Migration || needsV7Migration || needsV8Migration || needsV9Migration || needsV10Migration) {
     const state = { ...initialState(), ...(safeJson(existingState.value, {}) || {}) };
     state.running = false;
     state.leaseUntil = null;
@@ -308,13 +323,25 @@ async function ensureSettings() {
     state.nextAuthorityAt = nowIso();
     state.nextOptimizationAt = nowIso();
     state.nextEditorialRadarAt = nowIso();
-    state.lastPublishDecisionDateLocal = (needsV8Migration || needsV9Migration) ? null : state.lastPublishDecisionDateLocal;
-    state.nextPublishAt = (needsV8Migration || needsV9Migration) ? nowIso() : nextDailyPublishIso(new Date(), config);
+    state.lastPublishDecisionDateLocal = (needsV8Migration || needsV9Migration || needsV10Migration) ? null : state.lastPublishDecisionDateLocal;
+    state.nextPublishAt = (needsV8Migration || needsV9Migration || needsV10Migration) ? nowIso() : nextDailyPublishIso(new Date(), config);
+    if (needsV10Migration) {
+      state.lastDailyArticleAttemptStatus = 'RECOVERY_DUE';
+      state.editorialRuntime = {
+        ...(state.editorialRuntime || {}),
+        status: 'RECOVERY_DUE',
+        retryAt: nowIso(),
+        updatedAt: nowIso(),
+        message: 'Immediate editorial recovery enabled; resume any interrupted draft before selecting a new topic.'
+      };
+    }
     state.recentEvents = [{
       at: nowIso(),
       type: 'AUTOPILOT_UPGRADED',
       level: 'success',
-      message: needsV9Migration
+      message: needsV10Migration
+        ? 'Growth Autopilot upgraded with immediate in-process editorial repair, 10-minute outage recovery and interrupted-draft resume.'
+        : needsV9Migration
         ? 'Growth Autopilot upgraded with deployment-safe lease ownership and immediate recovery of interrupted editorial cycles.'
         : needsV8Migration
         ? 'Growth Autopilot upgraded to a mandatory daily editorial lane with live trend discovery and same-day retries.'
@@ -368,6 +395,36 @@ async function mutateState(mutator) {
   return writeState(next);
 }
 
+function editorialRuntimeForEvent(event, current = {}) {
+  const meta = event.metadata || {};
+  let status = null;
+  if (event.type === 'AI_STRATEGY_DECIDED' && meta.action === 'CREATE_ARTICLE') status = 'RESEARCHING';
+  if (event.type === 'EDITORIAL_DRAFT_RECOVERY_SELECTED') status = 'RESUMING';
+  if (event.type === 'EDITORIAL_DRAFT_RESUMED') status = 'REVIEWING';
+  if (event.type === 'DRAFT_GENERATED') status = 'REVIEWING';
+  if (event.type === 'EDITORIAL_REVISION_REQUESTED') status = 'REPAIRING';
+  if (event.type === 'EDITORIAL_REPAIR_STARTED') status = 'REPAIRING';
+  if (event.type === 'EDITORIAL_REPAIR_RETRY') status = 'REPAIRING';
+  if (event.type === 'ARTICLE_REVISED') status = 'REVIEWING';
+  if (event.type === 'EDITORIAL_REVIEW_PASSED') status = 'FINAL_CHECK';
+  if (event.type === 'IMAGE_GENERATED' || event.type === 'IMAGE_SKIPPED') status = 'PUBLISHING';
+  if (event.type === 'ARTICLE_PUBLISHED') status = 'PUBLISHED';
+  if (event.type === 'DAILY_ARTICLE_TARGET_ALREADY_MET') status = 'IDLE';
+  if (['DAILY_ARTICLE_SELECTION_RETRY','EDITORIAL_PIPELINE_DEFERRED','NO_CONTENT_OPPORTUNITY','EDITORIAL_REVIEW_BLOCKED','EDITORIAL_REPAIR_BLOCKED'].includes(event.type)) status = 'RETRY_SCHEDULED';
+  if (event.type === 'CYCLE_FAILED' && meta.editorialRetryAt) status = 'RETRY_SCHEDULED';
+  if (!status) return null;
+  return {
+    ...current,
+    status,
+    articleId: meta.articleId ?? current.articleId ?? null,
+    title: meta.title ?? current.title ?? null,
+    pass: meta.pass ?? current.pass ?? null,
+    retryAt: meta.nextRetryAt || meta.editorialRetryAt || (status === 'PUBLISHED' || status === 'IDLE' ? null : current.retryAt || null),
+    updatedAt: event.at,
+    message: event.message
+  };
+}
+
 async function recordEvent(type, message, metadata = null, level = 'info') {
   const at = nowIso();
   const event = {
@@ -380,6 +437,8 @@ async function recordEvent(type, message, metadata = null, level = 'info') {
   await mutateState(state => {
     state.recentEvents = [event, ...(state.recentEvents || [])].slice(0, 40);
     if (level === 'error') state.lastError = { at, message: event.message };
+    const editorialRuntime = editorialRuntimeForEvent(event, state.editorialRuntime || {});
+    if (editorialRuntime) state.editorialRuntime = editorialRuntime;
     return state;
   });
   console.info('[growth-autopilot:event]', {
@@ -639,7 +698,31 @@ function criticRequiresFreshResearch(critic, backendIssues = []) {
     .some(item => /source|citation|evidence|fact|claim|verify|current|outdated|accuracy/i.test(String(item || '')));
 }
 
-async function produceAndPublish(opportunity, config, strategy = null, decisionMode = 'daily') {
+async function reviewDraftWithImmediateRetry(article, opportunity, strategy, pass) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      return await growthStrategy.reviewDraft({ article, opportunity, strategy, siteProfile: strategy?.siteProfile || null });
+    } catch (error) {
+      lastError = error;
+      await recordEvent(
+        'EDITORIAL_EDITOR_RETRY',
+        'Senior-editor request failed temporarily; retrying immediately without parking the article.',
+        {
+          articleId: article.id,
+          title: article.title,
+          pass,
+          attempt,
+          error: String(error.publicMessage || error.message || error).slice(0, 400)
+        },
+        'warning'
+      );
+    }
+  }
+  throw lastError || new Error('Senior editorial review failed.');
+}
+
+async function produceAndPublish(opportunity, config, strategy = null, decisionMode = 'daily', existingArticle = null) {
   const draftInput = opportunity.id ? {
     opportunityId: opportunity.id,
     notes: 'Autopilot publication. Produce a senior-editorial, evidence-led article that is useful without promotional filler. Target at least 90/100 backend editorial quality on the first pass. The article must stand on its own for readers and AI search systems.' + (opportunity.radar ? ' Editorial radar evidence: ' + JSON.stringify(opportunity.radar) : '') + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
@@ -650,11 +733,13 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
     notes: 'Autopilot publication. Produce a senior-editorial, evidence-led article that is useful without promotional filler. Target at least 90/100 backend editorial quality on the first pass. The article must stand on its own for readers and AI search systems.' + (opportunity.radar ? ' Editorial radar evidence: ' + JSON.stringify(opportunity.radar) : '') + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
   };
 
-  let article = await growthContent.createDraft(draftInput);
+  let article = existingArticle || await growthContent.createDraft(draftInput);
 
   await recordEvent(
-    'DRAFT_GENERATED',
-    'Senior SEO writer researched the selected topic and produced the first publication draft.',
+    existingArticle ? 'EDITORIAL_DRAFT_RESUMED' : 'DRAFT_GENERATED',
+    existingArticle
+      ? 'Autopilot resumed the interrupted draft immediately instead of creating another article.'
+      : 'Senior SEO writer researched the selected topic and produced the first publication draft.',
     {
       articleId: article.id,
       title: article.title,
@@ -662,7 +747,7 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
       qualityTarget: config.minQualityScore,
       opportunityId: opportunity.id,
       opportunityScore: opportunity.score,
-      pass: 1
+      pass: Number(article.generation?.revisionNumber || 0) + 1
     },
     'info'
   );
@@ -672,14 +757,20 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
     let critic = null;
 
     try {
-      critic = await growthStrategy.reviewDraft({ article, opportunity, strategy, siteProfile: strategy?.siteProfile || null });
+      critic = await reviewDraftWithImmediateRetry(article, opportunity, strategy, pass);
     } catch (error) {
-      await archiveEditorialDraft(
-        article,
-        'Editorial review was unavailable, so the draft was held back and the system will try another qualified topic.',
-        { pass, error: String(error.message || error).slice(0, 400) }
+      await recordEvent(
+        'EDITORIAL_REVIEW_BLOCKED',
+        'Senior-editor provider remained unavailable after immediate retries. The draft is preserved for a short automatic retry.',
+        {
+          articleId: article.id,
+          title: article.title,
+          pass,
+          error: String(error.publicMessage || error.message || error).slice(0, 400)
+        },
+        'warning'
       );
-      return null;
+      throw error;
     }
 
     const disposition = critic.disposition || (critic.approve ? 'APPROVE' : 'REVISE');
@@ -696,7 +787,7 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
         ? 'Senior editorial review confirmed the article is publication-ready.'
         : disposition === 'SWITCH_TOPIC'
           ? 'Senior editor found a fundamental topic-level issue, so Autopilot will move to another qualified topic.'
-          : 'Senior editor requested targeted improvements; Sol will revise the same article using the review feedback.',
+          : 'Senior editor requested targeted improvements; Sol is applying the fixes immediately in the same production run.',
       {
         articleId: article.id,
         title: article.title,
@@ -722,14 +813,14 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
           await recordEvent(
             'IMAGE_GENERATED',
             'Autopilot generated and stored the article featured image.',
-            { articleId: article.id, title: article.title },
+            { articleId: article.id, title: article.title, pass },
             'success'
           );
         } catch (error) {
           await recordEvent(
             'IMAGE_SKIPPED',
             'Article passed editorial review but featured-image generation was unavailable; publishing continues without blocking the article.',
-            { articleId: article.id, error: String(error.publicMessage || error.message || 'Image generation failed').slice(0, 400) },
+            { articleId: article.id, title: article.title, pass, error: String(error.publicMessage || error.message || 'Image generation failed').slice(0, 400) },
             'warning'
           );
         }
@@ -742,6 +833,7 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
         const publishedAt = article.published_at || nowIso();
         await mutateState(state => {
           state.lastPublishedAt = publishedAt;
+          state.lastDailyArticleAttemptStatus = 'PUBLISHED';
           if (decisionMode !== 'hot') markDailyPublishDecision(state, config, new Date(publishedAt));
           state.lastPublishedArticle = {
             id: article.id,
@@ -769,7 +861,8 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
             slug: article.slug,
             qualityScore: article.quality?.score || 0,
             criticScore: critic.score,
-            opportunityScore: opportunity.score
+            opportunityScore: opportunity.score,
+            pass
           },
           'success'
         );
@@ -783,7 +876,7 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
       await recordEvent(
         'ARTICLE_APPROVED',
         'Autopilot produced and approved a 90+ editorial article. Automatic publishing is disabled, so it remains approved.',
-        { articleId: article.id, title: article.title, qualityScore: article.quality?.score || 0, criticScore: critic.score },
+        { articleId: article.id, title: article.title, qualityScore: article.quality?.score || 0, criticScore: critic.score, pass },
         'success'
       );
       return article;
@@ -807,7 +900,7 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
     if (pass >= config.maxDraftAttempts) {
       await archiveEditorialDraft(
         article,
-        'The article did not reach the 90+ publication standard after targeted editorial revisions, so Autopilot will try another qualified topic instead of publishing weak content.',
+        'The article did not reach the 90+ publication standard after immediate targeted editorial revisions, so Autopilot will try another qualified topic now instead of publishing weak content.',
         {
           pass,
           criticScore: critic.score,
@@ -818,20 +911,68 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
       return null;
     }
 
-    article = await growthContent.reviseDraft(article.id, critic, {
-      backendIssues: article.quality?.issues || [],
-      refreshResearch: criticRequiresFreshResearch(critic, article.quality?.issues || [])
-    });
+    await recordEvent(
+      'EDITORIAL_REPAIR_STARTED',
+      'Sol started the requested repair immediately; normal editorial quality fixes never wait for another scheduler cycle.',
+      {
+        articleId: article.id,
+        title: article.title,
+        pass,
+        criticScore: critic.score,
+        fixes: critic.requiredFixes || []
+      },
+      'info'
+    );
+
+    try {
+      article = await growthContent.reviseDraft(article.id, critic, {
+        backendIssues: article.quality?.issues || [],
+        refreshResearch: criticRequiresFreshResearch(critic, article.quality?.issues || [])
+      });
+    } catch (error) {
+      await recordEvent(
+        'EDITORIAL_REPAIR_RETRY',
+        'The first repair attempt hit a temporary research/writer failure; retrying immediately with the draft’s existing verified evidence.',
+        {
+          articleId: article.id,
+          title: article.title,
+          pass,
+          error: String(error.publicMessage || error.message || error).slice(0, 400)
+        },
+        'warning'
+      );
+      try {
+        article = await growthContent.reviseDraft(article.id, critic, {
+          backendIssues: article.quality?.issues || [],
+          refreshResearch: false,
+          suppressFreshResearch: true
+        });
+      } catch (retryError) {
+        await recordEvent(
+          'EDITORIAL_REPAIR_BLOCKED',
+          'Immediate repair retries were exhausted. The draft is preserved and will resume automatically after a short provider-recovery delay.',
+          {
+            articleId: article.id,
+            title: article.title,
+            pass,
+            error: String(retryError.publicMessage || retryError.message || retryError).slice(0, 400)
+          },
+          'warning'
+        );
+        throw retryError;
+      }
+    }
 
     await recordEvent(
       'ARTICLE_REVISED',
-      'Sol revised the existing article using the senior editor’s exact fixes.',
+      'Sol revised the existing article using the senior editor’s exact fixes and is sending it straight back for final review.',
       {
         articleId: article.id,
         title: article.title,
         pass: pass + 1,
         qualityScore: Number(article.quality?.score || 0),
         qualityTarget: config.minQualityScore,
+        researchFallbackUsed: Boolean(article.generation?.researchFallbackUsed),
         fixesApplied: critic.requiredFixes || []
       },
       'info'
@@ -865,14 +1006,14 @@ async function runCycle(options = {}) {
     );
 
     let opportunityMap = await growthOpportunities.latest().catch(() => null);
-    if (intelligenceDue || publishDue || !opportunityMap) {
+    if (!opportunityMap || (intelligenceDue && !publishDue)) {
       const intelligence = await runIntelligence(config);
       opportunityMap = intelligence.opportunityMap;
     }
 
 
     let radarState = await editorialRadar.latest().catch(() => null);
-    if (radarDue) {
+    if (radarDue && !publishDue) {
       try {
         let intelligence = await siteIntelligence.latest().catch(() => null);
         if (!intelligence?.profile) {
@@ -1049,118 +1190,210 @@ async function runCycle(options = {}) {
         );
       }
 
-      try {
-        const dailyArticleLane = decisionMode !== 'hot';
-        strategy = dailyArticleLane
-          ? await growthStrategy.planDailyArticle({
-            opportunityMap,
-            articles,
-            siteProfile: opportunityMap?.siteProfile || null,
-            minOpportunityScore: 70
-          })
-          : await growthStrategy.plan({ opportunityMap, articles, siteProfile: opportunityMap?.siteProfile || null });
+      const dailyArticleLane = decisionMode !== 'hot';
+      const recentEditorialEvent = dailyArticleLane
+        ? (decisionState.recentEvents || []).find(event =>
+            event?.metadata?.articleId
+            && ['EDITORIAL_REVISION_REQUESTED','EDITORIAL_REPAIR_STARTED','EDITORIAL_REPAIR_RETRY','ARTICLE_REVISED','DRAFT_GENERATED','EDITORIAL_REVIEW_BLOCKED','EDITORIAL_REPAIR_BLOCKED'].includes(event.type)
+          )
+        : null;
+      const recoverableDraft = recentEditorialEvent
+        ? articles.find(article => article.id === recentEditorialEvent.metadata.articleId && article.status === growthContent.STATUS.DRAFT) || null
+        : null;
+
+      if (recoverableDraft) {
+        opportunity = (opportunityMap?.opportunities || []).find(item => item.id === recoverableDraft.opportunity_id) || {
+          id: recoverableDraft.opportunity_id || null,
+          topic: recoverableDraft.title,
+          score: Number(recoverableDraft.opportunity_score || 70),
+          type: recoverableDraft.opportunity_type || 'editorial_recovery',
+          intent: recoverableDraft.intent || 'informational',
+          action: {
+            type: 'BUILD_AUTHORITY_CONTENT',
+            label: recoverableDraft.recommended_action || 'Resume interrupted article',
+            rationale: 'Resume the existing editorial draft before selecting another topic.'
+          }
+        };
+        strategy = {
+          action: 'CREATE_ARTICLE',
+          publishRecommended: true,
+          selectedOpportunityId: recoverableDraft.opportunity_id || null,
+          topic: recoverableDraft.title,
+          confidence: 100,
+          rationale: 'An interrupted Autopilot draft exists and must be completed before starting another daily article.',
+          evidence: [],
+          risks: [],
+          executionBrief: { audience: '', angle: 'Resume the existing draft', mustCover: [], avoid: [] },
+          recoveryMode: true
+        };
         await mutateState(current => {
           current.lastStrategy = strategy;
-          if (dailyArticleLane) {
-            current.lastDailyArticleAttemptAt = nowIso();
-            current.lastDailyArticleAttemptStatus = 'TOPIC_SELECTED';
-          }
+          current.lastDailyArticleAttemptAt = nowIso();
+          current.lastDailyArticleAttemptStatus = 'RESUMING_DRAFT';
           return current;
         });
         await recordEvent(
-          'AI_STRATEGY_DECIDED',
-          'AI Strategist selected the next growth action: ' + strategy.action + '.',
+          'EDITORIAL_DRAFT_RECOVERY_SELECTED',
+          'Autopilot found an interrupted draft and will resume it immediately before selecting a new topic.',
           {
-            action: strategy.action,
-            topic: strategy.topic,
-            confidence: strategy.confidence,
-            selectedOpportunityId: strategy.selectedOpportunityId,
-            rationale: strategy.rationale,
-            discoveryMode: strategy.discoveryMode || null,
-            qualifiedBacklogCount: strategy.qualifiedBacklogCount ?? null
+            articleId: recoverableDraft.id,
+            title: recoverableDraft.title,
+            opportunityId: recoverableDraft.opportunity_id || null,
+            qualityScore: Number(recoverableDraft.quality?.score || 0)
           },
-          strategy.action === 'CREATE_ARTICLE' ? 'success' : 'info'
+          'success'
         );
-
-        if (strategy.action === 'CREATE_ARTICLE' && strategy.publishRecommended) {
-          opportunity = (opportunityMap?.opportunities || []).find(item => item.id === strategy.selectedOpportunityId) || null;
-          if (!opportunity && strategy.topic) {
-            opportunity = {
-              id: null,
-              topic: strategy.topic,
-              score: decisionMode === 'hot' ? 60 : 70,
-              type: strategy.discoveryMode === 'LIVE_TREND_DISCOVERY' ? 'ai_trend_discovery' : 'ai_strategy',
-              intent: 'commercial',
-              action: {
-                type: 'BUILD_AUTHORITY_CONTENT',
-                label: 'AI Strategist article',
-                rationale: strategy.rationale
-              }
-            };
-          }
-        } else if (decisionMode === 'hot') {
-          await recordEvent(
-            'STRATEGIC_ACTION_QUEUED',
-            'AI Strategist reviewed the fresh opportunity and decided it does not justify an additional article.',
-            {
-              action: strategy.action,
-              topic: strategy.topic,
-              rationale: strategy.rationale,
-              nextReviewAt: decisionState.nextPublishAt || null
-            },
-            'info'
-          );
-        } else {
-          const nextRetry = addHours(nowIso(), config.editorialRetryHours);
+      } else {
+        try {
+          strategy = dailyArticleLane
+            ? await growthStrategy.planDailyArticle({
+              opportunityMap,
+              articles,
+              siteProfile: opportunityMap?.siteProfile || null,
+              minOpportunityScore: 70
+            })
+            : await growthStrategy.plan({ opportunityMap, articles, siteProfile: opportunityMap?.siteProfile || null });
           await mutateState(current => {
-            current.nextPublishAt = nextRetry;
-            current.lastDailyArticleAttemptStatus = 'RETRY_SCHEDULED';
+            current.lastStrategy = strategy;
+            if (dailyArticleLane) {
+              current.lastDailyArticleAttemptAt = nowIso();
+              current.lastDailyArticleAttemptStatus = 'TOPIC_SELECTED';
+            }
             return current;
           });
           await recordEvent(
-            'DAILY_ARTICLE_SELECTION_RETRY',
-            'The dedicated daily article lane did not return a usable article decision, so it will retry the same day instead of consuming today\'s publishing slot.',
+            'AI_STRATEGY_DECIDED',
+            'AI Strategist selected the next growth action: ' + strategy.action + '.',
             {
               action: strategy.action,
               topic: strategy.topic,
+              confidence: strategy.confidence,
+              selectedOpportunityId: strategy.selectedOpportunityId,
               rationale: strategy.rationale,
-              nextRetryAt: nextRetry
+              discoveryMode: strategy.discoveryMode || null,
+              qualifiedBacklogCount: strategy.qualifiedBacklogCount ?? null
             },
-            'warning'
+            strategy.action === 'CREATE_ARTICLE' ? 'success' : 'info'
           );
-        }
-      } catch (error) {
-        await recordEvent(
-          'AI_STRATEGIST_FALLBACK',
-          'AI Strategist was unavailable, so Autopilot used the deterministic opportunity fallback instead of stopping.',
-          { error: String(error.message || error).slice(0, 400) },
-          'warning'
-        );
-        opportunity = growthStrategy.fallbackOpportunity(opportunityMap, articles) || await chooseOpportunity(opportunityMap);
-      }
 
-      if (opportunity) {
-        const candidates = editorialCandidateQueue(opportunityMap, articles, opportunity, 3);
-        for (let topicIndex = 0; topicIndex < candidates.length && !publishedArticle; topicIndex += 1) {
-          const candidate = candidates[topicIndex];
-          if (topicIndex > 0) {
+          if (strategy.action === 'CREATE_ARTICLE' && strategy.publishRecommended) {
+            opportunity = (opportunityMap?.opportunities || []).find(item => item.id === strategy.selectedOpportunityId) || null;
+            if (!opportunity && strategy.topic) {
+              opportunity = {
+                id: null,
+                topic: strategy.topic,
+                score: decisionMode === 'hot' ? 60 : 70,
+                type: strategy.discoveryMode === 'LIVE_TREND_DISCOVERY' ? 'ai_trend_discovery' : 'ai_strategy',
+                intent: 'commercial',
+                action: {
+                  type: 'BUILD_AUTHORITY_CONTENT',
+                  label: 'AI Strategist article',
+                  rationale: strategy.rationale
+                }
+              };
+            }
+          } else if (decisionMode === 'hot') {
             await recordEvent(
-              'EDITORIAL_NEXT_TOPIC_SELECTED',
-              'The previous article could not reach publication standard, so the strategist moved to the next qualified topic.',
+              'STRATEGIC_ACTION_QUEUED',
+              'AI Strategist reviewed the fresh opportunity and decided it does not justify an additional article.',
               {
-                previousTopic: candidates[topicIndex - 1]?.topic || null,
-                nextTopic: candidate.topic,
-                nextOpportunityId: candidate.id || null,
-                nextOpportunityScore: candidate.score || null
+                action: strategy.action,
+                topic: strategy.topic,
+                rationale: strategy.rationale,
+                nextReviewAt: decisionState.nextPublishAt || null
               },
               'info'
             );
+          } else {
+            const nextRetry = addMinutes(nowIso(), config.editorialRetryMinutes);
+            await mutateState(current => {
+              current.nextPublishAt = nextRetry;
+              current.lastDailyArticleAttemptStatus = 'RETRY_SCHEDULED';
+              return current;
+            });
+            await recordEvent(
+              'DAILY_ARTICLE_SELECTION_RETRY',
+              'The dedicated daily article lane did not return a usable article decision, so it will retry shortly instead of consuming today’s publishing slot.',
+              {
+                action: strategy.action,
+                topic: strategy.topic,
+                rationale: strategy.rationale,
+                nextRetryAt: nextRetry
+              },
+              'warning'
+            );
           }
-          publishedArticle = await produceAndPublish(candidate, config, strategy, decisionMode);
+        } catch (error) {
+          await recordEvent(
+            'AI_STRATEGIST_FALLBACK',
+            'AI Strategist was unavailable, so Autopilot used the deterministic opportunity fallback instead of stopping.',
+            { error: String(error.message || error).slice(0, 400) },
+            'warning'
+          );
+          opportunity = growthStrategy.fallbackOpportunity(opportunityMap, articles) || await chooseOpportunity(opportunityMap);
+        }
+      }
+
+      if (opportunity) {
+        const attemptedTopics = [];
+
+        if (recoverableDraft) {
+          attemptedTopics.push(recoverableDraft.title);
+          publishedArticle = await produceAndPublish(opportunity, config, strategy, decisionMode, recoverableDraft);
+        }
+
+        if (!publishedArticle) {
+          const candidateArticles = recoverableDraft
+            ? articles.filter(article => article.id !== recoverableDraft.id)
+            : articles;
+          const candidates = editorialCandidateQueue(
+            opportunityMap,
+            candidateArticles,
+            recoverableDraft ? null : opportunity,
+            5
+          );
+
+          for (let topicIndex = 0; topicIndex < candidates.length && !publishedArticle; topicIndex += 1) {
+            const candidate = candidates[topicIndex];
+            if (topicIndex > 0 || recoverableDraft) {
+              await recordEvent(
+                'EDITORIAL_NEXT_TOPIC_SELECTED',
+                recoverableDraft && topicIndex === 0
+                  ? 'The recovered draft could not clear the publication standard, so Autopilot moved immediately to the next qualified topic.'
+                  : 'The previous article could not reach publication standard, so the strategist moved immediately to the next qualified topic.',
+                {
+                  previousTopic: attemptedTopics[attemptedTopics.length - 1] || null,
+                  nextTopic: candidate.topic,
+                  nextOpportunityId: candidate.id || null,
+                  nextOpportunityScore: candidate.score || null
+                },
+                'info'
+              );
+            }
+            attemptedTopics.push(candidate.topic);
+            try {
+              publishedArticle = await produceAndPublish(candidate, config, strategy, decisionMode);
+            } catch (error) {
+              if (['CONTENT_RESEARCH_EMPTY','CONTENT_RESEARCH_EVIDENCE_WEAK','CONTENT_DRAFT_INVALID'].includes(String(error.code || ''))) {
+                await recordEvent(
+                  'EDITORIAL_TOPIC_ATTEMPT_FAILED',
+                  'This topic could not build a reliable evidence-backed draft after immediate retries, so Autopilot is trying the next qualified topic now.',
+                  {
+                    topic: candidate.topic,
+                    opportunityId: candidate.id || null,
+                    error: String(error.publicMessage || error.message || error).slice(0, 400)
+                  },
+                  'warning'
+                );
+                continue;
+              }
+              throw error;
+            }
+          }
         }
 
         if (!publishedArticle && decisionMode !== 'hot') {
-          const nextRetry = addHours(nowIso(), config.editorialRetryHours);
+          const nextRetry = addMinutes(nowIso(), config.editorialRetryMinutes);
           await mutateState(current => {
             current.nextPublishAt = nextRetry;
             current.lastDailyArticleAttemptStatus = 'RETRY_SCHEDULED';
@@ -1168,13 +1401,13 @@ async function runCycle(options = {}) {
           });
           await recordEvent(
             'EDITORIAL_PIPELINE_DEFERRED',
-            'Autopilot exhausted the strongest qualified topics in this cycle without a 90+ publishable article. It will refresh evidence and try again automatically.',
-            { attemptedTopics: candidates.map(item => item.topic), nextRetryAt: nextRetry },
+            'Autopilot exhausted the strongest qualified topics without a 90+ publishable article. It will retry after a short provider/evidence recovery window, not hours later.',
+            { attemptedTopics, nextRetryAt: nextRetry },
             'warning'
           );
         }
       } else if (!strategy || (strategy.action === 'CREATE_ARTICLE' && strategy.publishRecommended)) {
-        const nextRetry = decisionMode === 'hot' ? null : addHours(nowIso(), config.editorialRetryHours);
+        const nextRetry = decisionMode === 'hot' ? null : addMinutes(nowIso(), config.editorialRetryMinutes);
         if (nextRetry) {
           await mutateState(current => {
             current.nextPublishAt = nextRetry;
@@ -1186,7 +1419,7 @@ async function runCycle(options = {}) {
           'NO_CONTENT_OPPORTUNITY',
           decisionMode === 'hot'
             ? 'The fresh opportunity did not produce a sufficiently distinct publishable article. The normal editorial schedule remains unchanged.'
-            : 'Autopilot found no sufficiently distinct content opportunity. It will retry automatically.',
+            : 'Autopilot found no sufficiently distinct content opportunity. It will retry shortly with fresh discovery.',
           nextRetry ? { nextRetryAt: nextRetry } : { opportunityId: hotCandidate?.id || null },
           'warning'
         );
@@ -1206,17 +1439,24 @@ async function runCycle(options = {}) {
   } catch (error) {
     const message = String(error.publicMessage || error.message || 'Growth Autopilot cycle failed').slice(0, 800);
     const retryAt = addHours(nowIso(), config.retryHours);
+    const editorialRetryAt = publishDue ? addMinutes(nowIso(), config.editorialRetryMinutes) : null;
     await mutateState(current => {
       current.nextIntelligenceAt = isDue(current.nextIntelligenceAt) ? retryAt : current.nextIntelligenceAt;
       current.nextAuthorityAt = isDue(current.nextAuthorityAt) ? retryAt : current.nextAuthorityAt;
       current.nextOptimizationAt = isDue(current.nextOptimizationAt) ? retryAt : current.nextOptimizationAt;
       current.nextEditorialRadarAt = isDue(current.nextEditorialRadarAt) ? retryAt : current.nextEditorialRadarAt;
-      current.nextPublishAt = isDue(current.nextPublishAt) ? retryAt : current.nextPublishAt;
+      current.nextPublishAt = editorialRetryAt || (isDue(current.nextPublishAt) ? retryAt : current.nextPublishAt);
+      if (editorialRetryAt) current.lastDailyArticleAttemptStatus = 'RETRY_SCHEDULED';
       current.lastError = { at: nowIso(), message };
       return current;
     });
-    await recordEvent('CYCLE_FAILED', message, { retryAt }, 'error');
-    console.error('[growth-autopilot] cycle failed', { error: message });
+    await recordEvent(
+      'CYCLE_FAILED',
+      message,
+      { retryAt, editorialRetryAt },
+      'error'
+    );
+    console.error('[growth-autopilot] cycle failed', { error: message, editorialRetryAt });
     return { skipped: false, error: message };
   } finally {
     await releaseLease();
