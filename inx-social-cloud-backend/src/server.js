@@ -86,8 +86,8 @@ const server = app.listen(env.port, () => {
 let shuttingDown = false;
 async function shutdown(signal) {
   if (shuttingDown) return;
-  stopGrowthAutopilot();
   shuttingDown = true;
+  await stopGrowthAutopilot();
   console.info(`[shutdown] ${signal} received; draining HTTP connections`);
   const forced = setTimeout(async () => {
     await prisma.$disconnect().catch(() => {});
