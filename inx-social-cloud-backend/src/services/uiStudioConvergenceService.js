@@ -1167,6 +1167,10 @@ async function repairGenerationFromBatch(project, generation, batchRows, aggrega
   const repaired = uiStudioCodegen.normalizeGeneration(parsed, project);
   previewBuild.validateGeneratedSources(repaired);
   const validation = await uiStudioCodegen.validateGenerationBuild(repaired, project);
+  if (!validation.compileVerified) {
+    console.warn('[ui-studio-phase5] repaired generation failed compile validation', { projectId: project.id, parentGenerationId: generation.id });
+    return null;
+  }
   const child = await prisma.uiDesignGeneration.create({
     data: {
       projectId: project.id,
