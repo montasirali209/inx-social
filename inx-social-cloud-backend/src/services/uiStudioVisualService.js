@@ -1107,7 +1107,10 @@ async function repairGeneration(renderId, createdByUserId = null) {
 
   const repaired = uiStudioCodegen.normalizeGeneration(parsed, render.project);
   validateGeneratedSources(repaired);
-  const validation = uiStudioCodegen.validateGeneration(repaired);
+  const validation = await uiStudioCodegen.validateGenerationBuild(repaired, render.project);
+  if (!validation.compileVerified) {
+    throw publicError('The repaired code did not compile. Phase 4 will keep the previous version.', 502, 'UI_STUDIO_REPAIR_COMPILE_FAILED');
+  }
   const generationStatus = validation.ok ? 'READY' : 'READY_WITH_WARNINGS';
   const attemptNumber = render.repairDepth + 1;
 
