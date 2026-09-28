@@ -1077,9 +1077,11 @@ async function reviseDraft(id, feedback = {}, options = {}) {
     previousArticle: article
   };
 
-  const needsFreshResearch = options.refreshResearch === true
-    || feedback.factualRisk === 'high'
-    || requiredFixes.concat(issues).some(item => /source|citation|evidence|fact|claim|current|verify/i.test(item));
+  const needsFreshResearch = options.suppressFreshResearch === true
+    ? false
+    : options.refreshResearch === true
+      || feedback.factualRisk === 'high'
+      || requiredFixes.concat(issues).some(item => /source|citation|evidence|fact|claim|current|verify/i.test(item));
 
   const existingSources = normalizeSources(article.sources || []);
   const existingResearch = {
