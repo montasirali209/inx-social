@@ -18,6 +18,7 @@ const aiCredits = require('./services/aiCreditService');
 const stripeService = require('./services/stripeService');
 const ugcEngine = require('./services/ugcEngineService');
 const { startGrowthAutopilot, stopGrowthAutopilot } = require('./services/growthAutopilotService');
+const { runProductionSmoke: runUiStudioProductionSmoke } = require('../scripts/ui-studio-production-smoke');
 
 async function verifyNextLandingUpstream() {
   if (!/^(?:1|true|yes|on)$/i.test(String(process.env.NEXT_LANDING_ENABLED || '').trim())) return;
@@ -73,6 +74,13 @@ const server = app.listen(env.port, () => {
   setTimeout(() => {
     void runOneOffXTextSanitizer().catch((error) => console.error('[one-off-x-cleanup] failed', { error: error?.message || String(error) }));
   }, 3000).unref?.();
+  if (/^(?:1|true|yes|on)$/i.test(String(process.env.UI_STUDIO_PRODUCTION_SMOKE_ON_STARTUP || '').trim())) {
+    setTimeout(() => {
+      void runUiStudioProductionSmoke().catch(error => {
+        console.error('[ui-studio-production-smoke] startup run failed', { error: error?.message || String(error) });
+      });
+    }, 5000).unref?.();
+  }
 });
 
 let shuttingDown = false;

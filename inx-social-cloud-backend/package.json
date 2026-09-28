@@ -16,7 +16,8 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "seed": "node scripts/seed-admin.js",
-    "start:ui-render-worker": "node src/workers/uiStudioRendererWorker.js"
+    "start:ui-render-worker": "node src/workers/uiStudioRendererWorker.js",
+    "smoke:ui-studio-production": "node scripts/ui-studio-production-smoke.js"
   },
   "engines": {
     "node": ">=22.13"
