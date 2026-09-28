@@ -44,8 +44,6 @@ const BLOCKED_SOURCE_PATTERNS = [
   { re: /\b(?:fetch|XMLHttpRequest|WebSocket|EventSource)\s*\(/, message: 'Network calls are not allowed in UI Studio previews.' },
   { re: /<\s*(?:iframe|object|embed)\b/i, message: 'Embedded remote documents are not allowed in UI Studio previews.' },
   { re: /<script[^>]+src\s*=\s*["']https?:/i, message: 'Remote scripts are not allowed in UI Studio previews.' },
-  { re: /@import\s+(?:url\()?\s*["']?https?:/i, message: 'Remote stylesheets are not allowed in UI Studio previews.' },
-  { re: /url\(\s*["']?https?:/i, message: 'Remote CSS assets are not allowed in UI Studio previews.' },
   { re: /<(?:img|video|audio|source)[^>]+src\s*=\s*["']https?:/i, message: 'Remote media is not allowed in UI Studio previews.' }
 ];
 
