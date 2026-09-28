@@ -9,6 +9,7 @@ const uiStudioCodegen = require('../src/services/uiStudioCodegenService');
 const previewBuild = require('../src/services/uiStudioPreviewBuildService');
 const convergence = require('../src/services/uiStudioConvergenceService');
 const delivery = require('../src/services/uiStudioDeliveryService');
+const production = require('../src/services/uiStudioProductionService');
 
 const PREFIX = '[ui-studio-production-smoke]';
 const PROJECT_PREFIX = '__UI_STUDIO_SMOKE__';
@@ -303,6 +304,7 @@ async function runProductionSmoke() {
     if (bestProject.bestGenerationId !== generated.id) throw new Error('Phase 5 did not promote the deterministic generation as regression-safe best.');
 
     await convergence.acceptGeneration(projectId, generated.id);
+    await production.finalizeProductionCode(projectId);
     const createdDelivery = await delivery.createDelivery(projectId, { targetMode: 'EXPORT_ONLY' });
     deliveryId = createdDelivery.delivery.id;
     const exported = await delivery.deliveryExport(projectId, deliveryId);

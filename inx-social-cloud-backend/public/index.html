@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/admin.css?v=20">
   <link rel="stylesheet" href="/admin-security.css?v=2">
   <link rel="stylesheet" href="/admin-light.css?v=2">
-  <link rel="stylesheet" href="/ui-studio.css?v=6">
+  <link rel="stylesheet" href="/ui-studio.css?v=7">
 </head>
 <body>
 <section class="login-shell" id="loginView">
@@ -709,9 +709,9 @@
     <section class="page hidden ui-studio-page" id="uiStudioPage">
       <div class="section-head ui-studio-heading">
         <div>
-          <span class="kicker">Screenshot → responsive UI</span>
+          <span class="kicker">Design → production</span>
           <h2>UI Studio</h2>
-          <p>Upload high-resolution interface references, analyse their visual system, then generate responsive implementation code from the approved reconstruction map.</p>
+          <p>Reconstruct a design visually, refine the match across viewports, approve it, then generate and deliver production code.</p>
         </div>
         <div class="ui-studio-head-actions">
           <span class="status-chip" id="uiStudioPermission">Checking access…</span>
@@ -720,12 +720,12 @@
         </div>
       </div>
 
-      <div class="ui-studio-intro">
+      <div class="ui-studio-intro ui-studio-intro-v2">
         <div>
-          <b>Reference → analysis → code → visual match</b>
-          <span>Originals remain immutable in R2. Phase 4 renders generated code in a sandbox, compares it against the source pixels and can repair the code without altering your live site.</span>
+          <b>Create Project → Design → Understand → Preview → Match &amp; Refine → Approve → Generate → Deliver</b>
+          <span>The engineering pipeline stays underneath the product. The workspace only shows the action you need now, while originals remain immutable and live code is never changed without an explicit delivery step.</span>
         </div>
-        <small>Phase 1–4 · capture + analyse + generate + compare</small>
+        <small>Guided workspace · AI Agent available</small>
       </div>
 
       <div class="ui-studio-summary" id="uiStudioSummary">
@@ -745,11 +745,26 @@
         <section class="ui-studio-workspace-main">
           <div class="ui-studio-project-toolbar">
             <div>
-              <span class="kicker">Reference workspace</span>
+              <span class="kicker">UI Studio project</span>
               <h2 id="uiStudioProjectName">UI project</h2>
               <p id="uiStudioProjectMeta"></p>
             </div>
             <button class="secondary ui-studio-back" id="uiStudioBackBtn" type="button">← All projects</button>
+          </div>
+
+          <nav class="ui-studio-workflow" id="uiStudioWorkflow" aria-label="UI Studio workflow">
+            <button type="button" data-ui-stage="DESIGN"><span>1</span><b>Design</b></button>
+            <button type="button" data-ui-stage="UNDERSTAND"><span>2</span><b>Understand</b></button>
+            <button type="button" data-ui-stage="PREVIEW"><span>3</span><b>Preview</b></button>
+            <button type="button" data-ui-stage="MATCH"><span>4</span><b>Match &amp; Refine</b></button>
+            <button type="button" data-ui-stage="APPROVE"><span>5</span><b>Approve</b></button>
+            <button type="button" data-ui-stage="GENERATE"><span>6</span><b>Generate</b></button>
+            <button type="button" data-ui-stage="DELIVER"><span>7</span><b>Deliver</b></button>
+          </nav>
+
+          <div class="ui-studio-stage-bar">
+            <div><span class="kicker" id="uiStudioStageEyebrow">Design</span><h3 id="uiStudioStageTitle">Add your reference design</h3><p id="uiStudioStageHint">Upload the design you want UI Studio to reconstruct.</p></div>
+            <button class="primary" id="uiStudioNextActionBtn" type="button">Next</button>
           </div>
 
           <div class="ui-studio-viewport-tabs">
@@ -784,59 +799,59 @@
           </div>
           <div class="ui-studio-upload-note" id="uiStudioUploadNote"></div>
 
-          <section class="ui-studio-codegen-panel">
+          <section class="ui-studio-codegen-panel" data-ui-stage-panel="GENERATE">
             <div class="ui-studio-codegen-head">
               <div>
-                <span class="kicker">Phase 3</span>
-                <h3>Responsive code generator</h3>
-                <p class="muted" id="uiStudioCodegenSummary">Run Phase 2 analysis first, then generate a clean responsive implementation from the current reference set.</p>
+                <span class="kicker">Generate</span>
+                <h3>Production code</h3>
+                <p class="muted" id="uiStudioCodegenSummary">Approve the visual match first. UI Studio will then expose the validated production implementation for delivery.</p>
               </div>
               <div class="ui-studio-codegen-actions">
                 <span class="status-chip" id="uiStudioCodegenStatus">Waiting</span>
-                <button class="primary" id="uiStudioGenerateBtn" type="button">⌘ Generate responsive UI</button>
+                <button class="primary" id="uiStudioFinalizeCodeBtn" type="button">⌘ Generate production code</button>
               </div>
             </div>
             <div id="uiStudioCodegenOutput" class="ui-studio-codegen-output"></div>
           </section>
 
-          <section class="ui-studio-visual-panel">
+          <section class="ui-studio-visual-panel" data-ui-stage-panel="PREVIEW">
             <div class="ui-studio-visual-head">
               <div>
-                <span class="kicker">Phase 4</span>
-                <h3>Visual match + repair <small>single-viewport legacy</small></h3>
-                <p class="muted" id="uiStudioVisualSummary">Quick single-viewport inspection retained for compatibility. Use Phase 5 below for deterministic Chromium rendering, responsive convergence and final acceptance.</p>
+                <span class="kicker">Preview</span>
+                <h3>Interactive reconstruction</h3>
+                <p class="muted" id="uiStudioVisualSummary">Build the internal preview and inspect the reconstructed design without exposing implementation code yet.</p>
               </div>
               <div class="ui-studio-visual-actions">
                 <span class="status-chip" id="uiStudioVisualStatus">Waiting</span>
-                <label class="ui-studio-auto-repair"><input id="uiStudioAutoRepair" type="checkbox" checked><span>Auto repair</span></label>
-                <button class="primary" id="uiStudioRenderBtn" type="button">◫ Render + compare</button>
+                <label class="ui-studio-auto-repair" hidden><input id="uiStudioAutoRepair" type="checkbox" checked><span>Auto repair</span></label>
+                <button class="primary" id="uiStudioPreviewBtn" type="button">◫ Build preview</button>
+                <button class="secondary ui-studio-internal-render" id="uiStudioRenderBtn" type="button" hidden>Render preview</button>
               </div>
             </div>
             <div id="uiStudioVisualOutput" class="ui-studio-visual-output">
-              <div class="ui-studio-codegen-empty"><b>No visual comparison yet</b><small>Phase 4 never deploys generated code. It renders inside a sandbox and stores screenshots/diffs separately.</small></div>
+              <div class="ui-studio-codegen-empty"><b>No preview yet</b><small>The reconstruction renders inside a sandbox and never changes the live application.</small></div>
             </div>
           </section>
 
-          <section class="ui-studio-phase5-panel">
+          <section class="ui-studio-phase5-panel" data-ui-stage-panel="MATCH">
             <div class="ui-studio-phase5-head">
               <div>
-                <span class="kicker">Phase 5</span>
-                <h3>Production renderer + convergence</h3>
-                <p class="muted" id="uiStudioPhase5Summary">Deterministic Chromium rendering across every uploaded viewport, regression-safe repair, asset binding, ignore masks and best-version selection.</p>
+                <span class="kicker">Match &amp; Refine</span>
+                <h3>Compare against the original</h3>
+                <p class="muted" id="uiStudioPhase5Summary">Compare every uploaded viewport, automatically improve visual differences and keep the best regression-safe version.</p>
               </div>
               <div class="ui-studio-phase5-actions">
                 <span class="status-chip" id="uiStudioPhase5Status">Waiting</span>
-                <label class="ui-studio-auto-repair"><input id="uiStudioPhase5AutoRepair" type="checkbox" checked><span>Auto converge</span></label>
-                <button class="primary" id="uiStudioPhase5RunBtn" type="button">◎ Run all viewports</button>
-                <button class="secondary" id="uiStudioPhase5AcceptBtn" type="button" disabled>✓ Accept best</button>
+                <label class="ui-studio-auto-repair"><input id="uiStudioPhase5AutoRepair" type="checkbox" checked><span>Auto improve</span></label>
+                <button class="primary" id="uiStudioPhase5RunBtn" type="button">◎ Compare all viewports</button>
               </div>
             </div>
 
             <div class="ui-studio-phase5-scoreboard" id="uiStudioPhase5Scoreboard"></div>
             <div class="ui-studio-phase5-batch" id="uiStudioPhase5Batch"></div>
 
-            <details class="ui-studio-phase5-config" open>
-              <summary>Media binding &amp; comparison masks</summary>
+            <details class="ui-studio-phase5-config">
+              <summary>Advanced comparison settings</summary>
               <div class="ui-studio-phase5-config-grid">
                 <section>
                   <div class="ui-studio-visual-mini-head"><b>Generated media slots</b><small>Bind real image/video assets before scoring</small></div>
@@ -863,12 +878,22 @@
             </details>
           </section>
 
-          <section class="ui-studio-phase6-panel">
+          <section class="ui-studio-approve-panel" id="uiStudioApprovePanel" data-ui-stage-panel="APPROVE">
+            <div class="ui-studio-approve-copy">
+              <span class="kicker">Approve</span>
+              <h3>Lock the visual version you want to ship</h3>
+              <p class="muted">Review the best responsive match across your available viewports. Approval freezes the visual candidate; production code remains hidden until the next Generate step.</p>
+            </div>
+            <div class="ui-studio-approve-summary" id="uiStudioApproveSummary"></div>
+            <button class="primary" id="uiStudioPhase5AcceptBtn" type="button" disabled>✓ Approve best match</button>
+          </section>
+
+          <section class="ui-studio-phase6-panel" data-ui-stage-panel="DELIVER">
             <div class="ui-studio-phase6-head">
               <div>
-                <span class="kicker">Phase 6</span>
-                <h3>Delivery layer</h3>
-                <p class="muted">Package the accepted Phase 5 design, map it into a repository when needed, enforce the regression gate, then move through PR → human approval → deployment. UI Studio never silently overwrites the live site.</p>
+                <span class="kicker">Deliver</span>
+                <h3>Export or connect a repository</h3>
+                <p class="muted">Export a portable ZIP bundle now. Repository delivery remains optional and can be enabled later through a connected provider integration.</p>
               </div>
               <div class="ui-studio-phase6-actions">
                 <span class="status-chip" id="uiStudioPhase6Status">Waiting</span>
@@ -909,6 +934,11 @@
         </section>
 
         <aside class="ui-studio-workspace-side">
+          <div class="ui-studio-side-tabs">
+            <button type="button" class="active" data-ui-side-tab="INSPECTOR">Inspector</button>
+            <button type="button" data-ui-side-tab="AGENT">✦ AI Agent</button>
+          </div>
+          <div id="uiStudioInspectorPane">
           <section class="ui-studio-side-section">
             <span class="kicker">Project</span>
             <h3>Build target</h3>
@@ -916,7 +946,7 @@
           </section>
           <section class="ui-studio-side-section ui-studio-analysis-section">
             <div class="ui-studio-analysis-head">
-              <div><span class="kicker">Phase 2</span><h3>Design analysis</h3></div>
+              <div><span class="kicker">Understand</span><h3>Design analysis</h3></div>
               <span class="status-chip" id="uiStudioAnalysisStatus">Not analysed</span>
             </div>
             <p class="muted" id="uiStudioAnalysisSummary">Analyse the latest references to extract the visual system, layout regions, components and responsive behaviour.</p>
@@ -927,6 +957,18 @@
             <span class="kicker">Upload history</span>
             <h3>Immutable originals</h3>
             <div class="ui-studio-history" id="uiStudioReferenceHistory"></div>
+          </section>
+          </div>
+
+          <section class="ui-studio-agent-pane" id="uiStudioAgentPane" hidden>
+            <header><div><span class="kicker">Optional copilot</span><h3>UI Studio Agent</h3></div><span class="status-chip" id="uiStudioAgentStatus">Ready</span></header>
+            <p class="muted">Ask about the design, the current match, what to do next, or how the approved result should be delivered. The agent recommends actions but never deploys silently.</p>
+            <div class="ui-studio-agent-messages" id="uiStudioAgentMessages"></div>
+            <div class="ui-studio-agent-action" id="uiStudioAgentAction" hidden></div>
+            <form class="ui-studio-agent-form" id="uiStudioAgentForm">
+              <textarea id="uiStudioAgentInput" rows="3" maxlength="6000" placeholder="Ask UI Studio…"></textarea>
+              <button class="primary" id="uiStudioAgentSend" type="submit">Send</button>
+            </form>
           </section>
         </aside>
       </div>
@@ -1066,17 +1108,82 @@
 </dialog>
 
 <dialog id="uiStudioCreateDialog">
-  <form class="modal ui-studio-create-modal" id="uiStudioCreateForm">
+  <form class="modal ui-studio-create-modal ui-studio-create-modal-v2" id="uiStudioCreateForm">
     <button class="close" type="button" id="uiStudioCreateClose" aria-label="Close">×</button>
     <span class="kicker">UI Studio</span>
-    <h2>Create reconstruction project</h2>
-    <p class="muted">Set the intended output now. Reference images stay independent from later analysis and code-generation versions.</p>
+    <h2>Create project</h2>
+    <p class="muted">Choose the main preview stack and any additional production targets. UI Studio keeps the internal preview engine stable while preserving your preferred export targets for delivery.</p>
     <div class="ui-studio-create-grid">
-      <label class="wide">Project name<input id="uiStudioProjectNameInput" required minlength="2" maxlength="120" placeholder="UGC landing showcase"></label>
-      <label>Framework<select id="uiStudioFramework"><option value="REACT_TYPESCRIPT">React + TypeScript</option><option value="NEXTJS">Next.js-compatible UI</option><option value="HTML_CSS">HTML + CSS</option></select></label>
-      <label>Styling<select id="uiStudioStyling"><option value="TAILWIND">Tailwind</option><option value="CSS_MODULES">CSS Modules</option><option value="PLAIN_CSS">Plain CSS</option></select></label>
-      <label>Output<select id="uiStudioOutputType"><option value="SECTION">Reusable section</option><option value="FULL_PAGE">Full page</option></select></label>
+      <label class="wide">Project name<input id="uiStudioProjectNameInput" required minlength="2" maxlength="120" placeholder="Landing page UGC section"></label>
+
+      <label>Primary framework
+        <select id="uiStudioFramework">
+          <option value="REACT_TYPESCRIPT">React + TypeScript</option>
+          <option value="NEXTJS">Next.js</option>
+          <option value="HTML_CSS">HTML + CSS + JavaScript</option>
+          <option value="VUE_TYPESCRIPT">Vue 3 + TypeScript</option>
+          <option value="NUXT">Nuxt 3</option>
+          <option value="SVELTE">Svelte</option>
+          <option value="SVELTEKIT">SvelteKit</option>
+          <option value="ANGULAR">Angular</option>
+          <option value="ASTRO">Astro</option>
+          <option value="SOLIDJS">SolidJS</option>
+          <option value="REMIX">Remix</option>
+        </select>
+      </label>
+
+      <label>Primary styling
+        <select id="uiStudioStyling">
+          <option value="TAILWIND">Tailwind CSS</option>
+          <option value="CSS_MODULES">CSS Modules</option>
+          <option value="PLAIN_CSS">Plain CSS</option>
+          <option value="SCSS">Sass / SCSS</option>
+          <option value="STYLED_COMPONENTS">styled-components</option>
+          <option value="EMOTION">Emotion</option>
+          <option value="BOOTSTRAP">Bootstrap</option>
+          <option value="MATERIAL_UI">Material UI</option>
+          <option value="CHAKRA_UI">Chakra UI</option>
+          <option value="UNO_CSS">UnoCSS</option>
+          <option value="VANILLA_EXTRACT">vanilla-extract</option>
+        </select>
+      </label>
+
+      <fieldset class="wide ui-studio-target-fieldset">
+        <legend>Additional framework targets <small>Optional · choose any that you may want to export later</small></legend>
+        <div class="ui-studio-target-grid" id="uiStudioFrameworkTargets">
+          <label><input type="checkbox" value="NEXTJS"><span>Next.js</span></label>
+          <label><input type="checkbox" value="REACT_TYPESCRIPT"><span>React + TypeScript</span></label>
+          <label><input type="checkbox" value="HTML_CSS"><span>HTML + CSS + JS</span></label>
+          <label><input type="checkbox" value="VUE_TYPESCRIPT"><span>Vue 3</span></label>
+          <label><input type="checkbox" value="NUXT"><span>Nuxt 3</span></label>
+          <label><input type="checkbox" value="SVELTE"><span>Svelte</span></label>
+          <label><input type="checkbox" value="SVELTEKIT"><span>SvelteKit</span></label>
+          <label><input type="checkbox" value="ANGULAR"><span>Angular</span></label>
+          <label><input type="checkbox" value="ASTRO"><span>Astro</span></label>
+          <label><input type="checkbox" value="SOLIDJS"><span>SolidJS</span></label>
+          <label><input type="checkbox" value="REMIX"><span>Remix</span></label>
+        </div>
+      </fieldset>
+
+      <fieldset class="wide ui-studio-target-fieldset">
+        <legend>Additional styling targets <small>Optional</small></legend>
+        <div class="ui-studio-target-grid compact" id="uiStudioStylingTargets">
+          <label><input type="checkbox" value="TAILWIND"><span>Tailwind</span></label>
+          <label><input type="checkbox" value="CSS_MODULES"><span>CSS Modules</span></label>
+          <label><input type="checkbox" value="PLAIN_CSS"><span>Plain CSS</span></label>
+          <label><input type="checkbox" value="SCSS"><span>SCSS</span></label>
+          <label><input type="checkbox" value="STYLED_COMPONENTS"><span>styled-components</span></label>
+          <label><input type="checkbox" value="EMOTION"><span>Emotion</span></label>
+          <label><input type="checkbox" value="BOOTSTRAP"><span>Bootstrap</span></label>
+          <label><input type="checkbox" value="MATERIAL_UI"><span>Material UI</span></label>
+          <label><input type="checkbox" value="CHAKRA_UI"><span>Chakra UI</span></label>
+          <label><input type="checkbox" value="UNO_CSS"><span>UnoCSS</span></label>
+          <label><input type="checkbox" value="VANILLA_EXTRACT"><span>vanilla-extract</span></label>
+        </div>
+      </fieldset>
+      <input id="uiStudioOutputType" type="hidden" value="SECTION">
     </div>
+    <p class="ui-studio-create-note">React + TypeScript, Next.js and HTML/CSS currently power the deterministic preview renderer. If you select another primary framework, UI Studio uses React + TypeScript internally for preview while preserving your selected framework as a production/export target.</p>
     <footer>
       <button type="button" class="secondary" id="uiStudioCreateCancel">Cancel</button>
       <button type="submit" class="primary" id="uiStudioCreateSubmit">Create project</button>
@@ -1086,7 +1193,7 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/ui-studio.js?v=6" defer></script>
+<script src="/ui-studio.js?v=7" defer></script>
 <script src="/admin.js?v=24" defer></script>
 </body>
 </html>

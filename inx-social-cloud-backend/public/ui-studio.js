@@ -18,6 +18,12 @@
     phase6Config: null,
     phase6SelectedDeliveryId: null,
     phase6Busy: false,
+    agentConfig: null,
+    agentMessages: [],
+    agentBusy: false,
+    workflowStage: null,
+    sideTab: 'INSPECTOR',
+    finalizingCode: false,
     analysing: false,
     generating: false,
     visualRunning: false,
@@ -45,6 +51,28 @@
   };
   const pct = value => Math.max(0, Math.min(100, Number(value || 0)));
   const safeColor = value => /^#[0-9a-f]{3,8}$/i.test(String(value || '').trim()) ? String(value).trim() : '#cbd5e1';
+  const FRAMEWORK_LABELS = {
+    REACT_TYPESCRIPT:'React + TypeScript', NEXTJS:'Next.js', HTML_CSS:'HTML + CSS + JS',
+    VUE_TYPESCRIPT:'Vue 3 + TypeScript', NUXT:'Nuxt 3', SVELTE:'Svelte', SVELTEKIT:'SvelteKit',
+    ANGULAR:'Angular', ASTRO:'Astro', SOLIDJS:'SolidJS', REMIX:'Remix'
+  };
+  const STYLING_LABELS = {
+    TAILWIND:'Tailwind CSS', CSS_MODULES:'CSS Modules', PLAIN_CSS:'Plain CSS', SCSS:'Sass / SCSS',
+    STYLED_COMPONENTS:'styled-components', EMOTION:'Emotion', BOOTSTRAP:'Bootstrap',
+    MATERIAL_UI:'Material UI', CHAKRA_UI:'Chakra UI', UNO_CSS:'UnoCSS', VANILLA_EXTRACT:'vanilla-extract'
+  };
+  const WORKFLOW_STAGES = ['DESIGN','UNDERSTAND','PREVIEW','MATCH','APPROVE','GENERATE','DELIVER'];
+  const STAGE_COPY = {
+    DESIGN: ['Design','Add your reference design','Upload the original Desktop, Tablet or Mobile design you want UI Studio to reconstruct.'],
+    UNDERSTAND: ['Understand','Review what UI Studio sees','Analyse layout, typography, colours, components and responsive behaviour before reconstruction.'],
+    PREVIEW: ['Preview','Inspect the reconstruction','Build a private internal preview. Implementation code stays hidden until you approve the visual result.'],
+    MATCH: ['Match & Refine','Compare and improve the match','Render every available viewport, compare it with the original and automatically retain the strongest version.'],
+    APPROVE: ['Approve','Lock the visual version','Approve the best responsive match before any production code is exposed for delivery.'],
+    GENERATE: ['Generate','Prepare production code','Expose the validated implementation only after visual approval.'],
+    DELIVER: ['Deliver','Export or connect','Create a portable ZIP bundle, or use an optional connected repository workflow later.']
+  };
+  const frameworkLabel = value => FRAMEWORK_LABELS[value] || String(value || '').replaceAll('_',' ');
+  const stylingLabel = value => STYLING_LABELS[value] || String(value || '').replaceAll('_',' ');
 
   function notify(message) {
     const element = $('toast');
@@ -108,7 +136,7 @@
       <div>
         <div class="ui-studio-card-kicker"><span class="kicker">UI reconstruction project</span>${projectAnalysisBadge(project)}</div>
         <h3>${esc(project.name)}</h3>
-        <p>${esc(project.framework.replaceAll('_',' '))} · ${esc(project.styling.replaceAll('_',' '))} · ${esc(project.outputType.replaceAll('_',' '))}</p>
+        <p>${esc((project.frameworkTargets || [project.framework]).map(frameworkLabel).join(' + '))} · ${esc((project.stylingTargets || [project.styling]).map(stylingLabel).join(' + '))}</p>
       </div>
       <div class="ui-studio-project-thumbs">
         ${projectThumb(latest(project,'DESKTOP'),'Desktop')}
@@ -133,8 +161,8 @@
     $('uiStudioSummary').innerHTML = [
       ['Projects', projects.length, 'Saved reconstruction workspaces'],
       ['References', referenceCount, 'Immutable original uploads'],
-      ['Analysed', analysed, 'Projects mapped by Phase 2'],
-      ['Visual match', projects.filter(item => Number(item.latestRender?.score || 0) >= Number(state.visualConfig?.targetScore || 90)).length, 'Projects meeting the Phase 4 target']
+      ['Understood', analysed, 'Projects with current design analysis'],
+      ['Approved', projects.filter(item => Boolean(item.acceptedGenerationId)).length, 'Projects with an approved visual version']
     ].map(item => `<article><span>${esc(item[0])}</span><b>${esc(item[1])}</b><small>${esc(item[2])}</small></article>`).join('');
 
     $('uiStudioPermission').textContent = state.canEdit
@@ -161,6 +189,7 @@
     state.visualConfig = data.visual || state.visualConfig;
     state.phase5Capability = data.phase5 || state.phase5Capability;
     state.phase6Capability = data.phase6 || state.phase6Capability;
+    state.agentConfig = data.agent || state.agentConfig;
     renderProjects();
     return data;
   }
@@ -228,7 +257,7 @@
     if (!configured) {
       status.textContent = 'AI unavailable';
       status.className = 'status-chip';
-      summary.textContent = 'Configure the UI Studio analysis model before running Phase 2.';
+      summary.textContent = 'Configure the UI Studio analysis model before running design analysis.';
       result.innerHTML = '';
       return;
     }
@@ -377,79 +406,62 @@
   }
 
   function renderCodegenPanel() {
-    const button = $('uiStudioGenerateBtn');
+    const button = $('uiStudioFinalizeCodeBtn');
     const status = $('uiStudioCodegenStatus');
     const summary = $('uiStudioCodegenSummary');
     const output = $('uiStudioCodegenOutput');
     if (!button || !status || !summary || !output) return;
 
-    const analysis = state.project?.latestAnalysis || null;
-    const analysisReady = Boolean(analysis && analysis.status === 'COMPLETED' && !analysis.stale && analysis.result);
-    const configured = Boolean(state.codegenConfig?.configured);
-    const generationSummary = latestGenerationSummary();
-    const generation = currentGeneration();
+    const project = state.project;
+    const acceptedId = project?.acceptedGenerationId || null;
+    const productionReady = Boolean(
+      acceptedId &&
+      project?.productionGenerationId === acceptedId &&
+      project?.productionGeneratedAt
+    );
+    const generation = state.generationDetail?.id === project?.productionGenerationId
+      ? state.generationDetail
+      : null;
 
-    button.disabled = !state.canEdit || !configured || !analysisReady || state.generating;
-    button.textContent = state.generating
-      ? 'Generating responsive UI…'
-      : generationSummary
-        ? '⌘ Regenerate responsive UI'
-        : '⌘ Generate responsive UI';
+    button.disabled = !state.canEdit || !acceptedId || state.finalizingCode || productionReady;
+    button.textContent = state.finalizingCode
+      ? 'Preparing production code…'
+      : productionReady
+        ? '✓ Production code ready'
+        : '⌘ Generate production code';
 
-    if (state.generating) {
-      status.textContent = 'Generating…';
+    if (!acceptedId) {
+      status.textContent = 'Needs approval';
+      status.className = 'status-chip';
+      summary.textContent = 'Approve the best visual match before production code is exposed.';
+      output.innerHTML = '<div class="ui-studio-codegen-empty"><b>Code stays hidden until approval</b><small>UI Studio may use an internal preview build for rendering, but it is not presented as production output.</small></div>';
+      return;
+    }
+
+    if (state.finalizingCode) {
+      status.textContent = 'Preparing…';
       status.className = 'status-chip ui-studio-codegen-running';
-      summary.textContent = 'Building reusable responsive implementation files from the current analysis and high-resolution reference set.';
-      output.innerHTML = '<div class="ui-studio-codegen-progress"><span></span><b>Generating components, responsive styles and media slots</b><small>This creates a saved code version only. It does not modify the live INXSocial application.</small></div>';
+      summary.textContent = 'Revalidating the approved implementation and locking it as the production code version.';
+      output.innerHTML = '<div class="ui-studio-codegen-progress"><span></span><b>Finalizing approved code</b><small>The visual version is already locked. This step does not alter the approved design.</small></div>';
       return;
     }
 
-    if (!configured) {
-      status.textContent = 'AI unavailable';
-      status.className = 'status-chip';
-      summary.textContent = 'Configure the UI Studio code-generation model before running Phase 3.';
-      output.innerHTML = '';
-      return;
-    }
-
-    if (!analysisReady) {
-      status.textContent = 'Needs current analysis';
-      status.className = 'status-chip';
-      summary.textContent = analysis?.stale
-        ? 'The reference set changed. Re-run Phase 2 analysis before generating code.'
-        : 'Complete Phase 2 design analysis before generating responsive code.';
-      output.innerHTML = '';
-      return;
-    }
-
-    if (!generationSummary) {
-      status.textContent = 'Ready';
+    if (!productionReady) {
+      status.textContent = 'Approved · ready';
       status.className = 'status-chip ui-studio-codegen-ready';
-      summary.textContent = 'Generate a reusable ' + state.project.framework.replaceAll('_',' ') + ' / ' + state.project.styling.replaceAll('_',' ') + ' implementation from the current design analysis.';
-      output.innerHTML = '<div class="ui-studio-codegen-empty"><b>No code generation yet</b><small>Generated code is versioned and kept separate from the live application until you explicitly integrate it.</small></div>';
+      summary.textContent = 'The approved visual version is ready to become production code for ' +
+        (project.frameworkTargets || [project.framework]).map(frameworkLabel).join(', ') + '.';
+      output.innerHTML = '<div class="ui-studio-codegen-empty"><b>Approved design locked</b><small>Generate production code to expose the validated source bundle and unlock delivery.</small></div>';
       return;
     }
 
-    if (generationSummary.status === 'FAILED') {
-      status.textContent = 'Failed';
-      status.className = 'status-chip ui-studio-codegen-failed';
-      summary.textContent = generationSummary.errorMessage || 'The previous code generation did not complete.';
-      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>Retry creates a new generation version from the latest valid analysis.</small></div>';
-      return;
-    }
-
-    if (generationSummary.stale) {
-      status.textContent = 'Stale';
-      status.className = 'status-chip ui-studio-codegen-stale';
-      summary.textContent = 'The uploaded references changed after this code was generated. Re-analyse and regenerate before integration.';
-    } else {
-      status.textContent = generationSummary.status === 'READY_WITH_WARNINGS' ? 'Ready · warnings' : 'Code ready';
-      status.className = 'status-chip ' + (generationSummary.status === 'READY_WITH_WARNINGS' ? 'ui-studio-codegen-stale' : 'ui-studio-codegen-ready');
-      summary.textContent = generationSummary.summary || 'Responsive implementation generated.';
-    }
+    status.textContent = 'Code ready';
+    status.className = 'status-chip ui-studio-codegen-ready';
+    summary.textContent = 'Production code is locked to the approved visual version. Primary compiled target: ' +
+      frameworkLabel(project.framework) + ' with ' + stylingLabel(project.styling) + '.';
 
     if (!generation?.result) {
-      output.innerHTML = '<div class="ui-studio-codegen-loading">Loading generated files…</div>';
+      output.innerHTML = '<div class="ui-studio-codegen-loading">Loading the approved production files…</div>';
       return;
     }
 
@@ -467,6 +479,11 @@
         <div><span>Media slots</span><b>${esc(assetSlots.length)}</b></div>
         <div><span>Entry</span><b title="${esc(result.entryFile || '')}">${esc((result.entryFile || '—').split('/').pop())}</b></div>
       </div>
+      <div class="ui-studio-target-summary">
+        <span>Framework targets</span>
+        <div>${(project.frameworkTargets || [project.framework]).map(item => '<b>' + esc(frameworkLabel(item)) + '</b>').join('')}</div>
+        <small>The deterministic preview target is compiled now. Additional targets remain part of the portable project configuration for future export adapters.</small>
+      </div>
       <div class="ui-studio-codegen-toolbar">
         <div class="ui-studio-file-tabs">${tabs}</div>
         <div class="ui-studio-file-actions">
@@ -477,11 +494,21 @@
       </div>
       ${selected ? `<div class="ui-studio-code-file-head"><div><b>${esc(selected.path)}</b><small>${esc(selected.purpose || selected.language || '')}</small></div><span>${esc(selected.language || 'text')}</span></div><pre class="ui-studio-code-view"><code>${esc(selected.content || '')}</code></pre>` : ''}
       <div class="ui-studio-codegen-foot">
-        <small>Model: ${esc(generation.model || 'configured model')} · generated ${esc(fmtDate(generation.completedAt))}</small>
-        <small>Phase 3 saves code only; Phase 4 will render and visually compare it with the source reference.</small>
+        <small>Approved ${esc(fmtDate(project.acceptedAt))} · production code prepared ${esc(fmtDate(project.productionGeneratedAt))}</small>
+        <small>Delivery is now unlocked. Export ZIP is the recommended default while repository providers remain optional.</small>
       </div>
     `;
     bindGeneratedFileActions();
+  }
+
+  async function loadProductionGeneration() {
+    const id = state.project?.productionGenerationId;
+    if (!id) return null;
+    if (state.generationDetail?.id === id && state.generationDetail?.result) return state.generationDetail;
+    const data = await request('/api/admin/ui-studio/generations/' + encodeURIComponent(id));
+    state.generationDetail = data.generation || null;
+    state.selectedGeneratedFile = state.generationDetail?.result?.entryFile || state.generationDetail?.result?.files?.[0]?.path || null;
+    return state.generationDetail;
   }
 
   function latestRenderForViewport() {
@@ -517,6 +544,7 @@
     const summary = $('uiStudioVisualSummary');
     const output = $('uiStudioVisualOutput');
     const auto = $('uiStudioAutoRepair');
+    const previewButton = $('uiStudioPreviewBtn');
     if (!button || !status || !summary || !output || !auto) return;
 
     auto.checked = state.autoRepairEnabled;
@@ -529,20 +557,24 @@
     const current = visualRenderIsCurrent(render);
 
     button.disabled = !state.canEdit || !runtimeReady || !generationReady || !referenceReady || state.visualRunning;
-    button.textContent = state.visualRunning ? 'Rendering + comparing…' : (render && current ? '◫ Re-render + compare' : '◫ Render + compare');
+    button.textContent = state.visualRunning ? 'Rendering preview…' : (render && current ? 'Render preview again' : 'Render preview');
+    if (previewButton) {
+      previewButton.disabled = !state.canEdit || !runtimeReady || !referenceReady || state.generating || state.visualRunning;
+      previewButton.textContent = state.generating || state.visualRunning ? 'Building preview…' : (render && current ? '◫ Rebuild preview' : '◫ Build preview');
+    }
 
     if (!runtimeReady) {
       status.textContent = 'Renderer unavailable';
       status.className = 'status-chip';
       summary.textContent = 'The isolated preview renderer is not available on this runtime.';
-      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>Phase 4 requires the locked frontend Vite runtime already shipped with INXSocial.</small></div>';
+      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>Preview requires the isolated frontend renderer shipped with UI Studio.</small></div>';
       return;
     }
     if (!generationReady) {
-      status.textContent = 'Needs current code';
+      status.textContent = 'Needs preview build';
       status.className = 'status-chip';
-      summary.textContent = 'Generate current Phase 3 code before visual comparison.';
-      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>Phase 4 always compares a saved, current Phase 3 generation.</small></div>';
+      summary.textContent = 'Build the internal reconstruction preview first.';
+      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>The preview uses a private internal build and does not expose production code.</small></div>';
       return;
     }
     if (!referenceReady) {
@@ -560,8 +592,8 @@
       const iframe = state.visualRender?.previewUrl
         ? '<div class="ui-studio-preview-stage"><iframe id="uiStudioPreviewFrame" title="Generated UI preview" sandbox="allow-scripts"></iframe></div>'
         : '';
-      output.innerHTML = '<div class="ui-studio-visual-progress"><span></span><b>Phase 4 visual pipeline is running</b><small>' +
-        (state.autoRepairEnabled && aiReady ? 'Automatic repair is enabled for mismatches below the target score.' : 'Automatic repair is off or visual AI is unavailable.') +
+      output.innerHTML = '<div class="ui-studio-visual-progress"><span></span><b>Preview rendering is running</b><small>' +
+        'The reconstruction is rendered in an isolated browser for inspection.' +
         '</small></div>' + iframe;
       if (state.visualRender?.previewUrl) mountPreviewFrame(state.visualRender);
       return;
@@ -570,8 +602,8 @@
     if (!render) {
       status.textContent = 'Ready';
       status.className = 'status-chip ui-studio-visual-ready';
-      summary.textContent = 'Render the current code at the exact selected reference ratio, calculate a pixel diff and run visual QA.';
-      output.innerHTML = '<div class="ui-studio-codegen-empty"><b>No Phase 4 render yet</b><small>The preview is sandboxed, network calls are blocked and the generated code is never written into the live application.</small></div>';
+      summary.textContent = 'Render the reconstruction at the selected viewport and inspect it beside the original.';
+      output.innerHTML = '<div class="ui-studio-codegen-empty"><b>No preview yet</b><small>The preview is sandboxed, network calls are blocked and nothing is written into the live application.</small></div>';
       return;
     }
 
@@ -579,7 +611,7 @@
       status.textContent = 'Failed';
       status.className = 'status-chip ui-studio-visual-failed';
       summary.textContent = render.errorMessage || 'The previous visual comparison did not complete.';
-      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>Fix or regenerate Phase 3 code, then run the comparison again.</small></div>';
+      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>Rebuild the preview, then inspect the reconstruction again.</small></div>';
       return;
     }
 
@@ -643,9 +675,21 @@
     const frame = $('uiStudioPreviewFrame');
     if (!frame || !render?.previewUrl) return;
     state.visualFrame = frame;
-    frame.style.width = Math.max(1, Number(render.width || 1)) + 'px';
-    frame.style.height = Math.max(1, Number(render.height || 1)) + 'px';
+    const width = Math.max(1, Number(render.width || 1));
+    const height = Math.max(1, Number(render.height || 1));
+    frame.style.width = width + 'px';
+    frame.style.height = height + 'px';
+    frame.style.transformOrigin = 'top left';
     frame.src = render.previewUrl + '?v=' + encodeURIComponent(render.updatedAt || Date.now());
+    requestAnimationFrame(() => {
+      const stage = frame.parentElement;
+      if (!stage) return;
+      const available = Math.max(1, stage.clientWidth - 24);
+      const scale = Math.min(1, available / width);
+      frame.style.transform = 'scale(' + scale + ')';
+      stage.style.height = Math.min(620, Math.ceil(height * scale) + 24) + 'px';
+      stage.style.overflow = 'hidden';
+    });
   }
 
   async function uploadVisualCapture(render, pngDataUrl) {
@@ -791,7 +835,7 @@
     if (!host) return;
     const slots = state.phase5Config?.assetSlots || [];
     if (!slots.length) {
-      host.innerHTML = '<div class="ui-studio-phase5-empty">No generated media slots were declared by the current Phase 3 code.</div>';
+      host.innerHTML = '<div class="ui-studio-phase5-empty">No media slots were declared by the current preview build.</div>';
       return;
     }
     host.innerHTML = slots.map((slot, index) => {
@@ -860,7 +904,7 @@
     if (!config) {
       status.textContent = 'Loading';
       status.className = 'status-chip';
-      summary.textContent = 'Loading Phase 5 convergence state…';
+      summary.textContent = 'Loading visual comparison state…';
       scoreboard.innerHTML = '';
       batchHost.innerHTML = '';
       return;
@@ -869,13 +913,13 @@
     status.textContent = !config.rendererConfigured
       ? 'Renderer offline'
       : state.phase5Running
-        ? 'Converging…'
+        ? 'Improving match…'
         : (config.acceptedGenerationId ? 'Accepted' : config.bestGenerationId ? 'Best candidate ready' : 'Ready');
     status.className = 'status-chip ' + (config.acceptedGenerationId ? 'ui-studio-visual-ready' : state.phase5Running ? 'ui-studio-visual-running' : 'ui-studio-phase5-ready');
     summary.textContent = !config.rendererConfigured
-      ? 'The dedicated Chromium renderer is not configured. Phase 5 runs are disabled until the renderer service is healthy.'
+      ? 'The dedicated Chromium renderer is unavailable. Visual comparison is disabled until the renderer service is healthy.'
       : state.phase5Running
-        ? 'The dedicated worker is rendering every available viewport in real Chromium. Repairs are re-tested across all viewports and regressions are rejected.'
+        ? 'The dedicated worker is comparing every available viewport in real Chromium. Improvements are re-tested across all viewports and regressions are rejected.'
         : 'Target ' + config.targetScore + '% aggregate · minimum viewport ' + config.minimumViewportScore + '% · regression tolerance ' + config.regressionTolerance + ' points.';
 
     scoreboard.innerHTML = [
@@ -891,13 +935,13 @@
       const completed = (batch.renders || []).filter(item => item.status === 'COMPLETED').length;
       const total = (batch.renders || []).length;
       if (batch.status === 'RUNNING' || batch.status === 'QUEUED') {
-        batchHost.innerHTML = `<div class="ui-studio-phase5-progress"><div><b>Chromium convergence batch</b><small>${esc(completed + '/' + total)} viewport renders complete</small></div><span></span></div>
+        batchHost.innerHTML = `<div class="ui-studio-phase5-progress"><div><b>Visual comparison run</b><small>${esc(completed + '/' + total)} viewport renders complete</small></div><span></span></div>
           <div class="ui-studio-phase5-viewport-grid" style="margin-top:10px">${(batch.renders || []).map(phase5ViewportCard).join('')}</div>`;
       } else {
         batchHost.innerHTML = `<div class="ui-studio-phase5-viewport-grid">${(batch.renders || []).map(phase5ViewportCard).join('')}</div>`;
       }
     } else {
-      batchHost.innerHTML = '<div class="ui-studio-phase5-empty">Run Phase 5 to test the same generated code against every available Desktop, Tablet and Mobile reference.</div>';
+      batchHost.innerHTML = '<div class="ui-studio-phase5-empty">Compare the reconstruction against every available Desktop, Tablet and Mobile reference.</div>';
     }
 
     renderPhase5Assets();
@@ -942,7 +986,7 @@
         return;
       }
       state.phase5Running = false;
-      notify(data.batch.status === 'FAILED' ? 'Phase 5 convergence stopped because a viewport render failed.' : 'Phase 5 convergence cycle completed.');
+      notify(data.batch.status === 'FAILED' ? 'Visual comparison stopped because a viewport render failed.' : 'Match & Refine completed. The best regression-safe version was retained.');
       await loadProjects().catch(() => {});
       renderWorkspace();
     } catch (error) {
@@ -1058,7 +1102,7 @@
       });
       state.project = data.project;
       state.phase5Config = data.phase5;
-      notify('Best responsive generation accepted.');
+      notify('Best visual match approved. Production code can now be generated.');
       await loadProjects().catch(() => {});
       await loadPhase6().catch(() => {});
       renderWorkspace();
@@ -1093,22 +1137,22 @@
     const viewportResults = Array.isArray(gate?.viewportResults) ? gate.viewportResults : [];
 
     if (!acceptedId) {
-      status.textContent = 'Needs acceptance';
+      status.textContent = 'Needs approval';
       status.className = 'status-chip';
     } else if (gate?.passed) {
       status.textContent = delivery ? delivery.status.replaceAll('_',' ') : 'Ready';
       status.className = 'status-chip ui-studio-analysis-ready';
     } else {
-      status.textContent = 'Gate blocked';
+      status.textContent = 'Not ready';
       status.className = 'status-chip ui-studio-analysis-failed';
     }
 
     const viewportLabel = viewportResults.length
       ? viewportResults.map(item => item.viewport + ' ' + (Number.isFinite(Number(item.score)) ? Math.round(Number(item.score)) + '%' : '—')).join(' · ')
-      : 'No Phase 5 viewport evidence yet';
+      : 'No responsive match evidence yet';
     gateHost.innerHTML = [
-      ['Accepted generation', acceptedId ? acceptedId.slice(-10) : 'None', Boolean(acceptedId)],
-      ['Regression gate', gate?.passed ? 'Passed' : (gate?.message || 'Not ready'), Boolean(gate?.passed)],
+      ['Approved visual', acceptedId ? acceptedId.slice(-10) : 'None', Boolean(acceptedId)],
+      ['Quality gate', gate?.passed ? 'Passed' : (gate?.message || 'Not ready'), Boolean(gate?.passed)],
       ['Aggregate score', Number.isFinite(score) ? score.toFixed(1) + '%' : '—', Boolean(gate?.passed)],
       ['Viewport evidence', viewportLabel, Boolean(gate?.passed)]
     ].map(item => `<article class="${item[2] ? 'pass' : 'fail'}"><span>${esc(item[0])}</span><b title="${esc(item[1])}">${esc(item[1])}</b></article>`).join('');
@@ -1148,10 +1192,10 @@
     if (policy) {
       if (githubReady) {
         policy.className = 'ui-studio-phase6-policy';
-        policy.textContent = 'Repository deliveries are PR-first. A separate human approval is required before the approved PR can be merged for deployment.';
+        policy.textContent = 'Repository delivery is optional. Connected repositories use a review-first workflow before any merge or deployment.';
       } else {
         policy.className = 'ui-studio-phase6-policy warning';
-        policy.textContent = 'ZIP export and regression gating are available. Repository PR/deploy automation is disabled until UI_STUDIO_GITHUB_TOKEN is configured on the production service.';
+        policy.textContent = 'Portable ZIP export is ready now. Repository delivery is an optional provider connection and is not required to use UI Studio.';
       }
     }
 
@@ -1161,7 +1205,7 @@
           <small>${esc(item.repository || item.artifactFileName || 'Delivery package')} · ${esc(fmtDate(item.createdAt))}</small></div>
           <aside><span>${esc(item.regression?.passed ? 'Gate passed' : 'Review')}</span>${item.pullRequestUrl ? `<a href="${esc(item.pullRequestUrl)}" target="_blank" rel="noopener">PR #${esc(item.pullRequestNumber)} ↗</a>` : ''}</aside>
         </article>`).join('')
-      : '<div class="ui-studio-phase6-empty">No delivery package yet. Accept the Phase 5 best generation, pass the regression gate, then create the first immutable delivery package.</div>';
+      : '<div class="ui-studio-phase6-empty">No export yet. Approve the visual match and generate production code, then create a portable delivery bundle.</div>';
 
     document.querySelectorAll('[data-phase6-delivery]').forEach(card => card.addEventListener('click', event => {
       if (event.target.closest('a')) return;
@@ -1199,7 +1243,7 @@
       });
       state.phase6Config = data.phase6;
       state.phase6SelectedDeliveryId = data.delivery?.id || state.phase6Config?.deliveries?.[0]?.id || null;
-      notify('Phase 6 delivery package created after regression validation.');
+      notify('Portable delivery bundle created after the quality gate passed.');
     } catch (error) {
       notify(error.message);
     } finally {
@@ -1271,8 +1315,324 @@
     }
   }
 
+  function setSideTab(tab) {
+    state.sideTab = tab === 'AGENT' ? 'AGENT' : 'INSPECTOR';
+    renderAgentPanel();
+  }
+
+  function renderAgentPanel() {
+    const inspector = $('uiStudioInspectorPane');
+    const agent = $('uiStudioAgentPane');
+    if (!inspector || !agent) return;
+    const showAgent = state.sideTab === 'AGENT';
+    inspector.hidden = showAgent;
+    agent.hidden = !showAgent;
+    document.querySelectorAll('[data-ui-side-tab]').forEach(button => {
+      button.classList.toggle('active', button.dataset.uiSideTab === state.sideTab);
+    });
+
+    const status = $('uiStudioAgentStatus');
+    const host = $('uiStudioAgentMessages');
+    const actionHost = $('uiStudioAgentAction');
+    const input = $('uiStudioAgentInput');
+    const send = $('uiStudioAgentSend');
+    if (!status || !host || !actionHost || !input || !send) return;
+
+    const configured = Boolean(state.agentConfig?.configured);
+    status.textContent = !configured ? 'Unavailable' : state.agentBusy ? 'Thinking…' : 'Ready';
+    status.className = 'status-chip ' + (configured ? 'ui-studio-analysis-ready' : '');
+    input.disabled = !configured || !state.canEdit || state.agentBusy;
+    send.disabled = !configured || !state.canEdit || state.agentBusy;
+    send.textContent = state.agentBusy ? 'Thinking…' : 'Send';
+
+    const messages = state.agentMessages || [];
+    host.innerHTML = messages.length
+      ? messages.map(message => {
+          const role = message.role === 'ASSISTANT' ? 'assistant' : 'user';
+          const name = role === 'assistant' ? 'UI Studio Agent' : 'You';
+          return '<article class="ui-studio-agent-message ' + role + '"><span>' + esc(name) + '</span><p>' +
+            esc(message.content || '').replace(/\n/g,'<br>') + '</p></article>';
+        }).join('')
+      : '<div class="ui-studio-agent-empty"><b>Ask about this project</b><span>Try “What should I do next?”, “Why is the mobile match lower?”, or “Is this ready to export?”</span></div>';
+
+    const latestAssistant = [...messages].reverse().find(message => message.role === 'ASSISTANT' && message.action?.type && message.action.type !== 'NONE');
+    if (latestAssistant?.action) {
+      actionHost.hidden = false;
+      actionHost.innerHTML = '<div><span>Recommended next action</span><b>' + esc(latestAssistant.action.label || latestAssistant.action.type) +
+        '</b><small>' + esc(latestAssistant.action.reason || '') + '</small></div><button class="secondary" type="button" id="uiStudioAgentActionBtn">Run action</button>';
+      $('uiStudioAgentActionBtn')?.addEventListener('click', () => void performAgentAction(latestAssistant.action.type));
+    } else {
+      actionHost.hidden = true;
+      actionHost.innerHTML = '';
+    }
+    if (showAgent) requestAnimationFrame(() => { host.scrollTop = host.scrollHeight; });
+  }
+
+  async function loadAgentMessages() {
+    if (!state.project) return [];
+    const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/agent/messages');
+    state.agentConfig = {
+      ...(state.agentConfig || {}),
+      configured: Boolean(data.configured),
+      version: data.version || state.agentConfig?.version
+    };
+    state.agentMessages = data.messages || [];
+    renderAgentPanel();
+    return state.agentMessages;
+  }
+
+  async function askAgent(event) {
+    event?.preventDefault();
+    if (!state.project || !state.canEdit || state.agentBusy || !state.agentConfig?.configured) return;
+    const input = $('uiStudioAgentInput');
+    const message = String(input?.value || '').trim();
+    if (!message) return;
+    state.agentBusy = true;
+    renderAgentPanel();
+    try {
+      const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/agent/messages', {
+        method: 'POST',
+        body: JSON.stringify({ message })
+      });
+      if (input) input.value = '';
+      if (data.user) state.agentMessages.push(data.user);
+      if (data.assistant) state.agentMessages.push(data.assistant);
+    } catch (error) {
+      notify(error.message);
+    } finally {
+      state.agentBusy = false;
+      renderAgentPanel();
+    }
+  }
+
+  async function performAgentAction(type) {
+    if (!state.project || !state.canEdit) return;
+    if (type === 'UPLOAD_REFERENCE') {
+      setWorkflowStage('DESIGN', { force: true });
+      $('uiStudioFile')?.click();
+      return;
+    }
+    if (type === 'ANALYSE') {
+      setWorkflowStage('UNDERSTAND', { force: true });
+      return analyseProject();
+    }
+    if (type === 'BUILD_PREVIEW') {
+      setWorkflowStage('PREVIEW', { force: true });
+      return buildPreview();
+    }
+    if (type === 'RUN_MATCH') {
+      setWorkflowStage('MATCH', { force: true });
+      return startPhase5();
+    }
+    if (type === 'APPROVE') {
+      setWorkflowStage('APPROVE', { force: true });
+      return acceptPhase5Best();
+    }
+    if (type === 'GENERATE_CODE') {
+      setWorkflowStage('GENERATE', { force: true });
+      return finalizeProductionCode();
+    }
+    if (type === 'EXPORT_BUNDLE') {
+      setWorkflowStage('DELIVER', { force: true });
+      if ($('uiStudioPhase6Mode')) $('uiStudioPhase6Mode').value = 'EXPORT_ONLY';
+      renderPhase6Panel();
+      return createPhase6Delivery();
+    }
+  }
+
+  function analysisIsCurrent() {
+    const analysis = state.project?.latestAnalysis;
+    return Boolean(analysis && analysis.status === 'COMPLETED' && !analysis.stale && analysis.result);
+  }
+
+  function previewBuildIsCurrent() {
+    const generation = latestGenerationSummary();
+    return Boolean(generation && ['READY','READY_WITH_WARNINGS'].includes(generation.status) && !generation.stale);
+  }
+
+  function previewRenderIsReady() {
+    const render = currentVisualRender();
+    return Boolean(render && visualRenderIsCurrent(render) && render.status === 'COMPLETED');
+  }
+
+  function derivedWorkflowStage() {
+    const project = state.project;
+    if (!project || Number(project.referenceCount || 0) === 0) return 'DESIGN';
+    if (!analysisIsCurrent()) return 'UNDERSTAND';
+    if (!previewBuildIsCurrent()) return 'PREVIEW';
+    if (!project.bestGenerationId) return 'MATCH';
+    if (!project.acceptedGenerationId || project.acceptedGenerationId !== project.bestGenerationId) return 'APPROVE';
+    if (!project.productionGenerationId || project.productionGenerationId !== project.acceptedGenerationId || !project.productionGeneratedAt) return 'GENERATE';
+    return 'DELIVER';
+  }
+
+  function maxUnlockedStageIndex() {
+    const project = state.project;
+    if (!project) return 0;
+    if (Number(project.referenceCount || 0) === 0) return 0;
+    if (!analysisIsCurrent()) return 1;
+    if (!previewBuildIsCurrent()) return 2;
+    if (!project.bestGenerationId) return 3;
+    if (!project.acceptedGenerationId || project.acceptedGenerationId !== project.bestGenerationId) return 4;
+    if (!project.productionGenerationId || project.productionGenerationId !== project.acceptedGenerationId || !project.productionGeneratedAt) return 5;
+    return 6;
+  }
+
+  function setWorkflowStage(stage, options = {}) {
+    if (!WORKFLOW_STAGES.includes(stage)) return;
+    const index = WORKFLOW_STAGES.indexOf(stage);
+    if (!options.force && index > maxUnlockedStageIndex()) {
+      notify('Complete the current UI Studio step first.');
+      return;
+    }
+    state.workflowStage = stage;
+    renderWorkspace();
+  }
+
+  function renderApprovePanel() {
+    const host = $('uiStudioApproveSummary');
+    const button = $('uiStudioPhase5AcceptBtn');
+    if (!host || !button) return;
+    const cfg = state.phase5Config || {};
+    const bestId = cfg.bestGenerationId || state.project?.bestGenerationId || null;
+    const acceptedId = cfg.acceptedGenerationId || state.project?.acceptedGenerationId || null;
+    const score = Number(cfg.bestAggregateScore ?? state.project?.bestAggregateScore);
+    const best = cfg.bestGeneration || null;
+    const scores = best?.viewportScores || {};
+    const scoreItems = ['DESKTOP','TABLET','MOBILE']
+      .filter(viewport => scores[viewport] != null)
+      .map(viewport => '<div><span>' + esc(viewport[0] + viewport.slice(1).toLowerCase()) + '</span><b>' + esc(Math.round(Number(scores[viewport]))) + '%</b></div>');
+    host.innerHTML = [
+      '<div><span>Best match</span><b>' + (Number.isFinite(score) ? esc(score.toFixed(1)) + '%' : '—') + '</b></div>',
+      ...scoreItems,
+      '<div><span>Status</span><b>' + esc(acceptedId === bestId && bestId ? 'Approved' : (bestId ? 'Ready to approve' : 'Run Match & Refine first')) + '</b></div>'
+    ].join('');
+    const currentApproval = Boolean(bestId && acceptedId === bestId);
+    button.disabled = !state.canEdit || !bestId || currentApproval;
+    button.textContent = currentApproval ? '✓ Approved' : '✓ Approve best match';
+  }
+
+  function renderWorkflow() {
+    if (!state.project) return;
+    const derived = derivedWorkflowStage();
+    const maxIndex = maxUnlockedStageIndex();
+    if (!state.workflowStage || WORKFLOW_STAGES.indexOf(state.workflowStage) > maxIndex) state.workflowStage = derived;
+    const stage = state.workflowStage;
+
+    document.querySelectorAll('[data-ui-stage]').forEach(button => {
+      const index = WORKFLOW_STAGES.indexOf(button.dataset.uiStage);
+      button.disabled = index > maxIndex;
+      button.classList.toggle('active', button.dataset.uiStage === stage);
+      button.classList.toggle('complete', index < WORKFLOW_STAGES.indexOf(derived) || (derived === 'DELIVER' && index < 6));
+    });
+    document.querySelectorAll('[data-ui-stage-panel]').forEach(panel => {
+      panel.hidden = panel.dataset.uiStagePanel !== stage;
+    });
+
+    const showReferenceCanvas = stage === 'DESIGN' || stage === 'UNDERSTAND';
+    document.querySelector('.ui-studio-viewport-tabs')?.toggleAttribute('hidden', !showReferenceCanvas);
+    document.querySelector('.ui-studio-viewer-toolbar')?.toggleAttribute('hidden', !showReferenceCanvas);
+    $('uiStudioViewer')?.toggleAttribute('hidden', !showReferenceCanvas);
+
+    const upload = document.querySelector('.ui-studio-upload');
+    const uploadNote = $('uiStudioUploadNote');
+    if (upload) upload.hidden = stage !== 'DESIGN';
+    if (uploadNote) uploadNote.hidden = stage !== 'DESIGN';
+
+    const copy = STAGE_COPY[stage] || STAGE_COPY.DESIGN;
+    if ($('uiStudioStageEyebrow')) $('uiStudioStageEyebrow').textContent = copy[0];
+    if ($('uiStudioStageTitle')) $('uiStudioStageTitle').textContent = copy[1];
+    if ($('uiStudioStageHint')) $('uiStudioStageHint').textContent = copy[2];
+
+    const next = $('uiStudioNextActionBtn');
+    if (!next) return;
+    next.disabled = !state.canEdit;
+    if (stage === 'DESIGN') {
+      const ready = Number(state.project.referenceCount || 0) > 0;
+      next.textContent = ready ? 'Continue to Understand →' : 'Upload a reference first';
+      next.disabled = next.disabled || !ready;
+    } else if (stage === 'UNDERSTAND') {
+      next.textContent = analysisIsCurrent() ? 'Continue to Preview →' : (state.analysing ? 'Analysing…' : '✦ Analyse design');
+      next.disabled = next.disabled || state.analysing;
+    } else if (stage === 'PREVIEW') {
+      next.textContent = previewRenderIsReady() ? 'Continue to Match & Refine →' : (state.generating || state.visualRunning ? 'Building preview…' : '◫ Build preview');
+      next.disabled = next.disabled || state.generating || state.visualRunning;
+    } else if (stage === 'MATCH') {
+      next.textContent = state.project.bestGenerationId ? 'Review best match →' : (state.phase5Running ? 'Comparing…' : '◎ Compare all viewports');
+      next.disabled = next.disabled || state.phase5Running;
+    } else if (stage === 'APPROVE') {
+      const currentApproval = Boolean(state.project.bestGenerationId && state.project.acceptedGenerationId === state.project.bestGenerationId);
+      next.textContent = currentApproval ? 'Continue to Generate →' : '✓ Approve best match';
+      next.disabled = next.disabled || (!currentApproval && !state.project.bestGenerationId);
+    } else if (stage === 'GENERATE') {
+      next.textContent = state.project.productionGenerationId ? 'Continue to Deliver →' : (state.finalizingCode ? 'Preparing code…' : '⌘ Generate production code');
+      next.disabled = next.disabled || state.finalizingCode || !state.project.acceptedGenerationId;
+    } else {
+      next.textContent = selectedPhase6Delivery()?.downloadUrl ? 'Create another export' : 'Create export bundle';
+      next.disabled = next.disabled || state.phase6Busy || !state.project.productionGenerationId;
+    }
+  }
+
+  async function buildPreview() {
+    if (!state.project || !state.canEdit || state.generating || state.visualRunning) return;
+    if (!previewBuildIsCurrent()) {
+      const generated = await generateResponsiveUi(true);
+      if (!generated) return;
+    }
+    await startVisualCompare();
+  }
+
+  async function finalizeProductionCode() {
+    if (!state.project || !state.canEdit || state.finalizingCode) return;
+    state.finalizingCode = true;
+    renderWorkspace();
+    try {
+      const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/production-code', {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+      state.project = data.project;
+      state.generationDetail = data.production?.generation || state.generationDetail;
+      state.selectedGeneratedFile = state.generationDetail?.result?.entryFile || state.generationDetail?.result?.files?.[0]?.path || null;
+      await Promise.all([loadProjects().catch(() => {}), loadPhase6().catch(() => {})]);
+      notify('Production code prepared from the approved visual version.');
+    } catch (error) {
+      notify(error.message);
+    } finally {
+      state.finalizingCode = false;
+      renderWorkspace();
+    }
+  }
+
+  async function runNextAction() {
+    const stage = state.workflowStage || derivedWorkflowStage();
+    if (stage === 'DESIGN') return setWorkflowStage('UNDERSTAND');
+    if (stage === 'UNDERSTAND') {
+      if (analysisIsCurrent()) return setWorkflowStage('PREVIEW');
+      return analyseProject();
+    }
+    if (stage === 'PREVIEW') {
+      if (previewRenderIsReady()) return setWorkflowStage('MATCH');
+      return buildPreview();
+    }
+    if (stage === 'MATCH') {
+      if (state.project.bestGenerationId) return setWorkflowStage('APPROVE');
+      return startPhase5();
+    }
+    if (stage === 'APPROVE') {
+      if (state.project.bestGenerationId && state.project.acceptedGenerationId === state.project.bestGenerationId) return setWorkflowStage('GENERATE');
+      return acceptPhase5Best();
+    }
+    if (stage === 'GENERATE') {
+      if (state.project.productionGenerationId) return setWorkflowStage('DELIVER');
+      return finalizeProductionCode();
+    }
+    if (stage === 'DELIVER') return createPhase6Delivery();
+  }
+
   function renderWorkspace() {
     const project = state.project;
+    $('uiStudioPage')?.classList.toggle('workspace-open', Boolean(project));
     if (!project) {
       $('uiStudioWorkspace').hidden = true;
       $('uiStudioProjectsArea').hidden = false;
@@ -1282,7 +1642,7 @@
     $('uiStudioProjectsArea').hidden = true;
     $('uiStudioWorkspace').hidden = false;
     $('uiStudioProjectName').textContent = project.name;
-    $('uiStudioProjectMeta').textContent = `${project.framework.replaceAll('_',' ')} · ${project.styling.replaceAll('_',' ')} · ${project.outputType.replaceAll('_',' ')}`;
+    $('uiStudioProjectMeta').textContent = (project.frameworkTargets || [project.framework]).map(frameworkLabel).join(' + ') + ' · ' + (project.stylingTargets || [project.styling]).map(stylingLabel).join(' + ');
 
     document.querySelectorAll('[data-ui-viewport]').forEach(button => {
       button.classList.toggle('active', button.dataset.uiViewport === state.viewport);
@@ -1307,14 +1667,14 @@
 
     $('uiStudioProjectFacts').innerHTML = [
       ['Created', fmtDate(project.createdAt)],
-      ['Framework', project.framework.replaceAll('_',' ')],
-      ['Styling', project.styling.replaceAll('_',' ')],
-      ['Output target', project.outputType.replaceAll('_',' ')],
+      ['Preview stack', frameworkLabel(project.framework) + ' · ' + stylingLabel(project.styling)],
+      ['Framework targets', (project.frameworkTargets || [project.framework]).map(frameworkLabel).join(', ')],
+      ['Styling targets', (project.stylingTargets || [project.styling]).map(stylingLabel).join(', ')],
       ['References', String(project.referenceCount || 0)],
-      ['Analyses', String(project.analysisCount || 0)],
-      ['Code versions', String(project.generationCount || 0)],
+      ['Design analyses', String(project.analysisCount || 0)],
+      ['Preview builds', String(project.generationCount || 0)],
       ['Visual renders', String(project.renderCount || 0)],
-      ['Repair passes', String(project.repairCount || 0)]
+      ['Production code', project.productionGeneratedAt ? 'Ready · ' + fmtDate(project.productionGeneratedAt) : 'Not generated']
     ].map(item => `<div><span>${esc(item[0])}</span><b>${esc(item[1])}</b></div>`).join('');
 
     $('uiStudioReferenceHistory').innerHTML = refs.length
@@ -1339,7 +1699,10 @@
     renderCodegenPanel();
     renderVisualPanel();
     renderPhase5Panel();
+    renderApprovePanel();
     renderPhase6Panel();
+    renderAgentPanel();
+    renderWorkflow();
     setZoom(state.zoom);
   }
 
@@ -1355,12 +1718,16 @@
     state.visualConfig = data.visual || state.visualConfig;
     state.phase5Capability = data.phase5 || state.phase5Capability;
     state.phase6Capability = data.phase6 || state.phase6Capability;
+    state.agentConfig = data.agent || state.agentConfig;
     state.phase5Config = null;
     state.phase5Batch = null;
     state.phase5Running = false;
     clearTimeout(state.phase5PollTimer);
     state.phase6Config = null;
     state.phase6SelectedDeliveryId = null;
+    state.agentMessages = [];
+    state.workflowStage = null;
+    state.sideTab = 'INSPECTOR';
     state.generationDetail = null;
     state.selectedGeneratedFile = null;
     state.visualRender = null;
@@ -1370,8 +1737,10 @@
     state.visualRender = (data.project.renders || []).find(item => item.viewport === state.viewport) || data.project.latestRender || null;
     renderWorkspace();
     await loadLatestGeneration().catch(error => notify(error.message));
+    if (state.project?.productionGenerationId) await loadProductionGeneration().catch(error => notify(error.message));
     await loadPhase5().catch(error => notify(error.message));
     await loadPhase6().catch(error => notify(error.message));
+    await loadAgentMessages().catch(() => {});
     if (state.visualRender?.id && state.visualRender.status === 'COMPLETED') {
       const visual = await request('/api/admin/ui-studio/renders/' + encodeURIComponent(state.visualRender.id)).catch(() => null);
       if (visual?.render) state.visualRender = visual.render;
@@ -1389,6 +1758,7 @@
     state.visualConfig = data.visual || state.visualConfig;
     state.phase5Capability = data.phase5 || state.phase5Capability;
     state.phase6Capability = data.phase6 || state.phase6Capability;
+    state.agentConfig = data.agent || state.agentConfig;
     if (state.generationDetail?.id !== state.project?.latestGeneration?.id) {
       state.generationDetail = null;
       state.selectedGeneratedFile = null;
@@ -1396,6 +1766,7 @@
     if (!state.visualRunning) {
       state.visualRender = (state.project.renders || []).find(item => item.viewport === state.viewport) || state.project.latestRender || state.visualRender;
     }
+    if (state.project?.productionGenerationId) await loadProductionGeneration().catch(() => {});
     renderWorkspace();
     if (state.project) await loadPhase6().catch(() => {});
   }
@@ -1497,10 +1868,10 @@
     }
   }
 
-  async function generateResponsiveUi() {
-    if (!state.project || !state.canEdit || state.generating) return;
+  async function generateResponsiveUi(previewOnly = false) {
+    if (!state.project || !state.canEdit || state.generating) return null;
     state.generating = true;
-    renderCodegenPanel();
+    renderWorkspace();
     try {
       const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/generate', {
         method: 'POST',
@@ -1512,13 +1883,17 @@
       state.phase5Config = null;
       state.phase5Batch = null;
       state.selectedGeneratedFile = data.generation?.result?.entryFile || data.generation?.result?.files?.[0]?.path || null;
-      notify('Responsive UI code generated and saved as a new version.');
-      await loadProjects();
+      notify(previewOnly
+        ? 'Internal preview build created. Production code remains hidden until approval.'
+        : 'Internal preview build refreshed.');
+      await loadProjects().catch(() => {});
       await loadPhase5().catch(() => {});
+      return data.generation || null;
     } catch (error) {
       notify(error.message);
       await refreshProject().catch(() => {});
       await loadLatestGeneration().catch(() => {});
+      return null;
     } finally {
       state.generating = false;
       renderWorkspace();
@@ -1537,7 +1912,15 @@
           name: $('uiStudioProjectNameInput').value.trim(),
           framework: $('uiStudioFramework').value,
           styling: $('uiStudioStyling').value,
-          outputType: $('uiStudioOutputType').value
+          frameworkTargets: [
+            $('uiStudioFramework').value,
+            ...Array.from(document.querySelectorAll('#uiStudioFrameworkTargets input:checked')).map(input => input.value)
+          ].filter((value, index, values) => values.indexOf(value) === index),
+          stylingTargets: [
+            $('uiStudioStyling').value,
+            ...Array.from(document.querySelectorAll('#uiStudioStylingTargets input:checked')).map(input => input.value)
+          ].filter((value, index, values) => values.indexOf(value) === index),
+          outputType: 'SECTION'
         })
       });
       $('uiStudioCreateDialog').close();
@@ -1615,8 +1998,13 @@
     renderWorkspace();
   });
   $('uiStudioAnalyseBtn')?.addEventListener('click', () => void analyseProject());
-  $('uiStudioGenerateBtn')?.addEventListener('click', () => void generateResponsiveUi());
+  $('uiStudioPreviewBtn')?.addEventListener('click', () => void buildPreview());
   $('uiStudioRenderBtn')?.addEventListener('click', () => void startVisualCompare());
+  $('uiStudioFinalizeCodeBtn')?.addEventListener('click', () => void finalizeProductionCode());
+  $('uiStudioNextActionBtn')?.addEventListener('click', () => void runNextAction());
+  document.querySelectorAll('[data-ui-stage]').forEach(button => button.addEventListener('click', () => setWorkflowStage(button.dataset.uiStage)));
+  document.querySelectorAll('[data-ui-side-tab]').forEach(button => button.addEventListener('click', () => setSideTab(button.dataset.uiSideTab)));
+  $('uiStudioAgentForm')?.addEventListener('submit', event => void askAgent(event));
   $('uiStudioPhase5RunBtn')?.addEventListener('click', () => void startPhase5());
   $('uiStudioPhase5AcceptBtn')?.addEventListener('click', () => void acceptPhase5Best());
   $('uiStudioPhase6Mode')?.addEventListener('change', event => { event.target.dataset.touched = '1'; renderPhase6Panel(); });

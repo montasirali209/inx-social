@@ -219,7 +219,10 @@ async function deliveryContext(projectId) {
 
 async function regressionGate(project, generation) {
   if (!generation || project.acceptedGenerationId !== generation.id) {
-    throw publicError('Accept the Phase 5 best generation before creating a delivery.', 422, 'UI_STUDIO_PHASE6_ACCEPTED_REQUIRED');
+    throw publicError('Approve the best visual match before creating a delivery.', 422, 'UI_STUDIO_PHASE6_ACCEPTED_REQUIRED');
+  }
+  if (project.productionGenerationId !== generation.id || !project.productionGeneratedAt) {
+    throw publicError('Generate production code from the approved design before creating a delivery.', 422, 'UI_STUDIO_PHASE6_PRODUCTION_CODE_REQUIRED');
   }
   if (generation.qualityStatus === 'REJECTED_REGRESSION' || generation.qualityStatus === 'RENDER_FAILED') {
     throw publicError('The accepted generation is not regression-safe.', 409, 'UI_STUDIO_PHASE6_REGRESSION_REJECTED');
@@ -247,7 +250,7 @@ async function regressionGate(project, generation) {
     viewportResults.push({ viewport, referenceId: referenceMap[viewport].id, score, passed: Number.isFinite(score) && score >= floor });
   }
   if (!viewportResults.every(item => item.passed)) {
-    throw publicError(`Phase 6 regression gate requires every current viewport to score at least ${floor}.`, 409, 'UI_STUDIO_PHASE6_VIEWPORT_GATE_FAILED');
+    throw publicError(`The quality gate requires every current viewport to score at least ${floor}.`, 409, 'UI_STUDIO_PHASE6_VIEWPORT_GATE_FAILED');
   }
   const renders = await prisma.uiDesignRender.findMany({
     where: {
@@ -259,7 +262,7 @@ async function regressionGate(project, generation) {
   });
   const renderedReferenceIds = new Set(renders.map(item => item.referenceId));
   if (references.some(item => !renderedReferenceIds.has(item.id))) {
-    throw publicError('Run Phase 5 on every current viewport before delivery.', 422, 'UI_STUDIO_PHASE6_RENDER_EVIDENCE_REQUIRED');
+    throw publicError('Run Match & Refine on every current viewport before delivery.', 422, 'UI_STUDIO_PHASE6_RENDER_EVIDENCE_REQUIRED');
   }
   return {
     passed: true,
@@ -299,18 +302,44 @@ function buildMapping(files, input = {}, defaults = {}) {
 }
 
 async function storeExport(project, generation, mapping, regression) {
+  const frameworkTargets = safeParse(project.frameworkTargetsJson, [project.framework]);
+  const stylingTargets = safeParse(project.stylingTargetsJson, [project.styling]);
   const manifest = {
     version: DELIVERY_VERSION,
-    project: { id: project.id, name: project.name, framework: project.framework, styling: project.styling, outputType: project.outputType },
-    acceptedGenerationId: generation.id,
+    workflow: 'Design -> Understand -> Preview -> Match & Refine -> Approve -> Generate -> Deliver',
+    project: {
+      id: project.id,
+      name: project.name,
+      previewFramework: project.framework,
+      previewStyling: project.styling,
+      frameworkTargets,
+      stylingTargets
+    },
+    approvedGenerationId: generation.id,
+    approvedAt: project.acceptedAt,
+    productionGeneratedAt: project.productionGeneratedAt,
     aggregateScore: generation.aggregateScore,
     viewportScores: safeParse(generation.viewportScoresJson, {}),
-    regression,
+    qualityGate: regression,
     mapping: mapping.map(item => ({ sourcePath: item.sourcePath, targetPath: item.targetPath }))
   };
+  const readme = [
+    '# UI Studio Delivery',
+    '',
+    'Project: ' + project.name,
+    'Approved visual generation: ' + generation.id,
+    'Framework targets: ' + frameworkTargets.join(', '),
+    'Styling targets: ' + stylingTargets.join(', '),
+    '',
+    'This bundle was exported after visual approval and production-code validation.',
+    'UI_STUDIO_DELIVERY.json contains the quality report, viewport scores and file mapping.',
+    'Integrate these files into the destination project only after reviewing its existing architecture.',
+    ''
+  ].join('\n');
   const zip = zipStore([
     ...mapping.map(item => ({ path: item.targetPath, data: item.content })),
-    { path: 'UI_STUDIO_DELIVERY.json', data: JSON.stringify(manifest, null, 2) + '\n' }
+    { path: 'UI_STUDIO_DELIVERY.json', data: JSON.stringify(manifest, null, 2) + '\n' },
+    { path: 'README.md', data: readme }
   ]);
   if (zip.length > MAX_EXPORT_BYTES) {
     throw publicError('Delivery export exceeds the safe package size limit.', 413, 'UI_STUDIO_PHASE6_EXPORT_TOO_LARGE');
@@ -349,6 +378,8 @@ async function phase6Status(projectId) {
     ...capabilityStatus(),
     acceptedGenerationId: project.acceptedGenerationId || null,
     acceptedAt: project.acceptedAt || null,
+    productionGenerationId: project.productionGenerationId || null,
+    productionGeneratedAt: project.productionGeneratedAt || null,
     gate,
     deliveries: (project.deliveries || []).map(serializeDelivery)
   };

@@ -7,6 +7,8 @@ const uiStudioCodegen = require('../services/uiStudioCodegenService');
 const uiStudioVisual = require('../services/uiStudioVisualService');
 const uiStudioConvergence = require('../services/uiStudioConvergenceService');
 const uiStudioDelivery = require('../services/uiStudioDeliveryService');
+const uiStudioProduction = require('../services/uiStudioProductionService');
+const uiStudioAgent = require('../services/uiStudioAgentService');
 
 function decodeHeader(req, name, fallback = '') {
   const raw = String(req.headers[name] || fallback);
@@ -54,7 +56,11 @@ async function list(req, res, next) {
         version: uiStudioConvergence.CONVERGENCE_VERSION,
         rendererConfigured: uiStudioConvergence.rendererConfigured()
       },
-      phase6: uiStudioDelivery.capabilityStatus()
+      phase6: uiStudioDelivery.capabilityStatus(),
+      agent: {
+        configured: uiStudioAgent.ready(),
+        version: uiStudioAgent.AGENT_VERSION
+      }
     });
   } catch (error) { next(error); }
 }
@@ -69,7 +75,9 @@ async function create(req, res, next) {
       name: project.name,
       framework: project.framework,
       styling: project.styling,
-      outputType: project.outputType
+      outputType: project.outputType,
+      frameworkTargets: project.frameworkTargets,
+      stylingTargets: project.stylingTargets
     });
     res.status(201).json({ project, canEdit: capability(req) });
   } catch (error) { next(error); }
@@ -98,7 +106,11 @@ async function detail(req, res, next) {
         version: uiStudioConvergence.CONVERGENCE_VERSION,
         rendererConfigured: uiStudioConvergence.rendererConfigured()
       },
-      phase6: uiStudioDelivery.capabilityStatus()
+      phase6: uiStudioDelivery.capabilityStatus(),
+      agent: {
+        configured: uiStudioAgent.ready(),
+        version: uiStudioAgent.AGENT_VERSION
+      }
     });
   } catch (error) { next(error); }
 }
@@ -163,6 +175,42 @@ async function generate(req, res, next) {
       generation: result.generation,
       project: await uiStudio.projectDetail(req.params.projectId)
     });
+  } catch (error) { next(error); }
+}
+
+async function finalizeProductionCode(req, res, next) {
+  try {
+    const result = await uiStudioProduction.finalizeProductionCode(req.params.projectId);
+    await audit(req, 'ADMIN_UI_STUDIO_PRODUCTION_CODE_FINALIZE', req.params.projectId, {
+      generationId: result.productionGenerationId,
+      frameworkTargets: result.frameworkTargets,
+      stylingTargets: result.stylingTargets
+    });
+    res.json({
+      production: result,
+      project: await uiStudio.projectDetail(req.params.projectId)
+    });
+  } catch (error) { next(error); }
+}
+
+async function agentMessages(req, res, next) {
+  try {
+    res.json({
+      configured: uiStudioAgent.ready(),
+      version: uiStudioAgent.AGENT_VERSION,
+      messages: await uiStudioAgent.listMessages(req.params.projectId)
+    });
+  } catch (error) { next(error); }
+}
+
+async function askAgent(req, res, next) {
+  try {
+    const result = await uiStudioAgent.ask(req.params.projectId, req.body?.message, req.user.id);
+    await audit(req, 'ADMIN_UI_STUDIO_AGENT_MESSAGE', req.params.projectId, {
+      assistantMessageId: result.assistant.id,
+      recommendedAction: result.assistant.action?.type || 'NONE'
+    });
+    res.status(201).json(result);
   } catch (error) { next(error); }
 }
 
@@ -450,6 +498,7 @@ module.exports = {
   prepareRender, renderDetail, renderPreview, renderAsset, captureRender, repairRender,
   phase5Status, startConvergence, convergenceBatch, uploadAssetBinding, deleteAssetBinding,
   createIgnoreMask, deleteIgnoreMask, acceptGeneration,
+  finalizeProductionCode, agentMessages, askAgent,
   phase6Status, createDelivery, deliveryExport, createDeliveryPullRequest, approveDelivery, deployDelivery,
   content
 };
