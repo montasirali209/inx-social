@@ -354,6 +354,49 @@
 @media(max-width:420px){.growth-command-primary{grid-template-columns:1fr 1fr}.growth-command-primary span{font-size:6px}.growth-command-primary b{font-size:18px}.growth-command-list-row b{max-width:185px}}
 
 
+/* Growth Dashboard published SEO content */
+.growth-command-content-panel{margin-bottom:14px}
+.growth-command-content-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
+.growth-command-content-kpis>div{border:1px solid var(--line);border-radius:12px;background:var(--soft);padding:10px 12px;min-width:0}
+.growth-command-content-kpis span,.growth-command-content-kpis b{display:block}
+.growth-command-content-kpis span{color:var(--muted);font-size:7px;font-weight:850;text-transform:uppercase;letter-spacing:.08em}
+.growth-command-content-kpis b{margin-top:5px;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.growth-command-content-latest{margin-top:12px}
+.growth-command-latest-article{display:grid;grid-template-columns:minmax(0,150px) minmax(0,1fr) auto;gap:14px;align-items:center;border:1px solid var(--line);border-radius:14px;background:var(--soft);padding:12px}
+.growth-command-article-image{overflow:hidden;aspect-ratio:16/9;border-radius:10px;background:#e2e8f0}
+.growth-command-article-image img{display:block;width:100%;height:100%;object-fit:cover}
+.growth-command-article-copy{min-width:0}
+.growth-command-article-copy span{color:var(--teal);font-size:7px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
+.growth-command-article-copy h3{margin:4px 0 0;font-size:13px}
+.growth-command-article-copy p{margin:5px 0 0;color:var(--muted);font-size:8px;line-height:1.45}
+.growth-command-article-copy small{display:block;margin-top:6px;color:var(--muted);font-size:7px}
+.growth-command-article-actions{display:flex;align-items:center;gap:7px}
+.growth-command-article-actions a{text-decoration:none}
+.growth-command-content-list{display:grid;gap:0;margin-top:8px}
+.growth-command-content-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 2px;border-top:1px solid var(--line)}
+.growth-command-content-row>div:first-child{min-width:0}
+.growth-command-content-row b,.growth-command-content-row small{display:block}
+.growth-command-content-row b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px}
+.growth-command-content-row small{margin-top:3px;color:var(--muted);font-size:7px}
+.growth-command-content-row>div:last-child{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.growth-command-content-row a{font-size:8px;text-decoration:none}
+.growth-article-preview-dialog{width:min(1180px,calc(100vw - 30px));max-width:none;height:min(860px,calc(100vh - 30px));max-height:none;padding:0;border:0;background:transparent}
+.growth-article-preview-modal{display:grid;grid-template-rows:auto 1fr;width:100%;height:100%;overflow:hidden;border:1px solid var(--line);border-radius:18px;background:var(--panel);box-shadow:0 30px 90px rgba(15,23,42,.18)}
+.growth-article-preview-modal>header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;border-bottom:1px solid var(--line)}
+.growth-article-preview-modal h2{margin:3px 0 0;font-size:16px}
+.growth-article-preview-actions{display:flex;align-items:center;gap:8px}
+.growth-article-preview-actions a{text-decoration:none}
+.growth-article-preview-modal iframe{width:100%;height:100%;border:0;background:#fff}
+@media(max-width:700px){
+  .growth-command-content-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .growth-command-latest-article{grid-template-columns:1fr}
+  .growth-command-article-image{max-height:220px}
+  .growth-command-article-actions{width:100%}.growth-command-article-actions>*{flex:1;text-align:center}
+  .growth-command-content-row{align-items:flex-start;flex-direction:column}.growth-command-content-row>div:last-child{width:100%}
+  .growth-article-preview-dialog{width:calc(100vw - 14px);height:calc(100vh - 14px)}
+}
+
+
 /* Website Media Manager */
 .website-media-page{max-width:none}
 .website-media-heading{align-items:flex-end}
