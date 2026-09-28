@@ -1461,8 +1461,8 @@
     if (!analysisIsCurrent()) return 'UNDERSTAND';
     if (!previewBuildIsCurrent()) return 'PREVIEW';
     if (!project.bestGenerationId) return 'MATCH';
-    if (!project.acceptedGenerationId) return 'APPROVE';
-    if (!project.productionGenerationId || !project.productionGeneratedAt) return 'GENERATE';
+    if (!project.acceptedGenerationId || project.acceptedGenerationId !== project.bestGenerationId) return 'APPROVE';
+    if (!project.productionGenerationId || project.productionGenerationId !== project.acceptedGenerationId || !project.productionGeneratedAt) return 'GENERATE';
     return 'DELIVER';
   }
 
@@ -1473,8 +1473,8 @@
     if (!analysisIsCurrent()) return 1;
     if (!previewBuildIsCurrent()) return 2;
     if (!project.bestGenerationId) return 3;
-    if (!project.acceptedGenerationId) return 4;
-    if (!project.productionGenerationId || !project.productionGeneratedAt) return 5;
+    if (!project.acceptedGenerationId || project.acceptedGenerationId !== project.bestGenerationId) return 4;
+    if (!project.productionGenerationId || project.productionGenerationId !== project.acceptedGenerationId || !project.productionGeneratedAt) return 5;
     return 6;
   }
 
@@ -1505,10 +1505,11 @@
     host.innerHTML = [
       '<div><span>Best match</span><b>' + (Number.isFinite(score) ? esc(score.toFixed(1)) + '%' : '—') + '</b></div>',
       ...scoreItems,
-      '<div><span>Status</span><b>' + esc(acceptedId ? 'Approved' : (bestId ? 'Ready to approve' : 'Run Match & Refine first')) + '</b></div>'
+      '<div><span>Status</span><b>' + esc(acceptedId === bestId && bestId ? 'Approved' : (bestId ? 'Ready to approve' : 'Run Match & Refine first')) + '</b></div>'
     ].join('');
-    button.disabled = !state.canEdit || !bestId || Boolean(acceptedId);
-    button.textContent = acceptedId ? '✓ Approved' : '✓ Approve best match';
+    const currentApproval = Boolean(bestId && acceptedId === bestId);
+    button.disabled = !state.canEdit || !bestId || currentApproval;
+    button.textContent = currentApproval ? '✓ Approved' : '✓ Approve best match';
   }
 
   function renderWorkflow() {
@@ -1555,8 +1556,9 @@
       next.textContent = state.project.bestGenerationId ? 'Review best match →' : (state.phase5Running ? 'Comparing…' : '◎ Compare all viewports');
       next.disabled = next.disabled || state.phase5Running;
     } else if (stage === 'APPROVE') {
-      next.textContent = state.project.acceptedGenerationId ? 'Continue to Generate →' : '✓ Approve best match';
-      next.disabled = next.disabled || (!state.project.acceptedGenerationId && !state.project.bestGenerationId);
+      const currentApproval = Boolean(state.project.bestGenerationId && state.project.acceptedGenerationId === state.project.bestGenerationId);
+      next.textContent = currentApproval ? 'Continue to Generate →' : '✓ Approve best match';
+      next.disabled = next.disabled || (!currentApproval && !state.project.bestGenerationId);
     } else if (stage === 'GENERATE') {
       next.textContent = state.project.productionGenerationId ? 'Continue to Deliver →' : (state.finalizingCode ? 'Preparing code…' : '⌘ Generate production code');
       next.disabled = next.disabled || state.finalizingCode || !state.project.acceptedGenerationId;
@@ -1613,7 +1615,7 @@
       return startPhase5();
     }
     if (stage === 'APPROVE') {
-      if (state.project.acceptedGenerationId) return setWorkflowStage('GENERATE');
+      if (state.project.bestGenerationId && state.project.acceptedGenerationId === state.project.bestGenerationId) return setWorkflowStage('GENERATE');
       return acceptPhase5Best();
     }
     if (stage === 'GENERATE') {
