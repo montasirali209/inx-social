@@ -107,10 +107,22 @@ test('Manual approval immediately sends eligible email prospects and persists de
   assert.match(update,/await emailService\.sendAuthorityOutreach/);
   assert.match(update,/x\.status='SENT'/);
   assert.match(update,/recipient:x\.contact\.value/);
+  assert.match(update,/provider:'RESEND'/);
+  assert.match(update,/providerId:providerResult\?\.messageId\|\|null/);
+  assert.match(update,/status:'ACCEPTED'/);
   assert.match(update,/sentAt/);
   assert.match(update,/x\.status='APPROVED'/);
   assert.match(update,/Approved outreach send failed/);
   assert.match(update,/nextFollowUpAt=null/);
+});
+
+test('Authority UI distinguishes Resend API acceptance from a mailbox Sent folder',()=>{
+  const service=read('src/services/growthAuthorityService.js');
+  const js=read('public/admin.js');
+  assert.match(service,/accepted immediately by Resend for delivery/);
+  assert.match(service,/do not appear in the mailbox Sent folder/);
+  assert.match(js,/API delivery does not create a copy in your mailbox Sent folder/);
+  assert.match(js,/Outreach accepted by Resend/);
 });
 
 

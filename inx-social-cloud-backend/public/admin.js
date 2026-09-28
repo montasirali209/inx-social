@@ -857,7 +857,8 @@ function renderGrowthAuthority(data){
       status!=='DISMISSED'&&!['LINK_ACQUIRED','MENTION_ACQUIRED','AI_CITED'].includes(status)?'<button class="secondary" type="button" data-growth-authority-id="'+esc(item.id)+'" data-growth-authority-action="dismiss">Dismiss</button>':''
     ].filter(Boolean).join('');
     const aiReview=item.aiReview?.decision?'<small>Sol review: '+esc(item.aiReview.decision)+' · '+esc(item.aiReview.reason||'')+'</small>':'';
-    return '<article class="growth-authority-row"><div class="growth-authority-score"><b>'+Number(item.score||0)+'</b><span>fit</span></div><div class="growth-authority-copy"><div class="growth-authority-tags"><span>'+esc(growthAuthorityTypeLabel(item.type))+'</span><em>'+esc(status.replaceAll('_',' '))+'</em></div><a href="'+esc(item.url)+'" target="_blank" rel="noopener">'+esc(item.title||item.domain||'Authority opportunity')+' ↗</a><p>'+esc(item.reason||'')+'</p>'+aiReview+'<details><summary>Prepared '+(isCommunity?'reply':'outreach')+'</summary><div>'+esc(draft)+'</div></details></div><div class="growth-authority-row-actions">'+actions+'</div></article>';
+    const delivery=item.delivery?.provider?'<small>Delivery: accepted by '+esc(item.delivery.provider)+' '+esc(relative(item.delivery.sentAt))+(item.delivery.providerId?' · reference '+esc(item.delivery.providerId):'')+'. API delivery does not create a copy in your mailbox Sent folder.</small>':'';
+    return '<article class="growth-authority-row"><div class="growth-authority-score"><b>'+Number(item.score||0)+'</b><span>fit</span></div><div class="growth-authority-copy"><div class="growth-authority-tags"><span>'+esc(growthAuthorityTypeLabel(item.type))+'</span><em>'+esc(status.replaceAll('_',' '))+'</em></div><a href="'+esc(item.url)+'" target="_blank" rel="noopener">'+esc(item.title||item.domain||'Authority opportunity')+' ↗</a><p>'+esc(item.reason||'')+'</p>'+aiReview+delivery+'<details><summary>Prepared '+(isCommunity?'reply':'outreach')+'</summary><div>'+esc(draft)+'</div></details></div><div class="growth-authority-row-actions">'+actions+'</div></article>';
   }).join(''):'<div class="growth-empty">No qualified authority prospects yet. The six-hour autopilot will keep looking.</div>';
 }
 async function runGrowthAuthorityNow(){
@@ -876,7 +877,12 @@ async function growthAuthorityProspectAction(id,action){
     if(action==='posted') body.note='Community reply posted after manual rule check.';
     const data=await api('/api/admin/growth-authority/prospects/'+encodeURIComponent(id)+'/action',{method:'POST',body:JSON.stringify(body)});
     renderGrowthAuthority(data);
-    if(action==='approve') toast('Authority opportunity approved. Eligible email outreach will execute automatically on the scheduled cycle.');
+    if(action==='approve'){
+      const updated=(data.prospects||[]).find(item=>item.id===id);
+      if(updated?.status==='SENT') toast('Outreach accepted by Resend. API delivery does not create a mailbox Sent-folder copy.');
+      else if(updated?.outcomeNote) toast(updated.outcomeNote);
+      else toast('Authority opportunity approved.');
+    }
     else toast('Authority opportunity updated');
   }catch(error){toast(error.message)}
 }
