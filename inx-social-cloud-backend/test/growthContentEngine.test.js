@@ -67,6 +67,19 @@ test('editorial conversion skill accepts only a relevant verified page and real 
   assert.equal(approvedEditorialPromo({ ...promo, enabled: false }, markdown, links), null);
 });
 
+test('self-hosted articles keep a contextual INXSocial conversion card as a safe fallback', () => {
+  const service = read('src/services/growthContentService.js');
+  const page = read('../landing-next/app/blog/[slug]/page.tsx');
+
+  assert.match(service, /function fallbackEditorialPromo/);
+  assert.match(service, /Put this into practice with INXSocial/);
+  assert.match(service, /approvedEditorialPromo\(article\.editorial_promo/);
+  assert.match(service, /fallbackEditorialPromo\(article, mergedInternalLinks\)/);
+  assert.match(service, /article\.content_source === 'BABYLOVEGROWTH_IMPORTED'/);
+  assert.match(page, /inx-blog-inline-promo/);
+  assert.match(page, /Suggested next step/);
+});
+
 test('Content Engine can revise the same draft from senior-editor feedback', () => {
   const service = read('src/services/growthContentService.js');
   const skills = read('src/services/growthSeoSkillRegistry.js');
@@ -91,14 +104,16 @@ test('Published blog reads self-hosted content and renders evidence sections', (
   assert.match(sitemap, /getSitemapEntries/);
 });
 
-test('Generated Content Engine images use generated-media storage and a crawlable public route', () => {
+test('Generated Content Engine images use generated-media storage and one canonical public version route', () => {
   const storage = read('src/services/mediaObjectStorageService.js');
   const service = read('src/services/growthContentService.js');
   const app = read('src/app.js');
 
   assert.match(storage, /'growth-content'/);
   assert.match(service, /featured_image_url: '\/content-media\//);
+  assert.match(service, /return '\/content-media\/' \+ encodeURIComponent\(id\) \+ '\/' \+ version/);
   assert.match(app, /app\.get\('\/content-media\/:id'/);
+  assert.doesNotMatch(service, /return clean \+ '\/'/);
   assert.doesNotMatch(service, /featured_image_url: '\/api\/growth-content\/media\//);
 });
 
