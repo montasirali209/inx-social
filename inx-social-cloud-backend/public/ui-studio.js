@@ -849,7 +849,7 @@
     const currentGeneration = state.project?.latestGeneration;
     const ready = Boolean(currentGeneration && ['READY','READY_WITH_WARNINGS'].includes(currentGeneration.status) && !currentGeneration.stale);
 
-    run.disabled = !state.canEdit || !ready || state.phase5Running;
+    run.disabled = !state.canEdit || !ready || !config?.rendererConfigured || state.phase5Running;
     accept.disabled = !state.canEdit || !config?.bestGenerationId || config.bestGenerationId === config.acceptedGenerationId || state.phase5Running;
 
     if (!config) {
@@ -861,11 +861,17 @@
       return;
     }
 
-    status.textContent = state.phase5Running ? 'Converging…' : (config.acceptedGenerationId ? 'Accepted' : config.bestGenerationId ? 'Best candidate ready' : 'Ready');
+    status.textContent = !config.rendererConfigured
+      ? 'Renderer offline'
+      : state.phase5Running
+        ? 'Converging…'
+        : (config.acceptedGenerationId ? 'Accepted' : config.bestGenerationId ? 'Best candidate ready' : 'Ready');
     status.className = 'status-chip ' + (config.acceptedGenerationId ? 'ui-studio-visual-ready' : state.phase5Running ? 'ui-studio-visual-running' : 'ui-studio-phase5-ready');
-    summary.textContent = state.phase5Running
-      ? 'The dedicated worker is rendering every available viewport in real Chromium. Repairs are re-tested across all viewports and regressions are rejected.'
-      : 'Target ' + config.targetScore + '% aggregate · minimum viewport ' + config.minimumViewportScore + '% · regression tolerance ' + config.regressionTolerance + ' points.';
+    summary.textContent = !config.rendererConfigured
+      ? 'The dedicated Chromium renderer is not configured. Phase 5 runs are disabled until the renderer service is healthy.'
+      : state.phase5Running
+        ? 'The dedicated worker is rendering every available viewport in real Chromium. Repairs are re-tested across all viewports and regressions are rejected.'
+        : 'Target ' + config.targetScore + '% aggregate · minimum viewport ' + config.minimumViewportScore + '% · regression tolerance ' + config.regressionTolerance + ' points.';
 
     scoreboard.innerHTML = [
       ['Best aggregate', config.bestAggregateScore != null ? config.bestAggregateScore + '%' : '—', 'Automatically retained', 'best'],
