@@ -951,7 +951,7 @@
       const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/phase5/run', {
         method: 'POST',
         body: JSON.stringify({
-          generationId: state.project.latestGeneration?.id || null,
+          generationId: state.phase5Config?.bestGenerationId || state.project.latestGeneration?.id || null,
           autoRepair: state.autoRepairEnabled
         })
       });
