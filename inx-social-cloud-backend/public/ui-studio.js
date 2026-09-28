@@ -199,14 +199,14 @@
     const projects = state.projects || [];
     $('uiStudioProjectGrid').innerHTML = projects.length
       ? projects.map(projectCard).join('')
-      : '<div class="ui-studio-empty"><b>No UI projects yet</b><p>Create the first project, then upload the original desktop, tablet or mobile UI image at full resolution.</p></div>';
+      : '<div class="ui-studio-empty"><b>No UI projects yet</b><p>Create the first project, then choose one full-resolution design image. UI Studio will analyse it and prepare responsive previews automatically.</p></div>';
 
     const referenceCount = projects.reduce((sum, item) => sum + Number(item.referenceCount || 0), 0);
     const analysed = projects.filter(item => item.latestAnalysis?.status === 'COMPLETED' && !item.latestAnalysis?.stale).length;
     $('uiStudioSummary').innerHTML = [
       ['Projects', projects.length, 'Saved reconstruction workspaces'],
       ['References', referenceCount, 'Immutable original uploads'],
-      ['Understood', analysed, 'Projects with current design analysis'],
+      ['Analysed', analysed, 'Projects with current design analysis'],
       ['Approved', projects.filter(item => Boolean(item.acceptedGenerationId)).length, 'Projects with an approved visual version']
     ].map(item => `<article><span>${esc(item[0])}</span><b>${esc(item[1])}</b><small>${esc(item[2])}</small></article>`).join('');
 
@@ -269,7 +269,7 @@
         '<div class="ui-studio-viewer-empty ui-studio-empty-artboard">' +
           '<div class="ui-studio-empty-orb"><span></span><i></i><b>✦</b></div>' +
           '<strong>Start with a reference design</strong>' +
-          '<p>Upload the ' + esc(state.viewport.toLowerCase()) + ' design you want UI Studio to understand and reconstruct.</p>' +
+          '<p>Choose the design you want UI Studio to analyse and reconstruct responsively.</p>' +
           '<label for="uiStudioFile" class="ui-studio-empty-upload">＋ Choose design image</label>' +
           '<small>PNG, JPEG, WebP or AVIF · original bytes preserved</small>' +
         '</div>';
@@ -316,14 +316,14 @@
     if (!hasReferences) {
       status.textContent = 'Needs reference';
       status.className = 'status-chip';
-      summary.textContent = 'Upload at least one desktop, tablet or mobile reference before running analysis.';
+      summary.textContent = 'Choose one design reference. Analysis starts automatically after upload.';
       result.innerHTML = '';
       return;
     }
     if (!analysis) {
       status.textContent = 'Not analysed';
       status.className = 'status-chip';
-      summary.textContent = 'Analyse the latest references to extract layout regions, components, colours, typography, spacing and responsive behaviour.';
+      summary.textContent = 'Analysis starts automatically after upload and extracts layout, components, colours, typography, spacing and responsive behaviour.';
       result.innerHTML = '';
       return;
     }
