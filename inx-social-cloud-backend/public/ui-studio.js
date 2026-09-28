@@ -501,6 +501,16 @@
     bindGeneratedFileActions();
   }
 
+  async function loadProductionGeneration() {
+    const id = state.project?.productionGenerationId;
+    if (!id) return null;
+    if (state.generationDetail?.id === id && state.generationDetail?.result) return state.generationDetail;
+    const data = await request('/api/admin/ui-studio/generations/' + encodeURIComponent(id));
+    state.generationDetail = data.generation || null;
+    state.selectedGeneratedFile = state.generationDetail?.result?.entryFile || state.generationDetail?.result?.files?.[0]?.path || null;
+    return state.generationDetail;
+  }
+
   function latestRenderForViewport() {
     const renders = state.project?.renders || [];
     return renders.find(item => item.viewport === state.viewport) || null;
@@ -1288,6 +1298,131 @@
     }
   }
 
+  function setSideTab(tab) {
+    state.sideTab = tab === 'AGENT' ? 'AGENT' : 'INSPECTOR';
+    renderAgentPanel();
+  }
+
+  function renderAgentPanel() {
+    const inspector = $('uiStudioInspectorPane');
+    const agent = $('uiStudioAgentPane');
+    if (!inspector || !agent) return;
+    const showAgent = state.sideTab === 'AGENT';
+    inspector.hidden = showAgent;
+    agent.hidden = !showAgent;
+    document.querySelectorAll('[data-ui-side-tab]').forEach(button => {
+      button.classList.toggle('active', button.dataset.uiSideTab === state.sideTab);
+    });
+
+    const status = $('uiStudioAgentStatus');
+    const host = $('uiStudioAgentMessages');
+    const actionHost = $('uiStudioAgentAction');
+    const input = $('uiStudioAgentInput');
+    const send = $('uiStudioAgentSend');
+    if (!status || !host || !actionHost || !input || !send) return;
+
+    const configured = Boolean(state.agentConfig?.configured);
+    status.textContent = !configured ? 'Unavailable' : state.agentBusy ? 'Thinking…' : 'Ready';
+    status.className = 'status-chip ' + (configured ? 'ui-studio-analysis-ready' : '');
+    input.disabled = !configured || !state.canEdit || state.agentBusy;
+    send.disabled = !configured || !state.canEdit || state.agentBusy;
+    send.textContent = state.agentBusy ? 'Thinking…' : 'Send';
+
+    const messages = state.agentMessages || [];
+    host.innerHTML = messages.length
+      ? messages.map(message => {
+          const role = message.role === 'ASSISTANT' ? 'assistant' : 'user';
+          const name = role === 'assistant' ? 'UI Studio Agent' : 'You';
+          return '<article class="ui-studio-agent-message ' + role + '"><span>' + esc(name) + '</span><p>' +
+            esc(message.content || '').replace(/\n/g,'<br>') + '</p></article>';
+        }).join('')
+      : '<div class="ui-studio-agent-empty"><b>Ask about this project</b><span>Try “What should I do next?”, “Why is the mobile match lower?”, or “Is this ready to export?”</span></div>';
+
+    const latestAssistant = [...messages].reverse().find(message => message.role === 'ASSISTANT' && message.action?.type && message.action.type !== 'NONE');
+    if (latestAssistant?.action) {
+      actionHost.hidden = false;
+      actionHost.innerHTML = '<div><span>Recommended next action</span><b>' + esc(latestAssistant.action.label || latestAssistant.action.type) +
+        '</b><small>' + esc(latestAssistant.action.reason || '') + '</small></div><button class="secondary" type="button" id="uiStudioAgentActionBtn">Run action</button>';
+      $('uiStudioAgentActionBtn')?.addEventListener('click', () => void performAgentAction(latestAssistant.action.type));
+    } else {
+      actionHost.hidden = true;
+      actionHost.innerHTML = '';
+    }
+    if (showAgent) requestAnimationFrame(() => { host.scrollTop = host.scrollHeight; });
+  }
+
+  async function loadAgentMessages() {
+    if (!state.project) return [];
+    const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/agent/messages');
+    state.agentConfig = {
+      ...(state.agentConfig || {}),
+      configured: Boolean(data.configured),
+      version: data.version || state.agentConfig?.version
+    };
+    state.agentMessages = data.messages || [];
+    renderAgentPanel();
+    return state.agentMessages;
+  }
+
+  async function askAgent(event) {
+    event?.preventDefault();
+    if (!state.project || !state.canEdit || state.agentBusy || !state.agentConfig?.configured) return;
+    const input = $('uiStudioAgentInput');
+    const message = String(input?.value || '').trim();
+    if (!message) return;
+    state.agentBusy = true;
+    renderAgentPanel();
+    try {
+      const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/agent/messages', {
+        method: 'POST',
+        body: JSON.stringify({ message })
+      });
+      if (input) input.value = '';
+      if (data.user) state.agentMessages.push(data.user);
+      if (data.assistant) state.agentMessages.push(data.assistant);
+    } catch (error) {
+      notify(error.message);
+    } finally {
+      state.agentBusy = false;
+      renderAgentPanel();
+    }
+  }
+
+  async function performAgentAction(type) {
+    if (!state.project || !state.canEdit) return;
+    if (type === 'UPLOAD_REFERENCE') {
+      setWorkflowStage('DESIGN', { force: true });
+      $('uiStudioFile')?.click();
+      return;
+    }
+    if (type === 'ANALYSE') {
+      setWorkflowStage('UNDERSTAND', { force: true });
+      return analyseProject();
+    }
+    if (type === 'BUILD_PREVIEW') {
+      setWorkflowStage('PREVIEW', { force: true });
+      return buildPreview();
+    }
+    if (type === 'RUN_MATCH') {
+      setWorkflowStage('MATCH', { force: true });
+      return startPhase5();
+    }
+    if (type === 'APPROVE') {
+      setWorkflowStage('APPROVE', { force: true });
+      return acceptPhase5Best();
+    }
+    if (type === 'GENERATE_CODE') {
+      setWorkflowStage('GENERATE', { force: true });
+      return finalizeProductionCode();
+    }
+    if (type === 'EXPORT_BUNDLE') {
+      setWorkflowStage('DELIVER', { force: true });
+      if ($('uiStudioPhase6Mode')) $('uiStudioPhase6Mode').value = 'EXPORT_ONLY';
+      renderPhase6Panel();
+      return createPhase6Delivery();
+    }
+  }
+
   function analysisIsCurrent() {
     const analysis = state.project?.latestAnalysis;
     return Boolean(analysis && analysis.status === 'COMPLETED' && !analysis.stale && analysis.result);
@@ -1577,6 +1712,7 @@
     state.visualRender = (data.project.renders || []).find(item => item.viewport === state.viewport) || data.project.latestRender || null;
     renderWorkspace();
     await loadLatestGeneration().catch(error => notify(error.message));
+    if (state.project?.productionGenerationId) await loadProductionGeneration().catch(error => notify(error.message));
     await loadPhase5().catch(error => notify(error.message));
     await loadPhase6().catch(error => notify(error.message));
     await loadAgentMessages().catch(() => {});
@@ -1605,6 +1741,7 @@
     if (!state.visualRunning) {
       state.visualRender = (state.project.renders || []).find(item => item.viewport === state.viewport) || state.project.latestRender || state.visualRender;
     }
+    if (state.project?.productionGenerationId) await loadProductionGeneration().catch(() => {});
     renderWorkspace();
     if (state.project) await loadPhase6().catch(() => {});
   }
