@@ -47,8 +47,8 @@ function projectStage(project) {
   if (!analysis || analysis.status !== 'COMPLETED') return 'UNDERSTAND';
   if (!generation || !['READY','READY_WITH_WARNINGS'].includes(generation.status)) return 'PREVIEW';
   if (!project.bestGenerationId) return 'MATCH';
-  if (!project.acceptedGenerationId) return 'APPROVE';
-  if (!project.productionGenerationId || !project.productionGeneratedAt) return 'GENERATE';
+  if (!project.acceptedGenerationId || project.acceptedGenerationId !== project.bestGenerationId) return 'APPROVE';
+  if (!project.productionGenerationId || project.productionGenerationId !== project.acceptedGenerationId || !project.productionGeneratedAt) return 'GENERATE';
   return 'DELIVER';
 }
 
