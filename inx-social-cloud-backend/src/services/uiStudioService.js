@@ -7,6 +7,7 @@ const prisma = require('../db/prisma');
 const objectStorage = require('./mediaObjectStorageService');
 const uiStudioAnalysis = require('./uiStudioAnalysisService');
 const uiStudioCodegen = require('./uiStudioCodegenService');
+const uiStudioVisual = require('./uiStudioVisualService');
 
 const STORAGE_PREFIX = 'ui-studio';
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
@@ -72,6 +73,7 @@ function serializeProject(project, { fullAnalysis = false, fullGeneration = fals
   const currentFingerprint = uiStudioAnalysis.fingerprintReferences(project.references || []);
   const latestAnalysisRow = (project.analyses || [])[0] || null;
   const latestGenerationRow = (project.generations || [])[0] || null;
+  const latestRenderRow = (project.renders || [])[0] || null;
   return {
     id: project.id,
     name: project.name,
@@ -85,6 +87,8 @@ function serializeProject(project, { fullAnalysis = false, fullGeneration = fals
     referenceCount: Number(project._count?.references ?? references.length),
     analysisCount: Number(project._count?.analyses ?? (project.analyses || []).length),
     generationCount: Number(project._count?.generations ?? (project.generations || []).length),
+    renderCount: Number(project._count?.renders ?? (project.renders || []).length),
+    repairCount: Number(project._count?.repairAttempts ?? (project.repairAttempts || []).length),
     latestReferences,
     latestAnalysis: uiStudioAnalysis.serializeAnalysis(latestAnalysisRow, {
       full: fullAnalysis,
@@ -94,7 +98,8 @@ function serializeProject(project, { fullAnalysis = false, fullGeneration = fals
       full: fullGeneration,
       currentFingerprint,
       currentAnalysisId: latestAnalysisRow?.id || null
-    })
+    }),
+    latestRender: uiStudioVisual.serializeRender(latestRenderRow, { full: false })
   };
 }
 
@@ -141,7 +146,8 @@ async function listProjects() {
       references: { orderBy: { createdAt: 'desc' }, take: 12 },
       analyses: { orderBy: { createdAt: 'desc' }, take: 1 },
       generations: { orderBy: { createdAt: 'desc' }, take: 1 },
-      _count: { select: { references: true, analyses: true, generations: true } }
+      renders: { orderBy: { createdAt: 'desc' }, take: 1 },
+      _count: { select: { references: true, analyses: true, generations: true, renders: true, repairAttempts: true } }
     }
   });
   return projects.map(serializeProject);
@@ -165,7 +171,9 @@ async function createProject(input = {}) {
       references: true,
       analyses: true,
       generations: true,
-      _count: { select: { references: true, analyses: true, generations: true } }
+      renders: true,
+      repairAttempts: true,
+      _count: { select: { references: true, analyses: true, generations: true, renders: true, repairAttempts: true } }
     }
   });
   return serializeProject(project);
@@ -179,7 +187,9 @@ async function projectDetail(projectId) {
       references: { orderBy: { createdAt: 'desc' }, take: 100 },
       analyses: { orderBy: { createdAt: 'desc' }, take: 12 },
       generations: { orderBy: { createdAt: 'desc' }, take: 12 },
-      _count: { select: { references: true, analyses: true, generations: true } }
+      renders: { orderBy: { createdAt: 'desc' }, take: 20 },
+      repairAttempts: { orderBy: { createdAt: 'desc' }, take: 20 },
+      _count: { select: { references: true, analyses: true, generations: true, renders: true, repairAttempts: true } }
     }
   });
   if (!project) throw publicError('UI Studio project was not found.', 404, 'UI_STUDIO_PROJECT_NOT_FOUND');
@@ -195,6 +205,19 @@ async function projectDetail(projectId) {
       full: false,
       currentFingerprint,
       currentAnalysisId: project.analyses?.[0]?.id || null
+    })),
+    renders: (project.renders || []).map(render => uiStudioVisual.serializeRender(render, { full: false })),
+    repairs: (project.repairAttempts || []).map(attempt => ({
+      id: attempt.id,
+      renderId: attempt.renderId,
+      inputGenerationId: attempt.inputGenerationId,
+      outputGenerationId: attempt.outputGenerationId,
+      attemptNumber: attempt.attemptNumber,
+      status: attempt.status,
+      scoreBefore: attempt.scoreBefore,
+      scoreAfter: attempt.scoreAfter,
+      createdAt: attempt.createdAt,
+      completedAt: attempt.completedAt
     }))
   };
 }

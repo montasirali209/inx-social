@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/admin.css?v=20">
   <link rel="stylesheet" href="/admin-security.css?v=2">
   <link rel="stylesheet" href="/admin-light.css?v=2">
-  <link rel="stylesheet" href="/ui-studio.css?v=3">
+  <link rel="stylesheet" href="/ui-studio.css?v=4">
 </head>
 <body>
 <section class="login-shell" id="loginView">
@@ -722,10 +722,10 @@
 
       <div class="ui-studio-intro">
         <div>
-          <b>Reference → analysis → responsive code</b>
-          <span>Originals remain immutable in R2. Phase 3 uses the current Phase 2 analysis plus the visual references to generate a reusable responsive implementation without altering your live site.</span>
+          <b>Reference → analysis → code → visual match</b>
+          <span>Originals remain immutable in R2. Phase 4 renders generated code in a sandbox, compares it against the source pixels and can repair the code without altering your live site.</span>
         </div>
-        <small>Phase 1–3 · capture + analyse + generate</small>
+        <small>Phase 1–4 · capture + analyse + generate + compare</small>
       </div>
 
       <div class="ui-studio-summary" id="uiStudioSummary">
@@ -797,6 +797,24 @@
               </div>
             </div>
             <div id="uiStudioCodegenOutput" class="ui-studio-codegen-output"></div>
+          </section>
+
+          <section class="ui-studio-visual-panel">
+            <div class="ui-studio-visual-head">
+              <div>
+                <span class="kicker">Phase 4</span>
+                <h3>Visual match + repair</h3>
+                <p class="muted" id="uiStudioVisualSummary">Render the current Phase 3 code in an isolated browser frame, compare it with the selected source reference and repair measurable mismatches.</p>
+              </div>
+              <div class="ui-studio-visual-actions">
+                <span class="status-chip" id="uiStudioVisualStatus">Waiting</span>
+                <label class="ui-studio-auto-repair"><input id="uiStudioAutoRepair" type="checkbox" checked><span>Auto repair</span></label>
+                <button class="primary" id="uiStudioRenderBtn" type="button">◫ Render + compare</button>
+              </div>
+            </div>
+            <div id="uiStudioVisualOutput" class="ui-studio-visual-output">
+              <div class="ui-studio-codegen-empty"><b>No visual comparison yet</b><small>Phase 4 never deploys generated code. It renders inside a sandbox and stores screenshots/diffs separately.</small></div>
+            </div>
           </section>
         </section>
 
@@ -977,7 +995,7 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/ui-studio.js?v=3" defer></script>
+<script src="/ui-studio.js?v=4" defer></script>
 <script src="/admin.js?v=24" defer></script>
 </body>
 </html>
