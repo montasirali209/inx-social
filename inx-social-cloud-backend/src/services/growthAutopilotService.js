@@ -1424,6 +1424,7 @@ async function runCycle(options = {}) {
           'warning'
         );
       }
+    }
 
     await recordEvent(
       'CYCLE_COMPLETED',
