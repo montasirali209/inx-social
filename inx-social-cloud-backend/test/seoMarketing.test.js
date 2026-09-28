@@ -32,7 +32,7 @@ test('homepage exposes complete canonical SEO metadata', () => {
   assert.match(landing, /og:image:height" content="630"/);
   assert.match(landing, /og:image\" content=\"https:\/\/www\.inxsocial\.co\.uk\/api\/website-media\/landing\.social\.preview\/content"/);
   assert.match(landing, /twitter:image\" content=\"https:\/\/www\.inxsocial\.co\.uk\/api\/website-media\/landing\.social\.preview\/content"/);
-  assert.match(landing, /rel="preload" as="image" href="\/assets\/landing-dashboard-20260919\.webp"/);
+  assert.match(landing, /rel="preload" as="image" href="\/api\/website-media\/landing\.hero\.dashboard\/content"/);
   assert.match(landing, /"SoftwareApplication"/);
   assert.doesNotMatch(landing, /"url":"https:\/\/www\.inxsocial\.co\.uk\/#pricing"/);
 });
