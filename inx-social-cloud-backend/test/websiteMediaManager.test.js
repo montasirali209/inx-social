@@ -143,7 +143,7 @@ test('Website Media editor preserves original uploads and warns about undersized
   const js = read('public/admin.js');
 
   assert.match(html, /original file is preserved/i);
-  assert.match(html, /PNG, JPEG, WebP or AVIF/);
+  assert.match(html, /Images up to 25 MB · MP4\/WebM video up to 120 MB/);
   assert.match(js, /maxUploadBytes/);
   assert.match(js, /120\*1024\*1024/);
   assert.match(js, /recommendedMinWidth/);
