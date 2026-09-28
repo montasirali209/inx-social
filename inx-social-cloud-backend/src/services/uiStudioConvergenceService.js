@@ -657,13 +657,12 @@ async function renderWithChromium(html, width, height) {
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     });
     await new Promise(resolve => setTimeout(resolve, 180));
-    const data = await page.screenshot({
+    return await page.screenshot({
       type: 'png',
       fullPage: false,
       captureBeyondViewport: false,
       clip: { x: 0, y: 0, width: context.width, height: context.height }
     });
-    return { data, type: 'image/png' };
   };`;
   let response;
   try {
