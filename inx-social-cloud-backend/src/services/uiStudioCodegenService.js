@@ -541,6 +541,217 @@ async function generateProject(projectId, createdByUserId = null) {
   }
 }
 
+
+const CANVAS_STYLE_KEYS = Object.freeze([
+  'color','backgroundColor','fontSize','fontWeight','lineHeight','borderRadius','padding','textAlign'
+]);
+
+function normalizeCanvasEdits(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 60).map(item => {
+    const styles = {};
+    for (const key of CANVAS_STYLE_KEYS) {
+      if (item?.styles && Object.prototype.hasOwnProperty.call(item.styles, key)) {
+        styles[key] = String(item.styles[key] == null ? '' : item.styles[key]).slice(0, 160);
+      }
+    }
+    return {
+      viewport: ['DESKTOP','TABLET','MOBILE'].includes(String(item?.viewport || '').toUpperCase())
+        ? String(item.viewport).toUpperCase()
+        : 'DESKTOP',
+      styleScope: String(item?.styleScope || '').toUpperCase() === 'ALL' ? 'ALL' : 'VIEWPORT',
+      nodePath: String(item?.nodePath || item?.nodeId || '').slice(0, 900),
+      tagName: String(item?.tagName || '').slice(0, 40),
+      role: String(item?.role || '').slice(0, 80),
+      className: String(item?.className || '').slice(0, 700),
+      beforeText: String(item?.beforeText || '').slice(0, 1600),
+      text: Object.prototype.hasOwnProperty.call(item || {}, 'text') ? String(item.text == null ? '' : item.text).slice(0, 2200) : null,
+      href: Object.prototype.hasOwnProperty.call(item || {}, 'href') ? String(item.href == null ? '' : item.href).slice(0, 900) : null,
+      styles,
+      beforeStyles: Object.fromEntries(
+        CANVAS_STYLE_KEYS
+          .filter(key => item?.beforeStyles && Object.prototype.hasOwnProperty.call(item.beforeStyles, key))
+          .map(key => [key, String(item.beforeStyles[key] == null ? '' : item.beforeStyles[key]).slice(0, 160)])
+      )
+    };
+  }).filter(item =>
+    item.nodePath &&
+    (
+      item.text !== null ||
+      item.href !== null ||
+      Object.keys(item.styles).length
+    )
+  );
+}
+
+async function applyCanvasEdits(projectId, payload = {}, createdByUserId = null) {
+  const id = String(projectId || '').trim();
+  const generationId = String(payload.generationId || '').trim();
+  const edits = normalizeCanvasEdits(payload.edits);
+  if (!generationId) throw error('Choose a responsive preview generation before applying canvas edits.', 422, 'UI_STUDIO_CANVAS_GENERATION_REQUIRED');
+  if (!edits.length) throw error('There are no canvas edits to apply.', 422, 'UI_STUDIO_CANVAS_EDITS_EMPTY');
+  if (!ready()) throw error('UI Studio code generation is not configured.', 503, 'UI_STUDIO_CODEGEN_NOT_CONFIGURED');
+
+  const [project, inputGeneration] = await Promise.all([
+    prisma.uiDesignProject.findUnique({
+      where: { id },
+      include: {
+        references: { orderBy: { createdAt: 'desc' }, take: 100 },
+        analyses: { orderBy: { createdAt: 'desc' }, take: 20 }
+      }
+    }),
+    prisma.uiDesignGeneration.findFirst({ where: { id: generationId, projectId: id } })
+  ]);
+  if (!project) throw error('UI Studio project was not found.', 404, 'UI_STUDIO_PROJECT_NOT_FOUND');
+  if (!inputGeneration) throw error('The responsive preview generation was not found.', 404, 'UI_STUDIO_CANVAS_GENERATION_NOT_FOUND');
+  if (!['READY','READY_WITH_WARNINGS'].includes(inputGeneration.status)) {
+    throw error('Wait for the responsive preview to finish before applying canvas edits.', 409, 'UI_STUDIO_CANVAS_GENERATION_NOT_READY');
+  }
+
+  const references = uiStudioAnalysis.latestReferences(project.references || []);
+  const fingerprint = uiStudioAnalysis.fingerprintReferences(references);
+  const analysis = project.analyses.find(item =>
+    item.status === 'COMPLETED' &&
+    item.sourceFingerprint === fingerprint &&
+    item.analysisJson
+  );
+  if (!analysis) throw error('The current design analysis is unavailable.', 422, 'UI_STUDIO_CANVAS_ANALYSIS_REQUIRED');
+  if (inputGeneration.sourceFingerprint !== fingerprint || inputGeneration.sourceAnalysisId !== analysis.id) {
+    throw error('The responsive preview changed. Reload UI Studio before applying these edits.', 409, 'UI_STUDIO_CANVAS_GENERATION_STALE');
+  }
+
+  const currentResult = safeParse(inputGeneration.generationJson, null);
+  if (!currentResult) throw error('The current responsive preview source is unavailable.', 422, 'UI_STUDIO_CANVAS_SOURCE_MISSING');
+
+  const payloadForModel = {
+    model: env.uiStudioCodegen.model,
+    instructions: [
+      'You are INXSocial UI Studio Canvas Editor.',
+      'Modify the EXISTING generated UI code only as requested by the user edits below.',
+      'This is a surgical edit pass, not a redesign or a fresh reconstruction.',
+      'Preserve every layout, component, asset slot, interaction, breakpoint and piece of copy that is not explicitly changed.',
+      'For text or href edits, apply the requested value consistently wherever that selected UI element is represented.',
+      'For styleScope ALL, apply the style change across responsive sizes.',
+      'For styleScope VIEWPORT, implement the style only at the named DESKTOP, TABLET or MOBILE responsive range using the project existing breakpoint strategy where possible.',
+      'nodePath, tagName, role, className, beforeText and beforeStyles describe the browser element the user selected. Use them to locate the corresponding source code; do not emit those editor-only attributes into production unless already present.',
+      'Do not add packages, remote scripts, network calls, iframes, tracking, secrets or unrelated functionality.',
+      'Return the complete generation bundle, not a patch. Keep framework, styling and output type unchanged.',
+      'Return only JSON matching the supplied schema.'
+    ].join(' '),
+    input: [{
+      role: 'user',
+      content: [{
+        type: 'input_text',
+        text: [
+          'PROJECT TARGET',
+          JSON.stringify({
+            name: project.name,
+            framework: project.framework,
+            styling: project.styling,
+            outputType: project.outputType
+          }),
+          '',
+          'CURRENT GENERATION',
+          JSON.stringify(currentResult),
+          '',
+          'CANVAS EDITS',
+          JSON.stringify(edits)
+        ].join('\n')
+      }]
+    }],
+    text: {
+      format: {
+        type: 'json_schema',
+        name: 'inx_ui_canvas_edited_code',
+        strict: true,
+        schema: generationSchema()
+      }
+    },
+    max_output_tokens: 28000
+  };
+  if (/^gpt-5(?:\.|-)/i.test(String(payloadForModel.model || ''))) {
+    payloadForModel.reasoning = { effort: env.uiStudioCodegen.reasoningEffort || 'high' };
+  }
+
+  let response;
+  try {
+    response = await axios.post(env.uiStudioCodegen.baseUrl + '/responses', payloadForModel, {
+      timeout: env.uiStudioCodegen.timeoutMs,
+      maxBodyLength: 45 * 1024 * 1024,
+      maxContentLength: 45 * 1024 * 1024,
+      headers: {
+        Authorization: 'Bearer ' + env.uiStudioCodegen.apiKey,
+        'Content-Type': 'application/json'
+      }
+    });
+  } catch (caught) {
+    const status = Number(caught?.response?.status || 0);
+    console.error('[ui-studio] canvas edit provider failed', {
+      status,
+      detail: String(caught?.response?.data?.error?.message || caught.message || '').slice(0, 500)
+    });
+    throw error(
+      'The canvas edit model did not complete the requested changes.',
+      status >= 400 && status < 500 ? 502 : 504,
+      'UI_STUDIO_CANVAS_PROVIDER_FAILED'
+    );
+  }
+
+  const parsed = parseJsonObject(webResearch.extractResponseText(response.data));
+  if (!parsed) throw error('The canvas edit model returned an incomplete code bundle.', 502, 'UI_STUDIO_CANVAS_PARSE_FAILED');
+
+  const edited = normalizeGeneration(parsed, project);
+  previewBuild.validateGeneratedSources(edited);
+  const validation = await validateGenerationBuild(edited, project);
+  if (!validation.compileVerified) {
+    throw error('The edited UI did not compile, so the previous preview was kept.', 502, 'UI_STUDIO_CANVAS_COMPILE_FAILED');
+  }
+
+  const status = validation.ok ? 'READY' : 'READY_WITH_WARNINGS';
+  const output = await prisma.uiDesignGeneration.create({
+    data: {
+      projectId: id,
+      sourceAnalysisId: analysis.id,
+      status,
+      version: GENERATION_VERSION,
+      model: env.uiStudioCodegen.model,
+      framework: project.framework,
+      styling: project.styling,
+      outputType: project.outputType,
+      sourceFingerprint: fingerprint,
+      generationJson: JSON.stringify(edited),
+      validationJson: JSON.stringify(validation),
+      parentGenerationId: inputGeneration.id,
+      repairDepth: inputGeneration.repairDepth || 0,
+      qualityStatus: 'MANUAL_CANVAS_EDIT',
+      createdByUserId: createdByUserId ? String(createdByUserId) : null,
+      completedAt: new Date()
+    }
+  });
+
+  await prisma.uiDesignProject.update({
+    where: { id },
+    data: {
+      status: 'CANVAS_EDITED',
+      bestGenerationId: null,
+      acceptedGenerationId: null,
+      productionGenerationId: null,
+      bestAggregateScore: null,
+      acceptedAt: null,
+      productionGeneratedAt: null
+    }
+  });
+
+  return {
+    generation: serializeGeneration(output, {
+      full: true,
+      currentFingerprint: fingerprint,
+      currentAnalysisId: analysis.id
+    }),
+    editCount: edits.length
+  };
+}
+
 async function generationDetail(generationId) {
   const row = await prisma.uiDesignGeneration.findUnique({
     where: { id: String(generationId || '').trim() },
@@ -571,5 +782,7 @@ module.exports = {
   validateGenerationBuild,
   serializeGeneration,
   generateProject,
+  normalizeCanvasEdits,
+  applyCanvasEdits,
   generationDetail
 };

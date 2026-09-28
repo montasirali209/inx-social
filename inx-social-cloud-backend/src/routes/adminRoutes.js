@@ -48,6 +48,7 @@ router.post('/ui-studio/projects', requireSuperAdmin, uiStudio.create);
 router.get('/ui-studio/projects/:projectId', uiStudio.detail);
 router.post('/ui-studio/projects/:projectId/analyse', requireSuperAdmin, uiStudio.analyse);
 router.post('/ui-studio/projects/:projectId/generate', requireSuperAdmin, uiStudio.generate);
+router.post('/ui-studio/projects/:projectId/canvas-edits', requireSuperAdmin, uiStudio.applyCanvasEdits);
 router.post('/ui-studio/projects/:projectId/production-code', requireSuperAdmin, uiStudio.finalizeProductionCode);
 router.get('/ui-studio/projects/:projectId/agent/messages', uiStudio.agentMessages);
 router.post('/ui-studio/projects/:projectId/agent/messages', requireSuperAdmin, uiStudio.askAgent);
