@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Script from "next/script";
 import MotionLayer from "@/components/MotionLayer";
+import UgcAdStudioPortal from "@/components/UgcAdStudioPortal";
 import { countLabel, getVideoModelShowcase, homepageModelShowcaseMarkup } from "@/lib/video-model-showcase";
 
 export const revalidate = 300;
@@ -11,13 +12,18 @@ export default async function HomePage() {
   const showcase = await getVideoModelShowcase(8);
   const landingMarkup = sourceMarkup
     .replaceAll("{{VIDEO_MODEL_COUNT_LABEL}}", countLabel(showcase.generationReady))
-    .replace("<!--VIDEO_MODEL_SHOWCASE-->", homepageModelShowcaseMarkup(showcase));
+    .replace("<!--VIDEO_MODEL_SHOWCASE-->", homepageModelShowcaseMarkup(showcase))
+    .replace(
+      '<section class="pricing-section" id="pricing">',
+      '<div id="ugc-ad-studio-showcase-root" aria-label="INXSocial UGC Ad Studio showcase"></div><section class="pricing-section" id="pricing">'
+    );
   const schema = fs.readFileSync(path.join(process.cwd(), "public", "schema.json"), "utf8");
 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: schema }} />
       <div id="production-landing-parity" dangerouslySetInnerHTML={{ __html: landingMarkup }} />
+      <UgcAdStudioPortal />
       <MotionLayer />
       <Script src="/landing.js" strategy="afterInteractive" />
     </>
