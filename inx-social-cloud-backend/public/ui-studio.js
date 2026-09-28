@@ -877,7 +877,7 @@
     if (!config) {
       status.textContent = 'Loading';
       status.className = 'status-chip';
-      summary.textContent = 'Loading Phase 5 convergence state…';
+      summary.textContent = 'Loading visual comparison state…';
       scoreboard.innerHTML = '';
       batchHost.innerHTML = '';
       return;
@@ -886,13 +886,13 @@
     status.textContent = !config.rendererConfigured
       ? 'Renderer offline'
       : state.phase5Running
-        ? 'Converging…'
+        ? 'Improving match…'
         : (config.acceptedGenerationId ? 'Accepted' : config.bestGenerationId ? 'Best candidate ready' : 'Ready');
     status.className = 'status-chip ' + (config.acceptedGenerationId ? 'ui-studio-visual-ready' : state.phase5Running ? 'ui-studio-visual-running' : 'ui-studio-phase5-ready');
     summary.textContent = !config.rendererConfigured
-      ? 'The dedicated Chromium renderer is not configured. Phase 5 runs are disabled until the renderer service is healthy.'
+      ? 'The dedicated Chromium renderer is unavailable. Visual comparison is disabled until the renderer service is healthy.'
       : state.phase5Running
-        ? 'The dedicated worker is rendering every available viewport in real Chromium. Repairs are re-tested across all viewports and regressions are rejected.'
+        ? 'The dedicated worker is comparing every available viewport in real Chromium. Improvements are re-tested across all viewports and regressions are rejected.'
         : 'Target ' + config.targetScore + '% aggregate · minimum viewport ' + config.minimumViewportScore + '% · regression tolerance ' + config.regressionTolerance + ' points.';
 
     scoreboard.innerHTML = [
@@ -908,13 +908,13 @@
       const completed = (batch.renders || []).filter(item => item.status === 'COMPLETED').length;
       const total = (batch.renders || []).length;
       if (batch.status === 'RUNNING' || batch.status === 'QUEUED') {
-        batchHost.innerHTML = `<div class="ui-studio-phase5-progress"><div><b>Chromium convergence batch</b><small>${esc(completed + '/' + total)} viewport renders complete</small></div><span></span></div>
+        batchHost.innerHTML = `<div class="ui-studio-phase5-progress"><div><b>Visual comparison run</b><small>${esc(completed + '/' + total)} viewport renders complete</small></div><span></span></div>
           <div class="ui-studio-phase5-viewport-grid" style="margin-top:10px">${(batch.renders || []).map(phase5ViewportCard).join('')}</div>`;
       } else {
         batchHost.innerHTML = `<div class="ui-studio-phase5-viewport-grid">${(batch.renders || []).map(phase5ViewportCard).join('')}</div>`;
       }
     } else {
-      batchHost.innerHTML = '<div class="ui-studio-phase5-empty">Run Phase 5 to test the same generated code against every available Desktop, Tablet and Mobile reference.</div>';
+      batchHost.innerHTML = '<div class="ui-studio-phase5-empty">Compare the reconstruction against every available Desktop, Tablet and Mobile reference.</div>';
     }
 
     renderPhase5Assets();
@@ -959,7 +959,7 @@
         return;
       }
       state.phase5Running = false;
-      notify(data.batch.status === 'FAILED' ? 'Phase 5 convergence stopped because a viewport render failed.' : 'Phase 5 convergence cycle completed.');
+      notify(data.batch.status === 'FAILED' ? 'Visual comparison stopped because a viewport render failed.' : 'Match & Refine completed. The best regression-safe version was retained.');
       await loadProjects().catch(() => {});
       renderWorkspace();
     } catch (error) {
@@ -1075,7 +1075,7 @@
       });
       state.project = data.project;
       state.phase5Config = data.phase5;
-      notify('Best responsive generation accepted.');
+      notify('Best visual match approved. Production code can now be generated.');
       await loadProjects().catch(() => {});
       await loadPhase6().catch(() => {});
       renderWorkspace();
