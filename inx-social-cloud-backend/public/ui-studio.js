@@ -136,7 +136,7 @@
       <div>
         <div class="ui-studio-card-kicker"><span class="kicker">UI reconstruction project</span>${projectAnalysisBadge(project)}</div>
         <h3>${esc(project.name)}</h3>
-        <p>${esc(project.framework.replaceAll('_',' '))} · ${esc(project.styling.replaceAll('_',' '))} · ${esc(project.outputType.replaceAll('_',' '))}</p>
+        <p>${esc((project.frameworkTargets || [project.framework]).map(frameworkLabel).join(' + '))} · ${esc((project.stylingTargets || [project.styling]).map(stylingLabel).join(' + '))}</p>
       </div>
       <div class="ui-studio-project-thumbs">
         ${projectThumb(latest(project,'DESKTOP'),'Desktop')}
@@ -161,8 +161,8 @@
     $('uiStudioSummary').innerHTML = [
       ['Projects', projects.length, 'Saved reconstruction workspaces'],
       ['References', referenceCount, 'Immutable original uploads'],
-      ['Analysed', analysed, 'Projects mapped by Phase 2'],
-      ['Visual match', projects.filter(item => Number(item.latestRender?.score || 0) >= Number(state.visualConfig?.targetScore || 90)).length, 'Projects meeting the Phase 4 target']
+      ['Understood', analysed, 'Projects with current design analysis'],
+      ['Approved', projects.filter(item => Boolean(item.acceptedGenerationId)).length, 'Projects with an approved visual version']
     ].map(item => `<article><span>${esc(item[0])}</span><b>${esc(item[1])}</b><small>${esc(item[2])}</small></article>`).join('');
 
     $('uiStudioPermission').textContent = state.canEdit
@@ -189,6 +189,7 @@
     state.visualConfig = data.visual || state.visualConfig;
     state.phase5Capability = data.phase5 || state.phase5Capability;
     state.phase6Capability = data.phase6 || state.phase6Capability;
+    state.agentConfig = data.agent || state.agentConfig;
     renderProjects();
     return data;
   }
