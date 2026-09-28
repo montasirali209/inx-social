@@ -51,9 +51,10 @@ test('canvas properties can edit text links and common visual styles live', () =
 
   assert.match(js, /id="uiStudioCanvasText"/);
   assert.match(js, /id="uiStudioCanvasHref"/);
+  assert.match(js, /data-ui-canvas-style/);
   for (const style of [
     'fontSize','fontWeight','color','backgroundColor','borderRadius','padding','lineHeight','textAlign'
-  ]) assert.match(js, new RegExp("data-ui-canvas-style=.?[^\n]*" + style));
+  ]) assert.match(js, new RegExp("canvasStyleField\\('" + style + "'"));
   assert.match(js, /This viewport only/);
   assert.match(js, /All responsive sizes/);
   assert.match(js, /function recordCanvasEdit/);
