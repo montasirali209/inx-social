@@ -608,12 +608,13 @@ async function structuredResponse(payload, schemaName, errorCode, client = env.w
   );
 }
 
-async function researchTopic(input) {
+async function researchTopic(input, options = {}) {
   const topic = normalizeSpace(input.topic);
   const currentPage = safeExternalUrl(input.existingPage) || safeInternalPath(input.existingPage);
   const intelligence = await siteIntelligence.latest().catch(() => null);
   const profile = intelligence?.profile || null;
   const brandName = profile?.brandName || intelligence?.site?.hostname || 'the monitored website';
+  const maxEvidenceAttempts = Math.max(1, Math.min(3, Number(options.maxEvidenceAttempts || 2)));
   const request = {
     model: env.webResearch.model,
     instructions: [
@@ -651,23 +652,61 @@ async function researchTopic(input) {
   };
   if (/^gpt-5(?:\.|-)/i.test(env.webResearch.model)) request.reasoning = { effort: 'low' };
 
-  const result = await structuredResponse(request, 'inx_content_research', 'CONTENT_RESEARCH_INVALID');
-  const raw = result.raw;
-  const parsed = result.parsed;
-  const sources = normalizeSources(
-    result.raws.flatMap(item => webResearch.extractResponseSources(item))
-  );
+  let lastFailure = 'CONTENT_RESEARCH_EMPTY';
+  for (let evidenceAttempt = 1; evidenceAttempt <= maxEvidenceAttempts; evidenceAttempt += 1) {
+    const attemptRequest = {
+      ...request,
+      instructions: request.instructions + (evidenceAttempt > 1
+        ? ' Previous evidence retrieval was insufficient. Run a new search using narrower queries and primary/official sources. Do not repeat the same weak source set.'
+        : ''),
+      input: request.input + (evidenceAttempt > 1
+        ? '\nEvidence retry ' + evidenceAttempt + ': find a different authoritative source set for the exact claims needed.'
+        : '')
+    };
 
-  if (!sources.length) throw publicError('Content research returned no verifiable web sources.', 502, 'CONTENT_RESEARCH_EMPTY');
-  const brief = bindResearchEvidence(parsed, sources);
-  if (brief.facts.length < 3) {
+    const result = await structuredResponse(attemptRequest, 'inx_content_research', 'CONTENT_RESEARCH_INVALID');
+    const sources = normalizeSources(
+      result.raws.flatMap(item => webResearch.extractResponseSources(item))
+    );
+
+    if (!sources.length) {
+      lastFailure = 'CONTENT_RESEARCH_EMPTY';
+      console.warn('[growth-content] evidence retrieval returned no verifiable sources', { topic, evidenceAttempt });
+      continue;
+    }
+
+    const brief = bindResearchEvidence(result.parsed, sources);
+    if (brief.facts.length < 3) {
+      lastFailure = 'CONTENT_RESEARCH_EVIDENCE_WEAK';
+      console.warn('[growth-content] evidence retrieval returned too few bound facts', {
+        topic,
+        evidenceAttempt,
+        sources: sources.length,
+        facts: brief.facts.length
+      });
+      continue;
+    }
+
+    return {
+      brief,
+      sources,
+      model: env.webResearch.model,
+      evidenceAttempts: evidenceAttempt
+    };
+  }
+
+  if (lastFailure === 'CONTENT_RESEARCH_EVIDENCE_WEAK') {
     throw publicError(
-      'Content research did not bind enough factual claims to verified web sources.',
+      'Content research did not bind enough factual claims to verified web sources after immediate evidence retries.',
       502,
-      'CONTENT_RESEARCH_EVIDENCE_WEAK'
+      lastFailure
     );
   }
-  return { brief, sources, model: env.webResearch.model };
+  throw publicError(
+    'Content research returned no verifiable web sources after immediate evidence retries.',
+    502,
+    lastFailure
+  );
 }
 
 async function writeArticle(input, research) {
@@ -1038,23 +1077,51 @@ async function reviseDraft(id, feedback = {}, options = {}) {
     previousArticle: article
   };
 
-  const needsFreshResearch = options.refreshResearch === true
-    || feedback.factualRisk === 'high'
-    || requiredFixes.concat(issues).some(item => /source|citation|evidence|fact|claim|current|verify/i.test(item));
+  const needsFreshResearch = options.suppressFreshResearch === true
+    ? false
+    : options.refreshResearch === true
+      || feedback.factualRisk === 'high'
+      || requiredFixes.concat(issues).some(item => /source|citation|evidence|fact|claim|current|verify/i.test(item));
 
-  const research = needsFreshResearch
-    ? await researchTopic(context)
-    : {
-        brief: article.research_brief || {},
-        sources: normalizeSources(article.sources || []),
-        model: article.generation?.researchModel || env.webResearch.model
-      };
+  const existingSources = normalizeSources(article.sources || []);
+  const existingResearch = {
+    brief: article.research_brief || {},
+    sources: existingSources,
+    model: article.generation?.researchModel || env.webResearch.model,
+    fallbackUsed: false,
+    fallbackReason: null
+  };
+
+  let research = existingResearch;
+  if (needsFreshResearch) {
+    try {
+      // A repair is latency-sensitive: make one focused evidence attempt, then
+      // preserve the verified source pack already attached to the draft.
+      research = await researchTopic(context, { maxEvidenceAttempts: 1 });
+    } catch (error) {
+      if (existingSources.length >= 3) {
+        context.notes = [
+          context.notes,
+          'Fresh evidence retrieval was temporarily unavailable. Keep claims that are supported by the existing verified sources, remove or soften any claim that cannot be supported, and do not invent replacement evidence.'
+        ].filter(Boolean).join(' ');
+        research = {
+          ...existingResearch,
+          fallbackUsed: true,
+          fallbackReason: String(error.code || error.message || 'research_unavailable').slice(0, 160)
+        };
+        console.warn('[growth-content] revision is using the existing verified source pack after fresh research failed', {
+          articleId: article.id,
+          error: String(error.code || error.message || error).slice(0, 200),
+          sourceCount: existingSources.length
+        });
+      } else {
+        throw error;
+      }
+    }
+  }
 
   if (!research.sources.length) {
-    const refreshed = await researchTopic(context);
-    research.brief = refreshed.brief;
-    research.sources = refreshed.sources;
-    research.model = refreshed.model;
+    research = await researchTopic(context, { maxEvidenceAttempts: 2 });
   }
 
   const revised = await writeArticle(context, research);
@@ -1090,6 +1157,8 @@ async function reviseDraft(id, feedback = {}, options = {}) {
       editorialVersion: 4,
       revisionNumber,
       revisedAt: nowIso(),
+      researchFallbackUsed: Boolean(research.fallbackUsed),
+      researchFallbackReason: research.fallbackReason || null,
       lastEditorSummary: normalizeSpace(feedback.summary || '').slice(0, 1200),
       lastRequiredFixes: requiredFixes
     }
