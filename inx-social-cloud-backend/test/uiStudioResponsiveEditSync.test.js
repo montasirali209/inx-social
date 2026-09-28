@@ -38,7 +38,7 @@ test('global edits replay into desktop tablet and mobile previews with local ove
   assert.match(js, /return \[\.\.\.globals, \.\.\.locals\]/);
   assert.match(js, /styleScope: scope/);
   assert.match(js, /scope === 'ALL'/);
-  assert.match(js, /scope === 'VIEWPORT'/);
+  assert.match(js, /state\.canvasEditScope === 'VIEWPORT' \? 'VIEWPORT' : 'ALL'/);
 });
 
 test('viewport-only remains available as an explicit override', () => {
