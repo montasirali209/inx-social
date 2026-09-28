@@ -148,8 +148,9 @@ async function analyse(req, res, next) {
       imageCount: result.imageCount,
       durationMs: Date.now() - startedAt
     });
-    res.status(201).json({
+    res.status(result.alreadyRunning ? 202 : 201).json({
       analysis: result.analysis,
+      alreadyRunning: Boolean(result.alreadyRunning),
       project: await uiStudio.projectDetail(req.params.projectId)
     });
   } catch (error) { next(error); }
@@ -172,8 +173,9 @@ async function generate(req, res, next) {
       imageCount: result.imageCount,
       durationMs: Date.now() - startedAt
     });
-    res.status(201).json({
+    res.status(result.alreadyRunning ? 202 : 201).json({
       generation: result.generation,
+      alreadyRunning: Boolean(result.alreadyRunning),
       project: await uiStudio.projectDetail(req.params.projectId)
     });
   } catch (error) { next(error); }
