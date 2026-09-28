@@ -657,12 +657,13 @@ async function renderWithChromium(html, width, height) {
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     });
     await new Promise(resolve => setTimeout(resolve, 180));
-    return await page.screenshot({
+    const data = await page.screenshot({
       type: 'png',
       fullPage: false,
       captureBeyondViewport: false,
       clip: { x: 0, y: 0, width: context.width, height: context.height }
     });
+    return { data, type: 'image/png' };
   };`;
   let response;
   try {
@@ -797,7 +798,7 @@ async function startRenderBatch(projectId, input = {}, createdByUserId = null) {
   if (!analysis || analysis.status !== 'COMPLETED' || analysis.sourceFingerprint !== fingerprint) {
     throw publicError('Run Phase 2 analysis on the latest references before Phase 5.', 422, 'UI_STUDIO_PHASE5_ANALYSIS_REQUIRED');
   }
-  const generationId = String(input.generationId || project.bestGenerationId || '').trim();
+  const generationId = String(input.generationId || '').trim();
   const generation = generationId
     ? project.generations.find(item => item.id === generationId)
     : project.generations[0];
@@ -832,11 +833,36 @@ async function batchDetail(projectId, batchId) {
 }
 
 async function acceptGeneration(projectId, generationId) {
+  const project = await prisma.uiDesignProject.findUnique({
+    where: { id: String(projectId || '').trim() },
+    include: {
+      references: { orderBy: { createdAt: 'desc' }, take: 100 },
+      analyses: { orderBy: { createdAt: 'desc' }, take: 1 }
+    }
+  });
+  if (!project) throw publicError('UI Studio project was not found.', 404, 'UI_STUDIO_PROJECT_NOT_FOUND');
   const generation = await prisma.uiDesignGeneration.findFirst({
-    where: { id: String(generationId || '').trim(), projectId: String(projectId || '').trim() }
+    where: { id: String(generationId || '').trim(), projectId: project.id }
   });
   if (!generation) throw publicError('Generated version was not found.', 404, 'UI_STUDIO_GENERATION_NOT_FOUND');
-  if (!Number.isFinite(Number(generation.aggregateScore))) throw publicError('Run Phase 5 across all available viewports before accepting this version.', 422, 'UI_STUDIO_ACCEPT_SCORE_REQUIRED');
+  const references = uiStudioAnalysis.latestReferences(project.references || []);
+  const fingerprint = uiStudioAnalysis.fingerprintReferences(references);
+  const analysis = project.analyses[0] || null;
+  if (!analysis || analysis.status !== 'COMPLETED' || analysis.sourceFingerprint !== fingerprint) {
+    throw publicError('The current reference analysis is stale. Re-analyse before accepting a design.', 422, 'UI_STUDIO_ACCEPT_ANALYSIS_STALE');
+  }
+  if (generation.sourceFingerprint !== fingerprint || generation.sourceAnalysisId !== analysis.id) {
+    throw publicError('This generated version is stale. Run Phase 5 on the current design first.', 422, 'UI_STUDIO_ACCEPT_GENERATION_STALE');
+  }
+  if (project.bestGenerationId !== generation.id) {
+    throw publicError('Only the current regression-safe best generation can be accepted.', 409, 'UI_STUDIO_ACCEPT_NOT_BEST');
+  }
+  if (generation.qualityStatus === 'REJECTED_REGRESSION' || generation.qualityStatus === 'RENDER_FAILED') {
+    throw publicError('A rejected or failed generation cannot be accepted.', 409, 'UI_STUDIO_ACCEPT_REJECTED');
+  }
+  if (!Number.isFinite(Number(generation.aggregateScore))) {
+    throw publicError('Run Phase 5 across all available viewports before accepting this version.', 422, 'UI_STUDIO_ACCEPT_SCORE_REQUIRED');
+  }
   await prisma.uiDesignProject.update({
     where: { id: generation.projectId },
     data: {
@@ -1210,6 +1236,10 @@ async function finalizeBatch(batchId) {
   if (!project || !generation) return null;
 
   if (rows.some(row => row.status === 'FAILED')) {
+    await prisma.uiDesignGeneration.update({
+      where: { id: generation.id },
+      data: { qualityStatus: 'RENDER_FAILED' }
+    }).catch(() => {});
     await prisma.uiDesignProject.update({ where: { id: project.id }, data: { status: 'CONVERGENCE_FAILED' } });
     return { status: 'FAILED' };
   }
