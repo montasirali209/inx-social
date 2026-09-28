@@ -54,7 +54,7 @@ test('UI Studio admin API protects writes with Super Admin role', () => {
   assert.match(routes, /limit: '50mb'/);
 });
 
-test('UI Studio has a dedicated admin portal, high-resolution viewer and upload history', () => {
+test('UI Studio has a dedicated admin portal, high-resolution viewer and automatic upload history', () => {
   const html = read('public/index.html');
   const js = read('public/ui-studio.js');
   const css = read('public/ui-studio.css');
@@ -63,7 +63,8 @@ test('UI Studio has a dedicated admin portal, high-resolution viewer and upload 
   assert.match(html, /id="uiStudioCreateDialog"/);
   assert.match(js, /window\.loadUiStudio/);
   assert.match(js, /uiStudioReferenceHistory/);
-  assert.match(js, /Uploading original/);
+  assert.match(js, /uploadReference\(\{ autoPipeline: true \}\)/);
+  assert.match(js, /One image is enough/);
   assert.match(css, /\.ui-studio-viewer/);
   assert.match(css, /\.ui-studio-project-grid/);
 });
