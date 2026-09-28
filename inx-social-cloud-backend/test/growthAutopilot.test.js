@@ -77,6 +77,16 @@ test('Autopilot runtime starts with the production backend and uses a persisted 
   assert.match(service, /released owned lease during shutdown/);
 });
 
+test('Due daily publishing is prioritized ahead of authority and optimisation work and emits auditable events', () => {
+  const service = read('src/services/growthAutopilotService.js');
+
+  assert.match(service, /if \(authorityDue && !publishDue\)/);
+  assert.match(service, /if \(optimizationDue && !publishDue\)/);
+  assert.match(service, /\[growth-autopilot:event\]/);
+  assert.match(service, /type: event\.type/);
+  assert.match(service, /metadata: event\.metadata/);
+});
+
 test('Autopilot repairs weak drafts before changing topic and requires 90+ publication quality', () => {
   const service = read('src/services/growthAutopilotService.js');
   const content = read('src/services/growthContentService.js');

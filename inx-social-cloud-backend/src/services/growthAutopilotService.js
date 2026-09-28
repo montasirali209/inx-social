@@ -382,6 +382,12 @@ async function recordEvent(type, message, metadata = null, level = 'info') {
     if (level === 'error') state.lastError = { at, message: event.message };
     return state;
   });
+  console.info('[growth-autopilot:event]', {
+    type: event.type,
+    level: event.level,
+    message: event.message,
+    metadata: event.metadata
+  });
   try {
     await prisma.auditLog.create({
       data: {
@@ -913,7 +919,7 @@ async function runCycle(options = {}) {
       }
     }
 
-    if (authorityDue) {
+    if (authorityDue && !publishDue) {
       try {
         const authorityState = await authority.run({ autoEmail: config.authorityAutoEmail });
         const completed = nowIso();
@@ -949,7 +955,7 @@ async function runCycle(options = {}) {
       }
     }
 
-    if (optimizationDue) {
+    if (optimizationDue && !publishDue) {
       try {
         const optimizationState = await optimization.run({ days: 28 });
         const completed = nowIso();
