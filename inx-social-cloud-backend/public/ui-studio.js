@@ -257,7 +257,7 @@
     if (!configured) {
       status.textContent = 'AI unavailable';
       status.className = 'status-chip';
-      summary.textContent = 'Configure the UI Studio analysis model before running Phase 2.';
+      summary.textContent = 'Configure the UI Studio analysis model before running design analysis.';
       result.innerHTML = '';
       return;
     }
@@ -567,7 +567,7 @@
       status.textContent = 'Renderer unavailable';
       status.className = 'status-chip';
       summary.textContent = 'The isolated preview renderer is not available on this runtime.';
-      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>Phase 4 requires the locked frontend Vite runtime already shipped with INXSocial.</small></div>';
+      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>Preview requires the isolated frontend renderer shipped with UI Studio.</small></div>';
       return;
     }
     if (!generationReady) {
@@ -592,7 +592,7 @@
       const iframe = state.visualRender?.previewUrl
         ? '<div class="ui-studio-preview-stage"><iframe id="uiStudioPreviewFrame" title="Generated UI preview" sandbox="allow-scripts"></iframe></div>'
         : '';
-      output.innerHTML = '<div class="ui-studio-visual-progress"><span></span><b>Phase 4 visual pipeline is running</b><small>' +
+      output.innerHTML = '<div class="ui-studio-visual-progress"><span></span><b>Preview rendering is running</b><small>' +
         'The reconstruction is rendered in an isolated browser for inspection.' +
         '</small></div>' + iframe;
       if (state.visualRender?.previewUrl) mountPreviewFrame(state.visualRender);
@@ -1243,7 +1243,7 @@
       });
       state.phase6Config = data.phase6;
       state.phase6SelectedDeliveryId = data.delivery?.id || state.phase6Config?.deliveries?.[0]?.id || null;
-      notify('Phase 6 delivery package created after regression validation.');
+      notify('Portable delivery bundle created after the quality gate passed.');
     } catch (error) {
       notify(error.message);
     } finally {
