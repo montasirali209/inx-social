@@ -462,7 +462,7 @@ async function generateProject(projectId, createdByUserId = null) {
   const fingerprint = uiStudioAnalysis.fingerprintReferences(references);
   const analysis = project.analyses.find(item => item.status === 'COMPLETED' && item.sourceFingerprint === fingerprint && item.analysisJson);
   if (!analysis) {
-    throw error('Run Phase 2 analysis on the latest references before generating code.', 422, 'UI_STUDIO_CODEGEN_CURRENT_ANALYSIS_REQUIRED');
+    throw error('Analyse the latest design reference before preparing the responsive preview.', 422, 'UI_STUDIO_CODEGEN_CURRENT_ANALYSIS_REQUIRED');
   }
   if (!ready()) throw error('UI Studio code generation is not configured.', 503, 'UI_STUDIO_CODEGEN_NOT_CONFIGURED');
 
