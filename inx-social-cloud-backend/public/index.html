@@ -1103,24 +1103,24 @@
   <form class="modal website-media-modal" id="websiteMediaForm">
     <button class="close" type="button" id="closeWebsiteMediaDialog" aria-label="Close">×</button>
     <span class="kicker">Website Media</span>
-    <h2 id="websiteMediaDialogTitle">Replace image</h2>
-    <p class="muted" id="websiteMediaDialogUse">Choose a high-resolution source image.</p>
+    <h2 id="websiteMediaDialogTitle">Replace media</h2>
+    <p class="muted" id="websiteMediaDialogUse">Choose a high-quality source file.</p>
 
     <div class="website-media-modal-preview" id="websiteMediaModalPreview">
-      <div class="website-media-empty-preview"><span>▣</span><b>No image uploaded yet</b></div>
+      <div class="website-media-empty-preview"><span>▣</span><b>No media uploaded yet</b></div>
     </div>
 
     <div class="website-media-modal-meta" id="websiteMediaModalMeta"></div>
 
     <label class="website-media-upload-drop" id="websiteMediaUploadDrop">
       <input id="websiteMediaFile" type="file" accept="image/png,image/jpeg,image/webp,image/avif">
-      <span>Choose replacement image</span>
-      <small>PNG, JPEG, WebP or AVIF · up to 25 MB · original file is preserved</small>
+      <span id="websiteMediaUploadLabel">Choose replacement media</span>
+      <small id="websiteMediaUploadHelp">PNG, JPEG, WebP or AVIF · up to 25 MB · original file is preserved</small>
     </label>
     <div class="website-media-file-choice" id="websiteMediaFileChoice" hidden></div>
 
-    <label>Alt text
-      <textarea id="websiteMediaAltText" rows="3" maxlength="500" placeholder="Describe the interface shown in this image"></textarea>
+    <label><span id="websiteMediaAltLabel">Alt text</span>
+      <textarea id="websiteMediaAltText" rows="3" maxlength="500" placeholder="Describe this website media"></textarea>
     </label>
 
     <div class="website-media-upload-warning" id="websiteMediaUploadWarning" hidden></div>
@@ -1226,6 +1226,6 @@
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
 <script src="/ui-studio.js?v=11" defer></script>
-<script src="/admin.js?v=25" defer></script>
+<script src="/admin.js?v=26" defer></script>
 </body>
 </html>
