@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { WEBSITE_MEDIA, websiteMediaAbsoluteUrl, websiteMediaPath } from "@/lib/website-media";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://www.inxsocial.co.uk"),
@@ -41,11 +42,10 @@ export const metadata: Metadata = {
     description: "Create AI video across a live multi-model catalogue, generate campaigns, UGC, images and carousels, then schedule, publish and analyse from one INXSocial workspace.",
     url: "https://www.inxsocial.co.uk/",
     images: [{
-      url: "https://www.inxsocial.co.uk/assets/inxsocial-social-preview-v3.jpg",
-      secureUrl: "https://www.inxsocial.co.uk/assets/inxsocial-social-preview-v3.jpg",
+      url: websiteMediaAbsoluteUrl(WEBSITE_MEDIA.landingSocialPreview),
+      secureUrl: websiteMediaAbsoluteUrl(WEBSITE_MEDIA.landingSocialPreview),
       width: 1200,
       height: 630,
-      type: "image/jpeg",
       alt: "INXSocial AI content creation, multi-model Video Studio and social publishing platform"
     }]
   },
@@ -54,7 +54,7 @@ export const metadata: Metadata = {
     title: "AI Content, Video Studio & Social Publishing | INXSocial",
     description: "Create AI video, campaigns, UGC, images and carousels, then schedule, publish and analyse social content from one connected workspace.",
     images: [{
-      url: "https://www.inxsocial.co.uk/assets/inxsocial-social-preview-v3.jpg",
+      url: websiteMediaAbsoluteUrl(WEBSITE_MEDIA.landingSocialPreview),
       alt: "INXSocial AI content creation, multi-model Video Studio and social publishing platform"
     }]
   }
@@ -74,8 +74,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <link
           rel="preload"
           as="image"
-          href="/assets/landing-dashboard-20260919.webp"
-          type="image/webp"
+          href={websiteMediaPath(WEBSITE_MEDIA.landingHeroDashboard)}
           fetchPriority="high"
         />
       </head>
