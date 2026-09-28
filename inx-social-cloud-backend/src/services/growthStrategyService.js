@@ -76,6 +76,13 @@ async function requestStructured(payload, name, schema) {
   throw new Error('AI strategist returned an invalid structured result after retry.');
 }
 
+function dailyArticleSchema() {
+  const schema = strategySchema();
+  schema.properties.action = { type: 'string', enum: ['CREATE_ARTICLE'] };
+  schema.properties.publishRecommended = { type: 'boolean', enum: [true] };
+  return schema;
+}
+
 function strategySchema() {
   return {
     type: 'object',
@@ -249,6 +256,112 @@ async function plan({ opportunityMap, articles, siteProfile = null }) {
   };
 }
 
+
+function editorialCandidate(item) {
+  if (!item || item.type === 'technical') return false;
+  const action = String(item.action?.type || '');
+  if (['TECHNICAL_FIX', 'COMMUNITY_ENGAGEMENT', 'IMPROVE_EXISTING_PAGE'].includes(action)) return false;
+  if (item.existingPage && action !== 'BUILD_AUTHORITY_CONTENT') return false;
+  return true;
+}
+
+async function planDailyArticle({ opportunityMap, articles, siteProfile = null, minOpportunityScore = 70 }) {
+  const intelligence = siteProfile ? null : await siteIntelligence.latest().catch(() => null);
+  const profile = siteProfile || intelligence?.profile || null;
+  const site = intelligence?.site || null;
+  const brandName = profile?.brandName || site?.label || site?.hostname || 'the monitored website';
+
+  const opportunities = (opportunityMap?.opportunities || []).slice(0, 35).map(compactOpportunity);
+  const existingArticles = (articles || [])
+    .filter(article => article.status !== 'ARCHIVED')
+    .slice(0, 40)
+    .map(article => ({
+      id: article.id,
+      slug: article.slug,
+      status: article.status,
+      title: article.title,
+      opportunityId: article.opportunity_id || null,
+      publishedAt: article.published_at || null,
+      qualityScore: article.quality?.score || 0
+    }));
+
+  const strongBacklog = (opportunityMap?.opportunities || [])
+    .filter(editorialCandidate)
+    .filter(item => Number(item.score || 0) >= Number(minOpportunityScore || 70));
+  const freshDiscoveryRequired = strongBacklog.length === 0;
+
+  const payload = {
+    model: env.contentWriter.model,
+    instructions: [
+      seoSkills.strategyInstructions(),
+      'DAILY ARTICLE LANE:',
+      'This is the dedicated daily editorial publication lane. You must return action=CREATE_ARTICLE and publishRecommended=true.',
+      'Your job is to choose or discover the strongest useful article topic for today. Other SEO actions are handled by separate automation lanes and must not consume the daily article slot.',
+      'Do not copy, closely paraphrase, or spin another publisher article. Use trends and sources only as research signals, then create a distinct original INXSocial angle with genuine information gain.',
+      freshDiscoveryRequired
+        ? 'The current qualified backlog is weak. Use live web search now to discover a current or trending topic that is materially relevant to this site, its audience, creator/social-media workflows, AI/content tooling, or an adjacent problem with a credible business bridge. If no timely trend is strong enough, choose a valuable current evergreen angle supported by fresh evidence.'
+        : 'The backlog contains qualified opportunities. Prefer the strongest distinct opportunity unless live context in the supplied evidence makes a different closely related angle materially better.',
+      'Avoid duplicate search intent, keyword cannibalisation, thin trend summaries, unrelated newsjacking and invented demand claims.'
+    ].join('\n'),
+    input: [
+      'CURRENT DATE: ' + new Date().toISOString(),
+      'SITE/BRAND: ' + brandName,
+      '',
+      'DISCOVERED SITE PROFILE',
+      JSON.stringify(profile),
+      '',
+      'QUALIFIED BACKLOG THRESHOLD: ' + Number(minOpportunityScore || 70),
+      'QUALIFIED BACKLOG COUNT: ' + strongBacklog.length,
+      '',
+      'OPPORTUNITY MAP',
+      JSON.stringify({
+        generatedAt: opportunityMap?.generatedAt || null,
+        summary: opportunityMap?.summary || null,
+        analyticsSummary: opportunityMap?.analyticsSummary || null,
+        competitors: (opportunityMap?.competitors || []).slice(0, 12),
+        sourceDomains: (opportunityMap?.sourceDomains || []).slice(0, 12),
+        opportunities
+      }),
+      '',
+      'EXISTING SITE ARTICLES — DO NOT DUPLICATE THEIR PRIMARY INTENT',
+      JSON.stringify(existingArticles),
+      '',
+      'Return one publication-worthy topic and execution brief. If you discover a better fresh topic that is not in the opportunity map, set selectedOpportunityId=null and put the new topic in topic.'
+    ].join('\n')
+  };
+
+  if (freshDiscoveryRequired) {
+    payload.tools = [{
+      type: 'web_search',
+      external_web_access: true,
+      user_location: { type: 'approximate', country: 'GB', timezone: 'Europe/London' }
+    }];
+    payload.tool_choice = 'required';
+    payload.include = ['web_search_call.action.sources'];
+  }
+
+  const decision = await requestStructured(payload, 'inx_daily_article_strategy', dailyArticleSchema());
+  if (decision.action !== 'CREATE_ARTICLE' || decision.publishRecommended !== true) {
+    throw new Error('Daily article strategist did not return a publishable article decision.');
+  }
+
+  if (decision.selectedOpportunityId && !opportunities.some(item => item.id === decision.selectedOpportunityId)) {
+    decision.selectedOpportunityId = null;
+  }
+  if (decision.selectedArticleId && !existingArticles.some(item => item.id === decision.selectedArticleId)) {
+    decision.selectedArticleId = null;
+  }
+
+  return {
+    ...decision,
+    discoveryMode: freshDiscoveryRequired ? 'LIVE_TREND_DISCOVERY' : 'QUALIFIED_BACKLOG',
+    qualifiedBacklogCount: strongBacklog.length,
+    minimumOpportunityScore: Number(minOpportunityScore || 70),
+    model: env.contentWriter.model,
+    decidedAt: new Date().toISOString()
+  };
+}
+
 async function reviewDraft({ article, opportunity, strategy, siteProfile = null }) {
   const compactArticle = {
     id: article.id,
@@ -326,6 +439,7 @@ module.exports = {
   ACTIONS,
   ready,
   plan,
+  planDailyArticle,
   reviewDraft,
   fallbackOpportunity,
   parseJsonObject

@@ -22,10 +22,11 @@ const LEASE_MS = 45 * 60 * 1000;
 const DEFAULT_CONFIG = Object.freeze({
   enabled: true,
   intelligenceEveryHours: 24,
-  configVersion: 7,
+  configVersion: 8,
   publishEveryHours: 24,
   editorialRadarEveryHours: 6,
   hotTrendAutoEvaluate: true,
+  dailyArticleTarget: 1,
   maxArticlesPerLocalDay: 2,
   dailyPublishTimeLocal: '07:30',
   publishTimeZone: 'Europe/London',
@@ -38,6 +39,7 @@ const DEFAULT_CONFIG = Object.freeze({
   maxDraftAttempts: 3,
   autoGenerateImage: true,
   autoPublish: true,
+  editorialRetryHours: 2,
   retryHours: 6
 });
 
@@ -196,10 +198,11 @@ function normalizeConfig(value = {}) {
   return {
     enabled: value.enabled !== false,
     intelligenceEveryHours: clampNumber(value.intelligenceEveryHours, 24, 6, 168),
-    configVersion: Math.max(7, Number(value.configVersion || 0)),
+    configVersion: Math.max(8, Number(value.configVersion || 0)),
     publishEveryHours: clampNumber(value.publishEveryHours, 24, 24, 336),
     editorialRadarEveryHours: clampNumber(value.editorialRadarEveryHours, 6, 3, 24),
     hotTrendAutoEvaluate: value.hotTrendAutoEvaluate !== false,
+    dailyArticleTarget: clampNumber(value.dailyArticleTarget, 1, 1, 1),
     maxArticlesPerLocalDay: clampNumber(value.maxArticlesPerLocalDay, 2, 1, 3),
     dailyPublishTimeLocal: normalizeTimeOfDay(value.dailyPublishTimeLocal, '07:30'),
     publishTimeZone: normalizeTimeZone(value.publishTimeZone, 'Europe/London'),
@@ -212,6 +215,7 @@ function normalizeConfig(value = {}) {
     maxDraftAttempts: clampNumber(value.maxDraftAttempts, 3, 1, 3),
     autoGenerateImage: value.autoGenerateImage !== false,
     autoPublish: value.autoPublish !== false,
+    editorialRetryHours: clampNumber(value.editorialRetryHours, 2, 1, 6),
     retryHours: clampNumber(value.retryHours, 6, 1, 24)
   };
 }
@@ -229,6 +233,8 @@ function initialState() {
     lastEditorialRadarAt: null,
     lastPublishedAt: null,
     lastPublishDecisionDateLocal: null,
+    lastDailyArticleAttemptAt: null,
+    lastDailyArticleAttemptStatus: null,
     nextIntelligenceAt: now,
     nextAuthorityAt: now,
     nextOptimizationAt: now,
@@ -258,12 +264,14 @@ async function ensureSettings() {
   const needsV5Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 5;
   const needsV6Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 6;
   const needsV7Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 7;
+  const needsV8Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 8;
   const config = normalizeConfig({
     ...(rawConfig || DEFAULT_CONFIG),
     ...(needsV4Migration ? { authorityEveryHours: 6, authorityAutoEmail: true, optimizationEveryHours: 24 } : {}),
     ...(needsV5Migration ? { dailyPublishTimeLocal: '07:30', publishTimeZone: 'Europe/London' } : {}),
     ...(needsV6Migration ? { configVersion: 6, editorialRadarEveryHours: 6, hotTrendAutoEvaluate: true, maxArticlesPerLocalDay: 2 } : {}),
-    ...(needsV7Migration ? { configVersion: 7, minQualityScore: 90, maxDraftAttempts: 3 } : {})
+    ...(needsV7Migration ? { configVersion: 7, minQualityScore: 90, maxDraftAttempts: 3 } : {}),
+    ...(needsV8Migration ? { configVersion: 8, dailyArticleTarget: 1, editorialRetryHours: 2 } : {})
   });
 
   await prisma.appSetting.upsert({
@@ -286,7 +294,7 @@ async function ensureSettings() {
         description: 'INXSocial Growth Autopilot runtime state and activity.'
       }
     });
-  } else if (needsV4Migration || needsV5Migration || needsV6Migration || needsV7Migration) {
+  } else if (needsV4Migration || needsV5Migration || needsV6Migration || needsV7Migration || needsV8Migration) {
     const state = { ...initialState(), ...(safeJson(existingState.value, {}) || {}) };
     state.running = false;
     state.leaseUntil = null;
@@ -294,13 +302,15 @@ async function ensureSettings() {
     state.nextAuthorityAt = nowIso();
     state.nextOptimizationAt = nowIso();
     state.nextEditorialRadarAt = nowIso();
-    state.lastPublishDecisionDateLocal = null;
-    state.nextPublishAt = nextDailyPublishIso(new Date(), config);
+    state.lastPublishDecisionDateLocal = needsV8Migration ? null : state.lastPublishDecisionDateLocal;
+    state.nextPublishAt = needsV8Migration ? nowIso() : nextDailyPublishIso(new Date(), config);
     state.recentEvents = [{
       at: nowIso(),
       type: 'AUTOPILOT_UPGRADED',
       level: 'success',
-      message: needsV7Migration
+      message: needsV8Migration
+        ? 'Growth Autopilot upgraded to a mandatory daily editorial lane with live trend discovery and same-day retries.'
+        : needsV7Migration
         ? 'Growth Autopilot upgraded to a 90+ senior-editorial repair workflow.'
         : needsV6Migration
           ? 'Growth Autopilot upgraded with proactive editorial/trend opportunity radar.'
@@ -975,10 +985,25 @@ async function runCycle(options = {}) {
       hotCandidate.id !== decisionState.lastHotTrendOpportunityId &&
       publishedToday < config.maxArticlesPerLocalDay
     );
-    const contentDecisionDue = publishDue || hotTrendDue;
+    let contentDecisionDue = publishDue || hotTrendDue;
     const decisionMode = options.force ? 'manual' : hotTrendDue ? 'hot' : 'daily';
 
     let publishedArticle = null;
+    if (contentDecisionDue && decisionMode === 'daily' && publishedToday >= config.dailyArticleTarget) {
+      await mutateState(current => {
+        markDailyPublishDecision(current, config, new Date());
+        current.lastDailyArticleAttemptStatus = 'TARGET_ALREADY_MET';
+        return current;
+      });
+      await recordEvent(
+        'DAILY_ARTICLE_TARGET_ALREADY_MET',
+        'Today\'s daily article target is already satisfied; the normal editorial lane will resume tomorrow.',
+        { publishedToday, dailyArticleTarget: config.dailyArticleTarget },
+        'success'
+      );
+      contentDecisionDue = false;
+    }
+
     if (contentDecisionDue) {
       const articles = articlesForDecision;
       let strategy = null;
@@ -1005,9 +1030,21 @@ async function runCycle(options = {}) {
       }
 
       try {
-        strategy = await growthStrategy.plan({ opportunityMap, articles, siteProfile: opportunityMap?.siteProfile || null });
+        const dailyArticleLane = decisionMode !== 'hot';
+        strategy = dailyArticleLane
+          ? await growthStrategy.planDailyArticle({
+            opportunityMap,
+            articles,
+            siteProfile: opportunityMap?.siteProfile || null,
+            minOpportunityScore: 70
+          })
+          : await growthStrategy.plan({ opportunityMap, articles, siteProfile: opportunityMap?.siteProfile || null });
         await mutateState(current => {
           current.lastStrategy = strategy;
+          if (dailyArticleLane) {
+            current.lastDailyArticleAttemptAt = nowIso();
+            current.lastDailyArticleAttemptStatus = 'TOPIC_SELECTED';
+          }
           return current;
         });
         await recordEvent(
@@ -1018,7 +1055,9 @@ async function runCycle(options = {}) {
             topic: strategy.topic,
             confidence: strategy.confidence,
             selectedOpportunityId: strategy.selectedOpportunityId,
-            rationale: strategy.rationale
+            rationale: strategy.rationale,
+            discoveryMode: strategy.discoveryMode || null,
+            qualifiedBacklogCount: strategy.qualifiedBacklogCount ?? null
           },
           strategy.action === 'CREATE_ARTICLE' ? 'success' : 'info'
         );
@@ -1029,8 +1068,8 @@ async function runCycle(options = {}) {
             opportunity = {
               id: null,
               topic: strategy.topic,
-              score: 60,
-              type: 'ai_strategy',
+              score: decisionMode === 'hot' ? 60 : 70,
+              type: strategy.discoveryMode === 'LIVE_TREND_DISCOVERY' ? 'ai_trend_discovery' : 'ai_strategy',
               intent: 'commercial',
               action: {
                 type: 'BUILD_AUTHORITY_CONTENT',
@@ -1039,27 +1078,35 @@ async function runCycle(options = {}) {
               }
             };
           }
-        } else {
-          let nextReview = decisionState.nextPublishAt || null;
-          if (decisionMode !== 'hot') {
-            await mutateState(current => {
-              markDailyPublishDecision(current, config, new Date());
-              nextReview = current.nextPublishAt;
-              return current;
-            });
-          }
+        } else if (decisionMode === 'hot') {
           await recordEvent(
             'STRATEGIC_ACTION_QUEUED',
-            decisionMode === 'hot'
-              ? 'AI Strategist reviewed the fresh opportunity and decided it does not justify an additional article.'
-              : 'AI Strategist decided that creating a new article is not the best action right now. Autopilot will re-evaluate on the next scheduled decision.',
+            'AI Strategist reviewed the fresh opportunity and decided it does not justify an additional article.',
             {
               action: strategy.action,
               topic: strategy.topic,
               rationale: strategy.rationale,
-              nextReviewAt: nextReview
+              nextReviewAt: decisionState.nextPublishAt || null
             },
             'info'
+          );
+        } else {
+          const nextRetry = addHours(nowIso(), config.editorialRetryHours);
+          await mutateState(current => {
+            current.nextPublishAt = nextRetry;
+            current.lastDailyArticleAttemptStatus = 'RETRY_SCHEDULED';
+            return current;
+          });
+          await recordEvent(
+            'DAILY_ARTICLE_SELECTION_RETRY',
+            'The dedicated daily article lane did not return a usable article decision, so it will retry the same day instead of consuming today\'s publishing slot.',
+            {
+              action: strategy.action,
+              topic: strategy.topic,
+              rationale: strategy.rationale,
+              nextRetryAt: nextRetry
+            },
+            'warning'
           );
         }
       } catch (error) {
@@ -1093,9 +1140,10 @@ async function runCycle(options = {}) {
         }
 
         if (!publishedArticle && decisionMode !== 'hot') {
-          const nextRetry = addHours(nowIso(), config.retryHours);
+          const nextRetry = addHours(nowIso(), config.editorialRetryHours);
           await mutateState(current => {
             current.nextPublishAt = nextRetry;
+            current.lastDailyArticleAttemptStatus = 'RETRY_SCHEDULED';
             return current;
           });
           await recordEvent(
@@ -1106,10 +1154,11 @@ async function runCycle(options = {}) {
           );
         }
       } else if (!strategy || (strategy.action === 'CREATE_ARTICLE' && strategy.publishRecommended)) {
-        const nextRetry = decisionMode === 'hot' ? null : addHours(nowIso(), config.retryHours);
+        const nextRetry = decisionMode === 'hot' ? null : addHours(nowIso(), config.editorialRetryHours);
         if (nextRetry) {
           await mutateState(current => {
             current.nextPublishAt = nextRetry;
+            current.lastDailyArticleAttemptStatus = 'RETRY_SCHEDULED';
             return current;
           });
         }
