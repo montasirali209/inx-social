@@ -1791,11 +1791,14 @@
     state.agentMessages = [];
     state.workflowStage = null;
     state.sideTab = 'INSPECTOR';
+    state.pipelineBusy = false;
+    state.pipelineStep = null;
+    state.pipelineError = null;
     state.generationDetail = null;
     state.selectedGeneratedFile = null;
     state.visualRender = null;
     state.visualFrame = null;
-    state.viewport = latest(data.project, 'DESKTOP') ? 'DESKTOP' : (latest(data.project, 'TABLET') ? 'TABLET' : (latest(data.project, 'MOBILE') ? 'MOBILE' : 'DESKTOP'));
+    state.viewport = primaryReference(data.project)?.viewport || 'DESKTOP';
     state.zoom = 'fit';
     state.visualRender = (data.project.renders || []).find(item => item.viewport === state.viewport) || data.project.latestRender || null;
     renderWorkspace();
@@ -1815,6 +1818,7 @@
       if (visual?.render) state.visualRender = visual.render;
     }
     renderWorkspace();
+    resumeAutomaticPipeline();
   }
 
   async function refreshProject() {
@@ -2149,7 +2153,16 @@
     const button = $('refreshUiStudioBtn');
     button.disabled = true;
     button.textContent = 'Refreshing…';
-    try { await loadProjects(); if (state.project) { await refreshProject(); await loadPhase5().catch(() => {}); await loadPhase6().catch(() => {}); } notify('UI Studio refreshed'); }
+    try {
+      await loadProjects();
+      if (state.project) {
+        await refreshProject();
+        await loadPhase5().catch(() => {});
+        await loadPhase6().catch(() => {});
+        resumeAutomaticPipeline();
+      }
+      notify('UI Studio refreshed');
+    }
     catch (error) { notify(error.message); }
     finally { button.disabled = false; button.textContent = '↻ Refresh'; }
   });
@@ -2171,12 +2184,17 @@
     renderWorkspace();
   });
   document.querySelectorAll('[data-ui-viewport]').forEach(button => button.addEventListener('click', () => {
-    clearLocalPreview();
     state.viewport = button.dataset.uiViewport;
+    state.zoom = 'fit';
+    if ((state.workflowStage || derivedWorkflowStage()) === 'PREVIEW') {
+      renderWorkspace();
+      requestAnimationFrame(animateStageSurface);
+      return;
+    }
+    clearLocalPreview();
     state.overlay = false;
     state.visualRender = (state.project?.renders || []).find(item => item.viewport === state.viewport) || null;
     state.visualFrame = null;
-    state.zoom = 'fit';
     renderWorkspace();
   }));
   document.querySelectorAll('[data-ui-zoom]').forEach(button => button.addEventListener('click', () => setZoom(button.dataset.uiZoom)));
