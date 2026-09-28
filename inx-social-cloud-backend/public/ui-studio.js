@@ -1300,6 +1300,189 @@
     }
   }
 
+  function analysisIsCurrent() {
+    const analysis = state.project?.latestAnalysis;
+    return Boolean(analysis && analysis.status === 'COMPLETED' && !analysis.stale && analysis.result);
+  }
+
+  function previewBuildIsCurrent() {
+    const generation = latestGenerationSummary();
+    return Boolean(generation && ['READY','READY_WITH_WARNINGS'].includes(generation.status) && !generation.stale);
+  }
+
+  function previewRenderIsReady() {
+    const render = currentVisualRender();
+    return Boolean(render && visualRenderIsCurrent(render) && render.status === 'COMPLETED');
+  }
+
+  function derivedWorkflowStage() {
+    const project = state.project;
+    if (!project || Number(project.referenceCount || 0) === 0) return 'DESIGN';
+    if (!analysisIsCurrent()) return 'UNDERSTAND';
+    if (!previewBuildIsCurrent()) return 'PREVIEW';
+    if (!project.bestGenerationId) return 'MATCH';
+    if (!project.acceptedGenerationId) return 'APPROVE';
+    if (!project.productionGenerationId || !project.productionGeneratedAt) return 'GENERATE';
+    return 'DELIVER';
+  }
+
+  function maxUnlockedStageIndex() {
+    const project = state.project;
+    if (!project) return 0;
+    if (Number(project.referenceCount || 0) === 0) return 0;
+    if (!analysisIsCurrent()) return 1;
+    if (!previewBuildIsCurrent()) return 2;
+    if (!project.bestGenerationId) return 3;
+    if (!project.acceptedGenerationId) return 4;
+    if (!project.productionGenerationId || !project.productionGeneratedAt) return 5;
+    return 6;
+  }
+
+  function setWorkflowStage(stage, options = {}) {
+    if (!WORKFLOW_STAGES.includes(stage)) return;
+    const index = WORKFLOW_STAGES.indexOf(stage);
+    if (!options.force && index > maxUnlockedStageIndex()) {
+      notify('Complete the current UI Studio step first.');
+      return;
+    }
+    state.workflowStage = stage;
+    renderWorkspace();
+  }
+
+  function renderApprovePanel() {
+    const host = $('uiStudioApproveSummary');
+    const button = $('uiStudioPhase5AcceptBtn');
+    if (!host || !button) return;
+    const cfg = state.phase5Config || {};
+    const bestId = cfg.bestGenerationId || state.project?.bestGenerationId || null;
+    const acceptedId = cfg.acceptedGenerationId || state.project?.acceptedGenerationId || null;
+    const score = Number(cfg.bestAggregateScore ?? state.project?.bestAggregateScore);
+    const best = cfg.bestGeneration || null;
+    const scores = best?.viewportScores || {};
+    const scoreItems = ['DESKTOP','TABLET','MOBILE']
+      .filter(viewport => scores[viewport] != null)
+      .map(viewport => '<div><span>' + esc(viewport[0] + viewport.slice(1).toLowerCase()) + '</span><b>' + esc(Math.round(Number(scores[viewport]))) + '%</b></div>');
+    host.innerHTML = [
+      '<div><span>Best match</span><b>' + (Number.isFinite(score) ? esc(score.toFixed(1)) + '%' : '—') + '</b></div>',
+      ...scoreItems,
+      '<div><span>Status</span><b>' + esc(acceptedId ? 'Approved' : (bestId ? 'Ready to approve' : 'Run Match & Refine first')) + '</b></div>'
+    ].join('');
+    button.disabled = !state.canEdit || !bestId || Boolean(acceptedId);
+    button.textContent = acceptedId ? '✓ Approved' : '✓ Approve best match';
+  }
+
+  function renderWorkflow() {
+    if (!state.project) return;
+    const derived = derivedWorkflowStage();
+    const maxIndex = maxUnlockedStageIndex();
+    if (!state.workflowStage || WORKFLOW_STAGES.indexOf(state.workflowStage) > maxIndex) state.workflowStage = derived;
+    const stage = state.workflowStage;
+
+    document.querySelectorAll('[data-ui-stage]').forEach(button => {
+      const index = WORKFLOW_STAGES.indexOf(button.dataset.uiStage);
+      button.disabled = index > maxIndex;
+      button.classList.toggle('active', button.dataset.uiStage === stage);
+      button.classList.toggle('complete', index < WORKFLOW_STAGES.indexOf(derived) || (derived === 'DELIVER' && index < 6));
+    });
+    document.querySelectorAll('[data-ui-stage-panel]').forEach(panel => {
+      panel.hidden = panel.dataset.uiStagePanel !== stage;
+    });
+
+    const upload = document.querySelector('.ui-studio-upload');
+    const uploadNote = $('uiStudioUploadNote');
+    if (upload) upload.hidden = stage !== 'DESIGN';
+    if (uploadNote) uploadNote.hidden = stage !== 'DESIGN';
+
+    const copy = STAGE_COPY[stage] || STAGE_COPY.DESIGN;
+    if ($('uiStudioStageEyebrow')) $('uiStudioStageEyebrow').textContent = copy[0];
+    if ($('uiStudioStageTitle')) $('uiStudioStageTitle').textContent = copy[1];
+    if ($('uiStudioStageHint')) $('uiStudioStageHint').textContent = copy[2];
+
+    const next = $('uiStudioNextActionBtn');
+    if (!next) return;
+    next.disabled = !state.canEdit;
+    if (stage === 'DESIGN') {
+      const ready = Number(state.project.referenceCount || 0) > 0;
+      next.textContent = ready ? 'Continue to Understand →' : 'Upload a reference first';
+      next.disabled = next.disabled || !ready;
+    } else if (stage === 'UNDERSTAND') {
+      next.textContent = analysisIsCurrent() ? 'Continue to Preview →' : (state.analysing ? 'Analysing…' : '✦ Analyse design');
+      next.disabled = next.disabled || state.analysing;
+    } else if (stage === 'PREVIEW') {
+      next.textContent = previewRenderIsReady() ? 'Continue to Match & Refine →' : (state.generating || state.visualRunning ? 'Building preview…' : '◫ Build preview');
+      next.disabled = next.disabled || state.generating || state.visualRunning;
+    } else if (stage === 'MATCH') {
+      next.textContent = state.project.bestGenerationId ? 'Review best match →' : (state.phase5Running ? 'Comparing…' : '◎ Compare all viewports');
+      next.disabled = next.disabled || state.phase5Running;
+    } else if (stage === 'APPROVE') {
+      next.textContent = state.project.acceptedGenerationId ? 'Continue to Generate →' : '✓ Approve best match';
+      next.disabled = next.disabled || (!state.project.acceptedGenerationId && !state.project.bestGenerationId);
+    } else if (stage === 'GENERATE') {
+      next.textContent = state.project.productionGenerationId ? 'Continue to Deliver →' : (state.finalizingCode ? 'Preparing code…' : '⌘ Generate production code');
+      next.disabled = next.disabled || state.finalizingCode || !state.project.acceptedGenerationId;
+    } else {
+      next.textContent = selectedPhase6Delivery()?.downloadUrl ? 'Create another export' : 'Create export bundle';
+      next.disabled = next.disabled || state.phase6Busy || !state.project.productionGenerationId;
+    }
+  }
+
+  async function buildPreview() {
+    if (!state.project || !state.canEdit || state.generating || state.visualRunning) return;
+    if (!previewBuildIsCurrent()) {
+      const generated = await generateResponsiveUi(true);
+      if (!generated) return;
+    }
+    await startVisualCompare();
+  }
+
+  async function finalizeProductionCode() {
+    if (!state.project || !state.canEdit || state.finalizingCode) return;
+    state.finalizingCode = true;
+    renderWorkspace();
+    try {
+      const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/production-code', {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+      state.project = data.project;
+      state.generationDetail = data.production?.generation || state.generationDetail;
+      state.selectedGeneratedFile = state.generationDetail?.result?.entryFile || state.generationDetail?.result?.files?.[0]?.path || null;
+      await Promise.all([loadProjects().catch(() => {}), loadPhase6().catch(() => {})]);
+      notify('Production code prepared from the approved visual version.');
+    } catch (error) {
+      notify(error.message);
+    } finally {
+      state.finalizingCode = false;
+      renderWorkspace();
+    }
+  }
+
+  async function runNextAction() {
+    const stage = state.workflowStage || derivedWorkflowStage();
+    if (stage === 'DESIGN') return setWorkflowStage('UNDERSTAND');
+    if (stage === 'UNDERSTAND') {
+      if (analysisIsCurrent()) return setWorkflowStage('PREVIEW');
+      return analyseProject();
+    }
+    if (stage === 'PREVIEW') {
+      if (previewRenderIsReady()) return setWorkflowStage('MATCH');
+      return buildPreview();
+    }
+    if (stage === 'MATCH') {
+      if (state.project.bestGenerationId) return setWorkflowStage('APPROVE');
+      return startPhase5();
+    }
+    if (stage === 'APPROVE') {
+      if (state.project.acceptedGenerationId) return setWorkflowStage('GENERATE');
+      return acceptPhase5Best();
+    }
+    if (stage === 'GENERATE') {
+      if (state.project.productionGenerationId) return setWorkflowStage('DELIVER');
+      return finalizeProductionCode();
+    }
+    if (stage === 'DELIVER') return createPhase6Delivery();
+  }
+
   function renderWorkspace() {
     const project = state.project;
     if (!project) {
