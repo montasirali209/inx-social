@@ -4,6 +4,7 @@ const prisma = require('../db/prisma');
 const uiStudio = require('../services/uiStudioService');
 const uiStudioAnalysis = require('../services/uiStudioAnalysisService');
 const uiStudioCodegen = require('../services/uiStudioCodegenService');
+const uiStudioVisual = require('../services/uiStudioVisualService');
 
 function decodeHeader(req, name, fallback = '') {
   const raw = String(req.headers[name] || fallback);
@@ -45,7 +46,8 @@ async function list(req, res, next) {
       codegen: {
         configured: uiStudioCodegen.ready(),
         version: uiStudioCodegen.GENERATION_VERSION
-      }
+      },
+      visual: uiStudioVisual.rendererStatus()
     });
   } catch (error) { next(error); }
 }
@@ -83,7 +85,8 @@ async function detail(req, res, next) {
       codegen: {
         configured: uiStudioCodegen.ready(),
         version: uiStudioCodegen.GENERATION_VERSION
-      }
+      },
+      visual: uiStudioVisual.rendererStatus()
     });
   } catch (error) { next(error); }
 }
@@ -157,6 +160,100 @@ async function generation(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function prepareRender(req, res, next) {
+  try {
+    const startedAt = Date.now();
+    const render = await uiStudioVisual.prepareRender(req.params.projectId, req.body || {}, req.user.id);
+    await audit(req, 'ADMIN_UI_STUDIO_RENDER_PREPARE', req.params.projectId, {
+      renderId: render.id,
+      generationId: render.generationId,
+      referenceId: render.referenceId,
+      viewport: render.viewport,
+      width: render.width,
+      height: render.height,
+      repairDepth: render.repairDepth,
+      durationMs: Date.now() - startedAt
+    });
+    res.status(201).json({
+      render,
+      project: await uiStudio.projectDetail(req.params.projectId)
+    });
+  } catch (error) { next(error); }
+}
+
+async function renderDetail(req, res, next) {
+  try {
+    res.json({ render: await uiStudioVisual.renderDetail(req.params.renderId) });
+  } catch (error) { next(error); }
+}
+
+async function renderPreview(req, res, next) {
+  try {
+    const result = await uiStudioVisual.previewContent(req.params.renderId);
+    if (String(req.headers['if-none-match'] || '') === result.etag) return res.status(304).end();
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+    res.setHeader('ETag', result.etag);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'");
+    res.send(result.data);
+  } catch (error) { next(error); }
+}
+
+async function renderAsset(req, res, next) {
+  try {
+    const result = await uiStudioVisual.assetContent(req.params.renderId, req.params.kind);
+    res.setHeader('Content-Type', result.mimeType);
+    res.setHeader('Content-Length', String(result.data.length));
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.send(result.data);
+  } catch (error) { next(error); }
+}
+
+async function captureRender(req, res, next) {
+  try {
+    const startedAt = Date.now();
+    const render = await uiStudioVisual.compareCapture(
+      req.params.renderId,
+      Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '')
+    );
+    await audit(req, 'ADMIN_UI_STUDIO_RENDER_COMPARE', render.projectId, {
+      renderId: render.id,
+      generationId: render.generationId,
+      viewport: render.viewport,
+      score: render.score,
+      pixelScore: render.pixelScore,
+      durationMs: Date.now() - startedAt
+    });
+    res.json({
+      render,
+      project: await uiStudio.projectDetail(render.projectId)
+    });
+  } catch (error) { next(error); }
+}
+
+async function repairRender(req, res, next) {
+  try {
+    const startedAt = Date.now();
+    const repaired = await uiStudioVisual.repairGeneration(req.params.renderId, req.user.id);
+    const render = await uiStudioVisual.renderDetail(req.params.renderId);
+    await audit(req, 'ADMIN_UI_STUDIO_VISUAL_REPAIR', render.projectId, {
+      renderId: render.id,
+      inputGenerationId: render.generationId,
+      outputGenerationId: repaired.generation.id,
+      attemptNumber: repaired.attemptNumber,
+      durationMs: Date.now() - startedAt
+    });
+    res.status(201).json({
+      generation: repaired.generation,
+      attemptNumber: repaired.attemptNumber,
+      project: await uiStudio.projectDetail(render.projectId)
+    });
+  } catch (error) { next(error); }
+}
+
 async function content(req, res, next) {
   try {
     const result = await uiStudio.referenceContent(req.params.referenceId);
@@ -172,4 +269,4 @@ async function content(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { list, create, detail, upload, analyse, generate, generation, content };
+module.exports = { list, create, detail, upload, analyse, generate, generation, prepareRender, renderDetail, renderPreview, renderAsset, captureRender, repairRender, content };
