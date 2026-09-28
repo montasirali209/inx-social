@@ -337,12 +337,24 @@ export function UGCWizardModal({
       const uploaded: UGCProductAsset[] = []
       for (const file of selected) uploaded.push(await uploadUGCProductAsset(file, selectedBrand?.id))
       setProductAssets((current) => [...current, ...uploaded].slice(0, 8))
-      if (sourceType !== 'PRODUCT') setSourceType('PRODUCT')
     } catch (value) { setError(value instanceof Error ? value.message : 'Product image upload failed.') }
   }
 
   async function continueSource() {
     setError('')
+    if (sourceType === 'BRIEF') {
+      if (description.trim().length < 12) {
+        setError('Add a custom prompt describing the UGC ad you want to create.')
+        return
+      }
+      void trackUGCStudioEvent({ event: 'SOURCE_COMPLETED', stage: 'source', metadata: { sourceType, hasProductAssets: Boolean(productAssets.length || seedProductIds.length), hasReferenceUrl: Boolean(productUrl.trim()) } })
+      if (productUrl.trim()) {
+        analyze.mutate()
+        return
+      }
+      moveTo(1)
+      return
+    }
     if ((sourceType === 'WEBSITE' || sourceType === 'PRODUCT') && productUrl.trim()) {
       void trackUGCStudioEvent({ event: 'SOURCE_COMPLETED', stage: 'source', metadata: { sourceType, hasProductAssets: Boolean(productAssets.length || seedProductIds.length) } })
       analyze.mutate()
@@ -350,11 +362,6 @@ export function UGCWizardModal({
     }
     if (sourceType === 'PRODUCT' && (productAssets.length || seedProductIds.length || description.trim().length >= 8)) {
       void trackUGCStudioEvent({ event: 'SOURCE_COMPLETED', stage: 'source', metadata: { sourceType, hasProductAssets: Boolean(productAssets.length || seedProductIds.length) } })
-      moveTo(1)
-      return
-    }
-    if (sourceType === 'BRIEF' && description.trim().length >= 12) {
-      void trackUGCStudioEvent({ event: 'SOURCE_COMPLETED', stage: 'source', metadata: { sourceType } })
       moveTo(1)
       return
     }
@@ -472,28 +479,30 @@ export function UGCWizardModal({
         <main className="ugc-wizard-content">
           <div className="ugc-wizard-step" key={currentKey}>
             {currentKey === 'source' && <>
-              <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><Globe2 className="size-5" /></span><div><h2>What are we making this ad for?</h2><p>Start with a website, a physical product, or a short description. INXSocial does the research and creative setup from there.</p></div></div>
+              <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><Globe2 className="size-5" /></span><div><h2>What are we making this ad for?</h2><p>Start with a website, a physical product, or your own custom prompt. INXSocial uses any URL or images as supporting reference.</p></div></div>
               <div className="ugc-source-grid mt-7">
                 <button className={`ugc-source-card ${sourceType === 'WEBSITE' ? 'active' : ''}`} onClick={() => setSourceType('WEBSITE')} type="button"><Globe2 className="size-5" /><strong>Website or SaaS</strong><span>Best for apps, services, websites and software.</span></button>
                 <button className={`ugc-source-card ${sourceType === 'PRODUCT' ? 'active' : ''}`} onClick={() => setSourceType('PRODUCT')} type="button"><PackageOpen className="size-5" /><strong>Physical product</strong><span>Use a product page and/or real product photos.</span></button>
-                <button className={`ugc-source-card ${sourceType === 'BRIEF' ? 'active' : ''}`} onClick={() => setSourceType('BRIEF')} type="button"><FileText className="size-5" /><strong>Describe it</strong><span>No website needed. Tell us what you sell.</span></button>
+                <button className={`ugc-source-card ${sourceType === 'BRIEF' ? 'active' : ''}`} onClick={() => setSourceType('BRIEF')} type="button"><FileText className="size-5" /><strong>Custom Prompt</strong><span>Give the AI your exact creative direction.</span></button>
               </div>
 
-              {sourceType !== 'BRIEF' && <div className="mt-6"><span className="ugc-wizard-mini-label">{sourceType === 'PRODUCT' ? 'PRODUCT PAGE — OPTIONAL IF YOU UPLOAD PHOTOS' : 'WEBSITE · DOMAIN ONLY IS FINE'}</span><div className="ugc-wizard-url-field mt-2"><Globe2 className="size-4" /><input autoFocus onChange={(event) => { setProductUrl(event.target.value); setBrand(null); setError('') }} placeholder={sourceType === 'PRODUCT' ? 'shop.com/product' : 'yourbrand.com'} value={productUrl} /></div></div>}
+              <div className="mt-6"><span className="ugc-wizard-mini-label">{sourceType === 'BRIEF' ? 'REFERENCE URL — OPTIONAL' : sourceType === 'PRODUCT' ? 'PRODUCT PAGE — OPTIONAL IF YOU UPLOAD PHOTOS' : 'WEBSITE · DOMAIN ONLY IS FINE'}</span><div className="ugc-wizard-url-field mt-2"><Globe2 className="size-4" /><input autoFocus={sourceType !== 'BRIEF'} onChange={(event) => { setProductUrl(event.target.value); setBrand(null); setError('') }} placeholder={sourceType === 'BRIEF' ? 'Product page, website or reference URL' : sourceType === 'PRODUCT' ? 'shop.com/product' : 'yourbrand.com'} value={productUrl} /></div></div>
 
-              {sourceType === 'PRODUCT' && <div className="mt-5"><span className="ugc-wizard-mini-label">REAL PRODUCT IMAGES</span><label className="ugc-product-upload mt-2"><Images className="size-5" /><div><strong>Upload product photos</strong><span>PNG, JPEG or WebP · up to 8 references</span></div><input accept="image/png,image/jpeg,image/webp" className="hidden" multiple onChange={(event) => void uploadProducts(event.target.files)} type="file" /></label>{(productAssets.length || seedProductIds.length) > 0 && <div className="mt-2 flex flex-wrap gap-2">{productAssets.map((asset) => <span className="ugc-product-chip" key={asset.id}><Check className="size-3" />{asset.originalName}</span>)}{seedProductIds.map((id, index) => <span className="ugc-product-chip" key={id}><Check className="size-3" />Saved product image {index + 1}</span>)}</div>}</div>}
+              {(sourceType === 'PRODUCT' || sourceType === 'BRIEF') && <div className="mt-5"><span className="ugc-wizard-mini-label">{sourceType === 'BRIEF' ? 'REFERENCE IMAGES — OPTIONAL' : 'REAL PRODUCT IMAGES'}</span><label className="ugc-product-upload mt-2"><Images className="size-5" /><div><strong>{sourceType === 'BRIEF' ? 'Upload reference images' : 'Upload product photos'}</strong><span>PNG, JPEG or WebP · up to 8 references</span></div><input accept="image/png,image/jpeg,image/webp" className="hidden" multiple onChange={(event) => void uploadProducts(event.target.files)} type="file" /></label>{(productAssets.length || seedProductIds.length) > 0 && <div className="mt-2 flex flex-wrap gap-2">{productAssets.map((asset) => <span className="ugc-product-chip" key={asset.id}><Check className="size-3" />{asset.originalName}</span>)}{seedProductIds.map((id, index) => <span className="ugc-product-chip" key={id}><Check className="size-3" />Saved reference {index + 1}</span>)}</div>}</div>}
 
-              {(sourceType === 'BRIEF' || sourceType === 'PRODUCT') && <div className="mt-5"><span className="ugc-wizard-mini-label">{sourceType === 'BRIEF' ? 'TELL US ABOUT THE OFFER' : 'OPTIONAL PRODUCT NOTES'}</span><textarea className="ugc-wizard-input mt-2 min-h-28 w-full resize-y" onChange={(event) => setDescription(event.target.value)} placeholder="What is it, who is it for, and what does it help with?" value={description} /></div>}
+              {(sourceType === 'BRIEF' || sourceType === 'PRODUCT') && <div className="mt-5"><span className="ugc-wizard-mini-label">{sourceType === 'BRIEF' ? 'AD PROMPT — REQUIRED' : 'OPTIONAL PRODUCT NOTES'}</span><textarea className="ugc-wizard-input mt-2 min-h-28 w-full resize-y" maxLength={sourceType === 'BRIEF' ? 4000 : undefined} onChange={(event) => { setDescription(event.target.value); setError('') }} placeholder={sourceType === 'BRIEF' ? 'Describe exactly how you want the UGC ad created — concept, language, dialogue, tone, humour, camera style, product presentation, accents, CTA, or anything else.' : 'What is it, who is it for, and what does it help with?'} value={description} />{sourceType === 'BRIEF' && <p className="mt-2 text-[9px] text-text-muted">This is the primary creative instruction. Any URL or images above are used only as supporting reference.</p>}</div>}
 
-              {analyze.isPending && <div className="ugc-wizard-analyzing mt-6"><div className="ugc-wizard-scan"><span /><Search className="size-7" /></div><div><strong>Understanding your offer…</strong><p className="mt-1 text-[9px] text-text-muted">Reading the site, finding verified benefits and preparing the campaign script.</p></div></div>}
+              {analyze.isPending && <div className="ugc-wizard-analyzing mt-6"><div className="ugc-wizard-scan"><span /><Search className="size-7" /></div><div><strong>{sourceType === 'BRIEF' ? 'Analyzing your references…' : 'Understanding your offer…'}</strong><p className="mt-1 text-[9px] text-text-muted">{sourceType === 'BRIEF' ? 'Using the URL as factual reference while keeping your custom prompt unchanged.' : 'Reading the site, finding verified benefits and preparing the campaign script.'}</p></div></div>}
               <div className="ugc-wizard-footer"><Button onClick={backHomeWithDraft}><ArrowLeft className="size-4" />Studio</Button><Button disabled={analyze.isPending} onClick={() => void continueSource()} variant="primary">{analyze.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}{sourceType === 'WEBSITE' || productUrl.trim() ? 'Analyze & continue' : 'Continue'} <ArrowRight className="size-4" /></Button></div>
             </>}
 
             {currentKey === 'brand' && <>
               <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><BadgeCheck className="size-5" /></span><div><h2>Here's what INXSocial understands.</h2><p>Check the essentials. The generator uses this as the factual boundary for the script and visual references.</p></div></div>
-              {selectedBrand ? <div className="ugc-wizard-brand-card mt-7"><div className="flex items-start justify-between gap-4"><div><span className="ugc-wizard-mini-label">BRAND / OFFER</span><h3>{selectedBrand.productName || selectedBrand.name}</h3></div><BadgeCheck className="size-5 text-brand-cyan" /></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><div><span className="ugc-wizard-mini-label">COMPANY</span><strong>{selectedBrand.name}</strong></div><div><span className="ugc-wizard-mini-label">TYPE</span><strong>{selectedBrand.analysis?.offerType || 'Brand'}</strong></div></div><div className="mt-5"><span className="ugc-wizard-mini-label">WHAT IT DOES</span><p>{selectedBrand.summary}</p></div>{!!selectedBrand.audience.length && <div className="mt-5"><span className="ugc-wizard-mini-label">AUDIENCE</span><div className="mt-2 flex flex-wrap gap-2">{selectedBrand.audience.slice(0,6).map((item) => <span className="ugc-wizard-pill" key={item}>{item}</span>)}</div></div>}</div> :
-                <div className="ugc-wizard-brand-card mt-7"><span className="ugc-wizard-mini-label">YOUR BRIEF</span><textarea className="ugc-wizard-input mt-3 min-h-36 w-full resize-y" onChange={(event) => setDescription(event.target.value)} value={description} /></div>}
-              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(0)}><ArrowLeft className="size-4" />Back</Button><Button disabled={!selectedBrand && description.trim().length < 12 && !productAssetIds.length} onClick={() => { void trackUGCStudioEvent({ event: 'BRAND_ANALYZED', stage: 'brand', metadata: { sourceType } }); moveTo(2) }} variant="primary">Looks right <ArrowRight className="size-4" /></Button></div>
+              {selectedBrand ? <><div className="ugc-wizard-brand-card mt-7"><div className="flex items-start justify-between gap-4"><div><span className="ugc-wizard-mini-label">BRAND / OFFER</span><h3>{selectedBrand.productName || selectedBrand.name}</h3></div><BadgeCheck className="size-5 text-brand-cyan" /></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><div><span className="ugc-wizard-mini-label">COMPANY</span><strong>{selectedBrand.name}</strong></div><div><span className="ugc-wizard-mini-label">TYPE</span><strong>{selectedBrand.analysis?.offerType || 'Brand'}</strong></div></div><div className="mt-5"><span className="ugc-wizard-mini-label">WHAT IT DOES</span><p>{selectedBrand.summary}</p></div>{!!selectedBrand.audience.length && <div className="mt-5"><span className="ugc-wizard-mini-label">AUDIENCE</span><div className="mt-2 flex flex-wrap gap-2">{selectedBrand.audience.slice(0,6).map((item) => <span className="ugc-wizard-pill" key={item}>{item}</span>)}</div></div>}</div>{sourceType === 'BRIEF' && <div className="ugc-wizard-brand-card mt-4"><span className="ugc-wizard-mini-label">YOUR PROMPT</span><p className="mt-3 whitespace-pre-wrap">{description}</p><span className="mt-3 block text-[9px] text-text-muted">Locked review · go Back to change the prompt.</span></div>}</> :
+                sourceType === 'BRIEF'
+                  ? <div className="ugc-wizard-brand-card mt-7"><span className="ugc-wizard-mini-label">YOUR PROMPT</span><p className="mt-3 whitespace-pre-wrap">{description}</p><span className="mt-3 block text-[9px] text-text-muted">Locked review · go Back to change the prompt.</span></div>
+                  : <div className="ugc-wizard-brand-card mt-7"><span className="ugc-wizard-mini-label">YOUR BRIEF</span><textarea className="ugc-wizard-input mt-3 min-h-36 w-full resize-y" onChange={(event) => setDescription(event.target.value)} value={description} /></div>}
+              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(0)}><ArrowLeft className="size-4" />Back</Button><Button disabled={sourceType === 'BRIEF' ? description.trim().length < 12 : !selectedBrand && description.trim().length < 12 && !productAssetIds.length} onClick={() => { void trackUGCStudioEvent({ event: 'BRAND_ANALYZED', stage: 'brand', metadata: { sourceType } }); moveTo(2) }} variant="primary">Looks right <ArrowRight className="size-4" /></Button></div>
             </>}
 
             {currentKey === 'avatar' && <>

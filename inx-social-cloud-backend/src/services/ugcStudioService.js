@@ -1210,7 +1210,7 @@ async function createCampaign(userId, input) {
       await prisma.$executeRawUnsafe(
         'INSERT INTO "UGCAd" ("id","campaignId","userId","sequence","status","title","angle","hook","script","cta","caption","avatarId","route","voice","voicePrompt","duration","quality","credits","musicMode","captionsEnabled","planJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,\'RESERVING\',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,\'AUTO\',true,$18,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
         adId, campaignId, userId, index + 1, planned.title, planned.angle || null, planned.hook || null, planned.script, planned.cta || null, planned.caption || null,
-        avatar?.id || null, route, avatar?.voice || null, avatar?.voicePrompt || null, input.duration, input.quality, perAd, json({ ...planned, campaignType: resolvedType, userDirection: clean(input.notes, 1200) })
+        avatar?.id || null, route, avatar?.voice || null, avatar?.voicePrompt || null, input.duration, input.quality, perAd, json({ ...planned, campaignType: resolvedType, customPromptMode: sourceType === 'BRIEF', userDirection: sourceType === 'BRIEF' ? clean(input.productDescription, 4000) : clean(input.notes, 1200) })
       );
       for (let s = 0; s < planned.scenes.length; s += 1) {
         const scene = planned.scenes[s];
@@ -1876,7 +1876,7 @@ function h3CreatorVoiceDescription(avatar) {
 
 function h3NativePrompt(scene, ad, avatar, referenceCount) {
   const plan = parseJson(ad.planJson, {});
-  const userDirection = clean(plan.userDirection, 1200);
+  const userDirection = clean(plan.userDirection, plan.customPromptMode ? 4000 : 1200);
   const format = clean(scene.creativeFormat || plan.creativeFormat || plan.requestedCreativeFormat || 'UGC', 80).replaceAll('_', ' ');
   const spoken = clean(scene.script, 5000);
   const referenceInstruction = referenceCount > 1
@@ -1927,6 +1927,8 @@ async function renderProviderScene(scene, ad, avatar, productReferences, narrati
   }
 
   const creatorLike = ugcProviderAdapters.isCreatorLike(scene.kind);
+  const adPlan = parseJson(ad.planJson, {});
+  const customPromptDirection = adPlan.customPromptMode ? clean(adPlan.userDirection, 4000) : '';
   const creatorLock = avatar ? [
     'CHARACTER LOCK: use the supplied creator portrait as the exact same real person.',
     'Preserve face shape, skin tone, age, hairstyle, hair colour, wardrobe and recognizable identity.',
@@ -1939,9 +1941,10 @@ async function renderProviderScene(scene, ad, avatar, productReferences, narrati
     ? 'PRODUCT LOCK: preserve the supplied product/reference exactly — packaging, shape, colours, proportions and visible branding. Do not substitute, redesign or hallucinate another product.'
     : '';
   const positivePrompt = clean([
+    customPromptDirection ? 'PRIMARY USER CREATIVE DIRECTION: ' + customPromptDirection : '',
     clean(scene.prompt, 1800),
     'Authentic vertical 9:16 creator-native UGC. Realistic smartphone-camera exposure, real room depth, natural skin and fabric texture, grounded physics, subtle handheld stability, no plastic CGI appearance.',
-    ugcRealismSkill(creatorLike ? 'CREATOR' : scene.kind, parseJson(ad.planJson, {}).campaignType || 'AVATAR_EXPLAINER', ad.quality),
+    ugcRealismSkill(creatorLike ? 'CREATOR' : scene.kind, adPlan.campaignType || 'AVATAR_EXPLAINER', ad.quality),
     creatorLike ? creatorLock : productLock,
     !creatorLike
       ? 'Frame the product clearly in a believable use context. Use realistic hands only when needed and keep interaction physically plausible.'

@@ -21,6 +21,9 @@ const createSchema = z.object({
   quality: z.enum(['STANDARD', 'PREMIUM']).default('STANDARD'),
   notes: z.string().trim().max(1200).optional().default('')
 }).superRefine((value, ctx) => {
+  if (value.sourceType === 'BRIEF' && value.productDescription.trim().length < 12) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['productDescription'], message: 'Add a custom prompt describing the UGC ad you want to create.' });
+  }
   if (!value.brandProfileId && !value.productUrl && !value.productDescription && !value.productAssetIds.length) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['productUrl'], message: 'Add a website, product image or short brand description.' });
   }
