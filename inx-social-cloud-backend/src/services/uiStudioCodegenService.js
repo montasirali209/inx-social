@@ -119,7 +119,9 @@ function frameworkInstructions(project) {
   }
   if (project.framework === 'NEXTJS') {
     return [
-      'Generate Next.js-compatible React TypeScript components.',
+      'Generate a Next.js-compatible presentational React TypeScript UI component that is also deterministic in the UI Studio preview runtime.',
+      'Use only next/image, next/link and next/navigation when a Next-specific import is genuinely needed.',
+      'Do not use next/font, server-only APIs, metadata exports, route handlers, server actions, filesystem/database APIs or other Next runtime features.',
       'Use client components only where interaction requires them.',
       'Do not assume external component libraries unless they are explicitly present in the reference.'
     ].join(' ');
@@ -164,6 +166,7 @@ function generationInstructions(project) {
     'Buttons, tabs, carousels or selectors that are visibly interactive should have lightweight functional behaviour when the reference supports that inference.',
     'Use fluid grids/flexbox, clamp(), minmax(), aspect-ratio and explicit breakpoints. Absolute positioning is allowed only for genuine overlays or decorative layers.',
     'Do not include remote tracking, analytics, external scripts, API keys, secrets, iframes or arbitrary network calls.',
+    'Do not import remote webfonts or use remote font URLs. Use an explicit local/system font stack when an exact font asset is unavailable.',
     'Do not include package-lock files, node_modules, generated build output or binary assets.',
     'All code must be contained in the returned file list and be internally consistent.',
     'Return only JSON matching the schema.'
@@ -493,6 +496,14 @@ async function generateProject(projectId, createdByUserId = null) {
   try {
     const generated = await requestGeneration(project, analysis, references);
     generated.validation = await validateGenerationBuild(generated.result, project);
+    if (!generated.validation.compileVerified) {
+      const compileCheck = generated.validation.checks.find(check => check.key === 'BUILD_COMPILE');
+      throw error(
+        compileCheck?.message || 'Generated implementation did not compile.',
+        502,
+        'UI_STUDIO_CODEGEN_COMPILE_FAILED'
+      );
+    }
     const status = generated.validation.ok ? 'READY' : 'READY_WITH_WARNINGS';
     const completed = await prisma.uiDesignGeneration.update({
       where: { id: row.id },
