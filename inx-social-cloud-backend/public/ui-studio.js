@@ -1494,7 +1494,7 @@
     $('uiStudioProjectsArea').hidden = true;
     $('uiStudioWorkspace').hidden = false;
     $('uiStudioProjectName').textContent = project.name;
-    $('uiStudioProjectMeta').textContent = `${project.framework.replaceAll('_',' ')} · ${project.styling.replaceAll('_',' ')} · ${project.outputType.replaceAll('_',' ')}`;
+    $('uiStudioProjectMeta').textContent = (project.frameworkTargets || [project.framework]).map(frameworkLabel).join(' + ') + ' · ' + (project.stylingTargets || [project.styling]).map(stylingLabel).join(' + ');
 
     document.querySelectorAll('[data-ui-viewport]').forEach(button => {
       button.classList.toggle('active', button.dataset.uiViewport === state.viewport);
@@ -1519,14 +1519,14 @@
 
     $('uiStudioProjectFacts').innerHTML = [
       ['Created', fmtDate(project.createdAt)],
-      ['Framework', project.framework.replaceAll('_',' ')],
-      ['Styling', project.styling.replaceAll('_',' ')],
-      ['Output target', project.outputType.replaceAll('_',' ')],
+      ['Preview stack', frameworkLabel(project.framework) + ' · ' + stylingLabel(project.styling)],
+      ['Framework targets', (project.frameworkTargets || [project.framework]).map(frameworkLabel).join(', ')],
+      ['Styling targets', (project.stylingTargets || [project.styling]).map(stylingLabel).join(', ')],
       ['References', String(project.referenceCount || 0)],
-      ['Analyses', String(project.analysisCount || 0)],
-      ['Code versions', String(project.generationCount || 0)],
+      ['Design analyses', String(project.analysisCount || 0)],
+      ['Preview builds', String(project.generationCount || 0)],
       ['Visual renders', String(project.renderCount || 0)],
-      ['Repair passes', String(project.repairCount || 0)]
+      ['Production code', project.productionGeneratedAt ? 'Ready · ' + fmtDate(project.productionGeneratedAt) : 'Not generated']
     ].map(item => `<div><span>${esc(item[0])}</span><b>${esc(item[1])}</b></div>`).join('');
 
     $('uiStudioReferenceHistory').innerHTML = refs.length
@@ -1551,7 +1551,10 @@
     renderCodegenPanel();
     renderVisualPanel();
     renderPhase5Panel();
+    renderApprovePanel();
     renderPhase6Panel();
+    renderAgentPanel();
+    renderWorkflow();
     setZoom(state.zoom);
   }
 
