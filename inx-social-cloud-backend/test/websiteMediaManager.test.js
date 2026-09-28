@@ -157,9 +157,9 @@ test('Historical Website Media versions can be previewed without restoring them 
   const service = read('src/services/websiteMediaService.js');
   const controller = read('src/controllers/websiteMediaPublicController.js');
 
-  assert.match(service, /async function content\(key, versionId = ''\)/);
+  assert.match(service, /async function content\(key, versionId = '', rangeHeader = ''\)/);
   assert.match(service, /assetId: asset\.id/);
-  assert.match(controller, /websiteMedia\.content\(req\.params\.key, req\.query\.v\)/);
+  assert.match(controller, /websiteMedia\.content\(req\.params\.key, req\.query\.v, req\.headers\.range\)/);
 });
 
 test('Website Media admin work remains isolated from UGC implementation', () => {
