@@ -738,9 +738,11 @@ model UiDesignProject {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  references  UiDesignReference[]
-  analyses    UiDesignAnalysis[]
-  generations UiDesignGeneration[]
+  references     UiDesignReference[]
+  analyses       UiDesignAnalysis[]
+  generations    UiDesignGeneration[]
+  renders        UiDesignRender[]
+  repairAttempts UiDesignRepairAttempt[]
 
   @@index([status, updatedAt])
   @@index([createdAt])
@@ -762,6 +764,7 @@ model UiDesignReference {
   createdAt        DateTime @default(now())
 
   project UiDesignProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  renders UiDesignRender[]
 
   @@index([projectId, viewport, createdAt])
   @@index([createdAt])
@@ -813,11 +816,78 @@ model UiDesignGeneration {
 
   project        UiDesignProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   sourceAnalysis UiDesignAnalysis @relation(fields: [sourceAnalysisId], references: [id], onDelete: Cascade)
+  renders        UiDesignRender[]
 
   @@index([projectId, createdAt])
   @@index([sourceAnalysisId])
   @@index([status, createdAt])
   @@index([sourceFingerprint])
+}
+
+model UiDesignRender {
+  id                      String   @id @default(cuid())
+  projectId               String
+  generationId            String
+  referenceId             String
+  parentRenderId           String?
+  viewport                String
+  status                  String   @default("PREPARING")
+  version                 String   @default("ui-visual-v1")
+  width                   Int
+  height                  Int
+  sourceWidth             Int
+  sourceHeight            Int
+  sourceScale             Float    @default(1)
+  repairDepth             Int      @default(0)
+  previewStorageProvider  String?
+  previewStorageKey       String?
+  previewSha256           String?
+  renderedStorageProvider String?
+  renderedStorageKey      String?
+  diffStorageProvider     String?
+  diffStorageKey          String?
+  metricsJson             String?
+  critiqueJson            String?
+  errorMessage            String?
+  createdByUserId         String?
+  completedAt             DateTime?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  project    UiDesignProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  generation UiDesignGeneration @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  reference  UiDesignReference  @relation(fields: [referenceId], references: [id], onDelete: Cascade)
+  repairs    UiDesignRepairAttempt[]
+
+  @@index([projectId, createdAt])
+  @@index([generationId, createdAt])
+  @@index([referenceId])
+  @@index([status, createdAt])
+  @@index([parentRenderId])
+}
+
+model UiDesignRepairAttempt {
+  id                 String   @id @default(cuid())
+  projectId          String
+  renderId           String
+  inputGenerationId  String
+  outputGenerationId String
+  attemptNumber      Int
+  status             String   @default("COMPLETED")
+  scoreBefore        Float?
+  scoreAfter         Float?
+  instructionsJson   String?
+  createdByUserId    String?
+  completedAt        DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  project UiDesignProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  render  UiDesignRender  @relation(fields: [renderId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([renderId])
+  @@index([outputGenerationId])
 }
 
 model AuditLog {
