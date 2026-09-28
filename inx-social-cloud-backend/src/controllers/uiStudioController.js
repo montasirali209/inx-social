@@ -9,6 +9,7 @@ const uiStudioConvergence = require('../services/uiStudioConvergenceService');
 const uiStudioDelivery = require('../services/uiStudioDeliveryService');
 const uiStudioProduction = require('../services/uiStudioProductionService');
 const uiStudioAgent = require('../services/uiStudioAgentService');
+const uiStudioResponsivePreview = require('../services/uiStudioResponsivePreviewService');
 
 function decodeHeader(req, name, fallback = '') {
   const raw = String(req.headers[name] || fallback);
@@ -238,6 +239,23 @@ async function prepareRender(req, res, next) {
       render,
       project: await uiStudio.projectDetail(req.params.projectId)
     });
+  } catch (error) { next(error); }
+}
+
+async function responsivePreview(req, res, next) {
+  try {
+    const result = await uiStudioResponsivePreview.previewContent(req.params.projectId, req.params.viewport);
+    if (String(req.headers['if-none-match'] || '') === result.etag) return res.status(304).end();
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
+    res.setHeader('ETag', result.etag);
+    res.setHeader('X-UI-Studio-Viewport', result.viewport);
+    res.setHeader('X-UI-Studio-Width', String(result.width));
+    res.setHeader('X-UI-Studio-Height', String(result.height));
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; media-src data: blob:; font-src data:; connect-src 'none'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'");
+    res.send(result.data);
   } catch (error) { next(error); }
 }
 
@@ -495,7 +513,7 @@ async function content(req, res, next) {
 
 module.exports = {
   list, create, detail, upload, analyse, generate, generation,
-  prepareRender, renderDetail, renderPreview, renderAsset, captureRender, repairRender,
+  prepareRender, responsivePreview, renderDetail, renderPreview, renderAsset, captureRender, repairRender,
   phase5Status, startConvergence, convergenceBatch, uploadAssetBinding, deleteAssetBinding,
   createIgnoreMask, deleteIgnoreMask, acceptGeneration,
   finalizeProductionCode, agentMessages, askAgent,
