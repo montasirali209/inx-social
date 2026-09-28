@@ -156,7 +156,7 @@ function generationSummary(row) {
 
 async function phase5Status(projectId) {
   const project = await prisma.uiDesignProject.findUnique({
-    where: { id: String(projectId || '').trim() },
+    where: { id: normalizedProjectId },
     include: {
       references: { orderBy: { createdAt: 'desc' }, take: 100 },
       analyses: { orderBy: { createdAt: 'desc' }, take: 1 },
@@ -768,6 +768,19 @@ async function enqueueRenderBatch(project, generation, references, options = {})
 }
 
 async function startRenderBatch(projectId, input = {}, createdByUserId = null) {
+  const normalizedProjectId = String(projectId || '').trim();
+  const active = await prisma.uiDesignRender.findFirst({
+    where: {
+      projectId: normalizedProjectId,
+      status: { in: ['QUEUED','CLAIMED','BUILDING','RENDERING','COMPARING'] }
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+  if (active?.batchId) {
+    const existing = await batchDetail(normalizedProjectId, active.batchId);
+    return { batchId: active.batchId, renders: existing.renders, reused: true };
+  }
+
   const project = await prisma.uiDesignProject.findUnique({
     where: { id: String(projectId || '').trim() },
     include: {
