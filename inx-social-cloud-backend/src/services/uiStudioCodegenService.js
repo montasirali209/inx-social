@@ -7,6 +7,7 @@ const env = require('../config/env');
 const objectStorage = require('./mediaObjectStorageService');
 const uiStudioAnalysis = require('./uiStudioAnalysisService');
 const webResearch = require('./webResearchService');
+const previewBuild = require('./uiStudioPreviewBuildService');
 
 const GENERATION_VERSION = 'ui-codegen-v1';
 const MAX_FILES = 14;
@@ -237,7 +238,7 @@ function validateGeneration(result) {
   checks.push({ key: 'FILES_PRESENT', ok: files.length > 0, message: files.length ? `${files.length} implementation file(s) generated.` : 'No implementation files were generated.' });
   checks.push({ key: 'ENTRY_PRESENT', ok: paths.includes(result?.entryFile), message: paths.includes(result?.entryFile) ? 'Entry file exists in the generated bundle.' : 'Entry file is missing.' });
   checks.push({ key: 'PATHS_UNIQUE', ok: new Set(paths).size === paths.length, message: 'Generated file paths are unique.' });
-  checks.push({ key: 'NO_MARKDOWN_FENCES', ok: files.every(file => !/^s*```/.test(file.content)), message: 'Generated files contain raw source rather than Markdown code fences.' });
+  checks.push({ key: 'NO_MARKDOWN_FENCES', ok: files.every(file => !/^\s*```/.test(file.content)), message: 'Generated files contain raw source rather than Markdown code fences.' });
   checks.push({ key: 'NO_SCREENSHOT_EMBED', ok: files.every(file => !/data:image\/(?:png|jpeg|webp);base64/i.test(file.content)), message: 'Generated code does not embed the reference screenshot.' });
   checks.push({ key: 'NO_REMOTE_SCRIPTS', ok: files.every(file => !/<script[^>]+src=["']https?:/i.test(file.content)), message: 'Generated code does not inject remote scripts.' });
 
@@ -252,6 +253,29 @@ function validateGeneration(result) {
     ok: checks.every(check => check.ok),
     checks,
     totalChars: files.reduce((sum, file) => sum + file.content.length, 0)
+  };
+}
+
+async function validateGenerationBuild(result, project) {
+  const structural = validateGeneration(result);
+  let compile;
+  try {
+    const built = await previewBuild.compileGeneration(result, project);
+    compile = { key: 'BUILD_COMPILE', ok: true, message: 'Generated implementation compiled successfully.', htmlBytes: built.htmlBytes };
+  } catch (caught) {
+    compile = {
+      key: 'BUILD_COMPILE',
+      ok: false,
+      message: String(caught.publicMessage || caught.message || 'Generated implementation failed to compile.').slice(0, 1200)
+    };
+  }
+  const checks = [...structural.checks, compile];
+  return {
+    ...structural,
+    passed: checks.filter(check => check.ok).length,
+    total: checks.length,
+    ok: checks.every(check => check.ok),
+    checks
   };
 }
 
@@ -447,6 +471,7 @@ async function generateProject(projectId, createdByUserId = null) {
 
   try {
     const generated = await requestGeneration(project, analysis, references);
+    generated.validation = await validateGenerationBuild(generated.result, project);
     const status = generated.validation.ok ? 'READY' : 'READY_WITH_WARNINGS';
     const completed = await prisma.uiDesignGeneration.update({
       where: { id: row.id },
@@ -501,6 +526,7 @@ module.exports = {
   generationSchema,
   normalizeGeneration,
   validateGeneration,
+  validateGenerationBuild,
   serializeGeneration,
   generateProject,
   generationDetail
