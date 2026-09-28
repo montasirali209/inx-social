@@ -113,6 +113,6 @@ test('interactive canvas remains isolated from UGC generation implementation', (
 
 test('interactive canvas asset cache is bumped', () => {
   const html = read('public/index.html');
-  assert.match(html, /ui-studio\.css\?v=10/);
-  assert.match(html, /ui-studio\.js\?v=10/);
+  assert.match(html, /ui-studio\.css\?v=11/);
+  assert.match(html, /ui-studio\.js\?v=11/);
 });
