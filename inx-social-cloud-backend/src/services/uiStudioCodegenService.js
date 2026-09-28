@@ -459,6 +459,17 @@ async function generateProject(projectId, createdByUserId = null) {
   }
   if (!ready()) throw error('UI Studio code generation is not configured.', 503, 'UI_STUDIO_CODEGEN_NOT_CONFIGURED');
 
+  const staleBefore = new Date(Date.now() - 20 * 60 * 1000);
+  await prisma.uiDesignGeneration.updateMany({
+    where: { projectId: id, status: 'RUNNING', startedAt: { lt: staleBefore } },
+    data: { status: 'FAILED', completedAt: new Date(), errorMessage: 'Recovered stale code-generation job.' }
+  });
+  const running = await prisma.uiDesignGeneration.findFirst({
+    where: { projectId: id, status: 'RUNNING' },
+    orderBy: { startedAt: 'desc' }
+  });
+  if (running) throw error('Responsive code generation is already running for this project.', 409, 'UI_STUDIO_CODEGEN_ALREADY_RUNNING');
+
   const row = await prisma.uiDesignGeneration.create({
     data: {
       projectId: id,
