@@ -489,7 +489,16 @@ async function analyseProject(projectId, createdByUserId = null) {
         errorMessage: null
       }
     });
-    await prisma.uiDesignProject.update({ where: { id }, data: { status: 'ANALYZED' } });
+    await prisma.uiDesignProject.update({
+      where: { id },
+      data: {
+        status: 'ANALYZED',
+        bestGenerationId: null,
+        acceptedGenerationId: null,
+        bestAggregateScore: null,
+        acceptedAt: null
+      }
+    });
     return {
       analysis: serializeAnalysis(completed, { full: true, currentFingerprint: sourceFingerprint }),
       imageCount: analysed.imageCount
