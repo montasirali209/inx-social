@@ -13,8 +13,16 @@ const uiStudioConvergence = require('./uiStudioConvergenceService');
 const STORAGE_PREFIX = 'ui-studio';
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const VIEWPORTS = new Set(['DESKTOP', 'TABLET', 'MOBILE']);
-const FRAMEWORKS = new Set(['REACT_TYPESCRIPT', 'NEXTJS', 'HTML_CSS']);
-const STYLING = new Set(['TAILWIND', 'CSS_MODULES', 'PLAIN_CSS']);
+const FRAMEWORKS = new Set([
+  'REACT_TYPESCRIPT','NEXTJS','HTML_CSS',
+  'VUE_TYPESCRIPT','NUXT','SVELTE','SVELTEKIT','ANGULAR','ASTRO','SOLIDJS','REMIX'
+]);
+const PREVIEW_FRAMEWORKS = new Set(['REACT_TYPESCRIPT','NEXTJS','HTML_CSS']);
+const STYLING = new Set([
+  'TAILWIND','CSS_MODULES','PLAIN_CSS',
+  'SCSS','STYLED_COMPONENTS','EMOTION','BOOTSTRAP','MATERIAL_UI','CHAKRA_UI','UNO_CSS','VANILLA_EXTRACT'
+]);
+const PREVIEW_STYLING = new Set(['TAILWIND','CSS_MODULES','PLAIN_CSS']);
 const OUTPUT_TYPES = new Set(['SECTION', 'FULL_PAGE']);
 const SUPPORTED_FORMATS = new Map([
   ['png', { mimeType: 'image/png', extension: 'png' }],
@@ -36,6 +44,28 @@ function choice(value, allowed, fallback) {
   if (!normalized) return fallback;
   if (!allowed.has(normalized)) throw publicError('Unsupported UI Studio option.');
   return normalized;
+}
+
+function choices(value, allowed, fallback = []) {
+  const source = Array.isArray(value) ? value : [];
+  const result = [];
+  for (const item of source) {
+    const normalized = String(item || '').trim().toUpperCase();
+    if (!normalized || result.includes(normalized)) continue;
+    if (!allowed.has(normalized)) throw publicError('Unsupported UI Studio option.');
+    result.push(normalized);
+  }
+  return result.length ? result : [...fallback];
+}
+
+function safeJson(value, fallback) {
+  if (value == null) return fallback;
+  if (typeof value === 'object') return value;
+  try { return JSON.parse(String(value)); } catch (_) { return fallback; }
+}
+
+function previewChoice(values, previewAllowed, fallback) {
+  return values.find(value => previewAllowed.has(value)) || fallback;
 }
 
 function normalizeViewport(value) {
@@ -81,6 +111,10 @@ function serializeProject(project, { fullAnalysis = false, fullGeneration = fals
     framework: project.framework,
     styling: project.styling,
     outputType: project.outputType,
+    frameworkTargets: safeJson(project.frameworkTargetsJson, [project.framework]),
+    stylingTargets: safeJson(project.stylingTargetsJson, [project.styling]),
+    productionGenerationId: project.productionGenerationId || null,
+    productionGeneratedAt: project.productionGeneratedAt || null,
     status: project.status,
     bestGenerationId: project.bestGenerationId || null,
     acceptedGenerationId: project.acceptedGenerationId || null,
@@ -164,12 +198,27 @@ async function createProject(input = {}) {
     throw publicError('Project name must be between 2 and 120 characters.', 400, 'UI_STUDIO_INVALID_NAME');
   }
 
+  const requestedFrameworks = choices(
+    input.frameworkTargets || (input.framework ? [input.framework] : []),
+    FRAMEWORKS,
+    ['REACT_TYPESCRIPT']
+  );
+  const requestedStyling = choices(
+    input.stylingTargets || (input.styling ? [input.styling] : []),
+    STYLING,
+    ['TAILWIND']
+  );
+  const framework = previewChoice(requestedFrameworks, PREVIEW_FRAMEWORKS, 'REACT_TYPESCRIPT');
+  const styling = previewChoice(requestedStyling, PREVIEW_STYLING, 'TAILWIND');
+
   const project = await prisma.uiDesignProject.create({
     data: {
       name,
-      framework: choice(input.framework, FRAMEWORKS, 'REACT_TYPESCRIPT'),
-      styling: choice(input.styling, STYLING, 'TAILWIND'),
+      framework,
+      styling,
       outputType: choice(input.outputType, OUTPUT_TYPES, 'SECTION'),
+      frameworkTargetsJson: JSON.stringify(requestedFrameworks),
+      stylingTargetsJson: JSON.stringify(requestedStyling),
       createdByUserId: input.createdByUserId ? String(input.createdByUserId) : null
     },
     include: {
@@ -275,6 +324,8 @@ async function uploadReference(projectId, viewportValue, input = {}) {
         status: 'ACTIVE',
         bestGenerationId: null,
         acceptedGenerationId: null,
+        productionGenerationId: null,
+        productionGeneratedAt: null,
         bestAggregateScore: null,
         acceptedAt: null
       }
@@ -306,6 +357,10 @@ module.exports = {
   STORAGE_PREFIX,
   MAX_UPLOAD_BYTES,
   VIEWPORTS,
+  FRAMEWORKS,
+  PREVIEW_FRAMEWORKS,
+  STYLING,
+  PREVIEW_STYLING,
   inspectUpload,
   normalizeViewport,
   contentUrl,
