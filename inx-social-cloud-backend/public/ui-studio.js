@@ -18,6 +18,12 @@
     phase6Config: null,
     phase6SelectedDeliveryId: null,
     phase6Busy: false,
+    agentConfig: null,
+    agentMessages: [],
+    agentBusy: false,
+    workflowStage: null,
+    sideTab: 'INSPECTOR',
+    finalizingCode: false,
     analysing: false,
     generating: false,
     visualRunning: false,
@@ -45,6 +51,28 @@
   };
   const pct = value => Math.max(0, Math.min(100, Number(value || 0)));
   const safeColor = value => /^#[0-9a-f]{3,8}$/i.test(String(value || '').trim()) ? String(value).trim() : '#cbd5e1';
+  const FRAMEWORK_LABELS = {
+    REACT_TYPESCRIPT:'React + TypeScript', NEXTJS:'Next.js', HTML_CSS:'HTML + CSS + JS',
+    VUE_TYPESCRIPT:'Vue 3 + TypeScript', NUXT:'Nuxt 3', SVELTE:'Svelte', SVELTEKIT:'SvelteKit',
+    ANGULAR:'Angular', ASTRO:'Astro', SOLIDJS:'SolidJS', REMIX:'Remix'
+  };
+  const STYLING_LABELS = {
+    TAILWIND:'Tailwind CSS', CSS_MODULES:'CSS Modules', PLAIN_CSS:'Plain CSS', SCSS:'Sass / SCSS',
+    STYLED_COMPONENTS:'styled-components', EMOTION:'Emotion', BOOTSTRAP:'Bootstrap',
+    MATERIAL_UI:'Material UI', CHAKRA_UI:'Chakra UI', UNO_CSS:'UnoCSS', VANILLA_EXTRACT:'vanilla-extract'
+  };
+  const WORKFLOW_STAGES = ['DESIGN','UNDERSTAND','PREVIEW','MATCH','APPROVE','GENERATE','DELIVER'];
+  const STAGE_COPY = {
+    DESIGN: ['Design','Add your reference design','Upload the original Desktop, Tablet or Mobile design you want UI Studio to reconstruct.'],
+    UNDERSTAND: ['Understand','Review what UI Studio sees','Analyse layout, typography, colours, components and responsive behaviour before reconstruction.'],
+    PREVIEW: ['Preview','Inspect the reconstruction','Build a private internal preview. Implementation code stays hidden until you approve the visual result.'],
+    MATCH: ['Match & Refine','Compare and improve the match','Render every available viewport, compare it with the original and automatically retain the strongest version.'],
+    APPROVE: ['Approve','Lock the visual version','Approve the best responsive match before any production code is exposed for delivery.'],
+    GENERATE: ['Generate','Prepare production code','Expose the validated implementation only after visual approval.'],
+    DELIVER: ['Deliver','Export or connect','Create a portable ZIP bundle, or use an optional connected repository workflow later.']
+  };
+  const frameworkLabel = value => FRAMEWORK_LABELS[value] || String(value || '').replaceAll('_',' ');
+  const stylingLabel = value => STYLING_LABELS[value] || String(value || '').replaceAll('_',' ');
 
   function notify(message) {
     const element = $('toast');
