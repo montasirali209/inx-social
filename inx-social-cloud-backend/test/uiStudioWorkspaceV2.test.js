@@ -146,6 +146,6 @@ test('Workspace polish adds native-feeling stage, dock and empty-canvas motion',
   assert.match(js, /function animateUiStudioElement/);
   assert.match(js, /function animateStageSurface/);
   assert.match(js, /ui-studio-empty-orb/);
-  assert.match(html, /ui-studio\.css\?v=10/);
-  assert.match(html, /ui-studio\.js\?v=10/);
+  assert.match(html, /ui-studio\.css\?v=11/);
+  assert.match(html, /ui-studio\.js\?v=11/);
 });
