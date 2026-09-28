@@ -4,6 +4,11 @@ export const WEBSITE_MEDIA = {
   landingHeroDashboard: "landing.hero.dashboard",
   landingDashboardShowcase: "landing.dashboard.showcase",
   landingSocialPreview: "landing.social.preview",
+  landingUgcMayaVideo: "landing.ugc-studio.maya.video",
+  landingUgcChloeVideo: "landing.ugc-studio.chloe.video",
+  landingUgcSofiaVideo: "landing.ugc-studio.sofia.video",
+  landingUgcEmmaVideo: "landing.ugc-studio.emma.video",
+  landingUgcLilyVideo: "landing.ugc-studio.lily.video",
   seoDefaultDashboard: "seo.default.dashboard",
   seoDefaultAiStudio: "seo.default.ai-studio",
   seoAiVideoHero: "seo.ai-video.hero"
