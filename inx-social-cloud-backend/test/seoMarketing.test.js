@@ -146,7 +146,7 @@ test('canonical SEO pages retain resilient 200 fallbacks and deep internal links
 });
 
 
-test('homepage social card is a dedicated JPEG hero preview served with crawler-safe headers', () => {
+test('homepage social card uses managed Website Media with a legacy JPEG fallback', () => {
   const app = readBackend('src/app.js');
   const layout = readRepo('landing-next/app/layout.tsx');
   assert.match(app, /SOCIAL_PREVIEW_ASSET_PATH = '\/assets\/inxsocial-social-preview-v3\.jpg'/);
