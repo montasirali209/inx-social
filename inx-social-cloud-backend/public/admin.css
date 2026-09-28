@@ -498,3 +498,8 @@
   .website-media-modal-footer{align-items:stretch;flex-direction:column-reverse}.website-media-modal-footer button{width:100%}
 }
 @media(max-width:460px){.website-media-summary{grid-template-columns:1fr}.website-media-facts{grid-template-columns:1fr}.website-media-facts span:first-child{grid-column:auto}.website-media-card-title{align-items:stretch;flex-direction:column}.website-media-card-title button{width:100%}}
+
+.website-media-card-preview>video{display:block;width:100%;height:100%;min-height:230px;max-height:320px;object-fit:contain;background:#030c13}
+.website-media-modal-preview>video{display:block;width:100%;height:100%;max-height:480px;object-fit:contain;background:#020a11}
+.website-media-version-thumb video{display:block;width:100%;height:100%;object-fit:cover;background:#020a11}
+@media(max-width:700px){.website-media-card-preview>video{min-height:180px;max-height:260px}}

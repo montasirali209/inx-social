@@ -93,7 +93,7 @@ router.post(
 router.get('/ui-studio/references/:referenceId/content', uiStudio.content);
 router.get('/website-media', websiteMedia.list);
 router.get('/website-media/:key', websiteMedia.detail);
-router.post('/website-media/:key/upload', requireSuperAdmin, express.raw({ type: ['image/png','image/jpeg','image/webp','image/avif'], limit: '25mb' }), websiteMedia.upload);
+router.post('/website-media/:key/upload', requireSuperAdmin, express.raw({ type: ['image/png','image/jpeg','image/webp','image/avif','video/mp4','video/webm'], limit: '120mb' }), websiteMedia.upload);
 router.patch('/website-media/:key', requireSuperAdmin, websiteMedia.update);
 router.post('/website-media/:key/restore/:versionId', requireSuperAdmin, websiteMedia.restore);
 router.post('/website-media/:key/use-fallback', requireSuperAdmin, websiteMedia.useFallback);

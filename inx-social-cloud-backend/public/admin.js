@@ -1797,47 +1797,61 @@ function websiteMediaCurrent(slot){
   return slot?.currentVersion||null;
 }
 
+function websiteMediaIsVideoSlot(slot){
+  return slot?.mediaType==='VIDEO';
+}
+
+function websiteMediaPreviewMarkup(slot,url,{history=false}={}){
+  if(!url)return '<div class="website-media-card-empty"><span>▣</span><b>No media available</b></div>';
+  if(websiteMediaIsVideoSlot(slot)||String(slot?.mimeType||'').startsWith('video/')){
+    return '<video src="'+esc(url)+'" muted playsinline preload="metadata"'+(history?'':' loop')+'></video>';
+  }
+  return '<img src="'+esc(url)+'" alt="'+esc(slot?.altText||slot?.label||'')+'" loading="lazy">';
+}
+
 function websiteMediaCard(slot){
   const version=websiteMediaCurrent(slot);
-  const configured=Boolean(slot?.hasImage&&version);
+  const configured=Boolean((slot?.hasMedia??slot?.hasImage)&&version);
+  const isVideo=websiteMediaIsVideoSlot(slot);
   const used=(slot.usedOn||[]).join(' · ');
   const requirements=[slot.recommendedMinWidth?slot.recommendedMinWidth+'px min width':'',slot.recommendedMinHeight?slot.recommendedMinHeight+'px min height':''].filter(Boolean).join(' · ');
-  const previewUrl=configured?slot.publicUrl:slot.liveUrl;
-  const image=previewUrl
-    ? '<img src="'+esc(previewUrl)+'" alt="'+esc(slot.altText||slot.label)+'" loading="lazy">'
-    : '<div class="website-media-card-empty"><span>▣</span><b>No image available</b></div>';
+  const hasFallback=Boolean(slot.fallbackKey||slot.fallbackUrl);
+  const previewUrl=configured?slot.publicUrl:(hasFallback?slot.liveUrl:null);
+  const preview=previewUrl
+    ? websiteMediaPreviewMarkup(slot,previewUrl)
+    : '<div class="website-media-card-empty"><span>'+(isVideo?'▶':'▣')+'</span><b>'+esc(isVideo?'Upload a video':'No media available')+'</b></div>';
   const status=configured
-    ? '<span class="website-media-status configured">Custom image</span>'
-    : '<span class="website-media-status">Using default</span>';
+    ? '<span class="website-media-status configured">Custom '+(isVideo?'video':'image')+'</span>'
+    : '<span class="website-media-status">'+(hasFallback?'Using default':(isVideo?'Awaiting video':'Not configured'))+'</span>';
   return '<article class="website-media-card" data-media-key="'+esc(slot.key)+'">'+
-    '<div class="website-media-card-preview">'+image+status+'</div>'+
+    '<div class="website-media-card-preview">'+preview+status+'</div>'+
     '<div class="website-media-card-body">'+
       '<div class="website-media-card-title"><div><span class="kicker">'+esc(slot.section)+'</span><h3>'+esc(slot.label)+'</h3></div><button class="secondary website-media-manage" type="button" data-media-manage="'+esc(slot.key)+'">Manage</button></div>'+
       '<p>'+esc(used||'Website placement')+'</p>'+
       '<div class="website-media-facts">'+
-        '<span><b>Recommended</b>'+esc(requirements||'High-resolution original')+'</span>'+
-        '<span><b>Current</b>'+(configured?esc(version.width+' × '+version.height+' · '+websiteMediaBytes(version.byteSize)):esc(slot.fallbackKey?'Category default':'Built-in fallback'))+'</span>'+
+        '<span><b>Recommended</b>'+esc(requirements||'High-quality original')+'</span>'+
+        '<span><b>Current</b>'+(configured?esc(version.width+' × '+version.height+' · '+websiteMediaBytes(version.byteSize)):esc(hasFallback?(slot.fallbackKey?'Category default':'Built-in fallback'):(isVideo?'No video uploaded':'Not configured')))+'</span>'+
         '<span><b>Versions</b>'+Number(slot.versionCount||0).toLocaleString('en-GB')+'</span>'+
       '</div>'+
-      '<div class="website-media-card-foot"><span>'+esc(configured?version.originalName:(slot.fallbackKey?'Inherited from '+slot.fallbackKey:'Built-in site image'))+'</span><small>'+(configured?'Updated '+esc(relative(slot.updatedAt)):'Live fallback')+'</small></div>'+
+      '<div class="website-media-card-foot"><span>'+esc(configured?version.originalName:(hasFallback?(slot.fallbackKey?'Inherited from '+slot.fallbackKey:'Built-in site media'):'Upload from Website Media'))+'</span><small>'+(configured?'Updated '+esc(relative(slot.updatedAt)):(hasFallback?'Live fallback':'Waiting'))+'</small></div>'+
     '</div>'+
   '</article>';
 }
 
 function renderWebsiteMedia(slots,storage){
   state.websiteMedia=slots||[];
-  const configured=state.websiteMedia.filter(slot=>slot.hasImage).length;
+  const configured=state.websiteMedia.filter(slot=>slot.hasMedia??slot.hasImage).length;
   const versions=state.websiteMedia.reduce((sum,slot)=>sum+Number(slot.versionCount||0),0);
   $('websiteMediaSummary').innerHTML=[
     ['Managed slots',state.websiteMedia.length,'Landing + SEO placements'],
-    ['Configured',configured,configured===state.websiteMedia.length?'Every slot has an original':'Upload only the images you want to manage'],
+    ['Configured',configured,configured===state.websiteMedia.length?'Every slot has custom media':'Upload only the media you want to manage'],
     ['Versions',versions,'Restorable originals'],
     ['Storage',storage?.provider==='CLOUDFLARE_R2'?'R2':'Unavailable',storage?.originalsPreserved?'Original files retained':'Check storage configuration']
   ].map(item=>'<article><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b><small>'+esc(item[2])+'</small></article>').join('');
 
   $('websiteMediaStorageStatus').textContent=storage?.provider==='CLOUDFLARE_R2'?'R2 ORIGINALS':'STORAGE CHECK';
   $('websiteMediaStorageStatus').className='status-chip '+(storage?.provider==='CLOUDFLARE_R2'?'gsc-connected':'');
-  $('websiteMediaPermission').textContent=websiteMediaIsSuper()?'You can replace and restore website images.':'Viewing only · image changes require Super Admin.';
+  $('websiteMediaPermission').textContent=websiteMediaIsSuper()?'You can replace and restore website images and videos.':'Viewing only · media changes require Super Admin.';
 
   const groups=new Map();
   state.websiteMedia.forEach(slot=>{
@@ -1845,8 +1859,8 @@ function renderWebsiteMedia(slots,storage){
     groups.get(slot.section).push(slot);
   });
   $('websiteMediaGroups').innerHTML=[...groups.entries()].map(([section,items])=>
-    '<section class="website-media-group"><div class="website-media-group-head"><div><span class="kicker">'+esc(section)+'</span><h2>'+esc(section==='Landing Page'?'Landing page images':section==='SEO Page Overrides'?'Page-specific SEO overrides':'SEO & search defaults')+'</h2></div><span>'+items.length+' managed slot'+(items.length===1?'':'s')+'</span></div><div class="website-media-grid">'+items.map(websiteMediaCard).join('')+'</div></section>'
-  ).join('')||'<div class="growth-empty">No website image slots are configured.</div>';
+    '<section class="website-media-group"><div class="website-media-group-head"><div><span class="kicker">'+esc(section)+'</span><h2>'+esc(section==='Landing Page'?'Landing page media':section==='SEO Page Overrides'?'Page-specific SEO overrides':'SEO & search defaults')+'</h2></div><span>'+items.length+' managed slot'+(items.length===1?'':'s')+'</span></div><div class="website-media-grid">'+items.map(websiteMediaCard).join('')+'</div></section>'
+  ).join('')||'<div class="growth-empty">No website media slots are configured.</div>';
 
   document.querySelectorAll('[data-media-manage]').forEach(button=>button.addEventListener('click',()=>void openWebsiteMediaEditor(button.dataset.mediaManage)));
 }
@@ -1868,8 +1882,12 @@ function closeWebsiteMediaEditor(){
 
 function websiteMediaVersionRow(version,currentVersionId,key){
   const current=version.id===currentVersionId;
+  const isVideo=String(version.mimeType||'').startsWith('video/');
+  const thumb=isVideo
+    ? '<video src="'+esc(version.contentUrl||'')+'" muted playsinline preload="metadata"></video>'
+    : '<img src="'+esc(version.contentUrl||'')+'" alt="" loading="lazy">';
   return '<div class="website-media-version '+(current?'current':'')+'">'+
-    '<a class="website-media-version-thumb" href="'+esc(version.contentUrl||('#'))+'" target="_blank" rel="noopener"><img src="'+esc(version.contentUrl||'')+'" alt="" loading="lazy"></a>'+
+    '<a class="website-media-version-thumb" href="'+esc(version.contentUrl||('#'))+'" target="_blank" rel="noopener">'+thumb+'</a>'+
     '<div><b>'+esc(version.originalName)+'</b><small>'+esc(version.width+' × '+version.height+' · '+websiteMediaBytes(version.byteSize))+'</small><small>'+esc(fmtDate(version.createdAt))+(current?' · Current':'')+'</small></div>'+
     '<div class="website-media-version-actions">'+
       '<a class="text-button" href="'+esc(version.contentUrl||'#')+'" target="_blank" rel="noopener">View</a>'+
@@ -1880,20 +1898,25 @@ function websiteMediaVersionRow(version,currentVersionId,key){
 
 function renderWebsiteMediaEditor(slot){
   const version=slot.currentVersion;
+  const isVideo=websiteMediaIsVideoSlot(slot);
+  const hasFallback=Boolean(slot.fallbackKey||slot.fallbackUrl);
   state.websiteMediaSelectedKey=slot.key;
   $('websiteMediaDialogTitle').textContent=slot.label;
-  $('websiteMediaDialogUse').textContent=(slot.usedOn||[]).length?'Used on: '+slot.usedOn.join(' · '):'Website image placement';
+  $('websiteMediaDialogUse').textContent=(slot.usedOn||[]).length?'Used on: '+slot.usedOn.join(' · '):(isVideo?'Website video placement':'Website image placement');
   $('websiteMediaAltText').value=slot.altText||'';
+  $('websiteMediaAltLabel').textContent=isVideo?'Description':'Alt text';
 
-  const effectivePreview=version?slot.publicUrl:slot.liveUrl;
+  const effectivePreview=version?slot.publicUrl:(hasFallback?slot.liveUrl:null);
   $('websiteMediaModalPreview').innerHTML=effectivePreview
-    ? '<img src="'+esc(effectivePreview)+'" alt="'+esc(slot.altText||slot.label)+'">'
-    : '<div class="website-media-empty-preview"><span>▣</span><b>No image available</b></div>';
+    ? (isVideo
+      ? '<video src="'+esc(effectivePreview)+'" controls muted playsinline loop preload="metadata"></video>'
+      : '<img src="'+esc(effectivePreview)+'" alt="'+esc(slot.altText||slot.label)+'">')
+    : '<div class="website-media-empty-preview"><span>'+(isVideo?'▶':'▣')+'</span><b>'+esc(isVideo?'No video uploaded yet':'No image available')+'</b></div>';
 
   $('websiteMediaModalMeta').innerHTML=[
     ['Recommended',[(slot.recommendedMinWidth||'—')+'px width',(slot.recommendedMinHeight||'—')+'px height'].join(' · ')],
-    ['Current',version?version.width+' × '+version.height:(slot.fallbackKey?'Category default':'Built-in fallback')],
-    ['File',version?version.mimeType.replace('image/','').toUpperCase()+' · '+websiteMediaBytes(version.byteSize):'Fallback'],
+    ['Current',version?version.width+' × '+version.height:(hasFallback?(slot.fallbackKey?'Category default':'Built-in fallback'):'Not uploaded')],
+    ['File',version?String(version.mimeType||'').replace('image/','').replace('video/','').toUpperCase()+' · '+websiteMediaBytes(version.byteSize):(hasFallback?'Fallback':'—')],
     ['Versions',String(slot.versionCount||0)]
   ].map(item=>'<span><b>'+esc(item[0])+'</b>'+esc(item[1])+'</span>').join('');
 
@@ -1902,14 +1925,20 @@ function renderWebsiteMediaEditor(slot){
     : '<div class="website-media-history-empty">No previous versions yet.</div>';
 
   const canEdit=websiteMediaIsSuper();
-  $('websiteMediaFile').disabled=!canEdit;
+  const input=$('websiteMediaFile');
+  input.disabled=!canEdit;
+  input.accept=(slot.acceptedMimeTypes||[]).join(',');
+  $('websiteMediaUploadLabel').textContent=isVideo?'Choose replacement video':'Choose replacement image';
+  $('websiteMediaUploadHelp').textContent=isVideo
+    ? 'MP4 or WebM · up to 120 MB · 9:16 recommended · original file is preserved'
+    : 'PNG, JPEG, WebP or AVIF · up to 25 MB · original file is preserved';
   $('websiteMediaAltText').disabled=!canEdit;
   $('saveWebsiteMediaAltBtn').disabled=!canEdit;
   $('uploadWebsiteMediaBtn').disabled=!canEdit;
-  $('uploadWebsiteMediaBtn').textContent=version?'Upload & replace':'Upload custom image';
-  $('websiteMediaUseFallbackBtn').hidden=!version;
+  $('uploadWebsiteMediaBtn').textContent=version?'Upload & replace':(isVideo?'Upload video':'Upload custom image');
+  $('websiteMediaUseFallbackBtn').hidden=!version||!hasFallback;
   $('websiteMediaUseFallbackBtn').disabled=!canEdit;
-  $('websiteMediaUseFallbackBtn').textContent=slot.fallbackKey?'Use category default':'Use built-in image';
+  $('websiteMediaUseFallbackBtn').textContent=slot.fallbackKey?'Use category default':'Use built-in media';
   $('websiteMediaFileChoice').hidden=true;
   $('websiteMediaUploadWarning').hidden=true;
 
@@ -1924,18 +1953,23 @@ async function openWebsiteMediaEditor(key){
   renderWebsiteMediaEditor(data.slot);
 }
 
-async function websiteMediaReadDimensions(file){
+async function websiteMediaReadPreview(file,mediaType){
+  const url=URL.createObjectURL(file);
   return new Promise((resolve,reject)=>{
-    const reader=new FileReader();
-    reader.onerror=()=>reject(new Error('This image could not be previewed.'));
-    reader.onload=()=>{
-      const url=String(reader.result||'');
-      const image=new Image();
-      image.onload=()=>resolve({width:image.naturalWidth,height:image.naturalHeight,url});
-      image.onerror=()=>reject(new Error('This image could not be previewed.'));
-      image.src=url;
-    };
-    reader.readAsDataURL(file);
+    if(mediaType==='VIDEO'){
+      const video=document.createElement('video');
+      video.preload='metadata';
+      video.muted=true;
+      video.playsInline=true;
+      video.onloadedmetadata=()=>resolve({width:video.videoWidth,height:video.videoHeight,url});
+      video.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('This video could not be previewed.'))};
+      video.src=url;
+      return;
+    }
+    const image=new Image();
+    image.onload=()=>resolve({width:image.naturalWidth,height:image.naturalHeight,url});
+    image.onerror=()=>{URL.revokeObjectURL(url);reject(new Error('This image could not be previewed.'))};
+    image.src=url;
   });
 }
 
@@ -1945,30 +1979,39 @@ $('websiteMediaFile').addEventListener('change',async()=>{
   $('websiteMediaUploadWarning').hidden=true;
   if(state.websiteMediaObjectUrl?.startsWith('blob:'))URL.revokeObjectURL(state.websiteMediaObjectUrl);state.websiteMediaObjectUrl=null
   if(!file)return;
-  if(!['image/png','image/jpeg','image/webp','image/avif'].includes(file.type)||file.size>25*1024*1024){
+
+  const slot=state.websiteMedia.find(item=>item.key===state.websiteMediaSelectedKey);
+  const isVideo=websiteMediaIsVideoSlot(slot);
+  const allowed=slot?.acceptedMimeTypes||[];
+  const maxBytes=Number(slot?.maxUploadBytes||(isVideo?120*1024*1024:25*1024*1024));
+  if(!allowed.includes(file.type)||file.size>maxBytes){
     $('websiteMediaUploadWarning').hidden=false;
-    $('websiteMediaUploadWarning').textContent='Choose a PNG, JPEG, WebP or AVIF image no larger than 25 MB.';
+    $('websiteMediaUploadWarning').textContent=isVideo
+      ? 'Choose an MP4 or WebM video no larger than 120 MB.'
+      : 'Choose a PNG, JPEG, WebP or AVIF image no larger than 25 MB.';
     $('websiteMediaFile').value='';
     return;
   }
+
   try{
-    const dimensions=await websiteMediaReadDimensions(file);
+    const dimensions=await websiteMediaReadPreview(file,isVideo?'VIDEO':'IMAGE');
     state.websiteMediaObjectUrl=dimensions.url;
-    const slot=state.websiteMedia.find(item=>item.key===state.websiteMediaSelectedKey);
     const warnings=[];
     if(slot?.recommendedMinWidth&&dimensions.width<slot.recommendedMinWidth)warnings.push('Recommended width is '+slot.recommendedMinWidth+'px or more.');
     if(slot?.recommendedMinHeight&&dimensions.height<slot.recommendedMinHeight)warnings.push('Recommended height is '+slot.recommendedMinHeight+'px or more.');
     if(slot?.recommendedMinWidth&&slot?.recommendedMinHeight){
       const expected=slot.recommendedMinWidth/slot.recommendedMinHeight;
       const actual=dimensions.width/dimensions.height;
-      if(Math.abs(actual-expected)/expected>0.04)warnings.push('This image has a different aspect ratio from the placement and may create extra whitespace or cropping.');
+      if(Math.abs(actual-expected)/expected>0.04)warnings.push('This '+(isVideo?'video':'image')+' has a different aspect ratio from the placement and may be cropped.');
     }
-    $('websiteMediaModalPreview').innerHTML='<img src="'+esc(dimensions.url)+'" alt="Selected website media preview">';
+    $('websiteMediaModalPreview').innerHTML=isVideo
+      ? '<video src="'+esc(dimensions.url)+'" controls muted playsinline loop></video>'
+      : '<img src="'+esc(dimensions.url)+'" alt="Selected website media preview">';
     $('websiteMediaFileChoice').hidden=false;
     $('websiteMediaFileChoice').innerHTML='<b>'+esc(file.name)+'</b><span>'+esc(dimensions.width+' × '+dimensions.height+' · '+websiteMediaBytes(file.size))+'</span>';
     if(warnings.length){
       $('websiteMediaUploadWarning').hidden=false;
-      $('websiteMediaUploadWarning').innerHTML='<b>Quality warning</b><span>'+esc(warnings.join(' '))+'</span><small>You can still upload it, but a larger original will look sharper on high-resolution screens.</small>';
+      $('websiteMediaUploadWarning').innerHTML='<b>Quality warning</b><span>'+esc(warnings.join(' '))+'</span><small>You can still upload it, but the recommended dimensions will look sharper in this placement.</small>';
     }
   }catch(error){
     $('websiteMediaUploadWarning').hidden=false;
@@ -1980,7 +2023,9 @@ async function uploadWebsiteMedia(event){
   event.preventDefault();
   const key=state.websiteMediaSelectedKey;
   const file=$('websiteMediaFile').files?.[0];
-  if(!key||!file){toast('Choose an image to upload.');return}
+  const slot=state.websiteMedia.find(item=>item.key===key);
+  const isVideo=websiteMediaIsVideoSlot(slot);
+  if(!key||!file){toast('Choose '+(isVideo?'a video':'an image')+' to upload.');return}
   const button=$('uploadWebsiteMediaBtn');
   button.disabled=true;
   button.textContent='Uploading original…';
@@ -1997,9 +2042,9 @@ async function uploadWebsiteMedia(event){
     });
     const data=await response.json().catch(()=>({}));
     if(response.status===401){clearSession();throw new Error(data.error||'Your administrator session has ended.')}
-    if(!response.ok)throw new Error(data.error||'Website image upload failed.');
-    if(data.warnings?.length)toast('Image replaced. '+data.warnings[0]);
-    else toast('Website image uploaded at original quality.');
+    if(!response.ok)throw new Error(data.error||'Website media upload failed.');
+    if(data.warnings?.length)toast((isVideo?'Video':'Image')+' replaced. '+data.warnings[0]);
+    else toast('Website '+(isVideo?'video':'image')+' uploaded at original quality.');
     await loadWebsiteMedia();
     await openWebsiteMediaEditor(key);
   }finally{
@@ -2031,7 +2076,7 @@ async function restoreWebsiteMediaVersion(key,versionId){
   if(button){button.disabled=true;button.textContent='Restoring…'}
   try{
     await api('/api/admin/website-media/'+encodeURIComponent(key)+'/restore/'+encodeURIComponent(versionId),{method:'POST'});
-    toast('Previous website image restored.');
+    toast('Previous website media restored.');
     await loadWebsiteMedia();
     await openWebsiteMediaEditor(key);
   }catch(error){toast(error.message)}
@@ -2042,13 +2087,13 @@ async function useWebsiteMediaFallback(){
   const key=state.websiteMediaSelectedKey;
   if(!key||!websiteMediaIsSuper())return;
   const slot=state.websiteMedia.find(item=>item.key===key);
-  const label=slot?.fallbackKey?'category default image':'built-in site image';
+  const label=slot?.fallbackKey?'category default media':'built-in site media';
   if(!window.confirm('Use the '+label+' for this placement? Your uploaded versions will stay in history and can be restored later.'))return;
   const button=$('websiteMediaUseFallbackBtn');
   button.disabled=true;button.textContent='Switching…';
   try{
     await api('/api/admin/website-media/'+encodeURIComponent(key)+'/use-fallback',{method:'POST'});
-    toast('Website placement switched to its fallback image.');
+    toast('Website placement switched to its fallback media.');
     await loadWebsiteMedia();
     await openWebsiteMediaEditor(key);
   }catch(error){toast(error.message)}

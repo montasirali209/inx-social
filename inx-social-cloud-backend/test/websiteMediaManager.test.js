@@ -32,7 +32,9 @@ test('Website Media exposes only protected admin mutations and public read deliv
   assert.match(admin, /website-media\/:key\/upload', requireSuperAdmin/);
   assert.match(admin, /website-media\/:key', requireSuperAdmin, websiteMedia\.update/);
   assert.match(admin, /website-media\/:key\/restore\/:versionId', requireSuperAdmin/);
-  assert.match(admin, /limit: '25mb'/);
+  assert.match(admin, /video\/mp4/);
+  assert.match(admin, /video\/webm/);
+  assert.match(admin, /limit: '120mb'/);
   assert.match(app, /app\.use\('\/api\/website-media', websiteMediaPublicRoutes\)/);
   assert.match(publicRoutes, /router\.get\('\/:key\/content', controller\.content\)/);
 });
@@ -95,6 +97,28 @@ test('Website Media public delivery is cacheable and uses content hashes as ETag
 });
 
 
+test('Website Media video delivery supports browser byte ranges', () => {
+  const service = require('../src/services/websiteMediaService');
+  const controller = read('src/controllers/websiteMediaPublicController.js');
+
+  assert.deepEqual(service.parseByteRange('bytes=0-999', 5000), {
+    start: 0,
+    end: 999,
+    header: 'bytes=0-999',
+    total: 5000
+  });
+  assert.deepEqual(service.parseByteRange('bytes=-500', 5000), {
+    start: 4500,
+    end: 4999,
+    header: 'bytes=4500-4999',
+    total: 5000
+  });
+  assert.match(controller, /Accept-Ranges/);
+  assert.match(controller, /Content-Range/);
+  assert.match(controller, /res\.status\(206\)/);
+  assert.match(controller, /req\.headers\.range/);
+});
+
 test('Website Media has a dedicated admin navigation surface and editor', () => {
   const html = read('public/index.html');
   const js = read('public/admin.js');
@@ -120,11 +144,12 @@ test('Website Media editor preserves original uploads and warns about undersized
 
   assert.match(html, /original file is preserved/i);
   assert.match(html, /PNG, JPEG, WebP or AVIF/);
-  assert.match(js, /file\.size>25\*1024\*1024/);
+  assert.match(js, /maxUploadBytes/);
+  assert.match(js, /120\*1024\*1024/);
   assert.match(js, /recommendedMinWidth/);
   assert.match(js, /recommendedMinHeight/);
   assert.match(js, /Quality warning/);
-  assert.match(js, /readAsDataURL/);
+  assert.match(js, /URL\.createObjectURL/);
   assert.doesNotMatch(js, /canvas\.toDataURL|toBlob\(/);
 });
 
@@ -132,9 +157,9 @@ test('Historical Website Media versions can be previewed without restoring them 
   const service = read('src/services/websiteMediaService.js');
   const controller = read('src/controllers/websiteMediaPublicController.js');
 
-  assert.match(service, /async function content\(key, versionId = ''\)/);
+  assert.match(service, /async function content\(key, versionId = '', rangeHeader = ''\)/);
   assert.match(service, /assetId: asset\.id/);
-  assert.match(controller, /websiteMedia\.content\(req\.params\.key, req\.query\.v\)/);
+  assert.match(controller, /websiteMedia\.content\(req\.params\.key, req\.query\.v, req\.headers\.range\)/);
 });
 
 test('Website Media admin work remains isolated from UGC implementation', () => {
@@ -200,6 +225,59 @@ test('Phase 3 lets Super Admin revert a custom image without deleting its histor
   assert.match(html, /websiteMediaUseFallbackBtn/);
   assert.match(js, /useWebsiteMediaFallback/);
   assert.match(js, /Your uploaded versions will stay in history/);
+});
+
+test('Website Media manages the five homepage UGC video slots without a new database model', () => {
+  const service = require('../src/services/websiteMediaService');
+  const source = read('src/services/websiteMediaService.js');
+  const routes = read('src/routes/adminRoutes.js');
+  const admin = read('public/admin.js');
+  const css = read('public/admin.css');
+
+  for (const key of [
+    'landing.ugc-studio.maya.video',
+    'landing.ugc-studio.chloe.video',
+    'landing.ugc-studio.sofia.video',
+    'landing.ugc-studio.emma.video',
+    'landing.ugc-studio.lily.video'
+  ]) {
+    assert.match(source, new RegExp(key.replaceAll('.', '\\.')));
+    assert.equal(service.definitionFor(key).mediaType, 'VIDEO');
+  }
+
+  assert.deepEqual(service.videoFormat(Buffer.from([0,0,0,0,0x66,0x74,0x79,0x70,0,0,0,0]))?.mimeType, 'video/mp4');
+  assert.deepEqual(service.videoFormat(Buffer.from([0x1a,0x45,0xdf,0xa3,0,0,0,0,0,0,0,0]))?.mimeType, 'video/webm');
+  assert.match(routes, /video\/mp4/);
+  assert.match(routes, /video\/webm/);
+  assert.match(admin, /websiteMediaIsVideoSlot/);
+  assert.match(admin, /<video/);
+  assert.match(css, /website-media-modal-preview>video/);
+});
+
+test('UI Studio UGC export is mounted immediately before Pricing and reads videos from Website Media', () => {
+  const page = read('../landing-next/app/page.tsx');
+  const portal = read('../landing-next/components/UgcAdStudioPortal.tsx');
+  const showcase = read('../landing-next/components/UgcAdStudioShowcase.tsx');
+  const media = read('../landing-next/lib/website-media.ts');
+
+  assert.match(page, /ugc-ad-studio-showcase-root/);
+  assert.match(page, /<section class="pricing-section" id="pricing">/);
+  assert.match(page, /UgcAdStudioPortal/);
+  for (const constant of [
+    'landingUgcMayaVideo',
+    'landingUgcChloeVideo',
+    'landingUgcSofiaVideo',
+    'landingUgcEmmaVideo',
+    'landingUgcLilyVideo'
+  ]) {
+    assert.match(portal, new RegExp(constant));
+    assert.match(media, new RegExp(constant));
+  }
+  assert.match(showcase, /UGC AD STUDIO/);
+  assert.match(showcase, /Turn any idea into/);
+  assert.match(showcase, /Create a UGC Ad/);
+  assert.match(showcase, /ActivePhone/);
+  assert.match(showcase, /CreatorCard/);
 });
 
 test('Phase 3 does not modify the UGC generation system', () => {
