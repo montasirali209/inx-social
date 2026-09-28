@@ -749,6 +749,7 @@ model UiDesignProject {
   repairAttempts UiDesignRepairAttempt[]
   assetBindings  UiDesignAssetBinding[]
   ignoreMasks    UiDesignIgnoreMask[]
+  deliveries     UiDesignDelivery[]
 
   @@index([status, updatedAt])
   @@index([createdAt])
@@ -828,6 +829,7 @@ model UiDesignGeneration {
   project        UiDesignProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   sourceAnalysis UiDesignAnalysis @relation(fields: [sourceAnalysisId], references: [id], onDelete: Cascade)
   renders        UiDesignRender[]
+  deliveries     UiDesignDelivery[]
 
   @@index([projectId, createdAt])
   @@index([sourceAnalysisId])
@@ -953,6 +955,45 @@ model UiDesignIgnoreMask {
   project UiDesignProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId, viewport])
+}
+
+model UiDesignDelivery {
+  id                    String   @id @default(cuid())
+  projectId             String
+  generationId          String
+  version               String   @default("ui-delivery-v1")
+  status                String   @default("READY")
+  targetMode            String   @default("EXPORT_ONLY")
+  repository            String?
+  baseBranch            String?
+  targetDirectory       String?
+  branchName            String?
+  pullRequestNumber     Int?
+  pullRequestUrl        String?
+  commitSha             String?
+  mergeSha              String?
+  mappingJson           String   @default("[]")
+  regressionJson        String?
+  artifactStorageProvider String?
+  artifactStorageKey    String?  @unique
+  artifactFileName      String?
+  artifactByteSize      BigInt?
+  artifactSha256        String?
+  createdByUserId       String?
+  approvedByUserId      String?
+  approvedAt            DateTime?
+  deploymentTriggeredAt DateTime?
+  errorMessage          String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  project    UiDesignProject    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  generation UiDesignGeneration @relation(fields: [generationId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([generationId])
+  @@index([status, createdAt])
+  @@index([repository, pullRequestNumber])
 }
 
 model AuditLog {
