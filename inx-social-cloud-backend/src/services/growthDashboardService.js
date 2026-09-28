@@ -259,10 +259,16 @@ async function loadSlow() {
     } : null,
     content: {
       published: articles.length,
+      averageQuality: articles.length
+        ? Math.round(articles.reduce((sum, article) => sum + n(article.quality?.score), 0) / articles.length)
+        : 0,
       latest: articles.slice(0, 8).map(article => ({
         id: article.id,
         title: article.title,
         slug: article.slug,
+        url: '/blog/' + article.slug,
+        excerpt: String(article.excerpt || '').slice(0, 260),
+        featuredImageUrl: article.featured_image_url || null,
         publishedAt: article.published_at,
         qualityScore: article.quality?.score || null
       }))
