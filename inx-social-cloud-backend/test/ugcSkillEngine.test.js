@@ -31,7 +31,7 @@ function creators() {
 test('Phase 2 skills are versioned and script timing budgets are explicit', () => {
   assert.equal(SKILLS_VERSION, 'ugc-skills-v1');
   assert.deepEqual(Object.keys(SCRIPT_BUDGETS).map(Number), [20,30,45,60]);
-  assert.equal(scriptTimingSpec(20).hardMax, 52);
+  assert.equal(scriptTimingSpec(20).hardMax, 44);
   assert.equal(scriptTimingSpec(30).closingRule, 'SPEECH_FINISHES_BEFORE_CUT');
 });
 
@@ -73,7 +73,7 @@ test('brand understanding includes visible product evidence without failing camp
 test('script timing prevents overlong speech and preserves the CTA inside the hard budget', () => {
   const long = Array.from({ length: 60 }, (_, i) => 'word' + i).join(' ') + '.';
   const timed = scriptTimingSkill({ script: long, duration: 20, cta: 'Try it today.' });
-  assert.ok(timed.finalWordCount <= 52);
+  assert.ok(timed.finalWordCount <= 44);
   assert.equal(timed.spokenCtaIncluded, true);
   assert.match(timed.script, /Try it today\./i);
   assert.equal(timed.minSpeechRateMultiplier, 1);
@@ -244,4 +244,18 @@ test('weighted script splitting preserves every word', () => {
   const parts = splitScriptByWeightedDuration(script, [10,5]);
   assert.equal(parts.join(' '), script);
   assert.equal(parts.length, 2);
+});
+
+test('equal clips balance spoken words while keeping sentences intact', () => {
+  const script = 'One two three four five six seven eight nine ten. One two three four five six seven eight nine ten. One two three four five six seven eight nine ten. One two three four five six seven eight nine ten.';
+  const parts = splitScriptByWeightedDuration(script, [10, 10]);
+  assert.equal(parts.join(' '), script);
+  assert.deepEqual(parts.map(part => part.split(/\s+/).length), [20, 20]);
+});
+
+test('split avoids overloading a clip when an earlier sentence boundary is available', () => {
+  const script = 'One two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty. One two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty. One two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty.';
+  const parts = splitScriptByWeightedDuration(script, [10, 20]);
+  assert.equal(parts.join(' '), script);
+  assert.deepEqual(parts.map(part => part.split(/\s+/).length), [20, 40]);
 });

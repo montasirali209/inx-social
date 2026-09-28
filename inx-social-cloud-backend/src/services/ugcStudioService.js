@@ -1210,7 +1210,7 @@ async function createCampaign(userId, input) {
       await prisma.$executeRawUnsafe(
         'INSERT INTO "UGCAd" ("id","campaignId","userId","sequence","status","title","angle","hook","script","cta","caption","avatarId","route","voice","voicePrompt","duration","quality","credits","musicMode","captionsEnabled","planJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,\'RESERVING\',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,\'AUTO\',true,$18,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
         adId, campaignId, userId, index + 1, planned.title, planned.angle || null, planned.hook || null, planned.script, planned.cta || null, planned.caption || null,
-        avatar?.id || null, route, avatar?.voice || null, avatar?.voicePrompt || null, input.duration, input.quality, perAd, json({ ...planned, campaignType: resolvedType })
+        avatar?.id || null, route, avatar?.voice || null, avatar?.voicePrompt || null, input.duration, input.quality, perAd, json({ ...planned, campaignType: resolvedType, userDirection: clean(input.notes, 1200) })
       );
       for (let s = 0; s < planned.scenes.length; s += 1) {
         const scene = planned.scenes[s];
@@ -1876,6 +1876,7 @@ function h3CreatorVoiceDescription(avatar) {
 
 function h3NativePrompt(scene, ad, avatar, referenceCount) {
   const plan = parseJson(ad.planJson, {});
+  const userDirection = clean(plan.userDirection, 1200);
   const format = clean(scene.creativeFormat || plan.creativeFormat || plan.requestedCreativeFormat || 'UGC', 80).replaceAll('_', ' ');
   const spoken = clean(scene.script, 5000);
   const referenceInstruction = referenceCount > 1
@@ -1886,7 +1887,7 @@ function h3NativePrompt(scene, ad, avatar, referenceCount) {
       ? 'Use Image 1 as the selected creator and preserve that exact identity.'
       : 'Use Image 1 as the authoritative product reference. This is a product-only ad; do not introduce a presenter.';
   const sound = spoken
-    ? 'Sound: ' + h3CreatorVoiceDescription(avatar) + ' The creator says exactly, "' + spoken.replace(/"/g, "'") + '". Keep the speech energetic, natural and synchronized to the mouth. Finish the final sentence before the clip ends. Use only subtle believable room ambience underneath.'
+    ? 'Sound: ' + (userDirection ? 'Use one consistent natural adult creator voice. Follow the user direction for language, accent and delivery ahead of the creator default.' : h3CreatorVoiceDescription(avatar)) + ' The creator says exactly, "' + spoken.replace(/"/g, "'") + '". Speak at a natural conversational pace and keep speech synchronized to the mouth. Finish the final sentence before the clip ends. Use only subtle believable room ambience underneath.'
     : 'Sound: subtle believable room ambience only.';
   return clean([
     'Create a fast-paced vertical creator-native UGC ad segment.',
@@ -1896,6 +1897,7 @@ function h3NativePrompt(scene, ad, avatar, referenceCount) {
       ? 'Keep the advertised product and creator visually consistent. Do not invent a different product, vehicle colour, interface, logo, readable text, extra person, feature or claim that is not supported by the references or script.'
       : 'Keep the advertised product visually consistent. Do not invent a presenter, different product, vehicle colour, interface, logo, readable text, feature or claim that is not supported by the references or script.',
     'Authentic social-video realism. No subtitles, captions, watermarks or generated overlay text.',
+    userDirection ? 'User direction: ' + userDirection : '',
     sound
   ].filter(Boolean).join('\n\n'), 7000);
 }
