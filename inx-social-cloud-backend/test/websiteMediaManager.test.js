@@ -97,6 +97,28 @@ test('Website Media public delivery is cacheable and uses content hashes as ETag
 });
 
 
+test('Website Media video delivery supports browser byte ranges', () => {
+  const service = require('../src/services/websiteMediaService');
+  const controller = read('src/controllers/websiteMediaPublicController.js');
+
+  assert.deepEqual(service.parseByteRange('bytes=0-999', 5000), {
+    start: 0,
+    end: 999,
+    header: 'bytes=0-999',
+    total: 5000
+  });
+  assert.deepEqual(service.parseByteRange('bytes=-500', 5000), {
+    start: 4500,
+    end: 4999,
+    header: 'bytes=4500-4999',
+    total: 5000
+  });
+  assert.match(controller, /Accept-Ranges/);
+  assert.match(controller, /Content-Range/);
+  assert.match(controller, /res\.status\(206\)/);
+  assert.match(controller, /req\.headers\.range/);
+});
+
 test('Website Media has a dedicated admin navigation surface and editor', () => {
   const html = read('public/index.html');
   const js = read('public/admin.js');
