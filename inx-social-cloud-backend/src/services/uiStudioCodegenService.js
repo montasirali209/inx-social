@@ -252,6 +252,8 @@ function validateGeneration(result) {
     passed,
     total: checks.length,
     ok: checks.every(check => check.ok),
+    compileVerified: false,
+    compileStatus: 'PENDING_PHASE5_RENDER_BUILD',
     checks,
     totalChars: files.reduce((sum, file) => sum + file.content.length, 0)
   };
@@ -489,7 +491,7 @@ async function generateProject(projectId, createdByUserId = null) {
   try {
     const generated = await requestGeneration(project, analysis, references);
     generated.validation = await validateGenerationBuild(generated.result, project);
-    const status = generated.validation.ok ? 'READY' : 'READY_WITH_WARNINGS';
+    const status = generated.validation.ok ? 'GENERATED' : 'GENERATED_WITH_WARNINGS';
     const completed = await prisma.uiDesignGeneration.update({
       where: { id: row.id },
       data: {
@@ -500,7 +502,7 @@ async function generateProject(projectId, createdByUserId = null) {
         errorMessage: null
       }
     });
-    await prisma.uiDesignProject.update({ where: { id }, data: { status: status === 'READY' ? 'CODE_READY' : 'CODE_READY_WITH_WARNINGS' } });
+    await prisma.uiDesignProject.update({ where: { id }, data: { status: status === 'GENERATED' ? 'CODE_GENERATED' : 'CODE_GENERATED_WITH_WARNINGS' } });
     return {
       generation: serializeGeneration(completed, { full: true, currentFingerprint: fingerprint }),
       imageCount: generated.imageCount
