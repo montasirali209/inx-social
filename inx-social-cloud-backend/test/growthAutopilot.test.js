@@ -70,6 +70,11 @@ test('Autopilot runtime starts with the production backend and uses a persisted 
   assert.match(service, /STATE_KEY = 'growth_autopilot_state_v1'/);
   assert.match(service, /isolationLevel: 'Serializable'/);
   assert.match(service, /leaseUntil/);
+  assert.match(service, /PROCESS_LEASE_OWNER = randomUUID\(\)/);
+  assert.match(service, /state\.leaseOwner = PROCESS_LEASE_OWNER/);
+  assert.match(service, /state\.leaseOwner !== PROCESS_LEASE_OWNER/);
+  assert.match(server, /await stopGrowthAutopilot\(\)/);
+  assert.match(service, /released owned lease during shutdown/);
 });
 
 test('Autopilot repairs weak drafts before changing topic and requires 90+ publication quality', () => {
