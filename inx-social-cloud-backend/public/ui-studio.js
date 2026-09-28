@@ -406,79 +406,62 @@
   }
 
   function renderCodegenPanel() {
-    const button = $('uiStudioGenerateBtn');
+    const button = $('uiStudioFinalizeCodeBtn');
     const status = $('uiStudioCodegenStatus');
     const summary = $('uiStudioCodegenSummary');
     const output = $('uiStudioCodegenOutput');
     if (!button || !status || !summary || !output) return;
 
-    const analysis = state.project?.latestAnalysis || null;
-    const analysisReady = Boolean(analysis && analysis.status === 'COMPLETED' && !analysis.stale && analysis.result);
-    const configured = Boolean(state.codegenConfig?.configured);
-    const generationSummary = latestGenerationSummary();
-    const generation = currentGeneration();
+    const project = state.project;
+    const acceptedId = project?.acceptedGenerationId || null;
+    const productionReady = Boolean(
+      acceptedId &&
+      project?.productionGenerationId === acceptedId &&
+      project?.productionGeneratedAt
+    );
+    const generation = state.generationDetail?.id === project?.productionGenerationId
+      ? state.generationDetail
+      : null;
 
-    button.disabled = !state.canEdit || !configured || !analysisReady || state.generating;
-    button.textContent = state.generating
-      ? 'Generating responsive UI…'
-      : generationSummary
-        ? '⌘ Regenerate responsive UI'
-        : '⌘ Generate responsive UI';
+    button.disabled = !state.canEdit || !acceptedId || state.finalizingCode || productionReady;
+    button.textContent = state.finalizingCode
+      ? 'Preparing production code…'
+      : productionReady
+        ? '✓ Production code ready'
+        : '⌘ Generate production code';
 
-    if (state.generating) {
-      status.textContent = 'Generating…';
+    if (!acceptedId) {
+      status.textContent = 'Needs approval';
+      status.className = 'status-chip';
+      summary.textContent = 'Approve the best visual match before production code is exposed.';
+      output.innerHTML = '<div class="ui-studio-codegen-empty"><b>Code stays hidden until approval</b><small>UI Studio may use an internal preview build for rendering, but it is not presented as production output.</small></div>';
+      return;
+    }
+
+    if (state.finalizingCode) {
+      status.textContent = 'Preparing…';
       status.className = 'status-chip ui-studio-codegen-running';
-      summary.textContent = 'Building reusable responsive implementation files from the current analysis and high-resolution reference set.';
-      output.innerHTML = '<div class="ui-studio-codegen-progress"><span></span><b>Generating components, responsive styles and media slots</b><small>This creates a saved code version only. It does not modify the live INXSocial application.</small></div>';
+      summary.textContent = 'Revalidating the approved implementation and locking it as the production code version.';
+      output.innerHTML = '<div class="ui-studio-codegen-progress"><span></span><b>Finalizing approved code</b><small>The visual version is already locked. This step does not alter the approved design.</small></div>';
       return;
     }
 
-    if (!configured) {
-      status.textContent = 'AI unavailable';
-      status.className = 'status-chip';
-      summary.textContent = 'Configure the UI Studio code-generation model before running Phase 3.';
-      output.innerHTML = '';
-      return;
-    }
-
-    if (!analysisReady) {
-      status.textContent = 'Needs current analysis';
-      status.className = 'status-chip';
-      summary.textContent = analysis?.stale
-        ? 'The reference set changed. Re-run Phase 2 analysis before generating code.'
-        : 'Complete Phase 2 design analysis before generating responsive code.';
-      output.innerHTML = '';
-      return;
-    }
-
-    if (!generationSummary) {
-      status.textContent = 'Ready';
+    if (!productionReady) {
+      status.textContent = 'Approved · ready';
       status.className = 'status-chip ui-studio-codegen-ready';
-      summary.textContent = 'Generate a reusable ' + state.project.framework.replaceAll('_',' ') + ' / ' + state.project.styling.replaceAll('_',' ') + ' implementation from the current design analysis.';
-      output.innerHTML = '<div class="ui-studio-codegen-empty"><b>No code generation yet</b><small>Generated code is versioned and kept separate from the live application until you explicitly integrate it.</small></div>';
+      summary.textContent = 'The approved visual version is ready to become production code for ' +
+        (project.frameworkTargets || [project.framework]).map(frameworkLabel).join(', ') + '.';
+      output.innerHTML = '<div class="ui-studio-codegen-empty"><b>Approved design locked</b><small>Generate production code to expose the validated source bundle and unlock delivery.</small></div>';
       return;
     }
 
-    if (generationSummary.status === 'FAILED') {
-      status.textContent = 'Failed';
-      status.className = 'status-chip ui-studio-codegen-failed';
-      summary.textContent = generationSummary.errorMessage || 'The previous code generation did not complete.';
-      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>Retry creates a new generation version from the latest valid analysis.</small></div>';
-      return;
-    }
-
-    if (generationSummary.stale) {
-      status.textContent = 'Stale';
-      status.className = 'status-chip ui-studio-codegen-stale';
-      summary.textContent = 'The uploaded references changed after this code was generated. Re-analyse and regenerate before integration.';
-    } else {
-      status.textContent = generationSummary.status === 'READY_WITH_WARNINGS' ? 'Ready · warnings' : 'Code ready';
-      status.className = 'status-chip ' + (generationSummary.status === 'READY_WITH_WARNINGS' ? 'ui-studio-codegen-stale' : 'ui-studio-codegen-ready');
-      summary.textContent = generationSummary.summary || 'Responsive implementation generated.';
-    }
+    status.textContent = 'Code ready';
+    status.className = 'status-chip ui-studio-codegen-ready';
+    summary.textContent = 'Production code is locked to the approved visual version. Primary compiled target: ' +
+      frameworkLabel(project.framework) + ' with ' + stylingLabel(project.styling) + '.';
 
     if (!generation?.result) {
-      output.innerHTML = '<div class="ui-studio-codegen-loading">Loading generated files…</div>';
+      output.innerHTML = '<div class="ui-studio-codegen-loading">Loading the approved production files…</div>';
       return;
     }
 
@@ -496,6 +479,11 @@
         <div><span>Media slots</span><b>${esc(assetSlots.length)}</b></div>
         <div><span>Entry</span><b title="${esc(result.entryFile || '')}">${esc((result.entryFile || '—').split('/').pop())}</b></div>
       </div>
+      <div class="ui-studio-target-summary">
+        <span>Framework targets</span>
+        <div>${(project.frameworkTargets || [project.framework]).map(item => '<b>' + esc(frameworkLabel(item)) + '</b>').join('')}</div>
+        <small>The deterministic preview target is compiled now. Additional targets remain part of the portable project configuration for future export adapters.</small>
+      </div>
       <div class="ui-studio-codegen-toolbar">
         <div class="ui-studio-file-tabs">${tabs}</div>
         <div class="ui-studio-file-actions">
@@ -506,8 +494,8 @@
       </div>
       ${selected ? `<div class="ui-studio-code-file-head"><div><b>${esc(selected.path)}</b><small>${esc(selected.purpose || selected.language || '')}</small></div><span>${esc(selected.language || 'text')}</span></div><pre class="ui-studio-code-view"><code>${esc(selected.content || '')}</code></pre>` : ''}
       <div class="ui-studio-codegen-foot">
-        <small>Model: ${esc(generation.model || 'configured model')} · generated ${esc(fmtDate(generation.completedAt))}</small>
-        <small>Phase 3 saves code only; Phase 4 will render and visually compare it with the source reference.</small>
+        <small>Approved ${esc(fmtDate(project.acceptedAt))} · production code prepared ${esc(fmtDate(project.productionGeneratedAt))}</small>
+        <small>Delivery is now unlocked. Export ZIP is the recommended default while repository providers remain optional.</small>
       </div>
     `;
     bindGeneratedFileActions();
