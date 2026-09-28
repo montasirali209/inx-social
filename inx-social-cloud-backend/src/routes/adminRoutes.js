@@ -49,6 +49,17 @@ router.get('/ui-studio/projects/:projectId', uiStudio.detail);
 router.post('/ui-studio/projects/:projectId/analyse', requireSuperAdmin, uiStudio.analyse);
 router.post('/ui-studio/projects/:projectId/generate', requireSuperAdmin, uiStudio.generate);
 router.get('/ui-studio/generations/:generationId', uiStudio.generation);
+router.post('/ui-studio/projects/:projectId/render', requireSuperAdmin, uiStudio.prepareRender);
+router.get('/ui-studio/renders/:renderId', uiStudio.renderDetail);
+router.get('/ui-studio/renders/:renderId/preview', uiStudio.renderPreview);
+router.get('/ui-studio/renders/:renderId/assets/:kind', uiStudio.renderAsset);
+router.post(
+  '/ui-studio/renders/:renderId/capture',
+  requireSuperAdmin,
+  express.raw({ type: ['image/png'], limit: '30mb' }),
+  uiStudio.captureRender
+);
+router.post('/ui-studio/renders/:renderId/repair', requireSuperAdmin, uiStudio.repairRender);
 router.post(
   '/ui-studio/projects/:projectId/references/:viewport/upload',
   requireSuperAdmin,
