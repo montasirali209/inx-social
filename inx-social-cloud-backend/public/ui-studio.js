@@ -1571,7 +1571,8 @@
     });
 
     const showReferenceCanvas = stage === 'DESIGN' || stage === 'UNDERSTAND';
-    document.querySelector('.ui-studio-viewport-tabs')?.toggleAttribute('hidden', !showReferenceCanvas);
+    const showResponsiveTabs = stage === 'PREVIEW';
+    document.querySelector('.ui-studio-viewport-tabs')?.toggleAttribute('hidden', !showResponsiveTabs);
     document.querySelector('.ui-studio-viewer-toolbar')?.toggleAttribute('hidden', !showReferenceCanvas);
     $('uiStudioViewer')?.toggleAttribute('hidden', !showReferenceCanvas);
 
@@ -1587,40 +1588,41 @@
 
     const next = $('uiStudioNextActionBtn');
     if (!next) return;
+
+    next.hidden = stage === 'DESIGN' || stage === 'UNDERSTAND';
     next.disabled = !state.canEdit;
-    if (stage === 'DESIGN') {
-      const ready = Number(state.project.referenceCount || 0) > 0;
-      next.textContent = ready ? 'Continue to Understand →' : 'Upload a reference first';
-      next.disabled = next.disabled || !ready;
-    } else if (stage === 'UNDERSTAND') {
-      next.textContent = analysisIsCurrent() ? 'Continue to Preview →' : (state.analysing ? 'Analysing…' : '✦ Analyse design');
-      next.disabled = next.disabled || state.analysing;
-    } else if (stage === 'PREVIEW') {
-      next.textContent = previewRenderIsReady() ? 'Continue to Match & Refine →' : (state.generating || state.visualRunning ? 'Building preview…' : '◫ Build preview');
-      next.disabled = next.disabled || state.generating || state.visualRunning;
+
+    if (stage === 'PREVIEW') {
+      next.hidden = false;
+      next.textContent = previewBuildIsCurrent()
+        ? 'Continue to Match & Refine →'
+        : state.pipelineBusy || state.generating
+          ? 'Preparing responsive preview…'
+          : 'Retry preview';
+      next.disabled = next.disabled || state.pipelineBusy || state.generating || (!previewBuildIsCurrent() && !state.pipelineError);
     } else if (stage === 'MATCH') {
-      next.textContent = state.project.bestGenerationId ? 'Review best match →' : (state.phase5Running ? 'Comparing…' : '◎ Compare all viewports');
+      next.hidden = false;
+      next.textContent = state.project.bestGenerationId ? 'Review best match →' : (state.phase5Running ? 'Comparing…' : '◎ Compare uploaded reference');
       next.disabled = next.disabled || state.phase5Running;
     } else if (stage === 'APPROVE') {
+      next.hidden = false;
       const currentApproval = Boolean(state.project.bestGenerationId && state.project.acceptedGenerationId === state.project.bestGenerationId);
       next.textContent = currentApproval ? 'Continue to Generate →' : '✓ Approve best match';
       next.disabled = next.disabled || (!currentApproval && !state.project.bestGenerationId);
     } else if (stage === 'GENERATE') {
+      next.hidden = false;
       next.textContent = state.project.productionGenerationId ? 'Continue to Deliver →' : (state.finalizingCode ? 'Preparing code…' : '⌘ Generate production code');
       next.disabled = next.disabled || state.finalizingCode || !state.project.acceptedGenerationId;
-    } else {
+    } else if (stage === 'DELIVER') {
+      next.hidden = false;
       next.textContent = selectedPhase6Delivery()?.downloadUrl ? 'Create another export' : 'Create export bundle';
       next.disabled = next.disabled || state.phase6Busy || !state.project.productionGenerationId;
     }
   }
 
   async function buildPreview() {
-    if (!state.project || !state.canEdit || state.generating || state.visualRunning) return;
-    if (!previewBuildIsCurrent()) {
-      const generated = await generateResponsiveUi(true);
-      if (!generated) return;
-    }
-    await startVisualCompare();
+    if (!state.project || !state.canEdit || state.pipelineBusy || state.generating) return;
+    await runAutomaticPipeline({ resume: true });
   }
 
   async function finalizeProductionCode() {
