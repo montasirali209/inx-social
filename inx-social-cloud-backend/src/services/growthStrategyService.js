@@ -257,6 +257,7 @@ async function reviewDraft({ article, opportunity, strategy, siteProfile = null 
     excerpt: article.excerpt,
     keywords: article.keywords || [],
     contentMarkdown: String(article.content_markdown || '').slice(0, 30000),
+    editorialPromo: article.editorial_promo || null,
     faq: article.faq || [],
     sources: article.sources || [],
     internalLinks: article.internalLinks || [],
