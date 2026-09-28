@@ -75,9 +75,14 @@ function sanitizeImportedHtml(value) {
 function versionedContentImageUrl(article) {
   const value = String(article?.featured_image_url || '');
   if (!value.startsWith('/content-media/')) return value || null;
-  const clean = value.split('?')[0];
   const stamp = new Date(article?.featured_image_storage?.generatedAt || article?.updated_at || Date.now()).getTime();
-  return clean + '/' + (Number.isFinite(stamp) ? stamp : Date.now());
+  const version = Number.isFinite(stamp) ? stamp : Date.now();
+  const id = String(article?.id || '').trim();
+  if (!id) return value.split('?')[0];
+  // Always rebuild the canonical media route. Older generated articles already
+  // stored a version segment, so appending another one produced
+  // /content-media/:id/:version/:version and a broken hero image.
+  return '/content-media/' + encodeURIComponent(id) + '/' + version;
 }
 
 function absoluteSiteAsset(value) {
@@ -153,15 +158,36 @@ function safeInternalPath(value) {
 function approvedEditorialPromo(promo, markdown, links) {
   if (!promo?.enabled) return null;
   const url = safeInternalPath(promo.url);
-  const beforeHeading = normalizeSpace(promo.before_heading);
+  const requestedHeading = normalizeSpace(promo.before_heading);
   const headings = [...String(markdown || '').matchAll(/^##\s+(.+)$/gm)].map(match => normalizeSpace(match[1]));
+  const matchedHeading = headings.slice(1).find(heading => heading.toLowerCase() === requestedHeading.toLowerCase());
   if (!url || !Array.isArray(links) || !links.some(link => link.url === url)
-    || headings.length < 2 || !headings.slice(1).includes(beforeHeading)) return null;
+    || headings.length < 2 || !matchedHeading) return null;
   const title = normalizeSpace(promo.title).slice(0, 100);
   const description = normalizeSpace(promo.description).slice(0, 240);
   const label = normalizeSpace(promo.label).slice(0, 55);
   if (!title || !description || !label) return null;
-  return { title, description, label, url, before_heading: beforeHeading };
+  return { title, description, label, url, before_heading: matchedHeading };
+}
+
+function fallbackEditorialPromo(article, links) {
+  if (!article || article.content_source === 'BABYLOVEGROWTH_IMPORTED') return null;
+  const usableLinks = (Array.isArray(links) ? links : []).filter(link => safeInternalPath(link?.url));
+  const headings = [...String(article.content_markdown || '').matchAll(/^##\s+(.+)$/gm)].map(match => normalizeSpace(match[1]));
+  if (!usableLinks.length || headings.length < 2) return null;
+
+  const link = usableLinks[0];
+  const headingIndex = Math.min(headings.length - 1, Math.max(1, Math.floor(headings.length / 2)));
+  const label = normalizeSpace(link.label || 'INXSocial tools').slice(0, 55);
+  const description = normalizeSpace(link.description || ('Continue with ' + label + ' to put this workflow into practice from the same INXSocial workspace.')).slice(0, 240);
+
+  return {
+    title: 'Put this into practice with INXSocial',
+    description,
+    label: ('Explore ' + label).slice(0, 55),
+    url: safeInternalPath(link.url),
+    before_heading: headings[headingIndex]
+  };
 }
 
 function sourceDomain(value) {
@@ -898,6 +924,11 @@ function mergePublicInternalLinks(article, dynamicLinks = []) {
 
 function publicArticle(article, dynamicLinks = []) {
   const schemas = articleSchemaObjects(article);
+  const mergedInternalLinks = mergePublicInternalLinks(article, dynamicLinks);
+  const editorialPromo = article.content_source === 'BABYLOVEGROWTH_IMPORTED'
+    ? null
+    : approvedEditorialPromo(article.editorial_promo, article.content_markdown, mergedInternalLinks)
+      || fallbackEditorialPromo(article, mergedInternalLinks);
   return {
     id: article.id,
     slug: article.slug,
@@ -912,12 +943,12 @@ function publicArticle(article, dynamicLinks = []) {
     updated_at: article.updated_at,
     content_markdown: article.content_markdown,
     content_html: article.content_html,
-    editorial_promo: article.editorial_promo || null,
+    editorial_promo: editorialPromo,
     quick_answer: article.quick_answer || article.excerpt || null,
     key_takeaways: Array.isArray(article.key_takeaways) ? article.key_takeaways : [],
     comparison: Array.isArray(article.comparison) ? article.comparison : [],
     sources: normalizeSources(article.sources),
-    internalLinks: mergePublicInternalLinks(article, dynamicLinks),
+    internalLinks: mergedInternalLinks,
     faq: article.faq || [],
     editorial: Number(article.generation?.editorialVersion || 0) >= 3 ? {
       method: 'AI-assisted editorial workflow with live web research and an independent AI quality review',
