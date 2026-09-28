@@ -143,7 +143,7 @@ test('Website Media editor preserves original uploads and warns about undersized
   const js = read('public/admin.js');
 
   assert.match(html, /original file is preserved/i);
-  assert.match(html, /PNG, JPEG, WebP or AVIF/);
+  assert.match(html, /Images up to 25 MB · MP4\/WebM video up to 120 MB/);
   assert.match(js, /maxUploadBytes/);
   assert.match(js, /120\*1024\*1024/);
   assert.match(js, /recommendedMinWidth/);
@@ -151,6 +151,22 @@ test('Website Media editor preserves original uploads and warns about undersized
   assert.match(js, /Quality warning/);
   assert.match(js, /URL\.createObjectURL/);
   assert.doesNotMatch(js, /canvas\.toDataURL|toBlob\(/);
+});
+
+test('Website Media video slots cannot fall back to the image-only uploader', () => {
+  const html = read('public/index.html');
+  const js = read('public/admin.js');
+
+  assert.match(html, /accept="image\/png,image\/jpeg,image\/webp,image\/avif,video\/mp4,video\/webm"/);
+  assert.match(html, /MP4\/WebM video up to 120 MB/);
+  assert.match(js, /WEBSITE_MEDIA_VIDEO_KEYS/);
+  assert.match(js, /landing\.ugc-studio\.maya\.video/);
+  assert.match(js, /websiteMediaAcceptedMimeTypes/);
+  assert.match(js, /\['video\/mp4','video\/webm'\]/);
+  assert.match(js, /state\.websiteMediaSelectedSlot=data\.slot/);
+  assert.match(js, /Choose replacement video/);
+  assert.match(js, /Upload video/);
+  assert.match(js, /MP4 or WebM · up to 120 MB/);
 });
 
 test('Historical Website Media versions can be previewed without restoring them first', () => {
