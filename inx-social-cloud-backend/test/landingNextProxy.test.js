@@ -23,6 +23,17 @@ test('Next landing proxy has a bounded upstream timeout', () => {
   assert.match(appSource, /if \(!response\.ok\)/);
 });
 
+test('historical plural blog URLs permanently redirect before the JSON 404 handler', () => {
+  const redirectIndex = appSource.indexOf("app.get(/^\\/blogs");
+  const blogProxyIndex = appSource.indexOf("app.use('/blog'");
+  const jsonNotFoundIndex = appSource.lastIndexOf("res.status(404).json({ error: 'Route not found' })");
+
+  assert.notEqual(redirectIndex, -1);
+  assert.ok(redirectIndex < blogProxyIndex);
+  assert.ok(redirectIndex < jsonNotFoundIndex);
+  assert.match(appSource, /res\.redirect\(308, `\/blog\$\{suffix\}\$\{query\}`\)/);
+});
+
 test('production startup verifies the private Next landing path without blocking legacy fallback', () => {
   assert.match(serverSource, /verifyNextLandingUpstream/);
   assert.match(serverSource, /\[landing-proxy\] upstream healthy/);

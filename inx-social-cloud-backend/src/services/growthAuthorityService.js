@@ -284,17 +284,17 @@ async function executeApprovedEmails(items,enabled){
     try{
       if(['APPROVED','AI_APPROVED'].includes(x.status)&&x.contact?.kind==='EMAIL'&&x.contact?.value&&x.draft?.outreachSubject&&x.draft?.outreachBody&&emailService.isConfigured()){
         const sentAt=nowIso();
-        await emailService.sendAuthorityOutreach({to:x.contact.value,subject:x.draft.outreachSubject,body:x.draft.outreachBody});
+        const providerResult=await emailService.sendAuthorityOutreach({to:x.contact.value,subject:x.draft.outreachSubject,body:x.draft.outreachBody});
         sent++;
         out.push({
           ...x,
           status:'SENT',
           executedAt:sentAt,
           nextFollowUpAt:null,
-          delivery:{channel:'EMAIL',recipient:x.contact.value,sentAt},
+          delivery:{channel:'EMAIL',provider:'RESEND',providerId:providerResult?.messageId||null,status:'ACCEPTED',recipient:x.contact.value,sentAt},
           outcomeNote:x.aiReview?.decision==='PASS'
-            ?'GPT-5.6 Sol reviewed and approved this outreach before automatic delivery. Automatic follow-up is disabled until inbound reply suppression is connected.'
-            :'Approved outreach sent through the configured email provider. Automatic follow-up is disabled until inbound reply suppression is connected.'
+            ?'GPT-5.6 Sol reviewed and approved this outreach before Resend accepted it for delivery. API-sent messages do not appear in the mailbox Sent folder. Automatic follow-up is disabled until inbound reply suppression is connected.'
+            :'Approved outreach was accepted by Resend for delivery. API-sent messages do not appear in the mailbox Sent folder. Automatic follow-up is disabled until inbound reply suppression is connected.'
         });
         continue;
       }
@@ -351,15 +351,15 @@ async function updateProspect(id,action,input={}){
       try{
         if(!emailService.isConfigured())throw new Error('The configured email provider is not available.');
         const sentAt=nowIso();
-        await emailService.sendAuthorityOutreach({
+        const providerResult=await emailService.sendAuthorityOutreach({
           to:x.contact.value,
           subject:x.draft.outreachSubject,
           body:x.draft.outreachBody
         });
         x.status='SENT';
         x.executedAt=sentAt;
-        x.delivery={channel:'EMAIL',recipient:x.contact.value,sentAt};
-        x.outcomeNote='Approved outreach sent immediately through the configured email provider. Automatic follow-up is disabled until inbound reply suppression is connected.';
+        x.delivery={channel:'EMAIL',provider:'RESEND',providerId:providerResult?.messageId||null,status:'ACCEPTED',recipient:x.contact.value,sentAt};
+        x.outcomeNote='Approved outreach was accepted immediately by Resend for delivery. API-sent messages do not appear in the mailbox Sent folder. Automatic follow-up is disabled until inbound reply suppression is connected.';
       }catch(e){
         x.status='APPROVED';
         x.executedAt=null;

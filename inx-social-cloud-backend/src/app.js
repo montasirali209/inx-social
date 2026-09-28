@@ -427,6 +427,16 @@ app.use('/_next', async (req, res, next) => {
   return res.send(payload);
 });
 
+// `/blog` is the canonical public collection route. Keep the historical plural
+// route working at the gateway so cached links and bookmarks can never fall
+// through to the JSON API 404 response.
+app.get(/^\/blogs(?:\/.*)?$/, (req, res) => {
+  const suffix = req.path.slice('/blogs'.length);
+  const queryIndex = req.originalUrl.indexOf('?');
+  const query = queryIndex >= 0 ? req.originalUrl.slice(queryIndex) : '';
+  return res.redirect(308, `/blog${suffix}${query}`);
+});
+
 app.use('/blog', async (req, res, next) => {
   if (!['GET', 'HEAD'].includes(req.method) || !isNextLandingEnabled()) return next();
 
