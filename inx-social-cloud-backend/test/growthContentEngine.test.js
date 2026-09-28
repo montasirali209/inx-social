@@ -47,6 +47,15 @@ test('Content Engine creates evidence-backed SEO content with quality controls',
   assert.match(service, /wordCount/);
 });
 
+test('SEO featured images are generated through OpenAI only', () => {
+  const service = read('src/services/growthContentService.js');
+  const imagePath = service.slice(service.indexOf('async function generateFeaturedImage('), service.indexOf('async function imageBuffer('));
+  assert.match(imagePath, /api\.openai\.com\/v1\/images\/generations/);
+  assert.match(imagePath, /env\.openaiImage\.apiKey/);
+  assert.match(imagePath, /imageProvider: 'openai'/);
+  assert.doesNotMatch(service, /runware\.generateImages|require\('\.\/runwareService'\)/);
+});
+
 test('editorial conversion skill accepts only a relevant verified page and real section', () => {
   const skills = require('../src/services/growthSeoSkillRegistry');
   const { approvedEditorialPromo } = require('../src/services/growthContentService');

@@ -7,7 +7,6 @@ const prisma = require('../db/prisma');
 const env = require('../config/env');
 const webResearch = require('./webResearchService');
 const growthOpportunities = require('./growthOpportunityService');
-const runware = require('./runwareService');
 const objectStorage = require('./mediaObjectStorageService');
 const siteIntelligence = require('./growthSiteIntelligenceService');
 const seoSkills = require('./growthSeoSkillRegistry');
@@ -1351,21 +1350,30 @@ async function archiveArticle(id) {
 async function generateFeaturedImage(id) {
   const article = await getArticleById(id);
   if (article.status === STATUS.PUBLISHED) throw publicError('Unpublish the article before changing its featured image.', 409, 'CONTENT_UNPUBLISH_REQUIRED');
-  if (!runware.isConfigured()) throw publicError('Runware image generation is not configured.', 503, 'CONTENT_IMAGE_NOT_CONFIGURED');
+  if (!env.openaiImage.apiKey) throw publicError('OpenAI image generation is not configured.', 503, 'CONTENT_IMAGE_NOT_CONFIGURED');
   if (!article.featured_image_prompt) throw publicError('This article has no featured-image prompt.', 409, 'CONTENT_IMAGE_PROMPT_REQUIRED');
-
-  const generated = await runware.generateImages([
-    article.featured_image_prompt + ' Editorial illustration, clean professional composition, no text, no logos, no fake UI labels, suitable for the ' + String(article.site?.brandName || 'site') + ' blog hero.'
-  ], { aspectRatio: '16:9' });
-  const image = generated.images?.[0];
-  if (!image?.url) throw publicError('Image provider returned no usable image.', 502, 'CONTENT_IMAGE_EMPTY');
-
-  const response = await axios.get(image.url, {
-    responseType: 'arraybuffer',
-    timeout: 120000,
-    maxContentLength: 20 * 1024 * 1024
+  const model = env.openaiImage.model;
+  if (!/^gpt-image-(?:1(?:\.5|-mini)?|2(?:\.5-(?:flare|sunburst))?)$/.test(model)) {
+    throw publicError('Configure an OpenAI GPT Image model for SEO images.', 503, 'CONTENT_IMAGE_MODEL_INVALID');
+  }
+  const prompt = article.featured_image_prompt + ' Editorial illustration, clean professional composition, no text, letters, numbers, logos, watermarks, interface panels or fake UI labels. Do not draw a headline into the image. Suitable for the ' + String(article.site?.brandName || 'site') + ' blog hero.';
+  const response = await axios.post('https://api.openai.com/v1/images/generations', {
+    model,
+    prompt,
+    size: '1536x1024',
+    quality: 'medium',
+    output_format: 'png',
+    n: 1
+  }, {
+    timeout: env.openaiImage.timeoutMs,
+    headers: { Authorization: 'Bearer ' + env.openaiImage.apiKey, 'Content-Type': 'application/json' },
+    maxContentLength: 24 * 1024 * 1024
   });
-  const webp = await sharp(Buffer.from(response.data)).resize(1264, 848, { fit: 'cover' }).webp({ quality: 88 }).toBuffer();
+  const encoded = response.data?.data?.[0]?.b64_json;
+  if (!encoded) throw publicError('OpenAI returned no usable image.', 502, 'CONTENT_IMAGE_EMPTY');
+  const generatedImage = Buffer.from(encoded, 'base64');
+  if (!generatedImage.length || generatedImage.length > 20 * 1024 * 1024) throw publicError('OpenAI returned an invalid image.', 502, 'CONTENT_IMAGE_INVALID');
+  const webp = await sharp(generatedImage).resize(1264, 848, { fit: 'cover' }).webp({ quality: 88 }).toBuffer();
   const stored = await objectStorage.persistBuffer({
     userId: 'growth-content',
     data: webp,
@@ -1383,8 +1391,8 @@ async function generateFeaturedImage(id) {
       key: stored.storageKey,
       mimeType: 'image/webp',
       generatedAt,
-      model: image.model || generated.model || null,
-      providerCostUsd: Number(generated.cost || image.cost || 0)
+      model,
+      imageProvider: 'openai'
     }
   });
   if (previousStorage?.key && previousStorage.key !== stored.storageKey) {
@@ -1601,7 +1609,7 @@ async function overview() {
 
   const engine = {
     aiConfigured: openAiReady(),
-    imageConfigured: runware.isConfigured() && objectStorage.isConfigured(),
+    imageConfigured: Boolean(env.openaiImage.apiKey) && objectStorage.isConfigured(),
     model: env.webResearch?.model || null,
     source: 'INXSOCIAL_SELF_HOSTED',
     publishingMode: 'AUTOPILOT_QUALITY_GATE',
