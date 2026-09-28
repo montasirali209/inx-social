@@ -1384,12 +1384,16 @@
     state.visualConfig = data.visual || state.visualConfig;
     state.phase5Capability = data.phase5 || state.phase5Capability;
     state.phase6Capability = data.phase6 || state.phase6Capability;
+    state.agentConfig = data.agent || state.agentConfig;
     state.phase5Config = null;
     state.phase5Batch = null;
     state.phase5Running = false;
     clearTimeout(state.phase5PollTimer);
     state.phase6Config = null;
     state.phase6SelectedDeliveryId = null;
+    state.agentMessages = [];
+    state.workflowStage = null;
+    state.sideTab = 'INSPECTOR';
     state.generationDetail = null;
     state.selectedGeneratedFile = null;
     state.visualRender = null;
@@ -1401,6 +1405,7 @@
     await loadLatestGeneration().catch(error => notify(error.message));
     await loadPhase5().catch(error => notify(error.message));
     await loadPhase6().catch(error => notify(error.message));
+    await loadAgentMessages().catch(() => {});
     if (state.visualRender?.id && state.visualRender.status === 'COMPLETED') {
       const visual = await request('/api/admin/ui-studio/renders/' + encodeURIComponent(state.visualRender.id)).catch(() => null);
       if (visual?.render) state.visualRender = visual.render;
@@ -1418,6 +1423,7 @@
     state.visualConfig = data.visual || state.visualConfig;
     state.phase5Capability = data.phase5 || state.phase5Capability;
     state.phase6Capability = data.phase6 || state.phase6Capability;
+    state.agentConfig = data.agent || state.agentConfig;
     if (state.generationDetail?.id !== state.project?.latestGeneration?.id) {
       state.generationDetail = null;
       state.selectedGeneratedFile = null;
@@ -1566,7 +1572,15 @@
           name: $('uiStudioProjectNameInput').value.trim(),
           framework: $('uiStudioFramework').value,
           styling: $('uiStudioStyling').value,
-          outputType: $('uiStudioOutputType').value
+          frameworkTargets: [
+            $('uiStudioFramework').value,
+            ...Array.from(document.querySelectorAll('#uiStudioFrameworkTargets input:checked')).map(input => input.value)
+          ].filter((value, index, values) => values.indexOf(value) === index),
+          stylingTargets: [
+            $('uiStudioStyling').value,
+            ...Array.from(document.querySelectorAll('#uiStudioStylingTargets input:checked')).map(input => input.value)
+          ].filter((value, index, values) => values.indexOf(value) === index),
+          outputType: 'SECTION'
         })
       });
       $('uiStudioCreateDialog').close();
