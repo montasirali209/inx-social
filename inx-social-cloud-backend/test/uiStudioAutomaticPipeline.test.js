@@ -78,7 +78,8 @@ test('Match and Refine makes exact viewport references optional', () => {
 
   assert.match(html, /Compare source design/);
   assert.match(html, /Extra tablet or mobile source designs are optional/);
-  assert.match(js, /additional viewport references are optional for exact comparison later/);
+  assert.match(js, /review canvas/);
+  assert.match(js, /uiStudioCanvasStage/);
 });
 
 test('automatic responsive preview styles are present and cache is refreshed', () => {
@@ -86,8 +87,8 @@ test('automatic responsive preview styles are present and cache is refreshed', (
   const html = read('public/index.html');
 
   assert.match(css, /Automatic single-design responsive preview/);
-  assert.match(css, /\.ui-studio-responsive-preview-stage/);
+  assert.match(css, /\.ui-studio-canvas-stage/);
   assert.match(css, /\.ui-studio-responsive-loader/);
-  assert.match(html, /ui-studio\.css\?v=9/);
-  assert.match(html, /ui-studio\.js\?v=9/);
+  assert.match(html, /ui-studio\.css\?v=10/);
+  assert.match(html, /ui-studio\.js\?v=10/);
 });
