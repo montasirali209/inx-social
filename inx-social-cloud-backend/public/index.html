@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/admin.css?v=21">
   <link rel="stylesheet" href="/admin-security.css?v=2">
   <link rel="stylesheet" href="/admin-light.css?v=2">
-  <link rel="stylesheet" href="/ui-studio.css?v=8">
+  <link rel="stylesheet" href="/ui-studio.css?v=9">
 </head>
 <body>
 <section class="login-shell" id="loginView">
@@ -770,7 +770,7 @@
 
           <nav class="ui-studio-workflow" id="uiStudioWorkflow" aria-label="UI Studio workflow">
             <button type="button" data-ui-stage="DESIGN"><span>1</span><b>Design</b></button>
-            <button type="button" data-ui-stage="UNDERSTAND"><span>2</span><b>Understand</b></button>
+            <button type="button" data-ui-stage="UNDERSTAND"><span>2</span><b>Analyse</b></button>
             <button type="button" data-ui-stage="PREVIEW"><span>3</span><b>Preview</b></button>
             <button type="button" data-ui-stage="MATCH"><span>4</span><b>Match &amp; Refine</b></button>
             <button type="button" data-ui-stage="APPROVE"><span>5</span><b>Approve</b></button>
@@ -809,9 +809,9 @@
             <label class="ui-studio-upload-pick">
               <input id="uiStudioFile" type="file" accept="image/png,image/jpeg,image/webp,image/avif">
               <span>＋</span>
-              <span class="ui-studio-upload-copy" id="uiStudioUploadCopy"><b>Choose UI image</b><small>Original quality retained</small></span>
+              <span class="ui-studio-upload-copy" id="uiStudioUploadCopy"><b>Choose design</b><small>Select once · upload and analysis start automatically</small></span>
             </label>
-            <button class="primary" id="uiStudioUploadBtn" type="button" disabled>Upload original</button>
+            <button class="primary" id="uiStudioUploadBtn" type="button" hidden disabled>Upload</button>
           </div>
           <div class="ui-studio-upload-note" id="uiStudioUploadNote"></div>
 
@@ -834,13 +834,13 @@
             <div class="ui-studio-visual-head">
               <div>
                 <span class="kicker">Preview</span>
-                <h3>Interactive reconstruction</h3>
-                <p class="muted" id="uiStudioVisualSummary">Build the internal preview and inspect the reconstructed design without exposing implementation code yet.</p>
+                <h3>Responsive preview</h3>
+                <p class="muted" id="uiStudioVisualSummary">One uploaded design becomes a responsive reconstruction you can inspect at desktop, tablet and mobile sizes.</p>
               </div>
               <div class="ui-studio-visual-actions">
                 <span class="status-chip" id="uiStudioVisualStatus">Waiting</span>
                 <label class="ui-studio-auto-repair" hidden><input id="uiStudioAutoRepair" type="checkbox" checked><span>Auto repair</span></label>
-                <button class="primary" id="uiStudioPreviewBtn" type="button">◫ Build preview</button>
+                <button class="primary" id="uiStudioPreviewBtn" type="button" hidden>Retry preview</button>
                 <button class="secondary ui-studio-internal-render" id="uiStudioRenderBtn" type="button" hidden>Render preview</button>
               </div>
             </div>
@@ -1225,7 +1225,7 @@
 
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
-<script src="/ui-studio.js?v=8" defer></script>
+<script src="/ui-studio.js?v=9" defer></script>
 <script src="/admin.js?v=25" defer></script>
 </body>
 </html>
