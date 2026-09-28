@@ -1308,6 +1308,57 @@ async function finalizeBatch(batchId) {
   };
 }
 
+async function cleanupExpiredArtifacts(limit = 100) {
+  const days = Number(env.uiStudioConvergence?.artifactRetentionDays || 30);
+  const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const rows = await prisma.uiDesignRender.findMany({
+    where: {
+      completedAt: { lt: cutoff },
+      OR: [
+        { previewStorageKey: { not: null } },
+        { renderedStorageKey: { not: null } },
+        { diffStorageKey: { not: null } }
+      ]
+    },
+    include: { project: true },
+    orderBy: { completedAt: 'asc' },
+    take: Math.max(1, Math.min(250, Number(limit || 100)))
+  });
+
+  let cleaned = 0;
+  for (const row of rows) {
+    if (row.generationId === row.project.bestGenerationId || row.generationId === row.project.acceptedGenerationId) continue;
+    const objects = [
+      [row.previewStorageKey, row.previewStorageProvider],
+      [row.renderedStorageKey, row.renderedStorageProvider],
+      [row.diffStorageKey, row.diffStorageProvider]
+    ].filter(([key]) => Boolean(key));
+    for (const [key, provider] of objects) {
+      await objectStorage.deleteObject(key, provider).catch(error => {
+        console.warn('[ui-studio-phase5] artifact cleanup delete failed', {
+          renderId: row.id,
+          key,
+          error: error?.message
+        });
+      });
+    }
+    await prisma.uiDesignRender.update({
+      where: { id: row.id },
+      data: {
+        previewStorageProvider: null,
+        previewStorageKey: null,
+        previewSha256: null,
+        renderedStorageProvider: null,
+        renderedStorageKey: null,
+        diffStorageProvider: null,
+        diffStorageKey: null
+      }
+    });
+    cleaned += 1;
+  }
+  return { cleaned, retentionDays: days };
+}
+
 async function processNextQueuedRender(workerId) {
   const render = await claimNextRender(workerId);
   if (!render) return { processed: false };
@@ -1331,6 +1382,7 @@ module.exports = {
   batchDetail,
   acceptGeneration,
   recoverStaleJobs,
+  cleanupExpiredArtifacts,
   processNextQueuedRender,
   finalizeBatch
 };
