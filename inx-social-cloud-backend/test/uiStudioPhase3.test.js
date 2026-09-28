@@ -71,13 +71,16 @@ test('UI Studio Phase 3 routes protect generation mutations with Super Admin rol
   assert.match(routes, /ui-studio\/generations\/:generationId', uiStudio\.generation/);
 });
 
-test('UI Studio Phase 3 admin exposes generation status, file viewer and download actions', () => {
+test('UI Studio keeps internal preview generation but exposes source files only after approval', () => {
   const html = read('public/index.html');
   const js = read('public/ui-studio.js');
   const css = read('public/ui-studio.css');
-  assert.match(html, /id="uiStudioGenerateBtn"/);
+  assert.match(html, /id="uiStudioFinalizeCodeBtn"/);
+  assert.doesNotMatch(html, /id="uiStudioGenerateBtn"/);
   assert.match(html, /id="uiStudioCodegenOutput"/);
   assert.match(js, /async function generateResponsiveUi/);
+  assert.match(js, /async function finalizeProductionCode/);
+  assert.match(js, /Code stays hidden until approval/);
   assert.match(js, /uiStudioDownloadBundleBtn/);
   assert.match(js, /uiStudioCopyCodeBtn/);
   assert.match(css, /\.ui-studio-codegen-panel/);
