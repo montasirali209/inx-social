@@ -56,6 +56,20 @@ test('brand understanding skill stores only evidence-grounded creative inputs', 
   assert.ok(result.evidencePolicy.forbidden.includes('invented_testimonial'));
 });
 
+test('brand understanding includes visible product evidence without failing campaign planning', () => {
+  const result = brandUnderstandingSkill({
+    input: { productVisualEvidence: { summary: 'A bottle', visibleFacts: ['Blue bottle'], visibleText: ['Brand label'] } },
+    brand: null,
+    productAssetIds: ['reference-image'],
+    resolvedType: 'PRODUCT_SHOWCASE'
+  });
+  assert.deepEqual(result.productVisualEvidence, {
+    summary: 'A bottle',
+    visibleFacts: ['Blue bottle'],
+    visibleText: ['Brand label']
+  });
+});
+
 test('script timing prevents overlong speech and preserves the CTA inside the hard budget', () => {
   const long = Array.from({ length: 60 }, (_, i) => 'word' + i).join(' ') + '.';
   const timed = scriptTimingSkill({ script: long, duration: 20, cta: 'Try it today.' });

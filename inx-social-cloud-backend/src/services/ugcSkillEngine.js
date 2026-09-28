@@ -63,7 +63,7 @@ function brandUnderstandingSkill({ input, brand, productAssetIds = [], resolvedT
   const verifiedClaims = Array.isArray(brand?.verifiedClaims) ? brand.verifiedClaims.map(item => clean(item, 500)).filter(Boolean).slice(0, 20) : [];
   const audience = Array.isArray(brand?.audience) ? brand.audience.map(item => clean(item, 300)).filter(Boolean).slice(0, 10) : [];
   const visual = input?.productVisualEvidence && typeof input.productVisualEvidence === 'object' ? input.productVisualEvidence : null;
-  const visualFacts = Array.isArray(visual?.visibleFacts) ? visual.visibleFacts.map(item => clean(item, 300)).filter(Boolean).slice(0, 16) : [];
+  const visibleFacts = Array.isArray(visual?.visibleFacts) ? visual.visibleFacts.map(item => clean(item, 300)).filter(Boolean).slice(0, 16) : [];
   const visibleText = Array.isArray(visual?.visibleText) ? visual.visibleText.map(item => clean(item, 220)).filter(Boolean).slice(0, 12) : [];
   return {
     skill: 'BRAND_UNDERSTANDING',
