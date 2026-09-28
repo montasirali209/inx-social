@@ -140,6 +140,38 @@ function renderGrowthDashboard(data){
     return '<div class="growth-command-list-row"><div><b>'+esc(row.landingPagePlusQueryString||'(not set)')+'</b><small>'+growthDashboardNum(sessions)+' sessions · '+growthDashboardPercent(conversion)+' key-event rate</small></div><strong>'+growthDashboardMoney(row.totalRevenue||0)+'</strong></div>';
   }).join('')||'<div class="growth-empty">No landing-page performance yet.</div>';
 
+  const content=data.content||{},publishedArticles=Array.isArray(content.latest)?content.latest:[];
+  const todayKey=new Date().toLocaleDateString('en-CA');
+  const publishedToday=publishedArticles.filter(article=>{
+    if(!article.publishedAt)return false;
+    const date=new Date(article.publishedAt);
+    return !Number.isNaN(date.getTime())&&date.toLocaleDateString('en-CA')===todayKey;
+  }).length;
+  const editorialRuntime=runtime.editorialRuntime||{};
+  const currentEditorialStatus=String(editorialRuntime.status||runtime.lastDailyArticleAttemptStatus||'IDLE').replaceAll('_',' ');
+  $('growthDashboardContentStats').innerHTML=[
+    ['Published',growthDashboardNum(content.published||0)],
+    ['Today',growthDashboardNum(publishedToday)],
+    ['Avg quality',Number(content.averageQuality||0)+'/100'],
+    ['Current',currentEditorialStatus]
+  ].map(item=>'<div><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b></div>').join('');
+
+  const latestArticle=publishedArticles[0]||null;
+  $('growthDashboardContentLatest').innerHTML=latestArticle
+    ? '<article class="growth-command-latest-article">'+
+        (latestArticle.featuredImageUrl?'<div class="growth-command-article-image"><img src="'+esc(latestArticle.featuredImageUrl)+'" alt=""></div>':'')+
+        '<div class="growth-command-article-copy"><span>Latest publication</span><h3>'+esc(latestArticle.title||'Published article')+'</h3>'+
+          '<p>'+esc(latestArticle.excerpt||'Published by Growth Autopilot.')+'</p>'+
+          '<small>Quality '+Number(latestArticle.qualityScore||0)+'/100 · published '+esc(relative(latestArticle.publishedAt))+'</small>'+
+        '</div>'+
+        '<div class="growth-command-article-actions"><button class="secondary" type="button" data-growth-preview="'+esc(latestArticle.slug||'')+'" data-growth-title="'+esc(latestArticle.title||'Article preview')+'">Preview</button><a class="primary" href="'+esc(latestArticle.url||('/blog/'+latestArticle.slug))+'" target="_blank" rel="noopener">Open live ↗</a></div>'+
+      '</article>'
+    : '<div class="growth-empty">No Growth Autopilot article has been published yet.</div>';
+
+  $('growthDashboardContent').innerHTML=publishedArticles.slice(1,8).map(article=>
+    '<div class="growth-command-content-row"><div><b>'+esc(article.title||'Published article')+'</b><small>Quality '+Number(article.qualityScore||0)+'/100 · '+esc(relative(article.publishedAt))+'</small></div><div><button class="secondary" type="button" data-growth-preview="'+esc(article.slug||'')+'" data-growth-title="'+esc(article.title||'Article preview')+'">Preview</button><a href="'+esc(article.url||('/blog/'+article.slug))+'" target="_blank" rel="noopener">Open ↗</a></div></div>'
+  ).join('');
+
   $('growthDashboardActivity').innerHTML=(data.activity||[]).slice(0,20).map(item=>'<div class="growth-command-activity-row '+esc(item.level||'info')+'"><i></i><div><b>'+esc(item.title||item.type)+'</b><small>'+esc(item.source||'System')+' · '+esc(relative(item.at))+'</small></div><time>'+esc(fmtDate(item.at))+'</time></div>').join('')||'<div class="growth-empty">No recent automation activity.</div>';
   $('growthDashboardUpdated').textContent='Updated '+relative(data.generatedAt);
   const warnings=data.warnings||[];
@@ -166,6 +198,26 @@ $('growthDashboardRefreshBtn').addEventListener('click',async()=>{
   const button=$('growthDashboardRefreshBtn');button.disabled=true;button.textContent='Refreshing…';
   try{await loadGrowthDashboard(false,true);toast('Growth dashboard refreshed')}finally{button.disabled=false;button.textContent='↻ Refresh'}
 });
+
+function openGrowthArticlePreview(slug,title){
+  if(!slug)return;
+  const url='/blog/'+encodeURIComponent(slug);
+  $('growthArticlePreviewTitle').textContent=title||'Article preview';
+  $('growthArticlePreviewOpen').href=url;
+  $('growthArticlePreviewFrame').src=url;
+  $('growthArticlePreviewDialog').showModal();
+}
+$('growthDashboardContentLatest').addEventListener('click',event=>{
+  const button=event.target.closest('[data-growth-preview]');
+  if(button)openGrowthArticlePreview(button.dataset.growthPreview,button.dataset.growthTitle);
+});
+$('growthDashboardContent').addEventListener('click',event=>{
+  const button=event.target.closest('[data-growth-preview]');
+  if(button)openGrowthArticlePreview(button.dataset.growthPreview,button.dataset.growthTitle);
+});
+$('growthDashboardContentViewAll').addEventListener('click',()=>void openPage('contentEngine'));
+$('growthArticlePreviewClose').addEventListener('click',()=>$('growthArticlePreviewDialog').close());
+$('growthArticlePreviewDialog').addEventListener('close',()=>{$('growthArticlePreviewFrame').src='about:blank'});
 
 
 function filteredUsers(){const filter=$('userFilter').value;return state.users.filter(user=>!filter||user.status===filter)}
@@ -1042,7 +1094,10 @@ function renderGrowthEditorialBoard(data){
   }).join('');
 
   const passNumber=Number(latestArticleMeta.pass||latestRevision?.metadata?.pass||0);
-  $('growthEditorialPass').textContent=articleId?(passNumber?'Editorial pass '+passNumber:'In production'):(running?'Planning':'Automatic');
+  const explicitRuntime=runtime.editorialRuntime||{};
+  $('growthEditorialPass').textContent=explicitRuntime.status==='RETRY_SCHEDULED'
+    ?'Retry '+growthDashboardUntil(explicitRuntime.retryAt)
+    :articleId?(passNumber?'Editorial pass '+passNumber:'In production'):(running?'Planning':'Automatic');
   let currentTitle='';
   if(articleId){
     currentTitle=String(latestArticleMeta.title||latestArticleEvent?.metadata?.title||strategy?.topic||'Article in production');
@@ -1053,7 +1108,10 @@ function renderGrowthEditorialBoard(data){
       criticScore!=null?'Editor '+Number(criticScore)+'/100':'',
       passNumber?'Pass '+passNumber:''
     ].filter(Boolean);
-    const currentMessage=articleEvents[0]?.message||'Sol is progressing this article through the editorial pipeline.';
+    const explicitEditorialRuntime=runtime.editorialRuntime||{};
+    const currentMessage=explicitEditorialRuntime.status==='RETRY_SCHEDULED'
+      ?(explicitEditorialRuntime.message||'Temporary provider/evidence failure. The draft is preserved for a short automatic retry.')
+      :articleEvents[0]?.message||'Sol is progressing this article through the editorial pipeline.';
     $('growthEditorialCurrent').innerHTML=
       '<div class="growth-editorial-current-title"><span>GPT-5.6 Sol</span><b>'+esc(currentTitle)+'</b><small>'+esc(currentMessage)+'</small></div>'+
       '<div class="growth-editorial-scoreline">'+
@@ -1115,9 +1173,17 @@ function renderGrowthAutopilot(data){
   const running=Boolean(runtime.running);
   $('growthStatusChip').textContent=running?'AUTOPILOT RUNNING':enabled?'AUTOPILOT ON':'AUTOPILOT PAUSED';
   $('growthStatusChip').className='status-chip '+(enabled?'gsc-connected':'gsc-error');
-  $('growthAutopilotHeadline').textContent=running?'Growth cycle running now':enabled?'Everything is running automatically':'Autopilot is paused';
+  const editorialRuntime=runtime.editorialRuntime||{};
+  const editorialStatus=String(editorialRuntime.status||'IDLE');
+  $('growthAutopilotHeadline').textContent=editorialStatus==='RETRY_SCHEDULED'
+    ?'Editorial retry scheduled'
+    : editorialStatus==='REPAIRING'
+      ?'Sol is repairing the article now'
+      : running?'Growth cycle running now':enabled?'Everything is running automatically':'Autopilot is paused';
   $('growthAutopilotSummary').textContent=enabled
-    ?'No routine action is required. GPT-5.6 Sol selects the strongest relevant topic, writes to a 90+ target, receives senior-editor feedback and repairs the same article when needed before publication.'
+    ?(editorialStatus==='RETRY_SCHEDULED'
+      ?'The current draft is preserved. A temporary provider/evidence failure triggered a short recovery retry at '+growthDashboardUntil(editorialRuntime.retryAt)+'. Normal quality repairs run immediately and do not wait for the scheduler.'
+      :'No routine action is required. GPT-5.6 Sol selects the strongest relevant topic, writes to a 90+ target, receives senior-editor feedback and repairs the same article immediately when needed before publication.')
     :'Automatic intelligence refresh and publishing are paused until you resume them.';
   $('growthAutopilotToggleBtn').textContent=enabled?'Pause autopilot':'Resume autopilot';
   $('growthAutopilotToggleBtn').className=enabled?'secondary':'primary';
