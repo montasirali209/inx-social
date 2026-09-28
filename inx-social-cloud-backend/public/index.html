@@ -968,27 +968,9 @@
 
     <footer class="website-media-modal-footer">
       <button type="button" class="secondary" id="cancelWebsiteMediaBtn">Cancel</button>
+      <button type="button" class="secondary" id="websiteMediaUseFallbackBtn" hidden>Use default</button>
       <button type="button" class="secondary" id="saveWebsiteMediaAltBtn">Save alt text</button>
       <button type="submit" class="primary" id="uploadWebsiteMediaBtn">Upload & replace</button>
-    </footer>
-  </form>
-</dialog>
-
-<dialog id="uiStudioCreateDialog">
-  <form class="modal ui-studio-create-modal" id="uiStudioCreateForm">
-    <button class="close" type="button" id="uiStudioCreateClose" aria-label="Close">×</button>
-    <span class="kicker">UI Studio</span>
-    <h2>Create reconstruction project</h2>
-    <p class="muted">Set the intended output now. Reference images stay independent from later analysis and code-generation versions.</p>
-    <div class="ui-studio-create-grid">
-      <label class="wide">Project name<input id="uiStudioProjectNameInput" required minlength="2" maxlength="120" placeholder="UGC landing showcase"></label>
-      <label>Framework<select id="uiStudioFramework"><option value="REACT_TYPESCRIPT">React + TypeScript</option><option value="NEXTJS">Next.js</option><option value="HTML_CSS">HTML + CSS</option></select></label>
-      <label>Styling<select id="uiStudioStyling"><option value="TAILWIND">Tailwind</option><option value="CSS_MODULES">CSS Modules</option><option value="PLAIN_CSS">Plain CSS</option></select></label>
-      <label>Output<select id="uiStudioOutputType"><option value="SECTION">Reusable section</option><option value="FULL_PAGE">Full page</option></select></label>
-    </div>
-    <footer>
-      <button type="button" class="secondary" id="uiStudioCreateCancel">Cancel</button>
-      <button type="submit" class="primary" id="uiStudioCreateSubmit">Create project</button>
     </footer>
   </form>
 </dialog>
