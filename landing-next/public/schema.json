@@ -39,8 +39,8 @@
       },
       "primaryImageOfPage": {
         "@type": "ImageObject",
-        "contentUrl": "https://www.inxsocial.co.uk/assets/inxsocial-social-preview-v3.jpg",
-        "url": "https://www.inxsocial.co.uk/assets/inxsocial-social-preview-v3.jpg",
+        "contentUrl": "https://www.inxsocial.co.uk/api/website-media/landing.social.preview/content",
+        "url": "https://www.inxsocial.co.uk/api/website-media/landing.social.preview/content",
         "width": 1200,
         "height": 630
       },
