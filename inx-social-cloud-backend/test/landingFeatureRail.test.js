@@ -15,7 +15,8 @@ test('landing is capability-first and uses the verified dashboard preview', () =
     assert.equal(landing.includes(area), true, `${area} should remain on the landing page`);
   }
 
-  assert.equal(landing.split('src="/assets/landing-dashboard-20260919.webp"').length - 1, 2);
+  assert.equal(landing.split('src="/api/website-media/landing.hero.dashboard/content"').length - 1, 1);
+  assert.equal(landing.split('src="/api/website-media/landing.dashboard.showcase/content"').length - 1, 1);
   assert.doesNotMatch(landing, /data:image\/webp;base64,/);
   assert.equal(landing.includes('inxsocial-dashboard-user-preview.webp'), false);
   assert.equal(landing.includes('dashboard-logo-mask'), false);
