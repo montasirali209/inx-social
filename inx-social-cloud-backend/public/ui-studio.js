@@ -544,6 +544,7 @@
     const summary = $('uiStudioVisualSummary');
     const output = $('uiStudioVisualOutput');
     const auto = $('uiStudioAutoRepair');
+    const previewButton = $('uiStudioPreviewBtn');
     if (!button || !status || !summary || !output || !auto) return;
 
     auto.checked = state.autoRepairEnabled;
@@ -556,7 +557,11 @@
     const current = visualRenderIsCurrent(render);
 
     button.disabled = !state.canEdit || !runtimeReady || !generationReady || !referenceReady || state.visualRunning;
-    button.textContent = state.visualRunning ? 'Rendering + comparing…' : (render && current ? '◫ Re-render + compare' : '◫ Render + compare');
+    button.textContent = state.visualRunning ? 'Rendering preview…' : (render && current ? 'Render preview again' : 'Render preview');
+    if (previewButton) {
+      previewButton.disabled = !state.canEdit || !runtimeReady || !referenceReady || state.generating || state.visualRunning;
+      previewButton.textContent = state.generating || state.visualRunning ? 'Building preview…' : (render && current ? '◫ Rebuild preview' : '◫ Build preview');
+    }
 
     if (!runtimeReady) {
       status.textContent = 'Renderer unavailable';
@@ -566,10 +571,10 @@
       return;
     }
     if (!generationReady) {
-      status.textContent = 'Needs current code';
+      status.textContent = 'Needs preview build';
       status.className = 'status-chip';
-      summary.textContent = 'Generate current Phase 3 code before visual comparison.';
-      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>Phase 4 always compares a saved, current Phase 3 generation.</small></div>';
+      summary.textContent = 'Build the internal reconstruction preview first.';
+      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>The preview uses a private internal build and does not expose production code.</small></div>';
       return;
     }
     if (!referenceReady) {
@@ -588,7 +593,7 @@
         ? '<div class="ui-studio-preview-stage"><iframe id="uiStudioPreviewFrame" title="Generated UI preview" sandbox="allow-scripts"></iframe></div>'
         : '';
       output.innerHTML = '<div class="ui-studio-visual-progress"><span></span><b>Phase 4 visual pipeline is running</b><small>' +
-        (state.autoRepairEnabled && aiReady ? 'Automatic repair is enabled for mismatches below the target score.' : 'Automatic repair is off or visual AI is unavailable.') +
+        'The reconstruction is rendered in an isolated browser for inspection.' +
         '</small></div>' + iframe;
       if (state.visualRender?.previewUrl) mountPreviewFrame(state.visualRender);
       return;
@@ -597,8 +602,8 @@
     if (!render) {
       status.textContent = 'Ready';
       status.className = 'status-chip ui-studio-visual-ready';
-      summary.textContent = 'Render the current code at the exact selected reference ratio, calculate a pixel diff and run visual QA.';
-      output.innerHTML = '<div class="ui-studio-codegen-empty"><b>No Phase 4 render yet</b><small>The preview is sandboxed, network calls are blocked and the generated code is never written into the live application.</small></div>';
+      summary.textContent = 'Render the reconstruction at the selected viewport and inspect it beside the original.';
+      output.innerHTML = '<div class="ui-studio-codegen-empty"><b>No preview yet</b><small>The preview is sandboxed, network calls are blocked and nothing is written into the live application.</small></div>';
       return;
     }
 
@@ -606,7 +611,7 @@
       status.textContent = 'Failed';
       status.className = 'status-chip ui-studio-visual-failed';
       summary.textContent = render.errorMessage || 'The previous visual comparison did not complete.';
-      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>Fix or regenerate Phase 3 code, then run the comparison again.</small></div>';
+      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>Rebuild the preview, then inspect the reconstruction again.</small></div>';
       return;
     }
 
@@ -818,7 +823,7 @@
     if (!host) return;
     const slots = state.phase5Config?.assetSlots || [];
     if (!slots.length) {
-      host.innerHTML = '<div class="ui-studio-phase5-empty">No generated media slots were declared by the current Phase 3 code.</div>';
+      host.innerHTML = '<div class="ui-studio-phase5-empty">No media slots were declared by the current preview build.</div>';
       return;
     }
     host.innerHTML = slots.map((slot, index) => {
@@ -1120,22 +1125,22 @@
     const viewportResults = Array.isArray(gate?.viewportResults) ? gate.viewportResults : [];
 
     if (!acceptedId) {
-      status.textContent = 'Needs acceptance';
+      status.textContent = 'Needs approval';
       status.className = 'status-chip';
     } else if (gate?.passed) {
       status.textContent = delivery ? delivery.status.replaceAll('_',' ') : 'Ready';
       status.className = 'status-chip ui-studio-analysis-ready';
     } else {
-      status.textContent = 'Gate blocked';
+      status.textContent = 'Not ready';
       status.className = 'status-chip ui-studio-analysis-failed';
     }
 
     const viewportLabel = viewportResults.length
       ? viewportResults.map(item => item.viewport + ' ' + (Number.isFinite(Number(item.score)) ? Math.round(Number(item.score)) + '%' : '—')).join(' · ')
-      : 'No Phase 5 viewport evidence yet';
+      : 'No responsive match evidence yet';
     gateHost.innerHTML = [
-      ['Accepted generation', acceptedId ? acceptedId.slice(-10) : 'None', Boolean(acceptedId)],
-      ['Regression gate', gate?.passed ? 'Passed' : (gate?.message || 'Not ready'), Boolean(gate?.passed)],
+      ['Approved visual', acceptedId ? acceptedId.slice(-10) : 'None', Boolean(acceptedId)],
+      ['Quality gate', gate?.passed ? 'Passed' : (gate?.message || 'Not ready'), Boolean(gate?.passed)],
       ['Aggregate score', Number.isFinite(score) ? score.toFixed(1) + '%' : '—', Boolean(gate?.passed)],
       ['Viewport evidence', viewportLabel, Boolean(gate?.passed)]
     ].map(item => `<article class="${item[2] ? 'pass' : 'fail'}"><span>${esc(item[0])}</span><b title="${esc(item[1])}">${esc(item[1])}</b></article>`).join('');
@@ -1175,10 +1180,10 @@
     if (policy) {
       if (githubReady) {
         policy.className = 'ui-studio-phase6-policy';
-        policy.textContent = 'Repository deliveries are PR-first. A separate human approval is required before the approved PR can be merged for deployment.';
+        policy.textContent = 'Repository delivery is optional. Connected repositories use a review-first workflow before any merge or deployment.';
       } else {
         policy.className = 'ui-studio-phase6-policy warning';
-        policy.textContent = 'ZIP export and regression gating are available. Repository PR/deploy automation is disabled until UI_STUDIO_GITHUB_TOKEN is configured on the production service.';
+        policy.textContent = 'Portable ZIP export is ready now. Repository delivery is an optional provider connection and is not required to use UI Studio.';
       }
     }
 
@@ -1188,7 +1193,7 @@
           <small>${esc(item.repository || item.artifactFileName || 'Delivery package')} · ${esc(fmtDate(item.createdAt))}</small></div>
           <aside><span>${esc(item.regression?.passed ? 'Gate passed' : 'Review')}</span>${item.pullRequestUrl ? `<a href="${esc(item.pullRequestUrl)}" target="_blank" rel="noopener">PR #${esc(item.pullRequestNumber)} ↗</a>` : ''}</aside>
         </article>`).join('')
-      : '<div class="ui-studio-phase6-empty">No delivery package yet. Accept the Phase 5 best generation, pass the regression gate, then create the first immutable delivery package.</div>';
+      : '<div class="ui-studio-phase6-empty">No export yet. Approve the visual match and generate production code, then create a portable delivery bundle.</div>';
 
     document.querySelectorAll('[data-phase6-delivery]').forEach(card => card.addEventListener('click', event => {
       if (event.target.closest('a')) return;
@@ -1973,8 +1978,13 @@
     renderWorkspace();
   });
   $('uiStudioAnalyseBtn')?.addEventListener('click', () => void analyseProject());
-  $('uiStudioGenerateBtn')?.addEventListener('click', () => void generateResponsiveUi());
+  $('uiStudioPreviewBtn')?.addEventListener('click', () => void buildPreview());
   $('uiStudioRenderBtn')?.addEventListener('click', () => void startVisualCompare());
+  $('uiStudioFinalizeCodeBtn')?.addEventListener('click', () => void finalizeProductionCode());
+  $('uiStudioNextActionBtn')?.addEventListener('click', () => void runNextAction());
+  document.querySelectorAll('[data-ui-stage]').forEach(button => button.addEventListener('click', () => setWorkflowStage(button.dataset.uiStage)));
+  document.querySelectorAll('[data-ui-side-tab]').forEach(button => button.addEventListener('click', () => setSideTab(button.dataset.uiSideTab)));
+  $('uiStudioAgentForm')?.addEventListener('submit', event => void askAgent(event));
   $('uiStudioPhase5RunBtn')?.addEventListener('click', () => void startPhase5());
   $('uiStudioPhase5AcceptBtn')?.addEventListener('click', () => void acceptPhase5Best());
   $('uiStudioPhase6Mode')?.addEventListener('change', event => { event.target.dataset.touched = '1'; renderPhase6Panel(); });
