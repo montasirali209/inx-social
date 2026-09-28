@@ -5,7 +5,7 @@ const creativeFormats = require('./ugcCreativeFormats');
 const SKILLS_VERSION = 'ugc-skills-v1';
 
 const SCRIPT_BUDGETS = Object.freeze({
-  20: Object.freeze({ targetMin: 40, targetMax: 48, hardMax: 52, reserveSeconds: 0.75 }),
+  20: Object.freeze({ targetMin: 36, targetMax: 42, hardMax: 44, reserveSeconds: 0.75 }),
   30: Object.freeze({ targetMin: 60, targetMax: 72, hardMax: 76, reserveSeconds: 0.85 }),
   45: Object.freeze({ targetMin: 90, targetMax: 106, hardMax: 112, reserveSeconds: 1.0 }),
   60: Object.freeze({ targetMin: 118, targetMax: 140, hardMax: 148, reserveSeconds: 1.1 })
@@ -138,6 +138,7 @@ function creativeDirectorSkillFallback({ input, brandSkill, resolvedType, variat
 
 async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType, variationCount, providerDurations, playbackDurations, formatPlan }) {
   const timing = scriptTimingSpec(input.duration);
+  const segmentBudgets = playbackDurations.map(seconds => Math.floor(Math.max(0, Number(seconds) - 0.75) * 2.3));
   const evidence = {
     brandName: brandSkill.brandName,
     productName: brandSkill.productName,
@@ -171,6 +172,8 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
           'Every script must have a complete ending: land the value, then finish with one natural, explicit CTA. Never end mid-thought, on a conjunction, or with an unfinished sentence.',
           'caption is the social-post caption that accompanies the finished video. Keep it separate from the spoken script: concise, natural, platform-neutral, no hashtag stuffing, and never copy the full narration verbatim. Use only verified claims.',
           `For ${Number(input.duration)} seconds, target ${timing.targetMin}-${timing.targetMax} spoken words and never exceed ${timing.hardMax} words.`,
+          `Write each clip as complete, natural speech. For the ${providerDurations.length} clips in order, keep the spoken words close to ${segmentBudgets.join(', ')} respectively, and never give one clip the unused words from another. Leave a short visual tail in every clip.`,
+          'If the user specifies a spoken language, accent or delivery in notes, follow that instruction ahead of the creator library default. Write the spoken script in the requested language. If none is specified, use the selected creator voice and locale.',
           `The renderer will use ${providerDurations.length} technical video clip${providerDurations.length === 1 ? '' : 's'}. Write at least ${providerDurations.length} compact complete sentence${providerDurations.length === 1 ? '' : 's'} so the spoken script can split only at sentence boundaries; never rely on a sentence continuing across clips.`,
           'The final sentence and CTA must finish before the requested duration, leaving a short visual tail.',
           'Use one creator identity and one voice per ad.',
@@ -194,6 +197,7 @@ async function creativeDirectorSkill({ input, brandSkill, avatars, resolvedType,
           timing: {
             providerDurations,
             playbackDurations,
+            segmentWordBudgets: segmentBudgets,
             totalPlaybackSeconds: playbackDurations.reduce((sum, value) => sum + Number(value || 0), 0)
           },
           creatorLibrary: {
@@ -716,32 +720,29 @@ function splitScriptByWeightedDuration(script, durations) {
   if (sentences.length < durations.length) return weightedWordSplit();
 
   const totalDuration = Math.max(1, durations.reduce((sum, value) => sum + Number(value || 0), 0));
-  const totalWords = Math.max(1, tokens.length);
-  const targets = durations.map(value => Math.max(1, totalWords * Number(value || 0) / totalDuration));
-  const groups = Array.from({ length: durations.length }, () => []);
-  let groupIndex = 0;
-  let groupWords = 0;
-
-  for (let sentenceIndex = 0; sentenceIndex < sentences.length; sentenceIndex += 1) {
-    const sentence = sentences[sentenceIndex];
-    const count = wordCount(sentence);
-    const remainingSentences = sentences.length - sentenceIndex;
-    const remainingGroups = durations.length - groupIndex;
-    if (
-      groupIndex < durations.length - 1 &&
-      groups[groupIndex].length &&
-      groupWords + count > targets[groupIndex] &&
-      remainingSentences >= remainingGroups
-    ) {
-      groupIndex += 1;
-      groupWords = 0;
+  const counts = sentences.map(wordCount);
+  const prefixes = [0];
+  for (const count of counts) prefixes.push(prefixes.at(-1) + count);
+  const cache = new Map();
+  function bestSplit(start, clip) {
+    if (clip === durations.length) return start === sentences.length ? { score: 0, groups: [] } : null;
+    const key = start + ':' + clip;
+    if (cache.has(key)) return cache.get(key);
+    const target = Math.max(1, tokens.length * Number(durations[clip] || 0) / totalDuration);
+    let best = null;
+    const maxEnd = sentences.length - (durations.length - clip - 1);
+    for (let end = start + 1; end <= maxEnd; end += 1) {
+      const rest = bestSplit(end, clip + 1);
+      if (!rest) continue;
+      const count = prefixes[end] - prefixes[start];
+      const excess = Math.max(0, count - Math.floor(Math.max(0, Number(durations[clip]) - 0.75) * 2.3));
+      const score = rest.score + ((count - target) / target) ** 2 + excess ** 2;
+      if (!best || score < best.score) best = { score, groups: [sentences.slice(start, end).join(' '), ...rest.groups] };
     }
-    groups[groupIndex].push(sentence);
-    groupWords += count;
+    cache.set(key, best);
+    return best;
   }
-
-  const output = groups.map(group => group.join(' ').trim());
-  return output.every(Boolean) ? output : weightedWordSplit();
+  return bestSplit(0, 0)?.groups || weightedWordSplit();
 }
 module.exports = {
   SKILLS_VERSION,
