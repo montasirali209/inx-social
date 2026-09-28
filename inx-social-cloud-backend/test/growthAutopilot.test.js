@@ -52,7 +52,7 @@ test('Daily editorial lane cannot be consumed by a non-article strategy decision
   assert.match(service, /growthStrategy\.planDailyArticle/);
   assert.match(service, /minOpportunityScore: 70/);
   assert.match(service, /DAILY_ARTICLE_SELECTION_RETRY/);
-  assert.match(service, /config\.editorialRetryHours/);
+  assert.match(service, /config\.editorialRetryMinutes/);
   assert.match(service, /DAILY_ARTICLE_TARGET_ALREADY_MET/);
   assert.match(strategy, /DAILY ARTICLE LANE/);
   assert.match(strategy, /action=CREATE_ARTICLE and publishRecommended=true/);
