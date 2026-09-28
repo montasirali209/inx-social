@@ -1529,6 +1529,11 @@
       panel.hidden = panel.dataset.uiStagePanel !== stage;
     });
 
+    const showReferenceCanvas = stage === 'DESIGN' || stage === 'UNDERSTAND';
+    document.querySelector('.ui-studio-viewport-tabs')?.toggleAttribute('hidden', !showReferenceCanvas);
+    document.querySelector('.ui-studio-viewer-toolbar')?.toggleAttribute('hidden', !showReferenceCanvas);
+    $('uiStudioViewer')?.toggleAttribute('hidden', !showReferenceCanvas);
+
     const upload = document.querySelector('.ui-studio-upload');
     const uploadNote = $('uiStudioUploadNote');
     if (upload) upload.hidden = stage !== 'DESIGN';
