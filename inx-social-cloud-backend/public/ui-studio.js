@@ -40,7 +40,16 @@
     overlay: false,
     localObjectUrl: null,
     selectedFile: null,
-    selectedDimensions: null
+    selectedDimensions: null,
+    canvasMode: 'PAN',
+    canvasZoom: 1,
+    canvasFitPending: true,
+    canvasFrame: null,
+    canvasReady: false,
+    canvasSelected: null,
+    canvasEditScope: 'VIEWPORT',
+    canvasEdits: { DESKTOP: {}, TABLET: {}, MOBILE: {} },
+    canvasApplying: false
   };
 
   const $ = id => document.getElementById(id);
@@ -590,6 +599,391 @@
     return 'poor';
   }
 
+  function canvasViewportEdits(viewport = state.viewport) {
+    if (!state.canvasEdits[viewport]) state.canvasEdits[viewport] = {};
+    return state.canvasEdits[viewport];
+  }
+
+  function pendingCanvasEdits() {
+    return Object.values(state.canvasEdits || {}).flatMap(group => Object.values(group || {}));
+  }
+
+  function canvasEditCount() {
+    return pendingCanvasEdits().length;
+  }
+
+  function postCanvasMessage(message) {
+    const frame = state.canvasFrame;
+    if (!frame?.contentWindow) return;
+    try { frame.contentWindow.postMessage(message, '*'); } catch (_) {}
+  }
+
+  function setCanvasMode(mode) {
+    const next = ['PAN','SELECT','INTERACT'].includes(mode) ? mode : 'PAN';
+    state.canvasMode = next;
+    document.querySelectorAll('[data-ui-canvas-mode]').forEach(button => {
+      button.classList.toggle('active', button.dataset.uiCanvasMode === next);
+    });
+    const shell = $('uiStudioCanvasShell');
+    if (shell) {
+      shell.dataset.mode = next;
+      shell.classList.toggle('is-pan', next === 'PAN');
+      shell.classList.toggle('is-select', next === 'SELECT');
+      shell.classList.toggle('is-interact', next === 'INTERACT');
+    }
+    postCanvasMessage({ type: 'ui-studio-editor-mode', mode: next });
+  }
+
+  function clampCanvasZoom(value) {
+    return Math.max(0.2, Math.min(2, Number(value || 1)));
+  }
+
+  function canvasGeometry({ centre = false } = {}) {
+    const stage = $('uiStudioCanvasStage');
+    const world = $('uiStudioCanvasWorld');
+    const artboard = $('uiStudioCanvasArtboard');
+    const frame = $('uiStudioResponsivePreviewFrame');
+    const zoomLabel = $('uiStudioCanvasZoomValue');
+    if (!stage || !world || !artboard || !frame) return;
+
+    const size = RESPONSIVE_PREVIEW_SIZES[state.viewport] || RESPONSIVE_PREVIEW_SIZES.DESKTOP;
+    const scale = clampCanvasZoom(state.canvasZoom);
+    state.canvasZoom = scale;
+    const scaledWidth = Math.max(1, Math.round(size.width * scale));
+    const scaledHeight = Math.max(1, Math.round(size.height * scale));
+    const marginX = Math.max(180, Math.round(stage.clientWidth * 0.35));
+    const marginY = Math.max(160, Math.round(stage.clientHeight * 0.28));
+    const worldWidth = Math.max(stage.clientWidth, scaledWidth + marginX * 2);
+    const worldHeight = Math.max(stage.clientHeight, scaledHeight + marginY * 2);
+    const left = Math.round((worldWidth - scaledWidth) / 2);
+    const top = Math.round((worldHeight - scaledHeight) / 2);
+
+    world.style.width = worldWidth + 'px';
+    world.style.height = worldHeight + 'px';
+    artboard.style.left = left + 'px';
+    artboard.style.top = top + 'px';
+    artboard.style.width = scaledWidth + 'px';
+    artboard.style.height = scaledHeight + 'px';
+    frame.style.width = size.width + 'px';
+    frame.style.height = size.height + 'px';
+    frame.style.transformOrigin = 'top left';
+    frame.style.transform = 'scale(' + scale + ')';
+    if (zoomLabel) zoomLabel.textContent = Math.round(scale * 100) + '%';
+
+    if (centre) {
+      requestAnimationFrame(() => {
+        stage.scrollLeft = Math.max(0, left + scaledWidth / 2 - stage.clientWidth / 2);
+        stage.scrollTop = Math.max(0, top + scaledHeight / 2 - stage.clientHeight / 2);
+      });
+    }
+  }
+
+  function setCanvasZoom(value, { centre = false } = {}) {
+    state.canvasZoom = clampCanvasZoom(value);
+    state.canvasFitPending = false;
+    canvasGeometry({ centre });
+  }
+
+  function fitCanvas() {
+    const stage = $('uiStudioCanvasStage');
+    const size = RESPONSIVE_PREVIEW_SIZES[state.viewport] || RESPONSIVE_PREVIEW_SIZES.DESKTOP;
+    if (!stage) return;
+    const availableWidth = Math.max(220, stage.clientWidth - 120);
+    const availableHeight = Math.max(300, stage.clientHeight - 100);
+    state.canvasZoom = clampCanvasZoom(Math.min(1, availableWidth / size.width, availableHeight / size.height));
+    state.canvasFitPending = false;
+    canvasGeometry({ centre: true });
+  }
+
+  function centreCanvas() {
+    canvasGeometry({ centre: true });
+  }
+
+  function canvasPatchForSelected() {
+    const selected = state.canvasSelected;
+    if (!selected?.nodePath) return null;
+    return canvasViewportEdits()[selected.nodePath] || null;
+  }
+
+  function recordCanvasEdit(element, changes = {}, { send = true } = {}) {
+    if (!element?.nodePath) return;
+    const edits = canvasViewportEdits();
+    const existing = edits[element.nodePath] || {
+      viewport: state.viewport,
+      styleScope: state.canvasEditScope,
+      nodeId: element.nodeId || element.nodePath,
+      nodePath: element.nodePath,
+      tagName: element.tagName || '',
+      role: element.role || '',
+      className: element.className || '',
+      beforeText: element.text || '',
+      beforeStyles: { ...(element.styles || {}) },
+      styles: {}
+    };
+    existing.styleScope = state.canvasEditScope;
+    if (Object.prototype.hasOwnProperty.call(changes, 'text')) existing.text = changes.text;
+    if (Object.prototype.hasOwnProperty.call(changes, 'href')) existing.href = changes.href;
+    if (changes.styles) existing.styles = { ...(existing.styles || {}), ...changes.styles };
+    edits[element.nodePath] = existing;
+
+    if (send) {
+      postCanvasMessage({
+        type: 'ui-studio-editor-update',
+        edit: {
+          nodePath: element.nodePath,
+          changes
+        }
+      });
+    }
+    renderCanvasProperties();
+  }
+
+  function renderCanvasProperties() {
+    const host = $('uiStudioCanvasProperties');
+    if (!host) return;
+    const selected = state.canvasSelected;
+    const patch = canvasPatchForSelected();
+    const pending = canvasEditCount();
+
+    if (!selected) {
+      host.innerHTML =
+        '<div class="ui-studio-canvas-properties-empty">' +
+          '<span>SELECT</span>' +
+          '<b>Click an element to edit it</b>' +
+          '<p>Choose Select, then click text, a button, card or other visible element. Double-click simple text to edit directly on the canvas.</p>' +
+          '<small>' + esc(pending ? pending + ' pending canvas change' + (pending === 1 ? '' : 's') : 'No pending changes') + '</small>' +
+        '</div>';
+      return;
+    }
+
+    const styles = selected.styles || {};
+    const currentStyles = { ...styles, ...(patch?.styles || {}) };
+    const textValue = Object.prototype.hasOwnProperty.call(patch || {}, 'text') ? patch.text : selected.text;
+    const hrefValue = Object.prototype.hasOwnProperty.call(patch || {}, 'href') ? patch.href : selected.href;
+    const isLink = selected.tagName === 'a';
+
+    host.innerHTML =
+      '<div class="ui-studio-canvas-properties-head">' +
+        '<div><span>SELECTED</span><b>' + esc(selected.tagName || 'element') + '</b></div>' +
+        '<small>' + esc(state.viewport[0] + state.viewport.slice(1).toLowerCase()) + '</small>' +
+      '</div>' +
+      '<div class="ui-studio-canvas-node-path" title="' + esc(selected.nodePath) + '">' + esc(selected.nodePath) + '</div>' +
+      (selected.editableText || selected.text
+        ? '<label class="ui-studio-canvas-field"><span>Text</span><textarea id="uiStudioCanvasText" rows="4">' + esc(textValue || '') + '</textarea></label>'
+        : '') +
+      (isLink
+        ? '<label class="ui-studio-canvas-field"><span>Link</span><input id="uiStudioCanvasHref" value="' + esc(hrefValue || '') + '"></label>'
+        : '') +
+      '<label class="ui-studio-canvas-field"><span>Style scope</span><select id="uiStudioCanvasScope">' +
+        '<option value="VIEWPORT"' + (state.canvasEditScope === 'VIEWPORT' ? ' selected' : '') + '>This viewport only</option>' +
+        '<option value="ALL"' + (state.canvasEditScope === 'ALL' ? ' selected' : '') + '>All responsive sizes</option>' +
+      '</select></label>' +
+      '<div class="ui-studio-canvas-field-grid">' +
+        canvasStyleField('fontSize', 'Font size', currentStyles.fontSize) +
+        canvasStyleField('fontWeight', 'Font weight', currentStyles.fontWeight) +
+        canvasStyleField('color', 'Text colour', currentStyles.color) +
+        canvasStyleField('backgroundColor', 'Background', currentStyles.backgroundColor) +
+        canvasStyleField('borderRadius', 'Corner radius', currentStyles.borderRadius) +
+        canvasStyleField('padding', 'Padding', currentStyles.padding) +
+        canvasStyleField('lineHeight', 'Line height', currentStyles.lineHeight) +
+        canvasStyleField('textAlign', 'Text align', currentStyles.textAlign) +
+      '</div>' +
+      '<div class="ui-studio-canvas-selection-actions">' +
+        '<button type="button" class="secondary" id="uiStudioCanvasResetElement"' + (patch ? '' : ' disabled') + '>Reset element</button>' +
+        '<span>' + esc(pending + ' pending') + '</span>' +
+      '</div>';
+
+    $('uiStudioCanvasScope')?.addEventListener('change', event => {
+      state.canvasEditScope = event.target.value === 'ALL' ? 'ALL' : 'VIEWPORT';
+      const current = canvasPatchForSelected();
+      if (current) current.styleScope = state.canvasEditScope;
+    });
+    $('uiStudioCanvasText')?.addEventListener('input', event => {
+      recordCanvasEdit(selected, { text: event.target.value });
+    });
+    $('uiStudioCanvasHref')?.addEventListener('input', event => {
+      recordCanvasEdit(selected, { href: event.target.value });
+    });
+    host.querySelectorAll('[data-ui-canvas-style]').forEach(input => {
+      input.addEventListener('input', event => {
+        recordCanvasEdit(selected, { styles: { [event.target.dataset.uiCanvasStyle]: event.target.value } });
+      });
+    });
+    $('uiStudioCanvasResetElement')?.addEventListener('click', () => {
+      const edits = canvasViewportEdits();
+      delete edits[selected.nodePath];
+      postCanvasMessage({ type: 'ui-studio-editor-reset', nodePath: selected.nodePath });
+      renderCanvasProperties();
+      renderCanvasCommitBar();
+    });
+  }
+
+  function canvasStyleField(key, label, value) {
+    return '<label class="ui-studio-canvas-field"><span>' + esc(label) + '</span><input data-ui-canvas-style="' + esc(key) + '" value="' + esc(value || '') + '"></label>';
+  }
+
+  function renderCanvasCommitBar() {
+    const apply = $('uiStudioCanvasApply');
+    const discard = $('uiStudioCanvasDiscard');
+    const count = $('uiStudioCanvasPending');
+    const pending = canvasEditCount();
+    if (count) count.textContent = pending ? pending + ' pending change' + (pending === 1 ? '' : 's') : 'No pending changes';
+    if (apply) {
+      apply.disabled = !state.canEdit || !pending || state.canvasApplying;
+      apply.textContent = state.canvasApplying ? 'Applying to code…' : (pending ? 'Apply ' + pending + ' change' + (pending === 1 ? '' : 's') + ' to code' : 'Apply changes to code');
+    }
+    if (discard) discard.disabled = !pending || state.canvasApplying;
+  }
+
+  function bindCanvasControls() {
+    const stage = $('uiStudioCanvasStage');
+    const shield = $('uiStudioCanvasPanShield');
+    if (!stage || !shield) return;
+
+    document.querySelectorAll('[data-ui-canvas-mode]').forEach(button => {
+      button.addEventListener('click', () => setCanvasMode(button.dataset.uiCanvasMode));
+    });
+    $('uiStudioCanvasZoomOut')?.addEventListener('click', () => setCanvasZoom(state.canvasZoom - 0.1, { centre: true }));
+    $('uiStudioCanvasZoomIn')?.addEventListener('click', () => setCanvasZoom(state.canvasZoom + 0.1, { centre: true }));
+    $('uiStudioCanvasFit')?.addEventListener('click', fitCanvas);
+    $('uiStudioCanvasActual')?.addEventListener('click', () => setCanvasZoom(1, { centre: true }));
+    $('uiStudioCanvasCentre')?.addEventListener('click', centreCanvas);
+    $('uiStudioCanvasApply')?.addEventListener('click', () => void applyCanvasEditsToCode());
+    $('uiStudioCanvasDiscard')?.addEventListener('click', () => discardCanvasEdits());
+
+    const wheelPan = event => {
+      if (state.canvasMode !== 'PAN') return;
+      event.preventDefault();
+      if (event.ctrlKey || event.metaKey) {
+        setCanvasZoom(state.canvasZoom + (event.deltaY < 0 ? 0.1 : -0.1), { centre: true });
+        return;
+      }
+      stage.scrollLeft += event.deltaX || 0;
+      stage.scrollTop += event.deltaY || 0;
+    };
+    shield.addEventListener('wheel', wheelPan, { passive: false });
+
+    let drag = null;
+    const begin = event => {
+      if (state.canvasMode !== 'PAN' || event.button !== 0) return;
+      drag = { x: event.clientX, y: event.clientY, left: stage.scrollLeft, top: stage.scrollTop };
+      shield.setPointerCapture?.(event.pointerId);
+      shield.classList.add('dragging');
+      event.preventDefault();
+    };
+    const move = event => {
+      if (!drag) return;
+      stage.scrollLeft = drag.left - (event.clientX - drag.x);
+      stage.scrollTop = drag.top - (event.clientY - drag.y);
+    };
+    const end = event => {
+      drag = null;
+      shield.releasePointerCapture?.(event.pointerId);
+      shield.classList.remove('dragging');
+    };
+    shield.addEventListener('pointerdown', begin);
+    shield.addEventListener('pointermove', move);
+    shield.addEventListener('pointerup', end);
+    shield.addEventListener('pointercancel', end);
+
+    stage.addEventListener('pointerdown', event => {
+      if (state.canvasMode !== 'PAN' || event.target !== stage || event.button !== 0) return;
+      drag = { x: event.clientX, y: event.clientY, left: stage.scrollLeft, top: stage.scrollTop };
+      stage.setPointerCapture?.(event.pointerId);
+      stage.classList.add('dragging');
+    });
+    stage.addEventListener('pointermove', event => {
+      if (!drag || event.currentTarget !== stage) return;
+      stage.scrollLeft = drag.left - (event.clientX - drag.x);
+      stage.scrollTop = drag.top - (event.clientY - drag.y);
+    });
+    stage.addEventListener('pointerup', event => {
+      if (event.currentTarget !== stage) return;
+      drag = null;
+      stage.releasePointerCapture?.(event.pointerId);
+      stage.classList.remove('dragging');
+    });
+
+    setCanvasMode(state.canvasMode);
+    renderCanvasCommitBar();
+  }
+
+  function discardCanvasEdits() {
+    const current = Object.values(canvasViewportEdits());
+    for (const edit of current) {
+      postCanvasMessage({ type: 'ui-studio-editor-reset', nodePath: edit.nodePath });
+    }
+    state.canvasEdits = { DESKTOP: {}, TABLET: {}, MOBILE: {} };
+    state.canvasSelected = null;
+    postCanvasMessage({ type: 'ui-studio-editor-clear-selection' });
+    renderCanvasProperties();
+    renderCanvasCommitBar();
+    notify('Canvas changes discarded.');
+  }
+
+  async function applyCanvasEditsToCode() {
+    const edits = pendingCanvasEdits();
+    const generationId = latestGenerationSummary()?.id;
+    if (!state.project || !state.canEdit || !generationId || !edits.length || state.canvasApplying) return;
+    state.canvasApplying = true;
+    renderCanvasCommitBar();
+    try {
+      const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/canvas-edits', {
+        method: 'POST',
+        body: JSON.stringify({ generationId, edits })
+      });
+      state.project = data.project;
+      state.generationDetail = data.generation;
+      state.selectedGeneratedFile = data.generation?.result?.entryFile || data.generation?.result?.files?.[0]?.path || null;
+      state.canvasEdits = { DESKTOP: {}, TABLET: {}, MOBILE: {} };
+      state.canvasSelected = null;
+      state.canvasReady = false;
+      state.canvasFitPending = true;
+      state.phase5Config = null;
+      state.phase5Batch = null;
+      state.workflowStage = 'PREVIEW';
+      await Promise.all([loadProjects().catch(() => {}), loadPhase5().catch(() => {})]);
+      notify((data.editCount || edits.length) + ' canvas change' + ((data.editCount || edits.length) === 1 ? '' : 's') + ' applied to the generated code.');
+      renderWorkspace();
+    } catch (error) {
+      notify(error.message);
+    } finally {
+      state.canvasApplying = false;
+      renderCanvasCommitBar();
+    }
+  }
+
+  function handleCanvasBridgeMessage(event) {
+    const frame = state.canvasFrame;
+    if (!frame || event.source !== frame.contentWindow) return;
+    const data = event.data || {};
+    if (data.type === 'ui-studio-editor-ready') {
+      state.canvasReady = true;
+      postCanvasMessage({ type: 'ui-studio-editor-mode', mode: state.canvasMode });
+      const edits = Object.values(canvasViewportEdits()).map(edit => ({
+        nodePath: edit.nodePath,
+        changes: {
+          ...(Object.prototype.hasOwnProperty.call(edit, 'text') ? { text: edit.text } : {}),
+          ...(Object.prototype.hasOwnProperty.call(edit, 'href') ? { href: edit.href } : {}),
+          styles: edit.styles || {}
+        }
+      }));
+      if (edits.length) postCanvasMessage({ type: 'ui-studio-editor-batch', edits });
+      return;
+    }
+    if (data.type === 'ui-studio-editor-selected' && data.element) {
+      state.canvasSelected = data.element;
+      state.canvasEditScope = canvasViewportEdits()[data.element.nodePath]?.styleScope || 'VIEWPORT';
+      renderCanvasProperties();
+      return;
+    }
+    if (data.type === 'ui-studio-editor-inline-edit' && data.element && data.edit) {
+      state.canvasSelected = data.element;
+      recordCanvasEdit(data.element, { text: data.edit.text }, { send: false });
+      renderCanvasCommitBar();
+    }
+  }
+
   function renderVisualPanel() {
     const status = $('uiStudioVisualStatus');
     const summary = $('uiStudioVisualSummary');
@@ -599,11 +993,7 @@
 
     const generation = latestGenerationSummary();
     const ready = previewBuildIsCurrent();
-    const running = Boolean(
-      state.pipelineBusy ||
-      state.generating ||
-      generation?.status === 'RUNNING'
-    );
+    const running = Boolean(state.pipelineBusy || state.generating || generation?.status === 'RUNNING');
 
     if (previewButton) {
       previewButton.hidden = !state.pipelineError;
@@ -618,11 +1008,9 @@
         ? 'UI Studio is analysing the uploaded design before creating the responsive reconstruction.'
         : 'UI Studio is preparing one responsive implementation for desktop, tablet and mobile.';
       output.innerHTML =
-        '<div class="ui-studio-responsive-loading">' +
-          '<span class="ui-studio-responsive-loader"></span>' +
-          '<b>' + esc(state.pipelineStep === 'ANALYSING' ? 'Analysing design' : 'Preparing responsive preview') + '</b>' +
-          '<small>This runs automatically. You do not need to click Build Preview again.</small>' +
-        '</div>';
+        '<div class="ui-studio-responsive-loading"><span class="ui-studio-responsive-loader"></span><b>' +
+        esc(state.pipelineStep === 'ANALYSING' ? 'Analysing design' : 'Preparing responsive preview') +
+        '</b><small>This runs automatically. You do not need to click Build Preview again.</small></div>';
       return;
     }
 
@@ -633,55 +1021,81 @@
         ? state.pipelineError
         : 'Upload one design and UI Studio will automatically analyse it and prepare the responsive preview.';
       output.innerHTML =
-        '<div class="ui-studio-codegen-empty">' +
-          '<b>' + esc(state.pipelineError ? 'Preview preparation stopped' : 'Waiting for a design') + '</b>' +
-          '<small>' + esc(state.pipelineError ? 'Use Retry preview after checking the message above.' : 'No separate Desktop, Tablet or Mobile uploads are required.') + '</small>' +
-        '</div>';
+        '<div class="ui-studio-codegen-empty"><b>' +
+        esc(state.pipelineError ? 'Preview preparation stopped' : 'Waiting for a design') +
+        '</b><small>' +
+        esc(state.pipelineError ? 'Use Retry preview after checking the message above.' : 'No separate Desktop, Tablet or Mobile uploads are required.') +
+        '</small></div>';
       return;
     }
 
     const size = RESPONSIVE_PREVIEW_SIZES[state.viewport] || RESPONSIVE_PREVIEW_SIZES.DESKTOP;
-    status.textContent = 'Ready';
+    status.textContent = 'Editable';
     status.className = 'status-chip ui-studio-visual-ready';
-    summary.textContent = size.label + ' responsive preview · ' + size.width + ' × ' + size.height +
-      '. Switch viewport tabs to inspect the same implementation at another size.';
+    summary.textContent = size.label + ' review canvas · ' + size.width + ' × ' + size.height +
+      '. Pan, zoom, scroll inside the page, or select elements and edit them live.';
 
     output.innerHTML =
-      '<div class="ui-studio-responsive-preview-head">' +
-        '<div><b>' + esc(size.label) + '</b><span>' + esc(size.width + ' × ' + size.height) + '</span></div>' +
-        '<small>Generated from one uploaded reference · additional viewport references are optional for exact comparison later.</small>' +
-      '</div>' +
-      '<div class="ui-studio-responsive-preview-stage">' +
-        '<iframe id="uiStudioResponsivePreviewFrame" title="' + esc(size.label) + ' responsive UI preview" sandbox="allow-scripts"></iframe>' +
+      '<div class="ui-studio-canvas-shell" id="uiStudioCanvasShell" data-mode="' + esc(state.canvasMode) + '">' +
+        '<div class="ui-studio-canvas-toolbar">' +
+          '<div class="ui-studio-canvas-tool-group">' +
+            '<button type="button" data-ui-canvas-mode="PAN" title="Hand tool · drag the canvas">✋ <span>Hand</span></button>' +
+            '<button type="button" data-ui-canvas-mode="SELECT" title="Select and edit elements">↖ <span>Select</span></button>' +
+            '<button type="button" data-ui-canvas-mode="INTERACT" title="Use the preview normally">◉ <span>Interact</span></button>' +
+          '</div>' +
+          '<div class="ui-studio-canvas-tool-group zoom">' +
+            '<button type="button" id="uiStudioCanvasZoomOut" aria-label="Zoom out">−</button>' +
+            '<b id="uiStudioCanvasZoomValue">' + esc(Math.round(state.canvasZoom * 100) + '%') + '</b>' +
+            '<button type="button" id="uiStudioCanvasZoomIn" aria-label="Zoom in">＋</button>' +
+            '<button type="button" id="uiStudioCanvasFit">Fit</button>' +
+            '<button type="button" id="uiStudioCanvasActual">100%</button>' +
+            '<button type="button" id="uiStudioCanvasCentre">Centre</button>' +
+          '</div>' +
+          '<div class="ui-studio-canvas-size"><b>' + esc(size.label) + '</b><span>' + esc(size.width + ' × ' + size.height) + '</span></div>' +
+        '</div>' +
+        '<div class="ui-studio-canvas-body">' +
+          '<div class="ui-studio-canvas-stage" id="uiStudioCanvasStage" tabindex="0" aria-label="' + esc(size.label) + ' design canvas">' +
+            '<div class="ui-studio-canvas-world" id="uiStudioCanvasWorld">' +
+              '<div class="ui-studio-canvas-artboard" id="uiStudioCanvasArtboard">' +
+                '<iframe id="uiStudioResponsivePreviewFrame" title="' + esc(size.label) + ' responsive UI preview" sandbox="allow-scripts"></iframe>' +
+                '<div class="ui-studio-canvas-pan-shield" id="uiStudioCanvasPanShield" aria-hidden="true"></div>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<aside class="ui-studio-canvas-properties" id="uiStudioCanvasProperties"></aside>' +
+        '</div>' +
+        '<div class="ui-studio-canvas-commit">' +
+          '<div><b id="uiStudioCanvasPending">No pending changes</b><small>Edits are live on the canvas. Apply them to create a new validated code generation.</small></div>' +
+          '<div><button type="button" class="secondary" id="uiStudioCanvasDiscard">Discard</button><button type="button" class="primary" id="uiStudioCanvasApply">Apply changes to code</button></div>' +
+        '</div>' +
       '</div>';
 
+    renderCanvasProperties();
+    bindCanvasControls();
     mountResponsivePreviewFrame(state.viewport);
   }
 
   function mountResponsivePreviewFrame(viewport) {
     const frame = $('uiStudioResponsivePreviewFrame');
-    const size = RESPONSIVE_PREVIEW_SIZES[viewport] || RESPONSIVE_PREVIEW_SIZES.DESKTOP;
-    if (!frame || !state.project?.id || !previewBuildIsCurrent()) return;
+    const stage = $('uiStudioCanvasStage');
+    if (!frame || !stage || !state.project?.id || !previewBuildIsCurrent()) return;
 
-    frame.style.width = size.width + 'px';
-    frame.style.height = size.height + 'px';
-    frame.style.transformOrigin = 'top left';
+    state.canvasFrame = frame;
+    state.canvasReady = false;
     frame.src =
       '/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) +
       '/responsive-preview/' + encodeURIComponent(viewport) +
-      '?generation=' + encodeURIComponent(state.project.latestGeneration?.id || '');
+      '?generation=' + encodeURIComponent(state.project.latestGeneration?.id || '') +
+      '&editor=1';
 
-    const fit = () => {
-      const stage = frame.parentElement;
-      if (!stage) return;
-      const availableWidth = Math.max(1, stage.clientWidth - 28);
-      const availableHeight = Math.max(360, Math.min(680, window.innerHeight - 300));
-      const scale = Math.min(1, availableWidth / size.width, availableHeight / size.height);
-      frame.style.transform = 'scale(' + scale + ')';
-      stage.style.height = Math.max(360, Math.ceil(size.height * scale) + 28) + 'px';
+    const initialise = () => {
+      requestAnimationFrame(() => {
+        if (state.canvasFitPending) fitCanvas();
+        else canvasGeometry({ centre: true });
+      });
     };
-    requestAnimationFrame(fit);
-    frame.addEventListener('load', fit, { once: true });
+    frame.addEventListener('load', initialise, { once: true });
+    requestAnimationFrame(initialise);
   }
 
   function mountPreviewFrame(render) {
@@ -1800,6 +2214,15 @@
     state.selectedGeneratedFile = null;
     state.visualRender = null;
     state.visualFrame = null;
+    state.canvasFrame = null;
+    state.canvasReady = false;
+    state.canvasSelected = null;
+    state.canvasMode = 'PAN';
+    state.canvasZoom = 1;
+    state.canvasFitPending = true;
+    state.canvasEditScope = 'VIEWPORT';
+    state.canvasEdits = { DESKTOP: {}, TABLET: {}, MOBILE: {} };
+    state.canvasApplying = false;
     state.viewport = primaryReference(data.project)?.viewport || 'DESKTOP';
     state.zoom = 'fit';
     state.visualRender = (data.project.renders || []).find(item => item.viewport === state.viewport) || data.project.latestRender || null;
@@ -2227,4 +2650,5 @@
   $('uiStudioFile')?.addEventListener('change', event => void handleFile(event.target.files?.[0]));
   $('uiStudioUploadBtn')?.addEventListener('click', () => void uploadReference());
   window.addEventListener('message', handlePreviewMessage);
+  window.addEventListener('message', handleCanvasBridgeMessage);
 })();
