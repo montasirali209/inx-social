@@ -271,7 +271,13 @@ async function uploadReference(projectId, viewportValue, input = {}) {
     });
     await prisma.uiDesignProject.update({
       where: { id: project.id },
-      data: { status: 'ACTIVE' }
+      data: {
+        status: 'ACTIVE',
+        bestGenerationId: null,
+        acceptedGenerationId: null,
+        bestAggregateScore: null,
+        acceptedAt: null
+      }
     });
     return serializeReference(reference);
   } catch (error) {
