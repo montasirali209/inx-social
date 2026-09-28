@@ -591,136 +591,97 @@
   }
 
   function renderVisualPanel() {
-    const button = $('uiStudioRenderBtn');
     const status = $('uiStudioVisualStatus');
     const summary = $('uiStudioVisualSummary');
     const output = $('uiStudioVisualOutput');
-    const auto = $('uiStudioAutoRepair');
     const previewButton = $('uiStudioPreviewBtn');
-    if (!button || !status || !summary || !output || !auto) return;
+    if (!status || !summary || !output) return;
 
-    auto.checked = state.autoRepairEnabled;
-    auto.disabled = state.visualRunning;
-    const runtimeReady = Boolean(state.visualConfig?.ready);
-    const aiReady = Boolean(state.visualConfig?.visualAiConfigured);
-    const generationReady = visualGenerationReady();
-    const referenceReady = Boolean(latest(state.project, state.viewport));
-    const render = currentVisualRender();
-    const current = visualRenderIsCurrent(render);
+    const generation = latestGenerationSummary();
+    const ready = previewBuildIsCurrent();
+    const running = Boolean(
+      state.pipelineBusy ||
+      state.generating ||
+      generation?.status === 'RUNNING'
+    );
 
-    button.disabled = !state.canEdit || !runtimeReady || !generationReady || !referenceReady || state.visualRunning;
-    button.textContent = state.visualRunning ? 'Rendering preview…' : (render && current ? 'Render preview again' : 'Render preview');
     if (previewButton) {
-      previewButton.disabled = !state.canEdit || !runtimeReady || !referenceReady || state.generating || state.visualRunning;
-      previewButton.textContent = state.generating || state.visualRunning ? 'Building preview…' : (render && current ? '◫ Rebuild preview' : '◫ Build preview');
+      previewButton.hidden = !state.pipelineError;
+      previewButton.disabled = !state.canEdit || running || !analysisIsCurrent();
+      previewButton.textContent = running ? 'Preparing preview…' : 'Retry preview';
     }
 
-    if (!runtimeReady) {
-      status.textContent = 'Renderer unavailable';
-      status.className = 'status-chip';
-      summary.textContent = 'The isolated preview renderer is not available on this runtime.';
-      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>Preview requires the isolated frontend renderer shipped with UI Studio.</small></div>';
-      return;
-    }
-    if (!generationReady) {
-      status.textContent = 'Needs preview build';
-      status.className = 'status-chip';
-      summary.textContent = 'Build the internal reconstruction preview first.';
-      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>The preview uses a private internal build and does not expose production code.</small></div>';
-      return;
-    }
-    if (!referenceReady) {
-      status.textContent = 'Needs reference';
-      status.className = 'status-chip';
-      summary.textContent = 'Upload a ' + state.viewport.toLowerCase() + ' reference before visual comparison.';
-      output.innerHTML = '';
-      return;
-    }
-
-    if (state.visualRunning) {
-      status.textContent = 'Working…';
+    if (running) {
+      status.textContent = state.pipelineStep === 'ANALYSING' ? 'Analysing…' : 'Preparing…';
       status.className = 'status-chip ui-studio-visual-running';
-      summary.textContent = 'Building the isolated preview, capturing the browser render and comparing it with the original pixels.';
-      const iframe = state.visualRender?.previewUrl
-        ? '<div class="ui-studio-preview-stage"><iframe id="uiStudioPreviewFrame" title="Generated UI preview" sandbox="allow-scripts"></iframe></div>'
-        : '';
-      output.innerHTML = '<div class="ui-studio-visual-progress"><span></span><b>Preview rendering is running</b><small>' +
-        'The reconstruction is rendered in an isolated browser for inspection.' +
-        '</small></div>' + iframe;
-      if (state.visualRender?.previewUrl) mountPreviewFrame(state.visualRender);
+      summary.textContent = state.pipelineStep === 'ANALYSING'
+        ? 'UI Studio is analysing the uploaded design before creating the responsive reconstruction.'
+        : 'UI Studio is preparing one responsive implementation for desktop, tablet and mobile.';
+      output.innerHTML =
+        '<div class="ui-studio-responsive-loading">' +
+          '<span class="ui-studio-responsive-loader"></span>' +
+          '<b>' + esc(state.pipelineStep === 'ANALYSING' ? 'Analysing design' : 'Preparing responsive preview') + '</b>' +
+          '<small>This runs automatically. You do not need to click Build Preview again.</small>' +
+        '</div>';
       return;
     }
 
-    if (!render) {
-      status.textContent = 'Ready';
-      status.className = 'status-chip ui-studio-visual-ready';
-      summary.textContent = 'Render the reconstruction at the selected viewport and inspect it beside the original.';
-      output.innerHTML = '<div class="ui-studio-codegen-empty"><b>No preview yet</b><small>The preview is sandboxed, network calls are blocked and nothing is written into the live application.</small></div>';
+    if (!ready) {
+      status.textContent = state.pipelineError ? 'Needs retry' : 'Waiting';
+      status.className = 'status-chip ' + (state.pipelineError ? 'ui-studio-visual-failed' : '');
+      summary.textContent = state.pipelineError
+        ? state.pipelineError
+        : 'Upload one design and UI Studio will automatically analyse it and prepare the responsive preview.';
+      output.innerHTML =
+        '<div class="ui-studio-codegen-empty">' +
+          '<b>' + esc(state.pipelineError ? 'Preview preparation stopped' : 'Waiting for a design') + '</b>' +
+          '<small>' + esc(state.pipelineError ? 'Use Retry preview after checking the message above.' : 'No separate Desktop, Tablet or Mobile uploads are required.') + '</small>' +
+        '</div>';
       return;
     }
 
-    if (render.status === 'FAILED') {
-      status.textContent = 'Failed';
-      status.className = 'status-chip ui-studio-visual-failed';
-      summary.textContent = render.errorMessage || 'The previous visual comparison did not complete.';
-      output.innerHTML = '<div class="ui-studio-codegen-empty"><small>Rebuild the preview, then inspect the reconstruction again.</small></div>';
-      return;
-    }
+    const size = RESPONSIVE_PREVIEW_SIZES[state.viewport] || RESPONSIVE_PREVIEW_SIZES.DESKTOP;
+    status.textContent = 'Ready';
+    status.className = 'status-chip ui-studio-visual-ready';
+    summary.textContent = size.label + ' responsive preview · ' + size.width + ' × ' + size.height +
+      '. Switch viewport tabs to inspect the same implementation at another size.';
 
-    if (!current) {
-      status.textContent = 'Stale render';
-      status.className = 'status-chip ui-studio-visual-stale';
-      summary.textContent = 'This visual result belongs to an older code generation. Render the current version again.';
-    } else if (render.status === 'COMPLETED') {
-      const target = Number(state.visualConfig?.targetScore || 90);
-      status.textContent = Number(render.score || 0) >= target ? 'Target met' : 'Needs repair';
-      status.className = 'status-chip ' + (Number(render.score || 0) >= target ? 'ui-studio-visual-ready' : 'ui-studio-visual-stale');
-      summary.textContent = render.critique?.summary || 'Visual comparison completed.';
-    } else {
-      status.textContent = render.status;
-      status.className = 'status-chip ui-studio-visual-running';
-      summary.textContent = 'Visual render is waiting for its browser capture.';
-    }
+    output.innerHTML =
+      '<div class="ui-studio-responsive-preview-head">' +
+        '<div><b>' + esc(size.label) + '</b><span>' + esc(size.width + ' × ' + size.height) + '</span></div>' +
+        '<small>Generated from one uploaded reference · additional viewport references are optional for exact comparison later.</small>' +
+      '</div>' +
+      '<div class="ui-studio-responsive-preview-stage">' +
+        '<iframe id="uiStudioResponsivePreviewFrame" title="' + esc(size.label) + ' responsive UI preview" sandbox="allow-scripts"></iframe>' +
+      '</div>';
 
-    if (render.status !== 'COMPLETED') {
-      output.innerHTML = '<div class="ui-studio-visual-progress"><span></span><b>' + esc(render.status) + '</b><small>Render session ' + esc(render.id) + '</small></div>';
-      return;
-    }
+    mountResponsivePreviewFrame(state.viewport);
+  }
 
-    const metrics = render.metrics || {};
-    const critique = render.critique || {};
-    const issues = critique.issues || [];
-    const canRepair = state.canEdit && aiReady && current && Number(render.score || 0) < Number(state.visualConfig?.targetScore || 90) && Number(render.repairDepth || 0) < Number(state.visualConfig?.maxRepairPasses || 3);
-    output.innerHTML = `
-      <div class="ui-studio-visual-score-row">
-        <div class="ui-studio-match-score ${scoreClass(render.score)}"><b>${esc(render.score ?? '—')}</b><span>visual match</span></div>
-        <div><span>Pixel score</span><b>${esc(render.pixelScore ?? '—')}</b></div>
-        <div><span>Structure</span><b>${esc(metrics.structuralScore ?? '—')}</b></div>
-        <div><span>Mismatch</span><b>${esc(metrics.mismatchPercent != null ? metrics.mismatchPercent + '%' : '—')}</b></div>
-        <div><span>Repair pass</span><b>${esc(render.repairDepth || 0)}/${esc(state.visualConfig?.maxRepairPasses || 3)}</b></div>
-      </div>
-      <div class="ui-studio-compare-grid">
-        <figure><figcaption>Original</figcaption><img src="${esc(render.originalUrl)}" alt="Original UI reference"></figure>
-        <figure><figcaption>Rendered</figcaption><img src="${esc(render.renderedUrl)}" alt="Generated UI render"></figure>
-        <figure><figcaption>Diff heatmap</figcaption><img src="${esc(render.diffUrl)}" alt="Visual difference heatmap"></figure>
-      </div>
-      <details class="ui-studio-live-preview">
-        <summary>Open sandboxed live preview</summary>
-        <div class="ui-studio-preview-stage"><iframe id="uiStudioPreviewFrame" title="Generated UI preview" sandbox="allow-scripts"></iframe></div>
-      </details>
-      <div class="ui-studio-visual-lower">
-        <div class="ui-studio-visual-issues">
-          <div class="ui-studio-visual-mini-head"><b>Visual QA issues</b><small>${esc(issues.length)} detected</small></div>
-          ${issues.length ? issues.slice(0,12).map(issue => `<article class="${esc(String(issue.severity || '').toLowerCase())}"><div><b>${esc(issue.category)}</b><span>${esc(issue.severity)}</span></div><p>${esc(issue.description)}</p><small>${esc(issue.repairInstruction)}</small></article>`).join('') : '<div class="ui-studio-codegen-empty"><small>No AI visual issues were returned. Pixel metrics are still available.</small></div>'}
-        </div>
-        <div class="ui-studio-visual-controls">
-          <div><b>Repair loop</b><small>Repairs create a new Phase 3 code version, then Phase 4 renders it again. Nothing is deployed automatically.</small></div>
-          <button class="secondary" id="uiStudioManualRepairBtn" type="button" ${canRepair ? '' : 'disabled'}>✦ Repair code + re-test</button>
-        </div>
-      </div>
-    `;
-    mountPreviewFrame(render);
-    $('uiStudioManualRepairBtn')?.addEventListener('click', () => void repairAndRepeat(render));
+  function mountResponsivePreviewFrame(viewport) {
+    const frame = $('uiStudioResponsivePreviewFrame');
+    const size = RESPONSIVE_PREVIEW_SIZES[viewport] || RESPONSIVE_PREVIEW_SIZES.DESKTOP;
+    if (!frame || !state.project?.id || !previewBuildIsCurrent()) return;
+
+    frame.style.width = size.width + 'px';
+    frame.style.height = size.height + 'px';
+    frame.style.transformOrigin = 'top left';
+    frame.src =
+      '/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) +
+      '/responsive-preview/' + encodeURIComponent(viewport) +
+      '?generation=' + encodeURIComponent(state.project.latestGeneration?.id || '');
+
+    const fit = () => {
+      const stage = frame.parentElement;
+      if (!stage) return;
+      const availableWidth = Math.max(1, stage.clientWidth - 28);
+      const availableHeight = Math.max(360, Math.min(680, window.innerHeight - 300));
+      const scale = Math.min(1, availableWidth / size.width, availableHeight / size.height);
+      frame.style.transform = 'scale(' + scale + ')';
+      stage.style.height = Math.max(360, Math.ceil(size.height * scale) + 28) + 'px';
+    };
+    requestAnimationFrame(fit);
+    frame.addEventListener('load', fit, { once: true });
   }
 
   function mountPreviewFrame(render) {
