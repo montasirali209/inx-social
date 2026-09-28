@@ -220,7 +220,14 @@
 
   function renderViewer(imageUrl, alt, viewportAnalysis) {
     if (!imageUrl) {
-      $('uiStudioViewerFrame').innerHTML = '<div class="ui-studio-viewer-empty"><span>▣</span><b>No '+esc(state.viewport.toLowerCase())+' reference yet</b><small>Upload the original PNG, JPEG, WebP or AVIF. UI Studio stores the file without resizing or recompressing it.</small></div>';
+      $('uiStudioViewerFrame').innerHTML =
+        '<div class="ui-studio-viewer-empty ui-studio-empty-artboard">' +
+          '<div class="ui-studio-empty-orb"><span></span><i></i><b>✦</b></div>' +
+          '<strong>Start with a reference design</strong>' +
+          '<p>Upload the ' + esc(state.viewport.toLowerCase()) + ' design you want UI Studio to understand and reconstruct.</p>' +
+          '<label for="uiStudioFile" class="ui-studio-empty-upload">＋ Choose design image</label>' +
+          '<small>PNG, JPEG, WebP or AVIF · original bytes preserved</small>' +
+        '</div>';
       return;
     }
     $('uiStudioViewerFrame').innerHTML = `<div class="ui-studio-visual-shell"><img src="${esc(imageUrl)}" alt="${esc(alt)}">${regionMarkup(viewportAnalysis)}</div>`;
@@ -1315,9 +1322,36 @@
     }
   }
 
+  function animateUiStudioElement(element, keyframes, options = {}) {
+    if (!element || typeof element.animate !== 'function' || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    try {
+      element.animate(keyframes, {
+        duration: options.duration || 220,
+        easing: options.easing || 'cubic-bezier(.2,.8,.2,1)',
+        fill: 'both'
+      });
+    } catch (_) {}
+  }
+
+  function animateStageSurface() {
+    const stage = state.workflowStage;
+    const panel = document.querySelector('[data-ui-stage-panel="' + stage + '"]:not([hidden])');
+    const viewer = $('uiStudioViewer');
+    const target = panel || (!viewer?.hidden ? viewer : null);
+    animateUiStudioElement(target, [
+      { opacity: 0, transform: 'translateY(10px) scale(.995)' },
+      { opacity: 1, transform: 'translateY(0) scale(1)' }
+    ], { duration: 240 });
+  }
+
   function setSideTab(tab) {
     state.sideTab = tab === 'AGENT' ? 'AGENT' : 'INSPECTOR';
     renderAgentPanel();
+    const dock = document.querySelector('.ui-studio-workspace-side');
+    animateUiStudioElement(dock, [
+      { opacity: .82, transform: 'translateX(6px)' },
+      { opacity: 1, transform: 'translateX(0)' }
+    ], { duration: 180 });
   }
 
   function renderAgentPanel() {
@@ -1487,6 +1521,7 @@
     }
     state.workflowStage = stage;
     renderWorkspace();
+    requestAnimationFrame(animateStageSurface);
   }
 
   function renderApprovePanel() {
@@ -1736,6 +1771,12 @@
     state.zoom = 'fit';
     state.visualRender = (data.project.renders || []).find(item => item.viewport === state.viewport) || data.project.latestRender || null;
     renderWorkspace();
+    const workspace = $('uiStudioWorkspace');
+    workspace?.classList.remove('ui-studio-animate-in');
+    requestAnimationFrame(() => {
+      workspace?.classList.add('ui-studio-animate-in');
+      animateStageSurface();
+    });
     await loadLatestGeneration().catch(error => notify(error.message));
     if (state.project?.productionGenerationId) await loadProductionGeneration().catch(error => notify(error.message));
     await loadPhase5().catch(error => notify(error.message));
