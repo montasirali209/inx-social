@@ -181,6 +181,24 @@ async function generate(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function applyCanvasEdits(req, res, next) {
+  try {
+    const startedAt = Date.now();
+    const result = await uiStudioCodegen.applyCanvasEdits(req.params.projectId, req.body || {}, req.user.id);
+    await audit(req, 'ADMIN_UI_STUDIO_CANVAS_EDIT_APPLY', req.params.projectId, {
+      generationId: result.generation.id,
+      parentGenerationId: result.generation.parentGenerationId,
+      editCount: result.editCount,
+      durationMs: Date.now() - startedAt
+    });
+    res.status(201).json({
+      generation: result.generation,
+      editCount: result.editCount,
+      project: await uiStudio.projectDetail(req.params.projectId)
+    });
+  } catch (error) { next(error); }
+}
+
 async function finalizeProductionCode(req, res, next) {
   try {
     const result = await uiStudioProduction.finalizeProductionCode(req.params.projectId);
@@ -514,7 +532,7 @@ async function content(req, res, next) {
 }
 
 module.exports = {
-  list, create, detail, upload, analyse, generate, generation,
+  list, create, detail, upload, analyse, generate, applyCanvasEdits, generation,
   prepareRender, responsivePreview, renderDetail, renderPreview, renderAsset, captureRender, repairRender,
   phase5Status, startConvergence, convergenceBatch, uploadAssetBinding, deleteAssetBinding,
   createIgnoreMask, deleteIgnoreMask, acceptGeneration,
