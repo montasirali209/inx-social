@@ -5,6 +5,7 @@ const uiStudio = require('../services/uiStudioService');
 const uiStudioAnalysis = require('../services/uiStudioAnalysisService');
 const uiStudioCodegen = require('../services/uiStudioCodegenService');
 const uiStudioVisual = require('../services/uiStudioVisualService');
+const uiStudioConvergence = require('../services/uiStudioConvergenceService');
 
 function decodeHeader(req, name, fallback = '') {
   const raw = String(req.headers[name] || fallback);
@@ -47,7 +48,11 @@ async function list(req, res, next) {
         configured: uiStudioCodegen.ready(),
         version: uiStudioCodegen.GENERATION_VERSION
       },
-      visual: uiStudioVisual.rendererStatus()
+      visual: uiStudioVisual.rendererStatus(),
+      phase5: {
+        version: uiStudioConvergence.CONVERGENCE_VERSION,
+        rendererConfigured: uiStudioConvergence.rendererConfigured()
+      }
     });
   } catch (error) { next(error); }
 }
@@ -86,7 +91,11 @@ async function detail(req, res, next) {
         configured: uiStudioCodegen.ready(),
         version: uiStudioCodegen.GENERATION_VERSION
       },
-      visual: uiStudioVisual.rendererStatus()
+      visual: uiStudioVisual.rendererStatus(),
+      phase5: {
+        version: uiStudioConvergence.CONVERGENCE_VERSION,
+        rendererConfigured: uiStudioConvergence.rendererConfigured()
+      }
     });
   } catch (error) { next(error); }
 }
@@ -254,6 +263,100 @@ async function repairRender(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function phase5Status(req, res, next) {
+  try {
+    res.json({ phase5: await uiStudioConvergence.phase5Status(req.params.projectId) });
+  } catch (error) { next(error); }
+}
+
+async function startConvergence(req, res, next) {
+  try {
+    const result = await uiStudioConvergence.startRenderBatch(req.params.projectId, req.body || {}, req.user.id);
+    await audit(req, 'ADMIN_UI_STUDIO_CONVERGENCE_START', req.params.projectId, {
+      batchId: result.batchId,
+      renderCount: result.renders.length,
+      generationId: result.renders[0]?.generationId || null,
+      autoRepair: req.body?.autoRepair !== false
+    });
+    res.status(202).json({ batch: result, project: await uiStudio.projectDetail(req.params.projectId) });
+  } catch (error) { next(error); }
+}
+
+async function convergenceBatch(req, res, next) {
+  try {
+    res.json({ batch: await uiStudioConvergence.batchDetail(req.params.projectId, req.params.batchId) });
+  } catch (error) { next(error); }
+}
+
+async function uploadAssetBinding(req, res, next) {
+  try {
+    const binding = await uiStudioConvergence.uploadAssetBinding(req.params.projectId, {
+      uploadedByUserId: req.user.id,
+      slotName: decodeHeader(req, 'x-slot-name'),
+      kind: decodeHeader(req, 'x-asset-kind', 'OTHER'),
+      viewport: decodeHeader(req, 'x-asset-viewport', 'ALL'),
+      originalName: decodeHeader(req, 'x-file-name', 'bound-asset'),
+      mimeType: String(req.headers['content-type'] || '').split(';')[0],
+      data: Buffer.isBuffer(req.body) ? req.body : Buffer.from(req.body || '')
+    });
+    await audit(req, 'ADMIN_UI_STUDIO_ASSET_BIND', req.params.projectId, {
+      bindingId: binding.id,
+      slotName: binding.slotName,
+      kind: binding.kind,
+      viewport: binding.viewport,
+      byteSize: binding.byteSize
+    });
+    res.status(201).json({ binding, phase5: await uiStudioConvergence.phase5Status(req.params.projectId) });
+  } catch (error) { next(error); }
+}
+
+async function deleteAssetBinding(req, res, next) {
+  try {
+    const result = await uiStudioConvergence.deleteAssetBinding(req.params.projectId, req.params.bindingId);
+    await audit(req, 'ADMIN_UI_STUDIO_ASSET_UNBIND', req.params.projectId, { bindingId: result.id });
+    res.json({ ok: true, phase5: await uiStudioConvergence.phase5Status(req.params.projectId) });
+  } catch (error) { next(error); }
+}
+
+async function createIgnoreMask(req, res, next) {
+  try {
+    const mask = await uiStudioConvergence.createIgnoreMask(req.params.projectId, {
+      ...(req.body || {}),
+      createdByUserId: req.user.id
+    });
+    await audit(req, 'ADMIN_UI_STUDIO_MASK_CREATE', req.params.projectId, {
+      maskId: mask.id,
+      viewport: mask.viewport,
+      label: mask.label
+    });
+    res.status(201).json({ mask, phase5: await uiStudioConvergence.phase5Status(req.params.projectId) });
+  } catch (error) { next(error); }
+}
+
+async function deleteIgnoreMask(req, res, next) {
+  try {
+    const result = await uiStudioConvergence.deleteIgnoreMask(req.params.projectId, req.params.maskId);
+    await audit(req, 'ADMIN_UI_STUDIO_MASK_DELETE', req.params.projectId, { maskId: result.id });
+    res.json({ ok: true, phase5: await uiStudioConvergence.phase5Status(req.params.projectId) });
+  } catch (error) { next(error); }
+}
+
+async function acceptGeneration(req, res, next) {
+  try {
+    const generation = await uiStudioConvergence.acceptGeneration(req.params.projectId, req.params.generationId);
+    await audit(req, 'ADMIN_UI_STUDIO_GENERATION_ACCEPT', req.params.projectId, {
+      generationId: generation.id,
+      aggregateScore: generation.aggregateScore,
+      viewportScores: generation.viewportScores
+    });
+    res.json({
+      generation,
+      project: await uiStudio.projectDetail(req.params.projectId),
+      phase5: await uiStudioConvergence.phase5Status(req.params.projectId)
+    });
+  } catch (error) { next(error); }
+}
+
 async function content(req, res, next) {
   try {
     const result = await uiStudio.referenceContent(req.params.referenceId);
@@ -269,4 +372,9 @@ async function content(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { list, create, detail, upload, analyse, generate, generation, prepareRender, renderDetail, renderPreview, renderAsset, captureRender, repairRender, content };
+module.exports = {
+  list, create, detail, upload, analyse, generate, generation,
+  prepareRender, renderDetail, renderPreview, renderAsset, captureRender, repairRender,
+  phase5Status, startConvergence, convergenceBatch, uploadAssetBinding, deleteAssetBinding,
+  createIgnoreMask, deleteIgnoreMask, acceptGeneration, content
+};

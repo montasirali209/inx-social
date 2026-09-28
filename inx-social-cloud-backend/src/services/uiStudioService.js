@@ -8,6 +8,7 @@ const objectStorage = require('./mediaObjectStorageService');
 const uiStudioAnalysis = require('./uiStudioAnalysisService');
 const uiStudioCodegen = require('./uiStudioCodegenService');
 const uiStudioVisual = require('./uiStudioVisualService');
+const uiStudioConvergence = require('./uiStudioConvergenceService');
 
 const STORAGE_PREFIX = 'ui-studio';
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
@@ -81,6 +82,10 @@ function serializeProject(project, { fullAnalysis = false, fullGeneration = fals
     styling: project.styling,
     outputType: project.outputType,
     status: project.status,
+    bestGenerationId: project.bestGenerationId || null,
+    acceptedGenerationId: project.acceptedGenerationId || null,
+    bestAggregateScore: project.bestAggregateScore,
+    acceptedAt: project.acceptedAt,
     createdByUserId: project.createdByUserId || null,
     createdAt: project.createdAt,
     updatedAt: project.updatedAt,
@@ -99,7 +104,7 @@ function serializeProject(project, { fullAnalysis = false, fullGeneration = fals
       currentFingerprint,
       currentAnalysisId: latestAnalysisRow?.id || null
     }),
-    latestRender: uiStudioVisual.serializeRender(latestRenderRow, { full: false })
+    latestRender: uiStudioConvergence.serializeRender(latestRenderRow, { full: false })
   };
 }
 
@@ -206,7 +211,7 @@ async function projectDetail(projectId) {
       currentFingerprint,
       currentAnalysisId: project.analyses?.[0]?.id || null
     })),
-    renders: (project.renders || []).map(render => uiStudioVisual.serializeRender(render, { full: false })),
+    renders: (project.renders || []).map(render => uiStudioConvergence.serializeRender(render, { full: false })),
     repairs: (project.repairAttempts || []).map(attempt => ({
       id: attempt.id,
       renderId: attempt.renderId,
@@ -266,7 +271,13 @@ async function uploadReference(projectId, viewportValue, input = {}) {
     });
     await prisma.uiDesignProject.update({
       where: { id: project.id },
-      data: { status: 'ACTIVE' }
+      data: {
+        status: 'ACTIVE',
+        bestGenerationId: null,
+        acceptedGenerationId: null,
+        bestAggregateScore: null,
+        acceptedAt: null
+      }
     });
     return serializeReference(reference);
   } catch (error) {

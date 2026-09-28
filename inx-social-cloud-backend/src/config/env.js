@@ -202,5 +202,15 @@ module.exports = {
     timeoutMs: Math.max(60000, Math.min(360000, Number(process.env.OPENAI_UI_STUDIO_VISUAL_TIMEOUT_MS || 300000))),
     targetScore: Math.max(70, Math.min(99, Number(process.env.UI_STUDIO_VISUAL_TARGET_SCORE || 90))),
     maxRepairPasses: Math.max(0, Math.min(3, Number(process.env.UI_STUDIO_VISUAL_MAX_REPAIR_PASSES || 3)))
+  },
+  uiStudioConvergence: {
+    rendererUrl: String(process.env.UI_STUDIO_RENDERER_URL || '').trim().replace(/\/$/, ''),
+    rendererToken: String(process.env.UI_STUDIO_RENDERER_TOKEN || '').trim(),
+    pollMs: Math.max(500, Math.min(10000, Number(process.env.UI_STUDIO_RENDER_WORKER_POLL_MS || 1500))),
+    leaseMs: Math.max(30000, Math.min(900000, Number(process.env.UI_STUDIO_RENDER_LEASE_MS || 180000))),
+    maxAttempts: Math.max(1, Math.min(5, Number(process.env.UI_STUDIO_RENDER_MAX_ATTEMPTS || 3))),
+    regressionTolerance: Math.max(0, Math.min(15, Number(process.env.UI_STUDIO_REGRESSION_TOLERANCE || 3))),
+    minimumViewportScore: Math.max(50, Math.min(99, Number(process.env.UI_STUDIO_MIN_VIEWPORT_SCORE || 78))),
+    artifactRetentionDays: Math.max(1, Math.min(365, Number(process.env.UI_STUDIO_ARTIFACT_RETENTION_DAYS || 30)))
   }
 };

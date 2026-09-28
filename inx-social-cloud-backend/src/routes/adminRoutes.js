@@ -49,6 +49,19 @@ router.get('/ui-studio/projects/:projectId', uiStudio.detail);
 router.post('/ui-studio/projects/:projectId/analyse', requireSuperAdmin, uiStudio.analyse);
 router.post('/ui-studio/projects/:projectId/generate', requireSuperAdmin, uiStudio.generate);
 router.get('/ui-studio/generations/:generationId', uiStudio.generation);
+router.get('/ui-studio/projects/:projectId/phase5', uiStudio.phase5Status);
+router.post('/ui-studio/projects/:projectId/phase5/run', requireSuperAdmin, uiStudio.startConvergence);
+router.get('/ui-studio/projects/:projectId/phase5/batches/:batchId', uiStudio.convergenceBatch);
+router.post(
+  '/ui-studio/projects/:projectId/phase5/assets',
+  requireSuperAdmin,
+  express.raw({ type: ['image/png','image/jpeg','image/webp','image/avif','video/mp4','video/webm','video/quicktime'], limit: '30mb' }),
+  uiStudio.uploadAssetBinding
+);
+router.delete('/ui-studio/projects/:projectId/phase5/assets/:bindingId', requireSuperAdmin, uiStudio.deleteAssetBinding);
+router.post('/ui-studio/projects/:projectId/phase5/masks', requireSuperAdmin, uiStudio.createIgnoreMask);
+router.delete('/ui-studio/projects/:projectId/phase5/masks/:maskId', requireSuperAdmin, uiStudio.deleteIgnoreMask);
+router.post('/ui-studio/projects/:projectId/phase5/accept/:generationId', requireSuperAdmin, uiStudio.acceptGeneration);
 router.post('/ui-studio/projects/:projectId/render', requireSuperAdmin, uiStudio.prepareRender);
 router.get('/ui-studio/renders/:renderId', uiStudio.renderDetail);
 router.get('/ui-studio/renders/:renderId/preview', uiStudio.renderPreview);

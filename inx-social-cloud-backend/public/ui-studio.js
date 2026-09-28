@@ -9,6 +9,11 @@
     analysisConfig: null,
     codegenConfig: null,
     visualConfig: null,
+    phase5Capability: null,
+    phase5Config: null,
+    phase5Batch: null,
+    phase5Running: false,
+    phase5PollTimer: null,
     analysing: false,
     generating: false,
     visualRunning: false,
@@ -150,6 +155,7 @@
     state.analysisConfig = data.analysis || state.analysisConfig;
     state.codegenConfig = data.codegen || state.codegenConfig;
     state.visualConfig = data.visual || state.visualConfig;
+    state.phase5Capability = data.phase5 || state.phase5Capability;
     renderProjects();
     return data;
   }
@@ -749,6 +755,310 @@
     }
   }
 
+  function phase5BindingFor(slotName) {
+    return (state.phase5Config?.assetBindings || []).find(item => item.slotName === slotName && item.viewport === 'ALL')
+      || (state.phase5Config?.assetBindings || []).find(item => item.slotName === slotName)
+      || null;
+  }
+
+  function phase5ViewportCard(render) {
+    const metrics = render?.metrics || {};
+    const score = render?.score;
+    const status = render?.status || 'QUEUED';
+    const done = status === 'COMPLETED';
+    return `<article class="ui-studio-phase5-viewport">
+      <header><b>${esc(render.viewport)}</b><span>${done ? esc(score ?? '—') + '% match' : esc(status)}</span></header>
+      ${done ? `<div class="shots">
+        <figure><figcaption>Original</figcaption><img src="${esc(render.originalUrl)}" alt="${esc(render.viewport)} original"></figure>
+        <figure><figcaption>Chromium</figcaption><img src="${esc(render.renderedUrl)}" alt="${esc(render.viewport)} rendered"></figure>
+        <figure><figcaption>Diff</figcaption><img src="${esc(render.diffUrl)}" alt="${esc(render.viewport)} diff"></figure>
+      </div>
+      <footer>
+        <span>Pixel<b>${esc(render.pixelScore ?? '—')}</b></span>
+        <span>Structure<b>${esc(metrics.structuralScore ?? '—')}</b></span>
+        <span>Ignored media<b>${esc(metrics.ignoredPercent != null ? metrics.ignoredPercent + '%' : '0%')}</b></span>
+      </footer>` : '<div class="ui-studio-phase5-empty">Waiting for the dedicated renderer worker.</div>'}
+    </article>`;
+  }
+
+  function renderPhase5Assets() {
+    const host = $('uiStudioPhase5Assets');
+    if (!host) return;
+    const slots = state.phase5Config?.assetSlots || [];
+    if (!slots.length) {
+      host.innerHTML = '<div class="ui-studio-phase5-empty">No generated media slots were declared by the current Phase 3 code.</div>';
+      return;
+    }
+    host.innerHTML = slots.map((slot, index) => {
+      const binding = phase5BindingFor(slot.name);
+      const inputId = 'uiStudioAssetFile-' + index;
+      return `<div class="ui-studio-asset-row">
+        <div><b>${esc(slot.name || 'Media slot')}</b><small>${esc(binding ? binding.originalName + ' · ' + bytes(binding.byteSize) : (slot.kind || 'MEDIA') + ' · ' + (slot.purpose || 'No asset bound'))}</small></div>
+        <div class="asset-actions">
+          <label for="${esc(inputId)}">${binding ? 'Replace' : 'Bind asset'}</label>
+          <input id="${esc(inputId)}" type="file" data-phase5-asset-slot="${esc(slot.name)}" data-phase5-asset-kind="${esc(slot.kind || 'OTHER')}" accept="image/png,image/jpeg,image/webp,image/avif,video/mp4,video/webm,video/quicktime">
+          ${binding ? `<button type="button" data-phase5-unbind="${esc(binding.id)}">Remove</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+    document.querySelectorAll('[data-phase5-asset-slot]').forEach(input => {
+      input.addEventListener('change', () => {
+        const file = input.files?.[0];
+        if (file) void uploadPhase5Asset(input.dataset.phase5AssetSlot, input.dataset.phase5AssetKind, file);
+      });
+    });
+    document.querySelectorAll('[data-phase5-unbind]').forEach(button => {
+      button.addEventListener('click', () => void removePhase5Asset(button.dataset.phase5Unbind));
+    });
+  }
+
+  function renderPhase5Masks() {
+    const host = $('uiStudioPhase5Masks');
+    if (!host) return;
+    const all = state.phase5Config?.masks || {};
+    const masks = VIEWPORT_NAMES.flatMap(viewport => (all[viewport] || []).map(mask => ({ ...mask, viewport })));
+    if (!masks.length) {
+      host.innerHTML = '<div class="ui-studio-phase5-empty">No masks. Add one for dynamic media if its changing pixels should not affect similarity scoring.</div>';
+      return;
+    }
+    host.innerHTML = masks.map(mask => `<div class="ui-studio-mask-row ${mask.source === 'AUTO' ? 'auto' : ''}">
+      <div><b>${esc(mask.label)} · ${esc(mask.viewport)}</b><small>x ${esc(mask.xPct)}% · y ${esc(mask.yPct)}% · ${esc(mask.widthPct)} × ${esc(mask.heightPct)}%</small></div>
+      ${mask.source === 'MANUAL' ? `<button class="secondary" type="button" data-phase5-mask-delete="${esc(mask.id)}">Delete</button>` : '<span class="status-chip">Auto</span>'}
+    </div>`).join('');
+    document.querySelectorAll('[data-phase5-mask-delete]').forEach(button => {
+      button.addEventListener('click', () => void deletePhase5Mask(button.dataset.phase5MaskDelete));
+    });
+  }
+
+  const VIEWPORT_NAMES = ['DESKTOP','TABLET','MOBILE'];
+
+  function renderPhase5Panel() {
+    const status = $('uiStudioPhase5Status');
+    const summary = $('uiStudioPhase5Summary');
+    const run = $('uiStudioPhase5RunBtn');
+    const accept = $('uiStudioPhase5AcceptBtn');
+    const auto = $('uiStudioPhase5AutoRepair');
+    const scoreboard = $('uiStudioPhase5Scoreboard');
+    const batchHost = $('uiStudioPhase5Batch');
+    if (!status || !summary || !run || !accept || !auto || !scoreboard || !batchHost) return;
+
+    auto.checked = state.autoRepairEnabled;
+    auto.disabled = state.phase5Running;
+    const config = state.phase5Config;
+    const currentGeneration = state.project?.latestGeneration;
+    const ready = Boolean(currentGeneration && ['READY','READY_WITH_WARNINGS'].includes(currentGeneration.status) && !currentGeneration.stale);
+
+    run.disabled = !state.canEdit || !ready || !config?.rendererConfigured || state.phase5Running;
+    accept.disabled = !state.canEdit || !config?.bestGenerationId || config.bestGenerationId === config.acceptedGenerationId || state.phase5Running;
+
+    if (!config) {
+      status.textContent = 'Loading';
+      status.className = 'status-chip';
+      summary.textContent = 'Loading Phase 5 convergence state…';
+      scoreboard.innerHTML = '';
+      batchHost.innerHTML = '';
+      return;
+    }
+
+    status.textContent = !config.rendererConfigured
+      ? 'Renderer offline'
+      : state.phase5Running
+        ? 'Converging…'
+        : (config.acceptedGenerationId ? 'Accepted' : config.bestGenerationId ? 'Best candidate ready' : 'Ready');
+    status.className = 'status-chip ' + (config.acceptedGenerationId ? 'ui-studio-visual-ready' : state.phase5Running ? 'ui-studio-visual-running' : 'ui-studio-phase5-ready');
+    summary.textContent = !config.rendererConfigured
+      ? 'The dedicated Chromium renderer is not configured. Phase 5 runs are disabled until the renderer service is healthy.'
+      : state.phase5Running
+        ? 'The dedicated worker is rendering every available viewport in real Chromium. Repairs are re-tested across all viewports and regressions are rejected.'
+        : 'Target ' + config.targetScore + '% aggregate · minimum viewport ' + config.minimumViewportScore + '% · regression tolerance ' + config.regressionTolerance + ' points.';
+
+    scoreboard.innerHTML = [
+      ['Best aggregate', config.bestAggregateScore != null ? config.bestAggregateScore + '%' : '—', 'Automatically retained', 'best'],
+      ['Desktop', config.bestGeneration?.viewportScores?.DESKTOP != null ? config.bestGeneration.viewportScores.DESKTOP + '%' : '—', 'Best candidate', ''],
+      ['Tablet', config.bestGeneration?.viewportScores?.TABLET != null ? config.bestGeneration.viewportScores.TABLET + '%' : '—', 'Best candidate', ''],
+      ['Mobile', config.bestGeneration?.viewportScores?.MOBILE != null ? config.bestGeneration.viewportScores.MOBILE + '%' : '—', 'Best candidate', ''],
+      ['Accepted', config.acceptedGenerationId ? ('v' + String(config.acceptedGeneration?.repairDepth || 0) + ' · ' + (config.acceptedGeneration?.aggregateScore ?? '—') + '%') : 'Not accepted', config.acceptedAt ? fmtDate(config.acceptedAt) : 'Manual approval required', 'accepted']
+    ].map(item => `<article class="${item[3]}"><span>${esc(item[0])}</span><b>${esc(item[1])}</b><small>${esc(item[2])}</small></article>`).join('');
+
+    const batch = state.phase5Batch;
+    if (batch) {
+      const completed = (batch.renders || []).filter(item => item.status === 'COMPLETED').length;
+      const total = (batch.renders || []).length;
+      if (batch.status === 'RUNNING' || batch.status === 'QUEUED') {
+        batchHost.innerHTML = `<div class="ui-studio-phase5-progress"><div><b>Chromium convergence batch</b><small>${esc(completed + '/' + total)} viewport renders complete</small></div><span></span></div>
+          <div class="ui-studio-phase5-viewport-grid" style="margin-top:10px">${(batch.renders || []).map(phase5ViewportCard).join('')}</div>`;
+      } else {
+        batchHost.innerHTML = `<div class="ui-studio-phase5-viewport-grid">${(batch.renders || []).map(phase5ViewportCard).join('')}</div>`;
+      }
+    } else {
+      batchHost.innerHTML = '<div class="ui-studio-phase5-empty">Run Phase 5 to test the same generated code against every available Desktop, Tablet and Mobile reference.</div>';
+    }
+
+    renderPhase5Assets();
+    renderPhase5Masks();
+  }
+
+  async function loadPhase5() {
+    if (!state.project) return null;
+    const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/phase5');
+    state.phase5Config = data.phase5 || null;
+    if (!state.phase5Batch && state.phase5Config?.activeBatchId) {
+      const active = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/phase5/batches/' + encodeURIComponent(state.phase5Config.activeBatchId)).catch(() => null);
+      if (active?.batch) state.phase5Batch = active.batch;
+    }
+    renderPhase5Panel();
+    return state.phase5Config;
+  }
+
+  function schedulePhase5Poll() {
+    clearTimeout(state.phase5PollTimer);
+    state.phase5PollTimer = setTimeout(() => void pollPhase5Batch(), 1800);
+  }
+
+  async function pollPhase5Batch() {
+    if (!state.project || !state.phase5Batch?.batchId) return;
+    try {
+      const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/phase5/batches/' + encodeURIComponent(state.phase5Batch.batchId));
+      state.phase5Batch = data.batch;
+      renderPhase5Panel();
+      if (['RUNNING','QUEUED'].includes(data.batch.status)) {
+        schedulePhase5Poll();
+        return;
+      }
+      await refreshProject();
+      await loadPhase5();
+      if (state.phase5Config?.activeBatchId && state.phase5Config.activeBatchId !== data.batch.batchId) {
+        const next = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/phase5/batches/' + encodeURIComponent(state.phase5Config.activeBatchId));
+        state.phase5Batch = next.batch;
+        state.phase5Running = true;
+        renderPhase5Panel();
+        schedulePhase5Poll();
+        return;
+      }
+      state.phase5Running = false;
+      notify(data.batch.status === 'FAILED' ? 'Phase 5 convergence stopped because a viewport render failed.' : 'Phase 5 convergence cycle completed.');
+      await loadProjects().catch(() => {});
+      renderWorkspace();
+    } catch (error) {
+      state.phase5Running = false;
+      notify(error.message);
+      renderWorkspace();
+    }
+  }
+
+  async function startPhase5() {
+    if (!state.project || !state.canEdit || state.phase5Running) return;
+    state.autoRepairEnabled = Boolean($('uiStudioPhase5AutoRepair')?.checked);
+    state.phase5Running = true;
+    state.phase5Batch = null;
+    renderPhase5Panel();
+    try {
+      const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/phase5/run', {
+        method: 'POST',
+        body: JSON.stringify({
+          generationId: state.project.latestGeneration?.id || state.phase5Config?.bestGenerationId || null,
+          autoRepair: state.autoRepairEnabled
+        })
+      });
+      state.project = data.project;
+      state.phase5Batch = {
+        batchId: data.batch.batchId,
+        status: 'QUEUED',
+        renders: data.batch.renders || []
+      };
+      await loadPhase5();
+      renderWorkspace();
+      schedulePhase5Poll();
+    } catch (error) {
+      state.phase5Running = false;
+      notify(error.message);
+      renderWorkspace();
+    }
+  }
+
+  async function uploadPhase5Asset(slotName, kind, file) {
+    if (!state.project || !state.canEdit || !file) return;
+    if (file.size > 30 * 1024 * 1024) return notify('Bound assets must be 30 MB or smaller.');
+    try {
+      const response = await fetch('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/phase5/assets', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          'Content-Type': file.type || 'application/octet-stream',
+          'X-Slot-Name': encodeURIComponent(slotName),
+          'X-Asset-Kind': encodeURIComponent(kind || 'OTHER'),
+          'X-Asset-Viewport': 'ALL',
+          'X-File-Name': encodeURIComponent(file.name || 'bound-asset')
+        },
+        body: file
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Asset binding failed.');
+      state.phase5Config = data.phase5;
+      notify('Media asset bound to ' + slotName + '.');
+      renderPhase5Panel();
+    } catch (error) { notify(error.message); }
+  }
+
+  async function removePhase5Asset(bindingId) {
+    if (!state.project || !state.canEdit) return;
+    try {
+      const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/phase5/assets/' + encodeURIComponent(bindingId), { method: 'DELETE' });
+      state.phase5Config = data.phase5;
+      notify('Media binding removed.');
+      renderPhase5Panel();
+    } catch (error) { notify(error.message); }
+  }
+
+  async function addPhase5Mask(event) {
+    event.preventDefault();
+    if (!state.project || !state.canEdit) return;
+    try {
+      const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/phase5/masks', {
+        method: 'POST',
+        body: JSON.stringify({
+          label: $('uiStudioMaskLabel').value.trim() || 'Dynamic media',
+          viewport: $('uiStudioMaskViewport').value,
+          xPct: Number($('uiStudioMaskX').value),
+          yPct: Number($('uiStudioMaskY').value),
+          widthPct: Number($('uiStudioMaskW').value),
+          heightPct: Number($('uiStudioMaskH').value)
+        })
+      });
+      state.phase5Config = data.phase5;
+      $('uiStudioPhase5MaskForm').reset();
+      notify('Comparison mask added.');
+      renderPhase5Panel();
+    } catch (error) { notify(error.message); }
+  }
+
+  async function deletePhase5Mask(maskId) {
+    if (!state.project || !state.canEdit) return;
+    try {
+      const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/phase5/masks/' + encodeURIComponent(maskId), { method: 'DELETE' });
+      state.phase5Config = data.phase5;
+      notify('Comparison mask removed.');
+      renderPhase5Panel();
+    } catch (error) { notify(error.message); }
+  }
+
+  async function acceptPhase5Best() {
+    const generationId = state.phase5Config?.bestGenerationId;
+    if (!state.project || !state.canEdit || !generationId) return;
+    try {
+      const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/phase5/accept/' + encodeURIComponent(generationId), {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+      state.project = data.project;
+      state.phase5Config = data.phase5;
+      notify('Best responsive generation accepted.');
+      await loadProjects().catch(() => {});
+      renderWorkspace();
+    } catch (error) { notify(error.message); }
+  }
+
   function renderWorkspace() {
     const project = state.project;
     if (!project) {
@@ -816,6 +1126,7 @@
     renderAnalysisPanel();
     renderCodegenPanel();
     renderVisualPanel();
+    renderPhase5Panel();
     setZoom(state.zoom);
   }
 
@@ -829,6 +1140,11 @@
     state.analysisConfig = data.analysis || state.analysisConfig;
     state.codegenConfig = data.codegen || state.codegenConfig;
     state.visualConfig = data.visual || state.visualConfig;
+    state.phase5Capability = data.phase5 || state.phase5Capability;
+    state.phase5Config = null;
+    state.phase5Batch = null;
+    state.phase5Running = false;
+    clearTimeout(state.phase5PollTimer);
     state.generationDetail = null;
     state.selectedGeneratedFile = null;
     state.visualRender = null;
@@ -838,6 +1154,7 @@
     state.visualRender = (data.project.renders || []).find(item => item.viewport === state.viewport) || data.project.latestRender || null;
     renderWorkspace();
     await loadLatestGeneration().catch(error => notify(error.message));
+    await loadPhase5().catch(error => notify(error.message));
     if (state.visualRender?.id && state.visualRender.status === 'COMPLETED') {
       const visual = await request('/api/admin/ui-studio/renders/' + encodeURIComponent(state.visualRender.id)).catch(() => null);
       if (visual?.render) state.visualRender = visual.render;
@@ -853,6 +1170,7 @@
     state.analysisConfig = data.analysis || state.analysisConfig;
     state.codegenConfig = data.codegen || state.codegenConfig;
     state.visualConfig = data.visual || state.visualConfig;
+    state.phase5Capability = data.phase5 || state.phase5Capability;
     if (state.generationDetail?.id !== state.project?.latestGeneration?.id) {
       state.generationDetail = null;
       state.selectedGeneratedFile = null;
@@ -920,7 +1238,10 @@
       clearLocalPreview();
       state.overlay = false;
       state.visualRender = null;
+      state.phase5Config = null;
+      state.phase5Batch = null;
       await Promise.all([refreshProject(), loadProjects()]);
+      await loadPhase5().catch(() => {});
     } catch (error) {
       notify(error.message);
     } finally {
@@ -942,8 +1263,11 @@
       state.project = data.project;
       state.overlay = true;
       state.visualRender = null;
+      state.phase5Config = null;
+      state.phase5Batch = null;
       notify('Design analysis complete. Region overlay is ready.');
       await loadProjects();
+      await loadPhase5().catch(() => {});
       renderWorkspace();
     } catch (error) {
       notify(error.message);
@@ -966,9 +1290,12 @@
       state.project = data.project;
       state.generationDetail = data.generation || null;
       state.visualRender = null;
+      state.phase5Config = null;
+      state.phase5Batch = null;
       state.selectedGeneratedFile = data.generation?.result?.entryFile || data.generation?.result?.files?.[0]?.path || null;
       notify('Responsive UI code generated and saved as a new version.');
       await loadProjects();
+      await loadPhase5().catch(() => {});
     } catch (error) {
       notify(error.message);
       await refreshProject().catch(() => {});
@@ -1032,7 +1359,7 @@
     const button = $('refreshUiStudioBtn');
     button.disabled = true;
     button.textContent = 'Refreshing…';
-    try { await loadProjects(); if (state.project) await refreshProject(); notify('UI Studio refreshed'); }
+    try { await loadProjects(); if (state.project) { await refreshProject(); await loadPhase5().catch(() => {}); } notify('UI Studio refreshed'); }
     catch (error) { notify(error.message); }
     finally { button.disabled = false; button.textContent = '↻ Refresh'; }
   });
@@ -1044,6 +1371,10 @@
     state.selectedGeneratedFile = null;
     state.visualRender = null;
     state.visualFrame = null;
+    state.phase5Config = null;
+    state.phase5Batch = null;
+    state.phase5Running = false;
+    clearTimeout(state.phase5PollTimer);
     renderWorkspace();
   });
   document.querySelectorAll('[data-ui-viewport]').forEach(button => button.addEventListener('click', () => {
@@ -1064,6 +1395,10 @@
   $('uiStudioAnalyseBtn')?.addEventListener('click', () => void analyseProject());
   $('uiStudioGenerateBtn')?.addEventListener('click', () => void generateResponsiveUi());
   $('uiStudioRenderBtn')?.addEventListener('click', () => void startVisualCompare());
+  $('uiStudioPhase5RunBtn')?.addEventListener('click', () => void startPhase5());
+  $('uiStudioPhase5AcceptBtn')?.addEventListener('click', () => void acceptPhase5Best());
+  $('uiStudioPhase5AutoRepair')?.addEventListener('change', event => { state.autoRepairEnabled = Boolean(event.target.checked); });
+  $('uiStudioPhase5MaskForm')?.addEventListener('submit', event => void addPhase5Mask(event));
   $('uiStudioAutoRepair')?.addEventListener('change', event => { state.autoRepairEnabled = Boolean(event.target.checked); });
   $('uiStudioFile')?.addEventListener('change', event => void handleFile(event.target.files?.[0]));
   $('uiStudioUploadBtn')?.addEventListener('click', () => void uploadReference());

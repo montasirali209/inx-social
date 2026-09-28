@@ -296,7 +296,7 @@ function entryImport(entryPath, content) {
   throw publicError('The generated entry file must export a React component.', 422, 'UI_STUDIO_VISUAL_ENTRY_EXPORT');
 }
 
-function mockPropsSource(propNames) {
+function mockPropsSource(propNames, assetProps = {}) {
   const names = [...new Set([
     ...propNames,
     'imageSrc','videoSrc','poster','logoSrc','avatarSrc','src','href','title','subtitle','description',
@@ -304,8 +304,10 @@ function mockPropsSource(propNames) {
   ])];
   const image = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="900" height="1600"%3E%3Crect width="100%25" height="100%25" fill="%231a4b4b"/%3E%3Ccircle cx="450" cy="620" r="190" fill="%232c7772"/%3E%3Crect x="235" y="850" width="430" height="380" rx="180" fill="%23245f5c"/%3E%3C/svg%3E';
   const keys = JSON.stringify(names);
+  const assets = JSON.stringify(assetProps || {});
   return `
 const __placeholderImage = ${JSON.stringify(image)};
+const __assetProps = ${assets};
 const __item = (index) => ({
   id: String(index + 1),
   name: ['Maya','Chloe','Sofia','Emma','Lily'][index % 5],
@@ -329,6 +331,7 @@ const __props = new Proxy({}, {
   getOwnPropertyDescriptor(){ return { enumerable: true, configurable: true }; },
   get(_target, key){
     const name = String(key);
+    if (Object.prototype.hasOwnProperty.call(__assetProps, name)) return __assetProps[name];
     if (/^on[A-Z]/.test(name)) return () => {};
     if (/^(is|has|show|enabled|active)/i.test(name)) return false;
     if (/index|count|total/i.test(name)) return 0;
@@ -370,7 +373,7 @@ function inlineDistHtml(distRoot) {
   return html;
 }
 
-function directHtmlPreview(result, width, height) {
+function directHtmlPreview(result, width, height, assetProps = {}) {
   const files = result.files || [];
   const htmlFile = files.find(file => file.path === result.entryFile && /\.html?$/i.test(file.path))
     || files.find(file => /\.html?$/i.test(file.path));
@@ -378,6 +381,10 @@ function directHtmlPreview(result, width, height) {
   const js = files.filter(file => /\.m?js$/i.test(file.path)).map(file => file.content).join('\n\n');
 
   let html = htmlFile?.content || '<!doctype html><html><head></head><body><main id="root"></main></body></html>';
+  for (const [key, value] of Object.entries(assetProps || {})) {
+    const token = '{{' + key + '}}';
+    html = html.split(token).join(String(value || ''));
+  }
   html = html.replace(/<link[^>]+href=["'][^"']+\.css[^"']*["'][^>]*>/gi, '');
   html = html.replace(/<script[^>]+src=["'][^"']+["'][^>]*><\/script>/gi, '');
   const styleTag = css ? '<style>' + css.replace(/<\/style/gi, '<\\/style') + '</style>' : '';
@@ -387,7 +394,7 @@ function directHtmlPreview(result, width, height) {
   return injectCaptureRuntime(html, width, height);
 }
 
-function buildReactPreview(result, project, width, height) {
+function buildReactPreview(result, project, width, height, assetProps = {}) {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'inx-ui-preview-'));
   try {
     validateGeneratedSources(result);
@@ -405,7 +412,7 @@ function buildReactPreview(result, project, width, height) {
     }
     const entryContent = fs.readFileSync(entryFile, 'utf8');
     const importLine = entryImport(entryPath, entryContent);
-    const props = mockPropsSource(inferredPropNames(entryContent));
+    const props = mockPropsSource(inferredPropNames(entryContent), assetProps);
 
     const previewCss = project.styling === 'TAILWIND'
       ? '@import "tailwindcss";\nhtml,body,#root{margin:0;width:100%;min-height:100%;}body{overflow:hidden;background:#fff}'
@@ -497,10 +504,10 @@ export default defineConfig({
   }
 }
 
-function buildPreviewHtml(result, project, width, height) {
+function buildPreviewHtml(result, project, width, height, assetProps = {}) {
   validateGeneratedSources(result);
-  if (project.framework === 'HTML_CSS') return directHtmlPreview(result, width, height);
-  return buildReactPreview(result, project, width, height);
+  if (project.framework === 'HTML_CSS') return directHtmlPreview(result, width, height, assetProps);
+  return buildReactPreview(result, project, width, height, assetProps);
 }
 
 async function persistArtifact(renderId, data, mimeType, originalName) {
@@ -549,6 +556,10 @@ function serializeRender(row, { full = true } = {}) {
     sourceHeight: row.sourceHeight,
     sourceScale: Number(row.sourceScale || 1),
     repairDepth: row.repairDepth || 0,
+    batchId: row.batchId || null,
+    workerId: row.workerId || null,
+    attempts: row.attempts || 0,
+    autoRepair: row.autoRepair !== false,
     score: metrics?.combinedScore ?? metrics?.pixelScore ?? null,
     pixelScore: metrics?.pixelScore ?? null,
     metrics,
@@ -693,13 +704,23 @@ async function rawComparable(buffer, width, height) {
     .toBuffer();
 }
 
-function imageMetrics(referenceRaw, renderedRaw, width, height) {
+function imageMetrics(referenceRaw, renderedRaw, width, height, masks = []) {
   const pixels = width * height;
   let absSum = 0;
   let mismatch = 0;
   let edgeDiff = 0;
   let edgeCount = 0;
+  let comparedPixels = 0;
   const diff = Buffer.alloc(pixels * 4);
+  const rects = (masks || []).filter(mask => mask && mask.enabled !== false).map(mask => {
+    const x = Math.max(0, Math.floor((Number(mask.xPct || 0) / 100) * width));
+    const y = Math.max(0, Math.floor((Number(mask.yPct || 0) / 100) * height));
+    const w = Math.max(0, Math.ceil((Number(mask.widthPct || 0) / 100) * width));
+    const h = Math.max(0, Math.ceil((Number(mask.heightPct || 0) / 100) * height));
+    const inset = Math.min(3, Math.floor(Math.min(w, h) / 6));
+    return { left: x + inset, top: y + inset, right: x + w - inset, bottom: y + h - inset };
+  }).filter(rect => rect.right > rect.left && rect.bottom > rect.top);
+  const masked = (x, y) => rects.some(rect => x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom);
 
   function gray(buffer, offset) {
     return (buffer[offset] * 0.299) + (buffer[offset + 1] * 0.587) + (buffer[offset + 2] * 0.114);
@@ -707,6 +728,16 @@ function imageMetrics(referenceRaw, renderedRaw, width, height) {
 
   for (let index = 0; index < pixels; index += 1) {
     const offset = index * 4;
+    const x = index % width;
+    const y = Math.floor(index / width);
+    if (masked(x, y)) {
+      diff[offset] = 226;
+      diff[offset + 1] = 232;
+      diff[offset + 2] = 240;
+      diff[offset + 3] = 255;
+      continue;
+    }
+    comparedPixels += 1;
     const dr = Math.abs(referenceRaw[offset] - renderedRaw[offset]);
     const dg = Math.abs(referenceRaw[offset + 1] - renderedRaw[offset + 1]);
     const db = Math.abs(referenceRaw[offset + 2] - renderedRaw[offset + 2]);
@@ -720,9 +751,7 @@ function imageMetrics(referenceRaw, renderedRaw, width, height) {
     diff[offset + 2] = Math.max(0, 255 - intensity);
     diff[offset + 3] = 255;
 
-    const x = index % width;
-    const y = Math.floor(index / width);
-    if (x > 0 && y > 0) {
+    if (x > 0 && y > 0 && !masked(x - 1, y) && !masked(x, y - 1)) {
       const left = offset - 4;
       const up = offset - (width * 4);
       const refEdge = Math.abs(gray(referenceRaw, offset) - gray(referenceRaw, left))
@@ -734,8 +763,8 @@ function imageMetrics(referenceRaw, renderedRaw, width, height) {
     }
   }
 
-  const mae = pixels ? absSum / pixels : 1;
-  const mismatchPct = pixels ? mismatch / pixels : 1;
+  const mae = comparedPixels ? absSum / comparedPixels : 0;
+  const mismatchPct = comparedPixels ? mismatch / comparedPixels : 0;
   const edgeMae = edgeCount ? edgeDiff / edgeCount : 1;
   const pixelScore = Math.max(0, Math.min(100, Math.round(100 * (1 - (0.55 * mae + 0.30 * mismatchPct + 0.15 * edgeMae)))));
   const colorScore = Math.max(0, Math.min(100, Math.round(100 * (1 - mae))));
@@ -751,7 +780,9 @@ function imageMetrics(referenceRaw, renderedRaw, width, height) {
       mismatchPercent: Number((mismatchPct * 100).toFixed(2)),
       edgeError: Number(edgeMae.toFixed(5)),
       compareWidth: width,
-      compareHeight: height
+      compareHeight: height,
+      ignoredMaskCount: rects.length,
+      comparedPixelPercent: Number((pixels ? (comparedPixels / pixels) * 100 : 0).toFixed(2))
     }
   };
 }
@@ -1076,7 +1107,10 @@ async function repairGeneration(renderId, createdByUserId = null) {
 
   const repaired = uiStudioCodegen.normalizeGeneration(parsed, render.project);
   validateGeneratedSources(repaired);
-  const validation = uiStudioCodegen.validateGeneration(repaired);
+  const validation = await uiStudioCodegen.validateGenerationBuild(repaired, render.project);
+  if (!validation.compileVerified) {
+    throw publicError('The repaired code did not compile. Phase 4 will keep the previous version.', 502, 'UI_STUDIO_REPAIR_COMPILE_FAILED');
+  }
   const generationStatus = validation.ok ? 'READY' : 'READY_WITH_WARNINGS';
   const attemptNumber = render.repairDepth + 1;
 
@@ -1093,6 +1127,8 @@ async function repairGeneration(renderId, createdByUserId = null) {
       sourceFingerprint: fingerprint,
       generationJson: JSON.stringify(repaired),
       validationJson: JSON.stringify(validation),
+      parentGenerationId: render.generationId,
+      repairDepth: render.repairDepth + 1,
       createdByUserId: createdByUserId ? String(createdByUserId) : null,
       completedAt: new Date()
     }
@@ -1147,6 +1183,10 @@ module.exports = {
   validateGeneratedSources,
   buildPreviewHtml,
   imageMetrics,
+  rawComparable,
+  persistArtifact,
+  visualCritique,
+  combinedScore,
   serializeRender,
   prepareRender,
   renderDetail,

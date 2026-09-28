@@ -7,6 +7,7 @@ const env = require('../config/env');
 const objectStorage = require('./mediaObjectStorageService');
 const uiStudioAnalysis = require('./uiStudioAnalysisService');
 const webResearch = require('./webResearchService');
+const previewBuild = require('./uiStudioPreviewBuildService');
 
 const GENERATION_VERSION = 'ui-codegen-v1';
 const MAX_FILES = 14;
@@ -84,7 +85,7 @@ function generationSchema() {
           additionalProperties: false,
           required: ['name','kind','purpose','recommendedAspectRatio','implementation'],
           properties: {
-            name: { type: 'string' },
+            name: { type: 'string', pattern: '^[A-Za-z_][A-Za-z0-9_]*(?:\\.(?:[A-Za-z_][A-Za-z0-9_]*|[0-9]+))*$' },
             kind: { type: 'string', enum: ['IMAGE','VIDEO','ICON','LOGO','BACKGROUND','OTHER'] },
             purpose: { type: 'string' },
             recommendedAspectRatio: { type: 'string' },
@@ -118,7 +119,9 @@ function frameworkInstructions(project) {
   }
   if (project.framework === 'NEXTJS') {
     return [
-      'Generate Next.js-compatible React TypeScript components.',
+      'Generate a Next.js-compatible presentational React TypeScript UI component that is also deterministic in the UI Studio preview runtime.',
+      'Use only next/image, next/link and next/navigation when a Next-specific import is genuinely needed.',
+      'Do not use next/font, server-only APIs, metadata exports, route handlers, server actions, filesystem/database APIs or other Next runtime features.',
       'Use client components only where interaction requires them.',
       'Do not assume external component libraries unless they are explicitly present in the reference.'
     ].join(' ');
@@ -158,10 +161,12 @@ function generationInstructions(project) {
     'Preserve the visible wording from the analysis/reference when legible. Never invent marketing copy for unreadable text.',
     'Repeated visual items must be represented as reusable/data-driven components.',
     'If a visible region is an image or video, implement a semantic media slot/prop rather than embedding the screenshot itself.',
+    'Every assetSlots.name must be the exact prop/data path actually consumed by the generated code, for example videoSrc, logoSrc or creators.0.imageSrc. Do not use human labels or spaces in asset slot names.',
     'For a video-shaped media area, use a real HTML5 video element with playsInline and sensible props; do not convert it to a static image.',
     'Buttons, tabs, carousels or selectors that are visibly interactive should have lightweight functional behaviour when the reference supports that inference.',
     'Use fluid grids/flexbox, clamp(), minmax(), aspect-ratio and explicit breakpoints. Absolute positioning is allowed only for genuine overlays or decorative layers.',
     'Do not include remote tracking, analytics, external scripts, API keys, secrets, iframes or arbitrary network calls.',
+    'Do not import remote webfonts or use remote font URLs. Use an explicit local/system font stack when an exact font asset is unavailable.',
     'Do not include package-lock files, node_modules, generated build output or binary assets.',
     'All code must be contained in the returned file list and be internally consistent.',
     'Return only JSON matching the schema.'
@@ -237,7 +242,7 @@ function validateGeneration(result) {
   checks.push({ key: 'FILES_PRESENT', ok: files.length > 0, message: files.length ? `${files.length} implementation file(s) generated.` : 'No implementation files were generated.' });
   checks.push({ key: 'ENTRY_PRESENT', ok: paths.includes(result?.entryFile), message: paths.includes(result?.entryFile) ? 'Entry file exists in the generated bundle.' : 'Entry file is missing.' });
   checks.push({ key: 'PATHS_UNIQUE', ok: new Set(paths).size === paths.length, message: 'Generated file paths are unique.' });
-  checks.push({ key: 'NO_MARKDOWN_FENCES', ok: files.every(file => !/^s*```/.test(file.content)), message: 'Generated files contain raw source rather than Markdown code fences.' });
+  checks.push({ key: 'NO_MARKDOWN_FENCES', ok: files.every(file => !/^\s*```/.test(file.content)), message: 'Generated files contain raw source rather than Markdown code fences.' });
   checks.push({ key: 'NO_SCREENSHOT_EMBED', ok: files.every(file => !/data:image\/(?:png|jpeg|webp);base64/i.test(file.content)), message: 'Generated code does not embed the reference screenshot.' });
   checks.push({ key: 'NO_REMOTE_SCRIPTS', ok: files.every(file => !/<script[^>]+src=["']https?:/i.test(file.content)), message: 'Generated code does not inject remote scripts.' });
 
@@ -250,8 +255,35 @@ function validateGeneration(result) {
     passed,
     total: checks.length,
     ok: checks.every(check => check.ok),
+    compileVerified: false,
+    compileStatus: 'PENDING_PHASE5_RENDER_BUILD',
     checks,
     totalChars: files.reduce((sum, file) => sum + file.content.length, 0)
+  };
+}
+
+async function validateGenerationBuild(result, project) {
+  const structural = validateGeneration(result);
+  let compile;
+  try {
+    const built = await previewBuild.compileGeneration(result, project);
+    compile = { key: 'BUILD_COMPILE', ok: true, message: 'Generated implementation compiled successfully.', htmlBytes: built.htmlBytes };
+  } catch (caught) {
+    compile = {
+      key: 'BUILD_COMPILE',
+      ok: false,
+      message: String(caught.publicMessage || caught.message || 'Generated implementation failed to compile.').slice(0, 1200)
+    };
+  }
+  const checks = [...structural.checks, compile];
+  return {
+    ...structural,
+    passed: checks.filter(check => check.ok).length,
+    total: checks.length,
+    ok: checks.every(check => check.ok),
+    compileVerified: Boolean(compile.ok),
+    compileStatus: compile.ok ? 'VERIFIED_BY_VITE_BUILD' : 'BUILD_COMPILE_FAILED',
+    checks
   };
 }
 
@@ -390,6 +422,11 @@ function serializeGeneration(row, { full = false, currentFingerprint = null, cur
     styling: row.styling,
     outputType: row.outputType,
     sourceFingerprint: row.sourceFingerprint,
+    parentGenerationId: row.parentGenerationId || null,
+    repairDepth: row.repairDepth || 0,
+    aggregateScore: row.aggregateScore,
+    viewportScores: safeParse(row.viewportScoresJson, null),
+    qualityStatus: row.qualityStatus || null,
     summary: result?.summary || null,
     entryFile: result?.entryFile || null,
     fileCount: Array.isArray(result?.files) ? result.files.length : 0,
@@ -429,6 +466,17 @@ async function generateProject(projectId, createdByUserId = null) {
   }
   if (!ready()) throw error('UI Studio code generation is not configured.', 503, 'UI_STUDIO_CODEGEN_NOT_CONFIGURED');
 
+  const staleBefore = new Date(Date.now() - 20 * 60 * 1000);
+  await prisma.uiDesignGeneration.updateMany({
+    where: { projectId: id, status: 'RUNNING', startedAt: { lt: staleBefore } },
+    data: { status: 'FAILED', completedAt: new Date(), errorMessage: 'Recovered stale code-generation job.' }
+  });
+  const running = await prisma.uiDesignGeneration.findFirst({
+    where: { projectId: id, status: 'RUNNING' },
+    orderBy: { startedAt: 'desc' }
+  });
+  if (running) throw error('Responsive code generation is already running for this project.', 409, 'UI_STUDIO_CODEGEN_ALREADY_RUNNING');
+
   const row = await prisma.uiDesignGeneration.create({
     data: {
       projectId: id,
@@ -447,6 +495,15 @@ async function generateProject(projectId, createdByUserId = null) {
 
   try {
     const generated = await requestGeneration(project, analysis, references);
+    generated.validation = await validateGenerationBuild(generated.result, project);
+    if (!generated.validation.compileVerified) {
+      const compileCheck = generated.validation.checks.find(check => check.key === 'BUILD_COMPILE');
+      throw error(
+        compileCheck?.message || 'Generated implementation did not compile.',
+        502,
+        'UI_STUDIO_CODEGEN_COMPILE_FAILED'
+      );
+    }
     const status = generated.validation.ok ? 'READY' : 'READY_WITH_WARNINGS';
     const completed = await prisma.uiDesignGeneration.update({
       where: { id: row.id },
@@ -501,6 +558,7 @@ module.exports = {
   generationSchema,
   normalizeGeneration,
   validateGeneration,
+  validateGenerationBuild,
   serializeGeneration,
   generateProject,
   generationDetail

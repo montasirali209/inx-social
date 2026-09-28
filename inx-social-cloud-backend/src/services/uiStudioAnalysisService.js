@@ -464,6 +464,16 @@ async function analyseProject(projectId, createdByUserId = null) {
 
   const sourceFingerprint = fingerprintReferences(references);
   const sourceReferencesJson = JSON.stringify(references.map(sourceReferenceDescriptor));
+  const staleBefore = new Date(Date.now() - 20 * 60 * 1000);
+  await prisma.uiDesignAnalysis.updateMany({
+    where: { projectId: id, status: 'RUNNING', startedAt: { lt: staleBefore } },
+    data: { status: 'FAILED', completedAt: new Date(), errorMessage: 'Recovered stale analysis job.' }
+  });
+  const running = await prisma.uiDesignAnalysis.findFirst({
+    where: { projectId: id, status: 'RUNNING' },
+    orderBy: { startedAt: 'desc' }
+  });
+  if (running) throw error('A design analysis is already running for this project.', 409, 'UI_STUDIO_ANALYSIS_ALREADY_RUNNING');
   const row = await prisma.uiDesignAnalysis.create({
     data: {
       projectId: id,
@@ -489,7 +499,16 @@ async function analyseProject(projectId, createdByUserId = null) {
         errorMessage: null
       }
     });
-    await prisma.uiDesignProject.update({ where: { id }, data: { status: 'ANALYZED' } });
+    await prisma.uiDesignProject.update({
+      where: { id },
+      data: {
+        status: 'ANALYZED',
+        bestGenerationId: null,
+        acceptedGenerationId: null,
+        bestAggregateScore: null,
+        acceptedAt: null
+      }
+    });
     return {
       analysis: serializeAnalysis(completed, { full: true, currentFingerprint: sourceFingerprint }),
       imageCount: analysed.imageCount
