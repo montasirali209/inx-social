@@ -12,7 +12,7 @@ test('Match and Refine exposes one compare action before a best match exists', (
   const html = read('public/index.html');
   const js = read('public/ui-studio.js');
 
-  assert.match(html, /id="uiStudioPhase5RunBtn"[^>]*>◎ Compare &amp; improve<\/button>/);
+  assert.match(html, /id="uiStudioPhase5RunBtn"[^>]*>◎ Compare & improve<\/button>/);
   assert.doesNotMatch(js, /Compare uploaded reference/);
   assert.match(js, /const hasBestMatch = Boolean\(state\.project\.bestGenerationId\)/);
   assert.match(js, /next\.hidden = !hasBestMatch/);
