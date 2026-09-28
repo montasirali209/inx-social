@@ -1718,10 +1718,10 @@
     }
   }
 
-  async function generateResponsiveUi() {
-    if (!state.project || !state.canEdit || state.generating) return;
+  async function generateResponsiveUi(previewOnly = false) {
+    if (!state.project || !state.canEdit || state.generating) return null;
     state.generating = true;
-    renderCodegenPanel();
+    renderWorkspace();
     try {
       const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/generate', {
         method: 'POST',
@@ -1733,13 +1733,17 @@
       state.phase5Config = null;
       state.phase5Batch = null;
       state.selectedGeneratedFile = data.generation?.result?.entryFile || data.generation?.result?.files?.[0]?.path || null;
-      notify('Responsive UI code generated and saved as a new version.');
-      await loadProjects();
+      notify(previewOnly
+        ? 'Internal preview build created. Production code remains hidden until approval.'
+        : 'Internal preview build refreshed.');
+      await loadProjects().catch(() => {});
       await loadPhase5().catch(() => {});
+      return data.generation || null;
     } catch (error) {
       notify(error.message);
       await refreshProject().catch(() => {});
       await loadLatestGeneration().catch(() => {});
+      return null;
     } finally {
       state.generating = false;
       renderWorkspace();
