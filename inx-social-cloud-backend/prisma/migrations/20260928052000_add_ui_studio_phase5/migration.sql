@@ -27,7 +27,7 @@ CREATE TABLE "UiDesignAssetBinding" (
   "projectId" TEXT NOT NULL,
   "slotName" TEXT NOT NULL,
   "kind" TEXT NOT NULL,
-  "viewport" TEXT,
+  "viewport" TEXT NOT NULL DEFAULT 'ALL',
   "storageProvider" TEXT NOT NULL,
   "storageKey" TEXT NOT NULL,
   "originalName" TEXT NOT NULL,
