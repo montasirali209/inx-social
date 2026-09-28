@@ -212,5 +212,12 @@ module.exports = {
     regressionTolerance: Math.max(0, Math.min(15, Number(process.env.UI_STUDIO_REGRESSION_TOLERANCE || 3))),
     minimumViewportScore: Math.max(50, Math.min(99, Number(process.env.UI_STUDIO_MIN_VIEWPORT_SCORE || 78))),
     artifactRetentionDays: Math.max(1, Math.min(365, Number(process.env.UI_STUDIO_ARTIFACT_RETENTION_DAYS || 30)))
+  },
+  uiStudioDelivery: {
+    apiBaseUrl: String(process.env.UI_STUDIO_GITHUB_API_BASE_URL || 'https://api.github.com').trim().replace(/\/$/, ''),
+    githubToken: String(process.env.UI_STUDIO_GITHUB_TOKEN || '').trim(),
+    repository: String(process.env.UI_STUDIO_GITHUB_REPOSITORY || '').trim(),
+    baseBranch: String(process.env.UI_STUDIO_GITHUB_BASE_BRANCH || 'deployment/railway-postgres').trim(),
+    targetDirectory: String(process.env.UI_STUDIO_GITHUB_TARGET_DIRECTORY || '').trim()
   }
 };
