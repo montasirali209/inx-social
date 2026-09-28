@@ -675,9 +675,21 @@
     const frame = $('uiStudioPreviewFrame');
     if (!frame || !render?.previewUrl) return;
     state.visualFrame = frame;
-    frame.style.width = Math.max(1, Number(render.width || 1)) + 'px';
-    frame.style.height = Math.max(1, Number(render.height || 1)) + 'px';
+    const width = Math.max(1, Number(render.width || 1));
+    const height = Math.max(1, Number(render.height || 1));
+    frame.style.width = width + 'px';
+    frame.style.height = height + 'px';
+    frame.style.transformOrigin = 'top left';
     frame.src = render.previewUrl + '?v=' + encodeURIComponent(render.updatedAt || Date.now());
+    requestAnimationFrame(() => {
+      const stage = frame.parentElement;
+      if (!stage) return;
+      const available = Math.max(1, stage.clientWidth - 24);
+      const scale = Math.min(1, available / width);
+      frame.style.transform = 'scale(' + scale + ')';
+      stage.style.height = Math.min(620, Math.ceil(height * scale) + 24) + 'px';
+      stage.style.overflow = 'hidden';
+    });
   }
 
   async function uploadVisualCapture(render, pngDataUrl) {
@@ -1613,6 +1625,7 @@
 
   function renderWorkspace() {
     const project = state.project;
+    $('uiStudioPage')?.classList.toggle('workspace-open', Boolean(project));
     if (!project) {
       $('uiStudioWorkspace').hidden = true;
       $('uiStudioProjectsArea').hidden = false;
