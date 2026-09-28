@@ -935,11 +935,13 @@
         ? 'The dedicated worker is comparing every available viewport in real Chromium. Improvements are re-tested across all viewports and regressions are rejected.'
         : 'Target ' + config.targetScore + '% aggregate · minimum viewport ' + config.minimumViewportScore + '% · regression tolerance ' + config.regressionTolerance + ' points.';
 
+    const viewportScore = viewport => config.bestGeneration?.viewportScores?.[viewport];
+    const hasReference = viewport => Boolean(latest(state.project, viewport));
     scoreboard.innerHTML = [
       ['Best aggregate', config.bestAggregateScore != null ? config.bestAggregateScore + '%' : '—', 'Automatically retained', 'best'],
-      ['Desktop', config.bestGeneration?.viewportScores?.DESKTOP != null ? config.bestGeneration.viewportScores.DESKTOP + '%' : '—', 'Best candidate', ''],
-      ['Tablet', config.bestGeneration?.viewportScores?.TABLET != null ? config.bestGeneration.viewportScores.TABLET + '%' : '—', 'Best candidate', ''],
-      ['Mobile', config.bestGeneration?.viewportScores?.MOBILE != null ? config.bestGeneration.viewportScores.MOBILE + '%' : '—', 'Best candidate', ''],
+      ['Desktop', viewportScore('DESKTOP') != null ? viewportScore('DESKTOP') + '%' : 'Preview only', hasReference('DESKTOP') ? 'Exact source comparison' : 'No separate desktop source', ''],
+      ['Tablet', viewportScore('TABLET') != null ? viewportScore('TABLET') + '%' : 'Preview only', hasReference('TABLET') ? 'Exact source comparison' : 'No separate tablet source', ''],
+      ['Mobile', viewportScore('MOBILE') != null ? viewportScore('MOBILE') + '%' : 'Preview only', hasReference('MOBILE') ? 'Exact source comparison' : 'No separate mobile source', ''],
       ['Accepted', config.acceptedGenerationId ? ('v' + String(config.acceptedGeneration?.repairDepth || 0) + ' · ' + (config.acceptedGeneration?.aggregateScore ?? '—') + '%') : 'Not accepted', config.acceptedAt ? fmtDate(config.acceptedAt) : 'Manual approval required', 'accepted']
     ].map(item => `<article class="${item[3]}"><span>${esc(item[0])}</span><b>${esc(item[1])}</b><small>${esc(item[2])}</small></article>`).join('');
 
@@ -954,7 +956,7 @@
         batchHost.innerHTML = `<div class="ui-studio-phase5-viewport-grid">${(batch.renders || []).map(phase5ViewportCard).join('')}</div>`;
       }
     } else {
-      batchHost.innerHTML = '<div class="ui-studio-phase5-empty">Compare the reconstruction against every available Desktop, Tablet and Mobile reference.</div>';
+      batchHost.innerHTML = '<div class="ui-studio-phase5-empty">Compare the reconstruction against the uploaded source design. Optional extra viewport sources add more exact comparison checks.</div>';
     }
 
     renderPhase5Assets();
