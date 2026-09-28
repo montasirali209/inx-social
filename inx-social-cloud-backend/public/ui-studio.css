@@ -343,6 +343,38 @@
 
 
 
+/* Phase 6 — accepted design delivery, PR review and explicit deployment */
+.ui-studio-phase6-panel{border-top:1px solid #cbd5e1;padding:18px;background:#fff}
+.ui-studio-phase6-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}
+.ui-studio-phase6-head h3{margin:3px 0 4px;font-size:17px}
+.ui-studio-phase6-head p{margin:0;max-width:760px;font-size:11px;line-height:1.5}
+.ui-studio-phase6-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.ui-studio-phase6-gate{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:14px}
+.ui-studio-phase6-gate article{padding:10px 11px;border:1px solid #dbe3ec;border-radius:11px;background:#f8fafc}
+.ui-studio-phase6-gate article.pass{border-color:#86efac;background:#f0fdf4}
+.ui-studio-phase6-gate article.fail{border-color:#fecaca;background:#fef2f2}
+.ui-studio-phase6-gate span{display:block;font-size:9px;color:#64748b}
+.ui-studio-phase6-gate b{display:block;margin-top:3px;font-size:12px!important;color:#0f172a!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ui-studio-phase6-config{display:grid;grid-template-columns:1fr 1.2fr 1fr 1.2fr;gap:9px;margin-top:12px;padding:12px;border:1px solid #dbe3ec;border-radius:12px;background:#f8fafc}
+.ui-studio-phase6-config label{display:flex;flex-direction:column;gap:5px;font-size:9px;font-weight:800;color:#475569}
+.ui-studio-phase6-config input,.ui-studio-phase6-config select{min-width:0;padding:8px 9px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;font-size:10px;color:#0f172a}
+.ui-studio-phase6-config input:disabled{background:#f1f5f9;color:#94a3b8}
+.ui-studio-phase6-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+.ui-studio-phase6-toolbar a{text-decoration:none}
+.ui-studio-phase6-policy{margin:9px 0 0;padding:9px 10px;border-left:3px solid #0d9488;border-radius:7px;background:#f0fdfa;font-size:9px;line-height:1.45;color:#475569}
+.ui-studio-phase6-policy.warning{border-left-color:#d97706;background:#fffbeb}
+.ui-studio-phase6-deliveries{display:flex;flex-direction:column;gap:7px;margin-top:11px}
+.ui-studio-phase6-delivery{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 11px;border:1px solid #e2e8f0;border-radius:10px;background:#fff;cursor:pointer}
+.ui-studio-phase6-delivery.active{border-color:#5eead4;box-shadow:0 0 0 1px #99f6e4 inset;background:#f0fdfa}
+.ui-studio-phase6-delivery>div{min-width:0}
+.ui-studio-phase6-delivery b{display:block;font-size:10px!important;color:#0f172a!important}
+.ui-studio-phase6-delivery small{display:block;margin-top:3px;font-size:8px!important;line-height:1.4;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ui-studio-phase6-delivery aside{display:flex;align-items:center;gap:6px}
+.ui-studio-phase6-delivery aside span{padding:4px 6px;border-radius:999px;background:#e2e8f0;font-size:8px;font-weight:800;color:#475569}
+.ui-studio-phase6-delivery a{font-size:8px;font-weight:800;color:#0f766e;text-decoration:none}
+.ui-studio-phase6-empty{padding:13px;border:1px dashed #cbd5e1;border-radius:10px;background:#f8fafc;font-size:9px;color:#64748b}
+
+
 .ui-studio-region{position:absolute;z-index:3;box-sizing:border-box;pointer-events:auto;border:1px solid rgba(13,148,136,.72);background:rgba(45,212,191,.07)}
 .ui-studio-region.section{z-index:2;border:2px dashed rgba(37,99,235,.66);background:rgba(59,130,246,.04)}
 .ui-studio-region em{position:absolute;top:2px;left:2px;max-width:calc(100% - 4px);overflow:hidden;padding:2px 4px;border-radius:4px;background:rgba(15,23,42,.82);color:#fff;font-size:7px;font-style:normal;line-height:1.1;text-overflow:ellipsis;white-space:nowrap}
@@ -358,11 +390,13 @@
   .ui-studio-project-grid{grid-template-columns:1fr}
   .ui-studio-intro,.ui-studio-project-toolbar,.ui-studio-viewer-toolbar{align-items:flex-start;flex-direction:column}
   .ui-studio-upload{grid-template-columns:1fr}
-  .ui-studio-codegen-head,.ui-studio-codegen-toolbar,.ui-studio-codegen-foot,.ui-studio-visual-head,.ui-studio-phase5-head{flex-direction:column}
-  .ui-studio-codegen-actions,.ui-studio-visual-actions,.ui-studio-phase5-actions{justify-content:flex-start}
+  .ui-studio-codegen-head,.ui-studio-codegen-toolbar,.ui-studio-codegen-foot,.ui-studio-visual-head,.ui-studio-phase5-head,.ui-studio-phase6-head{flex-direction:column}
+  .ui-studio-codegen-actions,.ui-studio-visual-actions,.ui-studio-phase5-actions,.ui-studio-phase6-actions{justify-content:flex-start}
   .ui-studio-phase5-scoreboard{grid-template-columns:repeat(2,minmax(0,1fr))}
   .ui-studio-phase5-viewport-grid{grid-template-columns:1fr}
   .ui-studio-phase5-config-grid{grid-template-columns:1fr}
+  .ui-studio-phase6-gate{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .ui-studio-phase6-config{grid-template-columns:1fr}
   .ui-studio-mask-form{grid-template-columns:repeat(2,minmax(0,1fr))}
   .ui-studio-visual-score-row{grid-template-columns:repeat(2,minmax(0,1fr))}
   .ui-studio-compare-grid{grid-template-columns:1fr}
