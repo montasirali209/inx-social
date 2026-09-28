@@ -14,6 +14,10 @@
     phase5Batch: null,
     phase5Running: false,
     phase5PollTimer: null,
+    phase6Capability: null,
+    phase6Config: null,
+    phase6SelectedDeliveryId: null,
+    phase6Busy: false,
     analysing: false,
     generating: false,
     visualRunning: false,
@@ -156,6 +160,7 @@
     state.codegenConfig = data.codegen || state.codegenConfig;
     state.visualConfig = data.visual || state.visualConfig;
     state.phase5Capability = data.phase5 || state.phase5Capability;
+    state.phase6Capability = data.phase6 || state.phase6Capability;
     renderProjects();
     return data;
   }
@@ -1055,8 +1060,215 @@
       state.phase5Config = data.phase5;
       notify('Best responsive generation accepted.');
       await loadProjects().catch(() => {});
+      await loadPhase6().catch(() => {});
       renderWorkspace();
     } catch (error) { notify(error.message); }
+  }
+
+
+  function selectedPhase6Delivery() {
+    const deliveries = state.phase6Config?.deliveries || [];
+    return deliveries.find(item => item.id === state.phase6SelectedDeliveryId) || deliveries[0] || null;
+  }
+
+  function syncPhase6RepositoryFields() {
+    const repositoryMode = $('uiStudioPhase6Mode')?.value === 'REPOSITORY';
+    ['uiStudioPhase6Repository','uiStudioPhase6BaseBranch','uiStudioPhase6TargetDir'].forEach(id => {
+      if ($(id)) $(id).disabled = !repositoryMode || !state.canEdit || state.phase6Busy;
+    });
+  }
+
+  function renderPhase6Panel() {
+    const status = $('uiStudioPhase6Status');
+    const gateHost = $('uiStudioPhase6Gate');
+    const deliveriesHost = $('uiStudioPhase6Deliveries');
+    if (!status || !gateHost || !deliveriesHost) return;
+
+    const cfg = state.phase6Config || {};
+    const capability = state.phase6Capability || cfg || {};
+    const gate = cfg.gate || null;
+    const delivery = selectedPhase6Delivery();
+    const acceptedId = cfg.acceptedGenerationId || state.project?.acceptedGenerationId || null;
+    const score = Number(gate?.aggregateScore);
+    const viewportResults = Array.isArray(gate?.viewportResults) ? gate.viewportResults : [];
+
+    if (!acceptedId) {
+      status.textContent = 'Needs acceptance';
+      status.className = 'status-chip';
+    } else if (gate?.passed) {
+      status.textContent = delivery ? delivery.status.replaceAll('_',' ') : 'Ready';
+      status.className = 'status-chip ui-studio-analysis-ready';
+    } else {
+      status.textContent = 'Gate blocked';
+      status.className = 'status-chip ui-studio-analysis-failed';
+    }
+
+    const viewportLabel = viewportResults.length
+      ? viewportResults.map(item => item.viewport + ' ' + (Number.isFinite(Number(item.score)) ? Math.round(Number(item.score)) + '%' : '—')).join(' · ')
+      : 'No Phase 5 viewport evidence yet';
+    gateHost.innerHTML = [
+      ['Accepted generation', acceptedId ? acceptedId.slice(-10) : 'None', Boolean(acceptedId)],
+      ['Regression gate', gate?.passed ? 'Passed' : (gate?.message || 'Not ready'), Boolean(gate?.passed)],
+      ['Aggregate score', Number.isFinite(score) ? score.toFixed(1) + '%' : '—', Boolean(gate?.passed)],
+      ['Viewport evidence', viewportLabel, Boolean(gate?.passed)]
+    ].map(item => `<article class="${item[2] ? 'pass' : 'fail'}"><span>${esc(item[0])}</span><b title="${esc(item[1])}">${esc(item[1])}</b></article>`).join('');
+
+    const mode = $('uiStudioPhase6Mode');
+    const repo = $('uiStudioPhase6Repository');
+    const base = $('uiStudioPhase6BaseBranch');
+    const target = $('uiStudioPhase6TargetDir');
+    if (mode && !mode.dataset.touched) mode.value = delivery?.targetMode || 'EXPORT_ONLY';
+    if (repo && !repo.dataset.touched && !repo.value) repo.value = delivery?.repository || capability.defaultRepository || '';
+    if (base && !base.dataset.touched && !base.value) base.value = delivery?.baseBranch || capability.defaultBaseBranch || 'deployment/railway-postgres';
+    if (target && !target.dataset.touched && !target.value) target.value = delivery?.targetDirectory || capability.defaultTargetDirectory || '';
+
+    const createBtn = $('uiStudioPhase6CreateBtn');
+    const download = $('uiStudioPhase6DownloadBtn');
+    const prBtn = $('uiStudioPhase6PrBtn');
+    const approveBtn = $('uiStudioPhase6ApproveBtn');
+    const deployBtn = $('uiStudioPhase6DeployBtn');
+    if (createBtn) createBtn.disabled = !state.canEdit || !gate?.passed || state.phase6Busy;
+    if (download) {
+      download.hidden = !delivery?.downloadUrl;
+      if (delivery?.downloadUrl) {
+        download.href = delivery.downloadUrl;
+        download.setAttribute('download', delivery.artifactFileName || 'ui-studio-delivery.zip');
+      }
+    }
+    const repoMode = delivery?.targetMode === 'REPOSITORY';
+    const githubReady = Boolean(cfg.githubConfigured ?? capability.githubConfigured);
+    if (prBtn) prBtn.disabled = !state.canEdit || state.phase6Busy || !delivery || !repoMode || Boolean(delivery.pullRequestNumber) || !githubReady;
+    if (approveBtn) approveBtn.disabled = !state.canEdit || state.phase6Busy || !delivery
+      || delivery.status === 'APPROVED' || delivery.status === 'DEPLOY_TRIGGERED'
+      || (repoMode && !delivery.pullRequestNumber);
+    if (deployBtn) deployBtn.disabled = !state.canEdit || state.phase6Busy || !delivery || !repoMode
+      || !delivery.pullRequestNumber || delivery.status !== 'APPROVED' || !githubReady;
+
+    const policy = $('uiStudioPhase6Policy');
+    if (policy) {
+      if (githubReady) {
+        policy.className = 'ui-studio-phase6-policy';
+        policy.textContent = 'Repository deliveries are PR-first. A separate human approval is required before the approved PR can be merged for deployment.';
+      } else {
+        policy.className = 'ui-studio-phase6-policy warning';
+        policy.textContent = 'ZIP export and regression gating are available. Repository PR/deploy automation is disabled until UI_STUDIO_GITHUB_TOKEN is configured on the production service.';
+      }
+    }
+
+    deliveriesHost.innerHTML = (cfg.deliveries || []).length
+      ? cfg.deliveries.map(item => `<article class="ui-studio-phase6-delivery ${item.id === delivery?.id ? 'active' : ''}" data-phase6-delivery="${esc(item.id)}">
+          <div><b>${esc(item.targetMode.replaceAll('_',' '))} · ${esc(item.status.replaceAll('_',' '))}</b>
+          <small>${esc(item.repository || item.artifactFileName || 'Delivery package')} · ${esc(fmtDate(item.createdAt))}</small></div>
+          <aside><span>${esc(item.regression?.passed ? 'Gate passed' : 'Review')}</span>${item.pullRequestUrl ? `<a href="${esc(item.pullRequestUrl)}" target="_blank" rel="noopener">PR #${esc(item.pullRequestNumber)} ↗</a>` : ''}</aside>
+        </article>`).join('')
+      : '<div class="ui-studio-phase6-empty">No delivery package yet. Accept the Phase 5 best generation, pass the regression gate, then create the first immutable delivery package.</div>';
+
+    document.querySelectorAll('[data-phase6-delivery]').forEach(card => card.addEventListener('click', event => {
+      if (event.target.closest('a')) return;
+      state.phase6SelectedDeliveryId = card.dataset.phase6Delivery;
+      renderPhase6Panel();
+    }));
+    syncPhase6RepositoryFields();
+  }
+
+  async function loadPhase6() {
+    if (!state.project) return null;
+    const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/phase6');
+    state.phase6Config = data.phase6 || null;
+    if (!state.phase6SelectedDeliveryId || !(state.phase6Config?.deliveries || []).some(item => item.id === state.phase6SelectedDeliveryId)) {
+      state.phase6SelectedDeliveryId = state.phase6Config?.deliveries?.[0]?.id || null;
+    }
+    renderPhase6Panel();
+    return state.phase6Config;
+  }
+
+  async function createPhase6Delivery() {
+    if (!state.project || !state.canEdit || state.phase6Busy) return;
+    state.phase6Busy = true;
+    renderPhase6Panel();
+    try {
+      const mode = $('uiStudioPhase6Mode').value;
+      const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/phase6/deliveries', {
+        method: 'POST',
+        body: JSON.stringify({
+          targetMode: mode,
+          repository: mode === 'REPOSITORY' ? $('uiStudioPhase6Repository').value.trim() : null,
+          baseBranch: mode === 'REPOSITORY' ? $('uiStudioPhase6BaseBranch').value.trim() : null,
+          targetDirectory: $('uiStudioPhase6TargetDir').value.trim()
+        })
+      });
+      state.phase6Config = data.phase6;
+      state.phase6SelectedDeliveryId = data.delivery?.id || state.phase6Config?.deliveries?.[0]?.id || null;
+      notify('Phase 6 delivery package created after regression validation.');
+    } catch (error) {
+      notify(error.message);
+    } finally {
+      state.phase6Busy = false;
+      renderPhase6Panel();
+    }
+  }
+
+  async function createPhase6Pr() {
+    const delivery = selectedPhase6Delivery();
+    if (!state.project || !state.canEdit || !delivery || state.phase6Busy) return;
+    state.phase6Busy = true;
+    renderPhase6Panel();
+    try {
+      const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/phase6/deliveries/' + encodeURIComponent(delivery.id) + '/pr', {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+      state.phase6Config = data.phase6;
+      state.phase6SelectedDeliveryId = data.delivery?.id || delivery.id;
+      notify('Delivery pull request created. Review it before approval.');
+    } catch (error) {
+      notify(error.message);
+    } finally {
+      state.phase6Busy = false;
+      renderPhase6Panel();
+    }
+  }
+
+  async function approvePhase6Delivery() {
+    const delivery = selectedPhase6Delivery();
+    if (!state.project || !state.canEdit || !delivery || state.phase6Busy) return;
+    state.phase6Busy = true;
+    renderPhase6Panel();
+    try {
+      const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/phase6/deliveries/' + encodeURIComponent(delivery.id) + '/approve', {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+      state.phase6Config = data.phase6;
+      state.phase6SelectedDeliveryId = data.delivery?.id || delivery.id;
+      notify('Delivery approved. Deployment still requires the separate deploy action.');
+    } catch (error) {
+      notify(error.message);
+    } finally {
+      state.phase6Busy = false;
+      renderPhase6Panel();
+    }
+  }
+
+  async function deployPhase6Delivery() {
+    const delivery = selectedPhase6Delivery();
+    if (!state.project || !state.canEdit || !delivery || state.phase6Busy) return;
+    state.phase6Busy = true;
+    renderPhase6Panel();
+    try {
+      const data = await request('/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) + '/phase6/deliveries/' + encodeURIComponent(delivery.id) + '/deploy', {
+        method: 'POST',
+        body: JSON.stringify({})
+      });
+      state.phase6Config = data.phase6;
+      state.phase6SelectedDeliveryId = data.delivery?.id || delivery.id;
+      notify('Approved delivery PR merged. The repository deployment pipeline can now roll it out.');
+    } catch (error) {
+      notify(error.message);
+    } finally {
+      state.phase6Busy = false;
+      renderPhase6Panel();
+    }
   }
 
   function renderWorkspace() {
@@ -1127,6 +1339,7 @@
     renderCodegenPanel();
     renderVisualPanel();
     renderPhase5Panel();
+    renderPhase6Panel();
     setZoom(state.zoom);
   }
 
@@ -1141,10 +1354,13 @@
     state.codegenConfig = data.codegen || state.codegenConfig;
     state.visualConfig = data.visual || state.visualConfig;
     state.phase5Capability = data.phase5 || state.phase5Capability;
+    state.phase6Capability = data.phase6 || state.phase6Capability;
     state.phase5Config = null;
     state.phase5Batch = null;
     state.phase5Running = false;
     clearTimeout(state.phase5PollTimer);
+    state.phase6Config = null;
+    state.phase6SelectedDeliveryId = null;
     state.generationDetail = null;
     state.selectedGeneratedFile = null;
     state.visualRender = null;
@@ -1155,6 +1371,7 @@
     renderWorkspace();
     await loadLatestGeneration().catch(error => notify(error.message));
     await loadPhase5().catch(error => notify(error.message));
+    await loadPhase6().catch(error => notify(error.message));
     if (state.visualRender?.id && state.visualRender.status === 'COMPLETED') {
       const visual = await request('/api/admin/ui-studio/renders/' + encodeURIComponent(state.visualRender.id)).catch(() => null);
       if (visual?.render) state.visualRender = visual.render;
@@ -1171,6 +1388,7 @@
     state.codegenConfig = data.codegen || state.codegenConfig;
     state.visualConfig = data.visual || state.visualConfig;
     state.phase5Capability = data.phase5 || state.phase5Capability;
+    state.phase6Capability = data.phase6 || state.phase6Capability;
     if (state.generationDetail?.id !== state.project?.latestGeneration?.id) {
       state.generationDetail = null;
       state.selectedGeneratedFile = null;
@@ -1179,6 +1397,7 @@
       state.visualRender = (state.project.renders || []).find(item => item.viewport === state.viewport) || state.project.latestRender || state.visualRender;
     }
     renderWorkspace();
+    if (state.project) await loadPhase6().catch(() => {});
   }
 
   function readDimensions(file) {
@@ -1359,7 +1578,7 @@
     const button = $('refreshUiStudioBtn');
     button.disabled = true;
     button.textContent = 'Refreshing…';
-    try { await loadProjects(); if (state.project) { await refreshProject(); await loadPhase5().catch(() => {}); } notify('UI Studio refreshed'); }
+    try { await loadProjects(); if (state.project) { await refreshProject(); await loadPhase5().catch(() => {}); await loadPhase6().catch(() => {}); } notify('UI Studio refreshed'); }
     catch (error) { notify(error.message); }
     finally { button.disabled = false; button.textContent = '↻ Refresh'; }
   });
@@ -1374,6 +1593,9 @@
     state.phase5Config = null;
     state.phase5Batch = null;
     state.phase5Running = false;
+    state.phase6Config = null;
+    state.phase6SelectedDeliveryId = null;
+    state.phase6Busy = false;
     clearTimeout(state.phase5PollTimer);
     renderWorkspace();
   });
@@ -1397,6 +1619,12 @@
   $('uiStudioRenderBtn')?.addEventListener('click', () => void startVisualCompare());
   $('uiStudioPhase5RunBtn')?.addEventListener('click', () => void startPhase5());
   $('uiStudioPhase5AcceptBtn')?.addEventListener('click', () => void acceptPhase5Best());
+  $('uiStudioPhase6Mode')?.addEventListener('change', event => { event.target.dataset.touched = '1'; renderPhase6Panel(); });
+  ['uiStudioPhase6Repository','uiStudioPhase6BaseBranch','uiStudioPhase6TargetDir'].forEach(id => $(id)?.addEventListener('input', event => { event.target.dataset.touched = '1'; }));
+  $('uiStudioPhase6CreateBtn')?.addEventListener('click', () => void createPhase6Delivery());
+  $('uiStudioPhase6PrBtn')?.addEventListener('click', () => void createPhase6Pr());
+  $('uiStudioPhase6ApproveBtn')?.addEventListener('click', () => void approvePhase6Delivery());
+  $('uiStudioPhase6DeployBtn')?.addEventListener('click', () => void deployPhase6Delivery());
   $('uiStudioPhase5AutoRepair')?.addEventListener('change', event => { state.autoRepairEnabled = Boolean(event.target.checked); });
   $('uiStudioPhase5MaskForm')?.addEventListener('submit', event => void addPhase5Mask(event));
   $('uiStudioAutoRepair')?.addEventListener('change', event => { state.autoRepairEnabled = Boolean(event.target.checked); });

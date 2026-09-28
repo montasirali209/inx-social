@@ -62,6 +62,12 @@ router.delete('/ui-studio/projects/:projectId/phase5/assets/:bindingId', require
 router.post('/ui-studio/projects/:projectId/phase5/masks', requireSuperAdmin, uiStudio.createIgnoreMask);
 router.delete('/ui-studio/projects/:projectId/phase5/masks/:maskId', requireSuperAdmin, uiStudio.deleteIgnoreMask);
 router.post('/ui-studio/projects/:projectId/phase5/accept/:generationId', requireSuperAdmin, uiStudio.acceptGeneration);
+router.get('/ui-studio/projects/:projectId/phase6', uiStudio.phase6Status);
+router.post('/ui-studio/projects/:projectId/phase6/deliveries', requireSuperAdmin, uiStudio.createDelivery);
+router.get('/ui-studio/projects/:projectId/phase6/deliveries/:deliveryId/export', uiStudio.deliveryExport);
+router.post('/ui-studio/projects/:projectId/phase6/deliveries/:deliveryId/pr', requireSuperAdmin, uiStudio.createDeliveryPullRequest);
+router.post('/ui-studio/projects/:projectId/phase6/deliveries/:deliveryId/approve', requireSuperAdmin, uiStudio.approveDelivery);
+router.post('/ui-studio/projects/:projectId/phase6/deliveries/:deliveryId/deploy', requireSuperAdmin, uiStudio.deployDelivery);
 router.post('/ui-studio/projects/:projectId/render', requireSuperAdmin, uiStudio.prepareRender);
 router.get('/ui-studio/renders/:renderId', uiStudio.renderDetail);
 router.get('/ui-studio/renders/:renderId/preview', uiStudio.renderPreview);
