@@ -306,7 +306,7 @@ async function storeExport(project, generation, mapping, regression) {
   const stylingTargets = safeParse(project.stylingTargetsJson, [project.styling]);
   const manifest = {
     version: DELIVERY_VERSION,
-    workflow: 'Design -> Understand -> Preview -> Match & Refine -> Approve -> Generate -> Deliver',
+    workflow: 'Design -> Analyse -> Preview -> Match & Refine -> Approve -> Generate -> Deliver',
     project: {
       id: project.id,
       name: project.name,
