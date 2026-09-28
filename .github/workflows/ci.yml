@@ -50,6 +50,16 @@ jobs:
   backend-check:
     name: Backend checks
     runs-on: ubuntu-latest
+    services:
+      browserless:
+        image: ghcr.io/browserless/chromium:latest
+        env:
+          TOKEN: ci-browserless
+          CONCURRENT: 1
+          QUEUED: 2
+          TIMEOUT: 60000
+        ports:
+          - 3000:3000
     defaults:
       run:
         working-directory: inx-social-cloud-backend
@@ -57,6 +67,8 @@ jobs:
       DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci
       JWT_SECRET: ci-only-jwt-secret
       TOKEN_ENCRYPTION_KEY: ci-only-token-encryption-key
+      UI_STUDIO_RENDERER_URL: http://127.0.0.1:3000
+      UI_STUDIO_RENDERER_TOKEN: ci-browserless
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -68,6 +80,17 @@ jobs:
       - name: Install locked React frontend dependencies
         run: npm --prefix frontend ci
       - run: npm run prisma:generate
+      - name: Wait for real Chromium renderer
+        shell: bash
+        run: |
+          for attempt in {1..40}; do
+            if curl --silent --fail "http://127.0.0.1:3000/active?token=ci-browserless" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Browserless Chromium did not become healthy."
+          exit 1
       - run: npm run check
       - run: npm test
 
