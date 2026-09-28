@@ -735,7 +735,7 @@
         }
       });
     }
-    renderCanvasProperties();
+    renderCanvasCommitBar();
   }
 
   function renderCanvasProperties() {
@@ -2599,6 +2599,10 @@
     state.selectedGeneratedFile = null;
     state.visualRender = null;
     state.visualFrame = null;
+    state.canvasFrame = null;
+    state.canvasReady = false;
+    state.canvasSelected = null;
+    state.canvasEdits = { DESKTOP: {}, TABLET: {}, MOBILE: {} };
     state.phase5Config = null;
     state.phase5Batch = null;
     state.phase5Running = false;
@@ -2612,6 +2616,11 @@
     state.viewport = button.dataset.uiViewport;
     state.zoom = 'fit';
     if ((state.workflowStage || derivedWorkflowStage()) === 'PREVIEW') {
+      state.canvasFrame = null;
+      state.canvasReady = false;
+      state.canvasSelected = null;
+      state.canvasZoom = 1;
+      state.canvasFitPending = true;
       renderWorkspace();
       requestAnimationFrame(animateStageSurface);
       return;
