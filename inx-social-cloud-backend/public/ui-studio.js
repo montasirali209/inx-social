@@ -1649,13 +1649,9 @@
 
   async function runNextAction() {
     const stage = state.workflowStage || derivedWorkflowStage();
-    if (stage === 'DESIGN') return setWorkflowStage('UNDERSTAND');
-    if (stage === 'UNDERSTAND') {
-      if (analysisIsCurrent()) return setWorkflowStage('PREVIEW');
-      return analyseProject();
-    }
+    if (stage === 'DESIGN' || stage === 'UNDERSTAND') return runAutomaticPipeline({ resume: true });
     if (stage === 'PREVIEW') {
-      if (previewRenderIsReady()) return setWorkflowStage('MATCH');
+      if (previewBuildIsCurrent()) return setWorkflowStage('MATCH');
       return buildPreview();
     }
     if (stage === 'MATCH') {
@@ -1691,19 +1687,29 @@
       button.classList.toggle('active', button.dataset.uiViewport === state.viewport);
     });
 
-    const refs = (project.references || []).filter(item => item.viewport === state.viewport);
-    const current = refs[0] || null;
+    const stage = state.workflowStage || derivedWorkflowStage();
+    const sourceReference = primaryReference(project);
+    const current = stage === 'DESIGN' || stage === 'UNDERSTAND'
+      ? sourceReference
+      : latest(project, state.viewport);
     const local = state.localObjectUrl;
     const imageUrl = local || current?.contentUrl || '';
-    const viewportAnalysis = local ? null : currentViewportAnalysis();
+    const analysis = project.latestAnalysis;
+    const viewportAnalysis = local || !current || !analysis?.result
+      ? null
+      : (analysis.result.viewportAnalyses || []).find(item => item.viewport === current.viewport) || null;
 
     $('uiStudioViewerMeta').innerHTML = state.selectedFile
-      ? `<b>${esc(state.selectedFile.name)}</b><small>${esc((state.selectedDimensions?.width || '—') + ' × ' + (state.selectedDimensions?.height || '—') + ' · ' + bytes(state.selectedFile.size))} · not uploaded yet</small>`
+      ? '<b>' + esc(state.selectedFile.name) + '</b><small>' +
+          esc((state.selectedDimensions?.width || '—') + ' × ' + (state.selectedDimensions?.height || '—') + ' · ' + bytes(state.selectedFile.size)) +
+          ' · uploading automatically</small>'
       : current
-        ? `<b>${esc(current.originalName)}</b><small>${esc(current.width + ' × ' + current.height + ' · ' + bytes(current.byteSize))} · uploaded ${esc(fmtDate(current.createdAt))}</small>`
-        : '<b>No reference uploaded</b><small>Choose an original image below.</small>';
+        ? '<b>' + esc(current.originalName) + '</b><small>' +
+            esc(current.width + ' × ' + current.height + ' · ' + bytes(current.byteSize)) +
+            ' · uploaded ' + esc(fmtDate(current.createdAt)) + '</small>'
+        : '<b>No design uploaded</b><small>Choose one reference design below.</small>';
 
-    renderViewer(imageUrl, project.name + ' ' + state.viewport.toLowerCase() + ' UI reference', viewportAnalysis);
+    renderViewer(imageUrl, project.name + ' design reference', viewportAnalysis);
 
     $('uiStudioOpenOriginal').hidden = !current || Boolean(local);
     if (current && !local) $('uiStudioOpenOriginal').href = current.contentUrl;
@@ -1713,28 +1719,42 @@
       ['Preview stack', frameworkLabel(project.framework) + ' · ' + stylingLabel(project.styling)],
       ['Framework targets', (project.frameworkTargets || [project.framework]).map(frameworkLabel).join(', ')],
       ['Styling targets', (project.stylingTargets || [project.styling]).map(stylingLabel).join(', ')],
-      ['References', String(project.referenceCount || 0)],
-      ['Design analyses', String(project.analysisCount || 0)],
-      ['Preview builds', String(project.generationCount || 0)],
-      ['Visual renders', String(project.renderCount || 0)],
+      ['Source designs', String(project.referenceCount || 0)],
+      ['Analysis', analysisIsCurrent() ? 'Ready' : (project.latestAnalysis?.status || 'Waiting')],
+      ['Responsive preview', previewBuildIsCurrent() ? 'Ready' : (project.latestGeneration?.status === 'RUNNING' ? 'Preparing' : 'Waiting')],
       ['Production code', project.productionGeneratedAt ? 'Ready · ' + fmtDate(project.productionGeneratedAt) : 'Not generated']
-    ].map(item => `<div><span>${esc(item[0])}</span><b>${esc(item[1])}</b></div>`).join('');
+    ].map(item => '<div><span>' + esc(item[0]) + '</span><b>' + esc(item[1]) + '</b></div>').join('');
 
-    $('uiStudioReferenceHistory').innerHTML = refs.length
-      ? refs.map(reference => `<div class="ui-studio-history-row">
-          <img src="${esc(reference.contentUrl)}" alt="" loading="lazy">
-          <div><b>${esc(reference.originalName)}</b><small>${esc(reference.width + ' × ' + reference.height + ' · ' + bytes(reference.byteSize))}</small><small>${esc(fmtDate(reference.createdAt))}</small><a href="${esc(reference.contentUrl)}" target="_blank" rel="noopener">Open original ↗</a></div>
-        </div>`).join('')
-      : '<p class="muted">No '+esc(state.viewport.toLowerCase())+' upload history yet.</p>';
+    const history = project.references || [];
+    $('uiStudioReferenceHistory').innerHTML = history.length
+      ? history.map(reference => '<div class="ui-studio-history-row">' +
+          '<img src="' + esc(reference.contentUrl) + '" alt="" loading="lazy">' +
+          '<div><b>' + esc(reference.originalName) + '</b>' +
+          '<small>' + esc(reference.viewport[0] + reference.viewport.slice(1).toLowerCase()) + ' source · ' + esc(reference.width + ' × ' + reference.height + ' · ' + bytes(reference.byteSize)) + '</small>' +
+          '<small>' + esc(fmtDate(reference.createdAt)) + '</small>' +
+          '<a href="' + esc(reference.contentUrl) + '" target="_blank" rel="noopener">Open original ↗</a></div>' +
+        '</div>').join('')
+      : '<p class="muted">No design source uploaded yet.</p>';
 
-    const uploadDisabled = !state.canEdit || !state.selectedFile;
-    $('uiStudioFile').disabled = !state.canEdit;
-    $('uiStudioUploadBtn').disabled = uploadDisabled;
-    $('uiStudioUploadCopy').innerHTML = state.selectedFile
-      ? `<b>${esc(state.selectedFile.name)}</b><small>${esc((state.selectedDimensions?.width || 'Reading') + (state.selectedDimensions ? ' × ' + state.selectedDimensions.height : '') + ' · ' + bytes(state.selectedFile.size))}</small>`
-      : '<b>Choose '+esc(state.viewport.toLowerCase())+' UI image</b><small>PNG, JPEG, WebP or AVIF · up to 50 MB · original preserved</small>';
+    const fileInput = $('uiStudioFile');
+    if (fileInput) fileInput.disabled = !state.canEdit || state.pipelineBusy;
+    const uploadButton = $('uiStudioUploadBtn');
+    if (uploadButton) uploadButton.disabled = !state.canEdit || !state.selectedFile || state.pipelineBusy;
+
+    $('uiStudioUploadCopy').innerHTML = state.pipelineBusy
+      ? '<b>' + esc(
+          state.pipelineStep === 'UPLOADING' ? 'Uploading design…' :
+          state.pipelineStep === 'ANALYSING' ? 'Analysing design…' :
+          'Preparing responsive preview…'
+        ) + '</b><small>This continues automatically.</small>'
+      : state.selectedFile
+        ? '<b>' + esc(state.selectedFile.name) + '</b><small>' +
+            esc((state.selectedDimensions?.width || 'Reading') + (state.selectedDimensions ? ' × ' + state.selectedDimensions.height : '') + ' · ' + bytes(state.selectedFile.size)) +
+            '</small>'
+        : '<b>Choose design</b><small>One image is enough · Desktop, Tablet and Mobile previews are generated automatically</small>';
+
     $('uiStudioUploadNote').textContent = state.canEdit
-      ? 'The uploaded source is stored untouched in Cloudflare R2. No resize, quality conversion or compression is applied.'
+      ? 'Your original file is stored untouched. Separate tablet/mobile reference uploads are optional and only needed for exact pixel comparison against dedicated designs.'
       : 'Viewing only. Upload access requires Super Admin.';
     $('uiStudioUploadNote').className = 'ui-studio-upload-note';
 
