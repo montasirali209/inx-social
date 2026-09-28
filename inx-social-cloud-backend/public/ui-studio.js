@@ -1261,6 +1261,7 @@
       state.phase5Batch = null;
       notify('Design analysis complete. Region overlay is ready.');
       await loadProjects();
+      await loadPhase5().catch(() => {});
       renderWorkspace();
     } catch (error) {
       notify(error.message);
@@ -1352,7 +1353,7 @@
     const button = $('refreshUiStudioBtn');
     button.disabled = true;
     button.textContent = 'Refreshing…';
-    try { await loadProjects(); if (state.project) await refreshProject(); notify('UI Studio refreshed'); }
+    try { await loadProjects(); if (state.project) { await refreshProject(); await loadPhase5().catch(() => {}); } notify('UI Studio refreshed'); }
     catch (error) { notify(error.message); }
     finally { button.disabled = false; button.textContent = '↻ Refresh'; }
   });
@@ -1364,6 +1365,10 @@
     state.selectedGeneratedFile = null;
     state.visualRender = null;
     state.visualFrame = null;
+    state.phase5Config = null;
+    state.phase5Batch = null;
+    state.phase5Running = false;
+    clearTimeout(state.phase5PollTimer);
     renderWorkspace();
   });
   document.querySelectorAll('[data-ui-viewport]').forEach(button => button.addEventListener('click', () => {
