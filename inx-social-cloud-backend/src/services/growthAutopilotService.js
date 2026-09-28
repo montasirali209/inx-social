@@ -1,5 +1,6 @@
 'use strict';
 
+const { randomUUID } = require('crypto');
 const prisma = require('../db/prisma');
 const growthIntelligence = require('./growthIntelligenceService');
 const externalVisibility = require('./externalVisibilityService');
@@ -18,11 +19,12 @@ const STATE_KEY = 'growth_autopilot_state_v1';
 const POLL_MS = 5 * 60 * 1000;
 const FIRST_RUN_DELAY_MS = 45 * 1000;
 const LEASE_MS = 45 * 60 * 1000;
+const PROCESS_LEASE_OWNER = randomUUID();
 
 const DEFAULT_CONFIG = Object.freeze({
   enabled: true,
   intelligenceEveryHours: 24,
-  configVersion: 8,
+  configVersion: 9,
   publishEveryHours: 24,
   editorialRadarEveryHours: 6,
   hotTrendAutoEvaluate: true,
@@ -198,7 +200,7 @@ function normalizeConfig(value = {}) {
   return {
     enabled: value.enabled !== false,
     intelligenceEveryHours: clampNumber(value.intelligenceEveryHours, 24, 6, 168),
-    configVersion: Math.max(8, Number(value.configVersion || 0)),
+    configVersion: Math.max(9, Number(value.configVersion || 0)),
     publishEveryHours: clampNumber(value.publishEveryHours, 24, 24, 336),
     editorialRadarEveryHours: clampNumber(value.editorialRadarEveryHours, 6, 3, 24),
     hotTrendAutoEvaluate: value.hotTrendAutoEvaluate !== false,
@@ -225,6 +227,7 @@ function initialState() {
   return {
     running: false,
     leaseUntil: null,
+    leaseOwner: null,
     lastCycleStartedAt: null,
     lastCycleFinishedAt: null,
     lastIntelligenceAt: null,
@@ -265,13 +268,15 @@ async function ensureSettings() {
   const needsV6Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 6;
   const needsV7Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 7;
   const needsV8Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 8;
+  const needsV9Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 9;
   const config = normalizeConfig({
     ...(rawConfig || DEFAULT_CONFIG),
     ...(needsV4Migration ? { authorityEveryHours: 6, authorityAutoEmail: true, optimizationEveryHours: 24 } : {}),
     ...(needsV5Migration ? { dailyPublishTimeLocal: '07:30', publishTimeZone: 'Europe/London' } : {}),
     ...(needsV6Migration ? { configVersion: 6, editorialRadarEveryHours: 6, hotTrendAutoEvaluate: true, maxArticlesPerLocalDay: 2 } : {}),
     ...(needsV7Migration ? { configVersion: 7, minQualityScore: 90, maxDraftAttempts: 3 } : {}),
-    ...(needsV8Migration ? { configVersion: 8, dailyArticleTarget: 1, editorialRetryHours: 2 } : {})
+    ...(needsV8Migration ? { configVersion: 8, dailyArticleTarget: 1, editorialRetryHours: 2 } : {}),
+    ...(needsV9Migration ? { configVersion: 9 } : {})
   });
 
   await prisma.appSetting.upsert({
@@ -294,21 +299,24 @@ async function ensureSettings() {
         description: 'INXSocial Growth Autopilot runtime state and activity.'
       }
     });
-  } else if (needsV4Migration || needsV5Migration || needsV6Migration || needsV7Migration || needsV8Migration) {
+  } else if (needsV4Migration || needsV5Migration || needsV6Migration || needsV7Migration || needsV8Migration || needsV9Migration) {
     const state = { ...initialState(), ...(safeJson(existingState.value, {}) || {}) };
     state.running = false;
     state.leaseUntil = null;
+    state.leaseOwner = null;
     state.nextIntelligenceAt = nowIso();
     state.nextAuthorityAt = nowIso();
     state.nextOptimizationAt = nowIso();
     state.nextEditorialRadarAt = nowIso();
-    state.lastPublishDecisionDateLocal = needsV8Migration ? null : state.lastPublishDecisionDateLocal;
-    state.nextPublishAt = needsV8Migration ? nowIso() : nextDailyPublishIso(new Date(), config);
+    state.lastPublishDecisionDateLocal = (needsV8Migration || needsV9Migration) ? null : state.lastPublishDecisionDateLocal;
+    state.nextPublishAt = (needsV8Migration || needsV9Migration) ? nowIso() : nextDailyPublishIso(new Date(), config);
     state.recentEvents = [{
       at: nowIso(),
       type: 'AUTOPILOT_UPGRADED',
       level: 'success',
-      message: needsV8Migration
+      message: needsV9Migration
+        ? 'Growth Autopilot upgraded with deployment-safe lease ownership and immediate recovery of interrupted editorial cycles.'
+        : needsV8Migration
         ? 'Growth Autopilot upgraded to a mandatory daily editorial lane with live trend discovery and same-day retries.'
         : needsV7Migration
         ? 'Growth Autopilot upgraded to a 90+ senior-editorial repair workflow.'
@@ -400,6 +408,7 @@ async function claimLease() {
       if (leaseActive) return false;
       state.running = true;
       state.leaseUntil = new Date(Date.now() + LEASE_MS).toISOString();
+      state.leaseOwner = PROCESS_LEASE_OWNER;
       state.lastCycleStartedAt = nowIso();
       await tx.appSetting.update({
         where: { key: STATE_KEY },
@@ -414,12 +423,17 @@ async function claimLease() {
 }
 
 async function releaseLease() {
+  let released = false;
   await mutateState(state => {
+    if (!state.running || state.leaseOwner !== PROCESS_LEASE_OWNER) return state;
     state.running = false;
     state.leaseUntil = null;
+    state.leaseOwner = null;
     state.lastCycleFinishedAt = nowIso();
+    released = true;
     return state;
   });
+  return released;
 }
 
 async function runIntelligence(config) {
@@ -1377,7 +1391,7 @@ function startGrowthAutopilot() {
   legacyImportTimer.unref?.();
 }
 
-function stopGrowthAutopilot() {
+async function stopGrowthAutopilot() {
   if (initialTimer) clearTimeout(initialTimer);
   if (timer) clearInterval(timer);
   if (legacyImportTimer) clearInterval(legacyImportTimer);
@@ -1386,6 +1400,19 @@ function stopGrowthAutopilot() {
   timer = null;
   legacyImportTimer = null;
   seoStartupTimer = null;
+
+  try {
+    const released = await releaseLease();
+    if (released) {
+      console.info('[growth-autopilot] released owned lease during shutdown', {
+        leaseOwner: PROCESS_LEASE_OWNER
+      });
+    }
+  } catch (error) {
+    console.warn('[growth-autopilot] shutdown lease release failed', {
+      error: error?.message || String(error)
+    });
+  }
 }
 
 module.exports = {

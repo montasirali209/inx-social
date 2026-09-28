@@ -49,23 +49,26 @@ test('Content research retries malformed structured output automatically', () =>
   assert.match(service, /CONTENT_DRAFT_INVALID/);
 });
 
-test('versioned Growth Autopilot migration preserves the UK morning schedule and reopens the daily editorial lane safely', () => {
+test('versioned Growth Autopilot migration preserves the daily editorial lane and recovers interrupted deployment leases', () => {
   const service = read('src/services/growthAutopilotService.js');
 
-  assert.match(service, /configVersion: 8/);
+  assert.match(service, /configVersion: 9/);
   assert.match(service, /dailyPublishTimeLocal: '07:30'/);
   assert.match(service, /publishTimeZone: 'Europe\/London'/);
   assert.match(service, /needsV5Migration/);
   assert.match(service, /needsV6Migration/);
   assert.match(service, /needsV7Migration/);
   assert.match(service, /needsV8Migration/);
+  assert.match(service, /needsV9Migration/);
   assert.match(service, /dailyArticleTarget: 1/);
   assert.match(service, /editorialRetryHours: 2/);
   assert.match(service, /minQualityScore: 90/);
   assert.match(service, /maxDraftAttempts: 3/);
   assert.match(service, /editorialRadarEveryHours: 6/);
   assert.match(service, /state\.running = false/);
-  assert.match(service, /state\.nextPublishAt = needsV8Migration \? nowIso\(\) : nextDailyPublishIso\(new Date\(\), config\)/);
+  assert.match(service, /state\.leaseUntil = null/);
+  assert.match(service, /state\.leaseOwner = null/);
+  assert.match(service, /state\.nextPublishAt = \(needsV8Migration \|\| needsV9Migration\) \? nowIso\(\) : nextDailyPublishIso\(new Date\(\), config\)/);
 });
 
 test('Legacy BabyLoveGrowth articles are copied into INXSocial storage instead of remaining a live dependency', () => {
