@@ -43,7 +43,6 @@ test('Website Media uses stable named slots without coupling to UGC', () => {
   for (const key of [
     'landing.hero.dashboard',
     'landing.dashboard.showcase',
-    'landing.ai-studio.preview',
     'landing.social.preview',
     'seo.default.dashboard',
     'seo.default.ai-studio',
@@ -73,7 +72,7 @@ test('Website Media upload inspection preserves source bytes and reports quality
 
   const definition = service.definitionFor('landing.hero.dashboard');
   const warnings = service.qualityWarnings(definition, metadata);
-  assert.ok(warnings.some(item => item.includes('2200px')));
+  assert.ok(warnings.some(item => item.includes('2400px')));
 });
 
 test('Website Media is explicitly routed to Cloudflare R2', () => {
@@ -90,7 +89,8 @@ test('Website Media public delivery is cacheable and uses content hashes as ETag
   const controller = read('src/controllers/websiteMediaPublicController.js');
   assert.match(controller, /If-None-Match|if-none-match/);
   assert.match(controller, /ETag/);
-  assert.match(controller, /stale-while-revalidate=86400/);
+  assert.match(controller, /stale-while-revalidate=300/);
+  assert.match(controller, /max-age=31536000, immutable/);
   assert.match(controller, /X-Content-Type-Options/);
 });
 
@@ -147,4 +147,64 @@ test('Website Media admin work remains isolated from UGC implementation', () => 
     assert.doesNotMatch(source, /ugcModelRouter|ugcProviderAdapters|ugcEngineRegistry/);
   }
   assert.match(js, /websiteMediaSelectedKey/);
+});
+
+
+test('Phase 3 Website Media slots have safe fallback chains for every live placement', () => {
+  const service = read('src/services/websiteMediaService.js');
+
+  assert.match(service, /key: 'landing\.hero\.dashboard'[\s\S]*fallbackUrl: '\/assets\/landing-dashboard-20260919\.webp'/);
+  assert.match(service, /key: 'landing\.dashboard\.showcase'[\s\S]*fallbackUrl: '\/assets\/landing-dashboard-20260919\.webp'/);
+  assert.match(service, /key: 'landing\.social\.preview'[\s\S]*fallbackUrl: '\/assets\/inxsocial-social-preview-v3\.jpg'/);
+  assert.match(service, /key: 'seo\.default\.dashboard'[\s\S]*fallbackUrl: '\/assets\/landing-dashboard-20260919\.webp'/);
+  assert.match(service, /key: 'seo\.default\.ai-studio'[\s\S]*fallbackUrl: '\/assets\/ai-content-studio-seo\.webp'/);
+  assert.match(service, /key: 'seo\.ai-video\.hero'[\s\S]*fallbackKey: 'seo\.default\.ai-studio'/);
+  assert.match(service, /async function resolveEffectiveSource/);
+  assert.match(service, /WEBSITE_MEDIA_FALLBACK_CYCLE/);
+});
+
+test('Phase 3 homepage and SEO surfaces are wired to Website Media endpoints', () => {
+  const landingBody = read('../landing-next/public/landing-body.html');
+  const layout = read('../landing-next/app/layout.tsx');
+  const seoPage = read('../landing-next/app/seo/[slug]/page.tsx');
+  const videoModels = read('../landing-next/app/ai-video-models/page.tsx');
+  const schema = read('../landing-next/public/schema.json');
+  const legacyLanding = read('public/landing.html');
+  const app = read('src/app.js');
+
+  assert.match(landingBody, /\/api\/website-media\/landing\.hero\.dashboard\/content/);
+  assert.match(landingBody, /\/api\/website-media\/landing\.dashboard\.showcase\/content/);
+  assert.match(layout, /landingSocialPreview/);
+  assert.match(layout, /landingHeroDashboard/);
+  assert.match(seoPage, /seoHeroSlot\(slug\)/);
+  assert.match(seoPage, /websiteMediaPath/);
+  assert.match(videoModels, /seoAiVideoHero/);
+  assert.match(schema, /\/api\/website-media\/landing\.social\.preview\/content/);
+  assert.match(legacyLanding, /\/api\/website-media\/landing\.hero\.dashboard\/content/);
+  assert.match(legacyLanding, /\/api\/website-media\/landing\.dashboard\.showcase\/content/);
+  assert.match(app, /SEO_WEBSITE_MEDIA_KEYS/);
+  assert.match(app, /mediaAbsoluteUrl/);
+});
+
+test('Phase 3 lets Super Admin revert a custom image without deleting its history', () => {
+  const routes = read('src/routes/adminRoutes.js');
+  const controller = read('src/controllers/websiteMediaAdminController.js');
+  const service = read('src/services/websiteMediaService.js');
+  const html = read('public/index.html');
+  const js = read('public/admin.js');
+
+  assert.match(routes, /website-media\/:key\/use-fallback/);
+  assert.match(controller, /ADMIN_WEBSITE_MEDIA_USE_FALLBACK/);
+  assert.match(service, /async function useFallback/);
+  assert.match(service, /currentVersionId: null/);
+  assert.match(html, /websiteMediaUseFallbackBtn/);
+  assert.match(js, /useWebsiteMediaFallback/);
+  assert.match(js, /Your uploaded versions will stay in history/);
+});
+
+test('Phase 3 does not modify the UGC generation system', () => {
+  const app = read('src/app.js');
+  const media = read('src/services/websiteMediaService.js');
+  assert.doesNotMatch(media, /ugcModelRouter|ugcProviderAdapters|ugcEngineRegistry|ugcStudio/);
+  assert.match(app, /SEO_WEBSITE_MEDIA_KEYS/);
 });

@@ -27,7 +27,7 @@ test('homepage entity graph cleanly separates company, brand, website and softwa
   assert.equal(webpage.about['@id'], software['@id']);
   assert.equal(webpage.primaryImageOfPage.width, 1200);
   assert.equal(webpage.primaryImageOfPage.height, 630);
-  assert.match(webpage.primaryImageOfPage.url, /inxsocial-social-preview-v3\.jpg$/);
+  assert.match(webpage.primaryImageOfPage.url, /\/api\/website-media\/landing\.social\.preview\/content$/);
   assert.equal(webpage.dateModified, '2026-09-27');
 });
 
@@ -127,9 +127,9 @@ test('all AI Content Studio SEO pages use one valid real workspace screenshot', 
     assert.match(page, new RegExp(`"${route}"`));
   }
   assert.match(page, /const AI_CONTENT_STUDIO_SLUGS = new Set/);
-  assert.match(page, /src: "\/assets\/ai-content-studio-seo\.webp"/);
-  assert.match(page, /width: 700/);
-  assert.match(page, /height: 493/);
+  assert.match(page, /websiteMediaPath\(seoHeroSlot\(slug\)\)/);
+  assert.match(page, /width: aiStudio \? 1400 : 1920/);
+  assert.match(page, /height: aiStudio \? 986 : 1080/);
   assert.match(page, /Actual AI Content Studio workspace/);
 
   for (const route of aiRoutes) {

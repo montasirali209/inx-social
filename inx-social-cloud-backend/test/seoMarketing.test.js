@@ -28,12 +28,11 @@ test('homepage exposes complete canonical SEO metadata', () => {
   assert.equal(landing.includes('<title>AI Content, Video Studio &amp; Social Publishing | INXSocial</title>'), true);
   assert.match(landing, /<link rel="canonical" href="https:\/\/www\.inxsocial\.co\.uk\/">/);
   assert.match(landing, /<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">/);
-  assert.match(landing, /og:image:type" content="image\/jpeg"/);
   assert.match(landing, /og:image:width" content="1200"/);
   assert.match(landing, /og:image:height" content="630"/);
-  assert.match(landing, /og:image" content="https:\/\/www\.inxsocial\.co\.uk\/assets\/inxsocial-social-preview-v3\.jpg"/);
-  assert.match(landing, /twitter:image" content="https:\/\/www\.inxsocial\.co\.uk\/assets\/inxsocial-social-preview-v3\.jpg"/);
-  assert.match(landing, /rel="preload" as="image" href="\/assets\/landing-dashboard-20260919\.webp"/);
+  assert.match(landing, /og:image" content="https:\/\/www\.inxsocial\.co\.uk\/api\/website-media\/landing\.social\.preview\/content"/);
+  assert.match(landing, /twitter:image" content="https:\/\/www\.inxsocial\.co\.uk\/api\/website-media\/landing\.social\.preview\/content"/);
+  assert.match(landing, /rel="preload" as="image" href="\/api\/website-media\/landing\.hero\.dashboard\/content"/);
   assert.match(landing, /"SoftwareApplication"/);
   assert.doesNotMatch(landing, /"url":"https:\/\/www\.inxsocial\.co\.uk\/#pricing"/);
 });
@@ -111,7 +110,8 @@ test('Next marketing layer has unique page content, metadata and duplicate-index
   assert.match(seoPage, /fetchPriority="high"/);
   assert.match(nextRobots, /Disallow: \//);
   assert.equal(layout.includes('AI Content, Video Studio & Social Publishing | INXSocial'), true);
-  assert.match(layout, /landing-dashboard-20260919\.webp/);
+  assert.match(layout, /websiteMediaPath\(WEBSITE_MEDIA\.landingHeroDashboard\)/);
+  assert.match(layout, /websiteMediaAbsoluteUrl\(WEBSITE_MEDIA\.landingSocialPreview\)/);
   assert.doesNotMatch(layout, /inx-social-dashboard\.jpg/);
 });
 
@@ -146,7 +146,7 @@ test('canonical SEO pages retain resilient 200 fallbacks and deep internal links
 });
 
 
-test('homepage social card is a dedicated JPEG hero preview served with crawler-safe headers', () => {
+test('homepage social card uses managed media while retaining the generated JPEG fallback asset', () => {
   const app = readBackend('src/app.js');
   const layout = readRepo('landing-next/app/layout.tsx');
   assert.match(app, /SOCIAL_PREVIEW_ASSET_PATH = '\/assets\/inxsocial-social-preview-v3\.jpg'/);
@@ -155,10 +155,10 @@ test('homepage social card is a dedicated JPEG hero preview served with crawler-
   assert.match(app, /res\.type\('image\/jpeg'\)/);
   assert.match(app, /max-age=31536000, immutable/);
   assert.match(layout, /summary_large_image/);
-  assert.match(layout, /https:\/\/www\.inxsocial\.co\.uk\/assets\/inxsocial-social-preview-v3\.jpg/);
+  assert.match(layout, /websiteMediaAbsoluteUrl\(WEBSITE_MEDIA\.landingSocialPreview\)/);
   assert.match(layout, /width: 1200/);
   assert.match(layout, /height: 630/);
-  assert.match(layout, /type: "image\/jpeg"/);
+  assert.doesNotMatch(layout, /type: "image\/jpeg"/);
 });
 
 

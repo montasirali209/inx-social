@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSeoPage, seoPageSlugs } from "@/lib/seo-pages";
 import styles from "./seo-page.module.css";
+import { seoHeroSlot, websiteMediaPath } from "@/lib/website-media";
 
 const SITE = "https://www.inxsocial.co.uk";
 
@@ -44,20 +45,12 @@ const AI_CONTENT_STUDIO_SLUGS = new Set([
 ]);
 
 function getHeroImage(slug: string) {
-  if (AI_CONTENT_STUDIO_SLUGS.has(slug)) {
-    return {
-      src: "/assets/ai-content-studio-seo.webp",
-      width: 700,
-      height: 493,
-      label: "Actual AI Content Studio workspace"
-    };
-  }
-
+  const aiStudio = AI_CONTENT_STUDIO_SLUGS.has(slug);
   return {
-    src: "/assets/landing-dashboard-20260919.webp",
-    width: 1200,
-    height: 675,
-    label: "Actual INXSocial workspace"
+    src: websiteMediaPath(seoHeroSlot(slug)),
+    width: aiStudio ? 1400 : 1920,
+    height: aiStudio ? 986 : 1080,
+    label: aiStudio ? "Actual AI Content Studio workspace" : "Actual INXSocial workspace"
   };
 }
 
