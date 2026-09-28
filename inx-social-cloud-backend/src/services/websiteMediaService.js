@@ -686,7 +686,35 @@ async function publicMetadata(key) {
   };
 }
 
-async function content(key, versionId = '') {
+function parseByteRange(value, totalBytes) {
+  const total = Number(totalBytes || 0);
+  const raw = String(value || '').trim();
+  if (!raw || !total) return null;
+  const match = raw.match(/^bytes=(\d*)-(\d*)$/i);
+  if (!match) throw publicError('Invalid media range.', 416, 'WEBSITE_MEDIA_INVALID_RANGE');
+
+  let start;
+  let end;
+  if (match[1]) {
+    start = Number(match[1]);
+    end = match[2] ? Number(match[2]) : total - 1;
+  } else if (match[2]) {
+    const suffix = Number(match[2]);
+    if (!suffix) throw publicError('Invalid media range.', 416, 'WEBSITE_MEDIA_INVALID_RANGE');
+    start = Math.max(0, total - suffix);
+    end = total - 1;
+  } else {
+    throw publicError('Invalid media range.', 416, 'WEBSITE_MEDIA_INVALID_RANGE');
+  }
+
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || start >= total || end < start) {
+    throw publicError('Requested media range is not satisfiable.', 416, 'WEBSITE_MEDIA_RANGE_NOT_SATISFIABLE');
+  }
+  end = Math.min(end, total - 1);
+  return { start, end, header: `bytes=${start}-${end}`, total };
+}
+
+async function content(key, versionId = '', rangeHeader = '') {
   const definition = definitionFor(key);
   const requestedVersionId = String(versionId || '').trim();
 
@@ -697,11 +725,15 @@ async function content(key, versionId = '') {
       where: { id: requestedVersionId, assetId: asset.id }
     });
     if (!version) throw publicError('Website media version was not found.', 404, 'WEBSITE_MEDIA_VERSION_NOT_FOUND');
-    const data = await objectStorage.getBuffer(version.storageKey, null, version.storageProvider);
+    const totalBytes = Number(version.byteSize || 0);
+    const range = String(version.mimeType || '').startsWith('video/') ? parseByteRange(rangeHeader, totalBytes) : null;
+    const data = await objectStorage.getBuffer(version.storageKey, range?.header || null, version.storageProvider);
     return {
       data,
       mimeType: version.mimeType,
-      byteSize: Number(version.byteSize || data.length),
+      byteSize: Number(data.length),
+      totalByteSize: totalBytes || Number(data.length),
+      range,
       etag: `"${version.sha256}"`,
       versionId: version.id,
       updatedAt: version.createdAt,
@@ -717,11 +749,15 @@ async function content(key, versionId = '') {
     };
   }
 
-  const data = await objectStorage.getBuffer(source.version.storageKey, null, source.version.storageProvider);
+  const totalBytes = Number(source.version.byteSize || 0);
+  const range = String(source.version.mimeType || '').startsWith('video/') ? parseByteRange(rangeHeader, totalBytes) : null;
+  const data = await objectStorage.getBuffer(source.version.storageKey, range?.header || null, source.version.storageProvider);
   return {
     data,
     mimeType: source.version.mimeType,
-    byteSize: Number(source.version.byteSize || data.length),
+    byteSize: Number(data.length),
+    totalByteSize: totalBytes || Number(data.length),
+    range,
     etag: `"${source.version.sha256}"`,
     versionId: source.version.id,
     updatedAt: source.asset.updatedAt,
@@ -750,5 +786,6 @@ module.exports = {
   useFallback,
   resolveEffectiveSource,
   publicMetadata,
+  parseByteRange,
   content
 };
