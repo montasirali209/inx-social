@@ -219,7 +219,10 @@ async function deliveryContext(projectId) {
 
 async function regressionGate(project, generation) {
   if (!generation || project.acceptedGenerationId !== generation.id) {
-    throw publicError('Accept the Phase 5 best generation before creating a delivery.', 422, 'UI_STUDIO_PHASE6_ACCEPTED_REQUIRED');
+    throw publicError('Approve the best visual match before creating a delivery.', 422, 'UI_STUDIO_PHASE6_ACCEPTED_REQUIRED');
+  }
+  if (project.productionGenerationId !== generation.id || !project.productionGeneratedAt) {
+    throw publicError('Generate production code from the approved design before creating a delivery.', 422, 'UI_STUDIO_PHASE6_PRODUCTION_CODE_REQUIRED');
   }
   if (generation.qualityStatus === 'REJECTED_REGRESSION' || generation.qualityStatus === 'RENDER_FAILED') {
     throw publicError('The accepted generation is not regression-safe.', 409, 'UI_STUDIO_PHASE6_REGRESSION_REJECTED');
