@@ -27,7 +27,8 @@ test('Content Engine enforces draft approval before publishing', () => {
   assert.match(service, /PUBLISHED: 'PUBLISHED'/);
   assert.match(service, /Approve the article before publishing it/);
   assert.match(service, /Unpublish the article before editing it/);
-  assert.match(service, /Unpublish the article before changing its featured image/);
+  assert.doesNotMatch(service, /Unpublish the article before changing its featured image/);
+  assert.match(service, /const previousStorage = article\.featured_image_storage/);
   assert.match(routes, /content-engine\/drafts', requireSuperAdmin/);
   assert.match(routes, /articles\/:id\/approve', requireSuperAdmin/);
   assert.match(routes, /articles\/:id\/publish', requireSuperAdmin/);

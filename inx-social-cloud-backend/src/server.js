@@ -11,6 +11,7 @@ const prisma = require('./db/prisma');
 const { runStorageDiagnostics } = require('./services/storageDiagnosticsService');
 const { startAgentAssetBucketBackfill } = require('./services/agentAssetBucketBackfillService');
 const { runOneOffXTextSanitizer } = require('./services/oneOffXTextSanitizer');
+const { runOneOffGrowthImageRepair } = require('./services/oneOffGrowthImageRepair');
 const { startUGCStudioRuntime } = require('./services/ugcStudioService');
 const { startAIPostCampaignRuntime } = require('./services/aiPostCampaignService');
 const videoModelRegistry = require('./services/videoModelRegistryService');
@@ -74,6 +75,9 @@ const server = app.listen(env.port, () => {
   setTimeout(() => {
     void runOneOffXTextSanitizer().catch((error) => console.error('[one-off-x-cleanup] failed', { error: error?.message || String(error) }));
   }, 3000).unref?.();
+  setTimeout(() => {
+    void runOneOffGrowthImageRepair().catch(error => console.error('[growth-image-repair] failed', { error: error?.message || String(error) }));
+  }, 7000).unref?.();
   if (/^(?:1|true|yes|on)$/i.test(String(process.env.UI_STUDIO_PRODUCTION_SMOKE_ON_STARTUP || '').trim())) {
     setTimeout(() => {
       void runUiStudioProductionSmoke().catch(error => {

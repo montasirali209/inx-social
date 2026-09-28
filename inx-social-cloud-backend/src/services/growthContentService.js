@@ -1349,7 +1349,6 @@ async function archiveArticle(id) {
 
 async function generateFeaturedImage(id) {
   const article = await getArticleById(id);
-  if (article.status === STATUS.PUBLISHED) throw publicError('Unpublish the article before changing its featured image.', 409, 'CONTENT_UNPUBLISH_REQUIRED');
   if (!env.openaiImage.apiKey) throw publicError('OpenAI image generation is not configured.', 503, 'CONTENT_IMAGE_NOT_CONFIGURED');
   if (!article.featured_image_prompt) throw publicError('This article has no featured-image prompt.', 409, 'CONTENT_IMAGE_PROMPT_REQUIRED');
   const model = env.openaiImage.model;
