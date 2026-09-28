@@ -917,7 +917,7 @@ model UiDesignAssetBinding {
   projectId        String
   slotName         String
   kind             String
-  viewport         String?
+  viewport         String   @default("ALL")
   storageProvider  String
   storageKey       String   @unique
   originalName     String
