@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { countLabel, getVideoModelShowcase, modeLabel } from "@/lib/video-model-showcase";
+import { WEBSITE_MEDIA, websiteMediaPath } from "@/lib/website-media";
 import styles from "./page.module.css";
 
 const SITE = "https://www.inxsocial.co.uk";
@@ -18,13 +19,13 @@ export const metadata: Metadata = {
     title: "AI Video Models & Multi-Model AI Video Studio | INXSocial",
     description: "Browse generation-ready AI video models available in INXSocial, then create and publish from one connected workflow.",
     url: `${SITE}/ai-video-models`,
-    images: [{ url: "/assets/ai-content-studio-seo.webp", width: 700, height: 493, alt: "INXSocial AI Video Studio and AI Content Studio" }]
+    images: [{ url: websiteMediaPath(WEBSITE_MEDIA.seoAiVideoHero), width: 1400, height: 986, alt: "INXSocial AI Video Studio and AI Content Studio" }]
   },
   twitter: {
     card: "summary_large_image",
     title: "AI Video Models & Multi-Model AI Video Studio | INXSocial",
     description: "Explore generation-ready AI video models available in one INXSocial Video Studio.",
-    images: ["/assets/ai-content-studio-seo.webp"]
+    images: [websiteMediaPath(WEBSITE_MEDIA.seoAiVideoHero)]
   }
 };
 

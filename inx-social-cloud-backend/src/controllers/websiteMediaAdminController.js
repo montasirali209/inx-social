@@ -84,4 +84,15 @@ async function restore(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { list, detail, upload, update, restore };
+async function useFallback(req, res, next) {
+  try {
+    const asset = await websiteMedia.useFallback(req.params.key);
+    await audit(req, 'ADMIN_WEBSITE_MEDIA_USE_FALLBACK', req.params.key, {
+      fallbackKey: asset.fallbackKey,
+      fallbackUrl: asset.fallbackUrl
+    });
+    res.json({ asset });
+  } catch (error) { next(error); }
+}
+
+module.exports = { list, detail, upload, update, restore, useFallback };

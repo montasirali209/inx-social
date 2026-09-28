@@ -72,6 +72,7 @@ router.get('/website-media/:key', websiteMedia.detail);
 router.post('/website-media/:key/upload', requireSuperAdmin, express.raw({ type: ['image/png','image/jpeg','image/webp','image/avif'], limit: '25mb' }), websiteMedia.upload);
 router.patch('/website-media/:key', requireSuperAdmin, websiteMedia.update);
 router.post('/website-media/:key/restore/:versionId', requireSuperAdmin, websiteMedia.restore);
+router.post('/website-media/:key/use-fallback', requireSuperAdmin, websiteMedia.useFallback);
 router.get('/search-console/status', googleSearchConsole.status);
 router.get('/growth-dashboard', growthDashboard.snapshot);
 router.get('/growth-intelligence/overview', growthIntelligence.overview);
