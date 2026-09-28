@@ -122,7 +122,12 @@ export function DashboardPage() {
   const analytics = useQuery<DashboardAnalyticsResult>({
     queryKey: ['dashboard-all-account-analytics', 'post-for-me', dashboardAnalyticsDays, accountKey],
     enabled: accounts.length > 0,
-    initialData: () => accountKey ? readSessionCache<DashboardAnalyticsResult>(dashboardAnalyticsCacheKey(accountKey)) : undefined,
+    initialData: () => {
+      if (!accountKey) return undefined
+      const cached = readSessionCache<DashboardAnalyticsResult>(dashboardAnalyticsCacheKey(accountKey))
+      // A previous request's failures are not evidence that the current refresh failed.
+      return cached ? { entries: cached.entries, failures: [] } : undefined
+    },
     initialDataUpdatedAt: 0,
     refetchInterval: 10 * 60_000,
     refetchOnWindowFocus: false,
@@ -156,7 +161,7 @@ export function DashboardPage() {
         entries: results.flatMap((item) => item.ok ? [item.entry] : []),
         failures: results.flatMap((item) => item.ok ? [] : [item.failure]),
       }
-      writeSessionCache(dashboardAnalyticsCacheKey(accountKey), result)
+      writeSessionCache(dashboardAnalyticsCacheKey(accountKey), { entries: result.entries, failures: [] })
       return result
     },
   })
@@ -208,7 +213,7 @@ export function DashboardPage() {
     )
   }
 
-  const failures = analytics.data?.failures || []
+  const failures = analytics.isFetchedAfterMount && !analytics.isFetching ? analytics.data?.failures || [] : []
   const analyticsLoading = accounts.length > 0 && analytics.isPending
 
   return (
