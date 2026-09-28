@@ -462,7 +462,7 @@ async function generateProject(projectId, createdByUserId = null) {
   const fingerprint = uiStudioAnalysis.fingerprintReferences(references);
   const analysis = project.analyses.find(item => item.status === 'COMPLETED' && item.sourceFingerprint === fingerprint && item.analysisJson);
   if (!analysis) {
-    throw error('Run Phase 2 analysis on the latest references before generating code.', 422, 'UI_STUDIO_CODEGEN_CURRENT_ANALYSIS_REQUIRED');
+    throw error('Analyse the latest design reference before preparing the responsive preview.', 422, 'UI_STUDIO_CODEGEN_CURRENT_ANALYSIS_REQUIRED');
   }
   if (!ready()) throw error('UI Studio code generation is not configured.', 503, 'UI_STUDIO_CODEGEN_NOT_CONFIGURED');
 
@@ -475,7 +475,17 @@ async function generateProject(projectId, createdByUserId = null) {
     where: { projectId: id, status: 'RUNNING' },
     orderBy: { startedAt: 'desc' }
   });
-  if (running) throw error('Responsive code generation is already running for this project.', 409, 'UI_STUDIO_CODEGEN_ALREADY_RUNNING');
+  if (running) {
+    return {
+      generation: serializeGeneration(running, {
+        full: false,
+        currentFingerprint: fingerprint,
+        currentAnalysisId: analysis.id
+      }),
+      imageCount: 0,
+      alreadyRunning: true
+    };
+  }
 
   const row = await prisma.uiDesignGeneration.create({
     data: {

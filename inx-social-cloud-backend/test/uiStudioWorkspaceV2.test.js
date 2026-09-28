@@ -45,7 +45,7 @@ test('Workspace presents the product flow rather than implementation phases', ()
   const end = html.indexOf('</aside>', start);
   const workspace = html.slice(start, end);
 
-  for (const step of ['Design','Understand','Preview','Match &amp; Refine','Approve','Generate','Deliver']) {
+  for (const step of ['Design','Analyse','Preview','Match &amp; Refine','Approve','Generate','Deliver']) {
     assert.match(workspace, new RegExp(step.replace(/[&]/g, '&')));
   }
   assert.match(workspace, /id="uiStudioWorkflow"/);
@@ -64,7 +64,7 @@ test('Preview build stays internal while production code requires explicit appro
   assert.match(production, /compileVerified/);
   assert.match(production, /productionGenerationId/);
   assert.match(convergence, /productionGenerationId: null/);
-  assert.match(js, /Internal preview build created\. Production code remains hidden until approval/);
+  assert.match(js, /Responsive preview/);
   assert.match(js, /Code stays hidden until approval/);
   assert.match(js, /async function finalizeProductionCode/);
 });
@@ -78,7 +78,7 @@ test('Deliver requires finalized production code and exports portable project me
   assert.match(delivery, /productionGeneratedAt/);
   assert.match(delivery, /UI_STUDIO_DELIVERY\.json/);
   assert.match(delivery, /README\.md/);
-  assert.match(delivery, /Design -> Understand -> Preview -> Match & Refine -> Approve -> Generate -> Deliver/);
+  assert.match(delivery, /Design -> Analyse -> Preview -> Match & Refine -> Approve -> Generate -> Deliver/);
 });
 
 test('UI Studio Agent is project-aware, persistent, optional and action-gated', () => {
@@ -146,6 +146,6 @@ test('Workspace polish adds native-feeling stage, dock and empty-canvas motion',
   assert.match(js, /function animateUiStudioElement/);
   assert.match(js, /function animateStageSurface/);
   assert.match(js, /ui-studio-empty-orb/);
-  assert.match(html, /ui-studio\.css\?v=8/);
-  assert.match(html, /ui-studio\.js\?v=8/);
+  assert.match(html, /ui-studio\.css\?v=9/);
+  assert.match(html, /ui-studio\.js\?v=9/);
 });

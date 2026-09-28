@@ -473,7 +473,13 @@ async function analyseProject(projectId, createdByUserId = null) {
     where: { projectId: id, status: 'RUNNING' },
     orderBy: { startedAt: 'desc' }
   });
-  if (running) throw error('A design analysis is already running for this project.', 409, 'UI_STUDIO_ANALYSIS_ALREADY_RUNNING');
+  if (running) {
+    return {
+      analysis: serializeAnalysis(running, { full: false, currentFingerprint: sourceFingerprint }),
+      imageCount: 0,
+      alreadyRunning: true
+    };
+  }
   const row = await prisma.uiDesignAnalysis.create({
     data: {
       projectId: id,

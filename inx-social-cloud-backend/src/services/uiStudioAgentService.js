@@ -44,7 +44,7 @@ function projectStage(project) {
   const analysis = project.analyses && project.analyses[0];
   const generation = project.generations && project.generations[0];
   if (!project.references || !project.references.length) return 'DESIGN';
-  if (!analysis || analysis.status !== 'COMPLETED') return 'UNDERSTAND';
+  if (!analysis || analysis.status !== 'COMPLETED') return 'ANALYSE';
   if (!generation || !['READY','READY_WITH_WARNINGS'].includes(generation.status)) return 'PREVIEW';
   if (!project.bestGenerationId) return 'MATCH';
   if (!project.acceptedGenerationId || project.acceptedGenerationId !== project.bestGenerationId) return 'APPROVE';
@@ -163,7 +163,7 @@ async function ask(projectId, textValue, createdByUserId) {
     instructions: [
       'You are UI Studio Agent, a concise senior design-to-code copilot embedded in a visual reconstruction workspace.',
       'Use the supplied project state as ground truth. Never claim that an action ran when it did not.',
-      'The visible workflow is Design, Understand, Preview, Match & Refine, Approve, Generate, Deliver.',
+      'The visible workflow is Design, Analyse, Preview, Match & Refine, Approve, Generate, Deliver.',
       'Preview code may exist internally before approval, but call it an internal preview build. Production code is only considered generated after approval.',
       'Never expose internal Phase 2, Phase 3, Phase 4, Phase 5 or Phase 6 terminology unless the user explicitly asks about engineering internals.',
       'Recommend at most one action from the allowed action enum. Do not execute it.',

@@ -71,6 +71,7 @@ router.get('/ui-studio/projects/:projectId/phase6/deliveries/:deliveryId/export'
 router.post('/ui-studio/projects/:projectId/phase6/deliveries/:deliveryId/pr', requireSuperAdmin, uiStudio.createDeliveryPullRequest);
 router.post('/ui-studio/projects/:projectId/phase6/deliveries/:deliveryId/approve', requireSuperAdmin, uiStudio.approveDelivery);
 router.post('/ui-studio/projects/:projectId/phase6/deliveries/:deliveryId/deploy', requireSuperAdmin, uiStudio.deployDelivery);
+router.get('/ui-studio/projects/:projectId/responsive-preview/:viewport', uiStudio.responsivePreview);
 router.post('/ui-studio/projects/:projectId/render', requireSuperAdmin, uiStudio.prepareRender);
 router.get('/ui-studio/renders/:renderId', uiStudio.renderDetail);
 router.get('/ui-studio/renders/:renderId/preview', uiStudio.renderPreview);
