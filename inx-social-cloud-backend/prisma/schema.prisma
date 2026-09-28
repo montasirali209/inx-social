@@ -733,16 +733,22 @@ model UiDesignProject {
   framework       String   @default("REACT_TYPESCRIPT")
   styling         String   @default("TAILWIND")
   outputType      String   @default("SECTION")
-  status          String   @default("ACTIVE")
-  createdByUserId String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  status               String    @default("ACTIVE")
+  bestGenerationId     String?
+  acceptedGenerationId String?
+  bestAggregateScore   Float?
+  acceptedAt           DateTime?
+  createdByUserId      String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
 
   references     UiDesignReference[]
   analyses       UiDesignAnalysis[]
   generations    UiDesignGeneration[]
   renders        UiDesignRender[]
   repairAttempts UiDesignRepairAttempt[]
+  assetBindings  UiDesignAssetBinding[]
+  ignoreMasks    UiDesignIgnoreMask[]
 
   @@index([status, updatedAt])
   @@index([createdAt])
@@ -808,6 +814,11 @@ model UiDesignGeneration {
   generationJson    String?
   validationJson    String?
   errorMessage      String?
+  parentGenerationId String?
+  repairDepth       Int      @default(0)
+  aggregateScore    Float?
+  viewportScoresJson String?
+  qualityStatus     String?
   createdByUserId   String?
   startedAt         DateTime @default(now())
   completedAt       DateTime?
@@ -822,6 +833,8 @@ model UiDesignGeneration {
   @@index([sourceAnalysisId])
   @@index([status, createdAt])
   @@index([sourceFingerprint])
+  @@index([parentGenerationId])
+  @@index([projectId, aggregateScore])
 }
 
 model UiDesignRender {
@@ -839,6 +852,13 @@ model UiDesignRender {
   sourceHeight            Int
   sourceScale             Float    @default(1)
   repairDepth             Int      @default(0)
+  batchId                 String?
+  workerId                String?
+  leaseExpiresAt          DateTime?
+  heartbeatAt             DateTime?
+  attempts                Int      @default(0)
+  autoRepair              Boolean  @default(true)
+  startedAt               DateTime?
   previewStorageProvider  String?
   previewStorageKey       String?
   previewSha256           String?
@@ -864,6 +884,8 @@ model UiDesignRender {
   @@index([referenceId])
   @@index([status, createdAt])
   @@index([parentRenderId])
+  @@index([batchId])
+  @@index([status, leaseExpiresAt])
 }
 
 model UiDesignRepairAttempt {
@@ -888,6 +910,49 @@ model UiDesignRepairAttempt {
   @@index([projectId, createdAt])
   @@index([renderId])
   @@index([outputGenerationId])
+}
+
+model UiDesignAssetBinding {
+  id               String   @id @default(cuid())
+  projectId        String
+  slotName         String
+  kind             String
+  viewport         String?
+  storageProvider  String
+  storageKey       String   @unique
+  originalName     String
+  mimeType         String
+  byteSize         BigInt
+  width            Int?
+  height           Int?
+  sha256           String
+  uploadedByUserId String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  project UiDesignProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, slotName, viewport])
+  @@index([projectId])
+}
+
+model UiDesignIgnoreMask {
+  id              String   @id @default(cuid())
+  projectId       String
+  viewport        String
+  label           String
+  xPct            Float
+  yPct            Float
+  widthPct        Float
+  heightPct       Float
+  enabled         Boolean  @default(true)
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project UiDesignProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, viewport])
 }
 
 model AuditLog {
