@@ -509,7 +509,7 @@ async function updateAction(id, action, note = '') {
     }
     if (item.type === ACTION_TYPES.OPTIMIZE_CTR_META && item.articleId) {
       if (!item.proposal?.suggestedTitle || !item.proposal?.suggestedMeta) {
-        throw Object.assign(new Error('No Sol metadata proposal is available for this action yet.'), { status: 409 });
+        throw Object.assign(new Error('No AI metadata proposal is available for this action yet.'), { status: 409 });
       }
       const article = await growthContent.optimizePublishedMetadata(item.articleId, {
         title: item.proposal.suggestedTitle,
