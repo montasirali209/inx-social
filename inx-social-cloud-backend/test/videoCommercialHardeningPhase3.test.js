@@ -59,7 +59,7 @@ test('provider promotions expose discounted and regular credit pricing with auto
   });
   assert.equal(parsed.promotion.active, true);
   assert.equal(parsed.promotion.discountPercent, 50);
-  assert.match(parsed.promotion.endsAt, /^2026-10-01T/);
+  assert.match(parsed.promotion.endsAt, /^2026-09-30T23:59:59/);
   assert.equal(parsed.rules[0].price, 0.4);
   assert.equal(parsed.rules[0].regularPrice, 0.8);
 
