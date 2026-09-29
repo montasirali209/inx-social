@@ -1032,6 +1032,7 @@ function directPromptPlan(input, brand, avatars, resolvedType) {
   const creatorLed = String(input.creatorMode || '').toUpperCase() !== 'NONE';
   const kinds = Array.from({ length: durations.length }, () => creatorLed ? 'CREATOR' : 'PRODUCT');
   const modeLabel = mode === 'PODCAST' ? 'Podcast' : 'Production';
+  const campaignLabel = clean(brand?.productName || brand?.name || modeLabel, 120);
   const sceneCount = durations.length;
   const ads = Array.from({ length: Number(input.adCount) }, (_, index) => ({
     title: modeLabel + ' ' + (index + 1),
@@ -1066,7 +1067,7 @@ function directPromptPlan(input, brand, avatars, resolvedType) {
     })
   }));
   return {
-    title: modeLabel + ' Campaign',
+    title: campaignLabel + ' ' + modeLabel + ' Campaign',
     campaignType: resolvedType,
     customMode: mode,
     directPromptMode: true,
