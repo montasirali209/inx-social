@@ -1573,9 +1573,19 @@ async function status() {
     optimization.status().catch(() => null)
   ]);
 
+  const active = isAutopilotActive(config);
   return {
     generatedAt: nowIso(),
     config,
+    control: {
+      active,
+      paused: !active,
+      temporaryPause: config.enabled !== false && isTemporarilyPaused(config),
+      pauseUntil: isTemporarilyPaused(config) ? config.pauseUntil : null,
+      model: config.aiModel,
+      modelLabel: modelLabel(config.aiModel),
+      reasoningEffort: config.aiReasoningEffort
+    },
     state,
     content: contentOverview ? {
       counts: contentOverview.counts,
@@ -1612,22 +1622,60 @@ async function status() {
 
 async function updateConfig(patch = {}) {
   const current = await getConfig();
+  const activeBefore = isAutopilotActive(current);
   const next = normalizeConfig({ ...current, ...patch });
+  const activeNow = isAutopilotActive(next);
   const scheduleChanged =
     current.dailyPublishTimeLocal !== next.dailyPublishTimeLocal
     || current.publishTimeZone !== next.publishTimeZone;
+  const modelChanged = current.aiModel !== next.aiModel
+    || current.aiReasoningEffort !== next.aiReasoningEffort;
+  const pauseChanged = current.enabled !== next.enabled
+    || current.pauseUntil !== next.pauseUntil;
+
   await prisma.appSetting.update({
     where: { key: CONFIG_KEY },
     data: { value: JSON.stringify(next) }
   });
-  await recordEvent(
-    next.enabled ? 'AUTOPILOT_ENABLED' : 'AUTOPILOT_PAUSED',
-    next.enabled
-      ? 'Growth Autopilot is enabled. Monitoring and publishing will continue on schedule.'
-      : 'Growth Autopilot is paused. Scheduled monitoring and publishing are stopped.',
-    { config: next },
-    next.enabled ? 'success' : 'warning'
-  );
+
+  if (modelChanged) {
+    await recordEvent(
+      'AUTOPILOT_MODEL_CHANGED',
+      'Growth Autopilot AI model changed to ' + modelLabel(next.aiModel) + '. New AI work will use this model.',
+      {
+        previousModel: current.aiModel,
+        model: next.aiModel,
+        reasoningEffort: next.aiReasoningEffort
+      },
+      'success'
+    );
+  }
+
+  if (pauseChanged) {
+    if (next.enabled === false) {
+      await recordEvent(
+        'AUTOPILOT_PAUSED',
+        'Growth Autopilot is paused until an administrator resumes it. Scheduled AI work is stopped.',
+        { pauseUntil: null, model: next.aiModel },
+        'warning'
+      );
+    } else if (isTemporarilyPaused(next)) {
+      await recordEvent(
+        'AUTOPILOT_PAUSED_UNTIL',
+        'Growth Autopilot is temporarily paused. Scheduled AI work will resume automatically at ' + next.pauseUntil + '.',
+        { pauseUntil: next.pauseUntil, model: next.aiModel },
+        'warning'
+      );
+    } else if (!activeBefore && activeNow) {
+      await recordEvent(
+        'AUTOPILOT_RESUMED',
+        'Growth Autopilot resumed. Scheduled AI work is active again.',
+        { model: next.aiModel },
+        'success'
+      );
+    }
+  }
+
   if (next.enabled) {
     await mutateState(state => {
       if (!state.nextIntelligenceAt) state.nextIntelligenceAt = nowIso();
@@ -1644,6 +1692,7 @@ async function updateConfig(patch = {}) {
       return state;
     });
   }
+
   return status();
 }
 
@@ -1706,7 +1755,11 @@ function startGrowthAutopilot() {
       dailyPublishTimeLocal: config.dailyPublishTimeLocal,
       publishTimeZone: config.publishTimeZone,
       nextPublishAt: (await getState()).nextPublishAt,
-      strategyModelReady: growthStrategy.ready()
+      strategyModelReady: growthStrategy.ready(),
+      active: isAutopilotActive(config),
+      pauseUntil: isTemporarilyPaused(config) ? config.pauseUntil : null,
+      aiModel: config.aiModel,
+      aiReasoningEffort: config.aiReasoningEffort
     });
   }).catch(error => {
     console.error('[growth-autopilot] initialization failed', { error: error?.message || String(error) });
@@ -1720,7 +1773,10 @@ function startGrowthAutopilot() {
 
   seoStartupTimer = setTimeout(() => {
     seoStartupTimer = null;
-    void ensurePhase3MaintenanceFresh('startup-safety-net');
+    void getConfig().then(config => {
+      if (!isAutopilotActive(config)) return null;
+      return ensurePhase3MaintenanceFresh('startup-safety-net');
+    }).catch(error => console.warn('[growth-autopilot] startup maintenance gate failed', { error: error?.message || String(error) }));
   }, 2 * 60 * 1000);
   seoStartupTimer.unref?.();
 
