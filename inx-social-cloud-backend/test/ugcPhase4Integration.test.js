@@ -113,11 +113,11 @@ test('Phase 4 keeps provider/model routing capabilities internal to the creator 
   assert.match(creatorEngine, /routeCompatibility: profile\.routeCompatibility/);
 });
 
-test('Phase 4 does not change UGC fixed retail credit tables or Phase 3 router policy', () => {
+test('UGC commercial hardening keeps Phase 4 routing while updating conservative fallback prices', () => {
   const studio = read('src/services/ugcStudioService.js');
   const router = read('src/services/ugcModelRouter.js');
-  assert.match(studio, /STANDARD_CREDITS = Object\.freeze\(\{ 20: 140, 30: 210, 45: 315, 60: 420 \}\)/);
-  assert.match(studio, /PREMIUM_CREDITS = Object\.freeze\(\{ 20: 260, 30: 390, 45: 585, 60: 780 \}\)/);
+  assert.match(studio, /STANDARD_CREDITS = Object\.freeze\(\{ 20: 184, 30: 276, 45: 414, 60: 552 \}\)/);
+  assert.match(studio, /PREMIUM_CREDITS = Object\.freeze\(\{ 20: 530, 30: 795, 45: 1193, 60: 1590 \}\)/);
   assert.match(router, /const ROUTER_VERSION = 'ugc-router-v1'/);
   assert.match(router, /PROFESSIONAL_CREATOR: 'OMNIHUMAN_CREATOR_V1'/);
 });
