@@ -37,11 +37,11 @@ test('engine snapshots persist skills, preflight and keep them inside the immuta
   assert.match(engine, /preflightJson/);
 });
 
-test('Phase 2 does not change the customer credit tables or production route registry', () => {
+test('UGC commercial hardening updates conservative fallback credit floors without changing production route registry', () => {
   const studio = require('../src/services/ugcStudioService');
   const registry = require('../src/services/ugcEngineRegistry');
-  assert.deepEqual(studio.STANDARD_CREDITS, { 20: 140, 30: 210, 45: 315, 60: 420 });
-  assert.deepEqual(studio.PREMIUM_CREDITS, { 20: 260, 30: 390, 45: 585, 60: 780 });
+  assert.deepEqual(studio.STANDARD_CREDITS, { 20: 184, 30: 276, 45: 414, 60: 552 });
+  assert.deepEqual(studio.PREMIUM_CREDITS, { 20: 530, 30: 795, 45: 1193, 60: 1590 });
   assert.equal(registry.routeKeyForQuality('STANDARD'), 'H3_MAX_STANDARD_V1');
   assert.equal(registry.routeKeyForQuality('PREMIUM'), 'KLING_PREMIUM_V1');
 });

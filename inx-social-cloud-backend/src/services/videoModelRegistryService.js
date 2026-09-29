@@ -227,10 +227,90 @@ function explicitPricingUnit(configuration, rawPrice) {
   return 'per_request';
 }
 
+function promotionFromStructuredPricing(pricing, rules = []) {
+  const candidates = [pricing?.promotion, pricing?.discount, pricing?.sale, pricing?.offer]
+    .filter(value => value && typeof value === 'object' && !Array.isArray(value));
+
+  for (const value of candidates) {
+    const percent = Number(
+      value.discountPercent
+      ?? value.percentOff
+      ?? value.percentage
+      ?? value.percent
+      ?? value.discount_percentage
+      ?? value.discount_percent
+      ?? NaN
+    );
+    if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) continue;
+
+    const rawEnd = value.endsAt
+      ?? value.endAt
+      ?? value.expiresAt
+      ?? value.validUntil
+      ?? value.until
+      ?? value.endDate
+      ?? value.expiryDate
+      ?? null;
+    let endsAt = null;
+    if (rawEnd) {
+      const text = String(rawEnd).trim();
+      const parsed = Date.parse(text.replace(/(\d)(?:st|nd|rd|th)\b/i, '$1'));
+      if (Number.isFinite(parsed)) {
+        const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(text) || /^[A-Za-z]{3,9}\s+\d{1,2}(?:st|nd|rd|th)?(?:,)?\s+20\d{2}$/i.test(text);
+        endsAt = new Date(parsed + (dateOnly ? 24 * 60 * 60 * 1000 - 1 : 0)).toISOString();
+      }
+    }
+    if (value.active === false) continue;
+
+    const multiplier = 1 - (percent / 100);
+    return {
+      active: true,
+      discountPercent: percent,
+      endsAt,
+      source: 'provider_structured',
+      regularPriceMultiplier: Number((1 / multiplier).toFixed(6)),
+      rules: rules.map(rule => ({
+        ...rule,
+        regularPrice: Number.isFinite(Number(rule.regularPrice))
+          ? Number(rule.regularPrice)
+          : Number((Number(rule.price) / multiplier).toFixed(6))
+      }))
+    };
+  }
+  return null;
+}
+
+function promotionFromOverview(overview, rules = []) {
+  const text = clean(overview, 2000);
+  const percent = Number(
+    text.match(/(?:save|discount(?:ed)?|off)\s*(?:up\s*to\s*)?(\d{1,2}(?:\.\d+)?)\s*%/i)?.[1]
+    || text.match(/(\d{1,2}(?:\.\d+)?)\s*%\s*(?:off|discount)/i)?.[1]
+    || NaN
+  );
+  if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) return null;
+
+  const dateText = text.match(/(?:until|through|ends?(?:\s+on)?|expires?(?:\s+on)?)\s+([A-Za-z]{3,9}\s+\d{1,2}(?:st|nd|rd|th)?(?:,)?\s+20\d{2}|20\d{2}-\d{2}-\d{2})/i)?.[1] || '';
+  const parsed = Date.parse(dateText.replace(/(\d)(?:st|nd|rd|th)\b/i, '$1'));
+  const endsAt = Number.isFinite(parsed) ? new Date(parsed + 24 * 60 * 60 * 1000 - 1).toISOString() : null;
+  const multiplier = 1 - (percent / 100);
+  const regularRules = rules.map(rule => ({ ...rule, regularPrice: Number((Number(rule.price) / multiplier).toFixed(6)) }));
+  return {
+    // This flag means the provider payload declares a promotion. Runtime
+    // activity is evaluated by promotionIsActive() against endsAt so a cached
+    // catalogue automatically flips to regular pricing at expiry.
+    active: true,
+    discountPercent: percent,
+    endsAt,
+    source: 'provider_overview',
+    regularPriceMultiplier: Number((1 / multiplier).toFixed(6)),
+    rules: regularRules
+  };
+}
+
 function parsePricing(pricing) {
   const examples = Array.isArray(pricing?.pricingExamples) ? pricing.pricingExamples : [];
   const overview = clean(pricing?.pricingOverview, 2000);
-  const rules = examples.map(example => {
+  let rules = examples.map(example => {
     const configuration = clean(example?.configuration, 240);
     const rawPrice = clean(example?.price, 120);
     const price = parsePriceNumber(rawPrice);
@@ -245,8 +325,51 @@ function parsePricing(pricing) {
       source: 'provider_example'
     };
   }).filter(Boolean);
+  const promotionSignals = [
+    overview,
+    pricing?.promotion,
+    pricing?.discount,
+    pricing?.sale,
+    pricing?.offer,
+    pricing?.notice,
+    pricing?.pricingNotice,
+    pricing?.pricingLabel
+  ].map(value => {
+    if (!value) return '';
+    if (typeof value === 'string' || typeof value === 'number') return String(value);
+    try { return JSON.stringify(value); } catch (_) { return ''; }
+  }).filter(Boolean).join(' ');
+  const promotion = promotionFromStructuredPricing(pricing, rules) || promotionFromOverview(promotionSignals, rules);
+  if (promotion?.active) rules = promotion.rules;
 
-  return { overview, rules, status: rules.length ? 'SYNCED' : 'UNAVAILABLE' };
+  return { overview, rules, promotion: promotion ? { active: promotion.active, discountPercent: promotion.discountPercent, endsAt: promotion.endsAt, source: promotion.source } : null, status: rules.length ? 'SYNCED' : 'UNAVAILABLE' };
+}
+
+function applyProviderPromotion(modelAir, pricing) {
+  if (pricing?.promotion) return pricing;
+  const air = clean(modelAir, 180).toLowerCase();
+  // Runware's current H3 Max launch promotion is time-bounded. Keep this
+  // provider-specific fallback only so the UI can show the regular price even
+  // if the catalogue endpoint exposes the discounted examples without promo metadata.
+  if (air === 'minimax:h3@max') {
+    const endsAt = '2026-09-30T23:59:59.999Z';
+    if (Date.now() <= new Date(endsAt).getTime()) {
+      return {
+        ...pricing,
+        promotion: {
+          active: true,
+          discountPercent: 50,
+          endsAt,
+          source: 'provider_published_fallback'
+        },
+        rules: (pricing.rules || []).map(rule => ({
+          ...rule,
+          regularPrice: Number((Number(rule.price) / 0.5).toFixed(6))
+        }))
+      };
+    }
+  }
+  return pricing;
 }
 
 function ruleModeCompatible(rule, selection) {
@@ -336,13 +459,67 @@ function costFromPricing(profile, selection = {}) {
   return conservativeDerivedCost(rules, normalizedSelection);
 }
 
+function promotionIsActive(promotion, now = Date.now()) {
+  if (!promotion?.active || !Number.isFinite(Number(promotion.discountPercent))) return false;
+  if (!promotion.endsAt) return true;
+  const end = new Date(promotion.endsAt).getTime();
+  return Number.isFinite(end) && now <= end;
+}
+
+function regularCostFromPricing(profile, selection = {}) {
+  const promotion = profile?.pricing?.promotion;
+  const discounted = costFromPricing(profile, selection);
+  if (!Number.isFinite(discounted) || discounted <= 0 || !promotion || !Number.isFinite(Number(promotion.discountPercent))) return discounted;
+
+  const rules = Array.isArray(profile?.pricing?.rules) ? profile.pricing.rules : [];
+  if (rules.some(rule => Number.isFinite(Number(rule.regularPrice)) && Number(rule.regularPrice) > 0)) {
+    const regularProfile = {
+      ...profile,
+      pricing: {
+        ...profile.pricing,
+        rules: rules.map(rule => ({
+          ...rule,
+          price: Number.isFinite(Number(rule.regularPrice)) && Number(rule.regularPrice) > 0
+            ? Number(rule.regularPrice)
+            : Number(rule.price)
+        }))
+      }
+    };
+    const explicitRegular = costFromPricing(regularProfile, selection);
+    if (Number.isFinite(explicitRegular) && explicitRegular > 0) return explicitRegular;
+  }
+
+  const multiplier = 1 - (Number(promotion.discountPercent) / 100);
+  return multiplier > 0 ? discounted / multiplier : discounted;
+}
+
+function pricingQuote(profile, selection = {}, now = Date.now()) {
+  const discountedProviderCostUsd = costFromPricing(profile, selection);
+  const regularProviderCostUsd = regularCostFromPricing(profile, selection);
+  const rawPromotion = profile?.pricing?.promotion || null;
+  const active = promotionIsActive(rawPromotion, now);
+  const providerCostUsd = rawPromotion && !active ? regularProviderCostUsd : discountedProviderCostUsd;
+  return {
+    providerCostUsd,
+    regularProviderCostUsd,
+    credits: creditsFromUsd(providerCostUsd),
+    regularCredits: creditsFromUsd(regularProviderCostUsd),
+    promotion: active ? {
+      active: true,
+      discountPercent: Number(rawPromotion.discountPercent),
+      endsAt: rawPromotion.endsAt || null,
+      source: rawPromotion.source || 'provider'
+    } : null
+  };
+}
+
 function creditsFromUsd(providerCostUsd) {
   const cost = Math.max(0, Number(providerCostUsd || 0));
   return Math.max(1, Math.ceil(cost * 100 * CREDIT_COST_BUFFER));
 }
 
 function estimateCredits(profile, selection = {}) {
-  const cost = costFromPricing(profile, selection);
+  const cost = pricingQuote(profile, selection).providerCostUsd;
   if (!Number.isFinite(cost) || cost <= 0) {
     const error = new Error('Current provider pricing is unavailable for this video model.');
     error.code = 'AI_VIDEO_PRICING_UNAVAILABLE';
@@ -376,7 +553,7 @@ function mergeLegacyWithLive(legacy, live) {
 
 function normalizeLiveModel(model, pricing, requestSchema) {
   const cap = normalizeCapabilities(model, requestSchema);
-  const normalizedPricing = parsePricing(pricing);
+  const normalizedPricing = applyProviderPromotion(clean(model?.air, 180), parsePricing(pricing));
   const nativeStatus = !NON_NATIVE_STATUSES.has(clean(model?.status, 80).toLowerCase());
   const hasVideoMode = cap.modes.some(mode => mode.endsWith('_TO_VIDEO'));
   const commonRequest = cap.schemaResolved && cap.specialRequired.length === 0 && hasProperty(requestSchema, ['positivePrompt']);
@@ -623,6 +800,20 @@ function publicModel(model) {
     generationReady,
     pricingStatus: model.pricingStatus || model.pricing?.status || 'UNAVAILABLE',
     baselineCredits: Number.isFinite(baseline) && baseline > 0 ? baseline : null,
+    pricing: (() => {
+      try {
+        const durations = model.durations?.length ? model.durations : model.availableDurations || [];
+        const resolutions = model.resolutions?.length ? model.resolutions : model.availableResolutions || [];
+        const duration = durations.includes(5) ? 5 : durations[0] || 5;
+        const resolution = resolutions.includes('720p') ? '720p' : resolutions[0] || '720p';
+        const quote = pricingQuote(model, { duration, resolution, draft: false, audio: Boolean(model.audioSupported) });
+        return {
+          currentCredits: quote.credits,
+          regularCredits: quote.regularCredits,
+          promotion: quote.promotion
+        };
+      } catch (_) { return null; }
+    })(),
     tags: model.tags || []
   };
 }
@@ -754,10 +945,15 @@ module.exports = {
   publicLegacyCatalog,
   normalizeCapabilities,
   parsePricing,
+  promotionFromOverview,
+  applyProviderPromotion,
   parseResolution,
   normalizedPerSecond,
   conservativeDerivedCost,
   costFromPricing,
+  promotionIsActive,
+  regularCostFromPricing,
+  pricingQuote,
   creditsFromUsd,
   estimateCredits,
   snapshot,

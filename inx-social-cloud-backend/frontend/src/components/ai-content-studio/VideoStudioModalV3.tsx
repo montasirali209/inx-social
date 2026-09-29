@@ -15,7 +15,7 @@ import {
   WandSparkles,
   X,
 } from 'lucide-react'
-import type { AIDraft, AIContentType, AIPlanAccess, GeneratedAsset, GenerationHistoryItem } from '../../types/ai-content-studio'
+import type { AIDraft, AIContentType, AIPlanAccess, GeneratedAsset, GenerationCostEstimate, GenerationHistoryItem } from '../../types/ai-content-studio'
 import { uploadMediaAsset } from '../../lib/media-library-api'
 import { getGenerationStatus, saveAIDraft } from '../../lib/ai-content-studio-api'
 import {
@@ -196,6 +196,7 @@ export function VideoStudioModal({
   const [referenceAssets, setReferenceAssets] = useState<ReferenceAsset[]>([])
   const [asset, setAsset] = useState<GeneratedAsset | null>(() => initialDraft?.asset?.type === 'video' ? initialDraft.asset : null)
   const [estimatedCredits, setEstimatedCredits] = useState<number | null>(null)
+  const [estimatedQuote, setEstimatedQuote] = useState<GenerationCostEstimate | null>(null)
   const [estimatedCreditsKey, setEstimatedCreditsKey] = useState('')
   const [pricingError, setPricingError] = useState('')
   const [recommendation, setRecommendation] = useState('')
@@ -244,7 +245,8 @@ export function VideoStudioModal({
   ].filter(Boolean) as string[], [firstFrame, lastFrame, referenceAssets])
 
   const referenceMissing = ['IMAGE_TO_VIDEO', 'REFERENCE_TO_VIDEO'].includes(generationMode) && activeReferenceIds.length === 0
-  const insufficient = credits !== null && access.creditsConfigured && !access.unlimitedCredits && access.creditsRemaining !== null && access.creditsRemaining < credits
+  const requiredBalanceCredits = estimatedQuote?.reservationCredits ?? credits
+  const insufficient = requiredBalanceCredits !== null && access.creditsConfigured && !access.unlimitedCredits && access.creditsRemaining !== null && access.creditsRemaining < requiredBalanceCredits
   const pricingPending = Boolean(selected && credits === null && !currentPricingError)
   const rendering = generating || Boolean(jobId)
 
@@ -302,12 +304,14 @@ export function VideoStudioModal({
       void estimateVideoCredits(selection).then((value) => {
         if (active) {
           setEstimatedCredits(value.credits)
+          setEstimatedQuote(value)
           setPricingError('')
           setEstimatedCreditsKey(quoteKey)
         }
       }).catch((caught) => {
         if (active) {
           setEstimatedCredits(null)
+          setEstimatedQuote(null)
           setPricingError(caught instanceof Error ? caught.message : 'Video credits could not be estimated.')
           setEstimatedCreditsKey(quoteKey)
         }
@@ -601,7 +605,7 @@ export function VideoStudioModal({
         'This render will reserve ' + credits + ' AI credits.',
         balanceBefore === null ? '' : 'Current balance: ' + balanceBefore.toLocaleString() + ' credits.',
         balanceAfter === null ? '' : 'Balance after reservation: ' + balanceAfter.toLocaleString() + ' credits.',
-        'If the generation fails, the reserved credits are returned automatically.',
+        'Unused held credits return automatically. If the provider has already completed billable work before a later processing failure, only the incurred portion is charged.',
       ].filter(Boolean).join('\n\n')
       if (!window.confirm(details)) return
     }
@@ -669,7 +673,7 @@ export function VideoStudioModal({
         </div>
         <div className="flex items-center gap-2">
           <button className="rounded-xl border border-border-soft px-2.5 py-2 text-[8px] font-semibold text-text-muted transition hover:border-brand-cyan/30 hover:text-white sm:px-3 sm:text-[9px]" onClick={() => setStudioKind('choose')}><ArrowLeft className="mr-1.5 inline size-3.5" />Video types</button>
-          <span className="rounded-full border border-amber-400/25 bg-amber-400/[.06] px-2.5 py-1 text-[8px] font-bold text-amber-300 sm:px-3 sm:text-[9px]">{credits === null ? 'Calculating credits…' : credits + ' credits'}</span>
+          <span className="rounded-full border border-amber-400/25 bg-amber-400/[.06] px-2.5 py-1 text-[8px] font-bold text-amber-300 sm:px-3 sm:text-[9px]">{credits === null ? 'Calculating credits…' : estimatedQuote?.promotion?.active && estimatedQuote.regularCredits && estimatedQuote.regularCredits > credits ? 'Sale · ' + credits + ' credits' : credits + ' credits'}</span>
           <button className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:border-brand-cyan/30 hover:text-white" onClick={onClose}><X className="size-4" /></button>
         </div>
       </header>
@@ -826,7 +830,9 @@ export function VideoStudioModal({
             <div className="flex items-end justify-between gap-4">
               <div>
                 <span className="text-[8px] font-bold uppercase tracking-[.14em] text-brand-cyan">Live generation cost</span>
-                <div className="mt-2 flex items-baseline gap-2"><strong className="text-3xl tracking-tight">{credits === null ? '—' : credits}</strong><span className="text-[9px] text-text-muted">{pricingPending ? 'calculating…' : 'INXSocial credits'}</span></div>
+                <div className="mt-2 flex items-baseline gap-2"><strong className="text-3xl tracking-tight">{credits === null ? '—' : credits}</strong><span className="text-[9px] text-text-muted">{pricingPending ? 'calculating…' : 'INXSocial credits'}</span>{credits !== null && estimatedQuote?.promotion?.active && estimatedQuote.regularCredits && estimatedQuote.regularCredits > credits ? <span className="text-[9px] text-text-soft line-through">{estimatedQuote.regularCredits} regular</span> : null}</div>
+                {estimatedQuote?.promotion?.active ? <div className="mt-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[.055] px-3 py-2 text-[8px] leading-4 text-emerald-200"><strong>{estimatedQuote.promotion.discountPercent}% provider discount active.</strong>{estimatedQuote.promotion.endsAt ? <> Discounted credit pricing applies until {new Date(estimatedQuote.promotion.endsAt).toLocaleDateString()}. The backend will automatically switch to the synchronized regular Runware price after it expires.</> : <> INXSocial will automatically return to regular synchronized pricing when Runware ends the promotion.</>}</div> : null}
+                {credits !== null && estimatedQuote?.reservationCredits && estimatedQuote.reservationCredits > credits ? <p className="mt-2 text-[8px] leading-4 text-text-soft">Temporary safety hold: {estimatedQuote.reservationCredits} credits available during generation. Final billing is reconciled to provider cost and unused held credits return automatically.</p> : null}
               </div>
               {selected && <span className="max-w-[180px] text-right text-[7px] leading-3 text-text-soft">{selected.name} · {modeLabel(generationMode)}</span>}
             </div>

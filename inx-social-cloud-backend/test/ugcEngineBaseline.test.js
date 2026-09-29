@@ -6,21 +6,22 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('Phase 0 freezes the current UGC pricing and duration surface', () => {
+test('UGC baseline exposes conservative fallback pricing and duration surface', () => {
   const service = require('../src/services/ugcStudioService');
-  assert.deepEqual(service.STANDARD_CREDITS, { 20: 140, 30: 210, 45: 315, 60: 420 });
-  assert.deepEqual(service.PREMIUM_CREDITS, { 20: 260, 30: 390, 45: 585, 60: 780 });
-  assert.equal(service.AVATAR_CREDITS, 5);
+  assert.deepEqual(service.STANDARD_CREDITS, { 20: 184, 30: 276, 45: 414, 60: 552 });
+  assert.deepEqual(service.PREMIUM_CREDITS, { 20: 530, 30: 795, 45: 1193, 60: 1590 });
+  assert.equal(service.AVATAR_CREDITS, 10);
   assert.deepEqual(service.visualDurations(20, 'STANDARD', 'AVATAR_EXPLAINER'), [10, 10]);
   assert.deepEqual(service.visualDurations(60, 'STANDARD', 'AVATAR_EXPLAINER'), [15, 15, 15, 15]);
   assert.deepEqual(service.playbackDurations(20, [10, 10]), [10, 10]);
 });
 
-test('Phase 0 preserves reserve-complete-refund credit accounting around UGC generation', () => {
+test('UGC credit accounting reserves a safety hold and settles against provider spend', () => {
   const service = read('src/services/ugcStudioService.js');
-  assert.match(service, /await credits\.reserve\(userId, generationId, amount\)/);
-  assert.match(service, /await credits\.complete\(ad\.userId, ad\.generationId, generationCredits\)/);
+  assert.match(service, /await credits\.reserve\(userId, generationId, heldCredits\)/);
+  assert.match(service, /await credits\.settle\(ad\.userId, ad\.generationId, providerRequiredCredits/);
   assert.match(service, /await credits\.refund\(ad\.userId, ad\.generationId/);
+  assert.match(service, /workflow: 'ugc_failed_after_provider_spend'/);
   assert.match(service, /ugc_campaign_reservation_failed/);
 });
 
