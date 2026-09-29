@@ -79,6 +79,37 @@ test('provider promotions expose discounted and regular credit pricing with auto
   assert.equal(expired.credits, expired.regularCredits);
 });
 
+
+test('promotion parsing also detects structured provider sale metadata and ordinal expiry dates', () => {
+  const parsed = videoRegistry.parsePricing({
+    pricingOverview: 'Current rates',
+    promotion: { label: '25% OFF until October 15th, 2026' },
+    pricingExamples: [{ configuration: '720p 5s', price: '$0.75 per run' }]
+  });
+  assert.equal(parsed.promotion.active, true);
+  assert.equal(parsed.promotion.discountPercent, 25);
+  assert.match(parsed.promotion.endsAt, /^2026-10-15T23:59:59/);
+  assert.equal(parsed.rules[0].regularPrice, 1);
+});
+
+test('commercial settlement can debit above the reservation and records any residual shortfall', () => {
+  const credits = read('src/services/aiCreditService.js');
+  const video = read('src/services/videoStudioService.js');
+  const controller = read('src/controllers/aiStudioNextController.js');
+  const ugc = read('src/services/ugcStudioService.js');
+
+  assert.match(credits, /GENERATION_SETTLEMENT_DEBIT/);
+  assert.match(credits, /GENERATION_SETTLEMENT_SHORTFALL/);
+  assert.match(credits, /extraRequested = Math\.max\(0, requested - reserved\)/);
+  assert.match(video, /Math\.ceil\(quotedCredits \* 1\.25\)/);
+  assert.match(controller, /Math\.ceil\(quote\.credits \* 1\.25\)/);
+  assert.match(video, /credits\.settle\(userId, generationId, requestedCredits/);
+  assert.match(video, /video_failed_after_provider_spend/);
+  assert.match(ugc, /UGC_RESERVATION_BUFFER = 1\.25/);
+  assert.match(ugc, /credits\.settle\(ad\.userId, ad\.generationId, providerRequiredCredits/);
+  assert.match(ugc, /ugc_failed_after_provider_spend/);
+});
+
 test('Phase 3 wires persistent provider-cost drift protection and commercial health monitoring', () => {
   const registry = read('src/services/videoModelRegistryService.js');
   const commercial = read('src/services/videoCommercialGuardService.js');
