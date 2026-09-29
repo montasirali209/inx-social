@@ -178,7 +178,7 @@ export function buildDashboardView(
   const displayStatus = (job: DashboardJob) => dashboardJobStatus(job, now)
   const scheduledCount = jobs.filter((job) => displayStatus(job) === 'SCHEDULED').length
   const draftQueuedCount = jobs.filter((job) => ['DRAFT', 'AWAITING_UPLOAD', 'READY', 'QUEUED', 'PROCESSING'].includes(displayStatus(job))).length
-  const failedCount = jobs.filter((job) => displayStatus(job) === 'FAILED' || displayStatus(job) === 'CANCELLED').length
+  const failedCount = jobs.filter((job) => ['FAILED', 'AWAITING_UPLOAD'].includes(displayStatus(job))).length
   const connectedCount = connectedAccountsCount ?? overview.pages.filter((page) => page.status !== 'REVOKED').length
   const periodDays = analytics.find((entry) => entry.analytics.period?.days)?.analytics.period?.days
   const livePeriod = periodDays ? `Last ${periodDays} days` : 'Live connected data'

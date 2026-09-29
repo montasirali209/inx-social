@@ -226,7 +226,14 @@ export function DashboardPage() {
       ) : null}
 
       <section aria-label="Universal publishing overview" className="grid grid-cols-2 items-stretch gap-2 pb-1 sm:gap-3 md:grid-cols-3 xl:grid-cols-6">
-        {dashboardStats.map((stat, index) => <StatCard data={stat} icon={statIcons[index]} key={stat.label} />)}
+        {dashboardStats.map((stat, index) => <StatCard
+          data={stat}
+          icon={statIcons[index]}
+          key={stat.label}
+          onClick={stat.label === 'Needs Review'
+            ? () => window.dispatchEvent(new CustomEvent('inx-posts-stat-open', { detail: { label: 'Needs Review', source: 'fallback' } }))
+            : undefined}
+        />)}
       </section>
 
       <section aria-label="Workspace publishing activity" className="grid min-h-[250px] items-stretch gap-3 xl:grid-cols-[minmax(0,1.9fr)_minmax(300px,.85fr)]">
