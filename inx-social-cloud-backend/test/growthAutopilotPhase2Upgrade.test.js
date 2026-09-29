@@ -59,7 +59,10 @@ test('versioned Growth Autopilot migration preserves the daily editorial lane an
   assert.match(service, /needsV6Migration/);
   assert.match(service, /needsV7Migration/);
   assert.match(service, /needsV8Migration/);
-  assert.match(service, /needsV10Migration/);\n  assert.match(service, /needsV11Migration/);\n  assert.match(service, /aiModel: AUTOPILOT_MODELS\.TERRA/);\n  assert.match(service, /aiReasoningEffort: 'medium'/);
+  assert.match(service, /needsV10Migration/);
+  assert.match(service, /needsV11Migration/);
+  assert.match(service, /aiModel: AUTOPILOT_MODELS\.TERRA/);
+  assert.match(service, /aiReasoningEffort: 'medium'/);
   assert.match(service, /dailyArticleTarget: 1/);
   assert.match(service, /editorialRetryMinutes: 10/);
   assert.match(service, /minQualityScore: 90/);
