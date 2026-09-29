@@ -951,6 +951,8 @@ function creditsPerAd(duration, quality) {
 
 async function liveCreditsForModel(modelAir, selections = [], externalAudio = false) {
   try {
+    const health = await videoModels.commercialHealth();
+    if (!health?.fresh) return null;
     const current = await videoModels.snapshot();
     const profile = (current.models || []).find(model => model.air === modelAir || model.model === modelAir);
     // UGC routes have dedicated provider adapters, so generic Video Studio
