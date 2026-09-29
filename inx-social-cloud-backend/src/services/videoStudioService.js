@@ -272,7 +272,7 @@ async function runVideoGeneration(userId, generationId, input, reservationCredit
       progress => { void prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"progress"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'PROCESSING', Math.max(5, Math.min(95, progress))).catch(() => {}); }
     );
     const providerCostUsd = Math.max(0, Number(output.item.cost || 0));
-    const providerRequiredCredits = providerCostUsd > 0 ? videoModels.creditsFromUsd(providerCostUsd) : amount;
+    const providerRequiredCredits = providerCostUsd > 0 ? videoModels.creditsFromUsd(providerCostUsd) : quotedCredits;
     await videoModels.recordActualCost({
       model: profile,
       selection: { ...input, duration, resolution, aspectRatio: aspect },
