@@ -239,6 +239,13 @@ function modelLabel(model) {
   return model === AUTOPILOT_MODELS.SOL ? 'GPT-5.6 Sol' : 'GPT-5.6 Terra';
 }
 
+function aiOptionsForConfig(config) {
+  return {
+    model: normalizeAutopilotModel(config?.aiModel),
+    reasoningEffort: normalizeReasoningEffort(config?.aiReasoningEffort, config?.aiModel)
+  };
+}
+
 function normalizeConfig(value = {}) {
   const aiModel = normalizeAutopilotModel(value.aiModel);
   return {
@@ -247,7 +254,7 @@ function normalizeConfig(value = {}) {
     aiModel,
     aiReasoningEffort: normalizeReasoningEffort(value.aiReasoningEffort, aiModel),
     intelligenceEveryHours: clampNumber(value.intelligenceEveryHours, 24, 6, 168),
-    configVersion: Math.max(10, Number(value.configVersion || 0)),
+    configVersion: Math.max(11, Number(value.configVersion || 0)),
     publishEveryHours: clampNumber(value.publishEveryHours, 24, 24, 336),
     editorialRadarEveryHours: clampNumber(value.editorialRadarEveryHours, 6, 3, 24),
     hotTrendAutoEvaluate: value.hotTrendAutoEvaluate !== false,
@@ -750,11 +757,19 @@ function criticRequiresFreshResearch(critic, backendIssues = []) {
     .some(item => /source|citation|evidence|fact|claim|verify|current|outdated|accuracy/i.test(String(item || '')));
 }
 
-async function reviewDraftWithImmediateRetry(article, opportunity, strategy, pass) {
+async function reviewDraftWithImmediateRetry(article, opportunity, strategy, pass, config) {
   let lastError = null;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
-      return await growthStrategy.reviewDraft({ article, opportunity, strategy, siteProfile: strategy?.siteProfile || null });
+      const ai = aiOptionsForConfig(config);
+      return await growthStrategy.reviewDraft({
+        article,
+        opportunity,
+        strategy,
+        siteProfile: strategy?.siteProfile || null,
+        model: ai.model,
+        reasoningEffort: ai.reasoningEffort
+      });
     } catch (error) {
       lastError = error;
       await recordEvent(
@@ -775,6 +790,8 @@ async function reviewDraftWithImmediateRetry(article, opportunity, strategy, pas
 }
 
 async function produceAndPublish(opportunity, config, strategy = null, decisionMode = 'daily', existingArticle = null) {
+  const ai = aiOptionsForConfig(config);
+  const aiLabel = modelLabel(ai.model);
   const draftInput = opportunity.id ? {
     opportunityId: opportunity.id,
     notes: 'Autopilot publication. Produce a senior-editorial, evidence-led article that is useful without promotional filler. Target at least 90/100 backend editorial quality on the first pass. The article must stand on its own for readers and AI search systems.' + (opportunity.radar ? ' Editorial radar evidence: ' + JSON.stringify(opportunity.radar) : '') + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
@@ -785,7 +802,10 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
     notes: 'Autopilot publication. Produce a senior-editorial, evidence-led article that is useful without promotional filler. Target at least 90/100 backend editorial quality on the first pass. The article must stand on its own for readers and AI search systems.' + (opportunity.radar ? ' Editorial radar evidence: ' + JSON.stringify(opportunity.radar) : '') + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
   };
 
-  let article = existingArticle || await growthContent.createDraft(draftInput);
+  let article = existingArticle || await growthContent.createDraft(draftInput, {
+    writerModel: ai.model,
+    writerReasoningEffort: ai.reasoningEffort
+  });
 
   await recordEvent(
     existingArticle ? 'EDITORIAL_DRAFT_RESUMED' : 'DRAFT_GENERATED',
@@ -809,7 +829,7 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
     let critic = null;
 
     try {
-      critic = await reviewDraftWithImmediateRetry(article, opportunity, strategy, pass);
+      critic = await reviewDraftWithImmediateRetry(article, opportunity, strategy, pass, config);
     } catch (error) {
       await recordEvent(
         'EDITORIAL_REVIEW_BLOCKED',
@@ -839,7 +859,7 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
         ? 'Senior editorial review confirmed the article is publication-ready.'
         : disposition === 'SWITCH_TOPIC'
           ? 'Senior editor found a fundamental topic-level issue, so Autopilot will move to another qualified topic.'
-          : 'Senior editor requested targeted improvements; Sol is applying the fixes immediately in the same production run.',
+          : 'Senior editor requested targeted improvements; ' + aiLabel + ' is applying the fixes immediately in the same production run.',
       {
         articleId: article.id,
         title: article.title,
@@ -965,7 +985,7 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
 
     await recordEvent(
       'EDITORIAL_REPAIR_STARTED',
-      'Sol started the requested repair immediately; normal editorial quality fixes never wait for another scheduler cycle.',
+      aiLabel + ' started the requested repair immediately; normal editorial quality fixes never wait for another scheduler cycle.',
       {
         articleId: article.id,
         title: article.title,
@@ -979,7 +999,9 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
     try {
       article = await growthContent.reviseDraft(article.id, critic, {
         backendIssues: article.quality?.issues || [],
-        refreshResearch: criticRequiresFreshResearch(critic, article.quality?.issues || [])
+        refreshResearch: criticRequiresFreshResearch(critic, article.quality?.issues || []),
+        writerModel: ai.model,
+        writerReasoningEffort: ai.reasoningEffort
       });
     } catch (error) {
       await recordEvent(
@@ -997,7 +1019,9 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
         article = await growthContent.reviseDraft(article.id, critic, {
           backendIssues: article.quality?.issues || [],
           refreshResearch: false,
-          suppressFreshResearch: true
+          suppressFreshResearch: true,
+          writerModel: ai.model,
+          writerReasoningEffort: ai.reasoningEffort
         });
       } catch (retryError) {
         await recordEvent(
@@ -1017,7 +1041,7 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
 
     await recordEvent(
       'ARTICLE_REVISED',
-      'Sol revised the existing article using the senior editor’s exact fixes and is sending it straight back for final review.',
+      aiLabel + ' revised the existing article using the senior editor’s exact fixes and is sending it straight back for final review.',
       {
         articleId: article.id,
         title: article.title,
@@ -1120,7 +1144,11 @@ async function runCycle(options = {}) {
 
     if (authorityDue && !publishDue) {
       try {
-        const authorityState = await authority.run({ autoEmail: config.authorityAutoEmail });
+        const authorityState = await authority.run({
+          autoEmail: config.authorityAutoEmail,
+          aiModel: config.aiModel,
+          aiReasoningEffort: config.aiReasoningEffort
+        });
         const completed = nowIso();
         await mutateState(current => {
           current.lastAuthorityAt = completed;
@@ -1156,7 +1184,11 @@ async function runCycle(options = {}) {
 
     if (optimizationDue && !publishDue) {
       try {
-        const optimizationState = await optimization.run({ days: 28 });
+        const optimizationState = await optimization.run({
+          days: 28,
+          aiModel: config.aiModel,
+          aiReasoningEffort: config.aiReasoningEffort
+        });
         const completed = nowIso();
         await mutateState(current => {
           current.lastOptimizationAt = completed;
@@ -1308,9 +1340,17 @@ async function runCycle(options = {}) {
               opportunityMap,
               articles,
               siteProfile: opportunityMap?.siteProfile || null,
-              minOpportunityScore: 70
+              minOpportunityScore: 70,
+              model: config.aiModel,
+              reasoningEffort: config.aiReasoningEffort
             })
-            : await growthStrategy.plan({ opportunityMap, articles, siteProfile: opportunityMap?.siteProfile || null });
+            : await growthStrategy.plan({
+              opportunityMap,
+              articles,
+              siteProfile: opportunityMap?.siteProfile || null,
+              model: config.aiModel,
+              reasoningEffort: config.aiReasoningEffort
+            });
           await mutateState(current => {
             current.lastStrategy = strategy;
             if (dailyArticleLane) {
