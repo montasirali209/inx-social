@@ -228,15 +228,19 @@ export function VideoStudioModal({
     audio,
   }), [modelRoute, generationMode, duration, resolution, aspectRatio, fps, draft, audio])
 
-  const pricingSelectionKey = useMemo(() => JSON.stringify(selection), [selection])
-  const credits = estimatedCreditsKey === pricingSelectionKey ? estimatedCredits : null
-  const currentPricingError = estimatedCreditsKey === pricingSelectionKey ? pricingError : ''
-
   const activeReferenceIds = useMemo(() => {
     if (generationMode === 'IMAGE_TO_VIDEO') return [firstFrame?.id, lastFrame?.id].filter(Boolean) as string[]
     if (generationMode === 'REFERENCE_TO_VIDEO') return referenceAssets.map((item) => item.id)
     return []
   }, [firstFrame, generationMode, lastFrame, referenceAssets])
+
+  const pricingSelection = useMemo<VideoStudioSelection>(() => ({
+    ...selection,
+    referenceCount: activeReferenceIds.length,
+  }), [selection, activeReferenceIds.length])
+  const pricingSelectionKey = useMemo(() => JSON.stringify(pricingSelection), [pricingSelection])
+  const credits = estimatedCreditsKey === pricingSelectionKey ? estimatedCredits : null
+  const currentPricingError = estimatedCreditsKey === pricingSelectionKey ? pricingError : ''
 
   const allReferenceIds = useMemo(() => [
     firstFrame?.id,
@@ -301,7 +305,7 @@ export function VideoStudioModal({
     let active = true
     const quoteKey = pricingSelectionKey
     const timer = window.setTimeout(() => {
-      void estimateVideoCredits(selection).then((value) => {
+      void estimateVideoCredits(pricingSelection).then((value) => {
         if (active) {
           setEstimatedCredits(value.credits)
           setPricingQuote(value)
@@ -321,7 +325,7 @@ export function VideoStudioModal({
       active = false
       window.clearTimeout(timer)
     }
-  }, [open, selected, selection, pricingSelectionKey])
+  }, [open, selected, pricingSelection, pricingSelectionKey])
 
   useEffect(() => {
     if (!jobId || studioKind !== 'generative') return
