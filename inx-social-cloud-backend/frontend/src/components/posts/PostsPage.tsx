@@ -17,6 +17,7 @@ import { PostPreviewPanel } from './PostPreviewPanel'
 import { PostsStatCard } from './PostPrimitives'
 import { SchedulePanel } from './SchedulePanel'
 import type { PostLibraryView } from '../../lib/posts-reuse'
+import { fetchPublishingRecords, isNeedsReviewJob, publishingRecordsQueryKey } from '../../lib/publishing-records'
 import { PublishConfirmationDialog } from '../ui/PublishConfirmationDialog'
 
 const draftKey = 'inx-social-post-drafts-v1'
@@ -99,6 +100,7 @@ export function PostsPage() {
   const defaultModeApplied = useRef(false)
   const [initial] = useState(readInitialComposerSession)
   const workspace = useQuery({ queryKey: ['posts-workspace'], queryFn: fetchPostsWorkspace, refetchInterval: 45_000 })
+  const publishingRecords = useQuery({ queryKey: publishingRecordsQueryKey, queryFn: fetchPublishingRecords, refetchInterval: 30_000, refetchOnWindowFocus: true })
   const workspaceData = {
     destinations: workspace.data?.destinations || [],
     jobs: workspace.data?.jobs || [],
@@ -254,10 +256,10 @@ export function PostsPage() {
     }).catch((error) => setProgress({ state: 'failed', percent: 0, message: error instanceof Error ? error.message : 'The AI Studio media could not be loaded from Media Library.' }))
   }, [location.state])
 
-  const jobs = useMemo(() => workspaceData.jobs, [workspaceData.jobs])
+  const jobs = useMemo(() => publishingRecords.data || workspaceData.jobs, [publishingRecords.data, workspaceData.jobs])
   const reusableJobs = jobs
   const stats = useMemo(() => {
-    const needsReview = jobs.filter((job) => ['FAILED', 'AWAITING_UPLOAD'].includes(job.status)).length
+    const needsReview = jobs.filter(isNeedsReviewJob).length
     return [
       { label: 'All Posts', value: jobs.length + drafts.length, detail: 'All publishing records', tone: 'teal' as const },
       { label: 'Drafts', value: drafts.length, detail: 'Open saved drafts', tone: 'amber' as const },
@@ -440,6 +442,8 @@ export function PostsPage() {
       }
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['posts-workspace'] }),
+        queryClient.invalidateQueries({ queryKey: publishingRecordsQueryKey }),
+        queryClient.invalidateQueries({ queryKey: ['universal-publishing-kpis'] }),
         queryClient.invalidateQueries({ queryKey: ['studio-overview'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard-jobs'] }),
         queryClient.invalidateQueries({ queryKey: ['content-calendar'] }),
