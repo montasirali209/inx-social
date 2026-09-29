@@ -40,7 +40,8 @@ const videoSelectionSchema = z.object({
   aspectRatio: z.enum(['9:16', '16:9', '1:1', '4:5']).default('9:16'),
   fps: z.coerce.number().int().min(1).max(240).optional(),
   draft: z.boolean().default(false),
-  audio: z.boolean().default(true)
+  audio: z.boolean().default(true),
+  referenceCount: z.coerce.number().int().min(0).max(30).optional().default(0)
 });
 
 const videoRecommendationSchema = z.object({
