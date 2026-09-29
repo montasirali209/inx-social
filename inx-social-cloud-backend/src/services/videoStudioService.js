@@ -262,6 +262,7 @@ async function persistVideo(userId, generationId, output, input, amount) {
 }
 
 async function runVideoGeneration(userId, generationId, input, amount, profile, duration, resolution, aspect) {
+  let persistedAsset = null;
   try {
     const references = await sourceImages(userId, input);
     await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"progress"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'PROCESSING', 5);
@@ -280,7 +281,8 @@ async function runVideoGeneration(userId, generationId, input, amount, profile, 
       requiredCredits: providerRequiredCredits
     });
     const actualCredits = providerRequiredCredits;
-    const asset = await persistVideo(userId, generationId, output, input, actualCredits);
+    persistedAsset = await persistVideo(userId, generationId, output, input, actualCredits);
+    const asset = persistedAsset;
     await credits.settle(userId, generationId, actualCredits, {
       provider: 'runware',
       providerCostUsd,
@@ -301,7 +303,15 @@ async function runVideoGeneration(userId, generationId, input, amount, profile, 
       status: Number(caught?.status || 0),
       providerDetail: clean(caught?.providerDetail, 700)
     }));
-    if (caught?.code !== 'AI_CREDITS_SETTLEMENT_SHORTFALL') {
+    if (caught?.code === 'AI_CREDITS_SETTLEMENT_SHORTFALL' && persistedAsset?.mediaLibraryAssetId) {
+      try {
+        const storedAsset = await prisma.agentAsset.findFirst({ where: { id: persistedAsset.mediaLibraryAssetId, userId } });
+        if (storedAsset?.storageKey) await objectStorage.deleteObject(storedAsset.storageKey, storedAsset.storageProvider || null).catch(() => {});
+        await prisma.agentAsset.deleteMany({ where: { id: persistedAsset.mediaLibraryAssetId, userId } });
+      } catch (cleanupError) {
+        console.error('[AI VIDEO SETTLEMENT CLEANUP FAILED]', clean(cleanupError?.message, 500));
+      }
+    } else {
       await credits.refund(userId, generationId, caught?.code || 'video_failed').catch(() => {});
     }
     await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"errorCode"=$3,"errorMessage"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'FAILED', clean(caught?.code || 'AI_VIDEO_FAILED', 120), clean(caught?.publicMessage || caught?.message || 'Video generation failed.', 700)).catch(() => {});
