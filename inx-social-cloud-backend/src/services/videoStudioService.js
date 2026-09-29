@@ -280,19 +280,19 @@ async function runVideoGeneration(userId, generationId, input, reservationCredit
       reservedCredits: quotedCredits,
       requiredCredits: providerRequiredCredits
     });
-    const actualCredits = Math.min(reservationCredits, providerRequiredCredits);
-    const asset = await persistVideo(userId, generationId, output, input, actualCredits);
-    await credits.settle(userId, generationId, actualCredits, {
+    const asset = await persistVideo(userId, generationId, output, input, providerRequiredCredits);
+    const chargedCredits = await credits.settle(userId, generationId, providerRequiredCredits, {
       provider: 'runware',
       providerCostUsd,
       reservedCredits: reservationCredits,
       quotedCredits,
       pricingVersion: videoModels.REGISTRY_VERSION
     });
+    asset.creditsUsed = chargedCredits;
     await prisma.$executeRawUnsafe(
       'UPDATE "AiGeneration" SET "status"=$2,"progress"=100,"model"=$3,"providerCostUsd"=$4,"taskUuid"=$5,"assetJson"=$6,"responseJson"=$7,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
       generationId, 'COMPLETED', output.model, providerCostUsd, output.taskUUID, JSON.stringify(asset),
-      JSON.stringify({ route: output.route, duration, resolution, reservedCredits: reservationCredits, quotedCredits, creditsUsed: actualCredits, providerRequiredCredits, providerCostUsd, pricingVersion: videoModels.REGISTRY_VERSION })
+      JSON.stringify({ route: output.route, duration, resolution, reservedCredits: reservationCredits, quotedCredits, creditsUsed: chargedCredits, providerRequiredCredits, settlementShortfallCredits: Math.max(0, providerRequiredCredits - chargedCredits), providerCostUsd, pricingVersion: videoModels.REGISTRY_VERSION })
     );
   } catch (caught) {
     console.error('[AI VIDEO GENERATION FAILED]', JSON.stringify({
