@@ -270,6 +270,13 @@ async function settle(userId, generationId, creditsUsed, metadata = {}) {
     const generation = generations[0];
     if (!generation) throw accessError('AI generation reservation is unavailable.', 'AI_GENERATION_RESERVATION_MISSING', 404);
 
+    const priorSettlement = await tx.$queryRawUnsafe(
+      'SELECT * FROM "AiCreditTransaction" WHERE "reference" IN ($1,$2) ORDER BY "createdAt" DESC LIMIT 1',
+      `settlement:${generationId}`,
+      `settlement-debit:${generationId}`
+    );
+    if (priorSettlement[0] && Number(generation.creditsUsed || 0) === 0 && Math.max(0, Math.floor(Number(creditsUsed || 0))) === 0) return 0;
+
     let reserved = Math.max(0, Number(generation.reservedCredits || 0));
     if (Number(generation.creditsUsed || 0) > 0) return Number(generation.creditsUsed || 0);
     const amount = Math.max(0, Math.floor(Number(creditsUsed || 0)));
