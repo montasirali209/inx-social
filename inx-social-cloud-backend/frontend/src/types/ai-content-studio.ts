@@ -133,6 +133,7 @@ export type GenerationJob = {
 export type GenerationCostEstimate = {
   credits: number
   regularCredits?: number
+  reservationCredits?: number
   providerCostUsd?: number
   regularProviderCostUsd?: number
   promotion?: {
