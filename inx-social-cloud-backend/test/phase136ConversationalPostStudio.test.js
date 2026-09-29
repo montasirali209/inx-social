@@ -29,12 +29,12 @@ test('Ready and regenerate actions live in chat rather than the generated-previe
   const studio = read('frontend/src/components/ai-content-studio/ImagePostChatModalV4.tsx');
 
   assert.match(studio, /Ready to generate your post/);
-  assert.match(studio, /Generate post now · 5 credits/);
+  assert.match(studio, /Generate post now · 10 credits/);
   assert.match(studio, /Your updated post is ready/);
-  assert.match(studio, /Generate updated post · 5 credits/);
+  assert.match(studio, /Generate updated post · 10 credits/);
   assert.match(studio, /renderNeeded/);
   assert.match(studio, /If you change the creative direction, a new Generate updated post button appears in chat/);
-  assert.doesNotMatch(studio, /New render · 5/);
+  assert.doesNotMatch(studio, /New render · 10/);
 });
 
 test('Generated-preview UI hides provider and model debug metadata', () => {
