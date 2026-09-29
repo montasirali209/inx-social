@@ -25,10 +25,14 @@ const ugcStudioControls = require('./ugcStudioControls');
 const ugcRenderQuality = require('./ugcRenderQuality');
 const ugcProductionAudit = require('./ugcProductionAuditService');
 const ugcRuntimePolicy = require('./ugcRuntimePolicy');
+const videoModels = require('./videoModelRegistryService');
 const { expiresAtFor } = require('./mediaRetentionService');
 
-const STANDARD_CREDITS = Object.freeze({ 20: 140, 30: 210, 45: 315, 60: 420 });
-const PREMIUM_CREDITS = Object.freeze({ 20: 260, 30: 390, 45: 585, 60: 780 });
+// Conservative fallbacks used only when live Runware pricing cannot be resolved.
+const STANDARD_CREDITS = Object.freeze({ 20: 184, 30: 276, 45: 414, 60: 552 });
+const PREMIUM_CREDITS = Object.freeze({ 20: 530, 30: 795, 45: 1193, 60: 1590 });
+const UGC_RESERVATION_BUFFER = 1.25;
+const UGC_EXTERNAL_AUDIO_BUFFER = 1.20;
 const AVATAR_CREDITS = 5;
 const SYSTEM_AVATAR_COUNT = 52;
 const FEATURED_AVATAR_COUNT = 20;
@@ -945,13 +949,109 @@ function creditsPerAd(duration, quality) {
   return amount;
 }
 
+async function liveCreditsForModel(modelAir, selections = [], externalAudio = false) {
+  try {
+    const current = await videoModels.snapshot();
+    const profile = (current.models || []).find(model => model.air === modelAir || model.model === modelAir);
+    if (!profile || !profile.generationReady || profile.pricingStatus !== 'SYNCED') return null;
+    let providerCostUsd = 0;
+    let regularProviderCostUsd = 0;
+    let promotion = null;
+    for (const selection of selections) {
+      const quote = videoModels.pricingQuote(profile, selection);
+      providerCostUsd += Number(quote.providerCostUsd || 0);
+      regularProviderCostUsd += Number(quote.regularProviderCostUsd || quote.providerCostUsd || 0);
+      if (quote.promotion?.active) promotion = quote.promotion;
+    }
+    if (externalAudio) {
+      providerCostUsd *= UGC_EXTERNAL_AUDIO_BUFFER;
+      regularProviderCostUsd *= UGC_EXTERNAL_AUDIO_BUFFER;
+    }
+    return {
+      credits: videoModels.creditsFromUsd(providerCostUsd),
+      regularCredits: videoModels.creditsFromUsd(regularProviderCostUsd),
+      providerCostUsd,
+      regularProviderCostUsd,
+      promotion
+    };
+  } catch (_) {
+    return null;
+  }
+}
+
+async function estimateInputPricing(input) {
+  const quality = String(input.quality || 'STANDARD').toUpperCase();
+  const duration = Number(input.duration || 20);
+  const campaignType = String(input.campaignType || 'AUTO').toUpperCase();
+  const fallback = creditsPerAd(duration, quality);
+  if (quality === 'STANDARD') {
+    const segments = visualDurations(duration, 'STANDARD', campaignType === 'PRODUCT_SHOWCASE' ? 'PRODUCT_SHOWCASE' : 'AVATAR_EXPLAINER');
+    const quote = await liveCreditsForModel(STANDARD_MODEL(), segments.map(seconds => ({ duration: seconds, resolution: '768p', audio: true })), false);
+    return quote || { credits: fallback, regularCredits: fallback, providerCostUsd: null, regularProviderCostUsd: null, promotion: null };
+  }
+
+  const useProductRoute = campaignType === 'PRODUCT_SHOWCASE' || campaignType === 'AUTO';
+  const modelAir = useProductRoute ? ugcEngineRegistry.modelIds().seedanceVideo : ugcEngineRegistry.modelIds().omniHumanVideo;
+  const segments = visualDurations(duration, 'PREMIUM', useProductRoute ? 'PRODUCT_SHOWCASE' : 'AVATAR_EXPLAINER');
+  const quote = await liveCreditsForModel(
+    modelAir,
+    segments.map(seconds => ({ duration: seconds, resolution: useProductRoute ? '720p' : '', audio: false })),
+    true
+  );
+  return quote || { credits: fallback, regularCredits: fallback, providerCostUsd: null, regularProviderCostUsd: null, promotion: null };
+}
+
+async function estimatePlanPricing(plan, input) {
+  let totalProviderCostUsd = 0;
+  let totalRegularProviderCostUsd = 0;
+  let promotion = null;
+  for (const ad of plan.ads || []) {
+    for (const scene of ad.scenes || []) {
+      const routeKey = scene.routeDecision?.routeKey || scene.route;
+      const cap = ugcProviderAdapters.getAdapter(routeKey);
+      const externalAudio = cap.audioMode !== 'NATIVE_SYNC_AUDIO';
+      const quote = await liveCreditsForModel(
+        cap.model,
+        [{ duration: Number(scene.duration), resolution: cap.resolution === 'SOURCE_DRIVEN' ? '' : String(cap.resolution || '').toLowerCase(), audio: cap.audioMode === 'NATIVE_SYNC_AUDIO' }],
+        externalAudio
+      );
+      if (!quote) return estimateInputPricing(input);
+      totalProviderCostUsd += Number(quote.providerCostUsd || 0);
+      totalRegularProviderCostUsd += Number(quote.regularProviderCostUsd || quote.providerCostUsd || 0);
+      if (quote.promotion?.active) promotion = quote.promotion;
+    }
+  }
+  const adCount = Math.max(1, Number(input.adCount || plan.ads?.length || 1));
+  return {
+    credits: Math.max(1, Math.ceil(videoModels.creditsFromUsd(totalProviderCostUsd) / adCount)),
+    regularCredits: Math.max(1, Math.ceil(videoModels.creditsFromUsd(totalRegularProviderCostUsd) / adCount)),
+    providerCostUsd: totalProviderCostUsd / adCount,
+    regularProviderCostUsd: totalRegularProviderCostUsd / adCount,
+    promotion
+  };
+}
+
 async function estimateCampaign(userId, input) {
   const balance = await credits.getBalance(userId);
-  return ugcStudioControls.quote({
-    input,
-    balanceRemaining: balance.remaining,
-    pricing: { STANDARD: STANDARD_CREDITS, PREMIUM: PREMIUM_CREDITS }
-  });
+  const pricing = await estimateInputPricing(input);
+  const totalCredits = pricing.credits * Math.max(1, Number(input.adCount || 1));
+  return {
+    ...ugcStudioControls.quote({
+      input,
+      balanceRemaining: balance.remaining,
+      pricing: {
+        STANDARD: Object.fromEntries(Object.keys(STANDARD_CREDITS).map(duration => [duration, String(input.quality || 'STANDARD').toUpperCase() === 'STANDARD' && Number(duration) === Number(input.duration) ? pricing.credits : STANDARD_CREDITS[duration]])),
+        PREMIUM: Object.fromEntries(Object.keys(PREMIUM_CREDITS).map(duration => [duration, String(input.quality || 'STANDARD').toUpperCase() === 'PREMIUM' && Number(duration) === Number(input.duration) ? pricing.credits : PREMIUM_CREDITS[duration]]))
+      }
+    }),
+    creditsPerAd: pricing.credits,
+    totalCredits,
+    regularCreditsPerAd: pricing.regularCredits,
+    regularTotalCredits: pricing.regularCredits * Math.max(1, Number(input.adCount || 1)),
+    providerCostUsd: pricing.providerCostUsd,
+    regularProviderCostUsd: pricing.regularProviderCostUsd,
+    promotion: pricing.promotion
+  };
 }
 
 function splitScriptByDurations(script, durations) {
@@ -1180,14 +1280,15 @@ async function planCampaign(input, brand, avatars, resolvedType) {
   });
 }
 
-async function createGenerationRow(userId, adId, amount, request) {
+async function createGenerationRow(userId, adId, quotedCredits, request, reservationCredits = null) {
   const generationId = id();
+  const heldCredits = Math.max(quotedCredits, Number(reservationCredits || Math.ceil(quotedCredits * UGC_RESERVATION_BUFFER)));
   await prisma.$executeRawUnsafe(
     'INSERT INTO "AiGeneration" ("id","userId","contentType","status","provider","prompt","requestJson","reservedCredits","createdAt","updatedAt") VALUES ($1,$2,\'ugc_ad\',\'PREPARING\',\'runware\',$3,$4,0,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
-    generationId, userId, clean(request.script || request.title || 'UGC ad', 1500), json({ ugcAdId: adId, ...request })
+    generationId, userId, clean(request.script || request.title || 'UGC ad', 1500), json({ ugcAdId: adId, quotedCredits, reservationCredits: heldCredits, ...request })
   );
   try {
-    await credits.reserve(userId, generationId, amount);
+    await credits.reserve(userId, generationId, heldCredits);
     return generationId;
   } catch (error) {
     await prisma.$executeRawUnsafe('DELETE FROM "AiGeneration" WHERE "id"=$1 AND "userId"=$2', generationId, userId).catch(() => {});
@@ -1211,8 +1312,6 @@ async function createCampaign(userId, input) {
   ugcStudioControls.assertSelection(input, { STANDARD: STANDARD_CREDITS, PREMIUM: PREMIUM_CREDITS });
   const access = await credits.getAccess(userId);
   if (!access.studioEnabled) throw publicError('UGC Studio is unavailable for this account.', 'UGC_ACCESS_REQUIRED', 403);
-  const totalCredits = creditsPerAd(input.duration, input.quality) * input.adCount;
-  if (Number(access.creditsRemaining || 0) < totalCredits) throw publicError('This UGC campaign needs ' + totalCredits + ' AI credits, but only ' + Number(access.creditsRemaining || 0) + ' remain.', 'AI_CREDITS_INSUFFICIENT', 402);
 
   let brand = null;
   if (input.brandProfileId) {
@@ -1256,7 +1355,18 @@ async function createCampaign(userId, input) {
     availableAvatars: available
   });
   const campaignId = id();
-  const perAd = creditsPerAd(input.duration, input.quality);
+  const campaignPricing = await estimatePlanPricing(plan, input);
+  const perAd = campaignPricing.credits;
+  const totalCredits = perAd * input.adCount;
+  const reservationPerAd = Math.max(perAd, Math.ceil(perAd * UGC_RESERVATION_BUFFER));
+  const totalReservationCredits = reservationPerAd * input.adCount;
+  if (Number(access.creditsRemaining || 0) < totalReservationCredits) {
+    throw publicError(
+      'This UGC campaign is currently priced at ' + totalCredits + ' credits and needs ' + totalReservationCredits + ' credits available including the temporary provider-cost safety hold. Unused held credits are returned automatically.',
+      'AI_CREDITS_INSUFFICIENT',
+      402
+    );
+  }
   const sourceType = clean(input.sourceType || (productAssetIds.length ? 'PRODUCT' : input.productUrl ? 'WEBSITE' : 'BRIEF'), 30).toUpperCase();
 
   await prisma.$executeRawUnsafe(
@@ -1306,7 +1416,7 @@ async function createCampaign(userId, input) {
           json({ brandReferences: brand?.brandReferences || [], productAssetIds, routeDecision: scene.routeDecision || null })
         );
       }
-      const generationId = await createGenerationRow(userId, adId, perAd, { ...planned, campaignType: resolvedType, quality: input.quality });
+      const generationId = await createGenerationRow(userId, adId, perAd, { ...planned, campaignType: resolvedType, quality: input.quality, pricing: campaignPricing }, reservationPerAd);
       reserved.push(generationId);
       await ugcEngine.linkGeneration(userId, campaignId, index + 1, adId, generationId);
       await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "generationId"=$2,"status"=\'QUEUED\',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', adId, generationId);
