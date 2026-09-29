@@ -605,7 +605,7 @@ export function VideoStudioModal({
         'This render will reserve ' + credits + ' AI credits.',
         balanceBefore === null ? '' : 'Current balance: ' + balanceBefore.toLocaleString() + ' credits.',
         balanceAfter === null ? '' : 'Balance after reservation: ' + balanceAfter.toLocaleString() + ' credits.',
-        'If the generation fails, the reserved credits are returned automatically.',
+        'Unused held credits return automatically. If the provider has already completed billable work before a later processing failure, only the incurred portion is charged.',
       ].filter(Boolean).join('\n\n')
       if (!window.confirm(details)) return
     }
