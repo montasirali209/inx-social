@@ -52,7 +52,7 @@ test('Phase 8 production audit is versioned and declares full production domains
   assert.equal(audit.PRODUCTION_AUDIT_VERSION, 'ugc-production-audit-v1');
   const snapshot = audit.snapshot();
   assert.equal(snapshot.policy.readyAdsRequirePublishableQC, true);
-  assert.equal(snapshot.policy.failedPaidGenerationsRequireRefund, true);
+  assert.equal(snapshot.policy.failedPaidGenerationsRequireCostAwareSettlement, true);
   assert.equal(snapshot.policy.zeroCreditReassemblyProtected, true);
   assert.ok(snapshot.domains.includes('MEDIA_LIBRARY'));
   assert.ok(snapshot.domains.includes('QUEUE_RECOVERY'));
@@ -79,24 +79,41 @@ test('Ready ad without Media Library asset fails production audit', () => {
   assert.equal(report.recommendedAction, 'INVESTIGATE_INVARIANTS');
 });
 
-test('Failed paid generation requires a recorded refund after debit', () => {
+test('Failed paid generation requires cost-aware settlement when provider spend occurred', () => {
   const snapshot = baseSnapshot();
   snapshot.campaign.status = 'FAILED';
   snapshot.engine.status = 'FAILED';
   snapshot.ads[0] = { ...snapshot.ads[0], status: 'FAILED', mediaAssetId: null, errorMessage: 'provider failed' };
   snapshot.scenes[0] = { ...snapshot.scenes[0], status: 'FAILED', videoStorageKey: null, errorMessage: 'provider failed' };
-  snapshot.generations[0] = { ...snapshot.generations[0], status: 'FAILED', creditsUsed: 0 };
+  snapshot.generations[0] = { ...snapshot.generations[0], status: 'FAILED', creditsUsed: 0, providerCostUsd: 0.42 };
   snapshot.assets = [];
   snapshot.creditTransactions = [{ generationId: 'g1', type: 'GENERATION_DEBIT', reference: 'debit:g1' }];
 
   const broken = audit.evaluateCampaignSnapshot(snapshot);
   assert.equal(broken.status, 'FAIL');
-  assert.equal(broken.ads[0].checks.find(item => item.id === 'FAILED_CREDIT_REFUND').status, 'FAIL');
+  assert.equal(broken.ads[0].checks.find(item => item.id === 'FAILED_CREDIT_SETTLEMENT').status, 'FAIL');
 
+  snapshot.generations[0] = { ...snapshot.generations[0], creditsUsed: 49 };
+  const reconciled = audit.evaluateCampaignSnapshot(snapshot);
+  assert.equal(reconciled.ads[0].checks.find(item => item.id === 'FAILED_CREDIT_SETTLEMENT').status, 'PASS');
+  assert.equal(reconciled.recommendedAction, 'RECOVER_OUTPUTS');
+});
+
+test('Failed zero-cost generation still requires a refund after debit', () => {
+  const snapshot = baseSnapshot();
+  snapshot.campaign.status = 'FAILED';
+  snapshot.engine.status = 'FAILED';
+  snapshot.ads[0] = { ...snapshot.ads[0], status: 'FAILED', mediaAssetId: null, errorMessage: 'provider rejected before billing' };
+  snapshot.scenes[0] = { ...snapshot.scenes[0], status: 'FAILED', videoStorageKey: null, errorMessage: 'provider rejected' };
+  snapshot.generations[0] = { ...snapshot.generations[0], status: 'FAILED', creditsUsed: 0, providerCostUsd: 0 };
+  snapshot.assets = [];
+  snapshot.creditTransactions = [{ generationId: 'g1', type: 'GENERATION_DEBIT', reference: 'debit:g1' }];
+
+  const broken = audit.evaluateCampaignSnapshot(snapshot);
+  assert.equal(broken.ads[0].checks.find(item => item.id === 'FAILED_CREDIT_SETTLEMENT').status, 'FAIL');
   snapshot.creditTransactions.push({ generationId: 'g1', type: 'GENERATION_REFUND', reference: 'refund:g1' });
   const reconciled = audit.evaluateCampaignSnapshot(snapshot);
-  assert.equal(reconciled.ads[0].checks.find(item => item.id === 'FAILED_CREDIT_REFUND').status, 'PASS');
-  assert.equal(reconciled.recommendedAction, 'RECOVER_OUTPUTS');
+  assert.equal(reconciled.ads[0].checks.find(item => item.id === 'FAILED_CREDIT_SETTLEMENT').status, 'PASS');
 });
 
 test('Zero-credit reassembly stays separate from paid generation credits', () => {
