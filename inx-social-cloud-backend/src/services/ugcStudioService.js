@@ -1654,12 +1654,12 @@ async function generateReferenceAsset(userId, input) {
       result = { kind: 'PRODUCT', avatar: null, product };
     }
 
-    await credits.complete(userId, generationId, AVATAR_CREDITS);
+    await credits.complete(userId, generationId, REFERENCE_CREDITS);
     await prisma.$executeRawUnsafe(
       'UPDATE "AiGeneration" SET "status"=\'COMPLETED\',"progress"=100,"model"=$3,"responseJson"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$2',
       generationId, userId, rendered.model || null, json({ kind: result.kind, avatarId: result.avatar?.id || null, productAssetId: result.product?.id || null })
     );
-    return { ...result, generationId, creditsUsed: AVATAR_CREDITS, prompt };
+    return { ...result, generationId, creditsUsed: REFERENCE_CREDITS, prompt };
   } catch (error) {
     await credits.refund(userId, generationId, error.code || 'ugc_reference_failed').catch(() => false);
     await prisma.$executeRawUnsafe(
