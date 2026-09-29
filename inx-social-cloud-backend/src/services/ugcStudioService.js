@@ -28,8 +28,8 @@ const ugcProductionAudit = require('./ugcProductionAuditService');
 const ugcRuntimePolicy = require('./ugcRuntimePolicy');
 const { expiresAtFor } = require('./mediaRetentionService');
 
-const STANDARD_CREDITS = Object.freeze({ 20: 140, 30: 210, 45: 315, 60: 420 });
-const PREMIUM_CREDITS = Object.freeze({ 20: 260, 30: 390, 45: 585, 60: 780 });
+const STANDARD_CREDITS = Object.freeze({ 20: 184, 30: 276, 45: 414, 60: 552 });
+const PREMIUM_CREDITS = Object.freeze({ 20: 650, 30: 950, 45: 1450, 60: 1900 });
 const AVATAR_CREDITS = 5;
 const REFERENCE_CREDITS = 10;
 const SYSTEM_AVATAR_COUNT = 52;
