@@ -11,7 +11,7 @@ const objectStorage = require('./mediaObjectStorageService');
 
 const CHAT_MODEL = String(process.env.OPENAI_CHAT_MODEL || 'gpt-5.6-luna').trim();
 const REASONING_MODEL = String(process.env.OPENAI_REASONING_MODEL || process.env.OPENAI_MODEL || 'gpt-5.6-terra').trim();
-const IMAGE_CREDITS = 5;
+const IMAGE_CREDITS = 10;
 const MAX_MESSAGES = 18;
 const MAX_REFERENCES = 4;
 const MAX_URLS = 2;
