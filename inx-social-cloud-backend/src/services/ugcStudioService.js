@@ -2521,7 +2521,7 @@ async function renderAd(adId) {
 
     await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'READY\',"mediaAssetId"=$2,"errorMessage"=NULL,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id, asset.id);
     const providerRequiredCredits = providerCost > 0 ? videoModels.creditsFromUsd(providerCost) : quotedGenerationCredits;
-    let chargedCredits = Math.max(1, Math.min(reservedGenerationCredits, providerRequiredCredits));
+    let chargedCredits = Math.max(0, providerRequiredCredits);
     if (reservedGenerationCredits > 0) {
       chargedCredits = await credits.settle(ad.userId, ad.generationId, providerRequiredCredits, {
         provider: 'runware',
