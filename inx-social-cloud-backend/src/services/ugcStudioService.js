@@ -1234,10 +1234,11 @@ async function createAssemblyGenerationRow(userId, adId, request = {}) {
 }
 
 async function createCampaign(userId, input) {
-  ugcStudioControls.assertSelection(input, { STANDARD: STANDARD_CREDITS, PREMIUM: PREMIUM_CREDITS });
+  const livePricing = await liveUgcPricing();
+  ugcStudioControls.assertSelection(input, livePricing.matrix);
   const access = await credits.getAccess(userId);
   if (!access.studioEnabled) throw publicError('UGC Studio is unavailable for this account.', 'UGC_ACCESS_REQUIRED', 403);
-  const totalCredits = creditsPerAd(input.duration, input.quality) * input.adCount;
+  const totalCredits = creditsPerAd(input.duration, input.quality, livePricing.matrix) * input.adCount;
   if (Number(access.creditsRemaining || 0) < totalCredits) throw publicError('This UGC campaign needs ' + totalCredits + ' AI credits, but only ' + Number(access.creditsRemaining || 0) + ' remain.', 'AI_CREDITS_INSUFFICIENT', 402);
 
   let brand = null;
@@ -1282,7 +1283,7 @@ async function createCampaign(userId, input) {
     availableAvatars: available
   });
   const campaignId = id();
-  const perAd = creditsPerAd(input.duration, input.quality);
+  const perAd = creditsPerAd(input.duration, input.quality, livePricing.matrix);
   const sourceType = clean(input.sourceType || (productAssetIds.length ? 'PRODUCT' : input.productUrl ? 'WEBSITE' : 'BRIEF'), 30).toUpperCase();
 
   await prisma.$executeRawUnsafe(
