@@ -9,7 +9,7 @@ const counts = [1, 5, 10, 15, 20];
 const createSchema = z.object({
   brandProfileId: z.string().trim().max(120).optional().nullable(),
   productUrl: z.string().trim().max(2000).optional().default(''),
-  productDescription: z.string().trim().max(4000).optional().default(''),
+  productDescription: z.string().trim().max(6500).optional().default(''),
   productAssetIds: z.array(z.string().trim().min(1).max(120)).max(8).optional().default([]),
   characterAssetIds: z.array(z.string().trim().min(1).max(120)).max(8).optional().default([]),
   sourceType: z.enum(['WEBSITE', 'PRODUCT', 'BRIEF']).optional().default('WEBSITE'),
