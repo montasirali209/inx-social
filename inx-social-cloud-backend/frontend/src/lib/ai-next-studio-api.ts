@@ -87,6 +87,7 @@ export type VideoStudioSelection = {
   fps?: number
   draft: boolean
   audio: boolean
+  referenceCount?: number
 }
 
 export type VideoModelRecommendation = VideoStudioSelection & {
