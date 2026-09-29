@@ -1000,6 +1000,7 @@ async function generateProductionPrompt(userId, input) {
         'Do not add captions, subtitles, on-screen text or logos unless the user explicitly asks for them.',
         'Do not mention provider names, model names or internal systems.',
         'Target aspect ratio: ' + aspectRatio + '.',
+        'When spoken dialogue is requested, format it clearly as Dialogue: “...” so the user can edit it and captions can follow it.',
         'Keep the generated prompt under 3600 characters.'
       ].join('\n')
     },
@@ -1093,7 +1094,7 @@ function extractDirectDialogue(value) {
 
 function directPromptPlan(input, brand, avatars, resolvedType) {
   const mode = normalizedCustomMode(input.customMode);
-  const prompt = clean(input.productDescription, 4000);
+  const prompt = clean(input.productDescription, 6500);
   if (!prompt) throw publicError('Add the production prompt you want to send to the video model.', 'UGC_DIRECT_PROMPT_REQUIRED', 422);
   const durations = visualDurations(input.duration, 'STANDARD', resolvedType);
   const finalDurations = playbackDurations(input.duration, durations);
@@ -1386,7 +1387,7 @@ async function createCampaign(userId, input) {
           aspectRatio: normalizedAspectRatio(input.aspectRatio),
           captionsEnabled: input.captionsEnabled !== false,
           characterAssetIds,
-          userDirection: sourceType === 'BRIEF' ? clean(input.productDescription, 4000) : clean(input.notes, 1200)
+          userDirection: sourceType === 'BRIEF' ? clean(input.productDescription, isDirectModeInput(input) ? 6500 : 4000) : clean(input.notes, 1200)
         })
       );
       for (let s = 0; s < planned.scenes.length; s += 1) {
@@ -2062,7 +2063,7 @@ function h3CreatorVoiceDescription(avatar) {
 
 function h3NativePrompt(scene, ad, avatar, referenceCount) {
   const plan = parseJson(ad.planJson, {});
-  const userDirection = clean(plan.userDirection, plan.customPromptMode ? 4000 : 1200);
+  const userDirection = clean(plan.userDirection, plan.directPromptMode ? 6500 : plan.customPromptMode ? 4000 : 1200);
   const customMode = normalizedCustomMode(plan.customMode);
   const directPromptMode = Boolean(plan.directPromptMode && ['PRODUCTION','PODCAST'].includes(customMode));
   const format = clean(scene.creativeFormat || plan.creativeFormat || plan.requestedCreativeFormat || 'UGC', 80).replaceAll('_', ' ');
@@ -2091,6 +2092,7 @@ function h3NativePrompt(scene, ad, avatar, referenceCount) {
       directReferenceInstruction,
       directModeRule,
       clean(scene.prompt, 1200),
+      clean(scene.script, 4000) ? 'THIS SEGMENT SPOKEN DIALOGUE: “' + clean(scene.script, 4000).replace(/[“”"]/g, "'") + '”' : '',
       'PRIMARY CUSTOMER PROMPT:',
       userDirection,
       'Preserve reference identity and continuity. Do not generate subtitles, captions, watermarks, interface graphics or extra readable overlay text in the model output; INXSocial applies captions after rendering when the customer enables them.'
