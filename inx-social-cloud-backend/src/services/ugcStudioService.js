@@ -1363,7 +1363,7 @@ async function createCampaign(userId, input) {
 
   await prisma.$executeRawUnsafe(
     'INSERT INTO "UGCCampaign" ("id","userId","brandProfileId","title","productUrl","productDescription","duration","adCount","quality","creatorMode","selectedAvatarId","campaignType","resolvedType","sourceType","productAssetIdsJson","status","totalCredits","notes","planJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,\'RESERVING\',$16,$17,$18,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
-    campaignId, userId, brand?.id || input.brandProfileId || null, plan.title, brand?.websiteUrl || input.productUrl || null, clean(input.productDescription, 4000) || null,
+    campaignId, userId, brand?.id || input.brandProfileId || null, plan.title, brand?.websiteUrl || input.productUrl || null, clean(input.productDescription, isDirectModeInput(input) ? 6500 : 4000) || null,
     input.duration, input.adCount, input.quality, input.creatorMode, input.avatarId || null, input.campaignType || 'AUTO', resolvedType, sourceType,
     json(providerAssetIds), totalCredits, clean(input.notes, 1200) || null, json(plan)
   );
