@@ -211,11 +211,13 @@ function buildTask(cap, context) {
   const duration = Number(context.providerDuration);
   if (cap.adapterKey === ADAPTER_KEYS.H3_MAX) {
     const references = (Array.isArray(context.references) ? context.references : [context.reference]).filter(Boolean).slice(0, 9);
+    const requestedExpansion = clean(context.promptExpansion || 'quality', 20).toLowerCase();
+    const promptExpansion = ['disabled','balanced','quality'].includes(requestedExpansion) ? requestedExpansion : 'quality';
     task.duration = duration;
     task.width = 768;
     task.height = 1344;
     task.inputs = { referenceImages: references };
-    task.settings = { promptExpansion: 'quality' };
+    task.settings = { promptExpansion };
     return task;
   }
   if (cap.adapterKey === ADAPTER_KEYS.HAILUO_23) {
