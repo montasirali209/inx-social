@@ -997,6 +997,7 @@ function playbackDurations(totalDuration, providerDurations) {
 
 function resolveCampaignType(input, brand, productAssets = []) {
   if (String(input.creatorMode || '').toUpperCase() === 'NONE') return 'PRODUCT_SHOWCASE';
+  if (String(input.sourceType || '').toUpperCase() === 'BRIEF' && String(input.customMode || '').toUpperCase() === 'PODCAST') return 'AVATAR_EXPLAINER';
   const requested = String(input.campaignType || 'AUTO').toUpperCase();
   if (requested === 'AVATAR_EXPLAINER' || requested === 'PRODUCT_SHOWCASE') return requested;
   if (productAssets.length) return 'PRODUCT_SHOWCASE';
@@ -1012,6 +1013,76 @@ function sceneKinds(campaignType, count) {
   if (count === 1) return ['PRODUCT'];
   if (count === 2) return ['CREATOR','PRODUCT'];
   return Array.from({ length: count }, (_, index) => index === 0 || index === count - 1 ? 'CREATOR' : 'PRODUCT');
+}
+
+function normalizedCustomMode(value) {
+  const mode = String(value || 'ASSISTED').trim().toUpperCase();
+  return ['PRODUCTION','PODCAST'].includes(mode) ? mode : 'ASSISTED';
+}
+
+function directPromptPlan(input, brand, avatars, resolvedType) {
+  const mode = normalizedCustomMode(input.customMode);
+  const prompt = clean(input.productDescription, 4000);
+  if (!prompt) throw publicError('Add the production prompt you want to send to the video model.', 'UGC_DIRECT_PROMPT_REQUIRED', 422);
+  const durations = visualDurations(input.duration, input.quality, resolvedType);
+  const finalDurations = playbackDurations(input.duration, durations);
+  const creatorLed = String(input.creatorMode || '').toUpperCase() !== 'NONE';
+  const kinds = Array.from({ length: durations.length }, () => creatorLed ? 'CREATOR' : 'PRODUCT');
+  const modeLabel = mode === 'PODCAST' ? 'Podcast' : 'Production';
+  const sceneCount = durations.length;
+  const ads = Array.from({ length: Number(input.adCount) }, (_, index) => ({
+    title: modeLabel + ' ' + (index + 1),
+    angle: mode === 'PODCAST' ? 'Direct podcast prompt' : 'Direct production prompt',
+    hook: '',
+    script: '',
+    cta: '',
+    caption: '',
+    avatarIndex: index % Math.max(1, avatars.length),
+    customMode: mode,
+    directPromptMode: true,
+    scenes: durations.map((sceneDuration, sceneIndex) => {
+      const start = Math.round((sceneIndex / sceneCount) * 100);
+      const end = Math.round(((sceneIndex + 1) / sceneCount) * 100);
+      const continuity = mode === 'PODCAST'
+        ? 'Keep the same invited guest, host/interviewer relationship, podcast studio, microphones, outfit, lighting and identity. The guest is appearing on someone else\'s podcast, not hosting her own.'
+        : 'Keep the same subjects, references, environment, wardrobe, lighting and visual continuity unless the user prompt explicitly requests a change.';
+      return {
+        sequence: sceneIndex + 1,
+        duration: Number(sceneDuration),
+        playbackDuration: Number(finalDurations[sceneIndex] || sceneDuration),
+        kind: kinds[sceneIndex],
+        creativeFormat: null,
+        beats: [],
+        objective: 'Follow the customer production prompt directly without rewriting its creative intent.',
+        prompt: clean(
+          'Technical segment ' + (sceneIndex + 1) + ' of ' + sceneCount + '. Render only the approximately ' + start + '–' + end + '% chronological portion of the requested production. Do not restart earlier dialogue or actions. ' + continuity,
+          1200
+        ),
+        script: ''
+      };
+    })
+  }));
+  return {
+    title: modeLabel + ' Campaign',
+    campaignType: resolvedType,
+    customMode: mode,
+    directPromptMode: true,
+    requestedCreativeFormat: 'AUTO',
+    resolvedCreativeFormats: [],
+    creativeFormatVersion: ugcCreativeFormats.CREATIVE_FORMAT_VERSION,
+    skillsVersion: 'ugc-direct-prompt-v1',
+    skillDecisions: {
+      directPrompt: {
+        mode,
+        preserved: true,
+        creativeDirectorBypassed: true,
+        providerPromptExpansion: 'disabled',
+        technicalSegments: durations.map(Number),
+        playbackDurations: finalDurations.map(Number)
+      }
+    },
+    ads
+  };
 }
 
 function fallbackPlan(input, brand, avatars, resolvedType) {
@@ -1088,6 +1159,10 @@ function normalizePlan(parsed, input, brand, avatars, resolvedType) {
 }
 
 async function planCampaign(input, brand, avatars, resolvedType) {
+  const mode = normalizedCustomMode(input.customMode);
+  if (String(input.sourceType || '').toUpperCase() === 'BRIEF' && ['PRODUCTION','PODCAST'].includes(mode)) {
+    return directPromptPlan(input, brand, avatars, resolvedType);
+  }
   const providerDurations = visualDurations(input.duration, input.quality, resolvedType);
   const finalDurations = playbackDurations(input.duration, providerDurations);
   return ugcSkills.planCampaign({
@@ -1210,7 +1285,14 @@ async function createCampaign(userId, input) {
       await prisma.$executeRawUnsafe(
         'INSERT INTO "UGCAd" ("id","campaignId","userId","sequence","status","title","angle","hook","script","cta","caption","avatarId","route","voice","voicePrompt","duration","quality","credits","musicMode","captionsEnabled","planJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,\'RESERVING\',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,\'AUTO\',true,$18,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
         adId, campaignId, userId, index + 1, planned.title, planned.angle || null, planned.hook || null, planned.script, planned.cta || null, planned.caption || null,
-        avatar?.id || null, route, avatar?.voice || null, avatar?.voicePrompt || null, input.duration, input.quality, perAd, json({ ...planned, campaignType: resolvedType, customPromptMode: sourceType === 'BRIEF', userDirection: sourceType === 'BRIEF' ? clean(input.productDescription, 4000) : clean(input.notes, 1200) })
+        avatar?.id || null, route, avatar?.voice || null, avatar?.voicePrompt || null, input.duration, input.quality, perAd, json({
+          ...planned,
+          campaignType: resolvedType,
+          customPromptMode: sourceType === 'BRIEF',
+          customMode: normalizedCustomMode(input.customMode),
+          directPromptMode: sourceType === 'BRIEF' && ['PRODUCTION','PODCAST'].includes(normalizedCustomMode(input.customMode)),
+          userDirection: sourceType === 'BRIEF' ? clean(input.productDescription, 4000) : clean(input.notes, 1200)
+        })
       );
       for (let s = 0; s < planned.scenes.length; s += 1) {
         const scene = planned.scenes[s];
@@ -1243,6 +1325,7 @@ async function createCampaign(userId, input) {
       resolvedType,
       creativeFormat: plan.requestedCreativeFormat || input.creativeFormat || 'AUTO',
       resolvedCreativeFormats: Array.isArray(plan.resolvedCreativeFormats) ? plan.resolvedCreativeFormats.join(',') : '',
+      customMode: normalizedCustomMode(input.customMode),
       quality: input.quality,
       duration: input.duration,
       adCount: input.adCount,
@@ -1292,7 +1375,7 @@ async function campaignPayload(userId, campaignRow) {
     duration: campaignRow.duration, adCount: campaignRow.adCount, quality: campaignRow.quality,
     campaignType: campaignRow.campaignType || 'AUTO', resolvedType: campaignRow.resolvedType || campaignRow.campaignType || 'AVATAR_EXPLAINER',
     creativeFormat: campaignPlan.requestedCreativeFormat || 'AUTO', resolvedCreativeFormats: Array.isArray(campaignPlan.resolvedCreativeFormats) ? campaignPlan.resolvedCreativeFormats : [],
-    sourceType: campaignRow.sourceType || 'WEBSITE', productAssetIds: parseJson(campaignRow.productAssetIdsJson, []),
+    sourceType: campaignRow.sourceType || 'WEBSITE', customMode: campaignPlan.customMode || 'ASSISTED', productAssetIds: parseJson(campaignRow.productAssetIdsJson, []),
     creatorMode: campaignRow.creatorMode, selectedAvatarId: campaignRow.selectedAvatarId || null,
     status: effectiveStatus, totalCredits: campaignRow.totalCredits, notes: campaignRow.notes || '',
     plan: campaignPlan, ads: publicAds,
@@ -1877,6 +1960,8 @@ function h3CreatorVoiceDescription(avatar) {
 function h3NativePrompt(scene, ad, avatar, referenceCount) {
   const plan = parseJson(ad.planJson, {});
   const userDirection = clean(plan.userDirection, plan.customPromptMode ? 4000 : 1200);
+  const customMode = normalizedCustomMode(plan.customMode);
+  const directPromptMode = Boolean(plan.directPromptMode && ['PRODUCTION','PODCAST'].includes(customMode));
   const format = clean(scene.creativeFormat || plan.creativeFormat || plan.requestedCreativeFormat || 'UGC', 80).replaceAll('_', ' ');
   const spoken = clean(scene.script, 5000);
   const referenceInstruction = referenceCount > 1
@@ -1886,6 +1971,19 @@ function h3NativePrompt(scene, ad, avatar, referenceCount) {
     : avatar
       ? 'Use Image 1 as the selected creator and preserve that exact identity.'
       : 'Use Image 1 as the authoritative product reference. This is a product-only ad; do not introduce a presenter.';
+  if (directPromptMode && userDirection) {
+    const directModeRule = customMode === 'PODCAST'
+      ? 'PODCAST MODE: the selected creator is the invited guest on another person\'s podcast. Preserve the same guest identity, studio, outfit, microphone setup, lighting and interview relationship across segments.'
+      : 'PRODUCTION MODE: follow the customer production prompt as written. Do not replace it with a generic UGC structure and do not invent new dialogue.';
+    return clean([
+      referenceInstruction,
+      directModeRule,
+      clean(scene.prompt, 1200),
+      'PRIMARY CUSTOMER PROMPT:',
+      userDirection,
+      'Preserve reference identity and continuity. No generated subtitles, captions, watermarks, interface graphics or extra readable overlay text unless the customer prompt explicitly requests them.'
+    ].filter(Boolean).join('\n\n'), 7000);
+  }
   const sound = spoken
     ? 'Sound: ' + (userDirection ? 'Use one consistent natural adult creator voice. Follow the user direction for language, accent and delivery ahead of the creator default.' : h3CreatorVoiceDescription(avatar)) + ' The creator says exactly, "' + spoken.replace(/"/g, "'") + '". Speak at a natural conversational pace and keep speech synchronized to the mouth. Finish the final sentence before the clip ends. Use only subtle believable room ambience underneath.'
     : 'Sound: subtle believable room ambience only.';
@@ -1915,11 +2013,14 @@ async function renderProviderScene(scene, ad, avatar, productReferences, narrati
   if (cap.adapterKey === ugcProviderAdapters.ADAPTER_KEYS.H3_MAX) {
     if (!references.length) throw publicError('This UGC scene needs at least one visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
     const prompt = h3NativePrompt(scene, ad, avatar, references.length);
+    const adPlan = parseJson(ad.planJson, {});
+    const directPromptMode = Boolean(adPlan.directPromptMode && ['PRODUCTION','PODCAST'].includes(normalizedCustomMode(adPlan.customMode)));
     return ugcProviderAdapters.renderScene(scene.route, {
       kind: scene.kind,
       providerDuration: Number(scene.duration),
       playbackDuration: Number(scene.duration),
       prompt,
+      promptExpansion: directPromptMode ? 'disabled' : 'quality',
       reference: references[0],
       references,
       narration: null
