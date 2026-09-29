@@ -70,12 +70,12 @@ test('Phase 6 preserves Phase 5 format choice in live quote context', () => {
   assert.match(wizard, /estimateUGCCampaign\(\{ duration, adCount, quality: effectiveQuality, campaignType, creativeFormat, customMode \}\)/);
 });
 
-test('Phase 6 does not change fixed UGC pricing, router or Creator V2', () => {
+test('UGC commercial hardening keeps Phase 6 routing and Creator V2 while updating fallback pricing', () => {
   const studio = read('src/services/ugcStudioService.js');
   const router = read('src/services/ugcModelRouter.js');
   const creators = read('src/services/ugcCreatorEngine.js');
-  assert.match(studio, /STANDARD_CREDITS = Object\.freeze\(\{ 20: 140, 30: 210, 45: 315, 60: 420 \}\)/);
-  assert.match(studio, /PREMIUM_CREDITS = Object\.freeze\(\{ 20: 260, 30: 390, 45: 585, 60: 780 \}\)/);
+  assert.match(studio, /STANDARD_CREDITS = Object\.freeze\(\{ 20: 184, 30: 276, 45: 414, 60: 552 \}\)/);
+  assert.match(studio, /PREMIUM_CREDITS = Object\.freeze\(\{ 20: 530, 30: 795, 45: 1193, 60: 1590 \}\)/);
   assert.match(router, /ROUTER_VERSION = 'ugc-router-v1'/);
   assert.match(creators, /CREATOR_PROFILE_VERSION = 'ugc-creators-v2'/);
 });
