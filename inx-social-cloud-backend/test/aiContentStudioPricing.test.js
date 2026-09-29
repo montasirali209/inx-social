@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { estimateGenerationCost, validateGenerationRequest, fallbackCopy } = require('../src/services/aiContentStudioService');
 const { customerPlan, refundableReservationAmounts } = require('../src/services/aiCreditService');
 const { planDefinition } = require('../src/services/stripeService');
-const { normalizeModelId } = require('../src/services/runwareService');
+const { normalizeModelId } = require('../src/services/runwareService');\nconst { IMAGE_CREDITS } = require('../src/services/aiPostStudioServiceV2');\nconst { creditsForSlides } = require('../src/services/carouselStudioService');
 
 test('AI Content Studio keeps the launch credit schedule', () => {
   assert.equal(estimateGenerationCost({ type: 'image_post', options: { variants: 1 } }), 5);
@@ -24,6 +24,13 @@ test('AI Content Studio keeps the launch credit schedule', () => {
     () => estimateGenerationCost({ type: 'ugc_ad', options: { duration: 20 } }),
     error => error.code === 'AI_STUDIO_LEGACY_PRICING_RETIRED' && /UGC Studio/.test(error.message)
   );
+});
+
+test('modern OpenAI image workflows keep a conservative provider-cost credit floor', () => {
+  assert.equal(IMAGE_CREDITS, 10);
+  assert.equal(creditsForSlides(3), 30);
+  assert.equal(creditsForSlides(5), 50);
+  assert.equal(creditsForSlides(10), 100);
 });
 
 test('Studio validates core requests before spending provider money', () => {
