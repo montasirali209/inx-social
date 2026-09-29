@@ -470,6 +470,25 @@ function regularCostFromPricing(profile, selection = {}) {
   const promotion = profile?.pricing?.promotion;
   const discounted = costFromPricing(profile, selection);
   if (!Number.isFinite(discounted) || discounted <= 0 || !promotion || !Number.isFinite(Number(promotion.discountPercent))) return discounted;
+
+  const rules = Array.isArray(profile?.pricing?.rules) ? profile.pricing.rules : [];
+  if (rules.some(rule => Number.isFinite(Number(rule.regularPrice)) && Number(rule.regularPrice) > 0)) {
+    const regularProfile = {
+      ...profile,
+      pricing: {
+        ...profile.pricing,
+        rules: rules.map(rule => ({
+          ...rule,
+          price: Number.isFinite(Number(rule.regularPrice)) && Number(rule.regularPrice) > 0
+            ? Number(rule.regularPrice)
+            : Number(rule.price)
+        }))
+      }
+    };
+    const explicitRegular = costFromPricing(regularProfile, selection);
+    if (Number.isFinite(explicitRegular) && explicitRegular > 0) return explicitRegular;
+  }
+
   const multiplier = 1 - (Number(promotion.discountPercent) / 100);
   return multiplier > 0 ? discounted / multiplier : discounted;
 }
