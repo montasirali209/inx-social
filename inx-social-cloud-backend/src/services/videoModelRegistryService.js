@@ -272,7 +272,7 @@ function parsePricing(pricing) {
     const pair = parsePricePair(rawPrice);
     if (!Number.isFinite(pair.current) || pair.current <= 0) return null;
     const threshold = Number(configuration.match(/\bbeyond\s+(\d+)\b/i)?.[1] || 0) || null;
-    const surchargeKind = /per\s+input\s+image|each\s+image/i.test(configuration) ? 'reference_image' : null;
+    const surchargeKind = /per\s+input\s+image|each\s+input\s+image|each\s+image/i.test(configuration) ? 'reference_image' : null;
     return {
       configuration,
       price: pair.current,
