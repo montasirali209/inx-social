@@ -16,6 +16,7 @@ export type UGCCreativeFormatOption = {
 }
 export type UGCSourceType = 'WEBSITE' | 'PRODUCT' | 'BRIEF'
 export type UGCCustomMode = 'ASSISTED' | 'PRODUCTION' | 'PODCAST'
+export type UGCAspectRatio = '9:16' | '1:1' | '16:9'
 
 export type UGCAvatar = {
   id: string
@@ -186,7 +187,10 @@ export type UGCCampaign = {
   resolvedCreativeFormats: Exclude<UGCCreativeFormat, 'AUTO'>[]
   sourceType: UGCSourceType
   customMode: UGCCustomMode
+  aspectRatio: UGCAspectRatio
+  captionsEnabled: boolean
   productAssetIds: string[]
+  characterAssetIds: string[]
   creatorMode: 'AUTO' | 'SELECTED' | 'NONE'
   selectedAvatarId: string | null
   status: string
@@ -267,6 +271,9 @@ export type CreateUGCCampaignInput = {
   productAssetIds?: string[]
   sourceType?: UGCSourceType
   customMode?: UGCCustomMode
+  aspectRatio?: UGCAspectRatio
+  captionsEnabled?: boolean
+  characterAssetIds?: string[]
   campaignType?: UGCCampaignType
   creativeFormat?: UGCCreativeFormat
   avatarId?: string | null
