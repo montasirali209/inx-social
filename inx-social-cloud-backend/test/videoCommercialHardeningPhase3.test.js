@@ -101,9 +101,10 @@ test('provider reconciliation can debit beyond the reservation instead of silent
   const credits = read('src/services/aiCreditService.js');
   const video = read('src/services/videoStudioService.js');
 
-  assert.match(credits, /GENERATION_SETTLEMENT_OVERAGE/);
-  assert.match(credits, /const overageRequested = Math\.max\(0, requested - reserved\)/);
-  assert.match(credits, /const amount = Math\.min\(requested, reserved \+ overageCharged\)/);
+  assert.match(credits, /GENERATION_SETTLEMENT_DEBIT/);
+  assert.match(credits, /const extraRequested = Math\.max\(0, requested - reserved\)/);
+  assert.match(credits, /const charged = fromReservation \+ extraCharged/);
+  assert.match(credits, /GENERATION_SETTLEMENT_SHORTFALL/);
   assert.match(video, /credits\.settle\(userId, generationId, providerRequiredCredits/);
   assert.doesNotMatch(video, /Math\.min\(reservationCredits, providerRequiredCredits\)/);
 });
