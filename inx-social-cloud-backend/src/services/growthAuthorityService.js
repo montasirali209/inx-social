@@ -164,15 +164,17 @@ function draftSchema(ids){
   }}}};
 }
 
-async function draftForProspects(items,http=axios){
+async function draftForProspects(items,http=axios,options={}){
   const intelligence=await siteIntelligence.latest().catch(()=>null);
   const profile=intelligence?.profile||null;
   const brandName=profile?.brandName||intelligence?.site?.hostname||'the monitored brand';
   const candidates=items.filter(x=>x.score>=65&&x.status==='QUALIFIED'&&!x.draft&&x.validation?.reachable!==false&&!x.validation?.archived).slice(0,6);
   if(!candidates.length||!providerStatus().writer)return [];
   const ids=candidates.map(x=>x.id);
+  const writerModel=String(options.model||env.contentWriter.model||'').trim();
+  const reasoningEffort=String(options.reasoningEffort||env.contentWriter.reasoningEffort||'high').trim().toLowerCase();
   const request={
-    model:env.contentWriter.model,
+    model:writerModel,
     instructions:[
       seoSkills.expertOperatingInstructions(),
       'Draft transparent authority engagement for '+brandName+'. Never fabricate experience, metrics, endorsements, relationships, discounts or product capabilities.',
@@ -184,13 +186,13 @@ async function draftForProspects(items,http=axios){
     input:JSON.stringify(candidates.map(x=>({id:x.id,title:x.title,url:x.url,type:x.type,reason:x.reason,relevantPage:x.relevantPage,communityRulesNote:x.communityRulesNote,contact:x.contact}))),
     text:{format:{type:'json_schema',name:'inx_phase4_authority_drafts',strict:true,schema:draftSchema(ids)}}
   };
-  if(/^gpt-5(?:\.|-)/i.test(env.contentWriter.model)) request.reasoning={effort:env.contentWriter.reasoningEffort||'high'};
+  if(/^gpt-5(?:\.|-)/i.test(writerModel)) request.reasoning={effort:reasoningEffort};
   const response=await http.post(env.contentWriter.baseUrl.replace(/\/$/,'')+'/responses',request,{timeout:120000,headers:{Authorization:'Bearer '+env.contentWriter.apiKey,'Content-Type':'application/json'}});
   const parsed=safeJson(webResearch.extractResponseText(response.data),{drafts:[]});
   return (parsed.drafts||[]).filter(x=>ids.includes(x.id)).map(x=>({
     id:x.id,communityReply:String(x.communityReply||'').trim().slice(0,3000),outreachSubject:String(x.outreachSubject||'').trim().slice(0,180),
     outreachBody:String(x.outreachBody||'').trim().slice(0,5000),followUpBody:String(x.followUpBody||'').trim().slice(0,3500),
-    safetyNotes:String(x.safetyNotes||'').trim().slice(0,700),generatedAt:nowIso(),writerModel:env.contentWriter.model
+    safetyNotes:String(x.safetyNotes||'').trim().slice(0,700),generatedAt:nowIso(),writerModel
   }));
 }
 
@@ -211,7 +213,7 @@ function reviewSchema(ids){
   }}}};
 }
 
-async function reviewOutreachForAutoSend(items,http=axios){
+async function reviewOutreachForAutoSend(items,http=axios,options={}){
   const candidates=items.filter(x=>
     x.score>=75
     && x.status==='QUALIFIED'
@@ -225,8 +227,10 @@ async function reviewOutreachForAutoSend(items,http=axios){
   ).slice(0,6);
   if(!candidates.length||!providerStatus().writer)return [];
   const ids=candidates.map(x=>x.id);
+  const reviewerModel=String(options.model||env.contentWriter.model||'').trim();
+  const reasoningEffort=String(options.reasoningEffort||env.contentWriter.reasoningEffort||'high').trim().toLowerCase();
   const request={
-    model:env.contentWriter.model,
+    model:reviewerModel,
     instructions:[
       'Act as an independent final outbound-email reviewer for '+brandName+'. This is a separate gate after drafting.',
       'Return PASS only when the evidence supports a genuinely relevant B2B authority/outreach message to a clearly corporate subscriber such as a limited company or LLP. If the recipient could be a sole trader, individual subscriber, personal consumer or the business type is uncertain, return REJECT.',
@@ -242,7 +246,7 @@ async function reviewOutreachForAutoSend(items,http=axios){
     }))),
     text:{format:{type:'json_schema',name:'inx_authority_email_final_review',strict:true,schema:reviewSchema(ids)}}
   };
-  if(/^gpt-5(?:\.|-)/i.test(env.contentWriter.model)) request.reasoning={effort:'high'};
+  if(/^gpt-5(?:\.|-)/i.test(reviewerModel)) request.reasoning={effort:reasoningEffort};
   const response=await http.post(env.contentWriter.baseUrl.replace(/\/$/,'')+'/responses',request,{timeout:120000,headers:{Authorization:'Bearer '+env.contentWriter.apiKey,'Content-Type':'application/json'}});
   const parsed=safeJson(webResearch.extractResponseText(response.data),{reviews:[]});
   return (parsed.reviews||[]).filter(x=>ids.includes(x.id)).map(x=>{
@@ -266,7 +270,7 @@ async function reviewOutreachForAutoSend(items,http=axios){
       },
       reason:String(x.reason||'').trim().slice(0,900),
       reviewedAt:nowIso(),
-      reviewerModel:env.contentWriter.model
+      reviewerModel
     };
   });
 }
@@ -315,13 +319,15 @@ async function run(options={}){
   for(const target of prospects.filter(x=>!TERMINAL.has(x.status)).slice(0,10)){
     const i=prospects.findIndex(x=>x.id===target.id); if(i>=0) prospects[i]={...prospects[i],validation:await validateProspect(prospects[i],options.http||axios)};
   }
-  try{const drafts=await draftForProspects(prospects,options.http||axios),map=new Map(drafts.map(x=>[x.id,x]));prospects=prospects.map(x=>map.has(x.id)?{...x,draft:map.get(x.id)}:x);}catch(e){warnings.push('Drafting: '+String(e.message||e).slice(0,500));}
+  const aiOptions={model:options.aiModel,reasoningEffort:options.aiReasoningEffort};
+  try{const drafts=await draftForProspects(prospects,options.http||axios,aiOptions),map=new Map(drafts.map(x=>[x.id,x]));prospects=prospects.map(x=>map.has(x.id)?{...x,draft:map.get(x.id)}:x);}catch(e){warnings.push('Drafting: '+String(e.message||e).slice(0,500));}
   try{
-    const reviews=await reviewOutreachForAutoSend(prospects,options.http||axios),map=new Map(reviews.map(x=>[x.id,x]));
+    const reviews=await reviewOutreachForAutoSend(prospects,options.http||axios,aiOptions),map=new Map(reviews.map(x=>[x.id,x]));
     prospects=prospects.map(x=>{
       const review=map.get(x.id); if(!review)return x;
-      if(review.decision==='PASS')return {...x,aiReview:review,status:'AI_APPROVED',approvedAt:review.reviewedAt,outcomeNote:'Independent GPT-5.6 Sol review approved this outreach for automatic sending.'};
-      return {...x,aiReview:review,outcomeNote:'Automatic outreach withheld by GPT-5.6 Sol review: '+review.reason};
+      const reviewerLabel=String(review.reviewerModel||options.aiModel||'AI reviewer');
+      if(review.decision==='PASS')return {...x,aiReview:review,status:'AI_APPROVED',approvedAt:review.reviewedAt,outcomeNote:'Independent '+reviewerLabel+' review approved this outreach for automatic sending.'};
+      return {...x,aiReview:review,outcomeNote:'Automatic outreach withheld by '+reviewerLabel+' review: '+review.reason};
     });
   }catch(e){warnings.push('AI email review: '+String(e.message||e).slice(0,500));}
   const execution=await executeApprovedEmails(prospects,options.autoEmail===true); prospects=execution.items;
