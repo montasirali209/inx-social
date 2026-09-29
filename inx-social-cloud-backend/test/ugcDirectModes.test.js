@@ -26,6 +26,26 @@ test('direct UGC aspect ratios use H3 Max supported 768p dimensions', () => {
   assert.equal(task.settings.promptExpansion, 'disabled');
 });
 
+test('Production direct mode can use H3 Max without a visual reference', () => {
+  const cap = adapters.getAdapter('H3_MAX_STANDARD_V1');
+  assert.doesNotThrow(() => adapters.validateContext(cap, {
+    kind: 'CREATOR',
+    providerDuration: 10,
+    prompt: 'Direct production prompt',
+    references: []
+  }));
+  const task = adapters.buildTask(cap, {
+    prompt: 'Direct production prompt',
+    providerDuration: 10,
+    references: [],
+    aspectRatio: '9:16',
+    promptExpansion: 'disabled'
+  });
+  assert.equal(task.inputs, undefined);
+  assert.equal(task.width, 768);
+  assert.equal(task.height, 1344);
+});
+
 test('podcast mode stays avatar-explainer even without creator-library selection', () => {
   assert.equal(
     studio.resolveCampaignType({ sourceType: 'BRIEF', customMode: 'PODCAST', creatorMode: 'NONE', campaignType: 'AUTO' }, null, []),
@@ -45,6 +65,8 @@ test('Production and Podcast have deliberately different customer controls', () 
   assert.match(wizard, /generateUGCProductionPrompt/);
   assert.match(wizard, /customMode === 'PODCAST' && <div className="mt-5">/);
   assert.match(wizard, /PODCAST CHARACTERS/);
+  assert.match(wizard, /directMode \? 4 : steps\.length/);
+  assert.match(wizard, /\['brand','avatar'\]\.includes\(step\.key\)/);
   assert.match(wizard, /uploadPodcastCharacters/);
   assert.match(wizard, /multiple character|one or more guest/i);
   assert.match(wizard, /CAPTIONS/);
