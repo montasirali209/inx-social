@@ -80,14 +80,15 @@ test('provider promotions expose discounted and regular credit pricing with auto
 });
 
 
-test('promotion parsing also detects structured provider sale metadata and ordinal expiry dates', () => {
+test('promotion parsing detects structured provider fields without relying on sale-label wording', () => {
   const parsed = videoRegistry.parsePricing({
     pricingOverview: 'Current rates',
-    promotion: { label: '25% OFF until October 15th, 2026' },
+    promotion: { discountPercent: 25, endsAt: '2026-10-15', active: true },
     pricingExamples: [{ configuration: '720p 5s', price: '$0.75 per run' }]
   });
   assert.equal(parsed.promotion.active, true);
   assert.equal(parsed.promotion.discountPercent, 25);
+  assert.equal(parsed.promotion.source, 'provider_structured');
   assert.match(parsed.promotion.endsAt, /^2026-10-15T23:59:59/);
   assert.equal(parsed.rules[0].regularPrice, 1);
 });
