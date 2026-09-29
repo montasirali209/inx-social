@@ -94,7 +94,7 @@ function growthDashboardReferrerMeta(row){
   if(!source||source==='(direct)'||source==='direct')return{key:'direct',label:'Direct',channel:'Direct',raw:'(direct) / (none)'};
   if(source==='(not set)'||source==='not set'||medium==='(not set)'&&source==='')return{key:'unattributed',label:'Unattributed',channel:'Unattributed',raw};
 
-  if(['t.co','x.com','twitter.com','mobile.twitter.com'].includes(source))return{key:'x',label:'X',channel:paid?'Paid Social':'Social',raw};
+  if(['t.co','x','x.com','twitter','twitter.com','mobile.twitter.com'].includes(source))return{key:'x',label:'X',channel:paid?'Paid Social':'Social',raw};
   if(source.includes('facebook.com')||source==='facebook'||source==='fb')return{key:'facebook',label:'Facebook',channel:paid?'Paid Social':'Social',raw};
   if(source.includes('instagram.com')||source==='instagram')return{key:'instagram',label:'Instagram',channel:paid?'Paid Social':'Social',raw};
   if(source.includes('linkedin.com')||source==='linkedin')return{key:'linkedin',label:'LinkedIn',channel:paid?'Paid Social':'Social',raw};
@@ -103,7 +103,7 @@ function growthDashboardReferrerMeta(row){
   if(source.includes('reddit.com')||source==='reddit')return{key:'reddit',label:'Reddit',channel:paid?'Paid Social':'Social',raw};
   if(source.includes('pinterest.com')||source==='pinterest')return{key:'pinterest',label:'Pinterest',channel:paid?'Paid Social':'Social',raw};
 
-  if(source.includes('google.'))return{key:'google',label:'Google',channel:paid?'Paid Search':'Organic Search',raw};
+  if(source==='google'||source.includes('google'))return{key:'google',label:'Google',channel:paid?'Paid Search':'Organic Search',raw};
   if(source.includes('bing.com')||source==='bing')return{key:'bing',label:'Bing',channel:paid?'Paid Search':'Organic Search',raw};
   if(source.includes('duckduckgo.com')||source==='duckduckgo')return{key:'duckduckgo',label:'DuckDuckGo',channel:'Organic Search',raw};
   if(source.includes('ecosia.org')||source==='ecosia')return{key:'ecosia',label:'Ecosia',channel:'Organic Search',raw};
