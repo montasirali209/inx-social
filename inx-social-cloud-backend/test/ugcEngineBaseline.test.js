@@ -20,7 +20,8 @@ test('UGC credit accounting reserves a safety hold and settles against provider 
   const service = read('src/services/ugcStudioService.js');
   assert.match(service, /await credits\.reserve\(userId, generationId, heldCredits\)/);
   assert.match(service, /await credits\.settle\(ad\.userId, ad\.generationId, chargedCredits/);
-  assert.match(service, /await credits\.refund\(ad\.userId, ad\.generationId/);\n  assert.match(service, /workflow: 'ugc_failed_after_provider_spend'/);
+  assert.match(service, /await credits\.refund\(ad\.userId, ad\.generationId/);
+  assert.match(service, /workflow: 'ugc_failed_after_provider_spend'/);
   assert.match(service, /ugc_campaign_reservation_failed/);
 });
 
