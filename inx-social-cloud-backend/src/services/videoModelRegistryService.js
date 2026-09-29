@@ -390,28 +390,37 @@ function costFromPricing(profile, selection = {}) {
   return conservativeDerivedCost(rules, normalizedSelection);
 }
 
-function regularCostFromPricing(profile, selection = {}) {
-  const promotion = profile?.pricing?.promotion;
-  const current = costFromPricing(profile, selection);
-  if (!Number.isFinite(current) || current <= 0 || !promotion?.active || !Number.isFinite(Number(promotion.discountPercent))) return current;
-  const multiplier = 1 - (Number(promotion.discountPercent) / 100);
-  return multiplier > 0 ? current / multiplier : current;
+function promotionIsActive(promotion, now = Date.now()) {
+  if (!promotion?.active || !Number.isFinite(Number(promotion.discountPercent))) return false;
+  if (!promotion.endsAt) return true;
+  const end = new Date(promotion.endsAt).getTime();
+  return Number.isFinite(end) && now <= end;
 }
 
-function pricingQuote(profile, selection = {}) {
-  const providerCostUsd = costFromPricing(profile, selection);
+function regularCostFromPricing(profile, selection = {}) {
+  const promotion = profile?.pricing?.promotion;
+  const discounted = costFromPricing(profile, selection);
+  if (!Number.isFinite(discounted) || discounted <= 0 || !promotion || !Number.isFinite(Number(promotion.discountPercent))) return discounted;
+  const multiplier = 1 - (Number(promotion.discountPercent) / 100);
+  return multiplier > 0 ? discounted / multiplier : discounted;
+}
+
+function pricingQuote(profile, selection = {}, now = Date.now()) {
+  const discountedProviderCostUsd = costFromPricing(profile, selection);
   const regularProviderCostUsd = regularCostFromPricing(profile, selection);
-  const promotion = profile?.pricing?.promotion?.active ? profile.pricing.promotion : null;
+  const rawPromotion = profile?.pricing?.promotion || null;
+  const active = promotionIsActive(rawPromotion, now);
+  const providerCostUsd = rawPromotion && !active ? regularProviderCostUsd : discountedProviderCostUsd;
   return {
     providerCostUsd,
     regularProviderCostUsd,
     credits: creditsFromUsd(providerCostUsd),
     regularCredits: creditsFromUsd(regularProviderCostUsd),
-    promotion: promotion ? {
+    promotion: active ? {
       active: true,
-      discountPercent: Number(promotion.discountPercent),
-      endsAt: promotion.endsAt || null,
-      source: promotion.source || 'provider'
+      discountPercent: Number(rawPromotion.discountPercent),
+      endsAt: rawPromotion.endsAt || null,
+      source: rawPromotion.source || 'provider'
     } : null
   };
 }
@@ -422,7 +431,7 @@ function creditsFromUsd(providerCostUsd) {
 }
 
 function estimateCredits(profile, selection = {}) {
-  const cost = costFromPricing(profile, selection);
+  const cost = pricingQuote(profile, selection).providerCostUsd;
   if (!Number.isFinite(cost) || cost <= 0) {
     const error = new Error('Current provider pricing is unavailable for this video model.');
     error.code = 'AI_VIDEO_PRICING_UNAVAILABLE';
@@ -854,6 +863,7 @@ module.exports = {
   normalizedPerSecond,
   conservativeDerivedCost,
   costFromPricing,
+  promotionIsActive,
   regularCostFromPricing,
   pricingQuote,
   creditsFromUsd,
