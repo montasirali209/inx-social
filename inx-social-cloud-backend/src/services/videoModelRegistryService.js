@@ -254,13 +254,13 @@ function promotionFromStructuredPricing(pricing, rules = []) {
     let endsAt = null;
     if (rawEnd) {
       const text = String(rawEnd).trim();
-      const parsed = Date.parse(text);
+      const parsed = Date.parse(text.replace(/(\d)(?:st|nd|rd|th)\b/i, '$1'));
       if (Number.isFinite(parsed)) {
         const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(text) || /^[A-Za-z]{3,9}\s+\d{1,2}(?:st|nd|rd|th)?(?:,)?\s+20\d{2}$/i.test(text);
         endsAt = new Date(parsed + (dateOnly ? 24 * 60 * 60 * 1000 - 1 : 0)).toISOString();
       }
     }
-    if (value.active === false && !endsAt) continue;
+    if (value.active === false) continue;
 
     const multiplier = 1 - (percent / 100);
     return {
