@@ -103,7 +103,7 @@ test('commercial settlement can debit above the reservation and records any resi
   assert.match(credits, /extraRequested = Math\.max\(0, requested - reserved\)/);
   assert.match(video, /Math\.ceil\(quotedCredits \* 1\.25\)/);
   assert.match(controller, /Math\.ceil\(quote\.credits \* 1\.25\)/);
-  assert.match(video, /credits\.settle\(userId, generationId, requestedCredits/);
+  assert.match(video, /credits\.settle\(userId, generationId, providerRequiredCredits/);
   assert.match(video, /video_failed_after_provider_spend/);
   assert.match(ugc, /UGC_RESERVATION_BUFFER = 1\.25/);
   assert.match(ugc, /credits\.settle\(ad\.userId, ad\.generationId, providerRequiredCredits/);
