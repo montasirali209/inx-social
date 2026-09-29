@@ -38,7 +38,7 @@ function parseJsonObject(value) {
   return null;
 }
 
-async function requestStructured(payload, name, schema) {
+async function requestStructured(payload, name, schema, options = {}) {
   if (!ready()) throw new Error('OpenAI strategy model is not configured.');
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
@@ -51,7 +51,11 @@ async function requestStructured(payload, name, schema) {
       request.instructions = String(request.instructions || '') + ' Retry: return exactly one complete JSON object matching the schema, without markdown fences or commentary.';
     }
     if (/^gpt-5(?:\.|-)/i.test(String(request.model || ''))) {
-      request.reasoning = { effort: attempt === 1 ? (env.contentWriter.reasoningEffort || 'high') : 'medium' };
+      request.reasoning = {
+        effort: attempt === 1
+          ? (options.reasoningEffort || env.contentWriter.reasoningEffort || 'high')
+          : 'medium'
+      };
     }
 
     const response = await axios.post(env.contentWriter.baseUrl + '/responses', request, {
@@ -189,7 +193,7 @@ function compactOpportunity(item) {
   };
 }
 
-async function plan({ opportunityMap, articles, siteProfile = null }) {
+async function plan({ opportunityMap, articles, siteProfile = null, model = env.contentWriter.model, reasoningEffort = env.contentWriter.reasoningEffort }) {
   const intelligence = siteProfile ? null : await siteIntelligence.latest().catch(() => null);
   const profile = siteProfile || intelligence?.profile || null;
   const site = intelligence?.site || null;
@@ -210,7 +214,7 @@ async function plan({ opportunityMap, articles, siteProfile = null }) {
     }));
 
   const payload = {
-    model: env.contentWriter.model,
+    model,
     instructions: seoSkills.strategyInstructions(),
     input: [
       'Current date: ' + new Date().toISOString().slice(0, 10),
@@ -239,7 +243,7 @@ async function plan({ opportunityMap, articles, siteProfile = null }) {
     ].join('\n')
   };
 
-  const decision = await requestStructured(payload, 'inx_growth_strategy', strategySchema());
+  const decision = await requestStructured(payload, 'inx_growth_strategy', strategySchema(), { reasoningEffort });
   if (!ACTIONS.includes(decision.action)) throw new Error('AI strategist returned an unsupported action.');
 
   if (decision.selectedOpportunityId && !opportunities.some(item => item.id === decision.selectedOpportunityId)) {
@@ -251,7 +255,7 @@ async function plan({ opportunityMap, articles, siteProfile = null }) {
 
   return {
     ...decision,
-    model: env.contentWriter.model,
+    model,
     decidedAt: new Date().toISOString()
   };
 }
@@ -265,7 +269,7 @@ function editorialCandidate(item) {
   return true;
 }
 
-async function planDailyArticle({ opportunityMap, articles, siteProfile = null, minOpportunityScore = 70 }) {
+async function planDailyArticle({ opportunityMap, articles, siteProfile = null, minOpportunityScore = 70, model = env.contentWriter.model, reasoningEffort = env.contentWriter.reasoningEffort }) {
   const intelligence = siteProfile ? null : await siteIntelligence.latest().catch(() => null);
   const profile = siteProfile || intelligence?.profile || null;
   const site = intelligence?.site || null;
@@ -291,7 +295,7 @@ async function planDailyArticle({ opportunityMap, articles, siteProfile = null, 
   const freshDiscoveryRequired = strongBacklog.length === 0;
 
   const payload = {
-    model: env.contentWriter.model,
+    model,
     instructions: [
       seoSkills.strategyInstructions(),
       'DAILY ARTICLE LANE:',
@@ -340,7 +344,7 @@ async function planDailyArticle({ opportunityMap, articles, siteProfile = null, 
     payload.include = ['web_search_call.action.sources'];
   }
 
-  const decision = await requestStructured(payload, 'inx_daily_article_strategy', dailyArticleSchema());
+  const decision = await requestStructured(payload, 'inx_daily_article_strategy', dailyArticleSchema(), { reasoningEffort });
   if (decision.action !== 'CREATE_ARTICLE' || decision.publishRecommended !== true) {
     throw new Error('Daily article strategist did not return a publishable article decision.');
   }
@@ -357,12 +361,12 @@ async function planDailyArticle({ opportunityMap, articles, siteProfile = null, 
     discoveryMode: freshDiscoveryRequired ? 'LIVE_TREND_DISCOVERY' : 'QUALIFIED_BACKLOG',
     qualifiedBacklogCount: strongBacklog.length,
     minimumOpportunityScore: Number(minOpportunityScore || 70),
-    model: env.contentWriter.model,
+    model,
     decidedAt: new Date().toISOString()
   };
 }
 
-async function reviewDraft({ article, opportunity, strategy, siteProfile = null }) {
+async function reviewDraft({ article, opportunity, strategy, siteProfile = null, model = env.contentWriter.model, reasoningEffort = env.contentWriter.reasoningEffort }) {
   const compactArticle = {
     id: article.id,
     title: article.title,
@@ -393,7 +397,7 @@ async function reviewDraft({ article, opportunity, strategy, siteProfile = null 
   };
 
   const payload = {
-    model: env.contentWriter.model,
+    model,
     instructions: seoSkills.criticInstructions(),
     input: [
       'CONTEXT',
@@ -410,13 +414,13 @@ async function reviewDraft({ article, opportunity, strategy, siteProfile = null 
     tool_choice: 'auto'
   };
 
-  const review = await requestStructured(payload, 'inx_content_critic', criticSchema());
+  const review = await requestStructured(payload, 'inx_content_critic', criticSchema(), { reasoningEffort });
   const disposition = review.disposition || (review.approve ? 'APPROVE' : 'REVISE');
   return {
     ...review,
     approve: disposition === 'APPROVE' && review.approve !== false,
     disposition,
-    model: env.contentWriter.model,
+    model,
     reviewedAt: new Date().toISOString()
   };
 }
