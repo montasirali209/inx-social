@@ -163,6 +163,7 @@ export function UGCWizardModal({
   const characterAssetIds = useMemo(() => [...new Set([...seedCharacterIds, ...characterAssets.map((asset) => asset.id)])].slice(0, 8), [seedCharacterIds, characterAssets])
   const directMode = sourceType === 'BRIEF' && customMode !== 'ASSISTED'
   const podcastMode = sourceType === 'BRIEF' && customMode === 'PODCAST'
+  const effectiveProductAssetIds = podcastMode ? [] : directMode && customMode === 'PRODUCTION' ? selectedGeneratedProductIds : productAssetIds
   const effectiveQuality: UGCQuality = directMode ? 'STANDARD' : quality
   const effectiveCreatorMode: 'AUTO' | 'SELECTED' | 'NONE' = podcastMode ? 'NONE' : creatorMode
   const campaignType: UGCCampaignType = podcastMode ? 'AVATAR_EXPLAINER' : effectiveCreatorMode === 'NONE' ? 'PRODUCT_SHOWCASE' : 'AUTO'
@@ -172,7 +173,7 @@ export function UGCWizardModal({
     brandProfileId: selectedBrand?.id || seedCampaign?.brandProfileId || seedDraft?.brandProfileId || null,
     productUrl: selectedBrand ? '' : productUrl.trim(),
     productDescription: description.trim(),
-    productAssetIds: podcastMode ? [] : productAssetIds,
+    productAssetIds: effectiveProductAssetIds,
     characterAssetIds: podcastMode ? characterAssetIds : [],
     sourceType,
     customMode,
@@ -186,7 +187,7 @@ export function UGCWizardModal({
     adCount,
     quality: effectiveQuality,
     notes: seedCampaign?.notes || seedDraft?.notes || '',
-  }), [selectedBrand, seedCampaign?.brandProfileId, seedCampaign?.notes, seedDraft?.brandProfileId, seedDraft?.notes, productUrl, description, productAssetIds, characterAssetIds, podcastMode, sourceType, customMode, aspectRatio, captionsEnabled, campaignType, creativeFormat, effectiveCreatorMode, avatarId, duration, adCount, effectiveQuality])
+  }), [selectedBrand, seedCampaign?.brandProfileId, seedCampaign?.notes, seedDraft?.brandProfileId, seedDraft?.notes, productUrl, description, effectiveProductAssetIds, characterAssetIds, podcastMode, sourceType, customMode, aspectRatio, captionsEnabled, campaignType, creativeFormat, effectiveCreatorMode, avatarId, duration, adCount, effectiveQuality])
 
   const estimate = useQuery({
     queryKey: ['ugc-wizard-estimate', duration, adCount, effectiveQuality, campaignType, creativeFormat, customMode],
@@ -534,8 +535,8 @@ export function UGCWizardModal({
                 <span className="ugc-wizard-mini-label">CUSTOM PROMPT MODE</span>
                 <div className="ugc-source-grid mt-2">
                   <button className={`ugc-source-card ${customMode === 'ASSISTED' ? 'active' : ''}`} onClick={() => { setCustomMode('ASSISTED'); setError('') }} type="button"><WandSparkles className="size-5" /><strong>AI Assisted</strong><span>INXSocial structures the idea into a normal UGC campaign.</span></button>
-                  <button className={`ugc-source-card ${customMode === 'PRODUCTION' ? 'active' : ''}`} onClick={() => { setCustomMode('PRODUCTION'); setQuality('STANDARD'); setError('') }} type="button"><Film className="size-5" /><strong>Production Mode</strong><span>Keep your production prompt intact and send it to the video pipeline without Creative Director rewriting.</span></button>
-                  <button className={`ugc-source-card ${customMode === 'PODCAST' ? 'active' : ''}`} onClick={() => { setCustomMode('PODCAST'); setQuality('STANDARD'); setCreatorMode('NONE'); setAvatarId(null); setError('') }} type="button"><CirclePlay className="size-5" /><strong>Podcast Mode</strong><span>Direct prompt mode for invited-guest interviews, podcast clips and natural conversation.</span></button>
+                  <button className={`ugc-source-card ${customMode === 'PRODUCTION' ? 'active' : ''}`} onClick={() => { setCustomMode('PRODUCTION'); setQuality('STANDARD'); setProductUrl(''); setBrand(null); setError('') }} type="button"><Film className="size-5" /><strong>Production Mode</strong><span>Keep your production prompt intact and send it to the video pipeline without Creative Director rewriting.</span></button>
+                  <button className={`ugc-source-card ${customMode === 'PODCAST' ? 'active' : ''}`} onClick={() => { setCustomMode('PODCAST'); setQuality('STANDARD'); setCreatorMode('NONE'); setAvatarId(null); setProductUrl(''); setBrand(null); setError('') }} type="button"><CirclePlay className="size-5" /><strong>Podcast Mode</strong><span>Direct prompt mode for invited-guest interviews, podcast clips and natural conversation.</span></button>
                 </div>
                 {customMode !== 'ASSISTED' && <p className="mt-2 text-[9px] text-text-muted">Direct mode: your prompt remains the creative source of truth. INXSocial only applies technical segmentation, references and provider-safe settings.</p>}
               </div>}
@@ -578,7 +579,7 @@ export function UGCWizardModal({
 
               {(sourceType === 'PRODUCT' || (sourceType === 'BRIEF' && customMode !== 'ASSISTED')) && <div className="mt-5">
                 <span className="ugc-wizard-mini-label">{sourceType === 'PRODUCT' ? 'OPTIONAL PRODUCT NOTES' : customMode === 'PODCAST' ? 'PODCAST PROMPT — REQUIRED' : 'PRODUCTION PROMPT — REQUIRED'}</span>
-                <textarea className="ugc-wizard-input mt-2 min-h-36 w-full resize-y" maxLength={sourceType === 'BRIEF' ? 4000 : undefined} onChange={(event) => { setDescription(event.target.value); setError('') }} placeholder={sourceType === 'PRODUCT' ? 'What is it, who is it for, and what does it help with?' : customMode === 'PODCAST' ? 'Write the podcast setup and spoken dialogue. Put spoken lines in quotes or under Dialogue: if you want captions generated from the prompt.' : 'Write your complete production prompt, or generate one above and edit it here.'} value={description} />
+                <textarea className="ugc-wizard-input mt-2 min-h-36 w-full resize-y" maxLength={sourceType === 'BRIEF' ? 6500 : undefined} onChange={(event) => { setDescription(event.target.value); setError('') }} placeholder={sourceType === 'PRODUCT' ? 'What is it, who is it for, and what does it help with?' : customMode === 'PODCAST' ? 'Write the podcast setup and spoken dialogue. Put spoken lines in quotes or under Dialogue: if you want captions generated from the prompt.' : 'Write your complete production prompt, or generate one above and edit it here.'} value={description} />
                 {sourceType === 'BRIEF' && <p className="mt-2 text-[9px] text-text-muted">Your prompt is sent through the direct generation path without Creative Director rewriting.</p>}
               </div>}
 
@@ -663,7 +664,7 @@ export function UGCWizardModal({
               <div className="ugc-wizard-brand-card mt-7">
                 <div className="flex items-start justify-between gap-4"><div><span className="ugc-wizard-mini-label">CAMPAIGN</span><h3>{selectedBrand?.productName || selectedBrand?.name || description.trim() || 'UGC campaign'}</h3></div><BadgeCheck className="size-5 text-brand-cyan" /></div>
                 <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <div><span className="ugc-wizard-mini-label">REFERENCES</span><strong>{podcastMode ? characterAssetIds.length + ' podcast character reference' + (characterAssetIds.length === 1 ? '' : 's') : creatorMode === 'NONE' ? 'Product only' : creatorMode === 'SELECTED' ? 'Selected creator + product references' : 'Automatic creator + product references'}</strong><p className="mt-1 text-[10px] text-text-muted">{podcastMode ? 'Characters are supplied directly from the Podcast setup.' : productAssetIds.length + ' product reference' + (productAssetIds.length === 1 ? '' : 's') + ' selected'}</p></div>
+                  <div><span className="ugc-wizard-mini-label">REFERENCES</span><strong>{podcastMode ? characterAssetIds.length + ' podcast character reference' + (characterAssetIds.length === 1 ? '' : 's') : creatorMode === 'NONE' ? 'Product only' : creatorMode === 'SELECTED' ? 'Selected creator + product references' : 'Automatic creator + product references'}</strong><p className="mt-1 text-[10px] text-text-muted">{podcastMode ? 'Characters are supplied directly from the Podcast setup.' : effectiveProductAssetIds.length + ' product reference' + (effectiveProductAssetIds.length === 1 ? '' : 's') + ' selected'}</p></div>
                   <div><span className="ugc-wizard-mini-label">{podcastMode ? 'MODE' : 'CREATOR'}</span><strong>{podcastMode ? 'Podcast' : creatorMode === 'NONE' ? 'No creator' : creatorMode === 'SELECTED' ? selectedAvatar?.name || 'Selected creator' : 'Choose for me'}</strong><p className="mt-1 text-[10px] text-text-muted">{podcastMode ? aspectRatio + ' · Captions ' + (captionsEnabled ? 'on' : 'off') : creatorMode === 'NONE' ? 'Product-only generation' : 'Creator identity stays locked to the selected profile.'}</p></div>
                   <div><span className="ugc-wizard-mini-label">OUTPUT</span><strong>{adCount} × {duration}s vertical ad{adCount === 1 ? '' : 's'}</strong><p className="mt-1 text-[10px] text-text-muted">{sourceType === 'BRIEF' && customMode !== 'ASSISTED' ? (customMode === 'PODCAST' ? 'Podcast direct mode' : 'Production direct mode') : selectedVariationOption?.label || 'Campaign'} · background rendering with recovery</p></div>
                   <div><span className="ugc-wizard-mini-label">{directMode ? 'FORMAT' : 'QUALITY'}</span><strong>{directMode ? aspectRatio : selectedTier?.label || quality}</strong><p className="mt-1 text-[10px] text-text-muted">{directMode ? 'Captions ' + (captionsEnabled ? 'enabled' : 'disabled') + ' · direct prompt preserved' : selectedTier?.description || 'Production quality selected.'}</p></div>
