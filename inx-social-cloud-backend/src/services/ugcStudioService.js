@@ -2394,13 +2394,20 @@ async function renderAd(adId) {
       qualityControlVersion: ugcRenderQuality.RENDER_QUALITY_VERSION,
       publishable: true
     }).catch(() => null);
-    if (generationCredits > 0) await credits.complete(ad.userId, ad.generationId, generationCredits);
+    const actualCredits = providerCost > 0 ? videoModels.creditsFromUsd(providerCost) : generationCredits;
+    if (generationCredits > 0) await credits.settle(ad.userId, ad.generationId, actualCredits, {
+      provider: 'runware',
+      providerCostUsd: providerCost,
+      reservedCredits: generationCredits,
+      pricingVersion: videoModels.REGISTRY_VERSION,
+      workflow: 'ugc'
+    });
     await prisma.$executeRawUnsafe(
       'UPDATE "AiGeneration" SET "status"=\'COMPLETED\',"progress"=100,"providerCostUsd"=$2,"assetJson"=$3,"responseJson"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
       ad.generationId,
       providerCost,
-      json({ id: asset.id, type: 'video', mediaLibraryAssetId: asset.id, url: asset.fileUrl, thumbnailUrl: asset.thumbnailUrl, creditsUsed: generationCredits }),
-      json({ stage: 'READY', ugcAdId: ad.id, providerCostUsd: providerCost, creditsUsed: generationCredits, sceneTotal: readyScenes.length, readyScenes: readyScenes.length, qualityControlVersion: ugcRenderQuality.RENDER_QUALITY_VERSION, publishable: true })
+      json({ id: asset.id, type: 'video', mediaLibraryAssetId: asset.id, url: asset.fileUrl, thumbnailUrl: asset.thumbnailUrl, creditsUsed: actualCredits }),
+      json({ stage: 'READY', ugcAdId: ad.id, providerCostUsd: providerCost, reservedCredits: generationCredits, creditsUsed: actualCredits, sceneTotal: readyScenes.length, readyScenes: readyScenes.length, qualityControlVersion: ugcRenderQuality.RENDER_QUALITY_VERSION, publishable: true })
     );
   } catch (error) {
     console.error('[UGC RENDER FAILED]', { adId, code: error?.code, error: clean(error?.message, 700) });
@@ -2456,7 +2463,24 @@ async function renderAd(adId) {
       return;
     }
 
-    if (generationCredits > 0) await credits.refund(ad.userId, ad.generationId, error?.code || 'ugc_render_failed').catch(() => false);
+    if (generationCredits > 0) {
+      if (providerCost > 0) {
+        const failedCredits = videoModels.creditsFromUsd(providerCost);
+        await credits.settle(ad.userId, ad.generationId, failedCredits, {
+          provider: 'runware',
+          providerCostUsd: providerCost,
+          reservedCredits: generationCredits,
+          pricingVersion: videoModels.REGISTRY_VERSION,
+          workflow: 'ugc',
+          failed: true
+        }).catch(settleError => {
+          if (settleError?.code !== 'AI_CREDITS_SETTLEMENT_SHORTFALL') throw settleError;
+          console.error('[UGC CREDIT SETTLEMENT SHORTFALL]', { adId: ad.id, generationId: ad.generationId, providerCostUsd: providerCost });
+        });
+      } else {
+        await credits.refund(ad.userId, ad.generationId, error?.code || 'ugc_render_failed').catch(() => false);
+      }
+    }
     await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'FAILED\',"errorMessage"=$2,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id, clean(error?.publicMessage || error?.message || 'UGC rendering failed.', 700)).catch(() => {});
     await ugcEngine.recordRenderStatus(ad.userId, ad.campaignId, ad.id, 'FAILED', {
       errorCode: clean(error?.code || 'UGC_RENDER_FAILED', 120),
@@ -2814,7 +2838,7 @@ async function regenerateScene(userId, sceneId) {
 module.exports = {
   STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds, brandUrlCandidates, playbackDurations,
   UGC_AGENT_VERSION, ugcAgentReply,
-  creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
+  creditsPerAd, liveUgcPricing, quoteUgcRoute, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
   narratorVoice, narratorLanguage, narratorSpeed, adultSafeReferencePrompt, captionsForScenes, estimateCampaign,
   getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, getProductionAudit, deleteCampaign, getAd, updateAd, rerouteScenesForRegeneration, reassembleAd, regenerateAd, regenerateScene,
   generateCustomAvatar, generateReferenceAsset, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,
