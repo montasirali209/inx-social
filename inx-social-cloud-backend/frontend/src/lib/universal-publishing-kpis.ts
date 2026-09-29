@@ -1,3 +1,4 @@
+import { apiRequest } from './api-client'
 import { fetchPublishingRecords, isNeedsReviewJob } from './publishing-records'
 import type { SocialConnectionSummary } from '../types/settings'
 
@@ -37,7 +38,7 @@ function activeSocialAccountCount(connections: SocialConnectionSummary[]) {
 export async function fetchUniversalPublishingKpis(): Promise<UniversalPublishingKpis> {
   const [jobs, social] = await Promise.all([
     fetchPublishingRecords(),
-    import('./api-client').then(({ apiRequest }) => apiRequest<ConnectionsResponse>('/api/social-connections')).catch(() => ({ connections: [] })),
+    apiRequest<ConnectionsResponse>('/api/social-connections').catch(() => ({ connections: [] })),
   ])
 
   const localDrafts = browserDraftCount()
