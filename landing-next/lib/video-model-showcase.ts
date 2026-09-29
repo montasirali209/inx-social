@@ -94,7 +94,7 @@ const APPROVED_HOMEPAGE_MODELS = [
     provider: "seedance",
     providerLogo: "/assets/video-catalogue/seedance-logo.png",
     name: "Seedance 2.5",
-    poster: "/assets/video-catalogue/seedance.png",
+    poster: "/assets/video-catalogue/seedance.webp",
     duration: "0:15",
     description: "Seedance 2.5 delivers cinematic, high-fidelity video generation with natural motion, realistic details and professional grade aesthetics.",
     capabilities: ["Text to video", "Image to video", "Video to video"]
@@ -103,7 +103,7 @@ const APPROVED_HOMEPAGE_MODELS = [
     provider: "google",
     providerLogo: "/assets/video-catalogue/google-logo.png",
     name: "Gemini Veo 3.1",
-    poster: "/assets/video-catalogue/veo.png",
+    poster: "/assets/video-catalogue/veo.webp",
     duration: "0:14",
     description: "Gemini Veo 3.1 excels at long-form, high-quality video generation with strong world consistency, natural motion and cinematic storytelling.",
     capabilities: ["Text to video", "Image to video", "Video to video"]
@@ -112,7 +112,7 @@ const APPROVED_HOMEPAGE_MODELS = [
     provider: "google",
     providerLogo: "/assets/video-catalogue/google-logo.png",
     name: "Gemini Omni 1.1",
-    poster: "/assets/video-catalogue/omni.png",
+    poster: "/assets/video-catalogue/omni.webp",
     duration: "0:12",
     description: "Gemini Omni 1.1 offers native multimodal generation with audio and advanced editing, supporting text, image and video inputs for highly coherent results.",
     capabilities: ["Text to video", "Image to video", "Video to video"]
@@ -121,7 +121,7 @@ const APPROVED_HOMEPAGE_MODELS = [
     provider: "minimax",
     providerLogo: "/assets/video-catalogue/minimax-logo.png",
     name: "H3 Minimax",
-    poster: "/assets/video-catalogue/h3.png",
+    poster: "/assets/video-catalogue/h3.webp",
     duration: "0:16",
     description: "H3 Minimax delivers advanced video generation with superior visual quality, coherent motion and a rich cinematic style for realistic and imaginative scenes.",
     capabilities: ["Text to video", "Image to video", "Video to video"]
@@ -130,7 +130,7 @@ const APPROVED_HOMEPAGE_MODELS = [
     provider: "kling",
     providerLogo: "/assets/video-catalogue/kling-logo.png",
     name: "Kling 3.0",
-    poster: "/assets/video-catalogue/kling.png",
+    poster: "/assets/video-catalogue/kling.webp",
     duration: "0:13",
     description: "Kling 3.0 generates high-quality, dynamic videos with excellent motion modeling, realistic physics and detailed visual rendering.",
     capabilities: ["Text to video", "Image to video", "Video to video"]
@@ -139,7 +139,7 @@ const APPROVED_HOMEPAGE_MODELS = [
     provider: "wan",
     providerLogo: "/assets/video-catalogue/wan-logo.png",
     name: "Wan 3.0",
-    poster: "/assets/video-catalogue/wan.png",
+    poster: "/assets/video-catalogue/wan.webp",
     duration: "0:15",
     description: "Wan 3.0 produces high-quality, visually stunning videos with strong prompt adherence, natural motion and rich cinematic composition.",
     capabilities: ["Text to video", "Image to video", "Video to video"]
