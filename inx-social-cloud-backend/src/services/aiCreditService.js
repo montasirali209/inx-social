@@ -280,30 +280,39 @@ async function settle(userId, generationId, creditsUsed, metadata = {}) {
     const wallet = wallets[0];
     if (!wallet) throw accessError('AI credit wallet is unavailable.', 'AI_CREDIT_WALLET_MISSING', 503);
 
-    const overageRequested = Math.max(0, requested - reserved);
     let walletMonthly = Math.max(0, Number(wallet.monthlyBalance || 0));
     let walletTopup = Math.max(0, Number(wallet.topupBalance || 0));
-    const overageCharged = Math.min(overageRequested, walletMonthly + walletTopup);
-    const overageMonthly = Math.min(walletMonthly, overageCharged);
-    const overageTopup = Math.max(0, overageCharged - overageMonthly);
-    if (overageCharged > 0) {
-      walletMonthly -= overageMonthly;
-      walletTopup -= overageTopup;
-      await tx.$executeRawUnsafe('UPDATE "AiCreditWallet" SET "monthlyBalance"=$2,"topupBalance"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', wallet.id, walletMonthly, walletTopup);
-      await tx.$executeRawUnsafe(
-        'INSERT INTO "AiCreditTransaction" ("id","userId","walletId","generationId","type","bucket","amount","balanceMonthly","balanceTopup","reference","metadataJson") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT ("reference") DO NOTHING',
-        crypto.randomUUID(), userId, wallet.id, generationId, 'GENERATION_SETTLEMENT_OVERAGE',
-        overageMonthly && overageTopup ? 'MIXED' : overageTopup ? 'TOPUP' : 'MONTHLY',
-        -overageCharged, walletMonthly, walletTopup, `overage:${generationId}`,
-        JSON.stringify({ reservedCredits: reserved, requestedCredits: requested, overageRequested, overageCharged, monthly: overageMonthly, topup: overageTopup, ...metadata })
-      );
-    }
-    const amount = Math.min(requested, reserved + overageCharged);
-    const reservedUsed = Math.min(reserved, amount);
-    const usedMonthly = Math.min(reservedMonthly, reservedUsed);
-    const usedTopup = Math.min(reservedTopup, Math.max(0, reservedUsed - usedMonthly));
+
+    const fromReservation = Math.min(reserved, requested);
+    const usedMonthly = Math.min(reservedMonthly, fromReservation);
+    const usedTopup = Math.min(reservedTopup, Math.max(0, fromReservation - usedMonthly));
     const unusedMonthly = Math.max(0, reservedMonthly - usedMonthly);
     const unusedTopup = Math.max(0, reservedTopup - usedTopup);
+
+    // If the provider's final billed cost is above the temporary reservation,
+    // collect the shortfall atomically from the remaining wallet instead of
+    // silently capping the customer charge at the reservation.
+    const extraRequested = Math.max(0, requested - reserved);
+    const extraCharged = Math.min(extraRequested, walletMonthly + walletTopup);
+    const extraMonthly = Math.min(walletMonthly, extraCharged);
+    const extraTopup = Math.max(0, extraCharged - extraMonthly);
+    walletMonthly -= extraMonthly;
+    walletTopup -= extraTopup;
+
+    if (extraCharged > 0) {
+      await tx.$executeRawUnsafe(
+        'UPDATE "AiCreditWallet" SET "monthlyBalance"=$2,"topupBalance"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+        wallet.id, walletMonthly, walletTopup
+      );
+      await tx.$executeRawUnsafe(
+        'INSERT INTO "AiCreditTransaction" ("id","userId","walletId","generationId","type","bucket","amount","balanceMonthly","balanceTopup","reference","metadataJson") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT ("reference") DO NOTHING',
+        crypto.randomUUID(), userId, wallet.id, generationId, 'GENERATION_SETTLEMENT_DEBIT',
+        extraTopup ? (extraMonthly ? 'MIXED' : 'TOPUP') : 'MONTHLY',
+        -extraCharged, walletMonthly, walletTopup, `settlement-debit:${generationId}`,
+        JSON.stringify({ reservedCredits: reserved, requestedCredits: requested, extraRequested, extraCharged, ...metadata })
+      );
+    }
+
     const debitRows = await tx.$queryRawUnsafe('SELECT "createdAt" FROM "AiCreditTransaction" WHERE "reference"=$1 LIMIT 1', `debit:${generationId}`);
     const refundable = refundableReservationAmounts(
       { ...generation, reservedMonthly: unusedMonthly, reservedTopup: unusedTopup },
@@ -324,7 +333,7 @@ async function settle(userId, generationId, creditsUsed, metadata = {}) {
         refundAmount, nextMonthly, nextTopup, `settlement:${generationId}`,
         JSON.stringify({
           reservedCredits: reserved,
-          creditsUsed: amount,
+          requestedCredits: requested,
           restoredMonthly: refundable.monthly,
           restoredTopup: refundable.topup,
           expiredOrCappedMonthly: refundable.unrestoredMonthly,
@@ -334,8 +343,20 @@ async function settle(userId, generationId, creditsUsed, metadata = {}) {
       );
     }
 
-    await tx.$executeRawUnsafe('UPDATE "AiGeneration" SET "creditsUsed"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$2', generationId, userId, amount);
-    return amount;
+    const charged = fromReservation + extraCharged;
+    const shortfall = Math.max(0, requested - charged);
+    if (shortfall > 0) {
+      await tx.$executeRawUnsafe(
+        'INSERT INTO "AiCreditTransaction" ("id","userId","walletId","generationId","type","bucket","amount","balanceMonthly","balanceTopup","reference","metadataJson") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT ("reference") DO NOTHING',
+        crypto.randomUUID(), userId, wallet.id, generationId, 'GENERATION_SETTLEMENT_SHORTFALL', 'COMMERCIAL',
+        0, nextMonthly, nextTopup, `settlement-shortfall:${generationId}`,
+        JSON.stringify({ reservedCredits: reserved, requestedCredits: requested, chargedCredits: charged, shortfallCredits: shortfall, ...metadata })
+      );
+      console.error('[AI CREDIT COMMERCIAL SHORTFALL]', JSON.stringify({ generationId, requestedCredits: requested, chargedCredits: charged, shortfallCredits: shortfall }));
+    }
+
+    await tx.$executeRawUnsafe('UPDATE "AiGeneration" SET "creditsUsed"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$2', generationId, userId, charged);
+    return charged;
   });
 }
 
