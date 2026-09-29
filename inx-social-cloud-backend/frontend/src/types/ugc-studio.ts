@@ -327,6 +327,8 @@ export type UGCEstimate = {
   perAd: number
   regularCreditsPerAd?: number
   regularTotalCredits?: number
+  reservationPerAd?: number
+  reservationCredits?: number
   providerCostUsd?: number | null
   regularProviderCostUsd?: number | null
   promotion?: {
