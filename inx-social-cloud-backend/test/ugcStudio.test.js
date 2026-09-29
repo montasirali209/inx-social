@@ -34,6 +34,21 @@ test('UGC pricing supports 20, 30, 45 and 60 second Standard and Premium ads', (
   assert.throws(() => creditsPerAd(15, 'STANDARD'));
 });
 
+test('UGC commercial pricing uses live provider quotes, safety holds and actual-cost settlement', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.resolve(__dirname, '..');
+  const service = fs.readFileSync(path.join(root, 'src/services/ugcStudioService.js'), 'utf8');
+
+  assert.match(service, /videoModels\.pricingQuote/);
+  assert.match(service, /UGC_RESERVATION_BUFFER = 1\.25/);
+  assert.match(service, /regularTotalCredits/);
+  assert.match(service, /promotion: pricing\.promotion/);
+  assert.match(service, /credits\.settle\(ad\.userId, ad\.generationId, providerRequiredCredits/);
+  assert.match(service, /const incurredCredits = providerCost > 0 \? videoModels\.creditsFromUsd\(providerCost\) : 0/);
+  assert.doesNotMatch(service, /Math\.min\(reservedGenerationCredits, providerRequiredCredits\)/);
+});
+
 test('creator library retains 52 system seeds and launches with 20 featured creators', () => {
   assert.equal(SYSTEM_AVATAR_COUNT, 52);
   assert.equal(FEATURED_AVATAR_COUNT, 20);
