@@ -16,6 +16,7 @@ import {
   fetchUGCAvatarImage,
   fetchUGCGeneratedReferenceImage,
   generateUGCReference,
+  generateUGCProductionPrompt,
   getUGCCampaign,
   getUGCOverview,
   regenerateUGCAd,
@@ -24,7 +25,7 @@ import {
 } from '../../lib/ugc-studio-api'
 import type { MediaAsset } from '../../types/media-library'
 import type {
-  CreateUGCCampaignInput, UGCAdCount, UGCAvatar, UGCBrandProfile, UGCCampaign,
+  CreateUGCCampaignInput, UGCAdCount, UGCAvatar, UGCAspectRatio, UGCBrandProfile, UGCCampaign,
   UGCCampaignType, UGCCreativeFormat, UGCCustomMode, UGCDuration, UGCGeneratedReference, UGCProductAsset, UGCQuality, UGCSourceType, UGCWizardDraftSeed,
 } from '../../types/ugc-studio'
 import { Button } from '../ui/Button'
@@ -85,17 +86,18 @@ function GeneratedReferenceImage({ reference, className = 'size-full object-cove
   return url ? <img alt={reference.name} className={className} loading="lazy" src={url} /> : <div className="grid size-full place-items-center bg-white/[.03]"><LoaderCircle className="size-5 animate-spin text-brand-cyan" /></div>
 }
 
-function Rail({ current, furthest, onStep }: { current: number; furthest: number; onStep: (step: number) => void }) {
+function Rail({ current, furthest, onStep, skipCreator = false }: { current: number; furthest: number; onStep: (step: number) => void; skipCreator?: boolean }) {
+  const rendered = steps.map((step, index) => ({ step, index })).filter(({ step }) => !(skipCreator && step.key === 'avatar'))
   return <aside className="ugc-wizard-rail">
-    {steps.map((step, index) => {
-      const groupChanged = index === 0 || steps[index - 1].group !== step.group
+    {rendered.map(({ step, index }, visibleIndex) => {
+      const groupChanged = visibleIndex === 0 || rendered[visibleIndex - 1].step.group !== step.group
       const done = index < current
       const active = index === current
       const reachable = index <= furthest
       return <div key={step.key}>
         {groupChanged && <div className="ugc-wizard-group">{step.group}</div>}
         <button className={`ugc-wizard-rail-item ${active ? 'active' : ''} ${done ? 'done' : ''}`} disabled={!reachable} onClick={() => reachable && onStep(index)} type="button">
-          <span className="ugc-wizard-dot">{done ? <Check className="size-3" /> : index + 1}</span><span>{step.label}</span>
+          <span className="ugc-wizard-dot">{done ? <Check className="size-3" /> : visibleIndex + 1}</span><span>{step.label}</span>
         </button>
       </div>
     })}
@@ -124,11 +126,16 @@ export function UGCWizardModal({
   const [furthest, setFurthest] = useState(initialStep)
   const [sourceType, setSourceType] = useState<UGCSourceType>(seedCampaign?.sourceType || seedDraft?.sourceType || 'WEBSITE')
   const [customMode, setCustomMode] = useState<UGCCustomMode>(seedCampaign?.customMode || seedDraft?.customMode || 'ASSISTED')
+  const [aspectRatio, setAspectRatio] = useState<UGCAspectRatio>(seedCampaign?.aspectRatio || seedDraft?.aspectRatio || '9:16')
+  const [captionsEnabled, setCaptionsEnabled] = useState(seedCampaign?.captionsEnabled ?? seedDraft?.captionsEnabled ?? true)
+  const [promptIdea, setPromptIdea] = useState('')
   const [productUrl, setProductUrl] = useState(seedCampaign?.productUrl || seedDraft?.productUrl || '')
   const [description, setDescription] = useState(seedCampaign?.productDescription || seedDraft?.productDescription || '')
   const [brand, setBrand] = useState<UGCBrandProfile | null>(null)
   const [productAssets, setProductAssets] = useState<UGCProductAsset[]>([])
+  const [characterAssets, setCharacterAssets] = useState<UGCProductAsset[]>([])
   const [seedProductIds] = useState<string[]>(seedCampaign?.productAssetIds || seedDraft?.baseProductAssetIds || seedDraft?.productAssetIds || [])
+  const [seedCharacterIds] = useState<string[]>(seedCampaign?.characterAssetIds || seedDraft?.characterAssetIds || [])
   const [creatorMode, setCreatorMode] = useState<'AUTO' | 'SELECTED' | 'NONE'>(seedCampaign?.creatorMode || seedDraft?.creatorMode || 'AUTO')
   const [avatarId, setAvatarId] = useState<string | null>(seedCampaign?.selectedAvatarId || seedDraft?.avatarId || null)
   const [referencePrompt, setReferencePrompt] = useState(seedDraft?.referencePrompt || '')
@@ -153,30 +160,37 @@ export function UGCWizardModal({
   const overview = useQuery({ queryKey: ['ugc-studio-overview'], queryFn: getUGCOverview, enabled: open, staleTime: 8_000 })
   const selectedBrand = brand || overview.data?.brands.find((item) => item.id === (seedCampaign?.brandProfileId || seedDraft?.brandProfileId)) || null
   const productAssetIds = useMemo(() => [...new Set([...seedProductIds, ...productAssets.map((asset) => asset.id), ...selectedGeneratedProductIds])].slice(0, 8), [seedProductIds, productAssets, selectedGeneratedProductIds])
-
-  const campaignType: UGCCampaignType = creatorMode === 'NONE' ? 'PRODUCT_SHOWCASE' : 'AUTO'
+  const characterAssetIds = useMemo(() => [...new Set([...seedCharacterIds, ...characterAssets.map((asset) => asset.id)])].slice(0, 8), [seedCharacterIds, characterAssets])
+  const directMode = sourceType === 'BRIEF' && customMode !== 'ASSISTED'
+  const podcastMode = sourceType === 'BRIEF' && customMode === 'PODCAST'
+  const effectiveQuality: UGCQuality = directMode ? 'STANDARD' : quality
+  const effectiveCreatorMode: 'AUTO' | 'SELECTED' | 'NONE' = podcastMode ? 'NONE' : creatorMode
+  const campaignType: UGCCampaignType = podcastMode ? 'AVATAR_EXPLAINER' : effectiveCreatorMode === 'NONE' ? 'PRODUCT_SHOWCASE' : 'AUTO'
   const creativeFormat: UGCCreativeFormat = 'AUTO'
 
   const input = useMemo<CreateUGCCampaignInput>(() => ({
     brandProfileId: selectedBrand?.id || seedCampaign?.brandProfileId || seedDraft?.brandProfileId || null,
     productUrl: selectedBrand ? '' : productUrl.trim(),
     productDescription: description.trim(),
-    productAssetIds,
+    productAssetIds: podcastMode ? [] : productAssetIds,
+    characterAssetIds: podcastMode ? characterAssetIds : [],
     sourceType,
     customMode,
+    aspectRatio,
+    captionsEnabled,
     campaignType,
     creativeFormat,
-    creatorMode,
-    avatarId: creatorMode === 'SELECTED' ? avatarId : null,
+    creatorMode: effectiveCreatorMode,
+    avatarId: !podcastMode && effectiveCreatorMode === 'SELECTED' ? avatarId : null,
     duration,
     adCount,
-    quality,
+    quality: effectiveQuality,
     notes: seedCampaign?.notes || seedDraft?.notes || '',
-  }), [selectedBrand, seedCampaign?.brandProfileId, seedCampaign?.notes, seedDraft?.brandProfileId, seedDraft?.notes, productUrl, description, productAssetIds, sourceType, customMode, campaignType, creativeFormat, creatorMode, avatarId, duration, adCount, quality])
+  }), [selectedBrand, seedCampaign?.brandProfileId, seedCampaign?.notes, seedDraft?.brandProfileId, seedDraft?.notes, productUrl, description, productAssetIds, characterAssetIds, podcastMode, sourceType, customMode, aspectRatio, captionsEnabled, campaignType, creativeFormat, effectiveCreatorMode, avatarId, duration, adCount, effectiveQuality])
 
   const estimate = useQuery({
-    queryKey: ['ugc-wizard-estimate', duration, adCount, quality, campaignType, creativeFormat],
-    queryFn: () => estimateUGCCampaign({ duration, adCount, quality, campaignType, creativeFormat }),
+    queryKey: ['ugc-wizard-estimate', duration, adCount, effectiveQuality, campaignType, creativeFormat, customMode],
+    queryFn: () => estimateUGCCampaign({ duration, adCount, quality: effectiveQuality, campaignType, creativeFormat, customMode }),
     enabled: open && step >= 3,
     staleTime: 60_000,
   })
@@ -228,6 +242,15 @@ export function UGCWizardModal({
     onError: (value) => setError(value instanceof Error ? value.message : 'We could not analyse that website.'),
   })
 
+  const generatePrompt = useMutation({
+    mutationFn: () => generateUGCProductionPrompt({ idea: promptIdea.trim(), aspectRatio }),
+    onSuccess: (value) => {
+      setDescription(value)
+      setError('')
+    },
+    onError: (value) => setError(value instanceof Error ? value.message : 'The production prompt could not be generated.'),
+  })
+
   const create = useMutation({
     mutationFn: () => createUGCCampaign(input),
     onSuccess: (value) => {
@@ -272,7 +295,7 @@ export function UGCWizardModal({
 
   const persistDraft = useCallback(async () => {
     if (campaignId) return
-    const meaningful = step > 0 || Boolean(productUrl.trim() || description.trim() || referencePrompt.trim() || productAssetIds.length || avatarId || generatedReferences.length)
+    const meaningful = step > 0 || Boolean(productUrl.trim() || description.trim() || referencePrompt.trim() || productAssetIds.length || characterAssetIds.length || avatarId || generatedReferences.length)
     if (!meaningful) return
     const title = (selectedBrand?.productName || selectedBrand?.name || description.trim() || 'UGC draft').slice(0, 120)
     await saveAIDraft({
@@ -293,13 +316,16 @@ export function UGCWizardModal({
         productUrl,
         productDescription: description,
         productAssetIds,
+        characterAssetIds,
         baseProductAssetIds: [...new Set([...seedProductIds, ...productAssets.map((asset) => asset.id)])],
         brandProfileId: selectedBrand?.id || seedCampaign?.brandProfileId || seedDraft?.brandProfileId || null,
-        creatorMode,
-        avatarId: creatorMode === 'SELECTED' ? avatarId : null,
+        creatorMode: effectiveCreatorMode,
+        avatarId: !podcastMode && effectiveCreatorMode === 'SELECTED' ? avatarId : null,
+        aspectRatio,
+        captionsEnabled,
         duration,
         adCount,
-        quality,
+        quality: effectiveQuality,
         campaignType,
         creativeFormat,
         referencePrompt,
@@ -309,19 +335,19 @@ export function UGCWizardModal({
     })
     void queryClient.invalidateQueries({ queryKey: ['ugc-drafts'] })
   }, [
-    campaignId, step, productUrl, description, referencePrompt, productAssetIds, avatarId,
-    generatedReferences, selectedGeneratedProductIds, sourceType, customMode, selectedBrand?.id,
-    seedCampaign?.brandProfileId, seedDraft?.brandProfileId, creatorMode, duration, adCount,
-    quality, campaignType, creativeFormat, seedProductIds, productAssets, queryClient, selectedBrand?.name, selectedBrand?.productName,
+    campaignId, step, productUrl, description, referencePrompt, productAssetIds, characterAssetIds, avatarId,
+    generatedReferences, selectedGeneratedProductIds, sourceType, customMode, aspectRatio, captionsEnabled, selectedBrand?.id,
+    seedCampaign?.brandProfileId, seedDraft?.brandProfileId, effectiveCreatorMode, podcastMode, duration, adCount,
+    effectiveQuality, campaignType, creativeFormat, seedProductIds, productAssets, queryClient, selectedBrand?.name, selectedBrand?.productName,
   ])
 
   useEffect(() => {
     if (!open || campaignId) return
-    const meaningful = step > 0 || Boolean(productUrl.trim() || description.trim() || referencePrompt.trim() || productAssetIds.length || avatarId || generatedReferences.length)
+    const meaningful = step > 0 || Boolean(productUrl.trim() || description.trim() || referencePrompt.trim() || productAssetIds.length || characterAssetIds.length || avatarId || generatedReferences.length)
     if (!meaningful) return
     const timer = window.setTimeout(() => { void persistDraft().catch(() => undefined) }, 700)
     return () => window.clearTimeout(timer)
-  }, [open, campaignId, step, productUrl, description, referencePrompt, productAssetIds, avatarId, generatedReferences, selectedGeneratedProductIds, creatorMode, duration, adCount, quality, selectedBrand?.id, persistDraft])
+  }, [open, campaignId, step, productUrl, description, referencePrompt, productAssetIds, characterAssetIds, avatarId, generatedReferences, selectedGeneratedProductIds, effectiveCreatorMode, duration, adCount, effectiveQuality, aspectRatio, captionsEnabled, selectedBrand?.id, persistDraft])
   function closeWithDraft() {
     void persistDraft().catch(() => undefined)
     onClose()
@@ -343,15 +369,30 @@ export function UGCWizardModal({
     } catch (value) { setError(value instanceof Error ? value.message : 'Product image upload failed.') }
   }
 
+  async function uploadPodcastCharacters(files: FileList | null) {
+    if (!files?.length) return
+    setError('')
+    try {
+      const selected = Array.from(files).slice(0, Math.max(0, 8 - characterAssets.length - seedCharacterIds.length))
+      const uploaded: UGCProductAsset[] = []
+      for (const file of selected) uploaded.push(await uploadUGCProductAsset(file))
+      setCharacterAssets((current) => [...current, ...uploaded].slice(0, 8))
+    } catch (value) { setError(value instanceof Error ? value.message : 'Podcast character upload failed.') }
+  }
+
   async function continueSource() {
     setError('')
     if (sourceType === 'BRIEF') {
       if (description.trim().length < 12) {
-        setError('Add a custom prompt describing the UGC ad you want to create.')
+        setError(customMode === 'PODCAST' ? 'Add the podcast prompt.' : customMode === 'PRODUCTION' ? 'Add or generate a production prompt.' : 'Add a custom prompt describing the UGC ad you want to create.')
         return
       }
-      void trackUGCStudioEvent({ event: 'SOURCE_COMPLETED', stage: 'source', metadata: { sourceType, hasProductAssets: Boolean(productAssets.length || seedProductIds.length), hasReferenceUrl: Boolean(productUrl.trim()) } })
-      if (productUrl.trim()) {
+      if (customMode === 'PODCAST' && !characterAssetIds.length) {
+        setError('Upload at least one podcast character reference.')
+        return
+      }
+      void trackUGCStudioEvent({ event: 'SOURCE_COMPLETED', stage: 'source', metadata: { sourceType, customMode, characterReferenceCount: characterAssetIds.length, hasProductAssets: Boolean(productAssets.length || seedProductIds.length), hasReferenceUrl: Boolean(productUrl.trim()) } })
+      if (customMode === 'ASSISTED' && productUrl.trim()) {
         analyze.mutate()
         return
       }
@@ -463,7 +504,7 @@ export function UGCWizardModal({
   const activeDetail = activeAd?.stageDetail || (activeAd ? `${activeAd.progress}% complete` : '')
   const studioControls = overview.data?.options.studioControls
   const qualityTiers = studioControls?.qualityTiers || []
-  const selectedTier = qualityTiers.find((tier) => tier.key === quality) || estimate.data?.tier || null
+  const selectedTier = qualityTiers.find((tier) => tier.key === effectiveQuality) || estimate.data?.tier || null
   const selectedDurationOption = studioControls?.durations.find((item) => item.seconds === duration) || estimate.data?.durationOption || null
   const selectedVariationOption = studioControls?.variationCounts.find((item) => item.count === adCount) || estimate.data?.variationOption || null
   const remaining = estimate.data?.affordability.balanceBefore ?? overview.data?.credits.remaining ?? 0
@@ -472,13 +513,13 @@ export function UGCWizardModal({
   return createPortal(<div className="ugc-wizard-backdrop">
     <section aria-label="Create UGC ad" aria-modal="true" className="ugc-wizard-panel" role="dialog">
       <header className="ugc-wizard-header">
-        <div><button className="ugc-wizard-back-home" onClick={backHomeWithDraft} type="button"><ArrowLeft className="size-3.5" />UGC Studio</button><span className="ugc-wizard-step-count">Step {step + 1} of {steps.length}</span></div>
+        <div><button className="ugc-wizard-back-home" onClick={backHomeWithDraft} type="button"><ArrowLeft className="size-3.5" />UGC Studio</button><span className="ugc-wizard-step-count">Step {podcastMode && step >= 3 ? step : step + 1} of {podcastMode ? 5 : steps.length}</span></div>
         <button aria-label="Close UGC Studio" className="ugc-wizard-close" onClick={closeWithDraft} type="button"><X className="size-4" /></button>
-        <div className="ugc-wizard-progress"><span style={{ width: `${((step + 1) / steps.length) * 100}%` }} /></div>
+        <div className="ugc-wizard-progress"><span style={{ width: `${(((podcastMode && step >= 3 ? step : step + 1) / (podcastMode ? 5 : steps.length)) * 100)}%` }} /></div>
       </header>
 
       <div className="ugc-wizard-layout">
-        <Rail current={step} furthest={furthest} onStep={moveTo} />
+        <Rail current={step} furthest={furthest} onStep={moveTo} skipCreator={podcastMode} />
         <main className="ugc-wizard-content">
           <div className="ugc-wizard-step" key={currentKey}>
             {currentKey === 'source' && <>
@@ -492,18 +533,56 @@ export function UGCWizardModal({
               {sourceType === 'BRIEF' && <div className="mt-5">
                 <span className="ugc-wizard-mini-label">CUSTOM PROMPT MODE</span>
                 <div className="ugc-source-grid mt-2">
-                  <button className={`ugc-source-card ${customMode === 'ASSISTED' ? 'active' : ''}`} onClick={() => setCustomMode('ASSISTED')} type="button"><WandSparkles className="size-5" /><strong>AI Assisted</strong><span>INXSocial structures the idea into a normal UGC campaign.</span></button>
-                  <button className={`ugc-source-card ${customMode === 'PRODUCTION' ? 'active' : ''}`} onClick={() => setCustomMode('PRODUCTION')} type="button"><Film className="size-5" /><strong>Production Mode</strong><span>Keep your production prompt intact and send it to the video pipeline without Creative Director rewriting.</span></button>
-                  <button className={`ugc-source-card ${customMode === 'PODCAST' ? 'active' : ''}`} onClick={() => setCustomMode('PODCAST')} type="button"><CirclePlay className="size-5" /><strong>Podcast Mode</strong><span>Direct prompt mode for invited-guest interviews, podcast clips and natural conversation.</span></button>
+                  <button className={`ugc-source-card ${customMode === 'ASSISTED' ? 'active' : ''}`} onClick={() => { setCustomMode('ASSISTED'); setError('') }} type="button"><WandSparkles className="size-5" /><strong>AI Assisted</strong><span>INXSocial structures the idea into a normal UGC campaign.</span></button>
+                  <button className={`ugc-source-card ${customMode === 'PRODUCTION' ? 'active' : ''}`} onClick={() => { setCustomMode('PRODUCTION'); setQuality('STANDARD'); setError('') }} type="button"><Film className="size-5" /><strong>Production Mode</strong><span>Keep your production prompt intact and send it to the video pipeline without Creative Director rewriting.</span></button>
+                  <button className={`ugc-source-card ${customMode === 'PODCAST' ? 'active' : ''}`} onClick={() => { setCustomMode('PODCAST'); setQuality('STANDARD'); setCreatorMode('NONE'); setAvatarId(null); setError('') }} type="button"><CirclePlay className="size-5" /><strong>Podcast Mode</strong><span>Direct prompt mode for invited-guest interviews, podcast clips and natural conversation.</span></button>
                 </div>
                 {customMode !== 'ASSISTED' && <p className="mt-2 text-[9px] text-text-muted">Direct mode: your prompt remains the creative source of truth. INXSocial only applies technical segmentation, references and provider-safe settings.</p>}
               </div>}
 
-              <div className="mt-6"><span className="ugc-wizard-mini-label">{sourceType === 'BRIEF' ? 'REFERENCE URL — OPTIONAL' : sourceType === 'PRODUCT' ? 'PRODUCT PAGE — OPTIONAL IF YOU UPLOAD PHOTOS' : 'WEBSITE · DOMAIN ONLY IS FINE'}</span><div className="ugc-wizard-url-field mt-2"><Globe2 className="size-4" /><input autoFocus={sourceType !== 'BRIEF'} onChange={(event) => { setProductUrl(event.target.value); setBrand(null); setError('') }} placeholder={sourceType === 'BRIEF' ? 'Product page, website or reference URL' : sourceType === 'PRODUCT' ? 'shop.com/product' : 'yourbrand.com'} value={productUrl} /></div></div>
+              {(sourceType !== 'BRIEF' || customMode === 'ASSISTED') && <>
+                <div className="mt-6"><span className="ugc-wizard-mini-label">{sourceType === 'BRIEF' ? 'REFERENCE URL — OPTIONAL' : sourceType === 'PRODUCT' ? 'PRODUCT PAGE — OPTIONAL IF YOU UPLOAD PHOTOS' : 'WEBSITE · DOMAIN ONLY IS FINE'}</span><div className="ugc-wizard-url-field mt-2"><Globe2 className="size-4" /><input autoFocus={sourceType !== 'BRIEF'} onChange={(event) => { setProductUrl(event.target.value); setBrand(null); setError('') }} placeholder={sourceType === 'BRIEF' ? 'Product page, website or reference URL' : sourceType === 'PRODUCT' ? 'shop.com/product' : 'yourbrand.com'} value={productUrl} /></div></div>
+                {(sourceType === 'PRODUCT' || sourceType === 'BRIEF') && <div className="mt-5"><span className="ugc-wizard-mini-label">{sourceType === 'BRIEF' ? 'REFERENCE IMAGES — OPTIONAL' : 'REAL PRODUCT IMAGES'}</span><label className="ugc-product-upload mt-2"><Images className="size-5" /><div><strong>{sourceType === 'BRIEF' ? 'Upload reference images' : 'Upload product photos'}</strong><span>PNG, JPEG or WebP · up to 8 references</span></div><input accept="image/png,image/jpeg,image/webp" className="hidden" multiple onChange={(event) => void uploadProducts(event.target.files)} type="file" /></label>{(productAssets.length || seedProductIds.length) > 0 && <div className="mt-2 flex flex-wrap gap-2">{productAssets.map((asset) => <span className="ugc-product-chip" key={asset.id}><Check className="size-3" />{asset.originalName}</span>)}{seedProductIds.map((id, index) => <span className="ugc-product-chip" key={id}><Check className="size-3" />Saved reference {index + 1}</span>)}</div>}</div>}
+              </>}
 
-              {(sourceType === 'PRODUCT' || sourceType === 'BRIEF') && <div className="mt-5"><span className="ugc-wizard-mini-label">{sourceType === 'BRIEF' ? 'REFERENCE IMAGES — OPTIONAL' : 'REAL PRODUCT IMAGES'}</span><label className="ugc-product-upload mt-2"><Images className="size-5" /><div><strong>{sourceType === 'BRIEF' ? 'Upload reference images' : 'Upload product photos'}</strong><span>PNG, JPEG or WebP · up to 8 references</span></div><input accept="image/png,image/jpeg,image/webp" className="hidden" multiple onChange={(event) => void uploadProducts(event.target.files)} type="file" /></label>{(productAssets.length || seedProductIds.length) > 0 && <div className="mt-2 flex flex-wrap gap-2">{productAssets.map((asset) => <span className="ugc-product-chip" key={asset.id}><Check className="size-3" />{asset.originalName}</span>)}{seedProductIds.map((id, index) => <span className="ugc-product-chip" key={id}><Check className="size-3" />Saved reference {index + 1}</span>)}</div>}</div>}
+              {sourceType === 'BRIEF' && customMode !== 'ASSISTED' && <div className="mt-6 grid gap-5">
+                <div>
+                  <span className="ugc-wizard-mini-label">ASPECT RATIO</span>
+                  <div className="mt-2 grid grid-cols-3 gap-2">
+                    {(['9:16','1:1','16:9'] as UGCAspectRatio[]).map((value) => <StepChoice current={aspectRatio} key={value} onClick={setAspectRatio} value={value}><strong>{value}</strong><small>{value === '9:16' ? 'Portrait' : value === '1:1' ? 'Square' : 'Landscape'}</small></StepChoice>)}
+                  </div>
+                </div>
+                <div>
+                  <span className="ugc-wizard-mini-label">CAPTIONS</span>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <StepChoice current={captionsEnabled ? 'ON' : 'OFF'} onClick={() => setCaptionsEnabled(true)} value="ON"><strong>On</strong><small>Burn in captions after render</small></StepChoice>
+                    <StepChoice current={captionsEnabled ? 'ON' : 'OFF'} onClick={() => setCaptionsEnabled(false)} value="OFF"><strong>Off</strong><small>No captions</small></StepChoice>
+                  </div>
+                </div>
+              </div>}
 
-              {(sourceType === 'BRIEF' || sourceType === 'PRODUCT') && <div className="mt-5"><span className="ugc-wizard-mini-label">{sourceType === 'BRIEF' ? 'AD PROMPT — REQUIRED' : 'OPTIONAL PRODUCT NOTES'}</span><textarea className="ugc-wizard-input mt-2 min-h-28 w-full resize-y" maxLength={sourceType === 'BRIEF' ? 4000 : undefined} onChange={(event) => { setDescription(event.target.value); setError('') }} placeholder={sourceType === 'BRIEF' ? (customMode === 'PODCAST' ? 'Describe the podcast guest, interview setup, dialogue, camera framing and any clean edit point. Your prompt will be used directly.' : customMode === 'PRODUCTION' ? 'Write the complete production prompt — scenes, dialogue, actions, continuity and visual direction. Your prompt will be used directly.' : 'Describe exactly how you want the UGC ad created — concept, language, dialogue, tone, humour, camera style, product presentation, accents, CTA, or anything else.') : 'What is it, who is it for, and what does it help with?'} value={description} />{sourceType === 'BRIEF' && <p className="mt-2 text-[9px] text-text-muted">{customMode === 'ASSISTED' ? 'This is the primary creative instruction. Any URL or images above are used only as supporting reference.' : 'Direct mode does not send this prompt through the Creative Director. References are attached without rewriting your creative direction.'}</p>}</div>}
+              {sourceType === 'BRIEF' && customMode === 'PRODUCTION' && <div className="mt-5">
+                <span className="ugc-wizard-mini-label">PRODUCTION PROMPT GENERATOR — OPTIONAL</span>
+                <div className="ugc-reference-command mt-2">
+                  <textarea aria-label="Production prompt idea" onChange={(event) => { setPromptIdea(event.target.value); setError('') }} placeholder="Tell INXSocial what you want to create. Example: a realistic fashion ad with a last-minute dinner story and natural spoken dialogue." value={promptIdea} />
+                  <Button disabled={promptIdea.trim().length < 4 || generatePrompt.isPending} onClick={() => generatePrompt.mutate()} variant="primary">{generatePrompt.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <WandSparkles className="size-4" />}Generate prompt</Button>
+                </div>
+              </div>}
+
+              {sourceType === 'BRIEF' && customMode === 'PODCAST' && <div className="mt-5">
+                <span className="ugc-wizard-mini-label">PODCAST CHARACTERS</span>
+                <label className="ugc-product-upload mt-2"><UsersRound className="size-5" /><div><strong>Upload character references</strong><span>Upload one or more guest / host images · PNG, JPEG or WebP · up to 8</span></div><input accept="image/png,image/jpeg,image/webp" className="hidden" multiple onChange={(event) => void uploadPodcastCharacters(event.target.files)} type="file" /></label>
+                {!!(characterAssets.length || seedCharacterIds.length) && <div className="mt-2 flex flex-wrap gap-2">{characterAssets.map((asset, index) => <span className="ugc-product-chip" key={asset.id}><Check className="size-3" />Character {seedCharacterIds.length + index + 1} · {asset.originalName}</span>)}{seedCharacterIds.map((id, index) => <span className="ugc-product-chip" key={id}><Check className="size-3" />Saved character {index + 1}</span>)}</div>}
+                <p className="mt-2 text-[9px] text-text-muted">Each image is passed as a character identity reference. Multiple people stay separate; INXSocial does not require an additional creator selection.</p>
+              </div>}
+
+              {(sourceType === 'PRODUCT' || (sourceType === 'BRIEF' && customMode !== 'ASSISTED')) && <div className="mt-5">
+                <span className="ugc-wizard-mini-label">{sourceType === 'PRODUCT' ? 'OPTIONAL PRODUCT NOTES' : customMode === 'PODCAST' ? 'PODCAST PROMPT — REQUIRED' : 'PRODUCTION PROMPT — REQUIRED'}</span>
+                <textarea className="ugc-wizard-input mt-2 min-h-36 w-full resize-y" maxLength={sourceType === 'BRIEF' ? 4000 : undefined} onChange={(event) => { setDescription(event.target.value); setError('') }} placeholder={sourceType === 'PRODUCT' ? 'What is it, who is it for, and what does it help with?' : customMode === 'PODCAST' ? 'Write the podcast setup and spoken dialogue. Put spoken lines in quotes or under Dialogue: if you want captions generated from the prompt.' : 'Write your complete production prompt, or generate one above and edit it here.'} value={description} />
+                {sourceType === 'BRIEF' && <p className="mt-2 text-[9px] text-text-muted">Your prompt is sent through the direct generation path without Creative Director rewriting.</p>}
+              </div>}
+
+              {sourceType === 'BRIEF' && customMode === 'ASSISTED' && <div className="mt-5"><span className="ugc-wizard-mini-label">AD PROMPT — REQUIRED</span><textarea className="ugc-wizard-input mt-2 min-h-28 w-full resize-y" maxLength={4000} onChange={(event) => { setDescription(event.target.value); setError('') }} placeholder="Describe exactly how you want the UGC ad created — concept, language, dialogue, tone, humour, camera style, product presentation, accents, CTA, or anything else." value={description} /><p className="mt-2 text-[9px] text-text-muted">This is the primary creative instruction. Any URL or images above are used only as supporting reference.</p></div>}
 
               {analyze.isPending && <div className="ugc-wizard-analyzing mt-6"><div className="ugc-wizard-scan"><span /><Search className="size-7" /></div><div><strong>{sourceType === 'BRIEF' ? 'Analyzing your references…' : 'Understanding your offer…'}</strong><p className="mt-1 text-[9px] text-text-muted">{sourceType === 'BRIEF' ? 'Using the URL as factual reference while keeping your custom prompt unchanged.' : 'Reading the site, finding verified benefits and preparing the campaign script.'}</p></div></div>}
               <div className="ugc-wizard-footer"><Button onClick={backHomeWithDraft}><ArrowLeft className="size-4" />Studio</Button><Button disabled={analyze.isPending} onClick={() => void continueSource()} variant="primary">{analyze.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}{sourceType === 'WEBSITE' || productUrl.trim() ? 'Analyze & continue' : 'Continue'} <ArrowRight className="size-4" /></Button></div>
@@ -515,7 +594,7 @@ export function UGCWizardModal({
                 sourceType === 'BRIEF'
                   ? <div className="ugc-wizard-brand-card mt-7"><span className="ugc-wizard-mini-label">YOUR PROMPT</span><p className="mt-3 whitespace-pre-wrap">{description}</p><span className="mt-3 block text-[9px] text-text-muted">Locked review · go Back to change the prompt.</span></div>
                   : <div className="ugc-wizard-brand-card mt-7"><span className="ugc-wizard-mini-label">YOUR BRIEF</span><textarea className="ugc-wizard-input mt-3 min-h-36 w-full resize-y" onChange={(event) => setDescription(event.target.value)} value={description} /></div>}
-              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(0)}><ArrowLeft className="size-4" />Back</Button><Button disabled={sourceType === 'BRIEF' ? description.trim().length < 12 : !selectedBrand && description.trim().length < 12 && !productAssetIds.length} onClick={() => { void trackUGCStudioEvent({ event: 'BRAND_ANALYZED', stage: 'brand', metadata: { sourceType } }); moveTo(2) }} variant="primary">Looks right <ArrowRight className="size-4" /></Button></div>
+              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(0)}><ArrowLeft className="size-4" />Back</Button><Button disabled={sourceType === 'BRIEF' ? description.trim().length < 12 : !selectedBrand && description.trim().length < 12 && !productAssetIds.length} onClick={() => { void trackUGCStudioEvent({ event: 'BRAND_ANALYZED', stage: 'brand', metadata: { sourceType, customMode } }); moveTo(podcastMode ? 3 : 2) }} variant="primary">Looks right <ArrowRight className="size-4" /></Button></div>
             </>}
 
             {currentKey === 'avatar' && <>
@@ -567,15 +646,16 @@ export function UGCWizardModal({
             {currentKey === 'video' && <>
               <div className="ugc-wizard-title-row"><span className="ugc-wizard-icon"><CirclePlay className="size-5" /></span><div><h2>Choose the production setup.</h2><p>Set length, number of variations and production quality. INXSocial keeps provider/model routing automatic and hidden.</p></div></div>
               <div className="mt-7 grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
-                <div className="ugc-wizard-phone-preview"><div className="ugc-wizard-phone-screen"><span className="ugc-wizard-preview-avatar">{selectedAvatar ? <AvatarPortrait avatar={selectedAvatar} /> : <UserRound className="size-8" />}</span><CirclePlay className="size-8 text-brand-cyan" /><strong>{duration}s UGC</strong><small>{selectedTier?.label || quality} · {creatorMode === 'NONE' ? 'Product only' : creatorMode === 'SELECTED' ? 'Selected creator' : 'Choose for me'}</small></div></div>
+                <div className="ugc-wizard-phone-preview"><div className="ugc-wizard-phone-screen"><span className="ugc-wizard-preview-avatar">{selectedAvatar ? <AvatarPortrait avatar={selectedAvatar} /> : <UserRound className="size-8" />}</span><CirclePlay className="size-8 text-brand-cyan" /><strong>{duration}s UGC</strong><small>{directMode ? aspectRatio + ' · ' + (captionsEnabled ? 'Captions on' : 'Captions off') : (selectedTier?.label || quality) + ' · ' + (creatorMode === 'NONE' ? 'Product only' : creatorMode === 'SELECTED' ? 'Selected creator' : 'Choose for me')}</small></div></div>
                 <div className="space-y-5">
                   <div><span className="ugc-wizard-mini-label">VIDEO LENGTH</span><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{durations.map((value) => { const option = studioControls?.durations.find((item) => item.seconds === value); return <StepChoice current={duration} key={value} onClick={setDuration} value={value}><strong>{value}s</strong><small>{option?.label || (value === 20 ? 'Balanced' : value === 30 ? 'Full ad' : value === 45 ? 'Extended' : 'Long-form')}</small></StepChoice> })}</div>{selectedDurationOption?.description && <p className="mt-2 text-[10px] text-text-muted">{selectedDurationOption.description}</p>}</div>
                   <div><span className="ugc-wizard-mini-label">VARIATIONS</span><div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-5">{adCounts.map((value) => <StepChoice current={adCount} key={value} onClick={setAdCount} value={value}><strong>{value}</strong></StepChoice>)}</div>{selectedVariationOption?.description && <p className="mt-2 text-[10px] text-text-muted">{selectedVariationOption.description}</p>}</div>
-                  <div><span className="ugc-wizard-mini-label">QUALITY</span><div className="mt-2 grid grid-cols-2 gap-2">{(qualityTiers.length ? qualityTiers : [{ key: 'STANDARD' as const, label: 'Standard', badge: 'Efficient', description: 'Natural social UGC', bestFor: [], experience: [] }, { key: 'PREMIUM' as const, label: 'Premium', badge: 'Advanced', description: 'Higher-control production', bestFor: [], experience: [] }]).map((tier) => <StepChoice current={quality} key={tier.key} onClick={setQuality} value={tier.key}>{tier.key === 'PREMIUM' ? <Crown className="mx-auto mb-1 size-4 text-[#c4b5fd]" /> : <Film className="mx-auto mb-1 size-4 text-brand-cyan" />}<strong>{tier.label}</strong><small>{tier.badge}</small></StepChoice>)}</div>{selectedTier && <div className="mt-2 rounded-xl border border-white/10 bg-white/[.025] p-3"><p className="text-[10px] leading-4 text-text-muted">{selectedTier.description}</p><div className="mt-2 flex flex-wrap gap-1.5">{selectedTier.bestFor.slice(0,3).map((item) => <span className="ugc-wizard-pill" key={item}>{item}</span>)}</div></div>}</div>
+                  {!directMode && <div><span className="ugc-wizard-mini-label">QUALITY</span><div className="mt-2 grid grid-cols-2 gap-2">{(qualityTiers.length ? qualityTiers : [{ key: 'STANDARD' as const, label: 'Standard', badge: 'Efficient', description: 'Natural social UGC', bestFor: [], experience: [] }, { key: 'PREMIUM' as const, label: 'Premium', badge: 'Advanced', description: 'Higher-control production', bestFor: [], experience: [] }]).map((tier) => <StepChoice current={quality} key={tier.key} onClick={setQuality} value={tier.key}>{tier.key === 'PREMIUM' ? <Crown className="mx-auto mb-1 size-4 text-[#c4b5fd]" /> : <Film className="mx-auto mb-1 size-4 text-brand-cyan" />}<strong>{tier.label}</strong><small>{tier.badge}</small></StepChoice>)}</div>{selectedTier && <div className="mt-2 rounded-xl border border-white/10 bg-white/[.025] p-3"><p className="text-[10px] leading-4 text-text-muted">{selectedTier.description}</p><div className="mt-2 flex flex-wrap gap-1.5">{selectedTier.bestFor.slice(0,3).map((item) => <span className="ugc-wizard-pill" key={item}>{item}</span>)}</div></div>}</div>}
+                  {directMode && <div className="rounded-xl border border-white/10 bg-white/[.025] p-3"><span className="ugc-wizard-mini-label">DIRECT OUTPUT</span><p className="mt-1 text-[10px] leading-4 text-text-muted">{aspectRatio} · Captions {captionsEnabled ? 'on' : 'off'} · provider-safe direct generation</p></div>}
                   <div className={`ugc-credit-summary ${insufficient ? 'insufficient' : ''}`}><div><span>Live quote</span><strong>{estimate.isFetching ? '…' : estimate.data?.credits.toLocaleString() || '—'} credits</strong></div><div><span>{estimate.data?.perAd?.toLocaleString() || '—'} per ad · {remaining.toLocaleString()} available</span>{insufficient && <em>{estimate.data ? `${estimate.data.affordability.shortfall.toLocaleString()} credits short` : 'Choose a smaller setup.'}</em>}</div></div>
                 </div>
               </div>
-              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(2)}><ArrowLeft className="size-4" />Back</Button><Button disabled={!estimate.data || estimate.isFetching} onClick={() => { void trackUGCStudioEvent({ event: 'PRODUCTION_CONFIGURED', stage: 'production', metadata: { quality, duration, adCount, credits: estimate.data?.credits || 0 } }); moveTo(4) }} variant="primary">Review campaign <ArrowRight className="size-4" /></Button></div>
+              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(podcastMode ? 1 : 2)}><ArrowLeft className="size-4" />Back</Button><Button disabled={!estimate.data || estimate.isFetching} onClick={() => { void trackUGCStudioEvent({ event: 'PRODUCTION_CONFIGURED', stage: 'production', metadata: { quality: effectiveQuality, duration, adCount, credits: estimate.data?.credits || 0 } }); moveTo(4) }} variant="primary">Review campaign <ArrowRight className="size-4" /></Button></div>
             </>}
 
             {currentKey === 'review' && <>
@@ -583,10 +663,10 @@ export function UGCWizardModal({
               <div className="ugc-wizard-brand-card mt-7">
                 <div className="flex items-start justify-between gap-4"><div><span className="ugc-wizard-mini-label">CAMPAIGN</span><h3>{selectedBrand?.productName || selectedBrand?.name || description.trim() || 'UGC campaign'}</h3></div><BadgeCheck className="size-5 text-brand-cyan" /></div>
                 <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <div><span className="ugc-wizard-mini-label">REFERENCES</span><strong>{creatorMode === 'NONE' ? 'Product only' : creatorMode === 'SELECTED' ? 'Selected creator + product references' : 'Automatic creator + product references'}</strong><p className="mt-1 text-[10px] text-text-muted">{productAssetIds.length} product reference{productAssetIds.length === 1 ? '' : 's'} selected</p></div>
-                  <div><span className="ugc-wizard-mini-label">CREATOR</span><strong>{creatorMode === 'NONE' ? 'No creator' : creatorMode === 'SELECTED' ? selectedAvatar?.name || 'Selected creator' : 'Choose for me'}</strong><p className="mt-1 text-[10px] text-text-muted">{creatorMode === 'NONE' ? 'Product-only generation' : 'Creator identity stays locked to the selected profile.'}</p></div>
+                  <div><span className="ugc-wizard-mini-label">REFERENCES</span><strong>{podcastMode ? characterAssetIds.length + ' podcast character reference' + (characterAssetIds.length === 1 ? '' : 's') : creatorMode === 'NONE' ? 'Product only' : creatorMode === 'SELECTED' ? 'Selected creator + product references' : 'Automatic creator + product references'}</strong><p className="mt-1 text-[10px] text-text-muted">{podcastMode ? 'Characters are supplied directly from the Podcast setup.' : productAssetIds.length + ' product reference' + (productAssetIds.length === 1 ? '' : 's') + ' selected'}</p></div>
+                  <div><span className="ugc-wizard-mini-label">{podcastMode ? 'MODE' : 'CREATOR'}</span><strong>{podcastMode ? 'Podcast' : creatorMode === 'NONE' ? 'No creator' : creatorMode === 'SELECTED' ? selectedAvatar?.name || 'Selected creator' : 'Choose for me'}</strong><p className="mt-1 text-[10px] text-text-muted">{podcastMode ? aspectRatio + ' · Captions ' + (captionsEnabled ? 'on' : 'off') : creatorMode === 'NONE' ? 'Product-only generation' : 'Creator identity stays locked to the selected profile.'}</p></div>
                   <div><span className="ugc-wizard-mini-label">OUTPUT</span><strong>{adCount} × {duration}s vertical ad{adCount === 1 ? '' : 's'}</strong><p className="mt-1 text-[10px] text-text-muted">{sourceType === 'BRIEF' && customMode !== 'ASSISTED' ? (customMode === 'PODCAST' ? 'Podcast direct mode' : 'Production direct mode') : selectedVariationOption?.label || 'Campaign'} · background rendering with recovery</p></div>
-                  <div><span className="ugc-wizard-mini-label">QUALITY</span><strong>{selectedTier?.label || quality}</strong><p className="mt-1 text-[10px] text-text-muted">{selectedTier?.description || 'Production quality selected.'}</p></div>
+                  <div><span className="ugc-wizard-mini-label">{directMode ? 'FORMAT' : 'QUALITY'}</span><strong>{directMode ? aspectRatio : selectedTier?.label || quality}</strong><p className="mt-1 text-[10px] text-text-muted">{directMode ? 'Captions ' + (captionsEnabled ? 'enabled' : 'disabled') + ' · direct prompt preserved' : selectedTier?.description || 'Production quality selected.'}</p></div>
                 </div>
               </div>
               <div className={`ugc-credit-summary mt-5 ${insufficient ? 'insufficient' : ''}`}>
