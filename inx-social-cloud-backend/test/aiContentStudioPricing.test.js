@@ -3,7 +3,9 @@ const assert = require('node:assert/strict');
 const { estimateGenerationCost, validateGenerationRequest, fallbackCopy } = require('../src/services/aiContentStudioService');
 const { customerPlan, refundableReservationAmounts } = require('../src/services/aiCreditService');
 const { planDefinition } = require('../src/services/stripeService');
-const { normalizeModelId } = require('../src/services/runwareService');\nconst { IMAGE_CREDITS } = require('../src/services/aiPostStudioServiceV2');\nconst { creditsForSlides } = require('../src/services/carouselStudioService');
+const { normalizeModelId } = require('../src/services/runwareService');
+const { IMAGE_CREDITS } = require('../src/services/aiPostStudioServiceV2');
+const { creditsForSlides } = require('../src/services/carouselStudioService');
 
 test('AI Content Studio keeps the launch credit schedule', () => {
   assert.equal(estimateGenerationCost({ type: 'image_post', options: { variants: 1 } }), 5);
