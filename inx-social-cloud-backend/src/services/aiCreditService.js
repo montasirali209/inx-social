@@ -270,19 +270,56 @@ async function settle(userId, generationId, creditsUsed, metadata = {}) {
     const generation = generations[0];
     if (!generation) throw accessError('AI generation reservation is unavailable.', 'AI_GENERATION_RESERVATION_MISSING', 404);
 
-    const reserved = Math.max(0, Number(generation.reservedCredits || 0));
+    let reserved = Math.max(0, Number(generation.reservedCredits || 0));
     if (Number(generation.creditsUsed || 0) > 0) return Number(generation.creditsUsed || 0);
-    const amount = Math.max(0, Math.min(reserved, Math.floor(Number(creditsUsed || 0))));
-    const reservedMonthly = Math.max(0, Number(generation.reservedMonthly || 0));
-    const reservedTopup = Math.max(0, Number(generation.reservedTopup || 0));
+    const amount = Math.max(0, Math.floor(Number(creditsUsed || 0)));
+    let reservedMonthly = Math.max(0, Number(generation.reservedMonthly || 0));
+    let reservedTopup = Math.max(0, Number(generation.reservedTopup || 0));
+
+    const wallets = await tx.$queryRawUnsafe('SELECT * FROM "AiCreditWallet" WHERE "userId"=$1 FOR UPDATE', userId);
+    let wallet = wallets[0];
+    if (!wallet) throw accessError('AI credit wallet is unavailable.', 'AI_CREDIT_WALLET_MISSING', 503);
+
+    if (amount > reserved) {
+      const extra = amount - reserved;
+      const monthly = Math.max(0, Number(wallet.monthlyBalance || 0));
+      const topup = Math.max(0, Number(wallet.topupBalance || 0));
+      if (monthly + topup < extra) {
+        throw accessError(
+          'The provider price changed beyond the protected reservation and there are not enough credits to settle this render.',
+          'AI_CREDITS_SETTLEMENT_SHORTFALL',
+          402
+        );
+      }
+      const extraMonthly = Math.min(monthly, extra);
+      const extraTopup = extra - extraMonthly;
+      const nextMonthly = monthly - extraMonthly;
+      const nextTopup = topup - extraTopup;
+      await tx.$executeRawUnsafe(
+        'UPDATE "AiCreditWallet" SET "monthlyBalance"=$2,"topupBalance"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
+        wallet.id, nextMonthly, nextTopup
+      );
+      await tx.$executeRawUnsafe(
+        'INSERT INTO "AiCreditTransaction" ("id","userId","walletId","generationId","type","bucket","amount","balanceMonthly","balanceTopup","reference","metadataJson") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT ("reference") DO NOTHING',
+        crypto.randomUUID(), userId, wallet.id, generationId, 'GENERATION_SETTLEMENT_DEBIT',
+        extraMonthly && extraTopup ? 'MIXED' : extraTopup ? 'TOPUP' : 'MONTHLY',
+        -extra, nextMonthly, nextTopup, `settlement-debit:${generationId}`,
+        JSON.stringify({ extraCredits: extra, monthly: extraMonthly, topup: extraTopup, ...metadata })
+      );
+      reserved += extra;
+      reservedMonthly += extraMonthly;
+      reservedTopup += extraTopup;
+      await tx.$executeRawUnsafe(
+        'UPDATE "AiGeneration" SET "reservedCredits"=$3,"reservedMonthly"=$4,"reservedTopup"=$5,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$2',
+        generationId, userId, reserved, reservedMonthly, reservedTopup
+      );
+      wallet = { ...wallet, monthlyBalance: nextMonthly, topupBalance: nextTopup };
+    }
+
     const usedMonthly = Math.min(reservedMonthly, amount);
     const usedTopup = Math.min(reservedTopup, Math.max(0, amount - usedMonthly));
     const unusedMonthly = Math.max(0, reservedMonthly - usedMonthly);
     const unusedTopup = Math.max(0, reservedTopup - usedTopup);
-
-    const wallets = await tx.$queryRawUnsafe('SELECT * FROM "AiCreditWallet" WHERE "userId"=$1 FOR UPDATE', userId);
-    const wallet = wallets[0];
-    if (!wallet) throw accessError('AI credit wallet is unavailable.', 'AI_CREDIT_WALLET_MISSING', 503);
     const debitRows = await tx.$queryRawUnsafe('SELECT "createdAt" FROM "AiCreditTransaction" WHERE "reference"=$1 LIMIT 1', `debit:${generationId}`);
     const refundable = refundableReservationAmounts(
       { ...generation, reservedMonthly: unusedMonthly, reservedTopup: unusedTopup },
