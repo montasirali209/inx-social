@@ -97,6 +97,17 @@ test('Phase 3 wires persistent provider-cost drift protection and commercial hea
   assert.match(routes, /\/video\/health/);
 });
 
+test('provider reconciliation can debit beyond the reservation instead of silently capping actual cost', () => {
+  const credits = read('src/services/aiCreditService.js');
+  const video = read('src/services/videoStudioService.js');
+
+  assert.match(credits, /GENERATION_SETTLEMENT_OVERAGE/);
+  assert.match(credits, /const overageRequested = Math\.max\(0, requested - reserved\)/);
+  assert.match(credits, /const amount = Math\.min\(requested, reserved \+ overageCharged\)/);
+  assert.match(video, /credits\.settle\(userId, generationId, providerRequiredCredits/);
+  assert.doesNotMatch(video, /Math\.min\(reservationCredits, providerRequiredCredits\)/);
+});
+
 test('current-period allowance changes preserve already-consumed credits instead of regranting a full wallet', () => {
   const credits = read('src/services/aiCreditService.js');
   assert.match(credits, /const consumed = Math\.max\(0, previousLimit - previousBalance\)/);
