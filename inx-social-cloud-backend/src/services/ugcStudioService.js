@@ -1067,7 +1067,7 @@ function directPromptPlan(input, brand, avatars, resolvedType) {
     })
   }));
   return {
-    title: campaignLabel + ' ' + modeLabel + ' Campaign',
+    title: campaignLabel === modeLabel ? modeLabel + ' Campaign' : campaignLabel + ' ' + modeLabel + ' Campaign',
     campaignType: resolvedType,
     customMode: mode,
     directPromptMode: true,
@@ -1979,8 +1979,13 @@ function h3NativePrompt(scene, ad, avatar, referenceCount) {
     const directModeRule = customMode === 'PODCAST'
       ? 'PODCAST MODE: the selected creator is the invited guest on another person\'s podcast. Preserve the same guest identity, studio, outfit, microphone setup, lighting and interview relationship across segments.'
       : 'PRODUCTION MODE: follow the customer production prompt as written. Do not replace it with a generic UGC structure and do not invent new dialogue.';
+    const directReferenceInstruction = referenceCount > 1
+      ? avatar
+        ? 'Use Image 1 as the selected creator identity. Images 2 through ' + referenceCount + ' are customer-supplied visual references. Use them according to the customer prompt for environment, product, wardrobe, composition or continuity; do not assume they are products.'
+        : 'Images 1 through ' + referenceCount + ' are customer-supplied visual references. Follow the customer prompt to determine their roles and preserve their visible details.'
+      : referenceInstruction;
     return clean([
-      referenceInstruction,
+      directReferenceInstruction,
       directModeRule,
       clean(scene.prompt, 1200),
       'PRIMARY CUSTOMER PROMPT:',
