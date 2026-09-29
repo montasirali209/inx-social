@@ -33,14 +33,18 @@ test('universal publishing API is mounted before the application fallback', () =
 
 test('universal publishing KPI source defines one Post for Me status policy', () => {
   const source = read('frontend/src/lib/universal-publishing-kpis.ts');
-  assert.match(source, /\/api\/social-publications\?limit=500/);
+  const records = read('frontend/src/lib/publishing-records.ts');
+  assert.match(records, /\/api\/social-publications\?limit=\$\{limit\}/);
+  assert.match(records, /job\.status === 'FAILED' \|\| job\.status === 'AWAITING_UPLOAD'/);
+  assert.doesNotMatch(records, /READY|CANCELLED/);
+  assert.match(source, /fetchPublishingRecords/);
+  assert.match(source, /isNeedsReviewJob/);
   assert.match(source, /allPosts:\s*jobs\.length \+ localDrafts/);
   assert.match(source, /const drafts = jobs\.filter\(job => job\.status === 'DRAFT'\)\.length \+ localDrafts/);
   assert.match(source, /const scheduled = jobs\.filter\(job => job\.status === 'SCHEDULED'\)\.length/);
   assert.match(source, /const published = jobs\.filter\(job => job\.status === 'PUBLISHED'\)\.length/);
-  assert.match(source, /\['FAILED', 'AWAITING_UPLOAD', 'READY'\]\.includes\(job\.status\)/);
+  assert.match(source, /const needsReview = jobs\.filter\(isNeedsReviewJob\)\.length/);
   assert.match(source, /connectedAccounts:\s*activeSocialAccountCount\(social\.connections \|\| \[\]\)/);
-  assert.doesNotMatch(source, /needsReview[^\n]*CANCELLED/i);
 });
 
 test('Dashboard and Posts share universal KPIs while Calendar uses calendar-scoped publication metrics', () => {
