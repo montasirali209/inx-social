@@ -100,7 +100,7 @@ export function PostsPage() {
   const defaultModeApplied = useRef(false)
   const [initial] = useState(readInitialComposerSession)
   const workspace = useQuery({ queryKey: ['posts-workspace'], queryFn: fetchPostsWorkspace, refetchInterval: 45_000 })
-  const publishingRecords = useQuery({ queryKey: publishingRecordsQueryKey, queryFn: fetchPublishingRecords, refetchInterval: 30_000, refetchOnWindowFocus: true })
+  const publishingRecords = useQuery({ queryKey: publishingRecordsQueryKey, queryFn: () => fetchPublishingRecords(), refetchInterval: 30_000, refetchOnWindowFocus: true })
   const workspaceData = {
     destinations: workspace.data?.destinations || [],
     jobs: workspace.data?.jobs || [],
