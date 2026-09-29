@@ -70,9 +70,13 @@ test('provider promotions expose discounted and regular credit pricing with auto
     draftSupported: false,
     pricing: parsed
   };
-  const quote = videoRegistry.pricingQuote(profile, { duration: 10, resolution: '768p', audio: true });
+  const quote = videoRegistry.pricingQuote(profile, { duration: 10, resolution: '768p', audio: true }, Date.parse('2026-09-29T12:00:00Z'));
   assert.ok(quote.regularCredits > quote.credits);
   assert.equal(quote.promotion.discountPercent, 50);
+
+  const expired = videoRegistry.pricingQuote(profile, { duration: 10, resolution: '768p', audio: true }, Date.parse('2026-10-01T00:00:00Z'));
+  assert.equal(expired.promotion, null);
+  assert.equal(expired.credits, expired.regularCredits);
 });
 
 test('Phase 3 wires persistent provider-cost drift protection and commercial health monitoring', () => {
