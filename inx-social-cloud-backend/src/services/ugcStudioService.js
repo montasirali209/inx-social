@@ -953,7 +953,9 @@ async function liveCreditsForModel(modelAir, selections = [], externalAudio = fa
   try {
     const current = await videoModels.snapshot();
     const profile = (current.models || []).find(model => model.air === modelAir || model.model === modelAir);
-    if (!profile || !profile.generationReady || profile.pricingStatus !== 'SYNCED') return null;
+    // UGC routes have dedicated provider adapters, so generic Video Studio
+    // schema-readiness is not required here. Pricing must still be live/synced.
+    if (!profile || profile.pricingStatus !== 'SYNCED') return null;
     let providerCostUsd = 0;
     let regularProviderCostUsd = 0;
     let promotion = null;
