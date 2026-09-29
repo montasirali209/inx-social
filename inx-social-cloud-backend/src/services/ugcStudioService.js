@@ -10,6 +10,7 @@ const prisma = require('../db/prisma');
 const env = require('../config/env');
 const credits = require('./aiCreditService');
 const runware = require('./runwareService');
+const videoModels = require('./videoModelRegistryService');
 const postStudio = require('./aiPostStudioService');
 const objectStorage = require('./mediaObjectStorageService');
 const mediaLibrary = require('./mediaLibraryService');
@@ -938,20 +939,124 @@ async function ugcAgentReply(userId, input = {}) {
   };
 }
 
-function creditsPerAd(duration, quality) {
-  const table = String(quality || 'STANDARD').toUpperCase() === 'PREMIUM' ? PREMIUM_CREDITS : STANDARD_CREDITS;
-  const amount = table[Number(duration)];
+function creditsPerAd(duration, quality, pricing = { STANDARD: STANDARD_CREDITS, PREMIUM: PREMIUM_CREDITS }) {
+  const table = String(quality || 'STANDARD').toUpperCase() === 'PREMIUM' ? pricing.PREMIUM : pricing.STANDARD;
+  const amount = Number(table?.[Number(duration)] || 0);
   if (!amount) throw publicError('Choose a supported UGC duration.', 'UGC_DURATION_UNSUPPORTED', 422);
   return amount;
 }
 
+function splitProviderDuration(total, maxDuration) {
+  let remaining = Math.max(1, Number(total) || 1);
+  const cap = Math.max(1, Number(maxDuration) || remaining);
+  const parts = [];
+  while (remaining > 0) {
+    const part = Math.min(cap, remaining);
+    parts.push(part);
+    remaining -= part;
+  }
+  return parts;
+}
+
+async function quoteUgcRoute(routeKey, totalDuration, referenceCount = 1) {
+  const cap = ugcProviderAdapters.getAdapter(routeKey);
+  const profile = await videoModels.resolveModelForGeneration(cap.model);
+  const parts = splitProviderDuration(totalDuration, cap.maxDuration || totalDuration);
+  let creditsTotal = 0;
+  let regularCreditsTotal = 0;
+  const promotions = [];
+  for (const part of parts) {
+    const resolutions = profile.resolutions?.length ? profile.resolutions : profile.availableResolutions || [];
+    const configuredResolution = String(cap.resolution || '').toLowerCase();
+    const resolution = resolutions.includes(configuredResolution)
+      ? configuredResolution
+      : resolutions.includes('720p') ? '720p' : resolutions[0] || configuredResolution || '720p';
+    const quote = videoModels.quoteCredits(profile, {
+      duration: part,
+      resolution,
+      audio: cap.audioMode === 'NATIVE_SYNC_AUDIO',
+      draft: false,
+      referenceCount
+    });
+    creditsTotal += quote.credits;
+    regularCreditsTotal += quote.regularCredits || quote.credits;
+    if (quote.promotion) promotions.push(quote.promotion);
+  }
+  const externalAudioMultiplier = cap.audioMode === 'NATIVE_SYNC_AUDIO'
+    ? 1
+    : cap.audioMode === 'EXTERNAL_TTS_POST_PROCESS'
+      ? 1.35
+      : 1.18;
+  return {
+    credits: Math.ceil(creditsTotal * externalAudioMultiplier),
+    regularCredits: Math.ceil(regularCreditsTotal * externalAudioMultiplier),
+    promotions
+  };
+}
+
+async function liveUgcPricing() {
+  const matrix = { STANDARD: {}, PREMIUM: {} };
+  const regularMatrix = { STANDARD: {}, PREMIUM: {} };
+  const promotions = [];
+  for (const duration of [20, 30, 45, 60]) {
+    try {
+      const standard = await quoteUgcRoute(ugcModelRouter.ROUTE_KEYS.STANDARD, duration, 1);
+      matrix.STANDARD[duration] = standard.credits;
+      regularMatrix.STANDARD[duration] = standard.regularCredits;
+      promotions.push(...standard.promotions.map(item => ({ ...item, quality: 'STANDARD' })));
+    } catch (_) {
+      matrix.STANDARD[duration] = STANDARD_CREDITS[duration];
+      regularMatrix.STANDARD[duration] = STANDARD_CREDITS[duration];
+    }
+
+    const quotes = [];
+    for (const routeKey of [
+      ugcModelRouter.ROUTE_KEYS.PROFESSIONAL_CREATOR,
+      ugcModelRouter.ROUTE_KEYS.PREMIUM_DYNAMIC,
+      ugcModelRouter.ROUTE_KEYS.DYNAMIC_FALLBACK
+    ]) {
+      try { quotes.push(await quoteUgcRoute(routeKey, duration, 1)); } catch (_) {}
+    }
+    if (quotes.length) {
+      matrix.PREMIUM[duration] = Math.max(...quotes.map(item => item.credits));
+      regularMatrix.PREMIUM[duration] = Math.max(...quotes.map(item => item.regularCredits));
+      quotes.forEach(item => promotions.push(...item.promotions.map(promo => ({ ...promo, quality: 'PREMIUM' }))));
+    } else {
+      matrix.PREMIUM[duration] = PREMIUM_CREDITS[duration];
+      regularMatrix.PREMIUM[duration] = PREMIUM_CREDITS[duration];
+    }
+  }
+  const dedupedPromotions = [...new Map(promotions.filter(Boolean).map(item => [
+    [item.endsAt || '', item.discountPercent || 0, item.quality].join(':'),
+    item
+  ])).values()];
+  return { matrix, regularMatrix, promotions: dedupedPromotions };
+}
+
 async function estimateCampaign(userId, input) {
   const balance = await credits.getBalance(userId);
-  return ugcStudioControls.quote({
+  const livePricing = await liveUgcPricing();
+  const quote = ugcStudioControls.quote({
     input,
     balanceRemaining: balance.remaining,
-    pricing: { STANDARD: STANDARD_CREDITS, PREMIUM: PREMIUM_CREDITS }
+    pricing: livePricing.matrix
   });
+  const quality = String(input.quality || 'STANDARD').toUpperCase();
+  const regularPerAd = Number(livePricing.regularMatrix?.[quality]?.[Number(input.duration)] || quote.perAd);
+  const regularCredits = regularPerAd * quote.adCount;
+  const activePromotion = livePricing.promotions.find(item => item.quality === quality && regularCredits > quote.credits) || null;
+  return {
+    ...quote,
+    reservationCredits: quote.credits,
+    pricing: {
+      ...quote.pricing,
+      policy: 'UGC_RUNWARE_LIVE_V2',
+      dynamic: true,
+      regularPerAd,
+      regularCredits,
+      promotion: activePromotion
+    }
+  };
 }
 
 function splitScriptByDurations(script, durations) {
