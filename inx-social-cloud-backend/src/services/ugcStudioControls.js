@@ -152,7 +152,7 @@ function quote({ input, balanceRemaining = 0, pricing = {} }) {
       })
     },
     pricing: {
-      policy: 'UGC_FIXED_V1',
+      policy: 'UGC_DYNAMIC_PROVIDER_V2',
       formatAffectsPrice: false,
       creatorSelectionAffectsPrice: false,
       matrix: selection.matrix
@@ -176,7 +176,7 @@ function snapshot(pricing = {}) {
     variationCounts: SUPPORTED_COUNTS.map(count => VARIATION_OPTIONS[count]),
     qualityTiers: SUPPORTED_QUALITIES.map(quality => QUALITY_TIERS[quality]),
     pricing: {
-      policy: 'UGC_FIXED_V1',
+      policy: 'UGC_DYNAMIC_PROVIDER_V2',
       matrix,
       formatAffectsPrice: false,
       creatorSelectionAffectsPrice: false

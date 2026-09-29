@@ -37,7 +37,9 @@ function safeJson(text) {
 
 function creditsForSlides(value) {
   const slides = Math.max(SLIDE_LIMITS.min, Math.min(SLIDE_LIMITS.max, Number(value || 5)));
-  return slides <= 5 ? 10 : slides <= 8 ? 15 : 20;
+  // GPT Image 2 medium output plus planning/reference input has a materially
+  // higher provider floor than the legacy Runware carousel path.
+  return slides * 10;
 }
 
 function sizeForRatio(ratio) {

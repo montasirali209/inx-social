@@ -242,6 +242,15 @@ export type UGCOverview = {
       pricing: {
         policy: string
         matrix: Record<UGCQuality, Record<string, number>>
+    dynamic?: boolean
+    regularPerAd?: number
+    regularCredits?: number
+    promotion?: {
+      active?: boolean
+      endsAt?: string | null
+      discountPercent?: number
+      label?: string
+    } | null
         formatAffectsPrice: boolean
         creatorSelectionAffectsPrice: boolean
       }
@@ -321,6 +330,7 @@ export type UGCAgentResponse = {
 export type UGCEstimate = {
   version: string
   credits: number
+  reservationCredits?: number
   perAd: number
   adCount: number
   duration: number
@@ -356,6 +366,15 @@ export type UGCEstimate = {
     formatAffectsPrice: boolean
     creatorSelectionAffectsPrice: boolean
     matrix: Record<UGCQuality, Record<string, number>>
+    dynamic?: boolean
+    regularPerAd?: number
+    regularCredits?: number
+    promotion?: {
+      active?: boolean
+      endsAt?: string | null
+      discountPercent?: number
+      label?: string
+    } | null
   }
   production: {
     providerNamesHidden: boolean

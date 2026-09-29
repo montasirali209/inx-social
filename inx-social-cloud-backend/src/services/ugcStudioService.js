@@ -10,6 +10,7 @@ const prisma = require('../db/prisma');
 const env = require('../config/env');
 const credits = require('./aiCreditService');
 const runware = require('./runwareService');
+const videoModels = require('./videoModelRegistryService');
 const postStudio = require('./aiPostStudioService');
 const objectStorage = require('./mediaObjectStorageService');
 const mediaLibrary = require('./mediaLibraryService');
@@ -28,8 +29,11 @@ const ugcRuntimePolicy = require('./ugcRuntimePolicy');
 const { expiresAtFor } = require('./mediaRetentionService');
 
 const STANDARD_CREDITS = Object.freeze({ 20: 140, 30: 210, 45: 315, 60: 420 });
+const SAFE_STANDARD_FALLBACK_CREDITS = Object.freeze({ 20: 184, 30: 276, 45: 414, 60: 552 });
 const PREMIUM_CREDITS = Object.freeze({ 20: 260, 30: 390, 45: 585, 60: 780 });
+const SAFE_PREMIUM_FALLBACK_CREDITS = Object.freeze({ 20: 650, 30: 950, 45: 1450, 60: 1900 });
 const AVATAR_CREDITS = 5;
+const REFERENCE_CREDITS = 10;
 const SYSTEM_AVATAR_COUNT = 52;
 const FEATURED_AVATAR_COUNT = 20;
 const FEATURED_AVATAR_LIMIT = 100;
@@ -938,20 +942,124 @@ async function ugcAgentReply(userId, input = {}) {
   };
 }
 
-function creditsPerAd(duration, quality) {
-  const table = String(quality || 'STANDARD').toUpperCase() === 'PREMIUM' ? PREMIUM_CREDITS : STANDARD_CREDITS;
-  const amount = table[Number(duration)];
+function creditsPerAd(duration, quality, pricing = { STANDARD: STANDARD_CREDITS, PREMIUM: PREMIUM_CREDITS }) {
+  const table = String(quality || 'STANDARD').toUpperCase() === 'PREMIUM' ? pricing.PREMIUM : pricing.STANDARD;
+  const amount = Number(table?.[Number(duration)] || 0);
   if (!amount) throw publicError('Choose a supported UGC duration.', 'UGC_DURATION_UNSUPPORTED', 422);
   return amount;
 }
 
+function splitProviderDuration(total, maxDuration) {
+  let remaining = Math.max(1, Number(total) || 1);
+  const cap = Math.max(1, Number(maxDuration) || remaining);
+  const parts = [];
+  while (remaining > 0) {
+    const part = Math.min(cap, remaining);
+    parts.push(part);
+    remaining -= part;
+  }
+  return parts;
+}
+
+async function quoteUgcRoute(routeKey, totalDuration, referenceCount = 1) {
+  const cap = ugcProviderAdapters.getAdapter(routeKey);
+  const profile = await videoModels.resolveModelForGeneration(cap.model);
+  const parts = splitProviderDuration(totalDuration, cap.maxDuration || totalDuration);
+  let creditsTotal = 0;
+  let regularCreditsTotal = 0;
+  const promotions = [];
+  for (const part of parts) {
+    const resolutions = profile.resolutions?.length ? profile.resolutions : profile.availableResolutions || [];
+    const configuredResolution = String(cap.resolution || '').toLowerCase();
+    const resolution = resolutions.includes(configuredResolution)
+      ? configuredResolution
+      : resolutions.includes('720p') ? '720p' : resolutions[0] || configuredResolution || '720p';
+    const quote = videoModels.quoteCredits(profile, {
+      duration: part,
+      resolution,
+      audio: cap.audioMode === 'NATIVE_SYNC_AUDIO',
+      draft: false,
+      referenceCount
+    });
+    creditsTotal += quote.credits;
+    regularCreditsTotal += quote.regularCredits || quote.credits;
+    if (quote.promotion) promotions.push(quote.promotion);
+  }
+  const externalAudioMultiplier = cap.audioMode === 'NATIVE_SYNC_AUDIO'
+    ? 1
+    : cap.audioMode === 'EXTERNAL_TTS_POST_PROCESS'
+      ? 1.35
+      : 1.18;
+  return {
+    credits: Math.ceil(creditsTotal * externalAudioMultiplier),
+    regularCredits: Math.ceil(regularCreditsTotal * externalAudioMultiplier),
+    promotions
+  };
+}
+
+async function liveUgcPricing() {
+  const matrix = { STANDARD: {}, PREMIUM: {} };
+  const regularMatrix = { STANDARD: {}, PREMIUM: {} };
+  const promotions = [];
+  for (const duration of [20, 30, 45, 60]) {
+    try {
+      const standard = await quoteUgcRoute(ugcModelRouter.ROUTE_KEYS.STANDARD, duration, 9);
+      matrix.STANDARD[duration] = standard.credits;
+      regularMatrix.STANDARD[duration] = standard.regularCredits;
+      promotions.push(...standard.promotions.map(item => ({ ...item, quality: 'STANDARD' })));
+    } catch (_) {
+      matrix.STANDARD[duration] = SAFE_STANDARD_FALLBACK_CREDITS[duration];
+      regularMatrix.STANDARD[duration] = SAFE_STANDARD_FALLBACK_CREDITS[duration];
+    }
+
+    const quotes = [];
+    for (const routeKey of [
+      ugcModelRouter.ROUTE_KEYS.PROFESSIONAL_CREATOR,
+      ugcModelRouter.ROUTE_KEYS.PREMIUM_DYNAMIC,
+      ugcModelRouter.ROUTE_KEYS.DYNAMIC_FALLBACK
+    ]) {
+      try { quotes.push(await quoteUgcRoute(routeKey, duration, 9)); } catch (_) {}
+    }
+    if (quotes.length) {
+      matrix.PREMIUM[duration] = Math.max(...quotes.map(item => item.credits));
+      regularMatrix.PREMIUM[duration] = Math.max(...quotes.map(item => item.regularCredits));
+      quotes.forEach(item => promotions.push(...item.promotions.map(promo => ({ ...promo, quality: 'PREMIUM' }))));
+    } else {
+      matrix.PREMIUM[duration] = SAFE_PREMIUM_FALLBACK_CREDITS[duration];
+      regularMatrix.PREMIUM[duration] = SAFE_PREMIUM_FALLBACK_CREDITS[duration];
+    }
+  }
+  const dedupedPromotions = [...new Map(promotions.filter(Boolean).map(item => [
+    [item.endsAt || '', item.discountPercent || 0, item.quality].join(':'),
+    item
+  ])).values()];
+  return { matrix, regularMatrix, promotions: dedupedPromotions };
+}
+
 async function estimateCampaign(userId, input) {
   const balance = await credits.getBalance(userId);
-  return ugcStudioControls.quote({
+  const livePricing = await liveUgcPricing();
+  const quote = ugcStudioControls.quote({
     input,
     balanceRemaining: balance.remaining,
-    pricing: { STANDARD: STANDARD_CREDITS, PREMIUM: PREMIUM_CREDITS }
+    pricing: livePricing.matrix
   });
+  const quality = String(input.quality || 'STANDARD').toUpperCase();
+  const regularPerAd = Number(livePricing.regularMatrix?.[quality]?.[Number(input.duration)] || quote.perAd);
+  const regularCredits = regularPerAd * quote.adCount;
+  const activePromotion = livePricing.promotions.find(item => item.quality === quality && regularCredits > quote.credits) || null;
+  return {
+    ...quote,
+    reservationCredits: quote.credits,
+    pricing: {
+      ...quote.pricing,
+      policy: 'UGC_RUNWARE_LIVE_V2',
+      dynamic: true,
+      regularPerAd,
+      regularCredits,
+      promotion: activePromotion
+    }
+  };
 }
 
 function splitScriptByDurations(script, durations) {
@@ -1129,10 +1237,11 @@ async function createAssemblyGenerationRow(userId, adId, request = {}) {
 }
 
 async function createCampaign(userId, input) {
-  ugcStudioControls.assertSelection(input, { STANDARD: STANDARD_CREDITS, PREMIUM: PREMIUM_CREDITS });
+  const livePricing = await liveUgcPricing();
+  ugcStudioControls.assertSelection(input, livePricing.matrix);
   const access = await credits.getAccess(userId);
   if (!access.studioEnabled) throw publicError('UGC Studio is unavailable for this account.', 'UGC_ACCESS_REQUIRED', 403);
-  const totalCredits = creditsPerAd(input.duration, input.quality) * input.adCount;
+  const totalCredits = creditsPerAd(input.duration, input.quality, livePricing.matrix) * input.adCount;
   if (Number(access.creditsRemaining || 0) < totalCredits) throw publicError('This UGC campaign needs ' + totalCredits + ' AI credits, but only ' + Number(access.creditsRemaining || 0) + ' remain.', 'AI_CREDITS_INSUFFICIENT', 402);
 
   let brand = null;
@@ -1177,7 +1286,7 @@ async function createCampaign(userId, input) {
     availableAvatars: available
   });
   const campaignId = id();
-  const perAd = creditsPerAd(input.duration, input.quality);
+  const perAd = creditsPerAd(input.duration, input.quality, livePricing.matrix);
   const sourceType = clean(input.sourceType || (productAssetIds.length ? 'PRODUCT' : input.productUrl ? 'WEBSITE' : 'BRIEF'), 30).toUpperCase();
 
   await prisma.$executeRawUnsafe(
@@ -1439,7 +1548,7 @@ async function createReferenceGeneration(userId, prompt) {
     generationId, userId, clean(prompt, 1500), json({ type: 'ugc_reference' })
   );
   try {
-    await credits.reserve(userId, generationId, AVATAR_CREDITS);
+    await credits.reserve(userId, generationId, REFERENCE_CREDITS);
     return generationId;
   } catch (error) {
     await prisma.$executeRawUnsafe('DELETE FROM "AiGeneration" WHERE "id"=$1 AND "userId"=$2', generationId, userId).catch(() => {});
@@ -1547,12 +1656,12 @@ async function generateReferenceAsset(userId, input) {
       result = { kind: 'PRODUCT', avatar: null, product };
     }
 
-    await credits.complete(userId, generationId, AVATAR_CREDITS);
+    await credits.complete(userId, generationId, REFERENCE_CREDITS);
     await prisma.$executeRawUnsafe(
       'UPDATE "AiGeneration" SET "status"=\'COMPLETED\',"progress"=100,"model"=$3,"responseJson"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1 AND "userId"=$2',
       generationId, userId, rendered.model || null, json({ kind: result.kind, avatarId: result.avatar?.id || null, productAssetId: result.product?.id || null })
     );
-    return { ...result, generationId, creditsUsed: AVATAR_CREDITS, prompt };
+    return { ...result, generationId, creditsUsed: REFERENCE_CREDITS, prompt };
   } catch (error) {
     await credits.refund(userId, generationId, error.code || 'ugc_reference_failed').catch(() => false);
     await prisma.$executeRawUnsafe(
@@ -2173,6 +2282,7 @@ async function renderAd(adId) {
   }
 
   let providerCost = Math.max(0, Number(generationRows[0]?.providerCostUsd || 0));
+  let persistedFinalAsset = null;
   const sceneProgress = scenes.map(scene => scene.status === 'READY' && scene.videoStorageKey ? 100 : 0);
   const spokenDurations = playbackDurations(ad.duration, scenes.map(scene => Number(scene.duration)));
   const updateSceneProgress = async (index, localProgress, stage) => {
@@ -2278,7 +2388,8 @@ async function renderAd(adId) {
     const finalVideo = await assembleVideo(ad, readyScenes);
     const finalBufferQC = ugcRenderQuality.validateFinalBuffer(finalVideo);
     await updateGenerationProgress(ad.generationId, 97, 'SAVING', { sceneTotal: readyScenes.length, readyScenes: readyScenes.length, qualityControlVersion: ugcRenderQuality.RENDER_QUALITY_VERSION });
-    const asset = await persistFinalAsset(ad, finalVideo, providerCost, { assembly: assemblyQC, finalBuffer: finalBufferQC });
+    persistedFinalAsset = await persistFinalAsset(ad, finalVideo, providerCost, { assembly: assemblyQC, finalBuffer: finalBufferQC });
+    const asset = persistedFinalAsset;
 
     await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'READY\',"mediaAssetId"=$2,"errorMessage"=NULL,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id, asset.id);
     await ugcEngine.recordRenderStatus(ad.userId, ad.campaignId, ad.id, 'READY', {
@@ -2288,16 +2399,33 @@ async function renderAd(adId) {
       qualityControlVersion: ugcRenderQuality.RENDER_QUALITY_VERSION,
       publishable: true
     }).catch(() => null);
-    if (generationCredits > 0) await credits.complete(ad.userId, ad.generationId, generationCredits);
+    const actualCredits = providerCost > 0 ? videoModels.creditsFromUsd(providerCost) : generationCredits;
+    if (generationCredits > 0) await credits.settle(ad.userId, ad.generationId, actualCredits, {
+      provider: 'runware',
+      providerCostUsd: providerCost,
+      reservedCredits: generationCredits,
+      pricingVersion: videoModels.REGISTRY_VERSION,
+      workflow: 'ugc'
+    });
     await prisma.$executeRawUnsafe(
       'UPDATE "AiGeneration" SET "status"=\'COMPLETED\',"progress"=100,"providerCostUsd"=$2,"assetJson"=$3,"responseJson"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
       ad.generationId,
       providerCost,
-      json({ id: asset.id, type: 'video', mediaLibraryAssetId: asset.id, url: asset.fileUrl, thumbnailUrl: asset.thumbnailUrl, creditsUsed: generationCredits }),
-      json({ stage: 'READY', ugcAdId: ad.id, providerCostUsd: providerCost, creditsUsed: generationCredits, sceneTotal: readyScenes.length, readyScenes: readyScenes.length, qualityControlVersion: ugcRenderQuality.RENDER_QUALITY_VERSION, publishable: true })
+      json({ id: asset.id, type: 'video', mediaLibraryAssetId: asset.id, url: asset.fileUrl, thumbnailUrl: asset.thumbnailUrl, creditsUsed: actualCredits }),
+      json({ stage: 'READY', ugcAdId: ad.id, providerCostUsd: providerCost, reservedCredits: generationCredits, creditsUsed: actualCredits, sceneTotal: readyScenes.length, readyScenes: readyScenes.length, qualityControlVersion: ugcRenderQuality.RENDER_QUALITY_VERSION, publishable: true })
     );
   } catch (error) {
     console.error('[UGC RENDER FAILED]', { adId, code: error?.code, error: clean(error?.message, 700) });
+    if (error?.code === 'AI_CREDITS_SETTLEMENT_SHORTFALL' && persistedFinalAsset?.id) {
+      try {
+        const storedAsset = await prisma.agentAsset.findFirst({ where: { id: persistedFinalAsset.id, userId: ad.userId } });
+        if (storedAsset?.storageKey) await objectStorage.deleteObject(storedAsset.storageKey, storedAsset.storageProvider || null).catch(() => {});
+        await prisma.agentAsset.deleteMany({ where: { id: persistedFinalAsset.id, userId: ad.userId } });
+        await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "mediaAssetId"=NULL,"status"=\'FAILED\',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id).catch(() => {});
+      } catch (cleanupError) {
+        console.error('[UGC SETTLEMENT CLEANUP FAILED]', clean(cleanupError?.message, 500));
+      }
+    }
     if (error?.sceneId) {
       await prisma.$executeRawUnsafe(
         'UPDATE "UGCScene" SET "status"=\'FAILED\',"errorMessage"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
@@ -2308,7 +2436,8 @@ async function renderAd(adId) {
 
     const failureScenes = await prisma.$queryRawUnsafe('SELECT * FROM "UGCScene" WHERE "adId"=$1 ORDER BY "sequence"', ad.id).catch(() => []);
     const failureQC = ugcRenderQuality.inspect({ ad: { ...ad, status: 'FAILED', errorMessage: clean(error?.publicMessage || error?.message, 700) }, scenes: failureScenes });
-    const canRecoverLocally = !error?.sceneId
+    const canRecoverLocally = error?.code !== 'AI_CREDITS_SETTLEMENT_SHORTFALL'
+      && !error?.sceneId
       && failureQC.recovery.action === 'REASSEMBLE'
       && localFinishRecoveryAttempts < ugcRuntimePolicy.LOCAL_FINISH_RETRY_LIMIT;
 
@@ -2350,7 +2479,29 @@ async function renderAd(adId) {
       return;
     }
 
-    if (generationCredits > 0) await credits.refund(ad.userId, ad.generationId, error?.code || 'ugc_render_failed').catch(() => false);
+    if (generationCredits > 0) {
+      if (providerCost > 0) {
+        const failedCredits = videoModels.creditsFromUsd(providerCost);
+        await credits.settle(ad.userId, ad.generationId, failedCredits, {
+          provider: 'runware',
+          providerCostUsd: providerCost,
+          reservedCredits: generationCredits,
+          pricingVersion: videoModels.REGISTRY_VERSION,
+          workflow: 'ugc',
+          failed: true
+        }).catch(settleError => {
+          console.error('[UGC CREDIT SETTLEMENT FAILED]', {
+            adId: ad.id,
+            generationId: ad.generationId,
+            providerCostUsd: providerCost,
+            code: settleError?.code || 'UNKNOWN',
+            error: clean(settleError?.message, 500)
+          });
+        });
+      } else {
+        await credits.refund(ad.userId, ad.generationId, error?.code || 'ugc_render_failed').catch(() => false);
+      }
+    }
     await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'FAILED\',"errorMessage"=$2,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id, clean(error?.publicMessage || error?.message || 'UGC rendering failed.', 700)).catch(() => {});
     await ugcEngine.recordRenderStatus(ad.userId, ad.campaignId, ad.id, 'FAILED', {
       errorCode: clean(error?.code || 'UGC_RENDER_FAILED', 120),
@@ -2706,9 +2857,9 @@ async function regenerateScene(userId, sceneId) {
 }
 
 module.exports = {
-  STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds, brandUrlCandidates, playbackDurations,
+  STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, REFERENCE_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds, brandUrlCandidates, playbackDurations,
   UGC_AGENT_VERSION, ugcAgentReply,
-  creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
+  creditsPerAd, liveUgcPricing, quoteUgcRoute, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
   narratorVoice, narratorLanguage, narratorSpeed, adultSafeReferencePrompt, captionsForScenes, estimateCampaign,
   getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, getProductionAudit, deleteCampaign, getAd, updateAd, rerouteScenesForRegeneration, reassembleAd, regenerateAd, regenerateScene,
   generateCustomAvatar, generateReferenceAsset, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,

@@ -5,6 +5,7 @@ const {
   STANDARD_CREDITS,
   PREMIUM_CREDITS,
   AVATAR_CREDITS,
+  REFERENCE_CREDITS,
   SYSTEM_AVATAR_COUNT,
   FEATURED_AVATAR_COUNT,
   avatarSeeds,
@@ -23,6 +24,7 @@ test('UGC pricing supports 20, 30, 45 and 60 second Standard and Premium ads', (
   assert.deepEqual(STANDARD_CREDITS, { 20: 140, 30: 210, 45: 315, 60: 420 });
   assert.deepEqual(PREMIUM_CREDITS, { 20: 260, 30: 390, 45: 585, 60: 780 });
   assert.equal(AVATAR_CREDITS, 5);
+  assert.equal(REFERENCE_CREDITS, 10);
   assert.equal(creditsPerAd(20, 'STANDARD'), 140);
   assert.equal(creditsPerAd(30, 'STANDARD'), 210);
   assert.equal(creditsPerAd(45, 'STANDARD'), 315);

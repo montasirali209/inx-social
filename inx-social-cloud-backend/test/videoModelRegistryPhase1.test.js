@@ -42,7 +42,7 @@ test('video registry parses synchronized per-second pricing and converts it to g
 
 test('video registry derives credits when provider examples do not include the exact selected configuration', () => {
   const pricing = registry.parsePricing({
-    pricingOverview: '50% OFF until September 30, 2026 · $0.025 from, per second',
+    pricingOverview: '$0.025 from, per second',
     pricingExamples: [
       { configuration: 'first-frame 768p · 5s', price: '$0.40' },
       { configuration: 'first-last-frame 480p · 15s', price: '$0.75' },
@@ -69,6 +69,49 @@ test('video registry derives credits when provider examples do not include the e
   // Exact provider example prices remain complete request totals.
   assert.equal(registry.costFromPricing(profile, { duration: 5, resolution: '768p', draft: false, audio: true }), 0.40);
   assert.equal(registry.estimateCredits(profile, { duration: 5, resolution: '768p', draft: false, audio: true }), 46);
+});
+
+test('video registry exposes provider promotions and automatically switches to regular pricing after expiry', () => {
+  const pricing = registry.parsePricing({
+    pricingOverview: '50% OFF until September 30, 2026 · promotional provider pricing',
+    pricingExamples: [
+      { configuration: '768p · Standard · 5s', price: '$0.20' }
+    ]
+  });
+  assert.equal(pricing.promotion.active, true);
+  assert.equal(pricing.promotion.discountPercent, 50);
+  assert.match(pricing.promotion.endsAt, /^2026-09-30T23:59:59/);
+  assert.equal(pricing.rules[0].currentPrice, 0.20);
+  assert.equal(pricing.rules[0].regularPrice, 0.40);
+
+  const profile = {
+    durations: [5],
+    resolutions: ['768p'],
+    draftSupported: false,
+    audioSupported: false,
+    pricing
+  };
+  assert.equal(registry.costFromPricing(profile, { duration: 5, resolution: '768p', audio: false }, { at: new Date('2026-09-29T12:00:00Z') }), 0.20);
+  assert.equal(registry.costFromPricing(profile, { duration: 5, resolution: '768p', audio: false }, { at: new Date('2026-10-01T00:00:00Z') }), 0.40);
+});
+
+test('video registry prices extra reference-image surcharges when the provider exposes them', () => {
+  const pricing = registry.parsePricing({
+    pricingOverview: 'Reference pricing',
+    pricingExamples: [
+      { configuration: '768p · Standard · 5s', price: '$0.20' },
+      { configuration: 'each input image beyond 5', price: '$0.04 per input image' }
+    ]
+  });
+  const profile = {
+    durations: [5],
+    resolutions: ['768p'],
+    draftSupported: false,
+    audioSupported: false,
+    pricing
+  };
+  assert.equal(registry.costFromPricing(profile, { duration: 5, resolution: '768p', audio: false, referenceCount: 5 }), 0.20);
+  assert.equal(registry.costFromPricing(profile, { duration: 5, resolution: '768p', audio: false, referenceCount: 8 }), 0.32);
 });
 
 test('video registry falls back conservatively across provider examples instead of returning unavailable pricing', () => {
@@ -143,7 +186,7 @@ test('generic video adapter validates model capabilities before sending provider
   );
 });
 
-test('phase one wires catalogue warmup and actual-cost settlement without modifying UGC services', () => {
+test('video pricing hardening wires catalogue warmup and actual-cost settlement', () => {
   const root = path.resolve(__dirname, '..');
   const server = fs.readFileSync(path.join(root, 'src/server.js'), 'utf8');
   const routes = fs.readFileSync(path.join(root, 'src/routes/aiContentStudioRoutes.js'), 'utf8');
@@ -154,5 +197,7 @@ test('phase one wires catalogue warmup and actual-cost settlement without modify
   assert.match(video, /videoModels\.creditsFromUsd\(providerCostUsd\)/);
   assert.match(video, /credits\.settle/);
   assert.match(credits, /GENERATION_SETTLEMENT_REFUND/);
+  assert.match(credits, /GENERATION_SETTLEMENT_DEBIT/);
+  assert.doesNotMatch(video, /Math\.min\(amount, providerRequiredCredits\)/);
   assert.doesNotMatch(video, /ugcStudio|ugcModelRouter|ugcProviderAdapters/);
 });

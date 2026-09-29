@@ -3,7 +3,7 @@ const prisma = require('../db/prisma');
 const env = require('../config/env');
 const commercialGuard = require('./videoCommercialGuardService');
 
-const REGISTRY_VERSION = 'video-model-registry-v1';
+const REGISTRY_VERSION = 'video-model-registry-v2';
 const SETTING_KEY = 'ai_video_model_catalog_v1';
 const CONTENT_BASE_URL = 'https://content.runware.ai';
 const SCHEMAS_BASE_URL = 'https://schemas.runware.ai';
@@ -188,6 +188,39 @@ function parsePriceNumber(value) {
   return bare ? Number(bare[1]) : NaN;
 }
 
+function parsePricePair(value) {
+  const text = String(value || '').replace(/,/g, '');
+  const matches = [...text.matchAll(/(?:\$|USD\s*)([0-9]+(?:\.[0-9]+)?)/gi)]
+    .map(match => Number(match[1]))
+    .filter(Number.isFinite);
+  const current = matches[0] ?? parsePriceNumber(text);
+  const regular = matches.slice(1).find(amount => Number.isFinite(amount) && amount > current);
+  return { current: Number(current), regular: Number.isFinite(regular) ? Number(regular) : null };
+}
+
+function parsePromotionExpiry(value) {
+  const text = clean(value, 2200);
+  const match = text.match(/\buntil\s+(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(\d{4})\b/i);
+  if (!match) return null;
+  const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+  const month = months.indexOf(match[1].toLowerCase());
+  if (month < 0) return null;
+  return new Date(Date.UTC(Number(match[3]), month, Number(match[2]), 23, 59, 59, 999)).toISOString();
+}
+
+function promotionActive(endsAt, at = new Date()) {
+  if (!endsAt) return true;
+  return new Date(at).getTime() <= new Date(endsAt).getTime();
+}
+
+function effectiveRulePrice(rule, options = {}) {
+  const current = Number(rule?.currentPrice ?? rule?.price);
+  const regular = Number(rule?.regularPrice);
+  if (options.priceMode === 'regular' && Number.isFinite(regular) && regular > 0) return regular;
+  if (Number.isFinite(regular) && regular > 0 && !promotionActive(rule?.promotionEndsAt, options.at || new Date())) return regular;
+  return current;
+}
+
 function parseResolution(configuration) {
   const text = clean(configuration, 240);
   const direct = text.match(/\b(360|480|540|720|768|1080|1440|2160)p\b/i)?.[0];
@@ -230,26 +263,47 @@ function explicitPricingUnit(configuration, rawPrice) {
 function parsePricing(pricing) {
   const examples = Array.isArray(pricing?.pricingExamples) ? pricing.pricingExamples : [];
   const overview = clean(pricing?.pricingOverview, 2000);
+  const promotionEndsAt = parsePromotionExpiry(overview);
+  const overviewDiscountPercent = Math.max(0, Math.min(95, Number(overview.match(/\b(\d{1,2})%\s*OFF\b/i)?.[1] || 0)));
+  const discountFactor = overviewDiscountPercent > 0 ? 1 - overviewDiscountPercent / 100 : 1;
   const rules = examples.map(example => {
     const configuration = clean(example?.configuration, 240);
-    const rawPrice = clean(example?.price, 120);
-    const price = parsePriceNumber(rawPrice);
-    if (!Number.isFinite(price) || price <= 0) return null;
+    const rawPrice = clean(example?.price, 160);
+    const pair = parsePricePair(rawPrice);
+    if (!Number.isFinite(pair.current) || pair.current <= 0) return null;
+    const threshold = Number(configuration.match(/\bbeyond\s+(\d+)\b/i)?.[1] || 0) || null;
+    const surchargeKind = /per\s+input\s+image|each\s+input\s+image|each\s+image/i.test(configuration) ? 'reference_image' : null;
     return {
       configuration,
-      price,
+      price: pair.current,
+      currentPrice: pair.current,
+      regularPrice: pair.regular || (overviewDiscountPercent > 0 ? pair.current / discountFactor : null),
+      promotionEndsAt,
       resolution: parseResolution(configuration),
       duration: parseDuration(configuration),
       mode: pricingMode(configuration),
-      unit: explicitPricingUnit(configuration, rawPrice),
+      unit: surchargeKind ? 'per_input_image' : explicitPricingUnit(configuration, rawPrice),
+      surchargeKind,
+      threshold,
       source: 'provider_example'
     };
   }).filter(Boolean);
 
-  return { overview, rules, status: rules.length ? 'SYNCED' : 'UNAVAILABLE' };
+  const discounted = rules.find(rule => Number.isFinite(rule.regularPrice) && rule.regularPrice > rule.currentPrice);
+  const discountPercent = overviewDiscountPercent || (discounted ? Math.max(0, Math.round((1 - discounted.currentPrice / discounted.regularPrice) * 100)) : 0);
+  const promotion = discounted ? {
+    active: promotionActive(promotionEndsAt),
+    endsAt: promotionEndsAt,
+    discountPercent,
+    label: discountPercent ? discountPercent + '% off' : 'Provider promotion',
+    source: 'runware-live'
+  } : null;
+
+  return { overview, rules, promotion, status: rules.length ? 'SYNCED' : 'UNAVAILABLE' };
 }
 
 function ruleModeCompatible(rule, selection) {
+  if (rule?.surchargeKind) return false;
   if (selection.draft) return rule.mode === 'draft' || rule.mode === 'standard';
   if (rule.mode === 'draft') return false;
   if (!selection.audio && rule.mode === 'audio') return false;
@@ -275,21 +329,36 @@ function ruleScore(rule, selection) {
   return score;
 }
 
-function ruleCost(rule, duration) {
-  if (!rule || !Number.isFinite(Number(rule.price)) || Number(rule.price) <= 0) return null;
-  if (rule.unit === 'per_second') return Number(rule.price) * duration;
-  return Number(rule.price);
+function ruleCost(rule, duration, options = {}) {
+  const price = effectiveRulePrice(rule, options);
+  if (!rule || !Number.isFinite(price) || price <= 0) return null;
+  if (rule.unit === 'per_second') return price * duration;
+  return price;
 }
 
-function normalizedPerSecond(rule) {
-  if (!rule || !Number.isFinite(Number(rule.price)) || Number(rule.price) <= 0) return null;
-  if (rule.unit === 'per_second') return Number(rule.price);
+function normalizedPerSecond(rule, options = {}) {
+  const price = effectiveRulePrice(rule, options);
+  if (!rule || !Number.isFinite(price) || price <= 0) return null;
+  if (rule.unit === 'per_second') return price;
   const ruleDuration = Number(rule.duration || 0);
-  if (ruleDuration > 0) return Number(rule.price) / ruleDuration;
+  if (ruleDuration > 0) return price / ruleDuration;
   return null;
 }
 
-function conservativeDerivedCost(rules, selection) {
+function pricingSurchargeCost(rules, selection, options = {}) {
+  const referenceCount = Math.max(0, Number(selection?.referenceCount || 0));
+  let total = 0;
+  for (const rule of rules || []) {
+    if (rule?.surchargeKind !== 'reference_image') continue;
+    const unit = effectiveRulePrice(rule, options);
+    if (!Number.isFinite(unit) || unit <= 0) continue;
+    const threshold = Math.max(0, Number(rule.threshold || 0));
+    total += Math.max(0, referenceCount - threshold) * unit;
+  }
+  return total;
+}
+
+function conservativeDerivedCost(rules, selection, options = {}) {
   const compatible = rules.filter(rule => ruleModeCompatible(rule, selection));
   if (!compatible.length) return null;
 
@@ -300,19 +369,19 @@ function conservativeDerivedCost(rules, selection) {
   // configuration is absent, normalize examples with known duration into
   // effective per-second rates and reserve against the highest relevant rate.
   // The successful render is later settled against Runware's actual cost.
-  const rates = candidates.map(normalizedPerSecond).filter(value => Number.isFinite(value) && value > 0);
+  const rates = candidates.map(rule => normalizedPerSecond(rule, options)).filter(value => Number.isFinite(value) && value > 0);
   if (rates.length) return Math.max(...rates) * selection.duration;
 
   // Some fixed-price models expose only per-request examples without a duration.
   // Reserve against the highest compatible request price rather than blocking.
   const fixed = candidates
     .filter(rule => rule.unit === 'per_request' && !rule.duration)
-    .map(rule => Number(rule.price))
+    .map(rule => effectiveRulePrice(rule, options))
     .filter(value => Number.isFinite(value) && value > 0);
   return fixed.length ? Math.max(...fixed) : null;
 }
 
-function costFromPricing(profile, selection = {}) {
+function costFromPricing(profile, selection = {}, options = {}) {
   const duration = Math.max(1, Number(selection.duration || profile.durations?.[0] || profile.availableDurations?.[0] || 5));
   const resolution = clean(selection.resolution || profile.resolutions?.[0] || profile.availableResolutions?.[0] || '', 32).toLowerCase();
   const draft = Boolean(selection.draft && profile.draftSupported);
@@ -325,15 +394,16 @@ function costFromPricing(profile, selection = {}) {
     .filter(item => item.score >= 0)
     .sort((a, b) => b.score - a.score);
   if (ranked[0]) {
-    const exact = ruleCost(ranked[0].rule, duration);
-    if (Number.isFinite(exact) && exact > 0) return exact;
+    const exact = ruleCost(ranked[0].rule, duration, options);
+    if (Number.isFinite(exact) && exact > 0) return exact + pricingSurchargeCost(rules, selection, options);
   }
 
   const rateTable = draft && profile.draftRates ? profile.draftRates : audio && profile.audioRates ? profile.audioRates : profile.rates;
   const rate = Number(rateTable?.[resolution] ?? profile.rates?.[resolution]);
-  if (Number.isFinite(rate) && rate > 0) return rate * duration;
+  if (Number.isFinite(rate) && rate > 0) return rate * duration + pricingSurchargeCost(rules, selection, options);
 
-  return conservativeDerivedCost(rules, normalizedSelection);
+  const derived = conservativeDerivedCost(rules, normalizedSelection, options);
+  return Number.isFinite(derived) && derived > 0 ? derived + pricingSurchargeCost(rules, selection, options) : derived;
 }
 
 function creditsFromUsd(providerCostUsd) {
@@ -341,16 +411,36 @@ function creditsFromUsd(providerCostUsd) {
   return Math.max(1, Math.ceil(cost * 100 * CREDIT_COST_BUFFER));
 }
 
-function estimateCredits(profile, selection = {}) {
-  const cost = costFromPricing(profile, selection);
-  if (!Number.isFinite(cost) || cost <= 0) {
+function quoteCredits(profile, selection = {}) {
+  const providerCostUsd = costFromPricing(profile, selection);
+  if (!Number.isFinite(providerCostUsd) || providerCostUsd <= 0) {
     const error = new Error('Current provider pricing is unavailable for this video model.');
     error.code = 'AI_VIDEO_PRICING_UNAVAILABLE';
     error.status = 503;
     error.publicMessage = 'Current pricing is unavailable for this video model. Choose another model and try again.';
     throw error;
   }
-  return commercialGuard.assertEstimate(creditsFromUsd(cost));
+  const regularProviderCostUsd = costFromPricing(profile, selection, { priceMode: 'regular' });
+  const credits = commercialGuard.assertEstimate(creditsFromUsd(providerCostUsd));
+  const regularCredits = Number.isFinite(regularProviderCostUsd) && regularProviderCostUsd > 0
+    ? commercialGuard.assertEstimate(creditsFromUsd(regularProviderCostUsd))
+    : credits;
+  const reservationCredits = commercialGuard.assertEstimate(Math.max(
+    credits,
+    Math.ceil(credits * Math.max(1.10, commercialGuard.policy().costDriftTolerance))
+  ));
+  const promotion = regularCredits > credits && profile.pricing?.promotion?.active ? {
+    ...profile.pricing.promotion,
+    discountedProviderCostUsd: providerCostUsd,
+    regularProviderCostUsd,
+    discountedCredits: credits,
+    regularCredits
+  } : null;
+  return { credits, reservationCredits, providerCostUsd, regularProviderCostUsd, regularCredits, promotion };
+}
+
+function estimateCredits(profile, selection = {}) {
+  return quoteCredits(profile, selection).credits;
 }
 
 function mergeLegacyWithLive(legacy, live) {
@@ -587,6 +677,18 @@ function baselineCredits(model) {
 
 function publicModel(model) {
   const baseline = baselineCredits(model);
+  let baselineQuote = null;
+  try {
+    const durations = model.durations?.length ? model.durations : model.availableDurations || [];
+    const resolutions = model.resolutions?.length ? model.resolutions : model.availableResolutions || [];
+    baselineQuote = quoteCredits(model, {
+      duration: durations.includes(5) ? 5 : durations[0] || 5,
+      resolution: resolutions.includes('720p') ? '720p' : resolutions[0] || '720p',
+      draft: false,
+      audio: Boolean(model.audioSupported),
+      referenceCount: 0
+    });
+  } catch (_) {}
   const generationReady = Boolean(
     model.generationReady
     && (model.pricingStatus || model.pricing?.status) === 'SYNCED'
@@ -623,6 +725,8 @@ function publicModel(model) {
     generationReady,
     pricingStatus: model.pricingStatus || model.pricing?.status || 'UNAVAILABLE',
     baselineCredits: Number.isFinite(baseline) && baseline > 0 ? baseline : null,
+    regularBaselineCredits: baselineQuote?.promotion ? baselineQuote.regularCredits : null,
+    promotion: baselineQuote?.promotion || null,
     tags: model.tags || []
   };
 }
@@ -755,10 +859,14 @@ module.exports = {
   normalizeCapabilities,
   parsePricing,
   parseResolution,
+  parsePromotionExpiry,
+  promotionActive,
+  effectiveRulePrice,
   normalizedPerSecond,
   conservativeDerivedCost,
   costFromPricing,
   creditsFromUsd,
+  quoteCredits,
   estimateCredits,
   snapshot,
   refreshCatalog,

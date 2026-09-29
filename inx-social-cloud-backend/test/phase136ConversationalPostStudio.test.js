@@ -94,11 +94,11 @@ test('Guardrails constrain prompt injection and unrelated general-assistant beha
   assert.match(service, /social-content creation/);
 });
 
-test('Final Image Post render uses direct GPT Image with five-credit accounting and clean failure mapping', () => {
+test('Final Image Post render uses direct GPT Image with conservative credit accounting and clean failure mapping', () => {
   const service = read('src/services/aiPostStudioServiceV2.js');
   const routes = read('src/routes/aiContentStudioRoutes.js');
 
-  assert.match(service, /IMAGE_CREDITS = 5/);
+  assert.match(service, /IMAGE_CREDITS = 10/);
   assert.match(service, /env\.openaiImage\.model \|\| 'gpt-image-2'/);
   assert.match(service, /\/images\/generations/);
   assert.match(service, /\/images\/edits/);

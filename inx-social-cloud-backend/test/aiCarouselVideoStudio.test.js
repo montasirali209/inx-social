@@ -20,7 +20,7 @@ test('Carousel uses conversational source analysis, direct GPT image rendering a
   assert.match(service, /OPENAI_REASONING_MODEL/);
   assert.match(service, /images\/generations/);
   assert.match(service, /images\/edits/);
-  assert.match(service, /slides <= 5 \? 10 : slides <= 8 \? 15 : 20/);
+  assert.match(service, /return slides \* 10/);
 });
 
 test('Carousel can be refined after generation without replacing the current version before approval', () => {
@@ -98,7 +98,7 @@ test('Video Studio asks for explicit confirmation before high-credit generations
   assert.match(video, /Confirm high-credit video generation/);
   assert.match(video, /Balance after reservation/);
   assert.match(video, /window\.confirm\(details\)/);
-  assert.match(video, /reserved credits are returned automatically/);
+  assert.match(video, /Unused reserved credits are returned automatically/);
   assert.match(video, /onClick=\{\(\) => void requestGeneration\(\)\}/);
 });
 

@@ -35,8 +35,8 @@ test('Phase 7 supports zero-credit reassembly without touching paid generation c
   assert.match(studio, /reservedCredits","createdAt"/);
   assert.match(studio, /async function reassembleAd/);
   assert.match(studio, /reassembly: true/);
-  assert.match(studio, /if \(generationCredits > 0\) await credits\.complete/);
-  assert.match(studio, /if \(generationCredits > 0\) await credits\.refund/);
+  assert.match(studio, /if \(generationCredits > 0\) await credits\.settle/);
+  assert.match(studio, /credits\.refund\(ad\.userId, ad\.generationId/);
   assert.match(studio, /reservedCredits != null \? Number/);
 });
 
