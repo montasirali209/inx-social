@@ -227,6 +227,59 @@ function explicitPricingUnit(configuration, rawPrice) {
   return 'per_request';
 }
 
+function promotionFromStructuredPricing(pricing, rules = []) {
+  const candidates = [pricing?.promotion, pricing?.discount, pricing?.sale, pricing?.offer]
+    .filter(value => value && typeof value === 'object' && !Array.isArray(value));
+
+  for (const value of candidates) {
+    const percent = Number(
+      value.discountPercent
+      ?? value.percentOff
+      ?? value.percentage
+      ?? value.percent
+      ?? value.discount_percentage
+      ?? value.discount_percent
+      ?? NaN
+    );
+    if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) continue;
+
+    const rawEnd = value.endsAt
+      ?? value.endAt
+      ?? value.expiresAt
+      ?? value.validUntil
+      ?? value.until
+      ?? value.endDate
+      ?? value.expiryDate
+      ?? null;
+    let endsAt = null;
+    if (rawEnd) {
+      const text = String(rawEnd).trim();
+      const parsed = Date.parse(text);
+      if (Number.isFinite(parsed)) {
+        const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(text) || /^[A-Za-z]{3,9}\s+\d{1,2}(?:st|nd|rd|th)?(?:,)?\s+20\d{2}$/i.test(text);
+        endsAt = new Date(parsed + (dateOnly ? 24 * 60 * 60 * 1000 - 1 : 0)).toISOString();
+      }
+    }
+    if (value.active === false && !endsAt) continue;
+
+    const multiplier = 1 - (percent / 100);
+    return {
+      active: true,
+      discountPercent: percent,
+      endsAt,
+      source: 'provider_structured',
+      regularPriceMultiplier: Number((1 / multiplier).toFixed(6)),
+      rules: rules.map(rule => ({
+        ...rule,
+        regularPrice: Number.isFinite(Number(rule.regularPrice))
+          ? Number(rule.regularPrice)
+          : Number((Number(rule.price) / multiplier).toFixed(6))
+      }))
+    };
+  }
+  return null;
+}
+
 function promotionFromOverview(overview, rules = []) {
   const text = clean(overview, 2000);
   const percent = Number(
@@ -286,7 +339,7 @@ function parsePricing(pricing) {
     if (typeof value === 'string' || typeof value === 'number') return String(value);
     try { return JSON.stringify(value); } catch (_) { return ''; }
   }).filter(Boolean).join(' ');
-  const promotion = promotionFromOverview(promotionSignals, rules);
+  const promotion = promotionFromStructuredPricing(pricing, rules) || promotionFromOverview(promotionSignals, rules);
   if (promotion?.active) rules = promotion.rules;
 
   return { overview, rules, promotion: promotion ? { active: promotion.active, discountPercent: promotion.discountPercent, endsAt: promotion.endsAt, source: promotion.source } : null, status: rules.length ? 'SYNCED' : 'UNAVAILABLE' };
