@@ -21,10 +21,18 @@ const FIRST_RUN_DELAY_MS = 45 * 1000;
 const LEASE_MS = 45 * 60 * 1000;
 const PROCESS_LEASE_OWNER = randomUUID();
 
+const AUTOPILOT_MODELS = Object.freeze({
+  TERRA: 'gpt-5.6-terra',
+  SOL: 'gpt-5.6-sol'
+});
+
 const DEFAULT_CONFIG = Object.freeze({
   enabled: true,
+  pauseUntil: null,
+  aiModel: AUTOPILOT_MODELS.TERRA,
+  aiReasoningEffort: 'medium',
   intelligenceEveryHours: 24,
-  configVersion: 10,
+  configVersion: 11,
   publishEveryHours: 24,
   editorialRadarEveryHours: 6,
   hotTrendAutoEvaluate: true,
@@ -200,9 +208,44 @@ function clampNumber(value, fallback, min, max) {
   return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
 }
 
+function normalizeAutopilotModel(value) {
+  const model = String(value || '').trim().toLowerCase();
+  return Object.values(AUTOPILOT_MODELS).includes(model) ? model : AUTOPILOT_MODELS.TERRA;
+}
+
+function normalizeReasoningEffort(value, model) {
+  const clean = String(value || '').trim().toLowerCase();
+  if (['low', 'medium', 'high'].includes(clean)) return clean;
+  return model === AUTOPILOT_MODELS.SOL ? 'high' : 'medium';
+}
+
+function normalizePauseUntil(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function isTemporarilyPaused(config, reference = new Date()) {
+  if (!config?.pauseUntil) return false;
+  const until = new Date(config.pauseUntil).getTime();
+  return Number.isFinite(until) && until > reference.getTime();
+}
+
+function isAutopilotActive(config, reference = new Date()) {
+  return config?.enabled !== false && !isTemporarilyPaused(config, reference);
+}
+
+function modelLabel(model) {
+  return model === AUTOPILOT_MODELS.SOL ? 'GPT-5.6 Sol' : 'GPT-5.6 Terra';
+}
+
 function normalizeConfig(value = {}) {
+  const aiModel = normalizeAutopilotModel(value.aiModel);
   return {
     enabled: value.enabled !== false,
+    pauseUntil: normalizePauseUntil(value.pauseUntil),
+    aiModel,
+    aiReasoningEffort: normalizeReasoningEffort(value.aiReasoningEffort, aiModel),
     intelligenceEveryHours: clampNumber(value.intelligenceEveryHours, 24, 6, 168),
     configVersion: Math.max(10, Number(value.configVersion || 0)),
     publishEveryHours: clampNumber(value.publishEveryHours, 24, 24, 336),
@@ -283,6 +326,7 @@ async function ensureSettings() {
   const needsV8Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 8;
   const needsV9Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 9;
   const needsV10Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 10;
+  const needsV11Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 11;
   const config = normalizeConfig({
     ...(rawConfig || DEFAULT_CONFIG),
     ...(needsV4Migration ? { authorityEveryHours: 6, authorityAutoEmail: true, optimizationEveryHours: 24 } : {}),
@@ -291,7 +335,13 @@ async function ensureSettings() {
     ...(needsV7Migration ? { configVersion: 7, minQualityScore: 90, maxDraftAttempts: 3 } : {}),
     ...(needsV8Migration ? { configVersion: 8, dailyArticleTarget: 1 } : {}),
     ...(needsV9Migration ? { configVersion: 9 } : {}),
-    ...(needsV10Migration ? { configVersion: 10, editorialRetryMinutes: 10 } : {})
+    ...(needsV10Migration ? { configVersion: 10, editorialRetryMinutes: 10 } : {}),
+    ...(needsV11Migration ? {
+      configVersion: 11,
+      aiModel: AUTOPILOT_MODELS.TERRA,
+      aiReasoningEffort: 'medium',
+      pauseUntil: null
+    } : {})
   });
 
   await prisma.appSetting.upsert({
@@ -314,7 +364,7 @@ async function ensureSettings() {
         description: 'INXSocial Growth Autopilot runtime state and activity.'
       }
     });
-  } else if (needsV4Migration || needsV5Migration || needsV6Migration || needsV7Migration || needsV8Migration || needsV9Migration || needsV10Migration) {
+  } else if (needsV4Migration || needsV5Migration || needsV6Migration || needsV7Migration || needsV8Migration || needsV9Migration || needsV10Migration || needsV11Migration) {
     const state = { ...initialState(), ...(safeJson(existingState.value, {}) || {}) };
     state.running = false;
     state.leaseUntil = null;
@@ -339,7 +389,9 @@ async function ensureSettings() {
       at: nowIso(),
       type: 'AUTOPILOT_UPGRADED',
       level: 'success',
-      message: needsV10Migration
+      message: needsV11Migration
+        ? 'Growth Autopilot upgraded with Terra as the default cost-efficient model plus timed pause controls.'
+        : needsV10Migration
         ? 'Growth Autopilot upgraded with immediate in-process editorial repair, 10-minute outage recovery and interrupted-draft resume.'
         : needsV9Migration
         ? 'Growth Autopilot upgraded with deployment-safe lease ownership and immediate recovery of interrupted editorial cycles.'
@@ -984,7 +1036,13 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
 
 async function runCycle(options = {}) {
   const config = await getConfig();
-  if (!config.enabled && !options.force) return { skipped: true, reason: 'disabled' };
+  if (!options.force && !isAutopilotActive(config)) {
+    return {
+      skipped: true,
+      reason: config.enabled === false ? 'disabled' : 'temporarily_paused',
+      pauseUntil: config.pauseUntil || null
+    };
+  }
 
   const state = await getState();
   const intelligenceDue = options.force || isDue(state.nextIntelligenceAt);
