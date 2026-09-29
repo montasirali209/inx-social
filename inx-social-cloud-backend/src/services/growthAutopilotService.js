@@ -21,10 +21,18 @@ const FIRST_RUN_DELAY_MS = 45 * 1000;
 const LEASE_MS = 45 * 60 * 1000;
 const PROCESS_LEASE_OWNER = randomUUID();
 
+const AUTOPILOT_MODELS = Object.freeze({
+  TERRA: 'gpt-5.6-terra',
+  SOL: 'gpt-5.6-sol'
+});
+
 const DEFAULT_CONFIG = Object.freeze({
   enabled: true,
+  pauseUntil: null,
+  aiModel: AUTOPILOT_MODELS.TERRA,
+  aiReasoningEffort: 'medium',
   intelligenceEveryHours: 24,
-  configVersion: 10,
+  configVersion: 11,
   publishEveryHours: 24,
   editorialRadarEveryHours: 6,
   hotTrendAutoEvaluate: true,
@@ -200,11 +208,53 @@ function clampNumber(value, fallback, min, max) {
   return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
 }
 
+function normalizeAutopilotModel(value) {
+  const model = String(value || '').trim().toLowerCase();
+  return Object.values(AUTOPILOT_MODELS).includes(model) ? model : AUTOPILOT_MODELS.TERRA;
+}
+
+function normalizeReasoningEffort(value, model) {
+  const clean = String(value || '').trim().toLowerCase();
+  if (['low', 'medium', 'high'].includes(clean)) return clean;
+  return model === AUTOPILOT_MODELS.SOL ? 'high' : 'medium';
+}
+
+function normalizePauseUntil(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function isTemporarilyPaused(config, reference = new Date()) {
+  if (!config?.pauseUntil) return false;
+  const until = new Date(config.pauseUntil).getTime();
+  return Number.isFinite(until) && until > reference.getTime();
+}
+
+function isAutopilotActive(config, reference = new Date()) {
+  return config?.enabled !== false && !isTemporarilyPaused(config, reference);
+}
+
+function modelLabel(model) {
+  return model === AUTOPILOT_MODELS.SOL ? 'GPT-5.6 Sol' : 'GPT-5.6 Terra';
+}
+
+function aiOptionsForConfig(config) {
+  return {
+    model: normalizeAutopilotModel(config?.aiModel),
+    reasoningEffort: normalizeReasoningEffort(config?.aiReasoningEffort, config?.aiModel)
+  };
+}
+
 function normalizeConfig(value = {}) {
+  const aiModel = normalizeAutopilotModel(value.aiModel);
   return {
     enabled: value.enabled !== false,
+    pauseUntil: normalizePauseUntil(value.pauseUntil),
+    aiModel,
+    aiReasoningEffort: normalizeReasoningEffort(value.aiReasoningEffort, aiModel),
     intelligenceEveryHours: clampNumber(value.intelligenceEveryHours, 24, 6, 168),
-    configVersion: Math.max(10, Number(value.configVersion || 0)),
+    configVersion: Math.max(11, Number(value.configVersion || 0)),
     publishEveryHours: clampNumber(value.publishEveryHours, 24, 24, 336),
     editorialRadarEveryHours: clampNumber(value.editorialRadarEveryHours, 6, 3, 24),
     hotTrendAutoEvaluate: value.hotTrendAutoEvaluate !== false,
@@ -283,6 +333,7 @@ async function ensureSettings() {
   const needsV8Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 8;
   const needsV9Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 9;
   const needsV10Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 10;
+  const needsV11Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 11;
   const config = normalizeConfig({
     ...(rawConfig || DEFAULT_CONFIG),
     ...(needsV4Migration ? { authorityEveryHours: 6, authorityAutoEmail: true, optimizationEveryHours: 24 } : {}),
@@ -291,7 +342,13 @@ async function ensureSettings() {
     ...(needsV7Migration ? { configVersion: 7, minQualityScore: 90, maxDraftAttempts: 3 } : {}),
     ...(needsV8Migration ? { configVersion: 8, dailyArticleTarget: 1 } : {}),
     ...(needsV9Migration ? { configVersion: 9 } : {}),
-    ...(needsV10Migration ? { configVersion: 10, editorialRetryMinutes: 10 } : {})
+    ...(needsV10Migration ? { configVersion: 10, editorialRetryMinutes: 10 } : {}),
+    ...(needsV11Migration ? {
+      configVersion: 11,
+      aiModel: AUTOPILOT_MODELS.TERRA,
+      aiReasoningEffort: 'medium',
+      pauseUntil: null
+    } : {})
   });
 
   await prisma.appSetting.upsert({
@@ -314,7 +371,7 @@ async function ensureSettings() {
         description: 'INXSocial Growth Autopilot runtime state and activity.'
       }
     });
-  } else if (needsV4Migration || needsV5Migration || needsV6Migration || needsV7Migration || needsV8Migration || needsV9Migration || needsV10Migration) {
+  } else if (needsV4Migration || needsV5Migration || needsV6Migration || needsV7Migration || needsV8Migration || needsV9Migration || needsV10Migration || needsV11Migration) {
     const state = { ...initialState(), ...(safeJson(existingState.value, {}) || {}) };
     state.running = false;
     state.leaseUntil = null;
@@ -339,7 +396,9 @@ async function ensureSettings() {
       at: nowIso(),
       type: 'AUTOPILOT_UPGRADED',
       level: 'success',
-      message: needsV10Migration
+      message: needsV11Migration
+        ? 'Growth Autopilot upgraded with Terra as the default cost-efficient model plus timed pause controls.'
+        : needsV10Migration
         ? 'Growth Autopilot upgraded with immediate in-process editorial repair, 10-minute outage recovery and interrupted-draft resume.'
         : needsV9Migration
         ? 'Growth Autopilot upgraded with deployment-safe lease ownership and immediate recovery of interrupted editorial cycles.'
@@ -698,11 +757,19 @@ function criticRequiresFreshResearch(critic, backendIssues = []) {
     .some(item => /source|citation|evidence|fact|claim|verify|current|outdated|accuracy/i.test(String(item || '')));
 }
 
-async function reviewDraftWithImmediateRetry(article, opportunity, strategy, pass) {
+async function reviewDraftWithImmediateRetry(article, opportunity, strategy, pass, config) {
   let lastError = null;
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     try {
-      return await growthStrategy.reviewDraft({ article, opportunity, strategy, siteProfile: strategy?.siteProfile || null });
+      const ai = aiOptionsForConfig(config);
+      return await growthStrategy.reviewDraft({
+        article,
+        opportunity,
+        strategy,
+        siteProfile: strategy?.siteProfile || null,
+        model: ai.model,
+        reasoningEffort: ai.reasoningEffort
+      });
     } catch (error) {
       lastError = error;
       await recordEvent(
@@ -723,6 +790,8 @@ async function reviewDraftWithImmediateRetry(article, opportunity, strategy, pas
 }
 
 async function produceAndPublish(opportunity, config, strategy = null, decisionMode = 'daily', existingArticle = null) {
+  const ai = aiOptionsForConfig(config);
+  const aiLabel = modelLabel(ai.model);
   const draftInput = opportunity.id ? {
     opportunityId: opportunity.id,
     notes: 'Autopilot publication. Produce a senior-editorial, evidence-led article that is useful without promotional filler. Target at least 90/100 backend editorial quality on the first pass. The article must stand on its own for readers and AI search systems.' + (opportunity.radar ? ' Editorial radar evidence: ' + JSON.stringify(opportunity.radar) : '') + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
@@ -733,7 +802,10 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
     notes: 'Autopilot publication. Produce a senior-editorial, evidence-led article that is useful without promotional filler. Target at least 90/100 backend editorial quality on the first pass. The article must stand on its own for readers and AI search systems.' + (opportunity.radar ? ' Editorial radar evidence: ' + JSON.stringify(opportunity.radar) : '') + (strategy?.executionBrief ? ' Strategist brief: ' + JSON.stringify(strategy.executionBrief) : '')
   };
 
-  let article = existingArticle || await growthContent.createDraft(draftInput);
+  let article = existingArticle || await growthContent.createDraft(draftInput, {
+    writerModel: ai.model,
+    writerReasoningEffort: ai.reasoningEffort
+  });
 
   await recordEvent(
     existingArticle ? 'EDITORIAL_DRAFT_RESUMED' : 'DRAFT_GENERATED',
@@ -757,7 +829,7 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
     let critic = null;
 
     try {
-      critic = await reviewDraftWithImmediateRetry(article, opportunity, strategy, pass);
+      critic = await reviewDraftWithImmediateRetry(article, opportunity, strategy, pass, config);
     } catch (error) {
       await recordEvent(
         'EDITORIAL_REVIEW_BLOCKED',
@@ -787,7 +859,7 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
         ? 'Senior editorial review confirmed the article is publication-ready.'
         : disposition === 'SWITCH_TOPIC'
           ? 'Senior editor found a fundamental topic-level issue, so Autopilot will move to another qualified topic.'
-          : 'Senior editor requested targeted improvements; Sol is applying the fixes immediately in the same production run.',
+          : 'Senior editor requested targeted improvements; ' + aiLabel + ' is applying the fixes immediately in the same production run.',
       {
         articleId: article.id,
         title: article.title,
@@ -913,7 +985,7 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
 
     await recordEvent(
       'EDITORIAL_REPAIR_STARTED',
-      'Sol started the requested repair immediately; normal editorial quality fixes never wait for another scheduler cycle.',
+      aiLabel + ' started the requested repair immediately; normal editorial quality fixes never wait for another scheduler cycle.',
       {
         articleId: article.id,
         title: article.title,
@@ -927,7 +999,9 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
     try {
       article = await growthContent.reviseDraft(article.id, critic, {
         backendIssues: article.quality?.issues || [],
-        refreshResearch: criticRequiresFreshResearch(critic, article.quality?.issues || [])
+        refreshResearch: criticRequiresFreshResearch(critic, article.quality?.issues || []),
+        writerModel: ai.model,
+        writerReasoningEffort: ai.reasoningEffort
       });
     } catch (error) {
       await recordEvent(
@@ -945,7 +1019,9 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
         article = await growthContent.reviseDraft(article.id, critic, {
           backendIssues: article.quality?.issues || [],
           refreshResearch: false,
-          suppressFreshResearch: true
+          suppressFreshResearch: true,
+          writerModel: ai.model,
+          writerReasoningEffort: ai.reasoningEffort
         });
       } catch (retryError) {
         await recordEvent(
@@ -965,7 +1041,7 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
 
     await recordEvent(
       'ARTICLE_REVISED',
-      'Sol revised the existing article using the senior editor’s exact fixes and is sending it straight back for final review.',
+      aiLabel + ' revised the existing article using the senior editor’s exact fixes and is sending it straight back for final review.',
       {
         articleId: article.id,
         title: article.title,
@@ -984,7 +1060,13 @@ async function produceAndPublish(opportunity, config, strategy = null, decisionM
 
 async function runCycle(options = {}) {
   const config = await getConfig();
-  if (!config.enabled && !options.force) return { skipped: true, reason: 'disabled' };
+  if (!options.force && !isAutopilotActive(config)) {
+    return {
+      skipped: true,
+      reason: config.enabled === false ? 'disabled' : 'temporarily_paused',
+      pauseUntil: config.pauseUntil || null
+    };
+  }
 
   const state = await getState();
   const intelligenceDue = options.force || isDue(state.nextIntelligenceAt);
@@ -1062,7 +1144,11 @@ async function runCycle(options = {}) {
 
     if (authorityDue && !publishDue) {
       try {
-        const authorityState = await authority.run({ autoEmail: config.authorityAutoEmail });
+        const authorityState = await authority.run({
+          autoEmail: config.authorityAutoEmail,
+          aiModel: config.aiModel,
+          aiReasoningEffort: config.aiReasoningEffort
+        });
         const completed = nowIso();
         await mutateState(current => {
           current.lastAuthorityAt = completed;
@@ -1098,7 +1184,11 @@ async function runCycle(options = {}) {
 
     if (optimizationDue && !publishDue) {
       try {
-        const optimizationState = await optimization.run({ days: 28 });
+        const optimizationState = await optimization.run({
+          days: 28,
+          aiModel: config.aiModel,
+          aiReasoningEffort: config.aiReasoningEffort
+        });
         const completed = nowIso();
         await mutateState(current => {
           current.lastOptimizationAt = completed;
@@ -1250,9 +1340,17 @@ async function runCycle(options = {}) {
               opportunityMap,
               articles,
               siteProfile: opportunityMap?.siteProfile || null,
-              minOpportunityScore: 70
+              minOpportunityScore: 70,
+              model: config.aiModel,
+              reasoningEffort: config.aiReasoningEffort
             })
-            : await growthStrategy.plan({ opportunityMap, articles, siteProfile: opportunityMap?.siteProfile || null });
+            : await growthStrategy.plan({
+              opportunityMap,
+              articles,
+              siteProfile: opportunityMap?.siteProfile || null,
+              model: config.aiModel,
+              reasoningEffort: config.aiReasoningEffort
+            });
           await mutateState(current => {
             current.lastStrategy = strategy;
             if (dailyArticleLane) {
@@ -1475,9 +1573,19 @@ async function status() {
     optimization.status().catch(() => null)
   ]);
 
+  const active = isAutopilotActive(config);
   return {
     generatedAt: nowIso(),
     config,
+    control: {
+      active,
+      paused: !active,
+      temporaryPause: config.enabled !== false && isTemporarilyPaused(config),
+      pauseUntil: isTemporarilyPaused(config) ? config.pauseUntil : null,
+      model: config.aiModel,
+      modelLabel: modelLabel(config.aiModel),
+      reasoningEffort: config.aiReasoningEffort
+    },
     state,
     content: contentOverview ? {
       counts: contentOverview.counts,
@@ -1514,22 +1622,60 @@ async function status() {
 
 async function updateConfig(patch = {}) {
   const current = await getConfig();
+  const activeBefore = isAutopilotActive(current);
   const next = normalizeConfig({ ...current, ...patch });
+  const activeNow = isAutopilotActive(next);
   const scheduleChanged =
     current.dailyPublishTimeLocal !== next.dailyPublishTimeLocal
     || current.publishTimeZone !== next.publishTimeZone;
+  const modelChanged = current.aiModel !== next.aiModel
+    || current.aiReasoningEffort !== next.aiReasoningEffort;
+  const pauseChanged = current.enabled !== next.enabled
+    || current.pauseUntil !== next.pauseUntil;
+
   await prisma.appSetting.update({
     where: { key: CONFIG_KEY },
     data: { value: JSON.stringify(next) }
   });
-  await recordEvent(
-    next.enabled ? 'AUTOPILOT_ENABLED' : 'AUTOPILOT_PAUSED',
-    next.enabled
-      ? 'Growth Autopilot is enabled. Monitoring and publishing will continue on schedule.'
-      : 'Growth Autopilot is paused. Scheduled monitoring and publishing are stopped.',
-    { config: next },
-    next.enabled ? 'success' : 'warning'
-  );
+
+  if (modelChanged) {
+    await recordEvent(
+      'AUTOPILOT_MODEL_CHANGED',
+      'Growth Autopilot AI model changed to ' + modelLabel(next.aiModel) + '. New AI work will use this model.',
+      {
+        previousModel: current.aiModel,
+        model: next.aiModel,
+        reasoningEffort: next.aiReasoningEffort
+      },
+      'success'
+    );
+  }
+
+  if (pauseChanged) {
+    if (next.enabled === false) {
+      await recordEvent(
+        'AUTOPILOT_PAUSED',
+        'Growth Autopilot is paused until an administrator resumes it. Scheduled AI work is stopped.',
+        { pauseUntil: null, model: next.aiModel },
+        'warning'
+      );
+    } else if (isTemporarilyPaused(next)) {
+      await recordEvent(
+        'AUTOPILOT_PAUSED_UNTIL',
+        'Growth Autopilot is temporarily paused. Scheduled AI work will resume automatically at ' + next.pauseUntil + '.',
+        { pauseUntil: next.pauseUntil, model: next.aiModel },
+        'warning'
+      );
+    } else if (!activeBefore && activeNow) {
+      await recordEvent(
+        'AUTOPILOT_RESUMED',
+        'Growth Autopilot resumed. Scheduled AI work is active again.',
+        { model: next.aiModel },
+        'success'
+      );
+    }
+  }
+
   if (next.enabled) {
     await mutateState(state => {
       if (!state.nextIntelligenceAt) state.nextIntelligenceAt = nowIso();
@@ -1546,6 +1692,7 @@ async function updateConfig(patch = {}) {
       return state;
     });
   }
+
   return status();
 }
 
@@ -1608,7 +1755,11 @@ function startGrowthAutopilot() {
       dailyPublishTimeLocal: config.dailyPublishTimeLocal,
       publishTimeZone: config.publishTimeZone,
       nextPublishAt: (await getState()).nextPublishAt,
-      strategyModelReady: growthStrategy.ready()
+      strategyModelReady: growthStrategy.ready(),
+      active: isAutopilotActive(config),
+      pauseUntil: isTemporarilyPaused(config) ? config.pauseUntil : null,
+      aiModel: config.aiModel,
+      aiReasoningEffort: config.aiReasoningEffort
     });
   }).catch(error => {
     console.error('[growth-autopilot] initialization failed', { error: error?.message || String(error) });
@@ -1622,7 +1773,10 @@ function startGrowthAutopilot() {
 
   seoStartupTimer = setTimeout(() => {
     seoStartupTimer = null;
-    void ensurePhase3MaintenanceFresh('startup-safety-net');
+    void getConfig().then(config => {
+      if (!isAutopilotActive(config)) return null;
+      return ensurePhase3MaintenanceFresh('startup-safety-net');
+    }).catch(error => console.warn('[growth-autopilot] startup maintenance gate failed', { error: error?.message || String(error) }));
   }, 2 * 60 * 1000);
   seoStartupTimer.unref?.();
 

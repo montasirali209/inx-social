@@ -735,10 +735,12 @@ async function researchTopic(input, options = {}) {
   );
 }
 
-async function writeArticle(input, research) {
+async function writeArticle(input, research, options = {}) {
   if (!contentWriterReady()) {
-    throw publicError('GPT-5.6 Sol article writer is not configured.', 503, 'CONTENT_WRITER_NOT_CONFIGURED');
+    throw publicError('SEO article writer is not configured.', 503, 'CONTENT_WRITER_NOT_CONFIGURED');
   }
+  const writerModel = String(options.writerModel || env.contentWriter.model || '').trim();
+  const writerReasoningEffort = String(options.writerReasoningEffort || env.contentWriter.reasoningEffort || 'high').trim().toLowerCase();
   const intelligence = await siteIntelligence.latest().catch(() => null);
   const profile = intelligence?.profile || null;
   const brandName = profile?.brandName || intelligence?.site?.hostname || 'the monitored website';
@@ -747,7 +749,7 @@ async function writeArticle(input, research) {
   const linkList = internalLinks.map(link => link.label + ': ' + SITE_URL + link.url).join('\n');
 
   const request = {
-    model: env.contentWriter.model,
+    model: writerModel,
     instructions: [
       seoSkills.writerInstructions(),
       'Act as the senior editorial writer for ' + brandName + '. Write like a specialist publication, not a generic SEO content generator.',
@@ -803,8 +805,8 @@ async function writeArticle(input, research) {
     text: { format: { type: 'json_schema', name: 'inx_content_article', strict: true, schema: articleSchema() } },
     max_output_tokens: 7000
   };
-  if (/^gpt-5(?:\.|-)/i.test(env.contentWriter.model)) {
-    request.reasoning = { effort: env.contentWriter.reasoningEffort || 'high' };
+  if (/^gpt-5(?:\.|-)/i.test(writerModel)) {
+    request.reasoning = { effort: writerReasoningEffort };
   }
 
   const result = await structuredResponse(
@@ -1007,7 +1009,7 @@ async function saveArticle(article, previousSlug = null) {
   return prepared;
 }
 
-async function createDraft(input) {
+async function createDraft(input, options = {}) {
   const opportunityMap = await growthOpportunities.latest().catch(() => null);
   let opportunity = null;
   if (input.opportunityId) {
@@ -1027,7 +1029,7 @@ async function createDraft(input) {
   };
 
   const research = await researchTopic(context);
-  const draft = await writeArticle(context, research);
+  const draft = await writeArticle(context, research, options);
   const intelligence = await siteIntelligence.latest().catch(() => null);
   const id = crypto.randomUUID();
   const slug = await ensureUniqueSlug(draft.title || topic);
@@ -1065,8 +1067,8 @@ async function createDraft(input) {
     research_brief: research.brief,
     generation: {
       researchModel: research.model,
-      writerModel: env.contentWriter.model,
-      writerReasoningEffort: env.contentWriter.reasoningEffort || 'high',
+      writerModel: String(options.writerModel || env.contentWriter.model || '').trim(),
+      writerReasoningEffort: String(options.writerReasoningEffort || env.contentWriter.reasoningEffort || 'high').trim().toLowerCase(),
       editorialVersion: 3,
       generatedAt: createdAt
     },
@@ -1155,7 +1157,7 @@ async function reviseDraft(id, feedback = {}, options = {}) {
     research = await researchTopic(context, { maxEvidenceAttempts: 2 });
   }
 
-  const revised = await writeArticle(context, research);
+  const revised = await writeArticle(context, research, options);
   const previousSlug = article.slug;
   const nextSlug = slugify(revised.title || article.title) === article.slug
     ? article.slug
@@ -1183,8 +1185,8 @@ async function reviseDraft(id, feedback = {}, options = {}) {
     generation: {
       ...(article.generation || {}),
       researchModel: research.model,
-      writerModel: env.contentWriter.model,
-      writerReasoningEffort: env.contentWriter.reasoningEffort || 'high',
+      writerModel: String(options.writerModel || env.contentWriter.model || '').trim(),
+      writerReasoningEffort: String(options.writerReasoningEffort || env.contentWriter.reasoningEffort || 'high').trim().toLowerCase(),
       editorialVersion: 4,
       revisionNumber,
       revisedAt: nowIso(),

@@ -27,7 +27,7 @@ test('Senior editorial review repairs fixable drafts and only switches fundament
   const autopilot = read('src/services/growthAutopilotService.js');
 
   assert.match(strategist, /seoSkills\.criticInstructions/);
-  assert.match(strategist, /model: env\.contentWriter\.model/);
+  assert.match(strategist, /model = env\.contentWriter\.model/);
   assert.match(strategist, /env\.contentWriter\.baseUrl/);
   assert.match(skills, /senior editor after the writer/i);
   assert.match(strategist, /APPROVE/);
@@ -52,7 +52,7 @@ test('Content research retries malformed structured output automatically', () =>
 test('versioned Growth Autopilot migration preserves the daily editorial lane and recovers interrupted deployment leases', () => {
   const service = read('src/services/growthAutopilotService.js');
 
-  assert.match(service, /configVersion: 10/);
+  assert.match(service, /configVersion: 11/);
   assert.match(service, /dailyPublishTimeLocal: '07:30'/);
   assert.match(service, /publishTimeZone: 'Europe\/London'/);
   assert.match(service, /needsV5Migration/);
@@ -60,6 +60,9 @@ test('versioned Growth Autopilot migration preserves the daily editorial lane an
   assert.match(service, /needsV7Migration/);
   assert.match(service, /needsV8Migration/);
   assert.match(service, /needsV10Migration/);
+  assert.match(service, /needsV11Migration/);
+  assert.match(service, /aiModel: AUTOPILOT_MODELS\.TERRA/);
+  assert.match(service, /aiReasoningEffort: 'medium'/);
   assert.match(service, /dailyArticleTarget: 1/);
   assert.match(service, /editorialRetryMinutes: 10/);
   assert.match(service, /minQualityScore: 90/);
