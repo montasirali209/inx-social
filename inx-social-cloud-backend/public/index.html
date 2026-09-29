@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=22">
+  <link rel="stylesheet" href="/admin.css?v=23">
   <link rel="stylesheet" href="/admin-security.css?v=2">
   <link rel="stylesheet" href="/admin-light.css?v=4">
   <link rel="stylesheet" href="/ui-studio.css?v=12">
@@ -427,7 +427,24 @@
         <header class="growth-autopilot-head">
           <div><span class="kicker">Autopilot status</span><h2 id="growthAutopilotHeadline">Starting…</h2><p id="growthAutopilotSummary">Checking the automatic growth runtime.</p></div>
           <div class="growth-autopilot-controls">
-            <button class="secondary" id="growthAutopilotToggleBtn" type="button">Pause autopilot</button>
+            <label class="growth-autopilot-control-field">
+              <span>SEO AI model</span>
+              <select id="growthAutopilotModel">
+                <option value="gpt-5.6-terra">GPT-5.6 Terra · lower cost</option>
+                <option value="gpt-5.6-sol">GPT-5.6 Sol · maximum reasoning</option>
+              </select>
+            </label>
+            <label class="growth-autopilot-control-field">
+              <span>Pause duration</span>
+              <select id="growthAutopilotPauseDuration">
+                <option value="1">1 hour</option>
+                <option value="6" selected>6 hours</option>
+                <option value="12">12 hours</option>
+                <option value="24">24 hours</option>
+                <option value="manual">Until I resume</option>
+              </select>
+            </label>
+            <button class="secondary" id="growthAutopilotToggleBtn" type="button">Pause</button>
             <button class="primary" id="growthAutopilotRunBtn" type="button">Run now</button>
           </div>
         </header>
@@ -443,8 +460,8 @@
           <header class="growth-editorial-head">
             <div>
               <span class="kicker">Article production</span>
-              <h3>Sol editorial pipeline</h3>
-              <p>One article stays in the pipeline while Sol researches, writes, receives senior-editor feedback and repairs the same draft until it reaches the 90+ publication standard. A topic is changed only for a genuine topic-level problem.</p>
+              <h3>AI editorial pipeline</h3>
+              <p>One article stays in the pipeline while the selected SEO model researches, writes, receives senior-editor feedback and repairs the same draft until it reaches the 90+ publication standard. A topic is changed only for a genuine topic-level problem.</p>
             </div>
             <div class="growth-editorial-head-status">
               <span class="status-chip" id="growthEditorialStatus">Waiting…</span>
@@ -455,7 +472,7 @@
           <div class="growth-editorial-pipeline" id="growthEditorialPipeline">
             <div class="growth-editorial-stage waiting"><span>1</span><div><b>Topic</b><small>Waiting for strategist</small></div></div>
             <div class="growth-editorial-stage waiting"><span>2</span><div><b>Research</b><small>Live evidence</small></div></div>
-            <div class="growth-editorial-stage waiting"><span>3</span><div><b>Draft</b><small>Sol writer</small></div></div>
+            <div class="growth-editorial-stage waiting"><span>3</span><div><b>Draft</b><small id="growthEditorialWriterModel">Selected model writer</small></div></div>
             <div class="growth-editorial-stage waiting"><span>4</span><div><b>Senior editor</b><small>Quality review</small></div></div>
             <div class="growth-editorial-stage waiting"><span>5</span><div><b>Repair</b><small>Exact fixes</small></div></div>
             <div class="growth-editorial-stage waiting"><span>6</span><div><b>Final check</b><small>90+ gate</small></div></div>
@@ -474,7 +491,7 @@
           </div>
 
           <div class="growth-editorial-queue-wrap">
-            <div class="growth-mini-head"><b>Next qualified topics</b><small>Sol can choose beyond this shortlist</small></div>
+            <div class="growth-mini-head"><b>Next qualified topics</b><small id="growthEditorialQueueModel">Selected model can choose beyond this shortlist</small></div>
             <div class="growth-editorial-queue" id="growthEditorialQueue"><div class="growth-empty">Waiting for the opportunity map.</div></div>
           </div>
         </section>
@@ -1266,6 +1283,6 @@
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
 <script src="/ui-studio.js?v=12" defer></script>
-<script src="/admin.js?v=29" defer></script>
+<script src="/admin.js?v=30" defer></script>
 </body>
 </html>
