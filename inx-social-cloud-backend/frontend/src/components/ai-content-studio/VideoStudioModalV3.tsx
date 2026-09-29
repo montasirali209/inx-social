@@ -245,7 +245,8 @@ export function VideoStudioModal({
   ].filter(Boolean) as string[], [firstFrame, lastFrame, referenceAssets])
 
   const referenceMissing = ['IMAGE_TO_VIDEO', 'REFERENCE_TO_VIDEO'].includes(generationMode) && activeReferenceIds.length === 0
-  const insufficient = credits !== null && access.creditsConfigured && !access.unlimitedCredits && access.creditsRemaining !== null && access.creditsRemaining < credits
+  const requiredBalanceCredits = estimatedQuote?.reservationCredits ?? credits
+  const insufficient = requiredBalanceCredits !== null && access.creditsConfigured && !access.unlimitedCredits && access.creditsRemaining !== null && access.creditsRemaining < requiredBalanceCredits
   const pricingPending = Boolean(selected && credits === null && !currentPricingError)
   const rendering = generating || Boolean(jobId)
 
@@ -831,6 +832,7 @@ export function VideoStudioModal({
                 <span className="text-[8px] font-bold uppercase tracking-[.14em] text-brand-cyan">Live generation cost</span>
                 <div className="mt-2 flex items-baseline gap-2"><strong className="text-3xl tracking-tight">{credits === null ? '—' : credits}</strong><span className="text-[9px] text-text-muted">{pricingPending ? 'calculating…' : 'INXSocial credits'}</span>{credits !== null && estimatedQuote?.promotion?.active && estimatedQuote.regularCredits && estimatedQuote.regularCredits > credits ? <span className="text-[9px] text-text-soft line-through">{estimatedQuote.regularCredits} regular</span> : null}</div>
                 {estimatedQuote?.promotion?.active ? <div className="mt-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[.055] px-3 py-2 text-[8px] leading-4 text-emerald-200"><strong>{estimatedQuote.promotion.discountPercent}% provider discount active.</strong>{estimatedQuote.promotion.endsAt ? <> Discounted credit pricing applies until {new Date(estimatedQuote.promotion.endsAt).toLocaleDateString()}. The backend will automatically switch to the synchronized regular Runware price after it expires.</> : <> INXSocial will automatically return to regular synchronized pricing when Runware ends the promotion.</>}</div> : null}
+                {credits !== null && estimatedQuote?.reservationCredits && estimatedQuote.reservationCredits > credits ? <p className="mt-2 text-[8px] leading-4 text-text-soft">Temporary safety hold: {estimatedQuote.reservationCredits} credits available during generation. Final billing is reconciled to provider cost and unused held credits return automatically.</p> : null}
               </div>
               {selected && <span className="max-w-[180px] text-right text-[7px] leading-3 text-text-soft">{selected.name} · {modeLabel(generationMode)}</span>}
             </div>
