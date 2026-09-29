@@ -20,11 +20,18 @@ export function getUGCOverview() {
   return apiRequest<UGCOverview>('/api/ai-content-studio/ugc/overview')
 }
 
-export function estimateUGCCampaign(input: Pick<CreateUGCCampaignInput, 'duration' | 'adCount' | 'quality' | 'campaignType' | 'creativeFormat'>) {
+export function estimateUGCCampaign(input: Pick<CreateUGCCampaignInput, 'duration' | 'adCount' | 'quality' | 'campaignType' | 'creativeFormat' | 'customMode'>) {
   return apiRequest<UGCEstimate>('/api/ai-content-studio/ugc/estimate', {
     method: 'POST',
     body: JSON.stringify(input),
   })
+}
+
+export function generateUGCProductionPrompt(input: { idea: string; aspectRatio: '9:16' | '1:1' | '16:9' }) {
+  return apiRequest<{ prompt: string }>('/api/ai-content-studio/ugc/production-prompt', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  }).then((result) => result.prompt)
 }
 
 export function analyzeUGCBrand(url: string, refresh = false) {

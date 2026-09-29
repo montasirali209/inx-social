@@ -9,10 +9,13 @@ const counts = [1, 5, 10, 15, 20];
 const createSchema = z.object({
   brandProfileId: z.string().trim().max(120).optional().nullable(),
   productUrl: z.string().trim().max(2000).optional().default(''),
-  productDescription: z.string().trim().max(4000).optional().default(''),
+  productDescription: z.string().trim().max(6500).optional().default(''),
   productAssetIds: z.array(z.string().trim().min(1).max(120)).max(8).optional().default([]),
+  characterAssetIds: z.array(z.string().trim().min(1).max(120)).max(8).optional().default([]),
   sourceType: z.enum(['WEBSITE', 'PRODUCT', 'BRIEF']).optional().default('WEBSITE'),
   customMode: z.enum(['ASSISTED', 'PRODUCTION', 'PODCAST']).optional().default('ASSISTED'),
+  aspectRatio: z.enum(['9:16', '1:1', '16:9']).optional().default('9:16'),
+  captionsEnabled: z.boolean().optional().default(true),
   campaignType: z.enum(['AUTO', 'AVATAR_EXPLAINER', 'PRODUCT_SHOWCASE']).optional().default('AUTO'),
   creativeFormat: z.enum(['AUTO','PROBLEM_SOLUTION','PRODUCT_DEMO','TESTIMONIAL','UNBOXING','REACTION','BEFORE_AFTER','STORYTIME','SPOKESPERSON','PRODUCT_FOCUSED']).optional().default('AUTO'),
   avatarId: z.string().trim().max(120).optional().nullable(),
@@ -25,8 +28,8 @@ const createSchema = z.object({
   if (value.sourceType === 'BRIEF' && value.productDescription.trim().length < 12) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['productDescription'], message: 'Add a custom prompt describing the UGC ad you want to create.' });
   }
-  if (value.sourceType === 'BRIEF' && value.customMode === 'PODCAST' && value.creatorMode === 'NONE') {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['creatorMode'], message: 'Podcast mode needs a creator or guest reference.' });
+  if (value.sourceType === 'BRIEF' && value.customMode === 'PODCAST' && !value.characterAssetIds.length) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['characterAssetIds'], message: 'Upload at least one podcast character reference.' });
   }
   if (!value.brandProfileId && !value.productUrl && !value.productDescription && !value.productAssetIds.length) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['productUrl'], message: 'Add a website, product image or short brand description.' });
@@ -38,7 +41,13 @@ const estimateSchema = z.object({
   adCount: z.number().int().refine(v => counts.includes(v), 'Choose 1, 5, 10, 15 or 20 ads.'),
   quality: z.enum(['STANDARD', 'PREMIUM']).default('STANDARD'),
   campaignType: z.enum(['AUTO', 'AVATAR_EXPLAINER', 'PRODUCT_SHOWCASE']).optional().default('AUTO'),
-  creativeFormat: z.enum(['AUTO','PROBLEM_SOLUTION','PRODUCT_DEMO','TESTIMONIAL','UNBOXING','REACTION','BEFORE_AFTER','STORYTIME','SPOKESPERSON','PRODUCT_FOCUSED']).optional().default('AUTO')
+  creativeFormat: z.enum(['AUTO','PROBLEM_SOLUTION','PRODUCT_DEMO','TESTIMONIAL','UNBOXING','REACTION','BEFORE_AFTER','STORYTIME','SPOKESPERSON','PRODUCT_FOCUSED']).optional().default('AUTO'),
+  customMode: z.enum(['ASSISTED', 'PRODUCTION', 'PODCAST']).optional().default('ASSISTED')
+});
+
+const productionPromptSchema = z.object({
+  idea: z.string().trim().min(4).max(2000),
+  aspectRatio: z.enum(['9:16', '1:1', '16:9']).optional().default('9:16')
 });
 
 const brandSchema = z.object({
@@ -100,6 +109,9 @@ async function estimate(req, res, next) {
 }
 async function analyzeBrand(req, res, next) {
   try { res.json({ brand: await service.analyzeBrand(req.user.id, brandSchema.parse(req.body || {})) }); } catch (error) { next(error); }
+}
+async function generateProductionPrompt(req, res, next) {
+  try { res.json({ prompt: await service.generateProductionPrompt(req.user.id, productionPromptSchema.parse(req.body || {})) }); } catch (error) { next(error); }
 }
 async function agentReply(req, res, next) {
   try { res.json({ agent: await service.ugcAgentReply(req.user.id, agentSchema.parse(req.body || {})) }); } catch (error) { next(error); }
@@ -271,7 +283,7 @@ async function trackEvent(req, res, next) {
 }
 
 module.exports = {
-  overview, estimate, analyzeBrand, agentReply, createCampaign, listCampaigns, getCampaign, getEngineProject, getProductionAudit, removeCampaign,
+  overview, estimate, analyzeBrand, generateProductionPrompt, agentReply, createCampaign, listCampaigns, getCampaign, getEngineProject, getProductionAudit, removeCampaign,
   getAd, updateAd, reassembleAd, regenerateAd, regenerateScene,
   generateAvatar, generateReference, uploadAvatar, avatarContent, avatarReferences, uploadAvatarReference, avatarReferenceContent, removeAvatarReference, removeAvatar,
   uploadProduct, productContent, samples, sampleContent, uploadSample, listMusic, trackEvent,

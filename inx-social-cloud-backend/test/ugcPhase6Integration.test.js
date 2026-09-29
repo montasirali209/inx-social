@@ -67,7 +67,7 @@ test('Phase 6 preserves Phase 5 format choice in live quote context', () => {
   const wizard = read('frontend/src/components/ai-content-studio/UGCWizardModal.tsx');
   assert.match(api, /'creativeFormat'/);
   assert.match(controller, /const estimateSchema[^]*creativeFormat: z\.enum/);
-  assert.match(wizard, /estimateUGCCampaign\(\{ duration, adCount, quality, campaignType, creativeFormat \}\)/);
+  assert.match(wizard, /estimateUGCCampaign\(\{ duration, adCount, quality: effectiveQuality, campaignType, creativeFormat, customMode \}\)/);
 });
 
 test('UGC commercial hardening keeps Phase 6 routing and Creator V2 while updating fallback pricing', () => {

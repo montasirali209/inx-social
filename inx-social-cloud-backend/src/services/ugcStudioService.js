@@ -949,14 +949,45 @@ function creditsPerAd(duration, quality) {
   return amount;
 }
 
+function normalizedAspectRatio(value) {
+  return ['9:16','1:1','16:9'].includes(String(value || '')) ? String(value) : '9:16';
+}
+
+function aspectRatioDimensions(value) {
+  const ratio = normalizedAspectRatio(value);
+  if (ratio === '1:1') return { aspectRatio: ratio, width: 768, height: 768 };
+  if (ratio === '16:9') return { aspectRatio: ratio, width: 1344, height: 768 };
+  return { aspectRatio: '9:16', width: 768, height: 1344 };
+}
+
+function isDirectModeInput(input = {}) {
+  return String(input.sourceType || '').toUpperCase() === 'BRIEF'
+    && ['PRODUCTION','PODCAST'].includes(normalizedCustomMode(input.customMode));
+}
+
+function normalizeDirectInput(input = {}) {
+  const mode = normalizedCustomMode(input.customMode);
+  if (!isDirectModeInput(input)) return input;
+  return {
+    ...input,
+    customMode: mode,
+    brandProfileId: null,
+    productUrl: '',
+    quality: 'STANDARD',
+    aspectRatio: normalizedAspectRatio(input.aspectRatio),
+    captionsEnabled: input.captionsEnabled !== false,
+    creatorMode: 'NONE',
+    avatarId: null,
+    campaignType: 'AVATAR_EXPLAINER'
+  };
+}
+
 async function liveCreditsForModel(modelAir, selections = [], externalAudio = false) {
   try {
     const health = await videoModels.commercialHealth();
     if (!health?.fresh) return null;
     const current = await videoModels.snapshot();
     const profile = (current.models || []).find(model => model.air === modelAir || model.model === modelAir);
-    // UGC routes have dedicated provider adapters, so generic Video Studio
-    // schema-readiness is not required here. Pricing must still be live/synced.
     if (!profile || profile.pricingStatus !== 'SYNCED') return null;
     let providerCostUsd = 0;
     let regularProviderCostUsd = 0;
@@ -990,7 +1021,11 @@ async function estimateInputPricing(input) {
   const fallback = creditsPerAd(duration, quality);
   if (quality === 'STANDARD') {
     const segments = visualDurations(duration, 'STANDARD', campaignType === 'PRODUCT_SHOWCASE' ? 'PRODUCT_SHOWCASE' : 'AVATAR_EXPLAINER');
-    const quote = await liveCreditsForModel(STANDARD_MODEL(), segments.map(seconds => ({ duration: seconds, resolution: '768p', audio: true })), false);
+    const quote = await liveCreditsForModel(
+      STANDARD_MODEL(),
+      segments.map(seconds => ({ duration: seconds, resolution: '768p', audio: true })),
+      false
+    );
     return quote || { credits: fallback, regularCredits: fallback, providerCostUsd: null, regularProviderCostUsd: null, promotion: null };
   }
 
@@ -1036,6 +1071,7 @@ async function estimatePlanPricing(plan, input) {
 }
 
 async function estimateCampaign(userId, input) {
+  input = normalizeDirectInput(input);
   const balance = await credits.getBalance(userId);
   const pricing = await estimateInputPricing(input);
   const adCount = Math.max(1, Number(input.adCount || 1));
@@ -1072,6 +1108,33 @@ async function estimateCampaign(userId, input) {
     regularProviderCostUsd: pricing.regularProviderCostUsd,
     promotion: pricing.promotion
   };
+}
+
+async function generateProductionPrompt(userId, input) {
+  const access = await credits.getAccess(userId);
+  if (!access.studioEnabled) throw publicError('UGC Studio is unavailable for this account.', 'UGC_ACCESS_REQUIRED', 403);
+  const aspectRatio = normalizedAspectRatio(input.aspectRatio);
+  const parsed = await postStudio.callChatModel(postStudio.REASONING_MODEL, [
+    {
+      role: 'system',
+      content: [
+        'You write production-ready prompts for an AI video model.',
+        'Return JSON only: {"prompt":"..."}',
+        'Preserve the user idea exactly; do not invent a different product, claim, brand or story.',
+        'Write one concise editable production prompt with scene/action progression, any requested spoken dialogue, continuity and camera behavior.',
+        'Keep it practical for direct video generation rather than a storyboard explanation.',
+        'Do not add captions, subtitles, on-screen text or logos unless the user explicitly asks for them.',
+        'Do not mention provider names, model names or internal systems.',
+        'Target aspect ratio: ' + aspectRatio + '.',
+        'When spoken dialogue is requested, format it clearly as Dialogue: “...” so the user can edit it and captions can follow it.',
+        'Keep the generated prompt under 3600 characters.'
+      ].join('\n')
+    },
+    { role: 'user', content: clean(input.idea, 2000) }
+  ], { reasoningEffort: 'low', temperature: 0.35, maxTokens: 1100, timeoutMs: 90000 });
+  const prompt = clean(parsed?.prompt, 4000);
+  if (prompt.length < 12) throw publicError('The production prompt generator returned an incomplete prompt. Try again.', 'UGC_PRODUCTION_PROMPT_INVALID', 502);
+  return prompt;
 }
 
 function splitScriptByDurations(script, durations) {
@@ -1116,8 +1179,8 @@ function playbackDurations(totalDuration, providerDurations) {
 }
 
 function resolveCampaignType(input, brand, productAssets = []) {
+  if (String(input.sourceType || '').toUpperCase() === 'BRIEF' && ['PRODUCTION','PODCAST'].includes(String(input.customMode || '').toUpperCase())) return 'AVATAR_EXPLAINER';
   if (String(input.creatorMode || '').toUpperCase() === 'NONE') return 'PRODUCT_SHOWCASE';
-  if (String(input.sourceType || '').toUpperCase() === 'BRIEF' && String(input.customMode || '').toUpperCase() === 'PODCAST') return 'AVATAR_EXPLAINER';
   const requested = String(input.campaignType || 'AUTO').toUpperCase();
   if (requested === 'AVATAR_EXPLAINER' || requested === 'PRODUCT_SHOWCASE') return requested;
   if (productAssets.length) return 'PRODUCT_SHOWCASE';
@@ -1140,36 +1203,54 @@ function normalizedCustomMode(value) {
   return ['PRODUCTION','PODCAST'].includes(mode) ? mode : 'ASSISTED';
 }
 
-function directPromptPlan(input, brand, avatars, resolvedType) {
-  const mode = normalizedCustomMode(input.customMode);
-  const prompt = clean(input.productDescription, 4000);
+function extractDirectDialogue(value) {
+  const text = clean(value, 12000);
+  if (!text) return '';
+  const found = [];
+  for (const line of text.split(/\n+/)) {
+    const labeled = line.match(/^\s*(?:dialogue|script|spoken|voiceover|guest|host|creator)\s*:\s*(.+?)\s*$/i);
+    if (labeled?.[1]) found.push(labeled[1].replace(/^[“"'‘]+|[”"'’]+$/g, '').trim());
+  }
+  const quotePattern = /[“"]([^”"]{6,})[”"]/g;
+  let match;
+  while ((match = quotePattern.exec(text)) !== null) found.push(match[1].trim());
+  const unique = [...new Set(found.map(item => clean(item, 3000)).filter(Boolean))];
+  return clean(unique.join(' '), 12000);
+}
+
+function buildDirectPromptPlan(input, brand, avatars, resolvedType, mode) {
+  const prompt = clean(input.productDescription, 6500);
   if (!prompt) throw publicError('Add the production prompt you want to send to the video model.', 'UGC_DIRECT_PROMPT_REQUIRED', 422);
-  // Direct modes use H3-compatible technical segments regardless of the
-  // customer-facing quality tier so long-form prompts never create an
-  // unsupported >15s native-audio scene.
   const durations = visualDurations(input.duration, 'STANDARD', resolvedType);
   const finalDurations = playbackDurations(input.duration, durations);
-  const creatorLed = String(input.creatorMode || '').toUpperCase() !== 'NONE';
+  const dialogue = extractDirectDialogue(prompt);
+  const scriptParts = splitScriptByDurations(dialogue, finalDurations);
+  const creatorLed = mode === 'PODCAST' || String(input.creatorMode || '').toUpperCase() !== 'NONE';
   const kinds = Array.from({ length: durations.length }, () => creatorLed ? 'CREATOR' : 'PRODUCT');
   const modeLabel = mode === 'PODCAST' ? 'Podcast' : 'Production';
   const campaignLabel = clean(brand?.productName || brand?.name || modeLabel, 120);
   const sceneCount = durations.length;
+  const aspectRatio = normalizedAspectRatio(input.aspectRatio);
+  const captionsEnabled = input.captionsEnabled !== false;
+  const characterAssetIds = [...new Set((Array.isArray(input.characterAssetIds) ? input.characterAssetIds : []).filter(Boolean))].slice(0, 8);
   const ads = Array.from({ length: Number(input.adCount) }, (_, index) => ({
     title: modeLabel + ' ' + (index + 1),
     angle: mode === 'PODCAST' ? 'Direct podcast prompt' : 'Direct production prompt',
     hook: '',
-    script: '',
+    script: dialogue,
     cta: '',
     caption: '',
     avatarIndex: index % Math.max(1, avatars.length),
     customMode: mode,
     directPromptMode: true,
+    aspectRatio,
+    captionsEnabled,
     scenes: durations.map((sceneDuration, sceneIndex) => {
       const start = Math.round((sceneIndex / sceneCount) * 100);
       const end = Math.round(((sceneIndex + 1) / sceneCount) * 100);
       const continuity = mode === 'PODCAST'
-        ? 'Keep the same invited guest, host/interviewer relationship, podcast studio, microphones, outfit, lighting and identity. The guest is appearing on someone else\'s podcast, not hosting her own.'
-        : 'Keep the same subjects, references, environment, wardrobe, lighting and visual continuity unless the user prompt explicitly requests a change.';
+        ? 'Continue the same podcast conversation with the same distinct people, identities, studio, microphones, wardrobe and lighting. Do not merge faces or swap character identities.'
+        : 'Continue the same production with stable subjects, environment, wardrobe, lighting and visual identity unless the customer prompt explicitly requests a change.';
       return {
         sequence: sceneIndex + 1,
         duration: Number(sceneDuration),
@@ -1177,12 +1258,12 @@ function directPromptPlan(input, brand, avatars, resolvedType) {
         kind: kinds[sceneIndex],
         creativeFormat: null,
         beats: [],
-        objective: 'Follow the customer production prompt directly without rewriting its creative intent.',
+        objective: 'Follow the customer prompt directly without rewriting its creative intent.',
         prompt: clean(
           'Technical segment ' + (sceneIndex + 1) + ' of ' + sceneCount + '. Render only the approximately ' + start + '–' + end + '% chronological portion of the requested production. Do not restart earlier dialogue or actions. ' + continuity,
           1200
         ),
-        script: ''
+        script: scriptParts[sceneIndex] || ''
       };
     })
   }));
@@ -1191,22 +1272,39 @@ function directPromptPlan(input, brand, avatars, resolvedType) {
     campaignType: resolvedType,
     customMode: mode,
     directPromptMode: true,
+    aspectRatio,
+    captionsEnabled,
+    characterAssetIds,
     requestedCreativeFormat: 'AUTO',
     resolvedCreativeFormats: [],
     creativeFormatVersion: ugcCreativeFormats.CREATIVE_FORMAT_VERSION,
-    skillsVersion: 'ugc-direct-prompt-v1',
+    skillsVersion: 'ugc-direct-prompt-v2',
     skillDecisions: {
       directPrompt: {
         mode,
         preserved: true,
         creativeDirectorBypassed: true,
         providerPromptExpansion: 'disabled',
+        aspectRatio,
+        captionsEnabled,
+        characterReferenceCount: characterAssetIds.length,
         technicalSegments: durations.map(Number),
         playbackDurations: finalDurations.map(Number)
       }
     },
     ads
   };
+}
+
+
+function productionPromptPlan(input, brand, avatars, resolvedType) {
+  return buildDirectPromptPlan({ ...input, customMode: 'PRODUCTION' }, brand, avatars, resolvedType, 'PRODUCTION');
+}
+
+function podcastPromptPlan(input, brand, avatars, resolvedType) {
+  const characterAssetIds = [...new Set((Array.isArray(input.characterAssetIds) ? input.characterAssetIds : []).filter(Boolean))].slice(0, 8);
+  if (!characterAssetIds.length) throw publicError('Upload at least one podcast character reference.', 'UGC_PODCAST_CHARACTER_REQUIRED', 422);
+  return buildDirectPromptPlan({ ...input, customMode: 'PODCAST', creatorMode: 'NONE', characterAssetIds }, brand, [], resolvedType, 'PODCAST');
 }
 
 function fallbackPlan(input, brand, avatars, resolvedType) {
@@ -1284,8 +1382,11 @@ function normalizePlan(parsed, input, brand, avatars, resolvedType) {
 
 async function planCampaign(input, brand, avatars, resolvedType) {
   const mode = normalizedCustomMode(input.customMode);
-  if (String(input.sourceType || '').toUpperCase() === 'BRIEF' && ['PRODUCTION','PODCAST'].includes(mode)) {
-    return directPromptPlan(input, brand, avatars, resolvedType);
+  if (String(input.sourceType || '').toUpperCase() === 'BRIEF' && mode === 'PRODUCTION') {
+    return productionPromptPlan(input, brand, avatars, resolvedType);
+  }
+  if (String(input.sourceType || '').toUpperCase() === 'BRIEF' && mode === 'PODCAST') {
+    return podcastPromptPlan(input, brand, avatars, resolvedType);
   }
   const providerDurations = visualDurations(input.duration, input.quality, resolvedType);
   const finalDurations = playbackDurations(input.duration, providerDurations);
@@ -1329,10 +1430,10 @@ async function createAssemblyGenerationRow(userId, adId, request = {}) {
 }
 
 async function createCampaign(userId, input) {
+  input = normalizeDirectInput(input);
   ugcStudioControls.assertSelection(input, { STANDARD: STANDARD_CREDITS, PREMIUM: PREMIUM_CREDITS });
   const access = await credits.getAccess(userId);
   if (!access.studioEnabled) throw publicError('UGC Studio is unavailable for this account.', 'UGC_ACCESS_REQUIRED', 403);
-
   let brand = null;
   if (input.brandProfileId) {
     const rows = await prisma.$queryRawUnsafe('SELECT * FROM "UGCBrandProfile" WHERE "id"=$1 AND "userId"=$2 LIMIT 1', input.brandProfileId, userId);
@@ -1343,25 +1444,32 @@ async function createCampaign(userId, input) {
   }
 
   const productAssetIds = [...new Set((Array.isArray(input.productAssetIds) ? input.productAssetIds : []).filter(Boolean))].slice(0, 8);
+  const characterAssetIds = [...new Set((Array.isArray(input.characterAssetIds) ? input.characterAssetIds : []).filter(Boolean))].slice(0, 8);
+  const mode = normalizedCustomMode(input.customMode);
+  const directMode = isDirectModeInput(input);
+  const podcastDirect = directMode && mode === 'PODCAST';
+  if (podcastDirect && !characterAssetIds.length) throw publicError('Upload at least one podcast character reference.', 'UGC_PODCAST_CHARACTER_REQUIRED', 422);
+  const providerAssetIds = podcastDirect ? characterAssetIds : directMode ? [] : productAssetIds;
   const productAssets = [];
   for (const assetId of productAssetIds) productAssets.push(await getProductAssetRow(userId, assetId));
+  for (const assetId of characterAssetIds) await getProductAssetRow(userId, assetId);
 
-  const allAvatars = await avatarRows(userId);
-  let available = input.creatorMode === 'NONE' ? [] : allAvatars;
-  if (input.creatorMode === 'SELECTED' && input.avatarId) available = [await getAvatarRow(userId, input.avatarId)];
-  if (input.creatorMode !== 'NONE' && !available.length) throw publicError('No UGC creators are currently available.', 'UGC_CREATORS_UNAVAILABLE', 503);
+  const allAvatars = directMode ? [] : await avatarRows(userId);
+  let available = directMode || input.creatorMode === 'NONE' ? [] : allAvatars;
+  if (!directMode && input.creatorMode === 'SELECTED' && input.avatarId) available = [await getAvatarRow(userId, input.avatarId)];
+  if (!directMode && input.creatorMode !== 'NONE' && !available.length) throw publicError('No UGC creators are currently available.', 'UGC_CREATORS_UNAVAILABLE', 503);
 
   const resolvedType = resolveCampaignType(input, brand, productAssets);
   const productVisualEvidence = productAssets.length ? await analyzeProductVisuals(userId, productAssets) : null;
   const hasBrandVisualReference = Boolean(Array.isArray(brand?.brandReferences) && brand.brandReferences.length);
-  if (resolvedType === 'PRODUCT_SHOWCASE' && !productAssets.length && !hasBrandVisualReference) {
+  if (!directMode && resolvedType === 'PRODUCT_SHOWCASE' && !productAssets.length && !hasBrandVisualReference) {
     throw publicError(input.creatorMode === 'NONE'
       ? 'No creator requires a product reference. Use the product photo from Source or generate a product image in the Creator step.'
       : 'Product Showcase needs at least one real product image. Upload a product photo, use a product page with usable images, or use a creator-led ad.', 'UGC_PRODUCT_REFERENCE_REQUIRED', 422);
   }
   let creativePlan;
   try {
-    creativePlan = await planCampaign({ ...input, productAssetIds, productVisualEvidence }, brand, available, resolvedType);
+    creativePlan = await planCampaign({ ...input, productAssetIds, characterAssetIds, productVisualEvidence }, brand, available, resolvedType);
   } catch (error) {
     if (error?.code === 'UGC_CREATIVE_FORMAT_INCOMPATIBLE') {
       throw publicError('That creative structure is not compatible with the selected production type or available evidence. Choose another structure or use Auto.', error.code, 422);
@@ -1371,7 +1479,7 @@ async function createCampaign(userId, input) {
   const plan = ugcModelRouter.routePlan({
     input,
     plan: creativePlan,
-    hasProductReference: Boolean(productAssets.length || hasBrandVisualReference),
+    hasProductReference: Boolean(providerAssetIds.length || hasBrandVisualReference),
     availableAvatars: available
   });
   const campaignId = id();
@@ -1391,9 +1499,9 @@ async function createCampaign(userId, input) {
 
   await prisma.$executeRawUnsafe(
     'INSERT INTO "UGCCampaign" ("id","userId","brandProfileId","title","productUrl","productDescription","duration","adCount","quality","creatorMode","selectedAvatarId","campaignType","resolvedType","sourceType","productAssetIdsJson","status","totalCredits","notes","planJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,\'RESERVING\',$16,$17,$18,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
-    campaignId, userId, brand?.id || input.brandProfileId || null, plan.title, brand?.websiteUrl || input.productUrl || null, clean(input.productDescription, 4000) || null,
+    campaignId, userId, brand?.id || input.brandProfileId || null, plan.title, brand?.websiteUrl || input.productUrl || null, clean(input.productDescription, isDirectModeInput(input) ? 6500 : 4000) || null,
     input.duration, input.adCount, input.quality, input.creatorMode, input.avatarId || null, input.campaignType || 'AUTO', resolvedType, sourceType,
-    json(productAssetIds), totalCredits, clean(input.notes, 1200) || null, json(plan)
+    json(providerAssetIds), totalCredits, clean(input.notes, 1200) || null, json(plan)
   );
 
   const reserved = [];
@@ -1403,7 +1511,7 @@ async function createCampaign(userId, input) {
       campaignId,
       input: { ...input, sourceType },
       brand,
-      productAssetIds,
+      productAssetIds: providerAssetIds,
       availableAvatars: available,
       plan,
       resolvedType,
@@ -1417,15 +1525,18 @@ async function createCampaign(userId, input) {
       const adId = id();
       const route = ugcEngineRegistry.legacyDbRoute(input.quality);
       await prisma.$executeRawUnsafe(
-        'INSERT INTO "UGCAd" ("id","campaignId","userId","sequence","status","title","angle","hook","script","cta","caption","avatarId","route","voice","voicePrompt","duration","quality","credits","musicMode","captionsEnabled","planJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,\'RESERVING\',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,\'AUTO\',true,$18,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
+        'INSERT INTO "UGCAd" ("id","campaignId","userId","sequence","status","title","angle","hook","script","cta","caption","avatarId","route","voice","voicePrompt","duration","quality","credits","musicMode","captionsEnabled","planJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,\'RESERVING\',$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,\'AUTO\',$18,$19,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
         adId, campaignId, userId, index + 1, planned.title, planned.angle || null, planned.hook || null, planned.script, planned.cta || null, planned.caption || null,
-        avatar?.id || null, route, avatar?.voice || null, avatar?.voicePrompt || null, input.duration, input.quality, perAd, json({
+        avatar?.id || null, route, avatar?.voice || null, avatar?.voicePrompt || null, input.duration, input.quality, perAd, Boolean(input.captionsEnabled), json({
           ...planned,
           campaignType: resolvedType,
           customPromptMode: sourceType === 'BRIEF',
           customMode: normalizedCustomMode(input.customMode),
           directPromptMode: sourceType === 'BRIEF' && ['PRODUCTION','PODCAST'].includes(normalizedCustomMode(input.customMode)),
-          userDirection: sourceType === 'BRIEF' ? clean(input.productDescription, 4000) : clean(input.notes, 1200)
+          aspectRatio: normalizedAspectRatio(input.aspectRatio),
+          captionsEnabled: input.captionsEnabled !== false,
+          characterAssetIds,
+          userDirection: sourceType === 'BRIEF' ? clean(input.productDescription, isDirectModeInput(input) ? 6500 : 4000) : clean(input.notes, 1200)
         })
       );
       for (let s = 0; s < planned.scenes.length; s += 1) {
@@ -1433,7 +1544,7 @@ async function createCampaign(userId, input) {
         await prisma.$executeRawUnsafe(
           'INSERT INTO "UGCScene" ("id","adId","sequence","status","kind","route","duration","prompt","script","avatarId","productReferenceJson","createdAt","updatedAt") VALUES ($1,$2,$3,\'QUEUED\',$4,$5,$6,$7,$8,$9,$10,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)',
           id(), adId, s + 1, scene.kind, scene.routeDecision?.routeKey || route, scene.duration, scene.prompt, scene.script || null, avatar?.id || null,
-          json({ brandReferences: brand?.brandReferences || [], productAssetIds, routeDecision: scene.routeDecision || null })
+          json({ brandReferences: brand?.brandReferences || [], productAssetIds: providerAssetIds, characterAssetIds, referenceRole: podcastDirect ? 'PODCAST_CHARACTERS' : 'PRODUCT_OR_BRAND', routeDecision: scene.routeDecision || null })
         );
       }
       const generationId = await createGenerationRow(userId, adId, perAd, { ...planned, campaignType: resolvedType, quality: input.quality, pricing: campaignPricing }, reservationPerAd);
@@ -1465,7 +1576,10 @@ async function createCampaign(userId, input) {
       adCount: input.adCount,
       creatorMode: input.creatorMode,
       credits: totalCredits,
-      hasProductAssets: Boolean(productAssetIds.length)
+      hasProductAssets: Boolean(productAssetIds.length),
+      characterReferenceCount: characterAssetIds.length,
+      aspectRatio: normalizedAspectRatio(input.aspectRatio),
+      captionsEnabled: input.captionsEnabled !== false
     }
   });
   queueRuntimeTick();
@@ -1509,7 +1623,12 @@ async function campaignPayload(userId, campaignRow) {
     duration: campaignRow.duration, adCount: campaignRow.adCount, quality: campaignRow.quality,
     campaignType: campaignRow.campaignType || 'AUTO', resolvedType: campaignRow.resolvedType || campaignRow.campaignType || 'AVATAR_EXPLAINER',
     creativeFormat: campaignPlan.requestedCreativeFormat || 'AUTO', resolvedCreativeFormats: Array.isArray(campaignPlan.resolvedCreativeFormats) ? campaignPlan.resolvedCreativeFormats : [],
-    sourceType: campaignRow.sourceType || 'WEBSITE', customMode: campaignPlan.customMode || 'ASSISTED', productAssetIds: parseJson(campaignRow.productAssetIdsJson, []),
+    sourceType: campaignRow.sourceType || 'WEBSITE',
+    customMode: campaignPlan.customMode || 'ASSISTED',
+    aspectRatio: normalizedAspectRatio(campaignPlan.aspectRatio),
+    captionsEnabled: campaignPlan.captionsEnabled !== undefined ? Boolean(campaignPlan.captionsEnabled) : Boolean(publicAds[0]?.captionsEnabled ?? true),
+    productAssetIds: (campaignPlan.customMode || 'ASSISTED') === 'PODCAST' ? [] : parseJson(campaignRow.productAssetIdsJson, []),
+    characterAssetIds: Array.isArray(campaignPlan.characterAssetIds) ? campaignPlan.characterAssetIds : [],
     creatorMode: campaignRow.creatorMode, selectedAvatarId: campaignRow.selectedAvatarId || null,
     status: effectiveStatus, totalCredits: campaignRow.totalCredits, notes: campaignRow.notes || '',
     plan: campaignPlan, ads: publicAds,
@@ -1987,13 +2106,13 @@ async function analyzeProductVisuals(userId, productAssets = []) {
   }
 }
 
-async function productAssetDataUri(userId, assetId) {
+async function productAssetDataUri(userId, assetId, aspectRatio = '9:16') {
   const row = await getProductAssetRow(userId, assetId);
   const data = await objectStorage.getBuffer(row.storageKey, null, row.storageProvider || null);
+  const dimensions = aspectRatioDimensions(aspectRatio);
   // H3 Max accepts up to nine references with a 64 MB aggregate input cap.
-  // Normalise uploaded references to compact, high-quality JPEGs so a full
-  // avatar + eight-product-reference request stays comfortably below the cap.
-  const normalized = await sharp(data).rotate().resize({ width: 768, height: 1344, fit: 'contain', background: { r: 12, g: 20, b: 28 } }).jpeg({ quality: 88, mozjpeg: true }).toBuffer();
+  // Normalise references to the selected output shape without cropping faces or products.
+  const normalized = await sharp(data).rotate().resize({ width: dimensions.width, height: dimensions.height, fit: 'contain', background: { r: 12, g: 20, b: 28 } }).jpeg({ quality: 88, mozjpeg: true }).toBuffer();
   return 'data:image/jpeg;base64,' + normalized.toString('base64');
 }
 
@@ -2093,7 +2212,7 @@ function h3CreatorVoiceDescription(avatar) {
 
 function h3NativePrompt(scene, ad, avatar, referenceCount) {
   const plan = parseJson(ad.planJson, {});
-  const userDirection = clean(plan.userDirection, plan.customPromptMode ? 4000 : 1200);
+  const userDirection = clean(plan.userDirection, plan.directPromptMode ? 6500 : plan.customPromptMode ? 4000 : 1200);
   const customMode = normalizedCustomMode(plan.customMode);
   const directPromptMode = Boolean(plan.directPromptMode && ['PRODUCTION','PODCAST'].includes(customMode));
   const format = clean(scene.creativeFormat || plan.creativeFormat || plan.requestedCreativeFormat || 'UGC', 80).replaceAll('_', ' ');
@@ -2107,20 +2226,27 @@ function h3NativePrompt(scene, ad, avatar, referenceCount) {
       : 'Use Image 1 as the authoritative product reference. This is a product-only ad; do not introduce a presenter.';
   if (directPromptMode && userDirection) {
     const directModeRule = customMode === 'PODCAST'
-      ? 'PODCAST MODE: the selected creator is the invited guest on another person\'s podcast. Preserve the same guest identity, studio, outfit, microphone setup, lighting and interview relationship across segments.'
+      ? 'PODCAST MODE: create a natural podcast interview from the customer prompt. The supplied character images are identity references for distinct people. Preserve each face and identity consistently; never merge, swap or morph characters. Respect the guest/host roles described by the customer.'
       : 'PRODUCTION MODE: follow the customer production prompt as written. Do not replace it with a generic UGC structure and do not invent new dialogue.';
-    const directReferenceInstruction = referenceCount > 1
-      ? avatar
-        ? 'Use Image 1 as the selected creator identity. Images 2 through ' + referenceCount + ' are customer-supplied visual references. Use them according to the customer prompt for environment, product, wardrobe, composition or continuity; do not assume they are products.'
-        : 'Images 1 through ' + referenceCount + ' are customer-supplied visual references. Follow the customer prompt to determine their roles and preserve their visible details.'
-      : referenceInstruction;
+    const directReferenceInstruction = customMode === 'PRODUCTION' && referenceCount === 0
+      ? 'No visual reference is supplied. Generate directly from the customer production prompt.'
+      : customMode === 'PODCAST'
+      ? (referenceCount > 1
+          ? 'Images 1 through ' + referenceCount + ' are podcast character references. Treat them as distinct people unless the customer explicitly describes multiple views of the same person.'
+          : 'Image 1 is the podcast character reference. Preserve that exact identity.')
+      : referenceCount > 1
+        ? avatar
+          ? 'Use Image 1 as the selected creator identity. Images 2 through ' + referenceCount + ' are customer-supplied visual references. Use them according to the customer prompt for environment, product, wardrobe, composition or continuity; do not assume they are products.'
+          : 'Images 1 through ' + referenceCount + ' are customer-supplied visual references. Follow the customer prompt to determine their roles and preserve their visible details.'
+        : referenceInstruction;
     return clean([
       directReferenceInstruction,
       directModeRule,
       clean(scene.prompt, 1200),
+      clean(scene.script, 4000) ? 'THIS SEGMENT SPOKEN DIALOGUE: “' + clean(scene.script, 4000).replace(/[“”"]/g, "'") + '”' : '',
       'PRIMARY CUSTOMER PROMPT:',
       userDirection,
-      'Preserve reference identity and continuity. No generated subtitles, captions, watermarks, interface graphics or extra readable overlay text unless the customer prompt explicitly requests them.'
+      'Preserve reference identity and continuity. Do not generate subtitles, captions, watermarks, interface graphics or extra readable overlay text in the model output; INXSocial applies captions after rendering when the customer enables them.'
     ].filter(Boolean).join('\n\n'), 7000);
   }
   const sound = spoken
@@ -2150,17 +2276,19 @@ async function renderProviderScene(scene, ad, avatar, productReferences, narrati
   }
 
   if (cap.adapterKey === ugcProviderAdapters.ADAPTER_KEYS.H3_MAX) {
-    if (!references.length) throw publicError('This UGC scene needs at least one visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
-    const prompt = h3NativePrompt(scene, ad, avatar, references.length);
     const adPlan = parseJson(ad.planJson, {});
     const directPromptMode = Boolean(adPlan.directPromptMode && ['PRODUCTION','PODCAST'].includes(normalizedCustomMode(adPlan.customMode)));
+    const directProduction = directPromptMode && normalizedCustomMode(adPlan.customMode) === 'PRODUCTION';
+    if (!references.length && !directProduction) throw publicError('This UGC scene needs at least one visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
+    const prompt = h3NativePrompt(scene, ad, avatar, references.length);
     return ugcProviderAdapters.renderScene(scene.route, {
       kind: scene.kind,
       providerDuration: Number(scene.duration),
       playbackDuration: Number(scene.duration),
       prompt,
       promptExpansion: directPromptMode ? 'disabled' : 'quality',
-      reference: references[0],
+      aspectRatio: directPromptMode ? normalizedAspectRatio(adPlan.aspectRatio) : '9:16',
+      reference: references[0] || null,
       references,
       narration: null
     }, onProgress);
@@ -2284,8 +2412,10 @@ async function assembleVideo(ad, scenes) {
   try {
     const normalized = [];
     const finalDurations = playbackDurations(ad.duration, scenes.map(scene => Number(scene.duration)));
-    const targetWidth = String(ad.quality || 'STANDARD').toUpperCase() === 'STANDARD' ? 768 : 720;
-    const targetHeight = String(ad.quality || 'STANDARD').toUpperCase() === 'STANDARD' ? 1344 : 1280;
+    const adPlan = parseJson(ad.planJson, {});
+    const directDimensions = adPlan.directPromptMode ? aspectRatioDimensions(adPlan.aspectRatio) : null;
+    const targetWidth = directDimensions?.width || (String(ad.quality || 'STANDARD').toUpperCase() === 'STANDARD' ? 768 : 720);
+    const targetHeight = directDimensions?.height || (String(ad.quality || 'STANDARD').toUpperCase() === 'STANDARD' ? 1344 : 1280);
     for (let sceneIndex = 0; sceneIndex < scenes.length; sceneIndex += 1) {
       const scene = scenes[sceneIndex];
       const finalDuration = finalDurations[sceneIndex];
@@ -2330,6 +2460,8 @@ async function assembleVideo(ad, scenes) {
 
 async function persistFinalAsset(ad, data, providerCost, qualityControl = null) {
   const checksum = crypto.createHash('sha256').update(data).digest('hex');
+  const adPlan = parseJson(ad.planJson, {});
+  const directDimensions = adPlan.directPromptMode ? aspectRatioDimensions(adPlan.aspectRatio) : null;
   const originalName = 'INXSocial-UGC-' + ad.id.slice(0,8) + '.mp4';
   const stored = await objectStorage.persistBuffer({ userId: ad.userId, data, mimeType: 'video/mp4', originalName, prefix: 'ugc-video' });
   const record = await prisma.agentAsset.create({ data: {
@@ -2337,6 +2469,7 @@ async function persistFinalAsset(ad, data, providerCost, qualityControl = null) 
     byteSize: data.length, checksum, prompt: clean(ad.angle + ' ' + ad.hook, 1500), customerPrompt: clean(ad.script, 1500),
     generationChoice: json({
       provider: 'runware', route: ad.route, quality: ad.quality, resolution: String(ad.quality || 'STANDARD').toUpperCase() === 'STANDARD' ? '768p' : '720p', duration: ad.duration,
+      aspectRatio: adPlan.directPromptMode ? normalizedAspectRatio(adPlan.aspectRatio) : '9:16',
       providerCostUsd: providerCost, ugcAdId: ad.id, campaignId: ad.campaignId, avatarId: ad.avatarId,
       routerVersion: parseJson(ad.planJson, {}).routerVersion
         || parseJson(ad.planJson, {}).scenes?.[0]?.routeDecision?.routerVersion
@@ -2349,7 +2482,9 @@ async function persistFinalAsset(ad, data, providerCost, qualityControl = null) 
       renderQualityVersion: ugcRenderQuality.RENDER_QUALITY_VERSION, qualityControl
     }),
     tagsJson: json(['ai-generated','ai-content-studio','ugc-ad','ugc-studio']), data: stored.data, storageProvider: stored.storageProvider, storageKey: stored.storageKey,
-    width: String(ad.quality || 'STANDARD').toUpperCase() === 'STANDARD' ? 768 : 720, height: String(ad.quality || 'STANDARD').toUpperCase() === 'STANDARD' ? 1344 : 1280, durationSeconds: ad.duration, expiresAt: expiresAtFor('video/mp4')
+    width: directDimensions?.width || (String(ad.quality || 'STANDARD').toUpperCase() === 'STANDARD' ? 768 : 720),
+    height: directDimensions?.height || (String(ad.quality || 'STANDARD').toUpperCase() === 'STANDARD' ? 1344 : 1280),
+    durationSeconds: ad.duration, expiresAt: expiresAtFor('video/mp4')
   } });
   return mediaLibrary.publicAsset(record);
 }
@@ -2394,6 +2529,8 @@ async function renderAd(adId) {
     brandRefs = parseJson(brand?.brandReferencesJson, []);
   }
   const generationRows = ad.generationId ? await prisma.$queryRawUnsafe('SELECT "reservedCredits","requestJson","providerCostUsd" FROM "AiGeneration" WHERE "id"=$1 LIMIT 1', ad.generationId) : [];
+  const adPlan = parseJson(ad.planJson, {});
+  const selectedAspectRatio = adPlan.directPromptMode ? normalizedAspectRatio(adPlan.aspectRatio) : '9:16';
   const generationRequest = parseJson(generationRows[0]?.requestJson, {});
   const reservedGenerationCredits = generationRows[0]?.reservedCredits != null ? Number(generationRows[0].reservedCredits) : Number(ad.credits || 0);
   const quotedGenerationCredits = Math.max(1, Number(generationRequest.quotedCredits || ad.credits || reservedGenerationCredits));
@@ -2402,7 +2539,7 @@ async function renderAd(adId) {
   const productReferences = [];
   for (const assetId of campaignProductIds.slice(0, 8)) {
     try {
-      const reference = await productAssetDataUri(ad.userId, assetId);
+      const reference = await productAssetDataUri(ad.userId, assetId, selectedAspectRatio);
       if (reference) productReferences.push(reference);
     } catch (_) {}
   }
@@ -2974,8 +3111,8 @@ module.exports = {
   STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds, brandUrlCandidates, playbackDurations,
   UGC_AGENT_VERSION, ugcAgentReply,
   creditsPerAd, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
-  narratorVoice, narratorLanguage, narratorSpeed, adultSafeReferencePrompt, captionsForScenes, estimateCampaign,
-  getOverview, analyzeBrand, createCampaign, listCampaigns, getCampaign, getEngineProject, getProductionAudit, deleteCampaign, getAd, updateAd, rerouteScenesForRegeneration, reassembleAd, regenerateAd, regenerateScene,
+  normalizedAspectRatio, aspectRatioDimensions, extractDirectDialogue, narratorVoice, narratorLanguage, narratorSpeed, adultSafeReferencePrompt, captionsForScenes, estimateCampaign,
+  getOverview, analyzeBrand, generateProductionPrompt, createCampaign, listCampaigns, getCampaign, getEngineProject, getProductionAudit, deleteCampaign, getAd, updateAd, rerouteScenesForRegeneration, reassembleAd, regenerateAd, regenerateScene,
   generateCustomAvatar, generateReferenceAsset, uploadCustomAvatar, deleteCustomAvatar, getAvatarContent,
   listSystemAvatars, uploadSystemAvatar, getSystemAvatarContent,
   listAvatarReferences, uploadAvatarReference, getAvatarReferenceContent, deleteAvatarReference,

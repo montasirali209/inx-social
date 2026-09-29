@@ -182,7 +182,7 @@ function validateContext(cap, context) {
     throw adapterError('The selected UGC route cannot render a scene this long.', 'UGC_ROUTE_DURATION_UNSUPPORTED', 422);
   }
   const references = Array.isArray(context.references) ? context.references.filter(Boolean) : (context.reference ? [context.reference] : []);
-  if (!references.length) throw adapterError('This UGC route requires a visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
+  if (!references.length && cap.adapterKey !== ADAPTER_KEYS.H3_MAX) throw adapterError('This UGC route requires a visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
   if (cap.adapterKey === ADAPTER_KEYS.OMNIHUMAN_15 && !context.narration?.audioURL) {
     throw adapterError('Professional creator rendering requires narrator audio.', 'UGC_NARRATION_REQUIRED', 422);
   }
@@ -213,10 +213,16 @@ function buildTask(cap, context) {
     const references = (Array.isArray(context.references) ? context.references : [context.reference]).filter(Boolean).slice(0, 9);
     const requestedExpansion = clean(context.promptExpansion || 'quality', 20).toLowerCase();
     const promptExpansion = ['disabled','balanced','quality'].includes(requestedExpansion) ? requestedExpansion : 'quality';
+    const ratio = ['9:16','1:1','16:9'].includes(String(context.aspectRatio || '')) ? String(context.aspectRatio) : '9:16';
+    const dimensions = ratio === '1:1'
+      ? { width: 768, height: 768 }
+      : ratio === '16:9'
+        ? { width: 1344, height: 768 }
+        : { width: 768, height: 1344 };
     task.duration = duration;
-    task.width = 768;
-    task.height = 1344;
-    task.inputs = { referenceImages: references };
+    task.width = dimensions.width;
+    task.height = dimensions.height;
+    if (references.length) task.inputs = { referenceImages: references };
     task.settings = { promptExpansion };
     return task;
   }
