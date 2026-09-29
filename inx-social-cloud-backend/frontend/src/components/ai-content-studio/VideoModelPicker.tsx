@@ -147,13 +147,16 @@ export function VideoModelPicker({
                 <span className={`grid size-9 shrink-0 place-items-center rounded-xl border ${active ? 'border-brand-cyan/30 bg-brand-cyan/10 text-brand-cyan' : 'border-white/8 bg-white/[.035] text-text-muted'}`}>{model.speed === 'fast' ? <Zap className="size-4" /> : <Film className="size-4" />}</span>
                 <div className="flex items-center gap-2">
                   {isRecentModel(model) && <span className="rounded-full border border-brand-cyan/25 bg-brand-cyan/[.07] px-2 py-1 text-[7px] font-semibold uppercase tracking-[.08em] text-brand-cyan">New</span>}
-                  {typeof model.baselineCredits === 'number' && <span className="rounded-full border border-amber-300/20 bg-amber-300/[.05] px-2 py-1 text-[7px] font-semibold text-amber-200">from {model.baselineCredits} cr</span>}
+                  {model.pricing?.promotion?.active && model.pricing.regularCredits > model.pricing.currentCredits
+                    ? <span className="rounded-full border border-emerald-300/20 bg-emerald-300/[.05] px-2 py-1 text-[7px] font-semibold text-emerald-200">{model.pricing.promotion.discountPercent}% off · from {model.pricing.currentCredits} cr <span className="ml-1 text-text-soft line-through">{model.pricing.regularCredits}</span></span>
+                    : typeof model.baselineCredits === 'number' && <span className="rounded-full border border-amber-300/20 bg-amber-300/[.05] px-2 py-1 text-[7px] font-semibold text-amber-200">from {model.baselineCredits} cr</span>}
                   {active && <span className="grid size-6 place-items-center rounded-full bg-brand-green/15 text-brand-green"><Check className="size-3.5" /></span>}
                 </div>
               </div>
               <strong className="mt-3 block text-[11px] text-white">{model.name}</strong>
               <span className="mt-1 block text-[8px] font-semibold uppercase tracking-[.09em] text-text-soft">{model.creator || model.badge || 'Runware'}</span>
               <p className="mt-2 line-clamp-3 text-[8px] leading-4 text-text-muted">{model.description || 'AI video generation model.'}</p>
+              {model.pricing?.promotion?.active ? <p className="mt-2 text-[7px] leading-3 text-emerald-200">{model.pricing.promotion.endsAt ? 'Provider discount ends ' + new Date(model.pricing.promotion.endsAt).toLocaleDateString() + '. Pricing updates automatically.' : 'Provider promotional pricing active. Pricing updates automatically when the promotion ends.'}</p> : null}
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {modes.slice(0, 3).map((mode) => <span key={mode} className="rounded-full border border-white/7 bg-white/[.025] px-2 py-1 text-[7px] text-text-soft">{mode}</span>)}
                 {(model.resolutions || []).slice(0, 2).map((value) => <span key={value} className="rounded-full border border-white/7 bg-white/[.025] px-2 py-1 text-[7px] text-text-soft">{value}</span>)}
