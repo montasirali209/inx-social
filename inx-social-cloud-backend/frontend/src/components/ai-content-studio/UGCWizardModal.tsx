@@ -170,8 +170,8 @@ export function UGCWizardModal({
   const creativeFormat: UGCCreativeFormat = 'AUTO'
 
   const input = useMemo<CreateUGCCampaignInput>(() => ({
-    brandProfileId: selectedBrand?.id || seedCampaign?.brandProfileId || seedDraft?.brandProfileId || null,
-    productUrl: selectedBrand ? '' : productUrl.trim(),
+    brandProfileId: directMode ? null : selectedBrand?.id || seedCampaign?.brandProfileId || seedDraft?.brandProfileId || null,
+    productUrl: directMode ? '' : selectedBrand ? '' : productUrl.trim(),
     productDescription: description.trim(),
     productAssetIds: effectiveProductAssetIds,
     characterAssetIds: podcastMode ? characterAssetIds : [],
