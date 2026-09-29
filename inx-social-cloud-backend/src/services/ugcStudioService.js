@@ -2528,9 +2528,9 @@ async function renderAd(adId) {
       publishable: true
     }).catch(() => null);
     const providerRequiredCredits = providerCost > 0 ? videoModels.creditsFromUsd(providerCost) : quotedGenerationCredits;
-    const chargedCredits = Math.max(1, Math.min(reservedGenerationCredits, providerRequiredCredits));
+    let chargedCredits = Math.max(1, Math.min(reservedGenerationCredits, providerRequiredCredits));
     if (reservedGenerationCredits > 0) {
-      await credits.settle(ad.userId, ad.generationId, chargedCredits, {
+      chargedCredits = await credits.settle(ad.userId, ad.generationId, providerRequiredCredits, {
         provider: 'runware',
         providerCostUsd: providerCost,
         quotedCredits: quotedGenerationCredits,
@@ -2600,7 +2600,7 @@ async function renderAd(adId) {
     }
 
     if (reservedGenerationCredits > 0) {
-      const incurredCredits = providerCost > 0 ? Math.min(reservedGenerationCredits, videoModels.creditsFromUsd(providerCost)) : 0;
+      const incurredCredits = providerCost > 0 ? videoModels.creditsFromUsd(providerCost) : 0;
       if (incurredCredits > 0) {
         await credits.settle(ad.userId, ad.generationId, incurredCredits, {
           provider: 'runware',
