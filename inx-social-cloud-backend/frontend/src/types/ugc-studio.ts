@@ -325,6 +325,16 @@ export type UGCEstimate = {
   version: string
   credits: number
   perAd: number
+  regularCreditsPerAd?: number
+  regularTotalCredits?: number
+  providerCostUsd?: number | null
+  regularProviderCostUsd?: number | null
+  promotion?: {
+    active: boolean
+    discountPercent: number
+    endsAt?: string | null
+    source?: string
+  } | null
   adCount: number
   duration: number
   quality: UGCQuality
