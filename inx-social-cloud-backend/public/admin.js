@@ -1152,6 +1152,12 @@ function growthEditorialCandidateList(data,currentTitle=''){
     return true;
   }).slice(0,3);
 }
+function growthAutopilotModelLabel(model){
+  return String(model||'').toLowerCase()==='gpt-5.6-sol'?'GPT-5.6 Sol':'GPT-5.6 Terra';
+}
+function growthAutopilotModelShort(model){
+  return String(model||'').toLowerCase()==='gpt-5.6-sol'?'Sol':'Terra';
+}
 function renderGrowthEditorialBoard(data){
   const runtime=data?.state||{};
   const config=data?.config||{};
@@ -1176,16 +1182,20 @@ function renderGrowthEditorialBoard(data){
   const lastPublished=runtime.lastPublishedArticle||null;
   const strategy=runtime.lastStrategy||null;
   const enabled=config.enabled!==false;
+  const control=data.control||{};
+  const active=control.active??enabled;
+  const modelLabel=growthAutopilotModelLabel(config.aiModel);
+  const modelShort=growthAutopilotModelShort(config.aiModel);
   const running=Boolean(runtime.running);
 
   const latestArticleType=String(articleEvents[0]?.type||'');
   let status='Waiting for next run';
   let statusClass='';
-  if(!enabled){status='Paused';statusClass='gsc-error'}
+  if(!active){status=control.temporaryPause?'Temporarily paused':'Paused';statusClass='gsc-error'}
   else if(running&&!articleId){status='Choosing topic';statusClass='gsc-connected'}
   else if(latestArticleType==='EDITORIAL_TOPIC_UNSUITABLE'){status='Switching topic';statusClass='gsc-error'}
   else if(latestArticleType==='EDITORIAL_DRAFT_DEFERRED'){status='Trying next topic';statusClass='gsc-error'}
-  else if(latestArticleType==='EDITORIAL_REVISION_REQUESTED'){status='Sol revising';statusClass='gsc-connected'}
+  else if(latestArticleType==='EDITORIAL_REVISION_REQUESTED'){status=modelShort+' revising';statusClass='gsc-connected'}
   else if(latestArticleType==='ARTICLE_REVISED'){status='Final review';statusClass='gsc-connected'}
   else if(latestArticleType==='DRAFT_GENERATED'){status='Senior editor reviewing';statusClass='gsc-connected'}
   else if(latestArticleType==='EDITORIAL_REVIEW_PASSED'||latestArticleType==='ARTICLE_APPROVED'){status='Ready to publish';statusClass='gsc-connected'}
@@ -1195,9 +1205,9 @@ function renderGrowthEditorialBoard(data){
   $('growthEditorialStatus').className='status-chip '+statusClass;
 
   const stageDefs=[
-    ['Topic','Sol strategist'],
+    ['Topic',modelShort+' strategist'],
     ['Research','Live evidence'],
-    ['Draft','Sol writer'],
+    ['Draft',modelShort+' writer'],
     ['Senior editor','Actionable review'],
     ['Repair','Exact fixes'],
     ['Final check','90+ standard'],
@@ -1278,16 +1288,16 @@ function renderGrowthEditorialBoard(data){
     const explicitEditorialRuntime=runtime.editorialRuntime||{};
     const currentMessage=explicitEditorialRuntime.status==='RETRY_SCHEDULED'
       ?(explicitEditorialRuntime.message||'Temporary provider/evidence failure. The draft is preserved for a short automatic retry.')
-      :articleEvents[0]?.message||'Sol is progressing this article through the editorial pipeline.';
+      :articleEvents[0]?.message||modelShort+' is progressing this article through the editorial pipeline.';
     $('growthEditorialCurrent').innerHTML=
-      '<div class="growth-editorial-current-title"><span>GPT-5.6 Sol</span><b>'+esc(currentTitle)+'</b><small>'+esc(currentMessage)+'</small></div>'+
+      '<div class="growth-editorial-current-title"><span>'+esc(modelLabel)+'</span><b>'+esc(currentTitle)+'</b><small>'+esc(currentMessage)+'</small></div>'+
       '<div class="growth-editorial-scoreline">'+
         (scoreBits.length?scoreBits.map(bit=>'<span>'+esc(bit)+'</span>').join(''):'<span>Quality score pending</span>')+
         '<strong>Target 90+</strong>'+
       '</div>';
   }else if(running){
     currentTitle=String(strategy?.topic||'');
-    $('growthEditorialCurrent').innerHTML='<div class="growth-editorial-planning"><span class="growth-autopilot-pulse"></span><div><b>'+(currentTitle?esc(currentTitle):'Sol is selecting the next article')+'</b><small>Comparing search demand, audience fit, existing content and current editorial opportunities before research begins.</small></div></div>';
+    $('growthEditorialCurrent').innerHTML='<div class="growth-editorial-planning"><span class="growth-autopilot-pulse"></span><div><b>'+(currentTitle?esc(currentTitle):esc(modelShort)+' is selecting the next article')+'</b><small>Comparing search demand, audience fit, existing content and current editorial opportunities before research begins.</small></div></div>';
   }else if(lastPublished){
     currentTitle=String(lastPublished.title||'');
     $('growthEditorialCurrent').innerHTML='<div class="growth-editorial-current-title published"><span>Latest publication</span><b>'+esc(currentTitle)+'</b><small>Published '+esc(relative(lastPublished.publishedAt))+' · quality '+Number(lastPublished.qualityScore||0)+'/100</small></div><a class="growth-editorial-open" href="'+esc(lastPublished.url||'#')+'" target="_blank" rel="noopener">Open article ↗</a>';
@@ -1335,34 +1345,51 @@ function renderGrowthAutopilot(data){
   state.growthAutopilot=data;
   const config=data.config||{};
   const runtime=data.state||{};
+  const control=data.control||{};
   const enabled=config.enabled!==false;
+  const active=control.active??enabled;
+  const temporarilyPaused=Boolean(control.temporaryPause);
+  const modelLabel=growthAutopilotModelLabel(config.aiModel);
+  const modelShort=growthAutopilotModelShort(config.aiModel);
   const published=Number(data.content?.counts?.PUBLISHED||0);
   const running=Boolean(runtime.running);
-  $('growthStatusChip').textContent=running?'AUTOPILOT RUNNING':enabled?'AUTOPILOT ON':'AUTOPILOT PAUSED';
-  $('growthStatusChip').className='status-chip '+(enabled?'gsc-connected':'gsc-error');
+  $('growthAutopilotModel').value=config.aiModel||'gpt-5.6-terra';
+  $('growthAutopilotModel').disabled=state.user?.role!=='SUPER_ADMIN'||running;
+  $('growthAutopilotPauseDuration').disabled=state.user?.role!=='SUPER_ADMIN'||!active;
+  $('growthStatusChip').textContent=running?'AUTOPILOT RUNNING':active?'AUTOPILOT ON':temporarilyPaused?'AUTOPILOT PAUSED':'AUTOPILOT PAUSED';
+  $('growthStatusChip').className='status-chip '+(active?'gsc-connected':'gsc-error');
   const editorialRuntime=runtime.editorialRuntime||{};
   const editorialStatus=String(editorialRuntime.status||'IDLE');
-  $('growthAutopilotHeadline').textContent=editorialStatus==='RETRY_SCHEDULED'
+  $('growthAutopilotHeadline').textContent=editorialStatus==='RETRY_SCHEDULED'&&active
     ?'Editorial retry scheduled'
-    : editorialStatus==='REPAIRING'
-      ?'Sol is repairing the article now'
-      : running?'Growth cycle running now':enabled?'Everything is running automatically':'Autopilot is paused';
-  $('growthAutopilotSummary').textContent=enabled
+    : editorialStatus==='REPAIRING'&&active
+      ?modelShort+' is repairing the article now'
+      : running?'Growth cycle running now'
+        :active?'Everything is running automatically'
+          :temporarilyPaused?'Autopilot temporarily paused':'Autopilot is paused';
+  $('growthAutopilotSummary').textContent=active
     ?(editorialStatus==='RETRY_SCHEDULED'
       ?'The current draft is preserved. A temporary provider/evidence failure triggered a short recovery retry at '+growthDashboardUntil(editorialRuntime.retryAt)+'. Normal quality repairs run immediately and do not wait for the scheduler.'
-      :'No routine action is required. GPT-5.6 Sol selects the strongest relevant topic, writes to a 90+ target, receives senior-editor feedback and repairs the same article immediately when needed before publication.')
-    :'Automatic intelligence refresh and publishing are paused until you resume them.';
-  $('growthAutopilotToggleBtn').textContent=enabled?'Pause autopilot':'Resume autopilot';
-  $('growthAutopilotToggleBtn').className=enabled?'secondary':'primary';
+      :'Using '+modelLabel+'. Scheduled research, strategy, writing, editorial review, authority and optimisation run only when due; article quality still requires the 90+ gate.')
+    :temporarilyPaused
+      ?'Scheduled AI work is stopped until '+fmtDate(control.pauseUntil)+'. Run now can still execute one manual cycle without cancelling the pause.'
+      :'Scheduled AI work is stopped until you resume Autopilot. Run now can still execute one manual cycle.';
+  $('growthAutopilotToggleBtn').textContent=active?'Pause':'Resume now';
+  $('growthAutopilotToggleBtn').className=active?'secondary':'primary';
   $('growthAutopilotToggleBtn').disabled=state.user?.role!=='SUPER_ADMIN';
   $('growthAutopilotRunBtn').disabled=state.user?.role!=='SUPER_ADMIN'||running;
   $('growthAutopilotRunBtn').textContent=running?'Running…':'Run now';
 
+  $('growthEditorialStrategistModel')&&($('growthEditorialStrategistModel').textContent=modelShort+' strategist');
+  $('growthEditorialWriterModel')&&($('growthEditorialWriterModel').textContent=modelShort+' writer');
+  $('growthEditorialQueueModel')&&($('growthEditorialQueueModel').textContent=modelShort+' can choose beyond this shortlist');
+
   const lastQuality=runtime.lastPublishedArticle?.qualityScore;
+  const pauseLabel=temporarilyPaused?growthTimeUntil(control.pauseUntil):'Paused';
   $('growthAutopilotKpis').innerHTML=[
     ['Publishing',(config.dailyPublishTimeLocal||'07:30')+' UK daily',config.autoPublish===false?'Auto publish disabled':'Evidence-gated morning article decision'],
-    ['Next article',enabled?growthTimeUntil(runtime.nextPublishAt):'Paused',runtime.nextPublishAt?fmtDate(runtime.nextPublishAt):'Waiting for schedule'],
-    ['Editorial radar',enabled?growthTimeUntil(runtime.nextEditorialRadarAt):'Paused',(data.editorialRadar?.summary?.hot||0)+' hot · '+(data.editorialRadar?.summary?.total||0)+' researched'],
+    ['Next article',active?growthTimeUntil(runtime.nextPublishAt):pauseLabel,temporarilyPaused?'Resumes '+fmtDate(control.pauseUntil):runtime.nextPublishAt?fmtDate(runtime.nextPublishAt):'Waiting for schedule'],
+    ['SEO model',modelShort,(config.aiReasoningEffort||'medium')+' reasoning · admin selectable'],
     ['Published',published,lastQuality!=null?'Latest quality '+Number(lastQuality)+'/100':'Self-hosted articles']
   ].map(item=>'<article><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b><small>'+esc(item[2])+'</small></article>').join('');
 
@@ -1400,12 +1427,47 @@ function startGrowthAutopilotPolling(){
   },30000);
 }
 async function toggleGrowthAutopilot(){
-  const enabled=state.growthAutopilot?.config?.enabled!==false;
+  const control=state.growthAutopilot?.control||{};
+  const config=state.growthAutopilot?.config||{};
+  const active=control.active??(config.enabled!==false);
   const button=$('growthAutopilotToggleBtn');button.disabled=true;
   try{
-    renderGrowthAutopilot(await api('/api/admin/growth-autopilot/config',{method:'PATCH',body:JSON.stringify({enabled:!enabled})}));
-    toast(!enabled?'Growth Autopilot resumed':'Growth Autopilot paused');
+    let patch;
+    let message;
+    if(!active){
+      patch={enabled:true,pauseUntil:null};
+      message='Growth Autopilot resumed';
+    }else{
+      const duration=$('growthAutopilotPauseDuration').value;
+      if(duration==='manual'){
+        patch={enabled:false,pauseUntil:null};
+        message='Growth Autopilot paused until you resume it';
+      }else{
+        const hours=Math.max(1,Number(duration||6));
+        const pauseUntil=new Date(Date.now()+hours*60*60*1000).toISOString();
+        patch={enabled:true,pauseUntil};
+        message='Growth Autopilot paused for '+hours+' hour'+(hours===1?'':'s');
+      }
+    }
+    renderGrowthAutopilot(await api('/api/admin/growth-autopilot/config',{method:'PATCH',body:JSON.stringify(patch)}));
+    toast(message);
   }catch(error){toast(error.message)}finally{button.disabled=state.user?.role!=='SUPER_ADMIN'}
+}
+async function updateGrowthAutopilotModel(){
+  const select=$('growthAutopilotModel');
+  const model=select.value;
+  const reasoningEffort=model==='gpt-5.6-sol'?'high':'medium';
+  select.disabled=true;
+  try{
+    renderGrowthAutopilot(await api('/api/admin/growth-autopilot/config',{
+      method:'PATCH',
+      body:JSON.stringify({aiModel:model,aiReasoningEffort:reasoningEffort})
+    }));
+    toast('SEO Autopilot model changed to '+growthAutopilotModelLabel(model));
+  }catch(error){toast(error.message)}finally{
+    const running=Boolean(state.growthAutopilot?.state?.running);
+    select.disabled=state.user?.role!=='SUPER_ADMIN'||running;
+  }
 }
 async function runGrowthAutopilotNow(){
   const button=$('growthAutopilotRunBtn');button.disabled=true;button.textContent='Starting…';
@@ -1752,6 +1814,7 @@ $('growthOptimizationQueue').addEventListener('click',event=>{
 });
 
 $('growthAutopilotToggleBtn').addEventListener('click',()=>void toggleGrowthAutopilot());
+$('growthAutopilotModel').addEventListener('change',()=>void updateGrowthAutopilotModel());
 $('growthAutopilotRunBtn').addEventListener('click',()=>void runGrowthAutopilotNow());
 $('runGrowthAuditBtn').addEventListener('click',()=>void runGrowthAudit());
 $('buildGrowthOpportunitiesBtn').addEventListener('click',()=>void buildGrowthOpportunities());
