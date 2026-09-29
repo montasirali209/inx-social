@@ -64,7 +64,10 @@ test('Podcast uploaded characters satisfy the backend requirement directly', () 
 
 test('direct modes bypass Creative Director while assisted UGC keeps it', () => {
   const service = read('src/services/ugcStudioService.js');
-  assert.match(service, /\['PRODUCTION','PODCAST'\]\.includes\(mode\)[\s\S]{0,160}return directPromptPlan/);
+  assert.match(service, /mode === 'PRODUCTION'[\s\S]{0,160}return productionPromptPlan/);
+  assert.match(service, /mode === 'PODCAST'[\s\S]{0,160}return podcastPromptPlan/);
+  assert.match(service, /function productionPromptPlan/);
+  assert.match(service, /function podcastPromptPlan/);
   assert.match(service, /return ugcSkills\.planCampaign/);
   assert.match(service, /creativeDirectorBypassed: true/);
 });
