@@ -3,6 +3,8 @@ import { AlertTriangle, CalendarClock, Check, ClipboardList, Image, PencilLine, 
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { dismissPostJob } from '../../lib/posts-api'
+import { publishingRecordsQueryKey } from '../../lib/publishing-records'
+import { universalPublishingKpiQueryKey } from '../../lib/universal-publishing-kpis'
 import { matchesPostLibraryView, requiresMediaReattachment, type PostLibraryView } from '../../lib/posts-reuse'
 import type { DashboardJob } from '../../types/dashboard'
 import { Button } from '../ui/Button'
@@ -72,6 +74,8 @@ export function PostReuseModal({ jobs, initialView, loadingExternal = false, onC
     if (succeeded.length) setClearedIds((current) => new Set([...current, ...succeeded]))
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['posts-workspace'] }),
+      queryClient.invalidateQueries({ queryKey: publishingRecordsQueryKey }),
+      queryClient.invalidateQueries({ queryKey: universalPublishingKpiQueryKey }),
       queryClient.invalidateQueries({ queryKey: ['dashboard-jobs'] }),
       queryClient.invalidateQueries({ queryKey: ['content-calendar'] }),
     ])
