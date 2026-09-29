@@ -972,7 +972,9 @@ function normalizeDirectInput(input = {}) {
     quality: 'STANDARD',
     aspectRatio: normalizedAspectRatio(input.aspectRatio),
     captionsEnabled: input.captionsEnabled !== false,
-    ...(mode === 'PODCAST' ? { creatorMode: 'NONE', avatarId: null, campaignType: 'AVATAR_EXPLAINER' } : {})
+    creatorMode: 'NONE',
+    avatarId: null,
+    campaignType: 'AVATAR_EXPLAINER'
   };
 }
 
@@ -1055,7 +1057,7 @@ function playbackDurations(totalDuration, providerDurations) {
 }
 
 function resolveCampaignType(input, brand, productAssets = []) {
-  if (String(input.sourceType || '').toUpperCase() === 'BRIEF' && String(input.customMode || '').toUpperCase() === 'PODCAST') return 'AVATAR_EXPLAINER';
+  if (String(input.sourceType || '').toUpperCase() === 'BRIEF' && ['PRODUCTION','PODCAST'].includes(String(input.customMode || '').toUpperCase())) return 'AVATAR_EXPLAINER';
   if (String(input.creatorMode || '').toUpperCase() === 'NONE') return 'PRODUCT_SHOWCASE';
   const requested = String(input.campaignType || 'AUTO').toUpperCase();
   if (requested === 'AVATAR_EXPLAINER' || requested === 'PRODUCT_SHOWCASE') return requested;
@@ -1324,22 +1326,23 @@ async function createCampaign(userId, input) {
   const productAssetIds = [...new Set((Array.isArray(input.productAssetIds) ? input.productAssetIds : []).filter(Boolean))].slice(0, 8);
   const characterAssetIds = [...new Set((Array.isArray(input.characterAssetIds) ? input.characterAssetIds : []).filter(Boolean))].slice(0, 8);
   const mode = normalizedCustomMode(input.customMode);
-  const podcastDirect = isDirectModeInput(input) && mode === 'PODCAST';
+  const directMode = isDirectModeInput(input);
+  const podcastDirect = directMode && mode === 'PODCAST';
   if (podcastDirect && !characterAssetIds.length) throw publicError('Upload at least one podcast character reference.', 'UGC_PODCAST_CHARACTER_REQUIRED', 422);
-  const providerAssetIds = podcastDirect ? characterAssetIds : productAssetIds;
+  const providerAssetIds = podcastDirect ? characterAssetIds : directMode ? [] : productAssetIds;
   const productAssets = [];
   for (const assetId of productAssetIds) productAssets.push(await getProductAssetRow(userId, assetId));
   for (const assetId of characterAssetIds) await getProductAssetRow(userId, assetId);
 
-  const allAvatars = podcastDirect ? [] : await avatarRows(userId);
-  let available = podcastDirect || input.creatorMode === 'NONE' ? [] : allAvatars;
-  if (!podcastDirect && input.creatorMode === 'SELECTED' && input.avatarId) available = [await getAvatarRow(userId, input.avatarId)];
-  if (!podcastDirect && input.creatorMode !== 'NONE' && !available.length) throw publicError('No UGC creators are currently available.', 'UGC_CREATORS_UNAVAILABLE', 503);
+  const allAvatars = directMode ? [] : await avatarRows(userId);
+  let available = directMode || input.creatorMode === 'NONE' ? [] : allAvatars;
+  if (!directMode && input.creatorMode === 'SELECTED' && input.avatarId) available = [await getAvatarRow(userId, input.avatarId)];
+  if (!directMode && input.creatorMode !== 'NONE' && !available.length) throw publicError('No UGC creators are currently available.', 'UGC_CREATORS_UNAVAILABLE', 503);
 
   const resolvedType = resolveCampaignType(input, brand, productAssets);
   const productVisualEvidence = productAssets.length ? await analyzeProductVisuals(userId, productAssets) : null;
   const hasBrandVisualReference = Boolean(Array.isArray(brand?.brandReferences) && brand.brandReferences.length);
-  if (resolvedType === 'PRODUCT_SHOWCASE' && !productAssets.length && !hasBrandVisualReference) {
+  if (!directMode && resolvedType === 'PRODUCT_SHOWCASE' && !productAssets.length && !hasBrandVisualReference) {
     throw publicError(input.creatorMode === 'NONE'
       ? 'No creator requires a product reference. Use the product photo from Source or generate a product image in the Creator step.'
       : 'Product Showcase needs at least one real product image. Upload a product photo, use a product page with usable images, or use a creator-led ad.', 'UGC_PRODUCT_REFERENCE_REQUIRED', 422);
@@ -2094,7 +2097,9 @@ function h3NativePrompt(scene, ad, avatar, referenceCount) {
     const directModeRule = customMode === 'PODCAST'
       ? 'PODCAST MODE: create a natural podcast interview from the customer prompt. The supplied character images are identity references for distinct people. Preserve each face and identity consistently; never merge, swap or morph characters. Respect the guest/host roles described by the customer.'
       : 'PRODUCTION MODE: follow the customer production prompt as written. Do not replace it with a generic UGC structure and do not invent new dialogue.';
-    const directReferenceInstruction = customMode === 'PODCAST'
+    const directReferenceInstruction = customMode === 'PRODUCTION' && referenceCount === 0
+      ? 'No visual reference is supplied. Generate directly from the customer production prompt.'
+      : customMode === 'PODCAST'
       ? (referenceCount > 1
           ? 'Images 1 through ' + referenceCount + ' are podcast character references. Treat them as distinct people unless the customer explicitly describes multiple views of the same person.'
           : 'Image 1 is the podcast character reference. Preserve that exact identity.')
@@ -2140,10 +2145,11 @@ async function renderProviderScene(scene, ad, avatar, productReferences, narrati
   }
 
   if (cap.adapterKey === ugcProviderAdapters.ADAPTER_KEYS.H3_MAX) {
-    if (!references.length) throw publicError('This UGC scene needs at least one visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
-    const prompt = h3NativePrompt(scene, ad, avatar, references.length);
     const adPlan = parseJson(ad.planJson, {});
     const directPromptMode = Boolean(adPlan.directPromptMode && ['PRODUCTION','PODCAST'].includes(normalizedCustomMode(adPlan.customMode)));
+    const directProduction = directPromptMode && normalizedCustomMode(adPlan.customMode) === 'PRODUCTION';
+    if (!references.length && !directProduction) throw publicError('This UGC scene needs at least one visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
+    const prompt = h3NativePrompt(scene, ad, avatar, references.length);
     return ugcProviderAdapters.renderScene(scene.route, {
       kind: scene.kind,
       providerDuration: Number(scene.duration),
@@ -2151,7 +2157,7 @@ async function renderProviderScene(scene, ad, avatar, productReferences, narrati
       prompt,
       promptExpansion: directPromptMode ? 'disabled' : 'quality',
       aspectRatio: directPromptMode ? normalizedAspectRatio(adPlan.aspectRatio) : '9:16',
-      reference: references[0],
+      reference: references[0] || null,
       references,
       narration: null
     }, onProgress);
