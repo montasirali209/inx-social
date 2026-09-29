@@ -491,33 +491,48 @@ function openAIHeaders() {
 }
 
 async function callChatModel(model, messages, options = {}) {
-  try {
-    const body = {
-      model,
-      messages,
-      reasoning_effort: options.reasoningEffort || 'none',
-      temperature: options.temperature ?? 0.45,
-      response_format: { type: 'json_object' },
-      max_completion_tokens: options.maxTokens || 1800
-    };
-    const response = await axios.post(`${String(env.openaiImage.baseUrl).replace(/\/$/, '')}/chat/completions`, body, {
-      timeout: options.timeoutMs || 120000,
-      headers: openAIHeaders(),
-      maxContentLength: 16 * 1024 * 1024,
-      maxBodyLength: 16 * 1024 * 1024
-    });
-    const parsed = safeJson(response.data?.choices?.[0]?.message?.content);
-    if (!parsed) throw publicError('The AI Post Studio returned an invalid response. Please send your message again.', 'OPENAI_CHAT_INVALID', 502);
-    return parsed;
-  } catch (caught) {
-    if (caught?.code === 'OPENAI_CHAT_INVALID') throw caught;
-    const status = Number(caught?.response?.status || 502);
-    const detail = cleanText(caught?.response?.data?.error?.message || caught?.message, 700);
-    console.error('[AI POST STUDIO OPENAI]', { status, model, detail });
-    if (status === 429) throw publicError('The AI Post Studio is busy right now. Please retry in a moment.', 'OPENAI_CHAT_RATE_LIMIT', 429);
-    if (status === 401 || status === 403) throw publicError('The AI Post Studio is temporarily unavailable.', 'OPENAI_CHAT_AUTH', 503);
-    throw publicError('The AI Post Studio hit a temporary provider problem. Please retry your last message.', 'OPENAI_CHAT_FAILED', status >= 400 ? status : 502);
+  const baseBody = {
+    model,
+    messages,
+    reasoning_effort: options.reasoningEffort || 'none',
+    temperature: options.temperature ?? 0.45,
+    response_format: { type: 'json_object' },
+    max_completion_tokens: options.maxTokens || 1800
+  };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const body = attempt === 0 ? baseBody : {
+        ...baseBody,
+        reasoning_effort: options.retryReasoningEffort || 'medium',
+        messages: [
+          ...messages,
+          { role: 'system', content: 'Your previous response was not parseable. Return exactly one complete valid JSON object matching the requested shape. Do not include markdown or commentary.' }
+        ]
+      };
+      const response = await axios.post(`${String(env.openaiImage.baseUrl).replace(/\/$/, '')}/chat/completions`, body, {
+        timeout: options.timeoutMs || 120000,
+        headers: openAIHeaders(),
+        maxContentLength: 16 * 1024 * 1024,
+        maxBodyLength: 16 * 1024 * 1024
+      });
+      const parsed = safeJson(response.data?.choices?.[0]?.message?.content);
+      if (parsed) return parsed;
+      if (attempt === 0) {
+        console.warn('[AI POST STUDIO OPENAI]', { status: 200, model, detail: 'Invalid JSON response; retrying once with stricter JSON instruction.' });
+        continue;
+      }
+      throw publicError('The AI Post Studio returned an invalid response. Please send your message again.', 'OPENAI_CHAT_INVALID', 502);
+    } catch (caught) {
+      if (caught?.code === 'OPENAI_CHAT_INVALID') throw caught;
+      const status = Number(caught?.response?.status || 502);
+      const detail = cleanText(caught?.response?.data?.error?.message || caught?.message, 700);
+      console.error('[AI POST STUDIO OPENAI]', { status, model, detail });
+      if (status === 429) throw publicError('The AI Post Studio is busy right now. Please retry in a moment.', 'OPENAI_CHAT_RATE_LIMIT', 429);
+      if (status === 401 || status === 403) throw publicError('The AI Post Studio is temporarily unavailable.', 'OPENAI_CHAT_AUTH', 503);
+      throw publicError('The AI Post Studio hit a temporary provider problem. Please retry your last message.', 'OPENAI_CHAT_FAILED', status >= 400 ? status : 502);
+    }
   }
+  throw publicError('The AI Post Studio returned an invalid response. Please send your message again.', 'OPENAI_CHAT_INVALID', 502);
 }
 
 function sourceAnalysisPrompt() {
