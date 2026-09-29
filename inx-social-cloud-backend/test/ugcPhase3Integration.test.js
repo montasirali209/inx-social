@@ -48,10 +48,10 @@ test('existing pre-Phase-3 scene route aliases remain renderable', () => {
   assert.equal(adapters.normalizeRouteKey('KLING_PREMIUM_V1'), 'KLING_LEGACY');
 });
 
-test('Phase 3 leaves Standard and Premium credit tables unchanged', () => {
+test('UGC commercial hardening keeps Phase 3 routing while raising conservative fallback credit floors', () => {
   const studio = require('../src/services/ugcStudioService');
-  assert.deepEqual(studio.STANDARD_CREDITS, { 20: 140, 30: 210, 45: 315, 60: 420 });
-  assert.deepEqual(studio.PREMIUM_CREDITS, { 20: 260, 30: 390, 45: 585, 60: 780 });
+  assert.deepEqual(studio.STANDARD_CREDITS, { 20: 184, 30: 276, 45: 414, 60: 552 });
+  assert.deepEqual(studio.PREMIUM_CREDITS, { 20: 530, 30: 795, 45: 1193, 60: 1590 });
 });
 
 test('provider names remain hidden from customer-facing UGC UI', () => {

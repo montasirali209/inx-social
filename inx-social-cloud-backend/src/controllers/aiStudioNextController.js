@@ -94,7 +94,19 @@ async function videoRecommend(req, res, next) {
 async function videoEstimate(req, res, next) {
   try {
     const input = videoSelectionSchema.parse(req.body || {});
-    res.json({ credits: await videoStudio.estimateCredits(input), source: 'backend', explanation: 'Credits are calculated from the synchronized provider pricing for the selected model and settings, then reconciled against actual provider cost after a successful render.' });
+    const quote = await videoStudio.estimateQuote(input);
+    res.json({
+      credits: quote.credits,
+      regularCredits: quote.regularCredits,
+      reservationCredits: Math.max(quote.credits, Math.ceil(quote.credits * 1.25)),
+      providerCostUsd: quote.providerCostUsd,
+      regularProviderCostUsd: quote.regularProviderCostUsd,
+      promotion: quote.promotion,
+      source: 'backend',
+      explanation: quote.promotion?.active
+        ? 'Runware is currently applying a provider promotion. INXSocial shows the discounted credit cost now and the regular credit cost that will apply automatically after the provider promotion expires.'
+        : 'Credits are calculated from synchronized Runware pricing for the selected model and settings and reconciled against actual provider cost after a successful render.'
+    });
   } catch (error) { next(error); }
 }
 

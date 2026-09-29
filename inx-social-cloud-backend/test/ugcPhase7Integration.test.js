@@ -35,9 +35,9 @@ test('Phase 7 supports zero-credit reassembly without touching paid generation c
   assert.match(studio, /reservedCredits","createdAt"/);
   assert.match(studio, /async function reassembleAd/);
   assert.match(studio, /reassembly: true/);
-  assert.match(studio, /if \(generationCredits > 0\) await credits\.complete/);
-  assert.match(studio, /if \(generationCredits > 0\) await credits\.refund/);
-  assert.match(studio, /reservedCredits != null \? Number/);
+  assert.match(studio, /await credits\.settle\(ad\.userId, ad\.generationId, providerRequiredCredits/);
+  assert.match(studio, /await credits\.refund\(ad\.userId, ad\.generationId/);
+  assert.match(studio, /reservedGenerationCredits/);
 });
 
 test('Phase 7 exposes the reassembly API through controller, route and client', () => {
@@ -77,14 +77,14 @@ test('Phase 7 publishing handoff identifies UGC assets as video and requires pub
   assert.match(editor, /qualityControl\?\.publishable/);
 });
 
-test('Phase 7 preserves pricing, router, Creator V2, Phase 5 grammar and Phase 6 controls', () => {
+test('UGC commercial hardening keeps Phase 7 architecture while updating fallback pricing', () => {
   const studio = read('src/services/ugcStudioService.js');
   const router = read('src/services/ugcModelRouter.js');
   const creators = read('src/services/ugcCreatorEngine.js');
   const formats = read('src/services/ugcCreativeFormats.js');
   const controls = read('src/services/ugcStudioControls.js');
-  assert.match(studio, /STANDARD_CREDITS = Object\.freeze\(\{ 20: 140, 30: 210, 45: 315, 60: 420 \}\)/);
-  assert.match(studio, /PREMIUM_CREDITS = Object\.freeze\(\{ 20: 260, 30: 390, 45: 585, 60: 780 \}\)/);
+  assert.match(studio, /STANDARD_CREDITS = Object\.freeze\(\{ 20: 184, 30: 276, 45: 414, 60: 552 \}\)/);
+  assert.match(studio, /PREMIUM_CREDITS = Object\.freeze\(\{ 20: 530, 30: 795, 45: 1193, 60: 1590 \}\)/);
   assert.match(router, /ROUTER_VERSION = 'ugc-router-v1'/);
   assert.match(creators, /CREATOR_PROFILE_VERSION = 'ugc-creators-v2'/);
   assert.match(formats, /CREATIVE_FORMAT_VERSION = 'ugc-formats-v1'/);

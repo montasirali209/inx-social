@@ -61,6 +61,47 @@ test('Daily editorial lane cannot be consumed by a non-article strategy decision
   assert.match(strategy, /Do not copy, closely paraphrase, or spin another publisher article/);
 });
 
+test('Growth Autopilot defaults to Terra and supports timed cost-control pauses', () => {
+  const service = read('src/services/growthAutopilotService.js');
+  const controller = read('src/controllers/growthAutopilotController.js');
+  const html = read('public/index.html');
+  const js = read('public/admin.js');
+
+  assert.match(service, /TERRA: 'gpt-5\.6-terra'/);
+  assert.match(service, /SOL: 'gpt-5\.6-sol'/);
+  assert.match(service, /aiModel: AUTOPILOT_MODELS\.TERRA/);
+  assert.match(service, /pauseUntil: null/);
+  assert.match(service, /isTemporarilyPaused/);
+  assert.match(service, /isAutopilotActive/);
+  assert.match(service, /reason: config\.enabled === false \? 'disabled' : 'temporarily_paused'/);
+  assert.match(service, /AUTOPILOT_PAUSED_UNTIL/);
+  assert.match(service, /AUTOPILOT_MODEL_CHANGED/);
+  assert.match(controller, /gpt-5\.6-terra/);
+  assert.match(controller, /gpt-5\.6-sol/);
+  assert.match(controller, /pauseUntil/);
+  assert.match(html, /id="growthAutopilotModel"/);
+  assert.match(html, /id="growthAutopilotPauseDuration"/);
+  assert.match(js, /updateGrowthAutopilotModel/);
+  assert.match(js, /const pauseUntil=new Date/);
+});
+
+test('Selected Autopilot model is routed through editorial, authority and optimisation AI work', () => {
+  const autopilot = read('src/services/growthAutopilotService.js');
+  const strategy = read('src/services/growthStrategyService.js');
+  const content = read('src/services/growthContentService.js');
+  const authority = read('src/services/growthAuthorityService.js');
+  const optimization = read('src/services/growthOptimizationService.js');
+
+  assert.match(autopilot, /model: config\.aiModel/);
+  assert.match(autopilot, /writerModel: ai\.model/);
+  assert.match(autopilot, /aiModel: config\.aiModel/);
+  assert.match(strategy, /model = env\.contentWriter\.model/);
+  assert.match(strategy, /reasoningEffort = env\.contentWriter\.reasoningEffort/);
+  assert.match(content, /writerModel = String\(options\.writerModel/);
+  assert.match(authority, /options\.model\|\|env\.contentWriter\.model/);
+  assert.match(optimization, /options\.aiModel \|\| env\.contentWriter\.model/);
+});
+
 test('Autopilot runtime starts with the production backend and uses a persisted lease', () => {
   const server = read('src/server.js');
   const service = read('src/services/growthAutopilotService.js');
@@ -113,7 +154,7 @@ test('Interrupted Autopilot drafts resume before a new daily topic is created', 
   assert.match(service, /EDITORIAL_DRAFT_RESUMED/);
   assert.match(service, /RESUMING_DRAFT/);
   assert.match(service, /produceAndPublish\(opportunity, config, strategy, decisionMode, recoverableDraft\)/);
-  assert.match(service, /configVersion: 10/);
+  assert.match(service, /configVersion: 11/);
   assert.match(service, /needsV10Migration/);
   assert.match(service, /editorialRetryMinutes: 10/);
 });
@@ -174,7 +215,7 @@ test('Growth Autopilot UI shows the live editorial pipeline and removes separate
   const js = read('public/admin.js');
   const css = read('public/admin.css');
 
-  assert.match(html, /Sol editorial pipeline/);
+  assert.match(html, /AI editorial pipeline/);
   assert.match(html, /id="growthEditorialPipeline"/);
   assert.match(html, /id="growthEditorialCurrent"/);
   assert.match(html, /id="growthEditorialFeedback"/);
@@ -237,7 +278,7 @@ test('Growth diagnostics explain recommendations and Phase 5 execution semantics
   const light = read('public/admin-light.css');
 
   assert.match(html, /admin-light\.css\?v=4/);
-  assert.match(html, /admin\.js\?v=29/);
+  assert.match(html, /admin\.js\?v=30/);
   assert.match(js, /Suggested action ·/);
   assert.match(js, /Approve plan/);
   assert.match(js, /Approve change/);

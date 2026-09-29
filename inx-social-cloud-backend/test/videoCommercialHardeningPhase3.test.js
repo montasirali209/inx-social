@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const env = require('../src/config/env');
 const guard = require('../src/services/videoCommercialGuardService');
+const videoRegistry = require('../src/services/videoModelRegistryService');
 const stripe = require('../src/services/stripeService');
 
 const root = path.resolve(__dirname, '..');
@@ -50,6 +51,66 @@ test('video pricing freshness blocks stale paid-generation estimates', () => {
   assert.throws(() => guard.assertFreshSnapshot(stale), error => error.code === 'AI_VIDEO_PRICING_STALE');
 });
 
+
+test('provider promotions expose discounted and regular credit pricing with automatic expiry metadata', () => {
+  const parsed = videoRegistry.parsePricing({
+    pricingOverview: '50% off until September 30, 2026',
+    pricingExamples: [{ configuration: '768p 10s', price: '$0.40 per run' }]
+  });
+  assert.equal(parsed.promotion.active, true);
+  assert.equal(parsed.promotion.discountPercent, 50);
+  assert.match(parsed.promotion.endsAt, /^2026-09-30T23:59:59/);
+  assert.equal(parsed.rules[0].price, 0.4);
+  assert.equal(parsed.rules[0].regularPrice, 0.8);
+
+  const profile = {
+    durations: [10],
+    resolutions: ['768p'],
+    audioSupported: true,
+    draftSupported: false,
+    pricing: parsed
+  };
+  const quote = videoRegistry.pricingQuote(profile, { duration: 10, resolution: '768p', audio: true }, Date.parse('2026-09-29T12:00:00Z'));
+  assert.ok(quote.regularCredits > quote.credits);
+  assert.equal(quote.promotion.discountPercent, 50);
+
+  const expired = videoRegistry.pricingQuote(profile, { duration: 10, resolution: '768p', audio: true }, Date.parse('2026-10-01T00:00:00Z'));
+  assert.equal(expired.promotion, null);
+  assert.equal(expired.credits, expired.regularCredits);
+});
+
+
+test('promotion parsing detects structured provider fields without relying on sale-label wording', () => {
+  const parsed = videoRegistry.parsePricing({
+    pricingOverview: 'Current rates',
+    promotion: { discountPercent: 25, endsAt: '2026-10-15', active: true },
+    pricingExamples: [{ configuration: '720p 5s', price: '$0.75 per run' }]
+  });
+  assert.equal(parsed.promotion.active, true);
+  assert.equal(parsed.promotion.discountPercent, 25);
+  assert.equal(parsed.promotion.source, 'provider_structured');
+  assert.match(parsed.promotion.endsAt, /^2026-10-15T23:59:59/);
+  assert.equal(parsed.rules[0].regularPrice, 1);
+});
+
+test('commercial settlement can debit above the reservation and records any residual shortfall', () => {
+  const credits = read('src/services/aiCreditService.js');
+  const video = read('src/services/videoStudioService.js');
+  const controller = read('src/controllers/aiStudioNextController.js');
+  const ugc = read('src/services/ugcStudioService.js');
+
+  assert.match(credits, /GENERATION_SETTLEMENT_DEBIT/);
+  assert.match(credits, /GENERATION_SETTLEMENT_SHORTFALL/);
+  assert.match(credits, /extraRequested = Math\.max\(0, requested - reserved\)/);
+  assert.match(video, /Math\.ceil\(quotedCredits \* 1\.25\)/);
+  assert.match(controller, /Math\.ceil\(quote\.credits \* 1\.25\)/);
+  assert.match(video, /credits\.settle\(userId, generationId, providerRequiredCredits/);
+  assert.match(video, /video_failed_after_provider_spend/);
+  assert.match(ugc, /UGC_RESERVATION_BUFFER = 1\.25/);
+  assert.match(ugc, /credits\.settle\(ad\.userId, ad\.generationId, providerRequiredCredits/);
+  assert.match(ugc, /ugc_failed_after_provider_spend/);
+});
+
 test('Phase 3 wires persistent provider-cost drift protection and commercial health monitoring', () => {
   const registry = read('src/services/videoModelRegistryService.js');
   const commercial = read('src/services/videoCommercialGuardService.js');
@@ -66,6 +127,18 @@ test('Phase 3 wires persistent provider-cost drift protection and commercial hea
   assert.match(video, /providerRequiredCredits/);
   assert.match(controller, /async function videoHealth/);
   assert.match(routes, /\/video\/health/);
+});
+
+test('provider reconciliation can debit beyond the reservation instead of silently capping actual cost', () => {
+  const credits = read('src/services/aiCreditService.js');
+  const video = read('src/services/videoStudioService.js');
+
+  assert.match(credits, /GENERATION_SETTLEMENT_DEBIT/);
+  assert.match(credits, /const extraRequested = Math\.max\(0, requested - reserved\)/);
+  assert.match(credits, /const charged = fromReservation \+ extraCharged/);
+  assert.match(credits, /GENERATION_SETTLEMENT_SHORTFALL/);
+  assert.match(video, /credits\.settle\(userId, generationId, providerRequiredCredits/);
+  assert.doesNotMatch(video, /Math\.min\(reservationCredits, providerRequiredCredits\)/);
 });
 
 test('current-period allowance changes preserve already-consumed credits instead of regranting a full wallet', () => {

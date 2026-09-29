@@ -325,15 +325,17 @@ function proposalSchema() {
   };
 }
 
-async function enrichWithSol(actions) {
+async function enrichWithModel(actions, options = {}) {
   const candidates = actions.slice(0, 8);
   if (!candidates.length || !env.contentWriter?.apiKey) return actions;
   const intelligence = await siteIntelligence.latest().catch(() => null);
   const profile = intelligence?.profile || null;
   const brandName = profile?.brandName || intelligence?.site?.hostname || 'the monitored website';
+  const aiModel = String(options.aiModel || env.contentWriter.model || '').trim();
+  const aiReasoningEffort = String(options.aiReasoningEffort || env.contentWriter.reasoningEffort || 'high').trim().toLowerCase();
   try {
     const result = await growthContent.structuredResponse({
-      model: env.contentWriter.model,
+      model: aiModel,
       instructions: [
         seoSkills.expertOperatingInstructions(),
         'Act as the continuous optimisation editor for ' + brandName + '.',
@@ -356,12 +358,12 @@ async function enrichWithSol(actions) {
       })) }),
       text: { format: { type: 'json_schema', name: 'inx_growth_phase5_proposals', strict: true, schema: proposalSchema() } },
       max_output_tokens: 3500,
-      ...(/^gpt-5(?:\.|-)/i.test(env.contentWriter.model) ? { reasoning: { effort: env.contentWriter.reasoningEffort || 'high' } } : {})
+      ...(/^gpt-5(?:\.|-)/i.test(aiModel) ? { reasoning: { effort: aiReasoningEffort } } : {})
     }, 'inx_growth_phase5_proposals', 'GROWTH_OPTIMIZATION_PROPOSAL_INVALID', env.contentWriter);
     const proposals = new Map((result.parsed?.proposals || []).map(item => [item.id, item]));
     return actions.map(item => proposals.has(item.id) ? { ...item, proposal: proposals.get(item.id) } : item);
   } catch (error) {
-    console.warn('[growth-optimization] Sol proposal generation skipped', { error: error?.message || String(error) });
+    console.warn('[growth-optimization] AI proposal generation skipped', { model: aiModel, error: error?.message || String(error) });
     return actions;
   }
 }
@@ -421,7 +423,7 @@ async function run(options = {}) {
     .filter((item, index, list) => list.findIndex(other => other.id === item.id) === index)
     .slice(0, 30);
 
-  actions = await enrichWithSol(actions);
+  actions = await enrichWithModel(actions, options);
 
   const activeIds = new Set(actions.map(item => item.id));
   const superseded = (previousState?.actions || [])
@@ -507,7 +509,7 @@ async function updateAction(id, action, note = '') {
     }
     if (item.type === ACTION_TYPES.OPTIMIZE_CTR_META && item.articleId) {
       if (!item.proposal?.suggestedTitle || !item.proposal?.suggestedMeta) {
-        throw Object.assign(new Error('No Sol metadata proposal is available for this action yet.'), { status: 409 });
+        throw Object.assign(new Error('No AI metadata proposal is available for this action yet.'), { status: 409 });
       }
       const article = await growthContent.optimizePublishedMetadata(item.articleId, {
         title: item.proposal.suggestedTitle,

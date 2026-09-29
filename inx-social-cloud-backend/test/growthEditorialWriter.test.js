@@ -97,17 +97,17 @@ test('BlogPosting author URL resolves to the canonical site instead of a nonexis
 });
 
 
-test('final article writing uses GPT-5.6 Sol independently from the research model', () => {
+test('article writing keeps the manual Sol default but accepts an Autopilot runtime model override', () => {
   const envConfig = read('src/config/env.js');
   const service = read('src/services/growthContentService.js');
 
   assert.match(envConfig, /OPENAI_CONTENT_WRITER_MODEL/);
   assert.match(envConfig, /'gpt-5\.6-sol'/);
   assert.match(envConfig, /OPENAI_CONTENT_WRITER_REASONING/);
-  assert.match(service, /model: env\.contentWriter\.model/);
-  assert.match(service, /env\.contentWriter\.reasoningEffort \|\| 'high'/);
-  assert.match(service, /writerModel: env\.contentWriter\.model/);
-  assert.match(service, /writerReasoningEffort: env\.contentWriter\.reasoningEffort/);
+  assert.match(service, /writerModel = String\(options\.writerModel \|\| env\.contentWriter\.model/);
+  assert.match(service, /writerReasoningEffort = String\(options\.writerReasoningEffort \|\| env\.contentWriter\.reasoningEffort/);
+  assert.match(service, /model: writerModel/);
+  assert.match(service, /writerModel: String\(options\.writerModel \|\| env\.contentWriter\.model/);
 });
 
 test('research remains on the dedicated web research model', () => {

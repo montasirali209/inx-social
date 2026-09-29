@@ -35,6 +35,16 @@ export type VideoModelOption = {
   generationReady?: boolean
   pricingStatus?: string
   baselineCredits?: number | null
+  pricing?: {
+    currentCredits: number
+    regularCredits: number
+    promotion?: {
+      active: boolean
+      discountPercent: number
+      endsAt?: string | null
+      source?: string
+    } | null
+  } | null
   tags: string[]
 }
 

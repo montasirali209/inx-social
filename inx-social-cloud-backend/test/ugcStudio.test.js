@@ -20,18 +20,33 @@ const {
 } = require('../src/services/ugcStudioService');
 
 test('UGC pricing supports 20, 30, 45 and 60 second Standard and Premium ads', () => {
-  assert.deepEqual(STANDARD_CREDITS, { 20: 140, 30: 210, 45: 315, 60: 420 });
-  assert.deepEqual(PREMIUM_CREDITS, { 20: 260, 30: 390, 45: 585, 60: 780 });
-  assert.equal(AVATAR_CREDITS, 5);
-  assert.equal(creditsPerAd(20, 'STANDARD'), 140);
-  assert.equal(creditsPerAd(30, 'STANDARD'), 210);
-  assert.equal(creditsPerAd(45, 'STANDARD'), 315);
-  assert.equal(creditsPerAd(60, 'STANDARD'), 420);
-  assert.equal(creditsPerAd(20, 'PREMIUM'), 260);
-  assert.equal(creditsPerAd(30, 'PREMIUM'), 390);
-  assert.equal(creditsPerAd(45, 'PREMIUM'), 585);
-  assert.equal(creditsPerAd(60, 'PREMIUM'), 780);
+  assert.deepEqual(STANDARD_CREDITS, { 20: 184, 30: 276, 45: 414, 60: 552 });
+  assert.deepEqual(PREMIUM_CREDITS, { 20: 530, 30: 795, 45: 1193, 60: 1590 });
+  assert.equal(AVATAR_CREDITS, 10);
+  assert.equal(creditsPerAd(20, 'STANDARD'), 184);
+  assert.equal(creditsPerAd(30, 'STANDARD'), 276);
+  assert.equal(creditsPerAd(45, 'STANDARD'), 414);
+  assert.equal(creditsPerAd(60, 'STANDARD'), 552);
+  assert.equal(creditsPerAd(20, 'PREMIUM'), 530);
+  assert.equal(creditsPerAd(30, 'PREMIUM'), 795);
+  assert.equal(creditsPerAd(45, 'PREMIUM'), 1193);
+  assert.equal(creditsPerAd(60, 'PREMIUM'), 1590);
   assert.throws(() => creditsPerAd(15, 'STANDARD'));
+});
+
+test('UGC commercial pricing uses live provider quotes, safety holds and actual-cost settlement', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.resolve(__dirname, '..');
+  const service = fs.readFileSync(path.join(root, 'src/services/ugcStudioService.js'), 'utf8');
+
+  assert.match(service, /videoModels\.pricingQuote/);
+  assert.match(service, /UGC_RESERVATION_BUFFER = 1\.25/);
+  assert.match(service, /regularTotalCredits/);
+  assert.match(service, /promotion: pricing\.promotion/);
+  assert.match(service, /credits\.settle\(ad\.userId, ad\.generationId, providerRequiredCredits/);
+  assert.match(service, /const incurredCredits = providerCost > 0 \? videoModels\.creditsFromUsd\(providerCost\) : 0/);
+  assert.doesNotMatch(service, /Math\.min\(reservedGenerationCredits, providerRequiredCredits\)/);
 });
 
 test('creator library retains 52 system seeds and launches with 20 featured creators', () => {
