@@ -529,7 +529,7 @@ export function UGCWizardModal({
                 <div className="ugc-reference-builder-head"><div><span className="ugc-wizard-mini-label">CREATE AVATAR OR PRODUCT</span><h3>Create an image reference</h3><p>Describe exactly what you want. INXSocial uses OpenAI image generation and keeps every result in this draft.</p></div></div>
                 <div className="ugc-reference-command mt-3">
                   <textarea aria-label="Create avatar or product prompt" onChange={(event) => { setReferencePrompt(event.target.value); setError('') }} placeholder="Example: Create a confident female fitness creator in a bright home gym — or create a premium lime-green energy drink can on a clean background." value={referencePrompt} />
-                  <Button disabled={referencePrompt.trim().length < 4 || generateReference.isPending} onClick={() => generateReference.mutate()} variant="primary">{generateReference.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}Generate · 5 credits</Button>
+                  <Button disabled={referencePrompt.trim().length < 4 || generateReference.isPending} onClick={() => generateReference.mutate()} variant="primary">{generateReference.isPending ? <LoaderCircle className="size-4 animate-spin" /> : <Sparkles className="size-4" />}Generate · 10 credits</Button>
                 </div>
 
                 {!!generatedReferences.length && <div className="ugc-generated-references mt-5">
