@@ -236,8 +236,8 @@ function promotionFromOverview(overview, rules = []) {
   );
   if (!Number.isFinite(percent) || percent <= 0 || percent >= 100) return null;
 
-  const dateText = text.match(/(?:until|through|ends?(?:\s+on)?|expires?(?:\s+on)?)\s+([A-Za-z]{3,9}\s+\d{1,2}(?:,)?\s+20\d{2}|20\d{2}-\d{2}-\d{2})/i)?.[1] || '';
-  const parsed = Date.parse(dateText);
+  const dateText = text.match(/(?:until|through|ends?(?:\s+on)?|expires?(?:\s+on)?)\s+([A-Za-z]{3,9}\s+\d{1,2}(?:st|nd|rd|th)?(?:,)?\s+20\d{2}|20\d{2}-\d{2}-\d{2})/i)?.[1] || '';
+  const parsed = Date.parse(dateText.replace(/(\d)(?:st|nd|rd|th)\b/i, '$1'));
   const endsAt = Number.isFinite(parsed) ? new Date(parsed + 24 * 60 * 60 * 1000 - 1).toISOString() : null;
   const active = !endsAt || Date.now() <= new Date(endsAt).getTime();
   const multiplier = 1 - (percent / 100);
@@ -270,7 +270,21 @@ function parsePricing(pricing) {
       source: 'provider_example'
     };
   }).filter(Boolean);
-  const promotion = promotionFromOverview(overview, rules);
+  const promotionSignals = [
+    overview,
+    pricing?.promotion,
+    pricing?.discount,
+    pricing?.sale,
+    pricing?.offer,
+    pricing?.notice,
+    pricing?.pricingNotice,
+    pricing?.pricingLabel
+  ].map(value => {
+    if (!value) return '';
+    if (typeof value === 'string' || typeof value === 'number') return String(value);
+    try { return JSON.stringify(value); } catch (_) { return ''; }
+  }).filter(Boolean).join(' ');
+  const promotion = promotionFromOverview(promotionSignals, rules);
   if (promotion?.active) rules = promotion.rules;
 
   return { overview, rules, promotion: promotion ? { active: promotion.active, discountPercent: promotion.discountPercent, endsAt: promotion.endsAt, source: promotion.source } : null, status: rules.length ? 'SYNCED' : 'UNAVAILABLE' };
