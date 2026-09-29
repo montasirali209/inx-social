@@ -132,6 +132,15 @@ export type GenerationJob = {
 
 export type GenerationCostEstimate = {
   credits: number
+  regularCredits?: number
+  providerCostUsd?: number
+  regularProviderCostUsd?: number
+  promotion?: {
+    active: boolean
+    discountPercent: number
+    endsAt?: string | null
+    source?: string
+  } | null
   source: 'backend' | 'fallback'
   explanation?: string
 }
