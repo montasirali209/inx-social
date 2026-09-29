@@ -276,6 +276,33 @@ function parsePricing(pricing) {
   return { overview, rules, promotion: promotion ? { active: promotion.active, discountPercent: promotion.discountPercent, endsAt: promotion.endsAt, source: promotion.source } : null, status: rules.length ? 'SYNCED' : 'UNAVAILABLE' };
 }
 
+function applyProviderPromotion(modelAir, pricing) {
+  if (pricing?.promotion) return pricing;
+  const air = clean(modelAir, 180).toLowerCase();
+  // Runware's current H3 Max launch promotion is time-bounded. Keep this
+  // provider-specific fallback only so the UI can show the regular price even
+  // if the catalogue endpoint exposes the discounted examples without promo metadata.
+  if (air === 'minimax:h3@max') {
+    const endsAt = '2026-09-30T23:59:59.999Z';
+    if (Date.now() <= new Date(endsAt).getTime()) {
+      return {
+        ...pricing,
+        promotion: {
+          active: true,
+          discountPercent: 50,
+          endsAt,
+          source: 'provider_published_fallback'
+        },
+        rules: (pricing.rules || []).map(rule => ({
+          ...rule,
+          regularPrice: Number((Number(rule.price) / 0.5).toFixed(6))
+        }))
+      };
+    }
+  }
+  return pricing;
+}
+
 function ruleModeCompatible(rule, selection) {
   if (selection.draft) return rule.mode === 'draft' || rule.mode === 'standard';
   if (rule.mode === 'draft') return false;
@@ -429,7 +456,7 @@ function mergeLegacyWithLive(legacy, live) {
 
 function normalizeLiveModel(model, pricing, requestSchema) {
   const cap = normalizeCapabilities(model, requestSchema);
-  const normalizedPricing = parsePricing(pricing);
+  const normalizedPricing = applyProviderPromotion(clean(model?.air, 180), parsePricing(pricing));
   const nativeStatus = !NON_NATIVE_STATUSES.has(clean(model?.status, 80).toLowerCase());
   const hasVideoMode = cap.modes.some(mode => mode.endsWith('_TO_VIDEO'));
   const commonRequest = cap.schemaResolved && cap.specialRequired.length === 0 && hasProperty(requestSchema, ['positivePrompt']);
@@ -822,6 +849,7 @@ module.exports = {
   normalizeCapabilities,
   parsePricing,
   promotionFromOverview,
+  applyProviderPromotion,
   parseResolution,
   normalizedPerSecond,
   conservativeDerivedCost,
