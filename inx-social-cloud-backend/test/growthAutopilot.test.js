@@ -82,7 +82,7 @@ test('Growth Autopilot defaults to Terra and supports timed cost-control pauses'
   assert.match(html, /id="growthAutopilotModel"/);
   assert.match(html, /id="growthAutopilotPauseDuration"/);
   assert.match(js, /updateGrowthAutopilotModel/);
-  assert.match(js, /pauseUntil:new Date/);
+  assert.match(js, /const pauseUntil=new Date/);
 });
 
 test('Selected Autopilot model is routed through editorial, authority and optimisation AI work', () => {
