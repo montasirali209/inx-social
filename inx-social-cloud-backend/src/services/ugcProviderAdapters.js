@@ -213,9 +213,15 @@ function buildTask(cap, context) {
     const references = (Array.isArray(context.references) ? context.references : [context.reference]).filter(Boolean).slice(0, 9);
     const requestedExpansion = clean(context.promptExpansion || 'quality', 20).toLowerCase();
     const promptExpansion = ['disabled','balanced','quality'].includes(requestedExpansion) ? requestedExpansion : 'quality';
+    const ratio = ['9:16','1:1','16:9'].includes(String(context.aspectRatio || '')) ? String(context.aspectRatio) : '9:16';
+    const dimensions = ratio === '1:1'
+      ? { width: 768, height: 768 }
+      : ratio === '16:9'
+        ? { width: 1344, height: 768 }
+        : { width: 768, height: 1344 };
     task.duration = duration;
-    task.width = 768;
-    task.height = 1344;
+    task.width = dimensions.width;
+    task.height = dimensions.height;
     task.inputs = { referenceImages: references };
     task.settings = { promptExpansion };
     return task;
