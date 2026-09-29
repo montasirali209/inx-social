@@ -297,7 +297,7 @@ async function executeApprovedEmails(items,enabled){
           nextFollowUpAt:null,
           delivery:{channel:'EMAIL',provider:'RESEND',providerId:providerResult?.messageId||null,status:'ACCEPTED',recipient:x.contact.value,sentAt},
           outcomeNote:x.aiReview?.decision==='PASS'
-            ?'GPT-5.6 Sol reviewed and approved this outreach before Resend accepted it for delivery. API-sent messages do not appear in the mailbox Sent folder. Automatic follow-up is disabled until inbound reply suppression is connected.'
+            ?String(x.aiReview.reviewerModel||'AI reviewer')+' reviewed and approved this outreach before Resend accepted it for delivery. API-sent messages do not appear in the mailbox Sent folder. Automatic follow-up is disabled until inbound reply suppression is connected.'
             :'Approved outreach was accepted by Resend for delivery. API-sent messages do not appear in the mailbox Sent folder. Automatic follow-up is disabled until inbound reply suppression is connected.'
         });
         continue;
