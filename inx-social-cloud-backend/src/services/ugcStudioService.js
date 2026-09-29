@@ -31,6 +31,7 @@ const { expiresAtFor } = require('./mediaRetentionService');
 const STANDARD_CREDITS = Object.freeze({ 20: 140, 30: 210, 45: 315, 60: 420 });
 const PREMIUM_CREDITS = Object.freeze({ 20: 260, 30: 390, 45: 585, 60: 780 });
 const AVATAR_CREDITS = 5;
+const REFERENCE_CREDITS = 10;
 const SYSTEM_AVATAR_COUNT = 52;
 const FEATURED_AVATAR_COUNT = 20;
 const FEATURED_AVATAR_LIMIT = 100;
@@ -1545,7 +1546,7 @@ async function createReferenceGeneration(userId, prompt) {
     generationId, userId, clean(prompt, 1500), json({ type: 'ugc_reference' })
   );
   try {
-    await credits.reserve(userId, generationId, AVATAR_CREDITS);
+    await credits.reserve(userId, generationId, REFERENCE_CREDITS);
     return generationId;
   } catch (error) {
     await prisma.$executeRawUnsafe('DELETE FROM "AiGeneration" WHERE "id"=$1 AND "userId"=$2', generationId, userId).catch(() => {});
@@ -2854,7 +2855,7 @@ async function regenerateScene(userId, sceneId) {
 }
 
 module.exports = {
-  STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds, brandUrlCandidates, playbackDurations,
+  STANDARD_CREDITS, PREMIUM_CREDITS, AVATAR_CREDITS, REFERENCE_CREDITS, SYSTEM_AVATAR_COUNT, FEATURED_AVATAR_COUNT, FEATURED_REFERENCE_VERSION, avatarSeeds, brandUrlCandidates, playbackDurations,
   UGC_AGENT_VERSION, ugcAgentReply,
   creditsPerAd, liveUgcPricing, quoteUgcRoute, visualDurations, resolveCampaignType, splitScriptByDurations, ugcRealismSkill,
   narratorVoice, narratorLanguage, narratorSpeed, adultSafeReferencePrompt, captionsForScenes, estimateCampaign,
