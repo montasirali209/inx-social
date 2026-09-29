@@ -1,5 +1,5 @@
 import { apiRequest } from './api-client'
-import type { DashboardJob } from '../types/dashboard'
+import { fetchPublishingRecords, isNeedsReviewJob } from './publishing-records'
 import type { SocialConnectionSummary } from '../types/settings'
 
 const browserDraftKey = 'inx-social-post-drafts-v1'
@@ -16,8 +16,6 @@ export type UniversalPublishingKpis = {
 }
 
 type ConnectionsResponse = { connections: SocialConnectionSummary[] }
-type PublicationsResponse = { jobs: DashboardJob[] }
-
 function browserDraftCount() {
   if (typeof window === 'undefined') return 0
   try {
@@ -38,17 +36,16 @@ function activeSocialAccountCount(connections: SocialConnectionSummary[]) {
 }
 
 export async function fetchUniversalPublishingKpis(): Promise<UniversalPublishingKpis> {
-  const [publications, social] = await Promise.all([
-    apiRequest<PublicationsResponse>('/api/social-publications?limit=500'),
+  const [jobs, social] = await Promise.all([
+    fetchPublishingRecords(),
     apiRequest<ConnectionsResponse>('/api/social-connections').catch(() => ({ connections: [] })),
   ])
 
-  const jobs = publications.jobs || []
   const localDrafts = browserDraftCount()
   const drafts = jobs.filter(job => job.status === 'DRAFT').length + localDrafts
   const scheduled = jobs.filter(job => job.status === 'SCHEDULED').length
   const published = jobs.filter(job => job.status === 'PUBLISHED').length
-  const needsReview = jobs.filter(job => ['FAILED', 'AWAITING_UPLOAD', 'READY'].includes(job.status)).length
+  const needsReview = jobs.filter(isNeedsReviewJob).length
 
   return {
     allPosts: jobs.length + localDrafts,
