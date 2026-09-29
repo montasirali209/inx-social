@@ -59,7 +59,7 @@ test('provider names remain hidden from customer-facing UGC UI', () => {
   const home = read('frontend/src/components/ai-content-studio/UGCStudioHomeModal.tsx');
   const editor = read('frontend/src/components/ai-content-studio/UGCEditorPage.tsx');
   const ui = [wizard, home, editor].join('\n');
-  assert.doesNotMatch(ui, /OmniHuman|Seedance|Hailuo|MiniMax|Kling 3|Inworld TTS/i);
+  assert.doesNotMatch(ui, /OmniHuman|Seedance|Hailuo|MiniMax|Kling 3|Runware|Inworld TTS/i);
 });
 
 test('engine startup diagnostics include adapter and router snapshots', () => {
