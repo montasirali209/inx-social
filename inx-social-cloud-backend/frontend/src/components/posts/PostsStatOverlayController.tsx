@@ -121,7 +121,7 @@ function libraryView(label: string): PostLibraryView | null {
 export function PostsStatOverlayController() {
   const navigate = useNavigate()
   const workspace = useQuery({ queryKey: ['posts-workspace'], queryFn: fetchPostsWorkspace, refetchInterval: 45_000 })
-  const publishingRecords = useQuery({ queryKey: publishingRecordsQueryKey, queryFn: fetchPublishingRecords, refetchInterval: 30_000, refetchOnWindowFocus: true })
+  const publishingRecords = useQuery({ queryKey: publishingRecordsQueryKey, queryFn: () => fetchPublishingRecords(), refetchInterval: 30_000, refetchOnWindowFocus: true })
   const [draftOpen, setDraftOpen] = useState(false)
   const [postView, setPostView] = useState<PostLibraryView | null>(null)
   const [draftVersion, setDraftVersion] = useState(0)
