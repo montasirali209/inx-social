@@ -19,7 +19,7 @@ test('Phase 6 Studio controls are versioned and customer-facing', () => {
   assert.doesNotMatch(JSON.stringify(snapshot), /hailuo|kling|seedance|omnihuman|runware|minimax|bytedance/i);
 });
 
-test('Phase 6 quote preserves the fixed pricing policy', () => {
+test('UGC quote accepts the provider-aware pricing matrix without changing customer controls', () => {
   const quote = controls.quote({
     input: { duration: 20, adCount: 5, quality: 'STANDARD', campaignType: 'AUTO', creativeFormat: 'AUTO' },
     balanceRemaining: 1000,
@@ -29,7 +29,7 @@ test('Phase 6 quote preserves the fixed pricing policy', () => {
   assert.equal(quote.credits, 700);
   assert.equal(quote.affordability.balanceBefore, 1000);
   assert.equal(quote.affordability.balanceAfter, 300);
-  assert.equal(quote.pricing.policy, 'UGC_FIXED_V1');
+  assert.equal(quote.pricing.policy, 'UGC_DYNAMIC_PROVIDER_V2');
   assert.equal(quote.pricing.formatAffectsPrice, false);
   assert.equal(quote.pricing.creatorSelectionAffectsPrice, false);
 });
