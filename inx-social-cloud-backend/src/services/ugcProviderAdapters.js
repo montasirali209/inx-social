@@ -182,7 +182,7 @@ function validateContext(cap, context) {
     throw adapterError('The selected UGC route cannot render a scene this long.', 'UGC_ROUTE_DURATION_UNSUPPORTED', 422);
   }
   const references = Array.isArray(context.references) ? context.references.filter(Boolean) : (context.reference ? [context.reference] : []);
-  if (!references.length) throw adapterError('This UGC route requires a visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
+  if (!references.length && cap.adapterKey !== ADAPTER_KEYS.H3_MAX) throw adapterError('This UGC route requires a visual reference.', 'UGC_REFERENCE_REQUIRED', 422);
   if (cap.adapterKey === ADAPTER_KEYS.OMNIHUMAN_15 && !context.narration?.audioURL) {
     throw adapterError('Professional creator rendering requires narrator audio.', 'UGC_NARRATION_REQUIRED', 422);
   }
@@ -222,7 +222,7 @@ function buildTask(cap, context) {
     task.duration = duration;
     task.width = dimensions.width;
     task.height = dimensions.height;
-    task.inputs = { referenceImages: references };
+    if (references.length) task.inputs = { referenceImages: references };
     task.settings = { promptExpansion };
     return task;
   }
