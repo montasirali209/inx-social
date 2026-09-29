@@ -2520,13 +2520,6 @@ async function renderAd(adId) {
     const asset = await persistFinalAsset(ad, finalVideo, providerCost, { assembly: assemblyQC, finalBuffer: finalBufferQC });
 
     await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'READY\',"mediaAssetId"=$2,"errorMessage"=NULL,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id, asset.id);
-    await ugcEngine.recordRenderStatus(ad.userId, ad.campaignId, ad.id, 'READY', {
-      mediaAssetId: asset.id,
-      providerCostUsd: providerCost,
-      creditsUsed: quotedGenerationCredits,
-      qualityControlVersion: ugcRenderQuality.RENDER_QUALITY_VERSION,
-      publishable: true
-    }).catch(() => null);
     const providerRequiredCredits = providerCost > 0 ? videoModels.creditsFromUsd(providerCost) : quotedGenerationCredits;
     let chargedCredits = Math.max(1, Math.min(reservedGenerationCredits, providerRequiredCredits));
     if (reservedGenerationCredits > 0) {
@@ -2538,6 +2531,13 @@ async function renderAd(adId) {
         workflow: 'ugc'
       });
     }
+    await ugcEngine.recordRenderStatus(ad.userId, ad.campaignId, ad.id, 'READY', {
+      mediaAssetId: asset.id,
+      providerCostUsd: providerCost,
+      creditsUsed: chargedCredits,
+      qualityControlVersion: ugcRenderQuality.RENDER_QUALITY_VERSION,
+      publishable: true
+    }).catch(() => null);
     await prisma.$executeRawUnsafe(
       'UPDATE "AiGeneration" SET "status"=\'COMPLETED\',"progress"=100,"providerCostUsd"=$2,"assetJson"=$3,"responseJson"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
       ad.generationId,
