@@ -263,6 +263,7 @@ async function persistVideo(userId, generationId, output, input, amount) {
 }
 
 async function runVideoGeneration(userId, generationId, input, reservationCredits, quotedCredits, profile, duration, resolution, aspect) {
+  let incurredProviderCostUsd = 0;
   try {
     const references = await sourceImages(userId, input);
     await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"progress"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'PROCESSING', 5);
@@ -272,6 +273,7 @@ async function runVideoGeneration(userId, generationId, input, reservationCredit
       progress => { void prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"progress"=$3,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'PROCESSING', Math.max(5, Math.min(95, progress))).catch(() => {}); }
     );
     const providerCostUsd = Math.max(0, Number(output.item.cost || 0));
+    incurredProviderCostUsd = providerCostUsd;
     const providerRequiredCredits = providerCostUsd > 0 ? videoModels.creditsFromUsd(providerCostUsd) : quotedCredits;
     await videoModels.recordActualCost({
       model: profile,
@@ -303,7 +305,20 @@ async function runVideoGeneration(userId, generationId, input, reservationCredit
       status: Number(caught?.status || 0),
       providerDetail: clean(caught?.providerDetail, 700)
     }));
-    await credits.refund(userId, generationId, caught?.code || 'video_failed').catch(() => {});
+    if (incurredProviderCostUsd > 0) {
+      const incurredCredits = videoModels.creditsFromUsd(incurredProviderCostUsd);
+      await credits.settle(userId, generationId, incurredCredits, {
+        provider: 'runware',
+        providerCostUsd: incurredProviderCostUsd,
+        quotedCredits,
+        reservationCredits,
+        workflow: 'video_failed_after_provider_spend',
+        failureCode: clean(caught?.code || 'AI_VIDEO_FAILED', 120),
+        pricingVersion: videoModels.REGISTRY_VERSION
+      }).catch(() => false);
+    } else {
+      await credits.refund(userId, generationId, caught?.code || 'video_failed').catch(() => {});
+    }
     await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"errorCode"=$3,"errorMessage"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'FAILED', clean(caught?.code || 'AI_VIDEO_FAILED', 120), clean(caught?.publicMessage || caught?.message || 'Video generation failed.', 700)).catch(() => {});
   }
 }
@@ -323,7 +338,7 @@ async function generateVideo(userId, input = {}) {
   };
   const quote = await estimateQuote(normalized);
   const quotedCredits = quote.credits;
-  const reservationCredits = Math.max(quotedCredits, Math.ceil(quotedCredits * 1.10));
+  const reservationCredits = Math.max(quotedCredits, Math.ceil(quotedCredits * 1.25));
   const balance = await credits.getBalance(userId);
   if (Number(balance.remaining || 0) < reservationCredits) {
     throw publicError(
