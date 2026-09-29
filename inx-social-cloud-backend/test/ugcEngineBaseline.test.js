@@ -16,10 +16,10 @@ test('Phase 0 freezes the current UGC pricing and duration surface', () => {
   assert.deepEqual(service.playbackDurations(20, [10, 10]), [10, 10]);
 });
 
-test('Phase 0 preserves reserve-complete-refund credit accounting around UGC generation', () => {
+test('Phase 0 preserves reserve-settle-refund credit accounting around UGC generation', () => {
   const service = read('src/services/ugcStudioService.js');
   assert.match(service, /await credits\.reserve\(userId, generationId, amount\)/);
-  assert.match(service, /await credits\.complete\(ad\.userId, ad\.generationId, generationCredits\)/);
+  assert.match(service, /await credits\.settle\(ad\.userId, ad\.generationId, actualCredits/);
   assert.match(service, /await credits\.refund\(ad\.userId, ad\.generationId/);
   assert.match(service, /ugc_campaign_reservation_failed/);
 });
