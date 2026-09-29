@@ -195,7 +195,8 @@ export function VideoStudioModal({
   const [lastFrame, setLastFrame] = useState<ReferenceAsset | null>(null)
   const [referenceAssets, setReferenceAssets] = useState<ReferenceAsset[]>([])
   const [asset, setAsset] = useState<GeneratedAsset | null>(() => initialDraft?.asset?.type === 'video' ? initialDraft.asset : null)
-  const [credits, setCredits] = useState<number | null>(null)
+  const [estimatedCredits, setEstimatedCredits] = useState<number | null>(null)
+  const [estimatedCreditsKey, setEstimatedCreditsKey] = useState('')
   const [pricingError, setPricingError] = useState('')
   const [recommendation, setRecommendation] = useState('')
   const [recommending, setRecommending] = useState(false)
@@ -226,6 +227,10 @@ export function VideoStudioModal({
     audio,
   }), [modelRoute, generationMode, duration, resolution, aspectRatio, fps, draft, audio])
 
+  const pricingSelectionKey = useMemo(() => JSON.stringify(selection), [selection])
+  const credits = estimatedCreditsKey === pricingSelectionKey ? estimatedCredits : null
+  const currentPricingError = estimatedCreditsKey === pricingSelectionKey ? pricingError : ''
+
   const activeReferenceIds = useMemo(() => {
     if (generationMode === 'IMAGE_TO_VIDEO') return [firstFrame?.id, lastFrame?.id].filter(Boolean) as string[]
     if (generationMode === 'REFERENCE_TO_VIDEO') return referenceAssets.map((item) => item.id)
@@ -240,7 +245,7 @@ export function VideoStudioModal({
 
   const referenceMissing = ['IMAGE_TO_VIDEO', 'REFERENCE_TO_VIDEO'].includes(generationMode) && activeReferenceIds.length === 0
   const insufficient = credits !== null && access.creditsConfigured && !access.unlimitedCredits && access.creditsRemaining !== null && access.creditsRemaining < credits
-  const pricingPending = Boolean(selected && credits === null && !pricingError)
+  const pricingPending = Boolean(selected && credits === null && !currentPricingError)
   const rendering = generating || Boolean(jobId)
 
   useEffect(() => {
@@ -290,24 +295,21 @@ export function VideoStudioModal({
   }, [open, type, initialDraft?.contentType])
 
   useEffect(() => {
-    if (!open || !selected) {
-      setCredits(null)
-      setPricingError('')
-      return
-    }
+    if (!open || !selected) return
     let active = true
-    setCredits(null)
-    setPricingError('')
+    const quoteKey = pricingSelectionKey
     const timer = window.setTimeout(() => {
       void estimateVideoCredits(selection).then((value) => {
         if (active) {
-          setCredits(value.credits)
+          setEstimatedCredits(value.credits)
           setPricingError('')
+          setEstimatedCreditsKey(quoteKey)
         }
       }).catch((caught) => {
         if (active) {
-          setCredits(null)
+          setEstimatedCredits(null)
           setPricingError(caught instanceof Error ? caught.message : 'Video credits could not be estimated.')
+          setEstimatedCreditsKey(quoteKey)
         }
       })
     }, 220)
@@ -315,7 +317,7 @@ export function VideoStudioModal({
       active = false
       window.clearTimeout(timer)
     }
-  }, [open, selected, selection])
+  }, [open, selected, selection, pricingSelectionKey])
 
   useEffect(() => {
     if (!jobId || studioKind !== 'generative') return
@@ -832,7 +834,7 @@ export function VideoStudioModal({
           </div>
 
           {referenceMissing && <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-300/[.05] px-3 py-2.5 text-[8px] text-amber-100">Add a reference image to use {modeLabel(generationMode)}.</div>}
-          {pricingError && <div className="mt-3 rounded-2xl border border-red-400/25 bg-red-500/[.06] px-3 py-2.5 text-[9px] text-red-200">{pricingError}</div>}
+          {currentPricingError && <div className="mt-3 rounded-2xl border border-red-400/25 bg-red-500/[.06] px-3 py-2.5 text-[9px] text-red-200">{currentPricingError}</div>}
           {error && <div className="mt-3 rounded-2xl border border-red-400/25 bg-red-500/[.06] px-3 py-2.5 text-[9px] text-red-200">{error}</div>}
         </section>
 
