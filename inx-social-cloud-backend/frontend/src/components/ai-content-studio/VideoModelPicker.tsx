@@ -147,7 +147,9 @@ export function VideoModelPicker({
                 <span className={`grid size-9 shrink-0 place-items-center rounded-xl border ${active ? 'border-brand-cyan/30 bg-brand-cyan/10 text-brand-cyan' : 'border-white/8 bg-white/[.035] text-text-muted'}`}>{model.speed === 'fast' ? <Zap className="size-4" /> : <Film className="size-4" />}</span>
                 <div className="flex items-center gap-2">
                   {isRecentModel(model) && <span className="rounded-full border border-brand-cyan/25 bg-brand-cyan/[.07] px-2 py-1 text-[7px] font-semibold uppercase tracking-[.08em] text-brand-cyan">New</span>}
-                  {typeof model.baselineCredits === 'number' && <span className="rounded-full border border-amber-300/20 bg-amber-300/[.05] px-2 py-1 text-[7px] font-semibold text-amber-200">from {model.baselineCredits} cr</span>}
+                  {model.promotion?.active && model.regularBaselineCredits && model.baselineCredits && model.regularBaselineCredits > model.baselineCredits
+                    ? <span className="rounded-full border border-emerald-300/20 bg-emerald-300/[.05] px-2 py-1 text-[7px] font-semibold text-emerald-200"><span className="mr-1 line-through opacity-55">{model.regularBaselineCredits}</span>from {model.baselineCredits} cr · {model.promotion.discountPercent || ''}% off</span>
+                    : typeof model.baselineCredits === 'number' && <span className="rounded-full border border-amber-300/20 bg-amber-300/[.05] px-2 py-1 text-[7px] font-semibold text-amber-200">from {model.baselineCredits} cr</span>}
                   {active && <span className="grid size-6 place-items-center rounded-full bg-brand-green/15 text-brand-green"><Check className="size-3.5" /></span>}
                 </div>
               </div>
