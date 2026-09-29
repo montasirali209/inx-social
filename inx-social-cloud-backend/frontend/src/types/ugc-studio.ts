@@ -366,6 +366,15 @@ export type UGCEstimate = {
     formatAffectsPrice: boolean
     creatorSelectionAffectsPrice: boolean
     matrix: Record<UGCQuality, Record<string, number>>
+    dynamic?: boolean
+    regularPerAd?: number
+    regularCredits?: number
+    promotion?: {
+      active?: boolean
+      endsAt?: string | null
+      discountPercent?: number
+      label?: string
+    } | null
   }
   production: {
     providerNamesHidden: boolean
