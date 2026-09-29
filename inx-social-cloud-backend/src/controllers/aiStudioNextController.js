@@ -98,7 +98,7 @@ async function videoEstimate(req, res, next) {
     res.json({
       credits: quote.credits,
       regularCredits: quote.regularCredits,
-      reservationCredits: Math.max(quote.credits, Math.ceil(quote.credits * 1.10)),
+      reservationCredits: Math.max(quote.credits, Math.ceil(quote.credits * 1.25)),
       providerCostUsd: quote.providerCostUsd,
       regularProviderCostUsd: quote.regularProviderCostUsd,
       promotion: quote.promotion,
