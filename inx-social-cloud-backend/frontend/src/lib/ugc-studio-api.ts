@@ -27,6 +27,13 @@ export function estimateUGCCampaign(input: Pick<CreateUGCCampaignInput, 'duratio
   })
 }
 
+export function generateUGCProductionPrompt(input: { idea: string; aspectRatio: '9:16' | '1:1' | '16:9' }) {
+  return apiRequest<{ prompt: string }>('/api/ai-content-studio/ugc/production-prompt', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  }).then((result) => result.prompt)
+}
+
 export function analyzeUGCBrand(url: string, refresh = false) {
   return apiRequest<{ brand: UGCBrandProfile }>('/api/ai-content-studio/ugc/brands/analyze', {
     method: 'POST',
