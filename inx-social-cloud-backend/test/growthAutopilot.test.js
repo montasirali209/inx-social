@@ -200,7 +200,7 @@ test('Growth admin actions are CSP-safe and the admin UI uses the readable light
   const app = read('src/app.js');
   const light = read('public/admin-light.css');
 
-  assert.match(html, /admin-light\.css\?v=2/);
+  assert.match(html, /admin-light\.css\?v=3/);
   assert.match(js, /data-growth-authority-action="approve"/);
   assert.match(js, /data-growth-optimization-action="approve"/);
   assert.match(js, /growthAuthorityQueue'\)\.addEventListener\('click'/);
@@ -219,8 +219,8 @@ test('Growth diagnostics explain recommendations and Phase 5 execution semantics
   const js = read('public/admin.js');
   const light = read('public/admin-light.css');
 
-  assert.match(html, /admin-light\.css\?v=2/);
-  assert.match(html, /admin\.js\?v=27/);
+  assert.match(html, /admin-light\.css\?v=3/);
+  assert.match(html, /admin\.js\?v=28/);
   assert.match(js, /Suggested action ·/);
   assert.match(js, /Approve plan/);
   assert.match(js, /Approve change/);
