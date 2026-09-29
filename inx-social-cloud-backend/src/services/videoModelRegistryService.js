@@ -239,11 +239,13 @@ function promotionFromOverview(overview, rules = []) {
   const dateText = text.match(/(?:until|through|ends?(?:\s+on)?|expires?(?:\s+on)?)\s+([A-Za-z]{3,9}\s+\d{1,2}(?:st|nd|rd|th)?(?:,)?\s+20\d{2}|20\d{2}-\d{2}-\d{2})/i)?.[1] || '';
   const parsed = Date.parse(dateText.replace(/(\d)(?:st|nd|rd|th)\b/i, '$1'));
   const endsAt = Number.isFinite(parsed) ? new Date(parsed + 24 * 60 * 60 * 1000 - 1).toISOString() : null;
-  const active = !endsAt || Date.now() <= new Date(endsAt).getTime();
   const multiplier = 1 - (percent / 100);
-  const regularRules = active ? rules.map(rule => ({ ...rule, regularPrice: Number((Number(rule.price) / multiplier).toFixed(6)) })) : rules;
+  const regularRules = rules.map(rule => ({ ...rule, regularPrice: Number((Number(rule.price) / multiplier).toFixed(6)) }));
   return {
-    active,
+    // This flag means the provider payload declares a promotion. Runtime
+    // activity is evaluated by promotionIsActive() against endsAt so a cached
+    // catalogue automatically flips to regular pricing at expiry.
+    active: true,
     discountPercent: percent,
     endsAt,
     source: 'provider_overview',
