@@ -2374,8 +2374,9 @@ async function renderAd(adId) {
     brandRefs = parseJson(brand?.brandReferencesJson, []);
   }
   const generationRows = ad.generationId ? await prisma.$queryRawUnsafe('SELECT "reservedCredits","requestJson","providerCostUsd" FROM "AiGeneration" WHERE "id"=$1 LIMIT 1', ad.generationId) : [];
-  const generationCredits = generationRows[0]?.reservedCredits != null ? Number(generationRows[0].reservedCredits) : Number(ad.credits || 0);
   const generationRequest = parseJson(generationRows[0]?.requestJson, {});
+  const reservedGenerationCredits = generationRows[0]?.reservedCredits != null ? Number(generationRows[0].reservedCredits) : Number(ad.credits || 0);
+  const quotedGenerationCredits = Math.max(1, Number(generationRequest.quotedCredits || ad.credits || reservedGenerationCredits));
   const localFinishRecoveryAttempts = Math.max(0, Number(generationRequest.localFinishRecoveryAttempts || 0));
   const campaignProductIds = parseJson(campaign?.productAssetIdsJson, []);
   const productReferences = [];
@@ -2504,17 +2505,27 @@ async function renderAd(adId) {
     await ugcEngine.recordRenderStatus(ad.userId, ad.campaignId, ad.id, 'READY', {
       mediaAssetId: asset.id,
       providerCostUsd: providerCost,
-      creditsUsed: generationCredits,
+      creditsUsed: quotedGenerationCredits,
       qualityControlVersion: ugcRenderQuality.RENDER_QUALITY_VERSION,
       publishable: true
     }).catch(() => null);
-    if (generationCredits > 0) await credits.complete(ad.userId, ad.generationId, generationCredits);
+    const providerRequiredCredits = providerCost > 0 ? videoModels.creditsFromUsd(providerCost) : quotedGenerationCredits;
+    const chargedCredits = Math.max(1, Math.min(reservedGenerationCredits, providerRequiredCredits));
+    if (reservedGenerationCredits > 0) {
+      await credits.settle(ad.userId, ad.generationId, chargedCredits, {
+        provider: 'runware',
+        providerCostUsd: providerCost,
+        quotedCredits: quotedGenerationCredits,
+        reservationCredits: reservedGenerationCredits,
+        workflow: 'ugc'
+      });
+    }
     await prisma.$executeRawUnsafe(
       'UPDATE "AiGeneration" SET "status"=\'COMPLETED\',"progress"=100,"providerCostUsd"=$2,"assetJson"=$3,"responseJson"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
       ad.generationId,
       providerCost,
-      json({ id: asset.id, type: 'video', mediaLibraryAssetId: asset.id, url: asset.fileUrl, thumbnailUrl: asset.thumbnailUrl, creditsUsed: generationCredits }),
-      json({ stage: 'READY', ugcAdId: ad.id, providerCostUsd: providerCost, creditsUsed: generationCredits, sceneTotal: readyScenes.length, readyScenes: readyScenes.length, qualityControlVersion: ugcRenderQuality.RENDER_QUALITY_VERSION, publishable: true })
+      json({ id: asset.id, type: 'video', mediaLibraryAssetId: asset.id, url: asset.fileUrl, thumbnailUrl: asset.thumbnailUrl, creditsUsed: chargedCredits }),
+      json({ stage: 'READY', ugcAdId: ad.id, providerCostUsd: providerCost, quotedCredits: quotedGenerationCredits, reservationCredits: reservedGenerationCredits, providerRequiredCredits, creditsUsed: chargedCredits, sceneTotal: readyScenes.length, readyScenes: readyScenes.length, qualityControlVersion: ugcRenderQuality.RENDER_QUALITY_VERSION, publishable: true })
     );
   } catch (error) {
     console.error('[UGC RENDER FAILED]', { adId, code: error?.code, error: clean(error?.message, 700) });
@@ -2570,7 +2581,21 @@ async function renderAd(adId) {
       return;
     }
 
-    if (generationCredits > 0) await credits.refund(ad.userId, ad.generationId, error?.code || 'ugc_render_failed').catch(() => false);
+    if (reservedGenerationCredits > 0) {
+      const incurredCredits = providerCost > 0 ? Math.min(reservedGenerationCredits, videoModels.creditsFromUsd(providerCost)) : 0;
+      if (incurredCredits > 0) {
+        await credits.settle(ad.userId, ad.generationId, incurredCredits, {
+          provider: 'runware',
+          providerCostUsd: providerCost,
+          quotedCredits: quotedGenerationCredits,
+          reservationCredits: reservedGenerationCredits,
+          workflow: 'ugc_failed_after_provider_spend',
+          failureCode: clean(error?.code || 'UGC_RENDER_FAILED', 120)
+        }).catch(() => false);
+      } else {
+        await credits.refund(ad.userId, ad.generationId, error?.code || 'ugc_render_failed').catch(() => false);
+      }
+    }
     await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'FAILED\',"errorMessage"=$2,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id, clean(error?.publicMessage || error?.message || 'UGC rendering failed.', 700)).catch(() => {});
     await ugcEngine.recordRenderStatus(ad.userId, ad.campaignId, ad.id, 'FAILED', {
       errorCode: clean(error?.code || 'UGC_RENDER_FAILED', 120),
