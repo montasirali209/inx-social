@@ -16,6 +16,8 @@ describe('post reuse library', () => {
     expect(matchesPostLibraryView(job('SCHEDULED'), 'scheduled')).toBe(true)
     expect(matchesPostLibraryView(job('PUBLISHED'), 'published')).toBe(true)
     expect(matchesPostLibraryView(job('FAILED'), 'needs_review')).toBe(true)
+    expect(matchesPostLibraryView(job('AWAITING_UPLOAD'), 'needs_review')).toBe(true)
+    expect(matchesPostLibraryView(job('READY'), 'needs_review')).toBe(false)
     expect(matchesPostLibraryView(job('PUBLISHED'), 'needs_review')).toBe(false)
   })
 
