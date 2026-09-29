@@ -5,6 +5,7 @@ const path = require('node:path');
 
 const env = require('../src/config/env');
 const guard = require('../src/services/videoCommercialGuardService');
+const videoRegistry = require('../src/services/videoModelRegistryService');
 const stripe = require('../src/services/stripeService');
 
 const root = path.resolve(__dirname, '..');
@@ -48,6 +49,30 @@ test('video pricing freshness blocks stale paid-generation estimates', () => {
   assert.equal(guard.isFresh(stale), false);
   assert.equal(guard.isFresh(fallback), false);
   assert.throws(() => guard.assertFreshSnapshot(stale), error => error.code === 'AI_VIDEO_PRICING_STALE');
+});
+
+
+test('provider promotions expose discounted and regular credit pricing with automatic expiry metadata', () => {
+  const parsed = videoRegistry.parsePricing({
+    pricingOverview: '50% off until September 30, 2026',
+    pricingExamples: [{ configuration: '768p 10s', price: '$0.40 per run' }]
+  });
+  assert.equal(parsed.promotion.active, true);
+  assert.equal(parsed.promotion.discountPercent, 50);
+  assert.match(parsed.promotion.endsAt, /^2026-10-01T/);
+  assert.equal(parsed.rules[0].price, 0.4);
+  assert.equal(parsed.rules[0].regularPrice, 0.8);
+
+  const profile = {
+    durations: [10],
+    resolutions: ['768p'],
+    audioSupported: true,
+    draftSupported: false,
+    pricing: parsed
+  };
+  const quote = videoRegistry.pricingQuote(profile, { duration: 10, resolution: '768p', audio: true });
+  assert.ok(quote.regularCredits > quote.credits);
+  assert.equal(quote.promotion.discountPercent, 50);
 });
 
 test('Phase 3 wires persistent provider-cost drift protection and commercial health monitoring', () => {
