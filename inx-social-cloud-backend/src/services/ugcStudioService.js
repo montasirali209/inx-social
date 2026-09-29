@@ -1036,20 +1036,36 @@ async function estimatePlanPricing(plan, input) {
 async function estimateCampaign(userId, input) {
   const balance = await credits.getBalance(userId);
   const pricing = await estimateInputPricing(input);
-  const totalCredits = pricing.credits * Math.max(1, Number(input.adCount || 1));
+  const adCount = Math.max(1, Number(input.adCount || 1));
+  const totalCredits = pricing.credits * adCount;
+  const reservationPerAd = Math.max(pricing.credits, Math.ceil(pricing.credits * UGC_RESERVATION_BUFFER));
+  const reservationCredits = reservationPerAd * adCount;
+  const quote = ugcStudioControls.quote({
+    input,
+    balanceRemaining: balance.remaining,
+    pricing: {
+      STANDARD: Object.fromEntries(Object.keys(STANDARD_CREDITS).map(duration => [duration, String(input.quality || 'STANDARD').toUpperCase() === 'STANDARD' && Number(duration) === Number(input.duration) ? pricing.credits : STANDARD_CREDITS[duration]])),
+      PREMIUM: Object.fromEntries(Object.keys(PREMIUM_CREDITS).map(duration => [duration, String(input.quality || 'STANDARD').toUpperCase() === 'PREMIUM' && Number(duration) === Number(input.duration) ? pricing.credits : PREMIUM_CREDITS[duration]]))
+    }
+  });
+  const available = Number(balance.remaining || 0);
+  const affordable = available >= reservationCredits;
   return {
-    ...ugcStudioControls.quote({
-      input,
-      balanceRemaining: balance.remaining,
-      pricing: {
-        STANDARD: Object.fromEntries(Object.keys(STANDARD_CREDITS).map(duration => [duration, String(input.quality || 'STANDARD').toUpperCase() === 'STANDARD' && Number(duration) === Number(input.duration) ? pricing.credits : STANDARD_CREDITS[duration]])),
-        PREMIUM: Object.fromEntries(Object.keys(PREMIUM_CREDITS).map(duration => [duration, String(input.quality || 'STANDARD').toUpperCase() === 'PREMIUM' && Number(duration) === Number(input.duration) ? pricing.credits : PREMIUM_CREDITS[duration]]))
-      }
-    }),
+    ...quote,
+    affordability: {
+      ...quote.affordability,
+      affordable,
+      balanceBefore: available,
+      balanceAfter: Math.max(0, available - reservationCredits),
+      shortfall: Math.max(0, reservationCredits - available),
+      alternative: affordable ? quote.affordability.alternative : null
+    },
     creditsPerAd: pricing.credits,
     totalCredits,
+    reservationPerAd,
+    reservationCredits,
     regularCreditsPerAd: pricing.regularCredits,
-    regularTotalCredits: pricing.regularCredits * Math.max(1, Number(input.adCount || 1)),
+    regularTotalCredits: pricing.regularCredits * adCount,
     providerCostUsd: pricing.providerCostUsd,
     regularProviderCostUsd: pricing.regularProviderCostUsd,
     promotion: pricing.promotion
