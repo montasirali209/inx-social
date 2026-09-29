@@ -1092,8 +1092,7 @@ function extractDirectDialogue(value) {
   return clean(unique.join(' '), 12000);
 }
 
-function directPromptPlan(input, brand, avatars, resolvedType) {
-  const mode = normalizedCustomMode(input.customMode);
+function buildDirectPromptPlan(input, brand, avatars, resolvedType, mode) {
   const prompt = clean(input.productDescription, 6500);
   if (!prompt) throw publicError('Add the production prompt you want to send to the video model.', 'UGC_DIRECT_PROMPT_REQUIRED', 422);
   const durations = visualDurations(input.duration, 'STANDARD', resolvedType);
@@ -1171,6 +1170,17 @@ function directPromptPlan(input, brand, avatars, resolvedType) {
   };
 }
 
+
+function productionPromptPlan(input, brand, avatars, resolvedType) {
+  return buildDirectPromptPlan({ ...input, customMode: 'PRODUCTION' }, brand, avatars, resolvedType, 'PRODUCTION');
+}
+
+function podcastPromptPlan(input, brand, avatars, resolvedType) {
+  const characterAssetIds = [...new Set((Array.isArray(input.characterAssetIds) ? input.characterAssetIds : []).filter(Boolean))].slice(0, 8);
+  if (!characterAssetIds.length) throw publicError('Upload at least one podcast character reference.', 'UGC_PODCAST_CHARACTER_REQUIRED', 422);
+  return buildDirectPromptPlan({ ...input, customMode: 'PODCAST', creatorMode: 'NONE', characterAssetIds }, brand, [], resolvedType, 'PODCAST');
+}
+
 function fallbackPlan(input, brand, avatars, resolvedType) {
   const durations = visualDurations(input.duration, input.quality, resolvedType);
   const spokenDurations = playbackDurations(input.duration, durations);
@@ -1246,8 +1256,11 @@ function normalizePlan(parsed, input, brand, avatars, resolvedType) {
 
 async function planCampaign(input, brand, avatars, resolvedType) {
   const mode = normalizedCustomMode(input.customMode);
-  if (String(input.sourceType || '').toUpperCase() === 'BRIEF' && ['PRODUCTION','PODCAST'].includes(mode)) {
-    return directPromptPlan(input, brand, avatars, resolvedType);
+  if (String(input.sourceType || '').toUpperCase() === 'BRIEF' && mode === 'PRODUCTION') {
+    return productionPromptPlan(input, brand, avatars, resolvedType);
+  }
+  if (String(input.sourceType || '').toUpperCase() === 'BRIEF' && mode === 'PODCAST') {
+    return podcastPromptPlan(input, brand, avatars, resolvedType);
   }
   const providerDurations = visualDurations(input.duration, input.quality, resolvedType);
   const finalDurations = playbackDurations(input.duration, providerDurations);
