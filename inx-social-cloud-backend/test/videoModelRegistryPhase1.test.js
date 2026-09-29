@@ -40,6 +40,73 @@ test('video registry parses synchronized per-second pricing and converts it to g
   assert.equal(registry.creditsFromUsd(0.25), 29);
 });
 
+test('video registry derives credits when provider examples do not include the exact selected configuration', () => {
+  const pricing = registry.parsePricing({
+    pricingOverview: '50% OFF until September 30, 2026 · $0.025 from, per second',
+    pricingExamples: [
+      { configuration: 'first-frame 768p · 5s', price: '$0.40' },
+      { configuration: 'first-last-frame 480p · 15s', price: '$0.75' },
+      { configuration: 'text-to-video 1344×768 · 10s', price: '$0.80' }
+    ]
+  });
+
+  assert.equal(pricing.rules[0].unit, 'per_request');
+  assert.equal(registry.parseResolution('text-to-video 1344×768 · 10s'), '768p');
+
+  const profile = {
+    durations: [5, 10, 15],
+    resolutions: ['480p', '768p'],
+    draftSupported: false,
+    audioSupported: true,
+    pricing
+  };
+
+  // No 480p/5s example exists. Use the 480p/15s provider example as an
+  // effective $0.05/s conservative reservation, then settle actual cost later.
+  assert.equal(registry.costFromPricing(profile, { duration: 5, resolution: '480p', draft: false, audio: true }), 0.25);
+  assert.equal(registry.estimateCredits(profile, { duration: 5, resolution: '480p', draft: false, audio: true }), 29);
+
+  // Exact provider example prices remain complete request totals.
+  assert.equal(registry.costFromPricing(profile, { duration: 5, resolution: '768p', draft: false, audio: true }), 0.40);
+  assert.equal(registry.estimateCredits(profile, { duration: 5, resolution: '768p', draft: false, audio: true }), 46);
+});
+
+test('video registry falls back conservatively across provider examples instead of returning unavailable pricing', () => {
+  const pricing = registry.parsePricing({
+    pricingOverview: '$0.02 from, per second',
+    pricingExamples: [
+      { configuration: '480p · 10s', price: '$0.20' },
+      { configuration: '768p · 10s', price: '$0.75' }
+    ]
+  });
+  const profile = {
+    durations: [5, 10],
+    resolutions: ['720p'],
+    draftSupported: false,
+    audioSupported: false,
+    pricing
+  };
+
+  // 720p has no exact provider example. Reserve against the highest known
+  // normalized rate for this model rather than exposing a broken model.
+  assert.equal(registry.costFromPricing(profile, { duration: 5, resolution: '720p', draft: false, audio: false }), 0.375);
+  assert.equal(registry.estimateCredits(profile, { duration: 5, resolution: '720p', draft: false, audio: false }), 44);
+});
+
+test('video studio never displays stale credits while a new model price is unresolved', () => {
+  const root = path.resolve(__dirname, '..');
+  const modal = fs.readFileSync(path.join(root, 'frontend/src/components/ai-content-studio/VideoStudioModalV3.tsx'), 'utf8');
+
+  assert.match(modal, /estimatedCredits/);
+  assert.match(modal, /estimatedCreditsKey/);
+  assert.match(modal, /pricingSelectionKey/);
+  assert.match(modal, /setEstimatedCredits\(null\)/);
+  assert.match(modal, /setPricingError/);
+  assert.match(modal, /Calculating credits…/);
+  assert.match(modal, /credits === null/);
+  assert.match(modal, /Calculating video cost…/);
+});
+
 test('generic video adapter validates model capabilities before sending provider work', () => {
   const profile = {
     id: 'dynamic-model',

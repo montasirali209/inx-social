@@ -181,58 +181,159 @@ function normalizeCapabilities(model, requestSchema) {
 }
 
 function parsePriceNumber(value) {
-  const match = String(value || '').replace(/,/g, '').match(/(?:\$|USD\s*)?([0-9]+(?:\.[0-9]+)?)/i);
-  return match ? Number(match[1]) : NaN;
+  const text = String(value || '').replace(/,/g, '');
+  const explicit = text.match(/(?:\$|USD\s*)([0-9]+(?:\.[0-9]+)?)/i);
+  if (explicit) return Number(explicit[1]);
+  const bare = text.match(/\b([0-9]+(?:\.[0-9]+)?)\b/);
+  return bare ? Number(bare[1]) : NaN;
+}
+
+function parseResolution(configuration) {
+  const text = clean(configuration, 240);
+  const direct = text.match(/\b(360|480|540|720|768|1080|1440|2160)p\b/i)?.[0];
+  if (direct) return direct.toLowerCase();
+
+  const dimensions = text.match(/\b(\d{3,4})\s*[x×]\s*(\d{3,4})\b/i);
+  if (!dimensions) return null;
+  const width = Number(dimensions[1]);
+  const height = Number(dimensions[2]);
+  const known = [2160, 1440, 1080, 768, 720, 540, 480, 360];
+  const edge = known.find(value => value === width || value === height);
+  return edge ? String(edge) + 'p' : null;
+}
+
+function parseDuration(configuration) {
+  const text = clean(configuration, 240);
+  const durationMatch = text.match(/\b(\d+(?:\.\d+)?)\s*s(?:ec(?:ond)?s?)?\b/i);
+  return durationMatch ? Number(durationMatch[1]) : null;
+}
+
+function pricingMode(configuration) {
+  const text = clean(configuration, 240);
+  if (/draft/i.test(text)) return 'draft';
+  if (/quality/i.test(text)) return 'quality';
+  if (/speed|fast|turbo/i.test(text)) return 'speed';
+  if (/audio/i.test(text)) return 'audio';
+  return 'standard';
+}
+
+function explicitPricingUnit(configuration, rawPrice) {
+  const text = clean(configuration, 240) + ' ' + clean(rawPrice, 120);
+  if (/(?:\/\s*s\b|\/sec\b|per\s+second)/i.test(text)) return 'per_second';
+  if (/(?:\/\s*run\b|per\s+run|per\s+request)/i.test(text)) return 'per_request';
+  // Runware pricingExamples are complete example-generation prices. Do not
+  // reinterpret them as per-second rates just because pricingOverview says
+  // the model is generally billed "per second".
+  return 'per_request';
 }
 
 function parsePricing(pricing) {
   const examples = Array.isArray(pricing?.pricingExamples) ? pricing.pricingExamples : [];
-  const overview = clean(pricing?.pricingOverview, 1000);
+  const overview = clean(pricing?.pricingOverview, 2000);
   const rules = examples.map(example => {
     const configuration = clean(example?.configuration, 240);
     const rawPrice = clean(example?.price, 120);
     const price = parsePriceNumber(rawPrice);
-    if (!Number.isFinite(price) || price < 0) return null;
-    const resolution = configuration.match(/\b(360|480|540|720|768|1080|1440|2160)p\b/i)?.[0]?.toLowerCase() || null;
-    const durationMatch = configuration.match(/\b(\d+(?:\.\d+)?)\s*s(?:ec(?:ond)?s?)?\b/i);
-    const duration = durationMatch ? Number(durationMatch[1]) : null;
-    const mode = /draft/i.test(configuration) ? 'draft' : /audio/i.test(configuration) ? 'audio' : /quality/i.test(configuration) ? 'quality' : /speed/i.test(configuration) ? 'speed' : 'standard';
-    const perSecond = /(?:\/\s*s\b|per\s+second|\/sec\b)/i.test(rawPrice) || /per\s+second/i.test(overview);
-    return { configuration, price, resolution, duration, mode, unit: perSecond ? 'per_second' : 'per_request' };
+    if (!Number.isFinite(price) || price <= 0) return null;
+    return {
+      configuration,
+      price,
+      resolution: parseResolution(configuration),
+      duration: parseDuration(configuration),
+      mode: pricingMode(configuration),
+      unit: explicitPricingUnit(configuration, rawPrice),
+      source: 'provider_example'
+    };
   }).filter(Boolean);
+
   return { overview, rules, status: rules.length ? 'SYNCED' : 'UNAVAILABLE' };
 }
 
+function ruleModeCompatible(rule, selection) {
+  if (selection.draft) return rule.mode === 'draft' || rule.mode === 'standard';
+  if (rule.mode === 'draft') return false;
+  if (!selection.audio && rule.mode === 'audio') return false;
+  return true;
+}
+
 function ruleScore(rule, selection) {
+  if (!ruleModeCompatible(rule, selection)) return -1;
   let score = 0;
   if (rule.resolution) {
     if (rule.resolution !== selection.resolution) return -1;
-    score += 4;
+    score += 6;
   }
   if (rule.duration) {
     if (Number(rule.duration) !== Number(selection.duration)) return -1;
-    score += 4;
+    score += 6;
   }
   if (selection.draft && rule.mode === 'draft') score += 5;
-  else if (!selection.draft && rule.mode === 'draft') return -1;
   else if (selection.audio && rule.mode === 'audio') score += 3;
-  else if (rule.mode === 'standard') score += 2;
+  else if (rule.mode === 'quality') score += 2;
+  else if (rule.mode === 'speed') score += 2;
+  else if (rule.mode === 'standard') score += 3;
   return score;
 }
 
+function ruleCost(rule, duration) {
+  if (!rule || !Number.isFinite(Number(rule.price)) || Number(rule.price) <= 0) return null;
+  if (rule.unit === 'per_second') return Number(rule.price) * duration;
+  return Number(rule.price);
+}
+
+function normalizedPerSecond(rule) {
+  if (!rule || !Number.isFinite(Number(rule.price)) || Number(rule.price) <= 0) return null;
+  if (rule.unit === 'per_second') return Number(rule.price);
+  const ruleDuration = Number(rule.duration || 0);
+  if (ruleDuration > 0) return Number(rule.price) / ruleDuration;
+  return null;
+}
+
+function conservativeDerivedCost(rules, selection) {
+  const compatible = rules.filter(rule => ruleModeCompatible(rule, selection));
+  if (!compatible.length) return null;
+
+  const sameResolution = compatible.filter(rule => !rule.resolution || rule.resolution === selection.resolution);
+  const candidates = sameResolution.length ? sameResolution : compatible;
+
+  // Pricing examples are complete generation costs. When the exact selected
+  // configuration is absent, normalize examples with known duration into
+  // effective per-second rates and reserve against the highest relevant rate.
+  // The successful render is later settled against Runware's actual cost.
+  const rates = candidates.map(normalizedPerSecond).filter(value => Number.isFinite(value) && value > 0);
+  if (rates.length) return Math.max(...rates) * selection.duration;
+
+  // Some fixed-price models expose only per-request examples without a duration.
+  // Reserve against the highest compatible request price rather than blocking.
+  const fixed = candidates
+    .filter(rule => rule.unit === 'per_request' && !rule.duration)
+    .map(rule => Number(rule.price))
+    .filter(value => Number.isFinite(value) && value > 0);
+  return fixed.length ? Math.max(...fixed) : null;
+}
+
 function costFromPricing(profile, selection = {}) {
-  const duration = Math.max(1, Number(selection.duration || profile.durations?.[0] || 5));
-  const resolution = clean(selection.resolution || profile.resolutions?.[0] || '', 32).toLowerCase();
+  const duration = Math.max(1, Number(selection.duration || profile.durations?.[0] || profile.availableDurations?.[0] || 5));
+  const resolution = clean(selection.resolution || profile.resolutions?.[0] || profile.availableResolutions?.[0] || '', 32).toLowerCase();
   const draft = Boolean(selection.draft && profile.draftSupported);
   const audio = selection.audio !== false && Boolean(profile.audioSupported);
+  const normalizedSelection = { duration, resolution, draft, audio };
   const rules = Array.isArray(profile.pricing?.rules) ? profile.pricing.rules : [];
-  const ranked = rules.map(rule => ({ rule, score: ruleScore(rule, { duration, resolution, draft, audio }) })).filter(item => item.score >= 0).sort((a, b) => b.score - a.score);
-  if (ranked[0]) return ranked[0].rule.unit === 'per_second' ? ranked[0].rule.price * duration : ranked[0].rule.price;
+
+  const ranked = rules
+    .map(rule => ({ rule, score: ruleScore(rule, normalizedSelection) }))
+    .filter(item => item.score >= 0)
+    .sort((a, b) => b.score - a.score);
+  if (ranked[0]) {
+    const exact = ruleCost(ranked[0].rule, duration);
+    if (Number.isFinite(exact) && exact > 0) return exact;
+  }
 
   const rateTable = draft && profile.draftRates ? profile.draftRates : audio && profile.audioRates ? profile.audioRates : profile.rates;
   const rate = Number(rateTable?.[resolution] ?? profile.rates?.[resolution]);
   if (Number.isFinite(rate) && rate > 0) return rate * duration;
-  return null;
+
+  return conservativeDerivedCost(rules, normalizedSelection);
 }
 
 function creditsFromUsd(providerCostUsd) {
@@ -485,6 +586,14 @@ function baselineCredits(model) {
 }
 
 function publicModel(model) {
+  const baseline = baselineCredits(model);
+  const generationReady = Boolean(
+    model.generationReady
+    && (model.pricingStatus || model.pricing?.status) === 'SYNCED'
+    && Number.isFinite(baseline)
+    && baseline > 0
+    && !commercialGuard.isBlocked(model)
+  );
   return {
     id: model.id,
     routeId: model.routeId || model.id,
@@ -511,9 +620,9 @@ function publicModel(model) {
     lastFrameSupported: Boolean(model.lastFrameSupported),
     referenceImagesSupported: Boolean(model.referenceImagesSupported || model.referenceMode === 'reference'),
     compatibility: model.compatibility || 'DISCOVERED',
-    generationReady: Boolean(model.generationReady && (model.pricingStatus || model.pricing?.status) === 'SYNCED' && !commercialGuard.isBlocked(model)),
+    generationReady,
     pricingStatus: model.pricingStatus || model.pricing?.status || 'UNAVAILABLE',
-    baselineCredits: baselineCredits(model),
+    baselineCredits: Number.isFinite(baseline) && baseline > 0 ? baseline : null,
     tags: model.tags || []
   };
 }
@@ -645,6 +754,9 @@ module.exports = {
   publicLegacyCatalog,
   normalizeCapabilities,
   parsePricing,
+  parseResolution,
+  normalizedPerSecond,
+  conservativeDerivedCost,
   costFromPricing,
   creditsFromUsd,
   estimateCredits,
