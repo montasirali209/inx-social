@@ -199,7 +199,7 @@ function parseResolution(configuration) {
   const height = Number(dimensions[2]);
   const known = [2160, 1440, 1080, 768, 720, 540, 480, 360];
   const edge = known.find(value => value === width || value === height);
-  return edge ? \`\${edge}p\` : null;
+  return edge ? String(edge) + 'p' : null;
 }
 
 function parseDuration(configuration) {
@@ -218,7 +218,7 @@ function pricingMode(configuration) {
 }
 
 function explicitPricingUnit(configuration, rawPrice) {
-  const text = \`\${clean(configuration, 240)} \${clean(rawPrice, 120)}\`;
+  const text = clean(configuration, 240) + ' ' + clean(rawPrice, 120);
   if (/(?:\/\s*s\b|\/sec\b|per\s+second)/i.test(text)) return 'per_second';
   if (/(?:\/\s*run\b|per\s+run|per\s+request)/i.test(text)) return 'per_request';
   // Runware pricingExamples are complete example-generation prices. Do not
