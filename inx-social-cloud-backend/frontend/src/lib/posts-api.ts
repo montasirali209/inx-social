@@ -6,6 +6,7 @@ import { normaliseSettings } from '../data/settingsData'
 import type { SettingsValues } from '../types/settings'
 import { fetchConnectionsWorkspace } from './connections-api'
 import type { Destination } from '../types/posts'
+import { fetchPublishingRecords } from './publishing-records'
 
 export type CreateCarouselPostInput = {
   connectedPageIds: string[]
@@ -37,12 +38,7 @@ function socialDestinations(connections: Awaited<ReturnType<typeof fetchConnecti
 }
 
 async function fetchPostForMePublications() {
-  try {
-    const response = await apiRequest<{ jobs: DashboardJob[] }>('/api/social-connections/publications?limit=150')
-    return response.jobs || []
-  } catch {
-    return [] as DashboardJob[]
-  }
+  return fetchPublishingRecords()
 }
 
 export async function fetchPostsWorkspace(): Promise<PostsWorkspaceData> {
