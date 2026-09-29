@@ -163,7 +163,10 @@ export function UGCWizardModal({
   const characterAssetIds = useMemo(() => [...new Set([...seedCharacterIds, ...characterAssets.map((asset) => asset.id)])].slice(0, 8), [seedCharacterIds, characterAssets])
   const directMode = sourceType === 'BRIEF' && customMode !== 'ASSISTED'
   const podcastMode = sourceType === 'BRIEF' && customMode === 'PODCAST'
-  const effectiveProductAssetIds = podcastMode ? [] : directMode && customMode === 'PRODUCTION' ? selectedGeneratedProductIds : productAssetIds
+  const effectiveProductAssetIds = useMemo(
+    () => podcastMode ? [] : directMode && customMode === 'PRODUCTION' ? selectedGeneratedProductIds : productAssetIds,
+    [podcastMode, directMode, customMode, selectedGeneratedProductIds, productAssetIds],
+  )
   const effectiveQuality: UGCQuality = directMode ? 'STANDARD' : quality
   const effectiveCreatorMode: 'AUTO' | 'SELECTED' | 'NONE' = podcastMode ? 'NONE' : creatorMode
   const campaignType: UGCCampaignType = podcastMode ? 'AVATAR_EXPLAINER' : effectiveCreatorMode === 'NONE' ? 'PRODUCT_SHOWCASE' : 'AUTO'
