@@ -6,7 +6,6 @@ import type { MediaAsset } from '../../types/media-library'
 import type { ScheduleMode } from '../../types/posts'
 import { InlineManualCarouselPage } from './InlineManualCarouselPage'
 import { PostsPage as StandardPostsPage } from './PostsPage'
-import { PostsStatOverlayController } from './PostsStatOverlayController'
 
 const STANDARD_COMPOSER_SESSION_KEY = 'inx-social-post-composer-session-v1'
 
@@ -34,7 +33,6 @@ export function PostsPage() {
 
   return (
     <>
-      <PostsStatOverlayController />
       {openCarousel ? (
         (() => {
           setActivePostComposer('carousel')
