@@ -52,33 +52,90 @@ function growthDashboardDateLabel(value){
   if(/^\d{8}$/.test(text))return text.slice(6,8)+'/'+text.slice(4,6);
   return text||'—';
 }
-function growthDashboardReferrerLabel(row){
-  const source=String(row?.sessionSource||'').trim();
-  const medium=String(row?.sessionMedium||'').trim();
-  const normalized=source.toLowerCase();
-  const normalizedMedium=medium.toLowerCase();
-  if(!source||normalized==='(direct)'||normalized==='direct')return'Direct / None';
-  if(['t.co','x.com','twitter.com'].includes(normalized))return'X';
-  if(normalized.includes('duckduckgo'))return'DuckDuckGo';
-  if(normalized.includes('bing'))return'Bing';
-  if(normalized.includes('google'))return'Google';
-  if(normalized.includes('chatgpt')||normalized.includes('openai'))return'ChatGPT';
-  if(normalized.includes('facebook')||normalized==='fb')return'Facebook';
-  if(normalized.includes('linkedin'))return'LinkedIn';
-  const hideMedium=!medium||['(none)','none','organic','referral'].includes(normalizedMedium);
-  return hideMedium?source:source+' / '+medium;
+const GROWTH_REFERRER_BRAND_ICONS={
+  x:'/assets/referrers/x.svg',
+  google:'/assets/referrers/google.svg',
+  bing:'/assets/referrers/bing.svg',
+  duckduckgo:'/assets/referrers/duckduckgo.svg',
+  chatgpt:'/assets/referrers/chatgpt.svg',
+  facebook:'/assets/referrers/facebook.svg',
+  instagram:'/assets/referrers/instagram.svg',
+  linkedin:'/assets/referrers/linkedin.svg',
+  youtube:'/assets/referrers/youtube.svg',
+  tiktok:'/assets/referrers/tiktok.svg',
+  reddit:'/assets/referrers/reddit.svg',
+  pinterest:'/assets/referrers/pinterest.svg',
+  ecosia:'/assets/referrers/ecosia.svg',
+  perplexity:'/assets/referrers/perplexity.svg',
+  claude:'/assets/referrers/claude.svg'
+};
+function growthDashboardReferrerLogo(key){
+  const src=GROWTH_REFERRER_BRAND_ICONS[key];
+  if(src)return'<img src="'+src+'" alt="" aria-hidden="true" loading="lazy">';
+  if(key==='direct')return'<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10.6 13.4a1 1 0 0 1 0-1.4l2.8-2.8a4 4 0 1 1 5.7 5.6l-3.2 3.2a4 4 0 0 1-5.7 0 1 1 0 0 1 1.4-1.4 2 2 0 0 0 2.9 0l3.2-3.2a2 2 0 1 0-2.9-2.8L12 13.4a1 1 0 0 1-1.4 0Zm2.8-2.8a1 1 0 0 1 0 1.4l-2.8 2.8A4 4 0 1 1 4.9 9.2L8.1 6a4 4 0 0 1 5.7 0 1 1 0 1 1-1.4 1.4 2 2 0 0 0-2.9 0l-3.2 3.2a2 2 0 1 0 2.9 2.8l2.8-2.8a1 1 0 0 1 1.4 0Z" fill="currentColor"/></svg>';
+  if(key==='unattributed')return'<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm.1 15.8a1.2 1.2 0 1 1 0-2.4 1.2 1.2 0 0 1 0 2.4Zm2.1-6.6-.9.7c-.7.5-.8.8-.8 1.5v.3h-1.9v-.5c0-1.1.3-1.7 1.2-2.4l1-.8c.6-.5.9-.9.9-1.5 0-.9-.7-1.5-1.8-1.5-1 0-1.8.5-2.4 1.4L8 7.3c.9-1.4 2.2-2.1 4-2.1 2.3 0 3.8 1.3 3.8 3.2 0 1.2-.5 2-1.6 2.8Z" fill="currentColor"/></svg>';
+  if(key==='email')return'<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 5h18a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Zm9 7.1L4.7 7h14.6L12 12.1ZM4 17h16V8.9l-7.4 5.2a1 1 0 0 1-1.2 0L4 8.9V17Z" fill="currentColor"/></svg>';
+  if(key==='search')return'<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M10.5 3a7.5 7.5 0 1 0 4.7 13.3l4.3 4.2 1.4-1.4-4.2-4.3A7.5 7.5 0 0 0 10.5 3Zm0 2a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Z" fill="currentColor"/></svg>';
+  return'<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm6.9 9h-3.1a15.8 15.8 0 0 0-1.3-5A8 8 0 0 1 18.9 11ZM12 4c.9 1 1.7 3.5 1.9 7h-3.8C10.3 7.5 11.1 5 12 4ZM9.5 6a15.8 15.8 0 0 0-1.3 5H5.1A8 8 0 0 1 9.5 6ZM5.1 13h3.1a15.8 15.8 0 0 0 1.3 5A8 8 0 0 1 5.1 13ZM12 20c-.9-1-1.7-3.5-1.9-7h3.8c-.2 3.5-1 6-1.9 7Zm2.5-2a15.8 15.8 0 0 0 1.3-5h3.1a8 8 0 0 1-4.4 5Z" fill="currentColor"/></svg>';
 }
-function growthDashboardReferrerIcon(label){
-  const name=String(label||'').toLowerCase();
-  if(name==='x')return'𝕏';
-  if(name.includes('google'))return'G';
-  if(name.includes('bing'))return'B';
-  if(name.includes('duckduckgo'))return'D';
-  if(name.includes('chatgpt'))return'AI';
-  if(name.includes('facebook'))return'f';
-  if(name.includes('linkedin'))return'in';
-  if(name.includes('direct'))return'↗';
-  return String(label||'?').slice(0,1).toUpperCase();
+function growthDashboardSourceHost(value){
+  return String(value||'').trim().toLowerCase().replace(/^https?:\/\//,'').replace(/^www\./,'').split('/')[0];
+}
+function growthDashboardReferrerMeta(row){
+  const rawSource=String(row?.sessionSource||'').trim();
+  const rawMedium=String(row?.sessionMedium||'').trim();
+  const source=growthDashboardSourceHost(rawSource);
+  const medium=rawMedium.toLowerCase();
+  const paid=/(?:cpc|ppc|paid|paidsearch|paid_social|paidsocial|display)/.test(medium);
+  const raw=(rawSource||'(not set)')+' / '+(rawMedium||'(not set)');
+
+  if(source.includes('inxsocial.co.uk')||source.endsWith('.up.railway.app')||source.includes('inxsocial-marketing-production'))return{hidden:true,reason:'internal'};
+  if(source==='checkout.stripe.com'||source==='stripe.com'||source.endsWith('.stripe.com'))return{hidden:true,reason:'payment'};
+  if(!source||source==='(direct)'||source==='direct')return{key:'direct',label:'Direct',channel:'Direct',raw:'(direct) / (none)'};
+  if(source==='(not set)'||source==='not set'||medium==='(not set)'&&source==='')return{key:'unattributed',label:'Unattributed',channel:'Unattributed',raw};
+
+  if(['t.co','x','x.com','twitter','twitter.com','mobile.twitter.com'].includes(source))return{key:'x',label:'X',channel:paid?'Paid Social':'Social',raw};
+  if(source.includes('facebook.com')||source==='facebook'||source==='fb')return{key:'facebook',label:'Facebook',channel:paid?'Paid Social':'Social',raw};
+  if(source.includes('instagram.com')||source==='instagram')return{key:'instagram',label:'Instagram',channel:paid?'Paid Social':'Social',raw};
+  if(source.includes('linkedin.com')||source==='linkedin')return{key:'linkedin',label:'LinkedIn',channel:paid?'Paid Social':'Social',raw};
+  if(source.includes('youtube.com')||source==='youtube')return{key:'youtube',label:'YouTube',channel:paid?'Paid Video':'Video / Social',raw};
+  if(source.includes('tiktok.com')||source==='tiktok')return{key:'tiktok',label:'TikTok',channel:paid?'Paid Social':'Social',raw};
+  if(source.includes('reddit.com')||source==='reddit')return{key:'reddit',label:'Reddit',channel:paid?'Paid Social':'Social',raw};
+  if(source.includes('pinterest.com')||source==='pinterest')return{key:'pinterest',label:'Pinterest',channel:paid?'Paid Social':'Social',raw};
+
+  if(source==='google'||source.includes('google'))return{key:'google',label:'Google',channel:paid?'Paid Search':'Organic Search',raw};
+  if(source.includes('bing.com')||source==='bing')return{key:'bing',label:'Bing',channel:paid?'Paid Search':'Organic Search',raw};
+  if(source.includes('duckduckgo.com')||source==='duckduckgo')return{key:'duckduckgo',label:'DuckDuckGo',channel:'Organic Search',raw};
+  if(source.includes('ecosia.org')||source==='ecosia')return{key:'ecosia',label:'Ecosia',channel:'Organic Search',raw};
+
+  if(source.includes('chatgpt.com')||source.includes('openai.com')||source==='chatgpt')return{key:'chatgpt',label:'ChatGPT',channel:'AI Referral',raw};
+  if(source.includes('perplexity.ai')||source==='perplexity')return{key:'perplexity',label:'Perplexity',channel:'AI Referral',raw};
+  if(source.includes('claude.ai')||source.includes('anthropic.com')||source==='claude')return{key:'claude',label:'Claude',channel:'AI Referral',raw};
+
+  if(medium==='organic')return{key:'search',label:rawSource||'Organic Search',channel:'Organic Search',raw};
+  if(paid)return{key:'search',label:rawSource||'Paid campaign',channel:'Paid Acquisition',raw};
+  if(medium.includes('email'))return{key:'email',label:rawSource||'Email',channel:'Email',raw};
+  return{key:'referral',label:rawSource||'Referral',channel:'Referral',raw};
+}
+function growthDashboardAggregateReferrers(rows){
+  const groups=new Map();
+  const excluded={internal:0,payment:0};
+  for(const row of rows||[]){
+    const meta=growthDashboardReferrerMeta(row);
+    const visitors=Math.max(0,Number(row?.activeUsers||0));
+    if(meta.hidden){
+      excluded[meta.reason]=(excluded[meta.reason]||0)+visitors;
+      continue;
+    }
+    const groupKey=meta.key+'|'+meta.label+'|'+meta.channel;
+    if(!groups.has(groupKey))groups.set(groupKey,{...meta,activeUsers:0,sessions:0,totalRevenue:0,rawSources:[]});
+    const group=groups.get(groupKey);
+    group.activeUsers+=visitors;
+    group.sessions+=Math.max(0,Number(row?.sessions||0));
+    group.totalRevenue+=Math.max(0,Number(row?.totalRevenue||0));
+    if(meta.raw&&!group.rawSources.includes(meta.raw)&&group.rawSources.length<2)group.rawSources.push(meta.raw);
+  }
+  return{rows:[...groups.values()],excluded};
 }
 function growthDashboardTrafficPath(points){
   if(!points.length)return'';
@@ -128,17 +185,23 @@ function renderGrowthDashboardAnalytics(live,today,week){
 
   const mode=state.growthDashboardReferrerMode==='revenue'?'revenue':'visitors';
   document.querySelectorAll('[data-growth-referrer-mode]').forEach(button=>button.classList.toggle('active',button.dataset.growthReferrerMode===mode));
-  const sourceRows=(week.acquisitionSources||[]).filter(row=>String(row.sessionSource||'').trim()).slice(0,8);
+  const normalized=growthDashboardAggregateReferrers(week.acquisitionSources||[]);
   const metricValue=row=>mode==='revenue'?Math.max(0,Number(row.totalRevenue||0)):Math.max(0,Number(row.activeUsers||0));
+  const sourceRows=normalized.rows.sort((a,b)=>metricValue(b)-metricValue(a)).slice(0,8);
   const maximum=Math.max(1,...sourceRows.map(metricValue));
   $('growthDashboardReferrers').innerHTML=sourceRows.length?sourceRows.map(row=>{
-    const label=growthDashboardReferrerLabel(row);
     const value=metricValue(row);
     const width=Math.max(value>0?4:0,Math.min(100,value*100/maximum));
     const formatted=mode==='revenue'?growthDashboardMoney(value):growthDashboardNum(value);
-    const detail=mode==='revenue'?growthDashboardNum(row.activeUsers)+' visitors':growthDashboardNum(row.sessions)+' sessions';
-    return '<div class="growth-analytics-referrer-row"><i class="growth-analytics-referrer-bar" style="width:'+width+'%"></i><span class="growth-analytics-referrer-icon">'+esc(growthDashboardReferrerIcon(label))+'</span><div><b>'+esc(label)+'</b><small>'+esc(detail)+'</small></div><strong>'+esc(formatted)+'</strong></div>';
-  }).join(''):'<div class="growth-empty">Traffic sources will appear as GA4 acquisition data arrives.</div>';
+    const visitorWord=Number(row.activeUsers||0)===1?'visitor':'visitors';
+    const sessionWord=Number(row.sessions||0)===1?'session':'sessions';
+    const countDetail=mode==='revenue'?growthDashboardNum(row.activeUsers)+' '+visitorWord:growthDashboardNum(row.sessions)+' '+sessionWord;
+    const sourceDetail=(row.rawSources||[]).join(' · ');
+    const detail=countDetail+' · '+row.channel+(sourceDetail?' · '+sourceDetail:'');
+    return '<div class="growth-analytics-referrer-row"><i class="growth-analytics-referrer-bar" style="width:'+width+'%"></i><span class="growth-analytics-referrer-icon growth-analytics-referrer-icon-'+esc(row.key)+'">'+growthDashboardReferrerLogo(row.key)+'</span><div><b>'+esc(row.label)+'</b><small title="'+esc(sourceDetail)+'">'+esc(detail)+'</small></div><strong>'+esc(formatted)+'</strong></div>';
+  }).join(''):'<div class="growth-empty">No external acquisition sources are available yet.</div>';
+  const excludedVisitors=Number(normalized.excluded.internal||0)+Number(normalized.excluded.payment||0);
+  $('growthDashboardReferrerNote').textContent='GA4 session source / medium · last 7 days'+(excludedVisitors?' · '+growthDashboardNum(excludedVisitors)+' internal / checkout visitor'+(excludedVisitors===1?'':'s')+' excluded':'');
 }
 
 function renderGrowthDashboard(data){

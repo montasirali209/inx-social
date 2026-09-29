@@ -200,7 +200,7 @@ test('Growth admin actions are CSP-safe and the admin UI uses the readable light
   const app = read('src/app.js');
   const light = read('public/admin-light.css');
 
-  assert.match(html, /admin-light\.css\?v=3/);
+  assert.match(html, /admin-light\.css\?v=4/);
   assert.match(js, /data-growth-authority-action="approve"/);
   assert.match(js, /data-growth-optimization-action="approve"/);
   assert.match(js, /growthAuthorityQueue'\)\.addEventListener\('click'/);
@@ -214,13 +214,30 @@ test('Growth admin actions are CSP-safe and the admin UI uses the readable light
   assert.match(light, /font-size:14px!important/);
 });
 
+test('Growth Dashboard normalizes GA4 referrers into branded acquisition channels', () => {
+  const html = read('public/index.html');
+  const js = read('public/admin.js');
+  const light = read('public/admin-light.css');
+
+  assert.match(html, /growthDashboardReferrerNote/);
+  assert.match(html, /GA4 session source \/ medium/);
+  assert.match(js, /GROWTH_REFERRER_BRAND_ICONS/);
+  assert.match(js, /assets\/referrers\/x\.svg/);
+  assert.match(js, /checkout\.stripe\.com/);
+  assert.match(js, /\.up\.railway\.app/);
+  assert.match(js, /AI Referral/);
+  assert.match(js, /Organic Search/);
+  assert.match(js, /growthDashboardAggregateReferrers/);
+  assert.match(light, /growth-analytics-referrer-icon img/);
+});
+
 test('Growth diagnostics explain recommendations and Phase 5 execution semantics', () => {
   const html = read('public/index.html');
   const js = read('public/admin.js');
   const light = read('public/admin-light.css');
 
-  assert.match(html, /admin-light\.css\?v=3/);
-  assert.match(html, /admin\.js\?v=28/);
+  assert.match(html, /admin-light\.css\?v=4/);
+  assert.match(html, /admin\.js\?v=29/);
   assert.match(js, /Suggested action ·/);
   assert.match(js, /Approve plan/);
   assert.match(js, /Approve change/);
