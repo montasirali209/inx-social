@@ -195,7 +195,8 @@ export function VideoStudioModal({
   const [lastFrame, setLastFrame] = useState<ReferenceAsset | null>(null)
   const [referenceAssets, setReferenceAssets] = useState<ReferenceAsset[]>([])
   const [asset, setAsset] = useState<GeneratedAsset | null>(() => initialDraft?.asset?.type === 'video' ? initialDraft.asset : null)
-  const [credits, setCredits] = useState(10)
+  const [credits, setCredits] = useState<number | null>(null)
+  const [pricingError, setPricingError] = useState('')
   const [recommendation, setRecommendation] = useState('')
   const [recommending, setRecommending] = useState(false)
   const [polishing, setPolishing] = useState(false)
@@ -238,7 +239,8 @@ export function VideoStudioModal({
   ].filter(Boolean) as string[], [firstFrame, lastFrame, referenceAssets])
 
   const referenceMissing = ['IMAGE_TO_VIDEO', 'REFERENCE_TO_VIDEO'].includes(generationMode) && activeReferenceIds.length === 0
-  const insufficient = access.creditsConfigured && !access.unlimitedCredits && access.creditsRemaining !== null && access.creditsRemaining < credits
+  const insufficient = credits !== null && access.creditsConfigured && !access.unlimitedCredits && access.creditsRemaining !== null && access.creditsRemaining < credits
+  const pricingPending = Boolean(selected && credits === null && !pricingError)
   const rendering = generating || Boolean(jobId)
 
   useEffect(() => {
@@ -288,16 +290,25 @@ export function VideoStudioModal({
   }, [open, type, initialDraft?.contentType])
 
   useEffect(() => {
-    if (!open || !selected) return
+    if (!open || !selected) {
+      setCredits(null)
+      setPricingError('')
+      return
+    }
     let active = true
+    setCredits(null)
+    setPricingError('')
     const timer = window.setTimeout(() => {
       void estimateVideoCredits(selection).then((value) => {
         if (active) {
           setCredits(value.credits)
-          setError((current) => current.includes('credits could not be estimated') ? '' : current)
+          setPricingError('')
         }
       }).catch((caught) => {
-        if (active) setError(caught instanceof Error ? caught.message : 'Video credits could not be estimated.')
+        if (active) {
+          setCredits(null)
+          setPricingError(caught instanceof Error ? caught.message : 'Video credits could not be estimated.')
+        }
       })
     }, 220)
     return () => {
@@ -552,7 +563,7 @@ export function VideoStudioModal({
   }
 
   async function generate() {
-    if (prompt.trim().length < 2 || rendering || insufficient || referenceMissing || !selected) return
+    if (prompt.trim().length < 2 || rendering || insufficient || referenceMissing || !selected || credits === null) return
     setGenerating(true)
     setError('')
     try {
@@ -578,6 +589,7 @@ export function VideoStudioModal({
   }
 
   async function requestGeneration() {
+    if (credits === null) return
     if (credits >= HIGH_COST_CONFIRMATION_CREDITS && !rendering && selected) {
       const balanceBefore = typeof access.creditsRemaining === 'number' ? access.creditsRemaining : null
       const balanceAfter = balanceBefore === null ? null : Math.max(0, balanceBefore - credits)
@@ -655,7 +667,7 @@ export function VideoStudioModal({
         </div>
         <div className="flex items-center gap-2">
           <button className="rounded-xl border border-border-soft px-2.5 py-2 text-[8px] font-semibold text-text-muted transition hover:border-brand-cyan/30 hover:text-white sm:px-3 sm:text-[9px]" onClick={() => setStudioKind('choose')}><ArrowLeft className="mr-1.5 inline size-3.5" />Video types</button>
-          <span className="rounded-full border border-amber-400/25 bg-amber-400/[.06] px-2.5 py-1 text-[8px] font-bold text-amber-300 sm:px-3 sm:text-[9px]">{credits} credits</span>
+          <span className="rounded-full border border-amber-400/25 bg-amber-400/[.06] px-2.5 py-1 text-[8px] font-bold text-amber-300 sm:px-3 sm:text-[9px]">{credits === null ? 'Calculating credits…' : credits + ' credits'}</span>
           <button className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:border-brand-cyan/30 hover:text-white" onClick={onClose}><X className="size-4" /></button>
         </div>
       </header>
@@ -812,7 +824,7 @@ export function VideoStudioModal({
             <div className="flex items-end justify-between gap-4">
               <div>
                 <span className="text-[8px] font-bold uppercase tracking-[.14em] text-brand-cyan">Live generation cost</span>
-                <div className="mt-2 flex items-baseline gap-2"><strong className="text-3xl tracking-tight">{credits}</strong><span className="text-[9px] text-text-muted">INXSocial credits</span></div>
+                <div className="mt-2 flex items-baseline gap-2"><strong className="text-3xl tracking-tight">{credits === null ? '—' : credits}</strong><span className="text-[9px] text-text-muted">{pricingPending ? 'calculating…' : 'INXSocial credits'}</span></div>
               </div>
               {selected && <span className="max-w-[180px] text-right text-[7px] leading-3 text-text-soft">{selected.name} · {modeLabel(generationMode)}</span>}
             </div>
@@ -820,6 +832,7 @@ export function VideoStudioModal({
           </div>
 
           {referenceMissing && <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-300/[.05] px-3 py-2.5 text-[8px] text-amber-100">Add a reference image to use {modeLabel(generationMode)}.</div>}
+          {pricingError && <div className="mt-3 rounded-2xl border border-red-400/25 bg-red-500/[.06] px-3 py-2.5 text-[9px] text-red-200">{pricingError}</div>}
           {error && <div className="mt-3 rounded-2xl border border-red-400/25 bg-red-500/[.06] px-3 py-2.5 text-[9px] text-red-200">{error}</div>}
         </section>
 
@@ -858,11 +871,11 @@ export function VideoStudioModal({
             <Button disabled={!asset} onClick={continueToPosts}>Post / Schedule <ArrowRight className="size-3.5" /></Button>
             <Button
               variant="primary"
-              disabled={rendering || insufficient || referenceMissing || prompt.trim().length < 2 || !selected}
+              disabled={rendering || insufficient || referenceMissing || prompt.trim().length < 2 || !selected || credits === null}
               onClick={() => void requestGeneration()}
             >
               <WandSparkles className="size-3.5" />
-              {rendering ? 'Rendering in background…' : 'Generate video · ' + credits + ' credits'}
+              {rendering ? 'Rendering in background…' : credits === null ? 'Calculating video cost…' : 'Generate video · ' + credits + ' credits'}
             </Button>
           </div>
           {insufficient && <p className="mt-2 text-right text-[8px] text-red-300">You need more AI credits for this configuration.</p>}
