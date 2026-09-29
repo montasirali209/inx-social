@@ -86,8 +86,8 @@ function GeneratedReferenceImage({ reference, className = 'size-full object-cove
   return url ? <img alt={reference.name} className={className} loading="lazy" src={url} /> : <div className="grid size-full place-items-center bg-white/[.03]"><LoaderCircle className="size-5 animate-spin text-brand-cyan" /></div>
 }
 
-function Rail({ current, furthest, onStep, skipCreator = false }: { current: number; furthest: number; onStep: (step: number) => void; skipCreator?: boolean }) {
-  const rendered = steps.map((step, index) => ({ step, index })).filter(({ step }) => !(skipCreator && step.key === 'avatar'))
+function Rail({ current, furthest, onStep, directMode = false }: { current: number; furthest: number; onStep: (step: number) => void; directMode?: boolean }) {
+  const rendered = steps.map((step, index) => ({ step, index })).filter(({ step }) => !(directMode && ['brand','avatar'].includes(step.key)))
   return <aside className="ugc-wizard-rail">
     {rendered.map(({ step, index }, visibleIndex) => {
       const groupChanged = visibleIndex === 0 || rendered[visibleIndex - 1].step.group !== step.group
@@ -164,12 +164,12 @@ export function UGCWizardModal({
   const directMode = sourceType === 'BRIEF' && customMode !== 'ASSISTED'
   const podcastMode = sourceType === 'BRIEF' && customMode === 'PODCAST'
   const effectiveProductAssetIds = useMemo(
-    () => podcastMode ? [] : directMode && customMode === 'PRODUCTION' ? selectedGeneratedProductIds : productAssetIds,
-    [podcastMode, directMode, customMode, selectedGeneratedProductIds, productAssetIds],
+    () => directMode ? [] : productAssetIds,
+    [directMode, productAssetIds],
   )
   const effectiveQuality: UGCQuality = directMode ? 'STANDARD' : quality
-  const effectiveCreatorMode: 'AUTO' | 'SELECTED' | 'NONE' = podcastMode ? 'NONE' : creatorMode
-  const campaignType: UGCCampaignType = podcastMode ? 'AVATAR_EXPLAINER' : effectiveCreatorMode === 'NONE' ? 'PRODUCT_SHOWCASE' : 'AUTO'
+  const effectiveCreatorMode: 'AUTO' | 'SELECTED' | 'NONE' = directMode ? 'NONE' : creatorMode
+  const campaignType: UGCCampaignType = directMode ? 'AVATAR_EXPLAINER' : effectiveCreatorMode === 'NONE' ? 'PRODUCT_SHOWCASE' : 'AUTO'
   const creativeFormat: UGCCreativeFormat = 'AUTO'
 
   const input = useMemo<CreateUGCCampaignInput>(() => ({
@@ -400,7 +400,7 @@ export function UGCWizardModal({
         analyze.mutate()
         return
       }
-      moveTo(1)
+      moveTo(customMode === 'ASSISTED' ? 1 : 3)
       return
     }
     if ((sourceType === 'WEBSITE' || sourceType === 'PRODUCT') && productUrl.trim()) {
@@ -517,13 +517,13 @@ export function UGCWizardModal({
   return createPortal(<div className="ugc-wizard-backdrop">
     <section aria-label="Create UGC ad" aria-modal="true" className="ugc-wizard-panel" role="dialog">
       <header className="ugc-wizard-header">
-        <div><button className="ugc-wizard-back-home" onClick={backHomeWithDraft} type="button"><ArrowLeft className="size-3.5" />UGC Studio</button><span className="ugc-wizard-step-count">Step {podcastMode && step >= 3 ? step : step + 1} of {podcastMode ? 5 : steps.length}</span></div>
+        <div><button className="ugc-wizard-back-home" onClick={backHomeWithDraft} type="button"><ArrowLeft className="size-3.5" />UGC Studio</button><span className="ugc-wizard-step-count">Step {directMode ? (step === 0 ? 1 : step - 1) : step + 1} of {directMode ? 4 : steps.length}</span></div>
         <button aria-label="Close UGC Studio" className="ugc-wizard-close" onClick={closeWithDraft} type="button"><X className="size-4" /></button>
-        <div className="ugc-wizard-progress"><span style={{ width: `${(((podcastMode && step >= 3 ? step : step + 1) / (podcastMode ? 5 : steps.length)) * 100)}%` }} /></div>
+        <div className="ugc-wizard-progress"><span style={{ width: `${(((directMode ? (step === 0 ? 1 : step - 1) : step + 1) / (directMode ? 4 : steps.length)) * 100)}%` }} /></div>
       </header>
 
       <div className="ugc-wizard-layout">
-        <Rail current={step} furthest={furthest} onStep={moveTo} skipCreator={podcastMode} />
+        <Rail current={step} furthest={furthest} onStep={moveTo} directMode={directMode} />
         <main className="ugc-wizard-content">
           <div className="ugc-wizard-step" key={currentKey}>
             {currentKey === 'source' && <>
@@ -659,7 +659,7 @@ export function UGCWizardModal({
                   <div className={`ugc-credit-summary ${insufficient ? 'insufficient' : ''}`}><div><span>Live quote</span><strong>{estimate.isFetching ? '…' : estimate.data?.credits.toLocaleString() || '—'} credits</strong></div><div><span>{estimate.data?.perAd?.toLocaleString() || '—'} per ad · {remaining.toLocaleString()} available</span>{insufficient && <em>{estimate.data ? `${estimate.data.affordability.shortfall.toLocaleString()} credits short` : 'Choose a smaller setup.'}</em>}</div></div>
                 </div>
               </div>
-              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(podcastMode ? 1 : 2)}><ArrowLeft className="size-4" />Back</Button><Button disabled={!estimate.data || estimate.isFetching} onClick={() => { void trackUGCStudioEvent({ event: 'PRODUCTION_CONFIGURED', stage: 'production', metadata: { quality: effectiveQuality, duration, adCount, credits: estimate.data?.credits || 0 } }); moveTo(4) }} variant="primary">Review campaign <ArrowRight className="size-4" /></Button></div>
+              <div className="ugc-wizard-footer"><Button onClick={() => moveTo(directMode ? 0 : 2)}><ArrowLeft className="size-4" />Back</Button><Button disabled={!estimate.data || estimate.isFetching} onClick={() => { void trackUGCStudioEvent({ event: 'PRODUCTION_CONFIGURED', stage: 'production', metadata: { quality: effectiveQuality, duration, adCount, credits: estimate.data?.credits || 0 } }); moveTo(4) }} variant="primary">Review campaign <ArrowRight className="size-4" /></Button></div>
             </>}
 
             {currentKey === 'review' && <>
@@ -667,8 +667,8 @@ export function UGCWizardModal({
               <div className="ugc-wizard-brand-card mt-7">
                 <div className="flex items-start justify-between gap-4"><div><span className="ugc-wizard-mini-label">CAMPAIGN</span><h3>{selectedBrand?.productName || selectedBrand?.name || description.trim() || 'UGC campaign'}</h3></div><BadgeCheck className="size-5 text-brand-cyan" /></div>
                 <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                  <div><span className="ugc-wizard-mini-label">REFERENCES</span><strong>{podcastMode ? characterAssetIds.length + ' podcast character reference' + (characterAssetIds.length === 1 ? '' : 's') : creatorMode === 'NONE' ? 'Product only' : creatorMode === 'SELECTED' ? 'Selected creator + product references' : 'Automatic creator + product references'}</strong><p className="mt-1 text-[10px] text-text-muted">{podcastMode ? 'Characters are supplied directly from the Podcast setup.' : effectiveProductAssetIds.length + ' product reference' + (effectiveProductAssetIds.length === 1 ? '' : 's') + ' selected'}</p></div>
-                  <div><span className="ugc-wizard-mini-label">{podcastMode ? 'MODE' : 'CREATOR'}</span><strong>{podcastMode ? 'Podcast' : creatorMode === 'NONE' ? 'No creator' : creatorMode === 'SELECTED' ? selectedAvatar?.name || 'Selected creator' : 'Choose for me'}</strong><p className="mt-1 text-[10px] text-text-muted">{podcastMode ? aspectRatio + ' · Captions ' + (captionsEnabled ? 'on' : 'off') : creatorMode === 'NONE' ? 'Product-only generation' : 'Creator identity stays locked to the selected profile.'}</p></div>
+                  <div><span className="ugc-wizard-mini-label">REFERENCES</span><strong>{podcastMode ? characterAssetIds.length + ' podcast character reference' + (characterAssetIds.length === 1 ? '' : 's') : directMode ? 'Prompt-led production' : creatorMode === 'NONE' ? 'Product only' : creatorMode === 'SELECTED' ? 'Selected creator + product references' : 'Automatic creator + product references'}</strong><p className="mt-1 text-[10px] text-text-muted">{podcastMode ? 'Characters are supplied directly from the Podcast setup.' : directMode ? 'No creator or product reference is required for Production Mode.' : effectiveProductAssetIds.length + ' product reference' + (effectiveProductAssetIds.length === 1 ? '' : 's') + ' selected'}</p></div>
+                  <div><span className="ugc-wizard-mini-label">{directMode ? 'MODE' : 'CREATOR'}</span><strong>{podcastMode ? 'Podcast' : directMode ? 'Production' : creatorMode === 'NONE' ? 'No creator' : creatorMode === 'SELECTED' ? selectedAvatar?.name || 'Selected creator' : 'Choose for me'}</strong><p className="mt-1 text-[10px] text-text-muted">{directMode ? aspectRatio + ' · Captions ' + (captionsEnabled ? 'on' : 'off') : creatorMode === 'NONE' ? 'Product-only generation' : 'Creator identity stays locked to the selected profile.'}</p></div>
                   <div><span className="ugc-wizard-mini-label">OUTPUT</span><strong>{adCount} × {duration}s vertical ad{adCount === 1 ? '' : 's'}</strong><p className="mt-1 text-[10px] text-text-muted">{sourceType === 'BRIEF' && customMode !== 'ASSISTED' ? (customMode === 'PODCAST' ? 'Podcast direct mode' : 'Production direct mode') : selectedVariationOption?.label || 'Campaign'} · background rendering with recovery</p></div>
                   <div><span className="ugc-wizard-mini-label">{directMode ? 'FORMAT' : 'QUALITY'}</span><strong>{directMode ? aspectRatio : selectedTier?.label || quality}</strong><p className="mt-1 text-[10px] text-text-muted">{directMode ? 'Captions ' + (captionsEnabled ? 'enabled' : 'disabled') + ' · direct prompt preserved' : selectedTier?.description || 'Production quality selected.'}</p></div>
                 </div>
