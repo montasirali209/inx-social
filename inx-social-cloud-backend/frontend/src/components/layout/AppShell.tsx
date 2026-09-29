@@ -8,6 +8,7 @@ import { BulkSchedulerPage } from '../bulk-scheduler/BulkSchedulerPage'
 import { BulkRunDock, BulkSchedulerActivityProvider } from '../bulk-scheduler/BulkSchedulerActivity'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
+import { PostsStatOverlayController } from '../posts/PostsStatOverlayController'
 
 type IdleWindow = Window & {
   requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
@@ -53,6 +54,7 @@ function AppShellContent() {
           {!bulkRoute && <div className="route-stage mobile-route-safe min-w-0" key={location.pathname} style={{ animationDuration: '160ms' }}><Outlet /></div>}
         </main>
       </div>
+      <PostsStatOverlayController />
       <BulkRunDock />
     </div>
   )
