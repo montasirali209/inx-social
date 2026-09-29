@@ -79,7 +79,7 @@ test('Podcast uploaded characters satisfy the backend requirement directly', () 
   assert.match(controller, /characterAssetIds/);
   assert.match(controller, /!value\.characterAssetIds\.length/);
   assert.doesNotMatch(controller, /customMode === 'PODCAST' && value\.creatorMode === 'NONE'/);
-  assert.match(service, /podcastDirect \? characterAssetIds : productAssetIds/);
+  assert.match(service, /podcastDirect \? characterAssetIds : directMode \? \[\] : productAssetIds/);
   assert.match(service, /creatorMode: 'NONE'/);
   assert.match(service, /PODCAST_CHARACTERS/);
 });
