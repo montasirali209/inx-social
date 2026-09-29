@@ -196,6 +196,7 @@ export function VideoStudioModal({
   const [referenceAssets, setReferenceAssets] = useState<ReferenceAsset[]>([])
   const [asset, setAsset] = useState<GeneratedAsset | null>(() => initialDraft?.asset?.type === 'video' ? initialDraft.asset : null)
   const [estimatedCredits, setEstimatedCredits] = useState<number | null>(null)
+  const [pricingQuote, setPricingQuote] = useState<Awaited<ReturnType<typeof estimateVideoCredits>> | null>(null)
   const [estimatedCreditsKey, setEstimatedCreditsKey] = useState('')
   const [pricingError, setPricingError] = useState('')
   const [recommendation, setRecommendation] = useState('')
@@ -244,7 +245,8 @@ export function VideoStudioModal({
   ].filter(Boolean) as string[], [firstFrame, lastFrame, referenceAssets])
 
   const referenceMissing = ['IMAGE_TO_VIDEO', 'REFERENCE_TO_VIDEO'].includes(generationMode) && activeReferenceIds.length === 0
-  const insufficient = credits !== null && access.creditsConfigured && !access.unlimitedCredits && access.creditsRemaining !== null && access.creditsRemaining < credits
+  const reservationCredits = pricingQuote?.reservationCredits ?? credits
+  const insufficient = reservationCredits !== null && access.creditsConfigured && !access.unlimitedCredits && access.creditsRemaining !== null && access.creditsRemaining < reservationCredits
   const pricingPending = Boolean(selected && credits === null && !currentPricingError)
   const rendering = generating || Boolean(jobId)
 
@@ -302,12 +304,14 @@ export function VideoStudioModal({
       void estimateVideoCredits(selection).then((value) => {
         if (active) {
           setEstimatedCredits(value.credits)
+          setPricingQuote(value)
           setPricingError('')
           setEstimatedCreditsKey(quoteKey)
         }
       }).catch((caught) => {
         if (active) {
           setEstimatedCredits(null)
+          setPricingQuote(null)
           setPricingError(caught instanceof Error ? caught.message : 'Video credits could not be estimated.')
           setEstimatedCreditsKey(quoteKey)
         }
@@ -598,7 +602,7 @@ export function VideoStudioModal({
       const details = [
         'Confirm high-credit video generation',
         selected.name + ' · ' + duration + 's · ' + resolution,
-        'This render will reserve ' + credits + ' AI credits.',
+        'Expected charge: ' + credits + ' AI credits.' + (reservationCredits && reservationCredits > credits ? ' Protected reservation: ' + reservationCredits + ' credits; unused credits are returned after settlement.' : ''),
         balanceBefore === null ? '' : 'Current balance: ' + balanceBefore.toLocaleString() + ' credits.',
         balanceAfter === null ? '' : 'Balance after reservation: ' + balanceAfter.toLocaleString() + ' credits.',
         'If the generation fails, the reserved credits are returned automatically.',
@@ -669,7 +673,7 @@ export function VideoStudioModal({
         </div>
         <div className="flex items-center gap-2">
           <button className="rounded-xl border border-border-soft px-2.5 py-2 text-[8px] font-semibold text-text-muted transition hover:border-brand-cyan/30 hover:text-white sm:px-3 sm:text-[9px]" onClick={() => setStudioKind('choose')}><ArrowLeft className="mr-1.5 inline size-3.5" />Video types</button>
-          <span className="rounded-full border border-amber-400/25 bg-amber-400/[.06] px-2.5 py-1 text-[8px] font-bold text-amber-300 sm:px-3 sm:text-[9px]">{credits === null ? 'Calculating credits…' : credits + ' credits'}</span>
+          <span className="rounded-full border border-amber-400/25 bg-amber-400/[.06] px-2.5 py-1 text-[8px] font-bold text-amber-300 sm:px-3 sm:text-[9px]">{credits === null ? 'Calculating credits…' : pricingQuote?.promotion && pricingQuote.regularCredits && pricingQuote.regularCredits > credits ? <><span className="mr-1 line-through opacity-55">{pricingQuote.regularCredits}</span>{credits} credits</> : credits + ' credits'}</span>
           <button className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:border-brand-cyan/30 hover:text-white" onClick={onClose}><X className="size-4" /></button>
         </div>
       </header>
@@ -831,6 +835,7 @@ export function VideoStudioModal({
               {selected && <span className="max-w-[180px] text-right text-[7px] leading-3 text-text-soft">{selected.name} · {modeLabel(generationMode)}</span>}
             </div>
             <p className="mt-2 text-[8px] leading-4 text-text-soft">Recalculates from the selected model and supported settings before generation. Successful renders are reconciled against actual provider cost.</p>
+            {pricingQuote?.promotion && pricingQuote.regularCredits && pricingQuote.regularCredits > (credits || 0) && <div className="mt-2 rounded-xl border border-emerald-300/20 bg-emerald-300/[.05] px-3 py-2 text-[8px] leading-4 text-emerald-100"><strong>{pricingQuote.promotion.discountPercent || ''}% provider discount active.</strong> Current: {credits} credits · regular: {pricingQuote.regularCredits} credits{pricingQuote.promotion.endsAt ? ` · ends ${new Date(pricingQuote.promotion.endsAt).toLocaleDateString()}` : ''}. Pricing switches automatically when the provider promotion expires.</div>}
           </div>
 
           {referenceMissing && <div className="mt-3 rounded-2xl border border-amber-300/20 bg-amber-300/[.05] px-3 py-2.5 text-[8px] text-amber-100">Add a reference image to use {modeLabel(generationMode)}.</div>}
