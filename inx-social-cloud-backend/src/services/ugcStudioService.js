@@ -28,8 +28,10 @@ const ugcProductionAudit = require('./ugcProductionAuditService');
 const ugcRuntimePolicy = require('./ugcRuntimePolicy');
 const { expiresAtFor } = require('./mediaRetentionService');
 
-const STANDARD_CREDITS = Object.freeze({ 20: 140, 30: 210, 45: 315, 60: 420 });\nconst SAFE_STANDARD_FALLBACK_CREDITS = Object.freeze({ 20: 184, 30: 276, 45: 414, 60: 552 });
-const PREMIUM_CREDITS = Object.freeze({ 20: 260, 30: 390, 45: 585, 60: 780 });\nconst SAFE_PREMIUM_FALLBACK_CREDITS = Object.freeze({ 20: 650, 30: 950, 45: 1450, 60: 1900 });
+const STANDARD_CREDITS = Object.freeze({ 20: 140, 30: 210, 45: 315, 60: 420 });
+const SAFE_STANDARD_FALLBACK_CREDITS = Object.freeze({ 20: 184, 30: 276, 45: 414, 60: 552 });
+const PREMIUM_CREDITS = Object.freeze({ 20: 260, 30: 390, 45: 585, 60: 780 });
+const SAFE_PREMIUM_FALLBACK_CREDITS = Object.freeze({ 20: 650, 30: 950, 45: 1450, 60: 1900 });
 const AVATAR_CREDITS = 5;
 const REFERENCE_CREDITS = 10;
 const SYSTEM_AVATAR_COUNT = 52;
@@ -1006,8 +1008,8 @@ async function liveUgcPricing() {
       regularMatrix.STANDARD[duration] = standard.regularCredits;
       promotions.push(...standard.promotions.map(item => ({ ...item, quality: 'STANDARD' })));
     } catch (_) {
-      matrix.STANDARD[duration] = STANDARD_CREDITS[duration];
-      regularMatrix.STANDARD[duration] = STANDARD_CREDITS[duration];
+      matrix.STANDARD[duration] = SAFE_STANDARD_FALLBACK_CREDITS[duration];
+      regularMatrix.STANDARD[duration] = SAFE_STANDARD_FALLBACK_CREDITS[duration];
     }
 
     const quotes = [];
@@ -1023,8 +1025,8 @@ async function liveUgcPricing() {
       regularMatrix.PREMIUM[duration] = Math.max(...quotes.map(item => item.regularCredits));
       quotes.forEach(item => promotions.push(...item.promotions.map(promo => ({ ...promo, quality: 'PREMIUM' }))));
     } else {
-      matrix.PREMIUM[duration] = PREMIUM_CREDITS[duration];
-      regularMatrix.PREMIUM[duration] = PREMIUM_CREDITS[duration];
+      matrix.PREMIUM[duration] = SAFE_PREMIUM_FALLBACK_CREDITS[duration];
+      regularMatrix.PREMIUM[duration] = SAFE_PREMIUM_FALLBACK_CREDITS[duration];
     }
   }
   const dedupedPromotions = [...new Map(promotions.filter(Boolean).map(item => [
