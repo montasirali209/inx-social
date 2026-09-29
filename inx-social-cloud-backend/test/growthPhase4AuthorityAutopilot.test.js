@@ -123,6 +123,8 @@ test('Authority UI distinguishes Resend API acceptance from a mailbox Sent folde
   assert.match(service,/do not appear in the mailbox Sent folder/);
   assert.match(js,/API delivery does not create a copy in your mailbox Sent folder/);
   assert.match(js,/Outreach accepted by Resend/);
+  assert.match(js,/item\.delivery\?\.channel==='EMAIL'/);
+  assert.match(js,/item\.delivery\.provider\|\|'RESEND'/);
 });
 
 
