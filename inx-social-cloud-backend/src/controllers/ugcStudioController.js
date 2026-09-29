@@ -12,6 +12,7 @@ const createSchema = z.object({
   productDescription: z.string().trim().max(4000).optional().default(''),
   productAssetIds: z.array(z.string().trim().min(1).max(120)).max(8).optional().default([]),
   sourceType: z.enum(['WEBSITE', 'PRODUCT', 'BRIEF']).optional().default('WEBSITE'),
+  customMode: z.enum(['ASSISTED', 'PRODUCTION', 'PODCAST']).optional().default('ASSISTED'),
   campaignType: z.enum(['AUTO', 'AVATAR_EXPLAINER', 'PRODUCT_SHOWCASE']).optional().default('AUTO'),
   creativeFormat: z.enum(['AUTO','PROBLEM_SOLUTION','PRODUCT_DEMO','TESTIMONIAL','UNBOXING','REACTION','BEFORE_AFTER','STORYTIME','SPOKESPERSON','PRODUCT_FOCUSED']).optional().default('AUTO'),
   avatarId: z.string().trim().max(120).optional().nullable(),
@@ -23,6 +24,9 @@ const createSchema = z.object({
 }).superRefine((value, ctx) => {
   if (value.sourceType === 'BRIEF' && value.productDescription.trim().length < 12) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['productDescription'], message: 'Add a custom prompt describing the UGC ad you want to create.' });
+  }
+  if (value.sourceType === 'BRIEF' && value.customMode === 'PODCAST' && value.creatorMode === 'NONE') {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['creatorMode'], message: 'Podcast mode needs a creator or guest reference.' });
   }
   if (!value.brandProfileId && !value.productUrl && !value.productDescription && !value.productAssetIds.length) {
     ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['productUrl'], message: 'Add a website, product image or short brand description.' });
