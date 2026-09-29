@@ -586,6 +586,14 @@ function baselineCredits(model) {
 }
 
 function publicModel(model) {
+  const baseline = baselineCredits(model);
+  const generationReady = Boolean(
+    model.generationReady
+    && (model.pricingStatus || model.pricing?.status) === 'SYNCED'
+    && Number.isFinite(baseline)
+    && baseline > 0
+    && !commercialGuard.isBlocked(model)
+  );
   return {
     id: model.id,
     routeId: model.routeId || model.id,
@@ -612,9 +620,9 @@ function publicModel(model) {
     lastFrameSupported: Boolean(model.lastFrameSupported),
     referenceImagesSupported: Boolean(model.referenceImagesSupported || model.referenceMode === 'reference'),
     compatibility: model.compatibility || 'DISCOVERED',
-    generationReady: Boolean(model.generationReady && (model.pricingStatus || model.pricing?.status) === 'SYNCED' && !commercialGuard.isBlocked(model)),
+    generationReady,
     pricingStatus: model.pricingStatus || model.pricing?.status || 'UNAVAILABLE',
-    baselineCredits: baselineCredits(model),
+    baselineCredits: Number.isFinite(baseline) && baseline > 0 ? baseline : null,
     tags: model.tags || []
   };
 }
@@ -746,6 +754,9 @@ module.exports = {
   publicLegacyCatalog,
   normalizeCapabilities,
   parsePricing,
+  parseResolution,
+  normalizedPerSecond,
+  conservativeDerivedCost,
   costFromPricing,
   creditsFromUsd,
   estimateCredits,
