@@ -15,6 +15,7 @@ export type UGCCreativeFormatOption = {
   requiresVerifiedTransformation: boolean
 }
 export type UGCSourceType = 'WEBSITE' | 'PRODUCT' | 'BRIEF'
+export type UGCCustomMode = 'ASSISTED' | 'PRODUCTION' | 'PODCAST'
 
 export type UGCAvatar = {
   id: string
@@ -184,6 +185,7 @@ export type UGCCampaign = {
   creativeFormat: UGCCreativeFormat
   resolvedCreativeFormats: Exclude<UGCCreativeFormat, 'AUTO'>[]
   sourceType: UGCSourceType
+  customMode: UGCCustomMode
   productAssetIds: string[]
   creatorMode: 'AUTO' | 'SELECTED' | 'NONE'
   selectedAvatarId: string | null
@@ -264,6 +266,7 @@ export type CreateUGCCampaignInput = {
   productDescription?: string
   productAssetIds?: string[]
   sourceType?: UGCSourceType
+  customMode?: UGCCustomMode
   campaignType?: UGCCampaignType
   creativeFormat?: UGCCreativeFormat
   avatarId?: string | null
