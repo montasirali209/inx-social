@@ -97,8 +97,10 @@ test('video studio never displays stale credits while a new model price is unres
   const root = path.resolve(__dirname, '..');
   const modal = fs.readFileSync(path.join(root, 'frontend/src/components/ai-content-studio/VideoStudioModalV3.tsx'), 'utf8');
 
-  assert.match(modal, /useState<number \| null>\(null\)/);
-  assert.match(modal, /setCredits\(null\)/);
+  assert.match(modal, /estimatedCredits/);
+  assert.match(modal, /estimatedCreditsKey/);
+  assert.match(modal, /pricingSelectionKey/);
+  assert.match(modal, /setEstimatedCredits\(null\)/);
   assert.match(modal, /setPricingError/);
   assert.match(modal, /Calculating credits…/);
   assert.match(modal, /credits === null/);
