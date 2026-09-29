@@ -1000,7 +1000,7 @@ async function liveUgcPricing() {
   const promotions = [];
   for (const duration of [20, 30, 45, 60]) {
     try {
-      const standard = await quoteUgcRoute(ugcModelRouter.ROUTE_KEYS.STANDARD, duration, 1);
+      const standard = await quoteUgcRoute(ugcModelRouter.ROUTE_KEYS.STANDARD, duration, 9);
       matrix.STANDARD[duration] = standard.credits;
       regularMatrix.STANDARD[duration] = standard.regularCredits;
       promotions.push(...standard.promotions.map(item => ({ ...item, quality: 'STANDARD' })));
@@ -1015,7 +1015,7 @@ async function liveUgcPricing() {
       ugcModelRouter.ROUTE_KEYS.PREMIUM_DYNAMIC,
       ugcModelRouter.ROUTE_KEYS.DYNAMIC_FALLBACK
     ]) {
-      try { quotes.push(await quoteUgcRoute(routeKey, duration, 1)); } catch (_) {}
+      try { quotes.push(await quoteUgcRoute(routeKey, duration, 9)); } catch (_) {}
     }
     if (quotes.length) {
       matrix.PREMIUM[duration] = Math.max(...quotes.map(item => item.credits));
@@ -2474,8 +2474,13 @@ async function renderAd(adId) {
           workflow: 'ugc',
           failed: true
         }).catch(settleError => {
-          if (settleError?.code !== 'AI_CREDITS_SETTLEMENT_SHORTFALL') throw settleError;
-          console.error('[UGC CREDIT SETTLEMENT SHORTFALL]', { adId: ad.id, generationId: ad.generationId, providerCostUsd: providerCost });
+          console.error('[UGC CREDIT SETTLEMENT FAILED]', {
+            adId: ad.id,
+            generationId: ad.generationId,
+            providerCostUsd: providerCost,
+            code: settleError?.code || 'UNKNOWN',
+            error: clean(settleError?.message, 500)
+          });
         });
       } else {
         await credits.refund(ad.userId, ad.generationId, error?.code || 'ugc_render_failed').catch(() => false);
