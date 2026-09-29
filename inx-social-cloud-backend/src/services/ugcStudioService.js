@@ -1024,7 +1024,10 @@ function directPromptPlan(input, brand, avatars, resolvedType) {
   const mode = normalizedCustomMode(input.customMode);
   const prompt = clean(input.productDescription, 4000);
   if (!prompt) throw publicError('Add the production prompt you want to send to the video model.', 'UGC_DIRECT_PROMPT_REQUIRED', 422);
-  const durations = visualDurations(input.duration, input.quality, resolvedType);
+  // Direct modes use H3-compatible technical segments regardless of the
+  // customer-facing quality tier so long-form prompts never create an
+  // unsupported >15s native-audio scene.
+  const durations = visualDurations(input.duration, 'STANDARD', resolvedType);
   const finalDurations = playbackDurations(input.duration, durations);
   const creatorLed = String(input.creatorMode || '').toUpperCase() !== 'NONE';
   const kinds = Array.from({ length: durations.length }, () => creatorLed ? 'CREATOR' : 'PRODUCT');
