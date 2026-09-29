@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { fetchMediaLibrary } from '../../lib/media-library-api'
 import { saveCarouselSession, setActivePostComposer } from '../../lib/carousel-composer-session'
 import { fetchPostsWorkspace } from '../../lib/posts-api'
+import { fetchPublishingRecords, publishingRecordsQueryKey } from '../../lib/publishing-records'
 import type { DashboardJob } from '../../types/dashboard'
 import type { MediaAsset } from '../../types/media-library'
 import type { PostDraft, PostType, ScheduleMode } from '../../types/posts'
@@ -120,6 +121,7 @@ function libraryView(label: string): PostLibraryView | null {
 export function PostsStatOverlayController() {
   const navigate = useNavigate()
   const workspace = useQuery({ queryKey: ['posts-workspace'], queryFn: fetchPostsWorkspace, refetchInterval: 45_000 })
+  const publishingRecords = useQuery({ queryKey: publishingRecordsQueryKey, queryFn: fetchPublishingRecords, refetchInterval: 30_000, refetchOnWindowFocus: true })
   const [draftOpen, setDraftOpen] = useState(false)
   const [postView, setPostView] = useState<PostLibraryView | null>(null)
   const [draftVersion, setDraftVersion] = useState(0)
@@ -225,7 +227,7 @@ export function PostsStatOverlayController() {
   return (
     <>
       {draftOpen && <DraftLibraryModal drafts={drafts} onClose={() => setDraftOpen(false)} onDelete={deleteDraft} onLoad={(draft) => void loadDraft(draft)} pages={workspace.data?.pages || []} />}
-      {postView && <PostReuseModal initialView={postView} jobs={workspace.data?.jobs || []} onClose={() => setPostView(null)} onReuse={reusePost} timezone={workspace.data?.settings.timezone || 'Europe/London'} />}
+      {postView && <PostReuseModal initialView={postView} jobs={publishingRecords.data || workspace.data?.jobs || []} loadingExternal={publishingRecords.isPending} onClose={() => setPostView(null)} onReuse={reusePost} timezone={workspace.data?.settings.timezone || 'Europe/London'} />}
     </>
   )
 }
