@@ -264,6 +264,8 @@ function parsePricing(pricing) {
   const examples = Array.isArray(pricing?.pricingExamples) ? pricing.pricingExamples : [];
   const overview = clean(pricing?.pricingOverview, 2000);
   const promotionEndsAt = parsePromotionExpiry(overview);
+  const overviewDiscountPercent = Math.max(0, Math.min(95, Number(overview.match(/\b(\d{1,2})%\s*OFF\b/i)?.[1] || 0)));
+  const discountFactor = overviewDiscountPercent > 0 ? 1 - overviewDiscountPercent / 100 : 1;
   const rules = examples.map(example => {
     const configuration = clean(example?.configuration, 240);
     const rawPrice = clean(example?.price, 160);
@@ -275,7 +277,7 @@ function parsePricing(pricing) {
       configuration,
       price: pair.current,
       currentPrice: pair.current,
-      regularPrice: pair.regular,
+      regularPrice: pair.regular || (overviewDiscountPercent > 0 ? pair.current / discountFactor : null),
       promotionEndsAt,
       resolution: parseResolution(configuration),
       duration: parseDuration(configuration),
@@ -288,7 +290,7 @@ function parsePricing(pricing) {
   }).filter(Boolean);
 
   const discounted = rules.find(rule => Number.isFinite(rule.regularPrice) && rule.regularPrice > rule.currentPrice);
-  const discountPercent = discounted ? Math.max(0, Math.round((1 - discounted.currentPrice / discounted.regularPrice) * 100)) : 0;
+  const discountPercent = overviewDiscountPercent || (discounted ? Math.max(0, Math.round((1 - discounted.currentPrice / discounted.regularPrice) * 100)) : 0);
   const promotion = discounted ? {
     active: promotionActive(promotionEndsAt),
     endsAt: promotionEndsAt,
