@@ -1049,6 +1049,27 @@
     }
   }
 
+  function responsivePreviewKey(viewport = state.viewport) {
+    const generation = latestGenerationSummary();
+    return [
+      state.project?.id || '',
+      generation?.id || '',
+      viewport || 'DESKTOP'
+    ].join(':');
+  }
+
+  function preserveResponsivePreviewCanvas(output, previewKey) {
+    const shell = $('uiStudioCanvasShell');
+    const frame = $('uiStudioResponsivePreviewFrame');
+    if (!shell || !frame || shell.parentElement !== output || shell.dataset.previewKey !== previewKey) return false;
+    state.canvasFrame = frame;
+    renderCanvasProperties();
+    renderCanvasCommitBar();
+    setCanvasMode(state.canvasMode);
+    requestAnimationFrame(() => canvasGeometry({ centre: false }));
+    return true;
+  }
+
   function renderVisualPanel() {
     const status = $('uiStudioVisualStatus');
     const summary = $('uiStudioVisualSummary');
@@ -1100,8 +1121,14 @@
     summary.textContent = size.label + ' review canvas · ' + size.width + ' × ' + size.height +
       '. Pan, zoom, scroll inside the page, or select elements and edit them live.';
 
+    const previewKey = responsivePreviewKey(state.viewport);
+    if (preserveResponsivePreviewCanvas(output, previewKey)) return;
+
+    state.canvasFrame = null;
+    state.canvasReady = false;
+    state.canvasSelected = null;
     output.innerHTML =
-      '<div class="ui-studio-canvas-shell" id="uiStudioCanvasShell" data-mode="' + esc(state.canvasMode) + '">' +
+      '<div class="ui-studio-canvas-shell" id="uiStudioCanvasShell" data-mode="' + esc(state.canvasMode) + '" data-preview-key="' + esc(previewKey) + '">' +
         '<div class="ui-studio-canvas-toolbar">' +
           '<div class="ui-studio-canvas-tool-group">' +
             '<button type="button" data-ui-canvas-mode="PAN" title="Hand tool · drag the canvas">✋ <span>Hand</span></button>' +
@@ -1145,13 +1172,22 @@
     const stage = $('uiStudioCanvasStage');
     if (!frame || !stage || !state.project?.id || !previewBuildIsCurrent()) return;
 
-    state.canvasFrame = frame;
-    state.canvasReady = false;
-    frame.src =
+    const previewKey = responsivePreviewKey(viewport);
+    if (frame.dataset.previewKey === previewKey && frame.getAttribute('src')) {
+      state.canvasFrame = frame;
+      return;
+    }
+
+    const previewUrl =
       '/api/admin/ui-studio/projects/' + encodeURIComponent(state.project.id) +
       '/responsive-preview/' + encodeURIComponent(viewport) +
       '?generation=' + encodeURIComponent(state.project.latestGeneration?.id || '') +
       '&editor=1';
+
+    state.canvasFrame = frame;
+    state.canvasReady = false;
+    frame.dataset.previewKey = previewKey;
+    frame.dataset.retryCount = '0';
 
     const initialise = () => {
       requestAnimationFrame(() => {
@@ -1159,7 +1195,18 @@
         else canvasGeometry({ centre: true });
       });
     };
-    frame.addEventListener('load', initialise, { once: true });
+    const retryIfUnready = () => {
+      if (state.canvasFrame !== frame || frame.dataset.previewKey !== previewKey || state.canvasReady || frame.dataset.retryCount === '1') return;
+      frame.dataset.retryCount = '1';
+      frame.src = previewUrl + '&retry=1&ts=' + Date.now();
+    };
+
+    frame.addEventListener('load', () => {
+      initialise();
+      setTimeout(retryIfUnready, 5000);
+    });
+    frame.addEventListener('error', retryIfUnready, { once: true });
+    frame.src = previewUrl;
     requestAnimationFrame(initialise);
   }
 
