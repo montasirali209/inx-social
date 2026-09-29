@@ -967,6 +967,8 @@ function normalizeDirectInput(input = {}) {
   return {
     ...input,
     customMode: mode,
+    brandProfileId: null,
+    productUrl: '',
     quality: 'STANDARD',
     aspectRatio: normalizedAspectRatio(input.aspectRatio),
     captionsEnabled: input.captionsEnabled !== false,
