@@ -126,6 +126,8 @@ function evaluateCampaignSnapshot(input = {}) {
     const txs = generation ? (txByGeneration.get(String(generation.id)) || []) : [];
     const debit = txs.find(tx => tx.type === 'GENERATION_DEBIT' || String(tx.reference || '') === 'debit:' + generation.id);
     const refund = txs.find(tx => tx.type === 'GENERATION_REFUND' || String(tx.reference || '') === 'refund:' + generation.id);
+    const settlementRefund = txs.find(tx => tx.type === 'GENERATION_SETTLEMENT_REFUND' || String(tx.reference || '') === 'settlement:' + generation.id);
+    const settlementDebit = txs.find(tx => tx.type === 'GENERATION_SETTLEMENT_DEBIT' || String(tx.reference || '') === 'settlement-debit:' + generation.id);
 
     const adChecks = [];
     adChecks.push(check('SCENES_PRESENT', adScenes.length ? 'PASS' : 'FAIL', { count: adScenes.length }));
@@ -165,14 +167,24 @@ function evaluateCampaignSnapshot(input = {}) {
       } else if (String(generation.status) === 'COMPLETED') {
         adChecks.push(check(
           'COMPLETED_CREDIT_FINALIZATION',
-          reserved > 0 && used === reserved ? 'PASS' : 'FAIL',
-          { reserved, used }
+          reserved > 0 && used > 0 && used <= reserved ? 'PASS' : 'FAIL',
+          { reserved, used, settlementRefundFound: Boolean(settlementRefund), settlementDebitFound: Boolean(settlementDebit) }
         ));
       } else if (String(generation.status) === 'FAILED' && reserved > 0) {
+        const costAwareSettled = cost > 0 && used > 0 && used <= reserved;
+        const zeroCostRefunded = cost <= 0 && (!debit || Boolean(refund));
         adChecks.push(check(
-          'FAILED_CREDIT_REFUND',
-          !debit || Boolean(refund) ? 'PASS' : 'FAIL',
-          { debitFound: Boolean(debit), refundFound: Boolean(refund), reserved }
+          'FAILED_CREDIT_SETTLEMENT',
+          costAwareSettled || zeroCostRefunded ? 'PASS' : 'FAIL',
+          {
+            debitFound: Boolean(debit),
+            refundFound: Boolean(refund),
+            settlementRefundFound: Boolean(settlementRefund),
+            settlementDebitFound: Boolean(settlementDebit),
+            providerCostUsd: cost,
+            reserved,
+            used
+          }
         ));
       }
       adChecks.push(check('PROVIDER_COST_NONNEGATIVE', cost >= 0 ? 'PASS' : 'FAIL', { providerCostUsd: cost }));
@@ -423,7 +435,7 @@ function snapshot() {
       terminalCampaignsRequireTerminalAds: true,
       readyAdsRequirePublishableQC: true,
       readyAdsRequireMediaLibraryAsset: true,
-      failedPaidGenerationsRequireRefund: true,
+      failedPaidGenerationsRequireCostAwareSettlement: true,
       zeroCreditReassemblyProtected: true
     }
   };
