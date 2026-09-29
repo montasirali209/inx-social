@@ -999,7 +999,8 @@ function renderGrowthAuthority(data){
   $('growthAuthorityStatus').textContent=authority.generatedAt?'ACTIVE':'WAITING';
   $('growthAuthorityStatus').className='status-chip '+(authority.generatedAt?'gsc-connected':'');
   $('growthAuthorityUpdated').textContent=authority.generatedAt?'Updated '+relative(authority.generatedAt):'No authority scan yet.';
-  $('growthAuthorityProvider').textContent='Live research '+(provider.liveResearch?'ready':'not configured')+' · Sol draft + final review '+(provider.writer?'ready':'not configured')+' · Auto email '+(provider.email?'ready':'not configured')+' · Community posting approval-gated';
+  const selectedSeoModel=growthAutopilotModelShort(state.growthAutopilot?.config?.aiModel);
+  $('growthAuthorityProvider').textContent='Live research '+(provider.liveResearch?'ready':'not configured')+' · '+selectedSeoModel+' draft + final review '+(provider.writer?'ready':'not configured')+' · Auto email '+(provider.email?'ready':'not configured')+' · Community posting approval-gated';
   $('growthAuthorityKpis').innerHTML=[
     ['Open prospects',Number(stats.total||0),Number(stats.backlinkProspects||0)+' backlink/resource opportunities'],
     ['Communities',Number(stats.communities||0),'Quora and relevant discussions'],
@@ -1017,7 +1018,7 @@ function renderGrowthAuthority(data){
       status==='APPROVED'&&isCommunity?'<button class="secondary" type="button" data-growth-authority-id="'+esc(item.id)+'" data-growth-authority-action="posted">Mark posted</button>':'',
       status!=='DISMISSED'&&!['LINK_ACQUIRED','MENTION_ACQUIRED','AI_CITED'].includes(status)?'<button class="secondary" type="button" data-growth-authority-id="'+esc(item.id)+'" data-growth-authority-action="dismiss">Dismiss</button>':''
     ].filter(Boolean).join('');
-    const aiReview=item.aiReview?.decision?'<small>Sol review: '+esc(item.aiReview.decision)+' · '+esc(item.aiReview.reason||'')+'</small>':'';
+    const aiReview=item.aiReview?.decision?'<small>'+esc(growthAutopilotModelShort(state.growthAutopilot?.config?.aiModel))+' review: '+esc(item.aiReview.decision)+' · '+esc(item.aiReview.reason||'')+'</small>':'';
     const delivery=item.delivery?.channel==='EMAIL'?'<small>Delivery: accepted by '+esc(item.delivery.provider||'RESEND')+' '+esc(relative(item.delivery.sentAt))+(item.delivery.providerId?' · reference '+esc(item.delivery.providerId):'')+'. API delivery does not create a copy in your mailbox Sent folder.</small>':'';
     return '<article class="growth-authority-row"><div class="growth-authority-score"><b>'+Number(item.score||0)+'</b><span>fit</span></div><div class="growth-authority-copy"><div class="growth-authority-tags"><span>'+esc(growthAuthorityTypeLabel(item.type))+'</span><em>'+esc(status.replaceAll('_',' '))+'</em></div><a href="'+esc(item.url)+'" target="_blank" rel="noopener">'+esc(item.title||item.domain||'Authority opportunity')+' ↗</a><p>'+esc(item.reason||'')+'</p>'+aiReview+delivery+'<details><summary>Prepared '+(isCommunity?'reply':'outreach')+'</summary><div>'+esc(draft)+'</div></details></div><div class="growth-authority-row-actions">'+actions+'</div></article>';
   }).join(''):'<div class="growth-empty">No qualified authority prospects yet. The six-hour autopilot will keep looking.</div>';
@@ -1065,7 +1066,7 @@ function renderGrowthOptimization(data){
   $('growthOptimizationStatus').textContent=optimization.generatedAt?'ACTIVE':'WAITING';
   $('growthOptimizationStatus').className='status-chip '+(optimization.generatedAt?'gsc-connected':'');
   $('growthOptimizationUpdated').textContent=optimization.generatedAt?'Updated '+relative(optimization.generatedAt):'No optimisation run yet.';
-  $('growthOptimizationProvider').textContent='GSC '+(provider.searchConsole?'ready':'waiting')+' · GA4 '+(provider.ga4?'ready':'waiting')+' · Revenue attribution '+(provider.attribution?'ready':'waiting')+' · Sol '+(provider.sol?'ready':'waiting');
+  $('growthOptimizationProvider').textContent='GSC '+(provider.searchConsole?'ready':'waiting')+' · GA4 '+(provider.ga4?'ready':'waiting')+' · Revenue attribution '+(provider.attribution?'ready':'waiting')+' · '+growthAutopilotModelShort(state.growthAutopilot?.config?.aiModel)+' '+(provider.sol?'ready':'waiting');
   $('growthOptimizationKpis').innerHTML=[
     ['Attributed funnel',Number(funnel.attributedSignups||0)+' → '+Number(funnel.attributedTrials||0)+' → '+Number(funnel.attributedPurchases||0),'Sign-ups → trials → paid checkout'],
     ['Paid customers',Number(revenue.activePaidCustomers||0),'Active Stripe plan records'],
@@ -1077,7 +1078,7 @@ function renderGrowthOptimization(data){
     const status=String(item.status||'PROPOSED');
     const mode=String(item.mode||'REVIEW');
     const proposal=item.proposal||{};
-    const proposalCopy=proposal.summary||proposal.refreshBrief||proposal.croHypothesis||(proposal.socialPosts||[]).join('\n\n')||'Measured recommendation ready; detailed proposal will appear when Sol enrichment is available.';
+    const proposalCopy=proposal.summary||proposal.refreshBrief||proposal.croHypothesis||(proposal.socialPosts||[]).join('\n\n')||'Measured recommendation ready; detailed proposal will appear when AI enrichment is available.';
     const canApprove=status==='PROPOSED'&&mode!=='PHASE3_AUTOPILOT'&&mode!=='DRAFT_ONLY';
     const canApply=(status==='APPROVED'&&mode==='APPLY_ON_APPROVAL')||(status==='PROPOSED'&&mode==='PHASE3_AUTOPILOT');
     const canReady=status==='PROPOSED'&&mode==='DRAFT_ONLY';
