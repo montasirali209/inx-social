@@ -98,7 +98,7 @@ test('Video Studio asks for explicit confirmation before high-credit generations
   assert.match(video, /Confirm high-credit video generation/);
   assert.match(video, /Balance after reservation/);
   assert.match(video, /window\.confirm\(details\)/);
-  assert.match(video, /reserved credits are returned automatically/);
+  assert.match(video, /Unused reserved credits are returned automatically/);
   assert.match(video, /onClick=\{\(\) => void requestGeneration\(\)\}/);
 });
 
