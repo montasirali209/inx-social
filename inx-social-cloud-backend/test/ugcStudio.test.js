@@ -21,18 +21,18 @@ const {
 } = require('../src/services/ugcStudioService');
 
 test('UGC pricing supports 20, 30, 45 and 60 second Standard and Premium ads', () => {
-  assert.deepEqual(STANDARD_CREDITS, { 20: 184, 30: 276, 45: 414, 60: 552 });
-  assert.deepEqual(PREMIUM_CREDITS, { 20: 650, 30: 950, 45: 1450, 60: 1900 });
+  assert.deepEqual(STANDARD_CREDITS, { 20: 140, 30: 210, 45: 315, 60: 420 });
+  assert.deepEqual(PREMIUM_CREDITS, { 20: 260, 30: 390, 45: 585, 60: 780 });
   assert.equal(AVATAR_CREDITS, 5);
   assert.equal(REFERENCE_CREDITS, 10);
-  assert.equal(creditsPerAd(20, 'STANDARD'), 184);
-  assert.equal(creditsPerAd(30, 'STANDARD'), 276);
-  assert.equal(creditsPerAd(45, 'STANDARD'), 414);
-  assert.equal(creditsPerAd(60, 'STANDARD'), 552);
-  assert.equal(creditsPerAd(20, 'PREMIUM'), 650);
-  assert.equal(creditsPerAd(30, 'PREMIUM'), 950);
-  assert.equal(creditsPerAd(45, 'PREMIUM'), 1450);
-  assert.equal(creditsPerAd(60, 'PREMIUM'), 1900);
+  assert.equal(creditsPerAd(20, 'STANDARD'), 140);
+  assert.equal(creditsPerAd(30, 'STANDARD'), 210);
+  assert.equal(creditsPerAd(45, 'STANDARD'), 315);
+  assert.equal(creditsPerAd(60, 'STANDARD'), 420);
+  assert.equal(creditsPerAd(20, 'PREMIUM'), 260);
+  assert.equal(creditsPerAd(30, 'PREMIUM'), 390);
+  assert.equal(creditsPerAd(45, 'PREMIUM'), 585);
+  assert.equal(creditsPerAd(60, 'PREMIUM'), 780);
   assert.throws(() => creditsPerAd(15, 'STANDARD'));
 });
 
