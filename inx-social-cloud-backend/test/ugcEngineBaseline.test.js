@@ -19,7 +19,7 @@ test('UGC baseline exposes conservative fallback pricing and duration surface', 
 test('UGC credit accounting reserves a safety hold and settles against provider spend', () => {
   const service = read('src/services/ugcStudioService.js');
   assert.match(service, /await credits\.reserve\(userId, generationId, heldCredits\)/);
-  assert.match(service, /await credits\.settle\(ad\.userId, ad\.generationId, chargedCredits/);
+  assert.match(service, /await credits\.settle\(ad\.userId, ad\.generationId, providerRequiredCredits/);
   assert.match(service, /await credits\.refund\(ad\.userId, ad\.generationId/);
   assert.match(service, /workflow: 'ugc_failed_after_provider_spend'/);
   assert.match(service, /ugc_campaign_reservation_failed/);
