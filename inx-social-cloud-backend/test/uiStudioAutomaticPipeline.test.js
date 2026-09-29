@@ -89,6 +89,6 @@ test('automatic responsive preview styles are present and cache is refreshed', (
   assert.match(css, /Automatic single-design responsive preview/);
   assert.match(css, /\.ui-studio-canvas-stage/);
   assert.match(css, /\.ui-studio-responsive-loader/);
-  assert.match(html, /ui-studio\.css\?v=11/);
-  assert.match(html, /ui-studio\.js\?v=11/);
+  assert.match(html, /ui-studio\.css\?v=12/);
+  assert.match(html, /ui-studio\.js\?v=12/);
 });

@@ -111,8 +111,20 @@ test('interactive canvas remains isolated from UGC generation implementation', (
   }
 });
 
+test('responsive preview iframe survives ordinary workspace rerenders', () => {
+  const js = read('public/ui-studio.js');
+
+  assert.match(js, /function responsivePreviewKey/);
+  assert.match(js, /function preserveResponsivePreviewCanvas/);
+  assert.match(js, /shell\.dataset\.previewKey !== previewKey/);
+  assert.match(js, /if \(preserveResponsivePreviewCanvas\(output, previewKey\)\) return/);
+  assert.match(js, /frame\.dataset\.previewKey === previewKey && frame\.getAttribute\('src'\)/);
+  assert.match(js, /setTimeout\(retryIfUnready, 5000\)/);
+  assert.match(js, /frame\.dataset\.retryCount = '1'/);
+});
+
 test('interactive canvas asset cache is bumped', () => {
   const html = read('public/index.html');
-  assert.match(html, /ui-studio\.css\?v=11/);
-  assert.match(html, /ui-studio\.js\?v=11/);
+  assert.match(html, /ui-studio\.css\?v=12/);
+  assert.match(html, /ui-studio\.js\?v=12/);
 });

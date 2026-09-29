@@ -50,6 +50,6 @@ test('viewport-only remains available as an explicit override', () => {
 
 test('UI Studio assets are cache-bumped after responsive edit sync', () => {
   const html = read('public/index.html');
-  assert.match(html, /ui-studio\.css\?v=11/);
-  assert.match(html, /ui-studio\.js\?v=11/);
+  assert.match(html, /ui-studio\.css\?v=12/);
+  assert.match(html, /ui-studio\.js\?v=12/);
 });
