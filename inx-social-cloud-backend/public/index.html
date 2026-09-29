@@ -7,7 +7,7 @@
   <title>INXSocial Control Centre</title>
   <link rel="stylesheet" href="/admin.css?v=22">
   <link rel="stylesheet" href="/admin-security.css?v=2">
-  <link rel="stylesheet" href="/admin-light.css?v=2">
+  <link rel="stylesheet" href="/admin-light.css?v=3">
   <link rel="stylesheet" href="/ui-studio.css?v=12">
 </head>
 <body>
@@ -81,13 +81,53 @@
         </div>
       </section>
 
-      <div class="growth-command-primary" id="growthDashboardPrimary">
-        <article><span>Live visitors</span><b>—</b><small>GA4 realtime · last 30 min</small></article>
-        <article><span>Visitors today</span><b>—</b><small>Unique active users</small></article>
+      <section class="growth-analytics-showcase" aria-label="Website analytics overview">
+        <article class="panel growth-analytics-traffic-card">
+          <header class="growth-analytics-card-head">
+            <div>
+              <span class="kicker">Website analytics</span>
+              <h2>Live traffic</h2>
+            </div>
+            <span class="growth-analytics-range">Last 7 days</span>
+          </header>
+
+          <div class="growth-analytics-metrics" id="growthDashboardLiveMetrics">
+            <div><span><i class="visitor"></i>Visitors</span><b>—</b><small>Today</small></div>
+            <div><span><i class="revenue"></i>Revenue</span><b>—</b><small>Today</small></div>
+            <div><span><i class="online"></i>Online</span><b>—</b><small>Last 30 min</small></div>
+          </div>
+
+          <div class="growth-analytics-chart" id="growthDashboardTrafficChart" aria-label="Visitor trend for the last 7 days">
+            <div class="growth-empty">Loading traffic trend…</div>
+          </div>
+          <div class="growth-analytics-axis" id="growthDashboardTrafficAxis" aria-hidden="true"></div>
+        </article>
+
+        <article class="panel growth-analytics-referrers-card">
+          <header class="growth-analytics-card-head">
+            <div>
+              <span class="kicker">Acquisition</span>
+              <h2>Referrers</h2>
+            </div>
+            <div class="growth-analytics-toggle" id="growthDashboardReferrerMode" role="group" aria-label="Referrer metric">
+              <button class="active" data-growth-referrer-mode="visitors" type="button">Visitors</button>
+              <button data-growth-referrer-mode="revenue" type="button">Revenue</button>
+            </div>
+          </header>
+          <div class="growth-analytics-referrers" id="growthDashboardReferrers">
+            <div class="growth-empty">Loading traffic sources…</div>
+          </div>
+          <small class="growth-analytics-source-note">GA4 acquisition data · last 7 days</small>
+        </article>
+      </section>
+
+      <div class="growth-command-primary growth-command-conversion-primary" id="growthDashboardPrimary">
+        <article><span>Page views today</span><b>—</b><small>Website views</small></article>
+        <article><span>CTA clicks today</span><b>—</b><small>Primary actions</small></article>
         <article><span>Signups today</span><b>—</b><small>First-party registrations</small></article>
         <article><span>Trials today</span><b>—</b><small>Verified trial starts</small></article>
         <article><span>Paid today</span><b>—</b><small>Checkout conversions</small></article>
-        <article><span>Revenue today</span><b>—</b><small>Attributed checkout revenue</small></article>
+        <article><span>Visitor → paid</span><b>—</b><small>Today conversion rate</small></article>
       </div>
 
       <section class="panel growth-command-funnel-panel">
@@ -1226,6 +1266,6 @@
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
 <script src="/ui-studio.js?v=12" defer></script>
-<script src="/admin.js?v=27" defer></script>
+<script src="/admin.js?v=28" defer></script>
 </body>
 </html>
