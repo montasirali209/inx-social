@@ -52,16 +52,106 @@ function growthDashboardDateLabel(value){
   if(/^\d{8}$/.test(text))return text.slice(6,8)+'/'+text.slice(4,6);
   return text||'—';
 }
+function growthDashboardReferrerLabel(row){
+  const source=String(row?.sessionSource||'').trim();
+  const medium=String(row?.sessionMedium||'').trim();
+  const normalized=source.toLowerCase();
+  const normalizedMedium=medium.toLowerCase();
+  if(!source||normalized==='(direct)'||normalized==='direct')return'Direct / None';
+  if(['t.co','x.com','twitter.com'].includes(normalized))return'X';
+  if(normalized.includes('duckduckgo'))return'DuckDuckGo';
+  if(normalized.includes('bing'))return'Bing';
+  if(normalized.includes('google'))return'Google';
+  if(normalized.includes('chatgpt')||normalized.includes('openai'))return'ChatGPT';
+  if(normalized.includes('facebook')||normalized==='fb')return'Facebook';
+  if(normalized.includes('linkedin'))return'LinkedIn';
+  const hideMedium=!medium||['(none)','none','organic','referral'].includes(normalizedMedium);
+  return hideMedium?source:source+' / '+medium;
+}
+function growthDashboardReferrerIcon(label){
+  const name=String(label||'').toLowerCase();
+  if(name==='x')return'𝕏';
+  if(name.includes('google'))return'G';
+  if(name.includes('bing'))return'B';
+  if(name.includes('duckduckgo'))return'D';
+  if(name.includes('chatgpt'))return'AI';
+  if(name.includes('facebook'))return'f';
+  if(name.includes('linkedin'))return'in';
+  if(name.includes('direct'))return'↗';
+  return String(label||'?').slice(0,1).toUpperCase();
+}
+function growthDashboardTrafficPath(points){
+  if(!points.length)return'';
+  if(points.length===1)return'M '+points[0].x+' '+points[0].y;
+  let path='M '+points[0].x+' '+points[0].y;
+  for(let index=1;index<points.length-1;index+=1){
+    const current=points[index];
+    const next=points[index+1];
+    const midX=(current.x+next.x)/2;
+    const midY=(current.y+next.y)/2;
+    path+=' Q '+current.x+' '+current.y+' '+midX+' '+midY;
+  }
+  const last=points[points.length-1];
+  path+=' T '+last.x+' '+last.y;
+  return path;
+}
+function renderGrowthDashboardAnalytics(live,today,week){
+  const metrics=[
+    ['Visitors',growthDashboardNum(today.activeUsers),'Today','visitor'],
+    ['Revenue',growthDashboardMoney(today.attributedRevenueGbp),'Attributed today','revenue'],
+    ['Online',growthDashboardNum(live.activeUsers),'Last '+Number(live.windowMinutes||30)+' min','online']
+  ];
+  $('growthDashboardLiveMetrics').innerHTML=metrics.map(item=>'<div><span><i class="'+esc(item[3])+'"></i>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b><small>'+esc(item[2])+'</small></div>').join('');
+
+  const daily=(week.daily||[]).slice(-7);
+  const values=daily.map(row=>Math.max(0,Number(row.activeUsers||0)));
+  if(!daily.length){
+    $('growthDashboardTrafficChart').innerHTML='<div class="growth-empty">No GA4 visitor trend is available yet.</div>';
+    $('growthDashboardTrafficAxis').innerHTML='';
+  }else{
+    const width=720,height=220,padX=12,padTop=18,padBottom=18;
+    const maxValue=Math.max(1,...values);
+    const plotHeight=height-padTop-padBottom;
+    const usableWidth=width-padX*2;
+    const points=daily.map((row,index)=>({
+      x:padX+(daily.length===1?usableWidth/2:index*(usableWidth/Math.max(1,daily.length-1))),
+      y:padTop+plotHeight-(Number(row.activeUsers||0)/maxValue)*plotHeight
+    }));
+    const linePath=growthDashboardTrafficPath(points);
+    const first=points[0],last=points[points.length-1];
+    const areaPath=linePath+' L '+last.x+' '+(height-padBottom)+' L '+first.x+' '+(height-padBottom)+' Z';
+    const grid=[0.25,0.5,0.75,1].map(ratio=>'<line x1="'+padX+'" x2="'+(width-padX)+'" y1="'+(padTop+plotHeight*ratio)+'" y2="'+(padTop+plotHeight*ratio)+'"></line>').join('');
+    $('growthDashboardTrafficChart').innerHTML='<svg viewBox="0 0 '+width+' '+height+'" role="img" aria-label="Daily visitors for the last seven days" preserveAspectRatio="none"><defs><linearGradient id="growthTrafficFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#38bdf8" stop-opacity=".24"></stop><stop offset="100%" stop-color="#38bdf8" stop-opacity="0"></stop></linearGradient></defs><g class="growth-analytics-gridlines">'+grid+'</g><path class="growth-analytics-area" d="'+areaPath+'"></path><path class="growth-analytics-line" d="'+linePath+'"></path><circle class="growth-analytics-point" cx="'+last.x+'" cy="'+last.y+'" r="4"></circle></svg>';
+    const axisIndexes=[0,Math.floor((daily.length-1)/2),daily.length-1];
+    $('growthDashboardTrafficAxis').innerHTML=axisIndexes.map(index=>'<span>'+esc(growthDashboardDateLabel(daily[index]?.date))+'</span>').join('');
+  }
+
+  const mode=state.growthDashboardReferrerMode==='revenue'?'revenue':'visitors';
+  document.querySelectorAll('[data-growth-referrer-mode]').forEach(button=>button.classList.toggle('active',button.dataset.growthReferrerMode===mode));
+  const sourceRows=(week.acquisitionSources||[]).filter(row=>String(row.sessionSource||'').trim()).slice(0,8);
+  const metricValue=row=>mode==='revenue'?Math.max(0,Number(row.totalRevenue||0)):Math.max(0,Number(row.activeUsers||0));
+  const maximum=Math.max(1,...sourceRows.map(metricValue));
+  $('growthDashboardReferrers').innerHTML=sourceRows.length?sourceRows.map(row=>{
+    const label=growthDashboardReferrerLabel(row);
+    const value=metricValue(row);
+    const width=Math.max(value>0?4:0,Math.min(100,value*100/maximum));
+    const formatted=mode==='revenue'?growthDashboardMoney(value):growthDashboardNum(value);
+    const detail=mode==='revenue'?growthDashboardNum(row.activeUsers)+' visitors':growthDashboardNum(row.sessions)+' sessions';
+    return '<div class="growth-analytics-referrer-row"><i class="growth-analytics-referrer-bar" style="width:'+width+'%"></i><span class="growth-analytics-referrer-icon">'+esc(growthDashboardReferrerIcon(label))+'</span><div><b>'+esc(label)+'</b><small>'+esc(detail)+'</small></div><strong>'+esc(formatted)+'</strong></div>';
+  }).join(''):'<div class="growth-empty">Traffic sources will appear as GA4 acquisition data arrives.</div>';
+}
+
 function renderGrowthDashboard(data){
   state.growthDashboard=data;
   const live=data.live||{},today=data.today||{},week=data.week||{},revenue=data.revenue||{},rates=today.rates||{};
+  renderGrowthDashboardAnalytics(live,today,week);
   const primary=[
-    ['Live visitors',growthDashboardNum(live.activeUsers),'GA4 realtime · last '+Number(live.windowMinutes||30)+' min'],
-    ['Visitors today',growthDashboardNum(today.activeUsers),growthDashboardNum(today.sessions)+' sessions'],
+    ['Page views today',growthDashboardNum(today.views),growthDashboardNum(today.sessions)+' sessions'],
+    ['CTA clicks today',growthDashboardNum(today.ctaClicks),growthDashboardPercent(rates.visitorToCtaPercent)+' of sessions'],
     ['Signups today',growthDashboardNum(today.registrations),growthDashboardPercent(rates.visitorToSignupPercent)+' visitor → signup'],
     ['Trials today',growthDashboardNum(today.trials),growthDashboardPercent(rates.signupToTrialPercent)+' signup → trial'],
     ['Paid today',growthDashboardNum(today.purchases),growthDashboardPercent(rates.trialToPaidPercent)+' trial → paid'],
-    ['Revenue today',growthDashboardMoney(today.attributedRevenueGbp),growthDashboardPercent(rates.visitorToPaidPercent)+' visitor → paid']
+    ['Visitor → paid',growthDashboardPercent(rates.visitorToPaidPercent),growthDashboardNum(today.purchases)+' checkout conversion'+(Number(today.purchases||0)===1?'':'s')]
   ];
   $('growthDashboardPrimary').innerHTML=primary.map(item=>'<article><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b><small>'+esc(item[2])+'</small></article>').join('');
 
@@ -194,6 +284,14 @@ async function loadGrowthDashboard(silent=false,force=false){
     return null;
   }
 }
+$('growthDashboardReferrerMode').addEventListener('click',event=>{
+  const button=event.target.closest('[data-growth-referrer-mode]');
+  if(!button)return;
+  const mode=button.dataset.growthReferrerMode;
+  if(!['visitors','revenue'].includes(mode))return;
+  state.growthDashboardReferrerMode=mode;
+  if(state.growthDashboard)renderGrowthDashboard(state.growthDashboard);
+});
 $('growthDashboardRefreshBtn').addEventListener('click',async()=>{
   const button=$('growthDashboardRefreshBtn');button.disabled=true;button.textContent='Refreshing…';
   try{await loadGrowthDashboard(false,true);toast('Growth dashboard refreshed')}finally{button.disabled=false;button.textContent='↻ Refresh'}
