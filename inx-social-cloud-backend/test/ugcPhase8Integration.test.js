@@ -52,7 +52,7 @@ test('Phase 8 reconciles engine, ads, scenes, generations, credits and Media Lib
     'ENGINE_RENDER_JOB_COUNT',
     'GENERATION_LINK',
     'COMPLETED_CREDIT_FINALIZATION',
-    'FAILED_CREDIT_REFUND',
+    'FAILED_CREDIT_SETTLEMENT',
     'ZERO_CREDIT_REASSEMBLY',
     'READY_QC',
     'MEDIA_LIBRARY_LINK',
