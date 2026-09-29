@@ -22,7 +22,7 @@ const {
 test('UGC pricing supports 20, 30, 45 and 60 second Standard and Premium ads', () => {
   assert.deepEqual(STANDARD_CREDITS, { 20: 184, 30: 276, 45: 414, 60: 552 });
   assert.deepEqual(PREMIUM_CREDITS, { 20: 530, 30: 795, 45: 1193, 60: 1590 });
-  assert.equal(AVATAR_CREDITS, 5);
+  assert.equal(AVATAR_CREDITS, 10);
   assert.equal(creditsPerAd(20, 'STANDARD'), 184);
   assert.equal(creditsPerAd(30, 'STANDARD'), 276);
   assert.equal(creditsPerAd(45, 'STANDARD'), 414);
