@@ -83,10 +83,14 @@ async function modelConfig(route) {
   return videoModels.resolveModelForGeneration(clean(route, 180) || 'pvideo');
 }
 
-async function estimateCredits(input = {}) {
+async function estimateQuote(input = {}) {
   const profile = await modelConfig(input.modelRoute);
   videoAdapters.validateSelection(profile, input, [], { requireReferences: false });
-  return videoModels.estimateCredits(profile, input);
+  return videoModels.quoteCredits(profile, input);
+}
+
+async function estimateCredits(input = {}) {
+  return (await estimateQuote(input)).credits;
 }
 
 async function fallbackRecommendation(input = {}) {
@@ -275,7 +279,7 @@ async function runVideoGeneration(userId, generationId, input, amount, profile, 
       reservedCredits: amount,
       requiredCredits: providerRequiredCredits
     });
-    const actualCredits = Math.min(amount, providerRequiredCredits);
+    const actualCredits = providerRequiredCredits;
     const asset = await persistVideo(userId, generationId, output, input, actualCredits);
     await credits.settle(userId, generationId, actualCredits, {
       provider: 'runware',
@@ -297,7 +301,9 @@ async function runVideoGeneration(userId, generationId, input, amount, profile, 
       status: Number(caught?.status || 0),
       providerDetail: clean(caught?.providerDetail, 700)
     }));
-    await credits.refund(userId, generationId, caught?.code || 'video_failed').catch(() => {});
+    if (caught?.code !== 'AI_CREDITS_SETTLEMENT_SHORTFALL') {
+      await credits.refund(userId, generationId, caught?.code || 'video_failed').catch(() => {});
+    }
     await prisma.$executeRawUnsafe('UPDATE "AiGeneration" SET "status"=$2,"errorCode"=$3,"errorMessage"=$4,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', generationId, 'FAILED', clean(caught?.code || 'AI_VIDEO_FAILED', 120), clean(caught?.publicMessage || caught?.message || 'Video generation failed.', 700)).catch(() => {});
   }
 }
@@ -315,9 +321,15 @@ async function generateVideo(userId, input = {}) {
     fps: selection.fps,
     modelRoute: profile.id
   };
-  const amount = await estimateCredits(normalized);
+  const referenceCount = [
+    normalized.firstFrameMediaLibraryAssetId || normalized.sourceMediaLibraryAssetId,
+    ...(Array.isArray(normalized.referenceMediaLibraryAssetIds) ? normalized.referenceMediaLibraryAssetIds : []),
+    normalized.lastFrameMediaLibraryAssetId
+  ].filter(Boolean).length;
+  const quote = await estimateQuote({ ...normalized, referenceCount });
+  const amount = quote.reservationCredits;
   await credits.getBalance(userId);
-  const generationId = await createGenerationRow(userId, normalized, amount);
+  const generationId = await createGenerationRow(userId, { ...normalized, pricingQuote: quote }, amount);
   setImmediate(() => { void runVideoGeneration(userId, generationId, normalized, amount, profile, selection.duration, selection.resolution, selection.aspect); });
   return { id: generationId, status: 'preparing', progress: 0 };
 }
@@ -330,4 +342,4 @@ async function videoHealth() {
   return videoModels.commercialHealth();
 }
 
-module.exports = { catalog, internalProfiles, universalCatalog, videoHealth, estimateCredits, recommendModel, generateVideo };
+module.exports = { catalog, internalProfiles, universalCatalog, videoHealth, estimateQuote, estimateCredits, recommendModel, generateVideo };
