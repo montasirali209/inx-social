@@ -55,7 +55,7 @@ function CreditEstimate({ credits, remaining, loading }: { credits: number | nul
   const insufficient = credits !== null && remaining < credits
   return <div className={`rounded-2xl border p-4 ${insufficient ? 'border-brand-red/30 bg-brand-red/[.06]' : 'border-brand-teal/25 bg-brand-teal/[.05]'}`}>
     <div className="flex items-center justify-between gap-3"><span className="flex items-center gap-2 text-xs font-semibold"><Coins className="size-4 text-brand-amber" />Campaign credits</span><strong className="text-xl">{loading ? '…' : credits?.toLocaleString() ?? '—'}</strong></div>
-    <p className="mt-1.5 text-[10px] leading-4 text-text-muted">{insufficient ? `You have ${remaining.toLocaleString()} credits. Reduce the campaign or add credits before rendering.` : 'Credits are reserved before rendering and automatically returned for failed renders.'}</p>
+    <p className="mt-1.5 text-[10px] leading-4 text-text-muted">{insufficient ? `You have ${remaining.toLocaleString()} credits. Reduce the campaign or add credits before rendering.` : 'Credits are reserved before rendering. Unused credits are returned after settlement; provider work already completed is charged at the live provider-aware rate.'}</p>
   </div>
 }
 
