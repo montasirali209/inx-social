@@ -2279,6 +2279,7 @@ async function renderAd(adId) {
   }
 
   let providerCost = Math.max(0, Number(generationRows[0]?.providerCostUsd || 0));
+  let persistedFinalAsset = null;
   const sceneProgress = scenes.map(scene => scene.status === 'READY' && scene.videoStorageKey ? 100 : 0);
   const spokenDurations = playbackDurations(ad.duration, scenes.map(scene => Number(scene.duration)));
   const updateSceneProgress = async (index, localProgress, stage) => {
@@ -2384,7 +2385,8 @@ async function renderAd(adId) {
     const finalVideo = await assembleVideo(ad, readyScenes);
     const finalBufferQC = ugcRenderQuality.validateFinalBuffer(finalVideo);
     await updateGenerationProgress(ad.generationId, 97, 'SAVING', { sceneTotal: readyScenes.length, readyScenes: readyScenes.length, qualityControlVersion: ugcRenderQuality.RENDER_QUALITY_VERSION });
-    const asset = await persistFinalAsset(ad, finalVideo, providerCost, { assembly: assemblyQC, finalBuffer: finalBufferQC });
+    persistedFinalAsset = await persistFinalAsset(ad, finalVideo, providerCost, { assembly: assemblyQC, finalBuffer: finalBufferQC });
+    const asset = persistedFinalAsset;
 
     await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "status"=\'READY\',"mediaAssetId"=$2,"errorMessage"=NULL,"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id, asset.id);
     await ugcEngine.recordRenderStatus(ad.userId, ad.campaignId, ad.id, 'READY', {
@@ -2411,6 +2413,16 @@ async function renderAd(adId) {
     );
   } catch (error) {
     console.error('[UGC RENDER FAILED]', { adId, code: error?.code, error: clean(error?.message, 700) });
+    if (error?.code === 'AI_CREDITS_SETTLEMENT_SHORTFALL' && persistedFinalAsset?.id) {
+      try {
+        const storedAsset = await prisma.agentAsset.findFirst({ where: { id: persistedFinalAsset.id, userId: ad.userId } });
+        if (storedAsset?.storageKey) await objectStorage.deleteObject(storedAsset.storageKey, storedAsset.storageProvider || null).catch(() => {});
+        await prisma.agentAsset.deleteMany({ where: { id: persistedFinalAsset.id, userId: ad.userId } });
+        await prisma.$executeRawUnsafe('UPDATE "UGCAd" SET "mediaAssetId"=NULL,"status"=\'FAILED\',"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1', ad.id).catch(() => {});
+      } catch (cleanupError) {
+        console.error('[UGC SETTLEMENT CLEANUP FAILED]', clean(cleanupError?.message, 500));
+      }
+    }
     if (error?.sceneId) {
       await prisma.$executeRawUnsafe(
         'UPDATE "UGCScene" SET "status"=\'FAILED\',"errorMessage"=$2,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=$1',
@@ -2421,7 +2433,8 @@ async function renderAd(adId) {
 
     const failureScenes = await prisma.$queryRawUnsafe('SELECT * FROM "UGCScene" WHERE "adId"=$1 ORDER BY "sequence"', ad.id).catch(() => []);
     const failureQC = ugcRenderQuality.inspect({ ad: { ...ad, status: 'FAILED', errorMessage: clean(error?.publicMessage || error?.message, 700) }, scenes: failureScenes });
-    const canRecoverLocally = !error?.sceneId
+    const canRecoverLocally = error?.code !== 'AI_CREDITS_SETTLEMENT_SHORTFALL'
+      && !error?.sceneId
       && failureQC.recovery.action === 'REASSEMBLE'
       && localFinishRecoveryAttempts < ugcRuntimePolicy.LOCAL_FINISH_RETRY_LIMIT;
 
