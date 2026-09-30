@@ -1,6 +1,6 @@
 import type { NextConfig } from "next";
 
-const backend = "https://social.inaxx.co.uk";
+const backend = "https://www.inxsocial.co.uk";
 
 const seoRoutes = [
   "social-media-scheduler",

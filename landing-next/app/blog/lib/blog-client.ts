@@ -14,7 +14,7 @@ class INXGrowthContentClient {
     this.baseUrl = (
       process.env.GROWTH_CONTENT_API_URL?.trim() ||
       process.env.INX_API_URL?.trim() ||
-      "https://social.inaxx.co.uk"
+      "https://www.inxsocial.co.uk"
     ).replace(/\/+$/, "");
     this.revalidate = process.env.NODE_ENV === "development" ? 10 : BLOG_REVALIDATE_SECONDS;
   }
