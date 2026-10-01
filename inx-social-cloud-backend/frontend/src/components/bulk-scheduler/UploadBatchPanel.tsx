@@ -7,7 +7,7 @@ import { Button } from '../ui/Button'
 import { CaptionInput } from './CaptionInput'
 import { SessionSummary } from './SessionSummary'
 import { TimingModeSelect } from './TimingModeSelect'
-import { DailyTimeSelector, displayBulkTime } from './DailyTimeSelector'
+import { DailyTimeSelector } from './DailyTimeSelector'
 import { ManualCampaignEditor, type CampaignImport } from './ManualCampaignEditor'
 import type { CampaignOrderMode } from '../../lib/campaign-order'
 
@@ -65,6 +65,13 @@ type Props = {
   onClear: () => void
   onStart: () => void
   campaignImport?: CampaignImport | null
+}
+
+function displayBulkTime(time: string) {
+  const [hours = 0, minutes = 0] = time.split(':').map(Number)
+  const period = hours >= 12 ? 'PM' : 'AM'
+  const hour = hours % 12 || 12
+  return `${String(hour).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${period}`
 }
 
 function campaignModeLabel(mode: AIPostCampaign['contentMode']) {
