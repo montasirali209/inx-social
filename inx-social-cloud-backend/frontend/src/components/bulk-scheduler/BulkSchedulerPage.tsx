@@ -1380,7 +1380,44 @@ export function BulkSchedulerPage() {
 
   const retryReviewJobs = async (jobs: DashboardJob[]) => {
     if (running || retryingId) return
-    const retryable = jobs.filter((job) => job.status === 'FAILED' && !job.metaPostId)
+    const failedJobs = jobs.filter((job) => job.status === 'FAILED')
+    if (!failedJobs.length) return
+
+    if (failedJobs.length === 1 && failedJobs[0].reviewAction === 'reupload' && failedJobs[0].contentType !== 'TEXT') {
+      const job = failedJobs[0]
+      const reuploadResult: UploadResult = {
+        id: `review-reupload:${job.id}`,
+        mediaId: job.id,
+        mediaIndex: 0,
+        jobId: job.id,
+        fileName: job.localFileName || 'Failed media post',
+        mediaKind: job.contentType === 'VIDEO' ? 'video' : 'image',
+        thumbnailUrl: '',
+        textPreview: job.caption?.replace(/\s+/g, ' ').slice(0, 180) || null,
+        destinationIds: job.destination?.id ? [job.destination.id] : [],
+        status: 'failed',
+        resultId: null,
+        errorMessage: 'The original media is no longer available in this browser session. Choose the media file again to continue.',
+        scheduledAt: job.scheduledAt,
+        caption: job.caption,
+        clientRequestId: job.clientRequestId || null,
+      }
+      setHistoryView(null)
+      setResults([reuploadResult])
+      setProgress({
+        state: 'failed',
+        percent: 100,
+        current: 1,
+        total: 1,
+        completed: 0,
+        failed: 1,
+        message: 'This failed post needs its original media file. Choose the file below to retry safely.',
+      })
+      window.requestAnimationFrame(() => batchRunSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+      return
+    }
+
+    const retryable = failedJobs.filter((job) => job.retryable === true)
     if (!retryable.length) return
 
     setHistoryView(null)
@@ -1470,6 +1507,12 @@ export function BulkSchedulerPage() {
     })
     setRetryingId(null)
     abortRef.current = null
+    await scheduler.refetch()
+  }
+
+  const deleteReviewJob = async (job: DashboardJob) => {
+    await dismissPostJob(job.id)
+    setResults((current) => current.filter((result) => result.jobId !== job.id))
     await scheduler.refetch()
   }
 
@@ -1713,7 +1756,7 @@ export function BulkSchedulerPage() {
         />
         <div className="scroll-mt-24" ref={batchRunSection}><BatchRunPanel canStart={canStart} deletingId={deletingId} destinations={destinations} disabledReason={disabledReason} hasLocalMedia={(result) => result.mediaKind === 'text' || mediaRef.current.some((candidate) => candidate.id === result.mediaId)} onDelete={deleteFailedResult} onReplaceMedia={replaceFailedResultMedia} onRetry={retryFailedUpload} onStart={requestStart} onStop={stopUpload} progress={progress} results={results} retryingId={retryingId} running={running} /></div>
       </div>
-      {historyView && <BulkScheduleManager initialView={historyView} jobs={schedulerData.jobs} onBulkCancelJobs={bulkCancelScheduledJobs} onBulkEditJobs={(jobs, rules) => { void bulkEditScheduledJobs(jobs, rules) }} onChanged={() => scheduler.refetch()} onClose={() => setHistoryView(null)} onRetryJobs={(jobs) => { void retryReviewJobs(jobs) }} timezone={schedulerData.settings.timezone} />}
+      {historyView && <BulkScheduleManager initialView={historyView} jobs={schedulerData.jobs} onBulkCancelJobs={bulkCancelScheduledJobs} onBulkEditJobs={(jobs, rules) => { void bulkEditScheduledJobs(jobs, rules) }} onChanged={() => scheduler.refetch()} onClose={() => setHistoryView(null)} onDeleteJob={deleteReviewJob} onRetryJobs={(jobs) => { void retryReviewJobs(jobs) }} timezone={schedulerData.settings.timezone} />}
       <PublishConfirmationDialog busy={running} confirmLabel={timingMode === 'publish_now' ? 'Publish batch' : 'Schedule batch'} description={mixedCampaign ? `You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} the ${mixedCampaign.posts.length}-post campaign “${mixedCampaign.title}” ${mixedCampaign.source === 'manual' && campaignOrderMode !== 'custom' ? 'with alternating text and media posts' : 'in the sequence shown'}. Media posts go to selected compatible destinations; text posts go only to destinations that support text-only publishing.` : `You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} ${batchCount} ${contentMode === 'text' ? `text post${batchCount === 1 ? '' : 's'}` : `media file${batchCount === 1 ? '' : 's'}`} across ${selectedIds.size} destination${selectedIds.size === 1 ? '' : 's'}.`} onCancel={() => setConfirmationOpen(false)} onConfirm={() => { setConfirmationOpen(false); void runBatch() }} open={confirmationOpen} title="Confirm this bulk publishing action" />
     </div>
   )
