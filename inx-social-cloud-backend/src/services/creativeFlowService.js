@@ -68,8 +68,8 @@ async function analyzeCreativeFlow(userId, input) {
     throw publicError('Enter a public product or business website.', 'CREATIVE_FLOW_URL_INVALID', 400);
   }
 
-  const referenceIds = [...new Set((input.referenceAssetIds || []).map(String).filter(Boolean))].slice(0, 4);
-  const refs = referenceIds.length ? await postStudio.referenceAssets(userId, referenceIds) : [];
+  const referenceIds = [...new Set((input.referenceAssetIds || []).map(String).filter(Boolean))].slice(0, 8);
+  const refs = referenceIds.length ? await postStudio.referenceAssets(userId, referenceIds, 8) : [];
   const contexts = normalizedUrl ? [await postStudio.fetchUrlContext(normalizedUrl)] : [];
   const sources = [
     ...contexts.map(item => ({ type: 'url', label: item.title || item.url || normalizedUrl, ok: !item.error })),
@@ -90,7 +90,8 @@ async function analyzeCreativeFlow(userId, input) {
       ].filter(Boolean).join('\n') || 'Analyse the supplied product sources for a marketing campaign.' }],
       contexts,
       refs,
-      fingerprint
+      fingerprint,
+      { maxVisionReferences: 6 }
     );
   } else {
     sourceAnalysis = emptySourceAnalysis(input, sources);
