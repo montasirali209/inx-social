@@ -236,7 +236,7 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
                   {aiCaptionBusy ? 'Generating captions…' : `AI captions · ${emptyImagePosts.length} empty`}
                 </Button>
               </div>
-              <p className="mt-2 text-[10px] leading-4 text-text-soft">AI fills image captions only when the caption box is empty. Your existing captions are never replaced. First 5 AI image captions in a manual campaign are free; larger or later batches cost 5 credits flat.</p>
+              <p className="mt-2 text-[10px] leading-4 text-text-soft">AI fills only empty image captions and never replaces your existing text. The first 5 AI captions in a manual campaign are free; after that, 5 credits unlock AI captions for the rest of that same campaign, including retries.</p>
               {aiCaptionMessage && <p className={`mt-1.5 text-[10px] leading-4 ${/could not|not enough|unavailable|failed/i.test(aiCaptionMessage) ? 'text-brand-amber' : 'text-brand-cyan'}`}>{aiCaptionMessage}</p>}
               <input accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/x-m4v,video/webm,.avi,.mkv" className="sr-only" multiple onChange={(event) => { onMediaAdd(Array.from(event.target.files || [])); event.target.value = '' }} ref={mediaInput} type="file" />
               <div className="scrollbar-thin mt-3 space-y-2 overflow-y-auto overscroll-contain lg:max-h-[51vh]" ref={mediaList}>
