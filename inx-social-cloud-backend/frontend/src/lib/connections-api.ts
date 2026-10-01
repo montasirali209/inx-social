@@ -45,6 +45,9 @@ function waitForOAuthPopup(
     let settled = false
     let polling = false
     let closeCheckRunning = false
+    let pollInterval: number | undefined
+    let closedInterval: number | undefined
+    let timeout: number | undefined
     const knownConnections = new Set(existingConnectionIds)
     const sameInxSocialOrigin = (origin: string) => {
       try {
@@ -161,9 +164,9 @@ function waitForOAuthPopup(
     window.addEventListener('focus', handleWindowFocus)
     signal?.addEventListener('abort', handleAbort, { once: true })
 
-    const pollInterval = window.setInterval(pollForConnection, 12_000)
-    const closedInterval = window.setInterval(() => void confirmClosedPopup(), 750)
-    const timeout = window.setTimeout(
+    pollInterval = window.setInterval(pollForConnection, 12_000)
+    closedInterval = window.setInterval(() => void confirmClosedPopup(), 750)
+    timeout = window.setTimeout(
       () => finish({ ok: false, error: 'We could not confirm this connection. Check Connected Accounts, then try again if it is missing.' }),
       5 * 60 * 1000,
     )
