@@ -27,6 +27,8 @@ export type CalendarPost = {
   providerPostId: string | null
   platformUrl: string | null
   errorMessage?: string | null
+  retryable?: boolean
+  reviewAction?: 'retry' | 'reupload' | 'review' | null
   smartTiming?: boolean
 }
 
