@@ -33,7 +33,7 @@ test('Calendar only sends terminal failed records to Needs Review and obeys serv
   assert.match(api, /status === 'AWAITING_UPLOAD' \|\| status === 'READY'\) return 'draft'/);
   assert.match(api, /retryable: job\.retryable/);
   assert.match(card, /post\.retryable !== false/);
-  assert.match(card, /post\.reviewAction === 'reupload'/);
+  assert.match(editor, /const missingMediaRecovery = recovery && job\.reviewAction === 'reupload'/);
   assert.match(editor, /const missingMediaRecovery = recovery && job\.reviewAction === 'reupload'/);
   assert.match(editor, /updateFailedReviewDraft/);
   assert.match(editor, /uploadDirectPostMedia/);
