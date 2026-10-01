@@ -419,7 +419,7 @@ function customerActivityMeta(metadata){
 function renderCustomerActivity(data,append=false){
   state.selectedUserActivity=data;
   const summary=data.summary||{};
-  $('customerActivitySummary').innerHTML=[
+  if(!append)$('customerActivitySummary').innerHTML=[
     ['Latest',summary.lastActivityAt?relative(summary.lastActivityAt):'—'],
     ['Visible events',Number(summary.totalVisible||0).toLocaleString()],
     ['Publishing',Number(summary.publishing||0).toLocaleString()],
@@ -525,7 +525,6 @@ async function refreshSelectedUser(){
   state.selectedUser=user;
   state.selectedUserTab=currentTab;
   renderUserModal(user);
-  if(currentTab==='activity')await loadCustomerActivity();
   await loadUsers();
 }
 
@@ -537,7 +536,6 @@ async function openUser(id,tab='overview'){
   state.selectedUserActivity=null;
   renderUserModal(user);
   $('userDialog').showModal();
-  if(state.selectedUserTab==='activity')await loadCustomerActivity();
 }
 
 async function applyPlanOverride(){try{const days=$('overrideDays').value.trim();await api(`/api/admin/users/${encodeURIComponent(state.selectedUser.id)}/commercial-plan`,{method:'PATCH',body:JSON.stringify({action:'APPLY',plan:$('overridePlan').value,durationDays:days?Number(days):null,reason:$('overrideReason').value.trim()})});toast('Manual plan override applied');await refreshSelectedUser();await loadOverview(true)}catch(error){toast(error.message)}}
