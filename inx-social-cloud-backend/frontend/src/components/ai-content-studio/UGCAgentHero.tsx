@@ -1,7 +1,6 @@
 import {
   ArrowRight, Clapperboard, Paperclip, Sparkles, UserRound, WandSparkles,
 } from 'lucide-react'
-import { motion, useReducedMotion } from 'motion/react'
 import { useState } from 'react'
 import type { CreateUGCCampaignInput, UGCAvatar } from '../../types/ugc-studio'
 
@@ -60,14 +59,9 @@ function draftFromPrompt(value: string): Partial<CreateUGCCampaignInput> {
 }
 
 function UGCMotionGraphic() {
-  const reduceMotion = useReducedMotion()
-  const infinite = reduceMotion ? undefined : { repeat: Infinity, repeatType: 'loop' as const }
-
   return <div aria-hidden="true" className="ugc-motion-graphic">
-    <motion.div
-      animate={reduceMotion ? undefined : { opacity: [.38, .68, .38], scale: [.94, 1.06, .94] }}
+    <div
       className="ugc-motion-ambient"
-      transition={{ duration: 5.5, ease: 'easeInOut', ...infinite }}
     />
 
     <div className="ugc-motion-topline">
@@ -76,69 +70,51 @@ function UGCMotionGraphic() {
     </div>
 
     <div className="ugc-motion-stage">
-      <motion.div
-        animate={reduceMotion ? undefined : { rotate: 360 }}
+      <div
         className="ugc-motion-orbit ugc-motion-orbit-outer"
-        transition={{ duration: 18, ease: 'linear', ...infinite }}
       >
         <span className="ugc-motion-orbit-dot" />
-      </motion.div>
-      <motion.div
-        animate={reduceMotion ? undefined : { rotate: -360 }}
+      </div>
+      <div
         className="ugc-motion-orbit ugc-motion-orbit-inner"
-        transition={{ duration: 13, ease: 'linear', ...infinite }}
       >
         <span className="ugc-motion-orbit-dot secondary" />
-      </motion.div>
-
-      <motion.div
-        animate={reduceMotion ? undefined : { y: [0, -5, 0], scale: [1, 1.025, 1] }}
-        className="ugc-motion-core"
-        transition={{ duration: 4.2, ease: 'easeInOut', ...infinite }}
-      >
-        <motion.span
-          animate={reduceMotion ? undefined : { rotate: [0, 10, -8, 0] }}
-          className="ugc-motion-core-icon"
-          transition={{ duration: 4.8, ease: 'easeInOut', ...infinite }}
-        >
-          <Sparkles className="size-6" />
-        </motion.span>
-        <strong>AI UGC</strong>
-        <small>Idea to creator-ready video</small>
-      </motion.div>
-
-      <div className="ugc-motion-route">
-        <motion.span
-          animate={reduceMotion ? undefined : { y: [0, -3, 0] }}
-          className="ugc-motion-endpoint creator"
-          transition={{ duration: 3.6, ease: 'easeInOut', ...infinite }}
-        >
-          <UserRound className="size-4" />
-        </motion.span>
-        <div className="ugc-motion-line">
-          <motion.i
-            animate={reduceMotion ? undefined : { left: ['0%', 'calc(100% - 10px)'], opacity: [0, 1, 1, 0] }}
-            transition={{ duration: 2.6, ease: 'easeInOut', ...infinite }}
-          />
-        </div>
-        <motion.span
-          animate={reduceMotion ? undefined : { y: [0, 3, 0] }}
-          className="ugc-motion-endpoint video"
-          transition={{ duration: 3.9, ease: 'easeInOut', ...infinite }}
-        >
-          <Clapperboard className="size-4" />
-        </motion.span>
       </div>
 
-      <motion.span
-        animate={reduceMotion ? undefined : { x: [0, 8, 0], y: [0, -8, 0], opacity: [.45, 1, .45] }}
+      <div
+        className="ugc-motion-core"
+      >
+        <span
+          className="ugc-motion-core-icon"
+        >
+          <Sparkles className="size-6" />
+        </span>
+        <strong>AI UGC</strong>
+        <small>Idea to creator-ready video</small>
+      </div>
+
+      <div className="ugc-motion-route">
+        <span
+          className="ugc-motion-endpoint creator"
+        >
+          <UserRound className="size-4" />
+        </span>
+        <div className="ugc-motion-line">
+          <i
+          />
+        </div>
+        <span
+          className="ugc-motion-endpoint video"
+        >
+          <Clapperboard className="size-4" />
+        </span>
+      </div>
+
+      <span
         className="ugc-motion-particle particle-a"
-        transition={{ duration: 4.1, ease: 'easeInOut', ...infinite }}
       />
-      <motion.span
-        animate={reduceMotion ? undefined : { x: [0, -6, 0], y: [0, 7, 0], opacity: [.3, .8, .3] }}
+      <span
         className="ugc-motion-particle particle-b"
-        transition={{ duration: 5.2, ease: 'easeInOut', ...infinite }}
       />
     </div>
 
