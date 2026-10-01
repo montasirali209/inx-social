@@ -51,6 +51,7 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
   const mediaCards = useRef(new Map<string, HTMLElement>())
   const previousMediaRects = useRef(new Map<string, DOMRect>())
   const dragState = useRef<{ id: string; pointerId: number; startX: number; startY: number; moved: boolean; lastOverId: string | null } | null>(null)
+  const onMediaReorderRef = useRef(onMediaReorder)
   const [draggingMediaId, setDraggingMediaId] = useState<string | null>(null)
   const [dragOverMediaId, setDragOverMediaId] = useState<string | null>(null)
   const parsed = parseTextPosts(bulkText)
@@ -58,6 +59,10 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
   const mediaPosts = campaign.posts.filter((post) => post.contentType !== 'TEXT')
   const emptyImagePosts = mediaPosts.filter((post) => post.contentType === 'IMAGE' && !post.caption.trim())
   const mediaOrderKey = mediaPosts.map((post) => post.id).join('|')
+
+  useEffect(() => {
+    onMediaReorderRef.current = onMediaReorder
+  }, [onMediaReorder])
 
   useLayoutEffect(() => {
     const nextRects = new Map<string, DOMRect>()
@@ -106,7 +111,6 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
 
   useEffect(() => {
     const clearDrag = () => {
-      if (!dragState.current && !draggingMediaId && !dragOverMediaId) return
       dragState.current = null
       setDraggingMediaId(null)
       setDragOverMediaId(null)
@@ -143,7 +147,7 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
 
       drag.lastOverId = overId
       setDragOverMediaId(overId)
-      onMediaReorder(drag.id, overId)
+      onMediaReorderRef.current(drag.id, overId)
     }
 
     const onPointerEnd = (event: PointerEvent) => {
@@ -169,7 +173,7 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
       window.removeEventListener('blur', clearDrag)
       document.removeEventListener('visibilitychange', onVisibilityChange)
     }
-  }, [dragOverMediaId, draggingMediaId, onMediaReorder])
+  }, [])
 
   const handleMediaKeyboard = (event: ReactKeyboardEvent<HTMLElement>, id: string) => {
     if (running || aiCaptionBusy) return
