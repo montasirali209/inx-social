@@ -7,6 +7,7 @@ const studioService = require('../services/aiContentStudioService');
 const postStudioService = require('../services/aiPostStudioService');
 const runware = require('../services/runwareService');
 const campaignService = require('../services/aiPostCampaignService');
+const creativeFlowService = require('../services/creativeFlowService');
 
 const contentType = z.enum(['image_post', 'carousel_post', 'short_video', 'ugc_ad']);
 const generationSchema = z.object({
@@ -86,6 +87,48 @@ const campaignPostSchema = z.object({
   cta: z.string().max(300).optional(),
   hashtags: z.array(z.string().max(80)).max(10).optional(),
   imageBrief: z.string().max(4000).optional()
+});
+
+
+const creativeFlowAnalyzeSchema = z.object({
+  website: z.string().trim().max(2000).optional().default(''),
+  productName: z.string().trim().max(160).optional().default(''),
+  prompt: z.string().trim().max(2500).optional().default(''),
+  audience: z.string().trim().max(600).optional().default(''),
+  referenceAssetIds: z.array(z.string().trim().min(1).max(120)).max(8).optional().default([])
+}).superRefine((value, context) => {
+  if (!value.website && !value.productName && !value.prompt && !value.referenceAssetIds.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['prompt'], message: 'Add a product website, product name, image or campaign brief.' });
+  }
+});
+
+const creativeFlowSourceAnalysisSchema = z.object({
+  fingerprint: z.string().max(120).optional().default(''),
+  productName: z.string().max(160).optional().default(''),
+  summary: z.string().max(1200).optional().default(''),
+  positioning: z.string().max(800).optional().default(''),
+  audience: z.array(z.string().max(240)).max(8).optional().default([]),
+  verifiedClaims: z.array(z.string().max(360)).max(12).optional().default([]),
+  visualIdentity: z.array(z.string().max(300)).max(10).optional().default([]),
+  assetObservations: z.array(z.string().max(360)).max(10).optional().default([]),
+  strongestAngles: z.array(z.string().max(360)).max(8).optional().default([]),
+  cautions: z.array(z.string().max(360)).max(8).optional().default([]),
+  sources: z.array(z.object({
+    type: z.enum(['url', 'reference']),
+    label: z.string().max(300),
+    ok: z.boolean()
+  })).max(10).optional().default([])
+});
+
+const creativeFlowStrategySchema = z.object({
+  productName: z.string().trim().max(160).optional().default(''),
+  prompt: z.string().trim().min(2).max(2500),
+  platforms: z.array(z.string().trim().min(1).max(80)).max(8).optional().default([]),
+  creativeCount: z.number().int().min(1).max(50).default(20),
+  goal: z.string().trim().max(120).optional().default('auto'),
+  style: z.string().trim().max(160).optional().default('auto'),
+  audience: z.string().trim().max(600).optional().default(''),
+  sourceAnalysis: creativeFlowSourceAnalysisSchema
 });
 
 const TRANSIENT_AI_STATUSES = new Set([500, 502, 503, 504]);
@@ -246,6 +289,26 @@ async function createTopupCheckout(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function analyzeCreativeFlow(req, res, next) {
+  try {
+    const input = creativeFlowAnalyzeSchema.parse(req.body || {});
+    res.json(await withStudioRetry(
+      () => creativeFlowService.analyzeCreativeFlow(req.user.id, input),
+      'Creative Flow source analysis'
+    ));
+  } catch (error) { next(error); }
+}
+
+async function planCreativeFlow(req, res, next) {
+  try {
+    const input = creativeFlowStrategySchema.parse(req.body || {});
+    res.json(await withStudioRetry(
+      () => creativeFlowService.planCreativeFlow(req.user.id, input),
+      'Creative Flow strategy'
+    ));
+  } catch (error) { next(error); }
+}
+
 async function createCampaign(req, res, next) {
   try {
     const input = campaignSchema.parse(req.body || {});
@@ -327,5 +390,6 @@ module.exports = {
   generateUGCAd: generation('ugc_ad'),
   generationStatus, cancelGeneration, dismissGeneration, recentDrafts, saveDraft, deleteDraft, sendDraftToPosts,
   generationHistory, brandKits, packs, createTopupCheckout, creditWebhook,
+  analyzeCreativeFlow, planCreativeFlow,
   createCampaign, listCampaigns, getCampaign, updateCampaignPost, regenerateCampaignPost, generateCampaignPostImage, deleteCampaign
 };
