@@ -6,30 +6,36 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('Creative Flow stage 1 is a simple UI-only campaign builder', () => {
+test('Creative Flow stage 1 is a connected visual workflow with simple node editing', () => {
   const page = read('frontend/src/components/ai-content-studio/AiContentStudioPage.tsx');
-  const flow = read('frontend/src/components/ai-content-studio/CreativeFlowModal.tsx');
+  const modal = read('frontend/src/components/ai-content-studio/CreativeFlowModal.tsx');
+  const canvas = read('frontend/src/components/ai-content-studio/CreativeFlowCanvas.tsx');
 
   assert.match(page, /CreativeFlowLaunchCard/);
   assert.match(page, /CreativeFlowModal/);
-  assert.match(flow, /Add your product/);
-  assert.match(flow, /What do you want to create\?/);
-  assert.match(flow, /Number of creatives/);
-  assert.match(flow, /Advanced options/);
-  assert.match(flow, /Stage 1 UI preview/);
-  assert.match(flow, /No provider requests, credits, database writes or publishing actions/);
-  assert.match(flow, /Generating creatives/);
-  assert.match(flow, /Campaign ready/);
-  assert.match(flow, /Add to campaign/);
+  assert.match(modal, /CreativeFlowCanvas/);
+  assert.match(canvas, /Product source/);
+  assert.match(canvas, /Campaign brief/);
+  assert.match(canvas, /Platforms/);
+  assert.match(canvas, /Creative strategy/);
+  assert.match(canvas, /Generate creatives/);
+  assert.match(canvas, /Review campaign/);
+  assert.match(canvas, /strokeDasharray/);
+  assert.match(canvas, /Drag nodes/);
+  assert.match(canvas, /Advanced options/);
+  assert.match(canvas, /Run Creative Flow/);
+  assert.match(modal, /Campaign ready/);
 });
 
-test('Creative Flow stage 1 has no backend or provider dependency', () => {
-  const flow = read('frontend/src/components/ai-content-studio/CreativeFlowModal.tsx');
+test('Creative Flow stage 1 remains UI-only with no provider or backend dependency', () => {
+  const modal = read('frontend/src/components/ai-content-studio/CreativeFlowModal.tsx');
+  const canvas = read('frontend/src/components/ai-content-studio/CreativeFlowCanvas.tsx');
+  const combined = modal + canvas;
 
-  assert.doesNotMatch(flow, /ai-content-studio-api/);
-  assert.doesNotMatch(flow, /apiRequest/);
-  assert.doesNotMatch(flow, /fetch\(/);
-  assert.doesNotMatch(flow, /axios/);
-  assert.doesNotMatch(flow, /runware/i);
-  assert.doesNotMatch(flow, /openai/i);
+  assert.doesNotMatch(combined, /ai-content-studio-api/);
+  assert.doesNotMatch(combined, /apiRequest/);
+  assert.doesNotMatch(combined, /fetch\(/);
+  assert.doesNotMatch(combined, /axios/);
+  assert.doesNotMatch(combined, /runware/i);
+  assert.doesNotMatch(combined, /openai/i);
 });
