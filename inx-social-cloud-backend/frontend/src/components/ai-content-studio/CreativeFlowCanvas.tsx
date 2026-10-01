@@ -25,6 +25,8 @@ export type CreativeFlowAsset = {
   id: string
   name: string
   url: string
+  file: File
+  referenceId?: string
 }
 
 type Position = { x: number; y: number }
@@ -92,7 +94,7 @@ export function CreativeFlowCanvas(props: Props) {
   const canvasRef = useRef<HTMLDivElement>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
-  const resolvedCount = Math.max(1, Math.min(100, Number(props.customCount || props.creativeCount) || 20))
+  const resolvedCount = Math.max(1, Math.min(50, Number(props.customCount || props.creativeCount) || 20))
 
   const connectionPaths = useMemo(() => connections.map(([from, to]) => {
     const a = positions[from]
@@ -234,7 +236,7 @@ export function CreativeFlowCanvas(props: Props) {
         {selectedNode === 'review' && <ReviewEditor />}
       </div>
       <div className="border-t border-border-soft p-4">
-        <div className="mb-3 rounded-xl border border-brand-purple/15 bg-brand-purple/[.035] p-3 text-[9px] leading-4 text-text-muted"><strong className="text-text-main">Stage 1 preview.</strong> The canvas is interactive, but running it uses sample data only.</div>
+        <div className="mb-3 rounded-xl border border-brand-purple/15 bg-brand-purple/[.035] p-3 text-[9px] leading-4 text-text-muted"><strong className="text-text-main">Stage 2 preview.</strong> Product analysis and creative strategy are real. Image generation and publishing remain disabled.</div>
         <Button className="w-full" disabled={!props.canRun} onClick={props.onRun} variant="primary"><WandSparkles className="size-4" />Run Creative Flow</Button>
       </div>
     </aside>
@@ -312,11 +314,11 @@ function StrategyEditor(props: Props) {
 }
 
 function GenerateEditor({ creativeCount, customCount, onCreativeCountChange, onCustomCountChange }: Pick<Props, 'creativeCount' | 'customCount' | 'onCreativeCountChange' | 'onCustomCountChange'>) {
-  return <div><span className="text-[9px] font-semibold text-text-muted">How many creatives?</span><div className="mt-2 grid grid-cols-4 gap-2">{counts.map((count) => <button aria-pressed={!customCount && creativeCount === count} className={`rounded-xl border px-2 py-2.5 text-[9px] font-semibold ${!customCount && creativeCount === count ? 'border-brand-cyan/40 bg-brand-cyan/[.07] text-brand-teal' : 'border-border-soft bg-slate-50 text-text-muted'}`} key={count} onClick={() => { onCreativeCountChange(count); onCustomCountChange('') }} type="button">{count}</button>)}</div><label className="mt-3 block"><span className="text-[9px] font-semibold text-text-muted">Custom amount</span><input className="mt-1.5 min-h-10 w-full rounded-xl border border-border-soft bg-slate-50 px-3 text-[10px] outline-none focus:border-brand-cyan focus:bg-white" max={100} min={1} onChange={(event) => onCustomCountChange(event.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="1–100" value={customCount} /></label><div className="mt-4 rounded-xl border border-border-soft bg-slate-50 p-3 text-[8px] leading-4 text-text-muted"><Layers3 className="mb-2 size-4 text-brand-cyan" />Each output will come from a different creative concept instead of repeating one layout.</div></div>
+  return <div><span className="text-[9px] font-semibold text-text-muted">How many creatives?</span><div className="mt-2 grid grid-cols-4 gap-2">{counts.map((count) => <button aria-pressed={!customCount && creativeCount === count} className={`rounded-xl border px-2 py-2.5 text-[9px] font-semibold ${!customCount && creativeCount === count ? 'border-brand-cyan/40 bg-brand-cyan/[.07] text-brand-teal' : 'border-border-soft bg-slate-50 text-text-muted'}`} key={count} onClick={() => { onCreativeCountChange(count); onCustomCountChange('') }} type="button">{count}</button>)}</div><label className="mt-3 block"><span className="text-[9px] font-semibold text-text-muted">Custom amount</span><input className="mt-1.5 min-h-10 w-full rounded-xl border border-border-soft bg-slate-50 px-3 text-[10px] outline-none focus:border-brand-cyan focus:bg-white" max={50} min={1} onChange={(event) => onCustomCountChange(event.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="1–50" value={customCount} /></label><div className="mt-4 rounded-xl border border-border-soft bg-slate-50 p-3 text-[8px] leading-4 text-text-muted"><Layers3 className="mb-2 size-4 text-brand-cyan" />Each output will come from a different creative concept instead of repeating one layout.</div></div>
 }
 
 function ReviewEditor() {
-  return <div className="space-y-3"><div className="rounded-xl border border-brand-green/20 bg-brand-green/[.04] p-3"><strong className="flex items-center gap-2 text-[10px]"><Check className="size-3.5 text-brand-green" />Review before publishing</strong><p className="mt-1.5 text-[8px] leading-4 text-text-muted">Approve, edit, regenerate or create variations before handing the campaign to Bulk Scheduler.</p></div><div className="rounded-xl border border-border-soft bg-slate-50 p-3 text-[8px] leading-4 text-text-muted">The real campaign handoff remains disabled in Stage 1.</div></div>
+  return <div className="space-y-3"><div className="rounded-xl border border-brand-green/20 bg-brand-green/[.04] p-3"><strong className="flex items-center gap-2 text-[10px]"><Check className="size-3.5 text-brand-green" />Review before publishing</strong><p className="mt-1.5 text-[8px] leading-4 text-text-muted">Approve, edit, regenerate or create variations before handing the campaign to Bulk Scheduler.</p></div><div className="rounded-xl border border-border-soft bg-slate-50 p-3 text-[8px] leading-4 text-text-muted">Image generation and campaign handoff remain disabled until Stage 3.</div></div>
 }
 
 function nodeTitle(id: CreativeFlowNodeId) {
