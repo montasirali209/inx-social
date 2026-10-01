@@ -12,7 +12,7 @@ export function TopPerformingContentCard({ items }: { items: TopContentItem[] })
   const rankedItems = items.filter((item) => item.engagement !== null)
   return (
     <ChartCard
-      action={<a aria-label="Open detailed Analytics" className="rounded-lg border border-border-soft px-2 py-1 text-[9px] text-text-muted transition hover:border-brand-cyan/45 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/analytics">Last 30 days</a>}
+      action={<a aria-label="Open detailed Analytics" className="rounded-lg border border-border-soft px-2 py-1 text-[9px] text-text-muted transition hover:border-brand-cyan/45 hover:text-text-main focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/analytics">Last 30 days</a>}
       className="min-h-[215px]"
       title="Top Performing Content"
     >

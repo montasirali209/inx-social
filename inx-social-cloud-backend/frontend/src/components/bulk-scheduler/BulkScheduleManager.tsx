@@ -146,14 +146,14 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
   return createPortal(
     <div className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-[#01070d]/88 p-0 backdrop-blur-md sm:p-5" onMouseDown={(event) => { if (event.currentTarget === event.target && !editing && !bulkEditing && !bulkCancelling) onClose() }}>
       <section aria-modal="true" className="my-auto flex h-dvh w-full max-w-7xl flex-col overflow-hidden rounded-none sm:h-auto sm:max-h-[min(900px,calc(100dvh-2rem))] sm:rounded-[22px] border border-brand-cyan/25 bg-panel shadow-[0_38px_150px_rgba(0,0,0,.74)]" role="dialog">
-        <header className="border-b border-border-soft bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,.10),transparent_42%),linear-gradient(135deg,rgba(10,30,44,.98),rgba(6,18,29,.98))] p-3 sm:p-6">
+        <header className="border-b border-border-soft bg-[radial-gradient(circle_at_top_left,rgba(45,212,191,.07),transparent_42%),linear-gradient(135deg,rgba(255,255,255,.99),rgba(248,250,252,.99))] p-3 sm:p-6">
           <div className="flex items-start gap-3">
             <span className="grid size-11 shrink-0 place-items-center rounded-xl border border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan"><CalendarClock className="size-5" /></span>
             <div className="min-w-0 flex-1">
               <h2 className="text-lg font-semibold sm:text-xl">Bulk schedule manager</h2>
               <p className="mt-1 max-w-3xl text-xs leading-5 text-text-muted">Review future schedules, published posts, and anything that needs attention. Select scheduled destinations to bulk edit or cancel their schedules safely.</p>
             </div>
-            <button aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-lg border border-transparent text-text-muted transition hover:border-border-soft hover:bg-white/5 hover:text-white" onClick={onClose} type="button"><X className="size-4" /></button>
+            <button aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-lg border border-transparent text-text-muted transition hover:border-border-soft hover:bg-slate-50 hover:text-text-main" onClick={onClose} type="button"><X className="size-4" /></button>
           </div>
 
           <div className="mt-4 grid grid-cols-2 gap-2 xl:grid-cols-4">
@@ -162,7 +162,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
               const attention = id === 'needs_review' && counts[id] > 0
               return <button
                 aria-pressed={selected}
-                className={`group rounded-xl border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${selected ? attention ? 'border-brand-amber/45 bg-brand-amber/[.08]' : 'border-brand-cyan/40 bg-brand-cyan/[.07]' : 'border-border-soft bg-black/10 hover:border-brand-cyan/25 hover:bg-white/[.025]'}`}
+                className={`group rounded-xl border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${selected ? attention ? 'border-brand-amber/45 bg-brand-amber/[.08]' : 'border-brand-cyan/40 bg-brand-cyan/[.07]' : 'border-border-soft bg-slate-50 hover:border-brand-cyan/25 hover:bg-white/[.025]'}`}
                 key={id}
                 onClick={() => {
                   setView(id)
@@ -215,7 +215,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
               </div>
             </div>
 
-            {availableDestinations.length > 1 && <div className="flex flex-wrap items-center gap-1.5 border-t border-white/6 pt-3">
+            {availableDestinations.length > 1 && <div className="flex flex-wrap items-center gap-1.5 border-t border-border-soft pt-3">
               <span className="mr-1 text-[9px] font-semibold uppercase tracking-[.06em] text-text-soft">Destination scope</span>
               <button className={`rounded-lg border px-2.5 py-1.5 text-[9px] font-semibold transition ${!destinationScope.size ? 'border-brand-cyan/35 bg-brand-cyan/10 text-brand-cyan' : 'border-border-soft text-text-muted hover:text-white'}`} onClick={() => { setDestinationScope(new Set()); setSelectedIds(new Set()) }} type="button">All destinations</button>
               {availableDestinations.map((destination) => {
@@ -254,12 +254,12 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
                   </div>
 
                   <div className="mt-3 flex flex-wrap gap-2 text-[9px] text-text-soft">
-                    <span className="rounded-lg border border-border-soft bg-black/10 px-2 py-1">{job.destination?.platform === 'x' ? 'X' : job.destination?.platform || 'social'} · {job.destination?.name || job.destination?.username || 'Connected destination'}</span>
-                    <span className="rounded-lg border border-border-soft bg-black/10 px-2 py-1">{formatSchedule(job.scheduledAt, timezone)}</span>
-                    <span className="rounded-lg border border-border-soft bg-black/10 px-2 py-1">{job.contentType.toLowerCase()} post</span>
+                    <span className="rounded-lg border border-border-soft bg-slate-50 px-2 py-1">{job.destination?.platform === 'x' ? 'X' : job.destination?.platform || 'social'} · {job.destination?.name || job.destination?.username || 'Connected destination'}</span>
+                    <span className="rounded-lg border border-border-soft bg-slate-50 px-2 py-1">{formatSchedule(job.scheduledAt, timezone)}</span>
+                    <span className="rounded-lg border border-border-soft bg-slate-50 px-2 py-1">{job.contentType.toLowerCase()} post</span>
                   </div>
 
-                  {review && <div className="mt-3 rounded-xl border border-brand-amber/20 bg-black/15 px-3 py-2.5">
+                  {review && <div className="mt-3 rounded-xl border border-brand-amber/20 bg-slate-50 px-3 py-2.5">
                     <strong className="flex items-center gap-2 text-[10px] text-brand-amber"><AlertTriangle className="size-3.5" />{reviewTitle(job)}</strong>
                     <p className="mt-1 text-[10px] leading-5 text-text-muted">{reviewMessage(job)}</p>
                   </div>}
@@ -272,7 +272,7 @@ export function BulkScheduleManager({ jobs, initialView, timezone, onClose, onCh
                 </div>
               </div>
             </article>
-          })}</div> : <div className="grid min-h-72 place-items-center rounded-2xl border border-dashed border-border-soft bg-black/10 text-center"><span><CalendarClock className="mx-auto size-7 text-brand-cyan" /><strong className="mt-3 block text-sm">Nothing in this view</strong><small className="mt-1 block text-[10px] text-text-muted">{view === 'needs_review' ? 'No publishing issues need attention.' : 'Bulk publishing records will appear here after a batch is created.'}</small></span></div>}
+          })}</div> : <div className="grid min-h-72 place-items-center rounded-2xl border border-dashed border-border-soft bg-slate-50 text-center"><span><CalendarClock className="mx-auto size-7 text-brand-cyan" /><strong className="mt-3 block text-sm">Nothing in this view</strong><small className="mt-1 block text-[10px] text-text-muted">{view === 'needs_review' ? 'No publishing issues need attention.' : 'Bulk publishing records will appear here after a batch is created.'}</small></span></div>}
         </div>
       </section>
 

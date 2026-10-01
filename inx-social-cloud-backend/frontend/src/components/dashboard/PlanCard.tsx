@@ -5,7 +5,7 @@ export function PlanCard({ overview }: { overview: StudioOverview | undefined })
   const sourcePlan = overview?.license.plan || 'Account'
   const plan = sourcePlan === 'LIFETIME' || sourcePlan === 'PRO' ? 'Plus' : sourcePlan === 'STARTER' ? 'Pro' : sourcePlan.charAt(0) + sourcePlan.slice(1).toLowerCase()
   return (
-    <section className="overflow-hidden rounded-card border border-brand-cyan/25 bg-[radial-gradient(circle_at_90%_10%,rgba(45,212,191,0.12),transparent_8rem),linear-gradient(145deg,rgba(20,184,166,0.1),rgba(7,25,35,0.96)_52%,rgba(16,185,129,0.05))] p-4 shadow-[0_16px_44px_rgba(0,0,0,.2)]">
+    <section className="overflow-hidden rounded-card border border-brand-cyan/25 bg-[radial-gradient(circle_at_90%_10%,rgba(45,212,191,0.10),transparent_8rem),linear-gradient(145deg,rgba(240,253,250,.98),rgba(255,255,255,.99)_52%,rgba(236,253,245,.92))] p-4 shadow-[0_12px_30px_rgba(15,23,42,.08)]">
       <p className="text-xs font-bold uppercase tracking-[0.14em] text-brand-cyan">INXSocial {plan}</p>
       <p className="mt-2.5 text-sm font-semibold">{overview?.license.allowed ? `You’re on the ${plan} Plan` : 'Your publishing access needs attention'}</p>
       <ul className="mt-3 grid gap-2 text-[11px] text-text-muted">

@@ -29,6 +29,11 @@ function AppShellContent() {
   })
 
   useEffect(() => {
+    document.body.classList.add('inx-white-ui-preview')
+    return () => document.body.classList.remove('inx-white-ui-preview')
+  }, [])
+
+  useEffect(() => {
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection
     if (connection?.saveData || connection?.effectiveType === 'slow-2g' || connection?.effectiveType === '2g') return
     const warm = () => { void preloadAllAppRoutes() }

@@ -64,14 +64,14 @@ export function AssetPreviewPanel({
           </div>
           <button
             aria-label="Close preview"
-            className="rounded-lg p-2 text-text-muted hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan"
+            className="rounded-lg p-2 text-text-muted hover:bg-slate-50 hover:text-text-main focus-visible:outline-2 focus-visible:outline-brand-cyan"
             onClick={onClose}
             type="button"
           >
             <X className="size-4" />
           </button>
         </header>
-        <div className="mt-4 rounded-2xl border border-border-soft bg-bg/50 p-2">
+        <div className="mt-4 rounded-2xl border border-border-soft bg-white p-2">
           <div className="scrollbar-thin flex h-52 items-start overflow-y-auto overscroll-contain rounded-xl bg-black/20">
             {asset.type === "video" ? (
               <video
@@ -121,7 +121,7 @@ export function AssetPreviewPanel({
                 { label: "Rename", icon: Pencil, action: onRename },
                 { label: "Duplicate", icon: Copy, action: onDuplicate },
                 { label: "Remove", icon: Trash2, action: onDelete, danger: true },
-              ].map(({ label, icon: Icon, action, danger }) => <button className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] transition hover:bg-panel-hover focus-visible:outline-2 focus-visible:outline-brand-cyan ${danger ? "text-brand-red" : "text-text-muted hover:text-white"}`} key={label} onClick={(event) => { event.preventDefault(); action(); const details = event.currentTarget.closest("details"); if (details) details.open = false }} type="button"><Icon className="size-3.5" />{label}</button>)}
+              ].map(({ label, icon: Icon, action, danger }) => <button className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] transition hover:bg-panel-hover focus-visible:outline-2 focus-visible:outline-brand-cyan ${danger ? "text-brand-red" : "text-text-muted hover:text-text-main"}`} key={label} onClick={(event) => { event.preventDefault(); action(); const details = event.currentTarget.closest("details"); if (details) details.open = false }} type="button"><Icon className="size-3.5" />{label}</button>)}
             </div>
           </details>}
         </div>
@@ -195,7 +195,7 @@ export function AssetPreviewPanel({
             <ul className="mt-2 space-y-2">
               {asset.usedIn.map((post) => (
                 <li
-                  className="rounded-xl border border-border-soft bg-bg/25 p-2 text-[10px]"
+                  className="rounded-xl border border-border-soft bg-slate-50 p-2 text-[10px]"
                   key={post.id}
                 >
                   <strong>{post.title}</strong>

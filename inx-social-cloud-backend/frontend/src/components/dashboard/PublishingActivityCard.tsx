@@ -20,7 +20,7 @@ export function PublishingActivityCard({
   const hasActivity = points.some((point) => point.published || point.scheduled || point.engagement)
 
   return (
-    <section className="group relative min-h-0 overflow-hidden rounded-panel border border-teal-300/18 bg-[radial-gradient(circle_at_50%_0%,rgba(20,184,166,.08),transparent_28rem),linear-gradient(145deg,rgba(7,25,35,.98),rgba(5,18,31,.96))] p-3 shadow-[0_20px_55px_rgba(0,0,0,.27),0_0_42px_rgba(20,184,166,.05),inset_0_1px_rgba(255,255,255,.035)]">
+    <section className="group relative min-h-0 overflow-hidden rounded-panel border border-teal-300/18 bg-[radial-gradient(circle_at_50%_0%,rgba(20,184,166,.055),transparent_28rem),linear-gradient(145deg,rgba(255,255,255,.99),rgba(248,250,252,.98))] p-3 shadow-[0_16px_42px_rgba(15,23,42,.08),0_0_34px_rgba(20,184,166,.045),inset_0_1px_rgba(255,255,255,.9)]">
       <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-32 size-80 rounded-full border border-teal-300/8 bg-teal-400/[.025] transition duration-700 group-hover:scale-110 motion-reduce:transition-none" />
       <header className="relative flex items-start justify-between gap-3">
         <div className="min-w-0">

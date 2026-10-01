@@ -1,8 +1,8 @@
 import {
-  ArrowRight, Box, Clapperboard, Globe2, PackageOpen, Paperclip, Play, Sparkles, UsersRound,
+  ArrowRight, Clapperboard, Paperclip, Sparkles, UserRound, WandSparkles,
 } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
-import { fetchUGCAvatarImage } from '../../lib/ugc-studio-api'
+import { motion, useReducedMotion } from 'motion/react'
+import { useState } from 'react'
 import type { CreateUGCCampaignInput, UGCAvatar } from '../../types/ugc-studio'
 
 function asWebsite(value: string) {
@@ -59,53 +59,97 @@ function draftFromPrompt(value: string): Partial<CreateUGCCampaignInput> {
   }
 }
 
-function CreatorVisual({ avatar }: { avatar?: UGCAvatar | null }) {
-  const [url, setUrl] = useState<string | null>(null)
-  useEffect(() => {
-    let active = true
-    let created: string | null = null
-    if (!avatar?.imageUrl) return undefined
-    void fetchUGCAvatarImage(avatar).then((value) => {
-      if (!value) return
-      if (!active) { URL.revokeObjectURL(value); return }
-      created = value
-      setUrl(value)
-    })
-    return () => { active = false; if (created) URL.revokeObjectURL(created) }
-  }, [avatar])
+function UGCMotionGraphic() {
+  const reduceMotion = useReducedMotion()
+  const infinite = reduceMotion ? undefined : { repeat: Infinity, repeatType: 'loop' as const }
 
-  return url
-    ? <img alt="" className="ugc-agent-real-media" src={url} />
-    : <div className="ugc-agent-real-fallback"><UsersRound className="size-7 text-brand-cyan" /></div>
-}
+  return <div aria-hidden="true" className="ugc-motion-graphic">
+    <motion.div
+      animate={reduceMotion ? undefined : { opacity: [.38, .68, .38], scale: [.94, 1.06, .94] }}
+      className="ugc-motion-ambient"
+      transition={{ duration: 5.5, ease: 'easeInOut', ...infinite }}
+    />
 
-function OfferVisual({ src, fallbackVideo }: { src?: string | null; fallbackVideo?: string | null }) {
-  const [failed, setFailed] = useState(false)
-  if (src && !failed) return <img alt="" className="ugc-agent-real-media" onError={() => setFailed(true)} src={src} />
-  return <VideoStill fallback={<Box className="size-7" />} src={fallbackVideo} />
-}
+    <div className="ugc-motion-topline">
+      <span><WandSparkles className="size-3.5" /> UGC FLOW</span>
+      <span className="ugc-motion-live"><i /> LIVE</span>
+    </div>
 
-function VideoStill({ src, fallback }: { src?: string | null; fallback: ReactNode }) {
-  if (!src) return <div className="ugc-agent-real-fallback">{fallback}</div>
-  return <video
-    aria-hidden="true"
-    className="ugc-agent-real-media"
-    muted
-    onLoadedMetadata={(event) => {
-      const video = event.currentTarget
-      if (video.duration > 0.08) video.currentTime = 0.05
-    }}
-    playsInline
-    preload="metadata"
-    src={src}
-  />
+    <div className="ugc-motion-stage">
+      <motion.div
+        animate={reduceMotion ? undefined : { rotate: 360 }}
+        className="ugc-motion-orbit ugc-motion-orbit-outer"
+        transition={{ duration: 18, ease: 'linear', ...infinite }}
+      >
+        <span className="ugc-motion-orbit-dot" />
+      </motion.div>
+      <motion.div
+        animate={reduceMotion ? undefined : { rotate: -360 }}
+        className="ugc-motion-orbit ugc-motion-orbit-inner"
+        transition={{ duration: 13, ease: 'linear', ...infinite }}
+      >
+        <span className="ugc-motion-orbit-dot secondary" />
+      </motion.div>
+
+      <motion.div
+        animate={reduceMotion ? undefined : { y: [0, -5, 0], scale: [1, 1.025, 1] }}
+        className="ugc-motion-core"
+        transition={{ duration: 4.2, ease: 'easeInOut', ...infinite }}
+      >
+        <motion.span
+          animate={reduceMotion ? undefined : { rotate: [0, 10, -8, 0] }}
+          className="ugc-motion-core-icon"
+          transition={{ duration: 4.8, ease: 'easeInOut', ...infinite }}
+        >
+          <Sparkles className="size-6" />
+        </motion.span>
+        <strong>AI UGC</strong>
+        <small>Idea to creator-ready video</small>
+      </motion.div>
+
+      <div className="ugc-motion-route">
+        <motion.span
+          animate={reduceMotion ? undefined : { y: [0, -3, 0] }}
+          className="ugc-motion-endpoint creator"
+          transition={{ duration: 3.6, ease: 'easeInOut', ...infinite }}
+        >
+          <UserRound className="size-4" />
+        </motion.span>
+        <div className="ugc-motion-line">
+          <motion.i
+            animate={reduceMotion ? undefined : { left: ['0%', 'calc(100% - 10px)'], opacity: [0, 1, 1, 0] }}
+            transition={{ duration: 2.6, ease: 'easeInOut', ...infinite }}
+          />
+        </div>
+        <motion.span
+          animate={reduceMotion ? undefined : { y: [0, 3, 0] }}
+          className="ugc-motion-endpoint video"
+          transition={{ duration: 3.9, ease: 'easeInOut', ...infinite }}
+        >
+          <Clapperboard className="size-4" />
+        </motion.span>
+      </div>
+
+      <motion.span
+        animate={reduceMotion ? undefined : { x: [0, 8, 0], y: [0, -8, 0], opacity: [.45, 1, .45] }}
+        className="ugc-motion-particle particle-a"
+        transition={{ duration: 4.1, ease: 'easeInOut', ...infinite }}
+      />
+      <motion.span
+        animate={reduceMotion ? undefined : { x: [0, -6, 0], y: [0, 7, 0], opacity: [.3, .8, .3] }}
+        className="ugc-motion-particle particle-b"
+        transition={{ duration: 5.2, ease: 'easeInOut', ...infinite }}
+      />
+    </div>
+
+    <div className="ugc-motion-footer">
+      <span>Creator</span><i /><span>AI direction</span><i /><span>Video</span>
+    </div>
+  </div>
 }
 
 export function UGCAgentHero({
   onStart,
-  creator,
-  offerImageUrl,
-  ugcVideoUrl,
 }: {
   onStart: (draft?: Partial<CreateUGCCampaignInput>) => void
   creator?: UGCAvatar | null
@@ -168,19 +212,6 @@ export function UGCAgentHero({
       <button className="ugc-agent-manual" onClick={() => onStart()} type="button">Customize everything manually</button>
     </div>
 
-    <div aria-hidden="true" className="ugc-agent-visual-flow">
-      <div className="ugc-agent-visual-card creator">
-        <div className="ugc-agent-visual-image"><CreatorVisual avatar={creator} key={creator?.id || 'creator-fallback'} /></div>
-        <UsersRound className="size-4" /><span>Creator</span>
-      </div>
-      <div className="ugc-agent-visual-card product">
-        <div className="ugc-agent-product-orb"><OfferVisual fallbackVideo={ugcVideoUrl} key={offerImageUrl || 'offer-fallback'} src={offerImageUrl} /></div>
-        <Globe2 className="size-4" /><span>Offer</span>
-      </div>
-      <div className="ugc-agent-visual-card output">
-        <div className="ugc-agent-output-frame"><VideoStill fallback={<><Clapperboard className="size-8 text-brand-cyan" /><span><Play className="size-5 fill-current" /></span></>} src={ugcVideoUrl} /></div>
-        <PackageOpen className="size-4" /><span>UGC Ad</span>
-      </div>
-    </div>
+    <UGCMotionGraphic />
   </section>
 }

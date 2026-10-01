@@ -16,7 +16,7 @@ export function AnalyticsScopeNotice({
   sourceName: string
 }) {
 
-  return <section className="relative overflow-hidden rounded-panel border border-brand-cyan/15 bg-[radial-gradient(circle_at_0%_0%,rgba(34,211,238,.09),transparent_32%),linear-gradient(135deg,rgba(8,31,42,.92),rgba(5,20,30,.92))] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,.025)] sm:px-5">
+  return <section className="relative overflow-hidden rounded-panel border border-brand-cyan/15 bg-[radial-gradient(circle_at_0%_0%,rgba(34,211,238,.06),transparent_32%),linear-gradient(135deg,rgba(255,255,255,.99),rgba(244,252,251,.97))] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,.025)] sm:px-5">
     <div aria-hidden="true" className="pointer-events-none absolute -right-14 -top-16 size-40 rounded-full bg-brand-teal/[.06] blur-3xl" />
     <div className="relative flex flex-col gap-3 xl:flex-row xl:items-center">
       <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -33,15 +33,15 @@ export function AnalyticsScopeNotice({
       </div>
 
       <div className="grid shrink-0 gap-2 sm:grid-cols-3 xl:w-[520px]">
-        <span className="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] px-3 py-2">
+        <span className="flex items-center gap-2 rounded-xl border border-border-soft bg-white px-3 py-2">
           <Activity className="size-3.5 shrink-0 text-brand-cyan" />
           <span><b className="block text-[9px] font-semibold text-text-main">Post metrics</b><small className="block text-[8px] leading-4 text-text-soft">Latest views and engagement</small></span>
         </span>
-        <span className="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] px-3 py-2">
+        <span className="flex items-center gap-2 rounded-xl border border-border-soft bg-white px-3 py-2">
           <Layers3 className="size-3.5 shrink-0 text-brand-teal" />
           <span><b className="block text-[9px] font-semibold text-text-main">Selected account</b><small className="block text-[8px] leading-4 text-text-soft">This account only</small></span>
         </span>
-        <span className="flex items-center gap-2 rounded-xl border border-white/[.06] bg-white/[.025] px-3 py-2">
+        <span className="flex items-center gap-2 rounded-xl border border-border-soft bg-white px-3 py-2">
           <Clock3 className="size-3.5 shrink-0 text-brand-amber" />
           <span><b className="block text-[9px] font-semibold text-text-main">Last synced</b><small className="block text-[8px] leading-4 text-text-soft">{syncLabel(analytics.fetchedAt)}</small></span>
         </span>

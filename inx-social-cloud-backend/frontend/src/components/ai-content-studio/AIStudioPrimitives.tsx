@@ -87,22 +87,22 @@ export const workflowDefinitions: WorkflowDefinition[] = [
 
 const toneClasses = {
   teal: {
-    card: 'border-brand-teal/25 bg-[radial-gradient(circle_at_88%_11%,rgba(20,184,166,.18),transparent_15rem),linear-gradient(150deg,rgba(7,38,44,.92),rgba(5,19,31,.98))] hover:border-brand-teal/50',
+    card: 'border-brand-teal/25 bg-[radial-gradient(circle_at_88%_11%,rgba(20,184,166,.10),transparent_15rem),linear-gradient(150deg,rgba(255,255,255,.99),rgba(240,253,250,.96))] hover:border-brand-teal/50',
     icon: 'border-brand-teal/35 bg-brand-teal/10 text-brand-cyan',
     glow: 'from-brand-teal/20 via-brand-cyan/5 to-transparent',
   },
   purple: {
-    card: 'border-brand-purple/25 bg-[radial-gradient(circle_at_88%_11%,rgba(139,92,246,.20),transparent_15rem),linear-gradient(150deg,rgba(24,25,65,.94),rgba(6,19,32,.98))] hover:border-brand-purple/50',
+    card: 'border-brand-purple/25 bg-[radial-gradient(circle_at_88%_11%,rgba(139,92,246,.10),transparent_15rem),linear-gradient(150deg,rgba(255,255,255,.99),rgba(245,243,255,.96))] hover:border-brand-purple/50',
     icon: 'border-brand-purple/35 bg-brand-purple/10 text-[#c4b5fd]',
     glow: 'from-brand-purple/20 via-[#7c3aed]/5 to-transparent',
   },
   cyan: {
-    card: 'border-brand-cyan/25 bg-[radial-gradient(circle_at_88%_11%,rgba(34,211,238,.16),transparent_15rem),linear-gradient(150deg,rgba(3,39,52,.94),rgba(5,19,31,.98))] hover:border-brand-cyan/50',
+    card: 'border-brand-cyan/25 bg-[radial-gradient(circle_at_88%_11%,rgba(34,211,238,.09),transparent_15rem),linear-gradient(150deg,rgba(255,255,255,.99),rgba(236,254,255,.96))] hover:border-brand-cyan/50',
     icon: 'border-brand-cyan/35 bg-brand-cyan/10 text-brand-cyan',
     glow: 'from-brand-cyan/20 via-brand-teal/5 to-transparent',
   },
   amber: {
-    card: 'border-brand-amber/25 bg-[radial-gradient(circle_at_88%_11%,rgba(245,158,11,.16),transparent_15rem),linear-gradient(150deg,rgba(47,39,11,.88),rgba(6,19,30,.98))] hover:border-brand-amber/50',
+    card: 'border-brand-amber/25 bg-[radial-gradient(circle_at_88%_11%,rgba(245,158,11,.09),transparent_15rem),linear-gradient(150deg,rgba(255,255,255,.99),rgba(255,251,235,.96))] hover:border-brand-amber/50',
     icon: 'border-brand-amber/35 bg-brand-amber/10 text-brand-amber',
     glow: 'from-brand-amber/20 via-orange-400/5 to-transparent',
   },
@@ -134,7 +134,7 @@ export function AIPlanCreditCard({ access }: { access: AIPlanAccess }) {
     : null
   const accessLabel = access.administrator ? 'Administrator Access' : `${planLabels[access.plan]} Plan`
 
-  return <Card className="min-w-0 border-brand-teal/25 bg-[linear-gradient(145deg,rgba(4,43,52,.94),rgba(6,24,38,.98))] p-5 shadow-[0_24px_70px_rgba(0,0,0,.28)] xl:w-[360px] xl:shrink-0">
+  return <Card className="min-w-0 border-brand-teal/25 bg-[linear-gradient(145deg,rgba(240,253,250,.98),rgba(255,255,255,.99))] p-5 shadow-[0_16px_44px_rgba(15,23,42,.08)] xl:w-[360px] xl:shrink-0">
     <div className="flex items-center justify-between gap-3">
       <span className="inline-flex items-center gap-2 text-sm font-semibold text-brand-cyan"><Crown className="size-4" />{accessLabel}</span>
       <span className={`rounded-full border px-2 py-1 text-[9px] font-bold uppercase tracking-[.14em] ${access.studioEnabled ? 'border-brand-green/25 bg-brand-green/10 text-brand-green' : 'border-brand-amber/25 bg-brand-amber/10 text-brand-amber'}`}>{access.studioEnabled ? 'Active' : 'Locked'}</span>
@@ -146,7 +146,7 @@ export function AIPlanCreditCard({ access }: { access: AIPlanAccess }) {
 
     {percent !== null && <div className="mt-4">
       <div className="mb-1.5 flex items-center justify-between text-[10px] text-text-muted"><span>{used?.toLocaleString()} used</span><span>{percent}% used</span></div>
-      <div aria-label={`${percent}% of AI credits used`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={percent} className="h-2 overflow-hidden rounded-full bg-white/8" role="progressbar"><div className="h-full rounded-full bg-gradient-to-r from-brand-teal to-brand-cyan transition-all" style={{ width: `${percent}%` }} /></div>
+      <div aria-label={`${percent}% of AI credits used`} aria-valuemax={100} aria-valuemin={0} aria-valuenow={percent} className="h-2 overflow-hidden rounded-full bg-slate-200/80" role="progressbar"><div className="h-full rounded-full bg-gradient-to-r from-brand-teal to-brand-cyan transition-all" style={{ width: `${percent}%` }} /></div>
     </div>}
 
     <div className="mt-4 grid gap-2 text-[11px] text-text-muted sm:grid-cols-2 xl:grid-cols-1">
@@ -166,7 +166,7 @@ const heroSteps: Array<{ icon: LucideIcon; title: string; text: string }> = [
 ]
 
 export function AIStudioHero({ access }: { access: AIPlanAccess }) {
-  return <section className="relative overflow-hidden rounded-[28px] border border-brand-cyan/20 bg-[radial-gradient(circle_at_80%_5%,rgba(34,211,238,.10),transparent_25rem),radial-gradient(circle_at_12%_0%,rgba(20,184,166,.12),transparent_28rem),linear-gradient(145deg,rgba(6,28,45,.99),rgba(4,14,27,.99))] p-5 shadow-[0_28px_80px_rgba(0,0,0,.28)] sm:p-7">
+  return <section className="relative overflow-hidden rounded-[28px] border border-brand-cyan/20 bg-[radial-gradient(circle_at_80%_5%,rgba(34,211,238,.08),transparent_25rem),radial-gradient(circle_at_12%_0%,rgba(20,184,166,.08),transparent_28rem),linear-gradient(145deg,rgba(255,255,255,.99),rgba(248,250,252,.99))] p-5 shadow-[0_18px_48px_rgba(15,23,42,.08)] sm:p-7">
     <div className="pointer-events-none absolute -right-12 -top-24 size-80 rounded-full border border-brand-cyan/10 bg-brand-cyan/[.025]" />
     <div className="relative grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(230px,.58fr)_360px] xl:items-stretch">
       <div className="min-w-0">
@@ -174,7 +174,7 @@ export function AIStudioHero({ access }: { access: AIPlanAccess }) {
         <h2 className="mt-5 max-w-4xl text-[clamp(2rem,4vw,3.65rem)] font-bold leading-[1.02] tracking-[-.045em]">Turn ideas into <span className="bg-gradient-to-r from-brand-teal via-brand-cyan to-emerald-300 bg-clip-text text-transparent">scroll-stopping content.</span></h2>
         <p className="mt-4 max-w-3xl text-sm leading-6 text-text-muted sm:text-[15px]">Create images, carousels, videos and UGC-style ads with AI, then send them directly to your Posts workflow for scheduling.</p>
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          {heroSteps.map(({ icon: StepIcon, title, text }, index) => <div className="relative flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[.025] p-3.5" key={title}>
+          {heroSteps.map(({ icon: StepIcon, title, text }, index) => <div className="relative flex items-start gap-3 rounded-2xl border border-border-soft bg-white p-3.5" key={title}>
             <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-brand-teal/25 bg-brand-teal/10 text-brand-cyan"><StepIcon className="size-4" /></span>
             <span className="min-w-0"><strong className="block text-xs">{title}</strong><span className="mt-1 block text-[10px] leading-4 text-text-muted">{text}</span></span>
             {index < heroSteps.length - 1 && <ChevronRight className="absolute -right-2 top-1/2 hidden size-4 -translate-y-1/2 text-brand-teal/50 sm:block" />}
@@ -189,7 +189,7 @@ export function AIStudioHero({ access }: { access: AIPlanAccess }) {
 
 
 export function AIStudioHeroSkeleton() {
-  return <section aria-busy="true" aria-label="Loading AI Content Studio access" className="relative overflow-hidden rounded-[28px] border border-brand-cyan/20 bg-[radial-gradient(circle_at_80%_5%,rgba(34,211,238,.10),transparent_25rem),radial-gradient(circle_at_12%_0%,rgba(20,184,166,.12),transparent_28rem),linear-gradient(145deg,rgba(6,28,45,.99),rgba(4,14,27,.99))] p-5 shadow-[0_28px_80px_rgba(0,0,0,.28)] sm:p-7">
+  return <section aria-busy="true" aria-label="Loading AI Content Studio access" className="relative overflow-hidden rounded-[28px] border border-brand-cyan/20 bg-[radial-gradient(circle_at_80%_5%,rgba(34,211,238,.08),transparent_25rem),radial-gradient(circle_at_12%_0%,rgba(20,184,166,.08),transparent_28rem),linear-gradient(145deg,rgba(255,255,255,.99),rgba(248,250,252,.99))] p-5 shadow-[0_18px_48px_rgba(15,23,42,.08)] sm:p-7">
     <div className="pointer-events-none absolute -right-12 -top-24 size-80 rounded-full border border-brand-cyan/10 bg-brand-cyan/[.025]" />
     <div className="relative grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(230px,.58fr)_360px] xl:items-stretch">
       <div className="min-w-0">
@@ -197,7 +197,7 @@ export function AIStudioHeroSkeleton() {
         <h2 className="mt-5 max-w-4xl text-[clamp(2rem,4vw,3.65rem)] font-bold leading-[1.02] tracking-[-.045em]">Turn ideas into <span className="bg-gradient-to-r from-brand-teal via-brand-cyan to-emerald-300 bg-clip-text text-transparent">scroll-stopping content.</span></h2>
         <p className="mt-4 max-w-3xl text-sm leading-6 text-text-muted sm:text-[15px]">Create images, carousels, videos and UGC-style ads with AI, then send them directly to your Posts workflow for scheduling.</p>
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
-          {heroSteps.map(({ icon: StepIcon, title, text }, index) => <div className="relative flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[.025] p-3.5" key={title}>
+          {heroSteps.map(({ icon: StepIcon, title, text }, index) => <div className="relative flex items-start gap-3 rounded-2xl border border-border-soft bg-white p-3.5" key={title}>
             <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-brand-teal/25 bg-brand-teal/10 text-brand-cyan"><StepIcon className="size-4" /></span>
             <span className="min-w-0"><strong className="block text-xs">{title}</strong><span className="mt-1 block text-[10px] leading-4 text-text-muted">{text}</span></span>
             {index < heroSteps.length - 1 && <ChevronRight className="absolute -right-2 top-1/2 hidden size-4 -translate-y-1/2 text-brand-teal/50 sm:block" />}
@@ -205,10 +205,10 @@ export function AIStudioHeroSkeleton() {
         </div>
       </div>
       <AIStudioHeroArtwork />
-      <Card className="min-h-[260px] min-w-0 animate-pulse border-brand-teal/25 bg-[linear-gradient(145deg,rgba(4,43,52,.94),rgba(6,24,38,.98))] p-5 shadow-[0_24px_70px_rgba(0,0,0,.28)] motion-reduce:animate-none xl:w-[360px] xl:shrink-0">
-        <div className="flex items-center justify-between gap-3"><span className="h-4 w-36 rounded-full bg-white/10" /><span className="h-6 w-14 rounded-full bg-white/8" /></div>
-        <div className="mt-6 h-9 w-28 rounded-lg bg-white/10" /><div className="mt-2 h-3 w-32 rounded bg-white/7" />
-        <div className="mt-5 h-2 w-full rounded-full bg-white/8" />
+      <Card className="min-h-[260px] min-w-0 animate-pulse border-brand-teal/25 bg-[linear-gradient(145deg,rgba(240,253,250,.98),rgba(255,255,255,.99))] p-5 shadow-[0_16px_44px_rgba(15,23,42,.08)] motion-reduce:animate-none xl:w-[360px] xl:shrink-0">
+        <div className="flex items-center justify-between gap-3"><span className="h-4 w-36 rounded-full bg-slate-200/80" /><span className="h-6 w-14 rounded-full bg-slate-100" /></div>
+        <div className="mt-6 h-9 w-28 rounded-lg bg-white/10" /><div className="mt-2 h-3 w-32 rounded bg-slate-100" />
+        <div className="mt-5 h-2 w-full rounded-full bg-slate-100" />
         <div className="mt-5 space-y-3"><div className="h-3 w-48 rounded bg-white/8" /><div className="h-3 w-40 rounded bg-white/8" /><div className="h-3 w-36 rounded bg-white/8" /></div>
         <div className="mt-5 h-10 w-full rounded-xl bg-white/8" />
       </Card>
@@ -219,7 +219,7 @@ export function AIStudioHeroSkeleton() {
 export function AIWorkflowCard({ definition, enabled, onCreate }: { definition: WorkflowDefinition; enabled: boolean; onCreate: (type: AIContentType) => void }) {
   const Icon = definition.icon
   const tone = toneClasses[definition.tone]
-  return <Card className={`group relative min-h-[326px] overflow-hidden p-0 transition duration-200 ${tone.card} ${enabled ? 'hover:-translate-y-0.5 hover:shadow-[0_24px_70px_rgba(0,0,0,.3)]' : 'opacity-65'}`}>
+  return <Card className={`group relative min-h-[326px] overflow-hidden p-0 transition duration-200 ${tone.card} ${enabled ? 'hover:-translate-y-0.5 hover:shadow-[0_18px_44px_rgba(15,23,42,.10)]' : 'opacity-65'}`}>
     <div className={`pointer-events-none absolute inset-x-0 top-0 h-36 bg-gradient-to-br ${tone.glow}`} />
     <AIWorkflowArtwork type={definition.type} />
     <div className="relative flex min-h-[326px] flex-col p-5">
@@ -230,7 +230,7 @@ export function AIWorkflowCard({ definition, enabled, onCreate }: { definition: 
       <span className="mt-6 text-[9px] font-bold uppercase tracking-[.18em] text-text-muted">{definition.label}</span>
       <h3 className="mt-2 text-xl font-semibold tracking-tight">{definition.title}</h3>
       <p className="mt-2 max-w-[88%] text-xs leading-5 text-text-muted">{definition.description}</p>
-      <div className="mt-4 flex flex-wrap gap-1.5">{definition.useCases.map((item) => <span className="rounded-full border border-white/10 bg-black/15 px-2.5 py-1 text-[9px] text-text-muted" key={item}>{item}</span>)}</div>
+      <div className="mt-4 flex flex-wrap gap-1.5">{definition.useCases.map((item) => <span className="rounded-full border border-border-soft bg-slate-50 px-2.5 py-1 text-[9px] text-text-muted" key={item}>{item}</span>)}</div>
       <div className="mt-auto flex items-end justify-between gap-3 pt-6">
         <div><span className="flex items-center gap-1.5 text-xs font-semibold"><Coins className="size-3.5 text-brand-amber" />{definition.credits}</span><span className="mt-1 block text-[9px] text-text-soft">depending on generation settings</span></div>
         <Button aria-label={`Create ${definition.title}`} onClick={() => onCreate(definition.type)} variant="primary">Create <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" /></Button>
@@ -295,9 +295,9 @@ export function AIDraftCard({ draft, onOpen, onSend, onDuplicate, onDelete }: { 
     <details className="absolute right-2 top-2">
       <summary aria-label={`Actions for ${draft.title}`} className="grid size-8 cursor-pointer list-none place-items-center rounded-lg border border-white/10 bg-black/55 text-white backdrop-blur transition hover:bg-black/75 focus-visible:outline-2 focus-visible:outline-brand-cyan"><MoreVertical className="size-4" /></summary>
       <div className="absolute right-0 z-20 mt-1 w-40 rounded-xl border border-border-soft bg-panel p-1.5 shadow-panel">
-        <button className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] text-text-muted hover:bg-white/5 hover:text-white" onClick={() => onOpen(draft)} type="button"><Sparkles className="size-3.5" />Continue editing</button>
-        <button className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] text-text-muted hover:bg-white/5 hover:text-white" onClick={() => onSend(draft)} type="button"><Send className="size-3.5" />Send to Posts</button>
-        <button className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] text-text-muted hover:bg-white/5 hover:text-white" onClick={() => onDuplicate(draft)} type="button"><Copy className="size-3.5" />Duplicate</button>
+        <button className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] text-text-muted hover:bg-slate-50 hover:text-text-main" onClick={() => onOpen(draft)} type="button"><Sparkles className="size-3.5" />Continue editing</button>
+        <button className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] text-text-muted hover:bg-slate-50 hover:text-text-main" onClick={() => onSend(draft)} type="button"><Send className="size-3.5" />Send to Posts</button>
+        <button className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] text-text-muted hover:bg-slate-50 hover:text-text-main" onClick={() => onDuplicate(draft)} type="button"><Copy className="size-3.5" />Duplicate</button>
         <button className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[10px] text-brand-red hover:bg-brand-red/10" onClick={() => onDelete(draft)} type="button"><Trash2 className="size-3.5" />Delete</button>
       </div>
     </details>
@@ -328,12 +328,12 @@ export function CreditsCard({ topUpsSupported = false }: { topUpsSupported?: boo
 }
 
 export function LockedPlanState({ onUpgrade }: { onUpgrade: () => void }) {
-  return <section className="mx-auto max-w-5xl overflow-hidden rounded-[30px] border border-brand-purple/25 bg-[radial-gradient(circle_at_80%_0%,rgba(139,92,246,.16),transparent_28rem),linear-gradient(145deg,rgba(10,27,45,.98),rgba(5,15,29,.99))] p-6 text-center shadow-panel sm:p-10">
+  return <section className="mx-auto max-w-5xl overflow-hidden rounded-[30px] border border-brand-purple/25 bg-[radial-gradient(circle_at_80%_0%,rgba(139,92,246,.08),transparent_28rem),linear-gradient(145deg,rgba(255,255,255,.99),rgba(248,250,252,.98))] p-6 text-center shadow-panel sm:p-10">
     <span className="mx-auto grid size-14 place-items-center rounded-2xl border border-brand-purple/30 bg-brand-purple/10 text-[#c4b5fd]"><LockKeyhole className="size-6" /></span>
     <span className="mt-5 inline-flex rounded-full border border-brand-purple/25 bg-brand-purple/10 px-3 py-1 text-[9px] font-bold uppercase tracking-[.16em] text-[#c4b5fd]">Plan required</span>
     <h2 className="mx-auto mt-4 max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">AI Content Studio is paused.</h2>
     <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-text-muted">Your current account does not have active generation access. Choose or reactivate an INXSocial plan in Billing &amp; Plans to continue creating.</p>
-    <div className="mx-auto mt-6 grid max-w-3xl gap-3 text-left sm:grid-cols-2">{['Image post generation', '3–10 slide carousel generation', 'Short Video / Reel creation', 'UGC-style ad creation', 'Stock Video Creator', 'Shared AI credit wallet', 'Media Library + Posts handoff'].map((item) => <div className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[.025] p-3 text-xs" key={item}><Check className="size-4 shrink-0 text-brand-green" />{item}</div>)}</div>
+    <div className="mx-auto mt-6 grid max-w-3xl gap-3 text-left sm:grid-cols-2">{['Image post generation', '3–10 slide carousel generation', 'Short Video / Reel creation', 'UGC-style ad creation', 'Stock Video Creator', 'Shared AI credit wallet', 'Media Library + Posts handoff'].map((item) => <div className="flex items-center gap-2 rounded-xl border border-border-soft bg-white p-3 text-xs" key={item}><Check className="size-4 shrink-0 text-brand-green" />{item}</div>)}</div>
     <div className="mt-7 flex flex-col justify-center gap-2 sm:flex-row"><Button onClick={onUpgrade} variant="primary"><Crown className="size-4" />View plans</Button><Link to="/billing"><Button>Billing &amp; Plans</Button></Link></div>
   </section>
 }
@@ -352,7 +352,7 @@ export function GenerationHistoryDrawer({ open, onClose, history }: { open: bool
 
 export function StudioToast({ message, onClose }: { message: string | null; onClose: () => void }) {
   if (!message) return null
-  return <div aria-live="polite" className="fixed bottom-5 right-5 z-[120] flex max-w-sm items-start gap-3 rounded-2xl border border-brand-teal/30 bg-panel/95 p-4 shadow-[0_24px_80px_rgba(0,0,0,.45)] backdrop-blur-xl"><Check className="mt-0.5 size-4 shrink-0 text-brand-green" /><span className="text-xs leading-5">{message}</span><button aria-label="Dismiss notification" className="rounded p-1 text-text-muted hover:text-white" onClick={onClose} type="button"><X className="size-3.5" /></button></div>
+  return <div aria-live="polite" className="fixed bottom-5 right-5 z-[120] flex max-w-sm items-start gap-3 rounded-2xl border border-brand-teal/30 bg-white/95 p-4 shadow-[0_18px_48px_rgba(15,23,42,.14)] backdrop-blur-xl"><Check className="mt-0.5 size-4 shrink-0 text-brand-green" /><span className="text-xs leading-5">{message}</span><button aria-label="Dismiss notification" className="rounded p-1 text-text-muted hover:text-text-main" onClick={onClose} type="button"><X className="size-3.5" /></button></div>
 }
 
 export function StudioSectionHeading({ title, text, action }: { title: string; text: string; action?: ReactNode }) {
