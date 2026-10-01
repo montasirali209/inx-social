@@ -17,6 +17,7 @@ router.put('/:publicationId/media', controller.uploadMedia);
 router.put('/:publicationId/scheduled-media', controller.replaceScheduledMedia);
 router.patch('/:publicationId', controller.updateScheduled);
 router.put('/:publicationId/schedule', controller.reschedule);
+router.patch('/:publicationId/review-draft', controller.updateReviewDraft);
 router.post('/:publicationId/retry', controller.retry);
 router.delete('/:publicationId', controller.remove);
 
