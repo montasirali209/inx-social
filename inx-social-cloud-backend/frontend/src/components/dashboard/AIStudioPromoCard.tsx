@@ -7,7 +7,7 @@ export function AIStudioPromoCard({ overview }: { overview: StudioOverview }) {
   const label = studioAllowed ? 'Try AI Content Studio' : 'Upgrade to Plus'
 
   return (
-    <section className="group relative flex min-h-[92px] items-center justify-between gap-4 overflow-hidden rounded-card border border-brand-cyan/20 bg-[radial-gradient(circle_at_85%_120%,rgba(34,211,238,.12),transparent_18rem),linear-gradient(120deg,rgba(9,31,43,.96),rgba(5,18,31,.98))] px-4 py-3 shadow-[0_18px_42px_rgba(0,0,0,.2)]">
+    <section className="group relative flex min-h-[92px] items-center justify-between gap-4 overflow-hidden rounded-card border border-brand-cyan/20 bg-[radial-gradient(circle_at_85%_120%,rgba(34,211,238,.07),transparent_18rem),linear-gradient(120deg,rgba(255,255,255,.99),rgba(244,252,251,.98))] px-4 py-3 shadow-[0_14px_34px_rgba(15,23,42,.07)]">
       <div aria-hidden="true" className="absolute -bottom-16 right-16 h-24 w-72 rounded-[50%] border border-brand-cyan/10 opacity-70 transition duration-500 group-hover:scale-110 motion-reduce:transition-none" />
       <div className="relative flex min-w-0 items-center gap-3">
         <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-brand-cyan/20 bg-brand-cyan/10 text-brand-cyan shadow-[0_0_24px_rgba(34,211,238,.08)]">

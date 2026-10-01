@@ -10,7 +10,7 @@ export function TopPerformingPostsCard({ posts, onViewAll, platform }: { posts: 
   return (
     <AnalyticsCard>
       <AnalyticsCardHeader
-        action={<button className="rounded-lg border border-border-soft bg-bg/30 px-2.5 py-1.5 text-[10px] font-semibold text-brand-cyan transition hover:border-brand-teal/30 hover:bg-brand-teal/8 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onViewAll} type="button">View all</button>}
+        action={<button className="rounded-lg border border-border-soft bg-bg/30 px-2.5 py-1.5 text-[10px] font-semibold text-brand-cyan transition hover:border-brand-teal/30 hover:bg-brand-teal/8 hover:text-text-main focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onViewAll} type="button">View all</button>}
         description="Ranked using live reactions, comments, shares and available post clicks."
         title="Top Performing Posts"
       />
@@ -39,7 +39,7 @@ export function TopPerformingPostsCard({ posts, onViewAll, platform }: { posts: 
                 </span>
               </>
             )
-            const className = "group grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border-soft bg-[linear-gradient(145deg,rgba(8,29,40,.72),rgba(4,18,27,.58))] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,.018)] transition-[transform,border-color,background-color,box-shadow] duration-150 hover:scale-[1.003] hover:border-brand-teal/22 hover:bg-panel/65 hover:shadow-[0_8px_22px_rgba(0,0,0,.14),inset_0_1px_0_rgba(255,255,255,.025)] focus-visible:outline-2 focus-visible:outline-brand-cyan motion-reduce:transform-none"
+            const className = "group grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-3 rounded-xl border border-border-soft bg-[linear-gradient(145deg,rgba(255,255,255,.99),rgba(248,250,252,.98))] p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,.9)] transition-[transform,border-color,background-color,box-shadow] duration-150 hover:scale-[1.003] hover:border-brand-teal/22 hover:bg-panel/65 hover:shadow-[0_8px_22px_rgba(15,23,42,.07),inset_0_1px_0_rgba(255,255,255,.95)] focus-visible:outline-2 focus-visible:outline-brand-cyan motion-reduce:transform-none"
             return post.permalinkUrl ? <a className={className} href={post.permalinkUrl} key={post.id} rel="noreferrer" target="_blank">{row}</a> : <div className={className} key={post.id}>{row}</div>
           })}
         </div>

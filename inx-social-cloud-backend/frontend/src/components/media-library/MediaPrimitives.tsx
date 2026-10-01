@@ -40,7 +40,7 @@ export function MediaStatSkeleton({ index = 0 }: { index?: number }) {
 }
 
 const statusStyle: Record<MediaStatus, string> = {
-  unused: 'border-white/10 bg-white/5 text-text-muted', used: 'border-brand-green/20 bg-brand-green/10 text-brand-green', scheduled: 'border-brand-amber/20 bg-brand-amber/10 text-brand-amber', published: 'border-brand-green/20 bg-brand-green/10 text-brand-green', needs_review: 'border-brand-red/20 bg-brand-red/10 text-brand-red', archived: 'border-white/10 bg-white/5 text-text-soft',
+  unused: 'border-border-soft bg-slate-50 text-text-muted', used: 'border-brand-green/20 bg-brand-green/10 text-brand-green', scheduled: 'border-brand-amber/20 bg-brand-amber/10 text-brand-amber', published: 'border-brand-green/20 bg-brand-green/10 text-brand-green', needs_review: 'border-brand-red/20 bg-brand-red/10 text-brand-red', archived: 'border-border-soft bg-slate-50 text-text-soft',
 }
 
 export function MediaStatusBadge({ status }: { status: MediaStatus }) {

@@ -38,7 +38,7 @@ export function SettingsCard({ card, connectedPlatforms = [], onAction, onChange
   const span = card.number <= 3 ? '2xl:col-span-4' : '2xl:col-span-3'
 
   return (
-    <section className={`group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border-soft bg-[linear-gradient(145deg,rgba(15,36,52,.82),rgba(7,24,38,.9))] shadow-[0_16px_44px_rgba(0,0,0,.14)] backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-brand-teal/30 hover:shadow-[0_20px_55px_rgba(0,0,0,.22)] focus-within:border-brand-teal/35 ${span}`} data-settings-card={card.id}>
+    <section className={`group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border-soft bg-[linear-gradient(145deg,rgba(255,255,255,.99),rgba(248,250,252,.98))] shadow-[0_14px_36px_rgba(15,23,42,.07)] backdrop-blur-xl transition duration-200 hover:-translate-y-0.5 hover:border-brand-teal/30 hover:shadow-[0_18px_44px_rgba(15,23,42,.09)] focus-within:border-brand-teal/35 ${span}`} data-settings-card={card.id}>
       <header className="flex items-start gap-3 p-4 pb-2 sm:p-5 sm:pb-2">
         <span aria-hidden="true" className={`grid size-11 shrink-0 place-items-center rounded-xl border ${toneClasses[card.tone]}`}><Icon className="size-5" /></span>
         <div className="min-w-0">

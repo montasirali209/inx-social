@@ -205,14 +205,14 @@ function toAccountModel(identity: ConnectedIdentity, workspace: Awaited<ReturnTy
 
 function Modal({ title, subtitle, onClose, children, maxWidth = 'max-w-xl' }: { title: string; subtitle?: string; onClose: () => void; children: ReactNode; maxWidth?: string }) {
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-3 backdrop-blur-sm sm:p-5" role="dialog" aria-modal="true" aria-label={title}>
-      <section className={`max-h-[calc(100dvh-1.5rem)] w-full ${maxWidth} overflow-y-auto rounded-2xl border border-border-soft bg-[#061622] p-4 shadow-[0_28px_90px_rgba(0,0,0,.55)] sm:p-5`}>
+    <div className="fixed inset-0 z-50 grid place-items-center bg-white/10 p-3 backdrop-blur-[9px] sm:p-5" role="dialog" aria-modal="true" aria-label={title}>
+      <section className={`max-h-[calc(100dvh-1.5rem)] w-full ${maxWidth} overflow-y-auto rounded-2xl border border-border-soft bg-white p-4 shadow-[0_28px_90px_rgba(0,0,0,.55)] sm:p-5`}>
         <header className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-semibold tracking-[-0.02em]">{title}</h2>
             {subtitle && <p className="mt-1 text-xs leading-5 text-text-muted">{subtitle}</p>}
           </div>
-          <button aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-xl border border-transparent text-text-muted transition hover:border-border-soft hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button"><X className="size-4" /></button>
+          <button aria-label="Close" className="grid size-9 shrink-0 place-items-center rounded-xl border border-transparent text-text-muted transition hover:border-border-soft hover:bg-panel-hover hover:text-text-main focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button"><X className="size-4" /></button>
         </header>
         {children}
       </section>
@@ -229,15 +229,15 @@ function Drawer({ title, onClose, children }: { title: string; onClose: () => vo
   }, [])
 
   return (
-    <div className={`fixed inset-0 z-50 flex items-end justify-end transition-[background-color,backdrop-filter] duration-300 sm:items-stretch ${entered ? 'bg-black/62 backdrop-blur-[5px]' : 'bg-black/0 backdrop-blur-0'}`} role="dialog" aria-modal="true" aria-label={title}>
+    <div className={`fixed inset-0 z-50 flex items-end justify-end transition-[background-color,backdrop-filter] duration-300 sm:items-stretch ${entered ? 'bg-white/10 backdrop-blur-[9px]' : 'bg-white/0 backdrop-blur-0'}`} role="dialog" aria-modal="true" aria-label={title}>
       <button aria-label="Close drawer" className="absolute inset-0 cursor-default" onClick={onClose} type="button" />
-      <section className={`relative z-10 max-h-[90dvh] w-full overflow-y-auto rounded-t-[1.65rem] border border-brand-teal/18 bg-[linear-gradient(155deg,rgba(7,28,40,.985),rgba(4,17,29,.995))] shadow-[-38px_0_100px_rgba(0,0,0,.5),-1px_0_30px_rgba(20,184,166,.06)] transition-[transform,opacity] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] sm:max-h-none sm:max-w-[32rem] sm:rounded-none sm:border-y-0 sm:border-r-0 ${entered ? 'translate-y-0 opacity-100 sm:translate-x-0' : 'translate-y-full opacity-70 sm:translate-x-full sm:translate-y-0'}`}>
-        <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-brand-teal/12 bg-[#061622]/88 p-5 backdrop-blur-2xl">
+      <section className={`relative z-10 max-h-[90dvh] w-full overflow-y-auto rounded-t-[1.65rem] border border-brand-teal/18 bg-[linear-gradient(155deg,rgba(255,255,255,.99),rgba(248,250,252,.99))] shadow-[-38px_0_100px_rgba(0,0,0,.5),-1px_0_30px_rgba(20,184,166,.06)] transition-[transform,opacity] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] sm:max-h-none sm:max-w-[32rem] sm:rounded-none sm:border-y-0 sm:border-r-0 ${entered ? 'translate-y-0 opacity-100 sm:translate-x-0' : 'translate-y-full opacity-70 sm:translate-x-full sm:translate-y-0'}`}>
+        <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-brand-teal/12 bg-white/88 p-5 backdrop-blur-2xl">
           <div>
             <span className="text-[9px] font-semibold uppercase tracking-[.18em] text-brand-teal">Connected account</span>
             <h2 className="mt-1 text-base font-semibold">{title}</h2>
           </div>
-          <button aria-label="Close" className="grid size-9 place-items-center rounded-xl border border-transparent text-text-muted transition duration-200 hover:rotate-3 hover:border-brand-teal/20 hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button"><X className="size-4" /></button>
+          <button aria-label="Close" className="grid size-9 place-items-center rounded-xl border border-transparent text-text-muted transition duration-200 hover:rotate-3 hover:border-brand-teal/20 hover:bg-panel-hover hover:text-text-main focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button"><X className="size-4" /></button>
         </header>
         {children}
       </section>
@@ -254,10 +254,10 @@ function Toast({ toast, onClose }: { toast: ToastState; onClose: () => void }) {
 
   if (!toast) return null
   const tone = toast.tone === 'success'
-    ? 'border-brand-green/35 bg-[#06261f] text-emerald-50'
+    ? 'border-brand-green/35 bg-emerald-50 text-emerald-700'
     : toast.tone === 'error'
-      ? 'border-brand-red/35 bg-[#2a1015] text-rose-50'
-      : 'border-brand-cyan/35 bg-[#062330] text-cyan-50'
+      ? 'border-brand-red/35 bg-rose-50 text-rose-700'
+      : 'border-brand-cyan/35 bg-cyan-50 text-cyan-700'
   return (
     <div className={`fixed bottom-3 left-3 right-3 z-[70] flex max-w-none items-start gap-3 rounded-xl border px-4 py-3 text-sm shadow-2xl sm:bottom-4 sm:left-auto sm:right-4 sm:max-w-sm ${tone}`} role="status">
       {toast.tone === 'success' ? <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-brand-green" /> : toast.tone === 'error' ? <CircleAlert className="mt-0.5 size-4 shrink-0 text-brand-red" /> : <Activity className="mt-0.5 size-4 shrink-0 text-brand-cyan" />}
@@ -287,7 +287,7 @@ function AccountStatusBadge({ status }: { status: ConnectionStatus }) {
     expiring_soon: 'border-brand-amber/25 bg-brand-amber/10 text-amber-300',
     permission_issue: 'border-brand-amber/25 bg-brand-amber/10 text-amber-300',
     reconnect_required: 'border-brand-red/25 bg-brand-red/10 text-rose-300',
-    not_connected: 'border-white/8 bg-white/[.035] text-text-soft',
+    not_connected: 'border-border-soft bg-slate-50 text-text-soft',
   }
   return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[10px] font-semibold ${styles[status]}`}><span className="size-1.5 rounded-full bg-current" />{labels[status]}</span>
 }
@@ -332,7 +332,7 @@ function HealthRing({ value }: { value: number }) {
   const clamped = Math.max(0, Math.min(100, value))
   return (
     <div aria-label={`${clamped}% connection health`} className="relative size-10 rounded-full p-[4px]" role="img" style={{ background: `conic-gradient(#2dd4bf 0 ${clamped}%, rgba(148,163,184,.12) ${clamped}% 100%)` }}>
-      <div className="size-full rounded-full bg-[#091b28] shadow-[inset_0_0_12px_rgba(0,0,0,.35)]" />
+      <div className="size-full rounded-full bg-slate-100 shadow-[inset_0_0_12px_rgba(0,0,0,.35)]" />
     </div>
   )
 }
@@ -340,7 +340,7 @@ function HealthRing({ value }: { value: number }) {
 function StatCard({ icon, title, value, supporting, tone = 'neutral', visual }: { icon: ReactNode; title: string; value: string; supporting: string; tone?: TrendTone; visual: ReactNode }) {
   const supportTone = tone === 'positive' ? 'text-emerald-300' : tone === 'negative' ? 'text-amber-300' : 'text-text-muted'
   return (
-    <article className="group relative min-w-0 overflow-hidden rounded-xl border border-border-soft bg-[linear-gradient(145deg,rgba(9,27,41,.88),rgba(4,16,27,.95))] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,.025),0_10px_28px_rgba(0,0,0,.11)] transition-[transform,border-color,box-shadow,background-color] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:scale-[1.008] hover:border-brand-teal/30 hover:shadow-[0_18px_38px_rgba(0,0,0,.18),0_0_28px_rgba(20,184,166,.04),inset_0_1px_0_rgba(255,255,255,.035)] focus-within:border-brand-cyan/45 sm:min-w-0">
+    <article className="group relative min-w-0 overflow-hidden rounded-xl border border-border-soft bg-[linear-gradient(145deg,rgba(255,255,255,.99),rgba(248,250,252,.98))] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,.025),0_10px_28px_rgba(0,0,0,.11)] transition-[transform,border-color,box-shadow,background-color] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:scale-[1.008] hover:border-brand-teal/30 hover:shadow-[0_18px_38px_rgba(0,0,0,.18),0_0_28px_rgba(20,184,166,.04),inset_0_1px_0_rgba(255,255,255,.035)] focus-within:border-brand-cyan/45 sm:min-w-0">
       <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-10 size-24 rounded-full bg-brand-teal/[.035] blur-xl transition duration-500 group-hover:scale-125 group-hover:bg-brand-teal/[.07]" />
       <div className="relative flex items-start justify-between gap-3">
         <span className="grid size-8 place-items-center rounded-lg border border-brand-cyan/18 bg-gradient-to-br from-brand-cyan/10 to-brand-teal/4 text-brand-cyan transition duration-300 group-hover:-rotate-3 group-hover:scale-105 group-hover:border-brand-teal/32 group-hover:shadow-[0_0_20px_rgba(20,184,166,.08)]">{icon}</span>
@@ -348,7 +348,7 @@ function StatCard({ icon, title, value, supporting, tone = 'neutral', visual }: 
       </div>
       <div className="relative mt-2.5">
         <p className="text-[10px] font-medium text-text-muted">{title}</p>
-        <strong className="mt-0.5 block text-xl font-semibold tracking-[-0.035em] text-white">{value}</strong>
+        <strong className="mt-0.5 block text-xl font-semibold tracking-[-0.035em] text-text-main">{value}</strong>
         <p className={`mt-1 text-[10px] font-medium ${supportTone}`}>{supporting}</p>
       </div>
     </article>
@@ -357,11 +357,11 @@ function StatCard({ icon, title, value, supporting, tone = 'neutral', visual }: 
 
 function ConnectedAccountsHeader() {
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-border-soft bg-[linear-gradient(110deg,rgba(5,15,29,.96),rgba(6,24,36,.9))] px-5 py-4 sm:px-6">
-      <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-36 size-80 rounded-full border border-brand-teal/10 bg-[radial-gradient(circle_at_35%_65%,rgba(20,184,166,.16),rgba(5,15,29,.03)_52%,transparent_68%)] shadow-[inset_0_0_70px_rgba(34,211,238,.05)]" />
+    <section className="relative overflow-hidden rounded-2xl border border-border-soft bg-[linear-gradient(110deg,rgba(255,255,255,.99),rgba(244,252,251,.97))] px-5 py-4 sm:px-6">
+      <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-36 size-80 rounded-full border border-brand-teal/10 bg-[radial-gradient(circle_at_35%_65%,rgba(20,184,166,.16),rgba(255,255,255,.03)_52%,transparent_68%)] shadow-[inset_0_0_70px_rgba(34,211,238,.05)]" />
       <div aria-hidden="true" className="pointer-events-none absolute right-16 top-5 size-1 rounded-full bg-brand-cyan/60 shadow-[0_0_12px_#22d3ee]" />
       <div className="relative">
-        <h1 className="text-2xl font-semibold tracking-[-0.035em] text-white sm:text-3xl">Connected Accounts</h1>
+        <h1 className="text-2xl font-semibold tracking-[-0.035em] text-text-main sm:text-3xl">Connected Accounts</h1>
         <p className="mt-1 text-sm text-text-muted">Manage all your connected social destinations in one place.</p>
       </div>
     </section>
@@ -429,8 +429,8 @@ function StatusFilter({ value, onChange }: { value: 'all' | ConnectionStatus; on
 function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (value: ViewMode) => void }) {
   return (
     <div className="flex rounded-xl border border-border-soft bg-bg/40 p-1" role="group" aria-label="Account view">
-      <button aria-pressed={value === 'grid'} className={`grid size-8 place-items-center rounded-lg transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${value === 'grid' ? 'bg-brand-teal/15 text-brand-cyan' : 'text-text-muted hover:text-white'}`} onClick={() => onChange('grid')} type="button"><Grid2X2 className="size-4" /></button>
-      <button aria-pressed={value === 'list'} className={`grid size-8 place-items-center rounded-lg transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${value === 'list' ? 'bg-brand-teal/15 text-brand-cyan' : 'text-text-muted hover:text-white'}`} onClick={() => onChange('list')} type="button"><List className="size-4" /></button>
+      <button aria-pressed={value === 'grid'} className={`grid size-8 place-items-center rounded-lg transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${value === 'grid' ? 'bg-brand-teal/15 text-brand-cyan' : 'text-text-muted hover:text-text-main'}`} onClick={() => onChange('grid')} type="button"><Grid2X2 className="size-4" /></button>
+      <button aria-pressed={value === 'list'} className={`grid size-8 place-items-center rounded-lg transition focus-visible:outline-2 focus-visible:outline-brand-cyan ${value === 'list' ? 'bg-brand-teal/15 text-brand-cyan' : 'text-text-muted hover:text-text-main'}`} onClick={() => onChange('list')} type="button"><List className="size-4" /></button>
     </div>
   )
 }
@@ -508,7 +508,7 @@ function ConnectionActionsMenu({ account, onView, onRefresh, onReconnect, onPerm
       aria-expanded={open}
       aria-haspopup="menu"
       aria-label={`More actions for ${account.accountName}`}
-      className="grid size-9 place-items-center rounded-lg border border-border-soft bg-bg/35 text-text-muted transition hover:border-brand-cyan/30 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan"
+      className="grid size-9 place-items-center rounded-lg border border-border-soft bg-white text-text-muted transition hover:border-brand-cyan/30 hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan"
       onClick={() => {
         setPosition(null)
         setOpen((value) => !value)
@@ -520,7 +520,7 @@ function ConnectionActionsMenu({ account, onView, onRefresh, onReconnect, onPerm
     </button>
     {open && createPortal(
       <div
-        className="fixed z-[500] w-52 rounded-xl border border-border-soft bg-[#071925] p-1.5 text-xs shadow-[0_24px_70px_rgba(0,0,0,.62)]"
+        className="fixed z-[500] w-52 rounded-xl border border-border-soft bg-white p-1.5 text-xs shadow-[0_24px_70px_rgba(0,0,0,.62)]"
         ref={menuRef}
         role="menu"
         style={{
@@ -529,11 +529,11 @@ function ConnectionActionsMenu({ account, onView, onRefresh, onReconnect, onPerm
           visibility: position ? 'visible' : 'hidden',
         }}
       >
-        <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-white/5 hover:text-white" onClick={() => closeAnd(onView)} role="menuitem" type="button"><Eye className="size-3.5" />View account</button>
-        {connected && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-white/5 hover:text-white" onClick={() => closeAnd(onRefresh)} role="menuitem" type="button"><RefreshCw className="size-3.5" />Sync now</button>}
-        {connected && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-white/5 hover:text-white" onClick={() => closeAnd(onReconnect)} role="menuitem" type="button"><Link2 className="size-3.5" />Reconnect</button>}
-        {connected && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-white/5 hover:text-white" onClick={() => closeAnd(onPermissions)} role="menuitem" type="button"><ShieldCheck className="size-3.5" />View permissions</button>}
-        <a className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-text-muted hover:bg-white/5 hover:text-white" href={platformHome(account.platform)} onClick={() => setOpen(false)} rel="noreferrer" role="menuitem" target="_blank"><ExternalLink className="size-3.5" />Open on platform</a>
+        <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-panel-hover hover:text-text-main" onClick={() => closeAnd(onView)} role="menuitem" type="button"><Eye className="size-3.5" />View account</button>
+        {connected && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-panel-hover hover:text-text-main" onClick={() => closeAnd(onRefresh)} role="menuitem" type="button"><RefreshCw className="size-3.5" />Sync now</button>}
+        {connected && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-panel-hover hover:text-text-main" onClick={() => closeAnd(onReconnect)} role="menuitem" type="button"><Link2 className="size-3.5" />Reconnect</button>}
+        {connected && <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-text-muted hover:bg-panel-hover hover:text-text-main" onClick={() => closeAnd(onPermissions)} role="menuitem" type="button"><ShieldCheck className="size-3.5" />View permissions</button>}
+        <a className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-text-muted hover:bg-panel-hover hover:text-text-main" href={platformHome(account.platform)} onClick={() => setOpen(false)} rel="noreferrer" role="menuitem" target="_blank"><ExternalLink className="size-3.5" />Open on platform</a>
         {connected && <><div className="my-1 border-t border-border-soft" /><button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-rose-300 hover:bg-brand-red/10 hover:text-rose-200" onClick={() => closeAnd(onDisconnect)} role="menuitem" type="button"><Trash2 className="size-3.5" />Disconnect</button></>}
       </div>,
       document.body,
@@ -544,13 +544,13 @@ function ConnectionActionsMenu({ account, onView, onRefresh, onReconnect, onPerm
 function PlatformCard({ account, refreshing, onView, onRefresh, onReconnect, onDisconnect, onConnect }: { account: AccountModel; refreshing: boolean; onView: () => void; onRefresh: () => void; onReconnect: () => void; onDisconnect: () => void; onConnect: () => void }) {
   const connected = account.status !== 'not_connected'
   return (
-    <article className="group relative z-0 min-h-[132px] overflow-visible rounded-xl border border-border-soft bg-[linear-gradient(150deg,rgba(12,32,47,.84),rgba(5,15,29,.95))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,.018)] transition-[transform,border-color,box-shadow,background-color] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:scale-[1.006] hover:border-brand-teal/30 hover:bg-panel-hover/38 hover:shadow-[0_14px_30px_rgba(0,0,0,.16),0_0_24px_rgba(20,184,166,.035)] focus-within:z-[70] focus-within:border-brand-cyan/40">
+    <article className="group relative z-0 min-h-[132px] overflow-visible rounded-xl border border-border-soft bg-[linear-gradient(150deg,rgba(255,255,255,.99),rgba(248,250,252,.98))] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,.018)] transition-[transform,border-color,box-shadow,background-color] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-y-1 hover:scale-[1.006] hover:border-brand-teal/30 hover:bg-panel-hover/38 hover:shadow-[0_14px_30px_rgba(0,0,0,.16),0_0_24px_rgba(20,184,166,.035)] focus-within:z-[70] focus-within:border-brand-cyan/40">
       <div className="flex items-start gap-3">
         <PlatformIcon platform={account.platform} />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <strong className="block truncate text-sm text-white">{account.platformLabel}</strong>
+              <strong className="block truncate text-sm text-text-main">{account.platformLabel}</strong>
               <p className="mt-0.5 truncate text-xs text-text-main">{account.accountName}</p>
             </div>
             <AccountStatusBadge status={account.status} />
@@ -697,7 +697,7 @@ function ConnectPlatformTile({ platform, available, onConnect }: { platform: UiP
         <span aria-hidden="true" className="absolute size-11 rounded-full bg-brand-teal/0 blur-xl transition duration-300 group-hover:bg-brand-teal/16" />
         <PlatformIcon className="relative" platform={platform} size="sm" />
       </span>
-      <strong className="mt-2 text-[10px] transition-colors duration-200 group-hover:text-white">{labelFor(platform)}</strong>
+      <strong className="mt-2 text-[10px] transition-colors duration-200 group-hover:text-text-main">{labelFor(platform)}</strong>
       <span className="mt-0.5 text-[9px] font-semibold text-brand-cyan/90 transition group-hover:text-cyan-200">{available ? 'Connect' : 'Unavailable'}</span>
     </button>
   )
@@ -705,7 +705,7 @@ function ConnectPlatformTile({ platform, available, onConnect }: { platform: UiP
 
 function ConnectNewAccountSection({ configured, onConnect, onMore }: { configured: boolean; onConnect: (platform: UiPlatform) => void; onMore: () => void }) {
   return (
-    <section className="group relative overflow-hidden rounded-2xl border border-border-soft bg-[linear-gradient(105deg,rgba(9,28,42,.72),rgba(5,15,29,.9))] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,.02)] transition duration-300 hover:border-brand-teal/18">
+    <section className="group relative overflow-hidden rounded-2xl border border-border-soft bg-[linear-gradient(105deg,rgba(255,255,255,.99),rgba(248,250,252,.98))] px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,.02)] transition duration-300 hover:border-brand-teal/18">
       <div aria-hidden="true" className="pointer-events-none absolute -right-20 -top-20 size-52 rounded-full bg-brand-teal/[.025] blur-3xl transition duration-500 group-hover:bg-brand-teal/[.05]" />
       <div className="relative flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div><h2 className="text-sm font-semibold">Connect a new account</h2><p className="mt-0.5 text-[11px] text-text-muted">Expand your reach. Connect more platforms and grow faster.</p></div>
@@ -727,7 +727,7 @@ function AccountDetailsDrawer({ account, refreshing, onClose, onRefresh, onRecon
   return (
     <Drawer onClose={onClose} title="Account details">
       <div className="p-5">
-        <div className="relative overflow-hidden rounded-2xl border border-brand-teal/24 bg-[linear-gradient(135deg,rgba(20,184,166,.09),rgba(7,25,37,.74))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.025),0_16px_38px_rgba(0,0,0,.12)]">
+        <div className="relative overflow-hidden rounded-2xl border border-brand-teal/24 bg-[linear-gradient(135deg,rgba(240,253,250,.98),rgba(255,255,255,.99))] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.025),0_16px_38px_rgba(0,0,0,.12)]">
           <div aria-hidden="true" className="pointer-events-none absolute -right-10 -top-10 size-28 rounded-full bg-brand-cyan/[.05] blur-2xl" />
           <div className="relative flex items-start gap-3">
           <PlatformIcon platform={account.platform} size="lg" />
@@ -790,7 +790,7 @@ function DestinationSelector({ accounts }: { accounts: AccountModel[] }) {
       <h3 className="text-xs font-semibold">Authorised destinations</h3>
       <p className="mt-1 text-[11px] leading-5 text-text-muted">The current social gateway returns authorised destinations as one secure connection. They become available to INXSocial together.</p>
       <div className="mt-3 grid gap-2">
-        {accounts.map((account) => <label className="flex items-center gap-3 rounded-lg border border-border-soft bg-bg/30 px-3 py-2" key={account.id}><input checked className="accent-brand-teal" disabled readOnly type="checkbox" /><PlatformIcon platform={account.platform} size="sm" /><span className="min-w-0"><strong className="block truncate text-xs">{account.accountName}</strong><span className="block truncate text-[10px] text-text-muted">{account.handle || account.accountType}</span></span></label>)}
+        {accounts.map((account) => <label className="flex items-center gap-3 rounded-lg border border-border-soft bg-white px-3 py-2" key={account.id}><input checked className="accent-brand-teal" disabled readOnly type="checkbox" /><PlatformIcon platform={account.platform} size="sm" /><span className="min-w-0"><strong className="block truncate text-xs">{account.accountName}</strong><span className="block truncate text-[10px] text-text-muted">{account.handle || account.accountType}</span></span></label>)}
       </div>
     </section>
   )
@@ -821,7 +821,7 @@ function ConnectAccountModal({ open, selectedPlatform, configured, connectedAcco
         <div className="mt-5 grid gap-2 sm:grid-cols-2">
           {connectTiles.map((platform) => {
             const enabled = configured && isGatewayPlatform(platform)
-            return <button className="flex items-center gap-3 rounded-xl border border-border-soft bg-bg/30 p-3 text-left transition hover:border-brand-teal/30 hover:bg-panel-hover/35 focus-visible:outline-2 focus-visible:outline-brand-cyan disabled:cursor-not-allowed disabled:opacity-55" disabled={!enabled} key={platform} onClick={() => onSelect(platform)} type="button"><PlatformIcon platform={platform} /><span className="min-w-0 flex-1"><strong className="block text-sm">{labelFor(platform)}</strong><small className="mt-0.5 block text-[11px] text-text-muted">{enabled ? 'Secure connection available' : 'Not enabled by the current gateway'}</small></span><Plus className="size-4 text-brand-cyan" /></button>
+            return <button className="flex items-center gap-3 rounded-xl border border-border-soft bg-white p-3 text-left transition hover:border-brand-teal/30 hover:bg-panel-hover/35 focus-visible:outline-2 focus-visible:outline-brand-cyan disabled:cursor-not-allowed disabled:opacity-55" disabled={!enabled} key={platform} onClick={() => onSelect(platform)} type="button"><PlatformIcon platform={platform} /><span className="min-w-0 flex-1"><strong className="block text-sm">{labelFor(platform)}</strong><small className="mt-0.5 block text-[11px] text-text-muted">{enabled ? 'Secure connection available' : 'Not enabled by the current gateway'}</small></span><Plus className="size-4 text-brand-cyan" /></button>
           })}
         </div>
       ) : (
@@ -877,7 +877,7 @@ function MorePlatformsModal({ configured, onClose, onConnect }: { configured: bo
       <div className="mt-5 grid gap-2 sm:grid-cols-2">
         {allUiPlatforms.map((platform) => {
           const available = configured && isGatewayPlatform(platform)
-          return <button className="flex items-center gap-3 rounded-xl border border-border-soft bg-bg/30 p-3 text-left transition hover:border-brand-teal/30 focus-visible:outline-2 focus-visible:outline-brand-cyan disabled:cursor-not-allowed disabled:opacity-55" disabled={!available} key={platform} onClick={() => onConnect(platform)} type="button"><PlatformIcon platform={platform} /><span className="min-w-0 flex-1"><strong className="block text-sm">{labelFor(platform)}</strong><small className="mt-0.5 block text-[11px] text-text-muted">{available ? 'Available now' : 'Not enabled by current gateway'}</small></span>{available ? <Plus className="size-4 text-brand-cyan" /> : <span className="rounded-full border border-white/8 px-2 py-1 text-[9px] text-text-soft">Unavailable</span>}</button>
+          return <button className="flex items-center gap-3 rounded-xl border border-border-soft bg-white p-3 text-left transition hover:border-brand-teal/30 focus-visible:outline-2 focus-visible:outline-brand-cyan disabled:cursor-not-allowed disabled:opacity-55" disabled={!available} key={platform} onClick={() => onConnect(platform)} type="button"><PlatformIcon platform={platform} /><span className="min-w-0 flex-1"><strong className="block text-sm">{labelFor(platform)}</strong><small className="mt-0.5 block text-[11px] text-text-muted">{available ? 'Available now' : 'Not enabled by current gateway'}</small></span>{available ? <Plus className="size-4 text-brand-cyan" /> : <span className="rounded-full border border-border-soft bg-slate-50 px-2 py-1 text-[9px] text-text-soft">Unavailable</span>}</button>
         })}
       </div>
     </Modal>

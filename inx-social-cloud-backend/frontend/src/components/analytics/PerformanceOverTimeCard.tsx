@@ -140,7 +140,7 @@ export function PerformanceOverTimeCard({
       const active = item.key === effectiveMetricKey
       return <button
         aria-pressed={active}
-        className={`min-h-7 rounded-lg px-2.5 text-[9px] font-semibold transition ${active ? 'bg-brand-cyan/12 text-brand-cyan shadow-[inset_0_0_0_1px_rgba(34,211,238,.18)]' : 'text-text-muted hover:bg-white/[.04] hover:text-white'}`}
+        className={`min-h-7 rounded-lg px-2.5 text-[9px] font-semibold transition ${active ? 'bg-brand-cyan/12 text-brand-cyan shadow-[inset_0_0_0_1px_rgba(34,211,238,.18)]' : 'text-text-muted hover:bg-slate-50 hover:text-text-main'}`}
         key={item.key}
         onClick={() => setSelectedMetricKey(item.key)}
         type="button"
@@ -163,18 +163,18 @@ export function PerformanceOverTimeCard({
         <span className="hidden sm:inline">Hover for exact post-date performance</span>
       </div>
 
-      {activePoint && <div className="analytics-chart-tooltip pointer-events-none absolute top-8 z-20 w-[218px] -translate-x-1/2 rounded-xl border border-brand-cyan/20 bg-[#061923]/[.97] p-3 text-[10px] shadow-[0_18px_50px_rgba(0,0,0,.45),0_0_0_1px_rgba(45,212,191,.04)] backdrop-blur-xl" style={{ left: `${tooltipLeft}%` }}>
-        <div className="border-b border-white/[.07] pb-2">
-          <strong className="block text-[11px] text-white">{exactDate(activePoint)}</strong>
+      {activePoint && <div className="analytics-chart-tooltip pointer-events-none absolute top-8 z-20 w-[218px] -translate-x-1/2 rounded-xl border border-brand-cyan/20 bg-white/[.98] p-3 text-[10px] shadow-[0_18px_50px_rgba(0,0,0,.45),0_0_0_1px_rgba(45,212,191,.04)] backdrop-blur-xl" style={{ left: `${tooltipLeft}%` }}>
+        <div className="border-b border-border-soft pb-2">
+          <strong className="block text-[11px] text-text-main">{exactDate(activePoint)}</strong>
           <span className="mt-0.5 block text-[9px] text-text-soft">Current totals for posts published on this date</span>
         </div>
         <div className="mt-2 space-y-1.5">
-          {availableMetrics.map(item => <span className={`flex items-center justify-between gap-6 ${item.key === effectiveMetricKey ? 'text-white' : 'text-text-muted'}`} key={item.key}>
+          {availableMetrics.map(item => <span className={`flex items-center justify-between gap-6 ${item.key === effectiveMetricKey ? 'text-text-main' : 'text-text-muted'}`} key={item.key}>
             <span className="flex items-center gap-1.5">
               <i className="inline-block size-2 rounded-full shadow-[0_0_8px_currentColor]" style={{ backgroundColor: item.colour, color: item.colour }} />
               {item.label}
             </span>
-            <b className="text-white">{formatAnalyticsValue(activePoint[item.key], 'compact')}</b>
+            <b className="text-text-main">{formatAnalyticsValue(activePoint[item.key], 'compact')}</b>
           </span>)}
         </div>
       </div>}
@@ -219,7 +219,7 @@ export function PerformanceOverTimeCard({
         {hover !== null && activePoint && activeX !== null && <>
           <line className="analytics-hover-guide" stroke="rgba(45,212,191,.52)" strokeDasharray="3 4" x1={activeX} x2={activeX} y1={plot.top} y2={plot.bottom} />
           <g className="analytics-hover-point">
-            <circle cx={activeX} cy={pointY(hoverValue(selectedMetric.key), maximum)} fill="#061923" r="5.5" stroke={selectedMetric.colour} strokeWidth="2" />
+            <circle cx={activeX} cy={pointY(hoverValue(selectedMetric.key), maximum)} fill="#ffffff" r="5.5" stroke={selectedMetric.colour} strokeWidth="2" />
             <circle cx={activeX} cy={pointY(hoverValue(selectedMetric.key), maximum)} fill={selectedMetric.colour} filter={`url(#${gradientId}-glow)`} r="2.4" />
           </g>
         </>}

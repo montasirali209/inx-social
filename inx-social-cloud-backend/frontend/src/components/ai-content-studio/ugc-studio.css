@@ -47,3 +47,31 @@
 @media(max-width:1023px){.ugc-hero-stage{min-height:250px}.ugc-phone-front{right:25%;transform:rotateY(-9deg) rotateZ(4deg)}.ugc-phone-back{right:58%}}
 @media(max-width:640px){.ugc-hero-stage{min-height:230px}.ugc-phone-front{width:140px;height:228px;right:13%}.ugc-phone-back{width:120px;height:205px;right:62%}.ugc-float-chip{font-size:.48rem;padding:.4rem .55rem}.ugc-avatar-grid{max-height:520px;overflow-y:auto;padding-right:2px}}
 @media(prefers-reduced-motion:reduce){.ugc-depth-card,.ugc-avatar-card,.ugc-quality-card,.ugc-video-card,.ugc-scene-card,.ugc-phone,.ugc-float-chip,.ugc-hero-orb{animation:none!important;transition:none!important}.ugc-depth-card:hover,.ugc-avatar-card:hover,.ugc-quality-card:hover,.ugc-video-card:hover,.ugc-scene-card:hover{transform:none!important}}
+
+
+/* White UI preview — standalone UGC workspace surfaces */
+.inx-white-ui-preview .ugc-hero{
+  background:radial-gradient(circle at 82% 6%,rgba(139,92,246,.07),transparent 27rem),radial-gradient(circle at 8% 0%,rgba(20,184,166,.08),transparent 28rem),linear-gradient(145deg,#fff,#f8fafc)!important;
+}
+.inx-white-ui-preview .ugc-input{
+  border-color:rgba(15,23,42,.11)!important;
+  background:#fff!important;
+  color:#101828!important;
+}
+.inx-white-ui-preview .ugc-input:focus{background:#fff!important}
+.inx-white-ui-preview .ugc-choice,
+.inx-white-ui-preview .ugc-quality-card{
+  border-color:rgba(15,23,42,.09)!important;
+  background:#fff!important;
+  color:#667085!important;
+}
+.inx-white-ui-preview .ugc-choice:hover{color:#101828!important}
+.inx-white-ui-preview .ugc-choice-active,
+.inx-white-ui-preview .ugc-quality-active{background:#ecfdf9!important;color:#101828!important}
+.inx-white-ui-preview .ugc-quality-premium-active{background:#faf5ff!important;color:#101828!important}
+.inx-white-ui-preview .ugc-avatar-placeholder{background:radial-gradient(circle at 50% 28%,rgba(45,212,191,.12),transparent 6rem),linear-gradient(150deg,#f0fdfa,#e2e8f0)!important;color:#344054!important}
+.inx-white-ui-preview .ugc-editor-preview{
+  background:radial-gradient(circle at 50% 5%,rgba(45,212,191,.06),transparent 18rem),linear-gradient(145deg,#fff,#f8fafc)!important;
+}
+.inx-white-ui-preview .ugc-scene-card{background:#fff!important;border-color:rgba(15,23,42,.09)!important}
+

@@ -16,7 +16,7 @@ type Props = {
 }
 
 export function AnalyticsAccountSelector({ accounts, value, isLive, loading = false, isPending = false, needsRepair = false, onChange }: Props) {
-  return <section className="analytics-selector relative overflow-hidden rounded-panel border border-border-soft bg-[radial-gradient(circle_at_82%_-40%,rgba(22,196,181,.10),transparent_34%),linear-gradient(145deg,rgba(8,28,39,.92),rgba(4,18,28,.96))] px-3 py-3 shadow-[0_14px_34px_rgba(0,0,0,.18),inset_0_1px_0_rgba(255,255,255,.025)] sm:px-4">
+  return <section className="analytics-selector relative overflow-hidden rounded-panel border border-border-soft bg-[radial-gradient(circle_at_82%_-40%,rgba(22,196,181,.07),transparent_34%),linear-gradient(145deg,rgba(255,255,255,.99),rgba(247,250,252,.99))] px-3 py-3 shadow-[0_12px_30px_rgba(15,23,42,.07),inset_0_1px_0_rgba(255,255,255,.9)] sm:px-4">
     <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-20 size-44 rounded-full bg-brand-cyan/[.06] blur-3xl" />
     <div className="relative flex flex-wrap items-center gap-3">
       <span className="relative grid size-9 shrink-0 place-items-center rounded-xl border border-brand-teal/20 bg-brand-teal/10 text-brand-cyan">
@@ -37,19 +37,19 @@ export function AnalyticsAccountSelector({ accounts, value, isLive, loading = fa
       <span className="hidden text-[10px] uppercase tracking-[.16em] text-text-soft lg:block">{accounts.length} connected account{accounts.length === 1 ? '' : 's'}</span>
     </div>
 
-    <div className="scrollbar-thin relative mt-3 flex gap-2 overflow-x-auto border-t border-white/[.055] pt-3 pb-1 sm:flex-wrap sm:overflow-visible" role="radiogroup" aria-label="Choose analytics account">
+    <div className="scrollbar-thin relative mt-3 flex gap-2 overflow-x-auto border-t border-border-soft pt-3 pb-1 sm:flex-wrap sm:overflow-visible" role="radiogroup" aria-label="Choose analytics account">
       {accounts.map(account => {
         const active = value === account.analyticsKey
         return <button
           aria-checked={active}
-          className={`group inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-2.5 pr-3 text-left transition duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan ${active ? 'border-brand-cyan/55 bg-brand-cyan/12 text-white shadow-[0_0_22px_rgba(45,212,191,.12)]' : 'border-white/10 bg-white/[.025] text-text-muted hover:border-brand-cyan/25 hover:bg-white/[.04] hover:text-white'}`}
+          className={`group inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border px-2.5 pr-3 text-left transition duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan ${active ? 'border-brand-cyan/55 bg-brand-cyan/10 text-text-main shadow-[0_0_22px_rgba(45,212,191,.12)]' : 'border-border-soft bg-white text-text-muted hover:border-brand-cyan/25 hover:bg-slate-50 hover:text-text-main'}`}
           disabled={loading}
           key={account.analyticsKey}
           onClick={() => onChange(account.analyticsKey)}
           role="radio"
           type="button"
         >
-          <span className={`grid size-8 shrink-0 place-items-center rounded-full border ${active ? 'border-brand-cyan/35 bg-bg/75' : 'border-white/10 bg-bg/60'}`}>
+          <span className={`grid size-8 shrink-0 place-items-center rounded-full border ${active ? 'border-brand-cyan/35 bg-white' : 'border-border-soft bg-white'}`}>
             <SocialPlatformIcon className="size-5 rounded-full shadow-none" platform={account.platform} />
           </span>
           <span className="min-w-0">

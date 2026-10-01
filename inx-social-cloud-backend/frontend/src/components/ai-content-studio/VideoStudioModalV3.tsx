@@ -126,8 +126,8 @@ function RouteChoice({
     className={cx(
       'group relative overflow-hidden rounded-[20px] border p-3.5 text-left transition-all duration-300 hover:-translate-y-0.5 disabled:opacity-50',
       active
-        ? 'border-brand-cyan/45 bg-[linear-gradient(145deg,rgba(0,214,192,.11),rgba(4,23,34,.92))] shadow-[0_18px_60px_rgba(0,214,192,.10)]'
-        : 'border-border-soft bg-black/12 hover:border-brand-cyan/25',
+        ? 'border-brand-cyan/45 bg-[linear-gradient(145deg,rgba(240,253,250,.98),rgba(255,255,255,.99))] shadow-[0_18px_60px_rgba(0,214,192,.10)]'
+        : 'border-border-soft bg-white hover:border-brand-cyan/25',
     )}
   >
     <span className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
@@ -135,7 +135,7 @@ function RouteChoice({
       'grid size-8 place-items-center rounded-xl border',
       active ? 'border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan' : 'border-white/7 bg-white/[.03] text-text-muted',
     )}>{icon}</span>
-    <strong className="mt-2 block text-[10px] text-white">{title}</strong>
+    <strong className="mt-2 block text-[10px] text-text-main">{title}</strong>
     <span className="mt-1 block text-[8px] leading-4 text-text-muted">{text}</span>
   </button>
 }
@@ -146,7 +146,7 @@ function ReferenceRow({ asset, onRemove }: { asset: ReferenceAsset; onRemove: ()
       <ImagePlus className="size-3.5 shrink-0 text-brand-green" />
       <span className="truncate">{asset.fileName}</span>
     </span>
-    <button type="button" className="shrink-0 text-[8px] text-text-soft hover:text-white" onClick={onRemove}>Remove</button>
+    <button type="button" className="shrink-0 text-[8px] text-text-soft hover:text-text-main" onClick={onRemove}>Remove</button>
   </div>
 }
 
@@ -378,25 +378,25 @@ export function VideoStudioModal({
   if (!open || (type !== 'short_video' && initialDraft?.contentType !== 'short_video')) return null
 
   if (studioKind === 'choose') {
-    return createPortal(<div className="fixed inset-0 z-[100] grid place-items-center bg-[#01070d]/92 p-3 backdrop-blur-xl">
-      <div className="video-studio-choice-pop w-full max-w-[860px] overflow-hidden rounded-[30px] border border-brand-cyan/25 bg-[radial-gradient(circle_at_20%_0%,rgba(0,214,192,.12),transparent_42%),linear-gradient(145deg,#071c29,#020b13)] shadow-[0_44px_160px_rgba(0,0,0,.78)]">
+    return createPortal(<div className="ai-studio-popup-backdrop fixed inset-0 z-[100] grid place-items-center bg-[#01070d]/92 p-3 backdrop-blur-xl">
+      <div className="video-studio-choice-pop w-full max-w-[860px] overflow-hidden rounded-[30px] border border-brand-cyan/25 bg-[radial-gradient(circle_at_20%_0%,rgba(0,214,192,.07),transparent_42%),linear-gradient(145deg,#ffffff,#f8fafc)] shadow-[0_30px_110px_rgba(15,23,42,.22)]">
         <header className="flex items-center justify-between border-b border-border-soft px-5 py-4 sm:px-7">
           <div>
             <span className="text-[8px] font-bold uppercase tracking-[.18em] text-brand-cyan">Short video / Reel</span>
             <h2 className="mt-1 text-lg font-bold">How would you like to create it?</h2>
             <p className="mt-1 text-[10px] text-text-muted">Choose original AI motion or a complete story edited from professional stock footage.</p>
           </div>
-          <button className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted hover:text-white" onClick={onClose}><X className="size-4" /></button>
+          <button className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted hover:text-text-main" onClick={onClose}><X className="size-4" /></button>
         </header>
         <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-7">
-          <button type="button" onClick={() => setStudioKind('generative')} className="group relative min-h-[250px] overflow-hidden rounded-[25px] border border-violet-400/20 bg-[linear-gradient(145deg,rgba(139,92,246,.12),rgba(3,15,25,.82))] p-6 text-left transition duration-500 hover:-translate-y-1 hover:border-violet-300/45">
+          <button type="button" onClick={() => setStudioKind('generative')} className="group relative min-h-[250px] overflow-hidden rounded-[25px] border border-violet-400/20 bg-[linear-gradient(145deg,rgba(245,243,255,.98),rgba(255,255,255,.99))] p-6 text-left transition duration-500 hover:-translate-y-1 hover:border-violet-300/45">
             <span className="grid size-14 place-items-center rounded-[20px] border border-violet-300/25 bg-violet-400/10 text-violet-200"><Sparkles className="size-6" /></span>
             <span className="mt-8 block text-[9px] font-bold uppercase tracking-[.16em] text-violet-300">Original AI motion</span>
             <strong className="mt-2 block text-xl">AI Generated Video</strong>
             <span className="mt-2 block text-[10px] leading-5 text-text-muted">Use the live Runware catalogue with AI routing or choose the exact model yourself.</span>
             <span className="mt-6 inline-flex items-center gap-2 text-[10px] font-bold text-violet-200">Open AI Video Studio <ArrowRight className="size-4" /></span>
           </button>
-          <button type="button" onClick={() => setStudioKind('stock')} className="group relative min-h-[250px] overflow-hidden rounded-[25px] border border-brand-green/20 bg-[linear-gradient(145deg,rgba(16,185,129,.12),rgba(3,15,25,.82))] p-6 text-left transition duration-500 hover:-translate-y-1 hover:border-brand-green/45">
+          <button type="button" onClick={() => setStudioKind('stock')} className="group relative min-h-[250px] overflow-hidden rounded-[25px] border border-brand-green/20 bg-[linear-gradient(145deg,rgba(236,253,245,.98),rgba(255,255,255,.99))] p-6 text-left transition duration-500 hover:-translate-y-1 hover:border-brand-green/45">
             <span className="grid size-14 place-items-center rounded-[20px] border border-brand-green/25 bg-brand-green/10 text-brand-green"><Layers3 className="size-6" /></span>
             <span className="mt-8 block text-[9px] font-bold uppercase tracking-[.16em] text-brand-green">Professional real footage</span>
             <strong className="mt-2 block text-xl">Stock Video Creator</strong>
@@ -652,7 +652,7 @@ export function VideoStudioModal({
   ]
 
   return createPortal(<div className="ai-studio-modal-backdrop fixed inset-0 z-[100] grid place-items-center overflow-hidden bg-[#01070d]/94 p-1.5 sm:p-4">
-    <div className="ai-studio-modal-enter relative flex h-[min(940px,97vh)] w-full max-w-[1580px] flex-col overflow-hidden rounded-[26px] border border-brand-cyan/25 bg-[radial-gradient(circle_at_12%_12%,rgba(0,214,192,.07),transparent_27%),linear-gradient(145deg,#061824,#020b13)] shadow-[0_28px_90px_rgba(0,0,0,.58)] sm:rounded-[30px]">
+    <div className="ai-studio-modal-enter relative flex h-[min(940px,97vh)] w-full max-w-[1580px] flex-col overflow-hidden rounded-[26px] border border-brand-cyan/25 bg-[radial-gradient(circle_at_12%_12%,rgba(0,214,192,.05),transparent_27%),linear-gradient(145deg,#ffffff,#f8fafc)] shadow-[0_24px_90px_rgba(15,23,42,.18)] sm:rounded-[30px]">
       <VideoModelPicker
         open={modelPickerOpen}
         models={models}
@@ -672,15 +672,15 @@ export function VideoStudioModal({
           {catalogLabel && <p className="mt-1 text-[7px] text-text-soft">{catalogLabel}</p>}
         </div>
         <div className="flex items-center gap-2">
-          <button className="rounded-xl border border-border-soft px-2.5 py-2 text-[8px] font-semibold text-text-muted transition hover:border-brand-cyan/30 hover:text-white sm:px-3 sm:text-[9px]" onClick={() => setStudioKind('choose')}><ArrowLeft className="mr-1.5 inline size-3.5" />Video types</button>
+          <button className="rounded-xl border border-border-soft px-2.5 py-2 text-[8px] font-semibold text-text-muted transition hover:border-brand-cyan/30 hover:text-text-main sm:px-3 sm:text-[9px]" onClick={() => setStudioKind('choose')}><ArrowLeft className="mr-1.5 inline size-3.5" />Video types</button>
           <span className="rounded-full border border-amber-400/25 bg-amber-400/[.06] px-2.5 py-1 text-[8px] font-bold text-amber-300 sm:px-3 sm:text-[9px]">{credits === null ? 'Calculating credits…' : estimatedQuote?.promotion?.active && estimatedQuote.regularCredits && estimatedQuote.regularCredits > credits ? 'Sale · ' + credits + ' credits' : credits + ' credits'}</span>
-          <button className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:border-brand-cyan/30 hover:text-white" onClick={onClose}><X className="size-4" /></button>
+          <button className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:border-brand-cyan/30 hover:text-text-main" onClick={onClose}><X className="size-4" /></button>
         </div>
       </header>
 
       <div className="grid min-h-0 flex-1 overflow-y-auto overflow-x-hidden lg:grid-cols-[minmax(0,0.94fr)_minmax(0,1.06fr)] lg:overflow-hidden">
         <section className="min-w-0 p-3 sm:p-5 lg:min-h-0 lg:overflow-y-auto lg:border-r lg:border-border-soft">
-          <div className="rounded-[24px] border border-border-soft bg-black/12 p-4 shadow-[inset_0_1px_rgba(255,255,255,.025)]">
+          <div className="rounded-[24px] border border-border-soft bg-white p-4 shadow-[inset_0_1px_rgba(255,255,255,.025)]">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <span className="text-[8px] font-bold uppercase tracking-[.14em] text-text-soft">Creative brief</span>
@@ -738,7 +738,7 @@ export function VideoStudioModal({
             </div>
           </div>}
 
-          {selected && <div className="mt-4 rounded-[24px] border border-border-soft bg-black/10 p-4">
+          {selected && <div className="mt-4 rounded-[24px] border border-border-soft bg-slate-50 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <span className="text-[8px] font-bold uppercase tracking-[.14em] text-text-soft">Selected model</span>
@@ -795,7 +795,7 @@ export function VideoStudioModal({
             </button>}
           </div>}
 
-          {selected && generationMode === 'IMAGE_TO_VIDEO' && <div className="mt-4 rounded-[22px] border border-border-soft bg-black/10 p-4">
+          {selected && generationMode === 'IMAGE_TO_VIDEO' && <div className="mt-4 rounded-[22px] border border-border-soft bg-slate-50 p-4">
             <span className="text-[8px] font-bold uppercase tracking-[.14em] text-text-soft">Image guidance</span>
             <h3 className="mt-1 text-sm font-bold">Animate a visual starting point</h3>
             <p className="mt-2 text-[9px] leading-4 text-text-muted">Only the controls this model supports are shown.</p>
@@ -817,7 +817,7 @@ export function VideoStudioModal({
             </div>
           </div>}
 
-          {selected && generationMode === 'REFERENCE_TO_VIDEO' && <div className="mt-4 rounded-[22px] border border-border-soft bg-black/10 p-4">
+          {selected && generationMode === 'REFERENCE_TO_VIDEO' && <div className="mt-4 rounded-[22px] border border-border-soft bg-slate-50 p-4">
             <span className="text-[8px] font-bold uppercase tracking-[.14em] text-text-soft">Reference guidance</span>
             <h3 className="mt-1 text-sm font-bold">Guide the video with reference images</h3>
             <p className="mt-2 text-[9px] leading-4 text-text-muted">Use product, character, style or scene references. Up to {MAX_REFERENCE_IMAGES} images are kept in this workspace.</p>
@@ -826,7 +826,7 @@ export function VideoStudioModal({
             <input ref={referencesInput} type="file" multiple accept="image/*" className="hidden" onChange={(event) => void uploadReference(event, 'references')} />
           </div>}
 
-          <div className="mt-4 rounded-[22px] border border-brand-cyan/20 bg-[linear-gradient(145deg,rgba(0,214,192,.05),rgba(2,13,21,.35))] p-4">
+          <div className="mt-4 rounded-[22px] border border-brand-cyan/20 bg-[linear-gradient(145deg,rgba(240,253,250,.96),rgba(255,255,255,.99))] p-4">
             <div className="flex items-end justify-between gap-4">
               <div>
                 <span className="text-[8px] font-bold uppercase tracking-[.14em] text-brand-cyan">Live generation cost</span>
@@ -844,7 +844,7 @@ export function VideoStudioModal({
           {error && <div className="mt-3 rounded-2xl border border-red-400/25 bg-red-500/[.06] px-3 py-2.5 text-[9px] text-red-200">{error}</div>}
         </section>
 
-        <section className="flex min-w-0 flex-col bg-black/10 p-3 sm:p-5 lg:min-h-0">
+        <section className="flex min-w-0 flex-col bg-slate-50 p-3 sm:p-5 lg:min-h-0">
           <div className="flex min-h-[520px] min-w-0 flex-1 flex-col gap-3 2xl:flex-row lg:min-h-0">
             <div className="min-h-[420px] min-w-0 flex-1 overflow-y-auto rounded-[26px] border border-border-soft bg-[radial-gradient(circle_at_50%_25%,rgba(0,214,192,.08),transparent_43%)] p-4 lg:min-h-0">
               {!asset && !rendering && <div className="grid h-full min-h-[430px] place-items-center text-center">
@@ -852,7 +852,7 @@ export function VideoStudioModal({
                   <span className="mx-auto grid size-16 place-items-center rounded-[22px] border border-brand-cyan/25 bg-brand-cyan/[.07] text-brand-cyan shadow-[0_18px_60px_rgba(0,214,192,.08)]"><Film className="size-7" /></span>
                   <h3 className="mt-5 text-lg font-bold">Build the video in one workspace.</h3>
                   <p className="mt-2 text-[10px] leading-5 text-text-muted">Describe the idea, let AI route it or choose a model, then INXSocial shows only the controls and reference inputs that model supports.</p>
-                  {selected && <div className="mx-auto mt-4 inline-flex max-w-full flex-wrap items-center justify-center gap-2 rounded-full border border-border-soft bg-black/20 px-3 py-1.5 text-[8px] text-text-soft"><span className="size-1.5 rounded-full bg-brand-green" />{selected.name} · {modeLabel(generationMode)} · {duration}s · {resolution}</div>}
+                  {selected && <div className="mx-auto mt-4 inline-flex max-w-full flex-wrap items-center justify-center gap-2 rounded-full border border-border-soft bg-slate-100 px-3 py-1.5 text-[8px] text-text-soft"><span className="size-1.5 rounded-full bg-brand-green" />{selected.name} · {modeLabel(generationMode)} · {duration}s · {resolution}</div>}
                 </div>
               </div>}
               {rendering && <div className="grid h-full min-h-[430px] place-items-center text-center">

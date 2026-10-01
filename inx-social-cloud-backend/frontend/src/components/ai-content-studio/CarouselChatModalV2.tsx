@@ -360,7 +360,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
 
   return createPortal(
     <div className="ai-studio-modal-backdrop fixed inset-0 z-[100] grid place-items-center bg-[#01070d]/90 p-2 backdrop-blur-xl sm:p-5">
-      <div className="ai-studio-modal-enter flex h-[min(900px,95vh)] w-full max-w-[1540px] flex-col overflow-hidden rounded-[30px] border border-brand-cyan/25 bg-[radial-gradient(circle_at_12%_15%,rgba(0,214,192,.09),transparent_28%),linear-gradient(145deg,#061824,#020b13)] shadow-[0_44px_160px_rgba(0,0,0,.72)]">
+      <div className="ai-studio-modal-enter flex h-[min(900px,95vh)] w-full max-w-[1540px] flex-col overflow-hidden rounded-[30px] border border-brand-cyan/25 bg-[radial-gradient(circle_at_12%_15%,rgba(0,214,192,.06),transparent_28%),linear-gradient(145deg,#ffffff,#f8fafc)] shadow-[0_30px_110px_rgba(15,23,42,.22)]">
         <header className="flex min-h-16 items-center justify-between border-b border-border-soft px-4 sm:px-6">
           <div>
             <span className="text-[8px] font-bold uppercase tracking-[.18em] text-brand-cyan">Conversational Creator</span>
@@ -368,7 +368,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
           </div>
           <div className="flex items-center gap-2">
             <span className="rounded-full border border-amber-400/25 bg-amber-400/[.06] px-3 py-1 text-[9px] font-bold text-amber-300">{cost} credits · {slides} slides</span>
-            <button disabled={continuing} className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:-translate-y-0.5 hover:border-brand-cyan/30 hover:text-white disabled:cursor-wait disabled:opacity-35" onClick={onClose} type="button"><X className="size-4" /></button>
+            <button disabled={continuing} className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:-translate-y-0.5 hover:border-brand-cyan/30 hover:text-text-main disabled:cursor-wait disabled:opacity-35" onClick={onClose} type="button"><X className="size-4" /></button>
           </div>
         </header>
 
@@ -383,7 +383,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
               {messages.map((message, index) => (
                 <div key={`${index}-${message.content.slice(0, 18)}`} className={`flex gap-2 ${message.role === 'assistant' ? '' : 'justify-end'}`}>
                   {message.role === 'assistant' && <span className="mt-1 grid size-7 shrink-0 place-items-center rounded-xl border border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan"><Bot className="size-3.5" /></span>}
-                  <div className={`max-w-[88%] rounded-2xl border px-3.5 py-3 text-[10px] leading-5 shadow-[0_10px_30px_rgba(0,0,0,.14)] ${message.role === 'assistant' ? 'border-border-soft bg-white/[.035]' : 'border-brand-teal/30 bg-brand-teal/12 text-white'}`}>
+                  <div className={`max-w-[88%] rounded-2xl border px-3.5 py-3 text-[10px] leading-5 shadow-[0_10px_30px_rgba(0,0,0,.14)] ${message.role === 'assistant' ? 'border-border-soft bg-white' : 'border-brand-teal/30 bg-brand-teal/10 text-text-main'}`}>
                     <p className="whitespace-pre-wrap">{message.content}</p>
                   </div>
                 </div>
@@ -400,7 +400,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
               {thinking && <div className="ml-9 flex items-center gap-2 text-[10px] text-text-muted"><LoaderCircle className="size-3.5 animate-spin text-brand-cyan" />Analysing your requested changes and references…</div>}
 
               {ready && renderNeeded && (
-                <div className="ml-9 rounded-[24px] border border-brand-green/30 bg-[linear-gradient(135deg,rgba(5,62,58,.58),rgba(4,25,35,.86))] p-5 shadow-[0_18px_60px_rgba(0,214,192,.08)]">
+                <div className="ml-9 rounded-[24px] border border-brand-green/30 bg-[linear-gradient(135deg,rgba(240,253,250,.98),rgba(255,255,255,.99))] p-5 shadow-[0_18px_60px_rgba(0,214,192,.08)]">
                   <span className="text-[8px] font-bold uppercase tracking-[.17em] text-brand-green">{asset ? 'Refinement ready' : 'Carousel ready'}</span>
                   <h4 className="mt-1 text-lg font-bold">{asset ? 'Review and apply your changes' : `Generate your ${slides}-slide carousel`}</h4>
                   <p className="mt-2 text-[10px] leading-5 text-text-muted">
@@ -420,7 +420,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
 
             <div className="space-y-2 border-t border-border-soft p-3 sm:p-4">
               {asset && (
-                <div className={`rounded-2xl border px-3 py-2.5 transition ${refineMode ? 'border-brand-cyan/45 bg-brand-cyan/[.06]' : 'border-border-soft bg-black/10'}`}>
+                <div className={`rounded-2xl border px-3 py-2.5 transition ${refineMode ? 'border-brand-cyan/45 bg-brand-cyan/[.06]' : 'border-border-soft bg-slate-50'}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <strong className="text-[10px] text-text-main">Refine generated carousel</strong>
@@ -436,7 +436,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
                 </div>
               )}
 
-              <div className={`overflow-hidden rounded-2xl border bg-black/15 transition ${refineMode ? 'border-brand-cyan/55 shadow-[0_0_0_1px_rgba(0,214,192,.08)]' : 'border-brand-cyan/25'}`}>
+              <div className={`overflow-hidden rounded-2xl border bg-white transition ${refineMode ? 'border-brand-cyan/55 shadow-[0_0_0_1px_rgba(0,214,192,.08)]' : 'border-brand-cyan/25'}`}>
                 {refineMode && asset && <div className="border-b border-brand-cyan/15 bg-brand-cyan/[.035] px-3.5 py-2 text-[9px] text-brand-cyan">Refinement mode is active. Describe the change, attach any references, then press Send. AI will analyse it before the regenerate button becomes available.</div>}
                 {pendingReferences.length > 0 && (
                   <div className="flex flex-wrap gap-2 border-b border-border-soft px-3 py-2.5">
@@ -445,7 +445,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
                         {reference.convertedToPreview ? <FileText className="size-3.5 shrink-0 text-brand-cyan" /> : <ImagePlus className="size-3.5 shrink-0 text-brand-cyan" />}
                         <span className="max-w-44 truncate">{reference.fileName}</span>
                         {reference.byteSize ? <span className="text-text-soft">{prettySize(reference.byteSize)}</span> : null}
-                        <button aria-label={`Remove ${reference.fileName}`} className="rounded-md p-0.5 text-text-soft hover:bg-white/5 hover:text-white" onClick={() => setPendingReferences((current) => current.filter((item) => item.id !== reference.id))} type="button"><X className="size-3" /></button>
+                        <button aria-label={`Remove ${reference.fileName}`} className="rounded-md p-0.5 text-text-soft hover:bg-white/5 hover:text-text-main" onClick={() => setPendingReferences((current) => current.filter((item) => item.id !== reference.id))} type="button"><X className="size-3" /></button>
                       </span>
                     ))}
                   </div>
@@ -471,7 +471,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
                 </div>
               </div>
 
-              <details className="rounded-2xl border border-border-soft bg-black/10">
+              <details className="rounded-2xl border border-border-soft bg-slate-50">
                 <summary className="cursor-pointer px-3 py-2.5 text-[9px] text-text-muted">Optional controls · polished manual overrides</summary>
                 <div className="grid gap-3 border-t border-border-soft p-3 sm:grid-cols-3">
                   <StudioSelect label="Slides" value={slides} options={slideOptions} onChange={setSlides} accent="cyan" />
@@ -482,7 +482,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
             </div>
           </section>
 
-          <section className="flex min-h-0 flex-col bg-black/10 p-4 sm:p-5">
+          <section className="flex min-h-0 flex-col bg-slate-50/70 p-4 sm:p-5">
             <div className="min-h-0 flex-1 overflow-y-auto rounded-[24px] border border-border-soft bg-[radial-gradient(circle_at_50%_30%,rgba(0,214,192,.08),transparent_45%)] p-4">
               {!asset && !generating && (
                 <div className="grid h-full min-h-[420px] place-items-center text-center">
@@ -498,7 +498,7 @@ export function CarouselChatModal({ open, type, access, initialDraft, onClose, o
 
               {!generating && asset && selectedSlide && (
                 <div>
-                  <div className="overflow-hidden rounded-2xl border border-border-soft bg-black/30"><img src={selectedSlide.url} alt={`Carousel slide ${activeSlide + 1}`} className="mx-auto max-h-[560px] w-full object-contain" /></div>
+                  <div className="overflow-hidden rounded-2xl border border-border-soft bg-slate-900"><img src={selectedSlide.url} alt={`Carousel slide ${activeSlide + 1}`} className="mx-auto max-h-[560px] w-full object-contain" /></div>
                   <div className="mt-3 flex items-center justify-between">
                     <Button size="sm" disabled={activeSlide <= 0} onClick={() => setActiveSlide((value) => Math.max(0, value - 1))}><ArrowLeft className="size-3.5" />Previous</Button>
                     <span className="text-[9px] text-text-muted">Slide {activeSlide + 1} of {slideAssets.length}</span>

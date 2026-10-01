@@ -1,8 +1,7 @@
 import {
-  ArrowRight, Box, Clapperboard, Globe2, PackageOpen, Paperclip, Play, Sparkles, UsersRound,
+  ArrowRight, Clapperboard, Paperclip, Sparkles, UserRound, WandSparkles,
 } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
-import { fetchUGCAvatarImage } from '../../lib/ugc-studio-api'
+import { useState } from 'react'
 import type { CreateUGCCampaignInput, UGCAvatar } from '../../types/ugc-studio'
 
 function asWebsite(value: string) {
@@ -59,53 +58,74 @@ function draftFromPrompt(value: string): Partial<CreateUGCCampaignInput> {
   }
 }
 
-function CreatorVisual({ avatar }: { avatar?: UGCAvatar | null }) {
-  const [url, setUrl] = useState<string | null>(null)
-  useEffect(() => {
-    let active = true
-    let created: string | null = null
-    if (!avatar?.imageUrl) return undefined
-    void fetchUGCAvatarImage(avatar).then((value) => {
-      if (!value) return
-      if (!active) { URL.revokeObjectURL(value); return }
-      created = value
-      setUrl(value)
-    })
-    return () => { active = false; if (created) URL.revokeObjectURL(created) }
-  }, [avatar])
+function UGCMotionGraphic() {
+  return <div aria-hidden="true" className="ugc-motion-graphic">
+    <div
+      className="ugc-motion-ambient"
+    />
 
-  return url
-    ? <img alt="" className="ugc-agent-real-media" src={url} />
-    : <div className="ugc-agent-real-fallback"><UsersRound className="size-7 text-brand-cyan" /></div>
-}
+    <div className="ugc-motion-topline">
+      <span><WandSparkles className="size-3.5" /> UGC FLOW</span>
+      <span className="ugc-motion-live"><i /> LIVE</span>
+    </div>
 
-function OfferVisual({ src, fallbackVideo }: { src?: string | null; fallbackVideo?: string | null }) {
-  const [failed, setFailed] = useState(false)
-  if (src && !failed) return <img alt="" className="ugc-agent-real-media" onError={() => setFailed(true)} src={src} />
-  return <VideoStill fallback={<Box className="size-7" />} src={fallbackVideo} />
-}
+    <div className="ugc-motion-stage">
+      <div
+        className="ugc-motion-orbit ugc-motion-orbit-outer"
+      >
+        <span className="ugc-motion-orbit-dot" />
+      </div>
+      <div
+        className="ugc-motion-orbit ugc-motion-orbit-inner"
+      >
+        <span className="ugc-motion-orbit-dot secondary" />
+      </div>
 
-function VideoStill({ src, fallback }: { src?: string | null; fallback: ReactNode }) {
-  if (!src) return <div className="ugc-agent-real-fallback">{fallback}</div>
-  return <video
-    aria-hidden="true"
-    className="ugc-agent-real-media"
-    muted
-    onLoadedMetadata={(event) => {
-      const video = event.currentTarget
-      if (video.duration > 0.08) video.currentTime = 0.05
-    }}
-    playsInline
-    preload="metadata"
-    src={src}
-  />
+      <div
+        className="ugc-motion-core"
+      >
+        <span
+          className="ugc-motion-core-icon"
+        >
+          <Sparkles className="size-6" />
+        </span>
+        <strong>AI UGC</strong>
+        <small>Idea to creator-ready video</small>
+      </div>
+
+      <div className="ugc-motion-route">
+        <span
+          className="ugc-motion-endpoint creator"
+        >
+          <UserRound className="size-4" />
+        </span>
+        <div className="ugc-motion-line">
+          <i
+          />
+        </div>
+        <span
+          className="ugc-motion-endpoint video"
+        >
+          <Clapperboard className="size-4" />
+        </span>
+      </div>
+
+      <span
+        className="ugc-motion-particle particle-a"
+      />
+      <span
+        className="ugc-motion-particle particle-b"
+      />
+    </div>
+
+    <div className="ugc-motion-footer">
+      <span>Creator</span><i /><span>AI direction</span><i /><span>Video</span>
+    </div>
+  </div>
 }
 
 export function UGCAgentHero({
   onStart,
-  creator,
-  offerImageUrl,
-  ugcVideoUrl,
 }: {
   onStart: (draft?: Partial<CreateUGCCampaignInput>) => void
   creator?: UGCAvatar | null
@@ -168,19 +188,6 @@ export function UGCAgentHero({
       <button className="ugc-agent-manual" onClick={() => onStart()} type="button">Customize everything manually</button>
     </div>
 
-    <div aria-hidden="true" className="ugc-agent-visual-flow">
-      <div className="ugc-agent-visual-card creator">
-        <div className="ugc-agent-visual-image"><CreatorVisual avatar={creator} key={creator?.id || 'creator-fallback'} /></div>
-        <UsersRound className="size-4" /><span>Creator</span>
-      </div>
-      <div className="ugc-agent-visual-card product">
-        <div className="ugc-agent-product-orb"><OfferVisual fallbackVideo={ugcVideoUrl} key={offerImageUrl || 'offer-fallback'} src={offerImageUrl} /></div>
-        <Globe2 className="size-4" /><span>Offer</span>
-      </div>
-      <div className="ugc-agent-visual-card output">
-        <div className="ugc-agent-output-frame"><VideoStill fallback={<><Clapperboard className="size-8 text-brand-cyan" /><span><Play className="size-5 fill-current" /></span></>} src={ugcVideoUrl} /></div>
-        <PackageOpen className="size-4" /><span>UGC Ad</span>
-      </div>
-    </div>
+    <UGCMotionGraphic />
   </section>
 }

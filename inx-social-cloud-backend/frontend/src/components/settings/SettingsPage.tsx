@@ -147,13 +147,13 @@ export function SettingsPage() {
         <section className="grid min-h-64 place-items-center rounded-2xl border border-dashed border-border-soft bg-panel/35 p-8 text-center"><div><strong className="text-base">No settings found</strong><p className="mt-2 text-sm text-text-muted">Try a different search term.</p></div></section>
       )}
 
-      <section className="flex flex-col gap-3 rounded-2xl border border-border-soft bg-[linear-gradient(135deg,rgba(15,36,52,.72),rgba(7,24,38,.82))] p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
+      <section className="flex flex-col gap-3 rounded-2xl border border-border-soft bg-[linear-gradient(135deg,rgba(255,255,255,.99),rgba(244,252,251,.96))] p-4 text-sm sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl border border-brand-teal/20 bg-brand-teal/8 text-brand-teal"><LockKeyhole aria-hidden="true" className="size-5" /></span><div><strong>Your settings are private and only visible to you.</strong><p className="mt-1 text-xs text-text-muted">Changes are applied only after you choose Save changes. Connected account credentials are never shown here.</p></div></div>
         <div className="flex flex-wrap items-center gap-3 text-xs"><button className="text-brand-cyan hover:underline focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={openCookiePreferences} type="button">Cookie preferences</button><a className="text-brand-cyan hover:underline focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/privacy.html">Privacy policy</a><a className="text-brand-cyan hover:underline focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/data-deletion.html">Data deletion</a></div>
       </section>
 
       <span className="sr-only" aria-live="polite">{sync.latestSync ? `Connections last synced ${new Date(sync.latestSync).toLocaleString()}.` : ''}</span>
-      {notice && <div aria-live="polite" className={`fixed bottom-3 left-3 right-3 z-50 flex max-w-none items-center gap-3 rounded-xl border px-4 py-3 text-sm shadow-2xl backdrop-blur-xl sm:bottom-5 sm:left-auto sm:right-5 sm:max-w-sm ${notice.tone === 'success' ? 'border-brand-teal/35 bg-[#08251f]/95 text-white' : 'border-brand-red/35 bg-[#30131b]/95 text-white'}`}><span className={`grid size-6 place-items-center rounded-full ${notice.tone === 'success' ? 'bg-brand-teal' : 'bg-brand-red'}`}><Check aria-hidden="true" className="size-4" /></span>{notice.message}</div>}
+      {notice && <div aria-live="polite" className={`fixed bottom-3 left-3 right-3 z-50 flex max-w-none items-center gap-3 rounded-xl border px-4 py-3 text-sm shadow-2xl backdrop-blur-xl sm:bottom-5 sm:left-auto sm:right-5 sm:max-w-sm ${notice.tone === 'success' ? 'border-brand-teal/35 bg-white/95 text-text-main' : 'border-brand-red/35 bg-white/95 text-text-main'}`}><span className={`grid size-6 place-items-center rounded-full ${notice.tone === 'success' ? 'bg-brand-teal' : 'bg-brand-red'}`}><Check aria-hidden="true" className="size-4" /></span>{notice.message}</div>}
     </div>
   )
 }

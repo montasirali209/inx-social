@@ -316,22 +316,22 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
     const expanded = expandedPosts.has(post.id)
     const mediaUrl = post.mediaAsset?.thumbnailUrl || post.mediaAsset?.url
 
-    return <article className="group min-w-0 overflow-hidden rounded-[20px] border border-border-soft bg-[linear-gradient(145deg,rgba(14,37,52,.78),rgba(5,20,31,.9))] transition duration-300 hover:-translate-y-0.5 hover:border-white/20" key={post.id}>
+    return <article className="group min-w-0 overflow-hidden rounded-[20px] border border-border-soft bg-[linear-gradient(145deg,rgba(255,255,255,.99),rgba(248,250,252,.98))] transition duration-300 hover:-translate-y-0.5 hover:border-white/20" key={post.id}>
       <div className="flex items-center justify-between gap-3 border-b border-border-soft px-4 py-3">
         <div className="flex min-w-0 items-center gap-2"><span className="text-sm font-bold text-brand-cyan">{String(post.sequence).padStart(2, '0')}</span><span className={`inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[7px] font-bold uppercase tracking-[.08em] ${post.contentType === 'IMAGE' ? 'border-brand-purple/25 bg-brand-purple/[.06] text-[#c4b5fd]' : 'border-brand-cyan/20 bg-brand-cyan/[.05] text-brand-cyan'}`}>{post.contentType === 'IMAGE' ? <ImageIcon className="size-2.5" /> : <FileText className="size-2.5" />}{post.contentType === 'IMAGE' ? 'Image post' : 'Text post'}</span><span className="truncate text-[8px] text-text-soft">{post.pillar}</span></div>
         {post.mediaAssetId && <span className="rounded-full border border-brand-green/20 bg-brand-green/[.06] px-2 py-1 text-[7px] text-brand-green">Visual ready</span>}
       </div>
 
       {editing ? <div className="space-y-3 p-4">
-        <input className="min-h-10 w-full rounded-xl border border-border-soft bg-black/15 px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, hook: event.target.value }))} placeholder="Hook" value={String(editDraft.hook || '')} />
-        <textarea className="min-h-28 w-full rounded-xl border border-border-soft bg-black/15 px-3 py-2 text-xs leading-5 outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, caption: event.target.value }))} placeholder="Post body" value={String(editDraft.caption || '')} />
-        <input className="min-h-10 w-full rounded-xl border border-border-soft bg-black/15 px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, cta: event.target.value }))} placeholder="CTA (optional)" value={String(editDraft.cta || '')} />
-        <input className="min-h-10 w-full rounded-xl border border-border-soft bg-black/15 px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, hashtags: event.target.value.split(/[\s,]+/).map((tag) => tag.replace(/^#/, '')).filter(Boolean) }))} placeholder="Hashtags — AI keeps these platform-appropriate" value={(Array.isArray(editDraft.hashtags) ? editDraft.hashtags : []).map((tag) => `#${tag}`).join(' ')} />
-        {post.contentType === 'IMAGE' && <textarea className="min-h-24 w-full rounded-xl border border-brand-purple/20 bg-black/15 px-3 py-2 text-xs leading-5 outline-none focus:border-brand-purple/40" onChange={(event) => setEditDraft((current) => ({ ...current, imageBrief: event.target.value }))} placeholder="Image creative direction" value={String(editDraft.imageBrief || '')} />}
+        <input className="min-h-10 w-full rounded-xl border border-border-soft bg-white px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, hook: event.target.value }))} placeholder="Hook" value={String(editDraft.hook || '')} />
+        <textarea className="min-h-28 w-full rounded-xl border border-border-soft bg-white px-3 py-2 text-xs leading-5 outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, caption: event.target.value }))} placeholder="Post body" value={String(editDraft.caption || '')} />
+        <input className="min-h-10 w-full rounded-xl border border-border-soft bg-white px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, cta: event.target.value }))} placeholder="CTA (optional)" value={String(editDraft.cta || '')} />
+        <input className="min-h-10 w-full rounded-xl border border-border-soft bg-white px-3 text-xs outline-none focus:border-brand-cyan/40" onChange={(event) => setEditDraft((current) => ({ ...current, hashtags: event.target.value.split(/[\s,]+/).map((tag) => tag.replace(/^#/, '')).filter(Boolean) }))} placeholder="Hashtags — AI keeps these platform-appropriate" value={(Array.isArray(editDraft.hashtags) ? editDraft.hashtags : []).map((tag) => `#${tag}`).join(' ')} />
+        {post.contentType === 'IMAGE' && <textarea className="min-h-24 w-full rounded-xl border border-brand-purple/20 bg-white px-3 py-2 text-xs leading-5 outline-none focus:border-brand-purple/40" onChange={(event) => setEditDraft((current) => ({ ...current, imageBrief: event.target.value }))} placeholder="Image creative direction" value={String(editDraft.imageBrief || '')} />}
         <div className="flex gap-2"><Button disabled={busy} onClick={() => void saveEdit(post)} size="sm" variant="primary">{busy ? <LoaderCircle className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}Save</Button><Button onClick={() => { setEditingPostId(null); setEditDraft({}) }} size="sm">Cancel</Button></div>
       </div> : <div className="grid min-w-0 sm:grid-cols-[1fr_auto]">
         <div className="min-w-0 p-4">
-          {post.hook && <p className="text-[11px] font-semibold leading-5 text-white/90">{post.hook}</p>}
+          {post.hook && <p className="text-[11px] font-semibold leading-5 text-text-main">{post.hook}</p>}
           <p className={`mt-2 whitespace-pre-wrap text-[10px] leading-5 text-text-muted ${expanded ? '' : 'line-clamp-3'}`}>{postBodyPreview(post)}</p>
           {postBodyPreview(post).length > 220 && <button className="mt-2 inline-flex items-center gap-1 text-[8px] font-semibold text-brand-cyan" onClick={() => togglePost(post.id)} type="button">{expanded ? <><ChevronUp className="size-3" />Show less</> : <><ChevronDown className="size-3" />Expand post</>}</button>}
           {post.contentType === 'IMAGE' && expanded && <div className="mt-3 rounded-xl border border-brand-purple/15 bg-brand-purple/[.035] p-3"><strong className="text-[8px] uppercase tracking-[.08em] text-[#c4b5fd]">Visual direction</strong><p className="mt-1 text-[9px] leading-4 text-text-muted">{post.imageBrief || 'AI will create a visual direction when this post is regenerated.'}</p></div>}
@@ -379,7 +379,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
         <div aria-hidden="true" className="ai-campaign-glow-drift pointer-events-none absolute -left-32 top-12 size-80 rounded-full bg-brand-cyan/[.08] blur-[90px]" />
         <div aria-hidden="true" className="ai-campaign-glow-drift pointer-events-none absolute right-0 top-64 size-72 rounded-full bg-brand-purple/[.07] blur-[100px] [animation-delay:-2.8s]" />
 
-        <header className="sticky top-0 z-50 flex items-start justify-between gap-3 border-b border-brand-cyan/15 bg-[radial-gradient(circle_at_0%_0%,rgba(45,212,191,.15),transparent_34%),linear-gradient(135deg,rgba(10,32,45,.985),rgba(5,18,29,.985))] p-4 shadow-[0_14px_34px_rgba(0,0,0,.16)] backdrop-blur-xl sm:p-6">
+        <header className="sticky top-0 z-50 flex items-start justify-between gap-3 border-b border-brand-cyan/15 bg-[radial-gradient(circle_at_0%_0%,rgba(45,212,191,.08),transparent_34%),linear-gradient(135deg,rgba(255,255,255,.99),rgba(248,250,252,.99))] p-4 shadow-[0_14px_34px_rgba(0,0,0,.16)] backdrop-blur-xl sm:p-6">
           <div className="flex min-w-0 items-start gap-3">
             <span className="ai-campaign-soft-float grid size-11 shrink-0 place-items-center rounded-2xl border border-brand-cyan/30 bg-brand-cyan/10 text-brand-cyan shadow-[0_10px_28px_rgba(45,212,191,.12)]"><Megaphone className="size-5" /></span>
             <div className="min-w-0">
@@ -388,7 +388,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
               <p className="mt-1 max-w-3xl text-[11px] leading-5 text-text-muted">Describe what you want to achieve, add your website and choose the content mix. INXSocial handles strategy, hooks, platform fit, brevity and campaign sequencing.</p>
             </div>
           </div>
-          <button aria-label="Close AI Post Campaign" className="grid size-9 shrink-0 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:-translate-y-0.5 hover:border-brand-cyan/30 hover:text-white" onClick={onClose} type="button"><X className="size-4" /></button>
+          <button aria-label="Close AI Post Campaign" className="grid size-9 shrink-0 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:-translate-y-0.5 hover:border-brand-cyan/30 hover:text-text-main" onClick={onClose} type="button"><X className="size-4" /></button>
         </header>
 
         <div className="relative grid min-w-0 max-w-full overflow-x-hidden lg:grid-cols-[minmax(0,1fr)_330px]">
@@ -397,7 +397,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
               <label className="block">
                 <span className="text-[10px] font-semibold uppercase tracking-[.1em] text-text-soft">What should this campaign achieve?</span>
                 <textarea
-                  className="mt-2 min-h-28 w-full rounded-[20px] border border-border-soft bg-black/15 px-4 py-3 text-sm leading-6 outline-none transition focus:border-brand-cyan/45 focus:shadow-[0_0_0_3px_rgba(45,212,191,.06)]"
+                  className="mt-2 min-h-28 w-full rounded-[20px] border border-border-soft bg-white px-4 py-3 text-sm leading-6 outline-none transition focus:border-brand-cyan/45 focus:shadow-[0_0_0_3px_rgba(45,212,191,.06)]"
                   maxLength={1600}
                   onChange={(event) => setForm((current) => ({ ...current, goal: event.target.value }))}
                   placeholder="Example: Introduce our product to creators, show how it solves daily social-media friction, keep every post hook-driven and gradually move people toward trying the product."
@@ -405,7 +405,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                 />
               </label>
 
-              <div className="ai-campaign-3d-card rounded-[22px] border border-border-soft bg-[linear-gradient(145deg,rgba(8,31,44,.78),rgba(4,17,28,.78))] p-4">
+              <div className="ai-campaign-3d-card rounded-[22px] border border-border-soft bg-[linear-gradient(145deg,rgba(255,255,255,.99),rgba(248,250,252,.98))] p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <span className="text-[10px] font-semibold uppercase tracking-[.1em] text-text-soft">Social platforms</span>
@@ -418,7 +418,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                     const active = form.platforms.includes(platform.value)
                     return <button
                       aria-label={`${active ? 'Remove' : 'Add'} ${platform.label}`}
-                      className={`group relative grid size-12 shrink-0 place-items-center rounded-2xl border transition duration-300 hover:-translate-y-1 hover:scale-110 ${active ? 'border-brand-cyan/50 bg-brand-cyan/10 shadow-[0_12px_28px_rgba(45,212,191,.12)]' : 'border-border-soft bg-black/10 hover:border-white/25'}`}
+                      className={`group relative grid size-12 shrink-0 place-items-center rounded-2xl border transition duration-300 hover:-translate-y-1 hover:scale-110 ${active ? 'border-brand-cyan/50 bg-brand-cyan/10 shadow-[0_12px_28px_rgba(45,212,191,.12)]' : 'border-border-soft bg-white hover:border-white/25'}`}
                       key={platform.value}
                       onClick={() => togglePlatform(platform.value)}
                       title={platform.label}
@@ -434,7 +434,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
               <label className="block">
                 <span className="text-[10px] font-semibold uppercase tracking-[.1em] text-text-soft">Business / product website <span className="normal-case tracking-normal text-text-soft">(optional)</span></span>
                 <input
-                  className="mt-2 min-h-12 w-full rounded-2xl border border-border-soft bg-black/15 px-4 text-sm outline-none transition focus:border-brand-cyan/45"
+                  className="mt-2 min-h-12 w-full rounded-2xl border border-border-soft bg-white px-4 text-sm outline-none transition focus:border-brand-cyan/45"
                   onBlur={(event) => setForm((current) => ({ ...current, businessUrl: normaliseWebsite(event.target.value) }))}
                   onChange={(event) => setForm((current) => ({ ...current, businessUrl: event.target.value }))}
                   placeholder="yourbusiness.com"
@@ -454,7 +454,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                     const active = form.contentMode === option.mode
                     const Icon = option.icon
                     return <button
-                      className={`ai-campaign-3d-card group relative overflow-hidden rounded-[22px] border p-4 text-left transition duration-300 hover:-translate-y-1 ${active ? 'border-brand-cyan/45 bg-[linear-gradient(145deg,rgba(45,212,191,.12),rgba(17,24,39,.6))] shadow-[0_18px_42px_rgba(0,0,0,.25)]' : 'border-border-soft bg-black/10 hover:border-white/20'}`}
+                      className={`ai-campaign-3d-card group relative overflow-hidden rounded-[22px] border p-4 text-left transition duration-300 hover:-translate-y-1 ${active ? 'border-brand-cyan/45 bg-[linear-gradient(145deg,rgba(236,253,245,.98),rgba(255,255,255,.99))] shadow-[0_18px_42px_rgba(0,0,0,.25)]' : 'border-border-soft bg-white hover:border-white/20'}`}
                       key={option.mode}
                       onClick={() => chooseMode(option.mode)}
                       type="button"
@@ -470,14 +470,14 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
               </div>
 
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
-                <div className="ai-campaign-3d-card rounded-[22px] border border-border-soft bg-black/10 p-4">
+                <div className="ai-campaign-3d-card rounded-[22px] border border-border-soft bg-white p-4">
                   <span className="text-[10px] font-semibold uppercase tracking-[.1em] text-text-soft">Number of posts</span>
                   <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {POST_COUNTS.map((count) => <button className={`rounded-xl border px-2 py-3 text-xs font-semibold transition hover:-translate-y-0.5 ${form.postCount === count ? 'border-brand-cyan/45 bg-brand-cyan/10 text-brand-cyan' : 'border-border-soft text-text-muted hover:text-white'}`} key={count} onClick={() => choosePostCount(count)} type="button">{count}</button>)}
+                    {POST_COUNTS.map((count) => <button className={`rounded-xl border px-2 py-3 text-xs font-semibold transition hover:-translate-y-0.5 ${form.postCount === count ? 'border-brand-cyan/45 bg-brand-cyan/10 text-brand-cyan' : 'border-border-soft text-text-muted hover:text-text-main'}`} key={count} onClick={() => choosePostCount(count)} type="button">{count}</button>)}
                   </div>
                 </div>
 
-                <div className="ai-campaign-3d-card rounded-[22px] border border-brand-cyan/15 bg-[radial-gradient(circle_at_90%_0%,rgba(45,212,191,.10),transparent_14rem),linear-gradient(145deg,rgba(10,30,43,.82),rgba(5,18,29,.82))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,.025)]">
+                <div className="ai-campaign-3d-card rounded-[22px] border border-brand-cyan/15 bg-[radial-gradient(circle_at_90%_0%,rgba(45,212,191,.08),transparent_14rem),linear-gradient(145deg,rgba(255,255,255,.99),rgba(240,253,250,.97))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,.025)]">
                   <div className="flex items-center justify-between gap-4">
                     <div><span className="text-[11px] font-bold uppercase tracking-[.1em] text-text-soft">Content mix</span><p className="mt-1.5 text-[11px] leading-5 text-text-muted">{form.contentMode === 'MIXED' ? 'Choose how much of the campaign should be visual.' : 'The split follows your selected campaign type.'}</p></div>
                     <div className="text-right"><strong className="block text-lg text-brand-cyan">{imageCount} image</strong><small className="text-[11px] font-medium text-text-muted">{textCount} text</small></div>
@@ -495,7 +495,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                     />
                     <div className="mt-2 flex justify-between text-[10px] font-medium text-text-soft"><span>More text</span><span>{imageCount} image + {textCount} text</span><span>More visual</span></div>
                   </div>}
-                  {imageCount > 0 && <p className="mt-3 text-[10px] leading-5 text-text-soft">Image posts are generated <strong className="text-white/80">automatically with the campaign</strong>. At 5 credits per visual, this campaign uses <strong className="text-brand-cyan">{imageCount * 5} AI credits</strong> for its initial images. Regenerating an image later uses another 5 credits.</p>}
+                  {imageCount > 0 && <p className="mt-3 text-[10px] leading-5 text-text-soft">Image posts are generated <strong className="text-text-main">automatically with the campaign</strong>. At 5 credits per visual, this campaign uses <strong className="text-brand-cyan">{imageCount * 5} AI credits</strong> for its initial images. Regenerating an image later uses another 5 credits.</p>}
                 </div>
               </div>
 
@@ -514,11 +514,11 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
             </div>
           </div>
 
-          <aside className="min-w-0 border-t border-border-soft bg-black/[.08] p-4 sm:p-5 lg:border-l lg:border-t-0">
+          <aside className="min-w-0 border-t border-border-soft bg-slate-50/80 p-4 sm:p-5 lg:border-l lg:border-t-0">
             <div className="sticky top-4">
               <div className="flex items-center justify-between"><div><span className="text-[9px] font-bold uppercase tracking-[.14em] text-text-soft">Campaigns</span><h3 className="mt-1 text-sm font-semibold">Preview</h3></div><CalendarRange className="size-4 text-brand-cyan" /></div>
               <div className="mt-4 space-y-3">
-                {creating && <article className="overflow-hidden rounded-2xl border border-brand-cyan/35 bg-[radial-gradient(circle_at_90%_0%,rgba(45,212,191,.14),transparent_12rem),linear-gradient(145deg,rgba(8,33,45,.92),rgba(5,19,30,.95))] p-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
+                {creating && <article className="overflow-hidden rounded-2xl border border-brand-cyan/35 bg-[radial-gradient(circle_at_90%_0%,rgba(45,212,191,.09),transparent_12rem),linear-gradient(145deg,rgba(240,253,250,.98),rgba(255,255,255,.99))] p-4 shadow-[0_18px_46px_rgba(0,0,0,.24)]">
                   <div className="flex items-start gap-3">
                     <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan"><LoaderCircle className="size-4 animate-spin" /></span>
                     <div className="min-w-0 flex-1"><span className="text-[8px] font-bold uppercase tracking-[.13em] text-brand-cyan">Generating now</span><strong className="mt-1 block text-[11px]">Building your new AI campaign</strong><p className="mt-1 text-[9px] leading-4 text-text-muted">You can open another saved campaign while this continues.</p></div>
@@ -527,7 +527,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                     {generationMessages.map((message, index) => {
                       const complete = index < generationStep
                       const active = index === generationStep
-                      return <div className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-[8px] transition ${active ? 'bg-brand-cyan/[.07] text-white' : complete ? 'text-brand-green' : 'text-text-soft'}`} key={message}>
+                      return <div className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-[8px] transition ${active ? 'bg-brand-cyan/[.07] text-text-main' : complete ? 'text-brand-green' : 'text-text-soft'}`} key={message}>
                         <span className={`grid size-4 shrink-0 place-items-center rounded-full border ${active ? 'border-brand-cyan/40 text-brand-cyan' : complete ? 'border-brand-green/30 text-brand-green' : 'border-border-soft'}`}>{complete ? <Check className="size-2.5" /> : active ? <LoaderCircle className="size-2.5 animate-spin" /> : <span className="size-1 rounded-full bg-current opacity-50" />}</span>
                         <span>{message}</span>
                       </div>
@@ -538,7 +538,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                   const selected = selectedCampaign?.id === item.id
                   const firstVisual = item.posts.find((post) => post.mediaAsset?.thumbnailUrl || post.mediaAsset?.url)?.mediaAsset
                   const visualUrl = firstVisual?.thumbnailUrl || firstVisual?.url
-                  return <article className={`ai-campaign-3d-card group relative overflow-hidden rounded-2xl border transition duration-300 hover:-translate-y-1 ${selected ? 'border-brand-cyan/40 bg-brand-cyan/[.06] shadow-[0_14px_36px_rgba(0,0,0,.2)]' : 'border-border-soft bg-bg/35 hover:border-white/20'}`} key={item.id}>
+                  return <article className={`ai-campaign-3d-card group relative overflow-hidden rounded-2xl border transition duration-300 hover:-translate-y-1 ${selected ? 'border-brand-cyan/40 bg-brand-cyan/[.06] shadow-[0_14px_36px_rgba(0,0,0,.2)]' : 'border-border-soft bg-white hover:border-white/20'}`} key={item.id}>
                     <button className="flex w-full gap-3 p-3 text-left" onClick={() => openCampaign(item)} type="button">
                       <div className="relative grid size-12 shrink-0 place-items-center overflow-hidden rounded-xl border border-border-soft bg-[linear-gradient(145deg,rgba(45,212,191,.12),rgba(124,58,237,.10))]">
                         {visualUrl ? <img alt="" className="size-full object-cover" src={visualUrl} /> : <>
@@ -562,7 +562,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
           </aside>
         </div>
 
-        {selectedCampaign && <div className="relative min-w-0 max-w-full scroll-mt-4 overflow-x-hidden border-t border-brand-cyan/15 bg-[linear-gradient(180deg,rgba(7,25,37,.96),rgba(4,16,26,.98))] p-4 sm:p-6" ref={reviewRef}>
+        {selectedCampaign && <div className="relative min-w-0 max-w-full scroll-mt-4 overflow-x-hidden border-t border-brand-cyan/15 bg-[linear-gradient(180deg,rgba(255,255,255,.99),rgba(248,250,252,.99))] p-4 sm:p-6" ref={reviewRef}>
           <div className="mx-auto max-w-[1280px]">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div className="min-w-0">
@@ -576,19 +576,19 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
                 </div>
               </div>
               <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:w-auto sm:min-w-[260px] sm:grid-cols-3">
-                <div className="rounded-xl border border-border-soft bg-black/15 p-3"><span className="text-[8px] uppercase tracking-[.08em] text-text-soft">Posts</span><strong className="mt-1 block text-lg">{selectedCampaign.postCount}</strong></div>
-                <div className="rounded-xl border border-border-soft bg-black/15 p-3"><span className="text-[8px] uppercase tracking-[.08em] text-text-soft">Images</span><strong className="mt-1 block text-lg">{imagesReady}/{campaignImagePosts.length}</strong></div>
-                <div className="rounded-xl border border-border-soft bg-black/15 p-3"><span className="text-[8px] uppercase tracking-[.08em] text-text-soft">Ready</span><strong className="mt-1 block text-lg">{allRequiredImagesReady ? 'Yes' : 'Review'}</strong></div>
+                <div className="rounded-xl border border-border-soft bg-white p-3"><span className="text-[8px] uppercase tracking-[.08em] text-text-soft">Posts</span><strong className="mt-1 block text-lg">{selectedCampaign.postCount}</strong></div>
+                <div className="rounded-xl border border-border-soft bg-white p-3"><span className="text-[8px] uppercase tracking-[.08em] text-text-soft">Images</span><strong className="mt-1 block text-lg">{imagesReady}/{campaignImagePosts.length}</strong></div>
+                <div className="rounded-xl border border-border-soft bg-white p-3"><span className="text-[8px] uppercase tracking-[.08em] text-text-soft">Ready</span><strong className="mt-1 block text-lg">{allRequiredImagesReady ? 'Yes' : 'Review'}</strong></div>
               </div>
             </div>
 
             <section className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,1.25fr)_minmax(280px,.75fr)]">
-              <div className="rounded-[20px] border border-border-soft bg-black/10 p-4">
+              <div className="rounded-[20px] border border-border-soft bg-white p-4">
                 <span className="text-[8px] font-bold uppercase tracking-[.12em] text-brand-cyan">Smart strategy</span>
                 <p className="mt-2 text-[10px] leading-5 text-text-muted">{selectedCampaign.strategySummary || selectedCampaign.goal}</p>
                 <div className="mt-3 flex flex-wrap gap-1.5">{selectedCampaign.contentPillars.map((pillar) => <span className="rounded-full border border-brand-cyan/15 bg-brand-cyan/[.04] px-2 py-1 text-[8px] text-brand-cyan" key={pillar}>{pillar}</span>)}</div>
               </div>
-              <div className="rounded-[20px] border border-border-soft bg-black/10 p-4">
+              <div className="rounded-[20px] border border-border-soft bg-white p-4">
                 <span className="text-[8px] font-bold uppercase tracking-[.12em] text-text-soft">Campaign source</span>
                 <p className="mt-2 text-[10px] leading-5 text-text-muted">{selectedCampaign.sourceSummary || 'Campaign generated from the customer brief.'}</p>
                 {selectedCampaign.sourceUrl && <a className="mt-3 inline-flex items-center gap-1 text-[9px] text-brand-cyan hover:underline" href={selectedCampaign.sourceUrl} rel="noreferrer" target="_blank">Website analysed <ExternalLink className="size-3" /></a>}
@@ -606,7 +606,7 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
               </section>
             </div>
 
-            <div className="sticky bottom-3 z-10 mt-5 flex flex-col gap-3 rounded-[20px] border border-brand-cyan/20 bg-panel/95 p-3 shadow-[0_-18px_55px_rgba(0,0,0,.28)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
+            <div className="sticky bottom-3 z-10 mt-5 flex flex-col gap-3 rounded-[20px] border border-brand-cyan/20 bg-white/95 p-3 shadow-[0_-18px_55px_rgba(0,0,0,.28)] backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
               <div><strong className="text-xs">Campaign reviewed?</strong><p className="mt-1 text-[9px] text-text-muted">{campaignImagePosts.length && !allRequiredImagesReady ? `${campaignImagePosts.length - imagesReady} image post${campaignImagePosts.length - imagesReady === 1 ? '' : 's'} still need a visual before the full campaign can go to Bulk Scheduler.` : `${campaignTextPosts.length} text + ${campaignImagePosts.length} image posts are ready to hand off in campaign order.`}</p></div>
               <Button disabled={!allRequiredImagesReady} onClick={() => onHandoff(selectedCampaign)} size="sm" variant="primary"><CalendarRange className="size-3.5" />Send campaign to Bulk Scheduler</Button>
             </div>
@@ -620,19 +620,19 @@ export function AiPostCampaignModal({ open, onClose, onHandoff, onToast }: Props
         className="fixed inset-0 z-[280] grid place-items-center bg-[#01070d]/82 p-4 backdrop-blur-md"
         role="dialog"
       >
-        <div className="ai-studio-modal-enter relative w-full max-w-[470px] overflow-hidden rounded-[24px] border border-brand-red/25 bg-[radial-gradient(circle_at_0%_0%,rgba(239,68,68,.10),transparent_14rem),linear-gradient(145deg,rgba(8,26,38,.99),rgba(4,15,25,.99))] shadow-[0_32px_100px_rgba(0,0,0,.62)]">
+        <div className="ai-studio-modal-enter relative w-full max-w-[470px] overflow-hidden rounded-[24px] border border-brand-red/25 bg-[radial-gradient(circle_at_0%_0%,rgba(239,68,68,.07),transparent_14rem),linear-gradient(145deg,rgba(255,255,255,.99),rgba(254,242,242,.98))] shadow-[0_32px_100px_rgba(0,0,0,.62)]">
           <div className="flex items-start gap-4 p-5 sm:p-6">
             <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-brand-red/25 bg-brand-red/[.08] text-brand-red"><Trash2 className="size-5" /></span>
             <div className="min-w-0 flex-1">
               <span className="text-[9px] font-bold uppercase tracking-[.14em] text-brand-red">Delete campaign</span>
               <h3 className="mt-1 text-base font-semibold">Remove this AI campaign?</h3>
-              <p className="mt-2 text-[11px] leading-5 text-text-muted">This removes <strong className="font-semibold text-white/90">“{campaignToDelete.title}”</strong> from your saved campaign previews.</p>
-              <div className="mt-4 rounded-2xl border border-border-soft bg-black/15 p-3">
-                <p className="text-[10px] leading-5 text-text-muted"><strong className="text-white/85">Your generated Media Library images will stay available.</strong> Only the campaign record and its post workspace are deleted.</p>
+              <p className="mt-2 text-[11px] leading-5 text-text-muted">This removes <strong className="font-semibold text-text-main">“{campaignToDelete.title}”</strong> from your saved campaign previews.</p>
+              <div className="mt-4 rounded-2xl border border-border-soft bg-white p-3">
+                <p className="text-[10px] leading-5 text-text-muted"><strong className="text-text-main">Your generated Media Library images will stay available.</strong> Only the campaign record and its post workspace are deleted.</p>
               </div>
             </div>
           </div>
-          <div className="flex flex-col-reverse gap-2 border-t border-border-soft bg-black/10 p-4 sm:flex-row sm:justify-end">
+          <div className="flex flex-col-reverse gap-2 border-t border-border-soft bg-white p-4 sm:flex-row sm:justify-end">
             <Button disabled={Boolean(deletingCampaignId)} onClick={() => setCampaignToDelete(null)} size="sm">Cancel</Button>
             <Button
               className="justify-center border-brand-red/30 bg-brand-red/[.12] text-brand-red hover:bg-brand-red/[.18]"

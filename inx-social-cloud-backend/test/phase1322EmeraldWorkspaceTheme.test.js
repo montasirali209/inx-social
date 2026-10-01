@@ -6,11 +6,13 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('shared React shell uses the approved emerald workspace palette', () => {
+test('shared React shell uses the approved white emerald workspace palette', () => {
   const css = read('frontend/src/index.css');
   assert.match(css, /--color-brand-blue: #14b8a6;/);
   assert.match(css, /--color-brand-cyan: #2dd4bf;/);
-  assert.match(css, /--color-sidebar: #03111e;/);
+  assert.match(css, /--color-sidebar: #ffffff;/);
+  assert.match(css, /--color-panel: #ffffff;/);
+  assert.match(css, /--color-text-main: #101828;/);
   assert.match(css, /rgba\(20, 184, 166, 0\.18\)/);
 });
 

@@ -246,3 +246,667 @@
 @media(max-width:760px){
   .ugc-home-campaign-row{gap:11px}
 }
+
+
+/* White UI preview — UGC home, creator chooser and assistant surfaces */
+.inx-white-ui-preview .ugc-home-panel{
+  border-color:rgba(15,23,42,.10)!important;
+  background:radial-gradient(circle at 88% 0%,rgba(124,58,237,.055),transparent 30rem),linear-gradient(145deg,#fff,#f8fafc 60%,#fff)!important;
+  box-shadow:0 34px 120px rgba(15,23,42,.20)!important;
+  color:#101828!important;
+}
+.inx-white-ui-preview .ugc-home-header{
+  border-bottom-color:rgba(15,23,42,.08)!important;
+  background:rgba(255,255,255,.94)!important;
+}
+.inx-white-ui-preview .ugc-home-hero,
+.inx-white-ui-preview .ugc-agent-hero{
+  border-color:rgba(20,184,166,.20)!important;
+  background:radial-gradient(circle at 78% 15%,rgba(45,212,191,.08),transparent 23rem),radial-gradient(circle at 96% 75%,rgba(139,92,246,.06),transparent 22rem),linear-gradient(145deg,#fff,#f8fafc)!important;
+  box-shadow:0 18px 48px rgba(15,23,42,.08)!important;
+}
+.inx-white-ui-preview .ugc-home-campaign,
+.inx-white-ui-preview .ugc-home-draft-card,
+.inx-white-ui-preview .ugc-home-creator-launch,
+.inx-white-ui-preview .ugc-agent-thread,
+.inx-white-ui-preview .ugc-agent-plan,
+.inx-white-ui-preview .ugc-agent-modal-source,
+.inx-white-ui-preview .ugc-agent-modal-plan,
+.inx-white-ui-preview .ugc-agent-modal-plan-grid>div,
+.inx-white-ui-preview .ugc-agent-modal-creator-control,
+.inx-white-ui-preview .ugc-agent-modal-reference-control,
+.inx-white-ui-preview .ugc-agent-modal-assets>span{
+  border-color:rgba(15,23,42,.09)!important;
+  background:#fff!important;
+  color:#344054!important;
+}
+.inx-white-ui-preview .ugc-home-filter{
+  border-color:rgba(15,23,42,.09)!important;
+  background:#f8fafc!important;
+}
+.inx-white-ui-preview .ugc-home-filter button{color:#667085!important}
+.inx-white-ui-preview .ugc-home-filter button.active{background:rgba(20,184,166,.10)!important;color:#0f9f8f!important}
+.inx-white-ui-preview .ugc-agent-input-shell{
+  border-color:rgba(20,184,166,.38)!important;
+  background:#fff!important;
+  box-shadow:0 0 0 3px rgba(20,184,166,.05),0 10px 26px rgba(15,23,42,.06)!important;
+}
+.inx-white-ui-preview .ugc-agent-input-shell input,
+.inx-white-ui-preview .ugc-agent-modal-composer textarea{color:#101828!important}
+.inx-white-ui-preview .ugc-agent-examples button,
+.inx-white-ui-preview .ugc-agent-quick-replies button{
+  border-color:rgba(20,184,166,.24)!important;
+  background:#fff!important;
+  color:#475467!important;
+}
+.inx-white-ui-preview .ugc-agent-message.user{background:#ecfdf9!important;color:#344054!important}
+.inx-white-ui-preview .ugc-agent-message.assistant{background:#f8fafc!important;color:#475467!important}
+.inx-white-ui-preview .ugc-agent-visual-card{
+  border-color:rgba(20,184,166,.26)!important;
+  background:linear-gradient(155deg,#fff,#f8fafc)!important;
+  color:#344054!important;
+  box-shadow:0 12px 30px rgba(15,23,42,.08)!important;
+}
+.inx-white-ui-preview .ugc-agent-visual-card.output{
+  border-color:rgba(139,92,246,.30)!important;
+  background:linear-gradient(155deg,#faf5ff,#fff)!important;
+}
+.inx-white-ui-preview .ugc-home-kpi{
+  border-color:rgba(20,184,166,.20)!important;
+  background:linear-gradient(135deg,#fff,#f0fdfa)!important;
+  box-shadow:0 12px 30px rgba(15,23,42,.06)!important;
+}
+.inx-white-ui-preview .ugc-home-kpi.rendering{background:linear-gradient(135deg,#fff,#f0f9ff)!important}
+.inx-white-ui-preview .ugc-home-kpi.creators{background:linear-gradient(135deg,#fff,#faf5ff)!important;border-color:rgba(139,92,246,.24)!important}
+.inx-white-ui-preview .ugc-creator-choice,
+.inx-white-ui-preview .ugc-agent-modal,
+.inx-white-ui-preview .ugc-home-creator-picker{
+  border-color:rgba(15,23,42,.10)!important;
+  background:radial-gradient(circle at 100% 0%,rgba(124,58,237,.05),transparent 26rem),linear-gradient(155deg,#fff,#f8fafc)!important;
+  color:#101828!important;
+  box-shadow:0 32px 105px rgba(15,23,42,.24)!important;
+}
+.inx-white-ui-preview .ugc-agent-modal-header,
+.inx-white-ui-preview .ugc-agent-modal-composer{
+  border-color:rgba(15,23,42,.08)!important;
+  background:#fff!important;
+}
+.inx-white-ui-preview .ugc-agent-modal-context{
+  border-color:rgba(15,23,42,.08)!important;
+  background:#f8fafc!important;
+}
+.inx-white-ui-preview .ugc-agent-modal-composer textarea{
+  border-color:rgba(20,184,166,.24)!important;
+  background:#fff!important;
+}
+.inx-white-ui-preview .ugc-home-creator-picker-header{border-bottom-color:rgba(15,23,42,.08)!important}
+.inx-white-ui-preview .ugc-home-creator-picker-auto,
+.inx-white-ui-preview .ugc-home-creator-tile{
+  border-color:rgba(15,23,42,.09)!important;
+  background:#fff!important;
+  color:#344054!important;
+}
+.inx-white-ui-preview .ugc-home-creator-launch strong,
+.inx-white-ui-preview .ugc-home-creator-picker-auto strong,
+.inx-white-ui-preview .ugc-home-draft-card strong{color:#101828!important}
+.inx-white-ui-preview .ugc-agent-modal-creators button{
+  border-color:rgba(15,23,42,.08)!important;
+  background:#fff!important;
+  color:#475467!important;
+}
+.inx-white-ui-preview .ugc-agent-modal-creators button.selected{background:#ecfdf9!important;color:#101828!important}
+.inx-white-ui-preview .ugc-home-body{background:#fff!important}
+.inx-white-ui-preview .ugc-home-selection-bar{background:#fff!important;border-color:rgba(15,23,42,.09)!important}
+.inx-white-ui-preview .ugc-home-campaign-copy,
+.inx-white-ui-preview .ugc-home-section-head{color:#101828!important}
+
+
+/* White UI preview — UGC contrast completion */
+.inx-white-ui-preview .ugc-home-close,
+.inx-white-ui-preview .ugc-home-icon-action,
+.inx-white-ui-preview .ugc-creator-choice-close,
+.inx-white-ui-preview .ugc-agent-modal-manual,
+.inx-white-ui-preview .ugc-agent-modal-close{
+  border-color:rgba(15,23,42,.10)!important;
+  background:#fff!important;
+  color:#667085!important;
+}
+.inx-white-ui-preview .ugc-home-close:hover,
+.inx-white-ui-preview .ugc-home-icon-action:hover,
+.inx-white-ui-preview .ugc-home-selection-clear:hover,
+.inx-white-ui-preview .ugc-agent-modal-manual:hover{color:#101828!important}
+.inx-white-ui-preview .ugc-agent-welcome button,
+.inx-white-ui-preview .ugc-agent-modal-quick button{
+  border-color:rgba(20,184,166,.22)!important;
+  background:#fff!important;
+  color:#475467!important;
+}
+.inx-white-ui-preview .ugc-agent-welcome button:hover,
+.inx-white-ui-preview .ugc-agent-modal-quick button:hover{
+  background:#ecfdf9!important;
+  color:#101828!important;
+}
+.inx-white-ui-preview .ugc-agent-source-summary{
+  border-color:rgba(15,23,42,.08)!important;
+  background:#fff!important;
+}
+.inx-white-ui-preview .ugc-agent-source-summary strong{color:#101828!important}
+.inx-white-ui-preview .ugc-agent-found,
+.inx-white-ui-preview .ugc-agent-modal-context-note{border-color:rgba(15,23,42,.08)!important}
+.inx-white-ui-preview .ugc-agent-modal-message.user>div{
+  background:#ecfdf9!important;
+  border-color:rgba(20,184,166,.15)!important;
+  color:#344054!important;
+}
+.inx-white-ui-preview .ugc-agent-modal-message.assistant>div{
+  border-color:rgba(15,23,42,.08)!important;
+  background:#f8fafc!important;
+  color:#475467!important;
+}
+.inx-white-ui-preview .ugc-agent-modal-plan-actions>button:first-child{
+  border-color:rgba(15,23,42,.09)!important;
+  background:#fff!important;
+  color:#475467!important;
+}
+.inx-white-ui-preview .ugc-agent-modal-references figure,
+.inx-white-ui-preview .ugc-agent-found figure,
+.inx-white-ui-preview .ugc-agent-modal-creators button>span,
+.inx-white-ui-preview .ugc-home-creator-tile>span{
+  border-color:rgba(15,23,42,.08)!important;
+}
+
+
+/* White UI preview — keep AI Content Studio visible behind UGC Studio */
+.inx-white-ui-preview .ugc-home-backdrop,
+.inx-white-ui-preview .ugc-agent-modal-backdrop,
+.inx-white-ui-preview .ugc-home-creator-picker-backdrop,
+.inx-white-ui-preview .ugc-creator-choice-backdrop{
+  background:rgba(255,255,255,.10)!important;
+  backdrop-filter:blur(10px) saturate(1.03)!important;
+  -webkit-backdrop-filter:blur(10px) saturate(1.03)!important;
+}
+
+
+/* White UI preview — polish the Creator → Offer → UGC Ad visual flow */
+.inx-white-ui-preview .ugc-agent-visual-flow{
+  gap:12px!important;
+  perspective:none!important;
+}
+.inx-white-ui-preview .ugc-agent-visual-card,
+.inx-white-ui-preview .ugc-agent-visual-card.creator,
+.inx-white-ui-preview .ugc-agent-visual-card.product,
+.inx-white-ui-preview .ugc-agent-visual-card.output{
+  width:94px!important;
+  height:170px!important;
+  transform:none!important;
+  border:1px solid rgba(15,23,42,.09)!important;
+  border-radius:20px!important;
+  background:linear-gradient(180deg,#ffffff,#f8fafc)!important;
+  color:#344054!important;
+  box-shadow:0 14px 34px rgba(15,23,42,.09)!important;
+  animation:none!important;
+}
+.inx-white-ui-preview .ugc-agent-visual-card.output{
+  width:100px!important;
+  border-color:rgba(139,92,246,.20)!important;
+  background:linear-gradient(180deg,#ffffff,#faf5ff)!important;
+}
+.inx-white-ui-preview .ugc-agent-visual-card>svg{
+  color:#14b8a6!important;
+}
+.inx-white-ui-preview .ugc-agent-visual-card.output>svg{
+  color:#8b5cf6!important;
+}
+.inx-white-ui-preview .ugc-agent-visual-card>span{
+  color:#475467!important;
+  font-size:8px!important;
+  letter-spacing:.01em!important;
+}
+.inx-white-ui-preview .ugc-agent-visual-image{
+  width:62px!important;
+  height:78px!important;
+  border:2px solid #fff!important;
+  border-radius:16px!important;
+  outline:1px solid rgba(20,184,166,.22)!important;
+  box-shadow:0 8px 20px rgba(15,23,42,.10)!important;
+}
+.inx-white-ui-preview .ugc-agent-product-orb{
+  width:62px!important;
+  height:78px!important;
+  overflow:hidden!important;
+  border:1px solid rgba(139,92,246,.16)!important;
+  border-radius:16px!important;
+  background:linear-gradient(145deg,#f5f3ff,#ffffff)!important;
+  color:#8b5cf6!important;
+  box-shadow:0 8px 20px rgba(76,29,149,.08)!important;
+}
+.inx-white-ui-preview .ugc-agent-output-frame{
+  width:70px!important;
+  height:104px!important;
+  border:1px solid rgba(139,92,246,.16)!important;
+  border-radius:15px!important;
+  background:linear-gradient(145deg,#f8fafc,#f5f3ff)!important;
+  box-shadow:0 8px 20px rgba(15,23,42,.08)!important;
+}
+.inx-white-ui-preview .ugc-agent-output-frame>span{
+  background:rgba(255,255,255,.18)!important;
+  color:#14b8a6!important;
+}
+.inx-white-ui-preview .ugc-agent-real-fallback{
+  background:linear-gradient(145deg,#ecfdf9,#f8fafc)!important;
+  color:#14b8a6!important;
+}
+.inx-white-ui-preview .ugc-agent-visual-card:not(:last-child)::after{
+  content:"→";
+  position:absolute;
+  right:-13px;
+  top:50%;
+  transform:translateY(-50%);
+  z-index:3;
+  color:#94a3b8;
+  font-size:13px;
+  font-weight:700;
+}
+.inx-white-ui-preview .ugc-agent-visual-card{position:relative!important}
+
+
+/* White preview: portal-safe UGC hero visual. */
+.ugc-agent-visual-card,
+.ugc-agent-visual-card.creator,
+.ugc-agent-visual-card.product,
+.ugc-agent-visual-card.output{
+  transform:none!important;
+  border:1px solid rgba(15,23,42,.09)!important;
+  background:linear-gradient(180deg,#ffffff,#f8fafc)!important;
+  color:#344054!important;
+  box-shadow:0 14px 34px rgba(15,23,42,.09)!important;
+  animation:none!important;
+}
+.ugc-agent-visual-card.output{
+  background:linear-gradient(180deg,#ffffff,#faf5ff)!important;
+  border-color:rgba(139,92,246,.18)!important;
+}
+.ugc-agent-product-orb{
+  background:linear-gradient(145deg,#f5f3ff,#ffffff)!important;
+  color:#8b5cf6!important;
+  border:1px solid rgba(139,92,246,.16)!important;
+  box-shadow:0 8px 20px rgba(76,29,149,.08)!important;
+}
+.ugc-agent-output-frame{
+  background:linear-gradient(145deg,#f8fafc,#f5f3ff)!important;
+  border:1px solid rgba(139,92,246,.16)!important;
+  box-shadow:0 8px 20px rgba(15,23,42,.08)!important;
+}
+.ugc-agent-output-art{
+  display:flex;
+  width:100%;
+  height:100%;
+  flex-direction:column;
+  justify-content:space-between;
+  padding:10px;
+  background:linear-gradient(145deg,#ffffff,#faf5ff);
+}
+.ugc-agent-output-art-icon{
+  display:grid;
+  width:34px;
+  height:34px;
+  place-items:center;
+  border:1px solid rgba(139,92,246,.16);
+  border-radius:12px;
+  background:#f5f3ff;
+  color:#8b5cf6;
+}
+.ugc-agent-output-art-lines{display:grid;gap:5px}
+.ugc-agent-output-art-lines i{
+  display:block;
+  height:5px;
+  border-radius:999px;
+  background:#e2e8f0;
+}
+.ugc-agent-output-art-lines i:nth-child(2){width:78%}
+.ugc-agent-output-art-lines i:nth-child(3){width:55%;background:rgba(20,184,166,.18)}
+.ugc-agent-output-art b{
+  align-self:flex-start;
+  border:1px solid rgba(34,197,94,.18);
+  border-radius:999px;
+  background:#ecfdf5;
+  padding:3px 7px;
+  color:#15803d;
+  font-size:7px;
+  line-height:1;
+}
+
+
+/* White preview — populated Offer card in Creator → Offer → UGC flow */
+.ugc-agent-offer-image{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  border-radius:inherit;
+}
+.ugc-agent-offer-art{
+  display:flex;
+  width:100%;
+  height:100%;
+  flex-direction:column;
+  justify-content:space-between;
+  padding:9px;
+  background:
+    radial-gradient(circle at 82% 18%,rgba(139,92,246,.16),transparent 44%),
+    linear-gradient(145deg,#ffffff,#f5f3ff);
+  color:#344054;
+}
+.ugc-agent-offer-art-icon{
+  display:grid;
+  width:34px;
+  height:34px;
+  place-items:center;
+  border:1px solid rgba(139,92,246,.16);
+  border-radius:12px;
+  background:#ffffff;
+  color:#8b5cf6;
+  box-shadow:0 7px 16px rgba(76,29,149,.08);
+}
+.ugc-agent-offer-art-copy{
+  display:block;
+}
+.ugc-agent-offer-art-copy b{
+  display:block;
+  color:#101828;
+  font-size:8px;
+  font-style:normal;
+  line-height:1.2;
+}
+.ugc-agent-offer-art-copy i{
+  display:block;
+  margin-top:3px;
+  color:#667085;
+  font-size:6px;
+  font-style:normal;
+  line-height:1.25;
+}
+.ugc-agent-offer-art-badge{
+  display:inline-flex;
+  width:max-content;
+  align-items:center;
+  gap:3px;
+  border:1px solid rgba(20,184,166,.18);
+  border-radius:999px;
+  background:#ecfdf9;
+  padding:3px 6px;
+  color:#0f9f8f;
+  font-size:6px;
+  font-weight:700;
+  line-height:1;
+}
+
+
+/* Motion graphic — replaces the old three-card Creator / Offer / UGC preview */
+.ugc-motion-graphic{
+  position:relative;
+  width:min(100%,310px);
+  height:220px;
+  justify-self:center;
+  overflow:hidden;
+  border:1px solid rgba(20,184,166,.16);
+  border-radius:28px;
+  background:
+    radial-gradient(circle at 50% 42%,rgba(45,212,191,.12),transparent 34%),
+    radial-gradient(circle at 84% 16%,rgba(139,92,246,.09),transparent 30%),
+    linear-gradient(145deg,#ffffff,#f8fafc);
+  box-shadow:0 20px 48px rgba(15,23,42,.09),inset 0 1px rgba(255,255,255,.95);
+}
+.ugc-motion-ambient{
+  position:absolute;
+  left:50%;
+  top:45%;
+  width:150px;
+  height:150px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(45,212,191,.20),rgba(139,92,246,.07) 42%,transparent 70%);
+  filter:blur(9px);
+  transform:translate(-50%,-50%);
+  pointer-events:none;
+}
+.ugc-motion-topline{
+  position:absolute;
+  left:16px;
+  right:16px;
+  top:14px;
+  z-index:4;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  color:#667085;
+  font-size:7px;
+  font-weight:800;
+  letter-spacing:.12em;
+}
+.ugc-motion-topline>span:first-child{display:inline-flex;align-items:center;gap:5px;color:#0f9f8f}
+.ugc-motion-live{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  border:1px solid rgba(34,197,94,.16);
+  border-radius:999px;
+  background:#ecfdf5;
+  padding:4px 7px;
+  color:#15803d;
+  letter-spacing:.08em;
+}
+.ugc-motion-live i{
+  width:5px;
+  height:5px;
+  border-radius:50%;
+  background:#22c55e;
+  box-shadow:0 0 0 3px rgba(34,197,94,.10);
+}
+.ugc-motion-stage{
+  position:absolute;
+  inset:38px 18px 28px;
+}
+.ugc-motion-orbit{
+  position:absolute;
+  left:50%;
+  top:48%;
+  border:1px solid rgba(20,184,166,.16);
+  border-radius:50%;
+  transform:translate(-50%,-50%);
+}
+.ugc-motion-orbit-outer{width:156px;height:156px}
+.ugc-motion-orbit-inner{width:116px;height:116px;border-color:rgba(139,92,246,.13)}
+.ugc-motion-orbit-dot{
+  position:absolute;
+  left:50%;
+  top:-4px;
+  width:8px;
+  height:8px;
+  border:2px solid #fff;
+  border-radius:50%;
+  background:#14b8a6;
+  box-shadow:0 4px 12px rgba(20,184,166,.28);
+}
+.ugc-motion-orbit-dot.secondary{
+  left:auto;
+  right:-3px;
+  top:50%;
+  background:#8b5cf6;
+  box-shadow:0 4px 12px rgba(139,92,246,.22);
+}
+.ugc-motion-core{
+  position:absolute;
+  left:50%;
+  top:48%;
+  z-index:3;
+  display:flex;
+  width:92px;
+  height:92px;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  border:1px solid rgba(20,184,166,.19);
+  border-radius:28px;
+  background:rgba(255,255,255,.94);
+  box-shadow:0 14px 34px rgba(15,23,42,.10);
+  transform:translate(-50%,-50%);
+  backdrop-filter:blur(12px);
+}
+.ugc-motion-core-icon{
+  display:grid;
+  width:38px;
+  height:38px;
+  place-items:center;
+  border:1px solid rgba(20,184,166,.17);
+  border-radius:14px;
+  background:linear-gradient(145deg,#ecfdf9,#fff);
+  color:#14b8a6;
+  box-shadow:0 8px 18px rgba(20,184,166,.10);
+}
+.ugc-motion-core strong{
+  margin-top:7px;
+  color:#101828;
+  font-size:10px;
+  letter-spacing:-.02em;
+}
+.ugc-motion-core small{
+  margin-top:2px;
+  color:#98a2b3;
+  font-size:5.8px;
+}
+.ugc-motion-route{
+  position:absolute;
+  left:18px;
+  right:18px;
+  top:48%;
+  z-index:2;
+  display:grid;
+  grid-template-columns:36px minmax(0,1fr) 36px;
+  align-items:center;
+  gap:7px;
+  transform:translateY(-50%);
+}
+.ugc-motion-endpoint{
+  display:grid;
+  width:36px;
+  height:36px;
+  place-items:center;
+  border:1px solid rgba(15,23,42,.08);
+  border-radius:13px;
+  background:#fff;
+  color:#14b8a6;
+  box-shadow:0 8px 18px rgba(15,23,42,.07);
+}
+.ugc-motion-endpoint.video{color:#8b5cf6}
+.ugc-motion-line{
+  position:relative;
+  height:2px;
+  overflow:visible;
+  border-radius:999px;
+  background:linear-gradient(90deg,rgba(20,184,166,.16),rgba(139,92,246,.18));
+}
+.ugc-motion-line:before{
+  content:"";
+  position:absolute;
+  inset:-3px 0;
+  border-top:1px dashed rgba(148,163,184,.22);
+}
+.ugc-motion-line i{
+  position:absolute;
+  top:-4px;
+  width:10px;
+  height:10px;
+  border:2px solid #fff;
+  border-radius:50%;
+  background:linear-gradient(135deg,#14b8a6,#8b5cf6);
+  box-shadow:0 4px 14px rgba(20,184,166,.24);
+}
+.ugc-motion-particle{
+  position:absolute;
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:#5eead4;
+  box-shadow:0 0 0 5px rgba(94,234,212,.10);
+}
+.ugc-motion-particle.particle-a{right:33px;top:26px}
+.ugc-motion-particle.particle-b{left:40px;bottom:20px;width:5px;height:5px;background:#a78bfa;box-shadow:0 0 0 5px rgba(167,139,250,.08)}
+.ugc-motion-footer{
+  position:absolute;
+  left:18px;
+  right:18px;
+  bottom:12px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  color:#98a2b3;
+  font-size:6.5px;
+  font-weight:700;
+}
+.ugc-motion-footer i{
+  width:18px;
+  height:1px;
+  background:linear-gradient(90deg,rgba(20,184,166,.25),rgba(139,92,246,.24));
+}
+
+@media(prefers-reduced-motion:no-preference){
+  .ugc-motion-ambient{animation:ugc-motion-ambient-pulse 5.5s ease-in-out infinite}
+  .ugc-motion-orbit-outer{animation:ugc-motion-orbit-cw 18s linear infinite}
+  .ugc-motion-orbit-inner{animation:ugc-motion-orbit-ccw 13s linear infinite}
+  .ugc-motion-core{animation:ugc-motion-core-float 4.2s ease-in-out infinite}
+  .ugc-motion-core-icon{animation:ugc-motion-icon-wobble 4.8s ease-in-out infinite}
+  .ugc-motion-endpoint.creator{animation:ugc-motion-endpoint-up 3.6s ease-in-out infinite}
+  .ugc-motion-endpoint.video{animation:ugc-motion-endpoint-down 3.9s ease-in-out infinite}
+  .ugc-motion-line i{animation:ugc-motion-route-dot 2.6s ease-in-out infinite}
+  .ugc-motion-particle.particle-a{animation:ugc-motion-particle-a 4.1s ease-in-out infinite}
+  .ugc-motion-particle.particle-b{animation:ugc-motion-particle-b 5.2s ease-in-out infinite}
+}
+@keyframes ugc-motion-ambient-pulse{
+  0%,100%{opacity:.38;transform:translate(-50%,-50%) scale(.94)}
+  50%{opacity:.68;transform:translate(-50%,-50%) scale(1.06)}
+}
+@keyframes ugc-motion-orbit-cw{
+  from{transform:translate(-50%,-50%) rotate(0deg)}
+  to{transform:translate(-50%,-50%) rotate(360deg)}
+}
+@keyframes ugc-motion-orbit-ccw{
+  from{transform:translate(-50%,-50%) rotate(0deg)}
+  to{transform:translate(-50%,-50%) rotate(-360deg)}
+}
+@keyframes ugc-motion-core-float{
+  0%,100%{transform:translate(-50%,-50%) translateY(0) scale(1)}
+  50%{transform:translate(-50%,-50%) translateY(-5px) scale(1.025)}
+}
+@keyframes ugc-motion-icon-wobble{
+  0%,100%{transform:rotate(0deg)}
+  34%{transform:rotate(10deg)}
+  67%{transform:rotate(-8deg)}
+}
+@keyframes ugc-motion-endpoint-up{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-3px)}
+}
+@keyframes ugc-motion-endpoint-down{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(3px)}
+}
+@keyframes ugc-motion-route-dot{
+  0%{left:0;opacity:0}
+  18%,82%{opacity:1}
+  100%{left:calc(100% - 10px);opacity:0}
+}
+@keyframes ugc-motion-particle-a{
+  0%,100%{transform:translate(0,0);opacity:.45}
+  50%{transform:translate(8px,-8px);opacity:1}
+}
+@keyframes ugc-motion-particle-b{
+  0%,100%{transform:translate(0,0);opacity:.3}
+  50%{transform:translate(-6px,7px);opacity:.8}
+}
+
+@media(max-width:1180px){
+  .ugc-motion-graphic{display:none}
+}
+@media(prefers-reduced-motion:reduce){
+  .ugc-motion-graphic *{animation:none!important;transition:none!important}
+}

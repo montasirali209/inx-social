@@ -5,11 +5,11 @@ import type { InvoiceStatus, SubscriptionStatus } from '../../types/billing'
 import './billing-depth.css'
 
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return <section className={`billing-depth-card rounded-panel border border-border-soft bg-[linear-gradient(145deg,rgba(10,32,43,.88),rgba(5,21,31,.92))] backdrop-blur-xl ${className}`}>{children}</section>
+  return <section className={`billing-depth-card rounded-panel border border-border-soft bg-[linear-gradient(145deg,rgba(255,255,255,.99),rgba(248,250,252,.98))] ${className}`}>{children}</section>
 }
 
 export function Button({ children, className = '', tone = 'secondary', ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { children: ReactNode; tone?: 'primary' | 'secondary' | 'danger' | 'ghost' }) {
-  const tones = { primary: 'border-brand-teal/60 bg-brand-teal text-[#02130f] hover:bg-brand-cyan', secondary: 'border-border-strong bg-panel-soft/70 text-white hover:bg-panel-hover', danger: 'border-brand-red/50 bg-brand-red/12 text-[#fda4af] hover:bg-brand-red/22', ghost: 'border-transparent bg-transparent text-text-muted hover:bg-white/5 hover:text-white' }
+  const tones = { primary: 'border-brand-teal/60 bg-brand-teal text-[#02130f] hover:bg-brand-cyan', secondary: 'border-border-strong bg-white text-text-main hover:bg-panel-hover', danger: 'border-brand-red/50 bg-brand-red/12 text-[#fda4af] hover:bg-brand-red/22', ghost: 'border-transparent bg-transparent text-text-muted hover:bg-panel-hover hover:text-text-main' }
   return <button className={`billing-depth-button inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan disabled:cursor-not-allowed disabled:opacity-45 motion-reduce:transform-none ${tones[tone]} ${className}`} {...props}>{children}</button>
 }
 
@@ -19,7 +19,7 @@ export function Toggle({ checked, label, onChange, disabled = false }: { checked
 
 export function ProgressBar({ label, value, max }: { label: string; value: number; max: number }) {
   const percent = Math.min(100, Math.round((value / Math.max(1, max)) * 100))
-  return <div aria-label={`${label}: ${value} of ${max}`} aria-valuemax={max} aria-valuemin={0} aria-valuenow={value} role="progressbar"><div className="h-2 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full bg-gradient-to-r from-brand-teal to-brand-green transition-all" style={{ width: `${percent}%` }} /></div></div>
+  return <div aria-label={`${label}: ${value} of ${max}`} aria-valuemax={max} aria-valuemin={0} aria-valuenow={value} role="progressbar"><div className="h-2 overflow-hidden rounded-full bg-slate-200/80"><div className="h-full rounded-full bg-gradient-to-r from-brand-teal to-brand-green transition-all" style={{ width: `${percent}%` }} /></div></div>
 }
 
 export function StatusBadge({ status }: { status: SubscriptionStatus | InvoiceStatus }) {
@@ -29,7 +29,7 @@ export function StatusBadge({ status }: { status: SubscriptionStatus | InvoiceSt
 }
 
 export function FeatureAvailabilityRow({ children, available, detail }: { children: ReactNode; available: boolean; detail?: string }) {
-  return <div className="flex items-start justify-between gap-3 border-b border-border-soft py-3 last:border-0"><div className="min-w-0"><div className={available ? 'text-sm text-text-main' : 'text-sm text-text-soft'}>{children}</div>{detail && <p className="mt-1 text-xs text-text-muted">{detail}</p>}</div><span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${available ? 'border-brand-green/25 bg-brand-green/10 text-[#4ade80]' : 'border-white/10 bg-white/5 text-text-soft'}`}>{available ? 'Included' : 'Locked'}</span></div>
+  return <div className="flex items-start justify-between gap-3 border-b border-border-soft py-3 last:border-0"><div className="min-w-0"><div className={available ? 'text-sm text-text-main' : 'text-sm text-text-soft'}>{children}</div>{detail && <p className="mt-1 text-xs text-text-muted">{detail}</p>}</div><span className={`rounded-full border px-2 py-1 text-[10px] font-bold ${available ? 'border-brand-green/25 bg-brand-green/10 text-[#4ade80]' : 'border-border-soft bg-slate-50 text-text-soft'}`}>{available ? 'Included' : 'Locked'}</span></div>
 }
 
 type OverlayProps = { open: boolean; title: string; onClose: () => void; children: ReactNode; footer?: ReactNode; drawer?: boolean }
@@ -73,7 +73,7 @@ export function Overlay({ open, title, onClose, children, footer, drawer = false
   }, [open, onClose])
 
   if (!open) return null
-  return createPortal(<div className={`fixed inset-0 z-[100] flex bg-[#01070d]/82 p-3 backdrop-blur-md ${drawer ? 'justify-end' : 'items-center justify-center sm:p-6'}`} onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}><section aria-labelledby="billing-overlay-title" aria-modal="true" className={`flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden border border-brand-cyan/30 bg-panel shadow-[0_35px_130px_rgba(0,0,0,.72),0_0_70px_rgba(20,184,166,.12)] ${drawer ? 'h-full max-w-lg rounded-panel' : 'max-w-3xl rounded-panel'}`} ref={dialogRef} role="dialog"><header className="flex items-center justify-between gap-4 border-b border-border-soft p-5"><h2 className="text-lg font-semibold" id="billing-overlay-title">{title}</h2><button aria-label={`Close ${title}`} className="rounded-lg border border-border-soft p-2 text-text-muted hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button"><X aria-hidden="true" className="size-4" /></button></header><div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-5">{children}</div>{footer && <footer className="flex flex-col-reverse gap-2 border-t border-border-soft bg-bg/35 p-4 sm:flex-row sm:justify-end">{footer}</footer>}</section></div>, document.body)
+  return createPortal(<div className={`fixed inset-0 z-[100] flex bg-[#01070d]/82 p-3 backdrop-blur-md ${drawer ? 'justify-end' : 'items-center justify-center sm:p-6'}`} onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}><section aria-labelledby="billing-overlay-title" aria-modal="true" className={`flex max-h-[calc(100dvh-1.5rem)] w-full flex-col overflow-hidden border border-brand-cyan/30 bg-panel shadow-[0_35px_130px_rgba(0,0,0,.72),0_0_70px_rgba(20,184,166,.12)] ${drawer ? 'h-full max-w-lg rounded-panel' : 'max-w-3xl rounded-panel'}`} ref={dialogRef} role="dialog"><header className="flex items-center justify-between gap-4 border-b border-border-soft p-5"><h2 className="text-lg font-semibold" id="billing-overlay-title">{title}</h2><button aria-label={`Close ${title}`} className="rounded-lg border border-border-soft p-2 text-text-muted hover:text-text-main focus-visible:outline-2 focus-visible:outline-brand-cyan" onClick={onClose} type="button"><X aria-hidden="true" className="size-4" /></button></header><div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-5">{children}</div>{footer && <footer className="flex flex-col-reverse gap-2 border-t border-border-soft bg-bg/35 p-4 sm:flex-row sm:justify-end">{footer}</footer>}</section></div>, document.body)
 }
 
 export const Modal = Overlay

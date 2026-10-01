@@ -99,7 +99,7 @@ export function StudioSelect<T extends string | number>({
   const menu = open && menuPosition ? <div
     ref={menuRef}
     role="listbox"
-    className="fixed z-[1000] overflow-hidden rounded-[20px] border border-brand-cyan/25 bg-[linear-gradient(155deg,rgba(8,31,44,.995),rgba(2,13,21,.995))] p-1.5 shadow-[0_28px_90px_rgba(0,0,0,.68),0_0_42px_rgba(0,214,192,.08)] backdrop-blur-2xl"
+    className="fixed z-[1000] overflow-hidden rounded-[20px] border border-brand-cyan/20 bg-white/98 p-1.5 text-text-main shadow-[0_22px_70px_rgba(15,23,42,.16),0_0_34px_rgba(20,184,166,.06)] backdrop-blur-2xl"
     style={{
       top: menuPosition.top,
       left: menuPosition.left,
@@ -118,10 +118,10 @@ export function StudioSelect<T extends string | number>({
           aria-selected={active}
           key={String(option.value)}
           onClick={() => { onChange(option.value); setOpen(false) }}
-          className={`group/option mb-1 flex w-full items-start gap-2.5 rounded-2xl border px-3 py-2.5 text-left transition-all duration-200 last:mb-0 ${active ? 'border-brand-cyan/30 bg-brand-cyan/[.08] shadow-[inset_0_1px_rgba(255,255,255,.04)]' : 'border-transparent hover:translate-x-0.5 hover:border-white/7 hover:bg-white/[.04]'}`}
+          className={`group/option mb-1 flex w-full items-start gap-2.5 rounded-2xl border px-3 py-2.5 text-left transition-all duration-200 last:mb-0 ${active ? 'border-brand-cyan/30 bg-brand-cyan/[.07] shadow-[inset_0_1px_rgba(255,255,255,.9)]' : 'border-transparent hover:translate-x-0.5 hover:border-border-soft hover:bg-slate-50'}`}
         >
-          <span className={`mt-0.5 grid size-7 shrink-0 place-items-center rounded-xl border ${active ? 'border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan' : 'border-white/7 bg-white/[.025] text-text-muted'}`}>{option.icon || <Sparkles className="size-3.5" />}</span>
-          <span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-3"><strong className="truncate text-[10px] font-semibold text-white">{option.label}</strong>{active && <Check className="size-3.5 shrink-0 text-brand-green" />}</span>{option.description && <span className="mt-0.5 block text-[8px] leading-4 text-text-muted">{option.description}</span>}{option.meta && <span className="mt-1 block text-[7px] font-semibold uppercase tracking-[.09em] text-text-soft">{option.meta}</span>}</span>
+          <span className={`mt-0.5 grid size-7 shrink-0 place-items-center rounded-xl border ${active ? 'border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan' : 'border-border-soft bg-slate-50 text-text-muted'}`}>{option.icon || <Sparkles className="size-3.5" />}</span>
+          <span className="min-w-0 flex-1"><span className="flex items-center justify-between gap-3"><strong className="truncate text-[10px] font-semibold text-text-main">{option.label}</strong>{active && <Check className="size-3.5 shrink-0 text-brand-green" />}</span>{option.description && <span className="mt-0.5 block text-[8px] leading-4 text-text-muted">{option.description}</span>}{option.meta && <span className="mt-1 block text-[7px] font-semibold uppercase tracking-[.09em] text-text-soft">{option.meta}</span>}</span>
         </button>
       })}
     </div>
@@ -136,12 +136,12 @@ export function StudioSelect<T extends string | number>({
       aria-haspopup="listbox"
       aria-expanded={open}
       onClick={() => setOpen((current) => !current)}
-      className={`group relative flex min-h-11 w-full items-center justify-between gap-3 overflow-hidden rounded-2xl border bg-[linear-gradient(145deg,rgba(9,34,48,.95),rgba(3,17,27,.96))] px-3 text-left transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-45 ${open ? `${accentClass} -translate-y-0.5 scale-[1.01]` : 'border-border-soft hover:border-brand-cyan/25'}`}
+      className={`group relative flex min-h-11 w-full items-center justify-between gap-3 overflow-hidden rounded-2xl border bg-[linear-gradient(145deg,#ffffff,#f8fafc)] px-3 text-left text-text-main shadow-[0_6px_18px_rgba(15,23,42,.05)] transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-45 ${open ? `${accentClass} -translate-y-0.5 scale-[1.01]` : 'border-border-soft hover:border-brand-cyan/25'}`}
     >
-      <span className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent opacity-70" />
+      <span className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-brand-cyan/20 to-transparent opacity-70" />
       <span className="flex min-w-0 items-center gap-2.5">
-        <span className="grid size-7 shrink-0 place-items-center rounded-xl border border-white/8 bg-white/[.035] text-brand-cyan transition-transform duration-300 group-hover:scale-110">{selected.icon || <Sparkles className="size-3.5" />}</span>
-        <span className="min-w-0"><strong className="block truncate text-[10px] font-semibold text-white">{selected.label}</strong>{selected.meta && <span className="block truncate text-[8px] text-text-soft">{selected.meta}</span>}</span>
+        <span className="grid size-7 shrink-0 place-items-center rounded-xl border border-brand-cyan/15 bg-brand-cyan/[.055] text-brand-cyan transition-transform duration-300 group-hover:scale-110">{selected.icon || <Sparkles className="size-3.5" />}</span>
+        <span className="min-w-0"><strong className="block truncate text-[10px] font-semibold text-text-main">{selected.label}</strong>{selected.meta && <span className="block truncate text-[8px] text-text-soft">{selected.meta}</span>}</span>
       </span>
       <ChevronDown className={`size-3.5 shrink-0 text-text-soft transition-transform duration-300 ${open ? 'rotate-180 text-brand-cyan' : ''}`} />
     </button>

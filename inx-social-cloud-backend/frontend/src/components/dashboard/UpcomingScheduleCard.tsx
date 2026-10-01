@@ -9,7 +9,7 @@ import { StatusBadge } from './StatusBadge'
 export function UpcomingScheduleCard({ jobs }: { jobs: DashboardJob[] }) {
   const timezone = useUiStore(state => state.timezone)
   return (
-    <DashboardCard action={<a className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-cyan hover:text-white focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/content-calendar">View Calendar <ArrowRight aria-hidden="true" className="size-3" /></a>} className="min-h-[215px]" title="Upcoming Schedule">
+    <DashboardCard action={<a className="inline-flex items-center gap-1 text-[10px] font-semibold text-brand-cyan hover:text-text-main focus-visible:outline-2 focus-visible:outline-brand-cyan" href="/app/content-calendar">View Calendar <ArrowRight aria-hidden="true" className="size-3" /></a>} className="min-h-[215px]" title="Upcoming Schedule">
       {jobs.length === 0 ? (
         <div className="relative flex min-h-[165px] items-center gap-3 overflow-hidden px-4 py-3">
           <span aria-hidden="true" className="absolute -right-8 top-1/2 size-28 -translate-y-1/2 rounded-full border border-brand-blue/10 bg-brand-blue/[0.025]" />

@@ -23,7 +23,7 @@ export function BulkSchedulerHero({
           {running ? <div className="mt-4"><button className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-brand-red/45 bg-brand-red/15 px-4 text-xs font-semibold text-brand-red transition hover:bg-brand-red/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-red" onClick={onStop} type="button"><Square aria-hidden="true" className="size-3 fill-current" /> Stop Scheduler</button></div> : null}
         </div>
         <ol className="grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1fr] sm:items-center">
-          {steps.map((step, index) => <li className="contents" key={step.title}><div className="rounded-xl border border-white/7 bg-black/18 p-3 backdrop-blur"><step.icon aria-hidden="true" className="size-5 text-brand-cyan" /><strong className="mt-2 block text-xs">{step.title}</strong><span className="mt-0.5 block text-[10px] leading-4 text-text-soft">{step.detail}</span></div>{index < steps.length - 1 && <ChevronRight aria-hidden="true" className="mx-auto hidden size-4 text-brand-blue sm:block" />}</li>)}
+          {steps.map((step, index) => <li className="contents" key={step.title}><div className="rounded-xl border border-border-soft bg-white/80 p-3 backdrop-blur"><step.icon aria-hidden="true" className="size-5 text-brand-cyan" /><strong className="mt-2 block text-xs">{step.title}</strong><span className="mt-0.5 block text-[10px] leading-4 text-text-soft">{step.detail}</span></div>{index < steps.length - 1 && <ChevronRight aria-hidden="true" className="mx-auto hidden size-4 text-brand-blue sm:block" />}</li>)}
         </ol>
       </div>
     </section>
