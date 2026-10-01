@@ -40,6 +40,10 @@ type Props = {
   onManualTextAdd: (captions: string[]) => void
   onManualOrderModeChange: (mode: CampaignOrderMode) => void
   onManualMediaAdd: (files: File[]) => void
+  onManualGenerateAICaptions: () => void
+  manualCaptionBusy: boolean
+  manualCaptioningIds: Set<string>
+  manualCaptionMessage: string
   onManualPostEdit: (id: string, caption: string) => void
   onManualPostRemove: (id: string) => void
   onManualPostMove: (id: string, direction: -1 | 1) => void
@@ -185,7 +189,7 @@ export function UploadBatchPanel(props: Props) {
         </div>
         {!props.canStart && <p className="mt-2 text-center text-xs text-text-soft">{props.disabledReason}</p>}
       </>}
-      {campaignMode && campaignImport?.source === 'manual' && manualEditorOpen && <ManualCampaignEditor campaign={campaignImport} onClose={() => setManualEditorOpen(false)} onMediaAdd={props.onManualMediaAdd} onOrderModeChange={props.onManualOrderModeChange} onPostEdit={props.onManualPostEdit} onPostMove={props.onManualPostMove} onPostRemove={props.onManualPostRemove} onTextAdd={props.onManualTextAdd} onTitleChange={props.onManualCampaignTitleChange} running={props.running} />}
+      {campaignMode && campaignImport?.source === 'manual' && manualEditorOpen && <ManualCampaignEditor aiCaptionBusy={props.manualCaptionBusy} aiCaptioningIds={props.manualCaptioningIds} aiCaptionMessage={props.manualCaptionMessage} campaign={campaignImport} onClose={() => setManualEditorOpen(false)} onGenerateAICaptions={props.onManualGenerateAICaptions} onMediaAdd={props.onManualMediaAdd} onOrderModeChange={props.onManualOrderModeChange} onPostEdit={props.onManualPostEdit} onPostMove={props.onManualPostMove} onPostRemove={props.onManualPostRemove} onTextAdd={props.onManualTextAdd} onTitleChange={props.onManualCampaignTitleChange} running={props.running} />}
     </section>
   )
 }
