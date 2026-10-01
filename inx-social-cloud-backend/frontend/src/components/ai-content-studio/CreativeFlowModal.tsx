@@ -13,7 +13,6 @@ import {
   Package,
   Palette,
   RefreshCw,
-  Send,
   ShieldCheck,
   Sparkles,
   Target,
