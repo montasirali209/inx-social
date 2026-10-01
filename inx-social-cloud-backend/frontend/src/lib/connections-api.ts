@@ -45,6 +45,7 @@ function waitForOAuthPopup(
     let settled = false
     let polling = false
     let closeCheckRunning = false
+    let providerWindowWasFocused = false
     let pollInterval: number | undefined
     let closedInterval: number | undefined
     let timeout: number | undefined
@@ -63,6 +64,7 @@ function waitForOAuthPopup(
       window.removeEventListener('message', receive)
       window.removeEventListener('storage', receiveStored)
       window.removeEventListener('focus', handleWindowFocus)
+      window.removeEventListener('blur', handleWindowBlur)
       signal?.removeEventListener('abort', handleAbort)
       window.clearInterval(pollInterval)
       window.clearInterval(closedInterval)
@@ -118,7 +120,7 @@ function waitForOAuthPopup(
       }
     }
     const confirmClosedPopup = async () => {
-      if (settled || closeCheckRunning || !document.hasFocus()) return
+      if (settled || closeCheckRunning || !providerWindowWasFocused || !document.hasFocus()) return
       let closed = false
       try { closed = popup.closed } catch { closed = false }
       if (!closed) return
@@ -139,6 +141,9 @@ function waitForOAuthPopup(
       } finally {
         closeCheckRunning = false
       }
+    }
+    const handleWindowBlur = () => {
+      providerWindowWasFocused = true
     }
     const handleWindowFocus = () => {
       void pollForConnection()
@@ -161,6 +166,7 @@ function waitForOAuthPopup(
 
     window.addEventListener('message', receive)
     window.addEventListener('storage', receiveStored)
+    window.addEventListener('blur', handleWindowBlur)
     window.addEventListener('focus', handleWindowFocus)
     signal?.addEventListener('abort', handleAbort, { once: true })
 
