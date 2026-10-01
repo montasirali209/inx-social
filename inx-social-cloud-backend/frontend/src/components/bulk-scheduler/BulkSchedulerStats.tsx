@@ -7,7 +7,13 @@ export function BulkSchedulerStats({ jobs, onOpen }: { jobs: DashboardJob[]; onO
   const unique = [...new Map(jobs.map(job => [job.contentId || job.providerPostId || job.id, job])).values()]
   const scheduled = unique.filter(job => job.status === 'SCHEDULED').length
   const published = unique.filter(job => job.status === 'PUBLISHED').length
-  const processing = unique.filter(job => ['QUEUED', 'PROCESSING'].includes(job.status)).length
+  const now = Date.now()
+  const processing = unique.filter(job => {
+    const ageMs = now - new Date(job.updatedAt || job.createdAt).getTime()
+    if (['QUEUED', 'PROCESSING'].includes(job.status)) return ageMs < 30 * 60_000
+    if (['AWAITING_UPLOAD', 'READY'].includes(job.status)) return ageMs < 10 * 60_000
+    return false
+  }).length
   const needsReview = unique.filter(job => job.status === 'FAILED').length
   const cards = [
     { label: 'All Bulk Jobs', value: unique.length, detail: 'Publishing records', icon: ClipboardList, tone: 'border-brand-cyan/25 bg-brand-cyan/8 text-brand-cyan', view: 'all' as const },
