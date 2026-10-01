@@ -16,7 +16,7 @@ import {
   WandSparkles,
   X,
 } from 'lucide-react'
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react'
 import { Button } from '../ui/Button'
 
 export type CreativeFlowNodeId = 'product' | 'brief' | 'platforms' | 'strategy' | 'generate' | 'review'
@@ -63,12 +63,12 @@ const canvasWidth = 1180
 const canvasHeight = 650
 
 const defaultPositions: Record<CreativeFlowNodeId, Position> = {
-  product: { x: 70, y: 240 },
-  brief: { x: 320, y: 115 },
-  platforms: { x: 320, y: 365 },
-  strategy: { x: 575, y: 240 },
-  generate: { x: 825, y: 240 },
-  review: { x: 1050, y: 240 },
+  product: { x: 36, y: 240 },
+  brief: { x: 272, y: 115 },
+  platforms: { x: 272, y: 365 },
+  strategy: { x: 505, y: 240 },
+  generate: { x: 732, y: 240 },
+  review: { x: 955, y: 240 },
 }
 
 const connections: Array<[CreativeFlowNodeId, CreativeFlowNodeId]> = [
@@ -279,7 +279,7 @@ function FlowNode(props: {
   </button>
 }
 
-function ProductEditor(props: Props & { fileInput: React.RefObject<HTMLInputElement | null> }) {
+function ProductEditor(props: Props & { fileInput: RefObject<HTMLInputElement | null> }) {
   return <div className="space-y-4">
     <label className="block"><span className="text-[9px] font-semibold text-text-muted">Website URL</span><div className="relative mt-1.5"><Globe2 className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" /><input className="min-h-10 w-full rounded-xl border border-border-soft bg-slate-50 pl-9 pr-3 text-[10px] outline-none focus:border-brand-cyan focus:bg-white" onChange={(event) => props.onWebsiteChange(event.target.value)} placeholder="https://yourbrand.com" value={props.website} /></div></label>
     <label className="block"><span className="text-[9px] font-semibold text-text-muted">Product name</span><input className="mt-1.5 min-h-10 w-full rounded-xl border border-border-soft bg-slate-50 px-3 text-[10px] outline-none focus:border-brand-cyan focus:bg-white" onChange={(event) => props.onProductNameChange(event.target.value)} placeholder="e.g. INXSocial" value={props.productName} /></label>
