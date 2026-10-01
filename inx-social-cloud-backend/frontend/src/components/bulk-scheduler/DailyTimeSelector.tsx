@@ -18,7 +18,7 @@ const HOURS = Array.from({ length: 12 }, (_, index) => index + 1)
 const MINUTES = Array.from({ length: 60 }, (_, index) => index)
 const PERIODS: Meridiem[] = ['AM', 'PM']
 
-export function displayBulkTime(time: string) {
+function displayBulkTime(time: string) {
   const [hours = 0, minutes = 0] = time.split(':').map(Number)
   const period: Meridiem = hours >= 12 ? 'PM' : 'AM'
   const hour = hours % 12 || 12
