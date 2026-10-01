@@ -36,6 +36,7 @@ import { GenerationModalRouter } from './GenerationModalRouter'
 import { AiPostCampaignModal } from './AiPostCampaignModal'
 import { UGCWizardModal } from './UGCWizardModal'
 import { UGCStudioHomeModal } from './UGCStudioHomeModal'
+import { CreativeFlowLaunchCard, CreativeFlowModal } from './CreativeFlowModal'
 
 const immediateAiAccess: AIPlanAccess = {
   plan: 'trial',
@@ -67,6 +68,7 @@ export function AiContentStudioPage() {
   const [ugcWizardOpen, setUgcWizardOpen] = useState(false)
   const [ugcWizardSeed, setUgcWizardSeed] = useState<UGCCampaign | null>(null)
   const [ugcWizardDraft, setUgcWizardDraft] = useState<Partial<CreateUGCCampaignInput> | null>(null)
+  const [creativeFlowOpen, setCreativeFlowOpen] = useState(false)
 
   const accessQuery = useQuery({
     queryKey: ['ai-studio-access'],
@@ -218,6 +220,10 @@ export function AiContentStudioPage() {
     </section>
 
     <section className="mt-4">
+      <CreativeFlowLaunchCard onOpen={() => setCreativeFlowOpen(true)} />
+    </section>
+
+    <section className="mt-4">
       <Card className="ai-campaign-3d-card group relative overflow-hidden border-brand-cyan/25 bg-[radial-gradient(circle_at_82%_12%,rgba(45,212,191,.09),transparent_17rem),radial-gradient(circle_at_95%_85%,rgba(124,58,237,.07),transparent_19rem),linear-gradient(145deg,rgba(255,255,255,.99),rgba(248,250,252,.98))] p-0 transition duration-500 hover:border-brand-cyan/45">
         <div aria-hidden="true" className="ai-campaign-glow-drift absolute -right-16 -top-24 size-72 rounded-full bg-brand-cyan/[.08] blur-3xl" />
         <div aria-hidden="true" className="absolute inset-x-12 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
@@ -262,6 +268,7 @@ export function AiContentStudioPage() {
       <CreditsCard topUpsSupported={false} />
     </section>
 
+    <CreativeFlowModal onClose={() => setCreativeFlowOpen(false)} open={creativeFlowOpen} />
     <AiPostCampaignModal onClose={() => setCampaignOpen(false)} onHandoff={(campaign) => void handoffCampaign(campaign)} onToast={setToast} open={campaignOpen} />
     <UGCStudioHomeModal
       onClose={() => { setUgcHomeOpen(false); if (requestedUGC) setSearchParams({}, { replace: true }) }}
