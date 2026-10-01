@@ -6,21 +6,35 @@ const test = require('node:test');
 const root = path.join(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('Post for Me connection never mistakes an OAuth isolation boundary for cancellation', () => {
+test('Post for Me connection distinguishes a manually closed popup from OAuth isolation', () => {
   const api = read('frontend/src/lib/connections-api.ts');
   const controller = read('src/controllers/postForMeController.js');
   assert.match(api, /\/api\/social-connections\/post-for-me\/\$\{platform\}\/start/);
   assert.match(api, /sameInxSocialOrigin/);
-  assert.match(api, /hostname/);
   assert.match(api, /sameInxSocialOrigin\(event\.origin\)/);
-  assert.doesNotMatch(api, /if \(popup\.closed\)/);
+  assert.match(api, /confirmClosedPopup/);
+  assert.match(api, /document\.hasFocus\(\)/);
+  assert.match(api, /popup\.closed/);
+  assert.match(api, /One final sync prevents reporting that success as cancelled/);
+  assert.match(api, /cancelled: true/);
+  assert.match(api, /OAuthCancelledError/);
+  assert.match(api, /signal\?\.addEventListener\('abort'/);
   assert.match(api, /post-for-me\/sync/);
   assert.match(api, /knownConnections\.has\(connection\.id\)/);
   assert.match(controller, /existingConnectionIds/);
-  assert.doesNotMatch(api, /providerNavigationStarted/);
   assert.match(controller, /postMessage\(payload,'\*'\)/);
   assert.match(controller, /isSuccess/);
   assert.doesNotMatch(api, /force_authentication/);
+});
+
+test('X connect modal remains cancellable and explains browser-session account selection', () => {
+  const page = read('frontend/src/components/connections/ConnectedAccountsPageV4.tsx');
+  assert.match(page, /Cancel authorisation/);
+  assert.match(page, /connectAbortRef/);
+  assert.match(page, /new AbortController\(\)/);
+  assert.match(page, /onClose=\{closeConnect\}/);
+  assert.match(page, /X uses the account session already active in this browser/);
+  assert.match(page, /INXSocial cannot open a private\/incognito X session/);
 });
 
 test('Connected Accounts keeps provider diagnostics out of the customer UI', () => {
