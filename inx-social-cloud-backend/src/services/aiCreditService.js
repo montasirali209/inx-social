@@ -63,9 +63,12 @@ async function getEntitlement(userId) {
   return { license, plan, studioEnabled, topupsEnabled, administrator, studioPolicy: policy };
 }
 
-async function ensureWallet(userId, now = new Date()) {
+async function ensureWallet(userId, now = new Date(), options = {}) {
   const entitlement = await getEntitlement(userId);
-  if (!entitlement.studioEnabled) throw accessError('AI Content Studio is unavailable for this account or subscription.');
+  const planEligible = ['trial', 'creator', 'pro', 'business', 'agency'].includes(entitlement.plan);
+  const provisionOnly = options.provisionOnly === true;
+  if (!planEligible) throw accessError('AI credits are unavailable for this account or subscription.');
+  if (!entitlement.studioEnabled && !provisionOnly) throw accessError('AI Content Studio is unavailable for this account or subscription.');
   const limit = creditLimitForPlan(entitlement.plan);
   const period = billingWindow(entitlement, now);
   return prisma.$transaction(async tx => {
@@ -109,6 +112,10 @@ async function ensureWallet(userId, now = new Date()) {
     }
     return { ...wallet, plan: entitlement.plan, topupsEnabled: entitlement.topupsEnabled };
   });
+}
+
+async function provisionWallet(userId, now = new Date()) {
+  return ensureWallet(userId, now, { provisionOnly: true });
 }
 
 function publicBalance(wallet) {
@@ -443,6 +450,7 @@ module.exports = {
   getAccess,
   getBalance,
   ensureWallet,
+  provisionWallet,
   reserve,
   refund,
   settle,
