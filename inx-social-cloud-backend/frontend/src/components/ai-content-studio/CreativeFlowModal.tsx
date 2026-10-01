@@ -211,9 +211,13 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
     return () => timers.forEach((timer) => window.clearTimeout(timer))
   }, [open, resolvedCount, view])
 
-  useEffect(() => () => {
-    assets.forEach((asset) => URL.revokeObjectURL(asset.url))
-  }, [assets])
+  useEffect(() => {
+    if (open) return
+    setAssets((current) => {
+      current.forEach((asset) => URL.revokeObjectURL(asset.url))
+      return []
+    })
+  }, [open])
 
   if (!open) return null
 
