@@ -237,6 +237,7 @@ module.exports = {
   FREE_CAPTION_LIMIT,
   PAID_BATCH_CREDITS,
   MAX_BATCH_IMAGES,
+  MAX_IMAGE_BYTES,
   startBatch,
   generateCaption,
   parseCaptionResponse
