@@ -149,18 +149,17 @@ const APPROVED_HOMEPAGE_MODELS = [
 function renderApprovedHomepageModelCards() {
   return APPROVED_HOMEPAGE_MODELS.map((model, index) => {
     const capabilities = model.capabilities.map(capability => `<span>${escapeHtml(capability)}</span>`).join("");
-    const compactClass = index >= 3 ? " is-compact" : "";
+    const latest = index < 3 ? "<b>Latest</b>" : "";
+    const lowerClass = index >= 3 ? " is-lower" : "";
     return `<article class="approved-video-model-card reveal">
       <div class="approved-video-provider">
         <img src="${escapeHtml(model.providerLogo)}" alt="" width="24" height="24" loading="lazy" decoding="async">
         <span>${escapeHtml(model.provider)}</span>
-        <b>Latest</b>
+        ${latest}
       </div>
       <h3>${escapeHtml(model.name)}</h3>
-      <div class="approved-video-poster${compactClass}">
+      <div class="approved-video-poster${lowerClass}">
         <img src="${escapeHtml(model.poster)}" alt="${escapeHtml(model.name)} preview" loading="lazy" decoding="async">
-        <span class="approved-video-play" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8.2 5.8v12.4L18.6 12 8.2 5.8Z"/></svg></span>
-        <span class="approved-video-duration">${escapeHtml(model.duration)}</span>
       </div>
       <p>${escapeHtml(model.description)}</p>
       <div class="approved-video-capabilities">${capabilities}</div>
@@ -192,7 +191,7 @@ export function homepageModelShowcaseMarkup(showcase: VideoModelShowcase) {
       <div class="approved-video-header">
         <div class="approved-video-copy reveal">
           <span class="approved-video-kicker"><i></i>Live AI Video Catalogue</span>
-          <h2>One studio. ${escapeHtml(label)} generation-ready AI video models.</h2>
+          <h2>One studio. ${escapeHtml(label)} <span class="approved-video-nowrap">generation-ready</span> AI video models.</h2>
           <p>Use AI Recommended to let INXSocial choose a suitable model, or browse the live catalogue yourself. New generation-ready models can appear automatically after capability and pricing validation.</p>
         </div>
         <div class="approved-video-stat reveal">
