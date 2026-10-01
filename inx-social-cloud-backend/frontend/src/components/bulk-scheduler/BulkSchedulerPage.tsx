@@ -597,47 +597,52 @@ export function BulkSchedulerPage() {
     let failed = 0
 
     try {
+      const captionPlatforms = [...new Set(selectedDestinations.map((destination) => destination.platform))]
       const batch = await startBulkAICaptionBatch({
         batchId,
         campaignId: mixedCampaign.id,
         campaignTitle: mixedCampaign.title,
         postIds: targets.map((post) => post.id),
+        platforms: captionPlatforms,
       })
-      setManualCaptionMessage(batch.creditsCharged
-        ? `${batch.creditsCharged} credits · generating ${targets.length} empty image captions…`
-        : `Free · generating ${targets.length} empty image caption${targets.length === 1 ? '' : 's'}…`)
+      const platformLabel = captionPlatforms.length ? ` · optimising for ${captionPlatforms.join(', ')}` : ' · platform-neutral'
+      const billingLabel = batch.creditsCharged
+        ? `${batch.creditsCharged} credits`
+        : batch.paidUnlocked
+          ? 'Included in this campaign'
+          : 'Free'
+      const refundLabel = batch.refundedCredits > 0 ? ` · ${batch.refundedCredits} duplicate retry credits restored` : ''
+      setManualCaptionMessage(`${billingLabel}${refundLabel} · generating ${targets.length} empty image caption${targets.length === 1 ? '' : 's'}${platformLabel}…`)
 
-      let cursor = 0
-      const worker = async () => {
-        while (cursor < targets.length) {
-          const index = cursor
-          cursor += 1
-          const post = targets[index]
-          try {
-            const result = await generateBulkAICaption({ batchId, postId: post.id, file: post.media!.file })
-            setMixedCampaign((current) => current?.source === 'manual' ? {
-              ...current,
-              posts: current.posts.map((item) =>
-                item.id === post.id && !item.caption.trim()
-                  ? { ...item, caption: result.caption }
-                  : item
-              ),
-            } : current)
-            generated += 1
-          } catch (error) {
-            failed += 1
-            console.warn('AI caption generation failed for one manual campaign image.', error)
-          } finally {
-            setManualCaptioningIds((current) => {
-              const next = new Set(current)
-              next.delete(post.id)
-              return next
-            })
+      for (let index = 0; index < targets.length; index += 1) {
+        const post = targets[index]
+        setManualCaptionMessage(`${billingLabel}${refundLabel} · analysing image ${index + 1} of ${targets.length}${platformLabel}…`)
+        try {
+          const result = await generateBulkAICaption({ batchId, postId: post.id, file: post.media!.file })
+          setMixedCampaign((current) => current?.source === 'manual' ? {
+            ...current,
+            posts: current.posts.map((item) =>
+              item.id === post.id && !item.caption.trim()
+                ? { ...item, caption: result.caption }
+                : item
+            ),
+          } : current)
+          generated += 1
+        } catch (error) {
+          failed += 1
+          console.warn('AI caption generation failed for one manual campaign image.', error)
+          if (error instanceof Error && /busy|rate|429/i.test(error.message)) {
+            await new Promise((resolve) => window.setTimeout(resolve, 3000))
           }
+        } finally {
+          setManualCaptioningIds((current) => {
+            const next = new Set(current)
+            next.delete(post.id)
+            return next
+          })
         }
+        if (index < targets.length - 1) await new Promise((resolve) => window.setTimeout(resolve, 450))
       }
-
-      await Promise.all(Array.from({ length: Math.min(3, targets.length) }, () => worker()))
       setResults([])
       setManualCaptionMessage(failed
         ? `AI captions finished: ${generated} generated, ${failed} could not be generated. Existing captions were not changed.`
