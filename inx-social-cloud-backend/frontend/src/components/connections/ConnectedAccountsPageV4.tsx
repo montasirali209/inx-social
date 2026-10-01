@@ -841,11 +841,16 @@ function ConnectAccountModal({ open, selectedPlatform, configured, connectedAcco
             {selected === 'bluesky' && <div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-xs"><span className="mb-1.5 block text-text-muted">Bluesky handle</span><input autoComplete="username" className="min-h-11 w-full rounded-xl border border-border-soft bg-bg/45 px-3 outline-none focus:border-brand-cyan focus:ring-2 focus:ring-brand-cyan/10" onChange={(event) => onBlueskyHandle(event.target.value)} placeholder="name.bsky.social" value={blueskyHandle} /></label><label className="text-xs"><span className="mb-1.5 block text-text-muted">App password</span><input autoComplete="off" className="min-h-11 w-full rounded-xl border border-border-soft bg-bg/45 px-3 outline-none focus:border-brand-cyan focus:ring-2 focus:ring-brand-cyan/10" onChange={(event) => onBlueskyAppPassword(event.target.value)} placeholder="xxxx-xxxx-xxxx-xxxx" type="password" value={blueskyAppPassword} /></label></div>}
 
             {destinations.length > 0 && <DestinationSelector accounts={destinations} />}
-            <p className="mt-4 text-[11px] leading-5 text-text-muted">Continue opens the platform's official authorisation flow. After authentication INXSocial refreshes the available destinations automatically.</p>
+            {selected === 'x' && <div className="mt-4 rounded-xl border border-brand-cyan/20 bg-brand-cyan/[.045] p-3">
+              <strong className="text-xs text-cyan-700">Connecting another X account?</strong>
+              <p className="mt-1 text-[11px] leading-5 text-text-muted">X uses the account session already active in this browser. If you want a different X profile, switch to that account on x.com first, then continue here. INXSocial cannot open a private/incognito X session or safely sign you out of X.</p>
+              <a className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-brand-cyan hover:underline" href="https://x.com/" rel="noreferrer" target="_blank">Open X in a new tab <ExternalLink className="size-3" /></a>
+            </div>}
+            <p className="mt-4 text-[11px] leading-5 text-text-muted">Continue opens the platform's official authorisation flow. After authentication INXSocial refreshes the available destinations automatically. If you close the provider window, this dialog will cancel automatically instead of remaining stuck.</p>
           </> : <div className="mt-4 rounded-xl border border-brand-amber/25 bg-brand-amber/[.055] p-4"><div className="flex gap-3"><AlertTriangle className="mt-0.5 size-4 shrink-0 text-brand-amber" /><div><strong className="text-xs text-amber-200">Connection unavailable</strong><p className="mt-1 text-xs leading-5 text-text-muted">This network is not enabled by the current production social gateway, so INXSocial will not start a fake or incomplete connection flow.</p></div></div></div>}
 
           <div className="mt-5 grid grid-cols-2 gap-2">
-            <Button disabled={pending} onClick={() => onSelect(null)} variant="secondary">Cancel</Button>
+            <Button onClick={() => pending ? onClose() : onSelect(null)} variant="secondary">{pending ? 'Cancel authorisation' : 'Cancel'}</Button>
             <Button disabled={!available || pending || (selected === 'bluesky' && (!blueskyHandle.trim() || !blueskyAppPassword.trim()))} onClick={onContinue}>{pending ? <><LoaderCircle className="size-4 animate-spin" />Authorising…</> : 'Continue'}</Button>
           </div>
         </div>
@@ -904,6 +909,7 @@ export function ConnectedAccountsPage() {
   const [activityOpen, setActivityOpen] = useState(false)
   const [blueskyHandle, setBlueskyHandle] = useState('')
   const [blueskyAppPassword, setBlueskyAppPassword] = useState('')
+  const connectAbortRef = useRef<AbortController | null>(null)
 
   const identities = useMemo(() => workspace.data ? flattenConnectedIdentities(workspace.data) : [], [workspace.data])
   const accounts = useMemo(() => workspace.data ? identities.map((identity) => toAccountModel(identity, workspace.data)) : [], [identities, workspace.data])
@@ -1008,7 +1014,9 @@ export function ConnectedAccountsPage() {
       if (!isGatewayPlatform(platform)) throw new Error(`${labelFor(platform)} is not enabled by the current production gateway.`)
       const input = platform === 'bluesky' ? { handle: blueskyHandle.trim(), appPassword: blueskyAppPassword.trim() } : {}
       if (platform === 'bluesky' && (!input.handle || !input.appPassword)) throw new Error('Enter your Bluesky handle and app password first.')
-      return connectPostForMePlatform(platform, input)
+      const controller = new AbortController()
+      connectAbortRef.current = controller
+      return connectPostForMePlatform(platform, input, { signal: controller.signal })
     },
     onSuccess: async (_, platform) => {
       await syncPostForMeConnections()
@@ -1019,7 +1027,16 @@ export function ConnectedAccountsPage() {
       setToast({ tone: 'success', message: 'Account connected successfully.' })
       void platform
     },
-    onError: (error) => setToast({ tone: 'error', message: error instanceof Error ? error.message : 'The account could not be connected.' }),
+    onError: (error) => {
+      if (error instanceof Error && error.name === 'OAuthCancelledError') {
+        setToast({ tone: 'info', message: 'Connection cancelled. No new account was added.' })
+        return
+      }
+      setToast({ tone: 'error', message: error instanceof Error ? error.message : 'The account could not be connected.' })
+    },
+    onSettled: () => {
+      connectAbortRef.current = null
+    },
   })
 
   const disconnectMutation = useMutation({
@@ -1048,6 +1065,14 @@ export function ConnectedAccountsPage() {
     } finally {
       setRefreshingId(null)
     }
+  }
+
+  function closeConnect() {
+    connectAbortRef.current?.abort()
+    connectAbortRef.current = null
+    setConnectOpen(false)
+    setConnectPlatform(null)
+    setBlueskyAppPassword('')
   }
 
   function openConnect(platform?: UiPlatform) {
@@ -1109,7 +1134,7 @@ export function ConnectedAccountsPage() {
         connectedAccounts={accounts}
         onBlueskyAppPassword={setBlueskyAppPassword}
         onBlueskyHandle={setBlueskyHandle}
-        onClose={() => { if (!connectMutation.isPending) { setConnectOpen(false); setConnectPlatform(null); setBlueskyAppPassword('') } }}
+        onClose={closeConnect}
         onContinue={() => { if (connectPlatform) connectMutation.mutate(connectPlatform) }}
         onSelect={setConnectPlatform}
         open={connectOpen}
