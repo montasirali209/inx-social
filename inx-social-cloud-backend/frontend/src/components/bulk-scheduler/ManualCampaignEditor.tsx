@@ -65,7 +65,8 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
       nextRects.set(id, node.getBoundingClientRect())
     })
 
-    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const reducedMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (!reducedMotion) {
       nextRects.forEach((nextRect, id) => {
         const previousRect = previousMediaRects.current.get(id)
         const node = mediaCards.current.get(id)
@@ -73,7 +74,8 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
         const deltaX = previousRect.left - nextRect.left
         const deltaY = previousRect.top - nextRect.top
         if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return
-        node.getAnimations().forEach((animation) => animation.cancel())
+        if (typeof node.getAnimations === 'function') node.getAnimations().forEach((animation) => animation.cancel())
+        if (typeof node.animate !== 'function') return
         node.animate(
           [
             { transform: `translate(${deltaX}px, ${deltaY}px)` },
