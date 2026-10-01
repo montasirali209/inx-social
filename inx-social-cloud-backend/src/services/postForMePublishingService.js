@@ -725,6 +725,13 @@ function publicationToJob(publication) {
       : contentType !== 'TEXT' && !providerMedia.length
         ? 'reupload'
         : 'review';
+  const activeProcessing = status === 'AWAITING_UPLOAD'
+    ? ageMs < STALE_AWAITING_MEDIA_MS
+    : status === 'READY'
+      ? ageMs < STALE_READY_MS
+      : ['QUEUED', 'PROCESSING'].includes(status)
+        ? ageMs < 30 * 60 * 1000
+        : false;
   const staleMessage = staleAwaitingMedia
     ? 'This media upload did not complete and is no longer active. Re-upload or recreate the media post.'
     : staleReady
@@ -746,6 +753,7 @@ function publicationToJob(publication) {
     errorMessage: publicationError(publication) || staleMessage,
     retryable,
     reviewAction,
+    activeProcessing,
     mediaLibraryAssetId: meta.mediaLibraryAssetId || null,
     metaPostId: result.platformPostId || null,
     metaVideoId: null,
