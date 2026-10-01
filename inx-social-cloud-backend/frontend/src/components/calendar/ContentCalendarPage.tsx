@@ -239,6 +239,7 @@ export function ContentCalendarPage() {
           : 'This publishing record cannot be safely retried.',
         tone: 'error',
       })
+      setReviewBusyId(null)
       return
     }
     try {
