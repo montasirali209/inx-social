@@ -77,7 +77,7 @@ export function ContentCalendarPage() {
   const [actionDate, setActionDate] = useState('')
   const [actionTime, setActionTime] = useState('')
   const [actionError, setActionError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' | 'info' } | null>(null)
   const [reviewJob, setReviewJob] = useState<DashboardJob | null>(null)
   const [reviewBusyId, setReviewBusyId] = useState<string | null>(null)
 
@@ -160,7 +160,7 @@ export function ContentCalendarPage() {
       const completedAction = action?.type
       setAction(null)
       setActionError(null)
-      setNotice(completedAction === 'delete' ? 'Post removed from the schedule.' : 'Schedule updated successfully.')
+      setNotice({ message: completedAction === 'delete' ? 'Post removed from the schedule.' : 'Schedule updated successfully.', tone: 'success' })
       await calendar.refetch()
     },
     onError: error => setActionError(error instanceof Error ? error.message : 'The calendar action could not be completed.'),
@@ -232,12 +232,21 @@ export function ContentCalendarPage() {
     if (!post.jobId || reviewBusyId) return
     setReviewBusyId(post.id)
     setNotice(null)
+    if (post.retryable === false) {
+      setNotice({
+        message: post.reviewAction === 'reupload'
+          ? 'This media upload did not complete. Re-upload or recreate the post from Bulk Scheduler.'
+          : 'This publishing record cannot be safely retried.',
+        tone: 'error',
+      })
+      return
+    }
     try {
       await retryFailedScheduledPost(post.jobId)
-      setNotice('Publishing retry started. The Calendar will update as soon as the platform reports the result.')
+      setNotice({ message: 'Publishing retry started. The Calendar will update as soon as the platform reports the result.', tone: 'success' })
       await calendar.refetch()
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : 'The failed post could not be retried.')
+      setNotice({ message: error instanceof Error ? error.message : 'The failed post could not be retried.', tone: 'error' })
     } finally {
       setReviewBusyId(null)
     }
@@ -246,7 +255,7 @@ export function ContentCalendarPage() {
   const fixReviewPost = (post: CalendarPost) => {
     const job = (calendarData?.jobs || []).find((item) => item.id === post.jobId) || null
     if (!job) {
-      setNotice('The publishing record could not be loaded. Refresh the Calendar and try again.')
+      setNotice({ message: 'The publishing record could not be loaded. Refresh the Calendar and try again.', tone: 'error' })
       return
     }
     setReviewJob(job)
@@ -269,6 +278,10 @@ export function ContentCalendarPage() {
     </div>
     <CalendarPostActionDialog action={action?.type || 'reschedule'} busy={calendarAction.isPending} date={actionDate} error={actionError} onClose={() => { if (!calendarAction.isPending) setAction(null) }} onConfirm={() => calendarAction.mutate()} onDate={setActionDate} onTime={setActionTime} post={action?.post || null} time={actionTime} />
     {reviewJob && <ScheduledPostEditorModal job={reviewJob} onChanged={async () => { await calendar.refetch() }} onClose={() => setReviewJob(null)} timezone={timezone} />}
-    {notice && <div className="fixed bottom-3 left-3 right-3 z-[110] flex max-w-none sm:bottom-5 sm:left-auto sm:right-5 sm:max-w-sm items-center gap-3 rounded-xl border border-brand-green/25 bg-[#071923] px-4 py-3 text-xs shadow-2xl"><CheckCircle2 className="size-4 shrink-0 text-brand-green" /><span>{notice}</span><button aria-label="Dismiss" className="ml-1 text-text-soft hover:text-white" onClick={() => setNotice(null)} type="button"><X className="size-3.5" /></button></div>}
+    {notice && <div className={`fixed bottom-3 left-3 right-3 z-[110] flex max-w-none items-center gap-3 rounded-xl border bg-panel px-4 py-3 text-xs text-text-main shadow-[0_18px_55px_rgba(15,23,42,.18)] sm:bottom-5 sm:left-auto sm:right-5 sm:max-w-sm ${notice.tone === 'error' ? 'border-brand-red/25' : notice.tone === 'success' ? 'border-brand-green/25' : 'border-brand-cyan/25'}`}>
+      {notice.tone === 'error' ? <AlertTriangle className="size-4 shrink-0 text-brand-red" /> : <CheckCircle2 className={`size-4 shrink-0 ${notice.tone === 'success' ? 'text-brand-green' : 'text-brand-cyan'}`} />}
+      <span className="leading-5">{notice.message}</span>
+      <button aria-label="Dismiss" className="ml-1 grid size-7 shrink-0 place-items-center rounded-lg text-text-soft hover:bg-black/5 hover:text-text-main" onClick={() => setNotice(null)} type="button"><X className="size-3.5" /></button>
+    </div>}
   </div>
 }
