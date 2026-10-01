@@ -46,9 +46,7 @@ function waitForOAuthPopup(
     let polling = false
     let closeCheckRunning = false
     let providerWindowWasFocused = false
-    let pollInterval: number | undefined
-    let closedInterval: number | undefined
-    let timeout: number | undefined
+    const timers: { pollInterval?: number; closedInterval?: number; timeout?: number } = {}
     const knownConnections = new Set(existingConnectionIds)
     const sameInxSocialOrigin = (origin: string) => {
       try {
@@ -66,9 +64,9 @@ function waitForOAuthPopup(
       window.removeEventListener('focus', handleWindowFocus)
       window.removeEventListener('blur', handleWindowBlur)
       signal?.removeEventListener('abort', handleAbort)
-      window.clearInterval(pollInterval)
-      window.clearInterval(closedInterval)
-      window.clearTimeout(timeout)
+      window.clearInterval(timers.pollInterval)
+      window.clearInterval(timers.closedInterval)
+      window.clearTimeout(timers.timeout)
       window.localStorage.removeItem(storageKey)
     }
     const finish = (message: OAuthMessage) => {
@@ -121,7 +119,7 @@ function waitForOAuthPopup(
     }
     const confirmClosedPopup = async () => {
       if (settled || closeCheckRunning || !providerWindowWasFocused || !document.hasFocus()) return
-      let closed = false
+      let closed: boolean
       try { closed = popup.closed } catch { closed = false }
       if (!closed) return
       closeCheckRunning = true
@@ -170,9 +168,9 @@ function waitForOAuthPopup(
     window.addEventListener('focus', handleWindowFocus)
     signal?.addEventListener('abort', handleAbort, { once: true })
 
-    pollInterval = window.setInterval(pollForConnection, 12_000)
-    closedInterval = window.setInterval(() => void confirmClosedPopup(), 750)
-    timeout = window.setTimeout(
+    timers.pollInterval = window.setInterval(pollForConnection, 12_000)
+    timers.closedInterval = window.setInterval(() => void confirmClosedPopup(), 750)
+    timers.timeout = window.setTimeout(
       () => finish({ ok: false, error: 'We could not confirm this connection. Check Connected Accounts, then try again if it is missing.' }),
       5 * 60 * 1000,
     )
