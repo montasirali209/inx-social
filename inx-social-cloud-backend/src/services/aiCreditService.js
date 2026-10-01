@@ -209,6 +209,14 @@ async function getBalance(userId) {
   return publicBalance(wallet);
 }
 
+async function peekBalance(userId) {
+  const rows = await prisma.$queryRawUnsafe(
+    'SELECT * FROM "AiCreditWallet" WHERE "userId"=$1 LIMIT 1',
+    userId
+  );
+  return rows[0] ? publicBalance(rows[0]) : null;
+}
+
 async function reserve(userId, generationId, credits) {
   const amount = Math.max(1, Math.floor(Number(credits || 0)));
   await ensureWallet(userId);
@@ -449,6 +457,7 @@ module.exports = {
   getEntitlement,
   getAccess,
   getBalance,
+  peekBalance,
   ensureWallet,
   provisionWallet,
   reserve,
