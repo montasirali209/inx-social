@@ -848,6 +848,62 @@
   height:1px;
   background:linear-gradient(90deg,rgba(20,184,166,.25),rgba(139,92,246,.24));
 }
+
+@media(prefers-reduced-motion:no-preference){
+  .ugc-motion-ambient{animation:ugc-motion-ambient-pulse 5.5s ease-in-out infinite}
+  .ugc-motion-orbit-outer{animation:ugc-motion-orbit-cw 18s linear infinite}
+  .ugc-motion-orbit-inner{animation:ugc-motion-orbit-ccw 13s linear infinite}
+  .ugc-motion-core{animation:ugc-motion-core-float 4.2s ease-in-out infinite}
+  .ugc-motion-core-icon{animation:ugc-motion-icon-wobble 4.8s ease-in-out infinite}
+  .ugc-motion-endpoint.creator{animation:ugc-motion-endpoint-up 3.6s ease-in-out infinite}
+  .ugc-motion-endpoint.video{animation:ugc-motion-endpoint-down 3.9s ease-in-out infinite}
+  .ugc-motion-line i{animation:ugc-motion-route-dot 2.6s ease-in-out infinite}
+  .ugc-motion-particle.particle-a{animation:ugc-motion-particle-a 4.1s ease-in-out infinite}
+  .ugc-motion-particle.particle-b{animation:ugc-motion-particle-b 5.2s ease-in-out infinite}
+}
+@keyframes ugc-motion-ambient-pulse{
+  0%,100%{opacity:.38;transform:translate(-50%,-50%) scale(.94)}
+  50%{opacity:.68;transform:translate(-50%,-50%) scale(1.06)}
+}
+@keyframes ugc-motion-orbit-cw{
+  from{transform:translate(-50%,-50%) rotate(0deg)}
+  to{transform:translate(-50%,-50%) rotate(360deg)}
+}
+@keyframes ugc-motion-orbit-ccw{
+  from{transform:translate(-50%,-50%) rotate(0deg)}
+  to{transform:translate(-50%,-50%) rotate(-360deg)}
+}
+@keyframes ugc-motion-core-float{
+  0%,100%{transform:translate(-50%,-50%) translateY(0) scale(1)}
+  50%{transform:translate(-50%,-50%) translateY(-5px) scale(1.025)}
+}
+@keyframes ugc-motion-icon-wobble{
+  0%,100%{transform:rotate(0deg)}
+  34%{transform:rotate(10deg)}
+  67%{transform:rotate(-8deg)}
+}
+@keyframes ugc-motion-endpoint-up{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-3px)}
+}
+@keyframes ugc-motion-endpoint-down{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(3px)}
+}
+@keyframes ugc-motion-route-dot{
+  0%{left:0;opacity:0}
+  18%,82%{opacity:1}
+  100%{left:calc(100% - 10px);opacity:0}
+}
+@keyframes ugc-motion-particle-a{
+  0%,100%{transform:translate(0,0);opacity:.45}
+  50%{transform:translate(8px,-8px);opacity:1}
+}
+@keyframes ugc-motion-particle-b{
+  0%,100%{transform:translate(0,0);opacity:.3}
+  50%{transform:translate(-6px,7px);opacity:.8}
+}
+
 @media(max-width:1180px){
   .ugc-motion-graphic{display:none}
 }
