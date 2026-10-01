@@ -628,10 +628,16 @@ async function retryFailedProviderResult(bundle, input = {}) {
 async function updateFailedReviewDraft(userId, rawPublicationId, input = {}) {
   const bundle = await bundleForPublication(userId, rawPublicationId);
   const publication = bundle.publication;
-  if (publication.status !== 'FAILED' || publication.externalPostId) {
-    throw Object.assign(new Error('Only failed local publishing attempts can be edited before recovery.'), {
+  const ageMs = Date.now() - new Date(publication.updatedAt || publication.createdAt).getTime();
+  const recoverableLocalFailure = !publication.externalPostId && (
+    publication.status === 'FAILED'
+    || (publication.status === 'AWAITING_MEDIA' && ageMs > STALE_AWAITING_MEDIA_MS)
+    || (publication.status === 'READY' && ageMs > STALE_READY_MS)
+  );
+  if (!recoverableLocalFailure) {
+    throw Object.assign(new Error('Only failed or stale local publishing attempts can be edited before recovery.'), {
       status: 409,
-      publicMessage: 'This failed item cannot be edited in recovery mode.'
+      publicMessage: 'This item is still active or has already reached the social platform, so it cannot be edited in recovery mode.'
     });
   }
 
