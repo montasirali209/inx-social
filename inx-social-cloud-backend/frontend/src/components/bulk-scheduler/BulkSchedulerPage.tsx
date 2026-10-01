@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ApiError } from '../../lib/api-client'
 import { createBulkMediaPost, fetchBulkSchedulerData, generateBulkAICaption, optimiseBulkScheduleTimes, publishBulkLibraryMedia, saveBulkScheduleTimes, startBulkAICaptionBatch, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
-import { bulkCancelScheduledPosts, bulkEditScheduledPosts, retryFailedScheduledPost } from '../../lib/posts-api'
+import { bulkCancelScheduledPosts, bulkEditScheduledPosts, dismissPostJob, retryFailedScheduledPost } from '../../lib/posts-api'
 import { getAIPostCampaign, getAIPostCampaigns } from '../../lib/ai-content-studio-api'
 import { fetchMediaAssetFile, fetchMediaLibrary, uploadMediaAsset } from '../../lib/media-library-api'
 import { buildPublishingTimes, isLikelyTransportFailure, parseCaptions, parseTextPosts } from '../../lib/bulk-scheduler-utils'
@@ -98,6 +98,7 @@ export function BulkSchedulerPage() {
   const [results, setResults] = useState<UploadResult[]>([])
   const [confirmationOpen, setConfirmationOpen] = useState(false)
   const [retryingId, setRetryingId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   const [historyView, setHistoryView] = useState<BulkHistoryView | null>(null)
   const [mixedCampaign, setMixedCampaign] = useState<ImportedMixedCampaign | null>(null)
   const [campaignOrderMode, setCampaignOrderMode] = useState<CampaignOrderMode>('custom')
@@ -1279,9 +1280,144 @@ export function BulkSchedulerPage() {
     }
   }
 
+  const replaceFailedResultMedia = async (result: UploadResult, file: File) => {
+    if (running || retryingId || deletingId) return
+
+    const kind = mediaKind(file)
+    const withinLimit = kind === 'image'
+      ? file.size <= 15 * 1024 * 1024
+      : kind === 'video'
+        ? file.size <= 10 * 1024 * 1024 * 1024
+        : false
+
+    if (!kind || !withinLimit || kind !== result.mediaKind) {
+      const expected = result.mediaKind === 'video' ? 'video' : 'image'
+      const message = !kind
+        ? `Choose a supported ${expected} file.`
+        : kind !== result.mediaKind
+          ? `This failed post needs a replacement ${expected} file.`
+          : `The selected ${expected} file is too large.`
+      setResults((current) => current.map((candidate) => candidate.id === result.id ? { ...candidate, status: 'failed', errorMessage: message } : candidate))
+      setProgress({ state: 'failed', percent: 100, current: 1, total: 1, completed: 0, failed: 1, message })
+      return
+    }
+
+    const previous = mediaRef.current.find((candidate) => candidate.id === result.mediaId)
+    if (previous) URL.revokeObjectURL(previous.previewUrl)
+
+    const previewUrl = URL.createObjectURL(file)
+    const replacement: SelectedMedia = {
+      id: result.mediaId,
+      libraryAssetId: null,
+      file,
+      kind,
+      previewUrl,
+    }
+    mediaRef.current = [...mediaRef.current.filter((candidate) => candidate.id !== result.mediaId), replacement]
+
+    const retryResult: UploadResult = {
+      ...result,
+      fileName: file.name,
+      mediaKind: kind,
+      thumbnailUrl: previewUrl,
+      errorMessage: null,
+      status: 'failed',
+    }
+    setResults((current) => current.map((candidate) => candidate.id === result.id ? retryResult : candidate))
+    await retryFailedUpload(retryResult)
+  }
+
+  const deleteFailedResult = async (result: UploadResult) => {
+    if (running || retryingId || deletingId) return
+    if (!window.confirm(`Delete this failed job for “${result.fileName}”? It will be removed from Needs Review and will not be retried.`)) return
+
+    setDeletingId(result.id)
+    try {
+      let jobId = result.jobId
+      if (!jobId && result.clientRequestId) {
+        const refreshed = await scheduler.refetch()
+        jobId = refreshed.data?.jobs.find((candidate) => candidate.clientRequestId === result.clientRequestId)?.id || null
+      }
+      if (jobId) await dismissPostJob(jobId)
+
+      const localMedia = mediaRef.current.find((candidate) => candidate.id === result.mediaId)
+      if (localMedia) URL.revokeObjectURL(localMedia.previewUrl)
+      mediaRef.current = mediaRef.current.filter((candidate) => candidate.id !== result.mediaId)
+
+      const remaining = results.filter((candidate) => candidate.id !== result.id)
+      setResults(remaining)
+
+      if (!remaining.length) {
+        setProgress({ ...idleProgress, message: 'Failed job deleted. No batch results remain.' })
+      } else {
+        const failed = remaining.filter((candidate) => candidate.status === 'failed' || candidate.status === 'blocked').length
+        const completed = remaining.filter((candidate) => candidate.status === 'scheduled' || candidate.status === 'published').length
+        const processing = remaining.filter((candidate) => candidate.status === 'waiting' || candidate.status === 'checking' || candidate.status === 'uploading').length
+        setProgress({
+          state: failed ? 'failed' : processing ? 'uploading' : 'completed',
+          percent: processing ? Math.round(((completed + failed) / remaining.length) * 100) : 100,
+          current: completed + failed,
+          total: remaining.length,
+          completed,
+          failed,
+          message: failed
+            ? `${failed} item${failed === 1 ? '' : 's'} still need review.`
+            : processing
+              ? 'Batch activity is still in progress.'
+              : 'Failed job deleted. Remaining batch items are complete.',
+        })
+      }
+
+      await scheduler.refetch()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'The failed job could not be deleted.'
+      setResults((current) => current.map((candidate) => candidate.id === result.id ? { ...candidate, errorMessage: message } : candidate))
+      setProgress({ state: 'failed', percent: 100, current: 1, total: 1, completed: 0, failed: 1, message })
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
   const retryReviewJobs = async (jobs: DashboardJob[]) => {
     if (running || retryingId) return
-    const retryable = jobs.filter((job) => job.status === 'FAILED' && !job.metaPostId)
+    const failedJobs = jobs.filter((job) => job.status === 'FAILED')
+    if (!failedJobs.length) return
+
+    if (failedJobs.length === 1 && failedJobs[0].reviewAction === 'reupload' && failedJobs[0].contentType !== 'TEXT') {
+      const job = failedJobs[0]
+      const reuploadResult: UploadResult = {
+        id: `review-reupload:${job.id}`,
+        mediaId: job.id,
+        mediaIndex: 0,
+        jobId: job.id,
+        fileName: job.localFileName || 'Failed media post',
+        mediaKind: job.contentType === 'VIDEO' ? 'video' : 'image',
+        thumbnailUrl: '',
+        textPreview: job.caption?.replace(/\s+/g, ' ').slice(0, 180) || null,
+        destinationIds: job.destination?.id ? [job.destination.id] : [],
+        status: 'failed',
+        resultId: null,
+        errorMessage: 'The original media is no longer available in this browser session. Choose the media file again to continue.',
+        scheduledAt: job.scheduledAt,
+        caption: job.caption,
+        clientRequestId: job.clientRequestId || null,
+      }
+      setHistoryView(null)
+      setResults([reuploadResult])
+      setProgress({
+        state: 'failed',
+        percent: 100,
+        current: 1,
+        total: 1,
+        completed: 0,
+        failed: 1,
+        message: 'This failed post needs its original media file. Choose the file below to retry safely.',
+      })
+      window.requestAnimationFrame(() => batchRunSection.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+      return
+    }
+
+    const retryable = failedJobs.filter((job) => job.retryable === true)
     if (!retryable.length) return
 
     setHistoryView(null)
@@ -1371,6 +1507,12 @@ export function BulkSchedulerPage() {
     })
     setRetryingId(null)
     abortRef.current = null
+    await scheduler.refetch()
+  }
+
+  const deleteReviewJob = async (job: DashboardJob) => {
+    await dismissPostJob(job.id)
+    setResults((current) => current.filter((result) => result.jobId !== job.id))
     await scheduler.refetch()
   }
 
@@ -1612,9 +1754,9 @@ export function BulkSchedulerPage() {
           useFallback={useFallback}
           workspaceMode={workspaceMode}
         />
-        <div className="scroll-mt-24" ref={batchRunSection}><BatchRunPanel canStart={canStart} destinations={destinations} disabledReason={disabledReason} onRetry={retryFailedUpload} onStart={requestStart} onStop={stopUpload} progress={progress} results={results} retryingId={retryingId} running={running} /></div>
+        <div className="scroll-mt-24" ref={batchRunSection}><BatchRunPanel canStart={canStart} deletingId={deletingId} destinations={destinations} disabledReason={disabledReason} hasLocalMedia={(result) => result.mediaKind === 'text' || mediaRef.current.some((candidate) => candidate.id === result.mediaId)} onDelete={deleteFailedResult} onReplaceMedia={replaceFailedResultMedia} onRetry={retryFailedUpload} onStart={requestStart} onStop={stopUpload} progress={progress} results={results} retryingId={retryingId} running={running} /></div>
       </div>
-      {historyView && <BulkScheduleManager initialView={historyView} jobs={schedulerData.jobs} onBulkCancelJobs={bulkCancelScheduledJobs} onBulkEditJobs={(jobs, rules) => { void bulkEditScheduledJobs(jobs, rules) }} onChanged={() => scheduler.refetch()} onClose={() => setHistoryView(null)} onRetryJobs={(jobs) => { void retryReviewJobs(jobs) }} timezone={schedulerData.settings.timezone} />}
+      {historyView && <BulkScheduleManager initialView={historyView} jobs={schedulerData.jobs} onBulkCancelJobs={bulkCancelScheduledJobs} onBulkEditJobs={(jobs, rules) => { void bulkEditScheduledJobs(jobs, rules) }} onChanged={() => scheduler.refetch()} onClose={() => setHistoryView(null)} onDeleteJob={deleteReviewJob} onRetryJobs={(jobs) => { void retryReviewJobs(jobs) }} timezone={schedulerData.settings.timezone} />}
       <PublishConfirmationDialog busy={running} confirmLabel={timingMode === 'publish_now' ? 'Publish batch' : 'Schedule batch'} description={mixedCampaign ? `You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} the ${mixedCampaign.posts.length}-post campaign “${mixedCampaign.title}” ${mixedCampaign.source === 'manual' && campaignOrderMode !== 'custom' ? 'with alternating text and media posts' : 'in the sequence shown'}. Media posts go to selected compatible destinations; text posts go only to destinations that support text-only publishing.` : `You are about to ${timingMode === 'publish_now' ? 'publish' : 'schedule'} ${batchCount} ${contentMode === 'text' ? `text post${batchCount === 1 ? '' : 's'}` : `media file${batchCount === 1 ? '' : 's'}`} across ${selectedIds.size} destination${selectedIds.size === 1 ? '' : 's'}.`} onCancel={() => setConfirmationOpen(false)} onConfirm={() => { setConfirmationOpen(false); void runBatch() }} open={confirmationOpen} title="Confirm this bulk publishing action" />
     </div>
   )
