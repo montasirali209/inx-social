@@ -12,6 +12,7 @@ const ugcAnalytics = require('../services/ugcStudioAnalyticsService');
 const ugcProductionAudit = require('../services/ugcProductionAuditService');
 const ugcStudio = require('../services/ugcStudioService');
 const ugcAdminAvatars = require('../services/ugcAdminAvatarBulkService');
+const customerActivityService = require('../services/customerActivityService');
 const env = require('../config/env');
 
 const ugcAvatarSelectionSchema = z.object({
@@ -232,6 +233,19 @@ async function userDetail(req, res, next) {
     const user = await prisma.user.findUnique({ where: { id: req.params.id }, select: safeUserSelect() });
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json({ user: { ...user, effectivePlan: (await licenseService.getLicenseStatus(user.id)).plan, commercialAccess: await commercialSnapshot(user.id), aiStudioAccess: await agentAccess.getUserOverride(user.id) } });
+  } catch (err) { next(err); }
+}
+
+
+async function userActivity(req, res, next) {
+  try {
+    const input = z.object({
+      category: z.string().trim().max(40).optional(),
+      before: z.string().datetime().optional(),
+      limit: z.coerce.number().int().min(20).max(200).optional()
+    }).parse(req.query || {});
+    const activity = await customerActivityService.customerActivity(req.params.id, input);
+    res.json(activity);
   } catch (err) { next(err); }
 }
 
@@ -670,4 +684,4 @@ async function reviewAgentLearning(req, res, next) {
   } catch (err) { next(err); }
 }
 
-module.exports = { overview, users, userDetail, createUser, updateUserAccess, updateCommercialPlan, adjustUserCredits, settings, updateSetting, aiStudioPolicyStatus, updateAiStudioPolicy, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning, ugcAvatars, uploadUgcAvatar, ugcAvatarContent, downloadUgcAvatars, deleteUgcAvatars, ugcAnalyticsSummary, ugcOperationsSummary };
+module.exports = { overview, users, userDetail, userActivity, createUser, updateUserAccess, updateCommercialPlan, adjustUserCredits, settings, updateSetting, aiStudioPolicyStatus, updateAiStudioPolicy, aiRouting, updateAiRouting, agentAccessPolicy, updateAgentAccessPolicy, agentLearning, reviewAgentLearning, ugcAvatars, uploadUgcAvatar, ugcAvatarContent, downloadUgcAvatars, deleteUgcAvatars, ugcAnalyticsSummary, ugcOperationsSummary };

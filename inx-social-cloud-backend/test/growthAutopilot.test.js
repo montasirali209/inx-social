@@ -278,7 +278,7 @@ test('Growth diagnostics explain recommendations and Phase 5 execution semantics
   const light = read('public/admin-light.css');
 
   assert.match(html, /admin-light\.css\?v=4/);
-  assert.match(html, /admin\.js\?v=30/);
+  assert.match(html, /admin\.js\?v=31/);
   assert.match(js, /Suggested action ·/);
   assert.match(js, /Approve plan/);
   assert.match(js, /Approve change/);

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>INXSocial Control Centre</title>
-  <link rel="stylesheet" href="/admin.css?v=23">
+  <link rel="stylesheet" href="/admin.css?v=24">
   <link rel="stylesheet" href="/admin-security.css?v=2">
   <link rel="stylesheet" href="/admin-light.css?v=4">
   <link rel="stylesheet" href="/ui-studio.css?v=12">
@@ -1148,7 +1148,7 @@
   </form>
 </dialog>
 
-<dialog id="userDialog"><form method="dialog" class="modal"><button class="close" value="cancel" aria-label="Close">×</button><span class="kicker">Customer access</span><h2 id="modalTitle">Manage customer</h2><div id="modalBody"></div><footer><button value="cancel" class="secondary">Close</button><button id="saveAccessBtn" type="button" class="primary">Save changes</button></footer></form></dialog>
+<dialog id="userDialog" class="customer-dialog"><form method="dialog" class="modal customer-modal"><button class="close" value="cancel" aria-label="Close">×</button><span class="kicker">Customer administration</span><h2 id="modalTitle">Manage customer</h2><div id="modalBody"></div><footer id="customerModalFooter"><button value="cancel" class="secondary">Close</button><button id="saveAccessBtn" type="button" class="primary">Save changes</button></footer></form></dialog>
 
 <dialog id="createUserDialog"><form class="modal" id="createUserForm"><button class="close" type="button" data-close-create aria-label="Close">×</button><span class="kicker">Direct provisioning</span><h2>Create verified customer</h2><p class="muted">The customer account is ready immediately. A secure temporary password is displayed once after creation.</p><div class="form-grid"><label>Full name<input id="createName" required minlength="2"></label><label>Email address<input id="createEmail" type="email" required></label><label>Plan<select id="createPlan"><option value="TRIAL">Trial</option><option value="CREATOR">Creator — manual access</option><option value="PRO">Pro — manual access</option><option value="BUSINESS">Business — manual access</option><option value="AGENCY">Agency — manual access</option></select></label><label id="trialDaysLabel">Trial length (days)<input id="createTrialDays" type="number" min="1" max="365" value="7"></label></div><footer><button type="button" class="secondary" data-close-create>Cancel</button><button type="submit" class="primary">Create customer</button></footer></form></dialog>
 
@@ -1283,6 +1283,6 @@
 <div class="notification-panel hidden" id="notificationPanel"><header><b>New registrations</b><button id="closeNotifications" aria-label="Close">×</button></header><div id="notificationList"></div></div>
 <div class="toast" id="toast" role="status"></div>
 <script src="/ui-studio.js?v=12" defer></script>
-<script src="/admin.js?v=30" defer></script>
+<script src="/admin.js?v=31" defer></script>
 </body>
 </html>
