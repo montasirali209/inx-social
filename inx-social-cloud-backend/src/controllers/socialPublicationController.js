@@ -1,6 +1,7 @@
 const publishing = require('../services/postForMePublishingService');
 const mutations = require('../services/postForMePostMutationService');
 const smartTiming = require('../services/smartTimingService');
+const bulkCaptionService = require('../services/bulkCaptionService');
 
 async function readBody(req, maxBytes = 500 * 1024 * 1024) {
   const chunks = [];
@@ -34,6 +35,23 @@ async function create(req, res, next) {
 async function optimiseSmartTiming(req, res, next) {
   try {
     res.json(await smartTiming.optimiseSmartTiming(req.user.id, req.body || {}));
+  } catch (error) { next(error); }
+}
+
+async function startAICaptionBatch(req, res, next) {
+  try {
+    res.json(await bulkCaptionService.startBatch(req.user.id, req.body || {}));
+  } catch (error) { next(error); }
+}
+
+async function generateAICaption(req, res, next) {
+  try {
+    const data = await readBody(req, bulkCaptionService.MAX_BATCH_IMAGES ? 15 * 1024 * 1024 : 15 * 1024 * 1024);
+    res.json(await bulkCaptionService.generateCaption(req.user.id, req.params.batchId, req.params.postId, {
+      data,
+      mimeType: String(req.headers['content-type'] || '').split(';')[0],
+      fileName: String(req.headers['x-file-name'] || '')
+    }));
   } catch (error) { next(error); }
 }
 
@@ -129,4 +147,4 @@ async function reschedule(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { list, create, optimiseSmartTiming, createCarousel, uploadMedia, libraryMedia, feed, remove, reschedule, retry, updateScheduled, bulkEditScheduled, bulkCancelScheduled, replaceScheduledMedia };
+module.exports = { list, create, optimiseSmartTiming, startAICaptionBatch, generateAICaption, createCarousel, uploadMedia, libraryMedia, feed, remove, reschedule, retry, updateScheduled, bulkEditScheduled, bulkCancelScheduled, replaceScheduledMedia };
