@@ -135,6 +135,17 @@ async function remove(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function updateReviewDraft(req, res, next) {
+  try {
+    res.json({
+      job: await publishing.updateFailedReviewDraft(req.user.id, req.params.publicationId, {
+        caption: req.body?.caption,
+        scheduledAt: req.body?.scheduledAt
+      })
+    });
+  } catch (error) { next(error); }
+}
+
 async function retry(req, res, next) {
   try {
     res.json({ job: await publishing.retryPublication(req.user.id, req.params.publicationId, { caption: req.body?.caption, scheduledAt: req.body?.scheduledAt }), retried: true });
@@ -147,4 +158,4 @@ async function reschedule(req, res, next) {
   } catch (error) { next(error); }
 }
 
-module.exports = { list, create, optimiseSmartTiming, startAICaptionBatch, generateAICaption, createCarousel, uploadMedia, libraryMedia, feed, remove, reschedule, retry, updateScheduled, bulkEditScheduled, bulkCancelScheduled, replaceScheduledMedia };
+module.exports = { list, create, optimiseSmartTiming, startAICaptionBatch, generateAICaption, createCarousel, uploadMedia, libraryMedia, feed, remove, reschedule, retry, updateReviewDraft, updateScheduled, bulkEditScheduled, bulkCancelScheduled, replaceScheduledMedia };
