@@ -36,7 +36,7 @@ export function ScheduledPostEditorModal({
   onClose: () => void
   onChanged: () => Promise<unknown> | void
 }) {
-  const recovery = job.status === 'FAILED' && !job.metaPostId
+  const recovery = job.status === 'FAILED' && !job.metaPostId && job.retryable !== false
   const [recoveryDefaultIso] = useState(() => new Date(Date.now() + 10 * 60_000).toISOString())
   const initial = useMemo(() => {
     const scheduled = job.scheduledAt ? new Date(job.scheduledAt) : null
@@ -109,8 +109,8 @@ export function ScheduledPostEditorModal({
         </header>
 
         <div className="space-y-4 p-5">
-          {recovery && <div className="flex gap-2 rounded-xl border border-brand-amber/25 bg-brand-amber/8 p-3 text-xs text-brand-amber"><AlertTriangle className="mt-0.5 size-4 shrink-0" /><span><strong>Why it failed:</strong> {job.errorMessage || 'The social platform rejected this publishing attempt.'}</span></div>}
-          {!editable && <div className="flex gap-2 rounded-xl border border-brand-amber/25 bg-brand-amber/8 p-3 text-xs text-brand-amber"><AlertTriangle className="mt-0.5 size-4 shrink-0" /><span>This post is already {job.status.toLowerCase().replaceAll('_', ' ')} and cannot be changed safely.</span></div>}
+          {recovery && <div className="flex gap-2 rounded-xl border border-brand-red/20 bg-brand-red/[.045] p-3 text-xs text-[#b94d58]"><AlertTriangle className="mt-0.5 size-4 shrink-0" /><span><strong>Why it failed:</strong> {job.errorMessage || 'The social platform rejected this publishing attempt.'}</span></div>}
+          {!editable && <div className="flex gap-2 rounded-xl border border-brand-red/20 bg-brand-red/[.045] p-3 text-xs text-[#b94d58]"><AlertTriangle className="mt-0.5 size-4 shrink-0" /><span>This post is already {job.status.toLowerCase().replaceAll('_', ' ')} and cannot be changed safely.</span></div>}
           {error && <div className="rounded-xl border border-brand-red/25 bg-brand-red/8 p-3 text-xs text-brand-red">{error}</div>}
 
           <label className="block">
