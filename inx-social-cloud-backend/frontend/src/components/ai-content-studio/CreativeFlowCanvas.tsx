@@ -16,7 +16,7 @@ import {
   WandSparkles,
   X,
 } from 'lucide-react'
-import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from 'react'
+import { useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { Button } from '../ui/Button'
 
 export type CreativeFlowNodeId = 'product' | 'brief' | 'platforms' | 'strategy' | 'generate' | 'review'
@@ -149,6 +149,7 @@ export function CreativeFlowCanvas(props: Props) {
   }
 
   return <div className="grid min-h-[620px] lg:grid-cols-[minmax(0,1fr)_330px]">
+    <input accept="image/png,image/jpeg,image/webp" className="sr-only" multiple onChange={(event) => { props.onAddAssets(Array.from(event.target.files || [])); event.target.value = '' }} ref={fileInput} type="file" />
     <div className="relative min-w-0 overflow-hidden border-b border-border-soft bg-[#f5f7fb] lg:border-b-0 lg:border-r">
       <div className="absolute left-4 top-4 z-20 flex items-center gap-2 rounded-xl border border-border-soft bg-white/95 p-1.5 shadow-sm backdrop-blur">
         <button aria-label="Zoom out" className="grid size-8 place-items-center rounded-lg text-text-muted transition hover:bg-slate-100 hover:text-text-main" onClick={() => setZoom((value) => Math.max(.62, Number((value - .08).toFixed(2))))} type="button"><Minus className="size-3.5" /></button>
@@ -225,7 +226,7 @@ export function CreativeFlowCanvas(props: Props) {
         <p className="mt-1 text-[9px] leading-4 text-text-muted">{nodeHelp(selectedNode)}</p>
       </div>
       <div className="scrollbar-thin max-h-[540px] overflow-y-auto p-4">
-        {selectedNode === 'product' && <ProductEditor {...props} fileInput={fileInput} />}
+        {selectedNode === 'product' && <ProductEditor {...props} onChooseFiles={() => fileInput.current?.click()} />}
         {selectedNode === 'brief' && <BriefEditor prompt={props.prompt} onChange={props.onPromptChange} />}
         {selectedNode === 'platforms' && <PlatformEditor selected={props.selectedPlatforms} onToggle={props.onTogglePlatform} />}
         {selectedNode === 'strategy' && <StrategyEditor {...props} />}
@@ -279,14 +280,13 @@ function FlowNode(props: {
   </button>
 }
 
-function ProductEditor(props: Props & { fileInput: RefObject<HTMLInputElement | null> }) {
+function ProductEditor(props: Props & { onChooseFiles: () => void }) {
   return <div className="space-y-4">
     <label className="block"><span className="text-[9px] font-semibold text-text-muted">Website URL</span><div className="relative mt-1.5"><Globe2 className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-text-soft" /><input className="min-h-10 w-full rounded-xl border border-border-soft bg-slate-50 pl-9 pr-3 text-[10px] outline-none focus:border-brand-cyan focus:bg-white" onChange={(event) => props.onWebsiteChange(event.target.value)} placeholder="https://yourbrand.com" value={props.website} /></div></label>
     <label className="block"><span className="text-[9px] font-semibold text-text-muted">Product name</span><input className="mt-1.5 min-h-10 w-full rounded-xl border border-border-soft bg-slate-50 px-3 text-[10px] outline-none focus:border-brand-cyan focus:bg-white" onChange={(event) => props.onProductNameChange(event.target.value)} placeholder="e.g. INXSocial" value={props.productName} /></label>
     <div><div className="flex items-center justify-between"><span className="text-[9px] font-semibold text-text-muted">Product images / logo</span><span className="text-[8px] text-text-soft">{props.assets.length}/8</span></div>
       <div className="mt-2 grid grid-cols-4 gap-2">{props.assets.map((asset) => <figure className="group relative aspect-square overflow-hidden rounded-lg border border-border-soft bg-slate-50" key={asset.id}><img alt="" className="size-full object-cover" src={asset.url} /><button aria-label={`Remove ${asset.name}`} className="absolute right-1 top-1 grid size-5 place-items-center rounded-md bg-black/65 text-white opacity-0 transition group-hover:opacity-100" onClick={(event) => { event.stopPropagation(); props.onRemoveAsset(asset.id) }} type="button"><X className="size-2.5" /></button></figure>)}
-        {props.assets.length < 8 && <button className="grid aspect-square place-items-center rounded-lg border border-dashed border-brand-cyan/30 bg-brand-cyan/[.025] text-brand-cyan" onClick={() => props.fileInput.current?.click()} type="button"><Upload className="size-3.5" /></button>}</div>
-      <input accept="image/png,image/jpeg,image/webp" className="sr-only" multiple onChange={(event) => { props.onAddAssets(Array.from(event.target.files || [])); event.target.value = '' }} ref={props.fileInput} type="file" />
+        {props.assets.length < 8 && <button className="grid aspect-square place-items-center rounded-lg border border-dashed border-brand-cyan/30 bg-brand-cyan/[.025] text-brand-cyan" onClick={props.onChooseFiles} type="button"><Upload className="size-3.5" /></button>}</div>
     </div>
   </div>
 }
