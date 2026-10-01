@@ -127,6 +127,7 @@ test('Needs Review KPI drills into the same actionable Calendar records it count
   assert.match(page, /setSearch\(''\)/);
   assert.match(page, /setMonthKey\(target\.date\.slice\(0, 7\)\)/);
   assert.match(page, /chooseDate\(target\.date\)/);
+  assert.match(page, /fixReviewPost\(target\)/);
   assert.match(page, /stat\.label === 'Needs Review' && stat\.value > 0 \? openNeedsReview/);
   assert.match(api, /post\.status === 'published' \|\| post\.status === 'failed' \|\| post\.status === 'needs_review'/);
   assert.match(api, /const needsReview = posts\.filter\(post => post\.status === 'needs_review'\)\.length/);
@@ -138,7 +139,7 @@ test('Calendar Needs Review exposes plain-language recovery actions instead of a
   const selected = read('frontend/src/components/calendar/ScheduledVideoCard.tsx');
   const panel = read('frontend/src/components/calendar/SelectedDatePanel.tsx');
 
-  assert.match(selected, /Fix & retry/);
+  assert.match(selected, /Review & fix/);
   assert.match(selected, /Retry now/);
   assert.match(selected, /onFix/);
   assert.match(selected, /onRetry/);
