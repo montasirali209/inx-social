@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ChevronRight,
   CircleDot,
-  FileImage,
   Globe2,
   Image as ImageIcon,
   Layers3,
@@ -14,7 +13,6 @@ import {
   Megaphone,
   Package,
   Palette,
-  Plus,
   RefreshCw,
   Send,
   Sparkles,
@@ -179,6 +177,10 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault()
+        setAssets((current) => {
+          current.forEach((asset) => URL.revokeObjectURL(asset.url))
+          return []
+        })
         onClose()
       }
     }
@@ -194,8 +196,6 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
 
   useEffect(() => {
     if (!open || view !== 'progress') return
-    setProgressIndex(0)
-    setGeneratedCount(0)
 
     const timers: number[] = []
     progressStages.forEach((_, index) => {
@@ -210,14 +210,6 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
 
     return () => timers.forEach((timer) => window.clearTimeout(timer))
   }, [open, resolvedCount, view])
-
-  useEffect(() => {
-    if (open) return
-    setAssets((current) => {
-      current.forEach((asset) => URL.revokeObjectURL(asset.url))
-      return []
-    })
-  }, [open])
 
   if (!open) return null
 
@@ -242,6 +234,21 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
     })
   }
 
+  const closeFlow = () => {
+    setAssets((current) => {
+      current.forEach((asset) => URL.revokeObjectURL(asset.url))
+      return []
+    })
+    onClose()
+  }
+
+  const beginPreview = () => {
+    setProgressIndex(0)
+    setGeneratedCount(0)
+    setApproved(new Set())
+    setView('progress')
+  }
+
   const resetFlow = () => {
     setView('setup')
     setProgressIndex(0)
@@ -252,7 +259,7 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
   const canGenerate = Boolean(prompt.trim() || productName.trim() || website.trim() || assets.length)
 
   return createPortal(
-    <div className="fixed inset-0 z-[360] bg-slate-950/55 p-2 backdrop-blur-md sm:p-4" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
+    <div className="fixed inset-0 z-[360] bg-slate-950/55 p-2 backdrop-blur-md sm:p-4" onMouseDown={(event) => { if (event.currentTarget === event.target) closeFlow() }}>
       <section aria-labelledby="creative-flow-title" aria-modal="true" className="mx-auto flex h-[calc(100dvh-1rem)] w-full max-w-[1240px] flex-col overflow-hidden rounded-[24px] border border-brand-cyan/25 bg-[#f8fafc] shadow-[0_38px_130px_rgba(15,23,42,.32)] sm:h-[calc(100dvh-2rem)]" ref={dialogRef} role="dialog">
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border-soft bg-white px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -267,7 +274,7 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
           </div>
           <div className="flex items-center gap-2">
             {view !== 'setup' && <Button onClick={resetFlow} size="sm" variant="ghost"><ArrowLeft className="size-3.5" />Start over</Button>}
-            <button aria-label="Close Creative Flow" className="grid size-9 place-items-center rounded-xl border border-border-soft bg-white text-text-muted transition hover:text-text-main" onClick={onClose} type="button"><X className="size-4" /></button>
+            <button aria-label="Close Creative Flow" className="grid size-9 place-items-center rounded-xl border border-border-soft bg-white text-text-muted transition hover:text-text-main" onClick={closeFlow} type="button"><X className="size-4" /></button>
           </div>
         </header>
 
@@ -337,7 +344,7 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
                   <SummaryRow icon={Target} label="Goal" value={goal === 'auto' ? 'AI Recommended' : goal.replaceAll('_', ' ')} />
                 </div>
                 <div className="mt-5 rounded-2xl border border-brand-purple/15 bg-brand-purple/[.035] p-3.5"><div className="flex items-start gap-2"><CircleDot className="mt-0.5 size-3.5 shrink-0 text-brand-purple" /><p className="text-[9px] leading-4 text-text-muted"><strong className="text-text-main">Stage 1 UI preview.</strong> This demo uses sample concepts only. No provider requests, credits, database writes or publishing actions run from this screen.</p></div></div>
-                <Button className="mt-5 w-full" disabled={!canGenerate} onClick={() => setView('progress')} variant="primary"><WandSparkles className="size-4" />Generate campaign</Button>
+                <Button className="mt-5 w-full" disabled={!canGenerate} onClick={beginPreview} variant="primary"><WandSparkles className="size-4" />Generate campaign</Button>
                 {!canGenerate && <p className="mt-2 text-center text-[9px] text-text-soft">Add a product, website, image or campaign brief to continue.</p>}
               </section>
             </aside>
