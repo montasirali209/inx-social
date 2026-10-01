@@ -19,8 +19,10 @@ test('provider media setup failures become terminal instead of leaving AWAITING_
 
 test('Bulk Scheduler Processing KPI ignores stale historical incomplete jobs', () => {
   const stats = read('frontend/src/components/bulk-scheduler/BulkSchedulerStats.tsx');
-  assert.match(stats, /ageMs < 30 \* 60_000/);
-  assert.match(stats, /ageMs < 10 \* 60_000/);
+  const service = read('src/services/postForMePublishingService.js');
+  assert.match(service, /const activeProcessing =/);
+  assert.match(service, /ageMs < 30 \* 60 \* 1000/);
+  assert.match(stats, /job\.activeProcessing === true/);
   assert.match(stats, /Live provider work only/);
 });
 
