@@ -174,6 +174,7 @@ export type DashboardJob = {
   errorMessage: string | null
   retryable?: boolean
   reviewAction?: 'retry' | 'reupload' | 'review' | null
+  activeProcessing?: boolean
   mediaLibraryAssetId: string | null
   metaPostId?: string | null
   metaVideoId?: string | null
