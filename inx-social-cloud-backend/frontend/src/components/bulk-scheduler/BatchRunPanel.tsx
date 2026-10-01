@@ -12,12 +12,16 @@ type Props = {
   running: boolean
   disabledReason: string
   retryingId: string | null
+  deletingId: string | null
+  hasLocalMedia: (result: UploadResult) => boolean
   onStart: () => void
   onStop: () => void
   onRetry: (result: UploadResult) => void | Promise<void>
+  onReplaceMedia: (result: UploadResult, file: File) => void | Promise<void>
+  onDelete: (result: UploadResult) => void | Promise<void>
 }
 
-export function BatchRunPanel({ progress, results, destinations, canStart, running, disabledReason, retryingId, onStart, onStop, onRetry }: Props) {
+export function BatchRunPanel({ progress, results, destinations, canStart, running, disabledReason, retryingId, deletingId, hasLocalMedia, onStart, onStop, onRetry, onReplaceMedia, onDelete }: Props) {
   const total = results.length || progress.total
   const accepted = results.filter((result) => result.status === 'scheduled' || result.status === 'published').length
   const processing = results.filter((result) => result.status === 'uploading' || result.status === 'waiting' || result.status === 'checking').length
@@ -71,7 +75,7 @@ export function BatchRunPanel({ progress, results, destinations, canStart, runni
         </section>
       )}
 
-      <div className="mt-4"><div className="mb-2"><h3 className="text-sm font-semibold">Upload results</h3><p className="mt-0.5 text-xs text-text-muted">This table confirms server-verified batch results. If a mobile connection pauses before the response arrives, INXSocial checks the server first so an accepted post is never shown as failed or retried as a duplicate.</p></div><UploadResultsTable destinations={destinations} onRetry={onRetry} results={results} retryingId={retryingId} /></div>
+      <div className="mt-4"><div className="mb-2"><h3 className="text-sm font-semibold">Upload results</h3><p className="mt-0.5 text-xs text-text-muted">This table confirms server-verified batch results. If a mobile connection pauses before the response arrives, INXSocial checks the server first so an accepted post is never shown as failed or retried as a duplicate.</p></div><UploadResultsTable deletingId={deletingId} destinations={destinations} hasLocalMedia={hasLocalMedia} onDelete={onDelete} onReplaceMedia={onReplaceMedia} onRetry={onRetry} results={results} retryingId={retryingId} /></div>
     </section>
   )
 }
