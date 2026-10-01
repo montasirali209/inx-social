@@ -6,6 +6,8 @@ const { getLicenseStatus } = require('./licenseService');
 
 const MAX_DIRECT_UPLOAD_BYTES = 10 * 1024 * 1024 * 1024;
 const TERMINAL_STATUSES = new Set(['PUBLISHED', 'FAILED', 'CANCELLED']);
+const STALE_AWAITING_MEDIA_MS = 10 * 60 * 1000;
+const STALE_READY_MS = 5 * 60 * 1000;
 
 function json(value, fallback = {}) {
   return postForMe.parseJson(value, fallback);
@@ -275,7 +277,7 @@ async function uploadBuffer(data, mimeType) {
   if (!Buffer.isBuffer(data) || !data.length) throw Object.assign(new Error('The media file is empty.'), { status: 400 });
   if (data.length > MAX_DIRECT_UPLOAD_BYTES) throw Object.assign(new Error('This media file is too large for the current uploader.'), { status: 413 });
 
-  const signed = await postForMe.apiRequest('POST', '/media/create-upload-url');
+  const signed = await postForMe.apiRequest('POST', '/media/create-upload-url', { maxRetries: 4 });
   if (!signed?.upload_url || !signed?.media_url) throw new Error('The social publishing gateway did not return a media upload URL.');
   await axios.put(signed.upload_url, data, {
     headers: {
@@ -297,7 +299,7 @@ async function uploadStream(stream, { mimeType, contentLength }) {
   if (size > MAX_DIRECT_UPLOAD_BYTES) {
     throw Object.assign(new Error('This media file exceeds the current 10 GB upload ceiling.'), { status: 413, publicMessage: 'This media file exceeds the current 10 GB upload ceiling.' });
   }
-  const signed = await postForMe.apiRequest('POST', '/media/create-upload-url');
+  const signed = await postForMe.apiRequest('POST', '/media/create-upload-url', { maxRetries: 4 });
   if (!signed?.upload_url || !signed?.media_url) throw new Error('The social publishing gateway did not return a media upload URL.');
   await axios.put(signed.upload_url, stream, {
     headers: {
@@ -398,29 +400,28 @@ async function createPublications(userId, input) {
   const contentType = String(input.contentType || 'TEXT').toUpperCase();
   let providerMedia = Array.isArray(input.media) ? input.media.filter((item) => item?.url) : [];
 
-  if (!providerMedia.length && input.mediaLibraryAssetId) {
-    providerMedia = await uploadLibraryAssets(userId, [input.mediaLibraryAssetId]);
-  }
-  if (!providerMedia.length && Array.isArray(input.mediaLibraryAssetIds) && input.mediaLibraryAssetIds.length) {
-    providerMedia = await uploadLibraryAssets(userId, input.mediaLibraryAssetIds);
-  }
-  if (providerMedia.length) await updatePublicationMedia(bundle.publications, providerMedia);
-
-  const uploadRequired = contentType !== 'TEXT' && !providerMedia.length;
-  if (!uploadRequired) {
-    try {
-      await submitBundle(bundle, providerMedia);
-    } catch (error) {
-      await markBundleFailed(bundle, error);
-      throw error;
+  try {
+    if (!providerMedia.length && input.mediaLibraryAssetId) {
+      providerMedia = await uploadLibraryAssets(userId, [input.mediaLibraryAssetId]);
     }
+    if (!providerMedia.length && Array.isArray(input.mediaLibraryAssetIds) && input.mediaLibraryAssetIds.length) {
+      providerMedia = await uploadLibraryAssets(userId, input.mediaLibraryAssetIds);
+    }
+    if (providerMedia.length) await updatePublicationMedia(bundle.publications, providerMedia);
+
+    const uploadRequired = contentType !== 'TEXT' && !providerMedia.length;
+    if (!uploadRequired) await submitBundle(bundle, providerMedia);
+
+    const publications = await getPublicationsByIds(bundle.publications.map((publication) => publication.id));
+    return {
+      jobs: publications.map(publicationToJob),
+      failures: bundle.failures,
+      uploadRequired
+    };
+  } catch (error) {
+    await markBundleFailed(bundle, error);
+    throw error;
   }
-  const publications = await getPublicationsByIds(bundle.publications.map((publication) => publication.id));
-  return {
-    jobs: publications.map(publicationToJob),
-    failures: bundle.failures,
-    uploadRequired
-  };
 }
 
 async function getPublicationsByIds(ids) {
@@ -466,9 +467,9 @@ async function attachMedia(userId, rawPublicationId, input) {
     const fresh = await prisma.socialPublication.findUnique({ where: { id: bundle.publication.id }, include: { content: true, profile: true } });
     return publicationToJob(fresh);
   }
-  const providerMedia = [await uploadBuffer(input.data, input.mimeType)];
-  await updatePublicationMedia(bundle.publications, providerMedia);
   try {
+    const providerMedia = [await uploadBuffer(input.data, input.mimeType)];
+    await updatePublicationMedia(bundle.publications, providerMedia);
     await submitBundle(bundle, providerMedia);
   } catch (error) {
     await markBundleFailed(bundle, error);
@@ -484,9 +485,9 @@ async function attachMediaStream(userId, rawPublicationId, input) {
     const fresh = await prisma.socialPublication.findUnique({ where: { id: bundle.publication.id }, include: { content: true, profile: true } });
     return publicationToJob(fresh);
   }
-  const providerMedia = [await uploadStream(input.stream, { mimeType: input.mimeType, contentLength: input.contentLength })];
-  await updatePublicationMedia(bundle.publications, providerMedia);
   try {
+    const providerMedia = [await uploadStream(input.stream, { mimeType: input.mimeType, contentLength: input.contentLength })];
+    await updatePublicationMedia(bundle.publications, providerMedia);
     await submitBundle(bundle, providerMedia);
   } catch (error) {
     await markBundleFailed(bundle, error);
@@ -505,9 +506,9 @@ async function attachLibraryMedia(userId, rawPublicationId) {
   const meta = json(bundle.publication.mediaJson, {});
   const ids = meta.mediaLibraryAssetIds?.length ? meta.mediaLibraryAssetIds : meta.mediaLibraryAssetId ? [meta.mediaLibraryAssetId] : [];
   if (!ids.length) throw Object.assign(new Error('This publication has no Media Library asset attached.'), { status: 404 });
-  const providerMedia = await uploadLibraryAssets(userId, ids);
-  await updatePublicationMedia(bundle.publications, providerMedia);
   try {
+    const providerMedia = await uploadLibraryAssets(userId, ids);
+    await updatePublicationMedia(bundle.publications, providerMedia);
     await submitBundle(bundle, providerMedia);
   } catch (error) {
     await markBundleFailed(bundle, error);
@@ -689,30 +690,70 @@ async function retryPublication(userId, rawPublicationId, input = {}) {
 function publicationToJob(publication) {
   const meta = json(publication.mediaJson, {});
   const result = json(publication.metricsJson, {});
+  const providerMedia = Array.isArray(meta.providerMedia) ? meta.providerMedia.filter((item) => item?.url) : [];
+  const contentType = ['IMAGE', 'VIDEO'].includes(meta.contentType) ? meta.contentType : 'TEXT';
+  const ageMs = Date.now() - new Date(publication.updatedAt || publication.createdAt).getTime();
+  const staleAwaitingMedia = publication.status === 'AWAITING_MEDIA'
+    && !publication.externalPostId
+    && ageMs > STALE_AWAITING_MEDIA_MS;
+  const staleReady = publication.status === 'READY'
+    && !publication.externalPostId
+    && ageMs > STALE_READY_MS;
   const staleUnsubmittedText = publication.status === 'READY'
-    && meta.contentType === 'TEXT'
+    && contentType === 'TEXT'
     && !publication.externalPostId
     && Date.now() - publication.createdAt.getTime() > 10_000;
-  const status = publication.status === 'AWAITING_MEDIA' ? 'AWAITING_UPLOAD'
-    : staleUnsubmittedText ? 'FAILED'
+  const staleIncomplete = staleAwaitingMedia || staleReady || staleUnsubmittedText;
+  const status = staleIncomplete ? 'FAILED'
+    : publication.status === 'AWAITING_MEDIA' ? 'AWAITING_UPLOAD'
       : publication.status === 'READY' ? 'READY'
         : publication.status === 'SCHEDULED' ? 'SCHEDULED'
-        : publication.status === 'PUBLISHED' ? 'PUBLISHED'
-          : publication.status === 'FAILED' ? 'FAILED'
-            : publication.status === 'CANCELLED' ? 'CANCELLED'
-              : publication.status === 'DRAFT' ? 'DRAFT' : 'PROCESSING';
+          : publication.status === 'PUBLISHED' ? 'PUBLISHED'
+            : publication.status === 'FAILED' ? 'FAILED'
+              : publication.status === 'CANCELLED' ? 'CANCELLED'
+                : publication.status === 'DRAFT' ? 'DRAFT' : 'PROCESSING';
+  const retryable = status === 'FAILED'
+    && (
+      publication.externalPostId
+        ? !result.platformPostId
+        : contentType === 'TEXT' || providerMedia.length > 0
+    );
+  const reviewAction = status !== 'FAILED'
+    ? null
+    : retryable
+      ? 'retry'
+      : contentType !== 'TEXT' && !providerMedia.length
+        ? 'reupload'
+        : 'review';
+  const activeProcessing = status === 'AWAITING_UPLOAD'
+    ? ageMs < STALE_AWAITING_MEDIA_MS
+    : status === 'READY'
+      ? ageMs < STALE_READY_MS
+      : ['QUEUED', 'PROCESSING'].includes(status)
+        ? ageMs < 30 * 60 * 1000
+        : false;
+  const staleMessage = staleAwaitingMedia
+    ? 'This media upload did not complete and is no longer active. Re-upload or recreate the media post.'
+    : staleReady
+      ? 'This publishing attempt never reached the social platform and is no longer active.'
+      : staleUnsubmittedText
+        ? 'No provider schedule was created for this legacy attempt. Retry the post to submit it again.'
+        : null;
   return {
     id: `pfm:${publication.id}`,
     status,
-    uploadStatus: publication.status === 'AWAITING_MEDIA' ? 'AWAITING_UPLOAD' : meta.providerMedia?.length ? 'COMPLETE' : 'NOT_REQUIRED',
+    uploadStatus: status === 'AWAITING_UPLOAD' ? 'AWAITING_UPLOAD' : providerMedia.length ? 'COMPLETE' : 'NOT_REQUIRED',
     publishMode: publication.scheduledAt ? 'SCHEDULED' : 'NOW',
-    contentType: ['IMAGE', 'VIDEO'].includes(meta.contentType) ? meta.contentType : 'TEXT',
+    contentType,
     title: publication.content?.title || null,
     caption: publication.platformCaption || publication.content?.caption || null,
     localFileName: meta.originalFileName || null,
     scheduledAt: publication.scheduledAt?.toISOString() || null,
     completedAt: publication.publishedAt?.toISOString() || null,
-    errorMessage: publicationError(publication) || (staleUnsubmittedText ? 'No provider schedule was created for this legacy attempt. Retry the post to submit it again.' : null),
+    errorMessage: publicationError(publication) || staleMessage,
+    retryable,
+    reviewAction,
+    activeProcessing,
     mediaLibraryAssetId: meta.mediaLibraryAssetId || null,
     metaPostId: result.platformPostId || null,
     metaVideoId: null,

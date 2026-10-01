@@ -7,7 +7,7 @@ const styles: Record<VideoStatus, string> = {
   in_queue: 'border-brand-purple/25 bg-brand-purple/10 text-[#c4a8ff]',
   publishing: 'border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan',
   published: 'border-brand-green/25 bg-brand-green/10 text-brand-green',
-  pending_review: 'border-brand-amber/25 bg-brand-amber/10 text-brand-amber',
+  pending_review: 'border-brand-red/25 bg-brand-red/8 text-[#e15c68]',
   failed: 'border-brand-red/25 bg-brand-red/10 text-[#ff8e98]',
 }
 
