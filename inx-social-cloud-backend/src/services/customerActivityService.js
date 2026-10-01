@@ -321,12 +321,23 @@ async function customerActivity(userId, options = {}) {
 
   for (const row of audits) {
     const isAdminTargetAction = row.entity === 'User' && row.entityId === userId && row.userId !== userId;
+    const attributionTitle = row.action === 'GROWTH_ATTRIBUTION_SIGNUP'
+      ? 'Signup attribution recorded'
+      : row.action === 'GROWTH_ATTRIBUTION_TRIAL'
+        ? 'Trial conversion attribution recorded'
+        : null;
     add(event({
       id:'audit:'+row.id, at:row.createdAt,
       category:isAdminTargetAction?'ADMIN':(String(row.action||'').includes('LOGIN')?'AUTH':'ACCOUNT'),
       action:row.action,
-      title:isAdminTargetAction?'Administrator changed customer account':clean(row.action.replaceAll('_',' ').toLowerCase().replace(/\b\w/g, x=>x.toUpperCase()),180),
-      detail:isAdminTargetAction ? ('By '+(row.user?.email || 'administrator')) : '',
+      title:isAdminTargetAction
+        ?'Administrator changed customer account'
+        :(attributionTitle || clean(row.action.replaceAll('_',' ').toLowerCase().replace(/\b\w/g, x=>x.toUpperCase()),180)),
+      detail:isAdminTargetAction
+        ? ('By '+(row.user?.email || 'administrator'))
+        : attributionTitle
+          ? 'Internal marketing attribution event; not a customer action.'
+          : '',
       status:statusLevel(row.action), source:'AuditLog',
       metadata:{
         ...(publicAuditMetadata(row.metadata) || {}),
@@ -356,9 +367,17 @@ async function customerActivity(userId, options = {}) {
 
   for (const row of creditTransactions) {
     const amount = Number(row.amount || 0);
+    const type = String(row.type || 'CREDIT_TRANSACTION').toUpperCase();
+    const title = type === 'TRIAL_GRANT'
+      ? 'Trial AI credits allocated'
+      : type === 'MONTHLY_GRANT'
+        ? 'Monthly AI credits allocated'
+        : amount < 0
+          ? 'AI credits used'
+          : 'AI credits added';
     add(event({
       id:'credit:'+row.id, at:row.createdAt, category:'CREDITS', action:row.type || 'CREDIT_TRANSACTION',
-      title:amount < 0 ? 'AI credits used' : 'AI credits added',
+      title,
       detail:(amount > 0 ? '+' : '')+amount+' credits · '+clean(row.bucket || '',80),
       status:amount < 0?'INFO':'SUCCESS', source:'AiCreditTransaction',
       metadata:{

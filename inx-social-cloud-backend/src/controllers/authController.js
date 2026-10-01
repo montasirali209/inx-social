@@ -5,6 +5,7 @@ const { hashPassword, comparePassword, signToken } = require('../utils/auth');
 const { createToken, hashToken } = require('../utils/secureTokens');
 const emailService = require('../services/emailService');
 const growthAttribution = require('../services/growthAttributionService');
+const aiCredits = require('../services/aiCreditService');
 
 const registerSchema = z.object({
   name: z.string().min(2).max(100),
@@ -180,6 +181,13 @@ async function verifyEmail(req, res, next) {
 
     await growthAttribution.recordTrial(user.id).catch(error => {
       console.warn('[GROWTH ATTRIBUTION TRIAL]', error.message);
+    });
+
+    // Provision the trial credit wallet at the moment the trial starts.
+    // This keeps entitlement time, balance visibility and the TRIAL_GRANT audit
+    // transaction aligned instead of lazily creating the wallet hours later.
+    await aiCredits.provisionWallet(user.id).catch(error => {
+      console.error('[TRIAL CREDIT PROVISION FAILED]', error.message);
     });
 
     try {

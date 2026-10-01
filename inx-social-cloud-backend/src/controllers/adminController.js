@@ -137,7 +137,7 @@ async function commercialSnapshot(userId) {
   const license = await licenseService.getLicenseStatus(userId);
   let credits = null;
   if (license.allowed) {
-    try { credits = await aiCredits.getBalance(userId); } catch (_) { credits = null; }
+    try { credits = await aiCredits.peekBalance(userId); } catch (_) { credits = null; }
   }
   const override = activeAdminOverride(subscriptions);
   const billing = underlyingSubscription(subscriptions);
