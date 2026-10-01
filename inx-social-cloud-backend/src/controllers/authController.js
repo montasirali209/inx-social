@@ -252,6 +252,16 @@ async function login(req, res, next) {
     }
 
     const token = signToken(user);
+    await prisma.auditLog.create({
+      data: {
+        userId: user.id,
+        action: 'CUSTOMER_LOGIN_SUCCESS',
+        entity: 'User',
+        entityId: user.id,
+        ip: String(req.ip || req.headers['x-forwarded-for'] || '').split(',')[0].trim().slice(0, 120) || null,
+        userAgent: String(req.get('user-agent') || '').slice(0, 500) || null
+      }
+    }).catch(error => console.warn('[CUSTOMER LOGIN AUDIT]', error.message));
     res.json({ token, user: sanitizeUser(user) });
   } catch (error) {
     next(error);
