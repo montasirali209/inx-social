@@ -32,7 +32,7 @@ export function CalendarToolbar({ monthKey, destinations, platform, pageId, stat
     { value: 'all', label: 'All content', description: 'Published history and upcoming content', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-teal/12 text-brand-teal"><CircleDot className="size-3.5" /></span> },
     { value: 'published', label: 'Published', description: 'Already live on connected accounts', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-green/12 text-brand-green"><Radio className="size-3.5" /></span> },
     { value: 'scheduled', label: 'Scheduled', description: 'Waiting for publishing time', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-cyan/12 text-brand-cyan"><Clock3 className="size-3.5" /></span> },
-    { value: 'needs_review', label: 'Needs review', description: 'Action needed before publishing', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-amber/12 text-brand-amber"><AlertTriangle className="size-3.5" /></span> },
+    { value: 'needs_review', label: 'Needs review', description: 'Action needed before publishing', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-red/8 text-[#e15c68]"><AlertTriangle className="size-3.5" /></span> },
     { value: 'failed', label: 'Failed', description: 'Publishing attempt needs attention', icon: <span className="grid size-7 place-items-center rounded-lg bg-brand-red/12 text-brand-red"><AlertTriangle className="size-3.5" /></span> },
   ], [])
   return (
