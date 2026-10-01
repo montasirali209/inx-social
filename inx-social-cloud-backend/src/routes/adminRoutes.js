@@ -5,6 +5,7 @@ const {
   overview,
   users,
   userDetail,
+  userActivity,
   createUser,
   updateUserAccess,
   updateCommercialPlan,
@@ -137,6 +138,7 @@ router.get('/search-console/performance', googleSearchConsole.performance);
 router.delete('/search-console', requireSuperAdmin, googleSearchConsole.disconnect);
 router.get('/users', users);
 router.post('/users', createUser);
+router.get('/users/:id/activity', userActivity);
 router.get('/users/:id', userDetail);
 router.patch('/users/:id/access', updateUserAccess);
 router.patch('/users/:id/commercial-plan', updateCommercialPlan);
