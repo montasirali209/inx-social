@@ -382,7 +382,20 @@ $('growthArticlePreviewDialog').addEventListener('close',()=>{$('growthArticlePr
 
 
 function filteredUsers(){const filter=$('userFilter').value;return state.users.filter(user=>!filter||user.status===filter)}
-function renderUsers(){const users=filteredUsers();$('usersTable').innerHTML=users.map(user=>`<tr><td><b>${esc(user.name||'No name')}</b><small>${esc(user.email)}</small></td><td>${badge(user.emailVerifiedAt?'VERIFIED':'PENDING_VERIFICATION')} ${badge(user.status)}</td><td>${badge(planOf(user))}<small>${user.manualPlanOverride?'Administrator override active':user.trialEndsAt?`Ends ${fmtDate(user.trialEndsAt)}`:'Billing policy'}</small></td><td>${badge(user.aiStudioAccess||'DEFAULT')}<small>${user.aiStudioAccess==='DEFAULT'?'Global Social Agent policy':'Social Agent override'}</small></td><td>${fmtDate(user.createdAt)}</td><td>${user.connectedPages?.length||0} pages · ${user.devices?.length||0} devices</td><td><button class="secondary" data-manage-user="${esc(user.id)}">Manage</button></td></tr>`).join('')||'<tr><td colspan="7">No customers match this filter.</td></tr>';document.querySelectorAll('[data-manage-user]').forEach(button=>button.addEventListener('click',()=>void openUser(button.dataset.manageUser)))}
+function renderUsers(){
+  const users=filteredUsers();
+  $('usersTable').innerHTML=users.map(user=>`<tr>
+    <td><b>${esc(user.name||'No name')}</b><small>${esc(user.email)}</small></td>
+    <td>${badge(user.emailVerifiedAt?'VERIFIED':'PENDING_VERIFICATION')} ${badge(user.status)}</td>
+    <td>${badge(planOf(user))}<small>${user.manualPlanOverride?'Administrator override active':user.trialEndsAt?`Ends ${fmtDate(user.trialEndsAt)}`:'Billing policy'}</small></td>
+    <td>${badge(user.aiStudioAccess||'DEFAULT')}<small>${user.aiStudioAccess==='DEFAULT'?'Global Social Agent policy':'Social Agent override'}</small></td>
+    <td>${fmtDate(user.createdAt)}</td>
+    <td>${user.connectedPages?.length||0} pages · ${user.devices?.length||0} devices</td>
+    <td class="customer-row-actions"><button class="secondary" data-user-activity="${esc(user.id)}">Activity</button><button class="secondary" data-manage-user="${esc(user.id)}">Manage</button></td>
+  </tr>`).join('')||'<tr><td colspan="7">No customers match this filter.</td></tr>';
+  document.querySelectorAll('[data-manage-user]').forEach(button=>button.addEventListener('click',()=>void openUser(button.dataset.manageUser,'overview')));
+  document.querySelectorAll('[data-user-activity]').forEach(button=>button.addEventListener('click',()=>void openUser(button.dataset.userActivity,'activity')));
+}
 async function loadUsers(){const query=$('userSearch').value.trim();const data=await api('/api/admin/users'+(query?`?q=${encodeURIComponent(query)}`:''));state.users=(data.users||[]).filter(user=>user.role==='USER');renderUsers()}
 $('refreshUsersBtn').addEventListener('click',()=>loadUsers().catch(error=>toast(error.message)));$('userFilter').addEventListener('change',renderUsers);$('userSearch').addEventListener('input',()=>{clearTimeout(loadUsers.timer);loadUsers.timer=setTimeout(()=>loadUsers().catch(error=>toast(error.message)),250)});
 
@@ -394,28 +407,138 @@ function commercialSummary(user){
   return `<div class="entitlement-summary"><div><span>Effective plan</span><b>${esc(access.effectivePlan||planOf(user))}</b><small>${override?'Administrator override':'Normal billing entitlement'}</small></div><div><span>Underlying billing</span><b>${billing?esc(billing.plan||'—'):'None'}</b><small>${billing?`${esc(billing.provider||'unknown')} · ${esc(billing.status||'—')}`:'No underlying subscription'}</small></div><div><span>Manual override</span><b>${override?esc(override.plan):'None'}</b><small>${override?(override.permanent?'No expiry':`Ends ${fmtDate(override.expiresAt)}`):'Stripe/Trial rules apply'}</small></div><div><span>AI credits</span><b>${credits?Number(credits.remaining||0).toLocaleString():'—'}</b><small>${credits?`${Number(credits.monthlyRemaining||0).toLocaleString()} monthly + ${Number(credits.topupRemaining||0).toLocaleString()} manual/top-up`:'Wallet unavailable until access is active'}</small></div></div>`;
 }
 
+function customerActivityIcon(category){
+  return ({ACCOUNT:'◎',AUTH:'◉',BILLING:'£',CREDITS:'◈',CONNECTIONS:'↗',PUBLISHING:'▣',AI:'✦',MEDIA:'▧',AUTOMATION:'◆',EMAIL:'✉',ADMIN:'⚙',ERROR:'!'})[category]||'•';
+}
+function customerActivityMeta(metadata){
+  if(!metadata||typeof metadata!=='object')return '';
+  const rows=Object.entries(metadata).filter(([,value])=>value!==null&&value!==undefined&&value!=='').slice(0,6);
+  if(!rows.length)return '';
+  return '<div class="customer-activity-meta">'+rows.map(([key,value])=>'<span><b>'+esc(key.replaceAll('_',' '))+'</b> '+esc(typeof value==='object'?JSON.stringify(value):String(value))+'</span>').join('')+'</div>';
+}
+function renderCustomerActivity(data,append=false){
+  state.selectedUserActivity=data;
+  const summary=data.summary||{};
+  $('customerActivitySummary').innerHTML=[
+    ['Latest',summary.lastActivityAt?relative(summary.lastActivityAt):'—'],
+    ['Visible events',Number(summary.totalVisible||0).toLocaleString()],
+    ['Publishing',Number(summary.publishing||0).toLocaleString()],
+    ['AI / credits',Number(summary.ai||0).toLocaleString()],
+    ['Errors',Number(summary.errors||0).toLocaleString()]
+  ].map(item=>'<div><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b></div>').join('');
+
+  const events=data.events||[];
+  const html=events.map(item=>{
+    const status=String(item.status||'INFO').toUpperCase();
+    return '<article class="customer-activity-event '+esc(status.toLowerCase())+'">'+
+      '<div class="customer-activity-icon">'+esc(customerActivityIcon(item.category))+'</div>'+
+      '<div class="customer-activity-copy"><div><span class="customer-activity-category">'+esc(item.category)+'</span><b>'+esc(item.title||item.action||'Activity')+'</b></div>'+
+      (item.detail?'<p>'+esc(item.detail)+'</p>':'')+
+      customerActivityMeta(item.metadata)+
+      '<small>'+esc(item.source||'INXSocial')+' · '+esc(item.action||'EVENT')+'</small></div>'+
+      '<div class="customer-activity-time"><span class="badge '+esc(status)+'">'+esc(status)+'</span><time>'+esc(fmtDate(item.at))+'</time></div>'+
+    '</article>';
+  }).join('');
+
+  if(append)$('customerActivityTimeline').insertAdjacentHTML('beforeend',html);
+  else $('customerActivityTimeline').innerHTML=html||'<div class="growth-empty">No activity recorded for this filter.</div>';
+
+  $('customerActivityLoadMore').hidden=!data.nextCursor;
+  $('customerActivityLoadMore').dataset.cursor=data.nextCursor||'';
+  $('customerActivityUpdated').textContent='Updated '+relative(new Date().toISOString());
+}
+async function loadCustomerActivity({append=false}={}){
+  if(!state.selectedUser?.id)return;
+  const category=$('customerActivityFilter')?.value||'ALL';
+  const cursor=append?$('customerActivityLoadMore')?.dataset.cursor||'':'';
+  const params=new URLSearchParams({category,limit:'100'});
+  if(cursor)params.set('before',cursor);
+  if(!append){
+    $('customerActivityTimeline').innerHTML='<div class="growth-empty">Loading full customer activity…</div>';
+    $('customerActivityLoadMore').hidden=true;
+  }
+  try{
+    const data=await api('/api/admin/users/'+encodeURIComponent(state.selectedUser.id)+'/activity?'+params.toString());
+    renderCustomerActivity(data,append);
+  }catch(error){
+    if(!append)$('customerActivityTimeline').innerHTML='<div class="growth-empty">'+esc(error.message)+'</div>';
+    throw error;
+  }
+}
+function setCustomerModalTab(tab){
+  state.selectedUserTab=tab==='activity'?'activity':'overview';
+  const activity=state.selectedUserTab==='activity';
+  $('customerOverviewPanel').hidden=activity;
+  $('customerActivityPanel').hidden=!activity;
+  $('customerOverviewTab').classList.toggle('active',!activity);
+  $('customerActivityTab').classList.toggle('active',activity);
+  $('saveAccessBtn').hidden=activity;
+  if(activity&&!state.selectedUserActivity)void loadCustomerActivity().catch(error=>toast(error.message));
+}
+
 function renderUserModal(user){
   const access=user.commercialAccess||{};
   const override=access.manualOverride;
   $('modalTitle').textContent=`${user.name||'User'} — ${user.email}`;
-  $('modalBody').innerHTML=`<div class="detail-card commercial-card"><b>Commercial entitlement</b><small>Manual overrides take priority over payment status without changing or cancelling the customer's Stripe subscription.</small>${commercialSummary(user)}</div>
-  <div class="form-grid"><label>Account status<select id="editStatus"><option>TRIAL</option><option>ACTIVE</option><option>SUSPENDED</option><option>CANCELLED</option></select></label><label>Extend trial (days)<input id="editTrialDays" type="number" min="0" max="365" placeholder="No change"></label><label>Social Agent policy<select id="editAiAccess"><option value="DEFAULT">Use global policy</option><option value="ALLOW">Force allow</option><option value="DENY">Force block</option></select></label></div>
-  <div class="detail-card"><b>Manual plan override</b><small>Use this for complimentary access, support cases, testing or partner accounts. Stripe remains untouched underneath.</small><div class="form-grid"><label>Plan<select id="overridePlan"><option value="TRIAL">Trial</option><option value="CREATOR">Creator</option><option value="PRO">Pro</option><option value="BUSINESS">Business</option><option value="AGENCY">Agency</option></select></label><label>Duration<input id="overrideDays" type="number" min="1" max="3650" placeholder="Blank = no expiry"></label><label>Reason<input id="overrideReason" maxlength="500" placeholder="Optional audit note"></label></div><div class="admin-actions entitlement-actions"><button class="primary" type="button" id="applyPlanOverride">Apply plan override</button><button class="secondary" type="button" id="revokePlanOverride" ${override?'':'disabled'}>Return to normal billing</button></div></div>
-  <div class="detail-card"><b>AI credit override</b><small>Add complimentary credits, remove credits, set the exact currently available balance, or reset the monthly plan allowance. Every change is audit logged.</small><div class="form-grid"><label>Action<select id="creditAction"><option value="ADD">Add credits</option><option value="REMOVE">Remove credits</option><option value="SET">Set available credits</option><option value="RESET_PLAN">Reset monthly plan allowance</option></select></label><label>Credits<input id="creditAmount" type="number" min="0" max="1000000" value="100"></label><label>Reason<input id="creditReason" maxlength="500" placeholder="Optional audit note"></label></div><button class="primary" type="button" id="applyCreditOverride">Apply credit adjustment</button></div>
-  <div class="detail-card"><b>Connected pages</b>${(user.connectedPages||[]).map(page=>`<small>${esc(page.facebookPageName)} — ${esc(page.status)}</small>`).join('')||'<small>No connected pages.</small>'}</div><div class="detail-card"><b>Recent jobs</b>${(user.scheduleJobs||[]).slice(0,5).map(job=>`<small>${esc(job.contentType)} — ${esc(job.status)} — ${fmtDate(job.scheduledAt)}</small>`).join('')||'<small>No publishing jobs.</small>'}</div>`;
-  $('editStatus').value=user.status;$('editAiAccess').value=user.aiStudioAccess||'DEFAULT';$('overridePlan').value=override?.plan||access.effectivePlan||'CREATOR';
+  $('modalBody').innerHTML=`
+  <nav class="customer-modal-tabs" aria-label="Customer details">
+    <button type="button" id="customerOverviewTab">Account & access</button>
+    <button type="button" id="customerActivityTab">Activity</button>
+  </nav>
+  <section id="customerOverviewPanel">
+    <div class="detail-card commercial-card"><b>Commercial entitlement</b><small>Manual overrides take priority over payment status without changing or cancelling the customer's Stripe subscription.</small>${commercialSummary(user)}</div>
+    <div class="form-grid"><label>Account status<select id="editStatus"><option>TRIAL</option><option>ACTIVE</option><option>SUSPENDED</option><option>CANCELLED</option></select></label><label>Extend trial (days)<input id="editTrialDays" type="number" min="0" max="365" placeholder="No change"></label><label>Social Agent policy<select id="editAiAccess"><option value="DEFAULT">Use global policy</option><option value="ALLOW">Force allow</option><option value="DENY">Force block</option></select></label></div>
+    <div class="detail-card"><b>Manual plan override</b><small>Use this for complimentary access, support cases, testing or partner accounts. Stripe remains untouched underneath.</small><div class="form-grid"><label>Plan<select id="overridePlan"><option value="TRIAL">Trial</option><option value="CREATOR">Creator</option><option value="PRO">Pro</option><option value="BUSINESS">Business</option><option value="AGENCY">Agency</option></select></label><label>Duration<input id="overrideDays" type="number" min="1" max="3650" placeholder="Blank = no expiry"></label><label>Reason<input id="overrideReason" maxlength="500" placeholder="Optional audit note"></label></div><div class="admin-actions entitlement-actions"><button class="primary" type="button" id="applyPlanOverride">Apply plan override</button><button class="secondary" type="button" id="revokePlanOverride" ${override?'':'disabled'}>Return to normal billing</button></div></div>
+    <div class="detail-card"><b>AI credit override</b><small>Add complimentary credits, remove credits, set the exact currently available balance, or reset the monthly plan allowance. Every change is audit logged.</small><div class="form-grid"><label>Action<select id="creditAction"><option value="ADD">Add credits</option><option value="REMOVE">Remove credits</option><option value="SET">Set available credits</option><option value="RESET_PLAN">Reset monthly plan allowance</option></select></label><label>Credits<input id="creditAmount" type="number" min="0" max="1000000" value="100"></label><label>Reason<input id="creditReason" maxlength="500" placeholder="Optional audit note"></label></div><button class="primary" type="button" id="applyCreditOverride">Apply credit adjustment</button></div>
+    <div class="detail-card"><b>Connected pages</b>${(user.connectedPages||[]).map(page=>`<small>${esc(page.facebookPageName)} — ${esc(page.status)}</small>`).join('')||'<small>No connected pages.</small>'}</div>
+    <div class="detail-card"><b>Recent jobs</b>${(user.scheduleJobs||[]).slice(0,5).map(job=>`<small>${esc(job.contentType)} — ${esc(job.status)} — ${fmtDate(job.scheduledAt)}</small>`).join('')||'<small>No publishing jobs.</small>'}</div>
+  </section>
+  <section id="customerActivityPanel" hidden>
+    <div class="customer-activity-toolbar">
+      <div><span class="kicker">Customer timeline</span><b>Full account activity</b><small>Operational events only. Passwords, OAuth tokens, refresh tokens and API secrets are never shown.</small></div>
+      <div class="customer-activity-controls"><select id="customerActivityFilter"><option value="ALL">All activity</option><option value="AUTH">Sign-ins & devices</option><option value="CONNECTIONS">Connections</option><option value="PUBLISHING">Publishing</option><option value="AI">AI generations</option><option value="CREDITS">AI credits</option><option value="MEDIA">Media</option><option value="AUTOMATION">Automation</option><option value="BILLING">Billing</option><option value="EMAIL">Emails</option><option value="ADMIN">Admin changes</option><option value="ERROR">Errors</option><option value="ACCOUNT">Account</option></select><button class="secondary" id="customerActivityRefresh" type="button">↻ Refresh</button></div>
+    </div>
+    <div class="customer-activity-summary" id="customerActivitySummary"></div>
+    <div class="customer-activity-updated" id="customerActivityUpdated">—</div>
+    <div class="customer-activity-timeline" id="customerActivityTimeline"><div class="growth-empty">Open Activity to load this customer's timeline.</div></div>
+    <button class="secondary customer-activity-more" id="customerActivityLoadMore" type="button" hidden>Load older activity</button>
+  </section>`;
+
+  $('editStatus').value=user.status;
+  $('editAiAccess').value=user.aiStudioAccess||'DEFAULT';
+  $('overridePlan').value=override?.plan||access.effectivePlan||'CREATOR';
   $('creditAction').addEventListener('change',()=>{$('creditAmount').disabled=$('creditAction').value==='RESET_PLAN'});
   $('applyPlanOverride').addEventListener('click',()=>void applyPlanOverride());
   $('revokePlanOverride').addEventListener('click',()=>void revokePlanOverride());
   $('applyCreditOverride').addEventListener('click',()=>void adjustCredits());
+  $('customerOverviewTab').addEventListener('click',()=>setCustomerModalTab('overview'));
+  $('customerActivityTab').addEventListener('click',()=>setCustomerModalTab('activity'));
+  $('customerActivityFilter').addEventListener('change',()=>{state.selectedUserActivity=null;void loadCustomerActivity().catch(error=>toast(error.message))});
+  $('customerActivityRefresh').addEventListener('click',()=>{state.selectedUserActivity=null;void loadCustomerActivity().catch(error=>toast(error.message))});
+  $('customerActivityLoadMore').addEventListener('click',()=>void loadCustomerActivity({append:true}).catch(error=>toast(error.message)));
+  setCustomerModalTab(state.selectedUserTab);
 }
 
 async function refreshSelectedUser(){
+  const currentTab=state.selectedUserTab;
   const {user}=await api(`/api/admin/users/${encodeURIComponent(state.selectedUser.id)}`);
-  state.selectedUser=user;renderUserModal(user);await loadUsers();
+  state.selectedUser=user;
+  state.selectedUserTab=currentTab;
+  renderUserModal(user);
+  if(currentTab==='activity')await loadCustomerActivity();
+  await loadUsers();
 }
 
-async function openUser(id){const {user}=await api(`/api/admin/users/${encodeURIComponent(id)}`);if(user.role!=='USER')throw new Error('Administrator accounts are managed from Admin & Security.');state.selectedUser=user;renderUserModal(user);$('userDialog').showModal()}
+async function openUser(id,tab='overview'){
+  const {user}=await api(`/api/admin/users/${encodeURIComponent(id)}`);
+  if(user.role!=='USER')throw new Error('Administrator accounts are managed from Admin & Security.');
+  state.selectedUser=user;
+  state.selectedUserTab=tab==='activity'?'activity':'overview';
+  state.selectedUserActivity=null;
+  renderUserModal(user);
+  $('userDialog').showModal();
+  if(state.selectedUserTab==='activity')await loadCustomerActivity();
+}
 
 async function applyPlanOverride(){try{const days=$('overrideDays').value.trim();await api(`/api/admin/users/${encodeURIComponent(state.selectedUser.id)}/commercial-plan`,{method:'PATCH',body:JSON.stringify({action:'APPLY',plan:$('overridePlan').value,durationDays:days?Number(days):null,reason:$('overrideReason').value.trim()})});toast('Manual plan override applied');await refreshSelectedUser();await loadOverview(true)}catch(error){toast(error.message)}}
 async function revokePlanOverride(){try{await api(`/api/admin/users/${encodeURIComponent(state.selectedUser.id)}/commercial-plan`,{method:'PATCH',body:JSON.stringify({action:'REVOKE',reason:$('overrideReason').value.trim()})});toast('Manual override revoked; normal billing restored');await refreshSelectedUser();await loadOverview(true)}catch(error){toast(error.message)}}
