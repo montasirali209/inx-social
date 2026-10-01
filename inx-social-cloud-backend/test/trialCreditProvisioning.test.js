@@ -25,3 +25,22 @@ test('normal AI access still enforces studio policy while provisioning can creat
   assert.match(credits, /if \(!entitlement\.studioEnabled && !provisionOnly\)/);
   assert.match(credits, /if \(!planEligible\)/);
 });
+
+
+test('admin customer inspection reads balances without provisioning a wallet', () => {
+  const admin = read('src/controllers/adminController.js');
+  const credits = read('src/services/aiCreditService.js');
+
+  assert.match(admin, /aiCredits\.peekBalance\(userId\)/);
+  assert.doesNotMatch(admin, /aiCredits\.getBalance\(userId\)/);
+  assert.match(credits, /async function peekBalance\(userId\)/);
+  assert.match(credits, /SELECT \* FROM "AiCreditWallet" WHERE "userId"=\$1 LIMIT 1/);
+});
+
+test('admin activity labels trial allocation and attribution as system-side events', () => {
+  const activity = read('src/services/customerActivityService.js');
+  assert.match(activity, /Trial AI credits allocated/);
+  assert.match(activity, /Signup attribution recorded/);
+  assert.match(activity, /Trial conversion attribution recorded/);
+  assert.match(activity, /Internal marketing attribution event; not a customer action\./);
+});
