@@ -42,7 +42,7 @@ test('video registry parses synchronized per-second pricing and converts it to g
 
 test('video registry derives credits when provider examples do not include the exact selected configuration', () => {
   const pricing = registry.parsePricing({
-    pricingOverview: '50% OFF until September 30, 2026 · $0.025 from, per second',
+    pricingOverview: '50% OFF until December 31, 2026 · $0.025 from, per second',
     pricingExamples: [
       { configuration: 'first-frame 768p · 5s', price: '$0.40' },
       { configuration: 'first-last-frame 480p · 15s', price: '$0.75' },
