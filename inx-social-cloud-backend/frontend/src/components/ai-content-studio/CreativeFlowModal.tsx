@@ -3,21 +3,16 @@ import {
   ArrowRight,
   BadgeCheck,
   Check,
-  ChevronDown,
   ChevronRight,
   CircleDot,
-  Globe2,
   Image as ImageIcon,
   Layers3,
   Loader2,
-  Megaphone,
   Package,
-  Palette,
   RefreshCw,
   Send,
   Sparkles,
   Target,
-  Upload,
   WandSparkles,
   X,
 } from 'lucide-react'
@@ -25,16 +20,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
+import { CreativeFlowCanvas, type CreativeFlowAsset } from './CreativeFlowCanvas'
 
 type CreativeFlowView = 'setup' | 'progress' | 'results'
 type CampaignGoal = 'auto' | 'sales' | 'traffic' | 'awareness' | 'launch'
 type CreativeStyle = 'auto' | 'performance' | 'minimal' | 'lifestyle' | 'editorial'
-
-type UploadedAsset = {
-  id: string
-  name: string
-  url: string
-}
 
 type MockCreative = {
   id: string
@@ -143,13 +133,12 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
   const [goal, setGoal] = useState<CampaignGoal>('auto')
   const [style, setStyle] = useState<CreativeStyle>('auto')
   const [audience, setAudience] = useState('')
-  const [assets, setAssets] = useState<UploadedAsset[]>([])
+  const [assets, setAssets] = useState<CreativeFlowAsset[]>([])
   const [progressIndex, setProgressIndex] = useState(0)
   const [generatedCount, setGeneratedCount] = useState(0)
   const [approved, setApproved] = useState<Set<string>>(new Set())
   const dialogRef = useRef<HTMLElement>(null)
   const previousFocus = useRef<HTMLElement | null>(null)
-  const fileInput = useRef<HTMLInputElement>(null)
 
   const resolvedCount = Math.max(1, Math.min(100, Number(customCount || creativeCount) || 20))
   const mockCreatives = useMemo<MockCreative[]>(() => {
@@ -269,7 +258,7 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
                 <h2 className="truncate text-base font-semibold sm:text-lg" id="creative-flow-title">Creative Flow</h2>
                 <span className="hidden rounded-full border border-brand-purple/20 bg-brand-purple/[.06] px-2 py-0.5 text-[8px] font-bold uppercase tracking-[.12em] text-brand-purple sm:inline">Stage 1 preview</span>
               </div>
-              <p className="mt-0.5 hidden text-[10px] text-text-muted sm:block">Simple campaign creation first. Advanced controls stay optional.</p>
+              <p className="mt-0.5 hidden text-[10px] text-text-muted sm:block">Build visually with connected nodes. Click a node to edit; advanced controls stay optional.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -279,77 +268,33 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {view === 'setup' && <div className="mx-auto grid w-full max-w-[1140px] gap-5 p-4 sm:p-6 lg:grid-cols-[minmax(0,1fr)_330px]">
-            <main className="space-y-4">
-              <section className="rounded-[20px] border border-border-soft bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,.045)] sm:p-5">
-                <div className="flex items-start gap-3">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-cyan/[.08] text-brand-cyan"><Package className="size-4" /></span>
-                  <div><h3 className="text-sm font-semibold">1. Add your product</h3><p className="mt-1 text-[10px] leading-4 text-text-muted">A website, product name or a few product images is enough to start.</p></div>
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <label className="block"><span className="text-[10px] font-semibold text-text-muted">Website URL <span className="font-normal text-text-soft">optional</span></span><div className="relative mt-1.5"><Globe2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-text-soft" /><input className="min-h-11 w-full rounded-xl border border-border-soft bg-slate-50 pl-10 pr-3 text-xs outline-none transition focus:border-brand-cyan focus:bg-white focus:ring-2 focus:ring-brand-cyan/10" onChange={(event) => setWebsite(event.target.value)} placeholder="https://yourbrand.com" type="url" value={website} /></div></label>
-                  <label className="block"><span className="text-[10px] font-semibold text-text-muted">Product name <span className="font-normal text-text-soft">optional</span></span><input className="mt-1.5 min-h-11 w-full rounded-xl border border-border-soft bg-slate-50 px-3 text-xs outline-none transition focus:border-brand-cyan focus:bg-white focus:ring-2 focus:ring-brand-cyan/10" onChange={(event) => setProductName(event.target.value)} placeholder="e.g. INXSocial" value={productName} /></label>
-                </div>
-                <div className="mt-3">
-                  <div className="flex items-center justify-between gap-3"><span className="text-[10px] font-semibold text-text-muted">Product images / logo <span className="font-normal text-text-soft">optional · up to 8</span></span>{assets.length > 0 && <span className="text-[9px] text-text-soft">{assets.length}/8</span>}</div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {assets.map((asset) => <figure className="group relative size-20 overflow-hidden rounded-xl border border-border-soft bg-slate-50" key={asset.id}><img alt="" className="size-full object-cover" src={asset.url} /><button aria-label={`Remove ${asset.name}`} className="absolute right-1 top-1 grid size-6 place-items-center rounded-lg bg-black/65 text-white opacity-0 transition group-hover:opacity-100" onClick={() => removeAsset(asset.id)} type="button"><X className="size-3" /></button></figure>)}
-                    {assets.length < 8 && <button className="grid size-20 place-items-center rounded-xl border border-dashed border-brand-cyan/30 bg-brand-cyan/[.025] text-center text-brand-cyan transition hover:border-brand-cyan/55 hover:bg-brand-cyan/[.055]" onClick={() => fileInput.current?.click()} type="button"><span><Upload className="mx-auto size-4" /><span className="mt-1 block text-[8px] font-semibold">Add image</span></span></button>}
-                  </div>
-                  <input accept="image/png,image/jpeg,image/webp" className="sr-only" multiple onChange={(event) => { addAssets(Array.from(event.target.files || [])); event.target.value = '' }} ref={fileInput} type="file" />
-                </div>
-              </section>
-
-              <section className="rounded-[20px] border border-border-soft bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,.045)] sm:p-5">
-                <div className="flex items-start gap-3">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-purple/[.08] text-brand-purple"><Megaphone className="size-4" /></span>
-                  <div className="min-w-0 flex-1"><h3 className="text-sm font-semibold">2. What do you want to create?</h3><p className="mt-1 text-[10px] leading-4 text-text-muted">Describe the campaign in normal language. Creative Flow handles the structure.</p></div>
-                </div>
-                <textarea className="mt-4 min-h-32 w-full resize-y rounded-2xl border border-border-soft bg-slate-50 p-3.5 text-xs leading-5 outline-none transition placeholder:text-text-soft focus:border-brand-cyan focus:bg-white focus:ring-2 focus:ring-brand-cyan/10" onChange={(event) => setPrompt(event.target.value)} placeholder="Example: Create a campaign for our social media scheduling product focused on small businesses. Make the visuals feel modern, useful and credible. Focus on saving time and managing every channel in one place." value={prompt} />
-              </section>
-
-              <section className="rounded-[20px] border border-border-soft bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,.045)] sm:p-5">
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div>
-                    <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-xl bg-brand-green/[.08] text-brand-green"><Send className="size-3.5" /></span><div><h3 className="text-xs font-semibold">3. Platforms</h3><p className="mt-0.5 text-[9px] text-text-muted">Choose where the campaign will be used.</p></div></div>
-                    <div className="mt-3 flex flex-wrap gap-2">{platforms.map((platform) => {
-                      const active = selectedPlatforms.includes(platform)
-                      return <button aria-pressed={active} className={`rounded-full border px-3 py-2 text-[10px] font-semibold transition ${active ? 'border-brand-cyan/45 bg-brand-cyan/[.08] text-brand-teal' : 'border-border-soft bg-slate-50 text-text-muted hover:bg-white'}`} key={platform} onClick={() => togglePlatform(platform)} type="button">{active && <Check className="mr-1 inline size-3" />}{platform}</button>
-                    })}</div>
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2"><span className="grid size-8 place-items-center rounded-xl bg-brand-cyan/[.08] text-brand-cyan"><Layers3 className="size-3.5" /></span><div><h3 className="text-xs font-semibold">4. Number of creatives</h3><p className="mt-0.5 text-[9px] text-text-muted">Start small or build a full campaign set.</p></div></div>
-                    <div className="mt-3 flex flex-wrap gap-2">{countOptions.map((count) => <button aria-pressed={!customCount && creativeCount === count} className={`min-w-12 rounded-xl border px-3 py-2 text-[10px] font-semibold transition ${!customCount && creativeCount === count ? 'border-brand-cyan/45 bg-brand-cyan/[.08] text-brand-teal' : 'border-border-soft bg-slate-50 text-text-muted'}`} key={count} onClick={() => { setCreativeCount(count); setCustomCount('') }} type="button">{count}</button>)}<input aria-label="Custom creative count" className="min-h-9 w-20 rounded-xl border border-border-soft bg-slate-50 px-2 text-center text-[10px] outline-none focus:border-brand-cyan focus:bg-white" max={100} min={1} onChange={(event) => setCustomCount(event.target.value.replace(/\D/g, '').slice(0, 3))} placeholder="Custom" value={customCount} /></div>
-                  </div>
-                </div>
-              </section>
-
-              <section className="overflow-hidden rounded-[20px] border border-border-soft bg-white shadow-[0_10px_30px_rgba(15,23,42,.045)]">
-                <button aria-expanded={advancedOpen} className="flex w-full items-center justify-between gap-3 p-4 text-left sm:p-5" onClick={() => setAdvancedOpen((current) => !current)} type="button"><div className="flex items-center gap-3"><span className="grid size-9 place-items-center rounded-xl bg-slate-100 text-text-muted"><Palette className="size-4" /></span><div><h3 className="text-sm font-semibold">Advanced options</h3><p className="mt-1 text-[10px] text-text-muted">Optional. AI Recommended works for most campaigns.</p></div></div><ChevronDown className={`size-4 text-text-soft transition-transform ${advancedOpen ? 'rotate-180' : ''}`} /></button>
-                {advancedOpen && <div className="grid gap-4 border-t border-border-soft bg-slate-50/65 p-4 sm:grid-cols-3 sm:p-5">
-                  <label><span className="text-[10px] font-semibold text-text-muted">Campaign goal</span><select className="mt-1.5 min-h-10 w-full rounded-xl border border-border-soft bg-white px-3 text-xs outline-none focus:border-brand-cyan" onChange={(event) => setGoal(event.target.value as CampaignGoal)} value={goal}><option value="auto">AI Recommended</option><option value="sales">Sales</option><option value="traffic">Traffic</option><option value="awareness">Awareness</option><option value="launch">Product launch</option></select></label>
-                  <label><span className="text-[10px] font-semibold text-text-muted">Creative style</span><select className="mt-1.5 min-h-10 w-full rounded-xl border border-border-soft bg-white px-3 text-xs outline-none focus:border-brand-cyan" onChange={(event) => setStyle(event.target.value as CreativeStyle)} value={style}><option value="auto">AI Recommended</option><option value="performance">Performance ads</option><option value="minimal">Minimal</option><option value="lifestyle">Lifestyle</option><option value="editorial">Editorial / infographic</option></select></label>
-                  <label><span className="text-[10px] font-semibold text-text-muted">Audience</span><input className="mt-1.5 min-h-10 w-full rounded-xl border border-border-soft bg-white px-3 text-xs outline-none focus:border-brand-cyan" onChange={(event) => setAudience(event.target.value)} placeholder="AI Recommended" value={audience} /></label>
-                </div>}
-              </section>
-            </main>
-
-            <aside className="lg:sticky lg:top-5 lg:self-start">
-              <section className="rounded-[22px] border border-brand-cyan/20 bg-white p-5 shadow-[0_18px_50px_rgba(15,23,42,.07)]">
-                <div className="flex items-center justify-between gap-3"><div><span className="text-[8px] font-bold uppercase tracking-[.14em] text-brand-cyan">Campaign summary</span><h3 className="mt-1 text-sm font-semibold">Ready when you are</h3></div><span className="grid size-10 place-items-center rounded-2xl bg-brand-cyan/[.08] text-brand-cyan"><Sparkles className="size-4" /></span></div>
-                <div className="mt-5 space-y-3">
-                  <SummaryRow icon={Package} label="Product" value={productName.trim() || website.trim() || (assets.length ? `${assets.length} uploaded asset${assets.length === 1 ? '' : 's'}` : 'Not added yet')} />
-                  <SummaryRow icon={Send} label="Platforms" value={selectedPlatforms.length ? selectedPlatforms.join(', ') : 'Platform-neutral'} />
-                  <SummaryRow icon={Layers3} label="Output" value={`${resolvedCount} creatives`} />
-                  <SummaryRow icon={Target} label="Goal" value={goal === 'auto' ? 'AI Recommended' : goal.replaceAll('_', ' ')} />
-                </div>
-                <div className="mt-5 rounded-2xl border border-brand-purple/15 bg-brand-purple/[.035] p-3.5"><div className="flex items-start gap-2"><CircleDot className="mt-0.5 size-3.5 shrink-0 text-brand-purple" /><p className="text-[9px] leading-4 text-text-muted"><strong className="text-text-main">Stage 1 UI preview.</strong> This demo uses sample concepts only. No provider requests, credits, database writes or publishing actions run from this screen.</p></div></div>
-                <Button className="mt-5 w-full" disabled={!canGenerate} onClick={beginPreview} variant="primary"><WandSparkles className="size-4" />Generate campaign</Button>
-                {!canGenerate && <p className="mt-2 text-center text-[9px] text-text-soft">Add a product, website, image or campaign brief to continue.</p>}
-              </section>
-            </aside>
-          </div>}
-
+          {view === 'setup' && <CreativeFlowCanvas
+            advancedOpen={advancedOpen}
+            assets={assets}
+            audience={audience}
+            canRun={canGenerate}
+            creativeCount={creativeCount}
+            customCount={customCount}
+            goal={goal}
+            productName={productName}
+            prompt={prompt}
+            selectedPlatforms={selectedPlatforms}
+            style={style}
+            website={website}
+            onAddAssets={addAssets}
+            onAdvancedToggle={() => setAdvancedOpen((current) => !current)}
+            onAudienceChange={setAudience}
+            onCreativeCountChange={setCreativeCount}
+            onCustomCountChange={setCustomCount}
+            onGoalChange={(value) => setGoal(value as CampaignGoal)}
+            onProductNameChange={setProductName}
+            onPromptChange={setPrompt}
+            onRemoveAsset={removeAsset}
+            onRun={beginPreview}
+            onStyleChange={(value) => setStyle(value as CreativeStyle)}
+            onTogglePlatform={togglePlatform}
+            onWebsiteChange={setWebsite}
+          />}
           {view === 'progress' && <div className="mx-auto flex min-h-full w-full max-w-[980px] items-center p-4 sm:p-8">
             <div className="w-full rounded-[26px] border border-border-soft bg-white p-5 shadow-[0_26px_80px_rgba(15,23,42,.08)] sm:p-8">
               <div className="mx-auto max-w-2xl text-center">
