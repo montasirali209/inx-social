@@ -12,6 +12,8 @@ function baseProps() {
     onClose: vi.fn(),
     onGenerateAICaptions: vi.fn(),
     onMediaAdd: vi.fn(),
+    onMediaMove: vi.fn(),
+    onMediaReorder: vi.fn(),
     onOrderModeChange: vi.fn(),
     onPostEdit: vi.fn(),
     onPostMove: vi.fn(),
@@ -54,5 +56,29 @@ describe('ManualCampaignEditor', () => {
     fireEvent.click(aiButton)
     expect(props.onGenerateAICaptions).toHaveBeenCalledTimes(1)
     expect(screen.getAllByText(/existing captions are never replaced/i).length).toBeGreaterThan(0)
+  })
+
+  it('reorders media with arrow controls and exposes the preview as the drag handle', () => {
+    const props = baseProps()
+    const campaign: CampaignImport = {
+      ...emptyCampaign,
+      imagePosts: 2,
+      total: 2,
+      posts: [
+        { id: 'image-post-0001', sequence: 1, contentType: 'IMAGE', caption: '', thumbnailUrl: 'blob:one', fileName: 'one.png' },
+        { id: 'image-post-0002', sequence: 2, contentType: 'IMAGE', caption: '', thumbnailUrl: 'blob:two', fileName: 'two.png' },
+      ],
+    }
+    render(<ManualCampaignEditor campaign={campaign} {...props} />)
+
+    const upButton = screen.getAllByRole('button', { name: 'Move two.png up in media order' }).at(-1)
+    expect(upButton).toBeEnabled()
+    fireEvent.click(upButton!)
+    expect(props.onMediaMove).toHaveBeenCalledWith('image-post-0002', -1)
+
+    const dragHandle = screen.getAllByRole('button', { name: 'Drag two.png to reorder' }).at(-1)
+    expect(dragHandle).toHaveAttribute('aria-grabbed', 'false')
+    fireEvent.keyDown(dragHandle!, { key: 'ArrowUp' })
+    expect(props.onMediaMove).toHaveBeenCalledWith('image-post-0002', -1)
   })
 })

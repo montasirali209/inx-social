@@ -1,5 +1,5 @@
-import { ArrowDown, ArrowUp, FileText, Image as ImageIcon, Images, Loader2, Megaphone, Sparkles, Trash2, Video, X } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { ArrowDown, ArrowUp, FileText, GripVertical, Image as ImageIcon, Images, Loader2, Megaphone, Sparkles, Trash2, Video, X } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { parseTextPosts } from '../../lib/bulk-scheduler-utils'
 import type { CampaignOrderMode } from '../../lib/campaign-order'
@@ -32,6 +32,8 @@ type Props = {
   onTitleChange: (title: string) => void
   onTextAdd: (captions: string[]) => void
   onMediaAdd: (files: File[]) => void
+  onMediaMove: (id: string, direction: -1 | 1) => void
+  onMediaReorder: (activeId: string, overId: string) => void
   onGenerateAICaptions: () => void
   aiCaptionBusy: boolean
   aiCaptioningIds: Set<string>
@@ -42,13 +44,114 @@ type Props = {
   onOrderModeChange: (mode: CampaignOrderMode) => void
 }
 
-export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange, onTextAdd, onMediaAdd, onGenerateAICaptions, aiCaptionBusy, aiCaptioningIds, aiCaptionMessage, onPostEdit, onPostRemove, onPostMove, onOrderModeChange }: Props) {
+export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange, onTextAdd, onMediaAdd, onMediaMove, onMediaReorder, onGenerateAICaptions, aiCaptionBusy, aiCaptioningIds, aiCaptionMessage, onPostEdit, onPostRemove, onPostMove, onOrderModeChange }: Props) {
   const [bulkText, setBulkText] = useState('')
   const mediaInput = useRef<HTMLInputElement>(null)
+  const mediaList = useRef<HTMLDivElement>(null)
+  const mediaCards = useRef(new Map<string, HTMLElement>())
+  const previousMediaRects = useRef(new Map<string, DOMRect>())
+  const dragState = useRef<{ id: string; pointerId: number; startX: number; startY: number; moved: boolean; lastOverId: string | null } | null>(null)
+  const [draggingMediaId, setDraggingMediaId] = useState<string | null>(null)
+  const [dragOverMediaId, setDragOverMediaId] = useState<string | null>(null)
   const parsed = parseTextPosts(bulkText)
   const textPosts = campaign.posts.filter((post) => post.contentType === 'TEXT')
   const mediaPosts = campaign.posts.filter((post) => post.contentType !== 'TEXT')
   const emptyImagePosts = mediaPosts.filter((post) => post.contentType === 'IMAGE' && !post.caption.trim())
+  const mediaOrderKey = mediaPosts.map((post) => post.id).join('|')
+
+  useLayoutEffect(() => {
+    const nextRects = new Map<string, DOMRect>()
+    mediaCards.current.forEach((node, id) => {
+      nextRects.set(id, node.getBoundingClientRect())
+    })
+
+    const reducedMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (!reducedMotion) {
+      nextRects.forEach((nextRect, id) => {
+        const previousRect = previousMediaRects.current.get(id)
+        const node = mediaCards.current.get(id)
+        if (!previousRect || !node) return
+        const deltaX = previousRect.left - nextRect.left
+        const deltaY = previousRect.top - nextRect.top
+        if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return
+        if (typeof node.getAnimations === 'function') node.getAnimations().forEach((animation) => animation.cancel())
+        if (typeof node.animate !== 'function') return
+        node.animate(
+          [
+            { transform: `translate(${deltaX}px, ${deltaY}px)` },
+            { transform: 'translate(0, 0)' },
+          ],
+          { duration: 190, easing: 'cubic-bezier(.2,.8,.2,1)' },
+        )
+      })
+    }
+
+    previousMediaRects.current = nextRects
+  }, [mediaOrderKey])
+
+  const finishMediaDrag = () => {
+    dragState.current = null
+    setDraggingMediaId(null)
+    setDragOverMediaId(null)
+  }
+
+  const beginMediaDrag = (event: ReactPointerEvent<HTMLElement>, id: string) => {
+    if (running || aiCaptionBusy || (event.pointerType === 'mouse' && event.button !== 0)) return
+    event.preventDefault()
+    dragState.current = {
+      id,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      lastOverId: null,
+    }
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+    setDraggingMediaId(id)
+    setDragOverMediaId(id)
+  }
+
+  const updateMediaDrag = (event: ReactPointerEvent<HTMLElement>) => {
+    const drag = dragState.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+
+    if (!drag.moved) {
+      const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY)
+      if (distance < 5) return
+      drag.moved = true
+    }
+
+    event.preventDefault()
+
+    const list = mediaList.current
+    if (list) {
+      const bounds = list.getBoundingClientRect()
+      const edge = Math.min(64, Math.max(36, bounds.height * 0.14))
+      if (event.clientY < bounds.top + edge) list.scrollBy({ top: -22, behavior: 'auto' })
+      else if (event.clientY > bounds.bottom - edge) list.scrollBy({ top: 22, behavior: 'auto' })
+    }
+
+    const hit = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null
+    const card = hit?.closest<HTMLElement>('[data-media-sort-id]')
+    const overId = card?.dataset.mediaSortId || ''
+    if (!overId || overId === drag.id || overId === drag.lastOverId) return
+
+    drag.lastOverId = overId
+    setDragOverMediaId(overId)
+    onMediaReorder(drag.id, overId)
+  }
+
+  const handleMediaKeyboard = (event: ReactKeyboardEvent<HTMLElement>, id: string) => {
+    if (running || aiCaptionBusy) return
+    if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      onMediaMove(id, -1)
+    }
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      onMediaMove(id, 1)
+    }
+  }
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -82,7 +185,7 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
 
             <section className="flex min-h-0 flex-col rounded-2xl border border-brand-purple/20 bg-brand-purple/[.025] p-3 sm:p-4">
               <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="flex items-center gap-2 text-sm font-semibold"><Images className="size-4 text-[#c4b5fd]" />Image and video posts</h3><span className="text-xs text-text-muted">{mediaPosts.length} added</span></div>
-              <p className="mt-1 text-[11px] leading-5 text-text-muted">Select multiple files at once. Each file gets its own caption field.</p>
+              <p className="mt-1 text-[11px] leading-5 text-text-muted">Select multiple files at once. Each file gets its own caption field. Drag a media preview to rearrange it, or use the arrow buttons.</p>
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <Button disabled={running || aiCaptionBusy} onClick={() => mediaInput.current?.click()} size="sm" type="button"><Images className="size-3.5" />Add images or videos</Button>
                 <Button disabled={running || aiCaptionBusy || !emptyImagePosts.length} onClick={onGenerateAICaptions} size="sm" type="button" variant="primary">
@@ -93,11 +196,48 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
               <p className="mt-2 text-[10px] leading-4 text-text-soft">AI fills image captions only when the caption box is empty. Your existing captions are never replaced. First 5 AI image captions in a manual campaign are free; larger or later batches cost 5 credits flat.</p>
               {aiCaptionMessage && <p className={`mt-1.5 text-[10px] leading-4 ${/could not|not enough|unavailable|failed/i.test(aiCaptionMessage) ? 'text-brand-amber' : 'text-brand-cyan'}`}>{aiCaptionMessage}</p>}
               <input accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/x-m4v,video/webm,.avi,.mkv" className="sr-only" multiple onChange={(event) => { onMediaAdd(Array.from(event.target.files || [])); event.target.value = '' }} ref={mediaInput} type="file" />
-              <div className="scrollbar-thin mt-3 space-y-2 overflow-y-auto lg:max-h-[51vh]">
-                {mediaPosts.map((post) => <article className="flex gap-3 rounded-xl border border-border-soft bg-bg/40 p-2.5" key={post.id}>
-                  {post.contentType === 'IMAGE' && post.thumbnailUrl ? <img alt="" className="size-16 shrink-0 rounded-lg object-cover" src={post.thumbnailUrl} /> : <span className="grid size-16 shrink-0 place-items-center rounded-lg bg-brand-purple/10 text-[#c4b5fd]"><Video className="size-5" /></span>}
-                  <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5 text-[11px] font-semibold">{post.contentType === 'IMAGE' ? <ImageIcon className="size-3.5" /> : <Video className="size-3.5" />}<span className="truncate">{post.fileName}</span></div><label className="mt-1 block text-[10px] text-text-muted">Caption for this {post.contentType.toLowerCase()}<textarea className="mt-1 min-h-16 w-full resize-y rounded-lg border border-border-soft bg-bg/65 p-2 text-xs text-text-main focus:border-brand-cyan focus:outline-none" disabled={running || aiCaptioningIds.has(post.id)} onChange={(event) => onPostEdit(post.id, event.target.value)} placeholder={aiCaptioningIds.has(post.id) ? 'AI is analysing this image and writing a caption…' : 'Write a caption for this post…'} value={post.caption} /></label></div>
-                </article>)}
+              <div className="scrollbar-thin mt-3 space-y-2 overflow-y-auto overscroll-contain lg:max-h-[51vh]" ref={mediaList}>
+                {mediaPosts.map((post, mediaIndex) => {
+                  const dragging = draggingMediaId === post.id
+                  const dragTarget = dragOverMediaId === post.id && draggingMediaId !== post.id
+                  return <article
+                    className={`relative flex gap-3 rounded-xl border bg-bg/40 p-2.5 transition-[border-color,background-color,box-shadow,opacity] duration-200 ${dragging ? 'z-10 border-brand-cyan/65 bg-brand-cyan/[.08] opacity-75 shadow-[0_12px_32px_rgba(45,212,191,.12)]' : dragTarget ? 'border-brand-cyan/55 bg-brand-cyan/[.055]' : 'border-border-soft'}`}
+                    data-media-sort-id={post.id}
+                    key={post.id}
+                    ref={(node) => {
+                      if (node) mediaCards.current.set(post.id, node)
+                      else mediaCards.current.delete(post.id)
+                    }}
+                  >
+                    <div
+                      aria-grabbed={dragging}
+                      aria-label={`Drag ${post.fileName || `media ${mediaIndex + 1}`} to reorder`}
+                      className={`group relative size-16 shrink-0 touch-none select-none overflow-hidden rounded-lg border transition duration-150 focus:outline-none focus:ring-2 focus:ring-brand-cyan/45 ${running || aiCaptionBusy ? 'cursor-not-allowed border-border-soft opacity-60' : 'cursor-grab border-border-soft hover:border-brand-cyan/55 active:cursor-grabbing active:scale-[.97]'}`}
+                      onKeyDown={(event) => handleMediaKeyboard(event, post.id)}
+                      onPointerCancel={finishMediaDrag}
+                      onPointerDown={(event) => beginMediaDrag(event, post.id)}
+                      onPointerMove={updateMediaDrag}
+                      onPointerUp={finishMediaDrag}
+                      role="button"
+                      tabIndex={running || aiCaptionBusy ? -1 : 0}
+                    >
+                      {post.contentType === 'IMAGE' && post.thumbnailUrl
+                        ? <img alt="" className="size-full object-cover" draggable={false} src={post.thumbnailUrl} />
+                        : <span className="grid size-full place-items-center bg-brand-purple/10 text-[#c4b5fd]"><Video className="size-5" /></span>}
+                      <span className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 bg-black/60 py-1 text-[8px] font-semibold text-white/90 opacity-90 backdrop-blur-sm transition group-hover:bg-black/75"><GripVertical className="size-3" />Drag</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold">
+                        {post.contentType === 'IMAGE' ? <ImageIcon className="size-3.5 shrink-0" /> : <Video className="size-3.5 shrink-0" />}
+                        <span className="min-w-0 flex-1 truncate">{post.fileName}</span>
+                        <span className="shrink-0 rounded-md border border-border-soft bg-black/10 px-1.5 py-0.5 text-[8px] font-bold tabular-nums text-text-soft">{String(mediaIndex + 1).padStart(2, '0')}</span>
+                        <button aria-label={`Move ${post.fileName || `media ${mediaIndex + 1}`} up in media order`} className="grid size-7 shrink-0 place-items-center rounded-md border border-border-soft text-text-muted transition duration-150 hover:-translate-y-0.5 hover:border-brand-cyan/40 hover:bg-brand-cyan/[.07] hover:text-brand-cyan active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-30" disabled={running || aiCaptionBusy || mediaIndex === 0} onClick={() => onMediaMove(post.id, -1)} type="button"><ArrowUp className="size-3.5" /></button>
+                        <button aria-label={`Move ${post.fileName || `media ${mediaIndex + 1}`} down in media order`} className="grid size-7 shrink-0 place-items-center rounded-md border border-border-soft text-text-muted transition duration-150 hover:translate-y-0.5 hover:border-brand-cyan/40 hover:bg-brand-cyan/[.07] hover:text-brand-cyan active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-30" disabled={running || aiCaptionBusy || mediaIndex === mediaPosts.length - 1} onClick={() => onMediaMove(post.id, 1)} type="button"><ArrowDown className="size-3.5" /></button>
+                      </div>
+                      <label className="mt-1 block text-[10px] text-text-muted">Caption for this {post.contentType.toLowerCase()}<textarea className="mt-1 min-h-16 w-full resize-y rounded-lg border border-border-soft bg-bg/65 p-2 text-xs text-text-main focus:border-brand-cyan focus:outline-none" disabled={running || aiCaptioningIds.has(post.id)} onChange={(event) => onPostEdit(post.id, event.target.value)} placeholder={aiCaptioningIds.has(post.id) ? 'AI is analysing this image and writing a caption…' : 'Write a caption for this post…'} value={post.caption} /></label>
+                    </div>
+                  </article>
+                })}
               </div>
             </section>
           </div>
