@@ -32,7 +32,11 @@ test('failed local review draft can be updated before replacement media is resub
   const api = read('frontend/src/lib/posts-api.ts');
 
   assert.match(service, /async function updateFailedReviewDraft/);
-  assert.match(service, /publication\.status !== 'FAILED' \|\| publication\.externalPostId/);
+  assert.match(service, /const recoverableLocalFailure = !publication\.externalPostId/);
+  assert.match(service, /publication\.status === 'AWAITING_MEDIA'/);
+  assert.match(service, /publication\.status === 'READY'/);
+  assert.match(service, /ageMs > STALE_AWAITING_MEDIA_MS/);
+  assert.match(service, /ageMs > STALE_READY_MS/);
   assert.match(service, /platformCaption: caption/);
   assert.match(service, /scheduledAt: scheduledAt \? new Date\(scheduledAt\) : null/);
   assert.match(controller, /updateReviewDraft/);
