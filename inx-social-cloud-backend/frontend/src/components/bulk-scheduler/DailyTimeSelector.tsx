@@ -199,7 +199,7 @@ export function DailyTimeSelector({ times, disabled, onAdd, onRemove, savedTimes
       </div>
 
       <div className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-[10px] leading-4 text-text-soft">Posts fill these times in order each day, then continue on the next day.</p>
+        <p className="text-[10px] leading-4 text-text-soft">Files fill these times in order each day, then continue on the next day.</p>
         <button
           className={`inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border px-3 text-[10px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-cyan disabled:cursor-not-allowed disabled:opacity-55 ${allSaved ? 'border-brand-green/20 bg-brand-green/[.06] text-brand-green' : 'border-brand-cyan/25 bg-brand-cyan/[.06] text-brand-cyan hover:bg-brand-cyan/10'}`}
           disabled={disabled || saving || allSaved || !times.length}
