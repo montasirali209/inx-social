@@ -36,8 +36,6 @@ type MockCreative = {
   tone: string
 }
 
-const platforms = ['Facebook', 'Instagram', 'X', 'LinkedIn'] as const
-const countOptions = [5, 10, 20, 50] as const
 
 const progressStages = [
   { label: 'Understanding product', detail: 'Reading the brief, website and supplied assets.' },
@@ -356,6 +354,3 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
   )
 }
 
-function SummaryRow({ icon: Icon, label, value }: { icon: typeof Package; label: string; value: string }) {
-  return <div className="flex items-start gap-3 rounded-xl border border-border-soft bg-slate-50 p-3"><span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white text-brand-cyan shadow-sm"><Icon className="size-3.5" /></span><div className="min-w-0"><span className="block text-[8px] font-bold uppercase tracking-[.12em] text-text-soft">{label}</span><strong className="mt-1 block truncate text-[10px] font-semibold capitalize">{value}</strong></div></div>
-}
