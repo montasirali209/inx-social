@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowUp, FileText, Image as ImageIcon, Images, Megaphone, Trash2, Video, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, FileText, Image as ImageIcon, Images, Loader2, Megaphone, Sparkles, Trash2, Video, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { parseTextPosts } from '../../lib/bulk-scheduler-utils'
@@ -32,18 +32,23 @@ type Props = {
   onTitleChange: (title: string) => void
   onTextAdd: (captions: string[]) => void
   onMediaAdd: (files: File[]) => void
+  onGenerateAICaptions: () => void
+  aiCaptionBusy: boolean
+  aiCaptioningIds: Set<string>
+  aiCaptionMessage: string
   onPostEdit: (id: string, caption: string) => void
   onPostRemove: (id: string) => void
   onPostMove: (id: string, direction: -1 | 1) => void
   onOrderModeChange: (mode: CampaignOrderMode) => void
 }
 
-export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange, onTextAdd, onMediaAdd, onPostEdit, onPostRemove, onPostMove, onOrderModeChange }: Props) {
+export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange, onTextAdd, onMediaAdd, onGenerateAICaptions, aiCaptionBusy, aiCaptioningIds, aiCaptionMessage, onPostEdit, onPostRemove, onPostMove, onOrderModeChange }: Props) {
   const [bulkText, setBulkText] = useState('')
   const mediaInput = useRef<HTMLInputElement>(null)
   const parsed = parseTextPosts(bulkText)
   const textPosts = campaign.posts.filter((post) => post.contentType === 'TEXT')
   const mediaPosts = campaign.posts.filter((post) => post.contentType !== 'TEXT')
+  const emptyImagePosts = mediaPosts.filter((post) => post.contentType === 'IMAGE' && !post.caption.trim())
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -78,12 +83,20 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
             <section className="flex min-h-0 flex-col rounded-2xl border border-brand-purple/20 bg-brand-purple/[.025] p-3 sm:p-4">
               <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="flex items-center gap-2 text-sm font-semibold"><Images className="size-4 text-[#c4b5fd]" />Image and video posts</h3><span className="text-xs text-text-muted">{mediaPosts.length} added</span></div>
               <p className="mt-1 text-[11px] leading-5 text-text-muted">Select multiple files at once. Each file gets its own caption field.</p>
-              <Button className="mt-3 self-start" disabled={running} onClick={() => mediaInput.current?.click()} size="sm" type="button"><Images className="size-3.5" />Add images or videos</Button>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Button disabled={running || aiCaptionBusy} onClick={() => mediaInput.current?.click()} size="sm" type="button"><Images className="size-3.5" />Add images or videos</Button>
+                <Button disabled={running || aiCaptionBusy || !emptyImagePosts.length} onClick={onGenerateAICaptions} size="sm" type="button" variant="primary">
+                  {aiCaptionBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                  {aiCaptionBusy ? 'Generating captions…' : `AI captions · ${emptyImagePosts.length} empty`}
+                </Button>
+              </div>
+              <p className="mt-2 text-[10px] leading-4 text-text-soft">AI fills image captions only when the caption box is empty. Your existing captions are never replaced. First 5 AI image captions in a manual campaign are free; larger or later batches cost 5 credits flat.</p>
+              {aiCaptionMessage && <p className={`mt-1.5 text-[10px] leading-4 ${/could not|not enough|unavailable|failed/i.test(aiCaptionMessage) ? 'text-brand-amber' : 'text-brand-cyan'}`}>{aiCaptionMessage}</p>}
               <input accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/x-m4v,video/webm,.avi,.mkv" className="sr-only" multiple onChange={(event) => { onMediaAdd(Array.from(event.target.files || [])); event.target.value = '' }} ref={mediaInput} type="file" />
               <div className="scrollbar-thin mt-3 space-y-2 overflow-y-auto lg:max-h-[51vh]">
                 {mediaPosts.map((post) => <article className="flex gap-3 rounded-xl border border-border-soft bg-bg/40 p-2.5" key={post.id}>
                   {post.contentType === 'IMAGE' && post.thumbnailUrl ? <img alt="" className="size-16 shrink-0 rounded-lg object-cover" src={post.thumbnailUrl} /> : <span className="grid size-16 shrink-0 place-items-center rounded-lg bg-brand-purple/10 text-[#c4b5fd]"><Video className="size-5" /></span>}
-                  <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5 text-[11px] font-semibold">{post.contentType === 'IMAGE' ? <ImageIcon className="size-3.5" /> : <Video className="size-3.5" />}<span className="truncate">{post.fileName}</span></div><label className="mt-1 block text-[10px] text-text-muted">Caption for this {post.contentType.toLowerCase()}<textarea className="mt-1 min-h-16 w-full resize-y rounded-lg border border-border-soft bg-bg/65 p-2 text-xs text-text-main focus:border-brand-cyan focus:outline-none" disabled={running} onChange={(event) => onPostEdit(post.id, event.target.value)} placeholder="Write a caption for this post…" value={post.caption} /></label></div>
+                  <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5 text-[11px] font-semibold">{post.contentType === 'IMAGE' ? <ImageIcon className="size-3.5" /> : <Video className="size-3.5" />}<span className="truncate">{post.fileName}</span></div><label className="mt-1 block text-[10px] text-text-muted">Caption for this {post.contentType.toLowerCase()}<textarea className="mt-1 min-h-16 w-full resize-y rounded-lg border border-border-soft bg-bg/65 p-2 text-xs text-text-main focus:border-brand-cyan focus:outline-none" disabled={running || aiCaptioningIds.has(post.id)} onChange={(event) => onPostEdit(post.id, event.target.value)} placeholder={aiCaptioningIds.has(post.id) ? 'AI is analysing this image and writing a caption…' : 'Write a caption for this post…'} value={post.caption} /></label></div>
                 </article>)}
               </div>
             </section>
