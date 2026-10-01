@@ -55,7 +55,7 @@ describe('ManualCampaignEditor', () => {
     expect(aiButton).toBeEnabled()
     fireEvent.click(aiButton)
     expect(props.onGenerateAICaptions).toHaveBeenCalledTimes(1)
-    expect(screen.getAllByText(/existing captions are never replaced/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/never replaces your existing text/i).length).toBeGreaterThan(0)
   })
 
   it('reorders media with arrow controls and exposes the preview as the drag handle', () => {
