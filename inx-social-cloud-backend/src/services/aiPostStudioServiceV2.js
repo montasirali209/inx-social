@@ -410,8 +410,9 @@ async function remoteReferenceAssets(urls) {
   return assets.slice(0, MAX_REFERENCES);
 }
 
-async function referenceAssets(userId, ids) {
-  const unique = [...new Set((Array.isArray(ids) ? ids : []).map(String).filter(Boolean))].slice(0, MAX_REFERENCES);
+async function referenceAssets(userId, ids, limit = MAX_REFERENCES) {
+  const boundedLimit = Math.max(1, Math.min(8, Number(limit || MAX_REFERENCES)));
+  const unique = [...new Set((Array.isArray(ids) ? ids : []).map(String).filter(Boolean))].slice(0, boundedLimit);
   if (!unique.length) return [];
   const rows = await prisma.agentAsset.findMany({
     where: { id: { in: unique }, userId, status: 'READY', archivedAt: null },
@@ -548,7 +549,7 @@ function sourceAnalysisPrompt() {
   ].join('\n');
 }
 
-async function performSourceAnalysis(messages, urlContexts, refs, fingerprint) {
+async function performSourceAnalysis(messages, urlContexts, refs, fingerprint, options = {}) {
   const sourceMeta = [
     ...urlContexts.map(item => ({ type: 'url', label: item.title || item.url, ok: !item.error })),
     ...refs.map(asset => ({ type: 'reference', label: asset.originalName || asset.id, ok: Boolean(asset.visionData) }))
@@ -569,7 +570,8 @@ async function performSourceAnalysis(messages, urlContexts, refs, fingerprint) {
   ).join('\n\n---\n\n');
 
   const content = [{ type: 'text', text: `User's current post goal/context:\n${recentGoal || 'Not yet specified'}\n\nSOURCE EVIDENCE:\n${evidence || 'No readable web-page text was supplied.'}` }];
-  refs.filter(asset => asset.visionData).slice(0, 3).forEach(asset => {
+  const visionLimit = Math.max(1, Math.min(8, Number(options.maxVisionReferences || 3)));
+  refs.filter(asset => asset.visionData).slice(0, visionLimit).forEach(asset => {
     content.push({ type: 'image_url', image_url: { url: `data:image/jpeg;base64,${asset.visionData.toString('base64')}`, detail: 'high' } });
     content.push({ type: 'text', text: `The preceding reference image is “${cleanText(asset.originalName || asset.id, 220)}”. Analyse visible brand/product details without guessing.` });
   });
