@@ -625,6 +625,46 @@ async function retryFailedProviderResult(bundle, input = {}) {
   return publicationToJob(fresh);
 }
 
+async function updateFailedReviewDraft(userId, rawPublicationId, input = {}) {
+  const bundle = await bundleForPublication(userId, rawPublicationId);
+  const publication = bundle.publication;
+  if (publication.status !== 'FAILED' || publication.externalPostId) {
+    throw Object.assign(new Error('Only failed local publishing attempts can be edited before recovery.'), {
+      status: 409,
+      publicMessage: 'This failed item cannot be edited in recovery mode.'
+    });
+  }
+
+  const caption = input.caption === undefined
+    ? String(publication.platformCaption || publication.content.caption || '')
+    : cleanText(input.caption, 5000);
+  const scheduledAt = input.scheduledAt === undefined
+    ? publication.scheduledAt?.toISOString() || null
+    : input.scheduledAt
+      ? validateScheduledAt(input.scheduledAt)
+      : null;
+
+  await prisma.$transaction([
+    prisma.socialPublication.updateMany({
+      where: { id: { in: bundle.publications.map((item) => item.id) } },
+      data: {
+        platformCaption: caption,
+        scheduledAt: scheduledAt ? new Date(scheduledAt) : null
+      }
+    }),
+    prisma.socialContent.update({
+      where: { id: bundle.content.id },
+      data: { caption }
+    })
+  ]);
+
+  const fresh = await prisma.socialPublication.findUnique({
+    where: { id: publication.id },
+    include: { content: true, profile: true }
+  });
+  return publicationToJob(fresh);
+}
+
 async function retryPublication(userId, rawPublicationId, input = {}) {
   const bundle = await bundleForPublication(userId, rawPublicationId);
 
@@ -878,5 +918,6 @@ module.exports = {
   uploadStream,
   attachMediaStream,
   validateScheduledAt,
-  retryPublication
+  retryPublication,
+  updateFailedReviewDraft
 };

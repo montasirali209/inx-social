@@ -184,6 +184,16 @@ export function cancelScheduledPost(jobId: string) {
 }
 
 
+export function updateFailedReviewDraft(jobId: string, input: { caption?: string; scheduledAt?: string | null }) {
+  return apiRequest<{ job: DashboardJob }>(
+    `/api/social-connections/publications/${encodeURIComponent(jobId)}/review-draft`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+  )
+}
+
 export function retryFailedScheduledPost(jobId: string, input: { caption?: string; scheduledAt?: string } = {}) {
   return apiRequest<{ job: import('../types/dashboard').DashboardJob; retried: true }>(
     `/api/social-connections/publications/${encodeURIComponent(jobId)}/retry`,

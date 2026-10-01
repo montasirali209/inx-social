@@ -210,10 +210,15 @@ export function ContentCalendarPage() {
     if (target) {
       setMonthKey(target.date.slice(0, 7))
       chooseDate(target.date)
+      window.setTimeout(() => fixReviewPost(target), 0)
     }
   }
   const openPost = (post: CalendarPost) => {
     chooseDate(post.date)
+    if (post.status === 'needs_review') {
+      fixReviewPost(post)
+      return
+    }
     if (post.platformUrl) window.open(post.platformUrl, '_blank', 'noopener,noreferrer')
   }
   const openReschedule = (post: CalendarPost) => {
