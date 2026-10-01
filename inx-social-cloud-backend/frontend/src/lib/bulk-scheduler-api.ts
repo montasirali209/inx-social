@@ -54,6 +54,36 @@ export async function saveBulkScheduleTimes(times: string[]) {
   return normaliseSettings(response.settings).defaultScheduleTimes
 }
 
+export type BulkAICaptionBatchResponse = {
+  batchId: string
+  campaignId: string
+  requested: number
+  creditsCharged: number
+  freeUsed: number
+  freeRemaining: number
+}
+
+export function startBulkAICaptionBatch(input: { batchId: string; campaignId: string; campaignTitle: string; postIds: string[] }) {
+  return apiRequest<BulkAICaptionBatchResponse>('/api/social-connections/publications/ai-captions/batches', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export function generateBulkAICaption(input: { batchId: string; postId: string; file: File }) {
+  return apiRequest<{ postId: string; caption: string; cached: boolean }>(
+    `/api/social-connections/publications/ai-captions/batches/${encodeURIComponent(input.batchId)}/${encodeURIComponent(input.postId)}`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': input.file.type || 'application/octet-stream',
+        'X-File-Name': input.file.name,
+      },
+      body: input.file,
+    },
+  )
+}
+
 export type SmartTimingResponse = { times: string[]; source: 'ai' | 'fallback'; reason: string; historyPosts: number; maxShiftMinutes: number }
 
 export function optimiseBulkScheduleTimes(input: { profileIds: string[]; baselineTimes: string[]; timezone: string }) {
