@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ApiError } from '../../lib/api-client'
-import { createBulkMediaPost, fetchBulkSchedulerData, optimiseBulkScheduleTimes, publishBulkLibraryMedia, saveBulkScheduleTimes, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
+import { createBulkMediaPost, fetchBulkSchedulerData, generateBulkAICaption, optimiseBulkScheduleTimes, publishBulkLibraryMedia, saveBulkScheduleTimes, startBulkAICaptionBatch, uploadBulkMedia } from '../../lib/bulk-scheduler-api'
 import { bulkCancelScheduledPosts, bulkEditScheduledPosts, retryFailedScheduledPost } from '../../lib/posts-api'
 import { getAIPostCampaign, getAIPostCampaigns } from '../../lib/ai-content-studio-api'
 import { fetchMediaAssetFile, fetchMediaLibrary, uploadMediaAsset } from '../../lib/media-library-api'
@@ -100,6 +100,9 @@ export function BulkSchedulerPage() {
   const [historyView, setHistoryView] = useState<BulkHistoryView | null>(null)
   const [mixedCampaign, setMixedCampaign] = useState<ImportedMixedCampaign | null>(null)
   const [campaignOrderMode, setCampaignOrderMode] = useState<CampaignOrderMode>('custom')
+  const [manualCaptionBusy, setManualCaptionBusy] = useState(false)
+  const [manualCaptioningIds, setManualCaptioningIds] = useState<Set<string>>(new Set())
+  const [manualCaptionMessage, setManualCaptionMessage] = useState('')
   const abortRef = useRef<AbortController | null>(null)
   const importedLibrarySelection = useRef('')
   const importedCampaignSelection = useRef('')
@@ -569,6 +572,81 @@ export function BulkSchedulerPage() {
     setResults([])
     const rejected = files.length - accepted.length
     if (rejected) setProgress({ ...idleProgress, state: 'failed', message: `${rejected} unsupported, empty or oversized file${rejected === 1 ? ' was' : 's were'} not added. Images: PNG, JPEG or WebP up to 15 MB. Videos: supported formats up to 10 GB.` })
+  }
+
+  const generateManualCampaignCaptions = async () => {
+    if (running || manualCaptionBusy || mixedCampaign?.source !== 'manual') return
+    const targets = mixedCampaign.posts.filter((post) =>
+      post.contentType === 'IMAGE'
+      && !post.caption.trim()
+      && post.media?.kind === 'image'
+      && post.media.file
+    )
+    if (!targets.length) {
+      setManualCaptionMessage('Every uploaded image already has a caption.')
+      return
+    }
+
+    const batchId = crypto.randomUUID()
+    setManualCaptionBusy(true)
+    setManualCaptioningIds(new Set(targets.map((post) => post.id)))
+    setManualCaptionMessage(`Preparing AI captions for ${targets.length} empty image${targets.length === 1 ? '' : 's'}…`)
+
+    let generated = 0
+    let failed = 0
+
+    try {
+      const batch = await startBulkAICaptionBatch({
+        batchId,
+        campaignId: mixedCampaign.id,
+        campaignTitle: mixedCampaign.title,
+        postIds: targets.map((post) => post.id),
+      })
+      setManualCaptionMessage(batch.creditsCharged
+        ? `${batch.creditsCharged} credits · generating ${targets.length} empty image captions…`
+        : `Free · generating ${targets.length} empty image caption${targets.length === 1 ? '' : 's'}…`)
+
+      let cursor = 0
+      const worker = async () => {
+        while (cursor < targets.length) {
+          const index = cursor
+          cursor += 1
+          const post = targets[index]
+          try {
+            const result = await generateBulkAICaption({ batchId, postId: post.id, file: post.media!.file })
+            setMixedCampaign((current) => current?.source === 'manual' ? {
+              ...current,
+              posts: current.posts.map((item) =>
+                item.id === post.id && !item.caption.trim()
+                  ? { ...item, caption: result.caption }
+                  : item
+              ),
+            } : current)
+            generated += 1
+          } catch (error) {
+            failed += 1
+            console.warn('AI caption generation failed for one manual campaign image.', error)
+          } finally {
+            setManualCaptioningIds((current) => {
+              const next = new Set(current)
+              next.delete(post.id)
+              return next
+            })
+          }
+        }
+      }
+
+      await Promise.all(Array.from({ length: Math.min(3, targets.length) }, () => worker()))
+      setResults([])
+      setManualCaptionMessage(failed
+        ? `AI captions finished: ${generated} generated, ${failed} could not be generated. Existing captions were not changed.`
+        : `AI captions added to ${generated} image${generated === 1 ? '' : 's'}. Existing captions were not changed.`)
+    } catch (error) {
+      setManualCaptionMessage(error instanceof Error ? error.message : 'AI captions could not be generated.')
+    } finally {
+      setManualCaptionBusy(false)
+      setManualCaptioningIds(new Set())
+    }
   }
 
   const editManualCampaignPost = (id: string, caption: string) => {
@@ -1470,6 +1548,10 @@ export function BulkSchedulerPage() {
           onManualTextAdd={addManualTextPosts}
           onManualOrderModeChange={(mode) => { setCampaignOrderMode(mode); setResults([]) }}
           onManualMediaAdd={addManualMedia}
+          onManualGenerateAICaptions={() => { void generateManualCampaignCaptions() }}
+          manualCaptionBusy={manualCaptionBusy}
+          manualCaptioningIds={manualCaptioningIds}
+          manualCaptionMessage={manualCaptionMessage}
           onManualPostEdit={editManualCampaignPost}
           onManualPostRemove={removeManualCampaignPost}
           onManualPostMove={moveManualCampaignPost}

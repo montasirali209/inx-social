@@ -152,6 +152,12 @@ module.exports = {
     model: process.env.POST_ENHANCEMENT_MODEL || 'gpt-4o-mini',
     timeoutMs: Math.max(10000, Math.min(120000, Number(process.env.POST_ENHANCEMENT_TIMEOUT_MS || 60000)))
   },
+  bulkCaption: {
+    baseUrl: String(process.env.OPENAI_BULK_CAPTION_BASE_URL || process.env.POST_ENHANCEMENT_BASE_URL || process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, ''),
+    apiKey: process.env.OPENAI_BULK_CAPTION_API_KEY || process.env.POST_ENHANCEMENT_API_KEY || process.env.OPENAI_API_KEY || process.env.AI_PAID_FALLBACK_API_KEY || '',
+    model: process.env.OPENAI_BULK_CAPTION_MODEL || process.env.POST_ENHANCEMENT_MODEL || 'gpt-4o-mini',
+    timeoutMs: Math.max(10000, Math.min(120000, Number(process.env.OPENAI_BULK_CAPTION_TIMEOUT_MS || 90000)))
+  },
   webResearch: {
     enabled: String(process.env.WEB_RESEARCH_ENABLED || 'false') === 'true',
     provider: String(process.env.WEB_RESEARCH_PROVIDER || 'openai').trim().toLowerCase(),
