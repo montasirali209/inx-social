@@ -53,6 +53,6 @@ describe('ManualCampaignEditor', () => {
     expect(aiButton).toBeEnabled()
     fireEvent.click(aiButton)
     expect(props.onGenerateAICaptions).toHaveBeenCalledTimes(1)
-    expect(screen.getByText(/existing captions are never replaced/i)).toBeInTheDocument()
+    expect(screen.getAllByText(/existing captions are never replaced/i).length).toBeGreaterThan(0)
   })
 })
