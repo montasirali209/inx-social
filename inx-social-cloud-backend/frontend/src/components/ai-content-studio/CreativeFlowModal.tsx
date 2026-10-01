@@ -1,23 +1,35 @@
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   BadgeCheck,
   Check,
   ChevronRight,
   CircleDot,
+  Globe2,
   Image as ImageIcon,
   Layers3,
   Loader2,
   Package,
+  Palette,
   RefreshCw,
   Send,
+  ShieldCheck,
   Sparkles,
   Target,
   WandSparkles,
   X,
 } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { uploadPostStudioReference } from '../../lib/ai-post-studio-api'
+import {
+  analyzeCreativeFlow,
+  planCreativeFlow,
+  type CreativeFlowAnalysis,
+  type CreativeFlowConcept,
+  type CreativeFlowStrategy,
+} from '../../lib/creative-flow-api'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
 import { CreativeFlowCanvas, type CreativeFlowAsset } from './CreativeFlowCanvas'
@@ -26,48 +38,11 @@ type CreativeFlowView = 'setup' | 'progress' | 'results'
 type CampaignGoal = 'auto' | 'sales' | 'traffic' | 'awareness' | 'launch'
 type CreativeStyle = 'auto' | 'performance' | 'minimal' | 'lifestyle' | 'editorial'
 
-type MockCreative = {
-  id: string
-  angle: string
-  hook: string
-  style: string
-  caption: string
-  approved: boolean
-  tone: string
-}
-
-
-const progressStages = [
-  { label: 'Understanding product', detail: 'Reading the brief, website and supplied assets.' },
-  { label: 'Building campaign strategy', detail: 'Choosing distinct angles for the selected platforms.' },
-  { label: 'Planning creative concepts', detail: 'Creating a varied creative matrix before rendering.' },
-  { label: 'Generating creatives', detail: 'Producing campaign visuals from separate concepts.' },
-  { label: 'Writing captions', detail: 'Preparing platform-aware captions and hashtags.' },
-  { label: 'Preparing campaign', detail: 'Organising everything for review.' },
-]
-
-const creativeAngles = [
-  ['Problem → solution', 'Stop losing hours to repetitive social publishing.', 'Bold performance ad'],
-  ['Product benefit', 'One place to create, organise and publish.', 'Minimal product hero'],
-  ['Feature spotlight', 'Create. Schedule. Analyse. Without the tab chaos.', 'Product interface'],
-  ['Educational', 'Three ways to simplify your weekly content workflow.', 'Editorial infographic'],
-  ['Transformation', 'From scattered content to one organised campaign.', 'Before / after'],
-  ['Speed', 'Turn one campaign idea into a complete content plan.', 'High-contrast ad'],
-  ['Trust', 'Built for teams that need consistency without complexity.', 'Clean editorial'],
-  ['Workflow', 'Plan once. Publish everywhere.', 'Process visual'],
-  ['Audience pain', 'Still posting one channel at a time?', 'Problem-led ad'],
-  ['Value', 'More campaign output from one clear brief.', 'Product-led visual'],
-  ['Launch', 'Your next campaign, already organised.', 'Launch announcement'],
-  ['Social proof structure', 'A campaign system designed around repeatable workflows.', 'Proof-led layout'],
-]
-
-const toneBackgrounds = [
-  'from-[#ecfdf5] via-white to-[#dff9f4]',
-  'from-[#f5f3ff] via-white to-[#ede9fe]',
-  'from-[#eff6ff] via-white to-[#e0f2fe]',
-  'from-[#fff7ed] via-white to-[#fef3c7]',
-  'from-[#fdf2f8] via-white to-[#fae8ff]',
-  'from-[#f0fdfa] via-white to-[#ccfbf1]',
+const stage2Progress = [
+  { label: 'Preparing product sources', detail: 'Securely preparing the website and supplied product references.' },
+  { label: 'Understanding product & brand', detail: 'Reading verified website evidence and visible product/brand details.' },
+  { label: 'Building campaign strategy', detail: 'Creating the audience, pillars, guardrails and creative direction.' },
+  { label: 'Planning creative matrix', detail: 'Producing distinct angles, hooks and visual concepts before any image is rendered.' },
 ]
 
 export function CreativeFlowLaunchCard({ onOpen }: { onOpen: () => void }) {
@@ -79,41 +54,35 @@ export function CreativeFlowLaunchCard({ onOpen }: { onOpen: () => void }) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-[9px] font-bold uppercase tracking-[.17em] text-brand-cyan">Creative Flow</span>
-            <span className="rounded-full border border-brand-purple/20 bg-brand-purple/[.07] px-2 py-0.5 text-[8px] font-bold uppercase tracking-[.12em] text-brand-purple">New</span>
+            <span className="rounded-full border border-brand-purple/20 bg-brand-purple/[.07] px-2 py-0.5 text-[8px] font-bold uppercase tracking-[.12em] text-brand-purple">Stage 2</span>
           </div>
           <h2 className="mt-2 text-lg font-semibold tracking-tight sm:text-xl">Turn one product into a complete marketing campaign.</h2>
-          <p className="mt-2 max-w-3xl text-[11px] leading-5 text-text-muted">Add your product, tell INXSocial what you want, choose platforms and output count, then review a complete set of distinct campaign creatives.</p>
+          <p className="mt-2 max-w-3xl text-[11px] leading-5 text-text-muted">Connect product context, campaign intent and platforms. Creative Flow now analyses the real source material and builds the creative strategy before generation.</p>
           <div className="mt-4 flex flex-wrap gap-2 text-[9px] text-text-soft">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-white px-2.5 py-1"><Package className="size-3 text-brand-cyan" />Product source</span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-white px-2.5 py-1"><Target className="size-3 text-brand-purple" />Creative strategy</span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-white px-2.5 py-1"><Layers3 className="size-3 text-brand-green" />5–50 creatives</span>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-white px-2.5 py-1"><Send className="size-3 text-brand-cyan" />Campaign-ready</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-white px-2.5 py-1"><Package className="size-3 text-brand-cyan" />Verified product context</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-white px-2.5 py-1"><Target className="size-3 text-brand-purple" />Real AI strategy</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-white px-2.5 py-1"><Layers3 className="size-3 text-brand-green" />5–50 concepts</span>
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-white px-2.5 py-1"><ShieldCheck className="size-3 text-brand-cyan" />Claim guardrails</span>
           </div>
           <Button className="mt-5" onClick={onOpen} size="sm" variant="primary"><Sparkles className="size-3.5" />Open Creative Flow <ArrowRight className="size-3.5 transition-transform duration-200 group-hover:translate-x-0.5" /></Button>
         </div>
       </div>
 
       <div aria-hidden="true" className="relative hidden min-h-[170px] lg:block">
-        <div className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-gradient-to-b from-transparent via-brand-cyan/25 to-transparent" />
-        <div className="absolute left-[7%] top-[42px] w-[106px] rounded-2xl border border-border-soft bg-white p-3 shadow-[0_14px_38px_rgba(15,23,42,.08)] transition duration-300 group-hover:-translate-x-1">
+        <div className="absolute left-[5%] top-[48px] w-[104px] rounded-2xl border border-border-soft bg-white p-3 shadow-[0_14px_38px_rgba(15,23,42,.08)] transition duration-300 group-hover:-translate-x-1">
           <span className="grid size-8 place-items-center rounded-xl bg-brand-cyan/[.09] text-brand-cyan"><Package className="size-4" /></span>
-          <strong className="mt-2 block text-[9px]">Product</strong>
-          <span className="mt-1 block h-1.5 w-12 rounded-full bg-slate-100" />
+          <strong className="mt-2 block text-[9px]">Product</strong><span className="mt-1 block h-1.5 w-12 rounded-full bg-slate-100" />
         </div>
-        <div className="absolute left-[37%] top-[22px] w-[112px] rounded-2xl border border-border-soft bg-white p-3 shadow-[0_14px_38px_rgba(15,23,42,.08)] transition duration-300 group-hover:-translate-y-1">
+        <div className="absolute left-[36%] top-[24px] w-[112px] rounded-2xl border border-border-soft bg-white p-3 shadow-[0_14px_38px_rgba(15,23,42,.08)] transition duration-300 group-hover:-translate-y-1">
           <span className="grid size-8 place-items-center rounded-xl bg-brand-purple/[.09] text-brand-purple"><Target className="size-4" /></span>
-          <strong className="mt-2 block text-[9px]">Strategy</strong>
-          <div className="mt-2 flex gap-1"><i className="h-1.5 w-7 rounded-full bg-brand-purple/20" /><i className="h-1.5 w-5 rounded-full bg-brand-cyan/20" /></div>
+          <strong className="mt-2 block text-[9px]">Strategy</strong><div className="mt-2 flex gap-1"><i className="h-1.5 w-7 rounded-full bg-brand-purple/20" /><i className="h-1.5 w-5 rounded-full bg-brand-cyan/20" /></div>
         </div>
-        <div className="absolute right-[6%] top-[50px] w-[118px] rounded-2xl border border-brand-cyan/20 bg-white p-3 shadow-[0_18px_44px_rgba(20,184,166,.10)] transition duration-300 group-hover:translate-x-1">
+        <div className="absolute right-[5%] top-[48px] w-[118px] rounded-2xl border border-brand-cyan/20 bg-white p-3 shadow-[0_18px_44px_rgba(20,184,166,.10)] transition duration-300 group-hover:translate-x-1">
           <span className="grid size-8 place-items-center rounded-xl bg-brand-green/[.09] text-brand-green"><ImageIcon className="size-4" /></span>
-          <strong className="mt-2 block text-[9px]">Creatives</strong>
-          <div className="mt-2 grid grid-cols-3 gap-1"><i className="h-7 rounded-md bg-brand-cyan/10" /><i className="h-7 rounded-md bg-brand-purple/10" /><i className="h-7 rounded-md bg-brand-green/10" /></div>
+          <strong className="mt-2 block text-[9px]">Creative matrix</strong><div className="mt-2 grid grid-cols-3 gap-1"><i className="h-7 rounded-md bg-brand-cyan/10" /><i className="h-7 rounded-md bg-brand-purple/10" /><i className="h-7 rounded-md bg-brand-green/10" /></div>
         </div>
-        <span className="absolute left-[28%] top-[78px] h-px w-[42px] bg-brand-cyan/25" />
-        <ChevronRight className="absolute left-[33%] top-[72px] size-3 text-brand-cyan/45" />
-        <span className="absolute right-[29%] top-[78px] h-px w-[42px] bg-brand-cyan/25" />
-        <ChevronRight className="absolute right-[27%] top-[72px] size-3 text-brand-cyan/45" />
+        <span className="absolute left-[27%] top-[82px] h-px w-[42px] bg-brand-cyan/25" /><ChevronRight className="absolute left-[32%] top-[76px] size-3 text-brand-cyan/45" />
+        <span className="absolute right-[30%] top-[82px] h-px w-[42px] bg-brand-cyan/25" /><ChevronRight className="absolute right-[28%] top-[76px] size-3 text-brand-cyan/45" />
       </div>
     </div>
   </Card>
@@ -133,28 +102,17 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
   const [audience, setAudience] = useState('')
   const [assets, setAssets] = useState<CreativeFlowAsset[]>([])
   const [progressIndex, setProgressIndex] = useState(0)
-  const [generatedCount, setGeneratedCount] = useState(0)
-  const [approved, setApproved] = useState<Set<string>>(new Set())
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [analysis, setAnalysis] = useState<CreativeFlowAnalysis | null>(null)
+  const [strategy, setStrategy] = useState<CreativeFlowStrategy | null>(null)
+  const [selectedConcepts, setSelectedConcepts] = useState<Set<number>>(new Set())
+  const [runError, setRunError] = useState('')
+  const [running, setRunning] = useState(false)
   const dialogRef = useRef<HTMLElement>(null)
   const previousFocus = useRef<HTMLElement | null>(null)
 
-  const resolvedCount = Math.max(1, Math.min(100, Number(customCount || creativeCount) || 20))
-  const mockCreatives = useMemo<MockCreative[]>(() => {
-    const total = Math.min(resolvedCount, 12)
-    const product = productName.trim() || 'your product'
-    return Array.from({ length: total }, (_, index) => {
-      const source = creativeAngles[index % creativeAngles.length]
-      return {
-        id: `creative-${index + 1}`,
-        angle: source[0],
-        hook: source[1].replace('your', product === 'your product' ? 'your' : product),
-        style: source[2],
-        caption: `A campaign-ready caption for ${product}, structured for ${selectedPlatforms.join(' + ') || 'social media'} with a clear hook, concise value and relevant hashtags.`,
-        approved: false,
-        tone: toneBackgrounds[index % toneBackgrounds.length],
-      }
-    })
-  }, [productName, resolvedCount, selectedPlatforms])
+  const resolvedCount = Math.max(1, Math.min(50, Number(customCount || creativeCount) || 20))
+  const canGenerate = Boolean(prompt.trim() || productName.trim() || website.trim() || assets.length)
 
   useEffect(() => {
     if (!open) return
@@ -162,12 +120,8 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
     const previous = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === 'Escape' && !running) {
         event.preventDefault()
-        setAssets((current) => {
-          current.forEach((asset) => URL.revokeObjectURL(asset.url))
-          return []
-        })
         onClose()
       }
     }
@@ -179,24 +133,7 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
       document.body.style.overflow = previous
       previousFocus.current?.focus()
     }
-  }, [open, onClose])
-
-  useEffect(() => {
-    if (!open || view !== 'progress') return
-
-    const timers: number[] = []
-    progressStages.forEach((_, index) => {
-      timers.push(window.setTimeout(() => {
-        setProgressIndex(index)
-        if (index === 3) setGeneratedCount(Math.max(1, Math.round(resolvedCount * .25)))
-        if (index === 4) setGeneratedCount(Math.max(2, Math.round(resolvedCount * .72)))
-        if (index === 5) setGeneratedCount(resolvedCount)
-      }, index * 850))
-    })
-    timers.push(window.setTimeout(() => setView('results'), progressStages.length * 850 + 550))
-
-    return () => timers.forEach((timer) => window.clearTimeout(timer))
-  }, [open, resolvedCount, view])
+  }, [open, onClose, running])
 
   if (!open) return null
 
@@ -205,12 +142,17 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
   }
 
   const addAssets = (files: File[]) => {
-    const next = files.filter((file) => file.type.startsWith('image/')).slice(0, Math.max(0, 8 - assets.length)).map((file) => ({
-      id: `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2)}`,
-      name: file.name,
-      url: URL.createObjectURL(file),
-    }))
+    const next = files
+      .filter((file) => file.type.startsWith('image/'))
+      .slice(0, Math.max(0, 8 - assets.length))
+      .map((file) => ({
+        id: `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2)}`,
+        name: file.name,
+        url: URL.createObjectURL(file),
+        file,
+      }))
     setAssets((current) => [...current, ...next].slice(0, 8))
+    setRunError('')
   }
 
   const removeAsset = (id: string) => {
@@ -222,46 +164,134 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
   }
 
   const closeFlow = () => {
-    setAssets((current) => {
-      current.forEach((asset) => URL.revokeObjectURL(asset.url))
-      return []
-    })
+    if (running) return
+    assets.forEach((asset) => URL.revokeObjectURL(asset.url))
+    setAssets([])
     onClose()
   }
 
-  const beginPreview = () => {
-    setProgressIndex(0)
-    setGeneratedCount(0)
-    setApproved(new Set())
-    setView('progress')
-  }
-
   const resetFlow = () => {
+    if (running) return
     setView('setup')
     setProgressIndex(0)
-    setGeneratedCount(0)
-    setApproved(new Set())
+    setUploadProgress(0)
+    setAnalysis(null)
+    setStrategy(null)
+    setSelectedConcepts(new Set())
+    setRunError('')
   }
 
-  const canGenerate = Boolean(prompt.trim() || productName.trim() || website.trim() || assets.length)
+  const campaignPrompt = () => prompt.trim() || `Create a varied, credible social marketing campaign for ${productName.trim() || website.trim() || 'this product'}.`
+
+  const beginStage2 = async () => {
+    if (!canGenerate || running) return
+    setView('progress')
+    setRunning(true)
+    setProgressIndex(0)
+    setUploadProgress(0)
+    setRunError('')
+    setAnalysis(null)
+    setStrategy(null)
+    setSelectedConcepts(new Set())
+
+    try {
+      const referenceIds: string[] = []
+      for (let index = 0; index < assets.length; index += 1) {
+        const asset = assets[index]
+        if (asset.file.size > 20 * 1024 * 1024) throw new Error(`${asset.name} is larger than the 20 MB reference limit.`)
+        if (asset.referenceId) {
+          referenceIds.push(asset.referenceId)
+          continue
+        }
+        const stored = await uploadPostStudioReference(asset.file, (percent) => {
+          const overall = Math.round(((index + percent / 100) / Math.max(1, assets.length)) * 100)
+          setUploadProgress(overall)
+        })
+        referenceIds.push(stored.id)
+        setAssets((current) => current.map((item) => item.id === asset.id ? { ...item, referenceId: stored.id } : item))
+      }
+
+      setUploadProgress(100)
+      setProgressIndex(1)
+      const analysed = await analyzeCreativeFlow({
+        website: website.trim(),
+        productName: productName.trim(),
+        prompt: campaignPrompt(),
+        audience: audience.trim(),
+        referenceAssetIds: referenceIds,
+      })
+      setAnalysis(analysed)
+      if (!productName.trim() && analysed.sourceAnalysis.productName) setProductName(analysed.sourceAnalysis.productName)
+
+      setProgressIndex(2)
+      const plannedPromise = planCreativeFlow({
+        productName: productName.trim() || analysed.sourceAnalysis.productName,
+        prompt: campaignPrompt(),
+        platforms: selectedPlatforms,
+        creativeCount: resolvedCount,
+        goal,
+        style,
+        audience,
+        sourceAnalysis: analysed.sourceAnalysis,
+      })
+
+      const conceptTimer = window.setTimeout(() => setProgressIndex(3), 650)
+      const planned = await plannedPromise
+      window.clearTimeout(conceptTimer)
+      setProgressIndex(3)
+      setStrategy(planned)
+      setSelectedConcepts(new Set(planned.concepts.map((concept) => concept.sequence)))
+      setView('results')
+    } catch (caught) {
+      setRunError(caught instanceof Error ? caught.message : 'Creative Flow could not build the strategy.')
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  const rerunStrategy = async () => {
+    if (!analysis || running) return
+    setView('progress')
+    setRunning(true)
+    setProgressIndex(2)
+    setRunError('')
+    try {
+      const conceptTimer = window.setTimeout(() => setProgressIndex(3), 650)
+      const planned = await planCreativeFlow({
+        productName: productName.trim() || analysis.sourceAnalysis.productName,
+        prompt: campaignPrompt(),
+        platforms: selectedPlatforms,
+        creativeCount: resolvedCount,
+        goal,
+        style,
+        audience,
+        sourceAnalysis: analysis.sourceAnalysis,
+      })
+      window.clearTimeout(conceptTimer)
+      setStrategy(planned)
+      setSelectedConcepts(new Set(planned.concepts.map((concept) => concept.sequence)))
+      setView('results')
+    } catch (caught) {
+      setRunError(caught instanceof Error ? caught.message : 'Creative Flow could not rebuild the strategy.')
+    } finally {
+      setRunning(false)
+    }
+  }
 
   return createPortal(
     <div className="fixed inset-0 z-[360] bg-slate-950/55 p-2 backdrop-blur-md sm:p-4" onMouseDown={(event) => { if (event.currentTarget === event.target) closeFlow() }}>
-      <section aria-labelledby="creative-flow-title" aria-modal="true" className="mx-auto flex h-[calc(100dvh-1rem)] w-full max-w-[1240px] flex-col overflow-hidden rounded-[24px] border border-brand-cyan/25 bg-[#f8fafc] shadow-[0_38px_130px_rgba(15,23,42,.32)] sm:h-[calc(100dvh-2rem)]" ref={dialogRef} role="dialog">
+      <section aria-labelledby="creative-flow-title" aria-modal="true" className="mx-auto flex h-[calc(100dvh-1rem)] w-full max-w-[1280px] flex-col overflow-hidden rounded-[24px] border border-brand-cyan/25 bg-[#f8fafc] shadow-[0_38px_130px_rgba(15,23,42,.32)] sm:h-[calc(100dvh-2rem)]" ref={dialogRef} role="dialog">
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border-soft bg-white px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex min-w-0 items-center gap-3">
             <span className="grid size-10 shrink-0 place-items-center rounded-2xl border border-brand-cyan/25 bg-brand-cyan/[.08] text-brand-cyan"><WandSparkles className="size-4.5" /></span>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="truncate text-base font-semibold sm:text-lg" id="creative-flow-title">Creative Flow</h2>
-                <span className="hidden rounded-full border border-brand-purple/20 bg-brand-purple/[.06] px-2 py-0.5 text-[8px] font-bold uppercase tracking-[.12em] text-brand-purple sm:inline">Stage 1 preview</span>
-              </div>
-              <p className="mt-0.5 hidden text-[10px] text-text-muted sm:block">Build visually with connected nodes. Click a node to edit; advanced controls stay optional.</p>
+              <div className="flex items-center gap-2"><h2 className="truncate text-base font-semibold sm:text-lg" id="creative-flow-title">Creative Flow</h2><span className="hidden rounded-full border border-brand-purple/20 bg-brand-purple/[.06] px-2 py-0.5 text-[8px] font-bold uppercase tracking-[.12em] text-brand-purple sm:inline">Stage 2 preview</span></div>
+              <p className="mt-0.5 hidden text-[10px] text-text-muted sm:block">Real product understanding and creative strategy. Rendering stays disabled until Stage 3.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {view !== 'setup' && <Button onClick={resetFlow} size="sm" variant="ghost"><ArrowLeft className="size-3.5" />Start over</Button>}
-            <button aria-label="Close Creative Flow" className="grid size-9 place-items-center rounded-xl border border-border-soft bg-white text-text-muted transition hover:text-text-main" onClick={closeFlow} type="button"><X className="size-4" /></button>
+            {view !== 'setup' && <Button disabled={running} onClick={resetFlow} size="sm" variant="ghost"><ArrowLeft className="size-3.5" />Back to flow</Button>}
+            <button aria-label="Close Creative Flow" className="grid size-9 place-items-center rounded-xl border border-border-soft bg-white text-text-muted transition hover:text-text-main disabled:opacity-40" disabled={running} onClick={closeFlow} type="button"><X className="size-4" /></button>
           </div>
         </header>
 
@@ -288,65 +318,54 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
             onProductNameChange={setProductName}
             onPromptChange={setPrompt}
             onRemoveAsset={removeAsset}
-            onRun={beginPreview}
+            onRun={() => void beginStage2()}
             onStyleChange={(value) => setStyle(value as CreativeStyle)}
             onTogglePlatform={togglePlatform}
             onWebsiteChange={setWebsite}
           />}
-          {view === 'progress' && <div className="mx-auto flex min-h-full w-full max-w-[980px] items-center p-4 sm:p-8">
+
+          {view === 'progress' && <div className="mx-auto flex min-h-full w-full max-w-[940px] items-center p-4 sm:p-8">
             <div className="w-full rounded-[26px] border border-border-soft bg-white p-5 shadow-[0_26px_80px_rgba(15,23,42,.08)] sm:p-8">
               <div className="mx-auto max-w-2xl text-center">
-                <span className="mx-auto grid size-14 place-items-center rounded-[20px] border border-brand-cyan/25 bg-brand-cyan/[.08] text-brand-cyan"><Loader2 className="size-6 animate-spin motion-reduce:animate-none" /></span>
-                <span className="mt-5 block text-[9px] font-bold uppercase tracking-[.16em] text-brand-cyan">Creative Flow is working</span>
-                <h3 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Building your campaign</h3>
-                <p className="mt-2 text-xs leading-5 text-text-muted">A simple progress view for the customer. The production engine will eventually continue even if this window is closed.</p>
+                <span className="mx-auto grid size-14 place-items-center rounded-[20px] border border-brand-cyan/25 bg-brand-cyan/[.08] text-brand-cyan">{running ? <Loader2 className="size-6 animate-spin motion-reduce:animate-none" /> : runError ? <AlertTriangle className="size-6 text-brand-amber" /> : <Check className="size-6 text-brand-green" />}</span>
+                <span className="mt-5 block text-[9px] font-bold uppercase tracking-[.16em] text-brand-cyan">Creative Flow · Stage 2</span>
+                <h3 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">{runError ? 'Strategy needs another try' : 'Understanding and planning your campaign'}</h3>
+                <p className="mt-2 text-xs leading-5 text-text-muted">{runError || 'This is real source analysis and campaign planning. No images are being generated and no AI credits are being deducted.'}</p>
               </div>
-              <div className="mx-auto mt-8 max-w-2xl space-y-2.5">{progressStages.map((stage, index) => {
-                const done = index < progressIndex
-                const active = index === progressIndex
+
+              <div className="mx-auto mt-8 max-w-2xl space-y-2.5">{stage2Progress.map((stage, index) => {
+                const done = !runError && index < progressIndex
+                const active = !runError && index === progressIndex
                 return <div className={`flex items-center gap-3 rounded-2xl border p-3.5 transition duration-300 ${done ? 'border-brand-green/20 bg-brand-green/[.035]' : active ? 'border-brand-cyan/30 bg-brand-cyan/[.045] shadow-[0_10px_26px_rgba(20,184,166,.07)]' : 'border-border-soft bg-slate-50/70'}`} key={stage.label}>
                   <span className={`grid size-9 shrink-0 place-items-center rounded-xl border ${done ? 'border-brand-green/25 bg-brand-green/10 text-brand-green' : active ? 'border-brand-cyan/30 bg-brand-cyan/10 text-brand-cyan' : 'border-border-soft bg-white text-text-soft'}`}>{done ? <Check className="size-4" /> : active ? <Loader2 className="size-4 animate-spin motion-reduce:animate-none" /> : <CircleDot className="size-3.5" />}</span>
                   <div className="min-w-0 flex-1"><strong className="block text-xs">{stage.label}</strong><span className="mt-0.5 block text-[9px] leading-4 text-text-muted">{stage.detail}</span></div>
-                  {index === 3 && (active || done) && <span className="shrink-0 rounded-full border border-brand-cyan/20 bg-white px-2.5 py-1 text-[9px] font-semibold text-brand-cyan">{generatedCount}/{resolvedCount}</span>}
+                  {index === 0 && assets.length > 0 && active && <span className="shrink-0 rounded-full border border-brand-cyan/20 bg-white px-2.5 py-1 text-[9px] font-semibold text-brand-cyan">{uploadProgress}%</span>}
                 </div>
               })}</div>
+
+              <div className="mx-auto mt-4 grid max-w-2xl gap-2 sm:grid-cols-2">
+                <div className="rounded-xl border border-border-soft bg-slate-50 p-3 text-[9px] leading-4 text-text-muted"><strong className="text-text-main">Stage 2 stops after planning.</strong><br />Image generation, captions, credits and publishing stay untouched.</div>
+                <div className="rounded-xl border border-brand-green/15 bg-brand-green/[.035] p-3 text-[9px] leading-4 text-text-muted"><strong className="text-text-main">Source-safe.</strong><br />Unsupported statistics, testimonials and product claims are excluded from the strategy.</div>
+              </div>
+
+              {runError && <div className="mx-auto mt-5 flex max-w-2xl justify-center gap-2"><Button onClick={resetFlow}>Edit flow</Button><Button onClick={() => void beginStage2()} variant="primary"><RefreshCw className="size-3.5" />Retry</Button></div>}
             </div>
           </div>}
 
-          {view === 'results' && <div className="mx-auto w-full max-w-[1180px] p-4 sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div><span className="text-[9px] font-bold uppercase tracking-[.16em] text-brand-green">Campaign ready</span><h3 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">{resolvedCount} creative concepts prepared</h3><p className="mt-1 max-w-2xl text-[10px] leading-5 text-text-muted">Stage 1 uses visual placeholders so we can approve the gallery experience before connecting real generation.</p></div>
-              <div className="flex flex-wrap gap-2"><Button onClick={resetFlow} size="sm"><RefreshCw className="size-3.5" />Adjust brief</Button><Button disabled size="sm" variant="primary"><Send className="size-3.5" />Add to campaign</Button></div>
-            </div>
-
-            <div className="mt-5 flex flex-wrap items-center gap-2 text-[9px]"><span className="rounded-full border border-border-soft bg-white px-3 py-1.5">{resolvedCount} total</span><span className="rounded-full border border-brand-green/20 bg-brand-green/[.05] px-3 py-1.5 text-brand-green">{approved.size} approved</span><span className="rounded-full border border-brand-amber/20 bg-brand-amber/[.05] px-3 py-1.5 text-brand-amber">{Math.max(0, resolvedCount - approved.size)} to review</span><span className="ml-auto text-text-soft">Campaign handoff is intentionally disabled in Stage 1.</span></div>
-
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {mockCreatives.map((creative, index) => {
-                const isApproved = approved.has(creative.id)
-                return <article className={`group overflow-hidden rounded-[20px] border bg-white shadow-[0_12px_36px_rgba(15,23,42,.055)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_46px_rgba(15,23,42,.09)] ${isApproved ? 'border-brand-green/35 ring-1 ring-brand-green/10' : 'border-border-soft'}`} key={creative.id}>
-                  <div className={`relative aspect-[4/5] overflow-hidden bg-gradient-to-br ${creative.tone} p-4`}>
-                    <div className="absolute inset-0 opacity-50 [background-image:linear-gradient(rgba(15,23,42,.025)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,.025)_1px,transparent_1px)] [background-size:24px_24px]" />
-                    <div className="relative flex h-full flex-col">
-                      <div className="flex items-center justify-between gap-2"><span className="rounded-full border border-black/[.06] bg-white/85 px-2 py-1 text-[8px] font-bold uppercase tracking-[.11em] text-text-muted">Concept {String(index + 1).padStart(2, '0')}</span>{isApproved && <span className="grid size-7 place-items-center rounded-full bg-brand-green text-white shadow"><BadgeCheck className="size-3.5" /></span>}</div>
-                      <div className="my-auto">
-                        <span className="text-[9px] font-bold uppercase tracking-[.14em] text-brand-teal">{creative.angle}</span>
-                        <h4 className="mt-2 max-w-[90%] text-xl font-semibold leading-[1.05] tracking-[-.035em] text-slate-900">{creative.hook}</h4>
-                        <p className="mt-3 max-w-[85%] text-[9px] leading-4 text-slate-500">{creative.style}</p>
-                      </div>
-                      <div className="flex items-end justify-between"><span className="grid size-11 place-items-center rounded-2xl border border-white/80 bg-white/75 text-brand-cyan shadow-sm backdrop-blur"><ImageIcon className="size-4" /></span><span className="text-[8px] font-semibold text-slate-400">{productName || 'BRAND'}</span></div>
-                    </div>
-                  </div>
-                  <div className="p-3.5">
-                    <div className="flex items-start justify-between gap-2"><div className="min-w-0"><strong className="block truncate text-[11px]">{creative.angle}</strong><span className="mt-1 block text-[9px] text-text-soft">{creative.style}</span></div><button className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-[9px] font-semibold transition ${isApproved ? 'border-brand-green/25 bg-brand-green/[.07] text-brand-green' : 'border-border-soft bg-slate-50 text-text-muted hover:border-brand-cyan/30'}`} onClick={() => setApproved((current) => { const next = new Set(current); if (next.has(creative.id)) next.delete(creative.id); else next.add(creative.id); return next })} type="button">{isApproved ? 'Approved' : 'Approve'}</button></div>
-                    <p className="mt-3 line-clamp-3 text-[9px] leading-4 text-text-muted">{creative.caption}</p>
-                    <div className="mt-3 grid grid-cols-2 gap-2"><Button disabled size="sm" variant="ghost">Edit</Button><Button disabled size="sm" variant="ghost">Variation</Button></div>
-                  </div>
-                </article>
-              })}
-            </div>
-            {resolvedCount > mockCreatives.length && <div className="mt-4 rounded-2xl border border-dashed border-border-soft bg-white p-4 text-center text-[10px] text-text-muted">Showing {mockCreatives.length} gallery placeholders in Stage 1. The production gallery will support all {resolvedCount} generated creatives.</div>}
-          </div>}
+          {view === 'results' && strategy && analysis && <StrategyResults
+            analysis={analysis}
+            productName={productName}
+            selectedConcepts={selectedConcepts}
+            strategy={strategy}
+            onBack={resetFlow}
+            onRerun={() => void rerunStrategy()}
+            onToggleConcept={(sequence) => setSelectedConcepts((current) => {
+              const next = new Set(current)
+              if (next.has(sequence)) next.delete(sequence)
+              else next.add(sequence)
+              return next
+            })}
+          />}
         </div>
       </section>
     </div>,
@@ -354,3 +373,66 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
   )
 }
 
+function StrategyResults({ analysis, productName, selectedConcepts, strategy, onBack, onRerun, onToggleConcept }: {
+  analysis: CreativeFlowAnalysis
+  productName: string
+  selectedConcepts: Set<number>
+  strategy: CreativeFlowStrategy
+  onBack: () => void
+  onRerun: () => void
+  onToggleConcept: (sequence: number) => void
+}) {
+  const source = analysis.sourceAnalysis
+  const brand = analysis.brandPack
+  return <div className="mx-auto w-full max-w-[1200px] p-4 sm:p-6">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <span className="text-[9px] font-bold uppercase tracking-[.16em] text-brand-green">Stage 2 strategy ready</span>
+        <h3 className="mt-1 text-xl font-semibold tracking-tight sm:text-2xl">{strategy.strategy.campaignTitle}</h3>
+        <p className="mt-1 max-w-3xl text-[10px] leading-5 text-text-muted">Creative Flow has analysed the supplied product context and planned {strategy.concepts.length} distinct concepts. Nothing has been rendered yet.</p>
+      </div>
+      <div className="flex flex-wrap gap-2"><Button onClick={onBack} size="sm">Edit flow</Button><Button onClick={onRerun} size="sm"><RefreshCw className="size-3.5" />Regenerate strategy</Button><Button disabled size="sm" variant="primary"><ImageIcon className="size-3.5" />Continue to generation · Stage 3</Button></div>
+    </div>
+
+    <div className="mt-5 grid gap-4 lg:grid-cols-[.9fr_1.1fr]">
+      <section className="rounded-[20px] border border-border-soft bg-white p-4 shadow-[0_12px_34px_rgba(15,23,42,.05)] sm:p-5">
+        <div className="flex items-start justify-between gap-3"><div><span className="text-[8px] font-bold uppercase tracking-[.14em] text-brand-cyan">Product understanding</span><h4 className="mt-1 text-sm font-semibold">{source.productName || brand.brandName || productName || 'Product context'}</h4></div><span className={`rounded-full border px-2 py-1 text-[8px] font-bold ${brand.confidence === 'high' ? 'border-brand-green/25 bg-brand-green/[.06] text-brand-green' : brand.confidence === 'medium' ? 'border-brand-amber/25 bg-brand-amber/[.06] text-brand-amber' : 'border-border-soft bg-slate-50 text-text-muted'}`}>{brand.confidence} brand confidence</span></div>
+        {source.summary && <p className="mt-3 text-[10px] leading-5 text-text-muted">{source.summary}</p>}
+        {analysis.analysedUrl && <div className="mt-3 flex items-start gap-2 rounded-xl border border-border-soft bg-slate-50 p-3"><Globe2 className="mt-0.5 size-3.5 shrink-0 text-brand-cyan" /><div className="min-w-0"><strong className="block truncate text-[9px]">{analysis.analysedUrl.title || analysis.analysedUrl.url}</strong><span className="mt-0.5 block truncate text-[8px] text-text-soft">{analysis.analysedUrl.url}</span></div></div>}
+        {brand.colors.length > 0 && <div className="mt-4"><span className="text-[8px] font-bold uppercase tracking-[.12em] text-text-soft">Extracted palette</span><div className="mt-2 flex flex-wrap gap-2">{brand.colors.map((color) => <span className="inline-flex items-center gap-1.5 rounded-full border border-border-soft bg-white px-2 py-1 text-[8px] text-text-muted" key={color}><i className="size-3 rounded-full border border-black/10" style={{ backgroundColor: color }} />{color}</span>)}</div></div>}
+        {source.verifiedClaims.length > 0 && <div className="mt-4"><span className="flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-[.12em] text-text-soft"><BadgeCheck className="size-3 text-brand-green" />Verified claims</span><ul className="mt-2 space-y-1.5 text-[9px] leading-4 text-text-muted">{source.verifiedClaims.slice(0, 5).map((item) => <li key={item}>• {item}</li>)}</ul></div>}
+        {source.cautions.length > 0 && <div className="mt-4 rounded-xl border border-brand-amber/20 bg-brand-amber/[.04] p-3"><span className="flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-[.12em] text-brand-amber"><AlertTriangle className="size-3" />Guardrails</span><ul className="mt-1.5 space-y-1 text-[8px] leading-4 text-text-muted">{source.cautions.slice(0, 3).map((item) => <li key={item}>• {item}</li>)}</ul></div>}
+      </section>
+
+      <section className="rounded-[20px] border border-border-soft bg-white p-4 shadow-[0_12px_34px_rgba(15,23,42,.05)] sm:p-5">
+        <span className="text-[8px] font-bold uppercase tracking-[.14em] text-brand-purple">Campaign strategy</span>
+        <p className="mt-2 text-[10px] leading-5 text-text-muted">{strategy.strategy.strategySummary}</p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-border-soft bg-slate-50 p-3"><span className="text-[8px] font-bold uppercase tracking-[.12em] text-text-soft">Audience</span><p className="mt-1.5 text-[9px] leading-4 text-text-muted">{strategy.strategy.audienceSummary || 'AI-selected from the supplied brief and source context.'}</p></div>
+          <div className="rounded-xl border border-border-soft bg-slate-50 p-3"><span className="text-[8px] font-bold uppercase tracking-[.12em] text-text-soft">Brand handling</span><p className="mt-1.5 text-[9px] leading-4 text-text-muted">{brand.lockLogo ? 'Official logo detected. Stage 3 will preserve it rather than inventing a replacement.' : 'No verified full logo lock yet. Creative Flow will not invent one.'}</p></div>
+        </div>
+        {strategy.strategy.contentPillars.length > 0 && <div className="mt-4"><span className="text-[8px] font-bold uppercase tracking-[.12em] text-text-soft">Content pillars</span><div className="mt-2 flex flex-wrap gap-1.5">{strategy.strategy.contentPillars.map((item) => <span className="rounded-full border border-brand-purple/15 bg-brand-purple/[.035] px-2.5 py-1 text-[8px] text-text-muted" key={item}>{item}</span>)}</div></div>}
+        {strategy.strategy.creativePrinciples.length > 0 && <div className="mt-4"><span className="flex items-center gap-1.5 text-[8px] font-bold uppercase tracking-[.12em] text-text-soft"><Palette className="size-3" />Creative principles</span><ul className="mt-2 grid gap-1.5 text-[9px] leading-4 text-text-muted sm:grid-cols-2">{strategy.strategy.creativePrinciples.map((item) => <li className="rounded-lg border border-border-soft bg-slate-50 px-2.5 py-2" key={item}>{item}</li>)}</ul></div>}
+      </section>
+    </div>
+
+    <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><span className="text-[8px] font-bold uppercase tracking-[.14em] text-brand-cyan">Creative matrix</span><h4 className="mt-1 text-lg font-semibold">{strategy.concepts.length} planned creatives</h4><p className="mt-1 text-[9px] text-text-muted">Keep or remove concepts before Stage 3. Every card has a different strategic angle.</p></div><span className="rounded-full border border-brand-green/20 bg-brand-green/[.05] px-3 py-1.5 text-[9px] font-semibold text-brand-green">{selectedConcepts.size} kept</span></div>
+
+    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{strategy.concepts.map((concept) => <ConceptCard concept={concept} kept={selectedConcepts.has(concept.sequence)} key={concept.sequence} onToggle={() => onToggleConcept(concept.sequence)} />)}</div>
+
+    <div className="mt-5 rounded-[18px] border border-dashed border-brand-cyan/25 bg-white p-4 text-center"><strong className="text-xs">Stage 2 ends here.</strong><p className="mt-1 text-[9px] leading-4 text-text-muted">Stage 3 will take the kept matrix rows, calculate credits, queue image generation, save completed assets and expose review/regeneration controls.</p></div>
+  </div>
+}
+
+function ConceptCard({ concept, kept, onToggle }: { concept: CreativeFlowConcept; kept: boolean; onToggle: () => void }) {
+  const evidenceLabel = concept.evidenceBasis === 'verified_source' ? 'Verified source' : concept.evidenceBasis === 'user_brief' ? 'Customer brief' : 'Brand-safe'
+  return <article className={`rounded-[18px] border bg-white p-4 shadow-[0_10px_30px_rgba(15,23,42,.045)] transition ${kept ? 'border-brand-cyan/30 ring-1 ring-brand-cyan/[.06]' : 'border-border-soft opacity-60'}`}>
+    <div className="flex items-start justify-between gap-3"><span className="rounded-full border border-border-soft bg-slate-50 px-2 py-1 text-[8px] font-bold uppercase tracking-[.1em] text-text-soft">Concept {String(concept.sequence).padStart(2, '0')}</span><button className={`rounded-lg border px-2.5 py-1.5 text-[8px] font-semibold transition ${kept ? 'border-brand-green/25 bg-brand-green/[.06] text-brand-green' : 'border-border-soft bg-slate-50 text-text-muted'}`} onClick={onToggle} type="button">{kept ? 'Keep' : 'Removed'}</button></div>
+    <span className="mt-4 block text-[8px] font-bold uppercase tracking-[.13em] text-brand-purple">{concept.angle}</span>
+    <h5 className="mt-1.5 text-base font-semibold leading-tight tracking-[-.02em]">{concept.hook}</h5>
+    <p className="mt-2 text-[9px] leading-4 text-text-muted">{concept.message}</p>
+    <div className="mt-3 rounded-xl border border-border-soft bg-slate-50 p-3"><span className="text-[8px] font-bold uppercase tracking-[.11em] text-text-soft">Visual direction</span><p className="mt-1 text-[9px] leading-4 text-text-muted">{concept.visualStyle}</p></div>
+    <div className="mt-3 flex flex-wrap gap-1.5"><span className="rounded-full border border-border-soft bg-white px-2 py-1 text-[8px] text-text-soft">{evidenceLabel}</span>{concept.platformApproach && <span className="rounded-full border border-border-soft bg-white px-2 py-1 text-[8px] text-text-soft">{concept.platformApproach}</span>}</div>
+    {concept.cta && <p className="mt-3 text-[8px] text-text-soft"><strong className="text-text-muted">CTA:</strong> {concept.cta}</p>}
+  </article>
+}
