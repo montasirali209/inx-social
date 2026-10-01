@@ -13,6 +13,8 @@ test('Post for Me connection distinguishes a manually closed popup from OAuth is
   assert.match(api, /sameInxSocialOrigin/);
   assert.match(api, /sameInxSocialOrigin\(event\.origin\)/);
   assert.match(api, /confirmClosedPopup/);
+  assert.match(api, /providerWindowWasFocused/);
+  assert.match(api, /window\.addEventListener\('blur', handleWindowBlur\)/);
   assert.match(api, /document\.hasFocus\(\)/);
   assert.match(api, /popup\.closed/);
   assert.match(api, /One final sync prevents reporting that success as cancelled/);
