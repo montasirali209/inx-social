@@ -46,7 +46,7 @@ async function startAICaptionBatch(req, res, next) {
 
 async function generateAICaption(req, res, next) {
   try {
-    const data = await readBody(req, bulkCaptionService.MAX_BATCH_IMAGES ? 15 * 1024 * 1024 : 15 * 1024 * 1024);
+    const data = await readBody(req, bulkCaptionService.MAX_IMAGE_BYTES);
     res.json(await bulkCaptionService.generateCaption(req.user.id, req.params.batchId, req.params.postId, {
       data,
       mimeType: String(req.headers['content-type'] || '').split(';')[0],
