@@ -1013,5 +1013,7 @@ module.exports = {
   sizeForRatio,
   imageSafetyRejected,
   sourceFingerprint,
-  normaliseSourceAnalysis
+  normaliseSourceAnalysis,
+  referenceAssets,
+  performSourceAnalysis
 };
