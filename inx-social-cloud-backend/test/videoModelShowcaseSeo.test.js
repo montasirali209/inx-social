@@ -32,7 +32,8 @@ test('homepage server-renders live model count and latest model cards', () => {
   assert.match(page, /VIDEO_MODEL_COUNT_LABEL/);
   assert.match(body, /VIDEO_MODEL_SHOWCASE/);
   assert.match(body, /AI creation \+ multi-model Video Studio \+ social publishing/);
-  assert.match(helper, /One studio\. \$\{escapeHtml\(label\)\} generation-ready AI video models/);
+  assert.match(helper, /One studio\. \$\{escapeHtml\(label\)\} <span class="approved-video-nowrap">generation-ready<\/span> AI video models/);
+  assert.match(helper, /approved-video-nowrap/);
   assert.match(helper, /Math\.floor\(safe \/ 10\) \* 10/);
   assert.match(layout, /AI Content, Video Studio & Social Publishing/);
   assert.doesNotMatch(body, /70\+ generation-ready models/);
