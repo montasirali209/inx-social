@@ -61,9 +61,11 @@ export type BulkAICaptionBatchResponse = {
   creditsCharged: number
   freeUsed: number
   freeRemaining: number
+  paidUnlocked: boolean
+  refundedCredits: number
 }
 
-export function startBulkAICaptionBatch(input: { batchId: string; campaignId: string; campaignTitle: string; postIds: string[] }) {
+export function startBulkAICaptionBatch(input: { batchId: string; campaignId: string; campaignTitle: string; postIds: string[]; platforms: string[] }) {
   return apiRequest<BulkAICaptionBatchResponse>('/api/social-connections/publications/ai-captions/batches', {
     method: 'POST',
     body: JSON.stringify(input),

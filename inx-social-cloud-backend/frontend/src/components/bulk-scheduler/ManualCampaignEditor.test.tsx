@@ -55,7 +55,7 @@ describe('ManualCampaignEditor', () => {
     expect(aiButton).toBeEnabled()
     fireEvent.click(aiButton)
     expect(props.onGenerateAICaptions).toHaveBeenCalledTimes(1)
-    expect(screen.getAllByText(/existing captions are never replaced/i).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/never replaces your existing text/i).length).toBeGreaterThan(0)
   })
 
   it('reorders media with arrow controls and exposes the preview as the drag handle', () => {
@@ -81,4 +81,27 @@ describe('ManualCampaignEditor', () => {
     fireEvent.keyDown(dragHandle!, { key: 'ArrowUp' })
     expect(props.onMediaMove).toHaveBeenCalledWith('image-post-0002', -1)
   })
+
+  it('clears drag selection on global pointer up so a dropped item never stays selected', () => {
+    const props = baseProps()
+    const campaign: CampaignImport = {
+      ...emptyCampaign,
+      imagePosts: 2,
+      total: 2,
+      posts: [
+        { id: 'image-post-0001', sequence: 1, contentType: 'IMAGE', caption: '', thumbnailUrl: 'blob:one', fileName: 'one.png' },
+        { id: 'image-post-0002', sequence: 2, contentType: 'IMAGE', caption: '', thumbnailUrl: 'blob:two', fileName: 'two.png' },
+      ],
+    }
+    render(<ManualCampaignEditor campaign={campaign} {...props} />)
+
+    const dragHandle = screen.getAllByRole('button', { name: 'Drag one.png to reorder' }).at(-1)!
+    fireEvent.pointerDown(dragHandle, { pointerId: 7, pointerType: 'mouse', button: 0, clientX: 20, clientY: 20 })
+    fireEvent.pointerMove(window, { pointerId: 7, pointerType: 'mouse', clientX: 30, clientY: 36 })
+    expect(dragHandle).toHaveAttribute('aria-grabbed', 'true')
+
+    fireEvent.pointerUp(window, { pointerId: 7, pointerType: 'mouse', clientX: 30, clientY: 36 })
+    expect(dragHandle).toHaveAttribute('aria-grabbed', 'false')
+  })
+
 })

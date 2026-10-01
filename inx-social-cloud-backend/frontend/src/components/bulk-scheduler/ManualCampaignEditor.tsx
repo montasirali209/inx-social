@@ -51,6 +51,7 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
   const mediaCards = useRef(new Map<string, HTMLElement>())
   const previousMediaRects = useRef(new Map<string, DOMRect>())
   const dragState = useRef<{ id: string; pointerId: number; startX: number; startY: number; moved: boolean; lastOverId: string | null } | null>(null)
+  const onMediaReorderRef = useRef(onMediaReorder)
   const [draggingMediaId, setDraggingMediaId] = useState<string | null>(null)
   const [dragOverMediaId, setDragOverMediaId] = useState<string | null>(null)
   const parsed = parseTextPosts(bulkText)
@@ -58,6 +59,10 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
   const mediaPosts = campaign.posts.filter((post) => post.contentType !== 'TEXT')
   const emptyImagePosts = mediaPosts.filter((post) => post.contentType === 'IMAGE' && !post.caption.trim())
   const mediaOrderKey = mediaPosts.map((post) => post.id).join('|')
+
+  useEffect(() => {
+    onMediaReorderRef.current = onMediaReorder
+  }, [onMediaReorder])
 
   useLayoutEffect(() => {
     const nextRects = new Map<string, DOMRect>()
@@ -70,7 +75,7 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
       nextRects.forEach((nextRect, id) => {
         const previousRect = previousMediaRects.current.get(id)
         const node = mediaCards.current.get(id)
-        if (!previousRect || !node) return
+        if (!previousRect || !node || dragState.current?.id === id) return
         const deltaX = previousRect.left - nextRect.left
         const deltaY = previousRect.top - nextRect.top
         if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return
@@ -81,19 +86,13 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
             { transform: `translate(${deltaX}px, ${deltaY}px)` },
             { transform: 'translate(0, 0)' },
           ],
-          { duration: 190, easing: 'cubic-bezier(.2,.8,.2,1)' },
+          { duration: 130, easing: 'cubic-bezier(.2,.8,.2,1)' },
         )
       })
     }
 
     previousMediaRects.current = nextRects
   }, [mediaOrderKey])
-
-  const finishMediaDrag = () => {
-    dragState.current = null
-    setDraggingMediaId(null)
-    setDragOverMediaId(null)
-  }
 
   const beginMediaDrag = (event: ReactPointerEvent<HTMLElement>, id: string) => {
     if (running || aiCaptionBusy || (event.pointerType === 'mouse' && event.button !== 0)) return
@@ -106,40 +105,77 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
       moved: false,
       lastOverId: null,
     }
-    event.currentTarget.setPointerCapture?.(event.pointerId)
-    setDraggingMediaId(id)
-    setDragOverMediaId(id)
+    setDraggingMediaId(null)
+    setDragOverMediaId(null)
   }
 
-  const updateMediaDrag = (event: ReactPointerEvent<HTMLElement>) => {
-    const drag = dragState.current
-    if (!drag || drag.pointerId !== event.pointerId) return
-
-    if (!drag.moved) {
-      const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY)
-      if (distance < 5) return
-      drag.moved = true
+  useEffect(() => {
+    const clearDrag = () => {
+      dragState.current = null
+      setDraggingMediaId(null)
+      setDragOverMediaId(null)
     }
 
-    event.preventDefault()
+    const onPointerMove = (event: PointerEvent) => {
+      const drag = dragState.current
+      if (!drag || drag.pointerId !== event.pointerId) return
 
-    const list = mediaList.current
-    if (list) {
-      const bounds = list.getBoundingClientRect()
-      const edge = Math.min(64, Math.max(36, bounds.height * 0.14))
-      if (event.clientY < bounds.top + edge) list.scrollBy({ top: -22, behavior: 'auto' })
-      else if (event.clientY > bounds.bottom - edge) list.scrollBy({ top: 22, behavior: 'auto' })
+      if (!drag.moved) {
+        const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY)
+        if (distance < 4) return
+        drag.moved = true
+        setDraggingMediaId(drag.id)
+        setDragOverMediaId(drag.id)
+      }
+
+      if (event.cancelable) event.preventDefault()
+
+      const list = mediaList.current
+      if (list) {
+        const bounds = list.getBoundingClientRect()
+        const edge = Math.min(72, Math.max(40, bounds.height * 0.15))
+        if (typeof list.scrollBy === 'function') {
+          if (event.clientY < bounds.top + edge) list.scrollBy({ top: -30, behavior: 'auto' })
+          else if (event.clientY > bounds.bottom - edge) list.scrollBy({ top: 30, behavior: 'auto' })
+        }
+      }
+
+      const hit = typeof document.elementFromPoint === 'function'
+        ? document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null
+        : null
+      const card = hit?.closest<HTMLElement>('[data-media-sort-id]')
+      const overId = card?.dataset.mediaSortId || ''
+      if (!overId || overId === drag.id || overId === drag.lastOverId) return
+
+      drag.lastOverId = overId
+      setDragOverMediaId(overId)
+      onMediaReorderRef.current(drag.id, overId)
     }
 
-    const hit = document.elementFromPoint(event.clientX, event.clientY) as HTMLElement | null
-    const card = hit?.closest<HTMLElement>('[data-media-sort-id]')
-    const overId = card?.dataset.mediaSortId || ''
-    if (!overId || overId === drag.id || overId === drag.lastOverId) return
+    const onPointerEnd = (event: PointerEvent) => {
+      const drag = dragState.current
+      if (!drag || drag.pointerId !== event.pointerId) return
+      clearDrag()
+    }
 
-    drag.lastOverId = overId
-    setDragOverMediaId(overId)
-    onMediaReorder(drag.id, overId)
-  }
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') clearDrag()
+    }
+
+    window.addEventListener('pointermove', onPointerMove, { passive: false })
+    window.addEventListener('pointerup', onPointerEnd)
+    window.addEventListener('pointercancel', onPointerEnd)
+    window.addEventListener('blur', clearDrag)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerEnd)
+      window.removeEventListener('pointercancel', onPointerEnd)
+      window.removeEventListener('blur', clearDrag)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [])
 
   const handleMediaKeyboard = (event: ReactKeyboardEvent<HTMLElement>, id: string) => {
     if (running || aiCaptionBusy) return
@@ -155,7 +191,14 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !running) onClose()
+      if (event.key !== 'Escape') return
+      if (dragState.current) {
+        dragState.current = null
+        setDraggingMediaId(null)
+        setDragOverMediaId(null)
+        return
+      }
+      if (!running) onClose()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
@@ -193,7 +236,7 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
                   {aiCaptionBusy ? 'Generating captions…' : `AI captions · ${emptyImagePosts.length} empty`}
                 </Button>
               </div>
-              <p className="mt-2 text-[10px] leading-4 text-text-soft">AI fills image captions only when the caption box is empty. Your existing captions are never replaced. First 5 AI image captions in a manual campaign are free; larger or later batches cost 5 credits flat.</p>
+              <p className="mt-2 text-[10px] leading-4 text-text-soft">AI fills only empty image captions and never replaces your existing text. The first 5 AI captions in a manual campaign are free; after that, 5 credits unlock AI captions for the rest of that same campaign, including retries.</p>
               {aiCaptionMessage && <p className={`mt-1.5 text-[10px] leading-4 ${/could not|not enough|unavailable|failed/i.test(aiCaptionMessage) ? 'text-brand-amber' : 'text-brand-cyan'}`}>{aiCaptionMessage}</p>}
               <input accept="image/png,image/jpeg,image/webp,video/mp4,video/quicktime,video/x-m4v,video/webm,.avi,.mkv" className="sr-only" multiple onChange={(event) => { onMediaAdd(Array.from(event.target.files || [])); event.target.value = '' }} ref={mediaInput} type="file" />
               <div className="scrollbar-thin mt-3 space-y-2 overflow-y-auto overscroll-contain lg:max-h-[51vh]" ref={mediaList}>
@@ -201,7 +244,7 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
                   const dragging = draggingMediaId === post.id
                   const dragTarget = dragOverMediaId === post.id && draggingMediaId !== post.id
                   return <article
-                    className={`relative flex gap-3 rounded-xl border bg-bg/40 p-2.5 transition-[border-color,background-color,box-shadow,opacity] duration-200 ${dragging ? 'z-10 border-brand-cyan/65 bg-brand-cyan/[.08] opacity-75 shadow-[0_12px_32px_rgba(45,212,191,.12)]' : dragTarget ? 'border-brand-cyan/55 bg-brand-cyan/[.055]' : 'border-border-soft'}`}
+                    className={`relative flex gap-3 rounded-xl border bg-bg/40 p-2.5 transition-[border-color,background-color,box-shadow,opacity] duration-100 ${dragging ? 'z-10 border-brand-cyan/65 bg-brand-cyan/[.08] opacity-75 shadow-[0_12px_32px_rgba(45,212,191,.12)]' : dragTarget ? 'border-brand-cyan/55 bg-brand-cyan/[.055]' : 'border-border-soft'}`}
                     data-media-sort-id={post.id}
                     key={post.id}
                     ref={(node) => {
@@ -214,10 +257,7 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
                       aria-label={`Drag ${post.fileName || `media ${mediaIndex + 1}`} to reorder`}
                       className={`group relative size-16 shrink-0 touch-none select-none overflow-hidden rounded-lg border transition duration-150 focus:outline-none focus:ring-2 focus:ring-brand-cyan/45 ${running || aiCaptionBusy ? 'cursor-not-allowed border-border-soft opacity-60' : 'cursor-grab border-border-soft hover:border-brand-cyan/55 active:cursor-grabbing active:scale-[.97]'}`}
                       onKeyDown={(event) => handleMediaKeyboard(event, post.id)}
-                      onPointerCancel={finishMediaDrag}
                       onPointerDown={(event) => beginMediaDrag(event, post.id)}
-                      onPointerMove={updateMediaDrag}
-                      onPointerUp={finishMediaDrag}
                       role="button"
                       tabIndex={running || aiCaptionBusy ? -1 : 0}
                     >
