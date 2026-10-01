@@ -172,6 +172,8 @@ export type DashboardJob = {
   scheduledAt: string | null
   completedAt: string | null
   errorMessage: string | null
+  retryable?: boolean
+  reviewAction?: 'retry' | 'reupload' | 'review' | null
   mediaLibraryAssetId: string | null
   metaPostId?: string | null
   metaVideoId?: string | null
