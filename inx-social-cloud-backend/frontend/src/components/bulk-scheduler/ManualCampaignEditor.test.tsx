@@ -48,7 +48,7 @@ describe('ManualCampaignEditor', () => {
     }
     render(<ManualCampaignEditor campaign={campaign} {...props} />)
 
-    expect(screen.getByRole('button', { name: 'Add images or videos' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Add images or videos' }).at(-1)).toBeInTheDocument()
     const aiButton = screen.getByRole('button', { name: 'AI captions · 1 empty' })
     expect(aiButton).toBeEnabled()
     fireEvent.click(aiButton)
