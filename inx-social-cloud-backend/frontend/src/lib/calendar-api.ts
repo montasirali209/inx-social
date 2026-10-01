@@ -12,7 +12,7 @@ function calendarStatus(status: BackendJobStatus): CalendarPostStatus | null {
   if (status === 'SCHEDULED' || status === 'PROCESSING' || status === 'QUEUED') return 'scheduled'
   if (status === 'FAILED') return 'needs_review'
   if (status === 'CANCELLED') return null
-  if (status === 'AWAITING_UPLOAD' || status === 'READY') return 'needs_review'
+  if (status === 'AWAITING_UPLOAD' || status === 'READY') return 'draft'
   return 'draft'
 }
 
@@ -49,6 +49,8 @@ function jobPost(job: DashboardJob, timeZone: string, source: CalendarPost['sour
     providerPostId: job.providerPostId || job.metaPostId || null,
     platformUrl: job.platformUrl || null,
     errorMessage: job.errorMessage || null,
+    retryable: job.retryable,
+    reviewAction: job.reviewAction || null,
     smartTiming: Boolean(job.smartTiming?.enabled),
   }
 }
@@ -99,7 +101,7 @@ export function buildCalendarData(jobs: DashboardJob[], destinations: CalendarDe
       { label: 'Scheduled This Week', value: scheduledThisWeek, detail: `${signed(scheduledThisWeek - scheduledPreviousWeek)} vs last week`, tone: 'teal' },
       { label: 'Published This Month', value: publishedThisMonth, detail: `${signed(publishedThisMonth - publishedPreviousMonth)} vs last month`, tone: 'green' },
       { label: 'Drafts', value: drafts, detail: drafts ? 'Saved in INXSocial' : 'No saved drafts', tone: 'teal' },
-      { label: 'Needs Review', value: needsReview, detail: needsReview ? 'Review publishing issues' : 'Nothing needs attention', tone: needsReview ? 'amber' : 'green' },
+      { label: 'Needs Review', value: needsReview, detail: needsReview ? 'Publishing action required' : 'Nothing needs attention', tone: needsReview ? 'red' : 'green' },
       { label: 'Connected Accounts', value: destinations.length, detail: 'Across all active platforms', tone: 'purple' },
     ],
   }
