@@ -134,8 +134,10 @@ export function ManualCampaignEditor({ campaign, running, onClose, onTitleChange
       if (list) {
         const bounds = list.getBoundingClientRect()
         const edge = Math.min(72, Math.max(40, bounds.height * 0.15))
-        if (event.clientY < bounds.top + edge) list.scrollBy({ top: -30, behavior: 'auto' })
-        else if (event.clientY > bounds.bottom - edge) list.scrollBy({ top: 30, behavior: 'auto' })
+        if (typeof list.scrollBy === 'function') {
+          if (event.clientY < bounds.top + edge) list.scrollBy({ top: -30, behavior: 'auto' })
+          else if (event.clientY > bounds.bottom - edge) list.scrollBy({ top: 30, behavior: 'auto' })
+        }
       }
 
       const hit = typeof document.elementFromPoint === 'function'
