@@ -1,7 +1,7 @@
 import { AlertTriangle, CalendarClock, ImagePlus, RefreshCw, Save, Trash2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { cancelScheduledPost, replaceScheduledPostMedia, retryFailedScheduledPost, updateScheduledPost } from '../../lib/posts-api'
+import { cancelScheduledPost, replaceScheduledPostMedia, retryFailedScheduledPost, updateFailedReviewDraft, updateScheduledPost, uploadDirectPostMedia } from '../../lib/posts-api'
 import { zonedDateTimeToIso } from '../../lib/bulk-scheduler-utils'
 import type { DashboardJob } from '../../types/dashboard'
 import { Button } from '../ui/Button'
@@ -36,7 +36,8 @@ export function ScheduledPostEditorModal({
   onClose: () => void
   onChanged: () => Promise<unknown> | void
 }) {
-  const recovery = job.status === 'FAILED' && !job.metaPostId && job.retryable !== false
+  const recovery = job.status === 'FAILED' && !job.metaPostId
+  const missingMediaRecovery = recovery && job.reviewAction === 'reupload'
   const [recoveryDefaultIso] = useState(() => new Date(Date.now() + 10 * 60_000).toISOString())
   const initial = useMemo(() => {
     const scheduled = job.scheduledAt ? new Date(job.scheduledAt) : null
@@ -63,7 +64,13 @@ export function ScheduledPostEditorModal({
     try {
       const scheduledAt = zonedDateTimeToIso(date, time, timezone)
       if (recovery) {
-        await retryFailedScheduledPost(job.id, { caption: caption.trim(), scheduledAt })
+        if (missingMediaRecovery) {
+          if (!replacement) throw new Error('Choose replacement media before retrying this failed post.')
+          await updateFailedReviewDraft(job.id, { caption: caption.trim(), scheduledAt })
+          await uploadDirectPostMedia(job.id, replacement, setProgress)
+        } else {
+          await retryFailedScheduledPost(job.id, { caption: caption.trim(), scheduledAt })
+        }
       } else {
         await updateScheduledPost(job.id, { caption: caption.trim(), scheduledAt })
         if (replacement) {
@@ -81,8 +88,8 @@ export function ScheduledPostEditorModal({
   }
 
   async function remove() {
-    if (!scheduledEditable || busy) return
-    if (!window.confirm('Cancel this scheduled post? It will be removed from the publishing queue before it goes live.')) return
+    if (!(scheduledEditable || recovery) || busy) return
+    if (!window.confirm(recovery ? 'Delete this failed publishing item? It will be removed from the Calendar review queue.' : 'Cancel this scheduled post? It will be removed from the publishing queue before it goes live.')) return
     setBusy('delete')
     setError('')
     try {
@@ -102,8 +109,8 @@ export function ScheduledPostEditorModal({
         <header className="flex items-start gap-3 border-b border-border-soft bg-gradient-to-br from-brand-cyan/[.1] to-panel p-5">
           <span className="grid size-11 place-items-center rounded-xl border border-brand-cyan/25 bg-brand-cyan/10 text-brand-cyan"><CalendarClock className="size-5" /></span>
           <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold">{recovery ? 'Fix & retry post' : 'Edit scheduled post'}</h2>
-            <p className="mt-1 text-xs leading-5 text-text-muted">{recovery ? 'Review the failure, correct the caption or publishing time, then create a safe new publishing attempt for this destination.' : 'This post is scheduled for future publishing. Caption, media and publishing time can be changed while its status remains scheduled.'}</p>
+            <h2 className="text-lg font-semibold">{recovery ? (missingMediaRecovery ? 'Review failed post' : 'Fix & retry post') : 'Edit scheduled post'}</h2>
+            <p className="mt-1 text-xs leading-5 text-text-muted">{recovery ? (missingMediaRecovery ? 'The original media upload did not complete. Review the schedule, choose replacement media, then submit a repaired publishing attempt.' : 'Review the failure, correct the caption or publishing time, then create a safe new publishing attempt for this destination.') : 'This post is scheduled for future publishing. Caption, media and publishing time can be changed while its status remains scheduled.'}</p>
           </div>
           <button aria-label="Close editor" className="grid size-9 place-items-center rounded-lg text-text-muted hover:bg-white/5" disabled={Boolean(busy)} onClick={onClose} type="button"><X className="size-4" /></button>
         </header>
@@ -129,9 +136,9 @@ export function ScheduledPostEditorModal({
             </label>
           </div>
 
-          {job.contentType !== 'TEXT' && !recovery && <label className="block rounded-xl border border-border-soft bg-bg/25 p-3">
-            <span className="flex items-center gap-2 text-xs font-semibold"><ImagePlus className="size-4 text-brand-cyan" />Replace media</span>
-            <span className="mt-1 block text-[10px] leading-4 text-text-muted">Optional. The current provider media remains unchanged unless you choose a replacement file.</span>
+          {job.contentType !== 'TEXT' && (!recovery || missingMediaRecovery) && <label className="block rounded-xl border border-border-soft bg-bg/25 p-3">
+            <span className="flex items-center gap-2 text-xs font-semibold"><ImagePlus className="size-4 text-brand-cyan" />{missingMediaRecovery ? 'Replacement media required' : 'Replace media'}</span>
+            <span className="mt-1 block text-[10px] leading-4 text-text-muted">{missingMediaRecovery ? 'The previous upload never reached the publishing provider. Choose the image or video again to repair this post.' : 'Optional. The current provider media remains unchanged unless you choose a replacement file.'}</span>
             <input accept={job.contentType === 'VIDEO' ? 'video/*' : 'image/*'} className="mt-3 block w-full text-xs text-text-muted file:mr-3 file:rounded-lg file:border file:border-border-soft file:bg-panel file:px-3 file:py-2 file:text-xs file:font-semibold file:text-text-main" disabled={!editable || Boolean(busy)} onChange={(event) => setReplacement(event.target.files?.[0] || null)} type="file" />
             {replacement && <span className="mt-2 block truncate text-[10px] text-brand-cyan">{replacement.name}</span>}
             {busy === 'save' && replacement && progress > 0 && <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/7"><div className="h-full bg-brand-cyan transition-all" style={{ width: `${progress}%` }} /></div>}
@@ -143,10 +150,10 @@ export function ScheduledPostEditorModal({
         </div>
 
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border-soft bg-bg/20 p-4">
-          {scheduledEditable ? <Button className="border-brand-red/25 text-brand-red hover:bg-brand-red/10" disabled={Boolean(busy)} onClick={() => void remove()} type="button" variant="ghost"><Trash2 className="size-4" />{busy === 'delete' ? 'Cancelling…' : 'Cancel schedule'}</Button> : <span />}
+          {scheduledEditable || recovery ? <Button className="border-brand-red/25 text-brand-red hover:bg-brand-red/10" disabled={Boolean(busy)} onClick={() => void remove()} type="button" variant="ghost"><Trash2 className="size-4" />{busy === 'delete' ? (recovery ? 'Deleting…' : 'Cancelling…') : (recovery ? 'Delete failed item' : 'Cancel schedule')}</Button> : <span />}
           <div className="flex gap-2">
             <Button disabled={Boolean(busy)} onClick={onClose} type="button" variant="ghost">Close</Button>
-            <Button disabled={!editable || Boolean(busy) || !date || !time} onClick={() => void save()} type="button" variant="primary">{busy === 'save' ? <RefreshCw className="size-4 animate-spin" /> : <Save className="size-4" />}{busy === 'save' ? (recovery ? 'Retrying…' : 'Saving…') : (recovery ? 'Retry with changes' : 'Save changes')}</Button>
+            <Button disabled={!editable || Boolean(busy) || !date || !time || (missingMediaRecovery && !replacement)} onClick={() => void save()} type="button" variant="primary">{busy === 'save' ? <RefreshCw className="size-4 animate-spin" /> : <Save className="size-4" />}{busy === 'save' ? (recovery ? 'Repairing…' : 'Saving…') : (recovery ? (missingMediaRecovery ? 'Fix & resubmit' : 'Retry with changes') : 'Save changes')}</Button>
           </div>
         </footer>
       </section>
