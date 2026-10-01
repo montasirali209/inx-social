@@ -8,6 +8,7 @@ import { getAIPostCampaign, getAIPostCampaigns } from '../../lib/ai-content-stud
 import { fetchMediaAssetFile, fetchMediaLibrary, uploadMediaAsset } from '../../lib/media-library-api'
 import { buildPublishingTimes, isLikelyTransportFailure, parseCaptions, parseTextPosts } from '../../lib/bulk-scheduler-utils'
 import { orderCampaignPosts, type CampaignOrderMode } from '../../lib/campaign-order'
+import { moveCampaignMediaPost, reorderCampaignMediaPost } from '../../lib/manual-campaign-media-order'
 import { applyBulkScheduleEdit, applyBulkTextEdit, earliestLocalDate, hasTextRuleChanges, type BulkScheduledEditRules } from '../../lib/bulk-text-edit'
 import type { BatchProgress, BulkContentMode, BulkSchedulerData, MediaKind, SelectedMedia, TimingMode, UploadResult } from '../../types/bulk-scheduler'
 import type { MediaAsset } from '../../types/media-library'
@@ -674,6 +675,26 @@ export function BulkSchedulerPage() {
       if (index < 0 || target < 0 || target >= posts.length) return current
       ;[posts[index], posts[target]] = [posts[target], posts[index]]
       return { ...current, posts: sequenceCampaign(posts) }
+    })
+    setResults([])
+  }
+
+  const moveManualCampaignMediaPost = (id: string, direction: -1 | 1) => {
+    if (running) return
+    setMixedCampaign((current) => {
+      if (current?.source !== 'manual') return current
+      const posts = moveCampaignMediaPost(current.posts, id, direction)
+      return posts === current.posts ? current : { ...current, posts: sequenceCampaign(posts) }
+    })
+    setResults([])
+  }
+
+  const reorderManualCampaignMediaPost = (activeId: string, overId: string) => {
+    if (running || activeId === overId) return
+    setMixedCampaign((current) => {
+      if (current?.source !== 'manual') return current
+      const posts = reorderCampaignMediaPost(current.posts, activeId, overId)
+      return posts === current.posts ? current : { ...current, posts: sequenceCampaign(posts) }
     })
     setResults([])
   }
@@ -1555,6 +1576,8 @@ export function BulkSchedulerPage() {
           onManualPostEdit={editManualCampaignPost}
           onManualPostRemove={removeManualCampaignPost}
           onManualPostMove={moveManualCampaignPost}
+          onManualMediaMove={moveManualCampaignMediaPost}
+          onManualMediaReorder={reorderManualCampaignMediaPost}
           onCampaignSelect={chooseSavedCampaign}
           onCaptionFile={(file) => { void readCaptionFile(file).catch((error) => setProgress({ ...idleProgress, state: 'failed', message: error.message })) }}
           onCaptionsChange={setCaptions}
