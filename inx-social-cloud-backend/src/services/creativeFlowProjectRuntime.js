@@ -460,6 +460,7 @@ async function processCreativeRegeneration(userId, projectId) {
       project.renderCampaignId,
       project.activeJobId
     );
+    await projects.clearReviewFailure(userId, projectId, project.activeJobId);
     const ready = (Array.isArray(campaign.posts) ? campaign.posts : [])
       .filter(post => Boolean(post.mediaAsset?.url || post.mediaAssetId)).length;
     const total = Math.max(Number(campaign.imagePostCount || 0), 1);
@@ -473,6 +474,12 @@ async function processCreativeRegeneration(userId, projectId) {
     });
   } catch (error) {
     console.error('[CREATIVE FLOW REGENERATE]', projectId, clean(error?.message, 800));
+    await projects.markReviewFailure(
+      userId,
+      projectId,
+      project.activeJobId,
+      error?.publicMessage || error?.message || 'Creative regeneration failed.'
+    ).catch(() => {});
     await projects.releaseActiveJob(userId, projectId, {
       status: 'FAILED',
       currentStage: 'CREATIVE_REGENERATE_FAILED',
@@ -518,6 +525,7 @@ async function startCreativeRegeneration(userId, projectId, postId, input = {}) 
   });
 
   try {
+    await projects.clearReviewFailure(userId, projectId, postId);
     await creativeFlow.editCreativeFlowPost(userId, project.renderCampaignId, postId, {
       caption: input.caption,
       imageBrief: input.imageBrief,
