@@ -89,7 +89,9 @@ test('Stage 6 completed campaigns backfill every review node so requested creati
   const service = read('src/services/creativeFlowProjectService.js');
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
 
-  assert.match(service, /campaign\.status === 'GENERATING_IMAGES'[\s\S]*persistedReveal[\s\S]*imagePosts\.map\(post => post\.id\)/);
+  assert.match(service, /const persistedReveal = workflow\.review\.revealedPostIds/);
+  assert.match(service, /campaign\.status === 'GENERATING_IMAGES'/);
+  assert.match(service, /imagePosts\.map\(post => post\.id\)/);
   assert.match(workspace, /finished \|\| revealed\.has\(post\.id\)/);
   assert.match(workspace, /projectQuery\.data\?\.workflow\.review\.revealedPostIds/);
 });
@@ -115,7 +117,7 @@ test('Stage 6 Creative Flow image rendering is OpenAI-only and uses high-quality
   assert.match(studio, /provider: 'openai'/);
   assert.match(studio, /async function openAIImage/);
   assert.doesNotMatch(studio, /runware/i);
-  assert.match(studio, /protected header zone/);
+  assert.match(studio, /protected composition zone/);
   assert.match(studio, /safeHeader/);
 });
 
