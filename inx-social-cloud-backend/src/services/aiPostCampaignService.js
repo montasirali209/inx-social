@@ -674,6 +674,7 @@ function campaignBrandReferences(brandPack, useExactProductVisual) {
 async function renderCampaignPostImage(userId, campaign, post, brandPack = {}) {
   const pack = normaliseCampaignBrandPack(brandPack);
   const analysis = parseJson(campaign.analysisJson, {});
+  const isCreativeFlow = Number(analysis?.creativeFlow?.version || 0) >= 3;
   const creativeFlowReferenceIds = list(analysis?.creativeFlow?.referenceAssetIds, 8, 120);
   const useExactProductVisual = exactProductVisualNeeded(post, pack);
   const references = campaignBrandReferences(pack, useExactProductVisual);
@@ -682,6 +683,7 @@ async function renderCampaignPostImage(userId, campaign, post, brandPack = {}) {
     prompt: post.imageBrief || post.hook || post.caption,
     platform: parseJson(campaign.platformsJson, [])[0] || 'Instagram',
     aspectRatio: '4:5',
+    quality: isCreativeFlow ? 'high' : 'medium',
     referenceAssetIds: creativeFlowReferenceIds,
     referenceUrls: references,
     brandLock: {
@@ -712,7 +714,7 @@ async function renderCampaignPostImage(userId, campaign, post, brandPack = {}) {
           ? 'Use supplied official website references as visual truth when available, and use uploaded product references as authoritative product evidence. Preserve recognizable product details and brand presentation; do not replace them with imagined alternatives.'
           : 'No verified brand visual is available. Keep the creative brand-neutral and do not invent a logo.',
         pack.logo
-          ? 'The exact official logo will be composited by INXSocial after generation. Leave a clean top-left logo-safe area and do not draw or typeset a logo yourself.'
+          ? 'The exact official logo will be composited by INXSocial in a protected header zone after generation. Do not draw, imitate or typeset a logo yourself, and keep important generated text within the main artwork area.'
           : 'No verified full logo asset is available. Do not fabricate one.',
         useExactProductVisual
           ? 'The exact official product/dashboard screenshot will be composited unchanged on the right. Leave that area clean and do not draw a competing interface.'
