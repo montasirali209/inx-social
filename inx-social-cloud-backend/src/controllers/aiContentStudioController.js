@@ -408,6 +408,21 @@ async function getCreativeFlowProject(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function saveCreativeFlowProjectSource(req, res, next) {
+  try {
+    const input = creativeFlowProjectAnalyzeSchema.parse(req.body || {});
+    const normalizedUrl = input.website ? creativeFlowProjectRuntime.normalizedWebsite(input.website) : '';
+    res.json({
+      project: await creativeFlowProjectService.saveProductSource(req.user.id, req.params.projectId, {
+        websiteInput: input.website,
+        normalizedUrl,
+        referenceAssetIds: input.referenceAssetIds,
+        referenceNames: input.referenceNames
+      })
+    });
+  } catch (error) { next(error); }
+}
+
 async function analyzeCreativeFlowProject(req, res, next) {
   try {
     const input = creativeFlowProjectAnalyzeSchema.parse(req.body || {});
@@ -585,7 +600,7 @@ module.exports = {
   generateUGCAd: generation('ugc_ad'),
   generationStatus, cancelGeneration, dismissGeneration, recentDrafts, saveDraft, deleteDraft, sendDraftToPosts,
   generationHistory, brandKits, packs, createTopupCheckout, creditWebhook,
-  listCreativeFlowProjects, createCreativeFlowProject, openCreativeFlowProject, getCreativeFlowProject, analyzeCreativeFlowProject, saveCreativeFlowProjectCanvas, renameCreativeFlowProject, archiveCreativeFlowProject,
+  listCreativeFlowProjects, createCreativeFlowProject, openCreativeFlowProject, getCreativeFlowProject, saveCreativeFlowProjectSource, analyzeCreativeFlowProject, saveCreativeFlowProjectCanvas, renameCreativeFlowProject, archiveCreativeFlowProject,
   analyzeCreativeFlow, planCreativeFlow, startCreativeFlowRender, getCreativeFlowRender, retryCreativeFlowRender, regenerateCreativeFlowPost, deleteCreativeFlowRender, handoffCreativeFlowCampaign,
   createCampaign, listCampaigns, getCampaign, updateCampaignPost, regenerateCampaignPost, generateCampaignPostImage, deleteCampaign
 };
