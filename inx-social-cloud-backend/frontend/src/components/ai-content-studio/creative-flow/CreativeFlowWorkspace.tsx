@@ -31,7 +31,6 @@ import {
   Loader2,
   Layers3,
   Maximize2,
-  Play,
   RefreshCw,
   Rocket,
   ScanSearch,
@@ -1147,7 +1146,7 @@ function CreativeStrategyNode(props: NodeProps) {
             })}
           </div>
 
-          <Button className="mt-3 w-full" disabled={strategyBusy || Boolean(project.activeJobType)} onClick={startStrategy} size="sm"><RefreshCw className="size-3" />Regenerate strategy</Button>
+          <Button className="mt-3 w-full" disabled={strategyBusy || Boolean(project.activeJobType) || Boolean(project.renderCampaignId)} onClick={startStrategy} size="sm"><RefreshCw className="size-3" />Regenerate strategy</Button>
         </div>
       </AnimatedExpand>}
     </NodeShell>
