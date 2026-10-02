@@ -613,6 +613,12 @@ async function archiveCreativeFlowProject(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function restoreCreativeFlowProject(req, res, next) {
+  try {
+    res.json({ project: await creativeFlowProjectService.restoreProject(req.user.id, req.params.projectId) });
+  } catch (error) { next(error); }
+}
+
 async function analyzeCreativeFlow(req, res, next) {
   try {
     const input = creativeFlowAnalyzeSchema.parse(req.body || {});
@@ -759,7 +765,7 @@ module.exports = {
   generateUGCAd: generation('ugc_ad'),
   generationStatus, cancelGeneration, dismissGeneration, recentDrafts, saveDraft, deleteDraft, sendDraftToPosts,
   generationHistory, brandKits, packs, createTopupCheckout, creditWebhook,
-  listCreativeFlowProjects, createCreativeFlowProject, openCreativeFlowProject, getCreativeFlowProject, saveCreativeFlowProjectSource, analyzeCreativeFlowProject, saveCreativeFlowCampaignSetup, startCreativeFlowStrategy, saveCreativeFlowStrategySelection, getCreativeFlowGenerationEstimate, startCreativeFlowGeneration, saveCreativeFlowReviewSelection, saveCreativeFlowReviewReveal, retryCreativeFlowMissing, regenerateCreativeFlowProjectPost, removeCreativeFlowProjectPost, handoffCreativeFlowProject, saveCreativeFlowProjectCanvas, renameCreativeFlowProject, archiveCreativeFlowProject,
+  listCreativeFlowProjects, createCreativeFlowProject, openCreativeFlowProject, getCreativeFlowProject, saveCreativeFlowProjectSource, analyzeCreativeFlowProject, saveCreativeFlowCampaignSetup, startCreativeFlowStrategy, saveCreativeFlowStrategySelection, getCreativeFlowGenerationEstimate, startCreativeFlowGeneration, saveCreativeFlowReviewSelection, saveCreativeFlowReviewReveal, retryCreativeFlowMissing, regenerateCreativeFlowProjectPost, removeCreativeFlowProjectPost, handoffCreativeFlowProject, saveCreativeFlowProjectCanvas, renameCreativeFlowProject, archiveCreativeFlowProject, restoreCreativeFlowProject,
   analyzeCreativeFlow, planCreativeFlow, startCreativeFlowRender, getCreativeFlowRender, retryCreativeFlowRender, regenerateCreativeFlowPost, deleteCreativeFlowRender, handoffCreativeFlowCampaign,
   createCampaign, listCampaigns, getCampaign, updateCampaignPost, regenerateCampaignPost, generateCampaignPostImage, deleteCampaign
 };
