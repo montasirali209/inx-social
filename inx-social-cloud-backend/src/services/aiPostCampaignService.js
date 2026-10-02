@@ -673,13 +673,16 @@ function campaignBrandReferences(brandPack, useExactProductVisual) {
 
 async function renderCampaignPostImage(userId, campaign, post, brandPack = {}) {
   const pack = normaliseCampaignBrandPack(brandPack);
+  const analysis = parseJson(campaign.analysisJson, {});
+  const creativeFlowReferenceIds = list(analysis?.creativeFlow?.referenceAssetIds, 8, 120);
   const useExactProductVisual = exactProductVisualNeeded(post, pack);
   const references = campaignBrandReferences(pack, useExactProductVisual);
+  const hasAuthoritativeVisual = references.length > 0 || creativeFlowReferenceIds.length > 0;
   const asset = await postStudio.generateImagePost(userId, {
     prompt: post.imageBrief || post.hook || post.caption,
     platform: parseJson(campaign.platformsJson, [])[0] || 'Instagram',
     aspectRatio: '4:5',
-    referenceAssetIds: [],
+    referenceAssetIds: creativeFlowReferenceIds,
     referenceUrls: references,
     brandLock: {
       brandName: pack.brandName,
@@ -697,7 +700,7 @@ async function renderCampaignPostImage(userId, campaign, post, brandPack = {}) {
       platform: parseJson(campaign.platformsJson, [])[0] || 'Instagram',
       aspectRatio: '4:5',
       tone: 'Natural, clear and campaign-appropriate',
-      visualStyle: 'Strict official-brand campaign creative. Follow the extracted website brand pack; do not reinterpret its identity.',
+      visualStyle: 'Strict official-brand campaign creative. Follow the verified website and uploaded product references; do not reinterpret identity.',
       headline: post.hook || '',
       supportingCopy: '',
       cta: post.cta || '',
@@ -705,8 +708,8 @@ async function renderCampaignPostImage(userId, campaign, post, brandPack = {}) {
         post.imageBrief || post.caption,
         pack.brandName ? `Official brand: ${pack.brandName}.` : '',
         pack.colors.length ? `Official extracted colour palette: ${pack.colors.join(', ')}.` : '',
-        references.length
-          ? 'Use supplied official website references as visual truth. Keep the real product/dashboard structure and brand presentation; do not replace them with imagined alternatives.'
+        hasAuthoritativeVisual
+          ? 'Use the supplied official website and uploaded product references as visual truth. Preserve recognizable product details and brand presentation; do not replace them with imagined alternatives.'
           : 'No verified brand visual is available. Keep the creative brand-neutral and do not invent a logo.',
         pack.logo
           ? 'The exact official logo will be composited by INXSocial after generation. Leave a clean top-left logo-safe area and do not draw or typeset a logo yourself.'
@@ -736,7 +739,9 @@ async function renderCampaignImages(userId, campaign, brandPack = {}) {
   const pending = (campaign.posts || []).filter(post => post.contentType === 'IMAGE' && !post.mediaAssetId);
   const failures = [];
   let cursor = 0;
-  const workerCount = Math.min(3, pending.length);
+  const analysis = parseJson(campaign.analysisJson, {});
+  const isCreativeFlow = Number(analysis?.creativeFlow?.version || 0) >= 3;
+  const workerCount = Math.min(isCreativeFlow ? 2 : 3, pending.length);
 
   async function worker() {
     while (cursor < pending.length) {
@@ -747,6 +752,9 @@ async function renderCampaignImages(userId, campaign, brandPack = {}) {
         await renderCampaignPostImage(userId, campaign, post, brandPack);
       } catch (error) {
         failures.push({ postId: post.id, sequence: post.sequence, message: clean(error?.publicMessage || error?.message, 500) });
+      }
+      if (isCreativeFlow && cursor < pending.length) {
+        await new Promise(resolve => setTimeout(resolve, 450));
       }
     }
   }
