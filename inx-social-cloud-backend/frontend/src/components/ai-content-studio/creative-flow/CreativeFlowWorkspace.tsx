@@ -1412,7 +1412,7 @@ function AnalysisStepNode(props: NodeProps) {
       )
     }, ref)
     return () => ctx.revert()
-  }, [stepIndex]
+  }, [stepIndex])
 
   return <div ref={ref}>
     <Handle className="!size-3 !border-2 !border-white !bg-brand-cyan" position={Position.Left} type="target" />
