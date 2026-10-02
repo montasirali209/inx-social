@@ -208,6 +208,8 @@ export type CreativeFlowProject = {
     }
     review: {
       selectedPostIds: string[]
+      failedPostId: string | null
+      failedPostError: string | null
     }
     canvas: {
       positions: {
