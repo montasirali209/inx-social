@@ -19,17 +19,21 @@ import '@xyflow/react/dist/style.css'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { gsap } from 'gsap'
 import {
+  BrainCircuit,
   Check,
   ChevronDown,
   ExternalLink,
   FileImage,
   Globe2,
+  Coins,
   ImagePlus,
+  Images,
   Loader2,
   Layers3,
   Maximize2,
   Play,
   RefreshCw,
+  Rocket,
   ScanSearch,
   Sparkles,
   Target,
@@ -51,11 +55,16 @@ import {
 import { uploadPostStudioReference } from '../../../lib/ai-post-studio-api'
 import {
   analyzeCreativeFlowProject,
+  getCreativeFlowGenerationEstimate,
   getCreativeFlowProject,
   saveCreativeFlowCampaignSetup,
   saveCreativeFlowProjectCanvas,
   saveCreativeFlowProjectSource,
+  saveCreativeFlowStrategySelection,
+  startCreativeFlowProjectGeneration,
+  startCreativeFlowProjectStrategy,
   type CreativeFlowAnalysis,
+  type CreativeFlowGenerationEstimate,
   type CreativeFlowProject,
   type CreativeFlowProjectList,
 } from '../../../lib/creative-flow-api'
@@ -80,6 +89,11 @@ type WorkspaceContextValue = {
   campaignExpanded: boolean
   advancedExpanded: boolean
   campaignBusy: boolean
+  strategyExpanded: boolean
+  strategyBusy: boolean
+  generationBusy: boolean
+  generationEstimate: CreativeFlowGenerationEstimate | null
+  generationEstimateLoading: boolean
   campaignGoal: string
   campaignPlatforms: string[]
   creativeCount: number
@@ -95,12 +109,16 @@ type WorkspaceContextValue = {
   setImageExpanded: (value: boolean) => void
   setCampaignExpanded: (value: boolean) => void
   setAdvancedExpanded: (value: boolean) => void
+  setStrategyExpanded: (value: boolean) => void
   setCampaignGoal: (value: string) => void
   toggleCampaignPlatform: (value: string) => void
   setCreativeCount: (value: number) => void
   setCreativeStyle: (value: string) => void
   setCampaignAudience: (value: string) => void
   saveCampaignSetup: () => void
+  startStrategy: () => void
+  toggleStrategyConcept: (sequence: number) => void
+  startGeneration: () => void
   saveUrl: () => void
   uploadFiles: (files: File[]) => void
   removeReference: (index: number) => void
@@ -136,6 +154,24 @@ function displayDomain(value: string) {
   }
 }
 
+function campaignConfigured(project: CreativeFlowProject) {
+  return Boolean(project.workflow.strategyPlan || project.renderCampaignId) || [
+    'CAMPAIGN_READY',
+    'STRATEGY_PLANNING',
+    'STRATEGY_READY',
+    'STRATEGY_FAILED',
+    'CREATIVE_RENDER_STARTING',
+    'CREATIVE_RENDER_RUNNING',
+    'CREATIVE_RENDER_FAILED',
+    'RENDER_READY',
+    'RENDER_PARTIAL',
+  ].includes(project.currentStage)
+}
+
+function renderFinished(project: CreativeFlowProject) {
+  return ['RENDER_READY', 'RENDER_PARTIAL'].includes(project.currentStage)
+}
+
 function defaultNodes(project: CreativeFlowProject): Stage2Node[] {
   const positions = project.workflow.canvas.positions
   const running = project.activeJobType === 'PRODUCT_ANALYSIS'
@@ -150,6 +186,12 @@ function defaultNodes(project: CreativeFlowProject): Stage2Node[] {
   } else if (analysis) {
     nodes.push({ id: 'productIntelligence', type: 'productIntelligence', position: positions.productIntelligence, data: {}, draggable: true })
     nodes.push({ id: 'campaignSetup', type: 'campaignSetup', position: positions.campaignSetup, data: {}, draggable: true })
+    if (campaignConfigured(project)) {
+      nodes.push({ id: 'creativeStrategy', type: 'creativeStrategy', position: positions.creativeStrategy, data: {}, draggable: true })
+    }
+    if (project.workflow.strategyPlan) {
+      nodes.push({ id: 'generateCreatives', type: 'generateCreatives', position: positions.generateCreatives, data: {}, draggable: true })
+    }
   }
   return nodes
 }
@@ -190,7 +232,10 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
       type: 'motion',
       data: { active: false, complete: true },
     })
-    const campaignReady = project.currentStage === 'CAMPAIGN_READY'
+    const campaignReady = campaignConfigured(project)
+    const strategyRunning = project.activeJobType === 'STRATEGY_PLANNING'
+    const strategyReady = Boolean(project.workflow.strategyPlan)
+    const renderRunning = project.activeJobType === 'CREATIVE_RENDER'
     edges.push({
       id: 'intelligence-campaign',
       source: 'productIntelligence',
@@ -198,6 +243,24 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
       type: 'motion',
       data: { active: !campaignReady, complete: campaignReady },
     })
+    if (campaignReady) {
+      edges.push({
+        id: 'campaign-strategy',
+        source: 'campaignSetup',
+        target: 'creativeStrategy',
+        type: 'motion',
+        data: { active: strategyRunning, complete: strategyReady },
+      })
+    }
+    if (strategyReady) {
+      edges.push({
+        id: 'strategy-generate',
+        source: 'creativeStrategy',
+        target: 'generateCreatives',
+        type: 'motion',
+        data: { active: renderRunning, complete: renderFinished(project) },
+      })
+    }
   }
   return edges
 }
@@ -209,6 +272,8 @@ const nodeTypes = {
   analysisProcess: AnalysisProcessNode,
   productIntelligence: ProductIntelligenceNode,
   campaignSetup: CampaignSetupNode,
+  creativeStrategy: CreativeStrategyNode,
+  generateCreatives: GenerateCreativesNode,
 }
 
 const edgeTypes = {
@@ -246,6 +311,9 @@ function CreativeFlowWorkspaceInner({
   const [campaignExpanded, setCampaignExpanded] = useState(false)
   const [advancedExpanded, setAdvancedExpanded] = useState(false)
   const [campaignBusy, setCampaignBusy] = useState(false)
+  const [strategyExpanded, setStrategyExpanded] = useState(false)
+  const [strategyBusy, setStrategyBusy] = useState(false)
+  const [generationBusy, setGenerationBusy] = useState(false)
   const [campaignGoal, setCampaignGoal] = useState(initialProject.workflow.campaignSetup.goal)
   const [campaignPlatforms, setCampaignPlatforms] = useState<string[]>(initialProject.workflow.campaignSetup.platforms)
   const [creativeCount, setCreativeCount] = useState(initialProject.workflow.campaignSetup.creativeCount)
@@ -270,7 +338,18 @@ function CreativeFlowWorkspaceInner({
   const project = projectQuery.data
   const analysis = project.workflow.analysis
   const running = project.activeJobType === 'PRODUCT_ANALYSIS'
+  const strategyRunning = project.activeJobType === 'STRATEGY_PLANNING'
+  const renderRunning = project.activeJobType === 'CREATIVE_RENDER'
+  const anyJobRunning = Boolean(project.activeJobType)
   const blockedByAnother = Boolean(activeProject && activeProject.id !== project.id && activeProject.activeJobType)
+  const selectedSequences = project.workflow.selectedConceptSequences
+  const generationEstimateQuery = useQuery({
+    queryKey: ['creative-flow-generation-estimate', project.id, selectedSequences.join(',')],
+    queryFn: () => getCreativeFlowGenerationEstimate(project.id),
+    enabled: Boolean(project.workflow.strategyPlan && selectedSequences.length && !project.renderCampaignId && !renderRunning),
+    staleTime: 5_000,
+    retry: false,
+  })
 
   const updateCachedProject = useCallback((next: CreativeFlowProject) => {
     queryClient.setQueryData(['creative-flow-project', next.id], next)
@@ -300,7 +379,15 @@ function CreativeFlowWorkspaceInner({
       window.setTimeout(() => {
         void flow.fitView({
           nodes: analysis
-            ? [{ id: 'productUrl' }, { id: 'productImages' }, { id: 'analyzeProduct' }, { id: 'productIntelligence' }, { id: 'campaignSetup' }]
+            ? [
+                { id: 'productUrl' },
+                { id: 'productImages' },
+                { id: 'analyzeProduct' },
+                { id: 'productIntelligence' },
+                { id: 'campaignSetup' },
+                ...(campaignConfigured(project) ? [{ id: 'creativeStrategy' }] : []),
+                ...(project.workflow.strategyPlan ? [{ id: 'generateCreatives' }] : []),
+              ]
             : [{ id: 'productUrl' }, { id: 'productImages' }, { id: 'analyzeProduct' }, { id: 'analysisProcess' }],
           padding: 0.2,
           duration: 720,
@@ -322,7 +409,7 @@ function CreativeFlowWorkspaceInner({
   }, [project.id, updateCachedProject])
 
   const saveUrl = useCallback(async () => {
-    if (sourceBusy || running) return
+    if (sourceBusy || anyJobRunning) return
     const trimmed = urlDraft.trim()
     const normalized = normaliseUrlInput(trimmed)
     if (trimmed && !normalized) {
@@ -344,10 +431,10 @@ function CreativeFlowWorkspaceInner({
     } finally {
       setSourceBusy(false)
     }
-  }, [persistSource, project.workflow.source.referenceAssetIds, project.workflow.source.referenceNames, running, sourceBusy, urlDraft])
+  }, [anyJobRunning, persistSource, project.workflow.source.referenceAssetIds, project.workflow.source.referenceNames, sourceBusy, urlDraft])
 
   const uploadFiles = useCallback(async (incoming: File[]) => {
-    if (sourceBusy || running) return
+    if (sourceBusy || anyJobRunning) return
     const currentIds = project.workflow.source.referenceAssetIds
     const currentNames = project.workflow.source.referenceNames
     const remaining = Math.max(0, 8 - currentIds.length)
@@ -389,10 +476,10 @@ function CreativeFlowWorkspaceInner({
     } finally {
       setSourceBusy(false)
     }
-  }, [persistSource, project.workflow.source.normalizedUrl, project.workflow.source.referenceAssetIds, project.workflow.source.referenceNames, running, sourceBusy, urlDraft])
+  }, [anyJobRunning, persistSource, project.workflow.source.normalizedUrl, project.workflow.source.referenceAssetIds, project.workflow.source.referenceNames, sourceBusy, urlDraft])
 
   const removeReference = useCallback(async (index: number) => {
-    if (sourceBusy || running) return
+    if (sourceBusy || anyJobRunning) return
     const ids = project.workflow.source.referenceAssetIds.filter((_, itemIndex) => itemIndex !== index)
     const names = project.workflow.source.referenceNames.filter((_, itemIndex) => itemIndex !== index)
     setSourceBusy(true)
@@ -413,7 +500,7 @@ function CreativeFlowWorkspaceInner({
     } finally {
       setSourceBusy(false)
     }
-  }, [persistSource, project.workflow.source.normalizedUrl, project.workflow.source.referenceAssetIds, project.workflow.source.referenceNames, running, sourceBusy, urlDraft])
+  }, [anyJobRunning, persistSource, project.workflow.source.normalizedUrl, project.workflow.source.referenceAssetIds, project.workflow.source.referenceNames, sourceBusy, urlDraft])
 
   const runAnalysis = useCallback(async () => {
     if (sourceBusy || running || blockedByAnother) return
@@ -453,7 +540,7 @@ function CreativeFlowWorkspaceInner({
   }, [blockedByAnother, flow, persistSource, project, running, sourceBusy, updateCachedProject, urlDraft])
 
   const saveCampaign = useCallback(async () => {
-    if (campaignBusy || !analysis) return
+    if (campaignBusy || anyJobRunning || !analysis) return
     if (!campaignPlatforms.length) {
       setError('Choose at least one platform for this campaign.')
       return
@@ -476,7 +563,59 @@ function CreativeFlowWorkspaceInner({
     } finally {
       setCampaignBusy(false)
     }
-  }, [analysis, campaignAudience, campaignBusy, campaignGoal, campaignPlatforms, creativeCount, creativeStyle, project.id, updateCachedProject])
+  }, [analysis, anyJobRunning, campaignAudience, campaignBusy, campaignGoal, campaignPlatforms, creativeCount, creativeStyle, project.id, updateCachedProject])
+
+  const startStrategy = useCallback(async () => {
+    if (strategyBusy || anyJobRunning || blockedByAnother) return
+    setStrategyBusy(true)
+    setError('')
+    try {
+      const next = await startCreativeFlowProjectStrategy(project.id)
+      updateCachedProject(next)
+      setStrategyExpanded(false)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Creative Flow could not start strategy planning.')
+    } finally {
+      setStrategyBusy(false)
+    }
+  }, [anyJobRunning, blockedByAnother, project.id, strategyBusy, updateCachedProject])
+
+  const toggleStrategyConcept = useCallback(async (sequence: number) => {
+    if (strategyBusy || anyJobRunning || !project.workflow.strategyPlan) return
+    const current = project.workflow.selectedConceptSequences
+    const next = current.includes(sequence)
+      ? current.filter((value) => value !== sequence)
+      : [...current, sequence].sort((a, b) => a - b)
+    if (!next.length) {
+      setError('Keep at least one strategy concept before generation.')
+      return
+    }
+    setStrategyBusy(true)
+    setError('')
+    try {
+      const updated = await saveCreativeFlowStrategySelection(project.id, next)
+      updateCachedProject(updated)
+      await queryClient.invalidateQueries({ queryKey: ['creative-flow-generation-estimate', project.id] })
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Creative Flow could not update the concept selection.')
+    } finally {
+      setStrategyBusy(false)
+    }
+  }, [anyJobRunning, project.id, project.workflow.selectedConceptSequences, project.workflow.strategyPlan, queryClient, strategyBusy, updateCachedProject])
+
+  const startGeneration = useCallback(async () => {
+    if (generationBusy || anyJobRunning || blockedByAnother || !project.workflow.strategyPlan) return
+    setGenerationBusy(true)
+    setError('')
+    try {
+      const next = await startCreativeFlowProjectGeneration(project.id)
+      updateCachedProject(next)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Creative Flow could not start creative generation.')
+    } finally {
+      setGenerationBusy(false)
+    }
+  }, [anyJobRunning, blockedByAnother, generationBusy, project.id, project.workflow.strategyPlan, updateCachedProject])
 
   const saveCanvas = useCallback(async (nextNodes: Stage2Node[], viewport?: Viewport) => {
     const byId = new Map(nextNodes.map((node) => [node.id, node.position]))
@@ -488,6 +627,8 @@ function CreativeFlowWorkspaceInner({
           analyzeProduct: byId.get('analyzeProduct'),
           productIntelligence: byId.get('productIntelligence') || byId.get('analysisProcess'),
           campaignSetup: byId.get('campaignSetup'),
+          creativeStrategy: byId.get('creativeStrategy'),
+          generateCreatives: byId.get('generateCreatives'),
         },
         viewport,
       })
@@ -506,6 +647,11 @@ function CreativeFlowWorkspaceInner({
     campaignExpanded,
     advancedExpanded,
     campaignBusy,
+    strategyExpanded,
+    strategyBusy,
+    generationBusy,
+    generationEstimate: generationEstimateQuery.data || null,
+    generationEstimateLoading: generationEstimateQuery.isLoading,
     campaignGoal,
     campaignPlatforms,
     creativeCount,
@@ -521,26 +667,42 @@ function CreativeFlowWorkspaceInner({
     setImageExpanded,
     setCampaignExpanded,
     setAdvancedExpanded,
+    setStrategyExpanded,
     setCampaignGoal,
     toggleCampaignPlatform: (value) => setCampaignPlatforms((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]),
     setCreativeCount,
     setCreativeStyle,
     setCampaignAudience,
     saveCampaignSetup: () => void saveCampaign(),
+    startStrategy: () => void startStrategy(),
+    toggleStrategyConcept: (sequence) => void toggleStrategyConcept(sequence),
+    startGeneration: () => void startGeneration(),
     saveUrl: () => void saveUrl(),
     uploadFiles: (files) => void uploadFiles(files),
     removeReference: (index) => void removeReference(index),
     runAnalysis: () => void runAnalysis(),
-  }), [advancedExpanded, analysis, campaignAudience, campaignBusy, campaignExpanded, campaignGoal, campaignPlatforms, creativeCount, creativeStyle, error, imageExpanded, localPreviews, project, removeReference, runAnalysis, running, saveCampaign, saveUrl, sourceBusy, uploadFiles, uploadProgress, urlDraft, urlExpanded])
+  }), [advancedExpanded, analysis, campaignAudience, campaignBusy, campaignExpanded, campaignGoal, campaignPlatforms, creativeCount, creativeStyle, error, generationBusy, generationEstimateQuery.data, generationEstimateQuery.isLoading, imageExpanded, localPreviews, project, removeReference, runAnalysis, running, saveCampaign, saveUrl, sourceBusy, startGeneration, startStrategy, strategyBusy, strategyExpanded, toggleStrategyConcept, uploadFiles, uploadProgress, urlDraft, urlExpanded])
 
   return <WorkspaceContext.Provider value={contextValue}>
     <div className="relative size-full min-h-[560px] overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(45,212,191,.055),transparent_25rem),radial-gradient(circle_at_85%_75%,rgba(139,92,246,.045),transparent_28rem),#f8fafc]">
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 p-3 sm:p-4">
         <div className="pointer-events-auto max-w-[min(620px,72vw)] rounded-2xl border border-border-soft bg-white/92 px-3.5 py-2.5 shadow-[0_10px_32px_rgba(15,23,42,.07)] backdrop-blur-lg">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-cyan">Creative Flow · Stage 3</span>
+            <span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-cyan">Creative Flow · Stage 4</span>
             <span className={`rounded-full border px-2 py-0.5 text-[8px] font-semibold ${running ? 'border-brand-cyan/20 bg-brand-cyan/[.05] text-brand-cyan' : analysis ? 'border-brand-green/20 bg-brand-green/[.05] text-brand-green' : 'border-border-soft bg-slate-50 text-text-soft'}`}>
-              {running ? 'Analysing product' : project.currentStage === 'CAMPAIGN_READY' ? 'Campaign ready' : analysis ? 'Configure campaign' : 'Source setup'}
+              {running
+                ? 'Analysing product'
+                : strategyRunning
+                  ? 'Planning strategy'
+                  : renderRunning
+                    ? 'Generating creatives'
+                    : renderFinished(project)
+                      ? 'Creatives ready'
+                      : project.workflow.strategyPlan
+                        ? 'Strategy ready'
+                        : project.currentStage === 'CAMPAIGN_READY'
+                          ? 'Campaign ready'
+                          : analysis ? 'Configure campaign' : 'Source setup'}
             </span>
           </div>
           <p className="mt-1 truncate text-[10px] font-semibold">{project.name}</p>
@@ -555,7 +717,7 @@ function CreativeFlowWorkspaceInner({
 
       {error && <div className="pointer-events-none absolute bottom-4 left-1/2 z-30 w-[min(620px,calc(100%-2rem))] -translate-x-1/2 rounded-xl border border-red-200 bg-red-50/95 px-3 py-2.5 text-center text-[9px] text-red-700 shadow-lg backdrop-blur">{error}</div>}
 
-      {blockedByAnother && <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 w-[min(660px,calc(100%-2rem))] -translate-x-1/2 rounded-xl border border-brand-amber/20 bg-white/95 px-3 py-2.5 text-center text-[9px] text-text-muted shadow-lg backdrop-blur">“{activeProject?.name}” currently owns the active Creative Flow AI job. You can edit this project, but analysis waits until that job finishes.</div>}
+      {blockedByAnother && <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 w-[min(660px,calc(100%-2rem))] -translate-x-1/2 rounded-xl border border-brand-amber/20 bg-white/95 px-3 py-2.5 text-center text-[9px] text-text-muted shadow-lg backdrop-blur">“{activeProject?.name}” currently owns the active Creative Flow AI job. This project stays saved, but another AI-processing job cannot start until that job finishes.</div>}
 
       <ReactFlow
         colorMode="light"
@@ -633,8 +795,8 @@ function ProductUrlNode(props: NodeProps) {
         <div className="nodrag border-t border-border-soft p-4">
           <label className="block text-[8px] font-semibold text-text-muted">Website</label>
           <div className="mt-1.5 flex gap-2">
-            <input autoFocus className="min-h-10 min-w-0 flex-1 rounded-xl border border-border-soft bg-slate-50 px-3 text-[10px] outline-none transition focus:border-brand-cyan focus:bg-white" disabled={sourceBusy || running} onChange={(event) => setUrlDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') saveUrl() }} placeholder="yourproduct.com" value={urlDraft} />
-            <Button disabled={sourceBusy || running} onClick={saveUrl} size="sm" variant="primary">{sourceBusy ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}Done</Button>
+            <input autoFocus className="min-h-10 min-w-0 flex-1 rounded-xl border border-border-soft bg-slate-50 px-3 text-[10px] outline-none transition focus:border-brand-cyan focus:bg-white" disabled={sourceBusy || Boolean(project.activeJobType)} onChange={(event) => setUrlDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') saveUrl() }} placeholder="yourproduct.com" value={urlDraft} />
+            <Button disabled={sourceBusy || Boolean(project.activeJobType)} onClick={saveUrl} size="sm" variant="primary">{sourceBusy ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}Done</Button>
           </div>
           <p className="mt-2 text-[8px] leading-4 text-text-soft">No need to type https://. Creative Flow normalises the address before analysing it.</p>
         </div>
@@ -684,7 +846,7 @@ function ProductImagesNode(props: NodeProps) {
             <span className="mx-auto grid size-9 place-items-center rounded-xl bg-white text-brand-purple shadow-sm"><UploadCloud className="size-4" /></span>
             <strong className="mt-2 block text-[9px]">Drop product images here</strong>
             <span className="mt-1 block text-[8px] text-text-soft">or choose files from your device</span>
-            <Button className="mt-2" disabled={sourceBusy || running || ids.length >= 8} onClick={() => inputRef.current?.click()} size="sm"><ImagePlus className="size-3" />Choose images</Button>
+            <Button className="mt-2" disabled={sourceBusy || Boolean(project.activeJobType) || ids.length >= 8} onClick={() => inputRef.current?.click()} size="sm"><ImagePlus className="size-3" />Choose images</Button>
             <input accept="image/*" className="hidden" multiple onChange={pickFiles} ref={inputRef} type="file" />
             {sourceBusy && uploadProgress > 0 && <div className="mt-3"><div className="h-1.5 overflow-hidden rounded-full bg-white"><div className="h-full rounded-full bg-brand-purple transition-all" style={{ width: `${uploadProgress}%` }} /></div><span className="mt-1 block text-[8px] text-text-soft">Uploading {uploadProgress}%</span></div>}
           </div>
@@ -693,7 +855,7 @@ function ProductImagesNode(props: NodeProps) {
             const preview = localPreviews.find((item) => item.id === id)
             return <div className="group relative overflow-hidden rounded-xl border border-border-soft bg-slate-50" key={id}>
               {preview ? <img alt={preview.name} className="aspect-[4/3] w-full object-cover" src={preview.url} /> : <div className="grid aspect-[4/3] place-items-center bg-[linear-gradient(145deg,#f8fafc,#eef2ff)]"><FileImage className="size-5 text-brand-purple/45" /></div>}
-              <div className="flex items-center gap-1.5 border-t border-border-soft bg-white px-2 py-1.5"><span className="min-w-0 flex-1 truncate text-[7px] text-text-muted">{names[index] || `Reference ${index + 1}`}</span><button aria-label="Remove product reference" className="grid size-6 place-items-center rounded-md text-text-soft hover:bg-red-50 hover:text-red-500" disabled={sourceBusy || running} onClick={() => removeReference(index)} type="button"><X className="size-3" /></button></div>
+              <div className="flex items-center gap-1.5 border-t border-border-soft bg-white px-2 py-1.5"><span className="min-w-0 flex-1 truncate text-[7px] text-text-muted">{names[index] || `Reference ${index + 1}`}</span><button aria-label="Remove product reference" className="grid size-6 place-items-center rounded-md text-text-soft hover:bg-red-50 hover:text-red-500" disabled={sourceBusy || Boolean(project.activeJobType)} onClick={() => removeReference(index)} type="button"><X className="size-3" /></button></div>
             </div>
           })}</div>}
         </div>
@@ -813,7 +975,8 @@ function CampaignSetupNode(props: NodeProps) {
     setCampaignAudience,
     saveCampaignSetup,
   } = useWorkspace()
-  const ready = project.currentStage === 'CAMPAIGN_READY'
+  const ready = campaignConfigured(project)
+  const locked = Boolean(project.activeJobType)
   const ref = useRef<HTMLDivElement>(null)
   const platforms = ['Instagram', 'Facebook', 'X', 'LinkedIn', 'TikTok', 'Threads', 'Bluesky', 'Pinterest']
   const goals = ['AI Recommended', 'Sales', 'Traffic', 'Awareness', 'Product launch']
@@ -831,7 +994,7 @@ function CampaignSetupNode(props: NodeProps) {
     <Handle className="!size-3 !border-2 !border-white !bg-brand-green" position={Position.Left} type="target" />
     <Handle className="!size-3 !border-2 !border-white !bg-brand-purple" position={Position.Right} type="source" />
     <NodeShell className={`w-[360px] overflow-hidden transition-shadow ${campaignExpanded ? 'border-brand-purple/25 shadow-[0_26px_80px_rgba(139,92,246,.13)]' : ready ? 'border-brand-green/25' : 'border-brand-purple/20'}`}>
-      <button className="flex w-full items-center gap-3 p-4 text-left" onClick={() => setCampaignExpanded(!campaignExpanded)} type="button">
+      <button className="flex w-full items-center gap-3 p-4 text-left" disabled={locked} onClick={() => setCampaignExpanded(!campaignExpanded)} type="button">
         <CreativeFlowMotionSlot className="size-12 shrink-0" state={ready ? 'success' : campaignExpanded ? 'selected' : 'idle'} />
         <span className="min-w-0 flex-1">
           <span className="block text-[8px] font-bold uppercase tracking-[.14em] text-brand-purple">Campaign Setup</span>
@@ -879,10 +1042,162 @@ function CampaignSetupNode(props: NodeProps) {
             </div>
           </AnimatedExpand>}
 
-          <Button className="mt-4 w-full" disabled={campaignBusy || !campaignPlatforms.length} onClick={saveCampaignSetup} size="sm" variant="primary">{campaignBusy ? <Loader2 className="size-3 animate-spin" /> : ready ? <Check className="size-3" /> : <Target className="size-3" />}{ready ? 'Update campaign setup' : 'Save campaign setup'}</Button>
-          {ready && <div className="mt-3 rounded-xl border border-brand-green/15 bg-brand-green/[.035] p-2.5"><span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Layers3 className="size-3" />Ready for strategy</span><p className="mt-1 text-[8px] leading-4 text-text-muted">Stage 3 stops here. The strategy node will grow from this connector in Stage 4.</p></div>}
+          <Button className="mt-4 w-full" disabled={campaignBusy || locked || !campaignPlatforms.length} onClick={saveCampaignSetup} size="sm" variant="primary">{campaignBusy ? <Loader2 className="size-3 animate-spin" /> : ready ? <Check className="size-3" /> : <Target className="size-3" />}{ready ? 'Update campaign setup' : 'Save campaign setup'}</Button>
+          {ready && <div className="mt-3 rounded-xl border border-brand-green/15 bg-brand-green/[.035] p-2.5"><span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Layers3 className="size-3" />Campaign setup saved</span><p className="mt-1 text-[8px] leading-4 text-text-muted">The strategy node is connected and can now plan the campaign.</p></div>}
         </div>
       </AnimatedExpand>}
+    </NodeShell>
+  </div>
+}
+
+function CreativeStrategyNode(props: NodeProps) {
+  void props
+  const {
+    project,
+    strategyExpanded,
+    strategyBusy,
+    setStrategyExpanded,
+    startStrategy,
+    toggleStrategyConcept,
+  } = useWorkspace()
+  const plan = project.workflow.strategyPlan
+  const running = project.activeJobType === 'STRATEGY_PLANNING'
+  const failed = project.currentStage === 'STRATEGY_FAILED'
+  const selected = new Set(project.workflow.selectedConceptSequences)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!ref.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const ctx = gsap.context(() => {
+      gsap.fromTo(ref.current, { opacity: 0, x: -38, scale: 0.84 }, { opacity: 1, x: 0, scale: 1, duration: 0.7, ease: 'back.out(1.7)' })
+    }, ref)
+    return () => ctx.revert()
+  }, [])
+
+  return <div ref={ref}>
+    <Handle className="!size-3 !border-2 !border-white !bg-brand-purple" position={Position.Left} type="target" />
+    <Handle className="!size-3 !border-2 !border-white !bg-brand-cyan" position={Position.Right} type="source" />
+    <NodeShell className={`w-[420px] overflow-hidden ${running ? 'border-brand-purple/35 shadow-[0_26px_84px_rgba(139,92,246,.16)]' : plan ? 'border-brand-green/25' : 'border-brand-purple/20'}`}>
+      <div className="flex items-center gap-3 p-4">
+        <CreativeFlowMotionSlot className="size-14 shrink-0" state={running ? 'working' : plan ? 'success' : failed ? 'error' : 'idle'} />
+        <div className="min-w-0 flex-1">
+          <span className="block text-[8px] font-bold uppercase tracking-[.14em] text-brand-purple">Creative Strategy</span>
+          <strong className="mt-1 block truncate text-[12px]">
+            {running
+              ? project.progress.label || 'Planning campaign strategy…'
+              : plan
+                ? `${plan.concepts.length} distinct concepts ready`
+                : failed
+                  ? 'Strategy needs another try'
+                  : 'Plan the creative campaign'}
+          </strong>
+          <span className="mt-0.5 block truncate text-[8px] text-text-soft">
+            {plan ? `${selected.size} kept · ${plan.strategy.contentPillars.length} content pillars` : 'Uses Product Intelligence + Campaign Setup'}
+          </span>
+        </div>
+        {plan && !running && <button aria-label="Expand creative strategy" className="grid size-8 place-items-center rounded-lg border border-border-soft text-text-soft hover:text-text-main" onClick={() => setStrategyExpanded(!strategyExpanded)} type="button"><ChevronDown className={`size-3.5 transition-transform ${strategyExpanded ? 'rotate-180' : ''}`} /></button>}
+      </div>
+
+      {running && <div className="border-t border-border-soft p-4">
+        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-purple transition-all duration-500" style={{ width: `${Math.max(12, Math.min(100, Math.round((project.progress.current / Math.max(1, project.progress.total)) * 100)))}%` }} /></div>
+        <p className="mt-2 text-[8px] leading-4 text-text-muted">The strategy job keeps running even if you leave this project.</p>
+      </div>}
+
+      {!plan && !running && <div className="nodrag border-t border-border-soft p-4">
+        <p className="text-[8px] leading-4 text-text-muted">Creative Flow will build the campaign foundation and then produce the exact number of materially different concepts requested in Campaign Setup.</p>
+        <Button className="mt-3 w-full" disabled={strategyBusy || Boolean(project.activeJobType) || Boolean(project.renderCampaignId)} onClick={startStrategy} size="sm" variant="primary">{strategyBusy ? <Loader2 className="size-3 animate-spin" /> : failed ? <RefreshCw className="size-3" /> : <BrainCircuit className="size-3" />}{failed ? 'Retry strategy' : 'Build creative strategy'}</Button>
+      </div>}
+
+      {plan && strategyExpanded && <AnimatedExpand id="creative-strategy">
+        <div className="nodrag border-t border-border-soft p-4">
+          <p className="text-[9px] leading-4 text-text-muted">{plan.strategy.strategySummary}</p>
+          {plan.strategy.contentPillars.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{plan.strategy.contentPillars.map((pillar) => <span className="rounded-full border border-brand-purple/15 bg-brand-purple/[.035] px-2 py-1 text-[7px] text-text-muted" key={pillar}>{pillar}</span>)}</div>}
+
+          <div className="mt-4 flex items-center justify-between"><span className="text-[8px] font-semibold text-text-muted">Concept matrix</span><span className="text-[8px] text-brand-green">{selected.size} kept</span></div>
+          <div className="mt-2 max-h-[300px] space-y-2 overflow-y-auto pr-1">
+            {plan.concepts.map((concept) => {
+              const kept = selected.has(concept.sequence)
+              return <button aria-pressed={kept} className={`block w-full rounded-xl border p-3 text-left transition ${kept ? 'border-brand-cyan/25 bg-brand-cyan/[.035]' : 'border-border-soft bg-slate-50 opacity-55'}`} disabled={strategyBusy || Boolean(project.activeJobType) || Boolean(project.renderCampaignId)} key={concept.sequence} onClick={() => toggleStrategyConcept(concept.sequence)} type="button">
+                <span className="flex items-start justify-between gap-2"><span className="min-w-0"><span className="block text-[7px] font-bold uppercase tracking-[.11em] text-brand-purple">{concept.angle}</span><strong className="mt-1 block text-[9px] leading-4">{concept.hook}</strong></span><span className={`grid size-6 shrink-0 place-items-center rounded-full border ${kept ? 'border-brand-green/25 bg-brand-green/[.08] text-brand-green' : 'border-border-soft bg-white text-text-soft'}`}>{kept ? <Check className="size-3" /> : <X className="size-3" />}</span></span>
+                <span className="mt-1.5 line-clamp-2 block text-[7px] leading-4 text-text-soft">{concept.visualStyle}</span>
+              </button>
+            })}
+          </div>
+
+          <Button className="mt-3 w-full" disabled={strategyBusy || Boolean(project.activeJobType)} onClick={startStrategy} size="sm"><RefreshCw className="size-3" />Regenerate strategy</Button>
+        </div>
+      </AnimatedExpand>}
+    </NodeShell>
+  </div>
+}
+
+function GenerateCreativesNode(props: NodeProps) {
+  void props
+  const {
+    project,
+    generationBusy,
+    generationEstimate,
+    generationEstimateLoading,
+    startGeneration,
+  } = useWorkspace()
+  const running = project.activeJobType === 'CREATIVE_RENDER'
+  const finished = renderFinished(project)
+  const partial = project.currentStage === 'RENDER_PARTIAL'
+  const failed = project.currentStage === 'CREATIVE_RENDER_FAILED'
+  const selectedCount = project.workflow.selectedConceptSequences.length
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!ref.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const ctx = gsap.context(() => {
+      gsap.fromTo(ref.current, { opacity: 0, x: -40, scale: 0.82 }, { opacity: 1, x: 0, scale: 1, duration: 0.72, ease: 'back.out(1.75)' })
+    }, ref)
+    return () => ctx.revert()
+  }, [])
+
+  const requiredCredits = generationEstimate?.requiredCredits || project.workflow.generation.plannedCredits
+  const creditsPerCreative = generationEstimate?.creditsPerCreative || project.workflow.generation.creditsPerCreative
+  const canStart = Boolean(generationEstimate?.canGenerate && !project.renderCampaignId && !running)
+
+  return <div ref={ref}>
+    <Handle className="!size-3 !border-2 !border-white !bg-brand-cyan" position={Position.Left} type="target" />
+    <Handle className="!size-3 !border-2 !border-white !bg-brand-green" position={Position.Right} type="source" />
+    <NodeShell className={`w-[330px] overflow-hidden ${running ? 'border-brand-cyan/35 shadow-[0_28px_88px_rgba(20,184,166,.16)]' : finished ? 'border-brand-green/25' : failed ? 'border-red-200' : 'border-brand-cyan/20'}`}>
+      <div className="p-4">
+        <div className="flex items-center gap-3">
+          <CreativeFlowMotionSlot className="size-14 shrink-0" state={running ? 'working' : finished ? 'success' : failed ? 'error' : 'idle'} />
+          <div className="min-w-0 flex-1">
+            <span className="block text-[8px] font-bold uppercase tracking-[.14em] text-brand-cyan">Generate Creatives</span>
+            <strong className="mt-1 block text-[11px]">{running ? project.progress.label || 'Generating…' : finished ? `${project.progress.current} creatives ready` : failed ? 'Generation needs attention' : `${selectedCount} concepts selected`}</strong>
+            <span className="mt-0.5 block text-[8px] text-text-soft">{creditsPerCreative ? `${creditsPerCreative} credits per completed creative` : 'Credit estimate loading'}</span>
+          </div>
+        </div>
+
+        {running && <div className="mt-4">
+          <div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-cyan transition-all duration-500" style={{ width: `${Math.max(8, Math.min(100, Math.round((project.progress.current / Math.max(1, project.progress.total)) * 100)))}%` }} /></div>
+          <div className="mt-1.5 flex justify-between text-[7px] text-text-soft"><span>{project.progress.current} ready</span><span>{project.progress.total} total</span></div>
+          <p className="mt-2 text-[8px] leading-4 text-text-muted">This is a persistent background render. You can close Creative Flow and come back later.</p>
+        </div>}
+
+        {!running && !project.renderCampaignId && <div className="mt-4 rounded-xl border border-border-soft bg-slate-50 p-3">
+          {generationEstimateLoading
+            ? <span className="flex items-center gap-2 text-[8px] text-text-muted"><Loader2 className="size-3 animate-spin" />Checking generation credits…</span>
+            : generationEstimate
+              ? <><div className="flex items-center justify-between gap-2"><span className="flex items-center gap-1.5 text-[8px] font-semibold text-text-muted"><Coins className="size-3 text-brand-cyan" />Planned generation</span><strong className="text-[9px]">{generationEstimate.requiredCredits} credits</strong></div><p className="mt-1.5 text-[7px] leading-4 text-text-soft">{generationEstimate.creditsRemaining} credits available. Failed image renders use the existing refund path.</p></>
+              : <span className="text-[8px] text-text-muted">Select at least one strategy concept to calculate generation cost.</span>}
+        </div>}
+
+        {!running && !project.renderCampaignId && <Button className="mt-3 w-full" disabled={generationBusy || generationEstimateLoading || !canStart || Boolean(project.activeJobType)} onClick={startGeneration} size="sm" variant="primary">{generationBusy ? <Loader2 className="size-3 animate-spin" /> : <Rocket className="size-3" />}Generate {selectedCount}{requiredCredits ? ` · ${requiredCredits} credits` : ''}</Button>}
+
+        {generationEstimate && !generationEstimate.canGenerate && !project.renderCampaignId && <p className="mt-2 text-center text-[8px] text-red-600">Not enough AI credits for this selected strategy.</p>}
+
+        {finished && <div className="mt-4 rounded-xl border border-brand-green/20 bg-brand-green/[.04] p-3">
+          <span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Images className="size-3" />{partial ? 'Generation partially complete' : 'Stage 4 generation complete'}</span>
+          <p className="mt-1 text-[8px] leading-4 text-text-muted">{partial ? 'Some renders need retry.' : 'The render campaign is persisted and completed images are already in Media Library.'} Stage 5 expands these results into individual interactive creative nodes.</p>
+        </div>}
+
+        {failed && !project.renderCampaignId && <Button className="mt-3 w-full" disabled={generationBusy || !generationEstimate?.canGenerate} onClick={startGeneration} size="sm"><RefreshCw className="size-3" />Retry generation start</Button>}
+      </div>
     </NodeShell>
   </div>
 }

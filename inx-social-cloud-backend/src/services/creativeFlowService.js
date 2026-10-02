@@ -340,6 +340,21 @@ async function creativeFlowAccess(userId, requiredCredits = 0) {
   return access;
 }
 
+async function estimateCreativeFlowRender(userId, count) {
+  const normalizedCount = Math.max(1, Math.min(MAX_CONCEPTS, Number(count || 1)));
+  const access = await creativeFlowAccess(userId, 0);
+  const creditsPerCreative = postStudio.IMAGE_CREDITS;
+  const requiredCredits = normalizedCount * creditsPerCreative;
+  const creditsRemaining = Number(access?.creditsRemaining || 0);
+  return {
+    count: normalizedCount,
+    creditsPerCreative,
+    requiredCredits,
+    creditsRemaining,
+    canGenerate: creditsRemaining >= requiredCredits
+  };
+}
+
 async function rawCreativeFlowCampaign(userId, campaignId) {
   const campaign = await prisma.aiPostCampaign.findFirst({
     where: { id: String(campaignId), userId },
@@ -433,6 +448,7 @@ async function startCreativeFlowRender(userId, input) {
         campaignMap,
         creativeFlow: {
           version: 3,
+          projectId: clean(input.projectId, 160) || null,
           originalConceptCount: concepts.length,
           plannedCredits: requiredCredits,
           referenceAssetIds,
@@ -614,6 +630,7 @@ module.exports = {
   MAX_CONCEPTS,
   analyzeCreativeFlow,
   planCreativeFlow,
+  estimateCreativeFlowRender,
   startCreativeFlowRender,
   getCreativeFlowRender,
   retryCreativeFlowRender,

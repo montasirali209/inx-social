@@ -198,6 +198,12 @@ export type CreativeFlowProject = {
       style: string
       audience: string
     }
+    strategyPlan: CreativeFlowStrategy | null
+    selectedConceptSequences: number[]
+    generation: {
+      plannedCredits: number
+      creditsPerCreative: number
+    }
     canvas: {
       positions: {
         productUrl: { x: number; y: number }
@@ -205,6 +211,8 @@ export type CreativeFlowProject = {
         analyzeProduct: { x: number; y: number }
         productIntelligence: { x: number; y: number }
         campaignSetup: { x: number; y: number }
+        creativeStrategy: { x: number; y: number }
+        generateCreatives: { x: number; y: number }
       }
       viewport: { x: number; y: number; zoom: number }
     }
@@ -296,7 +304,7 @@ export function analyzeCreativeFlowProject(projectId: string, input: {
 }
 
 export function saveCreativeFlowProjectCanvas(projectId: string, input: {
-  positions: Partial<Record<'productUrl' | 'productImages' | 'analyzeProduct' | 'productIntelligence' | 'campaignSetup', { x: number; y: number }>>
+  positions: Partial<Record<'productUrl' | 'productImages' | 'analyzeProduct' | 'productIntelligence' | 'campaignSetup' | 'creativeStrategy' | 'generateCreatives', { x: number; y: number }>>
   viewport?: { x: number; y: number; zoom: number }
 }) {
   return apiRequest<{ project: CreativeFlowProject }>(
@@ -322,5 +330,45 @@ export function saveCreativeFlowCampaignSetup(projectId: string, input: {
       method: 'PATCH',
       body: JSON.stringify(input),
     },
+  ).then((response) => response.project)
+}
+
+
+export function startCreativeFlowProjectStrategy(projectId: string) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/strategy`,
+    { method: 'POST' },
+  ).then((response) => response.project)
+}
+
+export function saveCreativeFlowStrategySelection(projectId: string, sequences: number[]) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/strategy-selection`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ sequences }),
+    },
+  ).then((response) => response.project)
+}
+
+export type CreativeFlowGenerationEstimate = {
+  count: number
+  creditsPerCreative: number
+  requiredCredits: number
+  creditsRemaining: number
+  canGenerate: boolean
+}
+
+export function getCreativeFlowGenerationEstimate(projectId: string) {
+  return apiRequest<CreativeFlowGenerationEstimate>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/generation-estimate`,
+    { cache: 'no-store' },
+  )
+}
+
+export function startCreativeFlowProjectGeneration(projectId: string) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/generate`,
+    { method: 'POST' },
   ).then((response) => response.project)
 }

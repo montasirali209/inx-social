@@ -119,13 +119,19 @@ const creativeFlowCampaignSetupSchema = z.object({
   audience: z.string().trim().max(500).optional().default('')
 });
 
+const creativeFlowStrategySelectionSchema = z.object({
+  sequences: z.array(z.coerce.number().int().min(1).max(50)).min(1).max(50)
+});
+
 const creativeFlowCanvasSchema = z.object({
   positions: z.object({
     productUrl: creativeFlowPositionSchema.optional(),
     productImages: creativeFlowPositionSchema.optional(),
     analyzeProduct: creativeFlowPositionSchema.optional(),
     productIntelligence: creativeFlowPositionSchema.optional(),
-    campaignSetup: creativeFlowPositionSchema.optional()
+    campaignSetup: creativeFlowPositionSchema.optional(),
+    creativeStrategy: creativeFlowPositionSchema.optional(),
+    generateCreatives: creativeFlowPositionSchema.optional()
   }).optional().default({}),
   viewport: z.object({
     x: z.number().finite().min(-20000).max(20000),
@@ -450,6 +456,41 @@ async function saveCreativeFlowCampaignSetup(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function startCreativeFlowStrategy(req, res, next) {
+  try {
+    res.status(202).json({
+      project: await creativeFlowProjectRuntime.startStrategyPlanning(req.user.id, req.params.projectId)
+    });
+  } catch (error) { next(error); }
+}
+
+async function saveCreativeFlowStrategySelection(req, res, next) {
+  try {
+    const input = creativeFlowStrategySelectionSchema.parse(req.body || {});
+    res.json({
+      project: await creativeFlowProjectService.saveStrategySelection(
+        req.user.id,
+        req.params.projectId,
+        input.sequences
+      )
+    });
+  } catch (error) { next(error); }
+}
+
+async function getCreativeFlowGenerationEstimate(req, res, next) {
+  try {
+    res.json(await creativeFlowProjectRuntime.generationEstimate(req.user.id, req.params.projectId));
+  } catch (error) { next(error); }
+}
+
+async function startCreativeFlowGeneration(req, res, next) {
+  try {
+    res.status(202).json({
+      project: await creativeFlowProjectRuntime.startGeneration(req.user.id, req.params.projectId)
+    });
+  } catch (error) { next(error); }
+}
+
 async function saveCreativeFlowProjectCanvas(req, res, next) {
   try {
     const input = creativeFlowCanvasSchema.parse(req.body || {});
@@ -618,7 +659,7 @@ module.exports = {
   generateUGCAd: generation('ugc_ad'),
   generationStatus, cancelGeneration, dismissGeneration, recentDrafts, saveDraft, deleteDraft, sendDraftToPosts,
   generationHistory, brandKits, packs, createTopupCheckout, creditWebhook,
-  listCreativeFlowProjects, createCreativeFlowProject, openCreativeFlowProject, getCreativeFlowProject, saveCreativeFlowProjectSource, analyzeCreativeFlowProject, saveCreativeFlowCampaignSetup, saveCreativeFlowProjectCanvas, renameCreativeFlowProject, archiveCreativeFlowProject,
+  listCreativeFlowProjects, createCreativeFlowProject, openCreativeFlowProject, getCreativeFlowProject, saveCreativeFlowProjectSource, analyzeCreativeFlowProject, saveCreativeFlowCampaignSetup, startCreativeFlowStrategy, saveCreativeFlowStrategySelection, getCreativeFlowGenerationEstimate, startCreativeFlowGeneration, saveCreativeFlowProjectCanvas, renameCreativeFlowProject, archiveCreativeFlowProject,
   analyzeCreativeFlow, planCreativeFlow, startCreativeFlowRender, getCreativeFlowRender, retryCreativeFlowRender, regenerateCreativeFlowPost, deleteCreativeFlowRender, handoffCreativeFlowCampaign,
   createCampaign, listCampaigns, getCampaign, updateCampaignPost, regenerateCampaignPost, generateCampaignPostImage, deleteCampaign
 };

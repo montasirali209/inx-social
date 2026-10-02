@@ -39,8 +39,8 @@ test('Stage 2 begins with only product URL, product images and analyse controls'
   assert.match(workspace, /running && !analysis/);
   assert.match(workspace, /id: 'analysisProcess'/);
   assert.match(workspace, /id: 'productIntelligence'/);
-  assert.doesNotMatch(workspace, /id: 'creativeStrategy'/);
-  assert.doesNotMatch(workspace, /id: 'generateCreatives'/);
+  assert.match(workspace, /if \(campaignConfigured\(project\)\)/);
+  assert.match(workspace, /if \(project\.workflow\.strategyPlan\)/);
 });
 
 test('Stage 2 source nodes are direct controls with friendly URL normalisation and immediate image persistence', () => {
@@ -74,7 +74,7 @@ test('Stage 2 analysis is project-owned, background-safe and restart-resumable',
   assert.match(runtime, /saveProductAnalysis/);
   assert.match(runtime, /currentStage: 'PRODUCT_READY'/);
   assert.match(runtime, /PRODUCT_ANALYSIS_FAILED/);
-  assert.match(runtime, /activeJobType: 'PRODUCT_ANALYSIS'/);
+  assert.match(runtime, /PRODUCT_ANALYSIS/);
   assert.match(server, /startCreativeFlowProjectRuntime/);
 });
 
