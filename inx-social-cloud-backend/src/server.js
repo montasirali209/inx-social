@@ -14,6 +14,7 @@ const { runOneOffXTextSanitizer } = require('./services/oneOffXTextSanitizer');
 const { runOneOffGrowthImageRepair } = require('./services/oneOffGrowthImageRepair');
 const { startUGCStudioRuntime } = require('./services/ugcStudioService');
 const { startAIPostCampaignRuntime } = require('./services/aiPostCampaignService');
+const { startCreativeFlowProjectRuntime } = require('./services/creativeFlowProjectRuntime');
 const videoModelRegistry = require('./services/videoModelRegistryService');
 const aiCredits = require('./services/aiCreditService');
 const stripeService = require('./services/stripeService');
@@ -62,6 +63,7 @@ const server = app.listen(env.port, () => {
   startBulkCancellationRuntime();
   startUGCStudioRuntime();
   void startAIPostCampaignRuntime();
+  void startCreativeFlowProjectRuntime();
   void videoModelRegistry.startRuntime()
     .then(snapshot => console.info('[VIDEO MODEL REGISTRY STARTUP]', JSON.stringify(snapshot)))
     .catch(error => console.warn('[VIDEO MODEL REGISTRY STARTUP] failed', { error: error?.message || String(error) }));
