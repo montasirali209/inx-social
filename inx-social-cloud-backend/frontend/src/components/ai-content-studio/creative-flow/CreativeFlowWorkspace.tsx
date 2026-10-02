@@ -431,7 +431,7 @@ function CreativeFlowWorkspaceInner({
     } finally {
       setSourceBusy(false)
     }
-  }, [persistSource, project.workflow.source.referenceAssetIds, project.workflow.source.referenceNames, running, sourceBusy, urlDraft])
+  }, [anyJobRunning, persistSource, project.workflow.source.referenceAssetIds, project.workflow.source.referenceNames, sourceBusy, urlDraft])
 
   const uploadFiles = useCallback(async (incoming: File[]) => {
     if (sourceBusy || anyJobRunning) return
@@ -476,7 +476,7 @@ function CreativeFlowWorkspaceInner({
     } finally {
       setSourceBusy(false)
     }
-  }, [persistSource, project.workflow.source.normalizedUrl, project.workflow.source.referenceAssetIds, project.workflow.source.referenceNames, running, sourceBusy, urlDraft])
+  }, [anyJobRunning, persistSource, project.workflow.source.normalizedUrl, project.workflow.source.referenceAssetIds, project.workflow.source.referenceNames, sourceBusy, urlDraft])
 
   const removeReference = useCallback(async (index: number) => {
     if (sourceBusy || anyJobRunning) return
@@ -500,7 +500,7 @@ function CreativeFlowWorkspaceInner({
     } finally {
       setSourceBusy(false)
     }
-  }, [persistSource, project.workflow.source.normalizedUrl, project.workflow.source.referenceAssetIds, project.workflow.source.referenceNames, running, sourceBusy, urlDraft])
+  }, [anyJobRunning, persistSource, project.workflow.source.normalizedUrl, project.workflow.source.referenceAssetIds, project.workflow.source.referenceNames, sourceBusy, urlDraft])
 
   const runAnalysis = useCallback(async () => {
     if (sourceBusy || running || blockedByAnother) return
@@ -1105,7 +1105,7 @@ function CreativeStrategyNode(props: NodeProps) {
 
       {!plan && !running && <div className="nodrag border-t border-border-soft p-4">
         <p className="text-[8px] leading-4 text-text-muted">Creative Flow will build the campaign foundation and then produce the exact number of materially different concepts requested in Campaign Setup.</p>
-        <Button className="mt-3 w-full" disabled={strategyBusy || Boolean(project.activeJobType)} onClick={startStrategy} size="sm" variant="primary">{strategyBusy ? <Loader2 className="size-3 animate-spin" /> : failed ? <RefreshCw className="size-3" /> : <BrainCircuit className="size-3" />}{failed ? 'Retry strategy' : 'Build creative strategy'}</Button>
+        <Button className="mt-3 w-full" disabled={strategyBusy || Boolean(project.activeJobType) || Boolean(project.renderCampaignId)} onClick={startStrategy} size="sm" variant="primary">{strategyBusy ? <Loader2 className="size-3 animate-spin" /> : failed ? <RefreshCw className="size-3" /> : <BrainCircuit className="size-3" />}{failed ? 'Retry strategy' : 'Build creative strategy'}</Button>
       </div>}
 
       {plan && strategyExpanded && <AnimatedExpand id="creative-strategy">
@@ -1117,7 +1117,7 @@ function CreativeStrategyNode(props: NodeProps) {
           <div className="mt-2 max-h-[300px] space-y-2 overflow-y-auto pr-1">
             {plan.concepts.map((concept) => {
               const kept = selected.has(concept.sequence)
-              return <button aria-pressed={kept} className={`block w-full rounded-xl border p-3 text-left transition ${kept ? 'border-brand-cyan/25 bg-brand-cyan/[.035]' : 'border-border-soft bg-slate-50 opacity-55'}`} disabled={strategyBusy || Boolean(project.activeJobType)} key={concept.sequence} onClick={() => toggleStrategyConcept(concept.sequence)} type="button">
+              return <button aria-pressed={kept} className={`block w-full rounded-xl border p-3 text-left transition ${kept ? 'border-brand-cyan/25 bg-brand-cyan/[.035]' : 'border-border-soft bg-slate-50 opacity-55'}`} disabled={strategyBusy || Boolean(project.activeJobType) || Boolean(project.renderCampaignId)} key={concept.sequence} onClick={() => toggleStrategyConcept(concept.sequence)} type="button">
                 <span className="flex items-start justify-between gap-2"><span className="min-w-0"><span className="block text-[7px] font-bold uppercase tracking-[.11em] text-brand-purple">{concept.angle}</span><strong className="mt-1 block text-[9px] leading-4">{concept.hook}</strong></span><span className={`grid size-6 shrink-0 place-items-center rounded-full border ${kept ? 'border-brand-green/25 bg-brand-green/[.08] text-brand-green' : 'border-border-soft bg-white text-text-soft'}`}>{kept ? <Check className="size-3" /> : <X className="size-3" />}</span></span>
                 <span className="mt-1.5 line-clamp-2 block text-[7px] leading-4 text-text-soft">{concept.visualStyle}</span>
               </button>
