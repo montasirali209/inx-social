@@ -1,5 +1,6 @@
 import { apiRequest } from './api-client'
 import type { PostStudioSourceAnalysis } from './ai-post-studio-api'
+import type { AIPostCampaign } from '../types/ai-content-studio'
 
 export type CreativeFlowBrandReference = {
   url?: string
@@ -89,4 +90,67 @@ export function planCreativeFlow(input: {
     method: 'POST',
     body: JSON.stringify(input),
   })
+}
+
+
+export type CreativeFlowRenderCampaign = AIPostCampaign & {
+  creativeFlow: {
+    version: number
+    creditsPerCreative: number
+    plannedCredits: number
+    originalConceptCount: number
+    referenceAssetIds: string[]
+  }
+}
+
+export function startCreativeFlowRender(input: {
+  website?: string
+  productName?: string
+  prompt: string
+  platforms: string[]
+  goal?: string
+  style?: string
+  audience?: string
+  referenceAssetIds?: string[]
+  sourceAnalysis: PostStudioSourceAnalysis
+  brandPack: CreativeFlowBrandPack
+  strategy: CreativeFlowStrategy['strategy']
+  concepts: CreativeFlowConcept[]
+}) {
+  return apiRequest<{
+    campaign: CreativeFlowRenderCampaign
+    creditsPerCreative: number
+    plannedCredits: number
+  }>('/api/ai-content-studio/creative-flow/render', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export function getCreativeFlowRender(campaignId: string) {
+  return apiRequest<{ campaign: CreativeFlowRenderCampaign }>(
+    `/api/ai-content-studio/creative-flow/render/${encodeURIComponent(campaignId)}`,
+    { cache: 'no-store' },
+  ).then((response) => response.campaign)
+}
+
+export function retryCreativeFlowRender(campaignId: string) {
+  return apiRequest<{ campaign: CreativeFlowRenderCampaign }>(
+    `/api/ai-content-studio/creative-flow/render/${encodeURIComponent(campaignId)}/retry`,
+    { method: 'POST' },
+  ).then((response) => response.campaign)
+}
+
+export function regenerateCreativeFlowPost(campaignId: string, postId: string) {
+  return apiRequest<{ campaign: CreativeFlowRenderCampaign }>(
+    `/api/ai-content-studio/creative-flow/render/${encodeURIComponent(campaignId)}/posts/${encodeURIComponent(postId)}/regenerate`,
+    { method: 'POST' },
+  ).then((response) => response.campaign)
+}
+
+export function deleteCreativeFlowRender(campaignId: string) {
+  return apiRequest<{ ok: true }>(
+    `/api/ai-content-studio/creative-flow/render/${encodeURIComponent(campaignId)}`,
+    { method: 'DELETE' },
+  )
 }
