@@ -1,5 +1,6 @@
 import {
   Background,
+  BaseEdge,
   Controls,
   Handle,
   Position,
@@ -83,7 +84,9 @@ import {
 import { Button } from '../../ui/Button'
 import { CreativeFlowMotionSlot } from './CreativeFlowMotion'
 
-type Stage2Node = Node<Record<string, never>>
+type Stage2NodeData = { analysisStep?: number }
+
+type Stage2Node = Node<Stage2NodeData>
 type Stage2Edge = Edge<{ active?: boolean; complete?: boolean }, 'motion'>
 
 type LocalPreview = {
@@ -202,18 +205,92 @@ function renderFinished(project: CreativeFlowProject) {
   ].includes(project.currentStage)
 }
 
+const ANALYSIS_STEPS = [
+  {
+    id: 'analysisSources',
+    eyebrow: 'Source collection',
+    title: 'Collect product sources',
+    description: 'Read the website, uploads and references attached to this project.',
+  },
+  {
+    id: 'analysisEvidence',
+    eyebrow: 'Evidence extraction',
+    title: 'Extract verified evidence',
+    description: 'Separate supported product facts and claims from unsupported assumptions.',
+  },
+  {
+    id: 'analysisMeaning',
+    eyebrow: 'Product understanding',
+    title: 'Understand positioning',
+    description: 'Interpret audience, product meaning, positioning and claim boundaries.',
+  },
+  {
+    id: 'analysisBrand',
+    eyebrow: 'Visual intelligence',
+    title: 'Map brand & visuals',
+    description: 'Identify logo, colours, product visuals and usable brand signals.',
+  },
+] as const
+
+function analysisStepCount(project: CreativeFlowProject) {
+  if (project.workflow.analysis) return ANALYSIS_STEPS.length
+  const visible = project.activeJobType === 'PRODUCT_ANALYSIS'
+    || ['PRODUCT_ANALYSIS_RUNNING', 'PRODUCT_ANALYSIS_FAILED'].includes(project.currentStage)
+  if (!visible) return 0
+  return Math.max(1, Math.min(ANALYSIS_STEPS.length, Number(project.progress.current || 1)))
+}
+
+function analysisStepPosition(project: CreativeFlowProject, index: number) {
+  const base = project.workflow.canvas.positions.analyzeProduct
+  return {
+    x: base.x + 360,
+    y: base.y - 255 + (index * 170),
+  }
+}
+
+function productIntelligencePosition(project: CreativeFlowProject) {
+  const base = project.workflow.canvas.positions.analyzeProduct
+  const saved = project.workflow.canvas.positions.productIntelligence
+  return {
+    x: Math.max(saved.x, base.x + 820),
+    y: Math.min(saved.y, base.y - 60),
+  }
+}
+
+function creativeStrategyPosition(project: CreativeFlowProject) {
+  const product = productIntelligencePosition(project)
+  const saved = project.workflow.canvas.positions.creativeStrategy
+  return {
+    x: Math.max(saved.x, product.x + 500),
+    y: saved.y,
+  }
+}
+
+function generateCreativesPosition(project: CreativeFlowProject) {
+  const strategy = creativeStrategyPosition(project)
+  const saved = project.workflow.canvas.positions.generateCreatives
+  return {
+    x: Math.max(saved.x, strategy.x + 470),
+    y: saved.y,
+  }
+}
+
 function focusNodeIds(project: CreativeFlowProject) {
+  const processIds = ANALYSIS_STEPS.slice(0, analysisStepCount(project)).map((step) => step.id)
   if (project.activeJobType === 'PRODUCT_ANALYSIS' || project.currentStage === 'PRODUCT_ANALYSIS_RUNNING') {
-    return ['productUrl', 'productImages', 'analyzeProduct', 'analysisProcess']
+    return ['productUrl', 'productImages', 'analyzeProduct', ...processIds]
   }
   if (!project.workflow.analysis) {
-    return ['productUrl', 'productImages', 'analyzeProduct']
+    return ['productUrl', 'productImages', 'analyzeProduct', ...processIds]
+  }
+  if (project.currentStage === 'PRODUCT_READY' && !campaignConfigured(project)) {
+    return ['analyzeProduct', ...ANALYSIS_STEPS.map((step) => step.id), 'productIntelligence']
   }
   if (
     project.activeJobType === 'STRATEGY_PLANNING' ||
     ['CAMPAIGN_READY', 'STRATEGY_PLANNING', 'STRATEGY_FAILED'].includes(project.currentStage)
   ) {
-    return ['campaignSetup', 'creativeStrategy']
+    return ['productIntelligence', 'creativeStrategy']
   }
   if (project.workflow.review.revealedPostIds.length) {
     return [
@@ -232,7 +309,7 @@ function focusNodeIds(project: CreativeFlowProject) {
   ) {
     return ['creativeStrategy', 'generateCreatives']
   }
-  return ['productIntelligence', 'campaignSetup']
+  return [...ANALYSIS_STEPS.map((step) => step.id), 'productIntelligence']
 }
 
 function creativeNodeId(postId: string) {
@@ -323,72 +400,117 @@ function defaultNodes(project: CreativeFlowProject): Stage2Node[] {
     { id: 'productImages', type: 'productImages', position: positions.productImages, data: {}, draggable: true },
     { id: 'analyzeProduct', type: 'analyzeProduct', position: positions.analyzeProduct, data: {}, draggable: true },
   ]
-  if (running && !analysis) {
-    nodes.push({ id: 'analysisProcess', type: 'analysisProcess', position: positions.productIntelligence, data: {}, draggable: false })
-  } else if (analysis) {
-    nodes.push({ id: 'productIntelligence', type: 'productIntelligence', position: positions.productIntelligence, data: {}, draggable: true })
-    nodes.push({ id: 'campaignSetup', type: 'campaignSetup', position: positions.campaignSetup, data: {}, draggable: true })
+
+  const visibleStepCount = analysisStepCount(project)
+  ANALYSIS_STEPS.slice(0, visibleStepCount).forEach((step, index) => {
+    nodes.push({
+      id: step.id,
+      type: 'analysisStep',
+      position: analysisStepPosition(project, index),
+      data: { analysisStep: index },
+      draggable: false,
+    })
+  })
+
+  if (analysis) {
+    nodes.push({
+      id: 'productIntelligence',
+      type: 'productIntelligence',
+      position: productIntelligencePosition(project),
+      data: {},
+      draggable: true,
+    })
     if (campaignConfigured(project)) {
-      nodes.push({ id: 'creativeStrategy', type: 'creativeStrategy', position: positions.creativeStrategy, data: {}, draggable: true })
+      nodes.push({
+        id: 'creativeStrategy',
+        type: 'creativeStrategy',
+        position: creativeStrategyPosition(project),
+        data: {},
+        draggable: true,
+      })
     }
     if (project.workflow.strategyPlan) {
-      nodes.push({ id: 'generateCreatives', type: 'generateCreatives', position: positions.generateCreatives, data: {}, draggable: true })
+      nodes.push({
+        id: 'generateCreatives',
+        type: 'generateCreatives',
+        position: generateCreativesPosition(project),
+        data: {},
+        draggable: true,
+      })
     }
   }
+
   return nodes
 }
 
 function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
   const running = project.activeJobType === 'PRODUCT_ANALYSIS'
   const analysis = project.workflow.analysis
-  const sourceActive = running
+  const visibleStepCount = analysisStepCount(project)
+  const currentProgress = Number(project.progress.current || 0)
   const edges: Stage2Edge[] = [
     {
       id: 'url-analyze',
       source: 'productUrl',
       target: 'analyzeProduct',
       type: 'motion',
-      data: { active: sourceActive, complete: Boolean(analysis) },
+      data: { active: running && currentProgress <= 1, complete: running || Boolean(analysis) },
     },
     {
       id: 'images-analyze',
       source: 'productImages',
       target: 'analyzeProduct',
       type: 'motion',
-      data: { active: sourceActive, complete: Boolean(analysis) },
+      data: { active: running && currentProgress <= 1, complete: running || Boolean(analysis) },
     },
   ]
-  if (running && !analysis) {
+
+  if (visibleStepCount > 0) {
+    const first = ANALYSIS_STEPS[0]
     edges.push({
-      id: 'analyze-process',
+      id: 'analyze-analysis-sources',
       source: 'analyzeProduct',
-      target: 'analysisProcess',
+      target: first.id,
       type: 'motion',
-      data: { active: true, complete: false },
+      data: { active: running && currentProgress <= 1, complete: Boolean(analysis) || currentProgress > 1 },
     })
-  } else if (analysis) {
-    edges.push({
-      id: 'analyze-intelligence',
-      source: 'analyzeProduct',
-      target: 'productIntelligence',
-      type: 'motion',
-      data: { active: false, complete: true },
+
+    for (let index = 1; index < visibleStepCount; index += 1) {
+      const previous = ANALYSIS_STEPS[index - 1]
+      const step = ANALYSIS_STEPS[index]
+      edges.push({
+        id: `${previous.id}-${step.id}`,
+        source: previous.id,
+        target: step.id,
+        type: 'motion',
+        data: {
+          active: running && currentProgress === index + 1,
+          complete: Boolean(analysis) || currentProgress > index + 1,
+        },
+      })
+    }
+  }
+
+  if (analysis) {
+    ANALYSIS_STEPS.forEach((step) => {
+      edges.push({
+        id: `${step.id}-intelligence`,
+        source: step.id,
+        target: 'productIntelligence',
+        type: 'motion',
+        data: { active: false, complete: true },
+      })
     })
+
     const campaignReady = campaignConfigured(project)
     const strategyRunning = project.activeJobType === 'STRATEGY_PLANNING'
     const strategyReady = Boolean(project.workflow.strategyPlan)
     const renderRunning = project.activeJobType === 'CREATIVE_RENDER'
-    edges.push({
-      id: 'intelligence-campaign',
-      source: 'productIntelligence',
-      target: 'campaignSetup',
-      type: 'motion',
-      data: { active: !campaignReady, complete: campaignReady },
-    })
+
     if (campaignReady) {
       edges.push({
-        id: 'campaign-strategy',
-        source: 'campaignSetup',
+        id: 'intelligence-strategy',
+        source: 'productIntelligence',
         target: 'creativeStrategy',
         type: 'motion',
         data: { active: strategyRunning, complete: strategyReady },
@@ -404,6 +526,7 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
       })
     }
   }
+
   return edges
 }
 
@@ -411,9 +534,8 @@ const nodeTypes = {
   productUrl: ProductUrlNode,
   productImages: ProductImagesNode,
   analyzeProduct: AnalyzeProductNode,
-  analysisProcess: AnalysisProcessNode,
+  analysisStep: AnalysisStepNode,
   productIntelligence: ProductIntelligenceNode,
-  campaignSetup: CampaignSetupNode,
   creativeStrategy: CreativeStrategyNode,
   generateCreatives: GenerateCreativesNode,
   creativeAsset: CreativeAssetNode,
