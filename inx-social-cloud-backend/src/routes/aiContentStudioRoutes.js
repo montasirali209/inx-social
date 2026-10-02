@@ -20,6 +20,7 @@ router.get('/creative-flow/projects', controller.listCreativeFlowProjects);
 router.post('/creative-flow/projects', controller.createCreativeFlowProject);
 router.get('/creative-flow/projects/:projectId', controller.getCreativeFlowProject);
 router.post('/creative-flow/projects/:projectId/open', controller.openCreativeFlowProject);
+router.patch('/creative-flow/projects/:projectId/source', controller.saveCreativeFlowProjectSource);
 router.post('/creative-flow/projects/:projectId/analyze', controller.analyzeCreativeFlowProject);
 router.patch('/creative-flow/projects/:projectId/canvas', controller.saveCreativeFlowProjectCanvas);
 router.patch('/creative-flow/projects/:projectId', controller.renameCreativeFlowProject);
