@@ -6,16 +6,17 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const read = relative => fs.readFileSync(path.join(root, relative), 'utf8');
 
-test('Stage 3 grows Campaign Setup only after Product Intelligence exists', () => {
+test('Stage 3 keeps Campaign Setup inside Product Intelligence instead of growing another node', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
 
-  assert.match(workspace, /analysis\) \{[\s\S]*id: 'productIntelligence'/);
-  assert.match(workspace, /id: 'campaignSetup'/);
-  assert.match(workspace, /source: 'productIntelligence'/);
-  assert.match(workspace, /target: 'campaignSetup'/);
+  assert.match(workspace, /function ProductIntelligenceNode/);
   assert.match(workspace, /Campaign Setup/);
+  assert.match(workspace, /Set up this campaign/);
+  assert.match(workspace, /campaign-setup-inline/);
   assert.match(workspace, /Campaign setup saved/);
-  assert.match(workspace, /The strategy node is connected/);
+  assert.match(workspace, /Creative Strategy can now grow from this same Product Intelligence node/);
+  assert.doesNotMatch(workspace, /id: 'campaignSetup'/);
+  assert.doesNotMatch(workspace, /function CampaignSetupNode/);
 });
 
 test('Stage 3 campaign controls live inside the node instead of a sidebar', () => {
@@ -57,7 +58,7 @@ test('Changing product inputs invalidates downstream Product Intelligence before
   assert.match(service, /currentStage: 'PROJECT_CREATED'/);
 });
 
-test('Stage 3 persists Campaign Setup node position with the same project canvas', () => {
+test('Stage 3 preserves legacy canvas schema while no longer persisting a separate Campaign Setup node', () => {
   const service = read('src/services/creativeFlowProjectService.js');
   const controller = read('src/controllers/aiContentStudioController.js');
   const api = read('frontend/src/lib/creative-flow-api.ts');
@@ -67,7 +68,7 @@ test('Stage 3 persists Campaign Setup node position with the same project canvas
   assert.match(service, /campaignSetup: cleanPosition/);
   assert.match(controller, /campaignSetup: creativeFlowPositionSchema\.optional\(\)/);
   assert.match(api, /campaignSetup: \{ x: number; y: number \}/);
-  assert.match(workspace, /campaignSetup: byId\.get\('campaignSetup'\)/);
+  assert.doesNotMatch(workspace, /campaignSetup: byId\.get\('campaignSetup'\)/);
 });
 
 test('Stage 3 continues to use the motion system rather than introducing a separate page', () => {
@@ -77,5 +78,5 @@ test('Stage 3 continues to use the motion system rather than introducing a separ
   assert.match(workspace, /CreativeFlowMotionSlot/);
   assert.match(workspace, /gsap\.fromTo/);
   assert.match(workspace, /MotionEdge/);
-  assert.match(workspace, /active: !campaignReady/);
+  assert.match(workspace, /source: 'productIntelligence'[\s\S]*target: 'creativeStrategy'/);
 });
