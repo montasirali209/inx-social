@@ -1400,7 +1400,6 @@ function ProductIntelligenceNode(props: NodeProps) {
   const brand = analysis.brandPack
   const motionState = campaignRunning ? 'working' : failed ? 'error' : finished ? 'success' : campaignExpanded ? 'selected' : 'idle'
   const requiredCredits = generationEstimate?.requiredCredits || project.workflow.generation.plannedCredits
-  const creditsPerCreative = generationEstimate?.creditsPerCreative || project.workflow.generation.creditsPerCreative
 
   return <div ref={ref}>
     <Handle className="!size-3 !border-2 !border-white !bg-brand-green" position={Position.Left} type="target" />
