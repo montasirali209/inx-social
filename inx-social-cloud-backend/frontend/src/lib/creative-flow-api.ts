@@ -154,3 +154,17 @@ export function deleteCreativeFlowRender(campaignId: string) {
     { method: 'DELETE' },
   )
 }
+
+
+export function handoffCreativeFlowCampaign(campaignId: string, approvedPostIds: string[]) {
+  return apiRequest<{
+    campaign: AIPostCampaign
+    reused: boolean
+  }>(
+    `/api/ai-content-studio/creative-flow/render/${encodeURIComponent(campaignId)}/handoff`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ approvedPostIds }),
+    },
+  )
+}
