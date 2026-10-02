@@ -107,7 +107,6 @@ type WorkspaceContextValue = {
   generationEstimate: CreativeFlowGenerationEstimate | null
   generationEstimateLoading: boolean
   renderCampaign: CreativeFlowRenderCampaign | null
-  expandedCreativeId: string | null
   reviewBusy: boolean
   retryMissingBusy: boolean
   handoffBusy: boolean
@@ -127,7 +126,6 @@ type WorkspaceContextValue = {
   setCampaignExpanded: (value: boolean) => void
   setAdvancedExpanded: (value: boolean) => void
   setStrategyExpanded: (value: boolean) => void
-  setExpandedCreativeId: (value: string | null) => void
   setCampaignGoal: (value: string) => void
   toggleCampaignPlatform: (value: string) => void
   setCreativeCount: (value: number) => void
@@ -242,26 +240,22 @@ function creativeNodeId(postId: string) {
   return `creative:${postId}`
 }
 
-function creativeNodePosition(project: CreativeFlowProject, postId: string, index: number) {
-  const persisted = project.workflow.canvas.creativePositions?.[postId]
-  if (persisted) return persisted
+function creativeNodePosition(project: CreativeFlowProject, _postId: string, index: number) {
   const base = project.workflow.canvas.positions.generateCreatives
-  const rowCount = 4
-  const column = Math.floor(index / rowCount)
-  const row = index % rowCount
+  const column = index % 4
+  const row = Math.floor(index / 4)
   return {
-    x: base.x + 430 + (column * 360),
-    y: 70 + (row * 350),
+    x: base.x + 430 + (column * 340),
+    y: base.y - 420 + (row * 350),
   }
 }
 
 function scheduleNodePosition(project: CreativeFlowProject, creativeCount: number) {
-  if (project.workflow.canvas.schedulePosition) return project.workflow.canvas.schedulePosition
   const base = project.workflow.canvas.positions.generateCreatives
-  const columns = Math.max(1, Math.ceil(Math.max(creativeCount, 1) / 4))
+  const columns = Math.max(1, Math.min(4, Math.max(creativeCount, 1)))
   return {
-    x: base.x + 430 + (columns * 360) + 390,
-    y: base.y + 10,
+    x: base.x + 430 + (columns * 340) + 390,
+    y: base.y - 40,
   }
 }
 
@@ -276,7 +270,7 @@ function buildReviewGraph(
   const selected = new Set(project.workflow.review.selectedPostIds)
   const finished = campaign.status !== 'GENERATING_IMAGES'
   const visiblePosts = campaign.posts.filter((post) =>
-    revealed.has(post.id) || (finished && !post.mediaAssetId)
+    finished || revealed.has(post.id)
   )
 
   const nodes: Stage2Node[] = visiblePosts.map((post, index) => ({
@@ -284,7 +278,7 @@ function buildReviewGraph(
     type: 'creativeAsset',
     position: creativeNodePosition(project, post.id, index),
     data: {},
-    draggable: true,
+    draggable: false,
   }))
 
   const edges: Stage2Edge[] = visiblePosts.map((post) => ({
@@ -305,7 +299,7 @@ function buildReviewGraph(
       type: 'scheduleCampaign',
       position: scheduleNodePosition(project, visiblePosts.length),
       data: {},
-      draggable: true,
+      draggable: false,
     })
     selectedVisible.forEach((post) => {
       edges.push({
@@ -466,7 +460,6 @@ function CreativeFlowWorkspaceInner({
   const [strategyExpanded, setStrategyExpanded] = useState(false)
   const [strategyBusy, setStrategyBusy] = useState(false)
   const [generationBusy, setGenerationBusy] = useState(false)
-  const [expandedCreativeId, setExpandedCreativeId] = useState<string | null>(null)
   const [reviewBusy, setReviewBusy] = useState(false)
   const [retryMissingBusy, setRetryMissingBusy] = useState(false)
   const [handoffBusy, setHandoffBusy] = useState(false)
@@ -948,7 +941,6 @@ function CreativeFlowWorkspaceInner({
       setRevealedPostIds(nextRevealed)
       revealScheduledRef.current.delete(postId)
       void saveCreativeFlowReviewReveal(project.id, nextRevealed).then(updateCachedProject).catch(() => {})
-      setExpandedCreativeId((current) => current === postId ? null : current)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Creative Flow could not remove this creative.')
     } finally {
@@ -973,11 +965,6 @@ function CreativeFlowWorkspaceInner({
   const saveCanvas = useCallback(async (nextNodes: Stage2Node[], viewport?: Viewport) => {
     const byId = new Map(nextNodes.map((node) => [node.id, node.position]))
     try {
-      const creativePositions = Object.fromEntries(
-        nextNodes
-          .filter((node) => node.id.startsWith('creative:'))
-          .map((node) => [node.id.replace(/^creative:/, ''), node.position]),
-      )
       const next = await saveCreativeFlowProjectCanvas(project.id, {
         positions: {
           productUrl: byId.get('productUrl'),
@@ -988,8 +975,8 @@ function CreativeFlowWorkspaceInner({
           creativeStrategy: byId.get('creativeStrategy'),
           generateCreatives: byId.get('generateCreatives'),
         },
-        creativePositions,
-        schedulePosition: byId.get('scheduleCampaign') || null,
+        creativePositions: {},
+        schedulePosition: null,
         viewport,
       })
       updateCachedProject(next)
@@ -1013,7 +1000,6 @@ function CreativeFlowWorkspaceInner({
     generationEstimate: generationEstimateQuery.data || null,
     generationEstimateLoading: generationEstimateQuery.isLoading,
     renderCampaign,
-    expandedCreativeId,
     reviewBusy,
     retryMissingBusy,
     handoffBusy,
@@ -1033,7 +1019,6 @@ function CreativeFlowWorkspaceInner({
     setCampaignExpanded,
     setAdvancedExpanded,
     setStrategyExpanded,
-    setExpandedCreativeId,
     setCampaignGoal,
     toggleCampaignPlatform: (value) => setCampaignPlatforms((current) => current.includes(value) ? current.filter((item) => item !== value) : [...current, value]),
     setCreativeCount,
@@ -1054,7 +1039,7 @@ function CreativeFlowWorkspaceInner({
     uploadFiles: (files) => void uploadFiles(files),
     removeReference: (index) => void removeReference(index),
     runAnalysis: () => void runAnalysis(),
-  }), [advancedExpanded, analysis, campaignAudience, campaignBusy, campaignExpanded, campaignGoal, campaignPlatforms, clearCreativeSelection, creativeCount, creativeStyle, error, expandedCreativeId, generationBusy, generationEstimateQuery.data, generationEstimateQuery.isLoading, handoffBusy, imageExpanded, localPreviews, project, regenerateCreative, removeCreative, removeReference, renderCampaign, retryMissingBusy, retryMissingCreatives, reviewBusy, runAnalysis, running, saveCampaign, saveUrl, selectAllReadyCreatives, sendSelectedToScheduler, sourceBusy, startGeneration, startStrategy, strategyBusy, strategyExpanded, toggleCreativeSelection, toggleStrategyConcept, uploadFiles, uploadProgress, urlDraft, urlExpanded])
+  }), [advancedExpanded, analysis, campaignAudience, campaignBusy, campaignExpanded, campaignGoal, campaignPlatforms, clearCreativeSelection, creativeCount, creativeStyle, error, generationBusy, generationEstimateQuery.data, generationEstimateQuery.isLoading, handoffBusy, imageExpanded, localPreviews, project, regenerateCreative, removeCreative, removeReference, renderCampaign, retryMissingBusy, retryMissingCreatives, reviewBusy, runAnalysis, running, saveCampaign, saveUrl, selectAllReadyCreatives, sendSelectedToScheduler, sourceBusy, startGeneration, startStrategy, strategyBusy, strategyExpanded, toggleCreativeSelection, toggleStrategyConcept, uploadFiles, uploadProgress, urlDraft, urlExpanded])
 
   return <WorkspaceContext.Provider value={contextValue}>
     <div className="relative size-full min-h-[560px] overflow-hidden bg-[radial-gradient(circle_at_20%_20%,rgba(45,212,191,.055),transparent_25rem),radial-gradient(circle_at_85%_75%,rgba(139,92,246,.045),transparent_28rem),#f8fafc]">
@@ -1600,21 +1585,21 @@ function CreativeAssetNode(props: NodeProps) {
   const {
     project,
     renderCampaign,
-    expandedCreativeId,
     reviewBusy,
-    setExpandedCreativeId,
     toggleCreativeSelection,
     regenerateCreative,
     removeCreative,
   } = useWorkspace()
   const post = renderCampaign?.posts.find((item) => item.id === postId)
   const selected = project.workflow.review.selectedPostIds.includes(postId)
-  const expanded = expandedCreativeId === postId
   const regenerating = project.activeJobType === 'CREATIVE_REGENERATE' && project.activeJobId === postId
   const finishedCampaign = renderCampaign?.status !== 'GENERATING_IMAGES'
   const regenerationFailed = project.workflow.review.failedPostId === postId
   const failed = Boolean(post && ((!post.mediaAssetId && finishedCampaign) || regenerationFailed) && !regenerating)
   const imageUrl = post?.mediaAsset?.url || post?.mediaAsset?.thumbnailUrl || ''
+  const locked = reviewBusy || Boolean(project.activeJobType)
+  const [directionOpen, setDirectionOpen] = useState(false)
+  const [directionDraft, setDirectionDraft] = useState('')
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -1634,19 +1619,36 @@ function CreativeAssetNode(props: NodeProps) {
   if (!post) return null
 
   const motionState = regenerating ? 'working' : failed ? 'error' : selected ? 'selected' : 'success'
+  const regenerateWithDirection = () => {
+    const direction = directionDraft.trim()
+    if (!direction || locked) return
+    const existing = String(post.imageBrief || '').trim()
+    regenerateCreative(postId, {
+      imageBrief: [existing, `User direction: ${direction}`].filter(Boolean).join('\n\n'),
+    })
+    setDirectionOpen(false)
+    setDirectionDraft('')
+  }
 
   return <div ref={ref}>
     <Handle className="!size-3 !border-2 !border-white !bg-brand-green" position={Position.Left} type="target" />
     <Handle className={`!size-3 !border-2 !border-white ${selected ? '!bg-brand-purple' : '!bg-brand-green'}`} position={Position.Right} type="source" />
-    <NodeShell className={`${expanded ? 'w-[430px]' : 'w-[300px]'} overflow-hidden transition-[width,box-shadow,border-color] duration-300 ${selected ? 'border-brand-purple/35 shadow-[0_26px_78px_rgba(139,92,246,.14)]' : failed ? 'border-red-200' : 'border-brand-green/20'}`}>
+    <NodeShell className={`w-[300px] overflow-hidden ${selected ? 'border-brand-purple/40 shadow-[0_24px_70px_rgba(139,92,246,.16)]' : failed ? 'border-red-200' : 'border-brand-green/20'}`}>
       <div className="relative">
         {imageUrl
-          ? <button aria-label={`Open creative ${post.sequence}`} className="nodrag block w-full bg-slate-100 text-left" onClick={() => setExpandedCreativeId(expanded ? null : postId)} type="button">
-              <img alt={`Creative ${post.sequence}`} className={`w-full object-cover transition-all duration-300 ${expanded ? 'max-h-[430px]' : 'aspect-[4/5] max-h-[300px]'}`} src={imageUrl} />
+          ? <button
+              aria-label={selected ? `Deselect creative ${post.sequence}` : `Select creative ${post.sequence}`}
+              aria-pressed={selected}
+              className="nodrag block w-full bg-slate-100 text-left disabled:cursor-not-allowed"
+              disabled={locked}
+              onClick={() => toggleCreativeSelection(postId)}
+              type="button"
+            >
+              <img alt={`Creative ${post.sequence}`} className="aspect-[4/5] max-h-[300px] w-full object-cover" src={imageUrl} />
             </button>
-          : <button className="nodrag grid aspect-[4/3] w-full place-items-center bg-[radial-gradient(circle_at_50%_35%,rgba(239,68,68,.06),transparent_12rem),#f8fafc]" onClick={() => setExpandedCreativeId(expanded ? null : postId)} type="button">
+          : <div className="nodrag grid aspect-[4/3] w-full place-items-center bg-[radial-gradient(circle_at_50%_35%,rgba(239,68,68,.06),transparent_12rem),#f8fafc]">
               <div className="text-center"><CreativeFlowMotionSlot className="mx-auto size-16" state={regenerating ? 'working' : failed ? 'error' : 'idle'} /><span className="mt-2 block text-[8px] font-semibold text-text-muted">{regenerating ? 'Creating a new version…' : 'This creative needs a retry'}</span></div>
-            </button>}
+            </div>}
 
         <div className="absolute left-2.5 top-2.5 flex items-center gap-1.5">
           <span className="rounded-full border border-white/70 bg-white/90 px-2 py-1 text-[7px] font-bold text-text-main shadow-sm backdrop-blur">Creative {String(post.sequence).padStart(2, '0')}</span>
@@ -1660,68 +1662,44 @@ function CreativeAssetNode(props: NodeProps) {
 
       <div className="p-3.5">
         <div className="flex items-start gap-2">
-          <button className="nodrag min-w-0 flex-1 text-left" onClick={() => setExpandedCreativeId(expanded ? null : postId)} type="button">
+          <div className="min-w-0 flex-1">
             <span className="block text-[7px] font-bold uppercase tracking-[.12em] text-brand-cyan">{post.pillar || 'Campaign creative'}</span>
             <strong className="mt-1 line-clamp-2 block text-[9px] leading-4">{post.hook || post.caption}</strong>
-          </button>
-          {post.mediaAssetId && <button aria-label={selected ? 'Unselect creative' : 'Select creative'} aria-pressed={selected} className={`nodrag grid size-8 shrink-0 place-items-center rounded-xl border transition ${selected ? 'border-brand-purple/30 bg-brand-purple/[.08] text-brand-purple' : 'border-border-soft bg-white text-text-soft hover:border-brand-cyan/30 hover:text-brand-cyan'}`} disabled={reviewBusy || Boolean(project.activeJobType)} onClick={() => toggleCreativeSelection(postId)} type="button"><CheckCircle2 className="size-3.5" /></button>}
+          </div>
+          {post.mediaAssetId && <button aria-label={selected ? 'Unselect creative' : 'Select creative'} aria-pressed={selected} className={`nodrag grid size-8 shrink-0 place-items-center rounded-xl border transition ${selected ? 'border-brand-purple/30 bg-brand-purple/[.08] text-brand-purple' : 'border-border-soft bg-white text-text-soft hover:border-brand-cyan/30 hover:text-brand-cyan'}`} disabled={locked} onClick={() => toggleCreativeSelection(postId)} type="button"><CheckCircle2 className="size-3.5" /></button>}
         </div>
 
         {regenerating && <div className="mt-3 rounded-xl border border-brand-cyan/20 bg-brand-cyan/[.04] p-2.5"><span className="flex items-center gap-2 text-[8px] font-semibold text-brand-cyan"><Loader2 className="size-3 animate-spin motion-reduce:animate-none" />Thinking, drawing and replacing this creative…</span><p className="mt-1 text-[7px] leading-4 text-text-soft">The previous version stays safe until the new render succeeds.</p></div>}
+        {regenerationFailed && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-[8px] leading-4 text-red-700">{project.workflow.review.failedPostError || project.lastError || 'This creative could not be regenerated. Retry when ready.'}</div>}
 
-        {regenerationFailed && expanded && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-[8px] leading-4 text-red-700">{project.workflow.review.failedPostError || project.lastError || 'This creative could not be regenerated. Retry when ready.'}</div>}
+        <div className="nodrag mt-3 grid grid-cols-3 gap-1.5">
+          <Button disabled={locked || !post.mediaAssetId} onClick={() => regenerateCreative(postId)} size="sm"><RefreshCw className="size-3" />Regenerate</Button>
+          <Button disabled={locked || !post.mediaAssetId} onClick={() => setDirectionOpen((value) => !value)} size="sm"><Pencil className="size-3" />Direction</Button>
+          <button className="inline-flex min-h-8 items-center justify-center gap-1 rounded-lg border border-red-100 px-2 text-[8px] font-medium text-red-500 transition hover:bg-red-50 disabled:opacity-40" disabled={locked || renderCampaign?.status === 'GENERATING_IMAGES'} onClick={() => removeCreative(postId)} type="button"><Trash2 className="size-3" />Remove</button>
+        </div>
 
-        {expanded && <AnimatedExpand id={`creative-${postId}`}>
-          <CreativeAssetEditor
-            key={post.updatedAt}
-            post={post}
-            postId={postId}
-            project={project}
-            renderCampaign={renderCampaign}
-            reviewBusy={reviewBusy}
-            regenerateCreative={regenerateCreative}
-            removeCreative={removeCreative}
-          />
+        {!post.mediaAssetId && <Button className="nodrag mt-2 w-full" disabled={locked} onClick={() => regenerateCreative(postId)} size="sm" variant="primary"><RefreshCw className="size-3" />Retry creative</Button>}
+
+        {directionOpen && post.mediaAssetId && <AnimatedExpand id={`direction-${postId}`}>
+          <div className="nodrag mt-3 rounded-xl border border-brand-cyan/15 bg-slate-50 p-2.5">
+            <span className="text-[8px] font-semibold text-text-muted">Optional direction for the next version</span>
+            <textarea
+              autoFocus
+              className="mt-1.5 min-h-14 w-full resize-none rounded-lg border border-border-soft bg-white p-2 text-[8px] leading-4 outline-none focus:border-brand-cyan"
+              disabled={locked}
+              maxLength={500}
+              onChange={(event) => setDirectionDraft(event.target.value)}
+              placeholder="Example: cleaner layout, larger product screen, less text"
+              value={directionDraft}
+            />
+            <div className="mt-2 flex justify-end gap-1.5">
+              <Button disabled={locked} onClick={() => { setDirectionOpen(false); setDirectionDraft('') }} size="sm">Cancel</Button>
+              <Button disabled={locked || !directionDraft.trim()} onClick={regenerateWithDirection} size="sm" variant="primary"><Sparkles className="size-3" />Regenerate</Button>
+            </div>
+          </div>
         </AnimatedExpand>}
       </div>
     </NodeShell>
-  </div>
-}
-
-function CreativeAssetEditor({
-  post,
-  postId,
-  project,
-  renderCampaign,
-  reviewBusy,
-  regenerateCreative,
-  removeCreative,
-}: {
-  post: CreativeFlowRenderCampaign['posts'][number]
-  postId: string
-  project: CreativeFlowProject
-  renderCampaign: CreativeFlowRenderCampaign | null
-  reviewBusy: boolean
-  regenerateCreative: (postId: string, input?: { caption?: string; imageBrief?: string }) => void
-  removeCreative: (postId: string) => void
-}) {
-  const [captionDraft, setCaptionDraft] = useState(post.caption || '')
-  const [briefDraft, setBriefDraft] = useState(post.imageBrief || '')
-  const changed = captionDraft.trim() !== post.caption.trim() || briefDraft.trim() !== String(post.imageBrief || '').trim()
-  const locked = reviewBusy || Boolean(project.activeJobType)
-
-  return <div className="nodrag mt-3 border-t border-border-soft pt-3">
-    <label className="block"><span className="flex items-center gap-1.5 text-[8px] font-semibold text-text-muted"><Pencil className="size-3" />Visual direction</span><textarea className="mt-1.5 min-h-24 w-full resize-none rounded-xl border border-border-soft bg-slate-50 p-2.5 text-[8px] leading-4 outline-none focus:border-brand-cyan focus:bg-white" disabled={locked} maxLength={4000} onChange={(event) => setBriefDraft(event.target.value)} value={briefDraft} /></label>
-    <label className="mt-3 block"><span className="text-[8px] font-semibold text-text-muted">Caption</span><textarea className="mt-1.5 min-h-20 w-full resize-none rounded-xl border border-border-soft bg-slate-50 p-2.5 text-[8px] leading-4 outline-none focus:border-brand-cyan focus:bg-white" disabled={locked} maxLength={7000} onChange={(event) => setCaptionDraft(event.target.value)} value={captionDraft} /></label>
-
-    <div className="mt-3 grid grid-cols-2 gap-2">
-      <Button disabled={locked || !post.mediaAssetId} onClick={() => regenerateCreative(postId)} size="sm"><RefreshCw className="size-3" />New variation</Button>
-      <Button disabled={locked || !briefDraft.trim() || !captionDraft.trim() || !changed} onClick={() => regenerateCreative(postId, { caption: captionDraft.trim(), imageBrief: briefDraft.trim() })} size="sm" variant="primary">{reviewBusy ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />}Apply & regenerate</Button>
-    </div>
-
-    {!post.mediaAssetId && <Button className="mt-2 w-full" disabled={locked} onClick={() => regenerateCreative(postId, { caption: captionDraft.trim() || post.caption, imageBrief: briefDraft.trim() || post.imageBrief || post.caption })} size="sm" variant="primary"><RefreshCw className="size-3" />Retry this creative</Button>}
-
-    <button className="mt-3 inline-flex items-center gap-1.5 text-[8px] font-medium text-red-500 transition hover:text-red-600 disabled:opacity-40" disabled={locked || renderCampaign?.status === 'GENERATING_IMAGES'} onClick={() => removeCreative(postId)} type="button"><Trash2 className="size-3" />Remove from campaign</button>
   </div>
 }
 
