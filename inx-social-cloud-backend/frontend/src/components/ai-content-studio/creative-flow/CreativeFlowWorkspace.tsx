@@ -609,7 +609,11 @@ function CreativeFlowWorkspaceInner({
     queryFn: () => getCreativeFlowProject(initialProject.id),
     initialData: initialProject,
     staleTime: 1_000,
-    refetchInterval: (query) => query.state.data?.activeJobType ? 1_800 : false,
+    refetchInterval: (query) => query.state.data?.activeJobType === 'PRODUCT_ANALYSIS'
+      ? 650
+      : query.state.data?.activeJobType
+        ? 1_500
+        : false,
   })
   const project = projectQuery.data
   useEffect(() => {
@@ -1404,7 +1408,7 @@ function AnalysisStepNode(props: NodeProps) {
       gsap.fromTo(
         ref.current,
         { scale: 0.74, opacity: 0, x: -26 },
-        { scale: 1, opacity: 1, x: 0, duration: 0.58, ease: 'back.out(1.7)' },
+        { scale: 1, opacity: 1, x: 0, duration: 0.58, delay: stepIndex * 0.11, ease: 'back.out(1.7)' },
       )
     }, ref)
     return () => ctx.revert()
@@ -1460,7 +1464,7 @@ function ProductIntelligenceNode(props: NodeProps) {
     if (!ref.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const ctx = gsap.context(() => {
       const timeline = gsap.timeline()
-      timeline.fromTo(ref.current, { scale: 0.74, opacity: 0, x: -30 }, { scale: 1, opacity: 1, x: 0, duration: 0.72, ease: 'back.out(1.8)' })
+      timeline.fromTo(ref.current, { scale: 0.74, opacity: 0, x: -30 }, { scale: 1, opacity: 1, x: 0, duration: 0.72, delay: 0.42, ease: 'back.out(1.8)' })
       timeline.fromTo(ref.current?.querySelectorAll('[data-intelligence-chip]') || [], { y: 8, opacity: 0 }, { y: 0, opacity: 1, duration: 0.34, stagger: 0.07 }, '-=.22')
     }, ref)
     return () => ctx.revert()
