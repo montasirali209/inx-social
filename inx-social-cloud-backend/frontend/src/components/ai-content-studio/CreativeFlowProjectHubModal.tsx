@@ -104,12 +104,12 @@ export function CreativeFlowProjectHubModal({ open, onClose }: { open: boolean; 
   }, [open, onClose, busy, createOpen, selectedProject])
 
   const data = projectsQuery.data
-  const projects = data?.projects || []
   const activeProject = data?.activeProject || null
   const sortedProjects = useMemo(() => {
+    const projects = data?.projects || []
     if (!activeProject) return projects
     return [activeProject, ...projects.filter((project) => project.id !== activeProject.id)]
-  }, [activeProject, projects])
+  }, [activeProject, data?.projects])
 
   if (!open) return null
 
