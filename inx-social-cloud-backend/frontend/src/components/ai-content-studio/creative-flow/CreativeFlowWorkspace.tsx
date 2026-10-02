@@ -18,9 +18,12 @@ import {
 import '@xyflow/react/dist/style.css'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { gsap } from 'gsap'
+import { useNavigate } from 'react-router-dom'
 import {
   BrainCircuit,
+  CalendarRange,
   Check,
+  CheckCircle2,
   ChevronDown,
   ExternalLink,
   FileImage,
@@ -29,6 +32,7 @@ import {
   ImagePlus,
   Images,
   Loader2,
+  Pencil,
   Layers3,
   Maximize2,
   RefreshCw,
@@ -36,6 +40,7 @@ import {
   ScanSearch,
   Sparkles,
   Target,
+  Trash2,
   UploadCloud,
   X,
 } from 'lucide-react'
@@ -56,15 +61,21 @@ import {
   analyzeCreativeFlowProject,
   getCreativeFlowGenerationEstimate,
   getCreativeFlowProject,
+  getCreativeFlowRender,
+  handoffCreativeFlowProject,
   saveCreativeFlowCampaignSetup,
   saveCreativeFlowProjectCanvas,
   saveCreativeFlowProjectSource,
+  saveCreativeFlowReviewSelection,
   saveCreativeFlowStrategySelection,
   startCreativeFlowProjectGeneration,
   startCreativeFlowProjectStrategy,
+  regenerateCreativeFlowProjectPost,
+  removeCreativeFlowProjectPost,
   type CreativeFlowAnalysis,
   type CreativeFlowGenerationEstimate,
   type CreativeFlowProject,
+  type CreativeFlowRenderCampaign,
   type CreativeFlowProjectList,
 } from '../../../lib/creative-flow-api'
 import { Button } from '../../ui/Button'
@@ -93,6 +104,10 @@ type WorkspaceContextValue = {
   generationBusy: boolean
   generationEstimate: CreativeFlowGenerationEstimate | null
   generationEstimateLoading: boolean
+  renderCampaign: CreativeFlowRenderCampaign | null
+  expandedCreativeId: string | null
+  reviewBusy: boolean
+  handoffBusy: boolean
   campaignGoal: string
   campaignPlatforms: string[]
   creativeCount: number
@@ -109,6 +124,7 @@ type WorkspaceContextValue = {
   setCampaignExpanded: (value: boolean) => void
   setAdvancedExpanded: (value: boolean) => void
   setStrategyExpanded: (value: boolean) => void
+  setExpandedCreativeId: (value: string | null) => void
   setCampaignGoal: (value: string) => void
   toggleCampaignPlatform: (value: string) => void
   setCreativeCount: (value: number) => void
@@ -118,6 +134,10 @@ type WorkspaceContextValue = {
   startStrategy: () => void
   toggleStrategyConcept: (sequence: number) => void
   startGeneration: () => void
+  toggleCreativeSelection: (postId: string) => void
+  regenerateCreative: (postId: string, input?: { caption?: string; imageBrief?: string }) => void
+  removeCreative: (postId: string) => void
+  sendSelectedToScheduler: () => void
   saveUrl: () => void
   uploadFiles: (files: File[]) => void
   removeReference: (index: number) => void
@@ -329,6 +349,7 @@ function CreativeFlowWorkspaceInner({
   onBack: (latest: CreativeFlowProject) => void
 }) {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const flow = useReactFlow()
   const [urlDraft, setUrlDraft] = useState(initialProject.workflow.source.websiteInput || initialProject.productUrl || '')
   const [urlExpanded, setUrlExpanded] = useState(false)
@@ -339,6 +360,12 @@ function CreativeFlowWorkspaceInner({
   const [strategyExpanded, setStrategyExpanded] = useState(false)
   const [strategyBusy, setStrategyBusy] = useState(false)
   const [generationBusy, setGenerationBusy] = useState(false)
+  const [expandedCreativeId, setExpandedCreativeId] = useState<string | null>(null)
+  const [reviewBusy, setReviewBusy] = useState(false)
+  const [handoffBusy, setHandoffBusy] = useState(false)
+  const [revealedPostIds, setRevealedPostIds] = useState<string[]>([])
+  const revealScheduledRef = useRef<Set<string>>(new Set())
+  const revealTimersRef = useRef<number[]>([])
   const [campaignGoal, setCampaignGoal] = useState(initialProject.workflow.campaignSetup.goal)
   const [campaignPlatforms, setCampaignPlatforms] = useState<string[]>(initialProject.workflow.campaignSetup.platforms)
   const [creativeCount, setCreativeCount] = useState(initialProject.workflow.campaignSetup.creativeCount)
@@ -375,6 +402,22 @@ function CreativeFlowWorkspaceInner({
     staleTime: 5_000,
     retry: false,
   })
+  const renderCampaignQuery = useQuery({
+    queryKey: ['creative-flow-render', project.renderCampaignId],
+    queryFn: () => getCreativeFlowRender(project.renderCampaignId!),
+    enabled: Boolean(project.renderCampaignId),
+    staleTime: 700,
+    retry: 1,
+    refetchInterval: (query) => {
+      const campaign = query.state.data
+      return project.activeJobType === 'CREATIVE_RENDER' ||
+        project.activeJobType === 'CREATIVE_REGENERATE' ||
+        campaign?.status === 'GENERATING_IMAGES'
+        ? 1_500
+        : false
+    },
+  })
+  const renderCampaign = renderCampaignQuery.data || null
 
   const updateCachedProject = useCallback((next: CreativeFlowProject) => {
     queryClient.setQueryData(['creative-flow-project', next.id], next)
