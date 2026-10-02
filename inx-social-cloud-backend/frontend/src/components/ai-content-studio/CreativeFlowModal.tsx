@@ -9,10 +9,8 @@ import {
   Eye,
   Globe2,
   Image as ImageIcon,
-  Layers3,
   Loader2,
   Package,
-  Palette,
   RefreshCw,
   ShieldCheck,
   Sparkles,
@@ -151,12 +149,15 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
     }
   }, [open, onClose, running, renderBusy, renderConfirm, lightbox])
 
+  const renderCampaignId = renderCampaign?.id || ''
+  const renderCampaignStatus = renderCampaign?.status || ''
+
   useEffect(() => {
-    if (!open || view !== 'render' || !renderCampaign || renderCampaign.status !== 'GENERATING_IMAGES') return
+    if (!open || view !== 'render' || !renderCampaignId || renderCampaignStatus !== 'GENERATING_IMAGES') return
     let active = true
     const refresh = async () => {
       try {
-        const next = await getCreativeFlowRender(renderCampaign.id)
+        const next = await getCreativeFlowRender(renderCampaignId)
         if (active) setRenderCampaign(next)
       } catch (caught) {
         if (active) setRenderError(caught instanceof Error ? caught.message : 'Could not refresh Creative Flow progress.')
@@ -167,7 +168,7 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
       active = false
       window.clearInterval(timer)
     }
-  }, [open, view, renderCampaign?.id, renderCampaign?.status])
+  }, [open, view, renderCampaignId, renderCampaignStatus])
 
   if (!open) return null
 
