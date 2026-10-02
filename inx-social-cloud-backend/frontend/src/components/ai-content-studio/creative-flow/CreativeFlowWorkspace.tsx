@@ -555,7 +555,8 @@ function CreativeFlowWorkspaceInner({
       revealScheduledRef.current.add(post.id)
       const timer = window.setTimeout(() => {
         setRevealedPostIds((existing) => existing.includes(post.id) ? existing : [...existing, post.id])
-        if (project.activeJobType === 'CREATIVE_RENDER') {
+        const restoredReview = ['RENDER_READY', 'RENDER_PARTIAL', 'REVIEW_READY', 'HANDOFF_READY'].includes(project.currentStage)
+        if (project.activeJobType === 'CREATIVE_RENDER' || (restoredReview && index === additions.length - 1)) {
           window.setTimeout(() => {
             void flow.fitView({
               nodes: [{ id: 'generateCreatives' }, { id: creativeNodeId(post.id) }],
@@ -568,7 +569,7 @@ function CreativeFlowWorkspaceInner({
       }, 140 + (index * 190))
       revealTimersRef.current.push(timer)
     })
-  }, [flow, project.activeJobType, renderCampaign, revealedPostIds])
+  }, [flow, project.activeJobType, project.currentStage, renderCampaign, revealedPostIds])
 
   useEffect(() => () => {
     revealTimersRef.current.forEach((timer) => window.clearTimeout(timer))
@@ -1469,12 +1470,154 @@ function GenerateCreativesNode(props: NodeProps) {
         {generationEstimate && !generationEstimate.canGenerate && !project.renderCampaignId && <p className="mt-2 text-center text-[8px] text-red-600">Not enough AI credits for this selected strategy.</p>}
 
         {finished && <div className="mt-4 rounded-xl border border-brand-green/20 bg-brand-green/[.04] p-3">
-          <span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Images className="size-3" />{partial ? 'Generation partially complete' : 'Stage 4 generation complete'}</span>
-          <p className="mt-1 text-[8px] leading-4 text-text-muted">{partial ? 'Some renders need retry.' : 'The render campaign is persisted and completed images are already in Media Library.'} Stage 5 expands these results into individual interactive creative nodes.</p>
+          <span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Images className="size-3" />{partial ? 'Generation partially complete' : 'Creative generation complete'}</span>
+          <p className="mt-1 text-[8px] leading-4 text-text-muted">{partial ? 'Completed creatives are available below; failed items can be retried individually.' : 'Each finished creative now appears as its own interactive child node for review.'}</p>
         </div>}
 
         {failed && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-[8px] leading-4 text-red-700">{project.lastError || 'Creative generation stopped unexpectedly. No other project state was lost.'}</div>}
         {failed && !project.renderCampaignId && <Button className="mt-3 w-full" disabled={generationBusy || !generationEstimate?.canGenerate} onClick={startGeneration} size="sm"><RefreshCw className="size-3" />Retry generation start</Button>}
+      </div>
+    </NodeShell>
+  </div>
+}
+
+function CreativeAssetNode(props: NodeProps) {
+  const postId = String(props.id).replace(/^creative:/, '')
+  const {
+    project,
+    renderCampaign,
+    expandedCreativeId,
+    reviewBusy,
+    setExpandedCreativeId,
+    toggleCreativeSelection,
+    regenerateCreative,
+    removeCreative,
+  } = useWorkspace()
+  const post = renderCampaign?.posts.find((item) => item.id === postId)
+  const selected = project.workflow.review.selectedPostIds.includes(postId)
+  const expanded = expandedCreativeId === postId
+  const regenerating = project.activeJobType === 'CREATIVE_REGENERATE' && project.activeJobId === postId
+  const finishedCampaign = renderCampaign?.status !== 'GENERATING_IMAGES'
+  const failed = Boolean(post && !post.mediaAssetId && finishedCampaign && !regenerating)
+  const imageUrl = post?.mediaAsset?.url || post?.mediaAsset?.thumbnailUrl || ''
+  const [captionDraft, setCaptionDraft] = useState(post?.caption || '')
+  const [briefDraft, setBriefDraft] = useState(post?.imageBrief || '')
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setCaptionDraft(post?.caption || '')
+    setBriefDraft(post?.imageBrief || '')
+  }, [post?.caption, post?.imageBrief])
+
+  useEffect(() => {
+    if (!ref.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const ctx = gsap.context(() => {
+      gsap.fromTo(ref.current, { opacity: 0, scale: 0.72, x: -28 }, {
+        opacity: 1,
+        scale: 1,
+        x: 0,
+        duration: 0.62,
+        ease: 'back.out(1.8)',
+      })
+    }, ref)
+    return () => ctx.revert()
+  }, [])
+
+  if (!post) return null
+
+  const changed = captionDraft.trim() !== post.caption.trim() || briefDraft.trim() !== String(post.imageBrief || '').trim()
+  const motionState = regenerating ? 'working' : failed ? 'error' : selected ? 'selected' : 'success'
+
+  return <div ref={ref}>
+    <Handle className="!size-3 !border-2 !border-white !bg-brand-green" position={Position.Left} type="target" />
+    <Handle className={`!size-3 !border-2 !border-white ${selected ? '!bg-brand-purple' : '!bg-brand-green'}`} position={Position.Right} type="source" />
+    <NodeShell className={`${expanded ? 'w-[430px]' : 'w-[300px]'} overflow-hidden transition-[width,box-shadow,border-color] duration-300 ${selected ? 'border-brand-purple/35 shadow-[0_26px_78px_rgba(139,92,246,.14)]' : failed ? 'border-red-200' : 'border-brand-green/20'}`}>
+      <div className="relative">
+        {imageUrl
+          ? <button aria-label={`Open creative ${post.sequence}`} className="nodrag block w-full bg-slate-100 text-left" onClick={() => setExpandedCreativeId(expanded ? null : postId)} type="button">
+              <img alt={`Creative ${post.sequence}`} className={`w-full object-cover transition-all duration-300 ${expanded ? 'max-h-[430px]' : 'aspect-[4/5] max-h-[300px]'}`} src={imageUrl} />
+            </button>
+          : <button className="nodrag grid aspect-[4/3] w-full place-items-center bg-[radial-gradient(circle_at_50%_35%,rgba(239,68,68,.06),transparent_12rem),#f8fafc]" onClick={() => setExpandedCreativeId(expanded ? null : postId)} type="button">
+              <div className="text-center"><CreativeFlowMotionSlot className="mx-auto size-16" state={regenerating ? 'working' : failed ? 'error' : 'idle'} /><span className="mt-2 block text-[8px] font-semibold text-text-muted">{regenerating ? 'Creating a new version…' : 'This creative needs a retry'}</span></div>
+            </button>}
+
+        <div className="absolute left-2.5 top-2.5 flex items-center gap-1.5">
+          <span className="rounded-full border border-white/70 bg-white/90 px-2 py-1 text-[7px] font-bold text-text-main shadow-sm backdrop-blur">Creative {String(post.sequence).padStart(2, '0')}</span>
+          {selected && <span className="grid size-6 place-items-center rounded-full border border-white/70 bg-brand-purple text-white shadow-sm"><Check className="size-3" /></span>}
+        </div>
+
+        <div className="absolute right-2.5 top-2.5">
+          <CreativeFlowMotionSlot className="size-10" state={motionState} />
+        </div>
+      </div>
+
+      <div className="p-3.5">
+        <div className="flex items-start gap-2">
+          <button className="nodrag min-w-0 flex-1 text-left" onClick={() => setExpandedCreativeId(expanded ? null : postId)} type="button">
+            <span className="block text-[7px] font-bold uppercase tracking-[.12em] text-brand-cyan">{post.pillar || 'Campaign creative'}</span>
+            <strong className="mt-1 line-clamp-2 block text-[9px] leading-4">{post.hook || post.caption}</strong>
+          </button>
+          {post.mediaAssetId && <button aria-label={selected ? 'Unselect creative' : 'Select creative'} aria-pressed={selected} className={`nodrag grid size-8 shrink-0 place-items-center rounded-xl border transition ${selected ? 'border-brand-purple/30 bg-brand-purple/[.08] text-brand-purple' : 'border-border-soft bg-white text-text-soft hover:border-brand-cyan/30 hover:text-brand-cyan'}`} disabled={reviewBusy || Boolean(project.activeJobType)} onClick={() => toggleCreativeSelection(postId)} type="button"><CheckCircle2 className="size-3.5" /></button>}
+        </div>
+
+        {regenerating && <div className="mt-3 rounded-xl border border-brand-cyan/20 bg-brand-cyan/[.04] p-2.5"><span className="flex items-center gap-2 text-[8px] font-semibold text-brand-cyan"><Loader2 className="size-3 animate-spin motion-reduce:animate-none" />Thinking, drawing and replacing this creative…</span><p className="mt-1 text-[7px] leading-4 text-text-soft">The previous version stays safe until the new render succeeds.</p></div>}
+
+        {project.currentStage === 'CREATIVE_REGENERATE_FAILED' && project.activeJobId === null && expanded && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-[8px] leading-4 text-red-700">{project.lastError || 'This creative could not be regenerated. Retry when ready.'}</div>}
+
+        {expanded && <AnimatedExpand id={`creative-${postId}`}>
+          <div className="nodrag mt-3 border-t border-border-soft pt-3">
+            <label className="block"><span className="flex items-center gap-1.5 text-[8px] font-semibold text-text-muted"><Pencil className="size-3" />Visual direction</span><textarea className="mt-1.5 min-h-24 w-full resize-none rounded-xl border border-border-soft bg-slate-50 p-2.5 text-[8px] leading-4 outline-none focus:border-brand-cyan focus:bg-white" disabled={reviewBusy || Boolean(project.activeJobType)} maxLength={4000} onChange={(event) => setBriefDraft(event.target.value)} value={briefDraft} /></label>
+            <label className="mt-3 block"><span className="text-[8px] font-semibold text-text-muted">Caption</span><textarea className="mt-1.5 min-h-20 w-full resize-none rounded-xl border border-border-soft bg-slate-50 p-2.5 text-[8px] leading-4 outline-none focus:border-brand-cyan focus:bg-white" disabled={reviewBusy || Boolean(project.activeJobType)} maxLength={7000} onChange={(event) => setCaptionDraft(event.target.value)} value={captionDraft} /></label>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Button disabled={reviewBusy || Boolean(project.activeJobType) || !post.mediaAssetId} onClick={() => regenerateCreative(postId)} size="sm"><RefreshCw className="size-3" />New variation</Button>
+              <Button disabled={reviewBusy || Boolean(project.activeJobType) || !briefDraft.trim() || !captionDraft.trim() || !changed} onClick={() => regenerateCreative(postId, { caption: captionDraft.trim(), imageBrief: briefDraft.trim() })} size="sm" variant="primary">{reviewBusy ? <Loader2 className="size-3 animate-spin" /> : <Sparkles className="size-3" />}Apply & regenerate</Button>
+            </div>
+
+            {!post.mediaAssetId && <Button className="mt-2 w-full" disabled={reviewBusy || Boolean(project.activeJobType)} onClick={() => regenerateCreative(postId, { caption: captionDraft.trim() || post.caption, imageBrief: briefDraft.trim() || post.imageBrief || post.caption })} size="sm" variant="primary"><RefreshCw className="size-3" />Retry this creative</Button>}
+
+            <button className="mt-3 inline-flex items-center gap-1.5 text-[8px] font-medium text-red-500 transition hover:text-red-600 disabled:opacity-40" disabled={reviewBusy || Boolean(project.activeJobType) || renderCampaign?.status === 'GENERATING_IMAGES'} onClick={() => removeCreative(postId)} type="button"><Trash2 className="size-3" />Remove from campaign</button>
+          </div>
+        </AnimatedExpand>}
+      </div>
+    </NodeShell>
+  </div>
+}
+
+function ScheduleCampaignNode(props: NodeProps) {
+  void props
+  const {
+    project,
+    handoffBusy,
+    sendSelectedToScheduler,
+  } = useWorkspace()
+  const selectedCount = project.workflow.review.selectedPostIds.length
+  const sent = Boolean(project.handoffCampaignId)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!ref.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const ctx = gsap.context(() => {
+      gsap.fromTo(ref.current, { opacity: 0, scale: 0.72, x: -34 }, {
+        opacity: 1,
+        scale: 1,
+        x: 0,
+        duration: 0.68,
+        ease: 'back.out(1.9)',
+      })
+    }, ref)
+    return () => ctx.revert()
+  }, [])
+
+  return <div ref={ref}>
+    <Handle className="!size-3 !border-2 !border-white !bg-brand-purple" position={Position.Left} type="target" />
+    <NodeShell className={`w-[300px] overflow-hidden ${sent ? 'border-brand-green/30' : 'border-brand-purple/30 shadow-[0_24px_76px_rgba(139,92,246,.13)]'}`}>
+      <div className="p-4 text-center">
+        <CreativeFlowMotionSlot className="mx-auto size-16" state={handoffBusy ? 'working' : sent ? 'success' : 'selected'} />
+        <span className="mt-2 block text-[8px] font-bold uppercase tracking-[.14em] text-brand-purple">Schedule Campaign</span>
+        <strong className="mt-1 block text-[12px]">{sent ? 'Campaign handed off' : `${selectedCount} creative${selectedCount === 1 ? '' : 's'} selected`}</strong>
+        <p className="mt-1.5 text-[8px] leading-4 text-text-muted">{sent ? 'The approved selection is ready in Bulk Scheduler.' : 'Only the creatives joined to this node will move forward. Destinations and publishing times stay under Bulk Scheduler control.'}</p>
+        <Button className="mt-3 w-full" disabled={handoffBusy || Boolean(project.activeJobType) || !selectedCount} onClick={sendSelectedToScheduler} size="sm" variant="primary">{handoffBusy ? <Loader2 className="size-3 animate-spin" /> : <CalendarRange className="size-3" />}{sent ? 'Open Bulk Scheduler' : 'Continue to Bulk Scheduler'}</Button>
       </div>
     </NodeShell>
   </div>
