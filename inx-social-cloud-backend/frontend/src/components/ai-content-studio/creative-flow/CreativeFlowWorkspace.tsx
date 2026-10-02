@@ -395,6 +395,7 @@ function defaultNodes(project: CreativeFlowProject): Stage2Node[] {
   const positions = project.workflow.canvas.positions
   const running = project.activeJobType === 'PRODUCT_ANALYSIS'
   const analysis = project.workflow.analysis
+  const analysisReady = Boolean(analysis && !running)
   const nodes: Stage2Node[] = [
     { id: 'productUrl', type: 'productUrl', position: positions.productUrl, data: {}, draggable: true },
     { id: 'productImages', type: 'productImages', position: positions.productImages, data: {}, draggable: true },
@@ -412,7 +413,7 @@ function defaultNodes(project: CreativeFlowProject): Stage2Node[] {
     })
   })
 
-  if (analysis) {
+  if (analysisReady) {
     nodes.push({
       id: 'productIntelligence',
       type: 'productIntelligence',
@@ -446,6 +447,7 @@ function defaultNodes(project: CreativeFlowProject): Stage2Node[] {
 function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
   const running = project.activeJobType === 'PRODUCT_ANALYSIS'
   const analysis = project.workflow.analysis
+  const analysisReady = Boolean(analysis && !running)
   const visibleStepCount = analysisStepCount(project)
   const currentProgress = Number(project.progress.current || 0)
   const edges: Stage2Edge[] = [
@@ -454,14 +456,14 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
       source: 'productUrl',
       target: 'analyzeProduct',
       type: 'motion',
-      data: { active: running && currentProgress <= 1, complete: running || Boolean(analysis) },
+      data: { active: running && currentProgress <= 1, complete: running || analysisReady },
     },
     {
       id: 'images-analyze',
       source: 'productImages',
       target: 'analyzeProduct',
       type: 'motion',
-      data: { active: running && currentProgress <= 1, complete: running || Boolean(analysis) },
+      data: { active: running && currentProgress <= 1, complete: running || analysisReady },
     },
   ]
 
@@ -472,7 +474,7 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
       source: 'analyzeProduct',
       target: first.id,
       type: 'motion',
-      data: { active: running && currentProgress <= 1, complete: Boolean(analysis) || currentProgress > 1 },
+      data: { active: running && currentProgress <= 1, complete: analysisReady || currentProgress > 1 },
     })
 
     for (let index = 1; index < visibleStepCount; index += 1) {
@@ -485,13 +487,13 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
         type: 'motion',
         data: {
           active: running && currentProgress === index + 1,
-          complete: Boolean(analysis) || currentProgress > index + 1,
+          complete: analysisReady || currentProgress > index + 1,
         },
       })
     }
   }
 
-  if (analysis) {
+  if (analysisReady) {
     ANALYSIS_STEPS.forEach((step) => {
       edges.push({
         id: `${step.id}-intelligence`,
@@ -1105,8 +1107,7 @@ function CreativeFlowWorkspaceInner({
           productUrl: byId.get('productUrl'),
           productImages: byId.get('productImages'),
           analyzeProduct: byId.get('analyzeProduct'),
-          productIntelligence: byId.get('productIntelligence') || byId.get('analysisProcess'),
-          campaignSetup: byId.get('campaignSetup'),
+          productIntelligence: byId.get('productIntelligence'),
           creativeStrategy: byId.get('creativeStrategy'),
           generateCreatives: byId.get('generateCreatives'),
         },
