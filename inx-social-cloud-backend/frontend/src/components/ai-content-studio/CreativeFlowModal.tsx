@@ -19,7 +19,7 @@ import {
   WandSparkles,
   X,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { uploadPostStudioReference } from '../../lib/ai-post-studio-api'
@@ -133,6 +133,15 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
   const resolvedCount = Math.max(1, Math.min(50, Number(customCount || creativeCount) || 20))
   const canGenerate = Boolean(prompt.trim() || productName.trim() || website.trim() || assets.length)
 
+  const applyRenderCampaign = useCallback((next: CreativeFlowRenderCampaign) => {
+    setRenderCampaign(next)
+    if (next.status === 'GENERATING_IMAGES' || approvalInitialisedForCampaign.current === next.id) return
+    const readyIds = next.posts.filter((post) => Boolean(post.mediaAsset?.url)).map((post) => post.id)
+    if (!readyIds.length) return
+    approvalInitialisedForCampaign.current = next.id
+    setApprovedPostIds(new Set(readyIds))
+  }, [])
+
   useEffect(() => {
     if (!open) return
     previousFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -165,7 +174,7 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
     const refresh = async () => {
       try {
         const next = await getCreativeFlowRender(renderCampaignId)
-        if (active) setRenderCampaign(next)
+        if (active) applyRenderCampaign(next)
       } catch (caught) {
         if (active) setRenderError(caught instanceof Error ? caught.message : 'Could not refresh Creative Flow progress.')
       }
@@ -175,16 +184,7 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
       active = false
       window.clearInterval(timer)
     }
-  }, [open, view, renderCampaignId, renderCampaignStatus])
-
-  useEffect(() => {
-    if (!renderCampaign || renderCampaign.status === 'GENERATING_IMAGES') return
-    if (approvalInitialisedForCampaign.current === renderCampaign.id) return
-    const readyIds = renderCampaign.posts.filter((post) => Boolean(post.mediaAsset?.url)).map((post) => post.id)
-    if (!readyIds.length) return
-    approvalInitialisedForCampaign.current = renderCampaign.id
-    setApprovedPostIds(new Set(readyIds))
-  }, [renderCampaign])
+  }, [open, view, renderCampaignId, renderCampaignStatus, applyRenderCampaign])
 
   if (!open) return null
 
@@ -356,9 +356,9 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
         strategy: strategy.strategy,
         concepts: keptConcepts(),
       })
-      setRenderCampaign(response.campaign)
       setApprovedPostIds(new Set())
       approvalInitialisedForCampaign.current = ''
+      applyRenderCampaign(response.campaign)
       setView('render')
     } catch (caught) {
       setRenderError(caught instanceof Error ? caught.message : 'Creative Flow could not start image generation.')
@@ -372,7 +372,7 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
     setRenderBusy(true)
     setRenderError('')
     try {
-      setRenderCampaign(await retryCreativeFlowRender(renderCampaign.id))
+      applyRenderCampaign(await retryCreativeFlowRender(renderCampaign.id))
     } catch (caught) {
       setRenderError(caught instanceof Error ? caught.message : 'Creative Flow could not retry missing creatives.')
     } finally {
@@ -385,7 +385,7 @@ export function CreativeFlowModal({ open, onClose }: { open: boolean; onClose: (
     setRegenerating((current) => new Set(current).add(postId))
     setRenderError('')
     try {
-      setRenderCampaign(await regenerateCreativeFlowPost(renderCampaign.id, postId))
+      applyRenderCampaign(await regenerateCreativeFlowPost(renderCampaign.id, postId))
     } catch (caught) {
       setRenderError(caught instanceof Error ? caught.message : 'Creative Flow could not regenerate this creative.')
     } finally {
