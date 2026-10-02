@@ -178,20 +178,6 @@ function displayDomain(value: string) {
   }
 }
 
-function campaignConfigured(project: CreativeFlowProject) {
-  return Boolean(project.workflow.strategyPlan || project.renderCampaignId) || [
-    'CAMPAIGN_READY',
-    'STRATEGY_PLANNING',
-    'STRATEGY_READY',
-    'STRATEGY_FAILED',
-    'CREATIVE_RENDER_STARTING',
-    'CREATIVE_RENDER_RUNNING',
-    'CREATIVE_RENDER_FAILED',
-    'RENDER_READY',
-    'RENDER_PARTIAL',
-  ].includes(project.currentStage)
-}
-
 function renderFinished(project: CreativeFlowProject) {
   return [
     'RENDER_READY',
@@ -558,7 +544,6 @@ function CreativeFlowWorkspaceInner({
   const renderRunning = project.activeJobType === 'CREATIVE_RENDER'
   const anyJobRunning = Boolean(project.activeJobType)
   const blockedByAnother = Boolean(activeProject && activeProject.id !== project.id && activeProject.activeJobType)
-  const selectedSequences = project.workflow.selectedConceptSequences
   const generationEstimateQuery = useQuery({
     queryKey: ['creative-flow-generation-estimate', project.id, creativeCount],
     queryFn: () => getCreativeFlowGenerationEstimate(project.id, creativeCount),
