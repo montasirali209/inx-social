@@ -317,7 +317,7 @@ function creativeNodeId(postId: string) {
 }
 
 function creativeNodePosition(project: CreativeFlowProject, _postId: string, index: number) {
-  const base = project.workflow.canvas.positions.generateCreatives
+  const base = generateCreativesPosition(project)
   const column = index % 4
   const row = Math.floor(index / 4)
   return {
@@ -327,7 +327,7 @@ function creativeNodePosition(project: CreativeFlowProject, _postId: string, ind
 }
 
 function scheduleNodePosition(project: CreativeFlowProject, creativeCount: number) {
-  const base = project.workflow.canvas.positions.generateCreatives
+  const base = generateCreativesPosition(project)
   const columns = Math.max(1, Math.min(4, Math.max(creativeCount, 1)))
   return {
     x: base.x + 430 + (columns * 340) + 390,
