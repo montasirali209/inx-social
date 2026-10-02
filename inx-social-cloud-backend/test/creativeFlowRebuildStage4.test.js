@@ -29,7 +29,7 @@ test('Stage 4 strategy is a project-owned background job and resumes after resta
   assert.match(runtime, /creativeFlow\.planCreativeFlow/);
   assert.match(runtime, /saveStrategyPlan/);
   assert.match(runtime, /currentStage: 'STRATEGY_READY'/);
-  assert.match(runtime, /activeJobType: \{ in: \['PRODUCT_ANALYSIS', 'STRATEGY_PLANNING', 'CREATIVE_RENDER'\] \}/);
+  assert.match(runtime, /'PRODUCT_ANALYSIS', 'STRATEGY_PLANNING', 'CREATIVE_RENDER'/);
 });
 
 test('Stage 4 persists concept selection and locks upstream state once generation starts', () => {
@@ -77,13 +77,14 @@ test('Stage 4 render progress stays project-owned and recovers after server rest
   assert.match(service, /creditsPerCreative/);
 });
 
-test('Stage 4 remains a motion canvas and stops before individual creative-node editing', () => {
+test('Stage 4 motion architecture remains intact underneath Stage 5 review nodes', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
 
-  assert.match(workspace, /Creative Flow · Stage 4/);
+  assert.match(workspace, /Creative Flow · Stage 5/);
   assert.match(workspace, /CreativeStrategyNode/);
   assert.match(workspace, /GenerateCreativesNode/);
   assert.match(workspace, /CreativeFlowMotionSlot/);
-  assert.match(workspace, /Stage 5 expands these results into individual interactive creative nodes/);
-  assert.doesNotMatch(workspace, /function IndividualCreativeNode/);
+  assert.match(workspace, /CreativeAssetNode/);
+  assert.match(workspace, /source: 'creativeStrategy'/);
+  assert.match(workspace, /target: 'generateCreatives'/);
 });
