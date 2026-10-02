@@ -191,12 +191,20 @@ export type CreativeFlowProject = {
       referenceNames: string[]
     }
     analysis: CreativeFlowAnalysis | null
+    campaignSetup: {
+      goal: string
+      platforms: string[]
+      creativeCount: number
+      style: string
+      audience: string
+    }
     canvas: {
       positions: {
         productUrl: { x: number; y: number }
         productImages: { x: number; y: number }
         analyzeProduct: { x: number; y: number }
         productIntelligence: { x: number; y: number }
+        campaignSetup: { x: number; y: number }
       }
       viewport: { x: number; y: number; zoom: number }
     }
@@ -293,6 +301,23 @@ export function saveCreativeFlowProjectCanvas(projectId: string, input: {
 }) {
   return apiRequest<{ project: CreativeFlowProject }>(
     `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/canvas`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+  ).then((response) => response.project)
+}
+
+
+export function saveCreativeFlowCampaignSetup(projectId: string, input: {
+  goal: string
+  platforms: string[]
+  creativeCount: number
+  style: string
+  audience: string
+}) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/campaign-setup`,
     {
       method: 'PATCH',
       body: JSON.stringify(input),
