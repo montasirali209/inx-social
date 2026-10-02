@@ -326,6 +326,7 @@ function buildReviewGraph(
     source: 'productIntelligence',
     target: creativeNodeId(post.id),
     type: 'motion',
+    zIndex: 6,
     data: {
       active: project.activeJobType === 'CREATIVE_REGENERATE' && project.activeJobId === post.id,
       complete: Boolean(post.mediaAssetId),
@@ -347,6 +348,7 @@ function buildReviewGraph(
         source: creativeNodeId(post.id),
         target: 'scheduleCampaign',
         type: 'motion',
+        zIndex: 6,
         data: { active: true, complete: Boolean(project.handoffCampaignId) },
       })
     })
@@ -1157,6 +1159,7 @@ function CreativeFlowWorkspaceInner({
       <ReactFlow
         colorMode="light"
         defaultViewport={project.workflow.canvas.viewport}
+        defaultEdgeOptions={{ zIndex: 6 }}
         edgeTypes={edgeTypes}
         edges={edges}
         fitView={!project.workflow.canvas.viewport.zoom}
@@ -1885,12 +1888,23 @@ function MotionEdge(props: EdgeProps<Stage2Edge>) {
   const stroke = complete ? 'rgba(34,197,94,.86)' : active ? 'rgba(20,184,166,.95)' : 'rgba(100,116,139,.68)'
 
   return <>
+    <path
+      d={edgePath}
+      fill="none"
+      pointerEvents="none"
+      stroke="rgba(255,255,255,.96)"
+      strokeLinecap="round"
+      strokeWidth={active ? 6.8 : 5.6}
+      vectorEffect="non-scaling-stroke"
+    />
     <BaseEdge
       path={edgePath}
       style={{
         stroke,
-        strokeWidth: active ? 2.8 : 2.1,
+        strokeOpacity: 1,
+        strokeWidth: active ? 3 : 2.35,
         strokeLinecap: 'round',
+        filter: active ? 'drop-shadow(0 0 4px rgba(20,184,166,.35))' : 'drop-shadow(0 1px 1px rgba(15,23,42,.12))',
       }}
     />
     {active && <>
