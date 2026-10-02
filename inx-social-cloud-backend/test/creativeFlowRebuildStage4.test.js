@@ -80,7 +80,7 @@ test('Stage 4 render progress stays project-owned and recovers after server rest
 test('Stage 4 motion architecture remains intact underneath Stage 5 review nodes', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
 
-  assert.match(workspace, /Creative Flow · Stage 5/);
+  assert.match(workspace, /Creative Flow · Stage 6/);
   assert.match(workspace, /CreativeStrategyNode/);
   assert.match(workspace, /GenerateCreativesNode/);
   assert.match(workspace, /CreativeFlowMotionSlot/);
