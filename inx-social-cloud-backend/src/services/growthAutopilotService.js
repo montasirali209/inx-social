@@ -219,12 +219,6 @@ function normalizeReasoningEffort(value, model) {
   return model === AUTOPILOT_MODELS.SOL ? 'high' : 'medium';
 }
 
-function normalizePauseUntil(value) {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
-}
-
 function isAutopilotActive(config) {
   return config?.enabled !== false;
 }
@@ -1658,15 +1652,15 @@ async function updateConfig(patch = {}) {
   if (pauseChanged) {
     if (next.enabled === false) {
       await recordEvent(
-        'AUTOPILOT_PAUSED',
-        'Growth Autopilot is paused until an administrator resumes it. Scheduled AI work is stopped.',
-        { pauseUntil: null, model: next.aiModel },
+        'AUTOPILOT_STOPPED',
+        'Growth Autopilot was stopped by an administrator. Scheduled AI work stays off until Start is pressed.',
+        { model: next.aiModel },
         'warning'
       );
     } else if (!activeBefore && activeNow) {
       await recordEvent(
-        'AUTOPILOT_RESUMED',
-        'Growth Autopilot resumed. Scheduled AI work is active again.',
+        'AUTOPILOT_STARTED',
+        'Growth Autopilot started. Scheduled AI work is active again.',
         { model: next.aiModel },
         'success'
       );
