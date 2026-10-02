@@ -480,6 +480,14 @@ function CreativeFlowWorkspaceInner({
   const [edges, setEdges, onEdgesChange] = useEdgesState<Stage2Edge>(defaultEdges(initialProject))
   const lastFocusKeyRef = useRef('')
 
+  const projectQuery = useQuery({
+    queryKey: ['creative-flow-project', initialProject.id],
+    queryFn: () => getCreativeFlowProject(initialProject.id),
+    initialData: initialProject,
+    staleTime: 1_000,
+    refetchInterval: (query) => query.state.data?.activeJobType ? 1_800 : false,
+  })
+  const project = projectQuery.data
   useEffect(() => {
     const persisted = projectQuery.data?.workflow.review.revealedPostIds || []
     const current = revealedPostIdsRef.current
@@ -490,14 +498,6 @@ function CreativeFlowWorkspaceInner({
     setRevealedPostIds(persisted)
   }, [projectQuery.data?.workflow.review.revealedPostIds])
 
-  const projectQuery = useQuery({
-    queryKey: ['creative-flow-project', initialProject.id],
-    queryFn: () => getCreativeFlowProject(initialProject.id),
-    initialData: initialProject,
-    staleTime: 1_000,
-    refetchInterval: (query) => query.state.data?.activeJobType ? 1_800 : false,
-  })
-  const project = projectQuery.data
   const analysis = project.workflow.analysis
   const running = project.activeJobType === 'PRODUCT_ANALYSIS'
   const strategyRunning = project.activeJobType === 'STRATEGY_PLANNING'
