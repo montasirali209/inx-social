@@ -1453,8 +1453,9 @@ function ProductIntelligenceNode(props: NodeProps) {
       </button>
 
       {campaignRunning && <div className="border-t border-border-soft bg-white px-4 py-3">
-        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-cyan transition-all duration-500" style={{ width: `${Math.max(8, Math.min(100, Math.round((project.progress.current / Math.max(1, project.progress.total)) * 100)))}%` }} /></div>
-        <div className="mt-1.5 flex items-center justify-between text-[7px] text-text-soft"><span>{renderRunning ? `${project.progress.current} generated` : 'Preparing campaign'}</span><span>{project.progress.total || creativeCount} total</span></div>
+        {renderRunning
+          ? <><div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-cyan transition-all duration-500" style={{ width: `${Math.max(8, Math.min(100, Math.round((project.progress.current / Math.max(1, project.progress.total)) * 100)))}%` }} /></div><div className="mt-1.5 flex items-center justify-between text-[7px] text-text-soft"><span>{project.progress.current} generated</span><span>{project.progress.total || creativeCount} total</span></div></>
+          : <><div className="h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full w-[38%] animate-pulse rounded-full bg-[linear-gradient(90deg,rgba(139,92,246,.75),rgba(20,184,166,.9))]" /></div><p className="mt-1.5 text-[7px] text-text-soft">Preparing the campaign internally, then generation starts automatically.</p></>}
       </div>}
 
       {failed && !project.renderCampaignId && <div className="border-t border-red-100 bg-red-50 px-4 py-3 text-[8px] leading-4 text-red-700">{project.lastError || 'Campaign generation stopped before rendering started. Your setup is still saved.'}</div>}
