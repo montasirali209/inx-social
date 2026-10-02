@@ -253,11 +253,6 @@ function CreativeFlowWorkspaceInner({
   }, [queryClient])
 
   useEffect(() => {
-    const sourceValue = project.workflow.source.websiteInput || project.workflow.source.normalizedUrl || ''
-    if (!urlExpanded) setUrlDraft(sourceValue)
-  }, [project.workflow.source.websiteInput, project.workflow.source.normalizedUrl, urlExpanded])
-
-  useEffect(() => {
     const nextNodes = defaultNodes(project)
     setNodes((current) => nextNodes.map((node) => {
       const existing = current.find((item) => item.id === node.id)
@@ -536,7 +531,8 @@ function AnimatedExpand({ children, id }: { children: ReactNode; id: string }) {
   return <div className="overflow-hidden" ref={ref}>{children}</div>
 }
 
-function ProductUrlNode(_: NodeProps) {
+function ProductUrlNode(props: NodeProps) {
+  void props
   const {
     project,
     urlDraft,
@@ -570,7 +566,8 @@ function ProductUrlNode(_: NodeProps) {
   </>
 }
 
-function ProductImagesNode(_: NodeProps) {
+function ProductImagesNode(props: NodeProps) {
+  void props
   const {
     project,
     imageExpanded,
@@ -628,7 +625,8 @@ function ProductImagesNode(_: NodeProps) {
   </>
 }
 
-function AnalyzeProductNode(_: NodeProps) {
+function AnalyzeProductNode(props: NodeProps) {
+  void props
   const { project, running, sourceBusy, runAnalysis } = useWorkspace()
   const sourceReady = Boolean(project.workflow.source.normalizedUrl || project.workflow.source.referenceAssetIds.length)
   const success = Boolean(project.workflow.analysis)
@@ -651,7 +649,8 @@ function AnalyzeProductNode(_: NodeProps) {
   </>
 }
 
-function AnalysisProcessNode(_: NodeProps) {
+function AnalysisProcessNode(props: NodeProps) {
+  void props
   const { project } = useWorkspace()
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -674,7 +673,8 @@ function AnalysisProcessNode(_: NodeProps) {
   </div>
 }
 
-function ProductIntelligenceNode(_: NodeProps) {
+function ProductIntelligenceNode(props: NodeProps) {
+  void props
   const { analysis, project } = useWorkspace()
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
