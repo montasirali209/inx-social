@@ -103,28 +103,28 @@ export function VideoModelPicker({
     { key: 'all', label: 'All Models' },
   ]
 
-  return <div className="absolute inset-0 z-[30] flex items-stretch justify-center bg-[#01070d]/88 p-2 backdrop-blur-xl sm:p-5">
-    <div className="flex w-full max-w-[1180px] flex-col overflow-hidden rounded-[28px] border border-brand-cyan/25 bg-[radial-gradient(circle_at_16%_0%,rgba(0,214,192,.09),transparent_34%),linear-gradient(145deg,#071b28,#020b13)] shadow-[0_35px_120px_rgba(0,0,0,.72)]">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border-soft px-4 py-4 sm:px-6">
+  return <div className="absolute inset-0 z-[30] flex items-stretch justify-center bg-slate-950/18 p-2 backdrop-blur-md sm:p-5">
+    <div className="flex w-full max-w-[1180px] flex-col overflow-hidden rounded-[28px] border border-slate-200/90 bg-[radial-gradient(circle_at_16%_0%,rgba(20,184,166,.08),transparent_34%),linear-gradient(145deg,#ffffff,#f8fafc)] text-text-main shadow-[0_30px_90px_rgba(15,23,42,.18)]">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200/80 px-4 py-4 sm:px-6">
         <div>
           <span className="text-[8px] font-bold uppercase tracking-[.18em] text-brand-cyan">Choose video model</span>
-          <h3 className="mt-1 text-base font-bold">Runware model library</h3>
+          <h3 className="mt-1 text-base font-bold">Video Model Library</h3>
           <p className="mt-1 text-[9px] text-text-muted">{models.length} generation-ready models available in this workspace.</p>
         </div>
-        <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-xl border border-border-soft text-text-muted transition hover:border-brand-cyan/30 hover:text-white"><X className="size-4" /></button>
+        <button type="button" onClick={onClose} className="grid size-9 place-items-center rounded-xl border border-slate-200 bg-white text-text-muted shadow-sm transition hover:border-brand-cyan/30 hover:text-text-main"><X className="size-4" /></button>
       </header>
 
-      <div className="border-b border-border-soft px-4 py-3 sm:px-6">
+      <div className="border-b border-slate-200/80 px-4 py-3 sm:px-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex gap-2 overflow-x-auto pb-1">
             {categories.map((item) => <button
               type="button"
               key={item.key}
               onClick={() => { setCategory(item.key); setSearch('') }}
-              className={`inline-flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-[9px] font-semibold transition ${category === item.key && !search ? 'border-brand-cyan/35 bg-brand-cyan/[.08] text-white shadow-[0_10px_30px_rgba(0,214,192,.07)]' : 'border-border-soft bg-black/10 text-text-muted hover:border-brand-cyan/25 hover:text-white'}`}
+              className={`inline-flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-[9px] font-semibold transition ${category === item.key && !search ? 'border-brand-cyan/35 bg-brand-cyan/[.10] text-text-main shadow-[0_10px_30px_rgba(20,184,166,.08)]' : 'border-slate-200 bg-white text-text-muted hover:border-brand-cyan/25 hover:text-text-main'}`}
             >{categoryIcon(item.key)}{item.label}</button>)}
           </div>
-          <label className="flex min-w-0 items-center gap-2 rounded-xl border border-border-soft bg-black/15 px-3 py-2.5 lg:w-[320px]">
+          <label className="flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm lg:w-[320px]">
             <Search className="size-3.5 shrink-0 text-text-soft" />
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search model, creator or capability…" className="min-w-0 flex-1 bg-transparent text-[9px] outline-none placeholder:text-text-soft" />
           </label>
@@ -140,26 +140,26 @@ export function VideoModelPicker({
               type="button"
               key={model.id}
               onClick={() => { onSelect(model); onClose() }}
-              className={`group relative min-h-[180px] overflow-hidden rounded-[22px] border p-4 text-left transition-all duration-300 hover:-translate-y-0.5 ${active ? 'border-brand-cyan/45 bg-brand-cyan/[.07] shadow-[0_18px_55px_rgba(0,214,192,.08)]' : 'border-border-soft bg-black/12 hover:border-brand-cyan/25 hover:bg-white/[.025]'}`}
+              className={`group relative min-h-[180px] overflow-hidden rounded-[22px] border p-4 text-left transition-all duration-300 hover:-translate-y-0.5 ${active ? 'border-brand-cyan/45 bg-brand-cyan/[.08] shadow-[0_18px_55px_rgba(20,184,166,.10)]' : 'border-slate-200/90 bg-white shadow-sm hover:border-brand-cyan/25 hover:bg-slate-50'}`}
             >
               <span className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
               <div className="flex items-start justify-between gap-3">
-                <span className={`grid size-9 shrink-0 place-items-center rounded-xl border ${active ? 'border-brand-cyan/30 bg-brand-cyan/10 text-brand-cyan' : 'border-white/8 bg-white/[.035] text-text-muted'}`}>{model.speed === 'fast' ? <Zap className="size-4" /> : <Film className="size-4" />}</span>
+                <span className={`grid size-9 shrink-0 place-items-center rounded-xl border ${active ? 'border-brand-cyan/30 bg-brand-cyan/10 text-brand-cyan' : 'border-slate-200 bg-slate-50 text-text-muted'}`}>{model.speed === 'fast' ? <Zap className="size-4" /> : <Film className="size-4" />}</span>
                 <div className="flex items-center gap-2">
-                  {isRecentModel(model) && <span className="rounded-full border border-brand-cyan/25 bg-brand-cyan/[.07] px-2 py-1 text-[7px] font-semibold uppercase tracking-[.08em] text-brand-cyan">New</span>}
+                  {isRecentModel(model) && <span className="rounded-full border border-brand-cyan/25 bg-brand-cyan/[.08] px-2 py-1 text-[7px] font-semibold uppercase tracking-[.08em] text-teal-700">New</span>}
                   {model.pricing?.promotion?.active && model.pricing.regularCredits > model.pricing.currentCredits
-                    ? <span className="rounded-full border border-emerald-300/20 bg-emerald-300/[.05] px-2 py-1 text-[7px] font-semibold text-emerald-200">{model.pricing.promotion.discountPercent}% off · from {model.pricing.currentCredits} cr <span className="ml-1 text-text-soft line-through">{model.pricing.regularCredits}</span></span>
-                    : typeof model.baselineCredits === 'number' && <span className="rounded-full border border-amber-300/20 bg-amber-300/[.05] px-2 py-1 text-[7px] font-semibold text-amber-200">from {model.baselineCredits} cr</span>}
+                    ? <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[7px] font-semibold text-emerald-700">{model.pricing.promotion.discountPercent}% off · from {model.pricing.currentCredits} cr <span className="ml-1 text-text-soft line-through">{model.pricing.regularCredits}</span></span>
+                    : typeof model.baselineCredits === 'number' && <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-[7px] font-semibold text-amber-700">from {model.baselineCredits} cr</span>}
                   {active && <span className="grid size-6 place-items-center rounded-full bg-brand-green/15 text-brand-green"><Check className="size-3.5" /></span>}
                 </div>
               </div>
-              <strong className="mt-3 block text-[11px] text-white">{model.name}</strong>
-              <span className="mt-1 block text-[8px] font-semibold uppercase tracking-[.09em] text-text-soft">{model.creator || model.badge || 'Runware'}</span>
+              <strong className="mt-3 block text-[11px] text-text-main">{model.name}</strong>
+              <span className="mt-1 block text-[8px] font-semibold uppercase tracking-[.09em] text-text-soft">{model.creator || model.badge || 'AI video'}</span>
               <p className="mt-2 line-clamp-3 text-[8px] leading-4 text-text-muted">{model.description || 'AI video generation model.'}</p>
-              {model.pricing?.promotion?.active ? <p className="mt-2 text-[7px] leading-3 text-emerald-200">{model.pricing.promotion.endsAt ? 'Provider discount ends ' + new Date(model.pricing.promotion.endsAt).toLocaleDateString() + '. Pricing updates automatically.' : 'Provider promotional pricing active. Pricing updates automatically when the promotion ends.'}</p> : null}
+              {model.pricing?.promotion?.active ? <p className="mt-2 text-[7px] leading-3 text-emerald-700">{model.pricing.promotion.endsAt ? 'Provider discount ends ' + new Date(model.pricing.promotion.endsAt).toLocaleDateString() + '. Pricing updates automatically.' : 'Provider promotional pricing active. Pricing updates automatically when the promotion ends.'}</p> : null}
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {modes.slice(0, 3).map((mode) => <span key={mode} className="rounded-full border border-white/7 bg-white/[.025] px-2 py-1 text-[7px] text-text-soft">{mode}</span>)}
-                {(model.resolutions || []).slice(0, 2).map((value) => <span key={value} className="rounded-full border border-white/7 bg-white/[.025] px-2 py-1 text-[7px] text-text-soft">{value}</span>)}
+                {modes.slice(0, 3).map((mode) => <span key={mode} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[7px] text-text-muted">{mode}</span>)}
+                {(model.resolutions || []).slice(0, 2).map((value) => <span key={value} className="rounded-full border border-slate-200 bg-slate-50 px-2 py-1 text-[7px] text-text-muted">{value}</span>)}
               </div>
             </button>
           })}

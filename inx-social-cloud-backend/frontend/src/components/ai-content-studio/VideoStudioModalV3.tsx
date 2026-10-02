@@ -745,7 +745,7 @@ export function VideoStudioModal({
                 <h3 className="mt-1 truncate text-sm font-bold">{selected.name}</h3>
                 <p className="mt-1 text-[8px] text-text-muted">{selected.creator || selected.badge || 'Runware'}{selected.baselineCredits ? ' · from ' + selected.baselineCredits + ' credits' : ''}</p>
               </div>
-              <button type="button" onClick={() => { setRoutingChoice('manual'); setModelPickerOpen(true) }} className="rounded-xl border border-violet-300/20 bg-violet-300/[.04] px-3 py-2 text-[8px] font-semibold text-violet-200 transition hover:border-violet-300/40">Change model</button>
+              <button type="button" onClick={() => { setRoutingChoice('manual'); setModelPickerOpen(true) }} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[8px] font-semibold text-text-main shadow-sm transition hover:border-brand-cyan/30 hover:text-brand-cyan">Change model</button>
             </div>
             <p className="mt-3 text-[8px] leading-4 text-text-soft">{selected.description}</p>
 
@@ -758,11 +758,11 @@ export function VideoStudioModal({
                   onClick={() => setGenerationMode(mode)}
                   className={cx(
                     'rounded-2xl border p-3 text-left transition',
-                    generationMode === mode ? 'border-brand-cyan/35 bg-brand-cyan/[.07]' : 'border-border-soft bg-white/[.02] hover:border-brand-cyan/20',
+                    generationMode === mode ? 'border-brand-cyan/40 bg-brand-cyan/[.09] shadow-[0_10px_28px_rgba(20,184,166,.08)]' : 'border-slate-200 bg-white hover:border-brand-cyan/25 hover:bg-slate-50',
                   )}
                 >
-                  <strong className="block text-[9px] text-white">{modeLabel(mode)}</strong>
-                  <span className="mt-1 block text-[7px] leading-3 text-text-soft">{modeDescription(mode)}</span>
+                  <strong className="block text-[9px] text-text-main">{modeLabel(mode)}</strong>
+                  <span className="mt-1 block text-[7px] leading-3 text-text-muted">{modeDescription(mode)}</span>
                 </button>)}
               </div>
             </div>}
