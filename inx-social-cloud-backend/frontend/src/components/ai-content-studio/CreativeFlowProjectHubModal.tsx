@@ -25,6 +25,7 @@ import {
 } from '../../lib/creative-flow-api'
 import { Button } from '../ui/Button'
 import { Card } from '../ui/Card'
+import { CreativeFlowWorkspace } from './creative-flow/CreativeFlowWorkspace'
 
 export function CreativeFlowProjectLaunchCard({ onOpen }: { onOpen: () => void }) {
   return <Card className="group relative overflow-hidden border-brand-cyan/25 p-0 transition duration-300 hover:border-brand-cyan/45 hover:shadow-[0_20px_56px_rgba(15,23,42,.10)]">
@@ -172,7 +173,13 @@ export function CreativeFlowProjectHubModal({ open, onClose }: { open: boolean; 
 
   return createPortal(
     <div className="fixed inset-0 z-[360] bg-slate-950/55 p-3 backdrop-blur-md sm:p-6" onMouseDown={(event) => { if (event.currentTarget === event.target && !busy) onClose() }}>
-      <section aria-labelledby="creative-flow-projects-title" aria-modal="true" className="mx-auto flex h-[calc(100dvh-1.5rem)] w-full max-w-[1120px] flex-col overflow-hidden rounded-[24px] border border-border-soft bg-[#f8fafc] shadow-[0_38px_130px_rgba(15,23,42,.32)] sm:h-[min(820px,calc(100dvh-3rem))]" ref={dialogRef} role="dialog">
+      <section
+        aria-labelledby="creative-flow-projects-title"
+        aria-modal="true"
+        className={`mx-auto flex w-full flex-col overflow-hidden rounded-[24px] border border-border-soft bg-[#f8fafc] shadow-[0_38px_130px_rgba(15,23,42,.32)] transition-[max-width,height] duration-500 ease-out ${selectedProject ? 'h-[calc(100dvh-1rem)] max-w-[calc(100vw-1rem)] sm:h-[calc(100dvh-2rem)] sm:max-w-[calc(100vw-2rem)]' : 'h-[calc(100dvh-1.5rem)] max-w-[1120px] sm:h-[min(820px,calc(100dvh-3rem))]'}`}
+        ref={dialogRef}
+        role="dialog"
+      >
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border-soft bg-white px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex min-w-0 items-center gap-3">
             {selectedProject && <button aria-label="Back to Creative Flow projects" className="grid size-9 shrink-0 place-items-center rounded-xl border border-border-soft bg-white text-text-muted transition hover:bg-slate-50 hover:text-text-main" onClick={() => setSelectedProject(null)} type="button"><ArrowLeft className="size-4" /></button>}
@@ -185,9 +192,24 @@ export function CreativeFlowProjectHubModal({ open, onClose }: { open: boolean; 
           <button aria-label="Close Creative Flow" className="grid size-9 place-items-center rounded-xl border border-border-soft bg-white text-text-muted transition hover:bg-slate-50 hover:text-text-main disabled:opacity-50" disabled={busy} onClick={onClose} type="button"><X className="size-4" /></button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className={`min-h-0 flex-1 ${selectedProject ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           {selectedProject
-            ? <ProjectFoundation project={selectedProject} activeProject={activeProject} onBack={() => setSelectedProject(null)} />
+            ? <CreativeFlowWorkspace
+                activeProject={activeProject}
+                initialProject={selectedProject}
+                onBack={(latest) => {
+                  queryClient.setQueryData<CreativeFlowProjectList>(['creative-flow-projects'], (current) => current ? {
+                    projects: current.projects.map((item) => item.id === latest.id ? latest : item),
+                    activeProject: latest.activeJobType
+                      ? latest
+                      : current.activeProject?.id === latest.id
+                        ? null
+                        : current.activeProject,
+                  } : current)
+                  setSelectedProject(null)
+                  void projectsQuery.refetch()
+                }}
+              />
             : <div className="p-4 sm:p-6">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                   <div>
@@ -253,31 +275,6 @@ function ProjectCard({ project, busy, onOpen, onArchive }: { project: CreativeFl
       <div className="flex gap-1.5"><button aria-label={`Archive ${project.name}`} className="grid size-8 place-items-center rounded-lg border border-transparent text-text-soft opacity-0 transition hover:border-border-soft hover:bg-slate-50 hover:text-text-main group-hover:opacity-100 focus:opacity-100 disabled:cursor-not-allowed disabled:opacity-30" disabled={busy || running} onClick={onArchive} type="button"><Archive className="size-3.5" /></button><Button disabled={busy} onClick={onOpen} size="sm">{running ? 'View' : 'Open'}<ArrowRight className="size-3" /></Button></div>
     </div>
   </article>
-}
-
-function ProjectFoundation({ project, activeProject, onBack }: { project: CreativeFlowProject; activeProject: CreativeFlowProject | null; onBack: () => void }) {
-  const blockedByAnother = Boolean(activeProject && activeProject.id !== project.id)
-  return <div className="mx-auto w-full max-w-4xl p-4 sm:p-6">
-    <div className="rounded-[24px] border border-border-soft bg-white p-5 shadow-[0_16px_48px_rgba(15,23,42,.06)] sm:p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div><span className="text-[9px] font-bold uppercase tracking-[.16em] text-brand-cyan">Project foundation</span><h3 className="mt-1 text-xl font-semibold">{project.name}</h3><p className="mt-1 text-[10px] text-text-muted">Created {new Date(project.createdAt).toLocaleString()} · Last opened {new Date(project.lastOpenedAt).toLocaleString()}</p></div>
-        <span className="rounded-full border border-border-soft bg-slate-50 px-3 py-1.5 text-[9px] font-semibold text-text-muted">{project.activeJobType ? 'Running' : project.status === 'DRAFT' ? 'Draft' : humanStage(project.currentStage)}</span>
-      </div>
-
-      {blockedByAnother && <div className="mt-5 rounded-2xl border border-brand-amber/20 bg-brand-amber/[.04] p-4"><strong className="text-[10px]">This project is safely stored as a draft.</strong><p className="mt-1 text-[9px] leading-4 text-text-muted">“{activeProject?.name}” currently owns the active Creative Flow job. You will still be able to prepare this project, but a second AI-processing job will not start until the active one finishes.</p></div>}
-
-      <div className="mt-6 grid min-h-[300px] place-items-center rounded-[22px] border border-dashed border-brand-cyan/25 bg-[radial-gradient(circle_at_50%_40%,rgba(45,212,191,.05),transparent_18rem)] p-8 text-center">
-        <div className="max-w-lg">
-          <span className="mx-auto grid size-16 place-items-center rounded-[22px] border border-brand-cyan/20 bg-white text-brand-cyan shadow-[0_14px_34px_rgba(20,184,166,.08)]"><WandSparkles className="size-6" /></span>
-          <h4 className="mt-4 text-base font-semibold">Project persistence is ready</h4>
-          <p className="mt-2 text-[10px] leading-5 text-text-muted">This project now has its own permanent identity, stage, progress and active-job state. The full motion workflow canvas will attach to this project rather than living in a temporary browser session.</p>
-          <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-brand-green/20 bg-brand-green/[.05] px-3 py-1.5 text-[9px] font-semibold text-brand-green"><CheckCircle2 className="size-3.5" />Safe to close and reopen</div>
-        </div>
-      </div>
-
-      <div className="mt-5 flex justify-start"><Button onClick={onBack} size="sm"><ArrowLeft className="size-3.5" />Back to projects</Button></div>
-    </div>
-  </div>
 }
 
 function humanStage(value: string) {
