@@ -100,6 +100,7 @@ export type CreativeFlowRenderCampaign = AIPostCampaign & {
     plannedCredits: number
     originalConceptCount: number
     referenceAssetIds: string[]
+    projectId?: string | null
   }
 }
 
@@ -176,6 +177,7 @@ export type CreativeFlowProject = {
   status: string
   currentStage: string
   activeJobType: string | null
+  activeJobId: string | null
   progress: {
     current: number
     total: number
@@ -203,6 +205,9 @@ export type CreativeFlowProject = {
     generation: {
       plannedCredits: number
       creditsPerCreative: number
+    }
+    review: {
+      selectedPostIds: string[]
     }
     canvas: {
       positions: {
@@ -371,4 +376,46 @@ export function startCreativeFlowProjectGeneration(projectId: string) {
     `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/generate`,
     { method: 'POST' },
   ).then((response) => response.project)
+}
+
+
+export function saveCreativeFlowReviewSelection(projectId: string, postIds: string[]) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/review-selection`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ postIds }),
+    },
+  ).then((response) => response.project)
+}
+
+export function regenerateCreativeFlowProjectPost(projectId: string, postId: string, input: {
+  caption?: string
+  imageBrief?: string
+} = {}) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/posts/${encodeURIComponent(postId)}/regenerate`,
+    {
+      method: 'POST',
+      body: JSON.stringify(input),
+    },
+  ).then((response) => response.project)
+}
+
+export function removeCreativeFlowProjectPost(projectId: string, postId: string) {
+  return apiRequest<{ project: CreativeFlowProject; campaign: CreativeFlowRenderCampaign }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/posts/${encodeURIComponent(postId)}`,
+    { method: 'DELETE' },
+  )
+}
+
+export function handoffCreativeFlowProject(projectId: string) {
+  return apiRequest<{
+    project: CreativeFlowProject
+    campaign: AIPostCampaign
+    reused: boolean
+  }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/handoff`,
+    { method: 'POST' },
+  )
 }
