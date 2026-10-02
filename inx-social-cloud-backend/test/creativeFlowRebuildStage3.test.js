@@ -14,10 +14,8 @@ test('Stage 3 grows Campaign Setup only after Product Intelligence exists', () =
   assert.match(workspace, /source: 'productIntelligence'/);
   assert.match(workspace, /target: 'campaignSetup'/);
   assert.match(workspace, /Campaign Setup/);
-  assert.match(workspace, /Ready for strategy/);
-  assert.match(workspace, /Stage 3 stops here/);
-  assert.doesNotMatch(workspace, /Creative Strategy/);
-  assert.doesNotMatch(workspace, /Generate creatives/);
+  assert.match(workspace, /Campaign setup saved/);
+  assert.match(workspace, /The strategy node is connected/);
 });
 
 test('Stage 3 campaign controls live inside the node instead of a sidebar', () => {
@@ -75,7 +73,7 @@ test('Stage 3 persists Campaign Setup node position with the same project canvas
 test('Stage 3 continues to use the motion system rather than introducing a separate page', () => {
   const workspace = read('frontend/src/components/ai-content-studio/creative-flow/CreativeFlowWorkspace.tsx');
 
-  assert.match(workspace, /Creative Flow · Stage 3/);
+  assert.match(workspace, /Creative Flow · Stage 4/);
   assert.match(workspace, /CreativeFlowMotionSlot/);
   assert.match(workspace, /gsap\.fromTo/);
   assert.match(workspace, /MotionEdge/);
