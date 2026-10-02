@@ -1879,7 +1879,6 @@ function ScheduleCampaignNode(props: NodeProps) {
 
 function MotionEdge(props: EdgeProps<Stage2Edge>) {
   const { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, data } = props
-  const pathRef = useRef<SVGPathElement>(null)
   const [edgePath] = getBezierPath({
     sourceX,
     sourceY,
@@ -1891,25 +1890,32 @@ function MotionEdge(props: EdgeProps<Stage2Edge>) {
   })
   const active = Boolean(data?.active)
   const complete = Boolean(data?.complete)
+  const stroke = complete ? 'rgba(34,197,94,.86)' : active ? 'rgba(20,184,166,.95)' : 'rgba(100,116,139,.68)'
 
-  useEffect(() => {
-    if (!pathRef.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    const path = pathRef.current
-    const length = path.getTotalLength()
-    const ctx = gsap.context(() => {
-      gsap.fromTo(path, { strokeDasharray: length, strokeDashoffset: length }, { strokeDashoffset: 0, duration: 0.62, ease: 'power2.out' })
-      if (active) {
-        gsap.to(path, { opacity: 0.62, duration: 0.8, repeat: -1, yoyo: true, ease: 'sine.inOut' })
-      }
-    }, path)
-    return () => ctx.revert()
-  }, [active, edgePath])
-
-  const stroke = complete ? 'rgba(34,197,94,.72)' : active ? 'rgba(20,184,166,.82)' : 'rgba(148,163,184,.58)'
   return <>
-    <path d={edgePath} fill="none" ref={pathRef} stroke={stroke} strokeLinecap="round" strokeWidth={active ? 2.2 : 1.6} />
-    {active && <circle fill="rgba(20,184,166,.95)" r="3.2">
-      <animateMotion dur="1.35s" path={edgePath} repeatCount="indefinite" />
-    </circle>}
+    <BaseEdge
+      path={edgePath}
+      style={{
+        stroke,
+        strokeWidth: active ? 2.8 : 2.1,
+        strokeLinecap: 'round',
+      }}
+    />
+    {active && <>
+      <path
+        d={edgePath}
+        fill="none"
+        pointerEvents="none"
+        stroke="rgba(20,184,166,.24)"
+        strokeDasharray="7 9"
+        strokeLinecap="round"
+        strokeWidth="6"
+      >
+        <animate attributeName="stroke-dashoffset" dur="0.9s" from="32" repeatCount="indefinite" to="0" />
+      </path>
+      <circle fill="rgba(20,184,166,.98)" r="4">
+        <animateMotion dur="1.25s" path={edgePath} repeatCount="indefinite" />
+      </circle>
+    </>}
   </>
 }
