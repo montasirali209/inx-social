@@ -111,12 +111,21 @@ const creativeFlowPositionSchema = z.object({
   y: z.number().finite().min(-10000).max(10000)
 });
 
+const creativeFlowCampaignSetupSchema = z.object({
+  goal: z.string().trim().min(1).max(120).optional().default('AI Recommended'),
+  platforms: z.array(z.string().trim().min(1).max(40)).min(1).max(8),
+  creativeCount: z.coerce.number().int().min(1).max(50),
+  style: z.string().trim().min(1).max(160).optional().default('AI Recommended'),
+  audience: z.string().trim().max(500).optional().default('')
+});
+
 const creativeFlowCanvasSchema = z.object({
   positions: z.object({
     productUrl: creativeFlowPositionSchema.optional(),
     productImages: creativeFlowPositionSchema.optional(),
     analyzeProduct: creativeFlowPositionSchema.optional(),
-    productIntelligence: creativeFlowPositionSchema.optional()
+    productIntelligence: creativeFlowPositionSchema.optional(),
+    campaignSetup: creativeFlowPositionSchema.optional()
   }).optional().default({}),
   viewport: z.object({
     x: z.number().finite().min(-20000).max(20000),
@@ -432,6 +441,15 @@ async function analyzeCreativeFlowProject(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function saveCreativeFlowCampaignSetup(req, res, next) {
+  try {
+    const input = creativeFlowCampaignSetupSchema.parse(req.body || {});
+    res.json({
+      project: await creativeFlowProjectService.saveCampaignSetup(req.user.id, req.params.projectId, input)
+    });
+  } catch (error) { next(error); }
+}
+
 async function saveCreativeFlowProjectCanvas(req, res, next) {
   try {
     const input = creativeFlowCanvasSchema.parse(req.body || {});
@@ -600,7 +618,7 @@ module.exports = {
   generateUGCAd: generation('ugc_ad'),
   generationStatus, cancelGeneration, dismissGeneration, recentDrafts, saveDraft, deleteDraft, sendDraftToPosts,
   generationHistory, brandKits, packs, createTopupCheckout, creditWebhook,
-  listCreativeFlowProjects, createCreativeFlowProject, openCreativeFlowProject, getCreativeFlowProject, saveCreativeFlowProjectSource, analyzeCreativeFlowProject, saveCreativeFlowProjectCanvas, renameCreativeFlowProject, archiveCreativeFlowProject,
+  listCreativeFlowProjects, createCreativeFlowProject, openCreativeFlowProject, getCreativeFlowProject, saveCreativeFlowProjectSource, analyzeCreativeFlowProject, saveCreativeFlowCampaignSetup, saveCreativeFlowProjectCanvas, renameCreativeFlowProject, archiveCreativeFlowProject,
   analyzeCreativeFlow, planCreativeFlow, startCreativeFlowRender, getCreativeFlowRender, retryCreativeFlowRender, regenerateCreativeFlowPost, deleteCreativeFlowRender, handoffCreativeFlowCampaign,
   createCampaign, listCampaigns, getCampaign, updateCampaignPost, regenerateCampaignPost, generateCampaignPostImage, deleteCampaign
 };
