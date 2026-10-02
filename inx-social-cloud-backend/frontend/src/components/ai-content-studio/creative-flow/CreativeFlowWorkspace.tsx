@@ -1385,26 +1385,43 @@ function AnalyzeProductNode(props: NodeProps) {
   </>
 }
 
-function AnalysisProcessNode(props: NodeProps) {
-  void props
+function AnalysisStepNode(props: NodeProps) {
   const { project } = useWorkspace()
+  const stepIndex = Math.max(0, Math.min(ANALYSIS_STEPS.length - 1, Number((props.data as Stage2NodeData | undefined)?.analysisStep || 0)))
+  const step = ANALYSIS_STEPS[stepIndex]
+  const complete = Boolean(project.workflow.analysis) || Number(project.progress.current || 0) > stepIndex + 1
+  const working = !project.workflow.analysis
+    && project.activeJobType === 'PRODUCT_ANALYSIS'
+    && Number(project.progress.current || 0) === stepIndex + 1
+  const failed = project.currentStage === 'PRODUCT_ANALYSIS_FAILED'
+    && Number(project.progress.current || 0) === stepIndex + 1
   const ref = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
     if (!ref.current || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const ctx = gsap.context(() => {
-      gsap.fromTo(ref.current, { scale: 0.72, opacity: 0, x: -24 }, { scale: 1, opacity: 1, x: 0, duration: 0.65, ease: 'back.out(1.7)' })
+      gsap.fromTo(
+        ref.current,
+        { scale: 0.74, opacity: 0, x: -26 },
+        { scale: 1, opacity: 1, x: 0, duration: 0.58, ease: 'back.out(1.7)' },
+      )
     }, ref)
     return () => ctx.revert()
   }, [])
 
   return <div ref={ref}>
     <Handle className="!size-3 !border-2 !border-white !bg-brand-cyan" position={Position.Left} type="target" />
-    <NodeShell className="w-[300px] border-brand-cyan/30 p-4 shadow-[0_26px_80px_rgba(20,184,166,.16)]">
-      <div className="flex items-center gap-4">
-        <CreativeFlowMotionSlot className="size-20 shrink-0" state="working" />
-        <div className="min-w-0"><span className="text-[8px] font-bold uppercase tracking-[.15em] text-brand-cyan">Product Intelligence</span><h4 className="mt-1 text-[12px] font-semibold">Understanding your product…</h4><p className="mt-1 text-[8px] leading-4 text-text-muted">{project.progress.label || 'Reading website, visuals and brand evidence.'}</p></div>
+    <Handle className="!size-3 !border-2 !border-white !bg-brand-cyan" position={Position.Right} type="source" />
+    <NodeShell className={`w-[300px] overflow-hidden ${working ? 'border-brand-cyan/35 shadow-[0_24px_70px_rgba(20,184,166,.15)]' : complete ? 'border-brand-green/25' : failed ? 'border-red-200' : ''}`}>
+      <div className="flex items-center gap-3 p-4">
+        <CreativeFlowMotionSlot className="size-14 shrink-0" state={working ? 'working' : complete ? 'success' : failed ? 'error' : 'idle'} />
+        <div className="min-w-0 flex-1">
+          <span className={`block text-[7px] font-bold uppercase tracking-[.14em] ${complete ? 'text-brand-green' : 'text-brand-cyan'}`}>{step.eyebrow}</span>
+          <strong className="mt-1 block text-[10px]">{step.title}</strong>
+          <p className="mt-1 text-[7px] leading-4 text-text-muted">{working ? project.progress.label || step.description : step.description}</p>
+        </div>
+        <span className={`grid size-7 shrink-0 place-items-center rounded-full border text-[8px] font-bold ${complete ? 'border-brand-green/20 bg-brand-green/[.06] text-brand-green' : working ? 'border-brand-cyan/20 bg-brand-cyan/[.06] text-brand-cyan' : 'border-border-soft bg-slate-50 text-text-soft'}`}>{stepIndex + 1}</span>
       </div>
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-brand-cyan transition-all duration-500" style={{ width: `${Math.max(12, Math.min(100, Math.round((project.progress.current / Math.max(1, project.progress.total)) * 100)))}%` }} /></div>
     </NodeShell>
   </div>
 }
