@@ -146,13 +146,13 @@ function strategySystemPrompt(count) {
     'Concepts must be materially different from each other: vary marketing angle, visual composition, hook structure and message emphasis rather than swapping backgrounds.',
     'Keep concepts useful for real social marketing, not generic AI-art prompts.',
     `Return exactly ${count} concepts in the requested sequence range.`,
-    'Return JSON only.'
+    'Return json only.'
   ].join('\n');
 }
 
 function foundationShapePrompt() {
   return [
-    'Return this shape:',
+    'Return one valid json object with this shape:',
     '{"campaignTitle":"string","strategySummary":"string","audienceSummary":"string","contentPillars":["string"],"creativePrinciples":["string"],"claimGuardrails":["string"]}',
     'strategySummary should be approximately 120-220 words. contentPillars should contain 4-7 useful pillars. creativePrinciples should contain 4-7 practical art/copy principles.'
   ].join('\n');
@@ -495,6 +495,121 @@ async function removeCreativeFlowRender(userId, campaignId) {
   return campaignService.removeCampaign(userId, campaignId);
 }
 
+
+async function handoffCreativeFlowCampaign(userId, campaignId, approvedPostIds) {
+  const requestedIds = [...new Set((Array.isArray(approvedPostIds) ? approvedPostIds : []).map(String).filter(Boolean))].slice(0, MAX_CONCEPTS);
+  if (!requestedIds.length) {
+    throw publicError('Approve at least one completed creative before sending the campaign to Bulk Scheduler.', 'CREATIVE_FLOW_HANDOFF_EMPTY', 400);
+  }
+
+  return prisma.$transaction(async tx => {
+    const locked = await tx.$queryRawUnsafe(
+      'SELECT "id","userId","title","businessUrl","goal","audience","tone","platformsJson","analysisJson" FROM "AiPostCampaign" WHERE "id"=$1 AND "userId"=$2 FOR UPDATE',
+      String(campaignId),
+      userId
+    );
+    const sourceCampaign = locked[0];
+    if (!sourceCampaign) throw publicError('Creative Flow campaign not found.', 'CREATIVE_FLOW_NOT_FOUND', 404);
+
+    const analysis = parseJson(sourceCampaign.analysisJson, {});
+    if (!analysis?.creativeFlow || Number(analysis.creativeFlow.version || 0) < 3) {
+      throw publicError('This campaign was not created by Creative Flow.', 'CREATIVE_FLOW_NOT_FOUND', 404);
+    }
+
+    const posts = await tx.aiPostCampaignPost.findMany({
+      where: { campaignId: sourceCampaign.id, id: { in: requestedIds } },
+      orderBy: { sequence: 'asc' }
+    });
+    if (posts.length !== requestedIds.length) {
+      throw publicError('One or more approved creatives no longer belong to this Creative Flow campaign.', 'CREATIVE_FLOW_HANDOFF_INVALID_POSTS', 409);
+    }
+    const notReady = posts.filter(post => post.contentType !== 'IMAGE' || !post.mediaAssetId);
+    if (notReady.length) {
+      throw publicError('Only completed image creatives can be sent to Bulk Scheduler.', 'CREATIVE_FLOW_HANDOFF_NOT_READY', 409);
+    }
+
+    const fingerprint = posts.map(post => post.id).sort().join(':');
+    const prior = analysis?.creativeFlow?.lastHandoff;
+    if (prior?.fingerprint === fingerprint && prior?.campaignId) {
+      const existing = await tx.aiPostCampaign.findFirst({
+        where: { id: String(prior.campaignId), userId },
+        include: { posts: { orderBy: { sequence: 'asc' } } }
+      });
+      if (existing) return { campaign: campaignService.publicCampaign(existing), reused: true };
+    }
+
+    const sourceMap = Array.isArray(analysis.campaignMap) ? analysis.campaignMap : [];
+    const targetMap = posts.map((post, index) => {
+      const original = sourceMap.find(item => Number(item?.sequence) === Number(post.sequence)) || {};
+      return { ...original, sequence: index + 1, contentType: 'IMAGE', sourceSequence: post.sequence };
+    });
+
+    const target = await tx.aiPostCampaign.create({
+      data: {
+        userId,
+        title: clean(sourceCampaign.title || 'Creative Flow Campaign', 160),
+        businessUrl: sourceCampaign.businessUrl || null,
+        goal: clean(sourceCampaign.goal || 'Creative Flow campaign', 1600),
+        audience: clean(sourceCampaign.audience, 1000) || null,
+        tone: sourceCampaign.tone || null,
+        contentMode: 'IMAGE',
+        platformsJson: sourceCampaign.platformsJson || '[]',
+        postCount: posts.length,
+        imagePostCount: posts.length,
+        status: 'READY',
+        analysisJson: JSON.stringify({
+          strategySummary: clean(analysis.strategySummary, 1800),
+          audienceSummary: clean(analysis.audienceSummary, 1000),
+          contentPillars: cleanList(analysis.contentPillars, 8, 180),
+          sourceSummary: clean(analysis.sourceSummary, 1000),
+          sourceUrl: clean(analysis.sourceUrl, 2000) || null,
+          brandPack: analysis.brandPack || null,
+          campaignMap: targetMap,
+          handoffSource: {
+            type: 'CREATIVE_FLOW',
+            sourceCampaignId: sourceCampaign.id,
+            approvedOriginalSequences: posts.map(post => post.sequence)
+          }
+        }),
+        posts: {
+          create: posts.map((post, index) => ({
+            sequence: index + 1,
+            status: 'READY',
+            contentType: 'IMAGE',
+            title: '',
+            pillar: post.pillar,
+            hook: post.hook,
+            caption: post.caption,
+            cta: post.cta,
+            hashtagsJson: post.hashtagsJson || '[]',
+            imageBrief: post.imageBrief,
+            mediaAssetId: post.mediaAssetId,
+            mediaAssetJson: post.mediaAssetJson
+          }))
+        }
+      },
+      include: { posts: { orderBy: { sequence: 'asc' } } }
+    });
+
+    analysis.creativeFlow = {
+      ...analysis.creativeFlow,
+      lastHandoff: {
+        campaignId: target.id,
+        fingerprint,
+        approvedPostIds: posts.map(post => post.id),
+        approvedOriginalSequences: posts.map(post => post.sequence),
+        createdAt: new Date().toISOString()
+      }
+    };
+    await tx.aiPostCampaign.update({
+      where: { id: sourceCampaign.id },
+      data: { analysisJson: JSON.stringify(analysis), updatedAt: new Date() }
+    });
+
+    return { campaign: campaignService.publicCampaign(target), reused: false };
+  });
+}
+
 module.exports = {
   MAX_CONCEPTS,
   analyzeCreativeFlow,
@@ -504,5 +619,6 @@ module.exports = {
   retryCreativeFlowRender,
   regenerateCreativeFlowPost,
   removeCreativeFlowRender,
+  handoffCreativeFlowCampaign,
   normalisePlatforms
 };

@@ -22,6 +22,7 @@ router.post('/creative-flow/render', controller.startCreativeFlowRender);
 router.get('/creative-flow/render/:campaignId', controller.getCreativeFlowRender);
 router.post('/creative-flow/render/:campaignId/retry', controller.retryCreativeFlowRender);
 router.post('/creative-flow/render/:campaignId/posts/:postId/regenerate', controller.regenerateCreativeFlowPost);
+router.post('/creative-flow/render/:campaignId/handoff', controller.handoffCreativeFlowCampaign);
 router.delete('/creative-flow/render/:campaignId', controller.deleteCreativeFlowRender);
 router.post('/generate/conversational-image-post', controller.generateConversationalImagePost);
 router.post('/generate/conversational-carousel', nextController.generateCarousel);

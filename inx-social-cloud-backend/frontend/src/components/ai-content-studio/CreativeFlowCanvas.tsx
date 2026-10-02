@@ -236,7 +236,7 @@ export function CreativeFlowCanvas(props: Props) {
         {selectedNode === 'review' && <ReviewEditor />}
       </div>
       <div className="border-t border-border-soft p-4">
-        <div className="mb-3 rounded-xl border border-brand-purple/15 bg-brand-purple/[.035] p-3 text-[9px] leading-4 text-text-muted"><strong className="text-text-main">Stage 3 preview.</strong> Product analysis, strategy and image generation are real. Scheduling and publishing remain isolated.</div>
+        <div className="mb-3 rounded-xl border border-brand-purple/15 bg-brand-purple/[.035] p-3 text-[9px] leading-4 text-text-muted"><strong className="text-text-main">Stage 4 preview.</strong> Product analysis, strategy, image generation and campaign handoff are real. Scheduling and publishing stay under Bulk Scheduler control.</div>
         <Button className="w-full" disabled={!props.canRun} onClick={props.onRun} variant="primary"><WandSparkles className="size-4" />Run Creative Flow</Button>
       </div>
     </aside>
@@ -318,7 +318,7 @@ function GenerateEditor({ creativeCount, customCount, onCreativeCountChange, onC
 }
 
 function ReviewEditor() {
-  return <div className="space-y-3"><div className="rounded-xl border border-brand-green/20 bg-brand-green/[.04] p-3"><strong className="flex items-center gap-2 text-[10px]"><Check className="size-3.5 text-brand-green" />Review before publishing</strong><p className="mt-1.5 text-[8px] leading-4 text-text-muted">Approve, edit, regenerate or create variations before handing the campaign to Bulk Scheduler.</p></div><div className="rounded-xl border border-border-soft bg-slate-50 p-3 text-[8px] leading-4 text-text-muted">Generated creatives can now be reviewed and regenerated. Scheduling/publishing handoff remains disabled in Stage 3.</div></div>
+  return <div className="space-y-3"><div className="rounded-xl border border-brand-green/20 bg-brand-green/[.04] p-3"><strong className="flex items-center gap-2 text-[10px]"><Check className="size-3.5 text-brand-green" />Review before publishing</strong><p className="mt-1.5 text-[8px] leading-4 text-text-muted">Approve, edit, regenerate or create variations before handing the campaign to Bulk Scheduler.</p></div><div className="rounded-xl border border-border-soft bg-slate-50 p-3 text-[8px] leading-4 text-text-muted">Generated creatives can be reviewed, approved and handed to Bulk Scheduler. Creative Flow never auto-publishes.</div></div>
 }
 
 function nodeTitle(id: CreativeFlowNodeId) {

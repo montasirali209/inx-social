@@ -186,6 +186,10 @@ const creativeFlowRenderSchema = z.object({
   concepts: z.array(creativeFlowConceptSchema).min(1).max(50)
 });
 
+const creativeFlowHandoffSchema = z.object({
+  approvedPostIds: z.array(z.string().trim().min(1).max(120)).min(1).max(50)
+});
+
 const TRANSIENT_AI_STATUSES = new Set([500, 502, 503, 504]);
 
 function topupPacks() {
@@ -398,6 +402,17 @@ async function deleteCreativeFlowRender(req, res, next) {
   } catch (error) { next(error); }
 }
 
+async function handoffCreativeFlowCampaign(req, res, next) {
+  try {
+    const input = creativeFlowHandoffSchema.parse(req.body || {});
+    res.status(201).json(await creativeFlowService.handoffCreativeFlowCampaign(
+      req.user.id,
+      req.params.campaignId,
+      input.approvedPostIds
+    ));
+  } catch (error) { next(error); }
+}
+
 async function createCampaign(req, res, next) {
   try {
     const input = campaignSchema.parse(req.body || {});
@@ -479,6 +494,6 @@ module.exports = {
   generateUGCAd: generation('ugc_ad'),
   generationStatus, cancelGeneration, dismissGeneration, recentDrafts, saveDraft, deleteDraft, sendDraftToPosts,
   generationHistory, brandKits, packs, createTopupCheckout, creditWebhook,
-  analyzeCreativeFlow, planCreativeFlow, startCreativeFlowRender, getCreativeFlowRender, retryCreativeFlowRender, regenerateCreativeFlowPost, deleteCreativeFlowRender,
+  analyzeCreativeFlow, planCreativeFlow, startCreativeFlowRender, getCreativeFlowRender, retryCreativeFlowRender, regenerateCreativeFlowPost, deleteCreativeFlowRender, handoffCreativeFlowCampaign,
   createCampaign, listCampaigns, getCampaign, updateCampaignPost, regenerateCampaignPost, generateCampaignPostImage, deleteCampaign
 };
