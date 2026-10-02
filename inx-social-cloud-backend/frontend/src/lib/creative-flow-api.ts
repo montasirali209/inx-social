@@ -296,7 +296,7 @@ export function analyzeCreativeFlowProject(projectId: string, input: {
 }
 
 export function saveCreativeFlowProjectCanvas(projectId: string, input: {
-  positions: Partial<Record<'productUrl' | 'productImages' | 'analyzeProduct' | 'productIntelligence', { x: number; y: number }>>
+  positions: Partial<Record<'productUrl' | 'productImages' | 'analyzeProduct' | 'productIntelligence' | 'campaignSetup', { x: number; y: number }>>
   viewport?: { x: number; y: number; zoom: number }
 }) {
   return apiRequest<{ project: CreativeFlowProject }>(
