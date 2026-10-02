@@ -216,10 +216,9 @@ function focusNodeIds(project: CreativeFlowProject) {
     return ['campaignSetup', 'creativeStrategy']
   }
   if (project.workflow.review.revealedPostIds.length) {
-    const lastRevealed = project.workflow.review.revealedPostIds.at(-1)
     return [
       'generateCreatives',
-      ...(lastRevealed ? [creativeNodeId(lastRevealed)] : []),
+      ...project.workflow.review.revealedPostIds.map((id) => creativeNodeId(id)),
       ...(project.workflow.review.selectedPostIds.length ? ['scheduleCampaign'] : []),
     ]
   }
@@ -480,6 +479,16 @@ function CreativeFlowWorkspaceInner({
   const [nodes, setNodes, onNodesChange] = useNodesState<Stage2Node>(defaultNodes(initialProject))
   const [edges, setEdges, onEdgesChange] = useEdgesState<Stage2Edge>(defaultEdges(initialProject))
   const lastFocusKeyRef = useRef('')
+
+  useEffect(() => {
+    const persisted = projectQuery.data?.workflow.review.revealedPostIds || []
+    const current = revealedPostIdsRef.current
+    const same = persisted.length === current.length && persisted.every((id, index) => id === current[index])
+    if (same) return
+    revealedPostIdsRef.current = persisted
+    persisted.forEach((id) => revealScheduledRef.current.add(id))
+    setRevealedPostIds(persisted)
+  }, [projectQuery.data?.workflow.review.revealedPostIds])
 
   const projectQuery = useQuery({
     queryKey: ['creative-flow-project', initialProject.id],
