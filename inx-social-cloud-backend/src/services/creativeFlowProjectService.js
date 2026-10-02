@@ -57,6 +57,8 @@ function defaultCanvas() {
       creativeStrategy: { x: 1710, y: 185 },
       generateCreatives: { x: 2160, y: 225 }
     },
+    creativePositions: {},
+    schedulePosition: null,
     viewport: { x: 0, y: 0, zoom: 1 }
   };
 }
@@ -67,6 +69,15 @@ function normalizeWorkflow(value) {
   const positions = input.canvas?.positions && typeof input.canvas.positions === 'object'
     ? input.canvas.positions
     : {};
+  const rawCreativePositions = input.canvas?.creativePositions && typeof input.canvas.creativePositions === 'object'
+    ? input.canvas.creativePositions
+    : {};
+  const creativePositions = Object.fromEntries(
+    Object.entries(rawCreativePositions)
+      .map(([key, value]) => [clean(key, 160), cleanPosition(value, { x: 0, y: 0 })])
+      .filter(([key]) => Boolean(key))
+      .slice(0, 50)
+  );
   return {
     version: Math.max(2, Number(input.version || 2)),
     source: {
@@ -101,6 +112,13 @@ function normalizeWorkflow(value) {
       plannedCredits: Math.max(0, Number(input.generation?.plannedCredits || 0)),
       creditsPerCreative: Math.max(0, Number(input.generation?.creditsPerCreative || 0))
     },
+    review: {
+      selectedPostIds: [...new Set((Array.isArray(input.review?.selectedPostIds) ? input.review.selectedPostIds : [])
+        .map(value => clean(value, 160))
+        .filter(Boolean))].slice(0, 50),
+      failedPostId: clean(input.review?.failedPostId, 160) || null,
+      failedPostError: clean(input.review?.failedPostError, 1200) || null
+    },
     canvas: {
       positions: {
         productUrl: cleanPosition(positions.productUrl, defaults.positions.productUrl),
@@ -111,6 +129,10 @@ function normalizeWorkflow(value) {
         creativeStrategy: cleanPosition(positions.creativeStrategy, defaults.positions.creativeStrategy),
         generateCreatives: cleanPosition(positions.generateCreatives, defaults.positions.generateCreatives)
       },
+      creativePositions,
+      schedulePosition: input.canvas?.schedulePosition
+        ? cleanPosition(input.canvas.schedulePosition, { x: 0, y: 0 })
+        : null,
       viewport: cleanViewport(input.canvas?.viewport, defaults.viewport)
     }
   };
@@ -124,6 +146,7 @@ function projectView(project) {
     status: project.status,
     currentStage: project.currentStage,
     activeJobType: project.activeJobType || null,
+    activeJobId: project.activeJobId || null,
     progress: {
       current: Number(project.progressCurrent || 0),
       total: Number(project.progressTotal || 0),
@@ -335,6 +358,7 @@ async function saveProductSource(userId, projectId, input = {}) {
   workflow.strategyPlan = null;
   workflow.selectedConceptSequences = [];
   workflow.generation = { plannedCredits: 0, creditsPerCreative: 0 };
+  workflow.review = { selectedPostIds: [] };
   const updated = await prisma.creativeFlowProject.update({
     where: { id: project.id },
     data: {
@@ -411,6 +435,7 @@ async function saveCampaignSetup(userId, projectId, input = {}) {
   workflow.strategyPlan = null;
   workflow.selectedConceptSequences = [];
   workflow.generation = { plannedCredits: 0, creditsPerCreative: 0 };
+  workflow.review = { selectedPostIds: [] };
 
   const updated = await prisma.creativeFlowProject.update({
     where: { id: project.id },
@@ -449,6 +474,7 @@ async function saveStrategyPlan(userId, projectId, strategyPlan) {
     .map(concept => Number(concept.sequence))
     .filter(value => Number.isInteger(value) && value > 0 && value <= 50);
   workflow.generation = { plannedCredits: 0, creditsPerCreative: 0 };
+  workflow.review = { selectedPostIds: [] };
 
   const updated = await prisma.creativeFlowProject.update({
     where: { id: project.id },
@@ -488,6 +514,7 @@ async function saveStrategySelection(userId, projectId, sequences) {
   }
   workflow.selectedConceptSequences = selected;
   workflow.generation = { plannedCredits: 0, creditsPerCreative: 0 };
+  workflow.review = { selectedPostIds: [] };
   const updated = await prisma.creativeFlowProject.update({
     where: { id: project.id },
     data: {
@@ -519,6 +546,91 @@ async function linkRenderCampaign(userId, projectId, campaignId, generation = {}
   return projectView(updated);
 }
 
+async function saveReviewSelection(userId, projectId, postIds) {
+  const project = await requireProject(userId, projectId);
+  if (!project.renderCampaignId) {
+    throw publicError('Generate creatives before selecting review items.', 'CREATIVE_FLOW_RENDER_REQUIRED', 409);
+  }
+
+  const requested = [...new Set((Array.isArray(postIds) ? postIds : [])
+    .map(value => clean(value, 160))
+    .filter(Boolean))].slice(0, 50);
+
+  if (requested.length) {
+    const posts = await prisma.aiPostCampaignPost.findMany({
+      where: {
+        campaignId: project.renderCampaignId,
+        id: { in: requested },
+        contentType: 'IMAGE',
+        mediaAssetId: { not: null }
+      },
+      select: { id: true }
+    });
+    const validIds = new Set(posts.map(post => post.id));
+    if (requested.some(id => !validIds.has(id))) {
+      throw publicError(
+        'Only completed creatives from this project can be selected.',
+        'CREATIVE_FLOW_REVIEW_SELECTION_INVALID',
+        409
+      );
+    }
+  }
+
+  const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
+  workflow.review.selectedPostIds = requested;
+  const updated = await prisma.creativeFlowProject.update({
+    where: { id: project.id },
+    data: {
+      workflowJson: JSON.stringify(workflow),
+      currentStage: requested.length ? 'REVIEW_READY' : (project.currentStage === 'HANDOFF_READY' ? 'REVIEW_READY' : project.currentStage),
+      updatedAt: new Date()
+    }
+  });
+  return projectView(updated);
+}
+
+async function markReviewFailure(userId, projectId, postId, message) {
+  const project = await requireProject(userId, projectId);
+  const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
+  workflow.review.failedPostId = clean(postId, 160) || null;
+  workflow.review.failedPostError = clean(message, 1200) || null;
+  const updated = await prisma.creativeFlowProject.update({
+    where: { id: project.id },
+    data: { workflowJson: JSON.stringify(workflow), updatedAt: new Date() }
+  });
+  return projectView(updated);
+}
+
+async function clearReviewFailure(userId, projectId, postId = null) {
+  const project = await requireProject(userId, projectId);
+  const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
+  if (postId && workflow.review.failedPostId && workflow.review.failedPostId !== String(postId)) {
+    return projectView(project);
+  }
+  workflow.review.failedPostId = null;
+  workflow.review.failedPostError = null;
+  const updated = await prisma.creativeFlowProject.update({
+    where: { id: project.id },
+    data: { workflowJson: JSON.stringify(workflow), updatedAt: new Date() }
+  });
+  return projectView(updated);
+}
+
+async function linkHandoffCampaign(userId, projectId, campaignId) {
+  const project = await requireProject(userId, projectId);
+  const updated = await prisma.creativeFlowProject.update({
+    where: { id: project.id },
+    data: {
+      handoffCampaignId: clean(campaignId, 160) || null,
+      status: 'WAITING',
+      currentStage: 'HANDOFF_READY',
+      progressLabel: 'Approved creatives sent to Bulk Scheduler',
+      updatedAt: new Date()
+    }
+  });
+  return projectView(updated);
+}
+
 async function saveCanvasState(userId, projectId, input = {}) {
   const project = await requireProject(userId, projectId);
   const workflow = normalizeWorkflow(parseJson(project.workflowJson, {}));
@@ -532,6 +644,19 @@ async function saveCanvasState(userId, projectId, input = {}) {
     creativeStrategy: cleanPosition(positions.creativeStrategy, workflow.canvas.positions.creativeStrategy),
     generateCreatives: cleanPosition(positions.generateCreatives, workflow.canvas.positions.generateCreatives)
   };
+  if (input.creativePositions && typeof input.creativePositions === 'object') {
+    workflow.canvas.creativePositions = Object.fromEntries(
+      Object.entries(input.creativePositions)
+        .map(([key, value]) => [clean(key, 160), cleanPosition(value, workflow.canvas.creativePositions?.[key] || { x: 0, y: 0 })])
+        .filter(([key]) => Boolean(key))
+        .slice(0, 50)
+    );
+  }
+  if (input.schedulePosition !== undefined) {
+    workflow.canvas.schedulePosition = input.schedulePosition
+      ? cleanPosition(input.schedulePosition, workflow.canvas.schedulePosition || { x: 0, y: 0 })
+      : null;
+  }
   workflow.canvas.viewport = cleanViewport(input.viewport, workflow.canvas.viewport);
   const updated = await prisma.creativeFlowProject.update({
     where: { id: project.id },
@@ -557,6 +682,10 @@ module.exports = {
   saveStrategyPlan,
   saveStrategySelection,
   linkRenderCampaign,
+  saveReviewSelection,
+  markReviewFailure,
+  clearReviewFailure,
+  linkHandoffCampaign,
   saveCanvasState,
   projectView,
   normalizeWorkflow,

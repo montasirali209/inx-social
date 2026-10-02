@@ -27,6 +27,10 @@ router.post('/creative-flow/projects/:projectId/strategy', controller.startCreat
 router.patch('/creative-flow/projects/:projectId/strategy-selection', controller.saveCreativeFlowStrategySelection);
 router.get('/creative-flow/projects/:projectId/generation-estimate', controller.getCreativeFlowGenerationEstimate);
 router.post('/creative-flow/projects/:projectId/generate', controller.startCreativeFlowGeneration);
+router.patch('/creative-flow/projects/:projectId/review-selection', controller.saveCreativeFlowReviewSelection);
+router.post('/creative-flow/projects/:projectId/posts/:postId/regenerate', controller.regenerateCreativeFlowProjectPost);
+router.delete('/creative-flow/projects/:projectId/posts/:postId', controller.removeCreativeFlowProjectPost);
+router.post('/creative-flow/projects/:projectId/handoff', controller.handoffCreativeFlowProject);
 router.patch('/creative-flow/projects/:projectId/canvas', controller.saveCreativeFlowProjectCanvas);
 router.patch('/creative-flow/projects/:projectId', controller.renameCreativeFlowProject);
 router.delete('/creative-flow/projects/:projectId', controller.archiveCreativeFlowProject);

@@ -379,7 +379,8 @@ async function publicCreativeFlowCampaign(userId, campaignId) {
       creditsPerCreative,
       plannedCredits: Number(analysis.creativeFlow.plannedCredits || value.imagePostCount * creditsPerCreative),
       originalConceptCount: Number(analysis.creativeFlow.originalConceptCount || value.imagePostCount),
-      referenceAssetIds: cleanList(analysis.creativeFlow.referenceAssetIds, 8, 120)
+      referenceAssetIds: cleanList(analysis.creativeFlow.referenceAssetIds, 8, 120),
+      projectId: clean(analysis.creativeFlow.projectId, 160) || null
     }
   };
 }
@@ -503,6 +504,73 @@ async function regenerateCreativeFlowPost(userId, campaignId, postId) {
   await rawCreativeFlowCampaign(userId, campaignId);
   await creativeFlowAccess(userId, postStudio.IMAGE_CREDITS);
   await campaignService.generatePostImage(userId, campaignId, postId);
+  return publicCreativeFlowCampaign(userId, campaignId);
+}
+
+async function editCreativeFlowPost(userId, campaignId, postId, input = {}) {
+  const { campaign } = await rawCreativeFlowCampaign(userId, campaignId);
+  const post = campaign.posts.find(item => item.id === String(postId));
+  if (!post) throw publicError('Creative Flow post not found.', 'CREATIVE_FLOW_POST_NOT_FOUND', 404);
+  if (post.contentType !== 'IMAGE') {
+    throw publicError('Only image creatives can be edited here.', 'CREATIVE_FLOW_POST_NOT_IMAGE', 409);
+  }
+
+  const data = {};
+  if (input.caption !== undefined) {
+    const caption = clean(input.caption, 7000);
+    if (!caption) throw publicError('Creative caption cannot be empty.', 'CREATIVE_FLOW_CAPTION_REQUIRED', 400);
+    data.caption = caption;
+  }
+  if (input.imageBrief !== undefined) {
+    const brief = clean(input.imageBrief, 4000);
+    if (!brief) throw publicError('Visual direction cannot be empty.', 'CREATIVE_FLOW_IMAGE_BRIEF_REQUIRED', 400);
+    data.imageBrief = brief;
+  }
+
+  if (Object.keys(data).length) {
+    await prisma.aiPostCampaignPost.update({
+      where: { id: post.id },
+      data: { ...data, updatedAt: new Date() }
+    });
+    await prisma.aiPostCampaign.update({
+      where: { id: campaign.id },
+      data: { updatedAt: new Date() }
+    });
+  }
+
+  if (input.regenerate) {
+    return regenerateCreativeFlowPost(userId, campaignId, postId);
+  }
+  return publicCreativeFlowCampaign(userId, campaignId);
+}
+
+async function removeCreativeFlowPost(userId, campaignId, postId) {
+  const { campaign } = await rawCreativeFlowCampaign(userId, campaignId);
+  if (campaign.status === 'GENERATING_IMAGES') {
+    throw publicError(
+      'Wait for the current Creative Flow render to finish before removing a creative.',
+      'CREATIVE_FLOW_RENDER_ACTIVE',
+      409
+    );
+  }
+  const post = campaign.posts.find(item => item.id === String(postId));
+  if (!post) throw publicError('Creative Flow post not found.', 'CREATIVE_FLOW_POST_NOT_FOUND', 404);
+
+  await prisma.aiPostCampaignPost.delete({ where: { id: post.id } });
+  const remaining = campaign.posts.filter(item => item.id !== post.id);
+  const imagePosts = remaining.filter(item => item.contentType === 'IMAGE');
+  const withImages = imagePosts.filter(item => Boolean(item.mediaAssetId)).length;
+  const nextStatus = !imagePosts.length || withImages === imagePosts.length ? 'READY' : 'PARTIAL';
+
+  await prisma.aiPostCampaign.update({
+    where: { id: campaign.id },
+    data: {
+      postCount: remaining.length,
+      imagePostCount: imagePosts.length,
+      status: nextStatus,
+      updatedAt: new Date()
+    }
+  });
   return publicCreativeFlowCampaign(userId, campaignId);
 }
 
@@ -635,6 +703,8 @@ module.exports = {
   getCreativeFlowRender,
   retryCreativeFlowRender,
   regenerateCreativeFlowPost,
+  editCreativeFlowPost,
+  removeCreativeFlowPost,
   removeCreativeFlowRender,
   handoffCreativeFlowCampaign,
   normalisePlatforms
