@@ -103,7 +103,9 @@ test('Final Image Post render uses direct GPT Image with provider-safe credit ac
   assert.match(service, /\/images\/generations/);
   assert.match(service, /\/images\/edits/);
   assert.match(service, /form\.append\('image\[\]'/);
-  assert.match(service, /quality', 'medium'/);
+  assert.match(service, /: 'medium';/);
+  assert.match(service, /form\.append\('quality', quality\)/);
+  assert.match(service, /quality,/);
   assert.match(service, /credits\.reserve/);
   assert.match(service, /credits\.complete/);
   assert.match(service, /credits\.refund/);
