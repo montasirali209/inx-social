@@ -217,6 +217,14 @@ function focusNodeIds(project: CreativeFlowProject) {
   ) {
     return ['campaignSetup', 'creativeStrategy']
   }
+  if (project.workflow.review.revealedPostIds.length) {
+    const lastRevealed = project.workflow.review.revealedPostIds.at(-1)
+    return [
+      'generateCreatives',
+      ...(lastRevealed ? [creativeNodeId(lastRevealed)] : []),
+      ...(project.workflow.review.selectedPostIds.length ? ['scheduleCampaign'] : []),
+    ]
+  }
   if (
     project.workflow.strategyPlan &&
     (
@@ -1508,13 +1516,22 @@ function GenerateCreativesNode(props: NodeProps) {
     generationBusy,
     generationEstimate,
     generationEstimateLoading,
+    renderCampaign,
+    reviewBusy,
+    retryMissingBusy,
     startGeneration,
+    selectAllReadyCreatives,
+    clearCreativeSelection,
+    retryMissingCreatives,
   } = useWorkspace()
   const running = project.activeJobType === 'CREATIVE_RENDER'
   const finished = renderFinished(project)
   const partial = project.currentStage === 'RENDER_PARTIAL'
   const failed = project.currentStage === 'CREATIVE_RENDER_FAILED'
   const selectedCount = project.workflow.selectedConceptSequences.length
+  const completedPosts = renderCampaign?.posts.filter((post) => post.contentType === 'IMAGE' && Boolean(post.mediaAssetId)) || []
+  const missingPosts = renderCampaign?.posts.filter((post) => post.contentType === 'IMAGE' && !post.mediaAssetId) || []
+  const selectedReviewCount = project.workflow.review.selectedPostIds.length
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -1563,8 +1580,13 @@ function GenerateCreativesNode(props: NodeProps) {
 
         {finished && <div className="mt-4 rounded-xl border border-brand-green/20 bg-brand-green/[.04] p-3">
           <span className="flex items-center gap-1.5 text-[8px] font-semibold text-brand-green"><Images className="size-3" />{partial ? 'Generation partially complete' : 'Creative generation complete'}</span>
-          <p className="mt-1 text-[8px] leading-4 text-text-muted">{partial ? 'Completed creatives are available below; failed items can be retried individually.' : 'Each finished creative now appears as its own interactive child node for review.'}</p>
-        </div>}
+          <p className="mt-1 text-[8px] leading-4 text-text-muted">{partial ? 'Completed creatives are available below. Missing renders can be retried safely without restarting the completed work.' : 'Each finished creative appears as its own persistent review node.'}</p>
+          {completedPosts.length > 0 && <div className="mt-3 grid grid-cols-2 gap-2">
+            <Button disabled={reviewBusy || Boolean(project.activeJobType) || selectedReviewCount === completedPosts.length} onClick={selectAllReadyCreatives} size="sm"><CheckCircle2 className="size-3" />Select all ready</Button>
+            <Button disabled={reviewBusy || Boolean(project.activeJobType) || !selectedReviewCount} onClick={clearCreativeSelection} size="sm">Clear selection</Button>
+          </div>}
+          {missingPosts.length > 0 && <Button className="mt-2 w-full" disabled={retryMissingBusy || Boolean(project.activeJobType)} onClick={retryMissingCreatives} size="sm" variant="primary">{retryMissingBusy ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3" />}Retry {missingPosts.length} missing creative{missingPosts.length === 1 ? '' : 's'}</Button>}
+        </div>
 
         {failed && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-2.5 text-[8px] leading-4 text-red-700">{project.lastError || 'Creative generation stopped unexpectedly. No other project state was lost.'}</div>}
         {failed && !project.renderCampaignId && <Button className="mt-3 w-full" disabled={generationBusy || !generationEstimate?.canGenerate} onClick={startGeneration} size="sm"><RefreshCw className="size-3" />Retry generation start</Button>}
