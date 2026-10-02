@@ -146,13 +146,13 @@ function strategySystemPrompt(count) {
     'Concepts must be materially different from each other: vary marketing angle, visual composition, hook structure and message emphasis rather than swapping backgrounds.',
     'Keep concepts useful for real social marketing, not generic AI-art prompts.',
     `Return exactly ${count} concepts in the requested sequence range.`,
-    'Return JSON only.'
+    'Return json only.'
   ].join('\n');
 }
 
 function foundationShapePrompt() {
   return [
-    'Return this shape:',
+    'Return one valid json object with this shape:',
     '{"campaignTitle":"string","strategySummary":"string","audienceSummary":"string","contentPillars":["string"],"creativePrinciples":["string"],"claimGuardrails":["string"]}',
     'strategySummary should be approximately 120-220 words. contentPillars should contain 4-7 useful pillars. creativePrinciples should contain 4-7 practical art/copy principles.'
   ].join('\n');
