@@ -16,7 +16,6 @@ async function updateConfig(req, res, next) {
   try {
     const input = z.object({
       enabled: z.boolean().optional(),
-      pauseUntil: z.union([z.string().datetime(), z.null()]).optional(),
       aiModel: z.enum(['gpt-5.6-terra', 'gpt-5.6-sol']).optional(),
       aiReasoningEffort: z.enum(['low', 'medium', 'high']).optional(),
       intelligenceEveryHours: z.coerce.number().min(6).max(168).optional(),

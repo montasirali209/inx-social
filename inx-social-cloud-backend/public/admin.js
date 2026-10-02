@@ -1470,15 +1470,13 @@ function renderGrowthAutopilot(data){
   const control=data.control||{};
   const enabled=config.enabled!==false;
   const active=control.active??enabled;
-  const temporarilyPaused=Boolean(control.temporaryPause);
   const modelLabel=growthAutopilotModelLabel(config.aiModel);
   const modelShort=growthAutopilotModelShort(config.aiModel);
   const published=Number(data.content?.counts?.PUBLISHED||0);
   const running=Boolean(runtime.running);
   $('growthAutopilotModel').value=config.aiModel||'gpt-5.6-terra';
   $('growthAutopilotModel').disabled=state.user?.role!=='SUPER_ADMIN'||running;
-  $('growthAutopilotPauseDuration').disabled=state.user?.role!=='SUPER_ADMIN'||!active;
-  $('growthStatusChip').textContent=running?'AUTOPILOT RUNNING':active?'AUTOPILOT ON':temporarilyPaused?'AUTOPILOT PAUSED':'AUTOPILOT PAUSED';
+  $('growthStatusChip').textContent=running?'AUTOPILOT RUNNING':active?'AUTOPILOT ON':'AUTOPILOT STOPPED';
   $('growthStatusChip').className='status-chip '+(active?'gsc-connected':'gsc-error');
   const editorialRuntime=runtime.editorialRuntime||{};
   const editorialStatus=String(editorialRuntime.status||'IDLE');
@@ -1488,29 +1486,26 @@ function renderGrowthAutopilot(data){
       ?modelShort+' is repairing the article now'
       : running?'Growth cycle running now'
         :active?'Everything is running automatically'
-          :temporarilyPaused?'Autopilot temporarily paused':'Autopilot is paused';
+          :'Autopilot is stopped';
   $('growthAutopilotSummary').textContent=active
     ?(editorialStatus==='RETRY_SCHEDULED'
       ?'The current draft is preserved. A temporary provider/evidence failure triggered a short recovery retry at '+growthDashboardUntil(editorialRuntime.retryAt)+'. Normal quality repairs run immediately and do not wait for the scheduler.'
       :'Using '+modelLabel+'. Scheduled research, strategy, writing, editorial review, authority and optimisation run only when due; article quality still requires the 90+ gate.')
-    :temporarilyPaused
-      ?'Scheduled AI work is stopped until '+fmtDate(control.pauseUntil)+'. Run now can still execute one manual cycle without cancelling the pause.'
-      :'Scheduled AI work is stopped until you resume Autopilot. Run now can still execute one manual cycle.';
-  $('growthAutopilotToggleBtn').textContent=active?'Pause':'Resume now';
-  $('growthAutopilotToggleBtn').className=active?'secondary':'primary';
-  $('growthAutopilotToggleBtn').disabled=state.user?.role!=='SUPER_ADMIN';
+    :'Scheduled AI work stays stopped until you press Start. Run manually can execute one cycle without turning the scheduler back on.';
+  $('growthAutopilotStartBtn').disabled=state.user?.role!=='SUPER_ADMIN'||active||running;
+  $('growthAutopilotStopBtn').disabled=state.user?.role!=='SUPER_ADMIN'||!active;
   $('growthAutopilotRunBtn').disabled=state.user?.role!=='SUPER_ADMIN'||running;
-  $('growthAutopilotRunBtn').textContent=running?'Running…':'Run now';
+  $('growthAutopilotRunBtn').textContent=running?'Running…':'Run manually';
 
   $('growthEditorialStrategistModel')&&($('growthEditorialStrategistModel').textContent=modelShort+' strategist');
   $('growthEditorialWriterModel')&&($('growthEditorialWriterModel').textContent=modelShort+' writer');
   $('growthEditorialQueueModel')&&($('growthEditorialQueueModel').textContent=modelShort+' can choose beyond this shortlist');
 
   const lastQuality=runtime.lastPublishedArticle?.qualityScore;
-  const pauseLabel=temporarilyPaused?growthTimeUntil(control.pauseUntil):'Paused';
+  const pauseLabel='Stopped';
   $('growthAutopilotKpis').innerHTML=[
     ['Publishing',(config.dailyPublishTimeLocal||'07:30')+' UK daily',config.autoPublish===false?'Auto publish disabled':'Evidence-gated morning article decision'],
-    ['Next article',active?growthTimeUntil(runtime.nextPublishAt):pauseLabel,temporarilyPaused?'Resumes '+fmtDate(control.pauseUntil):runtime.nextPublishAt?fmtDate(runtime.nextPublishAt):'Waiting for schedule'],
+    ['Next article',active?growthTimeUntil(runtime.nextPublishAt):pauseLabel,active?(runtime.nextPublishAt?fmtDate(runtime.nextPublishAt):'Waiting for schedule'):'Will not resume until Start is pressed'],
     ['SEO model',modelShort,(config.aiReasoningEffort||'medium')+' reasoning · admin selectable'],
     ['Published',published,lastQuality!=null?'Latest quality '+Number(lastQuality)+'/100':'Self-hosted articles']
   ].map(item=>'<article><span>'+esc(item[0])+'</span><b>'+esc(item[1])+'</b><small>'+esc(item[2])+'</small></article>').join('');
@@ -1548,32 +1543,18 @@ function startGrowthAutopilotPolling(){
     if(!$('growthIntelligencePage').classList.contains('hidden'))loadGrowthAutopilotStatus(true).catch(()=>{});
   },30000);
 }
-async function toggleGrowthAutopilot(){
-  const control=state.growthAutopilot?.control||{};
-  const config=state.growthAutopilot?.config||{};
-  const active=control.active??(config.enabled!==false);
-  const button=$('growthAutopilotToggleBtn');button.disabled=true;
+async function setGrowthAutopilotEnabled(enabled){
+  const startButton=$('growthAutopilotStartBtn');
+  const stopButton=$('growthAutopilotStopBtn');
+  startButton.disabled=true;
+  stopButton.disabled=true;
   try{
-    let patch;
-    let message;
-    if(!active){
-      patch={enabled:true,pauseUntil:null};
-      message='Growth Autopilot resumed';
-    }else{
-      const duration=$('growthAutopilotPauseDuration').value;
-      if(duration==='manual'){
-        patch={enabled:false,pauseUntil:null};
-        message='Growth Autopilot paused until you resume it';
-      }else{
-        const hours=Math.max(1,Number(duration||6));
-        const pauseUntil=new Date(Date.now()+hours*60*60*1000).toISOString();
-        patch={enabled:true,pauseUntil};
-        message='Growth Autopilot paused for '+hours+' hour'+(hours===1?'':'s');
-      }
-    }
-    renderGrowthAutopilot(await api('/api/admin/growth-autopilot/config',{method:'PATCH',body:JSON.stringify(patch)}));
-    toast(message);
-  }catch(error){toast(error.message)}finally{button.disabled=state.user?.role!=='SUPER_ADMIN'}
+    renderGrowthAutopilot(await api('/api/admin/growth-autopilot/config',{method:'PATCH',body:JSON.stringify({enabled:Boolean(enabled)})}));
+    toast(enabled?'Growth Autopilot started':'Growth Autopilot stopped until you start it again');
+  }catch(error){
+    toast(error.message);
+    await loadGrowthAutopilotStatus(true);
+  }
 }
 async function updateGrowthAutopilotModel(){
   const select=$('growthAutopilotModel');
@@ -1597,7 +1578,7 @@ async function runGrowthAutopilotNow(){
     await api('/api/admin/growth-autopilot/run-now',{method:'POST',body:'{}'});
     toast('Growth Autopilot cycle started');
     setTimeout(()=>loadGrowthAutopilotStatus(true).catch(()=>{}),1500);
-  }catch(error){toast(error.message);button.disabled=false;button.textContent='Run now'}
+  }catch(error){toast(error.message);button.disabled=false;button.textContent='Run manually'}
 }
 function growthProviderCard(label,configured,note){
   return `<article class="growth-provider-card ${configured?'ok':'warn'}"><span>${esc(label)}</span><b>${configured?'Ready':'Not configured'}</b><small>${esc(note||'')}</small></article>`;
@@ -1935,7 +1916,8 @@ $('growthOptimizationQueue').addEventListener('click',event=>{
   });
 });
 
-$('growthAutopilotToggleBtn').addEventListener('click',()=>void toggleGrowthAutopilot());
+$('growthAutopilotStartBtn').addEventListener('click',()=>void setGrowthAutopilotEnabled(true));
+$('growthAutopilotStopBtn').addEventListener('click',()=>void setGrowthAutopilotEnabled(false));
 $('growthAutopilotModel').addEventListener('change',()=>void updateGrowthAutopilotModel());
 $('growthAutopilotRunBtn').addEventListener('click',()=>void runGrowthAutopilotNow());
 $('runGrowthAuditBtn').addEventListener('click',()=>void runGrowthAudit());

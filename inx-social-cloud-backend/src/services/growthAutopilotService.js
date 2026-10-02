@@ -32,7 +32,7 @@ const DEFAULT_CONFIG = Object.freeze({
   aiModel: AUTOPILOT_MODELS.TERRA,
   aiReasoningEffort: 'medium',
   intelligenceEveryHours: 24,
-  configVersion: 11,
+  configVersion: 12,
   publishEveryHours: 24,
   editorialRadarEveryHours: 6,
   hotTrendAutoEvaluate: true,
@@ -219,20 +219,8 @@ function normalizeReasoningEffort(value, model) {
   return model === AUTOPILOT_MODELS.SOL ? 'high' : 'medium';
 }
 
-function normalizePauseUntil(value) {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date.toISOString();
-}
-
-function isTemporarilyPaused(config, reference = new Date()) {
-  if (!config?.pauseUntil) return false;
-  const until = new Date(config.pauseUntil).getTime();
-  return Number.isFinite(until) && until > reference.getTime();
-}
-
-function isAutopilotActive(config, reference = new Date()) {
-  return config?.enabled !== false && !isTemporarilyPaused(config, reference);
+function isAutopilotActive(config) {
+  return config?.enabled !== false;
 }
 
 function modelLabel(model) {
@@ -250,11 +238,11 @@ function normalizeConfig(value = {}) {
   const aiModel = normalizeAutopilotModel(value.aiModel);
   return {
     enabled: value.enabled !== false,
-    pauseUntil: normalizePauseUntil(value.pauseUntil),
+    pauseUntil: null,
     aiModel,
     aiReasoningEffort: normalizeReasoningEffort(value.aiReasoningEffort, aiModel),
     intelligenceEveryHours: clampNumber(value.intelligenceEveryHours, 24, 6, 168),
-    configVersion: Math.max(11, Number(value.configVersion || 0)),
+    configVersion: Math.max(12, Number(value.configVersion || 0)),
     publishEveryHours: clampNumber(value.publishEveryHours, 24, 24, 336),
     editorialRadarEveryHours: clampNumber(value.editorialRadarEveryHours, 6, 3, 24),
     hotTrendAutoEvaluate: value.hotTrendAutoEvaluate !== false,
@@ -334,6 +322,13 @@ async function ensureSettings() {
   const needsV9Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 9;
   const needsV10Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 10;
   const needsV11Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 11;
+  const needsV12Migration = !rawConfig || Number(rawConfig.configVersion || 0) < 12;
+  const legacyTimedPauseActive = Boolean(
+    needsV12Migration
+    && rawConfig?.enabled !== false
+    && rawConfig?.pauseUntil
+    && new Date(rawConfig.pauseUntil).getTime() > Date.now()
+  );
   const config = normalizeConfig({
     ...(rawConfig || DEFAULT_CONFIG),
     ...(needsV4Migration ? { authorityEveryHours: 6, authorityAutoEmail: true, optimizationEveryHours: 24 } : {}),
@@ -347,6 +342,11 @@ async function ensureSettings() {
       configVersion: 11,
       aiModel: AUTOPILOT_MODELS.TERRA,
       aiReasoningEffort: 'medium',
+      pauseUntil: null
+    } : {}),
+    ...(needsV12Migration ? {
+      configVersion: 12,
+      enabled: legacyTimedPauseActive ? false : (rawConfig?.enabled !== false),
       pauseUntil: null
     } : {})
   });
@@ -371,7 +371,7 @@ async function ensureSettings() {
         description: 'INXSocial Growth Autopilot runtime state and activity.'
       }
     });
-  } else if (needsV4Migration || needsV5Migration || needsV6Migration || needsV7Migration || needsV8Migration || needsV9Migration || needsV10Migration || needsV11Migration) {
+  } else if (needsV4Migration || needsV5Migration || needsV6Migration || needsV7Migration || needsV8Migration || needsV9Migration || needsV10Migration || needsV11Migration || needsV12Migration) {
     const state = { ...initialState(), ...(safeJson(existingState.value, {}) || {}) };
     state.running = false;
     state.leaseUntil = null;
@@ -396,8 +396,10 @@ async function ensureSettings() {
       at: nowIso(),
       type: 'AUTOPILOT_UPGRADED',
       level: 'success',
-      message: needsV11Migration
-        ? 'Growth Autopilot upgraded with Terra as the default cost-efficient model plus timed pause controls.'
+      message: needsV12Migration
+        ? 'Growth Autopilot upgraded to persistent Start/Stop controls. Timed pauses no longer auto-resume.'
+        : needsV11Migration
+        ? 'Growth Autopilot upgraded with Terra as the default cost-efficient model.'
         : needsV10Migration
         ? 'Growth Autopilot upgraded with immediate in-process editorial repair, 10-minute outage recovery and interrupted-draft resume.'
         : needsV9Migration
@@ -1063,8 +1065,7 @@ async function runCycle(options = {}) {
   if (!options.force && !isAutopilotActive(config)) {
     return {
       skipped: true,
-      reason: config.enabled === false ? 'disabled' : 'temporarily_paused',
-      pauseUntil: config.pauseUntil || null
+      reason: 'disabled'
     };
   }
 
@@ -1580,8 +1581,6 @@ async function status() {
     control: {
       active,
       paused: !active,
-      temporaryPause: config.enabled !== false && isTemporarilyPaused(config),
-      pauseUntil: isTemporarilyPaused(config) ? config.pauseUntil : null,
       model: config.aiModel,
       modelLabel: modelLabel(config.aiModel),
       reasoningEffort: config.aiReasoningEffort
@@ -1630,8 +1629,7 @@ async function updateConfig(patch = {}) {
     || current.publishTimeZone !== next.publishTimeZone;
   const modelChanged = current.aiModel !== next.aiModel
     || current.aiReasoningEffort !== next.aiReasoningEffort;
-  const pauseChanged = current.enabled !== next.enabled
-    || current.pauseUntil !== next.pauseUntil;
+  const pauseChanged = current.enabled !== next.enabled;
 
   await prisma.appSetting.update({
     where: { key: CONFIG_KEY },
@@ -1654,22 +1652,15 @@ async function updateConfig(patch = {}) {
   if (pauseChanged) {
     if (next.enabled === false) {
       await recordEvent(
-        'AUTOPILOT_PAUSED',
-        'Growth Autopilot is paused until an administrator resumes it. Scheduled AI work is stopped.',
-        { pauseUntil: null, model: next.aiModel },
-        'warning'
-      );
-    } else if (isTemporarilyPaused(next)) {
-      await recordEvent(
-        'AUTOPILOT_PAUSED_UNTIL',
-        'Growth Autopilot is temporarily paused. Scheduled AI work will resume automatically at ' + next.pauseUntil + '.',
-        { pauseUntil: next.pauseUntil, model: next.aiModel },
+        'AUTOPILOT_STOPPED',
+        'Growth Autopilot was stopped by an administrator. Scheduled AI work stays off until Start is pressed.',
+        { model: next.aiModel },
         'warning'
       );
     } else if (!activeBefore && activeNow) {
       await recordEvent(
-        'AUTOPILOT_RESUMED',
-        'Growth Autopilot resumed. Scheduled AI work is active again.',
+        'AUTOPILOT_STARTED',
+        'Growth Autopilot started. Scheduled AI work is active again.',
         { model: next.aiModel },
         'success'
       );
@@ -1757,7 +1748,6 @@ function startGrowthAutopilot() {
       nextPublishAt: (await getState()).nextPublishAt,
       strategyModelReady: growthStrategy.ready(),
       active: isAutopilotActive(config),
-      pauseUntil: isTemporarilyPaused(config) ? config.pauseUntil : null,
       aiModel: config.aiModel,
       aiReasoningEffort: config.aiReasoningEffort
     });
