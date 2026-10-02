@@ -709,7 +709,7 @@ async function renderCampaignPostImage(userId, campaign, post, brandPack = {}) {
         pack.brandName ? `Official brand: ${pack.brandName}.` : '',
         pack.colors.length ? `Official extracted colour palette: ${pack.colors.join(', ')}.` : '',
         hasAuthoritativeVisual
-          ? 'Use the supplied official website and uploaded product references as visual truth. Preserve recognizable product details and brand presentation; do not replace them with imagined alternatives.'
+          ? 'Use supplied official website references as visual truth when available, and use uploaded product references as authoritative product evidence. Preserve recognizable product details and brand presentation; do not replace them with imagined alternatives.'
           : 'No verified brand visual is available. Keep the creative brand-neutral and do not invent a logo.',
         pack.logo
           ? 'The exact official logo will be composited by INXSocial after generation. Leave a clean top-left logo-safe area and do not draw or typeset a logo yourself.'
