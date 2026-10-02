@@ -31,9 +31,7 @@ import {
   RefreshCw,
   ScanSearch,
   Sparkles,
-  Trash2,
   UploadCloud,
-  WandSparkles,
   X,
 } from 'lucide-react'
 import {
@@ -236,7 +234,6 @@ function CreativeFlowWorkspaceInner({
   const analysis = project.workflow.analysis
   const running = project.activeJobType === 'PRODUCT_ANALYSIS'
   const blockedByAnother = Boolean(activeProject && activeProject.id !== project.id && activeProject.activeJobType)
-  const hasSource = Boolean(project.workflow.source.normalizedUrl || project.workflow.source.referenceAssetIds.length || normaliseUrlInput(urlDraft))
 
   const updateCachedProject = useCallback((next: CreativeFlowProject) => {
     queryClient.setQueryData(['creative-flow-project', next.id], next)
