@@ -558,6 +558,8 @@ function CreativeFlowWorkspaceInner({
       project.workflow.analysis ? 'analysis' : '',
       project.workflow.strategyPlan ? 'strategy' : '',
       project.renderCampaignId || '',
+      renderCampaign?.status || '',
+      String(renderCampaign?.posts.length || 0),
       project.workflow.review.revealedPostIds.join(','),
       project.workflow.review.selectedPostIds.join(','),
     ].join(':')
