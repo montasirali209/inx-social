@@ -259,6 +259,20 @@ export function getCreativeFlowProject(projectId: string) {
   ).then((response) => response.project)
 }
 
+export function saveCreativeFlowProjectSource(projectId: string, input: {
+  website?: string
+  referenceAssetIds?: string[]
+  referenceNames?: string[]
+}) {
+  return apiRequest<{ project: CreativeFlowProject }>(
+    `/api/ai-content-studio/creative-flow/projects/${encodeURIComponent(projectId)}/source`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+  ).then((response) => response.project)
+}
+
 export function analyzeCreativeFlowProject(projectId: string, input: {
   website?: string
   referenceAssetIds?: string[]
