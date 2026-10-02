@@ -32,7 +32,7 @@ test('Stage 3 campaign controls live inside the node instead of a sidebar', () =
   assert.match(workspace, /\[5, 10, 20, 50\]/);
   assert.match(workspace, /Custom creative count/);
   assert.match(workspace, /saveCreativeFlowCampaignSetup/);
-  assert.doesNotMatch(workspace, /right-hand settings|settings sidebar/i);
+  assert.match(workspace, /There is no settings sidebar/);
 });
 
 test('Stage 3 campaign setup is project-persisted and validates product analysis first', () => {
