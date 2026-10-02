@@ -60,6 +60,7 @@ import {
 import { uploadPostStudioReference } from '../../../lib/ai-post-studio-api'
 import {
   analyzeCreativeFlowProject,
+  generateCreativeFlowCampaign,
   getCreativeFlowGenerationEstimate,
   getCreativeFlowProject,
   getCreativeFlowRender,
@@ -257,24 +258,6 @@ function productIntelligencePosition(project: CreativeFlowProject) {
   }
 }
 
-function creativeStrategyPosition(project: CreativeFlowProject) {
-  const product = productIntelligencePosition(project)
-  const saved = project.workflow.canvas.positions.creativeStrategy
-  return {
-    x: Math.max(saved.x, product.x + 500),
-    y: saved.y,
-  }
-}
-
-function generateCreativesPosition(project: CreativeFlowProject) {
-  const strategy = creativeStrategyPosition(project)
-  const saved = project.workflow.canvas.positions.generateCreatives
-  return {
-    x: Math.max(saved.x, strategy.x + 470),
-    y: saved.y,
-  }
-}
-
 function focusNodeIds(project: CreativeFlowProject) {
   const processIds = ANALYSIS_STEPS.slice(0, analysisStepCount(project)).map((step) => step.id)
   if (project.activeJobType === 'PRODUCT_ANALYSIS' || project.currentStage === 'PRODUCT_ANALYSIS_RUNNING') {
@@ -283,31 +266,12 @@ function focusNodeIds(project: CreativeFlowProject) {
   if (!project.workflow.analysis) {
     return ['productUrl', 'productImages', 'analyzeProduct', ...processIds]
   }
-  if (project.currentStage === 'PRODUCT_READY' && !campaignConfigured(project)) {
-    return ['analyzeProduct', ...ANALYSIS_STEPS.map((step) => step.id), 'productIntelligence']
-  }
-  if (
-    project.activeJobType === 'STRATEGY_PLANNING' ||
-    ['CAMPAIGN_READY', 'STRATEGY_PLANNING', 'STRATEGY_FAILED'].includes(project.currentStage)
-  ) {
-    return ['productIntelligence', 'creativeStrategy']
-  }
   if (project.workflow.review.revealedPostIds.length) {
     return [
-      'generateCreatives',
+      'productIntelligence',
       ...project.workflow.review.revealedPostIds.map((id) => creativeNodeId(id)),
       ...(project.workflow.review.selectedPostIds.length ? ['scheduleCampaign'] : []),
     ]
-  }
-  if (
-    project.workflow.strategyPlan &&
-    (
-      project.activeJobType === 'CREATIVE_RENDER' ||
-      project.renderCampaignId ||
-      ['STRATEGY_READY', 'CREATIVE_RENDER_STARTING', 'CREATIVE_RENDER_RUNNING', 'CREATIVE_RENDER_FAILED', 'RENDER_READY', 'RENDER_PARTIAL'].includes(project.currentStage)
-    )
-  ) {
-    return ['creativeStrategy', 'generateCreatives']
   }
   return [...ANALYSIS_STEPS.map((step) => step.id), 'productIntelligence']
 }
@@ -317,21 +281,21 @@ function creativeNodeId(postId: string) {
 }
 
 function creativeNodePosition(project: CreativeFlowProject, _postId: string, index: number) {
-  const base = generateCreativesPosition(project)
+  const base = productIntelligencePosition(project)
   const column = index % 4
   const row = Math.floor(index / 4)
   return {
-    x: base.x + 430 + (column * 340),
-    y: base.y - 420 + (row * 480),
+    x: base.x + 520 + (column * 340),
+    y: base.y - 390 + (row * 480),
   }
 }
 
 function scheduleNodePosition(project: CreativeFlowProject, creativeCount: number) {
-  const base = generateCreativesPosition(project)
+  const base = productIntelligencePosition(project)
   const columns = Math.max(1, Math.min(4, Math.max(creativeCount, 1)))
   return {
-    x: base.x + 430 + (columns * 340) + 390,
-    y: base.y - 40,
+    x: base.x + 520 + (columns * 340) + 390,
+    y: base.y - 20,
   }
 }
 
@@ -359,7 +323,7 @@ function buildReviewGraph(
 
   const edges: Stage2Edge[] = visiblePosts.map((post) => ({
     id: `generate-${post.id}`,
-    source: 'generateCreatives',
+    source: 'productIntelligence',
     target: creativeNodeId(post.id),
     type: 'motion',
     data: {
@@ -421,24 +385,6 @@ function defaultNodes(project: CreativeFlowProject): Stage2Node[] {
       data: {},
       draggable: true,
     })
-    if (campaignConfigured(project)) {
-      nodes.push({
-        id: 'creativeStrategy',
-        type: 'creativeStrategy',
-        position: creativeStrategyPosition(project),
-        data: {},
-        draggable: true,
-      })
-    }
-    if (project.workflow.strategyPlan) {
-      nodes.push({
-        id: 'generateCreatives',
-        type: 'generateCreatives',
-        position: generateCreativesPosition(project),
-        data: {},
-        draggable: true,
-      })
-    }
   }
 
   return nodes
@@ -456,6 +402,7 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
       source: 'productUrl',
       target: 'analyzeProduct',
       type: 'motion',
+      zIndex: 6,
       data: { active: running && currentProgress <= 1, complete: running || analysisReady },
     },
     {
@@ -463,6 +410,7 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
       source: 'productImages',
       target: 'analyzeProduct',
       type: 'motion',
+      zIndex: 6,
       data: { active: running && currentProgress <= 1, complete: running || analysisReady },
     },
   ]
@@ -474,6 +422,7 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
       source: 'analyzeProduct',
       target: first.id,
       type: 'motion',
+      zIndex: 6,
       data: { active: running && currentProgress <= 1, complete: analysisReady || currentProgress > 1 },
     })
 
@@ -485,6 +434,7 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
         source: previous.id,
         target: step.id,
         type: 'motion',
+        zIndex: 6,
         data: {
           active: running && currentProgress === index + 1,
           complete: analysisReady || currentProgress > index + 1,
@@ -500,33 +450,10 @@ function defaultEdges(project: CreativeFlowProject): Stage2Edge[] {
         source: step.id,
         target: 'productIntelligence',
         type: 'motion',
+        zIndex: 6,
         data: { active: false, complete: true },
       })
     })
-
-    const campaignReady = campaignConfigured(project)
-    const strategyRunning = project.activeJobType === 'STRATEGY_PLANNING'
-    const strategyReady = Boolean(project.workflow.strategyPlan)
-    const renderRunning = project.activeJobType === 'CREATIVE_RENDER'
-
-    if (campaignReady) {
-      edges.push({
-        id: 'intelligence-strategy',
-        source: 'productIntelligence',
-        target: 'creativeStrategy',
-        type: 'motion',
-        data: { active: strategyRunning, complete: strategyReady },
-      })
-    }
-    if (strategyReady) {
-      edges.push({
-        id: 'strategy-generate',
-        source: 'creativeStrategy',
-        target: 'generateCreatives',
-        type: 'motion',
-        data: { active: renderRunning, complete: renderFinished(project) },
-      })
-    }
   }
 
   return edges
